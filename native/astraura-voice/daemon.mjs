@@ -4,8 +4,28 @@
  * StarSeed OS — MOTOR DE VOZ ASTRAURA (paquete NATIVO) · daemon.mjs
  * ============================================================================
  * EL ASTRAURA DAEMON — un servidor HTTP puro (módulo `http` de Node, cero
- * dependencias) que escucha SÓLO en 127.0.0.1:4444 y ENVUELVE el binario CLI
- * `omnivoice-tts` de omnivoice.cpp (que NO trae servidor propio).
+ * dependencias) que escucha SÓLO en 127.0.0.1:4444 y habla con el motor
+ * omnivoice.cpp de DOS formas (Adenda 89 — pool de tts-server):
+ *
+ *   1) PRIMARIA — un POOL de servidores `tts-server` (uno POR IDIOMA, en
+ *      127.0.0.1:4500+n): cada uno carga el modelo UNA vez (residente en GPU)
+ *      y lo mantiene, así que la síntesis siguiente es rápida y fiable. El
+ *      daemon los lanza de forma perezosa (EAGER sólo el idioma primario,
+ *      español, al arrancar), sondea su `/health` y los reutiliza mientras
+ *      estén vivos (LRU acotado a 3 idiomas a la vez; el más inactivo se mata
+ *      si hace falta sitio para uno nuevo).
+ *   2) RESPALDO — el CLI one-shot `omnivoice-tts` (recarga el modelo entero en
+ *      CADA llamada, ~25 s) si el servidor de ese idioma no se pudo lanzar, su
+ *      `/health` no respondió a tiempo, o la síntesis por HTTP falló. Nunca
+ *      deja al usuario sin voz.
+ *
+ * El "diseño" de la voz (género/edad/tono/acento) YA NO es texto libre: el
+ * servidor sólo admite un VOCABULARIO CERRADO de tokens en `instructions` (ver
+ * `VALID_INSTRUCT_TOKENS`) — el daemon SANEA cualquier instruct de entrada
+ * contra ese vocabulario y, si no pasa, usa el default válido de la
+ * personalidad (`INSTRUCT_BY_PERSONALITY`). El `--seed` sigue siendo estable
+ * por personalidad (mismo timbre siempre). El idioma HABLADO no es parte del
+ * instruct: lo fija `--lang` al lanzar cada servidor de ese idioma.
  *
  * Es el puente local del "Motor de Voz Híbrido": el frontend (StarSeed OS en el
  * navegador) le habla en http://127.0.0.1:4444; si el daemon no está listo, el
@@ -14,21 +34,27 @@
  *
  * Endpoints:
  *   GET  /status  → handshake JSON { ok, engine, ready, model, tier, backend,
- *                   version, warm, uptime, sampleRate, idleMs, busy, ... }
- *   POST /tts     → { text, lang?, ... } → cuerpo binario audio/wav (24 kHz)
+ *                   version, warm, serverPool, uptime, sampleRate, idleMs,
+ *                   busy, ... }
+ *   POST /tts     → { text, lang?, personality?, instruct?, ... } → cuerpo
+ *                   binario audio/wav (24 kHz); servidor residente → CLI
+ *   POST /identity→ NO-OP honesto (compat): el servidor no clona referencias
+ *   POST /warm    → asegura (lanza si hace falta) el servidor del idioma
+ *                   primario (Spanish)
  *   OPTIONS *     → preflight CORS
  *
  * SEGURIDAD: allowlist CORS ESTRICTA (lib.isAllowedOrigin). Un Origin presente y
  * NO permitido recibe 403 sin cuerpo. Sin Origin (curl, apps nativas) se sirve
  * normal (no hay nada que "cross-originar" en loopback).
  *
- * LAZY-LOAD / AUTO-SLEEP (honestidad radical, ver comentario en el temporizador):
- * el CLI es "one-shot" (carga el modelo, sintetiza y muere), así que NO existe un
- * proceso de modelo persistente que "precalentar". Aquí "caliente" = daemon listo
- * + modelos probablemente en la caché de página del SO (tras un uso reciente);
- * "dormido" = tras 10 min sin síntesis purgamos la caché en RAM y sugerimos al SO
- * liberar. El overhead del DAEMON es <500 ms; el coste real de cargar el modelo lo
- * pone el CLI en cada llamada (eso no lo podemos eliminar sin un servidor de modelo).
+ * "CALIENTE" / AUTO-SLEEP (honestidad radical, ver comentario en el temporizador):
+ * ahora SÍ hay procesos de modelo residentes (los `tts-server` del pool), así
+ * que "caliente" = al menos uno está lanzado y listo (`isWarm()`, derivada del
+ * pool, ya no una bandera manual); "dormido" = tras 10 min sin síntesis MATAMOS
+ * todos los servidores del pool (libera GPU/RAM) y purgamos la caché de WAV en
+ * RAM. La siguiente síntesis (o un `/warm`) los relanza. El CLI de respaldo
+ * sigue pagando su carga en cada llamada — eso es inherente al binario one-shot
+ * y no cambia.
  *
  * ROBUSTO: ninguna petición mala tumba el proceso. Todo log a logs/daemon.log.
  */
@@ -55,54 +81,99 @@ import {
   sha256,
 } from "./lib.mjs";
 
-// ── Instruct por idioma (fix del acento importado, 2026-07-21) ──────────────
-// ANTES el --instruct por defecto de las voces insignia estaba SOLO en inglés,
-// así que aunque el CLI sintetizara en español, la GUÍA de estilo llegaba en
-// inglés y arrastraba acento. Mapa pequeño por (personalidad, idioma-base):
-// español → instruct en español; inglés → el mismo texto de siempre; cualquier
-// otro idioma → un default neutro (sin mención de acento). El --seed sigue
-// dependiendo SOLO de la personalidad (mismo timbre pase lo que pase el
-// idioma) — ver seedBasis más abajo, sin tocar.
-const INSTRUCT_BY_PERSONALITY_LANG = {
-  aurora: {
-    es: "voz femenina joven, cálida, sincera y decidida, español natural y claro",
-    en: "young warm female voice, sincere and determined, soft but confident",
-    default: "young warm female voice, sincere and determined, soft but confident, natural native accent of the spoken language",
-  },
-  hermione: {
-    es: "voz femenina joven, ágil, precisa y articulada, con calidez",
-    en: "young bright female voice, quick, precise and articulate, playful warmth, British accent",
-    default: "young bright female voice, quick, precise and articulate, playful warmth, natural native accent of the spoken language",
-  },
+// ── Vocabulario e instruct por personalidad (Adenda 89) ──────────────────────
+// DESCUBRIMIENTO CLAVE (leyendo el código fuente de `tts-server`): `instructions`
+// NO admite texto libre — sólo acepta estos TOKENS EN INGLÉS separados por
+// "coma+espacio". Cualquier otro token (texto libre, español…) hace fallar la
+// síntesis con 400. Esto INVALIDA los instructs de texto libre que usaba antes
+// este daemon (p.ej. "voz femenina joven, cálida…"): ahora se construyen SOLO
+// con tokens de este vocabulario. El idioma HABLADO no se controla aquí — lo
+// fija `--lang` al lanzar el servidor de ese idioma (ver el pool más abajo);
+// por eso no hay tokens de "acento español": para hablar español basta con
+// `--lang Spanish` y el instruct sólo aporta género/edad/tono.
+const VALID_INSTRUCT_TOKENS = new Set([
+  // género
+  "female", "male",
+  // edad
+  "child", "teenager", "young adult", "middle-aged", "elderly",
+  // tono
+  "very low pitch", "low pitch", "moderate pitch", "high pitch", "very high pitch",
+  // otros
+  "whisper",
+  // acentos (sólo tienen sentido si el idioma hablado del servidor es inglés)
+  "american accent", "australian accent", "british accent", "canadian accent",
+  "chinese accent", "indian accent", "japanese accent", "korean accent",
+  "portuguese accent", "russian accent",
+]);
+
+/** Instruct por defecto (SIEMPRE tokens válidos) por personalidad. */
+const INSTRUCT_BY_PERSONALITY = {
+  aurora: "female, young adult, moderate pitch",
+  hermione: "female, young adult, british accent",
+  default: "female, young adult",
 };
+
+/** Nº máximo de tokens que aceptamos en un instruct (blindaje anti-abuso). */
+const MAX_INSTRUCT_TOKENS = 8;
+
+/**
+ * Sanea un instruct de entrada (p.ej. `body.instruct`, texto libre que puede
+ * venir de un ajuste de usuario en el frontend): sólo lo acepta si TODOS sus
+ * tokens (separados por coma) están, en minúsculas, en `VALID_INSTRUCT_TOKENS`.
+ * Si viene vacío, no es una cadena, no supera el saneo o excede el máximo de
+ * tokens, devuelve `null` — el llamador debe entonces usar el default de la
+ * personalidad. Nunca lanza.
+ */
+function sanitizeInstruct(raw) {
+  if (typeof raw !== "string" || !raw.trim()) return null;
+  const tokens = raw
+    .split(",")
+    .map((t) => t.trim().toLowerCase())
+    .filter(Boolean);
+  if (!tokens.length || tokens.length > MAX_INSTRUCT_TOKENS) return null;
+  if (!tokens.every((t) => VALID_INSTRUCT_TOKENS.has(t))) return null;
+  return tokens.join(", ");
+}
 
 // ── Parámetros de operación ──────────────────────────────────────────────────
 
-const SLEEP_MS = 10 * 60 * 1000; // 10 min sin síntesis → dormir (purgar RAM)
-const SYNTH_TIMEOUT_MS = 180 * 1000; // presupuesto por síntesis del CLI
+const SLEEP_MS = 10 * 60 * 1000; // 10 min sin síntesis → dormir (matar servidores + purgar RAM)
+const SYNTH_TIMEOUT_MS = 180 * 1000; // presupuesto por síntesis del CLI (one-shot, recarga el modelo)
+const SERVER_SYNTH_TIMEOUT_MS = 60 * 1000; // presupuesto por síntesis del SERVIDOR (modelo ya residente: mucho más rápido)
 const MAX_BODY_BYTES = 512 * 1024; // límite del cuerpo POST
 const MAX_TEXT_CHARS = 8000; // límite de texto por locución
 const MAX_QUEUE = 8; // síntesis en cola antes de responder 503
 const RAM_CACHE_MAX = 16; // WAV cacheados en RAM (se purgan al dormir)
 const DISK_CACHE_MAX = 64; // WAV cacheados en disco (cache/)
 
+// ── Parámetros del POOL de servidores tts-server (uno residente por idioma) ──
+const SERVER_BASE_PORT = 4500; // base de puertos del pool (el daemon usa 4444)
+const SERVER_PORT_RANGE = 1000; // puertos [4500, 5499): de sobra para un pool de 3
+const SERVER_POOL_MAX = 3; // nº máx. de servidores tts-server vivos a la vez (LRU)
+const SERVER_HEALTH_TIMEOUT_MS = 30 * 1000; // plazo máx. para que /health diga "ok"
+const SERVER_HEALTH_POLL_MS = 300; // intervalo de sondeo de /health mientras carga
+const PRIMARY_LANG = "Spanish"; // idioma que se precalienta EAGER al arrancar el daemon
+
 // ── Estado en vivo ───────────────────────────────────────────────────────────
 
 const startedAt = Date.now();
 let lastReq = Date.now(); // última SÍNTESIS (no cuenta /status)
-// Arranca FRÍO (Adenda 88): el modelo aún no se ha cargado en esta instancia, así
-// que /status reporta warm:false y el frontend da el presupuesto EN FRÍO (~75 s) al
-// primer turno → nunca agota el tiempo y cae a la nube. El primer /tts (o /warm) lo
-// pone caliente. Antes arrancaba optimista en true y el primer turno tras reiniciar
-// podía caer a la nube robótica si el modelo no estaba ya en la caché de página.
-let warm = false;
-let inFlight = 0; // síntesis del CLI ejecutándose ahora
+// "Caliente" YA NO es una bandera manual (Adenda 88) sino un HECHO observable:
+// hay al menos un servidor tts-server RESIDENTE con el modelo cargado en GPU
+// (ver isWarm() más abajo, derivada de `serverPool`). Arranca FRÍO igual que
+// antes (el pool empieza vacío); el arranque EAGER del idioma primario (ver
+// "Arranque" al final del fichero) lo pone caliente en cuanto puede.
+let inFlight = 0; // síntesis (servidor o CLI) ejecutándose ahora
 let queueDepth = 0; // síntesis esperando su turno
 const ramCache = new Map(); // hash → Buffer (LRU sencillo)
 
-// ── Cola de síntesis (serializa el CLI: 1 carga de modelo a la vez) ──────────
+// ── Cola de síntesis (serializa TODA síntesis: servidor o CLI) ───────────────
 // El CLI carga el modelo entero en CADA llamada; en máquinas modestas dos cargas
-// simultáneas podrían agotar la RAM. Serializamos con una cadena de promesas.
+// simultáneas podrían agotar la RAM. El servidor residente es más barato, pero
+// comparte la MISMA GPU entre idiomas — seguimos serializando por simplicidad y
+// seguridad (nunca dos inferencias peleándose por la misma tarjeta). Un único
+// trabajo de la cola intenta primero el servidor y, si hace falta, cae al CLI
+// (ver handleTts): sigue siendo "una carga/inferencia cara a la vez".
 let chain = Promise.resolve();
 function enqueue(job) {
   if (queueDepth >= MAX_QUEUE) return Promise.reject(new Error("cola llena"));
@@ -131,6 +202,10 @@ function resolvePaths(cfg) {
   const buildDir = cfg?.paths?.buildDir || PATHS.buildDir;
   return {
     tts: cfg?.paths?.tts || path.join(buildDir, BIN.tts),
+    // tts-server (Adenda 89): servidor HTTP hermano del CLI, mismo buildDir —
+    // ver cabecera del fichero. `paths.ttsServer` queda disponible para una
+    // futura config.json explícita, igual que `tts`/`codec`.
+    ttsServer: cfg?.paths?.ttsServer || path.join(buildDir, BIN.ttsServer),
     repoDir: cfg?.repoDir || PATHS.repoDir,
     modelFile: cfg?.modelFile || "",
     codecFile: cfg?.codecFile || "",
@@ -194,6 +269,252 @@ function ramCachePut(hash, buf) {
   while (ramCache.size > RAM_CACHE_MAX) {
     const oldest = ramCache.keys().next().value;
     ramCache.delete(oldest);
+  }
+}
+
+// ── Pool de servidores tts-server (uno residente por idioma) ────────────────
+// `tts-server` es un servidor HTTP que carga el modelo UNA vez (queda residente
+// en GPU) y lo mantiene mientras vive. A diferencia del CLI `omnivoice-tts`
+// (one-shot: carga+sintetiza+muere en CADA llamada), aquí pagamos la carga
+// SÓLO al lanzar el proceso — las síntesis siguientes son rápidas. Gestionamos
+// UN proceso por idioma (el `--lang` de tts-server es fijo para toda su vida),
+// en un pool acotado a `SERVER_POOL_MAX` idiomas simultáneos con desalojo LRU.
+//
+//   serverPool: Map<langName, entry>
+//   entry = { lang, port, proc, ready, dead, killedByUs, startedAt, lastUsed,
+//             readyPromise }
+//
+// NUNCA lanza: cualquier fallo (binario ausente, puerto ocupado, timeout de
+// /health…) deja `entry.dead = true` y `getReadyServer` devuelve `null` — el
+// llamador (handleTts / handleWarm) cae entonces al CLI de respaldo.
+
+const serverPool = new Map();
+let nextPortIndex = 0;
+
+/** ¿Hay al menos un servidor tts-server residente y listo? Esto ES "caliente". */
+function isWarm() {
+  for (const e of serverPool.values()) {
+    if (e.ready && !e.dead) return true;
+  }
+  return false;
+}
+
+/** Resumen del pool para /status: idiomas activos, en arranque, cupo y tamaño. */
+function serverPoolSummary() {
+  const active = [];
+  const launching = [];
+  for (const [lang, e] of serverPool) {
+    if (e.dead) continue;
+    (e.ready ? active : launching).push(lang);
+  }
+  return { active, launching, max: SERVER_POOL_MAX, size: serverPool.size };
+}
+
+/** Mata (SIGTERM) el servidor de un idioma y lo saca del pool. Idempotente. */
+function killServerEntry(lang, reason) {
+  const entry = serverPool.get(lang);
+  if (!entry) return;
+  serverPool.delete(lang);
+  entry.dead = true;
+  entry.ready = false;
+  entry.killedByUs = true;
+  try {
+    if (entry.proc && !entry.proc.killed) entry.proc.kill("SIGTERM");
+  } catch {
+    /* */
+  }
+  log("daemon", `tts-server[${lang}] detenido (puerto ${entry.port}): ${reason}`);
+}
+
+/** Mata TODOS los servidores del pool (SIGTERM/SIGINT del daemon, auto-sleep). */
+function killAllServers(reason) {
+  for (const lang of [...serverPool.keys()]) killServerEntry(lang, reason);
+}
+
+/** Desaloja (mata) el servidor con `lastUsed` más antiguo (política LRU). */
+function evictOldestServer() {
+  let oldestLang = null;
+  let oldestAt = Infinity;
+  for (const [lang, e] of serverPool) {
+    if (e.lastUsed < oldestAt) {
+      oldestAt = e.lastUsed;
+      oldestLang = lang;
+    }
+  }
+  if (oldestLang) killServerEntry(oldestLang, "cupo del pool lleno (LRU)");
+}
+
+/**
+ * Lanza `tts-server` para un idioma y sondea `GET /health` hasta que responda
+ * `{status:"ok"}` o venza `SERVER_HEALTH_TIMEOUT_MS`. Actualiza `entry` in situ
+ * (`ready`/`dead`). Devuelve una promesa de `boolean` (true = quedó listo) que
+ * NUNCA rechaza.
+ */
+function launchServer(entry, paths) {
+  return new Promise((resolve) => {
+    if (!fileOk(paths.ttsServer)) {
+      entry.dead = true;
+      log("daemon", `tts-server[${entry.lang}]: falta el binario en ${paths.ttsServer}`);
+      return resolve(false);
+    }
+    const args = [
+      "--model", paths.modelFile,
+      "--codec", paths.codecFile,
+      "--host", DAEMON_HOST,
+      "--port", String(entry.port),
+      "--lang", entry.lang,
+    ];
+    let proc;
+    try {
+      proc = spawn(paths.ttsServer, args, { cwd: paths.repoDir, stdio: ["ignore", "pipe", "pipe"] });
+    } catch (e) {
+      entry.dead = true;
+      log("daemon", `tts-server[${entry.lang}]: no se pudo lanzar: ${e.message}`);
+      return resolve(false);
+    }
+    entry.proc = proc;
+    entry.startedAt = Date.now();
+
+    // Cola circular de salida (para diagnosticar un arranque o una muerte
+    // inesperada; nunca crece sin límite).
+    let outputTail = "";
+    const capture = (d) => {
+      outputTail += String(d);
+      if (outputTail.length > 4096) outputTail = outputTail.slice(-4096);
+    };
+    proc.stdout?.on("data", capture);
+    proc.stderr?.on("data", capture);
+
+    proc.on("error", (e) => {
+      entry.dead = true;
+      entry.ready = false;
+      log("daemon", `tts-server[${entry.lang}] error de proceso: ${e.message}`);
+    });
+    proc.on("exit", (code, signal) => {
+      entry.dead = true;
+      entry.ready = false;
+      // Si lo matamos nosotros (LRU/auto-sleep/cierre) ya quedó logueado en
+      // killServerEntry; sólo alertamos aquí de una muerte NO pedida (crash).
+      if (!entry.killedByUs) {
+        log(
+          "daemon",
+          `tts-server[${entry.lang}] (puerto ${entry.port}) salió de forma inesperada` +
+            ` (code=${code} signal=${signal}): ${outputTail.trim().slice(-500)}`,
+        );
+      }
+    });
+
+    // Sondeo de /health hasta SERVER_HEALTH_TIMEOUT_MS (el socket puede tardar
+    // unos segundos en escuchar mientras el modelo se carga en GPU).
+    const deadline = Date.now() + SERVER_HEALTH_TIMEOUT_MS;
+    const poll = async () => {
+      if (entry.dead) return resolve(false);
+      try {
+        const r = await fetch(`http://${DAEMON_HOST}:${entry.port}/health`, {
+          signal: AbortSignal.timeout(2000),
+        });
+        if (r.ok) {
+          const j = await r.json().catch(() => null);
+          if (j && j.status === "ok") {
+            entry.ready = true;
+            log("daemon", `tts-server[${entry.lang}] listo en el puerto ${entry.port} (${Date.now() - entry.startedAt} ms)`);
+            return resolve(true);
+          }
+        }
+      } catch {
+        /* aún no escucha, o el modelo sigue cargando: reintenta */
+      }
+      if (entry.dead) return resolve(false);
+      if (Date.now() >= deadline) {
+        log("daemon", `tts-server[${entry.lang}]: /health no respondió a tiempo (${SERVER_HEALTH_TIMEOUT_MS} ms)`);
+        return resolve(false);
+      }
+      setTimeout(poll, SERVER_HEALTH_POLL_MS);
+    };
+    poll();
+  });
+}
+
+/**
+ * Asegura la ENTRADA del pool para un idioma (la crea y lanza su proceso si
+ * hace falta; reutiliza la existente si ya está viva o arrancando). Aplica LRU
+ * si el pool está lleno. Síncrona: sin `await` antes de registrar la entrada
+ * en `serverPool`, así dos peticiones "simultáneas" para el MISMO idioma nunca
+ * lanzan dos procesos (Node es de un solo hilo: no hay carrera posible).
+ */
+function ensureServerEntry(langName, paths) {
+  const existing = serverPool.get(langName);
+  if (existing && !existing.dead) {
+    existing.lastUsed = Date.now();
+    return existing;
+  }
+  if (!serverPool.has(langName) && serverPool.size >= SERVER_POOL_MAX) {
+    evictOldestServer();
+  }
+  const port = SERVER_BASE_PORT + (nextPortIndex++ % SERVER_PORT_RANGE);
+  const entry = {
+    lang: langName,
+    port,
+    proc: null,
+    ready: false,
+    dead: false,
+    killedByUs: false,
+    startedAt: 0,
+    lastUsed: Date.now(),
+    readyPromise: null,
+  };
+  serverPool.set(langName, entry);
+  entry.readyPromise = launchServer(entry, paths);
+  return entry;
+}
+
+/**
+ * Punto de entrada del pool: devuelve la `entry` LISTA de un idioma (lanzándola
+ * si hace falta y esperando su sondeo de salud), o `null` si no se pudo dejar
+ * lista a tiempo. Nunca lanza.
+ */
+async function getReadyServer(langName, paths) {
+  try {
+    const entry = ensureServerEntry(langName, paths);
+    await entry.readyPromise;
+    entry.lastUsed = Date.now();
+    return entry.ready && !entry.dead ? entry : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Pide la síntesis al SERVIDOR RESIDENTE ya listo de un idioma. Habla el
+ * protocolo verificado de `tts-server`: POST /v1/audio/speech con
+ * {input, instructions, seed, response_format:"wav"} → 200 audio/wav, o 400
+ * {error:{message}} si el instruct no es válido. NO manda ref-wav: el
+ * servidor no clona (ver §/identity más abajo). Devuelve {ok, buffer|error}.
+ * Nunca lanza.
+ */
+async function synthViaServer(entry, { text, instructions, seed }) {
+  try {
+    const r = await fetch(`http://${DAEMON_HOST}:${entry.port}/v1/audio/speech`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ input: text, instructions, seed, response_format: "wav" }),
+      signal: AbortSignal.timeout(SERVER_SYNTH_TIMEOUT_MS),
+    });
+    if (!r.ok) {
+      let msg = `HTTP ${r.status}`;
+      try {
+        const j = await r.json();
+        if (j?.error?.message) msg = j.error.message;
+      } catch {
+        /* el cuerpo del error no era JSON */
+      }
+      return { ok: false, error: `tts-server respondió ${r.status}: ${msg}` };
+    }
+    const buf = Buffer.from(await r.arrayBuffer());
+    if (!isWav(buf)) return { ok: false, error: "tts-server: la respuesta no es un WAV válido" };
+    return { ok: true, buffer: buf };
+  } catch (e) {
+    return { ok: false, error: `fallo al hablar con tts-server: ${e?.message || e}` };
   }
 }
 
@@ -345,32 +666,29 @@ async function handleTts(req, res, cors) {
 
   const langName = resolveLang(body.lang, "Spanish");
   // Idioma BASE (2 letras) de ESTA locución: gobierna qué referencia por
-  // idioma se clona (o no) y qué instruct nativo se usa (fix del acento
-  // importado, 2026-07-21). Mismo default ("es") que resolveLang/langName.
+  // idioma clona el CAMINO DE RESPALDO del CLI (ver más abajo; el camino
+  // PRIMARIO del servidor no clona nada). Mismo default ("es") que
+  // resolveLang/langName.
   const langBase = langBaseOf(body.lang);
   const speed = Number.isFinite(body.speed) ? body.speed : 1;
 
-  // Clonación de voz: ref_wav_path (o voice_clone_prompt como ruta a WAV) + ref_text.
+  // Clonación de voz (SÓLO camino de respaldo del CLI: el servidor NO clona,
+  // ver §/identity): ref_wav_path (o voice_clone_prompt como ruta a WAV) + ref_text.
   let refWav =
     (typeof body.ref_wav_path === "string" && body.ref_wav_path) ||
     (typeof body.voice_clone_prompt === "string" && body.voice_clone_prompt.endsWith(".wav") && body.voice_clone_prompt) ||
     "";
   let refTextFile = refWav ? resolveRefTextFile(body.ref_text) : "";
 
-  // IDENTIDAD POR PERSONALIDAD *Y POR IDIOMA* (Adenda 87 + fix del acento
-  // importado, 2026-07-21): si el cuerpo trae `personality` ("aurora" ·
-  // "hermione" · id) y hay una referencia guardada en
-  // refs/<id>.<langBase>.wav (subida vía POST /identity con ese `lang`), se
-  // CLONA automáticamente esa identidad — voz FEMENINA consistente y continua
-  // en TODAS las síntesis locales de ESE idioma. Una referencia grabada/
-  // diseñada en OTRO idioma NUNCA se clona para hablar este — eso es
-  // exactamente lo que arrastraba acento inglés al español. Si no existe una
-  // ref para este idioma, NO se clona nada: se sintetiza solo con
-  // --instruct (ya nativo del idioma, ver INSTRUCT_BY_PERSONALITY_LANG) +
-  // --seed estable → voz nativa del idioma, sin acento importado.
   const personality = typeof body.personality === "string"
     ? body.personality.toLowerCase().replace(/[^a-z0-9_-]/g, "").slice(0, 40)
     : "";
+  // IDENTIDAD POR PERSONALIDAD *Y POR IDIOMA* (Adenda 87): si el cuerpo trae
+  // `personality` y hay una referencia guardada en refs/<id>.<langBase>.wav
+  // (histórico; /identity ya no escribe ninguna, ver más abajo), el camino de
+  // RESPALDO del CLI la clona. Una referencia grabada en OTRO idioma NUNCA se
+  // clona para hablar este. Si no existe, no se clona nada: sólo --instruct
+  // (vocabulario, ver INSTRUCT_BY_PERSONALITY) + --seed estable.
   if (!refWav && personality) {
     const idWav = path.join(PATHS.refsDir, `${personality}.${langBase}.wav`);
     const idTxt = path.join(PATHS.refsDir, `${personality}.${langBase}.txt`);
@@ -382,38 +700,39 @@ async function handleTts(req, res, cors) {
     } catch { /* sin identidad guardada para este idioma: sigue sin clonar */ }
   }
 
-  // ESTILO real (--instruct) + SEMILLA determinista (--seed) por personalidad:
-  // mismo timbre SIEMPRE aunque no haya referencia (el seed fija el muestreo).
-  let instruct = typeof body.instruct === "string" ? body.instruct : "";
-  // Sin instruct explícito, las voces insignia hablan FEMENINO por defecto
-  // (Adenda 87) con el instruct NATIVO del idioma de esta locución (fix del
-  // acento importado: antes el default SOLO existía en inglés).
-  if (!instruct) {
-    const personaKey = personality === "hermione" ? "hermione" : "aurora"; // sin personalidad: identidad Aurora
-    const instructTable = INSTRUCT_BY_PERSONALITY_LANG[personaKey];
-    instruct = instructTable[langBase] || instructTable.default;
-  }
-  let seed = Number.isFinite(body.seed) ? Number(body.seed) : NaN;
-  const seedBasis = personality || "aurora"; // sin personalidad: identidad Aurora
-  if (!Number.isFinite(seed) && seedBasis) {
-    // Semilla estable derivada del id (determinista entre reinicios).
-    let h = 0;
-    for (const ch of seedBasis) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
-    seed = 700000 + (h % 90000);
-  }
-
-  // Campos aceptados por compatibilidad pero sin flag en el CLI.
+  // Campos aceptados por compatibilidad pero sin flag en el CLI/servidor.
   const ignored = [];
   for (const k of ["voice_design", "normalize", "allow_non_verbal"]) {
     if (body[k] !== undefined && body[k] !== null && body[k] !== "") ignored.push(k);
   }
 
-  // Marca actividad (mantiene "caliente") y clave de caché (incluye identidad).
+  // INSTRUCT VÁLIDO (vocabulario cerrado, Adenda 89 — ver VALID_INSTRUCT_TOKENS):
+  // si `body.instruct` viene informado se sanea contra el vocabulario; si NO
+  // pasa el saneo (texto libre, español, token desconocido…) se IGNORA (se
+  // anota en X-Astraura-Ignored) y se usa el default de la personalidad.
+  // SIEMPRE saneado: nunca se reenvía texto libre al servidor ni al CLI.
+  const personaKey = personality || "aurora"; // sin personalidad: identidad Aurora
+  let instruct = sanitizeInstruct(body.instruct);
+  if (!instruct) {
+    if (typeof body.instruct === "string" && body.instruct.trim()) ignored.push("instruct");
+    instruct = INSTRUCT_BY_PERSONALITY[personaKey] || INSTRUCT_BY_PERSONALITY.default;
+  }
+
+  // SEMILLA determinista por personalidad (Adenda 87, fórmula intacta): mismo
+  // timbre SIEMPRE aunque no haya referencia (el seed fija el muestreo).
+  let seed = Number.isFinite(body.seed) ? Math.trunc(Number(body.seed)) : NaN;
+  if (!Number.isFinite(seed)) {
+    let h = 0;
+    for (const ch of personaKey) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+    seed = 700000 + (h % 90000);
+  }
+
+  // Marca actividad (cuenta para /status.idleMs y el auto-sleep) y clave de
+  // caché (incluye idioma + identidad + instruct + seed).
   lastReq = Date.now();
-  warm = true;
   const cfg = state.cfg || {};
   const variantTag = cfg?.variant?.quant || "";
-  const key = sha256([text, langName, langBase, refWav, refTextFile, speed, variantTag, instruct, String(seed || "")].join("|"));
+  const key = sha256([text, langName, langBase, refWav, refTextFile, speed, variantTag, instruct, String(seed)].join("|"));
 
   const extraHeaders = {
     "X-Astraura-Engine": "omnivoice.cpp",
@@ -442,11 +761,23 @@ async function handleTts(req, res, cors) {
     /* */
   }
 
-  // 3) Síntesis real (serializada por la cola).
+  // 3) Síntesis real. Preferimos el SERVIDOR RESIDENTE del idioma (modelo ya
+  // cargado en GPU: rápido y fiable); si no se puede lanzar, su /health no
+  // responde a tiempo, o el POST falla, caemos al CLI one-shot de siempre
+  // (más lento, pero nunca deja al usuario sin voz) — con el MISMO instruct
+  // válido y la MISMA seed. Un único trabajo de la cola serializa el intento
+  // completo (servidor→CLI): sigue siendo "una inferencia cara a la vez".
+  const serverEntry = await getReadyServer(langName, state.paths);
+
   let result;
   try {
-    result = await enqueue(() =>
-      runTts({
+    result = await enqueue(async () => {
+      if (serverEntry) {
+        const r = await synthViaServer(serverEntry, { text, instructions: instruct, seed });
+        if (r.ok) return { ...r, engine: "server" };
+        log("daemon", `tts-server[${langName}] síntesis fallida, caigo al CLI: ${r.error}`);
+      }
+      const r2 = await runTts({
         ttsBin: state.paths.tts,
         repoDir: state.paths.repoDir,
         modelFile: state.paths.modelFile,
@@ -455,16 +786,20 @@ async function handleTts(req, res, cors) {
         text,
         refWav,
         refTextFile,
-      }),
-    );
+        instruct,
+        seed,
+      });
+      return { ...r2, engine: "cli" };
+    });
   } catch (e) {
     return sendJson(res, 503, cors, { ok: false, error: `daemon ocupado: ${e.message}` });
   }
 
   if (!result.ok) {
-    log("daemon", `síntesis fallida: ${result.error}`);
+    log("daemon", `síntesis fallida (servidor+CLI): ${result.error}`);
     return sendJson(res, 500, cors, { ok: false, error: result.error });
   }
+  extraHeaders["X-Astraura-Backend"] = result.engine === "server" ? "tts-server" : "omnivoice-tts-cli";
 
   // Guarda en cachés (el WAV base, SIN el retimeo de velocidad).
   ramCachePut(key, result.buffer);
@@ -501,105 +836,68 @@ function sendWav(res, cors, buf, extra) {
   res.end(buf);
 }
 
-// ── /identity — guarda la IDENTIDAD de voz de una personalidad (Adenda 87) ──
+// ── /identity — NO-OP HONESTO (Adenda 89: pool de tts-server) ───────────────
 //
-// POST { personality: "aurora", wav_b64: "<base64 WAV ≤ 2 MB>", text: "transcripción",
-//         lang?: "es" }
-// REFERENCIAS POR IDIOMA (fix del acento importado, 2026-07-21): con `lang`
-// (código base, p.ej. "es"/"en"), la referencia queda en
-// refs/<id>.<langBase>.wav (+ .txt) y SOLO las síntesis locales de ESE idioma
-// la clonan (ver handleTts) — así una referencia en inglés nunca se clona al
-// hablar español, y viceversa. COMPATIBILIDAD: sin `lang`, se usa la ruta
-// histórica sin sufijo refs/<id>.wav (hoy `ensureLocalIdentity`, en
-// omnivoice-hybrid.ts y fuera de este alcance, todavía no manda `lang`; en
-// cuanto lo haga, sus subidas caerán YA en la ruta con sufijo sin más cambios
-// aquí). Idempotente (sobrescribe). Mismo CORS estricto que /tts.
+// ANTES este endpoint guardaba un WAV de referencia (refs/<id>.<langBase>.wav)
+// para que el CLI lo clonara con --ref-wav. El camino PRIMARIO ahora es el
+// SERVIDOR residente, que NO clona audio de referencia — sólo diseña la voz
+// por VOCABULARIO (`instructions`, ver VALID_INSTRUCT_TOKENS) + `seed`
+// determinista (mismo timbre siempre, ver handleTts). Seguir "guardando" el
+// WAV serviría ÚNICAMENTE al camino de respaldo del CLI (poco frecuente) a
+// costa de que el frontend crea que hay clonación cuando la voz real que oye
+// casi siempre viene del servidor sin clonar — mentira por omisión. Así que
+// este endpoint es ahora un NO-OP HONESTO: no persiste nada y lo dice.
+// Se MANTIENE por compatibilidad (`ensureLocalIdentity` en omnivoice-hybrid.ts
+// sólo mira `res.ok` para marcar la identidad como "subida" y no reintentar) —
+// responde 200 siempre para no romper ese flujo. Mismo CORS estricto que el
+// resto de endpoints; drena el cuerpo respetando el límite de tamaño (puede
+// traer un WAV en base64).
 async function handleIdentity(req, res, cors) {
   const raw = await readBody(req);
   if (raw === null) return sendJson(res, 413, cors, { ok: false, error: "cuerpo demasiado grande" });
-  let body;
-  try {
-    body = JSON.parse(raw || "{}");
-  } catch {
-    return sendJson(res, 400, cors, { ok: false, error: "JSON inválido" });
-  }
-  const id = typeof body.personality === "string"
-    ? body.personality.toLowerCase().replace(/[^a-z0-9_-]/g, "").slice(0, 40)
-    : "";
-  if (!id) return sendJson(res, 400, cors, { ok: false, error: "falta 'personality'" });
-  const b64 = typeof body.wav_b64 === "string" ? body.wav_b64.replace(/^data:[^;]+;base64,/, "") : "";
-  if (!b64) return sendJson(res, 400, cors, { ok: false, error: "falta 'wav_b64'" });
-  let buf;
-  try {
-    buf = Buffer.from(b64, "base64");
-  } catch {
-    return sendJson(res, 400, cors, { ok: false, error: "base64 inválido" });
-  }
-  if (buf.length < 1000 || buf.length > 2 * 1024 * 1024) {
-    return sendJson(res, 400, cors, { ok: false, error: "WAV fuera de rango (1 KB – 2 MB)" });
-  }
-  if (!isWav(buf)) return sendJson(res, 400, cors, { ok: false, error: "no es un WAV" });
-  // Sufijo de idioma (compat: sin `lang`, ruta histórica sin sufijo).
-  const langBase = typeof body.lang === "string" && body.lang.trim() ? langBaseOf(body.lang) : "";
-  const suffix = langBase ? `.${langBase}` : "";
-  try {
-    fs.mkdirSync(PATHS.refsDir, { recursive: true });
-    fs.writeFileSync(path.join(PATHS.refsDir, `${id}${suffix}.wav`), buf);
-    if (typeof body.text === "string" && body.text.trim()) {
-      fs.writeFileSync(path.join(PATHS.refsDir, `${id}${suffix}.txt`), body.text.trim().slice(0, 500));
-    }
-    log("daemon", `identidad de voz guardada: ${id}${suffix} (${buf.length} B)`);
-    return sendJson(res, 200, cors, { ok: true, personality: id, lang: langBase || null, bytes: buf.length });
-  } catch (e) {
-    return sendJson(res, 500, cors, { ok: false, error: `no pude guardar: ${e.message}` });
-  }
+  return sendJson(res, 200, cors, {
+    ok: true,
+    note: "el motor servidor usa diseño por vocabulario + seed, no clonación de referencia",
+  });
 }
 
-// ── /warm — PRE-CALENTAR el modelo (Adenda 88) ──────────────────────────────
+// ── /warm — asegura el SERVIDOR del idioma primario (Adenda 89) ─────────────
 //
-// El CLI recarga el modelo en CADA síntesis; "caliente" = el fichero del modelo
-// sigue en la caché de página del SO → la carga es rápida (~22 s) en vez de leer
-// de disco en frío (~40 s en equipos modestos). El frontend llama a /warm de
-// forma proactiva (al abrir la app, al empezar un turno y con un keep-alive cada
-// ~7 min) para que la neurona que ELIGIÓ voz local la oiga SIEMPRE — sin que la
-// primera síntesis en frío agote el presupuesto y caiga a la nube.
+// ANTES (CLI one-shot) "precalentar" era lanzar una síntesis mínima descartable
+// para dejar el modelo en la caché de página del SO (Adenda 88). AHORA que hay
+// un servidor RESIDENTE, "caliente" = ese proceso está lanzado y su /health
+// dice "ok" — así que /warm simplemente ASEGURA (lanza si hace falta) el
+// servidor del idioma PRIMARIO (Spanish). El frontend llama a /warm de forma
+// proactiva (al abrir la app, al empezar un turno, keep-alive cada ~7 min) para
+// que la neurona que ELIGIÓ voz local la oiga SIEMPRE.
 //
-// Responde AL INSTANTE (no bloquea ~40 s): la carga corre en segundo plano por la
-// misma cola serializada. No dispara nada si ya está caliente o si hay trabajo.
+// Responde AL INSTANTE (no bloquea hasta ~30 s de arranque+carga): el
+// lanzamiento corre en segundo plano. Idempotente: si ya hay un arranque en
+// vuelo para ese idioma, `getReadyServer` lo REUTILIZA (no lanza un 2º proceso).
 function handleWarm(req, res, cors) {
   const state = readiness();
   if (!state.ready) {
     return sendJson(res, 503, cors, { ok: false, ready: false, warmed: false, reasons: state.reasons });
   }
-  // Ya caliente (síntesis reciente): no re-cargues el modelo, pero TOCA lastReq
-  // para que este ping de keep-alive EXTIENDA la ventana caliente y el daemon no
-  // se duerma a los 10 min mientras la pestaña siga viva (Adenda 88).
-  if (warm && Date.now() - lastReq < SLEEP_MS) {
+  const langName = PRIMARY_LANG;
+  const already = serverPool.get(langName);
+  // Ya caliente Y con actividad reciente: sólo extiende la ventana (keep-alive)
+  // sin tocar el proceso — evita que el auto-sleep lo mate mientras la pestaña
+  // siga viva.
+  if (already && already.ready && !already.dead && Date.now() - lastReq < SLEEP_MS) {
     lastReq = Date.now();
     return sendJson(res, 200, cors, { ok: true, warmed: false, warm: true, reason: "ya caliente" });
   }
-  // Hay síntesis en curso o en cola: eso ya calienta; no encoles otra carga.
-  if (inFlight > 0 || queueDepth > 0) {
-    return sendJson(res, 200, cors, { ok: true, warmed: false, busy: true });
-  }
-  // Responde ya y calienta en segundo plano con una síntesis mínima (se descarta):
-  // basta para dejar el modelo en la caché de página del SO.
   sendJson(res, 200, cors, { ok: true, warmed: true, background: true });
   const t0 = Date.now();
-  enqueue(() =>
-    runTts({
-      ttsBin: state.paths.tts,
-      repoDir: state.paths.repoDir,
-      modelFile: state.paths.modelFile,
-      codecFile: state.paths.codecFile,
-      langName: resolveLang("es", "Spanish"),
-      text: "hola",
-    }),
-  )
-    .then(() => {
-      warm = true;
-      lastReq = Date.now();
-      log("daemon", `precalentado en ${Date.now() - t0} ms`);
+  getReadyServer(langName, state.paths)
+    .then((entry) => {
+      if (entry) {
+        lastReq = Date.now();
+        log("daemon", `precalentado: tts-server[${langName}] listo en ${Date.now() - t0} ms`);
+      } else {
+        log("daemon", `precalentado: tts-server[${langName}] no quedó listo a tiempo (la síntesis real caerá al CLI de respaldo)`);
+      }
     })
     .catch(() => {
       /* un fallo de precalentado no es crítico: la síntesis real lo reintentará */
@@ -620,7 +918,10 @@ function handleStatus(res, cors) {
     backend: cfg?.variant?.backend || null,
     quant: cfg?.variant?.quant || null,
     version: DAEMON_VERSION,
-    warm,
+    // "Caliente" = hay al menos un servidor tts-server residente y listo (ver
+    // isWarm()) — ya NO es una bandera manual: es un hecho observable del pool.
+    warm: isWarm(),
+    serverPool: serverPoolSummary(),
     uptime: Math.round((Date.now() - startedAt) / 1000),
     sampleRate: 24000,
     idleMs: Date.now() - lastReq, // para el autosync: ¿lleva rato inactivo?
@@ -710,20 +1011,23 @@ server.on("error", (err) => {
 });
 
 // ── Temporizador de auto-sleep ───────────────────────────────────────────────
-// HONESTIDAD (repetida a propósito): no hay proceso de modelo que dormir. Al
-// pasar 10 min sin síntesis: marcamos warm=false, PURGAMOS la caché de WAV en RAM
-// (libera memoria) y sugerimos al SO recolectar. La siguiente síntesis vuelve a
-// poner warm=true. El coste de cargar el modelo lo sigue pagando el CLI por llamada.
+// Ahora SÍ hay procesos de modelo residentes que dormir (Adenda 89): al pasar
+// SLEEP_MS sin síntesis, MATAMOS todos los tts-server del pool (libera la GPU/
+// RAM que ocupaba el modelo cargado), purgamos la caché de WAV en RAM y
+// sugerimos al SO recolectar. La siguiente síntesis (o un /warm) los relanza.
 setInterval(() => {
-  if (warm && Date.now() - lastReq > SLEEP_MS) {
-    warm = false;
+  if (isWarm() && Date.now() - lastReq > SLEEP_MS) {
+    killAllServers(`auto-sleep: ${Math.round(SLEEP_MS / 60000)} min sin síntesis`);
     ramCache.clear();
     try {
       if (global.gc) global.gc(); // sólo si se arrancó con --expose-gc
     } catch {
       /* */
     }
-    log("daemon", "Durmiendo: 10 min sin síntesis · caché en RAM purgada.");
+    log(
+      "daemon",
+      `Durmiendo: ${Math.round(SLEEP_MS / 60000)} min sin síntesis · servidores tts-server detenidos · caché en RAM purgada.`,
+    );
   }
 }, 60 * 1000);
 
@@ -740,10 +1044,23 @@ server.listen(DAEMON_PORT, DAEMON_HOST, () => {
   );
 });
 
-// Cierre limpio.
+// EAGER (Adenda 89): si el motor está listo, lanza YA el servidor del idioma
+// PRIMARIO (Spanish) para que la 1ª petición real no tenga que esperar su
+// arranque+carga. Nunca bloquea el arranque del daemon ni lanza: si el
+// binario tts-server falta o no queda listo a tiempo, el primer /tts cae al
+// CLI de respaldo con normalidad (ver handleTts).
+if (state0.ready) {
+  getReadyServer(PRIMARY_LANG, state0.paths).catch(() => {
+    /* sin urgencia: el primer /tts real reintentará o caerá al CLI */
+  });
+}
+
+// Cierre limpio: mata TODOS los servidores tts-server hijos antes de salir (si
+// no, quedarían huérfanos consumiendo GPU/RAM tras cerrar el daemon).
 for (const sig of ["SIGINT", "SIGTERM"]) {
   process.on(sig, () => {
     log("daemon", `Señal ${sig}: cerrando.`);
+    killAllServers(`señal ${sig}`);
     try {
       server.close();
     } catch {

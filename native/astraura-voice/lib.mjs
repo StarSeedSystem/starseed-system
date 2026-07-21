@@ -39,10 +39,16 @@ export const PATHS = {
   lockFile: path.join(ROOT, "autosync.lock"), // lock del autosync
 };
 
-/** Nombre de los dos binarios CLI que produce el build en `build/`. */
+/**
+ * Nombre de los binarios que produce el build en `build/`: los dos CLI
+ * (`omnivoice-tts`, `omnivoice-codec`) y el servidor HTTP `tts-server`
+ * (Adenda 89 — pool de servidores del daemon): mismo `buildDir`, carga el
+ * modelo UNA vez y lo mantiene residente en vez de recargarlo en cada llamada.
+ */
 export const BIN = {
   tts: process.platform === "win32" ? "omnivoice-tts.exe" : "omnivoice-tts",
   codec: process.platform === "win32" ? "omnivoice-codec.exe" : "omnivoice-codec",
+  ttsServer: process.platform === "win32" ? "tts-server.exe" : "tts-server",
 };
 
 /** Puerto y host del daemon (loopback: nunca escucha en la red). */
