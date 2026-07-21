@@ -1088,13 +1088,19 @@ async function neuralSpeakChunked(
   }
   let openVoiceEndpoint: OpenVoiceEndpoint | undefined;
 
-  // Presupuesto TOPE por trozo (Adenda 85): el PRIMERO corto (35 s) para que la
-  // cadena nunca se quede muda esperando; los siguientes respiran más (90 s)
-  // porque ya hay audio sonando que cubre la espera.
+  // Presupuesto TOPE por trozo. CLAVE (fix "cae a Kokoro", 2026-07-21): la RUTA
+  // LOCAL usa el daemon OmniVoice residente, que en un M1/8 GB tarda ~40-90 s por
+  // frase (inferencia ~6-7× tiempo real). Con topes de 35/90 s el frontend
+  // abandonaba el trozo ANTES de que el daemon respondiera y la cadena caía a
+  // Kokoro. Para local damos un tope GENEROSO (165 s, coherente con el timeout
+  // del servidor del daemon, 150 s) para ESPERAR a OpenVoice de verdad. Para la
+  // NUBE (openvoice2 / omnivoice-nube) mantenemos topes cortos (35/90 s) para
+  // caer rápido a Kokoro FEMENINO si el Space está roto.
+  const isLocalRoute = engine === "omnivoice" && omniRoute?.route === "local";
   const synth = (t: string, i: number) =>
     neuralSynthesize(engine, t, {
       settings: opts.settings,
-      budgetCapMs: i === 0 ? 35_000 : 90_000,
+      budgetCapMs: isLocalRoute ? 165_000 : i === 0 ? 35_000 : 90_000,
       omniRouteOverride: omniRoute,
       openVoiceEndpointOverride: openVoiceEndpoint,
     }).catch(() => null);
@@ -1138,14 +1144,6 @@ async function neuralSpeakChunked(
   return firstAudio;
 }
 
-/**
- * Presupuesto para sintetizar un MENSAJE OMNIVOICE-LOCAL COMPLETO en UNA sola
- * llamada (fix 2026-07-21-b — ver `neuralSpeak`). Generoso pero por DEBAJO del
- * watchdog interno del daemon (180 s) para que este lado siempre corte primero
- * y quede la oportunidad de degradar con dignidad si de verdad no responde.
- */
-const OMNI_LOCAL_WHOLE_MESSAGE_BUDGET_MS = 170_000;
-
 export async function neuralSpeak(
   engine: NeuralVoiceEngine,
   text: string,
@@ -1165,45 +1163,28 @@ export async function neuralSpeak(
   // RESPUESTAS LARGAS por OpenVoice → habla TROCEADA (Adenda 82): los Spaces
   // gratis (CPU) no pueden sintetizar 2.000 caracteres de una pieza dentro del
   // presupuesto; frase a frase sí — y el primer sonido llega en segundos.
-  // Trocear también OMNIVOICE-NUBE (Adenda 85): el daemon local sintetiza una
-  // FRASE en segundos (y cachea), pero un parrafón agota su presupuesto y la
-  // nube gratis igual. Frase a frase, el motor local por fin puede con turnos
-  // reales.
+  // Trocear también OMNIVOICE (Adenda 85): el daemon local sintetiza una FRASE
+  // en segundos (y cachea), pero un parrafón agota su presupuesto y la nube
+  // gratis igual. Frase a frase, el motor local por fin puede con turnos reales.
   //
-  // OMNIVOICE-LOCAL: NUNCA trocea (fix 2026-07-21-b). El daemon local acepta
-  // el MENSAJE COMPLETO en una sola llamada (hasta 8000 chars, watchdog
-  // interno 180 s). Trocearlo obligaba al trozo 0 a un presupuesto corto
-  // (35 s) que un daemon lento (~40-70 s/trozo) no llegaba a cumplir: ese
-  // trozo cedía `null` y la cadena EXTERNA (fuera de este módulo) completaba
-  // el resto del mensaje con OTROS motores (nube, navegador) → seguía sonando
-  // a "varias voces" pese a la ruta ya congelada. Resolviendo la ruta UNA vez
-  // aquí y, si es LOCAL, sintetizando el texto entero de un tirón, queda UNA
-  // sola voz coherente sin huecos ni saltos de motor a mitad de mensaje.
+  // RUTA LOCAL: el troceado SÍ es seguro para la continuidad (revertido el
+  // intento de síntesis única del mensaje completo, fix 2026-07-21-c). Desde
+  // la Adenda 91 el daemon local es un SERVIDOR PERSISTENTE (modelo residente
+  // + semilla FIJA por personalidad): todos los trozos van al MISMO servidor
+  // con la MISMA semilla (congelados por `omniRouteOverride` dentro de
+  // `neuralSpeakChunked`, Adenda 90) → voz IDÉNTICA en todos los trozos, sin
+  // la mezcla que motivó en su día sintetizar de un tirón. Y sintetizar el
+  // mensaje COMPLETO de una vez SÍ fallaba en producción: el modelo tarda
+  // ~6-7 s de cómputo por cada segundo de audio, así que un mensaje real
+  // supera el watchdog del daemon (180 s) → el daemon devolvía fallo y el
+  // frontend degradaba a Kokoro. Trozo a trozo, cada síntesis queda muy por
+  // debajo del timeout.
   let singleShotBudgetCapMs: number | undefined;
-  let singleShotOmniRoute: OmniRouteDecision | undefined;
   if (engine === "openvoice2" || engine === "omnivoice") {
     const chunks = splitTextForVoice(text);
     if (chunks.length > 1) {
-      let omniRoute: OmniRouteDecision | undefined;
-      if (engine === "omnivoice") {
-        try {
-          const hybrid = await import("@/lib/aurora/tts-oss/omnivoice-hybrid");
-          omniRoute = await hybrid.decideOmniRoute();
-        } catch {
-          omniRoute = undefined;
-        }
-      }
-      if (engine === "omnivoice" && omniRoute?.route === "local") {
-        stopNeural(); // una voz a la vez (igual que haría el camino troceado)
-        singleShotBudgetCapMs = OMNI_LOCAL_WHOLE_MESSAGE_BUDGET_MS;
-        singleShotOmniRoute = omniRoute;
-      } else {
-        // Nube (openvoice2 u omnivoice-nube): SÍ troceamos — los Spaces gratis
-        // no aguantan un parrafón de una pieza (Adenda 82/85). El endpoint se
-        // congela dentro de neuralSpeakChunked (fix continuidad de voz).
-        stopNeural(); // una voz a la vez (invalida troceos previos)
-        return await neuralSpeakChunked(engine, chunks, opts);
-      }
+      stopNeural(); // una voz a la vez (invalida troceos previos)
+      return await neuralSpeakChunked(engine, chunks, opts);
     } else if (engine === "openvoice2") {
       // TURNO CORTO SIN TROCEAR (fix cuelgue ~85 s, 2026-07-21): sin
       // presupuesto TOTAL, el bucle multi-endpoint de OpenVoice2
@@ -1220,7 +1201,6 @@ export async function neuralSpeak(
     settings: opts.settings,
     onError: opts.onError,
     budgetCapMs: singleShotBudgetCapMs,
-    omniRouteOverride: singleShotOmniRoute,
   });
   if (!blob) {
     fireEnd();

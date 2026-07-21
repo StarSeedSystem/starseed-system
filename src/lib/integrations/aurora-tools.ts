@@ -1128,6 +1128,57 @@ function parseVoiceLevel(
   return undefined;
 }
 
+// ── Nombres PÚBLICOS de los motores de voz (rebrand OmniVoice/OpenVoice, jul-2026) ──
+// Concepto (petición de Alex): "OmniVoice" es el SISTEMA de voz completo de
+// Astraura — engloba CUALQUIER motor, configuración y tipo de voz, en
+// cualquier personalidad (daemon local, OpenVoice, Kokoro, VoxCPM, navegador…
+// y toda la config de voz por personalidad). "OpenVoice" es el motor POR
+// DEFECTO de las personalidades incluidas. Los ids internos `openvoice2`
+// (web, cero-config) y `omnivoice` (híbrido daemon-local ↔ nube k2-fsa) son
+// AMBOS esa misma capa automática de cero-configuración (ver la cabecera de
+// voice-config.ts/omnivoice-hybrid.ts: "el motor predeterminado real del
+// sistema es OpenVoice/OmniVoice"), así que de cara al usuario/LLM se
+// presentan como "OpenVoice"; el resto de motores se nombran con honestidad
+// (son respaldos DENTRO de OmniVoice). Esto SOLO renombra para el reporte:
+// la lógica real (activo/chain/data) sigue intacta y veraz.
+const VOICE_ENGINE_DISPLAY_NAMES: Record<string, string> = {
+  openvoice2: "OpenVoice",
+  omnivoice: "OpenVoice",
+  kokoro: "Kokoro",
+  voxcpm: "VoxCPM",
+  voicebox: "Voicebox",
+  bark: "Bark",
+  "gpt-sovits": "GPT-SoVITS",
+  kitten: "Kitten",
+  browser: "voz del navegador",
+};
+
+/** ¿Este id de motor cae dentro del default automático "OpenVoice" (openvoice2/omnivoice)? */
+function isDefaultVoiceEngine(id: string): boolean {
+  return id === "openvoice2" || id === "omnivoice";
+}
+
+/** Nombre público de un motor para hablar/reportar (fallback: el id tal cual). */
+function voiceEngineDisplayName(id: string): string {
+  return VOICE_ENGINE_DISPLAY_NAMES[id] ?? id;
+}
+
+/**
+ * Cadena de voz lista para hablar/leer: nombres públicos, colapsando
+ * repeticiones consecutivas (p.ej. `openvoice2 → omnivoice` son ambos
+ * "OpenVoice" de cara al usuario, así que se listan una sola vez) y
+ * terminando siempre en `tail` (el suelo garantizado). Nunca lanza.
+ */
+function formatVoiceChain(links: readonly string[], tail: string): string {
+  const out: string[] = [];
+  for (const id of links) {
+    const label = voiceEngineDisplayName(id);
+    if (out[out.length - 1] !== label) out.push(label);
+  }
+  if (out[out.length - 1] !== tail) out.push(tail);
+  return out.join(" → ");
+}
+
 /** Tools de VOZ que Aurora puede invocar (siempre disponibles en navegador). */
 export const AURORA_VOICE_TOOLS: AuroraVoiceTool[] = [
   {
@@ -1249,9 +1300,10 @@ export const AURORA_VOICE_TOOLS: AuroraVoiceTool[] = [
     kind: "voice",
     run: () =>
       runVoiceControl(async (m) => {
-        // ESTADO REAL (Adenda 84): la voz es AUTOMÁTICA por defecto — OpenVoice
-        // (web gratis) primero para toda personalidad, OmniVoice híbrido detrás
-        // (nube gratis o daemon local), Kokoro instalable y el navegador como
+        // ESTADO REAL (Adenda 84; reencuadrado OmniVoice/OpenVoice jul-2026):
+        // la voz es AUTOMÁTICA por defecto — el sistema completo es OmniVoice
+        // y su motor por defecto es OpenVoice (web gratis primero, híbrido
+        // daemon-local/nube detrás), con Kokoro instalable y el navegador como
         // suelo. Este reporte cuenta la CADENA VIVA, no los endpoints manuales
         // (esos son opcionales y solo se listan si el usuario los configuró).
         await m.refreshPersonalityVoicePin().catch(() => null);
@@ -1260,28 +1312,23 @@ export const AURORA_VOICE_TOOLS: AuroraVoiceTool[] = [
         const cfg = m.getVoiceConfig();
         const chain = m.buildVoiceChain(cfg);
         const activo = m.resolveActiveVoiceEngine(cfg);
-        const NOMBRES: Record<string, string> = {
-          openvoice2: "OpenVoice (web gratis, automática)",
-          omnivoice: "OmniVoice híbrida (nube gratis ↔ motor local)",
-          kokoro: "Kokoro (local en este dispositivo)",
-          voxcpm: "VoxCPM",
-          voicebox: "Voicebox",
-          bark: "Bark",
-          "gpt-sovits": "GPT-SoVITS",
-          kitten: "Kitten",
-          browser: "Voz del navegador",
-        };
+        const motorLabel = voiceEngineDisplayName(activo);
         const parts: string[] = [
-          `Mi voz funciona AUTOMÁTICAMENTE, sin configurar nada. Motor activo ahora: ${NOMBRES[activo] ?? activo}.`,
+          "Sistema de voz: OmniVoice — el sistema de voz de Astraura, que engloba todos los motores y configuraciones de cualquier personalidad. Funciona AUTOMÁTICAMENTE, sin configurar nada.",
+          `Motor activo ahora: ${motorLabel}${
+            isDefaultVoiceEngine(activo)
+              ? " (el motor por defecto de mis personalidades)"
+              : " (respaldo dentro de OmniVoice)"
+          }.`,
           `Cadena de voz (si un motor no responde, sigue el siguiente): ${
-            [...chain.map((c) => NOMBRES[c] ?? c), "Voz del navegador (suelo garantizado)"].join(" → ")
+            formatVoiceChain(chain, "voz del navegador (respaldo, suelo garantizado)")
           }.`,
         ];
         // Estados vivos de los motores automáticos.
         try {
           const ov = m.getOpenVoice2State();
           parts.push(
-            `OpenVoice: ${
+            `OpenVoice (motor por defecto): ${
               ov === "listo"
                 ? "✅ lista (endpoint gratuito de Hugging Face verificado)"
                 : ov === "fuera"
@@ -1293,7 +1340,7 @@ export const AURORA_VOICE_TOOLS: AuroraVoiceTool[] = [
         try {
           const ruta = m.getOmniVoiceRouteState();
           parts.push(
-            `OmniVoice: ${
+            `Ruta de OpenVoice (local/nube): ${
               ruta === "local"
                 ? "⚡ motor LOCAL instalado y activo en este equipo (privado y rápido)"
                 : "🌥 nube gratis automática (instala el motor local desde el editor de voz para privacidad total)"
@@ -1303,8 +1350,8 @@ export const AURORA_VOICE_TOOLS: AuroraVoiceTool[] = [
         try {
           parts.push(
             m.kokoroModelReady()
-              ? "Kokoro: ✅ instalada en este dispositivo (funciona sin internet)."
-              : "Kokoro: instalable con un toque (~80 MB, sin terminal — también en Android/iOS).",
+              ? "Kokoro (respaldo dentro de OmniVoice): ✅ instalada en este dispositivo (funciona sin internet)."
+              : "Kokoro (respaldo dentro de OmniVoice): instalable con un toque (~80 MB, sin terminal — también en Android/iOS).",
           );
         } catch { /* */ }
         // Estilo actual.
@@ -1324,7 +1371,7 @@ export const AURORA_VOICE_TOOLS: AuroraVoiceTool[] = [
           const ping = await m.pingNeuralEngine(id).catch(() => "unreachable" as const);
           manuales.push(`${id} (${ping === "ok" ? "disponible" : "configurado, no responde"})`);
         }
-        if (manuales.length) parts.push(`Endpoints manuales: ${manuales.join(" · ")}.`);
+        if (manuales.length) parts.push(`Otros motores opcionales dentro de OmniVoice (endpoints manuales): ${manuales.join(" · ")}.`);
         if (cfg.symbiotic) parts.push("Modo simbiótico Bark+SoVITS activado.");
         return { ok: true, message: parts.join(" "), data: { motor: activo, cadena: chain } };
       }),
@@ -1382,18 +1429,8 @@ async function describeVoiceStateForPromptInner(): Promise<string> {
     const cfg = m.getVoiceConfig();
     const chain = m.buildVoiceChain(cfg);
     const activo = m.resolveActiveVoiceEngine(cfg);
-    const NOMBRES: Record<string, string> = {
-      openvoice2: "OpenVoice",
-      omnivoice: "OmniVoice híbrida",
-      kokoro: "Kokoro",
-      voxcpm: "VoxCPM",
-      voicebox: "Voicebox",
-      bark: "Bark",
-      "gpt-sovits": "GPT-SoVITS",
-      kitten: "Kitten",
-      browser: "voz del navegador",
-    };
-    const cadena = [...chain.map((c) => NOMBRES[c] ?? c), "voz del navegador"].join(" → ");
+    const motorLabel = voiceEngineDisplayName(activo);
+    const cadena = formatVoiceChain(chain, "voz del navegador");
     let ruta = "desconocida";
     try {
       const r = m.getOmniVoiceRouteState();
@@ -1410,7 +1447,13 @@ async function describeVoiceStateForPromptInner(): Promise<string> {
     } catch { /* defensivo */ }
     return (
       "VOZ (estado real del sistema — es la verdad; si te preguntan por tu voz, repórtala y NO inventes otros motores): " +
-      `motor activo = ${NOMBRES[activo] ?? activo}; ruta OmniVoice = ${ruta}; OpenVoice = ${openvoice}; ` +
+      "sistema de voz = OmniVoice (engloba todos los motores y configuraciones de cualquier personalidad); " +
+      `motor activo ahora = ${motorLabel}${
+        isDefaultVoiceEngine(activo)
+          ? " (por defecto de las personalidades es OpenVoice)"
+          : " (respaldo dentro de OmniVoice)"
+      }; ` +
+      `ruta local/nube del motor por defecto = ${ruta}; estado de OpenVoice = ${openvoice}; ` +
       `cadena de respaldo = ${cadena}.`
     );
   } catch {

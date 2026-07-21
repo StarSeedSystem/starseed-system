@@ -247,15 +247,15 @@ export function VoiceNeuronOnboarding() {
 
   const verifyInstall = async () => {
     setChecking(true);
-    setCheckMsg("Buscando el motor local en 127.0.0.1:4444…");
+    setCheckMsg("Buscando OpenVoice local en 127.0.0.1:4444…");
     const ok = await probeLocalDaemon();
     setChecking(false);
     if (ok) {
-      setCheckMsg("¡Motor local detectado y listo! Esta neurona hablará en local.");
+      setCheckMsg("¡OpenVoice local detectado y listo! Esta neurona hablará en local.");
       setTimeout(() => choose("local"), 1200);
     } else {
       setCheckMsg(
-        "Aún no lo encuentro. Si acabas de instalarlo, dale unos segundos (o revisa la Terminal) y vuelve a comprobar.",
+        "Aún no encuentro OpenVoice local. Si acabas de instalarlo, dale unos segundos (o revisa la Terminal) y vuelve a comprobar.",
       );
     }
   };
@@ -265,7 +265,7 @@ export function VoiceNeuronOnboarding() {
       className="fixed inset-0 z-[10000] flex items-end justify-center p-4 sm:items-center"
       role="dialog"
       aria-modal="true"
-      aria-label="Voz de Astraura en esta neurona"
+      aria-label="Voz OmniVoice de Astraura en esta neurona"
     >
       {/* Velo */}
       <div
@@ -295,25 +295,26 @@ export function VoiceNeuronOnboarding() {
             </span>
             <div className="min-w-0">
               <h2 className="text-sm font-semibold text-white/95">
-                {updated ? "Voz de Astraura actualizada" : "Voz de Astraura en esta neurona"}
+                {updated ? "OmniVoice se ha actualizado" : "OmniVoice: la voz de Astraura en esta neurona"}
               </h2>
               <p className="text-[11px] text-white/50">
                 {updated
-                  ? "Mejoramos el motor de voz · reconfigúralo para esta neurona"
-                  : "Primera vez en este dispositivo · elige cómo quieres que suene"}
+                  ? "Mejoramos el sistema de voz OmniVoice · reconfigura esta neurona"
+                  : "Primera vez en este dispositivo · elige cómo quieres que suene con OmniVoice"}
               </p>
             </div>
           </div>
 
           <p className="text-[12px] leading-relaxed text-white/70">
-            Elige cómo prefiere hablar esta neurona — tu elección ORDENA su cadena de voz
-            (la otra vía queda siempre de respaldo): con OpenVoice por la{" "}
-            <span className="text-sky-200">nube gratuita de Hugging Face</span> (sin instalar
-            nada) o con el <span className="text-emerald-200">motor local</span> instalado en
-            este equipo (privado y sin internet).
+            Elige cómo prefiere hablar esta neurona con <span className="text-white/90">OmniVoice</span>,
+            el sistema de voz de Astraura — tu elección ORDENA su cadena de voz (la otra vía
+            queda siempre de respaldo): con <span className="text-sky-200">OpenVoice</span>, su voz
+            realista predeterminada, por la nube gratuita (sin instalar nada) o por el{" "}
+            <span className="text-emerald-200">motor local</span> instalado en este equipo (privado
+            y sin internet).
             {localVivo && (
               <span className="mt-1 block text-emerald-200/90">
-                ⚡ Motor local detectado y vivo en este equipo — recomendado.
+                ⚡ OpenVoice local detectado y vivo en este equipo — recomendado.
               </span>
             )}
           </p>
@@ -328,7 +329,7 @@ export function VoiceNeuronOnboarding() {
               >
                 <Cloud className="h-4 w-4 text-sky-300" />
                 <span className="min-w-0 truncate text-[12.5px]">
-                  Seguir con la nube gratis (recomendado para empezar)
+                  Seguir con OpenVoice por la nube gratis (recomendado para empezar)
                 </span>
               </Button>
               <Button
@@ -340,8 +341,8 @@ export function VoiceNeuronOnboarding() {
                 <Zap className="h-4 w-4 text-emerald-300" />
                 <span className="min-w-0 truncate text-[12.5px]">
                   {localVivo
-                    ? "Usar el motor LOCAL de este equipo (ya instalado) — recomendado"
-                    : "Instalar el motor local en este equipo (rápido y privado)"}
+                    ? "Usar OpenVoice local en este equipo (ya instalado) — recomendado"
+                    : "Instalar OpenVoice local en este equipo (rápido y privado)"}
                 </span>
               </Button>
               <button
@@ -352,10 +353,10 @@ export function VoiceNeuronOnboarding() {
                 <Gauge className="mt-0.5 h-4 w-4 shrink-0 text-amber-300" />
                 <span className="min-w-0">
                   <span className="block text-[12.5px] text-amber-100">
-                    Usar otros sistemas web automáticos (más rápidos, menos realistas)
+                    Usar otros motores de OmniVoice (más rápidos, menos realistas)
                   </span>
                   <span className="block text-[10.5px] text-amber-100/60">
-                    Priorizan velocidad sobre naturalidad — suenan menos realistas que OpenVoice
+                    Respaldos de OmniVoice que priorizan velocidad sobre naturalidad — suenan menos realistas que OpenVoice
                   </span>
                 </span>
               </button>
@@ -386,7 +387,7 @@ export function VoiceNeuronOnboarding() {
                   onClick={() => choose("cloud")}
                   className="cursor-pointer text-[11px] text-white/40 underline-offset-2 hover:text-white/65 hover:underline"
                 >
-                  Mejor sigo con la nube
+                  Mejor sigo con OpenVoice en la nube
                 </button>
               </div>
               {checkMsg && <p className="text-[11px] text-white/55">{checkMsg}</p>}

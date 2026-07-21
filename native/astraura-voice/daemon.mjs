@@ -139,7 +139,7 @@ function sanitizeInstruct(raw) {
 
 const SLEEP_MS = 10 * 60 * 1000; // 10 min sin síntesis → dormir (matar servidores + purgar RAM)
 const SYNTH_TIMEOUT_MS = 180 * 1000; // presupuesto por síntesis del CLI (one-shot, recarga el modelo)
-const SERVER_SYNTH_TIMEOUT_MS = 60 * 1000; // presupuesto por síntesis del SERVIDOR (modelo ya residente: mucho más rápido)
+const SERVER_SYNTH_TIMEOUT_MS = 150 * 1000; // presupuesto por síntesis del SERVIDOR. En un M1/8 GB la inferencia es ~6-7× tiempo real: un trozo por frase (~220 car.) puede tardar ~90 s. 60 s abortaba trozos que iban a completar → caía al CLI (aún más lento) → fallo total → el frontend caía a Kokoro. 150 s (< watchdog CLI 180 s) deja que el trozo termine en el servidor residente.
 const MAX_BODY_BYTES = 512 * 1024; // límite del cuerpo POST
 const MAX_TEXT_CHARS = 8000; // límite de texto por locución
 const MAX_QUEUE = 8; // síntesis en cola antes de responder 503

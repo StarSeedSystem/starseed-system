@@ -1230,15 +1230,15 @@ function PersonalityEditor({
               >
                 <SelectTrigger className={selectCls}><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="auto">Automático (mejor disponible)</SelectItem>
-                  <SelectItem value="openvoice2">OpenVoice · web gratis + emociones (recomendado)</SelectItem>
-                  <SelectItem value="omnivoice">OmniVoice · híbrido local ↔ nube</SelectItem>
-                  <SelectItem value="kokoro">Kokoro · local en el navegador</SelectItem>
-                  <SelectItem value="browser">Voz del navegador</SelectItem>
+                  <SelectItem value="auto">Automático (mejor motor de OmniVoice disponible)</SelectItem>
+                  <SelectItem value="openvoice2">OpenVoice · voz realista predeterminada (web)</SelectItem>
+                  <SelectItem value="omnivoice">OmniVoice · enrutado híbrido (local si está instalado, si no nube)</SelectItem>
+                  <SelectItem value="kokoro">Kokoro · respaldo local en el navegador</SelectItem>
+                  <SelectItem value="browser">Voz del navegador (respaldo)</SelectItem>
                 </SelectContent>
               </Select>
               <span className="text-[10px] text-white/35">
-                Aurora y Hermione traen OpenVoice de fábrica; nunca es exclusivo — si el motor no responde, la voz sigue con el resto de la cadena.
+                Aurora y Hermione traen OpenVoice de fábrica como voz predeterminada dentro del sistema OmniVoice; nunca es exclusivo — si el motor no responde, la voz sigue con el resto de la cadena.
               </span>
               {/* Mini estado EN VIVO del motor actual (Adenda 87). */}
               <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[10px]">
@@ -1425,12 +1425,13 @@ function PersonalityEditor({
                 <ProfileIcon name="Waves" className="h-3.5 w-3.5 text-[#7fb8ff]" />
                 <span className="text-xs font-medium text-white/85">Voz OmniVoice</span>
                 <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] text-white/50">
-                  motor híbrido · nube gratis o local
+                  OpenVoice · local si está instalado o nube
                 </span>
               </div>
               <p className="mt-1 text-[11px] text-white/45">
-                Diseña la voz de esta personalidad con palabras. Habla por el daemon
-                local si está vivo, o por la nube gratis. Cero configuración.
+                Diseña con palabras la voz OpenVoice de esta personalidad — el motor realista
+                predeterminado de OmniVoice. Habla por el daemon local si está vivo, o por la
+                nube gratis. Cero configuración.
               </p>
 
               <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -1587,7 +1588,7 @@ function PersonalityEditor({
             <div className="mt-2 rounded-xl border border-sky-400/20 bg-sky-400/[0.04] p-3">
               <div className="flex items-center gap-2">
                 <ProfileIcon name="Cloud" className="h-3.5 w-3.5 text-sky-300" />
-                <span className="text-xs font-medium text-white/85">OpenVoice V2 (web, sin instalar)</span>
+                <span className="text-xs font-medium text-white/85">OpenVoice · voz predeterminada (web, sin instalar)</span>
                 <span
                   className={cn(
                     "ml-auto inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium",
@@ -1606,9 +1607,10 @@ function PersonalityEditor({
                 </span>
               </div>
               <p className="mt-1 text-[11px] text-white/45">
-                Voz de nube gratis, sin instalar nada. Clona el timbre desde una semilla de
-                identidad sintética (inspirada en el arquetipo, nunca audio real) o desde tu propio
-                audio. Si el Space duerme o falla, la cadena sigue (Aurora nunca calla).
+                La voz realista predeterminada de OmniVoice, en su variante web: nube gratis, sin
+                instalar nada. Clona el timbre desde una semilla de identidad sintética (inspirada
+                en el arquetipo, nunca audio real) o desde tu propio audio. Si el Space duerme o
+                falla, la cadena de OmniVoice sigue (Aurora nunca calla).
               </p>
 
               <div className="mt-2 grid gap-2 sm:grid-cols-2">

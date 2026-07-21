@@ -929,19 +929,20 @@ export async function synthesizeOmniVoiceHybrid(
       } catch {
         /* */
       }
-      // Presupuesto: si el llamador fija `budgetCapMs` explícitamente (p.ej.
-      // `neuralSpeak` sintetizando el MENSAJE COMPLETO sin trocear, fix
-      // 2026-07-21-b) es una decisión DELIBERADA de cuánto esperar — se usa
-      // TAL CUAL, sin intersecarlo con el techo natural 30 s/150 s (pensado
-      // para cuando el llamador NO fija presupuesto propio). Así un mensaje
-      // largo puede darle al daemon hasta ~170 s (por debajo de su watchdog de
-      // 180 s) en vez de cortarlo a los 30 s de siempre.
+      // Presupuesto: acota el techo natural (30 s / 150 s según `preferLocal`)
+      // con el `budgetCapMs` del llamador — nunca lo EXTIENDE. Con la ruta
+      // congelada y el troceado restaurado (fix 2026-07-21-c: revertida la
+      // síntesis de un mensaje completo de un tirón, que superaba el watchdog
+      // del daemon de 180 s en mensajes reales), este es de nuevo el patrón
+      // normal trozo a trozo de `neuralSpeakChunked` (35 s el primero, 90 s los
+      // siguientes) — el daemon, ahora un SERVIDOR PERSISTENTE con semilla fija
+      // por personalidad (Adenda 91), sintetiza cada trozo CORTO muy por debajo
+      // de cualquiera de los dos techos, con voz idéntica en todos.
+      const naturalBudget = preferLocal ? LOCAL_PREFER_MAX_MS : LOCAL_TTS_TIMEOUT_MS;
       const budget =
         opts.budgetCapMs && opts.budgetCapMs > 0
-          ? opts.budgetCapMs
-          : preferLocal
-            ? LOCAL_PREFER_MAX_MS
-            : LOCAL_TTS_TIMEOUT_MS;
+          ? Math.min(naturalBudget, opts.budgetCapMs)
+          : naturalBudget;
       const local = await synthLocal(clean, omni, langName, opts.signal, budget).catch(
         () => ({ blob: null as Blob | null, timedOut: false }),
       );
