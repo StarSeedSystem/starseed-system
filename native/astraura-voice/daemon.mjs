@@ -68,7 +68,12 @@ const DISK_CACHE_MAX = 64; // WAV cacheados en disco (cache/)
 
 const startedAt = Date.now();
 let lastReq = Date.now(); // última SÍNTESIS (no cuenta /status)
-let warm = true;
+// Arranca FRÍO (Adenda 88): el modelo aún no se ha cargado en esta instancia, así
+// que /status reporta warm:false y el frontend da el presupuesto EN FRÍO (~75 s) al
+// primer turno → nunca agota el tiempo y cae a la nube. El primer /tts (o /warm) lo
+// pone caliente. Antes arrancaba optimista en true y el primer turno tras reiniciar
+// podía caer a la nube robótica si el modelo no estaba ya en la caché de página.
+let warm = false;
 let inFlight = 0; // síntesis del CLI ejecutándose ahora
 let queueDepth = 0; // síntesis esperando su turno
 const ramCache = new Map(); // hash → Buffer (LRU sencillo)
