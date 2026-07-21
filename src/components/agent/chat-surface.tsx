@@ -41,6 +41,7 @@ import { MessageRenderer } from "@/components/aurora/message-renderer";
 import { MessageActionBar } from "@/components/aurora/message-action-bar";
 import { MessageProcessModal } from "@/components/aurora/message-process-modal";
 import { VoiceNoteBar } from "@/components/aurora/voice-note-bar";
+import { registerActiveAuroraChat } from "@/lib/aurora/personalities";
 import { initVoiceNotesCapture } from "@/lib/aurora/voice-notes";
 import { useAurora } from "@/components/aurora/aurora-provider";
 import { ChatHeaderOptions } from "@/components/aurora/chat-header-options";
@@ -151,6 +152,16 @@ export function ChatSurface({ variant = "embedded", className, initialConvId }: 
   useEffect(() => {
     initVoiceNotesCapture();
   }, []);
+
+  // Registra la conversación ACTIVA como el chat de Aurora en curso (Adenda 93).
+  // Sin esto, en /agent nadie llamaba a registerActiveAuroraChat → `emitVoiceNote`
+  // recibía convId=null → `syncVoiceNote` NUNCA se disparaba → los audios de voz
+  // no se guardaban ni sincronizaban. Mismo patrón que aurora-mini-player y el
+  // Exocórtex. Defensivo: nunca lanza.
+  useEffect(() => {
+    try { registerActiveAuroraChat(conv.activeId ?? null); } catch { /* defensivo */ }
+    return () => { try { registerActiveAuroraChat(null); } catch { /* defensivo */ } };
+  }, [conv.activeId]);
 
   // Deep-link `/agent/chat?id=…`: activa la conversación indicada al montar.
   useEffect(() => {
