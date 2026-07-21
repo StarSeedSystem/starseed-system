@@ -524,8 +524,11 @@ function handleWarm(req, res, cors) {
   if (!state.ready) {
     return sendJson(res, 503, cors, { ok: false, ready: false, warmed: false, reasons: state.reasons });
   }
-  // Ya caliente (síntesis reciente): no re-cargues el modelo por gusto.
+  // Ya caliente (síntesis reciente): no re-cargues el modelo, pero TOCA lastReq
+  // para que este ping de keep-alive EXTIENDA la ventana caliente y el daemon no
+  // se duerma a los 10 min mientras la pestaña siga viva (Adenda 88).
   if (warm && Date.now() - lastReq < SLEEP_MS) {
+    lastReq = Date.now();
     return sendJson(res, 200, cors, { ok: true, warmed: false, warm: true, reason: "ya caliente" });
   }
   // Hay síntesis en curso o en cola: eso ya calienta; no encoles otra carga.
