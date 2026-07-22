@@ -1,6 +1,9 @@
 "use client";
 
 /**
+ * [cache-bust #310] force fresh chunk hash so browsers re-fetch the
+ * react-server-dom-client collision-free build (prod-only stale HTTP cache).
+ *
  * VENTANA DE VOZ POR NEURONA (Adenda 82 · petición de Alex).
  *
  * Al entrar a la cuenta desde CUALQUIER neurona (dispositivo), el OS comprueba
