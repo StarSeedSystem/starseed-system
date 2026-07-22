@@ -377,6 +377,7 @@ export function VoiceNeuronOnboarding() {
 
   return createPortal(
     <div
+      data-v310={__VOICE_ONBOARDING_310_FIX__}
       className="fixed inset-0 z-[10000] flex items-end justify-center p-4 sm:items-center"
       role="dialog"
       aria-modal="true"
