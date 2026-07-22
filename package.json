@@ -3,6 +3,10 @@
   "version": "0.1.0-alpha",
   "description": "Sistema Operativo Social Descentralizado de la Sociedad StarSeed",
   "license": "AGPL-3.0-or-later",
+  "private": true,
+  "engines": {
+    "node": "20.17.0"
+  },
   "homepage": "https://starseed-nexus.vercel.app",
   "repository": {
     "type": "git",
