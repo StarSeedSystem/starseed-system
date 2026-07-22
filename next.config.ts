@@ -28,7 +28,7 @@ const nextConfig: NextConfig = {
       }
     ],
   },
-  webpack: (config) => {
+  webpack: (config, { isServer }) => {
     // Fix for @splinetool/react-spline ESM-only package (no CJS "require" in exports)
     config.resolve.alias = {
       ...config.resolve.alias,

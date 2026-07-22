@@ -146,19 +146,19 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark" suppressHydrationWarning>
       <body
-        suppressHydrationWarning
-        className={cn(
-          "min-h-screen bg-background font-body antialiased",
-          fontInter.variable,
-          fontRoboto.variable,
-          fontOutfit.variable,
-          fontHeadline.variable,
-          fontCode.variable
-        )}
-      >
-        {/* Registro del Service Worker (PWA): instalable + shell offline.
+          suppressHydrationWarning
+          className={cn(
+            "min-h-screen bg-background font-body antialiased",
+            fontInter.variable,
+            fontRoboto.variable,
+            fontOutfit.variable,
+            fontHeadline.variable,
+            fontCode.variable,
+          )}
+        >
+          {/* Registro del Service Worker (PWA): instalable + shell offline.
             Defensivo y sin UI; se omite en dev salvo NEXT_PUBLIC_ENABLE_SW=1. */}
-        <RegisterSW />
+          <RegisterSW />
         <ThemeProvider
           attribute="class"
           defaultTheme="system"

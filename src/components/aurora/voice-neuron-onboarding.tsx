@@ -18,102 +18,62 @@
  * gratis de HF): esta ventana solo informa y ofrece la mejora local.
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Check, ChevronDown, Cloud, Gauge, Languages, Plus, Search, X, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { LocalEngineInstaller } from "@/components/settings/aurora/local-engine-installer";
 import { safeGet, safeSet } from "@/lib/safe-storage";
 import { cn } from "@/lib/utils";
-import { ensureLocalKeepAlive } from "@/lib/aurora/tts-oss/omnivoice-hybrid";
-import { omnivoiceWebSynthesize } from "@/lib/aurora/tts-oss/omnivoice-web-router";
-import {
-  getVoiceChainPriority,
-  setVoiceChainPriority,
-} from "@/lib/aurora/tts-oss/omnivoice-web-router";
-// Selección de idioma de la voz (Adenda idiomas-voz): catálogo + persistencia.
-import { getPreferredLocale, getVoiceConfig, setVoiceConfig } from "@/lib/aurora/tts-oss/voice-config";
-import { findLocale, localesByBase, searchLocales, suggestLocalesFromEnvironment } from "@/lib/aurora/tts-oss/locales";
+// NOTA (fix Adenda 95 · #310): los módulos pesados de tts-oss (omnivoice-hybrid,
+// voice-config, locales, local-engine-installer, omnivoice-web-router) se cargan
+// de forma PEREZOSA (dynamic import) dentro de efectos/handlers, NO a nivel de
+// módulo. Este componente se monta en el ROOT LAYOUT (todas las rutas); importar
+// todo el grafo tts-oss en su top-level provocaba que Webpack lo dividiera en un
+// chunk asíncrono cuyo binding de React a veces no estaba listo al evaluarse →
+// "Minified React error #310" (intermitente, solo en producción).
+const LocalEngineInstaller = lazy(
+  () => import("@/components/settings/aurora/local-engine-installer").then((m) => ({
+    default: m.LocalEngineInstaller,
+  })),
+);
 
 // v2 (Adenda 86): el ajuste de preferencia CAMBIÓ (ahora ordena la cadena de
 // voz de la neurona), así que la ventana se RELANZA una vez para todos — aun
 // para quienes ya habían elegido en v1.
-/** Clave localStorage de la elección de voz POR DISPOSITIVO (no viaja con la cuenta). */
-export const NEURON_VOICE_LS_KEY = "starseed.voz.neurona.v2";
-/** Evento para reabrir la ventana de elección sin recargar la página. */
-export const NEURON_VOICE_REOPEN_EVENT = "starseed:voz-neurona-reopen";
-const LATER_RETRY_MS = 24 * 60 * 60_000;
-const DAEMON_STATUS = "http://127.0.0.1:4444/status";
+// ── Constantes/tipos/helpers de la elección de voz POR NEURONA ──────────────
+// Extraídos a neuron-voice-constants.ts (módulo liviano, SIN react ni el grafo
+// de voz pesado) para EVITAR que los consumidores asíncronos (p.ej.
+// neuron-voice-choice.tsx en ajustes) fuercen a este componente a un chunk
+// COMPARTIDO asíncrono → carrera de init de React (#310, intermitente en prod).
+import {
+  NEURON_VOICE_LS_KEY,
+  NEURON_VOICE_REOPEN_EVENT,
+  VOICE_SYSTEM_VERSION,
+  type NeuronVoiceMode,
+  type NeuronVoiceChoice,
+  readNeuronVoiceChoice,
+  neuronVoiceChoiceIsStale,
+  writeNeuronVoiceChoice,
+  forceReopenNeuronVoiceWindow,
+  probeLocalDaemon,
+} from "@/lib/aurora/tts-oss/neuron-voice-constants";
 
-/**
- * VERSIÓN DEL SISTEMA DE VOZ OMNIVOICE (Adenda 88 · petición de Alex).
- * ⬆️ SÚBELA cada vez que actualicemos el motor/comportamiento de voz. La elección
- * de cada neurona guarda la versión con la que se configuró; si al cargar la app
- * la versión guardada NO coincide con esta, la ventana de elección local/web se
- * REABRE automáticamente para que esa neurona reconfigure con la nueva versión —
- * aun para quienes ya habían elegido. Al elegir (o cerrar) se re-sella y no vuelve
- * a molestar hasta la próxima actualización.
- */
-export const VOICE_SYSTEM_VERSION = 94;
+// Re-export para los consumidores existentes que importan desde este archivo.
+export {
+  NEURON_VOICE_LS_KEY,
+  NEURON_VOICE_REOPEN_EVENT,
+  VOICE_SYSTEM_VERSION,
+  type NeuronVoiceMode,
+  type NeuronVoiceChoice,
+  readNeuronVoiceChoice,
+  neuronVoiceChoiceIsStale,
+  writeNeuronVoiceChoice,
+  forceReopenNeuronVoiceWindow,
+  probeLocalDaemon,
+} from "@/lib/aurora/tts-oss/neuron-voice-constants";
 
-// (Adenda 90) "fastweb": la neurona prefiere otros sistemas web automáticos
-// (más rápidos, menos realistas que OpenVoice) en vez del predeterminado. Los
-// cuatro modos son EXCLUYENTES entre sí: local / cloud / fastweb / later.
-export type NeuronVoiceMode = "cloud" | "local" | "fastweb" | "later";
-
-export interface NeuronVoiceChoice {
-  mode: NeuronVoiceMode;
-  at: number;
-  /** Versión del sistema de voz con la que se configuró (Adenda 88). */
-  sysV?: number;
-}
-
-/** Lee la elección de voz de ESTA neurona (o null si aún no eligió). Nunca lanza. */
-export function readNeuronVoiceChoice(): NeuronVoiceChoice | null {
-  try {
-    const raw = safeGet(NEURON_VOICE_LS_KEY);
-    if (!raw) return null;
-    const j = JSON.parse(raw) as NeuronVoiceChoice;
-    return j && (j.mode === "cloud" || j.mode === "local" || j.mode === "fastweb" || j.mode === "later")
-      ? j
-      : null;
-  } catch {
-    return null;
-  }
-}
-
-/**
- * ¿La elección de esta neurona es de una versión ANTERIOR del sistema de voz?
- * (Entonces hay que reconfigurar con la nueva.) Una elección sin `sysV` cuenta
- * como obsoleta (se guardó antes del versionado). Nunca lanza.
- */
-export function neuronVoiceChoiceIsStale(choice: NeuronVoiceChoice | null): boolean {
-  if (!choice) return false; // sin elección aún: es la primera vez, no "obsoleta"
-  return (choice.sysV ?? 0) !== VOICE_SYSTEM_VERSION;
-}
-
-/** Persiste la elección de voz de esta neurona (+ notifica a la UI). Nunca lanza. */
-export function writeNeuronVoiceChoice(mode: NeuronVoiceMode): void {
-  try {
-    safeSet(
-      NEURON_VOICE_LS_KEY,
-      JSON.stringify({ mode, at: Date.now(), sysV: VOICE_SYSTEM_VERSION } satisfies NeuronVoiceChoice),
-    );
-    if (typeof window !== "undefined") {
-      window.dispatchEvent(new CustomEvent(NEURON_VOICE_REOPEN_EVENT, { detail: { silent: true } }));
-    }
-  } catch {
-    /* */
-  }
-}
-
-// ── Preferencias de jerarquización de la cadena de voz (Adenda 94) ────────────
-// El USUARIO reordena los MOTORES de su cadena de voz; OmniVoice los respeta en
-// tiempo de habla (applyVoiceChainPriority en speak-router). Persistido en
-// localStorage (clave starseed.aurora.voice.priority.v1, pedida por el dueño).
-
-/** Etiqueta legible de cada motor para la UI de jerarquía. */
+// Etiqueta legible de cada motor para la UI de jerarquía (Adenda 94).
 const CHAIN_LABELS: Record<string, string> = {
   omnivoice: "OmniVoice · híbrido local/nube",
   openvoice2: "OpenVoice · nube gratis (por defecto)",
@@ -126,34 +86,7 @@ const CHAIN_LABELS: Record<string, string> = {
   browser: "Voz del navegador (suelo)",
 };
 
-/**
- * Reabre la ventana de elección de voz de la neurona: borra la elección y avisa a
- * la ventana global (montada en el layout) para que vuelva a preguntar SIN recargar
- * la página. Si por algún motivo no hay ventana montada, la próxima navegación la
- * mostrará igualmente. Nunca lanza.
- */
-export function forceReopenNeuronVoiceWindow(): void {
-  try {
-    safeSet(NEURON_VOICE_LS_KEY, "");
-    if (typeof window !== "undefined") {
-      window.dispatchEvent(new CustomEvent(NEURON_VOICE_REOPEN_EVENT, { detail: { reopen: true } }));
-    }
-  } catch {
-    /* */
-  }
-}
-
-/** ¿Está el daemon local vivo y listo? Sonda corta; nunca lanza. */
-export async function probeLocalDaemon(): Promise<boolean> {
-  try {
-    const r = await fetch(DAEMON_STATUS, { signal: AbortSignal.timeout(2500) });
-    if (!r.ok) return false;
-    const j = (await r.json()) as { ready?: boolean };
-    return j?.ready === true;
-  } catch {
-    return false;
-  }
-}
+const LATER_RETRY_MS = 24 * 60 * 60_000;
 
 export function VoiceNeuronOnboarding() {
   const [open, setOpen] = useState(false);
@@ -179,11 +112,64 @@ export function VoiceNeuronOnboarding() {
   ]);
 
   useEffect(() => {
-    try {
-      setPriorityState(getVoiceChainPriority());
-    } catch {
-      /* */
-    }
+    let alive = true;
+    (async () => {
+      try {
+        const { getVoiceChainPriority } = await import(
+          "@/lib/aurora/tts-oss/omnivoice-web-router"
+        );
+        if (alive) setPriorityState(getVoiceChainPriority());
+      } catch {
+        /* */
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  // (fix #310) Librerías pesadas de tts-oss cargadas PEREZOSAMENTE tras el mount,
+  // para no arrastrar todo el grafo en el chunk inicial del layout (causa del
+  // race de init de React → #310 en producción). Se usan vía `libsRef.current`.
+  const libsRef = useRef<{
+    ensureLocalKeepAlive?: () => void;
+    getPreferredLocale?: () => string;
+    getVoiceConfig?: () => any;
+    setVoiceConfig?: (p: any) => void;
+    findLocale?: (code: string) => any;
+    localesByBase?: () => any[];
+    searchLocales?: (q: string) => any[];
+    suggestLocalesFromEnvironment?: () => string[];
+  }>({});
+  const [libsReady, setLibsReady] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const [{ ensureLocalKeepAlive }, vc, loc] = await Promise.all([
+          import("@/lib/aurora/tts-oss/omnivoice-hybrid"),
+          import("@/lib/aurora/tts-oss/voice-config"),
+          import("@/lib/aurora/tts-oss/locales"),
+        ]);
+        if (!alive) return;
+        libsRef.current = {
+          ensureLocalKeepAlive,
+          getPreferredLocale: vc.getPreferredLocale,
+          getVoiceConfig: vc.getVoiceConfig,
+          setVoiceConfig: vc.setVoiceConfig,
+          findLocale: loc.findLocale,
+          localesByBase: loc.localesByBase,
+          searchLocales: loc.searchLocales,
+          suggestLocalesFromEnvironment: loc.suggestLocalesFromEnvironment,
+        };
+        setLibsReady(true);
+      } catch {
+        /* la sección de idioma queda con sus defaults defensivos */
+      }
+    })();
+    return () => {
+      alive = false;
+    };
   }, []);
 
   // ── Idioma de la voz (selección explícita + sugerencia por ubicación) ──────
@@ -197,50 +183,52 @@ export function VoiceNeuronOnboarding() {
   const [localePickerOpen, setLocalePickerOpen] = useState(false);
 
   useEffect(() => {
+    const L = libsRef.current;
     try {
-      setPrimaryLocaleState(getPreferredLocale());
-      setPreferredLocalesState(getVoiceConfig().preferredLocales ?? []);
-      setEnvSuggestions(suggestLocalesFromEnvironment());
+      setPrimaryLocaleState(L.getPreferredLocale?.() ?? "es-ES");
+      setPreferredLocalesState(L.getVoiceConfig?.()?.preferredLocales ?? []);
+      setEnvSuggestions(L.suggestLocalesFromEnvironment?.() ?? []);
     } catch {
       /* defensivo: la sección de idioma simplemente queda con sus defaults */
     }
-  }, []);
+  }, [libsReady]);
 
   const choosePrimaryLocale = useCallback((code: string) => {
-    const clean = findLocale(code)?.code;
+    const clean = libsRef.current.findLocale?.(code)?.code;
     if (!clean) return;
     setPrimaryLocaleState(clean);
-    setVoiceConfig({ primaryLocale: clean });
+    libsRef.current.setVoiceConfig?.({ primaryLocale: clean });
     setLocalePickerOpen(false);
   }, []);
 
   const togglePreferredLocale = useCallback((code: string) => {
-    const clean = findLocale(code)?.code;
+    const clean = libsRef.current.findLocale?.(code)?.code;
     if (!clean) return;
     setPreferredLocalesState((prev) => {
       const next = prev.includes(clean) ? prev.filter((c) => c !== clean) : [...prev, clean];
-      setVoiceConfig({ preferredLocales: next });
+      libsRef.current.setVoiceConfig?.({ preferredLocales: next });
       return next;
     });
   }, []);
 
   const localeFilteredGroups = useMemo(() => {
-    const groups = localesByBase();
+    const L = libsRef.current;
+    const groups = L.localesByBase?.() ?? [];
     const q = localeQuery.trim();
     if (!q) return groups;
-    const matches = new Set(searchLocales(q).map((l) => l.code));
+    const matches = new Set((L.searchLocales?.(q) ?? []).map((l) => l.code));
     return groups
       .map((g) => ({ ...g, locales: g.locales.filter((l) => matches.has(l.code)) }))
       .filter((g) => g.locales.length > 0);
-  }, [localeQuery]);
+  }, [localeQuery, libsReady]);
 
   // Adenda 88: en cuanto carga la app, si esta neurona eligió voz LOCAL, arranca
   // el keep-alive que mantiene el daemon caliente (precalienta cada ~7 min). Así
   // la primera síntesis del turno ya encuentra el modelo en caché (~22 s) en vez
   // de en frío (~40 s) y NUNCA cae a la nube robótica por agotar el presupuesto.
   useEffect(() => {
-    ensureLocalKeepAlive();
-  }, []);
+    libsRef.current.ensureLocalKeepAlive?.();
+  }, [libsReady]);
 
   useEffect(() => {
     let alive = true;
@@ -311,6 +299,9 @@ export function VoiceNeuronOnboarding() {
     setPreviewing(true);
     setPreviewMsg("Generando muestra con OpenVoice…");
     try {
+      const { omnivoiceWebSynthesize } = await import(
+        "@/lib/aurora/tts-oss/omnivoice-web-router"
+      );
       const blob = await omnivoiceWebSynthesize(
         "Hola, soy tu asistente Astraura. Esta es la voz de tu sistema OmniVoice.",
         { lang: "es" },
@@ -345,7 +336,16 @@ export function VoiceNeuronOnboarding() {
       const swap = idx + dir;
       if (idx < 0 || swap < 0 || swap >= next.length) return prev;
       [next[idx], next[swap]] = [next[swap], next[idx]];
-      setVoiceChainPriority(next);
+      void (async () => {
+        try {
+          const { setVoiceChainPriority } = await import(
+            "@/lib/aurora/tts-oss/omnivoice-web-router"
+          );
+          setVoiceChainPriority(next);
+        } catch {
+          /* */
+        }
+      })();
       return next;
     });
   };
@@ -566,7 +566,9 @@ export function VoiceNeuronOnboarding() {
             </div>
           ) : (
             <div className="flex flex-col gap-2">
-              <LocalEngineInstaller />
+              <Suspense fallback={null}>
+                <LocalEngineInstaller />
+              </Suspense>
               <div className="flex items-center gap-2">
                 <Button
                   type="button"
@@ -606,7 +608,7 @@ export function VoiceNeuronOnboarding() {
             {envSuggestions.length > 0 && (
               <div className="mt-2 flex flex-wrap gap-1.5">
                 {envSuggestions.slice(0, 5).map((code) => {
-                  const loc = findLocale(code);
+                  const loc = libsRef.current.findLocale?.(code);
                   if (!loc) return null;
                   const active = code === primaryLocale;
                   return (
@@ -637,7 +639,7 @@ export function VoiceNeuronOnboarding() {
                 >
                   <span className="inline-flex min-w-0 items-center gap-1.5 truncate">
                     <Search className="h-3 w-3 shrink-0 text-white/40" />
-                    {findLocale(primaryLocale)?.label ?? "Elegir idioma…"}
+                    {libsRef.current.findLocale?.(primaryLocale)?.label ?? "Elegir idioma…"}
                   </span>
                   <ChevronDown className="h-3.5 w-3.5 shrink-0 text-white/40" />
                 </button>
@@ -713,7 +715,7 @@ export function VoiceNeuronOnboarding() {
 
             {preferredLocales.length > 0 && (
               <p className="mt-1.5 text-[10px] text-white/35">
-                Preferidos: {preferredLocales.map((c) => findLocale(c)?.label ?? c).join(" · ")}
+                Preferidos: {preferredLocales.map((c) => libsRef.current.findLocale?.(c)?.label ?? c).join(" · ")}
               </p>
             )}
 

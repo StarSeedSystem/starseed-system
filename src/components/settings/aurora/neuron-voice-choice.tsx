@@ -24,7 +24,7 @@ import {
   writeNeuronVoiceChoice,
   NEURON_VOICE_REOPEN_EVENT,
   type NeuronVoiceMode,
-} from "@/components/aurora/voice-neuron-onboarding";
+} from "@/lib/aurora/tts-oss/neuron-voice-constants";
 
 export interface NeuronVoiceChoiceProps {
   className?: string;
