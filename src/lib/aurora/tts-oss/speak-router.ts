@@ -55,7 +55,9 @@ import {
 import {
   refreshWebVoiceDiscovery,
   hasWebVoiceDiscoveredThisSession,
+  applyVoiceChainPriority,
 } from "@/lib/aurora/tts-oss/omnivoice-web-router";
+import { BrainApiManager } from "@/lib/aurora/tts-oss/brain-api-manager";
 import {
   getEngineSettings,
   getVoiceConfig,
@@ -304,6 +306,50 @@ async function runLink(
     },
   };
 
+  if (link === "voicebox") {
+    // Voicebox (jamiepine/voicebox) = motor PRINCIPAL y RECOMENDADO de la rama
+    // OpenVoice, en híbrido Local/Web (OpenVoiceHybridRouter). Si el usuario
+    // fijó un endpoint MANUAL (profile_id + endpoint), seguimos el camino
+    // endpoint-based de neuralSpeak. Si no, usamos el router híbrido: app local
+    // viva → nube con API Key del cerebro → null (cae al siguiente eslabón
+    // open-source/gratuito, OpenVoice web por defecto).
+    const { neuralEngineConfigured, neuralSpeak } = await import(
+      "@/lib/aurora/tts-oss/neural-tts"
+    );
+    const manualConfigured =
+      neuralEngineConfigured("voicebox") &&
+      !!getEngineSettings("voicebox").endpoint;
+    if (manualConfigured) {
+      const audio = await neuralSpeak("voicebox", text, { ...safe });
+      if (audio) return "spoke";
+      return started ? "started" : "declined";
+    }
+    // Ruta híbrida (sin endpoint manual): delega al OpenVoiceHybridRouter.
+    const { OpenVoiceHybridRouter, resolveVoiceboxPersonality } = await import(
+      "@/lib/aurora/tts-oss/voicebox-engine"
+    );
+    const personality = await resolveVoiceboxPersonality();
+    const res = await OpenVoiceHybridRouter.synthesize(text, personality);
+    if (res.blob) {
+      // Reproduce el audio obtenido (el router no reproduce por sí mismo).
+      try {
+        const url = URL.createObjectURL(res.blob);
+        const audio = new Audio(url);
+        audio.onended = () => {
+          try { URL.revokeObjectURL(url); } catch { /* */ }
+        };
+        safe.onStart();
+        await audio.play().catch(() => null);
+        safe.onEnd();
+        return "spoke";
+      } catch {
+        return "declined";
+      }
+    }
+    // Sin app local ni API Key → la cadena continúa con OpenVoice web (default).
+    return "declined";
+  }
+
   if (isNeuralEngine(link)) {
     const { neuralSpeak, neuralEngineConfigured } = await import(
       "@/lib/aurora/tts-oss/neural-tts"
@@ -434,6 +480,9 @@ export async function speakWithConfiguredEngine(
   try {
     const chain = buildVoiceChain(cfg, pin);
     if (!chain.length) return false; // suelo: navegador
+    // Preferencias de jerarquización (Adenda 94): el usuario reordena la cadena
+    // de motores en la ventana de voz; aquí la respetamos antes de hablar.
+    const orderedChain = applyVoiceChainPriority(chain);
     // ACTIVACIÓN AUTOMÁTICA POR SESIÓN (Adenda 94): si la cadena incluye el
     // motor web OpenVoice, descubre los Spaces HF Running UNA vez por sesión de
     // chat (al iniciar/actualizar la sesión de la neurona activa) para que
@@ -442,7 +491,21 @@ export async function speakWithConfiguredEngine(
     if (chain.includes("openvoice2") && !hasWebVoiceDiscoveredThisSession()) {
       void refreshWebVoiceDiscovery().catch(() => null);
     }
-    for (const link of chain) {
+    // Auto-sync de la API Key de Voicebox por Cerebro/Usuario al iniciar la
+    // sesión (BrainApiManager): si el usuario no la configuró para este cerebro,
+    // emite el aviso de fallback. Fire-and-forget, nunca bloquea el habla.
+    void (async () => {
+      try {
+        const { resolveVoiceboxPersonality } = await import(
+          "@/lib/aurora/tts-oss/voicebox-engine"
+        );
+        const p = await resolveVoiceboxPersonality();
+        await BrainApiManager.sync(p.brainId ?? null, p.userId ?? null);
+      } catch {
+        /* */
+      }
+    })();
+    for (const link of orderedChain) {
       // Cada eslabón envuelto: nunca lanzar sin capturar en cadenas de failover.
       const outcome = await Promise.resolve()
         .then(() => runLink(link, clean, cfg, wrappedOpts, detectedLang))

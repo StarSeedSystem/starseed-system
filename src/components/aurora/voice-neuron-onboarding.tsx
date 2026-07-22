@@ -28,6 +28,10 @@ import { safeGet, safeSet } from "@/lib/safe-storage";
 import { cn } from "@/lib/utils";
 import { ensureLocalKeepAlive } from "@/lib/aurora/tts-oss/omnivoice-hybrid";
 import { omnivoiceWebSynthesize } from "@/lib/aurora/tts-oss/omnivoice-web-router";
+import {
+  getVoiceChainPriority,
+  setVoiceChainPriority,
+} from "@/lib/aurora/tts-oss/omnivoice-web-router";
 // Selección de idioma de la voz (Adenda idiomas-voz): catálogo + persistencia.
 import { getPreferredLocale, getVoiceConfig, setVoiceConfig } from "@/lib/aurora/tts-oss/voice-config";
 import { findLocale, localesByBase, searchLocales, suggestLocalesFromEnvironment } from "@/lib/aurora/tts-oss/locales";
@@ -105,41 +109,22 @@ export function writeNeuronVoiceChoice(mode: NeuronVoiceMode): void {
 }
 
 // ── Preferencias de jerarquización de la cadena de voz (Adenda 94) ────────────
-// Orden de PRIORIDAD configurable por el usuario: OmniVoice prueba de arriba
-// abajo. Persistido por neurona (localStorage). El router de voz lo respeta en
-// tiempo de habla cuando puede.
-export const VOICE_PRIORITY_ORDER: readonly NeuronVoiceMode[] = ["local", "cloud", "fastweb"];
-const VOICE_PRIORITY_LS_KEY = "starseed.voz.neurona.priority.v1";
+// El USUARIO reordena los MOTORES de su cadena de voz; OmniVoice los respeta en
+// tiempo de habla (applyVoiceChainPriority en speak-router). Persistido en
+// localStorage (clave starseed.aurora.voice.priority.v1, pedida por el dueño).
 
-/** Lee el orden de prioridad guardado (o el recomendado si no hay/inválido). */
-export function getVoicePriorityOrder(): NeuronVoiceMode[] {
-  try {
-    const raw = safeGet(VOICE_PRIORITY_LS_KEY);
-    if (!raw) return [...VOICE_PRIORITY_ORDER];
-    const arr = JSON.parse(raw) as string[];
-    const valid = arr.filter((m): m is NeuronVoiceMode => VOICE_PRIORITY_ORDER.includes(m as NeuronVoiceMode));
-    if (valid.length === VOICE_PRIORITY_ORDER.length) return valid;
-    return [...VOICE_PRIORITY_ORDER];
-  } catch {
-    return [...VOICE_PRIORITY_ORDER];
-  }
-}
-
-/** Guarda el orden de prioridad (o null para restaurar el recomendado). */
-export function setVoicePriorityOrder(order: NeuronVoiceMode[] | null): void {
-  try {
-    if (!order) {
-      safeSet(VOICE_PRIORITY_LS_KEY, JSON.stringify([...VOICE_PRIORITY_ORDER]));
-      return;
-    }
-    const valid = order.filter((m) => VOICE_PRIORITY_ORDER.includes(m));
-    if (valid.length === VOICE_PRIORITY_ORDER.length) {
-      safeSet(VOICE_PRIORITY_LS_KEY, JSON.stringify(valid));
-    }
-  } catch {
-    /* */
-  }
-}
+/** Etiqueta legible de cada motor para la UI de jerarquía. */
+const CHAIN_LABELS: Record<string, string> = {
+  omnivoice: "OmniVoice · híbrido local/nube",
+  openvoice2: "OpenVoice · nube gratis (por defecto)",
+  kokoro: "Kokoro · respaldo local",
+  voxcpm: "VoxCPM · endpoint propio",
+  voicebox: "Voicebox · estudio local",
+  bark: "Bark · expresivo",
+  "gpt-sovits": "GPT-SoVITS · clonación",
+  kitten: "Kitten · beta",
+  browser: "Voz del navegador (suelo)",
+};
 
 /**
  * Reabre la ventana de elección de voz de la neurona: borra la elección y avisa a
@@ -181,11 +166,21 @@ export function VoiceNeuronOnboarding() {
   // (Adenda 94) Vista previa de audio + jerarquía de la cadena de voz.
   const [previewing, setPreviewing] = useState(false);
   const [previewMsg, setPreviewMsg] = useState("");
-  const [priority, setPriorityState] = useState<NeuronVoiceMode[]>(["local", "cloud", "fastweb"]);
+  const [priority, setPriorityState] = useState<string[]>([
+    "omnivoice",
+    "openvoice2",
+    "kokoro",
+    "voxcpm",
+    "voicebox",
+    "bark",
+    "gpt-sovits",
+    "kitten",
+    "browser",
+  ]);
 
   useEffect(() => {
     try {
-      setPriorityState(getVoicePriorityOrder());
+      setPriorityState(getVoiceChainPriority());
     } catch {
       /* */
     }
@@ -342,17 +337,35 @@ export function VoiceNeuronOnboarding() {
     }
   };
 
-  // (Adenda 94) Reordena la jerarquía de la cadena de voz (sube/baja un modo).
-  const movePriority = (mode: NeuronVoiceMode, dir: -1 | 1) => {
+  // (Adenda 94) Reordena la jerarquía de la cadena de voz (sube/baja un motor).
+  const movePriority = (mode: string, dir: -1 | 1) => {
     setPriorityState((prev) => {
       const idx = prev.indexOf(mode);
       const next = [...prev];
       const swap = idx + dir;
       if (idx < 0 || swap < 0 || swap >= next.length) return prev;
       [next[idx], next[swap]] = [next[swap], next[idx]];
-      setVoicePriorityOrder(next);
+      setVoiceChainPriority(next);
       return next;
     });
+  };
+
+  // (Adenda 95) Voicebox: vincula la API Key del usuario (variante WEB) por
+  // Cerebro/Usuario. La app LOCAL no necesita key; la nube sí (suscripción).
+  const [vbKey, setVbKey] = useState("");
+  const [vbKeySaved, setVbKeySaved] = useState(false);
+  const saveVbKey = async () => {
+    try {
+      const { BrainApiManager } = await import("@/lib/aurora/tts-oss/brain-api-manager");
+      const { resolveVoiceboxPersonality } = await import(
+        "@/lib/aurora/tts-oss/voicebox-engine",
+      );
+      const p = await resolveVoiceboxPersonality();
+      const ok = BrainApiManager.linkKey(p.brainId ?? null, p.userId ?? null, vbKey);
+      setVbKeySaved(ok);
+    } catch {
+      setVbKeySaved(false);
+    }
   };
 
   return createPortal(
@@ -433,12 +446,7 @@ export function VoiceNeuronOnboarding() {
               <p className="mb-1 text-[11px] text-white/50">Preferencias de jerarquización (orden de la cadena):</p>
               <div className="flex flex-col gap-1">
                 {priority.map((mode, i) => {
-                  const label =
-                    mode === "local"
-                      ? "OmniVoice · motor local"
-                      : mode === "cloud"
-                        ? "OpenVoice · nube gratis"
-                        : "Otros sistemas web (más rápidos)";
+                  const label = CHAIN_LABELS[mode] ?? mode;
                   return (
                     <div
                       key={mode}
@@ -469,6 +477,42 @@ export function VoiceNeuronOnboarding() {
                 })}
               </div>
             </div>
+          </div>
+
+          {/* (Adenda 95) Voicebox — motor PRINCIPAL recomendado (Local/Web) */}
+          <div className="flex flex-col gap-2 rounded-xl border border-sky-400/15 bg-sky-400/[0.04] p-3">
+            <div className="flex items-center gap-2">
+              <span className="text-[12px] font-medium text-white/85">Voicebox · motor recomendado</span>
+              <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] text-white/50">
+                local si la app está viva · nube con tu API Key
+              </span>
+            </div>
+            <p className="text-[11px] text-white/45">
+              La app de escritorio (macOS/Windows/Linux) funciona sin claves. Para la
+              variante en la nube necesitas tu propia API Key de Voicebox (suscripción
+              externa). Gratis por defecto: OpenVoice web sigue como respaldo.
+            </p>
+            <div className="flex items-center gap-2">
+              <input
+                type="password"
+                value={vbKey}
+                onChange={(e) => {
+                  setVbKey(e.target.value);
+                  setVbKeySaved(false);
+                }}
+                placeholder="Pega tu API Key de Voicebox (nube)"
+                className="h-8 flex-1 rounded-lg border border-white/10 bg-black/30 px-2 text-[12px] text-white/85 outline-none placeholder:text-white/30 focus:border-sky-400/40"
+              />
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={saveVbKey}
+                className="h-8 cursor-pointer bg-sky-500/15 px-3 text-[12px] text-sky-100 hover:bg-sky-500/25"
+              >
+                Guardar
+              </Button>
+            </div>
+            {vbKeySaved && <p className="text-[11px] text-emerald-200/90">✓ API Key vinculada a este cerebro.</p>}
           </div>
 
           {!installing ? (

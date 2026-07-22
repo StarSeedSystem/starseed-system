@@ -104,6 +104,71 @@ export function getWebVoiceDiscoveryInfo() {
   }
 }
 
+// ── Jerarquía de la cadena de voz (preferencias de orden) ────────────────────
+// Orden de PRIORIDAD de los MOTORES que el usuario puede reordenar en la ventana
+// de voz. OmniVoice lo respeta en tiempo de habla reordenando la cadena.
+const VOICE_CHAIN_PRIORITY_KEY = "starseed.aurora.voice.priority.v1";
+const DEFAULT_CHAIN_PRIORITY = [
+  "voicebox",
+  "omnivoice",
+  "openvoice2",
+  "kokoro",
+  "voxcpm",
+  "bark",
+  "gpt-sovits",
+  "kitten",
+  "browser",
+];
+
+/** Lee el orden de prioridad de motores (o el recomendado si no hay/inválido). */
+export function getVoiceChainPriority(): string[] {
+  const ls = safeLS();
+  if (!ls) return [...DEFAULT_CHAIN_PRIORITY];
+  try {
+    const raw = ls.getItem(VOICE_CHAIN_PRIORITY_KEY);
+    if (!raw) return [...DEFAULT_CHAIN_PRIORITY];
+    const arr = JSON.parse(raw) as string[];
+    const valid = arr.filter((m) => DEFAULT_CHAIN_PRIORITY.includes(m));
+    if (valid.length === DEFAULT_CHAIN_PRIORITY.length) return valid;
+    return [...DEFAULT_CHAIN_PRIORITY];
+  } catch {
+    return [...DEFAULT_CHAIN_PRIORITY];
+  }
+}
+
+/** Guarda el orden de prioridad de motores. Nunca lanza. */
+export function setVoiceChainPriority(order: string[]): void {
+  const ls = safeLS();
+  if (!ls) return;
+  try {
+    const valid = order.filter((m) => DEFAULT_CHAIN_PRIORITY.includes(m));
+    if (valid.length === DEFAULT_CHAIN_PRIORITY.length) {
+      ls.setItem(VOICE_CHAIN_PRIORITY_KEY, JSON.stringify(valid));
+    }
+  } catch {
+    /* */
+  }
+}
+
+/**
+ * Reordena una cadena de voz según la preferencia del usuario: los motores que
+ * el usuario puso "arriba" se intentan primero. Los no listados van al final
+ * respetando su orden original. Nunca lanza.
+ */
+export function applyVoiceChainPriority<T extends string>(chain: T[]): T[] {
+  try {
+    const pri = getVoiceChainPriority();
+    const rank = new Map(pri.map((m, i) => [m, i] as const));
+    return [...chain].sort((a, b) => {
+      const ra = rank.has(a) ? rank.get(a)! : Number.MAX_SAFE_INTEGER;
+      const rb = rank.has(b) ? rank.get(b)! : Number.MAX_SAFE_INTEGER;
+      return ra - rb;
+    });
+  } catch {
+    return chain;
+  }
+}
+
 // ── Utilidades SSR-safe ──────────────────────────────────────────────────────
 
 function safeLS(): Storage | null {
