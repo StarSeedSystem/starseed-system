@@ -78,8 +78,17 @@ const KEEP_WARM_EVERY_MS = 7 * 60_000;
 const LOCAL_PROBE_TIMEOUT_MS = 3_000;
 const LOCAL_SLOW_COOLDOWN_MS = 10 * 60_000;
 let localSlowUntil = 0;
-/** Presupuesto GENEROSO de la nube (los Spaces despiertan lento). */
-const CLOUD_TIMEOUT_MS = 60_000;
+/**
+ * Presupuesto de la nube (los Spaces de HF despiertan lento en frío). Debe ser
+ * >= `QUEUE_TIMEOUT_FIRST_MS` del cliente OpenVoice V2 (~120 s): un Space en
+ * frío puede tardar eso en la PRIMERA síntesis antes de devolver audio. Con 60
+ * s (valor anterior) el trozo web caducaba antes de que el Space despertara →
+ * la cadena caía a Kokoro (mismo bug "sigue respondiendo Kokoro" en neuronas
+ * sin daemon que la ruta openvoice2). 120 s = espera a OmniVoice de verdad en
+ * frío; en caliente (~60 s) queda holgado. Un Space MUERTO corta por su cuenta
+ * dentro de `synthCloud` mucho antes, así que no se cuelga la UI.
+ */
+const CLOUD_TIMEOUT_MS = 120_000;
 /** Sub-timeout del PASO 1 (enviar la petición y recibir el event_id): rápido. */
 const CLOUD_KICKOFF_TIMEOUT_MS = 15_000;
 

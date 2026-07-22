@@ -27,6 +27,7 @@ import { LocalEngineInstaller } from "@/components/settings/aurora/local-engine-
 import { safeGet, safeSet } from "@/lib/safe-storage";
 import { cn } from "@/lib/utils";
 import { ensureLocalKeepAlive } from "@/lib/aurora/tts-oss/omnivoice-hybrid";
+import { omnivoiceWebSynthesize } from "@/lib/aurora/tts-oss/omnivoice-web-router";
 // Selección de idioma de la voz (Adenda idiomas-voz): catálogo + persistencia.
 import { getPreferredLocale, getVoiceConfig, setVoiceConfig } from "@/lib/aurora/tts-oss/voice-config";
 import { findLocale, localesByBase, searchLocales, suggestLocalesFromEnvironment } from "@/lib/aurora/tts-oss/locales";
@@ -50,7 +51,7 @@ const DAEMON_STATUS = "http://127.0.0.1:4444/status";
  * aun para quienes ya habían elegido. Al elegir (o cerrar) se re-sella y no vuelve
  * a molestar hasta la próxima actualización.
  */
-export const VOICE_SYSTEM_VERSION = 89;
+export const VOICE_SYSTEM_VERSION = 94;
 
 // (Adenda 90) "fastweb": la neurona prefiere otros sistemas web automáticos
 // (más rápidos, menos realistas que OpenVoice) en vez del predeterminado. Los
@@ -103,6 +104,43 @@ export function writeNeuronVoiceChoice(mode: NeuronVoiceMode): void {
   }
 }
 
+// ── Preferencias de jerarquización de la cadena de voz (Adenda 94) ────────────
+// Orden de PRIORIDAD configurable por el usuario: OmniVoice prueba de arriba
+// abajo. Persistido por neurona (localStorage). El router de voz lo respeta en
+// tiempo de habla cuando puede.
+export const VOICE_PRIORITY_ORDER: readonly NeuronVoiceMode[] = ["local", "cloud", "fastweb"];
+const VOICE_PRIORITY_LS_KEY = "starseed.voz.neurona.priority.v1";
+
+/** Lee el orden de prioridad guardado (o el recomendado si no hay/inválido). */
+export function getVoicePriorityOrder(): NeuronVoiceMode[] {
+  try {
+    const raw = safeGet(VOICE_PRIORITY_LS_KEY);
+    if (!raw) return [...VOICE_PRIORITY_ORDER];
+    const arr = JSON.parse(raw) as string[];
+    const valid = arr.filter((m): m is NeuronVoiceMode => VOICE_PRIORITY_ORDER.includes(m as NeuronVoiceMode));
+    if (valid.length === VOICE_PRIORITY_ORDER.length) return valid;
+    return [...VOICE_PRIORITY_ORDER];
+  } catch {
+    return [...VOICE_PRIORITY_ORDER];
+  }
+}
+
+/** Guarda el orden de prioridad (o null para restaurar el recomendado). */
+export function setVoicePriorityOrder(order: NeuronVoiceMode[] | null): void {
+  try {
+    if (!order) {
+      safeSet(VOICE_PRIORITY_LS_KEY, JSON.stringify([...VOICE_PRIORITY_ORDER]));
+      return;
+    }
+    const valid = order.filter((m) => VOICE_PRIORITY_ORDER.includes(m));
+    if (valid.length === VOICE_PRIORITY_ORDER.length) {
+      safeSet(VOICE_PRIORITY_LS_KEY, JSON.stringify(valid));
+    }
+  } catch {
+    /* */
+  }
+}
+
 /**
  * Reabre la ventana de elección de voz de la neurona: borra la elección y avisa a
  * la ventana global (montada en el layout) para que vuelva a preguntar SIN recargar
@@ -140,6 +178,18 @@ export function VoiceNeuronOnboarding() {
   const [checkMsg, setCheckMsg] = useState("");
   // ¿La ventana se abrió porque el sistema de voz se ACTUALIZÓ? (Adenda 88.)
   const [updated, setUpdated] = useState(false);
+  // (Adenda 94) Vista previa de audio + jerarquía de la cadena de voz.
+  const [previewing, setPreviewing] = useState(false);
+  const [previewMsg, setPreviewMsg] = useState("");
+  const [priority, setPriorityState] = useState<NeuronVoiceMode[]>(["local", "cloud", "fastweb"]);
+
+  useEffect(() => {
+    try {
+      setPriorityState(getVoicePriorityOrder());
+    } catch {
+      /* */
+    }
+  }, []);
 
   // ── Idioma de la voz (selección explícita + sugerencia por ubicación) ──────
   // Vive en voice-config.ts (`primaryLocale`/`preferredLocales`); esta ventana
@@ -260,6 +310,51 @@ export function VoiceNeuronOnboarding() {
     }
   };
 
+  // (Adenda 94) MUESTRA DE AUDIO: sintetiza un fragmento con la configuración
+  // actual (OpenVoice web por defecto) y lo reproduce antes de confirmar.
+  const previewVoice = async () => {
+    setPreviewing(true);
+    setPreviewMsg("Generando muestra con OpenVoice…");
+    try {
+      const blob = await omnivoiceWebSynthesize(
+        "Hola, soy tu asistente Astraura. Esta es la voz de tu sistema OmniVoice.",
+        { lang: "es" },
+      );
+      if (blob && typeof window !== "undefined") {
+        const url = URL.createObjectURL(blob);
+        const audio = new Audio(url);
+        audio.onended = () => {
+          try {
+            URL.revokeObjectURL(url);
+          } catch {
+            /* */
+          }
+        };
+        await audio.play().catch(() => null);
+        setPreviewMsg("▶️ Muestra reproducida.");
+      } else {
+        setPreviewMsg("No se pudo generar la muestra ahora (el Space puede estar despertando).");
+      }
+    } catch {
+      setPreviewMsg("No se pudo generar la muestra ahora.");
+    } finally {
+      setPreviewing(false);
+    }
+  };
+
+  // (Adenda 94) Reordena la jerarquía de la cadena de voz (sube/baja un modo).
+  const movePriority = (mode: NeuronVoiceMode, dir: -1 | 1) => {
+    setPriorityState((prev) => {
+      const idx = prev.indexOf(mode);
+      const next = [...prev];
+      const swap = idx + dir;
+      if (idx < 0 || swap < 0 || swap >= next.length) return prev;
+      [next[idx], next[swap]] = [next[swap], next[idx]];
+      setVoicePriorityOrder(next);
+      return next;
+    });
+  };
+
   return createPortal(
     <div
       className="fixed inset-0 z-[10000] flex items-end justify-center p-4 sm:items-center"
@@ -318,6 +413,63 @@ export function VoiceNeuronOnboarding() {
               </span>
             )}
           </p>
+
+          {/* (Adenda 94) MUESTRA DE AUDIO + JERARQUÍA de la cadena de voz */}
+          <div className="flex flex-col gap-2 rounded-xl border border-white/10 bg-white/[0.03] p-3">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[12px] font-medium text-white/80">Prueba de voz (OpenVoice)</span>
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={previewing}
+                onClick={previewVoice}
+                className="h-8 cursor-pointer gap-1.5 bg-sky-500/15 px-3 text-[12px] text-sky-100 hover:bg-sky-500/25"
+              >
+                {previewing ? "Generando…" : "▶ Probar voz"}
+              </Button>
+            </div>
+            {previewMsg && <p className="text-[11px] text-white/45">{previewMsg}</p>}
+            <div className="mt-1">
+              <p className="mb-1 text-[11px] text-white/50">Preferencias de jerarquización (orden de la cadena):</p>
+              <div className="flex flex-col gap-1">
+                {priority.map((mode, i) => {
+                  const label =
+                    mode === "local"
+                      ? "OmniVoice · motor local"
+                      : mode === "cloud"
+                        ? "OpenVoice · nube gratis"
+                        : "Otros sistemas web (más rápidos)";
+                  return (
+                    <div
+                      key={mode}
+                      className="flex items-center gap-2 rounded-lg border border-white/8 bg-white/[0.04] px-2 py-1 text-[12px] text-white/80"
+                    >
+                      <span className="w-4 text-white/40">{i + 1}</span>
+                      <span className="min-w-0 flex-1 truncate">{label}</span>
+                      <button
+                        type="button"
+                        aria-label="Subir"
+                        disabled={i === 0}
+                        onClick={() => movePriority(mode, -1)}
+                        className="flex h-6 w-6 cursor-pointer items-center justify-center rounded text-white/60 hover:bg-white/10 disabled:opacity-25"
+                      >
+                        ▲
+                      </button>
+                      <button
+                        type="button"
+                        aria-label="Bajar"
+                        disabled={i === priority.length - 1}
+                        onClick={() => movePriority(mode, 1)}
+                        className="flex h-6 w-6 cursor-pointer items-center justify-center rounded text-white/60 hover:bg-white/10 disabled:opacity-25"
+                      >
+                        ▼
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
 
           {!installing ? (
             <div className="flex flex-col gap-2">

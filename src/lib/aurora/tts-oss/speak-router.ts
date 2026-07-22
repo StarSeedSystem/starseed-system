@@ -53,6 +53,10 @@ import {
   type VoiceChainLink,
 } from "@/lib/aurora/tts-oss/engine-registry";
 import {
+  refreshWebVoiceDiscovery,
+  hasWebVoiceDiscoveredThisSession,
+} from "@/lib/aurora/tts-oss/omnivoice-web-router";
+import {
   getEngineSettings,
   getVoiceConfig,
   isNeuralEngine,
@@ -430,6 +434,14 @@ export async function speakWithConfiguredEngine(
   try {
     const chain = buildVoiceChain(cfg, pin);
     if (!chain.length) return false; // suelo: navegador
+    // ACTIVACIÓN AUTOMÁTICA POR SESIÓN (Adenda 94): si la cadena incluye el
+    // motor web OpenVoice, descubre los Spaces HF Running UNA vez por sesión de
+    // chat (al iniciar/actualizar la sesión de la neurona activa) para que
+    // siempre haya endpoints funcionales y el failover tenga de dónde elegir.
+    // Fire-and-forget: nunca bloquea ni rompe el habla.
+    if (chain.includes("openvoice2") && !hasWebVoiceDiscoveredThisSession()) {
+      void refreshWebVoiceDiscovery().catch(() => null);
+    }
     for (const link of chain) {
       // Cada eslabón envuelto: nunca lanzar sin capturar en cadenas de failover.
       const outcome = await Promise.resolve()

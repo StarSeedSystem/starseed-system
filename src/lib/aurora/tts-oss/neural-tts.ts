@@ -98,6 +98,7 @@ import {
 import { listBrowserVoices, rankBrowserVoices } from "@/lib/aurora/tts-oss/browser-voices";
 import type { OpenVoice2SeedSpec, OpenVoiceEndpoint } from "@/lib/aurora/tts-oss/openvoice2";
 import type { OmniRouteDecision } from "@/lib/aurora/tts-oss/omnivoice-hybrid";
+import { omnivoiceWebSynthesize } from "@/lib/aurora/tts-oss/omnivoice-web-router";
 import {
   decorateTextForBark,
   decorateTextForVoxCPM,
@@ -127,13 +128,18 @@ export const ENGINE_TIMEOUT_MS: Record<NeuralVoiceEngine, number> = {
   "gpt-sovits": 20_000,
   omnivoice: 20_000,
   // OpenVoice V2 gestiona su propio presupuesto POR INTENTO dentro de su
-  // cliente (cola + cold start del Space), pero sin techo TOTAL propagado
-  // podía encadenar varios endpoints/intentos y colgarse ~85 s en un Space
-  // roto antes de ceder el turno (fix voz-femenina, 2026-07-21). Ahora este
-  // valor SÍ se usa: es el presupuesto TOTAL del turno cuando el mensaje no
-  // se trocea (el caso más común — ver `neuralSpeak()`). ~30-35 s máximo para
-  // que la cadena caiga pronto a Kokoro (femenino) si el Space no responde.
-  openvoice2: 35_000,
+  // cliente (cola + cold start del Space). El Space gratis de HF tarda
+  // HASTA ~120 s en el primer arranque en frío (QUEUE_TIMEOUT_FIRST_MS) antes
+  // de devolver audio; un tope de 35 s abortaba la síntesis ANTES de que el
+  // Space despertara → el frontend recibía null y la cadena caía a Kokoro
+  // (el bug "sigue respondiendo Kokoro" en neuronas SIN daemon local: la
+  // Adenda 93 arregló el daemon pero NO esta ruta web). Por eso el tope TOTAL
+  // del turno corto debe ser >= el cold start del Space (120 s). Para no
+  // colgar la UI si el Space ESTÁ MUERTO de verdad, `synthesizeOpenVoice2`
+  // detecta el fallo de conexión/cola rota y corta por su cuenta (y la cadena
+  // pasa a Kokoro femenino) mucho antes de agotar este techo. 120 s = "espera a
+  // OpenVoice de verdad" en frío; en caliente (~60 s) queda holgado.
+  openvoice2: 120_000,
 };
 
 /** TTL de la caché de disponibilidad (ping), en ms. */
@@ -507,6 +513,14 @@ export async function neuralSynthesize(
     onError?: (message: string) => void;
     /** Tope de presupuesto por llamada (habla troceada · Adenda 85). */
     budgetCapMs?: number;
+    /** Id de la personalidad activa (para el router web-only openvoice2). */
+    personalityId?: string;
+    /** Pista de estilo OpenVoice (para el router web-only openvoice2). */
+    styleHint?: string;
+    /** Muestra de audio del usuario para clonar (openvoice2 web-only). */
+    refBlob?: Blob | null;
+    /** Señal de aborto de la cadena de voz (openvoice2 web-only). */
+    signal?: AbortSignal;
     /**
      * Ruta OmniVoice ya decidida para TODO el mensaje (fix continuidad de voz,
      * 2026-07-21): solo la usa el motor "omnivoice" (delegateOmniHybrid).
@@ -528,13 +542,17 @@ export async function neuralSynthesize(
   // OmniVoice) — no es un endpoint del usuario. Se delega SIEMPRE a su cliente,
   // que gestiona la cola del Space, la semilla de identidad y el fallback honesto.
   if (engine === "openvoice2") {
-    return await delegateOpenVoice2(
-      clean,
-      s,
-      opts.onError,
-      opts.budgetCapMs,
-      opts.openVoiceEndpointOverride,
-    );
+    // ROUTER WEB-ONLY (V2-VOZ): sintetiza por el Space OpenVoice V2 (sin
+    // daemon) vía el router dedicado. Mantiene el flujo de semilla por
+    // personalidad y la continuidad de voz con el endpoint ya fijado.
+    return await omnivoiceWebSynthesize(clean, {
+      personalityId: opts.personalityId,
+      lang: s.lang,
+      style: opts.styleHint,
+      refBlob: opts.refBlob,
+      budgetCapMs: opts.budgetCapMs,
+      signal: opts.signal,
+    }).catch(() => null);
   }
 
   const endpoint = normalizeEndpoint(s.endpoint);
@@ -1088,19 +1106,29 @@ async function neuralSpeakChunked(
   }
   let openVoiceEndpoint: OpenVoiceEndpoint | undefined;
 
-  // Presupuesto TOPE por trozo. CLAVE (fix "cae a Kokoro", 2026-07-21): la RUTA
-  // LOCAL usa el daemon OmniVoice residente, que en un M1/8 GB tarda ~40-90 s por
-  // frase (inferencia ~6-7× tiempo real). Con topes de 35/90 s el frontend
-  // abandonaba el trozo ANTES de que el daemon respondiera y la cadena caía a
-  // Kokoro. Para local damos un tope GENEROSO (165 s, coherente con el timeout
-  // del servidor del daemon, 150 s) para ESPERAR a OpenVoice de verdad. Para la
-  // NUBE (openvoice2 / omnivoice-nube) mantenemos topes cortos (35/90 s) para
-  // caer rápido a Kokoro FEMENINO si el Space está roto.
+  // Presupuesto TOPE por trozo. Dos realidades distintas según la ruta:
+  //  · RUTA LOCAL (daemon OmniVoice residente en M1/8 GB): ~40-90 s por frase
+  //    (inferencia ~6-7× tiempo real). Tope GENEROSO (165 s, coherente con el
+  //    timeout del servidor del daemon, 150 s) para ESPERAR a OpenVoice.
+  //  · RUTA NUBE (openvoice2 / omnivoice-nube, Space HF gratis): el Space tarda
+  //    hasta ~120 s en frío (QUEUE_TIMEOUT_FIRST_MS) y ~60 s en caliente
+  //    (QUEUE_TIMEOUT_WARM_MS) por frase. Con los topes cortos de 35/90 s que
+  //    traía la Adenda 93 el frontend abandonaba el trozo ANTES de que el Space
+  //    despertara → null → la cadena caía a Kokoro y el mensaje se FRAGMENTABA
+  //    (el bug "sigue respondiendo Kokoro / mensajes trozeados" en neuronas sin
+  //    daemon). Ahora el tope web IGUALA el cold-start del Space (120 s) para el
+  //    primer trozo y 60 s para los siguientes (ya calientan el Space). Un Space
+  //    MUERTO de verdad corta por su cuenta dentro de `synthesizeOpenVoice2`
+  //    mucho antes de agotar esto y la cadena pasa a Kokoro femenino sin colgar.
   const isLocalRoute = engine === "omnivoice" && omniRoute?.route === "local";
   const synth = (t: string, i: number) =>
     neuralSynthesize(engine, t, {
       settings: opts.settings,
-      budgetCapMs: isLocalRoute ? 165_000 : i === 0 ? 35_000 : 90_000,
+      budgetCapMs: isLocalRoute
+        ? 165_000
+        : i === 0
+          ? 120_000 // espera al Space en frío (cold start HF ~120 s)
+          : 60_000, // trozos siguientes: Space ya caliente (~60 s)
       omniRouteOverride: omniRoute,
       openVoiceEndpointOverride: openVoiceEndpoint,
     }).catch(() => null);

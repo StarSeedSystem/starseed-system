@@ -22,7 +22,7 @@
 
 - **Stack:** Next.js 15 (App Router) + TypeScript + Tailwind + shadcn/ui + Supabase + Genkit (Google AI) + Three.js / React-Three-Fiber + Framer Motion + Spline
 - **Carpeta local:** `/Users/alex/Documents/starseed-os-main`
-- **Git:** ⚠️ La carpeta **NO es un repositorio git inicializado** todavía. Hay que `git init` y vincularlo a `StarSeedSystem/starseed-system` antes de cualquier sincronización.
+- **Git:** ✅ La carpeta **SÍ es un repositorio git** en la rama `main` (HEAD `5de826a`+), vinculado a `StarSeedSystem/starseed-system`. Los push disparan auto-deploy en Vercel. *(corregido 2026-07-21: antes decía erróneamente "NO es un repositorio git inicializado".)*
 - **Servidor / deployment:** Configurado para Vercel (auto-deploy desde GitHub). **Google Cloud Run activo** como alternativa soberana (`Dockerfile` + `cloudbuild.yaml`, min 0 / max 5) → todo lo nuevo debe funcionar en **standalone** y leer su config por **env vars**. Existe además `apphosting.yaml` (Firebase App Hosting).
 - **Base de datos:** Supabase — **proyecto propio del OS `nxstilnyidvkqeosofuh`**, con cuentas **SEPARADAS** de las de Nexus/Café (que usan `dzkjapinnewkxzjltadv`). Config en `supabase/` + cliente **singleton** en `src/utils/supabase/client.ts`. Schema implementado (`Account`, `Profile`, `Page`, `Post`, `StoreItem`, `LibraryItem`, `os_*`, `entity_state`, `os_spaces`). ⚠️ Migración `supabase/migrations/20260711120000_realtime_publication.sql` **pendiente de aplicar**.
 - **Tema visual:** Sistema "Crystal Liquid Glass" + "Trinity" (Zenith/Horizon/Logic/Anchor).
