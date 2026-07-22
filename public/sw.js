@@ -11,7 +11,7 @@
  * Bumpea SW_VERSION cuando quieras invalidar todas las cachés anteriores.
  */
 
-const SW_VERSION = "v5-2026-07-05";
+const SW_VERSION = "v6-2026-07-21";
 const PRECACHE = `starseed-precache-${SW_VERSION}`;
 const RUNTIME = `starseed-runtime-${SW_VERSION}`;
 const OFFLINE_URL = "/offline.html";
@@ -144,11 +144,14 @@ self.addEventListener("fetch", (event) => {
 
 // ── Estrategias ─────────────────────────────────────────────────────────────
 
-// Navegación: intenta red; si falla, sirve la última versión cacheada de esa
-// ruta y, en último término, la página offline.
+// Navegación: intenta red (sin cache del edge, siempre build reciente); si
+// falla, sirve la última versión cacheada de esa ruta y, en último término,
+// la página offline. El `cache: 'no-store'` fuerza al edge a revalidar contra
+// el origen y entregar el HTML/nuevo build, evitando servir HTML viejo (304)
+// que invocaría chunks colisionantes cacheados.
 async function networkFirstNavigation(request) {
   try {
-    const response = await fetch(request);
+    const response = await fetch(request, { cache: "no-store" });
     // Guarda una copia para servir offline más adelante.
     try {
       const cache = await caches.open(RUNTIME);
@@ -191,10 +194,12 @@ async function cacheFirst(request) {
   }
 }
 
-// Genérica: red primero, caché como respaldo.
+// Genérica: red primero (sin cache del edge, siempre build reciente), caché
+// como respaldo offline. El `cache: 'no-store'` evita que el edge sirva
+// chunks viejos (304) que colisionan tras un despliegue.
 async function networkFirst(request) {
   try {
-    const response = await fetch(request);
+    const response = await fetch(request, { cache: "no-store" });
     if (response && response.ok) {
       try {
         const cache = await caches.open(RUNTIME);
