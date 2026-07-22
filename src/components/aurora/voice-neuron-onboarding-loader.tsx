@@ -27,7 +27,7 @@ export function VoiceNeuronOnboardingLoader() {
     if (started.current) return;
     started.current = true;
     let alive = true;
-    import("@/components/aurora/voice-neuron-onboarding")
+    import("@/components/aurora/voice-neuron-onboarding-v310")
       .then((m) => { if (alive) setMod({ VoiceNeuronOnboarding: m.VoiceNeuronOnboarding }); })
       .catch(() => { /* silencioso: el onboarding de voz es opcional */ });
     return () => { alive = false; };
