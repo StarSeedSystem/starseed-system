@@ -10,7 +10,7 @@ import { LiquidGlass } from "@/components/ui/liquid-glass";
 import { WebGLBackground } from "@/components/ui/backgrounds/webgl-background";
 import { SplineDefaultBackground } from "@/components/ui/backgrounds/spline-default-background";
 import { SplineWatermarkCover } from "@/components/ui/SplineWatermarkCover";
-import { VoiceNeuronOnboardingMount } from "@/components/aurora/voice-neuron-onboarding-mount";
+import { VoiceNeuronOnboardingLoader } from "@/components/aurora/voice-neuron-onboarding-loader";
 import { LiquidPsychedelicBackground } from "@/components/ui/backgrounds/liquid-psychedelic-background";
 import { MateriaVivaBackgroundHost } from "@/components/backgrounds/materia-viva-background";
 import { LivingBackground } from "@/components/ui/backgrounds/living-background";
@@ -231,7 +231,7 @@ export default function RootLayout({
                             eligió su modo de voz, la ventana se abre sola (una vez,
                             con inteligencia: si el motor local ya vive, se marca
                             en silencio y no molesta). */}
-                        <VoiceNeuronOnboardingMount />
+                        <VoiceNeuronOnboardingLoader />
                         <PerimeterInterface />
                         {/* Trinity Móvil · Bloque 4 — asas de borde + deslizar desde
                             cada orilla para abrir los menús cardinales en táctil.
