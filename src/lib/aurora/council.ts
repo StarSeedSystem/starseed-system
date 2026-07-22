@@ -1,5 +1,12 @@
 "use client";
 
+import {
+  councilStage1Opinions,
+  councilStage2Review,
+  councilStage3Synthesis,
+  type CouncilPerspectiveLite,
+} from "@/lib/aurora/council-multi";
+
 /*
  * ═══════════════════════════════════════════════════════════════════════════
  * AURORA POLÍTICA · CONSEJO DE AURORA  (Adenda 67 · P4-4)
@@ -603,10 +610,66 @@ export async function consultCouncil(
     failed: opinions.length - good.length,
     at: Date.now(),
     ms: Date.now() - started,
-  };
-}
+    };
+    }
 
-/** Resumen de una línea del informe (para toasts / memoria de Aurora). */
+    /**
+    * MODO MULTI-AGENTE del Consejo (subagentes OpenRouter :free por perspectiva).
+    * Equivalente a `consultCouncil` pero cada perspectiva StarSeed corre como un
+    * subagente en un modelo :free distinto (proxy /api/ai/openrouter, coste 0),
+    * con revisores subagentes anonimizados. Devuelve un `CouncilReport` compatible
+    * con la UI clásica. Defensivo: si falla, degrada a `consultCouncil`.
+    */
+    export async function consultCouncilMulti(
+    input: CouncilInput,
+    opts: CouncilOptions = {},
+    ): Promise<CouncilReport> {
+    const proposal = proposalText(input);
+    const perspectives: CouncilPerspectiveLite[] = (
+      opts.perspectives?.length
+        ? COUNCIL_PERSPECTIVES.filter((p) => opts.perspectives!.includes(p.id))
+        : COUNCIL_PERSPECTIVES
+    ).map((p) => ({ id: p.id, label: p.label, system: p.fundamento }));
+
+    const started = Date.now();
+    opts.onProgress?.("Convocando Consejo multi-agente (:free)…", 0, perspectives.length + 1);
+
+    const opinionsLite = await councilStage1Opinions(proposal, perspectives, opts.signal);
+    const review = await councilStage2Review(opinionsLite, opts.signal);
+    const synthesisText = councilStage3Synthesis(opinionsLite, review);
+
+    // Mapea al tipo CouncilOpinion del Consejo clásico para que la UI lo consuma igual.
+    const opinions: CouncilOpinion[] = opinionsLite.map((o) => ({
+      perspective: COUNCIL_PERSPECTIVES.find((p) => p.id === o.perspectiveId) ?? COUNCIL_PERSPECTIVES[0],
+      text: o.text,
+      ok: o.ok,
+      verdict: "indeterminado" as CouncilVerdict,
+      amendments: [],
+      sourceLabel: o.model,
+      model: o.model,
+      ms: 0,
+    }));
+    const good = opinions.filter((o) => o.ok);
+    const sourcesUsed = Array.from(new Set(good.map((o) => o.sourceLabel).filter((x): x is string => !!x)));
+
+    return {
+      topic: input.title || "",
+      opinions,
+      reviews: [],
+      synthesis: {
+        ok: true,
+        verdict: "indeterminado" as CouncilVerdict,
+        text: synthesisText,
+      },
+      sourcesUsed,
+      singleSource: sourcesUsed.length <= 1,
+      failed: opinions.length - good.length,
+      at: Date.now(),
+      ms: Date.now() - started,
+    };
+    }
+
+    /** Resumen de una línea del informe (para toasts / memoria de Aurora). */
 export function summarizeCouncil(report: CouncilReport): string {
   if (!report.synthesis?.ok) return "El Consejo no pudo emitir recomendación.";
   const v = VERDICT_LABELS[report.synthesis.verdict];

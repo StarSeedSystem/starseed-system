@@ -23,6 +23,7 @@
 import { chat, type ChatRequest, type ChatProviderOverride } from "../client/chat";
 import { getProvider, type ChatMessage, type ChatResponse, type ProviderId } from "../providers";
 import { loadConfigs, getActiveProviderId } from "../client/providerStore";
+import { moaMulti, type MoaMultiResult } from "@/lib/aurora/moa-multi";
 
 // ── MoA configuration shapes (kept structurally identical to the settings panel
 //    at src/components/settings/ai/mixture-of-agents-panel.tsx so we read the
@@ -726,4 +727,34 @@ export async function runMoA(messages: ChatMessage[], opts: RunMoaOptions = {}):
     // chat() would have, so the existing UI error handling is unchanged.
     return singleProviderAnswer(messages, opts);
   }
+}
+
+/**
+ * MODO MULTI-AGENTE DEL MoA (subagentes OpenRouter :free en capas + crew).
+ * Orquesta N modelos :free de OpenRouter (proxy /api/ai/openrouter, coste 0)
+ * por capa en paralelo, y en modo crew descompone la tarea en subagentes con
+ * roles. Devuelve el mismo `ChatResponse` que `runMoA`. Respeta el SAFETY
+ * CONTRACT: si el proxy no está configurado o fallan los subagentes, degrada a
+ * la respuesta single (chat()).
+ */
+export async function runMoaMulti(
+  messages: ChatMessage[],
+  opts: { onProgress?: (phase: string, detail: string) => void; signal?: AbortSignal } = {},
+): Promise<ChatResponse> {
+  opts.onProgress?.("moa-multi", "orquestando capas :free");
+  try {
+    const result: MoaMultiResult = await moaMulti({
+      messages,
+      layers: 2,
+      perLayer: 3,
+      crew: true,
+      signal: opts.signal,
+    });
+    if (result.enriched && result.text.trim()) {
+      return { text: result.text, usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 } } as ChatResponse;
+    }
+  } catch {
+    /* caída del multi → fallback single */
+  }
+  return chat({ messages, signal: opts.signal });
 }

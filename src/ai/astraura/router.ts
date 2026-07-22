@@ -48,6 +48,9 @@ import {
   resolvePersonalityForContext,
   compilePersonalityPrompt,
   sectionFromPath,
+} from "@/lib/aurora/personalities";
+import { astrauraMultiContrast } from "@/ai/astraura/astraura-multi";
+import {
   intelligencePinFor,
   type AuroraSense,
 } from "@/lib/aurora/personalities";
@@ -128,6 +131,16 @@ export interface IntelligenceSettings {
    * ninguna tool (chat más predecible). Ver architecture/astraura-inteligencia.md §17.5.
    */
   autoTools: boolean;
+  /**
+   * MODO MULTI-AGENTE (subagentes OpenRouter :free en paralelo). Cuando está ON,
+   * Astraura contrasta cada respuesta con varios subagentes que corren en modelos
+   * GRATUITOS distintos de OpenRouter (proxy /api/ai/openrouter, coste 0). Ver
+   * astraura-multi.ts. Defensivo: si el proxy no está configurado o fallan los
+   * subagentes, la respuesta principal queda intacta.
+   */
+  multiAgent: boolean;
+  /** Nº de subagentes de contraste (2–5). */
+  multiAgentWorkers: number;
 }
 
 export const DEFAULT_INTELLIGENCE: IntelligenceSettings = {
@@ -152,6 +165,8 @@ export const DEFAULT_INTELLIGENCE: IntelligenceSettings = {
     compressionHint: false,
   },
   autoTools: true,
+  multiAgent: false,
+  multiAgentWorkers: 3,
 };
 
 /** Fusiona `IntelligenceSettings` respetando el merge ANIDADO de `huggingBay` y
@@ -977,6 +992,25 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
       };
       pushRouteRecord(rec);
       req.onStatus?.("");
+      // ── MODO MULTI-AGENTE (subagentes OpenRouter :free) ─────────────────────
+      // Si el usuario lo activó, contrastamos la respuesta principal con varios
+      // subagentes que corren en modelos :free distintos (proxy /api/ai/openrouter,
+      // coste 0). Defensivo: cualquier fallo deja `res` intacta (SAFETY CONTRACT).
+      if (prefs.multiAgent && res?.text?.trim()) {
+        try {
+          const enriched = await astrauraMultiContrast({
+            messages: reqX.messages,
+            primary: res,
+            signal: req.signal,
+            workers: Math.max(1, Math.min(5, prefs.multiAgentWorkers || 3)),
+          });
+          if (enriched.enriched && enriched.text) {
+            return { ...res, text: enriched.text, route: rec };
+          }
+        } catch {
+          /* contraste falló → devolvemos la respuesta principal sin tocar */
+        }
+      }
       return { ...res, route: rec };
     } catch (e: any) {
       const msg = String(e?.message ?? e);
