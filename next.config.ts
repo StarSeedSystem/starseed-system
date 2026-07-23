@@ -37,27 +37,21 @@ const nextConfig: NextConfig = {
         'node_modules/@splinetool/react-spline/dist/react-spline.js'
       ),
     };
-    // FIX #310 (root cause: two React instances in the client bundle):
-    // webpack split a copy of React into chunk 1255 while react-dom (which sets
-    // the hooks dispatcher) lived in another chunk (4bd1b696). The layout's
-    // useState resolved to the 1255 copy -> no dispatcher -> #310.
-    // Force react + react-dom (+ client) into ONE shared vendor chunk with
-    // enforce:true so there is a single React instance for the whole client.
+    // FIX #310 (root cause: duplicate React instance in the client bundle).
+    // Next 15 bundles its own copy at next/dist/compiled/react, which webpack
+    // treats as a SEPARATE instance from node_modules/react. The layout's
+    // useState resolved to that copy (no hook dispatcher) -> "Invalid hook call" (#310).
+    // Alias Next's internal compiled react/react-dom to the canonical node_modules
+    // copies (pinned to 19.0.0 via package.json overrides) so the WHOLE client
+    // shares ONE React instance and the dispatcher is set correctly.
     if (!isServer) {
-      config.optimization = config.optimization || {};
-      config.optimization.splitChunks = {
-        ...(config.optimization.splitChunks || {}),
-        cacheGroups: {
-          ...((config.optimization.splitChunks || {}).cacheGroups || {}),
-          reactVendor: {
-            test: /[\\/]node_modules[\\/](react|react-dom|react-dom\/client|scheduler)[\\/]/,
-            name: 'react-vendor',
-            chunks: 'all',
-            priority: 100,
-            enforce: true,
-            reuseExistingChunk: true,
-          },
-        },
+      config.resolve.alias = {
+        ...config.resolve.alias,
+        'next/dist/compiled/react': require.resolve('react'),
+        'next/dist/compiled/react-dom': require.resolve('react-dom'),
+        'next/dist/compiled/react-dom/client': require.resolve('react-dom/client'),
+        'next/dist/compiled/react/jsx-runtime': require.resolve('react/jsx-runtime'),
+        'next/dist/compiled/react/jsx-dev-runtime': require.resolve('react/jsx-dev-runtime'),
       };
     }
     return config;
