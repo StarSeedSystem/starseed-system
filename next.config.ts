@@ -41,12 +41,21 @@ const nextConfig: NextConfig = {
         'node_modules/@splinetool/react-spline/dist/react-spline.js'
       ),
     };
-    // FIX #310: en el cliente, react-server-dom-client se fusiona con 'react'
-    // en el mismo chunk (scope-hoisting de webpack), de modo que el root layout
-    // resuelve useState al shim server → "Invalid hook call" (#310).
-    // Forzamos a 'react' y 'react-dom' a un vendor chunk propio con cacheGroups,
-    // dándoles identidad de módulo separada de react-server-dom-client.
+    // FIX #310: en el cliente, react-server-dom-client (vendored por Next) se
+    // fusiona con 'react' en el mismo chunk (scope-hoisting), de modo que el root
+    // layout resuelve useState al shim server → "Invalid hook call" (#310).
+    // 1) alias a rutas absolutas: TODAS las importaciones de react/react-dom
+    //    (incluidas las de react-server-dom-client) resuelven al MISMO archivo
+    //    físico → una sola copia de react en todo el bundle cliente.
+    // 2) splitChunks mueve esa única copia a 'react-vendor', así el chunk 1255
+    //    (react-server-dom-client) queda SIN react inlineado.
     if (!isServer) {
+      config.resolve.alias = {
+        ...config.resolve.alias,
+        'react$': require.resolve('react'),
+        'react-dom$': require.resolve('react-dom'),
+        'react-dom/client$': require.resolve('react-dom/client'),
+      };
       config.optimization = config.optimization || {};
       config.optimization.splitChunks = {
         ...(config.optimization.splitChunks || {}),
