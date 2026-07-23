@@ -37,13 +37,28 @@ const nextConfig: NextConfig = {
         'node_modules/@splinetool/react-spline/dist/react-spline.js'
       ),
     };
-    // FIX #310: forzar module-ids distintos para react y react-server-dom-client
-    // (root cause: colision de module-id por scope-hoisting). concatenateModules:false
-    // ademas cambia el hash del chunk 1255 respecto al build roto cacheado en el
-    // edge de Vercel, rompiendo la cache de chunks estaticos sin hard-refresh.
+    // FIX #310 (root cause: two React instances in the client bundle):
+    // webpack split a copy of React into chunk 1255 while react-dom (which sets
+    // the hooks dispatcher) lived in another chunk (4bd1b696). The layout's
+    // useState resolved to the 1255 copy -> no dispatcher -> #310.
+    // Force react + react-dom (+ client) into ONE shared vendor chunk with
+    // enforce:true so there is a single React instance for the whole client.
     if (!isServer) {
       config.optimization = config.optimization || {};
-      config.optimization.concatenateModules = false;
+      config.optimization.splitChunks = {
+        ...(config.optimization.splitChunks || {}),
+        cacheGroups: {
+          ...((config.optimization.splitChunks || {}).cacheGroups || {}),
+          reactVendor: {
+            test: /[\\/]node_modules[\\/](react|react-dom|react-dom\/client|scheduler)[\\/]/,
+            name: 'react-vendor',
+            chunks: 'all',
+            priority: 100,
+            enforce: true,
+            reuseExistingChunk: true,
+          },
+        },
+      };
     }
     return config;
   },
