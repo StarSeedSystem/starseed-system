@@ -50,8 +50,6 @@ const nextConfig: NextConfig = {
         'next/dist/compiled/react': require.resolve('react'),
         'next/dist/compiled/react-dom': require.resolve('react-dom'),
         'next/dist/compiled/react-dom/client': require.resolve('react-dom/client'),
-        'next/dist/compiled/react/jsx-runtime': require.resolve('react/jsx-runtime'),
-        'next/dist/compiled/react/jsx-dev-runtime': require.resolve('react/jsx-dev-runtime'),
       };
     }
     return config;
