@@ -46,7 +46,6 @@ const nextConfig: NextConfig = {
     // matchers EXACTOS ($) para no tragarse subpaths como react/jsx-runtime.
     // Solo en !isServer (el server necesita react-server-dom-client para RSC).
     if (!isServer) {
-      config.resolve.dedupe = ['react', 'react-dom', 'react-dom/client'];
       try {
         const react = require.resolve('react');
         const reactJsxRuntime = require.resolve('react/jsx-runtime');
