@@ -53,10 +53,23 @@ const nextConfig: NextConfig = {
         'node_modules/@splinetool/react-spline/dist/react-spline.js'
       ),
     };
-    // DIAGNÓSTICO: alias de react removido temporalmente para confirmar si
-    // rompe el montaje del árbol en producción (Vercel). Si Vercel monta
-    // children sin el alias, el alias era el culpable y la solución es otra
-    // (actualizar Next para eliminar la duplicación de react, no aliasar).
+    // FIX #310 (root cause: duplicate React instance in the client bundle).
+    // Next 15 bundles its own copy at next/dist/compiled/react AND react-dom,
+    // which webpack treats as SEPARATE instances from node_modules/react(-dom).
+    // The layout's hooks (useState) resolved to the compiled copy (no hook
+    // dispatcher) -> "Invalid hook call" (#310). Alias BOTH next/dist/compiled
+    // react AND react-dom to the canonical node_modules copies (pinned to 19.0.0
+    // via package.json overrides) so the WHOLE client shares ONE React instance
+    // and the dispatcher is set correctly. We deliberately do NOT alias
+    // 'react-dom/client' (that broke hydration -> global-error in an earlier
+    // attempt); aliasing the bare 'react-dom' is enough to unify the instance.
+    if (!isServer) {
+      config.resolve.alias = {
+        ...config.resolve.alias,
+        'next/dist/compiled/react$': require.resolve('react'),
+        'next/dist/compiled/react-dom$': require.resolve('react-dom'),
+      };
+    }
     return config;
   },
 };
