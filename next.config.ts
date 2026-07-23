@@ -45,11 +45,14 @@ const nextConfig: NextConfig = {
     // copies (pinned to 19.0.0 via package.json overrides) so the WHOLE client
     // shares ONE React instance and the dispatcher is set correctly.
     if (!isServer) {
+      // Exact-match ($) so only the bare 'next/dist/compiled/react' module is
+      // redirected to the canonical react, NOT its subpaths (react/jsx-runtime,
+      // react/jsx-dev-runtime, etc.) which other packages still need to resolve.
       config.resolve.alias = {
         ...config.resolve.alias,
-        'next/dist/compiled/react': require.resolve('react'),
-        'next/dist/compiled/react-dom': require.resolve('react-dom'),
-        'next/dist/compiled/react-dom/client': require.resolve('react-dom/client'),
+        'next/dist/compiled/react$': require.resolve('react'),
+        'next/dist/compiled/react-dom$': require.resolve('react-dom'),
+        'next/dist/compiled/react-dom/client$': require.resolve('react-dom/client'),
       };
     }
     return config;
