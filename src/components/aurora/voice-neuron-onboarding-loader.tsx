@@ -1,39 +1,24 @@
 "use client";
 
 /**
- * VoiceNeuronOnboardingLoader — Monta <VoiceNeuronOnboarding/> via un
- * import() CRUDO dentro de useEffect (NO next/dynamic). Esto crea un chunk
- * NUEVO y AISLADO con su PROPIA instancia de React, FUERA del grafo
- * estático del root layout.
+ * VoiceNeuronOnboardingLoader — Monta <VoiceNeuronOnboarding/> DIRECTAMENTE
+ * dentro del grafo normal del cliente (NO via import() aislado en useEffect).
  *
- * Por qué (fix #310): el root layout es un Server Component cuyo
- * bundle cliente comparte el module-space con react-server-dom-client
- * (chunk 1255). En el build de Vercel (Linux) eso provocaba una
- * colisión de module-id: el `react` que resolvía VoiceNeuronOnboarding
- * era el shim server de react-server-dom-client → useState undefined →
- * "Minified React error #310". Al cargar el componente via import() crudo
- * en useEffect, su React vive en un chunk aparte y NO colisiona.
+ * Por qué (fix #310): el import() crudo en useEffect creaba un chunk aislado
+ * con su PROPIA instancia de React, fuera del grafo estático del root layout.
+ * En el build de Vercel (Linux) eso provocaba una colisión de module-id con
+ * react-server-dom-client (chunk 1255): el `react` que resolvía el componente
+ * aislado era el shim server → useState undefined → "Minified React error #310".
  *
- * Defensivo: si el import falla, simplemente no monta (no rompe el arranque).
+ * Al importar el componente en el grafo principal del cliente, `react` resuelve
+ * a la MISMA copia real que usan el resto de los componentes (que funcionan),
+ * eliminando la colisión. Los módulos pesados de tts-oss ya se cargan de forma
+ * perezosa (lazy/dynamic) dentro del propio componente, así que el top-level
+ * solo trae imports livianos del grafo normal.
  */
 
-import { useEffect, useRef, useState } from "react";
+import { VoiceNeuronOnboarding } from "@/components/aurora/voice-neuron-onboarding-v310";
 
 export function VoiceNeuronOnboardingLoader() {
-  const [Mod, setMod] = useState<{ VoiceNeuronOnboarding: React.ComponentType } | null>(null);
-  const started = useRef(false);
-
-  useEffect(() => {
-    if (started.current) return;
-    started.current = true;
-    let alive = true;
-    import("@/components/aurora/voice-neuron-onboarding-v310")
-      .then((m) => { if (alive) setMod({ VoiceNeuronOnboarding: m.VoiceNeuronOnboarding }); })
-      .catch(() => { /* silencioso: el onboarding de voz es opcional */ });
-    return () => { alive = false; };
-  }, []);
-
-  if (!Mod) return null;
-  const { VoiceNeuronOnboarding } = Mod;
   return <VoiceNeuronOnboarding />;
 }
