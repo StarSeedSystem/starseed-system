@@ -48,10 +48,19 @@ const nextConfig: NextConfig = {
     // `react` queda limpio y los hooks resuelven a la copia real.
     // Solo en !isServer (el server SÍ necesita react-server-dom-client para RSC).
     if (!isServer) {
+      // [fix #310] En el CLIENTE, react-server-dom-client (el shim server de RSC)
+      // colisiona con el module-id de `react` real → el root layout resuelve
+      // useState al shim server (undefined) → "Minified React error #310".
+      // NormalModuleReplacementPlugin reemplaza CUALQUIER import de
+      // react-server-dom-client por la copia REAL de react EN EL GRAFO DE
+      // WEBPACK (antes de resolver), así ambos resuelven a la MISMA copia real
+      // y el module-id 1255 deja de ser el shim server. La hidratación de RSC
+      // usa react real (compatible). Solo en !isServer.
       config.plugins.push(
-        new webpack.IgnorePlugin({
-          resourceRegExp: /^react-server-dom-client$/,
-        })
+        new webpack.NormalModuleReplacementPlugin(
+          /^react-server-dom-client$/,
+          require.resolve('react')
+        )
       );
       try {
         const react = require.resolve('react');
