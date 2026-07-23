@@ -11,7 +11,7 @@
  * Bumpea SW_VERSION cuando quieras invalidar todas las cachés anteriores.
  */
 
-const SW_VERSION = "v6-2026-07-21";
+const SW_VERSION = "v7-2026-07-22";
 const PRECACHE = `starseed-precache-${SW_VERSION}`;
 const RUNTIME = `starseed-runtime-${SW_VERSION}`;
 const OFFLINE_URL = "/offline.html";
