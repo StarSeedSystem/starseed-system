@@ -5,7 +5,11 @@ const nextConfig: NextConfig = {
   /* config options here */
   output: 'standalone',
   outputFileTracingRoot: path.join(__dirname),
-  transpilePackages: ['@splinetool/react-spline', 'react', 'react-dom'],
+  // NOTA: NO incluir 'react' ni 'react-dom' en transpilePackages — transpilar
+  // React mismo crea una 2ª copia con distinta identidad de módulo y colisiona
+  // con react-server-dom-client en el cliente → Minified React error #310.
+  // Solo @splinetool/react-spline (ESM-only, necesita alias explícito).
+  transpilePackages: ['@splinetool/react-spline'],
   typescript: {
     ignoreBuildErrors: true,
   },
@@ -29,7 +33,6 @@ const nextConfig: NextConfig = {
     ],
   },
   webpack: (config, { isServer }) => {
-    const webpack = require('webpack');
     // Fix for @splinetool/react-spline ESM-only package (no CJS "require" in exports)
     config.resolve.alias = {
       ...config.resolve.alias,
@@ -38,55 +41,29 @@ const nextConfig: NextConfig = {
         'node_modules/@splinetool/react-spline/dist/react-spline.js'
       ),
     };
-    // ── FIX #310 (Minified React error #310 / Invalid hook call) ─────────────
-    // En el build de Vercel (Linux) el bundle del CLIENTE sufre una colisión de
-    // module-id: `react-server-dom-client` (chunk 1255) se incluye en el cliente
-    // y reclama el module-id que `react` real debería tener → el root layout
-    // resuelve `react` al shim server (useState undefined). Excluimos
-    // react-server-dom-client del cliente: la hidratación de RSC en el browser
-    // usa el runtime que Next inyecta aparte, no este shim. Así el module-id de
-    // `react` queda limpio y los hooks resuelven a la copia real.
-    // Solo en !isServer (el server SÍ necesita react-server-dom-client para RSC).
+    // FIX #310: en el cliente, react-server-dom-client se fusiona con 'react'
+    // en el mismo chunk (scope-hoisting de webpack), de modo que el root layout
+    // resuelve useState al shim server → "Invalid hook call" (#310).
+    // Forzamos a 'react' y 'react-dom' a un vendor chunk propio con cacheGroups,
+    // dándoles identidad de módulo separada de react-server-dom-client.
     if (!isServer) {
-      // [fix #310] En el CLIENTE, react-server-dom-client (el shim server de RSC)
-      // colisiona con el module-id de `react` real → el root layout resuelve
-      // useState al shim server (undefined) → "Minified React error #310".
-      // NormalModuleReplacementPlugin reemplaza CUALQUIER import de
-      // react-server-dom-client por la copia REAL de react EN EL GRAFO DE
-      // WEBPACK (antes de resolver), así ambos resuelven a la MISMA copia real
-      // y el module-id 1255 deja de ser el shim server. La hidratación de RSC
-      // usa react real (compatible). Solo en !isServer.
-      config.plugins.push(
-        new webpack.NormalModuleReplacementPlugin(
-          /^react-server-dom-client$/,
-          require.resolve('react')
-        )
-      );
-      try {
-        const react = require.resolve('react');
-        const reactJsxRuntime = require.resolve('react/jsx-runtime');
-        const reactJsxDevRuntime = require.resolve('react/jsx-dev-runtime');
-        const reactDom = require.resolve('react-dom');
-        const reactDomClient = require.resolve('react-dom/client');
-        config.resolve.alias = {
-          ...config.resolve.alias,
-          'react$': react,
-          'react/jsx-runtime$': reactJsxRuntime,
-          'react/jsx-dev-runtime$': reactJsxDevRuntime,
-          'react-dom$': reactDom,
-          'react-dom/client$': reactDomClient,
-          // [fix #310] En el CLIENTE, cualquier referencia a react-server-dom-client
-          // (el shim server que colisiona con el module-id de react en Vercel/Linux)
-          // se redirige a la copia REAL de react. Así el chunk 1255 deja de ser el
-          // shim server y useState resuelve a react real → no hay Invalid hook call.
-          'react-server-dom-client$': react,
-        };
-      } catch {
-        /* si require.resolve falla, dejamos el alias de Next intacto */
-      }
+      config.optimization = config.optimization || {};
+      config.optimization.splitChunks = {
+        ...(config.optimization.splitChunks || {}),
+        cacheGroups: {
+          ...((config.optimization.splitChunks || {}).cacheGroups || {}),
+          reactVendor: {
+            test: /[\\/]node_modules[\\/](react|react-dom|react-dom\/client)[\\/]/,
+            name: 'react-vendor',
+            chunks: 'all',
+            priority: 50,
+            enforce: true,
+          },
+        },
+      };
     }
     return config;
   },
-}
+};
 
 export default nextConfig;
