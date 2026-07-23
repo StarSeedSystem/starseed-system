@@ -235,6 +235,35 @@ export const VOICE_ENGINE_REGISTRY: Record<AuroraVoiceEngine, VoiceEngineMeta> =
     repo: "https://github.com/myshell-ai/OpenVoice",
     requirements: ["Ninguno: funciona en la web. Usa una semilla de identidad sintética o tu propio audio."],
   },
+  // ── xAI Voice Agent (grok-voice) — conversacional en tiempo real ──
+  // NO es un motor de TTS one-shot: es un AGENTE que escucha el micrófono y
+  // responde por voz (WebSocket, server_vad). Por eso NO entra en la cadena
+  // one-shot de `speakWithConfiguredEngine` (Aurora SIEMPRE habla por TTS);
+  // se ofrece como una EXPERIENCIA aparte ("Hablar con <persona>") que arranca
+  // el cliente xai-voice-agent.ts. SÍ aparece en el registro/UI como motor
+  // disponible, con su voz + instrucciones por personalidad.
+  xai: {
+    id: "xai",
+    label: "xAI Voice Agent",
+    hint: "Agente conversacional en tiempo real (Grok Voice). Habla y escucha con cada personalidad.",
+    kind: "endpoint", // server-side (process.env.XAI_API_KEY), sin endpoint del usuario
+    realism: 5, // modelo de voz en tiempo real de xAI, muy natural y expresivo
+    requiresEndpoint: false, // usa la API de StarSeed por defecto (server-side)
+    requiresDownload: false,
+    free: true,
+    langs: "20+ idiomas (es-ES · es-MX · en…) · detecta y responde en el idioma del usuario",
+    spanish: true,
+    emotions: true, // instrucciones de personalidad moldean el carácter
+    cloning: false, // usa voces built-in (eve/ara/rex/sal/leo) o custom id
+    latency: "~0.5-1.5 s (tiempo real)",
+    license: "xAI API (términos de servicio)",
+    repo: "https://x.ai/api",
+    requirements: [
+      "Ninguno para empezar: usa la API de StarSeed por defecto (gratuita, server-side).",
+      "Cada usuario puede pegar su propia API key de xAI en Ajustes → Voz (opcional).",
+      "Requiere permiso de micrófono para la conversación en tiempo real.",
+    ],
+  },
   kokoro: {
     id: "kokoro",
     label: "Kokoro",

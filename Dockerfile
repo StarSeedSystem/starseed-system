@@ -57,6 +57,12 @@ COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
+# Copiar el custom server + proxy WebSocket de voz xAI (StarSeed gratuita).
+# Reemplaza el server.js de Next para habilitar el upgrade de WebSocket en
+# /api/voice/xai/stream (el proxy autentica con XAI_API_KEY server-side).
+COPY --from=builder --chown=nextjs:nodejs /app/server.js ./server.js
+COPY --from=builder --chown=nextjs:nodejs /app/xai-proxy.js ./xai-proxy.js
+
 # Cloud Run mapeará automáticamente el puerto definido en la variable PORT (por defecto 8080)
 # Ajustamos Next.js para que escuche en ese puerto
 ENV PORT 3000

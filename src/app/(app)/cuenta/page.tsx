@@ -52,6 +52,7 @@ import { AppNotificationsPanel } from "@/components/settings/notifications/app-n
 // (§7), cada uno con su propia ancla (#aurora-voz / #aurora-sentidos) para que
 // el buscador de Ajustes y los enlaces profundos puedan saltar a ellos.
 import { VoiceOssPanel } from "@/components/settings/aurora/voice-oss-panel";
+import { XaiVoicePanel } from "@/components/settings/aurora/xai-voice-panel";
 import { VisionPanel } from "@/components/settings/aurora/vision-panel";
 
 // ── Recolectores de datos reales (para las tarjetas-resumen; sin duplicar lógica) ──
@@ -1012,6 +1013,7 @@ function CuentaContent() {
           </p>
         </div>
         <VoiceOssPanel />
+        <XaiVoicePanel className="mt-3" />
       </section>
 
       {/* ═══════════════════════ 9) VISIÓN DE AURORA (SENTIDOS) ═══════════════════════ */}

@@ -96,7 +96,11 @@ export type AuroraVoiceEngine =
   | "bark"
   | "gpt-sovits"
   | "omnivoice"
-  | "openvoice2";
+  | "openvoice2"
+  // xAI Voice Agent (grok-voice) — conversacional en tiempo real por WebSocket.
+  // Usa la API de StarSeed por defecto (gratuita, server-side) y permite la API
+  // key propia de cada usuario (opcional). Ver xai-voice-agent.ts / xai-persona-voices.ts.
+  | "xai";
 
 /** Motores NEURALES por endpoint (servidores Python: neurona/CasaOS u hospedados). */
 export type NeuralVoiceEngine =
@@ -107,7 +111,10 @@ export type NeuralVoiceEngine =
   | "omnivoice"
   // OpenVoice V2 (web, sin instalar): Space público integrado (Adenda V2-VOZ).
   // No es un endpoint del usuario — habla por la nube gratis como OmniVoice.
-  | "openvoice2";
+  | "openvoice2"
+  // xAI Voice Agent: WebSocket en tiempo real (no es un endpoint HTTP del
+  // usuario — el server-side usa process.env.XAI_API_KEY). Siempre "configurado".
+  | "xai";
 
 /**
  * Lista canónica de motores por endpoint (para iterar en UI/router), ORDENADA
@@ -121,6 +128,8 @@ export const NEURAL_VOICE_ENGINES: readonly NeuralVoiceEngine[] = [
   "gpt-sovits",
   "omnivoice",
   "openvoice2",
+  // xAI Voice Agent — conversacional en tiempo real (WebSocket, server-side key).
+  "xai",
 ];
 
 /** ¿Es un motor por endpoint? */
@@ -131,7 +140,8 @@ export function isNeuralEngine(e: unknown): e is NeuralVoiceEngine {
     e === "bark" ||
     e === "gpt-sovits" ||
     e === "omnivoice" ||
-    e === "openvoice2"
+    e === "openvoice2" ||
+    e === "xai"
   );
 }
 
@@ -174,7 +184,7 @@ export interface AuroraVoiceStyle {
 export interface NeuralEngineSettings {
   /** URL del servidor (p.ej. http://192.168.1.40:8880 o https://mi-neurona.tld/tts). */
   endpoint?: string;
-  /** Voz/preset del motor (Bark: "v2/es_speaker_1" · SoVITS/Omni: id de voz/sid). */
+  /** Voz/preset del motor (Bark: "v2/es_speaker_1" · SoVITS/Omni: id de voz/sid · xAI: eve/ara/rex/sal/leo o custom id). */
   voice?: string;
   /** Idioma preferente ("es", "en", "es-ES"…). */
   lang?: string;
@@ -219,6 +229,25 @@ export interface NeuralEngineSettings {
    * voxcpm. Si falta, se deriva de la emoción activa (voice-style.ts).
    */
   instruct?: string;
+  /**
+   * ── xAI Voice Agent (grok-voice, WebSocket en tiempo real) ──
+   * Campos ADITIVOS. La API key server-side vive en process.env.XAI_API_KEY
+   * (usada por /api/voice/xai/token) y NUNCA viaja al cliente. Estos campos
+   * son OPCIONALES y solo rellenan el comportamiento por personalidad:
+   *   · apiKey?     → API key PROPIA del usuario (opcional). Si está vacía, el
+   *                   servidor usa la de StarSeed (gratuita, por defecto). El
+   *                   cliente la pasa a /api/voice/xai/token vía body (jamás se
+   *                   expone en el bundle ni se persiste en texto plano peligroso).
+   *   · voice?      → voz xAI (eve | ara | rex | sal | leo, o un custom id).
+   *   · instructions? → system prompt de la personalidad (lo lee XAI_PERSONA_VOICES
+   *                   por defecto; aquí se puede sobreescribir por motor).
+   *   · personaId?  → id de personalidad (astraura | council | moa | aurora |
+   *                   hermione) para cargar voz+instrucciones por defecto de
+   *                   XAI_PERSONA_VOICES cuando no se fijen arriba.
+   */
+  apiKey?: string;
+  instructions?: string;
+  personaId?: string;
 }
 
 export interface AuroraVoiceConfig {
@@ -524,6 +553,8 @@ const VALID_ENGINES: readonly AuroraVoiceEngine[] = [
   "gpt-sovits",
   "omnivoice",
   "openvoice2",
+  // xAI Voice Agent (WebSocket en tiempo real) — conversacional.
+  "xai",
 ];
 
 /** ¿Es un id de motor de voz válido? (Útil para pins de personalidad.) */
@@ -608,6 +639,18 @@ function sanitizeEngineSettings(raw: unknown): NeuralEngineSettings | undefined 
   if (typeof r.model === "string" && r.model.trim()) out.model = r.model.trim();
   if (typeof r.instruct === "string" && r.instruct.trim()) {
     out.instruct = r.instruct.trim().slice(0, 500); // Voicebox: max 500 chars
+  }
+  // ── xAI Voice Agent: campos opcionales (key propia, voz, instrucciones, persona) ──
+  if (typeof r.apiKey === "string" && r.apiKey.trim()) {
+    // Se persiste tal cual; el servidor NUNCA la recibe salvo en el body del
+    // token ephemeral (y solo si el usuario la escribe). No viaja en el bundle.
+    out.apiKey = r.apiKey.trim().slice(0, 200);
+  }
+  if (typeof r.instructions === "string" && r.instructions.trim()) {
+    out.instructions = r.instructions.trim().slice(0, 4000);
+  }
+  if (typeof r.personaId === "string" && r.personaId.trim()) {
+    out.personaId = r.personaId.trim().slice(0, 80);
   }
   return Object.keys(out).length ? out : undefined;
 }
