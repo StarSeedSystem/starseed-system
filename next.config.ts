@@ -29,6 +29,7 @@ const nextConfig: NextConfig = {
     ],
   },
   webpack: (config, { isServer }) => {
+    const webpack = require('webpack');
     // Fix for @splinetool/react-spline ESM-only package (no CJS "require" in exports)
     config.resolve.alias = {
       ...config.resolve.alias,
@@ -40,12 +41,18 @@ const nextConfig: NextConfig = {
     // ── FIX #310 (Minified React error #310 / Invalid hook call) ─────────────
     // En el build de Vercel (Linux) el bundle del CLIENTE sufre una colisión de
     // module-id: `react-server-dom-client` (chunk 1255) se incluye en el cliente
-    // y reclama el module-id que `react` real debería tener → VoiceNeuronOnboarding
-    // resuelve `react` al shim server (useState undefined). Forzamos UNA sola
-    // copia real de react/react-dom en el CLIENTE vía require.resolve() con
-    // matchers EXACTOS ($) para no tragarse subpaths como react/jsx-runtime.
-    // Solo en !isServer (el server necesita react-server-dom-client para RSC).
+    // y reclama el module-id que `react` real debería tener → el root layout
+    // resuelve `react` al shim server (useState undefined). Excluimos
+    // react-server-dom-client del cliente: la hidratación de RSC en el browser
+    // usa el runtime que Next inyecta aparte, no este shim. Así el module-id de
+    // `react` queda limpio y los hooks resuelven a la copia real.
+    // Solo en !isServer (el server SÍ necesita react-server-dom-client para RSC).
     if (!isServer) {
+      config.plugins.push(
+        new webpack.IgnorePlugin({
+          resourceRegExp: /^react-server-dom-client$/,
+        })
+      );
       try {
         const react = require.resolve('react');
         const reactJsxRuntime = require.resolve('react/jsx-runtime');
