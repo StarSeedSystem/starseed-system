@@ -43,12 +43,17 @@ export async function POST(req: NextRequest): Promise<Response> {
     typeof body.apiKey === "string" && body.apiKey.trim() ? body.apiKey.trim() : undefined;
   const serverKey = process.env.XAI_API_KEY;
 
-  const effectiveKey = userKey || serverKey;
+  // Vercel a veces inyecta la env var como el string "undefined" cuando no la
+  // resolvió en runtime. Lo tratamos como ausente para dar un mensaje honesto.
+  const effectiveKey =
+    userKey || (serverKey && serverKey !== "undefined" ? serverKey : undefined);
   if (!effectiveKey) {
     return NextResponse.json(
       {
         error:
-          "Falta la API key de xAI. El servidor no tiene XAI_API_KEY configurada y no enviaste tu propia key.",
+          "Falta la API key de xAI. El servidor no tiene XAI_API_KEY configurada y no enviaste tu propia key. " +
+          "En Vercel usa tu propia xAI key en el panel; la API compartida de StarSeed requiere el despliegue con proxy (Cloud Run).",
+        mode: "missing-key",
       },
       { status: 503 },
     );
