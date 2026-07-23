@@ -59,6 +59,11 @@ const nextConfig: NextConfig = {
           'react/jsx-dev-runtime$': reactJsxDevRuntime,
           'react-dom$': reactDom,
           'react-dom/client$': reactDomClient,
+          // [fix #310] En el CLIENTE, cualquier referencia a react-server-dom-client
+          // (el shim server que colisiona con el module-id de react en Vercel/Linux)
+          // se redirige a la copia REAL de react. Así el chunk 1255 deja de ser el
+          // shim server y useState resuelve a react real → no hay Invalid hook call.
+          'react-server-dom-client$': react,
         };
       } catch {
         /* si require.resolve falla, dejamos el alias de Next intacto */
