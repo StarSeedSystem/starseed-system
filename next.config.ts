@@ -50,13 +50,20 @@ const nextConfig: NextConfig = {
     // 2) splitChunks mueve esa única copia a 'react-vendor', así el chunk 1255
     //    (react-server-dom-client) queda SIN react inlineado.
     if (!isServer) {
+      // FIX #310 (root cause): Next concatenate (scope-hoisting) 'react' junto con
+      // 'react-server-dom-client' en UN solo módulo → el root layout resuelve
+      // useState al shim server → "Invalid hook call". Desactivamos la
+      // concatenación de módulos en el cliente para que react y
+      // react-server-dom-client tengan module-ids DISTINTOS y el layout importe
+      // useState de la copia real de react.
+      config.optimization = config.optimization || {};
+      config.optimization.concatenateModules = false;
       config.resolve.alias = {
         ...config.resolve.alias,
         'react$': require.resolve('react'),
         'react-dom$': require.resolve('react-dom'),
         'react-dom/client$': require.resolve('react-dom/client'),
       };
-      config.optimization = config.optimization || {};
       config.optimization.splitChunks = {
         ...(config.optimization.splitChunks || {}),
         cacheGroups: {
