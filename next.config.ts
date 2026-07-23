@@ -5,7 +5,7 @@ const nextConfig: NextConfig = {
   /* config options here */
   output: 'standalone',
   outputFileTracingRoot: path.join(__dirname),
-  transpilePackages: ['@splinetool/react-spline', 'react', 'react-dom', 'react-server-dom-client'],
+  transpilePackages: ['@splinetool/react-spline', 'react', 'react-dom'],
   typescript: {
     ignoreBuildErrors: true,
   },
@@ -46,6 +46,7 @@ const nextConfig: NextConfig = {
     // matchers EXACTOS ($) para no tragarse subpaths como react/jsx-runtime.
     // Solo en !isServer (el server necesita react-server-dom-client para RSC).
     if (!isServer) {
+      config.resolve.dedupe = ['react', 'react-dom', 'react-dom/client'];
       try {
         const react = require.resolve('react');
         const reactJsxRuntime = require.resolve('react/jsx-runtime');
