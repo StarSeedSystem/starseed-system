@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 
 /**
- * RegisterSW — registra el Service Worker `/sw.js` para habilitar la instalación
+ * RegisterSW — registra el Service Worker `/sw-v7.js` para habilitar la instalación
  * (PWA) y un shell offline básico.
  *
  * Es completamente defensivo: si el navegador no soporta service workers, o el
@@ -71,7 +71,7 @@ export function RegisterSW() {
 
     const register = () => {
       navigator.serviceWorker
-        .register("/sw.js", { scope: "/" })
+        .register("/sw-v7.js", { scope: "/" })
         .then((reg) => {
           if (cancelled || !reg) return;
           // Fuerza una comprobación de versión nueva al arrancar.
