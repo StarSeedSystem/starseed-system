@@ -2,13 +2,8 @@ import type { NextConfig } from 'next';
 import path from 'path';
 
 const nextConfig: NextConfig = {
-  /* config options here */
   output: 'standalone',
   outputFileTracingRoot: path.join(__dirname),
-  // NOTA: NO incluir 'react' ni 'react-dom' en transpilePackages — transpilar
-  // React mismo crea una 2ª copia con distinta identidad de módulo y colisiona
-  // con react-server-dom-client en el cliente → Minified React error #310.
-  // Solo @splinetool/react-spline (ESM-only, necesita alias explícito).
   transpilePackages: ['@splinetool/react-spline'],
   typescript: {
     ignoreBuildErrors: true,
@@ -32,7 +27,7 @@ const nextConfig: NextConfig = {
       }
     ],
   },
-  webpack: (config, { isServer }) => {
+  webpack: (config) => {
     // Fix for @splinetool/react-spline ESM-only package (no CJS "require" in exports)
     config.resolve.alias = {
       ...config.resolve.alias,
@@ -41,43 +36,6 @@ const nextConfig: NextConfig = {
         'node_modules/@splinetool/react-spline/dist/react-spline.js'
       ),
     };
-    // FIX #310: en el cliente, react-server-dom-client (vendored por Next) se
-    // fusiona con 'react' en el mismo chunk (scope-hoisting), de modo que el root
-    // layout resuelve useState al shim server → "Invalid hook call" (#310).
-    // 1) alias a rutas absolutas: TODAS las importaciones de react/react-dom
-    //    (incluidas las de react-server-dom-client) resuelven al MISMO archivo
-    //    físico → una sola copia de react en todo el bundle cliente.
-    // 2) splitChunks mueve esa única copia a 'react-vendor', así el chunk 1255
-    //    (react-server-dom-client) queda SIN react inlineado.
-    if (!isServer) {
-      // FIX #310 (root cause): Next concatenate (scope-hoisting) 'react' junto con
-      // 'react-server-dom-client' en UN solo módulo → el root layout resuelve
-      // useState al shim server → "Invalid hook call". Desactivamos la
-      // concatenación de módulos en el cliente para que react y
-      // react-server-dom-client tengan module-ids DISTINTOS y el layout importe
-      // useState de la copia real de react.
-      config.optimization = config.optimization || {};
-      config.optimization.concatenateModules = false;
-      config.resolve.alias = {
-        ...config.resolve.alias,
-        'react$': require.resolve('react'),
-        'react-dom$': require.resolve('react-dom'),
-        'react-dom/client$': require.resolve('react-dom/client'),
-      };
-      config.optimization.splitChunks = {
-        ...(config.optimization.splitChunks || {}),
-        cacheGroups: {
-          ...((config.optimization.splitChunks || {}).cacheGroups || {}),
-          reactVendor: {
-            test: /[\\/]node_modules[\\/](react|react-dom|react-dom\/client)[\\/]/,
-            name: 'react-vendor',
-            chunks: 'all',
-            priority: 50,
-            enforce: true,
-          },
-        },
-      };
-    }
     return config;
   },
 };
