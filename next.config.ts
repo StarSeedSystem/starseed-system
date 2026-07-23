@@ -16,11 +16,20 @@ function commitHash(): string {
   }
 }
 
+// buildId único por timestamp -> TODOS los assets bajo
+// /_next/static/ss-{buildId}/ cambian de ruta en cada deploy.
+// Rompe la cache de edge de Vercel (que YO provoqué con vercel.json
+// max-age=31536000) sin depender del dashboard: el HTML nuevo
+// referencia el chunk nuevo en ruta sin cache.
+function buildIdStamp(): string {
+  return `ss-${commitHash()}-${Date.now().toString(36)}`;
+}
+
 const nextConfig: NextConfig = {
   /* config options here */
   output: 'standalone',
   outputFileTracingRoot: path.join(__dirname),
-  generateBuildId: async () => `ss-${commitHash()}`,
+  generateBuildId: async () => buildIdStamp(),
   transpilePackages: ['@splinetool/react-spline'],
   typescript: {
     ignoreBuildErrors: true,
