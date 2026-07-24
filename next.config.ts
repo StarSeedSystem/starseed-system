@@ -54,15 +54,19 @@ const nextConfig: NextConfig = {
     ],
   },
   webpack: (config, { isServer }) => {
-    // Singleton de React: evita "Multiple instances of Three.js" / react
-    // duplicado que causa Minified React error #310 (Invalid hook call) en Vercel.
-    // Solo aliasamos `react` y `react-dom` (no react-server-dom-client, que Next
-    // maneja internamente para el server rendering).
+    // Fix for @splinetool/react-spline ESM-only package (no CJS "require" in exports)
     config.resolve.alias = {
       ...config.resolve.alias,
-      'react': path.resolve(__dirname, 'node_modules/react'),
-      'react-dom': path.resolve(__dirname, 'node_modules/react-dom'),
-      'react-dom/client': path.resolve(__dirname, 'node_modules/react-dom/client'),
+      '@splinetool/react-spline': path.resolve(
+        __dirname,
+        'node_modules/@splinetool/react-spline/dist/react-spline.js'
+      ),
+      // Singleton de react-dom: evita el "Multiple instances" / react-dom
+      // duplicado que causa Minified React error #310 (Invalid hook call) en
+      // Vercel. Solo aliasamos `react-dom` (no `react`), para NO romper
+      // el server rendering de Next (que usa react-server-dom-client).
+      'react-dom$': path.resolve(__dirname, 'node_modules/react-dom'),
+      'react-dom/client$': path.resolve(__dirname, 'node_modules/react-dom/client'),
     };
     return config;
   },
