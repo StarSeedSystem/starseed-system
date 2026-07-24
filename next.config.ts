@@ -54,21 +54,17 @@ const nextConfig: NextConfig = {
     ],
   },
   webpack: (config, { isServer }) => {
-    // Fix for @splinetool/react-spline ESM-only package (no CJS "require" in exports)
+    // Singleton de React: evita "Multiple instances of Three.js" / react
+    // duplicado que causa Minified React error #310 (Invalid hook call) en Vercel.
+    // Solo aliasamos `react` y `react-dom` (no react-server-dom-client, que Next
+    // maneja internamente para el server rendering).
     config.resolve.alias = {
       ...config.resolve.alias,
-      '@splinetool/react-spline': path.resolve(
-        __dirname,
-        'node_modules/@splinetool/react-spline/dist/react-spline.js'
-      ),
+      'react': path.resolve(__dirname, 'node_modules/react'),
+      'react-dom': path.resolve(__dirname, 'node_modules/react-dom'),
+      'react-dom/client': path.resolve(__dirname, 'node_modules/react-dom/client'),
     };
-    // DIAGNÓSTICO: alias removido. Confirmar si el alias doble (react+react-dom)
-    // rompía la hidratación del subtree de /escritorios en Vercel (useEffect de
-    // seedIfEmpty no corría -> store local vacío -> fondo vacío). Si sin alias
-    // el useEffect corre (desktopsLS se crea), el alias era el culpable y la
-    // solución es refactorizar el layout a Server Component (eliminar #310 de
-    // raíz) en vez de usar alias.
-    return config; // force rebuild cache invalidation
+    return config;
   },
 };
 
