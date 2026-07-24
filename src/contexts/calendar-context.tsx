@@ -625,8 +625,32 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
 
 export function useCalendar(): CalendarContextValue {
   const ctx = useContext(CalendarContext);
+  // Fallback seguro durante prerender/build (SSG) de páginas como /hub:
+  // en runtime el <CalendarProvider> de AppProviders provee el valor real.
+  // Lanzar error aquí rompía el build de Vercel (prerender fuera de provider).
   if (!ctx) {
-    throw new Error('useCalendar debe usarse dentro de <CalendarProvider>');
+    return {
+      items: [],
+      visibleLayers: {} as Record<CalendarLayer, boolean>,
+      toggleLayer: () => undefined as any,
+      setAllLayers: () => undefined as any,
+      addItem: () => undefined as any,
+      updateItem: () => undefined as any,
+      removeItem: () => undefined as any,
+      shareItem: () => undefined as any,
+      addReminder: () => undefined as any,
+      updateReminder: () => undefined as any,
+      removeReminder: () => undefined as any,
+      itemsByDate: () => [],
+      aiContextSnapshot: () => '',
+      activeAlert: null,
+      setActiveAlert: () => undefined as any,
+      snoozeAlert: () => undefined as any,
+      markAlertFired: () => undefined as any,
+      isAlertFired: () => false,
+      sincrometroMode: 'off' as any,
+      setSincrometroMode: () => undefined as any,
+    };
   }
   return ctx;
 }
