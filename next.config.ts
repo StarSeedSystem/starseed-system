@@ -30,7 +30,14 @@ const nextConfig: NextConfig = {
   output: 'standalone',
   outputFileTracingRoot: path.join(__dirname),
   generateBuildId: async () => buildIdStamp(),
-  transpilePackages: ['@splinetool/react-spline'],
+  transpilePackages: [
+    '@splinetool/react-spline',
+    '@splinetool/runtime',
+    '@react-three/fiber',
+    '@react-three/drei',
+    'three',
+    'postprocessing',
+  ],
   typescript: {
     ignoreBuildErrors: true,
   },
@@ -65,8 +72,8 @@ const nextConfig: NextConfig = {
       // duplicado que causa Minified React error #310 (Invalid hook call) en
       // Vercel. Solo aliasamos `react-dom` (no `react`), para NO romper
       // el server rendering de Next (que usa react-server-dom-client).
-      'react-dom$': path.resolve(__dirname, 'node_modules/react-dom'),
-      'react-dom/client$': path.resolve(__dirname, 'node_modules/react-dom/client'),
+      'react-dom': path.resolve(__dirname, 'node_modules/react-dom'),
+      'react-dom/client': path.resolve(__dirname, 'node_modules/react-dom/client'),
     };
     return config;
   },
