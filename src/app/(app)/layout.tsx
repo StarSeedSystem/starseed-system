@@ -10,7 +10,7 @@ import AppProviders from "./app-providers";
 export default function AppLayout({ children }: { children: ReactNode }) {
   return (
     <AppProviders>
-      <div className="flex flex-col min-h-screen transition-all duration-300 ease-in-out">
+      <div data-layout-version="2" className="flex flex-col min-h-screen transition-all duration-300 ease-in-out">
         <div className="flex flex-col min-w-0 transition-all duration-300 flex-1">
           <AppHeader />
           <main className="flex-1 flex flex-col bg-transparent transition-all duration-300 overflow-y-auto">
