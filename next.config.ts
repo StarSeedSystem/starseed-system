@@ -68,7 +68,7 @@ const nextConfig: NextConfig = {
     // el useEffect corre (desktopsLS se crea), el alias era el culpable y la
     // solución es refactorizar el layout a Server Component (eliminar #310 de
     // raíz) en vez de usar alias.
-    return config;
+    return config; // force rebuild cache invalidation
   },
 };
 
