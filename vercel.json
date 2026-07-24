@@ -1,0 +1,5 @@
+{
+  "version": 2,
+  "installCommand": "rm -rf .next node_modules/.cache && npm install --legacy-peer-deps",
+  "buildCommand": "rm -rf .next && npx next build"
+}
