@@ -28,6 +28,7 @@ import { studyGroups, politicalParties, userBadges } from "@/lib/data";
 import { slugify } from "@/lib/entity-links";
 import { UnifiedCalendar } from "@/components/calendar/unified-calendar";
 import { useCalendar, LAYER_META, CalendarLayer, CalendarVisibility } from "@/contexts/calendar-context";
+import { StoriesProvider } from "@/contexts/stories-context";
 import { StoriesStrip } from "@/components/stories/stories-strip";
 import { UniversalSearchBox } from "@/components/hub/universal-search-box";
 import EgoContextOption from "@/components/aurora/ego-context-option";
@@ -534,7 +535,7 @@ export default function HubPage() {
 
     // Filter recommendations by goal tag if active
     const filteredRecommendations = [...recommendations]
-        .filter(rec => {
+        .filter((rec) => {
             if (!goalFilter) return true;
             return rec.tags.some(t => t.toLowerCase() === goalFilter.toLowerCase() || t.toLowerCase().includes(goalFilter.toLowerCase()));
         })
@@ -545,8 +546,10 @@ export default function HubPage() {
         });
 
     return (
-        <div className="flex flex-col w-full gap-[clamp(1.5rem,2.5vw,2.5rem)] pb-24 px-[clamp(1rem,3vw,3rem)] py-[clamp(1rem,2vw,2rem)] mx-auto relative">
-            
+        <CalendarProvider>
+            <StoriesProvider>
+                <div className="flex flex-col w-full gap-[clamp(1.5rem,2.5vw,2.5rem)] pb-24 px-[clamp(1rem,3vw,3rem)] py-[clamp(1rem,2vw,2rem)] mx-auto relative">
+
             {/* ── ALERTA DE TOAST PREMIUM (NOTIFICACIONES EN TIEMPO REAL) ── */}
             {toastMessage && (
                 <div className="fixed bottom-6 right-6 left-6 sm:left-auto z-[999] animate-in fade-in-50 slide-in-from-bottom-5 duration-300 max-w-sm sm:ml-auto">
@@ -2021,6 +2024,7 @@ function HubCalendarPanel() {
                     </CardContent>
                 </Card>
             </div>
-        </div>
+            </StoriesProvider>
+        </CalendarProvider>
     );
 }

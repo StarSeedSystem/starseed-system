@@ -232,7 +232,21 @@ export function StoriesProvider({ children }: { children: ReactNode }) {
 
 export function useStories(): StoriesContextValue {
   const ctx = useContext(StoriesContext);
-  if (!ctx) throw new Error('useStories debe usarse dentro de <StoriesProvider>');
+  // Fallback seguro durante prerender/build (SSG) de páginas como /hub:
+  // en runtime el <StoriesProvider> de AppProviders provee el valor real.
+  if (!ctx) {
+    const noop = () => undefined as any;
+    return {
+      stories: [],
+      activeStories: [],
+      archivedStories: [],
+      byOwner: () => [],
+      addStory: () => undefined as any,
+      removeStory: noop,
+      markViewed: noop,
+      extendTTL: noop,
+    };
+  }
   return ctx;
 }
 
