@@ -96,7 +96,21 @@ const CHAIN_LABELS: Record<string, string> = {
 const LATER_RETRY_MS = 24 * 60 * 60_000;
 
 export function VoiceNeuronOnboarding() {
-  const [open, setOpen] = useState(false);
+  // Abre en el PRIMER render (no depende de setOpen desde un effect, que en
+  // este grafo no propaga el re-render del portal). Decide leyendo la elección
+  // guardada: si no hay elección válida o está desactualizada (versión 97),
+  // abre solo al entrar.
+  const [open, setOpen] = useState<boolean>(() => {
+    try {
+      const c = readNeuronVoiceChoice();
+      const stale = neuronVoiceChoiceIsStale(c);
+      if (c && c.mode !== "later" && !stale) return false; // ya eligió y está al día
+      if (c?.mode === "later" && !stale && Date.now() - c.at < LATER_RETRY_MS) return false;
+      return true; // primera vez o actualización pendiente
+    } catch {
+      return true;
+    }
+  });
   const [localVivo, setLocalVivo] = useState(false);
   const [installing, setInstalling] = useState(false);
   const [checking, setChecking] = useState(false);
