@@ -1077,6 +1077,141 @@ function playNeuralBlob(
  * Si el PRIMER trozo no sale → null (la cadena de voz sigue con el texto entero).
  * Si un trozo intermedio falla, termina con dignidad (lo dicho, dicho está).
  */
+/**
+ * Reproduce los trozos de un mensaje COMO UNA SOLA VOZ CONTINUA (sin huecos ni
+ * "varias partes"): cada trozo arranca ~OVERLAP_MS antes de que termine el
+ * anterior, de modo que la locución suena ininterrumpida. El solapamiento corto
+ * cubre el gap natural entre `onended` y el arranque del siguiente `<audio>`
+ * (que es justo lo que el usuario percibía como "mensaje dividido en partes").
+ *
+ * Recibe un `provider(i)` que SINTETIZA el trozo bajo demanda (con prefetch del
+ * siguiente MIENTRAS suena el actual → conserva la latencia del primer sonido).
+ * Usa `timeupdate` para disparar el arranque del siguiente trozo a tiempo.
+ * Devuelve el primer `HTMLAudioElement` (para detener todo) o null. NUNCA lanza.
+ */
+const CONTINUOUS_OVERLAP_MS = 280;
+
+async function playSequentialContinuous(
+  provider: (i: number) => Promise<Blob | null>,
+  count: number,
+  opts: { onStart?: () => void; onError?: (m: string) => void; onChunk?: (i: number, blob: Blob) => void } = {},
+): Promise<HTMLAudioElement | null> {
+  if (count <= 0) return null;
+
+  return new Promise((resolve) => {
+    let settled = false;
+    let firstAudio: HTMLAudioElement | null = null;
+    let aborted = false;
+    let nextBlob: Promise<Blob | null> | null = null; // prefetch del siguiente
+    const active: HTMLAudioElement[] = [];
+
+    const stopAll = () => {
+      aborted = true;
+      for (const a of active) {
+        try { a.pause(); } catch { /* */ }
+        try { if (a.src) URL.revokeObjectURL(a.src); } catch { /* */ }
+      }
+      active.length = 0;
+    };
+    (window as unknown as { __astrauraStopContinuous?: () => void }).__astrauraStopContinuous = stopAll;
+
+    const playAt = (i: number) => {
+      if (aborted || i >= count) {
+        if (!settled) { settled = true; resolve(firstAudio); }
+        return;
+      }
+      // Prefetch del siguiente trozo MIENTRAS suena este.
+      if (i + 1 < count && !nextBlob) nextBlob = provider(i + 1).catch(() => null);
+      const blobPromise: Promise<Blob | null> =
+        i === 0 ? provider(0).catch(() => null) : nextBlob!;
+      // Consumido: el siguiente provider(i+2) se dispara dentro de timeupdate.
+      nextBlob = null;
+
+      blobPromise.then((blob) => {
+        if (aborted) return;
+        if (!blob) {
+          // Este trozo falló: si es el primero, rendirse; si no, cerrar con dignidad.
+          if (i === 0) {
+            try { opts.onError?.("Fallo al sintetizar el audio del motor neural."); } catch { /* */ }
+            if (!settled) { settled = true; resolve(null); }
+          } else if (!settled) {
+            settled = true; resolve(firstAudio);
+          }
+          return;
+        }
+        try { opts.onChunk?.(i, blob); } catch { /* */ }
+        let url: string | null = null;
+        let audio: HTMLAudioElement | null = null;
+        let nextStarted = false;
+        const startNext = () => {
+          if (nextStarted || aborted) return;
+          nextStarted = true;
+          playAt(i + 1);
+        };
+        try {
+          url = URL.createObjectURL(blob);
+          audio = new Audio(url);
+          audio.src = url;
+          active.push(audio);
+          if (!firstAudio) firstAudio = audio;
+          try {
+            const mod = emotionPlaybackMod();
+            if (mod) {
+              audio.playbackRate = mod.rate;
+              try { (audio as unknown as { preservesPitch?: boolean }).preservesPitch = false; } catch { /* */ }
+              audio.volume = mod.volume;
+            }
+          } catch { /* */ }
+
+          audio.ontimeupdate = () => {
+            try {
+              if (nextStarted || aborted || !audio) return;
+              const remaining = (audio.duration || 0) - audio.currentTime;
+              if (remaining > 0 && remaining <= CONTINUOUS_OVERLAP_MS / 1000) startNext();
+            } catch { /* */ }
+          };
+          audio.onended = () => {
+            try { if (url) URL.revokeObjectURL(url); } catch { /* */ }
+            const idx = active.indexOf(audio as HTMLAudioElement);
+            if (idx >= 0) active.splice(idx, 1);
+            startNext();
+          };
+          audio.onerror = () => {
+            try { if (url) URL.revokeObjectURL(url); } catch { /* */ }
+            const idx = active.indexOf(audio as HTMLAudioElement);
+            if (idx >= 0) active.splice(idx, 1);
+            if (i === 0) {
+              try { opts.onError?.("Fallo al reproducir el audio del motor neural."); } catch { /* */ }
+              if (!settled) { settled = true; resolve(null); }
+            } else {
+              startNext();
+            }
+          };
+          try { opts.onStart?.(); } catch { /* */ }
+          const p = audio.play();
+          if (p && typeof (p as Promise<void>).catch === "function") {
+            (p as Promise<void>).catch(() => {
+              if (i === 0) {
+                try { opts.onError?.("El navegador bloqueó la reproducción (requiere gesto)."); } catch { /* */ }
+                if (!settled) { settled = true; resolve(null); }
+              }
+            });
+          }
+        } catch {
+          if (i === 0) {
+            try { opts.onError?.("Fallo al reproducir el audio del motor neural."); } catch { /* */ }
+            if (!settled) { settled = true; resolve(null); }
+          } else {
+            startNext();
+          }
+        }
+      });
+    };
+
+    playAt(0);
+  });
+}
+
 async function neuralSpeakChunked(
   engine: NeuralVoiceEngine,
   chunks: string[],
@@ -1147,29 +1282,26 @@ async function neuralSpeakChunked(
     }
   }
 
-  let firstAudio: HTMLAudioElement | null = null;
-  let next: Promise<Blob | null> = chunks.length > 1 ? synth(chunks[1], 1) : Promise.resolve(null);
-
-  for (let i = 0; i < chunks.length; i++) {
-    if (!alive()) break;
-    const blob = i === 0 ? first : await next;
-    if (!alive()) break;
-    if (!blob) break; // trozo intermedio falló: cerramos con lo ya hablado
-    void emitVoiceNote({ textHash: fullHash, chunkIndex: i, chunkCount: chunks.length, engine, blob });
-    // Prefetch del siguiente MIENTRAS suena este.
-    next = i + 1 < chunks.length ? synth(chunks[i + 1], i + 1) : Promise.resolve(null);
-    const audio = await playNeuralBlob(blob, {
-      onStart: i === 0 ? opts.onStart : undefined,
-      onError: i === 0 ? opts.onError : undefined,
-      waitEnd: true,
-    });
-    if (i === 0) {
-      if (!audio) return null; // el navegador bloqueó la reproducción
-      firstAudio = audio;
-    }
-  }
-  try { opts.onEnd?.(); } catch { /* */ }
-  return firstAudio;
+  // REPRODUCCIÓN CONTINUA (fix 2026-07-23): en vez de reproducir trozo a trozo
+  // con `waitEnd` (que deja huecos y suena "en varias partes"), hablamos TODO
+  // el mensaje como UNA SOLA VOZ: cada trozo arranca ~280 ms antes de que termine
+  // el anterior (`playSequentialContinuous`). El provider sintetiza bajo demanda
+  // con prefetch del siguiente MIENTRAS suena el actual → misma latencia del
+  // primer sonido, pero locución ininterrumpida y con la MISMA voz (la ruta ya
+  // está congelada en `omniRouteOverride`/`openVoiceEndpointOverride`).
+  return await playSequentialContinuous(
+    (i: number) => synth(chunks[i], i),
+    chunks.length,
+    {
+      onStart: opts.onStart,
+      onError: opts.onError,
+      onChunk: (i, blob) =>
+        void emitVoiceNote({ textHash: fullHash, chunkIndex: i, chunkCount: chunks.length, engine, blob }),
+    },
+  ).then((audio) => {
+    try { opts.onEnd?.(); } catch { /* */ }
+    return audio;
+  });
 }
 
 export async function neuralSpeak(

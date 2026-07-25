@@ -867,7 +867,7 @@ export const PERSONALITY_PRESETS: PersonalityProfile[] = [
         voice_design_attributes: {
           gender: "Female / 女",
           age: "Young Adult / 青年",
-          pitch: "Moderate Pitch / 中音调",
+          pitch: "High Pitch / 高音调",
           style: "Auto",
           accent: "Auto",
         },
@@ -1845,7 +1845,15 @@ export function personalityOmniOverride(
 ): Partial<AstrauraVoiceConfig> | undefined {
   if (!p) return undefined;
   try {
-    return sanitizeAstrauraVoicePartial(p.voiceStyle?.omni);
+    const explicit = sanitizeAstrauraVoicePartial(p.voiceStyle?.omni);
+    // Si la personalidad trae un diseño OmniVoice EXPLÍCITO (preset/editado),
+    // mandA él. Si no, DERIVA el diseño de la personalidad activa para que el
+    // tono/sonido se sincronice en TIEMPO REAL con su forma de ser (género
+    // femenino por defecto + pitch derivado de sus rasgos vía voiceStyle.pitch).
+    // Así, al cambiar la personalidad o sus rasgos, la voz modula sola.
+    if (explicit && explicit.voice_design_attributes) return explicit;
+    const derived = mapPersonalityToDesign(p);
+    return { voice_design_attributes: derived } as Partial<AstrauraVoiceConfig>;
   } catch {
     return undefined;
   }

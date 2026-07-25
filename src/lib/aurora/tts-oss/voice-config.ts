@@ -831,14 +831,14 @@ export const DEFAULT_ASTRAURA_VOICE: AstrauraVoiceConfig = {
   voice_design_attributes: {
     gender: "Female / 女",
     age: "Young Adult / 青年",
-    pitch: "Moderate Pitch / 中音调",
+    pitch: "High Pitch / 高音调",
     style: "Auto",
     accent: "Auto",
   },
   voice_cloning: { enabled: false },
   playback_parameters: { speed: 1.0, normalize_text: true, allow_non_verbal_symbols: true },
   privacy_mode: "hybrid_allow_cloud",
-  instruct: "voz cálida, cercana y serena, con brillo suave",
+  instruct: "voz femenina joven, cálida, cercana y luminosa, con brillo suave y serenidad",
 };
 
 function inSet<T extends string>(v: unknown, set: readonly T[], fallback: T): T {
