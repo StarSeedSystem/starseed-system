@@ -35,6 +35,7 @@ import { OmniDock } from "@/components/layout/omni-dock";
 // árbol del provider. Ambos son defensivos sin sesión.
 import { AuroraProvider } from "@/components/aurora/aurora-provider";
 import { SystemSelectionProvider } from "@/components/system-selection-provider";
+import { VoiceNeuronOnboardingLoader } from "@/components/aurora/voice-neuron-onboarding-loader";
 import { AuroraWidget } from "@/components/aurora/aurora-widget";
 // Guía dinámica de bienvenida y ayuda (tour vivo de la interfaz). Global,
 // defensiva y SSR-safe: arranca sola en la primera visita y se reabre con el
@@ -234,6 +235,10 @@ export default function RootLayout({
                         {/* ORBE de Aurora: acceso universal a la voz + menú
                             Trinity centrado, presente en todas las rutas. */}
                         <AuroraWidget />
+                        {/* Ventana de configuración de voz OmniVoice/OpenVoice/xAI por
+                            neurona (Adenda 96+): se reabre solo al entrar si hay
+                            actualizaciones o es la primera vez. Global. */}
+                        <VoiceNeuronOnboardingLoader />
                         {/* Guía dinámica de bienvenida/ayuda: tour vivo que
                             presenta y resalta orbe, menús Trinity, Escritorio,
                             Dashboard, Astraura, Perfil, Cerebros y Librería.

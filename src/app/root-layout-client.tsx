@@ -3,7 +3,6 @@ import "./globals.css";
 import { cn } from "@/lib/utils";
 import { RegisterSW } from "@/components/pwa/register-sw";
 import ProvidersTree from "@/components/providers-tree";
-import { VoiceNeuronOnboardingLoader } from "@/components/aurora/voice-neuron-onboarding-loader";
 
 const fontInter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 const fontRoboto = Roboto({ weight: ["400", "500", "700"], subsets: ["latin"], variable: "--font-roboto" });
@@ -34,7 +33,6 @@ export default function RootLayoutClient({ children }: { children: React.ReactNo
             Defensivo y sin UI; se omite en dev salvo NEXT_PUBLIC_ENABLE_SW=1. */}
         <RegisterSW />
         <ProvidersTree>{children}</ProvidersTree>
-        <VoiceNeuronOnboardingLoader />
       </body>
     </html>
   );
