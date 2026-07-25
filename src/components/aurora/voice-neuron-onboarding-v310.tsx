@@ -373,12 +373,12 @@ export function VoiceNeuronOnboarding() {
 
   useEffect(() => {
     let alive = true;
-    // (diag) marca de montaje para verificar que el componente efectivamente
-    // se monta en producción (descarta que un error boundary lo silencie).
+    // (diag) marca de montaje en localStorage (side-effect real, no eliminable
+    // por el minificador) para confirmar que el componente monta en producción.
     try {
-      (window as any).__voiceMounted = ((window as any).__voiceMounted || 0) + 1;
-      // eslint-disable-next-line no-console
-      console.log("[voice-onboard] mounted", (window as any).__voiceMounted);
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem("__voice_onboard_mounted", String(Date.now()));
+      }
     } catch { /* */ }
     const t = setTimeout(() => {
       const choice = readNeuronVoiceChoice();
