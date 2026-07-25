@@ -420,6 +420,14 @@ export function VoiceNeuronOnboarding() {
     return () => window.removeEventListener(NEURON_VOICE_REOPEN_EVENT, onReopen as EventListener);
   }, []);
 
+  // (diag) marca en el cuerpo del componente: si este string está en
+  // localStorage tras cargar, el componente SÍ ejecuta su render en el cliente.
+  try {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("__voice_body_ran", String(Date.now()));
+    }
+  } catch { /* */ }
+
   if (!open || typeof document === "undefined") return null;
 
   const choose = (mode: NeuronVoiceMode) => {
