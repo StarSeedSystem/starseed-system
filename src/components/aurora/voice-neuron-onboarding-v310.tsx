@@ -373,7 +373,14 @@ export function VoiceNeuronOnboarding() {
 
   useEffect(() => {
     let alive = true;
-    const t = setTimeout(async () => {
+    // (diag) marca de montaje para verificar que el componente efectivamente
+    // se monta en producción (descarta que un error boundary lo silencie).
+    try {
+      (window as any).__voiceMounted = ((window as any).__voiceMounted || 0) + 1;
+      // eslint-disable-next-line no-console
+      console.log("[voice-onboard] mounted", (window as any).__voiceMounted);
+    } catch { /* */ }
+    const t = setTimeout(() => {
       const choice = readNeuronVoiceChoice();
       // Adenda 88: si el sistema de voz se ACTUALIZÓ desde que esta neurona eligió
       // (versión guardada ≠ VOICE_SYSTEM_VERSION), reabrimos para reconfigurar —
@@ -382,11 +389,12 @@ export function VoiceNeuronOnboarding() {
       if (choice && choice.mode !== "later" && !stale) return; // ya elegido y al día
       if (choice?.mode === "later" && !stale && Date.now() - choice.at < LATER_RETRY_MS) return;
       if (stale) setUpdated(true);
-      // Si el daemon vive, la opción local sale preseleccionada como recomendada.
-      const local = await probeLocalDaemon();
-      if (!alive) return;
-      setLocalVivo(local);
+      // ABRIMOS YA (sin esperar al daemon) para no depender de que el fetch a
+      // 127.0.0.1:4444 resuelva; el estado del daemon se carga en paralelo.
       setOpen(true);
+      void probeLocalDaemon().then((local) => {
+        if (alive) setLocalVivo(local);
+      });
     }, 3500); // deja que la app respire antes de saludar
     return () => {
       alive = false;
