@@ -248,11 +248,14 @@ export function VoiceNeuronOnboarding() {
       if (choice && choice.mode !== "later" && !stale) return; // ya elegido y al día
       if (choice?.mode === "later" && !stale && Date.now() - choice.at < LATER_RETRY_MS) return;
       if (stale) setUpdated(true);
-      // Si el daemon vive, la opción local sale preseleccionada como recomendada.
-      const local = await probeLocalDaemon();
-      if (!alive) return;
-      setLocalVivo(local);
+      // ABRIMOS YA (sin esperar al daemon): el fetch a 127.0.0.1:4444
+      // puede colgarse en entornos sin el daemon local (p.ej. el navegador
+      // del usuario, o Browserbase), y dejaría la ventana nunca abierta. El
+      // estado del daemon se carga EN PARALELO.
       setOpen(true);
+      void probeLocalDaemon().then((local) => {
+        if (alive) setLocalVivo(local);
+      });
     }, 3500); // deja que la app respire antes de saludar
     return () => {
       alive = false;
@@ -266,12 +269,12 @@ export function VoiceNeuronOnboarding() {
     const onReopen = (e: Event) => {
       const detail = (e as CustomEvent<{ reopen?: boolean }>).detail;
       if (!detail?.reopen) return; // los avisos "silent" (guardado inline) no abren
+      setOpen(true); // abrir YA; el daemon se carga en paralelo
       void probeLocalDaemon().then((local) => {
         setLocalVivo(local);
         setInstalling(false);
         setCheckMsg("");
         setUpdated(false); // reapertura manual desde ajustes: no es "actualización"
-        setOpen(true);
       });
     };
     window.addEventListener(NEURON_VOICE_REOPEN_EVENT, onReopen as EventListener);
