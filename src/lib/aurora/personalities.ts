@@ -694,6 +694,52 @@ export interface PersonalityVoiceStyle {
    * Aurora y Hermione traen "openvoice2" de fábrica; el editor lo puede cambiar.
    */
   engine?: string;
+  /**
+   * REFERENCIA DE AUDIO de la voz (Adenda 96): permite clonar/grabar la voz de
+   * esta personalidad por neurona. Tres orígenes:
+   *  - "builtin": usa una voz del catálogo (id en `voiceId`).
+   *  - "recorded": audio grabado desde el micrófono de ESTA neurona.
+   *  - "library": audio importado desde la Biblioteca / dispositivo del usuario.
+   * Vive en las memorias de la personalidad (synced) → cada cerebro puede tener
+   * su propia voz de referencia. El motor (OpenVoice/xAI) la usa como clon.
+   */
+  audioRef?: VoiceAudioRef;
+}
+
+/** Referencia de audio de una voz (Adenda 96). */
+export interface VoiceAudioRef {
+  /** Origen del audio de referencia. */
+  kind: "builtin" | "recorded" | "library";
+  /** Id de voz del catálogo si kind="builtin" (p.ej. "kokoro-ef-dora"). */
+  voiceId?: string;
+  /** Etiqueta legible (p.ej. "Mi grabación", "voz_biblioteca.wav"). */
+  label?: string;
+  /** Motor sugerido para sintetizar con esta referencia. */
+  engine?: string;
+  /**
+   * Datos del audio grabado/importado (data URL base64) — SOLO para kind
+   * "recorded"/"library". Puede ser grande; se guarda en la personalidad
+   * (synced). Vacío = la referencia existe pero aún no se ha capturado audio.
+   */
+  dataUrl?: string;
+  /** Última actualización (ms epoch), para saber si está al día. */
+  at?: number;
+}
+
+/** Sanea una VoiceAudioRef. Nunca lanza. */
+export function sanitizeVoiceAudioRef(raw: unknown): VoiceAudioRef | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const r = raw as Partial<VoiceAudioRef>;
+  const kind = r.kind === "recorded" || r.kind === "library" || r.kind === "builtin" ? r.kind : "builtin";
+  const dataUrl = typeof r.dataUrl === "string" && r.dataUrl.startsWith("data:audio") ? r.dataUrl.slice(0, 5_000_000) : undefined;
+  return {
+    kind,
+    voiceId: cleanStr(r.voiceId, 64) || undefined,
+    label: cleanStr(r.label, 80) || undefined,
+    engine: cleanStr(r.engine, 24) || undefined,
+    dataUrl,
+    at: typeof r.at === "number" && Number.isFinite(r.at) ? r.at : undefined,
+  };
 }
 
 /** Personalidad de Aurora como ARCHIVO de configuración (JSON serializable). */
@@ -1276,6 +1322,10 @@ export function normalizePersonalityProfile(raw: Partial<PersonalityProfile> | n
       engine: sanitizeVoiceEngineId(
         (r.voiceStyle as { engine?: unknown } | undefined)?.engine,
       ),
+      // Referencia de audio de la voz (Adenda 96): grabada / biblioteca / builtin.
+      audioRef: sanitizeVoiceAudioRef(
+        (r.voiceStyle as { audioRef?: unknown } | undefined)?.audioRef,
+      ),
     },
     intelligence: normalizeIntelligence(r.intelligence),
     knowledge: cleanStrArray(r.knowledge, 24, 120),
@@ -1444,6 +1494,39 @@ export function savePersonalityProfile(profile: Partial<PersonalityProfile>): Pe
   // Si el perfil editado está activo en algún contexto, la voz debe reflejarlo.
   if (isProfileAssigned(norm.id)) emitVoiceStyleForProfile(norm);
   return norm;
+}
+
+/**
+ * (Adenda 96) Aplica un parche a `voiceStyle` de UNA personalidad (por id) y lo
+ * persiste (synced), disparando el re-emisión de voz si está activa. Devuelve el
+ * perfil guardado o null si no existe. Nunca lanza.
+ */
+export function patchPersonalityVoice(
+  id: string,
+  patch: Partial<PersonalityVoiceStyle>,
+): PersonalityProfile | null {
+  try {
+    const p = getPersonalityProfile(id);
+    if (!p) return null;
+    return savePersonalityProfile({ ...p, voiceStyle: { ...p.voiceStyle, ...patch } });
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * (Adenda 96) Atajo para la personalidad ACTIVA: guarda su `audioRef` (grabada /
+ * biblioteca / builtin) y, opcionalmente, el motor y la voz preferida. Persiste
+ * en las memorias de la personalidad (synced) → cada cerebro tiene su voz.
+ */
+export function updateActivePersonalityVoiceRef(ref: VoiceAudioRef): PersonalityProfile | null {
+  try {
+    const active = getActivePersonality();
+    if (!active) return null;
+    return patchPersonalityVoice(active.id, { audioRef: ref });
+  } catch {
+    return null;
+  }
 }
 
 export function removePersonalityProfile(id: string): boolean {

@@ -27,7 +27,7 @@ const __VOICE_ONBOARDING_310_FIX__ = "v310-fixed-final-9e8d7c6b-chf8i5pnn-ffad55
 
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Check, ChevronDown, Cloud, Gauge, Languages, Plus, Search, X, Zap } from "lucide-react";
+import { Check, ChevronDown, Cloud, Gauge, Languages, Plus, Search, Sparkles, X, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { safeGet, safeSet } from "@/lib/safe-storage";
@@ -117,6 +117,140 @@ export function VoiceNeuronOnboarding() {
     "kitten",
     "browser",
   ]);
+
+  // (Adenda 96) Personalidades de esta neurona: cada una con su voz (catálogo +
+  // referencia grabada/biblioteca). Se cargan PEREZOSAMENTE (import dinámico) para
+  // no inflar el chunk del root layout (#310). El usuario elige y graba por cerebro.
+  const [showPersonas, setShowPersonas] = useState(false);
+  const [personas, setPersonas] = useState<
+    Array<{ id: string; name: string; engine?: string; audioRef?: any }>
+  >([]);
+  const [catalog, setCatalog] = useState<
+    Array<{ id: string; gender: string; label: string; hint: string; engine: string }>
+  >([]);
+  const [personaLoading, setPersonaLoading] = useState(false);
+  const [recState, setRecState] = useState<"idle" | "recording" | "done">("idle");
+  const [recMsg, setRecMsg] = useState("");
+
+  const loadPersonas = useCallback(async () => {
+    setPersonaLoading(true);
+    let alive = true;
+    try {
+      const [{ listPersonalityProfiles }, catalogMod] = await Promise.all([
+        import("@/lib/aurora/personalities"),
+        import("@/lib/aurora/tts-oss/voice-catalog"),
+      ]);
+      const list = (listPersonalityProfiles() || [])
+        .map((p) => ({
+          id: p.id,
+          name: p.name ?? p.id,
+          engine: p.voiceStyle?.engine,
+          audioRef: p.voiceStyle?.audioRef,
+        }))
+        // Prioriza las personalidades más conocidas (Aurora/Hermione) primero.
+        .sort((a, b) => {
+          const rank = (id: string) => (id === "aurora" ? 0 : id === "hermione" ? 1 : 2);
+          return rank(a.id) - rank(b.id);
+        })
+        .slice(0, 12);
+      if (alive) {
+        setPersonas(list);
+        setCatalog(catalogMod.VOICE_CATALOG as any);
+      }
+    } catch {
+      /* la sección queda vacía, sin romper el modal */
+    } finally {
+      if (alive) setPersonaLoading(false);
+    }
+  }, []);
+
+  const togglePersonas = useCallback(() => {
+    setShowPersonas((s) => {
+      const next = !s;
+      if (next && personas.length === 0) void loadPersonas();
+      return next;
+    });
+  }, [personas.length]);
+
+  // (Adenda 96) Guarda la voz elegida (catálogo) o la referencia grabada/subida
+  // en UNA personalidad, por neurona (synced en las memorias del cerebro).
+  const setPersonaVoice = useCallback(
+    async (id: string, patch: { engine?: string; audioRef?: any }) => {
+      try {
+        const [{ patchPersonalityVoice }] = await Promise.all([
+          import("@/lib/aurora/personalities"),
+        ]);
+        patchPersonalityVoice(id, patch);
+        setPersonas((prev) =>
+          prev.map((p) => (p.id === id ? { ...p, ...patch } : p)),
+        );
+      } catch {
+        /* no bloquea la UI */
+      }
+    },
+    [],
+  );
+
+  const recordForPersona = useCallback(
+    async (id: string) => {
+      setRecState("recording");
+      setRecMsg("Grabando… habla ahora (hasta 12 s).");
+      try {
+        const [{ recordVoiceReference }] = await Promise.all([
+          import("@/lib/aurora/tts-oss/voice-recorder"),
+        ]);
+        const res = await recordVoiceReference(12_000);
+        if (!res.ok || !res.dataUrl) {
+          setRecMsg(res.error || "No se pudo grabar.");
+          setRecState("idle");
+          return;
+        }
+        await setPersonaVoice(id, {
+          audioRef: {
+            kind: "recorded",
+            label: "Voz grabada en esta neurona",
+            dataUrl: res.dataUrl,
+            at: Date.now(),
+          },
+        });
+        setRecMsg("✓ Voz grabada y guardada para esta personalidad.");
+        setRecState("done");
+      } catch {
+        setRecMsg("Error al grabar.");
+        setRecState("idle");
+      }
+    },
+    [setPersonaVoice],
+  );
+
+  const uploadForPersona = useCallback(
+    async (id: string) => {
+      setRecMsg("Elige un audio de la Biblioteca o tu dispositivo…");
+      try {
+        const [{ pickAudioFile }] = await Promise.all([
+          import("@/lib/aurora/tts-oss/voice-recorder"),
+        ]);
+        const res = await pickAudioFile();
+        if (!res.ok || !res.dataUrl) {
+          setRecMsg(res.error || "Sin archivo.");
+          return;
+        }
+        await setPersonaVoice(id, {
+          audioRef: {
+            kind: "library",
+            label: "Voz desde archivo/Biblioteca",
+            dataUrl: res.dataUrl,
+            at: Date.now(),
+          },
+        });
+        setRecMsg("✓ Audio de referencia guardado para esta personalidad.");
+        setRecState("done");
+      } catch {
+        setRecMsg("Error al leer el archivo.");
+      }
+    },
+    [setPersonaVoice],
+  );
 
   useEffect(() => {
     let alive = true;
@@ -727,10 +861,92 @@ export function VoiceNeuronOnboarding() {
               </p>
             )}
 
-            <p className="mt-1.5 text-[10px] text-white/30">
+            <p className='mt-1.5 text-[10px] text-white/30'>
               El acento regional fino depende del soporte del motor de voz (hoy limitado); el idioma
               base y tu preferencia quedan siempre guardados.
             </p>
+          </div>
+
+          {/* (Adenda 96) PERSONALIDADES DE ESTA NEURONA — voz por cerebro. */}
+          <div className='mt-1 rounded-xl border border-sky-400/15 bg-sky-400/[0.04] p-3'>
+            <button
+              type='button'
+              onClick={() => togglePersonas()}
+              className='flex w-full cursor-pointer items-center justify-between gap-2 text-left'
+            >
+              <span className='flex items-center gap-2 text-xs font-medium text-white/85'>
+                <Sparkles className='h-3.5 w-3.5 text-[#7fb8ff]' />
+                Voces por personalidad (cada cerebro)
+              </span>
+              <ChevronDown className={cn('h-3.5 w-3.5 shrink-0 text-white/40 transition-transform', showPersonas && 'rotate-180')} />
+            </button>
+            <p className='mt-1 text-[11px] leading-relaxed text-white/45'>
+              Elige y graba la voz de Aurora, Hermione y otras personalidades para ESTA
+              neurona. Cada cerebro guarda su propia referencia (grabada o de la Biblioteca).
+            </p>
+
+            {showPersonas && (
+              <div className='mt-2 flex flex-col gap-2'>
+                {personaLoading && <p className='text-[11px] text-white/40'>Cargando personalidades…</p>}
+                {!personaLoading && personas.length === 0 && (
+                  <p className='text-[11px] text-white/40'>No hay personalidades disponibles.</p>
+                )}
+                {personas.map((p) => {
+                  const current = catalog.find((c) => c.id === p.audioRef?.voiceId);
+                  const refLabel = p.audioRef
+                    ? p.audioRef.kind === 'recorded'
+                      ? 'Grabada'
+                      : p.audioRef.kind === 'library'
+                        ? 'Audio de Biblioteca'
+                        : current?.label ?? 'voz del catalogo'
+                    : 'voz por defecto';
+                  return (
+                    <div key={p.id} className='rounded-lg border border-white/10 bg-white/[0.03] p-2'>
+                      <div className='flex items-center justify-between gap-2'>
+                        <span className='text-[12px] font-medium text-white/90'>{p.name}</span>
+                        <span className='rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] text-white/50'>{refLabel}</span>
+                      </div>
+                      <select
+                        value={p.audioRef?.voiceId ?? ''}
+                        onChange={(e) => {
+                          const v = catalog.find((c) => c.id === e.target.value);
+                          void setPersonaVoice(p.id, {
+                            engine: v?.engine,
+                            audioRef: { kind: 'builtin', voiceId: v?.id, label: v?.label, engine: v?.engine, at: Date.now() },
+                          });
+                        }}
+                        className='mt-1.5 h-8 w-full cursor-pointer rounded-lg border border-white/10 bg-black/30 px-2 text-[12px] text-white/85 outline-none focus:border-sky-400/40'
+                      >
+                        <option value=''>— Voz por defecto —</option>
+                        {catalog.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.label} · {c.gender === 'f' ? 'F' : c.gender === 'm' ? 'M' : 'O'}
+                          </option>
+                        ))}
+                      </select>
+                      <div className='mt-1.5 flex flex-wrap gap-1.5'>
+                        <button
+                          type='button'
+                          disabled={recState === 'recording'}
+                          onClick={() => void recordForPersona(p.id)}
+                          className='flex h-7 cursor-pointer items-center gap-1 rounded-md border border-sky-400/30 bg-sky-500/10 px-2 text-[11px] text-sky-100 hover:bg-sky-500/20 disabled:opacity-40'
+                        >
+                          Grabar
+                        </button>
+                        <button
+                          type='button'
+                          onClick={() => void uploadForPersona(p.id)}
+                          className='flex h-7 cursor-pointer items-center gap-1 rounded-md border border-white/12 bg-white/[0.05] px-2 text-[11px] text-white/75 hover:bg-white/[0.1]'
+                        >
+                          Subir audio
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+                {recMsg && <p className='text-[11px] text-white/55'>{recMsg}</p>}
+              </div>
+            )}
           </div>
         </div>
       </div>
