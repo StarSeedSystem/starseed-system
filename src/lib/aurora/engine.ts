@@ -1461,6 +1461,12 @@ export function useAuroraEngine(): AuroraEngine {
         // "Astraura", "exo corte" → "Exocórtex"… antes de rutear/enviar.
         let corrected = finalText;
         try { corrected = normalizeStarseedTerms(finalText); } catch { corrected = finalText; }
+        // MEDIO-DÚPLEX EXPLÍCITO (fix 2026-07-23): al capturar la frase final,
+        // DESHABILITAMOS la escucha DE INMEDIATO para procesar la respuesta de
+        // Aurora sin que el micro capte ruido ni se reinicie la escucha a mitad
+        // de su respuesta. Se reactiva sola al terminar el habla (finishTts) o
+        // si el usuario vuelve a pulsar hablar / interrumpe con un nuevo mensaje.
+        try { rec.stop(); } catch { /* */ }
         void runCommandRef.current(corrected);
       }
     };

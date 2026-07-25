@@ -209,26 +209,26 @@ const OPENVOICE2_SEED_SPECS_BY_LANG: Record<"aurora" | "hermione", Record<string
       attrs: {
         gender: "Female / 女",
         age: "Young Adult / 青年",
-        pitch: "Moderate Pitch / 中音调",
+        pitch: "High Pitch / 高音调",
         style: "Auto",
         accent: "Auto",
       },
-      instruct: "voz femenina joven, cálida, sincera y decidida, español natural y claro",
+      instruct: "voz femenina joven, cálida, cercana y luminosa, suave y decidida, con brillo bonito y serenidad",
       lang: "es",
-      text: "Hola, soy Aurora. Estoy aquí contigo, cerca y con calma, lista para lo que necesites.",
+      text: "Hola, soy Aurora. Estoy aquí contigo, cerca y con calma, con una voz cálida y luminosa, lista para lo que necesites.",
     },
     en: {
       attrs: {
         gender: "Female / 女",
         age: "Young Adult / 青年",
-        pitch: "Moderate Pitch / 中音调",
+        pitch: "High Pitch / 高音调",
         style: "Auto",
         accent: "American Accent / 美式口音",
       },
       instruct:
-        "voz femenina joven, cálida, sincera y determinada, suave pero decidida, con brillo cercano",
+        "voz femenina joven, cálida, cercana y luminosa, suave pero decidida, con brillo bonito",
       lang: "en",
-      text: "Hi, I am Aurora. I am right here with you — warm, steady, and ready whenever you are.",
+      text: "Hi, I am Aurora. I am right here with you — warm, gentle and bright, steady and ready whenever you are.",
     },
   },
 };
