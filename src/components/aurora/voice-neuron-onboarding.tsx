@@ -1,5 +1,14 @@
 "use client";
 
+// (diag) efecto en TIEMPO DE CARGA del módulo: si window.__MODULE_LOADED__
+// se setea en el navegador, el módulo SÍ se incluye en el bundle del
+// cliente y se evalúa al importarse (descarta tree-shaking/DCE del módulo).
+try {
+  if (typeof window !== "undefined") {
+    (window as any).__MODULE_LOADED__ = Date.now();
+  }
+} catch { /* */ }
+
 // [fix #310] real code marker so the production chunk hash changes and
 // browsers re-fetch the react-server-dom-client collision-free build.
 const __VOICE_ONBOARDING_310_FIX__ = "v310-fixed-final-9e8d7c6b-chf8i5pnn-ffad553";

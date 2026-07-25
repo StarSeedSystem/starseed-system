@@ -1,27 +1,24 @@
 "use client";
 
 /**
- * VoiceNeuronOnboardingLoader — Monta <VoiceNeuronOnboarding/>.
+ * VoiceNeuronOnboardingLoader — Monta <VoiceNeuronOnboarding/> DIRECTAMENTE
+ * dentro del grafo normal del cliente (NO via import() aislado en useEffect).
  *
- * (fix #310 / Adenda 96) Se usa React.lazy + Suspense para forzar un chunk
- * de cliente explícito que webpack resuelve y CARGA en el navegador, en vez
- * de depender del grafo estático de ProvidersTree (que en algunos builds de
- * Vercel tree-shakea el componente del grafo de hidratación del cliente,
- * dejándolo en el chunk pero sin ejecutarse → el modal nunca monta).
+ * Por qué (fix #310): el import() crudo en useEffect creaba un chunk aislado
+ * con su PROPIA instancia de React, fuera del grafo estático del root layout.
+ * En el build de Vercel (Linux) eso provocaba una colisión de module-id con
+ * react-server-dom-client (chunk 1255): el `react` que resolvía el componente
+ * aislado era el shim server → useState undefined → "Minified React error #310".
+ *
+ * Al importar el componente en el grafo principal del cliente, `react` resuelve
+ * a la MISMA copia real que usan el resto de los componentes (que funcionan),
+ * eliminando la colisión. Los módulos pesados de tts-oss ya se cargan de forma
+ * perezosa (lazy/dynamic) dentro del propio componente, así que el top-level
+ * solo trae imports livianos del grafo normal.
  */
 
-import { lazy, Suspense } from "react";
-
-const VoiceNeuronOnboarding = lazy(() =>
-  import("@/components/aurora/voice-neuron-onboarding-v310").then((m) => ({
-    default: m.VoiceNeuronOnboarding,
-  })),
-);
+import { VoiceNeuronOnboarding } from "@/components/aurora/voice-neuron-onboarding";
 
 export function VoiceNeuronOnboardingLoader() {
-  return (
-    <Suspense fallback={null}>
-      <VoiceNeuronOnboarding />
-    </Suspense>
-  );
+  return <VoiceNeuronOnboarding />;
 }
