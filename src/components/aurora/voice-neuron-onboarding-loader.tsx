@@ -15,19 +15,9 @@
  * eliminando la colisión. Los módulos pesados de tts-oss ya se cargan de forma
  * perezosa (lazy/dynamic) dentro del propio componente, así que el top-level
  * solo trae imports livianos del grafo normal.
- *
- * NOTA (Adenda 96 · fix montaje): se usa `next/dynamic` con `ssr:false` para
- * garantizar que el componente forma parte del bundle del cliente y se monte
- * SIEMPRE en el layout, sin que el tree-shaking de webpack lo excluya del grafo
- * alcanzable desde el root layout.
  */
 
-import dynamic from "next/dynamic";
-
-const VoiceNeuronOnboarding = dynamic(
-  () => import("@/components/aurora/voice-neuron-onboarding-v310").then((m) => m.VoiceNeuronOnboarding),
-  { ssr: false, loading: () => null },
-);
+import { VoiceNeuronOnboarding } from "@/components/aurora/voice-neuron-onboarding-v310";
 
 export function VoiceNeuronOnboardingLoader() {
   return <VoiceNeuronOnboarding />;
