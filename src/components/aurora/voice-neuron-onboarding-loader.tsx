@@ -1,23 +1,27 @@
 "use client";
 
 /**
- * VoiceNeuronOnboardingLoader — Monta <VoiceNeuronOnboarding/> DIRECTAMENTE
- * dentro del grafo normal del cliente (NO via import() aislado en useEffect).
+ * VoiceNeuronOnboardingLoader — Monta <VoiceNeuronOnboarding/> dentro del grafo
+ * de cliente vía next/dynamic({ ssr:false }).
  *
- * Por qué (fix #310): el import() crudo en useEffect creaba un chunk aislado
- * con su PROPIA instancia de React, fuera del grafo estático del root layout.
- * En el build de Vercel (Linux) eso provocaba una colisión de module-id con
- * react-server-dom-client (chunk 1255): el `react` que resolvía el componente
- * aislado era el shim server → useState undefined → "Minified React error #310".
+ * Por qué (fix #310): el error "Minified React error #310" = useState ejecutado
+ * con el dispatcher de react-server-dom-client (copia de servidor). Sucede cuando
+ * un Client Component se renderiza DESDE un Server Component (p.ej. el root
+ * layout.tsx) o se resuelve con el shim server de React. Montarlo aquí, dentro de
+ * un Client Component (AuroraProvider), Y con ssr:false fuerza la carga 100%
+ * cliente con la copia REAL de React — la misma que usan AuroraWidget/InstallModelModalHost.
  *
- * Al importar el componente en el grafo principal del cliente, `react` resuelve
- * a la MISMA copia real que usan el resto de los componentes (que funcionan),
- * eliminando la colisión. Los módulos pesados de tts-oss ya se cargan de forma
- * perezosa (lazy/dynamic) dentro del propio componente, así que el top-level
- * solo trae imports livianos del grafo normal.
+ * Además: el componente pesado se importa de forma estática dentro del grafo del
+ * cliente (no en un import() aislado), así que `react` resuelve a la MISMA copia
+ * que el resto de la app. Sin colisión de module-id.
  */
 
-import { VoiceNeuronOnboarding } from "@/components/aurora/voice-neuron-onboarding";
+import dynamic from "next/dynamic";
+
+const VoiceNeuronOnboarding = dynamic(
+  () => import("@/components/aurora/voice-neuron-onboarding").then((m) => ({ default: m.VoiceNeuronOnboarding })),
+  { ssr: false },
+);
 
 export function VoiceNeuronOnboardingLoader() {
   return <VoiceNeuronOnboarding />;

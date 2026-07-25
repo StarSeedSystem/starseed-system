@@ -32,6 +32,8 @@ import {
 } from "@/lib/aurora/capabilities";
 // Host del modal de instalación de modelos (opt-in, descarga en 2º plano).
 import { InstallModelModalHost } from "@/components/aurora/install-model-modal";
+// Ventana de configuración de voz OmniVoice/OpenVoice/xAI por neurona.
+import { VoiceNeuronOnboardingLoader } from "@/components/aurora/voice-neuron-onboarding-loader";
 // Banner de actualización dentro de la app (sin reinstalar).
 import { UpdateBanner } from "@/components/pwa/update-banner";
 
@@ -723,6 +725,11 @@ export function AuroraProvider({ children }: { children: ReactNode }) {
           La descarga sigue en 2º plano; Aurora funciona con la mejor alternativa
           gratis mientras. NO bloquea nada. */}
       <InstallModelModalHost />
+      {/* Ventana de configuración de voz OmniVoice/OpenVoice/xAI por neurona
+          (Adenda 96+): se reabre sola al entrar si hay actualizaciones o es la
+          primera vez. Montada AQUÍ (dentro del Client Component AuroraProvider)
+          para que resuelva con React de cliente y NO dispare el #310. */}
+      <VoiceNeuronOnboardingLoader />
       {/* Aviso de versión nueva (se aplica dentro de la app, sin reinstalar). */}
       <UpdateBanner />
     </AuroraContext.Provider>
