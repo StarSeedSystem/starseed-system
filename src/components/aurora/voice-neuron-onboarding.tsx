@@ -281,6 +281,8 @@ export function VoiceNeuronOnboarding() {
     return () => window.removeEventListener(NEURON_VOICE_REOPEN_EVENT, onReopen as EventListener);
   }, []);
 
+  // (diag) marca de montaje real en el cuerpo del componente
+  try { if (typeof window !== "undefined") (window as any).__voice_body_ran = Date.now(); } catch {}
   if (!open || typeof document === "undefined") return null;
 
   const choose = (mode: NeuronVoiceMode) => {
