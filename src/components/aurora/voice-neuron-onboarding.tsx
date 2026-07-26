@@ -134,7 +134,7 @@ export function VoiceNeuronOnboarding() {
     "browser",
   ]);
   // (Adenda 96) Voces por personalidad: sección ampliable dentro del modal.
-  const [showPersonas, setShowPersonas] = useState(false);
+  const [showPersonas, setShowPersonas] = useState(true);
   const [personas, setPersonas] = useState<
     Array<{ id: string; name: string; gender: "f" | "m" | "o"; voiceId?: string; refKind?: string }>
   >([{ id: "aurora", name: "Aurora", gender: "f" }]);
