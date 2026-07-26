@@ -27,7 +27,7 @@ const __VOICE_ONBOARDING_310_FIX__ = "v310-fixed-final-9e8d7c6b-chf8i5pnn-ffad55
 
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Check, ChevronDown, Cloud, Gauge, Languages, Plus, Search, X, Zap } from "lucide-react";
+import { Check, ChevronDown, Cloud, Gauge, Languages, Plus, Search, Sparkles, X, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { safeGet, safeSet } from "@/lib/safe-storage";
@@ -65,6 +65,8 @@ import {
   forceReopenNeuronVoiceWindow,
   probeLocalDaemon,
 } from "@/lib/aurora/tts-oss/neuron-voice-constants";
+// Catálogo de voces (Adenda 96): módulo liviano, seguro importar estático.
+import { getVoicesByGender, type CatalogVoice } from "@/lib/aurora/tts-oss/voice-catalog";
 
 // Re-export para los consumidores existentes que importan desde este archivo.
 export {
@@ -131,6 +133,13 @@ export function VoiceNeuronOnboarding() {
     "kitten",
     "browser",
   ]);
+  // (Adenda 96) Voces por personalidad: sección ampliable dentro del modal.
+  const [showPersonas, setShowPersonas] = useState(false);
+  const [personas, setPersonas] = useState<
+    Array<{ id: string; name: string; gender: "f" | "m" | "o"; voiceId?: string; refKind?: string }>
+  >([]);
+  const [personaMsg, setPersonaMsg] = useState("");
+  const [recState, setRecState] = useState<"idle" | "recording">("idle");
 
   useEffect(() => {
     let alive = true;
@@ -262,8 +271,6 @@ export function VoiceNeuronOnboarding() {
       if (choice && choice.mode !== "later" && !stale) return; // ya elegido y al día
       if (choice?.mode === "later" && !stale && Date.now() - choice.at < LATER_RETRY_MS) return;
       if (stale) setUpdated(true);
-      // (diag) marca de que el auto-open effect LLEGA a setOpen(true)
-      try { if (typeof window !== "undefined") (window as any).__autoopen_fired = Date.now(); } catch {}
       setOpen(true);
       void probeLocalDaemon().then((local) => {
         if (alive) setLocalVivo(local);
@@ -281,8 +288,6 @@ export function VoiceNeuronOnboarding() {
     const onReopen = (e: Event) => {
       const detail = (e as CustomEvent<{ reopen?: boolean }>).detail;
       if (!detail?.reopen) return; // los avisos "silent" (guardado inline) no abren
-      // (diag) marca de que el reopen effect LLEGA a setOpen(true)
-      try { if (typeof window !== "undefined") (window as any).__reopen_fired = Date.now(); } catch {}
       setOpen(true); // abrir YA; el daemon se carga en paralelo
       void probeLocalDaemon().then((local) => {
         setLocalVivo(local);
@@ -295,8 +300,6 @@ export function VoiceNeuronOnboarding() {
     return () => window.removeEventListener(NEURON_VOICE_REOPEN_EVENT, onReopen as EventListener);
   }, []);
 
-  // (diag) marca de montaje real en el cuerpo del componente
-  try { if (typeof window !== "undefined") (window as any).__voice_body_ran = Date.now(); } catch {}
   if (!open || typeof document === "undefined") return null;
 
   const choose = (mode: NeuronVoiceMode) => {
@@ -393,6 +396,82 @@ export function VoiceNeuronOnboarding() {
       setVbKeySaved(false);
     }
   };
+
+  // (Adenda 96) Carga las personalidades para asignarles voz por defecto.
+  const loadPersonas = useCallback(async () => {
+    try {
+      const [{ listPersonalityProfiles }] = await Promise.all([import("@/lib/aurora/personalities")]);
+      const list = listPersonalityProfiles();
+      const norm = list.map((p) => ({
+        id: p.id,
+        name: p.name || "Personalidad",
+        gender: "f" as "f" | "m" | "o",
+        voiceId: p.voiceStyle?.audioRef?.voiceId,
+        refKind: p.voiceStyle?.audioRef?.kind,
+      }));
+      if (norm.length === 0) {
+        // Personalidad implícita de Aurora si no hay ninguna guardada.
+        norm.push({ id: "aurora", name: "Aurora", gender: "f" });
+      }
+      setPersonas(norm);
+    } catch {
+      setPersonas([{ id: "aurora", name: "Aurora", gender: "f" }]);
+    }
+  }, []);
+
+  // (Adenda 96) Asigna una voz del catálogo a una personalidad y la persiste.
+  const setPersonaVoice = useCallback(async (id: string, voiceId: string) => {
+    try {
+      const [{ patchPersonalityVoice }] = await Promise.all([import("@/lib/aurora/personalities")]);
+      const v = getVoiceById(voiceId);
+      const ok = patchPersonalityVoice(id, {
+        audioRef: { kind: "builtin", voiceId, label: v?.label, engine: v?.engine, at: Date.now() },
+      });
+      setPersonas((prev) => prev.map((p) => (p.id === id ? { ...p, voiceId } : p)));
+      setPersonaMsg(ok ? `Voz «${v?.label ?? voiceId}» asignada.` : "No se pudo guardar la voz.");
+    } catch {
+      setPersonaMsg("No se pudo guardar la voz.");
+    }
+  }, []);
+
+  // (Adenda 96) Graba un audio de referencia para clonar la voz de una personalidad.
+  const recordForPersona = useCallback(async (id: string) => {
+    if (recState === "recording") return;
+    setRecState("recording");
+    setPersonaMsg("Grabando… habla durante unos segundos.");
+    try {
+      const { recordReferenceAudio, makeRecordedRef } = await import("@/lib/aurora/tts-oss/voice-recorder");
+      const dataUrl = await recordReferenceAudio(15000);
+      if (dataUrl) {
+        const [{ patchPersonalityVoice }] = await Promise.all([import("@/lib/aurora/personalities")]);
+        const ok = patchPersonalityVoice(id, { audioRef: makeRecordedRef(dataUrl, "Grabación") });
+        setPersonas((prev) => prev.map((p) => (p.id === id ? { ...p, refKind: "recorded" } : p)));
+        setPersonaMsg(ok ? "Grabación guardada como voz de referencia." : "No se pudo guardar la grabación.");
+      } else {
+        setPersonaMsg("No se capturó audio (permiso de micrófono denegado).");
+      }
+    } catch {
+      setPersonaMsg("Error al grabar.");
+    } finally {
+      setRecState("idle");
+    }
+  }, [recState]);
+
+  // (Adenda 96) Importa un audio de la Biblioteca/dispositivo como referencia.
+  const uploadForPersona = useCallback(async (id: string) => {
+    try {
+      const { importReferenceAudio, makeLibraryRef } = await import("@/lib/aurora/tts-oss/voice-recorder");
+      const dataUrl = await importReferenceAudio();
+      if (dataUrl) {
+        const [{ patchPersonalityVoice }] = await Promise.all([import("@/lib/aurora/personalities")]);
+        const ok = patchPersonalityVoice(id, { audioRef: makeLibraryRef(dataUrl, "Biblioteca") });
+        setPersonas((prev) => prev.map((p) => (p.id === id ? { ...p, refKind: "library" } : p)));
+        setPersonaMsg(ok ? "Audio de la Biblioteca guardado como referencia." : "No se pudo guardar.");
+      }
+    } catch {
+      setPersonaMsg("Error al importar audio.");
+    }
+  }, []);
 
   return createPortal(
     <div
@@ -750,6 +829,64 @@ export function VoiceNeuronOnboarding() {
               El acento regional fino depende del soporte del motor de voz (hoy limitado); el idioma
               base y tu preferencia quedan siempre guardados.
             </p>
+
+            {/* (Adenda 96) Voces por personalidad: cada personalidad puede tener
+                su propia voz (catálogo amplio + grabación/subida de referencia). */}
+            <div className="mt-4 rounded-xl border border-white/10 bg-white/[0.03] p-3">
+              <button
+                type="button"
+                onClick={() => { setShowPersonas((s) => !s); if (!showPersonas) void loadPersonas(); }}
+                className="flex w-full cursor-pointer items-center justify-between text-left"
+              >
+                <span className="flex items-center gap-2 text-[13px] font-medium text-white/90">
+                  <Sparkles className="h-4 w-4 text-fuchsia-300" />
+                  Voces por personalidad
+                </span>
+                <ChevronDown className={cn("h-4 w-4 text-white/50 transition-transform duration-150", showPersonas && "rotate-180")} />
+              </button>
+              {showPersonas && (
+                <div className="mt-3 space-y-2">
+                  {personas.map((p) => (
+                    <div key={p.id} className="rounded-lg border border-white/10 bg-black/20 p-2">
+                      <div className="mb-1.5 flex items-center justify-between">
+                        <span className="text-[12px] font-medium text-white/85">{p.name}</span>
+                        <span className="text-[10px] text-white/40">
+                          {p.refKind === "recorded" ? "Ref. grabada" : p.refKind === "library" ? "Ref. biblioteca" : p.voiceId ? "Voz catálogo" : "Sin voz"}
+                        </span>
+                      </div>
+                      <select
+                        value={p.voiceId ?? ""}
+                        onChange={(e) => void setPersonaVoice(p.id, e.target.value)}
+                        className="w-full cursor-pointer rounded-md border border-white/12 bg-white/[0.05] px-2 py-1.5 text-[12px] text-white/85 outline-none focus:border-fuchsia-400/40"
+                      >
+                        <option value="">— Elegir voz —</option>
+                        {getVoicesByGender(p.gender).map((c: CatalogVoice) => (
+                          <option key={c.id} value={c.id}>{c.label}{c.premium ? " · xAI" : ""}</option>
+                        ))}
+                      </select>
+                      <div className="mt-1.5 flex flex-wrap gap-1.5">
+                        <button
+                          type="button"
+                          disabled={recState === "recording"}
+                          onClick={() => void recordForPersona(p.id)}
+                          className="flex h-7 cursor-pointer items-center gap-1 rounded-md border border-fuchsia-400/30 bg-fuchsia-500/10 px-2 text-[11px] text-fuchsia-100 hover:bg-fuchsia-500/20 disabled:opacity-40"
+                        >
+                          {recState === "recording" ? "Grabando…" : "Grabar"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void uploadForPersona(p.id)}
+                          className="flex h-7 cursor-pointer items-center gap-1 rounded-md border border-white/12 bg-white/[0.05] px-2 text-[11px] text-white/75 hover:bg-white/[0.1]"
+                        >
+                          Subir audio
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                  {personaMsg && <p className="text-[11px] text-white/55">{personaMsg}</p>}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
