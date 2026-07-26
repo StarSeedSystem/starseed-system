@@ -846,7 +846,6 @@ export function VoiceNeuronOnboarding() {
               </button>
               {showPersonas && (
                 <div className="mt-3 space-y-2">
-                  <p className="text-[10px] text-fuchsia-300/70">debug: {personas.length} perf · gvg={typeof getVoicesByGender}</p>
                   {personas.map((p) => (
                     <div key={p.id} className="rounded-lg border border-white/10 bg-black/20 p-2">
                       <div className="mb-1.5 flex items-center justify-between">
@@ -861,7 +860,7 @@ export function VoiceNeuronOnboarding() {
                         className="w-full cursor-pointer rounded-md border border-white/12 bg-white/[0.05] px-2 py-1.5 text-[12px] text-white/85 outline-none focus:border-fuchsia-400/40"
                       >
                         <option value="">— Elegir voz —</option>
-                        {(typeof getVoicesByGender === "function" ? getVoicesByGender(p.gender) : []).map((c: CatalogVoice) => (
+                        {getVoicesByGender(p.gender).map((c: CatalogVoice) => (
                           <option key={c.id} value={c.id}>{c.label}{c.premium ? " · xAI" : ""}</option>
                         ))}
                       </select>
