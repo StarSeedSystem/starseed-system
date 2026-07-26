@@ -137,7 +137,7 @@ export function VoiceNeuronOnboarding() {
   const [showPersonas, setShowPersonas] = useState(false);
   const [personas, setPersonas] = useState<
     Array<{ id: string; name: string; gender: "f" | "m" | "o"; voiceId?: string; refKind?: string }>
-  >([]);
+  >([{ id: "aurora", name: "Aurora", gender: "f" }]);
   const [personaMsg, setPersonaMsg] = useState("");
   const [recState, setRecState] = useState<"idle" | "recording">("idle");
 
