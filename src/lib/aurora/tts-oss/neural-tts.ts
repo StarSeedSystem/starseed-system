@@ -140,6 +140,9 @@ export const ENGINE_TIMEOUT_MS: Record<NeuralVoiceEngine, number> = {
   // pasa a Kokoro femenino) mucho antes de agotar este techo. 120 s = "espera a
   // OpenVoice de verdad" en frío; en caliente (~60 s) queda holgado.
   openvoice2: 120_000,
+  // xAI (grok-voice) habla por WebSocket realtime (xai-voice-agent.ts), no por
+  // HTTP: este presupuesto solo aplica si algún día se enruta por aquí.
+  xai: 30_000,
 };
 
 /** TTL de la caché de disponibilidad (ping), en ms. */
@@ -159,6 +162,8 @@ const ENGINE_PATHS: Record<NeuralVoiceEngine, string[]> = {
   // OpenVoice V2 no usa POST JSON directo: habla por el protocolo de cola de su
   // Space (openvoice2.ts). Sin rutas → nunca entra en el bucle de candidateUrls.
   openvoice2: [],
+  // xAI: WebSocket realtime vía proxy/token (nunca HTTP TTS) → sin rutas.
+  xai: [],
 };
 
 /**
@@ -221,6 +226,13 @@ export const NEURAL_ENGINE_META: Record<
     voicePlaceholder: "estilo (en_br, es_default…)",
     defaultVoice: "", // el estilo/semilla los resuelve el cliente openvoice2.ts
     repo: "https://github.com/myshell-ai/OpenVoice",
+  },
+  xai: {
+    label: "xAI · Grok Voice (tiempo real)",
+    hint: "Voz conversacional de xAI por WebSocket (token efímero/proxy) — también síntesis one-shot",
+    voicePlaceholder: "voz xAI (eve · ara · rex · sal · leo)",
+    defaultVoice: "eve",
+    repo: "https://docs.x.ai/",
   },
 };
 
@@ -1091,6 +1103,74 @@ function playNeuralBlob(
  */
 const CONTINUOUS_OVERLAP_MS = 280;
 
+/**
+ * (Adenda 98) Ruta troceada por el OMNIVOICE MIXER: cuando WebAudio está
+ * disponible, cada trozo se reproduce por el mixer con CROSSFADE real de
+ * ~120 ms sobre el anterior (el siguiente arranca justo antes de que el actual
+ * termine y se funden — cero clicks en las costuras, cero huecos). Prefetch del
+ * siguiente trozo mientras suena este (igual que la ruta clásica). Devuelve
+ * true si el mixer se hizo cargo del turno completo; false → HTMLAudio clásico.
+ */
+async function playSequentialViaMixer(
+  provider: (i: number) => Promise<Blob | null>,
+  count: number,
+  opts: { onStart?: () => void; onError?: (m: string) => void; onChunk?: (i: number, blob: Blob) => void } = {},
+): Promise<boolean> {
+  try {
+    const mixer = await import("@/lib/aurora/tts-oss/omnivoice-mixer");
+    if (!mixer.mixerSupported()) return false;
+    const CROSS_MS = 120;
+    let started = false;
+    let aborted = false;
+    // El stop global corta el mixer (stopMixer, vía stopConfiguredEngine) y
+    // este flag evita que sigamos agendando trozos tras el corte.
+    (window as unknown as { __astrauraStopContinuous?: () => void }).__astrauraStopContinuous = () => {
+      aborted = true;
+      try { mixer.stopMixer(); } catch { /* */ }
+    };
+    const mod = (() => {
+      try { return emotionPlaybackMod(); } catch { return null; }
+    })();
+
+    // Prefetch CORRECTO por índice: sembramos el trozo 0 y, al consumir el
+    // trozo i, ya disparamos el i+1 (así el siguiente se sintetiza mientras
+    // suena el actual, SIN perder ningún índice — bug de la primera versión).
+    let nextBlob: Promise<Blob | null> = provider(0).catch(() => null);
+    for (let i = 0; i < count; i++) {
+      if (aborted) return started; // cortado: el turno ya se consumió si empezó
+      const blob = await nextBlob;
+      // Disparar el prefetch del SIGUIENTE trozo ANTES de reproducir este.
+      nextBlob = i + 1 < count ? provider(i + 1).catch(() => null) : Promise.resolve(null);
+      if (aborted) return started;
+      if (!blob) {
+        if (i === 0) return false; // primer trozo falló → que lo intente la ruta clásica
+        return started; // trozos posteriores fallan → cerrar con dignidad
+      }
+      try { opts.onChunk?.(i, blob); } catch { /* */ }
+      const res = await mixer.mixerPlayBlobInfo(blob, {
+        crossfadeMs: i === 0 ? 0 : CROSS_MS,
+        rate: mod?.rate,
+        volume: mod?.volume,
+      });
+      if (!res.ok) {
+        if (i === 0) return false; // el mixer no pudo con el primero → clásica
+        return started;
+      }
+      if (!started) {
+        started = true;
+        try { opts.onStart?.(); } catch { /* */ }
+      }
+      // Esperar hasta JUSTO antes del final del trozo (dejando la ventana de
+      // crossfade) mientras el prefetch del siguiente ya corre en paralelo.
+      const waitMs = Math.max(0, res.durationSec * 1000 - (i + 1 < count ? CROSS_MS : 0));
+      await new Promise((r) => setTimeout(r, waitMs));
+    }
+    return started;
+  } catch {
+    return false;
+  }
+}
+
 async function playSequentialContinuous(
   provider: (i: number) => Promise<Blob | null>,
   count: number,
@@ -1098,11 +1178,21 @@ async function playSequentialContinuous(
 ): Promise<HTMLAudioElement | null> {
   if (count <= 0) return null;
 
+  // (Adenda 98) PRIMERO el OmniVoice Mixer (crossfade real entre trozos, sin
+  // clicks). Si WebAudio no está o el primer trozo no decodifica, cae SIN
+  // COSTE a la ruta clásica HTMLAudio de siempre (suelo intacto).
+  const viaMixer = await playSequentialViaMixer(provider, count, opts);
+  if (viaMixer) return null; // el mixer habló entero (no hay HTMLAudioElement)
+
   return new Promise((resolve) => {
     let settled = false;
     let firstAudio: HTMLAudioElement | null = null;
     let aborted = false;
-    let nextBlob: Promise<Blob | null> | null = null; // prefetch del siguiente
+    // Prefetch por índice CORRECTO (Adenda 98 fix): sembramos el trozo 0 antes
+    // del primer playAt y, al entrar en cada índice, ya tenemos su blob listo y
+    // disparamos el prefetch del siguiente. Antes se perdía el trozo 1 y, en el
+    // último, `nextBlob!` colgaba la Promise (null.then).
+    let nextBlob: Promise<Blob | null> = provider(0).catch(() => null);
     const active: HTMLAudioElement[] = [];
 
     const stopAll = () => {
@@ -1120,12 +1210,11 @@ async function playSequentialContinuous(
         if (!settled) { settled = true; resolve(firstAudio); }
         return;
       }
-      // Prefetch del siguiente trozo MIENTRAS suena este.
-      if (i + 1 < count && !nextBlob) nextBlob = provider(i + 1).catch(() => null);
-      const blobPromise: Promise<Blob | null> =
-        i === 0 ? provider(0).catch(() => null) : nextBlob!;
-      // Consumido: el siguiente provider(i+2) se dispara dentro de timeupdate.
-      nextBlob = null;
+      // El blob de ESTE trozo ya está sembrado (i=0 antes del bucle; i>0 por el
+      // prefetch de la iteración anterior). Disparamos el prefetch del SIGUIENTE
+      // trozo ahora, para que se sintetice mientras suena el actual.
+      const blobPromise: Promise<Blob | null> = nextBlob;
+      nextBlob = i + 1 < count ? provider(i + 1).catch(() => null) : Promise.resolve(null);
 
       blobPromise.then((blob) => {
         if (aborted) return;
@@ -1441,6 +1530,12 @@ export async function neuralSpeak(
 /** Detiene la reproducción neural en curso (si la hay). Idempotente. Nunca lanza. */
 export function stopNeural(): void {
   chunkGeneration++; // invalida cualquier habla troceada en curso (Adenda 82)
+  // Adenda 97 (fix): parar TAMBIÉN el pool de <audio> del reproductor troceado
+  // continuo (playSequentialContinuous registra su parada en este handle, que
+  // hasta ahora NADIE invocaba — el botón de parar dejaba sonando los trozos).
+  try {
+    (window as unknown as { __astrauraStopContinuous?: () => void }).__astrauraStopContinuous?.();
+  } catch { /* */ }
   try {
     if (currentAudio) {
       try {

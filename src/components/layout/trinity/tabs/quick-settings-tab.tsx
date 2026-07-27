@@ -76,6 +76,7 @@ const AURORA_ENGINE_LABEL: Record<AuroraVoiceEngine, string> = {
     "gpt-sovits": "GPT-SoVITS (clonación)",
     omnivoice: "OmniVoice (sistema · local/nube)",
     openvoice2: "OpenVoice V2 (motor por defecto · web)",
+    xai: "xAI · Grok Voice (tiempo real)",
 };
 
 const PERF_OPTIONS: Array<{ id: PerfMode; label: string; Icon: React.ComponentType<{ className?: string }> }> = [

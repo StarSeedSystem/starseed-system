@@ -33,6 +33,8 @@ import {
     setDesktopPage, addDesktopPage, moveIconToPage,
 } from "./desktop-store";
 import { useDesktopClipboard, copyIcon, cutIcon, pasteClipboard } from "./desktop-clipboard";
+// Adenda 98: menú de conexiones (red externa + malla P2P) en la barra superior.
+import { ConnectionsMenu } from "@/components/connectivity/connections-menu";
 import { DesktopTileDividers } from "./desktop-tiles";
 import { DesktopQuickLook, type QuickLookTab } from "./desktop-quick-look";
 import { DesktopIconTile, ICON_CELL } from "./desktop-icon";
@@ -1458,6 +1460,9 @@ export function DesktopCanvas({ spaceId = null }: { spaceId?: string | null } = 
                 >
                     <Settings2 className="size-3.5" />
                 </button>
+
+                {/* Conexiones de la neurona (Adenda 98): red externa + malla P2P */}
+                <ConnectionsMenu />
 
                 <DesktopClock />
             </header>

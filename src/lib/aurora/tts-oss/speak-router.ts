@@ -331,7 +331,18 @@ async function runLink(
     const personality = await resolveVoiceboxPersonality();
     const res = await OpenVoiceHybridRouter.synthesize(text, personality);
     if (res.blob) {
-      // Reproduce el audio obtenido (el router no reproduce por sí mismo).
+      // Reproduce por el OmniVoice MIXER (crossfade sin cortes, Adenda 97);
+      // si WebAudio no puede, camino clásico HTMLAudio (el suelo no cambia).
+      try {
+        const { mixerPlayBlob } = await import("@/lib/aurora/tts-oss/omnivoice-mixer");
+        const viaMixer = await mixerPlayBlob(res.blob, {
+          onStart: safe.onStart,
+          onEnd: safe.onEnd,
+        });
+        if (viaMixer) return "spoke";
+      } catch {
+        /* mixer no disponible → clásico */
+      }
       try {
         const url = URL.createObjectURL(res.blob);
         const audio = new Audio(url);
@@ -348,6 +359,25 @@ async function runLink(
     }
     // Sin app local ni API Key → la cadena continúa con OpenVoice web (default).
     return "declined";
+  }
+
+  if (link === "xai") {
+    // xAI grok-voice como TTS ONE-SHOT (Adenda 97): solo llega aquí por pin de
+    // personalidad o elección explícita (AUTO nunca lo añade). El audio sale
+    // por el OmniVoice Mixer (streaming PCM gapless). Sin acceso (ni token ni
+    // proxy) declina limpio y el siguiente eslabón cubre el turno.
+    const { xaiSpeakOnce } = await import("@/lib/aurora/tts-oss/xai-voice-agent");
+    const s = getEngineSettings("xai");
+    const ok = await xaiSpeakOnce(text, {
+      voice: s.voice || undefined,
+      personaId: s.personaId || undefined,
+      apiKey: s.apiKey || undefined,
+      onStart: safe.onStart,
+      onEnd: safe.onEnd,
+      onError: safe.onError,
+    });
+    if (ok) return "spoke";
+    return started ? "started" : "declined";
   }
 
   if (isNeuralEngine(link)) {
@@ -527,6 +557,21 @@ export async function speakWithConfiguredEngine(
 
 /** Corta cualquier reproducción OSS/neural en curso. NUNCA lanza. */
 export async function stopConfiguredEngine(): Promise<void> {
+  try {
+    // Cancelar una síntesis xAI en vuelo ANTES de cerrar el mixer: si no, el
+    // siguiente delta de audio reabriría un stream PCM y volvería a hablar.
+    const { cancelActiveXaiSpeak } = await import("@/lib/aurora/tts-oss/xai-voice-agent");
+    cancelActiveXaiSpeak();
+  } catch {
+    /* */
+  }
+  try {
+    // OmniVoice Mixer (Adenda 97): fade de 120 ms — sin clicks al cortar.
+    const { stopMixer } = await import("@/lib/aurora/tts-oss/omnivoice-mixer");
+    stopMixer();
+  } catch {
+    /* */
+  }
   try {
     const { stopKokoro } = await import("@/lib/aurora/tts-oss/kokoro");
     stopKokoro();

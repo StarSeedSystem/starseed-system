@@ -97,7 +97,8 @@ export function NexusWorkspaces({ onOpenTab }: { onOpenTab?: (tab: string) => vo
 
   const quickActions: { label: string; icon: typeof Brain; onClick: () => void; accent: string }[] = [
     { label: "Cerebros", icon: Brain, onClick: () => onOpenTab?.("cerebros"), accent: "text-fuchsia-300" },
-    { label: "Personalidades", icon: Sparkles, onClick: () => onOpenTab?.("aurora"), accent: "text-emerald-300" },
+    // Adenda 97: «Personalidades» abre el HUB global (antes caía en el Estudio Aurora).
+    { label: "Personalidades", icon: Sparkles, onClick: () => onOpenTab?.("personalidades"), accent: "text-emerald-300" },
     { label: "Memorias", icon: HardDrive, onClick: () => onOpenTab?.("memorias"), accent: "text-cyan-300" },
   ];
 

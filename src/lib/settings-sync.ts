@@ -284,7 +284,63 @@ const SECRET_FIELD_RE = /(key|token|secret|password|passwd|pass|auth|credential|
  * Nunca lanza: ante cualquier duda devuelve el valor original SOLO si no es una
  * clave de integración (si lo es y no se puede podar, se descarta el valor).
  */
+/**
+ * ⚠️ SEGURIDAD (Adenda 97): la config de VOZ (`starseed.aurora.voice.v1`)
+ * viaja con la cuenta, pero su campo `engines.<motor>.apiKey` (p. ej. la API
+ * key PERSONAL de xAI) es un SECRETO de dispositivo: antes se subía en texto
+ * plano a `user_settings.prefs`. Ahora se PODA antes de subir y se REINYECTA
+ * desde el dispositivo al aplicar (mismo contrato que las integraciones).
+ */
+const AURORA_VOICE_SYNC_KEY = "starseed.aurora.voice.v1";
+
+function sanitizeVoiceForCloud(value: unknown): unknown {
+    try {
+        if (!value || typeof value !== "object" || Array.isArray(value)) return value;
+        const v = value as Record<string, unknown>;
+        const engines = v.engines;
+        if (!engines || typeof engines !== "object" || Array.isArray(engines)) return value;
+        const cleanEngines: Record<string, unknown> = {};
+        for (const [id, cfg] of Object.entries(engines as Record<string, unknown>)) {
+            if (cfg && typeof cfg === "object" && !Array.isArray(cfg)) {
+                const rest: Record<string, unknown> = {};
+                for (const [k, val] of Object.entries(cfg as Record<string, unknown>)) {
+                    if (k === "apiKey") continue; // el secreto se queda en el dispositivo
+                    rest[k] = val;
+                }
+                cleanEngines[id] = rest;
+            } else {
+                cleanEngines[id] = cfg;
+            }
+        }
+        return { ...v, engines: cleanEngines };
+    } catch {
+        return value;
+    }
+}
+
+function mergeVoiceLocalSecrets(remoteValue: unknown, localRaw: string | null): unknown {
+    try {
+        if (!remoteValue || typeof remoteValue !== "object" || Array.isArray(remoteValue)) return remoteValue;
+        if (!localRaw) return remoteValue;
+        const local = JSON.parse(localRaw) as { engines?: Record<string, { apiKey?: unknown }> } | null;
+        const localEngines = local?.engines;
+        if (!localEngines || typeof localEngines !== "object") return remoteValue;
+        const remote = remoteValue as { engines?: Record<string, Record<string, unknown>> };
+        const merged = { ...remote, engines: { ...(remote.engines ?? {}) } };
+        for (const [id, lcfg] of Object.entries(localEngines)) {
+            const apiKey = lcfg && typeof lcfg === "object" ? (lcfg as { apiKey?: unknown }).apiKey : undefined;
+            if (typeof apiKey === "string" && apiKey) {
+                merged.engines[id] = { ...(merged.engines[id] ?? {}), apiKey };
+            }
+        }
+        return merged;
+    } catch {
+        return remoteValue;
+    }
+}
+
 export function sanitizeForCloud(key: string, value: unknown): unknown {
+    if (key === AURORA_VOICE_SYNC_KEY) return sanitizeVoiceForCloud(value);
     if (!isIntegrationConfigKey(key)) return value;
     try {
         if (!value || typeof value !== "object" || Array.isArray(value)) return value;
@@ -315,6 +371,7 @@ export function sanitizeForCloud(key: string, value: unknown): unknown {
  * sí tiene guardada (la clave nunca viaja, pero tampoco debe perderse).
  */
 export function mergeLocalSecrets(key: string, remoteValue: unknown, localRaw: string | null): unknown {
+    if (key === AURORA_VOICE_SYNC_KEY) return mergeVoiceLocalSecrets(remoteValue, localRaw);
     if (!isIntegrationConfigKey(key)) return remoteValue;
     try {
         if (!remoteValue || typeof remoteValue !== "object" || Array.isArray(remoteValue)) return remoteValue;

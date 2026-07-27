@@ -3401,3 +3401,64 @@ persistidas, con la app como origen) y **ventanas emergentes** (toasts + popups 
 - El centro local no sincroniza (device-local); para que los avisos de apps viajen habría que replicarlos a
   la tabla `notifications` de Supabase (falta RLS de INSERT).
 - Categoría del centro para apps = `system` (no hay categoría «app»); el `iconName` sí se guarda.
+
+---
+
+## 2026-07-27 — Adenda 97 · Red Mesh Meshtastic en el núcleo de Astraura + pestaña global «Personalidades» + OmniVoice Mixer (xAI one-shot) + repo propio de Omnifrecuencias
+
+**Petición de Alex:** (1) integrar el protocolo de malla Meshtastic (LoRa) en el núcleo de Astraura — descubrimiento P2P automático, enrutado inteligente Mesh↔Wi-Fi con fallback censura-resistente, sincronización comprimida de bajo ancho de banda (respetando duty cycle) y gestión del hardware (Web Serial/BLE/daemon); (2) refactorizar la interfaz de Astraura: pestaña global «Personalidades» (reemplaza «Aurora»), OmniVoice arreglado y expandido con xAI y OpenVoice, asignación de voz por neurona en tiempo real sin cortes, y reglas mesh por neurona; (3) cambiar el repo de Omnifrecuencias a github.com/alexbordongarrigos/omnifrecuencias.
+
+### Red Mesh (SOP nuevo: `architecture/astraura-mesh-meshtastic.md` — regla dorada cumplida: doc primero)
+- **Módulo nuevo `src/ai/astraura/mesh/`** (13 archivos): `types` · `constants` (límites REALES del firmware jul-2026: payload útil 233 B → frames propios ≤200 B; duty legal EU_868/EU_433/TH/UA_433 10 %, UA_868 1 % → objetivo propio ≤2 %) · `codec` (sobre binario magic 0xA7: varint+deflate-raw nativo+CRC-16+troceo/reensamblado con NACK selectivo; PURO y testeado) · `transport`+`meshtastic-adapter` (librería OFICIAL `@meshtastic/core` + transportes Web Serial/Web Bluetooth/HTTP vía alias npm de JSR, `import()` dinámico, handshake configure()+NodeDB, watchdog 45/90 s, backoff con jitter; solo el daemon reconecta sin gesto) · `discovery` (NodeDB viva pasiva: online/stale/offline por sweep perezoso de 30 s) · `health` (salud dual EMA: sonda HEAD adaptativa Wi-Fi + SNR/nodos/utilización mesh — cero airtime) · `decision-router` (decisión O(1) sobre estado cacheado con histéresis 0,55/0,65 y clases P0-P3; P0 = DUAL siempre) · `sync` (colas por prioridad + token bucket de airtime con reserva P0 + whitelist de campos por tipo) · `rules` (reglas POR NEURONA: interactiva/relé-de-alertas/solo-escucha/apagada + prioridad + permisos voz/estado) · `store`+`use-mesh` (estado global estilo zustand sin dependencias: getState/subscribe + useSyncExternalStore) · `simulator` (malla virtual para probar sin hardware) · `index` (API pública: startMeshSubsystem/connectMesh/sendOverMesh).
+- **UI**: pestaña «Red Mesh» en /agent (`src/components/mesh/mesh-control-panel.tsx`): conexión USB/BLE/daemon/simulador, KPIs de salud dual, nodos con SNR/RSSI/batería/saltos, historial de decisiones con RAZONES, presupuesto de airtime y pruebas honestas (presencia P1, alerta P0 de ENSAYO). + `mesh-status-chip.tsx` reutilizable.
+- **Astraura core**: la respuesta LOCAL honesta del router ahora ANUNCIA la malla activa ("sin internet, mensajería/alertas siguen por radio") — la malla es el último transporte de la regla «Astraura siempre funciona» (`router.ts::buildHonestFallback`).
+- **Deps nuevas** (JSR→npm alias, carga dinámica, bundle base intacto): `@meshtastic/core` 2.6.6 + `transport-web-serial`/`web-bluetooth`/`http`. `.npmrc` añade el registry @jsr. ⚠️ El `package-lock.json` anterior estaba DESINCRONIZADO (npm ci fallaba: gtoken); se regeneró consistente.
+- **Pruebas**: `scripts/test-mesh-core.ts` (npx tsx) — 15/15: troceo real, reensamblado desordenado, pérdida+NACK, CRC ante corrupción, basura → null.
+
+### Personalidades global + OmniVoice (Adenda 97)
+- **/agent**: la sección «Aurora & Astraura» (1 ítem) pasa a **«Personalidades»** con 3 pestañas: `personalidades` (nuevo `personalities-hub.tsx`: KPIs vivos + PersonalitiesPanel GLOBAL — la misma fuente de verdad de Exocórtex/Cerebros — + **reglas mesh por neurona** + historial de memoria local) · `aurora` (Estudio de voz INTACTO; deep-links `?tab=aurora` siguen) · `mesh` (panel de arriba). Alias nuevos: personalidad(es)/personas → personalidades; malla/meshtastic/lora → mesh. El acceso «Personalidades» del Portal Nexus abre ahora el hub.
+- **OmniVoice Mixer** (`omnivoice-mixer.ts`, nuevo): salida WebAudio única — crossfade equal-power 160 ms entre locuciones y al cambiar voz/personalidad en caliente, cola PCM continua para streaming, ganancia por neurona, stop con fade de 120 ms. Adopción v1 honesta: ruta híbrida Voicebox/OpenVoice del speak-router + xAI + stop global; el reproductor troceado de neural-tts conserva su arranque-anticipado (Adenda 93) y migra en v2.
+- **xAI one-shot** (`xaiSpeakOnce` en `xai-voice-agent.ts`): el canal realtime de grok-voice ahora TAMBIÉN sintetiza locuciones sueltas para la cadena OmniVoice (token efímero o proxy server-side; PCM al mixer). Entra en la cadena SOLO por pin de personalidad o elección explícita — NUNCA por AUTO (gratis-primero manda); sin acceso declina limpio. `engine-registry` y `speak-router` cableados.
+- **Arreglos REALES del build de voz** (24 errores TS pre-existentes → 0): los `Record<NeuralVoiceEngine>` de `neural-tts.ts` no incluían "xai" (3×TS2741 — la integración xAI anterior quedó a medias), etiqueta xai ausente en `quick-settings-tab`, `getVoiceById` sin importar + tipos rotos en `voice-neuron-onboarding`, `speak`/`MessageSquare` sin binding en `desktop-context-menu`, `SavedResource.title` (no `.name`) en finder, anys implícitos en perfiles, y `AuroraMessageMeta` sin `route`/`tokens` (los usaba message-action-bar).
+- **🔐 Fix de seguridad** (`settings-sync.ts`): `engines.<motor>.apiKey` de la config de voz (p. ej. la API key PERSONAL de xAI) se SUBÍA EN CLARO a `user_settings.prefs`. Ahora se poda antes de subir y se reinyecta desde el dispositivo (mismo contrato que las integraciones).
+- **Fix de parada**: `stopNeural()` ahora invoca `__astrauraStopContinuous` — el botón de parar no detenía el pool de audio del reproductor troceado continuo (confirmado por grep: nadie lo llamaba).
+
+### Omnifrecuencias → repo propio
+- `packages.ts` (app-omnifrecuencias v1.1.0): `payload.externalUrl = github.com/alexbordongarrigos/omnifrecuencias` (+note; `route` sigue mandando al instalar — el watcher de auto-actualización de la Biblioteca vigila ese repo). `oss-library.ts`: entrada nueva "omnifrecuencias" (creation, defaultIntegrated, url del repo propio) junto a Audiomorphic.
+
+### Verificación
+- `tsc --noEmit`: **0 errores** (antes 24). `next build`: en verificación al cierre de esta entrada (ignoreBuildErrors sigue true, pero ya no tapa nada). Tests codec 15/15. Multi-agente: 7 agentes de investigación/mapeo (docs oficiales Meshtastic + firmware real + mapeo del repo) + verificación cruzada.
+
+**Pendiente / siguiente ola:** aplicar migración realtime pendiente (aviso previo de CLAUDE.md); probar con radio LoRa FÍSICO (todo lo demás está probado con simulador + tests); v2 mesh: intercambio de topologías entre neuronas remotas vía Supabase (os_spaces), reglas por clase de tráfico en UI, y migrar el reproductor troceado al mixer; rotar service_role + DashScope (arrastrado).
+
+---
+
+## 2026-07-27 — Adenda 98 · Mesh v2 (dual, antenas inteligentes, federación, mapa 3D, Centro de Conexiones) + OmniVoice migrado al mixer
+
+**Petición de Alex:** completar lo pendiente de la ola (mesh v2), con Wi-Fi/router externo y malla P2P funcionando A LA VEZ; Centro de Conexiones en Control Center y en la barra superior del escritorio para administrar TODAS las conexiones de cada neurona (Wi-Fi, Bluetooth, antenas de radiofrecuencia por banda, mesh P2P y routers externos); una página completa de la Red Mesh (accesible desde el hub y agregable al dock) con mapa 3D de neuronas por RF, privacidad/permisos y selección inteligente de banda; y que el selector de voz OmniVoice reaparezca en cada actualización, adaptado a las capacidades de cada neurona con ejemplos funcionales y editables. Al final: actualización completa del OS, commit y push.
+
+### Núcleo mesh v2 (`src/ai/astraura/mesh/`)
+- **connectivity.ts** — ajustes de conectividad de la neurona (dualMode ON por defecto, ruta preferida auto/wifi/mesh, transporte por defecto) + inventario vivo de vías (red externa vía Network Information API, Bluetooth, Web Serial/puertos, mesh). Honesto: el navegador no lista SSIDs ni controla la celular.
+- **antennas.ts** — catálogo REAL de bandas por región (freq/duty/potencia del firmware) y presets con su compromiso alcance↔capacidad↔velocidad; `recommendPreset` (selector inteligente: auto/distancia/equilibrio/velocidad con SNR+densidad+congestión) y `estimateDistanceMeters` (log-distancia por SNR para el mapa 3D).
+- **privacy.ts** — visibilidad (account/private), compartir posición (OFF por defecto), compartir nombres, permiso de uso del relé (all/alerts/none) que manda sobre los roles.
+- **federation.ts** — push/pull throttled de instantáneas COMPACTAS a `os_mesh_topology` (RLS owner) → `state.remoteTopologies`; respeta privacidad (incl. device_label y borrado de la fila al pasar a private). Migración `supabase/migrations/20260727120000_mesh_topology_federation.sql`.
+- **decision-router** — modo dual (P1 presencia por AMBAS vías con preferred=auto; preferred=mesh enruta a la malla las clases permitidas) sin romper la histéresis; roles off/listen-only NUNCA transmiten.
+- **meshtastic-adapter** — autodetección de región/preset (onConfigPacket, oneof lora) → presupuesto/airtime reales; `setModemPreset` REAL (protobuf-es v2: `create(ConfigSchema,…)` de @bufbuild/protobuf + commitEditSettings, base = config LoRa cacheada) para cambiar de banda/velocidad al vuelo; `applyModemPreset` en index. Simulador emula el cambio.
+
+### UI
+- **Centro de Conexiones** (`src/components/connectivity/`): `connections-center.tsx` (red externa · malla con conexión rápida por transporte · modo dual · ruta preferida · BT · antenas) montado en Control Center (nueva pestaña «Conexiones») y en un popover de la **barra superior del escritorio** (`connections-menu.tsx` con estado vivo).
+- **Página /red-mesh** (app «Red Mesh» agregable al dock + en la Biblioteca): **mapa 3D** (`mesh-map-3d.tsx`, R3F — nodos por GPS real o estimación por RF/SNR, neuronas federadas en órbita, anillos 100 m/1 km/5 km, respeta prefers-reduced-motion) + panel de conexiones + `antennas-panel` (selector inteligente que APLICA el preset al radio) + `mesh-privacy-panel` + `peers-panel` (P2P con datos de antena · federadas · router externo medido).
+
+### OmniVoice
+- El reproductor troceado de `neural-tts` reproduce por el **mixer** (`playSequentialViaMixer`: crossfade real entre trozos) con HTMLAudio de suelo. `mixerPlayBlobInfo` (duración para encadenar) + stop PCM que corta de verdad las fuentes agendadas.
+- Selector de voz: `VOICE_SYSTEM_VERSION=98` (reaparece por neurona) + `VOICE_UPDATE_NOTES` (novedades al actualizar), recomendación por `device-tier`, **frase de ejemplo editable** y botón «▶ Probar» por personalidad (sintetiza con la voz de esa persona por el mixer). Botón «Selector de voz» en el hub de Personalidades.
+
+### Verificación (multi-agente Opus + Sonnet) — 11 hallazgos reales, TODOS corregidos
+- Opus (núcleo): `setModemPreset` usaba el constructor protobuf-es v1 (siempre undefined) → reescrito con `create(ConfigSchema)` v2 (+`@bufbuild/protobuf` como dep directa); `device_label` de la federación saltaba `shareName`; rama dual no limpiaba la histéresis; `private` no borraba la fila publicada; `onLoraConfig` reseteaba el airtime en cada reconexión + 6 regiones faltaban en el mapa de duty.
+- Sonnet (UI): **CRÍTICO** — `playSequentialViaMixer` (y el mismo bug PREEXISTENTE en la ruta clásica, que además colgaba con `nextBlob!`) perdía el trozo índice 1 → prefetch por índice reescrito en ambas rutas; hidratación (privacy-panel + connections-center inician con defaults + sync en useEffect); `stopMixer` no cortaba el PCM agendado → stop duro por fuente; prefers-reduced-motion en el mapa; emoji ▶️→▶.
+- `tsc` 0 errores · tests `scripts/test-mesh-core.ts` **29/29** (incluye regresión del trozo perdido) · `next build` OK, `/red-mesh` prerenderiza (22.9 kB).
+
+### Pendiente
+- Aplicar la migración `20260727120000_mesh_topology_federation.sql` en Supabase (la federación degrada silenciosa sin ella).
+- Probar con radio LoRa físico (todo verificado con simulador + tests + build).
+- Arrastrado: migración realtime `20260711120000`; rotar service_role + DashScope.

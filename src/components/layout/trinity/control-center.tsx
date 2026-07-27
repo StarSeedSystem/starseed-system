@@ -5,12 +5,14 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
     Settings, Sliders, Home, Bell, Maximize2, Minimize2, Monitor, X,
     SlidersHorizontal, ArrowUp, ArrowDown, Eye, EyeOff, RotateCcw,
-    ChevronUp, ChevronDown,
+    ChevronUp, ChevronDown, Wifi,
 } from "lucide-react";
 import { SystemTab } from "./tabs/system-tab";
 import { QuickSettingsTab } from "./tabs/quick-settings-tab";
 import { SmartHomeTab } from "./tabs/smart-home-tab";
 import { NotificationsTab } from "./tabs/notifications-tab";
+// Adenda 98: administración de conexiones de la neurona (red externa + malla).
+import { ConnectionsTab } from "./tabs/connections-tab";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -38,6 +40,8 @@ interface QuickModule {
 const QUICK_MODULES: QuickModule[] = [
     { id: "system", label: "Sistema", icon: Settings, activeColor: "text-blue-400", bgColor: "bg-blue-500/10", borderColor: "border-blue-500/20", Content: SystemTab },
     { id: "quick", label: "Control", icon: Sliders, activeColor: "text-cyan-400", bgColor: "bg-cyan-500/10", borderColor: "border-cyan-500/20", Content: QuickSettingsTab },
+    // Adenda 98: conexiones de la neurona (red externa · malla P2P · modo dual).
+    { id: "conexiones", label: "Conexiones", icon: Wifi, activeColor: "text-emerald-400", bgColor: "bg-emerald-500/10", borderColor: "border-emerald-500/20", Content: ConnectionsTab },
     { id: "home", label: "Hogar", icon: Home, activeColor: "text-emerald-400", bgColor: "bg-emerald-500/10", borderColor: "border-emerald-500/20", Content: SmartHomeTab },
     { id: "notif", label: "Alertas", icon: Bell, activeColor: "text-red-400", bgColor: "bg-red-500/10", borderColor: "border-red-500/20", Content: NotificationsTab },
 ];

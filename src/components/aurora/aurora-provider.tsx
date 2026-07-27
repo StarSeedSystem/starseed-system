@@ -541,6 +541,34 @@ export function AuroraProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  // ── Red Mesh → VOZ (Adenda 97 · SOP §7.2) ─────────────────────────────────
+  // Cuando la malla LoRa entrega una ALERTA (P0), esta neurona la ANUNCIA por
+  // voz si sus reglas lo permiten (voiceAnnounce de la neurona-dispositivo).
+  // El subsistema mesh emite `starseed:mesh-alert`; aquí solo se escucha —
+  // coste cero sin malla. Import dinámico (no engorda el bundle del provider).
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onMeshAlert = (ev: Event) => {
+      void (async () => {
+        try {
+          const detail = (ev as CustomEvent).detail as
+            | { body?: { txt?: string; k?: string } }
+            | undefined;
+          const mesh = await import("@/ai/astraura/mesh");
+          const rules = mesh.getMeshRules(mesh.DEVICE_RULES_ID);
+          if (!rules.voiceAnnounce) return;
+          const txt = detail?.body?.txt || "alerta recibida";
+          const kind = detail?.body?.k ? ` (${detail.body.k})` : "";
+          engineRef.current?.speak(`Alerta de la Red Mesh${kind}: ${txt}`);
+        } catch {
+          /* */
+        }
+      })();
+    };
+    window.addEventListener("starseed:mesh-alert", onMeshAlert);
+    return () => window.removeEventListener("starseed:mesh-alert", onMeshAlert);
+  }, []);
+
   // ── Puente para una futura extensión de navegador ──────────────────────────
   // Expone window.STARSEED_AURORA = { runAction, runDirectives, onAction } y
   // escucha mensajes window.postMessage con { source: "starseed-aurora-extension" }

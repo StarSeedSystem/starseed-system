@@ -57,6 +57,9 @@ import {
 import { systemContextPrompt, screenContextLine, activeProvidersLine } from "./context";
 import { buildUserContext, getUserContextSettings } from "./user-context";
 import { modeForCategory } from "./provider-resolution";
+// Red Mesh Meshtastic (Adenda 97): estado de la malla para la respuesta local
+// honesta (SSR-safe: el store no toca window al importarse).
+import { getMeshState } from "./mesh/store";
 // Estado REAL de la voz (Adenda 87 · anti-alucinación de voz): función pura
 // que reutiliza la misma lógica que la tool `estado_voz` y la comprime a una
 // línea para el contexto. Aditivo y defensivo: nunca lanza.
@@ -694,6 +697,21 @@ function buildHonestFallback(
   if (!localReady) actions.push("enciende Ollama o LM Studio en este equipo (Aurora los detecta solos)");
   actions.push("vuelve a intentarlo en un momento");
   if (actions.length) lines.push(`Puedes: ${actions.join("; ")}.`);
+  // ── Red Mesh (Adenda 97) ──: si la malla LoRa de esta neurona está VIVA,
+  // la respuesta local lo dice — sin internet, la mensajería corta, la
+  // presencia y las alertas comunitarias SIGUEN viajando por radio. La malla
+  // es el último transporte de la regla "Astraura siempre funciona".
+  try {
+    const mesh = getMeshState();
+    if (mesh.status === "ready" || mesh.status === "degraded") {
+      const nodos = mesh.nodes.filter((n) => !n.isSelf && n.presence === "online").length;
+      lines.push(
+        `La Red Mesh LoRa está ACTIVA (${nodos} nodo${nodos === 1 ? "" : "s"} al alcance): mensajería corta, presencia y alertas comunitarias siguen funcionando fuera de internet — pestaña «Red Mesh» de Astraura IA.`,
+      );
+    }
+  } catch {
+    /* sin subsistema mesh: nada que añadir */
+  }
   lines.push(`Petición detectada: ${TASK_LABELS[profile.kind]}. El detalle completo queda en Ajustes → Inteligencia (registro de rutas) y en "Ver proceso" de este mensaje.`);
   return lines.join("\n\n");
 }

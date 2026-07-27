@@ -14,7 +14,7 @@ import { loadConfigs } from "@/ai/client/providerStore";
 // ROUTER GRATIS-PRIMERO: Aurora elige automáticamente el mejor modelo
 // disponible por tarea (gratis primero, servicios del usuario prioritarios),
 // con failover y transparencia. En modo "manual" delega en chat() clásico.
-import { astrauraChat, announceLine, getIntelligenceSettings } from "@/ai/astraura/router";
+import { astrauraChat, announceLine, getIntelligenceSettings, type RouteRecord } from "@/ai/astraura/router";
 import type { ChatMessage } from "@/ai/providers/types";
 import {
   DEFAULT_PERSONALITY,
@@ -116,6 +116,14 @@ export interface AuroraMessageMeta {
    * lo llevan.
    */
   kind?: string;
+  /**
+   * Ruta COMPLETA elegida por el router de Astraura (RouteRecord), si el motor
+   * la adjuntó (Adenda 97; lo pinta message-action-bar → "Transparencia y
+   * Alternativas"). `modelId` es un alias aditivo que algunas superficies usan.
+   */
+  route?: RouteRecord & { modelId?: string };
+  /** Tokens consumidos por la respuesta (si la fuente los reporta). */
+  tokens?: number | string;
 }
 
 /** Una entrada del historial de conversación (para el chat-widget). */
@@ -1233,6 +1241,9 @@ export function useAuroraEngine(): AuroraEngine {
         difficulty: res?.route?.difficulty,
         reason: res?.route?.reason,
         tools: toolMetas.length ? toolMetas : undefined,
+        // Adenda 97: la ruta COMPLETA para la barra de acciones («Transparencia
+        // y Alternativas»); antes el campo existía pero nadie lo rellenaba.
+        route: res?.route ?? undefined,
       };
       pushReply(reply, meta);
       speak(reply);

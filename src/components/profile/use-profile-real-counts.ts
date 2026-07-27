@@ -137,8 +137,8 @@ export function useProfileRealCounts(opts: {
                         if (wholeLibrary) {
                             archivos = (doc.folders?.length || 0) + (doc.files?.length || 0);
                         } else {
-                            archivos = (doc.folders?.filter(f => f.acl?.scope === 'public').length || 0) + 
-                                       (doc.files?.filter(f => f.acl?.scope === 'public').length || 0);
+                            archivos = (doc.folders?.filter((f: { acl?: { scope?: string } }) => f.acl?.scope === 'public').length || 0) +
+                                       (doc.files?.filter((f: { acl?: { scope?: string } }) => f.acl?.scope === 'public').length || 0);
                         }
                     }
                 } catch {

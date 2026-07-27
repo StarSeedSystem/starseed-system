@@ -326,10 +326,25 @@ const CORE_ROUTE_PACKAGES: LibraryPackage[] = [
   },
   {
     id: "app-omnifrecuencias", kind: "app", name: "Omni-Frecuencias",
-    description: "Frecuencias y paisajes sonoros generativos para foco, descanso y expansión de conciencia.",
-    icon: "Radio", tags: ["app", "audio", "frecuencias"], version: "1.0.0",
-    author: "StarSeed Core", sourceRepoId: "starseed-core", free: true,
-    payload: { route: "/omnifrecuencias" },
+    description: "Frecuencias y paisajes sonoros generativos para foco, descanso y expansión de conciencia. Repo oficial: github.com/alexbordongarrigos/omnifrecuencias.",
+    icon: "Radio", tags: ["app", "audio", "frecuencias", "github"], version: "1.1.0",
+    author: "Alex Bordón · StarSeed", sourceRepoId: "starseed-core", free: true,
+    // Adenda 97: el repositorio de la app cambia al repo PROPIO del visionario.
+    // `route` sigue mandando al instalar (la app es nativa); `externalUrl` es el
+    // enlace al código/medios oficiales que la ficha muestra (install.ts solo
+    // abre externalUrl cuando NO hay route — sin cambio de comportamiento).
+    payload: {
+      route: "/omnifrecuencias",
+      externalUrl: "https://github.com/alexbordongarrigos/omnifrecuencias",
+      note: "Código, presets y medios oficiales en el repo del visionario.",
+    },
+  },
+  {
+    id: "app-red-mesh", kind: "app", name: "Red Mesh",
+    description: "Centro de la malla P2P LoRa: mapa 3D de neuronas por GPS/RF, antenas y bandas inteligentes, privacidad, peers y routers.",
+    icon: "RadioTower", tags: ["app", "mesh", "lora", "p2p", "red"], version: "1.0.0",
+    author: "StarSeed Core", sourceRepoId: "starseed-core", free: true, featured: true,
+    payload: { route: "/red-mesh" },
   },
   {
     id: "app-red-3d", kind: "app", name: "Red 3D",

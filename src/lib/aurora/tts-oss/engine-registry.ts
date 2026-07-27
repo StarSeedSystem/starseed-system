@@ -237,11 +237,13 @@ export const VOICE_ENGINE_REGISTRY: Record<AuroraVoiceEngine, VoiceEngineMeta> =
   },
   // ── xAI Voice Agent (grok-voice) — conversacional en tiempo real ──
   // NO es un motor de TTS one-shot: es un AGENTE que escucha el micrófono y
-  // responde por voz (WebSocket, server_vad). Por eso NO entra en la cadena
-  // one-shot de `speakWithConfiguredEngine` (Aurora SIEMPRE habla por TTS);
-  // se ofrece como una EXPERIENCIA aparte ("Hablar con <persona>") que arranca
-  // el cliente xai-voice-agent.ts. SÍ aparece en el registro/UI como motor
-  // disponible, con su voz + instrucciones por personalidad.
+  // responde por voz (WebSocket, server_vad) como EXPERIENCIA conversacional
+  // aparte ("Hablar con <persona>", cliente xai-voice-agent.ts). ADEMÁS, desde
+  // la Adenda 97, tiene SÍNTESIS ONE-SHOT (`xaiSpeakOnce`): entra en la cadena
+  // de `speakWithConfiguredEngine` SOLO por pin de personalidad o elección
+  // explícita del usuario (nunca por AUTO — gratis-primero manda), y si el
+  // servidor no da acceso declina limpio y la cadena sigue. Su audio sale por
+  // el OmniVoice Mixer (crossfade sin cortes).
   xai: {
     id: "xai",
     label: "xAI Voice Agent",
@@ -453,6 +455,13 @@ function endpointEngineConfigured(id: NeuralVoiceEngine, cfg: AuroraVoiceConfig)
   // OpenVoice V2 (web): Space integrado, CERO config → SIEMPRE en la cadena AUTO,
   // justo detrás de OmniVoice. Ver openvoice2.ts.
   if (id === "openvoice2") return true;
+  // xAI (grok-voice): sin endpoint del usuario — el acceso lo resuelve el
+  // servidor (token efímero o proxy). Cuenta como "configurado" para que un
+  // PIN de personalidad o la ELECCIÓN explícita lo metan en la cadena
+  // (Adenda 97 · xaiSpeakOnce). NUNCA entra por AUTO: no está en
+  // AUTO_ENDPOINT_ORDER (gratis-primero manda) y si el server no da acceso,
+  // declina limpio y la cadena sigue.
+  if (id === "xai") return true;
   const s = cfg.engines?.[id];
   if (!s?.endpoint || !s.endpoint.trim()) return false;
   // Voicebox exige perfil de voz: sin él su API responde 404 (no es "configurado").
@@ -489,6 +498,8 @@ function availabilityOffline(
       if (id === "omnivoice") return "configured";
       // OpenVoice V2 (web): Space integrado → SIEMPRE usable, sin endpoint manual.
       if (id === "openvoice2") return "configured";
+      // xAI: acceso server-side (token/proxy) → usable sin endpoint del usuario.
+      if (id === "xai") return "configured";
       const s = cfg.engines?.[id];
       if (!s?.endpoint || !s.endpoint.trim()) return "needs-endpoint";
       if (id === "voicebox" && !(s.profileId || s.voice)) return "needs-profile";

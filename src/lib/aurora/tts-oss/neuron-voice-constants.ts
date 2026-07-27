@@ -30,7 +30,21 @@ const DAEMON_STATUS = "http://127.0.0.1:4444/status";
  * aun para quienes ya habían elegido. Al elegir (o cerrar) se re-sella y no vuelve
  * a molestar hasta la próxima actualización.
  */
-export const VOICE_SYSTEM_VERSION = 97;
+export const VOICE_SYSTEM_VERSION = 98;
+
+/**
+ * NOVEDADES de la versión actual de OmniVoice (Adenda 98): la ventana del
+ * selector las muestra al reaparecer tras cada actualización, para que cada
+ * neurona sepa QUÉ cambió antes de reconfigurar. Mantener corto y honesto;
+ * actualizar JUNTO con VOICE_SYSTEM_VERSION.
+ */
+export const VOICE_UPDATE_NOTES: readonly string[] = [
+  "OmniVoice Mixer: transiciones de audio sin cortes (crossfade) entre frases y al cambiar de voz o personalidad en caliente.",
+  "xAI · Grok Voice como síntesis directa dentro de la cadena (por elección o pin de personalidad).",
+  "La voz troceada ya se reproduce por el mixer: costuras fundidas, cero clicks.",
+  "Red Mesh: tu neurona puede anunciar por voz las alertas de la malla LoRa (configurable en Personalidades).",
+  "Ejemplos de voz editables por personalidad en esta misma ventana.",
+];
 
 // (Adenda 90) "fastweb": la neurona prefiere otros sistemas web automáticos
 // (más rápidos, menos realistas que OpenVoice) en vez del predeterminado. Los

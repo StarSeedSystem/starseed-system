@@ -21,7 +21,7 @@ import {
     Image as ImageIcon, MonitorPlay, Settings2, ExternalLink, Pencil, Copy,
     Trash2, Magnet, FolderInput, Sparkles, Check, PictureInPicture2,
     Eye, Info, Grid2x2, Columns2, Rows2, Frame, Home, Share2, PenLine,
-    Scissors, ClipboardPaste, CopyPlus, Layers, Plus, type LucideIcon,
+    Scissors, ClipboardPaste, CopyPlus, Layers, Plus, MessageSquare, type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Desktop, DesktopIcon, DesktopSortMode, DesktopIconSize, TileMode } from "./desktop-store";
@@ -275,6 +275,9 @@ export function IconContextMenu({
     onEdit?: (icon: DesktopIcon) => boolean;
 }): React.ReactElement {
     const clip = useDesktopClipboard();
+    // Voz de Aurora para "Leer en voz alta" (defensivo: el provider puede no estar).
+    const aurora = useAurora();
+    const speak = aurora?.speak;
     const run = (fn: () => void) => { fn(); onClose(); };
     const canLivePreview =
         icon.kind === "widget" || (icon.kind === "file" && hasRichThumb(icon));

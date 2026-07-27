@@ -466,3 +466,251 @@ export class XaiVoiceAgent {
     this.setStatus("closed");
   }
 }
+
+/* ════════════════════════════════════════════════════════════════════════════
+ * xaiSpeakOnce — SÍNTESIS ONE-SHOT por el canal realtime (Adenda 97).
+ * ----------------------------------------------------------------------------
+ * Convierte al agente conversacional en un motor de TTS de UNA locución para
+ * la cadena OmniVoice: token/proxy → WebSocket → session.update (sin VAD ni
+ * micrófono) → texto → deltas de audio PCM16 → OmniVoice Mixer (gapless).
+ *
+ * Contrato de la cadena (speak-router): resuelve `true` si HABLÓ (el turno se
+ * consumió) y `false` si declinó limpio (sin key/red/soporte) para que el
+ * siguiente eslabón cubra el turno. NUNCA lanza. Presupuesto duro: 30 s.
+ * ════════════════════════════════════════════════════════════════════════════ */
+
+export interface XaiSpeakOnceOptions {
+  /** Voz xAI explícita (eve · ara · rex · sal · leo o custom id). */
+  voice?: string | null;
+  /** Personalidad para voz/instrucciones por defecto. */
+  personaId?: string | null;
+  /** API key propia del usuario (opcional; si falta, StarSeed/proxy). */
+  apiKey?: string | null;
+  /** Neurona/personalidad dueña (ganancia del mixer). */
+  neuronId?: string | null;
+  onStart?: () => void;
+  onEnd?: () => void;
+  onError?: (message: string) => void;
+}
+
+const XAI_ONESHOT_BUDGET_MS = 30_000;
+
+/**
+ * Cancelación de la síntesis one-shot xAI en vuelo (Adenda 97 · fix): sin esto,
+ * `stopConfiguredEngine()` cerraba el mixer pero la sesión xAI seguía viva y el
+ * siguiente delta de audio reabría un stream PCM y volvía a hablar. Un contador
+ * de generación invalida la locución actual: se comprueba antes de cada trozo.
+ */
+let xaiSpeakGeneration = 0;
+let activeXaiWs: WebSocket | null = null;
+
+/** Corta cualquier `xaiSpeakOnce` en curso (lo llama el speak-router al parar). */
+export function cancelActiveXaiSpeak(): void {
+  xaiSpeakGeneration++;
+  try {
+    activeXaiWs?.close();
+  } catch {
+    /* */
+  }
+  activeXaiWs = null;
+}
+
+export async function xaiSpeakOnce(
+  text: string,
+  opts: XaiSpeakOnceOptions = {},
+): Promise<boolean> {
+  if (typeof window === "undefined") return false;
+  const clean = (text || "").trim();
+  if (!clean) return false;
+  const myGen = ++xaiSpeakGeneration;
+  const cancelled = () => myGen !== xaiSpeakGeneration;
+
+  const persona = resolveXaiPersona({
+    personaId: opts.personaId,
+    voice: opts.voice,
+    instructions: null,
+  });
+
+  // 1) Acceso: token efímero (key propia) o proxy server-side (StarSeed).
+  let wsUrl: string;
+  let protocols: string[] | undefined;
+  try {
+    const res = await fetch(TOKEN_ENDPOINT, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ apiKey: opts.apiKey || undefined, personaId: persona.id }),
+      signal: AbortSignal.timeout(8_000),
+    });
+    if (res.ok) {
+      const data = (await res.json().catch(() => ({}))) as { token?: string };
+      if (!data.token) return false;
+      wsUrl = XAI_REALTIME_URL;
+      protocols = [`xai-client-secret.${data.token}`];
+    } else {
+      const data = (await res.json().catch(() => ({}))) as { mode?: string };
+      if (data.mode !== "proxy-needed") return false; // sin acceso → declinar limpio
+      wsUrl = "/api/voice/xai/stream"; // proxy server-side (Cloud Run/local)
+      protocols = undefined;
+    }
+  } catch {
+    return false;
+  }
+
+  // 2) Mixer OmniVoice (import dinámico: circular-safe y fuera del bundle base).
+  const { mixerPlayPcm16Chunk, mixerEndPcmStream, mixerPcmRemainingSeconds } = await import(
+    "@/lib/aurora/tts-oss/omnivoice-mixer"
+  );
+
+  // 3) Sesión one-shot: sin micrófono, respuesta de audio a un texto.
+  return await new Promise<boolean>((resolve) => {
+    let ws: WebSocket | null = null;
+    let started = false;
+    let settled = false;
+    let sawAudio = false;
+
+    const finish = (ok: boolean) => {
+      if (settled) return;
+      settled = true;
+      if (activeXaiWs === ws) activeXaiWs = null;
+      try {
+        clearTimeout(budgetTimer);
+      } catch {
+        /* */
+      }
+      const closeWs = () => {
+        try {
+          ws?.close();
+        } catch {
+          /* */
+        }
+      };
+      if (sawAudio) {
+        // Esperar a que la cola PCM agendada termine antes de cerrar el turno.
+        const waitMs = Math.ceil(mixerPcmRemainingSeconds() * 1000) + 150;
+        setTimeout(() => {
+          mixerEndPcmStream();
+          closeWs();
+          if (started) {
+            try {
+              opts.onEnd?.();
+            } catch {
+              /* */
+            }
+          }
+          resolve(ok);
+        }, waitMs);
+      } else {
+        mixerEndPcmStream();
+        closeWs();
+        resolve(ok && started);
+      }
+    };
+
+    const budgetTimer = setTimeout(() => finish(sawAudio), XAI_ONESHOT_BUDGET_MS);
+
+    if (cancelled()) {
+      clearTimeout(budgetTimer);
+      resolve(false);
+      return;
+    }
+    try {
+      ws = protocols ? new WebSocket(wsUrl, protocols) : new WebSocket(wsUrl);
+      activeXaiWs = ws;
+    } catch {
+      clearTimeout(budgetTimer);
+      resolve(false);
+      return;
+    }
+
+    ws.onopen = () => {
+      try {
+        ws?.send(
+          JSON.stringify({
+            type: "session.update",
+            session: {
+              voice: persona.voice,
+              instructions:
+                "Eres el sistema de voz OmniVoice de StarSeed. Lee EXACTAMENTE el texto que el usuario te envíe, con naturalidad. No añadas nada.",
+              audio: {
+                input: { format: { type: "audio/pcm", rate: SAMPLE_RATE } },
+                output: { format: { type: "audio/pcm", rate: SAMPLE_RATE } },
+              },
+              reasoning: { effort: "none" },
+            },
+          }),
+        );
+      } catch {
+        finish(false);
+      }
+    };
+
+    ws.onmessage = (ev) => {
+      let msg: { type?: string; delta?: string } = {};
+      try {
+        msg = JSON.parse(String(ev.data));
+      } catch {
+        return;
+      }
+      switch (msg.type) {
+        case "session.updated":
+          // Pedimos la locución: texto del usuario → respuesta SOLO audio.
+          try {
+            ws?.send(
+              JSON.stringify({
+                type: "conversation.item.create",
+                item: {
+                  type: "message",
+                  role: "user",
+                  content: [{ type: "input_text", text: clean }],
+                },
+              }),
+            );
+            ws?.send(JSON.stringify({ type: "response.create" }));
+          } catch {
+            finish(false);
+          }
+          break;
+        case "response.output_audio.delta": {
+          const b64 = msg.delta;
+          if (!b64) break;
+          if (cancelled()) {
+            finish(false); // stopConfiguredEngine() abortó: no reabrir stream PCM
+            break;
+          }
+          const pcm = base64ToPcm16(b64);
+          const played = mixerPlayPcm16Chunk(pcm, SAMPLE_RATE, {
+            neuronId: opts.neuronId ?? persona.id,
+          });
+          if (played && !started) {
+            started = true;
+            sawAudio = true;
+            try {
+              opts.onStart?.();
+            } catch {
+              /* */
+            }
+          } else if (played) {
+            sawAudio = true;
+          }
+          break;
+        }
+        case "response.done":
+          finish(sawAudio);
+          break;
+        case "error":
+          try {
+            opts.onError?.("xAI: error de sesión de voz");
+          } catch {
+            /* */
+          }
+          finish(sawAudio);
+          break;
+        default:
+          break;
+      }
+    };
+
+    ws.onerror = () => finish(sawAudio);
+    ws.onclose = () => finish(sawAudio);
+  });
+}

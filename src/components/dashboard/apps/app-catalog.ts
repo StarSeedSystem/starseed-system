@@ -10,6 +10,7 @@
 import {
     Globe, Coffee, AudioWaveform, Radio, MessageSquare, Network,
     Library, BrainCircuit, CloudSun, Music, Waves, Orbit, Camera, Images,
+    RadioTower,
 } from "lucide-react";
 import type { StarseedApp, LauncherCollection } from "./launcher-types";
 
@@ -74,6 +75,23 @@ export const APP_CATALOG: StarseedApp[] = [
             route: "/audiomorphic",
             href: "https://audiomorphic.vercel.app",
             embeddable: true,
+        },
+    },
+    {
+        // Adenda 98: centro completo de la malla P2P (mapa 3D, antenas/bandas,
+        // privacidad, peers) — agregable al dock como cualquier app StarSeed.
+        id: "red-mesh",
+        name: "Red Mesh",
+        short: "Mesh",
+        description: "Centro de la malla P2P: mapa 3D de neuronas, antenas y bandas inteligentes, privacidad y peers.",
+        icon: RadioTower,
+        accent: "#34D399",
+        category: "starseed",
+        status: "native",
+        open: {
+            primary: "route",
+            allowed: ["route", "window", "tab"],
+            route: "/red-mesh",
         },
     },
     {
@@ -227,8 +245,8 @@ export function getApp(id: string): StarseedApp | undefined {
 /** Colecciones predeterminadas (presets de origen de un folder). */
 export const APP_COLLECTIONS: Record<LauncherCollection, string[]> = {
     // 'starseed' = folder de inicio por defecto (marca + módulos clave)
-    starseed: ["nexus", "cafe", "audiomorphic", "omnifrecuencias", "messages", "network", "musica", "clima"],
-    sistema: ["messages", "network", "library", "agent"],
+    starseed: ["nexus", "cafe", "audiomorphic", "omnifrecuencias", "red-mesh", "messages", "network", "musica", "clima"],
+    sistema: ["messages", "network", "library", "agent", "red-mesh"],
     media: ["musica", "radio", "omnifrecuencias", "audiomorphic", "immersive"],
     custom: [],
 };

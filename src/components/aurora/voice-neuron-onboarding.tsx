@@ -2,7 +2,7 @@
 
 // [fix #310] real code marker so the production chunk hash changes and
 // browsers re-fetch the react-server-dom-client collision-free build.
-const __VOICE_ONBOARDING_310_FIX__ = "v310-fixed-final-9e8d7c6b-chf8i5pnn-ffad553";
+const __VOICE_ONBOARDING_310_FIX__ = "v310-fixed-final-9e8d7c6b-adenda98-a1b2c3d";
 
 /**
  * [cache-bust #310] force fresh chunk hash so browsers re-fetch the
@@ -57,6 +57,7 @@ import {
   NEURON_VOICE_LS_KEY,
   NEURON_VOICE_REOPEN_EVENT,
   VOICE_SYSTEM_VERSION,
+  VOICE_UPDATE_NOTES,
   type NeuronVoiceMode,
   type NeuronVoiceChoice,
   readNeuronVoiceChoice,
@@ -65,8 +66,10 @@ import {
   forceReopenNeuronVoiceWindow,
   probeLocalDaemon,
 } from "@/lib/aurora/tts-oss/neuron-voice-constants";
+// (Adenda 98) Capacidades del dispositivo → recomendación de motor por neurona.
+import { detectTier } from "@/lib/perf/device-tier";
 // Catálogo de voces (Adenda 96): módulo liviano, seguro importar estático.
-import { getVoicesByGender, type CatalogVoice } from "@/lib/aurora/tts-oss/voice-catalog";
+import { getVoicesByGender, getVoiceById, type CatalogVoice } from "@/lib/aurora/tts-oss/voice-catalog";
 
 // Re-export para los consumidores existentes que importan desde este archivo.
 export {
@@ -122,6 +125,13 @@ export function VoiceNeuronOnboarding() {
   // (Adenda 94) Vista previa de audio + jerarquía de la cadena de voz.
   const [previewing, setPreviewing] = useState(false);
   const [previewMsg, setPreviewMsg] = useState("");
+  // (Adenda 98) Frase de ejemplo EDITABLE para probar la voz de cada neurona.
+  const [samplePhrase, setSamplePhrase] = useState(
+    "Hola, soy tu asistente Astraura. Esta es la voz de tu sistema OmniVoice.",
+  );
+  // Capacidad del dispositivo (device-tier) → recomendación de motor por neurona.
+  const [deviceTier, setDeviceTier] = useState<"high" | "mid" | "low">("mid");
+  const [previewPersona, setPreviewPersona] = useState<string | null>(null);
   const [priority, setPriorityState] = useState<string[]>([
     "omnivoice",
     "openvoice2",
@@ -246,9 +256,9 @@ export function VoiceNeuronOnboarding() {
     const groups = L.localesByBase?.() ?? [];
     const q = localeQuery.trim();
     if (!q) return groups;
-    const matches = new Set((L.searchLocales?.(q) ?? []).map((l) => l.code));
+    const matches = new Set((L.searchLocales?.(q) ?? []).map((l: { code: string }) => l.code));
     return groups
-      .map((g) => ({ ...g, locales: g.locales.filter((l) => matches.has(l.code)) }))
+      .map((g) => ({ ...g, locales: g.locales.filter((l: { code: string }) => matches.has(l.code)) }))
       .filter((g) => g.locales.length > 0);
   }, [localeQuery, libsReady]);
 
@@ -324,6 +334,15 @@ export function VoiceNeuronOnboarding() {
 
   // (Adenda 94) MUESTRA DE AUDIO: sintetiza un fragmento con la configuración
   // actual (OpenVoice web por defecto) y lo reproduce antes de confirmar.
+  // Capacidad del dispositivo al montar (recomendación de motor por neurona).
+  useEffect(() => {
+    try {
+      setDeviceTier(detectTier());
+    } catch {
+      /* */
+    }
+  }, []);
+
   const previewVoice = async () => {
     setPreviewing(true);
     setPreviewMsg("Generando muestra con OpenVoice…");
@@ -332,7 +351,7 @@ export function VoiceNeuronOnboarding() {
         "@/lib/aurora/tts-oss/omnivoice-web-router"
       );
       const blob = await omnivoiceWebSynthesize(
-        "Hola, soy tu asistente Astraura. Esta es la voz de tu sistema OmniVoice.",
+        (samplePhrase || "Hola, soy tu asistente Astraura.").slice(0, 240),
         { lang: "es" },
       );
       if (blob && typeof window !== "undefined") {
@@ -346,7 +365,7 @@ export function VoiceNeuronOnboarding() {
           }
         };
         await audio.play().catch(() => null);
-        setPreviewMsg("▶️ Muestra reproducida.");
+        setPreviewMsg("▶ Muestra reproducida.");
       } else {
         setPreviewMsg("No se pudo generar la muestra ahora (el Space puede estar despertando).");
       }
@@ -411,11 +430,11 @@ export function VoiceNeuronOnboarding() {
       }));
       if (norm.length === 0) {
         // Personalidad implícita de Aurora si no hay ninguna guardada.
-        norm.push({ id: "aurora", name: "Aurora", gender: "f" });
+        norm.push({ id: "aurora", name: "Aurora", gender: "f", voiceId: undefined, refKind: undefined });
       }
       setPersonas(norm);
     } catch {
-      setPersonas([{ id: "aurora", name: "Aurora", gender: "f" }]);
+      setPersonas([{ id: "aurora", name: "Aurora", gender: "f", voiceId: undefined, refKind: undefined }]);
     }
   }, []);
 
@@ -433,6 +452,51 @@ export function VoiceNeuronOnboarding() {
       setPersonaMsg("No se pudo guardar la voz.");
     }
   }, []);
+
+  // (Adenda 98) EJEMPLO FUNCIONAL por personalidad: sintetiza la frase editable
+  // con la voz elegida de esa persona (catálogo → estilo/motor de su voz) y la
+  // reproduce por el mixer. Best-effort: si su voz no está lista, avisa honesto.
+  const previewPersonaVoice = useCallback(
+    async (id: string, name: string, voiceId?: string) => {
+      setPreviewPersona(id);
+      setPersonaMsg(`Generando ejemplo de ${name}…`);
+      try {
+        const text = (samplePhrase || `Hola, soy ${name}.`).slice(0, 240);
+        const cat = voiceId ? getVoiceById(voiceId) : undefined;
+        const { omnivoiceWebSynthesize } = await import("@/lib/aurora/tts-oss/omnivoice-web-router");
+        // El estilo/semilla de la voz del catálogo guía el timbre por persona.
+        const blob = await omnivoiceWebSynthesize(text, {
+          lang: "es",
+          ...(cat?.id ? { style: cat.id } : {}),
+        });
+        if (blob && typeof window !== "undefined") {
+          try {
+            const { mixerPlayBlob, mixerSupported } = await import("@/lib/aurora/tts-oss/omnivoice-mixer");
+            if (mixerSupported() && (await mixerPlayBlob(blob, { neuronId: id }))) {
+              setPersonaMsg(`▶ Ejemplo de ${name} reproducido.`);
+              return;
+            }
+          } catch {
+            /* cae a HTMLAudio */
+          }
+          const url = URL.createObjectURL(blob);
+          const audio = new Audio(url);
+          audio.onended = () => {
+            try { URL.revokeObjectURL(url); } catch { /* */ }
+          };
+          await audio.play().catch(() => null);
+          setPersonaMsg(`▶ Ejemplo de ${name} reproducido.`);
+        } else {
+          setPersonaMsg("No se pudo generar el ejemplo (el motor puede estar despertando).");
+        }
+      } catch {
+        setPersonaMsg("No se pudo generar el ejemplo ahora.");
+      } finally {
+        setPreviewPersona(null);
+      }
+    },
+    [samplePhrase],
+  );
 
   // (Adenda 96) Graba un audio de referencia para clonar la voz de una personalidad.
   const recordForPersona = useCallback(async (id: string) => {
@@ -533,7 +597,32 @@ export function VoiceNeuronOnboarding() {
             )}
           </p>
 
-          {/* (Adenda 94) MUESTRA DE AUDIO + JERARQUÍA de la cadena de voz */}
+          {/* (Adenda 98) NOVEDADES cuando la ventana reaparece por actualización. */}
+          {updated && VOICE_UPDATE_NOTES.length > 0 && (
+            <div className="rounded-xl border border-sky-400/25 bg-sky-500/[0.07] p-3">
+              <p className="text-[12px] font-medium text-sky-100">Novedades de esta actualización de OmniVoice</p>
+              <ul className="mt-1.5 space-y-1">
+                {VOICE_UPDATE_NOTES.map((n, i) => (
+                  <li key={i} className="flex gap-1.5 text-[11px] leading-snug text-white/70">
+                    <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-sky-300" />
+                    {n}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* (Adenda 98) RECOMENDACIÓN por capacidades del dispositivo. */}
+          <div className="rounded-xl border border-emerald-400/20 bg-emerald-500/[0.05] px-3 py-2 text-[11px] leading-snug text-emerald-100/90">
+            {deviceTier === "high" &&
+              "Tu dispositivo es potente: el motor OpenVoice local dará la voz más realista sin depender de internet (instálalo abajo)."}
+            {deviceTier === "mid" &&
+              "Dispositivo equilibrado: OpenVoice por la nube gratuita es lo recomendado; el motor local también rinde bien si lo instalas."}
+            {deviceTier === "low" &&
+              "Dispositivo modesto: OpenVoice por la nube (sin carga local) o los motores web rápidos mantienen la voz fluida sin exigir al equipo."}
+          </div>
+
+          {/* (Adenda 94/98) MUESTRA DE AUDIO EDITABLE + JERARQUÍA de la cadena */}
           <div className="flex flex-col gap-2 rounded-xl border border-white/10 bg-white/[0.03] p-3">
             <div className="flex items-center justify-between gap-2">
               <span className="text-[12px] font-medium text-white/80">Prueba de voz (OpenVoice)</span>
@@ -547,6 +636,15 @@ export function VoiceNeuronOnboarding() {
                 {previewing ? "Generando…" : "▶ Probar voz"}
               </Button>
             </div>
+            {/* (Adenda 98) Frase de ejemplo EDITABLE: prueba la voz con tu propio texto. */}
+            <textarea
+              value={samplePhrase}
+              onChange={(e) => setSamplePhrase(e.target.value)}
+              rows={2}
+              maxLength={240}
+              placeholder="Escribe la frase que quieres oír…"
+              className="w-full resize-none rounded-lg border border-white/10 bg-black/30 px-2 py-1.5 text-[12px] text-white/85 outline-none placeholder:text-white/30 focus:border-sky-400/40"
+            />
             {previewMsg && <p className="text-[11px] text-white/45">{previewMsg}</p>}
             <div className="mt-1">
               <p className="mb-1 text-[11px] text-white/50">Preferencias de jerarquización (orden de la cadena):</p>
@@ -772,7 +870,7 @@ export function VoiceNeuronOnboarding() {
                         <p className="px-1 py-1 text-[10px] font-medium uppercase tracking-wide text-white/35">
                           {g.label}
                         </p>
-                        {g.locales.map((l) => {
+                        {g.locales.map((l: { code: string; label: string; native: string }) => {
                           const isPrimary = l.code === primaryLocale;
                           const isPreferred = preferredLocales.includes(l.code);
                           return (
@@ -865,6 +963,14 @@ export function VoiceNeuronOnboarding() {
                         ))}
                       </select>
                       <div className="mt-1.5 flex flex-wrap gap-1.5">
+                        <button
+                          type="button"
+                          disabled={previewPersona === p.id}
+                          onClick={() => void previewPersonaVoice(p.id, p.name, p.voiceId)}
+                          className="flex h-7 cursor-pointer items-center gap-1 rounded-md border border-sky-400/30 bg-sky-500/10 px-2 text-[11px] text-sky-100 hover:bg-sky-500/20 disabled:opacity-40"
+                        >
+                          {previewPersona === p.id ? "Generando…" : "▶ Probar"}
+                        </button>
                         <button
                           type="button"
                           disabled={recState === "recording"}

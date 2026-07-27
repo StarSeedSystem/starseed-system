@@ -114,8 +114,8 @@ export function FinderContextMenu({
     const targetItem = items.find((i) => i.id === target.id);
     const itemText = targetItem
         ? targetItem.kind === "text"
-            ? ((targetItem as any).content || targetItem.name)
-            : targetItem.name
+            ? ((targetItem as { content?: string }).content || targetItem.title)
+            : targetItem.title
         : "";
 
     const readWithAurora = (p?: PersonalityProfile) => {

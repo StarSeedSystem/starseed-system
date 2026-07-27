@@ -62,6 +62,9 @@ import OKFPanel from "@/components/exocortex/okf-panel";
 import { openAuroraSetup } from "@/lib/aurora/setup-config";
 import ProviderPanel from "@/components/exocortex/provider-panel";
 import AuroraStudio from "@/components/aurora/aurora-studio";
+// Adenda 97: pestaña GLOBAL «Personalidades» (hub) + panel de la Red Mesh.
+import PersonalitiesHub from "@/components/aurora/personalities-hub";
+import MeshControlPanel from "@/components/mesh/mesh-control-panel";
 import { MessageRenderer } from "@/components/aurora/message-renderer";
 import { MessageActionBar } from "@/components/aurora/message-action-bar";
 import { MessageProcessModal } from "@/components/aurora/message-process-modal";
@@ -143,7 +146,7 @@ import { VaultsPanel } from "@/components/exocortex/vaults-panel";
 import { BatchJobsPanel } from "@/components/hermes/batch-jobs-panel";
 import { ServerRegistryPanel } from "@/components/hermes/server-registry-panel";
 import { HardDrive } from "lucide-react";
-import { Eye, Server, LayoutDashboard, Brain, Layers } from "lucide-react";
+import { Eye, Server, LayoutDashboard, Brain, Layers, RadioTower } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { buildSystemContext, snapshotToSystemPrompt } from "@/hermes-integration/system-context";
 import { getLivingGraphStore } from "@/hermes-integration/living-graph-store";
@@ -258,14 +261,21 @@ const STUDIO_SECTIONS: StudioSection[] = [
       { value: "quick", label: "Accesos rápidos", icon: Plus },
     ],
   },
+  // Adenda 97: la antigua sección de un solo ítem «Aurora & Astraura» se
+  // convierte en la sección GLOBAL «Personalidades»: el hub centralizado de
+  // personalidades (con métricas, memoria local y reglas mesh por neurona),
+  // el Estudio de voz de siempre (deep-links `?tab=aurora` intactos) y el
+  // panel de control de la Red Mesh Meshtastic/LoRa.
   {
     id: "aurora",
-    label: "Aurora & Astraura",
-    icon: Mic,
+    label: "Personalidades",
+    icon: Sparkles,
     accent: "text-emerald-300",
-    hint: "La voz y persona de tu IA — comparte cerebro con el Exocórtex.",
+    hint: "Personalidades globales de Astraura: identidad, voz OmniVoice, memoria y red mesh por neurona.",
     items: [
-      { value: "aurora", label: "Estudio Aurora", icon: Mic },
+      { value: "personalidades", label: "Personalidades", icon: Sparkles },
+      { value: "aurora", label: "Estudio de voz", icon: Mic },
+      { value: "mesh", label: "Red Mesh", icon: RadioTower },
     ],
   },
   {
@@ -340,6 +350,13 @@ const TAB_ALIASES: Record<string, string> = {
   // Adenda 76 · G1: nueva pestaña de primer nivel «Espacios de trabajo».
   espacios: "espacios",
   workspaces: "espacios",
+  // Adenda 97: hub global de Personalidades + Red Mesh (Meshtastic/LoRa).
+  personalidad: "personalidades",
+  personalidades: "personalidades",
+  personas: "personalidades",
+  malla: "mesh",
+  meshtastic: "mesh",
+  lora: "mesh",
 };
 function normalizeTab(raw: string | null | undefined): string | null {
   if (!raw) return null;
@@ -1310,6 +1327,12 @@ function AgentPageInner() {
         <TabsContent value="proveedor" className="flex-1 min-h-0 overflow-y-auto"><ProviderPanel /></TabsContent>
 
         <TabsContent value="aurora" className="flex-1 min-h-0 overflow-y-auto"><AuroraStudio /></TabsContent>
+
+        {/* --- TAB: PERSONALIDADES (hub global · Adenda 97) --- */}
+        <TabsContent value="personalidades" className="flex-1 min-h-0 overflow-y-auto"><PersonalitiesHub /></TabsContent>
+
+        {/* --- TAB: RED MESH (Meshtastic/LoRa · Adenda 97) --- */}
+        <TabsContent value="mesh" className="flex-1 min-h-0 overflow-y-auto"><MeshControlPanel /></TabsContent>
 
         <TabsContent value="conexiones-chat" className="flex-1 min-h-0 overflow-y-auto"><ChatConnectionsPanel /></TabsContent>
 
