@@ -17,15 +17,15 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   RadioTower, Wifi, Signal, Bluetooth, MapPin, Nfc, Usb, Phone,
-  ExternalLink, Settings2, ShieldCheck, Antenna, type LucideIcon,
+  ExternalLink, Settings2, ShieldCheck, Antenna, Smartphone, Download, type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { SignalsRadar } from "./signals-radar";
 import {
-  useMeshState, detectSignals, connectMesh, getConnectivitySettings,
-  subscribeConnectivity, setNeuronPosition,
-  type SignalSource, type SignalKind,
+  useMeshState, detectSignals, connectMesh, connectWifiNode, getConnectivitySettings,
+  subscribeConnectivity, setNeuronPosition, detectPlatform, recommendNative,
+  type SignalSource, type SignalKind, type NativeRecommendation,
 } from "@/ai/astraura/mesh";
 
 const ICON: Record<SignalKind, LucideIcon> = {
@@ -82,11 +82,24 @@ export function SignalsCenter({ embedded = false, compact = false }: SignalsCent
 
   const activeCtrl = signals.filter((s) => s.controllable && (s.status === "active" || s.status === "available")).length;
 
+  // Recomendación de app nativa para acceso completo al hardware (según el SO).
+  const native = useMemo<NativeRecommendation>(() => recommendNative(detectPlatform()), []);
+
   const runAction = async (sig: SignalSource, action: string) => {
     try {
       if (action === "Abrir Red Mesh") { router.push("/red-mesh"); return; }
+      if (action === "App nativa") {
+        window.open(native.links[0]?.url ?? "https://meshtastic.org/download/", "_blank", "noopener,noreferrer");
+        return;
+      }
       setBusy(sig.kind);
-      if (sig.kind === "mesh" || sig.kind === "serial" || sig.kind === "bluetooth") {
+      if (action === "Conectar nodo Wi-Fi") {
+        const host = window.prompt("IP o host del nodo Meshtastic en tu red (Wi-Fi/LAN):", "192.168.1.");
+        if (host && host.trim()) {
+          await connectWifiNode(host.trim());
+          toast.success("Conectando a la malla por Wi-Fi (nodo de tu red)…");
+        }
+      } else if (sig.kind === "mesh" || sig.kind === "serial" || sig.kind === "bluetooth") {
         const radio = sig.kind === "bluetooth" ? "ble" : sig.kind === "serial" ? "serial" : getConnectivitySettings().defaultRadio;
         await connectMesh(radio);
         toast.success("Conectando la malla…");
@@ -147,6 +160,31 @@ export function SignalsCenter({ embedded = false, compact = false }: SignalsCent
         <SignalsRadar height={compact ? 200 : 260} showLegend />
       </div>
 
+      {/* Acceso completo con la app nativa (según el SO de esta neurona): lo que
+          el navegador no permite (Wi-Fi/datos directos, BLE/serie en iOS/Firefox,
+          antenas externas) lo desbloquea la app nativa de Meshtastic. */}
+      <div className={cn("rounded-2xl border px-3 py-3",
+        native.needed ? "border-emerald-400/30 bg-emerald-500/[0.06]" : "border-white/10 bg-white/[0.03]")}>
+        <div className="flex items-start gap-2">
+          <Smartphone className="mt-0.5 h-4 w-4 shrink-0 text-emerald-300" />
+          <div className="min-w-0 flex-1">
+            <p className="text-[12px] font-semibold text-white/90">
+              {native.title}{native.needed ? " · recomendado" : ""}
+            </p>
+            <p className="mt-0.5 text-[10px] leading-snug text-white/55">{native.reason}</p>
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              {native.links.map((l) => (
+                <a key={l.url} href={l.url} target="_blank" rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 rounded-full border border-emerald-400/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-200 transition-colors cursor-pointer hover:bg-emerald-500/20">
+                  <Download className="h-3 w-3" />{l.label}
+                </a>
+              ))}
+            </div>
+            <p className="mt-1 text-[9px] text-white/40">Desbloquea: {native.unlocks.join(" · ")}</p>
+          </div>
+        </div>
+      </div>
+
       {/* Rejilla de antenas autodetectadas */}
       <div className={cn("grid gap-2", compact ? "grid-cols-1" : "sm:grid-cols-2")}>
         {signals.map((sig) => {
@@ -204,9 +242,10 @@ export function SignalsCenter({ embedded = false, compact = false }: SignalsCent
 
       <p className="flex items-start gap-1.5 text-[10px] leading-snug text-white/35">
         <Wifi className="mt-0.5 h-3 w-3 shrink-0" />
-        Honesto: el radio LoRa emite y recibe de verdad sin operadores; GPS, Bluetooth, Serie y NFC se
-        controlan con tu permiso; Wi-Fi, datos celulares y telefonía solo se informan — el navegador no
-        controla esas antenas ni escanea redes (sería vigilancia y la plataforma lo impide).
+        Honesto: el radio LoRa emite/recibe sin operadores; GPS, Bluetooth, Serie y NFC se controlan con
+        tu permiso; Wi-Fi y datos celulares NO se controlan desde el navegador pero SÍ llevan la malla por
+        IP (a un nodo de tu red por TCP, o por MQTT/servidor a larga distancia). Para Wi-Fi directo/local,
+        BLE/serie en iOS, datos y antenas externas con acceso completo, instala la app nativa de arriba.
       </p>
     </div>
   );

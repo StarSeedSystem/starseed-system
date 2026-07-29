@@ -91,19 +91,20 @@ function wifiSignal(): SignalSource {
   // que el navegador lo confirme; si no, decimos que hay red externa pero que no
   // sabemos si es Wi-Fi (y que jamás escaneamos redes: sería vigilancia).
   const confirmedWifi = type === "wifi";
-  const status: SignalStatus = !online ? "off" : confirmedWifi ? "active" : "info";
+  // La Wi-Fi SÍ sirve a la malla: lleva el mesh por IP (TCP/HTTP) a un nodo
+  // Meshtastic de tu red local. El navegador no controla la antena Wi-Fi, pero
+  // "available" = usable como vía de malla. Para Wi-Fi directo/local → app nativa.
+  const status: SignalStatus = !online ? "off" : "available";
   return {
     kind: "wifi",
     label: "Wi-Fi",
     status,
     detail: !online
-      ? "Sin conexión de red externa activa"
-      : confirmedWifi
-        ? `${ext.detail} · el navegador ve estado y velocidad, no la banda`
-        : `Conexión externa activa${type ? ` (${type})` : ""} · el navegador no confirma si es Wi-Fi ni escanea redes`,
+      ? "Sin red externa activa"
+      : `${confirmedWifi ? ext.detail : "Red externa activa"} · lleva la malla por IP a un nodo Meshtastic de tu red (TCP); Wi-Fi directo/local → app nativa`,
     controllable: false,
-    bands: "2,4 / 5 / 6 GHz (según hardware)",
-    actions: [],
+    bands: "2,4 / 5 / 6 GHz",
+    actions: online ? ["Conectar nodo Wi-Fi", "App nativa"] : ["App nativa"],
     meta: m,
   };
 }
@@ -118,15 +119,15 @@ function cellularSignal(): SignalSource {
   return {
     kind: "cellular",
     label: "Datos celulares",
-    status: isCellular ? "active" : eff ? "info" : "unsupported",
+    status: isCellular ? "available" : eff ? "info" : "unsupported",
     detail: isCellular
-      ? `Conexión móvil${eff ? ` (${eff.toUpperCase()})` : ""} · la malla LoRa es la vía sin operadores`
+      ? `Datos móviles${eff ? ` (${eff.toUpperCase()})` : ""} · llevan la malla por IP (MQTT/servidor) a larga distancia; antena directa → app nativa`
       : eff
-        ? `El SO reporta ${eff.toUpperCase()} en la conexión activa; el tipo exacto no siempre se expone`
-        : "El navegador no expone el estado de la antena celular",
+        ? `Conexión ${eff.toUpperCase()} activa · puede llevar la malla por IP; antena de datos directa → app nativa`
+        : "El navegador no expone la antena celular · úsala para la malla vía app nativa",
     controllable: false,
     bands: "700 MHz – 3,5 GHz (operador)",
-    actions: [],
+    actions: ["App nativa"],
     meta: m,
   };
 }

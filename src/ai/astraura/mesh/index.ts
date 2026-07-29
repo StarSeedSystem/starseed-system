@@ -388,6 +388,18 @@ export async function applyModemPreset(presetKey: string): Promise<boolean> {
 }
 
 /**
+ * Conecta la malla a un NODO MESHTASTIC por Wi-Fi/LAN (mesh por IP): el radio no
+ * está en ESTE dispositivo, pero su Wi-Fi lleva la malla por TCP/HTTP hasta un
+ * nodo de tu red — así la Wi-Fi SÍ transporta la red mesh sin depender de LoRa
+ * local. `host` = IP o hostname (se asume el API HTTP de Meshtastic, puerto 4403).
+ */
+export async function connectWifiNode(host: string): Promise<void> {
+  const h = (host || "").trim();
+  const url = /^https?:\/\//i.test(h) ? h : `http://${h}:4403`;
+  await connectMesh("daemon", { daemonUrl: url });
+}
+
+/**
  * Fija la posición GPS de ESTA neurona (del navegador) en el nodo local, para
  * que el radar/mapa ubique con precisión a los vecinos que comparten GPS.
  * Devuelve false si aún no hay radio (sin nodo local al que anclar la posición).
@@ -594,6 +606,8 @@ export { describeBands, activeBandCount } from "./bands";
 export type { BandStatus } from "./bands";
 export { detectSignals, controllableCount } from "./signals";
 export type { SignalSource, SignalKind, SignalStatus } from "./signals";
+export { detectPlatform, recommendNative, nativeRecommendationNow } from "./native-access";
+export type { PlatformInfo, NativeRecommendation, NativeLink, OsKind, BrowserKind } from "./native-access";
 export {
   hasRelayKey,
   exportRelayKeyB64,
