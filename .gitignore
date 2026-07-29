@@ -86,3 +86,4 @@ dev_server.log
 scripts/hermione-bridge-server.mjs
 _commit_msg.txt
 test-account-creds.json
+public/version.json

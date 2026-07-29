@@ -28,7 +28,11 @@ export function RegisterSW() {
     // recarga UNA vez por sesión (sessionStorage → anti-bucle). Complementa al SW
     // network-first para garantizar que el código fresco llega a todos.
     try {
-      const CUR = "v5-2026-07-05";
+      // Bump en CADA ola que deba forzar limpieza: cambia la clave de sesión →
+      // el saneado se ejecuta UNA vez por dispositivo (borra cachés viejas +
+      // recarga). Estaba clavado en "v5-2026-07-05" (inerte hace semanas): por eso
+      // los dispositivos no se limpiaban solos.
+      const CUR = "v8-2026-07-29";
       const G = "ssheal:" + CUR;
       if ("caches" in window && !sessionStorage.getItem(G)) {
         caches.keys().then((ks) => {
@@ -71,7 +75,9 @@ export function RegisterSW() {
 
     const register = () => {
       navigator.serviceWorker
-        .register("/sw-v7.js", { scope: "/" })
+        // updateViaCache:'none' → el SCRIPT del SW nunca sale de la caché HTTP;
+        // el navegador lo revalida siempre y detecta la versión nueva al instante.
+        .register("/sw-v7.js", { scope: "/", updateViaCache: "none" })
         .then((reg) => {
           if (cancelled || !reg) return;
           // Fuerza una comprobación de versión nueva al arrancar.
@@ -101,6 +107,29 @@ export function RegisterSW() {
 
     navigator.serviceWorker.addEventListener("controllerchange", onControllerChange);
 
+    // DETECCIÓN DE DESPLIEGUE NUEVO por /version.json (id único por build,
+    // servido SIN caché): aunque el SW no cambie entre despliegues, si el build
+    // en producción difiere del que arrancó esta pestaña hay versión nueva →
+    // aplica la actualización (recarga, con el tope anti-bucle). Así una pestaña o
+    // PWA ABIERTA recibe CADA despliegue sin depender de bumps manuales del SW.
+    let buildIv: ReturnType<typeof setInterval> | null = null;
+    try {
+      let initial: string | null = null;
+      const checkBuild = async () => {
+        if (cancelled || document.visibilityState !== "visible") return;
+        try {
+          const res = await fetch("/version.json", { cache: "no-store" });
+          if (!res.ok) return;
+          const v = (await res.json())?.build as string | undefined;
+          if (!v) return;
+          if (initial === null) { initial = v; return; } // primera lectura: ancla
+          if (v !== initial) applyUpdate();
+        } catch { /* */ }
+      };
+      void checkBuild(); // fija el build inicial al arrancar
+      buildIv = setInterval(() => { void checkBuild(); }, 5 * 60 * 1000);
+    } catch { /* */ }
+
     const onLoad = () => {
       if (!cancelled) register();
     };
@@ -115,6 +144,7 @@ export function RegisterSW() {
     return () => {
       cancelled = true;
       window.removeEventListener("load", onLoad);
+      if (buildIv) clearInterval(buildIv);
       try { navigator.serviceWorker.removeEventListener("controllerchange", onControllerChange); } catch { /* */ }
     };
   }, []);

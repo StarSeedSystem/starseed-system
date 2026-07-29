@@ -28,6 +28,22 @@ const nextConfig: NextConfig = {
       }
     ],
   },
+  // El SCRIPT del service worker y el manifest NUNCA se cachean: así el navegador
+  // revalida siempre y detecta al instante cada despliegue nuevo (causa raíz del
+  // "no se actualiza": un SW cacheado por el CDN/navegador no veía la versión
+  // nueva). El resto de assets siguen con su caché normal.
+  async headers() {
+    const noCache = [
+      { key: 'Cache-Control', value: 'no-cache, no-store, must-revalidate' },
+      { key: 'Pragma', value: 'no-cache' },
+      { key: 'Expires', value: '0' },
+    ];
+    return [
+      { source: '/sw-v7.js', headers: [...noCache, { key: 'Service-Worker-Allowed', value: '/' }] },
+      { source: '/manifest.webmanifest', headers: noCache },
+      { source: '/version.json', headers: noCache },
+    ];
+  },
   webpack: (config) => {
     // Fix for @splinetool/react-spline ESM-only package (no CJS "require" in exports)
     config.resolve.alias = {
