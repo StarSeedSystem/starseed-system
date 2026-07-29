@@ -11,11 +11,25 @@
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { getMeshState, subscribeMeshState } from "./store";
 import { getMeshRules, listMeshRules, MESH_RULES_EVENT, setMeshRules } from "./rules";
+import { getNearbySnapshot, subscribeNearby } from "./synaptic";
+import { getRecentDeliveries, subscribeDeliveries } from "./delivery";
+import type { RelayBeacon } from "./server-relay";
+import type { DeliveryReceipt } from "./delivery";
 import type { MeshRules, MeshState } from "./types";
 
 /** Estado global mesh, reactivo. */
 export function useMeshState(): MeshState {
   return useSyncExternalStore(subscribeMeshState, getMeshState, getMeshState);
+}
+
+/** Radar de neuronas cercanas (faros), reactivo. Vacío en SSR. */
+export function useNearbyBeacons(): RelayBeacon[] {
+  return useSyncExternalStore(subscribeNearby, getNearbySnapshot, getNearbySnapshot);
+}
+
+/** Recibos de entrega recientes (indicadores de transmisión), reactivos. */
+export function useDeliveryReceipts(): DeliveryReceipt[] {
+  return useSyncExternalStore(subscribeDeliveries, getRecentDeliveries, getRecentDeliveries);
 }
 
 /** Reglas mesh de una personalidad (o del dispositivo con id null), reactivas. */

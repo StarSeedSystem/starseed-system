@@ -44,6 +44,7 @@ export const WIDGET_MANIFEST: Partial<Record<WidgetType, WidgetManifestEntry>> =
     AKASHIC_CODEX: { label: "Códice Akáshico", category: "archivos", w: 4, h: 4, minW: 3, minH: 3, data: ["files.codex"], relevance: 75 },
     NATAL_CHART: { label: "Sincronía Vital", category: "astrologia", w: 3, h: 5, minW: 3, minH: 4, data: ["astro.natal"], relevance: 60 },
     MESH_RADAR: { label: "Radar Mesh", category: "sistema", w: 3, h: 4, minW: 3, minH: 3, data: ["network.mesh"], relevance: 65 },
+    INTERNET_RADAR: { label: "Radar de Internet", category: "red", w: 4, h: 5, minW: 3, minH: 3, relevance: 88 },
     IMMERSION_PORTAL: { label: "Portales de Inmersión", category: "entretenimiento", w: 4, h: 4, minW: 3, minH: 3, data: ["entertainment.worlds"], relevance: 68 },
 
     // ── Tercera generación: oleada Política/Ontocracia ──

@@ -24,6 +24,7 @@ import {
   Cable,
   ExternalLink,
   Globe,
+  Radar,
   RadioTower,
   Router,
   Wifi,
@@ -33,6 +34,8 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import { InternetRadarWidget } from "@/components/dashboard/widgets/internet-radar-widget";
+import { RedMeshCenter } from "@/components/mesh/red-mesh-center";
 import {
   bluetoothLink,
   connectMesh,
@@ -56,6 +59,13 @@ const ROUTE_OPTIONS: Array<{ id: PreferredRoute; label: string; hint: string }> 
   { id: "mesh", label: "Malla P2P", hint: "prioriza la radio libre (clases permitidas)" },
 ];
 
+/** Pestañas del hub de conexiones (menú superior, centrado y responsive). */
+type HubTab = "conexiones" | "internet";
+const HUB_TABS: Array<{ id: HubTab; label: string; icon: typeof RadioTower }> = [
+  { id: "conexiones", label: "Conexiones", icon: RadioTower },
+  { id: "internet", label: "Internet", icon: Radar },
+];
+
 function Dot({ state }: { state: "ok" | "warn" | "off" }) {
   return (
     <span
@@ -76,6 +86,7 @@ export function ConnectionsCenter({ compact = false }: { compact?: boolean }) {
   // localStorage entra en el useEffect (solo cliente, tras hidratar).
   const [settings, setSettings] = useState<ConnectivitySettings>(DEFAULT_CONNECTIVITY);
   const [busy, setBusy] = useState(false);
+  const [tab, setTab] = useState<HubTab>("conexiones");
 
   useEffect(() => {
     startMeshSubsystem();
@@ -114,8 +125,19 @@ export function ConnectionsCenter({ compact = false }: { compact?: boolean }) {
     }
   }, [meshConnected]);
 
-  return (
-    <div className={cn("space-y-2.5", compact ? "text-[12px]" : "text-sm")}>
+  const connectionsCards = (
+    <div className="space-y-2.5">
+      {/* Widget "sobre el internet" (Adenda 99): radar de conexiones cercanas en
+          línea + bandas/antenas en uso con configuraciones rápidas e indicadores
+          de transmisión. Bien acomodado como hero de la página principal del hub.
+          Altura ≥ 340px en la vista amplia para que el widget entre en tier
+          "regular" y MUESTRE bandas + configs rápidas + actividad (con menos alto
+          se colapsaba a compacto y ocultaba justo eso). El popover compacto se
+          queda en vista de vistazo (radar + último indicador). */}
+      <div className={cn(compact ? "h-64" : "h-[26rem]")}>
+        <InternetRadarWidget />
+      </div>
+
       {/* Red externa */}
       <div className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5">
         <div className="flex items-center justify-between gap-2">
@@ -256,6 +278,45 @@ export function ConnectionsCenter({ compact = false }: { compact?: boolean }) {
         Honesto: el navegador no lista redes Wi-Fi cercanas ni controla la antena celular — muestra el
         estado real de la conexión activa y controla los radios que TÚ conectas (LoRa por USB/BLE/daemon).
       </p>
+    </div>
+  );
+
+  return (
+    <div className={cn(compact ? "text-[12px]" : "text-sm")}>
+      {/* Menú superior de pestañas — CENTRADO y responsive: cuando cabe se
+          centra (mx-auto sobre w-max); cuando no, se desliza desde el inicio sin
+          salirse de los lados (.ss-hscroll ss-hscroll-fade). */}
+      <nav className="ss-hscroll ss-hscroll-fade mb-3 flex" aria-label="Secciones del hub de conexiones">
+        <div className="mx-auto flex w-max items-center justify-center gap-1.5 px-1">
+          {HUB_TABS.map((t) => {
+            const Icon = t.icon;
+            const isActive = tab === t.id;
+            return (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => setTab(t.id)}
+                aria-pressed={isActive}
+                className={cn(
+                  "inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] font-semibold transition-colors duration-200",
+                  isActive
+                    ? "border-emerald-400/50 bg-emerald-500/15 text-emerald-100"
+                    : "border-white/12 bg-white/[0.04] text-white/60 hover:border-emerald-400/30 hover:text-white/85",
+                )}
+              >
+                <Icon className="h-3.5 w-3.5" />
+                {t.label}
+              </button>
+            );
+          })}
+        </div>
+      </nav>
+
+      {tab === "conexiones" ? connectionsCards : (
+        // Pestaña «Internet»: la página /red-mesh embebida con paridad total
+        // (mapa 3D solo en la vista amplia; el popover compacto la omite).
+        <RedMeshCenter embedded showMap={!compact} />
+      )}
     </div>
   );
 }

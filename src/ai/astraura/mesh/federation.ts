@@ -35,7 +35,7 @@ let pullTimer: ReturnType<typeof setInterval> | null = null;
 let started = false;
 
 /** Id estable de ESTE dispositivo (no PII; aleatorio, persistido local). */
-function deviceId(): string {
+export function deviceId(): string {
   try {
     let id = safeGet(DEVICE_ID_KEY);
     if (!id) {

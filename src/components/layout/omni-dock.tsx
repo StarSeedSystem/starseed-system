@@ -368,9 +368,12 @@ export function OmniDock() {
                     <div className={cn(
                         "omni-dock-pill glass-depth glass-edge glass-sheen-slow pointer-events-auto",
                         "bg-card/40 dark:bg-black/40 backdrop-blur-3xl border border-foreground/10",
-                        "rounded-[--radius-full]",
+                        // En móvil un radio moderado (los extremos redondeados de
+                        // `rounded-full` empujaban el primer/último botón fuera del marco);
+                        // en ≥sm vuelve al pill completo. Más margen lateral en móvil.
+                        "rounded-3xl sm:rounded-[--radius-full]",
                         "shadow-[0_10px_40px_rgba(0,0,0,0.2)] dark:shadow-[0_10px_40px_rgba(0,0,0,0.5)]",
-                        "mb-2 sm:mb-4 max-w-[calc(100vw-8px)] lg:max-w-[96vw] relative",
+                        "mb-2 sm:mb-4 max-w-[calc(100vw-16px)] sm:max-w-[calc(100vw-8px)] lg:max-w-[96vw] relative",
                         // Densidad (Ajustes → Trinity → Tamaño del dock): compacto reduce el
                         // padding también en desktop; cómodo mantiene el tamaño histórico.
                         compact ? "p-1.5 lg:p-2.5" : "p-2 lg:p-5",
@@ -437,7 +440,10 @@ export function OmniDock() {
                             // consciente de las safe-areas laterales (notch).
                             className={cn(
                                 "omni-dock-strip flex items-end overflow-x-auto max-w-full box-border",
-                                "pl-[max(0.25rem,env(safe-area-inset-left))] pr-[max(0.25rem,env(safe-area-inset-right))]",
+                                // Padding lateral mayor en móvil + scroll-padding para que el
+                                // primer/último botón queden DENTRO del marco redondeado y el
+                                // snap los alinee sin que se salgan por los lados.
+                                "pl-[max(0.6rem,env(safe-area-inset-left))] pr-[max(0.6rem,env(safe-area-inset-right))] scroll-px-2 sm:pl-[max(0.25rem,env(safe-area-inset-left))] sm:pr-[max(0.25rem,env(safe-area-inset-right))]",
                                 compact ? "gap-1 lg:gap-2" : "gap-1.5 lg:gap-4",
                             )}
                         >

@@ -3362,6 +3362,33 @@ a[href*="spline.design"] *,
   mask-image: linear-gradient(to right, transparent 0, #000 16px, #000 calc(100% - 16px), transparent 100%);
 }
 
+/* .ss-scroll — scroll vertical con barra fina y discreta (listas de widgets). */
+.ss-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--border)) transparent;
+  overscroll-behavior-y: contain;
+}
+.ss-scroll::-webkit-scrollbar { width: 6px; }
+.ss-scroll::-webkit-scrollbar-thumb {
+  background: hsl(var(--border) / 0.6);
+  border-radius: 9999px;
+}
+.ss-scroll::-webkit-scrollbar-track { background: transparent; }
+
+/* ── Radar de Internet (InternetRadarWidget) — barrido giratorio ─────────────
+   El haz gira sobre el centro del radar; degrada a estático con reduced-motion. */
+.ss-radar-beam {
+  animation: ssRadarSweep 4s linear infinite;
+  transform-box: view-box;
+  transform-origin: 50px 50px;
+}
+@keyframes ssRadarSweep {
+  to { transform: rotate(360deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ss-radar-beam { animation: none; }
+}
+
 /* ── Rendimiento adaptativo (data-perf en <html>) ─────────────────────────────
    'eco' (móviles/gama baja): menos desenfoque, sin animaciones de fondo caras;
    'mid': intermedio. Fijado por src/lib/perf/device-tier.ts. */

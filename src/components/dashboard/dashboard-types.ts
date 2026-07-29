@@ -46,6 +46,7 @@ export type WidgetType =
     | 'AKASHIC_CODEX'         // Archivos — códice akáshico
     | 'NATAL_CHART'           // Astrología — sincronía vital
     | 'MESH_RADAR'            // Red — radar mesh
+    | 'INTERNET_RADAR'        // Red — radar de internet/red sináptica (bandas + nodos + entregas)
     | 'IMMERSION_PORTAL'      // Entretenimiento — portales inmersivos
     // ── Tercera generación: oleada Política/Ontocracia ──
     | 'CIVIC_ALCHEMY'         // Política — transmutador de quejas a iniciativas

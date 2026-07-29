@@ -22,8 +22,12 @@
  */
 
 import { Reassembler, decodeFrame } from "./codec";
-import { initialBudget, NODE_SWEEP_INTERVAL_MS } from "./constants";
+import { initialBudget, NODE_SWEEP_INTERVAL_MS, WIFI_HEALTHY_SCORE } from "./constants";
 import { decideRoute, feedWifiSample } from "./decision-router";
+import { deliver } from "./delivery";
+import { deriveNetworkContext } from "./synaptic-router";
+import { hasAccountSession, uploadPublic, uploadRelay } from "./server-relay";
+import { startSynapticLayer, stopSynapticLayer } from "./synaptic";
 import { feedNode, feedSelfTelemetry, startDiscovery, stopDiscovery } from "./discovery";
 import { pushMeshTopologyNow, startMeshFederation, stopMeshFederation } from "./federation";
 import { probeWifiNow, refreshMeshHealth, startHealthMonitor, stopHealthMonitor } from "./health";
@@ -43,9 +47,12 @@ import {
   deliverInbound,
   enqueueMeshSync,
   estimateChunkAirtimeMs,
+  getActiveModemPreset,
   setActiveModemPreset,
   unbindSyncTransport,
 } from "./sync";
+import type { DeliveryPorts, DeliveryReceipt } from "./delivery";
+import type { TransmitDistance, TransmitRequest, TransmitScope } from "./synaptic-router";
 import type {
   MeshPayloadType,
   MeshTransport,
@@ -95,6 +102,9 @@ export function startMeshSubsystem(): void {
     // Federación de topologías entre neuronas de la cuenta (Adenda 98 · v2).
     // Idempotente y best-effort: sin sesión Supabase no hace nada.
     startMeshFederation();
+    // RED SINÁPTICA (Adenda 99): auto-descubrimiento por faro + bandeja de relé
+    // cifrado. Best-effort: sin sesión/red no hace nada, la malla local sigue igual.
+    startSynapticLayer();
   } catch {
     /* */
   }
@@ -273,6 +283,7 @@ export function stopMeshSubsystem(): void {
   stopDiscovery();
   stopHealthMonitor();
   stopMeshFederation();
+  stopSynapticLayer();
   unsubscribeHealth?.();
   unsubscribeHealth = null;
   if (sweepTimer) {
@@ -375,6 +386,105 @@ export async function applyModemPreset(presetKey: string): Promise<boolean> {
   }
 }
 
+/* ── RED SINÁPTICA: transmisión con política + entrega + recibos (Adenda 99) ── */
+
+export interface TransmitInput {
+  /** Ámbito: público (servidor) · privado (directo si local) · grupo local. */
+  scope: TransmitScope;
+  cls: TrafficClass;
+  type: MeshPayloadType;
+  body: unknown;
+  /** Destino lógico: difusión local, un nodo, un grupo o una cuenta remota. */
+  target: TransmitRequest["target"];
+  distance?: TransmitDistance;
+  /** Nodo concreto para unicast por la malla. */
+  destNode?: number;
+  /** Destinatario lógico para el relé cifrado. */
+  recipient?: string;
+  e2e?: boolean;
+}
+
+/**
+ * Cablea las VÍAS reales para la entrega: malla → cola de sync (respeta duty
+ * cycle); servidor → server-relay (público en claro / relé cifrado). El tipo de
+ * payload se captura aquí para el sobre del servidor y el filtro de la malla.
+ */
+function makeTransmitPorts(ptype: MeshPayloadType): DeliveryPorts {
+  return {
+    mesh: async (leg, req, payload) => {
+      const s = getMeshState();
+      const ready = (s.status === "ready" || s.status === "degraded") && transport != null;
+      if (!ready) return { ok: false, detail: "sin radio de malla conectado" };
+      enqueueMeshSync({
+        type: ptype,
+        cls: req.cls,
+        body: payload,
+        dest: req.destNode,
+        wantAck: req.cls === "P0",
+      });
+      const online = s.nodes.filter((n) => !n.isSelf && n.presence === "online").length;
+      const through =
+        leg.via === "mesh-direct" && typeof req.destNode === "number"
+          ? `nodo #${req.destNode}`
+          : `${online} vecino${online === 1 ? "" : "s"} de la malla`;
+      return {
+        ok: true,
+        confirmed: false, // la malla es best-effort; el ACK (si lo hay) llega aparte
+        through,
+        detail: `difundido a la malla${leg.preset ? ` (${leg.preset})` : ""}`,
+      };
+    },
+    server: async (leg, req, payload) => {
+      const envelope = { cls: req.cls, ptype, body: payload, recipient: req.recipient };
+      const isPublic = leg.via === "server-public";
+      const r = isPublic ? await uploadPublic(envelope) : await uploadRelay(envelope);
+      return {
+        ok: r.ok,
+        // Público almacenado = alcanzable por cualquiera → CONFIRMADO. Relé =
+        // subido y cifrado, a la espera de que el destinatario lo extraiga →
+        // ENVIADO (honesto: no confirmamos recepción que no podemos verificar).
+        confirmed: r.ok && isPublic,
+        through: r.ref ? `servidor · fila ${r.ref}` : undefined,
+        detail: r.detail,
+      };
+    },
+  };
+}
+
+/**
+ * transmit — envío por la RED SINÁPTICA. El enrutador decide la vía (público →
+ * servidor · privado-local → malla directa · privado-lejano → relé cifrado); la
+ * entrega hace FAILOVER y devuelve un RECIBO con la traza (por qué nodos/
+ * servidores viajó), que alimenta los indicadores de la UI. Nunca lanza.
+ */
+export async function transmit(input: TransmitInput): Promise<DeliveryReceipt> {
+  const s = getMeshState();
+  const bodyStr = (() => {
+    try {
+      return JSON.stringify(input.body ?? null);
+    } catch {
+      return "null";
+    }
+  })();
+  const hasAccount = await hasAccountSession();
+  const ctx = deriveNetworkContext(s, {
+    wifiHealthy: s.wifiHealth.score >= WIFI_HEALTHY_SCORE,
+    hasAccount,
+    activePreset: getActiveModemPreset(),
+  });
+  const req: TransmitRequest = {
+    scope: input.scope,
+    cls: input.cls,
+    sizeBytes: bodyStr.length,
+    target: input.target,
+    distance: input.distance,
+    destNode: input.destNode,
+    recipient: input.recipient,
+    e2e: input.e2e,
+  };
+  return deliver(req, input.body, ctx, makeTransmitPorts(input.type));
+}
+
 /* ── Re-exports de la API pública ──────────────────────────────────────────── */
 
 export { getMeshState, subscribeMeshState } from "./store";
@@ -390,7 +500,7 @@ export {
   MESH_ROLE_LABELS,
   MESH_PRIORITY_LABELS,
 } from "./rules";
-export { useMeshState, useNeuronMeshRules, useAllMeshRules } from "./use-mesh";
+export { useMeshState, useNeuronMeshRules, useAllMeshRules, useNearbyBeacons, useDeliveryReceipts } from "./use-mesh";
 export { MESH_ALERT_EVENT, MESH_STATE_EVENT, MESH_DAEMON_DEFAULT_URL } from "./constants";
 export {
   getConnectivitySettings,
@@ -430,6 +540,47 @@ export {
 export { getActiveModemPreset } from "./sync";
 export { pushMeshTopologyNow } from "./federation";
 export type { RemoteTopology } from "./types";
+/* ── RED SINÁPTICA (Adenda 99) — política, entrega, radar, bandas, cifrado ─── */
+export {
+  getRecentDeliveries,
+  subscribeDeliveries,
+  MESH_DELIVERY_EVENT,
+} from "./delivery";
+export type {
+  DeliveryReceipt,
+  DeliveryHop,
+  DeliveryStatus,
+  HopStatus,
+} from "./delivery";
+export {
+  planTransmission,
+  label as transmitViaLabel,
+} from "./synaptic-router";
+export type {
+  TransmitPlan,
+  TransmitLeg,
+  TransmitRequest,
+  TransmitScope,
+  TransmitVia,
+  TransmitDistance,
+  NetworkContext,
+} from "./synaptic-router";
+export {
+  getNearbyBeacons,
+  subscribeNearby,
+  refreshNearbyNow,
+  MESH_NEARBY_EVENT,
+} from "./synaptic";
+export { hasAccountSession } from "./server-relay";
+export type { RelayBeacon } from "./server-relay";
+export { describeBands, activeBandCount } from "./bands";
+export type { BandStatus } from "./bands";
+export {
+  hasRelayKey,
+  exportRelayKeyB64,
+  importRelayKeyB64,
+  getOrCreateRelayKey,
+} from "./relay-crypto";
 export type {
   MeshState,
   MeshNodeInfo,

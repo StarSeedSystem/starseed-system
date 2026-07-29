@@ -194,6 +194,102 @@ async function main() {
     check("mensaje de 2 trozos entrega ambos", JSON.stringify(c2) === JSON.stringify([0, 1]));
   }
 
+  // ── Adenda 99: enrutador sináptico (política) + entrega con failover ───────
+  const { planTransmission } = await import("../src/ai/astraura/mesh/synaptic-router");
+  const { executePlan, _resetDeliveries } = await import("../src/ai/astraura/mesh/delivery");
+
+  const baseCtx = {
+    meshReady: true,
+    onlineNodes: 3,
+    avgSnr: 5,
+    channelUtilPct: 5,
+    region: "US",
+    activePreset: "LONG_FAST",
+    wifiHealthy: true,
+    hasAccount: true,
+  } as const;
+
+  // 17) PÚBLICO → servidor público (+ aviso por malla si hay vecinos = dual).
+  const pubPlan = planTransmission({ scope: "public", cls: "P2", sizeBytes: 100, target: "broadcast" }, baseCtx);
+  check("público → primaria server-public", pubPlan.primary.via === "server-public");
+  check("público con vecinos → dual (aviso malla)", pubPlan.dual === true);
+
+  // 18) PRIVADO + LOCAL a un nodo → directo P2P, con respaldo de relé cifrado.
+  const locReq = { scope: "private", cls: "P1", sizeBytes: 100, target: "node", distance: "local" } as const;
+  const locPlan = planTransmission(locReq, baseCtx);
+  check("privado local a nodo → mesh-direct", locPlan.primary.via === "mesh-direct");
+  check("privado local tiene respaldo relé", locPlan.fallbacks.some((f) => f.via === "server-relay"));
+
+  // 19) PRIVADO + LEJANO → relé cifrado por servidor.
+  const farPlan = planTransmission(
+    { scope: "private", cls: "P1", sizeBytes: 100, target: "account", distance: "far" },
+    baseCtx,
+  );
+  check("privado lejano → server-relay", farPlan.primary.via === "server-relay");
+
+  // 20) Sin ninguna vía viva → plan de cola (queuedOnly).
+  const deadCtx = { ...baseCtx, meshReady: false, onlineNodes: 0, hasAccount: false, wifiHealthy: false };
+  const qPlan = planTransmission(
+    { scope: "private", cls: "P2", sizeBytes: 100, target: "node", distance: "local" },
+    deadCtx,
+  );
+  check("sin vías → queuedOnly", qPlan.queuedOnly === true);
+
+  // 21) FAILOVER: la malla cae → el relé rescata (entregado), con traza.
+  _resetDeliveries();
+  const okServer = async () => ({ ok: true, confirmed: true, through: "servidor · fila ab12", detail: "ok" });
+  const failMesh = async () => ({ ok: false, detail: "sin radio" });
+  const rescued = await executePlan(locPlan, locReq, { x: 1 }, { mesh: failMesh, server: okServer });
+  check("failover: malla cae → entregado por relé", rescued.status === "delivered");
+  check("failover: hop primario registrado como fallido", rescued.hops.some((h) => h.role === "primary" && h.status === "failed"));
+  check("failover: relé confirmó en la traza", rescued.hops.some((h) => h.via === "server-relay" && h.status === "confirmed"));
+
+  // 22) DUAL (P0): una vía cae y la otra entrega → parcial (redundancia real).
+  const p0Req = { scope: "private", cls: "P0", sizeBytes: 60, target: "node", distance: "local" } as const;
+  const p0Plan = planTransmission(p0Req, baseCtx);
+  check("P0 privado local → dual", p0Plan.dual === true);
+  const partial = await executePlan(p0Plan, p0Req, {}, { mesh: failMesh, server: okServer });
+  check("dual con una vía caída → parcial", partial.status === "partial");
+
+  // 23) Cola: sin ninguna vía → recibo en cola (no es fallo, es espera).
+  const queued = await executePlan(qPlan, { scope: "private", cls: "P2", sizeBytes: 100, target: "node", distance: "local" }, {}, { mesh: failMesh, server: failMesh });
+  check("sin vías → recibo en cola", queued.status === "queued");
+
+  // 24) Éxito directo por malla SIN confirmación → 'sent' (honesto: llegó al
+  //     transporte pero no hay ACK), y las alternativas quedan 'skipped'.
+  const direct = await executePlan(locPlan, locReq, {}, {
+    mesh: async () => ({ ok: true, through: "3 vecinos de la malla", detail: "difundido" }),
+    server: okServer,
+  });
+  check("malla sin ACK → 'enviado' (no 'entregado')", direct.status === "sent");
+  check("primaria entrega → respaldo omitido", direct.hops.some((h) => h.role === "fallback" && h.status === "skipped"));
+
+  // 24b) Confirmación fuerte (fila de servidor público) → 'delivered'.
+  const pubReq = { scope: "public", cls: "P2", sizeBytes: 50, target: "broadcast" } as const;
+  const pubDelivered = await executePlan(
+    planTransmission(pubReq, { ...baseCtx, meshReady: false, onlineNodes: 0 }),
+    pubReq, {}, { mesh: failMesh, server: okServer },
+  );
+  check("público confirmado por servidor → entregado", pubDelivered.status === "delivered");
+
+  // 25) Cifrado del relé: ida y vuelta AES-GCM (si hay WebCrypto en el entorno).
+  if (globalThis.crypto?.subtle) {
+    const { encryptEnvelope, decryptEnvelope } = await import("../src/ai/astraura/mesh/relay-crypto");
+    const secret = { txt: "hola neurona lejana", n: 7, geo: [19.4, -99.1] };
+    const env = await encryptEnvelope(secret);
+    check("relé: cifra a sobre {iv,ct}", !!env && typeof env.iv === "string" && typeof env.ct === "string");
+    const back = env ? await decryptEnvelope(env) : null;
+    check("relé: descifra EXACTO con la misma clave", JSON.stringify(back) === JSON.stringify(secret));
+    // Sobre manipulado: el tag GCM no valida → null (no entrega basura).
+    if (env) {
+      const tampered = { ...env, ct: env.ct.slice(0, -4) + (env.ct.slice(-4) === "AAAA" ? "BBBB" : "AAAA") };
+      const bad = await decryptEnvelope(tampered);
+      check("relé: sobre manipulado NO descifra (tag GCM)", bad === null);
+    }
+  } else {
+    console.log("  (omite roundtrip de cifrado: sin WebCrypto en este entorno)");
+  }
+
   console.log(`\n${passed} pasan / ${failed} fallan`);
   if (failed > 0) process.exit(1);
 }

@@ -76,6 +76,7 @@ import { SpaceWeatherWidget } from "@/components/dashboard/widgets/space/space-w
 import { ImmersiveWidget } from "@/components/dashboard/widgets/immersive-widget";
 import { LearningPathWidget } from "@/components/dashboard/widgets/learning-path-widget";
 import { SocialRadarWidget } from "@/components/dashboard/widgets/social-radar-widget";
+import { InternetRadarWidget } from "@/components/dashboard/widgets/internet-radar-widget";
 import { LiveDataWidget } from "@/components/dashboard/widgets/live-data-widget";
 import {
     CivicAlchemyWidget,
@@ -324,6 +325,8 @@ function WidgetRegistryInner({ widget, onUpdateSettings }: WidgetProps) {
             return <NatalChartWidget />;
         case 'MESH_RADAR':
             return <MeshRadarWidget />;
+        case 'INTERNET_RADAR':
+            return <InternetRadarWidget />;
         case 'IMMERSION_PORTAL':
             return <ImmersionPortalWidget />;
 

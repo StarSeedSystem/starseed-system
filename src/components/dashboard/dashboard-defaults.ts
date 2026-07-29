@@ -39,6 +39,7 @@ export const WIDGET_CATEGORY_MAP: WidgetCategoryMapping[] = [
     { type: 'AKASHIC_CODEX', primaryCategory: 'archivos', secondaryCategories: ['red', 'sistema'], tags: ['códice', 'akáshico', 'archivos', 'entidades', 'ipfs', 'redundancia'], isPopular: true },
     { type: 'NATAL_CHART', primaryCategory: 'astrologia', secondaryCategories: ['astronomia'], tags: ['carta natal', 'tránsitos', 'sincronía', 'zodíaco', 'coherencia'], isPopular: true },
     { type: 'MESH_RADAR', primaryCategory: 'red', secondaryCategories: ['sistema'], tags: ['mesh', 'radar', 'topología', 'nodos', 'malla', 'conectividad'] },
+    { type: 'INTERNET_RADAR', primaryCategory: 'red', secondaryCategories: ['sistema'], tags: ['internet', 'radar', 'bandas', 'antenas', 'sináptica', 'nodos', 'servidores', 'transmisión', 'conexiones', 'wifi'], isPopular: true },
     { type: 'IMMERSION_PORTAL', primaryCategory: 'entretenimiento', secondaryCategories: ['cultura', 'ciberdelia'], tags: ['portal', 'inmersión', 'multiverso', 'vr', 'ar', 'mundos'], isPopular: true },
 
     // ── Cuarta generación (gen4) ──
@@ -199,8 +200,13 @@ const BASE_DEFAULT_DASHBOARD_TEMPLATES: DefaultDashboardTemplate[] = [
             sz('TASKS_QUICK', 'M', 4, 5),
             sz('QUICK_ACCESS', 'S', 8, 5),
 
+            // Red sináptica (Adenda 99): radar de internet — neuronas cercanas en
+            // línea, bandas/antenas en uso con configs rápidas e indicadores de
+            // transmisión. Predeterminado, banda propia bajo las utilidades.
+            { type: 'INTERNET_RADAR', w: 12, h: 5, x: 0, y: 9 },
+
             // Feed de la Red: ancla de contenido, ancho completo, al final.
-            sz('NETWORK_FEED_MINI', 'XL', 0, 9),
+            sz('NETWORK_FEED_MINI', 'XL', 0, 14),
         ],
     },
     // ─── 2. Política ─────────────────────────────────────────
