@@ -201,7 +201,42 @@ Más detalles en `STARSEED_ANALISIS_COMPLETO.md` y en `memory/design-tokens.md`.
 
 ---
 
-*Última actualización del archivo: 2026-07-27 (Adenda 98 · Mesh v2: dual + antenas inteligentes + federación + mapa 3D + Centro de Conexiones)*
+## 11. ⚠️ MEDIOS DEL OS (navegación) y métodos de conexión/sincronización — LÉELO ANTES DE "AÑADIR UNA FUNCIÓN"
+
+> **Regla dorada de descubribilidad:** crear una ruta `src/app/(app)/<x>/page.tsx` NO la hace accesible. El usuario navega por el **OmniDock** y el **App Launcher**, NO por URLs. Si una función no se registra en los medios correctos, para el usuario "no cambió nada". Registra SIEMPRE en los tres sitios.
+
+### Cómo se registra una app/página para que el usuario la vea
+1. **OmniDock** (dock inferior, Trinity Anchor — el lanzador principal): `src/components/layout/dock-config.ts`
+   - Añade un `DockItemConfig` a `DOCK_PRESETS` (`{id,label,iconKey,path,color,enabled:true,origin:'preset'}`).
+   - Iconos: importa de lucide + añade la clave a `DockIconKey` y a `DOCK_ICON_MAP` (deben coincidir).
+   - **CRÍTICO:** para cuentas ya existentes, `loadDockConfig` añade los presets nuevos como `enabled:false` (por eso "no aparecen"). Hay que escribir una **migración one-shot** (patrón `applyDockMediaGroupV7` / `applyDockConnectivityGroupV8`, clave `starseed.dock.items.migrated.vN`) y encadenarla en los tres `return` de `loadDockConfig`. El dock del usuario se guarda en **localStorage** (`starseed.dock.items.v2`), no en Supabase.
+2. **App Launcher / Catálogo**: `src/components/dashboard/apps/app-catalog.ts`
+   - Añade un `StarseedApp` a `APP_CATALOG` (`open:{primary:'route',allowed:[...],route:'/x'}`) y su `id` a `APP_COLLECTIONS.starseed`/`.sistema`. Alimenta también el desktop add-panel y el XR hub.
+3. **Biblioteca instalable** (opcional, paridad): `src/lib/library/packages.ts` (`kind:'app', payload:{route:'/x'}`). El icono string se resuelve por `ICON_MAP` en `package-store.tsx` (añade la clave allí si es nueva).
+
+### Superficies de navegación (dónde vive cada cosa)
+- **OmniDock** (`omni-dock.tsx` ← `dock-config.ts`) — lanzador principal, editable por el usuario (folders, orden), persistido en localStorage. Reusado por `quick-options-grid.tsx` y `quick-access-widget.tsx`.
+- **Trinity Control Center** (`layout/trinity/control-center.tsx`) — se abre por el **borde derecho ámbar (Logic)** (hover 400ms o clic). Módulos: system, quick, **conexiones**, home, notif. La pestaña «Conexiones» monta `ConnectionsTab → ConnectionsCenter`.
+- **Barra superior del escritorio** (`components/desktop/desktop-canvas.tsx:~1465`) — botón `ConnectionsMenu` (Wi-Fi + RadioTower) → `ConnectionsCenter compact`. **Solo en `/escritorios`.**
+- **Hub de Conexiones** = componente `ConnectionsCenter` (`src/components/connectivity/connections-center.tsx`), pestañas internas **Conexiones · Señales(→SignalsCenter) · Internet(→RedMeshCenter)**. NO es una ruta.
+- Rutas de red: `/red-mesh` (RedMeshCenter, mapa 3D), `/senales` (SignalsCenter), `/sincronizacion` (Syncthing), `/servidores` (AccountSync+Servers), `/red-3d`, `/conexiones` (⚠️ conectores de servicios, subsistema DISTINTO al mesh).
+- ⚠️ **Dos "conexiones" distintas:** *conectividad/red* (mesh/wifi/bt = `ConnectionsCenter`) vs *conectores de servicios* (`/conexiones` = `UserConnectorsHub`). No confundir.
+
+### Métodos de conexión y sincronización del OS
+- **Malla LoRa** (`src/ai/astraura/mesh/`): cola por prioridad P0–P3 + duty cycle (`sync.ts`); transportes serial/BLE/**daemon(http/WiFi-TCP)**/simulador (`meshtastic-adapter.ts`); `connectWifiNode(host)` = mesh por IP a un nodo por TCP. Arranca con `startMeshSubsystem()` (`index.ts`).
+- **Red sináptica** (Adenda 99, `synaptic-router.ts`/`delivery.ts`/`server-relay.ts`): política público→servidor / privado-local→P2P / privado-lejano→relé cifrado, con failover y recibos; faros de descubrimiento + bandeja de relé (`synaptic.ts`, sondeo 30–40s).
+- **Federación de topologías** (`federation.ts`): Supabase `os_mesh_topology`, push 45s / pull 60s (RLS por owner). **Relé/feed/faros**: `os_mesh_relay` (Adenda 99).
+- **Supabase Realtime** (`src/lib/realtime/realtime.ts`): `postgres_changes` sobre `supabase_realtime` (~31 tablas) — backbone de datos en vivo.
+- **Sync de cuenta/dispositivos** (`src/lib/sync/realtime-sync.ts`): `postgres_changes` en `user_settings` + canal `broadcast acct:<uid>` (anti-eco por deviceId). Panel en `/servidores`.
+- **Syncthing** (`/sincronizacion`): sync P2P cifrado de archivos entre dispositivos.
+- **Memory-root** (`src/lib/memory-sync/manifest.ts`, SOP `architecture/memoria-cerebros-sync.md`): contrato de manifest (diseño, aún sin I/O real a cuenta).
+- **App nativa** (Adenda 99c, `native-access.ts`): cuando el navegador no da acceso al hardware (BLE/serie en iOS/Firefox, WiFi directo, datos), recomienda instalar Meshtastic por SO. Detección PWA por `display-mode: standalone`.
+
+*Fuente: exploración verificada 2026-07-29 (Adenda 99d). Detalle en `claude/os-medios-navegacion-conexion-sync` del proyecto.*
+
+---
+
+*Última actualización del archivo: 2026-07-29 (Adenda 99d · medios correctos: /red-mesh y /senales en dock+launcher+biblioteca con migración v8; mapa de medios y métodos de conexión/sync)*
 
 
 ---

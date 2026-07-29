@@ -10,7 +10,7 @@
 import {
     Globe, Coffee, AudioWaveform, Radio, MessageSquare, Network,
     Library, BrainCircuit, CloudSun, Music, Waves, Orbit, Camera, Images,
-    RadioTower,
+    RadioTower, Antenna,
 } from "lucide-react";
 import type { StarseedApp, LauncherCollection } from "./launcher-types";
 
@@ -92,6 +92,24 @@ export const APP_CATALOG: StarseedApp[] = [
             primary: "route",
             allowed: ["route", "window", "tab"],
             route: "/red-mesh",
+        },
+    },
+    {
+        // Adenda 99b/c: página Señales — antenas de emisión/recepción de la
+        // neurona autodetectadas (LoRa mesh, WiFi/TCP, BLE, GPS, NFC, datos…),
+        // radar de nodos reales y recomendación de app nativa por SO.
+        id: "senales",
+        name: "Señales",
+        short: "Señales",
+        description: "Antenas de la neurona en tiempo real, radar de nodos reales de la malla y acceso completo (app nativa).",
+        icon: Antenna,
+        accent: "#38BDF8",
+        category: "starseed",
+        status: "native",
+        open: {
+            primary: "route",
+            allowed: ["route", "window", "tab"],
+            route: "/senales",
         },
     },
     {
@@ -245,8 +263,8 @@ export function getApp(id: string): StarseedApp | undefined {
 /** Colecciones predeterminadas (presets de origen de un folder). */
 export const APP_COLLECTIONS: Record<LauncherCollection, string[]> = {
     // 'starseed' = folder de inicio por defecto (marca + módulos clave)
-    starseed: ["nexus", "cafe", "audiomorphic", "omnifrecuencias", "red-mesh", "messages", "network", "musica", "clima"],
-    sistema: ["messages", "network", "library", "agent", "red-mesh"],
+    starseed: ["nexus", "cafe", "audiomorphic", "omnifrecuencias", "red-mesh", "senales", "messages", "network", "musica", "clima"],
+    sistema: ["messages", "network", "library", "agent", "red-mesh", "senales"],
     media: ["musica", "radio", "omnifrecuencias", "audiomorphic", "immersive"],
     custom: [],
 };

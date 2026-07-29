@@ -347,6 +347,13 @@ const CORE_ROUTE_PACKAGES: LibraryPackage[] = [
     payload: { route: "/red-mesh" },
   },
   {
+    id: "app-senales", kind: "app", name: "Señales",
+    description: "Antenas de la neurona en tiempo real (LoRa, WiFi/TCP, BLE, GPS, NFC, datos), radar de nodos reales de la malla y acceso completo con app nativa.",
+    icon: "Antenna", tags: ["app", "señales", "antenas", "mesh", "wifi", "red"], version: "1.0.0",
+    author: "StarSeed Core", sourceRepoId: "starseed-core", free: true, featured: true,
+    payload: { route: "/senales" },
+  },
+  {
     id: "app-red-3d", kind: "app", name: "Red 3D",
     description: "Visualización tridimensional de la red StarSeed: entidades, conexiones y flujo de la voluntad colectiva.",
     icon: "Orbit", tags: ["app", "3d", "red"], version: "1.0.0",

@@ -13,7 +13,7 @@ import {
   Network, BrainCircuit, Settings, Compass, PenLine, ShieldCheck, LayoutGrid,
   Server, Vote, Lightbulb, Cpu, Brain, ShoppingBag, Award, AppWindow,
   CalendarClock, GitBranch, Sparkles, Zap, Wrench, Plug, Eye, HardDrive, Boxes,
-  Camera, Images,
+  Camera, Images, RadioTower, Antenna,
 } from 'lucide-react';
 
 export type DockColor = 'neutral' | 'cyan' | 'crimson' | 'amber' | 'emerald' | 'purple';
@@ -45,7 +45,9 @@ export type DockIconKey =
   | 'Award' | 'AppWindow' | 'CalendarClock' | 'GitBranch' | 'Sparkles'
   | 'Zap' | 'Wrench' | 'Plug' | 'Eye' | 'HardDrive' | 'Boxes'
   // ── Medios (Cámara + Galería) ──
-  | 'Camera' | 'Images';
+  | 'Camera' | 'Images'
+  // ── Red / Conexiones (Red Mesh + Señales) ──
+  | 'RadioTower' | 'Antenna';
 
 /**
  * Mapa iconKey → componente de lucide-react. Fuente ÚNICA de verdad: la usan
@@ -58,7 +60,7 @@ export const DOCK_ICON_MAP: Record<DockIconKey, React.ComponentType<{ className?
   Network, BrainCircuit, Settings, Compass, PenLine, ShieldCheck, LayoutGrid,
   Server, Vote, Lightbulb, Cpu, Brain, ShoppingBag, Award, AppWindow,
   CalendarClock, GitBranch, Sparkles, Zap, Wrench, Plug, Eye, HardDrive, Boxes,
-  Camera, Images,
+  Camera, Images, RadioTower, Antenna,
 };
 
 /** Icono de respaldo defensivo (DOCK_ICON_MAP es total: no debería usarse). */
@@ -207,6 +209,12 @@ export const DOCK_PRESETS: DockItemConfig[] = [
   // ── Medios (grupo al FINAL del dock, visible por defecto) ──
   { id: 'camara',        label: 'Cámara',              iconKey: 'Camera',          path: '/camara',                color: 'crimson', enabled: true,  origin: 'preset' },
   { id: 'galeria',       label: 'Galería',             iconKey: 'Images',          path: '/galeria',               color: 'crimson', enabled: true,  origin: 'preset' },
+  // ── Red / Conexiones (Adenda 99d: medios correctos — visibles por defecto) ──
+  // El centro de la malla P2P (mapa 3D, antenas/bandas, privacidad, peers) y la
+  // página Señales (antenas de la neurona + radar de nodos reales) ahora tienen
+  // acceso propio en el dock, no solo dentro del hub de conexiones.
+  { id: 'red-mesh',      label: 'Red Mesh',            iconKey: 'RadioTower',      path: '/red-mesh',              color: 'emerald', enabled: true,  origin: 'preset' },
+  { id: 'senales',       label: 'Señales',             iconKey: 'Antenna',         path: '/senales',               color: 'cyan',    enabled: true,  origin: 'preset' },
 ];
 
 /**
@@ -487,6 +495,42 @@ function applyDockMediaGroupV7(items: DockItemConfig[], hadSaved: boolean): Dock
   return migrated;
 }
 
+/**
+ * Migración v8 — grupo "Red / Conexiones" (Red Mesh + Señales) habilitado por
+ * defecto, INCLUSO en cuentas con dock ya guardado (donde el flujo normal
+ * añadiría cualquier preset nuevo como deshabilitado y por eso el usuario "no
+ * veía" las páginas nuevas). Una sola vez por navegador; no reordena nada más.
+ */
+const DOCK_MIGRATION_V8_KEY = 'starseed.dock.items.migrated.v8';
+const CONNECTIVITY_GROUP_IDS = ['red-mesh', 'senales'];
+
+function applyDockConnectivityGroupV8(items: DockItemConfig[], hadSaved: boolean): DockItemConfig[] {
+  if (typeof window === 'undefined') return items;
+  try {
+    if (window.localStorage.getItem(DOCK_MIGRATION_V8_KEY)) return items;
+  } catch {
+    return items;
+  }
+
+  let migrated = items;
+  for (const id of CONNECTIVITY_GROUP_IDS) {
+    const idx = migrated.findIndex((i) => i.id === id);
+    if (idx === -1) {
+      const preset = DOCK_PRESETS.find((p) => p.id === id);
+      if (preset) migrated = [...migrated, { ...preset, enabled: true }];
+    } else if (!migrated[idx].enabled) {
+      migrated = migrated.map((it, i) => (i === idx ? { ...it, enabled: true } : it));
+    }
+  }
+
+  try {
+    if (hadSaved) window.localStorage.setItem(STORAGE_KEY, JSON.stringify(migrated));
+    window.localStorage.setItem(DOCK_MIGRATION_V8_KEY, '1');
+  } catch { /* noop */ }
+
+  return migrated;
+}
+
 export function loadDockConfig(): DockItemConfig[] {
   if (typeof window === 'undefined') return DOCK_PRESETS;
   try {
@@ -499,7 +543,7 @@ export function loadDockConfig(): DockItemConfig[] {
     // la v6 fuerza 'escritorios' al primer puesto; la v7 añade Medios al final.
     const fused = applyDockFusionMigrationV4(saved);
     if (fused) {
-      return applyDockMediaGroupV7(applyDockEscritorioFirstV6(applyDockLibraryMigrationV5(fused, true), true), true);
+      return applyDockConnectivityGroupV8(applyDockMediaGroupV7(applyDockEscritorioFirstV6(applyDockLibraryMigrationV5(fused, true), true), true), true);
     }
 
     if (saved) {
@@ -507,9 +551,12 @@ export function loadDockConfig(): DockItemConfig[] {
       // final como deshabilitado, se aplica la migración v3 legada, la v5, la v6 y la v7.
       const known = new Set(saved.map((i) => i.id));
       const missing = DOCK_PRESETS.filter((p) => !known.has(p.id)).map((p) => ({ ...p, enabled: false }));
-      return applyDockMediaGroupV7(
-        applyDockEscritorioFirstV6(
-          applyDockLibraryMigrationV5(applyOneShotMigration([...saved, ...missing]), true),
+      return applyDockConnectivityGroupV8(
+        applyDockMediaGroupV7(
+          applyDockEscritorioFirstV6(
+            applyDockLibraryMigrationV5(applyOneShotMigration([...saved, ...missing]), true),
+            true,
+          ),
           true,
         ),
         true,
@@ -518,7 +565,7 @@ export function loadDockConfig(): DockItemConfig[] {
   } catch { /* noop */ }
   // Sin config guardada: presets vivos (ya sin 'tienda'); la v5 purga folders
   // huérfanas, la v6 confirma 'escritorios' al inicio y la v7 confirma Medios al final (ambos ya lo están en presets).
-  return applyDockMediaGroupV7(applyDockEscritorioFirstV6(applyDockLibraryMigrationV5(DOCK_PRESETS, false), false), false);
+  return applyDockConnectivityGroupV8(applyDockMediaGroupV7(applyDockEscritorioFirstV6(applyDockLibraryMigrationV5(DOCK_PRESETS, false), false), false), false);
 }
 
 export function saveDockConfig(items: DockItemConfig[]) {
