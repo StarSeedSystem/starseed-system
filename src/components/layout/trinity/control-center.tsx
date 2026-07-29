@@ -41,7 +41,7 @@ const QUICK_MODULES: QuickModule[] = [
     { id: "system", label: "Sistema", icon: Settings, activeColor: "text-blue-400", bgColor: "bg-blue-500/10", borderColor: "border-blue-500/20", Content: SystemTab },
     { id: "quick", label: "Control", icon: Sliders, activeColor: "text-cyan-400", bgColor: "bg-cyan-500/10", borderColor: "border-cyan-500/20", Content: QuickSettingsTab },
     // Adenda 98: conexiones de la neurona (red externa · malla P2P · modo dual).
-    { id: "conexiones", label: "Conexiones", icon: Wifi, activeColor: "text-emerald-400", bgColor: "bg-emerald-500/10", borderColor: "border-emerald-500/20", Content: ConnectionsTab },
+    { id: "conexiones", label: "Hub Social", icon: Wifi, activeColor: "text-emerald-400", bgColor: "bg-emerald-500/10", borderColor: "border-emerald-500/20", Content: ConnectionsTab },
     { id: "home", label: "Hogar", icon: Home, activeColor: "text-emerald-400", bgColor: "bg-emerald-500/10", borderColor: "border-emerald-500/20", Content: SmartHomeTab },
     { id: "notif", label: "Alertas", icon: Bell, activeColor: "text-red-400", bgColor: "bg-red-500/10", borderColor: "border-red-500/20", Content: NotificationsTab },
 ];

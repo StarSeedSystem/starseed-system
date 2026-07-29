@@ -19,14 +19,7 @@ import {
   MESH_PRIVACY_EVENT,
   setMeshPrivacy,
   type MeshPrivacySettings,
-  type MeshRelayUse,
 } from "@/ai/astraura/mesh";
-
-const RELAY_OPTIONS: Array<{ id: MeshRelayUse; label: string; hint: string }> = [
-  { id: "alerts", label: "Solo alertas", hint: "reemite únicamente alertas críticas P0 (si una neurona tiene rol relé)" },
-  { id: "all", label: "Toda la red", hint: "reemite cualquier sobre StarSeed oído — máxima solidaridad de malla" },
-  { id: "none", label: "Nadie", hint: "esta neurona jamás reemite tráfico de otros" },
-];
 
 export function MeshPrivacyPanel() {
   // Init con el DEFECTO estable (SSR y primer render del cliente coinciden);
@@ -100,31 +93,18 @@ export function MeshPrivacyPanel() {
           <Switch checked={p.shareName} onCheckedChange={(v) => update({ shareName: v })} />
         </label>
 
-        <div className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5">
+        {/* Relé SIEMPRE activo · no configurable (procomún de la red) */}
+        <div className="rounded-xl border border-emerald-400/25 bg-emerald-500/[0.06] px-3 py-2.5">
           <p className="flex items-center gap-2 text-[12px] font-medium text-white/90">
-            <Share2 className="h-4 w-4 text-emerald-300" /> ¿Quién puede usar esta neurona como relé?
+            <Share2 className="h-4 w-4 text-emerald-300" /> Relé de red · siempre activo
+            <span className="ml-auto rounded-full bg-emerald-500/20 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-emerald-200">
+              on · no configurable
+            </span>
           </p>
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            {RELAY_OPTIONS.map((o) => (
-              <button
-                key={o.id}
-                type="button"
-                onClick={() => update({ relayUse: o.id })}
-                title={o.hint}
-                className={cn(
-                  "cursor-pointer rounded-full border px-2.5 py-1 text-[11px] transition-colors duration-200",
-                  p.relayUse === o.id
-                    ? "border-emerald-400/50 bg-emerald-500/15 text-emerald-100"
-                    : "border-white/12 bg-white/[0.04] text-white/60 hover:border-emerald-400/30",
-                )}
-              >
-                {o.label}
-              </button>
-            ))}
-          </div>
-          <p className="mt-1.5 text-[10px] leading-snug text-white/45">
-            {RELAY_OPTIONS.find((o) => o.id === p.relayUse)?.hint}. El reenvío de RADIO puro lo decide
-            además el rol Meshtastic del propio nodo (CLIENT/ROUTER…), configurable en su firmware.
+          <p className="mt-1.5 text-[10px] leading-snug text-white/55">
+            Cada neurona da y recibe de forma justa y eficiente para TODA la red: el relé reemite el
+            tráfico que oye para que la información llegue a todos. Es el procomún de la malla — no se
+            puede apagar. (El reenvío de RADIO puro lo decide además el rol Meshtastic del nodo en su firmware.)
           </p>
         </div>
       </CardContent>

@@ -24,7 +24,7 @@ import { cn } from "@/lib/utils";
 import { SignalsRadar } from "./signals-radar";
 import {
   useMeshState, detectSignals, connectMesh, connectWifiNode, getConnectivitySettings,
-  subscribeConnectivity, setNeuronPosition, detectPlatform, recommendNative,
+  subscribeConnectivity, setNeuronPosition, detectPlatform, recommendNative, hasAccountSession,
   type SignalSource, type SignalKind, type NativeRecommendation,
 } from "@/ai/astraura/mesh";
 
@@ -51,8 +51,15 @@ export function SignalsCenter({ embedded = false, compact = false }: SignalsCent
   const router = useRouter();
   const [signals, setSignals] = useState<SignalSource[]>([]);
   const [busy, setBusy] = useState<SignalKind | null>(null);
+  const [webMeshOn, setWebMeshOn] = useState(false);
   const meshRef = useRef(mesh);
   meshRef.current = mesh;
+
+  useEffect(() => {
+    let alive = true;
+    void hasAccountSession().then((v) => alive && setWebMeshOn(v));
+    return () => { alive = false; };
+  }, [mesh.status]);
 
   const onlineCount = useMemo(
     () => mesh.nodes.filter((n) => !n.isSelf && n.presence === "online").length,
@@ -160,6 +167,21 @@ export function SignalsCenter({ embedded = false, compact = false }: SignalsCent
         <SignalsRadar height={compact ? 200 : 260} showLegend />
       </div>
 
+      {/* Estado de la malla web (funciona desde el navegador, sin hardware) */}
+      <div className={cn("flex flex-wrap items-center gap-2 rounded-xl border px-3 py-2",
+        webMeshOn ? "border-emerald-400/25 bg-emerald-500/[0.06]" : "border-amber-400/25 bg-amber-500/[0.06]")}>
+        <span className={cn("inline-flex items-center gap-1.5 text-[11px] font-semibold", webMeshOn ? "text-emerald-200" : "text-amber-200")}>
+          <span className={cn("size-2 rounded-full", webMeshOn ? "bg-emerald-400 animate-pulse" : "bg-amber-400")} />
+          {webMeshOn ? "Malla web activa" : "Malla web · inicia sesión"}
+        </span>
+        <span className="text-[10px] text-white/50">
+          {webMeshOn ? "relé por servidor · funciona sin radio" : "con sesión, el relé web transmite sin radio"}
+        </span>
+        <span className="ml-auto rounded-full bg-emerald-500/15 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-emerald-200">
+          relé siempre on
+        </span>
+      </div>
+
       {/* Acceso completo con la app nativa (según el SO de esta neurona): lo que
           el navegador no permite (Wi-Fi/datos directos, BLE/serie en iOS/Firefox,
           antenas externas) lo desbloquea la app nativa de Meshtastic. */}
@@ -242,10 +264,11 @@ export function SignalsCenter({ embedded = false, compact = false }: SignalsCent
 
       <p className="flex items-start gap-1.5 text-[10px] leading-snug text-white/35">
         <Wifi className="mt-0.5 h-3 w-3 shrink-0" />
-        Honesto: el radio LoRa emite/recibe sin operadores; GPS, Bluetooth, Serie y NFC se controlan con
-        tu permiso; Wi-Fi y datos celulares NO se controlan desde el navegador pero SÍ llevan la malla por
-        IP (a un nodo de tu red por TCP, o por MQTT/servidor a larga distancia). Para Wi-Fi directo/local,
-        BLE/serie en iOS, datos y antenas externas con acceso completo, instala la app nativa de arriba.
+        La malla corre DENTRO del OS (protocolo Meshtastic embebido) y funciona desde la web: el relé por
+        servidor está SIEMPRE activo (dar y recibir justo para toda la red) y lleva tu tráfico aunque no
+        tengas radio. El radio LoRa, GPS, Bluetooth, Serie y NFC se usan con tu permiso; Wi-Fi/datos llevan
+        la malla por IP. Para radios directos y múltiples antenas simultáneas con permisos incluidos,
+        instala la app de StarSeed OS (arriba) — sin apps externas.
       </p>
     </div>
   );

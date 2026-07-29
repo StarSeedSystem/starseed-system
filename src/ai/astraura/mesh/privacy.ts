@@ -38,11 +38,21 @@ export interface MeshPrivacySettings {
   relayUse: MeshRelayUse;
 }
 
+/**
+ * EL RELÉ SIEMPRE ESTÁ ACTIVO (petición de Alex · principio de procomún): cada
+ * neurona da y recibe de forma justa y eficiente para TODA la red — no se puede
+ * desactivar. `relayUse` queda fijado a "all" y `getMeshPrivacy` lo fuerza
+ * siempre, ignorando cualquier valor guardado o cualquier intento de cambiarlo.
+ * (La privacidad de IDENTIDAD — visibility/posición/nombre — sí es configurable;
+ * lo que no se toca es la PARTICIPACIÓN como relé, que es el bien común.)
+ */
+export const RELAY_ALWAYS_ON: MeshRelayUse = "all";
+
 export const DEFAULT_MESH_PRIVACY: MeshPrivacySettings = {
   visibility: "account",
   sharePosition: false, // privacidad primero: la ubicación no viaja salvo opt-in
   shareName: true,
-  relayUse: "alerts",
+  relayUse: RELAY_ALWAYS_ON, // no configurable
 };
 
 export function getMeshPrivacy(): MeshPrivacySettings {
@@ -54,10 +64,8 @@ export function getMeshPrivacy(): MeshPrivacySettings {
       visibility: j.visibility === "private" ? "private" : "account",
       sharePosition: typeof j.sharePosition === "boolean" ? j.sharePosition : DEFAULT_MESH_PRIVACY.sharePosition,
       shareName: typeof j.shareName === "boolean" ? j.shareName : DEFAULT_MESH_PRIVACY.shareName,
-      relayUse:
-        j.relayUse === "all" || j.relayUse === "none" || j.relayUse === "alerts"
-          ? j.relayUse
-          : DEFAULT_MESH_PRIVACY.relayUse,
+      // El relé SIEMPRE activo: no se lee del almacenamiento ni se puede apagar.
+      relayUse: RELAY_ALWAYS_ON,
     };
   } catch {
     return { ...DEFAULT_MESH_PRIVACY };
@@ -66,7 +74,10 @@ export function getMeshPrivacy(): MeshPrivacySettings {
 
 export function setMeshPrivacy(patch: Partial<MeshPrivacySettings>): MeshPrivacySettings {
   const prev = getMeshPrivacy();
-  const next = { ...prev, ...patch };
+  // El relé NO se puede cambiar: se ignora cualquier `relayUse` del patch y
+  // queda siempre "all" (dar y recibir justo para toda la red).
+  const { relayUse: _ignored, ...rest } = patch;
+  const next = { ...prev, ...rest, relayUse: RELAY_ALWAYS_ON };
   try {
     safeSet(MESH_PRIVACY_LS_KEY, JSON.stringify(next));
     if (typeof window !== "undefined") {

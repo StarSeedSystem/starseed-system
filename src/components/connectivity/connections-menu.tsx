@@ -57,8 +57,8 @@ export function ConnectionsMenu() {
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        title={`Conexiones — red externa ${extOnline ? "activa" : "caída"} · malla ${meshOn ? `activa (${online} nodos)` : "apagada"}`}
-        aria-label="Administrar conexiones de la neurona"
+        title={`Hub Social — red externa ${extOnline ? "activa" : "caída"} · malla ${meshOn ? `activa (${online} nodos)` : "apagada"}`}
+        aria-label="Abrir el Hub Social"
         className={cn(
           "flex items-center gap-1 rounded-full border px-2 py-1 transition-colors cursor-pointer",
           open
@@ -88,7 +88,7 @@ export function ConnectionsMenu() {
           role="menu"
         >
           <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-white/50">
-            Conexiones de esta neurona
+            Hub Social
           </p>
           <div className="max-h-[70vh] overflow-y-auto pr-0.5">
             <ConnectionsCenter compact />
