@@ -3389,6 +3389,23 @@ a[href*="spline.design"] *,
   .ss-radar-beam { animation: none; }
 }
 
+/* Ondas emitidas por cada neurona (sonar / rebotes de frecuencia): el círculo
+   crece desde el nodo y se desvanece, mapeando el área con la onda de RF. */
+.ss-signal-ping {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: ssSignalPing 3.2s ease-out infinite;
+}
+.ss-signal-ping-2 { animation-delay: 1.6s; }
+@keyframes ssSignalPing {
+  0%   { transform: scale(0.35); opacity: 0.55; }
+  80%  { opacity: 0.06; }
+  100% { transform: scale(3.4); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ss-signal-ping { animation: none; opacity: 0.18; }
+}
+
 /* ── Rendimiento adaptativo (data-perf en <html>) ─────────────────────────────
    'eco' (móviles/gama baja): menos desenfoque, sin animaciones de fondo caras;
    'mid': intermedio. Fijado por src/lib/perf/device-tier.ts. */

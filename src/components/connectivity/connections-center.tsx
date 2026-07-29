@@ -19,6 +19,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import {
+  Antenna,
   ArrowLeftRight,
   Bluetooth,
   Cable,
@@ -36,6 +37,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { InternetRadarWidget } from "@/components/dashboard/widgets/internet-radar-widget";
 import { RedMeshCenter } from "@/components/mesh/red-mesh-center";
+import { SignalsCenter } from "@/components/mesh/signals-center";
 import {
   bluetoothLink,
   connectMesh,
@@ -60,9 +62,10 @@ const ROUTE_OPTIONS: Array<{ id: PreferredRoute; label: string; hint: string }> 
 ];
 
 /** Pestañas del hub de conexiones (menú superior, centrado y responsive). */
-type HubTab = "conexiones" | "internet";
+type HubTab = "conexiones" | "senales" | "internet";
 const HUB_TABS: Array<{ id: HubTab; label: string; icon: typeof RadioTower }> = [
   { id: "conexiones", label: "Conexiones", icon: RadioTower },
+  { id: "senales", label: "Señales", icon: Antenna },
   { id: "internet", label: "Internet", icon: Radar },
 ];
 
@@ -312,7 +315,12 @@ export function ConnectionsCenter({ compact = false }: { compact?: boolean }) {
         </div>
       </nav>
 
-      {tab === "conexiones" ? connectionsCards : (
+      {tab === "conexiones" && connectionsCards}
+      {tab === "senales" && (
+        // Pestaña «Señales»: antenas autodetectadas + radar de nodos reales.
+        <SignalsCenter embedded compact={compact} />
+      )}
+      {tab === "internet" && (
         // Pestaña «Internet»: la página /red-mesh embebida con paridad total
         // (mapa 3D solo en la vista amplia; el popover compacto la omite).
         <RedMeshCenter embedded showMap={!compact} />

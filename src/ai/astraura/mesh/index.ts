@@ -40,6 +40,7 @@ import {
   resetMeshRadio,
   setMeshState,
   subscribeMeshState,
+  upsertMeshNode,
 } from "./store";
 import {
   airtimeAvailableFor,
@@ -386,6 +387,22 @@ export async function applyModemPreset(presetKey: string): Promise<boolean> {
   }
 }
 
+/**
+ * Fija la posición GPS de ESTA neurona (del navegador) en el nodo local, para
+ * que el radar/mapa ubique con precisión a los vecinos que comparten GPS.
+ * Devuelve false si aún no hay radio (sin nodo local al que anclar la posición).
+ */
+export function setNeuronPosition(lat: number, lon: number): boolean {
+  try {
+    const s = getMeshState();
+    if (!s.self) return false;
+    upsertMeshNode({ num: s.self.num, lat, lon });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /* ── RED SINÁPTICA: transmisión con política + entrega + recibos (Adenda 99) ── */
 
 export interface TransmitInput {
@@ -575,6 +592,8 @@ export { hasAccountSession } from "./server-relay";
 export type { RelayBeacon } from "./server-relay";
 export { describeBands, activeBandCount } from "./bands";
 export type { BandStatus } from "./bands";
+export { detectSignals, controllableCount } from "./signals";
+export type { SignalSource, SignalKind, SignalStatus } from "./signals";
 export {
   hasRelayKey,
   exportRelayKeyB64,

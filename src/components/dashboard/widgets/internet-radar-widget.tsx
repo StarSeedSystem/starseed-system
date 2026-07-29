@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { WidgetShell, Chip } from "../kit";
 import { cn } from "@/lib/utils";
+import { SignalsRadar } from "@/components/mesh/signals-radar";
 import {
     useMeshState, useNearbyBeacons, useDeliveryReceipts,
     describeBands, hasRelayKey, applyModemPreset, recommendPreset, getActiveModemPreset,
@@ -38,19 +39,6 @@ const STATUS_META: Record<DeliveryStatus, { icon: LucideIcon; color: string; lab
     failed: { icon: XCircle, color: "#ef4444", label: "Falló" },
 };
 
-/** Ángulo determinista (0..2π) a partir del id de faro — reparto estable. */
-function hashAngle(id: string): number {
-    let h = 0;
-    for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) & 0xffff;
-    return (h / 0xffff) * Math.PI * 2;
-}
-/** Radio 0.4..0.92 determinista (dispersa los puntos sin solaparlos). */
-function hashRadius(id: string): number {
-    let h = 7;
-    for (let i = 0; i < id.length; i++) h = (h * 17 + id.charCodeAt(i)) & 0x7ff;
-    return 0.42 + (h / 0x7ff) * 0.5;
-}
-
 export function InternetRadarWidget() {
     const mesh = useMeshState();
     const nearby = useNearbyBeacons();
@@ -61,7 +49,6 @@ export function InternetRadarWidget() {
     const [activePreset, setActivePreset] = useState("UNSET");
     const [applying, setApplying] = useState(false);
     const [emitting, setEmitting] = useState(false);
-    const [sel, setSel] = useState<string | null>(null);
 
     // Señales asíncronas/imperativas (cuenta, clave de relé, preset activo).
     useEffect(() => {
@@ -137,7 +124,7 @@ export function InternetRadarWidget() {
     return (
         <WidgetShell
             title="Radar de Internet"
-            subtitle="Red sináptica · bandas y nodos"
+            subtitle="Señales reales de la malla · bandas"
             icon={Radar}
             accent="#38bdf8"
             live
@@ -146,7 +133,6 @@ export function InternetRadarWidget() {
             {(size) => {
                 const compact = size.vTier === "micro" || size.vTier === "compact";
                 const graphH = size.vTier === "expanded" ? 168 : size.vTier === "regular" ? 132 : 96;
-                const cx = 50, cy = 50;
                 const lastDelivery = deliveries[0] ?? null;
 
                 return (
@@ -162,64 +148,11 @@ export function InternetRadarWidget() {
                             </div>
                         </div>
 
-                        {/* Radar de conexiones cercanas en línea */}
-                        <div className="shrink-0 relative">
-                            <svg viewBox="0 0 100 100" style={{ height: graphH }} className="w-full">
-                                {[0.33, 0.66, 1].map((r, i) => (
-                                    <circle key={i} cx={cx} cy={cy} r={r * 45} fill="none"
-                                        stroke="hsl(var(--border))" strokeOpacity={0.18} strokeWidth={0.4} />
-                                ))}
-                                <line x1={cx} y1={5} x2={cx} y2={95} stroke="hsl(var(--border))" strokeOpacity={0.1} strokeWidth={0.3} />
-                                <line x1={5} y1={cy} x2={95} y2={cy} stroke="hsl(var(--border))" strokeOpacity={0.1} strokeWidth={0.3} />
-                                {/* Barrido (respeta prefers-reduced-motion vía clase global) */}
-                                <g className="ss-radar-beam" style={{ transformOrigin: "50px 50px" }}>
-                                    <line x1={cx} y1={cy} x2={cx} y2={7} stroke="#38bdf8" strokeOpacity={0.5} strokeWidth={0.7} />
-                                </g>
-                                {/* Neuronas cercanas (faros) */}
-                                {nearby.map((b) => {
-                                    const a = hashAngle(b.deviceId);
-                                    const rr = hashRadius(b.deviceId) * 45;
-                                    const x = cx + Math.cos(a) * rr, y = cy + Math.sin(a) * rr;
-                                    const color = b.own ? "hsl(var(--primary))" : "#38bdf8";
-                                    const isSel = sel === b.deviceId;
-                                    return (
-                                        <g key={b.deviceId}>
-                                            {isSel && <circle cx={x} cy={y} r={4.4} fill="none" stroke={color} strokeWidth={0.6} strokeOpacity={0.7} />}
-                                            <circle cx={x} cy={y} r={2.4} fill={color} className="cursor-pointer"
-                                                onClick={() => setSel((s) => (s === b.deviceId ? null : b.deviceId))}
-                                                style={{ filter: `drop-shadow(0 0 3px ${color})` }} />
-                                        </g>
-                                    );
-                                })}
-                                {/* Yo (centro) */}
-                                <circle cx={cx} cy={cy} r={3.2} fill="hsl(var(--primary))"
-                                    style={{ filter: "drop-shadow(0 0 4px hsl(var(--primary)))" }} />
-                            </svg>
-                            {nearby.length === 0 && (
-                                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                                    <span className="text-[10px] text-muted-foreground/60 text-center px-4">
-                                        Buscando neuronas en línea…
-                                    </span>
-                                </div>
-                            )}
+                        {/* Radar de SEÑALES: nodos REALES de la malla por RF + ondas
+                            emitidas por cada neurona (el mismo de /red-mesh). */}
+                        <div className="shrink-0">
+                            <SignalsRadar height={graphH} compact showLegend={false} />
                         </div>
-
-                        {/* Faro seleccionado */}
-                        {sel && !compact && (() => {
-                            const b = nearby.find((n) => n.deviceId === sel);
-                            if (!b) return null;
-                            return (
-                                <div className="shrink-0 rounded-xl border border-sky-500/30 bg-sky-500/[0.06] px-2.5 py-1.5 text-[10px]">
-                                    <div className="flex items-center justify-between gap-2">
-                                        <span className="font-black truncate">{b.label || "Neurona"}{b.own ? " · tu cuenta" : ""}</span>
-                                        <span className="text-muted-foreground/70 tabular-nums">{b.onlineCount} vecinos</span>
-                                    </div>
-                                    <div className="text-muted-foreground/60 truncate">
-                                        {b.region ?? "región ?"} · {b.preset ?? "preset ?"}
-                                    </div>
-                                </div>
-                            );
-                        })()}
 
                         {/* Segmentos: Bandas / Actividad */}
                         {!compact && (
