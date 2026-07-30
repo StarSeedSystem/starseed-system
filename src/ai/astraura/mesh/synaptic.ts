@@ -23,6 +23,7 @@ import {
   purgeBeacon,
   pullBeacons,
   pullRelayInbox,
+  pullPublicFeed,
   type RelayBeacon,
 } from "./server-relay";
 
@@ -42,8 +43,11 @@ let started = false;
 let emitTimer: ReturnType<typeof setInterval> | null = null;
 let pullTimer: ReturnType<typeof setInterval> | null = null;
 let inboxTimer: ReturnType<typeof setInterval> | null = null;
+let publicTimer: ReturnType<typeof setInterval> | null = null;
 /** Marca de agua de la bandeja: solo entregamos lo posterior a esto. */
 let inboxWatermark = 0;
+/** Marca de agua del feed público (contenido de otras neuronas). */
+let publicWatermark = 0;
 /**
  * IDs de relés YA entregados. Necesario porque la consulta filtra con `>=`
  * (created_at inclusivo): la fila que fija la marca de agua reaparece en el
@@ -127,17 +131,39 @@ async function pollInbox(): Promise<void> {
   }
 }
 
-/** Arranca el descubrimiento + la bandeja de relé (idempotente). */
+/**
+ * Sondeo del FEED PÚBLICO: recoge el contenido publicado por OTRAS neuronas y lo
+ * entrega igual que la bandeja privada (evento `mesh-inbound`). Cierra el bucle
+ * publicar→almacenar→recibir. Mismo dedup por id que la bandeja de relé.
+ */
+async function pollPublicFeed(): Promise<void> {
+  try {
+    const items = await pullPublicFeed(publicWatermark);
+    if (!items.length) return;
+    for (const it of items) publicWatermark = Math.max(publicWatermark, it.at);
+    for (const it of items.slice().reverse()) {
+      if (it.id && deliveredRelayIds.has(it.id)) continue; // ya entregado
+      if (it.id) rememberDelivered(it.id);
+      deliverInbound({ type: it.ptype, cls: it.cls, body: it.body, from: 0 });
+    }
+  } catch {
+    /* */
+  }
+}
+
+/** Arranca el descubrimiento + la bandeja de relé + el feed público (idempotente). */
 export function startSynapticLayer(): void {
   if (started || typeof window === "undefined") return;
   started = true;
-  // Al arrancar solo recogemos lo MUY reciente de la bandeja (no un histórico).
+  // Al arrancar solo recogemos lo MUY reciente (no un histórico).
   inboxWatermark = Date.now() - 5 * 60_000;
+  publicWatermark = Date.now() - 5 * 60_000;
   void refreshBeacons(); // radar inmediato
   void emitBeacon(); // anunciarme ya
   emitTimer = setInterval(() => void emitBeacon(), BEACON_EMIT_MS);
   pullTimer = setInterval(() => void refreshBeacons(), BEACON_PULL_MS);
   inboxTimer = setInterval(() => void pollInbox(), INBOX_POLL_MS);
+  publicTimer = setInterval(() => void pollPublicFeed(), INBOX_POLL_MS);
 }
 
 /** Detiene la capa y retira el faro de esta neurona. */
@@ -146,7 +172,8 @@ export function stopSynapticLayer(): void {
   if (emitTimer) clearInterval(emitTimer);
   if (pullTimer) clearInterval(pullTimer);
   if (inboxTimer) clearInterval(inboxTimer);
-  emitTimer = pullTimer = inboxTimer = null;
+  if (publicTimer) clearInterval(publicTimer);
+  emitTimer = pullTimer = inboxTimer = publicTimer = null;
   void purgeBeacon();
 }
 

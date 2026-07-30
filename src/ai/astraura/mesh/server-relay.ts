@@ -395,3 +395,43 @@ export async function pullRelayInbox(since: number): Promise<RelayInboundItem[]>
     return [];
   }
 }
+
+/**
+ * Extrae del FEED PÚBLICO (channel="public", kind="data") el CONTENIDO publicado
+ * por OTRAS neuronas de la red — cierra el bucle: publicar → almacenar → recibir.
+ * `since` (epoch ms) limita a lo nuevo; excluye lo que emití yo. Texto plano (es
+ * público). RLS: filas públicas legibles por cualquier neurona autenticada.
+ */
+export async function pullPublicFeed(since: number): Promise<RelayInboundItem[]> {
+  try {
+    const supabase = await client();
+    if (!supabase) return [];
+    const me = deviceId();
+    const cutoff = new Date(Math.max(since, Date.now() - RELAY_TTL_MS)).toISOString();
+    const { data, error } = await supabase
+      .from("os_mesh_relay")
+      .select("id, cls, ptype, payload, device_id, created_at")
+      .eq("channel", "public")
+      .eq("kind", "data")
+      .gte("created_at", cutoff)
+      .order("created_at", { ascending: false })
+      .limit(50);
+    if (error || !Array.isArray(data)) return [];
+    const out: RelayInboundItem[] = [];
+    for (const row of data as Array<Record<string, unknown>>) {
+      if (String(row.device_id ?? "") === me) continue; // no re-consumir lo mío
+      out.push({
+        id: String(row.id ?? ""),
+        cls: String(row.cls ?? "P2") as TrafficClass,
+        ptype: String(row.ptype ?? "post") as MeshPayloadType,
+        body: row.payload ?? null,
+        from: row.device_id ? String(row.device_id) : null,
+        at: row.created_at ? Date.parse(String(row.created_at)) : 0,
+        locked: false,
+      });
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}

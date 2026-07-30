@@ -34,6 +34,7 @@ import {
   DEFAULT_CONNECTIVITY_CONFIG,
   type ConnectivityConfig,
 } from "./connectivity";
+import { getMeshServer, STARSEED_PUBLIC_SERVER, type MeshServer } from "./servers";
 import { hasAccountSession, uploadPublic, uploadRelay } from "./server-relay";
 import { startSynapticLayer, stopSynapticLayer } from "./synaptic";
 import { feedNode, feedSelfTelemetry, startDiscovery, stopDiscovery } from "./discovery";
@@ -587,6 +588,43 @@ export async function transmitForContext(
   return transmit({ ...input, connectivity: config });
 }
 
+/**
+ * Servidor efectivo de un contexto de ALMACENAMIENTO/sync (cerebro, memorias,
+ * credenciales, cuenta, grupo, comunidad, página, archivo): resuelve su config
+ * y devuelve el MeshServer elegido (StarSeed público por defecto, o uno propio
+ * privado/público). Úsalo para decidir DÓNDE guardar/sincronizar cada cosa.
+ */
+export async function resolveContextServer(context: ConnectivityContext): Promise<MeshServer> {
+  try {
+    const cfg = await resolveContextConnectivity(context);
+    return getMeshServer(cfg.serverId) ?? STARSEED_PUBLIC_SERVER;
+  } catch {
+    return STARSEED_PUBLIC_SERVER;
+  }
+}
+
+/**
+ * Convenience de publicación: transmite el contenido de un contexto con buenos
+ * valores por defecto (público P2, difusión). Un solo punto para "publicar a la
+ * red" desde cualquier emisor (posts, biblioteca, etc.) respetando su config.
+ */
+export async function publishForContext(
+  context: ConnectivityContext,
+  type: MeshPayloadType,
+  body: unknown,
+  opts?: { scope?: TransmitScope; cls?: TrafficClass; recipient?: string },
+): Promise<DeliveryReceipt> {
+  return transmitForContext(context, {
+    scope: opts?.scope ?? "public",
+    cls: opts?.cls ?? "P2",
+    type,
+    body,
+    target: "broadcast",
+    distance: "unknown",
+    recipient: opts?.recipient,
+  });
+}
+
 /* ── Re-exports de la API pública ──────────────────────────────────────────── */
 
 export { getMeshState, subscribeMeshState } from "./store";
@@ -603,6 +641,14 @@ export {
   MESH_PRIORITY_LABELS,
 } from "./rules";
 export { useMeshState, useNeuronMeshRules, useAllMeshRules, useNearbyBeacons, useDeliveryReceipts } from "./use-mesh";
+export {
+  getNetworkInbox,
+  subscribeNetworkInbox,
+  clearNetworkInbox,
+  useNetworkInbox,
+  MESH_INBOUND_EVENT,
+  type NetworkInboundItem,
+} from "./network-inbox";
 export { MESH_ALERT_EVENT, MESH_STATE_EVENT, MESH_DAEMON_DEFAULT_URL } from "./constants";
 export {
   getConnectivitySettings,

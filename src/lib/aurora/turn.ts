@@ -41,6 +41,8 @@
 
 import type { ChatMessage } from "@/ai/providers/types";
 import { astrauraChat, getIntelligenceSettings } from "@/ai/astraura/router";
+// Adenda 101: transmisión contextual del turno por la RED SINÁPTICA (fire-and-forget).
+import { transmitForContext, normalizeConnectivityConfig } from "@/ai/astraura/mesh";
 import {
   actionsSystemPromptSection,
   auroraToolsActionPromptSection,
@@ -442,6 +444,8 @@ export async function sendAuroraTurn(opts: SendAuroraTurnOptions): Promise<Auror
     tools: actions.length
       ? actions.map((a) => ({ name: a.name, ok: a.ok, summary: "" }))
       : undefined,
+    // Adenda 97: ruta completa para la barra de acciones (transparencia).
+    route: res?.route ?? undefined,
   };
 
   // 8) Persistir la respuesta.
@@ -454,6 +458,15 @@ export async function sendAuroraTurn(opts: SendAuroraTurnOptions): Promise<Auror
       source: opts.source ?? res?.route?.sourceLabel ?? null,
       meta,
     });
+
+    // Adenda 101: transmite la respuesta por la red sináptica según la
+    // conectividad del CHAT (privado → cuenta). No bloquea ni altera el
+    // retorno (fire-and-forget; nunca lanza).
+    void transmitForContext(
+      { kind: "config", config: normalizeConnectivityConfig(getChatConfig(convId)?.connectivity) },
+      { scope: "private", type: "message", cls: "P3", target: "account", recipient: convId,
+        body: { convId, role: "assistant", text: finalText } },
+    ).catch(() => {});
   }
 
   // 9) Voz opcional (respeta el toggle del chat + estilo de personalidad).

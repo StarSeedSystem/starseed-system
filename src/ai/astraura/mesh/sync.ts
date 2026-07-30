@@ -43,6 +43,10 @@ const FIELD_WHITELIST: Record<MeshPayloadType, readonly string[]> = {
   "state-delta": ["ns", "base", "patch"], // namespace, hash base, parche
   manifest: ["h", "dn", "pk", "bd"], // handle, displayName, clave pública, insignias
   "chunk-req": ["mid", "idx"], // msgId + índices que faltan
+  // Publicación de contenido: por la MALLA viaja solo el puntero/campos mínimos
+  // (el contenido completo va por el feed de servidor); estos son los campos que
+  // emiten los emisores (posts de entidad y biblioteca).
+  post: ["id", "entity_type", "entity_slug", "body", "media_url", "kind", "name", "category", "folder", "entity"],
 };
 
 /** Filtra un body a su whitelist (defensa en profundidad; puro). */

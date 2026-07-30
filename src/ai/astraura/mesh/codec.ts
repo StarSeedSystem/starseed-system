@@ -41,6 +41,7 @@ const TYPE_TO_NIBBLE: Record<MeshPayloadType, number> = {
   "state-delta": 3,
   manifest: 4,
   "chunk-req": 5,
+  post: 6,
 };
 const NIBBLE_TO_TYPE: MeshPayloadType[] = [
   "alert",
@@ -49,6 +50,7 @@ const NIBBLE_TO_TYPE: MeshPayloadType[] = [
   "state-delta",
   "manifest",
   "chunk-req",
+  "post",
 ];
 
 const FLAG_DEFLATE = 0b0001;

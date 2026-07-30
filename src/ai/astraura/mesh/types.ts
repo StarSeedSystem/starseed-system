@@ -108,6 +108,7 @@ export type MeshPayloadType =
   | "alert" // P0 — alerta crítica comunitaria
   | "message" // P1 — mensajería corta cifrada
   | "presence" // P1 — presencia/latido de neurona
+  | "post" // P2 — publicación de contenido a la red (feed público/entidad)
   | "state-delta" // P2 — delta de memoria IA / config / entity_state
   | "manifest" // P3 — manifiesto de identidad soberana
   | "chunk-req"; // P2 — NACK selectivo: re-pedir un trozo perdido

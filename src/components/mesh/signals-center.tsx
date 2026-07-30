@@ -26,7 +26,7 @@ import { ConnectivityConfigPanel } from "@/components/connectivity/connectivity-
 import {
   useMeshState, detectSignals, connectMesh, connectWifiNode, getConnectivitySettings,
   subscribeConnectivity, setNeuronPosition, detectPlatform, recommendNative, hasAccountSession,
-  startMeshSubsystem,
+  startMeshSubsystem, useNetworkInbox,
   type SignalSource, type SignalKind, type NativeRecommendation,
 } from "@/ai/astraura/mesh";
 
@@ -42,6 +42,18 @@ const STATUS_META: Record<SignalSource["status"], { label: string; cls: string; 
   unsupported: { label: "sin API", cls: "text-white/40 bg-white/[0.05]", dot: "bg-zinc-500" },
   info: { label: "informativa", cls: "text-violet-300 bg-violet-500/15", dot: "bg-violet-400" },
 };
+
+/** Resumen legible del cuerpo de un mensaje recibido de la red. */
+function summarizeInbound(body: unknown): string {
+  if (body == null) return "";
+  if (typeof body !== "object") return String(body);
+  const b = body as Record<string, unknown>;
+  if (typeof b.text === "string") return b.text;
+  if (typeof b.body === "string") return b.body;
+  if (typeof b.name === "string") return String(b.name);
+  if (typeof b.kind === "string") return String(b.kind);
+  return "contenido de red";
+}
 
 export interface SignalsCenterProps {
   embedded?: boolean;
@@ -63,6 +75,9 @@ export function SignalsCenter({ embedded = false, compact = false }: SignalsCent
   // Arranca la malla en cualquier superficie donde aparezca Señales (página,
   // barra superior, Centro de Control) — antes lo hacía la pestaña «Internet».
   useEffect(() => { startMeshSubsystem(); }, []);
+
+  // Contenido RECIBIDO de otras neuronas por la red sináptica (bucle cerrado).
+  const inbox = useNetworkInbox();
 
   useEffect(() => {
     let alive = true;
@@ -219,6 +234,27 @@ export function SignalsCenter({ embedded = false, compact = false }: SignalsCent
           relé siempre on
         </span>
       </div>
+
+      {/* Actividad de RED RECIBIDA de otras neuronas (bucle cerrado: publicar →
+          almacenar → recibir por el feed público / relé de la red sináptica). */}
+      {inbox.length > 0 && (
+        <div className="rounded-xl border border-violet-400/25 bg-violet-500/[0.05] px-3 py-2.5">
+          <p className="flex items-center gap-2 text-[12px] font-medium text-white/90">
+            <Signal className="h-4 w-4 text-violet-300" /> Actividad de red recibida
+            <span className="ml-auto rounded-full bg-violet-500/20 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-violet-200">
+              {inbox.length}
+            </span>
+          </p>
+          <div className="mt-1.5 space-y-1">
+            {inbox.slice(0, 4).map((it) => (
+              <div key={it.id} className="flex items-center gap-2 text-[10px] text-white/55">
+                <span className="rounded bg-white/[0.06] px-1.5 py-0.5 font-mono uppercase text-white/70">{it.type}</span>
+                <span className="truncate">{summarizeInbound(it.body)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Acceso completo con la app nativa (según el SO de esta neurona): lo que
           el navegador no permite (Wi-Fi/datos directos, BLE/serie en iOS/Firefox,

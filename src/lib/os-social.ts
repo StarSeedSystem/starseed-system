@@ -19,6 +19,8 @@ import { createClient } from "@/utils/supabase/client";
 // los demás dispositivos/cuentas. No depende de que `os_posts` esté en la
 // publicación `supabase_realtime` (migración que puede no estar aplicada).
 import { emitChange, entityFeedTopic, FEED_GLOBAL_ENTITY, FEED_GLOBAL_TOPIC } from "@/lib/sync/live-signal";
+// Adenda 101: transmisión contextual por la RED SINÁPTICA (fire-and-forget).
+import { transmitForContext } from "@/ai/astraura/mesh";
 import {
     samplePages,
     sampleGroups,
@@ -605,6 +607,15 @@ export async function createPost(input: CreatePostInput): Promise<MutationResult
         // Publicado con ÉXITO → anunciarlo en vivo (no bloquea el retorno).
         const row = (data ?? null) as { id?: string | null; created_at?: string | null } | null;
         signalPostPublished(input.entityType, input.entitySlug, row?.id ?? undefined, row?.created_at ?? undefined);
+
+        // Adenda 101: además de la señal en vivo, transmite el post por la red
+        // sináptica según la conectividad de la ENTIDAD emisora. No bloquea ni
+        // altera el retorno (fire-and-forget; nunca lanza).
+        void transmitForContext(
+            { kind: "entity", entityKind: input.entityType, id: input.entitySlug },
+            { scope: "public", type: "post", cls: "P2", target: "broadcast", distance: "unknown",
+                body: { id: row?.id, entity_type: input.entityType, entity_slug: input.entitySlug, body: input.body, media_url: input.mediaUrl ?? null } },
+        ).catch(() => {});
 
         return { ok: true, active: true };
     } catch (e: any) {

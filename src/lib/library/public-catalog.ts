@@ -28,6 +28,8 @@ import { createClient } from "@/utils/supabase/client";
 import { useEffect, useState, useCallback } from "react";
 import type { EntityKind as SyncEntityKind } from "@/lib/sync/entity-state";
 import type { SavedItem, LibraryFolder } from "@/lib/library/entity-library";
+// Adenda 101: transmisión contextual al publicar en el catálogo (fire-and-forget).
+import { transmitForContext } from "@/ai/astraura/mesh";
 
 const TABLE = "library_public_items";
 
@@ -161,7 +163,17 @@ export async function publishItem(input: PublishItemInput): Promise<{ ok: boolea
             .select("id")
             .single();
         if (error || !data) return { ok: false, error: error?.message ?? "No se pudo publicar." };
-        return { ok: true, id: String((data as { id: string }).id) };
+        const id = String((data as { id: string }).id);
+
+        // Adenda 101: anuncia el ítem publicado por la red sináptica (contexto de
+        // cuenta). No bloquea ni altera el retorno (fire-and-forget; nunca lanza).
+        void transmitForContext(
+            { kind: "account" },
+            { scope: "public", type: "post", cls: "P3", target: "broadcast", distance: "unknown",
+                body: { kind: "library-item", id, name: input.name, category: input.category } },
+        ).catch(() => {});
+
+        return { ok: true, id };
     } catch (e) {
         return { ok: false, error: e instanceof Error ? e.message : "Error al publicar." };
     }
@@ -267,6 +279,15 @@ export async function publishFolder(opts: {
 
         const { error } = await supabase.from(TABLE).insert(rows);
         if (error) return { ok: false, count: 0, error: error.message };
+
+        // Adenda 101: anuncia el folder publicado por la red sináptica según la
+        // conectividad de la ENTIDAD. No bloquea ni altera el retorno (fire-and-forget).
+        void transmitForContext(
+            { kind: "entity", entityKind: opts.entityRef.kind, id: opts.entityRef.id },
+            { scope: "public", type: "post", cls: "P3", target: "broadcast", distance: "unknown",
+                body: { kind: "library-folder", entity: opts.entityRef, folder: opts.destFolder ?? null } },
+        ).catch(() => {});
+
         return { ok: true, count: rows.length };
     } catch (e) {
         return { ok: false, count: 0, error: e instanceof Error ? e.message : "Error al publicar el folder." };
