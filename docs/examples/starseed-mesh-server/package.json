@@ -1,0 +1,15 @@
+{
+  "name": "starseed-mesh-server",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Servidor de referencia del Protocolo de Red Sináptica StarSeed (servidor propio): público + relé dirigido, persistencia (Postgres/SQLite/memoria), auth de grupo y federación.",
+  "type": "module",
+  "main": "index.mjs",
+  "engines": { "node": ">=22.5.0" },
+  "scripts": {
+    "start": "node index.mjs"
+  },
+  "optionalDependencies": {
+    "pg": "^8.13.0"
+  }
+}

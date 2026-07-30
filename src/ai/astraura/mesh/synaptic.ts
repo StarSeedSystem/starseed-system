@@ -26,6 +26,7 @@ import {
   pullPublicFeed,
   pullPublicExtra,
   pullRelayExtra,
+  subscribeRelayRealtime,
   type RelayBeacon,
 } from "./server-relay";
 
@@ -46,6 +47,8 @@ let emitTimer: ReturnType<typeof setInterval> | null = null;
 let pullTimer: ReturnType<typeof setInterval> | null = null;
 let inboxTimer: ReturnType<typeof setInterval> | null = null;
 let publicTimer: ReturnType<typeof setInterval> | null = null;
+/** Desuscripción del realtime (entrega instantánea). */
+let realtimeOff: (() => void) | null = null;
 /** Marca de agua de la bandeja: solo entregamos lo posterior a esto. */
 let inboxWatermark = 0;
 /** Marca de agua del feed público (contenido de otras neuronas). */
@@ -176,6 +179,17 @@ export function startSynapticLayer(): void {
   pullTimer = setInterval(() => void refreshBeacons(), BEACON_PULL_MS);
   inboxTimer = setInterval(() => void pollInbox(), INBOX_POLL_MS);
   publicTimer = setInterval(() => void pollPublicFeed(), INBOX_POLL_MS);
+  // Entrega INSTANTÁNEA por realtime (además del sondeo, que sigue de respaldo).
+  realtimeOff = subscribeRelayRealtime({
+    onContent: (it) => {
+      if (it.id && deliveredRelayIds.has(it.id)) return;
+      if (it.id) rememberDelivered(it.id);
+      publicWatermark = Math.max(publicWatermark, it.at);
+      inboxWatermark = Math.max(inboxWatermark, it.at);
+      deliverInbound({ type: it.ptype, cls: it.cls, body: it.body, from: 0 });
+    },
+    onBeacon: () => void refreshBeacons(),
+  });
 }
 
 /** Detiene la capa y retira el faro de esta neurona. */
@@ -186,6 +200,8 @@ export function stopSynapticLayer(): void {
   if (inboxTimer) clearInterval(inboxTimer);
   if (publicTimer) clearInterval(publicTimer);
   emitTimer = pullTimer = inboxTimer = publicTimer = null;
+  if (realtimeOff) realtimeOff();
+  realtimeOff = null;
   void purgeBeacon();
 }
 

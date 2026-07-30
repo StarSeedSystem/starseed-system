@@ -7,7 +7,7 @@ enviar y recibir contenido, en paralelo al servidor público StarSeed (Supabase)
 
 Cliente: `src/ai/astraura/mesh/server-relay.ts` — `postToEndpoint` (envío, Adenda 101)
 y `pullFromEndpoint` (recepción, Adenda 103). Endpoint base = `MeshServer.endpoint`
-(`servers.ts`). Implementación de referencia: `docs/examples/starseed-mesh-server.mjs`.
+(`servers.ts`). Implementación de referencia (paquete): `docs/examples/starseed-mesh-server/`.
 
 ## Envío (neurona → servidor)
 
@@ -57,6 +57,14 @@ En ambos casos la neurona **deduplica por `id`** y **excluye su propio `device_i
   feed público consume además el servidor propio activo de la cuenta.
 - **Buzón dirigido + persistencia real + auth** — Adenda 104: `pullRelayFromEndpoint` +
   `pullRelayExtra` (el sondeo de bandeja consume el buzón dirigido del servidor propio,
-  descifrando en cliente). La implementación de referencia usa **node:sqlite** (persistencia
-  real, con respaldo en memoria), **bearer token** y **buzón por `recipient`**.
-- **Futuro**: SDK/paquete servidor con Postgres, auth de grupo y federación entre servidores propios.
+  descifrando en cliente). Referencia con **node:sqlite** + bearer token + buzón por `recipient`.
+- **Realtime + identidades + paquete servidor** — Adenda 105:
+  · `subscribeRelayRealtime` (Supabase Realtime sobre `os_mesh_relay`): entrega INSTANTÁNEA
+    del contenido/relé/faros sin esperar el sondeo (que sigue de respaldo).
+  · `neuronIdentities()`: el buzón dirigido se recoge para TODAS las identidades de la neurona
+    — dispositivo, **cuenta** (uuid) y **grupos** (`group:<slug>` vía `os_memberships`). El
+    `recipient` de una transmisión puede ser un uuid de cuenta o `group:<slug>`.
+  · Paquete de referencia `docs/examples/starseed-mesh-server/` con **Postgres** (además de
+    SQLite/memoria), **auth de grupo** (tokens → identidades; el buzón solo lo lee su dueño) y
+    **federación** (peer-pull entre servidores propios).
+- **Futuro**: identidades verificadas (firma), federación con reconciliación y realtime del buzón dirigido en servidores propios (hoy por sondeo).

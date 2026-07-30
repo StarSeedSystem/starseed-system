@@ -540,9 +540,127 @@ export async function pullRelayFromEndpoint(endpoint: string, recipient: string,
   }
 }
 
-/** Buzón dirigido ADICIONAL del servidor propio activo (para esta neurona). */
+/**
+ * Identidades de esta neurona a las que puede ir dirigido un relé (Adenda 105):
+ *   · deviceId       — esta neurona concreta.
+ *   · <owner uuid>   — la CUENTA (todas sus neuronas).
+ *   · "group:<slug>" — cada GRUPO del que la cuenta es miembro (os_memberships).
+ * Best-effort: sin sesión devuelve solo el deviceId.
+ */
+export async function neuronIdentities(): Promise<string[]> {
+  const ids: string[] = [deviceId()];
+  try {
+    const supabase = await client();
+    if (!supabase) return ids;
+    const owner = await ownerId(supabase);
+    if (!owner) return ids;
+    ids.push(owner);
+    try {
+      const { data } = await supabase.from("os_memberships").select("group_slug").eq("user_id", owner);
+      if (Array.isArray(data)) {
+        for (const r of data as Array<Record<string, unknown>>) {
+          const g = r.group_slug ? String(r.group_slug) : "";
+          if (g) ids.push(`group:${g}`);
+        }
+      }
+    } catch {
+      /* sin tabla de membresías: solo cuenta + dispositivo */
+    }
+  } catch {
+    /* */
+  }
+  return ids;
+}
+
+/**
+ * Buzón dirigido ADICIONAL del servidor propio activo: recoge el relé dirigido a
+ * CUALQUIERA de las identidades de la neurona (dispositivo, cuenta y grupos).
+ */
 export async function pullRelayExtra(since: number): Promise<RelayInboundItem[]> {
   const ep = activeAccountEndpoint();
   if (!ep) return [];
-  return pullRelayFromEndpoint(ep, deviceId(), since);
+  const ids = await neuronIdentities();
+  const lists = await Promise.all(ids.map((id) => pullRelayFromEndpoint(ep, id, since)));
+  return lists.flat();
+}
+
+/**
+ * Suscripción REALTIME a `os_mesh_relay` (INSERT) para entrega INSTANTÁNEA sin
+ * esperar el sondeo (Adenda 105): contenido público / relé propio → `onContent`;
+ * faros → `onBeacon`. Best-effort: si el realtime no está publicado/disponible,
+ * no hace nada y el sondeo sigue cubriéndolo. Devuelve unsubscribe. Nunca lanza.
+ */
+export function subscribeRelayRealtime(handlers: {
+  onContent: (item: RelayInboundItem) => void;
+  onBeacon: () => void;
+}): () => void {
+  let channel: unknown = null;
+  let cancelled = false;
+  void (async () => {
+    try {
+      const supabase = await client();
+      if (!supabase || cancelled) return;
+      const me = deviceId();
+      const ch = (supabase as unknown as { channel: (n: string) => any })
+        .channel("ss-mesh-relay-live")
+        .on(
+          "postgres_changes",
+          { event: "INSERT", schema: "public", table: "os_mesh_relay" },
+          async (payload: { new?: Record<string, unknown> }) => {
+            try {
+              const row = payload?.new;
+              if (!row) return;
+              if (String(row.device_id ?? "") === me) return; // no lo mío
+              const kind = String(row.kind ?? "");
+              const channelName = String(row.channel ?? "");
+              if (kind === "beacon") {
+                handlers.onBeacon();
+                return;
+              }
+              if (kind !== "data") return;
+              let body: unknown = row.payload ?? null;
+              if (channelName === "relay" && row.enc === true) {
+                const dec = await decryptEnvelope(row.payload as EncEnvelope);
+                if (dec && typeof dec === "object") body = (dec as { body?: unknown }).body ?? dec;
+                else return; // cifrado sin clave: no entregable
+              }
+              handlers.onContent({
+                id: String(row.id ?? ""),
+                cls: String(row.cls ?? "P2") as TrafficClass,
+                ptype: String(row.ptype ?? "post") as MeshPayloadType,
+                body,
+                from: row.device_id ? String(row.device_id) : null,
+                at: row.created_at ? Date.parse(String(row.created_at)) : 0,
+                locked: false,
+              });
+            } catch {
+              /* */
+            }
+          },
+        )
+        .subscribe();
+      channel = ch;
+      if (cancelled) {
+        try {
+          (supabase as unknown as { removeChannel: (c: unknown) => void }).removeChannel(ch);
+        } catch {
+          /* */
+        }
+      }
+    } catch {
+      /* */
+    }
+  })();
+  return () => {
+    cancelled = true;
+    void (async () => {
+      try {
+        if (!channel) return;
+        const supabase = await client();
+        (supabase as unknown as { removeChannel: (c: unknown) => void } | null)?.removeChannel(channel);
+      } catch {
+        /* */
+      }
+    })();
+  };
 }
