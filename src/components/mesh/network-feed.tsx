@@ -11,7 +11,7 @@
 
 import { useMemo } from "react";
 import Link from "next/link";
-import { Radio, Trash2, Inbox, FileText, MessageSquare, Signal, ShieldAlert, RefreshCw } from "lucide-react";
+import { Radio, Trash2, Inbox, FileText, MessageSquare, Signal, ShieldAlert, ShieldCheck, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useNetworkInbox, clearNetworkInbox } from "@/ai/astraura/mesh";
 
@@ -130,6 +130,11 @@ export function NetworkFeed({ embedded = false }: { embedded?: boolean }) {
                       {m.label}
                     </span>
                     <span className="text-[10px] text-white/40">{fmtAgo(it.at)}</span>
+                    {it.verified && (
+                      <span className="inline-flex items-center gap-0.5 rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider text-emerald-300" title="Firma verificada">
+                        <ShieldCheck className="h-2.5 w-2.5" /> verificado
+                      </span>
+                    )}
                   </div>
                   <p className="mt-0.5 truncate text-[13px] text-white/90">{p.title}</p>
                   {p.detail && <p className="truncate text-[10px] text-white/45">{p.detail}</p>}

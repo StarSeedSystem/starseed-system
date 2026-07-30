@@ -27,7 +27,9 @@ import {
   pullPublicExtra,
   pullRelayExtra,
   subscribeRelayRealtime,
+  subscribeEndpointStream,
   type RelayBeacon,
+  type RelayInboundItem,
 } from "./server-relay";
 
 /** Cadencias (ms). El faro se refresca antes de caducar (BEACON_TTL 5 min). */
@@ -49,6 +51,8 @@ let inboxTimer: ReturnType<typeof setInterval> | null = null;
 let publicTimer: ReturnType<typeof setInterval> | null = null;
 /** Desuscripción del realtime (entrega instantánea). */
 let realtimeOff: (() => void) | null = null;
+/** Desuscripción del realtime SSE del servidor propio. */
+let streamOff: (() => void) | null = null;
 /** Marca de agua de la bandeja: solo entregamos lo posterior a esto. */
 let inboxWatermark = 0;
 /** Marca de agua del feed público (contenido de otras neuronas). */
@@ -134,7 +138,7 @@ async function pollInbox(): Promise<void> {
       if (it.locked) continue; // cifrado sin clave: no se puede entregar
       if (it.id && deliveredRelayIds.has(it.id)) continue; // ya entregado
       if (it.id) rememberDelivered(it.id);
-      deliverInbound({ type: it.ptype, cls: it.cls, body: it.body, from: 0 });
+      deliverInbound({ type: it.ptype, cls: it.cls, body: it.body, from: 0, verified: it.verified });
     }
   } catch {
     /* */
@@ -159,7 +163,7 @@ async function pollPublicFeed(): Promise<void> {
     for (const it of items.slice().sort((a, b) => a.at - b.at)) {
       if (it.id && deliveredRelayIds.has(it.id)) continue; // ya entregado
       if (it.id) rememberDelivered(it.id);
-      deliverInbound({ type: it.ptype, cls: it.cls, body: it.body, from: 0 });
+      deliverInbound({ type: it.ptype, cls: it.cls, body: it.body, from: 0, verified: it.verified });
     }
   } catch {
     /* */
@@ -180,16 +184,16 @@ export function startSynapticLayer(): void {
   inboxTimer = setInterval(() => void pollInbox(), INBOX_POLL_MS);
   publicTimer = setInterval(() => void pollPublicFeed(), INBOX_POLL_MS);
   // Entrega INSTANTÁNEA por realtime (además del sondeo, que sigue de respaldo).
-  realtimeOff = subscribeRelayRealtime({
-    onContent: (it) => {
-      if (it.id && deliveredRelayIds.has(it.id)) return;
-      if (it.id) rememberDelivered(it.id);
-      publicWatermark = Math.max(publicWatermark, it.at);
-      inboxWatermark = Math.max(inboxWatermark, it.at);
-      deliverInbound({ type: it.ptype, cls: it.cls, body: it.body, from: 0 });
-    },
-    onBeacon: () => void refreshBeacons(),
-  });
+  const onLiveItem = (it: RelayInboundItem) => {
+    if (it.id && deliveredRelayIds.has(it.id)) return;
+    if (it.id) rememberDelivered(it.id);
+    publicWatermark = Math.max(publicWatermark, it.at);
+    inboxWatermark = Math.max(inboxWatermark, it.at);
+    deliverInbound({ type: it.ptype, cls: it.cls, body: it.body, from: 0, verified: it.verified });
+  };
+  realtimeOff = subscribeRelayRealtime({ onContent: onLiveItem, onBeacon: () => void refreshBeacons() });
+  // Realtime SSE del servidor propio activo (si lo hay).
+  streamOff = subscribeEndpointStream(onLiveItem);
 }
 
 /** Detiene la capa y retira el faro de esta neurona. */
@@ -201,7 +205,8 @@ export function stopSynapticLayer(): void {
   if (publicTimer) clearInterval(publicTimer);
   emitTimer = pullTimer = inboxTimer = publicTimer = null;
   if (realtimeOff) realtimeOff();
-  realtimeOff = null;
+  if (streamOff) streamOff();
+  realtimeOff = streamOff = null;
   void purgeBeacon();
 }
 

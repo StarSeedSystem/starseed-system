@@ -44,6 +44,12 @@ un servidor central.
 | POST | `/mesh/relay` | Relé dirigido (`envelope.recipient`); body cifrado E2E por el cliente. |
 | GET | `/mesh/public?since=` | Feed público posterior a `since`. |
 | GET | `/mesh/relay?recipient=&since=` | Buzón dirigido de una identidad (auth por token). |
+| GET | `/mesh/stream?recipients=&token=` | **SSE**: empuje instantáneo del feed público + buzón dirigido a esas identidades. |
+
+Notas (Adenda 106): el contenido público va **firmado** por el cliente (ECDSA) — el servidor
+solo lo transporta y los receptores verifican. La **federación** deduplica por `oid` (id de origen
+estable) con marca de agua por par, de modo que un ítem re-federado por varios pares se ignora
+(anti-bucle).
 
 Producción: pon el servidor tras HTTPS + un dominio, define `STARSEED_TOKENS`, usa
 Postgres y (opcional) `STARSEED_PEERS` para federar con otros nodos de tu comunidad.

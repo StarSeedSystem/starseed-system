@@ -22,6 +22,7 @@
 import { getMeshPrivacy } from "./privacy";
 import { getConnectivitySettings } from "./connectivity";
 import { getMeshServer } from "./servers";
+import { wrapSigned, unwrapSigned } from "./mesh-identity";
 import { deviceId } from "./federation";
 import { encryptEnvelope, decryptEnvelope, type EncEnvelope } from "./relay-crypto";
 import { getActiveModemPreset } from "./sync";
@@ -113,10 +114,12 @@ async function postToEndpoint(endpoint: string, channel: "public" | "relay", env
   }
 }
 
-/** Sube CONTENIDO PÚBLICO (texto plano). Cualquiera de la red lo alcanza. */
+/** Sube CONTENIDO PÚBLICO (texto plano, FIRMADO). Cualquiera de la red lo alcanza. */
 export async function uploadPublic(env: ServerEnvelope, serverId?: string): Promise<ServerSendResult> {
+  // Firma el contenido público (autenticidad + integridad); el receptor verifica.
+  const signed = await wrapSigned(env.body);
   const ep = customEndpoint(serverId);
-  if (ep) return postToEndpoint(ep, "public", env);
+  if (ep) return postToEndpoint(ep, "public", { ...env, body: signed });
   try {
     const supabase = await client();
     if (!supabase) return { ok: false, detail: "sin cliente de servidor" };
@@ -131,7 +134,7 @@ export async function uploadPublic(env: ServerEnvelope, serverId?: string): Prom
         cls: env.cls,
         ptype: env.ptype,
         enc: false,
-        payload: (env.body ?? {}) as Record<string, unknown>,
+        payload: signed,
         oid: env.oid ?? null,
         device_id: deviceId(),
         expires_at: null, // lo público no caduca por defecto
@@ -341,6 +344,8 @@ export interface RelayInboundItem {
   at: number;
   /** true si venía cifrado y NO se pudo descifrar (falta la clave de cuenta). */
   locked: boolean;
+  /** true si el contenido público iba FIRMADO y la firma verificó (Adenda 106). */
+  verified?: boolean;
 }
 
 /**
@@ -420,14 +425,16 @@ export async function pullPublicFeed(since: number): Promise<RelayInboundItem[]>
     const out: RelayInboundItem[] = [];
     for (const row of data as Array<Record<string, unknown>>) {
       if (String(row.device_id ?? "") === me) continue; // no re-consumir lo mío
+      const u = await unwrapSigned(row.payload);
       out.push({
         id: String(row.id ?? ""),
         cls: String(row.cls ?? "P2") as TrafficClass,
         ptype: String(row.ptype ?? "post") as MeshPayloadType,
-        body: row.payload ?? null,
+        body: u.body,
         from: row.device_id ? String(row.device_id) : null,
         at: row.created_at ? Date.parse(String(row.created_at)) : 0,
         locked: false,
+        verified: u.verified,
       });
     }
     return out;
@@ -459,14 +466,16 @@ export async function pullFromEndpoint(endpoint: string, since: number): Promise
       if (!raw || typeof raw !== "object") continue;
       const row = raw as Record<string, unknown>;
       if (String(row.device_id ?? "") === me) continue;
+      const u = await unwrapSigned(row.body ?? row.payload ?? row.envelope ?? null);
       out.push({
         id: String(row.id ?? `${row.device_id ?? ""}-${row.at ?? row.created_at ?? ""}`),
         cls: String(row.cls ?? "P2") as TrafficClass,
         ptype: String(row.ptype ?? row.type ?? "post") as MeshPayloadType,
-        body: row.body ?? row.payload ?? row.envelope ?? null,
+        body: u.body,
         from: row.device_id ? String(row.device_id) : null,
         at: typeof row.at === "number" ? row.at : row.created_at ? Date.parse(String(row.created_at)) : 0,
         locked: false,
+        verified: u.verified,
       });
     }
     return out;
@@ -585,6 +594,82 @@ export async function pullRelayExtra(since: number): Promise<RelayInboundItem[]>
 }
 
 /**
+ * Suscripción REALTIME (SSE) al servidor propio activo (Adenda 106): abre un
+ * EventSource a `<endpoint>/mesh/stream?recipients=<ids>` y entrega al instante el
+ * feed público y el buzón dirigido a cualquiera de las identidades de la neurona,
+ * sin esperar el sondeo. Best-effort (servidores abiertos; auth'd requiere token
+ * en query). Devuelve unsubscribe. Nunca lanza.
+ */
+export function subscribeEndpointStream(onItem: (item: RelayInboundItem) => void): () => void {
+  if (typeof window === "undefined" || typeof EventSource === "undefined") return () => {};
+  let es: EventSource | null = null;
+  let cancelled = false;
+  void (async () => {
+    try {
+      const ep = activeAccountEndpoint();
+      if (!ep || cancelled) return;
+      const ids = await neuronIdentities();
+      const me = deviceId();
+      const url = `${ep}/mesh/stream?recipients=${encodeURIComponent(ids.join(","))}`;
+      es = new EventSource(url);
+      es.onmessage = (ev: MessageEvent) => {
+        void (async () => {
+          try {
+            const row = JSON.parse(String(ev.data)) as Record<string, unknown>;
+            if (String(row.device_id ?? "") === me) return;
+            let body: unknown = row.body ?? null;
+            let verified = false;
+            if (String(row.channel ?? "") === "relay") {
+              if (body && typeof body === "object" && "iv" in (body as object) && "ct" in (body as object)) {
+                const dec = await decryptEnvelope(body as EncEnvelope);
+                if (dec && typeof dec === "object") body = (dec as { body?: unknown }).body ?? dec;
+                else return;
+              }
+            } else {
+              const u = await unwrapSigned(body);
+              body = u.body;
+              verified = u.verified;
+            }
+            onItem({
+              id: String(row.id ?? `${row.device_id ?? ""}-${row.at ?? ""}`),
+              cls: String(row.cls ?? "P2") as TrafficClass,
+              ptype: String(row.ptype ?? row.type ?? "post") as MeshPayloadType,
+              body,
+              from: row.device_id ? String(row.device_id) : null,
+              at: typeof row.at === "number" ? row.at : 0,
+              locked: false,
+              verified,
+            });
+          } catch {
+            /* */
+          }
+        })();
+      };
+      es.onerror = () => {
+        /* EventSource reintenta solo */
+      };
+      if (cancelled) {
+        try {
+          es.close();
+        } catch {
+          /* */
+        }
+      }
+    } catch {
+      /* */
+    }
+  })();
+  return () => {
+    cancelled = true;
+    try {
+      es?.close();
+    } catch {
+      /* */
+    }
+  };
+}
+
+/**
  * Suscripción REALTIME a `os_mesh_relay` (INSERT) para entrega INSTANTÁNEA sin
  * esperar el sondeo (Adenda 105): contenido público / relé propio → `onContent`;
  * faros → `onBeacon`. Best-effort: si el realtime no está publicado/disponible,
@@ -619,10 +704,15 @@ export function subscribeRelayRealtime(handlers: {
               }
               if (kind !== "data") return;
               let body: unknown = row.payload ?? null;
+              let verified = false;
               if (channelName === "relay" && row.enc === true) {
                 const dec = await decryptEnvelope(row.payload as EncEnvelope);
                 if (dec && typeof dec === "object") body = (dec as { body?: unknown }).body ?? dec;
                 else return; // cifrado sin clave: no entregable
+              } else {
+                const u = await unwrapSigned(row.payload); // público firmado
+                body = u.body;
+                verified = u.verified;
               }
               handlers.onContent({
                 id: String(row.id ?? ""),
@@ -632,6 +722,7 @@ export function subscribeRelayRealtime(handlers: {
                 from: row.device_id ? String(row.device_id) : null,
                 at: row.created_at ? Date.parse(String(row.created_at)) : 0,
                 locked: false,
+                verified,
               });
             } catch {
               /* */

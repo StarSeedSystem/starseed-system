@@ -23,6 +23,8 @@ export interface NetworkInboundItem {
   cls: string;
   body: unknown;
   at: number;
+  /** Firma pública verificada (Adenda 106). */
+  verified?: boolean;
 }
 
 const MAX_ITEMS = 100;
@@ -47,7 +49,7 @@ function wire(): void {
   window.addEventListener(MESH_INBOUND_EVENT, (e: Event) => {
     try {
       const d = (e as CustomEvent).detail as
-        | { type?: string; cls?: string; body?: unknown; at?: number }
+        | { type?: string; cls?: string; body?: unknown; at?: number; verified?: boolean }
         | undefined;
       if (!d) return;
       const item: NetworkInboundItem = {
@@ -56,6 +58,7 @@ function wire(): void {
         cls: String(d.cls ?? "P2"),
         body: d.body ?? null,
         at: typeof d.at === "number" ? d.at : 0,
+        verified: d.verified === true,
       };
       items = [item, ...items].slice(0, MAX_ITEMS);
       emit();

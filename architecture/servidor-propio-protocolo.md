@@ -67,4 +67,13 @@ En ambos casos la neurona **deduplica por `id`** y **excluye su propio `device_i
   · Paquete de referencia `docs/examples/starseed-mesh-server/` con **Postgres** (además de
     SQLite/memoria), **auth de grupo** (tokens → identidades; el buzón solo lo lee su dueño) y
     **federación** (peer-pull entre servidores propios).
-- **Futuro**: identidades verificadas (firma), federación con reconciliación y realtime del buzón dirigido en servidores propios (hoy por sondeo).
+- **Firma + SSE + federación robusta** — Adenda 106:
+  · **Contenido público FIRMADO** (ECDSA P-256, `mesh-identity.ts`): `wrapSigned` al enviar,
+    `unwrapSigned` al recibir → los ítems llevan `verified` (insignia en /red-feed). El relé
+    privado ya iba autenticado por AES-GCM.
+  · **Realtime del servidor propio (SSE)**: `GET /mesh/stream?recipients=<ids>` empuja feed
+    público + buzón dirigido al instante; cliente `subscribeEndpointStream` (EventSource).
+  · **Federación robusta**: `oid` (id de origen estable) con dedup único, marca de agua POR PAR
+    y anti-bucle (re-federar un ítem ya visto se ignora). Ver el paquete de referencia.
+- **Futuro**: identidades ligadas a cuenta por registro firmado; SSE con auth por token en query
+  end-to-end; reconciliación de federación entre muchos pares con control de saltos.

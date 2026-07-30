@@ -278,6 +278,8 @@ export function deliverInbound(msg: {
   cls: TrafficClass;
   body: unknown;
   from: number;
+  /** Firma pública verificada (Adenda 106). */
+  verified?: boolean;
 }): void {
   try {
     if (typeof window === "undefined") return;
