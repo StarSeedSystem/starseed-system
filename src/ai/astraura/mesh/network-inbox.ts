@@ -13,6 +13,7 @@
  */
 
 import { useSyncExternalStore } from "react";
+import { boundAccountFor } from "./server-relay";
 
 export const MESH_INBOUND_EVENT = "starseed:mesh-inbound";
 
@@ -25,6 +26,10 @@ export interface NetworkInboundItem {
   at: number;
   /** Firma pública verificada (Adenda 106). */
   verified?: boolean;
+  /** Fingerprint de la identidad firmante (Adenda 107). */
+  signerFp?: string;
+  /** Cuenta ligada a esa identidad (verificada), si se conoce. */
+  account?: string;
 }
 
 const MAX_ITEMS = 100;
@@ -49,9 +54,10 @@ function wire(): void {
   window.addEventListener(MESH_INBOUND_EVENT, (e: Event) => {
     try {
       const d = (e as CustomEvent).detail as
-        | { type?: string; cls?: string; body?: unknown; at?: number; verified?: boolean }
+        | { type?: string; cls?: string; body?: unknown; at?: number; verified?: boolean; signerFp?: string }
         | undefined;
       if (!d) return;
+      const signerFp = typeof d.signerFp === "string" ? d.signerFp : undefined;
       const item: NetworkInboundItem = {
         id: `in-${++seq}-${d.at ?? 0}`,
         type: String(d.type ?? "message"),
@@ -59,6 +65,8 @@ function wire(): void {
         body: d.body ?? null,
         at: typeof d.at === "number" ? d.at : 0,
         verified: d.verified === true,
+        signerFp,
+        account: boundAccountFor(signerFp) ?? undefined,
       };
       items = [item, ...items].slice(0, MAX_ITEMS);
       emit();

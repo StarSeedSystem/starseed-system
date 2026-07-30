@@ -33,8 +33,13 @@ Se elige automáticamente: **Postgres** (`DATABASE_URL` + paquete `pg`) →
 
 `STARSEED_PEERS='https://otro:8787,https://tercero:8787'` — el servidor sondea el
 `/mesh/public` de sus pares cada `STARSEED_FEDERATE_MS` (por defecto 20 s) y fusiona
-el contenido (dedup por origen/tiempo), tejiendo una malla de servidores propios sin
-un servidor central.
+el contenido (dedup por `oid`, marca de agua por par), tejiendo una malla de servidores
+propios sin un servidor central.
+
+- `STARSEED_MAX_HOPS=4` — **control de saltos**: cada ítem lleva `hops`; al re-federar se
+  incrementa y se descarta si supera el límite. Corta bucles y propagación infinita.
+- `STARSEED_VERIFY=1` — **solo firma válida**: rechaza (400) el `POST /mesh/public` sin firma
+  ECDSA válida y descarta en federación el ítem público sin firma. El relé va cifrado E2E aparte.
 
 ## Endpoints
 
@@ -46,10 +51,15 @@ un servidor central.
 | GET | `/mesh/relay?recipient=&since=` | Buzón dirigido de una identidad (auth por token). |
 | GET | `/mesh/stream?recipients=&token=` | **SSE**: empuje instantáneo del feed público + buzón dirigido a esas identidades. |
 
-Notas (Adenda 106): el contenido público va **firmado** por el cliente (ECDSA) — el servidor
-solo lo transporta y los receptores verifican. La **federación** deduplica por `oid` (id de origen
-estable) con marca de agua por par, de modo que un ítem re-federado por varios pares se ignora
-(anti-bucle).
+Notas: el contenido público va **firmado** por el cliente (ECDSA) — el servidor solo lo transporta
+y los receptores verifican. La **federación** deduplica por `oid` (id de origen estable) con marca
+de agua por par (anti-bucle). Adenda 107 añade **control de saltos** (`STARSEED_MAX_HOPS`) y
+**verificación de firma de origen** opcional (`STARSEED_VERIFY=1`) también en el peer-pull; el
+buzón dirigido y el SSE aceptan token por `Authorization: Bearer` o `?token=`.
+
+Verificado con `scripts/smoke-mesh-server.mjs` (endpoints, auth, verify, SSE) y
+`scripts/smoke-mesh-federate.mjs` (peer-pull, `hops++`, control de saltos) en la raíz del repo.
 
 Producción: pon el servidor tras HTTPS + un dominio, define `STARSEED_TOKENS`, usa
-Postgres y (opcional) `STARSEED_PEERS` para federar con otros nodos de tu comunidad.
+Postgres y (opcional) `STARSEED_PEERS` + `STARSEED_MAX_HOPS`/`STARSEED_VERIFY` para federar
+con otros nodos de tu comunidad de forma segura.

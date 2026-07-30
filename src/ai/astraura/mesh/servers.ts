@@ -36,6 +36,8 @@ export interface MeshServer {
   /** ¿El usuario puede editar/borrar este servidor? (el StarSeed no). */
   editable: boolean;
   notes?: string;
+  /** Token bearer para servidores con auth (Adenda 107). Vacío = servidor abierto. */
+  token?: string;
 }
 
 /** Servidor público StarSeed: por defecto y no editable/borrable. */
@@ -65,6 +67,7 @@ function readCustom(): MeshServer[] {
         visibility: x.visibility === "public" ? "public" : "private",
         editable: true,
         notes: typeof x.notes === "string" ? x.notes : undefined,
+        token: typeof x.token === "string" ? x.token : undefined,
       }))
       .filter((s) => s.id && s.id !== "starseed");
   } catch {
@@ -106,6 +109,7 @@ export function addMeshServer(input: {
   endpoint?: string;
   visibility?: MeshServerVisibility;
   notes?: string;
+  token?: string;
 }): MeshServer {
   const server: MeshServer = {
     id: newServerId(),
@@ -115,6 +119,7 @@ export function addMeshServer(input: {
     visibility: input.visibility === "public" ? "public" : "private",
     editable: true,
     notes: input.notes,
+    token: (input.token ?? "").trim() || undefined,
   };
   writeCustom([...readCustom(), server]);
   return server;
@@ -130,6 +135,7 @@ export function updateMeshServer(id: string, patch: Partial<Omit<MeshServer, "id
           ...("endpoint" in patch ? { endpoint: (patch.endpoint ?? "").trim() } : {}),
           ...("visibility" in patch ? { visibility: patch.visibility === "public" ? "public" : "private" } : {}),
           ...("notes" in patch ? { notes: patch.notes } : {}),
+          ...("token" in patch ? { token: (patch.token ?? "").trim() || undefined } : {}),
         }
       : s,
   );

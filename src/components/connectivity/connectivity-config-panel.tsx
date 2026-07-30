@@ -149,13 +149,15 @@ function ServerEditor({ servers, onChanged }: { servers: MeshServer[]; onChanged
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState("");
   const [endpoint, setEndpoint] = useState("");
+  const [token, setToken] = useState("");
   const [visibility, setVisibility] = useState<"public" | "private">("private");
 
   const submit = () => {
     if (!name.trim()) return;
-    addMeshServer({ name, endpoint, visibility });
+    addMeshServer({ name, endpoint, visibility, token });
     setName("");
     setEndpoint("");
+    setToken("");
     setVisibility("private");
     setAdding(false);
     onChanged();
@@ -201,6 +203,12 @@ function ServerEditor({ servers, onChanged }: { servers: MeshServer[]; onChanged
             value={endpoint}
             onChange={(e) => setEndpoint(e.target.value)}
             placeholder="Endpoint (URL) — opcional"
+            className="h-8 text-[12px]"
+          />
+          <Input
+            value={token}
+            onChange={(e) => setToken(e.target.value)}
+            placeholder="Token de acceso — opcional (servidores con auth)"
             className="h-8 text-[12px]"
           />
           <div className="flex items-center justify-between gap-2">

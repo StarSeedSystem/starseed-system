@@ -28,6 +28,8 @@ import {
   pullRelayExtra,
   subscribeRelayRealtime,
   subscribeEndpointStream,
+  registerIdentity,
+  refreshIdentities,
   type RelayBeacon,
   type RelayInboundItem,
 } from "./server-relay";
@@ -138,7 +140,7 @@ async function pollInbox(): Promise<void> {
       if (it.locked) continue; // cifrado sin clave: no se puede entregar
       if (it.id && deliveredRelayIds.has(it.id)) continue; // ya entregado
       if (it.id) rememberDelivered(it.id);
-      deliverInbound({ type: it.ptype, cls: it.cls, body: it.body, from: 0, verified: it.verified });
+      deliverInbound({ type: it.ptype, cls: it.cls, body: it.body, from: 0, verified: it.verified, signerFp: it.signerFp });
     }
   } catch {
     /* */
@@ -163,7 +165,7 @@ async function pollPublicFeed(): Promise<void> {
     for (const it of items.slice().sort((a, b) => a.at - b.at)) {
       if (it.id && deliveredRelayIds.has(it.id)) continue; // ya entregado
       if (it.id) rememberDelivered(it.id);
-      deliverInbound({ type: it.ptype, cls: it.cls, body: it.body, from: 0, verified: it.verified });
+      deliverInbound({ type: it.ptype, cls: it.cls, body: it.body, from: 0, verified: it.verified, signerFp: it.signerFp });
     }
   } catch {
     /* */
@@ -179,10 +181,15 @@ export function startSynapticLayer(): void {
   publicWatermark = Date.now() - 5 * 60_000;
   void refreshBeacons(); // radar inmediato
   void emitBeacon(); // anunciarme ya
+  void registerIdentity(); // publica mi reclamación firmada identidad↔cuenta
+  void refreshIdentities(); // mapa verificado fp→cuenta
   emitTimer = setInterval(() => void emitBeacon(), BEACON_EMIT_MS);
   pullTimer = setInterval(() => void refreshBeacons(), BEACON_PULL_MS);
   inboxTimer = setInterval(() => void pollInbox(), INBOX_POLL_MS);
-  publicTimer = setInterval(() => void pollPublicFeed(), INBOX_POLL_MS);
+  publicTimer = setInterval(() => {
+    void pollPublicFeed();
+    void refreshIdentities();
+  }, INBOX_POLL_MS);
   // Entrega INSTANTÁNEA por realtime (además del sondeo, que sigue de respaldo).
   const onLiveItem = (it: RelayInboundItem) => {
     if (it.id && deliveredRelayIds.has(it.id)) return;

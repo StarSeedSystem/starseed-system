@@ -280,6 +280,8 @@ export function deliverInbound(msg: {
   from: number;
   /** Firma pública verificada (Adenda 106). */
   verified?: boolean;
+  /** Fingerprint de la identidad firmante (Adenda 107). */
+  signerFp?: string;
 }): void {
   try {
     if (typeof window === "undefined") return;

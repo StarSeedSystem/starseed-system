@@ -22,7 +22,7 @@
 import { getMeshPrivacy } from "./privacy";
 import { getConnectivitySettings } from "./connectivity";
 import { getMeshServer } from "./servers";
-import { wrapSigned, unwrapSigned } from "./mesh-identity";
+import { wrapSigned, unwrapSigned, signContent, verifyContent, fpOf } from "./mesh-identity";
 import { deviceId } from "./federation";
 import { encryptEnvelope, decryptEnvelope, type EncEnvelope } from "./relay-crypto";
 import { getActiveModemPreset } from "./sync";
@@ -95,16 +95,37 @@ function customEndpoint(serverId?: string): string | null {
   }
 }
 
+/** Token bearer configurado para un servidor propio (Adenda 107). */
+function tokenFor(serverId?: string): string | undefined {
+  if (!serverId || serverId === "starseed") return undefined;
+  try {
+    return getMeshServer(serverId)?.token || undefined;
+  } catch {
+    return undefined;
+  }
+}
+/** Token del servidor propio ACTIVO de la cuenta. */
+function activeAccountToken(): string | undefined {
+  try {
+    return tokenFor(getConnectivitySettings().serverId);
+  } catch {
+    return undefined;
+  }
+}
+function authHeaders(token?: string): Record<string, string> {
+  return token ? { authorization: `Bearer ${token}` } : {};
+}
+
 /**
  * POST genérico a un servidor propio (público o privado añadido por la cuenta/
  * grupo). Best-effort: si el endpoint no responde o CORS lo bloquea, se informa
  * y la entrega hará failover. El protocolo es un JSON simple {channel, envelope}.
  */
-async function postToEndpoint(endpoint: string, channel: "public" | "relay", env: ServerEnvelope): Promise<ServerSendResult> {
+async function postToEndpoint(endpoint: string, channel: "public" | "relay", env: ServerEnvelope, token?: string): Promise<ServerSendResult> {
   try {
     const res = await fetch(`${endpoint}/mesh/${channel}`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", ...authHeaders(token) },
       body: JSON.stringify({ channel, device_id: deviceId(), envelope: env }),
     });
     if (!res.ok) return { ok: false, detail: `servidor propio rechazó (${res.status})` };
@@ -119,7 +140,7 @@ export async function uploadPublic(env: ServerEnvelope, serverId?: string): Prom
   // Firma el contenido público (autenticidad + integridad); el receptor verifica.
   const signed = await wrapSigned(env.body);
   const ep = customEndpoint(serverId);
-  if (ep) return postToEndpoint(ep, "public", { ...env, body: signed });
+  if (ep) return postToEndpoint(ep, "public", { ...env, body: signed }, tokenFor(serverId));
   try {
     const supabase = await client();
     if (!supabase) return { ok: false, detail: "sin cliente de servidor" };
@@ -157,7 +178,7 @@ export async function uploadRelay(env: ServerEnvelope, serverId?: string): Promi
     // propio tampoco lee el contenido privado).
     const enc = await encryptEnvelope({ cls: env.cls, ptype: env.ptype, body: env.body });
     if (!enc) return { ok: false, detail: "sin cifrado disponible: no se sube dato privado en claro" };
-    return postToEndpoint(ep, "relay", { ...env, body: enc as unknown });
+    return postToEndpoint(ep, "relay", { ...env, body: enc as unknown }, tokenFor(serverId));
   }
   try {
     const supabase = await client();
@@ -346,6 +367,73 @@ export interface RelayInboundItem {
   locked: boolean;
   /** true si el contenido público iba FIRMADO y la firma verificó (Adenda 106). */
   verified?: boolean;
+  /** Fingerprint de la identidad firmante (Adenda 107). */
+  signerFp?: string;
+}
+
+/* ── Registro de IDENTIDAD ↔ CUENTA (Adenda 107) ───────────────────────────── */
+
+let identityRegistered = false;
+let idMap = new Map<string, string>(); // fp → owner uuid (verificado)
+
+/**
+ * Publica UNA reclamación FIRMADA de identidad: "la cuenta <owner> controla la
+ * clave cuyo fingerprint es <fp>", firmando el uuid de la cuenta con la clave de
+ * identidad. Cualquier neurona la verifica y liga fp→cuenta. Una por neurona.
+ */
+export async function registerIdentity(): Promise<void> {
+  try {
+    if (identityRegistered) return;
+    const supabase = await client();
+    if (!supabase) return;
+    const owner = await ownerId(supabase);
+    if (!owner) return;
+    const claim = await signContent(owner); // firma el uuid de la cuenta
+    if (!claim) return;
+    identityRegistered = true;
+    const me = deviceId();
+    await supabase.from("os_mesh_relay").delete().eq("owner_id", owner).eq("device_id", me).eq("kind", "identity");
+    await supabase.from("os_mesh_relay").insert({
+      owner_id: owner,
+      channel: "public",
+      kind: "identity",
+      cls: "P3",
+      ptype: "manifest",
+      enc: false,
+      payload: { owner, fp: claim.f, pub: claim.k, sig: claim.s },
+      device_id: me,
+      expires_at: new Date(Date.now() + 30 * 24 * 60 * 60_000).toISOString(),
+    });
+  } catch {
+    identityRegistered = false;
+  }
+}
+
+/** Refresca el mapa VERIFICADO fp→cuenta desde el registro público. */
+export async function refreshIdentities(): Promise<void> {
+  try {
+    const supabase = await client();
+    if (!supabase) return;
+    const { data } = await supabase.from("os_mesh_relay").select("payload").eq("kind", "identity").limit(500);
+    if (!Array.isArray(data)) return;
+    const next = new Map<string, string>();
+    for (const row of data as Array<Record<string, unknown>>) {
+      const p = (row.payload ?? null) as { owner?: string; fp?: string; pub?: JsonWebKey; sig?: string } | null;
+      if (!p?.owner || !p.fp || !p.pub || !p.sig) continue;
+      if (!(await verifyContent(p.owner, p.sig, p.pub))) continue; // firma inválida
+      if ((await fpOf(p.pub)) !== p.fp) continue; // fp no coincide con la clave
+      next.set(p.fp, p.owner);
+    }
+    idMap = next;
+  } catch {
+    /* */
+  }
+}
+
+/** Cuenta ligada a un fingerprint de identidad (verificada), o null. */
+export function boundAccountFor(fp?: string): string | null {
+  if (!fp) return null;
+  return idMap.get(fp) ?? null;
 }
 
 /**
@@ -435,6 +523,7 @@ export async function pullPublicFeed(since: number): Promise<RelayInboundItem[]>
         at: row.created_at ? Date.parse(String(row.created_at)) : 0,
         locked: false,
         verified: u.verified,
+        signerFp: u.fp,
       });
     }
     return out;
@@ -449,10 +538,10 @@ export async function pullPublicFeed(since: number): Promise<RelayInboundItem[]>
  * El servidor responde `{items:[...]}` o un array. Best-effort; CORS/formatos
  * los define ese servidor. Ver el protocolo en architecture/servidor-propio-protocolo.md.
  */
-export async function pullFromEndpoint(endpoint: string, since: number): Promise<RelayInboundItem[]> {
+export async function pullFromEndpoint(endpoint: string, since: number, token?: string): Promise<RelayInboundItem[]> {
   try {
     const url = `${endpoint.replace(/\/$/, "")}/mesh/public?since=${encodeURIComponent(String(since))}`;
-    const res = await fetch(url, { method: "GET", headers: { accept: "application/json" } });
+    const res = await fetch(url, { method: "GET", headers: { accept: "application/json", ...authHeaders(token) } });
     if (!res.ok) return [];
     const j = (await res.json()) as unknown;
     const rows = Array.isArray(j)
@@ -476,6 +565,7 @@ export async function pullFromEndpoint(endpoint: string, since: number): Promise
         at: typeof row.at === "number" ? row.at : row.created_at ? Date.parse(String(row.created_at)) : 0,
         locked: false,
         verified: u.verified,
+        signerFp: u.fp,
       });
     }
     return out;
@@ -497,7 +587,7 @@ function activeAccountEndpoint(): string | null {
 export async function pullPublicExtra(since: number): Promise<RelayInboundItem[]> {
   const ep = activeAccountEndpoint();
   if (!ep) return [];
-  return pullFromEndpoint(ep, since);
+  return pullFromEndpoint(ep, since, activeAccountToken());
 }
 
 /**
@@ -506,10 +596,10 @@ export async function pullPublicExtra(since: number): Promise<RelayInboundItem[]
  * esta neurona. El `body` puede venir cifrado E2E ({iv,ct}); se descifra en
  * cliente (el servidor propio tampoco lo lee). Adenda 104. Best-effort.
  */
-export async function pullRelayFromEndpoint(endpoint: string, recipient: string, since: number): Promise<RelayInboundItem[]> {
+export async function pullRelayFromEndpoint(endpoint: string, recipient: string, since: number, token?: string): Promise<RelayInboundItem[]> {
   try {
     const url = `${endpoint.replace(/\/$/, "")}/mesh/relay?recipient=${encodeURIComponent(recipient)}&since=${encodeURIComponent(String(since))}`;
-    const res = await fetch(url, { method: "GET", headers: { accept: "application/json" } });
+    const res = await fetch(url, { method: "GET", headers: { accept: "application/json", ...authHeaders(token) } });
     if (!res.ok) return [];
     const j = (await res.json()) as unknown;
     const rows = Array.isArray(j)
@@ -589,7 +679,8 @@ export async function pullRelayExtra(since: number): Promise<RelayInboundItem[]>
   const ep = activeAccountEndpoint();
   if (!ep) return [];
   const ids = await neuronIdentities();
-  const lists = await Promise.all(ids.map((id) => pullRelayFromEndpoint(ep, id, since)));
+  const token = activeAccountToken();
+  const lists = await Promise.all(ids.map((id) => pullRelayFromEndpoint(ep, id, since, token)));
   return lists.flat();
 }
 
@@ -610,7 +701,8 @@ export function subscribeEndpointStream(onItem: (item: RelayInboundItem) => void
       if (!ep || cancelled) return;
       const ids = await neuronIdentities();
       const me = deviceId();
-      const url = `${ep}/mesh/stream?recipients=${encodeURIComponent(ids.join(","))}`;
+      const token = activeAccountToken();
+      const url = `${ep}/mesh/stream?recipients=${encodeURIComponent(ids.join(","))}${token ? `&token=${encodeURIComponent(token)}` : ""}`;
       es = new EventSource(url);
       es.onmessage = (ev: MessageEvent) => {
         void (async () => {
@@ -705,6 +797,7 @@ export function subscribeRelayRealtime(handlers: {
               if (kind !== "data") return;
               let body: unknown = row.payload ?? null;
               let verified = false;
+              let signerFp: string | undefined;
               if (channelName === "relay" && row.enc === true) {
                 const dec = await decryptEnvelope(row.payload as EncEnvelope);
                 if (dec && typeof dec === "object") body = (dec as { body?: unknown }).body ?? dec;
@@ -713,6 +806,7 @@ export function subscribeRelayRealtime(handlers: {
                 const u = await unwrapSigned(row.payload); // público firmado
                 body = u.body;
                 verified = u.verified;
+                signerFp = u.fp;
               }
               handlers.onContent({
                 id: String(row.id ?? ""),
@@ -723,6 +817,7 @@ export function subscribeRelayRealtime(handlers: {
                 at: row.created_at ? Date.parse(String(row.created_at)) : 0,
                 locked: false,
                 verified,
+                signerFp,
               });
             } catch {
               /* */

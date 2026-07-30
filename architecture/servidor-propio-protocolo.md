@@ -36,18 +36,38 @@ y `pullFromEndpoint` (recepción, Adenda 103). Endpoint base = `MeshServer.endpo
 - **GET `<endpoint>/mesh/relay?recipient=<deviceId>&since=<epoch_ms>`** — BUZÓN DIRIGIDO:
   los mensajes de relé dirigidos a esa neurona. `body` viene **cifrado E2E** (`{iv,ct}`);
   la neurona lo descifra en cliente. Requiere auth si el servidor la exige.
-  Respuesta `{ items: [ { id, device_id, cls, ptype, body, at } ] }`.
+  Respuesta `{ items: [ { id, device_id, cls, ptype, body, hops, at } ] }`.
+- **GET `<endpoint>/mesh/stream?recipients=<ids>&token=<token>`** — REALTIME (SSE): flujo
+  `text/event-stream` que **empuja al instante** cada ítem público y cada relé cuyo `recipient`
+  esté en `recipients`. Cada evento es `data: { channel, ...item }`. Cliente:
+  `subscribeEndpointStream` (`EventSource`); el sondeo GET queda de respaldo. El `token` viaja en
+  la query porque `EventSource` no admite cabeceras.
 
-En ambos casos la neurona **deduplica por `id`** y **excluye su propio `device_id`**.
+Los ítems incluyen `hops` (saltos de federación recorridos; 0 = origen local). En todos los casos
+la neurona **deduplica por `id`/`oid`** y **excluye su propio `device_id`**.
 
 ## Reglas
 
 - **CORS obligatorio**: el servidor debe responder `Access-Control-Allow-Origin` con el
   origen del OS (o `*` para uno público) y permitir `GET, POST, OPTIONS`.
 - **Relé cifrado E2E**: el servidor jamás lee `body` en `/mesh/relay`.
-- **Auth (opcional)**: cabecera `Authorization: Bearer <token>` en POST y en GET `/mesh/relay`.
-  El GET público puede quedar abierto. El token se guarda con el servidor (endpoint + credencial).
+- **Auth (opcional)**: cabecera `Authorization: Bearer <token>` en POST, en GET `/mesh/relay` y
+  en `GET /mesh/stream` (SSE; el token viaja como `?token=` en la query porque `EventSource` no
+  fija cabeceras). El GET público puede quedar abierto. El token se guarda **por servidor**
+  (`MeshServer.token`, editable en Señales → Servidor) y el cliente lo adjunta solo al endpoint
+  que lo tiene. Modelo de referencia: `STARSEED_TOKENS = { "<token>": ["<identidad>"] }` — el
+  buzón dirigido solo lo lee un token que **incluya** ese `recipient` (identidad).
+- **Firma de origen (opcional)**: el contenido público va **firmado** (ECDSA P-256, sobre
+  `{v:1,b,s,k,f}`). Un servidor en modo `STARSEED_VERIFY=1` **rechaza** (400) el POST público sin
+  firma válida y **descarta** en federación el ítem sin firma. El relé privado ya va autenticado
+  por AES-GCM.
+- **Identidad ↔ cuenta**: la neurona publica un **registro de identidad firmado**
+  (`kind:"identity"`, `payload:{owner,fp,pub,sig}`) que liga su huella pública (`fp`) a un `owner`
+  (uuid de cuenta). El receptor verifica la firma y resuelve `signerFp → cuenta`, mostrando el
+  contenido con su cuenta de origen (no solo la huella del dispositivo).
 - **Idempotencia**: los reintentos pueden reenviar; deduplica por `envelope.oid` / `id`.
+- **Control de saltos (federación)**: cada ítem lleva `hops`; al re-federar se incrementa y se
+  descarta si supera `STARSEED_MAX_HOPS` (def. 4). Evita bucles y propagación infinita entre pares.
 - **Retención**: el servidor decide TTL; la neurona solo pide `since` reciente.
 
 ## Estado
@@ -75,5 +95,19 @@ En ambos casos la neurona **deduplica por `id`** y **excluye su propio `device_i
     público + buzón dirigido al instante; cliente `subscribeEndpointStream` (EventSource).
   · **Federación robusta**: `oid` (id de origen estable) con dedup único, marca de agua POR PAR
     y anti-bucle (re-federar un ítem ya visto se ignora). Ver el paquete de referencia.
-- **Futuro**: identidades ligadas a cuenta por registro firmado; SSE con auth por token en query
-  end-to-end; reconciliación de federación entre muchos pares con control de saltos.
+- **Identidad↔cuenta + token e2e + federación endurecida** — Adenda 107:
+  · **Registro de identidad firmado** (`server-relay.ts`): `registerIdentity()` publica
+    `kind:"identity"` firmando el `owner`; `refreshIdentities()` verifica y construye `idMap`
+    (`fp → cuenta`). El contenido recibido resuelve `signerFp → boundAccountFor(fp)` y muestra la
+    **cuenta de origen** (chip «cuenta …» en /red-feed), no solo el dispositivo.
+  · **Token end-to-end**: `MeshServer.token` (editable en Señales → Servidor); el cliente lo
+    adjunta a `postToEndpoint`, `pullFromEndpoint`, `pullRelayFromEndpoint` y a `subscribeEndpointStream`
+    (SSE, como `?token=` en la query). Referencia con `STARSEED_TOKENS`/`STARSEED_SERVER_TOKEN`.
+  · **Federación con control de saltos y firma**: `hops` por ítem (columna en Postgres/SQLite/memoria),
+    incremento por salto, descarte si `hops > STARSEED_MAX_HOPS`, y descarte del ítem público sin
+    firma válida en modo `STARSEED_VERIFY=1`. Verificado con `scripts/smoke-mesh-server.mjs` (14/14)
+    y `scripts/smoke-mesh-federate.mjs` (3/3).
+- **Futuro**: rotación/expiración de tokens y revocación de identidades comprometidas; reputación de
+  pares en la federación (cuarentena de un peer que reenvía firmas inválidas); reconciliación con
+  reloj lógico entre pares (más allá de la marca de agua por `at`); descubrimiento automático de
+  pares de confianza a partir del registro de identidades de la cuenta/grupo.

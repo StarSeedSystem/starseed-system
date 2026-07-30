@@ -135,6 +135,11 @@ export function NetworkFeed({ embedded = false }: { embedded?: boolean }) {
                         <ShieldCheck className="h-2.5 w-2.5" /> verificado
                       </span>
                     )}
+                    {it.account && (
+                      <span className="truncate text-[10px] text-cyan-300/70" title={`Cuenta ligada: ${it.account}`}>
+                        · cuenta {it.account.slice(0, 8)}
+                      </span>
+                    )}
                   </div>
                   <p className="mt-0.5 truncate text-[13px] text-white/90">{p.title}</p>
                   {p.detail && <p className="truncate text-[10px] text-white/45">{p.detail}</p>}
