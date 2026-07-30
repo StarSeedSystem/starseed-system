@@ -38,17 +38,26 @@ export interface RedMeshCenterProps {
   embedded?: boolean;
   /** Incluir el mapa 3D (WebGL). Por defecto true. */
   showMap?: boolean;
+  /**
+   * Mostrar el panel de privacidad de la malla. Por defecto true. Se pone en
+   * false cuando se embebe dentro de Señales, donde la privacidad ya vive en el
+   * panel maestro de conectividad (evita duplicar ajustes · Adenda 101).
+   */
+  showPrivacy?: boolean;
+  /** Ocultar la cabecera interna (cuando ya hay una pestaña «Red Mesh» encima). */
+  hideHeader?: boolean;
 }
 
-export function RedMeshCenter({ embedded = false, showMap = true }: RedMeshCenterProps) {
+export function RedMeshCenter({ embedded = false, showMap = true, showPrivacy = true, hideHeader = false }: RedMeshCenterProps) {
   useEffect(() => {
     startMeshSubsystem();
   }, []);
 
   return (
     <div className={embedded ? "space-y-4" : "mx-auto max-w-5xl space-y-4"}>
-      {/* Cabecera: completa en página, compacta cuando va embebida en el hub. */}
-      {embedded ? (
+      {/* Cabecera: completa en página, compacta cuando va embebida en el hub.
+          Se oculta si una pestaña «Red Mesh» ya la envuelve (hideHeader). */}
+      {hideHeader ? null : embedded ? (
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="flex items-center gap-2 text-sm font-semibold text-white/85">
             <RadioTower className="h-4 w-4 text-emerald-300" /> Centro de la Red Mesh P2P
@@ -99,11 +108,16 @@ export function RedMeshCenter({ embedded = false, showMap = true }: RedMeshCente
       {/* 2 · Conexiones (panel completo reutilizado) */}
       <MeshControlPanel />
 
-      {/* 3 · Antenas y bandas + 4 · Privacidad */}
-      <div className="grid gap-3 xl:grid-cols-2">
+      {/* 3 · Antenas y bandas + 4 · Privacidad (la privacidad se oculta cuando va
+          embebido en Señales: allí vive en el panel maestro, sin duplicar). */}
+      {showPrivacy ? (
+        <div className="grid gap-3 xl:grid-cols-2">
+          <AntennasPanel />
+          <MeshPrivacyPanel />
+        </div>
+      ) : (
         <AntennasPanel />
-        <MeshPrivacyPanel />
-      </div>
+      )}
 
       {/* 5 · Peers y routers */}
       <PeersPanel />

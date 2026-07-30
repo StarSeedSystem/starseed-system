@@ -16,7 +16,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   RadioTower, Wifi, Signal, Bluetooth, MapPin, Nfc, Usb, Phone,
-  ExternalLink, Settings2, ShieldCheck, Antenna, Smartphone, Download, ChevronDown, type LucideIcon,
+  ExternalLink, Antenna, Smartphone, Download, type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -26,6 +26,7 @@ import { ConnectivityConfigPanel } from "@/components/connectivity/connectivity-
 import {
   useMeshState, detectSignals, connectMesh, connectWifiNode, getConnectivitySettings,
   subscribeConnectivity, setNeuronPosition, detectPlatform, recommendNative, hasAccountSession,
+  startMeshSubsystem,
   type SignalSource, type SignalKind, type NativeRecommendation,
 } from "@/ai/astraura/mesh";
 
@@ -55,14 +56,13 @@ export function SignalsCenter({ embedded = false, compact = false }: SignalsCent
   const meshRef = useRef(mesh);
   meshRef.current = mesh;
 
-  // Sección completa de Red Mesh DENTRO de Señales (Adenda 100): abierta por
-  // defecto en vista amplia, plegada en la barra superior (compact).
-  const meshSectionRef = useRef<HTMLDivElement>(null);
-  const [meshOpen, setMeshOpen] = useState(!compact);
-  const openMeshSection = () => {
-    setMeshOpen(true);
-    setTimeout(() => meshSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
-  };
+  // Señales unifica TODO en pestañas (Adenda 101): «Antenas y señales» + «Red
+  // Mesh» (la página Red Mesh integrada como pestaña, sin duplicar ajustes).
+  const [tab, setTab] = useState<"antenas" | "redmesh">("antenas");
+
+  // Arranca la malla en cualquier superficie donde aparezca Señales (página,
+  // barra superior, Centro de Control) — antes lo hacía la pestaña «Internet».
+  useEffect(() => { startMeshSubsystem(); }, []);
 
   useEffect(() => {
     let alive = true;
@@ -103,7 +103,7 @@ export function SignalsCenter({ embedded = false, compact = false }: SignalsCent
 
   const runAction = async (sig: SignalSource, action: string) => {
     try {
-      if (action === "Abrir Red Mesh") { openMeshSection(); return; }
+      if (action === "Abrir Red Mesh") { setTab("redmesh"); return; }
       if (action === "App nativa") {
         window.open(native.links[0]?.url ?? "https://meshtastic.org/download/", "_blank", "noopener,noreferrer");
         return;
@@ -171,6 +171,31 @@ export function SignalsCenter({ embedded = false, compact = false }: SignalsCent
         </div>
       )}
 
+      {/* Pestañas: «Antenas y señales» · «Red Mesh» (Red Mesh integrada como
+          pestaña dentro de Señales, con todas sus funciones · Adenda 101). */}
+      <div className="flex gap-1.5">
+        {([
+          ["antenas", "Antenas y señales", Antenna],
+          ["redmesh", "Red Mesh", RadioTower],
+        ] as const).map(([k, label, Ic]) => (
+          <button
+            key={k}
+            type="button"
+            onClick={() => setTab(k)}
+            className={cn(
+              "inline-flex cursor-pointer items-center gap-1.5 rounded-xl border px-3 py-1.5 text-[12px] font-medium transition-colors duration-200",
+              tab === k
+                ? "border-sky-400/40 bg-sky-500/15 text-sky-100"
+                : "border-white/10 bg-white/[0.03] text-white/60 hover:border-white/25 hover:text-white/85",
+            )}
+          >
+            <Ic className="h-3.5 w-3.5" /> {label}
+          </button>
+        ))}
+      </div>
+
+      {tab === "antenas" && (
+      <>
       {/* Radar unificado de señales + neuronas (nodos reales de la malla por RF) */}
       <div className="rounded-2xl border border-white/10 bg-black/30 p-3">
         <SignalsRadar height={compact ? 200 : 260} showLegend />
@@ -262,47 +287,6 @@ export function SignalsCenter({ embedded = false, compact = false }: SignalsCent
         })}
       </div>
 
-      {/* Accesos rápidos → abren la sección completa de Red Mesh in-situ */}
-      <div className="flex flex-wrap gap-2">
-        <button type="button" onClick={openMeshSection} className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-[11px] text-white/80 transition-colors hover:border-emerald-400/40">
-          <RadioTower className="h-3.5 w-3.5 text-emerald-300" /> Configurar la Red Mesh P2P
-        </button>
-        <button type="button" onClick={openMeshSection} className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-[11px] text-white/80 transition-colors hover:border-sky-400/40">
-          <Settings2 className="h-3.5 w-3.5 text-sky-300" /> Antenas y bandas (preset inteligente)
-        </button>
-        <button type="button" onClick={openMeshSection} className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-[11px] text-white/80 transition-colors hover:border-fuchsia-400/40">
-          <ShieldCheck className="h-3.5 w-3.5 text-fuchsia-300" /> Privacidad y permisos
-        </button>
-        <Link href="/red-mesh" className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-[11px] text-white/60 transition-colors hover:border-white/30">
-          <ExternalLink className="h-3.5 w-3.5" /> Pantalla completa
-        </Link>
-      </div>
-
-      {/* SECCIÓN COMPLETA DE RED MESH — trasladada aquí desde /red-mesh (Adenda 100).
-          Conexiones de radio, antenas y bandas, privacidad, peers y mapa 3D unificado. */}
-      <div ref={meshSectionRef} className="overflow-hidden rounded-2xl border border-emerald-400/20 bg-emerald-500/[0.03]">
-        <button
-          type="button"
-          onClick={() => setMeshOpen((v) => !v)}
-          aria-expanded={meshOpen}
-          className="flex w-full cursor-pointer items-center gap-2.5 px-3 py-3 text-left transition-colors hover:bg-white/[0.03]"
-        >
-          <RadioTower className="h-4 w-4 shrink-0 text-emerald-300" />
-          <span className="min-w-0 flex-1">
-            <span className="block text-[13px] font-semibold text-white/90">Red Mesh · configuración completa</span>
-            <span className="block text-[10px] leading-snug text-white/45">
-              Conexiones de radio, antenas y bandas, privacidad, peers y mapa 3D de neuronas — todo aquí, sin salir de Señales
-            </span>
-          </span>
-          <ChevronDown className={cn("h-4 w-4 shrink-0 text-white/50 transition-transform duration-200", meshOpen && "rotate-180")} />
-        </button>
-        {meshOpen && (
-          <div className="border-t border-white/10 p-3">
-            <RedMeshCenter embedded showMap={!compact} />
-          </div>
-        )}
-      </div>
-
       <p className="flex items-start gap-1.5 text-[10px] leading-snug text-white/35">
         <Wifi className="mt-0.5 h-3 w-3 shrink-0" />
         La malla corre DENTRO del OS (protocolo Meshtastic embebido) y funciona desde la web: el relé por
@@ -311,6 +295,13 @@ export function SignalsCenter({ embedded = false, compact = false }: SignalsCent
         la malla por IP. Para radios directos y múltiples antenas simultáneas con permisos incluidos,
         instala la app de StarSeed OS (arriba) — sin apps externas.
       </p>
+      </>
+      )}
+
+      {/* Pestaña Red Mesh — la página completa integrada aquí (mapa 3D, conexiones
+          de radio, antenas/bandas, peers). La privacidad y el servidor viven en el
+          panel maestro de la pestaña «Antenas» → sin ajustes duplicados. */}
+      {tab === "redmesh" && <RedMeshCenter embedded showMap={!compact} showPrivacy={false} hideHeader />}
     </div>
   );
 }

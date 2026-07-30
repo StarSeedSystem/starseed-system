@@ -26,6 +26,14 @@ import { initialBudget, NODE_SWEEP_INTERVAL_MS, WIFI_HEALTHY_SCORE } from "./con
 import { decideRoute, feedWifiSample } from "./decision-router";
 import { deliver } from "./delivery";
 import { deriveNetworkContext } from "./synaptic-router";
+import {
+  getConnectivitySettings,
+  connectivityFlagsFromConfig,
+  connectivityFlagsFromSettings,
+  normalizeConnectivityConfig,
+  DEFAULT_CONNECTIVITY_CONFIG,
+  type ConnectivityConfig,
+} from "./connectivity";
 import { hasAccountSession, uploadPublic, uploadRelay } from "./server-relay";
 import { startSynapticLayer, stopSynapticLayer } from "./synaptic";
 import { feedNode, feedSelfTelemetry, startDiscovery, stopDiscovery } from "./discovery";
@@ -431,6 +439,13 @@ export interface TransmitInput {
   /** Destinatario lógico para el relé cifrado. */
   recipient?: string;
   e2e?: boolean;
+  /**
+   * Config de conectividad del CONTEXTO que transmite (entidad/chat/personalidad/
+   * cerebro/archivo · Adenda 101). Si se pasa, el router la respeta: malla on/off,
+   * público/privado/solo-malla/solo-cuenta y qué servidor usar. Si se omite, se
+   * usan los ajustes de la neurona-cuenta (getConnectivitySettings).
+   */
+  connectivity?: ConnectivityConfig;
 }
 
 /**
@@ -438,7 +453,7 @@ export interface TransmitInput {
  * cycle); servidor → server-relay (público en claro / relé cifrado). El tipo de
  * payload se captura aquí para el sobre del servidor y el filtro de la malla.
  */
-function makeTransmitPorts(ptype: MeshPayloadType): DeliveryPorts {
+function makeTransmitPorts(ptype: MeshPayloadType, serverId = "starseed"): DeliveryPorts {
   return {
     mesh: async (leg, req, payload) => {
       const s = getMeshState();
@@ -466,7 +481,7 @@ function makeTransmitPorts(ptype: MeshPayloadType): DeliveryPorts {
     server: async (leg, req, payload) => {
       const envelope = { cls: req.cls, ptype, body: payload, recipient: req.recipient };
       const isPublic = leg.via === "server-public";
-      const r = isPublic ? await uploadPublic(envelope) : await uploadRelay(envelope);
+      const r = isPublic ? await uploadPublic(envelope, serverId) : await uploadRelay(envelope, serverId);
       return {
         ok: r.ok,
         // Público almacenado = alcanzable por cualquiera → CONFIRMADO. Relé =
@@ -496,10 +511,20 @@ export async function transmit(input: TransmitInput): Promise<DeliveryReceipt> {
     }
   })();
   const hasAccount = await hasAccountSession();
+  // Flags de enrutado: de la config del CONTEXTO si viene, si no de la cuenta.
+  // Así el on/off de malla, el modo público/privado y el servidor elegido
+  // gobiernan la transmisión REAL (no solo la UI).
+  const flags = input.connectivity
+    ? connectivityFlagsFromConfig(input.connectivity)
+    : connectivityFlagsFromSettings(getConnectivitySettings());
   const ctx = deriveNetworkContext(s, {
     wifiHealthy: s.wifiHealth.score >= WIFI_HEALTHY_SCORE,
     hasAccount,
     activePreset: getActiveModemPreset(),
+    meshAllowed: flags.meshAllowed,
+    serverAllowed: flags.serverAllowed,
+    publicAllowed: flags.publicAllowed,
+    serverId: flags.serverId,
   });
   const req: TransmitRequest = {
     scope: input.scope,
@@ -511,7 +536,55 @@ export async function transmit(input: TransmitInput): Promise<DeliveryReceipt> {
     recipient: input.recipient,
     e2e: input.e2e,
   };
-  return deliver(req, input.body, ctx, makeTransmitPorts(input.type));
+  return deliver(req, input.body, ctx, makeTransmitPorts(input.type, flags.serverId));
+}
+
+/* ── Resolución de config por CONTEXTO + transmisión contextual (Adenda 101) ── */
+
+/** Referencia de contexto cuya conectividad rige la transmisión REAL. */
+export type ConnectivityContext =
+  | { kind: "account" }
+  | { kind: "entity"; entityKind: string; id: string }
+  | { kind: "config"; config: ConnectivityConfig };
+
+/**
+ * Resuelve la ConnectivityConfig efectiva de un contexto (cuenta/entidad/config
+ * explícita). Sirve para páginas, grupos, comunidades, cerebros, memorias,
+ * credenciales, archivos, chats y personalidades: cada uno guarda su config y
+ * aquí se lee para regir la transmisión. Nunca lanza; cae a los defaults.
+ */
+export async function resolveContextConnectivity(context: ConnectivityContext): Promise<ConnectivityConfig> {
+  try {
+    if (context.kind === "config") return context.config;
+    if (context.kind === "entity") {
+      const { getEntityState } = await import("@/lib/sync/entity-state");
+      const ref = { kind: context.entityKind, id: context.id } as unknown as Parameters<typeof getEntityState>[0];
+      const row = await getEntityState(ref, "connectivity");
+      return normalizeConnectivityConfig((row as { value?: unknown } | null)?.value);
+    }
+    // account → deriva una ConnectivityConfig desde los ajustes de la neurona.
+    const s = getConnectivitySettings();
+    return normalizeConnectivityConfig({
+      meshEnabled: s.meshEnabled,
+      publicInternet: s.publicInternet,
+      serverId: s.serverId,
+      internetMode: s.publicInternet ? "public" : "private",
+    });
+  } catch {
+    return { ...DEFAULT_CONNECTIVITY_CONFIG };
+  }
+}
+
+/**
+ * Transmite RESOLVIENDO primero la conectividad del contexto dado — la vía real
+ * (malla/servidor, público/privado, servidor elegido) la fija ese contexto.
+ */
+export async function transmitForContext(
+  context: ConnectivityContext,
+  input: Omit<TransmitInput, "connectivity">,
+): Promise<DeliveryReceipt> {
+  const config = await resolveContextConnectivity(context);
+  return transmit({ ...input, connectivity: config });
 }
 
 /* ── Re-exports de la API pública ──────────────────────────────────────────── */
@@ -542,9 +615,12 @@ export {
   DEFAULT_CONNECTIVITY,
   DEFAULT_CONNECTIVITY_CONFIG,
   normalizeConnectivityConfig,
+  connectivityFlagsFromConfig,
+  connectivityFlagsFromSettings,
   type ConnectivitySettings,
   type ConnectivityConfig,
   type ConnectivityInternetMode,
+  type ContextFlags,
   type ConnectivityLink,
   type PreferredRoute,
   type LinkKind,

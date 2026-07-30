@@ -191,6 +191,44 @@ export function normalizeConnectivityConfig(x: unknown): ConnectivityConfig {
   };
 }
 
+/* ── Flags de enrutado efectivos (config/ajustes → qué puede hacer el router) ── */
+
+/**
+ * Qué vías tiene PERMITIDAS una transmisión según su config de conectividad.
+ * El router sináptico las respeta: sin `meshAllowed` no usa la malla; sin
+ * `publicAllowed` no sube al feed público; sin `serverAllowed` no usa servidor
+ * (solo malla local). `serverId` elige a QUÉ servidor va (StarSeed o propio).
+ */
+export interface ContextFlags {
+  meshAllowed: boolean;
+  serverAllowed: boolean;
+  publicAllowed: boolean;
+  serverId: string;
+}
+
+/** Config portátil (entidad/chat/personalidad) → flags de enrutado. */
+export function connectivityFlagsFromConfig(cfg: ConnectivityConfig): ContextFlags {
+  return {
+    meshAllowed: cfg.meshEnabled,
+    // "local" = solo malla (sin servidor); el resto puede usar servidor.
+    serverAllowed: cfg.internetMode !== "local",
+    // Solo el modo "public" (con internet público ON) emite al feed entre cuentas.
+    publicAllowed: cfg.internetMode === "public" && cfg.publicInternet,
+    serverId: cfg.serverId || "starseed",
+  };
+}
+
+/** Ajustes de la neurona-cuenta → flags de enrutado. */
+export function connectivityFlagsFromSettings(s: ConnectivitySettings): ContextFlags {
+  return {
+    meshAllowed: s.meshEnabled,
+    // La cuenta siempre puede usar su propio relé cifrado (aunque el público esté off).
+    serverAllowed: true,
+    publicAllowed: s.publicInternet,
+    serverId: s.serverId || "starseed",
+  };
+}
+
 /* ── Inventario vivo de vías de conexión ───────────────────────────────────── */
 
 export type LinkKind = "external" | "bluetooth" | "serial" | "mesh";

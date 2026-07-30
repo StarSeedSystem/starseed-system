@@ -290,47 +290,13 @@ export function ConnectionsCenter({ compact = false }: { compact?: boolean }) {
     </div>
   );
 
+  // UNIFICADO (Adenda 101): una sola sección de «Señales» con sus propias
+  // pestañas (Antenas y señales · Red Mesh). Antes había 3 pestañas
+  // (Conexiones/Señales/Internet) que duplicaban el radar y los ajustes de la
+  // neurona; ahora todo vive en SignalsCenter, sin duplicación.
   return (
     <div className={cn(compact ? "text-[12px]" : "text-sm")}>
-      {/* Menú superior de pestañas — CENTRADO y responsive: cuando cabe se
-          centra (mx-auto sobre w-max); cuando no, se desliza desde el inicio sin
-          salirse de los lados (.ss-hscroll ss-hscroll-fade). */}
-      <nav className="ss-hscroll ss-hscroll-fade mb-3 flex" aria-label="Secciones del hub de conexiones">
-        <div className="mx-auto flex w-max items-center justify-center gap-1.5 px-1">
-          {HUB_TABS.map((t) => {
-            const Icon = t.icon;
-            const isActive = tab === t.id;
-            return (
-              <button
-                key={t.id}
-                type="button"
-                onClick={() => setTab(t.id)}
-                aria-pressed={isActive}
-                className={cn(
-                  "inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] font-semibold transition-colors duration-200",
-                  isActive
-                    ? "border-emerald-400/50 bg-emerald-500/15 text-emerald-100"
-                    : "border-white/12 bg-white/[0.04] text-white/60 hover:border-emerald-400/30 hover:text-white/85",
-                )}
-              >
-                <Icon className="h-3.5 w-3.5" />
-                {t.label}
-              </button>
-            );
-          })}
-        </div>
-      </nav>
-
-      {tab === "conexiones" && connectionsCards}
-      {tab === "senales" && (
-        // Pestaña «Señales»: antenas autodetectadas + radar de nodos reales.
-        <SignalsCenter embedded compact={compact} />
-      )}
-      {tab === "internet" && (
-        // Pestaña «Internet»: la página /red-mesh embebida con paridad total
-        // (mapa 3D solo en la vista amplia; el popover compacto la omite).
-        <RedMeshCenter embedded showMap={!compact} />
-      )}
+      <SignalsCenter embedded compact={compact} />
     </div>
   );
 }

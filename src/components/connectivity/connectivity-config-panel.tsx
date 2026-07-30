@@ -26,7 +26,10 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Antenna, Globe, Lock, Plus, RadioTower, Server, ShieldCheck, Trash2, Waypoints, X } from "lucide-react";
+import {
+  Antenna, ArrowLeftRight, Eye, EyeOff, Globe, Lock, MapPin, Plus, RadioTower, Server, ShieldCheck,
+  Tag, Trash2, Waypoints, X,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
@@ -49,6 +52,7 @@ import {
   subscribeMeshServers,
   type MeshServer,
   type PublicRadarMode,
+  type PreferredRoute,
   type ConnectivityConfig,
   type ConnectivityInternetMode,
   DEFAULT_CONNECTIVITY_CONFIG,
@@ -440,6 +444,59 @@ export function ConnectivityConfigPanel({
               {RADAR_OPTS.find((r) => r.value === cfg.publicRadar)?.hint}
             </p>
           </div>
+        )}
+
+        {/* Ajustes avanzados (solo neurona-cuenta): modo dual, ruta preferida e
+            identidad en la federación. Aquí viven TODOS los ajustes de la neurona
+            para que NO se dupliquen en otras superficies. */}
+        {isAccount && (
+          <>
+            <ToggleRow
+              icon={() => <ArrowLeftRight className="h-4 w-4" />}
+              title="Modo dual (malla + red externa a la vez)"
+              hint="ON = usa ambas vías simultáneamente y elige la mejor por clase de mensaje"
+              checked={settings.dualMode}
+              onCheckedChange={(v) => setConnectivitySettings({ dualMode: v })}
+              accentOn="text-cyan-300"
+            />
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5">
+              <p className="mb-2 flex items-center gap-2 text-[12px] font-medium text-white/90">
+                <Waypoints className="h-4 w-4 text-cyan-300" /> Ruta preferida
+              </p>
+              <Segmented
+                accent="cyan"
+                value={settings.preferred}
+                options={[
+                  { value: "auto" as PreferredRoute, label: "Auto", hint: "el router decide por clase de mensaje" },
+                  { value: "wifi" as PreferredRoute, label: "Red externa", hint: "prioriza la red convencional" },
+                  { value: "mesh" as PreferredRoute, label: "Malla P2P", hint: "prioriza la radio libre" },
+                ]}
+                onChange={(v) => setConnectivitySettings({ preferred: v })}
+              />
+            </div>
+            <ToggleRow
+              icon={(on) => (on ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />)}
+              title="Visible para mis otras neuronas"
+              hint="publica la topología SOLO a los dispositivos de tu cuenta (federación cifrada por sesión)"
+              checked={privacy.visibility === "account"}
+              onCheckedChange={(v) => setMeshPrivacy({ visibility: v ? "account" : "private" })}
+            />
+            <ToggleRow
+              icon={() => <MapPin className="h-4 w-4" />}
+              title="Compartir mi posición GPS"
+              hint="OFF por defecto (la ubicación es sensible). ON = tus otras neuronas te ubican con GPS real"
+              checked={privacy.sharePosition}
+              onCheckedChange={(v) => setMeshPrivacy({ sharePosition: v })}
+              accentOn="text-amber-300"
+            />
+            <ToggleRow
+              icon={() => <Tag className="h-4 w-4" />}
+              title="Compartir nombres de nodos"
+              hint="OFF = solo números de nodo en la federación"
+              checked={privacy.shareName}
+              onCheckedChange={(v) => setMeshPrivacy({ shareName: v })}
+            />
+          </>
         )}
 
         {!compact && (

@@ -90,12 +90,30 @@ export interface NetworkContext {
   wifiHealthy: boolean;
   /** ¿Hay sesión de cuenta (para usar servidores)? */
   hasAccount: boolean;
+  /** Flags de la config de conectividad del CONTEXTO (Adenda 101). Opcionales:
+      si faltan se tratan como permitido (retrocompatible). */
+  /** ¿Se permite usar la malla local P2P? (antena mesh encendida) */
+  meshAllowed?: boolean;
+  /** ¿Se permite usar servidor (relé/público)? false = solo malla local. */
+  serverAllowed?: boolean;
+  /** ¿Se permite el feed PÚBLICO entre cuentas? false = privado/cuenta. */
+  publicAllowed?: boolean;
+  /** Servidor elegido para las vías de servidor ("starseed" o id propio). */
+  serverId?: string;
 }
 
 /** Deriva el contexto de red del estado mesh + señales externas. Puro. */
 export function deriveNetworkContext(
   s: MeshState,
-  opts: { wifiHealthy: boolean; hasAccount: boolean; activePreset: string },
+  opts: {
+    wifiHealthy: boolean;
+    hasAccount: boolean;
+    activePreset: string;
+    meshAllowed?: boolean;
+    serverAllowed?: boolean;
+    publicAllowed?: boolean;
+    serverId?: string;
+  },
 ): NetworkContext {
   const online = s.nodes.filter((n) => !n.isSelf && n.presence === "online");
   const snrs = online.map((n) => n.snr).filter((v): v is number => typeof v === "number");
@@ -108,6 +126,11 @@ export function deriveNetworkContext(
     activePreset: opts.activePreset,
     wifiHealthy: opts.wifiHealthy,
     hasAccount: opts.hasAccount,
+    // Por defecto TODO permitido (retrocompatible con llamadas antiguas).
+    meshAllowed: opts.meshAllowed ?? true,
+    serverAllowed: opts.serverAllowed ?? true,
+    publicAllowed: opts.publicAllowed ?? true,
+    serverId: opts.serverId ?? "starseed",
   };
 }
 
@@ -148,20 +171,30 @@ function bandFor(req: TransmitRequest, ctx: NetworkContext): string {
 export function planTransmission(req: TransmitRequest, ctx: NetworkContext): TransmitPlan {
   const legs: TransmitLeg[] = [];
   const preset = bandFor(req, ctx);
-  const meshUsable = ctx.meshReady && fitsMesh(req);
+  // La malla solo se usa si está lista, cabe el payload Y la config lo permite
+  // (undefined = permitido, retrocompatible con contextos sin flags).
+  const meshUsable = ctx.meshReady && fitsMesh(req) && ctx.meshAllowed !== false;
   const local = req.distance !== "far"; // 'local' o 'unknown' se tratan como cercano
   const kbps = PRESET_SPECS[preset]?.kbps;
+  // Vías de servidor permitidas por la config del contexto.
+  const canRelay = ctx.hasAccount && ctx.serverAllowed !== false;
+  const canPublic = ctx.hasAccount && ctx.publicAllowed !== false;
 
   // 1) PÚBLICO → servidor público (almacena + retransmite). Además, si hay
   //    malla, se ANUNCIA localmente (los vecinos se enteran sin ir a la nube).
   if (req.scope === "public") {
-    if (ctx.hasAccount) {
+    if (canPublic) {
       legs.push({ via: "server-public", reason: "contenido público: se sube a un servidor para que cualquiera lo alcance" });
     }
     if (meshUsable && ctx.onlineNodes > 0) {
       legs.push({ via: "mesh-flood", reason: "aviso local a los vecinos de la malla (sin depender de la nube)", preset });
     }
-    if (!legs.length) legs.push({ via: "server-public", reason: "público sin cuenta activa: se encola hasta poder subirlo" });
+    // Público pero sin vía pública permitida (sesión privada): al menos relé de
+    // cuenta si se permite, para no perder el mensaje.
+    if (!legs.length && canRelay) {
+      legs.push({ via: "server-relay", reason: "internet público apagado: se relega a relé de tu cuenta" });
+    }
+    if (!legs.length) legs.push({ via: meshUsable ? "mesh-flood" : "server-public", reason: "sin vía pública activa: se encola hasta poder enviarlo", preset: meshUsable ? preset : undefined });
     const primary = legs[0];
     return {
       primary,
@@ -183,8 +216,8 @@ export function planTransmission(req: TransmitRequest, ctx: NetworkContext): Tra
           : "grupo local: difusión sináptica P2P entre neuronas cercanas (cifrado, sin nube)",
       preset,
     });
-    // Failover: si la malla falla, relé cifrado por servidor (si hay cuenta).
-    if (ctx.hasAccount) {
+    // Failover: si la malla falla, relé cifrado por servidor (si se permite).
+    if (canRelay) {
       legs.push({ via: "server-relay", reason: "respaldo: relé cifrado por servidor si la malla no confirma" });
     }
     return {
@@ -197,7 +230,7 @@ export function planTransmission(req: TransmitRequest, ctx: NetworkContext): Tra
 
   // 3) PRIVADO + LEJANO (o malla no disponible/insuficiente) → SERVIDOR
   //    INTERMEDIO cifrado: la malla no alcanza; la nube hace de puente E2E.
-  if (ctx.hasAccount) {
+  if (canRelay) {
     legs.push({
       via: "server-relay",
       reason:

@@ -21,6 +21,7 @@
 
 import { getMeshPrivacy } from "./privacy";
 import { getConnectivitySettings } from "./connectivity";
+import { getMeshServer } from "./servers";
 import { deviceId } from "./federation";
 import { encryptEnvelope, decryptEnvelope, type EncEnvelope } from "./relay-crypto";
 import { getActiveModemPreset } from "./sync";
@@ -78,8 +79,44 @@ export interface ServerSendResult {
   detail: string;
 }
 
+/**
+ * Endpoint de un servidor PROPIO (custom) si el id no es "starseed". Vacío/null
+ * = usar el servidor StarSeed (Supabase del OS). Adenda 101.
+ */
+function customEndpoint(serverId?: string): string | null {
+  if (!serverId || serverId === "starseed") return null;
+  try {
+    const srv = getMeshServer(serverId);
+    const ep = srv?.endpoint?.trim();
+    return ep ? ep.replace(/\/$/, "") : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * POST genérico a un servidor propio (público o privado añadido por la cuenta/
+ * grupo). Best-effort: si el endpoint no responde o CORS lo bloquea, se informa
+ * y la entrega hará failover. El protocolo es un JSON simple {channel, envelope}.
+ */
+async function postToEndpoint(endpoint: string, channel: "public" | "relay", env: ServerEnvelope): Promise<ServerSendResult> {
+  try {
+    const res = await fetch(`${endpoint}/mesh/${channel}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ channel, device_id: deviceId(), envelope: env }),
+    });
+    if (!res.ok) return { ok: false, detail: `servidor propio rechazó (${res.status})` };
+    return { ok: true, detail: `enviado a tu servidor (${channel})` };
+  } catch {
+    return { ok: false, detail: "servidor propio inalcanzable (endpoint/CORS)" };
+  }
+}
+
 /** Sube CONTENIDO PÚBLICO (texto plano). Cualquiera de la red lo alcanza. */
-export async function uploadPublic(env: ServerEnvelope): Promise<ServerSendResult> {
+export async function uploadPublic(env: ServerEnvelope, serverId?: string): Promise<ServerSendResult> {
+  const ep = customEndpoint(serverId);
+  if (ep) return postToEndpoint(ep, "public", env);
   try {
     const supabase = await client();
     if (!supabase) return { ok: false, detail: "sin cliente de servidor" };
@@ -110,7 +147,15 @@ export async function uploadPublic(env: ServerEnvelope): Promise<ServerSendResul
 }
 
 /** Sube un RELÉ PRIVADO cifrado. La nube solo transporta el texto cifrado. */
-export async function uploadRelay(env: ServerEnvelope): Promise<ServerSendResult> {
+export async function uploadRelay(env: ServerEnvelope, serverId?: string): Promise<ServerSendResult> {
+  const ep = customEndpoint(serverId);
+  if (ep) {
+    // Servidor propio: ciframos igualmente antes de salir (E2E; el servidor
+    // propio tampoco lee el contenido privado).
+    const enc = await encryptEnvelope({ cls: env.cls, ptype: env.ptype, body: env.body });
+    if (!enc) return { ok: false, detail: "sin cifrado disponible: no se sube dato privado en claro" };
+    return postToEndpoint(ep, "relay", { ...env, body: enc as unknown });
+  }
   try {
     const supabase = await client();
     if (!supabase) return { ok: false, detail: "sin cliente de servidor" };
