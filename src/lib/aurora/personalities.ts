@@ -42,6 +42,9 @@ import {
 // (Adenda 71-bis) Router adaptativo unificado: resuelve el pin "auto" de
 // personalidad por área con el mejor motor :free del ecosistema disponible.
 import { resolveAutoModel } from "@/ai/astraura/unified-intelligence";
+// (Adenda 100) Conectividad portable por personalidad (panel compartido de señales/
+// internet/privacidad). Sólo tipo + saneador puro; sin ciclo real.
+import { normalizeConnectivityConfig, type ConnectivityConfig } from "@/ai/astraura/mesh";
 // (Adenda 77-voz) Diseño de voz OmniVoice por personalidad. voice-config NO
 // importa personalities → sin ciclo (arista de una dirección).
 import {
@@ -840,6 +843,11 @@ export interface PersonalityProfile {
   intelligence: PersonalityIntelligence;
   /** Temas/áreas/refs de conocimiento que domina o prioriza. */
   knowledge: string[];
+  /**
+   * Conectividad (señales/internet/privacidad) por personalidad — Adenda 100.
+   * Ausente = la personalidad usa la conectividad de la cuenta (panel compartido).
+   */
+  connectivity?: ConnectivityConfig;
 }
 
 /** Familias de herramientas conocidas (para UI y compilador). */
@@ -1329,6 +1337,11 @@ export function normalizePersonalityProfile(raw: Partial<PersonalityProfile> | n
     },
     intelligence: normalizeIntelligence(r.intelligence),
     knowledge: cleanStrArray(r.knowledge, 24, 120),
+    // Conectividad portable (Adenda 100): se conserva SÓLO si el perfil la trae
+    // (saneada). Ausente ⇒ no se añade ⇒ los perfiles por defecto no cambian.
+    ...(r.connectivity != null
+      ? { connectivity: normalizeConnectivityConfig(r.connectivity) }
+      : {}),
   };
 }
 

@@ -442,6 +442,7 @@ function GrupoPageContent() {
                     onReorderTabs={reorderTabs}
                     onSetTabVisible={setTabVisible}
                     onToggleIntegration={toggleIntegration}
+                    entityRef={entityRef ?? undefined}
                 />
             )}
             {usingFallback && (

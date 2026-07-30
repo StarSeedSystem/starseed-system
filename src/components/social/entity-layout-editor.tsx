@@ -21,6 +21,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { AttachFilePickerButton } from "@/components/files/universal-file-picker";
 import { ArrowUp, ArrowDown, Eye, EyeOff, Palette, LayoutList, Puzzle, ImageIcon, RotateCcw, X, Blend } from "lucide-react";
 import type { EntityLayout, IntegrationSuggestion } from "@/lib/entity-layout";
+import type { EntityRef } from "@/lib/sync/entity-state";
+// Señales y conectividad POR ENTIDAD (Adenda 100): reutiliza el panel compartido
+// y persiste en entity_state (clave "connectivity"). Sección opcional del diálogo.
+import { EntityConnectivityConfig } from "@/components/connectivity/entity-connectivity-config";
 // Catálogo + Mezclador de temas (theme-engine.ts): listThemes() incluye los
 // ~24 builtin MÁS los personalizados del usuario (incl. mezclas guardadas
 // como tema desde el Mezclador) — el mismo selector sirve para ambos.
@@ -44,11 +48,15 @@ export interface EntityLayoutEditorProps {
      *  Opcional: si no se pasa, la sección "Tema" no se muestra (cero cambio
      *  visual para quien no la use todavía). */
     onSetTheme?: (themeId: string | null) => Promise<void>;
+    /** Ref de la entidad (page/group/community…). Opcional: si se pasa, se
+     *  muestra la sección "Señales y conectividad" persistida en entity_state. */
+    entityRef?: EntityRef;
 }
 
 export function EntityLayoutEditor({
     open, onOpenChange, baseAccent, tabs, layout, suggestions,
     onSetAccent, onSetCoverUrl, onReorderTabs, onSetTabVisible, onToggleIntegration, onSetTheme,
+    entityRef,
 }: EntityLayoutEditorProps) {
     const [uploadingCover, setUploadingCover] = useState(false);
 
@@ -157,6 +165,14 @@ export function EntityLayoutEditor({
                                     </SelectContent>
                                 </Select>
                             </section>
+                        </>
+                    )}
+
+                    {entityRef && (
+                        <>
+                            <Separator />
+                            {/* Señales y conectividad por entidad (entity_state 'connectivity') */}
+                            <EntityConnectivityConfig entityRef={entityRef} />
                         </>
                     )}
 

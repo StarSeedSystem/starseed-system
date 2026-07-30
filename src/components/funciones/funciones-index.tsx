@@ -136,7 +136,7 @@ const GROUPS: FeatureGroup[] = [
     features: [
       { label: "Cuenta e Identidad", route: "/cuenta", blurb: "Tu perfil, @star.seed y correos adjuntos.", icon: Mail },
       { label: "Almacenes multi-fuente", route: "/almacenes", blurb: "Unifica datos de muchas fuentes.", icon: Database },
-      { label: "Hub de Conexiones", route: "/conexiones", blurb: "Servicios, cuentas, APIs y agentes.", icon: Link2 },
+      { label: "Conectores de servicios", route: "/conexiones", blurb: "Servicios, cuentas, APIs y agentes.", icon: Link2 },
       { label: "Syncthing", route: "/sincronizacion", blurb: "Sincronización de archivos P2P.", icon: RefreshCw },
       { label: "Proveedor MCP/API", route: "/proveedor", blurb: "Expón tus servicios como proveedor.", icon: Globe },
       { label: "Habilidades", route: "/habilidades", blurb: "Catálogo de habilidades.", icon: Zap },
@@ -212,7 +212,7 @@ const GROUPS: FeatureGroup[] = [
       { label: "Política", route: "/network/politics", blurb: "Espacio político de La Red.", icon: Landmark },
       { label: "Educación", route: "/network/education", blurb: "Aprendizaje colaborativo.", icon: GraduationCap },
       { label: "Cultura", route: "/network/culture", blurb: "Arte y cultura en La Red.", icon: Palette },
-      { label: "Hub de Conexiones", route: "/hub", blurb: "Punto central de conexiones.", icon: Home },
+      { label: "Hub Social", route: "/hub", blurb: "Punto central de tu actividad social y comunidades.", icon: Home },
       { label: "Dashboard", route: "/dashboard", blurb: "Tu panel de control.", icon: LayoutDashboard },
       { label: "Mensajes", route: "/messages", blurb: "Conversaciones privadas.", icon: Mail },
       { label: "Notificaciones", route: "/notifications", blurb: "Alertas y novedades.", icon: Bell },

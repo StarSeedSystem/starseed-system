@@ -116,6 +116,10 @@ import {
   OPENVOICE2_STYLE_LABELS,
   type OpenVoice2State,
 } from "@/lib/aurora/tts-oss/openvoice2";
+// (Adenda 100) Panel compartido de conectividad (señales/internet/privacidad),
+// modo portable controlado por value/onChange, por personalidad.
+import { ConnectivityConfigPanel } from "@/components/connectivity/connectivity-config-panel";
+import { normalizeConnectivityConfig } from "@/ai/astraura/mesh";
 
 /* ── Opciones curadas para los selects (el valor actual se añade si falta) ── */
 
@@ -1204,6 +1208,24 @@ function PersonalityEditor({
                 }}
               />
             </div>
+          </AccordionContent>
+        </AccordionItem>
+
+        {/* Conectividad (Adenda 100) — señales/internet/privacidad por personalidad */}
+        <AccordionItem value="conectividad" className="border-white/10">
+          <AccordionTrigger className="py-2.5 text-xs text-white/80 hover:no-underline">
+            <span className="inline-flex items-center gap-2">
+              <ProfileIcon name="RadioTower" className="h-3.5 w-3.5 text-[#7fb8ff]" /> Conectividad
+            </span>
+          </AccordionTrigger>
+          <AccordionContent className="pb-3">
+            <ConnectivityConfigPanel
+              mode="portable"
+              compact
+              contextLabel="esta personalidad"
+              value={normalizeConnectivityConfig(draft.connectivity)}
+              onChange={(next) => set("connectivity", next)}
+            />
           </AccordionContent>
         </AccordionItem>
 

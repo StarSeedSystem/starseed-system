@@ -30,6 +30,9 @@ import { createClient } from "@/utils/supabase/client";
 // en las capacidades de la neurona para poder dirigirle broadcasts de cuenta
 // (p. ej. "Solicitar archivo a esta neurona" → evento 'file-request').
 import { deviceId as syncDeviceId } from "@/lib/sync/entity-state";
+// Config de conectividad portátil (Adenda 100): señales/internet por neurona.
+// Solo tipo ⇒ se borra en compilación (sin dependencia circular en runtime).
+import type { ConnectivityConfig } from "@/ai/astraura/mesh";
 
 export const NEURON_DEVICE_ID_KEY = "starseed.neuron.device-id";
 export const NEURON_PREFS_KEY = "starseed.neurons.prefs.v1";
@@ -117,6 +120,16 @@ export interface NeuronSettings {
   notes?: string;
   /** Servidor casero CasaOS de esta neurona (SOP §6b). */
   casaos?: NeuronCasaOS;
+  /** Señales y conectividad portátil de esta neurona (Adenda 100). */
+  connectivity?: ConnectivityConfig;
+  /** Sincronizar memorias de los cerebros con esta neurona (ausente ⇒ ON). */
+  syncBrains?: boolean;
+  /** Sincronizar datos de la biblioteca de la cuenta (ausente ⇒ ON). */
+  syncLibrary?: boolean;
+  /** Sincronizar con las demás neuronas de la cuenta (ausente ⇒ ON). */
+  syncNeurons?: boolean;
+  /** Sincronizar con neuronas externas a la cuenta (ausente ⇒ OFF). */
+  syncExternal?: boolean;
 }
 
 export const DEFAULT_SETTINGS: NeuronSettings = {

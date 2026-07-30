@@ -577,7 +577,7 @@ export default function HubPage() {
                 <div className="flex-1 flex flex-col md:items-start items-center">
                     {/* Degradado tokenizado: respira con el tema activo (Aurora, Café…) */}
                     <h1 className="page-title font-headline text-transparent bg-clip-text bg-gradient-to-r from-primary to-secondary drop-shadow-[0_0_15px_hsl(var(--primary-hsl)/0.3)] w-full">
-                        Hub de Conexiones
+                        Hub Social
                     </h1>
                     <p className="text-[clamp(0.9rem,1.2vw,1.1rem)] text-muted-foreground mt-2 max-w-2xl text-balance">
                         Centro de mando para toda tu actividad social, política y colaborativa en la red.

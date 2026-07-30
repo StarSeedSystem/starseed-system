@@ -506,6 +506,7 @@ function PaginaPageContent() {
                     onReorderTabs={reorderTabs}
                     onSetTabVisible={setTabVisible}
                     onToggleIntegration={toggleIntegration}
+                    entityRef={entityRef ?? undefined}
                 />
             )}
             {usingFallback && (

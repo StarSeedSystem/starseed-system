@@ -20,6 +20,7 @@
  */
 
 import { getMeshPrivacy } from "./privacy";
+import { getConnectivitySettings } from "./connectivity";
 import { deviceId } from "./federation";
 import { encryptEnvelope, decryptEnvelope, type EncEnvelope } from "./relay-crypto";
 import { getActiveModemPreset } from "./sync";
@@ -166,6 +167,13 @@ export async function emitBeacon(): Promise<boolean> {
   try {
     const privacy = getMeshPrivacy();
     if (privacy.visibility === "private") return false; // invisible: sin faro
+    // Internet público apagado (SESIÓN PRIVADA) → no anunciarse al radar público.
+    // Radar público en "off" → participa en la malla, pero invisible entre cuentas.
+    const conn = getConnectivitySettings();
+    if (!conn.publicInternet) return false;
+    if (privacy.publicRadar === "off") return false;
+    // En "anonymous" damos y recibimos, pero SIN exponer usuario ni ubicación.
+    const anonymous = privacy.publicRadar === "anonymous";
     const supabase = await client();
     if (!supabase) return false;
     const owner = await ownerId(supabase);
@@ -187,7 +195,8 @@ export async function emitBeacon(): Promise<boolean> {
       enc: false,
       payload: {},
       device_id: me,
-      label: privacy.shareName ? s.self?.shortName || s.self?.longName || "Neurona" : null,
+      // Anónimo → sin etiqueta de usuario. Visible → según shareName.
+      label: anonymous ? null : privacy.shareName ? s.self?.shortName || s.self?.longName || "Neurona" : null,
       region: s.region,
       preset: getActiveModemPreset(),
       online_count: online,

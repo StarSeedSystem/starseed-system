@@ -213,8 +213,8 @@ export const DOCK_PRESETS: DockItemConfig[] = [
   // El centro de la malla P2P (mapa 3D, antenas/bandas, privacidad, peers) y la
   // página Señales (antenas de la neurona + radar de nodos reales) ahora tienen
   // acceso propio en el dock, no solo dentro del hub de conexiones.
-  { id: 'red-mesh',      label: 'Red Mesh',            iconKey: 'RadioTower',      path: '/red-mesh',              color: 'emerald', enabled: true,  origin: 'preset' },
-  { id: 'senales',       label: 'Señales',             iconKey: 'Antenna',         path: '/senales',               color: 'cyan',    enabled: true,  origin: 'preset' },
+  { id: 'red-mesh',      label: 'Red Mesh',            iconKey: 'Antenna',         path: '/red-mesh',              color: 'emerald', enabled: true,  origin: 'preset' },
+  { id: 'senales',       label: 'Señales',             iconKey: 'RadioTower',      path: '/senales',               color: 'cyan',    enabled: true,  origin: 'preset' },
 ];
 
 /**

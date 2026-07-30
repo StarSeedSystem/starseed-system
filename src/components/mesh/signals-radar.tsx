@@ -14,9 +14,41 @@
  * ubicación exacta), y así se etiqueta. SSR-safe. Nunca lanza.
  */
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
-import { estimateDistanceMeters, useMeshState, type MeshNodeInfo } from "@/ai/astraura/mesh";
+import {
+  estimateDistanceMeters, useMeshState, detectSignals, subscribeConnectivity,
+  type MeshNodeInfo, type SignalSource, type SignalKind,
+} from "@/ai/astraura/mesh";
+
+/**
+ * RADAR UNIFICADO (Adenda 100): además de las neuronas de la malla, ploteamos
+ * TODOS los tipos de señal que percibe esta neurona. Cada tipo ocupa un SECTOR
+ * fijo (su "resonancia" — la banda/frecuencia lo sitúa en el espectro) y su
+ * distancia al centro modela la proximidad/latencia (una antena activa está más
+ * "cerca" que una solo disponible). Es una triangulación por referencias: las
+ * neuronas por RF/GPS + las señales locales por resonancia, en un solo radar.
+ */
+const KIND_ANGLE: Record<SignalKind, number> = {
+  mesh: -Math.PI / 2,
+  wifi: -Math.PI / 6,
+  cellular: Math.PI / 6,
+  bluetooth: Math.PI / 2,
+  gps: (5 * Math.PI) / 6,
+  telephony: (7 * Math.PI) / 6,
+  nfc: (3 * Math.PI) / 2,
+  serial: (11 * Math.PI) / 6,
+};
+const KIND_COLOR: Record<SignalKind, string> = {
+  mesh: "#34d399",
+  wifi: "#38bdf8",
+  cellular: "#a78bfa",
+  bluetooth: "#60a5fa",
+  gps: "#f59e0b",
+  telephony: "#f472b6",
+  nfc: "#22d3ee",
+  serial: "#94a3b8",
+};
 
 /** Distancia (m) → fracción de radio del radar (log: 30 m→0.16 · 6 km→0.92). */
 function radiusFrac(m: number): number {
@@ -84,9 +116,11 @@ export interface SignalsRadarProps {
   compact?: boolean;
   showLegend?: boolean;
   className?: string;
+  /** Señales detectadas (opcional). Si no se pasan, el radar las autodetecta. */
+  signals?: SignalSource[];
 }
 
-export function SignalsRadar({ height = 180, compact = false, showLegend = true, className }: SignalsRadarProps) {
+export function SignalsRadar({ height = 180, compact = false, showLegend = true, className, signals }: SignalsRadarProps) {
   const mesh = useMeshState();
   const [sel, setSel] = useState<number | null>(null);
   const cx = 50, cy = 50, R = 45;
@@ -96,6 +130,34 @@ export function SignalsRadar({ height = 180, compact = false, showLegend = true,
   const remotes = mesh.remoteTopologies ?? [];
   const connected = mesh.status === "ready" || mesh.status === "degraded";
   const selected = placed.find((p) => p.node.num === sel) ?? null;
+
+  // Autodetección de señales si el padre no las pasa → mismo radar en widget,
+  // barra superior y página Señales. Throttle por estado/eventos (no cada tick).
+  const [selfSignals, setSelfSignals] = useState<SignalSource[]>([]);
+  const meshRef = useRef(mesh);
+  meshRef.current = mesh;
+  const onlineCount = online.length;
+  useEffect(() => {
+    if (signals) return; // controladas por el padre
+    let alive = true;
+    const seq = { n: 0 };
+    const run = () => {
+      const my = ++seq.n;
+      void detectSignals(meshRef.current).then((r) => {
+        if (alive && my === seq.n) setSelfSignals(r);
+      });
+    };
+    run();
+    const off = subscribeConnectivity(run);
+    return () => { alive = false; off(); };
+  }, [signals, mesh.status, mesh.region, onlineCount]);
+
+  const sigs = signals ?? selfSignals;
+  // Solo señales reales (con antena/soporte); "unsupported" no se dibuja.
+  const activeSigs = useMemo(
+    () => sigs.filter((s) => s.status === "active" || s.status === "available" || s.status === "info"),
+    [sigs],
+  );
 
   return (
     <div className={cn("relative", className)}>
@@ -155,15 +217,38 @@ export function SignalsRadar({ height = 180, compact = false, showLegend = true,
           return <circle key={r.deviceId} cx={x} cy={y} r={1.8} fill="#c084fc" style={{ filter: "drop-shadow(0 0 2px #c084fc)" }} />;
         })}
 
+        {/* Señales locales por TIPO (resonancia): cada tipo ocupa su sector del
+            espectro; la distancia modela proximidad/latencia (activa = más cerca).
+            Líneas de referencia = triangulación desde esta neurona. */}
+        {activeSigs.map((s) => {
+          const ang = KIND_ANGLE[s.kind];
+          const rr = R * (s.status === "active" ? 0.3 : s.status === "available" ? 0.42 : 0.52);
+          const x = cx + Math.cos(ang) * rr, y = cy + Math.sin(ang) * rr;
+          const color = KIND_COLOR[s.kind];
+          return (
+            <g key={`sig-${s.kind}`}>
+              <line x1={cx} y1={cy} x2={x} y2={y} stroke={color} strokeOpacity={0.16} strokeWidth={0.3} />
+              {s.status === "active" && (
+                <circle className="ss-signal-ping" cx={x} cy={y} r={1.6} fill="none" stroke={color} strokeWidth={0.35} strokeOpacity={0.5} />
+              )}
+              <circle cx={x} cy={y} r={1.5} fill={color} fillOpacity={s.status === "info" ? 0.45 : 0.92}
+                style={{ filter: `drop-shadow(0 0 1.5px ${color})` }} />
+              {!compact && (
+                <text x={x} y={y - 2.1} fontSize={2.1} textAnchor="middle" fill={color} opacity={0.7}>{s.kind}</text>
+              )}
+            </g>
+          );
+        })}
+
         {/* Yo (centro) */}
         <circle cx={cx} cy={cy} r={3} fill="hsl(var(--primary))" style={{ filter: "drop-shadow(0 0 3px hsl(var(--primary)))" }} />
       </svg>
 
-      {/* Sin radio: mensaje honesto encima */}
+      {/* Estado honesto abajo (sin tapar las señales locales, que siempre existen) */}
       {!connected && (
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <span className="text-[10px] text-muted-foreground/60 text-center px-4">
-            Sin radio: conecta la malla para ver las señales reales
+        <div className="absolute inset-x-0 bottom-1 flex items-center justify-center pointer-events-none">
+          <span className="text-[9px] text-muted-foreground/55 text-center px-4">
+            Sin radio LoRa · se muestran las antenas de esta neurona; conecta la malla para ubicar vecinos por RF
           </span>
         </div>
       )}

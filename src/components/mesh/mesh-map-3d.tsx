@@ -20,11 +20,24 @@
  * Todo respeta prefers-reduced-motion (sin órbitas animadas si está activo).
  */
 
-import { useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { Html, Line, OrbitControls } from "@react-three/drei";
 import * as THREE from "three";
-import { estimateDistanceMeters, useMeshState, type MeshNodeInfo, type RemoteTopology } from "@/ai/astraura/mesh";
+import {
+  estimateDistanceMeters, useMeshState, detectSignals, subscribeConnectivity,
+  type MeshNodeInfo, type RemoteTopology, type SignalSource, type SignalKind,
+} from "@/ai/astraura/mesh";
+
+/* ── Señales locales por tipo (radar unificado · Adenda 100) ───────────────── */
+const KIND_ANGLE: Record<SignalKind, number> = {
+  mesh: -Math.PI / 2, wifi: -Math.PI / 6, cellular: Math.PI / 6, bluetooth: Math.PI / 2,
+  gps: (5 * Math.PI) / 6, telephony: (7 * Math.PI) / 6, nfc: (3 * Math.PI) / 2, serial: (11 * Math.PI) / 6,
+};
+const KIND_COLOR: Record<SignalKind, string> = {
+  mesh: "#34d399", wifi: "#38bdf8", cellular: "#a78bfa", bluetooth: "#60a5fa",
+  gps: "#f59e0b", telephony: "#f472b6", nfc: "#22d3ee", serial: "#94a3b8",
+};
 
 /* ── Posicionamiento ───────────────────────────────────────────────────────── */
 
@@ -210,6 +223,45 @@ function RangeRings() {
   );
 }
 
+/** Señales locales de la neurona ploteadas por su resonancia (sector por tipo). */
+function SignalNodes() {
+  const state = useMeshState();
+  const [signals, setSignals] = useState<SignalSource[]>([]);
+  const stRef = useRef(state);
+  stRef.current = state;
+  useEffect(() => {
+    let alive = true;
+    const run = () => void detectSignals(stRef.current).then((r) => alive && setSignals(r));
+    run();
+    const off = subscribeConnectivity(run);
+    return () => { alive = false; off(); };
+  }, [state.status, state.region]);
+
+  const shown = signals.filter((s) => s.status === "active" || s.status === "available" || s.status === "info");
+  return (
+    <>
+      {shown.map((s) => {
+        const ang = KIND_ANGLE[s.kind];
+        const r = s.status === "active" ? 2.4 : s.status === "available" ? 3.2 : 3.8;
+        const pos: [number, number, number] = [Math.cos(ang) * r, 0.5, Math.sin(ang) * r];
+        const color = KIND_COLOR[s.kind];
+        return (
+          <group key={`sig-${s.kind}`}>
+            <Line points={[[0, 0, 0], pos]} color={color} transparent opacity={0.22} lineWidth={1} />
+            <mesh position={pos}>
+              <sphereGeometry args={[0.16, 16, 16]} />
+              <meshStandardMaterial color={color} emissive={color} emissiveIntensity={s.status === "info" ? 0.3 : 0.7} />
+            </mesh>
+            <Html position={[pos[0], pos[1] + 0.35, pos[2]]} center distanceFactor={16}>
+              <span style={{ color, fontSize: 9, whiteSpace: "nowrap", textShadow: "0 0 3px #000" }}>{s.kind}</span>
+            </Html>
+          </group>
+        );
+      })}
+    </>
+  );
+}
+
 function Scene() {
   const state = useMeshState();
   const placed = useMemo(() => placeNodes(state.nodes, state.self), [state.nodes, state.self]);
@@ -220,6 +272,7 @@ function Scene() {
       <pointLight position={[8, 10, 6]} intensity={90} />
       <RangeRings />
       <SelfNode />
+      <SignalNodes />
       {placed.map((p) => (
         <group key={p.node.num}>
           <PeerNode placed={p} />

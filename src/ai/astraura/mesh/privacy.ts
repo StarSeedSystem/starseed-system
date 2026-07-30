@@ -31,11 +31,25 @@ const MESH_PRIVACY_LS_KEY = "starseed.mesh.privacy.v1";
 export type MeshVisibility = "account" | "private";
 export type MeshRelayUse = "all" | "alerts" | "none";
 
+/**
+ * Presencia de ESTA neurona en el RADAR PÚBLICO de la malla (entre cuentas):
+ *   · "visible"    → aparece como usuario activo (etiqueta según shareName) y,
+ *                    si sharePosition está ON, con posición aproximada.
+ *   · "anonymous"  → participa en la malla pública (da y recibe) PERO sin
+ *                    mostrar datos de usuario ni ubicación de la neurona (por
+ *                    defecto: privacidad primero).
+ *   · "off"        → no emite faro al radar público (sigue usando la malla,
+ *                    pero es invisible en el radar entre cuentas).
+ */
+export type PublicRadarMode = "visible" | "anonymous" | "off";
+
 export interface MeshPrivacySettings {
   visibility: MeshVisibility;
   sharePosition: boolean;
   shareName: boolean;
   relayUse: MeshRelayUse;
+  /** Cómo aparece esta neurona en el radar público de la malla (entre cuentas). */
+  publicRadar: PublicRadarMode;
 }
 
 /**
@@ -53,6 +67,7 @@ export const DEFAULT_MESH_PRIVACY: MeshPrivacySettings = {
   sharePosition: false, // privacidad primero: la ubicación no viaja salvo opt-in
   shareName: true,
   relayUse: RELAY_ALWAYS_ON, // no configurable
+  publicRadar: "anonymous", // participa en la malla pública sin exponer usuario/ubicación
 };
 
 export function getMeshPrivacy(): MeshPrivacySettings {
@@ -66,6 +81,10 @@ export function getMeshPrivacy(): MeshPrivacySettings {
       shareName: typeof j.shareName === "boolean" ? j.shareName : DEFAULT_MESH_PRIVACY.shareName,
       // El relé SIEMPRE activo: no se lee del almacenamiento ni se puede apagar.
       relayUse: RELAY_ALWAYS_ON,
+      publicRadar:
+        j.publicRadar === "visible" || j.publicRadar === "off" || j.publicRadar === "anonymous"
+          ? j.publicRadar
+          : DEFAULT_MESH_PRIVACY.publicRadar,
     };
   } catch {
     return { ...DEFAULT_MESH_PRIVACY };

@@ -296,7 +296,7 @@ export default function NetworkPage() {
                                     gusta) aparecerán aquí las voces más afines.
                                 </p>
                                 <Link href="/hub" className="inline-flex text-xs font-semibold text-primary hover:underline">
-                                    Explorar el Hub de Conexiones →
+                                    Explorar el Hub Social →
                                 </Link>
                             </div>
                         </div>

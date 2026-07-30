@@ -38,6 +38,7 @@ import { Switch } from "@/components/ui/switch";
 import { InternetRadarWidget } from "@/components/dashboard/widgets/internet-radar-widget";
 import { RedMeshCenter } from "@/components/mesh/red-mesh-center";
 import { SignalsCenter } from "@/components/mesh/signals-center";
+import { ConnectivityConfigPanel } from "@/components/connectivity/connectivity-config-panel";
 import {
   bluetoothLink,
   connectMesh,
@@ -140,6 +141,11 @@ export function ConnectionsCenter({ compact = false }: { compact?: boolean }) {
       <div className={cn(compact ? "h-64" : "h-[26rem]")}>
         <InternetRadarWidget />
       </div>
+
+      {/* Controles maestros de la neurona (Adenda 100): antena de malla local +
+          internet público StarSeed + servidor activo + privacidad del radar. Se
+          auto-persisten en esta neurona; integrados también en el Centro de Control. */}
+      <ConnectivityConfigPanel mode="account" compact={compact} title="Señales de esta neurona" />
 
       {/* Red externa */}
       <div className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5">

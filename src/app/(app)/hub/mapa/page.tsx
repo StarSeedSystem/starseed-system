@@ -26,7 +26,7 @@ export default function HubMapaPage() {
                     <Link
                         href="/hub"
                         className="flex cursor-pointer items-center gap-1 text-[11px] text-white/50 transition-colors hover:text-white"
-                        title="Volver al Hub de Conexiones"
+                        title="Volver al Hub Social"
                     >
                         <ArrowLeft className="h-3.5 w-3.5" />
                         Hub

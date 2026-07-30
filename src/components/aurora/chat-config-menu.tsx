@@ -21,9 +21,11 @@ import { useEffect, useState, useCallback } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { cn } from "@/lib/utils";
 import {
-  Brain, UserRound, Eye, Cpu, Boxes, Zap, Network,
+  Brain, UserRound, Eye, Cpu, Boxes, Zap, Network, RadioTower,
   Check, ChevronRight, X, Plus, Search,
 } from "lucide-react";
+import { ConnectivityConfigPanel } from "@/components/connectivity/connectivity-config-panel";
+import { normalizeConnectivityConfig, type ConnectivityConfig } from "@/ai/astraura/mesh";
 import {
   listPersonalityProfiles, setActivePersonality, resolvePersonalityForContext,
   getPersonalityAssignments,
@@ -49,6 +51,8 @@ export interface ChatConfig {
   connections?: string[];
   memoryScope?: string;
   senses?: Record<string, boolean>;
+  /** Conectividad (señales/internet/privacidad) por chat — Adenda 100 (panel compartido). */
+  connectivity?: ConnectivityConfig;
   /** Voz (Aurora habla) por chat — Adenda 71-bis. */
   voice?: boolean;
   /** Registro (historial persistente) por chat — Adenda 71-bis. */
@@ -112,6 +116,7 @@ const SECTION_DEFS = [
   { key: "capacidades", label: "Capacidades", Icon: Boxes },
   { key: "habilidades", label: "Habilidades", Icon: Zap },
   { key: "conexiones", label: "Conexiones", Icon: Network },
+  { key: "conectividad", label: "Conectividad", Icon: RadioTower },
 ] as const;
 
 // Etiquetas legibles de categoría de conexiones (Adenda 71-bis fix-22).
@@ -474,6 +479,15 @@ export function ChatConfigMenu({
                 />
               ))}
             </Section>
+          )}
+          {open === "conectividad" && (
+            <ConnectivityConfigPanel
+              mode="portable"
+              compact
+              contextLabel="este chat"
+              value={normalizeConnectivityConfig(cfg.connectivity)}
+              onChange={(next) => patch({ connectivity: next })}
+            />
           )}
         </div>
       )}

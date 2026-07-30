@@ -14,14 +14,15 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import {
   RadioTower, Wifi, Signal, Bluetooth, MapPin, Nfc, Usb, Phone,
-  ExternalLink, Settings2, ShieldCheck, Antenna, Smartphone, Download, type LucideIcon,
+  ExternalLink, Settings2, ShieldCheck, Antenna, Smartphone, Download, ChevronDown, type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { SignalsRadar } from "./signals-radar";
+import { RedMeshCenter } from "./red-mesh-center";
+import { ConnectivityConfigPanel } from "@/components/connectivity/connectivity-config-panel";
 import {
   useMeshState, detectSignals, connectMesh, connectWifiNode, getConnectivitySettings,
   subscribeConnectivity, setNeuronPosition, detectPlatform, recommendNative, hasAccountSession,
@@ -48,12 +49,20 @@ export interface SignalsCenterProps {
 
 export function SignalsCenter({ embedded = false, compact = false }: SignalsCenterProps) {
   const mesh = useMeshState();
-  const router = useRouter();
   const [signals, setSignals] = useState<SignalSource[]>([]);
   const [busy, setBusy] = useState<SignalKind | null>(null);
   const [webMeshOn, setWebMeshOn] = useState(false);
   const meshRef = useRef(mesh);
   meshRef.current = mesh;
+
+  // Sección completa de Red Mesh DENTRO de Señales (Adenda 100): abierta por
+  // defecto en vista amplia, plegada en la barra superior (compact).
+  const meshSectionRef = useRef<HTMLDivElement>(null);
+  const [meshOpen, setMeshOpen] = useState(!compact);
+  const openMeshSection = () => {
+    setMeshOpen(true);
+    setTimeout(() => meshSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+  };
 
   useEffect(() => {
     let alive = true;
@@ -94,7 +103,7 @@ export function SignalsCenter({ embedded = false, compact = false }: SignalsCent
 
   const runAction = async (sig: SignalSource, action: string) => {
     try {
-      if (action === "Abrir Red Mesh") { router.push("/red-mesh"); return; }
+      if (action === "Abrir Red Mesh") { openMeshSection(); return; }
       if (action === "App nativa") {
         window.open(native.links[0]?.url ?? "https://meshtastic.org/download/", "_blank", "noopener,noreferrer");
         return;
@@ -162,10 +171,14 @@ export function SignalsCenter({ embedded = false, compact = false }: SignalsCent
         </div>
       )}
 
-      {/* Radar de señales (nodos reales de la malla) */}
+      {/* Radar unificado de señales + neuronas (nodos reales de la malla por RF) */}
       <div className="rounded-2xl border border-white/10 bg-black/30 p-3">
         <SignalsRadar height={compact ? 200 : 260} showLegend />
       </div>
+
+      {/* Controles maestros: antena de malla local + internet público StarSeed +
+          servidor activo + privacidad del radar público. Encendidos por defecto. */}
+      <ConnectivityConfigPanel mode="account" compact={compact} title="Estado de señales de esta neurona" />
 
       {/* Estado de la malla web (funciona desde el navegador, sin hardware) */}
       <div className={cn("flex flex-wrap items-center gap-2 rounded-xl border px-3 py-2",
@@ -249,17 +262,45 @@ export function SignalsCenter({ embedded = false, compact = false }: SignalsCent
         })}
       </div>
 
-      {/* Accesos a configuración */}
+      {/* Accesos rápidos → abren la sección completa de Red Mesh in-situ */}
       <div className="flex flex-wrap gap-2">
-        <Link href="/red-mesh" className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-[11px] text-white/80 transition-colors hover:border-emerald-400/40">
+        <button type="button" onClick={openMeshSection} className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-[11px] text-white/80 transition-colors hover:border-emerald-400/40">
           <RadioTower className="h-3.5 w-3.5 text-emerald-300" /> Configurar la Red Mesh P2P
-        </Link>
-        <Link href="/red-mesh" className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-[11px] text-white/80 transition-colors hover:border-sky-400/40">
+        </button>
+        <button type="button" onClick={openMeshSection} className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-[11px] text-white/80 transition-colors hover:border-sky-400/40">
           <Settings2 className="h-3.5 w-3.5 text-sky-300" /> Antenas y bandas (preset inteligente)
-        </Link>
-        <Link href="/red-mesh" className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-[11px] text-white/80 transition-colors hover:border-fuchsia-400/40">
+        </button>
+        <button type="button" onClick={openMeshSection} className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-[11px] text-white/80 transition-colors hover:border-fuchsia-400/40">
           <ShieldCheck className="h-3.5 w-3.5 text-fuchsia-300" /> Privacidad y permisos
+        </button>
+        <Link href="/red-mesh" className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-[11px] text-white/60 transition-colors hover:border-white/30">
+          <ExternalLink className="h-3.5 w-3.5" /> Pantalla completa
         </Link>
+      </div>
+
+      {/* SECCIÓN COMPLETA DE RED MESH — trasladada aquí desde /red-mesh (Adenda 100).
+          Conexiones de radio, antenas y bandas, privacidad, peers y mapa 3D unificado. */}
+      <div ref={meshSectionRef} className="overflow-hidden rounded-2xl border border-emerald-400/20 bg-emerald-500/[0.03]">
+        <button
+          type="button"
+          onClick={() => setMeshOpen((v) => !v)}
+          aria-expanded={meshOpen}
+          className="flex w-full cursor-pointer items-center gap-2.5 px-3 py-3 text-left transition-colors hover:bg-white/[0.03]"
+        >
+          <RadioTower className="h-4 w-4 shrink-0 text-emerald-300" />
+          <span className="min-w-0 flex-1">
+            <span className="block text-[13px] font-semibold text-white/90">Red Mesh · configuración completa</span>
+            <span className="block text-[10px] leading-snug text-white/45">
+              Conexiones de radio, antenas y bandas, privacidad, peers y mapa 3D de neuronas — todo aquí, sin salir de Señales
+            </span>
+          </span>
+          <ChevronDown className={cn("h-4 w-4 shrink-0 text-white/50 transition-transform duration-200", meshOpen && "rotate-180")} />
+        </button>
+        {meshOpen && (
+          <div className="border-t border-white/10 p-3">
+            <RedMeshCenter embedded showMap={!compact} />
+          </div>
+        )}
       </div>
 
       <p className="flex items-start gap-1.5 text-[10px] leading-snug text-white/35">

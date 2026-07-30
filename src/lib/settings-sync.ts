@@ -45,6 +45,9 @@ export const SYNCED_KEYS = [
     "starseed.oss.defaults.v1",          // servicio elegido por función/scope
     "starseed.ai.function-models.v1",    // preferencias de UI de modelos por función
     "starseed.neurons.prefs.v1",         // permisos/preferencias de neuronas (dispositivos)
+    "starseed.connectivity.settings.v1", // conectividad: malla on/off, internet público, servidor activo, ruta
+    "starseed.mesh.privacy.v1",          // privacidad de la neurona en la malla (radar público, posición, nombre)
+    "starseed.mesh.servers.v1",          // servidores de internet público/relé añadidos y editables por la cuenta
     "starseed.library.installed.v1",     // paquetes instalados desde la Biblioteca
     "starseed.library.mine.v1",          // réplicas/forks editables del usuario (Cydia «Replicar»)
     "starseed.library.published.v1",     // ramas marcadas como públicas (preparadas para la red)

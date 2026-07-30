@@ -52,6 +52,28 @@ export interface ConnectivitySettings {
   daemonUrl: string;
   /** ¿Reconectar la malla automáticamente al arrancar (solo daemon)? */
   autoConnectMesh: boolean;
+  /**
+   * ANTENA MESH LOCAL (P2P) encendida. Cuando está ON, esta neurona actúa
+   * RECÍPROCAMENTE como antena/relé de la malla StarSeed (da y recibe, bien
+   * común). OFF = no participa en la malla local P2P (pero el internet público
+   * puede seguir ON de forma independiente). Por defecto ON.
+   */
+  meshEnabled: boolean;
+  /**
+   * INTERNET PÚBLICO StarSeed encendido (independiente de la malla local).
+   * ON (por defecto) = esta neurona se entrelaza con TODAS las neuronas que
+   * usan el servidor público StarSeed para el internet público del OS y la red
+   * StarSeed. OFF = SESIÓN PRIVADA (el servidor solo sirve a las neuronas de tu
+   * propia cuenta —sync privada— sin feed público ni cruce entre cuentas).
+   */
+  publicInternet: boolean;
+  /**
+   * Servidor activo para el internet público / relé. "starseed" = servidor
+   * público StarSeed (por defecto, entrelaza a toda la red). Cualquier otro id
+   * apunta a un servidor privado o público añadido/editable por la cuenta o el
+   * grupo (ver servers.ts). Vacío = solo malla local.
+   */
+  serverId: string;
 }
 
 export const DEFAULT_CONNECTIVITY: ConnectivitySettings = {
@@ -60,6 +82,12 @@ export const DEFAULT_CONNECTIVITY: ConnectivitySettings = {
   defaultRadio: "serial",
   daemonUrl: "http://127.0.0.1:4403",
   autoConnectMesh: false,
+  // Por defecto: malla local Y internet público StarSeed ENCENDIDOS a la vez,
+  // funcionando de forma inteligente según carga/distancia/tamaño/velocidad
+  // (el router sináptico decide la mejor vía por clase de mensaje).
+  meshEnabled: true,
+  publicInternet: true,
+  serverId: "starseed",
 };
 
 export function getConnectivitySettings(): ConnectivitySettings {
@@ -83,6 +111,10 @@ export function getConnectivitySettings(): ConnectivitySettings {
       daemonUrl: typeof j.daemonUrl === "string" && j.daemonUrl ? j.daemonUrl : DEFAULT_CONNECTIVITY.daemonUrl,
       autoConnectMesh:
         typeof j.autoConnectMesh === "boolean" ? j.autoConnectMesh : DEFAULT_CONNECTIVITY.autoConnectMesh,
+      meshEnabled: typeof j.meshEnabled === "boolean" ? j.meshEnabled : DEFAULT_CONNECTIVITY.meshEnabled,
+      publicInternet:
+        typeof j.publicInternet === "boolean" ? j.publicInternet : DEFAULT_CONNECTIVITY.publicInternet,
+      serverId: typeof j.serverId === "string" ? j.serverId : DEFAULT_CONNECTIVITY.serverId,
     };
   } catch {
     return { ...DEFAULT_CONNECTIVITY };
@@ -100,6 +132,63 @@ export function setConnectivitySettings(patch: Partial<ConnectivitySettings>): C
     /* */
   }
   return next;
+}
+
+/* ── Config PORTÁTIL de conectividad (contextos no-cuenta) ─────────────────── */
+
+/**
+ * Config de conectividad reutilizable en CUALQUIER contexto que no sea la
+ * neurona-cuenta: entidades (páginas/grupos/comunidades), chats y personalidades
+ * de Astraura. Se guarda en el almacén de cada contexto (entity_state /
+ * meta.config / perfil de personalidad). El panel compartido la edita por
+ * value/onChange. Por defecto: todo lo público ENCENDIDO (bien común).
+ */
+export type ConnectivityInternetMode = "public" | "private" | "local" | "account";
+
+export interface ConnectivityConfig {
+  /** Antena/malla local P2P participando (da y recibe). */
+  meshEnabled: boolean;
+  /** Internet público StarSeed encendido (entrelaza con toda la red). */
+  publicInternet: boolean;
+  /** Servidor activo ("starseed" por defecto, o un id de servidor propio). */
+  serverId: string;
+  /** Presencia en el radar público de la malla. */
+  publicRadar: "visible" | "anonymous" | "off";
+  /**
+   * Modo de internet de ESTE contexto (para entidades/chats/personalidades):
+   *   · "public"  → red pública en servidores StarSeed/editables (por defecto)
+   *   · "private" → servidores privados propios (sesión privada)
+   *   · "local"   → solo malla local P2P (sin servidor)
+   *   · "account" → solo a través de la cuenta y sus permisos/accesos
+   */
+  internetMode: ConnectivityInternetMode;
+}
+
+export const DEFAULT_CONNECTIVITY_CONFIG: ConnectivityConfig = {
+  meshEnabled: true,
+  publicInternet: true,
+  serverId: "starseed",
+  publicRadar: "anonymous",
+  internetMode: "public",
+};
+
+/** Sanea/normaliza una config portátil venida de un almacén cualquiera. */
+export function normalizeConnectivityConfig(x: unknown): ConnectivityConfig {
+  const j = (x && typeof x === "object" ? x : {}) as Partial<ConnectivityConfig>;
+  return {
+    meshEnabled: typeof j.meshEnabled === "boolean" ? j.meshEnabled : DEFAULT_CONNECTIVITY_CONFIG.meshEnabled,
+    publicInternet:
+      typeof j.publicInternet === "boolean" ? j.publicInternet : DEFAULT_CONNECTIVITY_CONFIG.publicInternet,
+    serverId: typeof j.serverId === "string" ? j.serverId : DEFAULT_CONNECTIVITY_CONFIG.serverId,
+    publicRadar:
+      j.publicRadar === "visible" || j.publicRadar === "off" || j.publicRadar === "anonymous"
+        ? j.publicRadar
+        : DEFAULT_CONNECTIVITY_CONFIG.publicRadar,
+    internetMode:
+      j.internetMode === "private" || j.internetMode === "local" || j.internetMode === "account" || j.internetMode === "public"
+        ? j.internetMode
+        : DEFAULT_CONNECTIVITY_CONFIG.internetMode,
+  };
 }
 
 /* ── Inventario vivo de vías de conexión ───────────────────────────────────── */

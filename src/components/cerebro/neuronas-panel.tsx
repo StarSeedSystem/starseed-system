@@ -61,6 +61,8 @@ import { useHermioneStatus } from "@/lib/aurora/hermione-autosync";
 import { sendAccountBroadcast } from "@/lib/sync/realtime-sync";
 import { deviceId as syncDeviceId } from "@/lib/sync/entity-state";
 import { saveServer, linkServer } from "@/lib/brains/servers";
+import { ConnectivityConfigPanel } from "@/components/connectivity/connectivity-config-panel";
+import { normalizeConnectivityConfig } from "@/ai/astraura/mesh";
 import {
   Monitor,
   Laptop,
@@ -88,6 +90,8 @@ import {
   StickyNote,
   Brain,
   Sparkles,
+  Library,
+  Globe,
 } from "lucide-react";
 
 /* ─────────────────────────── Constantes de UI ─────────────────────────── */
@@ -668,6 +672,59 @@ function NeuronCard({
         brainId={brainId}
         brainName={brainName}
       />
+
+      {/* ── Señales y conectividad por neurona (Adenda 100) ── */}
+      {n.isThisDevice ? (
+        // Esta neurona = dispositivo real ⇒ edita los ajustes de conectividad
+        // reales de la cuenta (auto-persistidos por el panel vía localStorage).
+        <ConnectivityConfigPanel mode="account" compact />
+      ) : (
+        // Otra neurona ⇒ config portátil por neurona (controlada/persistida aquí).
+        <ConnectivityConfigPanel
+          mode="portable"
+          compact
+          contextLabel={n.name}
+          value={normalizeConnectivityConfig(settings.connectivity)}
+          onChange={(next) => patchSettings({ connectivity: next })}
+        />
+      )}
+
+      {/* ── Sincronización por neurona ── */}
+      <div className="space-y-2">
+        <span className="text-[11px] text-white/50 inline-flex items-center gap-1.5">
+          <FolderSync className="w-3.5 h-3.5 text-emerald-300/80" /> Qué sincroniza esta neurona
+        </span>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <SettingRow
+            icon={Brain}
+            label="Memorias de los cerebros"
+            hint="Sincronizar las memorias de los cerebros con esta neurona"
+            checked={settings.syncBrains !== false}
+            onChange={(v) => patchSettings({ syncBrains: v })}
+          />
+          <SettingRow
+            icon={Library}
+            label="Datos de la biblioteca"
+            hint="Sincronizar la biblioteca de la cuenta con esta neurona"
+            checked={settings.syncLibrary !== false}
+            onChange={(v) => patchSettings({ syncLibrary: v })}
+          />
+          <SettingRow
+            icon={Network}
+            label="Otras neuronas de la cuenta"
+            hint="Sincronizar con las demás neuronas de tu cuenta"
+            checked={settings.syncNeurons !== false}
+            onChange={(v) => patchSettings({ syncNeurons: v })}
+          />
+          <SettingRow
+            icon={Globe}
+            label="Neuronas externas"
+            hint="Sincronizar con neuronas de fuera de tu cuenta (desactivado por defecto)"
+            checked={settings.syncExternal === true}
+            onChange={(v) => patchSettings({ syncExternal: v })}
+          />
+        </div>
+      </div>
     </div>
   );
 }
