@@ -290,6 +290,35 @@ async function main() {
     console.log("  (omite roundtrip de cifrado: sin WebCrypto en este entorno)");
   }
 
+  // 26) Revocación de identidad (Adenda 108): acta auto-autenticable + rotación.
+  if (globalThis.crypto?.subtle) {
+    const { signRevocation, verifyRevocation, regenerateIdentity, myFingerprint, signContent } = await import(
+      "../src/ai/astraura/mesh/mesh-identity"
+    );
+    const before = await myFingerprint();
+    const rev = await signRevocation();
+    check("revocación: firma acta {fp,pub,sig}", !!rev && !!rev.fp && !!rev.pub && !!rev.sig);
+    if (rev) {
+      check("revocación: acta propia verifica", (await verifyRevocation(rev.fp, rev.sig, rev.pub)) === true);
+      check("revocación: acta es sobre la fp propia", rev.fp === before);
+      check("revocación: fp distinta NO verifica", (await verifyRevocation("id:otro00000000000000", rev.sig, rev.pub)) === false);
+      // Impersonación: firmar {revoke: victimFp} con MI clave no revoca a la víctima,
+      // porque fpOf(mi_clave) ≠ victimFp (propiedad de seguridad clave).
+      const victimFp = "id:victim000000000000";
+      const forged = await signContent({ revoke: victimFp });
+      check(
+        "revocación: no puedes revocar una fp ajena (fp≠clave)",
+        forged ? (await verifyRevocation(victimFp, forged.s, forged.k)) === false : true,
+      );
+    }
+    const rot = await regenerateIdentity();
+    check("revocación: rota a identidad nueva", !!rot && rot.fp !== before);
+    const after = await myFingerprint();
+    check("revocación: huella nueva activa tras rotar", after === rot?.fp && after !== before);
+  } else {
+    console.log("  (omite revocación: sin WebCrypto en este entorno)");
+  }
+
   console.log(`\n${passed} pasan / ${failed} fallan`);
   if (failed > 0) process.exit(1);
 }

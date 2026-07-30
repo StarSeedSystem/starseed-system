@@ -30,6 +30,8 @@ import {
   subscribeEndpointStream,
   registerIdentity,
   refreshIdentities,
+  refreshRevocations,
+  isRevoked,
   type RelayBeacon,
   type RelayInboundItem,
 } from "./server-relay";
@@ -138,6 +140,7 @@ async function pollInbox(): Promise<void> {
     // ya entregado (la consulta usa `>=`, así que el borde reaparece cada sondeo).
     for (const it of items.slice().reverse()) {
       if (it.locked) continue; // cifrado sin clave: no se puede entregar
+      if (isRevoked(it.signerFp)) continue; // identidad revocada: se descarta
       if (it.id && deliveredRelayIds.has(it.id)) continue; // ya entregado
       if (it.id) rememberDelivered(it.id);
       deliverInbound({ type: it.ptype, cls: it.cls, body: it.body, from: 0, verified: it.verified, signerFp: it.signerFp });
@@ -163,6 +166,7 @@ async function pollPublicFeed(): Promise<void> {
     if (!items.length) return;
     for (const it of items) publicWatermark = Math.max(publicWatermark, it.at);
     for (const it of items.slice().sort((a, b) => a.at - b.at)) {
+      if (isRevoked(it.signerFp)) continue; // identidad revocada: se descarta
       if (it.id && deliveredRelayIds.has(it.id)) continue; // ya entregado
       if (it.id) rememberDelivered(it.id);
       deliverInbound({ type: it.ptype, cls: it.cls, body: it.body, from: 0, verified: it.verified, signerFp: it.signerFp });
@@ -183,20 +187,23 @@ export function startSynapticLayer(): void {
   void emitBeacon(); // anunciarme ya
   void registerIdentity(); // publica mi reclamación firmada identidad↔cuenta
   void refreshIdentities(); // mapa verificado fp→cuenta
+  void refreshRevocations(); // conjunto verificado de identidades revocadas
   emitTimer = setInterval(() => void emitBeacon(), BEACON_EMIT_MS);
   pullTimer = setInterval(() => void refreshBeacons(), BEACON_PULL_MS);
   inboxTimer = setInterval(() => void pollInbox(), INBOX_POLL_MS);
   publicTimer = setInterval(() => {
     void pollPublicFeed();
     void refreshIdentities();
+    void refreshRevocations();
   }, INBOX_POLL_MS);
   // Entrega INSTANTÁNEA por realtime (además del sondeo, que sigue de respaldo).
   const onLiveItem = (it: RelayInboundItem) => {
+    if (isRevoked(it.signerFp)) return; // identidad revocada: se descarta
     if (it.id && deliveredRelayIds.has(it.id)) return;
     if (it.id) rememberDelivered(it.id);
     publicWatermark = Math.max(publicWatermark, it.at);
     inboxWatermark = Math.max(inboxWatermark, it.at);
-    deliverInbound({ type: it.ptype, cls: it.cls, body: it.body, from: 0, verified: it.verified });
+    deliverInbound({ type: it.ptype, cls: it.cls, body: it.body, from: 0, verified: it.verified, signerFp: it.signerFp });
   };
   realtimeOff = subscribeRelayRealtime({ onContent: onLiveItem, onBeacon: () => void refreshBeacons() });
   // Realtime SSE del servidor propio activo (si lo hay).

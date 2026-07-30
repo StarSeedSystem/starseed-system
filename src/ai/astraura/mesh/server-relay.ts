@@ -22,7 +22,17 @@
 import { getMeshPrivacy } from "./privacy";
 import { getConnectivitySettings } from "./connectivity";
 import { getMeshServer } from "./servers";
-import { wrapSigned, unwrapSigned, signContent, verifyContent, fpOf } from "./mesh-identity";
+import {
+  wrapSigned,
+  unwrapSigned,
+  signContent,
+  verifyContent,
+  fpOf,
+  signRevocation,
+  verifyRevocation,
+  regenerateIdentity,
+  myFingerprint,
+} from "./mesh-identity";
 import { deviceId } from "./federation";
 import { encryptEnvelope, decryptEnvelope, type EncEnvelope } from "./relay-crypto";
 import { getActiveModemPreset } from "./sync";
@@ -375,6 +385,7 @@ export interface RelayInboundItem {
 
 let identityRegistered = false;
 let idMap = new Map<string, string>(); // fp → owner uuid (verificado)
+let revokedSet = new Set<string>(); // fingerprints revocados (verificados) — Adenda 108
 
 /**
  * Publica UNA reclamación FIRMADA de identidad: "la cuenta <owner> controla la
@@ -433,7 +444,84 @@ export async function refreshIdentities(): Promise<void> {
 /** Cuenta ligada a un fingerprint de identidad (verificada), o null. */
 export function boundAccountFor(fp?: string): string | null {
   if (!fp) return null;
+  if (revokedSet.has(fp)) return null; // identidad revocada: sin cuenta de confianza
   return idMap.get(fp) ?? null;
+}
+
+/* ── REVOCACIÓN de identidades (Adenda 108) ─────────────────────────────────────
+ * Una neurona puede REVOCAR su identidad (clave comprometida o rotación): firma
+ * su acta de revocación con la clave actual, la publica y ROTA a una clave nueva.
+ * Los receptores que ven un acta válida DESCARTAN el contenido firmado con la
+ * huella revocada (no se entrega). La revocación es auto-autenticable: solo el
+ * poseedor de la clave puede firmarla, así que el transporte no necesita confianza.
+ * ---------------------------------------------------------------------------- */
+
+/** ¿Está revocada esta huella de identidad? (contenido suyo no debe entregarse). */
+export function isRevoked(fp?: string): boolean {
+  return !!fp && revokedSet.has(fp);
+}
+
+/** Huella de identidad actual de esta neurona (para mostrarla en la UI). */
+export async function currentFingerprint(): Promise<string | null> {
+  return myFingerprint();
+}
+
+/**
+ * Revoca la identidad ACTUAL y rota a una nueva: publica el acta firmada
+ * (`kind:"revocation"`), retira el registro de identidad viejo y re-registra la
+ * nueva. Best-effort: sin cliente/sesión sí rota la clave local igualmente.
+ */
+export async function revokeIdentity(): Promise<{ ok: boolean; oldFp?: string; newFp?: string }> {
+  try {
+    const rev = await signRevocation();
+    if (!rev) return { ok: false };
+    const supabase = await client();
+    const owner = supabase ? await ownerId(supabase) : null;
+    if (supabase && owner) {
+      // Publica el acta de revocación (verificable por cualquiera, no caduca).
+      await supabase.from("os_mesh_relay").insert({
+        owner_id: owner,
+        channel: "public",
+        kind: "revocation",
+        cls: "P3",
+        ptype: "manifest",
+        enc: false,
+        payload: { fp: rev.fp, pub: rev.pub, sig: rev.sig },
+        device_id: deviceId(),
+        expires_at: null,
+      });
+      // Retira el registro de identidad viejo de esta neurona.
+      await supabase.from("os_mesh_relay").delete().eq("owner_id", owner).eq("device_id", deviceId()).eq("kind", "identity");
+    }
+    revokedSet.add(rev.fp); // local inmediato
+    // Rota a una clave nueva y re-registra la identidad nueva ↔ cuenta.
+    const regenerated = await regenerateIdentity();
+    identityRegistered = false;
+    await registerIdentity();
+    return { ok: true, oldFp: rev.fp, newFp: regenerated?.fp };
+  } catch {
+    return { ok: false };
+  }
+}
+
+/** Refresca el conjunto VERIFICADO de identidades revocadas desde el registro público. */
+export async function refreshRevocations(): Promise<void> {
+  try {
+    const supabase = await client();
+    if (!supabase) return;
+    const { data } = await supabase.from("os_mesh_relay").select("payload").eq("kind", "revocation").limit(500);
+    if (!Array.isArray(data)) return;
+    const next = new Set<string>(revokedSet); // conserva las ya conocidas (p. ej. la recién revocada)
+    for (const row of data as Array<Record<string, unknown>>) {
+      const p = (row.payload ?? null) as { fp?: string; pub?: JsonWebKey; sig?: string } | null;
+      if (!p?.fp || !p.pub || !p.sig) continue;
+      if (!(await verifyRevocation(p.fp, p.sig, p.pub))) continue; // acta inválida: se ignora
+      next.add(p.fp);
+    }
+    revokedSet = next;
+  } catch {
+    /* */
+  }
 }
 
 /**
@@ -711,6 +799,7 @@ export function subscribeEndpointStream(onItem: (item: RelayInboundItem) => void
             if (String(row.device_id ?? "") === me) return;
             let body: unknown = row.body ?? null;
             let verified = false;
+            let signerFp: string | undefined;
             if (String(row.channel ?? "") === "relay") {
               if (body && typeof body === "object" && "iv" in (body as object) && "ct" in (body as object)) {
                 const dec = await decryptEnvelope(body as EncEnvelope);
@@ -721,6 +810,7 @@ export function subscribeEndpointStream(onItem: (item: RelayInboundItem) => void
               const u = await unwrapSigned(body);
               body = u.body;
               verified = u.verified;
+              signerFp = u.fp;
             }
             onItem({
               id: String(row.id ?? `${row.device_id ?? ""}-${row.at ?? ""}`),
@@ -731,6 +821,7 @@ export function subscribeEndpointStream(onItem: (item: RelayInboundItem) => void
               at: typeof row.at === "number" ? row.at : 0,
               locked: false,
               verified,
+              signerFp,
             });
           } catch {
             /* */

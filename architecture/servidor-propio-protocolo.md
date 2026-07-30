@@ -57,6 +57,9 @@ la neurona **deduplica por `id`/`oid`** y **excluye su propio `device_id`**.
   (`MeshServer.token`, editable en Señales → Servidor) y el cliente lo adjunta solo al endpoint
   que lo tiene. Modelo de referencia: `STARSEED_TOKENS = { "<token>": ["<identidad>"] }` — el
   buzón dirigido solo lo lee un token que **incluya** ese `recipient` (identidad).
+- **Expiración de token (opcional)**: en la referencia, un token puede declararse como
+  `{ "ids":[...], "exp":<epoch_ms> }` en lugar de un array; pasado `exp` se trata como inexistente
+  (401/403). Retrocompatible con la forma de array (sin caducidad).
 - **Firma de origen (opcional)**: el contenido público va **firmado** (ECDSA P-256, sobre
   `{v:1,b,s,k,f}`). Un servidor en modo `STARSEED_VERIFY=1` **rechaza** (400) el POST público sin
   firma válida y **descarta** en federación el ítem sin firma. El relé privado ya va autenticado
@@ -65,9 +68,18 @@ la neurona **deduplica por `id`/`oid`** y **excluye su propio `device_id`**.
   (`kind:"identity"`, `payload:{owner,fp,pub,sig}`) que liga su huella pública (`fp`) a un `owner`
   (uuid de cuenta). El receptor verifica la firma y resuelve `signerFp → cuenta`, mostrando el
   contenido con su cuenta de origen (no solo la huella del dispositivo).
+- **Revocación de identidad**: una neurona puede publicar un **acta de revocación firmada**
+  (`kind:"revocation"`, `payload:{fp,pub,sig}`) donde `sig` firma `{revoke:fp}` con la propia clave.
+  Es **auto-autenticable**: solo quien controla la clave de `fp` puede firmarla, y el receptor exige
+  `fpOf(pub)===fp` (nadie revoca una huella ajena). Los receptores **descartan** el contenido firmado
+  con una huella revocada — enforcement en el **receptor** (transporte-agnóstico). Al revocar, la
+  neurona rota a una clave nueva.
 - **Idempotencia**: los reintentos pueden reenviar; deduplica por `envelope.oid` / `id`.
 - **Control de saltos (federación)**: cada ítem lleva `hops`; al re-federar se incrementa y se
   descarta si supera `STARSEED_MAX_HOPS` (def. 4). Evita bucles y propagación infinita entre pares.
+- **Reputación de pares (federación)**: en modo `VERIFY`, un par que sirve firmas inválidas suma
+  contra su reputación; si `(malas − buenas) > STARSEED_PEER_MAX_BAD` (def. 20) se **aísla**
+  (`STARSEED_PEER_QUARANTINE_MS`, def. 300000) y no se le sondea durante el enfriamiento.
 - **Retención**: el servidor decide TTL; la neurona solo pide `since` reciente.
 
 ## Estado
@@ -107,7 +119,19 @@ la neurona **deduplica por `id`/`oid`** y **excluye su propio `device_id`**.
     incremento por salto, descarte si `hops > STARSEED_MAX_HOPS`, y descarte del ítem público sin
     firma válida en modo `STARSEED_VERIFY=1`. Verificado con `scripts/smoke-mesh-server.mjs` (14/14)
     y `scripts/smoke-mesh-federate.mjs` (3/3).
-- **Futuro**: rotación/expiración de tokens y revocación de identidades comprometidas; reputación de
-  pares en la federación (cuarentena de un peer que reenvía firmas inválidas); reconciliación con
-  reloj lógico entre pares (más allá de la marca de agua por `at`); descubrimiento automático de
-  pares de confianza a partir del registro de identidades de la cuenta/grupo.
+- **Revocación + expiración de token + reputación de pares** — Adenda 108:
+  · **Revocación de identidad** (`mesh-identity.ts` + `server-relay.ts`): `signRevocation()` firma
+    el acta `{revoke:fp}`, `revokeIdentity()` la publica (`kind:"revocation"`) y rota a una clave
+    nueva; `refreshRevocations()` construye el `revokedSet` verificado. `synaptic.ts` **descarta**
+    en la entrega cualquier ítem con `signerFp` revocada (`isRevoked`). UI: «Revocar y regenerar
+    identidad» en el panel de conectividad (cuenta), con la huella actual visible.
+  · **Expiración de token** en la referencia: forma `{ids,exp}` por token; token caducado = 401/403.
+  · **Reputación de pares**: `federate()` lleva `peerRep{bad,good,until}`; un par que sirve firmas
+    inválidas en modo `VERIFY` se **aísla** al superar `STARSEED_PEER_MAX_BAD` durante
+    `STARSEED_PEER_QUARANTINE_MS`. Verificado: `test-mesh-core` 54/54, `smoke-mesh-server` 18/18,
+    `smoke-mesh-federate` 6/6.
+- **Futuro**: revocación por AUTORIDAD DE CUENTA (revocar la fp de un dispositivo perdido sin su
+  clave, vía certificado de revocación pre-generado o firma de la cuenta); rotación programada de
+  tokens (emisión/renovación) más allá del `exp` estático; reloj lógico entre pares para reconciliar
+  orden con relojes desincronizados; descubrimiento automático de pares de confianza desde el
+  registro de identidades de la cuenta/grupo.

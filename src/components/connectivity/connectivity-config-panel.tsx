@@ -27,8 +27,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  Antenna, ArrowLeftRight, Eye, EyeOff, Globe, Lock, MapPin, Plus, RadioTower, Server, ShieldCheck,
-  Tag, Trash2, Waypoints, X,
+  Antenna, ArrowLeftRight, Eye, EyeOff, Fingerprint, Globe, KeyRound, Loader2, Lock, MapPin, Plus,
+  RadioTower, Server, ShieldCheck, ShieldX, Tag, Trash2, Waypoints, X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -50,6 +50,8 @@ import {
   removeMeshServer,
   MESH_SERVERS_EVENT,
   subscribeMeshServers,
+  revokeIdentity,
+  currentFingerprint,
   type MeshServer,
   type PublicRadarMode,
   type PreferredRoute,
@@ -140,6 +142,84 @@ function ToggleRow({
       </span>
       <Switch checked={checked} onCheckedChange={onCheckedChange} />
     </label>
+  );
+}
+
+/* ── Identidad de la neurona (revocar + rotar) · Adenda 108 ────────────────── */
+
+function NeuronIdentityCard() {
+  const [fp, setFp] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [rotated, setRotated] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    void currentFingerprint().then((f) => {
+      if (alive) setFp(f);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const revoke = async () => {
+    setBusy(true);
+    const res = await revokeIdentity();
+    setBusy(false);
+    setConfirming(false);
+    if (res.ok) {
+      setRotated(true);
+      setFp(res.newFp ?? (await currentFingerprint()));
+    }
+  };
+
+  return (
+    <div className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5">
+      <p className="mb-1.5 flex items-center gap-2 text-[12px] font-medium text-white/90">
+        <Fingerprint className="h-4 w-4 text-violet-300" /> Identidad de esta neurona
+      </p>
+      <p className="mb-2 flex items-center gap-1.5 text-[10px] text-white/45">
+        <KeyRound className="h-3 w-3 shrink-0 text-white/35" />
+        <span className="truncate font-mono">{fp ?? "—"}</span>
+      </p>
+      {rotated && (
+        <p className="mb-2 rounded-lg border border-emerald-400/20 bg-emerald-500/[0.06] px-2 py-1 text-[10px] leading-snug text-emerald-100/80">
+          Identidad revocada y rotada. El contenido firmado con la clave anterior deja de ser de fiar para el resto de la red.
+        </p>
+      )}
+      {confirming ? (
+        <div className="flex items-center gap-1.5">
+          <Button size="sm" variant="ghost" className="h-7 px-2 text-[11px]" onClick={() => setConfirming(false)} disabled={busy}>
+            Cancelar
+          </Button>
+          <Button
+            size="sm"
+            className="h-7 flex-1 bg-red-500/80 px-2 text-[11px] hover:bg-red-500"
+            onClick={revoke}
+            disabled={busy}
+          >
+            {busy ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <ShieldX className="mr-1 h-3 w-3" />}
+            Confirmar revocación y rotar clave
+          </Button>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => {
+            setRotated(false);
+            setConfirming(true);
+          }}
+          className="flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-dashed border-white/15 px-3 py-1.5 text-[11px] text-white/55 transition-colors hover:border-red-400/40 hover:text-red-200"
+        >
+          <ShieldX className="h-3.5 w-3.5" /> Revocar y regenerar identidad
+        </button>
+      )}
+      <p className="mt-1.5 text-[9px] leading-snug text-white/35">
+        Úsalo si la clave de esta neurona se vio comprometida: firma un acta de revocación verificable por toda la red y
+        genera una identidad nueva para tus próximas transmisiones.
+      </p>
+    </div>
   );
 }
 
@@ -504,6 +584,7 @@ export function ConnectivityConfigPanel({
               checked={privacy.shareName}
               onCheckedChange={(v) => setMeshPrivacy({ shareName: v })}
             />
+            <NeuronIdentityCard />
           </>
         )}
 

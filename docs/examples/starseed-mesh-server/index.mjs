@@ -20,6 +20,10 @@ const PEERS = (process.env.STARSEED_PEERS || "").split(",").map((s) => s.trim())
 const FEDERATE_MS = Number(process.env.STARSEED_FEDERATE_MS || 20000);
 const MAX_HOPS = Number(process.env.STARSEED_MAX_HOPS || 4);
 const VERIFY = process.env.STARSEED_VERIFY === "1";
+// Reputación de pares (Adenda 108): cuarentena de un par que reenvía firmas
+// inválidas — si (malas − buenas) supera el umbral, se aísla un tiempo.
+const PEER_MAX_BAD = Number(process.env.STARSEED_PEER_MAX_BAD || 20);
+const PEER_QUARANTINE_MS = Number(process.env.STARSEED_PEER_QUARANTINE_MS || 300000);
 
 /* ── Persistencia (Postgres → SQLite → memoria); todas con oid único + hops ──── */
 let store;
@@ -85,10 +89,22 @@ async function verifyWrapped(body) {
   } catch { return false; }
 }
 
-/* ── Auth de grupo ─────────────────────────────────────────────────────────── */
+/* ── Auth de grupo (con EXPIRACIÓN opcional, Adenda 108) ─────────────────────
+ * STARSEED_TOKENS admite dos formas por token (retrocompatibles):
+ *   · ["id1","id2"]                       → sin caducidad.
+ *   · { "ids":["id1"], "exp":1730000000000 } → caduca en ese epoch ms (UTC).
+ * Un token caducado se trata como inexistente (401/403). */
 function tokenOf(req, u) { const h = req.headers["authorization"] || ""; return h.startsWith("Bearer ") ? h.slice(7) : (u && u.searchParams.get("token")) || ""; }
-function canWrite(req, u) { if (TOKENS) return !!TOKENS[tokenOf(req, u)]; if (SINGLE_TOKEN) return tokenOf(req, u) === SINGLE_TOKEN; return true; }
-function canReadMailbox(req, u, rc) { if (TOKENS) { const ids = TOKENS[tokenOf(req, u)]; return Array.isArray(ids) && ids.includes(rc); } if (SINGLE_TOKEN) return tokenOf(req, u) === SINGLE_TOKEN; return true; }
+function tokenEntry(token) {
+  if (!TOKENS || !token) return null;
+  const v = TOKENS[token];
+  if (!v) return null;
+  if (Array.isArray(v)) return { ids: v, exp: 0 };
+  return { ids: Array.isArray(v.ids) ? v.ids : [], exp: Number(v.exp) || 0 };
+}
+function tokenValid(e) { return !!e && (!e.exp || e.exp > Date.now()); }
+function canWrite(req, u) { if (TOKENS) return tokenValid(tokenEntry(tokenOf(req, u))); if (SINGLE_TOKEN) return tokenOf(req, u) === SINGLE_TOKEN; return true; }
+function canReadMailbox(req, u, rc) { if (TOKENS) { const e = tokenEntry(tokenOf(req, u)); return tokenValid(e) && e.ids.includes(rc); } if (SINGLE_TOKEN) return tokenOf(req, u) === SINGLE_TOKEN; return true; }
 
 /* ── SSE (realtime) ────────────────────────────────────────────────────────── */
 const sseClients = new Set();
@@ -152,14 +168,17 @@ async function handler(req, res) {
   return json(res, 404, { error: "not found" });
 }
 
-/* ── Federación (dedup por oid · watermark por par · control de saltos · firma) ─ */
+/* ── Federación (dedup por oid · watermark por par · saltos · firma · reputación) ─ */
 const peerWatermark = new Map();
+const peerRep = new Map(); // peer → { bad, good, until } (Adenda 108)
 async function federate() {
   for (const peer of PEERS) {
+    const rep = peerRep.get(peer) || { bad: 0, good: 0, until: 0 };
+    if (rep.until > Date.now()) continue; // par en cuarentena: se salta este ciclo
     const since = peerWatermark.get(peer) || 0;
     try {
       const r = await fetch(`${peer.replace(/\/$/, "")}/mesh/public?since=${since}`, { headers: { accept: "application/json" } });
-      if (!r.ok) continue;
+      if (!r.ok) { peerRep.set(peer, rep); continue; }
       const j = await r.json();
       const items = Array.isArray(j) ? j : Array.isArray(j?.items) ? j.items : [];
       let maxAt = since;
@@ -167,12 +186,20 @@ async function federate() {
         maxAt = Math.max(maxAt, Number(it.at) || 0);
         const hops = (Number(it.hops) || 0) + 1;
         if (hops > MAX_HOPS) continue; // control de saltos: no propagar más allá
-        if (VERIFY && !(await verifyWrapped(it.body))) continue; // solo firma válida
+        if (VERIFY && !(await verifyWrapped(it.body))) { rep.bad++; continue; } // firma inválida: cuenta en contra del par
+        if (VERIFY) rep.good++;
         // addItem dedup por oid → un ítem re-federado por varios pares se ignora (anti-bucle).
         await addItem("public", { device_id: it.device_id, cls: it.cls, ptype: it.ptype || "post", body: it.body, oid: it.oid, hops, at: Number(it.at) || Date.now() });
       }
       peerWatermark.set(peer, maxAt);
-    } catch { /* par caído: se reintenta */ }
+      // Reputación: si el par es NETO malo por un margen, se aísla un tiempo.
+      if (VERIFY && rep.bad - rep.good > PEER_MAX_BAD) {
+        rep.until = Date.now() + PEER_QUARANTINE_MS;
+        rep.bad = 0; rep.good = 0;
+        console.warn(`[federación] par en cuarentena ${PEER_QUARANTINE_MS}ms (firmas inválidas): ${peer}`);
+      }
+      peerRep.set(peer, rep);
+    } catch { peerRep.set(peer, rep); /* par caído: se reintenta */ }
   }
 }
 
@@ -180,6 +207,6 @@ async function federate() {
 store = await makeStore();
 const server = http.createServer((req, res) => { handler(req, res).catch(() => json(res, 500, { error: "interno" })); });
 server.listen(PORT, () => {
-  console.log(`StarSeed mesh server :${PORT} · persistencia=${store.kind}${TOKENS || SINGLE_TOKEN ? " · auth" : ""} · SSE${PEERS.length ? ` · federando(${PEERS.length}, saltos≤${MAX_HOPS}${VERIFY ? ", verify" : ""})` : ""}`);
+  console.log(`StarSeed mesh server :${PORT} · persistencia=${store.kind}${TOKENS || SINGLE_TOKEN ? " · auth" : ""} · SSE${PEERS.length ? ` · federando(${PEERS.length}, saltos≤${MAX_HOPS}${VERIFY ? `, verify, cuarentena>${PEER_MAX_BAD}` : ""})` : ""}`);
 });
 if (PEERS.length) setInterval(() => { void federate(); }, FEDERATE_MS);

@@ -154,3 +154,52 @@ export async function unwrapSigned(payload: unknown): Promise<{ body: unknown; v
   }
   return { body: payload, verified: false };
 }
+
+/* ── Revocación de identidad (Adenda 108) ──────────────────────────────────────
+ * Una identidad firma su PROPIA "acta de revocación" (como un certificado de
+ * revocación PGP): la firma sobre {revoke:<fp>} solo la puede producir quien
+ * controla la clave de <fp>, así la revocación es AUTO-AUTENTICABLE — cualquier
+ * receptor la verifica sin confiar en el transporte. Al revocar se rota a una
+ * clave nueva; el contenido firmado con la clave vieja deja de ser de fiar.
+ * ---------------------------------------------------------------------------- */
+
+/** Firma el acta de revocación de la identidad ACTUAL → {fp, pub, sig}. */
+export async function signRevocation(): Promise<{ fp: string; pub: JsonWebKey; sig: string } | null> {
+  const id = await getIdentity();
+  if (!id) return null;
+  const sig = await signContent({ revoke: id.fp });
+  if (!sig) return null;
+  return { fp: sig.f, pub: sig.k, sig: sig.s };
+}
+
+/** Verifica un acta de revocación: firma válida sobre {revoke:fp} por la clave cuya huella ES fp. */
+export async function verifyRevocation(fp: string, sigB64: string, pub: JsonWebKey): Promise<boolean> {
+  if (!fp || !sigB64 || !pub) return false;
+  try {
+    if (!(await verifyContent({ revoke: fp }, sigB64, pub))) return false;
+    return (await fpOf(pub)) === fp; // la firma debe venir de la propia clave revocada
+  } catch {
+    return false;
+  }
+}
+
+/** Rota a una identidad NUEVA (genera y persiste un par nuevo). Devuelve la nueva huella. */
+export async function regenerateIdentity(): Promise<{ fp: string } | null> {
+  const s = subtle();
+  if (!s) return null;
+  try {
+    const kp = (await s.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, ["sign", "verify"])) as CryptoKeyPair;
+    const pub = await s.exportKey("jwk", kp.publicKey);
+    const priv = await s.exportKey("jwk", kp.privateKey);
+    const fp = await fpOf(pub);
+    try {
+      safeSet(ID_KEY, JSON.stringify({ pub, priv, fp }));
+    } catch {
+      /* */
+    }
+    cache = { pub, privKey: kp.privateKey, fp };
+    return { fp };
+  } catch {
+    return null;
+  }
+}

@@ -60,6 +60,23 @@ async function main() {
   ok(r.status === 200, "GET buzón propio (token cubre recipient) → 200");
   srv.kill();
 
+  // ── 2b. Expiración de tokens (Adenda 108) ──
+  srv = await boot(8805, { STARSEED_TOKENS: JSON.stringify({
+    "tok-live": { ids: ["acct-x"], exp: Date.now() + 3600_000 },
+    "tok-dead": { ids: ["acct-x"], exp: Date.now() - 1000 },
+  }) });
+  r = await fetch("http://localhost:8805/mesh/public", { method: "POST", headers: { "content-type": "application/json", authorization: "Bearer tok-live" },
+    body: JSON.stringify({ device_id: "d", envelope: { body: { t: "1" }, oid: "o-live", at: Date.now() } }) });
+  ok(r.status === 200, "token con exp futura → 200");
+  r = await fetch("http://localhost:8805/mesh/public", { method: "POST", headers: { "content-type": "application/json", authorization: "Bearer tok-dead" },
+    body: JSON.stringify({ device_id: "d", envelope: { body: { t: "1" }, oid: "o-dead", at: Date.now() } }) });
+  ok(r.status === 401, "token caducado → 401");
+  r = await fetch("http://localhost:8805/mesh/relay?recipient=acct-x&token=tok-dead");
+  ok(r.status === 403, "buzón con token caducado → 403");
+  r = await fetch("http://localhost:8805/mesh/relay?recipient=acct-x&token=tok-live");
+  ok(r.status === 200, "buzón con token vigente → 200");
+  srv.kill();
+
   // ── 3. VERIFY: solo firma válida en público ──
   srv = await boot(8803, { STARSEED_VERIFY: "1" });
   const signed = await makeSigned({ text: "firmado" });
