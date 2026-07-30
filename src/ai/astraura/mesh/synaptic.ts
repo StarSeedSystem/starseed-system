@@ -24,6 +24,7 @@ import {
   pullBeacons,
   pullRelayInbox,
   pullPublicFeed,
+  pullPublicExtra,
   type RelayBeacon,
 } from "./server-relay";
 
@@ -138,10 +139,15 @@ async function pollInbox(): Promise<void> {
  */
 async function pollPublicFeed(): Promise<void> {
   try {
-    const items = await pullPublicFeed(publicWatermark);
+    // Feed público del servidor StarSeed + del servidor propio activo (si lo hay).
+    const [base, extra] = await Promise.all([
+      pullPublicFeed(publicWatermark),
+      pullPublicExtra(publicWatermark),
+    ]);
+    const items = [...base, ...extra];
     if (!items.length) return;
     for (const it of items) publicWatermark = Math.max(publicWatermark, it.at);
-    for (const it of items.slice().reverse()) {
+    for (const it of items.slice().sort((a, b) => a.at - b.at)) {
       if (it.id && deliveredRelayIds.has(it.id)) continue; // ya entregado
       if (it.id) rememberDelivered(it.id);
       deliverInbound({ type: it.ptype, cls: it.cls, body: it.body, from: 0 });

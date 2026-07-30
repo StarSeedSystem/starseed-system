@@ -38,6 +38,10 @@ import {
   Volume2,
   Database,
   Hand,
+  Cpu,
+  Brain,
+  Server,
+  KeyRound,
 } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
 import { getOnboarding } from "@/lib/onboarding/onboarding";
@@ -74,27 +78,54 @@ const SetupAstraura = dynamic(() => import("./setup-astraura"), {
 const SetupVoz = dynamic(() => import("./setup-voz"), { ssr: false, loading: () => <TabLoading /> });
 const SetupMemoria = dynamic(() => import("./setup-memoria"), { ssr: false, loading: () => <TabLoading /> });
 
+/* Paneles completos de la neurona (Adenda 103): dispositivo, cerebros,
+   servidores de cerebro y APIs — todos los ajustes de la neurona en un sitio. */
+const NeuronasPanel = dynamic(() => import("@/components/cerebro/neuronas-panel"), {
+  ssr: false,
+  loading: () => <TabLoading />,
+});
+const BrainsPanel = dynamic(() => import("@/components/brains/brains-panel"), {
+  ssr: false,
+  loading: () => <TabLoading />,
+});
+const ServersPanel = dynamic(() => import("@/components/brains/servers-panel"), {
+  ssr: false,
+  loading: () => <TabLoading />,
+});
+const AiProvidersPanel = dynamic(
+  () => import("@/components/settings/ai/ai-providers-panel").then((m) => ({ default: m.AiProvidersPanel })),
+  { ssr: false, loading: () => <TabLoading /> },
+);
+
 function TabLoading() {
   return <p className="px-1 py-8 text-center text-[11px] text-white/40">Cargando…</p>;
 }
 
 export type SetupTab =
   | "bienvenida"
+  | "neurona"
   | "personalidad"
+  | "cerebros"
+  | "servidores"
+  | "memoria"
+  | "voz"
+  | "apis"
   | "sentidos"
   | "conexiones"
-  | "astraura"
-  | "voz"
-  | "memoria";
+  | "astraura";
 
 const TABS: SectionTabItem[] = [
   { value: "bienvenida", label: "Bienvenida", icon: Hand },
+  { value: "neurona", label: "Neurona", icon: Cpu },
   { value: "personalidad", label: "Personalidad", icon: Drama },
+  { value: "cerebros", label: "Cerebros", icon: Brain },
+  { value: "servidores", label: "Servidores", icon: Server },
+  { value: "memoria", label: "Memoria", icon: Database },
+  { value: "voz", label: "Voz · OmniVoice", icon: Volume2 },
+  { value: "apis", label: "APIs", icon: KeyRound },
   { value: "sentidos", label: "Sentidos", icon: Eye },
   { value: "conexiones", label: "Conexiones", icon: Cable },
   { value: "astraura", label: "Astraura", icon: Waypoints },
-  { value: "voz", label: "Voz", icon: Volume2 },
-  { value: "memoria", label: "Memoria", icon: Database },
 ];
 
 const VALID_TABS = TABS.map((t) => t.value as SetupTab);
@@ -264,7 +295,7 @@ export function AuroraSetupCenter() {
       aria-modal="true"
       aria-label="Centro de configuración de Aurora y Astraura"
     >
-      <div className="flex max-h-[100dvh] w-full max-w-[720px] flex-col overflow-hidden rounded-t-2xl border border-white/12 bg-[#0d1220]/97 shadow-2xl sm:max-h-[88dvh] sm:rounded-2xl">
+      <div className="flex max-h-[100dvh] w-full max-w-[1040px] flex-col overflow-hidden rounded-t-2xl border border-white/12 bg-[#0d1220]/97 shadow-2xl sm:max-h-[90dvh] sm:rounded-2xl">
         {/* Cabecera */}
         <header className="relative shrink-0 border-b border-white/10 bg-gradient-to-b from-[#7fb8ff]/12 to-transparent px-4 py-3.5 sm:px-5">
           <div className="flex items-start gap-3">
@@ -272,10 +303,11 @@ export function AuroraSetupCenter() {
               <Sparkles className="h-5 w-5 text-[#7fb8ff]" />
             </span>
             <div className="min-w-0 flex-1">
-              <h2 className="text-sm font-semibold text-white">Hola, soy Aurora</h2>
+              <h2 className="text-sm font-semibold text-white">Configurar Neurona</h2>
               <p className="text-[11px] leading-snug text-white/60">
-                Este es mi centro de configuración — y el de Astraura. Ya vengo lista con las mejores
-                opciones gratuitas: cambia sólo lo que quieras.
+                Todos los ajustes de esta neurona en un sitio: dispositivo, personalidades, cerebros y sus
+                servidores, memorias, voz (OmniVoice), APIs, sentidos y conexión. Ya vengo lista con las
+                mejores opciones gratuitas — cambia sólo lo que quieras.
               </p>
             </div>
             <button
@@ -303,12 +335,16 @@ export function AuroraSetupCenter() {
           {tab === "bienvenida" && (
             <SetupBienvenida answers={answers} onChange={(p) => setAnswers((a) => ({ ...a, ...p }))} />
           )}
+          {tab === "neurona" && <NeuronasPanel />}
           {tab === "personalidad" && <SetupPersonalidad />}
+          {tab === "cerebros" && <BrainsPanel />}
+          {tab === "servidores" && <ServersPanel />}
+          {tab === "memoria" && <SetupMemoria />}
+          {tab === "voz" && <SetupVoz />}
+          {tab === "apis" && <AiProvidersPanel />}
           {tab === "sentidos" && <SetupSentidos />}
           {tab === "conexiones" && <SetupConexiones />}
           {tab === "astraura" && <SetupAstraura />}
-          {tab === "voz" && <SetupVoz />}
-          {tab === "memoria" && <SetupMemoria />}
         </div>
 
         {/* Acciones */}

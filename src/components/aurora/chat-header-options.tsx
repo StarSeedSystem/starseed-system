@@ -67,11 +67,16 @@ export function ChatHeaderOptions({ context = "astraura", convId }: { context?: 
         <Settings className="w-3.5 h-3.5 mr-2" />
         Opciones
       </Button>
-      {optsOpen && pos && typeof document !== "undefined" && createPortal(
+      {/* Ventana CENTRADA (Adenda 103): amplia y contenida, no se sale de pantalla
+          aunque se desplieguen sus secciones. Cierra al pulsar el fondo o Escape. */}
+      {optsOpen && typeof document !== "undefined" && createPortal(
         <div
-          className="fixed z-[9999]"
-          style={{ top: pos.top, left: pos.left }}
-          onMouseLeave={() => setOptsOpen(false)}
+          className="fixed inset-0 z-[9999] flex items-end justify-center bg-black/50 p-0 backdrop-blur-sm sm:items-center sm:p-4"
+          role="dialog"
+          aria-modal="true"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) setOptsOpen(false);
+          }}
         >
           <ChatConfigMenu convId={convId} context={context} onClose={() => setOptsOpen(false)} />
         </div>,

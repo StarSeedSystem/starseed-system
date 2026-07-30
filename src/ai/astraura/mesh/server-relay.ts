@@ -435,3 +435,58 @@ export async function pullPublicFeed(since: number): Promise<RelayInboundItem[]>
     return [];
   }
 }
+
+/**
+ * Lee el feed público de un SERVIDOR PROPIO por HTTP (GET `<endpoint>/mesh/public
+ * ?since=<epoch_ms>`) — complementa el feed de Supabase para servidores custom.
+ * El servidor responde `{items:[...]}` o un array. Best-effort; CORS/formatos
+ * los define ese servidor. Ver el protocolo en architecture/servidor-propio-protocolo.md.
+ */
+export async function pullFromEndpoint(endpoint: string, since: number): Promise<RelayInboundItem[]> {
+  try {
+    const url = `${endpoint.replace(/\/$/, "")}/mesh/public?since=${encodeURIComponent(String(since))}`;
+    const res = await fetch(url, { method: "GET", headers: { accept: "application/json" } });
+    if (!res.ok) return [];
+    const j = (await res.json()) as unknown;
+    const rows = Array.isArray(j)
+      ? j
+      : Array.isArray((j as { items?: unknown[] })?.items)
+        ? (j as { items: unknown[] }).items
+        : [];
+    const me = deviceId();
+    const out: RelayInboundItem[] = [];
+    for (const raw of rows) {
+      if (!raw || typeof raw !== "object") continue;
+      const row = raw as Record<string, unknown>;
+      if (String(row.device_id ?? "") === me) continue;
+      out.push({
+        id: String(row.id ?? `${row.device_id ?? ""}-${row.at ?? row.created_at ?? ""}`),
+        cls: String(row.cls ?? "P2") as TrafficClass,
+        ptype: String(row.ptype ?? row.type ?? "post") as MeshPayloadType,
+        body: row.body ?? row.payload ?? row.envelope ?? null,
+        from: row.device_id ? String(row.device_id) : null,
+        at: typeof row.at === "number" ? row.at : row.created_at ? Date.parse(String(row.created_at)) : 0,
+        locked: false,
+      });
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
+
+/** Endpoint del servidor propio ACTIVO de la cuenta (o null si es StarSeed). */
+function activeAccountEndpoint(): string | null {
+  try {
+    return customEndpoint(getConnectivitySettings().serverId);
+  } catch {
+    return null;
+  }
+}
+
+/** Feed público ADICIONAL del servidor propio activo (vacío si es StarSeed). */
+export async function pullPublicExtra(since: number): Promise<RelayInboundItem[]> {
+  const ep = activeAccountEndpoint();
+  if (!ep) return [];
+  return pullFromEndpoint(ep, since);
+}

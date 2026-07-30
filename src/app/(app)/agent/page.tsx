@@ -847,7 +847,7 @@ function AgentPageInner() {
             onClick={() => openAuroraSetup()}
             className="gap-1.5 border-primary/40 bg-primary/10 text-primary hover:bg-primary/20 cursor-pointer"
           >
-            <Sliders className="h-3.5 w-3.5" /> Configurar Aurora
+            <Sliders className="h-3.5 w-3.5" /> Configurar Neurona
           </Button>
         </div>
       </div>

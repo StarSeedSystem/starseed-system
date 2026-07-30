@@ -9,7 +9,7 @@
  */
 
 import { useEffect, useRef, useState } from "react";
-import { RadioTower, Wifi, WifiOff } from "lucide-react";
+import { RadioTower, Wifi, WifiOff, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ConnectionsCenter } from "@/components/connectivity/connections-center";
 import {
@@ -82,16 +82,34 @@ export function ConnectionsMenu() {
         )}
       </button>
 
+      {/* Ventana CENTRADA y amplia (Adenda 103): no se sale de pantalla ni al
+          desplegar la pestaña Red Mesh; scroll contenido dentro del modal. */}
       {open && (
         <div
-          className="absolute right-0 top-[calc(100%+8px)] z-[70] w-[360px] max-w-[92vw] rounded-2xl border border-white/12 bg-black/85 p-3 shadow-2xl backdrop-blur-2xl"
-          role="menu"
+          className="fixed inset-0 z-[80] flex items-end justify-center bg-black/55 p-0 backdrop-blur-sm sm:items-center sm:p-4"
+          role="dialog"
+          aria-modal="true"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) setOpen(false);
+          }}
         >
-          <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-white/50">
-            Hub Social
-          </p>
-          <div className="max-h-[70vh] overflow-y-auto pr-0.5">
-            <ConnectionsCenter compact />
+          <div className="flex max-h-[100dvh] w-full max-w-[880px] flex-col overflow-hidden rounded-t-2xl border border-white/12 bg-[#0d1220]/96 shadow-2xl backdrop-blur-2xl sm:max-h-[90dvh] sm:rounded-2xl">
+            <header className="flex shrink-0 items-center justify-between gap-2 border-b border-white/10 px-4 py-3">
+              <p className="flex items-center gap-2 text-[12px] font-semibold uppercase tracking-wide text-white/70">
+                <RadioTower className="h-4 w-4 text-emerald-300" /> Hub Social · Señales
+              </p>
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                aria-label="Cerrar"
+                className="cursor-pointer rounded-lg p-1.5 text-white/40 transition-colors duration-200 hover:bg-white/5 hover:text-white/85"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </header>
+            <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3 sm:px-4">
+              <ConnectionsCenter compact />
+            </div>
           </div>
         </div>
       )}
