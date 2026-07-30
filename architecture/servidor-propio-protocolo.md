@@ -33,22 +33,30 @@ y `pullFromEndpoint` (recepción, Adenda 103). Endpoint base = `MeshServer.endpo
   ```json
   { "id": "p123", "device_id": "dev-yyyy", "cls": "P2", "ptype": "post", "body": { ... }, "at": 1730000000000 }
   ```
-  La neurona **deduplica por `id`** y **excluye su propio `device_id`**.
+- **GET `<endpoint>/mesh/relay?recipient=<deviceId>&since=<epoch_ms>`** — BUZÓN DIRIGIDO:
+  los mensajes de relé dirigidos a esa neurona. `body` viene **cifrado E2E** (`{iv,ct}`);
+  la neurona lo descifra en cliente. Requiere auth si el servidor la exige.
+  Respuesta `{ items: [ { id, device_id, cls, ptype, body, at } ] }`.
+
+En ambos casos la neurona **deduplica por `id`** y **excluye su propio `device_id`**.
 
 ## Reglas
 
 - **CORS obligatorio**: el servidor debe responder `Access-Control-Allow-Origin` con el
   origen del OS (o `*` para uno público) y permitir `GET, POST, OPTIONS`.
 - **Relé cifrado E2E**: el servidor jamás lee `body` en `/mesh/relay`.
-- **Auth**: el público puede ser abierto; el privado define su propia auth (token/cabecera),
-  que se incluye como parte de la config del servidor (endpoint + credencial en el vault).
+- **Auth (opcional)**: cabecera `Authorization: Bearer <token>` en POST y en GET `/mesh/relay`.
+  El GET público puede quedar abierto. El token se guarda con el servidor (endpoint + credencial).
 - **Idempotencia**: los reintentos pueden reenviar; deduplica por `envelope.oid` / `id`.
 - **Retención**: el servidor decide TTL; la neurona solo pide `since` reciente.
 
 ## Estado
 
-- Envío (`postToEndpoint`) — Adenda 101. Recepción (`pullFromEndpoint` + `pullPublicExtra`
-  en `synaptic.ts`) — Adenda 103: el sondeo del feed público consume además el servidor
-  propio activo de la cuenta. Bidireccional para servidores custom.
-- Futuro: SDK/paquete servidor con persistencia real (Postgres/SQLite), auth de grupo,
-  y canal de relé dirigido con buzón por `recipient`.
+- **Envío** (`postToEndpoint`) — Adenda 101.
+- **Recepción público** (`pullFromEndpoint` + `pullPublicExtra`) — Adenda 103: el sondeo del
+  feed público consume además el servidor propio activo de la cuenta.
+- **Buzón dirigido + persistencia real + auth** — Adenda 104: `pullRelayFromEndpoint` +
+  `pullRelayExtra` (el sondeo de bandeja consume el buzón dirigido del servidor propio,
+  descifrando en cliente). La implementación de referencia usa **node:sqlite** (persistencia
+  real, con respaldo en memoria), **bearer token** y **buzón por `recipient`**.
+- **Futuro**: SDK/paquete servidor con Postgres, auth de grupo y federación entre servidores propios.

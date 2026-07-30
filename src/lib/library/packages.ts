@@ -354,6 +354,13 @@ const CORE_ROUTE_PACKAGES: LibraryPackage[] = [
     payload: { route: "/senales" },
   },
   {
+    id: "app-red-feed", kind: "app", name: "Feed de red",
+    description: "Contenido recibido de otras neuronas por la red sináptica: publicaciones, mensajes y señales de la red StarSeed, de forma navegable.",
+    icon: "Radio", tags: ["app", "feed", "red", "mesh", "social"], version: "1.0.0",
+    author: "StarSeed Core", sourceRepoId: "starseed-core", free: true, featured: false,
+    payload: { route: "/red-feed" },
+  },
+  {
     id: "app-red-3d", kind: "app", name: "Red 3D",
     description: "Visualización tridimensional de la red StarSeed: entidades, conexiones y flujo de la voluntad colectiva.",
     icon: "Orbit", tags: ["app", "3d", "red"], version: "1.0.0",

@@ -656,14 +656,28 @@ export function PersonalitiesPanel({
         })}
       </div>
 
-      {/* Editor */}
+      {/* Editor — VENTANA CENTRADA propia (Adenda 104): amplia y contenida
+          (scroll interno), cierra al pulsar el fondo o el botón de la cabecera. */}
       {editing && (
-        <PersonalityEditor
-          key={editing.id || "nueva"}
-          initial={editing}
-          onClose={() => setEditing(null)}
-          onSaved={() => refresh()}
-        />
+        <div
+          className="fixed inset-0 z-[92] flex items-end justify-center bg-black/60 p-0 backdrop-blur-sm sm:items-center sm:p-4"
+          role="dialog"
+          aria-modal="true"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) setEditing(null);
+          }}
+        >
+          <div className="flex max-h-[100dvh] w-full max-w-[880px] flex-col overflow-hidden rounded-t-2xl border border-white/12 bg-[#0d1220]/97 shadow-2xl sm:max-h-[90dvh] sm:rounded-2xl">
+            <div className="min-h-0 flex-1 overflow-y-auto p-3 sm:p-4">
+              <PersonalityEditor
+                key={editing.id || "nueva"}
+                initial={editing}
+                onClose={() => setEditing(null)}
+                onSaved={() => refresh()}
+              />
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

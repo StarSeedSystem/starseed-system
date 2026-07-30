@@ -241,9 +241,15 @@ export function SignalsCenter({ embedded = false, compact = false }: SignalsCent
         <div className="rounded-xl border border-violet-400/25 bg-violet-500/[0.05] px-3 py-2.5">
           <p className="flex items-center gap-2 text-[12px] font-medium text-white/90">
             <Signal className="h-4 w-4 text-violet-300" /> Actividad de red recibida
-            <span className="ml-auto rounded-full bg-violet-500/20 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-violet-200">
+            <span className="rounded-full bg-violet-500/20 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-violet-200">
               {inbox.length}
             </span>
+            <Link
+              href="/red-feed"
+              className="ml-auto inline-flex cursor-pointer items-center gap-1 text-[10px] text-violet-200/80 transition-colors hover:text-violet-100"
+            >
+              Ver feed de red →
+            </Link>
           </p>
           <div className="mt-1.5 space-y-1">
             {inbox.slice(0, 4).map((it) => (

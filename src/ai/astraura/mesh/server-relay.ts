@@ -490,3 +490,59 @@ export async function pullPublicExtra(since: number): Promise<RelayInboundItem[]
   if (!ep) return [];
   return pullFromEndpoint(ep, since);
 }
+
+/**
+ * Lee el BUZÓN DIRIGIDO de un servidor propio (GET `<endpoint>/mesh/relay
+ * ?recipient=<deviceId>&since=<epoch_ms>`) — los mensajes de relé dirigidos a
+ * esta neurona. El `body` puede venir cifrado E2E ({iv,ct}); se descifra en
+ * cliente (el servidor propio tampoco lo lee). Adenda 104. Best-effort.
+ */
+export async function pullRelayFromEndpoint(endpoint: string, recipient: string, since: number): Promise<RelayInboundItem[]> {
+  try {
+    const url = `${endpoint.replace(/\/$/, "")}/mesh/relay?recipient=${encodeURIComponent(recipient)}&since=${encodeURIComponent(String(since))}`;
+    const res = await fetch(url, { method: "GET", headers: { accept: "application/json" } });
+    if (!res.ok) return [];
+    const j = (await res.json()) as unknown;
+    const rows = Array.isArray(j)
+      ? j
+      : Array.isArray((j as { items?: unknown[] })?.items)
+        ? (j as { items: unknown[] }).items
+        : [];
+    const me = deviceId();
+    const out: RelayInboundItem[] = [];
+    for (const raw of rows) {
+      if (!raw || typeof raw !== "object") continue;
+      const row = raw as Record<string, unknown>;
+      if (String(row.device_id ?? "") === me) continue;
+      let body: unknown = row.body ?? row.payload ?? row.envelope ?? null;
+      let locked = false;
+      if (body && typeof body === "object" && "iv" in (body as object) && "ct" in (body as object)) {
+        const dec = await decryptEnvelope(body as EncEnvelope);
+        if (dec && typeof dec === "object") body = (dec as { body?: unknown }).body ?? dec;
+        else {
+          locked = true;
+          body = null;
+        }
+      }
+      out.push({
+        id: String(row.id ?? `${row.device_id ?? ""}-${row.at ?? ""}`),
+        cls: String(row.cls ?? "P2") as TrafficClass,
+        ptype: String(row.ptype ?? row.type ?? "message") as MeshPayloadType,
+        body,
+        from: row.device_id ? String(row.device_id) : null,
+        at: typeof row.at === "number" ? row.at : row.created_at ? Date.parse(String(row.created_at)) : 0,
+        locked,
+      });
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
+
+/** Buzón dirigido ADICIONAL del servidor propio activo (para esta neurona). */
+export async function pullRelayExtra(since: number): Promise<RelayInboundItem[]> {
+  const ep = activeAccountEndpoint();
+  if (!ep) return [];
+  return pullRelayFromEndpoint(ep, deviceId(), since);
+}

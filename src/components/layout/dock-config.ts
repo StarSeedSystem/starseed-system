@@ -13,7 +13,7 @@ import {
   Network, BrainCircuit, Settings, Compass, PenLine, ShieldCheck, LayoutGrid,
   Server, Vote, Lightbulb, Cpu, Brain, ShoppingBag, Award, AppWindow,
   CalendarClock, GitBranch, Sparkles, Zap, Wrench, Plug, Eye, HardDrive, Boxes,
-  Camera, Images, RadioTower, Antenna,
+  Camera, Images, RadioTower, Antenna, Radio,
 } from 'lucide-react';
 
 export type DockColor = 'neutral' | 'cyan' | 'crimson' | 'amber' | 'emerald' | 'purple';
@@ -47,7 +47,9 @@ export type DockIconKey =
   // ── Medios (Cámara + Galería) ──
   | 'Camera' | 'Images'
   // ── Red / Conexiones (Red Mesh + Señales) ──
-  | 'RadioTower' | 'Antenna';
+  | 'RadioTower' | 'Antenna'
+  // ── Feed de red ──
+  | 'Radio';
 
 /**
  * Mapa iconKey → componente de lucide-react. Fuente ÚNICA de verdad: la usan
@@ -60,7 +62,7 @@ export const DOCK_ICON_MAP: Record<DockIconKey, React.ComponentType<{ className?
   Network, BrainCircuit, Settings, Compass, PenLine, ShieldCheck, LayoutGrid,
   Server, Vote, Lightbulb, Cpu, Brain, ShoppingBag, Award, AppWindow,
   CalendarClock, GitBranch, Sparkles, Zap, Wrench, Plug, Eye, HardDrive, Boxes,
-  Camera, Images, RadioTower, Antenna,
+  Camera, Images, RadioTower, Antenna, Radio,
 };
 
 /** Icono de respaldo defensivo (DOCK_ICON_MAP es total: no debería usarse). */
@@ -218,6 +220,7 @@ export const DOCK_PRESETS: DockItemConfig[] = [
   // v10 lo retira de los docks existentes. La ruta /red-mesh sigue accesible.
   { id: 'red-mesh',      label: 'Red Mesh',            iconKey: 'Antenna',         path: '/red-mesh',              color: 'emerald', enabled: false, origin: 'preset' },
   { id: 'senales',       label: 'Señales',             iconKey: 'RadioTower',      path: '/senales',               color: 'cyan',    enabled: true,  origin: 'preset' },
+  { id: 'red-feed',      label: 'Feed de red',         iconKey: 'Radio',           path: '/red-feed',              color: 'purple',  enabled: true,  origin: 'preset' },
 ];
 
 /**
@@ -597,6 +600,37 @@ function applyDockRemoveRedMeshV10(items: DockItemConfig[], hadSaved: boolean): 
   return migrated;
 }
 
+/**
+ * Migración v11 — añade/habilita «Feed de red» (/red-feed) por defecto, incluso
+ * en cuentas con dock ya guardado. Una vez por navegador; no reordena nada más.
+ */
+const DOCK_MIGRATION_V11_KEY = 'starseed.dock.items.migrated.v11';
+
+function applyDockRedFeedV11(items: DockItemConfig[], hadSaved: boolean): DockItemConfig[] {
+  if (typeof window === 'undefined') return items;
+  try {
+    if (window.localStorage.getItem(DOCK_MIGRATION_V11_KEY)) return items;
+  } catch {
+    return items;
+  }
+
+  let migrated = items;
+  const idx = migrated.findIndex((i) => i.id === 'red-feed');
+  if (idx === -1) {
+    const preset = DOCK_PRESETS.find((p) => p.id === 'red-feed');
+    if (preset) migrated = [...migrated, { ...preset, enabled: true }];
+  } else if (!migrated[idx].enabled) {
+    migrated = migrated.map((it, i) => (i === idx ? { ...it, enabled: true } : it));
+  }
+
+  try {
+    if (hadSaved) window.localStorage.setItem(STORAGE_KEY, JSON.stringify(migrated));
+    window.localStorage.setItem(DOCK_MIGRATION_V11_KEY, '1');
+  } catch { /* noop */ }
+
+  return migrated;
+}
+
 export function loadDockConfig(): DockItemConfig[] {
   if (typeof window === 'undefined') return DOCK_PRESETS;
   try {
@@ -609,7 +643,7 @@ export function loadDockConfig(): DockItemConfig[] {
     // la v6 fuerza 'escritorios' al primer puesto; la v7 añade Medios al final.
     const fused = applyDockFusionMigrationV4(saved);
     if (fused) {
-      return applyDockRemoveRedMeshV10(applyDockSenalesV9(applyDockConnectivityGroupV8(applyDockMediaGroupV7(applyDockEscritorioFirstV6(applyDockLibraryMigrationV5(fused, true), true), true), true), true), true);
+      return applyDockRedFeedV11(applyDockRemoveRedMeshV10(applyDockSenalesV9(applyDockConnectivityGroupV8(applyDockMediaGroupV7(applyDockEscritorioFirstV6(applyDockLibraryMigrationV5(fused, true), true), true), true), true), true), true);
     }
 
     if (saved) {
@@ -617,12 +651,15 @@ export function loadDockConfig(): DockItemConfig[] {
       // final como deshabilitado, se aplica la migración v3 legada, la v5, la v6 y la v7.
       const known = new Set(saved.map((i) => i.id));
       const missing = DOCK_PRESETS.filter((p) => !known.has(p.id)).map((p) => ({ ...p, enabled: false }));
-      return applyDockRemoveRedMeshV10(
-        applyDockSenalesV9(
-          applyDockConnectivityGroupV8(
-            applyDockMediaGroupV7(
-              applyDockEscritorioFirstV6(
-                applyDockLibraryMigrationV5(applyOneShotMigration([...saved, ...missing]), true),
+      return applyDockRedFeedV11(
+        applyDockRemoveRedMeshV10(
+          applyDockSenalesV9(
+            applyDockConnectivityGroupV8(
+              applyDockMediaGroupV7(
+                applyDockEscritorioFirstV6(
+                  applyDockLibraryMigrationV5(applyOneShotMigration([...saved, ...missing]), true),
+                  true,
+                ),
                 true,
               ),
               true,
@@ -637,7 +674,7 @@ export function loadDockConfig(): DockItemConfig[] {
   } catch { /* noop */ }
   // Sin config guardada: presets vivos (ya sin 'tienda'); la v5 purga folders
   // huérfanas, la v6 confirma 'escritorios' al inicio y la v7 confirma Medios al final (ambos ya lo están en presets).
-  return applyDockRemoveRedMeshV10(applyDockSenalesV9(applyDockConnectivityGroupV8(applyDockMediaGroupV7(applyDockEscritorioFirstV6(applyDockLibraryMigrationV5(DOCK_PRESETS, false), false), false), false), false), false);
+  return applyDockRedFeedV11(applyDockRemoveRedMeshV10(applyDockSenalesV9(applyDockConnectivityGroupV8(applyDockMediaGroupV7(applyDockEscritorioFirstV6(applyDockLibraryMigrationV5(DOCK_PRESETS, false), false), false), false), false), false), false);
 }
 
 export function saveDockConfig(items: DockItemConfig[]) {

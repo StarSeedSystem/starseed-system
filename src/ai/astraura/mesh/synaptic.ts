@@ -25,6 +25,7 @@ import {
   pullRelayInbox,
   pullPublicFeed,
   pullPublicExtra,
+  pullRelayExtra,
   type RelayBeacon,
 } from "./server-relay";
 
@@ -115,7 +116,12 @@ async function refreshBeacons(): Promise<void> {
 
 async function pollInbox(): Promise<void> {
   try {
-    const items = await pullRelayInbox(inboxWatermark);
+    // Bandeja de relé StarSeed + buzón dirigido del servidor propio activo.
+    const [base, extra] = await Promise.all([
+      pullRelayInbox(inboxWatermark),
+      pullRelayExtra(inboxWatermark),
+    ]);
+    const items = [...base, ...extra];
     if (!items.length) return;
     // Avanzar la marca de agua al más reciente (acota la ventana de consulta).
     for (const it of items) inboxWatermark = Math.max(inboxWatermark, it.at);

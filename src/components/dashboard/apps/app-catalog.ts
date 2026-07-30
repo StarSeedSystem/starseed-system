@@ -113,6 +113,23 @@ export const APP_CATALOG: StarseedApp[] = [
         },
     },
     {
+        // Adenda 104: Feed de red — contenido recibido de otras neuronas por la
+        // red sináptica (publicaciones, mensajes, señales) de forma navegable.
+        id: "red-feed",
+        name: "Feed de red",
+        short: "Feed de red",
+        description: "Contenido recibido de otras neuronas por la red sináptica: publicaciones, mensajes y señales.",
+        icon: Radio,
+        accent: "#A78BFA",
+        category: "starseed",
+        status: "native",
+        open: {
+            primary: "route",
+            allowed: ["route", "window", "tab"],
+            route: "/red-feed",
+        },
+    },
+    {
         id: "omnifrecuencias",
         name: "Omnifrecuencias",
         short: "Omni",
@@ -263,8 +280,8 @@ export function getApp(id: string): StarseedApp | undefined {
 /** Colecciones predeterminadas (presets de origen de un folder). */
 export const APP_COLLECTIONS: Record<LauncherCollection, string[]> = {
     // 'starseed' = folder de inicio por defecto (marca + módulos clave)
-    starseed: ["nexus", "cafe", "audiomorphic", "omnifrecuencias", "red-mesh", "senales", "messages", "network", "musica", "clima"],
-    sistema: ["messages", "network", "library", "agent", "red-mesh", "senales"],
+    starseed: ["nexus", "cafe", "audiomorphic", "omnifrecuencias", "red-mesh", "senales", "red-feed", "messages", "network", "musica", "clima"],
+    sistema: ["messages", "network", "library", "agent", "red-mesh", "senales", "red-feed"],
     media: ["musica", "radio", "omnifrecuencias", "audiomorphic", "immersive"],
     custom: [],
 };
