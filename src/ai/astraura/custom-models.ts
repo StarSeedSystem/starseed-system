@@ -126,3 +126,35 @@ export function subscribeCustomModels(cb: () => void): () => void {
   window.addEventListener(CUSTOM_MODELS_EVENT, h);
   return () => window.removeEventListener(CUSTOM_MODELS_EVENT, h);
 }
+
+/** Alcanzabilidad best-effort de una URL (no-cors → sabe si RESPONDE, sin leer). */
+async function probeUrl(url: string): Promise<{ ok: boolean; msg: string }> {
+  try {
+    if (typeof navigator !== "undefined" && navigator.onLine === false) return { ok: false, msg: "Sin conexión" };
+    const ctrl = typeof AbortController !== "undefined" ? new AbortController() : null;
+    const t = ctrl ? setTimeout(() => ctrl.abort(), 4000) : null;
+    const res = await fetch(url, { method: "GET", mode: "no-cors", signal: ctrl?.signal }).catch(() => null);
+    if (t) clearTimeout(t);
+    return res ? { ok: true, msg: "Responde (alcanzable)" } : { ok: false, msg: "No responde (endpoint/CORS)" };
+  } catch {
+    return { ok: false, msg: "No responde" };
+  }
+}
+
+/**
+ * Prueba funcional de un modelo propio: local/API → alcanza el endpoint; MCP →
+ * alcanza la URL si la tiene, o queda registrado (se valida al usarlo). Best-effort.
+ */
+export async function probeCustomModel(m: CustomModel): Promise<{ ok: boolean; msg: string }> {
+  try {
+    if (m.access === "mcp") {
+      if (!m.mcpServer) return { ok: false, msg: "Falta el servidor MCP" };
+      if (/^https?:\/\//i.test(m.mcpServer)) return probeUrl(m.mcpServer);
+      return { ok: true, msg: "Registrado · la conexión MCP se valida al usarlo" };
+    }
+    if (!m.endpoint) return { ok: false, msg: "Falta el endpoint" };
+    return probeUrl(m.endpoint);
+  } catch {
+    return { ok: false, msg: "No se pudo probar" };
+  }
+}

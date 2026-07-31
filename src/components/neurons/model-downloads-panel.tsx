@@ -21,9 +21,10 @@ import {
 import { DOWNLOAD_SIZES, isModelInstalled } from "@/ai/astraura/installed-models";
 import { LOCAL_LLM_SPECS, describeReq } from "@/ai/astraura/model-requirements";
 import {
-  addCustomModel, removeCustomModel, listCustomModels, subscribeCustomModels,
+  addCustomModel, removeCustomModel, listCustomModels, subscribeCustomModels, probeCustomModel,
   type CustomModel, type CustomModelAccess, type CustomModelKind,
 } from "@/ai/astraura/custom-models";
+import { Gauge, CheckCircle2, XCircle } from "lucide-react";
 
 function useTick(subscribe: (cb: () => void) => () => void): number {
   const [n, setN] = useState(0);
@@ -179,17 +180,30 @@ export function ModelDownloadsPanel({ embedded = false }: { embedded?: boolean }
 function CustomRow({ m }: { m: CustomModel }) {
   const detail = m.access === "local" ? m.endpoint : m.access === "api" ? `${m.endpoint ?? ""}${m.apiKeyRef ? ` · clave ${m.apiKeyRef}` : ""}` : m.mcpServer;
   const accessLabel = m.access === "local" ? "Local" : m.access === "api" ? "API" : "MCP";
+  const [probe, setProbe] = useState<{ state: "idle" | "run" | "ok" | "fail"; msg?: string }>({ state: "idle" });
+  const test = async () => {
+    setProbe({ state: "run" });
+    const r = await probeCustomModel(m);
+    setProbe({ state: r.ok ? "ok" : "fail", msg: r.msg });
+  };
   return (
-    <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] px-2.5 py-1.5">
-      {m.kind === "voice" ? <Mic className="h-3.5 w-3.5 shrink-0 text-fuchsia-300" /> : <Brain className="h-3.5 w-3.5 shrink-0 text-violet-300" />}
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-[11px] font-medium text-white/85">{m.name} <span className="text-white/40">· {accessLabel}{m.model ? ` · ${m.model}` : ""}</span></span>
-        {detail && <span className="block truncate text-[9px] text-white/40">{detail}</span>}
-      </span>
-      <button type="button" title="Quitar" onClick={() => removeCustomModel(m.id)}
-        className="cursor-pointer rounded-md p-1 text-white/40 transition-colors hover:bg-rose-500/15 hover:text-rose-300">
-        <Trash2 className="h-3.5 w-3.5" />
-      </button>
+    <div className="rounded-lg border border-white/10 bg-white/[0.03] px-2.5 py-1.5">
+      <div className="flex items-center gap-2">
+        {m.kind === "voice" ? <Mic className="h-3.5 w-3.5 shrink-0 text-fuchsia-300" /> : <Brain className="h-3.5 w-3.5 shrink-0 text-violet-300" />}
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-[11px] font-medium text-white/85">{m.name} <span className="text-white/40">· {accessLabel}{m.model ? ` · ${m.model}` : ""}</span></span>
+          {detail && <span className="block truncate text-[9px] text-white/40">{detail}</span>}
+        </span>
+        <button type="button" onClick={test} disabled={probe.state === "run"} title="Probar conexión"
+          className="cursor-pointer rounded-md p-1 text-white/40 transition-colors hover:bg-cyan-500/15 hover:text-cyan-300 disabled:opacity-50">
+          {probe.state === "run" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : probe.state === "ok" ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-300" /> : probe.state === "fail" ? <XCircle className="h-3.5 w-3.5 text-rose-300" /> : <Gauge className="h-3.5 w-3.5" />}
+        </button>
+        <button type="button" title="Quitar" onClick={() => removeCustomModel(m.id)}
+          className="cursor-pointer rounded-md p-1 text-white/40 transition-colors hover:bg-rose-500/15 hover:text-rose-300">
+          <Trash2 className="h-3.5 w-3.5" />
+        </button>
+      </div>
+      {probe.msg && <p className={cn("mt-0.5 pl-6 text-[9px]", probe.state === "ok" ? "text-emerald-300/80" : "text-rose-300/80")}>{probe.msg}</p>}
     </div>
   );
 }

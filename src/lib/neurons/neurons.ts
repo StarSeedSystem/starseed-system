@@ -133,6 +133,12 @@ export interface NeuronSettings {
   syncNeurons?: boolean;
   /** Sincronizar con neuronas externas a la cuenta (ausente ⇒ OFF). */
   syncExternal?: boolean;
+  /** Ubicación declarada por el usuario (texto libre: ciudad, sala, "casa"…). Adenda 114. */
+  location?: string;
+  /** Ofrecer internet público a los servidores comunitarios del OS con los recursos de esta neurona. */
+  offerPublicInternet?: boolean;
+  /** Puerto específico para vínculos privados personalizables (cuando ofrece servicio). */
+  publicPort?: number;
 }
 
 export const DEFAULT_SETTINGS: NeuronSettings = {

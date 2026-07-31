@@ -28,6 +28,7 @@ import {
   describeReq, describeCaps, tierLabel, runsRemotely, type ModelSpec, type FitLevel,
 } from "@/ai/astraura/model-requirements";
 import { ModelDownloadsPanel } from "@/components/neurons/model-downloads-panel";
+import { NeuronServerConfig } from "@/components/neurons/neuron-server-config";
 
 const FIT_META: Record<FitLevel, { label: string; cls: string }> = {
   ideal: { label: "Ideal", cls: "text-emerald-300 bg-emerald-500/15 border-emerald-400/30" },
@@ -212,6 +213,11 @@ export function NeuronModelsPanel({ embedded = false }: { embedded?: boolean }) 
       {/* Descargas locales en 2º plano + modelos propios (Adenda 113). */}
       <div className="border-t border-white/10 pt-3">
         <ModelDownloadsPanel embedded />
+      </div>
+
+      {/* Gestión de esta neurona: servidor/receptor, ubicación, memorias, logs (Adenda 114). */}
+      <div className="border-t border-white/10 pt-3">
+        <NeuronServerConfig />
       </div>
 
       <p className="px-0.5 text-[10px] leading-snug text-white/35">

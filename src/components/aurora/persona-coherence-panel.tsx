@@ -20,6 +20,8 @@ import {
 } from "@/lib/aurora/persona-coherence";
 import { LANG_OPTIONS } from "@/lib/aurora/lang-detect";
 import { getVoiceEngine, type AuroraVoiceEngine } from "@/lib/aurora/tts-oss/voice-config";
+import { getActivePersonality, patchPersonalityVoice } from "@/lib/aurora/personalities";
+import { UserCheck } from "lucide-react";
 
 const ENGINE_LABELS: Partial<Record<AuroraVoiceEngine, string>> = {
   kokoro: "Kokoro", browser: "Navegador", kitten: "Kitten", bark: "Bark", xai: "xAI",
@@ -53,6 +55,21 @@ export function PersonaCoherencePanel({ embedded = false }: { embedded?: boolean
 
   const setLang = (code: string) => { setLangMode(code); setPersonaCoherence({ langMode: code }); };
 
+  const [savedTo, setSavedTo] = useState<string>("");
+  const applyToActive = useCallback(() => {
+    const active = getActivePersonality();
+    if (!active) { setSavedTo("__none__"); return; }
+    patchPersonalityVoice(active.id, {
+      tone: persona.tone,
+      emotion: persona.emotion,
+      rate: persona.rate,
+      pitch: persona.pitch,
+      energy: persona.energy,
+      audioRef: persona.audioRefId ? { kind: "builtin", voiceId: persona.audioRefId, label: persona.name } : undefined,
+    });
+    setSavedTo(active.name || "personalidad activa");
+  }, [persona]);
+
   const engineRows = (Object.keys(ENGINE_SUPPORTS_REF) as AuroraVoiceEngine[]);
 
   const body = (
@@ -72,6 +89,15 @@ export function PersonaCoherencePanel({ embedded = false }: { embedded?: boolean
           ))}
         </div>
         {applied && <p className="mt-1.5 text-[10px] text-emerald-300/80">Aplicado en vivo: «{applied}». Se mantiene al cambiar de motor o LLM.</p>}
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <button type="button" onClick={applyToActive}
+            className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-violet-400/30 bg-violet-500/10 px-2.5 py-1 text-[11px] text-violet-100 transition-colors hover:bg-violet-500/20">
+            <UserCheck className="h-3.5 w-3.5" /> Aplicar a la personalidad activa
+          </button>
+          {savedTo && (savedTo === "__none__"
+            ? <span className="text-[10px] text-amber-300/80">No hay personalidad activa; se aplica solo a la voz.</span>
+            : <span className="text-[10px] text-emerald-300/80">Guardado en «{savedTo}» (persiste por personalidad).</span>)}
+        </div>
       </div>
 
       {/* Cómo se resuelve en el motor activo */}
