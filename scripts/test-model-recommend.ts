@@ -86,6 +86,16 @@ function main() {
   check("describeReq local menciona RAM", /GB RAM/.test(describeReq(webllm)));
   check("describeReq servidor menciona servidor", /servidor/i.test(describeReq(SERVER_LLM_SPECS[0])));
 
+  // ── Disponibilidad y failover offline / sin cuenta (Adenda 118) ──
+  const starseedLlm = SERVER_LLM_SPECS.find((s) => s.access === "starseed")!;
+  const openrouterLlm = SERVER_LLM_SPECS.find((s) => s.access === "openrouter");
+  check("offline: servidor NO disponible ahora", !availableNow(midNoApp, starseedLlm, false, { online: false }));
+  check("sin cuenta: servidor StarSeed NO disponible", !availableNow(midNoApp, starseedLlm, false, { hasAccount: false, online: true }));
+  if (openrouterLlm) check("sin cuenta + online: OpenRouter :free SÍ disponible", availableNow(midNoApp, openrouterLlm, false, { hasAccount: false, online: true }));
+  check("online + cuenta (defecto): servidor disponible, sin regresión", availableNow(midNoApp, starseedLlm, false, {}));
+  const rOff = recommendModels(midNoApp, { osInstalled: false, online: false, hasAccount: true });
+  check("offline: la recomendación best cae a un LOCAL disponible", !runsRemotely(rOff.llm.best.spec) && rOff.llm.best.availableNow);
+
   console.log(`\n${passed} pasan / ${failed} fallan`);
   if (failed > 0) process.exit(1);
 }

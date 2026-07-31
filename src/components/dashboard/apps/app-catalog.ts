@@ -282,7 +282,7 @@ export const APP_COLLECTIONS: Record<LauncherCollection, string[]> = {
     // 'starseed' = folder de inicio por defecto (marca + módulos clave)
     starseed: ["nexus", "cafe", "audiomorphic", "omnifrecuencias", "red-mesh", "senales", "red-feed", "messages", "network", "musica", "clima"],
     sistema: ["messages", "network", "library", "agent", "red-mesh", "senales", "red-feed"],
-    media: ["musica", "radio", "omnifrecuencias", "audiomorphic", "immersive"],
+    media: ["musica", "radio", "omnifrecuencias", "audiomorphic", "immersive", "camara", "galeria"],
     custom: [],
 };
 

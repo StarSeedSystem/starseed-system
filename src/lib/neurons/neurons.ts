@@ -393,17 +393,22 @@ export async function ensureThisNeuron(): Promise<Neuron | null> {
   if (!id) return null;
   const { kind } = detectPlatform();
   const capabilities = await detectCapabilities();
-  // AUTO-ENLACE HERMES (Adenda 71-bis · 2026-07-17): el OS DETECTA esta neurona
-  // y OFRECE/INSTALA la sincronización con Hermes automáticamente, sin que el
-  // usuario configure nada. Marca el bridge Hermes y vincula permisos completos
-  // (sync OS↔Hermes en ambos sentidos) en el registro de la neurona.
-  capabilities.bridge = {
-    mode: "external-hermes",
-    hermesWs: process.env.NEXT_PUBLIC_HERMIONE_WS || "ws://localhost:8787",
-    servesPersonalities: ["hermione"],
-    autoLinked: true,
-  };
-  capabilities.hermesInstalled = true;
+  // AUTO-ENLACE HERMES (Adenda 71-bis; HONESTO desde Adenda 118): solo se marca
+  // el bridge Hermes cuando hay un endpoint REAL configurado por env
+  // (NEXT_PUBLIC_HERMIONE_WS). Antes se fijaba en TODA neurona apuntando a un
+  // `ws://localhost:8787` que casi nunca existe, declarando «Hermes instalado»
+  // en falso y haciendo que los consumidores del bridge intentaran conectar a la
+  // nada. El enlace explícito iniciado por el usuario sigue en linkHermesToNeuron().
+  const hermesWs = process.env.NEXT_PUBLIC_HERMIONE_WS;
+  if (hermesWs) {
+    capabilities.bridge = {
+      mode: "external-hermes",
+      hermesWs,
+      servesPersonalities: ["hermione"],
+      autoLinked: true,
+    };
+    capabilities.hermesInstalled = true;
+  }
   const prefs = readPrefs();
   const name = prefs.names[id] || defaultName(capabilities, kind);
   const perms = permissionsFor(id);

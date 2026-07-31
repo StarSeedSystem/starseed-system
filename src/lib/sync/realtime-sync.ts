@@ -140,7 +140,7 @@ const EVENT_BY_KEY: Record<string, string[]> = {
     "starseed.aurora.chatlog.v1": ["starseed:aurora-chatlog"],
     "starseed.aurora.orb.pos.v1": ["starseed:aurora-orb-visibility"],
     "starseed.perf.v1": ["starseed:perf-changed"],
-    "starseed.dock.items.v1": ["starseed:sync:apply"],
+    "starseed.dock.items.v2": ["starseed:sync:apply"],
     "starseed.dock.folders.v1": ["starseed:sync:apply"],
     "starseed.library.installed.v1": ["starseed:library"],
     "starseed.library.mine.v1": ["starseed:library"],

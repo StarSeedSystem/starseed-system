@@ -54,6 +54,7 @@ import { RealtimeSyncProvider } from "@/components/system/realtime-sync-provider
 import { OmniAppHost } from "@/components/dashboard/apps/omnifrecuencias/omni-app-host";
 import { AudiomorphicConfigHost } from "@/components/ui/backgrounds/audiomorphic-config-window";
 import { RegisterSW } from "@/components/pwa/register-sw";
+import { A11yBoot } from "@/components/a11y/a11y-boot";
 // Receptor global de "Solicitar archivo a esta neurona" (subida universal de
 // archivos, Adenda 64 §9): escucha 'file-request' en el canal de cuenta y
 // muestra el diálogo para elegir/subir. Sin UI hasta que llega una solicitud.
@@ -161,6 +162,9 @@ export default function RootLayout({
         {/* Registro del Service Worker (PWA): instalable + shell offline.
             Defensivo y sin UI; se omite en dev salvo NEXT_PUBLIC_ENABLE_SW=1. */}
         <RegisterSW />
+        {/* Accesibilidad aplicada en el ARRANQUE (no solo al abrir el panel):
+            contraste, movimiento reducido, texto grande, daltonismo, diana. */}
+        <A11yBoot />
         <ThemeProvider
           attribute="class"
           defaultTheme="system"

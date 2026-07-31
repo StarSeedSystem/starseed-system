@@ -53,8 +53,10 @@ export interface NeuronRecommendation {
 export interface RecommendOptions {
   /** ¿La app del OS está instalada en esta neurona? (habilita modelos locales por defecto). */
   osInstalled?: boolean;
-  /** ¿Hay sesión de cuenta? (los servidores necesitan cuenta/conexión). */
+  /** ¿Hay sesión de cuenta? (los servidores necesitan cuenta/conexión). Por defecto true. */
   hasAccount?: boolean;
+  /** ¿Hay conexión a internet? Por defecto navigator.onLine (o true en SSR). */
+  online?: boolean;
 }
 
 const FIT_SCORE: Record<FitLevel, number> = { ideal: 3, suficiente: 2, justo: 1, insuficiente: 0 };
@@ -75,8 +77,20 @@ function capRank(spec: ModelSpec): number {
 }
 
 /** ¿La opción es ejecutable ahora mismo en esta neurona? */
-export function availableNow(caps: NeuronCapabilities, spec: ModelSpec, osInstalled: boolean): boolean {
-  if (runsRemotely(spec)) return true; // servidor: alcanzable (con conexión/clave)
+export function availableNow(
+  caps: NeuronCapabilities,
+  spec: ModelSpec,
+  osInstalled: boolean,
+  ctx?: { hasAccount?: boolean; online?: boolean },
+): boolean {
+  if (runsRemotely(spec)) {
+    // Servidor: necesita CONEXIÓN; StarSeed y servidores propios además SESIÓN de
+    // cuenta. OpenRouter :free solo requiere conexión (Adenda 118: failover real).
+    const online = ctx?.online ?? true;
+    if (!online) return false;
+    if (spec.access === "openrouter") return true;
+    return ctx?.hasAccount ?? true;
+  }
   if (spec.req.chromeAi) return !!caps.chromeAi;
   if (spec.req.webgpu) return !!caps.webgpu;
   if (spec.engine === "Ollama") return !!caps.ollama || !!caps.lmstudio;
@@ -86,6 +100,7 @@ export function availableNow(caps: NeuronCapabilities, spec: ModelSpec, osInstal
 
 function rationaleFor(caps: NeuronCapabilities, spec: ModelSpec, fit: { level: FitLevel; reasons: string[] }, avail: boolean): string {
   if (runsRemotely(spec)) {
+    if (!avail) return "Servidor: necesita conexión y sesión de cuenta para usarse ahora.";
     if (spec.access === "starseed") return "Servidor oficial StarSeed: sin instalar nada, disponible en toda neurona con tu cuenta.";
     if (spec.access === "openrouter") return "En la nube por OpenRouter: modelos :free sin clave, premium con clave.";
     return "Tu propio servidor (API/MCP): corre fuera del dispositivo, disponible en cualquier neurona.";
@@ -95,10 +110,10 @@ function rationaleFor(caps: NeuronCapabilities, spec: ModelSpec, fit: { level: F
   return `${base}, privado y sin conexión.`;
 }
 
-function rankKind(caps: NeuronCapabilities, kind: ModelKind, osInstalled: boolean): Recommendation[] {
+function rankKind(caps: NeuronCapabilities, kind: ModelKind, osInstalled: boolean, ctx: { hasAccount?: boolean; online?: boolean }): Recommendation[] {
   const recs = specsFor(kind).map((spec): Recommendation => {
     const fit = fitFor(caps, spec);
-    const avail = availableNow(caps, spec, osInstalled);
+    const avail = availableNow(caps, spec, osInstalled, ctx);
     return { spec, fit, availableNow: avail, rationale: rationaleFor(caps, spec, fit, avail) };
   });
   // Orden: encaje ↓ · disponible ahora ↓ · capacidad ↓.
@@ -131,21 +146,32 @@ function bestLocalOf(caps: NeuronCapabilities, ranked: Recommendation[]): Recomm
 
 function recommendKind(caps: NeuronCapabilities, kind: ModelKind, opts: RecommendOptions, tier: DeviceTier): KindRecommendation {
   const osInstalled = !!opts.osInstalled || !!caps.installedApp;
-  const ranked = rankKind(caps, kind, osInstalled);
+  const ctx = { hasAccount: opts.hasAccount ?? true, online: opts.online ?? true };
+  const ranked = rankKind(caps, kind, osInstalled, ctx);
   const bestServer = bestServerOf(ranked);
   const bestLocal = bestLocalOf(caps, ranked);
   // Estrategia por defecto: local si hay app instalada, dispositivo no-mínimo y un
   // local decente y DISPONIBLE; si no, servidor.
   const localViable = !!bestLocal && bestLocal.availableNow && FIT_SCORE[bestLocal.fit.level] >= 2 && tier !== "minimo";
-  const best = osInstalled && localViable ? (bestLocal as Recommendation) : bestServer;
+  // FAILOVER (Adenda 118): si el servidor NO está disponible ahora (sin cuenta o
+  // sin conexión) y hay un local disponible, se recomienda el local aunque la app
+  // no esté "instalada" — así la recomendación funciona de verdad sin conexión.
+  const best =
+    osInstalled && localViable
+      ? (bestLocal as Recommendation)
+      : !bestServer.availableNow && bestLocal?.availableNow
+        ? (bestLocal as Recommendation)
+        : bestServer;
   return { best, bestLocal, bestServer, ranked };
 }
 
 /** Recomendación completa (LLM + voz) para una neurona. */
 export function recommendModels(caps: NeuronCapabilities, opts: RecommendOptions = {}): NeuronRecommendation {
+  const online = opts.online ?? (typeof navigator !== "undefined" ? navigator.onLine !== false : true);
+  const opts2: RecommendOptions = { ...opts, online };
   const tier = classifyDeviceTier(caps);
-  const llm = recommendKind(caps, "llm", opts, tier);
-  const voz = recommendKind(caps, "voz", opts, tier);
+  const llm = recommendKind(caps, "llm", opts2, tier);
+  const voz = recommendKind(caps, "voz", opts2, tier);
   const strategy: "local" | "servidor" =
     (!runsRemotely(llm.best.spec) || !runsRemotely(voz.best.spec)) ? "local" : "servidor";
   const summary =

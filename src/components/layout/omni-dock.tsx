@@ -82,10 +82,26 @@ export function OmniDock() {
         setShadow((prev) => (prev.l === next.l && prev.r === next.r ? prev : next));
     }, []);
 
+    // Carga inicial + REACTIVIDAD (Adenda 118): recarga el dock cuando llegan
+    // cambios sincronizados de otra neurona (starseed:sync:apply), de otra
+    // pestaña (storage) o un cambio local del dock (starseed:dock). Sin esto el
+    // dock se leía UNA sola vez al montar y "no cambiaba" hasta recargar la
+    // página — rompía la regla dorada de descubribilidad (§11).
     useEffect(() => {
-        setItems(loadDockConfig());
-        setFolders(loadDockFolders());
-        setFolderOpen(loadDockFolderOpenState());
+        const reload = () => {
+            setItems(loadDockConfig());
+            setFolders(loadDockFolders());
+            setFolderOpen(loadDockFolderOpenState());
+        };
+        reload();
+        window.addEventListener("storage", reload);
+        window.addEventListener("starseed:sync:apply", reload);
+        window.addEventListener("starseed:dock", reload);
+        return () => {
+            window.removeEventListener("storage", reload);
+            window.removeEventListener("starseed:sync:apply", reload);
+            window.removeEventListener("starseed:dock", reload);
+        };
     }, []);
 
     // Recalcula las sombras al abrir el dock, cambiar items o redimensionar.
