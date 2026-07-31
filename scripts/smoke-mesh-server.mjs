@@ -118,6 +118,38 @@ async function main() {
   ok(lcOrder[0] === 9 && lcOrder[lcOrder.length - 1] === 1, "el servidor ordena por lc (desc)");
   srv.kill();
 
+  // ── 2e. Rotación de la clave de firma de tokens (Adenda 117) ──
+  srv = await boot(8809, { STARSEED_ADMIN_TOKEN: "admin-key" });
+  const admin2 = { authorization: "Bearer admin-key", "content-type": "application/json" };
+  const ri = await (await fetch("http://localhost:8809/tokens/issue", { method: "POST", headers: admin2, body: JSON.stringify({ ids: ["acct-x"] }) })).json();
+  const tokBefore = ri.token;
+  ok(typeof tokBefore === "string" && tokBefore.startsWith("tk_") && tokBefore.includes("."), "token emitido va FIRMADO (tk_<payload>.<sig>)");
+  r = await fetch("http://localhost:8809/mesh/public", { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${tokBefore}` },
+    body: JSON.stringify({ device_id: "d", envelope: { body: { t: "a" }, oid: "rk-1", at: Date.now() } }) });
+  ok(r.status === 200, "token firmado escribe → 200");
+  // Rotación CON GRACIA: el token viejo (kid previa) sigue verificando.
+  let rot = await (await fetch("http://localhost:8809/tokens/rotate-key", { method: "POST", headers: admin2, body: "{}" })).json();
+  ok(rot.ok === true && !!rot.kid && rot.gracePrev === true, "rotación con gracia (nueva kid, previa retenida)");
+  r = await fetch("http://localhost:8809/mesh/public", { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${tokBefore}` },
+    body: JSON.stringify({ device_id: "d", envelope: { body: { t: "b" }, oid: "rk-2", at: Date.now() } }) });
+  ok(r.status === 200, "tras rotar con gracia, el token viejo AÚN escribe → 200");
+  const tokAfter = (await (await fetch("http://localhost:8809/tokens/issue", { method: "POST", headers: admin2, body: JSON.stringify({ ids: ["acct-x"] }) })).json()).token;
+  // Rotación DURA (dropPrev): descarta la previa → los tokens de esa generación caen de golpe.
+  rot = await (await fetch("http://localhost:8809/tokens/rotate-key", { method: "POST", headers: admin2, body: JSON.stringify({ dropPrev: true }) })).json();
+  ok(rot.ok === true && rot.gracePrev === false, "rotación dura (dropPrev) sin clave previa");
+  r = await fetch("http://localhost:8809/mesh/public", { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${tokBefore}` },
+    body: JSON.stringify({ device_id: "d", envelope: { body: { t: "c" }, oid: "rk-3", at: Date.now() } }) });
+  ok(r.status === 401, "tras rotación dura, el token viejo QUEDA INVALIDADO → 401 (revocación masiva)");
+  r = await fetch("http://localhost:8809/mesh/public", { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${tokAfter}` },
+    body: JSON.stringify({ device_id: "d", envelope: { body: { t: "d" }, oid: "rk-4", at: Date.now() } }) });
+  ok(r.status === 401, "el token de la generación previa también cae con dropPrev → 401");
+  // Token nuevo firmado con la clave vigente: escribe con normalidad.
+  const tokFresh = (await (await fetch("http://localhost:8809/tokens/issue", { method: "POST", headers: admin2, body: JSON.stringify({ ids: ["acct-x"] }) })).json()).token;
+  r = await fetch("http://localhost:8809/mesh/public", { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${tokFresh}` },
+    body: JSON.stringify({ device_id: "d", envelope: { body: { t: "e" }, oid: "rk-5", at: Date.now() } }) });
+  ok(r.status === 200, "token nuevo (clave vigente) escribe → 200");
+  srv.kill();
+
   // ── 3. VERIFY: solo firma válida en público ──
   srv = await boot(8803, { STARSEED_VERIFY: "1" });
   const signed = await makeSigned({ text: "firmado" });

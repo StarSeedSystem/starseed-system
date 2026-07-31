@@ -49,18 +49,34 @@ propios sin un servidor central.
 - `STARSEED_PEX=1` / `STARSEED_MAX_PEERS=16` / `STARSEED_SELF_URL=` — **descubrimiento de pares**
   (Adenda 116): el servidor fusiona los pares nuevos de las listas `GET /peers` de sus pares, hasta el
   tope, sin añadirse a sí mismo.
+- `STARSEED_PEX_ALLOW='https://nodoA:8787,https://nodoB'` — **PEX de confianza** (Adenda 117): si se
+  define, el descubrimiento SOLO añade pares cuya URL casa con alguno de estos prefijos/subcadenas
+  (lista blanca). Sin él, el PEX es abierto. Acota la federación a nodos avalados por tu comunidad.
 
 ## Ciclo de vida de tokens (Adenda 116)
 
 Con `STARSEED_ADMIN_TOKEN=<clave>` el servidor emite tokens en caliente (además de los estáticos de
 `STARSEED_TOKENS`) y aplica una **lista de revocación**:
 
-- `POST /tokens/issue` (admin) · body `{"ids":["group:barrio"],"ttlMs":3600000}` → `{token,ids,exp}`.
-- `POST /tokens/refresh` (con el token en `Authorization: Bearer`) → renueva `exp`.
+- `POST /tokens/issue` (admin) · body `{"ids":["group:barrio"],"ttlMs":3600000}` → `{token,ids,exp,kid}`.
+- `POST /tokens/refresh` (con el token en `Authorization: Bearer`) → devuelve un token nuevo con `exp` renovada.
 - `POST /tokens/revoke` (admin) · body `{"token":"tk_…"}` → lo añade a la lista de revocación (401 a partir de ahí).
+- `POST /tokens/rotate-key` (admin) · body `{"dropPrev":false}` → **rota la clave de firma** (Adenda 117).
 
 `STARSEED_TOKEN_TTL_MS` (def. 3600000) es la caducidad por defecto. Con `STARSEED_ADMIN_TOKEN` puesto,
 el servidor exige token válido en toda escritura (modo gestionado).
+
+### Tokens firmados y rotación de clave (Adenda 117)
+
+Los tokens emitidos van **firmados (HMAC)**: `tk_<payload>.<firma>`. Se verifican solos, así que
+**sobreviven a un reinicio** del servidor si la clave de firma es fija (`STARSEED_TOKEN_SIGN_KEY=<secreto>`;
+si no se define, se genera una aleatoria al arrancar y los tokens caducan con el proceso). La clave nunca
+sale del servidor.
+
+`POST /tokens/rotate-key` genera una clave nueva y conserva la anterior con **gracia** (los tokens ya
+emitidos siguen valiendo hasta caducar). Con `{"dropPrev":true}` descarta la anterior al instante:
+**invalida de golpe todos los tokens firmados con ella** — palanca de revocación masiva ante el compromiso
+de una clave, sin tener que revocar token por token.
 
 ## Endpoints
 
@@ -72,7 +88,7 @@ el servidor exige token válido en toda escritura (modo gestionado).
 | GET | `/mesh/relay?recipient=&since=` | Buzón dirigido de una identidad (auth por token). |
 | GET | `/mesh/stream?recipients=&token=` | **SSE**: empuje instantáneo del feed público + buzón dirigido. |
 | GET | `/peers` | Lista de pares conocidos (PEX). |
-| POST | `/tokens/issue · refresh · revoke` | Ciclo de vida de tokens (admin/token). |
+| POST | `/tokens/issue · refresh · revoke · rotate-key` | Ciclo de vida de tokens firmados + rotación de clave (admin/token). |
 
 Notas: el contenido público va **firmado** por el cliente (ECDSA) — el servidor solo lo transporta
 y los receptores verifican. La **federación** deduplica por `oid` (id de origen estable) con marca

@@ -62,6 +62,8 @@ import {
   type ConnectivityInternetMode,
   DEFAULT_CONNECTIVITY_CONFIG,
 } from "@/ai/astraura/mesh";
+import { ServerTokenAdmin } from "./server-token-admin";
+import { PublicOffersDirectory } from "./public-offers-directory";
 
 /* ── Etiquetas ─────────────────────────────────────────────────────────────── */
 
@@ -290,26 +292,30 @@ function ServerEditor({ servers, onChanged }: { servers: MeshServer[]; onChanged
       {servers
         .filter((s) => s.editable)
         .map((s) => (
-          <div key={s.id} className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] px-2.5 py-1.5">
-            <Server className="h-3.5 w-3.5 shrink-0 text-cyan-300" />
-            <span className="min-w-0 flex-1">
-              <span className="block truncate text-[11px] font-medium text-white/85">{s.name}</span>
-              <span className="block truncate text-[9px] text-white/40">
-                {s.visibility === "public" ? "público" : "privado"}
-                {s.endpoint ? ` · ${s.endpoint}` : ""}
+          <div key={s.id} className="space-y-1.5">
+            <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] px-2.5 py-1.5">
+              <Server className="h-3.5 w-3.5 shrink-0 text-cyan-300" />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-[11px] font-medium text-white/85">{s.name}</span>
+                <span className="block truncate text-[9px] text-white/40">
+                  {s.visibility === "public" ? "público" : "privado"}
+                  {s.endpoint ? ` · ${s.endpoint}` : ""}
+                </span>
               </span>
-            </span>
-            <button
-              type="button"
-              title="Quitar servidor"
-              onClick={() => {
-                removeMeshServer(s.id);
-                onChanged();
-              }}
-              className="cursor-pointer rounded-md p-1 text-white/40 transition-colors hover:bg-red-500/15 hover:text-red-300"
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-            </button>
+              <button
+                type="button"
+                title="Quitar servidor"
+                onClick={() => {
+                  removeMeshServer(s.id);
+                  onChanged();
+                }}
+                className="cursor-pointer rounded-md p-1 text-white/40 transition-colors hover:bg-red-500/15 hover:text-red-300"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            </div>
+            {/* Administración de tokens del servidor propio (Adenda 117) — solo con endpoint. */}
+            {s.endpoint ? <ServerTokenAdmin serverId={s.id} onTokenSaved={onChanged} /> : null}
           </div>
         ))}
 
@@ -549,6 +555,10 @@ export function ConnectivityConfigPanel({
             )}
           </div>
         )}
+
+        {/* Directorio de oferta pública: neuronas que ofrecen internet público
+            del OS (faro con offersPublic) → accionable como servidor (Adenda 117). */}
+        {isAccount && publicOn && <PublicOffersDirectory />}
 
         {/* Sesión privada nota */}
         {!publicOn && (

@@ -10,7 +10,7 @@
 //     (STARSEED_VERIFY=1: solo se acepta contenido público con firma válida).
 
 import http from "node:http";
-import { createHash, webcrypto, randomUUID } from "node:crypto";
+import { createHash, webcrypto, randomUUID, createHmac } from "node:crypto";
 
 const PORT = process.env.PORT || 8787;
 const DB_PATH = process.env.STARSEED_DB || ":memory:";
@@ -20,11 +20,21 @@ const PEERS = (process.env.STARSEED_PEERS || "").split(",").map((s) => s.trim())
 // Ciclo de vida de tokens (Adenda 116): emisión/refresh/revocación por un admin.
 const ADMIN_TOKEN = process.env.STARSEED_ADMIN_TOKEN || "";
 const TOKEN_TTL_MS = Number(process.env.STARSEED_TOKEN_TTL_MS || 3600000);
+// Firma HMAC de tokens dinámicos con clave ROTABLE (Adenda 117): los tokens
+// emitidos son AUTO-VERIFICABLES (sobreviven a un reinicio si STARSEED_TOKEN_SIGN_KEY
+// es fija) y una ROTACIÓN de la clave los invalida a todos de golpe — palanca de
+// revocación masiva ante compromiso. La clave nunca sale del servidor.
+let signCur = { kid: "k1", secret: process.env.STARSEED_TOKEN_SIGN_KEY || (randomUUID() + randomUUID()).replace(/-/g, "") };
+let signPrev = null; // clave anterior con GRACIA tras rotar (los tokens viejos aún verifican hasta caducar)
 // Descubrimiento automático de pares (PEX, Adenda 116): fusiona pares de las
 // listas /peers de los pares conocidos, con tope.
 const PEX = process.env.STARSEED_PEX === "1";
 const MAX_PEERS = Number(process.env.STARSEED_MAX_PEERS || 16);
 const SELF_URL = (process.env.STARSEED_SELF_URL || "").replace(/\/$/, "");
+// PEX DE CONFIANZA (Adenda 117): si se define, discoverPeers SOLO añade pares
+// cuya URL casa con alguno de estos prefijos/subcadenas (lista blanca). Sin él,
+// el PEX es abierto (comportamiento 116).
+const PEX_ALLOW = (process.env.STARSEED_PEX_ALLOW || "").split(",").map((s) => s.trim().replace(/\/$/, "")).filter(Boolean);
 const FEDERATE_MS = Number(process.env.STARSEED_FEDERATE_MS || 20000);
 const MAX_HOPS = Number(process.env.STARSEED_MAX_HOPS || 4);
 const VERIFY = process.env.STARSEED_VERIFY === "1";
@@ -102,8 +112,32 @@ async function verifyWrapped(body) {
  *   · ["id1","id2"]                       → sin caducidad.
  *   · { "ids":["id1"], "exp":1730000000000 } → caduca en ese epoch ms (UTC).
  * Un token caducado se trata como inexistente (401/403). */
-const dynTokens = new Map(); // token → { ids:[], exp } (emitidos en caliente)
-const revokedTokens = new Set(); // lista de revocación de tokens
+const revokedTokens = new Set(); // lista de revocación de tokens (por cadena completa)
+const b64u = (buf) => Buffer.from(buf).toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+const b64uToBuf = (s) => Buffer.from(String(s).replace(/-/g, "+").replace(/_/g, "/"), "base64");
+function tokenSecretFor(kid) { if (kid === signCur.kid) return signCur.secret; if (signPrev && kid === signPrev.kid) return signPrev.secret; return null; }
+/** Emite un token dinámico FIRMADO (HMAC): `tk_<payloadB64u>.<sigB64u>` (Adenda 117). */
+function signToken(ids, exp) {
+  const jti = randomUUID().replace(/-/g, "").slice(0, 12);
+  const body = "tk_" + b64u(Buffer.from(JSON.stringify({ ids, exp, kid: signCur.kid, jti })));
+  const sig = b64u(createHmac("sha256", signCur.secret).update(body).digest());
+  return body + "." + sig;
+}
+/** Verifica un token firmado → { ids, exp } o null (firma/kid inválidos). */
+function verifySignedToken(token) {
+  if (!token || !token.startsWith("tk_") || !token.includes(".")) return null;
+  const dot = token.lastIndexOf(".");
+  const body = token.slice(0, dot), sig = token.slice(dot + 1);
+  let payload;
+  try { payload = JSON.parse(b64uToBuf(body.slice(3)).toString("utf8")); } catch { return null; }
+  const secret = tokenSecretFor(payload?.kid);
+  if (!secret) return null; // kid desconocido (clave rotada fuera de gracia): inválido
+  const expect = b64u(createHmac("sha256", secret).update(body).digest());
+  if (sig.length !== expect.length) return null;
+  let diff = 0; for (let i = 0; i < sig.length; i++) diff |= sig.charCodeAt(i) ^ expect.charCodeAt(i);
+  if (diff) return null; // firma inválida (comparación en tiempo ~constante)
+  return { ids: Array.isArray(payload.ids) ? payload.ids.map(String) : [], exp: Number(payload.exp) || 0 };
+}
 function tokenOf(req, u) { const h = req.headers["authorization"] || ""; return h.startsWith("Bearer ") ? h.slice(7) : (u && u.searchParams.get("token")) || ""; }
 function tokenEntry(token) {
   if (!token || revokedTokens.has(token)) return null;
@@ -111,11 +145,10 @@ function tokenEntry(token) {
     const v = TOKENS[token];
     return Array.isArray(v) ? { ids: v, exp: 0 } : { ids: Array.isArray(v.ids) ? v.ids : [], exp: Number(v.exp) || 0 };
   }
-  if (dynTokens.has(token)) return dynTokens.get(token);
-  return null;
+  return verifySignedToken(token); // token dinámico firmado (Adenda 117)
 }
 function tokenValid(e) { return !!e && (!e.exp || e.exp > Date.now()); }
-function tokensActive() { return !!TOKENS || dynTokens.size > 0 || !!ADMIN_TOKEN; }
+function tokensActive() { return !!TOKENS || !!ADMIN_TOKEN; }
 function canWrite(req, u) { if (tokensActive()) return tokenValid(tokenEntry(tokenOf(req, u))); if (SINGLE_TOKEN) return tokenOf(req, u) === SINGLE_TOKEN; return true; }
 function canReadMailbox(req, u, rc) { if (tokensActive()) { const e = tokenEntry(tokenOf(req, u)); return tokenValid(e) && e.ids.includes(rc); } if (SINGLE_TOKEN) return tokenOf(req, u) === SINGLE_TOKEN; return true; }
 function isAdmin(req, u) { return !!ADMIN_TOKEN && tokenOf(req, u) === ADMIN_TOKEN; }
@@ -180,29 +213,39 @@ async function handler(req, res) {
     const b = await readBody(req);
     const ids = Array.isArray(b.ids) ? b.ids.map(String) : [];
     const ttl = Number(b.ttlMs) > 0 ? Number(b.ttlMs) : TOKEN_TTL_MS;
-    const token = "tk_" + randomUUID().replace(/-/g, "");
     const exp = Date.now() + ttl;
-    dynTokens.set(token, { ids, exp });
-    return json(res, 200, { token, ids, exp });
+    return json(res, 200, { token: signToken(ids, exp), ids, exp, kid: signCur.kid });
   }
   if (req.method === "POST" && u.pathname === "/tokens/refresh") {
     const t = tokenOf(req, u);
-    if (!dynTokens.has(t) || revokedTokens.has(t)) return json(res, 401, { error: "token no renovable" });
-    const cur = dynTokens.get(t);
-    if (cur.exp && cur.exp <= Date.now()) return json(res, 401, { error: "token caducado" });
+    if (revokedTokens.has(t)) return json(res, 401, { error: "token revocado" });
+    const e = verifySignedToken(t);
+    if (!e || !tokenValid(e)) return json(res, 401, { error: "token no renovable" });
     const b = await readBody(req);
     const ttl = Number(b.ttlMs) > 0 ? Number(b.ttlMs) : TOKEN_TTL_MS;
-    cur.exp = Date.now() + ttl;
-    dynTokens.set(t, cur);
-    return json(res, 200, { token: t, ids: cur.ids, exp: cur.exp });
+    const exp = Date.now() + ttl;
+    // Re-firma con caducidad extendida (los tokens firmados son inmutables → uno nuevo).
+    return json(res, 200, { token: signToken(e.ids, exp), ids: e.ids, exp });
   }
   if (req.method === "POST" && u.pathname === "/tokens/revoke") {
     if (!isAdmin(req, u)) return json(res, 401, { error: "solo admin" });
     const b = await readBody(req);
     const t = String(b.token || "");
     if (!t) return json(res, 400, { error: "falta token" });
-    revokedTokens.add(t); dynTokens.delete(t);
+    revokedTokens.add(t);
     return json(res, 200, { ok: true, revoked: t });
+  }
+  if (req.method === "POST" && u.pathname === "/tokens/rotate-key") {
+    if (!isAdmin(req, u)) return json(res, 401, { error: "solo admin" });
+    const b = await readBody(req);
+    // Rota la clave de firma: la actual pasa a "previa" (GRACIA: los tokens ya
+    // emitidos siguen verificando hasta caducar) y se genera una nueva. Con
+    // dropPrev:true se descarta la previa al instante → INVALIDA de golpe todos
+    // los tokens firmados con ella (revocación masiva ante compromiso de clave).
+    signPrev = b.dropPrev ? null : signCur;
+    const nextN = Number(String(signCur.kid).replace(/^k/, ""));
+    signCur = { kid: "k" + (Number.isFinite(nextN) ? nextN + 1 : Date.now()), secret: (randomUUID() + randomUUID()).replace(/-/g, "") };
+    return json(res, 200, { ok: true, kid: signCur.kid, gracePrev: !!signPrev });
   }
   // ── Descubrimiento de pares (PEX, Adenda 116) ──
   if (req.method === "GET" && u.pathname === "/peers") {
@@ -274,6 +317,11 @@ async function discoverPeers() {
         const u = String(p || "").trim().replace(/\/$/, "");
         if (!u || knownPeers.size >= MAX_PEERS) continue;
         if (u === SELF_URL || knownPeers.has(u)) continue; // ni yo ni repetidos
+        // PEX de confianza (Adenda 117): con lista blanca, solo se añaden pares que casen.
+        if (PEX_ALLOW.length && !PEX_ALLOW.some((a) => u === a || u.startsWith(a) || u.includes(a))) {
+          console.log(`[PEX] par IGNORADO (fuera de la lista de confianza): ${u}`);
+          continue;
+        }
         knownPeers.add(u);
         console.log(`[PEX] par descubierto: ${u} (total ${knownPeers.size})`);
       }
@@ -285,6 +333,6 @@ async function discoverPeers() {
 store = await makeStore();
 const server = http.createServer((req, res) => { handler(req, res).catch(() => json(res, 500, { error: "interno" })); });
 server.listen(PORT, () => {
-  console.log(`StarSeed mesh server :${PORT} · persistencia=${store.kind}${TOKENS || SINGLE_TOKEN || ADMIN_TOKEN ? " · auth" : ""} · SSE${knownPeers.size ? ` · federando(${knownPeers.size}, saltos≤${MAX_HOPS}${VERIFY ? `, verify, cuarentena>${PEER_MAX_BAD}` : ""}${PEX ? `, PEX≤${MAX_PEERS}` : ""})` : ""}`);
+  console.log(`StarSeed mesh server :${PORT} · persistencia=${store.kind}${TOKENS || SINGLE_TOKEN || ADMIN_TOKEN ? " · auth" : ""}${ADMIN_TOKEN ? ` · tokens-firmados(${signCur.kid})` : ""} · SSE${knownPeers.size ? ` · federando(${knownPeers.size}, saltos≤${MAX_HOPS}${VERIFY ? `, verify, cuarentena>${PEER_MAX_BAD}` : ""}${PEX ? `, PEX≤${MAX_PEERS}${PEX_ALLOW.length ? `(confianza:${PEX_ALLOW.length})` : ""}` : ""})` : ""}`);
 });
 if (knownPeers.size || PEX) setInterval(() => { void federate(); }, FEDERATE_MS);

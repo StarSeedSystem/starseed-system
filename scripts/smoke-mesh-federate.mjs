@@ -70,6 +70,20 @@ async function main() {
   ok(j.peers.some((p) => p.replace(/\/$/, "") === cUrl), "B descubrió a C por PEX (desde /peers de A)");
   Ap.kill(); Bp.kill(); Cp.kill();
 
+  // ── Escenario 4: PEX DE CONFIANZA (Adenda 117) — la allowlist excluye a C ──
+  // B confía SOLO en A (STARSEED_PEX_ALLOW=A). Aunque A anuncie a C por /peers,
+  // B NO añade a C: el descubrimiento queda acotado a la lista blanca.
+  const cUrl4 = "http://localhost:8843";
+  const aUrl4 = "http://localhost:8841";
+  const Ap4 = await boot(8841, { STARSEED_PEERS: cUrl4, STARSEED_FEDERATE_MS: "5000" });
+  const Cp4 = await boot(8843, {});
+  const Bp4 = await boot(8842, { STARSEED_PEERS: aUrl4, STARSEED_PEX: "1", STARSEED_PEX_ALLOW: aUrl4, STARSEED_MAX_PEERS: "8", STARSEED_FEDERATE_MS: "700", STARSEED_SELF_URL: "http://localhost:8842" });
+  await sleep(1800);
+  r = await fetch("http://localhost:8842/peers"); j = await r.json();
+  ok(j.peers.includes(aUrl4), "PEX-confianza: B mantiene su par de confianza (A)");
+  ok(!j.peers.some((p) => p.replace(/\/$/, "") === cUrl4), "PEX-confianza: B NO añade a C (fuera de la lista blanca)");
+  Ap4.kill(); Bp4.kill(); Cp4.kill();
+
   console.log(`\n${pass} pasan / ${fail} fallan`);
   process.exit(fail ? 1 : 0);
 }
