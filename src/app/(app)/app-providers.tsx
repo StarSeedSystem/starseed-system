@@ -14,6 +14,7 @@ import { hermes } from "@/hermes-integration";
 import { OnboardingGate } from "@/components/onboarding/onboarding-gate";
 import { AuroraIntro } from "@/components/onboarding/aurora-intro";
 import { StartupUpdatesModal } from "@/components/astraura/startup-updates-modal";
+import { ModelDownloadNotifier } from "@/components/neurons/model-download-notifier";
 import { AuthGate } from "@/components/auth/auth-gate";
 import { GlobalEntityCreator } from "@/components/layout/global-entity-creator";
 import { GlobalSelectionMenu } from "@/components/layout/global-selection-menu";
@@ -41,6 +42,8 @@ export default function AppProviders({ children }: { children: ReactNode }) {
         {/* Ventana unificada de inicio/actualizaciones de Astraura + OmniVoice
             (Adenda 111): primera entrada de la neurona o novedades de modelos/fuentes. */}
         <StartupUpdatesModal />
+        {/* Aviso global al completar una descarga de modelo en 2º plano (Adenda 113). */}
+        <ModelDownloadNotifier />
         {/* Motor de alarmas global + modal de aviso activo */}
         <AlarmScheduler />
         <ActiveAlertModal />
