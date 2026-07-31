@@ -19,6 +19,8 @@
 import { safeGet, safeSet } from "@/lib/safe-storage";
 
 const ID_KEY = "starseed.mesh.identity.v1";
+/** Certificado de revocación pre-generado de la identidad actual (Adenda 115). */
+const REVCERT_KEY = "starseed.mesh.revocation-cert.v1";
 
 interface StoredId {
   pub: JsonWebKey;
@@ -170,6 +172,31 @@ export async function signRevocation(): Promise<{ fp: string; pub: JsonWebKey; s
   const sig = await signContent({ revoke: id.fp });
   if (!sig) return null;
   return { fp: sig.f, pub: sig.k, sig: sig.s };
+}
+
+/**
+ * Certificado de revocación PRE-GENERADO de la identidad actual (Adenda 115): se
+ * firma una vez al crear la identidad y se guarda. Permite que OTRA neurona de la
+ * cuenta revoque este dispositivo aunque se pierda y ya no pueda firmar (autoridad
+ * de cuenta) — como los certificados de revocación de PGP. Se regenera si la
+ * huella cambió (rotación). Devuelve {fp, pub, sig} o null.
+ */
+export async function getRevocationCert(): Promise<{ fp: string; pub: JsonWebKey; sig: string } | null> {
+  const id = await getIdentity();
+  if (!id) return null;
+  try {
+    const raw = safeGet(REVCERT_KEY);
+    if (raw) {
+      const c = JSON.parse(raw) as { fp?: string; pub?: JsonWebKey; sig?: string };
+      if (c?.fp === id.fp && c.pub && c.sig) return { fp: c.fp, pub: c.pub, sig: c.sig };
+    }
+  } catch {
+    /* regenera abajo */
+  }
+  const cert = await signRevocation();
+  if (!cert) return null;
+  try { safeSet(REVCERT_KEY, JSON.stringify(cert)); } catch { /* */ }
+  return cert;
 }
 
 /** Verifica un acta de revocación: firma válida sobre {revoke:fp} por la clave cuya huella ES fp. */

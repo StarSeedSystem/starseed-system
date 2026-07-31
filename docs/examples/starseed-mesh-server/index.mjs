@@ -33,13 +33,13 @@ async function makeStore() {
       const { default: pg } = await import("pg");
       const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
       await pool.query(`CREATE TABLE IF NOT EXISTS items (id BIGSERIAL PRIMARY KEY, oid TEXT UNIQUE,
-        channel TEXT NOT NULL, device_id TEXT, recipient TEXT, cls TEXT, ptype TEXT, body JSONB, hops INT DEFAULT 0, at BIGINT NOT NULL)`);
-      const map = (r) => ({ id: r.oid, oid: r.oid, device_id: r.device_id, cls: r.cls, ptype: r.ptype, body: r.body, hops: Number(r.hops) || 0, at: Number(r.at) });
+        channel TEXT NOT NULL, device_id TEXT, recipient TEXT, cls TEXT, ptype TEXT, body JSONB, hops INT DEFAULT 0, lc BIGINT, at BIGINT NOT NULL)`);
+      const map = (r) => ({ id: r.oid, oid: r.oid, device_id: r.device_id, cls: r.cls, ptype: r.ptype, body: r.body, hops: Number(r.hops) || 0, lc: r.lc == null ? undefined : Number(r.lc), at: Number(r.at) });
       return {
         kind: "postgres",
-        add: async (ch, r) => { try { const res = await pool.query("INSERT INTO items(oid,channel,device_id,recipient,cls,ptype,body,hops,at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT (oid) DO NOTHING", [r.oid, ch, r.device_id ?? null, r.recipient ?? null, r.cls ?? "P2", r.ptype ?? "post", JSON.stringify(r.body ?? null), r.hops ?? 0, r.at]); return (res.rowCount ?? 0) > 0; } catch { return false; } },
-        publicSince: async (s) => (await pool.query("SELECT oid,device_id,cls,ptype,body,hops,at FROM items WHERE channel='public' AND at>$1 ORDER BY at DESC LIMIT 100", [s])).rows.map(map),
-        relayFor: async (rc, s) => (await pool.query("SELECT oid,device_id,cls,ptype,body,hops,at FROM items WHERE channel='relay' AND recipient=$1 AND at>$2 ORDER BY at DESC LIMIT 100", [rc, s])).rows.map(map),
+        add: async (ch, r) => { try { const res = await pool.query("INSERT INTO items(oid,channel,device_id,recipient,cls,ptype,body,hops,lc,at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT (oid) DO NOTHING", [r.oid, ch, r.device_id ?? null, r.recipient ?? null, r.cls ?? "P2", r.ptype ?? "post", JSON.stringify(r.body ?? null), r.hops ?? 0, typeof r.lc === "number" ? r.lc : null, r.at]); return (res.rowCount ?? 0) > 0; } catch { return false; } },
+        publicSince: async (s) => (await pool.query("SELECT oid,device_id,cls,ptype,body,hops,lc,at FROM items WHERE channel='public' AND at>$1 ORDER BY at DESC LIMIT 100", [s])).rows.map(map),
+        relayFor: async (rc, s) => (await pool.query("SELECT oid,device_id,cls,ptype,body,hops,lc,at FROM items WHERE channel='relay' AND recipient=$1 AND at>$2 ORDER BY at DESC LIMIT 100", [rc, s])).rows.map(map),
       };
     } catch (e) { console.warn("[persistencia] Postgres no disponible:", e?.message ?? e); }
   }
@@ -47,21 +47,21 @@ async function makeStore() {
     const { DatabaseSync } = await import("node:sqlite");
     const db = new DatabaseSync(DB_PATH);
     db.exec(`CREATE TABLE IF NOT EXISTS items (id INTEGER PRIMARY KEY AUTOINCREMENT, oid TEXT UNIQUE,
-      channel TEXT NOT NULL, device_id TEXT, recipient TEXT, cls TEXT, ptype TEXT, body TEXT, hops INTEGER DEFAULT 0, at INTEGER NOT NULL)`);
-    const ins = db.prepare("INSERT OR IGNORE INTO items(oid,channel,device_id,recipient,cls,ptype,body,hops,at) VALUES(?,?,?,?,?,?,?,?,?)");
-    const selP = db.prepare("SELECT oid,device_id,cls,ptype,body,hops,at FROM items WHERE channel='public' AND at>? ORDER BY at DESC LIMIT 100");
-    const selR = db.prepare("SELECT oid,device_id,cls,ptype,body,hops,at FROM items WHERE channel='relay' AND recipient=? AND at>? ORDER BY at DESC LIMIT 100");
+      channel TEXT NOT NULL, device_id TEXT, recipient TEXT, cls TEXT, ptype TEXT, body TEXT, hops INTEGER DEFAULT 0, lc INTEGER, at INTEGER NOT NULL)`);
+    const ins = db.prepare("INSERT OR IGNORE INTO items(oid,channel,device_id,recipient,cls,ptype,body,hops,lc,at) VALUES(?,?,?,?,?,?,?,?,?,?)");
+    const selP = db.prepare("SELECT oid,device_id,cls,ptype,body,hops,lc,at FROM items WHERE channel='public' AND at>? ORDER BY at DESC LIMIT 100");
+    const selR = db.prepare("SELECT oid,device_id,cls,ptype,body,hops,lc,at FROM items WHERE channel='relay' AND recipient=? AND at>? ORDER BY at DESC LIMIT 100");
     const parse = (v) => { try { return typeof v === "string" ? JSON.parse(v) : v; } catch { return v; } };
-    const map = (r) => ({ id: r.oid, oid: r.oid, device_id: r.device_id, cls: r.cls, ptype: r.ptype, body: parse(r.body), hops: r.hops || 0, at: r.at });
+    const map = (r) => ({ id: r.oid, oid: r.oid, device_id: r.device_id, cls: r.cls, ptype: r.ptype, body: parse(r.body), hops: r.hops || 0, lc: r.lc == null ? undefined : Number(r.lc), at: r.at });
     return {
       kind: "sqlite",
-      add: async (ch, r) => { const res = ins.run(r.oid, ch, r.device_id ?? null, r.recipient ?? null, r.cls ?? "P2", r.ptype ?? "post", JSON.stringify(r.body ?? null), r.hops ?? 0, r.at); return (res?.changes ?? 0) > 0; },
+      add: async (ch, r) => { const res = ins.run(r.oid, ch, r.device_id ?? null, r.recipient ?? null, r.cls ?? "P2", r.ptype ?? "post", JSON.stringify(r.body ?? null), r.hops ?? 0, typeof r.lc === "number" ? r.lc : null, r.at); return (res?.changes ?? 0) > 0; },
       publicSince: async (s) => selP.all(s).map(map),
       relayFor: async (rc, s) => selR.all(rc, s).map(map),
     };
   } catch {
     const items = []; const seen = new Set();
-    const map = (i) => ({ id: i.oid, oid: i.oid, device_id: i.device_id, cls: i.cls, ptype: i.ptype, body: i.body, hops: i.hops || 0, at: i.at });
+    const map = (i) => ({ id: i.oid, oid: i.oid, device_id: i.device_id, cls: i.cls, ptype: i.ptype, body: i.body, hops: i.hops || 0, lc: i.lc, at: i.at });
     return {
       kind: "memory",
       add: async (ch, r) => { if (seen.has(r.oid)) return false; seen.add(r.oid); items.push({ channel: ch, ...r }); if (items.length > 5000) items.shift(); return true; },
@@ -124,7 +124,7 @@ function json(res, code, obj) { cors(res); res.writeHead(code, { "content-type":
 function readBody(req) { return new Promise((r) => { let b = ""; req.on("data", (c) => (b += c)); req.on("end", () => { try { r(JSON.parse(b || "{}")); } catch { r({}); } }); }); }
 
 async function addItem(channel, r) {
-  const rec = { ...r, oid: oidOf(r), hops: r.hops ?? 0 };
+  const rec = { ...r, oid: oidOf(r), hops: r.hops ?? 0, lc: typeof r.lc === "number" ? r.lc : undefined };
   const added = await store.add(channel, rec);
   if (added) broadcast(channel, rec);
   return added;
@@ -138,13 +138,13 @@ async function handler(req, res) {
     if (!canWrite(req, u)) return json(res, 401, { error: "no autorizado" });
     const b = await readBody(req); const e = b.envelope || {};
     if (VERIFY && !(await verifyWrapped(e.body))) return json(res, 400, { error: "firma inválida" });
-    await addItem("public", { device_id: b.device_id, cls: e.cls, ptype: e.ptype || "post", body: e.body, oid: e.oid, at: Date.now() });
+    await addItem("public", { device_id: b.device_id, cls: e.cls, ptype: e.ptype || "post", body: e.body, oid: e.oid, lc: e.lc, at: Date.now() });
     return json(res, 200, { ok: true });
   }
   if (req.method === "POST" && u.pathname === "/mesh/relay") {
     if (!canWrite(req, u)) return json(res, 401, { error: "no autorizado" });
     const b = await readBody(req); const e = b.envelope || {};
-    await addItem("relay", { device_id: b.device_id, recipient: e.recipient || null, cls: e.cls, ptype: e.ptype || "message", body: e.body, oid: e.oid, at: Date.now() });
+    await addItem("relay", { device_id: b.device_id, recipient: e.recipient || null, cls: e.cls, ptype: e.ptype || "message", body: e.body, oid: e.oid, lc: e.lc, at: Date.now() });
     return json(res, 200, { ok: true });
   }
   if (req.method === "GET" && u.pathname === "/mesh/public") {

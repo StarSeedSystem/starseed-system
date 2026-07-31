@@ -15,6 +15,7 @@ import { OnboardingGate } from "@/components/onboarding/onboarding-gate";
 import { AuroraIntro } from "@/components/onboarding/aurora-intro";
 import { StartupUpdatesModal } from "@/components/astraura/startup-updates-modal";
 import { ModelDownloadNotifier } from "@/components/neurons/model-download-notifier";
+import { NeuronActivityLogger } from "@/components/neurons/neuron-activity-logger";
 import { AuthGate } from "@/components/auth/auth-gate";
 import { GlobalEntityCreator } from "@/components/layout/global-entity-creator";
 import { GlobalSelectionMenu } from "@/components/layout/global-selection-menu";
@@ -44,6 +45,8 @@ export default function AppProviders({ children }: { children: ReactNode }) {
         <StartupUpdatesModal />
         {/* Aviso global al completar una descarga de modelo en 2º plano (Adenda 113). */}
         <ModelDownloadNotifier />
+        {/* Alimenta la bitácora por neurona con eventos reales de red/descargas (Adenda 115). */}
+        <NeuronActivityLogger />
         {/* Motor de alarmas global + modal de aviso activo */}
         <AlarmScheduler />
         <ActiveAlertModal />

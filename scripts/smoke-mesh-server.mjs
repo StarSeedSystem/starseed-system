@@ -38,6 +38,11 @@ async function main() {
     body: JSON.stringify({ device_id: "dev-a", envelope: { body: { text: "dup" }, oid: "oid-1", at: Date.now() } }) });
   r = await fetch("http://localhost:8801/mesh/public?since=0"); j = await r.json();
   ok(j.items.filter((i) => i.oid === "oid-1").length === 1, "dedup por oid (segundo POST ignorado)");
+  // Reloj lógico: el servidor round-trip del campo lc (Adenda 115).
+  await fetch("http://localhost:8801/mesh/public", { method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ device_id: "dev-b", envelope: { body: { text: "con reloj" }, oid: "oid-lc", lc: 42, at: Date.now() } }) });
+  r = await fetch("http://localhost:8801/mesh/public?since=0"); j = await r.json();
+  ok(j.items.find((i) => i.oid === "oid-lc")?.lc === 42, "reloj lógico lc round-trip en el servidor");
   // relay dirigido
   r = await fetch("http://localhost:8801/mesh/relay", { method: "POST", headers: { "content-type": "application/json" },
     body: JSON.stringify({ device_id: "dev-a", envelope: { recipient: "acct-x", body: { text: "privado" }, oid: "oid-r1", at: Date.now() } }) });

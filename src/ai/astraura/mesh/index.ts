@@ -742,7 +742,7 @@ export {
   refreshNearbyNow,
   MESH_NEARBY_EVENT,
 } from "./synaptic";
-export { hasAccountSession, revokeIdentity, currentFingerprint, isRevoked } from "./server-relay";
+export { hasAccountSession, revokeIdentity, currentFingerprint, isRevoked, listRevocationCerts, revokeDeviceByCert, type AccountRevocationCert } from "./server-relay";
 export type { RelayBeacon } from "./server-relay";
 export { describeBands, activeBandCount } from "./bands";
 export type { BandStatus } from "./bands";

@@ -19,6 +19,7 @@
  * local sigue igual. NUNCA lanza.
  */
 
+import { safeGet } from "@/lib/safe-storage";
 import { getMeshPrivacy } from "./privacy";
 import { getConnectivitySettings } from "./connectivity";
 import { getMeshServer } from "./servers";
@@ -32,8 +33,10 @@ import {
   verifyRevocation,
   regenerateIdentity,
   myFingerprint,
+  getRevocationCert,
 } from "./mesh-identity";
 import { deviceId } from "./federation";
+import { tick as lamportTick, observe as lamportObserve } from "./logical-clock";
 import { encryptEnvelope, decryptEnvelope, type EncEnvelope } from "./relay-crypto";
 import { getActiveModemPreset } from "./sync";
 import { getMeshState } from "./store";
@@ -81,6 +84,8 @@ export interface ServerEnvelope {
   recipient?: string;
   /** Id de origen estable (dedupe). */
   oid?: string;
+  /** Reloj lógico de Lamport (orden causal entre pares · Adenda 115). */
+  lc?: number;
 }
 
 export interface ServerSendResult {
@@ -133,10 +138,12 @@ function authHeaders(token?: string): Record<string, string> {
  */
 async function postToEndpoint(endpoint: string, channel: "public" | "relay", env: ServerEnvelope, token?: string): Promise<ServerSendResult> {
   try {
+    // Estampa el reloj lógico de Lamport para orden causal entre pares (Adenda 115).
+    const stamped: ServerEnvelope = { ...env, lc: lamportTick() };
     const res = await fetch(`${endpoint}/mesh/${channel}`, {
       method: "POST",
       headers: { "content-type": "application/json", ...authHeaders(token) },
-      body: JSON.stringify({ channel, device_id: deviceId(), envelope: env }),
+      body: JSON.stringify({ channel, device_id: deviceId(), envelope: stamped }),
     });
     if (!res.ok) return { ok: false, detail: `servidor propio rechazó (${res.status})` };
     return { ok: true, detail: `enviado a tu servidor (${channel})` };
@@ -235,6 +242,28 @@ export interface RelayBeacon {
   at: number;
   /** ¿Es de mi propia cuenta? (federación) o ajena (red pública). */
   own: boolean;
+  /** Esta neurona ofrece internet público del OS con sus recursos (Adenda 115). */
+  offersPublic?: boolean;
+  /** Puerto anunciado para vínculos privados personalizables. */
+  port?: number;
+}
+
+/** Oferta de servicio público de ESTA neurona (para anunciarla en el faro). */
+function myPublicOffer(): { offersPublic: boolean; port?: number } {
+  try {
+    // Lectura directa de las claves de neuronas (sin acoplar el mesh a esa capa).
+    // Los ajustes se indexan por el id de neurona (`starseed.neuron.device-id`),
+    // distinto del deviceId del mesh.
+    const raw = safeGet("starseed.neurons.prefs.v1");
+    const neuronId = safeGet("starseed.neuron.device-id") || "";
+    if (!raw || !neuronId) return { offersPublic: false };
+    const prefs = JSON.parse(raw) as { settings?: Record<string, { offerPublicInternet?: boolean; publicPort?: number }> };
+    const s = prefs?.settings?.[neuronId];
+    if (s?.offerPublicInternet) return { offersPublic: true, port: typeof s.publicPort === "number" ? s.publicPort : undefined };
+    return { offersPublic: false };
+  } catch {
+    return { offersPublic: false };
+  }
 }
 
 /**
@@ -272,7 +301,7 @@ export async function emitBeacon(): Promise<boolean> {
       cls: "P1",
       ptype: "presence",
       enc: false,
-      payload: {},
+      payload: myPublicOffer(), // anuncia si ofrece internet público + puerto (Adenda 115)
       device_id: me,
       // Anónimo → sin etiqueta de usuario. Visible → según shareName.
       label: anonymous ? null : privacy.shareName ? s.self?.shortName || s.self?.longName || "Neurona" : null,
@@ -337,7 +366,7 @@ export async function pullBeacons(): Promise<RelayBeacon[]> {
 
     const { data, error } = await supabase
       .from("os_mesh_relay")
-      .select("device_id, label, region, preset, online_count, created_at")
+      .select("device_id, label, region, preset, online_count, payload, created_at")
       .eq("kind", "beacon")
       .gte("created_at", cutoff)
       .order("created_at", { ascending: false })
@@ -349,6 +378,7 @@ export async function pullBeacons(): Promise<RelayBeacon[]> {
       const dev = String(row.device_id ?? "");
       if (!dev || dev === me || seen.has(dev)) continue; // ni yo ni duplicados
       seen.add(dev);
+      const offer = (row.payload ?? null) as { offersPublic?: boolean; port?: number } | null;
       out.push({
         deviceId: dev,
         label: row.label ? String(row.label) : null,
@@ -357,6 +387,8 @@ export async function pullBeacons(): Promise<RelayBeacon[]> {
         onlineCount: typeof row.online_count === "number" ? row.online_count : 0,
         at: row.created_at ? Date.parse(String(row.created_at)) : 0,
         own: myDevices.has(dev),
+        offersPublic: offer?.offersPublic === true,
+        port: typeof offer?.port === "number" ? offer.port : undefined,
       });
     }
     return out;
@@ -415,8 +447,112 @@ export async function registerIdentity(): Promise<void> {
       device_id: me,
       expires_at: new Date(Date.now() + 30 * 24 * 60 * 60_000).toISOString(),
     });
+    // Sube el certificado de revocación PRE-GENERADO de este dispositivo a la
+    // cuenta (Adenda 115): permite revocarlo desde otra neurona si se pierde.
+    try {
+      const cert = await getRevocationCert();
+      if (cert) {
+        await supabase.from("os_mesh_relay").delete().eq("owner_id", owner).eq("device_id", me).eq("kind", "revocation-cert");
+        await supabase.from("os_mesh_relay").insert({
+          owner_id: owner,
+          channel: "relay", // solo la cuenta lo lee (RLS por owner); no es público
+          kind: "revocation-cert",
+          cls: "P3",
+          ptype: "manifest",
+          enc: false,
+          payload: { fp: cert.fp, pub: cert.pub, sig: cert.sig },
+          device_id: me,
+          recipient: owner,
+          expires_at: null,
+        });
+      }
+    } catch {
+      /* el registro de identidad ya quedó; el cert es best-effort */
+    }
   } catch {
     identityRegistered = false;
+  }
+}
+
+/* ── REVOCACIÓN POR AUTORIDAD DE CUENTA (Adenda 115) ────────────────────────────
+ * Con el certificado de revocación pre-generado guardado en la cuenta, cualquier
+ * neurona de la MISMA cuenta puede revocar un dispositivo perdido SIN su clave
+ * viva: publica su certificado (auto-autenticable) como acta de revocación.
+ * ---------------------------------------------------------------------------- */
+
+export interface AccountRevocationCert {
+  fp: string;
+  deviceId: string;
+  at: number;
+}
+
+/** Lista los certificados de revocación de las neuronas de la cuenta (verificados). */
+export async function listRevocationCerts(): Promise<AccountRevocationCert[]> {
+  try {
+    const supabase = await client();
+    if (!supabase) return [];
+    const owner = await ownerId(supabase);
+    if (!owner) return [];
+    const { data } = await supabase
+      .from("os_mesh_relay")
+      .select("payload, device_id, created_at")
+      .eq("owner_id", owner)
+      .eq("kind", "revocation-cert")
+      .limit(200);
+    if (!Array.isArray(data)) return [];
+    const out: AccountRevocationCert[] = [];
+    const me = deviceId();
+    for (const row of data as Array<Record<string, unknown>>) {
+      const p = (row.payload ?? null) as { fp?: string; pub?: JsonWebKey; sig?: string } | null;
+      if (!p?.fp || !p.pub || !p.sig) continue;
+      if (!(await verifyRevocation(p.fp, p.sig, p.pub))) continue; // cert inválido
+      const dev = String(row.device_id ?? "");
+      if (dev === me) continue; // no ofrecer revocar ESTE dispositivo aquí (usa auto-revocación)
+      out.push({ fp: p.fp, deviceId: dev, at: row.created_at ? Date.parse(String(row.created_at)) : 0 });
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Revoca una neurona de la cuenta por su certificado pre-generado (autoridad de
+ * cuenta): publica el acta de revocación aunque el dispositivo esté perdido.
+ */
+export async function revokeDeviceByCert(fp: string): Promise<{ ok: boolean }> {
+  try {
+    const supabase = await client();
+    if (!supabase) return { ok: false };
+    const owner = await ownerId(supabase);
+    if (!owner) return { ok: false };
+    const { data } = await supabase
+      .from("os_mesh_relay")
+      .select("payload")
+      .eq("owner_id", owner)
+      .eq("kind", "revocation-cert")
+      .limit(200);
+    const rows = Array.isArray(data) ? (data as Array<Record<string, unknown>>) : [];
+    const found = rows
+      .map((r) => r.payload as { fp?: string; pub?: JsonWebKey; sig?: string } | null)
+      .find((p) => p?.fp === fp && p.pub && p.sig);
+    if (!found) return { ok: false };
+    if (!(await verifyRevocation(found.fp!, found.sig!, found.pub!))) return { ok: false };
+    await supabase.from("os_mesh_relay").insert({
+      owner_id: owner,
+      channel: "public",
+      kind: "revocation",
+      cls: "P3",
+      ptype: "manifest",
+      enc: false,
+      payload: { fp: found.fp, pub: found.pub, sig: found.sig },
+      device_id: deviceId(),
+      expires_at: null,
+    });
+    revokedSet.add(fp);
+    return { ok: true };
+  } catch {
+    return { ok: false };
   }
 }
 
@@ -643,6 +779,7 @@ export async function pullFromEndpoint(endpoint: string, since: number, token?: 
       if (!raw || typeof raw !== "object") continue;
       const row = raw as Record<string, unknown>;
       if (String(row.device_id ?? "") === me) continue;
+      if (typeof row.lc === "number") lamportObserve(row.lc); // avanza el reloj lógico (Adenda 115)
       const u = await unwrapSigned(row.body ?? row.payload ?? row.envelope ?? null);
       out.push({
         id: String(row.id ?? `${row.device_id ?? ""}-${row.at ?? row.created_at ?? ""}`),

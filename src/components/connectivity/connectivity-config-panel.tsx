@@ -52,6 +52,9 @@ import {
   subscribeMeshServers,
   revokeIdentity,
   currentFingerprint,
+  listRevocationCerts,
+  revokeDeviceByCert,
+  type AccountRevocationCert,
   type MeshServer,
   type PublicRadarMode,
   type PreferredRoute,
@@ -152,16 +155,23 @@ function NeuronIdentityCard() {
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
   const [rotated, setRotated] = useState(false);
+  const [others, setOthers] = useState<AccountRevocationCert[]>([]);
+  const [revoking, setRevoking] = useState<string | null>(null);
+
+  const loadOthers = useCallback(() => {
+    void listRevocationCerts().then(setOthers).catch(() => setOthers([]));
+  }, []);
 
   useEffect(() => {
     let alive = true;
     void currentFingerprint().then((f) => {
       if (alive) setFp(f);
     });
+    loadOthers();
     return () => {
       alive = false;
     };
-  }, []);
+  }, [loadOthers]);
 
   const revoke = async () => {
     setBusy(true);
@@ -172,6 +182,13 @@ function NeuronIdentityCard() {
       setRotated(true);
       setFp(res.newFp ?? (await currentFingerprint()));
     }
+  };
+
+  const revokeOther = async (fpTarget: string) => {
+    setRevoking(fpTarget);
+    const res = await revokeDeviceByCert(fpTarget);
+    setRevoking(null);
+    if (res.ok) loadOthers();
   };
 
   return (
@@ -219,6 +236,31 @@ function NeuronIdentityCard() {
         Úsalo si la clave de esta neurona se vio comprometida: firma un acta de revocación verificable por toda la red y
         genera una identidad nueva para tus próximas transmisiones.
       </p>
+
+      {others.length > 0 && (
+        <div className="mt-2.5 border-t border-white/10 pt-2">
+          <p className="mb-1.5 text-[10px] font-medium text-white/70">Revocar otra neurona de la cuenta (autoridad de cuenta)</p>
+          <div className="space-y-1">
+            {others.map((o) => (
+              <div key={o.fp} className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] px-2 py-1">
+                <KeyRound className="h-3 w-3 shrink-0 text-white/35" />
+                <span className="min-w-0 flex-1 truncate font-mono text-[9px] text-white/50">{o.fp}</span>
+                <button
+                  type="button"
+                  onClick={() => revokeOther(o.fp)}
+                  disabled={revoking === o.fp}
+                  className="inline-flex cursor-pointer items-center gap-1 rounded-md border border-white/10 px-1.5 py-0.5 text-[9px] text-white/60 transition-colors hover:border-red-400/40 hover:text-red-200 disabled:opacity-50"
+                >
+                  {revoking === o.fp ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : <ShieldX className="h-2.5 w-2.5" />} Revocar
+                </button>
+              </div>
+            ))}
+          </div>
+          <p className="mt-1 text-[9px] leading-snug text-white/35">
+            Revoca un dispositivo perdido SIN su clave, usando su certificado pre-generado guardado en tu cuenta.
+          </p>
+        </div>
+      )}
     </div>
   );
 }
