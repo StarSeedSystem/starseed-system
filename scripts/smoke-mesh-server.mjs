@@ -82,6 +82,42 @@ async function main() {
   ok(r.status === 200, "buzón con token vigente → 200");
   srv.kill();
 
+  // ── 2c. Ciclo de vida de tokens (Adenda 116) ──
+  srv = await boot(8807, { STARSEED_ADMIN_TOKEN: "admin-key" });
+  const admin = { authorization: "Bearer admin-key", "content-type": "application/json" };
+  r = await fetch("http://localhost:8807/tokens/issue", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ids: ["acct-x"] }) });
+  ok(r.status === 401, "emitir token sin admin → 401");
+  r = await fetch("http://localhost:8807/tokens/issue", { method: "POST", headers: admin, body: JSON.stringify({ ids: ["acct-x"], ttlMs: 60000 }) });
+  const issued = await r.json();
+  ok(r.status === 200 && typeof issued.token === "string" && issued.token.startsWith("tk_"), "admin emite un token");
+  r = await fetch("http://localhost:8807/mesh/public", { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${issued.token}` },
+    body: JSON.stringify({ device_id: "d", envelope: { body: { t: "1" }, oid: "o-dyn", at: Date.now() } }) });
+  ok(r.status === 200, "escribe con token emitido → 200");
+  r = await fetch("http://localhost:8807/mesh/relay?recipient=acct-x&token=" + issued.token);
+  ok(r.status === 200, "lee buzón cubierto por el token emitido → 200");
+  const expBefore = issued.exp;
+  await sleep(5);
+  r = await fetch("http://localhost:8807/tokens/refresh", { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${issued.token}` }, body: "{}" });
+  const refreshed = await r.json();
+  ok(r.status === 200 && refreshed.exp >= expBefore, "refresh renueva la caducidad");
+  r = await fetch("http://localhost:8807/tokens/revoke", { method: "POST", headers: admin, body: JSON.stringify({ token: issued.token }) });
+  ok(r.status === 200, "admin revoca el token → 200");
+  r = await fetch("http://localhost:8807/mesh/public", { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${issued.token}` },
+    body: JSON.stringify({ device_id: "d", envelope: { body: { t: "2" }, oid: "o-dyn2", at: Date.now() } }) });
+  ok(r.status === 401, "token revocado → 401");
+  srv.kill();
+
+  // ── 2d. Orden por reloj lógico en el servidor (Adenda 116) ──
+  srv = await boot(8808, {});
+  for (const [oid, lc] of [["a", 5], ["b", 1], ["c", 9]]) {
+    await fetch("http://localhost:8808/mesh/public", { method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ device_id: "d", envelope: { body: { t: oid }, oid: `lc-${oid}`, lc, at: Date.now() } }) });
+  }
+  r = await fetch("http://localhost:8808/mesh/public?since=0"); j = await r.json();
+  const lcOrder = j.items.filter((i) => String(i.oid).startsWith("lc-")).map((i) => i.lc);
+  ok(lcOrder[0] === 9 && lcOrder[lcOrder.length - 1] === 1, "el servidor ordena por lc (desc)");
+  srv.kill();
+
   // ── 3. VERIFY: solo firma válida en público ──
   srv = await boot(8803, { STARSEED_VERIFY: "1" });
   const signed = await makeSigned({ text: "firmado" });

@@ -130,8 +130,24 @@ la neurona **deduplica por `id`/`oid`** y **excluye su propio `device_id`**.
     inválidas en modo `VERIFY` se **aísla** al superar `STARSEED_PEER_MAX_BAD` durante
     `STARSEED_PEER_QUARANTINE_MS`. Verificado: `test-mesh-core` 54/54, `smoke-mesh-server` 18/18,
     `smoke-mesh-federate` 6/6.
-- **Futuro**: revocación por AUTORIDAD DE CUENTA (revocar la fp de un dispositivo perdido sin su
-  clave, vía certificado de revocación pre-generado o firma de la cuenta); rotación programada de
-  tokens (emisión/renovación) más allá del `exp` estático; reloj lógico entre pares para reconciliar
-  orden con relojes desincronizados; descubrimiento automático de pares de confianza desde el
-  registro de identidades de la cuenta/grupo.
+- **Autoridad de cuenta + reloj lógico** — Adenda 115:
+  · **Revocación por autoridad de cuenta**: `getRevocationCert()` (`mesh-identity.ts`) firma y guarda
+    un certificado de revocación pre-generado al crear la identidad; `registerIdentity()` lo sube a la
+    cuenta (`kind:"revocation-cert"`, solo la lee la cuenta por RLS). `listRevocationCerts()` +
+    `revokeDeviceByCert(fp)` revocan un dispositivo PERDIDO sin su clave viva desde cualquier neurona.
+  · **Reloj lógico (Lamport)** (`logical-clock.ts`): se estampa `lc` en los envelopes (`postToEndpoint`)
+    y se observa en la recepción; el servidor transporta `lc`.
+- **Ciclo de vida de tokens + PEX + orden por lc** — Adenda 116:
+  · **Tokens dinámicos** en la referencia: `POST /tokens/issue` (admin: `STARSEED_ADMIN_TOKEN`) →
+    `{token, ids, exp}`; `POST /tokens/refresh` (con el token) renueva `exp`; `POST /tokens/revoke`
+    (admin) añade a la **lista de revocación**. `canWrite`/`canReadMailbox` honran tokens estáticos
+    (`STARSEED_TOKENS`) y dinámicos, respetando expiración y revocación.
+  · **Descubrimiento de pares (PEX)**: `GET /peers` expone los pares conocidos; con `STARSEED_PEX=1`,
+    `federate()` fusiona los pares nuevos de las listas `/peers` de sus pares (hasta `STARSEED_MAX_PEERS`,
+    sin añadirse a sí mismo por `STARSEED_SELF_URL`).
+  · **Orden por reloj lógico**: los `GET /mesh/public` y `/mesh/relay` ordenan por `lc` (desc) con `at`
+    de desempate; `revokeDeviceByCert` retira además el registro de identidad del dispositivo revocado.
+    Verificado: `test-logical-clock` 12/12, `smoke-mesh-server` 27/27, `smoke-mesh-federate` 8/8.
+- **Futuro**: trust de pares derivado del registro de identidades (federar solo con pares avalados por
+  una identidad de confianza); rotación de la clave de firma de los tokens; reconciliación con vector
+  clock entre muchas cuentas; UI de administración de tokens del servidor propio.

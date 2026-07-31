@@ -10,13 +10,21 @@
 //     (STARSEED_VERIFY=1: solo se acepta contenido público con firma válida).
 
 import http from "node:http";
-import { createHash, webcrypto } from "node:crypto";
+import { createHash, webcrypto, randomUUID } from "node:crypto";
 
 const PORT = process.env.PORT || 8787;
 const DB_PATH = process.env.STARSEED_DB || ":memory:";
 const SINGLE_TOKEN = process.env.STARSEED_SERVER_TOKEN || "";
 const TOKENS = (() => { try { return process.env.STARSEED_TOKENS ? JSON.parse(process.env.STARSEED_TOKENS) : null; } catch { return null; } })();
 const PEERS = (process.env.STARSEED_PEERS || "").split(",").map((s) => s.trim()).filter(Boolean);
+// Ciclo de vida de tokens (Adenda 116): emisión/refresh/revocación por un admin.
+const ADMIN_TOKEN = process.env.STARSEED_ADMIN_TOKEN || "";
+const TOKEN_TTL_MS = Number(process.env.STARSEED_TOKEN_TTL_MS || 3600000);
+// Descubrimiento automático de pares (PEX, Adenda 116): fusiona pares de las
+// listas /peers de los pares conocidos, con tope.
+const PEX = process.env.STARSEED_PEX === "1";
+const MAX_PEERS = Number(process.env.STARSEED_MAX_PEERS || 16);
+const SELF_URL = (process.env.STARSEED_SELF_URL || "").replace(/\/$/, "");
 const FEDERATE_MS = Number(process.env.STARSEED_FEDERATE_MS || 20000);
 const MAX_HOPS = Number(process.env.STARSEED_MAX_HOPS || 4);
 const VERIFY = process.env.STARSEED_VERIFY === "1";
@@ -94,17 +102,25 @@ async function verifyWrapped(body) {
  *   · ["id1","id2"]                       → sin caducidad.
  *   · { "ids":["id1"], "exp":1730000000000 } → caduca en ese epoch ms (UTC).
  * Un token caducado se trata como inexistente (401/403). */
+const dynTokens = new Map(); // token → { ids:[], exp } (emitidos en caliente)
+const revokedTokens = new Set(); // lista de revocación de tokens
 function tokenOf(req, u) { const h = req.headers["authorization"] || ""; return h.startsWith("Bearer ") ? h.slice(7) : (u && u.searchParams.get("token")) || ""; }
 function tokenEntry(token) {
-  if (!TOKENS || !token) return null;
-  const v = TOKENS[token];
-  if (!v) return null;
-  if (Array.isArray(v)) return { ids: v, exp: 0 };
-  return { ids: Array.isArray(v.ids) ? v.ids : [], exp: Number(v.exp) || 0 };
+  if (!token || revokedTokens.has(token)) return null;
+  if (TOKENS && TOKENS[token]) {
+    const v = TOKENS[token];
+    return Array.isArray(v) ? { ids: v, exp: 0 } : { ids: Array.isArray(v.ids) ? v.ids : [], exp: Number(v.exp) || 0 };
+  }
+  if (dynTokens.has(token)) return dynTokens.get(token);
+  return null;
 }
 function tokenValid(e) { return !!e && (!e.exp || e.exp > Date.now()); }
-function canWrite(req, u) { if (TOKENS) return tokenValid(tokenEntry(tokenOf(req, u))); if (SINGLE_TOKEN) return tokenOf(req, u) === SINGLE_TOKEN; return true; }
-function canReadMailbox(req, u, rc) { if (TOKENS) { const e = tokenEntry(tokenOf(req, u)); return tokenValid(e) && e.ids.includes(rc); } if (SINGLE_TOKEN) return tokenOf(req, u) === SINGLE_TOKEN; return true; }
+function tokensActive() { return !!TOKENS || dynTokens.size > 0 || !!ADMIN_TOKEN; }
+function canWrite(req, u) { if (tokensActive()) return tokenValid(tokenEntry(tokenOf(req, u))); if (SINGLE_TOKEN) return tokenOf(req, u) === SINGLE_TOKEN; return true; }
+function canReadMailbox(req, u, rc) { if (tokensActive()) { const e = tokenEntry(tokenOf(req, u)); return tokenValid(e) && e.ids.includes(rc); } if (SINGLE_TOKEN) return tokenOf(req, u) === SINGLE_TOKEN; return true; }
+function isAdmin(req, u) { return !!ADMIN_TOKEN && tokenOf(req, u) === ADMIN_TOKEN; }
+/** Orden causal: por reloj lógico lc (desc) y at (desc) como desempate (Adenda 116). */
+function byLamportDesc(a, b) { return ((b.lc ?? -1) - (a.lc ?? -1)) || ((b.at ?? 0) - (a.at ?? 0)); }
 
 /* ── SSE (realtime) ────────────────────────────────────────────────────────── */
 const sseClients = new Set();
@@ -148,13 +164,49 @@ async function handler(req, res) {
     return json(res, 200, { ok: true });
   }
   if (req.method === "GET" && u.pathname === "/mesh/public") {
-    return json(res, 200, { items: await store.publicSince(Number(u.searchParams.get("since") || 0)) });
+    const items = (await store.publicSince(Number(u.searchParams.get("since") || 0))).sort(byLamportDesc);
+    return json(res, 200, { items });
   }
   if (req.method === "GET" && u.pathname === "/mesh/relay") {
     const rc = u.searchParams.get("recipient") || "";
     if (!rc) return json(res, 400, { error: "falta recipient" });
     if (!canReadMailbox(req, u, rc)) return json(res, 403, { error: "buzón ajeno" });
-    return json(res, 200, { items: await store.relayFor(rc, Number(u.searchParams.get("since") || 0)) });
+    const items = (await store.relayFor(rc, Number(u.searchParams.get("since") || 0))).sort(byLamportDesc);
+    return json(res, 200, { items });
+  }
+  // ── Ciclo de vida de tokens (Adenda 116) ──
+  if (req.method === "POST" && u.pathname === "/tokens/issue") {
+    if (!isAdmin(req, u)) return json(res, 401, { error: "solo admin" });
+    const b = await readBody(req);
+    const ids = Array.isArray(b.ids) ? b.ids.map(String) : [];
+    const ttl = Number(b.ttlMs) > 0 ? Number(b.ttlMs) : TOKEN_TTL_MS;
+    const token = "tk_" + randomUUID().replace(/-/g, "");
+    const exp = Date.now() + ttl;
+    dynTokens.set(token, { ids, exp });
+    return json(res, 200, { token, ids, exp });
+  }
+  if (req.method === "POST" && u.pathname === "/tokens/refresh") {
+    const t = tokenOf(req, u);
+    if (!dynTokens.has(t) || revokedTokens.has(t)) return json(res, 401, { error: "token no renovable" });
+    const cur = dynTokens.get(t);
+    if (cur.exp && cur.exp <= Date.now()) return json(res, 401, { error: "token caducado" });
+    const b = await readBody(req);
+    const ttl = Number(b.ttlMs) > 0 ? Number(b.ttlMs) : TOKEN_TTL_MS;
+    cur.exp = Date.now() + ttl;
+    dynTokens.set(t, cur);
+    return json(res, 200, { token: t, ids: cur.ids, exp: cur.exp });
+  }
+  if (req.method === "POST" && u.pathname === "/tokens/revoke") {
+    if (!isAdmin(req, u)) return json(res, 401, { error: "solo admin" });
+    const b = await readBody(req);
+    const t = String(b.token || "");
+    if (!t) return json(res, 400, { error: "falta token" });
+    revokedTokens.add(t); dynTokens.delete(t);
+    return json(res, 200, { ok: true, revoked: t });
+  }
+  // ── Descubrimiento de pares (PEX, Adenda 116) ──
+  if (req.method === "GET" && u.pathname === "/peers") {
+    return json(res, 200, { peers: [...knownPeers] });
   }
   if (req.method === "GET" && u.pathname === "/mesh/stream") {
     cors(res); res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache", connection: "keep-alive" });
@@ -171,8 +223,9 @@ async function handler(req, res) {
 /* ── Federación (dedup por oid · watermark por par · saltos · firma · reputación) ─ */
 const peerWatermark = new Map();
 const peerRep = new Map(); // peer → { bad, good, until } (Adenda 108)
+const knownPeers = new Set(PEERS); // conjunto DINÁMICO (crece por PEX · Adenda 116)
 async function federate() {
-  for (const peer of PEERS) {
+  for (const peer of [...knownPeers]) {
     const rep = peerRep.get(peer) || { bad: 0, good: 0, until: 0 };
     if (rep.until > Date.now()) continue; // par en cuarentena: se salta este ciclo
     const since = peerWatermark.get(peer) || 0;
@@ -189,7 +242,7 @@ async function federate() {
         if (VERIFY && !(await verifyWrapped(it.body))) { rep.bad++; continue; } // firma inválida: cuenta en contra del par
         if (VERIFY) rep.good++;
         // addItem dedup por oid → un ítem re-federado por varios pares se ignora (anti-bucle).
-        await addItem("public", { device_id: it.device_id, cls: it.cls, ptype: it.ptype || "post", body: it.body, oid: it.oid, hops, at: Number(it.at) || Date.now() });
+        await addItem("public", { device_id: it.device_id, cls: it.cls, ptype: it.ptype || "post", body: it.body, oid: it.oid, hops, lc: it.lc, at: Number(it.at) || Date.now() });
       }
       peerWatermark.set(peer, maxAt);
       // Reputación: si el par es NETO malo por un margen, se aísla un tiempo.
@@ -201,12 +254,37 @@ async function federate() {
       peerRep.set(peer, rep);
     } catch { peerRep.set(peer, rep); /* par caído: se reintenta */ }
   }
+  if (PEX) await discoverPeers();
+}
+
+/**
+ * PEX (Adenda 116): pregunta a los pares conocidos por SUS pares (GET /peers) y
+ * fusiona los nuevos hasta MAX_PEERS. Descubrimiento automático de la federación,
+ * sin lista estática completa. No añade a sí mismo (SELF_URL) ni duplicados.
+ */
+async function discoverPeers() {
+  for (const peer of [...knownPeers]) {
+    if (knownPeers.size >= MAX_PEERS) break;
+    try {
+      const r = await fetch(`${peer.replace(/\/$/, "")}/peers`, { headers: { accept: "application/json" } });
+      if (!r.ok) continue;
+      const j = await r.json();
+      const list = Array.isArray(j?.peers) ? j.peers : [];
+      for (const p of list) {
+        const u = String(p || "").trim().replace(/\/$/, "");
+        if (!u || knownPeers.size >= MAX_PEERS) continue;
+        if (u === SELF_URL || knownPeers.has(u)) continue; // ni yo ni repetidos
+        knownPeers.add(u);
+        console.log(`[PEX] par descubierto: ${u} (total ${knownPeers.size})`);
+      }
+    } catch { /* par caído */ }
+  }
 }
 
 /* ── Arranque ──────────────────────────────────────────────────────────────── */
 store = await makeStore();
 const server = http.createServer((req, res) => { handler(req, res).catch(() => json(res, 500, { error: "interno" })); });
 server.listen(PORT, () => {
-  console.log(`StarSeed mesh server :${PORT} · persistencia=${store.kind}${TOKENS || SINGLE_TOKEN ? " · auth" : ""} · SSE${PEERS.length ? ` · federando(${PEERS.length}, saltos≤${MAX_HOPS}${VERIFY ? `, verify, cuarentena>${PEER_MAX_BAD}` : ""})` : ""}`);
+  console.log(`StarSeed mesh server :${PORT} · persistencia=${store.kind}${TOKENS || SINGLE_TOKEN || ADMIN_TOKEN ? " · auth" : ""} · SSE${knownPeers.size ? ` · federando(${knownPeers.size}, saltos≤${MAX_HOPS}${VERIFY ? `, verify, cuarentena>${PEER_MAX_BAD}` : ""}${PEX ? `, PEX≤${MAX_PEERS}` : ""})` : ""}`);
 });
-if (PEERS.length) setInterval(() => { void federate(); }, FEDERATE_MS);
+if (knownPeers.size || PEX) setInterval(() => { void federate(); }, FEDERATE_MS);

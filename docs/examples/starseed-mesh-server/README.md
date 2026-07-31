@@ -46,6 +46,21 @@ propios sin un servidor central.
 - `STARSEED_PEER_MAX_BAD=20` / `STARSEED_PEER_QUARANTINE_MS=300000` — **reputación de pares**
   (Adenda 108): en modo `VERIFY`, un par cuyas firmas inválidas superan a las válidas por este
   margen se **aísla** el tiempo de cuarentena (no se le sondea hasta que expira).
+- `STARSEED_PEX=1` / `STARSEED_MAX_PEERS=16` / `STARSEED_SELF_URL=` — **descubrimiento de pares**
+  (Adenda 116): el servidor fusiona los pares nuevos de las listas `GET /peers` de sus pares, hasta el
+  tope, sin añadirse a sí mismo.
+
+## Ciclo de vida de tokens (Adenda 116)
+
+Con `STARSEED_ADMIN_TOKEN=<clave>` el servidor emite tokens en caliente (además de los estáticos de
+`STARSEED_TOKENS`) y aplica una **lista de revocación**:
+
+- `POST /tokens/issue` (admin) · body `{"ids":["group:barrio"],"ttlMs":3600000}` → `{token,ids,exp}`.
+- `POST /tokens/refresh` (con el token en `Authorization: Bearer`) → renueva `exp`.
+- `POST /tokens/revoke` (admin) · body `{"token":"tk_…"}` → lo añade a la lista de revocación (401 a partir de ahí).
+
+`STARSEED_TOKEN_TTL_MS` (def. 3600000) es la caducidad por defecto. Con `STARSEED_ADMIN_TOKEN` puesto,
+el servidor exige token válido en toda escritura (modo gestionado).
 
 ## Endpoints
 
@@ -53,9 +68,11 @@ propios sin un servidor central.
 |---|---|---|
 | POST | `/mesh/public` | Publicar contenido público (texto plano). |
 | POST | `/mesh/relay` | Relé dirigido (`envelope.recipient`); body cifrado E2E por el cliente. |
-| GET | `/mesh/public?since=` | Feed público posterior a `since`. |
+| GET | `/mesh/public?since=` | Feed público posterior a `since` (ordenado por reloj lógico `lc`). |
 | GET | `/mesh/relay?recipient=&since=` | Buzón dirigido de una identidad (auth por token). |
-| GET | `/mesh/stream?recipients=&token=` | **SSE**: empuje instantáneo del feed público + buzón dirigido a esas identidades. |
+| GET | `/mesh/stream?recipients=&token=` | **SSE**: empuje instantáneo del feed público + buzón dirigido. |
+| GET | `/peers` | Lista de pares conocidos (PEX). |
+| POST | `/tokens/issue · refresh · revoke` | Ciclo de vida de tokens (admin/token). |
 
 Notas: el contenido público va **firmado** por el cliente (ECDSA) — el servidor solo lo transporta
 y los receptores verifican. La **federación** deduplica por `oid` (id de origen estable) con marca
@@ -66,8 +83,13 @@ buzón dirigido y el SSE aceptan token por `Authorization: Bearer` o `?token=`. 
 **revocación de identidad** (`kind:"revocation"`) se hace cumplir en el **receptor** (cliente del
 OS), no en este servidor de transporte.
 
-Verificado con `scripts/smoke-mesh-server.mjs` (endpoints, auth, expiración, verify, SSE) y
-`scripts/smoke-mesh-federate.mjs` (peer-pull, `hops++`, control de saltos, cuarentena) en la raíz del repo.
+El **reloj lógico** `lc` (Adenda 115/116) viaja en el envelope y el servidor lo transporta y ordena el
+feed por él; el **certificado de revocación** y su cumplimiento por autoridad de cuenta viven en el
+cliente del OS (este servidor solo transporta la `kind:"revocation"`).
+
+Verificado con `scripts/smoke-mesh-server.mjs` (endpoints, auth, expiración, tokens dinámicos, verify,
+SSE, orden por lc) y `scripts/smoke-mesh-federate.mjs` (peer-pull, `hops++`, saltos, cuarentena, PEX)
+en la raíz del repo.
 
 Producción: pon el servidor tras HTTPS + un dominio, define `STARSEED_TOKENS`, usa
 Postgres y (opcional) `STARSEED_PEERS` + `STARSEED_MAX_HOPS`/`STARSEED_VERIFY` para federar

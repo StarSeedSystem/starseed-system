@@ -533,11 +533,13 @@ export async function revokeDeviceByCert(fp: string): Promise<{ ok: boolean }> {
       .eq("kind", "revocation-cert")
       .limit(200);
     const rows = Array.isArray(data) ? (data as Array<Record<string, unknown>>) : [];
-    const found = rows
-      .map((r) => r.payload as { fp?: string; pub?: JsonWebKey; sig?: string } | null)
-      .find((p) => p?.fp === fp && p.pub && p.sig);
-    if (!found) return { ok: false };
-    if (!(await verifyRevocation(found.fp!, found.sig!, found.pub!))) return { ok: false };
+    const foundRow = rows.find((r) => {
+      const p = r.payload as { fp?: string } | null;
+      return p?.fp === fp;
+    });
+    const found = (foundRow?.payload ?? null) as { fp?: string; pub?: JsonWebKey; sig?: string } | null;
+    if (!found?.fp || !found.pub || !found.sig) return { ok: false };
+    if (!(await verifyRevocation(found.fp, found.sig, found.pub))) return { ok: false };
     await supabase.from("os_mesh_relay").insert({
       owner_id: owner,
       channel: "public",
@@ -549,6 +551,15 @@ export async function revokeDeviceByCert(fp: string): Promise<{ ok: boolean }> {
       device_id: deviceId(),
       expires_at: null,
     });
+    // Refinamiento (Adenda 116): retira el REGISTRO DE IDENTIDAD del dispositivo
+    // revocado (por fp) y su certificado, para que no siga ligando fp→cuenta.
+    try {
+      await supabase.from("os_mesh_relay").delete().eq("owner_id", owner).eq("kind", "identity").eq("payload->>fp", fp);
+      const dev = String(foundRow?.device_id ?? "");
+      if (dev) await supabase.from("os_mesh_relay").delete().eq("owner_id", owner).eq("kind", "revocation-cert").eq("device_id", dev);
+    } catch {
+      /* la revocación ya se publicó; la limpieza es best-effort */
+    }
     revokedSet.add(fp);
     return { ok: true };
   } catch {

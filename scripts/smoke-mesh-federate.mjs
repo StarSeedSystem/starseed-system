@@ -57,6 +57,19 @@ async function main() {
   ok(!j.items.some((i) => i.oid === "good-late"), "par en cuarentena: ni su contenido válido llega hasta que expira");
   C.kill(); D.kill();
 
+  // ── Escenario 3: descubrimiento de pares (PEX, Adenda 116) ──
+  // A conoce a C. B conoce a A y hace PEX → debe descubrir a C por la lista /peers de A.
+  const cUrl = "http://localhost:8823";
+  const aUrl = "http://localhost:8821";
+  const Ap = await boot(8821, { STARSEED_PEERS: cUrl, STARSEED_FEDERATE_MS: "5000" });
+  const Cp = await boot(8823, {});
+  const Bp = await boot(8822, { STARSEED_PEERS: aUrl, STARSEED_PEX: "1", STARSEED_MAX_PEERS: "8", STARSEED_FEDERATE_MS: "700", STARSEED_SELF_URL: "http://localhost:8822" });
+  await sleep(1800); // deja correr ciclos de federación + PEX de B
+  r = await fetch("http://localhost:8822/peers"); j = await r.json();
+  ok(Array.isArray(j.peers) && j.peers.includes(aUrl), "B mantiene su par inicial (A)");
+  ok(j.peers.some((p) => p.replace(/\/$/, "") === cUrl), "B descubrió a C por PEX (desde /peers de A)");
+  Ap.kill(); Bp.kill(); Cp.kill();
+
   console.log(`\n${pass} pasan / ${fail} fallan`);
   process.exit(fail ? 1 : 0);
 }
