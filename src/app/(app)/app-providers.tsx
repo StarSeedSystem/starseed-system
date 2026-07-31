@@ -13,6 +13,7 @@ import { useEffect } from "react";
 import { hermes } from "@/hermes-integration";
 import { OnboardingGate } from "@/components/onboarding/onboarding-gate";
 import { AuroraIntro } from "@/components/onboarding/aurora-intro";
+import { StartupUpdatesModal } from "@/components/astraura/startup-updates-modal";
 import { AuthGate } from "@/components/auth/auth-gate";
 import { GlobalEntityCreator } from "@/components/layout/global-entity-creator";
 import { GlobalSelectionMenu } from "@/components/layout/global-selection-menu";
@@ -37,6 +38,9 @@ export default function AppProviders({ children }: { children: ReactNode }) {
         {/* Presentación breve de Aurora (tras el alta de cuenta): 3-5
             preguntas opcionales que alimentan voz/personalidad/contexto. */}
         <AuroraIntro />
+        {/* Ventana unificada de inicio/actualizaciones de Astraura + OmniVoice
+            (Adenda 111): primera entrada de la neurona o novedades de modelos/fuentes. */}
+        <StartupUpdatesModal />
         {/* Motor de alarmas global + modal de aviso activo */}
         <AlarmScheduler />
         <ActiveAlertModal />
