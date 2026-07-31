@@ -35,6 +35,7 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { NeuronModelsPanel } from "@/components/neurons/neuron-models-panel";
 import { createClient } from "@/utils/supabase/client";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import {
@@ -265,6 +266,9 @@ export default function NeuronasPanel({
 
   return (
     <div className="space-y-4">
+      {/* Capacidades de hardware + modelos recomendados de esta neurona (Adenda 109). */}
+      <NeuronModelsPanel embedded />
+
       {/* ── Cabecera ─────────────────────────────────────────── */}
       <div className="rounded-2xl border border-emerald-400/20 bg-gradient-to-br from-emerald-500/[0.07] via-black/20 to-cyan-500/[0.05] p-4">
         <div className="flex items-start gap-2 flex-wrap">

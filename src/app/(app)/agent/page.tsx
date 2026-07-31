@@ -122,6 +122,8 @@ const MemoryBrain3D = nextDynamic(() => import("@/components/exocortex/memory-br
 const CanvasBoard = nextDynamic(() => import("@/components/canvas/canvas-board"), { ssr: false });
 const BrowserWindows = nextDynamic(() => import("@/components/browser/browser-windows"), { ssr: false });
 const AiAppGenerator = nextDynamic(() => import("@/components/appgen/ai-app-generator"), { ssr: false });
+// Neuronas: capacidades de hardware + modelos recomendados por neurona (Adenda 109).
+const NeuronModelsPanel = nextDynamic(() => import("@/components/neurons/neuron-models-panel").then(m => m.NeuronModelsPanel), { ssr: false });
 import { TelegramSpacesPanel } from "@/components/exocortex/telegram-spaces-panel";
 import { ChatNeuralSidebar } from "@/components/agent/chat-neural-sidebar";
 import { NexusWorkspaces } from "@/components/agent/nexus-workspaces";
@@ -286,6 +288,7 @@ const STUDIO_SECTIONS: StudioSection[] = [
     hint: "Cerebros, servidores, almacenes, conexiones y seguridad.",
     items: [
       { value: "cerebros", label: "Cerebros", icon: BrainCircuit },
+      { value: "neuronas", label: "Neuronas", icon: Cpu },
       { value: "servidores", label: "Servidores", icon: Server },
       { value: "servers", label: "Registro de servidores", icon: HardDrive },
       { value: "almacenes", label: "Almacenes", icon: HardDrive },
@@ -1341,6 +1344,8 @@ function AgentPageInner() {
         <TabsContent value="conexiones" className="flex-1 min-h-0 overflow-y-auto"><ConnectionsHub /></TabsContent>
 
         <TabsContent value="cerebros" className="flex-1 min-h-0 overflow-y-auto"><BrainsPanel /></TabsContent>
+
+        <TabsContent value="neuronas" className="flex-1 min-h-0 overflow-y-auto"><NeuronModelsPanel /></TabsContent>
 
         <TabsContent value="servidores" className="flex-1 min-h-0 overflow-y-auto"><ServersPanel /></TabsContent>
 

@@ -47,6 +47,9 @@ export interface NeuronCapabilities {
   platform: string;          // "macOS", "Android", "Windows", "Linux", "iOS"…
   browser?: string;          // "Chrome 148"…
   webgpu?: boolean;          // puede correr WebLLM
+  webgl2?: boolean;          // contexto WebGL2 disponible (aceleración gráfica)
+  gpuRenderer?: string;      // cadena del GPU (WEBGL_debug_renderer_info) — p.ej. "Apple M2"
+  gpuVendor?: string;        // fabricante del GPU (p.ej. "Apple", "NVIDIA", "Intel")
   chromeAi?: boolean;        // Prompt API integrada
   cores?: number;            // núcleos lógicos
   memoryGb?: number;         // memoria aproximada (navigator.deviceMemory)
@@ -209,6 +212,25 @@ export async function detectCapabilities(): Promise<NeuronCapabilities> {
   const { platform, browser } = detectPlatform();
   const caps: NeuronCapabilities = { platform, browser };
   try { caps.webgpu = !!(navigator as any).gpu; } catch { /* */ }
+  // GPU: renderer/vendor por WEBGL_debug_renderer_info (net-new, Adenda 109). Da
+  // el modelo aproximado del GPU para estimar si un modelo local corre fluido.
+  try {
+    if (typeof document !== "undefined") {
+      const canvas = document.createElement("canvas");
+      const gl2 = canvas.getContext("webgl2");
+      const gl = (gl2 || canvas.getContext("webgl") || canvas.getContext("experimental-webgl")) as WebGLRenderingContext | null;
+      caps.webgl2 = !!gl2;
+      if (gl) {
+        const dbg = gl.getExtension("WEBGL_debug_renderer_info") as { UNMASKED_RENDERER_WEBGL: number; UNMASKED_VENDOR_WEBGL: number } | null;
+        if (dbg) {
+          const r = gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL);
+          const v = gl.getParameter(dbg.UNMASKED_VENDOR_WEBGL);
+          if (r) caps.gpuRenderer = String(r).slice(0, 90);
+          if (v) caps.gpuVendor = String(v).slice(0, 60);
+        }
+      }
+    }
+  } catch { /* */ }
   try { caps.chromeAi = typeof window !== "undefined" && !!(window as any).LanguageModel; } catch { /* */ }
   try { caps.cores = navigator.hardwareConcurrency || undefined; } catch { /* */ }
   try { caps.memoryGb = (navigator as any).deviceMemory || undefined; } catch { /* */ }
