@@ -758,6 +758,18 @@ export {
   rotateRelayKey,
   relayKeyInfo,
 } from "./relay-crypto";
+export {
+  getOrCreateMasterKey,
+  masterFingerprint,
+  hasMasterKey,
+  signDeviceCert,
+  verifyDeviceCert,
+  exportMasterKeyEncrypted,
+  importMasterKeyEncrypted,
+  fpOfMaster,
+  type DeviceCert,
+  type MasterBlob,
+} from "./master-identity";
 export type {
   MeshState,
   MeshNodeInfo,

@@ -371,6 +371,47 @@ async function main() {
     console.log("  (omite anti-replay: sin WebCrypto en este entorno)");
   }
 
+  // 28) Identidad soberana PORTÁTIL (Adenda 121): clave maestra + certificado + export/import + ANCLA de confianza.
+  if (globalThis.crypto?.subtle) {
+    const M = await import("../src/ai/astraura/mesh/master-identity");
+    M._resetMasterKey();
+    const fpA = await M.masterFingerprint();
+    check("maestra: crea huella de cuenta (acct:)", !!fpA && fpA.startsWith("acct:"));
+    const certA = await M.signDeviceCert("id:dispositivo0001", "acct-uuid-123");
+    check("maestra: firma certificado de dispositivo", !!certA && certA.deviceFp === "id:dispositivo0001" && certA.mfp === fpA);
+    check("maestra: cert válido verifica contra la maestra esperada", certA && fpA ? (await M.verifyDeviceCert(certA, fpA)) === true : false);
+    if (certA && fpA) {
+      check("maestra: cert manipulado (device) NO verifica", (await M.verifyDeviceCert({ ...certA, deviceFp: "id:otro" }, fpA)) === false);
+      check("maestra: cert manipulado (cuenta) NO verifica", (await M.verifyDeviceCert({ ...certA, account: "acct-otra" }, fpA)) === false);
+      check("maestra: cert sin la maestra esperada NO verifica (ancla)", (await M.verifyDeviceCert(certA, "acct:otra00000000000")) === false);
+    }
+    // Portabilidad: exportar cifrado, OLVIDAR (reset borra memoria+almacenamiento), reimportar.
+    const pass = "passphrase-larga-123";
+    const blob = await M.exportMasterKeyEncrypted(pass);
+    check("maestra: exporta blob cifrado (v:2)", !!blob && blob.v === 2 && typeof blob.ct === "string" && blob.mfp === fpA);
+    check("maestra: exportar exige passphrase mínima", (await M.exportMasterKeyEncrypted("corta")) === null);
+    M._resetMasterKey();
+    check("maestra: importar con passphrase incorrecta falla", blob ? (await M.importMasterKeyEncrypted(blob, "passphrase-incorrecta-larga")) === null : false);
+    const okImp = blob ? await M.importMasterKeyEncrypted(blob, pass) : null;
+    check("maestra: importar con passphrase correcta restaura la MISMA huella", !!okImp && okImp.fp === fpA);
+    const certA2 = await M.signDeviceCert("id:dispositivo0002", "acct-uuid-123");
+    check("maestra: tras reimportar, la restaurada FIRMA (misma mfp)", certA2 && fpA ? (certA2.mfp === fpA && (await M.verifyDeviceCert(certA2, fpA)) === true) : false);
+    // ANCLA DE CONFIANZA: una maestra AJENA que reclama la misma cuenta se rechaza contra la esperada.
+    M._resetMasterKey();
+    const fpB = await M.masterFingerprint();
+    const certB = await M.signDeviceCert("id:dispositivo0001", "acct-uuid-123");
+    const bSelf = certB && fpB ? await M.verifyDeviceCert(certB, fpB) : false;
+    const bVsA = certB && fpA ? await M.verifyDeviceCert(certB, fpA) : true;
+    check("maestra: maestra AJENA autoconsistente pero rechazada contra la esperada", !!certB && fpB !== fpA && bSelf === true && bVsA === false);
+    // Blob con mpub INTERCAMBIADA (privada ≠ mpub) NO importa.
+    if (blob && certB) {
+      const swapped = { ...blob, mpub: certB.mpub, mfp: certB.mfp };
+      check("maestra: blob con mpub intercambiada (priv≠mpub) NO importa", (await M.importMasterKeyEncrypted(swapped, pass)) === null);
+    }
+  } else {
+    console.log("  (omite identidad portátil: sin WebCrypto en este entorno)");
+  }
+
   console.log(`\n${passed} pasan / ${failed} fallan`);
   if (failed > 0) process.exit(1);
 }
