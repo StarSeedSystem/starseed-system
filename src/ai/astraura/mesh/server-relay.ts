@@ -37,6 +37,7 @@ import {
 } from "./mesh-identity";
 import { deviceId } from "./federation";
 import { tick as lamportTick, observe as lamportObserve } from "./logical-clock";
+import { acceptFreshness } from "./replay-guard";
 import { encryptEnvelope, decryptEnvelope, type EncEnvelope } from "./relay-crypto";
 import { getActiveModemPreset } from "./sync";
 import { getMeshState } from "./store";
@@ -47,6 +48,27 @@ const BEACON_FRESH_MS = 4 * 60_000;
 /** Caducidad que se graba en la fila (limpieza). */
 const RELAY_TTL_MS = 24 * 60 * 60_000;
 const BEACON_TTL_MS = 5 * 60_000;
+/** Feed público: página y tope de páginas por sondeo (drenado sin huecos, Adenda 119). */
+const FEED_PAGE = 100;
+const FEED_MAX_PAGES = 12;
+
+/**
+ * Token-bucket local ANTI-FLOOD (Adenda 119): frena ráfagas patológicas de subidas
+ * desde esta neurona (protege el servidor compartido y complementa el 429 del
+ * servidor). Generoso a propósito: no estorba el uso normal, solo corta bucles.
+ */
+const CLIENT_RATE_MAX = 30;
+const CLIENT_RATE_WINDOW_MS = 5_000;
+let rateTokens = CLIENT_RATE_MAX;
+let rateLastRefill = Date.now();
+function clientRateAllow(): boolean {
+  const now = Date.now();
+  rateTokens = Math.min(CLIENT_RATE_MAX, rateTokens + ((now - rateLastRefill) / CLIENT_RATE_WINDOW_MS) * CLIENT_RATE_MAX);
+  rateLastRefill = now;
+  if (rateTokens < 1) return false;
+  rateTokens -= 1;
+  return true;
+}
 
 async function client() {
   try {
@@ -132,6 +154,21 @@ function authHeaders(token?: string): Record<string, string> {
 }
 
 /**
+ * Desenvuelve un sobre firmado y aplica la GUARDA ANTI-REPLAY (Adenda 119): si un
+ * contenido v:2 está fuera de ventana temporal o su nonce ya se vio (reinyección),
+ * se degrada a NO verificado aunque la firma sea válida. Los sobres v:1/planos no
+ * cambian (la guarda no aplica). El duplicado exacto ya se deduplica por id.
+ */
+async function unwrapFresh(payload: unknown): Promise<{ body: unknown; verified: boolean; fp?: string }> {
+  const u = await unwrapSigned(payload);
+  // Solo se consulta/registra la guarda para firmas VÁLIDAS: así un atacante no
+  // puede envenenar el LRU de nonces con sobres de firma inválida (ni gastar su
+  // memoria), y el `fp` que ancla el nonce es el de una firma comprobada.
+  if (!u.verified) return { body: u.body, verified: false, fp: u.fp };
+  return { body: u.body, verified: acceptFreshness(u.fp, u.ts, u.nonce), fp: u.fp };
+}
+
+/**
  * POST genérico a un servidor propio (público o privado añadido por la cuenta/
  * grupo). Best-effort: si el endpoint no responde o CORS lo bloquea, se informa
  * y la entrega hará failover. El protocolo es un JSON simple {channel, envelope}.
@@ -154,6 +191,7 @@ async function postToEndpoint(endpoint: string, channel: "public" | "relay", env
 
 /** Sube CONTENIDO PÚBLICO (texto plano, FIRMADO). Cualquiera de la red lo alcanza. */
 export async function uploadPublic(env: ServerEnvelope, serverId?: string): Promise<ServerSendResult> {
+  if (!clientRateAllow()) return { ok: false, detail: "límite de tasa local (anti-flood)" };
   // Firma el contenido público (autenticidad + integridad); el receptor verifica.
   const signed = await wrapSigned(env.body);
   const ep = customEndpoint(serverId);
@@ -189,6 +227,7 @@ export async function uploadPublic(env: ServerEnvelope, serverId?: string): Prom
 
 /** Sube un RELÉ PRIVADO cifrado. La nube solo transporta el texto cifrado. */
 export async function uploadRelay(env: ServerEnvelope, serverId?: string): Promise<ServerSendResult> {
+  if (!clientRateAllow()) return { ok: false, detail: "límite de tasa local (anti-flood)" };
   const ep = customEndpoint(serverId);
   if (ep) {
     // Servidor propio: ciframos igualmente antes de salir (E2E; el servidor
@@ -735,31 +774,52 @@ export async function pullPublicFeed(since: number): Promise<RelayInboundItem[]>
     const supabase = await client();
     if (!supabase) return [];
     const me = deviceId();
-    const cutoff = new Date(Math.max(since, Date.now() - RELAY_TTL_MS)).toISOString();
-    const { data, error } = await supabase
-      .from("os_mesh_relay")
-      .select("id, cls, ptype, payload, device_id, created_at")
-      .eq("channel", "public")
-      .eq("kind", "data")
-      .gte("created_at", cutoff)
-      .order("created_at", { ascending: false })
-      .limit(50);
-    if (error || !Array.isArray(data)) return [];
+    const startISO = new Date(Math.max(since, Date.now() - RELAY_TTL_MS)).toISOString();
+    // DRENADO keyset (Adenda 119): páginas ASCENDENTES por (created_at, id) hasta
+    // agotar. Antes, un limit(50)+watermark perdía EN SILENCIO los ítems entre la
+    // marca vieja y el 50.º más nuevo en ráfagas > 50. Se usa `gte` + dedup por id
+    // DENTRO del drenado para NO saltarse filas que compartan created_at en el borde
+    // de página (empate); se corta si una página no aporta filas nuevas (anti-bucle).
     const out: RelayInboundItem[] = [];
-    for (const row of data as Array<Record<string, unknown>>) {
-      if (String(row.device_id ?? "") === me) continue; // no re-consumir lo mío
-      const u = await unwrapSigned(row.payload);
-      out.push({
-        id: String(row.id ?? ""),
-        cls: String(row.cls ?? "P2") as TrafficClass,
-        ptype: String(row.ptype ?? "post") as MeshPayloadType,
-        body: u.body,
-        from: row.device_id ? String(row.device_id) : null,
-        at: row.created_at ? Date.parse(String(row.created_at)) : 0,
-        locked: false,
-        verified: u.verified,
-        signerFp: u.fp,
-      });
+    const drained = new Set<string>();
+    let cursor = startISO;
+    for (let page = 0; page < FEED_MAX_PAGES; page++) {
+      const { data, error } = await supabase
+        .from("os_mesh_relay")
+        .select("id, cls, ptype, payload, device_id, created_at")
+        .eq("channel", "public")
+        .eq("kind", "data")
+        .gte("created_at", cursor)
+        .order("created_at", { ascending: true })
+        .order("id", { ascending: true })
+        .limit(FEED_PAGE);
+      if (error || !Array.isArray(data) || data.length === 0) break;
+      let freshRows = 0;
+      for (const row of data as Array<Record<string, unknown>>) {
+        const id = String(row.id ?? "");
+        if (id && drained.has(id)) continue; // borde re-incluido por gte: ya procesado
+        if (id) drained.add(id);
+        freshRows++;
+        cursor = String(row.created_at ?? cursor);
+        if (String(row.device_id ?? "") === me) continue; // no re-consumir lo mío
+        const u = await unwrapFresh(row.payload);
+        out.push({
+          id,
+          cls: String(row.cls ?? "P2") as TrafficClass,
+          ptype: String(row.ptype ?? "post") as MeshPayloadType,
+          body: u.body,
+          from: row.device_id ? String(row.device_id) : null,
+          at: row.created_at ? Date.parse(String(row.created_at)) : 0,
+          locked: false,
+          verified: u.verified,
+          signerFp: u.fp,
+        });
+      }
+      if (data.length < FEED_PAGE) break; // última página: agotado
+      if (freshRows === 0) break; // página entera ya vista (empate masivo de created_at): corta
+      if (page === FEED_MAX_PAGES - 1) {
+        console.warn(`[mesh] pullPublicFeed: tope de ${FEED_MAX_PAGES} páginas por sondeo; el resto se drena en el próximo ciclo.`);
+      }
     }
     return out;
   } catch {
@@ -791,7 +851,7 @@ export async function pullFromEndpoint(endpoint: string, since: number, token?: 
       const row = raw as Record<string, unknown>;
       if (String(row.device_id ?? "") === me) continue;
       if (typeof row.lc === "number") lamportObserve(row.lc); // avanza el reloj lógico (Adenda 115)
-      const u = await unwrapSigned(row.body ?? row.payload ?? row.envelope ?? null);
+      const u = await unwrapFresh(row.body ?? row.payload ?? row.envelope ?? null);
       out.push({
         id: String(row.id ?? `${row.device_id ?? ""}-${row.at ?? row.created_at ?? ""}`),
         cls: String(row.cls ?? "P2") as TrafficClass,
@@ -955,7 +1015,7 @@ export function subscribeEndpointStream(onItem: (item: RelayInboundItem) => void
                 else return;
               }
             } else {
-              const u = await unwrapSigned(body);
+              const u = await unwrapFresh(body);
               body = u.body;
               verified = u.verified;
               signerFp = u.fp;
@@ -1042,7 +1102,7 @@ export function subscribeRelayRealtime(handlers: {
                 if (dec && typeof dec === "object") body = (dec as { body?: unknown }).body ?? dec;
                 else return; // cifrado sin clave: no entregable
               } else {
-                const u = await unwrapSigned(row.payload); // público firmado
+                const u = await unwrapFresh(row.payload); // público firmado
                 body = u.body;
                 verified = u.verified;
                 signerFp = u.fp;

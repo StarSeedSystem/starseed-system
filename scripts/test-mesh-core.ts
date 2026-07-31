@@ -319,6 +319,27 @@ async function main() {
     console.log("  (omite revocación: sin WebCrypto en este entorno)");
   }
 
+  // 27) Anti-replay (Adenda 119): sobre v:2 firma {b,ts,nonce}; la guarda rechaza replay/caducado.
+  if (globalThis.crypto?.subtle) {
+    const { wrapSigned, unwrapSigned } = await import("../src/ai/astraura/mesh/mesh-identity");
+    const { acceptFreshness, _resetReplayGuard } = await import("../src/ai/astraura/mesh/replay-guard");
+    _resetReplayGuard();
+    const env = (await wrapSigned({ hola: "mundo" })) as { v?: number; ts?: number; nonce?: string; b?: unknown };
+    check("anti-replay: sobre v:2 con ts+nonce", env.v === 2 && typeof env.ts === "number" && !!env.nonce);
+    const u = await unwrapSigned(env);
+    check("anti-replay: v:2 verifica y expone ts/nonce", u.verified === true && typeof u.ts === "number" && !!u.nonce);
+    const now = env.ts as number;
+    check("anti-replay: primera vez es fresco", acceptFreshness(u.fp, u.ts, u.nonce, now) === true);
+    check("anti-replay: mismo nonce repetido = replay", acceptFreshness(u.fp, u.ts, u.nonce, now) === false);
+    check("anti-replay: ts fuera de ventana = rechazado", acceptFreshness("id:x", now, "nonce-fresco", now + 20 * 60_000) === false);
+    check("anti-replay: sin ts/nonce (v1/plano) no aplica", acceptFreshness("id:x", undefined, undefined) === true);
+    const tampered = { ...env, b: { hola: "otro" } };
+    const ut = await unwrapSigned(tampered);
+    check("anti-replay: v:2 con body manipulado NO verifica", ut.verified === false);
+  } else {
+    console.log("  (omite anti-replay: sin WebCrypto en este entorno)");
+  }
+
   console.log(`\n${passed} pasan / ${failed} fallan`);
   if (failed > 0) process.exit(1);
 }

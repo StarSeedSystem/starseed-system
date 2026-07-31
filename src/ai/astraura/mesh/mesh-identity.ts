@@ -133,16 +133,52 @@ export async function verifyContent(body: unknown, sigB64: string, pub: JsonWebK
   }
 }
 
-/** Envuelve un contenido en un sobre FIRMADO (o el crudo si no hay firma). */
-export async function wrapSigned(body: unknown): Promise<Record<string, unknown>> {
-  const sig = await signContent(body);
-  if (!sig) return { v: 0, b: body ?? null };
-  return { v: 1, b: body ?? null, s: sig.s, k: sig.k, f: sig.f };
+/** Nonce aleatorio de un solo uso (anti-replay). */
+function randNonce(): string {
+  try {
+    const a = new Uint32Array(3);
+    globalThis.crypto?.getRandomValues?.(a);
+    if (a[0] || a[1] || a[2]) return a[0].toString(36) + a[1].toString(36) + a[2].toString(36);
+  } catch {
+    /* sin getRandomValues */
+  }
+  return "n" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 }
 
-/** Desenvuelve un sobre firmado → {body, verified, fp}. Acepta crudo (verified=false). */
-export async function unwrapSigned(payload: unknown): Promise<{ body: unknown; verified: boolean; fp?: string }> {
-  if (payload && typeof payload === "object" && (payload as { v?: number }).v === 1 && "b" in payload) {
+/**
+ * Envuelve un contenido en un sobre FIRMADO v:2 (o el crudo si no hay firma).
+ * v:2 firma `{b, ts, nonce}`: ata el contenido a un INSTANTE y a un USO ÚNICO,
+ * para que un receptor pueda rechazar RE-INYECCIONES (replay) de contenido
+ * firmado antiguo con un id/oid nuevo. Retrocompatible: unwrapSigned sigue
+ * aceptando v:1 (firma solo sobre b) y v:0/plano.
+ */
+export async function wrapSigned(body: unknown): Promise<Record<string, unknown>> {
+  const ts = Date.now();
+  const nonce = randNonce();
+  const sig = await signContent({ b: body ?? null, ts, nonce });
+  if (!sig) return { v: 0, b: body ?? null };
+  return { v: 2, b: body ?? null, ts, nonce, s: sig.s, k: sig.k, f: sig.f };
+}
+
+/**
+ * Desenvuelve un sobre firmado → {body, verified, fp, ts?, nonce?}. Acepta v:2
+ * (firma sobre {b,ts,nonce}), v:1 (firma sobre b) y crudo (verified=false). Los
+ * campos ts/nonce (solo v:2) permiten al receptor aplicar la guarda anti-replay.
+ */
+export async function unwrapSigned(
+  payload: unknown,
+): Promise<{ body: unknown; verified: boolean; fp?: string; ts?: number; nonce?: string }> {
+  const v = payload && typeof payload === "object" ? (payload as { v?: number }).v : undefined;
+  if (v === 2 && payload && typeof payload === "object" && "b" in payload) {
+    const p = payload as { b: unknown; ts?: number; nonce?: string; s?: string; k?: JsonWebKey; f?: string };
+    let verified = false;
+    if (p.s && p.k) {
+      verified = await verifyContent({ b: p.b, ts: p.ts, nonce: p.nonce }, p.s, p.k);
+      if (verified && p.f) verified = (await fpOf(p.k)) === p.f;
+    }
+    return { body: p.b, verified, fp: p.f, ts: typeof p.ts === "number" ? p.ts : undefined, nonce: p.nonce };
+  }
+  if (v === 1 && payload && typeof payload === "object" && "b" in payload) {
     const p = payload as { b: unknown; s?: string; k?: JsonWebKey; f?: string };
     let verified = false;
     if (p.s && p.k) {
@@ -151,7 +187,7 @@ export async function unwrapSigned(payload: unknown): Promise<{ body: unknown; v
     }
     return { body: p.b, verified, fp: p.f };
   }
-  if (payload && typeof payload === "object" && (payload as { v?: number }).v === 0 && "b" in payload) {
+  if (v === 0 && payload && typeof payload === "object" && "b" in payload) {
     return { body: (payload as { b: unknown }).b, verified: false };
   }
   return { body: payload, verified: false };

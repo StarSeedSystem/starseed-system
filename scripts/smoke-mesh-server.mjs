@@ -24,6 +24,16 @@ async function makeSigned(body) {
   return { v: 1, b: body, s: b64url(sig), k: { kty: jwk.kty, crv: jwk.crv, x: jwk.x, y: jwk.y }, f: "id:test" };
 }
 
+// Sobre v:2 (Adenda 119): firma sobre {b,ts,nonce} (anti-replay).
+async function makeSignedV2(body) {
+  const kp = await webcrypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, ["sign", "verify"]);
+  const jwk = await webcrypto.subtle.exportKey("jwk", kp.publicKey);
+  const ts = Date.now(), nonce = "nz" + Math.random().toString(36).slice(2, 8);
+  const bytes = new TextEncoder().encode(JSON.stringify({ b: body, ts, nonce }));
+  const sig = await webcrypto.subtle.sign({ name: "ECDSA", hash: "SHA-256" }, kp.privateKey, bytes);
+  return { v: 2, b: body, ts, nonce, s: b64url(sig), k: { kty: jwk.kty, crv: jwk.crv, x: jwk.x, y: jwk.y }, f: "id:test" };
+}
+
 async function main() {
   // ── 1. Servidor abierto (memoria, sin auth) ──
   let srv = await boot(8801, {});
@@ -156,6 +166,10 @@ async function main() {
   r = await fetch("http://localhost:8803/mesh/public", { method: "POST", headers: { "content-type": "application/json" },
     body: JSON.stringify({ device_id: "d", envelope: { body: signed, oid: "oid-signed", at: Date.now() } }) });
   ok(r.status === 200, "VERIFY: POST con firma válida → 200");
+  const signedV2 = await makeSignedV2({ text: "firmado v2" });
+  r = await fetch("http://localhost:8803/mesh/public", { method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ device_id: "d", envelope: { body: signedV2, oid: "oid-v2", at: Date.now() } }) });
+  ok(r.status === 200, "VERIFY: POST con firma v:2 (ts+nonce) válida → 200");
   const tampered = { ...signed, b: { text: "manipulado" } };
   r = await fetch("http://localhost:8803/mesh/public", { method: "POST", headers: { "content-type": "application/json" },
     body: JSON.stringify({ device_id: "d", envelope: { body: tampered, oid: "oid-bad", at: Date.now() } }) });
@@ -187,6 +201,32 @@ async function main() {
   await Promise.race([readPromise, sleep(1500)]);
   ok(received && received.oid === "oid-live" && received.channel === "public", "SSE empuja el item público al instante");
   try { await reader.cancel(); } catch { /* */ }
+  srv.kill();
+
+  // ── 5. Rate-limiting / anti-DoS (Adenda 119) ── clave = token (con auth) o IP.
+  srv = await boot(8810, { STARSEED_TOKENS: JSON.stringify({ tokA: ["g"], tokB: ["g"] }), STARSEED_RATE_MAX: "3", STARSEED_RATE_WINDOW_MS: "60000" });
+  const codes = [];
+  for (let i = 0; i < 4; i++) {
+    const rr = await fetch("http://localhost:8810/mesh/public", { method: "POST", headers: { "content-type": "application/json", authorization: "Bearer tokA" },
+      body: JSON.stringify({ device_id: "d", envelope: { body: { i }, oid: "rate-" + i, at: Date.now() } }) });
+    codes.push(rr.status);
+  }
+  ok(codes.slice(0, 3).every((c) => c === 200), "rate-limit: primeras 3 escrituras de un token → 200");
+  ok(codes[3] === 429, "rate-limit: la 4.ª del mismo token → 429");
+  r = await fetch("http://localhost:8810/mesh/public", { method: "POST", headers: { "content-type": "application/json", authorization: "Bearer tokB" },
+    body: JSON.stringify({ device_id: "d", envelope: { body: { x: 1 }, oid: "rate-otro", at: Date.now() } }) });
+  ok(r.status === 200, "rate-limit: OTRO token (otra clave) no está limitado → 200");
+  srv.kill();
+
+  // Sin auth, la clave es la IP: rotar el device_id del cuerpo NO evade el límite (fix Adenda 119).
+  srv = await boot(8815, { STARSEED_RATE_MAX: "3", STARSEED_RATE_WINDOW_MS: "60000" });
+  const codes2 = [];
+  for (let i = 0; i < 5; i++) {
+    const rr = await fetch("http://localhost:8815/mesh/public", { method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ device_id: "dev-" + i, envelope: { body: { i }, oid: "r2-" + i, at: Date.now() } }) });
+    codes2.push(rr.status);
+  }
+  ok(codes2.filter((c) => c === 429).length >= 2, "rate-limit: rotar device_id NO evade el límite (clave por IP)");
   srv.kill();
 
   console.log(`\n${pass} pasan / ${fail} fallan`);

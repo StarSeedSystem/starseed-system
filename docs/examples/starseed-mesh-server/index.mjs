@@ -42,6 +42,12 @@ const VERIFY = process.env.STARSEED_VERIFY === "1";
 // inválidas — si (malas − buenas) supera el umbral, se aísla un tiempo.
 const PEER_MAX_BAD = Number(process.env.STARSEED_PEER_MAX_BAD || 20);
 const PEER_QUARANTINE_MS = Number(process.env.STARSEED_PEER_QUARANTINE_MS || 300000);
+// Rate-limiting / anti-DoS (Adenda 119): ventana fija por CLAVE (token, si hay;
+// si no device_id/IP) en las escrituras. STARSEED_RATE_MAX=0 lo desactiva.
+const RATE_MAX = Number(process.env.STARSEED_RATE_MAX ?? 120);
+const RATE_WINDOW_MS = Number(process.env.STARSEED_RATE_WINDOW_MS || 60000);
+// Tope de conexiones SSE simultáneas (anti-agotamiento de descriptores/memoria).
+const MAX_SSE = Number(process.env.STARSEED_MAX_SSE || 1000);
 
 /* ── Persistencia (Postgres → SQLite → memoria); todas con oid único + hops ──── */
 let store;
@@ -98,13 +104,44 @@ function oidOf(r) {
 /** Verifica la firma de origen de un sobre público {v:1,b,s,k,f} (ECDSA P-256). */
 async function verifyWrapped(body) {
   try {
-    if (!body || typeof body !== "object" || body.v !== 1) return !VERIFY; // sin firma: solo se bloquea en modo VERIFY
+    if (!body || typeof body !== "object") return !VERIFY;
+    if (body.v !== 1 && body.v !== 2) return !VERIFY; // sin firma conocida: solo se bloquea en modo VERIFY
     if (!body.s || !body.k) return false;
     const key = await webcrypto.subtle.importKey("jwk", body.k, { name: "ECDSA", namedCurve: "P-256" }, false, ["verify"]);
-    const bytes = new TextEncoder().encode(JSON.stringify(body.b ?? null));
+    // v:2 firma {b,ts,nonce} (anti-replay, Adenda 119); v:1 firma solo b.
+    const signed = body.v === 2 ? { b: body.b ?? null, ts: body.ts, nonce: body.nonce } : (body.b ?? null);
+    const bytes = new TextEncoder().encode(JSON.stringify(signed));
     const sig = Buffer.from(String(body.s).replace(/-/g, "+").replace(/_/g, "/"), "base64");
     return await webcrypto.subtle.verify({ name: "ECDSA", hash: "SHA-256" }, key, sig, bytes);
   } catch { return false; }
+}
+
+/* ── Rate-limiting por clave (ventana fija · Adenda 119) ─────────────────────── */
+const rateBuckets = new Map(); // key → { count, resetAt }
+/** IP del CLIENTE respetando X-Forwarded-For (Vercel/Cloud Run ponen su propia IP). */
+function clientIp(req) {
+  const xff = req.headers["x-forwarded-for"];
+  if (xff) return String(xff).split(",")[0].trim(); // primer salto = cliente
+  return (req.socket && req.socket.remoteAddress) || "";
+}
+/** Clave de tasa: por TOKEN si hay auth; si no, por IP de red. NUNCA por el
+ *  `device_id` del cuerpo (lo controla el cliente y podría rotarlo para evadir). */
+function rateKey(req, u) {
+  const tok = tokenOf(req, u);
+  if (tok) return "t:" + tok;
+  return "ip:" + (clientIp(req) || "anon");
+}
+function rateLimited(key) {
+  if (!RATE_MAX || RATE_MAX <= 0) return false; // desactivado
+  const now = Date.now();
+  let b = rateBuckets.get(key);
+  if (!b || b.resetAt <= now) { b = { count: 0, resetAt: now + RATE_WINDOW_MS }; rateBuckets.set(key, b); }
+  b.count++;
+  if (rateBuckets.size > 5000) {
+    for (const [k, v] of rateBuckets) if (v.resetAt <= now) rateBuckets.delete(k); // expirados
+    while (rateBuckets.size > 5000) { const f = rateBuckets.keys().next().value; if (f === undefined) break; rateBuckets.delete(f); } // tope duro (LRU aprox)
+  }
+  return b.count > RATE_MAX;
 }
 
 /* ── Auth de grupo (con EXPIRACIÓN opcional, Adenda 108) ─────────────────────
@@ -185,14 +222,18 @@ async function handler(req, res) {
 
   if (req.method === "POST" && u.pathname === "/mesh/public") {
     if (!canWrite(req, u)) return json(res, 401, { error: "no autorizado" });
-    const b = await readBody(req); const e = b.envelope || {};
+    const b = await readBody(req);
+    if (rateLimited(rateKey(req, u))) return json(res, 429, { error: "límite de tasa" });
+    const e = b.envelope || {};
     if (VERIFY && !(await verifyWrapped(e.body))) return json(res, 400, { error: "firma inválida" });
     await addItem("public", { device_id: b.device_id, cls: e.cls, ptype: e.ptype || "post", body: e.body, oid: e.oid, lc: e.lc, at: Date.now() });
     return json(res, 200, { ok: true });
   }
   if (req.method === "POST" && u.pathname === "/mesh/relay") {
     if (!canWrite(req, u)) return json(res, 401, { error: "no autorizado" });
-    const b = await readBody(req); const e = b.envelope || {};
+    const b = await readBody(req);
+    if (rateLimited(rateKey(req, u))) return json(res, 429, { error: "límite de tasa" });
+    const e = b.envelope || {};
     await addItem("relay", { device_id: b.device_id, recipient: e.recipient || null, cls: e.cls, ptype: e.ptype || "message", body: e.body, oid: e.oid, lc: e.lc, at: Date.now() });
     return json(res, 200, { ok: true });
   }
@@ -252,6 +293,7 @@ async function handler(req, res) {
     return json(res, 200, { peers: [...knownPeers] });
   }
   if (req.method === "GET" && u.pathname === "/mesh/stream") {
+    if (sseClients.size >= MAX_SSE) return json(res, 503, { error: "demasiadas conexiones SSE" });
     cors(res); res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache", connection: "keep-alive" });
     res.write(": ok\n\n");
     const recipients = new Set((u.searchParams.get("recipients") || "").split(",").map((s) => s.trim()).filter(Boolean));

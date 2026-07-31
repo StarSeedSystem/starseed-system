@@ -78,6 +78,20 @@ emitidos siguen valiendo hasta caducar). Con `{"dropPrev":true}` descarta la ant
 **invalida de golpe todos los tokens firmados con ella** — palanca de revocación masiva ante el compromiso
 de una clave, sin tener que revocar token por token.
 
+## Rate-limiting / anti-DoS (Adenda 119)
+
+Las escrituras (`POST /mesh/public` y `/mesh/relay`) se limitan por **clave** con una ventana fija. La
+clave es el **token** (si hay auth) o, si no, la **IP de red** del cliente (`X-Forwarded-For` tras
+proxy) — nunca el `device_id` del cuerpo, que el cliente controla y podría rotar para evadir el límite:
+
+- `STARSEED_RATE_MAX=120` — máximo de escrituras por ventana y clave (`0` lo desactiva).
+- `STARSEED_RATE_WINDOW_MS=60000` — tamaño de la ventana. Al superar el límite se responde **`429`**.
+- `STARSEED_MAX_SSE=1000` — tope de conexiones SSE simultáneas (`503` al superarlo).
+
+El cliente del OS añade además un **token-bucket local anti-flood** en sus subidas. El **anti-replay** del
+feed firmado (sobre `v:2` con `ts`+`nonce`) se hace cumplir en el **receptor** (cliente del OS); este
+servidor solo verifica la firma (`v:1`/`v:2`) en modo `STARSEED_VERIFY`.
+
 ## Endpoints
 
 | Método | Ruta | Descripción |

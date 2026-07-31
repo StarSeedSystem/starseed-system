@@ -68,7 +68,10 @@ let publicWatermark = 0;
  * mensajes duplicados). Acotado para no crecer sin límite.
  */
 const deliveredRelayIds = new Set<string>();
-const MAX_DELIVERED_IDS = 500;
+// ≥ replay-guard MAX_NONCES (Adenda 119): el dedup por id debe durar MÁS que la
+// memoria de nonces, para que una re-entrega LEGÍTIMA del mismo item (realtime +
+// sondeo) se descarte por id ANTES de que su nonce repetido la marque no-verificada.
+const MAX_DELIVERED_IDS = 5000;
 function rememberDelivered(id: string): void {
   deliveredRelayIds.add(id);
   if (deliveredRelayIds.size > MAX_DELIVERED_IDS) {
