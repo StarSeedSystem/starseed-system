@@ -755,6 +755,8 @@ export {
   exportRelayKeyB64,
   importRelayKeyB64,
   getOrCreateRelayKey,
+  rotateRelayKey,
+  relayKeyInfo,
 } from "./relay-crypto";
 export type {
   MeshState,

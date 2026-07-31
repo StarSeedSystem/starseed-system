@@ -274,7 +274,7 @@ async function main() {
 
   // 25) Cifrado del relé: ida y vuelta AES-GCM (si hay WebCrypto en el entorno).
   if (globalThis.crypto?.subtle) {
-    const { encryptEnvelope, decryptEnvelope } = await import("../src/ai/astraura/mesh/relay-crypto");
+    const { encryptEnvelope, decryptEnvelope, rotateRelayKey, relayKeyInfo, importRelayKeyB64, _resetRelayKeys } = await import("../src/ai/astraura/mesh/relay-crypto");
     const secret = { txt: "hola neurona lejana", n: 7, geo: [19.4, -99.1] };
     const env = await encryptEnvelope(secret);
     check("relé: cifra a sobre {iv,ct}", !!env && typeof env.iv === "string" && typeof env.ct === "string");
@@ -285,6 +285,37 @@ async function main() {
       const tampered = { ...env, ct: env.ct.slice(0, -4) + (env.ct.slice(-4) === "AAAA" ? "BBBB" : "AAAA") };
       const bad = await decryptEnvelope(tampered);
       check("relé: sobre manipulado NO descifra (tag GCM)", bad === null);
+      // Rotación del llavero (Adenda 120): lo cifrado antes SIGUE descifrando; lo nuevo usa la kid nueva.
+      const oldEnv = await encryptEnvelope({ era: "antes de rotar" });
+      const kidBefore = relayKeyInfo().cur;
+      const rot = await rotateRelayKey();
+      check("relé: rotar da una kid nueva", !!rot && rot.kid !== kidBefore);
+      check("relé: el llavero conserva ≥2 claves tras rotar", relayKeyInfo().count >= 2);
+      const newEnv = await encryptEnvelope({ era: "después de rotar" });
+      check("relé: el sobre nuevo lleva la kid actual (v:2)", !!newEnv && newEnv.v === 2 && newEnv.kid === relayKeyInfo().cur);
+      check("relé: la clave nueva ≠ la vieja (kid distinto)", !!oldEnv && !!newEnv && oldEnv.kid !== newEnv.kid);
+      const oldBack = oldEnv ? await decryptEnvelope(oldEnv) : null;
+      check("relé: lo cifrado ANTES de rotar sigue descifrando (gracia)", JSON.stringify(oldBack) === JSON.stringify({ era: "antes de rotar" }));
+      const newBack = newEnv ? await decryptEnvelope(newEnv) : null;
+      check("relé: lo cifrado DESPUÉS de rotar descifra con la clave nueva", JSON.stringify(newBack) === JSON.stringify({ era: "después de rotar" }));
+      // Multi-dispositivo: el kid es LOCAL por neurona; un sobre cuyo kid apunta a
+      // OTRO slot en el receptor debe descifrarse igual por el fallback (fix del bug
+      // que rompía el relé entre neuronas vinculadas).
+      const genRawB64 = async () => {
+        const k = await crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, true, ["encrypt", "decrypt"]);
+        const raw = new Uint8Array(await crypto.subtle.exportKey("raw", k));
+        let bin = ""; for (let i = 0; i < raw.length; i++) bin += String.fromCharCode(raw[i]);
+        return btoa(bin);
+      };
+      _resetRelayKeys();
+      const rbRaw = await genRawB64(), raRaw = await genRawB64();
+      await importRelayKeyB64(rbRaw); // la clave de "B" (queda como una previa)
+      const kidRb = relayKeyInfo().cur;
+      await importRelayKeyB64(raRaw); // la clave de "A" pasa a ser la actual
+      const envA = await encryptEnvelope({ from: "otra neurona" }); // cifrado con RA
+      const mismatched = envA ? { ...envA, kid: kidRb } : null; // kid apunta a RB, no a RA
+      const dec = mismatched ? await decryptEnvelope(mismatched) : null;
+      check("relé: kid desalineado entre neuronas → el fallback lo descifra igual", JSON.stringify(dec) === JSON.stringify({ from: "otra neurona" }));
     }
   } else {
     console.log("  (omite roundtrip de cifrado: sin WebCrypto en este entorno)");
