@@ -35,6 +35,7 @@ import {
   Lock,
   Cpu,
   Blocks,
+  Languages,
   Cloud,
   Zap,
   Wrench,
@@ -127,6 +128,8 @@ const AiAppGenerator = nextDynamic(() => import("@/components/appgen/ai-app-gene
 const NeuronModelsPanel = nextDynamic(() => import("@/components/neurons/neuron-models-panel").then(m => m.NeuronModelsPanel), { ssr: false });
 // Integraciones: fuentes OSS/gratuitas recomendadas por servicio del OS (Adenda 110).
 const IntegrationSourcesPanel = nextDynamic(() => import("@/components/integrations/integration-sources-panel").then(m => m.IntegrationSourcesPanel), { ssr: false });
+// Voz coherente: persona portátil que se mantiene al cambiar de modelo (Adenda 112).
+const PersonaCoherencePanel = nextDynamic(() => import("@/components/aurora/persona-coherence-panel").then(m => m.PersonaCoherencePanel), { ssr: false });
 import { TelegramSpacesPanel } from "@/components/exocortex/telegram-spaces-panel";
 import { ChatNeuralSidebar } from "@/components/agent/chat-neural-sidebar";
 import { NexusWorkspaces } from "@/components/agent/nexus-workspaces";
@@ -280,6 +283,7 @@ const STUDIO_SECTIONS: StudioSection[] = [
     items: [
       { value: "personalidades", label: "Personalidades", icon: Sparkles },
       { value: "aurora", label: "Estudio de voz", icon: Mic },
+      { value: "coherencia", label: "Voz coherente", icon: Languages },
       { value: "mesh", label: "Red Mesh", icon: RadioTower },
     ],
   },
@@ -1340,6 +1344,8 @@ function AgentPageInner() {
 
         {/* --- TAB: RED MESH (Meshtastic/LoRa · Adenda 97) --- */}
         <TabsContent value="mesh" className="flex-1 min-h-0 overflow-y-auto"><MeshControlPanel /></TabsContent>
+
+        <TabsContent value="coherencia" className="flex-1 min-h-0 overflow-y-auto"><PersonaCoherencePanel /></TabsContent>
 
         <TabsContent value="conexiones-chat" className="flex-1 min-h-0 overflow-y-auto"><ChatConnectionsPanel /></TabsContent>
 
