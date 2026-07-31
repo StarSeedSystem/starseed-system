@@ -34,6 +34,7 @@ import {
   Square,
   Lock,
   Cpu,
+  Blocks,
   Cloud,
   Zap,
   Wrench,
@@ -124,6 +125,8 @@ const BrowserWindows = nextDynamic(() => import("@/components/browser/browser-wi
 const AiAppGenerator = nextDynamic(() => import("@/components/appgen/ai-app-generator"), { ssr: false });
 // Neuronas: capacidades de hardware + modelos recomendados por neurona (Adenda 109).
 const NeuronModelsPanel = nextDynamic(() => import("@/components/neurons/neuron-models-panel").then(m => m.NeuronModelsPanel), { ssr: false });
+// Integraciones: fuentes OSS/gratuitas recomendadas por servicio del OS (Adenda 110).
+const IntegrationSourcesPanel = nextDynamic(() => import("@/components/integrations/integration-sources-panel").then(m => m.IntegrationSourcesPanel), { ssr: false });
 import { TelegramSpacesPanel } from "@/components/exocortex/telegram-spaces-panel";
 import { ChatNeuralSidebar } from "@/components/agent/chat-neural-sidebar";
 import { NexusWorkspaces } from "@/components/agent/nexus-workspaces";
@@ -289,6 +292,7 @@ const STUDIO_SECTIONS: StudioSection[] = [
     items: [
       { value: "cerebros", label: "Cerebros", icon: BrainCircuit },
       { value: "neuronas", label: "Neuronas", icon: Cpu },
+      { value: "integraciones", label: "Integraciones", icon: Blocks },
       { value: "servidores", label: "Servidores", icon: Server },
       { value: "servers", label: "Registro de servidores", icon: HardDrive },
       { value: "almacenes", label: "Almacenes", icon: HardDrive },
@@ -1346,6 +1350,8 @@ function AgentPageInner() {
         <TabsContent value="cerebros" className="flex-1 min-h-0 overflow-y-auto"><BrainsPanel /></TabsContent>
 
         <TabsContent value="neuronas" className="flex-1 min-h-0 overflow-y-auto"><NeuronModelsPanel /></TabsContent>
+
+        <TabsContent value="integraciones" className="flex-1 min-h-0 overflow-y-auto"><IntegrationSourcesPanel /></TabsContent>
 
         <TabsContent value="servidores" className="flex-1 min-h-0 overflow-y-auto"><ServersPanel /></TabsContent>
 
