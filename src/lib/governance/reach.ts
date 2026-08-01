@@ -13,6 +13,64 @@
 import { createClient } from "@/utils/supabase/client";
 import { membersFromMemberships } from "./membership";
 
+// Paginación defensiva del censo legado (Adenda 124 · #3): antes las lecturas de
+// `page_members` / `group_members` se acotaban a 5000 filas y truncaban en silencio el
+// censo federado de objetivos grandes. Se pagina en lotes de PAGE_SIZE hasta el fin
+// natural (página corta), con un TOPE DE SEGURIDAD anti-bucle. Valores alineados con
+// membership.ts (la ruta os_memberships ya se pagina allí vía membersFromMemberships).
+const REACH_PAGE_SIZE = 1000;
+const REACH_SAFETY_CEILING = 100000;
+
+/**
+ * Pagina una lectura de censo legado por lotes de REACH_PAGE_SIZE con `.range(from, to)`,
+ * añadiendo a `set` (UNIÓN, nunca sustituye) el user_id extraído por `pick` de cada fila.
+ * Se detiene en página corta (fin natural) o al alcanzar REACH_SAFETY_CEILING (guarda
+ * anti-bucle; avisa por consola sólo en ese caso). Defensivo: ante error deja en `set` lo
+ * ya acumulado, para NO deflactar el censo federado.
+ */
+async function collectPagedInto(
+  table: string,
+  columns: string,
+  filterColumn: string,
+  filterValue: string,
+  pick: (row: any) => string | null | undefined,
+  set: Set<string>,
+): Promise<void> {
+  const supabase = createClient();
+  let from = 0;
+  let ceilingHit = false;
+  for (;;) {
+    if (from >= REACH_SAFETY_CEILING) {
+      ceilingHit = true;
+      break;
+    }
+    const to = from + REACH_PAGE_SIZE - 1;
+    let rows: any[];
+    try {
+      const { data } = await supabase
+        .from(table)
+        .select(columns)
+        .eq(filterColumn, filterValue)
+        .range(from, to);
+      rows = (data as any[]) ?? [];
+    } catch {
+      break; // error transitorio → conservamos la unión acumulada (defensivo)
+    }
+    for (const row of rows) {
+      const u = pick(row);
+      if (u) set.add(u);
+    }
+    if (rows.length < REACH_PAGE_SIZE) break; // página corta = fin natural
+    from += REACH_PAGE_SIZE;
+  }
+  if (ceilingHit) {
+    console.warn(
+      `[governance] ${table}("${filterValue}") alcanzó el tope de seguridad de ` +
+        `${REACH_SAFETY_CEILING} filas; el censo federado puede estar truncado.`,
+    );
+  }
+}
+
 // Un objetivo de la federación: un ámbito concreto (comunidad, página, grupo…).
 export type ReachTarget = {
   scope: string;
@@ -82,36 +140,32 @@ export function reachFromParams(params: Record<string, unknown> | null | undefin
 // Otros ámbitos sin censo conocido → conjunto vacío.
 async function membersOfTarget(target: ReachTarget): Promise<Set<string>> {
   const set = new Set<string>();
-  // Principal: miembros reales desde os_memberships (por slug del objetivo).
+  // Principal: miembros reales desde os_memberships (por slug del objetivo). Ya
+  // paginado en membership.ts (membersFromMemberships → pagedMembershipUserIds).
   for (const u of await membersFromMemberships(target.scopeRef)) set.add(u);
 
   // Censo histórico — se UNE (no se sustituye) para no DEFLACTAR el censo federado
   // (revisión adversarial Adenda 124: un os_memberships parcial no debe ocultar a
-  // los miembros legados de un objetivo y hundir su quórum).
-  const supabase = createClient();
-  try {
-    if (target.scope === "page" || target.scope === "community") {
-      const { data } = await supabase
-        .from("page_members")
-        .select("profile_id, profiles:profile_id(user_id)")
-        .eq("page_id", target.scopeRef)
-        .limit(5000);
-      for (const row of (data as any[]) ?? []) {
-        const u = row?.profiles?.user_id ?? row?.profile_id;
-        if (u) set.add(u);
-      }
-    } else if (target.scope === "group") {
-      const { data } = await supabase
-        .from("group_members")
-        .select("member")
-        .eq("group_id", target.scopeRef)
-        .limit(5000);
-      for (const row of (data as any[]) ?? []) {
-        if (row?.member) set.add(row.member);
-      }
-    }
-  } catch {
-    /* sin censo / error transitorio */
+  // los miembros legados de un objetivo y hundir su quórum). Paginado para no truncar
+  // objetivos grandes; la semántica de unión/anti-deflación es idéntica.
+  if (target.scope === "page" || target.scope === "community") {
+    await collectPagedInto(
+      "page_members",
+      "profile_id, profiles:profile_id(user_id)",
+      "page_id",
+      target.scopeRef,
+      (row) => row?.profiles?.user_id ?? row?.profile_id,
+      set,
+    );
+  } else if (target.scope === "group") {
+    await collectPagedInto(
+      "group_members",
+      "member",
+      "group_id",
+      target.scopeRef,
+      (row) => row?.member,
+      set,
+    );
   }
   return set;
 }

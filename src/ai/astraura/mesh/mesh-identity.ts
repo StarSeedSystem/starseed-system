@@ -193,6 +193,62 @@ export async function unwrapSigned(
   return { body: payload, verified: false };
 }
 
+/* ── Reclamación de identidad con clave de CIFRADO (Adenda 124 · #mesh4) ─────────
+ * El registro de identidad (server-relay.registerIdentity) publica una reclamación
+ * FIRMADA que liga la CUENTA a esta identidad ECDSA soberana. Aquí la ampliamos para
+ * que TAMBIÉN transporte la clave pública de CIFRADO ECDH (`epub`, de recipient-
+ * crypto), BOUND a la misma identidad: la firma la cubre, así el receptor solo confía
+ * en `epub` si viene avalada por la clave soberana (no la puede inyectar un tercero).
+ * ---------------------------------------------------------------------------- */
+
+/** Reclamación de identidad publicable: liga `owner` (y opcional `epub`) a la clave `pub`. */
+export interface IdentityClaim {
+  owner: string;
+  fp: string;
+  pub: JsonWebKey;
+  /** Firma sobre `owner` (compat Adenda 107: verifyContent(owner, sig, pub)). */
+  sig: string;
+  /** Clave pública de CIFRADO ECDH (opcional; solo si la neurona la tiene). */
+  epub?: JsonWebKey;
+  /** Firma sobre `{owner, epub}` por la MISMA clave soberana (ata epub a la identidad). */
+  esig?: string;
+}
+
+/**
+ * Construye una reclamación de identidad FIRMADA. `sig` cubre `owner` (retro-
+ * compatible con lo que ya verifica refreshIdentities). Si se pasa `epub`, se añade
+ * `esig` sobre `{owner, epub}` con la misma clave soberana: así `epub` queda ATADA a
+ * la identidad y un tercero no puede sustituirla. Devuelve null si no hay firma.
+ */
+export async function signIdentityClaim(owner: string, epub?: JsonWebKey | null): Promise<IdentityClaim | null> {
+  const base = await signContent(owner); // firma el uuid de la cuenta (compat)
+  if (!base) return null;
+  const claim: IdentityClaim = { owner, fp: base.f, pub: base.k, sig: base.s };
+  if (epub) {
+    const e = await signContent({ owner, epub }); // firma que ATA epub a esta identidad
+    if (e) {
+      claim.epub = epub;
+      claim.esig = e.s;
+    }
+  }
+  return claim;
+}
+
+/**
+ * Verifica que `epub` está avalada por la identidad `pub` para `owner`: la firma
+ * `esig` debe validar sobre `{owner, epub}` con `pub`. El llamador ya comprueba
+ * aparte que `fpOf(pub) === fp` y que `owner` es la cuenta insertora, de modo que un
+ * `esig` válido ata `epub` a la identidad SOBERANA. Devuelve false ante cualquier duda.
+ */
+export async function verifyEpub(owner: string, epub: JsonWebKey, esig: string, pub: JsonWebKey): Promise<boolean> {
+  if (!owner || !epub || !esig || !pub) return false;
+  try {
+    return await verifyContent({ owner, epub }, esig, pub);
+  } catch {
+    return false;
+  }
+}
+
 /* ── Revocación de identidad (Adenda 108) ──────────────────────────────────────
  * Una identidad firma su PROPIA "acta de revocación" (como un certificado de
  * revocación PGP): la firma sobre {revoke:<fp>} solo la puede producir quien

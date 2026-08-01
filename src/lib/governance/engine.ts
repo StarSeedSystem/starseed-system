@@ -10,6 +10,7 @@ import {
   loadActiveDelegations,
   topicForProposal,
 } from "./delegations";
+import { loadMeritWeights, topicToMeritArea } from "./merit";
 import { reachFromParams, eligibleForReach } from "./reach";
 import { membersFromMemberships } from "./membership";
 import {
@@ -20,6 +21,7 @@ import {
   type CommandSpec,
   type DecisionParams,
   type GovernanceConfig,
+  type MeritParams,
   type Proposal,
   type ProposalOption,
   type ProposalVote,
@@ -270,6 +272,11 @@ export type Tally = {
 // activas del tema de la propuesta), el peso de cada votante se calcula como
 // 1 (su voz) + las voces que le fueron delegadas por quien NO votó directamente.
 // Sin `delegations` (o vacío) el peso es 1 por votante → comportamiento actual.
+//
+// Meritocracia del entendimiento (ADITIVA, OPT-IN): si se pasa `meritWeights`
+// (multiplicador de mérito por votante, ver merit.ts), el peso efectivo de cada
+// voto se MULTIPLICA por su bonus acotado. Sin `meritWeights` (o si el votante no
+// figura) el multiplicador es 1 → comportamiento idéntico. NUNCA afecta al censo.
 // "participants" cuenta PERSONAS (votantes directos), no pesos, para no inflar el
 // quórum por conteo: una persona sigue siendo una persona.
 export function tally(
@@ -277,6 +284,7 @@ export function tally(
   votes: ProposalVote[],
   eligible?: number | null,
   delegations?: Delegation[],
+  meritWeights?: Record<string, number> | null,
 ): Tally {
   const hasOptions = (proposal.options ?? []).length > 0;
   const counts: Record<string, number> = {};
@@ -295,7 +303,10 @@ export function tally(
 
   for (const v of votes) {
     if (counts[v.choice] == null) counts[v.choice] = 0;
-    const w = effWeight ? effWeight[v.voter] ?? (v.weight || 1) : v.weight || 1;
+    // Peso base/delegado × bonus de mérito (×1 si no hay mérito para el votante).
+    const w =
+      (effWeight ? effWeight[v.voter] ?? (v.weight || 1) : v.weight || 1) *
+      (meritWeights?.[v.voter] ?? 1);
     counts[v.choice] += w;
   }
 
@@ -328,15 +339,18 @@ export type Evaluation = {
 };
 
 // Evalúa si la decisión está tomada según los parámetros y el censo.
+// `meritWeights` (opcional, aditivo) sólo pondera el recuento hacia la opción
+// ganadora; el quórum y la participación siguen contando personas (ver tally).
 export function evaluate(
   proposal: Proposal,
   votes: ProposalVote[],
   config: GovernanceConfig | null,
   eligible?: number | null,
   delegations?: Delegation[],
+  meritWeights?: Record<string, number> | null,
 ): Evaluation {
   const params = proposal.params ?? DEFAULT_PARAMS;
-  const t = tally(proposal, votes, eligible, delegations);
+  const t = tally(proposal, votes, eligible, delegations, meritWeights);
   const now = Date.now();
   const endsAt = params.votingEndsAt ? new Date(params.votingEndsAt).getTime() : now;
   const timeUp = now >= endsAt;
@@ -361,8 +375,15 @@ export function evaluate(
 
   // Decisión anticipada: si el resto de votos posibles no puede cambiar al líder
   // y el quórum ya está cubierto, se puede resolver antes del cierre.
+  // Con pesos activos (delegación líquida o mérito) un votante pendiente puede sumar
+  // MÁS de 1 al segundo, así que `remaining` (conteo de PERSONAS) subestima el vuelco
+  // posible y la decisión anticipada podría resolver mal e IRREVERSIBLEMENTE. Por eso
+  // solo aplica en 1-persona-1-voto puro (revisión adversarial Adenda 125).
+  const weighted =
+    (Array.isArray(delegations) && delegations.length > 0) ||
+    (meritWeights != null && Object.keys(meritWeights).length > 0);
   let earlyDecisive = false;
-  if (!timeUp && quorumMet && eligible && eligible > 0 && t.leader) {
+  if (!timeUp && !weighted && quorumMet && eligible && eligible > 0 && t.leader) {
     const remaining = Math.max(0, eligible - t.participants);
     const hasOptions = (proposal.options ?? []).length > 0;
     let leaderVotes = t.counts[t.leader] ?? 0;
@@ -473,7 +494,21 @@ export async function tryResolve(
     // Delegaciones activas del tema (voto líquido). Vacío si la tabla no existe.
     const delegations = await loadActiveDelegations(topicForProposal(proposal));
 
-    const ev = evaluate(proposal, votes, config, eligible, delegations);
+    // Meritocracia del entendimiento (OPT-IN, ADITIVA). Sólo se activa si el
+    // contexto la habilita EXPLÍCITAMENTE: params de la propuesta o, en su
+    // defecto, params del contexto de gobernanza. Por defecto (ausente/OFF) →
+    // meritWeights = null → cada voto pesa ×1 (idéntico al comportamiento actual).
+    const meritParams: MeritParams | undefined =
+      proposal.params?.meritWeighting ??
+      (config?.params?.meritWeighting as MeritParams | undefined);
+    let meritWeights: Record<string, number> | null = null;
+    if (meritParams?.enabled) {
+      const area = topicToMeritArea(proposal);
+      const voterIds = Array.from(new Set(votes.map((v) => v.voter)));
+      meritWeights = await loadMeritWeights(voterIds, area, meritParams);
+    }
+
+    const ev = evaluate(proposal, votes, config, eligible, delegations, meritWeights);
     if (!ev.decided) return { resolved: false, status: "open" };
 
     const result: Record<string, unknown> = {

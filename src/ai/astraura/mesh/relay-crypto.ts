@@ -25,6 +25,9 @@
  */
 
 import { safeGet, safeSet } from "@/lib/safe-storage";
+// Cifrado POR-DESTINATARIO (v:3, ECDH→HKDF→AES-GCM). DIRECCIÓN DE IMPORT: relay-crypto
+// importa recipient-crypto (nunca al revés) para despachar los sobres v:3 sin ciclo.
+import { decryptEnvelopeFor, type RecipientEnvelope } from "./recipient-crypto";
 
 /** Clave única legada (Adenda 99): raw base64. Se migra al llavero al leerla. */
 const RELAY_KEY_LS = "starseed.mesh.relay-key.v1";
@@ -283,13 +286,20 @@ export async function encryptEnvelope(obj: unknown): Promise<EncEnvelope | null>
 }
 
 /**
- * Descifra un sobre {iv,ct} → objeto. v:2 elige la clave por `kid`; v:1 (legado) o
- * kid ausente/desconocido PRUEBA todo el llavero (gracia). null si ninguna clave
- * valida el tag GCM o falta WebCrypto.
+ * Descifra un sobre → objeto. Despacha por esquema:
+ *   · v:3 → cifrado POR-DESTINATARIO (ECDH→HKDF→AES-GCM): delega en recipient-crypto,
+ *     que descifra con la clave ECDH PROPIA. Solo el destinatario lo abre; tener el
+ *     llavero COMPARTIDO no basta. Así los CUATRO puntos de recepción no cambian.
+ *   · v:2 → elige la clave del llavero por `kid`.
+ *   · v:1 (legado) o kid ausente/desconocido → PRUEBA todo el llavero (gracia).
+ * null si ninguna clave valida el tag GCM o falta WebCrypto.
  */
-export async function decryptEnvelope(env: EncEnvelope): Promise<unknown | null> {
+export async function decryptEnvelope(env: EncEnvelope | RecipientEnvelope): Promise<unknown | null> {
+  if (!env) return null;
+  // v:3 = por-destinatario: NO usa el llavero compartido (E2E dirigido).
+  if ((env as { v?: number }).v === 3) return decryptEnvelopeFor(env as RecipientEnvelope);
   const s = subtle();
-  if (!s || !env || (env.v !== 1 && env.v !== 2)) return null;
+  if (!s || (env.v !== 1 && env.v !== 2)) return null;
   try {
     const iv = fromB64(env.iv);
     const ct = fromB64(env.ct);

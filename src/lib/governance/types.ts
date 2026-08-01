@@ -1,6 +1,11 @@
 // StarSeed · Ontocracia / Comandos Democráticos — tipos y constantes base.
 // Motor de decisiones democráticas para cualquier modificación colectiva del sistema.
 
+// Área de pericia de las insignias (meritocracia del entendimiento). Import de
+// SÓLO-TIPO: se borra por completo en compilación (isolatedModules), así que no
+// crea ningún acoplamiento en runtime con la capa cliente de insignias.
+import type { BadgeArea } from "@/lib/badges/badges";
+
 export type GovernanceMode = "democratic" | "hierarchical";
 
 export type Urgency = "low" | "normal" | "high" | "critical";
@@ -48,6 +53,17 @@ export type CommandSpec = {
   payload: Record<string, unknown>;
 };
 
+// Meritocracia del entendimiento (OPT-IN, ADITIVA). Cuando `enabled` es true,
+// las insignias verificadas de cada votante añaden un BONUS ACOTADO a cuánto
+// PESA su voto hacia la opción ganadora — NUNCA al censo ni al quórum (una
+// persona sigue contando como UNA para participación). Por defecto DESACTIVADA:
+// todo contexto es "una persona, un voto" salvo que se habilite explícitamente.
+export type MeritParams = {
+  enabled: boolean; // OFF por defecto — nada cambia respecto al voto igualitario.
+  maxBonus?: number; // tope del bonus (por defecto 1 → multiplicador máx. 2×).
+  area?: BadgeArea | "auto"; // área de pericia; "auto"/ausente ⇒ se deduce del tema.
+};
+
 // Parámetros configurables de la decisión por contexto.
 export type DecisionParams = {
   votingMinutes: number; // tiempo de votación en minutos
@@ -56,6 +72,8 @@ export type DecisionParams = {
   threshold: number; // umbral de victoria de la opción líder (%) p.ej. 50
   urgency: Urgency;
   votingEndsAt?: string; // calculado al crear (ISO)
+  // Ponderación por mérito OPCIONAL. Ausente o `{enabled:false}` ⇒ voto igualitario.
+  meritWeighting?: MeritParams;
 };
 
 export type Proposal = {
@@ -127,6 +145,8 @@ export const DEFAULT_PARAMS: DecisionParams = {
   minPercent: 0,
   threshold: 50,
   urgency: "normal",
+  // Meritocracia del entendimiento DESACTIVADA por defecto (una persona, un voto).
+  meritWeighting: { enabled: false },
 };
 
 // Parámetros por defecto de un contexto de gobernanza.
@@ -136,6 +156,8 @@ export const DEFAULT_GOV_PARAMS: Record<string, unknown> = {
   minPercent: DEFAULT_PARAMS.minPercent,
   threshold: DEFAULT_PARAMS.threshold,
   urgency: DEFAULT_PARAMS.urgency,
+  // Meritocracia del entendimiento DESACTIVADA por defecto en todo contexto.
+  meritWeighting: { enabled: false },
   // siempre debe existir la opción democrática, incluso en grupos jerárquicos:
   allowDemocraticOverride: true,
   config: {},

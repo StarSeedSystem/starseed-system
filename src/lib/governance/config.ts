@@ -142,28 +142,112 @@ export async function eligibleCount(
   return Math.max(primary ?? 0, legacy ?? 0);
 }
 
+// Paginación defensiva del censo legado. Alineada con membership.ts / reach.ts.
+const LEGACY_PAGE_SIZE = 1000;
+const LEGACY_SAFETY_CEILING = 100000;
+
+/**
+ * Lee TODOS los valores (deduplicados) de una columna filtrando por
+ * `filterColumn = filterValue`, paginando por lotes de LEGACY_PAGE_SIZE con `.range()`.
+ * Se detiene en página corta (fin natural) o al alcanzar LEGACY_SAFETY_CEILING (guarda
+ * anti-bucle; avisa por consola sólo en ese caso). Defensivo: ante error transitorio
+ * devuelve lo acumulado hasta el momento.
+ */
+async function pagedDistinctColumn(
+  table: string,
+  column: string,
+  filterColumn: string,
+  filterValue: string,
+): Promise<string[]> {
+  const supabase = createClient();
+  const out = new Set<string>();
+  let from = 0;
+  let ceilingHit = false;
+  for (;;) {
+    if (from >= LEGACY_SAFETY_CEILING) {
+      ceilingHit = true;
+      break;
+    }
+    const to = from + LEGACY_PAGE_SIZE - 1;
+    let rows: any[];
+    try {
+      const { data } = await supabase
+        .from(table)
+        .select(column)
+        .eq(filterColumn, filterValue)
+        .range(from, to);
+      rows = (data as any[]) ?? [];
+    } catch {
+      break; // error transitorio → conservamos lo acumulado (defensivo)
+    }
+    for (const row of rows) {
+      const v = row?.[column];
+      if (v) out.add(v as string);
+    }
+    if (rows.length < LEGACY_PAGE_SIZE) break; // página corta = fin natural
+    from += LEGACY_PAGE_SIZE;
+  }
+  if (ceilingHit) {
+    console.warn(
+      `[governance] ${table}("${filterValue}") alcanzó el tope de seguridad de ` +
+        `${LEGACY_SAFETY_CEILING} filas; el censo legado puede estar truncado.`,
+    );
+  }
+  return Array.from(out);
+}
+
+/**
+ * Mapea una lista de `profile_id` a sus CUENTAS (`profiles.user_id`) en lotes con
+ * `.in('id', batch)`, deduplicando por user_id. Base de "una persona, una voz": una
+ * cuenta con varios perfiles en la página cuenta una sola vez. Defensivo: un lote que
+ * falle se omite y se continúa con el resto.
+ */
+async function accountsForProfiles(profileIds: string[]): Promise<Set<string>> {
+  const supabase = createClient();
+  const accounts = new Set<string>();
+  for (let i = 0; i < profileIds.length; i += LEGACY_PAGE_SIZE) {
+    const batch = profileIds.slice(i, i + LEGACY_PAGE_SIZE);
+    try {
+      const { data } = await supabase
+        .from("profiles")
+        .select("id, user_id")
+        .in("id", batch);
+      for (const row of (data as any[]) ?? []) {
+        if (row?.user_id) accounts.add(row.user_id);
+      }
+    } catch {
+      /* lote fallido → se omite (defensivo) */
+    }
+  }
+  return accounts;
+}
+
 // Censo histórico por uuid (page/community → page_members; group → group_members).
-// Devuelve el nº de filas, o `null` si no hay filas o la lectura falla (para que
-// eligibleCount pueda distinguir "sin datos legados" de un recuento real > 0).
+// Devuelve el nº de CUENTAS distintas, o `null` si no hay filas o la lectura falla
+// (para que eligibleCount pueda distinguir "sin datos legados" de un recuento real > 0).
 async function legacyEligibleCount(
   scope: string,
   ref: string,
 ): Promise<number | null> {
-  const supabase = createClient();
   try {
     if (scope === "page" || scope === "community") {
-      const { count } = await supabase
-        .from("page_members")
-        .select("profile_id", { count: "exact", head: true })
-        .eq("page_id", ref);
-      return count && count > 0 ? count : null;
+      // UNA PERSONA, UNA VOZ (Adenda 124 · residual): `page_members` guarda una fila
+      // por PERFIL; una cuenta con varios perfiles en la página se contaba de más.
+      // Resolvemos a CUENTAS DISTINTAS: (1) recogemos los profile_id de la página
+      // (paginado, defensivo), (2) los mapeamos a user_id vía `profiles` en lotes,
+      // (3) deduplicamos por user_id. `null` si 0 cuentas o error → el llamador
+      // conserva su fallback (la anti-deflación max(primary, legacy) de eligibleCount
+      // NO cambia; sólo se corrige QUÉ cuenta esta rama).
+      const profileIds = await pagedDistinctColumn("page_members", "profile_id", "page_id", ref);
+      if (profileIds.length === 0) return null;
+      const accounts = await accountsForProfiles(profileIds);
+      return accounts.size > 0 ? accounts.size : null;
     }
     if (scope === "group") {
-      const { count } = await supabase
-        .from("group_members")
-        .select("member", { count: "exact", head: true })
-        .eq("group_id", ref);
-      return count && count > 0 ? count : null;
+      // `group_members.member` YA es la cuenta (user_id): cuenta cuentas. Se deduplica
+      // de forma defensiva por si hubiera filas repetidas.
+      const members = await pagedDistinctColumn("group_members", "member", "group_id", ref);
+      return members.length > 0 ? members.length : null;
     }
   } catch {
     /* sin sesión / error transitorio */

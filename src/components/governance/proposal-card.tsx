@@ -38,11 +38,13 @@ import {
   topicForProposal,
   type Delegation,
 } from "@/lib/governance/delegations";
+import { loadMeritWeights, topicToMeritArea } from "@/lib/governance/merit";
 import { reachFromParams, eligibleForReach, reachSummary } from "@/lib/governance/reach";
 import {
   URGENCY,
   YESNO_OPTIONS,
   type GovernanceConfig,
+  type MeritParams,
   type Proposal,
   type ProposalOption,
   type ProposalVote,
@@ -91,6 +93,8 @@ export function ProposalCard({
   const [config, setConfig] = useState<GovernanceConfig | null>(null);
   const [eligible, setEligible] = useState<number | null>(null);
   const [delegations, setDelegations] = useState<Delegation[]>([]);
+  // Ponderación por mérito (OPT-IN). null ⇒ voto igualitario (×1). Ver merit.ts.
+  const [meritWeights, setMeritWeights] = useState<Record<string, number> | null>(null);
   const [loading, setLoading] = useState(true);
 
   // Alcance federado (supra-comunitario) de esta propuesta, si lo tiene.
@@ -124,23 +128,36 @@ export function ProposalCard({
       setConfig(cfg);
       setEligible(el);
       setDelegations(dels);
+
+      // Meritocracia del entendimiento (OPT-IN): sólo si la propuesta o el
+      // contexto la habilitan. Por defecto null → ×1 (preview = motor real).
+      const mp =
+        proposal.params?.meritWeighting ??
+        (cfg?.params?.meritWeighting as MeritParams | undefined);
+      if (mp?.enabled) {
+        const voterIds = Array.from(new Set(v.map((x) => x.voter)));
+        const mw = await loadMeritWeights(voterIds, topicToMeritArea(proposal), mp);
+        setMeritWeights(mw);
+      } else {
+        setMeritWeights(null);
+      }
     } catch {
       /* */
     }
     setLoading(false);
-  }, [proposal.id, proposal.scope, proposal.scope_ref, reach]);
+  }, [proposal, reach]);
 
   useEffect(() => {
     load();
   }, [load]);
 
   const t = useMemo(
-    () => tally(proposal, votes, eligible, delegations),
-    [proposal, votes, eligible, delegations],
+    () => tally(proposal, votes, eligible, delegations, meritWeights),
+    [proposal, votes, eligible, delegations, meritWeights],
   );
   const ev = useMemo(
-    () => evaluate(proposal, votes, config, eligible, delegations),
-    [proposal, votes, config, eligible, delegations],
+    () => evaluate(proposal, votes, config, eligible, delegations, meritWeights),
+    [proposal, votes, config, eligible, delegations, meritWeights],
   );
 
   const votesByChoice = useMemo(() => {

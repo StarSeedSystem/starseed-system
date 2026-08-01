@@ -39,6 +39,8 @@ import { EntityGalleryBlock } from "@/components/social/entity-gallery-block";
 import { EntityErrorBoundary } from "@/components/social/entity-error-boundary";
 import { GroupEducationPanel } from "@/components/education/group-education-panel";
 import { DecisionesSection } from "@/components/governance/decisiones-section";
+import { MediationSection } from "@/components/governance/mediation-section";
+import { GroupFacePicker } from "@/components/profiles/group-face-picker";
 import {
     UsersRound,
     Info,
@@ -363,6 +365,9 @@ function GrupoPageContent() {
         }
         if (layout.integrations.gobernanza) {
             list.push({ id: "integracion-gobernanza", label: "Gobernanza", node: <DecisionesSection kind={group.kind} slug={group.slug} accent={accentForTabs} name={group.name} /> });
+            // Justicia restaurativa (Círculos de Paz) por grupo — pestaña propia dentro
+            // del ecosistema de gobernanza (Adenda 125). Invariante §6: no punitiva.
+            list.push({ id: "integracion-justicia", label: "Justicia restaurativa", node: <MediationSection entityKind="group" slug={group.slug} accent={accentForTabs} name={group.name} /> });
         }
         if (layout.integrations.galeria) {
             list.push({
@@ -516,6 +521,10 @@ function GrupoPageContent() {
                                 count={safeMemberCount}
                                 isAssembly={isAssembly}
                             />
+                            {/* Cuenta/Perfil (Adenda 125): con qué faceta pública participas
+                                en este grupo. Presentation-only; el censo/voto siguen por
+                                CUENTA. Se auto-oculta con ≤1 perfil o sin sesión. */}
+                            <GroupFacePicker groupSlug={group.slug} />
                             {isOwner && (
                                 <Button
                                     type="button"

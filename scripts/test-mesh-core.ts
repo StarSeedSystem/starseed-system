@@ -427,6 +427,89 @@ async function main() {
     console.log("  (omite identidad portátil: sin WebCrypto en este entorno)");
   }
 
+  // 29) Cifrado POR-DESTINATARIO (Adenda 124 · #mesh4): ECDH P-256 → HKDF-SHA256 →
+  //     AES-GCM. SOLO el destinatario abre el sobre v:3; tener el llavero COMPARTIDO
+  //     no basta. Aditivo y retrocompatible con los sobres v:1/2.
+  if (globalThis.crypto?.subtle) {
+    const RC = await import("../src/ai/astraura/mesh/recipient-crypto");
+    const RK = await import("../src/ai/astraura/mesh/relay-crypto");
+
+    // Identidad de cifrado LOCAL = "B" (el destinatario). "A" cifra hacia la pública de B.
+    RC._resetEncryptionKeys();
+    const B = await RC.getOrCreateEncryptionKey();
+    const bPub = await RC.myEncryptionPublicKey();
+    check("recipient: crea/persiste par ECDH y expone su pública", !!B && !!bPub && !!bPub.x && !!bPub.y);
+    const secretB = { txt: "solo para B", n: 3, geo: [19.4, -99.1] };
+    const envB = bPub ? await RC.encryptEnvelopeFor(bPub, secretB) : null;
+    check(
+      "recipient: A cifra a B → sobre v:3 {epk,iv,ct}",
+      !!envB && envB.v === 3 && !!envB.epk && typeof envB.iv === "string" && typeof envB.ct === "string",
+    );
+
+    // (a) Roundtrip EXACTO: B (identidad local) descifra su propio sobre.
+    const backB = envB ? await RC.decryptEnvelopeFor(envB) : null;
+    check("recipient: B descifra EXACTO su propio sobre v:3", JSON.stringify(backB) === JSON.stringify(secretB));
+
+    // (c) ct manipulado → null (el tag GCM no valida, aunque seamos B).
+    if (envB) {
+      const tampered = { ...envB, ct: envB.ct.slice(0, -4) + (envB.ct.slice(-4) === "AAAA" ? "BBBB" : "AAAA") };
+      const bad = await RC.decryptEnvelopeFor(tampered);
+      check("recipient: sobre v:3 con ct manipulado NO descifra (tag GCM)", bad === null);
+    }
+
+    // (d) Despacho de relay-crypto: un v:3 se abre por delegación; un v:2 COMPARTIDO sigue leyéndose.
+    const viaDispatch = envB ? await RK.decryptEnvelope(envB) : null;
+    check("recipient: relay-crypto.decryptEnvelope despacha el v:3", JSON.stringify(viaDispatch) === JSON.stringify(secretB));
+    const legacy = await RK.encryptEnvelope({ compartido: "llavero", k: 9 });
+    check("recipient: (compat) el sobre COMPARTIDO sigue siendo v:1/2", !!legacy && (legacy.v === 1 || legacy.v === 2));
+    const legacyBack = legacy ? await RK.decryptEnvelope(legacy) : null;
+    check(
+      "recipient: (compat) relay-crypto abre el sobre compartido v:2",
+      JSON.stringify(legacyBack) === JSON.stringify({ compartido: "llavero", k: 9 }),
+    );
+
+    // (b) PROPIEDAD NUCLEAR: quien tiene SOLO el llavero compartido (no la privada
+    //     ECDH de B) NO abre el sobre v:3 de B. Simulamos a "C": aseguramos que posee
+    //     el llavero compartido, OLVIDAMOS la clave ECDH de B (memoria+almacenamiento)
+    //     y generamos una identidad de cifrado NUEVA. El llavero compartido (otro
+    //     módulo) queda intacto — es exactamente "solo tengo el llavero compartido".
+    await RK.getOrCreateRelayKey(); // C posee el llavero compartido
+    RC._resetEncryptionKeys();
+    const C = await RC.getOrCreateEncryptionKey();
+    const cPub = await RC.myEncryptionPublicKey();
+    check(
+      "recipient: C es una identidad de cifrado DISTINTA de B",
+      !!C && !!cPub && !!bPub && (cPub.x !== bPub.x || cPub.y !== bPub.y),
+    );
+    const cViaFor = envB ? await RC.decryptEnvelopeFor(envB) : "no-null";
+    check("recipient: NÚCLEO — quien NO es B no abre el v:3 (deriveBits distinto)", cViaFor === null);
+    const cViaDispatch = envB ? await RK.decryptEnvelope(envB) : "no-null";
+    check("recipient: NÚCLEO — el poseedor del llavero COMPARTIDO no abre un v:3 ajeno", cViaDispatch === null);
+
+    // epub ATADA a la identidad soberana: la firma esig cubre {owner,epub} (mesh-identity).
+    const MI = await import("../src/ai/astraura/mesh/mesh-identity");
+    RC._resetEncryptionKeys();
+    const epubClaim = await RC.myEncryptionPublicKey();
+    const claim = epubClaim ? await MI.signIdentityClaim("acct-uuid-xyz", epubClaim) : null;
+    check(
+      "recipient: reclamación firmada transporta epub + esig",
+      !!claim && !!claim.epub && !!claim.esig && claim.owner === "acct-uuid-xyz",
+    );
+    if (claim && claim.epub && claim.esig) {
+      check("recipient: verifyEpub ACEPTA epub avalada por la identidad", (await MI.verifyEpub(claim.owner, claim.epub, claim.esig, claim.pub)) === true);
+      check("recipient: verifyEpub RECHAZA con owner cambiado", (await MI.verifyEpub("acct-otra", claim.epub, claim.esig, claim.pub)) === false);
+      // Sustitución de epub: la firma no la cubre → rechazo (epub ligada a la identidad).
+      RC._resetEncryptionKeys();
+      const fakeEpub = await RC.myEncryptionPublicKey();
+      check(
+        "recipient: verifyEpub RECHAZA una epub SUSTITUIDA (firma no la cubre)",
+        fakeEpub ? (await MI.verifyEpub(claim.owner, fakeEpub, claim.esig, claim.pub)) === false : false,
+      );
+    }
+  } else {
+    console.log("  (omite cifrado por-destinatario: sin WebCrypto en este entorno)");
+  }
+
   console.log(`\n${passed} pasan / ${failed} fallan`);
   if (failed > 0) process.exit(1);
 }

@@ -26,7 +26,8 @@ import { getMeshServer } from "./servers";
 import {
   wrapSigned,
   unwrapSigned,
-  signContent,
+  signIdentityClaim,
+  verifyEpub,
   verifyContent,
   fpOf,
   signRevocation,
@@ -39,6 +40,9 @@ import { deviceId } from "./federation";
 import { tick as lamportTick, observe as lamportObserve } from "./logical-clock";
 import { acceptFreshness } from "./replay-guard";
 import { encryptEnvelope, decryptEnvelope, type EncEnvelope } from "./relay-crypto";
+// Cifrado POR-DESTINATARIO (v:3): E2E dirigido. Solo el destinatario abre el relé,
+// ni siquiera otra neurona de la cuenta con el llavero compartido (Adenda 124 · #mesh4).
+import { myEncryptionPublicKey, encryptEnvelopeFor, type RecipientEnvelope } from "./recipient-crypto";
 import { getActiveModemPreset } from "./sync";
 import { getMeshState } from "./store";
 import type { MeshPayloadType, TrafficClass } from "./types";
@@ -228,6 +232,34 @@ export async function uploadPublic(env: ServerEnvelope, serverId?: string): Prom
   }
 }
 
+/**
+ * Cifra el cuerpo de un relé eligiendo el esquema (Adenda 124 · #mesh4):
+ *   · Si conocemos la clave de CIFRADO del destinatario (encryptionKeyFor resuelve su
+ *     epub publicada y verificada) → sobre v:3 POR-DESTINATARIO (ECDH→HKDF→AES-GCM):
+ *     SOLO ese destinatario lo abre, ni siquiera otra neurona de la misma cuenta que
+ *     comparte el llavero. Es OPT-IN por resolución (necesita `recipient` + su epub).
+ *   · Si no hay destinatario, no se resuelve su epub, o el cifrado v:3 falla → llavero
+ *     COMPARTIDO v:1/2 (encryptEnvelope), retrocompatible y con FALLBACK automático.
+ *
+ * SEGUIMIENTOS (explícitamente FUERA de este cambio): (i) fan-out MULTI-destinatario
+ * (cifrar un mismo relé a VARIAS neuronas / grupo / cuenta con varios sobres v:3), y
+ * (ii) visibilidad RLS ENTRE CUENTAS del relé (hoy las filas solo las lee el emisor:
+ * owner_id = auth.uid(), así que el destinatario de OTRA cuenta aún no las ve).
+ */
+async function encryptRelayBody(env: ServerEnvelope): Promise<EncEnvelope | RecipientEnvelope | null> {
+  const payload = { cls: env.cls, ptype: env.ptype, body: env.body };
+  const rcpt = env.recipient;
+  if (rcpt) {
+    const pub = encryptionKeyFor(rcpt);
+    if (pub) {
+      const per = await encryptEnvelopeFor(pub, payload);
+      if (per) return per; // v:3 dirigido (E2E por-destinatario)
+      // Si el cifrado por-destinatario falla, NO abortamos: caemos al compartido.
+    }
+  }
+  return encryptEnvelope(payload); // v:1/2 llavero compartido (retrocompatible)
+}
+
 /** Sube un RELÉ PRIVADO cifrado. La nube solo transporta el texto cifrado. */
 export async function uploadRelay(env: ServerEnvelope, serverId?: string): Promise<ServerSendResult> {
   if (!clientRateAllow()) return { ok: false, detail: "límite de tasa local (anti-flood)" };
@@ -235,7 +267,7 @@ export async function uploadRelay(env: ServerEnvelope, serverId?: string): Promi
   if (ep) {
     // Servidor propio: ciframos igualmente antes de salir (E2E; el servidor
     // propio tampoco lee el contenido privado).
-    const enc = await encryptEnvelope({ cls: env.cls, ptype: env.ptype, body: env.body });
+    const enc = await encryptRelayBody(env);
     if (!enc) return { ok: false, detail: "sin cifrado disponible: no se sube dato privado en claro" };
     return postToEndpoint(ep, "relay", { ...env, body: enc as unknown }, tokenFor(serverId));
   }
@@ -244,7 +276,7 @@ export async function uploadRelay(env: ServerEnvelope, serverId?: string): Promi
     if (!supabase) return { ok: false, detail: "sin cliente de servidor" };
     const owner = await ownerId(supabase);
     if (!owner) return { ok: false, detail: "sin cuenta activa: se encola" };
-    const enc = await encryptEnvelope({ cls: env.cls, ptype: env.ptype, body: env.body });
+    const enc = await encryptRelayBody(env);
     if (!enc) {
       return { ok: false, detail: "sin cifrado disponible: no se sube dato privado en claro" };
     }
@@ -460,6 +492,12 @@ export interface RelayInboundItem {
 let identityRegistered = false;
 let idMap = new Map<string, string>(); // fp → owner uuid (verificado)
 let revokedSet = new Set<string>(); // fingerprints revocados (verificados) — Adenda 108
+// Mapa de CIFRADO por-destinatario (Adenda 124): clave (deviceId | fp | owner) →
+// {pub ECDH, fp de la identidad que la avala}. Se llena SOLO con epub cuya firma
+// (esig) verifica contra la identidad soberana. Para una cuenta con VARIAS neuronas,
+// la entrada por `owner` es la de la ÚLTIMA vista (limitación de un-destinatario;
+// el fan-out multi-destinatario es un SEGUIMIENTO — ver cabecera de uploadRelay).
+let encMap = new Map<string, { pub: JsonWebKey; fp: string }>();
 
 /**
  * Publica UNA reclamación FIRMADA de identidad: "la cuenta <owner> controla la
@@ -473,7 +511,13 @@ export async function registerIdentity(): Promise<void> {
     if (!supabase) return;
     const owner = await ownerId(supabase);
     if (!owner) return;
-    const claim = await signContent(owner); // firma el uuid de la cuenta
+    // Reclamación FIRMADA que liga la cuenta a esta identidad y, ADEMÁS, publica la
+    // clave pública de CIFRADO ECDH (epub) avalada por la misma clave soberana
+    // (esig sobre {owner,epub}). Así otras neuronas pueden cifrarnos relés v:3 que
+    // SOLO nosotros abrimos. Si no hay epub (sin WebCrypto), la reclamación va sin
+    // ella y el relé cae al llavero compartido (retrocompatible).
+    const epub = await myEncryptionPublicKey();
+    const claim = await signIdentityClaim(owner, epub);
     if (!claim) return;
     identityRegistered = true;
     const me = deviceId();
@@ -485,7 +529,13 @@ export async function registerIdentity(): Promise<void> {
       cls: "P3",
       ptype: "manifest",
       enc: false,
-      payload: { owner, fp: claim.f, pub: claim.k, sig: claim.s },
+      payload: {
+        owner: claim.owner,
+        fp: claim.fp,
+        pub: claim.pub,
+        sig: claim.sig,
+        ...(claim.epub && claim.esig ? { epub: claim.epub, esig: claim.esig } : {}),
+      },
       device_id: me,
       expires_at: new Date(Date.now() + 30 * 24 * 60 * 60_000).toISOString(),
     });
@@ -622,11 +672,14 @@ export async function refreshIdentities(): Promise<void> {
   try {
     const supabase = await client();
     if (!supabase) return;
-    const { data } = await supabase.from("os_mesh_relay").select("payload, owner_id").eq("kind", "identity").limit(500);
+    const { data } = await supabase.from("os_mesh_relay").select("payload, owner_id, device_id").eq("kind", "identity").limit(500);
     if (!Array.isArray(data)) return;
     const next = new Map<string, string>();
+    const nextEnc = new Map<string, { pub: JsonWebKey; fp: string }>();
     for (const row of data as Array<Record<string, unknown>>) {
-      const p = (row.payload ?? null) as { owner?: string; fp?: string; pub?: JsonWebKey; sig?: string } | null;
+      const p = (row.payload ?? null) as {
+        owner?: string; fp?: string; pub?: JsonWebKey; sig?: string; epub?: JsonWebKey; esig?: string;
+      } | null;
       if (!p?.owner || !p.fp || !p.pub || !p.sig) continue;
       // BINDING SEGURO (Adenda 123): la cuenta RECLAMADA debe ser la del INSERTOR
       // real. El RLS de inserción fija `owner_id = auth.uid()`, así que exigir
@@ -637,8 +690,25 @@ export async function refreshIdentities(): Promise<void> {
       if (!(await verifyContent(p.owner, p.sig, p.pub))) continue; // firma inválida
       if ((await fpOf(p.pub)) !== p.fp) continue; // fp no coincide con la clave
       next.set(p.fp, p.owner);
+      // CLAVE DE CIFRADO (Adenda 124): solo se confía en `epub` si su firma `esig`
+      // (sobre {owner,epub}) verifica contra la MISMA identidad soberana ya validada
+      // arriba. Un tercero no puede inyectar una epub falsa sin la clave privada.
+      if (p.epub && p.esig && (await verifyEpub(p.owner, p.epub, p.esig, p.pub))) {
+        const entry = { pub: p.epub, fp: p.fp };
+        nextEnc.set(p.fp, entry); // por huella de identidad (fp = fpOf(pub), y pub firma la epub → ligado)
+        nextEnc.set(p.owner, entry); // por cuenta (owner === owner_id, firmado; último gana entre neuronas)
+        // NO indexar por `device_id` (revisión adversarial Adenda 125 · CRÍTICO): el
+        // device_id es una columna NO cubierta por la firma soberana (el RLS solo fija
+        // owner_id = auth.uid()), así que una neurona podría publicar SU epub con el
+        // device_id de OTRA neurona y capturar sus relés v:3 (substitución de clave).
+        // Direccionar por dispositivo exige ligar device↔fp con un CERT de dispositivo
+        // firmado por la clave MAESTRA (master-identity.signDeviceCert, Adenda 121) —
+        // seguimiento. Hasta entonces un relé dirigido por device_id cae al llavero
+        // compartido (fail-safe), nunca en claro.
+      }
     }
     idMap = next;
+    encMap = nextEnc;
   } catch {
     /* */
   }
@@ -649,6 +719,20 @@ export function boundAccountFor(fp?: string): string | null {
   if (!fp) return null;
   if (revokedSet.has(fp)) return null; // identidad revocada: sin cuenta de confianza
   return idMap.get(fp) ?? null;
+}
+
+/**
+ * Resuelve un destinatario (id de neurona, huella de identidad `id:…` o uuid de
+ * cuenta) a su clave pública de CIFRADO ECDH publicada y VERIFICADA, o null si no la
+ * conocemos (→ el emisor cae al llavero compartido, retrocompatible). Rechaza la
+ * clave si la identidad que la avala está REVOCADA. Alimenta el relé v:3 por-destinatario.
+ */
+export function encryptionKeyFor(recipient?: string): JsonWebKey | null {
+  if (!recipient) return null;
+  const entry = encMap.get(recipient);
+  if (!entry) return null;
+  if (revokedSet.has(entry.fp)) return null; // identidad revocada: no cifrar hacia ella
+  return entry.pub;
 }
 
 /* ── REVOCACIÓN de identidades (Adenda 108) ─────────────────────────────────────

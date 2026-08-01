@@ -38,6 +38,7 @@ import { createClient } from "@/utils/supabase/client";
 import { castVote, listVotes, tally, evaluate, tryResolve } from "@/lib/governance/engine";
 import { getConfig, eligibleCount } from "@/lib/governance/config";
 import { loadActiveDelegations, topicForProposal, type Delegation } from "@/lib/governance/delegations";
+import { loadMeritWeights, topicToMeritArea } from "@/lib/governance/merit";
 import { badgesForProfile, type ProfileBadge } from "@/lib/badges/badges";
 import DelegationPanel from "@/components/governance/delegation-panel";
 import CountdownTimer from "@/components/governance/countdown-timer";
@@ -51,6 +52,7 @@ import {
   URGENCY,
   YESNO_OPTIONS,
   type GovernanceConfig,
+  type MeritParams,
   type Proposal,
   type ProposalOption,
   type ProposalVote,
@@ -94,6 +96,8 @@ export function PoliticalProposalCard({ proposal, onChange }: { proposal: Propos
   const [config, setConfig] = useState<GovernanceConfig | null>(null);
   const [eligible, setEligible] = useState<number | null>(null);
   const [delegations, setDelegations] = useState<Delegation[]>([]);
+  // Ponderación por mérito (OPT-IN). null ⇒ voto igualitario (×1). Ver merit.ts.
+  const [meritWeights, setMeritWeights] = useState<Record<string, number> | null>(null);
   const [author, setAuthor] = useState<AuthorInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
@@ -123,6 +127,19 @@ export function PoliticalProposalCard({ proposal, onChange }: { proposal: Propos
       setConfig(cfg);
       setEligible(el);
       setDelegations(dels);
+
+      // Meritocracia del entendimiento (OPT-IN): sólo si la propuesta o el
+      // contexto la habilitan. Por defecto null → ×1 (preview = motor real).
+      const mp =
+        proposal.params?.meritWeighting ??
+        (cfg?.params?.meritWeighting as MeritParams | undefined);
+      if (mp?.enabled) {
+        const voterIds = Array.from(new Set(v.map((x) => x.voter)));
+        const mw = await loadMeritWeights(voterIds, topicToMeritArea(proposal), mp);
+        setMeritWeights(mw);
+      } else {
+        setMeritWeights(null);
+      }
 
       // Ficha del proponente: perfil + insignias (meritocracia del entendimiento).
       if (proposal.author) {
@@ -158,8 +175,8 @@ export function PoliticalProposalCard({ proposal, onChange }: { proposal: Propos
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [proposal.id, proposal.status]);
 
-  const t = useMemo(() => tally(proposal, votes, eligible, delegations), [proposal, votes, eligible, delegations]);
-  const ev = useMemo(() => evaluate(proposal, votes, config, eligible, delegations), [proposal, votes, config, eligible, delegations]);
+  const t = useMemo(() => tally(proposal, votes, eligible, delegations, meritWeights), [proposal, votes, eligible, delegations, meritWeights]);
+  const ev = useMemo(() => evaluate(proposal, votes, config, eligible, delegations, meritWeights), [proposal, votes, config, eligible, delegations, meritWeights]);
 
   const votesByChoice = useMemo(() => {
     const map: Record<string, ProposalVote[]> = {};

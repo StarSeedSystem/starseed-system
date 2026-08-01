@@ -27,6 +27,13 @@ type MembershipRow = { user_id?: string | null; role?: string | null };
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+// Paginación defensiva del censo (Adenda 124 · #3): antes se acotaba a 5000 filas y
+// se avisaba, pero una entidad grande quedaba con el censo/conjunto de votantes
+// silenciosamente truncado. Ahora se pagina en lotes de PAGE_SIZE hasta el fin natural
+// (página corta), con un TOPE DE SEGURIDAD que corta el bucle ante cualquier anomalía.
+const MEMBERSHIP_PAGE_SIZE = 1000;
+const MEMBERSHIP_SAFETY_CEILING = 100000;
+
 /** ¿El valor tiene forma de UUID? (para decidir si hay que resolver el slug). */
 export function looksLikeUuid(value: string): boolean {
   return UUID_RE.test(value);
@@ -70,37 +77,64 @@ export async function resolveScopeSlug(
 }
 
 /**
+ * Lee TODOS los `user_id` miembro de una entidad en `os_memberships` paginando por
+ * lotes de MEMBERSHIP_PAGE_SIZE con `.range(from, to)` hasta recibir una página corta
+ * (fin natural), deduplicando en un Set. Guarda anti-bucle: se detiene al alcanzar
+ * MEMBERSHIP_SAFETY_CEILING y avisa por consola SÓLO en ese caso (censo posiblemente
+ * truncado). Defensivo: ante error transitorio devuelve lo acumulado hasta el momento
+ * (no deflacta el censo con un vacío).
+ */
+async function pagedMembershipUserIds(slug: string): Promise<Set<string>> {
+  const supabase = createClient();
+  const ids = new Set<string>();
+  let from = 0;
+  let ceilingHit = false;
+  for (;;) {
+    if (from >= MEMBERSHIP_SAFETY_CEILING) {
+      ceilingHit = true;
+      break;
+    }
+    const to = from + MEMBERSHIP_PAGE_SIZE - 1;
+    let rows: MembershipRow[];
+    try {
+      const { data } = await supabase
+        .from("os_memberships")
+        .select("user_id")
+        .eq("group_slug", slug)
+        .range(from, to);
+      rows = (data as MembershipRow[]) ?? [];
+    } catch {
+      break; // error transitorio → conservamos lo acumulado (defensivo)
+    }
+    for (const row of rows) {
+      if (row?.user_id) ids.add(row.user_id);
+    }
+    if (rows.length < MEMBERSHIP_PAGE_SIZE) break; // página corta = fin natural
+    from += MEMBERSHIP_PAGE_SIZE;
+  }
+  if (ceilingHit) {
+    console.warn(
+      `[governance] os_memberships("${slug}") alcanzó el tope de seguridad de ` +
+        `${MEMBERSHIP_SAFETY_CEILING} filas; el censo/conjunto de votantes puede estar truncado.`,
+    );
+  }
+  return ids;
+}
+
+/**
  * user_ids de las cuentas miembro de una entidad (por `os_memberships.group_slug`).
  * Dedupe defensivo; `[]` si no hay filas o hay error (para activar el fallback del
- * llamador). Acota a 5000 filas como el resto del motor.
+ * llamador). Paginado (Adenda 124 · #3): recorre TODA la membresía sin el antiguo
+ * tope de 5000 filas, evitando censos/conjuntos de votantes truncados en entidades
+ * grandes.
  */
 export async function membersFromMemberships(
   scopeRef: string | null | undefined,
 ): Promise<string[]> {
   const slug = await resolveScopeSlug(scopeRef);
   if (!slug) return [];
-  const supabase = createClient();
   try {
-    const { data } = await supabase
-      .from("os_memberships")
-      .select("user_id")
-      .eq("group_slug", slug)
-      .limit(5000);
-    const rows = (data as MembershipRow[]) ?? [];
-    // De-silenciar el truncado (revisión adversarial Adenda 124 · #3/#6): si se
-    // alcanza el tope de 5000 filas el censo/voto federado puede quedar truncado.
-    // Pendiente real: paginar. Por ahora se avisa para que NO pase inadvertido.
-    if (rows.length >= 5000) {
-      console.warn(
-        `[governance] os_memberships("${slug}") alcanzó el tope de 5000 filas; ` +
-          `el censo/conjunto de votantes puede estar truncado (pendiente: paginación).`,
-      );
-    }
-    const ids = new Set<string>();
-    for (const row of rows) {
-      if (row?.user_id) ids.add(row.user_id);
-    }
-    return Array.from(ids);
+    return Array.from(await pagedMembershipUserIds(slug));
   } catch {
     return [];
   }
