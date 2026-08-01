@@ -1,0 +1,43 @@
+# ════════════════════════════════════════════════════════════════════════════
+# CI · Verificación web (Adenda 124 · mejora de proceso)
+# ----------------------------------------------------------------------------
+# Puerta de calidad en CADA push/PR a `main`: typecheck + tests del núcleo
+# mesh/cripto + build de producción. Evita que un push roto llegue a Vercel.
+# (Complementa a native-build.yml, que solo corre en etiquetas v* para releases.)
+# ════════════════════════════════════════════════════════════════════════════
+name: CI · verificación web
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Typecheck · Mesh tests · Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Instalar dependencias
+        run: npm ci
+      - name: Typecheck (tsc --noEmit)
+        run: npx tsc --noEmit
+      - name: Tests del núcleo mesh/cripto
+        run: npx --yes tsx scripts/test-mesh-core.ts
+      - name: Build de producción (next build)
+        run: npm run build
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
+          NEXT_TELEMETRY_DISABLED: "1"
+          # Placeholders: el build no debe requerir secretos reales de Supabase.
+          NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key
