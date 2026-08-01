@@ -60,6 +60,14 @@ const BEACON_TTL_MS = 5 * 60_000;
 /** Feed público: página y tope de páginas por sondeo (drenado sin huecos, Adenda 119). */
 const FEED_PAGE = 100;
 const FEED_MAX_PAGES = 12;
+/**
+ * Registro de IDENTIDADES: tope de páginas del DRENADO (seguimiento adversarial Adenda 126).
+ * Reusa el tamaño de página del feed (FEED_PAGE); IDENTITY_MAX_PAGES × FEED_PAGE ≈ 5000 filas
+ * acotan el trabajo por sondeo. El `limit(500)` fijo anterior dejaba las identidades > 500 sin
+ * resolver y permitía a un inundador Sybil EXPULSAR del tope la fila de una víctima (debilitando
+ * el TOFU device_id). Ver `refreshIdentities`.
+ */
+const IDENTITY_MAX_PAGES = 50;
 
 /**
  * Token-bucket local ANTI-FLOOD (Adenda 119): frena ráfagas patológicas de subidas
@@ -737,24 +745,55 @@ export async function refreshIdentities(): Promise<void> {
   try {
     const supabase = await client();
     if (!supabase) return;
-    // Orden ASCENDENTE por created_at (revisión adversarial Adenda 126): la fila de
-    // identidad LEGÍTIMA de un device_id es siempre la MÁS ANTIGUA — un atacante solo puede
-    // publicar para ese device_id DESPUÉS de aprenderlo (faro/fila de la víctima) —, así que
-    // procesarla primero hace que la víctima gane el pin TOFU de forma determinista, y el tope
-    // retiene las identidades ESTABLECIDAS en vez de un subconjunto arbitrario.
-    const { data } = await supabase
-      .from("os_mesh_relay")
-      .select("payload, owner_id, device_id, created_at")
-      .eq("kind", "identity")
-      .order("created_at", { ascending: true })
-      .limit(500);
-    if (!Array.isArray(data)) return;
+    // DRENADO keyset de TODAS las filas de identidad (seguimiento de la revisión adversarial
+    // Adenda 126): el `limit(500)` fijo (i) dejaba las identidades MÁS ALLÁ de 500 SIN resolver
+    // para siempre y (ii) permitía a un inundador Sybil EXPULSAR del tope la fila de identidad de
+    // una víctima —debilitando el TOFU device_id que ata el relé v:3—. Se drena por páginas
+    // ASCENDENTES por (created_at, id) —misma forma que `pullPublicFeed`— con un tope duro
+    // (~5000 filas = IDENTITY_MAX_PAGES × FEED_PAGE) que acota el trabajo por sondeo. Orden
+    // ASCENDENTE por created_at: la fila de identidad LEGÍTIMA de un device_id es siempre la MÁS
+    // ANTIGUA —un atacante solo puede publicar para ese device_id DESPUÉS de aprenderlo (faro/fila
+    // de la víctima)—, así que procesarla primero hace que la víctima gane el pin TOFU de forma
+    // determinista. Se recogen TODAS las filas y LUEGO corre la validación por-fila + pines TOFU +
+    // detección de conflicto de dispositivo SIN CAMBIOS sobre el conjunto ordenado completo.
+    // DRENADO por OFFSET estable (revisión adversarial Adenda 127): se pagina con `.range()`
+    // ordenando por (created_at asc, id asc) — mismo patrón que los paginadores de
+    // membership.ts / reach.ts. Se evita A PROPÓSITO el cursor keyset por created_at: un ÚNICO
+    // insert masivo de ≥FEED_PAGE filas de identidad con el MISMO created_at (una transacción →
+    // `now()` idéntico) atascaba el cursor keyset y dejaba SIN resolver toda identidad más nueva
+    // (DoS PERMANENTE de la capa de identidad). El offset avanza pase lo que pase con los empates.
+    const rows: Array<Record<string, unknown>> = [];
+    let firstPageErrored = false;
+    for (let page = 0; page < IDENTITY_MAX_PAGES; page++) {
+      const from = page * FEED_PAGE;
+      const { data, error } = await supabase
+        .from("os_mesh_relay")
+        .select("id, payload, owner_id, device_id, created_at")
+        .eq("kind", "identity")
+        .order("created_at", { ascending: true })
+        .order("id", { ascending: true })
+        .range(from, from + FEED_PAGE - 1);
+      // Defensivo: error/no-array de página → para y procesa lo ya drenado. Si falla la PRIMERA
+      // página no se aprende nada nuevo → se PRESERVA el mapa vigente (como el `limit(500)`
+      // original) en vez de vaciarlo por un fallo transitorio. Un fallo posterior procesa lo drenado.
+      if (error || !Array.isArray(data)) {
+        if (page === 0) firstPageErrored = true;
+        break;
+      }
+      if (data.length === 0) break; // agotado
+      for (const row of data as Array<Record<string, unknown>>) rows.push(row);
+      if (data.length < FEED_PAGE) break; // última página: agotado
+      if (page === IDENTITY_MAX_PAGES - 1) {
+        console.warn(`[mesh] refreshIdentities: tope de ${IDENTITY_MAX_PAGES} páginas por sondeo; el resto se drena en el próximo ciclo.`);
+      }
+    }
+    if (firstPageErrored) return; // primera lectura falló: no toques idMap/encMap (preserva lo conocido)
     // DETECCIÓN DE CONFLICTO EN LOTE (revisión adversarial Adenda 126): si DOS cuentas
     // distintas reclaman el MISMO device_id dentro de este lote, NINGUNA lo keyea — mata el
     // "cara o cruz" del primer avistamiento cuando ambas filas están presentes. El device_id
     // disputado cae al llavero compartido (fail-safe), jamás a la epub de un atacante.
     const devClaims = new Map<string, Set<string>>();
-    for (const row of data as Array<Record<string, unknown>>) {
+    for (const row of rows) {
       const pp = (row.payload ?? null) as { devcert?: DeviceCert } | null;
       const dev = String(row.device_id ?? "");
       if (pp?.devcert && dev) {
@@ -773,7 +812,7 @@ export async function refreshIdentities(): Promise<void> {
     const devicePins = loadPinMap(DEVICE_OWNER_LS); // device_id→owner (unicidad por cuenta)
     let pinsDirty = false;
     let devicePinsDirty = false;
-    for (const row of data as Array<Record<string, unknown>>) {
+    for (const row of rows) {
       const p = (row.payload ?? null) as {
         owner?: string; fp?: string; pub?: JsonWebKey; sig?: string; epub?: JsonWebKey; esig?: string; devcert?: DeviceCert;
       } | null;

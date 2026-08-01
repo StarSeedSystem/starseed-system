@@ -63,6 +63,137 @@ export async function getConfig(
   };
 }
 
+// ── VERJA DE PROPIEDAD del ámbito (Adenda 127 · hallazgo adversarial) ─────────
+// saveConfig() hacía UPSERT en governance_configs SIN comprobar propiedad: un
+// usuario autenticado podía sobrescribir la gobernanza de CUALQUIER ámbito
+// (activar mérito, o peor: bajar quórum/umbral o cambiar el modo). Las funciones
+// siguientes resuelven si el llamador es dueño del ámbito. Son ADITIVAS y
+// DEFENSIVAS: sólo BLOQUEAN con determinación POSITIVA de "no es el dueño"; ante
+// CUALQUIER incertidumbre hacen FAIL-OPEN (ALLOW), porque la barrera DURA es la
+// RLS del servidor (migración 20260801150000). Nunca deben romper a un dueño legítimo.
+
+type EntityOwnership = "owner" | "not-owner" | "unknown";
+type ConfigOwnership = "me" | "other" | "none" | "unknown";
+
+// ¿La cadena tiene forma de UUID? Se usa para NO enviar un slug de texto a la
+// columna `id` (uuid): un cast inválido convertiría la consulta en error y, por
+// fail-open, en un ALLOW silencioso que debilitaría la verja. Consultando `id`
+// sólo con uuids reales, la verja sigue siendo efectiva tanto para refs-slug
+// (por la columna de texto) como para refs-uuid.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// Busca la entidad por slug y, si `ref` es uuid, por id; devuelve su owner_id.
+// Defensivo: error transitorio o tabla/columna ausente ⇒ { found:false }.
+async function entityOwnerInTable(
+  table: string,
+  ref: string,
+): Promise<{ found: boolean; ownerId: string | null }> {
+  const supabase = createClient();
+  // 1) Por slug (columna de texto — segura para cualquier cadena).
+  try {
+    const bySlug = await supabase.from(table).select("owner_id").eq("slug", ref).maybeSingle();
+    if (!bySlug.error && bySlug.data) {
+      return { found: true, ownerId: (bySlug.data as { owner_id?: string | null }).owner_id ?? null };
+    }
+  } catch {
+    /* error transitorio → probamos por id */
+  }
+  // 2) Por id (columna uuid) SÓLO si `ref` es un uuid (evita el cast inválido).
+  if (UUID_RE.test(ref)) {
+    try {
+      const byId = await supabase.from(table).select("owner_id").eq("id", ref).maybeSingle();
+      if (!byId.error && byId.data) {
+        return { found: true, ownerId: (byId.data as { owner_id?: string | null }).owner_id ?? null };
+      }
+    } catch {
+      /* error transitorio → no encontrado */
+    }
+  }
+  return { found: false, ownerId: null };
+}
+
+// Tablas candidatas por ámbito. VERIFICADO: `community` vive en os_groups
+// (create-entity-dialog inserta kind:"community" en os_groups); históricamente
+// se asoció a páginas, así que para máxima cobertura comprobamos AMBAS. Otros
+// ámbitos (message/account/global) no tienen una entidad simple con owner.
+function scopeTables(scope: string): string[] {
+  if (scope === "group") return ["os_groups"];
+  if (scope === "page") return ["os_pages"];
+  if (scope === "community") return ["os_pages", "os_groups"];
+  return [];
+}
+
+// Propiedad de la ENTIDAD del ámbito. "Gana el propietario": si alguna tabla
+// candidata muestra owner===uid ⇒ 'owner' (nunca bloqueamos por una improbable
+// colisión de slug entre tablas). 'not-owner' sólo si alguna entidad existe con
+// OTRO dueño y ninguna es del llamador. 'unknown' si no hay ref, no hay tabla
+// candidata, o no se encontró/no se pudo determinar (⇒ fail-open aguas arriba).
+async function resolveEntityOwnership(
+  scope: string,
+  ref: string | null,
+  uid: string,
+): Promise<EntityOwnership> {
+  const tables = scopeTables(scope);
+  if (!ref || tables.length === 0) return "unknown";
+  let sawOther = false;
+  for (const table of tables) {
+    const { found, ownerId } = await entityOwnerInTable(table, ref);
+    if (found && ownerId) {
+      if (ownerId === uid) return "owner"; // propietario confirmado ⇒ gana
+      sawOther = true;
+    }
+    // found && !ownerId (owner_id nulo/ausente): indeterminado, no concluye.
+  }
+  return sawOther ? "not-owner" : "unknown";
+}
+
+// Propiedad de la fila de CONFIG existente (por si el dueño actual sigue
+// editando, aunque ya no sea dueño de la entidad). Misma clave que el upsert:
+// (scope, scope_ref). Defensivo: error ⇒ 'unknown'; sin fila ⇒ 'none'.
+async function resolveConfigOwnership(
+  scope: string,
+  ref: string | null,
+  uid: string,
+): Promise<ConfigOwnership> {
+  const supabase = createClient();
+  try {
+    const { data, error } = await supabase
+      .from("governance_configs")
+      .select("owner")
+      .eq("scope", scope)
+      .eq("scope_ref", ref)
+      .maybeSingle();
+    if (error) return "unknown";
+    if (!data) return "none";
+    const owner = (data as { owner?: string | null }).owner ?? null;
+    if (!owner) return "none";
+    return owner === uid ? "me" : "other";
+  } catch {
+    return "unknown";
+  }
+}
+
+// Decide si `uid` puede escribir la config de gobernanza de (scope, ref).
+// Orden de precedencia (diseñado para NUNCA romper a un dueño legítimo):
+//   1. dueño de la ENTIDAD        ⇒ ALLOW  (máxima autoridad del ámbito)
+//   2. dueño de la CONFIG actual  ⇒ ALLOW  (el propietario actual sigue editando; coherente con la RLS)
+//   3. NO-dueño de la entidad     ⇒ BLOCK  (determinación positiva)
+//   4. config existente ajena     ⇒ BLOCK  (determinación positiva)
+//   5. cualquier otra cosa        ⇒ ALLOW  (FAIL-OPEN ante incertidumbre)
+async function isScopeWriteAuthorized(
+  scope: string,
+  ref: string | null,
+  uid: string,
+): Promise<boolean> {
+  const entity = await resolveEntityOwnership(scope, ref, uid);
+  if (entity === "owner") return true;
+  const config = await resolveConfigOwnership(scope, ref, uid);
+  if (config === "me") return true;
+  if (entity === "not-owner") return false;
+  if (config === "other") return false;
+  return true;
+}
+
 // Guarda (upsert) la configuración de gobernanza de un contexto.
 export async function saveConfig(
   scope: string,
@@ -75,6 +206,27 @@ export async function saveConfig(
   try {
     const { data: au } = await supabase.auth.getUser();
     const owner = au?.user?.id ?? null;
+
+    // VERJA DE PROPIEDAD (Adenda 127): sólo el dueño del ámbito cambia su
+    // gobernanza. Envuelta en su propio try/catch para que un fallo INESPERADO
+    // de la verja haga FAIL-OPEN (ALLOW) y jamás bloquee a un dueño legítimo; la
+    // barrera dura es la RLS del servidor.
+    if (owner) {
+      let authorized = true;
+      try {
+        authorized = await isScopeWriteAuthorized(scope, ref, owner);
+      } catch {
+        authorized = true; // incertidumbre inesperada ⇒ FAIL-OPEN
+      }
+      if (!authorized) {
+        return {
+          ok: false,
+          error:
+            "Solo el propietario del ámbito puede cambiar su gobernanza; propón el cambio por votación.",
+        };
+      }
+    }
+
     // Garantizar que siempre exista la opción democrática.
     const merged = { ...DEFAULT_GOV_PARAMS, ...params, allowDemocraticOverride: true };
     const { error } = await supabase.from("governance_configs").upsert(

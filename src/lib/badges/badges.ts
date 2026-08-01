@@ -161,6 +161,44 @@ export async function myProfileId(): Promise<string | null> {
 }
 
 /**
+ * Resuelve el `profiles.id` (perfil de mérito) de una CUENTA por su user_id — espejo
+ * de myProfileId() para OTRA persona (avales). null si no hay fila/sesión o error.
+ */
+export async function profileIdForUser(userId: string | null | undefined): Promise<string | null> {
+    if (!userId) return null;
+    try {
+        const supabase = createClient();
+        const { data, error } = await supabase
+            .from("profiles")
+            .select("id")
+            .eq("user_id", userId)
+            .limit(1)
+            .maybeSingle();
+        if (error || !data) return null;
+        return (data as { id?: string }).id ?? null;
+    } catch {
+        return null;
+    }
+}
+
+/** Mapa BATCHED user_id → profiles.id para varias cuentas (roster/avales). Defensivo. */
+export async function profileIdsForUsers(userIds: string[]): Promise<Record<string, string>> {
+    const out: Record<string, string> = {};
+    const ids = Array.from(new Set((userIds || []).filter(Boolean)));
+    if (!ids.length || !isClient()) return out;
+    try {
+        const supabase = createClient();
+        const { data } = await supabase.from("profiles").select("id, user_id").in("user_id", ids);
+        for (const r of (data as Array<{ id?: string; user_id?: string }> | null) ?? []) {
+            if (r?.user_id && r?.id) out[r.user_id] = r.id;
+        }
+    } catch {
+        /* vacío */
+    }
+    return out;
+}
+
+/**
  * Resuelve una insignia por `code` y devuelve su id (o null).
  */
 async function badgeIdByCode(code: string): Promise<string | null> {
@@ -247,6 +285,78 @@ export async function awardBadge(
         return true;
     } catch {
         return false;
+    }
+}
+
+// -------------------- Aval entre pares (mérito legítimo) --------------------
+//
+// El MÉRITO en la gobernanza (src/lib/governance/merit.ts) SÓLO cuenta las
+// insignias conferidas por OTRA persona: las auto-otorgadas (awarded_by nulo o
+// igual al propio titular) dan CERO. Por eso el AVAL entre pares es lo que hace
+// el mérito USABLE y HONESTO: al avalar a otra cuenta, `awarded_by` queda fijado
+// en TU uid (≠ el titular), así que esa insignia SÍ pesa como mérito para ella.
+//
+// Sólo un conjunto CURADO de insignias es avalable (competencias que una
+// comunidad puede reconocer en otra persona). Las insignias "de acción"
+// (creator/builder) se GANAN haciendo, no se avalan.
+
+/** Insignias de MÉRITO que un par/gobernanza puede AVALAR en OTRA persona. */
+export const ENDORSABLE_BADGE_CODES = [
+    "legislator",
+    "mediator",
+    "scholar",
+    "verified",
+] as const;
+
+/** `code` de una insignia avalable entre pares. */
+export type EndorsableBadgeCode = (typeof ENDORSABLE_BADGE_CODES)[number];
+
+/** ¿Es `code` una insignia avalable entre pares? Nunca lanza. */
+export function isEndorsableBadge(code: string): code is EndorsableBadgeCode {
+    return (ENDORSABLE_BADGE_CODES as readonly string[]).includes(code);
+}
+
+/**
+ * AVALA (otorga) a OTRA persona la insignia de mérito `code`.
+ *  (a) Rechaza si `code` no está en ENDORSABLE_BADGE_CODES.
+ *  (b) Rechaza el AUTO-AVAL: no puedes avalarte a ti mismo (targetProfileId ===
+ *      tu propio profile) — el auto-otorgamiento no cuenta como mérito.
+ *  (c) En otro caso reutiliza `awardBadge`, de modo que awarded_by = TU uid (el
+ *      avalador), que es justo lo que convierte el aval en mérito real.
+ * Devuelve {ok:true} si quedó avalada; {ok:false, error} en caso contrario.
+ * NUNCA lanza (degrada a {ok:false, error}).
+ */
+export async function endorseBadge(
+    targetProfileId: string,
+    code: string,
+): Promise<{ ok: boolean; error?: string }> {
+    try {
+        if (!isClient()) {
+            return { ok: false, error: "Sólo disponible en el cliente." };
+        }
+        if (!targetProfileId) {
+            return { ok: false, error: "Falta el perfil a avalar." };
+        }
+        // (a) Sólo insignias del conjunto curado se pueden avalar.
+        if (!code || !isEndorsableBadge(code)) {
+            return { ok: false, error: "Esa insignia no es avalable entre pares." };
+        }
+
+        // Sin sesión no hay avalador → no se puede conferir mérito.
+        const mine = await myProfileId();
+        if (!mine) {
+            return { ok: false, error: "Inicia sesión para avalar." };
+        }
+        // (b) Inmunidad al auto-aval: el auto-otorgamiento no cuenta como mérito.
+        if (mine === targetProfileId) {
+            return { ok: false, error: "No puedes avalarte a ti mismo." };
+        }
+
+        // (c) Camino de otorgamiento existente → awarded_by = uid del avalador.
+        const ok = await awardBadge(targetProfileId, code);
+        return ok ? { ok: true } : { ok: false, error: "No se pudo registrar el aval." };
+    } catch {
+        return { ok: false, error: "No se pudo registrar el aval." };
     }
 }
 

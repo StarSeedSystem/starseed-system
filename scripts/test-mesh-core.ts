@@ -575,6 +575,57 @@ async function main() {
     console.log("  (omite cert de dispositivo con relayDeviceId: sin WebCrypto en este entorno)");
   }
 
+  // 31) CADUCIDAD del certificado de dispositivo (seguimiento adversarial Adenda 126):
+  //     verifyDeviceCert FIRMABA `iat` pero no lo comprobaba → un cert viejo podía re-inyectarse
+  //     (replay) sin límite. Ahora un cert RANCIO o en el FUTURO implausible se rechaza; un `iat`
+  //     ausente/0 sigue siendo válido (retrocompat). Para probar la caducidad con FIRMA VÁLIDA se
+  //     retrocede/adelanta `Date.now` SOLO durante la firma (signDeviceCert sella iat=Date.now())
+  //     y se restaura antes de verificar (verifyDeviceCert compara contra el reloj REAL). Así el
+  //     rechazo es atribuible a la caducidad y NO a una firma rota: un cert con iat MUTADO a mano
+  //     fallaría por firma igualmente, y el test no probaría nada nuevo.
+  if (globalThis.crypto?.subtle) {
+    const M = await import("../src/ai/astraura/mesh/master-identity");
+    const DAY = 24 * 60 * 60_000;
+    const realNow = Date.now;
+
+    // (b) Cert FRESCO (iat por defecto = ahora) verifica contra su propia mfp.
+    M._resetMasterKey();
+    const mfp = await M.masterFingerprint();
+    const fresh = await M.signDeviceCert("id:disp-fresco", "acct-caduc", "dev-fresco");
+    check(
+      "caducidad: cert FRESCO (iat por defecto) SÍ verifica",
+      fresh && mfp ? (await M.verifyDeviceCert(fresh, mfp)) === true : false,
+    );
+
+    // (a) Cert con iat RANCIO (ahora − 200 días), FIRMADO válidamente bajo un reloj retrasado.
+    let staleCert: Awaited<ReturnType<typeof M.signDeviceCert>> = null;
+    try {
+      Date.now = () => realNow() - 200 * DAY;
+      staleCert = await M.signDeviceCert("id:disp-rancio", "acct-caduc", "dev-rancio");
+    } finally {
+      Date.now = realNow; // restaura el reloj real ANTES de verificar
+    }
+    check(
+      "caducidad: cert con iat RANCIO (200 días) se RECHAZA",
+      staleCert && mfp ? (await M.verifyDeviceCert(staleCert, mfp)) === false : false,
+    );
+
+    // (c) Cert con iat en el FUTURO lejano (ahora + 200 días) se rechaza (más allá del skew de 24 h).
+    let futureCert: Awaited<ReturnType<typeof M.signDeviceCert>> = null;
+    try {
+      Date.now = () => realNow() + 200 * DAY;
+      futureCert = await M.signDeviceCert("id:disp-futuro", "acct-caduc", "dev-futuro");
+    } finally {
+      Date.now = realNow; // restaura el reloj real ANTES de verificar
+    }
+    check(
+      "caducidad: cert con iat en el FUTURO lejano se RECHAZA (skew)",
+      futureCert && mfp ? (await M.verifyDeviceCert(futureCert, mfp)) === false : false,
+    );
+  } else {
+    console.log("  (omite caducidad de cert de dispositivo: sin WebCrypto en este entorno)");
+  }
+
   console.log(`\n${passed} pasan / ${failed} fallan`);
   if (failed > 0) process.exit(1);
 }

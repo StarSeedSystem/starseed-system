@@ -43,6 +43,8 @@ import { Users } from "lucide-react";
 import { profileHref } from "@/lib/entity-links";
 import { membersFromMemberships } from "@/lib/governance/membership";
 import { getGroupFaces } from "@/lib/profiles/group-faces";
+import { myProfileId, profileIdsForUsers } from "@/lib/badges/badges";
+import { EndorseBadge } from "@/components/profiles/endorse-badge";
 import {
     getProfile,
     profileKindLabel,
@@ -71,6 +73,8 @@ interface RosterRow {
     avatar: string | null;
     /** Tipo de faceta, SOLO cuando se muestra con una cara elegida (para la insignia). */
     kind: ProfileKind | null;
+    /** profiles.id (perfil de mérito) de la cuenta, para el aval entre pares. null si no hay. */
+    profileId: string | null;
 }
 
 /** Oculta la imagen si falla la carga; deja ver las iniciales del fondo. */
@@ -117,6 +121,8 @@ export function GroupRoster({
 }) {
     const [rows, setRows] = useState<RosterRow[]>([]);
     const [loading, setLoading] = useState(true);
+    // Perfil de mérito del espectador (profiles.id), resuelto UNA vez para todos los avales.
+    const [viewerPid, setViewerPid] = useState<string | null | undefined>(undefined);
 
     const ringAccent = accent || DEFAULT_ACCENT;
 
@@ -138,12 +144,16 @@ export function GroupRoster({
                     return;
                 }
 
-                // 2) En paralelo: caras elegidas por grupo + identidad de directorio.
-                const [faces, dir] = await Promise.all([
+                // 2) En paralelo: caras por grupo + identidad de directorio + perfiles de
+                //    mérito (profiles.id) de los miembros y del espectador (para los avales).
+                const [faces, dir, meritPids, myPid] = await Promise.all([
                     getGroupFaces(slug, ids),
                     fetchProfilesByIds(ids),
+                    profileIdsForUsers(ids),
+                    myProfileId(),
                 ]);
                 if (!alive) return;
+                setViewerPid(myPid);
 
                 // 3) Hidrata cada faceta elegida (deduplicando profile_id).
                 const pids = Array.from(new Set(Object.values(faces).filter(Boolean)));
@@ -157,6 +167,7 @@ export function GroupRoster({
 
                 // 4) Resuelve cada miembro: faceta ▸ directorio ▸ id acortado.
                 const built: RosterRow[] = ids.map((uid) => {
+                    const mpid = meritPids[uid] ?? null;
                     const pid = faces[uid];
                     const facet = pid ? profileById[pid] : undefined;
                     if (facet) {
@@ -167,6 +178,7 @@ export function GroupRoster({
                             handle: handle ? stripAt(handle) : null,
                             avatar: facet.avatarUrl,
                             kind: facet.kind,
+                            profileId: mpid,
                         };
                     }
                     const d = dir[uid];
@@ -177,9 +189,10 @@ export function GroupRoster({
                             handle: d.username ? stripAt(d.username) : null,
                             avatar: d.avatarUrl ?? null,
                             kind: null,
+                            profileId: mpid,
                         };
                     }
-                    return { uid, name: shortUid(uid), handle: null, avatar: null, kind: null };
+                    return { uid, name: shortUid(uid), handle: null, avatar: null, kind: null, profileId: mpid };
                 });
 
                 if (!alive) return;
@@ -293,16 +306,27 @@ export function GroupRoster({
                         </div>
                     );
                     // Enlaza por faceta (handle) o, en su defecto, por username de directorio.
-                    return m.handle ? (
-                        <Link
-                            key={m.uid}
-                            href={profileHref({ handle: m.handle })}
-                            className="cursor-pointer"
-                        >
+                    const card = m.handle ? (
+                        <Link href={profileHref({ handle: m.handle })} className="cursor-pointer">
                             {inner}
                         </Link>
                     ) : (
-                        <div key={m.uid}>{inner}</div>
+                        <div>{inner}</div>
+                    );
+                    return (
+                        <div key={m.uid} className="flex flex-col gap-1.5">
+                            {card}
+                            {/* Aval entre pares (Adenda 127): se auto-oculta en tu propia fila,
+                                sin sesión o si el miembro no tiene perfil de mérito. */}
+                            {m.profileId ? (
+                                <EndorseBadge
+                                    targetProfileId={m.profileId}
+                                    viewerProfileId={viewerPid}
+                                    targetName={m.name}
+                                    className="self-start"
+                                />
+                            ) : null}
+                        </div>
                     );
                 })}
 

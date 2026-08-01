@@ -34,6 +34,21 @@ const MIN_PASSPHRASE = 12;
 const KDF_ITERS_MIN = 100000;
 const KDF_ITERS_MAX = 1000000;
 
+/**
+ * CADUCIDAD del certificado de dispositivo (seguimiento adversarial Adenda 126). `verifyDeviceCert`
+ * FIRMABA `iat` pero nunca lo comprobaba: un cert publicado hace mucho podía re-inyectarse (replay)
+ * indefinidamente. `registerIdentity` RE-FIRMA el cert en cada arranque (certs frescos son baratos),
+ * así que esta cota apenas estorba al uso normal y sobre todo ACOTA el replay de certs muy viejos.
+ * Un `iat` ausente/0/no-finito NO se rechaza (retrocompat con certs previos al sellado de tiempo).
+ */
+const MAX_DEVICE_CERT_AGE_MS = 180 * 24 * 60 * 60_000; // 180 días
+/**
+ * Tolerancia de reloj hacia el FUTURO: relojes desincronizados adelantan unos instantes el `iat`;
+ * eso NO se penaliza. Pero un `iat` muy por delante (cert forjado con fecha adelantada para eludir
+ * la caducidad) sí se rechaza.
+ */
+const DEVICE_CERT_FUTURE_SKEW_MS = 24 * 60 * 60_000; // 24 h
+
 interface StoredMaster {
   pub: JsonWebKey;
   priv: JsonWebKey;
@@ -226,6 +241,19 @@ export async function verifyDeviceCert(cert: DeviceCert, expectedMfp: string): P
   const s = subtle();
   if (!s || !cert || !cert.mpub || !cert.sig || !cert.deviceFp || !cert.account || !cert.mfp) return false;
   if (!expectedMfp || cert.mfp !== expectedMfp) return false; // ANCLA DE CONFIANZA imprescindible
+  // CADUCIDAD (seguimiento adversarial Adenda 126): si el cert lleva un `iat` positivo y finito, se
+  // rechaza si es DEMASIADO VIEJO (replay de un cert publicado hace mucho) o si cae en el FUTURO
+  // más allá de la tolerancia de reloj (fecha adelantada). Un `iat` ausente/0/no-finito NO se
+  // rechaza (retrocompat con certs de la Adenda 121 sin sellado fiable): en ese caso vale solo por
+  // ancla + firma, como antes. `iat` va DENTRO del mensaje firmado, así que no se puede alterar sin
+  // romper la firma; esta cota solo ataja el REPLAY de un cert genuinamente antiguo. Aritmética
+  // pura (no lanza), por eso va fuera del try, tras la ancla y ANTES de la firma (fail-fast).
+  const iat = cert.iat;
+  if (typeof iat === "number" && Number.isFinite(iat) && iat > 0) {
+    const now = Date.now();
+    if (iat < now - MAX_DEVICE_CERT_AGE_MS) return false; // cert rancio (caducado)
+    if (iat > now + DEVICE_CERT_FUTURE_SKEW_MS) return false; // cert en el futuro implausible
+  }
   try {
     if ((await fpOfMaster(cert.mpub)) !== cert.mfp) return false; // mfp debe ser la huella de mpub
     const key = await s.importKey("jwk", cert.mpub, { name: "ECDSA", namedCurve: "P-256" }, false, ["verify"]);
