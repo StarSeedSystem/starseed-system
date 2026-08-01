@@ -25,7 +25,12 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          # Node 22: alineado con el runtime de desarrollo y de despliegue. El
+          # harness de test-mesh-core corre SIN empaquetar vía tsx; en Node 20 tsx
+          # puede instanciar dos veces un módulo (cachés en memoria desincronizadas)
+          # y romper una prueba de aislamiento del cifrado por-destinatario que en
+          # la app EMPAQUETADA (instancia única) no ocurre. Node 22 = mismo runtime real.
+          node-version: 22
           cache: npm
       - name: Instalar dependencias
         run: npm ci
