@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react"
-import { motion, useMotionTemplate, useMotionValue, useSpring, useTransform, useAnimation } from "framer-motion";
+import { motion, useMotionTemplate, useMotionValue, useSpring, useTransform, useAnimation, useReducedMotion } from "framer-motion";
 import { cn } from "@/lib/utils"
 import { useAppearance } from "@/context/appearance-context";
 
@@ -42,6 +42,13 @@ const Card = React.forwardRef<HTMLDivElement, CardProps>(
     // Use crystal effects in primary mode or when crystalTheme is explicitly set
     const useCrystalEffects = isPrimary || crystalTheme !== 'none';
 
+    // Accesibilidad: respeta `prefers-reduced-motion` (SO). Cuando está activo
+    // se desactivan el flotado en bucle y el tilt 3D del ratón; la superficie
+    // cristalina permanece (estática). Complementa a <MotionConfig
+    // reducedMotion="user"> del layout raíz. `useReducedMotion()` es SSR-safe
+    // (null en servidor ⇒ !reduceMotion = animado por defecto, sin salto).
+    const reduceMotion = useReducedMotion();
+
     // --- NATIVE CSS 3D PHYSICS ---
     const x = useMotionValue(0);
     const y = useMotionValue(0);
@@ -75,7 +82,7 @@ const Card = React.forwardRef<HTMLDivElement, CardProps>(
     const floatingControls = useAnimation();
 
     React.useEffect(() => {
-      if (useCrystalEffects && interactive) {
+      if (useCrystalEffects && interactive && !reduceMotion) {
         floatingControls.start({
           y: [0, -3, 0],
           transition: {
@@ -88,10 +95,10 @@ const Card = React.forwardRef<HTMLDivElement, CardProps>(
         floatingControls.stop();
         floatingControls.set({ y: 0 });
       }
-    }, [useCrystalEffects, interactive, floatingControls]);
+    }, [useCrystalEffects, interactive, reduceMotion, floatingControls]);
 
     const handleMouseMove = (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
-      if (!interactive || !useCrystalEffects) return;
+      if (!interactive || !useCrystalEffects || reduceMotion) return;
       const rect = e.currentTarget.getBoundingClientRect();
       const mouseX = e.clientX - rect.left;
       const mouseY = e.clientY - rect.top;
@@ -141,8 +148,8 @@ const Card = React.forwardRef<HTMLDivElement, CardProps>(
             className="absolute inset-0 pointer-events-none rounded-[inherit]"
             animate={floatingControls}
             style={{
-              rotateX: (useCrystalEffects && interactive) ? rotateX : 0,
-              rotateY: (useCrystalEffects && interactive) ? rotateY : 0,
+              rotateX: (useCrystalEffects && interactive && !reduceMotion) ? rotateX : 0,
+              rotateY: (useCrystalEffects && interactive && !reduceMotion) ? rotateY : 0,
               transformStyle: "preserve-3d",
             }}
           >

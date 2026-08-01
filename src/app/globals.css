@@ -68,6 +68,15 @@
        para sombras/glows; antes no existía y esos estilos se descartaban. */
     --primary-rgb: 160, 43, 238;
 
+    /* Tipografía base (anti-FOUT). Antes de que AppearanceProvider hidrate y
+       fije --font-body, el `body { font-family: var(--font-body), sans-serif }`
+       caía a sans-serif (parpadeo de fuente en el primer render SSR). Este valor
+       base resuelve a Inter — la variable next/font --font-inter vive en <body>,
+       el MISMO elemento donde se aplica font-family, así que substituye bien; si
+       no resolviera, cae a una pila sans-serif del sistema. AppearanceProvider y
+       theme-engine lo sobrescriben al hidratar con la fuente elegida. */
+    --font-body: var(--font-inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif);
+
     /* ---- ORGANIC BORDER RADIUS SCALE ---- */
     --radius: 1.25rem;
     --radius-sm: 0.875rem;

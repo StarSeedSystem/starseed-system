@@ -11,6 +11,7 @@
 // para no acoplarnos ni romper el type-check.
 
 import { createClient } from "@/utils/supabase/client";
+import { membersFromMemberships } from "./membership";
 
 // Un objetivo de la federación: un ámbito concreto (comunidad, página, grupo…).
 export type ReachTarget = {
@@ -75,10 +76,18 @@ export function reachFromParams(params: Record<string, unknown> | null | undefin
 }
 
 // Devuelve el conjunto de user_ids miembros de un objetivo concreto (best-effort).
-// page/community → page_members (resolviendo user_id vía profiles cuando aplica);
-// group → group_members. Otros ámbitos → conjunto vacío (sin censo conocido).
+// FUENTE PRINCIPAL: `os_memberships` por `group_slug` (= target.scopeRef), la membresía
+// real de cualquier entidad. FALLBACK (aditivo): si no hay filas, censo histórico
+// page/community → page_members (resolviendo user_id vía profiles); group → group_members.
+// Otros ámbitos sin censo conocido → conjunto vacío.
 async function membersOfTarget(target: ReachTarget): Promise<Set<string>> {
   const set = new Set<string>();
+  // Principal: miembros reales desde os_memberships (por slug del objetivo).
+  for (const u of await membersFromMemberships(target.scopeRef)) set.add(u);
+
+  // Censo histórico — se UNE (no se sustituye) para no DEFLACTAR el censo federado
+  // (revisión adversarial Adenda 124: un os_memberships parcial no debe ocultar a
+  // los miembros legados de un objetivo y hundir su quórum).
   const supabase = createClient();
   try {
     if (target.scope === "page" || target.scope === "community") {

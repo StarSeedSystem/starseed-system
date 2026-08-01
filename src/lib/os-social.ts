@@ -514,9 +514,12 @@ export async function setMembership(
     const supabase = createClient();
     try {
         if (join) {
+            // onConflict explícito (revisión adversarial Adenda 124 · #5): garantiza
+            // que un re-join actualice la MISMA fila (user_id, group_slug) en vez de
+            // insertar duplicados que inflarían el censo por cuenta (COUNT de filas).
             const { error } = await supabase
                 .from("os_memberships")
-                .upsert({ user_id: uid, group_slug: groupSlugKey, role });
+                .upsert({ user_id: uid, group_slug: groupSlugKey, role }, { onConflict: "user_id,group_slug" });
             if (error) throw error;
         } else {
             const { error } = await supabase

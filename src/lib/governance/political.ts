@@ -28,6 +28,7 @@
 // Todo defensivo (try/catch, nunca lanza) — filosofía del repo.
 
 import { createClient } from "@/utils/supabase/client";
+import { membersFromMemberships } from "./membership";
 import { getEntityState, setEntityState, type EntityRef } from "@/lib/sync/entity-state";
 import {
   URGENCY,
@@ -481,8 +482,15 @@ const AFFECTED_KIND_TO_SCOPE: Record<string, string> = {
 
 async function membersOfAffected(entity: AffectedEntity): Promise<string[]> {
   const scope = AFFECTED_KIND_TO_SCOPE[entity.kind?.toLowerCase?.() ?? ""] ?? "community";
+
+  const ids = new Set<string>();
+  // FUENTE PRINCIPAL: membresía real desde `os_memberships` por `group_slug` (= slug).
+  for (const u of await membersFromMemberships(entity.slug)) ids.add(u);
+
+  // Censo histórico — se UNE (no se sustituye) para no dejar SIN AVISAR a miembros
+  // legados de la entidad afectada (revisión adversarial Adenda 124: antes un
+  // os_memberships parcial ocultaba a los legados en las notificaciones "afecta a").
   const supabase = createClient();
-  const ids: string[] = [];
   try {
     if (scope === "page" || scope === "community") {
       const { data } = await supabase
@@ -492,16 +500,16 @@ async function membersOfAffected(entity: AffectedEntity): Promise<string[]> {
         .limit(5000);
       for (const row of (data as any[]) ?? []) {
         const u = row?.profiles?.user_id ?? row?.profile_id;
-        if (u) ids.push(u);
+        if (u) ids.add(u);
       }
     } else if (scope === "group") {
       const { data } = await supabase.from("group_members").select("member").eq("group_id", entity.slug).limit(5000);
-      for (const row of (data as any[]) ?? []) if (row?.member) ids.push(row.member);
+      for (const row of (data as any[]) ?? []) if (row?.member) ids.add(row.member);
     }
   } catch {
     /* sin censo conocido para esta entidad */
   }
-  return ids;
+  return Array.from(ids);
 }
 
 /** Resuelve (deduplicados) los user_ids de todas las entidades etiquetadas como afectadas. */

@@ -11,6 +11,7 @@ import {
   topicForProposal,
 } from "./delegations";
 import { reachFromParams, eligibleForReach } from "./reach";
+import { membersFromMemberships } from "./membership";
 import {
   DEFAULT_PARAMS,
   URGENCY,
@@ -61,8 +62,19 @@ function computeParams(input?: Partial<DecisionParams>): DecisionParams {
 }
 
 // Resuelve los user_ids de los participantes elegibles de un contexto (best-effort).
+// FUENTE PRINCIPAL: `os_memberships` por `group_slug` (= scopeRef), donde vive la
+// membresía real. FALLBACK (aditivo): si no hay filas, se usa el censo histórico
+// page_members / group_members por uuid. Devuelve user_ids únicos (una persona, una voz).
 async function resolveVoterIds(scope: string, scopeRef: string | null): Promise<string[]> {
   if (!scopeRef) return [];
+
+  const ids = new Set<string>();
+  // Principal: miembros reales desde os_memberships (por slug).
+  for (const u of await membersFromMemberships(scopeRef)) ids.add(u);
+
+  // Censo histórico (esquema antiguo por uuid) — se UNE (no se sustituye) para no
+  // dejar sin notificar a miembros legados durante la migración (revisión Adenda
+  // 124: antes un os_memberships parcial ocultaba a los miembros legados).
   const supabase = createClient();
   try {
     if (scope === "page" || scope === "community") {
@@ -71,25 +83,24 @@ async function resolveVoterIds(scope: string, scopeRef: string | null): Promise<
         .select("profile_id, profiles:profile_id(user_id)")
         .eq("page_id", scopeRef)
         .limit(500);
-      const ids: string[] = [];
       for (const row of (data as any[]) ?? []) {
         const u = row?.profiles?.user_id ?? row?.profile_id;
-        if (u) ids.push(u);
+        if (u) ids.add(u);
       }
-      return ids;
-    }
-    if (scope === "group") {
+    } else if (scope === "group") {
       const { data } = await supabase
         .from("group_members")
         .select("member")
         .eq("group_id", scopeRef)
         .limit(500);
-      return ((data as any[]) ?? []).map((r) => r.member).filter(Boolean);
+      for (const row of (data as any[]) ?? []) {
+        if (row?.member) ids.add(row.member);
+      }
     }
   } catch {
     /* */
   }
-  return [];
+  return Array.from(ids);
 }
 
 // Crea una propuesta y notifica a los participantes (best-effort).
@@ -447,6 +458,17 @@ export async function tryResolve(
     const eligible = reach
       ? await eligibleForReach(reach)
       : await eligibleCount(proposal.scope, proposal.scope_ref);
+
+    // ANTI-EXPIRACIÓN POR LECTURA FALLIDA (revisión adversarial Adenda 124): si se
+    // exige un % de censo (minPercent>0) y el censo NO se pudo determinar (`null` =
+    // error transitorio de Supabase / sin datos), NO finalizar — un parpadeo de red
+    // en el instante de resolución NO debe marcar "expired" de forma PERMANENTE una
+    // propuesta que sí tenía quórum. Se reintenta en la próxima llamada (voto o
+    // barrido). Con minPercent=0 (por defecto) el % no se usa y esto no aplica.
+    const minPct = Number((proposal.params as any)?.minPercent ?? 0);
+    if (minPct > 0 && (eligible == null || eligible <= 0)) {
+      return { resolved: false, status: "open", detail: "censo no disponible; se reintentará" };
+    }
 
     // Delegaciones activas del tema (voto líquido). Vacío si la tabla no existe.
     const delegations = await loadActiveDelegations(topicForProposal(proposal));

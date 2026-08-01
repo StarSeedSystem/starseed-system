@@ -1,6 +1,7 @@
 // StarSeed · Configuración de gobernanza por contexto (modo + parámetros).
 
 import { createClient } from "@/utils/supabase/client";
+import { countMembersFromMemberships } from "./membership";
 import {
   DEFAULT_GOV_PARAMS,
   type GovernanceConfig,
@@ -113,13 +114,41 @@ export async function isDemocratic(scope: string, scopeRef?: string | null): Pro
 }
 
 // Número de participantes elegibles del contexto (para cálculo de quórum).
-// page/community → page_members; group → group_members; otros → null (sin censo).
+// FUENTE PRINCIPAL: `os_memberships` por `group_slug` (el ingreso real a cualquier
+// entidad escribe ahí, keyed por el slug que este motor recibe como scopeRef). Cuenta
+// por cuenta (user_id): una persona, una voz.
+// FALLBACK (aditivo): si no hay filas en os_memberships para este scope, se conserva el
+// censo histórico page/community → page_members; group → group_members. otros → null.
 export async function eligibleCount(
   scope: string,
   scopeRef?: string | null,
 ): Promise<number | null> {
   const ref = scopeRef ?? null;
   if (!ref) return null;
+
+  // Principal: censo real desde os_memberships (por slug). `null` = 0 filas o error.
+  const primary = await countMembersFromMemberships(ref);
+  // Censo histórico (grupos/páginas del esquema antiguo por uuid). `null` = 0 o error.
+  const legacy = await legacyEligibleCount(scope, ref);
+
+  // ANTI-DEFLACIÓN (revisión adversarial Adenda 124): NUNCA dejar que un censo
+  // PARCIAL de os_memberships (p.ej. sólo el creador, sembrado por
+  // ensureCreatorMembership) SUSTITUYA un censo legado MAYOR — eso hundiría el
+  // quórum y una propuesta podría aprobarse/expirar contra un cuerpo ficticio de 1
+  // cuando la comunidad real tiene 100. Se toma el MAYOR de las dos poblaciones
+  // conocidas. `null` sólo si NINGUNA se conoce (censo desconocido) → el motor no
+  // debe finalizar a ciegas (ver guarda en engine.tryResolve).
+  if (primary == null && legacy == null) return null;
+  return Math.max(primary ?? 0, legacy ?? 0);
+}
+
+// Censo histórico por uuid (page/community → page_members; group → group_members).
+// Devuelve el nº de filas, o `null` si no hay filas o la lectura falla (para que
+// eligibleCount pueda distinguir "sin datos legados" de un recuento real > 0).
+async function legacyEligibleCount(
+  scope: string,
+  ref: string,
+): Promise<number | null> {
   const supabase = createClient();
   try {
     if (scope === "page" || scope === "community") {
@@ -127,17 +156,17 @@ export async function eligibleCount(
         .from("page_members")
         .select("profile_id", { count: "exact", head: true })
         .eq("page_id", ref);
-      return count ?? null;
+      return count && count > 0 ? count : null;
     }
     if (scope === "group") {
       const { count } = await supabase
         .from("group_members")
         .select("member", { count: "exact", head: true })
         .eq("group_id", ref);
-      return count ?? null;
+      return count && count > 0 ? count : null;
     }
   } catch {
-    /* */
+    /* sin sesión / error transitorio */
   }
   return null;
 }

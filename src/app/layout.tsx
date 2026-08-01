@@ -55,6 +55,10 @@ import { OmniAppHost } from "@/components/dashboard/apps/omnifrecuencias/omni-ap
 import { AudiomorphicConfigHost } from "@/components/ui/backgrounds/audiomorphic-config-window";
 import { RegisterSW } from "@/components/pwa/register-sw";
 import { A11yBoot } from "@/components/a11y/a11y-boot";
+// Foco + anuncio aria-live al cambiar de ruta (SPA), para teclado/lector.
+import { RouteFocus } from "@/components/a11y/route-focus";
+// MotionConfig raíz: framer-motion respeta prefers-reduced-motion en todo el árbol.
+import { MotionConfig } from "framer-motion";
 // Receptor global de "Solicitar archivo a esta neurona" (subida universal de
 // archivos, Adenda 64 §9): escucha 'file-request' en el canal de cuenta y
 // muestra el diálogo para elegir/subir. Sin UI hasta que llega una solicitud.
@@ -159,12 +163,25 @@ export default function RootLayout({
           fontCode.variable
         )}
       >
+        {/* Salto de accesibilidad: PRIMER elemento focusable del documento.
+            Invisible salvo con foco de teclado; lleva al landmark #main-content. */}
+        <a
+          href="#main-content"
+          className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[9999] focus:rounded-lg focus:bg-background focus:px-4 focus:py-2 focus:text-foreground focus:shadow-lg focus:outline-none focus:ring-2 focus:ring-ring"
+        >
+          Saltar al contenido
+        </a>
+        {/* MotionConfig raíz: todas las animaciones de framer-motion respetan
+            `prefers-reduced-motion` del SO (transform/layout se desactivan). */}
+        <MotionConfig reducedMotion="user">
         {/* Registro del Service Worker (PWA): instalable + shell offline.
             Defensivo y sin UI; se omite en dev salvo NEXT_PUBLIC_ENABLE_SW=1. */}
         <RegisterSW />
         {/* Accesibilidad aplicada en el ARRANQUE (no solo al abrir el panel):
             contraste, movimiento reducido, texto grande, daltonismo, diana. */}
         <A11yBoot />
+        {/* Foco y anuncio de cambio de ruta (SPA) para teclado/lector. */}
+        <RouteFocus />
         <ThemeProvider
           attribute="class"
           defaultTheme="system"
@@ -205,7 +222,15 @@ export default function RootLayout({
                         <GlobalEnvironment />
                         {/* Fondo del ThemePack activo (catálogo de temas), si define uno. */}
                         <ThemeBackgroundHost />
-                        <SystemSelectionProvider>{children}</SystemSelectionProvider>
+                        <SystemSelectionProvider>
+                          {/* Landmark objetivo del salto de accesibilidad y del
+                              enfoque por cambio de ruta (RouteFocus). display:contents
+                              (clase `contents`) ⇒ no genera caja ni altera el layout
+                              de las páginas; solo sirve de ancla de foco (tabIndex=-1). */}
+                          <div id="main-content" tabIndex={-1} className="contents">
+                            {children}
+                          </div>
+                        </SystemSelectionProvider>
                         <ZenithCurtain />
                         <SideCurtains />
 
@@ -262,6 +287,7 @@ export default function RootLayout({
             </AccountProvider>
           </AppearanceProvider>
         </ThemeProvider>
+        </MotionConfig>
       </body>
     </html >
   );

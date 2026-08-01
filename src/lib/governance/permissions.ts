@@ -13,6 +13,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { getConfig } from "./config";
+import { roleFromMemberships } from "./membership";
 import type { CommandSpec, GovernanceMode } from "./types";
 
 // Roles que pueden actuar directamente en modo jerárquico.
@@ -33,8 +34,11 @@ export type GovernanceContext = {
 };
 
 // Lee el rol del usuario en un contexto real (best-effort, tolerante a errores).
-// page/community → page_members(role) por profile_id (o user_id derivado);
-// group → group_members(role) por member (= auth.uid()).
+// FUENTE PRINCIPAL: `os_memberships` por `group_slug` (= scopeRef) y `user_id`, donde
+// se registra la membresía real y su rol (admin/owner/miembro…). Esto habilita "actuar
+// directamente" en modo jerárquico para admins/owners reales.
+// FALLBACK (aditivo): si no hay fila en os_memberships, se usa el rol histórico
+// group_members(role) por member; page/community → page_members(role) por profile_id.
 export async function roleOf(
   scope: string,
   scopeRef: string | null | undefined,
@@ -42,6 +46,12 @@ export async function roleOf(
 ): Promise<string | null> {
   const ref = scopeRef ?? null;
   if (!ref || !userId) return null;
+
+  // Principal: rol desde os_memberships (por slug).
+  const primaryRole = await roleFromMemberships(ref, userId);
+  if (primaryRole) return primaryRole;
+
+  // Fallback histórico.
   const supabase = createClient();
   try {
     if (scope === "group") {
