@@ -13,6 +13,11 @@
 //     participación (eso lo garantiza `participants = votes.length` en el motor).
 //   • ACOTADA: el multiplicador vive en [1, 1 + maxBonus] (por defecto máx. 2×).
 //     Ninguna insignia otorga poder ilimitado.
+//   • AVALADA POR TERCEROS (inmunidad al auto-otorgamiento): SÓLO cuentan las
+//     insignias conferidas por OTRA persona (pares/gobernanza). Las auto-otorgadas
+//     —o de procedencia desconocida (`awarded_by` nulo)— dan CERO mérito. Así se
+//     cierra el vector de inflación de voto por auto-insignias (p. ej. aprobarse
+//     un examen auto-autorado no compra peso de voto).
 //
 // TODO ES DEFENSIVO (se refleja delegations.ts / badges.ts): sin sesión, sin las
 // tablas (`profiles`, `profile_badges`, `badges`) o ante cualquier error de red,
@@ -120,17 +125,35 @@ export async function loadMeritWeights(
     if (profileIds.length === 0) return {};
 
     // 2) Insignias de esos perfiles, con el área embebida de `badges` (batch).
+    //    Se trae también `awarded_by` (quién confirió la insignia) para poder
+    //    descartar las auto-otorgadas (ver paso 3, inmunidad al auto-otorgamiento).
     const { data: pbs, error: bErr } = await supabase
       .from("profile_badges")
-      .select("profile_id, badges:badge_id ( area )")
+      .select("profile_id, awarded_by, badges:badge_id ( area )")
       .in("profile_id", profileIds);
     if (bErr || !Array.isArray(pbs)) return {};
 
     // 3) Cuenta insignias RELEVANTES por perfil.
+    //
+    // INMUNIDAD AL AUTO-OTORGAMIENTO (el verdadero arreglo de seguridad): SÓLO
+    // cuentan las insignias conferidas por OTRA persona (pares/gobernanza). Se
+    // EXCLUYE toda insignia cuyo `awarded_by` sea nulo (procedencia desconocida /
+    // auto-sembrada) o igual al propio user_id de cuenta del votante (p. ej. una
+    // insignia obtenida vía un examen auto-autorado). De este modo, quien se
+    // auto-otorga insignias obtiene CERO mérito: la pericia sólo pesa si la avala
+    // un tercero. Esto cierra el vector de inflación de voto por auto-insignias.
+    // Se mantiene el filtro de área relevante y (aguas abajo) el tope duro ≤2×.
     const relevantByProfile: Record<string, number> = {};
     for (const row of pbs as any[]) {
       const pid = row?.profile_id;
       if (!pid) continue;
+      // user_id de CUENTA del titular de la insignia. Sin él no podemos comprobar
+      // la auto-atribución, así que descartamos la fila por prudencia (defensivo).
+      const ownerUserId = userByProfile.get(pid);
+      if (!ownerUserId) continue;
+      const awardedBy = row?.awarded_by ?? null;
+      // Auto-otorgada o de procedencia desconocida → no aporta mérito alguno.
+      if (!awardedBy || awardedBy === ownerUserId) continue;
       // El embed puede llegar como objeto o (defensivo) como array.
       const b = Array.isArray(row?.badges) ? row.badges[0] : row?.badges;
       if (!isRelevantArea(b?.area, effArea)) continue;

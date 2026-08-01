@@ -19,7 +19,7 @@
  * local sigue igual. NUNCA lanza.
  */
 
-import { safeGet } from "@/lib/safe-storage";
+import { safeGet, safeSet } from "@/lib/safe-storage";
 import { getMeshPrivacy } from "./privacy";
 import { getConnectivitySettings } from "./connectivity";
 import { getMeshServer } from "./servers";
@@ -43,6 +43,11 @@ import { encryptEnvelope, decryptEnvelope, type EncEnvelope } from "./relay-cryp
 // Cifrado POR-DESTINATARIO (v:3): E2E dirigido. Solo el destinatario abre el relé,
 // ni siquiera otra neurona de la cuenta con el llavero compartido (Adenda 124 · #mesh4).
 import { myEncryptionPublicKey, encryptEnvelopeFor, type RecipientEnvelope } from "./recipient-crypto";
+// Cert de dispositivo firmado por la clave MAESTRA de la cuenta (Adenda 126): re-habilita
+// con seguridad el direccionamiento v:3 POR-DISPOSITIVO cerrando el CRÍTICO de la Adenda 125
+// (device_id sin firmar). Ata {identidad soberana ↔ cuenta ↔ device_id de relé} bajo un ancla
+// TOFU account→mfp, de modo que una neurona ya no puede reclamar el device_id de otra.
+import { signDeviceCert, verifyDeviceCert, type DeviceCert } from "./master-identity";
 import { getActiveModemPreset } from "./sync";
 import { getMeshState } from "./store";
 import type { MeshPayloadType, TrafficClass } from "./types";
@@ -492,12 +497,63 @@ export interface RelayInboundItem {
 let identityRegistered = false;
 let idMap = new Map<string, string>(); // fp → owner uuid (verificado)
 let revokedSet = new Set<string>(); // fingerprints revocados (verificados) — Adenda 108
-// Mapa de CIFRADO por-destinatario (Adenda 124): clave (deviceId | fp | owner) →
-// {pub ECDH, fp de la identidad que la avala}. Se llena SOLO con epub cuya firma
-// (esig) verifica contra la identidad soberana. Para una cuenta con VARIAS neuronas,
-// la entrada por `owner` es la de la ÚLTIMA vista (limitación de un-destinatario;
-// el fan-out multi-destinatario es un SEGUIMIENTO — ver cabecera de uploadRelay).
+// Mapa de CIFRADO por-destinatario (Adenda 124/126): clave (fp | owner | device_id) →
+// {pub ECDH, fp de la identidad que la avala}. Los ejes `fp` y `owner` se llenan SOLO con
+// epub cuya firma (esig) verifica contra la identidad soberana. El eje `device_id`
+// (re-habilitado en la Adenda 126 tras el CRÍTICO de la 125) exige ADEMÁS un cert de
+// dispositivo firmado por la clave MAESTRA bajo el ancla TOFU account→mfp (ver
+// refreshIdentities). Para una cuenta con VARIAS neuronas, la entrada por `owner` es la de
+// la ÚLTIMA vista (limitación de un-destinatario; el fan-out multi-destinatario es un
+// SEGUIMIENTO — ver cabecera de uploadRelay).
 let encMap = new Map<string, { pub: JsonWebKey; fp: string }>();
+
+/**
+ * Anclas TOFU del direccionamiento v:3 por-dispositivo (Adenda 126), persistidas y locales
+ * por neurona (como todo TOFU). Se fijan en la PRIMERA visión válida y luego deben COINCIDIR:
+ *
+ *   · `account → mfp` (ACCOUNT_MFP_LS): la huella de la clave MAESTRA de cada cuenta. Es el
+ *     ancla que `verifyDeviceCert` exige. Seguridad: el RLS de inserción fija
+ *     `owner_id = auth.uid()`, así que SOLO el dueño de una cuenta publica filas con su
+ *     owner_id → solo él fija el mfp de SU cuenta; un tercero no puede pre-fijar el de una víctima.
+ *   · `device_id → owner` (DEVICE_OWNER_LS): ENDURECIMIENTO aditivo sobre las 5 comprobaciones
+ *     del cert. El `device_id` es un string GLOBAL que ninguna de esas comprobaciones hace
+ *     único: cada una liga el cert a SU PROPIA cuenta, pero dos cuentas distintas podrían
+ *     firmar (con SUS respectivas maestras) un cert que reclama el MISMO device_id y pelear
+ *     por la ranura `encMap[device_id]` (última escritura gana) — la MISMA clase del CRÍTICO
+ *     de la Adenda 125, solo que ahora exige una maestra propia. Este ancla fija el device_id
+ *     a la PRIMERA cuenta que lo reclama válidamente; otra cuenta que lo reclame después NO lo
+ *     keyea (cae al llavero compartido, fail-safe). Cierra la substitución cruzada de cuenta.
+ */
+const ACCOUNT_MFP_LS = "starseed.mesh.account-mfp.v1"; // { [ownerUuid]: mfp }
+const DEVICE_OWNER_LS = "starseed.mesh.device-owner.v1"; // { [relayDeviceId]: ownerUuid }
+
+/** Carga un mapa de pines string→string persistido (vacío si no hay o corrupto). Nunca lanza. */
+function loadPinMap(lsKey: string): Map<string, string> {
+  const pins = new Map<string, string>();
+  try {
+    const raw = safeGet(lsKey);
+    if (!raw) return pins;
+    const obj = JSON.parse(raw) as Record<string, unknown>;
+    for (const k of Object.keys(obj)) {
+      const v = obj[k];
+      if (typeof v === "string" && v) pins.set(k, v);
+    }
+  } catch {
+    /* pin corrupto: se re-fija por TOFU en la próxima visión válida */
+  }
+  return pins;
+}
+
+/** Persiste un mapa de pines string→string (best-effort; safe-storage nunca lanza). */
+function savePinMap(lsKey: string, pins: Map<string, string>): void {
+  try {
+    const obj: Record<string, string> = {};
+    for (const [k, v] of pins) obj[k] = v;
+    safeSet(lsKey, JSON.stringify(obj));
+  } catch {
+    /* si no persiste, se vuelve a fijar la próxima vez */
+  }
+}
 
 /**
  * Publica UNA reclamación FIRMADA de identidad: "la cuenta <owner> controla la
@@ -521,6 +577,14 @@ export async function registerIdentity(): Promise<void> {
     if (!claim) return;
     identityRegistered = true;
     const me = deviceId();
+    // CERT DE DISPOSITIVO firmado por la clave MAESTRA (Adenda 126): ata la identidad
+    // soberana (claim.fp) ↔ la cuenta (owner) ↔ el device_id de RELÉ (me). Publicarlo
+    // permite a los receptores CONFIAR en el direccionamiento v:3 POR-DISPOSITIVO
+    // (encMap[device_id]) sin la substitución de clave que cerró el CRÍTICO de la
+    // Adenda 125 (el device_id era una columna sin firmar). Best-effort: sin maestra o
+    // sin WebCrypto el cert es null y el relé por-dispositivo cae al llavero compartido
+    // (retrocompatible, fail-safe). No bloquea el registro de identidad.
+    const devcert = await signDeviceCert(claim.fp, owner, me);
     await supabase.from("os_mesh_relay").delete().eq("owner_id", owner).eq("device_id", me).eq("kind", "identity");
     const { error: idErr } = await supabase.from("os_mesh_relay").insert({
       owner_id: owner,
@@ -535,6 +599,7 @@ export async function registerIdentity(): Promise<void> {
         pub: claim.pub,
         sig: claim.sig,
         ...(claim.epub && claim.esig ? { epub: claim.epub, esig: claim.esig } : {}),
+        ...(devcert ? { devcert } : {}),
       },
       device_id: me,
       expires_at: new Date(Date.now() + 30 * 24 * 60 * 60_000).toISOString(),
@@ -672,13 +737,45 @@ export async function refreshIdentities(): Promise<void> {
   try {
     const supabase = await client();
     if (!supabase) return;
-    const { data } = await supabase.from("os_mesh_relay").select("payload, owner_id, device_id").eq("kind", "identity").limit(500);
+    // Orden ASCENDENTE por created_at (revisión adversarial Adenda 126): la fila de
+    // identidad LEGÍTIMA de un device_id es siempre la MÁS ANTIGUA — un atacante solo puede
+    // publicar para ese device_id DESPUÉS de aprenderlo (faro/fila de la víctima) —, así que
+    // procesarla primero hace que la víctima gane el pin TOFU de forma determinista, y el tope
+    // retiene las identidades ESTABLECIDAS en vez de un subconjunto arbitrario.
+    const { data } = await supabase
+      .from("os_mesh_relay")
+      .select("payload, owner_id, device_id, created_at")
+      .eq("kind", "identity")
+      .order("created_at", { ascending: true })
+      .limit(500);
     if (!Array.isArray(data)) return;
+    // DETECCIÓN DE CONFLICTO EN LOTE (revisión adversarial Adenda 126): si DOS cuentas
+    // distintas reclaman el MISMO device_id dentro de este lote, NINGUNA lo keyea — mata el
+    // "cara o cruz" del primer avistamiento cuando ambas filas están presentes. El device_id
+    // disputado cae al llavero compartido (fail-safe), jamás a la epub de un atacante.
+    const devClaims = new Map<string, Set<string>>();
+    for (const row of data as Array<Record<string, unknown>>) {
+      const pp = (row.payload ?? null) as { devcert?: DeviceCert } | null;
+      const dev = String(row.device_id ?? "");
+      if (pp?.devcert && dev) {
+        let s = devClaims.get(dev);
+        if (!s) { s = new Set<string>(); devClaims.set(dev, s); }
+        s.add(String(row.owner_id));
+      }
+    }
+    const contestedDevices = new Set<string>();
+    for (const [dev, owners] of devClaims) if (owners.size > 1) contestedDevices.add(dev);
     const next = new Map<string, string>();
     const nextEnc = new Map<string, { pub: JsonWebKey; fp: string }>();
+    // Anclas TOFU (Adenda 126): se cargan una vez, se consultan/fijan por fila y se
+    // persisten al final SOLO si cambiaron (sin escrituras innecesarias en cada sondeo).
+    const pins = loadPinMap(ACCOUNT_MFP_LS); // account→mfp (ancla del cert)
+    const devicePins = loadPinMap(DEVICE_OWNER_LS); // device_id→owner (unicidad por cuenta)
+    let pinsDirty = false;
+    let devicePinsDirty = false;
     for (const row of data as Array<Record<string, unknown>>) {
       const p = (row.payload ?? null) as {
-        owner?: string; fp?: string; pub?: JsonWebKey; sig?: string; epub?: JsonWebKey; esig?: string;
+        owner?: string; fp?: string; pub?: JsonWebKey; sig?: string; epub?: JsonWebKey; esig?: string; devcert?: DeviceCert;
       } | null;
       if (!p?.owner || !p.fp || !p.pub || !p.sig) continue;
       // BINDING SEGURO (Adenda 123): la cuenta RECLAMADA debe ser la del INSERTOR
@@ -697,18 +794,61 @@ export async function refreshIdentities(): Promise<void> {
         const entry = { pub: p.epub, fp: p.fp };
         nextEnc.set(p.fp, entry); // por huella de identidad (fp = fpOf(pub), y pub firma la epub → ligado)
         nextEnc.set(p.owner, entry); // por cuenta (owner === owner_id, firmado; último gana entre neuronas)
-        // NO indexar por `device_id` (revisión adversarial Adenda 125 · CRÍTICO): el
-        // device_id es una columna NO cubierta por la firma soberana (el RLS solo fija
-        // owner_id = auth.uid()), así que una neurona podría publicar SU epub con el
-        // device_id de OTRA neurona y capturar sus relés v:3 (substitución de clave).
-        // Direccionar por dispositivo exige ligar device↔fp con un CERT de dispositivo
-        // firmado por la clave MAESTRA (master-identity.signDeviceCert, Adenda 121) —
-        // seguimiento. Hasta entonces un relé dirigido por device_id cae al llavero
-        // compartido (fail-safe), nunca en claro.
+        // DIRECCIONAMIENTO v:3 POR-DISPOSITIVO RE-HABILITADO CON SEGURIDAD (Adenda 126,
+        // cierra el CRÍTICO de la Adenda 125). El `device_id` SIGUE sin estar cubierto por
+        // la firma soberana (el RLS solo fija owner_id = auth.uid()), así que SOLO se indexa
+        // la epub por él cuando un CERT DE DISPOSITIVO firmado por la clave MAESTRA lo avala.
+        // Cadena de garantías — TODAS obligatorias antes de confiar en encMap[device_id]:
+        //   1) ancla TOFU: el mfp del cert debe ser el FIJADO para esta cuenta; en la
+        //      PRIMERA visión válida se fija ahora (y como el RLS obliga owner_id=auth.uid(),
+        //      solo el dueño publica filas de SU cuenta → solo él fija su mfp; un tercero no
+        //      puede pre-fijar el de una víctima).
+        //   2) verifyDeviceCert(devcert, ancla): mfp === ancla + mfp == huella(mpub) + firma ECDSA.
+        //   3) devcert.account === row.owner_id        (el cert avala ESTA cuenta insertora).
+        //   4) devcert.deviceFp === p.fp               (ata la identidad soberana ya verificada).
+        //   5) devcert.relayDeviceId === row.device_id (ata el device_id de relé EXACTO).
+        // Si algo falla, NO se indexa por device_id: un relé dirigido por dispositivo cae al
+        // llavero compartido (encryptRelayBody → fallback v:1/2), nunca a texto plano.
+        const devcert = p.devcert;
+        const relayDev = String(row.device_id ?? "");
+        if (devcert && devcert.mfp && relayDev) {
+          const ownerKey = String(row.owner_id);
+          const pinned = pins.get(ownerKey);
+          const anchor = pinned ?? String(devcert.mfp); // primera visión: candidata = mfp del cert
+          const okCert =
+            (await verifyDeviceCert(devcert, anchor)) && // firma + ancla (mfp === anchor)
+            devcert.account === ownerKey &&
+            devcert.deviceFp === p.fp &&
+            devcert.relayDeviceId === relayDev;
+          if (okCert) {
+            if (!pinned) {
+              pins.set(ownerKey, anchor); // FIJA el ancla account→mfp en la primera visión VÁLIDA
+              pinsDirty = true;
+            }
+            // ENDURECIMIENTO (más allá de las 5 comprobaciones): unicidad device_id→owner por
+            // TOFU. El device_id es global y no lo hace único ninguna comprobación del cert, así
+            // que sin esto DOS cuentas (cada una con su maestra) podrían reclamar el mismo
+            // device_id y pelear por encMap[device_id] — la misma clase del CRÍTICO de la 125.
+            // Se fija el device_id a la PRIMERA cuenta que lo reclama válidamente; otra cuenta
+            // que lo reclame luego NO lo keyea (cae al llavero compartido, fail-safe).
+            const devOwner = devicePins.get(relayDev);
+            // Disputado en este lote (dos cuentas lo reclaman) → NO keyear (fail-safe).
+            if (!contestedDevices.has(relayDev) && (!devOwner || devOwner === ownerKey)) {
+              if (!devOwner) {
+                devicePins.set(relayDev, ownerKey); // TOFU: primer dueño válido de este device_id
+                devicePinsDirty = true;
+              }
+              nextEnc.set(relayDev, entry); // avalado por la maestra Y único por cuenta (TOFU)
+            }
+            // Si devOwner existe y ≠ ownerKey: device_id ya es de otra cuenta → NO keyear.
+          }
+        }
       }
     }
     idMap = next;
     encMap = nextEnc;
+    if (pinsDirty) savePinMap(ACCOUNT_MFP_LS, pins); // persiste solo los anclas nuevos
+    if (devicePinsDirty) savePinMap(DEVICE_OWNER_LS, devicePins);
   } catch {
     /* */
   }

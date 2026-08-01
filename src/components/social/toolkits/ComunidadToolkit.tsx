@@ -24,6 +24,7 @@ import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { SectionTabs, type SectionTabItem } from "@/components/ui/section-tabs";
 import { Separator } from "@/components/ui/separator";
 import { DecisionesSection } from "@/components/governance/decisiones-section";
+import { MediationSection } from "@/components/governance/mediation-section";
 import { getCommunity, type CommunityData } from "@/data/sample-governance";
 import {
     Sprout,
@@ -39,6 +40,7 @@ import {
     Wallet,
     ArrowUpRight,
     Landmark,
+    Scale,
 } from "lucide-react";
 
 const TABS: SectionTabItem[] = [
@@ -47,6 +49,7 @@ const TABS: SectionTabItem[] = [
     { value: "tesoreria", label: "Tesorería", icon: Wallet },
     { value: "mentorias", label: "Mentorías", icon: GraduationCap },
     { value: "decisiones", label: "Decisiones", icon: Landmark },
+    { value: "justicia", label: "Justicia", icon: Scale },
 ];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -390,6 +393,12 @@ export function ComunidadToolkit({
 
                 <TabsContent value="decisiones" className="mt-4">
                     <DecisionesSection kind="comunidad" slug={slug} accent={ac} name={name ?? data.name} />
+                </TabsContent>
+
+                {/* Justicia restaurativa (Círculos de Paz) de la comunidad — Adenda 125.
+                    Invariante §6: mediación no punitiva, sin castigos ni bloqueos. */}
+                <TabsContent value="justicia" className="mt-4">
+                    <MediationSection entityKind="community" slug={slug} accent={ac} name={name ?? data.name} />
                 </TabsContent>
             </Tabs>
         </div>

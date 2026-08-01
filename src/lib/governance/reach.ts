@@ -28,7 +28,7 @@ const REACH_SAFETY_CEILING = 100000;
  * anti-bucle; avisa por consola sólo en ese caso). Defensivo: ante error deja en `set` lo
  * ya acumulado, para NO deflactar el censo federado.
  */
-async function collectPagedInto(
+export async function collectPagedInto(
   table: string,
   columns: string,
   filterColumn: string,

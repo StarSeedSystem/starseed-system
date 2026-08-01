@@ -23,6 +23,7 @@ import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { SectionTabs, type SectionTabItem } from "@/components/ui/section-tabs";
 import { Separator } from "@/components/ui/separator";
 import { DecisionesSection } from "@/components/governance/decisiones-section";
+import { MediationSection } from "@/components/governance/mediation-section";
 import { GroupEducationPanel } from "@/components/education/group-education-panel";
 import { getGroup, type GroupData } from "@/data/sample-governance";
 import {
@@ -40,6 +41,7 @@ import {
   CalendarDays,
   Network,
   Landmark,
+  Scale,
 } from "lucide-react";
 
 const TABS: SectionTabItem[] = [
@@ -49,6 +51,7 @@ const TABS: SectionTabItem[] = [
   { value: "eventos", label: "Eventos", icon: Network },
   { value: "educacion", label: "Educación", icon: GraduationCap },
   { value: "decisiones", label: "Decisiones", icon: Landmark },
+  { value: "justicia", label: "Justicia", icon: Scale },
 ];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -368,6 +371,12 @@ export function GrupoToolkit({
 
         <TabsContent value="decisiones" className="mt-4">
           <DecisionesSection kind="grupo" slug={slug} accent={ac} name={name ?? data.name} />
+        </TabsContent>
+
+        {/* Justicia restaurativa (Círculos de Paz) por grupo — Adenda 125.
+            Invariante §6: mediación no punitiva, nunca bloqueos. */}
+        <TabsContent value="justicia" className="mt-4">
+          <MediationSection entityKind="group" slug={slug} accent={ac} name={name ?? data.name} />
         </TabsContent>
       </Tabs>
     </div>

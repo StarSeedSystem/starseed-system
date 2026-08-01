@@ -274,11 +274,13 @@ export type Tally = {
 // Sin `delegations` (o vacío) el peso es 1 por votante → comportamiento actual.
 //
 // Meritocracia del entendimiento (ADITIVA, OPT-IN): si se pasa `meritWeights`
-// (multiplicador de mérito por votante, ver merit.ts), el peso efectivo de cada
-// voto se MULTIPLICA por su bonus acotado. Sin `meritWeights` (o si el votante no
-// figura) el multiplicador es 1 → comportamiento idéntico. NUNCA afecta al censo.
-// "participants" cuenta PERSONAS (votantes directos), no pesos, para no inflar el
-// quórum por conteo: una persona sigue siendo una persona.
+// (multiplicador de mérito por votante, ver merit.ts), el bonus (multiplicador − 1)
+// se SUMA únicamente al peso BASE del votante —SU PROPIA VOZ—, nunca al caudal que
+// otras personas le delegaron: las insignias de un delegado NO amplifican las voces
+// ajenas que gestiona. Sin `meritWeights` (o si el votante no figura) el bonus es 0
+// → comportamiento idéntico. NUNCA afecta al censo. "participants" cuenta PERSONAS
+// (votantes directos), no pesos, para no inflar el quórum por conteo: una persona
+// sigue siendo una persona.
 export function tally(
   proposal: Proposal,
   votes: ProposalVote[],
@@ -303,10 +305,14 @@ export function tally(
 
   for (const v of votes) {
     if (counts[v.choice] == null) counts[v.choice] = 0;
-    // Peso base/delegado × bonus de mérito (×1 si no hay mérito para el votante).
-    const w =
-      (effWeight ? effWeight[v.voter] ?? (v.weight || 1) : v.weight || 1) *
-      (meritWeights?.[v.voter] ?? 1);
+    // Peso base/delegado + BONUS de mérito sobre la PROPIA voz (no sobre el caudal
+    // delegado). `base` es la voz propia (1) más lo que le delegaron; el mérito sólo
+    // añade (multiplicador − 1), de modo que las insignias amplifican la voz del
+    // votante pero NUNCA las voces ajenas que gestiona por delegación. Sin mérito
+    // (ausente o ×1) el bonus es 0 → peso idéntico al comportamiento actual.
+    const base = effWeight ? effWeight[v.voter] ?? (v.weight || 1) : v.weight || 1;
+    const mBonus = meritWeights ? (meritWeights[v.voter] ?? 1) - 1 : 0;
+    const w = base + mBonus;
     counts[v.choice] += w;
   }
 

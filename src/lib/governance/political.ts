@@ -29,6 +29,7 @@
 
 import { createClient } from "@/utils/supabase/client";
 import { membersFromMemberships } from "./membership";
+import { collectPagedInto } from "./reach";
 import { getEntityState, setEntityState, type EntityRef } from "@/lib/sync/entity-state";
 import {
   URGENCY,
@@ -490,21 +491,22 @@ async function membersOfAffected(entity: AffectedEntity): Promise<string[]> {
   // Censo histórico — se UNE (no se sustituye) para no dejar SIN AVISAR a miembros
   // legados de la entidad afectada (revisión adversarial Adenda 124: antes un
   // os_memberships parcial ocultaba a los legados en las notificaciones "afecta a").
-  const supabase = createClient();
+  // Paginado (Adenda 125) reutilizando el paginador de reach.ts: antes estas lecturas
+  // legadas se acotaban a `.limit(5000)` y truncaban en silencio el censo de entidades
+  // grandes. Idéntica semántica de unión/anti-deflación (add-only, dedupe sobre `ids`)
+  // y defensiva (collectPagedInto conserva lo acumulado ante error).
   try {
     if (scope === "page" || scope === "community") {
-      const { data } = await supabase
-        .from("page_members")
-        .select("profile_id, profiles:profile_id(user_id)")
-        .eq("page_id", entity.slug)
-        .limit(5000);
-      for (const row of (data as any[]) ?? []) {
-        const u = row?.profiles?.user_id ?? row?.profile_id;
-        if (u) ids.add(u);
-      }
+      await collectPagedInto(
+        "page_members",
+        "profile_id, profiles:profile_id(user_id)",
+        "page_id",
+        entity.slug,
+        (row) => row?.profiles?.user_id ?? row?.profile_id,
+        ids,
+      );
     } else if (scope === "group") {
-      const { data } = await supabase.from("group_members").select("member").eq("group_id", entity.slug).limit(5000);
-      for (const row of (data as any[]) ?? []) if (row?.member) ids.add(row.member);
+      await collectPagedInto("group_members", "member", "group_id", entity.slug, (row) => row?.member, ids);
     }
   } catch {
     /* sin censo conocido para esta entidad */

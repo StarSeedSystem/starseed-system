@@ -20,6 +20,7 @@ import {
   Users,
   Percent,
   Gavel,
+  Award,
   Save,
   Sparkles,
   Wand2,
@@ -92,6 +93,8 @@ export default function GovernancePanel({
   const [govMinPercent, setGovMinPercent] = useState<number>(Number(DEFAULT_GOV_PARAMS.minPercent) || 0);
   const [govThreshold, setGovThreshold] = useState<number>(Number(DEFAULT_GOV_PARAMS.threshold) || 50);
   const [govUrgency, setGovUrgency] = useState<Urgency>((DEFAULT_GOV_PARAMS.urgency as Urgency) || "normal");
+  // Ponderación por mérito (OPT-IN). OFF por defecto → "una persona, una voz".
+  const [govMerit, setGovMerit] = useState(false);
   const [savingCfg, setSavingCfg] = useState(false);
 
   const [proposals, setProposals] = useState<Proposal[]>([]);
@@ -118,6 +121,7 @@ export default function GovernancePanel({
     setGovMinPercent(Number(p.minPercent) || 0);
     setGovThreshold(Number(p.threshold) || 50);
     setGovUrgency((p.urgency as Urgency) || "normal");
+    setGovMerit(Boolean((p.meritWeighting as { enabled?: boolean } | undefined)?.enabled));
   }, [scope, scopeRef]);
 
   const loadProposals = useCallback(async () => {
@@ -159,6 +163,7 @@ export default function GovernancePanel({
         minPercent: govMinPercent,
         threshold: govThreshold,
         urgency: govUrgency,
+        meritWeighting: { enabled: govMerit },
       });
       if (res.ok) toast.success("Configuración de gobernanza guardada");
       else toast.error(res.error ?? "No se pudo guardar la configuración.");
@@ -352,6 +357,29 @@ Sé concreto y motivador.`;
             </select>
           </label>
         </div>
+
+        {/* Ponderación por mérito (OPT-IN). OFF por defecto: nada cambia respecto
+            al voto igualitario. Al activarse, sólo la experiencia AVALADA POR OTROS
+            añade un bonus acotado a la propia voz; una persona, una voz sigue siendo
+            la base y el censo/quórum nunca se ven afectados. */}
+        <label className="mt-3 flex cursor-pointer items-start gap-3 rounded-lg border border-emerald-500/20 bg-emerald-950/10 px-3 py-2.5">
+          <input
+            type="checkbox"
+            checked={govMerit}
+            onChange={(e) => setGovMerit(e.target.checked)}
+            className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer accent-emerald-500"
+          />
+          <span className="flex flex-col gap-0.5">
+            <span className="flex items-center gap-1.5 text-xs font-medium text-emerald-50">
+              <Award className="h-3.5 w-3.5 text-emerald-300" /> Ponderar por mérito
+            </span>
+            <span className="text-[10px] leading-relaxed text-white/40">
+              Solo cuenta la experiencia avalada por otros (insignias otorgadas por terceros/gobernanza), acotada; una
+              persona, una voz sigue siendo la base.
+            </span>
+          </span>
+        </label>
+
         <div className="mt-3 flex justify-end">
           <Button
             size="sm"

@@ -15,7 +15,7 @@ import { SectionTabs } from "@/components/ui/section-tabs";
 import { GlassCard } from "@/components/ui/glass-card";
 import { PostCard } from "@/components/social/PostCard";
 import { ShareButton } from "@/components/social/SocialActions";
-import { MemberAvatars } from "@/components/social/MemberAvatars";
+import { GroupRoster } from "@/components/social/group-roster";
 import { GovernanceToolkit, hasToolkit, toolkitMeta } from "@/components/social/toolkits";
 import { EntityLibraryPanel } from "@/components/library/entity-library-panel";
 import { libraryRef } from "@/lib/library/entity-library";
@@ -284,7 +284,7 @@ function GrupoPageContent() {
                 </GlassCard>
             ),
         });
-        list.push({ id: "members", label: "Miembros", node: <MemberAvatars system="politico" total={group.memberCount ?? 0} accent={accentForTabs} seed={group.slug ?? group.id ?? ""} /> });
+        list.push({ id: "members", label: "Miembros", node: <GroupRoster slug={group.slug} accent={accentForTabs} total={group.memberCount ?? 0} /> });
         list.push({
             id: "agenda",
             label: "Agenda",

@@ -26,6 +26,7 @@ import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { SectionTabs, type SectionTabItem } from "@/components/ui/section-tabs";
 import { Separator } from "@/components/ui/separator";
 import { DecisionesSection } from "@/components/governance/decisiones-section";
+import { MediationSection } from "@/components/governance/mediation-section";
 import { EntityLibraryPanel } from "@/components/library/entity-library-panel";
 import { libraryRef } from "@/lib/library/entity-library";
 import { getPartido, type PartidoData } from "@/data/sample-governance";
@@ -52,6 +53,7 @@ const TABS: SectionTabItem[] = [
   { value: "candidaturas", label: "Candidaturas", icon: Vote },
   { value: "red", label: "Red", icon: Network },
   { value: "decisiones", label: "Decisiones", icon: Landmark },
+  { value: "justicia", label: "Justicia", icon: Scale },
   { value: "biblioteca", label: "Biblioteca", icon: BookMarked },
 ];
 
@@ -372,7 +374,13 @@ export function PartidoToolkit({
           <DecisionesSection kind="partido" slug={slug} accent={ac} name={name ?? data.name} />
         </TabsContent>
 
-        {/* ── TAB 6: BIBLIOTECA (lo guardado por el partido) ── */}
+        {/* ── TAB 6: JUSTICIA restaurativa (Círculos de Paz del partido) ──
+            Adenda 125. Invariante §6: mediación no punitiva, sin bloqueos. */}
+        <TabsContent value="justicia" className="space-y-6">
+          <MediationSection entityKind="party" slug={slug} accent={ac} name={name ?? data.name} />
+        </TabsContent>
+
+        {/* ── TAB 7: BIBLIOTECA (lo guardado por el partido) ── */}
         <TabsContent value="biblioteca" className="space-y-6">
           <EntityLibraryPanel
             ref={libraryRef("party", slug)}

@@ -510,6 +510,71 @@ async function main() {
     console.log("  (omite cifrado por-destinatario: sin WebCrypto en este entorno)");
   }
 
+  // 30) Cert de dispositivo con relayDeviceId (Adenda 126): re-habilita CON SEGURIDAD el
+  //     direccionamiento v:3 POR-DISPOSITIVO cerrando el CRÍTICO de la Adenda 125. La
+  //     maestra ATA {deviceFp ↔ account ↔ relayDeviceId}; el ancla TOFU account→mfp impide
+  //     que una maestra AJENA reclame el device_id de otra cuenta.
+  if (globalThis.crypto?.subtle) {
+    const M = await import("../src/ai/astraura/mesh/master-identity");
+
+    // (a) Firma atando relayDeviceId → verifica contra la maestra PROPIA y liga los 3 campos.
+    M._resetMasterKey();
+    const mfp = await M.masterFingerprint();
+    const cert = await M.signDeviceCert("id:disp-relay-01", "acct-uuid-777", "dev-relay-aaa");
+    check(
+      "devcert: firma atando deviceFp+account+relayDeviceId",
+      !!cert && cert.deviceFp === "id:disp-relay-01" && cert.account === "acct-uuid-777" && cert.relayDeviceId === "dev-relay-aaa" && cert.mfp === mfp,
+    );
+    check(
+      "devcert: verifica contra la maestra esperada (ancla + relayDeviceId)",
+      cert && mfp ? (await M.verifyDeviceCert(cert, mfp)) === true : false,
+    );
+
+    // (b) Ancla equivocada → rechazo (la ancla de confianza es imprescindible).
+    check(
+      "devcert: ancla mfp equivocada NO verifica (ancla)",
+      cert ? (await M.verifyDeviceCert(cert, "acct:equivocada00000")) === false : false,
+    );
+
+    // (d) Manipular relayDeviceId / account / deviceFp rompe la verificación (todo va firmado).
+    if (cert && mfp) {
+      check("devcert: relayDeviceId manipulado NO verifica", (await M.verifyDeviceCert({ ...cert, relayDeviceId: "dev-relay-bbb" }, mfp)) === false);
+      check("devcert: account manipulado NO verifica", (await M.verifyDeviceCert({ ...cert, account: "acct-otra" }, mfp)) === false);
+      check("devcert: deviceFp manipulado NO verifica", (await M.verifyDeviceCert({ ...cert, deviceFp: "id:otro" }, mfp)) === false);
+    }
+
+    // (c) Cert de una maestra ATACANTE (otra clave) rechazado contra el mfp FIJADO (TOFU):
+    //     autoconsistente consigo misma, pero no puede suplantar el ancla de la cuenta legítima.
+    const pinnedMfp = mfp; // ancla previamente fijada para la cuenta legítima
+    M._resetMasterKey(); // ← ahora somos OTRA maestra (la del atacante)
+    const attackerMfp = await M.masterFingerprint();
+    const attackerCert = await M.signDeviceCert("id:disp-relay-01", "acct-uuid-777", "dev-relay-aaa");
+    let attackerRejected = false;
+    if (attackerCert && pinnedMfp && attackerMfp) {
+      attackerRejected =
+        attackerMfp !== pinnedMfp &&
+        (await M.verifyDeviceCert(attackerCert, attackerMfp)) === true && // consistente consigo misma
+        (await M.verifyDeviceCert(attackerCert, pinnedMfp)) === false; // pero NO contra el ancla fijado
+    }
+    check("devcert: maestra ATACANTE autoconsistente pero rechazada contra el mfp fijado (TOFU)", attackerRejected);
+
+    // Retrocompat: un cert SIN relayDeviceId (forma de la Adenda 121) sigue verificando; e
+    // inyectarle un relayDeviceId a posteriori rompe la firma (el campo no estaba firmado).
+    M._resetMasterKey();
+    const legacyMfp = await M.masterFingerprint();
+    const legacyCert = await M.signDeviceCert("id:disp-legacy", "acct-legacy");
+    check(
+      "devcert: cert SIN relayDeviceId (retrocompat) verifica sus campos",
+      !!legacyCert && legacyCert.relayDeviceId === undefined && !!legacyMfp && (await M.verifyDeviceCert(legacyCert, legacyMfp)) === true,
+    );
+    check(
+      "devcert: cert viejo con relayDeviceId INYECTADO NO verifica (no estaba firmado)",
+      legacyCert && legacyMfp ? (await M.verifyDeviceCert({ ...legacyCert, relayDeviceId: "dev-inyectado" }, legacyMfp)) === false : false,
+    );
+  } else {
+    console.log("  (omite cert de dispositivo con relayDeviceId: sin WebCrypto en este entorno)");
+  }
+
   console.log(`\n${passed} pasan / ${failed} fallan`);
   if (failed > 0) process.exit(1);
 }

@@ -58,8 +58,15 @@ export interface DeviceCert {
   mpub: JsonWebKey; // clave pública de la maestra (para verificar sin registro previo)
   deviceFp: string; // huella de la identidad del dispositivo (id:…)
   account: string; // uuid de la cuenta
+  /**
+   * Id del dispositivo de RELÉ (federation.deviceId()) — Adenda 126. Es un namespace
+   * DISTINTO de `deviceFp` (huella de la identidad soberana), por eso el cert debe
+   * atarlo aparte para poder avalar el direccionamiento v:3 por-dispositivo. OPCIONAL
+   * por retrocompatibilidad: los certs de la Adenda 121 no lo llevan.
+   */
+  relayDeviceId?: string;
   iat: number; // emitido en (epoch ms)
-  sig: string; // firma de la maestra sobre {deviceFp,account,iat}
+  sig: string; // firma de la maestra sobre {deviceFp,account,iat} (o {…,relayDeviceId,iat} si ata el relé)
 }
 
 let cache: { pub: JsonWebKey; privKey: CryptoKey; fp: string } | null = null;
@@ -165,24 +172,41 @@ export function hasMasterKey(): boolean {
 }
 
 /** Mensaje canónico que firma/verifica un certificado de dispositivo (orden fijo).
+ *  Retrocompatible: SIN `relayDeviceId` firma la forma histórica {deviceFp,account,iat}
+ *  (Adenda 121); CON él ata además el id de dispositivo de relé →
+ *  {deviceFp,account,relayDeviceId,iat} (Adenda 126). El orden de claves es FIJO (el
+ *  literal preserva el orden de inserción), así que un `relayDeviceId` INYECTADO en un
+ *  cert viejo produce un mensaje DISTINTO y su firma deja de validar.
  *  Devuelve un buffer respaldado por ArrayBuffer (BufferSource para WebCrypto). */
-function certMessage(deviceFp: string, account: string, iat: number): Uint8Array<ArrayBuffer> {
-  const u = new TextEncoder().encode(JSON.stringify({ deviceFp, account, iat }));
+function certMessage(deviceFp: string, account: string, iat: number, relayDeviceId?: string): Uint8Array<ArrayBuffer> {
+  const canonical = relayDeviceId
+    ? { deviceFp, account, relayDeviceId, iat }
+    : { deviceFp, account, iat };
+  const u = new TextEncoder().encode(JSON.stringify(canonical));
   const buf = new ArrayBuffer(u.length);
   const out = new Uint8Array(buf);
   out.set(u);
   return out;
 }
 
-/** La maestra CERTIFICA una subclave de dispositivo: firma {deviceFp,account,iat}. */
-export async function signDeviceCert(deviceFp: string, account: string): Promise<DeviceCert | null> {
+/**
+ * La maestra CERTIFICA una subclave de dispositivo. Firma {deviceFp,account,iat} y, si
+ * se pasa `relayDeviceId` (Adenda 126), ATA además el id de dispositivo de RELÉ
+ * (federation.deviceId(), un namespace DISTINTO de `deviceFp`) → firma
+ * {deviceFp,account,relayDeviceId,iat}. Esa atadura es lo que permite a un receptor
+ * confiar en el direccionamiento v:3 POR-DISPOSITIVO sin la substitución de clave del
+ * CRÍTICO de la Adenda 125. `relayDeviceId` es OPCIONAL por retrocompatibilidad.
+ */
+export async function signDeviceCert(deviceFp: string, account: string, relayDeviceId?: string): Promise<DeviceCert | null> {
   const s = subtle();
   const m = await getOrCreateMasterKey();
   if (!s || !m || !deviceFp || !account) return null;
   try {
     const iat = Date.now();
-    const sig = await s.sign({ name: "ECDSA", hash: "SHA-256" }, m.privKey, certMessage(deviceFp, account, iat));
-    return { mfp: m.fp, mpub: m.pub, deviceFp, account, iat, sig: b64url(sig) };
+    const sig = await s.sign({ name: "ECDSA", hash: "SHA-256" }, m.privKey, certMessage(deviceFp, account, iat, relayDeviceId));
+    const cert: DeviceCert = { mfp: m.fp, mpub: m.pub, deviceFp, account, iat, sig: b64url(sig) };
+    if (relayDeviceId) cert.relayDeviceId = relayDeviceId; // solo si se ató (retrocompat)
+    return cert;
   } catch {
     return null;
   }
@@ -192,7 +216,8 @@ export async function signDeviceCert(deviceFp: string, account: string): Promise
  * Verifica un certificado de dispositivo CONTRA la maestra ESPERADA de la cuenta
  * (`expectedMfp`, fijada out-of-band: TOFU/pin o registro account→mfp). Comprueba que
  * `cert.mfp === expectedMfp`, que `mfp` es la huella de `mpub`, y que la firma valida
- * sobre {deviceFp,account,iat}. Solo así el aval significa algo: sin la ancla de
+ * sobre el mensaje canónico ({deviceFp,account,iat}, o {deviceFp,account,relayDeviceId,iat}
+ * si el cert ata un id de relé · Adenda 126). Solo así el aval significa algo: sin la ancla de
  * confianza, cualquiera genera SU maestra y firma un cert que "reclama" una cuenta
  * ajena. NO comprueba caducidad ni revocación del dispositivo — eso lo cruza el
  * llamador con la lista de revocación de identidad (`isRevoked(deviceFp)`).
@@ -205,11 +230,15 @@ export async function verifyDeviceCert(cert: DeviceCert, expectedMfp: string): P
     if ((await fpOfMaster(cert.mpub)) !== cert.mfp) return false; // mfp debe ser la huella de mpub
     const key = await s.importKey("jwk", cert.mpub, { name: "ECDSA", namedCurve: "P-256" }, false, ["verify"]);
     const sig = fromB64url(cert.sig);
+    // Si el cert ATA un `relayDeviceId` se verifica sobre el mensaje EXTENDIDO
+    // {deviceFp,account,relayDeviceId,iat}; los certs viejos (sin ese campo) siguen
+    // verificando sobre {deviceFp,account,iat}. Un `relayDeviceId` INYECTADO a posteriori
+    // en un cert viejo cambia el mensaje y la firma NO valida (retrocompat segura).
     return await s.verify(
       { name: "ECDSA", hash: "SHA-256" },
       key,
       sig as BufferSource,
-      certMessage(cert.deviceFp, cert.account, cert.iat) as BufferSource,
+      certMessage(cert.deviceFp, cert.account, cert.iat, cert.relayDeviceId) as BufferSource,
     );
   } catch {
     return false;

@@ -27,6 +27,7 @@ import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { SectionTabs, type SectionTabItem } from "@/components/ui/section-tabs";
 import { Separator } from "@/components/ui/separator";
 import { DecisionesSection } from "@/components/governance/decisiones-section";
+import { MediationSection } from "@/components/governance/mediation-section";
 import { getAssembly, type AssemblyData } from "@/data/sample-governance";
 import {
   Vote,
@@ -40,6 +41,7 @@ import {
   Network,
   CheckCircle2,
   Landmark,
+  Scale,
 } from "lucide-react";
 
 const TABS: SectionTabItem[] = [
@@ -48,6 +50,7 @@ const TABS: SectionTabItem[] = [
   { value: "actas", label: "Actas", icon: ScrollText },
   { value: "red", label: "Red", icon: Network },
   { value: "decisiones", label: "Decisiones", icon: Landmark },
+  { value: "justicia", label: "Justicia", icon: Scale },
 ];
 
 function humanizeSlug(slug: string): string {
@@ -278,6 +281,13 @@ export function AsambleaToolkit({
         {/* ── TAB: DECISIONES (motor de gobernanza real de la asamblea) ── */}
         <TabsContent value="decisiones" className="mt-4">
           <DecisionesSection kind="asamblea" slug={slug} accent={ac} name={name ?? data.name} />
+        </TabsContent>
+
+        {/* ── TAB: JUSTICIA restaurativa (Círculos de Paz) — Adenda 125.
+            La asamblea mapea al ámbito "community" del entity_state de mediación.
+            Invariante §6: mediación no punitiva, sin castigos ni bloqueos. ── */}
+        <TabsContent value="justicia" className="mt-4">
+          <MediationSection entityKind="community" slug={slug} accent={ac} name={name ?? data.name} />
         </TabsContent>
       </Tabs>
     </div>

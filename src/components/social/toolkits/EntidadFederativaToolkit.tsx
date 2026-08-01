@@ -26,6 +26,7 @@ import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { SectionTabs, type SectionTabItem } from "@/components/ui/section-tabs";
 import { Separator } from "@/components/ui/separator";
 import { DecisionesSection } from "@/components/governance/decisiones-section";
+import { MediationSection } from "@/components/governance/mediation-section";
 import { EntityLibraryPanel } from "@/components/library/entity-library-panel";
 import { libraryRef } from "@/lib/library/entity-library";
 import { getFederativeEntity, type EFData } from "@/data/sample-governance";
@@ -56,6 +57,7 @@ const TABS: SectionTabItem[] = [
   { value: "territorio", label: "Territorio", icon: Map },
   { value: "voto-liquido", label: "Voto Líquido", icon: Network },
   { value: "decisiones", label: "Decisiones", icon: Gavel },
+  { value: "justicia", label: "Justicia", icon: HeartHandshake },
   { value: "biblioteca", label: "Biblioteca", icon: BookMarked },
 ];
 
@@ -543,7 +545,14 @@ export function EntidadFederativaToolkit({
           <DecisionesSection kind="ef" slug={slug} accent={ac} name={name ?? data.name} />
         </TabsContent>
 
-        {/* ── TAB 7: BIBLIOTECA (lo guardado por la Entidad Federativa) ── */}
+        {/* ── TAB 7: JUSTICIA restaurativa — Círculos de Paz REALES de la E.F.
+            (Adenda 125). Panel anclado al entity_state propio; complementa la
+            pestaña "Judicial" de muestra. Invariante §6: no punitiva. ── */}
+        <TabsContent value="justicia" className="space-y-6">
+          <MediationSection entityKind="ef" slug={slug} accent={ac} name={name ?? data.name} />
+        </TabsContent>
+
+        {/* ── TAB 8: BIBLIOTECA (lo guardado por la Entidad Federativa) ── */}
         <TabsContent value="biblioteca" className="space-y-6">
           <EntityLibraryPanel
             ref={libraryRef("ef", slug)}

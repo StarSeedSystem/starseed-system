@@ -45,6 +45,7 @@ import { EntityGalleryBlock } from "@/components/social/entity-gallery-block";
 import { EntityErrorBoundary } from "@/components/social/entity-error-boundary";
 import { GroupEducationPanel } from "@/components/education/group-education-panel";
 import { DecisionesSection } from "@/components/governance/decisiones-section";
+import { MediationSection } from "@/components/governance/mediation-section";
 import {
     Users,
     CalendarDays,
@@ -432,6 +433,9 @@ function PaginaPageContent() {
         }
         if (layout.integrations.gobernanza) {
             list.push({ id: "integracion-gobernanza", label: "Gobernanza", node: <DecisionesSection kind={page.kind} slug={page.slug} accent={accentForTabs} name={page.name} /> });
+            // Justicia restaurativa (Círculos de Paz) por página — pestaña propia dentro
+            // del ecosistema de gobernanza (Adenda 125). Invariante §6: no punitiva.
+            list.push({ id: "integracion-justicia", label: "Justicia restaurativa", node: <MediationSection entityKind="page" slug={page.slug} accent={accentForTabs} name={page.name} /> });
         }
         if (layout.integrations.galeria) {
             list.push({
