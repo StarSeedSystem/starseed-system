@@ -626,6 +626,139 @@ async function main() {
     console.log("  (omite caducidad de cert de dispositivo: sin WebCrypto en este entorno)");
   }
 
+  // 32) FAN-OUT multi-destinatario v:3 (Adenda 128, seguimiento del #mesh4): un sobre v:3
+  //     INDEPENDIENTE por destinatario. Núcleo verificable SIN Supabase: cada destinatario
+  //     abre EL SUYO y un NO-destinatario no abre ninguno. El INSERT de filas (uploadRelayMulti/
+  //     Group) necesita Supabase → integración aparte; aquí se cubren sus guardas de entrada y
+  //     los resolutores puros. decryptEnvelopeFor usa SIEMPRE la identidad LOCAL, así que para
+  //     "ser" B o C al descifrar se guarda/restaura su blob JWK (safeGet/safeSet round-trip en
+  //     memoria fuera del navegador).
+  if (globalThis.crypto?.subtle) {
+    const RC = await import("../src/ai/astraura/mesh/recipient-crypto");
+    const SR = await import("../src/ai/astraura/mesh/server-relay");
+    const { safeGet, safeSet } = await import("../src/lib/safe-storage");
+    const ENC_KEY_LS = "starseed.mesh.enc-identity.v1"; // clave persistida de recipient-crypto
+
+    RC._resetEncryptionKeys();
+    await RC.getOrCreateEncryptionKey();
+    const bPub = await RC.myEncryptionPublicKey();
+    const bBlob = safeGet(ENC_KEY_LS); // captura la privada de B
+
+    RC._resetEncryptionKeys();
+    await RC.getOrCreateEncryptionKey();
+    const cPub = await RC.myEncryptionPublicKey();
+    check("fan-out: B y C son identidades de cifrado distintas",
+      !!bPub && !!cPub && (bPub.x !== cPub.x || bPub.y !== cPub.y));
+
+    const msg = { txt: "fan-out a B y C", n: 42, geo: [19.4, -99.1] };
+    const envs = bPub && cPub ? await RC.encryptEnvelopeForMany([{ pub: bPub }, { pub: cPub }], msg) : [];
+    check("fan-out: UN sobre v:3 por destinatario", envs.length === 2 && envs.every((e) => e.v === 3));
+    check("fan-out: cada sobre es independiente (epk/iv distintos)",
+      envs.length === 2 && envs[0].epk.x !== envs[1].epk.x && envs[0].iv !== envs[1].iv);
+
+    // Local = C (última generada): abre SU sobre (idx1), NO el de B (idx0).
+    check("fan-out: C descifra SU sobre (idx1)",
+      JSON.stringify(await RC.decryptEnvelopeFor(envs[1])) === JSON.stringify(msg));
+    check("fan-out: C NO abre el sobre de B (no-destinatario)",
+      (await RC.decryptEnvelopeFor(envs[0])) === null);
+
+    // Reinstala B → simétrico: B abre el suyo (idx0), no el de C (idx1).
+    RC._resetEncryptionKeys();
+    if (bBlob) safeSet(ENC_KEY_LS, bBlob);
+    await RC.getOrCreateEncryptionKey();
+    check("fan-out: B descifra SU sobre (idx0)",
+      JSON.stringify(await RC.decryptEnvelopeFor(envs[0])) === JSON.stringify(msg));
+    check("fan-out: B NO abre el sobre de C (no-destinatario)",
+      (await RC.decryptEnvelopeFor(envs[1])) === null);
+
+    // Destinatario con pub inválida se OMITE (entrega parcial); lista vacía → sin sobres.
+    const partial = bPub
+      ? await RC.encryptEnvelopeForMany([{ pub: bPub }, { pub: { kty: "oops" } as unknown as JsonWebKey }], msg)
+      : [];
+    check("fan-out: pub inválida se omite (parcial=1)", partial.length === 1 && partial[0].v === 3);
+    check("fan-out: lista vacía → sin sobres", (await RC.encryptEnvelopeForMany([], msg)).length === 0);
+
+    // Resolutor puro (sin Supabase): omite desconocidos + dedup.
+    check("fan-out: encryptionKeysFor([]) = []", SR.encryptionKeysFor([]).length === 0);
+    check("fan-out: encryptionKeysFor(desconocidos) dedup+omite",
+      SR.encryptionKeysFor(["nadie", "nadie"]).length === 0);
+
+    // Guardas de uploadRelayMulti/groupRecipients que NO tocan Supabase (retorno temprano).
+    type Env = Parameters<typeof SR.uploadRelayMulti>[0];
+    const envMsg: Env = { cls: "P2", ptype: "message", body: msg };
+    const r0 = await SR.uploadRelayMulti(envMsg, []);
+    check("fan-out: uploadRelayMulti sin destinatarios → {0,0}", r0.sent === 0 && r0.failed === 0);
+    const rBlank = await SR.uploadRelayMulti(envMsg, ["", ""]);
+    check("fan-out: uploadRelayMulti destinatarios vacíos → {0,0}", rBlank.sent === 0 && rBlank.failed === 0);
+    check("fan-out: groupRecipients('') = [] (guarda)", (await SR.groupRecipients("")).length === 0);
+
+    RC._resetEncryptionKeys(); // no arrastrar identidad de cifrado a otros grupos
+  } else {
+    console.log("  (omite fan-out multi-destinatario: sin WebCrypto en este entorno)");
+  }
+
+  // 33) REVOCACIÓN EXPLÍCITA de un cert de dispositivo CONCRETO (device-revocation): retira el cert
+  //     de un DISPOSITIVO (por su id estable relayDeviceId/deviceFp, NO la firma → PERSISTE tras la
+  //     re-emisión) SIN revocar la identidad soberana ni la maestra. Acta AUTO-AUTENTICABLE y ANCLADA.
+  if (globalThis.crypto?.subtle) {
+    const M = await import("../src/ai/astraura/mesh/master-identity");
+
+    // (a) Firma→verifica ida y vuelta: el acta de la maestra propia verifica contra su ancla.
+    M._resetMasterKey();
+    const mfp = await M.masterFingerprint();
+    const certA = await M.signDeviceCert("id:disp-crl-A", "acct-crl", "dev-crl-A");
+    const certB = await M.signDeviceCert("id:disp-crl-B", "acct-crl", "dev-crl-B");
+    const idA = certA ? await M.deviceCertId(certA) : "";
+    const idB = certB ? await M.deviceCertId(certB) : "";
+    check("crl-cert: deviceCertId estable y distingue emisiones", !!idA && !!idB && idA !== idB);
+    const acta = idA ? await M.signDeviceCertRevocation(idA) : null;
+    check("crl-cert: firma acta {certId,mfp,mpub,iat,sig}", !!acta && acta.certId === idA && acta.mfp === mfp && !!acta.mpub && !!acta.sig);
+    check("crl-cert: acta propia verifica contra el ancla esperada", acta && mfp ? (await M.verifyDeviceCertRevocation(acta, mfp)) === true : false);
+
+    // (b) Un certId revocado hace que verifyDeviceCert devuelva false (predicado síncrono);
+    //     sin el predicado, el MISMO cert sigue verificando (retrocompat).
+    const revoked = new Set<string>([idA]);
+    const isRev = (id: string) => revoked.has(id);
+    check("crl-cert: cert válido SIN predicado sigue verificando (retrocompat)", certA && mfp ? (await M.verifyDeviceCert(certA, mfp)) === true : false);
+    check("crl-cert: cert revocado con predicado NO verifica", certA && mfp ? (await M.verifyDeviceCert(certA, mfp, { isCertRevoked: isRev })) === false : false);
+
+    // (c) Revocar el cert A NO revoca el cert B (dispositivos distintos → certIds distintos).
+    check("crl-cert: revocar A NO revoca B", certB && mfp ? (await M.verifyDeviceCert(certB, mfp, { isCertRevoked: isRev })) === true : false);
+
+    // (c2) RE-EMISIÓN: re-firmar el cert del MISMO dispositivo (misma relayDeviceId, firma NUEVA) da
+    //      el MISMO certId (id de dispositivo estable) → la revocación SIGUE aplicándose; no se evade
+    //      re-publicando el cert. Regresión clave de la revisión adversarial Adenda 128.
+    const certAre = await M.signDeviceCert("id:disp-crl-A", "acct-crl", "dev-crl-A");
+    const idAre = certAre ? await M.deviceCertId(certAre) : "";
+    check("crl-cert: re-emisión conserva el certId estable (firma nueva, mismo dispositivo)",
+      !!idAre && idAre === idA && !!certAre && certAre.sig !== (certA ? certA.sig : ""));
+    check("crl-cert: cert RE-EMITIDO de un dispositivo revocado SIGUE rechazado",
+      certAre && mfp ? (await M.verifyDeviceCert(certAre, mfp, { isCertRevoked: isRev })) === false : false);
+
+    // (d) Acta MANIPULADA (certId cambiado) NO verifica (la firma cubre el certId).
+    if (acta && mfp) check("crl-cert: acta con certId manipulado NO verifica", (await M.verifyDeviceCertRevocation({ ...acta, certId: idB }, mfp)) === false);
+
+    // (e) Acta con ANCLA equivocada rechazada (una maestra ajena no revoca el cert de otro).
+    check("crl-cert: acta con ancla equivocada NO verifica (ancla)", acta ? (await M.verifyDeviceCertRevocation(acta, "acct:equivocada00000")) === false : false);
+
+    // (f) Maestra ATACANTE: firma su PROPIA acta del mismo certId; verifica consigo misma pero NO
+    //     contra el ancla de la cuenta legítima (no puede forzar la revocación del cert ajeno).
+    const legitMfp = mfp;
+    M._resetMasterKey(); // ahora somos otra maestra (atacante)
+    const attackerMfp = await M.masterFingerprint();
+    const attackerActa = idA ? await M.signDeviceCertRevocation(idA) : null;
+    let attackerRejected = false;
+    if (attackerActa && attackerMfp && legitMfp) {
+      attackerRejected =
+        attackerMfp !== legitMfp &&
+        (await M.verifyDeviceCertRevocation(attackerActa, attackerMfp)) === true &&
+        (await M.verifyDeviceCertRevocation(attackerActa, legitMfp)) === false;
+    }
+    check("crl-cert: maestra ATACANTE no puede revocar el cert ajeno (ancla)", attackerRejected);
+  } else {
+    console.log("  (omite revocación explícita de cert: sin WebCrypto en este entorno)");
+  }
+
   console.log(`\n${passed} pasan / ${failed} fallan`);
   if (failed > 0) process.exit(1);
 }

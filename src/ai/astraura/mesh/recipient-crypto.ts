@@ -226,6 +226,38 @@ export async function encryptEnvelopeFor(recipientPub: JsonWebKey, obj: unknown)
 }
 
 /**
+ * FAN-OUT v:3 (Adenda 127): cifra `obj` para VARIOS destinatarios devolviendo UN sobre
+ * v:3 ESTÁNDAR por destinatario (reutiliza `encryptEnvelopeFor` en bucle). Cada sobre es
+ * INDEPENDIENTE (par efímero y clave AES-GCM propios), así el lado receptor NO cambia:
+ * cada destinatario abre EL SUYO y un NO-destinatario no abre ninguno. Un destinatario que
+ * falle (sin `pub`, WebCrypto transitorio…) se OMITE con aviso — entrega parcial mejor que
+ * abortar todo. La ruta de un solo destinatario (`encryptEnvelopeFor`) queda intacta. Nunca lanza.
+ */
+export async function encryptEnvelopeForMany(
+  recipients: Array<{ pub: JsonWebKey; rfp?: string }>,
+  obj: unknown,
+): Promise<RecipientEnvelope[]> {
+  const out: RecipientEnvelope[] = [];
+  if (!Array.isArray(recipients)) return out;
+  for (const r of recipients) {
+    if (!r || !r.pub) continue;
+    const env = await encryptEnvelopeFor(r.pub, obj);
+    if (!env) {
+      // Un destinatario que no cifra NO aborta el fan-out: se omite con aviso y el resto sigue.
+      if (typeof console !== "undefined") {
+        console.warn("[mesh] encryptEnvelopeForMany: destinatario omitido (cifrado v:3 falló)");
+      }
+      continue;
+    }
+    // Si el emisor aportó una PISTA `rfp` y `encFp` no la fijó, se conserva (solo
+    // selección, no seguridad — el tag GCM es quien autentica el sobre).
+    if (!env.rfp && r.rfp) env.rfp = r.rfp;
+    out.push(env);
+  }
+  return out;
+}
+
+/**
  * Descifra un sobre v:3 con la privada ECDH de ESTA identidad y la `epk` del sobre.
  * Mismo secreto ECDH → misma clave HKDF → AES-GCM. Null ante cualquier fallo (tag
  * inválido = clave equivocada / manipulación, `epk` corrupta, sin clave propia…).

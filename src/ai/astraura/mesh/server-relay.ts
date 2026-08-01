@@ -48,6 +48,9 @@ import { myEncryptionPublicKey, encryptEnvelopeFor, type RecipientEnvelope } fro
 // (device_id sin firmar). Ata {identidad soberana ↔ cuenta ↔ device_id de relé} bajo un ancla
 // TOFU account→mfp, de modo que una neurona ya no puede reclamar el device_id de otra.
 import { signDeviceCert, verifyDeviceCert, type DeviceCert } from "./master-identity";
+// CRL de certificados de dispositivo (Adenda 128): revoca una EMISIÓN concreta de cert
+// sin retirar la identidad soberana, complementando la caducidad por `iat` (Adenda 127).
+import { makeIsCertRevoked } from "./device-revocation";
 import { getActiveModemPreset } from "./sync";
 import { getMeshState } from "./store";
 import type { MeshPayloadType, TrafficClass } from "./types";
@@ -316,6 +319,120 @@ export async function uploadRelay(env: ServerEnvelope, serverId?: string): Promi
   } catch {
     return { ok: false, detail: "error de red al subir el relé cifrado" };
   }
+}
+
+/* ── FAN-OUT MULTI-DESTINATARIO del relé (Adenda 127 · seguimiento del #mesh4) ────────
+ * Seguimiento explícito anunciado en la cabecera de `uploadRelay`. Diseño ADITIVO y de
+ * BAJO RIESGO: NO cambia el formato del sobre v:3 ni el lado receptor; sube UNA fila POR
+ * destinatario, cada una con su PROPIO sobre (v:3 E2E si conocemos su epub; si no, fallback
+ * automático al llavero compartido v:1/2, igual que `uploadRelay`). Así una fila de fan-out
+ * es INDISTINGUIBLE de una de `uploadRelay` dirigida a ese destinatario: el receptor la
+ * descifra sin cambios (`decryptEnvelope` ya rutea v:3 → `decryptEnvelopeFor`).
+ * ---------------------------------------------------------------------------------------- */
+
+/**
+ * Resumen de un FAN-OUT multi-destinatario: N sobres/filas, uno por destinatario.
+ */
+export interface RelayMultiResult {
+  /** Filas subidas con éxito (una por destinatario alcanzado). */
+  sent: number;
+  /** Destinatarios omitidos: sin cifrado disponible o rechazo del servidor. */
+  failed: number;
+}
+
+/**
+ * Sube un relé a VARIOS destinatarios: para CADA uno construye su PROPIO sobre reutilizando
+ * la MISMA lógica por-destinatario de `encryptRelayBody` (v:3 si hay epub; si no, llavero
+ * compartido) e inserta UNA fila con `recipient: <ese destinatario>` y COLUMNAS IDÉNTICAS a
+ * `uploadRelay`. Un destinatario sin cifrado se OMITE (nunca se sube dato privado en claro),
+ * sin degradar al resto. Devuelve {sent, failed}. `uploadRelay` de un solo destinatario queda
+ * intacto. Nunca lanza.
+ */
+export async function uploadRelayMulti(env: ServerEnvelope, recipients: string[], serverId?: string): Promise<RelayMultiResult> {
+  const summary: RelayMultiResult = { sent: 0, failed: 0 };
+  if (!Array.isArray(recipients) || recipients.length === 0) return summary;
+  // Dedup: una sola fila por destinatario (un grupo puede traer duplicados).
+  const targets = Array.from(new Set(recipients.filter((r) => !!r)));
+  if (targets.length === 0) return summary;
+  // Un solo token por operación de fan-out (como una subida lógica), consistente con
+  // `uploadRelay`: el bucket anti-flood corta bucles patológicos, no envíos legítimos a un grupo.
+  if (!clientRateAllow()) {
+    summary.failed = targets.length;
+    return summary;
+  }
+  const ep = customEndpoint(serverId);
+  if (ep) {
+    // Servidor propio: un POST cifrado por destinatario (E2E; el servidor propio tampoco lee).
+    const token = tokenFor(serverId);
+    for (const rcpt of targets) {
+      const perEnv: ServerEnvelope = { ...env, recipient: rcpt };
+      const enc = await encryptRelayBody(perEnv);
+      if (!enc) {
+        summary.failed++; // sin cifrado: no se sube dato privado en claro
+        continue;
+      }
+      const res = await postToEndpoint(ep, "relay", { ...perEnv, body: enc as unknown }, token);
+      if (res.ok) summary.sent++;
+      else summary.failed++;
+    }
+    return summary;
+  }
+  try {
+    const supabase = await client();
+    if (!supabase) {
+      summary.failed = targets.length;
+      return summary;
+    }
+    const owner = await ownerId(supabase);
+    if (!owner) {
+      summary.failed = targets.length;
+      return summary;
+    }
+    const me = deviceId();
+    const expiresAt = new Date(Date.now() + RELAY_TTL_MS).toISOString();
+    for (const rcpt of targets) {
+      // Sobre PROPIO por destinatario: misma lógica por-destinatario que `uploadRelay`
+      // (v:3 si hay epub; si no, llavero compartido v:1/2). Columnas de fila IDÉNTICAS.
+      const perEnv: ServerEnvelope = { ...env, recipient: rcpt };
+      const enc = await encryptRelayBody(perEnv);
+      if (!enc) {
+        summary.failed++; // sin cifrado: no se sube dato privado en claro
+        continue;
+      }
+      const { error } = await supabase
+        .from("os_mesh_relay")
+        .insert({
+          owner_id: owner,
+          channel: "relay",
+          kind: "data",
+          recipient: rcpt,
+          cls: env.cls,
+          ptype: env.ptype,
+          enc: true,
+          payload: enc as unknown as Record<string, unknown>,
+          oid: env.oid ?? null,
+          device_id: me,
+          expires_at: expiresAt,
+        })
+        .select("id")
+        .single();
+      if (error) summary.failed++;
+      else summary.sent++;
+    }
+    return summary;
+  } catch {
+    return summary;
+  }
+}
+
+/**
+ * FAN-OUT a un GRUPO: resuelve los destinatarios (owner ids) de `os_memberships`
+ * (`groupRecipients`) y delega en `uploadRelayMulti`. Best-effort: grupo vacío o sin
+ * sesión → {sent:0, failed:0}. Nunca lanza.
+ */
+export async function uploadRelayGroup(env: ServerEnvelope, groupSlug: string, serverId?: string): Promise<RelayMultiResult> {
+  const recipients = await groupRecipients(groupSlug);
+  return uploadRelayMulti(env, recipients, serverId);
 }
 
 /** Una neurona vecina descubierta por su faro (para el radar). */
@@ -855,7 +972,7 @@ export async function refreshIdentities(): Promise<void> {
           const pinned = pins.get(ownerKey);
           const anchor = pinned ?? String(devcert.mfp); // primera visión: candidata = mfp del cert
           const okCert =
-            (await verifyDeviceCert(devcert, anchor)) && // firma + ancla (mfp === anchor)
+            (await verifyDeviceCert(devcert, anchor, { isCertRevoked: makeIsCertRevoked() })) && // firma + ancla (mfp === anchor) + CRL de cert
             devcert.account === ownerKey &&
             devcert.deviceFp === p.fp &&
             devcert.relayDeviceId === relayDev;
@@ -912,6 +1029,27 @@ export function encryptionKeyFor(recipient?: string): JsonWebKey | null {
   if (!entry) return null;
   if (revokedSet.has(entry.fp)) return null; // identidad revocada: no cifrar hacia ella
   return entry.pub;
+}
+
+/**
+ * Versión MULTI de `encryptionKeyFor` para el fan-out (Adenda 127): resuelve una lista de
+ * destinatarios a sus claves de CIFRADO ECDH publicadas y verificadas, OMITIENDO los que no
+ * tengan epub conocida o cuya identidad esté revocada (reutiliza `encryptionKeyFor`, así hereda
+ * el mismo filtro de revocación). Dedup por destinatario. Alimenta el cifrado v:3 en lote
+ * (`encryptEnvelopeForMany`). No resuelve el llavero compartido: eso es el fallback
+ * por-destinatario de `encryptRelayBody` / `uploadRelayMulti`.
+ */
+export function encryptionKeysFor(recipients: string[]): Array<{ recipient: string; pub: JsonWebKey }> {
+  const out: Array<{ recipient: string; pub: JsonWebKey }> = [];
+  if (!Array.isArray(recipients)) return out;
+  const seen = new Set<string>();
+  for (const rcpt of recipients) {
+    if (!rcpt || seen.has(rcpt)) continue;
+    seen.add(rcpt);
+    const pub = encryptionKeyFor(rcpt); // reusa resolución + filtro de revocación
+    if (pub) out.push({ recipient: rcpt, pub });
+  }
+  return out;
 }
 
 /* ── REVOCACIÓN de identidades (Adenda 108) ─────────────────────────────────────
@@ -1060,6 +1198,15 @@ export async function pullPublicFeed(since: number): Promise<RelayInboundItem[]>
     // marca vieja y el 50.º más nuevo en ráfagas > 50. Se usa `gte` + dedup por id
     // DENTRO del drenado para NO saltarse filas que compartan created_at en el borde
     // de página (empate); se corta si una página no aporta filas nuevas (anti-bucle).
+    // ⚠️ LIMITACIÓN CONOCIDA (revisión adversarial Adenda 128) — SEGUIMIENTO ABIERTO:
+    // el cursor es por `created_at` y el watermark del llamador (synaptic.ts) también.
+    // Si ≥FEED_PAGE filas comparten el MISMO created_at (insert masivo en una sola
+    // transacción → `now()` idéntico), el watermark no puede cruzar ese instante y el
+    // feed se atasca en él (DoS de descubrimiento; se autolimita ~24h por el floor).
+    // El intento de la Adenda 127 (OFFSET estable) NO lo resolvía: el suelo sigue al
+    // watermark, así que solo reubicaba el atasco (revertido). EL ARREGLO REAL es un
+    // cursor keyset COMPUESTO (created_at, id) persistido en el llamador como par
+    // (at, id) para avanzar por `id` DENTRO del empate — pendiente (cambia synaptic.ts).
     const out: RelayInboundItem[] = [];
     const drained = new Set<string>();
     let cursor = startISO;
@@ -1246,6 +1393,35 @@ export async function neuronIdentities(): Promise<string[]> {
     /* */
   }
   return ids;
+}
+
+/**
+ * Destinatarios de ENVÍO de un GRUPO (Adenda 127): espejo de `neuronIdentities` pero para
+ * EMITIR. Lee `os_memberships` y devuelve los owner ids (`user_id`) de los miembros del grupo
+ * — identificadores que `encryptionKeysFor` sabe resolver a epub. Best-effort y tolerante a
+ * fallos: sin sesión / sin tabla / error → []. Dedup por owner. Nunca lanza.
+ */
+export async function groupRecipients(groupSlug: string): Promise<string[]> {
+  const out: string[] = [];
+  if (!groupSlug) return out;
+  try {
+    const supabase = await client();
+    if (!supabase) return out;
+    const { data } = await supabase.from("os_memberships").select("user_id").eq("group_slug", groupSlug);
+    if (Array.isArray(data)) {
+      const seen = new Set<string>();
+      for (const r of data as Array<Record<string, unknown>>) {
+        const uid = r.user_id ? String(r.user_id) : "";
+        if (uid && !seen.has(uid)) {
+          seen.add(uid);
+          out.push(uid);
+        }
+      }
+    }
+  } catch {
+    /* sin tabla de membresías / sin sesión: grupo vacío (best-effort) */
+  }
+  return out;
 }
 
 /**

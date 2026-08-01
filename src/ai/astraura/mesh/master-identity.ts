@@ -233,11 +233,20 @@ export async function signDeviceCert(deviceFp: string, account: string, relayDev
  * `cert.mfp === expectedMfp`, que `mfp` es la huella de `mpub`, y que la firma valida
  * sobre el mensaje canónico ({deviceFp,account,iat}, o {deviceFp,account,relayDeviceId,iat}
  * si el cert ata un id de relé · Adenda 126). Solo así el aval significa algo: sin la ancla de
- * confianza, cualquiera genera SU maestra y firma un cert que "reclama" una cuenta
- * ajena. NO comprueba caducidad ni revocación del dispositivo — eso lo cruza el
- * llamador con la lista de revocación de identidad (`isRevoked(deviceFp)`).
+ * confianza, cualquiera genera SU maestra y firma un cert que "reclama" una cuenta ajena.
+ * CADUCIDAD: se rechaza un `iat` rancio o en el futuro implausible (ver más abajo). REVOCACIÓN
+ * EXPLÍCITA (opcional, ADITIVA): si el llamador pasa `opts.isCertRevoked`, tras superar TODAS las
+ * comprobaciones criptográficas se calcula el id de DISPOSITIVO estable del cert (`deviceCertId`:
+ * relayDeviceId/deviceFp) y, si ese dispositivo está revocado, se rechaza — así se RETIRA el cert de
+ * un dispositivo CONCRETO (aunque re-emita) sin tocar la identidad soberana ni la maestra. SIN `opts` el comportamiento es EXACTAMENTE
+ * el histórico (retrocompat total). La revocación de la IDENTIDAD del dispositivo la sigue cruzando
+ * el llamador aparte con la lista de revocación de identidad (`isRevoked(deviceFp)`).
  */
-export async function verifyDeviceCert(cert: DeviceCert, expectedMfp: string): Promise<boolean> {
+export async function verifyDeviceCert(
+  cert: DeviceCert,
+  expectedMfp: string,
+  opts?: { isCertRevoked?: (certId: string) => boolean },
+): Promise<boolean> {
   const s = subtle();
   if (!s || !cert || !cert.mpub || !cert.sig || !cert.deviceFp || !cert.account || !cert.mfp) return false;
   if (!expectedMfp || cert.mfp !== expectedMfp) return false; // ANCLA DE CONFIANZA imprescindible
@@ -262,11 +271,104 @@ export async function verifyDeviceCert(cert: DeviceCert, expectedMfp: string): P
     // {deviceFp,account,relayDeviceId,iat}; los certs viejos (sin ese campo) siguen
     // verificando sobre {deviceFp,account,iat}. Un `relayDeviceId` INYECTADO a posteriori
     // en un cert viejo cambia el mensaje y la firma NO valida (retrocompat segura).
-    return await s.verify(
+    const sigOk = await s.verify(
       { name: "ECDSA", hash: "SHA-256" },
       key,
       sig as BufferSource,
       certMessage(cert.deviceFp, cert.account, cert.iat, cert.relayDeviceId) as BufferSource,
+    );
+    if (!sigOk) return false;
+    // REVOCACIÓN EXPLÍCITA (aditiva · retrocompat): tras superar TODAS las comprobaciones
+    // criptográficas de arriba, si el llamador aporta el predicado y el id de DISPOSITIVO estable de
+    // este cert (relayDeviceId/deviceFp) está revocado, se rechaza. Sin `opts` NO se ejecuta nada de
+    // esto, así que el comportamiento por defecto es EXACTAMENTE el histórico.
+    if (opts?.isCertRevoked) {
+      const id = await deviceCertId(cert);
+      if (id && opts.isCertRevoked(id) === true) return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/* ── REVOCACIÓN EXPLÍCITA de un cert de dispositivo CONCRETO (almacén CRL en device-revocation.ts) ──
+ * Complementa la CADUCIDAD por `iat`: permite RETIRAR una emisión concreta de device-cert SIN
+ * revocar la identidad soberana del dispositivo ni la maestra. El `certId` es el id de DISPOSITIVO
+ * estable (relayDeviceId/deviceFp), NO la firma: así la revocación PERSISTE aunque el dispositivo
+ * RE-EMITA su cert en el próximo arranque (revisión adversarial Adenda 128). El acta es
+ * AUTO-AUTENTICABLE: solo la maestra que emitió el cert puede firmar su revocación (Adenda 122).
+ * ---------------------------------------------------------------------------- */
+
+/** Id ESTABLE de un cert de dispositivo = su identificador de DISPOSITIVO estable: `relayDeviceId`
+ *  si el cert ata un id de relé (Adenda 126); si no, la huella de la identidad soberana `deviceFp`.
+ *  NO se clava en la FIRMA a propósito (revisión adversarial Adenda 128): `registerIdentity` RE-FIRMA
+ *  el cert en cada arranque (firma nueva), y una revocación DEBE seguir aplicándose a ese MISMO
+ *  dispositivo pese a la re-emisión — si se clavara en la firma, el dispositivo revocado evadiría la
+ *  CRL con solo re-publicar. Con el id estable, revocar el cert de un dispositivo lo retira aunque
+ *  re-emita. "" si el cert no aporta ningún id estable (ni relayDeviceId ni deviceFp). */
+export async function deviceCertId(cert: DeviceCert): Promise<string> {
+  if (!cert) return "";
+  return cert.relayDeviceId || cert.deviceFp || "";
+}
+
+/** Acta de revocación de UN cert de dispositivo concreto, firmada por la maestra que lo emitió. */
+export interface DeviceCertRevocation {
+  certId: string; // `deviceCertId` del cert revocado
+  mfp: string; // huella de la maestra firmante
+  mpub: JsonWebKey; // pública de la maestra (para verificar sin registro previo)
+  iat: number; // emitida en (epoch ms)
+  sig: string; // firma de la maestra sobre `revokeDeviceCertMessage(certId)`
+}
+
+/** Mensaje canónico que firma/verifica un acta de revocación de cert de dispositivo (orden de
+ *  claves FIJO, imita `revMessage`/`certMessage`). Devuelve el string canónico. */
+export function revokeDeviceCertMessage(certId: string): string {
+  return JSON.stringify({ revokeDeviceCert: certId });
+}
+
+/** Bytes (respaldados por ArrayBuffer, BufferSource para WebCrypto) del mensaje canónico. */
+function revokeDeviceCertBytes(certId: string): Uint8Array<ArrayBuffer> {
+  const u = new TextEncoder().encode(revokeDeviceCertMessage(certId));
+  const buf = new ArrayBuffer(u.length);
+  const out = new Uint8Array(buf);
+  out.set(u);
+  return out;
+}
+
+/** Firma el acta de revocación de UN cert de dispositivo (por su `certId`) con la privada maestra.
+ *  Sella `iat = Date.now()` y devuelve el acta con `mfp`/`mpub` de la maestra. Tolerante a fallos:
+ *  null si no hay maestra o WebCrypto. */
+export async function signDeviceCertRevocation(certId: string): Promise<DeviceCertRevocation | null> {
+  const s = subtle();
+  const m = await getOrCreateMasterKey();
+  if (!s || !m || !certId) return null;
+  try {
+    const iat = Date.now();
+    const sig = await s.sign({ name: "ECDSA", hash: "SHA-256" }, m.privKey, revokeDeviceCertBytes(certId));
+    return { certId, mfp: m.fp, mpub: m.pub, iat, sig: b64url(sig) };
+  } catch {
+    return null;
+  }
+}
+
+/** Verifica un acta de revocación de cert de dispositivo CONTRA la maestra ESPERADA de la cuenta
+ *  (`expectedMfp`, ancla de confianza). Comprueba `rev.mfp === expectedMfp`, que `mfp` es la huella
+ *  de `mpub`, y que la firma valida sobre `revokeDeviceCertMessage(rev.certId)`. Espejo de
+ *  `verifyMasterRevocation`: solo la maestra ancla puede revocar SUS certs, así un tercero no puede
+ *  forjar una revocación que retire (DoS) el cert de una víctima. */
+export async function verifyDeviceCertRevocation(rev: DeviceCertRevocation, expectedMfp: string): Promise<boolean> {
+  const s = subtle();
+  if (!s || !rev || !rev.certId || !rev.mfp || !rev.mpub || !rev.sig) return false;
+  if (!expectedMfp || rev.mfp !== expectedMfp) return false; // ANCLA DE CONFIANZA imprescindible
+  try {
+    if ((await fpOfMaster(rev.mpub)) !== rev.mfp) return false; // mfp debe ser la huella de mpub
+    const key = await s.importKey("jwk", rev.mpub, { name: "ECDSA", namedCurve: "P-256" }, false, ["verify"]);
+    return await s.verify(
+      { name: "ECDSA", hash: "SHA-256" },
+      key,
+      fromB64url(rev.sig) as BufferSource,
+      revokeDeviceCertBytes(rev.certId) as BufferSource,
     );
   } catch {
     return false;

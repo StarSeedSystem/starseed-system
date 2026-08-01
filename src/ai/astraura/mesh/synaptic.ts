@@ -35,6 +35,9 @@ import {
   type RelayBeacon,
   type RelayInboundItem,
 } from "./server-relay";
+// CRL de certificados de dispositivo (Adenda 128): conjunto verificado de certs revocados.
+import { refreshDeviceCertRevocations } from "./device-revocation";
+import { masterFingerprint } from "./master-identity";
 
 /** Cadencias (ms). El faro se refresca antes de caducar (BEACON_TTL 5 min). */
 const BEACON_EMIT_MS = 40_000;
@@ -180,6 +183,17 @@ async function pollPublicFeed(): Promise<void> {
 }
 
 /** Arranca el descubrimiento + la bandeja de relé + el feed público (idempotente). */
+/**
+ * Refresca el conjunto de CERTS de dispositivo revocados contra el ancla maestra
+ * PROPIA (todas las neuronas de la cuenta comparten la misma maestra). `masterFingerprint`
+ * es asíncrona, de ahí el envoltorio. Tolerante a fallos (no vacía el set si falla la lectura).
+ */
+function refreshDeviceCertCRL(): void {
+  void masterFingerprint().then((mfp) => {
+    if (mfp) return refreshDeviceCertRevocations(mfp);
+  });
+}
+
 export function startSynapticLayer(): void {
   if (started || typeof window === "undefined") return;
   started = true;
@@ -191,6 +205,7 @@ export function startSynapticLayer(): void {
   void registerIdentity(); // publica mi reclamación firmada identidad↔cuenta
   void refreshIdentities(); // mapa verificado fp→cuenta
   void refreshRevocations(); // conjunto verificado de identidades revocadas
+  refreshDeviceCertCRL(); // conjunto verificado de CERTS de dispositivo revocados
   emitTimer = setInterval(() => void emitBeacon(), BEACON_EMIT_MS);
   pullTimer = setInterval(() => void refreshBeacons(), BEACON_PULL_MS);
   inboxTimer = setInterval(() => void pollInbox(), INBOX_POLL_MS);
@@ -198,6 +213,7 @@ export function startSynapticLayer(): void {
     void pollPublicFeed();
     void refreshIdentities();
     void refreshRevocations();
+    refreshDeviceCertCRL();
   }, INBOX_POLL_MS);
   // Entrega INSTANTÁNEA por realtime (además del sondeo, que sigue de respaldo).
   const onLiveItem = (it: RelayInboundItem) => {
