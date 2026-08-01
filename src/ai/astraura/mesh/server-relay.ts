@@ -159,13 +159,16 @@ function authHeaders(token?: string): Record<string, string> {
  * se degrada a NO verificado aunque la firma sea válida. Los sobres v:1/planos no
  * cambian (la guarda no aplica). El duplicado exacto ya se deduplica por id.
  */
-async function unwrapFresh(payload: unknown): Promise<{ body: unknown; verified: boolean; fp?: string }> {
+async function unwrapFresh(payload: unknown, id: string): Promise<{ body: unknown; verified: boolean; fp?: string }> {
   const u = await unwrapSigned(payload);
   // Solo se consulta/registra la guarda para firmas VÁLIDAS: así un atacante no
   // puede envenenar el LRU de nonces con sobres de firma inválida (ni gastar su
   // memoria), y el `fp` que ancla el nonce es el de una firma comprobada.
   if (!u.verified) return { body: u.body, verified: false, fp: u.fp };
-  return { body: u.body, verified: acceptFreshness(u.fp, u.ts, u.nonce), fp: u.fp };
+  // `id` (id de fila / oid) ata el nonce al ítem: una re-entrega del MISMO id es
+  // legítima (realtime + sondeo, o recarga que re-baja el feed); un id distinto con el
+  // mismo nonce es reinyección. Así no se degrada contenido legítimo re-entregado.
+  return { body: u.body, verified: acceptFreshness(u.fp, u.ts, u.nonce, id), fp: u.fp };
 }
 
 /**
@@ -802,7 +805,7 @@ export async function pullPublicFeed(since: number): Promise<RelayInboundItem[]>
         freshRows++;
         cursor = String(row.created_at ?? cursor);
         if (String(row.device_id ?? "") === me) continue; // no re-consumir lo mío
-        const u = await unwrapFresh(row.payload);
+        const u = await unwrapFresh(row.payload, id);
         out.push({
           id,
           cls: String(row.cls ?? "P2") as TrafficClass,
@@ -851,9 +854,10 @@ export async function pullFromEndpoint(endpoint: string, since: number, token?: 
       const row = raw as Record<string, unknown>;
       if (String(row.device_id ?? "") === me) continue;
       if (typeof row.lc === "number") lamportObserve(row.lc); // avanza el reloj lógico (Adenda 115)
-      const u = await unwrapFresh(row.body ?? row.payload ?? row.envelope ?? null);
+      const id = String(row.id ?? `${row.device_id ?? ""}-${row.at ?? row.created_at ?? ""}`);
+      const u = await unwrapFresh(row.body ?? row.payload ?? row.envelope ?? null, id);
       out.push({
-        id: String(row.id ?? `${row.device_id ?? ""}-${row.at ?? row.created_at ?? ""}`),
+        id,
         cls: String(row.cls ?? "P2") as TrafficClass,
         ptype: String(row.ptype ?? row.type ?? "post") as MeshPayloadType,
         body: u.body,
@@ -1015,7 +1019,7 @@ export function subscribeEndpointStream(onItem: (item: RelayInboundItem) => void
                 else return;
               }
             } else {
-              const u = await unwrapFresh(body);
+              const u = await unwrapFresh(body, String(row.id ?? `${row.device_id ?? ""}-${row.at ?? ""}`));
               body = u.body;
               verified = u.verified;
               signerFp = u.fp;
@@ -1102,7 +1106,7 @@ export function subscribeRelayRealtime(handlers: {
                 if (dec && typeof dec === "object") body = (dec as { body?: unknown }).body ?? dec;
                 else return; // cifrado sin clave: no entregable
               } else {
-                const u = await unwrapFresh(row.payload); // público firmado
+                const u = await unwrapFresh(row.payload, String(row.id ?? "")); // público firmado
                 body = u.body;
                 verified = u.verified;
                 signerFp = u.fp;

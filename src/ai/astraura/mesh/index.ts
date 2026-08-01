@@ -767,6 +767,9 @@ export {
   exportMasterKeyEncrypted,
   importMasterKeyEncrypted,
   fpOfMaster,
+  signMasterRevocation,
+  verifyMasterRevocation,
+  regenerateMasterKey,
   type DeviceCert,
   type MasterBlob,
 } from "./master-identity";

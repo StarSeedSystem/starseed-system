@@ -360,10 +360,11 @@ async function main() {
     const u = await unwrapSigned(env);
     check("anti-replay: v:2 verifica y expone ts/nonce", u.verified === true && typeof u.ts === "number" && !!u.nonce);
     const now = env.ts as number;
-    check("anti-replay: primera vez es fresco", acceptFreshness(u.fp, u.ts, u.nonce, now) === true);
-    check("anti-replay: mismo nonce repetido = replay", acceptFreshness(u.fp, u.ts, u.nonce, now) === false);
-    check("anti-replay: ts fuera de ventana = rechazado", acceptFreshness("id:x", now, "nonce-fresco", now + 20 * 60_000) === false);
-    check("anti-replay: sin ts/nonce (v1/plano) no aplica", acceptFreshness("id:x", undefined, undefined) === true);
+    check("anti-replay: primera vez es fresco", acceptFreshness(u.fp, u.ts, u.nonce, "item-A", now) === true);
+    check("anti-replay: mismo nonce + MISMO id = re-entrega legítima", acceptFreshness(u.fp, u.ts, u.nonce, "item-A", now) === true);
+    check("anti-replay: mismo nonce + DISTINTO id = replay", acceptFreshness(u.fp, u.ts, u.nonce, "item-B", now) === false);
+    check("anti-replay: ts fuera de ventana = rechazado", acceptFreshness("id:x", now, "nonce-fresco", "item-C", now + 20 * 60_000) === false);
+    check("anti-replay: sin ts/nonce (v1/plano) no aplica", acceptFreshness("id:x", undefined, undefined, "item-D") === true);
     const tampered = { ...env, b: { hola: "otro" } };
     const ut = await unwrapSigned(tampered);
     check("anti-replay: v:2 con body manipulado NO verifica", ut.verified === false);
@@ -408,6 +409,20 @@ async function main() {
       const swapped = { ...blob, mpub: certB.mpub, mfp: certB.mfp };
       check("maestra: blob con mpub intercambiada (priv≠mpub) NO importa", (await M.importMasterKeyEncrypted(swapped, pass)) === null);
     }
+    // Rotación + auto-revocación de la maestra (Adenda 122).
+    M._resetMasterKey();
+    const rfpA = await M.masterFingerprint();
+    const rcertOld = await M.signDeviceCert("id:dev-rot", "acct-rot");
+    const rev = await M.signMasterRevocation();
+    check("maestra: firma su auto-revocación", !!rev && rev.mfp === rfpA);
+    check("maestra: revocación propia verifica", rev ? (await M.verifyMasterRevocation(rev.mfp, rev.sig, rev.mpub)) === true : false);
+    check("maestra: revocación con mfp ajeno NO verifica", rev ? (await M.verifyMasterRevocation("acct:ajena0000000000", rev.sig, rev.mpub)) === false : false);
+    const rot = await M.regenerateMasterKey();
+    check("maestra: rota a una huella NUEVA (oldFp/newFp)", !!rot && !!rot.newFp && rot.oldFp === rfpA && rot.newFp !== rfpA);
+    check("maestra: cert de la maestra VIEJA NO verifica contra la NUEVA", rcertOld && rot ? (await M.verifyDeviceCert(rcertOld, rot.newFp)) === false : false);
+    const rcertNew = await M.signDeviceCert("id:dev-rot2", "acct-rot");
+    check("maestra: cert de la maestra NUEVA verifica contra la nueva huella", rcertNew && rot ? (rcertNew.mfp === rot.newFp && (await M.verifyDeviceCert(rcertNew, rot.newFp)) === true) : false);
+    check("maestra: la revocación de la rotación es la de la maestra VIEJA", !!rot && !!rot.revocation && rot.revocation.mfp === rfpA);
   } else {
     console.log("  (omite identidad portátil: sin WebCrypto en este entorno)");
   }

@@ -307,6 +307,80 @@ export async function importMasterKeyEncrypted(blob: MasterBlob, passphrase: str
   }
 }
 
+/* ── Rotación + auto-revocación de la maestra (Adenda 122) ───────────────────────
+ * La maestra es la RAÍZ soberana: ante compromiso hay que poder rotarla y avisar a
+ * la red de que la vieja ya no vale. La revocación es AUTO-AUTENTICABLE (solo quien
+ * tiene la clave puede firmarla), como el acta de revocación de dispositivo.
+ * ---------------------------------------------------------------------------- */
+
+/** Mensaje canónico de un acta de revocación de maestra (orden fijo). */
+function revMessage(mfp: string): Uint8Array<ArrayBuffer> {
+  const u = new TextEncoder().encode(JSON.stringify({ revokeMaster: mfp }));
+  const buf = new ArrayBuffer(u.length);
+  const out = new Uint8Array(buf);
+  out.set(u);
+  return out;
+}
+
+/** Firma el acta de auto-revocación de la maestra ACTUAL → {mfp, mpub, sig}. */
+export async function signMasterRevocation(): Promise<{ mfp: string; mpub: JsonWebKey; sig: string } | null> {
+  const s = subtle();
+  const m = await getOrCreateMasterKey();
+  if (!s || !m) return null;
+  try {
+    const sig = await s.sign({ name: "ECDSA", hash: "SHA-256" }, m.privKey, revMessage(m.fp));
+    return { mfp: m.fp, mpub: m.pub, sig: b64url(sig) };
+  } catch {
+    return null;
+  }
+}
+
+/** Verifica un acta de revocación de maestra: firma válida sobre {revokeMaster:mfp}
+ *  por la clave cuya huella ES `mfp` (solo la propia maestra puede revocarse). */
+export async function verifyMasterRevocation(mfp: string, sig: string, mpub: JsonWebKey): Promise<boolean> {
+  const s = subtle();
+  if (!s || !mfp || !sig || !mpub) return false;
+  try {
+    if ((await fpOfMaster(mpub)) !== mfp) return false; // la firma debe venir de la propia clave revocada
+    const key = await s.importKey("jwk", mpub, { name: "ECDSA", namedCurve: "P-256" }, false, ["verify"]);
+    return await s.verify({ name: "ECDSA", hash: "SHA-256" }, key, fromB64url(sig) as BufferSource, revMessage(mfp) as BufferSource);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Rota la maestra: firma la revocación de la ACTUAL, genera una NUEVA y la persiste.
+ * Devuelve {oldFp, newFp, revocation}. El llamador DEBE, para que la rotación surta
+ * efecto en la red: (1) PUBLICAR la revocación, (2) RE-CERTIFICAR sus dispositivos con
+ * la maestra nueva, y (3) RE-FIJAR el ancla `account→mfp` (a `newFp`). Los certificados
+ * firmados por la maestra vieja dejan de verificar contra la huella esperada nueva.
+ */
+export async function regenerateMasterKey(): Promise<{ oldFp: string; newFp: string; revocation: { mfp: string; mpub: JsonWebKey; sig: string } | null } | null> {
+  const s = subtle();
+  if (!s) return null;
+  try {
+    // Precondiciones ATÓMICAS: solo se rota si YA hay una maestra CARGABLE y se logra
+    // firmar su acta de revocación. Si no, se aborta SIN tocar el almacenamiento — no se
+    // acuña-y-tira una maestra espuria, no se pisa una raíz quizá recuperable, y no se
+    // rota "en silencio" dejando viva la vieja sin avisar a la red (hallazgo de revisión).
+    if (!hasMasterKey()) return null;
+    const m = await getOrCreateMasterKey();
+    if (!m) return null;
+    const revocation = await signMasterRevocation();
+    if (!revocation) return null;
+    const kp = (await s.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, ["sign", "verify"])) as CryptoKeyPair;
+    const pub = await s.exportKey("jwk", kp.publicKey);
+    const priv = await s.exportKey("jwk", kp.privateKey);
+    const newFp = await fpOfMaster(pub);
+    persist(pub, priv, newFp);
+    cache = { pub, privKey: kp.privateKey, fp: newFp };
+    return { oldFp: m.fp, newFp, revocation };
+  } catch {
+    return null;
+  }
+}
+
 /** Reinicia el estado (memoria + almacenamiento). Solo para pruebas. */
 export function _resetMasterKey(): void {
   cache = null;

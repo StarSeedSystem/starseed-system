@@ -134,14 +134,20 @@ function rateKey(req, u) {
 function rateLimited(key) {
   if (!RATE_MAX || RATE_MAX <= 0) return false; // desactivado
   const now = Date.now();
+  const refill = RATE_MAX / RATE_WINDOW_MS; // tokens por ms
   let b = rateBuckets.get(key);
-  if (!b || b.resetAt <= now) { b = { count: 0, resetAt: now + RATE_WINDOW_MS }; rateBuckets.set(key, b); }
-  b.count++;
+  if (!b) { b = { tokens: RATE_MAX, last: now }; rateBuckets.set(key, b); }
+  // Token-bucket (ventana DESLIZANTE, Adenda 122): rellena según el tiempo transcurrido,
+  // sin la ráfaga de hasta 2×RATE_MAX en el borde que permitía la ventana fija.
+  b.tokens = Math.min(RATE_MAX, b.tokens + Math.max(0, now - b.last) * refill); // max(0,…): sin drenaje si el reloj salta atrás
+  b.last = now;
   if (rateBuckets.size > 5000) {
-    for (const [k, v] of rateBuckets) if (v.resetAt <= now) rateBuckets.delete(k); // expirados
-    while (rateBuckets.size > 5000) { const f = rateBuckets.keys().next().value; if (f === undefined) break; rateBuckets.delete(f); } // tope duro (LRU aprox)
+    for (const [k, v] of rateBuckets) if (now - v.last > RATE_WINDOW_MS * 2) rateBuckets.delete(k); // inactivos
+    while (rateBuckets.size > 5000) { const f = rateBuckets.keys().next().value; if (f === undefined) break; rateBuckets.delete(f); } // tope duro
   }
-  return b.count > RATE_MAX;
+  if (b.tokens < 1) return true; // sin tokens → limitado
+  b.tokens -= 1;
+  return false;
 }
 
 /* ── Auth de grupo (con EXPIRACIÓN opcional, Adenda 108) ─────────────────────
