@@ -478,7 +478,7 @@ export async function registerIdentity(): Promise<void> {
     identityRegistered = true;
     const me = deviceId();
     await supabase.from("os_mesh_relay").delete().eq("owner_id", owner).eq("device_id", me).eq("kind", "identity");
-    await supabase.from("os_mesh_relay").insert({
+    const { error: idErr } = await supabase.from("os_mesh_relay").insert({
       owner_id: owner,
       channel: "public",
       kind: "identity",
@@ -489,6 +489,14 @@ export async function registerIdentity(): Promise<void> {
       device_id: me,
       expires_at: new Date(Date.now() + 30 * 24 * 60 * 60_000).toISOString(),
     });
+    if (idErr) {
+      // Observabilidad (Adenda 123): antes el registro fallaba EN SILENCIO si la BD
+      // rechazaba `kind='identity'` (CHECK sin ampliar). Avisar y permitir reintento.
+      identityRegistered = false;
+      if (typeof console !== "undefined") {
+        console.warn("[mesh] registro de identidad rechazado por el servidor (¿migración de `kind` sin aplicar?):", idErr.message);
+      }
+    }
     // Sube el certificado de revocación PRE-GENERADO de este dispositivo a la
     // cuenta (Adenda 115): permite revocarlo desde otra neurona si se pierde.
     try {
@@ -614,12 +622,18 @@ export async function refreshIdentities(): Promise<void> {
   try {
     const supabase = await client();
     if (!supabase) return;
-    const { data } = await supabase.from("os_mesh_relay").select("payload").eq("kind", "identity").limit(500);
+    const { data } = await supabase.from("os_mesh_relay").select("payload, owner_id").eq("kind", "identity").limit(500);
     if (!Array.isArray(data)) return;
     const next = new Map<string, string>();
     for (const row of data as Array<Record<string, unknown>>) {
       const p = (row.payload ?? null) as { owner?: string; fp?: string; pub?: JsonWebKey; sig?: string } | null;
       if (!p?.owner || !p.fp || !p.pub || !p.sig) continue;
+      // BINDING SEGURO (Adenda 123): la cuenta RECLAMADA debe ser la del INSERTOR
+      // real. El RLS de inserción fija `owner_id = auth.uid()`, así que exigir
+      // owner === owner_id impide que una neurona publique una identidad "reclamando"
+      // la cuenta de OTRA (firmaría el uuid ajeno con SU clave y, sin este cruce,
+      // quedaría idMap[fpAtacante] = cuentaVíctima → suplantación de cuenta).
+      if (String(p.owner) !== String(row.owner_id)) continue;
       if (!(await verifyContent(p.owner, p.sig, p.pub))) continue; // firma inválida
       if ((await fpOf(p.pub)) !== p.fp) continue; // fp no coincide con la clave
       next.set(p.fp, p.owner);
