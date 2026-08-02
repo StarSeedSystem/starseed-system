@@ -380,6 +380,17 @@ export function rankCandidates(
     connectorsMode = "auto";
   }
 
+  // SEÑALES REALES del dispositivo para el NUDGE por clase de acceso (preferencias
+  // unificadas de modelo): conexión efectiva (`navigator.onLine`, guardado SSR) y
+  // si hay un motor LOCAL ya LISTO en la disponibilidad recién calculada (`avail`).
+  // Antes `accessBias` no podía recibirlas → la siembra por capacidades del
+  // dispositivo era inerte. Se derivan UNA vez y se pasan a cada `accessBias`.
+  // Con la preferencia CANÓNICA no alteran el orden (equivalencia exacta); solo
+  // sesgan si el usuario personalizó su preferencia/perEnv — y sigue siendo un
+  // empujón pequeño que NO domina (por debajo de freeFirst, fromUser y override).
+  const online = typeof navigator === "undefined" ? undefined : navigator.onLine !== false;
+  const hasLocal = avail.some((a) => a.ready && llmSourceAccessClass(a.source.id) === "local");
+
   for (const a of avail) {
     if (!a.ready) continue;
     if (prefs.disabledSources.includes(a.source.id)) continue;
@@ -409,7 +420,7 @@ export function rankCandidates(
       // un empujón, NO domina: queda por debajo del freeFirst (-6), del boost de
       // los servicios propios (+2.5/+8) y del override manual (+100). Defensivo.
       try {
-        score += accessBias(llmSourceAccessClass(a.source.id), { task: profile.kind });
+        score += accessBias(llmSourceAccessClass(a.source.id), { task: profile.kind, online, hasLocal });
       } catch { /* sin sesgo si algo raro pasa */ }
       if (override === `${a.source.id}::${m.id}`) {
         score += 100;

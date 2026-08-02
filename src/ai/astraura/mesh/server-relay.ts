@@ -71,6 +71,23 @@ const FEED_MAX_PAGES = 12;
  * el TOFU device_id). Ver `refreshIdentities`.
  */
 const IDENTITY_MAX_PAGES = 50;
+/**
+ * Registro de REVOCACIONES: tope de páginas del DRENADO (cierre del ENTIERRO de revocaciones).
+ * Mismo tamaño de página y bound (~5000 filas = REVOCATION_MAX_PAGES × FEED_PAGE) que el registro
+ * de identidades: el `limit(500)` SIN `.order()` anterior devolvía las filas en orden FÍSICO
+ * arbitrario, así que un atacante que inundara actas `revocation` (válidas, de sus propias
+ * identidades desechables) EXPULSABA del tope la revocación LEGÍTIMA de una clave comprometida.
+ * Ver `refreshRevocations`.
+ */
+const REVOCATION_MAX_PAGES = 50;
+/**
+ * Bandeja de RELÉ privada: tope de páginas del DRENADO por sondeo (cierre de la PÉRDIDA en ráfaga).
+ * El `limit(50)` DESC anterior, combinado con un watermark que saltaba a la fila MÁS NUEVA, enterraba
+ * bajo el nuevo watermark toda ráfaga de >50 mensajes entre dos sondeos (nunca se entregaban). Se
+ * drena ASCENDENTE por (created_at, id) hasta agotar; el resto (raro) cae al próximo ciclo sin
+ * pérdida porque el watermark solo avanza al borde REALMENTE drenado. Ver `pullRelayInbox`.
+ */
+const RELAY_INBOX_MAX_PAGES = 12;
 
 /**
  * Token-bucket local ANTI-FLOOD (Adenda 119): frena ráfagas patológicas de subidas
@@ -1113,15 +1130,52 @@ export async function refreshRevocations(): Promise<void> {
   try {
     const supabase = await client();
     if (!supabase) return;
-    const { data } = await supabase.from("os_mesh_relay").select("payload").eq("kind", "revocation").limit(500);
-    if (!Array.isArray(data)) return;
-    const next = new Set<string>(revokedSet); // conserva las ya conocidas (p. ej. la recién revocada)
-    for (const row of data as Array<Record<string, unknown>>) {
-      const p = (row.payload ?? null) as { fp?: string; pub?: JsonWebKey; sig?: string } | null;
-      if (!p?.fp || !p.pub || !p.sig) continue;
-      if (!(await verifyRevocation(p.fp, p.sig, p.pub))) continue; // acta inválida: se ignora
-      next.add(p.fp);
+    // DRENADO por PÁGINAS de TODAS las actas de revocación (cierre del ENTIERRO de revocaciones,
+    // revisión adversarial). El `limit(500)` SIN `.order()` anterior devolvía las filas en orden
+    // FÍSICO arbitrario (heap): un atacante que insertara cientos de actas `revocation` bajo su
+    // propio owner_id —auto-revocación de identidades desechables, PERMITIDO por RLS y VÁLIDO
+    // (solo revoca sus propias claves)— EXPULSABA del tope de 500 la revocación LEGÍTIMA de una
+    // clave comprometida → nunca se aprendía → el contenido firmado con esa clave se seguía
+    // entregando como verificado. Ahora se pagina con `.range()` ordenando por (created_at asc,
+    // id asc) —mismo patrón que `refreshIdentities`— con un tope duro (~5000 filas =
+    // REVOCATION_MAX_PAGES × FEED_PAGE). Orden ASCENDENTE por created_at: una revocación legítima,
+    // una vez publicada, NO puede ser empujada más allá del tope por un flood POSTERIOR (created_at
+    // lo asigna el servidor con `now()`; el atacante no puede antedatar por debajo del acta legítima).
+    // El offset avanza pase lo que pase con los empates de created_at (a diferencia de un cursor
+    // keyset por created_at, que se atascaría ante ≥FEED_PAGE filas del mismo instante). La semántica
+    // se mantiene: público (sin filtro de owner), cada acta se verifica con `verifyRevocation`.
+    const next = new Set<string>(revokedSet); // conserva las ya conocidas (monótono; p. ej. la recién revocada)
+    let firstPageErrored = false;
+    for (let page = 0; page < REVOCATION_MAX_PAGES; page++) {
+      const from = page * FEED_PAGE;
+      const { data, error } = await supabase
+        .from("os_mesh_relay")
+        .select("id, payload, created_at")
+        .eq("kind", "revocation")
+        .order("created_at", { ascending: true })
+        .order("id", { ascending: true })
+        .range(from, from + FEED_PAGE - 1);
+      // Defensivo: si falla la PRIMERA página no se aprende nada nuevo → se PRESERVA el set vigente
+      // (como el limit(500) original) en vez de vaciarlo por un fallo transitorio. Un fallo en página
+      // posterior conserva lo ya drenado (el set solo crece: las revocaciones no se deshacen).
+      if (error || !Array.isArray(data)) {
+        if (page === 0) firstPageErrored = true;
+        break;
+      }
+      if (data.length === 0) break; // agotado
+      for (const row of data as Array<Record<string, unknown>>) {
+        const p = (row.payload ?? null) as { fp?: string; pub?: JsonWebKey; sig?: string } | null;
+        if (!p?.fp || !p.pub || !p.sig) continue;
+        if (next.has(p.fp)) continue; // ya conocida: no re-verificar (verifyRevocation es costosa)
+        if (!(await verifyRevocation(p.fp, p.sig, p.pub))) continue; // acta inválida: se ignora
+        next.add(p.fp);
+      }
+      if (data.length < FEED_PAGE) break; // última página: agotado
+      if (page === REVOCATION_MAX_PAGES - 1) {
+        console.warn(`[mesh] refreshRevocations: tope de ${REVOCATION_MAX_PAGES} páginas por sondeo; el resto se drena en el próximo ciclo.`);
+      }
     }
+    if (firstPageErrored) return; // primera lectura falló: no toques revokedSet (preserva lo conocido)
     revokedSet = next;
   } catch {
     /* */
@@ -1131,53 +1185,96 @@ export async function refreshRevocations(): Promise<void> {
 /**
  * Extrae de la bandeja de relé lo dirigido a esta neurona/cuenta y lo descifra.
  * `since` (epoch ms) limita a lo nuevo. RLS ya restringe a la propia cuenta.
+ *
+ * DRENADO ASCENDENTE PAGINADO (cierre de la PÉRDIDA en ráfaga — revisión adversarial). Antes hacía
+ * `order(created_at desc).limit(50)` SIN paginar y el llamador avanzaba `inboxWatermark = max(it.at)`
+ * sobre lo devuelto: si entre dos sondeos llegaban >50 filas ≥ watermark, solo se devolvían las 50
+ * MÁS NUEVAS y las MÁS VIEJAS quedaban bajo el nuevo watermark → NO se entregaban JAMÁS. Ahora se
+ * drena ASCENDENTE por (created_at, id) hasta agotar (patrón `pullPublicFeed`/`refreshIdentities`),
+ * con tope de páginas por sondeo y dedup por id. Al ser ascendente, el watermark solo avanza al
+ * borde REALMENTE drenado (el `next` devuelto), así que un drenado page-capped continúa en el
+ * próximo ciclo SIN perder el borde.
+ *
+ * Filtra `kind='data'`: las filas `revocation-cert` viven también en `channel='relay'` (RLS por
+ * owner) y, sin este filtro, OCUPABAN cupo del `limit(50)` desplazando mensajes reales.
+ *
+ * Devuelve `next` EXPLÍCITO (created_at ms máximo de TODO lo drenado, incluidas las filas propias /
+ * de otras neuronas de la cuenta que se excluyen de `items`): como esas filas no aparecen en
+ * `items`, el llamador no puede reconstruir la frontera desde `items` — hay que devolvérsela, o una
+ * ráfaga de ≥cupo filas propias dejaría `items` vacío y el watermark ATASCADO (mismo razonamiento
+ * que el `next` de `pullPublicFeed`). Ver synaptic.ts (inboxWatermark).
  */
-export async function pullRelayInbox(since: number): Promise<RelayInboundItem[]> {
+export async function pullRelayInbox(since: number): Promise<{ items: RelayInboundItem[]; next: number }> {
   try {
     const supabase = await client();
-    if (!supabase) return [];
+    if (!supabase) return { items: [], next: since };
     const owner = await ownerId(supabase);
-    if (!owner) return [];
+    if (!owner) return { items: [], next: since };
     const me = deviceId();
-    const cutoff = new Date(Math.max(since, Date.now() - RELAY_TTL_MS)).toISOString();
-    const { data, error } = await supabase
-      .from("os_mesh_relay")
-      .select("id, cls, ptype, enc, payload, recipient, device_id, created_at")
-      .eq("channel", "relay")
-      .gte("created_at", cutoff)
-      .order("created_at", { ascending: false })
-      .limit(50);
-    if (error || !Array.isArray(data)) return [];
+    const floorMs = Math.max(since, Date.now() - RELAY_TTL_MS);
+    const cutoff = new Date(floorMs).toISOString();
     const out: RelayInboundItem[] = [];
-    for (const row of data as Array<Record<string, unknown>>) {
-      const recipient = row.recipient ? String(row.recipient) : null;
-      // A mí: sin destinatario (a la cuenta) o dirigido a esta neurona; nunca lo
-      // que yo mismo emití (device_id === me).
-      if (String(row.device_id ?? "") === me) continue;
-      if (recipient && recipient !== me) continue;
-      let body: unknown = row.payload ?? null;
-      let locked = false;
-      if (row.enc === true) {
-        const dec = await decryptEnvelope(row.payload as EncEnvelope);
-        if (dec && typeof dec === "object") body = (dec as { body?: unknown }).body ?? dec;
-        else {
-          locked = true;
-          body = null;
-        }
+    const drained = new Set<string>();
+    let cursorMs = since; // frontera a devolver: máximo created_at de TODO lo drenado (incl. propias)
+    for (let page = 0; page < RELAY_INBOX_MAX_PAGES; page++) {
+      const from = page * FEED_PAGE;
+      const { data, error } = await supabase
+        .from("os_mesh_relay")
+        .select("id, cls, ptype, enc, payload, recipient, device_id, created_at")
+        .eq("channel", "relay")
+        .eq("kind", "data") // excluye revocation-cert (mismo channel, RLS por owner)
+        .gte("created_at", cutoff)
+        .order("created_at", { ascending: true })
+        .order("id", { ascending: true })
+        .range(from, from + FEED_PAGE - 1);
+      // Fallo de página: 1ª página → no avances (preserva el watermark del llamador). Página
+      // posterior → entrega lo drenado con el cursor avanzado (un fallo parcial no descarta el
+      // progreso; el dedup por deliveredRelayIds cubre la re-lectura del borde inclusivo `>=`).
+      if (error || !Array.isArray(data)) {
+        if (page === 0) return { items: [], next: since };
+        break;
       }
-      out.push({
-        id: String(row.id ?? ""),
-        cls: (String(row.cls ?? "P2") as TrafficClass),
-        ptype: (String(row.ptype ?? "message") as MeshPayloadType),
-        body,
-        from: row.device_id ? String(row.device_id) : null,
-        at: row.created_at ? Date.parse(String(row.created_at)) : 0,
-        locked,
-      });
+      for (const row of data as Array<Record<string, unknown>>) {
+        const id = String(row.id ?? "");
+        if (id && drained.has(id)) continue; // dedup defensivo dentro del sondeo
+        if (id) drained.add(id);
+        // Avanza SIEMPRE la frontera (incluidas las filas propias / de otras neuronas de la cuenta):
+        // así una ráfaga de ≥cupo filas excluidas no deja el watermark atascado.
+        const at = row.created_at ? Date.parse(String(row.created_at)) : 0;
+        if (at > cursorMs) cursorMs = at;
+        const recipient = row.recipient ? String(row.recipient) : null;
+        // A mí: sin destinatario (a la cuenta) o dirigido a esta neurona; nunca lo
+        // que yo mismo emití (device_id === me).
+        if (String(row.device_id ?? "") === me) continue;
+        if (recipient && recipient !== me) continue;
+        let body: unknown = row.payload ?? null;
+        let locked = false;
+        if (row.enc === true) {
+          const dec = await decryptEnvelope(row.payload as EncEnvelope);
+          if (dec && typeof dec === "object") body = (dec as { body?: unknown }).body ?? dec;
+          else {
+            locked = true;
+            body = null;
+          }
+        }
+        out.push({
+          id,
+          cls: (String(row.cls ?? "P2") as TrafficClass),
+          ptype: (String(row.ptype ?? "message") as MeshPayloadType),
+          body,
+          from: row.device_id ? String(row.device_id) : null,
+          at,
+          locked,
+        });
+      }
+      if (data.length < FEED_PAGE) break; // última página: agotado
+      if (page === RELAY_INBOX_MAX_PAGES - 1) {
+        console.warn(`[mesh] pullRelayInbox: tope de ${RELAY_INBOX_MAX_PAGES} páginas por sondeo; el resto se drena en el próximo ciclo.`);
+      }
     }
-    return out;
+    return { items: out, next: cursorMs };
   } catch {
-    return [];
+    return { items: [], next: since };
   }
 }
 

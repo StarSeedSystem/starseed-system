@@ -54,6 +54,10 @@ import {
   getFreeSourceSuggestions,
   type FreeSourceSuggestion,
 } from "./free-sources-sync";
+// Preferencias unificadas de modelo (orden por CLASE DE ACCESO). Módulo
+// AUTOCONTENIDO (cero imports del proyecto) → importarlo aquí NO crea ciclo.
+// Aporta el mismo NUDGE que usa `rankCandidates` del router al pin "auto".
+import { accessBias, llmSourceAccessClass } from "@/lib/astraura/model-preferences";
 
 /* ───────────────────── Claves y eventos ───────────────────── */
 
@@ -161,17 +165,34 @@ export function isLibrarySource(id: string): boolean {
  */
 export function getUnifiedCatalog(): CatalogSource[] {
   const base = FREE_CATALOG;
-  if (librarySources.size === 0) return base;
-  // Asegura que la fuente openrouter-free del catálogo base sea la VIVA.
+  // Sustituye SIEMPRE `openrouter-free` del catálogo base por la fuente VIVA,
+  // HAYA o no fuentes de Biblioteca instaladas. (Antes un early-return
+  // `if (librarySources.size === 0) return base` dejaba a la MAYORÍA de usuarios
+  // —sin ai-source instalada— con la lista `:free` ESTÁTICA toda la sesión:
+  // modelos muertos en rotación que queman eslabones de failover.) El one-shot
+  // `applyLiveOpenRouter()` no basta: en arranque en frío corre ANTES del primer
+  // fetch y congela el estático (marca `liveApplied` con la lista aún vacía). En
+  // cambio `liveOpenRouterSource()` lee el `liveSource` ACTUAL —refrescado tras
+  // cada fetch y en cada evento `starseed:openrouter-catalog`—, así que llamándola
+  // fresca en CADA invocación (getUnifiedCatalog corre en la ruta de disponibilidad
+  // de cada respuesta) el router recoge los `:free` reales EN CUANTO están y en
+  // cada refresco, sin carrera de arranque. Fallback seguro: si el vivo aún no
+  // tiene modelos (arranque/red caída) se conserva la fuente estática `s`.
   const out: CatalogSource[] = [];
   for (const s of base) {
     if (s.id === "openrouter-free") {
-      const live = liveOpenRouterSource();
+      let live: CatalogSource | null = null;
+      try {
+        live = liveOpenRouterSource();
+      } catch {
+        live = null; // defensivo: ruta crítica, nunca lanza
+      }
       out.push(live && live.models.length ? live : s);
     } else {
       out.push(s);
     }
   }
+  // Fuentes registradas en runtime desde la Biblioteca (si las hay).
   for (const s of librarySources.values()) out.push(s);
   return out;
 }
@@ -216,10 +237,16 @@ export function resolveAutoModel(sense: string): { fuente: string; modelo: strin
         if (task === "vision" && m.vision) score += 8;
         if (src.requiresKey === false) score += 3; // sin-clave preferible
         if (m.context && m.context >= 200_000) score += 2;
-        // (Adenda 71-bis) OpenRouter es el MOTOR de modelos: prioridad base
-        // para que el catálogo unificado lo use por defecto y solo caa a
-        // otras fuentes gratis si OpenRouter no cubre la tarea.
-        if (src.id === "openrouter-free") score += 15;
+        // NUDGE por CLASE DE ACCESO (preferencias unificadas de modelo), IGUAL
+        // que `rankCandidates` del router: respeta el orden que el usuario prefiere
+        // por clase (local/starseed/api-free/api-external), sembrado por el
+        // dispositivo. SUSTITUYE al antiguo `+15` HARDCODEADO a `openrouter-free`,
+        // que ignoraba por completo esa preferencia (p.ej. "local primero") y
+        // clavaba OpenRouter como ganador. El sesgo es pequeño [0..4]: sigue siendo
+        // un empujón, NO anula la calidad ni las fortalezas por tarea. Defensivo.
+        try {
+          score += accessBias(llmSourceAccessClass(src.id), { task });
+        } catch { /* sin sesgo si algo raro pasa */ }
         ranked.push({ src, model: m, score });
       }
     }

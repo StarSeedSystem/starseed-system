@@ -759,6 +759,56 @@ async function main() {
     console.log("  (omite revocación explícita de cert: sin WebCrypto en este entorno)");
   }
 
+  // 34) DRENADO de BANDEJA DE RELÉ y REVOCACIONES: invariantes de paginación ASC + watermark.
+  //     Núcleo verificable SIN Supabase (se simula la tabla y el bucle tal como los implementan
+  //     pullRelayInbox / refreshRevocations): blinda contra la PÉRDIDA en ráfaga y el ENTIERRO.
+  {
+    const PAGE = 100;
+    const me = "meDev";
+    type Row = { id: string; at: number; dev: string; kind: string; recipient: string | null };
+    const rows: Row[] = [];
+    for (let i = 0; i < 250; i++) rows.push({ id: `d${String(i).padStart(4, "0")}`, at: 1000 + i, dev: "other", kind: "data", recipient: null });
+    for (let i = 0; i < 30; i++) rows.push({ id: `c${i}`, at: 1000 + i, dev: "other", kind: "revocation-cert", recipient: null }); // ruido que ocupaba cupo
+    for (let i = 0; i < 30; i++) rows.push({ id: `m${i}`, at: 1000 + i, dev: me, kind: "data", recipient: null });          // propias
+
+    // Fiel a pullRelayInbox: ASC por (at,id), filtra kind='data', cursor = max at de TODO lo drenado.
+    const drain = (since: number, maxPages: number): { items: string[]; next: number } => {
+      const elig = rows.filter((r) => r.kind === "data" && r.at >= since).sort((a, b) => (a.at - b.at) || (a.id < b.id ? -1 : 1));
+      const items: string[] = []; let cursor = since;
+      for (let p = 0; p < maxPages; p++) {
+        const page = elig.slice(p * PAGE, p * PAGE + PAGE);
+        if (!page.length) break;
+        for (const r of page) { if (r.at > cursor) cursor = r.at; if (r.dev === me) continue; if (r.recipient && r.recipient !== me) continue; items.push(r.id); }
+        if (page.length < PAGE) break;
+      }
+      return { items, next: cursor };
+    };
+    const delivered = new Set<string>(); let wm = 0;
+    for (let poll = 0; poll < 5; poll++) { const { items, next } = drain(wm, 2); wm = Math.max(wm, next); for (const id of items) delivered.add(id); } // tope 2 pág → reparte en ciclos
+    check("inbox: ráfaga de 250 se entrega ENTERA (drenado ASC + watermark al borde drenado)", delivered.size === 250);
+    check("inbox: revocation-cert NO se entrega (filtro kind='data')", ![...delivered].some((id) => id.startsWith("c")));
+    check("inbox: lo propio (device_id === me) NO se entrega", ![...delivered].some((id) => id.startsWith("m")));
+
+    // Contraste: el algoritmo VIEJO (DESC + limit 50 + watermark al más nuevo) enterraba los viejos.
+    const oldPull = (since: number) => {
+      const got = rows.filter((r) => r.at >= since).sort((a, b) => (b.at - a.at) || (a.id < b.id ? 1 : -1)).slice(0, 50);
+      let next = since; for (const r of got) next = Math.max(next, r.at);
+      return { items: got.filter((r) => r.dev !== me && r.kind === "data").map((r) => r.id), next };
+    };
+    const old = new Set<string>(); let owm = 0;
+    for (let poll = 0; poll < 5; poll++) { const { items, next } = oldPull(owm); owm = Math.max(owm, next); for (const id of items) old.add(id); }
+    check("inbox (regresión): el algoritmo viejo PERDÍA mensajes en ráfaga", old.size < 250);
+
+    // Revocaciones: 600 actas de flooder + 1 legítima (la más ANTIGUA: no antedatable por debajo).
+    const LEGIT = "fp-legit-comprometida";
+    const revs = [{ id: "rL", fp: LEGIT, at: 500 }, ...Array.from({ length: 600 }, (_, i) => ({ id: `rF${i}`, fp: `fp-flood-${i}`, at: 600 + i }))];
+    const worst = [...revs.filter((r) => r.fp !== LEGIT), revs.find((r) => r.fp === LEGIT)!]; // peor orden físico: flood primero
+    check("revocación (regresión): limit(500) sin orden PODÍA no ver la legítima", !new Set(worst.slice(0, 500).map((r) => r.fp)).has(LEGIT));
+    const newSet = new Set<string>(); const ord = [...revs].sort((a, b) => (a.at - b.at) || (a.id < b.id ? -1 : 1));
+    for (let p = 0; p < 50; p++) { const page = ord.slice(p * PAGE, p * PAGE + PAGE); if (!page.length) break; for (const r of page) newSet.add(r.fp); if (page.length < PAGE) break; }
+    check("revocación: el drenado ASC paginado SIEMPRE aprende la revocación legítima", newSet.has(LEGIT));
+  }
+
   console.log(`\n${passed} pasan / ${failed} fallan`);
   if (failed > 0) process.exit(1);
 }

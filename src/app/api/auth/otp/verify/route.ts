@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import crypto from "node:crypto";
+import { rateLimit, clientIp, hashOtp } from "@/lib/security/rate-limit";
 
 /**
  * POST /api/auth/otp/verify
@@ -11,9 +13,21 @@ import { createClient } from "@supabase/supabase-js";
  * setSession. El código nunca viaja por email externo.
  *
  * Usa la SERVICE_ROLE explícita (no el cliente anon de @/utils/supabase/server):
- * necesita auth.admin + lectura en ss_mail con RLS. API route de servidor.
+ * necesita auth.admin + lectura/escritura en ss_otp con RLS. API route de servidor.
+ *
+ * ── ENDURECIMIENTO DE SEGURIDAD (2026-08-02) ──────────────────────────────
+ *  · FUENTE DE VERDAD = tabla `ss_otp` (hash del código, expiración, intentos,
+ *    flag de un solo uso), NO el texto del correo en ss_mail.
+ *  · LÍMITE DE INTENTOS por código: MAX_ATTEMPTS fallos → el código se invalida.
+ *  · UN SOLO USO: al acertar se consume de forma ATÓMICA (update condicional
+ *    consumed=false→true); una segunda verificación con el mismo código falla.
+ *  · RATE-LIMIT por IP y por email+IP (en memoria, no distribuido; ver
+ *    `@/lib/security/rate-limit`). Complementa la defensa dura de la BD.
  */
 export const runtime = "nodejs";
+
+/** Intentos fallidos permitidos por código antes de invalidarlo. */
+const MAX_ATTEMPTS = 5;
 
 function getServiceClient() {
   return createClient(
@@ -21,6 +35,14 @@ function getServiceClient() {
     process.env.SUPABASE_SERVICE_ROLE_KEY || "",
     { auth: { persistSession: false } },
   );
+}
+
+interface OtpRow {
+  id: string;
+  code_hash: string;
+  expires_at: string;
+  attempts: number;
+  consumed: boolean;
 }
 
 export async function POST(req: NextRequest) {
@@ -32,41 +54,73 @@ export async function POST(req: NextRequest) {
     if (!email || !code || !/^\d{6}$/.test(code)) {
       return NextResponse.json({ error: "Email o código inválidos." }, { status: 400 });
     }
+    const normEmail = email.trim().toLowerCase();
+
+    // ── RATE-LIMIT (anti fuerza-bruta). Ventana corta por IP y por email+IP. ──
+    const ip = clientIp(req);
+    const byIp = rateLimit(`otp-vrf:ip:${ip}`, 30, 10 * 60 * 1000);
+    const byEmailIp = rateLimit(`otp-vrf:ei:${normEmail}:${ip}`, 10, 10 * 60 * 1000);
+    if (!byIp.allowed || !byEmailIp.allowed) {
+      const retry = Math.max(byIp.retryAfterSec, byEmailIp.retryAfterSec);
+      return NextResponse.json(
+        { error: "Demasiados intentos. Inténtalo más tarde." },
+        { status: 429, headers: { "Retry-After": String(retry) } },
+      );
+    }
 
     const sb = getServiceClient();
 
-    // Buscar el correo OTP del usuario en ss_mail (no expirado, 10 min).
-    const cutoff = new Date(Date.now() - 10 * 60 * 1000).toISOString();
-    const { data: mails, error: mErr } = await sb
-      .from("ss_mail")
-      .select("id, body, created_at, to_address")
-      .eq("to_address", email)
-      .order("created_at", { ascending: false })
-      .limit(5);
+    // Mensaje GENÉRICO en todos los fallos (no distingue "no existe" de "incorrecto").
+    const genericFail = () =>
+      NextResponse.json({ error: "Código incorrecto o expirado." }, { status: 401 });
 
-    if (mErr) {
+    // ── RESERVA ATÓMICA de intento (cierre de la fuerza bruta CONCURRENTE) ────
+    // El RPC bloquea la fila del último código activo del email (`for update`, que
+    // SERIALIZA las llamadas concurrentes) y RESERVA un intento ANTES de comparar el
+    // hash → como mucho MAX_ATTEMPTS comparaciones por código, pase lo que pase con la
+    // concurrencia. El incremento read-modify-write anterior PERDÍA incrementos bajo
+    // ráfaga y no aplicaba el tope (toma de cuenta por fuerza bruta). Devuelve el hash
+    // sólo si quedaba intento; si no (agotado/caducado/sin código) → blocked=true.
+    const { data: claimRows, error: claimErr } = await sb.rpc("otp_claim_attempt", {
+      p_email: normEmail,
+      p_max: MAX_ATTEMPTS,
+    });
+    if (claimErr) {
       return NextResponse.json({ error: "No se pudo verificar el código." }, { status: 500 });
     }
+    const claim = (Array.isArray(claimRows) ? claimRows[0] : claimRows) as
+      | { id: string | null; code_hash: string | null; expires_at: string | null; attempts: number; blocked: boolean }
+      | undefined;
+    if (!claim || claim.blocked || !claim.id || !claim.code_hash) return genericFail();
 
-    const match = (mails || []).find((m: { body?: string; created_at: string }) => {
-      const okTime = m.created_at >= cutoff;
-      if (!okTime || !m.body) return false;
-      // El código de 6 dígitos vive en el body del correo del OS.
-      const mCode = (m.body.match(/(\d{6})/) || [])[1];
-      return mCode === code;
-    });
+    // Comparación por HASH (timing-safe). El intento YA fue contado atómicamente por el RPC.
+    const expected = hashOtp(normEmail, code);
+    const provided = claim.code_hash;
+    const a = Buffer.from(expected, "utf8");
+    const b = Buffer.from(provided, "utf8");
+    const ok = a.length === b.length && crypto.timingSafeEqual(a, b);
+    if (!ok) return genericFail();
 
-    if (!match) {
-      return NextResponse.json({ error: "Código incorrecto o expirado." }, { status: 401 });
+    // ── ACIERTO → CONSUMO ATÓMICO (un solo uso, a prueba de carreras) ────────
+    // update … where id AND consumed=false. Si no devuelve fila, otro proceso ya lo
+    // consumió (doble envío del mismo código) → rechazamos.
+    const { data: consumedRows, error: cErr } = await sb
+      .from("ss_otp")
+      .update({ consumed: true })
+      .eq("id", claim.id)
+      .eq("consumed", false)
+      .select("id");
+    if (cErr || !consumedRows || consumedRows.length === 0) {
+      return genericFail();
     }
 
-    // Código válido → crear sesión. El magiclink de Supabase entrega la sesión
-    // como redirect a `#access_token=...&refresh_token=...`. Canjeamos el token
-    // en el servidor vía /auth/v1/verify (redirect manual) y extraemos los tokens
-    // del fragmento del Location.
+    // Código válido y consumido → crear sesión. El magiclink de Supabase entrega
+    // la sesión como redirect a `#access_token=...&refresh_token=...`. Canjeamos
+    // el token en el servidor vía /auth/v1/verify (redirect manual) y extraemos
+    // los tokens del fragmento del Location.
     const { data: linkData, error: linkErr } = await sb.auth.admin.generateLink({
       type: "magiclink",
-      email,
+      email: normEmail,
       options: { redirectTo: "https://starseed-os.vercel.app/auth/callback" },
     });
     if (linkErr || !linkData?.properties?.action_link) {
@@ -103,8 +157,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "No se pudo extraer la sesión." }, { status: 500 });
     }
 
-    // Marcar el correo OTP como leído (best-effort, dentro del try).
-    await sb.from("ss_mail").update({ read: true }).eq("id", match.id);
+    // Marcar el/los correo(s) OTP de la bandeja como leídos (best-effort, no crítico).
+    await sb
+      .from("ss_mail")
+      .update({ read: true })
+      .eq("to_address", normEmail)
+      .eq("subject", "Tu código de acceso StarSeed")
+      .eq("read", false);
 
     return NextResponse.json({
       ok: true,

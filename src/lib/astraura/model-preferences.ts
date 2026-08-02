@@ -313,17 +313,28 @@ function blendOrders(
 }
 
 /**
- * Orden EFECTIVO de clases: resuelve perTask > perEnv > order como base y, en
- * modo `auto`, la fusiona con `recommendedOrder` (sesgo respetando exclusiones).
- * En modo `fixed` devuelve la base tal cual. Nunca lanza.
+ * Contexto para `effectiveOrder`/`accessBias`. `task`/`env` eligen la BASE
+ * (perTask > perEnv > order); `tier`/`online`/`hasLocal` son las SEÑALES REALES
+ * del dispositivo que alimentan la recomendación (`recommendedOrder`) en modo
+ * auto. Todos opcionales: sin ninguno, el resultado es el orden canónico. Tipo
+ * COMPARTIDO por las dos funciones para que sus firmas nunca se desincronicen
+ * (antes `accessBias` no podía reenviar tier/online/hasLocal → la siembra por
+ * dispositivo era inerte en runtime).
  */
-export function effectiveOrder(opts?: {
+export interface AccessContextOpts {
   task?: string;
   env?: EnvKind;
   tier?: "alto" | "medio" | "bajo" | "minimo";
   online?: boolean;
   hasLocal?: boolean;
-}): ModelAccessClass[] {
+}
+
+/**
+ * Orden EFECTIVO de clases: resuelve perTask > perEnv > order como base y, en
+ * modo `auto`, la fusiona con `recommendedOrder` (sesgo respetando exclusiones).
+ * En modo `fixed` devuelve la base tal cual. Nunca lanza.
+ */
+export function effectiveOrder(opts?: AccessContextOpts): ModelAccessClass[] {
   try {
     const o = opts || {};
     const prefs = getModelPreferences();
@@ -359,11 +370,15 @@ export function effectiveOrder(opts?: {
  * SESGO ADITIVO de una clase: mayor cuanto más arriba esté en `effectiveOrder`.
  * Para un orden de 4 clases: idx0 → 4, idx1 → 3, idx2 → 2, idx3 → 1; 0 si la
  * clase no está (excluida). Pensado para NUDGE (escala pequeña ~[0..4]). Nunca lanza.
+ *
+ * Acepta el contexto COMPLETO (`AccessContextOpts`) y lo reenvía tal cual a
+ * `effectiveOrder`: así las SEÑALES REALES del dispositivo (tier/online/hasLocal)
+ * y el env dejan de ser inertes cuando el llamador las provee. Con la preferencia
+ * CANÓNICA + estos datos, el orden NO cambia respecto a hoy (equivalencia exacta):
+ * `recommendedOrder` solo se desvía del canónico con un `tier` débil sin motor
+ * local, y `blendOrders(base canónica, canónica) = canónica`.
  */
-export function accessBias(
-  cls: ModelAccessClass,
-  opts?: { task?: string; env?: EnvKind },
-): number {
+export function accessBias(cls: ModelAccessClass, opts?: AccessContextOpts): number {
   try {
     const order = effectiveOrder(opts);
     const idx = order.indexOf(cls);

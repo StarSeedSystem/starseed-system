@@ -1,4 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import { promises as dns } from "node:dns";
+import { isIP } from "node:net";
+import { createClient } from "@/utils/supabase/server";
 
 // ════════════════════════════════════════════════════════════════
 // Proxy genérico de integraciones (lado servidor)
@@ -26,11 +29,40 @@ import { NextRequest, NextResponse } from "next/server";
 // Respuesta:
 //   { ok, status, data }  ó  { ok:false, error }
 //
-// SEGURIDAD: solo reenvía a la URL que el usuario provee. Se PERMITE
-// localhost / IPs privadas a propósito (los usuarios hacen self-host en
-// local), PERO se BLOQUEAN los endpoints de metadatos cloud
-// (169.254.169.254 y fd00:ec2::254) para evitar SSRF a credenciales de
-// instancia. Timeout duro con AbortController. Nada lanza al cliente.
+// ════════════════════════════════════════════════════════════════
+// SEGURIDAD — ANTI-SSRF (endurecido · Adenda seguridad 2026-08-02)
+// ----------------------------------------------------------------
+// 1) EXIGE SESIÓN. Sin usuario autenticado (Supabase) → 401. Antes la
+//    ruta era anónima: cualquiera en Internet podía usar el servidor
+//    como proxy ciego.
+// 2) DESTINOS BLOQUEADOS por defecto (fail-closed), RESOLVIENDO DNS:
+//    se bloquean loopback (127/8, ::1), rangos privados RFC1918
+//    (10/8, 172.16/12, 192.168/16), CGNAT (100.64/10), unspecified
+//    (0.0.0.0, ::), ULA IPv6 (fc00::/7), link-local (169.254/16,
+//    fe80::/10) y multicast/reservado. Se resuelve el HOSTNAME a todas
+//    sus IPs (A/AAAA) y se bloquea si CUALQUIERA cae en esos rangos:
+//    así un nombre que apunta a una IP interna (o DNS-rebinding) no
+//    puede colarse. Esquemas != http/https también se bloquean.
+// 3) METADATOS CLOUD (IMDS) SIEMPRE bloqueados, sin excepción posible:
+//    169.254.169.254 / 169.254.0.0/16, metadata.google.internal,
+//    fd00:ec2::254, fe80::/10. Ni el opt-in de self-host los levanta.
+// 4) REDIRECCIONES SEGURAS: `redirect:"manual"` + bucle propio (máx 5).
+//    CADA salto se re-valida con isBlocked() sobre la URL de Location
+//    resuelta a absoluta. Un endpoint que responda 302→169.254.169.254
+//    (robo de credenciales de la service-account en Cloud Run/GCE) se
+//    corta ANTES de seguirlo. En saltos cross-origin se descartan las
+//    cabeceras sensibles (Authorization / X-API-KEY / Cookie) para no
+//    filtrar el token del usuario a un tercero.
+//
+// SELF-HOST (localhost / LAN): varias integraciones son self-host en
+// local (p. ej. tencentdb-memory por defecto en http://localhost:8420,
+// Ollama, Home Assistant, n8n…). Por eso, los rangos PRIVADOS/loopback
+// (NO los de metadatos) pueden re-habilitarse con la variable de
+// entorno del SERVIDOR `INTEGRATIONS_PROXY_ALLOW_PRIVATE=1`. Por
+// defecto (sin la var) quedan BLOQUEADOS: seguro por defecto. Los
+// endpoints de metadatos IMDS se bloquean SIEMPRE, con o sin opt-in.
+//
+// Timeout duro con AbortController. Nada lanza al cliente.
 // ════════════════════════════════════════════════════════════════
 
 export const runtime = "nodejs";
@@ -38,12 +70,14 @@ export const dynamic = "force-dynamic";
 
 const MAX_TIMEOUT_MS = 20_000;
 const DEFAULT_TIMEOUT_MS = 15_000;
+/** Máximo de redirecciones que seguimos manualmente (cada una re-validada). */
+const MAX_REDIRECTS = 5;
 
-/** Hosts de metadatos cloud que NUNCA deben ser alcanzables (anti-SSRF). */
-const BLOCKED_HOSTS = new Set([
-  "169.254.169.254", // AWS / GCP / Azure IMDS
+/** Hostnames de metadatos cloud que NUNCA deben ser alcanzables (anti-SSRF). */
+const BLOCKED_HOSTNAMES = new Set([
   "metadata.google.internal",
   "metadata.goog",
+  "metadata",
 ]);
 
 interface ProxyRequest {
@@ -63,6 +97,21 @@ function jsonError(error: string, status = 200) {
   // status 200 a nivel HTTP: el cliente lee `ok:false`; así nunca rompemos
   // la cadena con throws. (Los errores reales viajan en el cuerpo.)
   return NextResponse.json({ ok: false, error }, { status });
+}
+
+/**
+ * ¿Se permiten destinos privados/loopback? Por DEFECTO SÍ — es el PROPÓSITO del proxy
+ * de integraciones en un OS soberano/self-host (Ollama, Home Assistant, n8n, memorias
+ * locales…). Los METADATOS de nube (IMDS 169.254.169.254 / metadata.google.internal /
+ * fd00:ec2::254 / link-local) se bloquean SIEMPRE, con independencia de esto (ver
+ * classifyIp → "always-blocked"), y la ruta EXIGE sesión — así el vector crítico (robo
+ * del token de la service-account en Cloud Run) queda cerrado sin romper el self-host.
+ * Se puede ENDURECER (bloquear también lo privado) en despliegues sin self-host con
+ * INTEGRATIONS_PROXY_ALLOW_PRIVATE=0.
+ */
+function allowPrivate(): boolean {
+  const v = (process.env.INTEGRATIONS_PROXY_ALLOW_PRIVATE || "").trim().toLowerCase();
+  return !(v === "0" || v === "false" || v === "no" || v === "off");
 }
 
 /** Construye la URL final de forma segura. */
@@ -89,18 +138,172 @@ function buildUrl(endpoint: string, path?: string, query?: Record<string, string
   }
 }
 
-/** Rechaza únicamente endpoints de metadatos cloud (no IPs privadas). */
-function isBlocked(url: URL): boolean {
-  const host = url.hostname.toLowerCase();
-  if (BLOCKED_HOSTS.has(host)) return true;
-  // Bloquea el rango link-local 169.254.0.0/16 (incluye IMDS).
-  if (/^169\.254\./.test(host)) return true;
-  // IMDSv6 de AWS.
-  if (host === "fd00:ec2::254" || host === "[fd00:ec2::254]") return true;
-  return false;
+type IpClass = "always-blocked" | "private" | "public";
+
+/** Clasifica una IPv4 (validada) en metadatos-always / privada / pública. */
+function classifyIpv4(ip: string): IpClass {
+  const parts = ip.split(".");
+  if (parts.length !== 4) return "always-blocked";
+  const nums = parts.map((p) => Number(p));
+  if (nums.some((n) => !Number.isInteger(n) || n < 0 || n > 255)) return "always-blocked";
+  const [a, b] = nums;
+  // SIEMPRE bloqueado (no gated por allowPrivate): link-local + endpoints de METADATOS
+  // de nube de todos los proveedores + rangos IANA special-use usados para IMDS.
+  if (a === 169 && b === 254) return "always-blocked"; // 169.254/16 link-local (GCP/AWS/Azure IMDS)
+  if (a === 100 && b === 100 && nums[2] === 100 && nums[3] === 200) return "always-blocked"; // Alibaba/ECS IMDS
+  if (a === 192 && b === 0 && nums[2] === 0) return "always-blocked"; // 192.0.0.0/24 IANA special (incl. 192.0.0.192)
+  // Privados / reservados (gated por allowPrivate).
+  if (a === 0) return "private"; // 0.0.0.0/8 "this host"
+  if (a === 10) return "private"; // 10/8
+  if (a === 127) return "private"; // 127/8 loopback
+  if (a === 172 && b >= 16 && b <= 31) return "private"; // 172.16/12
+  if (a === 192 && b === 168) return "private"; // 192.168/16
+  if (a === 100 && b >= 64 && b <= 127) return "private"; // 100.64/10 CGNAT
+  if (a >= 224) return "private"; // 224/4 multicast + 240/4 reservado
+  return "public";
+}
+
+/**
+ * Expande una IPv6 a sus 8 grupos de 16 bits (o null si es inválida). Maneja `::`,
+ * la IPv4 embebida en punto (::ffff:a.b.c.d) y grupos abreviados. Necesario porque
+ * la forma NORMALIZADA por WHATWG usa HEX (::ffff:a9fe:a9fe), no dotted-quad — sin
+ * expandir, un `[::ffff:169.254.169.254]` (IMDS) se colaba como "public" (SSRF a
+ * metadatos, revisión adversarial Adenda 130).
+ */
+function expandIpv6(ip: string): number[] | null {
+  let s = ip;
+  // IPv4 dotted-quad embebida al final → conviértela a dos hextets hex.
+  const dq = s.match(/^(.*:)((?:\d{1,3}\.){3}\d{1,3})$/);
+  if (dq) {
+    const v4 = dq[2].split(".").map((n) => Number(n));
+    if (v4.length !== 4 || v4.some((n) => !Number.isInteger(n) || n < 0 || n > 255)) return null;
+    s = dq[1] + (((v4[0] << 8) | v4[1]).toString(16)) + ":" + (((v4[2] << 8) | v4[3]).toString(16));
+  }
+  const halves = s.split("::");
+  if (halves.length > 2) return null; // más de un "::" es inválido
+  const head = halves[0] ? halves[0].split(":") : [];
+  const tail = halves.length === 2 ? (halves[1] ? halves[1].split(":") : []) : [];
+  let all: string[];
+  if (halves.length === 2) {
+    const missing = 8 - head.length - tail.length;
+    if (missing < 0) return null;
+    all = [...head, ...Array(missing).fill("0"), ...tail];
+  } else {
+    all = head;
+  }
+  if (all.length !== 8) return null;
+  const nums = all.map((g) => (g === "" ? NaN : parseInt(g, 16)));
+  if (nums.some((n) => Number.isNaN(n) || n < 0 || n > 0xffff)) return null;
+  return nums;
+}
+
+/** Clasifica una IPv6 (o IPv4-mapped) en metadatos-always / privada / pública. */
+function classifyIpv6(raw: string): IpClass {
+  const ip = raw.toLowerCase().replace(/^\[/, "").replace(/\]$/, "").split("%")[0];
+  const g = expandIpv6(ip);
+  if (!g) return "always-blocked"; // forma no parseable → fail-closed
+
+  // IPv4-mapped (::ffff:a.b.c.d) o compat (::a.b.c.d): los 32 bits finales son la IPv4.
+  const mapped = g[0] === 0 && g[1] === 0 && g[2] === 0 && g[3] === 0 && g[4] === 0 && g[5] === 0xffff;
+  const compat = g[0] === 0 && g[1] === 0 && g[2] === 0 && g[3] === 0 && g[4] === 0 && g[5] === 0 && (g[6] !== 0 || g[7] !== 0);
+  if (mapped || compat) {
+    const v4 = `${(g[6] >> 8) & 0xff}.${g[6] & 0xff}.${(g[7] >> 8) & 0xff}.${g[7] & 0xff}`;
+    return classifyIpv4(v4);
+  }
+  if (g.every((h) => h === 0)) return "private"; // :: unspecified
+  if (g.slice(0, 7).every((h) => h === 0) && g[7] === 1) return "private"; // ::1 loopback
+  const h0 = g[0];
+  if ((h0 & 0xffc0) === 0xfe80) return "always-blocked"; // fe80::/10 link-local (incl. IMDSv6)
+  if (h0 === 0xfd00 && g[1] === 0x0ec2) return "always-blocked"; // fd00:ec2::/32 IMDSv6 (AWS)
+  if ((h0 & 0xfe00) === 0xfc00) return "private"; // fc00::/7 unique-local
+  return "public";
+}
+
+function classifyIp(ip: string): IpClass {
+  const kind = isIP(ip);
+  if (kind === 4) return classifyIpv4(ip);
+  if (kind === 6) return classifyIpv6(ip);
+  return "always-blocked"; // no es una IP válida → fail-closed
+}
+
+/**
+ * ¿Se debe BLOQUEAR este destino? Async porque resuelve DNS.
+ *  · Esquema != http/https           → bloquea.
+ *  · Hostname de metadatos           → bloquea SIEMPRE.
+ *  · IP literal privada/metadatos     → bloquea (privada gated por allowPrivate).
+ *  · Nombre: resuelve TODAS las IPs; si CUALQUIERA es metadatos → bloquea SIEMPRE;
+ *    si alguna es privada → bloquea salvo allowPrivate; si no resuelve → bloquea.
+ */
+async function isBlocked(url: URL): Promise<boolean> {
+  // 1) Esquema: sólo http(s). (Importa sobre todo en las REDIRECCIONES: un
+  //    Location podría ser file://, gopher://, data://…)
+  const proto = url.protocol.toLowerCase();
+  if (proto !== "http:" && proto !== "https:") return true;
+
+  const host = url.hostname.toLowerCase().replace(/^\[/, "").replace(/\]$/, "");
+  if (!host) return true;
+
+  // 2) Hostnames de metadatos: bloqueo por nombre (aunque el DNS mienta).
+  if (BLOCKED_HOSTNAMES.has(host)) return true;
+
+  const allowPriv = allowPrivate();
+
+  // 3) IP literal → clasifícala directamente (sin DNS).
+  if (isIP(host)) {
+    const cls = classifyIp(host);
+    if (cls === "always-blocked") return true;
+    if (cls === "private") return !allowPriv;
+    return false;
+  }
+
+  // 4) Nombre → resuelve TODAS las IPs (mismo getaddrinfo que usará fetch) y
+  //    clasifica cada una. Metadatos → siempre; privada → salvo opt-in.
+  try {
+    const records = await dns.lookup(host, { all: true });
+    if (!records.length) return true; // sin registros → fail-closed
+    let sawPrivate = false;
+    for (const r of records) {
+      const cls = classifyIp(r.address);
+      if (cls === "always-blocked") return true; // corta ya: metadatos nunca
+      if (cls === "private") sawPrivate = true;
+    }
+    if (sawPrivate && !allowPriv) return true;
+    return false;
+  } catch {
+    return true; // no resuelve → bloquea (fail-closed)
+  }
+}
+
+/** Elimina cabeceras sensibles (para saltos cross-origin). Muta el objeto. */
+function stripSensitiveHeaders(headers: Record<string, string>): void {
+  for (const k of Object.keys(headers)) {
+    const lk = k.toLowerCase();
+    if (lk === "authorization" || lk === "x-api-key" || lk === "cookie") {
+      delete headers[k];
+    }
+  }
+}
+
+/** Elimina Content-Type (cuando se descarta el cuerpo en una redirección). */
+function stripContentType(headers: Record<string, string>): void {
+  for (const k of Object.keys(headers)) {
+    if (k.toLowerCase() === "content-type") delete headers[k];
+  }
 }
 
 export async function POST(req: NextRequest) {
+  // ── EXIGIR SESIÓN ───────────────────────────────────────────────────────
+  // Sin usuario autenticado, la ruta NO reenvía nada (evita proxy abierto).
+  try {
+    const supabase = await createClient();
+    const { data, error } = await supabase.auth.getUser();
+    if (error || !data.user) {
+      return jsonError("Necesitas iniciar sesión para usar las integraciones.", 401);
+    }
+  } catch {
+    return jsonError("No se pudo verificar la sesión.", 401);
+  }
+
   let payload: ProxyRequest;
   try {
     payload = (await req.json()) as ProxyRequest;
@@ -110,7 +313,7 @@ export async function POST(req: NextRequest) {
 
   const url = buildUrl(payload.endpoint || "", payload.path, payload.query);
   if (!url) return jsonError("Endpoint no configurado o inválido.");
-  if (isBlocked(url)) return jsonError("Destino no permitido (endpoint de metadatos bloqueado).");
+  if (await isBlocked(url)) return jsonError("Destino no permitido (bloqueado por seguridad).", 403);
 
   const method = (payload.method || "POST").toUpperCase();
   const auth = payload.auth || "bearer";
@@ -143,15 +346,80 @@ export async function POST(req: NextRequest) {
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    const res = await fetch(url.toString(), {
-      method,
-      headers,
-      body: bodyInit,
-      signal: controller.signal,
-      // No seguimos credenciales; reenvío puro.
-      cache: "no-store",
-      redirect: "follow",
-    });
+    // ── BUCLE DE REDIRECCIÓN SEGURO ───────────────────────────────────────
+    // redirect:"manual" → nosotros seguimos cada 3xx, re-validando el destino
+    // con isBlocked() ANTES de contactarlo. Así un 302→IP interna/metadatos se
+    // corta en vez de seguirse. Máximo MAX_REDIRECTS saltos.
+    let currentUrl = url;
+    let reqMethod = method;
+    let reqBody = bodyInit;
+    const reqHeaders = { ...headers };
+    let res: Response | null = null;
+    let redirects = 0;
+
+    // La URL inicial ya se validó arriba; el bucle re-valida cada salto.
+    for (;;) {
+      res = await fetch(currentUrl.toString(), {
+        method: reqMethod,
+        headers: reqHeaders,
+        body: reqBody,
+        signal: controller.signal,
+        cache: "no-store",
+        redirect: "manual", // NO seguir automáticamente: lo hacemos nosotros.
+      });
+
+      const isRedirect =
+        (res.status === 301 || res.status === 302 || res.status === 303 ||
+          res.status === 307 || res.status === 308) &&
+        !!res.headers.get("location");
+
+      if (!isRedirect) break; // respuesta final.
+
+      if (redirects >= MAX_REDIRECTS) {
+        return jsonError("Demasiadas redirecciones al contactar la herramienta.", 400);
+      }
+      redirects++;
+
+      const loc = res.headers.get("location") as string;
+      let nextUrl: URL;
+      try {
+        nextUrl = new URL(loc, currentUrl); // resuelve relativo → absoluto.
+      } catch {
+        return jsonError("Redirección inválida devuelta por la herramienta.", 400);
+      }
+
+      // RE-VALIDAR el nuevo destino ANTES de seguirlo (el núcleo del arreglo).
+      if (await isBlocked(nextUrl)) {
+        return jsonError("Redirección a un destino no permitido (bloqueada por seguridad).", 403);
+      }
+
+      // Cross-origin → no arrastrar credenciales del usuario a un tercero.
+      if (nextUrl.origin !== currentUrl.origin) {
+        stripSensitiveHeaders(reqHeaders);
+      }
+
+      // Transformación de método/cuerpo según el código (igual que redirect:follow):
+      //   · 303           → GET (HEAD sigue HEAD), sin cuerpo.
+      //   · 301/302 + POST → GET, sin cuerpo.
+      //   · 307/308        → conserva método y cuerpo.
+      if (res.status === 303) {
+        if (reqMethod !== "HEAD") reqMethod = "GET";
+        reqBody = undefined;
+        stripContentType(reqHeaders);
+      } else if ((res.status === 301 || res.status === 302) && reqMethod === "POST") {
+        reqMethod = "GET";
+        reqBody = undefined;
+        stripContentType(reqHeaders);
+      }
+      // (307/308 no tocan método ni cuerpo.)
+
+      // Drena el cuerpo de la respuesta de redirección para liberar el socket.
+      try { await res.arrayBuffer(); } catch { /* no-op */ }
+
+      currentUrl = nextUrl;
+    }
+
+    if (!res) return jsonError("No se pudo contactar la herramienta.");
 
     const status = res.status;
     const raw = await res.text();

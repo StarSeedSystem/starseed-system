@@ -60,8 +60,20 @@ let publicTimer: ReturnType<typeof setInterval> | null = null;
 let realtimeOff: (() => void) | null = null;
 /** Desuscripción del realtime SSE del servidor propio. */
 let streamOff: (() => void) | null = null;
-/** Marca de agua de la bandeja: solo entregamos lo posterior a esto. */
+/**
+ * Marca de agua de la bandeja de relé de SUPABASE (`pullRelayInbox`): solo entregamos lo posterior
+ * a esto. Avanza al `next` EXPLÍCITO del drenado (incluye filas propias / de otras neuronas de la
+ * cuenta, ausentes de `items`), para que una ráfaga de esas filas no atasque la frontera.
+ */
 let inboxWatermark = 0;
+/**
+ * Marca de agua SEPARADA del buzón dirigido de un SERVIDOR PROPIO por HTTP (`pullRelayExtra`,
+ * protocolo numérico `?since=<ms>`). Se mantiene APARTE del watermark de Supabase: mezclarlos
+ * dejaría que un borde del endpoint HTTP empujara el cutoff de Supabase por delante de filas aún
+ * NO drenadas (drenado page-capped) y las perdería — mismo motivo por el que el feed público separa
+ * `publicCursor` de `publicExtraWatermark`.
+ */
+let inboxExtraWatermark = 0;
 /**
  * Cursor keyset COMPUESTO del feed público de Supabase (Adenda 128): par
  * (at, id) que avanza por `id` DENTRO de un empate de created_at. Sustituye al
@@ -165,18 +177,24 @@ async function refreshBeacons(): Promise<void> {
 
 async function pollInbox(): Promise<void> {
   try {
-    // Bandeja de relé StarSeed + buzón dirigido del servidor propio activo.
+    // Bandeja de relé StarSeed (Supabase, `next` explícito) + buzón dirigido del servidor propio
+    // activo por HTTP (watermark numérico SEPARADO). Se sondean en paralelo con SUS PROPIOS
+    // watermarks (ver la nota de inboxExtraWatermark: no se pueden mezclar los relojes).
     const [base, extra] = await Promise.all([
       pullRelayInbox(inboxWatermark),
-      pullRelayExtra(inboxWatermark),
+      pullRelayExtra(inboxExtraWatermark),
     ]);
-    const items = [...base, ...extra];
+    // Avanza los watermarks ANTES de cualquier salida temprana: el `next` de la bandeja de relé
+    // incluye las filas propias / de otras neuronas de la cuenta (ausentes de `items`), así que una
+    // ráfaga de esas filas no deja el watermark atascado. El extra HTTP avanza por el `at` de sus items.
+    inboxWatermark = Math.max(inboxWatermark, base.next);
+    for (const it of extra) inboxExtraWatermark = Math.max(inboxExtraWatermark, it.at);
+    const items = [...base.items, ...extra];
     if (!items.length) return;
-    // Avanzar la marca de agua al más reciente (acota la ventana de consulta).
-    for (const it of items) inboxWatermark = Math.max(inboxWatermark, it.at);
-    // Entregar del más viejo al más nuevo (orden causal aproximado), SALTANDO lo
-    // ya entregado (la consulta usa `>=`, así que el borde reaparece cada sondeo).
-    for (const it of items.slice().reverse()) {
+    // Entregar del más viejo al más nuevo (orden causal aproximado) ordenando por `at` —ambas
+    // fuentes ya vienen en orden distinto—, SALTANDO lo ya entregado (la consulta usa `>=`, así
+    // que el borde reaparece cada sondeo; el dedup por deliveredRelayIds cubre esas re-entregas).
+    for (const it of items.slice().sort((a, b) => a.at - b.at)) {
       if (it.locked) continue; // cifrado sin clave: no se puede entregar
       if (isRevoked(it.signerFp)) continue; // identidad revocada: se descarta
       if (it.id && deliveredRelayIds.has(it.id)) continue; // ya entregado
@@ -240,6 +258,7 @@ export function startSynapticLayer(): void {
   // parte del par (hace 5 min, id vacío): `id` vacío → pullPublicFeed usa el uuid
   // cero, que incluye todas las filas de ese instante inicial.
   inboxWatermark = Date.now() - 5 * 60_000;
+  inboxExtraWatermark = Date.now() - 5 * 60_000;
   publicCursor = { atIso: new Date(Date.now() - 5 * 60_000).toISOString(), id: "" };
   publicExtraWatermark = Date.now() - 5 * 60_000;
   void refreshBeacons(); // radar inmediato

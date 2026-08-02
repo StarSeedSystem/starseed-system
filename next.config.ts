@@ -6,8 +6,12 @@ const nextConfig: NextConfig = {
   output: 'standalone',
   outputFileTracingRoot: path.join(__dirname),
   transpilePackages: ['@splinetool/react-spline'],
+  // Chequeo de tipos REACTIVADO (Adenda 130): `tsc --noEmit` pasa limpio hoy, así que
+  // activar el gate tiene coste 0 y evita que una regresión de tipos se despliegue en
+  // silencio (antes `ignoreBuildErrors:true` la ocultaba). ESLint sigue desactivado en
+  // build: su config no está migrada a flat-config (ESLint 9) y no ejecuta — tarea aparte.
   typescript: {
-    ignoreBuildErrors: true,
+    ignoreBuildErrors: false,
   },
   eslint: {
     ignoreDuringBuilds: true,

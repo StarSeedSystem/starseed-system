@@ -681,8 +681,13 @@ export function buildVoiceChain(
       // starseed) el resultado es idéntico al de hoy. NO cambia el failover: solo
       // la preferencia inicial. Defensivo: ante cualquier fallo, orden previo intacto.
       try {
+        // Señal REAL del dispositivo: conexión efectiva (guardado SSR). Antes
+        // `accessBias` no la recibía → la siembra por dispositivo era inerte.
+        // Con la preferencia CANÓNICA de voz el orden NO cambia (equivalencia
+        // exacta con hoy); solo sesga si el usuario personalizó su preferencia.
+        const online = typeof navigator === "undefined" ? undefined : navigator.onLine !== false;
         order = order
-          .map((id, i) => ({ id, i, bias: accessBias(voiceEngineAccessClass(id)) }))
+          .map((id, i) => ({ id, i, bias: accessBias(voiceEngineAccessClass(id), { online }) }))
           .sort((a, b) => b.bias - a.bias || a.i - b.i)
           .map((x) => x.id);
       } catch {
