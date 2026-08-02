@@ -8,7 +8,8 @@
  * enlace al Centro Red Mesh con el mapa 3D).
  */
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { RadioTower, Wifi, WifiOff, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ConnectionsCenter } from "@/components/connectivity/connections-center";
@@ -23,7 +24,6 @@ export function ConnectionsMenu() {
   const [open, setOpen] = useState(false);
   const [extOnline, setExtOnline] = useState(true);
   const mesh = useMeshState();
-  const panelRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     startMeshSubsystem();
@@ -32,28 +32,24 @@ export function ConnectionsMenu() {
     return subscribeConnectivity(refresh);
   }, []);
 
-  // Cerrar al hacer clic fuera o con Escape (patrón de los menús de la barra).
+  // Cerrar con Escape. El clic-FUERA lo maneja el backdrop del modal (onMouseDown,
+  // más abajo). Antes había un listener GLOBAL de mousedown atado a panelRef; como
+  // ahora el modal se PORTA a <body> (queda fuera de panelRef), ese listener lo
+  // cerraría al instante al pulsar DENTRO del modal → se elimina y se deja solo Escape.
   useEffect(() => {
     if (!open) return;
-    const onDown = (e: MouseEvent) => {
-      if (panelRef.current && !panelRef.current.contains(e.target as Node)) setOpen(false);
-    };
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") setOpen(false);
     };
-    window.addEventListener("mousedown", onDown);
     window.addEventListener("keydown", onKey);
-    return () => {
-      window.removeEventListener("mousedown", onDown);
-      window.removeEventListener("keydown", onKey);
-    };
+    return () => window.removeEventListener("keydown", onKey);
   }, [open]);
 
   const meshOn = mesh.status === "ready" || mesh.status === "degraded";
   const online = mesh.nodes.filter((n) => !n.isSelf && n.presence === "online").length;
 
   return (
-    <div className="relative" ref={panelRef}>
+    <div className="relative">
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
@@ -82,9 +78,13 @@ export function ConnectionsMenu() {
         )}
       </button>
 
-      {/* Ventana CENTRADA y amplia (Adenda 103): no se sale de pantalla ni al
-          desplegar la pestaña Red Mesh; scroll contenido dentro del modal. */}
-      {open && (
+      {/* Ventana CENTRADA y amplia (Adenda 103). Se PORTA a <body> (Adenda 129):
+          el header del escritorio tiene `backdrop-blur-2xl`, y un ancestro con
+          `backdrop-filter` establece el bloque contenedor de los `position:fixed`
+          descendientes + su propio stacking context → el modal quedaba atrapado en
+          la franja de ~44px del header y por debajo del resto del escritorio (el
+          botón «no hacía nada»). El portal a document.body lo saca de ese ancestro. */}
+      {open && typeof document !== "undefined" && createPortal(
         <div
           className="fixed inset-0 z-[80] flex items-end justify-center bg-black/55 p-0 backdrop-blur-sm sm:items-center sm:p-4"
           role="dialog"
@@ -111,7 +111,8 @@ export function ConnectionsMenu() {
               <ConnectionsCenter compact />
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );

@@ -64,6 +64,10 @@ import { getMeshState } from "./mesh/store";
 // que reutiliza la misma lógica que la tool `estado_voz` y la comprime a una
 // línea para el contexto. Aditivo y defensivo: nunca lanza.
 import { describeVoiceStateForPrompt } from "@/lib/integrations/aurora-tools";
+// Preferencias unificadas de modelo (orden por CLASE DE ACCESO, editable por el
+// usuario y sembrado por el dispositivo): aporta un NUDGE aditivo pequeño al
+// ranking según la clase de cada fuente. Módulo autocontenido y SSR-safe.
+import { accessBias, llmSourceAccessClass } from "@/lib/astraura/model-preferences";
 
 /* ───────────────────── Ajustes de Inteligencia ───────────────────── */
 
@@ -399,6 +403,14 @@ export function rankCandidates(
         if (adj.delta) score += adj.delta;
         if (adj.note && !fromUser) reason = `${reason} · ${adj.note}`;
       }
+      // NUDGE por CLASE DE ACCESO (preferencias unificadas de modelo): sesgo
+      // aditivo pequeño [0..4] según el orden que el usuario prefiere por clase
+      // (local/starseed/api-free/api-external), sembrado por el dispositivo. Es
+      // un empujón, NO domina: queda por debajo del freeFirst (-6), del boost de
+      // los servicios propios (+2.5/+8) y del override manual (+100). Defensivo.
+      try {
+        score += accessBias(llmSourceAccessClass(a.source.id), { task: profile.kind });
+      } catch { /* sin sesgo si algo raro pasa */ }
       if (override === `${a.source.id}::${m.id}`) {
         score += 100;
         reason = `Elegido por ti para «${TASK_LABELS[profile.kind]}»`;

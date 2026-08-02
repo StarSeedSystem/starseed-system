@@ -62,8 +62,22 @@ let realtimeOff: (() => void) | null = null;
 let streamOff: (() => void) | null = null;
 /** Marca de agua de la bandeja: solo entregamos lo posterior a esto. */
 let inboxWatermark = 0;
-/** Marca de agua del feed público (contenido de otras neuronas). */
-let publicWatermark = 0;
+/**
+ * Cursor keyset COMPUESTO del feed público de Supabase (Adenda 128): par
+ * (at, id) que avanza por `id` DENTRO de un empate de created_at. Sustituye al
+ * watermark numérico anterior, que se ATASCABA si ≥100 filas compartían el mismo
+ * created_at (insert masivo → `now()` idéntico) — DoS de descubrimiento de TODA
+ * la red. `pullPublicFeed` devuelve el `next` EXPLÍCITO (incluye las filas
+ * propias drenadas, que no vienen en `items`) y aquí se persiste tal cual.
+ */
+let publicCursor: { atIso: string; id: string } = { atIso: "", id: "" };
+/**
+ * Marca de agua SEPARADA del feed público de un SERVIDOR PROPIO por HTTP
+ * (`pullPublicExtra`, protocolo numérico `?since=<ms>`). Se mantiene APARTE del
+ * cursor keyset de Supabase: mezclar el reloj del servidor HTTP con el par
+ * (at, id) de Supabase corrompería la frontera keyset (ids de tablas distintas).
+ */
+let publicExtraWatermark = 0;
 /**
  * IDs de relés YA entregados. Necesario porque la consulta filtra con `>=`
  * (created_at inclusivo): la fila que fija la marca de agua reaparece en el
@@ -81,6 +95,24 @@ function rememberDelivered(id: string): void {
     const first = deliveredRelayIds.values().next().value;
     if (first) deliveredRelayIds.delete(first);
   }
+}
+
+/**
+ * Avanza un cursor keyset compuesto (at, id) de forma MONOTÓNICA: solo adelanta si
+ * el par entrante es estrictamente mayor por (at, y a igualdad de at, por id).
+ * Espeja la comparación fila-valor `(created_at, id) >` del RPC `mesh_public_feed`,
+ * para que el realtime y el sondeo compartan la MISMA frontera y el descubrimiento
+ * nunca retroceda ante empates de created_at. No muta: devuelve el par a conservar.
+ */
+function advanceCursor(cur: { atIso: string; id: string }, next: { atIso: string; id: string }): { atIso: string; id: string } {
+  // Compara por ms parseado (el realtime solo trae `at` en ms → su atIso es de
+  // precisión ms; su avance es best-effort y, a lo sumo, provoca re-lecturas
+  // deduplicadas en el próximo sondeo, nunca saltos). La precisión de µs la conserva
+  // el cursor del SONDEO (pullPublicFeed.next.atIso), que es quien cierra el DoS.
+  const ca = Date.parse(cur.atIso) || 0;
+  const na = Date.parse(next.atIso) || 0;
+  if (na > ca || (na === ca && next.id > cur.id)) return next;
+  return cur;
 }
 
 /** Neuronas cercanas detectadas por faro (copia; para uso imperativo). */
@@ -163,14 +195,21 @@ async function pollInbox(): Promise<void> {
  */
 async function pollPublicFeed(): Promise<void> {
   try {
-    // Feed público del servidor StarSeed + del servidor propio activo (si lo hay).
+    // Feed público del servidor StarSeed (cursor keyset compuesto) + del servidor
+    // propio activo por HTTP (watermark numérico SEPARADO), en paralelo.
     const [base, extra] = await Promise.all([
-      pullPublicFeed(publicWatermark),
-      pullPublicExtra(publicWatermark),
+      pullPublicFeed(publicCursor),
+      pullPublicExtra(publicExtraWatermark),
     ]);
-    const items = [...base, ...extra];
+    // Avanza SIEMPRE el cursor keyset al `next` EXPLÍCITO (incluye las filas propias
+    // drenadas): hacerlo ANTES de cualquier salida temprana evita que ≥FEED_PAGE
+    // filas propias con el mismo created_at —ausentes de `items`— reintroduzcan el
+    // atasco del DoS de descubrimiento.
+    publicCursor = base.next;
+    // Avanza el watermark HTTP por el `at` máximo del extra (protocolo numérico).
+    for (const it of extra) publicExtraWatermark = Math.max(publicExtraWatermark, it.at);
+    const items = [...base.items, ...extra];
     if (!items.length) return;
-    for (const it of items) publicWatermark = Math.max(publicWatermark, it.at);
     for (const it of items.slice().sort((a, b) => a.at - b.at)) {
       if (isRevoked(it.signerFp)) continue; // identidad revocada: se descarta
       if (it.id && deliveredRelayIds.has(it.id)) continue; // ya entregado
@@ -197,9 +236,12 @@ function refreshDeviceCertCRL(): void {
 export function startSynapticLayer(): void {
   if (started || typeof window === "undefined") return;
   started = true;
-  // Al arrancar solo recogemos lo MUY reciente (no un histórico).
+  // Al arrancar solo recogemos lo MUY reciente (no un histórico). El cursor keyset
+  // parte del par (hace 5 min, id vacío): `id` vacío → pullPublicFeed usa el uuid
+  // cero, que incluye todas las filas de ese instante inicial.
   inboxWatermark = Date.now() - 5 * 60_000;
-  publicWatermark = Date.now() - 5 * 60_000;
+  publicCursor = { atIso: new Date(Date.now() - 5 * 60_000).toISOString(), id: "" };
+  publicExtraWatermark = Date.now() - 5 * 60_000;
   void refreshBeacons(); // radar inmediato
   void emitBeacon(); // anunciarme ya
   void registerIdentity(); // publica mi reclamación firmada identidad↔cuenta
@@ -220,7 +262,9 @@ export function startSynapticLayer(): void {
     if (isRevoked(it.signerFp)) return; // identidad revocada: se descarta
     if (it.id && deliveredRelayIds.has(it.id)) return;
     if (it.id) rememberDelivered(it.id);
-    publicWatermark = Math.max(publicWatermark, it.at);
+    // Avanza el cursor keyset por comparación COMPUESTA (at, id): igual que el RPC,
+    // así el realtime y el sondeo comparten frontera y no retroceden entre ellos.
+    publicCursor = advanceCursor(publicCursor, { atIso: new Date(it.at).toISOString(), id: it.id || "" });
     inboxWatermark = Math.max(inboxWatermark, it.at);
     deliverInbound({ type: it.ptype, cls: it.cls, body: it.body, from: 0, verified: it.verified, signerFp: it.signerFp });
   };

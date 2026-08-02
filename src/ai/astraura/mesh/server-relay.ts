@@ -1184,51 +1184,72 @@ export async function pullRelayInbox(since: number): Promise<RelayInboundItem[]>
 /**
  * Extrae del FEED PÚBLICO (channel="public", kind="data") el CONTENIDO publicado
  * por OTRAS neuronas de la red — cierra el bucle: publicar → almacenar → recibir.
- * `since` (epoch ms) limita a lo nuevo; excluye lo que emití yo. Texto plano (es
- * público). RLS: filas públicas legibles por cualquier neurona autenticada.
+ * Texto plano (es público); RLS: filas públicas legibles por cualquier neurona
+ * autenticada. Excluye de `items` lo que emití yo (device_id === me).
+ *
+ * CURSOR KEYSET COMPUESTO (created_at, id) — cierre del DoS de descubrimiento
+ * (revisión adversarial Adenda 128). Antes se paginaba por `created_at` solo y el
+ * llamador guardaba un watermark del mismo `created_at`: si ≥FEED_PAGE filas
+ * compartían created_at (insert masivo en 1 transacción → `now()` idéntico), el
+ * watermark no cruzaba ese instante y el feed se ATASCABA (parálisis de toda la
+ * red). Ahora se drena vía RPC `mesh_public_feed`, que compara la fila-valor
+ * NATIVA `(created_at, id) > (p_at, p_id)`: dentro del empate de created_at el
+ * cursor AVANZA por `id` (PK uuid), así que la paginación SIEMPRE progresa.
+ *
+ * Devuelve `next` EXPLÍCITO (el cursor interno, que SÍ incluye las filas propias
+ * drenadas): como las filas propias se excluyen de `items`, el llamador NO puede
+ * reconstruir la frontera desde `items` — hay que devolvérsela. Sin esto, ≥FEED_PAGE
+ * filas PROPIAS con el mismo created_at reintroducirían el atasco (items vacío pero
+ * el cursor debe avanzar igual). Ver synaptic.ts (publicCursor).
  */
-export async function pullPublicFeed(since: number): Promise<RelayInboundItem[]> {
+export async function pullPublicFeed(
+  since: { atIso: string; id: string },
+): Promise<{ items: RelayInboundItem[]; next: { atIso: string; id: string } }> {
   try {
     const supabase = await client();
-    if (!supabase) return [];
+    if (!supabase) return { items: [], next: since };
     const me = deviceId();
-    const startISO = new Date(Math.max(since, Date.now() - RELAY_TTL_MS)).toISOString();
-    // DRENADO keyset (Adenda 119): páginas ASCENDENTES por (created_at, id) hasta
-    // agotar. Antes, un limit(50)+watermark perdía EN SILENCIO los ítems entre la
-    // marca vieja y el 50.º más nuevo en ráfagas > 50. Se usa `gte` + dedup por id
-    // DENTRO del drenado para NO saltarse filas que compartan created_at en el borde
-    // de página (empate); se corta si una página no aporta filas nuevas (anti-bucle).
-    // ⚠️ LIMITACIÓN CONOCIDA (revisión adversarial Adenda 128) — SEGUIMIENTO ABIERTO:
-    // el cursor es por `created_at` y el watermark del llamador (synaptic.ts) también.
-    // Si ≥FEED_PAGE filas comparten el MISMO created_at (insert masivo en una sola
-    // transacción → `now()` idéntico), el watermark no puede cruzar ese instante y el
-    // feed se atasca en él (DoS de descubrimiento; se autolimita ~24h por el floor).
-    // El intento de la Adenda 127 (OFFSET estable) NO lo resolvía: el suelo sigue al
-    // watermark, así que solo reubicaba el atasco (revertido). EL ARREGLO REAL es un
-    // cursor keyset COMPUESTO (created_at, id) persistido en el llamador como par
-    // (at, id) para avanzar por `id` DENTRO del empate — pendiente (cambia synaptic.ts).
+    // Frontera keyset con `created_at` en ISO de MÁXIMA PRECISIÓN (Postgres da
+    // microsegundos): se pasa el instante EXACTO como p_at para que la comparación
+    // (created_at,id) > (p_at,p_id) llegue al desempate por `id` DENTRO de un empate de
+    // created_at. ⚠️ Degradar p_at a milisegundos (Date.parse→toISOString) lo dejaría
+    // por DEBAJO del instante real (µs truncados) → created_at>p_at sería TRUE para TODO
+    // el bloque empatado y el `id` NUNCA desempataría → REINTRODUCE el DoS (revisión
+    // adversarial Adenda 129). Por eso el cursor lleva el ISO íntegro. El floor TTL sí
+    // decide por ms (frontera de 24 h, no necesita µs). `id` del llamador o uuid CERO en
+    // el 1er sondeo (< cualquier uuid → `>` incluye TODAS las filas del instante inicial).
+    const ZERO_UUID = "00000000-0000-0000-0000-000000000000";
+    const floorMs = Date.now() - RELAY_TTL_MS;
+    let cursorAt =
+      since.atIso && Date.parse(since.atIso) > floorMs
+        ? since.atIso
+        : new Date(floorMs).toISOString();
+    let cursorId = since.id || ZERO_UUID;
     const out: RelayInboundItem[] = [];
     const drained = new Set<string>();
-    let cursor = startISO;
     for (let page = 0; page < FEED_MAX_PAGES; page++) {
-      const { data, error } = await supabase
-        .from("os_mesh_relay")
-        .select("id, cls, ptype, payload, device_id, created_at")
-        .eq("channel", "public")
-        .eq("kind", "data")
-        .gte("created_at", cursor)
-        .order("created_at", { ascending: true })
-        .order("id", { ascending: true })
-        .limit(FEED_PAGE);
-      if (error || !Array.isArray(data) || data.length === 0) break;
-      let freshRows = 0;
+      const { data, error } = await supabase.rpc("mesh_public_feed", {
+        p_at: cursorAt,
+        p_id: cursorId,
+        p_limit: FEED_PAGE,
+      });
+      if (error || !Array.isArray(data)) {
+        // 1ª página falló (RPC ausente / fallo transitorio): PRESERVA el cursor del
+        // llamador (no reproceses ni retrocedas el descubrimiento). Fallo en página
+        // posterior: entrega lo ya drenado con el cursor avanzado (como el drenado
+        // de identidades: un fallo parcial no descarta el progreso).
+        if (page === 0) return { items: [], next: since };
+        break;
+      }
       for (const row of data as Array<Record<string, unknown>>) {
         const id = String(row.id ?? "");
-        if (id && drained.has(id)) continue; // borde re-incluido por gte: ya procesado
+        if (id && drained.has(id)) continue; // dedup defensivo (el keyset estricto no repite)
         if (id) drained.add(id);
-        freshRows++;
-        cursor = String(row.created_at ?? cursor);
-        if (String(row.device_id ?? "") === me) continue; // no re-consumir lo mío
+        // Avanza SIEMPRE el cursor (incluidas las filas propias): así ≥FEED_PAGE filas
+        // propias con el mismo created_at no vuelven a atascar el drenado.
+        cursorAt = String(row.created_at ?? cursorAt);
+        if (id) cursorId = id;
+        if (String(row.device_id ?? "") === me) continue; // no re-consumir lo mío (el cursor ya avanzó)
         const u = await unwrapFresh(row.payload, id);
         out.push({
           id,
@@ -1242,15 +1263,18 @@ export async function pullPublicFeed(since: number): Promise<RelayInboundItem[]>
           signerFp: u.fp,
         });
       }
-      if (data.length < FEED_PAGE) break; // última página: agotado
-      if (freshRows === 0) break; // página entera ya vista (empate masivo de created_at): corta
+      if (data.length < FEED_PAGE) break; // última página: agotado (ya NO hace falta el corte freshRows===0)
       if (page === FEED_MAX_PAGES - 1) {
         console.warn(`[mesh] pullPublicFeed: tope de ${FEED_MAX_PAGES} páginas por sondeo; el resto se drena en el próximo ciclo.`);
       }
     }
-    return out;
+    // `next.atIso` es el created_at ÍNTEGRO (µs) de la última fila drenada: se pasará
+    // VERBATIM como p_at en el próximo sondeo, preservando la resolución que hace que
+    // el desempate por `id` funcione dentro de un empate de created_at (cierre real
+    // del DoS; ver la nota de precisión al inicio de la función).
+    return { items: out, next: { atIso: cursorAt, id: cursorId } };
   } catch {
-    return [];
+    return { items: [], next: since };
   }
 }
 

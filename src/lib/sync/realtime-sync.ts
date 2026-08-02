@@ -191,6 +191,8 @@ const EVENT_BY_KEY: Record<string, string[]> = {
 
     // Astraura · inteligencia y contexto
     "starseed.astraura.intelligence.v1": ["starseed:astraura-intelligence", "starseed:astraura-route"],
+    // Orden de preferencia de modelos IA (Adenda 129, model-preferences.ts): refresco en vivo entre dispositivos.
+    "starseed.astraura.model-order.v1": ["starseed:model-prefs"],
     "starseed.astraura.usercontext.v1": ["starseed:astraura-usercontext"],
     "starseed.astraura.installed-models.v1": ["starseed:astraura-installed-models"],
     "starseed.astraura.huggingbay-candidates.v1": ["starseed:astraura-huggingbay-candidates"],

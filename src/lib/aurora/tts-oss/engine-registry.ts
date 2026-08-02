@@ -66,6 +66,10 @@ import {
   type AuroraVoicePreset,
   type NeuralVoiceEngine,
 } from "@/lib/aurora/tts-oss/voice-config";
+// Preferencias unificadas de modelo (orden por CLASE DE ACCESO): el orden AUTO de
+// voz respeta la preferencia del usuario por clase (local/starseed/api-free/
+// api-external) como sesgo, con el realismo actual como desempate. Autocontenido.
+import { accessBias, voiceEngineAccessClass } from "@/lib/astraura/model-preferences";
 
 // ── Metadatos por motor ──────────────────────────────────────────────────────
 
@@ -669,6 +673,20 @@ export function buildVoiceChain(
         }
       } catch {
         /* orden clásico */
+      }
+      // REORDEN POR CLASE DE ACCESO (preferencias unificadas de modelo): el orden
+      // AUTO respeta la preferencia del usuario por clase (local/starseed/…) como
+      // SESGO descendente, con el orden previo (realismo + ascenso de OpenVoice)
+      // como desempate ESTABLE (índice). Con la preferencia por defecto (local >
+      // starseed) el resultado es idéntico al de hoy. NO cambia el failover: solo
+      // la preferencia inicial. Defensivo: ante cualquier fallo, orden previo intacto.
+      try {
+        order = order
+          .map((id, i) => ({ id, i, bias: accessBias(voiceEngineAccessClass(id)) }))
+          .sort((a, b) => b.bias - a.bias || a.i - b.i)
+          .map((x) => x.id);
+      } catch {
+        /* orden previo intacto */
       }
       for (const id of order) {
         if (endpointEngineConfigured(id, cfg)) push(id);
