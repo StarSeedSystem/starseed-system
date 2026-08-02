@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenAI, Type } from "@google/genai";
+import { createClient } from "@/utils/supabase/server";
+import { rateLimit } from "@/lib/security/rate-limit";
 
 const FALLBACK_HTML = `<div style="background-color: rgba(20, 20, 30, var(--widget-opacity, 0.85)); backdrop-filter: blur(calc(var(--widget-blur, 12) * 1px)); border-radius: calc(var(--widget-radius, 20) * 1px); padding: 24px; width: 100%; min-height: 200px; display: flex; flex-direction: column; gap: 16px; border: 1px solid rgba(255,255,255,0.08);">
 <style>
@@ -29,6 +31,32 @@ const FALLBACK_HTML = `<div style="background-color: rgba(20, 20, 30, var(--widg
 </div>`;
 
 export async function POST(req: NextRequest) {
+    // ── SEGURIDAD (Adenda 131) ────────────────────────────────────────────────
+    // Exige sesión ANTES de tocar la API key de pago (Gemini). Va FUERA del try
+    // principal para que el fallback demo del catch nunca enmascare un 401/429.
+    let userId: string;
+    try {
+        const supabase = await createClient();
+        const { data, error } = await supabase.auth.getUser();
+        if (error || !data.user) {
+            return NextResponse.json(
+                { error: "Necesitas iniciar sesión para generar widgets." },
+                { status: 401 },
+            );
+        }
+        userId = data.user.id;
+    } catch {
+        return NextResponse.json({ error: "No se pudo verificar la sesión." }, { status: 401 });
+    }
+    // Rate-limit por usuario (clave=userId; sin IP, que es falsificable vía XFF). Gemini de pago: 20 / 10 min.
+    const rl = rateLimit(`wf-generate-code:${userId}`, 20, 10 * 60 * 1000);
+    if (!rl.allowed) {
+        return NextResponse.json(
+            { error: "Demasiadas solicitudes. Inténtalo más tarde." },
+            { status: 429, headers: { "Retry-After": String(rl.retryAfterSec) } },
+        );
+    }
+
     try {
         const { prompt, layout, imageUrl } = await req.json();
 

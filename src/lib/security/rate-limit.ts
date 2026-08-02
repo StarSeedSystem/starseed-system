@@ -104,10 +104,19 @@ export function clientIp(req: { headers: Headers }): string {
 // coincidir, por eso vive aquí compartido.
 // ════════════════════════════════════════════════════════════════════════════
 export function hashOtp(email: string, code: string): string {
-  const secret =
-    process.env.OTP_HASH_SECRET ||
-    process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    "starseed-otp-fallback-secret";
+  // FALLO CERRADO (Adenda 131): sin un secreto de servidor real NO derivamos el
+  // hash con una constante pública de fallback (que dejaría el HMAC sin secreto
+  // efectivo y los hashes de OTP reproducibles por cualquiera). En producción
+  // SIEMPRE existe SUPABASE_SERVICE_ROLE_KEY; esto sólo afecta a entornos mal
+  // configurados, donde preferimos un error claro a una defensa falsa.
+  const secret = process.env.OTP_HASH_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!secret) {
+    throw new Error(
+      "hashOtp: falta OTP_HASH_SECRET y SUPABASE_SERVICE_ROLE_KEY; no hay secreto " +
+        "de servidor para el HMAC del OTP (fallo cerrado por seguridad). Configura " +
+        "al menos una de esas variables de entorno.",
+    );
+  }
   return crypto
     .createHmac("sha256", secret)
     .update(`${email.trim().toLowerCase()}:${code}`)

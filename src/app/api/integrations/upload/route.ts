@@ -1,23 +1,30 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@/utils/supabase/server";
+import { buildUrl, safeFetch, SsrfError } from "@/lib/security/ssrf";
 
 // ════════════════════════════════════════════════════════════════
 // Proxy multipart de integraciones (lado servidor)
 // ----------------------------------------------------------------
 // Variante del proxy para herramientas que reciben FICHEROS por
 // multipart/form-data (p.ej. Stirling-PDF: merge, extract-text, to-img).
-// El cliente del navegador construye un FormData con los ficheros y los
-// parámetros, y AÑADE estos campos de control:
-//   __endpoint  (string)  — base configurada por el usuario
-//   __path      (string)  — ruta del endpoint (p.ej. /api/v1/general/merge-pdfs)
-//   __apiKey    (string?)  — token opcional (se envía como X-API-KEY)
-//   __accept    (string?)  — "json" | "binary" (por defecto autodetecta)
-// El resto de campos del FormData se reenvían tal cual a la herramienta.
+// El cliente construye un FormData con los ficheros y AÑADE campos de
+// control: __endpoint, __path, __apiKey?, __accept?. El resto se reenvía.
 //
-// La respuesta:
-//   • Si la herramienta devuelve binario (PDF/imagen) → lo devolvemos como
-//     base64 en { ok:true, data:{ base64, contentType, filename } }.
-//   • Si devuelve JSON/texto → { ok:true, data:<json|texto> }.
-// Anti-SSRF: bloquea endpoints de metadatos cloud (igual que el proxy JSON).
+// Respuesta: binario → { ok, data:{ base64, contentType, filename } };
+//            JSON/texto → { ok, data:<json|texto> }.
+//
+// ════════════════════════════════════════════════════════════════
+// SEGURIDAD — ANTI-SSRF (Adenda 131 · 2026-08-02)
+// ----------------------------------------------------------------
+// Este gemelo multipart estaba MUY por detrás del proxy JSON: era anónimo,
+// tenía una blocklist estática de 3 hosts SIN resolver DNS y usaba
+// redirect:"follow" → seguía un 302→169.254.169.254 (robo del token de la
+// service-account) y filtraba la X-API-KEY del usuario a un tercero. Ahora:
+//   1) EXIGE SESIÓN (getUser → 401).
+//   2) Usa la guarda compartida `@/lib/security/ssrf`: `safeFetch` resuelve
+//      DNS, clasifica IPv4/IPv6 (IMDS SIEMPRE bloqueado), sigue redirecciones
+//      manualmente re-validando cada salto y descarta X-API-KEY/Authorization/
+//      Cookie en saltos cross-origin.
 // Timeout duro con AbortController. Nada lanza al cliente.
 // ════════════════════════════════════════════════════════════════
 
@@ -27,41 +34,22 @@ export const dynamic = "force-dynamic";
 const MAX_TIMEOUT_MS = 20_000;
 const DEFAULT_TIMEOUT_MS = 18_000;
 
-const BLOCKED_HOSTS = new Set([
-  "169.254.169.254",
-  "metadata.google.internal",
-  "metadata.goog",
-]);
-
-function jsonError(error: string) {
-  return NextResponse.json({ ok: false, error });
-}
-
-function buildUrl(endpoint: string, path?: string): URL | null {
-  try {
-    let base = (endpoint || "").trim();
-    if (!base) return null;
-    if (!/^https?:\/\//i.test(base)) base = "http://" + base;
-    let full = base.replace(/\/+$/, "");
-    if (path) {
-      const p = String(path).trim();
-      full += p.startsWith("/") ? p : "/" + p;
-    }
-    return new URL(full);
-  } catch {
-    return null;
-  }
-}
-
-function isBlocked(url: URL): boolean {
-  const host = url.hostname.toLowerCase();
-  if (BLOCKED_HOSTS.has(host)) return true;
-  if (/^169\.254\./.test(host)) return true;
-  if (host === "fd00:ec2::254" || host === "[fd00:ec2::254]") return true;
-  return false;
+function jsonError(error: string, status = 200) {
+  return NextResponse.json({ ok: false, error }, { status });
 }
 
 export async function POST(req: NextRequest) {
+  // ── EXIGIR SESIÓN ───────────────────────────────────────────────────────
+  try {
+    const supabase = await createClient();
+    const { data, error } = await supabase.auth.getUser();
+    if (error || !data.user) {
+      return jsonError("Necesitas iniciar sesión para usar las integraciones.", 401);
+    }
+  } catch {
+    return jsonError("No se pudo verificar la sesión.", 401);
+  }
+
   let form: FormData;
   try {
     form = await req.formData();
@@ -76,13 +64,12 @@ export async function POST(req: NextRequest) {
 
   const url = buildUrl(endpoint, path);
   if (!url) return jsonError("Endpoint no configurado o inválido.");
-  if (isBlocked(url)) return jsonError("Destino no permitido (endpoint de metadatos bloqueado).");
 
   // Reconstruye un FormData de salida sin los campos de control.
   const out = new FormData();
   for (const [key, value] of form.entries()) {
     if (key.startsWith("__")) continue;
-    out.append(key, value as any);
+    out.append(key, value as string | Blob);
   }
 
   const headers: Record<string, string> = {};
@@ -93,13 +80,14 @@ export async function POST(req: NextRequest) {
   const timer = setTimeout(() => controller.abort(), Math.min(DEFAULT_TIMEOUT_MS, MAX_TIMEOUT_MS));
 
   try {
-    const res = await fetch(url.toString(), {
+    // safeFetch valida el destino y CADA salto de redirección (anti-SSRF) y
+    // descarta la X-API-KEY en saltos cross-origin.
+    const res = await safeFetch(url, {
       method: "POST",
       headers,
       body: out,
       signal: controller.signal,
       cache: "no-store",
-      redirect: "follow",
     });
 
     const ct = res.headers.get("content-type") || "";
@@ -141,6 +129,7 @@ export async function POST(req: NextRequest) {
     const txt = await res.text();
     return NextResponse.json({ ok: true, status, data: txt });
   } catch (err: unknown) {
+    if (err instanceof SsrfError) return jsonError(err.message, err.httpStatus);
     const aborted = (err as Error)?.name === "AbortError";
     return jsonError(
       aborted

@@ -22,6 +22,8 @@
  */
 
 import { NextRequest } from "next/server";
+import { createClient } from "@/utils/supabase/server";
+import { rateLimit } from "@/lib/security/rate-limit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -53,6 +55,32 @@ function sharedKeys(): string[] {
 let keyCursor = 0;
 
 export async function POST(req: NextRequest): Promise<Response> {
+  // ── SEGURIDAD (Adenda 131) ──────────────────────────────────────────────────
+  // Exige sesión ANTES de usar la clave compartida de OpenRouter. Aunque solo
+  // permite modelos :free, el relé es abusable por anónimos (drenaje de cupo).
+  let userId: string;
+  try {
+    const supabase = await createClient();
+    const { data, error } = await supabase.auth.getUser();
+    if (error || !data.user) {
+      return Response.json(
+        { error: "Necesitas iniciar sesión para usar el acceso comunitario a OpenRouter." },
+        { status: 401 },
+      );
+    }
+    userId = data.user.id;
+  } catch {
+    return Response.json({ error: "No se pudo verificar la sesión." }, { status: 401 });
+  }
+  // Rate-limit por usuario (clave=userId; sin IP, falsificable vía XFF): 40 / 10 min.
+  const rl = rateLimit(`ai-openrouter:${userId}`, 40, 10 * 60 * 1000);
+  if (!rl.allowed) {
+    return Response.json(
+      { error: "Demasiadas solicitudes. Inténtalo más tarde." },
+      { status: 429, headers: { "Retry-After": String(rl.retryAfterSec) } },
+    );
+  }
+
   const keys = sharedKeys();
   const key = keys[0];
   if (!key) {

@@ -1,7 +1,34 @@
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenAI, Type } from "@google/genai";
+import { createClient } from "@/utils/supabase/server";
+import { rateLimit } from "@/lib/security/rate-limit";
 
 export async function POST(req: NextRequest) {
+    // ── SEGURIDAD (Adenda 131) ────────────────────────────────────────────────
+    // Exige sesión ANTES de tocar la API key de pago (Gemini).
+    let userId: string;
+    try {
+        const supabase = await createClient();
+        const { data, error } = await supabase.auth.getUser();
+        if (error || !data.user) {
+            return NextResponse.json(
+                { error: "Necesitas iniciar sesión para editar con IA." },
+                { status: 401 },
+            );
+        }
+        userId = data.user.id;
+    } catch {
+        return NextResponse.json({ error: "No se pudo verificar la sesión." }, { status: 401 });
+    }
+    // Rate-limit por usuario (clave=userId; sin IP, falsificable vía XFF). Gemini de pago: 20 / 10 min.
+    const rl = rateLimit(`wf-edit-with-ai:${userId}`, 20, 10 * 60 * 1000);
+    if (!rl.allowed) {
+        return NextResponse.json(
+            { error: "Demasiadas solicitudes. Inténtalo más tarde." },
+            { status: 429, headers: { "Retry-After": String(rl.retryAfterSec) } },
+        );
+    }
+
     try {
         const { currentHtml, editInstruction, context } = await req.json();
 

@@ -1,7 +1,36 @@
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenAI, Type } from "@google/genai";
+import { createClient } from "@/utils/supabase/server";
+import { rateLimit } from "@/lib/security/rate-limit";
 
 export async function POST(req: NextRequest) {
+    // ── SEGURIDAD (Adenda 131) ────────────────────────────────────────────────
+    // Exige sesión ANTES de tocar la generación de imágenes (imagen-3.0, MUY cara).
+    // Va FUERA del try principal para que el fallback demo del catch no enmascare
+    // un 401/429 de seguridad.
+    let userId: string;
+    try {
+        const supabase = await createClient();
+        const { data, error } = await supabase.auth.getUser();
+        if (error || !data.user) {
+            return NextResponse.json(
+                { error: "Necesitas iniciar sesión para generar visuales." },
+                { status: 401 },
+            );
+        }
+        userId = data.user.id;
+    } catch {
+        return NextResponse.json({ error: "No se pudo verificar la sesión." }, { status: 401 });
+    }
+    // Rate-limit por usuario (clave=userId; sin IP, falsificable vía XFF). Imágenes caras: 10 / 10 min.
+    const rl = rateLimit(`wf-generate-visuals:${userId}`, 10, 10 * 60 * 1000);
+    if (!rl.allowed) {
+        return NextResponse.json(
+            { error: "Demasiadas solicitudes. Inténtalo más tarde." },
+            { status: 429, headers: { "Retry-After": String(rl.retryAfterSec) } },
+        );
+    }
+
     // `prompt` vive FUERA del try: el catch lo necesita para el fallback demo.
     // (Antes se declaraba dentro del try, así que en el catch resolvía al `prompt`
     // global del DOM → ReferenceError en el runtime de Node y 500 en vez de demo.)

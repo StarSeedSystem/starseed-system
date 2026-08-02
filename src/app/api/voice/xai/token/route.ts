@@ -21,6 +21,8 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@/utils/supabase/server";
+import { rateLimit } from "@/lib/security/rate-limit";
 
 /** Endpoint estándar de tokens efímeros de xAI (voz en tiempo real). */
 const XAI_EPHEMERAL_ENDPOINT = "https://api.x.ai/v1/audio/realtime/ephemeral-tokens";
@@ -30,6 +32,31 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest): Promise<Response> {
+  // ── SEGURIDAD (Adenda 131) ──────────────────────────────────────────────────
+  // Exige sesión ANTES de acuñar un token efímero con la XAI_API_KEY compartida.
+  let userId: string;
+  try {
+    const supabase = await createClient();
+    const { data, error } = await supabase.auth.getUser();
+    if (error || !data.user) {
+      return NextResponse.json(
+        { error: "Necesitas iniciar sesión para usar la voz en tiempo real." },
+        { status: 401 },
+      );
+    }
+    userId = data.user.id;
+  } catch {
+    return NextResponse.json({ error: "No se pudo verificar la sesión." }, { status: 401 });
+  }
+  // Rate-limit por usuario (clave=userId; sin IP, falsificable vía XFF). Tokens efímeros: 30 / 10 min.
+  const rl = rateLimit(`voice-xai-token:${userId}`, 30, 10 * 60 * 1000);
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: "Demasiadas solicitudes. Inténtalo más tarde." },
+      { status: 429, headers: { "Retry-After": String(rl.retryAfterSec) } },
+    );
+  }
+
   // 1) Resolver la API key: la propia del usuario (si la envió) o la de StarSeed.
   let body: { apiKey?: unknown; personaId?: unknown } = {};
   try {
