@@ -1,44 +1,58 @@
 "use client";
 
 /**
- * AstrauraOmniVoiceConfig — CONFIGURACIÓN REUTILIZABLE de Astraura + OmniVoice (Adenda 132).
+ * AstrauraOmniVoiceConfig — HUB DE SECCIONES de Astraura + OmniVoice (Adenda 133).
  * ============================================================================
- * Componente PRESENTACIONAL y 100% autónomo extraído de `startup-updates-modal.tsx`:
- * capacidades del dispositivo + gama, «Probar entorno» (conexión + WebGPU), tarjetas
- * de recomendación (mejor LLM + mejor voz OmniVoice), ORDEN DE PREFERENCIA de modelos
- * (modo Automático/Fijo + lista reordenable de las 4 clases de acceso + sugerido para
- * este dispositivo + «Usar sugerido»), novedades (nº de modelos nuevos + fuentes),
- * y preferencias de cuenta (auto-actualización + estrategia por defecto de la neurona).
+ * Reconstrucción del panel único (Adenda 132) en un HUB DE PESTAÑAS internas —
+ * usa `@/components/ui/section-tabs` (mismo patrón que `aurora-setup-center.tsx`) —
+ * que integra TODO sin duplicar controles:
  *
- * Gestiona su propio estado y PERSISTE al aplicar:
- *   · `markUpdatesSeen({ autoUpdate, strategy })`  (preferencias de cuenta + gate visto)
- *   · `saveModelPreferences({ order, mode })`      (orden de preferencia de modelos IA)
+ *   1. Modelos       → orden de preferencia (4 clases de acceso) + modo Auto/Fijo +
+ *                       sugerido para este dispositivo + ámbito CUENTA ⟷ NEURONA +
+ *                       «Diagnosticar y reparar» (propio de esta ventana).
+ *   2. Neuronas      → `NeuronModelsPanel` embebido (capacidades, recomendación,
+ *                       Probar, descargas, servidores por neurona).
+ *   3. Integraciones → `IntegrationSourcesPanel` embebido.
+ *   4. APIs & modelos→ `AiProvidersPanel` embebido (proveedores, claves, Probar).
+ *   5. Voz · OmniVoice → `SetupVoz` (presets + panel completo de voz).
+ *   6. Cuenta        → auto-actualización + novedades del catálogo.
  *
- * Tres presentaciones (`variant`):
- *   · "modal"    → tarjeta del modal de inicio (botones «Recordar luego» / «Aplicar y continuar»).
- *   · "embedded" → sin overlay ni cierre, para vivir dentro de una pestaña (botón «Guardar»).
- *   · "drawer"   → apto para un Sheet lateral (botón «Aplicar»).
+ * Los paneles pesados (2-5) se cargan con `next/dynamic({ ssr:false })` y SOLO se
+ * montan cuando su pestaña está activa. `variant="modal"/"drawer"` (estrechos)
+ * muestran solo Modelos + Cuenta, con un enlace «Configuración completa» hacia
+ * el hub entero (`onNavigate("config-ia")` o `/agent?tab=config-ia`).
  *
- * Navegación a detalle: si `onNavigate` está definido, «Neuronas y modelos» /
- * «Integraciones y fuentes» llaman `onNavigate("neuronas")` / `onNavigate("integraciones")`
- * (y `onDismiss` si procede) — así, DENTRO de /agent se navega por callback y se evita
- * el bug del query param. Sin `onNavigate`, caen a `<Link href="/agent?tab=…">`.
+ * PERSISTE al aplicar:
+ *   · `saveModelPreferences({ order, mode })`               → orden de CUENTA.
+ *   · `saveNeuronModelPreferences(id, {...})` / `clearNeuronModelPreferences(id)`
+ *     → override de ESTA NEURONA (según exista o no; `id = thisDeviceId()`).
+ *   · `markUpdatesSeen({ autoUpdate, strategy })` → `strategy` se DERIVA del orden
+ *     efectivo (auto→'auto'; top==='local'→'local'; resto→'servidor') para no
+ *     romper a quien lea `StartupState.strategy` (el selector explícito de
+ *     estrategia se retira: ahora vive fundido en Modelos con el ámbito).
+ *
+ * `initialSection` abre la pestaña correspondiente (sinónimos: modelos/orden→
+ * Modelos, neuronas→Neuronas, integraciones→Integraciones, apis/proveedor→APIs,
+ * voz/omnivoice→Voz, cuenta→Cuenta).
  *
  * SSR-safe y defensivo: nunca lanza; sin `window` los helpers devuelven defaults.
  */
 
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import {
-  Sparkles, Cpu, Brain, Mic, Server, X, Check, Loader2, Gauge, Blocks, ExternalLink, RefreshCw, ArrowRight,
-  ListOrdered, ChevronUp, ChevronDown, Lock, Key, Gift, Cloud, Globe, Star, HardDrive, Boxes, Plug, Puzzle, Rocket, Orbit, Package, Wifi, Network, Zap, Layers,
+  Sparkles, Cpu, X, Check, Loader2, Blocks, ExternalLink, RefreshCw, ArrowRight,
+  ListOrdered, ChevronUp, ChevronDown, Lock, Key, Gift, Cloud, Globe, Star, HardDrive,
+  Boxes, Plug, Puzzle, Rocket, Orbit, Package, Wifi, Network, Zap, Layers, Brain, Server,
+  KeyRound, Volume2, UserCog, Stethoscope, User, GitBranch, Trash2, Info, AlertTriangle,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Switch } from "@/components/ui/switch";
-import { detectCapabilities, type NeuronCapabilities } from "@/lib/neurons/neurons";
-import { recommendModels, type NeuronRecommendation } from "@/ai/astraura/model-recommend";
-import { tierLabel, runsRemotely, classifyDeviceTier } from "@/ai/astraura/model-requirements";
+import { SectionTabs, type SectionTabItem } from "@/components/ui/section-tabs";
+import { detectCapabilities, thisDeviceId, type NeuronCapabilities } from "@/lib/neurons/neurons";
+import { classifyDeviceTier } from "@/ai/astraura/model-requirements";
 import {
   updateReason, markUpdatesSeen, snoozeUpdates, getStartupState,
   newIntegrationsSince, newModelIdsSince, type StartupStrategy,
@@ -46,8 +60,36 @@ import {
 import type { Integration } from "@/lib/integrations/integration-registry";
 import {
   MODEL_ACCESS_CLASSES, MODEL_ACCESS_META, getModelPreferences, saveModelPreferences, recommendedOrder,
+  getNeuronModelPreferences, saveNeuronModelPreferences, clearNeuronModelPreferences,
   type ModelAccessClass,
 } from "@/lib/astraura/model-preferences";
+
+/** Feedback de carga de una sección perezosa. */
+function SectionLoading() {
+  return (
+    <p className="flex items-center justify-center gap-2 px-2 py-10 text-[11px] text-white/40">
+      <Loader2 className="h-3.5 w-3.5 animate-spin" /> Cargando…
+    </p>
+  );
+}
+
+/* Paneles pesados → SOLO se descargan cuando su pestaña está activa (Adenda 133). */
+const NeuronModelsPanel = dynamic(() => import("@/components/neurons/neuron-models-panel"), {
+  ssr: false,
+  loading: () => <SectionLoading />,
+});
+const IntegrationSourcesPanel = dynamic(() => import("@/components/integrations/integration-sources-panel"), {
+  ssr: false,
+  loading: () => <SectionLoading />,
+});
+const AiProvidersPanel = dynamic(
+  () => import("@/components/settings/ai/ai-providers-panel").then((m) => ({ default: m.AiProvidersPanel })),
+  { ssr: false, loading: () => <SectionLoading /> },
+);
+const SetupVoz = dynamic(() => import("@/components/aurora/setup/setup-voz"), {
+  ssr: false,
+  loading: () => <SectionLoading />,
+});
 
 export interface AstrauraOmniVoiceConfigProps {
   /** Presentación: tarjeta de modal, incrustado en pestaña, o cuerpo de Sheet lateral. */
@@ -58,23 +100,58 @@ export interface AstrauraOmniVoiceConfigProps {
   onApply?: () => void;
   /** Se llama al descartar/cerrar (X, «Recordar luego», o al navegar). */
   onDismiss?: () => void;
-  /** Apartado al que desplazarse al abrir (p.ej. "orden", "cuenta", "voz"). */
+  /** Sección a abrir (p.ej. "modelos", "voz", "cuenta"; admite sinónimos). */
   initialSection?: string;
   /** Reduce paddings/tipografía (pensado para el drawer). */
   compact?: boolean;
 }
 
-const STRATS: { value: StartupStrategy; label: string; hint: string }[] = [
-  { value: "auto", label: "Automática", hint: "el OS elige local o servidor según cada neurona" },
-  { value: "local", label: "Local", hint: "prioriza modelos en el dispositivo (privado, offline)" },
-  { value: "servidor", label: "Servidor", hint: "usa el servidor StarSeed en cualquier neurona" },
-];
+/** Identificador de cada pestaña del hub. */
+export type SetupSection = "modelos" | "neuronas" | "integraciones" | "apis" | "voz" | "cuenta";
+
+const ALL_SECTIONS: SetupSection[] = ["modelos", "neuronas", "integraciones", "apis", "voz", "cuenta"];
+/** `variant="modal"/"drawer"` (estrechos): solo lo esencial, sin cargar paneles enormes. */
+const NARROW_SECTIONS: SetupSection[] = ["modelos", "cuenta"];
+
+const SECTION_META: Record<SetupSection, { label: string; icon: LucideIcon }> = {
+  modelos: { label: "Modelos", icon: ListOrdered },
+  neuronas: { label: "Neuronas", icon: Cpu },
+  integraciones: { label: "Integraciones", icon: Blocks },
+  apis: { label: "APIs & modelos", icon: KeyRound },
+  voz: { label: "Voz · OmniVoice", icon: Volume2 },
+  cuenta: { label: "Cuenta", icon: UserCog },
+};
+
+/** Normaliza una sección pedida (con sinónimos) al id de pestaña interno. */
+function sectionFromSynonym(section?: string): SetupSection | null {
+  if (!section) return null;
+  const s = section.toLowerCase().trim();
+  if (!s) return null;
+  if ((ALL_SECTIONS as string[]).includes(s)) return s as SetupSection;
+  const map: Record<string, SetupSection> = {
+    orden: "modelos", preferencia: "modelos", preferencias: "modelos", modelo: "modelos",
+    neurona: "neuronas", dispositivo: "neuronas", capacidades: "neuronas", hardware: "neuronas", entorno: "neuronas",
+    integracion: "integraciones", "integración": "integraciones", fuentes: "integraciones", fuente: "integraciones",
+    api: "apis", proveedor: "apis", proveedores: "apis",
+    omnivoice: "voz", "omni-voice": "voz",
+    "auto-actualizacion": "cuenta", "auto-actualización": "cuenta", novedades: "cuenta", estrategia: "cuenta",
+  };
+  return map[s] ?? null;
+}
 
 // Modo del orden de preferencia de modelos: reordenación inteligente vs. orden fijo.
 const MODE_OPTS: { value: "auto" | "fixed"; label: string; hint: string; icon: React.ReactNode }[] = [
   { value: "auto", label: "Automático", hint: "el sistema puede reordenar según el dispositivo y el entorno (offline/gama)", icon: <Sparkles className="mr-1 inline h-3 w-3" /> },
   { value: "fixed", label: "Fijo", hint: "respeta exactamente tu orden en todas las neuronas y entornos", icon: <Lock className="mr-1 inline h-3 w-3" /> },
 ];
+
+/** Estilo compartido de píldora (modo, ámbito): activa vs. inactiva. */
+function pillCls(active: boolean): string {
+  return cn(
+    "cursor-pointer rounded-lg border px-2.5 py-1 text-[11px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50",
+    active ? "border-cyan-400/40 bg-cyan-500/15 text-cyan-100" : "border-white/10 bg-white/[0.03] text-white/60 hover:border-white/25",
+  );
+}
 
 // MODEL_ACCESS_META da el icono como nombre lucide (string); lo resolvemos de forma
 // defensiva a un componente, con respaldo por clase si el nombre no se reconoce.
@@ -96,31 +173,8 @@ function orderLabels(order: ModelAccessClass[]): string {
   return order.map((c) => MODEL_ACCESS_META[c]?.label ?? c).join(" → ");
 }
 
-/** Normaliza una sección pedida (con sinónimos) al id del ancla en el DOM. */
-function sectionAnchorKey(section?: string): string | null {
-  if (!section) return null;
-  const s = section.toLowerCase().trim();
-  if (!s) return null;
-  const map: Record<string, string> = {
-    capacidades: "capacidades", hardware: "capacidades", entorno: "capacidades", dispositivo: "capacidades",
-    recomendacion: "recomendacion", "recomendación": "recomendacion", modelo: "recomendacion", voz: "recomendacion", omnivoice: "recomendacion", llm: "recomendacion",
-    orden: "orden", modelos: "orden", preferencia: "orden", preferencias: "orden",
-    novedades: "novedades",
-    cuenta: "cuenta", estrategia: "cuenta", "auto-actualizacion": "cuenta", "auto-actualización": "cuenta",
-    enlaces: "enlaces", neuronas: "enlaces", integraciones: "enlaces",
-  };
-  return map[s] ?? s;
-}
-
-function RecoCard({ icon, label, name, access, rationale }: { icon: React.ReactNode; label: string; name: string; access: string; rationale: string }) {
-  return (
-    <div className="rounded-xl border border-cyan-400/25 bg-cyan-500/[0.06] px-3 py-2">
-      <p className="flex items-center gap-2 text-[11px] font-semibold text-white/85">{icon} {label}</p>
-      <p className="mt-0.5 text-[13px] font-bold text-white/95">{name}</p>
-      <p className="text-[10px] text-white/50">{access} · {rationale}</p>
-    </div>
-  );
-}
+/** Reset de apariencia para enlaces INLINE (para que <button> se vea como texto). */
+const INLINE_RESET = "inline cursor-pointer border-0 bg-transparent p-0 align-baseline [font:inherit]";
 
 export function AstrauraOmniVoiceConfig({
   variant = "modal",
@@ -130,32 +184,48 @@ export function AstrauraOmniVoiceConfig({
   initialSection,
   compact = false,
 }: AstrauraOmniVoiceConfigProps) {
-  const [caps, setCaps] = useState<NeuronCapabilities | null>(null);
-  const [rec, setRec] = useState<NeuronRecommendation | null>(null);
+  const availableSections = variant === "embedded" ? ALL_SECTIONS : NARROW_SECTIONS;
+
+  const [section, setSection] = useState<SetupSection>(() => sectionFromSynonym(initialSection) ?? "modelos");
+  useEffect(() => {
+    const s = sectionFromSynonym(initialSection);
+    if (s) setSection(s);
+    // Solo reacciona a cambios explícitos de `initialSection` (petición del llamador).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialSection]);
+  const currentSection: SetupSection = availableSections.includes(section) ? section : availableSections[0];
+
   const [reason, setReason] = useState<"primera-vez" | "novedades" | "al-dia">("primera-vez");
   const [newSources, setNewSources] = useState<Integration[]>([]);
   const [newModels, setNewModels] = useState<number>(0);
   const [autoUpdate, setAutoUpdate] = useState(true);
-  const [strategy, setStrategy] = useState<StartupStrategy>("auto");
-  const [test, setTest] = useState<{ state: "idle" | "run" | "done"; msg?: string }>({ state: "idle" });
   const [saved, setSaved] = useState(false);
-  // Orden de preferencia de modelos IA. Inicializado desde preferencias persistidas;
-  // defensivo si el módulo/almacenamiento no está disponible aún.
-  const [modelOrder, setModelOrder] = useState<ModelAccessClass[]>(() => {
+
+  // ── Orden de preferencia de modelos: ámbito CUENTA + NEURONA (Adenda 133) ───
+  const [scope, setScope] = useState<"cuenta" | "neurona">("cuenta");
+  const [deviceId] = useState<string>(() => { try { return thisDeviceId(); } catch { return ""; } });
+
+  const [accountOrder, setAccountOrder] = useState<ModelAccessClass[]>(() => {
     try { const o = getModelPreferences().order; return Array.isArray(o) && o.length ? [...o] : [...MODEL_ACCESS_CLASSES]; } catch { return [...MODEL_ACCESS_CLASSES]; }
   });
-  const [modelMode, setModelMode] = useState<"auto" | "fixed">(() => {
+  const [accountMode, setAccountMode] = useState<"auto" | "fixed">(() => {
     try { return getModelPreferences().mode === "fixed" ? "fixed" : "auto"; } catch { return "auto"; }
   });
+  /** `true` si esta neurona tiene un override propio guardado (si no, hereda de la cuenta). */
+  const [hasNeuronOverride, setHasNeuronOverride] = useState(false);
+  /** Evita persistir/limpiar `perNeuron` antes de saber si YA había un override guardado. */
+  const [neuronPrefsLoaded, setNeuronPrefsLoaded] = useState(false);
+  const [neuronOrder, setNeuronOrder] = useState<ModelAccessClass[]>(() => [...accountOrder]);
+  const [neuronMode, setNeuronMode] = useState<"auto" | "fixed">(accountMode);
+
+  const [caps, setCaps] = useState<NeuronCapabilities | null>(null);
   const [suggestedOrder, setSuggestedOrder] = useState<ModelAccessClass[] | null>(null);
+  const [diag, setDiag] = useState<{ state: "idle" | "run" | "done"; gpu?: boolean; mismatch?: boolean; msg?: string }>({ state: "idle" });
 
-  const rootRef = useRef<HTMLDivElement>(null);
-
-  // Carga inicial: estado persistido + detección de capacidades (al montar, ya visible).
+  // Carga inicial: estado persistido + detección de capacidades (para el sugerido).
   useEffect(() => {
     const st = getStartupState();
     setAutoUpdate(st.autoUpdate !== false);
-    setStrategy(st.strategy ?? "auto");
     setReason(updateReason());
     setNewSources(newIntegrationsSince().slice(0, 8));
     setNewModels(newModelIdsSince().length);
@@ -165,14 +235,40 @@ export function AstrauraOmniVoiceConfig({
         const c = await detectCapabilities();
         if (!alive) return;
         setCaps(c);
-        setRec(recommendModels(c, { osInstalled: !!c.installedApp }));
       } catch { /* detección best-effort */ }
     })();
     return () => { alive = false; };
   }, []);
 
-  // Orden sugerido según hardware/entorno. Se recalcula al detectar capacidades;
-  // si algo falla (o no hay caps), no se muestra sugerido y el orden queda manual.
+  // Preferencia de ESTA neurona: ¿override propio guardado, o hereda de la cuenta?
+  // Solo al disponer de `deviceId` (una vez, al montar): no debe pisar ediciones en curso.
+  useEffect(() => {
+    if (!deviceId) { setNeuronPrefsLoaded(true); return; }
+    try {
+      const np = getNeuronModelPreferences(deviceId);
+      if (np) {
+        setHasNeuronOverride(true);
+        setNeuronOrder([...np.order]);
+        setNeuronMode(np.mode);
+      } else {
+        setHasNeuronOverride(false);
+        setNeuronOrder([...accountOrder]);
+        setNeuronMode(accountMode);
+      }
+    } catch { /* */ }
+    setNeuronPrefsLoaded(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deviceId]);
+
+  // Mientras la neurona HEREDA de la cuenta (sin override propio), refleja EN VIVO los
+  // cambios del orden de cuenta en la lista "heredada" mostrada (rev. adversarial A133).
+  useEffect(() => {
+    if (hasNeuronOverride) return;
+    setNeuronOrder([...accountOrder]);
+    setNeuronMode(accountMode);
+  }, [accountOrder, accountMode, hasNeuronOverride]);
+
+  // Orden sugerido según hardware/entorno (siembra inicial; «Diagnosticar y reparar» lo refresca).
   useEffect(() => {
     if (!caps) return;
     try {
@@ -185,23 +281,6 @@ export function AstrauraOmniVoiceConfig({
     } catch { setSuggestedOrder(null); }
   }, [caps]);
 
-  // Ids de ancla ÚNICOS por instancia: evita ids duplicados en el documento si el
-  // embedded (pestaña config-ia) y el drawer/modal coexisten. El scroll usa
-  // querySelector con ámbito local (rootRef), así que sigue funcionando.
-  const uid = useId().replace(/:/g, "");
-  const aid = (k: string) => `${uid}-cfg-${k}`;
-
-  // Desplazamiento al apartado pedido (initialSection) tras el primer render.
-  useEffect(() => {
-    const k = sectionAnchorKey(initialSection);
-    if (!k) return;
-    const t = setTimeout(() => {
-      try { rootRef.current?.querySelector("#" + aid(k))?.scrollIntoView({ behavior: "smooth", block: "start" }); } catch { /* */ }
-    }, 160);
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialSection]);
-
   // Feedback transitorio «Guardado» (variante embedded).
   useEffect(() => {
     if (!saved) return;
@@ -209,22 +288,23 @@ export function AstrauraOmniVoiceConfig({
     return () => clearTimeout(t);
   }, [saved]);
 
-  const runTest = async () => {
-    setTest({ state: "run" });
-    let online = true;
-    let gpu = false;
-    try { online = typeof navigator === "undefined" || navigator.onLine !== false; } catch { /* */ }
-    try {
-      const g = (navigator as unknown as { gpu?: { requestAdapter?: () => Promise<unknown> } }).gpu;
-      gpu = !!(g && (await g.requestAdapter?.()));
-    } catch { /* */ }
-    const parts = [online ? "conexión OK" : "sin conexión", gpu ? "WebGPU listo" : "sin WebGPU (usa servidor)"];
-    setTest({ state: "done", msg: parts.join(" · ") });
-  };
+  // ── Edición del orden ACTIVO (según el ámbito Cuenta/Neurona) ────────────────
+  const activeOrder = scope === "cuenta" ? accountOrder : neuronOrder;
+  const activeMode = scope === "cuenta" ? accountMode : neuronMode;
+  /** En ámbito Neurona sin override propio, la lista se muestra (heredada) pero no se edita hasta crear uno. */
+  const editingDisabled = scope === "neurona" && !hasNeuronOverride;
 
-  // Reordenar una clase de acceso arriba (-1) o abajo (+1) en la lista.
+  const setActiveOrder = useCallback(
+    (updater: (prev: ModelAccessClass[]) => ModelAccessClass[]) => {
+      if (scope === "cuenta") setAccountOrder(updater);
+      else setNeuronOrder(updater);
+    },
+    [scope],
+  );
+
   const moveAccess = (idx: number, dir: -1 | 1) => {
-    setModelOrder((prev) => {
+    if (editingDisabled) return;
+    setActiveOrder((prev) => {
       const j = idx + dir;
       if (j < 0 || j >= prev.length) return prev;
       const next = [...prev];
@@ -232,20 +312,77 @@ export function AstrauraOmniVoiceConfig({
       return next;
     });
   };
-  const useSuggested = () => { if (suggestedOrder && suggestedOrder.length) setModelOrder([...suggestedOrder]); };
+  const setMode = (m: "auto" | "fixed") => {
+    if (editingDisabled) return;
+    if (scope === "cuenta") setAccountMode(m); else setNeuronMode(m);
+  };
+  const useSuggested = () => {
+    if (!suggestedOrder || !suggestedOrder.length) return;
+    if (scope === "neurona" && !hasNeuronOverride) setHasNeuronOverride(true);
+    const sug = suggestedOrder;
+    setActiveOrder(() => [...sug]);
+  };
+  const createNeuronOverride = () => {
+    setNeuronOrder([...accountOrder]);
+    setNeuronMode(accountMode);
+    setHasNeuronOverride(true);
+  };
+  const removeNeuronOverride = () => {
+    setHasNeuronOverride(false);
+    setNeuronOrder([...accountOrder]);
+    setNeuronMode(accountMode);
+  };
 
-  // Persistencia (idéntica a la del modal original): preferencias de cuenta + orden de modelos.
+  // ── Diagnosticar y reparar: reutiliza la prueba online+WebGPU y ofrece el
+  //    sugerido si el orden activo no encaja con el hardware/online detectados.
+  //    No reimplementa el router: usa `classifyDeviceTier`/`recommendedOrder` ya
+  //    existentes, exactamente como el sugerido inicial.
+  const diagnoseAndRepair = async () => {
+    setDiag({ state: "run" });
+    let online = true;
+    let gpu = false;
+    try { online = typeof navigator === "undefined" || navigator.onLine !== false; } catch { /* */ }
+    try {
+      const g = (navigator as unknown as { gpu?: { requestAdapter?: () => Promise<unknown> } }).gpu;
+      gpu = !!(g && (await g.requestAdapter?.()));
+    } catch { /* */ }
+    let sug: ModelAccessClass[] | null = suggestedOrder;
+    try {
+      if (caps) {
+        const tier = classifyDeviceTier(caps);
+        const hasLocal = !!(caps.ollama || caps.lmstudio || caps.chromeAi || gpu);
+        sug = recommendedOrder({ tier, online, hasLocal });
+        setSuggestedOrder(sug);
+      }
+    } catch { /* */ }
+    const mismatch = Boolean(sug && sug.length > 0 && sug[0] !== activeOrder[0]);
+    const parts = [online ? "conexión OK" : "sin conexión", gpu ? "WebGPU listo" : "sin WebGPU (usa servidor)"];
+    setDiag({ state: "done", gpu, mismatch, msg: parts.join(" · ") });
+  };
+
+  // ── Persistencia ─────────────────────────────────────────────────────────────
+  // Cuenta SIEMPRE se guarda; el override de neurona se guarda o se limpia según
+  // `hasNeuronOverride` (solo si ya sabemos su estado real: `neuronPrefsLoaded`).
   const persist = useCallback(() => {
+    const effOrder = hasNeuronOverride ? neuronOrder : accountOrder;
+    const effMode = hasNeuronOverride ? neuronMode : accountMode;
+    const strategy: StartupStrategy = effMode !== "fixed" ? "auto" : effOrder[0] === "local" ? "local" : "servidor";
     try { markUpdatesSeen({ autoUpdate, strategy }); } catch { /* nunca lanza */ }
-    try { saveModelPreferences({ order: modelOrder, mode: modelMode }); } catch { /* módulo aún no disponible: no bloquea */ }
-  }, [autoUpdate, strategy, modelOrder, modelMode]);
+    try { saveModelPreferences({ order: accountOrder, mode: accountMode }); } catch { /* módulo aún no disponible: no bloquea */ }
+    try {
+      if (neuronPrefsLoaded && deviceId) {
+        if (hasNeuronOverride) saveNeuronModelPreferences(deviceId, { order: neuronOrder, mode: neuronMode });
+        else clearNeuronModelPreferences(deviceId);
+      }
+    } catch { /* */ }
+  }, [autoUpdate, accountOrder, accountMode, hasNeuronOverride, neuronOrder, neuronMode, deviceId, neuronPrefsLoaded]);
 
   const handleApply = () => {
     persist();
     onApply?.();
     // En modal cierra `onApply`; en drawer cerramos con `onDismiss`; en embedded
     // no hay cierre (se queda en la pestaña) y mostramos feedback.
-    if (variant !== "modal") onDismiss?.();
+    if (variant === "drawer") onDismiss?.();
     setSaved(true);
   };
   const handleLater = () => { try { snoozeUpdates(); } catch { /* */ } onDismiss?.(); };
@@ -257,22 +394,26 @@ export function AstrauraOmniVoiceConfig({
       ? "Hay nuevos modelos o fuentes disponibles. Revisa la selección recomendada para esta neurona."
       : "Todo actualizado. Puedes revisar la configuración recomendada.";
 
-  // Navegación a detalle: callback (dentro de /agent) o <Link> de respaldo.
-  const renderNav = (tab: "neuronas" | "integraciones", className: string, children: React.ReactNode) =>
-    onNavigate ? (
-      <button type="button" onClick={() => { onNavigate(tab); onDismiss?.(); }} className={className}>{children}</button>
-    ) : (
-      <Link href={`/agent?tab=${tab}`} onClick={() => onDismiss?.()} className={className}>{children}</Link>
-    );
+  // «Configuración completa»: por callback (dentro de /agent) o navegación de respaldo.
+  const goFull = () => { onNavigate?.("config-ia"); onDismiss?.(); };
 
-  // Reset de apariencia para los enlaces INLINE (para que <button> se vea como texto).
-  const inlineReset = "inline cursor-pointer border-0 bg-transparent p-0 align-baseline [font:inherit]";
+  // Enlace cruzado entre secciones: pestaña LOCAL si está disponible en esta
+  // variante (in-situ, sin salir del hub); si no, cae a «Configuración completa».
+  const crossLink = (target: SetupSection, label: string, className: string) => {
+    if (availableSections.includes(target)) {
+      return <button type="button" onClick={() => setSection(target)} className={cn(INLINE_RESET, className)}>{label}</button>;
+    }
+    if (onNavigate) {
+      return <button type="button" onClick={goFull} className={cn(INLINE_RESET, className)}>{label}</button>;
+    }
+    return <Link href="/agent?tab=config-ia" onClick={() => onDismiss?.()} className={className}>{label}</Link>;
+  };
 
   const savedNote = variant === "modal"
-    ? "El orden se guarda al pulsar «Aplicar y continuar»."
+    ? "Se guarda al pulsar «Aplicar y continuar»."
     : variant === "drawer"
-      ? "El orden se guarda al pulsar «Aplicar»."
-      : "El orden se guarda al pulsar «Guardar».";
+      ? "Se guarda al pulsar «Aplicar»."
+      : "Se guarda al pulsar «Guardar».";
 
   const headerPad = compact ? "px-3 py-2.5" : "px-4 py-3";
   const bodyPad = compact ? "px-3 py-2.5" : "px-4 py-3";
@@ -287,172 +428,226 @@ export function AstrauraOmniVoiceConfig({
         ? "flex h-full w-full flex-col overflow-hidden bg-[#0b0d12] text-white"
         : "flex w-full flex-col text-white";
 
+  const tabItems: SectionTabItem[] = availableSections.map((s) => ({
+    value: s,
+    label: SECTION_META[s].label,
+    icon: SECTION_META[s].icon,
+    badge: s === "cuenta" && newSources.length + newModels > 0 ? newSources.length + newModels : undefined,
+  }));
+
+  const tabsRow = (
+    <div className="mt-3 min-w-0">
+      <SectionTabs
+        items={tabItems}
+        value={currentSection}
+        onValueChange={(v) => setSection(v as SetupSection)}
+        ariaLabel="Secciones de configuración de Astraura y OmniVoice"
+        size="sm"
+      />
+    </div>
+  );
+
   return (
-    <div ref={rootRef} className={outerClass}>
+    <div className={outerClass}>
       {/* Cabecera (modal/drawer con degradado; embedded sobria; X solo en modal) */}
       {variant === "embedded" ? (
         <div className={cn("border-b border-white/10", headerPad)}>
           <h2 className="flex items-center gap-2 text-[15px] font-bold text-white/95"><Sparkles className="h-4 w-4 text-cyan-300" /> {title}</h2>
           <p className="mt-0.5 text-[11px] leading-snug text-white/55">{subtitle}</p>
+          {tabsRow}
         </div>
       ) : (
-        <div className={cn("flex items-start justify-between gap-3 border-b border-white/10 bg-gradient-to-br from-cyan-500/[0.1] to-transparent", headerPad)}>
-          <div className="min-w-0 pr-6">
-            <h2 className="flex items-center gap-2 text-[15px] font-bold text-white/95"><Sparkles className="h-4 w-4 text-cyan-300" /> {title}</h2>
-            <p className="mt-0.5 text-[11px] leading-snug text-white/55">{subtitle}</p>
+        <div className={cn("border-b border-white/10 bg-gradient-to-br from-cyan-500/[0.1] to-transparent", headerPad)}>
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0 pr-6">
+              <h2 className="flex items-center gap-2 text-[15px] font-bold text-white/95"><Sparkles className="h-4 w-4 text-cyan-300" /> {title}</h2>
+              <p className="mt-0.5 text-[11px] leading-snug text-white/55">{subtitle}</p>
+            </div>
+            {variant === "modal" && (
+              <button type="button" onClick={handleLater} title="Recordar luego" className="cursor-pointer rounded-lg p-1 text-white/40 transition-colors hover:bg-white/10 hover:text-white/80">
+                <X className="h-4 w-4" />
+              </button>
+            )}
           </div>
-          {variant === "modal" && (
-            <button type="button" onClick={handleLater} title="Recordar luego" className="cursor-pointer rounded-lg p-1 text-white/40 transition-colors hover:bg-white/10 hover:text-white/80">
-              <X className="h-4 w-4" />
-            </button>
-          )}
+          {tabsRow}
+          <div className="mt-2 flex justify-end">
+            {onNavigate ? (
+              <button type="button" onClick={goFull} className="inline-flex cursor-pointer items-center gap-1 text-[10px] text-cyan-300/80 underline decoration-dotted underline-offset-2 transition-colors hover:text-cyan-200">
+                Configuración completa <ArrowRight className="h-3 w-3" />
+              </button>
+            ) : (
+              <Link href="/agent?tab=config-ia" onClick={() => onDismiss?.()} className="inline-flex cursor-pointer items-center gap-1 text-[10px] text-cyan-300/80 underline decoration-dotted underline-offset-2 transition-colors hover:text-cyan-200">
+                Configuración completa <ArrowRight className="h-3 w-3" />
+              </Link>
+            )}
+          </div>
         </div>
       )}
 
-      {/* Cuerpo */}
+      {/* Cuerpo: SOLO la sección activa (los paneles pesados llegan por next/dynamic) */}
       <div className={cn(scrollBody, bodyPad, bodySpace)}>
-        {/* Capacidades + gama */}
-        <div id={aid("capacidades")} className="flex flex-wrap items-center gap-2 scroll-mt-2">
-          <span className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-2 py-1 text-[10px] text-white/70">
-            <Cpu className="h-3 w-3 text-cyan-300" />
-            {caps ? `${caps.platform}${caps.cores ? ` · ${caps.cores} núcleos` : ""}${caps.memoryGb ? ` · ${caps.memoryGb} GB` : ""}` : "detectando hardware…"}
-          </span>
-          {rec && <span className="rounded-full border border-cyan-400/30 bg-cyan-500/15 px-2 py-0.5 text-[10px] font-bold text-cyan-100">{tierLabel(rec.tier)}</span>}
-          <button type="button" onClick={runTest} disabled={test.state === "run"} className="ml-auto inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-2 py-1 text-[10px] text-white/70 transition-colors hover:border-cyan-400/40 hover:text-cyan-200 disabled:opacity-50">
-            {test.state === "run" ? <Loader2 className="h-3 w-3 animate-spin" /> : test.state === "done" ? <Check className="h-3 w-3 text-emerald-300" /> : <Gauge className="h-3 w-3" />} Probar entorno
-          </button>
-        </div>
-        {test.msg && <p className="text-[10px] text-emerald-300/80">{test.msg}</p>}
-
-        {/* Selección automática */}
-        <div id={aid("recomendacion")} className="scroll-mt-2">
-          {rec ? (
-            <div className="grid gap-2 sm:grid-cols-2">
-              <RecoCard icon={<Brain className="h-3.5 w-3.5 text-violet-300" />} label="Modelo de lenguaje" name={rec.llm.best.spec.label}
-                access={runsRemotely(rec.llm.best.spec) ? "servidor" : "local"} rationale={rec.llm.best.rationale} />
-              <RecoCard icon={<Mic className="h-3.5 w-3.5 text-fuchsia-300" />} label="Voz (OmniVoice)" name={rec.voz.best.spec.label}
-                access={runsRemotely(rec.voz.best.spec) ? "servidor" : "local"} rationale={rec.voz.best.rationale} />
+        {currentSection === "modelos" && (
+          <div className="scroll-mt-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="flex items-center gap-2 text-[11px] font-semibold text-white/85">
+                <ListOrdered className="h-3.5 w-3.5 text-cyan-300" /> Orden de preferencia de modelos IA
+              </p>
+              <div className="flex items-center gap-1.5">
+                <button type="button" onClick={() => setScope("cuenta")} className={pillCls(scope === "cuenta")}>
+                  <User className="mr-1 inline h-3 w-3" /> Cuenta
+                </button>
+                <button type="button" onClick={() => setScope("neurona")} className={pillCls(scope === "neurona")}>
+                  <Cpu className="mr-1 inline h-3 w-3" /> Esta neurona
+                  {hasNeuronOverride && <span className="ml-1.5 inline-block h-1.5 w-1.5 rounded-full bg-violet-400" aria-hidden="true" />}
+                </button>
+              </div>
             </div>
-          ) : (
-            <p className="flex items-center gap-2 text-[11px] text-white/45"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Calculando la mejor selección…</p>
-          )}
-        </div>
+            <p className="mt-1 text-[10px] leading-snug text-white/45">
+              Prioridad con que Astraura intenta cada tipo de motor. En «Automático» puede reordenar según el dispositivo y el entorno; en «Fijo» respeta tu orden exacto.
+              {scope === "cuenta" ? " Se aplica a toda neurona sin ajuste propio." : " Solo para esta neurona."}
+            </p>
 
-        {/* Orden de preferencia de modelos IA */}
-        <div id={aid("orden")} className="scroll-mt-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5">
-          <p className="flex items-center gap-2 text-[11px] font-semibold text-white/85"><ListOrdered className="h-3.5 w-3.5 text-cyan-300" /> Orden de preferencia de modelos IA</p>
-          <p className="mt-0.5 text-[10px] leading-snug text-white/45">
-            Prioridad con que Astraura intenta cada tipo de motor. En «Automático» puede reordenar según el dispositivo y el entorno; en «Fijo» respeta tu orden exacto.
-          </p>
-
-          {/* Modo Automático / Fijo */}
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            {MODE_OPTS.map((m) => (
-              <button key={m.value} type="button" title={m.hint} onClick={() => setModelMode(m.value)}
-                className={cn("cursor-pointer rounded-lg border px-2.5 py-1 text-[11px] font-medium transition-colors", modelMode === m.value ? "border-cyan-400/40 bg-cyan-500/15 text-cyan-100" : "border-white/10 bg-white/[0.03] text-white/60 hover:border-white/25")}>
-                {m.icon}{m.label}
-              </button>
-            ))}
-          </div>
-          <p className="mt-1 text-[10px] text-white/45">{MODE_OPTS.find((m) => m.value === modelMode)?.hint}</p>
-
-          {/* Lista reordenable de clases de acceso */}
-          <ol className="mt-2 space-y-1.5">
-            {modelOrder.map((cls, idx) => {
-              const meta = MODEL_ACCESS_META[cls];
-              const Icon = accessIcon(cls, meta?.icon);
-              return (
-                <li key={cls} className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-2 py-1.5">
-                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md border border-cyan-400/25 bg-cyan-500/10 text-[10px] font-bold text-cyan-200">{idx + 1}</span>
-                  <Icon className="h-3.5 w-3.5 shrink-0 text-white/70" />
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-[12px] font-medium text-white/90">{meta?.label ?? cls}</span>
-                    {meta?.hint && <span className="block truncate text-[10px] text-white/45">{meta.hint}</span>}
-                  </span>
-                  <span className="flex shrink-0 items-center gap-0.5">
-                    <button type="button" aria-label={`Subir ${meta?.label ?? cls}`} disabled={idx === 0} onClick={() => moveAccess(idx, -1)}
-                      className="cursor-pointer rounded-md border border-white/10 bg-white/[0.03] p-1 text-white/60 transition-colors hover:border-cyan-400/40 hover:text-cyan-200 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:border-white/10 disabled:hover:text-white/60">
-                      <ChevronUp className="h-3.5 w-3.5" />
+            {/* Estado del ámbito Neurona: hereda de la cuenta, o tiene ajuste propio */}
+            {scope === "neurona" && (
+              <div className={cn(
+                "mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border px-2.5 py-1.5 text-[10px] leading-snug",
+                hasNeuronOverride ? "border-violet-400/25 bg-violet-500/[0.06] text-violet-100/80" : "border-white/10 bg-white/[0.04] text-white/50",
+              )}>
+                {hasNeuronOverride ? (
+                  <>
+                    <span className="inline-flex items-center gap-1 font-semibold text-violet-200"><GitBranch className="h-3 w-3" /> Ajuste propio de esta neurona</span>
+                    <span>· solo aplica en este dispositivo.</span>
+                    <button type="button" onClick={removeNeuronOverride} className="ml-auto inline-flex shrink-0 cursor-pointer items-center gap-1 rounded-md border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[10px] text-white/60 transition-colors hover:border-rose-400/40 hover:text-rose-200">
+                      <Trash2 className="h-3 w-3" /> Quitar (volver a heredar)
                     </button>
-                    <button type="button" aria-label={`Bajar ${meta?.label ?? cls}`} disabled={idx === modelOrder.length - 1} onClick={() => moveAccess(idx, 1)}
-                      className="cursor-pointer rounded-md border border-white/10 bg-white/[0.03] p-1 text-white/60 transition-colors hover:border-cyan-400/40 hover:text-cyan-200 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:border-white/10 disabled:hover:text-white/60">
-                      <ChevronDown className="h-3.5 w-3.5" />
+                  </>
+                ) : (
+                  <>
+                    <span className="inline-flex items-center gap-1"><Info className="h-3 w-3" /> Esta neurona hereda el orden de la cuenta.</span>
+                    <button type="button" onClick={createNeuronOverride} className="ml-auto inline-flex shrink-0 cursor-pointer items-center gap-1 rounded-md border border-violet-400/30 bg-violet-500/10 px-2 py-0.5 text-[10px] font-semibold text-violet-200 transition-colors hover:bg-violet-500/20">
+                      <GitBranch className="h-3 w-3" /> Crear ajuste propio
                     </button>
-                  </span>
-                </li>
-              );
-            })}
-          </ol>
-
-          {/* Sugerido para este dispositivo */}
-          {suggestedOrder && (
-            <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-cyan-400/20 bg-cyan-500/[0.06] px-2.5 py-1.5">
-              <p className="min-w-0 flex-1 text-[10px] leading-snug text-white/60"><span className="font-semibold text-cyan-200">Sugerido para este dispositivo:</span> {orderLabels(suggestedOrder)}</p>
-              <button type="button" onClick={useSuggested} className="inline-flex shrink-0 cursor-pointer items-center gap-1 rounded-md border border-cyan-400/40 bg-cyan-500/15 px-2 py-0.5 text-[10px] font-semibold text-cyan-100 transition-colors hover:bg-cyan-500/25">
-                <Sparkles className="h-3 w-3" /> Usar sugerido
-              </button>
-            </div>
-          )}
-
-          {/* Auto-actualización de catálogos + enlaces a configuración avanzada */}
-          <p className="mt-2 flex items-start gap-1.5 text-[10px] leading-snug text-white/40">
-            <RefreshCw className="mt-px h-3 w-3 shrink-0 text-white/30" />
-            <span>Los catálogos se auto-actualizan: OpenRouter (:free) cada 4 h y HuggingBay. Ajusta modelos propios y descargas por{" "}
-              {renderNav("neuronas", cn(inlineReset, "text-cyan-300/80 underline decoration-dotted underline-offset-2 transition-colors hover:text-cyan-200"), "neurona")}, o las{" "}
-              {renderNav("integraciones", cn(inlineReset, "text-fuchsia-300/80 underline decoration-dotted underline-offset-2 transition-colors hover:text-fuchsia-200"), "fuentes externas")}.
-            </span>
-          </p>
-          <p className="mt-1 text-[10px] text-white/35">{savedNote}</p>
-        </div>
-
-        {/* Novedades */}
-        {(newSources.length > 0 || newModels > 0) && (
-          <div id={aid("novedades")} className="scroll-mt-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2">
-            <p className="flex items-center gap-2 text-[11px] font-semibold text-white/85"><RefreshCw className="h-3.5 w-3.5 text-emerald-300" /> Novedades desde tu última visita</p>
-            {newModels > 0 && <p className="mt-1 text-[10px] text-white/55">{newModels} modelo(s) nuevo(s) de LLM/voz disponibles.</p>}
-            {newSources.length > 0 && (
-              <div className="mt-1 flex flex-wrap gap-1.5">
-                {newSources.map((i) => (
-                  <a key={i.id} href={i.url} target="_blank" rel="noopener noreferrer" className="inline-flex cursor-pointer items-center gap-1 rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[10px] text-white/70 hover:border-cyan-400/40 hover:text-cyan-200">
-                    {i.name} <ExternalLink className="h-2.5 w-2.5" />
-                  </a>
-                ))}
+                  </>
+                )}
               </div>
             )}
-          </div>
-        )}
 
-        {/* Preferencias de cuenta */}
-        <div id={aid("cuenta")} className="scroll-mt-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5">
-          <label className="flex cursor-pointer items-center justify-between gap-3">
-            <span className="min-w-0">
-              <span className="block text-[12px] font-medium text-white/90">Actualización automática</span>
-              <span className="block text-[10px] leading-snug text-white/45">Aplica por defecto las mejores opciones cuando haya modelos o fuentes nuevos.</span>
-            </span>
-            <Switch checked={autoUpdate} onCheckedChange={setAutoUpdate} />
-          </label>
-          <div className="mt-2 border-t border-white/10 pt-2">
-            <p className="mb-1.5 text-[11px] font-medium text-white/80">Estrategia por defecto de esta neurona</p>
-            <div className="flex flex-wrap gap-1.5">
-              {STRATS.map((s) => (
-                <button key={s.value} type="button" title={s.hint} onClick={() => setStrategy(s.value)}
-                  className={cn("cursor-pointer rounded-lg border px-2.5 py-1 text-[11px] font-medium transition-colors", strategy === s.value ? "border-cyan-400/40 bg-cyan-500/15 text-cyan-100" : "border-white/10 bg-white/[0.03] text-white/60 hover:border-white/25")}>
-                  {s.value === "local" ? <Cpu className="mr-1 inline h-3 w-3" /> : s.value === "servidor" ? <Server className="mr-1 inline h-3 w-3" /> : <Sparkles className="mr-1 inline h-3 w-3" />}
-                  {s.label}
+            {/* Diagnosticar y reparar */}
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <button type="button" onClick={diagnoseAndRepair} disabled={diag.state === "run"} className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[11px] text-white/70 transition-colors hover:border-cyan-400/40 hover:text-cyan-200 disabled:opacity-50">
+                {diag.state === "run" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Stethoscope className="h-3.5 w-3.5" />} Diagnosticar y reparar
+              </button>
+              {diag.state === "done" && (
+                <span className={cn("inline-flex flex-wrap items-center gap-1 text-[10px]", diag.mismatch ? "text-amber-300/85" : "text-emerald-300/80")}>
+                  {diag.mismatch ? <AlertTriangle className="h-3 w-3 shrink-0" /> : <Check className="h-3 w-3 shrink-0" />} {diag.msg}
+                  {diag.mismatch && (
+                    <>
+                      {" "}· no coincide con lo recomendado.{" "}
+                      <button type="button" onClick={useSuggested} className={cn(INLINE_RESET, "font-semibold text-amber-200 underline decoration-dotted underline-offset-2 hover:text-amber-100")}>
+                        Usar sugerido
+                      </button>
+                    </>
+                  )}
+                </span>
+              )}
+            </div>
+
+            {/* Modo Automático / Fijo */}
+            <div className={cn("mt-2.5 flex flex-wrap gap-1.5", editingDisabled && "pointer-events-none opacity-50")}>
+              {MODE_OPTS.map((m) => (
+                <button key={m.value} type="button" title={m.hint} disabled={editingDisabled} onClick={() => setMode(m.value)} className={pillCls(activeMode === m.value)}>
+                  {m.icon}{m.label}
                 </button>
               ))}
             </div>
-            <p className="mt-1 text-[10px] text-white/45">{STRATS.find((s) => s.value === strategy)?.hint}</p>
-          </div>
-        </div>
+            <p className="mt-1 text-[10px] text-white/45">{MODE_OPTS.find((m) => m.value === activeMode)?.hint}</p>
 
-        {/* Enlaces a detalle */}
-        <div id={aid("enlaces")} className="scroll-mt-2 flex flex-wrap gap-2 text-[11px]">
-          {renderNav("neuronas", "inline-flex cursor-pointer items-center gap-1 rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1 text-white/70 hover:border-cyan-400/40 hover:text-cyan-200",
-            <><Cpu className="h-3 w-3" /> Neuronas y modelos <ArrowRight className="h-3 w-3" /></>)}
-          {renderNav("integraciones", "inline-flex cursor-pointer items-center gap-1 rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1 text-white/70 hover:border-fuchsia-400/40 hover:text-fuchsia-200",
-            <><Blocks className="h-3 w-3" /> Integraciones y fuentes <ArrowRight className="h-3 w-3" /></>)}
-        </div>
+            {/* Lista reordenable de clases de acceso */}
+            <ol className={cn("mt-2 space-y-1.5", editingDisabled && "opacity-60")}>
+              {activeOrder.map((cls, idx) => {
+                const meta = MODEL_ACCESS_META[cls];
+                const Icon = accessIcon(cls, meta?.icon);
+                return (
+                  <li key={cls} className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-2 py-1.5">
+                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md border border-cyan-400/25 bg-cyan-500/10 text-[10px] font-bold text-cyan-200">{idx + 1}</span>
+                    <Icon className="h-3.5 w-3.5 shrink-0 text-white/70" />
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-[12px] font-medium text-white/90">{meta?.label ?? cls}</span>
+                      {meta?.hint && <span className="block truncate text-[10px] text-white/45">{meta.hint}</span>}
+                    </span>
+                    <span className="flex shrink-0 items-center gap-0.5">
+                      <button type="button" aria-label={`Subir ${meta?.label ?? cls}`} disabled={editingDisabled || idx === 0} onClick={() => moveAccess(idx, -1)}
+                        className="cursor-pointer rounded-md border border-white/10 bg-white/[0.03] p-1 text-white/60 transition-colors hover:border-cyan-400/40 hover:text-cyan-200 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:border-white/10 disabled:hover:text-white/60">
+                        <ChevronUp className="h-3.5 w-3.5" />
+                      </button>
+                      <button type="button" aria-label={`Bajar ${meta?.label ?? cls}`} disabled={editingDisabled || idx === activeOrder.length - 1} onClick={() => moveAccess(idx, 1)}
+                        className="cursor-pointer rounded-md border border-white/10 bg-white/[0.03] p-1 text-white/60 transition-colors hover:border-cyan-400/40 hover:text-cyan-200 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:border-white/10 disabled:hover:text-white/60">
+                        <ChevronDown className="h-3.5 w-3.5" />
+                      </button>
+                    </span>
+                  </li>
+                );
+              })}
+            </ol>
+
+            {/* Sugerido para este dispositivo */}
+            {suggestedOrder && (
+              <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-cyan-400/20 bg-cyan-500/[0.06] px-2.5 py-1.5">
+                <p className="min-w-0 flex-1 text-[10px] leading-snug text-white/60"><span className="font-semibold text-cyan-200">Sugerido para este dispositivo:</span> {orderLabels(suggestedOrder)}</p>
+                <button type="button" onClick={useSuggested} className="inline-flex shrink-0 cursor-pointer items-center gap-1 rounded-md border border-cyan-400/40 bg-cyan-500/15 px-2 py-0.5 text-[10px] font-semibold text-cyan-100 transition-colors hover:bg-cyan-500/25">
+                  <Sparkles className="h-3 w-3" /> Usar sugerido
+                </button>
+              </div>
+            )}
+
+            {/* Auto-actualización de catálogos + enlaces in-situ a Neuronas/Integraciones */}
+            <p className="mt-2 flex items-start gap-1.5 text-[10px] leading-snug text-white/40">
+              <RefreshCw className="mt-px h-3 w-3 shrink-0 text-white/30" />
+              <span>Los catálogos se auto-actualizan: OpenRouter (:free) cada 4 h y HuggingBay. Ajusta modelos propios y descargas por{" "}
+                {crossLink("neuronas", "neurona", "text-cyan-300/80 underline decoration-dotted underline-offset-2 transition-colors hover:text-cyan-200")}, o las{" "}
+                {crossLink("integraciones", "fuentes externas", "text-fuchsia-300/80 underline decoration-dotted underline-offset-2 transition-colors hover:text-fuchsia-200")}.
+              </span>
+            </p>
+            <p className="mt-1 text-[10px] text-white/35">{savedNote}</p>
+          </div>
+        )}
+
+        {currentSection === "neuronas" && <NeuronModelsPanel embedded />}
+        {currentSection === "integraciones" && <IntegrationSourcesPanel embedded />}
+        {currentSection === "apis" && <AiProvidersPanel embedded />}
+        {currentSection === "voz" && <SetupVoz />}
+
+        {currentSection === "cuenta" && (
+          <div className="space-y-3">
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5">
+              <label className="flex cursor-pointer items-center justify-between gap-3">
+                <span className="min-w-0">
+                  <span className="block text-[12px] font-medium text-white/90">Actualización automática</span>
+                  <span className="block text-[10px] leading-snug text-white/45">Aplica por defecto las mejores opciones cuando haya modelos o fuentes nuevos.</span>
+                </span>
+                <Switch checked={autoUpdate} onCheckedChange={setAutoUpdate} />
+              </label>
+            </div>
+
+            {(newSources.length > 0 || newModels > 0) && (
+              <div className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2">
+                <p className="flex items-center gap-2 text-[11px] font-semibold text-white/85"><RefreshCw className="h-3.5 w-3.5 text-emerald-300" /> Novedades desde tu última visita</p>
+                {newModels > 0 && <p className="mt-1 text-[10px] text-white/55">{newModels} modelo(s) nuevo(s) de LLM/voz disponibles.</p>}
+                {newSources.length > 0 && (
+                  <div className="mt-1 flex flex-wrap gap-1.5">
+                    {newSources.map((i) => (
+                      <a key={i.id} href={i.url} target="_blank" rel="noopener noreferrer" className="inline-flex cursor-pointer items-center gap-1 rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[10px] text-white/70 hover:border-cyan-400/40 hover:text-cyan-200">
+                        {i.name} <ExternalLink className="h-2.5 w-2.5" />
+                      </a>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            <p className="px-0.5 text-[10px] leading-snug text-white/35">{savedNote}</p>
+          </div>
+        )}
       </div>
 
       {/* Pie por variante */}
@@ -477,7 +672,7 @@ export function AstrauraOmniVoiceConfig({
         </div>
       )}
       {variant === "embedded" && (
-        <div className={cn("flex items-center gap-2", bodyPad)}>
+        <div className={cn("flex items-center gap-2 border-t border-white/10", bodyPad)}>
           <button type="button" onClick={handleApply} className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-cyan-400/40 bg-cyan-500/20 px-3 py-1.5 text-[12px] font-semibold text-cyan-100 transition-colors hover:bg-cyan-500/30">
             <Check className="h-3.5 w-3.5" /> Guardar
           </button>

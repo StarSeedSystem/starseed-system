@@ -43,12 +43,23 @@ import {
   setActiveProviderId,
 } from "@/ai/client/providerStore";
 
+export interface AiProvidersPanelProps {
+  /**
+   * When true, omits the top hero card and the bottom principles footer so the
+   * panel can live embedded inside another window/panel (e.g. the "APIs &
+   * modelos" section of the Astraura + OmniVoice config hub). The passphrase
+   * manager, provider catalog, configured providers, Ollama panel, function
+   * models and OSS library browser are always shown.
+   */
+  embedded?: boolean;
+}
+
 /**
  * Settings panel where the user manages every AI provider configured in their
  * Exocórtex. Privacy-first: keys live encrypted in their browser. The active
  * provider determines which model is used by default in the Agent chat.
  */
-export function AiProvidersPanel() {
+export function AiProvidersPanel({ embedded = false }: AiProvidersPanelProps = {}) {
   const [configs, setConfigs] = useState<ProviderConfig[]>([]);
   const [activeId, setActiveIdState] = useState<ProviderId | null>(null);
   const [passphrase, setPassphrase] = useState("");
@@ -223,22 +234,24 @@ export function AiProvidersPanel() {
 
   return (
     <div className="space-y-6">
-      {/* Hero: principio rector */}
-      <Card className="bg-gradient-to-br from-primary/10 via-background/40 to-accent/10 border-primary/20">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-primary" />
-            Tu Exocórtex es soberano
-          </CardTitle>
-          <CardDescription className="leading-relaxed">
-            Elige el motor de IA que prefieras: <strong>local con Ollama</strong> para máxima
-            privacidad, o <strong>la API que tú quieras</strong> usando tu propia clave. Las claves
-            se cifran en este navegador (AES-GCM, PBKDF2 250k iter) y <strong>nunca</strong> se
-            envían a nuestros servidores. Puedes mezclar varios proveedores y activar uno como
-            predeterminado.
-          </CardDescription>
-        </CardHeader>
-      </Card>
+      {/* Hero: principio rector (omitido cuando `embedded`) */}
+      {!embedded && (
+        <Card className="bg-gradient-to-br from-primary/10 via-background/40 to-accent/10 border-primary/20">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-primary" />
+              Tu Exocórtex es soberano
+            </CardTitle>
+            <CardDescription className="leading-relaxed">
+              Elige el motor de IA que prefieras: <strong>local con Ollama</strong> para máxima
+              privacidad, o <strong>la API que tú quieras</strong> usando tu propia clave. Las claves
+              se cifran en este navegador (AES-GCM, PBKDF2 250k iter) y <strong>nunca</strong> se
+              envían a nuestros servidores. Puedes mezclar varios proveedores y activar uno como
+              predeterminado.
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      )}
 
       {/* Passphrase manager */}
       <Card className="bg-background/40 backdrop-blur-sm">
@@ -531,26 +544,28 @@ export function AiProvidersPanel() {
         </CardContent>
       </Card>
 
-      {/* Footer: principios */}
-      <Card className="bg-background/20 border-white/5">
-        <CardContent className="pt-6 text-xs text-muted-foreground space-y-2">
-          <p className="flex items-start gap-2">
-            <ShieldCheck className="h-4 w-4 text-emerald-400 shrink-0 mt-0.5" />
-            <span>
-              Las claves se cifran con AES-GCM y una clave derivada de tu frase con PBKDF2
-              (250.000 iteraciones). Solo viven en tu navegador.
-            </span>
-          </p>
-          <p className="flex items-start gap-2">
-            <XCircle className="h-4 w-4 text-rose-400 shrink-0 mt-0.5" />
-            <span>
-              StarSeed Network <strong>no</strong> recibe ni almacena tus claves ni tus
-              conversaciones con la IA — todo ocurre directamente entre tu navegador y el
-              proveedor que elijas.
-            </span>
-          </p>
-        </CardContent>
-      </Card>
+      {/* Footer: principios (omitido cuando `embedded`) */}
+      {!embedded && (
+        <Card className="bg-background/20 border-white/5">
+          <CardContent className="pt-6 text-xs text-muted-foreground space-y-2">
+            <p className="flex items-start gap-2">
+              <ShieldCheck className="h-4 w-4 text-emerald-400 shrink-0 mt-0.5" />
+              <span>
+                Las claves se cifran con AES-GCM y una clave derivada de tu frase con PBKDF2
+                (250.000 iteraciones). Solo viven en tu navegador.
+              </span>
+            </p>
+            <p className="flex items-start gap-2">
+              <XCircle className="h-4 w-4 text-rose-400 shrink-0 mt-0.5" />
+              <span>
+                StarSeed Network <strong>no</strong> recibe ni almacena tus claves ni tus
+                conversaciones con la IA — todo ocurre directamente entre tu navegador y el
+                proveedor que elijas.
+              </span>
+            </p>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

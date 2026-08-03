@@ -68,6 +68,12 @@ import { describeVoiceStateForPrompt } from "@/lib/integrations/aurora-tools";
 // usuario y sembrado por el dispositivo): aporta un NUDGE aditivo pequeño al
 // ranking según la clase de cada fuente. Módulo autocontenido y SSR-safe.
 import { accessBias, llmSourceAccessClass } from "@/lib/astraura/model-preferences";
+// Id de ESTA neurona (dispositivo) — Adenda 133: activa el override POR NEURONA
+// de `accessBias` (perNeuron[neuronId] > perTask > perEnv > order) cuando el
+// usuario personalizó el orden de modelos para este dispositivo concreto.
+// `neurons.ts` NO importa `router.ts` (sin ciclo): solo Supabase/entity-state y
+// un `import type` de `ai/astraura/mesh` (erased, sin runtime).
+import { thisDeviceId } from "@/lib/neurons/neurons";
 
 /* ───────────────────── Ajustes de Inteligencia ───────────────────── */
 
@@ -390,6 +396,18 @@ export function rankCandidates(
   // empujón pequeño que NO domina (por debajo de freeFirst, fromUser y override).
   const online = typeof navigator === "undefined" ? undefined : navigator.onLine !== false;
   const hasLocal = avail.some((a) => a.ready && llmSourceAccessClass(a.source.id) === "local");
+  // Id de ESTA neurona (Adenda 133): habilita el override POR NEURONA de
+  // `accessBias` cuando el usuario lo personalizó para este dispositivo. Si
+  // `thisDeviceId` no está disponible o lanza (SSR, localStorage bloqueado…),
+  // degrada a `undefined` — `accessBias` cae en la preferencia de cuenta, IGUAL
+  // que se comportaba antes de esta ola.
+  let neuronId: string | undefined;
+  try {
+    const id = thisDeviceId();
+    if (id) neuronId = id;
+  } catch {
+    neuronId = undefined;
+  }
 
   for (const a of avail) {
     if (!a.ready) continue;
@@ -416,11 +434,13 @@ export function rankCandidates(
       }
       // NUDGE por CLASE DE ACCESO (preferencias unificadas de modelo): sesgo
       // aditivo pequeño [0..4] según el orden que el usuario prefiere por clase
-      // (local/starseed/api-free/api-external), sembrado por el dispositivo. Es
-      // un empujón, NO domina: queda por debajo del freeFirst (-6), del boost de
-      // los servicios propios (+2.5/+8) y del override manual (+100). Defensivo.
+      // (local/starseed/api-free/api-external), sembrado por el dispositivo y,
+      // si esta neurona tiene un override propio (`perNeuron`), por ÉL primero
+      // (Adenda 133). Es un empujón, NO domina: queda por debajo del freeFirst
+      // (-6), del boost de los servicios propios (+2.5/+8) y del override
+      // manual (+100). Defensivo.
       try {
-        score += accessBias(llmSourceAccessClass(a.source.id), { task: profile.kind, online, hasLocal });
+        score += accessBias(llmSourceAccessClass(a.source.id), { task: profile.kind, online, hasLocal, neuronId });
       } catch { /* sin sesgo si algo raro pasa */ }
       if (override === `${a.source.id}::${m.id}`) {
         score += 100;

@@ -465,6 +465,23 @@ interface AgentRenderMsg {
   attachments?: unknown[] | null;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Patrón ÚNICO de layout para TabsContent (Adenda 133).
+// -----------------------------------------------------------------------------
+// El primitivo shadcn (`src/components/ui/tabs.tsx`) aplica `mt-2` a TODO
+// TabsContent; `cn()` usa tailwind-merge, así que anteponer `mt-0` en estas
+// clases siempre gana sobre ese margen fantasma (el último `mt-*` de la cadena
+// fusionada manda), sin tocar el primitivo compartido.
+// - TAB_SCROLL: paneles de AJUSTES (proveedor, neuronas, integraciones,
+//   config-ia, seguridad, decisiones, skills, tools, mcp, fuentes, etc.) —
+//   altura flexible con scroll vertical propio.
+// - TAB_FILL: apps de altura completa que gestionan su propio scroll interno
+//   (chat, cerebro, pizarra, navegador, apps-ia) — el panel NO hace scroll,
+//   lo hace el componente hijo.
+// ─────────────────────────────────────────────────────────────────────────────
+const TAB_SCROLL = "mt-0 flex-1 min-h-0 w-full max-w-full box-border overflow-y-auto";
+const TAB_FILL = "mt-0 flex-1 min-h-0 w-full max-w-full box-border overflow-hidden data-[state=active]:flex data-[state=active]:flex-col";
+
 function AgentPageInner() {
   const params = useSearchParams();
   const tabParam = params?.get('tab');
@@ -851,7 +868,7 @@ function AgentPageInner() {
 
 
   return (
-    <div className="flex flex-col h-[calc(100dvh-5rem)] gap-4 p-3 sm:p-4 md:p-6 pl-[max(0.75rem,env(safe-area-inset-left))] pr-[max(0.75rem,env(safe-area-inset-right))] max-w-[1600px] mx-auto w-full box-border overflow-x-hidden">
+    <div className="flex flex-col h-[calc(100dvh-4rem-env(safe-area-inset-bottom))] gap-4 p-3 sm:p-4 md:p-5 pl-[max(0.75rem,env(safe-area-inset-left))] pr-[max(0.75rem,env(safe-area-inset-right))] max-w-[1600px] mx-auto w-full box-border overflow-x-hidden">
 
       <div className="flex items-center justify-between flex-wrap gap-3 w-full max-w-full box-border">
         <h1 className="text-xl sm:text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary to-purple-400 flex items-center gap-2 sm:gap-3 min-w-0">
@@ -909,7 +926,7 @@ function AgentPageInner() {
       <button
         type="button"
         onClick={openExocortex}
-        className="group w-full max-w-full box-border text-left rounded-xl border border-emerald-400/25 bg-gradient-to-r from-emerald-500/10 via-fuchsia-500/[0.06] to-blue-500/10 backdrop-blur-md px-3 sm:px-4 py-2.5 sm:py-3 cursor-pointer transition-colors duration-200 hover:border-emerald-400/45 hover:from-emerald-500/[0.16] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/40"
+        className="shrink-0 group w-full max-w-full box-border text-left rounded-xl border border-emerald-400/25 bg-gradient-to-r from-emerald-500/10 via-fuchsia-500/[0.06] to-blue-500/10 backdrop-blur-md px-3 sm:px-4 py-2.5 sm:py-3 cursor-pointer transition-colors duration-200 hover:border-emerald-400/45 hover:from-emerald-500/[0.16] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/40"
         aria-label="Abrir el Exocórtex de Astraura IA"
       >
         <div className="flex items-center gap-3 min-w-0">
@@ -969,28 +986,28 @@ function AgentPageInner() {
         <div className="flex-1 flex flex-col gap-3 min-h-0 min-w-0 w-full max-w-full box-border">
 
           {/* Cabecera de la sección + sub-pestañas deslizables */}
-          <div className="w-full max-w-full box-border rounded-xl border border-white/5 bg-black/20 backdrop-blur-md p-2 sm:p-2.5">
+          <div className="shrink-0 w-full max-w-full box-border rounded-xl border border-white/5 bg-black/20 backdrop-blur-md p-2 sm:p-2.5">
             <div className="flex items-center gap-2 px-1 pb-2 min-w-0">
               <currentSection.icon className={cn("w-4 h-4 shrink-0", currentSection.accent)} />
               <span className="text-sm font-semibold text-white truncate">{currentSection.label}</span>
               {currentSection.hint && (
                 <span className="text-[11px] text-muted-foreground/70 truncate hidden md:inline">— {currentSection.hint}</span>
               )}
-              {/* Adenda 132: acceso directo a la config unificada de Astraura &
-                  OmniVoice (drawer global) desde la cabecera de «Modelos & Proveedores». */}
-              {activeSection === 'modelos' && (
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={() => openAstrauraConfig()}
-                  className="ml-auto shrink-0 gap-1.5 border-fuchsia-400/40 bg-fuchsia-500/10 text-fuchsia-200 hover:bg-fuchsia-500/20 cursor-pointer"
-                >
-                  <SlidersHorizontal className="h-3.5 w-3.5" />
-                  <span className="hidden sm:inline">Configurar Astraura &amp; OmniVoice</span>
-                  <span className="sm:hidden">Configurar IA</span>
-                </Button>
-              )}
+              {/* Adenda 133: acceso directo a la config unificada de Astraura &
+                  OmniVoice (drawer global) desde la cabecera de CADA sección —
+                  antes solo aparecía en «Modelos & Proveedores». Se mantiene
+                  también el botón equivalente en la cabecera de página. */}
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => openAstrauraConfig()}
+                className="ml-auto shrink-0 gap-1.5 border-fuchsia-400/40 bg-fuchsia-500/10 text-fuchsia-200 hover:bg-fuchsia-500/20 cursor-pointer"
+              >
+                <SlidersHorizontal className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Configurar Astraura &amp; OmniVoice</span>
+                <span className="sm:hidden">Configurar</span>
+              </Button>
             </div>
             {currentSection.items.length > 1 && (
               <TabsList className="ss-hscroll ss-hscroll-fade w-full max-w-full box-border justify-start bg-transparent border-0 py-0 px-3 scroll-px-3 gap-1 h-auto flex-nowrap">
@@ -1012,26 +1029,16 @@ function AgentPageInner() {
           </div>
 
         {/* --- TAB: NEXUS (panel gráfico de uso del sistema Astraura, por perfil) --- */}
-        <TabsContent value="overview" className="flex-1 min-h-0 overflow-y-auto">
+        <TabsContent value="overview" className={TAB_SCROLL}>
           <div className="space-y-4">
-            {/* Adenda 132: CTA a la config unificada de Astraura & OmniVoice (drawer global). */}
-            <div className="flex justify-end">
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={() => openAstrauraConfig()}
-                className="gap-1.5 border-fuchsia-400/40 bg-fuchsia-500/10 text-fuchsia-200 hover:bg-fuchsia-500/20 cursor-pointer"
-              >
-                <SlidersHorizontal className="h-4 w-4" /> Configurar Astraura &amp; OmniVoice
-              </Button>
-            </div>
+            {/* CTA propio retirado (Adenda 133): el botón "Configurar Astraura & OmniVoice"
+                de la cabecera de sección ya cubre esta pestaña. */}
             <AstrauraUsagePanel />
           </div>
         </TabsContent>
 
         {/* --- TAB: ESPACIOS DE TRABAJO (Portal Nexus + gestión de espacios · G2) --- */}
-        <TabsContent value="espacios" className="flex-1 min-h-0 overflow-y-auto">
+        <TabsContent value="espacios" className={TAB_SCROLL}>
           <div className="space-y-6">
             {/* El Portal Nexus (espacios = carpetas reales) vive aquí como bloque superior. */}
             <NexusWorkspaces onOpenTab={(t) => setActiveTab(t)} />
@@ -1039,7 +1046,7 @@ function AgentPageInner() {
           </div>
         </TabsContent>
 
-        <TabsContent value="cerebro" className="flex-1 min-h-0 flex flex-col overflow-hidden">
+        <TabsContent value="cerebro" className={TAB_FILL}>
           {/* Adenda 132: «Mapa 3D» se fusionó aquí (este panel monta el MemoryBrain3D
               real). Enlace para abrir el mapa a pantalla completa en /memorias-3d,
               conservando ese acceso que antes daba el placeholder «Mapa 3D». */}
@@ -1055,21 +1062,21 @@ function AgentPageInner() {
           </div>
         </TabsContent>
 
-        <TabsContent value="batch" className="flex-1 min-h-0 overflow-y-auto">
+        <TabsContent value="batch" className={TAB_SCROLL}>
           <BatchJobsPanel />
         </TabsContent>
 
-        <TabsContent value="servers" className="flex-1 min-h-0 overflow-y-auto">
+        <TabsContent value="servers" className={TAB_SCROLL}>
           <ServerRegistryPanel />
         </TabsContent>
 
         {/* --- TAB: CHAT (cuerpo extraído a ChatSurface · Adenda 76 · G1) --- */}
-        <TabsContent value="chat" className="flex-1 min-h-0 w-full max-w-full box-border data-[state=active]:flex">
+        <TabsContent value="chat" className={TAB_FILL}>
           <ChatSurface />
         </TabsContent>
 
         {/* --- TAB: FOUNDRY (AGENT BUILDER) --- */}
-        <TabsContent value="foundry" className="flex-1 data-[state=active]:grid grid-cols-1 md:grid-cols-3 gap-6 overflow-y-auto min-h-0">
+        <TabsContent value="foundry" className="mt-0 flex-1 data-[state=active]:grid grid-cols-1 md:grid-cols-3 gap-6 overflow-y-auto min-h-0">
           {/* Agent List */}
           <Card className="col-span-1 border-white/10 bg-black/20">
             <CardHeader>
@@ -1139,7 +1146,7 @@ function AgentPageInner() {
         </TabsContent>
 
         {/* --- TAB: RULES & CONTEXT --- */}
-        <TabsContent value="rules" className="flex-1 data-[state=active]:grid grid-cols-1 md:grid-cols-2 gap-6 overflow-y-auto min-h-0">
+        <TabsContent value="rules" className="mt-0 flex-1 data-[state=active]:grid grid-cols-1 md:grid-cols-2 gap-6 overflow-y-auto min-h-0">
           <Card className="border-white/10 bg-black/20">
             <CardHeader>
               <CardTitle className="flex items-center gap-2"><Shield className="w-5 h-5 text-emerald-400" /> Leyes del Sistema</CardTitle>
@@ -1185,7 +1192,7 @@ function AgentPageInner() {
         </TabsContent>
 
         {/* --- TAB: WORKFLOWS --- */}
-        <TabsContent value="workflows" className="flex-1 min-h-0 overflow-y-auto">
+        <TabsContent value="workflows" className="mt-0 flex-1 min-h-0 overflow-y-auto">
           <Card className="border-white/10 bg-black/20 h-full">
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
@@ -1224,7 +1231,7 @@ function AgentPageInner() {
         </TabsContent>
 
         {/* --- TAB: SKILLS --- */}
-        <TabsContent value="skills" className="flex-1 min-h-0 overflow-y-auto">
+        <TabsContent value="skills" className={TAB_SCROLL}>
           <Card className="border-white/10 bg-black/20 h-full">
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
@@ -1292,7 +1299,7 @@ function AgentPageInner() {
         </TabsContent>
 
         {/* --- TAB: TOOLS --- */}
-        <TabsContent value="tools" className="flex-1 min-h-0 overflow-y-auto space-y-4">
+        <TabsContent value="tools" className={cn(TAB_SCROLL, "space-y-4")}>
           <Card className="border-white/10 bg-black/20">
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
@@ -1377,7 +1384,7 @@ function AgentPageInner() {
         </TabsContent>
 
         {/* --- TAB: FUENTES / LIBRERÍA --- */}
-        <TabsContent value="fuentes" className="flex-1 min-h-0 overflow-y-auto space-y-4">
+        <TabsContent value="fuentes" className={cn(TAB_SCROLL, "space-y-4")}>
           <Card className="border-white/10 bg-black/20">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
@@ -1396,86 +1403,86 @@ function AgentPageInner() {
         </TabsContent>
 
         {/* --- TAB: MCP --- */}
-        <TabsContent value="mcp" className="flex-1 min-h-0 overflow-y-auto">
+        <TabsContent value="mcp" className={TAB_SCROLL}>
           <McpPanel />
         </TabsContent>
 
         {/* --- TAB: SENTIDOS --- */}
-        <TabsContent value="senses" className="flex-1 min-h-0 overflow-y-auto">
+        <TabsContent value="senses" className={TAB_SCROLL}>
           <SensesPanel />
         </TabsContent>
 
         {/* --- TAB: ACCESOS RÁPIDOS (mismo catálogo del dock y Nexus) --- */}
-        <TabsContent value="telegram" className="flex-1 min-h-0 overflow-y-auto"><TelegramSpacesPanel /></TabsContent>
+        <TabsContent value="telegram" className={TAB_SCROLL}><TelegramSpacesPanel /></TabsContent>
 
-        <TabsContent value="memorias" className="flex-1 min-h-0 overflow-y-auto"><MemoryHub /></TabsContent>
+        <TabsContent value="memorias" className={TAB_SCROLL}><MemoryHub /></TabsContent>
 
-        <TabsContent value="baules" className="flex-1 min-h-0 overflow-y-auto"><VaultsPanel /></TabsContent>
+        <TabsContent value="baules" className={TAB_SCROLL}><VaultsPanel /></TabsContent>
 
         {/* Adenda 132: «Mapa 3D» fusionado en «Cerebro» (MemoryBrain3D real). El
             acceso a pantalla completa /memorias-3d vive ahora dentro del panel
             «Cerebro» (value="cerebro"). Ítem de nav retirado y alias mapa3d/mapa-3d → cerebro. */}
 
-        <TabsContent value="runtimes" className="flex-1 min-h-0 overflow-y-auto"><AgentRuntimePanel /></TabsContent>
+        <TabsContent value="runtimes" className={TAB_SCROLL}><AgentRuntimePanel /></TabsContent>
 
-        <TabsContent value="okf" className="flex-1 min-h-0 overflow-y-auto"><OKFPanel /></TabsContent>
+        <TabsContent value="okf" className={TAB_SCROLL}><OKFPanel /></TabsContent>
 
-        <TabsContent value="proveedor" className="flex-1 min-h-0 overflow-y-auto"><ProviderPanel /></TabsContent>
+        <TabsContent value="proveedor" className={TAB_SCROLL}><ProviderPanel /></TabsContent>
 
-        <TabsContent value="aurora" className="flex-1 min-h-0 overflow-y-auto"><AuroraStudio /></TabsContent>
+        <TabsContent value="aurora" className={TAB_SCROLL}><AuroraStudio /></TabsContent>
 
         {/* --- TAB: PERSONALIDADES (hub global · Adenda 97) --- */}
-        <TabsContent value="personalidades" className="flex-1 min-h-0 overflow-y-auto"><PersonalitiesHub /></TabsContent>
+        <TabsContent value="personalidades" className={TAB_SCROLL}><PersonalitiesHub /></TabsContent>
 
         {/* --- TAB: RED MESH (Meshtastic/LoRa · Adenda 97) --- */}
-        <TabsContent value="mesh" className="flex-1 min-h-0 overflow-y-auto"><MeshControlPanel /></TabsContent>
+        <TabsContent value="mesh" className={TAB_SCROLL}><MeshControlPanel /></TabsContent>
 
-        <TabsContent value="coherencia" className="flex-1 min-h-0 overflow-y-auto"><PersonaCoherencePanel /></TabsContent>
+        <TabsContent value="coherencia" className={TAB_SCROLL}><PersonaCoherencePanel /></TabsContent>
 
-        <TabsContent value="conexiones-chat" className="flex-1 min-h-0 overflow-y-auto"><ChatConnectionsPanel /></TabsContent>
+        <TabsContent value="conexiones-chat" className={TAB_SCROLL}><ChatConnectionsPanel /></TabsContent>
 
-        <TabsContent value="almacenes" className="flex-1 min-h-0 overflow-y-auto"><StoragePanel /></TabsContent>
+        <TabsContent value="almacenes" className={TAB_SCROLL}><StoragePanel /></TabsContent>
 
-        <TabsContent value="conexiones" className="flex-1 min-h-0 overflow-y-auto"><ConnectionsHub /></TabsContent>
+        <TabsContent value="conexiones" className={TAB_SCROLL}><ConnectionsHub /></TabsContent>
 
         {/* --- TAB: CONFIGURACIÓN IA (config unificada Astraura & OmniVoice · Adenda 132) --- */}
-        <TabsContent value="config-ia" className="flex-1 min-h-0 overflow-y-auto"><AstrauraOmniVoiceConfig variant="embedded" onNavigate={(t) => setActiveTab(t)} /></TabsContent>
+        <TabsContent value="config-ia" className={TAB_SCROLL}><AstrauraOmniVoiceConfig variant="embedded" onNavigate={(t) => setActiveTab(t)} /></TabsContent>
 
-        <TabsContent value="cerebros" className="flex-1 min-h-0 overflow-y-auto"><BrainsPanel /></TabsContent>
+        <TabsContent value="cerebros" className={TAB_SCROLL}><BrainsPanel /></TabsContent>
 
-        <TabsContent value="neuronas" className="flex-1 min-h-0 overflow-y-auto"><NeuronModelsPanel /></TabsContent>
+        <TabsContent value="neuronas" className={TAB_SCROLL}><NeuronModelsPanel /></TabsContent>
 
-        <TabsContent value="integraciones" className="flex-1 min-h-0 overflow-y-auto"><IntegrationSourcesPanel /></TabsContent>
+        <TabsContent value="integraciones" className={TAB_SCROLL}><IntegrationSourcesPanel /></TabsContent>
 
-        <TabsContent value="servidores" className="flex-1 min-h-0 overflow-y-auto"><ServersPanel /></TabsContent>
+        <TabsContent value="servidores" className={TAB_SCROLL}><ServersPanel /></TabsContent>
 
-        <TabsContent value="seguridad" className="flex-1 min-h-0 overflow-y-auto"><SecurityPanel /></TabsContent>
+        <TabsContent value="seguridad" className={TAB_SCROLL}><SecurityPanel /></TabsContent>
 
-        <TabsContent value="pizarra" className="flex-1 min-h-0 overflow-hidden"><CanvasBoard /></TabsContent>
+        <TabsContent value="pizarra" className={TAB_FILL}><CanvasBoard /></TabsContent>
 
-        <TabsContent value="navegador" className="flex-1 min-h-0 overflow-hidden"><BrowserWindows /></TabsContent>
+        <TabsContent value="navegador" className={TAB_SCROLL}><BrowserWindows /></TabsContent>
 
-        <TabsContent value="publicar" className="flex-1 min-h-0 overflow-y-auto"><PublicationComposer /></TabsContent>
+        <TabsContent value="publicar" className={TAB_SCROLL}><PublicationComposer /></TabsContent>
 
-        <TabsContent value="pizarras" className="flex-1 min-h-0 overflow-y-auto"><WorkCenters /></TabsContent>
+        <TabsContent value="pizarras" className={TAB_SCROLL}><WorkCenters /></TabsContent>
 
-        <TabsContent value="apps-ia" className="flex-1 min-h-0 overflow-hidden"><AiAppGenerator /></TabsContent>
+        <TabsContent value="apps-ia" className={TAB_FILL}><AiAppGenerator /></TabsContent>
 
-        <TabsContent value="habilidades" className="flex-1 min-h-0 overflow-y-auto"><AbilitiesHub /></TabsContent>
+        <TabsContent value="habilidades" className={TAB_SCROLL}><AbilitiesHub /></TabsContent>
 
-        <TabsContent value="conocimiento" className="flex-1 min-h-0 overflow-y-auto"><div className="flex flex-col items-center justify-center h-full text-center gap-4 p-8"><div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-amber-400 to-fuchsia-500 flex items-center justify-center text-3xl">🌐</div><div className="text-lg font-semibold text-amber-50">Red de Conocimiento</div><p className="text-sm text-white/50 max-w-md">Categorías y temas interconectados con vínculos multi-categoría y 3 vistas (Lista, Mapa 2D, Red 3D).</p><Link href="/conocimiento"><Button className="gap-2 bg-fuchsia-600 hover:bg-fuchsia-500"><BookOpen className="w-4 h-4" /> Abrir Red de Conocimiento</Button></Link></div></TabsContent>
+        <TabsContent value="conocimiento" className={TAB_SCROLL}><div className="flex flex-col items-center justify-center h-full text-center gap-4 p-8"><div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-amber-400 to-fuchsia-500 flex items-center justify-center text-3xl">🌐</div><div className="text-lg font-semibold text-amber-50">Red de Conocimiento</div><p className="text-sm text-white/50 max-w-md">Categorías y temas interconectados con vínculos multi-categoría y 3 vistas (Lista, Mapa 2D, Red 3D).</p><Link href="/conocimiento"><Button className="gap-2 bg-fuchsia-600 hover:bg-fuchsia-500"><BookOpen className="w-4 h-4" /> Abrir Red de Conocimiento</Button></Link></div></TabsContent>
 
         {/* Adenda 132: eliminado el <TabsContent value="sentidos"> MUERTO. No existe
             ítem de nav «sentidos» y el alias sentidos→senses nunca deja activeTab="sentidos",
             así que nunca se renderizaba. El panel real de Sentidos vive en value="senses". */}
 
-        <TabsContent value="red3d" className="flex-1 min-h-0 overflow-y-auto"><div className="flex flex-col items-center justify-center h-full text-center gap-4 p-8"><div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-amber-400 to-cyan-500 flex items-center justify-center text-3xl">🕸️</div><div className="text-lg font-semibold text-cyan-50">Red 3D de interconexión</div><p className="text-sm text-white/50 max-w-md">Visualiza la malla viva de cerebros, servidores, almacenes y baúles con sus enlaces y sincronizaciones, en 3D y con ayuda de Astraura.</p><Link href="/red-3d"><Button className="gap-2 bg-cyan-600 hover:bg-cyan-500"><Network className="w-4 h-4" /> Abrir Red 3D</Button></Link></div></TabsContent>
+        <TabsContent value="red3d" className={TAB_SCROLL}><div className="flex flex-col items-center justify-center h-full text-center gap-4 p-8"><div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-amber-400 to-cyan-500 flex items-center justify-center text-3xl">🕸️</div><div className="text-lg font-semibold text-cyan-50">Red 3D de interconexión</div><p className="text-sm text-white/50 max-w-md">Visualiza la malla viva de cerebros, servidores, almacenes y baúles con sus enlaces y sincronizaciones, en 3D y con ayuda de Astraura.</p><Link href="/red-3d"><Button className="gap-2 bg-cyan-600 hover:bg-cyan-500"><Network className="w-4 h-4" /> Abrir Red 3D</Button></Link></div></TabsContent>
 
-        <TabsContent value="decisiones" className="flex-1 min-h-0 overflow-y-auto"><div className="space-y-6"><GovernancePanel /><GovNotifications /></div></TabsContent>
+        <TabsContent value="decisiones" className={TAB_SCROLL}><div className="space-y-6"><GovernancePanel /><GovNotifications /></div></TabsContent>
 
-        <TabsContent value="mi-actividad" className="flex-1 min-h-0 overflow-y-auto"><MyActivity /></TabsContent>
+        <TabsContent value="mi-actividad" className={TAB_SCROLL}><MyActivity /></TabsContent>
 
-        <TabsContent value="quick" className="flex-1 min-h-0 overflow-y-auto space-y-3">
+        <TabsContent value="quick" className={cn(TAB_SCROLL, "space-y-3")}>
           <QuickOptionsGrid
             title="Accesos rápidos del agente"
             description="El mismo catálogo unificado disponible en el dock y el Nexus. Edita aquí lo que quieres exponer en cualquier superficie."

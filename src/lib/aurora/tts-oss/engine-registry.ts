@@ -70,6 +70,7 @@ import {
 // voz respeta la preferencia del usuario por clase (local/starseed/api-free/
 // api-external) como sesgo, con el realismo actual como desempate. Autocontenido.
 import { accessBias, voiceEngineAccessClass } from "@/lib/astraura/model-preferences";
+import { thisDeviceId } from "@/lib/neurons/neurons";
 
 // ── Metadatos por motor ──────────────────────────────────────────────────────
 
@@ -686,8 +687,12 @@ export function buildVoiceChain(
         // Con la preferencia CANÓNICA de voz el orden NO cambia (equivalencia
         // exacta con hoy); solo sesga si el usuario personalizó su preferencia.
         const online = typeof navigator === "undefined" ? undefined : navigator.onLine !== false;
+        // Override por-neurona (Adenda 133): el mismo `perNeuron` que sesga el router LLM
+        // debe sesgar también la cadena de voz. Defensivo: sin id, orden por cuenta.
+        let neuronId: string | undefined;
+        try { neuronId = thisDeviceId() || undefined; } catch { neuronId = undefined; }
         order = order
-          .map((id, i) => ({ id, i, bias: accessBias(voiceEngineAccessClass(id), { online }) }))
+          .map((id, i) => ({ id, i, bias: accessBias(voiceEngineAccessClass(id), { online, neuronId }) }))
           .sort((a, b) => b.bias - a.bias || a.i - b.i)
           .map((x) => x.id);
       } catch {

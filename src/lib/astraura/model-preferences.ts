@@ -100,6 +100,16 @@ export interface ModelOrderPreference {
   perTask?: Partial<Record<string, ModelAccessClass[]>>;
   /** Overrides por entorno (offline/low/mid/high → orden de clases). */
   perEnv?: Partial<Record<EnvKind, ModelAccessClass[]>>;
+  /**
+   * Overrides POR NEURONA (dispositivo): neuronId → orden + modo propios de ESE
+   * dispositivo, con prioridad sobre `perTask`/`perEnv`/`order` de cuenta cuando
+   * el llamador pasa `neuronId` (ver `AccessContextOpts`/`effectiveOrder`).
+   * Aditivo: sin entrada para una neurona, esta hereda la preferencia de cuenta
+   * tal cual. Gestionado por `getNeuronModelPreferences`/`saveNeuronModelPreferences`/
+   * `clearNeuronModelPreferences`; `getModelPreferences`/`saveModelPreferences` lo
+   * preservan sin tocarlo (siguen operando solo sobre order/mode/perTask/perEnv).
+   */
+  perNeuron?: Record<string, { order: ModelAccessClass[]; mode: "auto" | "fixed" }>;
   /** Marca de tiempo de la última edición (para sync/orden). */
   updatedAt: number;
 }
@@ -145,6 +155,30 @@ function sanitizeOrder(arr: unknown): ModelAccessClass[] {
   return out;
 }
 
+/** Sanea UNA entrada de `perNeuron`: order saneado (no vacío) + mode válido. */
+function sanitizeNeuronEntry(
+  v: unknown,
+): { order: ModelAccessClass[]; mode: "auto" | "fixed" } | null {
+  if (!v || typeof v !== "object") return null;
+  const order = sanitizeOrder((v as { order?: unknown }).order);
+  if (!order.length) return null;
+  const modeRaw = (v as { mode?: unknown }).mode;
+  return { order, mode: modeRaw === "fixed" ? "fixed" : "auto" };
+}
+
+/** Sanea el mapa completo `perNeuron` (claves = neuronId). `undefined` si queda vacío. */
+function sanitizePerNeuron(
+  raw: unknown,
+): Record<string, { order: ModelAccessClass[]; mode: "auto" | "fixed" }> | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const out: Record<string, { order: ModelAccessClass[]; mode: "auto" | "fixed" }> = {};
+  for (const k of Object.keys(raw as Record<string, unknown>)) {
+    const entry = sanitizeNeuronEntry((raw as Record<string, unknown>)[k]);
+    if (entry) out[k] = entry;
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
 // ── Lectura / escritura (SSR-safe, defensivas) ───────────────────────────────
 
 /**
@@ -188,6 +222,9 @@ export function getModelPreferences(): ModelOrderPreference {
       }
       if (Object.keys(pe).length) out.perEnv = pe;
     }
+    const rawPn = (p as { perNeuron?: unknown }).perNeuron;
+    const pn = sanitizePerNeuron(rawPn);
+    if (pn) out.perNeuron = pn;
     return out;
   } catch {
     return cloneDefault();
@@ -198,6 +235,10 @@ export function getModelPreferences(): ModelOrderPreference {
  * Aplica un patch parcial, persiste y emite `MODEL_PREFS_EVENT`. Merge amable:
  *   · `order` / `mode` se reemplazan si vienen (order saneado).
  *   · `perTask` / `perEnv` se fusionan por CLAVE; una clave con `[]` la BORRA.
+ *   · `perNeuron` (preferencias POR NEURONA) se PRESERVA tal cual — este patch
+ *     sigue operando solo sobre order/mode/perTask/perEnv de CUENTA, como
+ *     siempre; usa `saveNeuronModelPreferences`/`clearNeuronModelPreferences`
+ *     para tocar `perNeuron`.
  * Siempre refresca `updatedAt`. SSR-safe: sin `window` devuelve el resultado sin
  * persistir. Nunca lanza.
  */
@@ -212,6 +253,7 @@ export function saveModelPreferences(
   };
   if (current.perTask) next.perTask = { ...current.perTask };
   if (current.perEnv) next.perEnv = { ...current.perEnv };
+  if (current.perNeuron) next.perNeuron = { ...current.perNeuron };
 
   if (patch && typeof patch === "object") {
     if (Array.isArray(patch.order)) {
@@ -249,6 +291,109 @@ export function saveModelPreferences(
     /* persistencia best-effort */
   }
   return next;
+}
+
+// ── Preferencias POR NEURONA (dispositivo) ───────────────────────────────────
+// Mismo mecanismo de persistencia que la preferencia de CUENTA (misma clave
+// `MODEL_PREFS_KEY`, mismo evento `MODEL_PREFS_EVENT`): viven DENTRO del mismo
+// objeto, como un mapa `perNeuron[neuronId] → { order, mode }`. El `neuronId`
+// SIEMPRE llega como PARÁMETRO (este módulo es cero-imports a propósito: no
+// resuelve el id del dispositivo actual — eso lo hace el llamador con
+// `thisDeviceId()` de `@/lib/neurons/neurons`). Sin entrada para una neurona,
+// esta hereda la preferencia de cuenta tal cual (ver `effectiveOrder`).
+
+/**
+ * Lee la preferencia guardada PARA ESTA NEURONA. `null` si no hay ninguna
+ * entrada (⇒ la neurona hereda la preferencia de cuenta). Nunca lanza.
+ */
+export function getNeuronModelPreferences(
+  neuronId: string,
+): { order: ModelAccessClass[]; mode: "auto" | "fixed" } | null {
+  try {
+    if (!neuronId) return null;
+    const entry = getModelPreferences().perNeuron?.[neuronId];
+    return entry ? { order: [...entry.order], mode: entry.mode } : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Aplica un patch parcial DENTRO de `perNeuron[neuronId]` (merge amable, mismo
+ * espíritu que `saveModelPreferences`): `order`/`mode` se reemplazan si vienen
+ * (order saneado; vacío o inválido se ignora, conservando el valor previo). Si
+ * la neurona no tenía entrada todavía, arranca heredando el `order`/`mode` de
+ * CUENTA vigente y el patch la personaliza desde ahí. Persiste con la MISMA
+ * clave (`MODEL_PREFS_KEY`) y emite el MISMO evento (`MODEL_PREFS_EVENT`) que
+ * `saveModelPreferences`. SSR-safe: sin `window` no persiste. Nunca lanza.
+ */
+export function saveNeuronModelPreferences(
+  neuronId: string,
+  patch: { order?: ModelAccessClass[]; mode?: "auto" | "fixed" },
+): void {
+  if (!neuronId) return;
+  try {
+    const current = getModelPreferences();
+    const existing = current.perNeuron?.[neuronId];
+    const merged: { order: ModelAccessClass[]; mode: "auto" | "fixed" } = existing
+      ? { order: [...existing.order], mode: existing.mode }
+      : { order: [...current.order], mode: current.mode };
+
+    if (patch && typeof patch === "object") {
+      if (Array.isArray(patch.order)) {
+        const o = sanitizeOrder(patch.order);
+        if (o.length) merged.order = o;
+      }
+      if (patch.mode === "auto" || patch.mode === "fixed") merged.mode = patch.mode;
+    }
+
+    const next: ModelOrderPreference = {
+      order: [...current.order],
+      mode: current.mode,
+      updatedAt: Date.now(),
+    };
+    if (current.perTask) next.perTask = { ...current.perTask };
+    if (current.perEnv) next.perEnv = { ...current.perEnv };
+    next.perNeuron = { ...(current.perNeuron || {}), [neuronId]: merged };
+
+    if (typeof window === "undefined") return; // SSR: no persiste
+    window.localStorage.setItem(MODEL_PREFS_KEY, JSON.stringify(next));
+    window.dispatchEvent(new CustomEvent(MODEL_PREFS_EVENT, { detail: next }));
+  } catch {
+    /* persistencia best-effort */
+  }
+}
+
+/**
+ * Borra la entrada de `perNeuron[neuronId]`: esa neurona vuelve a heredar la
+ * preferencia de CUENTA tal cual. No-op silencioso si no había entrada.
+ * Persiste con la MISMA clave y emite el MISMO evento que `saveModelPreferences`.
+ * SSR-safe: sin `window` no persiste. Nunca lanza.
+ */
+export function clearNeuronModelPreferences(neuronId: string): void {
+  if (!neuronId) return;
+  try {
+    const current = getModelPreferences();
+    if (!current.perNeuron || !(neuronId in current.perNeuron)) return; // nada que borrar
+
+    const perNeuron = { ...current.perNeuron };
+    delete perNeuron[neuronId];
+
+    const next: ModelOrderPreference = {
+      order: [...current.order],
+      mode: current.mode,
+      updatedAt: Date.now(),
+    };
+    if (current.perTask) next.perTask = { ...current.perTask };
+    if (current.perEnv) next.perEnv = { ...current.perEnv };
+    if (Object.keys(perNeuron).length) next.perNeuron = perNeuron;
+
+    if (typeof window === "undefined") return; // SSR: no persiste
+    window.localStorage.setItem(MODEL_PREFS_KEY, JSON.stringify(next));
+    window.dispatchEvent(new CustomEvent(MODEL_PREFS_EVENT, { detail: next }));
+  } catch {
+    /* persistencia best-effort */
+  }
 }
 
 // ── Recomendación por entorno (siembra) ──────────────────────────────────────
@@ -313,13 +458,16 @@ function blendOrders(
 }
 
 /**
- * Contexto para `effectiveOrder`/`accessBias`. `task`/`env` eligen la BASE
- * (perTask > perEnv > order); `tier`/`online`/`hasLocal` son las SEÑALES REALES
- * del dispositivo que alimentan la recomendación (`recommendedOrder`) en modo
- * auto. Todos opcionales: sin ninguno, el resultado es el orden canónico. Tipo
- * COMPARTIDO por las dos funciones para que sus firmas nunca se desincronicen
- * (antes `accessBias` no podía reenviar tier/online/hasLocal → la siembra por
- * dispositivo era inerte en runtime).
+ * Contexto para `effectiveOrder`/`accessBias`. `neuronId` (si hay entrada
+ * guardada en `perNeuron`) manda sobre `task`/`env` para elegir la BASE —
+ * prioridad perNeuron[neuronId] > perTask > perEnv > order — y fija además el
+ * `mode` efectivo; sin `neuronId` o sin entrada, `task`/`env` eligen la BASE de
+ * CUENTA como siempre (perTask > perEnv > order). `tier`/`online`/`hasLocal`
+ * son las SEÑALES REALES del dispositivo que alimentan la recomendación
+ * (`recommendedOrder`) en modo auto. Todos opcionales: sin ninguno, el
+ * resultado es el orden canónico. Tipo COMPARTIDO por las dos funciones para
+ * que sus firmas nunca se desincronicen (antes `accessBias` no podía reenviar
+ * tier/online/hasLocal → la siembra por dispositivo era inerte en runtime).
  */
 export interface AccessContextOpts {
   task?: string;
@@ -327,23 +475,37 @@ export interface AccessContextOpts {
   tier?: "alto" | "medio" | "bajo" | "minimo";
   online?: boolean;
   hasLocal?: boolean;
+  /** Id de la neurona (dispositivo) actual — activa `perNeuron[neuronId]` si existe (ver `thisDeviceId()` en `@/lib/neurons/neurons`). */
+  neuronId?: string;
 }
 
 /**
- * Orden EFECTIVO de clases: resuelve perTask > perEnv > order como base y, en
- * modo `auto`, la fusiona con `recommendedOrder` (sesgo respetando exclusiones).
- * En modo `fixed` devuelve la base tal cual. Nunca lanza.
+ * Orden EFECTIVO de clases: resuelve la base con prioridad
+ * perNeuron[opts.neuronId] > perTask > perEnv > order (el override por neurona
+ * solo entra si `opts.neuronId` está definido Y existe una entrada guardada
+ * para esa neurona; en ese caso también fija el `mode` efectivo) y, en modo
+ * `auto`, la fusiona con `recommendedOrder` (sesgo respetando exclusiones). En
+ * modo `fixed` devuelve la base tal cual. Nunca lanza.
  */
 export function effectiveOrder(opts?: AccessContextOpts): ModelAccessClass[] {
   try {
     const o = opts || {};
     const prefs = getModelPreferences();
 
-    // Base: perTask > perEnv > order.
+    // Override POR NEURONA (dispositivo): solo entra con `neuronId` Y entrada
+    // guardada para esa neurona; en ese caso manda sobre perTask/perEnv/order Y
+    // sobre el `mode` de cuenta. Sin neuronId o sin entrada, todo sigue EXACTO
+    // a como era antes (la cuenta manda).
+    const neuronId = typeof o.neuronId === "string" ? o.neuronId : undefined;
+    const neuronPref = neuronId ? prefs.perNeuron?.[neuronId] : undefined;
+
+    // Base: perNeuron[neuronId] > perTask > perEnv > order.
     let base: ModelAccessClass[] | undefined;
     const task = typeof o.task === "string" ? o.task : undefined;
     const env = o.env;
-    if (task && prefs.perTask && Array.isArray(prefs.perTask[task])) {
+    if (neuronPref) {
+      base = neuronPref.order;
+    } else if (task && prefs.perTask && Array.isArray(prefs.perTask[task])) {
       base = prefs.perTask[task];
     } else if (env && prefs.perEnv && Array.isArray(prefs.perEnv[env])) {
       base = prefs.perEnv[env];
@@ -352,8 +514,11 @@ export function effectiveOrder(opts?: AccessContextOpts): ModelAccessClass[] {
     base = sanitizeOrder(base);
     if (!base.length) base = [...DEFAULT_MODEL_PREFERENCE.order];
 
+    // Modo efectivo: el de la neurona (si hay override) o el de cuenta.
+    const mode = neuronPref ? neuronPref.mode : prefs.mode;
+
     // Modo fijo: la base manda tal cual (sin recomendación).
-    if (prefs.mode !== "auto") return base;
+    if (mode !== "auto") return base;
 
     // Modo auto: la recomendación entra como sesgo. `env === "offline"` implica
     // sin conexión salvo que se diga lo contrario explícitamente.
@@ -372,11 +537,13 @@ export function effectiveOrder(opts?: AccessContextOpts): ModelAccessClass[] {
  * clase no está (excluida). Pensado para NUDGE (escala pequeña ~[0..4]). Nunca lanza.
  *
  * Acepta el contexto COMPLETO (`AccessContextOpts`) y lo reenvía tal cual a
- * `effectiveOrder`: así las SEÑALES REALES del dispositivo (tier/online/hasLocal)
- * y el env dejan de ser inertes cuando el llamador las provee. Con la preferencia
- * CANÓNICA + estos datos, el orden NO cambia respecto a hoy (equivalencia exacta):
- * `recommendedOrder` solo se desvía del canónico con un `tier` débil sin motor
- * local, y `blendOrders(base canónica, canónica) = canónica`.
+ * `effectiveOrder`: así las SEÑALES REALES del dispositivo (tier/online/hasLocal),
+ * el env y el `neuronId` (override POR NEURONA vía `perNeuron`, si hay entrada
+ * guardada) dejan de ser inertes cuando el llamador las provee. Con la
+ * preferencia CANÓNICA + estos datos (sin `neuronId` o sin entrada), el orden
+ * NO cambia respecto a hoy (equivalencia exacta): `recommendedOrder` solo se
+ * desvía del canónico con un `tier` débil sin motor local, y
+ * `blendOrders(base canónica, canónica) = canónica`.
  */
 export function accessBias(cls: ModelAccessClass, opts?: AccessContextOpts): number {
   try {
