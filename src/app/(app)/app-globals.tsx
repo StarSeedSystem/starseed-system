@@ -23,6 +23,7 @@
 
 import { AuroraIntro } from "@/components/onboarding/aurora-intro";
 import { StartupUpdatesModal } from "@/components/astraura/startup-updates-modal";
+import { AstrauraConfigDrawer } from "@/components/astraura/astraura-config-drawer";
 import { ModelDownloadNotifier } from "@/components/neurons/model-download-notifier";
 import { NeuronActivityLogger } from "@/components/neurons/neuron-activity-logger";
 
@@ -31,6 +32,9 @@ export default function AppGlobals() {
     <>
       <AuroraIntro />
       <StartupUpdatesModal />
+      {/* Drawer global de configuración de Astraura + OmniVoice (Adenda 132):
+          se monta UNA vez y escucha `starseed:open-astraura-config`. */}
+      <AstrauraConfigDrawer />
       <ModelDownloadNotifier />
       <NeuronActivityLogger />
     </>

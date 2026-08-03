@@ -86,6 +86,12 @@ import MyActivity from "@/components/decisions/my-activity";
 import { ChatConnectionsPanel } from "@/components/messaging/chat-connections-panel";
 import { OssLibraryBrowser } from "@/components/settings/ai/oss-library-browser";
 import { LibrarySourcesPanel } from "@/components/library/library-sources-panel";
+// Adenda 132: configuración unificada de Astraura & OmniVoice.
+// - `AstrauraOmniVoiceConfig` embebe la config en la pestaña «Configuración IA».
+// - `openAstrauraConfig` abre el mismo panel como drawer global desde cualquier
+//   pestaña (cabecera, Nexus, Modelos). Ambos los provee otro agente por contrato.
+import { AstrauraOmniVoiceConfig } from "@/components/astraura/astraura-omnivoice-config";
+import { openAstrauraConfig } from "@/lib/astraura/config-ui";
 
 // Conversación unificada Aurora ↔ Astraura AI (Adenda 69 · I-1).
 import {
@@ -210,8 +216,12 @@ const STUDIO_SECTIONS: StudioSection[] = [
     label: "Espacios de trabajo",
     icon: Layers,
     accent: "text-fuchsia-300",
-    hint: "Tus espacios (carpetas) de trabajo y su gestión completa.",
-    items: [{ value: "espacios", label: "Espacios de trabajo", icon: Layers }],
+    hint: "Tus espacios (carpetas) de trabajo, sus accesos rápidos y su gestión completa.",
+    items: [
+      { value: "espacios", label: "Espacios de trabajo", icon: Layers },
+      // Adenda 132: «Accesos rápidos» se traslada aquí desde «Sentidos & Canales».
+      { value: "quick", label: "Accesos rápidos", icon: Plus },
+    ],
   },
   {
     id: "cerebro",
@@ -223,7 +233,7 @@ const STUDIO_SECTIONS: StudioSection[] = [
       { value: "cerebro", label: "Cerebro", icon: Brain },
       { value: "memorias", label: "Memorias", icon: Brain },
       { value: "baules", label: "Baúles", icon: Layers },
-      { value: "mapa3d", label: "Mapa 3D", icon: Sparkles },
+      // Adenda 132: «Mapa 3D» se fusiona con «Cerebro» (que ya monta el MemoryBrain3D real).
       { value: "conocimiento", label: "Conocimiento", icon: BookOpen },
       { value: "okf", label: "Wiki / OKF", icon: BookOpen },
     ],
@@ -233,12 +243,16 @@ const STUDIO_SECTIONS: StudioSection[] = [
     label: "Modelos & Proveedores",
     icon: Cpu,
     accent: "text-blue-300",
-    hint: "Qué modelos usa tu IA, sus agentes, reglas y directivas.",
+    hint: "Qué modelos usa tu IA, sus neuronas, agentes, reglas y directivas.",
     items: [
       { value: "proveedor", label: "Proveedor", icon: Database },
+      // Adenda 132: «Neuronas», «Agentes (runtimes)» y «Batch» se trasladan aquí desde Infraestructura.
+      { value: "neuronas", label: "Neuronas", icon: Cpu },
       { value: "foundry", label: "Agent Foundry", icon: Sparkles },
       { value: "rules", label: "Reglas", icon: Shield },
       { value: "workflows", label: "Workflows", icon: Workflow },
+      { value: "runtimes", label: "Agentes (runtimes)", icon: Server },
+      { value: "batch", label: "Batch", icon: Layers },
     ],
   },
   {
@@ -252,6 +266,8 @@ const STUDIO_SECTIONS: StudioSection[] = [
       { value: "tools", label: "Tools", icon: Wrench },
       { value: "mcp", label: "MCPs", icon: Server },
       { value: "fuentes", label: "Fuentes", icon: BookMarked },
+      // Adenda 132: «Integraciones» se traslada aquí desde Infraestructura.
+      { value: "integraciones", label: "Integraciones", icon: Blocks },
       { value: "habilidades", label: "Habilidades", icon: Zap },
       { value: "apps-ia", label: "Apps IA", icon: Code },
     ],
@@ -266,7 +282,6 @@ const STUDIO_SECTIONS: StudioSection[] = [
       { value: "senses", label: "Sentidos", icon: Eye },
       { value: "conexiones-chat", label: "Conexiones de chat", icon: Send },
       { value: "telegram", label: "Telegram", icon: Send },
-      { value: "quick", label: "Accesos rápidos", icon: Plus },
     ],
   },
   // Adenda 97: la antigua sección de un solo ítem «Aurora & Astraura» se
@@ -292,17 +307,15 @@ const STUDIO_SECTIONS: StudioSection[] = [
     label: "Infraestructura",
     icon: Server,
     accent: "text-amber-300",
-    hint: "Cerebros, servidores, almacenes, conexiones y seguridad.",
+    hint: "Configuración IA, cerebros, servidores, almacenes, conexiones y seguridad.",
     items: [
+      // Adenda 132: «Configuración IA» (config unificada de Astraura & OmniVoice), primero.
+      { value: "config-ia", label: "Configuración IA", icon: Sliders },
       { value: "cerebros", label: "Cerebros", icon: BrainCircuit },
-      { value: "neuronas", label: "Neuronas", icon: Cpu },
-      { value: "integraciones", label: "Integraciones", icon: Blocks },
       { value: "servidores", label: "Servidores", icon: Server },
       { value: "servers", label: "Registro de servidores", icon: HardDrive },
       { value: "almacenes", label: "Almacenes", icon: HardDrive },
       { value: "conexiones", label: "Conexiones", icon: Cloud },
-      { value: "runtimes", label: "Agentes (runtimes)", icon: Server },
-      { value: "batch", label: "Batch", icon: Layers },
       { value: "red3d", label: "Red 3D", icon: Network },
       { value: "seguridad", label: "Seguridad", icon: Shield },
     ],
@@ -345,7 +358,9 @@ const VALUE_TO_SECTION: Record<string, string> = (() => {
 // Normaliza el parámetro `?tab=` (algunos enlaces externos usan variantes).
 const TAB_ALIASES: Record<string, string> = {
   mcps: "mcp",
-  "mapa-3d": "mapa3d",
+  // Adenda 132: «Mapa 3D» se fusiona con «Cerebro» (que monta el MemoryBrain3D real).
+  "mapa-3d": "cerebro",
+  mapa3d: "cerebro",
   agentes: "runtimes",
   wiki: "okf",
   sentidos: "senses",
@@ -368,6 +383,10 @@ const TAB_ALIASES: Record<string, string> = {
   malla: "mesh",
   meshtastic: "mesh",
   lora: "mesh",
+  // Adenda 132: configuración unificada de IA (Astraura & OmniVoice).
+  configuracion: "config-ia",
+  config: "config-ia",
+  "config-ia": "config-ia",
 };
 function normalizeTab(raw: string | null | undefined): string | null {
   if (!raw) return null;
@@ -495,6 +514,17 @@ function AgentPageInner() {
     if (sec && sec !== activeSection) setActiveSection(sec);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
+
+  // Adenda 132 · BUG FIX (botones + deep-links): sincroniza el query param
+  // `?tab=` con el tab activo. Antes `activeTab` sólo se leía de `?tab=` al
+  // MONTAR (useState(initialTab)); estando ya en /agent, los botones/enlaces a
+  // /agent?tab=neuronas · ?tab=integraciones · etc. cambiaban la URL pero NO la
+  // pestaña. Este efecto reacciona a cada cambio del searchParam.
+  useEffect(() => {
+    const t = normalizeTab(tabParam);
+    if (t) setActiveTab(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tabParam]);
 
   // Abre el Exocórtex (cortina Zenith) reusando el mismo evento global que el
   // orbe y la paleta de comandos. Astraura, Aurora y el Exocórtex comparten el
@@ -860,6 +890,18 @@ function AgentPageInner() {
           >
             <Sliders className="h-3.5 w-3.5" /> Configurar Neurona
           </Button>
+          {/* Adenda 132: configuración unificada de Astraura & OmniVoice como
+              drawer global. Visible en TODAS las pestañas, incluida «Chats»
+              (cumple «en los chats un botón para configurar»). */}
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => openAstrauraConfig()}
+            className="gap-1.5 border-fuchsia-400/40 bg-fuchsia-500/10 text-fuchsia-200 hover:bg-fuchsia-500/20 cursor-pointer"
+          >
+            <SlidersHorizontal className="h-3.5 w-3.5" /> Configurar IA
+          </Button>
         </div>
       </div>
 
@@ -896,7 +938,7 @@ function AgentPageInner() {
             Móvil/tablet: tira horizontal deslizable (.ss-hscroll) que NUNCA
             desborda el viewport. */}
         <nav
-          className="ss-hscroll ss-hscroll-fade flex flex-row lg:flex-col gap-1.5 lg:gap-1 shrink-0 w-full max-w-full lg:w-56 lg:max-w-[14rem] box-border lg:overflow-x-visible lg:overflow-y-auto lg:[mask-image:none] lg:pr-1 pb-1 lg:pb-0"
+          className="ss-hscroll ss-hscroll-fade flex flex-row lg:flex-col gap-1.5 lg:gap-1 shrink-0 w-full max-w-full lg:w-56 lg:max-w-[14rem] box-border lg:overflow-x-visible lg:overflow-y-auto lg:[mask-image:none] lg:pr-1 pb-1 lg:pb-0 px-3 lg:px-0 scroll-px-3 lg:scroll-px-0"
           aria-label="Secciones de configuración de Astraura"
         >
           {STUDIO_SECTIONS.map((sec) => {
@@ -934,9 +976,24 @@ function AgentPageInner() {
               {currentSection.hint && (
                 <span className="text-[11px] text-muted-foreground/70 truncate hidden md:inline">— {currentSection.hint}</span>
               )}
+              {/* Adenda 132: acceso directo a la config unificada de Astraura &
+                  OmniVoice (drawer global) desde la cabecera de «Modelos & Proveedores». */}
+              {activeSection === 'modelos' && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => openAstrauraConfig()}
+                  className="ml-auto shrink-0 gap-1.5 border-fuchsia-400/40 bg-fuchsia-500/10 text-fuchsia-200 hover:bg-fuchsia-500/20 cursor-pointer"
+                >
+                  <SlidersHorizontal className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Configurar Astraura &amp; OmniVoice</span>
+                  <span className="sm:hidden">Configurar IA</span>
+                </Button>
+              )}
             </div>
             {currentSection.items.length > 1 && (
-              <TabsList className="ss-hscroll ss-hscroll-fade w-full max-w-full box-border justify-start bg-transparent border-0 p-0 gap-1 h-auto flex-nowrap">
+              <TabsList className="ss-hscroll ss-hscroll-fade w-full max-w-full box-border justify-start bg-transparent border-0 py-0 px-3 scroll-px-3 gap-1 h-auto flex-nowrap">
                 {currentSection.items.map((it) => {
                   const ItemIcon = it.icon;
                   return (
@@ -956,7 +1013,21 @@ function AgentPageInner() {
 
         {/* --- TAB: NEXUS (panel gráfico de uso del sistema Astraura, por perfil) --- */}
         <TabsContent value="overview" className="flex-1 min-h-0 overflow-y-auto">
-          <AstrauraUsagePanel />
+          <div className="space-y-4">
+            {/* Adenda 132: CTA a la config unificada de Astraura & OmniVoice (drawer global). */}
+            <div className="flex justify-end">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => openAstrauraConfig()}
+                className="gap-1.5 border-fuchsia-400/40 bg-fuchsia-500/10 text-fuchsia-200 hover:bg-fuchsia-500/20 cursor-pointer"
+              >
+                <SlidersHorizontal className="h-4 w-4" /> Configurar Astraura &amp; OmniVoice
+              </Button>
+            </div>
+            <AstrauraUsagePanel />
+          </div>
         </TabsContent>
 
         {/* --- TAB: ESPACIOS DE TRABAJO (Portal Nexus + gestión de espacios · G2) --- */}
@@ -968,8 +1039,20 @@ function AgentPageInner() {
           </div>
         </TabsContent>
 
-        <TabsContent value="cerebro" className="flex-1 min-h-0 overflow-hidden">
-          <MemoryBrain3D className="h-full min-h-[70vh]" />
+        <TabsContent value="cerebro" className="flex-1 min-h-0 flex flex-col overflow-hidden">
+          {/* Adenda 132: «Mapa 3D» se fusionó aquí (este panel monta el MemoryBrain3D
+              real). Enlace para abrir el mapa a pantalla completa en /memorias-3d,
+              conservando ese acceso que antes daba el placeholder «Mapa 3D». */}
+          <div className="flex items-center justify-end px-1 pb-2 shrink-0">
+            <Link href="/memorias-3d">
+              <Button size="sm" variant="outline" className="gap-1.5 border-cyan-400/40 bg-cyan-500/10 text-cyan-200 hover:bg-cyan-500/20 cursor-pointer">
+                <Sparkles className="h-3.5 w-3.5" /> Abrir a pantalla completa
+              </Button>
+            </Link>
+          </div>
+          <div className="flex-1 min-h-0">
+            <MemoryBrain3D className="h-full min-h-[70vh]" />
+          </div>
         </TabsContent>
 
         <TabsContent value="batch" className="flex-1 min-h-0 overflow-y-auto">
@@ -1329,7 +1412,9 @@ function AgentPageInner() {
 
         <TabsContent value="baules" className="flex-1 min-h-0 overflow-y-auto"><VaultsPanel /></TabsContent>
 
-        <TabsContent value="mapa3d" className="flex-1 min-h-0 overflow-y-auto"><div className="flex flex-col items-center justify-center h-full text-center gap-4 p-8"><div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-fuchsia-500 to-cyan-500 flex items-center justify-center text-3xl">🌐</div><div className="text-lg font-semibold text-cyan-50">Mapa 3D de memorias</div><p className="text-sm text-white/50 max-w-md">Visualiza tus baúles, memorias y conexiones como un grafo 3D interactivo, con vistas múltiples, ramificación y la ayuda de Astraura para organizarlo.</p><Link href="/memorias-3d"><Button className="gap-2 bg-cyan-600 hover:bg-cyan-500"><Sparkles className="w-4 h-4" /> Abrir mapa 3D</Button></Link></div></TabsContent>
+        {/* Adenda 132: «Mapa 3D» fusionado en «Cerebro» (MemoryBrain3D real). El
+            acceso a pantalla completa /memorias-3d vive ahora dentro del panel
+            «Cerebro» (value="cerebro"). Ítem de nav retirado y alias mapa3d/mapa-3d → cerebro. */}
 
         <TabsContent value="runtimes" className="flex-1 min-h-0 overflow-y-auto"><AgentRuntimePanel /></TabsContent>
 
@@ -1352,6 +1437,9 @@ function AgentPageInner() {
         <TabsContent value="almacenes" className="flex-1 min-h-0 overflow-y-auto"><StoragePanel /></TabsContent>
 
         <TabsContent value="conexiones" className="flex-1 min-h-0 overflow-y-auto"><ConnectionsHub /></TabsContent>
+
+        {/* --- TAB: CONFIGURACIÓN IA (config unificada Astraura & OmniVoice · Adenda 132) --- */}
+        <TabsContent value="config-ia" className="flex-1 min-h-0 overflow-y-auto"><AstrauraOmniVoiceConfig variant="embedded" onNavigate={(t) => setActiveTab(t)} /></TabsContent>
 
         <TabsContent value="cerebros" className="flex-1 min-h-0 overflow-y-auto"><BrainsPanel /></TabsContent>
 
@@ -1377,7 +1465,9 @@ function AgentPageInner() {
 
         <TabsContent value="conocimiento" className="flex-1 min-h-0 overflow-y-auto"><div className="flex flex-col items-center justify-center h-full text-center gap-4 p-8"><div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-amber-400 to-fuchsia-500 flex items-center justify-center text-3xl">🌐</div><div className="text-lg font-semibold text-amber-50">Red de Conocimiento</div><p className="text-sm text-white/50 max-w-md">Categorías y temas interconectados con vínculos multi-categoría y 3 vistas (Lista, Mapa 2D, Red 3D).</p><Link href="/conocimiento"><Button className="gap-2 bg-fuchsia-600 hover:bg-fuchsia-500"><BookOpen className="w-4 h-4" /> Abrir Red de Conocimiento</Button></Link></div></TabsContent>
 
-        <TabsContent value="sentidos" className="flex-1 min-h-0 overflow-y-auto"><SensesPanel /></TabsContent>
+        {/* Adenda 132: eliminado el <TabsContent value="sentidos"> MUERTO. No existe
+            ítem de nav «sentidos» y el alias sentidos→senses nunca deja activeTab="sentidos",
+            así que nunca se renderizaba. El panel real de Sentidos vive en value="senses". */}
 
         <TabsContent value="red3d" className="flex-1 min-h-0 overflow-y-auto"><div className="flex flex-col items-center justify-center h-full text-center gap-4 p-8"><div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-amber-400 to-cyan-500 flex items-center justify-center text-3xl">🕸️</div><div className="text-lg font-semibold text-cyan-50">Red 3D de interconexión</div><p className="text-sm text-white/50 max-w-md">Visualiza la malla viva de cerebros, servidores, almacenes y baúles con sus enlaces y sincronizaciones, en 3D y con ayuda de Astraura.</p><Link href="/red-3d"><Button className="gap-2 bg-cyan-600 hover:bg-cyan-500"><Network className="w-4 h-4" /> Abrir Red 3D</Button></Link></div></TabsContent>
 
