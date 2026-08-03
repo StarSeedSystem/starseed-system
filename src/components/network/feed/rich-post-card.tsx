@@ -2,6 +2,8 @@
 
 import React, { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { TiltCard } from "@/components/ui/tilt-card";
 import {
     Carousel,
@@ -10,15 +12,25 @@ import {
     CarouselNext,
     CarouselPrevious
 } from "@/components/ui/carousel";
-import { Heart, MessageCircle, Share2, MoreHorizontal, Maximize2, Minimize2, ExternalLink } from "lucide-react";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+    Heart, MessageCircle, Share2, MoreHorizontal, Maximize2, Minimize2, ExternalLink,
+    Link2, Repeat2, Quote, Loader2,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { FilePreview, type FileLike } from "@/components/files/file-preview";
 import { AttachmentCarousel } from "@/components/posts/attachment-carousel";
 import { LiveAttachment } from "@/components/posts/live-attachment";
 import type { FeedPost } from "@/lib/feed/network-feed";
 import { useLikes } from "@/hooks/use-os-entities";
-import { commentTree, type CommentNode } from "@/lib/posts/post-entity";
+import { commentTree, republish, type CommentNode } from "@/lib/posts/post-entity";
 import { getCurrentUserId } from "@/lib/os-social";
+import { networkRefRoute } from "@/lib/files/network-content-ref";
 import { CommentThread } from "./comment-thread";
 import { SaveToLibrary } from "@/components/library/save-to-library";
 
@@ -80,11 +92,21 @@ function AttachmentPreviewCard({ attachment }: { attachment: NonNullable<FeedPos
 }
 
 export function RichPostCard({ post, preview = false }: RichPostCardProps) {
+    const router = useRouter();
     const { count: likesCount, liked: isLiked, toggle: toggleLike } = useLikes(post.postId, post.likes);
     const [showComments, setShowComments] = useState(false);
     const [comments, setComments] = useState<CommentNode[]>([]);
     const [commentsLoading, setCommentsLoading] = useState(false);
     const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+    // Compartir/Referenciar (Share2): contador real (post_references.instances,
+    // ver network-feed.ts "shares") con bump optimista tras "Referenciar".
+    // HONESTO: no hay refetch dedicado a shares (no existe un `fetchShares`),
+    // así que — igual que `likesCount` de `useLikes` arriba, que solo
+    // resincroniza al MONTAR la tarjeta — el valor puede quedar desfasado si el
+    // feed se recarga en silencio sin desmontar esta tarjeta (misma limitación
+    // ya asumida por los "me gusta").
+    const [sharesCount, setSharesCount] = useState(post.shares);
+    const [referencing, setReferencing] = useState(false);
     const areaMeta = post.area ? AREA_META[post.area] : null;
 
     useEffect(() => {
@@ -109,6 +131,62 @@ export function RichPostCard({ post, preview = false }: RichPostCardProps) {
     useEffect(() => {
         if (showComments) void loadComments();
     }, [showComments, loadComments]);
+
+    // ── Compartir / Referenciar (Share2) ────────────────────────────────────
+    // "Entidad Única": nunca se duplica contenido. "Referenciar" reutiliza
+    // `republish()` (post-entity.ts) — el MISMO mecanismo que ya usa la barra
+    // de interacciones de /post/[id] ("Republicar") — que crea una
+    // instancia/referencia sobre la entidad ORIGINAL, nunca una copia.
+    const entityUrl = () =>
+        typeof window !== "undefined"
+            ? `${window.location.origin}${networkRefRoute("post", post.postId)}`
+            : networkRefRoute("post", post.postId);
+
+    const handleCopyLink = async () => {
+        const url = entityUrl();
+        try {
+            if (typeof navigator === "undefined" || !navigator.clipboard) throw new Error("sin-clipboard");
+            await navigator.clipboard.writeText(url);
+            toast.success("Enlace copiado", { description: url });
+        } catch {
+            toast.error("No se pudo copiar el enlace");
+        }
+    };
+
+    const handleReference = async () => {
+        if (referencing) return;
+        let uid = currentUserId;
+        if (!uid) {
+            // La sesión cacheada al montar puede no estar lista aún: resuélvela en vivo
+            // antes de rechazar, para no dar un falso "inicia sesión" (rev. A135).
+            try { uid = await getCurrentUserId(); } catch { uid = null; }
+            if (uid) setCurrentUserId(uid);
+        }
+        if (!uid) {
+            toast.error("Inicia sesión para referenciar esta publicación.");
+            return;
+        }
+        setReferencing(true);
+        try {
+            await republish(post.postId, [{ kind: "profile", id: uid }]);
+            setSharesCount((n) => n + 1);
+            toast.success("Referenciado a tu perfil", {
+                description: "Se creó una referencia — el contenido no se duplica.",
+            });
+        } catch {
+            toast.error("No se pudo referenciar la publicación");
+        } finally {
+            setReferencing(false);
+        }
+    };
+
+    const handleQuote = () => {
+        const params = new URLSearchParams({ quote: post.postId });
+        const snippet = (post.content || "").trim().slice(0, 220);
+        if (snippet) params.set("quoteText", snippet);
+        if (post.author.name) params.set("quoteAuthor", post.author.name);
+        router.push(`/publicar?${params.toString()}`);
+    };
 
     return (
         <TiltCard
@@ -255,10 +333,47 @@ export function RichPostCard({ post, preview = false }: RichPostCardProps) {
                             <span>{post.commentsCount}</span>
                         </button>
 
-                        <button className="flex items-center gap-2 text-sm text-white/60 hover:text-green-400 transition-colors cursor-pointer">
-                            <Share2 className="w-5 h-5" />
-                            <span>{post.shares}</span>
-                        </button>
+                        {preview ? (
+                            // Vista previa EN VIVO del compositor: pixel-idéntica, pero inerte
+                            // (mismo criterio que "desactiva navegación/guardado" del prop `preview`
+                            // — el postId aquí es el sentinel "__composer_preview__", no una entidad real).
+                            <button
+                                type="button"
+                                disabled
+                                className="flex items-center gap-2 text-sm text-white/60 cursor-default"
+                            >
+                                <Share2 className="w-5 h-5" />
+                                <span>{sharesCount}</span>
+                            </button>
+                        ) : (
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <button
+                                        type="button"
+                                        className="flex items-center gap-2 text-sm text-white/60 hover:text-green-400 transition-colors cursor-pointer"
+                                    >
+                                        <Share2 className="w-5 h-5" />
+                                        <span>{sharesCount}</span>
+                                    </button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="start" className="w-64 border-white/10 bg-black/90 backdrop-blur-xl">
+                                    <DropdownMenuItem onClick={() => void handleCopyLink()} className="cursor-pointer gap-2 text-white/80">
+                                        <Link2 className="h-4 w-4" /> Copiar enlace de la entidad
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                        onClick={() => void handleReference()}
+                                        disabled={referencing}
+                                        className="cursor-pointer gap-2 text-white/80"
+                                    >
+                                        {referencing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Repeat2 className="h-4 w-4" />}
+                                        Referenciar en mi perfil
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={handleQuote} className="cursor-pointer gap-2 text-white/80">
+                                        <Quote className="h-4 w-4" /> Citar
+                                    </DropdownMenuItem>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                        )}
                     </div>
 
                     {!preview && (

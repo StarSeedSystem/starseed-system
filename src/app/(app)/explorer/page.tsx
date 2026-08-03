@@ -10,6 +10,7 @@ import {
     Search,
     Sparkles,
     Mic,
+    Square,
     Globe,
     BookOpen,
     Palette,
@@ -56,6 +57,11 @@ import {
     type SearchHit,
 } from "@/lib/search/universal-search";
 import { UserDirectoryResults } from "@/components/hub/user-directory-results";
+import {
+    startDictation,
+    isDictationSupported,
+    type DictationHandle,
+} from "@/lib/aurora/dictation";
 import {
     type ExplorerDomain,
     DOMAIN_CONTEXT,
@@ -176,6 +182,46 @@ export default function ExplorerPage() {
         return () => clearTimeout(t);
     }, [query, runSearch]);
 
+    // ── Búsqueda por voz (botón Mic) ─────────────────────────────────────
+    // Reutiliza el MISMO dictado SSR-safe/defensivo de Aurora (`startDictation`,
+    // ya usado por `ChatVoiceButtons`): Web Speech API con degradación honesta,
+    // corrección fonética de términos StarSeed y limpieza garantizada al parar.
+    const [micListening, setMicListening] = useState(false);
+    const micRef = useRef<DictationHandle | null>(null);
+
+    // Detiene el reconocimiento al desmontar: nunca deja un listener colgado.
+    useEffect(() => () => { try { micRef.current?.stop(); } catch { /* */ } }, []);
+
+    const toggleVoiceSearch = useCallback(() => {
+        // Ya escuchando → un segundo toque detiene (mismo patrón que el chat).
+        if (micRef.current?.active()) {
+            try { micRef.current.stop(); } catch { /* */ }
+            micRef.current = null;
+            setMicListening(false);
+            return;
+        }
+        if (!isDictationSupported()) {
+            toast.error("Tu navegador no soporta dictado por voz.");
+            return;
+        }
+        setMicListening(true);
+        micRef.current = startDictation({
+            lang: "es-ES",
+            // Previsualiza mientras habla (misma UX que teclear: búsqueda viva).
+            onInterim: (t) => setQuery(t),
+            // Frase final: rellena el input y dispara la búsqueda al instante.
+            onFinal: (t) => {
+                setMicListening(false);
+                micRef.current = null;
+                // Solo setQuery: el debounce (useEffect) dispara la búsqueda → evita la
+                // doble petición (setQuery + runSearch) por cada frase dictada (rev. A135).
+                setQuery(t);
+            },
+            onEnd: () => { setMicListening(false); micRef.current = null; },
+            onError: (m) => { setMicListening(false); micRef.current = null; toast.error(m); },
+        });
+    }, [runSearch]);
+
     // ── Recomendaciones contextuales por dominio (chat() real + fallback). ──
     useEffect(() => {
         let cancelled = false;
@@ -206,8 +252,48 @@ export default function ExplorerPage() {
         return out;
     }, [results, activeDomain]);
 
-    const total = totalHits(results);
+    // ── Filtros avanzados: tipo de entidad, en cliente, sobre lo ya cargado. ──
+    // `SearchHit` (universal-search.ts) sólo trae {id,label,sub,href}: no hay
+    // fecha/recencia ni área/tags reales que filtrar, así que sólo se ofrece lo
+    // que el tipo realmente tiene — la categoría/dominio de cada resultado.
+    const [typeFilters, setTypeFilters] = useState<Set<SearchCategoryKey>>(() => new Set());
+
+    // Cambiar de área reinicia el filtro fino (el universo de tipos cambia).
+    useEffect(() => { setTypeFilters(new Set()); }, [activeDomain]);
+
+    const toggleTypeFilter = useCallback((key: SearchCategoryKey) => {
+        setTypeFilters((prev) => {
+            const next = new Set(prev);
+            if (next.has(key)) next.delete(key); else next.add(key);
+            return next;
+        });
+    }, []);
+
+    const clearTypeFilters = useCallback(() => setTypeFilters(new Set()), []);
+
+    // Tipos filtrables del área activa (mismo universo que ya se muestra).
+    const filterCats = useMemo(
+        () => SEARCH_CATEGORIES.filter((c) => DOMAIN_CATS[activeDomain].includes(c.key)),
+        [activeDomain],
+    );
+
+    // Recuento real por categoría, ANTES del filtro de tipo (para las chips).
+    const countsByCategory = useMemo(() => {
+        const counts: Partial<Record<SearchCategoryKey, number>> = {};
+        for (const r of flatResults) counts[r.category] = (counts[r.category] ?? 0) + 1;
+        return counts;
+    }, [flatResults]);
+
+    // Resultados finales: dominio (ya aplicado en flatResults) + tipo (cliente).
+    const filteredResults: FlatResult[] = useMemo(() => {
+        if (typeFilters.size === 0) return flatResults;
+        return flatResults.filter((r) => typeFilters.has(r.category));
+    }, [flatResults, typeFilters]);
+
     const showEmpty = searched && !isSearching && flatResults.length === 0;
+    // Hay resultados en el área, pero el filtro de tipo los deja todos fuera.
+    const showFilteredEmpty =
+        searched && !isSearching && flatResults.length > 0 && filteredResults.length === 0;
 
     // ── "Pregúntale a Aurora": responde (chat real) + ACTÚA (directivas). ──
     const askAurora = useCallback(async (raw?: string) => {
@@ -324,11 +410,21 @@ export default function ExplorerPage() {
                                 onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
                             />
                             <Button
+                                type="button"
                                 size="icon"
                                 variant="ghost"
-                                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-primary btn-pill"
+                                onClick={toggleVoiceSearch}
+                                title={micListening ? "Escuchando… toca para detener" : "Buscar por voz"}
+                                aria-label={micListening ? "Detener búsqueda por voz" : "Buscar por voz"}
+                                aria-pressed={micListening}
+                                className={cn(
+                                    "absolute right-2 top-1/2 -translate-y-1/2 btn-pill transition-colors",
+                                    micListening
+                                        ? "text-primary bg-primary/15 animate-pulse"
+                                        : "text-muted-foreground hover:text-primary"
+                                )}
                             >
-                                <Mic className="w-5 h-5" />
+                                {micListening ? <Square className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
                             </Button>
                         </div>
                         <Button onClick={handleSearch} size="lg" className="h-14 px-8 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg transition-all duration-300">
@@ -509,9 +605,97 @@ export default function ExplorerPage() {
 
             {/* --- RESULTS MATRIX --- */}
             <div className="space-y-6 px-[clamp(0.5rem,1vw,1rem)] w-full flex-1 flex flex-col items-center">
-                <div className="flex items-center justify-between text-[clamp(0.8rem,1vw,1rem)] text-muted-foreground border-b border-white/10 pb-3 w-full max-w-screen-3xl">
-                    <span className="font-semibold text-white/80 tracking-widest uppercase">Resultados ({flatResults.length})</span>
-                    <div className="flex items-center gap-2 cursor-pointer hover:text-white bg-white/5 px-4 py-1.5 rounded-full border border-white/10 transition-colors"><Filter className="w-4 h-4" /> Filtros Avanzados</div>
+                <div className="flex items-center justify-between flex-wrap gap-3 text-[clamp(0.8rem,1vw,1rem)] text-muted-foreground border-b border-white/10 pb-3 w-full max-w-screen-3xl">
+                    <div className="flex items-baseline gap-2 flex-wrap">
+                        <span className="font-semibold text-white/80 tracking-widest uppercase">
+                            {typeFilters.size > 0
+                                ? `${filteredResults.length} resultados filtrados`
+                                : `Resultados (${flatResults.length})`}
+                        </span>
+                        {typeFilters.size > 0 && (
+                            <span className="text-xs text-muted-foreground/80 normal-case tracking-normal font-normal">
+                                de {flatResults.length} en «{ctx.label}»
+                            </span>
+                        )}
+                    </div>
+
+                    <Popover>
+                        <PopoverTrigger asChild>
+                            <button
+                                type="button"
+                                aria-label="Filtros avanzados"
+                                className={cn(
+                                    "flex items-center gap-2 px-4 py-1.5 rounded-full border transition-colors",
+                                    typeFilters.size > 0
+                                        ? "bg-primary/15 text-primary border-primary/30"
+                                        : "bg-white/5 text-muted-foreground border-white/10 hover:text-white"
+                                )}
+                            >
+                                <Filter className="w-4 h-4" /> Filtros Avanzados
+                                {typeFilters.size > 0 && (
+                                    <Badge
+                                        variant="outline"
+                                        className="h-5 min-w-5 justify-center px-1.5 text-[10px] border-primary/40 bg-primary/20 text-primary"
+                                    >
+                                        {typeFilters.size}
+                                    </Badge>
+                                )}
+                            </button>
+                        </PopoverTrigger>
+                        <PopoverContent align="end" className="w-80 bg-black/90 border-white/10 backdrop-blur-xl space-y-4">
+                            <div className="flex items-start justify-between gap-2">
+                                <div>
+                                    <p className="text-sm font-bold text-foreground/90 mb-0.5">Filtrar resultados</p>
+                                    <p className="text-[11px] text-muted-foreground">Por tipo de contenido en «{ctx.label}».</p>
+                                </div>
+                                {typeFilters.size > 0 && (
+                                    <button
+                                        type="button"
+                                        onClick={clearTypeFilters}
+                                        className="text-[11px] text-primary/80 hover:text-primary shrink-0"
+                                    >
+                                        Limpiar
+                                    </button>
+                                )}
+                            </div>
+                            <div className="space-y-1.5">
+                                <label className="text-[11px] uppercase tracking-wider font-mono text-muted-foreground">
+                                    Tipo de entidad
+                                </label>
+                                <div className="flex flex-wrap gap-1.5">
+                                    {filterCats.map((cat) => {
+                                        const active = typeFilters.has(cat.key);
+                                        const count = countsByCategory[cat.key] ?? 0;
+                                        const CatIcon = CAT_ICONS[cat.icon] || Sparkles;
+                                        return (
+                                            <Badge
+                                                key={cat.key}
+                                                variant="outline"
+                                                role="button"
+                                                tabIndex={0}
+                                                aria-pressed={active}
+                                                onClick={() => toggleTypeFilter(cat.key)}
+                                                onKeyDown={(e) => {
+                                                    if (e.key === "Enter" || e.key === " ") {
+                                                        e.preventDefault();
+                                                        toggleTypeFilter(cat.key);
+                                                    }
+                                                }}
+                                                className={cn(
+                                                    "cursor-pointer select-none gap-1 transition-colors",
+                                                    active
+                                                        ? "bg-primary text-primary-foreground border-primary"
+                                                        : "bg-white/5 text-foreground/80 border-white/15 hover:border-primary/40 hover:text-primary"
+                                                )}
+                                            >
+                                                <CatIcon className="w-3 h-3" /> {cat.label} · {count}
+                                            </Badge>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        </PopoverContent>
+                    </Popover>
                 </div>
 
                 {/* Estado inicial: sin búsqueda todavía */}
@@ -539,6 +723,24 @@ export default function ExplorerPage() {
                     </div>
                 )}
 
+                {/* Hay resultados en el área, pero el filtro de tipo los excluye todos */}
+                {showFilteredEmpty && (
+                    <div className="w-full max-w-2xl rounded-2xl border border-white/5 bg-black/20 backdrop-blur p-10 text-center">
+                        <Filter className="w-8 h-8 mx-auto mb-3 text-muted-foreground/60" />
+                        <p className="text-sm font-semibold text-foreground/90">Ningún resultado coincide con el filtro</p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                            Hay {flatResults.length} resultado{flatResults.length === 1 ? "" : "s"} en «{ctx.label}», pero ninguno del tipo seleccionado.
+                        </p>
+                        <button
+                            type="button"
+                            onClick={clearTypeFilters}
+                            className="mt-4 text-xs px-4 py-1.5 rounded-full bg-primary/15 text-primary border border-primary/30 hover:bg-primary/25 transition-colors"
+                        >
+                            Quitar filtro
+                        </button>
+                    </div>
+                )}
+
                 {/* Cargando */}
                 {isSearching && flatResults.length === 0 && (
                     <div className="w-full flex items-center justify-center py-16 text-muted-foreground gap-2">
@@ -548,14 +750,14 @@ export default function ExplorerPage() {
 
                 {/* Directorio de usuarios (os_profiles): avatar + Mensaje/Seguir — solo
                     cuando el dominio activo incluye "perfiles" (ALL/POLITICS). */}
-                {DOMAIN_CATS[activeDomain].includes("perfiles") && (
+                {DOMAIN_CATS[activeDomain].includes("perfiles") && (typeFilters.size === 0 || typeFilters.has("perfiles")) && (
                     <div className="w-full max-w-screen-3xl">
                         <UserDirectoryResults query={query} />
                     </div>
                 )}
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-[clamp(1rem,2vw,2rem)] w-full max-w-screen-3xl overflow-hidden mt-4">
-                    {flatResults.map((result) => {
+                    {filteredResults.map((result) => {
                         const Icon = CAT_ICONS[SEARCH_CATEGORIES.find((c) => c.key === result.category)?.icon || "Sparkles"] || BrainCircuit;
                         return (
                         <GlassCard key={`${result.category}-${result.id}`} className="p-0 flex flex-col overflow-hidden group hover:border-primary/50 transition-colors h-full shadow-lg">

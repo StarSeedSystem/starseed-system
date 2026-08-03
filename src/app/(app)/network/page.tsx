@@ -1,12 +1,20 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { RichPostCard } from "@/components/network/feed/rich-post-card";
 import { FeedAlgorithmSelector } from "@/components/network/feed/feed-algorithm-selector";
 import { TiltCard } from "@/components/ui/tilt-card";
 import { Button } from "@/components/ui/button";
-import { Send, Image as ImageIcon, Link as LinkIcon } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
+import { Send, Image as ImageIcon, Link as LinkIcon, Loader2, X } from "lucide-react";
 import { toast } from "sonner";
 import {
     fetchNetworkFeed,
@@ -22,8 +30,9 @@ import {
     type FeedAlgorithmId,
     type FeedWeights,
 } from "@/lib/feed/feed-algorithms";
-import { publish } from "@/lib/publish/publish";
+import { publish, type PostContentAttachment } from "@/lib/publish/publish";
 import { getCurrentUserId } from "@/lib/os-social";
+import { uploadFile } from "@/lib/files/os-files";
 import MentionInput from "@/components/mentions/mention-input";
 import { createClient } from "@/utils/supabase/client";
 
@@ -33,6 +42,18 @@ export default function NetworkPage() {
     const [newPostContent, setNewPostContent] = useState("");
     const [loading, setLoading] = useState(true);
     const [publishing, setPublishing] = useState(false);
+
+    // ── Composer inline "Difundir": adjuntos (botones Imagen/Enlace) ──
+    // El post se crea vía `publish()` (misma función que ya usaba el submit);
+    // `content.attachments` ya lo lee el feed real (network-feed.ts →
+    // extractAttachments), así que un adjunto aquí se renderiza igual que uno
+    // creado desde el Composer universal (/publicar) — se reutiliza el pipeline
+    // existente, sin lógica de render nueva.
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const [pendingAttachments, setPendingAttachments] = useState<PostContentAttachment[]>([]);
+    const [uploadingImage, setUploadingImage] = useState(false);
+    const [linkDialogOpen, setLinkDialogOpen] = useState(false);
+    const [linkValue, setLinkValue] = useState("");
 
     // ── Preferencia de algoritmo (persistida, migrada por versión) ──
     const [algorithm, setAlgorithm] = useState<FeedAlgorithmId>("relevancia");
@@ -125,9 +146,63 @@ export default function NetworkPage() {
         [rawPosts, algorithm, weights, preferredAreas, connectionIds],
     );
 
+    const removeAttachment = (id: string) => {
+        setPendingAttachments((prev) => prev.filter((a) => a.id !== id));
+    };
+
+    // Botón Imagen: input file oculto → sube al storage real del OS (mismo
+    // helper que usa el resto del repo para adjuntos) y lo deja en cola.
+    const handleImageSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        e.target.value = ""; // permite volver a elegir el mismo archivo
+        if (!file) return;
+        if (!file.type.startsWith("image/")) {
+            toast.error("Elige un archivo de imagen.");
+            return;
+        }
+        setUploadingImage(true);
+        try {
+            const res = await uploadFile(file, { folder: "publicaciones" });
+            if (!res.ok || !res.file || !res.file.url) {
+                toast.error(res.error || "No se pudo subir la imagen.");
+                return;
+            }
+            const url = res.file.url;
+            setPendingAttachments((prev) => [
+                ...prev,
+                { id: `img_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`, kind: "imagen", url, name: file.name, mime: file.type },
+            ]);
+            toast.success("Imagen adjuntada");
+        } finally {
+            setUploadingImage(false);
+        }
+    };
+
+    // Botón Enlace: Dialog + estado (sin window.prompt) → adjunto "enlace" real
+    // que el feed ya sabe previsualizar (FilePreview → LinkPreview).
+    const handleInsertLink = () => {
+        const raw = linkValue.trim();
+        if (!raw) return;
+        const normalized = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+        try {
+            new URL(normalized);
+        } catch {
+            toast.error("Ese enlace no parece válido.");
+            return;
+        }
+        setPendingAttachments((prev) => [
+            ...prev,
+            { id: `link_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`, kind: "enlace", url: normalized },
+        ]);
+        setLinkValue("");
+        setLinkDialogOpen(false);
+        toast.success("Enlace adjuntado");
+    };
+
     const handleCreatePost = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!newPostContent.trim() || publishing) return;
+        const hasContent = newPostContent.trim().length > 0 || pendingAttachments.length > 0;
+        if (!hasContent || publishing) return;
 
         setPublishing(true);
         const uid = await getCurrentUserId();
@@ -137,12 +212,16 @@ export default function NetworkPage() {
             return;
         }
 
+        const hasAttachments = pendingAttachments.length > 0;
         const promise = publish({
-            type: "texto",
-            format: "texto-plano",
+            type: hasAttachments ? "mixto" : "texto",
+            format: hasAttachments ? "compuesto" : "texto-plano",
             fromProfiles: [uid],
             destinations: [{ kind: "red", id: "feed", label: "Feed público" }],
-            content: { body: newPostContent.trim() },
+            content: {
+                ...(newPostContent.trim() ? { body: newPostContent.trim() } : {}),
+                ...(hasAttachments ? { attachments: pendingAttachments } : {}),
+            },
         });
 
         toast.promise(promise, {
@@ -155,6 +234,7 @@ export default function NetworkPage() {
             const res = await promise;
             if (res.ok) {
                 setNewPostContent("");
+                setPendingAttachments([]);
                 await loadFeed();
             }
         } finally {
@@ -186,16 +266,69 @@ export default function NetworkPage() {
                                         placeholder="Difunde un concepto o señal a la red… Usa @ para mencionar y # para etiquetar."
                                         rows={3}
                                     />
+
+                                    {pendingAttachments.length > 0 && (
+                                        <div className="flex flex-wrap gap-1.5">
+                                            {pendingAttachments.map((att) => (
+                                                <span
+                                                    key={att.id}
+                                                    className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] text-white/70"
+                                                >
+                                                    {att.kind === "imagen" ? (
+                                                        <ImageIcon className="h-3 w-3 shrink-0 text-cyan-400" />
+                                                    ) : (
+                                                        <LinkIcon className="h-3 w-3 shrink-0 text-pink-400" />
+                                                    )}
+                                                    <span className="max-w-[200px] truncate">{att.name || att.url}</span>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => removeAttachment(att.id)}
+                                                        className="text-white/40 transition-colors hover:text-white cursor-pointer"
+                                                        aria-label="Quitar adjunto"
+                                                    >
+                                                        <X className="h-3 w-3" />
+                                                    </button>
+                                                </span>
+                                            ))}
+                                        </div>
+                                    )}
+
                                     <div className="flex items-center justify-between border-t border-border/10 pt-3">
                                         <div className="flex gap-2">
-                                            <Button type="button" variant="ghost" size="icon" className="text-cyan-500 hover:text-cyan-400 hover:bg-cyan-500/10 rounded-full h-10 w-10 btn-pill cursor-pointer">
-                                                <ImageIcon className="w-4 h-4" />
+                                            <input
+                                                ref={fileInputRef}
+                                                type="file"
+                                                accept="image/*"
+                                                className="hidden"
+                                                onChange={(e) => void handleImageSelected(e)}
+                                            />
+                                            <Button
+                                                type="button"
+                                                variant="ghost"
+                                                size="icon"
+                                                onClick={() => fileInputRef.current?.click()}
+                                                disabled={uploadingImage}
+                                                title="Adjuntar imagen"
+                                                className="text-cyan-500 hover:text-cyan-400 hover:bg-cyan-500/10 rounded-full h-10 w-10 btn-pill cursor-pointer"
+                                            >
+                                                {uploadingImage ? <Loader2 className="w-4 h-4 animate-spin" /> : <ImageIcon className="w-4 h-4" />}
                                             </Button>
-                                            <Button type="button" variant="ghost" size="icon" className="text-pink-500 hover:text-pink-400 hover:bg-pink-500/10 rounded-full h-10 w-10 btn-pill cursor-pointer">
+                                            <Button
+                                                type="button"
+                                                variant="ghost"
+                                                size="icon"
+                                                onClick={() => setLinkDialogOpen(true)}
+                                                title="Insertar enlace"
+                                                className="text-pink-500 hover:text-pink-400 hover:bg-pink-500/10 rounded-full h-10 w-10 btn-pill cursor-pointer"
+                                            >
                                                 <LinkIcon className="w-4 h-4" />
                                             </Button>
                                         </div>
-                                        <Button type="submit" disabled={!newPostContent.trim() || publishing} className="btn-pill bg-primary/20 hover:bg-primary/30 text-primary border border-primary/20 backdrop-blur-md px-6 shadow-[0_0_15px_rgba(var(--primary-rgb),0.2)] cursor-pointer">
+                                        <Button
+                                            type="submit"
+                                            disabled={(!newPostContent.trim() && pendingAttachments.length === 0) || publishing}
+                                            className="btn-pill bg-primary/20 hover:bg-primary/30 text-primary border border-primary/20 backdrop-blur-md px-6 shadow-[0_0_15px_rgba(var(--primary-rgb),0.2)] cursor-pointer"
+                                        >
                                             Difundir <Send className="w-3 h-3 ml-2" />
                                         </Button>
                                     </div>
@@ -203,6 +336,39 @@ export default function NetworkPage() {
                             </div>
                         </form>
                     </TiltCard>
+
+                    {/* Insertar enlace (adjunto del composer inline) — Dialog + estado, sin window.prompt */}
+                    <Dialog open={linkDialogOpen} onOpenChange={setLinkDialogOpen}>
+                        <DialogContent className="max-w-sm">
+                            <DialogHeader>
+                                <DialogTitle className="text-amber-50">Insertar enlace</DialogTitle>
+                                <DialogDescription className="text-white/50">
+                                    Se adjuntará como tarjeta a tu publicación.
+                                </DialogDescription>
+                            </DialogHeader>
+                            <Input
+                                value={linkValue}
+                                onChange={(e) => setLinkValue(e.target.value)}
+                                placeholder="https://…"
+                                autoFocus
+                                className="bg-white/[0.03] text-amber-50"
+                                onKeyDown={(e) => {
+                                    if (e.key === "Enter") {
+                                        e.preventDefault();
+                                        handleInsertLink();
+                                    }
+                                }}
+                            />
+                            <div className="flex items-center justify-end gap-2 pt-2">
+                                <Button type="button" variant="ghost" onClick={() => setLinkDialogOpen(false)} className="text-white/60">
+                                    Cancelar
+                                </Button>
+                                <Button type="button" onClick={handleInsertLink}>
+                                    Insertar
+                                </Button>
+                            </div>
+                        </DialogContent>
+                    </Dialog>
 
                     {/* Selector de algoritmo de feed */}
                     <FeedAlgorithmSelector

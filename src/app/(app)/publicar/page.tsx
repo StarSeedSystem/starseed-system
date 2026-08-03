@@ -9,6 +9,9 @@
 //   · `area`  → área del Módulo 5 (politica|educacion|cultura|general).
 //   · `tipo`  → tipo de publicación (texto|articulo|imagen|…|lienzo|app|mixto).
 //   · `intent` (alias `initial`) → texto de intención, prefijado como título.
+//   · `quote` (+ `quoteText`, `quoteAuthor` opcionales) → botón "Citar" del
+//     menú Compartir/Referenciar del feed (rich-post-card.tsx): prefija el
+//     cuerpo con la cita del post original + su enlace `/post/<quote>`.
 // Se leen con useSearchParams() (envuelto en Suspense para evitar el bailout de
 // prerender) y se mapean a la prop `initial` de <PublicationComposer/>.
 
@@ -63,7 +66,28 @@ function buildInitial(
     // Intención creadora → se prefija como título del contenido.
     const intent = params.get("intent") ?? params.get("initial");
     if (intent && intent.trim()) {
-        initial.content = { title: intent.trim() };
+        initial.content = { ...initial.content, title: intent.trim() };
+    }
+
+    // Citar (botón "Citar" del menú Compartir/Referenciar del feed, Adenda 135):
+    // prefija el cuerpo con la cita del post original + su enlace. Los datos
+    // ya vienen resueltos desde la tarjeta del feed (RichPostCard conoce su
+    // propio contenido/autor) — no se vuelve a consultar la red aquí, para que
+    // esta función siga siendo síncrona como el resto de params.
+    const quoteId = params.get("quote");
+    if (quoteId && quoteId.trim()) {
+        const quoteRoute = `/post/${quoteId.trim()}`;
+        const quoteText = (params.get("quoteText") ?? "").trim();
+        const quoteAuthor = (params.get("quoteAuthor") ?? "").trim();
+        const body = [
+            quoteAuthor ? `Citando a ${quoteAuthor}:` : "Citando:",
+            quoteText ? `«${quoteText}»` : null,
+            quoteRoute,
+            "",
+        ]
+            .filter((line): line is string => line !== null)
+            .join("\n");
+        initial.content = { ...initial.content, body };
     }
 
     return Object.keys(initial).length ? initial : undefined;
