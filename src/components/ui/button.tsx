@@ -70,7 +70,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
           <Comp
             className={cn(
               buttonVariants({ variant, size, className }),
-              isSecondary ? "liquid-glass-panel border-opacity-50" : "bg-white/10 hover:bg-white/20 border border-white/20 backdrop-blur-md transition-all duration-300",
+              isSecondary ? "liquid-glass-panel border-opacity-50" : "bg-foreground/10 hover:bg-foreground/20 border border-foreground/20 backdrop-blur-md transition-all duration-300",
               "text-foreground shadow-lg relative z-10 drop-shadow-sm",
             )}
             data-component="button"
@@ -85,13 +85,13 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         <button
           className={cn(
             buttonVariants({ variant, size, className }),
-            "relative overflow-hidden transition-all duration-300 text-foreground bg-white/5 hover:bg-white/15 border border-white/20 shadow-lg backdrop-blur-md group/glassbtn",
+            "relative overflow-hidden transition-all duration-300 text-foreground bg-foreground/5 hover:bg-foreground/15 border border-foreground/20 shadow-lg backdrop-blur-md group/glassbtn",
           )}
           data-component="button"
           ref={ref}
           {...props}
         >
-          <div className="absolute inset-0 z-0 bg-gradient-to-tr from-white/5 via-transparent to-white/10 opacity-0 group-hover/glassbtn:opacity-100 transition-opacity duration-500 pointer-events-none" />
+          <div className="absolute inset-0 z-0 bg-gradient-to-tr from-foreground/5 via-transparent to-foreground/10 opacity-0 group-hover/glassbtn:opacity-100 transition-opacity duration-500 pointer-events-none" />
           <span className="relative z-10 drop-shadow-sm flex items-center justify-center gap-2">
             {props.children}
           </span>

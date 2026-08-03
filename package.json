@@ -74,7 +74,6 @@
     "date-fns": "^4.4.0",
     "dotenv": "^16.5.0",
     "embla-carousel-react": "^8.6.0",
-    "firebase": "^11.9.1",
     "framer-motion": "^12.29.2",
     "genkit": "^1.14.1",
     "leaflet": "^1.9.4",
