@@ -7,8 +7,14 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { AppearanceProvider } from "@/context/appearance-context";
 import { cn } from "@/lib/utils";
 import { LiquidGlass } from "@/components/ui/liquid-glass";
-import { WebGLBackground } from "@/components/ui/backgrounds/webgl-background";
-import { SplineDefaultBackground } from "@/components/ui/backgrounds/spline-default-background";
+// Adenda 136 (rendimiento): WebGLBackground (three.js) y SplineDefaultBackground
+// (@splinetool/react-spline + runtime) se cargan vía next/dynamic({ssr:false})
+// para sacar three.js/Spline del chunk inicial de este layout raíz — se monta
+// en TODAS las rutas (incluida /login). layout.tsx es un Server Component, así
+// que el dynamic(...,{ssr:false}) vive en el wrapper cliente
+// dynamic-heavy-backgrounds.tsx (Next 15 prohíbe ssr:false fuera de "use
+// client"). Ambos siguen renderizándose igual, en el mismo sitio del árbol —
+// solo cambia CUÁNDO se descarga su JS (cliente, tras hidratar).
 import { SplineWatermarkCover } from "@/components/ui/SplineWatermarkCover";
 import { LiquidPsychedelicBackground } from "@/components/ui/backgrounds/liquid-psychedelic-background";
 import { MateriaVivaBackgroundHost } from "@/components/backgrounds/materia-viva-background";
@@ -80,7 +86,14 @@ import { AlarmsEngine } from "@/components/alarms/alarms-engine";
 // Fondos animados del CATÁLOGO DE TEMAS (theme-engine.ts + theme-catalog.ts):
 // matrix-rain/estrellas/gradiente-aurora/weather-live. Sin efecto salvo que
 // un ThemePack del catálogo los active (data-ss-background en <html>).
-import { ThemeBackgroundHost } from "@/components/backgrounds/theme-live-background";
+// Adenda 136: ThemeBackgroundHost arrastra el módulo weather/NOAA (usado por
+// el tema "climatico") — también se carga vía dynamic ssr:false, ver import
+// de dynamic-heavy-backgrounds.tsx más abajo.
+import {
+  DynamicWebGLBackground,
+  DynamicSplineDefaultBackground,
+  DynamicThemeBackgroundHost,
+} from "@/components/backgrounds/dynamic-heavy-backgrounds";
 // Notificaciones y ventanas emergentes de las apps instaladas (Adenda 69 · J-1):
 // el bridge PERSISTE las notificaciones de apps en el centro y valida los
 // postMessage de iframes; el host pinta los popups apilables. Sin UI hasta que
@@ -206,8 +219,8 @@ export default function RootLayout({
                         <PerfStaticBackdrop />
                         <LiquidGlass />
                         <PerfHeavyOnly>
-                          <WebGLBackground />
-                          <SplineDefaultBackground />
+                          <DynamicWebGLBackground />
+                          <DynamicSplineDefaultBackground />
                           <LiquidPsychedelicBackground />
                           <MateriaVivaBackgroundHost />
                           <LivingBackground />
@@ -221,7 +234,7 @@ export default function RootLayout({
                         <CrystalFilters />
                         <GlobalEnvironment />
                         {/* Fondo del ThemePack activo (catálogo de temas), si define uno. */}
-                        <ThemeBackgroundHost />
+                        <DynamicThemeBackgroundHost />
                         <SystemSelectionProvider>
                           {/* Landmark objetivo del salto de accesibilidad y del
                               enfoque por cambio de ruta (RouteFocus). display:contents
