@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { useTheme } from "next-themes";
+import { toast } from "sonner";
 // Capas de fondo (Adenda 68 · D): la pila que va ENCIMA del fondo base.
 // La migración `migrateBackgroundLayers` es la que apaga el fantasma de
 // Audiomorphic en las configs ya persistidas. Ver src/lib/appearance/background-layers.ts.
@@ -1391,11 +1392,11 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
             if (importedConfig.styling && importedConfig.layout) {
                 setConfig(prev => deepMerge(prev, importedConfig));
             } else {
-                alert("Invalid theme file configuration");
+                toast.error("Invalid theme file configuration");
             }
         } catch (e) {
             console.error("Failed to import theme", e);
-            alert("Error parsing theme file");
+            toast.error("Error parsing theme file");
         }
     };
 

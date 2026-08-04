@@ -18,6 +18,8 @@ import { Input } from "@/components/ui/input";
 import {
     DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
+import { useModalA11y } from "@/hooks/use-modal-a11y";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { cn } from "@/lib/utils";
 import type { EntityRef, SavedItem, LibraryFolder } from "@/lib/library/entity-library";
 import { mediaKindOf, formatLabelOf, saveMediaToLibrary, type MediaOrigin } from "@/lib/library/media-library";
@@ -46,6 +48,7 @@ export interface MediaViewerProps {
 }
 
 export function MediaViewer({ ref_, items, index, onIndexChange, onClose, onChanged, onShareStory, onOpenSettings }: MediaViewerProps) {
+    const confirm = useConfirm();
     const item = items[index];
     const [showInfo, setShowInfo] = useState(false);
     const [zoom, setZoom] = useState(1);
@@ -58,6 +61,7 @@ export function MediaViewer({ ref_, items, index, onIndexChange, onClose, onChan
     const [fileSize, setFileSize] = useState<number | undefined>(undefined);
 
     const mediaRef = useRef<HTMLImageElement | HTMLVideoElement | null>(null);
+    const containerRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         setZoom(1);
@@ -88,11 +92,20 @@ export function MediaViewer({ ref_, items, index, onIndexChange, onClose, onChan
         return () => window.removeEventListener("keydown", onKey);
     }, [index, items.length, onClose, onIndexChange]);
 
+    // Accesibilidad: foco inicial, trampa de Tab y devolución de foco al cerrar.
+    // Escape ya lo gestiona el efecto de arriba (combinado con ←/→), por eso
+    // closeOnEscape: false aquí, para no duplicar el cierre.
+    useModalA11y({ open: !!item, onClose, containerRef, closeOnEscape: false });
+
     if (!item) return null;
     const kind = mediaKindOf(item);
 
     const handleDelete = useCallback(async () => {
-        if (!confirm(`¿Eliminar «${item.title}»? Esta acción no se puede deshacer.`)) return;
+        if (!(await confirm({
+            title: "Eliminar archivo",
+            description: `¿Eliminar «${item.title}»? Esta acción no se puede deshacer.`,
+            destructive: true,
+        }))) return;
         const { removeItem } = await import("@/lib/library/entity-library");
         await removeItem(ref_, item.id);
         if (item.url) {
@@ -171,7 +184,13 @@ export function MediaViewer({ ref_, items, index, onIndexChange, onClose, onChan
     const currentFilterCss = FILTER_PRESETS.find((f) => f.id === filterId)?.css ?? "none";
 
     return (
-        <div className="fixed inset-0 z-[200] flex flex-col bg-black/95 backdrop-blur-sm">
+        <div
+            ref={containerRef}
+            className="fixed inset-0 z-[200] flex flex-col bg-black/95 backdrop-blur-sm"
+            role="dialog"
+            aria-modal="true"
+            aria-label={`Visor de medios — ${item.title}`}
+        >
             {/* Header */}
             <div className="flex shrink-0 items-center justify-between gap-2 border-b border-white/10 px-4 py-3">
                 <button onClick={onClose} className="grid size-9 cursor-pointer place-items-center rounded-full text-white/80 hover:bg-white/10" title="Cerrar">

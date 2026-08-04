@@ -18,6 +18,7 @@ import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { NotificationsCenter } from "@/components/notifications/notifications-center";
 import { AvailableUpdates } from "@/components/notifications/available-updates";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 
 // --- Types for System Logs ---
 interface SystemLog {
@@ -44,6 +45,7 @@ export default function NotificationsPage() {
     const {
         all, inbox, unread, unreadCount, markRead, markAllRead, archive, snooze, remove, clearAll
     } = useNotifications();
+    const confirm = useConfirm();
 
     const [activeSection, setActiveSection] = useState<"feed" | "notifications" | "logs">("feed");
     const [searchQuery, setSearchQuery] = useState("");
@@ -97,9 +99,13 @@ export default function NotificationsPage() {
         saveLogs([newLog, ...logs]);
     };
 
-    const clearLogs = () => {
-        const confirm = window.confirm("¿Seguro de que deseas borrar todos los registros de actividad del sistema?");
-        if (confirm) {
+    const clearLogs = async () => {
+        const ok = await confirm({
+            title: "Borrar registros de actividad",
+            description: "¿Seguro de que deseas borrar todos los registros de actividad del sistema?",
+            destructive: true,
+        });
+        if (ok) {
             saveLogs([]);
             addSystemLog("SYSTEM", "WARNING", "Logs del sistema limpiados de forma segura.", "El registro fue vaciado por acción voluntaria del usuario.");
         }

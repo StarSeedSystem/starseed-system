@@ -10,6 +10,8 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { X, Send, Trash2, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { useModalA11y } from "@/hooks/use-modal-a11y";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { currentUserRef } from "@/lib/sync/entity-state";
 import { deleteStory, replyToStoryByMessage, type NetworkStory } from "@/lib/stories/network-stories";
 
@@ -23,6 +25,7 @@ export interface NetworkStoryViewerProps {
 }
 
 export function NetworkStoryViewer({ stories, initialIndex, onClose, onChanged }: NetworkStoryViewerProps) {
+    const confirm = useConfirm();
     const [index, setIndex] = useState(initialIndex);
     const [elapsed, setElapsed] = useState(0);
     const [paused, setPaused] = useState(false);
@@ -30,6 +33,7 @@ export function NetworkStoryViewer({ stories, initialIndex, onClose, onChanged }
     const [replyText, setReplyText] = useState("");
     const [sending, setSending] = useState(false);
     const startRef = useRef(Date.now());
+    const containerRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         void currentUserRef().then((r) => setUid(r?.id ?? null));
@@ -71,12 +75,17 @@ export function NetworkStoryViewer({ stories, initialIndex, onClose, onChanged }
         return () => window.removeEventListener("keydown", onKey);
     }, [index, stories.length, onClose]);
 
+    // Accesibilidad: foco inicial, trampa de Tab y devolución de foco al cerrar.
+    // Escape ya lo gestiona el efecto de arriba (combinado con ←/→), por eso
+    // closeOnEscape: false aquí, para no duplicar el cierre.
+    useModalA11y({ open: !!current, onClose, containerRef, closeOnEscape: false });
+
     if (!current) return null;
     const isOwn = !!uid && uid === current.authorId;
     const remainingHours = Math.max(0, Math.round((new Date(current.expiresAt).getTime() - Date.now()) / 3_600_000));
 
     const handleDelete = async () => {
-        if (!confirm("¿Eliminar esta historia?")) return;
+        if (!(await confirm({ title: "Eliminar historia", description: "¿Eliminar esta historia?", destructive: true }))) return;
         const ok = await deleteStory(current.postId);
         if (ok) {
             toast.success("Historia eliminada.");
@@ -102,7 +111,14 @@ export function NetworkStoryViewer({ stories, initialIndex, onClose, onChanged }
     };
 
     return (
-        <div className="fixed inset-0 z-[210] grid place-items-center bg-black/80" onClick={onClose}>
+        <div
+            ref={containerRef}
+            className="fixed inset-0 z-[210] grid place-items-center bg-black/80"
+            onClick={onClose}
+            role="dialog"
+            aria-modal="true"
+            aria-label={`Historia de ${current.authorName}`}
+        >
             <div className="relative aspect-[9/16] w-full max-w-sm overflow-hidden rounded-2xl bg-black" onClick={(e) => e.stopPropagation()}>
                 <div className="absolute inset-x-2 top-2 z-20 flex gap-1">
                     {stories.map((_, i) => {

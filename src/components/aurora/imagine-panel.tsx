@@ -21,6 +21,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { useRealtimeRows, useRealtime } from "@/lib/realtime/realtime";
 import {
   // ficheros
@@ -280,6 +281,7 @@ export default function AuroraImaginePanel() {
 /* ============================================================== */
 
 function ImagineEditor({ file, onChanged }: { file: ImagineFile; onChanged: () => void }) {
+  const confirm = useConfirm();
   const [draft, setDraft] = useState(file.content);
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -337,7 +339,11 @@ function ImagineEditor({ file, onChanged }: { file: ImagineFile; onChanged: () =
   };
 
   const onDelete = async () => {
-    if (!confirm(`¿Eliminar "${file.name}"? Esta acción no se puede deshacer.`)) return;
+    if (!(await confirm({
+      title: "Eliminar archivo",
+      description: `¿Eliminar "${file.name}"? Esta acción no se puede deshacer.`,
+      destructive: true,
+    }))) return;
     const ok = await deleteImagineFile(file.id);
     if (ok) {
       toast.success("Eliminado.");
@@ -751,6 +757,7 @@ function RunsList({ imagineId }: { imagineId: string }) {
 /* ============================================================== */
 
 function RunCard({ run, onChanged }: { run: ImagineRun; onChanged: () => void }) {
+  const confirm = useConfirm();
   const [expanded, setExpanded] = useState(run.status === "running" || run.status === "paused");
   const [busy, setBusy] = useState(false);
   const [reply, setReply] = useState("");
@@ -854,7 +861,7 @@ function RunCard({ run, onChanged }: { run: ImagineRun; onChanged: () => void })
     onChanged();
   };
   const onDelete = async () => {
-    if (!confirm(`¿Eliminar la ejecución "${run.title}"?`)) return;
+    if (!(await confirm({ title: "Eliminar ejecución", description: `¿Eliminar la ejecución "${run.title}"?`, destructive: true }))) return;
     await deleteRun(run.id);
     onChanged();
   };

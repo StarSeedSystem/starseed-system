@@ -22,6 +22,7 @@ import {
   Pencil, Check, Trash2, LogIn,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { createClient } from "@/utils/supabase/client";
 import {
   ensureThisNeuron, listNeurons, setPermission, setNeuronName, removeNeuron,
@@ -74,6 +75,7 @@ function capabilityChips(c: NeuronCapabilities | undefined): string[] {
 }
 
 export function NeuronsPanel() {
+  const confirm = useConfirm();
   const [neurons, setNeurons] = useState<Neuron[]>([]);
   const [loading, setLoading] = useState(true);
   const [hasSession, setHasSession] = useState<boolean | null>(null);
@@ -146,9 +148,11 @@ export function NeuronsPanel() {
   }
 
   async function handleRemove(n: Neuron) {
-    const ok = typeof window !== "undefined"
-      ? window.confirm(`¿Quitar «${n.name}» de tu red de neuronas? (No borra nada en ese dispositivo.)`)
-      : false;
+    const ok = await confirm({
+      title: "Quitar neurona",
+      description: `¿Quitar «${n.name}» de tu red de neuronas? (No borra nada en ese dispositivo.)`,
+      destructive: true,
+    });
     if (!ok) return;
     const done = await removeNeuron(n.id);
     if (done) {

@@ -18,6 +18,7 @@
 
 import React, { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Download, Upload, RotateCcw, FileJson, ShieldAlert } from "lucide-react";
@@ -57,6 +58,7 @@ function collectAllPrefs(): Record<string, unknown> {
 }
 
 export function ConfigExportPanel() {
+    const confirm = useConfirm();
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [busy, setBusy] = useState<"export" | "import" | "reset" | null>(null);
     // Recalculado en cada render — refleja el estado actual de localStorage sin
@@ -140,10 +142,13 @@ export function ConfigExportPanel() {
         }
     };
 
-    const handleResetAll = () => {
-        const confirmed = window.confirm(
-            "¿Restablecer TODO a valores de fábrica?\n\nEsto borrará permanentemente tu apariencia, dock, Trinity, memoria del Exocórtex y el resto de preferencias sincronizadas en ESTE dispositivo. Esta acción no se puede deshacer.\n\n¿Quieres continuar?"
-        );
+    const handleResetAll = async () => {
+        const confirmed = await confirm({
+            title: "Restablecer todo a valores de fábrica",
+            description:
+                "Esto borrará permanentemente tu apariencia, dock, Trinity, memoria del Exocórtex y el resto de preferencias sincronizadas en ESTE dispositivo. Esta acción no se puede deshacer. ¿Quieres continuar?",
+            destructive: true,
+        });
         if (!confirmed) return;
 
         setBusy("reset");

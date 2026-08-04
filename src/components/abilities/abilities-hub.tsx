@@ -1,12 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { chat } from "@/ai/client/chat";
 import { loadConfigs } from "@/ai/client/providerStore";
 import type { ChatMessage } from "@/ai/providers/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { useModalA11y } from "@/hooks/use-modal-a11y";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import {
@@ -87,6 +88,7 @@ export default function AbilitiesHub() {
   const [targets, setTargets] = useState<AttachTarget[]>([]);
   const [targetRef, setTargetRef] = useState<string>("");
   const [attaching, setAttaching] = useState(false);
+  const attachDialogRef = useRef<HTMLDivElement>(null);
 
   // Astraura suggest
   const [suggestScope, setSuggestScope] = useState<TargetScope>("cerebro");
@@ -135,6 +137,10 @@ export default function AbilitiesHub() {
       alive = false;
     };
   }, [attachFor, scope]);
+
+  // Accesibilidad del diálogo de "Atar": foco inicial, trampa de Tab, cierre
+  // con Escape (no gestionado antes) y devolución de foco al cerrar.
+  useModalA11y({ open: !!attachFor, onClose: () => setAttachFor(null), containerRef: attachDialogRef });
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -407,7 +413,14 @@ export default function AbilitiesHub() {
 
       {/* Attach dialog (lightweight modal) */}
       {attachFor && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setAttachFor(null)}>
+        <div
+          ref={attachDialogRef}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+          onClick={() => setAttachFor(null)}
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Atar «${attachFor.name}» a un objetivo`}
+        >
           <div
             className="w-full max-w-md rounded-2xl border border-violet-500/30 bg-zinc-950 p-5 shadow-2xl"
             onClick={(e) => e.stopPropagation()}

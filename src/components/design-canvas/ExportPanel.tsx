@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { X, Download, Copy, Check, FileJson, FileCode, Zap, Save, type LucideIcon } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { CanvasState } from "./state-types";
@@ -166,12 +167,12 @@ export function ExportPanel({ state, onClose, onApplyToContext, onSaveTheme, onI
                         setApplied(true); // Reuse applied state for success feedback
                         setTimeout(() => setApplied(false), 3000);
                     } else {
-                        alert("Invalid theme file format");
+                        toast.error("Invalid theme file format");
                     }
                 }
             } catch (err) {
                 console.error("Failed to parse theme file", err);
-                alert("Error parsing theme file");
+                toast.error("Error parsing theme file");
             }
         };
         reader.readAsText(file);

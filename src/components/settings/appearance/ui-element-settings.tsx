@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import {
     Layout,
     Sparkles,
@@ -53,6 +54,7 @@ const buttonStyles = [
 ];
 
 export function UiElementSettings() {
+    const confirm = useConfirm();
     const {
         config,
         updateSection,
@@ -296,8 +298,12 @@ export function UiElementSettings() {
                                 <Button
                                     variant="ghost"
                                     size="sm"
-                                    onClick={() => {
-                                        if (confirm("¿Seguro que quieres resetear toda la apariencia?")) resetConfig();
+                                    onClick={async () => {
+                                        if (await confirm({
+                                            title: "Resetear apariencia",
+                                            description: "¿Seguro que quieres resetear toda la apariencia?",
+                                            destructive: true,
+                                        })) resetConfig();
                                     }}
                                     className="text-muted-foreground hover:text-destructive"
                                 >
@@ -324,9 +330,11 @@ export function UiElementSettings() {
                                                 {theme.name}
                                             </Button>
                                             <button
-                                                onClick={(e) => {
+                                                onClick={async (e) => {
                                                     e.stopPropagation();
-                                                    if (confirm(`¿Borrar tema "${theme.name}"?`)) deleteTheme(theme.id);
+                                                    if (await confirm({ title: "Borrar tema", description: `¿Borrar tema "${theme.name}"?`, destructive: true })) {
+                                                        deleteTheme(theme.id);
+                                                    }
                                                 }}
                                                 className="absolute right-1 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
                                             >

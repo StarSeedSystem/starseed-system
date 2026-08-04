@@ -35,6 +35,7 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { NeuronModelsPanel } from "@/components/neurons/neuron-models-panel";
 import { createClient } from "@/utils/supabase/client";
 import type { RealtimeChannel } from "@supabase/supabase-js";
@@ -374,6 +375,7 @@ function NeuronCard({
   onChanged: () => void;
 }) {
   const Icon = KIND_ICONS[n.kind] ?? Cpu;
+  const confirm = useConfirm();
   const [settings, setSettings] = useState<NeuronSettings>(() => settingsFor(n.id));
   const [syncOn, setSyncOn] = useState<boolean>(n.permissions?.sync ?? true);
   const [hermioneSync, setHermioneSyncState] = useState<boolean>(() => neuronHermioneSyncEnabled(n.capabilities));
@@ -421,9 +423,11 @@ function NeuronCard({
   };
 
   const forget = async () => {
-    const ok = typeof window !== "undefined"
-      ? window.confirm(`¿Olvidar «${n.name}»? Se quita del registro de tu cuenta (no borra nada en ese dispositivo).`)
-      : false;
+    const ok = await confirm({
+      title: "Olvidar neurona",
+      description: `¿Olvidar «${n.name}»? Se quita del registro de tu cuenta (no borra nada en ese dispositivo).`,
+      destructive: true,
+    });
     if (!ok) return;
     const done = await removeNeuron(n.id);
     if (done) {

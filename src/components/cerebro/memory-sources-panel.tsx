@@ -29,6 +29,7 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import {
   Database,
   Server,
@@ -183,6 +184,7 @@ function OsSourceCard({ files, memories, loading }: { files: number; memories: n
 /* ------------------------------------------------------------------ */
 
 function ObsidianCard({ brainId, obsidian, onChanged }: { brainId: string; obsidian: StorageBackend[]; onChanged: () => void }) {
+  const confirm = useConfirm();
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState("");
   const [repo, setRepo] = useState("");
@@ -205,7 +207,7 @@ function ObsidianCard({ brainId, obsidian, onChanged }: { brainId: string; obsid
   };
 
   const remove = async (id: string) => {
-    if (!confirm("¿Quitar esta fuente Obsidian?")) return;
+    if (!(await confirm({ title: "Quitar fuente", description: "¿Quitar esta fuente Obsidian?", destructive: true }))) return;
     if (await deleteBackend(id)) { onChanged(); toast.success("Fuente Obsidian quitada."); }
   };
 
@@ -252,6 +254,7 @@ function ObsidianCard({ brainId, obsidian, onChanged }: { brainId: string; obsid
 /* ------------------------------------------------------------------ */
 
 function ExternalServerCard({ brainId, linked, onChanged }: { brainId: string; linked: LinkedServer[]; onChanged: () => void }) {
+  const confirm = useConfirm();
   const memSources = useMemo(() => linked.filter((l) => l.link.role === "memory-source" || l.link.role === "storage"), [linked]);
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState("");
@@ -279,7 +282,7 @@ function ExternalServerCard({ brainId, linked, onChanged }: { brainId: string; l
   };
 
   const remove = async (serverId: string) => {
-    if (!confirm("¿Quitar esta fuente (servidor externo)?")) return;
+    if (!(await confirm({ title: "Quitar fuente", description: "¿Quitar esta fuente (servidor externo)?", destructive: true }))) return;
     await unlinkServer(brainId, serverId);
     await deleteServer(serverId);
     onChanged();

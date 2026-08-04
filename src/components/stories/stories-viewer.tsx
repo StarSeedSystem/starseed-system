@@ -13,6 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { ChevronLeft, ChevronRight, Pause, Play, Eye, Clock, Trash2 } from 'lucide-react';
 import { useStories, type Story } from '@/contexts/stories-context';
 import { toast } from 'sonner';
+import { useConfirm } from '@/components/ui/confirm-dialog';
 
 interface StoriesViewerProps {
   stories: Story[];
@@ -24,6 +25,7 @@ interface StoriesViewerProps {
 const PROGRESS_MS = 5000; // 5 segundos por historia por defecto
 
 export function StoriesViewer({ stories, initialIndex, open, onOpenChange }: StoriesViewerProps) {
+  const confirm = useConfirm();
   const { markViewed, extendTTL, removeStory } = useStories();
   const [index, setIndex] = useState(initialIndex);
   const [paused, setPaused] = useState(false);
@@ -173,8 +175,8 @@ export function StoriesViewer({ stories, initialIndex, open, onOpenChange }: Sto
                 variant="ghost"
                 size="icon"
                 className="h-7 w-7 text-white/70 hover:bg-white/10"
-                onClick={() => {
-                  if (!confirm('¿Eliminar esta historia?')) return;
+                onClick={async () => {
+                  if (!(await confirm({ title: "Eliminar historia", description: "¿Eliminar esta historia?", destructive: true }))) return;
                   removeStory(current.id);
                   toast.success('Historia eliminada.');
                   onOpenChange(false);

@@ -57,6 +57,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
+import { useConfirm } from '@/components/ui/confirm-dialog';
 
 // ── Layout geométrico (coordenadas enteras = sin mismatch SSR) ──────────
 
@@ -228,6 +229,7 @@ interface LivingGraphProps {
 }
 
 export function LivingGraph({ className }: LivingGraphProps) {
+  const confirm = useConfirm();
   const store = getLivingGraphStore();
   const [tick, setTick] = useState(0);
   // mounted: solo true en cliente. El primer render del cliente coincide
@@ -339,8 +341,12 @@ export function LivingGraph({ className }: LivingGraphProps) {
     if (store.removeEdge(edgeId)) toast.success('Conexión eliminada.');
   };
 
-  const resetGraph = () => {
-    if (!confirm('¿Restablecer el Cerebro al estado semilla? Las conexiones y nodos manuales se perderán.')) return;
+  const resetGraph = async () => {
+    if (!(await confirm({
+      title: "Restablecer Cerebro",
+      description: "¿Restablecer el Cerebro al estado semilla? Las conexiones y nodos manuales se perderán.",
+      destructive: true,
+    }))) return;
     store.reset();
     toast.success('Cerebro reiniciado.');
   };

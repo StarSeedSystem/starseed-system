@@ -36,6 +36,7 @@ import {
 import { Slider } from '@/components/ui/slider';
 import { Card, CardContent } from '@/components/ui/card';
 import { toast } from 'sonner';
+import { usePrompt } from '@/components/ui/confirm-dialog';
 import {
   Database,
   History,
@@ -67,6 +68,7 @@ interface MemoryAdminDialogProps {
 }
 
 export function MemoryAdminDialog({ nodeId, open, onOpenChange }: MemoryAdminDialogProps) {
+  const prompt = usePrompt();
   const graphStore = getLivingGraphStore();
   const adminStore = getMemoryAdminStore();
   const node = nodeId ? graphStore.getNode(nodeId) : null;
@@ -248,8 +250,8 @@ export function MemoryAdminDialog({ nodeId, open, onOpenChange }: MemoryAdminDia
                     Versiones ({record.versions.length})
                   </h4>
                   <Button size="sm" variant="outline" className="h-7 text-xs"
-                    onClick={() => {
-                      const label = prompt('Etiqueta para la nueva versión:');
+                    onClick={async () => {
+                      const label = await prompt({ title: "Nueva versión", label: "Etiqueta para la nueva versión:" });
                       if (!label) return;
                       adminStore.snapshot(node.id, label, { weight: record.weight, tags: record.tags, notes: record.notes });
                       toast.success('Versión guardada.');

@@ -24,6 +24,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
+import { usePrompt } from "@/components/ui/confirm-dialog";
 import {
   BookOpen,
   Boxes,
@@ -159,6 +160,7 @@ function hasProviderEnabled(): boolean {
 // ────────────────────────────────────────────────────────────────────────────
 
 export default function OKFPanel() {
+  const prompt = usePrompt();
   const [userId, setUserId] = useState<string | null>(null);
   const [vaults, setVaults] = useState<VaultRow[]>([]);
   const [memories, setMemories] = useState<MemoryRow[]>([]);
@@ -390,7 +392,7 @@ export default function OKFPanel() {
 
   async function saveRawAsPage() {
     if (!rawIngest) return;
-    const name = window.prompt("Nombre de la nueva página:", "nota");
+    const name = await prompt({ title: "Nueva página", label: "Nombre de la nueva página:", defaultValue: "nota" });
     if (!name || !name.trim()) return;
     if (isSpecial(name)) {
       setStatus({ kind: "err", msg: "Ese nombre está reservado (index/log/schema)." });
@@ -438,7 +440,11 @@ export default function OKFPanel() {
 
   async function archiveAnswer() {
     if (!answer) return;
-    const name = window.prompt("Archivar respuesta como página llamada:", question.slice(0, 40) || "respuesta");
+    const name = await prompt({
+      title: "Archivar respuesta",
+      label: "Archivar respuesta como página llamada:",
+      defaultValue: question.slice(0, 40) || "respuesta",
+    });
     if (!name || !name.trim()) return;
     if (isSpecial(name)) {
       setStatus({ kind: "err", msg: "Ese nombre está reservado (index/log/schema)." });

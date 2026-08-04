@@ -25,6 +25,7 @@
 import React, { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import {
     Send, CornerDownRight, Loader2, User as UserIcon, ChevronDown, ChevronUp,
@@ -328,6 +329,7 @@ interface CommentItemProps {
 const MAX_VISIBLE_DEPTH_LINES = 6; // más allá, seguimos anidando pero sin más sangrado visual excesivo
 
 function CommentItem({ node, depth, order, onReply, onChanged, currentUserId }: CommentItemProps) {
+    const confirm = useConfirm();
     const [replying, setReplying] = useState(false);
     const [editing, setEditing] = useState(false);
     const [showHistory, setShowHistory] = useState(false);
@@ -382,7 +384,7 @@ function CommentItem({ node, depth, order, onReply, onChanged, currentUserId }: 
     };
 
     const doDelete = async () => {
-        if (typeof window !== "undefined" && !window.confirm("¿Borrar este comentario?")) return;
+        if (!(await confirm({ title: "Borrar comentario", description: "¿Borrar este comentario?", destructive: true }))) return;
         const ok = await deleteComment(node.id);
         if (ok) {
             setDeleted(true);

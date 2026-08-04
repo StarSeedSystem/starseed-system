@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { GridArea } from "./grid-area";
 import { useToast } from "@/components/ui/use-toast";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { AddWidgetDialog } from "./add-widget-dialog";
 import { WidgetForgeDialog } from "./widget-forge/widget-forge-dialog";
 import { WeatherLocationProvider } from "@/modules/weather/context/weather-location-context";
@@ -447,6 +448,7 @@ export function DashboardLayout() {
     const [isDeviceManagerOpen, setIsDeviceManagerOpen] = useState(false);
 
     const { toast } = useToast();
+    const confirm = useConfirm();
 
     // Respeta prefers-reduced-motion en las animaciones del menú de pestañas.
     const shouldReduceMotion = useReducedMotion();
@@ -958,8 +960,12 @@ export function DashboardLayout() {
 
     // Restablece los dashboards predeterminados al acomodo más reciente,
     // conservando los tableros propios del usuario. Vía manual de re-siembra.
-    const handleResetLayout = () => {
-        if (typeof window !== "undefined" && !window.confirm("¿Restablecer los tableros predeterminados al acomodo más reciente? Tus tableros personalizados se conservan.")) return;
+    const handleResetLayout = async () => {
+        if (!(await confirm({
+            title: "Restablecer tableros",
+            description: "¿Restablecer los tableros predeterminados al acomodo más reciente? Tus tableros personalizados se conservan.",
+            destructive: true,
+        }))) return;
         const { dashboards: merged, widgetMap } = reseedDefaultDashboards();
         const sorted = sortDashboards(merged);
         setDashboards(sorted);
@@ -1139,23 +1145,26 @@ export function DashboardLayout() {
         saveDashboards(newDashboards);
     };
 
-    const handleDeleteDashboard = (id: string) => {
+    const handleDeleteDashboard = async (id: string) => {
         if (dashboards.length <= 1) {
             toast({ title: "Acción bloqueada", description: "No puedes eliminar el único dashboard.", variant: "destructive" });
             return;
         }
 
-        const confirm = window.confirm("¿Estás seguro de eliminar este dashboard?");
-        if (!confirm) return;
+        const ok = await confirm({ title: "Eliminar dashboard", description: "¿Estás seguro de eliminar este dashboard?", destructive: true });
+        if (!ok) return;
 
         removeWidgetsForDashboard(id);
-        const remaining = dashboards.filter(d => d.id !== id);
-        setDashboards(remaining);
-        saveDashboards(remaining);
-
-        if (activeDashboardId === id && remaining.length > 0) {
-            setActiveDashboardId(remaining[0].id);
-        }
+        // Recalcula desde el estado MÁS reciente (`prev`), no desde el closure previo al
+        // `await confirm(...)`: el diálogo async ya NO congela el hilo (a diferencia del
+        // window.confirm nativo), así que un sync realtime/cross-tab durante el diálogo
+        // pudo cambiar `dashboards`; filtrar el snapshot viejo perdería tableros (rev. A137).
+        setDashboards(prev => {
+            const remaining = prev.filter(d => d.id !== id);
+            saveDashboards(remaining);
+            if (activeDashboardId === id && remaining.length > 0) setActiveDashboardId(remaining[0].id);
+            return remaining;
+        });
 
         toast({ title: "Eliminado", description: "Dashboard eliminado correctamente." });
     };

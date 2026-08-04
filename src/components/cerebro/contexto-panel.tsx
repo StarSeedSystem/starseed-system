@@ -21,6 +21,7 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import {
   SENSES,
   getSenses,
@@ -59,6 +60,7 @@ interface MergedSense {
 }
 
 export default function ContextoPanel() {
+  const confirm = useConfirm();
   // Maestro enable/aurora/astraura (senses_settings).
   const [master, setMaster] = useState<SensesConfig>(defaultConfig());
   const [loadingMaster, setLoadingMaster] = useState(true);
@@ -207,7 +209,7 @@ export default function ContextoPanel() {
               onMaster={(b, v) => setMasterFlag(b, s.id, v)}
               onConfigChanged={reload}
               onRemoveCustom={async () => {
-                if (!confirm(`¿Quitar el sentido «${s.label}»?`)) return;
+                if (!(await confirm({ title: "Quitar sentido", description: `¿Quitar el sentido «${s.label}»?`, destructive: true }))) return;
                 await deleteBrainSense(s.id);
                 await reload();
                 toast.success("Sentido quitado.");

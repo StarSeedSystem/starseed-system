@@ -26,6 +26,7 @@ import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -83,6 +84,7 @@ function sortedKinds() {
 }
 
 export default function BackendsNetworkPanel() {
+  const confirm = useConfirm();
   const [userId, setUserId] = useState<string | null>(null);
   const [backends, setBackends] = useState<StorageBackend[]>([]);
   const [loading, setLoading] = useState(false);
@@ -164,7 +166,11 @@ export default function BackendsNetworkPanel() {
       toast.message("El servidor oficial StarSeed no se elimina (es el hogar por defecto).");
       return;
     }
-    if (!confirm(`¿Quitar el backend «${b.name}»? No borra datos; deja de usarse para enrutar.`)) return;
+    if (!(await confirm({
+      title: "Quitar backend",
+      description: `¿Quitar el backend «${b.name}»? No borra datos; deja de usarse para enrutar.`,
+      destructive: true,
+    }))) return;
     await deleteBackend(b.id);
     setBackends((prev) => prev.filter((x) => x.id !== b.id));
     toast.success("Backend quitado");

@@ -24,6 +24,7 @@ import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import {
   Brain as BrainIcon,
   Plus,
@@ -179,6 +180,7 @@ const INC_SECTIONS: { key: IncKey; label: string; icon: string }[] = [
 ];
 
 export default function BrainsPanel() {
+  const confirm = useConfirm();
   const [userId, setUserId] = useState<string | null>(null);
   const [brains, setBrains] = useState<Brain[]>([]);
   const [catalog, setCatalog] = useState<BrainCatalog | null>(null);
@@ -318,7 +320,11 @@ export default function BrainsPanel() {
   }
 
   async function onDelete(b: Brain) {
-    if (!confirm(`¿Eliminar el cerebro «${b.name}»? Esto no borra tus memorias ni subsistemas, sólo el cerebro.`)) return;
+    if (!(await confirm({
+      title: "Eliminar cerebro",
+      description: `¿Eliminar el cerebro «${b.name}»? Esto no borra tus memorias ni subsistemas, sólo el cerebro.`,
+      destructive: true,
+    }))) return;
     const ok = await deleteBrain(b.id);
     if (ok) {
       toast.success("Cerebro eliminado.");
@@ -1027,6 +1033,7 @@ function BrainMergeDialog({
   onClose: () => void;
   onConfirm: (idA: string, idB: string, opts: MergeBrainsOptions) => void;
 }) {
+  const confirm = useConfirm();
   const others = useMemo(() => brains.filter((b) => b.id !== brainA.id), [brains, brainA.id]);
   const [idB, setIdB] = useState<string>(others[0]?.id ?? "");
   const [name, setName] = useState("");
@@ -1191,13 +1198,11 @@ function BrainMergeDialog({
             size="sm"
             className="gap-1.5 bg-fuchsia-600 text-white hover:bg-fuchsia-500"
             disabled={!idB}
-            onClick={() => {
-              if (typeof window !== "undefined") {
-                const msg = replaceSources
-                  ? `Se creará la fusión y se ELIMINARÁN «${brainA.name}» y «${brainB?.name}». ¿Continuar?`
-                  : `Se creará un nuevo cerebro fusionando «${brainA.name}» y «${brainB?.name}» (los originales se conservan). ¿Continuar?`;
-                if (!window.confirm(msg)) return;
-              }
+            onClick={async () => {
+              const msg = replaceSources
+                ? `Se creará la fusión y se ELIMINARÁN «${brainA.name}» y «${brainB?.name}». ¿Continuar?`
+                : `Se creará un nuevo cerebro fusionando «${brainA.name}» y «${brainB?.name}» (los originales se conservan). ¿Continuar?`;
+              if (!(await confirm({ title: "Fusionar cerebros", description: msg, destructive: replaceSources }))) return;
               onConfirm(brainA.id, idB, { name: name || undefined, replaceSources });
             }}
           >

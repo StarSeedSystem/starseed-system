@@ -19,6 +19,11 @@
  * datos demo de historias, dos toolbars de selección solapadas—. Su activación
  * SEGURA (allowlist de rutas públicas, dedupe, coordinación de modales) queda para
  * una ola dedicada; `app-providers.tsx` se conserva como versión completa de referencia.
+ *
+ * Adenda 137 (a11y): el `<ConfirmProvider>` (useConfirm/usePrompt, reemplazo in-app de
+ * window.confirm/alert/prompt) NO se monta aquí, sino en el layout RAÍZ (cubre TODO el
+ * árbol —incluida la chrome global y la not-found—, no solo (app)). AppGlobals sigue
+ * siendo HERMANO de `{children}` (no lo envuelve) para no reintroducir el React #310.
  */
 
 import { AuroraIntro } from "@/components/onboarding/aurora-intro";
@@ -27,6 +32,9 @@ import { AstrauraConfigDrawer } from "@/components/astraura/astraura-config-draw
 import { ModelDownloadNotifier } from "@/components/neurons/model-download-notifier";
 import { NeuronActivityLogger } from "@/components/neurons/neuron-activity-logger";
 
+// AppGlobals es HERMANO de `{children}` (ver app/(app)/layout.tsx): NO envuelve a
+// los children (eso reintroduce el React #310 y rompe el prerender de not-found).
+// `<ConfirmProvider>` (Adenda 137) se monta en el layout, no aquí.
 export default function AppGlobals() {
   return (
     <>

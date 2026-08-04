@@ -31,6 +31,7 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import {
   Server,
   Plus,
@@ -99,6 +100,7 @@ function emptyDraft(): Draft {
 }
 
 export default function ServersPanel() {
+  const confirm = useConfirm();
   const [userId, setUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [servers, setServers] = useState<RegistryServer[]>([]);
@@ -207,7 +209,11 @@ export default function ServersPanel() {
   }
 
   async function onDelete(s: RegistryServer) {
-    if (typeof window !== "undefined" && !window.confirm(`¿Eliminar el servidor «${s.name}» y sus enlaces?`)) return;
+    if (!(await confirm({
+      title: "Eliminar servidor",
+      description: `¿Eliminar el servidor «${s.name}» y sus enlaces?`,
+      destructive: true,
+    }))) return;
     const ok = await deleteServer(s.id);
     if (ok) {
       toast.message("Servidor eliminado.");

@@ -15,9 +15,10 @@
  * scroll del body mientras está abierto. SSR-safe y con reduced-motion.
  */
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { Maximize2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useModalA11y } from "@/hooks/use-modal-a11y";
 import { AuroraChatView, type AuroraChatViewProps } from "@/components/exocortex/aurora-chat-view";
 
 // CSS propio del overlay (prefijo .axf-*) — complementa las clases .axc-*.
@@ -92,6 +93,13 @@ export interface AuroraChatFullscreenProps extends AuroraChatViewProps {
 
 export function AuroraChatFullscreen(props: AuroraChatFullscreenProps) {
   const { open, onClose, speaking, listening, statusLine, auroraName } = props;
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Accesibilidad: foco inicial, trampa de Tab y devolución de foco al cerrar.
+  // El role/aria-modal/aria-label ya están en el JSX de abajo, y Escape ya lo
+  // gestiona el efecto de aquí debajo (junto con el bloqueo de scroll), por
+  // eso closeOnEscape: false — para no duplicar el cierre.
+  useModalA11y({ open, onClose, containerRef, closeOnEscape: false });
 
   // Cerrar con Escape + bloquear el scroll del body mientras está abierto.
   useEffect(() => {
@@ -115,7 +123,13 @@ export function AuroraChatFullscreen(props: AuroraChatFullscreenProps) {
   if (!open) return null;
 
   return (
-    <div className="axf-overlay" role="dialog" aria-modal="true" aria-label="Astraura IA · pantalla completa">
+    <div
+      ref={containerRef}
+      className="axf-overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Astraura IA · pantalla completa"
+    >
       <style>{AXF_CSS}</style>
       <div className="axf-backdrop" onClick={onClose} aria-hidden />
       <div className="axf-shell">

@@ -43,6 +43,7 @@ import XRView from "@/components/canvas/xr-view";
 import { FilePreview, type FileLike } from "@/components/files/file-preview";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { usePrompt } from "@/components/ui/confirm-dialog";
 import {
   Plus,
   Save,
@@ -339,6 +340,7 @@ export default function CanvasBoard({
   boardSpaceId = null,
   engineParam = null,
 }: { canvasId?: string; boardSpaceId?: string | null; engineParam?: BoardEngine | null } = {}) {
+  const prompt = usePrompt();
   const [userId, setUserId] = useState<string | null>(null);
   const [canvas, setCanvas] = useState<Canvas>(() => newCanvas("Lienzo sin título"));
   const [list, setList] = useState<Canvas[]>([]);
@@ -612,9 +614,9 @@ export default function CanvasBoard({
   }
 
   // Asigna/limpia el grupo (folder) de un bloque.
-  function setBlockGroup(id: string) {
+  async function setBlockGroup(id: string) {
     const cur = canvas.blocks.find((b) => b.id === id);
-    const next = typeof window !== "undefined" ? window.prompt("Grupo del bloque", (cur ? blockGroup(cur) : "") ?? "") : null;
+    const next = await prompt({ title: "Grupo del bloque", label: "Grupo del bloque", defaultValue: (cur ? blockGroup(cur) : "") ?? "" });
     if (next === null) return;
     const group = next.trim() || undefined;
     updateBlock(id, { group } as Partial<CanvasBlock>);
@@ -668,12 +670,13 @@ export default function CanvasBoard({
     updateBlock(id, { locked: !cur?.locked } as Partial<CanvasBlock>);
   }
 
-  function renameLayer(id: string) {
+  async function renameLayer(id: string) {
     const cur = canvas.blocks.find((b) => b.id === id);
-    const next =
-      typeof window !== "undefined"
-        ? window.prompt("Nombre de la capa", cur?.title ?? blockKindDef(cur?.kind ?? "text")?.label ?? "")
-        : null;
+    const next = await prompt({
+      title: "Nombre de la capa",
+      label: "Nombre de la capa",
+      defaultValue: cur?.title ?? blockKindDef(cur?.kind ?? "text")?.label ?? "",
+    });
     if (next === null) return;
     updateBlock(id, { title: next });
   }

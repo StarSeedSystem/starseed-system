@@ -6,10 +6,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Loader2, Link as LinkIcon, ShieldCheck, UserPlus, X, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { useActiveProfile, profileKindLabel } from "@/lib/profiles/profiles";
 import { grantEntityRole, getEntityRoles, revokeEntityRole, type EntityRoleRecord } from "@/lib/social/entity-roles";
 
 export function EntityRolesPanel() {
+  const confirm = useConfirm();
   const { profiles, loading } = useActiveProfile();
   const [selectedEntityId, setSelectedEntityId] = useState<string>("");
   const [roles, setRoles] = useState<EntityRoleRecord[]>([]);
@@ -88,8 +90,8 @@ export function EntityRolesPanel() {
   };
 
   const handleRevoke = async (roleId: string) => {
-    if (!confirm("¿Seguro que deseas remover este acceso?")) return;
-    
+    if (!(await confirm({ title: "Remover acceso", description: "¿Seguro que deseas remover este acceso?", destructive: true }))) return;
+
     try {
       const { ok } = await revokeEntityRole(roleId);
       if (ok) {

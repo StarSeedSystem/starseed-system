@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useMemo, useState } from 'react';
+import { toast } from 'sonner';
 import { useAudio } from '../hooks/useAudio';
 import { useFileSystem } from '../hooks/useFileSystem';
 import { PresetContent } from '../types';
@@ -82,8 +83,8 @@ const Generator: React.FC<Props> = ({ audio }) => {
     reader.onload = (ev) => {
       if (ev.target?.result) {
         const success = fs.importSystem(ev.target.result as string);
-        if (success) alert('Backup importado correctamente. Los presets se han añadido a tu Biblioteca.');
-        else alert('Error al importar el archivo.');
+        if (success) toast.success('Backup importado correctamente. Los presets se han añadido a tu Biblioteca.');
+        else toast.error('Error al importar el archivo.');
       }
     };
     reader.readAsText(file);

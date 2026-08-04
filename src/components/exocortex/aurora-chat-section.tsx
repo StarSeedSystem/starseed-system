@@ -55,6 +55,7 @@ import { summarizeAttachments, type UniversalAttachment } from "@/lib/aurora/att
 import { useChatFolders } from "@/lib/aurora/chat-folders-store";
 import { groupConversationsByPersonality } from "@/lib/aurora/chat-grouping";
 import { useChatContextMenu } from "@/components/aurora/chat-context-menu";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { WorkspacesCompactList } from "@/components/workspaces/workspaces-section";
 import { listBrains, getSelection, selectBrainForContext, type Brain } from "@/lib/brains/brains";
 import { ChatHeaderOptions } from "@/components/aurora/chat-header-options";
@@ -717,6 +718,7 @@ export function AuroraChatSection({ className }: { className?: string }) {
   const hasCtx = !!aurora;
   const pathname = usePathname();
   const chatLog = useAuroraChatLog();
+  const confirm = useConfirm();
   // Árbol de contextos/temas de conversación (ramificación) — persistido aparte.
   const tree = useChatTree();
   // Conversación unificada en la nube (misma que orbe y /agent). La lista de
@@ -1104,15 +1106,18 @@ export function AuroraChatSection({ className }: { className?: string }) {
         ? "Voz no disponible · usa Reintentar"
         : "La voz de Astraura · control total del OS";
 
-  const onClearLog = useCallback(() => {
-    if (typeof window === "undefined") return;
+  const onClearLog = useCallback(async () => {
     try {
-      if (window.confirm("¿Borrar TODO el registro local de conversaciones con Aurora?")) {
+      if (await confirm({
+        title: "Borrar registro de conversaciones",
+        description: "¿Borrar TODO el registro local de conversaciones con Aurora?",
+        destructive: true,
+      })) {
         chatLog.clear();
         setOpenDay(null);
       }
     } catch { /* */ }
-  }, [chatLog]);
+  }, [chatLog, confirm]);
 
   // (Adenda 71-ter · I3) El componente `Transport` (pestaña «Voz», ya retirada)
   // se eliminó. Los controles de transporte (pausar/reanudar/saltar/interrumpir)

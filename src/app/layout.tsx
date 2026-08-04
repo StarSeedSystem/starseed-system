@@ -5,6 +5,11 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "sonner";
 import { ThemeProvider } from "@/components/theme-provider";
 import { AppearanceProvider } from "@/context/appearance-context";
+// Adenda 137 (a11y): proveedor LIGERO de diálogos in-app (useConfirm/usePrompt,
+// reemplazo de window.confirm/alert/prompt). Va en el layout RAÍZ para cubrir TODO
+// el árbol —incluida la chrome global (OmniDock, visores) y la página not-found—,
+// no solo el grupo (app). Solo contexto + un AlertDialog reutilizable (sin peso).
+import { ConfirmProvider } from "@/components/ui/confirm-dialog";
 import { cn } from "@/lib/utils";
 import { LiquidGlass } from "@/components/ui/liquid-glass";
 // Adenda 136 (rendimiento): WebGLBackground (three.js) y SplineDefaultBackground
@@ -202,6 +207,7 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <AppearanceProvider>
+            <ConfirmProvider>
             <AccountProvider>
             <BoardProvider>
               <UserProvider>
@@ -298,6 +304,7 @@ export default function RootLayout({
               </UserProvider>
             </BoardProvider>
             </AccountProvider>
+            </ConfirmProvider>
           </AppearanceProvider>
         </ThemeProvider>
         </MotionConfig>

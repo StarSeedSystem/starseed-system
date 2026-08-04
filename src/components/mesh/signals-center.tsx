@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { usePrompt } from "@/components/ui/confirm-dialog";
 import { SignalsRadar } from "./signals-radar";
 import { RedMeshCenter } from "./red-mesh-center";
 import { ConnectivityConfigPanel } from "@/components/connectivity/connectivity-config-panel";
@@ -61,6 +62,7 @@ export interface SignalsCenterProps {
 }
 
 export function SignalsCenter({ embedded = false, compact = false }: SignalsCenterProps) {
+  const prompt = usePrompt();
   const mesh = useMeshState();
   const [signals, setSignals] = useState<SignalSource[]>([]);
   const [busy, setBusy] = useState<SignalKind | null>(null);
@@ -125,7 +127,11 @@ export function SignalsCenter({ embedded = false, compact = false }: SignalsCent
       }
       setBusy(sig.kind);
       if (action === "Conectar nodo Wi-Fi") {
-        const host = window.prompt("IP o host del nodo Meshtastic en tu red (Wi-Fi/LAN):", "192.168.1.");
+        const host = await prompt({
+          title: "Conectar nodo Wi-Fi",
+          label: "IP o host del nodo Meshtastic en tu red (Wi-Fi/LAN):",
+          defaultValue: "192.168.1.",
+        });
         if (host && host.trim()) {
           await connectWifiNode(host.trim());
           toast.success("Conectando a la malla por Wi-Fi (nodo de tu red)…");

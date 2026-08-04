@@ -31,6 +31,7 @@
  */
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { toast } from 'sonner';
 import { VisualizerParams, SacredGeometryMode, SacredGeometrySettings, DEFAULT_PARAMS, AutoPilotMode, BackgroundMode, GeometryInfo } from '@/lib/audiomorphic/types';
 import { Activity, Zap, Maximize, Minimize, RotateCw, Palette, Target, Music, BrainCircuit, Wind, Droplets, Waves, Shuffle, Sprout, Glasses, Download, X, RotateCcw, Save, Upload, Heart, Lock, Unlock, Star, Cloud, Trash2, ExternalLink } from 'lucide-react';
 import { useLocalPresets, type Preset } from './use-local-presets';
@@ -1558,7 +1559,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
         const json = JSON.parse(e.target?.result as string) as Partial<VisualizerParams>;
         applyPresetData(json);
       } catch (err) {
-        alert("Error al cargar el preset. Archivo inválido.");
+        toast.error("Error al cargar el preset. Archivo inválido.");
       }
     };
     reader.readAsText(file);

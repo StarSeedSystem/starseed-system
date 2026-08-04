@@ -32,6 +32,7 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { useMemoryVault, type MemoryDoc } from "@/lib/memory-vault";
 import {
   duplicateMemoryDoc,
@@ -40,6 +41,7 @@ import {
 } from "@/lib/brains/merge-duplicate";
 
 export default function MemoryMergePanel() {
+  const confirm = useConfirm();
   const { memories } = useMemoryVault();
 
   const [open, setOpen] = useState(false);
@@ -81,7 +83,7 @@ export default function MemoryMergePanel() {
     else toast.error("No se pudo duplicar la memoria.");
   }
 
-  function handleMerge() {
+  async function handleMerge() {
     if (selectedDocs.length < 2) {
       toast.error("Selecciona al menos dos memorias para fusionar.");
       return;
@@ -90,7 +92,7 @@ export default function MemoryMergePanel() {
     const warn = removeSources
       ? `Se creará una memoria fusionada con ${names} y se ELIMINARÁN las originales. ¿Continuar?`
       : `Se creará una nueva memoria fusionando ${names} (las originales se conservan). ¿Continuar?`;
-    if (typeof window !== "undefined" && !window.confirm(warn)) return;
+    if (!(await confirm({ title: "Fusionar memorias", description: warn, destructive: removeSources }))) return;
 
     const created = mergeMemories(
       selectedDocs.map((d) => d.id),

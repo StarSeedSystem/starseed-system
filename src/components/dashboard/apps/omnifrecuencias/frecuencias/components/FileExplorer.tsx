@@ -16,6 +16,7 @@ import { createPortal } from 'react-dom';
 import { PresetContent } from '../types';
 import { useFileSystem } from '../hooks/useFileSystem';
 import Icon from './Icon';
+import { useConfirm } from '@/components/ui/confirm-dialog';
 
 interface Props {
   mode: 'save' | 'load';
@@ -26,6 +27,7 @@ interface Props {
 }
 
 const FileExplorer: React.FC<Props> = ({ mode, onFileSelect, onClose, fs, currentConfig }) => {
+  const confirm = useConfirm();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [saveFileName, setSaveFileName] = useState('');
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
@@ -142,9 +144,11 @@ const FileExplorer: React.FC<Props> = ({ mode, onFileSelect, onClose, fs, curren
                       <Icon name="Edit2" size={12} />
                     </button>
                     <button
-                      onClick={(e) => {
+                      onClick={async (e) => {
                         e.stopPropagation();
-                        if (confirm('¿Borrar este preset?')) fs.deletePreset(node.id);
+                        if (await confirm({ title: "Borrar preset", description: "¿Borrar este preset?", destructive: true })) {
+                          fs.deletePreset(node.id);
+                        }
                       }}
                       className="p-1.5 bg-black/50 hover:bg-red-500/50 rounded-md text-white backdrop-blur-sm transition-colors cursor-pointer"
                       title="Eliminar"

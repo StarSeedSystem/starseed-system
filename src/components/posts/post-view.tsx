@@ -31,6 +31,7 @@ import type { EmbeddedItem } from "@/components/posts/embedded-content-window";
 import type { MainRatio } from "@/lib/publish/publish";
 import { CommentThread } from "@/components/network/feed/comment-thread";
 import { getCurrentUserId } from "@/lib/os-social";
+import { useConfirm, usePrompt } from "@/components/ui/confirm-dialog";
 
 // ----------------------------- Helpers UI -----------------------------------
 
@@ -212,6 +213,8 @@ function VotingWidget({
 // ----------------------------- Componente raíz ------------------------------
 
 export default function PostView({ postId }: { postId: string }) {
+    const confirm = useConfirm();
+    const prompt = usePrompt();
     const [post, setPost] = useState<PostEntity | null>(null);
     const [comments, setComments] = useState<CommentNode[]>([]);
     const [reach, setReach] = useState<string[]>([]);
@@ -314,7 +317,7 @@ export default function PostView({ postId }: { postId: string }) {
     };
 
     const doTag = async () => {
-        const raw = window.prompt("Etiquetas (separadas por comas):");
+        const raw = await prompt({ title: "Añadir etiquetas", label: "Etiquetas (separadas por comas):" });
         if (raw == null) return;
         const tags = raw.split(",").map((t) => t.trim()).filter(Boolean);
         if (tags.length === 0) return;
@@ -331,11 +334,14 @@ export default function PostView({ postId }: { postId: string }) {
     };
 
     const doRepublish = async () => {
-        const where = window.prompt(
-            "¿Dónde republicar? Indica un id de Perfil o Página:",
-        );
+        const where = await prompt({ title: "Republicar", label: "¿Dónde republicar? Indica un id de Perfil o Página:" });
         if (!where) return;
-        const kind = window.confirm("¿Es una Página? (Aceptar = Página, Cancelar = Perfil)")
+        const kind = (await confirm({
+            title: "Tipo de destino",
+            description: "¿Es una Página? Elige «Confirmar» para Página o «Cancelar» para Perfil.",
+            confirmText: "Página",
+            cancelText: "Perfil",
+        }))
             ? "page"
             : "profile";
         setBusy(true);
@@ -351,7 +357,7 @@ export default function PostView({ postId }: { postId: string }) {
     };
 
     const doSuggest = async () => {
-        const text = window.prompt("Describe tu sugerencia de cambio:");
+        const text = await prompt({ title: "Sugerir un cambio", label: "Describe tu sugerencia de cambio:" });
         if (!text || !text.trim()) return;
         setBusy(true);
         try {
@@ -366,7 +372,7 @@ export default function PostView({ postId }: { postId: string }) {
     };
 
     const doReport = async () => {
-        const reason = window.prompt("Motivo del reporte:");
+        const reason = await prompt({ title: "Reportar contenido", label: "Motivo del reporte:" });
         if (!reason || !reason.trim()) return;
         setBusy(true);
         try {

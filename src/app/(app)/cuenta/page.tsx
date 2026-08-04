@@ -35,6 +35,7 @@ import type { UniversalAttachment } from "@/lib/files/os-files";
 // más abajo), que referencia una tabla que no existe todavía en la base (ver
 // nota en esa sección). Lo usa el toggle "externo" del compositor de Correos.
 import { getLinkedExternalEmail, setLinkedExternalEmail } from "@/lib/mail/os-mail";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 
 // ── Paneles YA EXISTENTES: se MONTAN aquí (reorganizados), nunca se duplica su lógica ──
 import { ConfigExportPanel } from "@/components/settings/advanced/config-export-panel";
@@ -222,6 +223,7 @@ function CuentaContent() {
   const searchParams = useSearchParams();
   const [supabase] = useState(() => createClient());
   const { user, signOut } = useAccount();
+  const confirm = useConfirm();
   const [uid, setUid] = useState<string | null>(null);
   const [profile, setProfile] = useState<Row | null>(null);
   const [identity, setIdentity] = useState<Row | null>(null);
@@ -417,7 +419,7 @@ function CuentaContent() {
   }
 
   async function handleSignOut() {
-    if (typeof window !== "undefined" && !window.confirm("¿Cerrar sesión en este dispositivo?")) return;
+    if (!(await confirm({ title: "Cerrar sesión", description: "¿Cerrar sesión en este dispositivo?" }))) return;
     await signOut();
     flash("Sesión cerrada. Redirigiendo…");
     setTimeout(() => { window.location.href = "/bienvenida"; }, 600);

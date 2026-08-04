@@ -50,6 +50,7 @@ import { toast } from "sonner";
 
 import { loadConfigs } from "@/ai/client/providerStore";
 import { cn } from "@/lib/utils";
+import { useConfirm, usePrompt } from "@/components/ui/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -126,6 +127,8 @@ function buildTree(files: AppFile[]): TreeNode {
 // ────────────────────────────────────────────────────────────────────────────
 
 export default function AiAppGenerator() {
+  const confirm = useConfirm();
+  const prompt = usePrompt();
   const [app, setApp] = useState<GeneratedApp>(() => newApp("Mi primera app"));
   const [activePath, setActivePath] = useState<string>("index.html");
   const [spec, setSpec] = useState<string>("");
@@ -225,28 +228,28 @@ export default function AiAppGenerator() {
   }, [app.files, newPath, updateFiles]);
 
   const onRename = useCallback(
-    (from: string) => {
-      const to = window.prompt("Nueva ruta para el archivo:", from);
+    async (from: string) => {
+      const to = await prompt({ title: "Renombrar archivo", label: "Nueva ruta para el archivo:", defaultValue: from });
       if (!to || to.trim() === from) return;
       const next = renameFile(app.files, from, to.trim());
       updateFiles(next);
       if (activePath === from) setActivePath(to.trim().replace(/^\/+/, ""));
     },
-    [app.files, activePath, updateFiles],
+    [app.files, activePath, updateFiles, prompt],
   );
 
   const onDelete = useCallback(
-    (path: string) => {
+    async (path: string) => {
       if (app.files.length <= 1) {
         toast.error("El proyecto necesita al menos un archivo");
         return;
       }
-      if (!window.confirm(`¿Eliminar ${path}?`)) return;
+      if (!(await confirm({ title: "Eliminar archivo", description: `¿Eliminar ${path}?`, destructive: true }))) return;
       const next = removeFile(app.files, path);
       updateFiles(next);
       if (activePath === path) setActivePath(next[0]?.path ?? "");
     },
-    [app.files, activePath, updateFiles],
+    [app.files, activePath, updateFiles, confirm],
   );
 
   // ──────────────────────────────────────────────────────────────────────────
@@ -362,7 +365,7 @@ export default function AiAppGenerator() {
 
   const onDeleteApp = useCallback(
     async (id: string) => {
-      if (!window.confirm("¿Eliminar esta app de tus guardados?")) return;
+      if (!(await confirm({ title: "Eliminar app", description: "¿Eliminar esta app de tus guardados?", destructive: true }))) return;
       try {
         await deleteApp(id);
         toast.success("Eliminada");
@@ -590,8 +593,12 @@ export default function AiAppGenerator() {
     w.document.close();
   }, [srcDoc]);
 
-  const newProject = useCallback(() => {
-    if (!window.confirm("¿Empezar un proyecto nuevo? Se perderán los cambios no guardados.")) return;
+  const newProject = useCallback(async () => {
+    if (!(await confirm({
+      title: "Empezar proyecto nuevo",
+      description: "¿Empezar un proyecto nuevo? Se perderán los cambios no guardados.",
+      destructive: true,
+    }))) return;
     const fresh = newApp("Nueva app");
     setApp(fresh);
     setActivePath(fresh.files[0]?.path ?? "");

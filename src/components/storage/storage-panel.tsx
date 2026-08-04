@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import {
   Database,
   Plus,
@@ -64,6 +65,7 @@ type ScopeTarget = { id: string; name: string };
 type Msg = { kind: "ok" | "err" | "info"; text: string } | null;
 
 export default function StoragePanel() {
+  const confirm = useConfirm();
   const [userId, setUserId] = useState<string | null>(null);
   const [scope, setScope] = useState("account");
   const [scopeRef, setScopeRef] = useState("");
@@ -178,7 +180,11 @@ export default function StoragePanel() {
   }
 
   async function remove(b: StorageBackend) {
-    if (!confirm(`¿Eliminar el almacén «${b.name}»? Las memorias no se borran, sólo deja de usarse para enrutar.`)) return;
+    if (!(await confirm({
+      title: "Eliminar almacén",
+      description: `¿Eliminar el almacén «${b.name}»? Las memorias no se borran, sólo deja de usarse para enrutar.`,
+      destructive: true,
+    }))) return;
     await deleteBackend(b.id);
     setBackends((prev) => prev.filter((x) => x.id !== b.id));
     toast.success("Almacén eliminado");

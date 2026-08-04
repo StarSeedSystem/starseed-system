@@ -26,6 +26,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
+import { useConfirm } from '@/components/ui/confirm-dialog';
 import {
   User, Users, LogIn, UserPlus, Palette, BookOpen, Sparkles, Image as ImageIcon,
   Cpu, Brain, ChevronRight, ChevronLeft, SkipForward, Check, ArrowRight, Leaf, Building, Castle, Eye, Wrench, Server,
@@ -100,6 +101,7 @@ const WALKTHROUGH_PAGES = [
 
 export default function OnboardingPage() {
   const router = useRouter();
+  const confirm = useConfirm();
   const [state, setState] = useState<OnboardingState>({});
   const [step, setStep] = useState<Step>('kind');
 
@@ -138,8 +140,8 @@ export default function OnboardingPage() {
     router.push('/dashboard');
   };
 
-  const skipAll = () => {
-    if (!confirm('¿Saltar toda la guía? Podrás repetirla desde Ajustes.')) return;
+  const skipAll = async () => {
+    if (!(await confirm({ title: "Saltar la guía", description: "¿Saltar toda la guía? Podrás repetirla desde Ajustes." }))) return;
     finish();
   };
 

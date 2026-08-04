@@ -9,6 +9,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import { usePrompt } from "@/components/ui/confirm-dialog";
 import {
     Upload, FolderPlus, Image as ImageIcon, Video as VideoIcon, Loader2, Settings2,
     Sparkles, MoreHorizontal, Images,
@@ -51,6 +52,7 @@ function thumbFor(item: SavedItem, kind: "image" | "video" | "other") {
 }
 
 export function GalleryApp() {
+    const prompt = usePrompt();
     const [ref, setRef] = useState<EntityRef | null>(null);
     const [doc, setDoc] = useState<EntityLibraryDoc | null>(null);
     const [mediaFolders, setMediaFolders] = useState<MediaFolders | null>(null);
@@ -141,12 +143,12 @@ export function GalleryApp() {
 
     const handleNewFolder = useCallback(async () => {
         if (!ref || !mediaFolders) return;
-        const name = window.prompt("Nombre de la nuevo folder/álbum:");
+        const name = await prompt({ title: "Nuevo álbum", label: "Nombre de la nuevo folder/álbum:" });
         if (!name?.trim()) return;
         await createFolder(ref, name.trim(), mediaFolders.rootId);
         toast.success("Álbum creado.");
         void reload(ref);
-    }, [ref, mediaFolders, reload]);
+    }, [ref, mediaFolders, reload, prompt]);
 
     if (loading) {
         return (

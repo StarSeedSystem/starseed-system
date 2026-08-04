@@ -25,6 +25,7 @@ import {
     type DockItemConfig,
 } from '@/components/layout/dock-config';
 import { Card, CardContent } from '@/components/ui/card';
+import { useConfirm } from '@/components/ui/confirm-dialog';
 
 interface QuickOptionsGridProps {
     title?: string;
@@ -48,6 +49,7 @@ export function QuickOptionsGrid({
     className,
     columns = 4,
 }: QuickOptionsGridProps) {
+    const confirm = useConfirm();
     const [items, setItems] = useState<DockItemConfig[]>(DOCK_PRESETS);
     const [editMode, setEditMode] = useState(false);
 
@@ -65,8 +67,8 @@ export function QuickOptionsGrid({
         saveDockConfig(next);
     };
 
-    const reset = () => {
-        if (!confirm('¿Restablecer el catálogo de opciones?')) return;
+    const reset = async () => {
+        if (!(await confirm({ title: "Restablecer catálogo", description: "¿Restablecer el catálogo de opciones?", destructive: true }))) return;
         resetDockConfig();
         setItems(DOCK_PRESETS);
     };

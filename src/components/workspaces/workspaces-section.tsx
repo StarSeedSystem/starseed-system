@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useWorkspaces, type Workspace, type WorkspaceConfigExtra } from "@/lib/workspaces/workspaces";
@@ -198,6 +199,7 @@ function WorkspaceEditor({
   onShare?: () => void;
 }) {
   const isNew = !workspace;
+  const confirm = useConfirm();
   const [name, setName] = useState(workspace?.name ?? "");
   const [icon, setIcon] = useState(workspace?.icon ?? "🗂️");
   const [description, setDescription] = useState(workspace?.description ?? "");
@@ -399,8 +401,10 @@ function WorkspaceEditor({
       <div className="flex items-center gap-2">
         {!isNew && onDelete && workspace && (
           <button
-            onClick={() => {
-              if (typeof window === "undefined" || window.confirm(`¿Eliminar el espacio «${workspace.name}»?`)) void onDelete(workspace.id);
+            onClick={async () => {
+              if (await confirm({ title: "Eliminar espacio", description: `¿Eliminar el espacio «${workspace.name}»?`, destructive: true })) {
+                void onDelete(workspace.id);
+              }
             }}
             className="rounded-lg px-2.5 py-2 text-[11px] text-rose-300 hover:bg-rose-500/10 cursor-pointer"
           >

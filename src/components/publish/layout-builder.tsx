@@ -61,6 +61,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import AuroraGenerateButton from "@/components/publish/aurora-generate-button";
 import ImageEditorDialog from "@/components/publish/image-editor-dialog";
 import { AttachFilePickerButton } from "@/components/files/universal-file-picker";
@@ -540,6 +541,7 @@ export interface LayoutBuilderProps {
 }
 
 export default function LayoutBuilder({ value, onChange }: LayoutBuilderProps) {
+    const confirm = useConfirm();
     const set = (patch: Partial<LayoutDoc>) => onChange({ ...value, ...patch });
     const dragIndex = useRef<number | null>(null);
 
@@ -581,7 +583,7 @@ export default function LayoutBuilder({ value, onChange }: LayoutBuilderProps) {
         dragIndex.current = null;
     }
 
-    function applyGeneratedLayout(text: string) {
+    async function applyGeneratedLayout(text: string) {
         try {
             const parsed = JSON.parse(text);
             if (!Array.isArray(parsed)) throw new Error("no-array");
@@ -593,8 +595,12 @@ export default function LayoutBuilder({ value, onChange }: LayoutBuilderProps) {
                     content: typeof it.content === "string" ? it.content : "",
                 }));
             if (!blocks.length) throw new Error("empty");
-            if (value.blocks.length > 0 && typeof window !== "undefined") {
-                const ok = window.confirm("Aurora generó una nueva estructura. ¿Reemplazar los bloques actuales?");
+            if (value.blocks.length > 0) {
+                const ok = await confirm({
+                    title: "Reemplazar bloques",
+                    description: "Aurora generó una nueva estructura. ¿Reemplazar los bloques actuales?",
+                    destructive: true,
+                });
                 if (!ok) return;
             }
             onChange({ ...value, blocks });

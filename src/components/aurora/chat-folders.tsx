@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
 import { FolderPlus, Folder, Check, Pencil, Trash2, X } from "lucide-react";
 import { useChatFolders } from "@/lib/aurora/chat-folders-store";
 import { useChatContextMenu } from "@/components/aurora/chat-context-menu";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 
 export function ChatFolders({
   activeConvId,
@@ -31,6 +32,7 @@ export function ChatFolders({
   const { folders: folderObjs, create: createFolder, rename: renameFolder, remove: removeFolder } = useChatFolders();
   // Menú contextual (clic derecho + pulsación larga) sobre las carpetas (Adenda 76).
   const { bind: ctxBind, menu: ctxMenu } = useChatContextMenu({ surface: "agent" });
+  const confirm = useConfirm();
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -55,7 +57,11 @@ export function ChatFolders({
   };
   const removeF = async (id: string, fname: string) => {
     // Confirmación mínima: borrar un folder NO borra sus chats (quedan sin folder).
-    if (typeof window !== "undefined" && !window.confirm(`¿Borrar el folder «${fname}»? Sus chats no se borran; quedan sin folder.`)) return;
+    if (!(await confirm({
+      title: "Borrar folder",
+      description: `¿Borrar el folder «${fname}»? Sus chats no se borran; quedan sin folder.`,
+      destructive: true,
+    }))) return;
     if (folder === fname) onPick(null);
     await removeFolder(id);
   };

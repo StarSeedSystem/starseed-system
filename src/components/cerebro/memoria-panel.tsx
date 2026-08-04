@@ -17,6 +17,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import {
   MEMORY_SOURCES,
   memorySourceById,
@@ -50,6 +51,7 @@ export default function MemoriaPanel({
   /** Abre este archivo al montar/cambiar (clic en nodo del grafo 2D/3D). */
   focusFileId?: string | null;
 }) {
+  const confirm = useConfirm();
   const filter = useMemo(
     () => (brainId ? `brain_id=eq.${brainId}` : undefined),
     [brainId],
@@ -147,7 +149,11 @@ export default function MemoriaPanel({
   };
 
   const onDelete = async (f: MemoryFile) => {
-    if (!confirm(`¿Eliminar ${f.name}? Esta acción no se puede deshacer.`)) return;
+    if (!(await confirm({
+      title: "Eliminar fichero",
+      description: `¿Eliminar ${f.name}? Esta acción no se puede deshacer.`,
+      destructive: true,
+    }))) return;
     const ok = await deleteMemoryFile(f.id);
     if (ok) {
       if (activeId === f.id) setActiveId(null);

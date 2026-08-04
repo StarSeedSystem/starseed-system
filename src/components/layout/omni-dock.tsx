@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 
 import { useAppearance } from "@/context/appearance-context";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { TrinityFab } from "./trinity-fab";
 import {
     loadDockConfig,
@@ -39,6 +40,7 @@ import {
 } from "./dock-config";
 
 export function OmniDock() {
+    const confirm = useConfirm();
     const { activeEdge } = usePerimeter();
     const { config } = useAppearance();
     const router = useRouter();
@@ -218,8 +220,8 @@ export function OmniDock() {
         persist(next);
     };
 
-    const reset = () => {
-        if (confirm('¿Restablecer el dock a su configuración por defecto?')) {
+    const reset = async () => {
+        if (await confirm({ title: "Restablecer dock", description: "¿Restablecer el dock a su configuración por defecto?", destructive: true })) {
             resetDockConfig();
             setItems(DOCK_PRESETS);
             resetDockFolders();

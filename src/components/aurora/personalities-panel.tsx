@@ -44,6 +44,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
@@ -207,6 +208,7 @@ export function PersonalitiesPanel({
   brainId?: string | null;
   brainName?: string;
 } = {}) {
+  const confirm = useConfirm();
   const [profiles, setProfiles] = useState<PersonalityProfile[]>([]);
   const [assignments, setAssignments] = useState<PersonalityAssignments>({
     global: null, porSeccion: {}, porChat: {}, porCerebro: {},
@@ -298,10 +300,14 @@ export function PersonalitiesPanel({
     }
   }, []);
 
-  const eliminar = useCallback((p: PersonalityProfile) => {
-    if (typeof window !== "undefined" && !window.confirm(`¿Eliminar la personalidad «${p.name}»?`)) return;
+  const eliminar = useCallback(async (p: PersonalityProfile) => {
+    if (!(await confirm({
+      title: "Eliminar personalidad",
+      description: `¿Eliminar la personalidad «${p.name}»?`,
+      destructive: true,
+    }))) return;
     if (removePersonalityProfile(p.id)) toast.success(`«${p.name}» eliminada.`);
-  }, []);
+  }, [confirm]);
 
   const compartir = useCallback(async (p: PersonalityProfile) => {
     setBusy(true);

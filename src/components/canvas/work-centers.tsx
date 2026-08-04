@@ -16,6 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { usePrompt } from "@/components/ui/confirm-dialog";
 import {
   Plus,
   Trash2,
@@ -64,6 +65,7 @@ const VIEW_ICONS: Record<ViewMode, React.ComponentType<{ className?: string }>> 
 };
 
 export default function WorkCenters() {
+  const prompt = usePrompt();
   const [userId, setUserId] = useState<string | null>(null);
   const [centers, setCenters] = useState<WorkCenter[]>([]);
   const [canvases, setCanvases] = useState<Canvas[]>([]);
@@ -164,7 +166,7 @@ export default function WorkCenters() {
 
   // ---- folder -------------------------------------------------------------
   async function assignFolder(wc: WorkCenter) {
-    const next = typeof window !== "undefined" ? window.prompt("Folder del centro", wc.folder ?? "") : null;
+    const next = await prompt({ title: "Folder del centro", label: "Folder del centro", defaultValue: wc.folder ?? "" });
     if (next === null) return;
     const folder = next.trim() || null;
     const saved = await saveWorkCenter({ ...wc, folder });

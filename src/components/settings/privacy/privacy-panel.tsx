@@ -20,6 +20,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 
 import {
   exportProviderConfig,
@@ -37,6 +38,7 @@ const GHOST_KEY = "starseed.privacy.ghost"; // ghost mode
  * guarda, dónde, y puede exportar/borrar todo en un clic.
  */
 export function PrivacyPanel() {
+  const confirm = useConfirm();
   const [telemetry, setTelemetry] = useState(false);
   const [ghost, setGhost] = useState(false);
   const [hasPp, setHasPp] = useState(false);
@@ -127,8 +129,12 @@ export function PrivacyPanel() {
     reader.readAsText(file);
   }
 
-  function handleWipeAi() {
-    if (!confirm("¿Borrar TODA la configuración de IA y las claves cifradas? Esta acción no se puede deshacer.")) return;
+  async function handleWipeAi() {
+    if (!(await confirm({
+      title: "Borrar configuración de IA",
+      description: "¿Borrar TODA la configuración de IA y las claves cifradas? Esta acción no se puede deshacer.",
+      destructive: true,
+    }))) return;
     wipeProviderStore();
     wipeAllKeyMaterial();
     setHasPp(false);
@@ -136,8 +142,12 @@ export function PrivacyPanel() {
     toast.success("Material criptográfico de IA borrado");
   }
 
-  function handleWipeAll() {
-    if (!confirm("¿Borrar TODO el almacenamiento local de StarSeed (configuración, IA, preferencias)? No se podrá recuperar.")) return;
+  async function handleWipeAll() {
+    if (!(await confirm({
+      title: "Borrar todo el almacenamiento local",
+      description: "¿Borrar TODO el almacenamiento local de StarSeed (configuración, IA, preferencias)? No se podrá recuperar.",
+      destructive: true,
+    }))) return;
     if (typeof window === "undefined") return;
     const toDelete: string[] = [];
     for (let i = 0; i < window.localStorage.length; i++) {

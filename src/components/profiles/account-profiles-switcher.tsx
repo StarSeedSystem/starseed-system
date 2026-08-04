@@ -67,6 +67,7 @@ import {
 import { AttachFilePickerButton } from "@/components/files/universal-file-picker";
 import { uploadFile } from "@/lib/files/os-files";
 import { ImageCropperDialog } from "@/components/ui/image-cropper-dialog";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { toast } from "sonner";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useAccount } from "@/context/account-context";
@@ -113,6 +114,7 @@ function editorFromProfile(p: AccountProfile): EditorState {
 }
 
 export function AccountProfilesSwitcher({ compact = false }: { compact?: boolean }) {
+    const confirm = useConfirm();
     const { profile: mainProfile } = useAccount();
     const { profile, profiles, loading, setActive } = useActiveProfile();
     const [editor, setEditor] = useState<EditorState | null>(null);
@@ -224,7 +226,7 @@ export function AccountProfilesSwitcher({ compact = false }: { compact?: boolean
     }, [editor, setActive, profiles.length, router, mainProfile]);
 
     const removeProfile = useCallback(async (id: string) => {
-        if (typeof window !== "undefined" && !window.confirm("¿Eliminar este perfil? No se puede deshacer.")) return;
+        if (!(await confirm({ title: "Eliminar perfil", description: "¿Eliminar este perfil? No se puede deshacer.", destructive: true }))) return;
         const ok = await deleteProfile(id);
         if (ok && profile?.id === id) {
             const next = profiles.find((p) => p.id !== id);

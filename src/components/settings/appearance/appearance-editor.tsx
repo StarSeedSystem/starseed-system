@@ -17,6 +17,7 @@ import { Palette, Paintbrush, Monitor, Sparkles, ExternalLink, Type, Accessibili
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAppearance } from "@/context/appearance-context";
 import { SettingExampleModal } from "@/components/settings/setting-example-modal";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 
 /* ─── Vista previa en vivo: componentes que reflejan el config actual ─── */
 function LivePreview() {
@@ -73,6 +74,7 @@ function LivePreview() {
 /* ─── Barra superior: autoguardado, deshacer y restablecer ─── */
 function AppearanceToolbar() {
     const { undo, canUndo, resetConfig } = useAppearance();
+    const confirm = useConfirm();
 
     return (
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border/50 bg-card/30 backdrop-blur-md px-3 py-2">
@@ -110,8 +112,12 @@ function AppearanceToolbar() {
                 </button>
                 <button
                     type="button"
-                    onClick={() => {
-                        if (typeof window !== "undefined" && !window.confirm("¿Restablecer toda la apariencia a los valores por defecto?")) return;
+                    onClick={async () => {
+                        if (!(await confirm({
+                            title: "Restablecer apariencia",
+                            description: "¿Restablecer toda la apariencia a los valores por defecto?",
+                            destructive: true,
+                        }))) return;
                         resetConfig();
                     }}
                     className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium border border-destructive/40 bg-destructive/5 text-destructive/90 hover:bg-destructive/10 transition-colors cursor-pointer"

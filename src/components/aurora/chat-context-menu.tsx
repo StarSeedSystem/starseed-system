@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { useContextTrigger } from "@/components/library/finder/use-context-trigger";
 import { useChatFolders } from "@/lib/aurora/chat-folders-store";
 import { pinFolderTop, renameFolder as renameFolderStore, deleteFolder as deleteFolderStore } from "@/lib/aurora/chat-folders-store";
@@ -114,6 +115,7 @@ export function useChatContextMenu(opts?: { surface?: AiSurface; onOpenChat?: (i
   const surface = opts?.surface ?? "agent";
   const { menu, bind, close } = useContextTrigger<ChatMenuTarget>();
   const { folders } = useChatFolders();
+  const confirm = useConfirm();
 
   const [pickerFor, setPickerFor] = useState<WorkspaceAttach | null>(null);
   const [pickerLabel, setPickerLabel] = useState<string>("");
@@ -221,8 +223,10 @@ export function useChatContextMenu(opts?: { surface?: AiSurface; onOpenChat?: (i
             label="Eliminar"
             danger
             onClick={() =>
-              run(() => {
-                if (typeof window === "undefined" || window.confirm(`¿Eliminar «${t.name}»?`)) void deleteConversation(t.id);
+              run(async () => {
+                if (await confirm({ title: "Eliminar chat", description: `¿Eliminar «${t.name}»?`, destructive: true })) {
+                  void deleteConversation(t.id);
+                }
               })
             }
           />
@@ -284,9 +288,13 @@ export function useChatContextMenu(opts?: { surface?: AiSurface; onOpenChat?: (i
           label="Eliminar folder"
           danger
           onClick={() =>
-            run(() => {
+            run(async () => {
               if (!t.folderId) return;
-              if (typeof window === "undefined" || window.confirm(`¿Borrar el folder «${t.name}»? Sus chats no se borran; quedan sin folder.`)) {
+              if (await confirm({
+                title: "Borrar folder",
+                description: `¿Borrar el folder «${t.name}»? Sus chats no se borran; quedan sin folder.`,
+                destructive: true,
+              })) {
                 void deleteFolderStore(t.folderId);
               }
             })

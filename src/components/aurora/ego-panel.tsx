@@ -23,6 +23,7 @@ import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import {
   EGO_SOURCES,
   EGO_CONTEXT_KINDS,
@@ -520,6 +521,7 @@ function EgoConnectionsEditor({ ego, onChanged }: { ego: AuroraEgo; onChanged: (
 /* ================================================================== */
 
 function EgoFilesEditor({ egoId }: { egoId: string }) {
+  const confirm = useConfirm();
   const filter = useMemo(() => `ego_id=eq.${egoId}`, [egoId]);
 
   const { rows, loading, reload } = useRealtimeRows<EgoFile>(
@@ -606,7 +608,11 @@ function EgoFilesEditor({ egoId }: { egoId: string }) {
   };
 
   const onDelete = async (f: EgoFile) => {
-    if (!confirm(`¿Eliminar ${f.name}? Esta acción no se puede deshacer.`)) return;
+    if (!(await confirm({
+      title: "Eliminar fichero",
+      description: `¿Eliminar ${f.name}? Esta acción no se puede deshacer.`,
+      destructive: true,
+    }))) return;
     const ok = await deleteEgoFile(f.id);
     if (ok) {
       if (activeId === f.id) setActiveId(null);
