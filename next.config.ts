@@ -45,7 +45,21 @@ const nextConfig: NextConfig = {
       { key: 'Pragma', value: 'no-cache' },
       { key: 'Expires', value: '0' },
     ];
+    // Cabeceras de seguridad de BAJO RIESGO en TODAS las rutas (Adenda 139).
+    // Deliberadamente NO incluye CSP ni Permissions-Policy: ambas requieren afinado
+    // contra las features sensoriales (cámara/micro/geo de "sentidos") e iframe del OS
+    // y romperían funciones si se ponen restrictivas sin pruebas en runtime — quedan
+    // para una ola dedicada (CSP en report-only + recolección de violaciones primero).
+    // X-Frame-Options SAMEORIGIN: anti-clickjacking; permite el auto-encuadre same-origin
+    // que sí usa el OS y solo bloquea que un tercero enmarque el OS.
+    const security = [
+      { key: 'X-Content-Type-Options', value: 'nosniff' },
+      { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+      { key: 'X-Frame-Options', value: 'SAMEORIGIN' },
+      { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains' },
+    ];
     return [
+      { source: '/:path*', headers: security },
       { source: '/sw-v7.js', headers: [...noCache, { key: 'Service-Worker-Allowed', value: '/' }] },
       { source: '/manifest.webmanifest', headers: noCache },
       { source: '/version.json', headers: noCache },
