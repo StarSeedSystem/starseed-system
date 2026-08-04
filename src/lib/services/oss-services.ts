@@ -342,6 +342,71 @@ export const OSS_SERVICES: OssService[] = [
   },
 
   // ── Imagen ─────────────────────────────────────────────────────────────────
+  // Adenda 138 · GRATIS-PRIMERO: Pollinations es el proveedor de imagen POR
+  // DEFECTO — corre desde el navegador, sin instalar ni claves. Va PRIMERO en la
+  // categoría a propósito (es el que StarSeed garantiza sin configuración).
+  {
+    id: "pollinations",
+    name: "Pollinations (imagen gratis)",
+    category: "image",
+    purpose:
+      "Generación de imagen GRATIS y sin clave, directa desde el navegador. Es el motor por defecto de la generación audiovisual de Astraura: cualquier cuenta genera imágenes sin instalar ni configurar nada.",
+    repoUrl: "https://github.com/pollinations/pollinations",
+    docsUrl: "https://pollinations.ai",
+    defaultEndpoint: "",
+    connectionKind: "browser-local",
+    fields: [],
+    endpoints: [
+      { method: "GET", path: "/prompt/{texto}", purpose: "Imagen directa desde texto (image.pollinations.ai)." },
+    ],
+    selfHostHint:
+      "No hay nada que instalar: funciona desde la web. Puedes auto-hospedar Pollinations si quieres control total, pero no es necesario.",
+    enabledByDefault: true,
+    runsInBrowser: true,
+    tags: ["gratis", "sin-clave", "navegador", "por-defecto"],
+  },
+  {
+    id: "huggingface-inference",
+    name: "Hugging Face (Inference)",
+    category: "image",
+    purpose:
+      "Genera imágenes con modelos de Hugging Face (FLUX, SDXL…) vía su Inference API. Nivel gratuito con límites usando un token propio; buena opción online sin montar servidor.",
+    repoUrl: "https://github.com/huggingface/huggingface_hub",
+    docsUrl: "https://huggingface.co/docs/api-inference",
+    defaultEndpoint: "https://api-inference.huggingface.co",
+    connectionKind: "api-key",
+    fields: [
+      F_API_KEY("Crea un token gratis en huggingface.co → Settings → Access Tokens."),
+    ],
+    endpoints: [
+      { method: "POST", path: "/models/{modelo}", purpose: "Generar imagen (p. ej. black-forest-labs/FLUX.1-schnell)." },
+    ],
+    selfHostHint:
+      "No se instala: API en la nube de Hugging Face con token gratuito (con límites de uso).",
+    enabledByDefault: true,
+    tags: ["online", "flux", "sdxl", "token-gratis"],
+  },
+  {
+    id: "muapi",
+    name: "Open Generative AI (Muapi)",
+    category: "image",
+    purpose:
+      "Pasarela online de pago (Muapi.ai) con 420+ modelos de imagen/vídeo/audio/lipsync (FLUX, Kling, Veo, Sora…), la que usa el proyecto open-generative-ai. Opción avanzada de MÁXIMA calidad con tu propia clave; NO es el motor por defecto (ese es gratis).",
+    repoUrl: "https://github.com/anil-matcha/open-generative-ai",
+    docsUrl: "https://muapi.ai/docs",
+    defaultEndpoint: "https://api.muapi.ai",
+    connectionKind: "api-key",
+    fields: [
+      F_API_KEY("Tu clave de Muapi.ai (de pago, pay-as-you-go)."),
+    ],
+    endpoints: [
+      { method: "POST", path: "/api/v1/{modelo}", purpose: "Encolar una generación (submit → poll)." },
+    ],
+    selfHostHint:
+      "No se auto-hospeda el motor: es un servicio de pago. Puedes auto-hospedar el frontend open-generative-ai, pero la generación siempre pasa por Muapi.ai con tu clave.",
+    enabledByDefault: false,
+    tags: ["online", "de-pago", "catalogo", "trae-tu-clave"],
+  },
   {
     id: "fooocus-api",
     name: "Fooocus-API",

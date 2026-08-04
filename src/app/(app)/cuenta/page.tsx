@@ -48,6 +48,7 @@ import { RealtimeSyncPanel } from "@/components/settings/account/realtime-sync-p
 import { ProfilesSyncPanel } from "@/components/profiles/profiles-sync-panel";
 import { EntityRolesPanel } from "@/components/settings/account/entity-roles-panel";
 import { AppNotificationsPanel } from "@/components/settings/notifications/app-notifications-panel";
+import { NtfyPanel } from "@/components/notifications/ntfy-panel";
 // Sentidos de Aurora (Adenda 63 · P-3): los paneles ya existían pero NO estaban
 // montados en ninguna página. Viven aquí, dentro de «Aurora e inteligencia»
 // (§7), cada uno con su propia ancla (#aurora-voz / #aurora-sentidos) para que
@@ -905,6 +906,8 @@ function CuentaContent() {
         </div>
         {/* Control por-app de notificaciones y popups (Adenda 69 · J-1). */}
         <AppNotificationsPanel />
+        {/* Adenda 138 · Notificaciones push por dispositivo con ntfy (móvil/navegador). */}
+        <NtfyPanel />
       </section>
 
       {/* ═══════════════════════ 7) AURORA E INTELIGENCIA ═══════════════════════ */}

@@ -1317,6 +1317,98 @@ const IA_TOOLS_PACKAGES: LibraryPackage[] = [
     author: "Gitroom", sourceRepoId: "starseed-ia-tools", free: true, featured: true,
     payload: { skillId: "social-publish", externalUrl: "https://github.com/gitroomhq/postiz-app", note: "CONECTOR REAL: API pública (Authorization en crudo). Publicar SIEMPRE requiere confirmación explícita del usuario." },
   },
+
+  /* ═══════════════ ADENDA 138 (ago-2026) — Red por neurona · Recomendador de
+   * modelos · Notificaciones · Generación audiovisual · Voz Chatterbox ═══════════
+   * Cinco olas de integración. Cada paquete declara su efecto real (transparencia)
+   * y su capacidad viva en skills.ts vía packageIds. Ver:
+   *   architecture/red-por-neurona-openwisp.md
+   *   architecture/recomendador-modelos-llmfit.md
+   *   architecture/notificaciones-ntfy.md
+   *   architecture/generacion-audiovisual-astraura.md
+   *   claude/investigacion-chatterbox-tts-2026-08-04.md (plan próxima ola) */
+
+  /* ── Generación audiovisual GRATIS-PRIMERO (Pollinations, por defecto) ── */
+  {
+    id: "iatool-media-gen", kind: "function", name: "Generación audiovisual (Astraura)",
+    description:
+      "Habilidad de generación de contenido AUDIOVISUAL ENCENDIDA POR DEFECTO para toda cuenta desde la web, sin instalar nada: imágenes gratis con Pollinations y, con un servicio conectado, audio y vídeo. Instalar (o dejar activa) permite a Aurora generar imágenes y guardarlas en tu Biblioteca desde cualquier chat. El servicio se elige por personalidad, neurona o cuenta en Habilidades → Generación audiovisual (Pollinations gratis · Stable Diffusion/Fooocus/ComfyUI local · o un servicio online con tu clave).",
+    icon: "Wand2", tags: ["skill", "aurora", "imagen", "video", "audio", "gratis", "pollinations", "av-gen"], version: "1.0.0",
+    author: "StarSeed · Astraura", sourceRepoId: "starseed-ia-tools", free: true, featured: true,
+    payload: { skillId: "aurora-av-gen", note: "Motor gratis-primero (Pollinations por defecto + failover + endpoints del usuario). Ver media-gen.ts." },
+  },
+  {
+    id: "iatool-pollinations", kind: "ai-source", name: "Pollinations (imagen gratis)",
+    description:
+      "Motor de imagen GRATIS y sin clave que funciona directo desde el navegador (image.pollinations.ai). Es el proveedor por defecto de la generación audiovisual de Astraura: cualquier cuenta genera imágenes sin instalar ni configurar nada. Instalar guarda el enlace de referencia.",
+    icon: "Sparkles", tags: ["imagen", "gratis", "sin-clave", "navegador", "av-gen"], version: "1.0.0",
+    author: "Pollinations.ai", sourceRepoId: "starseed-ia-tools", free: true, featured: true,
+    payload: { externalUrl: "https://pollinations.ai", note: "GET image.pollinations.ai/prompt/{texto} — imagen directa, sin clave, CORS abierto." },
+  },
+  {
+    id: "iatool-open-generative-ai", kind: "repo", name: "Open Generative AI (referencia)",
+    description:
+      "Interfaz open source (MIT) que cataloga 420+ modelos de imagen/vídeo/audio/lipsync sobre la pasarela de pago Muapi.ai. En StarSeed es una OPCIÓN online avanzada (trae-tu-clave), NO el motor por defecto: la generación por defecto es gratis-primero (Pollinations). Instalar guarda el enlace de referencia; conéctala en Habilidades → Generación audiovisual con tu clave de Muapi si quieres su catálogo de pago.",
+    icon: "Boxes", tags: ["imagen", "video", "catalogo", "muapi", "trae-tu-clave", "av-gen"], version: "1.0.0",
+    author: "Anil Matcha", sourceRepoId: "starseed-ia-tools", free: false,
+    payload: { externalUrl: "https://github.com/anil-matcha/open-generative-ai", note: "Frontend sobre Muapi.ai (de pago). Opción online bring-your-own-key, no el motor por defecto." },
+  },
+
+  /* ── Recomendador inteligente de modelos por neurona (llmfit) ── */
+  {
+    id: "iatool-llmfit", kind: "function", name: "Recomendador de modelos (llmfit)",
+    description:
+      "Recomendación inteligente de modelos IA por neurona: compara el hardware REAL de cada dispositivo (RAM/GPU/VRAM/WebGPU) con las mejores opciones disponibles y sugiere el modelo que mejor encaja, con requisitos, cuantización, velocidad estimada (tok/s) y diferencias frente a lo que ya usas. Las fórmulas de ajuste están portadas de llmfit (MIT). Las recomendaciones aparecen en la ventana de actualizaciones de Astraura/OmniVoice, en Ajustes IA, en notificaciones por dispositivo y en la Biblioteca. Actualiza sus catálogos automáticamente entre proveedores.",
+    icon: "Gauge", tags: ["skill", "aurora", "modelos", "hardware", "recomendador", "benchmarks", "llmfit"], version: "1.0.0",
+    author: "AlexsJones · port StarSeed", sourceRepoId: "starseed-ia-tools", free: true, featured: true,
+    payload: { externalUrl: "https://github.com/AlexsJones/llmfit", note: "Fórmulas de fit hardware↔modelo portadas a TS (model-fit.ts). Recomendador en model-scout.ts." },
+  },
+
+  /* ── Notificaciones de dispositivos (ntfy) ── */
+  {
+    id: "iatool-ntfy", kind: "function", name: "Notificaciones de dispositivos (ntfy)",
+    description:
+      "Canal de notificaciones push por dispositivo con ntfy (Apache-2.0/GPLv2): recibe avisos de tus neuronas en el móvil (app ntfy) o el navegador, con tópicos por cuenta y por dispositivo derivados con hash (no adivinables). Se integra con el sistema de notificaciones del OS. Configúralo en Ajustes → Notificaciones (servidor ntfy.sh o el tuyo propio). Honesto: ntfy.sh público cachea mensajes → para lo sensible, auto-hospeda ntfy.",
+    icon: "RadioTower", tags: ["skill", "aurora", "notificaciones", "push", "ntfy", "dispositivos", "oss"], version: "1.0.0",
+    author: "binwiederhier", sourceRepoId: "starseed-ia-tools", free: true,
+    payload: { externalUrl: "https://github.com/binwiederhier/ntfy", note: "Pub-sub HTTP con CORS abierto: publicar/suscribir desde el navegador (SSE). Cliente en src/lib/notifications/ntfy.ts." },
+  },
+
+  /* ── Red por neurona: router/AP/mesh/gateway (OpenWISP + NetJSON) ── */
+  {
+    id: "iatool-openwisp", kind: "repo", name: "OpenWISP (red por neurona)",
+    description:
+      "Suite open source para gestionar redes de routers OpenWrt: aprovisionamiento, configuración, monitoreo (RSSI, tráfico, clientes) y topología de red mesh. StarSeed genera la configuración NetJSON de cada neurona (router/AP/nodo-mesh/gateway) y la envía a tu controlador OpenWISP por su API REST (proxy con guarda SSRF). Configúralo en Señales → Router. Honesto: el backend OpenWISP es Django; StarSeed consume su API y genera el NetJSON.",
+    icon: "Radio", tags: ["red", "mesh", "router", "openwrt", "openwisp", "netjson", "net-neuron"], version: "1.0.0",
+    author: "OpenWISP", sourceRepoId: "starseed-ia-tools", free: true, featured: true,
+    payload: { skillId: "aurora-net-neuron", externalUrl: "https://github.com/openwisp", note: "API REST del controlador + NetJSON. Ver red-por-neurona-openwisp.md." },
+  },
+  {
+    id: "iatool-netjsonconfig", kind: "function", name: "NetJSON / netjsonconfig",
+    description:
+      "Formato abierto NetJSON para describir la configuración de un dispositivo de red (radios, WiFi AP/estación/mesh 802.11s, puentes, DHCP) y la topología (NetworkGraph). StarSeed genera NetJSON en TypeScript para cada neurona con rol de red y lo aplica vía OpenWISP/OpenWrt. Instalar registra la capacidad «Red por neurona» y guarda el enlace de referencia.",
+    icon: "Antenna", tags: ["red", "netjson", "config", "openwrt", "mesh", "net-neuron"], version: "1.0.0",
+    author: "OpenWISP", sourceRepoId: "starseed-ia-tools", free: true,
+    payload: { skillId: "aurora-net-neuron", externalUrl: "https://github.com/openwisp/netjsonconfig", note: "Generamos el FORMATO NetJSON (abierto) en TS; el render UCI lo hace netjsonconfig/OpenWISP." },
+  },
+  {
+    id: "iatool-ods", kind: "repo", name: "ODS · servidor IA self-host (referencia)",
+    description:
+      "Osmantic Deployment System (Apache-2.0): instalador de un stack completo de IA autoalojada (llama-server, Whisper, Kokoro, Qdrant, ComfyUI…) en tu propia máquina. NO tiene relación con redes mesh, así que no se integra su código; se registra como REFERENCIA de servidor IA que una neurona puede instalar por su cuenta y al que Astraura apunte por endpoint.",
+    icon: "Server", tags: ["servidor", "ia", "self-host", "referencia", "ods"], version: "1.0.0",
+    author: "Osmantic", sourceRepoId: "starseed-ia-tools", free: true,
+    payload: { externalUrl: "https://github.com/Osmantic/ODS", note: "Instalador de IA self-host. Referencia de backend para una neurona, no código a integrar." },
+  },
+
+  /* ── Voz Chatterbox (plan próxima ola; motor por endpoint dentro de OmniVoice) ── */
+  {
+    id: "iatool-chatterbox", kind: "function", name: "Voz Chatterbox (Resemble AI)",
+    description:
+      "Motor de voz open source (MIT) de Resemble AI: clonación zero-shot desde 5-20 s, control de emoción, 23-25 idiomas (español incluido). En evaluaciones del fabricante supera a ElevenLabs. Es un motor OPCIONAL por endpoint dentro de OmniVoice (servidor propio con GPU, o servidor comunitario compatible OpenAI /v1/audio/speech). Pégale su URL en Ajustes → Voz. Requiere GPU (~6 GB VRAM) para fluidez; sin GPU, usa un host de pago o Kokoro. Integración plena prevista para la próxima ola.",
+    icon: "Volume2", tags: ["skill", "aurora", "voz", "tts", "clonacion", "chatterbox", "omnivoice", "oss"], version: "1.0.0",
+    author: "Resemble AI", sourceRepoId: "starseed-ia-tools", free: true,
+    payload: { skillId: "aurora-voice-neural", externalUrl: "https://github.com/resemble-ai/chatterbox", note: "Motor por endpoint dentro de OmniVoice. Integración plena (registro en engine-registry.ts) prevista para la próxima ola — ver plan." },
+  },
 ];
 
 /** Repo builtin de Herramientas IA & Agentes (caja de herramientas de Aurora). */

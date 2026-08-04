@@ -16,13 +16,15 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   RadioTower, Wifi, Signal, Bluetooth, MapPin, Nfc, Usb, Phone,
-  ExternalLink, Antenna, Smartphone, Download, type LucideIcon,
+  ExternalLink, Antenna, Smartphone, Download, Router, type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { usePrompt } from "@/components/ui/confirm-dialog";
 import { SignalsRadar } from "./signals-radar";
 import { RedMeshCenter } from "./red-mesh-center";
+// Adenda 138 · Router / red por neurona (OpenWISP/NetJSON) como pestaña de Señales.
+import { RouterCenter } from "@/components/network/router-center";
 import { ConnectivityConfigPanel } from "@/components/connectivity/connectivity-config-panel";
 import {
   useMeshState, detectSignals, connectMesh, connectWifiNode, getConnectivitySettings,
@@ -72,7 +74,7 @@ export function SignalsCenter({ embedded = false, compact = false }: SignalsCent
 
   // Señales unifica TODO en pestañas (Adenda 101): «Antenas y señales» + «Red
   // Mesh» (la página Red Mesh integrada como pestaña, sin duplicar ajustes).
-  const [tab, setTab] = useState<"antenas" | "redmesh">("antenas");
+  const [tab, setTab] = useState<"antenas" | "redmesh" | "router">("antenas");
 
   // Arranca la malla en cualquier superficie donde aparezca Señales (página,
   // barra superior, Centro de Control) — antes lo hacía la pestaña «Internet».
@@ -198,6 +200,7 @@ export function SignalsCenter({ embedded = false, compact = false }: SignalsCent
         {([
           ["antenas", "Antenas y señales", Antenna],
           ["redmesh", "Red Mesh", RadioTower],
+          ["router", "Router", Router],
         ] as const).map(([k, label, Ic]) => (
           <button
             key={k}
@@ -350,6 +353,8 @@ export function SignalsCenter({ embedded = false, compact = false }: SignalsCent
           de radio, antenas/bandas, peers). La privacidad y el servidor viven en el
           panel maestro de la pestaña «Antenas» → sin ajustes duplicados. */}
       {tab === "redmesh" && <RedMeshCenter embedded showMap={!compact} showPrivacy={false} hideHeader />}
+
+      {tab === "router" && <RouterCenter />}
     </div>
   );
 }

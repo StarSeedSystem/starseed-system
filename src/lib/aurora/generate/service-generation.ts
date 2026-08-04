@@ -31,6 +31,11 @@ import { saveResource } from "@/lib/library-store";
 import { resolveServiceFor, type OssScope } from "@/lib/services/oss-connections";
 import { triggerWebhook } from "@/lib/integrations/services/n8n";
 import type { ContentOutcome } from "@/lib/aurora/generate/content-actions";
+// Adenda 138 · GRATIS-PRIMERO audiovisual: el motor de generación de imagen que
+// SÍ funciona desde la web sin instalar nada (Pollinations por defecto, con
+// failover). Ver src/ai/astraura/media/media-gen.ts + SOP
+// architecture/generacion-audiovisual-astraura.md.
+import { generateImage as generateImageFree } from "@/ai/astraura/media/media-gen";
 
 // Re-exportamos el tipo para conveniencia de quien importe sólo este módulo.
 export type { ContentOutcome };
@@ -288,19 +293,37 @@ export async function generarImagen(
   const endpoint = trimTrailingSlash(resolved?.endpoint ?? "");
   const serviceId = resolved?.service?.id ?? "";
   const serviceName = resolved?.service?.name ?? "el servicio de imagen";
-
-  // Sin endpoint configurado ⇒ degradación honesta (no inventamos imagen).
-  if (!endpoint) {
-    return {
-      ok: false,
-      message:
-        "Aún no hay un servicio de imagen conectado. Configura Fooocus-API o Stable Diffusion (AUTOMATIC1111) en /servicios y podré generar imágenes.",
-      data: { needsConfig: true, category: "image" },
-    };
-  }
+  // `fromUserConnection` distingue una conexión REAL del usuario (su servidor
+  // local/propio) del `defaultEndpoint` de catálogo (p. ej. localhost:8888 de
+  // Fooocus, que casi nunca existe). Solo intentamos el endpoint si es una
+  // conexión real; si no, vamos directos a GRATIS-PRIMERO (Adenda 138).
+  const hasUserConn = !!resolved?.fromUserConnection;
 
   const timeoutMs = 120000; // la generación de imagen puede tardar
   const title = `Imagen: ${p.slice(0, 60)}`;
+
+  // Sin servicio propio conectado ⇒ GRATIS-PRIMERO: generamos con el motor
+  // audiovisual gratis-primero (Pollinations por defecto), que funciona desde
+  // la web SIN instalar nada, para cualquier cuenta. Ver media-gen.ts.
+  if (!hasUserConn || !endpoint) {
+    const free = await generateImageFree({ prompt: p });
+    if (free.ok && free.url) {
+      const saved = saveToLibrary({ kind: "image", title, url: free.url, origin: `Astraura · ${free.provider}` });
+      return {
+        ok: true,
+        message: saved.ok
+          ? `Generé la imagen con el motor gratis de la red (${free.provider}) y la guardé en tu Biblioteca. Dime «abre la biblioteca» para verla. Para más calidad puedes conectar Stable Diffusion o Fooocus en /servicios, o elegir otro servicio en Habilidades → Generación audiovisual.`
+          : `Generé la imagen (${free.provider}), pero no pude guardarla en la Biblioteca de este equipo.`,
+        data: { id: saved.id || undefined, serviceId: free.provider, kind: "image", url: free.url },
+      };
+    }
+    return {
+      ok: false,
+      message:
+        "No pude generar la imagen ahora mismo. Puedes conectar Fooocus-API o Stable Diffusion (AUTOMATIC1111) en /servicios, o elegir otro servicio en Habilidades → Generación audiovisual.",
+      data: { needsConfig: true, category: "image", error: free.error },
+    };
+  }
 
   // ── AUTOMATIC1111 (Stable Diffusion WebUI) ────────────────────────────────
   if (serviceId === "automatic1111") {

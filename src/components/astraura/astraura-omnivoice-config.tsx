@@ -78,6 +78,11 @@ const NeuronModelsPanel = dynamic(() => import("@/components/neurons/neuron-mode
   ssr: false,
   loading: () => <SectionLoading />,
 });
+// Adenda 138 · Recomendación inteligente de modelos por neurona (llmfit port).
+const ModelScoutPanel = dynamic(
+  () => import("@/components/astraura/model-scout-panel").then((m) => ({ default: m.ModelScoutPanel })),
+  { ssr: false, loading: () => <SectionLoading /> },
+);
 const IntegrationSourcesPanel = dynamic(() => import("@/components/integrations/integration-sources-panel"), {
   ssr: false,
   loading: () => <SectionLoading />,
@@ -506,6 +511,13 @@ export function AstrauraOmniVoiceConfig({
               Prioridad con que Astraura intenta cada tipo de motor. En «Automático» puede reordenar según el dispositivo y el entorno; en «Fijo» respeta tu orden exacto.
               {scope === "cuenta" ? " Se aplica a toda neurona sin ajuste propio." : " Solo para esta neurona."}
             </p>
+
+            {/* Adenda 138 · Recomendación inteligente de modelos según el hardware
+                real de esta neurona (compara con lo que usas, con requisitos y
+                velocidad estimada). Aparece también en la ventana de arranque. */}
+            <div className="mt-3 border-t border-white/10 pt-3">
+              <ModelScoutPanel kind="llm" />
+            </div>
 
             {/* Estado del ámbito Neurona: hereda de la cuenta, o tiene ajuste propio */}
             {scope === "neurona" && (

@@ -3462,3 +3462,27 @@ persistidas, con la app como origen) y **ventanas emergentes** (toasts + popups 
 - Aplicar la migración `20260727120000_mesh_topology_federation.sql` en Supabase (la federación degrada silenciosa sin ella).
 - Probar con radio LoRa físico (todo verificado con simulador + tests + build).
 - Arrastrado: migración realtime `20260711120000`; rotar service_role + DashScope.
+
+---
+
+## 2026-08-04 — Adenda 138 · Red por neurona (OpenWISP/NetJSON) · Recomendador de modelos (llmfit) · Notificaciones ntfy · Generación audiovisual gratis-primero · Plan Chatterbox
+**Sesión por:** Claude (Cowork) + subagentes Sonnet
+**Resumen ejecutivo:** Integración de repos externos como funciones reales del OS, con `npx tsc --noEmit` **exit 0** y `npm run build` **exit 0**.
+
+### Hecho
+- **Generación audiovisual GRATIS-PRIMERO (Pollinations por defecto):** nuevo `src/ai/astraura/media/media-gen.ts` (proveedores pollinations/hf/automatic1111/fooocus/comfyui/muapi/custom, prefs por cuenta y por neurona) + panel `src/components/media/media-gen-panel.tsx`. `generarImagen` (service-generation.ts) ahora **cae a Pollinations** cuando no hay servicio propio conectado → funciona para cualquier cuenta desde la web sin instalar nada. Capacidad `av-gen` **ENCENDIDA por defecto** en `skills.ts` (nuevo campo `defaultOn` + `DEFAULT_ON_DISABLED_KEY`). Montado en /habilidades. Nota: `open-generative-ai` resultó ser frontend de la pasarela de PAGO Muapi → registrado como opción online trae-tu-clave, NO como motor por defecto.
+- **Recomendador de modelos (fórmulas de llmfit MIT portadas a TS):** `src/ai/astraura/model-fit.ts` (QUANT_BPP, KV-cache, scoreFit ×1.2, roofline tok/s, ancho de banda GPU) + `src/ai/astraura/model-scout.ts` (compara hardware real vs mejores opciones, deltas vs lo usado) + panel `model-scout-panel.tsx`. Montado en Ajustes IA · pestaña «modelos» (aparece también en la ventana de arranque/actualizaciones).
+- **Notificaciones ntfy:** `src/lib/notifications/ntfy.ts` (publish/subscribe SSE, tópicos por cuenta y por neurona con hash, espejo a notifyFromApp) + `ntfy-panel.tsx`, montado en /cuenta → Notificaciones.
+- **Red por neurona (OpenWISP/NetJSON):** `src/lib/network/netjson.ts` (generadores AP/mesh 802.11s/station/bridge/DHCP + NetworkGraph) + `src/lib/network/neuron-network.ts` (rol de red por neurona, cliente OpenWISP, antenas/señales) + ruta `src/app/api/network/openwisp/route.ts` (patrón SSRF de Adenda 131) + `router-center.tsx` como pestaña **Router** de /senales (SignalsCenter).
+- **Biblioteca:** paquetes nuevos para media-gen/Pollinations/open-generative-ai, llmfit, ntfy, OpenWISP/NetJSON, ODS (referencia) y Chatterbox (voz, próxima ola). Servicios nuevos en `/servicios`: Pollinations (por defecto), Hugging Face, Muapi.
+- **SOPs:** architecture/generacion-audiovisual-astraura.md, recomendador-modelos-llmfit.md, notificaciones-ntfy.md, red-por-neurona-openwisp.md. Investigación Chatterbox + ntfy guardadas en el Proyecto (claude/).
+
+### Decisiones tomadas
+- **Osmantic/ODS** es un instalador de IA self-host SIN relación con mesh/redes → NO se integra su código; solo referencia opcional de servidor IA.
+- **Chatterbox** (Resemble AI, MIT): análisis y plan de integración para OmniVoice; se implementa en la próxima ola (registro en engine-registry.ts) para evitar cambios de unión de tipos arriesgados esta ola.
+
+### Pendiente / Próximos pasos
+- Chatterbox: registrar el motor en `engine-registry.ts`/`voice-config.ts` + rama adaptador en `neural-tts.ts` (endpoint OpenAI /v1/audio/speech).
+- ntfy: montar `startNtfyBridge()` global (p. ej. en app-notify-bridge.tsx) para el espejo push siempre-activo.
+- Recomendador: actualizador multi-proveedor de catálogos (patrón openrouter-live-catalog.ts) y emitir notificación por dispositivo cuando `hasBetter`.
+- Registrar /senales→Router y la generación audiovisual en el dock/launcher si se quiere acceso directo (hoy discoverable vía Señales y Habilidades).

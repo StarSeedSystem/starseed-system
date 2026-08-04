@@ -38,10 +38,48 @@ export interface SkillCapability {
   skillIds?: string[];
   /** Paquetes (INSTALLED_KEY) que disparan esta capacidad. */
   packageIds?: string[];
+  /**
+   * Adenda 138 · Capacidad ENCENDIDA POR DEFECTO para todas las cuentas, sin
+   * instalar nada (p. ej. la generación audiovisual gratis-primero). Está activa
+   * salvo que el usuario la desactive explícitamente (ver DEFAULT_ON_DISABLED_KEY),
+   * y sigue siendo filtrable por chat/personalidad con `only` en skillsSystemPrompt.
+   */
+  defaultOn?: boolean;
 }
 
 /** Manifiesto: skills de la Biblioteca → capacidad viva de Aurora. */
 export const SKILL_CAPABILITIES: SkillCapability[] = [
+  /* ═══ ADENDA 138 · Generación de contenido AUDIOVISUAL (ENCENDIDA por defecto) ═══
+   * Habilidad audiovisual gratis-primero para TODAS las cuentas desde la web sin
+   * instalar nada (Pollinations por defecto, con failover). El usuario puede
+   * elegir otro servicio (local u online) por neurona o por cuenta en
+   * Habilidades → Generación audiovisual (media-gen.ts). Aurora genera con su
+   * tool `generar_imagen` (repunteada a media-gen en service-generation.ts).
+   * Ver SOP architecture/generacion-audiovisual-astraura.md. */
+  {
+    id: "av-gen",
+    label: "Generación audiovisual (imagen · audio · vídeo)",
+    defaultOn: true,
+    systemPrompt:
+      "Puedes GENERAR contenido audiovisual (imágenes y, con un servicio conectado, audio y vídeo) para cualquier cuenta desde la web, sin que el usuario instale nada. Por defecto usas el motor GRATIS de la red (Pollinations) y, si el usuario ha conectado un servicio propio (Stable Diffusion/AUTOMATIC1111, Fooocus, ComfyUI) o uno online con su clave, usas ese por más calidad. Cuando el usuario pida «genera/haz/dibuja una imagen de…», hazlo con tu herramienta de generación de imagen y guárdala en su Biblioteca; nunca finjas una imagen que no generaste. El servicio activo se elige por personalidad, por neurona o por cuenta (Habilidades → Generación audiovisual). Vídeo y audio de alta calidad requieren un servicio conectado: si no lo hay, dilo con honestidad y ofrece la imagen gratis o conectar un servicio. No inventes URLs de medios.",
+    routing: {},
+    skillIds: ["aurora-av-gen"],
+    packageIds: ["iatool-media-gen", "iatool-open-generative-ai", "iatool-pollinations"],
+  },
+  /* ═══ ADENDA 138 · Red por neurona (OpenWISP/NetJSON) ═══
+   * Conocimiento para configurar cada neurona como router/AP/nodo-mesh/gateway y
+   * gestionar señales de telecomunicaciones por antena. Generamos la config
+   * NetJSON; el dispositivo/controlador OpenWISP la aplica (límite web honesto).
+   * Ver SOP architecture/red-por-neurona-openwisp.md. */
+  {
+    id: "net-neuron",
+    label: "Red por neurona · router/AP/mesh (OpenWISP)",
+    systemPrompt:
+      "Sabes que cada neurona (dispositivo) del usuario puede configurarse como parte de la red: ROUTER, PUNTO DE ACCESO (AP), NODO MESH (802.11s) o GATEWAY. StarSeed GENERA la configuración de red en formato NetJSON (compatible con OpenWISP/OpenWrt) y el usuario la aplica en su router o controlador OpenWISP — sé honesto: una web no cambia la banda del router por sí sola, genera la config y la envía a un controlador/daemon. También puedes ayudar a inventariar antenas y señales de telecomunicaciones (torre celular, AP WISP, gateway LoRa, satélite, AP WiFi) por neurona. Guía al usuario a Señales → Router para configurar el rol de red de una neurona, generar su NetJSON y conectarlo a un controlador OpenWISP. No prometas control directo del hardware desde el navegador.",
+    routing: {},
+    skillIds: ["aurora-net-neuron"],
+    packageIds: ["iatool-openwisp", "iatool-netjsonconfig"],
+  },
   {
     id: "taste",
     label: "Taste · calidad de UI y estética",
@@ -547,6 +585,40 @@ function isClient(): boolean {
   return typeof window !== "undefined" && typeof window.localStorage !== "undefined";
 }
 
+/** Adenda 138 · Capacidades `defaultOn` que el usuario ha APAGADO explícitamente. */
+export const DEFAULT_ON_DISABLED_KEY = "starseed.capabilities.disabled.v1";
+
+/** Lee el conjunto de capacidades default-ON desactivadas por el usuario. */
+function readDisabledDefaults(): Set<string> {
+  if (!isClient()) return new Set();
+  try {
+    const raw = window.localStorage.getItem(DEFAULT_ON_DISABLED_KEY);
+    const arr = raw ? (JSON.parse(raw) as unknown) : [];
+    return new Set(Array.isArray(arr) ? arr.filter((x): x is string => typeof x === "string") : []);
+  } catch {
+    return new Set();
+  }
+}
+
+/** ¿La capacidad default-ON `id` está desactivada por el usuario? */
+export function isCapabilityDisabled(id: string): boolean {
+  return readDisabledDefaults().has(id);
+}
+
+/** Activa/desactiva una capacidad default-ON (p. ej. «Generación audiovisual»). */
+export function setCapabilityDisabled(id: string, disabled: boolean): void {
+  if (!isClient()) return;
+  try {
+    const set = readDisabledDefaults();
+    if (disabled) set.add(id);
+    else set.delete(id);
+    window.localStorage.setItem(DEFAULT_ON_DISABLED_KEY, JSON.stringify([...set]));
+    window.dispatchEvent(new CustomEvent("starseed:capabilities"));
+  } catch {
+    /* noop */
+  }
+}
+
 /** Lee el espejo de capacidades traído de la cuenta (o [] para invitado sin datos). */
 function readCapMirror(): string[] {
   if (!isClient()) return [];
@@ -564,11 +636,15 @@ export function activeCapabilityIds(): string[] {
   const fns = new Set(isClient() ? getInstalledFunctionIds() : []);
   const pkgs = new Set(isClient() ? getInstalledPackageIds() : []);
   const mirror = new Set(readCapMirror());
+  const disabled = readDisabledDefaults();
   const out: string[] = [];
   for (const c of SKILL_CAPABILITIES) {
     const bySkill = (c.skillIds ?? []).some((s) => fns.has(s));
     const byPkg = (c.packageIds ?? []).some((p) => pkgs.has(p));
-    if (bySkill || byPkg || mirror.has(c.id)) out.push(c.id);
+    // Adenda 138: las capacidades `defaultOn` están activas para todos salvo
+    // que el usuario las haya apagado; el resto exigen skill/paquete/espejo.
+    const byDefault = !!c.defaultOn && !disabled.has(c.id);
+    if (bySkill || byPkg || mirror.has(c.id) || byDefault) out.push(c.id);
   }
   return out;
 }
