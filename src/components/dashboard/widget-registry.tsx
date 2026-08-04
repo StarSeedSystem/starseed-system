@@ -14,7 +14,6 @@ import { NetworkFeedWidget } from "@/components/dashboard/widgets/network-feed-w
 import { ThemeSelectorWidget } from "@/components/dashboard/widgets/theme-selector-widget";
 import { ExploreNetworkWidget } from "@/components/dashboard/widgets/explore-network-widget";
 import { MyPagesWidget } from "@/components/dashboard/widgets/my-pages-widget";
-import { PoliticalSummaryWidget } from "@/components/dashboard/widgets/political-summary-widget";
 import { SystemStatusWidget } from "@/components/dashboard/widgets/system-status-widget";
 import { RecentActivityWidget } from "@/components/dashboard/widgets/recent-activity-widget";
 import { NexusQuickAccessWidget } from "@/components/dashboard/widgets/nexus-quick-access-widget";
@@ -24,8 +23,6 @@ import { ThemeManagerWidget } from "@/components/dashboard/widgets/theme-manager
 import { MentalCoherenceWidget } from "@/components/dashboard/widgets/mental-coherence-widget";
 import { ActiveProjectsWidget } from "@/components/dashboard/widgets/active-projects-widget";
 import { CollabProjectsWidget } from "@/components/dashboard/widgets/collab-projects-widget";
-import { EconomicOverviewWidget } from "@/components/dashboard/widgets/economic-overview-widget";
-import { CarteraStarseedWidget } from "@/components/dashboard/widgets/cartera-starseed";
 
 import { WeatherBasicWidget } from "@/modules/weather/components/widgets/terrestrial/weather-basic-widget";
 import { WeatherBasicFluidWidget } from "@/modules/weather/components/widgets/terrestrial/weather-basic-fluid";
@@ -75,7 +72,6 @@ import { OfficialDataWidget } from "@/components/dashboard/widgets/data/official
 import { SpaceWeatherWidget } from "@/components/dashboard/widgets/space/space-weather-widget";
 import { ImmersiveWidget } from "@/components/dashboard/widgets/immersive-widget";
 import { LearningPathWidget } from "@/components/dashboard/widgets/learning-path-widget";
-import { SocialRadarWidget } from "@/components/dashboard/widgets/social-radar-widget";
 import { InternetRadarWidget } from "@/components/dashboard/widgets/internet-radar-widget";
 import { LiveDataWidget } from "@/components/dashboard/widgets/live-data-widget";
 import {
@@ -104,7 +100,6 @@ import {
 } from "@/components/dashboard/widgets/gen4";
 
 // Quinta generación — cobertura ampliada del catálogo
-import { FlowDirectorWidget } from "@/components/dashboard/widgets/gen5/flow-director-widget";
 import { ProjectSwarmWidget } from "@/components/dashboard/widgets/gen5/project-swarm-widget";
 import { AbundanceRadarWidget } from "@/components/dashboard/widgets/gen5/abundance-radar-widget";
 import { TransitFlowWidget } from "@/components/dashboard/widgets/gen5/transit-flow-widget";
@@ -125,15 +120,57 @@ const MapWidget = dynamic(
 import {
     AgoraCausalWidget,
     LiquidDelegationWidget,
-    OikosMetabolismWidget,
-    SkillTreeWidget,
     AstrauraCortexWidget,
-    SovereignNodeWidget,
     AkashicCodexWidget,
     NatalChartWidget,
     MeshRadarWidget,
     ImmersionPortalWidget,
 } from "@/components/dashboard/widgets/gen2";
+
+// Adenda 138 (rendimiento): recharts (~105KB gzip) fuera del First Load de
+// /dashboard. Estos 8 widgets importaban recharts de forma ESTÁTICA (directa
+// o vía el barrel de gen2) y solo se pintan cuando el usuario tiene ese
+// widget_type en su grid — mismo patrón que MapWidget/WeatherHolisticWidget
+// arriba: dynamic({ssr:false}) saca recharts del chunk inicial del dashboard
+// y solo lo descarga cuando el widget concreto se monta. Siguen renderizando
+// EXACTAMENTE igual (mismo componente, mismos props — aquí ninguno lleva).
+const dashboardWidgetLoading = () => (
+    <div className="w-full h-full flex items-center justify-center bg-black/20 text-white/40 animate-pulse text-xs">
+        Cargando…
+    </div>
+);
+const PoliticalSummaryWidget = dynamic(
+    () => import("@/components/dashboard/widgets/political-summary-widget").then((mod) => mod.PoliticalSummaryWidget),
+    { ssr: false, loading: dashboardWidgetLoading }
+);
+const EconomicOverviewWidget = dynamic(
+    () => import("@/components/dashboard/widgets/economic-overview-widget").then((mod) => mod.EconomicOverviewWidget),
+    { ssr: false, loading: dashboardWidgetLoading }
+);
+const CarteraStarseedWidget = dynamic(
+    () => import("@/components/dashboard/widgets/cartera-starseed").then((mod) => mod.CarteraStarseedWidget),
+    { ssr: false, loading: dashboardWidgetLoading }
+);
+const SocialRadarWidget = dynamic(
+    () => import("@/components/dashboard/widgets/social-radar-widget").then((mod) => mod.SocialRadarWidget),
+    { ssr: false, loading: dashboardWidgetLoading }
+);
+const FlowDirectorWidget = dynamic(
+    () => import("@/components/dashboard/widgets/gen5/flow-director-widget").then((mod) => mod.FlowDirectorWidget),
+    { ssr: false, loading: dashboardWidgetLoading }
+);
+const OikosMetabolismWidget = dynamic(
+    () => import("@/components/dashboard/widgets/gen2/oikos-metabolism-widget").then((mod) => mod.OikosMetabolismWidget),
+    { ssr: false, loading: dashboardWidgetLoading }
+);
+const SkillTreeWidget = dynamic(
+    () => import("@/components/dashboard/widgets/gen2/skill-tree-widget").then((mod) => mod.SkillTreeWidget),
+    { ssr: false, loading: dashboardWidgetLoading }
+);
+const SovereignNodeWidget = dynamic(
+    () => import("@/components/dashboard/widgets/gen2/sovereign-node-widget").then((mod) => mod.SovereignNodeWidget),
+    { ssr: false, loading: dashboardWidgetLoading }
+);
 
 interface WidgetProps {
     widget: DashboardWidget;

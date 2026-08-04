@@ -17,27 +17,11 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import {
-    ResponsiveContainer,
-    BarChart,
-    Bar,
-    LineChart,
-    Line,
-    AreaChart,
-    Area,
-    PieChart,
-    Pie,
-    Cell,
-    XAxis,
-    YAxis,
-    Tooltip,
-    CartesianGrid,
-} from "recharts";
+import dynamic from "next/dynamic";
 import { cn } from "@/lib/utils";
 import {
     buildSandboxDoc,
     type PostBlock,
-    type ChartDatum,
 } from "@/lib/creation/post-blocks";
 import { astrauraChat } from "@/ai/astraura/router";
 import type { ChatMessage } from "@/ai/providers/types";
@@ -67,7 +51,22 @@ import {
     type LucideIcon,
 } from "lucide-react";
 
-const CHART_COLORS = ["#39FF14", "#007FFF", "#FFBF00", "#DC143C", "#B24BF3", "#10B981", "#F472B6", "#38BDF8"];
+// Adenda 138 (rendimiento): recharts (~105KB gzip) sale del First Load de
+// CUALQUIER ruta que muestre un feed (perfil, página, red/cultura,
+// red/política…) — GraficaBlock (único consumidor de recharts de este
+// render de posts) vive ahora en post-blocks-chart-block.tsx y se carga en
+// diferido; el resto de bloques (código, mapa, agente…) no se ven afectados.
+const GraficaBlock = dynamic(
+    () => import("./post-blocks-chart-block").then((mod) => mod.GraficaBlock),
+    {
+        ssr: false,
+        loading: () => (
+            <div className="rounded-xl border border-border/50 bg-muted/20 p-3">
+                <div className="h-56 w-full animate-pulse rounded-lg bg-white/5" />
+            </div>
+        ),
+    }
+);
 
 /** Detecta reduced-motion + tier eco (SSR-safe). */
 function useReducedFx(): boolean {
@@ -351,70 +350,9 @@ function PizarraBlock({ block }: { block: PostBlock }) {
     );
 }
 
-// ── Gráfica (recharts, responsive) ───────────────────────────────────────────
-
-function GraficaBlock({ block, reduced }: { block: PostBlock; reduced: boolean }) {
-    const data: ChartDatum[] = (block.data || []).filter((d) => Number.isFinite(d.value));
-    if (data.length === 0) return null;
-    const kind = block.chartType || "bar";
-    const animate = !reduced;
-
-    return (
-        <div className="rounded-xl border border-border/50 bg-muted/20 p-3">
-            {block.text && <p className="mb-2 text-xs font-semibold text-foreground/80">{block.text}</p>}
-            <div className="h-56 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                    {kind === "line" ? (
-                        <LineChart data={data} margin={{ top: 8, right: 8, bottom: 8, left: -12 }}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
-                            <XAxis dataKey="label" tick={{ fill: "rgba(255,255,255,0.5)", fontSize: 11 }} />
-                            <YAxis tick={{ fill: "rgba(255,255,255,0.5)", fontSize: 11 }} />
-                            <Tooltip contentStyle={TOOLTIP_STYLE} />
-                            <Line type="monotone" dataKey="value" stroke={CHART_COLORS[1]} strokeWidth={2} dot isAnimationActive={animate} />
-                        </LineChart>
-                    ) : kind === "area" ? (
-                        <AreaChart data={data} margin={{ top: 8, right: 8, bottom: 8, left: -12 }}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
-                            <XAxis dataKey="label" tick={{ fill: "rgba(255,255,255,0.5)", fontSize: 11 }} />
-                            <YAxis tick={{ fill: "rgba(255,255,255,0.5)", fontSize: 11 }} />
-                            <Tooltip contentStyle={TOOLTIP_STYLE} />
-                            <Area type="monotone" dataKey="value" stroke={CHART_COLORS[0]} fill={`${CHART_COLORS[0]}33`} strokeWidth={2} isAnimationActive={animate} />
-                        </AreaChart>
-                    ) : kind === "pie" ? (
-                        <PieChart>
-                            <Tooltip contentStyle={TOOLTIP_STYLE} />
-                            <Pie data={data} dataKey="value" nameKey="label" cx="50%" cy="50%" outerRadius="80%" isAnimationActive={animate}>
-                                {data.map((_, i) => (
-                                    <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
-                                ))}
-                            </Pie>
-                        </PieChart>
-                    ) : (
-                        <BarChart data={data} margin={{ top: 8, right: 8, bottom: 8, left: -12 }}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
-                            <XAxis dataKey="label" tick={{ fill: "rgba(255,255,255,0.5)", fontSize: 11 }} />
-                            <YAxis tick={{ fill: "rgba(255,255,255,0.5)", fontSize: 11 }} />
-                            <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ fill: "rgba(255,255,255,0.04)" }} />
-                            <Bar dataKey="value" radius={[4, 4, 0, 0]} isAnimationActive={animate}>
-                                {data.map((_, i) => (
-                                    <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
-                                ))}
-                            </Bar>
-                        </BarChart>
-                    )}
-                </ResponsiveContainer>
-            </div>
-        </div>
-    );
-}
-
-const TOOLTIP_STYLE = {
-    background: "#0b0b12",
-    border: "1px solid rgba(255,255,255,0.15)",
-    borderRadius: 8,
-    fontSize: 12,
-    color: "#fff",
-};
+// ── Gráfica (recharts, responsive) — ver post-blocks-chart-block.tsx ────────
+// (GraficaBlock se define arriba como componente dynamic({ssr:false});
+// implementación real + CHART_COLORS/TOOLTIP_STYLE viven en ese archivo.)
 
 // ── Mapa (Leaflet bajo demanda + enlace a /hub/mapa) ─────────────────────────
 
