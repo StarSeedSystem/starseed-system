@@ -1507,6 +1507,7 @@ function BrainEditor(props: {
                 })
               }
               placeholder="syncthing, drive, vps, vpn… (separadas por comas)"
+              aria-label="Conexiones (separadas por comas)"
               className="h-8 border-white/15 bg-black/30 text-white placeholder:text-white/30"
             />
           </div>
@@ -1595,11 +1596,13 @@ function BrainEditor(props: {
                   value={p.who}
                   onChange={(e) => updatePerm(i, { who: e.target.value })}
                   placeholder="¿A quién? (usuario, grupo, página)"
+                  aria-label={`¿A quién? (usuario, grupo, página) — permiso ${i + 1}`}
                   className="h-8 flex-1 border-white/15 bg-black/30 text-white placeholder:text-white/30"
                 />
                 <select
                   value={p.level}
                   onChange={(e) => updatePerm(i, { level: e.target.value })}
+                  aria-label={`Nivel de permiso ${i + 1}`}
                   className="h-8 rounded-md border border-white/15 bg-black/30 px-2 text-xs text-white"
                 >
                   {PERM_LEVELS.map((l) => (
@@ -1676,6 +1679,7 @@ function BrainEditor(props: {
                       value={taskByServer[s.id] ?? ""}
                       onChange={(e) => setTaskFor(s.id, e.target.value)}
                       placeholder="Tarea para este cerebro (p.ej. «resume mi contexto»)…"
+                      aria-label={`Tarea para ${s.name || "este servidor"}`}
                       className="min-h-[38px] flex-1 border-white/15 bg-black/30 text-white placeholder:text-white/30"
                     />
                     <Button
@@ -1744,6 +1748,7 @@ function BrainEditor(props: {
             value={newSrvName}
             onChange={(e) => setNewSrvName(e.target.value)}
             placeholder="Nombre del servidor"
+            aria-label="Nombre del servidor"
             className="h-8 border-white/15 bg-black/30 text-white placeholder:text-white/30"
           />
           {(newKindDef?.fields ?? []).map((f) => (
@@ -1752,6 +1757,7 @@ function BrainEditor(props: {
               value={newSrvFields[f.key] ?? ""}
               onChange={(e) => setNewSrvFields({ ...newSrvFields, [f.key]: e.target.value })}
               placeholder={f.label}
+              aria-label={f.label}
               className="h-8 border-white/15 bg-black/30 text-white placeholder:text-white/30"
             />
           ))}
@@ -2218,6 +2224,7 @@ function BrainOssCatalogSection({ brainId, isNew }: { brainId: string; isNew: bo
             value={cur.endpoint ?? ""}
             onChange={(e) => setEndpoint(slot, e.target.value)}
             placeholder="Endpoint / config externa (p.ej. https://mi-servidor:puerto)"
+            aria-label="Endpoint / config externa"
             className="h-8 border-white/15 bg-black/30 text-white placeholder:text-white/30"
           />
         )}

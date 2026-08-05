@@ -110,6 +110,19 @@ export function QuickPublisher({ initialDest }: QuickPublisherProps) {
     const sectionRoute = SECTION_ROUTES[dest];
     const tipos = CREATION_DEST_BY_ID[dest];
 
+    // Placeholder del título por destino — reutilizado como aria-label
+    // (Adenda 142), el campo no tiene <label> visible.
+    const tituloPlaceholder =
+        dest === "politica"
+            ? "Título de la propuesta / debate…"
+            : dest === "educacion"
+              ? "Título del curso / guía / recurso…"
+              : dest === "cultura"
+                ? "Título de la obra / evento…"
+                : dest === "biblioteca"
+                  ? "Título del archivo / wiki…"
+                  : "Título (opcional)…";
+
     return (
         <div className="mx-auto w-full max-w-3xl space-y-4">
             <div className="rounded-3xl border border-white/10 bg-white/[0.04] backdrop-blur-xl p-4 sm:p-5 space-y-4">
@@ -144,23 +157,15 @@ export function QuickPublisher({ initialDest }: QuickPublisherProps) {
                 {/* Contenido */}
                 <div className="space-y-2">
                     <Input
-                        placeholder={
-                            dest === "politica"
-                                ? "Título de la propuesta / debate…"
-                                : dest === "educacion"
-                                  ? "Título del curso / guía / recurso…"
-                                  : dest === "cultura"
-                                    ? "Título de la obra / evento…"
-                                    : dest === "biblioteca"
-                                      ? "Título del archivo / wiki…"
-                                      : "Título (opcional)…"
-                        }
+                        placeholder={tituloPlaceholder}
+                        aria-label={tituloPlaceholder}
                         value={titulo}
                         onChange={(e) => setTitulo(e.target.value)}
                         className="bg-black/30 border-white/10"
                     />
                     <Textarea
                         placeholder="Desarrolla tu publicación…"
+                        aria-label="Contenido de la publicación"
                         rows={5}
                         value={body}
                         onChange={(e) => setBody(e.target.value)}

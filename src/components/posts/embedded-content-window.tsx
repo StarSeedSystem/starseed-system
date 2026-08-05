@@ -38,7 +38,7 @@
  * ═══════════════════════════════════════════════════════════════════════════
  */
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
     Maximize2, Minimize2, Expand, Shrink, ExternalLink, X, FileImage, FileVideo, FileAudio,
     FileType2, FileCode2, LayoutDashboard, Globe, File as FileIcon, AppWindow,
@@ -48,6 +48,7 @@ import {
 import { cn } from "@/lib/utils";
 import { FilePreview, detectFormat, type FileLike } from "@/components/files/file-preview";
 import { MessageRenderer } from "@/components/aurora/message-renderer";
+import { useModalA11y } from "@/hooks/use-modal-a11y";
 import type { MainRatio } from "@/lib/publish/publish";
 
 // ───────────────────────────── Tipos públicos ───────────────────────────────
@@ -556,6 +557,12 @@ export function EmbeddedContentWindow({
     item, context = "feed", ratio = "auto", className, defaultOpen = false,
 }: EmbeddedContentWindowProps) {
     const [state, setState] = useState<WinState>(defaultOpen ? "open" : "collapsed");
+    const fullscreenRef = useRef<HTMLDivElement>(null);
+    // Adenda 142: a11y del overlay a pantalla completa — foco inicial, trampa
+    // de Tab y Escape (no gestionado hasta ahora). "Cerrar" con Escape sale de
+    // pantalla completa (vuelve a "open"), igual que el botón Shrink, sin
+    // colapsar la tarjeta ni perder el contenido incrustado.
+    useModalA11y({ open: state === "fullscreen", onClose: () => setState("open"), containerRef: fullscreenRef });
     const strategy = useMemo(
         () => resolveStrategy(item),
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -613,7 +620,13 @@ export function EmbeddedContentWindow({
                     />
                     <div className="p-3 text-center text-[11px] text-white/35">Mostrando en pantalla completa…</div>
                 </div>
-                <div className="fixed inset-0 z-[100] flex flex-col bg-black/95 backdrop-blur-sm animate-in fade-in duration-200">
+                <div
+                    ref={fullscreenRef}
+                    className="fixed inset-0 z-[100] flex flex-col bg-black/95 backdrop-blur-sm animate-in fade-in duration-200"
+                    role="dialog"
+                    aria-modal="true"
+                    aria-label={`Contenido a pantalla completa — ${titleOf(item)}`}
+                >
                     <WindowHeader
                         item={item}
                         strategy={strategy}

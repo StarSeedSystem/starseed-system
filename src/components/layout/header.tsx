@@ -34,7 +34,9 @@ export function AppHeader() {
         <form className="w-full max-w-[clamp(20rem,50vw,36rem)] mx-auto">
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <label htmlFor="app-header-search" className="sr-only">Buscar funciones, documentos</label>
             <Input
+              id="app-header-search"
               type="search"
               placeholder="Buscar funciones, documentos…"
               className="w-full appearance-none bg-background/80 pl-8 shadow-none rounded-[var(--radius-xl)]"

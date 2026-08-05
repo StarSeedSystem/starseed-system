@@ -1361,6 +1361,7 @@ function KindSearchBox({
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder={`Buscar ${kind.label.toLowerCase()}…`}
+                aria-label={`Buscar ${kind.label.toLowerCase()}`}
                 className="h-7 flex-1 bg-white/[0.03] text-xs text-amber-50"
             />
             <button
@@ -1583,6 +1584,19 @@ function StepFormatContent({
         });
     };
 
+    // Placeholder del campo URL (imagen/archivo/enlace/app) — se reutiliza
+    // también como aria-label (Adenda 142), el campo no tiene <label> visible.
+    const urlFieldPlaceholder =
+        type.id === "enlace"
+            ? "https://… (URL del enlace)"
+            : type.id === "imagen"
+              ? "URL de la imagen (https://…)"
+              : type.id === "archivo"
+                ? "URL del archivo (https://…)"
+                : type.id === "app"
+                  ? "URL del embed / app"
+                  : "URL (snapshot, embed o recurso)";
+
     return (
         <div className="space-y-5">
             <div>
@@ -1665,9 +1679,10 @@ function StepFormatContent({
                     </div>
                     {subArea.template.map((f) => (
                         <div key={f.id} className="space-y-1">
-                            <label className="text-xs font-medium text-amber-50/90">{f.label}</label>
+                            <label htmlFor={`composer-tpl-${f.id}`} className="text-xs font-medium text-amber-50/90">{f.label}</label>
                             {f.kind === "textarea" ? (
                                 <Textarea
+                                    id={`composer-tpl-${f.id}`}
                                     placeholder={f.placeholder}
                                     value={draft.template[f.id] || ""}
                                     onChange={(e) => setTemplate(f.id, e.target.value)}
@@ -1675,6 +1690,7 @@ function StepFormatContent({
                                 />
                             ) : (
                                 <Input
+                                    id={`composer-tpl-${f.id}`}
                                     placeholder={f.placeholder}
                                     value={draft.template[f.id] || ""}
                                     onChange={(e) => setTemplate(f.id, e.target.value)}
@@ -1720,6 +1736,7 @@ function StepFormatContent({
                     type.id === "mixto") && (
                     <Input
                         placeholder={type.id === "encuesta" ? "Pregunta de la encuesta" : "Título"}
+                        aria-label={type.id === "encuesta" ? "Pregunta de la encuesta" : "Título de la publicación"}
                         value={draft.title}
                         onChange={(e) => set({ title: e.target.value })}
                         className="bg-white/[0.03] text-amber-50"
@@ -1794,17 +1811,8 @@ function StepFormatContent({
                     <div className="space-y-1.5">
                         <div className="flex items-center gap-2">
                             <Input
-                                placeholder={
-                                    type.id === "enlace"
-                                        ? "https://… (URL del enlace)"
-                                        : type.id === "imagen"
-                                          ? "URL de la imagen (https://…)"
-                                          : type.id === "archivo"
-                                            ? "URL del archivo (https://…)"
-                                            : type.id === "app"
-                                              ? "URL del embed / app"
-                                              : "URL (snapshot, embed o recurso)"
-                                }
+                                placeholder={urlFieldPlaceholder}
+                                aria-label={urlFieldPlaceholder}
                                 value={draft.url}
                                 onChange={(e) => set({ url: e.target.value })}
                                 className="bg-white/[0.03] text-amber-50"
@@ -1858,6 +1866,7 @@ function StepFormatContent({
                 {(type.id === "imagen" || type.id === "galeria") && (
                     <Input
                         placeholder="Pie de foto (opcional)"
+                        aria-label="Pie de foto (opcional)"
                         value={draft.body}
                         onChange={(e) => set({ body: e.target.value })}
                         className="bg-white/[0.03] text-amber-50"
@@ -2094,6 +2103,7 @@ function AttachmentsManager({
                     <select
                         value={kindDraft}
                         onChange={(e) => setKindDraft(e.target.value)}
+                        aria-label="Tipo de adjunto"
                         className="h-9 shrink-0 cursor-pointer rounded-lg border border-white/15 bg-white/[0.03] px-2 text-xs text-amber-50"
                     >
                         {ATTACHMENT_KIND_OPTIONS.map((k) => (
@@ -2107,6 +2117,7 @@ function AttachmentsManager({
                             value={pizarraEngineDraft}
                             onChange={(e) => setPizarraEngineDraft(e.target.value === "tldraw" ? "tldraw" : "starseed")}
                             title="Motor de la pizarra adjunta"
+                            aria-label="Motor de la pizarra adjunta"
                             className="h-9 shrink-0 cursor-pointer rounded-lg border border-cyan-400/25 bg-cyan-400/5 px-2 text-xs text-cyan-100"
                         >
                             <option value="starseed" className="bg-[#0d0f14]">Motor: StarSeed</option>
@@ -2115,6 +2126,7 @@ function AttachmentsManager({
                     )}
                     <Input
                         placeholder={kindDraft === "pizarra" ? "URL de la pizarra (vacío = nueva)" : "Pegar URL (página, app, pizarra, servidor, vídeo…)"}
+                        aria-label={kindDraft === "pizarra" ? "URL de la pizarra (vacío = nueva)" : "Pegar URL (página, app, pizarra, servidor, vídeo…)"}
                         value={urlDraft}
                         onChange={(e) => setUrlDraft(e.target.value)}
                         onKeyDown={(e) => {
@@ -2284,6 +2296,7 @@ function UrlList({
                 <div key={i} className="flex items-center gap-2">
                     <Input
                         placeholder={placeholder + " " + (i + 1)}
+                        aria-label={placeholder + " " + (i + 1)}
                         value={v}
                         onChange={(e) => setAt(i, e.target.value)}
                         className="bg-white/[0.03] text-amber-50"
@@ -2423,10 +2436,11 @@ function StepConfigScope({
                             })}
                         </div>
                         <div className="space-y-1">
-                            <label className="text-xs font-medium text-white/55">
+                            <label htmlFor="composer-vote-threshold" className="text-xs font-medium text-white/55">
                                 Umbral de aprobación: {voting.threshold ?? 50}%
                             </label>
                             <input
+                                id="composer-vote-threshold"
                                 type="range"
                                 min={1}
                                 max={100}
@@ -2443,10 +2457,11 @@ function StepConfigScope({
 
             {/* Ámbito / scope */}
             <div className="space-y-2">
-                <label className="flex items-center gap-2 text-sm font-medium text-amber-50">
+                <label htmlFor="composer-scope" className="flex items-center gap-2 text-sm font-medium text-amber-50">
                     <Compass className="h-4 w-4 text-amber-300" /> Ámbito
                 </label>
                 <Input
+                    id="composer-scope"
                     placeholder="Ámbito de la publicación (p. ej. local, regional, global, una comunidad…)"
                     value={scope}
                     onChange={(e) => onScope(e.target.value)}

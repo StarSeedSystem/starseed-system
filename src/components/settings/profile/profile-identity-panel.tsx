@@ -367,10 +367,11 @@ export function ProfileIdentityPanel() {
                     <div className="flex-1 space-y-4 w-full">
                         <div className="grid md:grid-cols-2 gap-4">
                             <div className="space-y-1.5">
-                                <label className="text-sm font-medium flex items-center gap-1.5">
+                                <label htmlFor="profile-handle" className="text-sm font-medium flex items-center gap-1.5">
                                     <AtSign className="w-3.5 h-3.5 text-muted-foreground" /> Handle (@)
                                 </label>
                                 <Input
+                                    id="profile-handle"
                                     value={form.handle}
                                     onChange={(e) => setField("handle", e.target.value)}
                                     placeholder="tu_perfil"
@@ -382,10 +383,11 @@ export function ProfileIdentityPanel() {
                                 </p>
                             </div>
                             <div className="space-y-1.5">
-                                <label className="text-sm font-medium flex items-center gap-1.5">
+                                <label htmlFor="profile-display-name" className="text-sm font-medium flex items-center gap-1.5">
                                     <User className="w-3.5 h-3.5 text-muted-foreground" /> Nombre
                                 </label>
                                 <Input
+                                    id="profile-display-name"
                                     value={form.display_name}
                                     onChange={(e) => setField("display_name", e.target.value)}
                                     placeholder="Tu nombre visible"
@@ -397,8 +399,9 @@ export function ProfileIdentityPanel() {
 
                         <div className="grid md:grid-cols-2 gap-4">
                             <div className="space-y-1.5">
-                                <label className="text-sm font-medium">Bio (manifiesto personal)</label>
+                                <label htmlFor="profile-bio" className="text-sm font-medium">Bio (manifiesto personal)</label>
                                 <Textarea
+                                    id="profile-bio"
                                     value={form.bio}
                                     onChange={(e) => setField("bio", e.target.value)}
                                     placeholder="Escribe tu manifiesto personal…"
@@ -431,11 +434,12 @@ export function ProfileIdentityPanel() {
 
                         <div className="grid md:grid-cols-2 gap-4">
                             <div className="space-y-1.5">
-                                <label className="text-sm font-medium flex items-center gap-1.5">
+                                <label htmlFor="profile-avatar-url" className="text-sm font-medium flex items-center gap-1.5">
                                     <ImageIcon className="w-3.5 h-3.5 text-muted-foreground" /> Avatar
                                 </label>
                                 <div className="flex items-center gap-2">
                                     <Input
+                                        id="profile-avatar-url"
                                         value={form.avatar_url}
                                         onChange={(e) => setField("avatar_url", e.target.value)}
                                         placeholder="https://…"
@@ -459,11 +463,12 @@ export function ProfileIdentityPanel() {
                                 </div>
                             </div>
                             <div className="space-y-1.5">
-                                <label className="text-sm font-medium flex items-center gap-1.5">
+                                <label htmlFor="profile-cover-url" className="text-sm font-medium flex items-center gap-1.5">
                                     <ImageIcon className="w-3.5 h-3.5 text-muted-foreground" /> Portada
                                 </label>
                                 <div className="flex items-center gap-2">
                                     <Input
+                                        id="profile-cover-url"
                                         value={form.cover_url}
                                         onChange={(e) => setField("cover_url", e.target.value)}
                                         placeholder="https://…"

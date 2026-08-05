@@ -125,6 +125,7 @@ export function UniversalSearchBox({
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
                     placeholder="Buscar en toda la red: perfiles, páginas, publicaciones, conocimiento, cerebros, apps…"
+                    aria-label="Buscar en toda la red: perfiles, páginas, publicaciones, conocimiento, cerebros, apps"
                     className="pl-12 pr-12 h-14 bg-background/40 backdrop-blur-md border-primary/20 focus-visible:ring-1 focus-visible:ring-primary/50 rounded-2xl w-full text-base transition-all shadow-inner"
                 />
                 <div className="absolute right-4 top-1/2 -translate-y-1/2 z-10 flex items-center gap-2">

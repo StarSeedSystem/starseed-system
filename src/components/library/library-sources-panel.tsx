@@ -20,7 +20,7 @@
 // Defensivo: guardas, try/catch, SSR-safe. UI en español.
 // ════════════════════════════════════════════════════════════════
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   BookMarked,
   Plus,
@@ -48,6 +48,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
+import { useModalA11y } from "@/hooks/use-modal-a11y";
 
 import type { LibrarySource } from "@/lib/oss-library";
 import {
@@ -126,6 +127,11 @@ export function LibrarySourcesPanel() {
   const [installFor, setInstallFor] = useState<LibrarySource | null>(null);
   const [installScope, setInstallScope] = useState<InstallScope>("user");
   const [installBrainId, setInstallBrainId] = useState<string>("");
+  const installDialogRef = useRef<HTMLDivElement>(null);
+
+  // Adenda 142: a11y del diálogo "Instalar en cerebro" — foco inicial, trampa
+  // de Tab y Escape (antes sólo se cerraba con el botón X o clic en el backdrop).
+  useModalA11y({ open: !!installFor, onClose: () => setInstallFor(null), containerRef: installDialogRef });
 
   // Estado de "Actualizar skills".
   const [updateBrainId, setUpdateBrainId] = useState<string>("");
@@ -618,8 +624,12 @@ export function LibrarySourcesPanel() {
       {/* Diálogo simple de instalación en cerebro (con permiso/alcance) */}
       {installFor && (
         <div
+          ref={installDialogRef}
           className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4"
           onClick={() => setInstallFor(null)}
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Instalar «${installFor.label}» en cerebro`}
         >
           <div
             className="w-full max-w-md rounded-2xl border border-white/10 bg-[#0b0b12] p-5 shadow-2xl space-y-4"

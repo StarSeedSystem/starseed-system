@@ -350,7 +350,9 @@ export function AuthGate() {
           </button>
         ) : (
           <div style={{ marginTop: 10 }}>
+            <label htmlFor="ss-auth-otp" className="sr-only">Código de 6 dígitos</label>
             <input
+              id="ss-auth-otp"
               className="ss-auth-field"
               type="text"
               inputMode="numeric"

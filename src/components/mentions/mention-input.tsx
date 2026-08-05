@@ -100,6 +100,10 @@ export interface MentionInputProps {
     /** Filas mínimas del textarea. */
     rows?: number;
     id?: string;
+    /** Nombre accesible (Adenda 142) — sólo hay `placeholder`, que no basta
+     *  como etiqueta para lectores de pantalla. Opcional y aditivo: si no se
+     *  pasa, el textarea queda igual que antes. */
+    ariaLabel?: string;
 }
 
 /** API imperativa opcional (barra de formato del compositor): envolver la
@@ -137,6 +141,7 @@ function MentionInputInner(
         onMentionsChange,
         rows = 5,
         id,
+        ariaLabel,
     }: MentionInputProps,
     ref: ForwardedRef<MentionInputHandle>,
 ) {
@@ -292,6 +297,8 @@ function MentionInputInner(
     }
 
     const showPopover = Boolean(active) && (loading || hits.length > 0);
+    const resolvedPlaceholder =
+        placeholder ?? "Escribe tu contenido… Usa @ para mencionar y # para etiquetar entidades.";
 
     return (
         <div className={cn("relative", className)}>
@@ -299,10 +306,8 @@ function MentionInputInner(
                 id={id}
                 ref={taRef}
                 value={value}
-                placeholder={
-                    placeholder ??
-                    "Escribe tu contenido… Usa @ para mencionar y # para etiquetar entidades."
-                }
+                placeholder={resolvedPlaceholder}
+                aria-label={ariaLabel ?? resolvedPlaceholder}
                 onChange={(e) => onChange(e.target.value)}
                 onKeyUp={refreshTrigger}
                 onClick={refreshTrigger}

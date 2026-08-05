@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Pencil, Layout, MoveVertical, Sliders, Code, Sparkles, X,
@@ -13,6 +13,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { useModalA11y } from "@/hooks/use-modal-a11y";
 
 /**
  * Editor Universal — accesible desde el menú Zenith (AI).
@@ -63,6 +64,11 @@ interface UniversalEditorProps {
 export function UniversalEditor({ open, onClose }: UniversalEditorProps) {
   const [query, setQuery] = useState("");
   const [editMode, setEditMode] = useState<"design" | "code" | "ai" | "library">("design");
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Adenda 142: foco inicial, trampa de Tab y Escape (no gestionado hasta
+  // ahora — sólo se cerraba con el botón X o clic en el backdrop).
+  useModalA11y({ open, onClose, containerRef });
 
   const filtered = SECTIONS.filter((s) => s.label.toLowerCase().includes(query.toLowerCase()));
 
@@ -90,11 +96,15 @@ export function UniversalEditor({ open, onClose }: UniversalEditorProps) {
 
           {/* Modal */}
           <motion.div
+            ref={containerRef}
             initial={{ scale: 0.95, opacity: 0, y: 20 }}
             animate={{ scale: 1, opacity: 1, y: 0 }}
             exit={{ scale: 0.95, opacity: 0, y: 20 }}
             transition={{ type: "spring", damping: 25, stiffness: 250 }}
             className="fixed inset-4 md:inset-16 z-[121] rounded-3xl overflow-hidden bg-background/95 backdrop-blur-2xl border border-white/10 shadow-[0_30px_80px_rgba(0,0,0,0.5)] flex flex-col"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Editor Universal"
           >
             {/* Header */}
             <div className="flex items-center justify-between p-5 md:p-6 border-b border-white/5 shrink-0">

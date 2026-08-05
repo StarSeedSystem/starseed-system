@@ -11,12 +11,13 @@
 // la ventana del OS (z-[120]). Conserva la estética cristal.
 // ════════════════════════════════════════════════════════════════
 
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { PresetContent } from '../types';
 import { useFileSystem } from '../hooks/useFileSystem';
 import Icon from './Icon';
 import { useConfirm } from '@/components/ui/confirm-dialog';
+import { useModalA11y } from '@/hooks/use-modal-a11y';
 
 interface Props {
   mode: 'save' | 'load';
@@ -32,6 +33,11 @@ const FileExplorer: React.FC<Props> = ({ mode, onFileSelect, onClose, fs, curren
   const [saveFileName, setSaveFileName] = useState('');
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState('');
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Adenda 142: foco inicial, trampa de Tab y Escape (el modal aún no
+  // gestionaba teclado propio, así que closeOnEscape por defecto).
+  useModalA11y({ open: true, onClose, containerRef });
 
   const presets = fs.presets;
 
@@ -48,7 +54,13 @@ const FileExplorer: React.FC<Props> = ({ mode, onFileSelect, onClose, fs, curren
   if (typeof document === 'undefined') return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/90 backdrop-blur-xl p-4 sm:p-6 animate-fade-in">
+    <div
+      ref={containerRef}
+      className="fixed inset-0 z-[200] flex items-center justify-center bg-black/90 backdrop-blur-xl p-4 sm:p-6 animate-fade-in"
+      role="dialog"
+      aria-modal="true"
+      aria-label={mode === 'save' ? 'Guardar preset' : 'Cargar preset'}
+    >
       <div className="w-full max-w-5xl bg-black/60 border border-cyan-500/20 rounded-3xl shadow-[0_0_50px_rgba(0,0,0,0.9),inset_0_0_30px_rgba(34,211,238,0.05)] flex flex-col h-[90vh] sm:h-[85vh] overflow-hidden relative backdrop-blur-2xl">
         <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/10 via-purple-500/5 to-pink-500/10 pointer-events-none"></div>
         <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-cyan-500/50 to-transparent"></div>
