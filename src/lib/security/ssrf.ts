@@ -27,9 +27,34 @@
 // propósito del proxy en un OS soberano: Ollama, Home Assistant, n8n, Stirling
 // local…). Se pueden ENDURECER con INTEGRATIONS_PROXY_ALLOW_PRIVATE=0. Los
 // metadatos IMDS se bloquean SIEMPRE, con o sin opt-in.
+//
+// ADENDA 141 (2026-08-04) — TOCTOU DE DNS-REBINDING (residual MEDIO, cerrado):
+// isBlocked() resolvía el hostname por DNS y lo validaba, pero safeFetch()
+// llamaba después a fetch(url), que vuelve a resolver el MISMO nombre POR SU
+// CUENTA (undici) → dos resoluciones DNS independientes. Un atacante con
+// control del DNS servido (TTL 0, respuestas alternas) puede devolver una IP
+// pública en la validación y 169.254.169.254 (u otra interna) en el fetch real
+// — requiere sesión + infraestructura DNS del atacante, por eso era MEDIO, no
+// crítico, pero había que cerrarlo. FIX — IP PINNING: safeFetch() ahora
+// resuelve cada destino UNA sola vez por salto (`resolveAndPin`, que isBlocked
+// ahora reutiliza), clasifica TODAS las IPs devueltas con la MISMA lógica de
+// siempre y, si el destino se permite, CONECTA a la IP ya validada mediante un
+// `undici.Agent` cuyo `connect.lookup` está fijado a esa IP — nunca vuelve a
+// preguntarle al DNS. El Host header y el SNI/certificado TLS siguen
+// derivándose del HOSTNAME original (undici calcula `servername` a partir del
+// host de la petición, no de la IP de conexión), así que vhosts por nombre y
+// la validación de certificado siguen funcionando exactamente igual. Límite
+// reconocido: se fija UNA sola IP por salto (la primera pública permitida, o
+// la primera privada si solo hay privadas y allowPrivate); si el nombre
+// resuelve a varias IPs válidas, el pinning no rota entre ellas. DEFENSA EN
+// PROFUNDIDAD: si `undici` no está disponible o construir el dispatcher falla
+// por cualquier motivo, se cae al fetch() normal (que sigue revalidando cada
+// salto con resolveAndPin ANTES de contactarlo) — el pinning solo puede
+// REFORZAR la petición, nunca romperla.
 // ════════════════════════════════════════════════════════════════════════════
 
 import { promises as dns } from "node:dns";
+import type { LookupOptions, LookupAddress } from "node:dns";
 import { isIP } from "node:net";
 
 /** Hostnames de metadatos cloud que NUNCA deben ser alcanzables (anti-SSRF). */
@@ -173,46 +198,171 @@ export function classifyIp(ip: string): IpClass {
   return "always-blocked"; // no es una IP válida → fail-closed
 }
 
+// ────────────────────────────────────────────────────────────────────────────
+// IP PINNING (Adenda 141) — cierra el TOCTOU de DNS-rebinding entre la
+// validación y el fetch() real. Ver la cabecera del archivo para el problema
+// completo; aquí solo la mecánica.
+// ────────────────────────────────────────────────────────────────────────────
+
 /**
- * ¿Se debe BLOQUEAR este destino? Async porque resuelve DNS.
+ * Firma exacta que `net.connect`/`tls.connect` (y por tanto `connect.lookup`
+ * de un `undici.Agent`) exigen para sustituir su resolución DNS interna —
+ * igual que `dns.lookup(hostname, options, callback)`.
+ */
+type NodeLookupFunction = (
+  hostname: string,
+  options: LookupOptions,
+  callback: (err: NodeJS.ErrnoException | null, address: string | LookupAddress[], family?: number) => void,
+) => void;
+
+/** Normaliza `LookupOptions.family` (puede llegar como 4/6/"IPv4"/"IPv6"/undefined) a 0|4|6. */
+function normalizeFamily(f: LookupOptions["family"]): number {
+  if (f === "IPv4") return 4;
+  if (f === "IPv6") return 6;
+  return typeof f === "number" ? f : 0;
+}
+
+/**
+ * Construye una función `lookup` que responde SIEMPRE con `pinnedIp`/`pinnedFamily`,
+ * sin importar qué hostname se le pregunte — así el connect interno de undici
+ * nunca dispara una SEGUNDA resolución DNS independiente (exactamente el TOCTOU
+ * que cerramos). Respeta la familia: si el llamante pide explícitamente la
+ * familia contraria a la fijada, no hay nada seguro que devolver → error tipo
+ * ENOTFOUND (fail-closed) en vez de inventar una IP de otra familia o dejar
+ * que se resuelva de verdad.
+ */
+function makeFixedLookup(pinnedIp: string, pinnedFamily: 4 | 6): NodeLookupFunction {
+  return function fixedLookup(hostname, options, callback) {
+    const wantFamily = normalizeFamily(options?.family);
+    if (wantFamily && wantFamily !== pinnedFamily) {
+      const err: NodeJS.ErrnoException = Object.assign(
+        new Error(`Sin IP fijada de familia ${wantFamily} para ${hostname} (se fijó IPv${pinnedFamily}).`),
+        { code: "ENOTFOUND", hostname },
+      );
+      callback(err, "");
+      return;
+    }
+    if (options?.all) {
+      callback(null, [{ address: pinnedIp, family: pinnedFamily }]);
+    } else {
+      callback(null, pinnedIp, pinnedFamily);
+    }
+  };
+}
+
+/**
+ * Módulo `undici` cargado de forma perezosa y defensiva. `import()` dinámico,
+ * a diferencia de un `import` estático, NUNCA lanza de forma síncrona si el
+ * paquete faltara en algún entorno atípico (build raro, runtime recortado) —
+ * el `.catch` deja `null` como señal de "sin pinning disponible" y el
+ * llamante cae al fetch() normal (ver buildPinnedDispatcher). Se memoiza: el
+ * import solo se dispara una vez por proceso.
+ */
+type UndiciModule = typeof import("undici");
+const undiciModulePromise: Promise<UndiciModule | null> = import("undici").catch(() => null);
+
+/**
+ * Crea (si es posible) un dispatcher de undici que fija la conexión TCP/TLS
+ * de ESTE salto a `ip`/`family`. El Host header y el SNI/certificado TLS
+ * siguen derivándose del hostname ORIGINAL de la URL (undici calcula
+ * `servername` a partir del host de la petición, no de la IP de conexión —
+ * verificado empíricamente en la Adenda 141), así que los vhosts por nombre y
+ * la validación de certificado por hostname NO se rompen.
+ *
+ * Devuelve `null` si `undici` no está disponible o si construir el Agent
+ * falla por cualquier motivo — defensa en profundidad: el llamante SIEMPRE
+ * debe tratar `null` cayendo al fetch() sin `dispatcher` (sigue protegido por
+ * resolveAndPin() en cada salto; solo se reabre la ventana TOCTOU descrita en
+ * la cabecera del archivo, nunca se rompe la petición por el pinning).
+ */
+async function buildPinnedDispatcher(ip: string, family: 4 | 6): Promise<import("undici").Dispatcher | null> {
+  try {
+    const mod = await undiciModulePromise;
+    if (!mod) return null;
+    return new mod.Agent({ connect: { lookup: makeFixedLookup(ip, family) } });
+  } catch {
+    return null;
+  }
+}
+
+/** Resultado de resolver+clasificar+elegir la IP a fijar para un destino. */
+export type PinResult =
+  | { blocked: true }
+  | { blocked: false; ip: null } // host ya era una IP literal: fetch() conecta directo sin DNS de por medio → sin TOCTOU posible, nada que fijar.
+  | { blocked: false; ip: string; family: 4 | 6 }; // host por nombre: IP ya validada y elegida para fijar.
+
+/**
+ * Resuelve+clasifica+elige la IP a fijar para un destino, en UNA sola
+ * resolución DNS — así safeFetch() no necesita una segunda resolución (que
+ * sería exactamente el TOCTOU de la Adenda 141). Misma lógica de bloqueo
+ * EXACTA que la `isBlocked()` original (que ahora delega aquí, ver abajo):
  *  · Esquema != http/https           → bloquea.
  *  · Hostname de metadatos           → bloquea SIEMPRE.
  *  · IP literal privada/metadatos    → bloquea (privada gated por allowPrivate).
- *  · Nombre: resuelve TODAS las IPs; si CUALQUIERA es metadatos → bloquea SIEMPRE;
- *    si alguna es privada → bloquea salvo allowPrivate; si no resuelve → bloquea.
+ *  · Nombre: resuelve TODAS las IPs; si CUALQUIERA es metadatos → bloquea
+ *    SIEMPRE (aunque haya también públicas — una respuesta DNS mixta con una
+ *    IP de metadatos es señal de manipulación, fail-closed); si alguna es
+ *    privada → bloquea salvo allowPrivate (TODO el host, mismo motivo); si no
+ *    resuelve → bloquea.
+ * Si se permite, elige la primera IP pública devuelta; si solo hay privadas
+ * (y allowPrivate), elige la primera privada.
  */
-export async function isBlocked(url: URL): Promise<boolean> {
+export async function resolveAndPin(url: URL): Promise<PinResult> {
   const proto = url.protocol.toLowerCase();
-  if (proto !== "http:" && proto !== "https:") return true;
+  if (proto !== "http:" && proto !== "https:") return { blocked: true };
 
   const host = url.hostname.toLowerCase().replace(/^\[/, "").replace(/\]$/, "");
-  if (!host) return true;
+  if (!host) return { blocked: true };
 
-  if (BLOCKED_HOSTNAMES.has(host)) return true;
+  if (BLOCKED_HOSTNAMES.has(host)) return { blocked: true };
 
   const allowPriv = allowPrivate();
 
   if (isIP(host)) {
     const cls = classifyIp(host);
-    if (cls === "always-blocked") return true;
-    if (cls === "private") return !allowPriv;
-    return false;
+    if (cls === "always-blocked") return { blocked: true };
+    if (cls === "private" && !allowPriv) return { blocked: true };
+    return { blocked: false, ip: null }; // IP literal: nada que resolver ni fijar.
   }
 
+  let records: LookupAddress[];
   try {
-    const records = await dns.lookup(host, { all: true });
-    if (!records.length) return true; // sin registros → fail-closed
-    let sawPrivate = false;
-    for (const r of records) {
-      const cls = classifyIp(r.address);
-      if (cls === "always-blocked") return true; // metadatos: nunca
-      if (cls === "private") sawPrivate = true;
-    }
-    if (sawPrivate && !allowPriv) return true;
-    return false;
+    records = await dns.lookup(host, { all: true });
   } catch {
-    return true; // no resuelve → bloquea (fail-closed)
+    return { blocked: true }; // no resuelve → bloquea (fail-closed)
   }
+  if (!records.length) return { blocked: true }; // sin registros → fail-closed
+
+  let sawPrivate = false;
+  let publicPick: LookupAddress | null = null;
+  let privatePick: LookupAddress | null = null;
+  for (const r of records) {
+    const cls = classifyIp(r.address);
+    if (cls === "always-blocked") return { blocked: true }; // metadatos: nunca
+    if (cls === "private") {
+      sawPrivate = true;
+      if (!privatePick) privatePick = r;
+    } else if (!publicPick) {
+      publicPick = r;
+    }
+  }
+  if (sawPrivate && !allowPriv) return { blocked: true };
+
+  const chosen = publicPick || privatePick;
+  if (!chosen) return { blocked: true }; // defensivo: no debería ocurrir (todo registro cae en una de las dos ramas de arriba)
+
+  return { blocked: false, ip: chosen.address, family: chosen.family === 6 ? 6 : 4 };
+}
+
+/**
+ * ¿Se debe BLOQUEAR este destino? Async porque resuelve DNS. Delega en
+ * resolveAndPin() (Adenda 141) para no duplicar la lógica de clasificación —
+ * misma decisión exacta, solo descarta la IP elegida. Quien SÍ la necesita
+ * (safeFetch(), para el pinning) llama a resolveAndPin() directamente y así
+ * evita pagar una segunda resolución DNS por el mismo host.
+ */
+export async function isBlocked(url: URL): Promise<boolean> {
+  return (await resolveAndPin(url)).blocked;
 }
 
 /** Elimina cabeceras sensibles (para saltos cross-origin). Muta el objeto. */
@@ -256,11 +406,21 @@ export interface SafeFetchInit {
 
 /**
  * fetch() ENDURECIDO: valida el destino (y CADA salto de redirección) con
- * isBlocked() antes de contactarlo, sigue las redirecciones manualmente
+ * resolveAndPin() antes de contactarlo, sigue las redirecciones manualmente
  * (redirect:"manual"), descarta cabeceras sensibles en saltos cross-origin y
  * transforma método/cuerpo igual que redirect:"follow" (303 y 301/302+POST→GET;
  * 307/308 conservan). Lanza SsrfError si un destino está bloqueado o hay exceso
  * de redirecciones. Devuelve la Response FINAL (el llamante lee status/cuerpo).
+ *
+ * Adenda 141 — IP PINNING: cada salto llama a resolveAndPin() UNA vez (no a
+ * isBlocked() + un fetch() que re-resuelve por su cuenta — eso es justo el
+ * TOCTOU que cerramos, ver cabecera del archivo) y, si el host se resolvió por
+ * NOMBRE, conecta a la IP ya validada con un dispatcher de undici propio de
+ * ESE salto (nunca se reutiliza la IP de un salto anterior para un host
+ * distinto — la resolución+fijación es siempre por salto/host). Si el host ya
+ * era una IP literal, o si el pinning no se puede construir (undici no
+ * disponible, error), se hace fetch() normal sin `dispatcher` — sigue
+ * protegido por la revalidación de resolveAndPin en cada salto.
  */
 export async function safeFetch(initialUrl: URL, init: SafeFetchInit = {}): Promise<Response> {
   const maxRedirects = init.maxRedirects ?? MAX_REDIRECTS;
@@ -271,25 +431,45 @@ export async function safeFetch(initialUrl: URL, init: SafeFetchInit = {}): Prom
   let redirects = 0;
 
   for (;;) {
-    // Re-validar el destino ACTUAL antes de contactarlo (incluida la URL inicial).
-    if (await isBlocked(currentUrl)) {
+    // Resuelve + clasifica + (si aplica) FIJA una IP para el destino ACTUAL —
+    // una sola resolución DNS por salto, reutilizada tanto para validar como
+    // para conectar. Misma decisión de bloqueo que antes (isBlocked delega
+    // aquí ahora): NO se llama también a isBlocked() por separado, porque eso
+    // pagaría una segunda resolución DNS independiente y reabriría el TOCTOU.
+    const pin = await resolveAndPin(currentUrl);
+    if (pin.blocked) {
       throw new SsrfError("blocked", "Destino no permitido (bloqueado por seguridad).", 403);
     }
 
-    const res = await fetch(currentUrl.toString(), {
+    // pin.ip === null → el host YA era una IP literal: fetch() conecta directo
+    // sin resolución DNS de por medio, nada que fijar (sin TOCTOU posible).
+    // pin.ip !== null → host por nombre: intenta fijar la conexión a la IP ya
+    // validada arriba. `buildPinnedDispatcher` es defensivo (nunca lanza): si
+    // undici no está disponible o el Agent no se puede construir, devuelve
+    // `null` y caemos al fetch() normal (defensa en profundidad).
+    const dispatcher = pin.ip ? await buildPinnedDispatcher(pin.ip, pin.family) : null;
+
+    const fetchInit: RequestInit & { dispatcher?: import("undici").Dispatcher } = {
       method: reqMethod,
       headers: reqHeaders,
       body: reqBody,
       signal: init.signal,
       cache: init.cache ?? "no-store",
       redirect: "manual",
-    });
+    };
+    if (dispatcher) fetchInit.dispatcher = dispatcher;
+
+    const res = await fetch(currentUrl.toString(), fetchInit);
 
     const isRedirect =
       (res.status === 301 || res.status === 302 || res.status === 303 ||
         res.status === 307 || res.status === 308) &&
       !!res.headers.get("location");
 
+    // Respuesta FINAL: el llamante todavía necesita leer su cuerpo a través de
+    // este socket, así que NO cerramos `dispatcher` aquí — undici lo libera
+    // solo (timeout de keep-alive) en cuanto nada vuelve a referenciarlo,
+    // igual que ocurriría con el dispatcher global por defecto.
     if (!isRedirect) return res;
 
     if (redirects >= maxRedirects) {
@@ -321,6 +501,10 @@ export async function safeFetch(initialUrl: URL, init: SafeFetchInit = {}): Prom
     // (307/308 conservan método y cuerpo.)
 
     try { await res.arrayBuffer(); } catch { /* libera el socket */ }
+    // Este salto queda atrás (el siguiente, si lo hay, es un salto NUEVO que
+    // fijará SU PROPIA IP más arriba en la próxima vuelta) — cierra el Agent
+    // fijado de este salto; best-effort, nunca debe romper el bucle.
+    if (dispatcher) { try { await dispatcher.close(); } catch { /* limpieza best-effort */ } }
     currentUrl = nextUrl;
   }
 }
