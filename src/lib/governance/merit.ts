@@ -133,7 +133,18 @@ export async function loadMeritWeights(
       .in("profile_id", profileIds);
     if (bErr || !Array.isArray(pbs)) return {};
 
-    // 3) Cuenta insignias RELEVANTES por perfil.
+    // 3) Cuenta insignias RELEVANTES por USUARIO, SUMANDO across TODOS sus
+    //    perfiles (cívico/artístico/profesional…). Mirror EXACTO del recuento
+    //    server-side (gov_resolve_proposal, migración
+    //    20260805190000_gov_resolve_server_side.sql): la SQL une TODOS los
+    //    `profiles` de un `user_id`, cuenta las insignias relevantes de esa
+    //    unión y agrupa por `pr.uid` (el USUARIO) — nunca por perfil individual.
+    //    ANTES este bloque acumulaba `relevantByProfile` KEYED POR PERFIL y el
+    //    paso 4 asignaba `out[userId] = 1 + bonus` una vez POR PERFIL: un usuario
+    //    con 2+ perfiles con insignias relevantes en distintos perfiles acababa
+    //    con el bonus del ÚLTIMO perfil procesado (orden de fila no garantizado
+    //    por Supabase sin ORDER BY) en vez de la SUMA — divergía de la SQL y era
+    //    no determinista. Ahora se acumula directamente por `ownerUserId`.
     //
     // INMUNIDAD AL AUTO-OTORGAMIENTO (el verdadero arreglo de seguridad): SÓLO
     // cuentan las insignias conferidas por OTRA persona (pares/gobernanza). Se
@@ -143,7 +154,7 @@ export async function loadMeritWeights(
     // auto-otorga insignias obtiene CERO mérito: la pericia sólo pesa si la avala
     // un tercero. Esto cierra el vector de inflación de voto por auto-insignias.
     // Se mantiene el filtro de área relevante y (aguas abajo) el tope duro ≤2×.
-    const relevantByProfile: Record<string, number> = {};
+    const relevantByUser: Record<string, number> = {};
     for (const row of pbs as any[]) {
       const pid = row?.profile_id;
       if (!pid) continue;
@@ -157,15 +168,14 @@ export async function loadMeritWeights(
       // El embed puede llegar como objeto o (defensivo) como array.
       const b = Array.isArray(row?.badges) ? row.badges[0] : row?.badges;
       if (!isRelevantArea(b?.area, effArea)) continue;
-      relevantByProfile[pid] = (relevantByProfile[pid] ?? 0) + 1;
+      relevantByUser[ownerUserId] = (relevantByUser[ownerUserId] ?? 0) + 1;
     }
 
-    // 4) Traduce a user_id y calcula el multiplicador acotado.
+    // 4) Multiplicador acotado por usuario (conteo YA sumado across perfiles).
     //    multiplicador = 1 + min(maxBonus, STEP_PER_BADGE · nº insignias relevantes).
     const out: Record<string, number> = {};
-    for (const [pid, count] of Object.entries(relevantByProfile)) {
-      const userId = userByProfile.get(pid);
-      if (!userId || count <= 0) continue;
+    for (const [userId, count] of Object.entries(relevantByUser)) {
+      if (count <= 0) continue;
       const bonus = Math.min(maxBonus, STEP_PER_BADGE * count);
       if (bonus > 0) out[userId] = 1 + bonus;
     }

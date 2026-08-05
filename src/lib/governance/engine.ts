@@ -1,17 +1,20 @@
 // StarSeed · Motor de decisiones democráticas — ciclo de vida de propuestas.
 // crear → notificar → votar → evaluar → resolver → ejecutar comando.
+//
+// Adenda 142 (migración 20260805190000_gov_resolve_server_side.sql): el SELLADO
+// de la resolución (open→passed/rejected/expired) se movió al servidor
+// (gov_resolve_proposal, SECURITY DEFINER, censo+tally+evaluate en SQL bajo la
+// marca transaccional app.gov_resolving). `tryResolve` ya NO evalúa ni
+// actualiza el estado en el cliente — invoca esa RPC autoritativa y, si aprueba
+// con un comando pendiente, sigue ejecutándolo aquí (fuera de alcance del port
+// SQL) y sella passed→executed/failed. `tally`/`evaluate` de abajo SIGUEN
+// viviendo aquí porque la UI los usa para mostrar el recuento EN VIVO mientras la
+// propuesta sigue abierta (vista, no autoritativa); el resultado SELLADO siempre
+// es el que fija el servidor.
 
 import { createClient } from "@/utils/supabase/client";
 import { executeCommand } from "./commands";
-import { getConfig, eligibleCount } from "./config";
-import {
-  type Delegation,
-  computeEffectiveWeights,
-  loadActiveDelegations,
-  topicForProposal,
-} from "./delegations";
-import { loadMeritWeights, topicToMeritArea } from "./merit";
-import { reachFromParams, eligibleForReach } from "./reach";
+import { type Delegation, computeEffectiveWeights } from "./delegations";
 import { membersFromMemberships } from "./membership";
 import {
   DEFAULT_PARAMS,
@@ -21,7 +24,6 @@ import {
   type CommandSpec,
   type DecisionParams,
   type GovernanceConfig,
-  type MeritParams,
   type Proposal,
   type ProposalOption,
   type ProposalVote,
@@ -463,96 +465,83 @@ export function evaluate(
   };
 }
 
-// Carga propuesta + votos + config + censo, evalúa y, si procede, ejecuta el comando.
+// Resuelve una propuesta de forma AUTORITATIVA vía RPC server-side (Adenda 142 ·
+// gov_resolve_proposal, migración 20260805190000_gov_resolve_server_side.sql).
+// El censo+tally+evaluate YA NO corren aquí: corren en SQL, bajo la marca
+// transaccional `app.gov_resolving` que proposals_guard exige para sellar
+// open→passed/rejected/expired — un `UPDATE proposals SET status=...` directo
+// desde el cliente para esa transición es RECHAZADO por el guard endurecido;
+// esta función es la ÚNICA vía legítima para sellar una resolución.
+//
+// La RPC es fail-closed y NO-OPERA si la propuesta no está 'open' (devuelve
+// `resolved:false`), así que invocarla repetidamente (voto, barrido, doble clic)
+// es siempre seguro: nunca reevalúa ni resella una propuesta ya cerrada.
+//
+// La EJECUCIÓN del comando sigue siendo client-side (fuera de alcance del port
+// SQL — ver cabecera de la migración): si la RPC sella 'passed' y señala un
+// comando pendiente, esta función lo ejecuta igual que antes (executeCommand) y
+// sella passed→executed/failed, transición que el guard endurecido SÍ permite
+// desde el cliente sin la marca transaccional.
 export async function tryResolve(
   proposalId: string,
 ): Promise<{ resolved: boolean; status?: string; detail?: string }> {
   const supabase = createClient();
   try {
-    const { data: prop } = await supabase
+    const { data, error } = await supabase.rpc("gov_resolve_proposal", {
+      p_id: proposalId,
+    });
+    if (error) return { resolved: false, detail: error.message };
+
+    const status: string | undefined = data?.status;
+    if (!data?.resolved) {
+      // Sin decisión sellada: aún abierta, censo desconocido (anti-expiración →
+      // `detail:'census_unavailable'`), ya cerrada por otra llamada concurrente
+      // (`detail:'race_lost'`, inalcanzable bajo el `for update` de la RPC pero
+      // defensivo en la SQL), o id inexistente (`error:'not_found'`). Nada que
+      // ejecutar aquí.
+      return {
+        resolved: false,
+        status,
+        detail: (data?.detail as string | undefined) ?? (data?.error as string | undefined),
+      };
+    }
+
+    let finalStatus = status as string;
+    let detail: string | undefined = data?.reason;
+
+    // Relectura de la fila YA SELLADA por la RPC — la usan tanto la ejecución del
+    // comando como la notificación (ambas siguen siendo client-side/best-effort).
+    const { data: row } = await supabase
       .from("proposals")
-      .select("*")
+      .select("status, author, scope, scope_ref, title, result")
       .eq("id", proposalId)
       .single();
-    if (!prop) return { resolved: false };
-    const proposal = prop as Proposal;
 
-    // Ya cerrada.
-    if (["passed", "rejected", "expired", "executed", "failed"].includes(proposal.status)) {
-      return { resolved: false, status: proposal.status };
-    }
-
-    const { data: votesData } = await supabase
-      .from("proposal_votes")
-      .select("proposal_id, voter, choice, weight, comment, created_at")
-      .eq("proposal_id", proposalId);
-    const votes = (votesData as ProposalVote[]) ?? [];
-
-    const config = await getConfig(proposal.scope, proposal.scope_ref);
-
-    // Censo elegible: si la propuesta es SUPRA-COMUNITARIA (params.reach), el
-    // censo es la unión/intersección de los miembros de los ámbitos federados;
-    // si no, el censo del ámbito único (comportamiento actual). Defensivo.
-    const reach = reachFromParams(proposal.params as Record<string, unknown>);
-    const eligible = reach
-      ? await eligibleForReach(reach)
-      : await eligibleCount(proposal.scope, proposal.scope_ref);
-
-    // ANTI-EXPIRACIÓN POR LECTURA FALLIDA (revisión adversarial Adenda 124): si se
-    // exige un % de censo (minPercent>0) y el censo NO se pudo determinar (`null` =
-    // error transitorio de Supabase / sin datos), NO finalizar — un parpadeo de red
-    // en el instante de resolución NO debe marcar "expired" de forma PERMANENTE una
-    // propuesta que sí tenía quórum. Se reintenta en la próxima llamada (voto o
-    // barrido). Con minPercent=0 (por defecto) el % no se usa y esto no aplica.
-    const minPct = Number((proposal.params as any)?.minPercent ?? 0);
-    if (minPct > 0 && (eligible == null || eligible <= 0)) {
-      return { resolved: false, status: "open", detail: "censo no disponible; se reintentará" };
-    }
-
-    // Delegaciones activas del tema (voto líquido). Vacío si la tabla no existe.
-    const delegations = await loadActiveDelegations(topicForProposal(proposal));
-
-    // Meritocracia del entendimiento (OPT-IN, ADITIVA). Sólo se activa si el
-    // contexto la habilita EXPLÍCITAMENTE: params de la propuesta o, en su
-    // defecto, params del contexto de gobernanza. Por defecto (ausente/OFF) →
-    // meritWeights = null → cada voto pesa ×1 (idéntico al comportamiento actual).
-    const meritParams: MeritParams | undefined =
-      proposal.params?.meritWeighting ??
-      (config?.params?.meritWeighting as MeritParams | undefined);
-    let meritWeights: Record<string, number> | null = null;
-    if (meritParams?.enabled) {
-      const area = topicToMeritArea(proposal);
-      const voterIds = Array.from(new Set(votes.map((v) => v.voter)));
-      meritWeights = await loadMeritWeights(voterIds, area, meritParams);
-    }
-
-    const ev = evaluate(proposal, votes, config, eligible, delegations, meritWeights);
-    if (!ev.decided) return { resolved: false, status: "open" };
-
-    const result: Record<string, unknown> = {
-      reason: ev.reason,
-      winningChoice: ev.winningChoice ?? null,
-      evaluatedAt: new Date().toISOString(),
-    };
-
-    // Actualiza estado resuelto.
-    await supabase
-      .from("proposals")
-      .update({ status: ev.status, result, resolved_at: new Date().toISOString() })
-      .eq("id", proposalId);
-
-    let finalStatus = ev.status as string;
-    let detail = ev.reason;
-
-    // Si pasa y tiene comando, ejecutar.
-    if (ev.status === "passed" && proposal.command && proposal.command.type && proposal.command.type !== "none") {
+    // Aprobada + comando pendiente (tipo≠'none', mirror de `commandPending` en la
+    // SQL) → ejecutar. GUARDA ANTI-DOBLE-EJECUCIÓN: sólo se ejecuta si la
+    // RELECTURA sigue viendo 'passed'. La RPC ya garantiza que sólo una llamada
+    // gana la transición open→passed (bloqueo `for update` + `where
+    // status='open'` dentro de la propia RPC), pero un barrido
+    // (resolveOpenProposals) puede reintentar tryResolve sobre la MISMA propuesta
+    // ya resuelta por otra pestaña/sesión que aún no terminó de ejecutar su
+    // comando; como passed→executed/failed es de UN SOLO SENTIDO
+    // (proposals_guard), esta relectura evita re-ejecutar un comando ya resuelto
+    // (p.ej. publicar dos veces).
+    if (
+      status === "passed" &&
+      row &&
+      row.status === "passed" &&
+      data?.commandPending &&
+      data?.command?.type &&
+      data.command.type !== "none"
+    ) {
       const { data: au } = await supabase.auth.getUser();
-      const exec = await executeCommand(proposal.command, {
+      const exec = await executeCommand(data.command, {
         supabase,
-        userId: au?.user?.id ?? proposal.author,
+        userId: au?.user?.id ?? row.author,
         proposalId,
-        scope: proposal.scope,
-        scopeRef: proposal.scope_ref,
+        scope: row.scope,
+        scopeRef: row.scope_ref,
       });
       finalStatus = exec.ok ? "executed" : "failed";
       detail = exec.detail;
@@ -560,24 +549,30 @@ export async function tryResolve(
         .from("proposals")
         .update({
           status: finalStatus,
-          result: { ...result, command: { ok: exec.ok, detail: exec.detail } },
+          // Preserva el `result` server-side (reason/winningChoice/tally, sellado
+          // por gov_resolve_proposal DENTRO de la RPC) y AÑADE el desenlace de la
+          // ejecución, en vez de sobrescribirlo — el recuento autoritativo vive ahí.
+          result: { ...(row.result ?? {}), command: { ok: exec.ok, detail: exec.detail } },
           executed_at: new Date().toISOString(),
         })
-        .eq("id", proposalId);
+        .eq("id", proposalId)
+        .eq("status", "passed");
     }
 
-    // Notificación de resultado a los participantes (best-effort).
+    // Notificación de resultado a los participantes (best-effort, como antes).
     try {
-      const voterIds = await resolveVoterIds(proposal.scope, proposal.scope_ref ?? null);
-      const targets = voterIds.length > 0 ? voterIds : [proposal.author];
-      const rows = targets.map((uidv) => ({
-        proposal_id: proposalId,
-        user_id: uidv,
-        kind: "result",
-        message: `Resultado: ${proposal.title} → ${finalStatus}`,
-        seen: false,
-      }));
-      await supabase.from("proposal_notifications").insert(rows);
+      if (row) {
+        const voterIds = await resolveVoterIds(row.scope, row.scope_ref ?? null);
+        const targets = voterIds.length > 0 ? voterIds : [row.author];
+        const rows = targets.map((uidv) => ({
+          proposal_id: proposalId,
+          user_id: uidv,
+          kind: "result",
+          message: `Resultado: ${row.title} → ${finalStatus}`,
+          seen: false,
+        }));
+        await supabase.from("proposal_notifications").insert(rows);
+      }
     } catch {
       /* */
     }
