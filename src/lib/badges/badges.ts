@@ -412,3 +412,46 @@ export const BADGE_TRIGGERS: Record<string, BadgeTrigger> = {
 export function badgeCodeForAction(action: string): string | null {
     return BADGE_TRIGGERS[action]?.badgeCode ?? null;
 }
+
+// ------------------- Auto-otorgamiento (insignias de LOGRO) -----------------
+//
+// Frente al AVAL (mérito, arriba — lo confiere OTRA persona), estas son
+// insignias de LOGRO/PARTICIPACIÓN: se ganan HACIENDO algo verificable por uno
+// mismo (aprobar un examen propio, publicar en la Tienda, desplegar una
+// app/cerebro…), así que es LEGÍTIMO que `awarded_by` sea el propio titular.
+//
+// NINGÚN code de esta lista confiere autoridad de gobernanza ni cuenta como
+// mérito avalado por terceros: merit.ts YA excluye toda insignia auto-otorgada
+// (awarded_by = titular) del cálculo de mérito, así que auto-otorgarse una de
+// éstas sigue sin comprar peso de voto — sólo desbloquea el reconocimiento de
+// logro visible en el perfil (badges-panel.tsx / featured-badges-widget.tsx).
+//
+// Las insignias de AUTORIDAD/MÉRITO (ENDORSABLE_BADGE_CODES: legislator,
+// mediator, scholar, verified) NUNCA deben aparecer aquí: sólo se ganan vía
+// `endorseBadge` (aval de un tercero) o una concesión del sistema
+// (`awarded_by` nulo/otra cuenta, p.ej. service_role) — nunca auto-otorgadas.
+//
+// ESPEJO EXACTO de `badge_code_is_self_awardable()` en la migración
+// `supabase/migrations/20260805210000_profile_badges_selfaward_allowlist.sql`
+// (el guardia REAL e infranqueable vive ahí, en un trigger BD SECURITY
+// DEFINER; esta constante es la capa de UX/ergonomía — ver createExam() en
+// src/lib/education/study.ts). Si añades o quitas un code aquí, actualiza
+// TAMBIÉN esa función SQL — deben permanecer sincronizadas.
+export const SELF_AWARDABLE_BADGE_CODES = [
+    "creator", // BADGE_TRIGGERS.publish_to_store — publicar en la Tienda.
+    "builder", // BADGE_TRIGGERS.deploy_app_or_brain — desplegar app/cerebro.
+    "exam_passed", // Insignia genérica de logro al aprobar un examen (study.ts
+    // y group-education.ts) — NUNCA una insignia de autoridad/mérito.
+] as const;
+
+/** `code` de una insignia de logro auto-otorgable (nunca de autoridad/mérito). */
+export type SelfAwardableBadgeCode = (typeof SELF_AWARDABLE_BADGE_CODES)[number];
+
+/**
+ * ¿Es `code` una insignia de LOGRO auto-otorgable? Lista CURADA y cerrada
+ * (allowlist): cualquier code desconocido o de autoridad/mérito (incluidos
+ * `ENDORSABLE_BADGE_CODES`) da `false` — falla cerrado por diseño. Nunca lanza.
+ */
+export function isSelfAwardableBadge(code: string | null | undefined): code is SelfAwardableBadgeCode {
+    return !!code && (SELF_AWARDABLE_BADGE_CODES as readonly string[]).includes(code);
+}

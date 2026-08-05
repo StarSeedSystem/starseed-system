@@ -381,7 +381,7 @@ function ExamTakeDialog({
         if (res.passed) {
             toast.success(
                 res.badgeAwarded && !res.alreadyHadBadge
-                    ? "¡Aprobado! Insignia Scholar otorgada en tu perfil."
+                    ? "¡Aprobado! Insignia de logro otorgada en tu perfil."
                     : "¡Aprobado!",
             );
         } else {
@@ -409,7 +409,7 @@ function ExamTakeDialog({
                         {result.passed ? (
                             <p className="text-sm text-emerald-300">
                                 {result.badgeAwarded && !result.alreadyHadBadge
-                                    ? "Insignia Scholar otorgada — visible en tus insignias de perfil."
+                                    ? "Insignia de logro otorgada — visible en tus insignias de perfil."
                                     : "Aprobado."}
                             </p>
                         ) : (

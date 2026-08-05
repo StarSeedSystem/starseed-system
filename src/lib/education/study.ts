@@ -20,7 +20,7 @@
  */
 
 import { createClient } from "@/utils/supabase/client";
-import { awardBadge, myProfileId } from "@/lib/badges/badges";
+import { awardBadge, myProfileId, isSelfAwardableBadge } from "@/lib/badges/badges";
 
 // ───────────────────────────── Tipos ──────────────────────────────────────
 
@@ -461,6 +461,21 @@ export async function createExam(input: CreateExamInput): Promise<Exam | null> {
     const title = input.title.trim();
     const uid = await currentUid();
     if (!uid || !title || !input.questions?.length) return null;
+    // SANEADO DEL badge_code (cierre del vector de auto-otorgamiento arbitrario,
+    // Adenda 125 → 143): la corrección de este examen ocurre EN CLIENTE
+    // (submitExamAttempt compara respuestas contra `questions`, que pone el
+    // propio creador), así que un `badgeCode` libre sería un primitivo de
+    // auto-otorgamiento arbitrario — el creador podría pedir "legislator" o
+    // "verified" y aprobarse a sí mismo su propio examen. Sólo se acepta un
+    // code de la lista CURADA de insignias de LOGRO (SELF_AWARDABLE_BADGE_CODES);
+    // cualquier otro (incluidas legislator/mediator/scholar/verified) se ignora
+    // en favor del genérico "exam_passed" — el examen se crea igual, sólo se
+    // sanea qué insignia podrá desbloquear. El guardia REAL e infranqueable
+    // vive en BD (trigger `profile_badges_selfaward_guard`, migración
+    // 20260805210000_profile_badges_selfaward_allowlist.sql); esto es la capa de
+    // UX para no crear un examen que nunca podría otorgar su insignia.
+    const requestedBadgeCode = input.badgeCode ?? "exam_passed";
+    const safeBadgeCode = isSelfAwardableBadge(requestedBadgeCode) ? requestedBadgeCode : "exam_passed";
     try {
         const { data, error } = await createClient()
             .from("exams")
@@ -470,7 +485,7 @@ export async function createExam(input: CreateExamInput): Promise<Exam | null> {
                 topic: input.topic ?? null,
                 questions: input.questions,
                 pass_threshold: input.passThreshold ?? 0.7,
-                badge_code: input.badgeCode ?? "exam_passed",
+                badge_code: safeBadgeCode,
                 is_template: false,
             })
             .select("*")
@@ -518,7 +533,13 @@ export async function submitExamAttempt(exam: Exam, answers: number[]): Promise<
         /* el intento no se guardó, pero seguimos con la corrección local */
     }
 
-    if (passed && exam.badge_code) {
+    // Defensa en profundidad (espejo del trigger BD): aunque createExam() ya
+    // sanea badge_code, una fila `exams` PRE-EXISTENTE (creada antes de este fix,
+    // o insertada por otra vía fuera de esta función) podría llevar un code de
+    // autoridad. No lo intentamos: la BD lo rechazaría igual, pero así evitamos
+    // un insert condenado y el usuario ve un resultado honesto (sin insignia) en
+    // vez de que awardBadge falle en silencio (tolerante a fallos por diseño).
+    if (passed && exam.badge_code && isSelfAwardableBadge(exam.badge_code)) {
         const pid = await myProfileId();
         if (pid) {
             const ok = await awardBadge(pid, exam.badge_code);

@@ -19,15 +19,25 @@
  * conjunto fijo de codes (verified, creator, legislator, mediator, scholar,
  * builder) — no se crean codes nuevos por examen desde el cliente (eso
  * requeriría una migración). Aprobar CUALQUIER examen de un grupo otorga la
- * insignia real "scholar" (área educación, ya existente — ver
- * BADGE_TRIGGERS.contribute_knowledge en src/lib/badges/badges.ts), que es la
- * integración más real disponible sin tocar la base de datos. El contador
- * "cuántos aprobaron ESTE examen" sí es específico y real (se deriva de los
- * intentos registrados aquí).
+ * insignia real de LOGRO "exam_passed" (EXAM_PASS_BADGE_CODE) — NUNCA
+ * "scholar": aunque este code es fijo (no lo elige el creador del examen, a
+ * diferencia de study.ts), "scholar" es una insignia de MÉRITO avalable entre
+ * pares (ENDORSABLE_BADGE_CODES en badges.ts) que merit.ts pondera para el
+ * peso de voto en gobernanza y que se muestra como credencial en el feed
+ * político (political-proposal-card.tsx) — auto-otorgarla al aprobar CUALQUIER
+ * examen de grupo (corrección 100% en cliente, ver submitExamAttempt) sería
+ * spoofear esa credencial de "Erudito/a" reconocida por la comunidad sin aval
+ * real (cierre del hallazgo de la Adenda 125, endurecido en la 143 — ver
+ * migración 20260805210000_profile_badges_selfaward_allowlist.sql, que además
+ * BLOQUEA en BD cualquier auto-otorgamiento de "scholar" pase lo que pase
+ * aquí). Quien quiera la insignia "Erudito/a" real necesita el aval de un
+ * tercero vía `endorseBadge` (src/components/profiles/endorse-badge.tsx). El
+ * contador "cuántos aprobaron ESTE examen" sí es específico y real (se deriva
+ * de los intentos registrados aquí).
  */
 
 import { getEntityState, setEntityState, type EntityRef } from "@/lib/sync/entity-state";
-import { myProfileId, awardBadge, hasBadge } from "@/lib/badges/badges";
+import { myProfileId, awardBadge, hasBadge, isSelfAwardableBadge } from "@/lib/badges/badges";
 
 export type GroupEntityKind = "group" | "page";
 
@@ -187,8 +197,16 @@ export interface ExamAttempt {
 const ATTEMPTS_KEY = "education:exam-attempts";
 const MAX_ATTEMPTS_STORED = 200;
 
-/** Insignia REAL (catálogo existente, área educación) otorgada al aprobar un examen. */
-export const EXAM_PASS_BADGE_CODE = "scholar";
+/**
+ * Insignia REAL de LOGRO (catálogo existente) otorgada al aprobar un examen de
+ * grupo. Debe ser SIEMPRE un code de SELF_AWARDABLE_BADGE_CODES (badges.ts) —
+ * NUNCA "scholar" ni otra insignia de autoridad/mérito (ENDORSABLE_BADGE_CODES):
+ * la corrección del examen es 100% en cliente, así que auto-otorgar aquí un
+ * code de autoridad equivaldría al mismo primitivo de auto-otorgamiento
+ * arbitrario que cierra la Adenda 143 en study.ts. Ver el comentario de
+ * cabecera de este fichero.
+ */
+export const EXAM_PASS_BADGE_CODE = "exam_passed";
 
 export async function loadAttempts(ref: EntityRef): Promise<ExamAttempt[]> {
     const row = await getEntityState<ExamAttempt[]>(ref, ATTEMPTS_KEY);
@@ -224,7 +242,12 @@ export async function submitExamAttempt(
     let profileId: string | null = null;
     try {
         profileId = await myProfileId();
-        if (passed && profileId) {
+        // isSelfAwardableBadge(...) es un guardia defensivo (espejo del trigger
+        // BD): EXAM_PASS_BADGE_CODE ya es una constante segura, pero así una
+        // futura edición accidental de su valor a un code de autoridad no
+        // otorgaría nada en silencio en vez de depender sólo de que la BD lo
+        // rechace.
+        if (passed && profileId && isSelfAwardableBadge(EXAM_PASS_BADGE_CODE)) {
             alreadyHadBadge = await hasBadge(profileId, EXAM_PASS_BADGE_CODE);
             badgeAwarded = await awardBadge(profileId, EXAM_PASS_BADGE_CODE);
         }
