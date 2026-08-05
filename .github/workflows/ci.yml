@@ -1,8 +1,9 @@
 # ════════════════════════════════════════════════════════════════════════════
-# CI · Verificación web (Adenda 124 · mejora de proceso)
+# CI · Verificación web (Adenda 124 · mejora de proceso; + Vitest en Adenda 148)
 # ----------------------------------------------------------------------------
-# Puerta de calidad en CADA push/PR a `main`: typecheck + tests del núcleo
-# mesh/cripto + build de producción. Evita que un push roto llegue a Vercel.
+# Puerta de calidad en CADA push/PR a `main`: typecheck + tests unitarios
+# (Vitest: gobernanza/seguridad) + tests del núcleo mesh/cripto + build de
+# producción. Evita que un push roto llegue a Vercel.
 # (Complementa a native-build.yml, que solo corre en etiquetas v* para releases.)
 # ════════════════════════════════════════════════════════════════════════════
 name: CI · verificación web
@@ -19,7 +20,7 @@ concurrency:
 
 jobs:
   verify:
-    name: Typecheck · Mesh tests · Build
+    name: Typecheck · Unit · Mesh · Build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -36,6 +37,8 @@ jobs:
         run: npm ci
       - name: Typecheck (tsc --noEmit)
         run: npx tsc --noEmit
+      - name: Tests unitarios (Vitest · gobernanza + seguridad)
+        run: npm test
       - name: Tests del núcleo mesh/cripto
         run: npx --yes tsx scripts/test-mesh-core.ts
       - name: Build de producción (next build)
