@@ -160,15 +160,14 @@ describe("evaluate", () => {
   });
 
   // ── Hallazgo: ver informe final — discrepancia con la protección "anti-expiración" ──
-  it("[DISCREPANCIA REPORTADA] con minPercent>0 y censo DESCONOCIDO (eligible=null), evaluate() SÍ sella 'expired' al cerrar " +
-    "— no reproduce la protección anti-expiración por censo desconocido documentada para el lado servidor " +
-    "(gov_resolve_proposal / antiguo tryResolve, detail:'census_unavailable'). Este test documenta el comportamiento " +
-    "ACTUAL de la función pura, usada para la vista EN VIVO mientras la propuesta sigue 'open' en BD.", () => {
+  it("con minPercent>0 y censo DESCONOCIDO (eligible=null), evaluate() NO finaliza al cerrar (anti-expiración) " +
+    "— ALINEADO con el sellado server-side (gov_resolve_proposal): no muestra 'Expirada' en la previsualización " +
+    "cuando el servidor mantendría la propuesta abierta a la espera del censo (Adenda 150).", () => {
     const proposal = makeProposal({ params: { votingEndsAt: pastIso(1), minPercent: 30, threshold: 50 } });
     const votes = [makeVote("u1", "yes"), makeVote("u2", "yes"), makeVote("u3", "no")];
     const ev = evaluate(proposal, votes, null, null); // eligible=null → censo desconocido
-    expect(ev.decided).toBe(true);
-    expect(ev.status).toBe("expired");
+    expect(ev.decided).toBe(false);
+    expect(ev.status).toBe("open");
   });
 
   it("decisión anticipada (early-decisive) resuelve ANTES de cerrar en 1 persona = 1 voto puro, si el líder es matemáticamente inalcanzable", () => {

@@ -418,6 +418,18 @@ export function evaluate(
   }
 
   if (timeUp || earlyDecisive) {
+    // Anti-expiración por censo desconocido (mirror de la RPC server-side
+    // `gov_resolve_proposal`, Adenda 146/149): si se exige participación mínima
+    // (%) y el censo NO se pudo determinar (null/0), NO finalizar — el sellado
+    // AUTORITATIVO (servidor) tampoco lo hace, así que la PREVISUALIZACIÓN cliente
+    // no debe mostrar "Expirada" cuando el servidor mantendría la propuesta abierta.
+    if ((params.minPercent ?? 0) > 0 && (!eligible || eligible <= 0)) {
+      return {
+        decided: false,
+        status: "open",
+        reason: `En votación · censo no disponible; el resultado se sella en el servidor.${hierNote}`,
+      };
+    }
     if (!quorumMet) {
       return {
         decided: true,
