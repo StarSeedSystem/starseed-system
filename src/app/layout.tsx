@@ -40,6 +40,11 @@ import { NotificationsProvider } from "@/context/notifications-context";
 import { AccountProvider } from "@/context/account-context";
 
 import { OmniDock } from "@/components/layout/omni-dock";
+// Paleta de comandos global (Cmd/Ctrl+K): buscar y saltar a cualquier app o
+// página del OS + acciones rápidas. Hermana de {children} (no lo envuelve,
+// igual que el resto de la chrome global) para estar disponible en TODAS las
+// rutas, igual que ConfirmProvider (Adenda 137). Ver command-palette.tsx.
+import { CommandPalette } from "@/components/layout/command-palette";
 // Aurora GLOBAL: provider + orbe viven en el layout RAÍZ para que el orbe (y el
 // acceso Trinity que ofrece) exista en TODAS las rutas — dashboard (main),
 // login, onboarding… — y para que el ZenithCurtain (Exocórtex) quede DENTRO del
@@ -294,6 +299,7 @@ export default function RootLayout({
                             Apariencia → Cursor; 'starseed.cursorfx.v1'). Global. */}
                         <CursorFxHost />
                         <AlarmsEngine />
+                        <CommandPalette />
                         <Toaster />
                         <Sonner />
                         </AuroraProvider>
