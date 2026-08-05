@@ -207,7 +207,16 @@ export default function RootLayout({
         <RouteFocus />
         <ThemeProvider
           attribute="class"
-          defaultTheme="system"
+          // Oscuro por defecto (Adenda 152): el OS está diseñado dark-first
+          // (fondo Spline oscuro + cristal líquido) y el modo claro aún no está
+          // barrido (≈515 componentes fijan colores oscuros a mano + falta un
+          // fondo claro), así que "system" hacía que un usuario con el SO en claro
+          // viera la UI incoherente. Con "dark" como default, quien no elige tema
+          // recibe la experiencia diseñada y coherente. `light`/`grey`/`natural`/
+          // `glass`/`system` SIGUEN siendo seleccionables (theme-selector) — el
+          // modo claro a detalle queda como desarrollo futuro (ver claude/
+          // pendiente-modo-claro-2026-08-05.md).
+          defaultTheme="dark"
           enableSystem
           disableTransitionOnChange
         >
