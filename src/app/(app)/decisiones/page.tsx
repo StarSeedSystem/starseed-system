@@ -2,8 +2,11 @@
 
 import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
+import { Landmark, Waypoints } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import GovernancePanel from "@/components/governance/governance-panel";
 import GovNotifications from "@/components/governance/notifications-panel";
+import LiquidDelegationPanel from "@/components/governance/liquid-delegation-panel";
 import { parseProposalParams } from "@/lib/governance/links";
 
 // Lee los parámetros de la URL (deep-link de propuesta prefilled) y monta el
@@ -33,14 +36,33 @@ export default function DecisionesPage() {
         <p className="mb-6 mt-1 text-sm text-white/50">
           Motor de comandos democráticos para todo StarSeed: una decisión sólo se ejecuta cuando se cumple el formato
           democrático (tiempo, participación mínima y umbral). Los votos son siempre públicos y cada decisión aprobada
-          puede ejecutar un comando procedimental.
+          puede ejecutar un comando procedimental. Tu voz también puedes delegarla — de forma revocable — en la
+          pestaña "Delegación Líquida".
         </p>
-        <div className="space-y-6">
-          <Suspense fallback={null}>
-            <DecisionesPanel />
-          </Suspense>
-          <GovNotifications />
-        </div>
+
+        <Tabs defaultValue="decisiones" className="w-full">
+          <TabsList className="grid w-full grid-cols-2 h-auto">
+            <TabsTrigger value="decisiones" className="gap-1.5 px-2 py-2 text-[clamp(0.7rem,2.2vw,0.875rem)] sm:px-5">
+              <Landmark className="h-4 w-4 shrink-0" /> Decisiones
+            </TabsTrigger>
+            <TabsTrigger value="delegacion" className="gap-1.5 px-2 py-2 text-[clamp(0.7rem,2.2vw,0.875rem)] sm:px-5">
+              <Waypoints className="h-4 w-4 shrink-0" /> Delegación Líquida
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="decisiones" className="mt-6 animate-in fade-in-50 duration-500 slide-in-from-bottom-2">
+            <div className="space-y-6">
+              <Suspense fallback={null}>
+                <DecisionesPanel />
+              </Suspense>
+              <GovNotifications />
+            </div>
+          </TabsContent>
+
+          <TabsContent value="delegacion" className="mt-6 animate-in fade-in-50 duration-500 slide-in-from-bottom-2">
+            <LiquidDelegationPanel />
+          </TabsContent>
+        </Tabs>
       </div>
     </main>
   );
