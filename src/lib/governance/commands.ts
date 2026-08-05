@@ -223,6 +223,61 @@ async function mergeGovParams(
   }
 }
 
+// Detecta si un error de PostgREST/Supabase indica que la función RPC todavía
+// NO existe en este entorno (p.ej. la migración 20260801170000 aún no se ha
+// aplicado). Defensivo: sólo reconoce señales positivas de "función ausente"
+// (código PGRST202, o mensaje con "could not find the function" / "does not
+// exist" / "schema cache", comparación insensible a mayúsculas); cualquier otro
+// error (p.ej. propuesta no aprobada) NO cuenta como "ausente" — así nunca se
+// confunde un error real de la RPC con un entorno pre-migración.
+function isMissingRpcError(error: any): boolean {
+  const haystack = `${error?.code ?? ""} ${error?.message ?? ""}`.toLowerCase();
+  return (
+    haystack.includes("pgrst202") ||
+    haystack.includes("could not find the function") ||
+    haystack.includes("does not exist") ||
+    haystack.includes("schema cache")
+  );
+}
+
+// Ruta democrática (Adenda 127 · RLS de propiedad de governance_configs): si el
+// comando viene de una propuesta APROBADA (ctx.proposalId presente), se intenta
+// PRIMERO la función SECURITY DEFINER `gov_apply_approved_config`, que bypassea
+// la nueva RLS de propiedad derivando el cambio del COMANDO YA ALMACENADO en la
+// propuesta (fuente de verdad server-side), no de argumentos del cliente.
+//   · Sin error de la RPC          → aplicado por la vía democrática.
+//   · Error de "función ausente"   → entorno pre-migración: cae al camino
+//     directo `mergeGovParams` (mismo comportamiento que hoy).
+//   · Cualquier OTRO error de la RPC (p.ej. propuesta no aprobada, falta clave)
+//     → se devuelve tal cual (fail-closed); NO se reintenta el camino directo,
+//     porque la RLS de propiedad lo denegaría igual para un no-dueño.
+//   · Sin ctx.proposalId (invocación directa fuera del flujo de propuestas) →
+//     se mantiene el camino directo de siempre, sin tocar la RPC.
+async function applyGovConfigViaRpcOrDirect(
+  ctx: ExecCtx,
+  directFn: () => Promise<ExecResult>,
+): Promise<ExecResult> {
+  if (!ctx.proposalId) return directFn();
+
+  const { data, error } = await ctx.supabase.rpc("gov_apply_approved_config", {
+    p_proposal_id: ctx.proposalId,
+  });
+
+  if (!error) {
+    const mode = (data as any)?.mode;
+    return {
+      ok: true,
+      detail: mode
+        ? `configuración aplicada (democrática) · modo: ${mode}`
+        : "configuración aplicada (democrática)",
+    };
+  }
+
+  if (isMissingRpcError(error)) return directFn();
+
+  return { ok: false, detail: error?.message ?? "error al aplicar configuración" };
+}
+
 // Ejecutor principal. Cada handler es tolerante (try/catch); tipo desconocido → no soportado.
 export async function executeCommand(spec: CommandSpec | null, ctx: ExecCtx): Promise<ExecResult> {
   if (!spec || !spec.type || spec.type === "none") {
@@ -260,12 +315,14 @@ export async function executeCommand(spec: CommandSpec | null, ctx: ExecCtx): Pr
         const scope = p.scope || ctx.scope;
         const scope_ref = p.scope_ref ?? ctx.scopeRef ?? null;
         if (!scope) return { ok: false, detail: "falta ámbito" };
-        const res = await mergeGovParams(
-          supabase,
-          scope,
-          scope_ref,
-          (params) => ({ ...params, ...(p.params || {}) }),
-          { mode: p.mode, owner: ctx.userId },
+        const res = await applyGovConfigViaRpcOrDirect(ctx, () =>
+          mergeGovParams(
+            supabase,
+            scope,
+            scope_ref,
+            (params) => ({ ...params, ...(p.params || {}) }),
+            { mode: p.mode, owner: ctx.userId },
+          ),
         );
         // Para páginas/comunidades, reflejar en pages.governance (best-effort).
         if ((scope === "page" || scope === "community") && scope_ref) {
@@ -285,22 +342,26 @@ export async function executeCommand(spec: CommandSpec | null, ctx: ExecCtx): Pr
         const scope = p.scope || ctx.scope;
         const scope_ref = p.scope_ref ?? ctx.scopeRef ?? null;
         if (!scope || !p.key) return { ok: false, detail: "faltan ámbito o clave" };
-        return await mergeGovParams(supabase, scope, scope_ref, (params) => {
-          const config = { ...((params.config as Record<string, unknown>) ?? {}) };
-          config[p.key] = p.value;
-          return { ...params, config };
-        });
+        return await applyGovConfigViaRpcOrDirect(ctx, () =>
+          mergeGovParams(supabase, scope, scope_ref, (params) => {
+            const config = { ...((params.config as Record<string, unknown>) ?? {}) };
+            config[p.key] = p.value;
+            return { ...params, config };
+          }),
+        );
       }
 
       case "set_permission": {
         const scope = p.scope || ctx.scope;
         const scope_ref = p.scope_ref ?? ctx.scopeRef ?? null;
         if (!scope || !p.permission) return { ok: false, detail: "faltan ámbito o permiso" };
-        return await mergeGovParams(supabase, scope, scope_ref, (params) => {
-          const permissions = { ...((params.permissions as Record<string, unknown>) ?? {}) };
-          permissions[p.permission] = p.value;
-          return { ...params, permissions };
-        });
+        return await applyGovConfigViaRpcOrDirect(ctx, () =>
+          mergeGovParams(supabase, scope, scope_ref, (params) => {
+            const permissions = { ...((params.permissions as Record<string, unknown>) ?? {}) };
+            permissions[p.permission] = p.value;
+            return { ...params, permissions };
+          }),
+        );
       }
 
       case "create_page": {

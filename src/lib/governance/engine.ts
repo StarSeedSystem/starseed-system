@@ -47,17 +47,29 @@ export type CreateProposalInput = {
 
 function computeParams(input?: Partial<DecisionParams>): DecisionParams {
   const urgency = input?.urgency ?? DEFAULT_PARAMS.urgency;
-  const votingMinutes =
+  const rawVotingMinutes =
     input?.votingMinutes && input.votingMinutes > 0
       ? input.votingMinutes
       : URGENCY[urgency]?.votingMinutes ?? DEFAULT_PARAMS.votingMinutes;
+  // Clamps defensivos (espejo de un nuevo clamp en BD): el cliente nunca debe
+  // producir parámetros de quórum fuera de rango, aunque `input` llegue
+  // manipulado o con valores fraccionarios/absurdos. `urgency`/`votingEndsAt`
+  // y la lógica de alcance (reach, en createProposal) quedan intactos: sólo se
+  // acota el VALOR final de cada parámetro numérico.
+  const votingMinutes = Math.max(1, Math.floor(rawVotingMinutes));
+  const rawMinParticipants =
+    input?.minParticipants != null ? input.minParticipants : DEFAULT_PARAMS.minParticipants;
+  const minParticipants = Math.max(1, Math.floor(rawMinParticipants));
+  const rawMinPercent = input?.minPercent != null ? input.minPercent : DEFAULT_PARAMS.minPercent;
+  const minPercent = Math.min(100, Math.max(0, Math.floor(rawMinPercent)));
+  const rawThreshold = input?.threshold != null ? input.threshold : DEFAULT_PARAMS.threshold;
+  const threshold = Math.min(100, Math.max(1, Math.floor(rawThreshold)));
   const votingEndsAt = new Date(Date.now() + votingMinutes * 60_000).toISOString();
   return {
     votingMinutes,
-    minParticipants:
-      input?.minParticipants != null ? input.minParticipants : DEFAULT_PARAMS.minParticipants,
-    minPercent: input?.minPercent != null ? input.minPercent : DEFAULT_PARAMS.minPercent,
-    threshold: input?.threshold != null ? input.threshold : DEFAULT_PARAMS.threshold,
+    minParticipants,
+    minPercent,
+    threshold,
     urgency,
     votingEndsAt,
   };
