@@ -2206,7 +2206,11 @@ export async function myLibraryDestinations(): Promise<LibraryDestination[]> {
         const seen = new Set<string>(["user:" + uid]);
 
         const [membershipsRes, ownedPagesRes, ownedGroupsRes] = await Promise.all([
-            supabase.from("os_memberships").select("group_slug, role").eq("user_id", uid),
+            // Excluye solicitudes de ingreso sin resolver (role='pending' — adenda
+            // "solicitud de ingreso + aprobación"): esta función resuelve DESTINOS
+            // donde el usuario puede GUARDAR ítems de biblioteca, así que una
+            // solicitud pendiente no debe ofrecer el grupo como destino todavía.
+            supabase.from("os_memberships").select("group_slug, role").eq("user_id", uid).neq("role", "pending"),
             supabase.from("os_pages").select("slug, name").eq("owner_id", uid),
             supabase.from("os_groups").select("slug, name").eq("owner_id", uid),
         ]);

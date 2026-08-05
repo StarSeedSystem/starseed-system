@@ -90,7 +90,12 @@ function useAclContext(ref: EntityRef | null): AclViewerContext {
                 }
 
                 const [membershipsRes, ownedRes] = await Promise.all([
-                    supabase.from("os_memberships").select("group_slug").eq("user_id", uid),
+                    // Excluye solicitudes de ingreso sin resolver (role='pending' —
+                    // adenda "solicitud de ingreso + aprobación"): `groupSlugs` alimenta
+                    // el ACL de la Biblioteca (finder-types.ts: ctx.groupSlugs.includes
+                    // decide si puedo VER un ítem compartido con ese grupo), así que una
+                    // solicitud pendiente no debe dar acceso antes de ser aprobada.
+                    supabase.from("os_memberships").select("group_slug").eq("user_id", uid).neq("role", "pending"),
                     ref.kind === "group"
                         ? supabase.from("os_groups").select("slug").eq("slug", ref.id).eq("owner_id", uid).maybeSingle()
                         : supabase.from("os_pages").select("slug").eq("slug", ref.id).eq("owner_id", uid).maybeSingle(),

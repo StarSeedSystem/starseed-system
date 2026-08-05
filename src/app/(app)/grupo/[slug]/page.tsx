@@ -16,6 +16,7 @@ import { GlassCard } from "@/components/ui/glass-card";
 import { PostCard } from "@/components/social/PostCard";
 import { ShareButton } from "@/components/social/SocialActions";
 import { GroupRoster } from "@/components/social/group-roster";
+import { GroupJoinRequests } from "@/components/social/group-join-requests";
 import { GovernanceToolkit, hasToolkit, toolkitMeta } from "@/components/social/toolkits";
 import { EntityLibraryPanel } from "@/components/library/entity-library-panel";
 import { libraryRef } from "@/lib/library/entity-library";
@@ -41,6 +42,7 @@ import { GroupEducationPanel } from "@/components/education/group-education-pane
 import { DecisionesSection } from "@/components/governance/decisiones-section";
 import { MediationSection } from "@/components/governance/mediation-section";
 import { GroupFacePicker } from "@/components/profiles/group-face-picker";
+import { toast } from "sonner";
 import {
     UsersRound,
     Info,
@@ -48,6 +50,7 @@ import {
     Plus,
     Check,
     Send,
+    Clock,
     Lock,
     Pencil,
     Network,
@@ -60,7 +63,21 @@ function onImgError(e: React.SyntheticEvent<HTMLImageElement, Event>) {
     e.currentTarget.style.display = "none";
 }
 
-/** Botón Unirme/Solicitar conectado a Supabase (os_memberships). */
+/**
+ * Botón Unirme/Solicitar conectado a Supabase (os_memberships).
+ *
+ * Grupos "asamblea" piden APROBACIÓN del propietario en vez de unirse al
+ * instante (adenda "solicitud de ingreso + aprobación"): el self-insert usa
+ * `role: "pending"` (RLS de fila propia ya lo permite; el guard de rol solo
+ * degrada roles PRIVILEGIADOS, y 'pending' no lo es). El estado real de la
+ * fila propia (`role`, expuesto por `useMembership`) distingue "solicitud
+ * enviada, aún pendiente" de "ya aprobado" — antes de esta adenda el botón
+ * decía "Solicitud enviada" para siempre tras el click, aunque el propietario
+ * ya hubiera aprobado (era cosmético: `setMembership` insertaba de inmediato
+ * con rol de miembro pleno). Pulsar mientras está pendiente RETIRA la
+ * solicitud (self-delete, ya permitido) — ética restaurativa: nada aquí es
+ * definitivo, se puede volver a solicitar cuando se quiera.
+ */
 function JoinButton({
     groupSlug,
     accent,
@@ -72,24 +89,27 @@ function JoinButton({
     count: number;
     isAssembly: boolean;
 }) {
-    const { active, loading, toggle } = useMembership(groupSlug);
+    const { active, role, loading, toggle } = useMembership(groupSlug, isAssembly ? "pending" : "miembro");
     const [hint, setHint] = useState(false);
+    const pending = role === "pending";
 
-    const Icon = active ? Check : isAssembly ? Send : Plus;
-    const label = active
-        ? isAssembly
-            ? "Solicitud enviada"
-            : "Miembro"
-        : isAssembly
-          ? "Solicitar unirse"
-          : "Unirme";
-    const displayCount = count + (active ? 1 : 0);
+    const Icon = pending ? Clock : active ? Check : isAssembly ? Send : Plus;
+    const label = pending
+        ? "Solicitud enviada"
+        : active
+          ? "Miembro"
+          : isAssembly
+            ? "Solicitar unirse"
+            : "Unirme";
+    const displayCount = count + (active && !pending ? 1 : 0);
 
     const handleClick = async () => {
         const res = await toggle();
         if (res.needsAuth) {
             setHint(true);
             setTimeout(() => setHint(false), 4000);
+        } else if (!res.ok && res.error) {
+            toast.error(res.error);
         }
     };
 
@@ -100,6 +120,7 @@ function JoinButton({
                 variant={active ? "outline" : "default"}
                 onClick={handleClick}
                 disabled={loading}
+                title={pending ? "Pulsa para retirar tu solicitud" : undefined}
                 className="gap-2 cursor-pointer transition-all"
                 style={
                     active
@@ -114,6 +135,11 @@ function JoinButton({
                     · {displayCount.toLocaleString("es-ES")}
                 </span>
             </Button>
+            {pending && (
+                <span className="text-[11px] text-muted-foreground">
+                    Pendiente de aprobación del propietario del grupo.
+                </span>
+            )}
             {hint && (
                 <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
                     <Lock className="h-3 w-3" />
@@ -284,7 +310,19 @@ function GrupoPageContent() {
                 </GlassCard>
             ),
         });
-        list.push({ id: "members", label: "Miembros", node: <GroupRoster slug={group.slug} accent={accentForTabs} total={group.memberCount ?? 0} /> });
+        list.push({
+            id: "members",
+            label: "Miembros",
+            node: (
+                <div className="space-y-6">
+                    {/* Solo el propietario ve/gestiona esto (la propia GroupJoinRequests
+                        se auto-oculta si !isOwner); embebido en la MISMA pestaña "Miembros"
+                        que el directorio — sin ruta nueva en el dock. */}
+                    <GroupJoinRequests groupSlug={group.slug} accent={accentForTabs} isOwner={isOwner} />
+                    <GroupRoster slug={group.slug} accent={accentForTabs} total={group.memberCount ?? 0} />
+                </div>
+            ),
+        });
         list.push({
             id: "agenda",
             label: "Agenda",

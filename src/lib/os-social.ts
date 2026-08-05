@@ -535,6 +535,124 @@ export async function setMembership(
     }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// SOLICITUD DE INGRESO + APROBACIÓN DEL PROPIETARIO
+// ─────────────────────────────────────────────────────────────────────────────
+// Una SOLICITUD es una fila `os_memberships` normal con `role = 'pending'`,
+// auto-insertada por quien solicita vía `setMembership(slug, true, "pending")`
+// (self-insert de SU PROPIA fila: la RLS de INSERT/UPDATE de fila propia ya lo
+// permite hoy, y el trigger `os_memberships_guard_role` sólo degrada roles
+// PRIVILEGIADOS — 'pending' no lo es, así que lo deja intacto).
+//
+// La RESOLUCIÓN (aprobar/rechazar la fila de OTRA persona) NO la permite la
+// RLS actual (UPDATE/DELETE son de fila propia, `user_id = auth.uid()`), así
+// que pasa por dos RPC SECURITY DEFINER que verifican `os_groups.owner_id`
+// server-side: `approve_group_membership` / `reject_group_membership`
+// (supabase/migrations/20260805220000_group_join_approval.sql).
+//
+// Censo/gobernanza (voto, quórum, roster, permisos): `src/lib/governance/
+// membership.ts` EXCLUYE `role = 'pending'` de todas sus lecturas — una
+// solicitud sin resolver nunca cuenta como miembro ni vota: "una persona, una
+// voz" exige personas YA aceptadas, no solicitantes.
+
+/**
+ * Rol crudo de la fila PROPIA (user_id = yo) en `os_memberships` para un
+ * grupo, o null si no hay sesión o no hay fila. A diferencia de
+ * `roleFromMemberships` (censo de gobernanza, que EXCLUYE 'pending'), esta
+ * función sí devuelve 'pending': es el propio estado del usuario sobre su
+ * propia solicitud, no una lectura del censo de otros.
+ */
+export async function getMyMembershipRole(groupSlugKey: string): Promise<string | null> {
+    const uid = await getCurrentUserId();
+    if (!uid) return null;
+    const supabase = createClient();
+    try {
+        const { data } = await supabase
+            .from("os_memberships")
+            .select("role")
+            .eq("user_id", uid)
+            .eq("group_slug", groupSlugKey)
+            .maybeSingle();
+        return (data as { role?: string | null } | null)?.role ?? null;
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * user_ids con solicitud de ingreso PENDIENTE (`role = 'pending'`) en un
+ * grupo. Lectura simple (misma RLS de SELECT amplia que usa el resto del
+ * censo — ver `membersFromMemberships`); defensiva, [] ante cualquier fallo.
+ * Sin verja de propiedad aquí (es lectura, no acción): la UI solo la muestra
+ * a `isOwner`, y la RESOLUCIÓN (aprobar/rechazar) sí exige ser el dueño real,
+ * aplicado server-side por las RPC de abajo.
+ */
+export async function fetchPendingGroupRequests(groupSlugKey: string): Promise<string[]> {
+    const supabase = createClient();
+    try {
+        const { data } = await supabase
+            .from("os_memberships")
+            .select("user_id")
+            .eq("group_slug", groupSlugKey)
+            .eq("role", "pending");
+        return ((data as { user_id?: string | null }[] | null) ?? [])
+            .map((r) => r.user_id)
+            .filter((v): v is string => !!v);
+    } catch {
+        return [];
+    }
+}
+
+/**
+ * Aprueba una solicitud de ingreso pendiente (`pending` → `miembro`) vía la
+ * RPC SECURITY DEFINER `approve_group_membership`. Solo tiene éxito si quien
+ * llama es el `owner_id` real del grupo (comprobado SERVER-SIDE dentro de la
+ * función; el cliente no decide nada). needsAuth si no hay sesión.
+ */
+export async function approveGroupJoinRequest(
+    groupSlugKey: string,
+    userId: string,
+): Promise<MutationResult> {
+    const uid = await getCurrentUserId();
+    if (!uid) return { ok: false, needsAuth: true };
+    const supabase = createClient();
+    try {
+        const { error } = await supabase.rpc("approve_group_membership", {
+            p_group_slug: groupSlugKey,
+            p_user_id: userId,
+        });
+        if (error) throw error;
+        return { ok: true, active: true };
+    } catch (e: any) {
+        return { ok: false, error: e?.message || "No se pudo aprobar la solicitud." };
+    }
+}
+
+/**
+ * Rechaza (borra) una solicitud de ingreso pendiente vía la RPC SECURITY
+ * DEFINER `reject_group_membership` — simétrica a `approve_group_membership`.
+ * Ética restaurativa (CLAUDE.md §6): solo borra la fila `pending`; no deja
+ * marca ni bloqueo, la persona puede volver a solicitar cuando quiera.
+ */
+export async function rejectGroupJoinRequest(
+    groupSlugKey: string,
+    userId: string,
+): Promise<MutationResult> {
+    const uid = await getCurrentUserId();
+    if (!uid) return { ok: false, needsAuth: true };
+    const supabase = createClient();
+    try {
+        const { error } = await supabase.rpc("reject_group_membership", {
+            p_group_slug: groupSlugKey,
+            p_user_id: userId,
+        });
+        if (error) throw error;
+        return { ok: true, active: false };
+    } catch (e: any) {
+        return { ok: false, error: e?.message || "No se pudo rechazar la solicitud." };
+    }
+}
+
 export async function getAttendance(eventSlugKey: string): Promise<string | null> {
     const uid = await getCurrentUserId();
     if (!uid) return null;

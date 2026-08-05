@@ -445,7 +445,11 @@ async function myEntitySlugs(
         const [ownedPages, ownedGroups, memberships] = await Promise.all([
             supabase.from("os_pages").select("slug").eq("owner_id", uid),
             supabase.from("os_groups").select("slug").eq("owner_id", uid),
-            supabase.from("os_memberships").select("group_slug").eq("user_id", uid),
+            // Excluye solicitudes de ingreso sin resolver (role='pending' — adenda
+            // "solicitud de ingreso + aprobación"): esto alimenta a QUÉ puede
+            // PUBLICAR el usuario, así que una solicitud pendiente no debe dar
+            // permiso de publicar en el grupo antes de ser aprobada.
+            supabase.from("os_memberships").select("group_slug").eq("user_id", uid).neq("role", "pending"),
         ]);
         for (const r of (ownedPages.data as { slug?: string | null }[]) || []) {
             if (r.slug) slugs.add(r.slug);

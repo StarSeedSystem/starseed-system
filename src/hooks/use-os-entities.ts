@@ -36,8 +36,8 @@ import {
     findSampleEventBySlug,
     isFollowing,
     setFollow,
-    isMember,
     setMembership,
+    getMyMembershipRole,
     getAttendance,
     setAttendance,
     createPost,
@@ -496,8 +496,25 @@ export function useFollow(pageSlug: string): ToggleState {
     return { active, loading, needsAuth, toggle };
 }
 
-export function useMembership(groupSlug: string, role = "miembro"): ToggleState {
+interface MembershipState {
+    active: boolean;
+    /**
+     * Rol crudo de la fila PROPIA en os_memberships ('pending' = solicitud de
+     * ingreso enviada, sin resolver todavía). null si no hay fila o sin
+     * sesión. A diferencia del censo de gobernanza (`roleFromMemberships`,
+     * que EXCLUYE 'pending'), aquí SÍ se expone: es el propio estado del
+     * usuario sobre su solicitud, no una lectura del censo de otros.
+     */
+    role: string | null;
+    loading: boolean;
+    needsAuth: boolean;
+    /** Alterna el estado. Devuelve needsAuth si no hay sesión. */
+    toggle: () => Promise<MutationResult>;
+}
+
+export function useMembership(groupSlug: string, role = "miembro"): MembershipState {
     const [active, setActive] = useState(false);
+    const [memberRole, setMemberRole] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
     const [needsAuth, setNeedsAuth] = useState(false);
     const mounted = useRef(true);
@@ -510,8 +527,11 @@ export function useMembership(groupSlug: string, role = "miembro"): ToggleState 
             if (!mounted.current) return;
             setNeedsAuth(!uid);
             if (uid) {
-                const member = await isMember(groupSlug);
-                if (mounted.current) setActive(member);
+                const myRole = await getMyMembershipRole(groupSlug);
+                if (mounted.current) {
+                    setMemberRole(myRole);
+                    setActive(myRole !== null);
+                }
             }
             if (mounted.current) setLoading(false);
         })();
@@ -527,12 +547,13 @@ export function useMembership(groupSlug: string, role = "miembro"): ToggleState 
             setNeedsAuth(true);
         } else if (res.ok) {
             setActive(next);
+            setMemberRole(next ? role : null);
             setNeedsAuth(false);
         }
         return res;
     }, [active, groupSlug, role]);
 
-    return { active, loading, needsAuth, toggle };
+    return { active, role: memberRole, loading, needsAuth, toggle };
 }
 
 interface AttendanceState {

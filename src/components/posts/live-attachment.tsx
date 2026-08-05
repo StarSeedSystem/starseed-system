@@ -343,6 +343,11 @@ async function isGroupMember(groupSlug: string, uid: string): Promise<boolean> {
             .select("user_id")
             .eq("group_slug", groupSlug)
             .eq("user_id", uid)
+            // Excluye solicitudes de ingreso sin resolver (role='pending' — adenda
+            // "solicitud de ingreso + aprobación"): esto gatea el permiso de EDITAR
+            // una pizarra compartida "grupal", así que una solicitud pendiente no
+            // debe dar ese permiso antes de ser aprobada.
+            .neq("role", "pending")
             .maybeSingle();
         return Boolean(data);
     } catch {

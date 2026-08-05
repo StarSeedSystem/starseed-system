@@ -18,6 +18,21 @@
 // "UNA PERSONA, UNA VOZ": el conteo es por CUENTA (`user_id`). La clave primaria de
 // `os_memberships` es (user_id, group_slug), así que una cuenta figura una sola vez por
 // entidad; nunca se multiplica por perfil.
+//
+// SOLICITUD DE INGRESO + APROBACIÓN (grupo-join-approval): una fila con
+// `role = 'pending'` es una SOLICITUD de ingreso sin resolver (auto-insertada
+// por quien solicita — ver `src/lib/os-social.ts:setMembership`/
+// `getMyMembershipRole`), NO una membresía. Las tres funciones de este
+// módulo (`pagedMembershipUserIds` → `membersFromMemberships`,
+// `countMembersFromMemberships`, `roleFromMemberships`) EXCLUYEN
+// `role = 'pending'` explícitamente, porque son la fuente que alimenta el
+// censo/quórum (`config.ts`), la resolución de votantes (`engine.ts`), el
+// alcance de notificaciones (`reach.ts`) y el rol de gobernanza
+// (`permissions.ts::roleOf` → `isMember`/`isAdmin`). Sin este filtro, pedir
+// unirte contaría como ya ser miembro (voto, quórum, roster) antes de que el
+// propietario apruebe — violaría "una persona, una voz". La aprobación
+// (`approve_group_membership`, RPC SECURITY DEFINER) cambia el rol a
+// `'miembro'`, momento en el que estas funciones empiezan a contarlo.
 
 import { createClient } from "@/utils/supabase/client";
 
@@ -101,6 +116,11 @@ async function pagedMembershipUserIds(slug: string): Promise<Set<string>> {
         .from("os_memberships")
         .select("user_id")
         .eq("group_slug", slug)
+        // Solicitud de ingreso + aprobación del propietario: una fila
+        // role='pending' es una SOLICITUD sin resolver, no una membresía. Se
+        // excluye del censo/voto/roster aquí (fuente única) para que "una
+        // persona, una voz" exija estar YA aceptado — no basta con solicitar.
+        .neq("role", "pending")
         .range(from, to);
       rows = (data as MembershipRow[]) ?? [];
     } catch {
@@ -155,7 +175,10 @@ export async function countMembersFromMemberships(
     const { count } = await supabase
       .from("os_memberships")
       .select("user_id", { count: "exact", head: true })
-      .eq("group_slug", slug);
+      .eq("group_slug", slug)
+      // Excluye solicitudes de ingreso sin resolver del censo/quórum (ver
+      // nota en pagedMembershipUserIds).
+      .neq("role", "pending");
     return count && count > 0 ? count : null;
   } catch {
     return null;
@@ -180,6 +203,10 @@ export async function roleFromMemberships(
       .select("role")
       .eq("group_slug", slug)
       .eq("user_id", userId)
+      // Una solicitud de ingreso sin resolver no es un rol de gobernanza: se
+      // excluye para que isMember/isAdmin (permissions.ts) traten a quien
+      // solicita como NO-miembro hasta que el propietario apruebe.
+      .neq("role", "pending")
       .maybeSingle();
     return (data as MembershipRow | null)?.role ?? null;
   } catch {

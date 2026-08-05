@@ -139,7 +139,11 @@ function useMyConnections(): MyConnections {
             const supabase = createClient();
             const [followRes, memberRes, ownedPagesRes, ownedGroupsRes] = await Promise.all([
                 supabase.from("os_follows").select("page_slug").eq("follower_id", uid).limit(500),
-                supabase.from("os_memberships").select("group_slug, role").eq("user_id", uid).limit(500),
+                // Excluye solicitudes de ingreso sin resolver (role='pending' — adenda
+                // "solicitud de ingreso + aprobación"): no son membresía todavía, así
+                // que no deben marcar el badge/chip "Miembro" aquí (ver también
+                // src/lib/governance/membership.ts, misma exclusión para el censo).
+                supabase.from("os_memberships").select("group_slug, role").eq("user_id", uid).neq("role", "pending").limit(500),
                 supabase.from("os_pages").select("slug").eq("owner_id", uid).limit(500),
                 supabase.from("os_groups").select("slug").eq("owner_id", uid).limit(500),
             ]);
