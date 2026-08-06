@@ -81,6 +81,11 @@ export const SYNCED_KEYS = [
     // ── Personalidades de Aurora (Adenda 63 · lib/aurora/personalities.ts) ────
     "starseed.aurora.personalities.v1",      // personalidades instaladas/creadas (archivos de configuración compartibles)
     "starseed.aurora.personality.active.v1", // asignaciones por contexto (global/sección/chat/cerebro)
+    // ── Sistemas por neurona × personalidad (Adenda 149 · neuron-persona-store.ts) ──
+    "starseed.astraura.neuron-persona.v1",   // overrides LLM/voz/cerebro/señales por personalidad y neurona
+    // (rev. A149) El orden de modelos YA tenía evento en realtime-sync (EVENT_BY_KEY)
+    // pero faltaba aquí: sin esta línea nunca viajaba pese a etiquetarse «Cuenta».
+    "starseed.astraura.model-order.v1",      // orden de preferencia de clases de acceso IA (model-preferences.ts)
     // ── Mapa del Hub (Adenda 63 · lib/map/*) ──────────────────────────────────
     "starseed.map.view.v1",     // vista del mapa (centro/zoom/capas activas)
     "starseed.map.location.v1", // compartición de ubicación (off/red/grupos-usuarios)

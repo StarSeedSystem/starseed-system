@@ -1,14 +1,17 @@
 "use client";
 
 /**
- * StartupUpdatesModal — VENTANA UNIFICADA DE INICIO / ACTUALIZACIONES (Adenda 111 · refactor 132).
+ * StartupUpdatesModal — «CONFIGURACIÓN/ACTUALIZACIÓN DE SISTEMAS DE ASTRAURA EN
+ * ESTA NEURONA» (Adenda 111 · refactor 132 · rediseño 149).
  * ============================================================================
  * ENVOLTORIO FINO: conserva el GATE de auto-apertura (primera entrada de la neurona o
  * novedades de catálogo, `shouldShowUpdates`, retardo ~1200 ms), el evento de apertura
  * manual (`subscribeStartupOpen` / `openStartupUpdates`) y su overlay centrado z-[120].
- * El CONTENIDO es ahora el componente reutilizable `AstrauraOmniVoiceConfig`
- * (variant="modal"), que gestiona todo el estado y la persistencia
- * (`markUpdatesSeen` + `saveModelPreferences`) — ver `astraura-omnivoice-config.tsx`.
+ * El CONTENIDO es el componente reutilizable `AstrauraOmniVoiceConfig`
+ * (variant="modal"): título dinámico por contexto (neurona nueva / actualización
+ * de sistemas en uso / recomendaciones) y pestañas LLM · Astraura · OpenVoice ·
+ * Cerebro · Señales por personalidad — ver `astraura-omnivoice-config.tsx` y el
+ * SOP `architecture/astraura-config-sistemas-neurona.md`.
  *
  * Adenda 132: si el Centro de Configuración de Aurora está PENDIENTE (`isSetupPending`),
  * NO auto-abrimos esta ventana en esta sesión, para evitar dos modales apilados en la

@@ -36,7 +36,7 @@ import { Slider } from "@/components/ui/slider";
 import {
     Moon, Sun, Sparkles, Settings, ChevronRight,
     ShieldCheck, CircleSlash, CloudUpload, Gauge, Zap, Leaf,
-    SunDim, Layers,
+    SunDim, Layers, Bot,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
@@ -59,6 +59,9 @@ import {
     type AuroraVoiceEngine,
 } from "@/lib/aurora/tts-oss/voice-config";
 import { CONTROL_CENTER_NAVIGATE_EVENT } from "../control-center-events";
+// (Adenda 149) Atajo a la ventana «Configuración/actualización de sistemas de
+// Astraura en esta neurona» (LLM · Astraura · OpenVoice · Cerebro · Señales).
+import { openAstrauraConfig } from "@/lib/astraura/config-ui";
 
 const AURORA_ENGINE_LABEL: Record<AuroraVoiceEngine, string> = {
     browser: "Navegador (respaldo)",
@@ -204,6 +207,24 @@ export function QuickSettingsTab() {
 
             {/* Atajos */}
             <div className="grid grid-cols-1 gap-2">
+                <button
+                    type="button"
+                    onClick={() => openAstrauraConfig()}
+                    title="Configurar y actualizar los sistemas de Astraura en esta neurona"
+                    aria-label="Sistemas de Astraura en esta neurona"
+                    className="flex items-center justify-between gap-3 p-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 transition-all duration-200 cursor-pointer group"
+                >
+                    <div className="flex items-center gap-3 min-w-0">
+                        <div className="p-2 rounded-lg bg-cyan-500/10 text-cyan-400 shrink-0">
+                            <Bot className="w-4 h-4" />
+                        </div>
+                        <div className="text-left min-w-0">
+                            <div className="text-sm font-medium truncate">Sistemas de Astraura (esta neurona)</div>
+                            <div className="text-[10px] text-muted-foreground truncate">LLM, Astraura, OpenVoice, cerebro y señales</div>
+                        </div>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors shrink-0" />
+                </button>
                 <button
                     type="button"
                     onClick={goToAtmosphere}

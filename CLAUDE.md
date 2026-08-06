@@ -186,6 +186,7 @@ Más detalles en `STARSEED_ANALISIS_COMPLETO.md` y en `memory/design-tokens.md`.
 - `design-system/starseed-system/MASTER.md` — design system completo
 - `architecture/astraura-mesh-meshtastic.md` — **SOP de la Adenda 97**: Red Mesh Meshtastic/LoRa en el núcleo de Astraura (descubrimiento P2P pasivo, router inteligente Mesh↔Wi-Fi con histéresis, sync comprimida con presupuesto de duty cycle, hardware por Web Serial/BLE/daemon + simulador, reglas mesh por neurona, pestañas «Personalidades»/«Red Mesh» de /agent, OmniVoice Mixer y xAI one-shot). **Ampliado en la Adenda 98** (§11): modo dual malla+router simultáneo, autodetección de banda/preset, selector inteligente de radiofrecuencia, federación de topologías (os_mesh_topology), privacidad/permisos, Centro de Conexiones (Control Center + barra superior) y página /red-mesh con mapa 3D. Fuente de verdad de esa ola.
 - `architecture/centro-creacion-sync-permisos.md` — **SOP de la Adenda 63** (2026-07-11/12): sesión persistente (singleton Supabase), Centro de Creación Trinity + `/crear`, sync realtime de la Biblioteca, **permisos universales** (`src/lib/sharing/access.ts`), neuronas + CasaOS, voz y personalidades de Aurora, mapa del Hub, seguridad estilo Strix. Fuente de verdad de esa ola.
+- `architecture/astraura-config-sistemas-neurona.md` — **SOP de la Adenda 149** (2026-08-06): ventana «Configuración/actualización de sistemas de Astraura en esta neurona» (título por contexto; pestañas LLM · Astraura · OpenVoice · Cerebro · Señales POR PERSONALIDAD con procedencia y «volver a auto»), capa neurona×personalidad (`src/lib/astraura/neuron-persona-store.ts` + `neuron-persona-systems.ts`, clave `starseed.astraura.neuron-persona.v1`) **cableada al runtime** (router LLM `intelligencePinFor`, voz `engine-registry`, memoria `effectiveMemoryPolicy`, mesh `persona-antenna-gate.ts`) y accesos en 6 superficies. Fuente de verdad de esa ola.
 - `starseed.config.json` — config global de runtime
 - `task_plan.md` — checklist de fases B.L.A.S.T.
 
@@ -236,7 +237,7 @@ Más detalles en `STARSEED_ANALISIS_COMPLETO.md` y en `memory/design-tokens.md`.
 
 ---
 
-*Última actualización del archivo: 2026-07-29 (Adenda 99d · medios correctos: /red-mesh y /senales en dock+launcher+biblioteca con migración v8; mapa de medios y métodos de conexión/sync)*
+*Última actualización del archivo: 2026-08-06 (Adenda 149 · ventana de sistemas de Astraura por neurona×personalidad, capa cableada al runtime y SOP nuevo en architecture/)*
 
 
 ---

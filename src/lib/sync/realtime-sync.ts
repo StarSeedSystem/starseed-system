@@ -193,6 +193,8 @@ const EVENT_BY_KEY: Record<string, string[]> = {
     "starseed.astraura.intelligence.v1": ["starseed:astraura-intelligence", "starseed:astraura-route"],
     // Orden de preferencia de modelos IA (Adenda 129, model-preferences.ts): refresco en vivo entre dispositivos.
     "starseed.astraura.model-order.v1": ["starseed:model-prefs"],
+    // Sistemas por neurona×personalidad (Adenda 149, neuron-persona-store.ts): refresco en vivo del panel.
+    "starseed.astraura.neuron-persona.v1": ["starseed:astraura-neuron-persona"],
     "starseed.astraura.usercontext.v1": ["starseed:astraura-usercontext"],
     "starseed.astraura.installed-models.v1": ["starseed:astraura-installed-models"],
     "starseed.astraura.huggingbay-candidates.v1": ["starseed:astraura-huggingbay-candidates"],

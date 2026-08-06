@@ -62,6 +62,14 @@ export const HERMIONE_PERSONALITY_ID = "c9fe7030-fc68-49c6-a705-58f7900887f9";
 // (Adenda 71-bis) Auto-vinculación Hermes: al seleccionar la personalidad
 // Hermione, el OS OFRECE/INSTALA la sincronización con Hermes en este dispositivo.
 import { linkHermesToNeuron, thisDeviceId, isHermesLinked, NEURON_EVENT } from "@/lib/neurons/neurons";
+// (Adenda 149) Overrides POR NEURONA × PERSONALIDAD. Importamos el STORE núcleo
+// (`neuron-persona-store.ts`), que sólo depende de `safe-storage` → sin ciclo.
+// ⚠️ NUNCA importar aquí `neuron-persona-systems.ts`: ese sí importa este módulo
+// (getPersonalityProfile) y crearía un ciclo real.
+import {
+  getOverrides as getNeuronPersonaOverrides,
+  type PersonaNeuronOverrides,
+} from "@/lib/astraura/neuron-persona-store";
 
 async function uid(): Promise<string | null> {
   try {
@@ -1379,11 +1387,30 @@ function normalizeIntelligence(raw: unknown): PersonalityIntelligence {
 }
 
 /**
+ * (Adenda 149) Overrides de ESTA neurona para una personalidad concreta.
+ *
+ * CAMINO RÁPIDO / cero regresión: sin `window` (SSR) `thisDeviceId()` devuelve
+ * `""` y devolvemos `{}` sin tocar el store; con `window` pero sin nada guardado
+ * en `starseed.astraura.neuron-persona.v1`, el store devuelve `{}` igualmente.
+ * En ambos casos los consumidores siguen EXACTAMENTE la lógica anterior.
+ * Nunca lanza.
+ */
+function neuronOverridesFor(personaId: string | null | undefined): PersonaNeuronOverrides {
+  if (!personaId) return {};
+  try {
+    const dev = thisDeviceId();
+    return dev ? getNeuronPersonaOverrides(dev, personaId) : {};
+  } catch {
+    return {};
+  }
+}
+
+/**
  * (Adenda 67 · P3) Fuente/modelo que la personalidad ACTIVA impone para un
  * sentido dado, o `null` si manda el router (auto = mejor opción gratuita).
  *
- * Prioridad: `porSentido[sentido]` → `global` → null.
- * Lo consume `astrauraChat()` en `src/ai/astraura/router.ts`.
+ * Prioridad: **override de neurona (A149)** → `porSentido[sentido]` → `global`
+ * → null. Lo consume `astrauraChat()` en `src/ai/astraura/router.ts`.
  */
 export function intelligencePinFor(
   profile: PersonalityProfile | null | undefined,
@@ -1391,6 +1418,38 @@ export function intelligencePinFor(
 ): (PersonalitySourcePin & { permitirPago: boolean }) | null {
   try {
     const intel = profile?.intelligence;
+    // ── (Adenda 149) OVERRIDE POR NEURONA × PERSONALIDAD ────────────────────
+    // Este dispositivo puede fijar QUÉ sistema piensa para esta personalidad
+    // (o forzar «automática») sin tocar el perfil, que viaja con la cuenta.
+    // El pin resultante va PRIMERO en la cadena del router y NO es exclusivo:
+    // igual que el pin de personalidad, si esa fuente/modelo no está disponible
+    // ahora, el router sigue con el resto de candidatos (nunca deja sin
+    // respuesta). Aplica a TODOS los sentidos del router de LLM — incluido
+    // «voz», que aquí es el LLM de tareas rápidas/chat corto (rev. adversarial
+    // A149·2ª ola: eximirlo dejaba los mensajes cortos sin el pin). El MOTOR de
+    // voz (TTS) es otro plano: lo fija `engine-registry.ts::
+    // personalityVoiceEnginePin` con el override `voz.motor`.
+    if (profile?.id) {
+      const ov = neuronOverridesFor(profile.id);
+      const nPin = ov.llm;
+      if (nPin && (nPin.fuente || nPin.modelo)) {
+        const permitirPago = ov.astraura?.permitirPago ?? intel?.permitirPago === true;
+        // Mismo tratamiento de "auto" que el pin de personalidad (Adenda 71-bis).
+        if (nPin.modelo === "auto" || nPin.fuente === "auto") {
+          const auto = resolveAutoModel(sense as unknown as string);
+          if (auto) return { fuente: auto.fuente, modelo: auto.modelo, permitirPago };
+        }
+        return {
+          ...(nPin.fuente ? { fuente: nPin.fuente } : {}),
+          ...(nPin.modelo ? { modelo: nPin.modelo } : {}),
+          permitirPago,
+        };
+      }
+      // Sin pin de neurona: si ESTA neurona pide «automática», gana sobre el
+      // modo "fija" de la personalidad (el dispositivo manda en su propio
+      // hardware). `modo: "fija"` sin pin no cambia nada: sigue el flujo normal.
+      if (ov.astraura?.modo === "auto") return null;
+    }
     if (!intel || intel.modo !== "fija") return null;
     const pin = intel.porSentido?.[sense] ?? intel.global;
     if (!pin || (!pin.fuente && !pin.modelo)) return null;
@@ -2022,6 +2081,30 @@ function traitSentence(key: string, value: number): string {
 }
 
 /**
+ * (Adenda 149) POLÍTICA DE MEMORIA EFECTIVA de una personalidad EN ESTA NEURONA:
+ * la política del perfil (que viaja con la cuenta) fusionada CAMPO A CAMPO con el
+ * override `cerebro` de este dispositivo — el override gana sólo en lo que define.
+ *
+ * Camino rápido / cero regresión: sin `window` o sin nada guardado en
+ * `starseed.astraura.neuron-persona.v1` devuelve `p.memoryPolicy` TAL CUAL.
+ * Nunca lanza. Sólo LECTURA: no toca ninguna escritura de memorias.
+ */
+export function effectiveMemoryPolicy(p: PersonalityProfile): PersonalityMemoryPolicy {
+  const base = p.memoryPolicy;
+  try {
+    const c = neuronOverridesFor(p?.id).cerebro;
+    if (!c) return base;
+    return {
+      usarMemorias: c.usarMemorias ?? base.usarMemorias,
+      nivelContexto: c.nivelContexto ?? base.nivelContexto,
+      cerebrosPermitidos: c.cerebrosPermitidos ?? base.cerebrosPermitidos,
+    };
+  } catch {
+    return base;
+  }
+}
+
+/**
  * Compila un PersonalityProfile a un bloque de system prompt en español
  * natural: traduce los niveles altos/bajos a instrucciones concretas y
  * proporcionadas, e incluye idioma, estilo de respuesta, herramientas
@@ -2090,10 +2173,13 @@ export function compilePersonalityPrompt(p: PersonalityProfile): string {
   const extras = [...p.tools.plugins, ...p.tools.mcp, ...p.tools.apis];
   if (extras.length) lines.push(`Extensiones preferidas (plugins/MCP/APIs): ${extras.join(", ")}.`);
 
-  if (p.memoryPolicy.usarMemorias) {
-    const cerebros = p.memoryPolicy.cerebrosPermitidos;
+  // (Adenda 149) Política EFECTIVA: perfil + override `cerebro` de esta neurona.
+  // Sin override el resultado es idéntico a `p.memoryPolicy` (cero regresión).
+  const memPolicy = effectiveMemoryPolicy(p);
+  if (memPolicy.usarMemorias) {
+    const cerebros = memPolicy.cerebrosPermitidos;
     const cerebrosTxt = cerebros === "todos" ? "" : cerebros.length ? ` y solo los cerebros: ${cerebros.join(", ")}` : "";
-    lines.push(`Memoria: usa las memorias y el contexto del usuario a nivel ${p.memoryPolicy.nivelContexto}${cerebrosTxt}.`);
+    lines.push(`Memoria: usa las memorias y el contexto del usuario a nivel ${memPolicy.nivelContexto}${cerebrosTxt}.`);
   } else {
     lines.push("Memoria: NO uses memorias personales del usuario salvo que él lo pida explícitamente en este chat.");
   }

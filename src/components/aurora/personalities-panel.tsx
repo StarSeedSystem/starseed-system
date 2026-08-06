@@ -25,6 +25,7 @@ import {
   BookOpenCheck,
   Check,
   Copy,
+  Cpu,
   Download,
   Drama,
   FileUp,
@@ -121,6 +122,9 @@ import {
 // modo portable controlado por value/onChange, por personalidad.
 import { ConnectivityConfigPanel } from "@/components/connectivity/connectivity-config-panel";
 import { normalizeConnectivityConfig } from "@/ai/astraura/mesh";
+// (Adenda 149) Ventana «Configuración/actualización de sistemas de Astraura en
+// esta neurona»: se abre desde la tarjeta de cada personalidad, ya preseleccionada.
+import { openAstrauraConfig } from "@/lib/astraura/config-ui";
 
 /* ── Opciones curadas para los selects (el valor actual se añade si falta) ── */
 
@@ -628,6 +632,15 @@ export function PersonalitiesPanel({
                 </button>
                 <button className={btn} onClick={() => setEditing(p)} title="Editar niveladores y ajustes">
                   <Pencil className="h-3 w-3" /> Editar
+                </button>
+                <button
+                  type="button"
+                  className={btn}
+                  onClick={() => openAstrauraConfig("llm", { personalityId: p.id })}
+                  title={`Configurar y actualizar los sistemas de Astraura (LLM, voz, cerebro y señales) de «${p.name}» en esta neurona`}
+                  aria-label={`Sistemas de Astraura en esta neurona para ${p.name}`}
+                >
+                  <Cpu className="h-3 w-3" /> Sistemas en esta neurona
                 </button>
                 <button className={btn} onClick={() => duplicate(p)} title="Duplicar">
                   <Copy className="h-3 w-3" /> Duplicar

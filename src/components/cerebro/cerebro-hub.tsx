@@ -42,7 +42,11 @@ import {
   Cpu,
   Share2,
   Send,
+  BrainCog,
 } from "lucide-react";
+// Adenda 149 · ventana «Configuración/actualización de sistemas de Astraura en
+// esta neurona» → pestaña «Cerebro» (memoria por personalidad, local).
+import { openAstrauraConfig } from "@/lib/astraura/config-ui";
 // Permisos universales (Adenda 63 §5): compartir un cerebro por ámbito y rol,
 // con acceso PARCIAL por ramas (memoria / habilidades / contexto / egos).
 import { ShareAccessDialog } from "@/components/sharing/share-access-dialog";
@@ -177,7 +181,17 @@ export default function CerebroHub() {
           <BrainIcon className="w-5 h-5 text-cyan-300" />
           <h2 className="text-lg font-semibold text-cyan-50">Cerebro</h2>
           <span className="text-sm text-white/45">— Memoria · Habilidades · Contexto</span>
-          <span className="ml-auto flex items-center gap-3">
+          <span className="ml-auto flex flex-wrap items-center gap-3">
+            {/* Adenda 149 · memoria/cerebro de CADA personalidad de Aurora en
+                esta neurona (drawer de sistemas de Astraura → «Cerebro»). */}
+            <button
+              type="button"
+              onClick={() => openAstrauraConfig("cerebro")}
+              title="Configura la memoria (cerebro) de cada personalidad de Aurora en esta neurona"
+              className="inline-flex cursor-pointer items-center gap-1 text-xs text-fuchsia-300 transition-colors hover:text-fuchsia-200 hover:underline"
+            >
+              <BrainCog className="w-3 h-3" /> Memoria por personalidad (esta neurona)
+            </button>
             <a
               href="/cerebro/mapa"
               className="inline-flex items-center gap-1 text-xs text-amber-300 hover:text-amber-200 hover:underline"

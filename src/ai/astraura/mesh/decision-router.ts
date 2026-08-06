@@ -26,7 +26,10 @@ import {
   WIFI_RECOVER_SCORE,
 } from "./constants";
 import { getConnectivitySettings } from "./connectivity";
+// Adenda 149 · puerta de antenas por personalidad (pestaña «Señales»).
+import { preferredRouteFor } from "./persona-antenna-gate";
 import { getMeshState, pushRouteDecision } from "./store";
+import type { PreferredRoute } from "./connectivity";
 import type { MeshRules, RouteDecision, TrafficClass } from "./types";
 
 /* ── Histéresis (memoria mínima del router) ────────────────────────────────── */
@@ -123,6 +126,25 @@ export function decideRoute(input: DecideRouteInput): RouteDecision {
       return { dualMode: true, preferred: "auto" as const };
     }
   })();
+  // Adenda 149 · puerta de antenas por personalidad: si la pestaña «Señales»
+  // fijó una ruta ≠ auto en alguna antena activa, INCLINA la elección entre las
+  // vías que ya son legales aquí — nunca habilita una prohibida (sin radio ya
+  // hemos salido arriba, y `preferMesh` solo actúa con `meshUsable`).
+  //   · "mesh" y "privada" (directo P2P, sin nube) → se comportan como la ruta
+  //     preferida "mesh" de la neurona.
+  //   · "servidor" → como "wifi" (la vía por la que se alcanza el servidor).
+  //   · "auto" → NO cambia nada: manda el ajuste de la neurona, como siempre.
+  // HONESTO (rev. A149·2ª ola): aquí no llega personalidad emisora todavía, así
+  // que rigen los defaults «Todas» ("*") de la neurona; cuando la transmisión
+  // lleve personalidad, pásala a `preferredRouteFor(personaId)` y su regla más
+  // específica ganará (precedencia del SOP A149).
+  const personaRoute = preferredRouteFor();
+  const preferred: PreferredRoute =
+    personaRoute === "mesh" || personaRoute === "privada"
+      ? "mesh"
+      : personaRoute === "servidor"
+        ? "wifi"
+        : conn.preferred;
   const fitsClass = input.sizeBytes <= MESH_CLASS_SIZE_LIMIT[input.cls];
   const meshUsable = meshScore >= MESH_USABLE_SCORE && fitsClass && airtime;
 
@@ -132,7 +154,7 @@ export function decideRoute(input: DecideRouteInput): RouteDecision {
   }
 
   // ¿La neurona (o la ruta preferida) fuerza mesh para esta clase?
-  const preferMesh = conn.preferred === "mesh";
+  const preferMesh = preferred === "mesh";
   const forcedMesh =
     (!!rules && rules.role === "interactive" && rules.priority === "high" && !s.wifiHealth.score &&
       rules.allowedClasses.includes(input.cls)) ||
@@ -151,7 +173,7 @@ export function decideRoute(input: DecideRouteInput): RouteDecision {
     input.cls === "P1" &&
     wifiHealthy &&
     meshUsable &&
-    conn.preferred === "auto"
+    preferred === "auto"
   ) {
     // Wi-Fi está sana (llegamos aquí con wifiHealthy): limpiar la histéresis de
     // fallback igual que la rama wifi-healthy, para no re-enrutar P1 a mesh-only.

@@ -42,6 +42,8 @@ import { pushMeshTopologyNow, startMeshFederation, stopMeshFederation } from "./
 import { probeWifiNow, refreshMeshHealth, startHealthMonitor, stopHealthMonitor } from "./health";
 import { createMeshtasticTransport } from "./meshtastic-adapter";
 import { getMeshPrivacy } from "./privacy";
+// Adenda 149 · puerta de antenas por personalidad (pestaña «Señales»).
+import { meshOutboundAllowed, outboundAllowed } from "./persona-antenna-gate";
 import { getMeshRules, listMeshRules } from "./rules";
 import { createSimulatorTransport } from "./simulator";
 import {
@@ -65,6 +67,7 @@ import type { DeliveryPorts, DeliveryReceipt } from "./delivery";
 import type { TransmitDistance, TransmitRequest, TransmitScope } from "./synaptic-router";
 import type {
   MeshPayloadType,
+  MeshRules,
   MeshTransport,
   MeshTransportEvents,
   MeshTransportKind,
@@ -148,6 +151,11 @@ function rememberOid(oid: string): void {
 
 function anyAlertRelayRole(): boolean {
   try {
+    // Adenda 149 · puerta de antenas por personalidad: el relé de app es un
+    // ENVÍO por la malla, así que respeta la SALIDA de la antena de malla de
+    // esta neurona igual que `sendOverMesh`. Sin overrides devuelve true y esta
+    // condición no cambia nada.
+    if (!meshOutboundAllowed(getMeshState().transport)) return false;
     // PERMISO DE USO de la malla (privacy.relayUse, Adenda 98) manda sobre los
     // roles: "none" bloquea todo relé de app; "all" lo permite aunque ninguna
     // personalidad tenga el rol; "alerts" (defecto) exige el rol relé.
@@ -355,10 +363,19 @@ export function sendOverMesh(input: SendOverMeshInput): SendOverMeshResult {
     }
   })();
   const rules = getMeshRules(input.neuronId ?? null);
+  // Adenda 149 · puerta de antenas por personalidad: si la pestaña «Señales»
+  // apagó la antena de malla (o su SALIDA) para esta personalidad, esta neurona
+  // NO emite por radio en este envío. Reutilizamos el camino que YA existe para
+  // el rol "off" (jamás enruta a la malla: va por Wi-Fi si la hay, o queda en
+  // cola offline sin encolarse en la malla) en vez de inventar una rama nueva.
+  // Sin overrides `meshOutboundAllowed` es true y `rules` pasa intacto.
+  const gatedRules: MeshRules = meshOutboundAllowed(getMeshState().transport, input.neuronId)
+    ? rules
+    : { ...rules, role: "off" };
   const decision = decideRoute({
     cls: input.cls,
     sizeBytes: bodyStr.length,
-    neuronRules: rules,
+    neuronRules: gatedRules,
     airtimeAvailable: airtimeAvailableFor(input.cls, Math.ceil(bodyStr.length / 180) || 1),
   });
   // Encolar en la malla SOLO cuando la ruta es realmente mesh-recuperable.
@@ -518,13 +535,25 @@ export async function transmit(input: TransmitInput): Promise<DeliveryReceipt> {
   const flags = input.connectivity
     ? connectivityFlagsFromConfig(input.connectivity)
     : connectivityFlagsFromSettings(getConnectivitySettings());
+  // Adenda 149 · puerta de antenas por personalidad: las reglas de la pestaña
+  // «Señales» se aplican SOBRE los flags ya calculados y solo pueden RESTAR
+  // vías (nunca habilitan una prohibida por la config del contexto):
+  //   · antena de malla sin SALIDA → `meshAllowed:false`, el mismo flag que usa
+  //     el interruptor de malla apagada (planTransmission ya lo respeta).
+  //   · antena Wi-Fi sin SALIDA    → ni servidor ni feed público; la malla (si
+  //     sigue permitida) queda como vía.
+  // TODO(A149): `TransmitInput` aún no lleva la personalidad emisora, así que
+  // aquí rigen los defaults de la neurona («Todas las personalidades»). Cuando
+  // la lleve, pasarla como segundo argumento de las dos puertas.
+  const meshOut = meshOutboundAllowed(s.transport);
+  const wifiOut = outboundAllowed("wifi");
   const ctx = deriveNetworkContext(s, {
     wifiHealthy: s.wifiHealth.score >= WIFI_HEALTHY_SCORE,
     hasAccount,
     activePreset: getActiveModemPreset(),
-    meshAllowed: flags.meshAllowed,
-    serverAllowed: flags.serverAllowed,
-    publicAllowed: flags.publicAllowed,
+    meshAllowed: flags.meshAllowed && meshOut,
+    serverAllowed: flags.serverAllowed && wifiOut,
+    publicAllowed: flags.publicAllowed && wifiOut,
     serverId: flags.serverId,
   });
   const req: TransmitRequest = {

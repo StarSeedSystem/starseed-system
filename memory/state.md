@@ -3486,3 +3486,28 @@ persistidas, con la app como origen) y **ventanas emergentes** (toasts + popups 
 - ntfy: montar `startNtfyBridge()` global (p. ej. en app-notify-bridge.tsx) para el espejo push siempre-activo.
 - Recomendador: actualizador multi-proveedor de catálogos (patrón openrouter-live-catalog.ts) y emitir notificación por dispositivo cuando `hasBetter`.
 - Registrar /senales→Router y la generación audiovisual en el dock/launcher si se quiere acceso directo (hoy discoverable vía Señales y Habilidades).
+
+---
+
+## 2026-08-06 — Adenda 149 · «Configuración/actualización de sistemas de Astraura en esta neurona» (neurona × personalidad)
+**Sesión por:** Claude (Cowork) — orquestación Fable 5, agentes Opus, lectores Sonnet, 2 revisiones adversariales Fable
+**Resumen ejecutivo:** La ventana de arranque de Astraura+OmniVoice se rediseña como centro de SISTEMAS POR NEURONA × PERSONALIDAD, con capa de datos nueva CABLEADA al runtime. `tsc --noEmit` exit 0 · `next build` ✓ Compiled successfully · tests mesh 146/146.
+
+### Hecho
+- **Ventana renombrada y retabulada** (SOP nuevo `architecture/astraura-config-sistemas-neurona.md`): título dinámico por contexto (neurona nueva / actualización de sistemas EN USO / recomendaciones auto-detectadas / al día, vía `classifyUpdates`+`windowHeading`); barra superior «Modelos · Cuenta» → **LLM · Astraura · OpenVoice · Cerebro · Señales**, todas con selector de personalidad («Todas» + Aurora/Hermione/…) y PROCEDENCIA visible con «volver a auto». Hub embedded (config-ia) conserva además Neuronas/Integraciones/APIs. Sinónimos retro-compatibles (modelos/orden/cuenta→astraura, voz/omnivoice→openvoice…): deep-links viejos intactos.
+- **Capa de datos** `src/lib/astraura/neuron-persona-store.ts` (núcleo sin dependencias; fusión «*»⊕personalidad campo a campo y antena a antena; PODA anti-`{}`-fantasma) + `neuron-persona-systems.ts` (resolución con procedencia, `detectAntennas`, novedades por sistema) + `persona-system-sections.tsx` (secciones + `AstrauraPersonaCard`). Clave `starseed.astraura.neuron-persona.v1` sincronizada (settings-sync) y con refresco en vivo (realtime-sync EVENT_BY_KEY).
+- **CABLEADO DE RUNTIME (los overrides actúan):** LLM → `intelligencePinFor` (pin de neurona primero, no exclusivo, todos los sentidos; `modo:"auto"` de neurona fuerza automática); VOZ → `engine-registry` (paso 0 del pin + `voz.modo` sobre la elección del dispositivo, relectura en fresco); MEMORIA → `effectiveMemoryPolicy` en `compilePersonalityPrompt`; SEÑALES → `mesh/persona-antenna-gate.ts` en `sendOverMesh`/`transmit`/`deliverInbound`/`decideRoute` (entrada/salida y ruta por antena; llamantes de red externa marcan `antena:"wifi"`). Camino sin overrides = comportamiento byte-idéntico (verificado).
+- **Superficies nuevas:** botón por personalidad en Personalidades («Sistemas en esta neurona», preselecciona la persona), atajo en Trinity Control Center (ajustes rápidos), tarjeta en `/cuenta`, botones en Señales y Cerebro hub, aliases `?tab=sistemas|sistemas-neurona` en /agent. `openAstrauraConfig(section, {personalityId})` ampliado retro-compatible.
+- **Bugs de sync reparados de paso:** `starseed.astraura.model-order.v1` tenía evento pero no viajaba (añadido a SYNCED_KEYS); la clave nueva tiene evento en EVENT_BY_KEY.
+- **Análisis de estado completo del OS** (8 lectores + síntesis multi-agente) → `_analysis/informe-estado-2026-08-06.md` + doc en el Proyecto Claude.
+
+### Decisiones
+- Patrón «capa transparente» (como PersonalityIntelligence A67): sin override, nada cambia; el pin va primero pero NUNCA es exclusivo (Astraura no enmudece por un pin obsoleto).
+- `syncBrains` mantiene UNA fuente de verdad (`NeuronSettings`, editable también desde la pestaña Cerebro) — sin duplicar estado.
+- La antena lógica «lora» manda sobre el enlace físico (serial/BLE/daemon); especificidad de ruta preferida: lora→serial→bluetooth→daemon→wifi.
+
+### Pendiente (ver SOP §9)
+- `permitirPago` y `cerebro.almacen` persisten pero sin consumidor de runtime (filtro de pago sigue a nivel cuenta; almacén → memory-destinations en próxima ola).
+- Señales por personalidad CONCRETA esperan que `transmit`/`decideRoute` reciban personalidad emisora (TODO en código); hoy rigen los defaults «Todas».
+- `audioRef` de voz custom sin llegar a síntesis (previo); widgets de dashboard sin entrada propia; hybrid local/nube no lee `voz.modo`.
+- Arrastrados: migración realtime `20260711120000`; rotar service_role + DashScope; modo claro.

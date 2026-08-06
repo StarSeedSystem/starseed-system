@@ -22,6 +22,8 @@ import {
   MESH_ALERT_EVENT,
 } from "./constants";
 import { encodeMessage } from "./codec";
+// Adenda 149 · puerta de antenas por personalidad (pestaña «Señales»).
+import { inboundAllowed, meshInboundAllowed } from "./persona-antenna-gate";
 import { getMeshState, setMeshState, setQueueCounts } from "./store";
 import type {
   AirtimeBudget,
@@ -282,9 +284,30 @@ export function deliverInbound(msg: {
   verified?: boolean;
   /** Fingerprint de la identidad firmante (Adenda 107). */
   signerFp?: string;
+  /**
+   * Antena por la que ENTRA el paquete (Adenda 149). Ausente ⇒ llegó por el
+   * transporte de malla ACTIVO (la radio), que es quien llama desde `index.ts`;
+   * el relé cifrado y el feed público (`synaptic.ts`) llegan por la red externa
+   * y pasan `"wifi"` explícitamente.
+   */
+  antena?: string;
 }): void {
   try {
     if (typeof window === "undefined") return;
+    // Adenda 149 · puerta de antenas por personalidad: si la pestaña «Señales»
+    // apagó la ENTRADA de esa antena, el paquete se descarta ANTES de tocar
+    // ninguna dimensión (ni evento de alerta, ni bandeja de red). Se anota en
+    // `lastError` —el canal honesto que ya usa este módulo— solo cuando el texto
+    // cambia, para no inundar de notificaciones el store. Sin overrides ambas
+    // puertas devuelven true y este branch nunca se toma.
+    const entra = msg.antena
+      ? inboundAllowed(msg.antena)
+      : meshInboundAllowed(getMeshState().transport);
+    if (!entra) {
+      const detail = `entrada por ${msg.antena ?? "la malla"} desactivada en Señales: ${msg.type} descartado`;
+      if (getMeshState().lastError !== detail) setMeshState({ lastError: detail });
+      return;
+    }
     if (msg.type === "alert") {
       window.dispatchEvent(new CustomEvent(MESH_ALERT_EVENT, { detail: { ...msg, at: Date.now() } }));
     }

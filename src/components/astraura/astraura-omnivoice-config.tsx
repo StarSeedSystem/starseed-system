@@ -1,39 +1,45 @@
 "use client";
 
 /**
- * AstrauraOmniVoiceConfig — HUB DE SECCIONES de Astraura + OmniVoice (Adenda 133).
+ * AstrauraOmniVoiceConfig — «CONFIGURACIÓN/ACTUALIZACIÓN DE SISTEMAS DE ASTRAURA
+ * EN ESTA NEURONA» (Adenda 149 · antes Adendas 111/132/133/138).
  * ============================================================================
- * Reconstrucción del panel único (Adenda 132) en un HUB DE PESTAÑAS internas —
- * usa `@/components/ui/section-tabs` (mismo patrón que `aurora-setup-center.tsx`) —
- * que integra TODO sin duplicar controles:
+ * SOP: `architecture/astraura-config-sistemas-neurona.md`.
  *
- *   1. Modelos       → orden de preferencia (4 clases de acceso) + modo Auto/Fijo +
- *                       sugerido para este dispositivo + ámbito CUENTA ⟷ NEURONA +
- *                       «Diagnosticar y reparar» (propio de esta ventana).
- *   2. Neuronas      → `NeuronModelsPanel` embebido (capacidades, recomendación,
- *                       Probar, descargas, servidores por neurona).
- *   3. Integraciones → `IntegrationSourcesPanel` embebido.
- *   4. APIs & modelos→ `AiProvidersPanel` embebido (proveedores, claves, Probar).
- *   5. Voz · OmniVoice → `SetupVoz` (presets + panel completo de voz).
- *   6. Cuenta        → auto-actualización + novedades del catálogo.
+ * Centro de sistemas por NEURONA × PERSONALIDAD. La barra superior pasa de
+ * «Modelos · Cuenta» a CINCO pestañas de sistemas (todas con selector de
+ * personalidad — Aurora, Hermione y las del usuario — y procedencia visible):
  *
- * Los paneles pesados (2-5) se cargan con `next/dynamic({ ssr:false })` y SOLO se
- * montan cuando su pestaña está activa. `variant="modal"/"drawer"` (estrechos)
- * muestran solo Modelos + Cuenta, con un enlace «Configuración completa» hacia
- * el hub entero (`onNavigate("config-ia")` o `/agent?tab=config-ia`).
+ *   1. LLM       → modelo de lenguaje usado por cada personalidad en esta
+ *                  neurona (pin fuente/modelo + scout de la Adenda 138).
+ *   2. Astraura  → el sistema que decide: orden de preferencia de clases
+ *                  CUENTA⟷NEURONA (UI de la A133 íntegra), modo Auto/Fijo,
+ *                  permitir pago, auto-actualización, novedades clasificadas
+ *                  y «Diagnosticar y reparar».
+ *   3. OpenVoice → motor de voz por personalidad + vía de la neurona
+ *                  (nube⟷local) + coherencia de persona (A112).
+ *   4. Cerebro   → memorias por personalidad, cerebros permitidos, almacén
+ *                  local⟷servidores y sync de cerebros con esta neurona.
+ *   5. Señales   → antenas del dispositivo con entrada/salida y ruta por
+ *                  antena (política sináptica A99).
  *
- * PERSISTE al aplicar:
- *   · `saveModelPreferences({ order, mode })`               → orden de CUENTA.
- *   · `saveNeuronModelPreferences(id, {...})` / `clearNeuronModelPreferences(id)`
- *     → override de ESTA NEURONA (según exista o no; `id = thisDeviceId()`).
- *   · `markUpdatesSeen({ autoUpdate, strategy })` → `strategy` se DERIVA del orden
- *     efectivo (auto→'auto'; top==='local'→'local'; resto→'servidor') para no
- *     romper a quien lea `StartupState.strategy` (el selector explícito de
- *     estrategia se retira: ahora vive fundido en Modelos con el ámbito).
+ * La variante `embedded` (hub de /agent · pestaña Configuración IA) añade las
+ * pestañas Neuronas · Integraciones · APIs de la Adenda 133. `variant=
+ * "modal"/"drawer"` muestran SOLO los 5 sistemas (paneles pesados por
+ * next/dynamic, solo al activar su pestaña).
  *
- * `initialSection` abre la pestaña correspondiente (sinónimos: modelos/orden→
- * Modelos, neuronas→Neuronas, integraciones→Integraciones, apis/proveedor→APIs,
- * voz/omnivoice→Voz, cuenta→Cuenta).
+ * TÍTULO DINÁMICO según contexto (`classifyUpdates` + `windowHeading`):
+ * neurona nueva · actualización de sistemas en uso · recomendaciones
+ * detectadas automáticamente · todo al día.
+ *
+ * PERSISTE al aplicar (sin cambios de contrato): `saveModelPreferences`,
+ * `saveNeuronModelPreferences`/`clearNeuronModelPreferences` y
+ * `markUpdatesSeen({ autoUpdate, strategy })`. Los overrides por personalidad
+ * se guardan AL EDITAR (capa `neuron-persona-systems`, clave
+ * `starseed.astraura.neuron-persona.v1`).
+ *
+ * `initialSection` admite los sinónimos históricos (modelos/orden/cuenta→
+ * astraura, voz/omnivoice→openvoice…): los deep-links viejos siguen vivos.
  *
  * SSR-safe y defensivo: nunca lanza; sin `window` los helpers devuelven defaults.
  */
@@ -46,6 +52,7 @@ import {
   ListOrdered, ChevronUp, ChevronDown, Lock, Key, Gift, Cloud, Globe, Star, HardDrive,
   Boxes, Plug, Puzzle, Rocket, Orbit, Package, Wifi, Network, Zap, Layers, Brain, Server,
   KeyRound, Volume2, UserCog, Stethoscope, User, GitBranch, Trash2, Info, AlertTriangle,
+  Bot, RadioTower, BellRing,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -54,7 +61,7 @@ import { SectionTabs, type SectionTabItem } from "@/components/ui/section-tabs";
 import { detectCapabilities, thisDeviceId, type NeuronCapabilities } from "@/lib/neurons/neurons";
 import { classifyDeviceTier } from "@/ai/astraura/model-requirements";
 import {
-  updateReason, markUpdatesSeen, snoozeUpdates, getStartupState,
+  markUpdatesSeen, snoozeUpdates, getStartupState,
   newIntegrationsSince, newModelIdsSince, type StartupStrategy,
 } from "@/lib/astraura/startup-updates";
 import type { Integration } from "@/lib/integrations/integration-registry";
@@ -63,6 +70,13 @@ import {
   getNeuronModelPreferences, saveNeuronModelPreferences, clearNeuronModelPreferences,
   type ModelAccessClass,
 } from "@/lib/astraura/model-preferences";
+import {
+  ALL_PERSONAS, classifyUpdates, windowHeading,
+  type ClassifiedUpdates,
+} from "@/lib/astraura/neuron-persona-systems";
+import {
+  PersonaSelector, LlmSection, OpenVoiceSection, CerebroSection, SenalesSection, AstrauraPersonaCard,
+} from "@/components/astraura/persona-system-sections";
 
 /** Feedback de carga de una sección perezosa. */
 function SectionLoading() {
@@ -73,16 +87,11 @@ function SectionLoading() {
   );
 }
 
-/* Paneles pesados → SOLO se descargan cuando su pestaña está activa (Adenda 133). */
+/* Paneles pesados del hub → SOLO se descargan cuando su pestaña está activa. */
 const NeuronModelsPanel = dynamic(() => import("@/components/neurons/neuron-models-panel"), {
   ssr: false,
   loading: () => <SectionLoading />,
 });
-// Adenda 138 · Recomendación inteligente de modelos por neurona (llmfit port).
-const ModelScoutPanel = dynamic(
-  () => import("@/components/astraura/model-scout-panel").then((m) => ({ default: m.ModelScoutPanel })),
-  { ssr: false, loading: () => <SectionLoading /> },
-);
 const IntegrationSourcesPanel = dynamic(() => import("@/components/integrations/integration-sources-panel"), {
   ssr: false,
   loading: () => <SectionLoading />,
@@ -91,10 +100,6 @@ const AiProvidersPanel = dynamic(
   () => import("@/components/settings/ai/ai-providers-panel").then((m) => ({ default: m.AiProvidersPanel })),
   { ssr: false, loading: () => <SectionLoading /> },
 );
-const SetupVoz = dynamic(() => import("@/components/aurora/setup/setup-voz"), {
-  ssr: false,
-  loading: () => <SectionLoading />,
-});
 
 export interface AstrauraOmniVoiceConfigProps {
   /** Presentación: tarjeta de modal, incrustado en pestaña, o cuerpo de Sheet lateral. */
@@ -105,41 +110,55 @@ export interface AstrauraOmniVoiceConfigProps {
   onApply?: () => void;
   /** Se llama al descartar/cerrar (X, «Recordar luego», o al navegar). */
   onDismiss?: () => void;
-  /** Sección a abrir (p.ej. "modelos", "voz", "cuenta"; admite sinónimos). */
+  /** Sección a abrir (p.ej. "llm", "senales"; admite los sinónimos históricos). */
   initialSection?: string;
+  /** Personalidad preseleccionada en el selector (id de PersonalityProfile). */
+  initialPersonalityId?: string;
   /** Reduce paddings/tipografía (pensado para el drawer). */
   compact?: boolean;
 }
 
 /** Identificador de cada pestaña del hub. */
-export type SetupSection = "modelos" | "neuronas" | "integraciones" | "apis" | "voz" | "cuenta";
+export type SetupSection =
+  | "llm" | "astraura" | "openvoice" | "cerebro" | "senales"
+  | "neuronas" | "integraciones" | "apis";
 
-const ALL_SECTIONS: SetupSection[] = ["modelos", "neuronas", "integraciones", "apis", "voz", "cuenta"];
-/** `variant="modal"/"drawer"` (estrechos): solo lo esencial, sin cargar paneles enormes. */
-const NARROW_SECTIONS: SetupSection[] = ["modelos", "cuenta"];
+/** Los 5 SISTEMAS de la neurona (barra del modal/drawer). */
+const SYSTEM_SECTIONS: SetupSection[] = ["llm", "astraura", "openvoice", "cerebro", "senales"];
+const ALL_SECTIONS: SetupSection[] = [...SYSTEM_SECTIONS, "neuronas", "integraciones", "apis"];
+const NARROW_SECTIONS: SetupSection[] = SYSTEM_SECTIONS;
 
 const SECTION_META: Record<SetupSection, { label: string; icon: LucideIcon }> = {
-  modelos: { label: "Modelos", icon: ListOrdered },
+  llm: { label: "LLM", icon: Bot },
+  astraura: { label: "Astraura", icon: Sparkles },
+  openvoice: { label: "OpenVoice", icon: Volume2 },
+  cerebro: { label: "Cerebro", icon: Brain },
+  senales: { label: "Señales", icon: RadioTower },
   neuronas: { label: "Neuronas", icon: Cpu },
   integraciones: { label: "Integraciones", icon: Blocks },
   apis: { label: "APIs & modelos", icon: KeyRound },
-  voz: { label: "Voz · OmniVoice", icon: Volume2 },
-  cuenta: { label: "Cuenta", icon: UserCog },
 };
 
-/** Normaliza una sección pedida (con sinónimos) al id de pestaña interno. */
+/** Normaliza una sección pedida (con sinónimos, incl. los históricos) al id interno. */
 function sectionFromSynonym(section?: string): SetupSection | null {
   if (!section) return null;
   const s = section.toLowerCase().trim();
   if (!s) return null;
   if ((ALL_SECTIONS as string[]).includes(s)) return s as SetupSection;
   const map: Record<string, SetupSection> = {
-    orden: "modelos", preferencia: "modelos", preferencias: "modelos", modelo: "modelos",
+    // Históricos de la ventana (A132/A133) → nuevas pestañas.
+    modelos: "astraura", modelo: "llm", orden: "astraura", preferencia: "astraura", preferencias: "astraura",
+    cuenta: "astraura", estrategia: "astraura", "auto-actualizacion": "astraura", "auto-actualización": "astraura",
+    novedades: "astraura", actualizaciones: "astraura",
+    voz: "openvoice", omnivoice: "openvoice", "omni-voice": "openvoice", "open-voice": "openvoice",
+    // Sistemas nuevos.
+    ia: "llm", inteligencia: "llm",
+    memoria: "cerebro", memorias: "cerebro", cerebros: "cerebro", almacen: "cerebro", "almacén": "cerebro",
+    "señales": "senales", antena: "senales", antenas: "senales", conectividad: "senales", mesh: "senales", malla: "senales",
+    // Hub embebido.
     neurona: "neuronas", dispositivo: "neuronas", capacidades: "neuronas", hardware: "neuronas", entorno: "neuronas",
     integracion: "integraciones", "integración": "integraciones", fuentes: "integraciones", fuente: "integraciones",
     api: "apis", proveedor: "apis", proveedores: "apis",
-    omnivoice: "voz", "omni-voice": "voz",
-    "auto-actualizacion": "cuenta", "auto-actualización": "cuenta", novedades: "cuenta", estrategia: "cuenta",
   };
   return map[s] ?? null;
 }
@@ -187,11 +206,12 @@ export function AstrauraOmniVoiceConfig({
   onApply,
   onDismiss,
   initialSection,
+  initialPersonalityId,
   compact = false,
 }: AstrauraOmniVoiceConfigProps) {
   const availableSections = variant === "embedded" ? ALL_SECTIONS : NARROW_SECTIONS;
 
-  const [section, setSection] = useState<SetupSection>(() => sectionFromSynonym(initialSection) ?? "modelos");
+  const [section, setSection] = useState<SetupSection>(() => sectionFromSynonym(initialSection) ?? "llm");
   useEffect(() => {
     const s = sectionFromSynonym(initialSection);
     if (s) setSection(s);
@@ -200,7 +220,13 @@ export function AstrauraOmniVoiceConfig({
   }, [initialSection]);
   const currentSection: SetupSection = availableSections.includes(section) ? section : availableSections[0];
 
-  const [reason, setReason] = useState<"primera-vez" | "novedades" | "al-dia">("primera-vez");
+  /** Personalidad seleccionada («Todas» = defaults de la neurona, clave "*"). */
+  const [personaId, setPersonaId] = useState<string>(initialPersonalityId || ALL_PERSONAS);
+  useEffect(() => {
+    if (initialPersonalityId) setPersonaId(initialPersonalityId);
+  }, [initialPersonalityId]);
+
+  const [updates, setUpdates] = useState<ClassifiedUpdates | null>(null);
   const [newSources, setNewSources] = useState<Integration[]>([]);
   const [newModels, setNewModels] = useState<number>(0);
   const [autoUpdate, setAutoUpdate] = useState(true);
@@ -227,11 +253,12 @@ export function AstrauraOmniVoiceConfig({
   const [suggestedOrder, setSuggestedOrder] = useState<ModelAccessClass[] | null>(null);
   const [diag, setDiag] = useState<{ state: "idle" | "run" | "done"; gpu?: boolean; mismatch?: boolean; msg?: string }>({ state: "idle" });
 
-  // Carga inicial: estado persistido + detección de capacidades (para el sugerido).
+  // Carga inicial: estado persistido + detección de capacidades (para el sugerido
+  // y para clasificar novedades según el hardware real de esta neurona).
   useEffect(() => {
     const st = getStartupState();
     setAutoUpdate(st.autoUpdate !== false);
-    setReason(updateReason());
+    try { setUpdates(classifyUpdates(null)); } catch { /* */ }
     setNewSources(newIntegrationsSince().slice(0, 8));
     setNewModels(newModelIdsSince().length);
     let alive = true;
@@ -240,6 +267,7 @@ export function AstrauraOmniVoiceConfig({
         const c = await detectCapabilities();
         if (!alive) return;
         setCaps(c);
+        try { setUpdates(classifyUpdates(c)); } catch { /* */ }
       } catch { /* detección best-effort */ }
     })();
     return () => { alive = false; };
@@ -368,6 +396,7 @@ export function AstrauraOmniVoiceConfig({
   // ── Persistencia ─────────────────────────────────────────────────────────────
   // Cuenta SIEMPRE se guarda; el override de neurona se guarda o se limpia según
   // `hasNeuronOverride` (solo si ya sabemos su estado real: `neuronPrefsLoaded`).
+  // Los overrides por personalidad×neurona se guardan AL EDITAR (capa A149).
   const persist = useCallback(() => {
     const effOrder = hasNeuronOverride ? neuronOrder : accountOrder;
     const effMode = hasNeuronOverride ? neuronMode : accountMode;
@@ -392,12 +421,10 @@ export function AstrauraOmniVoiceConfig({
   };
   const handleLater = () => { try { snoozeUpdates(); } catch { /* */ } onDismiss?.(); };
 
-  const title = reason === "primera-vez" ? "Configura Astraura y OmniVoice" : reason === "novedades" ? "Novedades disponibles" : "Astraura al día";
-  const subtitle = reason === "primera-vez"
-    ? "Bienvenida a esta neurona. Estas son las selecciones automáticas según su hardware — todo ajustable luego."
-    : reason === "novedades"
-      ? "Hay nuevos modelos o fuentes disponibles. Revisa la selección recomendada para esta neurona."
-      : "Todo actualizado. Puedes revisar la configuración recomendada.";
+  // Título/subtítulo dinámicos según el contexto de la neurona (SOP §2).
+  const heading = windowHeading(updates ?? { mode: "al-dia", sistemas: [], recomendadas: [], otras: [], nuevasFuentes: 0 });
+  const title = heading.title;
+  const subtitle = heading.subtitle;
 
   // «Configuración completa»: por callback (dentro de /agent) o navegación de respaldo.
   const goFull = () => { onNavigate?.("config-ia"); onDismiss?.(); };
@@ -437,7 +464,7 @@ export function AstrauraOmniVoiceConfig({
     value: s,
     label: SECTION_META[s].label,
     icon: SECTION_META[s].icon,
-    badge: s === "cuenta" && newSources.length + newModels > 0 ? newSources.length + newModels : undefined,
+    badge: s === "astraura" && newSources.length + newModels > 0 ? newSources.length + newModels : undefined,
   }));
 
   const tabsRow = (
@@ -446,9 +473,43 @@ export function AstrauraOmniVoiceConfig({
         items={tabItems}
         value={currentSection}
         onValueChange={(v) => setSection(v as SetupSection)}
-        ariaLabel="Secciones de configuración de Astraura y OmniVoice"
+        ariaLabel="Sistemas de Astraura en esta neurona"
         size="sm"
       />
+      {/* Selector de personalidad: los 5 sistemas se configuran por personalidad. */}
+      {SYSTEM_SECTIONS.includes(currentSection) && (
+        <PersonaSelector value={personaId} onChange={setPersonaId} compact={compact} />
+      )}
+    </div>
+  );
+
+  /** Resumen de novedades clasificadas por sistema (modos actualización/recomendaciones). */
+  const updatesCard = updates && (updates.mode === "actualizacion" || updates.mode === "recomendaciones") && (
+    <div className={cn(
+      "rounded-xl border px-3 py-2",
+      updates.mode === "actualizacion" ? "border-amber-400/25 bg-amber-500/[0.06]" : "border-emerald-400/25 bg-emerald-500/[0.06]",
+    )}>
+      <p className="flex items-center gap-2 text-[11px] font-semibold text-white/85">
+        <BellRing className={cn("h-3.5 w-3.5", updates.mode === "actualizacion" ? "text-amber-300" : "text-emerald-300")} />
+        {updates.mode === "actualizacion" ? "Actualizaciones de sistemas en uso" : "Novedades adecuadas para esta neurona"}
+      </p>
+      {updates.sistemas.length > 0 && (
+        <p className="mt-1 text-[10px] leading-snug text-white/60">
+          Sistemas en uso con novedades: {updates.sistemas.map((s) => s.label).join(" · ")}.
+        </p>
+      )}
+      {updates.recomendadas.length > 0 && (
+        <p className="mt-1 text-[10px] leading-snug text-white/60">
+          Encajan con este hardware: {updates.recomendadas.slice(0, 6).map((s) => s.label).join(" · ")}
+          {updates.recomendadas.length > 6 ? ` (+${updates.recomendadas.length - 6})` : ""}.
+        </p>
+      )}
+      {updates.nuevasFuentes > 0 && (
+        <p className="mt-1 text-[10px] text-white/50">{updates.nuevasFuentes} fuente(s)/integración(es) nueva(s).</p>
+      )}
+      <p className="mt-1 text-[10px] text-white/40">
+        Con la actualización automática activada, Astraura aplica sola las mejores opciones al aceptar esta ventana.
+      </p>
     </div>
   );
 
@@ -491,146 +552,139 @@ export function AstrauraOmniVoiceConfig({
 
       {/* Cuerpo: SOLO la sección activa (los paneles pesados llegan por next/dynamic) */}
       <div className={cn(scrollBody, bodyPad, bodySpace)}>
-        {currentSection === "modelos" && (
-          <div className="scroll-mt-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="flex items-center gap-2 text-[11px] font-semibold text-white/85">
-                <ListOrdered className="h-3.5 w-3.5 text-cyan-300" /> Orden de preferencia de modelos IA
+        {currentSection === "llm" && (
+          <LlmSection personaId={personaId} deviceId={deviceId} caps={caps} compact={compact} full={variant === "embedded"} />
+        )}
+
+        {currentSection === "astraura" && (
+          <div className={bodySpace}>
+            {updatesCard}
+            {/* Modo/pago del sistema Astraura POR PERSONALIDAD (rev. A149·M3). */}
+            <AstrauraPersonaCard personaId={personaId} deviceId={deviceId} caps={caps} />
+            <div className="scroll-mt-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="flex items-center gap-2 text-[11px] font-semibold text-white/85">
+                  <ListOrdered className="h-3.5 w-3.5 text-cyan-300" /> Orden de preferencia de motores IA
+                </p>
+                <div className="flex items-center gap-1.5">
+                  <button type="button" onClick={() => setScope("cuenta")} className={pillCls(scope === "cuenta")}>
+                    <User className="mr-1 inline h-3 w-3" /> Cuenta
+                  </button>
+                  <button type="button" onClick={() => setScope("neurona")} className={pillCls(scope === "neurona")}>
+                    <Cpu className="mr-1 inline h-3 w-3" /> Esta neurona
+                    {hasNeuronOverride && <span className="ml-1.5 inline-block h-1.5 w-1.5 rounded-full bg-violet-400" aria-hidden="true" />}
+                  </button>
+                </div>
+              </div>
+              <p className="mt-1 text-[10px] leading-snug text-white/45">
+                Prioridad con que Astraura intenta cada tipo de motor. En «Automático» puede reordenar según el dispositivo y el entorno; en «Fijo» respeta tu orden exacto.
+                {scope === "cuenta" ? " Se aplica a toda neurona sin ajuste propio." : " Solo para esta neurona."}
               </p>
-              <div className="flex items-center gap-1.5">
-                <button type="button" onClick={() => setScope("cuenta")} className={pillCls(scope === "cuenta")}>
-                  <User className="mr-1 inline h-3 w-3" /> Cuenta
-                </button>
-                <button type="button" onClick={() => setScope("neurona")} className={pillCls(scope === "neurona")}>
-                  <Cpu className="mr-1 inline h-3 w-3" /> Esta neurona
-                  {hasNeuronOverride && <span className="ml-1.5 inline-block h-1.5 w-1.5 rounded-full bg-violet-400" aria-hidden="true" />}
-                </button>
-              </div>
-            </div>
-            <p className="mt-1 text-[10px] leading-snug text-white/45">
-              Prioridad con que Astraura intenta cada tipo de motor. En «Automático» puede reordenar según el dispositivo y el entorno; en «Fijo» respeta tu orden exacto.
-              {scope === "cuenta" ? " Se aplica a toda neurona sin ajuste propio." : " Solo para esta neurona."}
-            </p>
 
-            {/* Adenda 138 · Recomendación inteligente de modelos según el hardware
-                real de esta neurona (compara con lo que usas, con requisitos y
-                velocidad estimada). Aparece también en la ventana de arranque. */}
-            <div className="mt-3 border-t border-white/10 pt-3">
-              <ModelScoutPanel kind="llm" />
-            </div>
-
-            {/* Estado del ámbito Neurona: hereda de la cuenta, o tiene ajuste propio */}
-            {scope === "neurona" && (
-              <div className={cn(
-                "mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border px-2.5 py-1.5 text-[10px] leading-snug",
-                hasNeuronOverride ? "border-violet-400/25 bg-violet-500/[0.06] text-violet-100/80" : "border-white/10 bg-white/[0.04] text-white/50",
-              )}>
-                {hasNeuronOverride ? (
-                  <>
-                    <span className="inline-flex items-center gap-1 font-semibold text-violet-200"><GitBranch className="h-3 w-3" /> Ajuste propio de esta neurona</span>
-                    <span>· solo aplica en este dispositivo.</span>
-                    <button type="button" onClick={removeNeuronOverride} className="ml-auto inline-flex shrink-0 cursor-pointer items-center gap-1 rounded-md border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[10px] text-white/60 transition-colors hover:border-rose-400/40 hover:text-rose-200">
-                      <Trash2 className="h-3 w-3" /> Quitar (volver a heredar)
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <span className="inline-flex items-center gap-1"><Info className="h-3 w-3" /> Esta neurona hereda el orden de la cuenta.</span>
-                    <button type="button" onClick={createNeuronOverride} className="ml-auto inline-flex shrink-0 cursor-pointer items-center gap-1 rounded-md border border-violet-400/30 bg-violet-500/10 px-2 py-0.5 text-[10px] font-semibold text-violet-200 transition-colors hover:bg-violet-500/20">
-                      <GitBranch className="h-3 w-3" /> Crear ajuste propio
-                    </button>
-                  </>
-                )}
-              </div>
-            )}
-
-            {/* Diagnosticar y reparar */}
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              <button type="button" onClick={diagnoseAndRepair} disabled={diag.state === "run"} className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[11px] text-white/70 transition-colors hover:border-cyan-400/40 hover:text-cyan-200 disabled:opacity-50">
-                {diag.state === "run" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Stethoscope className="h-3.5 w-3.5" />} Diagnosticar y reparar
-              </button>
-              {diag.state === "done" && (
-                <span className={cn("inline-flex flex-wrap items-center gap-1 text-[10px]", diag.mismatch ? "text-amber-300/85" : "text-emerald-300/80")}>
-                  {diag.mismatch ? <AlertTriangle className="h-3 w-3 shrink-0" /> : <Check className="h-3 w-3 shrink-0" />} {diag.msg}
-                  {diag.mismatch && (
+              {/* Estado del ámbito Neurona: hereda de la cuenta, o tiene ajuste propio */}
+              {scope === "neurona" && (
+                <div className={cn(
+                  "mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border px-2.5 py-1.5 text-[10px] leading-snug",
+                  hasNeuronOverride ? "border-violet-400/25 bg-violet-500/[0.06] text-violet-100/80" : "border-white/10 bg-white/[0.04] text-white/50",
+                )}>
+                  {hasNeuronOverride ? (
                     <>
-                      {" "}· no coincide con lo recomendado.{" "}
-                      <button type="button" onClick={useSuggested} className={cn(INLINE_RESET, "font-semibold text-amber-200 underline decoration-dotted underline-offset-2 hover:text-amber-100")}>
-                        Usar sugerido
+                      <span className="inline-flex items-center gap-1 font-semibold text-violet-200"><GitBranch className="h-3 w-3" /> Ajuste propio de esta neurona</span>
+                      <span>· solo aplica en este dispositivo.</span>
+                      <button type="button" onClick={removeNeuronOverride} className="ml-auto inline-flex shrink-0 cursor-pointer items-center gap-1 rounded-md border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[10px] text-white/60 transition-colors hover:border-rose-400/40 hover:text-rose-200">
+                        <Trash2 className="h-3 w-3" /> Quitar (volver a heredar)
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <span className="inline-flex items-center gap-1"><Info className="h-3 w-3" /> Esta neurona hereda el orden de la cuenta.</span>
+                      <button type="button" onClick={createNeuronOverride} className="ml-auto inline-flex shrink-0 cursor-pointer items-center gap-1 rounded-md border border-violet-400/30 bg-violet-500/10 px-2 py-0.5 text-[10px] font-semibold text-violet-200 transition-colors hover:bg-violet-500/20">
+                        <GitBranch className="h-3 w-3" /> Crear ajuste propio
                       </button>
                     </>
                   )}
-                </span>
+                </div>
               )}
-            </div>
 
-            {/* Modo Automático / Fijo */}
-            <div className={cn("mt-2.5 flex flex-wrap gap-1.5", editingDisabled && "pointer-events-none opacity-50")}>
-              {MODE_OPTS.map((m) => (
-                <button key={m.value} type="button" title={m.hint} disabled={editingDisabled} onClick={() => setMode(m.value)} className={pillCls(activeMode === m.value)}>
-                  {m.icon}{m.label}
+              {/* Diagnosticar y reparar */}
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <button type="button" onClick={diagnoseAndRepair} disabled={diag.state === "run"} className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[11px] text-white/70 transition-colors hover:border-cyan-400/40 hover:text-cyan-200 disabled:opacity-50">
+                  {diag.state === "run" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Stethoscope className="h-3.5 w-3.5" />} Diagnosticar y reparar
                 </button>
-              ))}
-            </div>
-            <p className="mt-1 text-[10px] text-white/45">{MODE_OPTS.find((m) => m.value === activeMode)?.hint}</p>
-
-            {/* Lista reordenable de clases de acceso */}
-            <ol className={cn("mt-2 space-y-1.5", editingDisabled && "opacity-60")}>
-              {activeOrder.map((cls, idx) => {
-                const meta = MODEL_ACCESS_META[cls];
-                const Icon = accessIcon(cls, meta?.icon);
-                return (
-                  <li key={cls} className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-2 py-1.5">
-                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md border border-cyan-400/25 bg-cyan-500/10 text-[10px] font-bold text-cyan-200">{idx + 1}</span>
-                    <Icon className="h-3.5 w-3.5 shrink-0 text-white/70" />
-                    <span className="min-w-0 flex-1">
-                      <span className="block text-[12px] font-medium text-white/90">{meta?.label ?? cls}</span>
-                      {meta?.hint && <span className="block truncate text-[10px] text-white/45">{meta.hint}</span>}
-                    </span>
-                    <span className="flex shrink-0 items-center gap-0.5">
-                      <button type="button" aria-label={`Subir ${meta?.label ?? cls}`} disabled={editingDisabled || idx === 0} onClick={() => moveAccess(idx, -1)}
-                        className="cursor-pointer rounded-md border border-white/10 bg-white/[0.03] p-1 text-white/60 transition-colors hover:border-cyan-400/40 hover:text-cyan-200 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:border-white/10 disabled:hover:text-white/60">
-                        <ChevronUp className="h-3.5 w-3.5" />
-                      </button>
-                      <button type="button" aria-label={`Bajar ${meta?.label ?? cls}`} disabled={editingDisabled || idx === activeOrder.length - 1} onClick={() => moveAccess(idx, 1)}
-                        className="cursor-pointer rounded-md border border-white/10 bg-white/[0.03] p-1 text-white/60 transition-colors hover:border-cyan-400/40 hover:text-cyan-200 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:border-white/10 disabled:hover:text-white/60">
-                        <ChevronDown className="h-3.5 w-3.5" />
-                      </button>
-                    </span>
-                  </li>
-                );
-              })}
-            </ol>
-
-            {/* Sugerido para este dispositivo */}
-            {suggestedOrder && (
-              <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-cyan-400/20 bg-cyan-500/[0.06] px-2.5 py-1.5">
-                <p className="min-w-0 flex-1 text-[10px] leading-snug text-white/60"><span className="font-semibold text-cyan-200">Sugerido para este dispositivo:</span> {orderLabels(suggestedOrder)}</p>
-                <button type="button" onClick={useSuggested} className="inline-flex shrink-0 cursor-pointer items-center gap-1 rounded-md border border-cyan-400/40 bg-cyan-500/15 px-2 py-0.5 text-[10px] font-semibold text-cyan-100 transition-colors hover:bg-cyan-500/25">
-                  <Sparkles className="h-3 w-3" /> Usar sugerido
-                </button>
+                {diag.state === "done" && (
+                  <span className={cn("inline-flex flex-wrap items-center gap-1 text-[10px]", diag.mismatch ? "text-amber-300/85" : "text-emerald-300/80")}>
+                    {diag.mismatch ? <AlertTriangle className="h-3 w-3 shrink-0" /> : <Check className="h-3 w-3 shrink-0" />} {diag.msg}
+                    {diag.mismatch && (
+                      <>
+                        {" "}· no coincide con lo recomendado.{" "}
+                        <button type="button" onClick={useSuggested} className={cn(INLINE_RESET, "font-semibold text-amber-200 underline decoration-dotted underline-offset-2 hover:text-amber-100")}>
+                          Usar sugerido
+                        </button>
+                      </>
+                    )}
+                  </span>
+                )}
               </div>
-            )}
 
-            {/* Auto-actualización de catálogos + enlaces in-situ a Neuronas/Integraciones */}
-            <p className="mt-2 flex items-start gap-1.5 text-[10px] leading-snug text-white/40">
-              <RefreshCw className="mt-px h-3 w-3 shrink-0 text-white/30" />
-              <span>Los catálogos se auto-actualizan: OpenRouter (:free) cada 4 h y HuggingBay. Ajusta modelos propios y descargas por{" "}
-                {crossLink("neuronas", "neurona", "text-cyan-300/80 underline decoration-dotted underline-offset-2 transition-colors hover:text-cyan-200")}, o las{" "}
-                {crossLink("integraciones", "fuentes externas", "text-fuchsia-300/80 underline decoration-dotted underline-offset-2 transition-colors hover:text-fuchsia-200")}.
-              </span>
-            </p>
-            <p className="mt-1 text-[10px] text-white/35">{savedNote}</p>
-          </div>
-        )}
+              {/* Modo Automático / Fijo */}
+              <div className={cn("mt-2.5 flex flex-wrap gap-1.5", editingDisabled && "pointer-events-none opacity-50")}>
+                {MODE_OPTS.map((m) => (
+                  <button key={m.value} type="button" title={m.hint} disabled={editingDisabled} onClick={() => setMode(m.value)} className={pillCls(activeMode === m.value)}>
+                    {m.icon}{m.label}
+                  </button>
+                ))}
+              </div>
+              <p className="mt-1 text-[10px] text-white/45">{MODE_OPTS.find((m) => m.value === activeMode)?.hint}</p>
 
-        {currentSection === "neuronas" && <NeuronModelsPanel embedded />}
-        {currentSection === "integraciones" && <IntegrationSourcesPanel embedded />}
-        {currentSection === "apis" && <AiProvidersPanel embedded />}
-        {currentSection === "voz" && <SetupVoz />}
+              {/* Lista reordenable de clases de acceso */}
+              <ol className={cn("mt-2 space-y-1.5", editingDisabled && "opacity-60")}>
+                {activeOrder.map((cls, idx) => {
+                  const meta = MODEL_ACCESS_META[cls];
+                  const Icon = accessIcon(cls, meta?.icon);
+                  return (
+                    <li key={cls} className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-2 py-1.5">
+                      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md border border-cyan-400/25 bg-cyan-500/10 text-[10px] font-bold text-cyan-200">{idx + 1}</span>
+                      <Icon className="h-3.5 w-3.5 shrink-0 text-white/70" />
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-[12px] font-medium text-white/90">{meta?.label ?? cls}</span>
+                        {meta?.hint && <span className="block truncate text-[10px] text-white/45">{meta.hint}</span>}
+                      </span>
+                      <span className="flex shrink-0 items-center gap-0.5">
+                        <button type="button" aria-label={`Subir ${meta?.label ?? cls}`} disabled={editingDisabled || idx === 0} onClick={() => moveAccess(idx, -1)}
+                          className="cursor-pointer rounded-md border border-white/10 bg-white/[0.03] p-1 text-white/60 transition-colors hover:border-cyan-400/40 hover:text-cyan-200 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:border-white/10 disabled:hover:text-white/60">
+                          <ChevronUp className="h-3.5 w-3.5" />
+                        </button>
+                        <button type="button" aria-label={`Bajar ${meta?.label ?? cls}`} disabled={editingDisabled || idx === activeOrder.length - 1} onClick={() => moveAccess(idx, 1)}
+                          className="cursor-pointer rounded-md border border-white/10 bg-white/[0.03] p-1 text-white/60 transition-colors hover:border-cyan-400/40 hover:text-cyan-200 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:border-white/10 disabled:hover:text-white/60">
+                          <ChevronDown className="h-3.5 w-3.5" />
+                        </button>
+                      </span>
+                    </li>
+                  );
+                })}
+              </ol>
 
-        {currentSection === "cuenta" && (
-          <div className="space-y-3">
+              {/* Sugerido para este dispositivo */}
+              {suggestedOrder && (
+                <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-cyan-400/20 bg-cyan-500/[0.06] px-2.5 py-1.5">
+                  <p className="min-w-0 flex-1 text-[10px] leading-snug text-white/60"><span className="font-semibold text-cyan-200">Sugerido para este dispositivo:</span> {orderLabels(suggestedOrder)}</p>
+                  <button type="button" onClick={useSuggested} className="inline-flex shrink-0 cursor-pointer items-center gap-1 rounded-md border border-cyan-400/40 bg-cyan-500/15 px-2 py-0.5 text-[10px] font-semibold text-cyan-100 transition-colors hover:bg-cyan-500/25">
+                    <Sparkles className="h-3 w-3" /> Usar sugerido
+                  </button>
+                </div>
+              )}
+
+              {/* Auto-actualización de catálogos + enlaces in-situ */}
+              <p className="mt-2 flex items-start gap-1.5 text-[10px] leading-snug text-white/40">
+                <RefreshCw className="mt-px h-3 w-3 shrink-0 text-white/30" />
+                <span>Los catálogos se auto-actualizan: OpenRouter (:free) cada 4 h y HuggingBay. Ajusta modelos propios y descargas por{" "}
+                  {crossLink("neuronas", "neurona", "text-cyan-300/80 underline decoration-dotted underline-offset-2 transition-colors hover:text-cyan-200")}, o las{" "}
+                  {crossLink("integraciones", "fuentes externas", "text-fuchsia-300/80 underline decoration-dotted underline-offset-2 transition-colors hover:text-fuchsia-200")}.
+                </span>
+              </p>
+            </div>
+
+            {/* Auto-actualización + novedades de fuentes (antes pestaña «Cuenta») */}
             <div className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5">
               <label className="flex cursor-pointer items-center justify-between gap-3">
                 <span className="min-w-0">
@@ -639,27 +693,33 @@ export function AstrauraOmniVoiceConfig({
                 </span>
                 <Switch checked={autoUpdate} onCheckedChange={setAutoUpdate} />
               </label>
+              {newSources.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {newSources.map((i) => (
+                    <a key={i.id} href={i.url} target="_blank" rel="noopener noreferrer" className="inline-flex cursor-pointer items-center gap-1 rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[10px] text-white/70 hover:border-cyan-400/40 hover:text-cyan-200">
+                      {i.name} <ExternalLink className="h-2.5 w-2.5" />
+                    </a>
+                  ))}
+                </div>
+              )}
             </div>
-
-            {(newSources.length > 0 || newModels > 0) && (
-              <div className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2">
-                <p className="flex items-center gap-2 text-[11px] font-semibold text-white/85"><RefreshCw className="h-3.5 w-3.5 text-emerald-300" /> Novedades desde tu última visita</p>
-                {newModels > 0 && <p className="mt-1 text-[10px] text-white/55">{newModels} modelo(s) nuevo(s) de LLM/voz disponibles.</p>}
-                {newSources.length > 0 && (
-                  <div className="mt-1 flex flex-wrap gap-1.5">
-                    {newSources.map((i) => (
-                      <a key={i.id} href={i.url} target="_blank" rel="noopener noreferrer" className="inline-flex cursor-pointer items-center gap-1 rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[10px] text-white/70 hover:border-cyan-400/40 hover:text-cyan-200">
-                        {i.name} <ExternalLink className="h-2.5 w-2.5" />
-                      </a>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
             <p className="px-0.5 text-[10px] leading-snug text-white/35">{savedNote}</p>
           </div>
         )}
+
+        {currentSection === "openvoice" && (
+          <OpenVoiceSection personaId={personaId} deviceId={deviceId} caps={caps} compact={compact} full={variant === "embedded"} />
+        )}
+        {currentSection === "cerebro" && (
+          <CerebroSection personaId={personaId} deviceId={deviceId} caps={caps} compact={compact} full={variant === "embedded"} />
+        )}
+        {currentSection === "senales" && (
+          <SenalesSection personaId={personaId} deviceId={deviceId} caps={caps} compact={compact} full={variant === "embedded"} />
+        )}
+
+        {currentSection === "neuronas" && <NeuronModelsPanel embedded />}
+        {currentSection === "integraciones" && <IntegrationSourcesPanel embedded />}
+        {currentSection === "apis" && <AiProvidersPanel embedded />}
       </div>
 
       {/* Pie por variante */}

@@ -76,6 +76,9 @@ import { fetchMyProfile, updateMyProfile } from "@/lib/social/os-profiles";
 // Centro de Configuración de Aurora y Astraura (Adenda 67 · P1): siempre
 // accesible desde Ajustes, no sólo la primera vez.
 import { openAuroraSetup } from "@/lib/aurora/setup-config";
+// Adenda 149: drawer global de «Sistemas de Astraura en esta neurona»
+// (LLM · Astraura · OpenVoice · cerebro · señales por personalidad).
+import { openAstrauraConfig } from "@/lib/astraura/config-ui";
 import { cn } from "@/lib/utils";
 
 import {
@@ -102,6 +105,7 @@ import {
   Compass,
   Radio,
   Mic,
+  Bot,
 } from "lucide-react";
 
 type Row = Record<string, any>;
@@ -936,6 +940,28 @@ function CuentaContent() {
             className="cursor-pointer rounded-lg bg-[#7fb8ff] px-3.5 py-2 text-[12px] font-semibold text-[#0d1220] transition-opacity duration-200 hover:opacity-90"
           >
             Abrir centro
+          </button>
+        </div>
+
+        {/* Sistemas de Astraura en esta neurona (Adenda 149): LLM, router de
+            Astraura, OpenVoice, cerebro y SEÑALES por personalidad — el drawer
+            global (`AstrauraConfigDrawer`) escucha `openAstrauraConfig()`. */}
+        <div className="rounded-xl border border-fuchsia-400/25 bg-fuchsia-500/[0.06] p-4 flex flex-wrap items-center gap-3">
+          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-fuchsia-500/15 ring-1 ring-fuchsia-400/40">
+            <Bot className="h-4 w-4 text-fuchsia-200" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold">Sistemas de Astraura en esta neurona</p>
+            <p className="text-[11px] text-muted-foreground leading-snug">
+              LLM, Astraura, OpenVoice, cerebro y señales por personalidad.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => openAstrauraConfig()}
+            className="cursor-pointer rounded-lg bg-fuchsia-400 px-3.5 py-2 text-[12px] font-semibold text-[#0d1220] transition-opacity duration-200 hover:opacity-90"
+          >
+            Abrir sistemas
           </button>
         </div>
 

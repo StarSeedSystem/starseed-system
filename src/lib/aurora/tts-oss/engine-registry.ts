@@ -71,6 +71,10 @@ import {
 // api-external) como sesgo, con el realismo actual como desempate. Autocontenido.
 import { accessBias, voiceEngineAccessClass } from "@/lib/astraura/model-preferences";
 import { thisDeviceId } from "@/lib/neurons/neurons";
+// (Adenda 149) Overrides POR NEURONA × PERSONALIDAD. El STORE núcleo sólo depende
+// de `safe-storage` → importarlo aquí es barato y NO crea ciclos.
+// ⚠️ NUNCA importar `neuron-persona-systems.ts` (ese sí importa este módulo).
+import { getOverrides as getNeuronPersonaOverrides } from "@/lib/astraura/neuron-persona-store";
 
 // ── Metadatos por motor ──────────────────────────────────────────────────────
 
@@ -538,6 +542,35 @@ function availabilityOffline(
  * NUNCA lanza; ante cualquier problema devuelve null (la cadena sigue intacta).
  */
 let cachedPin: AuroraVoiceEngine | null = null;
+/**
+ * (Adenda 149) Id de la personalidad activa la última vez que se refrescó el pin.
+ * Sólo la IDENTIDAD se cachea (resolverla exige el módulo pesado de
+ * personalidades); el override de la neurona se relee FRESCO en cada consulta,
+ * así un cambio en el panel se nota sin esperar al siguiente refresco.
+ */
+let cachedPersonaId: string | null = null;
+
+/**
+ * (Adenda 149) Override de VOZ que ESTA neurona fija para una personalidad
+ * (`motor` y/o `modo`), o `null` si no hay nada guardado.
+ *
+ * CAMINO RÁPIDO / cero regresión: sin `window` (SSR) `thisDeviceId()` devuelve
+ * `""`; sin datos en `starseed.astraura.neuron-persona.v1` el store devuelve
+ * `{}` ⇒ `null` ⇒ la selección de voz sigue EXACTAMENTE igual que antes.
+ * Nunca lanza.
+ */
+function neuronPersonaVoice(
+  personaId: string | null,
+): { motor?: string; modo?: "cloud" | "local" | "fastweb" } | null {
+  try {
+    if (!personaId) return null;
+    const dev = thisDeviceId();
+    if (!dev) return null;
+    return getNeuronPersonaOverrides(dev, personaId).voz ?? null;
+  } catch {
+    return null;
+  }
+}
 
 /** Relee el pin de la personalidad activa y lo cachea. Nunca lanza. */
 export async function refreshPersonalityVoicePin(): Promise<AuroraVoiceEngine | null> {
@@ -545,6 +578,18 @@ export async function refreshPersonalityVoicePin(): Promise<AuroraVoiceEngine | 
     const mod = await import("@/lib/aurora/personalities");
     const profile = mod.getActivePersonality();
     const intel = profile?.intelligence;
+    cachedPersonaId = profile?.id ?? null;
+    // 0) (Adenda 149) MOTOR FIJADO POR ESTA NEURONA para esta personalidad: va
+    //    PRIMERO (por delante incluso del pin de la personalidad, que viaja con
+    //    la cuenta) porque describe el hardware/preferencia de ESTE dispositivo.
+    //    Como todos los pines, NO es exclusivo: si ese motor no responde, la
+    //    cadena de `buildVoiceChain` sigue detrás.
+    const nVoz = neuronPersonaVoice(cachedPersonaId);
+    const nMotor = nVoz?.motor;
+    if (isVoiceEngineId(nMotor)) {
+      cachedPin = nMotor;
+      return cachedPin;
+    }
     // 1) Pin DURO de inteligencia (modo "fija" + motorVoz / porSentido.voz).
     if (intel && intel.modo === "fija") {
       const direct = (intel as { motorVoz?: unknown }).motorVoz;
@@ -576,20 +621,36 @@ export async function refreshPersonalityVoicePin(): Promise<AuroraVoiceEngine | 
     //        responde, la cadena AUTO decide igual.
     //      · (nube / sin elección)  → OpenVoice primero.
     //    Configurable por personalidad en su editor; jamás exclusivo.
-    if (neuronPrefersFastWeb()) {
+    //    (Adenda 149) La VÍA puede fijarse POR PERSONALIDAD en esta neurona
+    //    (`voz.modo`): si existe, gana sobre la elección global del dispositivo;
+    //    si no (`undefined`), se lee la elección del dispositivo EXACTAMENTE
+    //    como antes — mismo comportamiento, cero regresión.
+    const nModo = nVoz?.modo;
+    if (nModo === "fastweb" || (!nModo && neuronPrefersFastWeb())) {
       cachedPin = FAST_WEB_VOICE_ENGINE;
       return cachedPin;
     }
-    cachedPin = neuronPrefersLocal() ? "omnivoice" : "openvoice2";
+    cachedPin = nModo === "local" || (!nModo && neuronPrefersLocal()) ? "omnivoice" : "openvoice2";
     return cachedPin;
   } catch {
     cachedPin = null;
+    cachedPersonaId = null;
     return null;
   }
 }
 
-/** Último pin conocido (sin tocar disco/red). Nunca lanza. */
+/**
+ * Último pin conocido (sin tocar disco/red). Nunca lanza.
+ *
+ * (Adenda 149) El motor fijado por ESTA neurona para la personalidad activa se
+ * relee aquí en FRESCO (localStorage, síncrono y barato) para que un cambio en
+ * el panel de sistemas se aplique en la siguiente frase sin esperar a
+ * `refreshPersonalityVoicePin`. Sin override, devuelve el pin cacheado de
+ * siempre — la cadena queda idéntica.
+ */
 export function personalityVoiceEnginePin(): AuroraVoiceEngine | null {
+  const motor = neuronPersonaVoice(cachedPersonaId)?.motor;
+  if (isVoiceEngineId(motor)) return motor;
   return cachedPin;
 }
 

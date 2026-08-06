@@ -199,7 +199,9 @@ async function pollInbox(): Promise<void> {
       if (isRevoked(it.signerFp)) continue; // identidad revocada: se descarta
       if (it.id && deliveredRelayIds.has(it.id)) continue; // ya entregado
       if (it.id) rememberDelivered(it.id);
-      deliverInbound({ type: it.ptype, cls: it.cls, body: it.body, from: 0, verified: it.verified, signerFp: it.signerFp });
+      // Adenda 149 · puerta de antenas por personalidad: esto llega por la RED
+      // EXTERNA (relé/feed del servidor), no por la radio ⇒ antena "wifi".
+      deliverInbound({ type: it.ptype, cls: it.cls, body: it.body, from: 0, verified: it.verified, signerFp: it.signerFp, antena: "wifi" });
     }
   } catch {
     /* */
@@ -232,7 +234,9 @@ async function pollPublicFeed(): Promise<void> {
       if (isRevoked(it.signerFp)) continue; // identidad revocada: se descarta
       if (it.id && deliveredRelayIds.has(it.id)) continue; // ya entregado
       if (it.id) rememberDelivered(it.id);
-      deliverInbound({ type: it.ptype, cls: it.cls, body: it.body, from: 0, verified: it.verified, signerFp: it.signerFp });
+      // Adenda 149 · puerta de antenas por personalidad: esto llega por la RED
+      // EXTERNA (relé/feed del servidor), no por la radio ⇒ antena "wifi".
+      deliverInbound({ type: it.ptype, cls: it.cls, body: it.body, from: 0, verified: it.verified, signerFp: it.signerFp, antena: "wifi" });
     }
   } catch {
     /* */
@@ -285,7 +289,8 @@ export function startSynapticLayer(): void {
     // así el realtime y el sondeo comparten frontera y no retroceden entre ellos.
     publicCursor = advanceCursor(publicCursor, { atIso: new Date(it.at).toISOString(), id: it.id || "" });
     inboxWatermark = Math.max(inboxWatermark, it.at);
-    deliverInbound({ type: it.ptype, cls: it.cls, body: it.body, from: 0, verified: it.verified, signerFp: it.signerFp });
+    // Adenda 149 · puerta de antenas por personalidad: vía red externa ⇒ "wifi".
+    deliverInbound({ type: it.ptype, cls: it.cls, body: it.body, from: 0, verified: it.verified, signerFp: it.signerFp, antena: "wifi" });
   };
   realtimeOff = subscribeRelayRealtime({ onContent: onLiveItem, onBeacon: () => void refreshBeacons() });
   // Realtime SSE del servidor propio activo (si lo hay).

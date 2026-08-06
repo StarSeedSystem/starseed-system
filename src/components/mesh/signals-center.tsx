@@ -16,7 +16,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   RadioTower, Wifi, Signal, Bluetooth, MapPin, Nfc, Usb, Phone,
-  ExternalLink, Antenna, Smartphone, Download, Router, type LucideIcon,
+  ExternalLink, Antenna, Smartphone, Download, Router, UserCog, type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -26,6 +26,9 @@ import { RedMeshCenter } from "./red-mesh-center";
 // Adenda 138 · Router / red por neurona (OpenWISP/NetJSON) como pestaña de Señales.
 import { RouterCenter } from "@/components/network/router-center";
 import { ConnectivityConfigPanel } from "@/components/connectivity/connectivity-config-panel";
+// Adenda 149 · ventana «Configuración/actualización de sistemas de Astraura en
+// esta neurona» → pestaña «Señales por personalidad».
+import { openAstrauraConfig } from "@/lib/astraura/config-ui";
 import {
   useMeshState, detectSignals, connectMesh, connectWifiNode, getConnectivitySettings,
   subscribeConnectivity, setNeuronPosition, detectPlatform, recommendNative, hasAccountSession,
@@ -196,7 +199,7 @@ export function SignalsCenter({ embedded = false, compact = false }: SignalsCent
 
       {/* Pestañas: «Antenas y señales» · «Red Mesh» (Red Mesh integrada como
           pestaña dentro de Señales, con todas sus funciones · Adenda 101). */}
-      <div className="flex gap-1.5">
+      <div className="flex flex-wrap items-center gap-1.5">
         {([
           ["antenas", "Antenas y señales", Antenna],
           ["redmesh", "Red Mesh", RadioTower],
@@ -216,6 +219,16 @@ export function SignalsCenter({ embedded = false, compact = false }: SignalsCent
             <Ic className="h-3.5 w-3.5" /> {label}
           </button>
         ))}
+        {/* Adenda 149 · qué señales usa CADA personalidad de Aurora en esta
+            neurona (drawer de sistemas de Astraura → pestaña «Señales»). */}
+        <button
+          type="button"
+          onClick={() => openAstrauraConfig("senales")}
+          title="Configura qué señales y antenas usa cada personalidad de Aurora en esta neurona"
+          className="ml-auto inline-flex cursor-pointer items-center gap-1.5 rounded-xl border border-fuchsia-400/30 bg-fuchsia-500/10 px-3 py-1.5 text-[12px] font-medium text-fuchsia-100 transition-colors duration-200 hover:bg-fuchsia-500/20"
+        >
+          <UserCog className="h-3.5 w-3.5" /> Señales por personalidad
+        </button>
       </div>
 
       {tab === "antenas" && (

@@ -387,6 +387,10 @@ const TAB_ALIASES: Record<string, string> = {
   configuracion: "config-ia",
   config: "config-ia",
   "config-ia": "config-ia",
+  // Adenda 149: ventana de «sistemas de Astraura en esta neurona» (LLM ·
+  // Astraura · OpenVoice · Cerebro · Señales), que vive en Configuración de IA.
+  sistemas: "config-ia",
+  "sistemas-neurona": "config-ia",
 };
 function normalizeTab(raw: string | null | undefined): string | null {
   if (!raw) return null;
