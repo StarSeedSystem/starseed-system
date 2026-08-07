@@ -52,6 +52,9 @@ import {
 import { astrauraMultiContrast } from "@/ai/astraura/astraura-multi";
 import {
   intelligencePinFor,
+  // Adenda 149 · Ola 3: veredicto de la personalidad sobre las fuentes de PAGO
+  // (merge neurona × personalidad). Restricción AND: solo puede NEGAR.
+  personaAllowsPaid,
   type AuroraSense,
 } from "@/lib/aurora/personalities";
 import { systemContextPrompt, screenContextLine, activeProvidersLine } from "./context";
@@ -363,13 +366,35 @@ export function difficultyAdjustment(
   return { delta: 0 };
 }
 
+/** Opciones aditivas del ranking (Adenda 149 · Ola 3). Omitirlas = como antes. */
+export interface RankCandidatesOptions {
+  /**
+   * Veredicto de la PERSONALIDAD activa sobre las fuentes de PAGO
+   * (`personalities.ts::personaAllowsPaid`): `false` = esta personalidad NO
+   * gasta dinero · `true`/`null`/ausente = sin opinión, manda la cuenta.
+   */
+  personaAllowsPaid?: boolean | null;
+}
+
 export function rankCandidates(
   profile: TaskProfile,
   avail: SourceAvailability[],
-  prefs: IntelligenceSettings
+  prefs: IntelligenceSettings,
+  opts?: RankCandidatesOptions
 ): RouteCandidate[] {
   const out: RouteCandidate[] = [];
   const override = prefs.perTask[profile.kind];
+  // ── (Adenda 149 · Ola 3) FILTRO DE PAGO EFECTIVO = cuenta AND personalidad ──
+  // El interruptor «Permitir fuentes de pago» de la ventana «Sistemas de
+  // Astraura en esta neurona» deja de ser cosmético. Es una restricción que
+  // SOLO PUEDE NEGAR: `personaAllowsPaid === false` apaga las fuentes de pago
+  // para esta personalidad aunque la cuenta las tenga permitidas; `true`, `null`
+  // y la ausencia del parámetro (todos los demás llamantes) dejan el permiso de
+  // cuenta EXACTAMENTE como estaba → cero regresión. Jamás afloja: una
+  // personalidad con el interruptor encendido sigue sin poder saltarse
+  // `allowConfiguredPaid`, el modo de conectores "only-free" ni la exigencia de
+  // que la fuente esté configurada por el usuario (`a.userConfig`).
+  const allowConfiguredPaid = prefs.allowConfiguredPaid && opts?.personaAllowsPaid !== false;
   const difficultyOn = prefs.difficultyRouting !== false;
   const strongThreshold = typeof prefs.strongThreshold === "number" ? prefs.strongThreshold : 0.6;
   // Modo GLOBAL de conectores por categoría (ai/astraura/provider-resolution.ts,
@@ -413,7 +438,7 @@ export function rankCandidates(
     if (!a.ready) continue;
     if (prefs.disabledSources.includes(a.source.id)) continue;
     if (a.source.tier === "paid" && connectorsMode === "only-free") continue;
-    if (a.source.tier === "paid" && !(prefs.allowConfiguredPaid && a.userConfig)) continue;
+    if (a.source.tier === "paid" && !(allowConfiguredPaid && a.userConfig)) continue;
     for (const m of a.source.models) {
       const s = scoreModelForTask(a.source, m, profile.kind, profile.needsVision);
       if (s < 0) continue;
@@ -911,7 +936,14 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
   // la respuesta ANTES de entrar al failover. `detectAvailabilitySafe` nunca lanza
   // y, en el peor caso, devuelve las fuentes SIN CLAVE como listas.
   const avail = await detectAvailabilitySafe();
-  const candidates = rankCandidates(profile, avail, prefs);
+  // (Adenda 149 · Ola 3) La personalidad ACTIVA (ya resuelta arriba para el
+  // prompt y el pin) veta las fuentes de pago si su interruptor «Permitir
+  // fuentes de pago» está apagado en esta neurona. `personaAllowsPaid` nunca
+  // lanza y devuelve `null` (sin opinión) sin personalidad activa → el ranking
+  // queda EXACTAMENTE como antes.
+  const candidates = rankCandidates(profile, avail, prefs, {
+    personaAllowsPaid: personaAllowsPaid(persona),
+  });
 
   // PIN de MODELO por chat (Adenda 71-bis): si el menú fijó un proveedor para
   // este chat y hay un candidato con esa fuente, lo antepone vía forceSource

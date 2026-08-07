@@ -18,35 +18,94 @@
  * primera visita a /agent (AuroraSetupCenter + esta ventana). La apertura MANUAL por
  * evento sigue funcionando siempre.
  *
+ * Adenda 149 (ola 1): accesibilidad del overlay propio con `useModalA11y`
+ * (Adendas 137/142) — foco inicial dentro de la ventana, trampa de Tab y cierre
+ * con Escape. Escape equivale a «Recordar luego»: pospone (`snoozeUpdates`) igual
+ * que la X y el botón del pie, en vez de cerrar sin dejar rastro.
+ *
  * SSR-safe: no renderiza en servidor; decide abrir tras montar. Nunca lanza.
  */
 
-import { useEffect, useState } from "react";
-import { shouldShowUpdates, subscribeStartupOpen, openStartupUpdates } from "@/lib/astraura/startup-updates";
-import { isSetupPending } from "@/lib/aurora/setup-config";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { shouldShowUpdates, subscribeStartupOpen, openStartupUpdates, snoozeUpdates } from "@/lib/astraura/startup-updates";
+import { isSetupPending, subscribeSetup } from "@/lib/aurora/setup-config";
+import { useModalA11y } from "@/hooks/use-modal-a11y";
 import { AstrauraOmniVoiceConfig } from "@/components/astraura/astraura-omnivoice-config";
 
 export function StartupUpdatesModal() {
   const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  /** Escape = «Recordar luego»: pospone y cierra (nunca lanza). */
+  const remindLater = useCallback(() => {
+    try { snoozeUpdates(); } catch { /* */ }
+    setOpen(false);
+  }, []);
+
+  // Foco inicial + trampa de Tab + Escape (patrón de la Adenda 137).
+  useModalA11y({ open, onClose: remindLater, containerRef });
 
   useEffect(() => {
-    // Auto-apertura: primera entrada o novedades — salvo que el Centro de
-    // Configuración esté pendiente (evita el solape de doble modal).
+    // Auto-apertura GARANTIZADA por neurona (A149 · olas): primera entrada,
+    // novedades del catálogo o CONFIGURACIÓN PENDIENTE (`shouldShowUpdates`
+    // ya integra `pendingConfiguration()`, p.ej. la vía de voz sin elegir).
+    // Si el Centro de Configuración de Aurora está PENDIENTE ya NO se pierde la
+    // sesión entera (regresión de la A132 detectada por Alex: en neuronas sin
+    // el setup completado la ventana no aparecía NUNCA): nos suscribimos y
+    // abrimos EN CUANTO el Centro termina, con un respiro de 800 ms para no
+    // solapar dos modales.
+    let offSetup: (() => void) | null = null;
+    let t2: ReturnType<typeof setTimeout> | null = null;
+    let tFallback: ReturnType<typeof setTimeout> | null = null;
     const t = setTimeout(() => {
-      try { if (isSetupPending()) return; } catch { /* si falla, seguimos con el gate normal */ }
+      try {
+        if (isSetupPending()) {
+          offSetup = subscribeSetup(() => {
+            try {
+              if (isSetupPending()) return; // sigue pendiente: esperar al siguiente evento
+              offSetup?.();
+              offSetup = null;
+              t2 = setTimeout(() => { if (shouldShowUpdates()) setOpen(true); }, 800);
+            } catch { /* */ }
+          });
+          // RED DE SEGURIDAD (garantía de aparición por neurona): el Centro solo
+          // se auto-ofrece en ciertos disparadores; si a los 9 s sigue pendiente
+          // pero NO está en pantalla (marcador `data-aurora-setup-center`), la
+          // ventana se abre igualmente — el único caso que se evita es el
+          // solape REAL de dos modales, no la sesión entera (fix pedido por Alex).
+          tFallback = setTimeout(() => {
+            try {
+              if (!isSetupPending()) return; // el flujo por evento ya se encarga
+              const centerOnScreen = !!document.querySelector("[data-aurora-setup-center]");
+              if (!centerOnScreen && shouldShowUpdates()) {
+                offSetup?.();
+                offSetup = null;
+                setOpen(true);
+              }
+            } catch { /* */ }
+          }, 9000);
+          return;
+        }
+      } catch { /* si falla el gate, seguimos con el flujo normal */ }
       if (shouldShowUpdates()) setOpen(true);
     }, 1200);
     // Apertura manual por evento (desde ajustes/notificaciones): siempre abre.
     const off = subscribeStartupOpen(() => setOpen(true));
     // Paridad con openAuroraSetup: disparador global.
     try { (window as unknown as { openAstrauraStartup?: () => void }).openAstrauraStartup = openStartupUpdates; } catch { /* */ }
-    return () => { clearTimeout(t); off(); };
+    return () => { clearTimeout(t); if (t2) clearTimeout(t2); if (tFallback) clearTimeout(tFallback); offSetup?.(); off(); };
   }, []);
 
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 p-3 backdrop-blur-sm" role="dialog" aria-modal="true">
+    <div
+      ref={containerRef}
+      className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 p-3 backdrop-blur-sm"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Configuración de sistemas de Astraura en esta neurona"
+    >
       <AstrauraOmniVoiceConfig
         variant="modal"
         onApply={() => setOpen(false)}

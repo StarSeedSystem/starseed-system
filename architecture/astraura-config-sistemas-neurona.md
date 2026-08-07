@@ -38,6 +38,27 @@ sistemas EN USO en esta neurona:
 El gate de auto-apertura, el snooze y el evento manual **no cambian** (`startup-updates-modal.tsx`
 sigue siendo envoltorio fino; `shouldShowUpdates`, `subscribeStartupOpen`, `isSetupPending` intactos).
 
+### 2b · APARICIÓN GARANTIZADA por neurona (tanda «3 olas» · petición Alex 2026-08-06)
+
+La ventana debe aparecer automáticamente en CADA neurona: con cada actualización o recomendación
+nueva de cualquier tipo, y REAPARECER al reiniciar mientras quede algo por configurar, con sus
+recomendaciones inteligentes. Implementación:
+
+- `startup-updates.ts::pendingConfiguration()` — lista honesta de lo pendiente de la neurona
+  (configuración inicial sin completar; vía de voz sin elegir, pospuesta u obsoleta). `shouldShowUpdates()`
+  la integra: pendiente ⇒ la ventana reaparece cada arranque (el snooze de «Recordar luego», 24 h,
+  se respeta en todas las vías). `ClassifiedUpdates.pendientes` la lleva al título (`windowHeading`)
+  y a la tarjeta «Configuración pendiente» con botón «Configurar ahora» por item.
+- **Gate de 3 vías** en `startup-updates-modal.tsx`: sin setup de Aurora pendiente → abre a los
+  1200 ms; pendiente → se SUSCRIBE (`subscribeSetup`) y abre 800 ms después de que el Centro
+  termine; y RED DE SEGURIDAD a los 9 s — si el Centro sigue pendiente pero NO está en pantalla
+  (marcador `data-aurora-setup-center` en su overlay), abre igualmente. Cierra la regresión de la
+  A132 por la que una neurona sin el setup completado no veía la ventana NUNCA.
+- La ventana abierta no queda rancia: reclasifica novedades/pendientes en vivo al elegir la vía de
+  voz (`starseed:voz-neurona-reopen`) o al cambiar el estado de arranque (`starseed:astraura-startup`).
+- `voice-neuron-onboarding` cede el paso: no se auto-abre si esta ventana va a mostrarse (decisión:
+  UNA sola ventana de primera configuración; la vía de voz se elige dentro, pestaña OpenVoice).
+
 ## 3 · Capa nueva: `src/lib/astraura/neuron-persona-systems.ts`
 
 Módulo LIVIANO (datos + lógica pura, SSR-safe, nunca lanza) — el «salvo» por neurona del mismo
@@ -107,7 +128,7 @@ en `sectionFromSynonym`: `modelos/orden/cuenta/estrategia → astraura`, `voz/om
 | Pestaña | Contenido (módulos reales reutilizados) |
 |---|---|
 | **LLM** | Modelo LLM efectivo por personalidad en esta neurona (procedencia visible) + editor de pin `fuente/modelo` (clases de `MODEL_ACCESS_META`; catálogo del scout) + `ModelScoutPanel kind="llm"` (Adenda 138) con «Usar sugerido» aplicado a la personalidad seleccionada. |
-| **Astraura** | El sistema que decide: orden de preferencia de clases CUENTA⟷NEURONA (UI existente de la Adenda 133 íntegra), modo Automático/Fijo, `permitirPago` por personalidad, auto-actualización, novedades clasificadas (§3.5) y «Diagnosticar y reparar». |
+| **Astraura** | La vista de RELACIONES (petición Alex 2026-08-06): tabla «Relaciones de modelos y sistemas por personalidad en esta neurona» (`PersonaCompareTable` con navegación: pulsar personalidad la selecciona, pulsar sistema abre su pestaña; «Igualar a esta» con confirmación) + modo Automático/Fija y permitir pago POR personalidad (`AstrauraPersonaCard`) + orden de preferencia de clases CUENTA⟷NEURONA (UI de la A133 íntegra), auto-actualización, novedades clasificadas (§3.5), «Aplicar lo recomendado», export/import JSON y «Diagnosticar y reparar». |
 | **OpenVoice** | Voz por personalidad: motor efectivo + editor de pin (motores de `listVoiceEngines` disponibles en esta neurona; primario `openvoice2`), vía de la neurona nube⟷local (`NeuronVoiceChoice` compacto, clave `starseed.voz.neurona.v2`) y coherencia de persona (Adenda 112: `PersonaCoherencePanel`/nota de coherencia — el carácter se conserva en todos los motores). |
 | **Cerebro** | Memoria por personalidad (`memoryPolicy`: usar memorias, nivel de contexto, cerebros permitidos de `listBrains()`), almacén auto/local/servidor con la capacidad real (`storageQuotaGb/UsedGb`, CasaOS, servidores de `brains/servers.ts`), sincronizar cerebros con esta neurona (`NeuronSettings.syncBrains`) y enlaces a `/agent?tab=cerebro` y `/servidores`. |
 | **Señales** | Antenas detectadas (§3.3) con interruptores **entrada/salida** y **ruta** (auto/privada/mesh/servidor — política de la red sináptica Adenda 99) por antena y por personalidad; accesos rápidos malla/internet público (`ConnectivityConfig` de la neurona); enlaces a `/senales` y al Centro de Conexiones. |
@@ -176,23 +197,34 @@ Astraura por personalidad, pin LLM aplicado también al sentido «voz» del rout
 eliminada del gate) · deep-links viejos (`?tab=modelos|voz|cuenta|orden`) verificados · sin
 overrides el comportamiento del router/voz/memoria/señales es EXACTAMENTE el previo.
 
-## 9 · Pendiente honesto (aplazado, NO cableado aún)
+## 9 · Estado tras la tanda «3 olas» (2026-08-06/07)
 
-- `permitirPago` por personalidad×neurona se persiste y llega al pin, pero el router solo aplica
-  el filtro de pago a nivel CUENTA (herencia de la A67: `pin.permitirPago` era ya inerte). El
-  interruptor lo declara («respeta el filtro global de pago de la cuenta»).
-- Las reglas de Señales de una personalidad CONCRETA rigen cuando el envío lleve personalidad
-  emisora; hoy `transmit`/`decideRoute` no la reciben → rigen los defaults «Todas» (TODO
-  documentado en `transmit`). Entrada/`anyAlertRelayRole` son tráfico no atribuible: usan «*» por
-  diseño. Un relé con entrada LoRa cerrada y salida abierta reemite alertas («repetidor sordo»).
-- `cerebro.almacen` (auto/local/servidor) se persiste y se muestra, sin consumidor de runtime aún
-  (siguiente ola: `memory-destinations.ts`).
-- `omnivoice-hybrid.ts::neuronPrefersLocalLS` decide local/nube DENTRO del híbrido solo con la
-  elección del dispositivo (no lee `voz.modo` por personalidad).
-- `voiceStyle.audioRef` de personalidades custom sigue sin llegar a la síntesis (hallazgo del
-  análisis de estado 2026-08-06, previo a esta ola).
-- Widgets de dashboard/escritorio: sin entrada propia todavía (accesos actuales: ventana de
-  arranque, drawer global, /agent config-ia + aliases `sistemas`, /cuenta, Control Center,
-  Personalidades, Señales, Cerebro hub).
-- Sync de la clave nueva es LWW del mapa completo (patrón de todas las claves sincronizadas):
-  ediciones simultáneas en dos neuronas pueden pisarse dentro de la ventana de propagación.
+**CABLEADO en la tanda (ya NO pendiente):**
+- `permitirPago` por personalidad×neurona → `personalities.ts::personaAllowsPaid` +
+  `router.ts::rankCandidates(opts)`: restricción AND que SOLO puede negar (nunca afloja el
+  filtro de cuenta ni «only-free»). El campo del perfil solo hereda en `modo:"fija"` (su ámbito
+  histórico) — tratarlo en «auto» habría vetado las fuentes de pago de toda cuenta por su default
+  `false` (CRÍTICO cazado por la revisión adversarial de la tanda, corregido).
+- Señales por personalidad emisora → `TransmitInput.personalityId` llega a las puertas de antena
+  (`meshOutboundAllowed`/`outboundAllowed`); `publishForContext`/`transmitForContext` lo propagan.
+- `cerebro.almacen` → `memory-destinations.ts::effectiveBrainStore` (local = sin push a
+  starseed/external ese ciclo; servidor = forzar push; auto = idéntico a antes).
+- `voiceStyle.audioRef` → síntesis real (`neural-tts` → `openvoice2` con `refBlob`+`refKey`,
+  decodificación base64 propia — CSP-safe — con caché por personalidad; corrupto ⇒ semilla).
+- `voz.modo` por personalidad en el híbrido (`omnivoice-hybrid::neuronPrefersLocalLS(personalityId)`).
+- Botones predeterminados del dock garantizados en TODAS las neuronas/cuentas
+  (`dock-config.ts`: `ensureDefaultDockItems` CONTINUA para 'senales' y 'red-feed' + migración
+  v13 — cierra el agujero de banderas locales vs clave sincronizada). Personalizable: un botón
+  presente pero deshabilitado por el usuario se respeta.
+
+**Pendiente honesto (aplazado):**
+- `decideRoute` aún no recibe personalidad (la ruta PREFERIDA sigue leyendo «*»; las puertas de
+  salida sí son por persona); `turn.ts` es el llamador natural para propagarla.
+- Entrada/`anyAlertRelayRole`: tráfico no atribuible, usan «*» por diseño; «repetidor sordo»
+  (entrada LoRa cerrada + salida abierta reemite alertas) documentado como semántica.
+- `voz.modo:"cloud"` no fuerza nube con daemon local vivo (misma semántica que la elección por
+  dispositivo); puente Hermione usa OR de pago (aflojante) — unificar con el AND del router.
+- Trampa de foco vs capas portalizadas: mitigada con guarda global en `use-modal-a11y` (cede ante
+  alertdialog/sonner); revisar el ciclo completo si se añaden más capas.
+- Widget propio de escritorio (el Córtex Astraura sigue con datos simulados); sync LWW del mapa
+  completo (patrón general de claves sincronizadas).

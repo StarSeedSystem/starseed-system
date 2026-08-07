@@ -280,6 +280,24 @@ export function VoiceNeuronOnboarding() {
       const stale = neuronVoiceChoiceIsStale(choice);
       if (choice && choice.mode !== "later" && !stale) return; // ya elegido y al día
       if (choice?.mode === "later" && !stale && Date.now() - choice.at < LATER_RETRY_MS) return;
+      // ── GATE CRUZADO con la ventana 149 (Adenda 149 · quick win 10) ────────
+      // La ventana de arranque «Sistemas de Astraura en esta neurona»
+      // (`StartupUpdatesModal`) se abre ANTES que esta (a ~1200 ms, z-[120]) y
+      // ya explica voz/LLM/cerebro/señales de la neurona. Si va a mostrarse en
+      // ESTA sesión, esta ventana NO se auto-abre encima (z-[10000] tapaba a la
+      // otra sin que existiera ningún gate entre ambas): se deja para el
+      // siguiente arranque, cuando el catálogo ya esté visto. Se consulta por
+      // import PEREZOSO para no arrastrar el catálogo de modelos/integraciones
+      // al chunk de este componente, montado en el layout raíz (ver #310).
+      // NO afecta a la apertura MANUAL ni al evento de reapertura desde
+      // Ajustes (`NEURON_VOICE_REOPEN_EVENT`), que siguen abriendo siempre.
+      const updatesWillShow = await import("@/lib/astraura/startup-updates")
+        .then((m) => {
+          try { return m.shouldShowUpdates(); } catch { return false; }
+        })
+        .catch(() => false);
+      if (!alive) return;
+      if (updatesWillShow) return;
       if (stale) setUpdated(true);
       setOpen(true);
       void probeLocalDaemon().then((local) => {

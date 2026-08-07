@@ -838,6 +838,8 @@ async function fetchAudioBlob(url: string, signal?: AbortSignal): Promise<Blob |
 interface ReferenceOptions {
   personalityId?: string;
   refBlob?: Blob | null;
+  /** Identidad de `refBlob` para cachear su subida por referencia (A149·Ola 3). */
+  refKey?: string;
   refPathCache?: string;
   useSeed?: boolean;
   seedVersion?: number;
@@ -957,7 +959,11 @@ async function resolveReference(opts: ReferenceOptions): Promise<GradioFileRef |
   }
   // 2) Muestra REAL subida por el usuario (clonación permitida solo aquí).
   if (opts.refBlob) {
-    const key = `${opts.base || OPENVOICE2_SPACE}::user:current`;
+    // La ruta /tmp se cachea POR REFERENCIA (A149·Ola 3): `refKey` identifica la
+    // muestra (personalidad + huella de su audio), así que dos personalidades con
+    // grabaciones distintas —o la misma tras regrabar— nunca reutilizan la subida
+    // de la otra. Sin `refKey` se conserva la clave histórica `user:current`.
+    const key = `${opts.base || OPENVOICE2_SPACE}::user:${opts.refKey || "current"}`;
     if (!opts.forceReupload) {
       const cached = sessionRefPaths.get(key);
       if (cached) return { name: cached, data: null, is_file: true };
@@ -967,7 +973,10 @@ async function resolveReference(opts: ReferenceOptions): Promise<GradioFileRef |
       sessionRefPaths.set(key, path);
       return { name: path, data: null, is_file: true };
     }
-    return null;
+    // La subida de la muestra falló (Space caído, /upload en error…): NO se
+    // declina — se sigue al paso 3 y habla la semilla sintética. Aurora nunca se
+    // queda muda por no poder clonar (invariante «la voz nunca se rompe»); si
+    // además `useSeed` es false, el retorno null de abajo es el de siempre.
   }
   // 3) Semilla sintética de identidad (por defecto para las voces insignia).
   if (opts.useSeed !== false) {
@@ -1313,6 +1322,13 @@ export interface OpenVoice2Options {
   personalityId?: string;
   /** Muestra REAL de audio del usuario para CLONAR (única vía de clonación real). */
   refBlob?: Blob | null;
+  /**
+   * Identidad de `refBlob` (Adenda 149 · Ola 3): la usa la cache de subidas por
+   * sesión para no reutilizar el /tmp de OTRA muestra. La produce
+   * `neural-tts.ts::personaVoiceRefBlob` como `personalidad.huella(audio)`.
+   * Ausente ⇒ clave histórica compartida (`user:current`).
+   */
+  refKey?: string;
   /** Ruta /tmp ya subida (reutilización best-effort; si 404, se resube). */
   refPathCache?: string;
   /** Usar la semilla sintética de identidad (por defecto true). */
@@ -1422,6 +1438,7 @@ export async function synthesizeOpenVoice2(
     const refOpts: ReferenceOptions = {
       personalityId: opts.personalityId,
       refBlob: opts.refBlob,
+      refKey: opts.refKey,
       refPathCache: undefined, // la ruta cacheada externa solo vale para el oficial
       useSeed: opts.useSeed,
       seedVersion: opts.seedVersion,

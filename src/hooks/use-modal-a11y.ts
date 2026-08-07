@@ -115,11 +115,27 @@ export function useModalA11y({ open, onClose, containerRef, closeOnEscape = true
 
         const onKeyDown = (e: KeyboardEvent) => {
             if (closeOnEscape && e.key === "Escape") {
+                // Otra capa POR ENCIMA ya se quedó con este Escape (Radix
+                // Dialog/AlertDialog cierra en CAPTURA y hace `preventDefault()`
+                // sin detener la propagación): si cerráramos también aquí,
+                // cancelar una confirmación cerraría el modal que la abrió.
+                if (e.defaultPrevented) return;
                 e.preventDefault();
                 onClose();
                 return;
             }
             if (e.key !== "Tab") return;
+
+            // Una CAPA PORTALIZADA por encima (AlertDialog/Dialog de Radix, o
+            // un toast de sonner con acción) vive FUERA de `containerRef`: si
+            // la trampa forzara el foco de vuelta al modal, pelearía con el
+            // FocusScope de Radix en cada Tab y el botón «Deshacer» del toast
+            // sería inalcanzable por teclado (rev. 3 olas · M6). Con una capa
+            // superior presente, la trampa cede y deja que esa capa gestione
+            // su propio ciclo de foco.
+            try {
+                if (document.querySelector('[role="alertdialog"], [data-sonner-toast], [data-radix-portal] [role="dialog"]')) return;
+            } catch { /* */ }
 
             const container = containerRef.current;
             if (!container) return;

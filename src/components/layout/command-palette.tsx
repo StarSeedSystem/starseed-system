@@ -56,12 +56,17 @@ import {
   ArrowDown,
   ArrowRight,
   ArrowUp,
+  Brain,
   Command as CommandIcon,
   CornerDownLeft,
+  Cpu,
+  Mic,
+  Radio,
   Search,
   SearchX,
   Sparkles,
   SlidersHorizontal,
+  UserCog,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useModalA11y } from "@/hooks/use-modal-a11y";
@@ -270,6 +275,74 @@ export function CommandPalette() {
         icon: SlidersHorizontal,
         color: "purple",
         activate: () => openAstrauraConfig(),
+      },
+      // (Adenda 149) Una entrada POR SISTEMA: la ventana tiene cinco puertas y
+      // con una sola acción genérica no se descubrían. `openAstrauraConfig`
+      // acepta la sección destino (llm · astraura · openvoice · cerebro · señales).
+      {
+        id: "action:astraura-llm",
+        kind: "action",
+        label: "Sistemas de Astraura: LLM",
+        hint: "Modelo de lenguaje efectivo de cada personalidad en esta neurona",
+        icon: Cpu,
+        color: "cyan",
+        activate: () => openAstrauraConfig("llm"),
+      },
+      {
+        id: "action:astraura-router",
+        kind: "action",
+        label: "Sistemas de Astraura: Astraura",
+        hint: "Modo automático o fijo, fuentes de pago y orden de motores",
+        icon: SlidersHorizontal,
+        color: "amber",
+        activate: () => openAstrauraConfig("astraura"),
+      },
+      {
+        id: "action:astraura-openvoice",
+        kind: "action",
+        label: "Sistemas de Astraura: OpenVoice",
+        hint: "Motor de voz y vía (nube gratis o motor local) por personalidad",
+        icon: Mic,
+        color: "purple",
+        activate: () => openAstrauraConfig("openvoice"),
+      },
+      {
+        id: "action:astraura-cerebro",
+        kind: "action",
+        label: "Sistemas de Astraura: Cerebro",
+        hint: "Memorias, nivel de contexto y cerebros permitidos",
+        icon: Brain,
+        color: "purple",
+        activate: () => openAstrauraConfig("cerebro"),
+      },
+      {
+        id: "action:astraura-senales",
+        kind: "action",
+        label: "Sistemas de Astraura: Señales",
+        hint: "Antenas, entrada/salida y ruta preferida por personalidad",
+        icon: Radio,
+        color: "emerald",
+        activate: () => openAstrauraConfig("senales"),
+      },
+      {
+        id: "action:astraura-persona-activa",
+        kind: "action",
+        label: "Sistemas de Astraura: …de la personalidad activa",
+        hint: "Abre la ventana ya centrada en la personalidad activa ahora mismo",
+        icon: UserCog,
+        color: "purple",
+        // La personalidad activa se lee en el momento de activar (import
+        // PEREZOSO: este componente vive en el layout raíz y no debe arrastrar
+        // el módulo de personalidades a su chunk). Sin personalidad activa,
+        // abre la ventana tal cual.
+        activate: () => {
+          void import("@/lib/aurora/personalities")
+            .then((m) => {
+              const id = (() => { try { return m.getActivePersonality()?.id ?? null; } catch { return null; } })();
+              openAstrauraConfig("llm", id ? { personalityId: id } : undefined);
+            })
+            .catch(() => openAstrauraConfig("llm"));
+        },
       },
     ],
     [],

@@ -29,6 +29,13 @@ import {
 } from "@/lib/brains/brains";
 import { getEntityState, setEntityState, currentUserRef } from "@/lib/sync/entity-state";
 import { listMemoryFiles } from "@/lib/cerebro/memory-files";
+// Adenda 149 · Ola 3 (cableado de runtime): el ALMACÉN elegido por neurona ×
+// personalidad (`cerebro.almacen`) decide el destino de este ciclo de sync. Se
+// importa SOLO el STORE (que a su vez solo depende de `safe-storage`), NUNCA
+// `neuron-persona-systems`: esa capa alta importa `@/ai/astraura/mesh` y la capa
+// de neuronas, y este módulo cuelga de `@/lib/brains/brains` — meterla aquí sería
+// pedir un ciclo. Mismo criterio que `@/ai/astraura/mesh/persona-antenna-gate.ts`.
+import { ALL_PERSONAS, getOverrides } from "@/lib/astraura/neuron-persona-store";
 // Reutiliza la config YA guardada del proveedor 'p2p-syncthing' (endpoint +
 // clave API, local por dispositivo) — este módulo NO duplica ese registro,
 // solo lo consulta para el paso de sincronización best-effort de abajo.
@@ -291,19 +298,120 @@ function canFetch(): boolean {
   return typeof globalThis !== "undefined" && typeof globalThis.fetch === "function";
 }
 
+/* ── Adenda 149 · Ola 3 — `cerebro.almacen` decide el destino del sync ──────── */
+
+/** Almacén efectivo de memorias en ESTA neurona para la personalidad activa. */
+export type BrainStoreMode = "auto" | "local" | "servidor";
+
+/** Clave del id de neurona (la escribe `thisDeviceId()` en `@/lib/neurons/neurons`). */
+const NEURON_DEVICE_ID_KEY = "starseed.neuron.device-id";
+
+/**
+ * Id de ESTA neurona leído DIRECTO de localStorage, sin acoplar los cerebros a la
+ * capa de neuronas y SIN cache (un `localStorage.clear()` en sesión viva regenera
+ * el id y una cache lo dejaría rancio). Patrón de `persona-antenna-gate.ts`.
+ * "" ⇒ sin neurona identificada (o SSR) ⇒ camino rápido «auto».
+ */
+function neuronDeviceId(): string {
+  try {
+    if (typeof window === "undefined") return "";
+    return window.localStorage.getItem(NEURON_DEVICE_ID_KEY) || "";
+  } catch {
+    return "";
+  }
+}
+
+/**
+ * Almacén EFECTIVO de este ciclo: `cerebro.almacen` guardado para esta neurona ×
+ * personalidad ACTIVA en la ventana «Sistemas de Astraura en esta neurona».
+ *
+ * La personalidad activa se resuelve con `import()` DINÁMICO y dentro de un
+ * try/catch a propósito: `@/lib/aurora/personalities` arrastra la capa de
+ * neuronas, el mesh y la inteligencia unificada, y este módulo cuelga de
+ * `@/lib/brains/brains`. Hoy NADA de `src/lib/aurora` ni de `src/ai` importa
+ * `memory-destinations` (verificado), así que un import estático no cerraría
+ * ningún ciclo — pero el dinámico deja el módulo igual de liviano que antes y
+ * hace que un futuro import inverso no pueda romperlo. Si no se resuelve
+ * personalidad, se usa `"*"` (defaults de la neurona para «Todas»), igual que
+ * hace el mesh con el tráfico no atribuible.
+ *
+ * Sin overrides guardados devuelve `"auto"` ⇒ el ciclo se comporta EXACTAMENTE
+ * como antes de esta ola. NUNCA lanza.
+ */
+async function effectiveBrainStore(): Promise<BrainStoreMode> {
+  try {
+    const dev = neuronDeviceId();
+    if (!dev) return "auto"; // camino rápido (SSR o neurona sin identificar)
+    let personaId: string = ALL_PERSONAS;
+    try {
+      const mod = await import("@/lib/aurora/personalities");
+      personaId = mod.getActivePersonality?.()?.id || ALL_PERSONAS;
+    } catch {
+      /* sin personalidades resolubles → defaults «Todas» de la neurona */
+    }
+    return getOverrides(dev, personaId).cerebro?.almacen ?? "auto";
+  } catch {
+    return "auto";
+  }
+}
+
 /**
  * Sincroniza los destinos de un cerebro: (1) refresca el manifiesto StarSeed
  * si está activo, (2) empuja un bundle ligero a cada destino externo (POST
  * best-effort, contrato laxo `{ ok }`, igual de tolerante que runtime.ts). El
  * mirror LOCAL (§8 del SOP) se gestiona aparte en memory-offline.ts — este
  * orquestador no lo toca para mantener responsabilidades separadas.
+ *
+ * ── Adenda 149 · Ola 3 — el almacén por neurona × personalidad DECIDE ────────
+ * `cerebro.almacen` de la ventana «Sistemas de Astraura en esta neurona» (SOP
+ * §9, último pendiente de memoria) manda sobre este ciclo:
+ *   · "auto"     ⇒ EXACTAMENTE lo de siempre (camino rápido sin overrides).
+ *   · "local"    ⇒ este ciclo NO empuja a StarSeed ni a destinos externos. El
+ *                  mirror local (`memory-offline.ts`) ni se toca — es de otro
+ *                  módulo y siempre está activo — así que «local» no pierde nada:
+ *                  aplaza la salida de datos, no la memoria.
+ *   · "servidor" ⇒ push FORZADO: se salta cualquier aplazamiento de este ciclo.
+ * Lo que «servidor» NO hace, a propósito: reactivar un destino que el usuario
+ * apagó en ESTE cerebro (`starseed.enabled:false`, o cero destinos externos).
+ * Eso es una elección explícita por cerebro, no una heurística de aplazamiento,
+ * y la UI promete «los servidores de los cerebros», no inventarlos. Cuando la
+ * personalidad pide servidor y el cerebro no tiene ninguno activo, se registra
+ * un paso HONESTO en fallo en vez de forzar una escritura que nadie pidió.
+ *
+ * TELEMETRÍA: el registro vivo de este módulo son los `steps` que devuelve (los
+ * pinta el toast de `memory-graph.tsx`), así que la decisión se anota ahí — y
+ * SOLO cuando hay override, para que en «auto» el resultado sea idéntico al
+ * previo, paso a paso.
  */
 export async function syncBrainMemoryNow(brain: Brain): Promise<MemoryDestinationSyncResult> {
   const steps: MemoryDestinationSyncStep[] = [];
   try {
     const dest = getMemoryDestinations(brain);
+    const almacen = await effectiveBrainStore();
+    const soloLocal = almacen === "local";
+    const forzarServidor = almacen === "servidor";
 
-    if (dest.starseed.enabled) {
+    if (soloLocal) {
+      steps.push({
+        kind: "local",
+        ok: true,
+        detail:
+          "Almacén «local» en esta neurona: este ciclo no envía memorias a StarSeed ni a " +
+          "destinos externos (el espejo local sigue intacto).",
+      });
+    } else if (forzarServidor) {
+      const hayServidor = dest.starseed.enabled || dest.external.length > 0;
+      steps.push({
+        kind: "starseed",
+        ok: hayServidor,
+        detail: hayServidor
+          ? "Almacén «servidor» en esta neurona: sincronización forzada con los destinos del cerebro."
+          : "Almacén «servidor» en esta neurona, pero este cerebro no tiene ningún destino de " +
+            "servidor activo (actívalo en los destinos del cerebro).",
+      });
+    }
+
+    if (dest.starseed.enabled && !soloLocal) {
       const manifest = await provisionStarseedStore(brain);
       steps.push({
         kind: "starseed",
@@ -314,7 +422,7 @@ export async function syncBrainMemoryNow(brain: Brain): Promise<MemoryDestinatio
       });
     }
 
-    if (dest.external.length && canFetch()) {
+    if (dest.external.length && !soloLocal && canFetch()) {
       const files = await listMemoryFiles(brain.id);
       const bundle = {
         starseedBrainMemory: 1,
@@ -345,13 +453,19 @@ export async function syncBrainMemoryNow(brain: Brain): Promise<MemoryDestinatio
           });
         }
       }
-    } else if (dest.external.length) {
+    } else if (dest.external.length && !soloLocal) {
       steps.push({ kind: "external", ok: false, detail: "Sin red disponible para sincronizar destinos externos." });
     }
 
     // Espejo P2P (Syncthing propio) — best-effort, honesto: solo NUDGEA a
     // Syncthing a reescanear/sincronizar el folder; no mueve el contenido de
     // las memorias por aquí (eso lo hace Syncthing por su cuenta, por archivo).
+    //
+    // A149 · Ola 3: el almacén de la personalidad NO lo toca. Syncthing es la
+    // instancia del PROPIO usuario espejando sus archivos entre sus máquinas —
+    // no es «el servidor» ni un tercero — y el aviso que se manda aquí es un
+    // `POST /rest/db/scan` a su endpoint, sin contenido de memorias. El alcance
+    // cableado en esta ola es exactamente el declarado: StarSeed y externos.
     if (dest.p2p.enabled) {
       const cfg = getProviderConfig("p2p-syncthing") as { endpoint?: string; apiKey?: string };
       if (!cfg.endpoint || !cfg.apiKey) {

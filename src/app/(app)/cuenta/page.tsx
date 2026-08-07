@@ -63,7 +63,7 @@ import { loadAllNotifications } from "@/lib/notifications/notifications";
 import { loadItems as loadReminderItems } from "@/lib/clima/reminders-store";
 import { readDesktopsSnapshot } from "@/components/desktop/desktop-store";
 import { listMySpaces } from "@/lib/spaces/spaces";
-import { listNeurons, type Neuron } from "@/lib/neurons/neurons";
+import { listNeurons, thisDeviceId, type Neuron } from "@/lib/neurons/neurons";
 import { listServers } from "@/lib/brains/servers";
 import { activeCapabilities, type SkillCapability } from "@/ai/astraura/skills";
 import { useMyBrains } from "@/lib/widget-data/os-live";
@@ -79,6 +79,13 @@ import { openAuroraSetup } from "@/lib/aurora/setup-config";
 // Adenda 149: drawer global de «Sistemas de Astraura en esta neurona»
 // (LLM · Astraura · OpenVoice · cerebro · señales por personalidad).
 import { openAstrauraConfig } from "@/lib/astraura/config-ui";
+// Adenda 149: la tarjeta de esa ventana muestra el estado EFECTIVO en vivo
+// (no texto fijo): resolución con procedencia + suscripción al store.
+import {
+  ALL_PERSONAS, resolvePersonaSystems, subscribeNeuronPersona,
+  type ResolvedPersonaSystems,
+} from "@/lib/astraura/neuron-persona-systems";
+import { VOICE_ENGINE_REGISTRY } from "@/lib/aurora/tts-oss/engine-registry";
 import { cn } from "@/lib/utils";
 
 import {
@@ -106,6 +113,7 @@ import {
   Radio,
   Mic,
   Bot,
+  Cpu,
 } from "lucide-react";
 
 type Row = Record<string, any>;
@@ -354,6 +362,40 @@ function CuentaContent() {
   const [caps, setCaps] = useState<SkillCapability[]>([]);
   const [auroraCtx, setAuroraCtx] = useState<UserContextSettings>({ ...DEFAULT_USER_CONTEXT_SETTINGS });
   const { rows: brainRows } = useMyBrains();
+
+  // ── Adenda 149 · estado EFECTIVO de los sistemas de Astraura en ESTA neurona.
+  // Se resuelve para «Todas las personalidades» (`*`), es decir, los valores por
+  // defecto de la neurona; sin overrides describe lo que el OS ya hace. Se
+  // resuelve aquí mismo (sin depender de hooks de la ventana 149) y se refresca
+  // con la suscripción del store. SSR-safe: todo dentro del efecto.
+  const [astrauraLive, setAstrauraLive] = useState<ResolvedPersonaSystems | null>(null);
+  useEffect(() => {
+    const refresh = () => {
+      try {
+        setAstrauraLive(resolvePersonaSystems(ALL_PERSONAS, thisDeviceId(), null));
+      } catch {
+        setAstrauraLive(null);
+      }
+    };
+    refresh();
+    return subscribeNeuronPersona(refresh);
+  }, []);
+
+  const astrauraLlmLabel = astrauraLive
+    ? astrauraLive.llm.provenance === "auto"
+      ? "automático (mejor gratis)"
+      : astrauraLive.llm.modelo || astrauraLive.llm.fuente || "fijado"
+    : "";
+  const astrauraVozLabel = astrauraLive
+    ? VOICE_ENGINE_REGISTRY[astrauraLive.voz.motor as keyof typeof VOICE_ENGINE_REGISTRY]?.label ?? astrauraLive.voz.motor
+    : "";
+  // «Regla propia» = la antena NO está en el valor por defecto (activada, con
+  // entrada y salida y ruta automática).
+  const astrauraAntenas = astrauraLive
+    ? Object.values(astrauraLive.senales.porAntena).filter(
+        (r) => !(r.enabled && r.entrada && r.salida && r.ruta === "auto"),
+      ).length
+    : 0;
 
   useEffect(() => {
     setAuroraCtx(getUserContextSettings());
@@ -955,6 +997,24 @@ function CuentaContent() {
             <p className="text-[11px] text-muted-foreground leading-snug">
               LLM, Astraura, OpenVoice, cerebro y señales por personalidad.
             </p>
+            {/* Estado EFECTIVO en vivo (Adenda 149): lo que esta neurona usa de
+                verdad ahora mismo, no una descripción fija. */}
+            {astrauraLive ? (
+              <p className="mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px] text-white/70">
+                <span className="inline-flex items-center gap-1" title={`Modelo de lenguaje efectivo · ${astrauraLive.llm.label}`}>
+                  <Cpu className="h-3 w-3 text-cyan-300" /> LLM: {astrauraLlmLabel}
+                </span>
+                <span className="inline-flex items-center gap-1" title={`Motor de voz efectivo (vía: ${astrauraLive.voz.via})`}>
+                  <Mic className="h-3 w-3 text-fuchsia-300" /> Voz: {astrauraVozLabel}
+                </span>
+                <span className="inline-flex items-center gap-1" title="Antenas cuya regla NO es la de por defecto (activada, entrada+salida, ruta automática)">
+                  <Radio className="h-3 w-3 text-emerald-300" />
+                  {astrauraAntenas} {astrauraAntenas === 1 ? "antena con regla propia" : "antenas con regla propia"}
+                </span>
+              </p>
+            ) : (
+              <p className="mt-1.5 text-[11px] text-muted-foreground">Leyendo el estado de esta neurona…</p>
+            )}
           </div>
           <button
             type="button"

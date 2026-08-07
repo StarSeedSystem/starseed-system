@@ -464,6 +464,15 @@ export interface TransmitInput {
    * usan los ajustes de la neurona-cuenta (getConnectivitySettings).
    */
   connectivity?: ConnectivityConfig;
+  /**
+   * PERSONALIDAD EMISORA (Adenda 149 · Ola 3). Cuando el llamador sabe QUIÉN
+   * transmite, sus reglas de la pestaña «Señales» (antena a antena, por
+   * personalidad × neurona) gobiernan este envío; si se omite, rigen los
+   * defaults «Todas las personalidades» ("*") de la neurona — exactamente el
+   * comportamiento previo a esta ola. Las reglas solo pueden RESTAR vías: nunca
+   * habilitan una que la conectividad del contexto tenga prohibida.
+   */
+  personalityId?: string;
 }
 
 /**
@@ -542,11 +551,14 @@ export async function transmit(input: TransmitInput): Promise<DeliveryReceipt> {
   //     el interruptor de malla apagada (planTransmission ya lo respeta).
   //   · antena Wi-Fi sin SALIDA    → ni servidor ni feed público; la malla (si
   //     sigue permitida) queda como vía.
-  // TODO(A149): `TransmitInput` aún no lleva la personalidad emisora, así que
-  // aquí rigen los defaults de la neurona («Todas las personalidades»). Cuando
-  // la lleve, pasarla como segundo argumento de las dos puertas.
-  const meshOut = meshOutboundAllowed(s.transport);
-  const wifiOut = outboundAllowed("wifi");
+  // (Ola 3) La PERSONALIDAD EMISORA ya llega hasta aquí (`input.personalityId`)
+  // y se pasa a las dos puertas: `getOverrides` fusiona «Todas» ("*") con las
+  // reglas propias de esa personalidad y gana la más específica. Sin
+  // `personalityId` (o sin overrides guardados) el valor es `undefined` y las
+  // puertas caen EXACTAMENTE en el camino previo: los defaults de la neurona.
+  const persona = input.personalityId;
+  const meshOut = meshOutboundAllowed(s.transport, persona);
+  const wifiOut = outboundAllowed("wifi", persona);
   const ctx = deriveNetworkContext(s, {
     wifiHealthy: s.wifiHealth.score >= WIFI_HEALTHY_SCORE,
     hasAccount,
@@ -608,6 +620,13 @@ export async function resolveContextConnectivity(context: ConnectivityContext): 
 /**
  * Transmite RESOLVIENDO primero la conectividad del contexto dado — la vía real
  * (malla/servidor, público/privado, servidor elegido) la fija ese contexto.
+ *
+ * (Adenda 149 · Ola 3) `personalityId` viaja INTACTO hasta `transmit` (el
+ * `Omit` solo quita `connectivity`): un llamador que sepa qué personalidad
+ * emite — p. ej. el turno de chat — solo tiene que añadirlo a `input`. NO se
+ * deduce del `ConnectivityContext`: `EntityKind` no tiene "personality"
+ * (user/profile/page/group/community/event/ef/party/other), así que inferirla
+ * de ahí sería inventar contexto. Sin `personalityId` rigen los defaults «*».
  */
 export async function transmitForContext(
   context: ConnectivityContext,
@@ -641,7 +660,13 @@ export async function publishForContext(
   context: ConnectivityContext,
   type: MeshPayloadType,
   body: unknown,
-  opts?: { scope?: TransmitScope; cls?: TrafficClass; recipient?: string },
+  opts?: {
+    scope?: TransmitScope;
+    cls?: TrafficClass;
+    recipient?: string;
+    /** Personalidad emisora (Adenda 149 · Ola 3): sus reglas de «Señales» rigen. */
+    personalityId?: string;
+  },
 ): Promise<DeliveryReceipt> {
   return transmitForContext(context, {
     scope: opts?.scope ?? "public",
@@ -651,6 +676,7 @@ export async function publishForContext(
     target: "broadcast",
     distance: "unknown",
     recipient: opts?.recipient,
+    personalityId: opts?.personalityId,
   });
 }
 

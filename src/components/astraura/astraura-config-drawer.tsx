@@ -37,7 +37,9 @@ export function AstrauraConfigDrawer() {
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
-      <SheetContent side="right" className="w-full gap-0 border-white/10 p-0 sm:max-w-md">
+      {/* Ancho ALINEADO con el modal (560px): el mismo contenido no debería
+          medir 448px aquí y 560px allí (A149 · ola 2 · §2.13). */}
+      <SheetContent side="right" className="w-full gap-0 border-white/10 p-0 sm:max-w-[560px]">
         {/* Títulos accesibles (Radix Dialog): el encabezado visible lo pinta el componente. */}
         <SheetTitle className="sr-only">Configuración de sistemas de Astraura en esta neurona</SheetTitle>
         <SheetDescription className="sr-only">

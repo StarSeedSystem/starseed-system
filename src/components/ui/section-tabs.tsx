@@ -6,7 +6,8 @@
 // Un solo lenguaje de menús para todas las áreas (Hub, Red, ajustes, cerebro…):
 //   · Scroll-x limpio: `.scrollbar-hide` + máscara de fundido lateral + snap.
 //   · Redondeo consistente (píldoras dentro de una barra glass), estado activo
-//     claro (color primario tokenizado), responsive y accesible por teclado
+//     claro (color primario tokenizado — o el `accent` opcional del item),
+//     responsive y accesible por teclado
 //     (role=tablist + roving tabindex con ← → Inicio/Fin).
 //   · Dos modos: CONTROLADO (`value`/`onValueChange`, para pestañas en página)
 //     y NAVEGACIÓN (`href` por item, para moverse entre rutas).
@@ -21,6 +22,13 @@ import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+/**
+ * Tono del estado ACTIVO de un item (Adenda 149 · ola 2 · §2.13). Opcional:
+ * SIN `accent` el item se pinta exactamente igual que siempre (color primario
+ * tokenizado), así los carriles ya existentes del OS no cambian ni un píxel.
+ */
+export type SectionTabAccent = "cyan" | "amber" | "fuchsia" | "violet" | "emerald";
+
 export interface SectionTabItem {
     /** Identificador único (modo controlado). Ignorado si se define `href`. */
     value?: string;
@@ -34,7 +42,44 @@ export interface SectionTabItem {
     active?: boolean;
     /** Tooltip. */
     title?: string;
+    /**
+     * Tono del estado activo. Sin definir → `primary` (comportamiento previo,
+     * idéntico). Con él, cada pestaña puede llevar el acento de SU sistema
+     * (p.ej. LLM cian · Astraura ámbar · OpenVoice fucsia · Cerebro violeta ·
+     * Señales esmeralda en la ventana 149).
+     */
+    accent?: SectionTabAccent;
 }
+
+/** Clases del estado ACTIVO por tono (píldora + icono). */
+const ACCENT_ACTIVE: Record<SectionTabAccent, { pill: string; icon: string }> = {
+    cyan: {
+        pill: "border-cyan-400/45 bg-cyan-500/15 text-cyan-100 shadow-[0_0_12px_rgba(34,211,238,0.18)]",
+        icon: "text-cyan-300",
+    },
+    amber: {
+        pill: "border-amber-400/45 bg-amber-500/15 text-amber-100 shadow-[0_0_12px_rgba(251,191,36,0.18)]",
+        icon: "text-amber-300",
+    },
+    fuchsia: {
+        pill: "border-fuchsia-400/45 bg-fuchsia-500/15 text-fuchsia-100 shadow-[0_0_12px_rgba(232,121,249,0.18)]",
+        icon: "text-fuchsia-300",
+    },
+    violet: {
+        pill: "border-violet-400/45 bg-violet-500/15 text-violet-100 shadow-[0_0_12px_rgba(167,139,250,0.18)]",
+        icon: "text-violet-300",
+    },
+    emerald: {
+        pill: "border-emerald-400/45 bg-emerald-500/15 text-emerald-100 shadow-[0_0_12px_rgba(52,211,153,0.18)]",
+        icon: "text-emerald-300",
+    },
+};
+
+/** Estado activo por defecto (color primario del tema): el de SIEMPRE. */
+const PRIMARY_ACTIVE = {
+    pill: "border-primary/40 bg-primary/15 text-primary shadow-[0_0_12px_rgba(var(--primary-rgb),0.15)]",
+    icon: "text-primary",
+};
 
 export interface SectionTabsProps {
     items: SectionTabItem[];
@@ -125,6 +170,8 @@ export function SectionTabs({
                 {items.map((it, i) => {
                     const active = isActive(it);
                     const Icon = it.icon;
+                    // Sin `accent` → EXACTAMENTE las clases previas (primary).
+                    const skin = (it.accent && ACCENT_ACTIVE[it.accent]) || PRIMARY_ACTIVE;
                     const cls = cn(
                         "group/tab relative inline-flex shrink-0 snap-start cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-full border font-semibold outline-none transition-all duration-200 focus-visible:ring-2 focus-visible:ring-primary/50",
                         // Área táctil ≥44px en móvil (WCAG 2.5.5 / HIG); en pantallas
@@ -133,7 +180,7 @@ export function SectionTabs({
                             ? "min-h-[2.25rem] px-3 py-1.5 text-xs sm:min-h-0"
                             : "min-h-[2.75rem] px-3.5 py-2 text-[13px] sm:min-h-[2.25rem]",
                         active
-                            ? "border-primary/40 bg-primary/15 text-primary shadow-[0_0_12px_rgba(var(--primary-rgb),0.15)]"
+                            ? skin.pill
                             : "border-transparent text-muted-foreground hover:bg-white/5 hover:text-foreground",
                     );
                     const inner = (
@@ -143,7 +190,7 @@ export function SectionTabs({
                                     className={cn(
                                         "h-4 w-4 shrink-0 transition-colors",
                                         active
-                                            ? "text-primary"
+                                            ? skin.icon
                                             : "text-muted-foreground group-hover/tab:text-foreground",
                                     )}
                                 />

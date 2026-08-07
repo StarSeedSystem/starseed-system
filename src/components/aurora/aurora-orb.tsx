@@ -44,6 +44,12 @@ import {
   disableMicAnalyserForSession,
   type MicAnalyser,
 } from "@/lib/aurora/aurora-orb-bus";
+// SOBERANÍA VISIBLE (Adenda 149 · ola 3): el orbe se tiñe con la CLASE DE
+// ACCESO de la fuente que respondió de verdad. `router.ts` ya vive en el chunk
+// global (lo importa `aurora-provider`) y `model-preferences` es autocontenido,
+// así que esto no añade peso al arranque.
+import { ROUTE_EVENT, lastRoute } from "@/ai/astraura/router";
+import { llmSourceAccessClass, type ModelAccessClass } from "@/lib/astraura/model-preferences";
 import styles from "./aurora-orb.module.css";
 
 type RGB = [number, number, number];
@@ -88,6 +94,22 @@ const RIBBONS: Array<{
   { family: "high", base: CAFE.amber,    cardinal: C.right, yBase: 0.58, speed: 0.48, phase: 1.3, tilt: -0.1 },
   { family: "low",  base: CAFE.coral,    cardinal: C.down,  yBase: 0.7,  speed: 0.62, phase: 4.2, tilt: 0.2 },
 ];
+
+/**
+ * TINTE POR CLASE DE ACCESO (idea 2.13:178) — cardinal Trinity por clase:
+ *   local (en el dispositivo) → Horizon verde · starseed → Zenith azul ·
+ *   api-free → Logic ámbar · api-external (clave/pago) → Anchor rojo.
+ * Es una MEZCLA DE BAJO PESO sobre el color dominante: informa de dónde vino la
+ * última respuesta sin robarle un ápice de expresión a la energía de la voz.
+ */
+const ROUTE_TINT: Record<ModelAccessClass, RGB> = {
+  local: C.left,
+  starseed: C.up,
+  "api-free": C.right,
+  "api-external": C.down,
+};
+/** Peso MÁXIMO del tinte (se reduce aún más cuando hay energía de voz). */
+const ROUTE_TINT_MAX = 0.16;
 
 const lerp = (a: number, b: number, k: number) => a + (b - a) * k;
 const mix = (a: RGB, b: RGB, k: number): RGB => [
@@ -163,6 +185,24 @@ export function AuroraOrb({
   const micLevelRef = useRef({ level: 0, bands: [0, 0, 0] as RGB });
   // Caídas rápidas de escucha tras conectar el analizador (detector de competencia).
   const quickDropsRef = useRef(0);
+  // Tinte de la ÚLTIMA ruta del router (clase de acceso de la fuente que respondió).
+  const routeTintRef = useRef<RGB | null>(null);
+
+  // ── Clase de acceso de la última respuesta → tinte de bajo peso ──
+  useEffect(() => {
+    const apply = (sourceId?: string) => {
+      try {
+        if (!sourceId) return;
+        routeTintRef.current = ROUTE_TINT[llmSourceAccessClass(sourceId)] ?? null;
+      } catch { /* el orbe nunca falla por un tinte */ }
+    };
+    try { apply(lastRoute()?.sourceId); } catch { /* */ }
+    const onRoute = (e: Event) => {
+      try { apply((e as CustomEvent<{ sourceId?: string }>).detail?.sourceId ?? lastRoute()?.sourceId); } catch { /* */ }
+    };
+    try { window.addEventListener(ROUTE_EVENT, onRoute); } catch { /* */ }
+    return () => { try { window.removeEventListener(ROUTE_EVENT, onRoute); } catch { /* */ } };
+  }, []);
 
   // ── Latido por eventos de voz del motor ──
   useEffect(() => {
@@ -251,6 +291,7 @@ export function AuroraOrb({
     let tilt = 0;               // tono espectral suavizado (-1 graves .. +1 agudos)
     let flux = 0;               // emoción suavizada (velocidad de cambios)
     let prevLvl = 0;
+    let tintW = 0;              // peso suavizado del tinte de ruta (0..MAX)
 
     const draw = () => {
       const { speaking: sp, listening: li, paused: pa, supported: su, unavailable: un } = modeRef.current;
@@ -314,6 +355,14 @@ export function AuroraOrb({
       } else if (sp) {
         dom = saturate(dom, flux * 0.4);
       }
+
+      // ── TINTE por clase de acceso de la última respuesta (soberanía visible).
+      //    Peso bajísimo y decreciente con la energía: la voz SIEMPRE manda.
+      //    Con movimiento reducido no hay transición (salta al valor final).
+      const tint = un ? null : routeTintRef.current;
+      const tintTarget = tint ? ROUTE_TINT_MAX * (1 - Math.min(0.5, e * 0.5)) : 0;
+      tintW = reduce ? tintTarget : tintW + (tintTarget - tintW) * 0.05;
+      if (tint && tintW > 0.001) dom = mix(dom, tint, tintW);
 
       // → CSS vars para glow/halo/estrella (sin re-render de React).
       root.style.setProperty("--aurora-energy", e.toFixed(3));

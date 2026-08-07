@@ -38,8 +38,17 @@ import {
     Monitor,
     User,
     Lock,
+    Bot,
+    Brain,
+    CreditCard,
+    Radio,
+    SlidersHorizontal,
     type LucideIcon,
 } from "lucide-react";
+// Adenda 149 · las entradas de los 5 sistemas de Astraura no navegan a una
+// pestaña: ABREN la ventana «Sistemas de Astraura en esta neurona» por su
+// sección (el drawer global escucha este evento desde cualquier ruta).
+import { openAstrauraConfig } from "@/lib/astraura/config-ui";
 
 export interface SettingsSearchEntry {
     id: string;
@@ -60,6 +69,13 @@ export interface SettingsSearchEntry {
      * Si se omite, solo se navega a la pestaña.
      */
     anchor?: string;
+    /**
+     * Acción DIRECTA al seleccionar (Adenda 149). Si está presente, la entrada
+     * NO navega a `tab`/`anchor`: ejecuta esto (p. ej. abrir la ventana de
+     * sistemas de Astraura en la pestaña correspondiente). Las entradas sin
+     * `action` conservan exactamente el comportamiento anterior.
+     */
+    action?: () => void;
 }
 
 /* ── Catálogo de entradas — cubre las opciones más importantes de cada
@@ -184,6 +200,89 @@ export const SETTINGS_SEARCH_INDEX: SettingsSearchEntry[] = [
         icon: Cpu,
         category: "Aurora e IA",
         anchor: "seguridad",
+    },
+
+    // Aurora e IA · Sistemas de Astraura en ESTA neurona (Adenda 149).
+    // Abren la ventana directamente en su pestaña, sin salir de donde estés.
+    {
+        id: "astraura-sistemas",
+        label: "Sistemas de Astraura en esta neurona",
+        keywords: ["astraura", "sistemas", "neurona", "personalidad", "llm", "voz", "cerebro", "senales", "omnivoice", "dispositivo"],
+        tab: "ai",
+        description: "LLM, Astraura, OpenVoice, cerebro y señales de cada personalidad en este dispositivo.",
+        icon: Bot,
+        category: "Aurora e IA",
+        action: () => openAstrauraConfig("llm"),
+    },
+    {
+        id: "astraura-motor-voz",
+        label: "Motor de voz por personalidad",
+        keywords: ["motor de voz", "openvoice", "voz por personalidad", "tts", "sintesis", "kokoro", "bark", "clonar voz", "omnivoice"],
+        tab: "ai",
+        description: "Qué motor de voz usa cada personalidad en esta neurona (OpenVoice y compañía).",
+        icon: Mic,
+        category: "Aurora e IA",
+        action: () => openAstrauraConfig("openvoice"),
+    },
+    {
+        id: "astraura-antena-lora",
+        label: "Antena LoRa (malla P2P)",
+        keywords: ["lora", "antena", "radio", "malla", "mesh", "meshtastic", "p2p", "serie", "usb"],
+        tab: "ai",
+        description: "Activa o cierra la radio LoRa y el resto de antenas para una personalidad.",
+        icon: Radio,
+        category: "Aurora e IA",
+        action: () => openAstrauraConfig("senales"),
+    },
+    {
+        id: "astraura-senales-antena",
+        label: "Señales por antena (entrada y salida)",
+        keywords: ["senales", "antena", "entrada", "salida", "ruta", "wifi", "bluetooth", "daemon", "por personalidad"],
+        tab: "ai",
+        description: "Reglas de entrada/salida y ruta preferida de cada antena, por personalidad.",
+        icon: Radio,
+        category: "Aurora e IA",
+        action: () => openAstrauraConfig("senales"),
+    },
+    {
+        id: "astraura-cerebros-permitidos",
+        label: "Cerebros permitidos",
+        keywords: ["cerebros permitidos", "cerebro", "memoria", "almacen", "brains", "por personalidad"],
+        tab: "ai",
+        description: "Qué cerebros puede leer cada personalidad en esta neurona y dónde se guarda.",
+        icon: Brain,
+        category: "Aurora e IA",
+        action: () => openAstrauraConfig("cerebro"),
+    },
+    {
+        id: "astraura-memoria-personalidad",
+        label: "Memoria de personalidad",
+        keywords: ["memoria", "recuerdos", "nivel de contexto", "usar memorias", "cerebro", "personalidad"],
+        tab: "ai",
+        description: "Si una personalidad usa memorias y con cuánto contexto, en esta neurona.",
+        icon: Brain,
+        category: "Aurora e IA",
+        action: () => openAstrauraConfig("cerebro"),
+    },
+    {
+        id: "astraura-permitir-pago",
+        label: "Permitir fuentes de pago",
+        keywords: ["pago", "de pago", "api externa", "gratis", "coste", "fuentes", "permitir pago"],
+        tab: "ai",
+        description: "Si una personalidad puede recurrir a fuentes de IA de pago o solo a las gratuitas.",
+        icon: CreditCard,
+        category: "Aurora e IA",
+        action: () => openAstrauraConfig("astraura"),
+    },
+    {
+        id: "astraura-orden-motores",
+        label: "Orden de motores de IA",
+        keywords: ["orden", "prioridad", "motores", "fuentes", "local", "starseed", "openrouter", "router", "gratis primero"],
+        tab: "ai",
+        description: "Prioridad de las clases de motor (local, servidor StarSeed, gratis, externas).",
+        icon: SlidersHorizontal,
+        category: "Aurora e IA",
+        action: () => openAstrauraConfig("astraura"),
     },
 
     // Cuenta y Sincronización
@@ -317,6 +416,18 @@ export function SettingsSearch({ onNavigate, className }: SettingsSearchProps) {
     }, []);
 
     function selectEntry(entry: SettingsSearchEntry) {
+        // (Adenda 149) Entradas con acción directa: abren su ventana ahí mismo
+        // (no hay pestaña de Ajustes que las contenga) y no navegan a ningún lado.
+        if (entry.action) {
+            try {
+                entry.action();
+            } catch {
+                /* la apertura es best-effort: nunca rompe el buscador */
+            }
+            setQuery("");
+            setOpen(false);
+            return;
+        }
         onNavigate(entry.tab);
         setQuery("");
         setOpen(false);

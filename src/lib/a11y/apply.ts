@@ -146,13 +146,22 @@ export function injectGlobalA11yStyles() {
     /* Tamaño de texto */
     html { font-size: calc(16px * var(--a11y-text-scale, 1)); }
 
-    /* Tamaño táctil mínimo */
-    html.a11y-target-large button, html.a11y-target-large [role="button"], html.a11y-target-large a {
+    /* Tamaño táctil mínimo (WCAG 2.5.5 · ampliado en la Adenda 149).
+       Ahora cubre TAMBIÉN los <select> nativos y las pestañas (role="tab"),
+       que quedaban fuera en todo el OS. Los INTERRUPTORES (role="switch", que
+       Radix pinta como <button role="switch">) se EXCLUYEN de min-height: la
+       pista mide 24px y estirarla a 44/60px deja el thumb flotando en una
+       cápsula deformada; en su lugar crecen con transform: scale(), que
+       agranda la diana real sin tocar la geometría interna ni el layout de la
+       fila (transform no reserva espacio). Escala moderada a propósito. */
+    html.a11y-target-large :where(button, [role="button"], a, select, [role="tab"]):not([role="switch"]) {
       min-height: 44px; min-width: 44px;
     }
-    html.a11y-target-huge button, html.a11y-target-huge [role="button"], html.a11y-target-huge a {
+    html.a11y-target-huge :where(button, [role="button"], a, select, [role="tab"]):not([role="switch"]) {
       min-height: 60px; min-width: 60px;
     }
+    html.a11y-target-large [role="switch"] { transform: scale(1.15); transform-origin: center; }
+    html.a11y-target-huge [role="switch"] { transform: scale(1.3); transform-origin: center; }
 
     /* Subrayar enlaces */
     html.a11y-underline-links a { text-decoration: underline !important; text-underline-offset: 2px; }

@@ -14,9 +14,10 @@
  */
 
 import { useEffect, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import {
   Cpu, Gauge, Server, Download, CheckCircle2, XCircle, Loader2, MonitorSmartphone,
-  Sparkles, Mic, Brain, ChevronDown, HardDrive, Wifi, ShieldCheck,
+  Sparkles, Mic, Brain, ChevronDown, HardDrive, Wifi, ShieldCheck, BarChart3,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -29,6 +30,25 @@ import {
 } from "@/ai/astraura/model-requirements";
 import { ModelDownloadsPanel } from "@/components/neurons/model-downloads-panel";
 import { NeuronServerConfig } from "@/components/neurons/neuron-server-config";
+
+/**
+ * Adenda 149 · PUENTE entre los dos recomendadores: este panel usa
+ * `model-recommend.ts` (encaje cualitativo por requisitos) y `ModelScoutPanel`
+ * usa `model-scout.ts` (análisis cuantitativo: GB, tok/s, cuantización). No se
+ * duplica lógica: se monta el panel existente bajo demanda, con el mismo `kind`
+ * de la sección. Carga diferida (no entra en el bundle hasta que se despliega).
+ */
+const ModelScoutPanel = dynamic(
+  () => import("@/components/astraura/model-scout-panel").then((m) => ({ default: m.ModelScoutPanel })),
+  {
+    ssr: false,
+    loading: () => (
+      <p className="flex items-center gap-2 px-0.5 py-2 text-[11px] text-white/45">
+        <Loader2 className="h-3.5 w-3.5 animate-spin" /> Cargando análisis cuantitativo…
+      </p>
+    ),
+  },
+);
 
 const FIT_META: Record<FitLevel, { label: string; cls: string }> = {
   ideal: { label: "Ideal", cls: "text-emerald-300 bg-emerald-500/15 border-emerald-400/30" },
@@ -117,8 +137,9 @@ function ModelRow({ rec, caps, best }: { rec: Recommendation; caps: NeuronCapabi
   );
 }
 
-function KindSection({ title, icon, kind, caps }: { title: string; icon: React.ReactNode; kind: KindRecommendation; caps: NeuronCapabilities }) {
+function KindSection({ title, icon, kind, caps, scoutKind }: { title: string; icon: React.ReactNode; kind: KindRecommendation; caps: NeuronCapabilities; scoutKind: "llm" | "voz" }) {
   const [open, setOpen] = useState(false);
+  const [scout, setScout] = useState(false);
   const rest = useMemo(() => kind.ranked.filter((r) => r.spec.id !== kind.best.spec.id), [kind]);
   return (
     <div className="space-y-2">
@@ -130,14 +151,31 @@ function KindSection({ title, icon, kind, caps }: { title: string; icon: React.R
           <ModelRow rec={kind.bestLocal} caps={caps} />
         </div>
       )}
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="inline-flex cursor-pointer items-center gap-1 text-[10px] text-white/45 transition-colors hover:text-white/75"
-      >
-        <ChevronDown className={cn("h-3 w-3 transition-transform", open && "rotate-180")} /> {open ? "Ocultar" : `Ver todas las opciones (${rest.length})`}
-      </button>
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          className="inline-flex cursor-pointer items-center gap-1 text-[10px] text-white/45 transition-colors hover:text-white/75"
+        >
+          <ChevronDown className={cn("h-3 w-3 transition-transform", open && "rotate-180")} /> {open ? "Ocultar" : `Ver todas las opciones (${rest.length})`}
+        </button>
+        {/* Adenda 149 · puente con el otro recomendador (memoria, tok/s, cuantización). */}
+        <button
+          type="button"
+          onClick={() => setScout((v) => !v)}
+          aria-expanded={scout}
+          title="Compara memoria requerida, velocidad estimada y cuantización sugerida con el hardware real de esta neurona"
+          className="inline-flex cursor-pointer items-center gap-1 text-[10px] text-cyan-300/70 transition-colors hover:text-cyan-200"
+        >
+          <BarChart3 className="h-3 w-3" /> {scout ? "Ocultar análisis cuantitativo" : "Ver análisis cuantitativo"}
+        </button>
+      </div>
       {open && <div className="space-y-1.5">{rest.map((r) => <ModelRow key={r.spec.id} rec={r} caps={caps} />)}</div>}
+      {scout && (
+        <div className="rounded-xl border border-cyan-400/20 bg-cyan-500/[0.04] p-2">
+          <ModelScoutPanel kind={scoutKind} />
+        </div>
+      )}
     </div>
   );
 }
@@ -205,8 +243,8 @@ export function NeuronModelsPanel({ embedded = false }: { embedded?: boolean }) 
 
       {rec && caps && (
         <>
-          <KindSection title="Modelo de lenguaje (Astraura · OpenRouter/local)" icon={<Brain className="h-4 w-4 text-violet-300" />} kind={rec.llm} caps={caps} />
-          <KindSection title="Voz (OmniVoice)" icon={<Mic className="h-4 w-4 text-fuchsia-300" />} kind={rec.voz} caps={caps} />
+          <KindSection title="Modelo de lenguaje (Astraura · OpenRouter/local)" icon={<Brain className="h-4 w-4 text-violet-300" />} kind={rec.llm} caps={caps} scoutKind="llm" />
+          <KindSection title="Voz (OmniVoice)" icon={<Mic className="h-4 w-4 text-fuchsia-300" />} kind={rec.voz} caps={caps} scoutKind="voz" />
         </>
       )}
 

@@ -661,6 +661,64 @@ function applyDockSenalesForceV12(items: DockItemConfig[], hadSaved: boolean): D
   return migrated;
 }
 
+/**
+ * BOTONES PREDETERMINADOS GARANTIZADOS (petición Alex 2026-08-06 · tanda 3 olas).
+ * ============================================================================
+ * Problema real: las migraciones vN son ONE-SHOT por navegador (banderas
+ * locales), pero `starseed.dock.items.v2` SÍ viaja con la cuenta. Una config
+ * antigua sincronizada desde otra neurona puede llegar SIN 'senales' o
+ * 'red-feed' a un navegador que ya consumió sus banderas → el botón desaparece
+ * y ninguna migración vuelve a correr. Por eso «en algunas neuronas y cuentas
+ * aún no aparecen».
+ *
+ * Solución en dos capas:
+ *  · `ensureDefaultDockItems` — CONTINUA e idempotente, corre en CADA carga
+ *    (también tras aplicar un sync remoto): si un botón predeterminado NO está
+ *    en la lista, se AÑADE habilitado. Si está presente (aunque deshabilitado)
+ *    se respeta: eso es la personalización del usuario.
+ *  · Migración v13 — one-shot que re-HABILITA 'senales' y 'red-feed' una vez
+ *    más por navegador (converge estados heredados de syncs antiguos con el
+ *    botón apagado sin que el usuario lo apagara). Después de la v13, apagar
+ *    un botón vuelve a ser decisión del usuario y se respeta.
+ */
+const DOCK_DEFAULT_ON_IDS = ['senales', 'red-feed'] as const;
+
+function ensureDefaultDockItems(items: DockItemConfig[], hadSaved: boolean): DockItemConfig[] {
+  let migrated = items;
+  let changed = false;
+  for (const id of DOCK_DEFAULT_ON_IDS) {
+    if (migrated.some((i) => i.id === id)) continue;
+    const preset = DOCK_PRESETS.find((p) => p.id === id);
+    if (!preset) continue;
+    migrated = [...migrated, { ...preset, enabled: true }];
+    changed = true;
+  }
+  if (changed && hadSaved && typeof window !== 'undefined') {
+    try { window.localStorage.setItem(STORAGE_KEY, JSON.stringify(migrated)); } catch { /* noop */ }
+  }
+  return migrated;
+}
+
+const DOCK_MIGRATION_V13_KEY = 'starseed.dock.items.migrated.v13';
+function applyDockDefaultsOnV13(items: DockItemConfig[], hadSaved: boolean): DockItemConfig[] {
+  if (typeof window === 'undefined') return items;
+  try { if (window.localStorage.getItem(DOCK_MIGRATION_V13_KEY)) return items; } catch { return items; }
+  let migrated = items;
+  let changed = false;
+  for (const id of DOCK_DEFAULT_ON_IDS) {
+    const idx = migrated.findIndex((i) => i.id === id);
+    if (idx !== -1 && !migrated[idx].enabled) {
+      migrated = migrated.map((it, i) => (i === idx ? { ...it, enabled: true } : it));
+      changed = true;
+    }
+  }
+  try {
+    if (hadSaved && changed) window.localStorage.setItem(STORAGE_KEY, JSON.stringify(migrated));
+    window.localStorage.setItem(DOCK_MIGRATION_V13_KEY, '1');
+  } catch { /* noop */ }
+  return migrated;
+}
+
 export function loadDockConfig(): DockItemConfig[] {
   if (typeof window === 'undefined') return DOCK_PRESETS;
   try {
@@ -673,7 +731,7 @@ export function loadDockConfig(): DockItemConfig[] {
     // la v6 fuerza 'escritorios' al primer puesto; la v7 añade Medios al final.
     const fused = applyDockFusionMigrationV4(saved);
     if (fused) {
-      return applyDockSenalesForceV12(applyDockRedFeedV11(applyDockRemoveRedMeshV10(applyDockSenalesV9(applyDockConnectivityGroupV8(applyDockMediaGroupV7(applyDockEscritorioFirstV6(applyDockLibraryMigrationV5(fused, true), true), true), true), true), true), true), true);
+      return ensureDefaultDockItems(applyDockDefaultsOnV13(applyDockSenalesForceV12(applyDockRedFeedV11(applyDockRemoveRedMeshV10(applyDockSenalesV9(applyDockConnectivityGroupV8(applyDockMediaGroupV7(applyDockEscritorioFirstV6(applyDockLibraryMigrationV5(fused, true), true), true), true), true), true), true), true), true), true);
     }
 
     if (saved) {
@@ -681,7 +739,7 @@ export function loadDockConfig(): DockItemConfig[] {
       // final como deshabilitado, se aplica la migración v3 legada, la v5, la v6 y la v7.
       const known = new Set(saved.map((i) => i.id));
       const missing = DOCK_PRESETS.filter((p) => !known.has(p.id)).map((p) => ({ ...p, enabled: false }));
-      return applyDockSenalesForceV12(
+      return ensureDefaultDockItems(applyDockDefaultsOnV13(applyDockSenalesForceV12(
         applyDockRedFeedV11(
           applyDockRemoveRedMeshV10(
             applyDockSenalesV9(
@@ -702,12 +760,12 @@ export function loadDockConfig(): DockItemConfig[] {
           true,
         ),
         true,
-      );
+      ), true), true);
     }
   } catch { /* noop */ }
   // Sin config guardada: presets vivos (ya sin 'tienda'); la v5 purga folders
   // huérfanas, la v6 confirma 'escritorios' al inicio y la v7 confirma Medios al final (ambos ya lo están en presets).
-  return applyDockSenalesForceV12(applyDockRedFeedV11(applyDockRemoveRedMeshV10(applyDockSenalesV9(applyDockConnectivityGroupV8(applyDockMediaGroupV7(applyDockEscritorioFirstV6(applyDockLibraryMigrationV5(DOCK_PRESETS, false), false), false), false), false), false), false), false);
+  return ensureDefaultDockItems(applyDockDefaultsOnV13(applyDockSenalesForceV12(applyDockRedFeedV11(applyDockRemoveRedMeshV10(applyDockSenalesV9(applyDockConnectivityGroupV8(applyDockMediaGroupV7(applyDockEscritorioFirstV6(applyDockLibraryMigrationV5(DOCK_PRESETS, false), false), false), false), false), false), false), false), false), false);
 }
 
 export function saveDockConfig(items: DockItemConfig[]) {

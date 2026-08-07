@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import {
   Accessibility, Contrast, Eye, EyeOff, Type, Hand, Volume2,
-  ZoomIn, Activity, ShieldCheck, RotateCw,
+  ZoomIn, Activity, ShieldCheck, RotateCw, Music2,
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
@@ -22,6 +22,11 @@ import {
   injectGlobalA11yStyles,
   type A11ySettings,
 } from "@/lib/a11y/apply";
+// Sonificación sutil de los sistemas de Astraura (Adenda 149 · ola 3): vive
+// fuera de A11ySettings (es una preferencia de Astraura, no del documento),
+// pero su interruptor va AQUÍ, junto a los ajustes de movimiento, porque
+// comparte el mismo gate: quien reduce movimiento tampoco oye el chime.
+import { chimeEnabled, setChimeEnabled, playSystemChime, CHIME_EVENT } from "@/lib/astraura/system-chime";
 
 /**
  * Panel dedicado a accesibilidad. Mantiene el principio constitucional de
@@ -37,6 +42,7 @@ import {
 
 export function AccessibilitySettings() {
   const [settings, setSettings] = useState<A11ySettings>(DEFAULT_A11Y);
+  const [chime, setChime] = useState(false);
   const { config, updateSection } = useAppearance();
 
   useEffect(() => {
@@ -44,6 +50,14 @@ export function AccessibilitySettings() {
     setSettings(loaded);
     applyA11yToDocument(loaded);
     injectGlobalA11yStyles();
+  }, []);
+
+  // Estado del chime (off por defecto) + sincronía si otra superficie lo cambia.
+  useEffect(() => {
+    setChime(chimeEnabled());
+    const sync = () => setChime(chimeEnabled());
+    try { window.addEventListener(CHIME_EVENT, sync); } catch { /* */ }
+    return () => { try { window.removeEventListener(CHIME_EVENT, sync); } catch { /* */ } };
   }, []);
 
   function update<K extends keyof A11ySettings>(key: K, value: A11ySettings[K]) {
@@ -231,7 +245,7 @@ export function AccessibilitySettings() {
       </Card>
 
       {/* Otros toggles */}
-      <div className="grid md:grid-cols-3 gap-3">
+      <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-3">
         <Card className="bg-background/40 backdrop-blur-sm">
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center justify-between text-sm">
@@ -245,6 +259,31 @@ export function AccessibilitySettings() {
             </CardTitle>
             <CardDescription className="text-xs">
               Detiene cualquier movimiento (incl. fondos WebGL).
+            </CardDescription>
+          </CardHeader>
+        </Card>
+
+        <Card className="bg-background/40 backdrop-blur-sm">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center justify-between text-sm">
+              <span className="flex items-center gap-2">
+                <Music2 className="h-4 w-4 text-fuchsia-400" /> Sonidos sutiles del sistema (Astraura)
+              </span>
+              <Switch
+                checked={chime}
+                aria-label="Sonidos sutiles del sistema (Astraura)"
+                onCheckedChange={(v) => {
+                  setChime(v);
+                  setChimeEnabled(v);
+                  // Muestra inmediata de lo que se acaba de activar (una nota).
+                  if (v) playSystemChime("astraura", "set");
+                }}
+              />
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Una nota brevísima al guardar un ajuste de los sistemas de Astraura
+              (descendente al volver a automático). Apagado por defecto y mudo si
+              reduces el movimiento o la pestaña no está a la vista.
             </CardDescription>
           </CardHeader>
         </Card>

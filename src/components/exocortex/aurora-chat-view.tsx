@@ -32,6 +32,7 @@ import type { ChatContext, UseChatTree } from "@/lib/aurora/chat-tree";
 import type { AuroraMessageMeta } from "@/lib/aurora/engine";
 import { MessageRenderer } from "@/components/aurora/message-renderer";
 import { RouteChip } from "@/components/aurora/route-chip";
+import { ProcessLine as SharedProcessLine } from "@/components/aurora/process-line";
 // Menú contextual (clic derecho / long-press) + modal "Ver proceso" de un
 // mensaje — Adenda "Aurora siempre responde" (jul-2026). Reutiliza el mismo
 // hook de disparo (x,y) que el Finder de Bibliotecas.
@@ -412,44 +413,11 @@ function Transport(props: {
 }
 
 // ── Línea de "proceso" sutil y expandible bajo una respuesta de Aurora ───────
+// Vive en `@/components/aurora/process-line` desde la Adenda 149 · ola 3 (era
+// privada de este archivo y el chat de /agent no podía usarla). Aquí se monta
+// con la piel `axc` para conservar EXACTAMENTE el estilo del Exocórtex.
 function ProcessLine({ meta, onOpenFull }: { meta: AuroraMessageMeta; onOpenFull: () => void }) {
-  const [open, setOpen] = useState(false);
-  const toolCount = meta.tools?.length ?? 0;
-  const summary = [
-    meta.local ? "respuesta local" : meta.provider || null,
-    typeof meta.ms === "number" ? `${meta.ms} ms` : null,
-    toolCount ? `${toolCount} herramienta${toolCount === 1 ? "" : "s"}` : null,
-  ].filter(Boolean).join(" · ");
-  if (!summary) return null;
-
-  return (
-    <div className="axc-process">
-      <button
-        type="button"
-        className="axc-process-toggle"
-        onClick={() => setOpen((v) => !v)}
-        title="Ver el proceso de esta respuesta"
-      >
-        <span className="axc-process-dot" aria-hidden />
-        proceso · {summary}
-        {open ? <ChevronDown className="h-2.5 w-2.5" /> : <ChevronRight className="h-2.5 w-2.5" />}
-      </button>
-      {open && (
-        <div className="axc-process-detail">
-          {meta.reason && <p>{meta.reason}</p>}
-          {meta.tools?.map((t, i) => (
-            <div key={`${t.name}-${i}`} className="axc-process-tool">
-              <span className={cn("mt-1 h-1.5 w-1.5 shrink-0 rounded-full", t.ok ? "bg-[#39FF14]" : "bg-[#FFBF00]")} />
-              <span className="min-w-0 flex-1">{t.name} — {t.summary}</span>
-            </div>
-          ))}
-          <button type="button" className="axc-process-link" onClick={onOpenFull}>
-            Ver proceso completo
-          </button>
-        </div>
-      )}
-    </div>
-  );
+  return <SharedProcessLine meta={meta} onOpenFull={onOpenFull} variant="axc" />;
 }
 
 // ── Conversación (en vivo o sesión cargada) ──────────────────────────────────

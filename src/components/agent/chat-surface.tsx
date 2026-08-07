@@ -59,7 +59,8 @@ import {
   titleFromText,
   setActiveChatLogEnabled,
 } from "@/lib/aurora/conversations";
-import { astrauraChat } from "@/ai/astraura/router";
+import { astrauraChat, type RouteRecord } from "@/ai/astraura/router";
+import { ProcessLine } from "@/components/aurora/process-line";
 import { composeAuroraSystem, speakAuroraReply, resolveTurnPersona } from "@/lib/aurora/turn";
 import { buildAttachmentsContext, summarizeAttachments, type UniversalAttachment } from "@/lib/aurora/attachments";
 import type { AuroraMessageMeta } from "@/lib/aurora/engine";
@@ -88,6 +89,34 @@ const DEFAULT_RULES = [
   { name: "Código Abierto", content: "Todo código generado debe ser Open Source (MIT)." },
   { name: "Tono Pacífico", content: "Mantener un tono diplomático y constructivo." },
 ];
+
+/**
+ * Metadatos HONESTOS de una respuesta (Adenda 149 · ola 3 · idea 2.13:180).
+ * Si el router adjuntó su `RouteRecord`, el chip de proceso dice la fuente y el
+ * modelo que respondieron DE VERDAD (y si hubo failover, cuántos intentos).
+ * Sin ruta —fuente directa del proveedor, error, respuesta cacheada…— se
+ * conserva el comportamiento previo: el proveedor configurado.
+ */
+function metaFromRoute(
+  route: RouteRecord | undefined,
+  fallback: ProviderConfig | undefined,
+  ms: number,
+): AuroraMessageMeta {
+  if (!route) {
+    return { provider: fallback?.label, model: fallback?.defaultModel, ms };
+  }
+  return {
+    provider: route.sourceLabel || fallback?.label,
+    model: route.modelLabel || route.model || fallback?.defaultModel,
+    free: route.free,
+    local: route.local,
+    attempts: route.attempts,
+    ms: typeof route.ms === "number" && route.ms > 0 ? route.ms : ms,
+    reason: route.reason,
+    difficulty: route.difficulty,
+    route,
+  };
+}
 
 interface AgentRenderMsg {
   id: string;
@@ -277,7 +306,10 @@ export function ChatSurface({ variant = "embedded", className, initialConvId }: 
     let acc = "";
     const startedAt = Date.now();
     try {
-      await astrauraChat({
+      // El retorno de `astrauraChat` trae la RUTA REAL elegida por el router
+      // (Adenda 149 · ola 3): antes se descartaba y el chip de proceso decía
+      // siempre el proveedor configurado, respondiera quien respondiera.
+      const res = await astrauraChat({
         chatId: convId,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         chatConfig: (conv.conversations.find((c) => c.id === convId)?.meta as any)?.config,
@@ -296,18 +328,15 @@ export function ChatSurface({ variant = "embedded", className, initialConvId }: 
         await aurora.runDirectives(acc);
       }
       if (acc.trim()) {
+        const meta = metaFromRoute(res?.route, activeProviderConfig, Date.now() - startedAt);
         await appendUnifiedMessage({
           role: "assistant",
           text: acc,
           convId,
           kind: "aurora",
           surface: "agent",
-          source: activeProviderConfig.label,
-          meta: {
-            provider: activeProviderConfig.label,
-            model: activeProviderConfig.defaultModel,
-            ms: Date.now() - startedAt,
-          },
+          source: meta.provider ?? activeProviderConfig.label,
+          meta,
         });
         speakAuroraReply(acc, { convId });
       }
@@ -495,6 +524,15 @@ export function ChatSurface({ variant = "embedded", className, initialConvId }: 
                   <MessageRenderer text={msg.content} compact={msg.role === "user"} />
                   <MessageAttachmentChips attachments={msg.attachments} />
                   {msg.pending && <span className="inline-block w-2 h-4 ml-1 bg-primary/70 animate-pulse align-middle" />}
+                  {/* Chip «proceso» honesto: qué fuente/modelo respondió de
+                      verdad (llega del RouteRecord del router, no del proveedor
+                      configurado). Solo en respuestas de Astraura. */}
+                  {!msg.pending && msg.role === "agent" && msg.meta && (
+                    <ProcessLine
+                      meta={msg.meta}
+                      onOpenFull={() => setProcess({ open: true, meta: msg.meta ?? undefined })}
+                    />
+                  )}
                   {!msg.pending && msg.meta && (
                     <MessageActionBar
                       payload={{

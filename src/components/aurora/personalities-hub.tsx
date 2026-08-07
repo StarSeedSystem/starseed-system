@@ -25,6 +25,7 @@ import {
   icons as lucideIcons,
   Brain,
   Clock,
+  Cpu,
   Drama,
   MessagesSquare,
   Mic,
@@ -56,6 +57,10 @@ import {
   VOICE_ENGINE_REGISTRY,
 } from "@/lib/aurora/tts-oss/engine-registry";
 import { cachedConversations, AI_CONV_CHANGE_EVENT, type AiConversation } from "@/lib/aurora/conversations";
+// (Adenda 149) KPI agregado: cuántas personalidades tienen sistemas de Astraura
+// ajustados a mano EN ESTA neurona (el resto sigue en automático).
+import { getRawOverrides, subscribeNeuronPersona } from "@/lib/astraura/neuron-persona-systems";
+import { thisDeviceId } from "@/lib/neurons/neurons";
 import {
   DEVICE_RULES_ID,
   MESH_PRIORITY_LABELS,
@@ -230,6 +235,35 @@ export function PersonalitiesHub() {
     };
   }, []);
 
+  // (Adenda 149) Personalidades con overrides propios en esta neurona + total
+  // de sistemas ajustados. Lectura local del store, viva vía suscripción.
+  const [tuned, setTuned] = useState<{ personas: number; sistemas: number }>({ personas: 0, sistemas: 0 });
+  useEffect(() => {
+    const recount = () => {
+      try {
+        const deviceId = thisDeviceId();
+        if (!deviceId) return setTuned({ personas: 0, sistemas: 0 });
+        let personas = 0;
+        let sistemas = 0;
+        for (const p of profiles) {
+          const raw = getRawOverrides(deviceId, p.id) as Record<string, unknown>;
+          const n = Object.values(raw).filter(
+            (v) => v && typeof v === "object" && Object.keys(v as object).length > 0,
+          ).length;
+          if (n > 0) {
+            personas += 1;
+            sistemas += n;
+          }
+        }
+        setTuned({ personas, sistemas });
+      } catch {
+        setTuned({ personas: 0, sistemas: 0 });
+      }
+    };
+    recount();
+    return subscribeNeuronPersona(recount);
+  }, [profiles]);
+
   const globalProfile = useMemo(
     () => profiles.find((p) => p.id === globalId) ?? null,
     [profiles, globalId],
@@ -273,7 +307,7 @@ export function PersonalitiesHub() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
         <Kpi
           icon={Sparkles}
           label="Personalidades"
@@ -301,6 +335,18 @@ export function PersonalitiesHub() {
           value={convs.length ? `${convs.length}+ hilos` : "0 hilos"}
           detail="conversaciones de esta neurona"
           accent="text-sky-300"
+        />
+        {/* (Adenda 149) Sistemas de Astraura ajustados a mano en ESTA neurona. */}
+        <Kpi
+          icon={Cpu}
+          label="Ajustes en esta neurona"
+          value={tuned.personas}
+          detail={
+            tuned.personas === 0
+              ? "todas en automático"
+              : `${tuned.personas} de ${profiles.length} personalidades · ${tuned.sistemas} ${tuned.sistemas === 1 ? "sistema" : "sistemas"}`
+          }
+          accent="text-fuchsia-300"
         />
       </div>
 

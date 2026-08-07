@@ -125,6 +125,10 @@ import { normalizeConnectivityConfig } from "@/ai/astraura/mesh";
 // (Adenda 149) Ventana «Configuración/actualización de sistemas de Astraura en
 // esta neurona»: se abre desde la tarjeta de cada personalidad, ya preseleccionada.
 import { openAstrauraConfig } from "@/lib/astraura/config-ui";
+// (Adenda 149) Overrides guardados por neurona × personalidad: la tarjeta indica
+// cuántos de los 5 sistemas están ajustados a mano EN ESTA neurona.
+import { getRawOverrides, subscribeNeuronPersona } from "@/lib/astraura/neuron-persona-systems";
+import { thisDeviceId } from "@/lib/neurons/neurons";
 
 /* ── Opciones curadas para los selects (el valor actual se añade si falta) ── */
 
@@ -261,6 +265,32 @@ export function PersonalitiesPanel({
   }, [brainId, profiles]);
 
   const connectedSet = useMemo(() => new Set(connectedIds), [connectedIds]);
+
+  // (Adenda 149) Nº de SISTEMAS con override propio en ESTA neurona, por
+  // personalidad: cuenta las claves no vacías del store (llm · astraura · voz ·
+  // cerebro · señales). Lectura local sin red; vive en vivo con el store.
+  const [tunedCounts, setTunedCounts] = useState<Record<string, number>>({});
+  useEffect(() => {
+    const recount = () => {
+      try {
+        const deviceId = thisDeviceId();
+        if (!deviceId) return setTunedCounts({});
+        const out: Record<string, number> = {};
+        for (const p of profiles) {
+          const raw = getRawOverrides(deviceId, p.id) as Record<string, unknown>;
+          const n = Object.values(raw).filter(
+            (v) => v && typeof v === "object" && Object.keys(v as object).length > 0,
+          ).length;
+          if (n > 0) out[p.id] = n;
+        }
+        setTunedCounts(out);
+      } catch {
+        setTunedCounts({});
+      }
+    };
+    recount();
+    return subscribeNeuronPersona(recount);
+  }, [profiles]);
 
   /** Badges de contexto donde este perfil está activo. */
   const badgesFor = useCallback(
@@ -595,6 +625,7 @@ export function PersonalitiesPanel({
         {profiles.map((p) => {
           const badges = badgesFor(p.id);
           const isActive = badges.length > 0;
+          const tuned = tunedCounts[p.id] ?? 0;
           return (
             <div
               key={p.id}
@@ -614,7 +645,7 @@ export function PersonalitiesPanel({
                   <p className="mt-0.5 text-[10px] text-white/30">v{p.version} · {p.author}</p>
                 </div>
               </div>
-              {badges.length > 0 && (
+              {(badges.length > 0 || tuned > 0) && (
                 <div className="flex flex-wrap gap-1">
                   {badges.map((b) => (
                     <span
@@ -624,6 +655,17 @@ export function PersonalitiesPanel({
                       <Check className="h-2.5 w-2.5" /> {b}
                     </span>
                   ))}
+                  {/* (Adenda 149) Sistemas de Astraura ajustados a mano AQUÍ. */}
+                  {tuned > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => openAstrauraConfig("llm", { personalityId: p.id })}
+                      title={`«${p.name}» tiene ${tuned} de los 5 sistemas de Astraura ajustados a mano en esta neurona (el resto es automático). Pulsa para revisarlos.`}
+                      className="inline-flex cursor-pointer items-center gap-1 rounded-full border border-fuchsia-400/30 bg-fuchsia-500/10 px-2 py-0.5 text-[9px] uppercase tracking-wide text-fuchsia-200 transition-colors duration-200 hover:bg-fuchsia-500/20"
+                    >
+                      <Cpu className="h-2.5 w-2.5" /> {tuned} {tuned === 1 ? "sistema ajustado" : "sistemas ajustados"} aquí
+                    </button>
+                  )}
                 </div>
               )}
               <div className="mt-auto flex flex-wrap items-center gap-1.5">

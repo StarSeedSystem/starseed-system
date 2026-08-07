@@ -15,6 +15,9 @@
 import { safeGet, safeSet } from "@/lib/safe-storage";
 import { ALL_LLM_SPECS, ALL_VOICE_SPECS } from "@/ai/astraura/model-requirements";
 import { INTEGRATIONS, REGISTRY_REVIEWED, type Integration } from "@/lib/integrations/integration-registry";
+// (A149 · olas) Configuración PENDIENTE de la neurona: la elección de voz vive
+// en su propia clave por dispositivo. Módulo liviano (localStorage), sin ciclos.
+import { readNeuronVoiceChoice, neuronVoiceChoiceIsStale } from "@/lib/aurora/tts-oss/neuron-voice-constants";
 
 export const STARTUP_UPDATES_KEY = "starseed.astraura.startup.v1";
 export const STARTUP_UPDATES_EVENT = "starseed:astraura-startup";
@@ -88,12 +91,47 @@ export function setStartupState(patch: Partial<StartupState>): StartupState {
   return next;
 }
 
-/** ¿Debe mostrarse la ventana ahora? (primera vez o catálogo cambiado, sin snooze). */
+/**
+ * CONFIGURACIÓN PENDIENTE de esta neurona (A149 · olas). La ventana debe
+ * REAPARECER al reiniciar mientras falte por configurar algo de la neurona,
+ * con sus recomendaciones inteligentes — no solo cuando cambie el catálogo.
+ * Hoy se consideran pendientes (lista honesta y ampliable):
+ *   · la primera configuración completa (`firstRunDone` aún false);
+ *   · la vía de voz de la neurona (nube ⟷ local) sin elegir, pospuesta
+ *     («later») u obsoleta respecto a la versión del sistema de voz.
+ */
+export interface PendingConfigItem {
+  sistema: "inicio" | "voz";
+  label: string;
+}
+
+export function pendingConfiguration(): PendingConfigItem[] {
+  const out: PendingConfigItem[] = [];
+  try {
+    if (!getStartupState().firstRunDone) {
+      out.push({ sistema: "inicio", label: "la configuración inicial de esta neurona" });
+    }
+  } catch { /* */ }
+  try {
+    const choice = readNeuronVoiceChoice();
+    if (!choice || choice.mode === "later" || neuronVoiceChoiceIsStale(choice)) {
+      out.push({ sistema: "voz", label: "la vía de voz de esta neurona (nube gratis ⟷ motor local)" });
+    }
+  } catch { /* */ }
+  return out;
+}
+
+/**
+ * ¿Debe mostrarse la ventana ahora? Primera vez, catálogo cambiado (cualquier
+ * actualización o recomendación nueva) o CONFIGURACIÓN PENDIENTE de la neurona
+ * — siempre sin snooze («Recordar luego» pospone 24 h todo).
+ */
 export function shouldShowUpdates(now = Date.now()): boolean {
   const st = getStartupState();
   if (st.snoozeUntil && st.snoozeUntil > now) return false;
   if (!st.firstRunDone) return true;
-  return st.lastSig !== catalogSignature();
+  if (st.lastSig !== catalogSignature()) return true;
+  try { return pendingConfiguration().length > 0; } catch { return false; }
 }
 
 /** Motivo por el que se muestra (para el encabezado del modal). */

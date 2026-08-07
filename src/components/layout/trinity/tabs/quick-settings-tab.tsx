@@ -30,7 +30,7 @@
  *   · Ajustes completos   → link real a /settings.
  */
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Slider } from "@/components/ui/slider";
 import {
@@ -62,6 +62,13 @@ import { CONTROL_CENTER_NAVIGATE_EVENT } from "../control-center-events";
 // (Adenda 149) Atajo a la ventana «Configuración/actualización de sistemas de
 // Astraura en esta neurona» (LLM · Astraura · OpenVoice · Cerebro · Señales).
 import { openAstrauraConfig } from "@/lib/astraura/config-ui";
+// (Adenda 149) …y el ESTADO EFECTIVO de esos 5 sistemas, para que el atajo no
+// sea mudo: se resuelve para «Todas las personalidades» (defaults de la neurona).
+import {
+    ALL_PERSONAS, resolvePersonaSystems, subscribeNeuronPersona,
+    type ResolvedPersonaSystems,
+} from "@/lib/astraura/neuron-persona-systems";
+import { thisDeviceId } from "@/lib/neurons/neurons";
 
 const AURORA_ENGINE_LABEL: Record<AuroraVoiceEngine, string> = {
     browser: "Navegador (respaldo)",
@@ -111,6 +118,63 @@ export function QuickSettingsTab() {
         const offSync = onRealtimeSyncStatus(setRealtimeStatus);
         return () => { off(); offSync(); };
     }, []);
+
+    // (Adenda 149) Estado efectivo de los 5 sistemas de Astraura en esta neurona.
+    // SSR-safe: se resuelve dentro del efecto y se refresca con el store.
+    const [astraura, setAstraura] = useState<ResolvedPersonaSystems | null>(null);
+    useEffect(() => {
+        const refresh = () => {
+            try {
+                setAstraura(resolvePersonaSystems(ALL_PERSONAS, thisDeviceId(), null));
+            } catch {
+                setAstraura(null);
+            }
+        };
+        refresh();
+        return subscribeNeuronPersona(refresh);
+    }, []);
+
+    // Valor ABREVIADO por sistema (el detalle completo vive en la ventana).
+    const astrauraChips = useMemo(() => {
+        if (!astraura) return [];
+        const antenas = Object.values(astraura.senales.porAntena).filter(
+            (r) => !(r.enabled && r.entrada && r.salida && r.ruta === "auto"),
+        ).length;
+        return [
+            {
+                section: "llm",
+                label: "LLM",
+                value: astraura.llm.provenance === "auto" ? "Auto" : (astraura.llm.modelo || astraura.llm.fuente || "Fijado"),
+                cls: "border-cyan-400/30 bg-cyan-500/10 text-cyan-200 hover:bg-cyan-500/20",
+            },
+            {
+                section: "astraura",
+                label: "Astraura",
+                value: astraura.astraura.modo === "fija" ? "Fija" : "Auto",
+                cls: "border-amber-400/30 bg-amber-500/10 text-amber-200 hover:bg-amber-500/20",
+            },
+            {
+                section: "openvoice",
+                label: "OpenVoice",
+                value: (AURORA_ENGINE_LABEL[astraura.voz.motor] ?? astraura.voz.motor).split("(")[0].trim(),
+                cls: "border-fuchsia-400/30 bg-fuchsia-500/10 text-fuchsia-200 hover:bg-fuchsia-500/20",
+            },
+            {
+                section: "cerebro",
+                label: "Cerebro",
+                value: astraura.cerebro.usarMemorias
+                    ? (astraura.cerebro.nivelContexto === "completo" ? "Completo" : "Breve")
+                    : "Sin memoria",
+                cls: "border-violet-400/30 bg-violet-500/10 text-violet-200 hover:bg-violet-500/20",
+            },
+            {
+                section: "senales",
+                label: "Señales",
+                value: antenas > 0 ? `${antenas} ${antenas === 1 ? "regla" : "reglas"}` : "Auto",
+                cls: "border-emerald-400/30 bg-emerald-500/10 text-emerald-200 hover:bg-emerald-500/20",
+            },
+        ];
+    }, [astraura]);
 
     const isDark = theme === "dark";
     const toggleTheme = useCallback(() => {
@@ -225,6 +289,29 @@ export function QuickSettingsTab() {
                     </div>
                     <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors shrink-0" />
                 </button>
+                {/* (Adenda 149) Los 5 sistemas con su valor EFECTIVO en esta
+                    neurona (defaults para todas las personalidades); cada chip
+                    abre la ventana directamente en su pestaña. */}
+                {astrauraChips.length > 0 && (
+                    <div className="-mt-1 flex flex-wrap gap-1.5 px-1">
+                        {astrauraChips.map((c) => (
+                            <button
+                                key={c.section}
+                                type="button"
+                                onClick={() => openAstrauraConfig(c.section)}
+                                title={`${c.label}: ${c.value} — abrir esta pestaña de los sistemas de Astraura en esta neurona`}
+                                aria-label={`${c.label}: ${c.value}`}
+                                className={cn(
+                                    "inline-flex cursor-pointer items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium transition-colors duration-200",
+                                    c.cls,
+                                )}
+                            >
+                                <span className="opacity-70">{c.label}</span>
+                                <span className="max-w-[9rem] truncate">{c.value}</span>
+                            </button>
+                        ))}
+                    </div>
+                )}
                 <button
                     type="button"
                     onClick={goToAtmosphere}

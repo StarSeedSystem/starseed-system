@@ -37,6 +37,13 @@ import {
   sanitizeAstrauraVoicePartial,
   type AstrauraVoiceConfig,
 } from "@/lib/aurora/tts-oss/voice-config";
+// Adenda 149 · Ola 3 (cableado de runtime): la VÍA de voz (nube/local) que la
+// ventana «Sistemas de Astraura en esta neurona» guarda por neurona×personalidad
+// (`voz.modo`) manda dentro del híbrido. Se importa SOLO el STORE — que a su vez
+// solo depende de `safe-storage` — para no crear ciclos con `neuron-persona-systems`
+// (capa alta) ni con la capa de neuronas; mismo criterio que
+// `@/ai/astraura/mesh/persona-antenna-gate.ts`.
+import { ALL_PERSONAS, getOverrides } from "@/lib/astraura/neuron-persona-store";
 
 // ── Constantes ───────────────────────────────────────────────────────────────
 
@@ -131,6 +138,13 @@ export interface OmniSynthOptions {
   omni?: Partial<AstrauraVoiceConfig>;
   /** Idioma ("es", "en", "es-ES"…). Por defecto español. */
   lang?: string;
+  /**
+   * Adenda 149 · Ola 3 — personalidad que HABLA en este turno. Solo se usa para
+   * resolver la VÍA de voz por neurona × personalidad (`voz.modo` de la ventana
+   * de sistemas) en `neuronPrefersLocalLS`. Ausente ⇒ defaults «Todas» (`"*"`),
+   * es decir, el comportamiento previo cuando no hay overrides guardados.
+   */
+  personalityId?: string;
   /** Estado legible en vivo ("Voz local activa ⚡", "despertando la voz en la nube…"). */
   onStatus?: (message: string) => void;
   /** Señal externa de aborto. */
@@ -445,15 +459,62 @@ export async function ensureLocalIdentity(personalityId?: string): Promise<void>
 
 // ── Preferencia de la neurona + PRE-CALENTADO del daemon (Adenda 88) ────────
 
+/** Clave del id de neurona (la escribe `thisDeviceId()` en `@/lib/neurons/neurons`). */
+const NEURON_DEVICE_ID_KEY = "starseed.neuron.device-id";
+
+/**
+ * Id de ESTA neurona leído DIRECTO de localStorage (sin acoplar la voz a la capa
+ * de neuronas y sin cache: un `localStorage.clear()` en sesión viva regenera el
+ * id y una cache lo dejaría rancio). Mismo patrón que `persona-antenna-gate.ts`.
+ * "" ⇒ no hay neurona identificada (o SSR) → camino rápido sin overrides.
+ */
+function neuronDeviceId(): string {
+  try {
+    if (typeof window === "undefined") return "";
+    return window.localStorage.getItem(NEURON_DEVICE_ID_KEY) || "";
+  } catch {
+    return "";
+  }
+}
+
+/**
+ * Adenda 149 · Ola 3 — VÍA de voz elegida para esta neurona × personalidad en la
+ * ventana «Sistemas de Astraura en esta neurona» (`voz.modo`), o `null` si no hay
+ * override guardado (CAMINO RÁPIDO: sin neurona identificada o sin override no se
+ * hace más trabajo y manda la elección del dispositivo, exactamente como antes).
+ * `personalityId` ausente ⇒ `"*"` (defaults de la neurona para «Todas»), igual
+ * que hace el mesh con el tráfico no atribuible; con personalidad, `getOverrides`
+ * ya fusiona `"*"` ⊕ propia campo a campo. NUNCA lanza.
+ */
+function personaVoiceMode(personalityId?: string | null): "cloud" | "local" | "fastweb" | null {
+  try {
+    const dev = neuronDeviceId();
+    if (!dev) return null;
+    return getOverrides(dev, personalityId || ALL_PERSONAS).voz?.modo ?? null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * ¿Esta neurona ELIGIÓ la voz local? (localStorage por dispositivo, escrito por
  * la ventana de voz de la neurona). Si eligió local, comprometemos la cadena con
  * el daemon (presupuesto en frío generoso) en vez de saltar a la nube robótica.
  * NUNCA lanza. Lee la clave directamente para no acoplar con engine-registry.
+ *
+ * Adenda 149 · Ola 3: la PERSONALIDAD manda primero. Si la ventana de sistemas
+ * guardó `voz.modo` para esta neurona × personalidad, esa elección decide
+ * ("local" ⇒ true; "cloud"/"fastweb" ⇒ false — ambas son vías de RED, y dentro
+ * del híbrido la única distinción que importa aquí es local vs no-local). Solo
+ * SIN override se cae a la clave de la neurona (`starseed.voz.neurona.v2`), de
+ * modo que sin overrides guardados el comportamiento es el previo, byte a byte.
  */
-export function neuronPrefersLocalLS(): boolean {
+export function neuronPrefersLocalLS(personalityId?: string | null): boolean {
   try {
     if (typeof window === "undefined") return false;
+    const modo = personaVoiceMode(personalityId);
+    if (modo === "local") return true;
+    if (modo === "cloud" || modo === "fastweb") return false;
     for (const k of ["starseed.voz.neurona.v2", "starseed.voz.neurona.v1"]) {
       const raw = window.localStorage.getItem(k);
       if (!raw) continue;
@@ -876,11 +937,17 @@ export async function refreshOmniRoute(signal?: AbortSignal): Promise<OmniRoute>
 export async function decideOmniRoute(
   explicitOmni?: Partial<AstrauraVoiceConfig>,
   signal?: AbortSignal,
+  /**
+   * Adenda 149 · Ola 3: personalidad que habla, para que la ruta CONGELADA de un
+   * mensaje troceado use la misma vía (`voz.modo`) que usarían sus trozos.
+   * Ausente ⇒ defaults «Todas» (comportamiento previo sin overrides).
+   */
+  personalityId?: string | null,
 ): Promise<OmniRouteDecision> {
   try {
     const omni = await resolveActiveOmni(explicitOmni);
     if (omni.privacy_mode === "cloud_only") return { route: "cloud", preferLocal: false };
-    const preferLocal = omni.privacy_mode === "local_only" || neuronPrefersLocalLS();
+    const preferLocal = omni.privacy_mode === "local_only" || neuronPrefersLocalLS(personalityId);
     const hs = await omniHandshake({ signal });
     if (hs && hs.ready) return { route: "local", preferLocal };
     if (omni.privacy_mode === "local_only") return { route: "off", preferLocal };
@@ -982,7 +1049,9 @@ export async function synthesizeOmniVoiceHybrid(
   if (privacy !== "cloud_only") {
     // ¿Esta neurona ELIGIÓ voz local? Entonces nos comprometemos con el daemon:
     // presupuesto en frío generoso y SIN castigo de "nube 10 min" (Adenda 88).
-    const preferLocal = privacy === "local_only" || neuronPrefersLocalLS();
+    // Adenda 149 · Ola 3: la vía de voz de ESTA personalidad en ESTA neurona
+    // manda sobre la elección del dispositivo (sin override, idéntico a antes).
+    const preferLocal = privacy === "local_only" || neuronPrefersLocalLS(opts.personalityId);
     const hs = await omniHandshake({ signal: opts.signal });
     if (hs && hs.ready) {
       // El modo lento (sonda de 3 s + nube primero) es SOLO para neuronas que NO

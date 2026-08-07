@@ -22,6 +22,28 @@ import { useEffect, useRef, useState } from "react";
 import { ExternalLink, Settings2, Sparkles, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ROUTE_EVENT, lastRoute, type RouteRecord } from "@/ai/astraura/router";
+import { llmSourceAccessClass, type ModelAccessClass } from "@/lib/astraura/model-preferences";
+
+/**
+ * LEYENDA DE COLOR compartida con el ORBE (Adenda 149 · ola 3 · idea 2.13:178):
+ * el orbe se tiñe con estos mismos cardinales Trinity según la clase de acceso
+ * de la fuente que respondió. Repetir aquí la leyenda —con etiqueta y tooltip—
+ * es lo que hace que el mapa de color se APRENDA sin abrir ningún panel.
+ */
+const ACCESS_LEGEND: Record<ModelAccessClass, { color: string; label: string; hint: string }> = {
+  local: { color: "#39FF14", label: "local", hint: "En tu dispositivo (Horizon · verde): máxima soberanía y privacidad." },
+  starseed: { color: "#007FFF", label: "StarSeed", hint: "Servidor StarSeed / OpenVoice automático (Zenith · azul)." },
+  "api-free": { color: "#FFBF00", label: "API gratis", hint: "API en la nube gratis y sin coste (Logic · ámbar)." },
+  "api-external": { color: "#DC143C", label: "API externa", hint: "API externa con clave o de pago (Anchor · rojo)." },
+};
+
+function accessOf(sourceId: string): { color: string; label: string; hint: string } {
+  try {
+    return ACCESS_LEGEND[llmSourceAccessClass(sourceId)] ?? ACCESS_LEGEND["api-free"];
+  } catch {
+    return ACCESS_LEGEND["api-free"];
+  }
+}
 
 export interface RouteChipProps {
   /** Versión reducida (cabeceras estrechas / mini-reproductor). */
@@ -76,6 +98,17 @@ export function RouteChip({ compact = false, inlinePanel = false, className }: R
   // Sin ruta registrada todavía → nada que mostrar.
   if (!route) return null;
 
+  const access = accessOf(route.sourceId);
+  /** Punto del tono con el que el ORBE se tiñe ahora mismo (misma leyenda). */
+  const accessDot = (
+    <span
+      className={cn("shrink-0 rounded-full", compact ? "h-1.5 w-1.5" : "h-2 w-2")}
+      style={{ backgroundColor: access.color, boxShadow: `0 0 6px -1px ${access.color}` }}
+      title={`${access.label} — ${access.hint}`}
+      aria-hidden="true"
+    />
+  );
+
   const badge = (
     <span
       className={cn(
@@ -97,7 +130,7 @@ export function RouteChip({ compact = false, inlinePanel = false, className }: R
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        title={`${route.sourceLabel} · ${route.modelLabel} — toca para ver el porqué y las alternativas`}
+        title={`${route.sourceLabel} · ${route.modelLabel} — ${access.hint} Toca para ver el porqué y las alternativas.`}
         className={cn(
           "inline-flex max-w-full cursor-pointer items-center gap-1.5 rounded-full border border-white/10 bg-white/5 backdrop-blur-md transition-colors duration-200 hover:bg-white/10",
           compact ? "px-2 py-0.5 text-[9px]" : "px-2.5 py-1 text-[11px]",
@@ -105,9 +138,11 @@ export function RouteChip({ compact = false, inlinePanel = false, className }: R
         )}
       >
         <Sparkles className={cn("shrink-0 text-[#7fb8ff]", compact ? "h-2.5 w-2.5" : "h-3 w-3")} />
+        {accessDot}
         <span className={cn("truncate", compact ? "max-w-[120px]" : "max-w-[220px]")}>
           {route.sourceLabel} · {route.modelLabel}
         </span>
+        <span className="sr-only"> — fuente {access.label}</span>
         {badge}
       </button>
 
@@ -139,6 +174,14 @@ export function RouteChip({ compact = false, inlinePanel = false, className }: R
             >
               <X className="h-3 w-3" />
             </button>
+          </div>
+
+          {/* Leyenda de color: el mismo tono con el que se tiñe el orbe */}
+          <div className="mb-1.5 flex items-center gap-1.5 text-[10px] text-white/55" title={access.hint}>
+            {accessDot}
+            <span>
+              <span className="text-white/75">{access.label}</span> — el orbe se tiñe con este tono
+            </span>
           </div>
 
           {/* Por qué se eligió */}

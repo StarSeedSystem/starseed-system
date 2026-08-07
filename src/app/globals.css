@@ -3500,3 +3500,76 @@ html[data-perf="eco"] *:not(input):not(textarea) {
     scroll-behavior: auto !important;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════
+   .astraura-window — CAPA DE TOKENS de la ventana «Sistemas de
+   Astraura en esta neurona» (Adenda 149 · ola 2 · §2.13).
+   ─────────────────────────────────────────────────────────────
+   Los dos archivos de la ventana (astraura-omnivoice-config.tsx y
+   persona-system-sections.tsx) fijaban ~155 utilidades duras
+   (`text-white/*`, `bg-white/[0.0x]`, `border-white/10`,
+   `bg-[#0b0d12]`): en tema claro la ventana quedaba como isla
+   oscura. Aquí se declaran UNA vez y allí se consumen como
+   `bg-[var(--aw-surface)]`, `text-[var(--aw-muted)]`… de modo que
+   el futuro modo claro (ver `claude/pendiente-modo-claro` §2) sea
+   un cambio de hoja de estilo y no 155 ediciones.
+
+   Los valores OSCUROS reproducen el look actual (mismos tonos
+   percibidos) SUBIENDO el suelo de contraste que exige MASTER.md
+   (4,5:1 sobre #0b0d12): el texto informativo nunca baja de
+   `--aw-muted`; `--aw-faint` queda SOLO para lo decorativo
+   (iconos y separadores que no informan).
+
+   Escala tipográfica asociada (aplicada en los dos archivos):
+   hint 10px = --aw-muted · cuerpo 11px = --aw-text ·
+   título de tarjeta 12px semibold y valor efectivo 13px = --aw-strong.
+
+   Los ACENTOS por sistema (cian/ámbar/fucsia/violeta/esmeralda)
+   NO se tokenizan: son identidad y funcionan en ambos temas.
+
+   Se declaran también en `:root` (mismos valores oscuros) para que una pieza
+   de la ventana reutilizada FUERA de ella (p.ej. `ProvenanceChip` en /cuenta)
+   siga resolviendo sus colores en vez de quedarse sin ellos.
+   ═══════════════════════════════════════════════════════════ */
+:root,
+.astraura-window {
+  /* Superficies */
+  --aw-shell: rgba(11, 13, 18, 0.85);      /* cuerpo de la ventana (#0b0d12/85) */
+  --aw-sticky: #0b0d12;                    /* columna fija de tablas (opaca para el sticky) */
+  --aw-bar: rgba(0, 0, 0, 0.30);           /* pie / barras */
+  --aw-surface: rgba(255, 255, 255, 0.03); /* tarjeta */
+  --aw-surface-2: rgba(255, 255, 255, 0.045); /* item dentro de tarjeta */
+  --aw-field: rgba(0, 0, 0, 0.40);         /* select / input */
+  --aw-hover: rgba(255, 255, 255, 0.10);   /* realce al pasar el puntero */
+  /* Líneas */
+  --aw-line: rgba(255, 255, 255, 0.10);
+  --aw-line-strong: rgba(255, 255, 255, 0.25); /* hover / foco */
+  /* Tinta (suelo de contraste) */
+  --aw-ink: #ffffff;                       /* color heredado base */
+  --aw-strong: rgba(255, 255, 255, 0.92);  /* títulos y valor efectivo */
+  --aw-text: rgba(255, 255, 255, 0.74);    /* cuerpo 11px (≥ 4,5:1) */
+  --aw-muted: rgba(255, 255, 255, 0.56);   /* hints 10px (suelo informativo) */
+  --aw-faint: rgba(255, 255, 255, 0.42);   /* SOLO decorativo (no informa) */
+}
+
+/* Rama CLARA — se excluyen las atmósferas oscuras que no llevan `.dark`
+   (`.natural`, `.glass`), igual que hacen los bloques de tema de arriba.
+   Tinta violeta-tinta sobre el crema lavanda de `:root` (--background
+   270 20% 97%), conservando el cristal: superficies como VELOS de tinta
+   a baja alfa, no como bloques opacos. */
+:root:not(.dark):not(.natural):not(.glass) .astraura-window {
+  --aw-shell: rgba(250, 249, 253, 0.88);
+  --aw-sticky: #faf9fd;
+  --aw-bar: rgba(23, 18, 38, 0.05);
+  --aw-surface: rgba(23, 18, 38, 0.04);
+  --aw-surface-2: rgba(23, 18, 38, 0.06);
+  --aw-field: rgba(255, 255, 255, 0.72);
+  --aw-hover: rgba(23, 18, 38, 0.08);
+  --aw-line: rgba(23, 18, 38, 0.12);
+  --aw-line-strong: rgba(23, 18, 38, 0.30);
+  --aw-ink: rgba(23, 18, 38, 0.96);
+  --aw-strong: rgba(23, 18, 38, 0.94);
+  --aw-text: rgba(23, 18, 38, 0.78);
+  --aw-muted: rgba(23, 18, 38, 0.62);
+  --aw-faint: rgba(23, 18, 38, 0.45);
+}

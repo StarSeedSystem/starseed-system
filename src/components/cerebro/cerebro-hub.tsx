@@ -30,6 +30,7 @@ import ContextoPanel from "@/components/cerebro/contexto-panel";
 import NeuronasPanel from "@/components/cerebro/neuronas-panel";
 import { PersonalitiesPanel } from "@/components/aurora/personalities-panel";
 import {
+  icons as lucideIcons,
   Brain as BrainIcon,
   FileText,
   Wand2,
@@ -43,7 +44,12 @@ import {
   Share2,
   Send,
   BrainCog,
+  type LucideIcon,
 } from "lucide-react";
+// Adenda 149 · qué personalidades usan el cerebro activo: el dato ya viaja en
+// `Brain.includes.personalities` (lo escribe `toggleBrainConnection` en
+// personalities-panel) y aquí solo se pinta — cero red, cero cálculo nuevo.
+import { listPersonalityProfiles, PERSONALITY_CHANGED_EVENT } from "@/lib/aurora/personalities";
 // Adenda 149 · ventana «Configuración/actualización de sistemas de Astraura en
 // esta neurona» → pestaña «Cerebro» (memoria por personalidad, local).
 import { openAstrauraConfig } from "@/lib/astraura/config-ui";
@@ -153,6 +159,29 @@ export default function CerebroHub() {
   }, []);
 
   const activeBrain = brains.find((b) => b.id === activeBrainId) ?? null;
+
+  // Adenda 149 · nombres/iconos de las personalidades conectadas al cerebro
+  // activo. Los perfiles viven en localStorage (SSR-safe: solo en efecto).
+  const [personaIndex, setPersonaIndex] = useState<Record<string, { name: string; icon: string }>>({});
+  useEffect(() => {
+    const refresh = () => {
+      try {
+        const map: Record<string, { name: string; icon: string }> = {};
+        for (const p of listPersonalityProfiles()) map[p.id] = { name: p.name, icon: p.icon || "Sparkles" };
+        setPersonaIndex(map);
+      } catch { /* defensivo */ }
+    };
+    refresh();
+    if (typeof window === "undefined") return;
+    window.addEventListener(PERSONALITY_CHANGED_EVENT, refresh);
+    return () => window.removeEventListener(PERSONALITY_CHANGED_EVENT, refresh);
+  }, []);
+
+  const brainPersonas = (activeBrain?.includes?.personalities ?? []).map((id) => ({
+    id,
+    name: personaIndex[id]?.name ?? id,
+    icon: personaIndex[id]?.icon ?? "Sparkles",
+  }));
 
   const onCreateBrain = async () => {
     setCreating(true);
@@ -266,6 +295,35 @@ export default function CerebroHub() {
                 <Send className="w-4 h-4" />
                 Enviar a…
               </Button>
+            )}
+          </div>
+        )}
+
+        {/* Adenda 149 · qué personalidades de Aurora usan el cerebro activo
+            (dato ya cargado en `includes.personalities`: no hay red aquí). */}
+        {activeBrain && (
+          <div className="mt-3 flex flex-wrap items-center gap-1.5">
+            <span className="inline-flex items-center gap-1.5 text-[11px] text-white/45">
+              <Sparkles className="w-3 h-3 text-fuchsia-300" />
+              Personalidades que usan «{activeBrain.name}»:
+            </span>
+            {brainPersonas.length === 0 ? (
+              <span className="text-[11px] text-white/35">
+                ninguna conectada todavía — conéctalas en el pilar «Personalidades de Aurora».
+              </span>
+            ) : (
+              brainPersonas.map((p) => {
+                const Ic = (lucideIcons as Record<string, LucideIcon>)[p.icon] ?? Sparkles;
+                return (
+                  <span
+                    key={p.id}
+                    title={`«${p.name}» está conectada a este cerebro`}
+                    className="inline-flex items-center gap-1 rounded-full border border-fuchsia-400/25 bg-fuchsia-500/10 px-2 py-0.5 text-[11px] text-fuchsia-100"
+                  >
+                    <Ic className="w-3 h-3" /> {p.name}
+                  </span>
+                );
+              })
             )}
           </div>
         )}

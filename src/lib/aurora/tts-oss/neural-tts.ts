@@ -97,6 +97,9 @@ import {
 } from "@/lib/aurora/tts-oss/voice-config";
 import { listBrowserVoices, rankBrowserVoices } from "@/lib/aurora/tts-oss/browser-voices";
 import type { OpenVoice2SeedSpec, OpenVoiceEndpoint } from "@/lib/aurora/tts-oss/openvoice2";
+// SOLO TIPO (se borra al compilar): ni acopla el módulo ni crea ciclos — las
+// personalidades se siguen resolviendo con `import()` dinámico donde hacen falta.
+import type { PersonalityProfile } from "@/lib/aurora/personalities";
 import type { OmniRouteDecision } from "@/lib/aurora/tts-oss/omnivoice-hybrid";
 import { omnivoiceWebSynthesize } from "@/lib/aurora/tts-oss/omnivoice-web-router";
 import {
@@ -1322,7 +1325,12 @@ async function neuralSpeakChunked(
   if (engine === "omnivoice") {
     try {
       const hybrid = await import("@/lib/aurora/tts-oss/omnivoice-hybrid");
-      omniRoute = await hybrid.decideOmniRoute();
+      // Adenda 149 · Ola 3: la decisión CONGELADA del mensaje se toma con la
+      // personalidad activa, para que use la misma vía (`voz.modo` por neurona ×
+      // personalidad) que usarán sus trozos. Sin personalidades resolubles o sin
+      // overrides guardados, `decideOmniRoute(undefined, undefined, undefined)`
+      // es exactamente la llamada previa.
+      omniRoute = await hybrid.decideOmniRoute(undefined, undefined, await activePersonalityIdSafe());
     } catch {
       omniRoute = undefined; // sin decisión congelada: cada trozo decidirá por sí mismo
     }
@@ -1696,16 +1704,124 @@ async function delegateOmniHybrid(
     // EXACTAS — simplemente no la usará: sintetiza con --instruct+--seed nativos
     // del idioma (sin clonar), que ya es un resultado correcto, solo sin timbre
     // clonado hasta que se cablee.
+    //
+    // Adenda 149 · Ola 3: la MISMA personalidad resuelta aquí viaja ahora como
+    // `personalityId` a `synthesizeOmniVoiceHybrid`, para que la VÍA de voz
+    // (nube/local) que la ventana «Sistemas de Astraura en esta neurona» guardó
+    // para ESTA personalidad decida dentro del híbrido (`neuronPrefersLocalLS`).
+    // Sin overrides guardados no cambia nada: manda la elección del dispositivo.
+    let personalityId: string | undefined;
     try {
       const mod = await import("@/lib/aurora/personalities");
       const profile = mod.getActivePersonality?.();
+      personalityId = profile?.id;
       void hybrid.ensureLocalIdentity(profile?.id);
     } catch {
       void hybrid.ensureLocalIdentity(undefined);
     }
     return await hybrid
-      .synthesizeOmniVoiceHybrid(text, { lang: s.lang, budgetCapMs, routeOverride })
+      .synthesizeOmniVoiceHybrid(text, { lang: s.lang, personalityId, budgetCapMs, routeOverride })
       .catch(() => null);
+  } catch {
+    return null;
+  }
+}
+
+/* ── Adenda 149 · Ola 3 — la voz GRABADA/IMPORTADA llega a la síntesis ──────── */
+
+/**
+ * Id de la personalidad ACTIVA, best-effort. Nunca lanza; `undefined` si el
+ * módulo de personalidades no está disponible o no hay ninguna activa (en cuyo
+ * caso los consumidores caen a los defaults «Todas» de la neurona, igual que el
+ * mesh con el tráfico no atribuible).
+ */
+async function activePersonalityIdSafe(): Promise<string | undefined> {
+  try {
+    const mod = await import("@/lib/aurora/personalities");
+    return mod.getActivePersonality?.()?.id;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Blob decodificado de la referencia de audio de UNA personalidad, cacheado por
+ * `personalityId` y validado con la huella del `dataUrl` (si el usuario regraba
+ * su voz, la huella cambia y se vuelve a decodificar). Un mapa por personalidad
+ * —no por dataUrl— mantiene la cache ACOTADA: nunca crece con las regrabaciones.
+ */
+const personaRefBlobCache = new Map<string, { fp: string; blob: Blob | null }>();
+
+/** Huella barata y estable de un data URL (djb2 sobre una muestra + longitud + `at`). */
+function refFingerprint(dataUrl: string, at?: number): string {
+  let h = 5381;
+  const sample = dataUrl.length > 4096 ? dataUrl.slice(0, 2048) + dataUrl.slice(-2048) : dataUrl;
+  for (let i = 0; i < sample.length; i++) h = ((h << 5) + h + sample.charCodeAt(i)) >>> 0;
+  return `${h.toString(36)}.${dataUrl.length.toString(36)}.${(at || 0).toString(36)}`;
+}
+
+/**
+ * `data:` URL → Blob SIN pasar por `fetch(dataUrl)`.
+ *
+ * DECISIÓN (robustez, no gusto): `fetch()` de un `data:` URL es una petición de
+ * red a efectos de CSP y cae bajo `connect-src`, que en este OS es
+ * `'self' https: wss:` (next.config.ts) — SIN `data:`. Hoy la política viaja en
+ * `Content-Security-Policy-Report-Only`, así que `fetch` funcionaría… hasta el
+ * día que se aplique de verdad, y entonces la voz clonada dejaría de cargar sin
+ * más aviso que un informe. La decodificación manual (atob / decodeURIComponent)
+ * no toca la red, funciona igual en cualquier runtime y cuesta una sola vez por
+ * personalidad gracias a la cache de arriba. NUNCA lanza; null ⇒ sin referencia.
+ */
+function dataUrlToBlob(dataUrl: string): Blob | null {
+  try {
+    if (typeof window === "undefined") return null;
+    if (!dataUrl.startsWith("data:")) return null;
+    const comma = dataUrl.indexOf(",");
+    if (comma < 0) return null;
+    const header = dataUrl.slice(5, comma);
+    const payload = dataUrl.slice(comma + 1);
+    const isB64 = /;base64\s*$/i.test(header);
+    // Se conserva el MIME COMPLETO con sus parámetros (`audio/webm;codecs=opus`
+    // es lo que produce MediaRecorder): quitar el codec empobrecería el Blob.
+    const type = header.replace(/;base64\s*$/i, "").trim() || "audio/wav";
+    // Un solo camino de bytes para las dos codificaciones (`atob` ya devuelve
+    // caracteres 0-255; el `& 0xff` solo importa en el payload sin base64, que
+    // en audio es rarísimo y se trata como latin-1, igual que hace el navegador).
+    const bin = isB64 ? atob(payload.replace(/\s+/g, "")) : decodeURIComponent(payload);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i) & 0xff;
+    return bytes.length > 0 ? new Blob([bytes], { type }) : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Referencia de voz REAL de una personalidad para clonar (Adenda 96 → 149·Ola 3).
+ *
+ * Solo los orígenes `"recorded"` (micrófono de esta neurona) y `"library"`
+ * (archivo del usuario) llevan audio propio en `dataUrl` y solo ellos producen
+ * referencia: **`"builtin"` sigue EXACTAMENTE con la semilla sintética de
+ * siempre** (es un id de catálogo, no audio del usuario). Sin `audioRef`, sin
+ * `dataUrl` o con un `dataUrl` ilegible ⇒ null ⇒ camino previo intacto.
+ *
+ * `key` identifica la referencia (personalidad + huella) para que el cliente de
+ * OpenVoice cachee la SUBIDA por referencia y no reutilice el /tmp de otra
+ * personalidad. NUNCA lanza.
+ */
+function personaVoiceRefBlob(profile: PersonalityProfile | null | undefined): { blob: Blob; key: string } | null {
+  try {
+    const ref = profile?.voiceStyle?.audioRef;
+    if (!ref || (ref.kind !== "recorded" && ref.kind !== "library")) return null;
+    const dataUrl = typeof ref.dataUrl === "string" ? ref.dataUrl : "";
+    if (!dataUrl.startsWith("data:")) return null;
+    const id = profile?.id || "custom";
+    const fp = refFingerprint(dataUrl, ref.at);
+    const hit = personaRefBlobCache.get(id);
+    if (hit && hit.fp === fp) return hit.blob ? { blob: hit.blob, key: `${id}.${fp}` } : null;
+    const blob = dataUrlToBlob(dataUrl);
+    personaRefBlobCache.set(id, { fp, blob });
+    return blob ? { blob, key: `${id}.${fp}` } : null;
   } catch {
     return null;
   }
@@ -1716,6 +1832,11 @@ async function delegateOmniHybrid(
  * EFECTIVA de OmniVoice (cuenta + personalidad → sub-esquema `openvoice`) y la
  * personalidad activa (para la semilla de identidad, el estilo y el aprendizaje
  * por voz). NUNCA lanza; null ⇒ la cadena de voz sigue.
+ *
+ * VOZ PROPIA DE LA PERSONALIDAD (Adenda 149 · Ola 3): si esa personalidad tiene
+ * una `voiceStyle.audioRef` grabada o importada, su audio viaja como `refBlob` y
+ * el Space CLONA esa voz en vez de sintetizar la semilla. Es la única vía de
+ * clonación real y siempre parte de audio que el propio usuario aportó.
  *
  * PROPAGACIÓN DE IDIOMA (fix del acento importado, 2026-07-21): igual que en
  * `delegateOmniHybrid`, `s.lang` puede venir YA anulado por la auto-detección
@@ -1748,10 +1869,14 @@ async function delegateOpenVoice2(
 
     let personalityId: string | undefined;
     let seedAttrs: OpenVoice2SeedSpec | undefined;
+    let personaRef: { blob: Blob; key: string } | null = null;
     try {
       const mod = await import("@/lib/aurora/personalities");
       const profile = mod.getActivePersonality?.();
       personalityId = profile?.id;
+      // Adenda 149 · Ola 3: voz GRABADA/IMPORTADA de esta personalidad → clonación
+      // real (kind "builtin" no produce referencia y sigue con la semilla).
+      personaRef = personaVoiceRefBlob(profile);
       // Semilla ad-hoc (para personalidades sin semilla curada): usa SU diseño de
       // voz, INSPIRADO en su arquetipo — jamás audio real de nadie.
       if (profile && typeof mod.mapPersonalityToDesign === "function") {
@@ -1772,6 +1897,11 @@ async function delegateOpenVoice2(
     const blob = await synthesizeOpenVoice2(text, {
       lang: s.lang,
       personalityId,
+      // Sin `audioRef` grabada/importada esto es `undefined` y la resolución de
+      // referencia entra por la rama de SIEMPRE (semilla sintética): camino
+      // previo intacto, byte a byte (Adenda 149 · Ola 3).
+      refBlob: personaRef?.blob,
+      refKey: personaRef?.key,
       styleHint: ov?.style,
       useSeed: ov?.use_seed,
       seedVersion: ov?.seed_version,

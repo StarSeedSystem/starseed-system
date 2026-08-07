@@ -1472,6 +1472,54 @@ export function intelligencePinFor(
   }
 }
 
+/**
+ * (Adenda 149 · Ola 3) ¿Esta PERSONALIDAD permite gastar en fuentes de PAGO?
+ *
+ * Mismo merge neurona × personalidad que `intelligencePinFor`, pero SIN exigir
+ * pin ni `modo: "fija"`: el interruptor «Permitir fuentes de pago» de la
+ * pestaña Astraura vale por sí solo, con o sin modelo fijado.
+ *
+ * PRECEDENCIA (la más específica gana):
+ *   1. `astraura.permitirPago` de ESTA neurona para esta personalidad (el store
+ *      ya fusiona «Todas» ("*") ⊕ la personalidad propia y poda los ausentes,
+ *      así que aquí un booleano SIEMPRE es una decisión explícita del usuario).
+ *   2. `profile.intelligence.permitirPago` SOLO en `modo: "fija"` — el ÚNICO
+ *      ámbito donde ese campo tenía efecto antes de esta ola. En modo "auto"
+ *      el campo existe SIEMPRE con default `false` (normalizeIntelligence lo
+ *      materializa), así que tratarlo como veto habría apagado las fuentes de
+ *      pago de TODA cuenta sin overrides (CRÍTICO de la revisión adversarial
+ *      de la tanda «3 olas»: 1 → 0 candidatos de pago, probado empíricamente).
+ *   3. `null` — SIN OPINIÓN: manda solo el filtro de la cuenta.
+ *
+ * CONTRATO DEL CONSUMIDOR (`router.ts::rankCandidates`): el resultado es una
+ * restricción AND que solo puede NEGAR. `false` ⇒ esta personalidad no usa
+ * fuentes de pago aunque la cuenta las permita; `true` y `null` ⇒ manda la
+ * cuenta (JAMÁS afloja `allowConfiguredPaid` ni el modo «only-free»).
+ *
+ * Sin perfil activo, sin decisión explícita o si algo falla devuelve `null` y
+ * el router se comporta EXACTAMENTE como antes de esta ola. Nunca lanza.
+ */
+export function personaAllowsPaid(
+  profile: PersonalityProfile | null | undefined,
+): boolean | null {
+  try {
+    if (!profile) return null;
+    if (profile.id) {
+      const n = neuronOverridesFor(profile.id).astraura?.permitirPago;
+      if (typeof n === "boolean") return n;
+    }
+    // Solo el modo «fija» hereda el campo del perfil: es donde ya mandaba
+    // (intelligencePinFor lo incluía en el pin). En «auto», sin opinión.
+    if (profile.intelligence?.modo === "fija") {
+      const p = profile.intelligence.permitirPago;
+      return typeof p === "boolean" ? p : null;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 function readProfileList(): PersonalityProfile[] | null {
   if (!hasWindow()) return null;
   try {

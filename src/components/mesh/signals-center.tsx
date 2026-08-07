@@ -29,6 +29,12 @@ import { ConnectivityConfigPanel } from "@/components/connectivity/connectivity-
 // Adenda 149 · ventana «Configuración/actualización de sistemas de Astraura en
 // esta neurona» → pestaña «Señales por personalidad».
 import { openAstrauraConfig } from "@/lib/astraura/config-ui";
+// Adenda 149 · contador VIVO de reglas de antena por personalidad (store
+// neurona × personalidad; lectura pura de localStorage, sin red).
+import {
+  ALL_PERSONAS, getRawOverrides, personaChips, subscribeNeuronPersona,
+} from "@/lib/astraura/neuron-persona-systems";
+import { thisDeviceId } from "@/lib/neurons/neurons";
 import {
   useMeshState, detectSignals, connectMesh, connectWifiNode, getConnectivitySettings,
   subscribeConnectivity, setNeuronPosition, detectPlatform, recommendNative, hasAccountSession,
@@ -119,6 +125,34 @@ export function SignalsCenter({ embedded = false, compact = false }: SignalsCent
   }, [mesh.status, mesh.region, onlineCount]);
 
   const activeCtrl = signals.filter((s) => s.controllable && (s.status === "active" || s.status === "available")).length;
+
+  // Adenda 149 · el botón «Señales por personalidad» era MUDO: no decía si ya
+  // hay alguna regla propia guardada. Recorre «Todas las personalidades» (`*`)
+  // + cada personalidad y cuenta las antenas con regla propia en ESTA neurona.
+  // Lectura local sin red; se refresca en vivo con `subscribeNeuronPersona`.
+  const [personaRules, setPersonaRules] = useState<{ antenas: number; personas: number }>({ antenas: 0, personas: 0 });
+  useEffect(() => {
+    const recount = () => {
+      try {
+        const deviceId = thisDeviceId();
+        if (!deviceId) return setPersonaRules({ antenas: 0, personas: 0 });
+        const antenas = new Set<string>();
+        let personas = 0;
+        for (const id of [ALL_PERSONAS, ...personaChips().map((p) => p.id)]) {
+          const porAntena = getRawOverrides(deviceId, id).senales?.porAntena ?? {};
+          const propias = Object.entries(porAntena).filter(([, r]) => r && Object.keys(r).length > 0);
+          if (propias.length === 0) continue;
+          personas += 1;
+          for (const [antenaId] of propias) antenas.add(antenaId);
+        }
+        setPersonaRules({ antenas: antenas.size, personas });
+      } catch {
+        setPersonaRules({ antenas: 0, personas: 0 });
+      }
+    };
+    recount();
+    return subscribeNeuronPersona(recount);
+  }, []);
 
   // Recomendación de app nativa para acceso completo al hardware (según el SO).
   const native = useMemo<NativeRecommendation>(() => recommendNative(detectPlatform()), []);
@@ -221,11 +255,23 @@ export function SignalsCenter({ embedded = false, compact = false }: SignalsCent
         ))}
         {/* Adenda 149 · qué señales usa CADA personalidad de Aurora en esta
             neurona (drawer de sistemas de Astraura → pestaña «Señales»). */}
+        {personaRules.antenas > 0 && (
+          <span
+            className="ml-auto inline-flex items-center gap-1.5 rounded-xl border border-emerald-400/30 bg-emerald-500/10 px-2.5 py-1.5 text-[11px] font-medium text-emerald-200"
+            title={`${personaRules.antenas} antena(s) tienen una regla propia en ${personaRules.personas} personalidad(es) de esta neurona (entrada/salida, ruta o apagado)`}
+          >
+            <span className="size-1.5 shrink-0 rounded-full bg-emerald-400" aria-hidden />
+            {personaRules.antenas} {personaRules.antenas === 1 ? "antena" : "antenas"} con {personaRules.antenas === 1 ? "regla propia" : "reglas propias"}
+          </span>
+        )}
         <button
           type="button"
           onClick={() => openAstrauraConfig("senales")}
           title="Configura qué señales y antenas usa cada personalidad de Aurora en esta neurona"
-          className="ml-auto inline-flex cursor-pointer items-center gap-1.5 rounded-xl border border-fuchsia-400/30 bg-fuchsia-500/10 px-3 py-1.5 text-[12px] font-medium text-fuchsia-100 transition-colors duration-200 hover:bg-fuchsia-500/20"
+          className={cn(
+            "inline-flex cursor-pointer items-center gap-1.5 rounded-xl border border-fuchsia-400/30 bg-fuchsia-500/10 px-3 py-1.5 text-[12px] font-medium text-fuchsia-100 transition-colors duration-200 hover:bg-fuchsia-500/20",
+            personaRules.antenas === 0 && "ml-auto",
+          )}
         >
           <UserCog className="h-3.5 w-3.5" /> Señales por personalidad
         </button>

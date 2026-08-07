@@ -294,6 +294,10 @@ export function AuroraSetupCenter() {
       role="dialog"
       aria-modal="true"
       aria-label="Centro de configuración de Aurora y Astraura"
+      // Marcador para el gate anti-doble-modal de la ventana de sistemas (A149):
+      // si este centro NO está en el DOM, la ventana puede abrirse aunque el
+      // setup siga pendiente (garantía de aparición por neurona).
+      data-aurora-setup-center=""
     >
       <div className="flex max-h-[100dvh] w-full max-w-[1040px] flex-col overflow-hidden rounded-t-2xl border border-white/12 bg-[#0d1220]/97 shadow-2xl sm:max-h-[90dvh] sm:rounded-2xl">
         {/* Cabecera */}
