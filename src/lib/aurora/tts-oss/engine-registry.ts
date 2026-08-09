@@ -208,8 +208,11 @@ export const VOICE_ENGINE_REGISTRY: Record<AuroraVoiceEngine, VoiceEngineMeta> =
   },
   omnivoice: {
     id: "omnivoice",
-    label: "OmniVoice",
-    hint: "Voz neural multilingüe del ecosistema k2-fsa (Next-gen Kaldi).",
+    // RENOMBRE HONESTO (2026-08-09): el SISTEMA de voz de Astraura se llama
+    // OmniVoice; ESTE es un MOTOR con el mismo nombre de origen (k2-fsa), así
+    // que su etiqueta lo dice para que nadie confunda sistema y motor.
+    label: "OmniVoice k2-fsa (motor)",
+    hint: "Voz neural multilingüe del ecosistema k2-fsa (Next-gen Kaldi). Motor por defecto del sistema OmniVoice: daemon local si está vivo, si no su Space gratis.",
     kind: "endpoint",
     realism: 3,
     requiresEndpoint: true,
@@ -226,7 +229,8 @@ export const VOICE_ENGINE_REGISTRY: Record<AuroraVoiceEngine, VoiceEngineMeta> =
   },
   openvoice2: {
     id: "openvoice2",
-    label: "OpenVoice V2 (web)",
+    // OpenVoice es UN MOTOR del sistema OmniVoice, no el sistema.
+    label: "OpenVoice 2 (motor)",
     hint: "Voz de nube gratis, sin instalar nada: clona el timbre desde una semilla de identidad o tu propio audio.",
     // Integrado como la nube de OmniVoice (Space público): no es un endpoint del
     // usuario, así que no requiere ni URL ni descargas — funciona en la web.

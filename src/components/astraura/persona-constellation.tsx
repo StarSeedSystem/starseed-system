@@ -4,7 +4,7 @@
  * CONSTELACIÓN ORBITAL DE LOS 5 SISTEMAS (Adenda 149 · ola 3 · idea 2.1:64+66).
  * ============================================================================
  * Primera vez que los cinco sistemas de UNA personalidad en ESTA neurona se ven
- * JUNTOS: un anillo de 5 nodos —LLM cian · Astraura ámbar · OpenVoice fucsia ·
+ * JUNTOS: un anillo de 5 nodos —LLM cian · Astraura ámbar · OmniVoice fucsia ·
  * Cerebro violeta · Señales esmeralda— donde
  *
  *   · el TRAZO de cada nodo es el acento de su pestaña,
@@ -50,7 +50,9 @@ interface NodeMeta {
 const NODES: NodeMeta[] = [
   { section: "llm", label: "LLM", stroke: "#22d3ee" },        // cian
   { section: "astraura", label: "Astraura", stroke: "#fbbf24" }, // ámbar
-  { section: "openvoice", label: "OpenVoice", stroke: "#e879f9" }, // fucsia
+  // Adenda 149 · tanda 3: el SISTEMA se llama OmniVoice; OpenVoice es solo uno
+  // de sus motores. La clave interna `openvoice` se conserva (rutas/eventos).
+  { section: "openvoice", label: "OmniVoice", stroke: "#e879f9" }, // fucsia
   { section: "cerebro", label: "Cerebro", stroke: "#a78bfa" },  // violeta
   { section: "senales", label: "Señales", stroke: "#34d399" },  // esmeralda
 ];

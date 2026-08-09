@@ -22,6 +22,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { usePrompt } from "@/components/ui/confirm-dialog";
 import { SignalsRadar } from "./signals-radar";
+import { DetectedSignalsPanel } from "./detected-signals-panel";
 import { RedMeshCenter } from "./red-mesh-center";
 // Adenda 138 · Router / red por neurona (OpenWISP/NetJSON) como pestaña de Señales.
 import { RouterCenter } from "@/components/network/router-center";
@@ -279,10 +280,16 @@ export function SignalsCenter({ embedded = false, compact = false }: SignalsCent
 
       {tab === "antenas" && (
       <>
-      {/* Radar unificado de señales + neuronas (nodos reales de la malla por RF) */}
+      {/* Radar unificado: TODAS las señales reales detectadas (nodos LoRa por RF,
+          faros del relé, neuronas de la cuenta, portadora IP, BLE, puertos serie)
+          con su rango de precisión. Pulsar un blip abre su ficha completa. */}
       <div className="rounded-2xl border border-white/10 bg-black/30 p-3">
-        <SignalsRadar height={compact ? 200 : 260} showLegend />
+        <SignalsRadar height={compact ? 200 : 260} showLegend onOpenMesh={() => setTab("redmesh")} />
       </div>
+
+      {/* Inventario completo de señales detectadas, por familia de antena, con
+          acciones reales de interconexión/sincronización y estados vacíos. */}
+      <DetectedSignalsPanel compact={compact} onOpenMesh={() => setTab("redmesh")} />
 
       {/* Controles maestros: antena de malla local + internet público StarSeed +
           servidor activo + privacidad del radar público. Encendidos por defecto. */}

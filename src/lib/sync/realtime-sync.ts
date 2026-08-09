@@ -71,6 +71,10 @@ import {
 // ámbito cuenta (como todas las de Aurora/Astraura, ver Adenda 68 · A).
 import { shouldSyncKey } from "@/lib/sync/sync-profiles-config";
 import { activeProfileId } from "@/lib/profiles/profiles";
+// Adenda 149 · tanda 3: el dock que llega de la cuenta se NORMALIZA antes de
+// escribirlo (ver el comentario en applyRemoteChanges). Módulo puro y sin
+// dependencias a propósito — no arrastra el catálogo de iconos a este bundle.
+import { DOCK_STORAGE_KEY, normalizeDockSyncValue } from "@/lib/dock/dock-defaults";
 // Adenda 69 · A: ÚNICA puerta de escritura a `user_settings.prefs`. Manda solo
 // el parche y Postgres lo funde de forma atómica. Sustituye al `upsert` de la
 // columna entera, que borraba las claves de los demás módulos (ver user-prefs.ts).
@@ -620,6 +624,8 @@ function applyRemoteChanges(
     if (!isClient()) return;
     const localMeta = readLocalMeta();
     const appliedKeys: string[] = [];
+    /** Claves que ESTE dispositivo reparó al aplicarlas (hoy: el dock). Ver abajo. */
+    const repairedKeys: string[] = [];
     const metaToStamp: MetaMap = {};
     let touchedAurora = false;
 
@@ -638,22 +644,60 @@ function applyRemoteChanges(
         try {
             // La clave API vive solo en este dispositivo: al aplicar la config
             // remota (que viaja SIN secreto) la reinyectamos para no borrarla.
-            const merged = mergeLocalSecrets(key, value, localStorage.getItem(key));
+            let merged = mergeLocalSecrets(key, value, localStorage.getItem(key));
+
+            /* ── DOCK: normalizar ANTES de escribir (Adenda 149 · tanda 3) ────
+             * CAUSA RAÍZ del fallo que se arrastraba desde hace tres intentos:
+             * aquí se escribía el payload remoto TAL CUAL. Una cuenta antigua
+             * cuyo `starseed.dock.items.v2` no tuviera 'senales'/'red-feed' (o
+             * los tuviera en `enabled:false`) machacaba con ese estado viejo el
+             * resultado que las migraciones locales acababan de calcular, y las
+             * banderas one-shot por navegador ya estaban gastadas, así que nada
+             * volvía a repararlo. Ahora el payload entrante pasa por la MISMA
+             * función pura que la carga local (`normalizeDockState`) y lo que se
+             * guarda ya lleva los botones garantizados + `defaultsVersion`. */
+            let repaired = false;
+            if (key === DOCK_STORAGE_KEY) {
+                const norm = normalizeDockSyncValue(merged);
+                if (norm.changed) { merged = norm.value; repaired = true; }
+            }
+
             const serialized = serializeForStorage(merged);
             if (localStorage.getItem(key) === serialized) {
                 // Sin cambio real, pero sí adoptamos la marca remota (converge).
                 if (remoteTs > 0) metaToStamp[key] = Math.max(remoteTs, localMeta[key] ?? 0);
+                // Salvo si HUBO reparación: aquí ya teníamos el valor corregido
+                // (lo reparamos en una carga anterior cuyo push no llegó a subir),
+                // pero la cuenta sigue con el payload viejo. Hay que reenviarlo o
+                // este dispositivo estaría bien y los demás no.
+                if (repaired) repairedKeys.push(key);
                 continue;
             }
             markAppliedRemote(key);
             localStorage.setItem(key, serialized);
-            metaToStamp[key] = remoteTs > 0 ? remoteTs : Date.now();
+            // Si REPARAMOS el valor, lo que queda aquí ya no es el remoto: la
+            // marca LWW debe ser NUESTRA y más nueva, o el siguiente pull con la
+            // marca antigua volvería a pisar la reparación (bucle del intento 2).
+            metaToStamp[key] = repaired ? Date.now() : (remoteTs > 0 ? remoteTs : Date.now());
             appliedKeys.push(key);
+            if (repaired) repairedKeys.push(key);
             if (isAuroraKey(key)) touchedAurora = true;
         } catch { /* clave individual ignorada */ }
     }
 
     touchLocalMetaMany(metaToStamp);
+
+    /* Empuja a la cuenta lo que hemos reparado. `markAppliedRemote` acaba de
+     * marcar la clave como "recién aplicada desde remoto", lo que silencia el
+     * push automático del parche de setItem (anti-eco). Eso es correcto para un
+     * valor aplicado tal cual, pero NO para uno que hemos corregido: sin este
+     * desbloqueo explícito la reparación se quedaría en este dispositivo y las
+     * demás neuronas/cuentas seguirían sin los botones. */
+    for (const key of repairedKeys) {
+        recentlyAppliedRemote.delete(key);
+        scheduleLocalPush(key);
+    }
+
     if (appliedKeys.length === 0) return;
 
     setStatus({ lastChangeAt: Date.now(), lastKey: appliedKeys[appliedKeys.length - 1], lastFromDevice: fromDevice });

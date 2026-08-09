@@ -16,8 +16,10 @@
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useEffect } from "react";
-import { Map as MapIcon, RadioTower, Settings2, ExternalLink } from "lucide-react";
+import { Map as MapIcon, Radar, RadioTower, Settings2, ExternalLink } from "lucide-react";
 import { MeshControlPanel } from "@/components/mesh/mesh-control-panel";
+import { SignalsRadar } from "@/components/mesh/signals-radar";
+import { DetectedSignalsPanel } from "@/components/mesh/detected-signals-panel";
 import { AntennasPanel } from "@/components/mesh/antennas-panel";
 import { MeshPrivacyPanel } from "@/components/mesh/mesh-privacy-panel";
 import { PeersPanel } from "@/components/mesh/peers-panel";
@@ -105,10 +107,25 @@ export function RedMeshCenter({ embedded = false, showMap = true, showPrivacy = 
         </section>
       )}
 
-      {/* 2 · Conexiones (panel completo reutilizado) */}
+      {/* 2 · RADAR DE SEÑALES REALES (Adenda 150): todo lo que esta neurona oye
+          —nodos LoRa por RF, faros del relé, neuronas de la cuenta, portadora IP,
+          BLE escaneado con gesto y puertos serie— con su RANGO DE PRECISIÓN. */}
+      <section>
+        <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold text-white/85">
+          <Radar className="h-4 w-4 text-sky-300" /> Radar de señales reales
+        </h2>
+        <div className="grid gap-3 xl:grid-cols-2">
+          <div className="rounded-2xl border border-white/10 bg-black/30 p-3">
+            <SignalsRadar height={280} showLegend />
+          </div>
+          <DetectedSignalsPanel />
+        </div>
+      </section>
+
+      {/* 3 · Conexiones (panel completo reutilizado) */}
       <MeshControlPanel />
 
-      {/* 3 · Antenas y bandas + 4 · Privacidad (la privacidad se oculta cuando va
+      {/* 4 · Antenas y bandas + 5 · Privacidad (la privacidad se oculta cuando va
           embebido en Señales: allí vive en el panel maestro, sin duplicar). */}
       {showPrivacy ? (
         <div className="grid gap-3 xl:grid-cols-2">
@@ -119,7 +136,7 @@ export function RedMeshCenter({ embedded = false, showMap = true, showPrivacy = 
         <AntennasPanel />
       )}
 
-      {/* 5 · Peers y routers */}
+      {/* 6 · Peers y routers */}
       <PeersPanel />
     </div>
   );

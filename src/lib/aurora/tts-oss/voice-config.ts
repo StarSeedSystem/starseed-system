@@ -823,8 +823,14 @@ export interface AstrauraVoiceConfig {
 
 /**
  * DEFAULT del motor híbrido — la voz de AURORA de fábrica: femenina, joven,
- * tono medio, cálida y serena, con reproducción normalizada y símbolos no
- * verbales permitidos. Enrutado híbrido (local si está, si no nube gratis).
+ * LUMINOSA (tono agudo), cálida y serena, con reproducción normalizada y
+ * símbolos no verbales permitidos. Enrutado híbrido (local si está, si no nube
+ * gratis).
+ *
+ * El `pitch` agudo NO es un descuido: es el MISMO que llevan las semillas
+ * curadas de Aurora y Hermione (`openvoice2.ts::OPENVOICE2_SEED_SPECS_BY_LANG`).
+ * Si aquí pusiera "Moderate", el diseño de voz por defecto y la semilla que se
+ * clona no casarían y Aurora sonaría distinta según la vía que la sintetice.
  */
 export const DEFAULT_ASTRAURA_VOICE: AstrauraVoiceConfig = {
   generation_mode: "voice_design",

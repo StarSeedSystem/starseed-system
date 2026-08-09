@@ -216,6 +216,11 @@ overrides el comportamiento del router/voz/memoria/señales es EXACTAMENTE el pr
   (`dock-config.ts`: `ensureDefaultDockItems` CONTINUA para 'senales' y 'red-feed' + migración
   v13 — cierra el agujero de banderas locales vs clave sincronizada). Personalizable: un botón
   presente pero deshabilitado por el usuario se respeta.
+  **SUPERSEDIDO en la tanda 4 (§9-bis): esos dos mecanismos NO bastaban** — el payload remoto
+  sincronizado llegaba DESPUÉS y pisaba la reparación, la bandera v13 se consumía antes de que
+  llegara, `enabled:false` jamás se re-encendía y la reparación local ni siquiera subía a la
+  cuenta (ventana anti-eco del sync). Sustituidos por el SOBRE VERSIONADO
+  `defaultsVersion` normalizado en TODA ruta de entrada (`src/lib/dock/dock-defaults.ts`).
 
 **Cerrado después de la tanda (2026-08-09):**
 - RUTA PREFERIDA por personalidad: `DecideRouteInput.personaId` →
@@ -252,3 +257,91 @@ overrides el comportamiento del router/voz/memoria/señales es EXACTAMENTE el pr
 - Las SUGERENCIAS del widget Córtex siguen simuladas (la franja de sistemas ya es real); sync LWW
   del mapa completo (patrón general de claves sincronizadas); rotar service_role + DashScope
   (acción de Alex en los dashboards); modo claro global (la capa `--aw-*` ya deja la ventana lista).
+
+## 9-bis · Estado tras la tanda 4 «OmniVoice · mesh real · perfiles compartidos» (2026-08-09)
+
+**OMNIVOICE (nombre + voz de corrido; antes «el sistema se llamaba OpenVoice y la voz
+predeterminada tartamudeaba»):**
+- NOMBRE: el SISTEMA de voz es **OmniVoice**; OpenVoice es solo UNO de sus motores
+  (`openvoice2`, etiquetado «OpenVoice 2 (motor)»). Renombrado en TODAS las superficies de
+  usuario: pestaña de la ventana 149 (`SECTION_META`), constelación, quick-settings, paleta de
+  comandos, buscador de ajustes, drawer, chips. La CLAVE interna `openvoice` (sección/eventos)
+  se conserva a propósito: renombrarla rompería rutas/deep-links ya guardados.
+- IDENTIDAD DE VOZ CONGELADA por mensaje (`voice-identity.ts` + `beginMessageVoiceIdentity`):
+  endpoint + persona + semilla + refBlob se resuelven UNA vez al empezar el mensaje y viajan a
+  TODOS los trozos — ya no puede cambiar la voz a mitad de mensaje (failover solo dentro de la
+  misma familia de motor).
+- DE CORRIDO: troceo por GRUPOS DE FRASES con presupuesto por motor (`chunkBudgetFor`:
+  openvoice2 160/380 · nube 160/340 · local 130/230), PREFETCH encadenado (lookahead 2) y
+  programación GAPLESS por WebAudio (`mixerDecodeBlob`/`mixerPlayBufferAt`): el trozo n+1 ya
+  está sintetizado cuando acaba el n y se encola sin hueco audible.
+- COHERENCIA EMOCIONAL entre chats: la resolución de persona (tono/mood/estilo) se hace a
+  nivel de mensaje (no por trozo) con la config de personalidad relativa — misma personalidad ⇒
+  misma voz y entrega en cualquier chat/neurona.
+- Tests: 74 (híbrido) + 71 (openvoice2) + 42 (notas de voz), todos verdes; los «fallos» previos
+  eran tests obsoletos que fijaban defaults antiguos, realineados a la semántica intencional.
+
+**RADAR / RED MESH con datos reales (`signals.ts` §829-1232 + panel nuevo):**
+- El radar agrega TODAS las fuentes reales disponibles: nodos meshtastic (SNR/RSSI/GPS),
+  beacons, `listNeurons()` (datos públicos de neuronas StarSeed vinculadas), `externalLink()`,
+  Web Bluetooth (`requestLEScan`, SOLO tras gesto del usuario) y puertos serie.
+- ANILLO DE PRECISIÓN por señal: radio = f(calidad de señal, certeza de posición)
+  (`placeByPosition` §461-535); señales SIN posición exacta se sectorizan por antena
+  (`ANTENNA_SECTOR`) con jitter DETERMINISTA (hash FNV, sin `Math.random`).
+- Señales INCOMPATIBLES también se muestran, con sus opciones de interconexión/sincronización
+  disponibles; `use-detected-signals.ts` + `signal-detail.tsx` + `detected-signals-panel.tsx`
+  pintan detalle y acciones. Corregido el espejo del eje z (vecino al norte se dibujaba al sur).
+- 178/178 en `scripts/test-mesh-core.ts`.
+
+**DOCK — CAUSA RAÍZ REAL y arreglo definitivo (tercer intento, ahora con forense):**
+- POR QUÉ seguían sin aparecer: `starseed.dock.items.v2` está en `SYNCED_KEYS` y viaja con la
+  cuenta; las banderas de migración eran locales. El pull remoto (`pullAndApplyNow`) resolvía
+  SIEMPRE después del arranque y escribía el payload viejo TAL CUAL; `ensureDefaultDockItems`
+  solo añadía AUSENTES (jamás re-encendía `enabled:false`); y cuando sí reparaba, la ventana
+  anti-eco del sync (`recentlyAppliedRemote`) impedía subir la reparación → el siguiente pull
+  la volvía a pisar. Bucle infinito.
+- ARREGLO: `src/lib/dock/dock-defaults.ts` (módulo puro) — SOBRE VERSIONADO
+  `{defaultsVersion, items}` con `DOCK_DEFAULTS_VERSION = 14`. `normalizeDockState` corre en
+  TODA ruta de entrada (carga local, payload remoto entrante en `realtime-sync.ts`, pull manual
+  en `settings-sync.ts`, cambio de perfil en `omni-dock.tsx`): versión < 14 ⇒ fuerza presencia
+  + enabled de 'senales' y 'red-feed' y estampa la versión; versión ≥ 14 ⇒ respeta la
+  personalización (apagar es decisión del usuario). La reparación ESCAPA del anti-eco y se
+  empuja a `user_settings.prefs` ⇒ llega a cuentas/perfiles/páginas YA GENERADAS en toda la
+  red. 11 tests nuevos (`src/lib/dock/__tests__/dock-defaults.test.ts`), vitest 53/53.
+
+**HUB DE CONEXIONES:**
+- Búsqueda con debounce 300 ms + segmentos «Sugeridos» / «Toda la red»;
+  `src/lib/social/network-directory.ts` lista/cuenta/busca TODOS los perfiles de la red con
+  paginación keyset (created_at,user_id · página 24).
+
+**PERFILES COMPARTIDOS ENTRE CUENTAS (migración `20260806120000_profile_sharing.sql`
+— APLICADA a `nxstilnyidvkqeosofuh` vía Management API, HTTP 201, 2026-08-09):**
+- `os_profile_access`: roles graduales observador < colaborador < gestor < total («acceso
+  completo absoluto»: cerebros/memorias/configs/logs vía pasarela
+  `profile_access_allows(profile_id,'total')` — las RLS de esas tablas la adoptarán sin
+  duplicar lógica; límite documentado con honestidad).
+- El PERFIL PRINCIPAL (`is_default`) NUNCA se comparte: trigger guardián (independiente de la
+  RLS, protege también de service_role) + política redundante. VERIFICADO en vivo: el insert
+  de prueba fue rechazado, 0 filas.
+- Tipos/categorías: `kind` amplía vocabulario (personal|grupal|publico|tematico + legado) SIN
+  CHECK (no romper perfiles existentes); `categories text[]` (12 temas creativos, índice GIN).
+- Páginas/grupos/comunidades REUTILIZAN `os_entity_roles` — y de paso se CERRÓ EL AGUJERO
+  REAL vivo en producción: la política de INSERT/UPDATE permitía a cualquier cuenta
+  auto-concederse 'owner' de CUALQUIER entidad (`account_id = auth.uid()` como rama del
+  WITH CHECK) y el SELECT era `using(true)`. Verificado tras aplicar: la rama de auto-concesión
+  ya no existe; propiedad real vía `entity_owner_account()` (dinámica, tolera esquema vivo).
+- UI: `profile-access-manager.tsx` montado en el switcher de perfiles, editor de
+  páginas/grupos (`entity-editor-dialog`) y creación/edición; rol por cuenta, buscador de
+  cuentas de toda la red, ConfirmDialog para acceso total.
+- Migración registrada en `supabase_migrations.schema_migrations` (20260806120000).
+
+**Verificación combinada de la tanda 4:** `tsc --noEmit` 0 errores · mesh 178/178 ·
+voz 74+71+42 · vitest 53/53 (11 dock nuevos) · `next build` exit 0.
+
+**Pendiente honesto tras la tanda 4:**
+- Adopción de `profile_access_allows(...,'total')` en las RLS de cerebros/memorias/
+  user_settings/logs (la pasarela ya existe; hacerlo tabla a tabla con sus dueños).
+- Resolución de invitaciones por correo (fila con `grantee_user_id NULL`): hoy la resuelve la
+  capa de aplicación; valorar un trigger al primer login.
+- Los pendientes previos siguen: sugerencias del Córtex simuladas, modo claro global, rotar
+  service_role + DashScope (acción de Alex).

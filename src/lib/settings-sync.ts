@@ -30,6 +30,10 @@
 
 import { createClient } from "@/utils/supabase/client";
 import { mergeUserPrefs } from "@/lib/sync/user-prefs";
+// Adenda 149 · tanda 3: el pull MANUAL («Recuperar mis ajustes») es otro camino
+// de entrada del estado del dock y también debe normalizarlo — si no, bajar los
+// ajustes de una cuenta antigua volvía a borrar «Señales» y «Feed de red».
+import { DOCK_STORAGE_KEY, normalizeDockSyncValue } from "@/lib/dock/dock-defaults";
 
 /** Claves de preferencia que viajan con la cuenta. Aditivo: ampliar sin migración. */
 export const SYNCED_KEYS = [
@@ -551,7 +555,11 @@ export async function pullPreferences(): Promise<SyncResult & { applied?: string
             try {
                 // La clave API local se conserva: la nube nunca la trae, y aplicar
                 // la config remota no debe borrar la que este dispositivo ya tiene.
-                const merged = mergeLocalSecrets(key, value, window.localStorage.getItem(key));
+                let merged = mergeLocalSecrets(key, value, window.localStorage.getItem(key));
+                // Dock: misma garantía que en la carga local y en el sync en vivo.
+                // La escritura de abajo NO está en ventana anti-eco, así que el
+                // parche de setItem de realtime-sync ya la empujará a la cuenta.
+                if (key === DOCK_STORAGE_KEY) merged = normalizeDockSyncValue(merged).value;
                 const serialized = typeof merged === "string" ? merged : JSON.stringify(merged);
                 window.localStorage.setItem(key, serialized);
                 applied.push(key);

@@ -60,7 +60,7 @@ import {
 } from "@/lib/aurora/tts-oss/voice-config";
 import { CONTROL_CENTER_NAVIGATE_EVENT } from "../control-center-events";
 // (Adenda 149) Atajo a la ventana «Configuración/actualización de sistemas de
-// Astraura en esta neurona» (LLM · Astraura · OpenVoice · Cerebro · Señales).
+// Astraura en esta neurona» (LLM · Astraura · OmniVoice · Cerebro · Señales).
 import { openAstrauraConfig } from "@/lib/astraura/config-ui";
 // (Adenda 149) …y el ESTADO EFECTIVO de esos 5 sistemas, para que el atajo no
 // sea mudo: se resuelve para «Todas las personalidades» (defaults de la neurona).
@@ -85,7 +85,7 @@ const AURORA_ENGINE_LABEL: Record<AuroraVoiceEngine, string> = {
     bark: "Bark (neuronal)",
     "gpt-sovits": "GPT-SoVITS (clonación)",
     omnivoice: "OmniVoice (sistema · local/nube)",
-    openvoice2: "OpenVoice V2 (motor por defecto · web)",
+    openvoice2: "OpenVoice 2 (motor por defecto · web)",
     xai: "xAI · Grok Voice (tiempo real)",
 };
 
@@ -163,7 +163,7 @@ export function QuickSettingsTab() {
             },
             {
                 section: "openvoice",
-                label: "OpenVoice",
+                label: "OmniVoice",
                 value: (AURORA_ENGINE_LABEL[astraura.voz.motor] ?? astraura.voz.motor).split("(")[0].trim(),
                 cls: "border-fuchsia-400/30 bg-fuchsia-500/10 text-fuchsia-200 hover:bg-fuchsia-500/20",
             },
@@ -292,7 +292,7 @@ export function QuickSettingsTab() {
                         </div>
                         <div className="text-left min-w-0">
                             <div className="text-sm font-medium truncate">Sistemas de Astraura (esta neurona)</div>
-                            <div className="text-[10px] text-muted-foreground truncate">LLM, Astraura, OpenVoice, cerebro y señales</div>
+                            <div className="text-[10px] text-muted-foreground truncate">LLM, Astraura, OmniVoice, cerebro y señales</div>
                         </div>
                     </div>
                     <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors shrink-0" />

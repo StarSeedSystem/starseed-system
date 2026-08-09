@@ -43,7 +43,7 @@ export function AstrauraConfigDrawer() {
         {/* Títulos accesibles (Radix Dialog): el encabezado visible lo pinta el componente. */}
         <SheetTitle className="sr-only">Configuración de sistemas de Astraura en esta neurona</SheetTitle>
         <SheetDescription className="sr-only">
-          Configura por personalidad los sistemas de esta neurona: modelo LLM, motor Astraura, voz OpenVoice,
+          Configura por personalidad los sistemas de esta neurona: modelo LLM, motor Astraura, voz OmniVoice,
           cerebros y memorias, y señales/antenas — con selección automática y todo editable.
         </SheetDescription>
         {open && (

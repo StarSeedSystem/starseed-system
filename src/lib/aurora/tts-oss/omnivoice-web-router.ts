@@ -40,6 +40,7 @@ import {
 import {
   synthesizeOpenVoice2,
   type OpenVoice2SeedSpec,
+  type OpenVoiceEndpoint,
 } from "@/lib/aurora/tts-oss/openvoice2";
 import { callGradioSpace } from "@/lib/aurora/tts-oss/omnivoice-hybrid";
 
@@ -374,8 +375,34 @@ export interface OmnivoiceWebSynthesizeOptions {
   lang?: string;
   style?: string;
   refBlob?: Blob | null;
+  /** Identidad de `refBlob` (cache de subidas por sesión, A149 · Ola 3). */
+  refKey?: string;
+  /** Semilla ad-hoc ya resuelta para el mensaje (identidad congelada). */
+  seedAttrs?: OpenVoice2SeedSpec;
+  /** ¿Usar semilla sintética? (config efectiva congelada). */
+  useSeed?: boolean;
+  /** Versión de semilla (config efectiva congelada). */
+  seedVersion?: number;
+  /** Ánimo congelado del mensaje (motores con emociones). */
+  mood?: string;
   budgetCapMs?: number;
   signal?: AbortSignal;
+  /**
+   * Space CONGELADO del mensaje (fix continuidad, 2026-08-09): el que ganó el
+   * primer trozo. Se propaga a `synthesizeOpenVoice2` para que TODOS los trozos
+   * hablen por el mismo → mismo timbre. Antes este dato existía en
+   * `neural-tts.ts` pero NO llegaba hasta aquí, así que cada trozo volvía a
+   * elegir Space por salud/orden: esa era la causa de «cambia de voz dentro del
+   * mismo mensaje».
+   */
+  endpointOverride?: OpenVoiceEndpoint;
+  /**
+   * ¿Se permite saltar a OTRA FAMILIA de motor (F5-TTS/XTTS/ChatTTS/Fish) si
+   * OpenVoice no da audio? Solo mientras el mensaje NO haya empezado a sonar:
+   * una vez suena, cambiar de familia es cambiar de persona a media frase.
+   * Por defecto `true` (turno nuevo = puede elegir lo que funcione).
+   */
+  allowFamilyFailover?: boolean;
 }
 
 /**
@@ -392,12 +419,18 @@ export async function omnivoiceWebSynthesize(
     ensureDiscoveryFresh();
 
     // Personalidad: si el llamador no la pasó, la sacamos de la activa.
+    // (Con identidad congelada SIEMPRE viene informada: esta rama es solo para
+    // llamadas sueltas —pruebas de la UI, precalentado— y para el suelo.)
     let personalityId = opts.personalityId;
-    let seedAttrs: OpenVoice2SeedSpec | undefined;
-    if (!personalityId) {
+    let seedAttrs: OpenVoice2SeedSpec | undefined = opts.seedAttrs;
+    if (!personalityId || !seedAttrs) {
       const ctx = await resolvePersonalityContext();
-      personalityId = ctx.personalityId;
-      seedAttrs = ctx.seedAttrs;
+      personalityId = personalityId ?? ctx.personalityId;
+      // FIX (2026-08-09): antes la semilla solo se resolvía cuando NO venía
+      // personalidad — así que un trozo con `personalityId` informado y otro sin
+      // él sintetizaban con semillas distintas ⇒ voces distintas. Ahora se
+      // completa siempre lo que falte, sin pisar lo que ya trae el llamador.
+      seedAttrs = seedAttrs ?? ctx.seedAttrs;
     }
 
     // Pool sano (builtin + descubiertos) para continuidad + failover.
@@ -405,31 +438,49 @@ export async function omnivoiceWebSynthesize(
     const openVoiceEps = (info.endpoints || []).filter(
       (e) => !isOpenVoiceEndpointBad(e.id),
     );
-    const chosen = selectEndpointForPersonality(
-      openVoiceEps as unknown as WebVoiceEndpoint[],
-      personalityId,
-    );
+    const chosen =
+      opts.endpointOverride ??
+      selectEndpointForPersonality(
+        openVoiceEps as unknown as WebVoiceEndpoint[],
+        personalityId,
+      );
 
     // 1) openvoice-v2 → reusa TODA la lógica de semilla/estilo/cola de
-    //    openvoice2.ts (incluida su propia cadena de failover interna).
+    //    openvoice2.ts (incluida su propia cadena de failover interna, que con
+    //    endpoint congelado se limita a ese Space + los de su misma familia).
     const blob = await synthesizeOpenVoice2(text, {
       lang: opts.lang,
       personalityId,
       styleHint: opts.style,
       refBlob: opts.refBlob,
+      refKey: opts.refKey,
+      useSeed: opts.useSeed,
+      seedVersion: opts.seedVersion,
+      moodOverride: opts.mood,
       seedAttrs,
       budgetCapMs: opts.budgetCapMs,
       signal: opts.signal,
+      endpointOverride: opts.endpointOverride,
     }).catch(() => null);
 
+    // SALUD: con endpoint congelado NO apuntamos nada aquí. `synthesizeOpenVoice2`
+    // ya registra el resultado del Space que REALMENTE atendió el trozo (puede
+    // haber sido otro de la misma familia tras un failover), y anotar el
+    // congelado como bueno resucitaría de rebote a un Space que falló.
+    const anotaSalud = !opts.endpointOverride;
     if (blob) {
-      if (chosen?.id) markOpenVoiceEndpointResult(chosen.id, true);
+      if (anotaSalud && chosen?.id) markOpenVoiceEndpointResult(chosen.id, true);
       return blob;
     }
-    if (chosen?.id) markOpenVoiceEndpointResult(chosen.id, false);
+    if (anotaSalud && chosen?.id) markOpenVoiceEndpointResult(chosen.id, false);
 
     // 2) FAILOVER a las familias EXTRA (F5/XTTS/ChatTTS/Fish) si el pool
     //    openvoice-v2 no dio audio. Usan el cliente Gradio genérico.
+    //    INVARIANTE DE VOZ (2026-08-09): esto es OTRO MODELO — no reproduce el
+    //    timbre de la semilla. Solo se permite cuando el mensaje aún no ha
+    //    empezado a sonar; a mitad de locución preferimos cerrar con dignidad
+    //    antes que cambiar de persona entre dos frases.
+    if (opts.allowFamilyFailover === false) return null;
     const extras = (readCache()?.eps || []).filter(
       (e) => e.kind !== "openvoice-v2" && !isOpenVoiceEndpointBad(e.id),
     );

@@ -32,7 +32,7 @@ import { llmSourceAccessClass, type ModelAccessClass } from "@/lib/astraura/mode
  */
 const ACCESS_LEGEND: Record<ModelAccessClass, { color: string; label: string; hint: string }> = {
   local: { color: "#39FF14", label: "local", hint: "En tu dispositivo (Horizon · verde): máxima soberanía y privacidad." },
-  starseed: { color: "#007FFF", label: "StarSeed", hint: "Servidor StarSeed / OpenVoice automático (Zenith · azul)." },
+  starseed: { color: "#007FFF", label: "StarSeed", hint: "Servidor StarSeed / OmniVoice automático (Zenith · azul)." },
   "api-free": { color: "#FFBF00", label: "API gratis", hint: "API en la nube gratis y sin coste (Logic · ámbar)." },
   "api-external": { color: "#DC143C", label: "API externa", hint: "API externa con clave o de pago (Anchor · rojo)." },
 };

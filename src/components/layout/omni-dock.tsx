@@ -89,6 +89,11 @@ export function OmniDock() {
     // pestaña (storage) o un cambio local del dock (starseed:dock). Sin esto el
     // dock se leía UNA sola vez al montar y "no cambiaba" hasta recargar la
     // página — rompía la regla dorada de descubribilidad (§11).
+    //
+    // Adenda 149 · tanda 3: se añade `starseed:profile` (cambio de perfil de la
+    // cuenta). Cada recarga vuelve a pasar por `loadDockConfig()`, que aplica la
+    // garantía de botones predeterminados (`normalizeDockState`), así que este
+    // listener es también la vía por la que un cambio de perfil converge.
     useEffect(() => {
         const reload = () => {
             setItems(loadDockConfig());
@@ -99,10 +104,12 @@ export function OmniDock() {
         window.addEventListener("storage", reload);
         window.addEventListener("starseed:sync:apply", reload);
         window.addEventListener("starseed:dock", reload);
+        window.addEventListener("starseed:profile", reload);
         return () => {
             window.removeEventListener("storage", reload);
             window.removeEventListener("starseed:sync:apply", reload);
             window.removeEventListener("starseed:dock", reload);
+            window.removeEventListener("starseed:profile", reload);
         };
     }, []);
 

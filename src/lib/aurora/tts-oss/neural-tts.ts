@@ -96,7 +96,19 @@ import {
   type VoiceGenderPref,
 } from "@/lib/aurora/tts-oss/voice-config";
 import { listBrowserVoices, rankBrowserVoices } from "@/lib/aurora/tts-oss/browser-voices";
-import type { OpenVoice2SeedSpec, OpenVoiceEndpoint } from "@/lib/aurora/tts-oss/openvoice2";
+import type { OpenVoiceEndpoint } from "@/lib/aurora/tts-oss/openvoice2";
+import {
+  cachedSynthesis,
+  clearVoiceIdentity,
+  getVoiceIdentity,
+  lockVoiceIdentityEndpoint,
+  markVoiceIdentitySpoke,
+  nextVoiceIdentityToken,
+  setVoiceIdentity,
+  synthCacheKey,
+  voiceIdentityFingerprint,
+  type FrozenVoiceIdentity,
+} from "@/lib/aurora/tts-oss/voice-identity";
 // SOLO TIPO (se borra al compilar): ni acopla el módulo ni crea ciclos — las
 // personalidades se siguen resolviendo con `import()` dinámico donde hacen falta.
 import type { PersonalityProfile } from "@/lib/aurora/personalities";
@@ -217,14 +229,14 @@ export const NEURAL_ENGINE_META: Record<
     repo: "https://github.com/RVC-Boss/GPT-SoVITS",
   },
   omnivoice: {
-    label: "OmniVoice (multilingüe)",
+    label: "OmniVoice k2-fsa (motor)",
     hint: "Voz neural k2-fsa · Next-gen Kaldi",
     voicePlaceholder: "sid o nombre de voz",
     defaultVoice: "", // el servidor elige su voz por defecto si no se indica
     repo: "https://github.com/k2-fsa/OmniVoice",
   },
   openvoice2: {
-    label: "OpenVoice V2 (web, sin instalar)",
+    label: "OpenVoice 2 (motor)",
     hint: "Voz de nube gratis (Space de MyShell): clona timbre a partir de una semilla o de tu audio",
     voicePlaceholder: "estilo (en_br, es_default…)",
     defaultVoice: "", // el estilo/semilla los resuelve el cliente openvoice2.ts
@@ -547,26 +559,57 @@ export async function neuralSynthesize(
      * solo lo usa el motor "openvoice2" (delegateOpenVoice2).
      */
     openVoiceEndpointOverride?: OpenVoiceEndpoint;
+    /**
+     * Identidad CONGELADA del mensaje (uso interno de `neuralSpeakChunked`). Se
+     * pasa EXPLÍCITAMENTE en vez de leer la global para que un trozo en vuelo de
+     * un mensaje que acaba de ser cortado no pueda sintetizarse con la identidad
+     * del mensaje NUEVO (y acabar cacheado bajo la voz equivocada). Ausente ⇒ se
+     * usa la identidad viva si es de este mismo motor.
+     */
+    identityOverride?: FrozenVoiceIdentity;
   } = {},
 ): Promise<Blob | null> {
   const clean = (text || "").trim();
   if (clean.length === 0) return null;
-  const s = opts.settings ?? getEngineSettings(engine);
+  // IDENTIDAD CONGELADA del mensaje (si hay uno hablando y es de ESTE motor):
+  // manda sobre cualquier relectura de config. Es lo que garantiza que el trozo
+  // 7 use exactamente los mismos ajustes que el trozo 1.
+  const frozen = (() => {
+    if (opts.identityOverride) return opts.identityOverride;
+    const id = getVoiceIdentity();
+    return id && id.engine === engine ? id : null;
+  })();
+  const s = opts.settings ?? frozen?.settings ?? getEngineSettings(engine);
 
   // OpenVoice V2 (web, sin instalar): motor de NUBE integrado (como el híbrido
   // OmniVoice) — no es un endpoint del usuario. Se delega SIEMPRE a su cliente,
   // que gestiona la cola del Space, la semilla de identidad y el fallback honesto.
   if (engine === "openvoice2") {
     // ROUTER WEB-ONLY (V2-VOZ): sintetiza por el Space OpenVoice V2 (sin
-    // daemon) vía el router dedicado. Mantiene el flujo de semilla por
-    // personalidad y la continuidad de voz con el endpoint ya fijado.
+    // daemon) vía el router dedicado.
+    //
+    // FIX DE CONTINUIDAD (2026-08-09): esta llamada IGNORABA el endpoint ya
+    // congelado del mensaje (`openVoiceEndpointOverride` no se pasaba a ningún
+    // sitio) y no llevaba ni personalidad, ni semilla, ni la muestra grabada.
+    // Resultado: cada trozo volvía a elegir Space por salud/orden y a resolver
+    // la personalidad por su cuenta ⇒ **otra voz a mitad del mensaje**, que es
+    // exactamente la queja. Ahora todo eso viaja congelado desde la identidad.
     return await omnivoiceWebSynthesize(clean, {
-      personalityId: opts.personalityId,
+      personalityId: opts.personalityId ?? frozen?.personalityId,
       lang: s.lang,
-      style: opts.styleHint,
-      refBlob: opts.refBlob,
+      style: opts.styleHint ?? frozen?.styleHint,
+      refBlob: opts.refBlob ?? frozen?.refBlob,
+      refKey: frozen?.refKey,
+      seedAttrs: frozen?.seedAttrs,
+      useSeed: frozen?.useSeed,
+      seedVersion: frozen?.seedVersion,
+      mood: frozen?.mood,
       budgetCapMs: opts.budgetCapMs,
       signal: opts.signal,
+      endpointOverride: opts.openVoiceEndpointOverride ?? frozen?.openVoiceEndpoint,
+      // Con el mensaje ya sonando NO se salta a otra familia de motor (F5/XTTS/
+      // ChatTTS…): sonaría a otra persona. Solo el primer trozo puede elegir.
+      allowFamilyFailover: !frozen?.spoke,
     }).catch(() => null);
   }
 
@@ -574,7 +617,7 @@ export async function neuralSynthesize(
   if (!endpoint) {
     // OmniVoice sin endpoint manual = MODO HÍBRIDO INTEGRADO (daemon local ↔ nube).
     if (engine === "omnivoice") {
-      return await delegateOmniHybrid(clean, s, opts.budgetCapMs, opts.omniRouteOverride);
+      return await delegateOmniHybrid(clean, s, opts.budgetCapMs, opts.omniRouteOverride, frozen);
     }
     try {
       opts.onError?.(`El motor ${NEURAL_ENGINE_META[engine].label} no tiene endpoint configurado.`);
@@ -593,8 +636,12 @@ export async function neuralSynthesize(
     return null;
   }
 
-  // Modulación emocional resuelta (estilo persistido + overrides del motor).
-  const params = resolveVoiceParams({ engineOverrides: engineStyleOverrides(engine) });
+  // Modulación emocional resuelta (estilo persistido + overrides del motor). Con
+  // un mensaje en curso se usan los parámetros CONGELADOS de su identidad: si el
+  // estilo cambiaba a mitad de respuesta, los trozos siguientes salían con otra
+  // velocidad/energía — otra voz.
+  const params =
+    frozen?.params ?? resolveVoiceParams({ engineOverrides: engineStyleOverrides(engine) });
   // Cada motor recibe la emoción como MEJOR la entienda:
   //   · Bark   → etiquetas [laughs]/[sighs] EN el texto (con moderación).
   //   · VoxCPM → DISEÑO DE VOZ en lenguaje natural entre paréntesis al inicio.
@@ -667,7 +714,13 @@ export async function neuralSynthesize(
     // OmniVoice: si el endpoint MANUAL del usuario no dio audio, cae al HÍBRIDO
     // integrado (daemon local ↔ nube gratis) antes de rendirse. Aurora igual habla.
     if (engine === "omnivoice") {
-      const viaHybrid = await delegateOmniHybrid(clean, s, opts.budgetCapMs, opts.omniRouteOverride);
+      const viaHybrid = await delegateOmniHybrid(
+        clean,
+        s,
+        opts.budgetCapMs,
+        opts.omniRouteOverride,
+        frozen,
+      );
       if (viaHybrid) return viaHybrid;
     }
 
@@ -867,6 +920,23 @@ let currentUrl: string | null = null;
 function emotionPlaybackMod(): { rate: number; volume: number } | null {
   try {
     if (typeof window === "undefined") return null;
+    // IDENTIDAD CONGELADA (fix "cambia de voz dentro del mismo mensaje"): con un
+    // mensaje en curso mandan SIEMPRE sus valores congelados. Antes esto se leía
+    // por TROZO y, como la modulación se aplica con `preservesPitch = false`, un
+    // cambio de ánimo a mitad de respuesta cambiaba literalmente el TONO del
+    // siguiente trozo: la misma frase, otra voz.
+    const frozen = getVoiceIdentity();
+    if (frozen) return frozen.playbackMod;
+    return liveEmotionPlaybackMod();
+  } catch {
+    return null;
+  }
+}
+
+/** Lectura VIVA de la emoción → modulación (la que se congela por mensaje). */
+function liveEmotionPlaybackMod(): { rate: number; volume: number } | null {
+  try {
+    if (typeof window === "undefined") return null;
     const e = (
       window as unknown as {
         STARSEED_userVoiceEmotion?: { mood?: string; confidence?: number };
@@ -926,28 +996,61 @@ export interface NeuralSpeakOptions {
  * comas/espacios. PURO y testeable. Nunca devuelve trozos vacíos.
  */
 export function splitTextForVoice(text: string, maxLen = 220): string[] {
+  return planVoiceChunks(text, { first: maxLen, rest: maxLen });
+}
+
+/**
+ * PLAN DE TROZOS de un mensaje (fix de latencia y pausas, 2026-08-09).
+ *
+ * Trocear frase a frase con un tope ÚNICO (lo de antes: 220 caracteres para
+ * todo) tenía dos costes que el usuario oía:
+ *   · MUCHAS peticiones — cada trozo paga el peaje fijo del motor (unirse a la
+ *     cola del Space, subir/validar la referencia, arrancar la inferencia). Con
+ *     trozos cortos, ese peaje domina y aparecen las pausas entre frases.
+ *   · el PRIMER trozo pesaba lo mismo que los demás, así que el tiempo hasta el
+ *     primer sonido era el peor de todos.
+ *
+ * Aquí el presupuesto es asimétrico: el PRIMER trozo es corto (arranque rápido:
+ * Aurora empieza a hablar antes) y los siguientes son largos (menos viajes; y
+ * como se sintetizan MIENTRAS suena el anterior, su latencia queda escondida).
+ * Se respetan siempre los finales de frase — el corte cae donde ya había una
+ * pausa natural, así que agrupar no cambia la prosodia.
+ *
+ * PURA y testeable; nunca devuelve trozos vacíos. `first === rest` reproduce
+ * exactamente el troceo histórico (`splitTextForVoice`).
+ */
+export function planVoiceChunks(
+  text: string,
+  opts: { first?: number; rest?: number } = {},
+): string[] {
   const clean = (text || "").replace(/\s+/g, " ").trim();
   if (!clean) return [];
-  if (clean.length <= maxLen) return [clean];
+  const first = Math.max(40, Math.floor(opts.first ?? 220));
+  const rest = Math.max(first, Math.floor(opts.rest ?? first));
+  if (clean.length <= first) return [clean];
+
   const sentences = clean.match(/[^.!?…]+[.!?…]+["»”)]?\s*|[^.!?…]+$/g) ?? [clean];
   const out: string[] = [];
   let cur = "";
+  /** Tope del trozo que se está formando: corto si aún no hemos emitido ninguno. */
+  const budget = () => (out.length === 0 ? first : rest);
   const push = () => {
     const t = cur.trim();
     if (t) out.push(t);
     cur = "";
   };
   for (const s of sentences) {
-    if ((cur + s).length <= maxLen) {
+    if ((cur + s).length <= budget()) {
       cur += s;
       continue;
     }
     push();
-    if (s.length <= maxLen) {
+    if (s.length <= budget()) {
       cur = s;
       continue;
     }
     // Frase gigante: parte por comas; si aún excede, por palabras a lo bruto.
+    const maxLen = budget();
     let piece = "";
     for (const frag of s.split(/(?<=,)\s*/)) {
       if ((piece + frag).length <= maxLen) {
@@ -962,10 +1065,32 @@ export function splitTextForVoice(text: string, maxLen = 220): string[] {
         for (let i = 0; i < frag.length; i += maxLen) out.push(frag.slice(i, i + maxLen).trim());
       }
     }
+    // El resto se queda EN CURSO para poder fundirse con la frase siguiente.
     if (piece.trim()) cur = piece;
   }
   push();
   return out.filter(Boolean);
+}
+
+/**
+ * Presupuesto de caracteres por trozo según el motor y su ruta REAL.
+ *
+ *  · openvoice2 / omnivoice-nube (Space HF gratis): el peaje por petición es
+ *    enorme comparado con la inferencia ⇒ trozos LARGOS (menos viajes).
+ *  · omnivoice LOCAL (daemon en el equipo del usuario): la inferencia cuesta
+ *    ~6-7× tiempo real, así que un trozo largo se acerca al watchdog del daemon
+ *    ⇒ trozos CORTOS (el peaje local es despreciable: es 127.0.0.1).
+ *
+ * PURA (sin red, sin `window`): decide solo con el motor y la ruta congelada.
+ */
+export function chunkBudgetFor(
+  engine: NeuralVoiceEngine,
+  route?: OmniRouteDecision,
+): { first: number; rest: number } {
+  if (engine === "omnivoice" && route?.route === "local") return { first: 130, rest: 230 };
+  if (engine === "omnivoice") return { first: 160, rest: 340 };
+  if (engine === "openvoice2") return { first: 160, rest: 380 };
+  return { first: 220, rest: 220 };
 }
 
 
@@ -1123,51 +1248,91 @@ async function playSequentialViaMixer(
     const mixer = await import("@/lib/aurora/tts-oss/omnivoice-mixer");
     if (!mixer.mixerSupported()) return false;
     const CROSS_MS = 120;
+    /** Cuánto antes del final despertamos para preparar y agendar el siguiente. */
+    const LEAD_SEC = 0.6;
     let started = false;
     let aborted = false;
+    /** Despierta la espera en curso al cortar (para que `onEnd` no llegue tarde). */
+    let wakeFromWait: (() => void) | null = null;
     // El stop global corta el mixer (stopMixer, vía stopConfiguredEngine) y
     // este flag evita que sigamos agendando trozos tras el corte.
     (window as unknown as { __astrauraStopContinuous?: () => void }).__astrauraStopContinuous = () => {
       aborted = true;
       try { mixer.stopMixer(); } catch { /* */ }
+      try { wakeFromWait?.(); } catch { /* */ }
     };
+    /** Espera `ms`, pero vuelve AL INSTANTE si el usuario corta la locución. */
+    const sleep = (ms: number) =>
+      new Promise<void>((resolve) => {
+        if (aborted || ms <= 0) return resolve();
+        let done = false;
+        const finish = () => {
+          if (done) return;
+          done = true;
+          wakeFromWait = null;
+          clearTimeout(timer);
+          resolve();
+        };
+        const timer = setTimeout(finish, ms);
+        wakeFromWait = finish;
+      });
     const mod = (() => {
       try { return emotionPlaybackMod(); } catch { return null; }
     })();
 
-    // Prefetch CORRECTO por índice: sembramos el trozo 0 y, al consumir el
-    // trozo i, ya disparamos el i+1 (así el siguiente se sintetiza mientras
-    // suena el actual, SIN perder ningún índice — bug de la primera versión).
-    let nextBlob: Promise<Blob | null> = provider(0).catch(() => null);
+    // ENCADENADO POR RELOJ DE AUDIO (fix "se separa y tarda entre las pausas"):
+    // cada trozo se AGENDA en el instante exacto en que termina el anterior
+    // (menos el crossfade), en el reloj de WebAudio. Antes se esperaba con
+    // `setTimeout` y se decodificaba el siguiente ya en el último momento: el
+    // timer siempre llega tarde y el decode cuesta, así que entre frase y frase
+    // había un silencio audible. Ahora el hueco es ≈ 0 mientras el audio esté
+    // listo (el proveedor lo trae con lookahead), y si no lo está simplemente
+    // suena en cuanto llega.
+    let nextAt = 0; // 0 ⇒ "ya" (primer trozo)
+    let lastEndAt = 0;
     for (let i = 0; i < count; i++) {
       if (aborted) return started; // cortado: el turno ya se consumió si empezó
-      const blob = await nextBlob;
-      // Disparar el prefetch del SIGUIENTE trozo ANTES de reproducir este.
-      nextBlob = i + 1 < count ? provider(i + 1).catch(() => null) : Promise.resolve(null);
+      const blob = await provider(i).catch(() => null);
       if (aborted) return started;
       if (!blob) {
         if (i === 0) return false; // primer trozo falló → que lo intente la ruta clásica
-        return started; // trozos posteriores fallan → cerrar con dignidad
+        break; // trozos posteriores fallan → cerrar con dignidad
       }
       try { opts.onChunk?.(i, blob); } catch { /* */ }
-      const res = await mixer.mixerPlayBlobInfo(blob, {
+      // Decodificar ANTES de agendar (el decode ya no se cuela en la costura).
+      const buffer = await mixer.mixerDecodeBlob(blob);
+      if (aborted) return started;
+      if (!buffer) {
+        if (i === 0) return false; // el mixer no pudo con el primero → clásica
+        break;
+      }
+      const res = mixer.mixerPlayBufferAt(buffer, {
+        at: nextAt > 0 ? nextAt : undefined,
         crossfadeMs: i === 0 ? 0 : CROSS_MS,
         rate: mod?.rate,
         volume: mod?.volume,
       });
       if (!res.ok) {
-        if (i === 0) return false; // el mixer no pudo con el primero → clásica
-        return started;
+        if (i === 0) return false;
+        break;
       }
       if (!started) {
         started = true;
         try { opts.onStart?.(); } catch { /* */ }
       }
-      // Esperar hasta JUSTO antes del final del trozo (dejando la ventana de
-      // crossfade) mientras el prefetch del siguiente ya corre en paralelo.
-      const waitMs = Math.max(0, res.durationSec * 1000 - (i + 1 < count ? CROSS_MS : 0));
-      await new Promise((r) => setTimeout(r, waitMs));
+      lastEndAt = res.endAt;
+      nextAt = Math.max(0, res.endAt - CROSS_MS / 1000);
+      if (i + 1 < count) {
+        // Despertar un pelín antes del final para tener el siguiente agendado a
+        // tiempo (el prefetch del proveedor ya lo está sintetizando).
+        const waitSec = Math.max(0, res.endAt - mixer.mixerNow() - LEAD_SEC);
+        await sleep(waitSec * 1000);
+      }
     }
+    // Esperar al final REAL del último trozo agendado (para que el `onEnd` del
+    // llamador —glow del orbe, reanudar micrófono— caiga cuando de verdad calla).
+    const remainMs = Math.max(0, (lastEndAt - mixer.mixerNow()) * 1000);
+    if (remainMs > 0 && !aborted) await sleep(remainMs);
     return started;
   } catch {
     return false;
@@ -1304,39 +1469,214 @@ async function playSequentialContinuous(
   });
 }
 
+/* ── IDENTIDAD DE VOZ CONGELADA POR MENSAJE ──────────────────────────────────
+ *
+ * INVARIANTE #1 del sistema OmniVoice: **la misma voz dentro del mismo mensaje**.
+ * Todo lo que puede alterar el timbre se resuelve AQUÍ, una sola vez, antes del
+ * primer trozo; los trozos ya solo consumen. Lo que se congela y por qué:
+ *
+ *   · `settings` — ajustes del motor (con el idioma ya detectado del texto).
+ *   · `params` / `playbackMod` — estilo persistido y modulación emocional. Se
+ *     leían POR TROZO: si el usuario cambiaba de ánimo (o el panel de voz
+ *     tocaba el estilo) a mitad de respuesta, el trozo siguiente salía con otra
+ *     velocidad y —con `preservesPitch = false`— con otro TONO.
+ *   · `personalityId` · `seedAttrs` · `refBlob`/`refKey` — quién habla y con qué
+ *     semilla o muestra real. Antes se resolvía dentro de cada síntesis, y por
+ *     el camino web ni siquiera llegaba la muestra grabada.
+ *   · `styleHint` · `useSeed` · `seedVersion` · `omni` — config OmniVoice
+ *     EFECTIVA (cuenta × personalidad), que se releía por trozo.
+ *   · `omniRoute` — local ⟷ nube, decidida con UN handshake por mensaje.
+ *   · `openVoiceEndpoint` — se rellena al ganar el primer trozo.
+ *
+ * COHERENCIA ENTRE CHATS: como la identidad se deriva de la PERSONALIDAD activa
+ * (semilla, `voiceStyle` y su config OmniVoice), el mismo personaje suena igual
+ * en cualquier chat donde se use — no depende del chat ni del turno.
+ *
+ * Todo es best-effort: cualquier pieza que falle queda `undefined` y el motor
+ * cae exactamente en su camino previo. NUNCA lanza.
+ */
+/**
+ * Identidad MÍNIMA de emergencia: si la resolución completa fallara (no debería:
+ * cada tramo va en su try/catch), el mensaje sigue teniendo UNA identidad — con
+ * ella se conserva el troceo, la caché y la invariante de "una sola voz", solo
+ * que con los valores por defecto del motor.
+ */
+function fallbackVoiceIdentity(
+  engine: NeuralVoiceEngine,
+  settingsOverride?: NeuralEngineSettings,
+): FrozenVoiceIdentity {
+  let settings: NeuralEngineSettings;
+  try {
+    settings = settingsOverride ?? getEngineSettings(engine);
+  } catch {
+    settings = (settingsOverride ?? {}) as NeuralEngineSettings;
+  }
+  const identity: FrozenVoiceIdentity = {
+    token: nextVoiceIdentityToken(),
+    engine,
+    settings,
+    params: { rate: 1, pitch: 1, volume: 1, energy: 50 },
+    playbackMod: null,
+    fingerprint: voiceIdentityFingerprint({ engine, lang: settings.lang }),
+    spoke: false,
+  };
+  setVoiceIdentity(identity);
+  return identity;
+}
+
+async function beginMessageVoiceIdentity(
+  engine: NeuralVoiceEngine,
+  settingsOverride?: NeuralEngineSettings,
+): Promise<FrozenVoiceIdentity> {
+  const token = nextVoiceIdentityToken();
+  let settings: NeuralEngineSettings;
+  try {
+    settings = settingsOverride ?? getEngineSettings(engine);
+  } catch {
+    settings = (settingsOverride ?? {}) as NeuralEngineSettings;
+  }
+  let params: ResolvedVoiceParams;
+  try {
+    params = resolveVoiceParams({ engineOverrides: engineStyleOverrides(engine) });
+  } catch {
+    params = { rate: 1, pitch: 1, volume: 1, energy: 50 };
+  }
+  const playbackMod = liveEmotionPlaybackMod();
+  let mood: string | undefined;
+  try {
+    const e = (
+      window as unknown as { STARSEED_userVoiceEmotion?: { mood?: string; confidence?: number } }
+    ).STARSEED_userVoiceEmotion;
+    if (e && typeof e.confidence === "number" && e.confidence >= 0.35 && typeof e.mood === "string") {
+      mood = e.mood;
+    }
+  } catch {
+    /* sin ánimo detectado */
+  }
+
+  const identity: FrozenVoiceIdentity = {
+    token,
+    engine,
+    settings,
+    params,
+    playbackMod,
+    mood,
+    fingerprint: "",
+    spoke: false,
+  };
+
+  // Los motores por ENDPOINT del usuario (voxcpm/bark/gpt-sovits/voicebox) no
+  // usan semilla, personalidad ni ruta híbrida: para ellos la identidad termina
+  // aquí (ajustes + estilo + modulación congelados) y nos ahorramos tres imports
+  // dinámicos por turno.
+  if (engine !== "openvoice2" && engine !== "omnivoice") {
+    identity.fingerprint = voiceIdentityFingerprint({
+      engine,
+      lang: settings.lang,
+      mood: identity.mood,
+      params,
+    });
+    setVoiceIdentity(identity);
+    return identity;
+  }
+
+  // ── Personalidad que habla: semilla, referencia real y arquetipo local ──────
+  try {
+    const mod = await import("@/lib/aurora/personalities");
+    const profile =
+      (typeof mod.resolvePersonalityForContext === "function"
+        ? mod.resolvePersonalityForContext({})
+        : null) ??
+      (typeof mod.getActivePersonality === "function" ? mod.getActivePersonality() : null);
+    if (profile) {
+      identity.personalityId = profile.id;
+      // Voz GRABADA/IMPORTADA de esta personalidad → clonación real (Adenda 149 ·
+      // Ola 3). Hasta ahora esto se resolvía en una función que NADIE llamaba
+      // (`delegateOpenVoice2`, muerta desde que el motor pasó por el router web):
+      // la muestra del usuario no llegaba nunca a la síntesis. Ahora viaja en la
+      // identidad y la usan todos los trozos, siempre la MISMA.
+      const ref = personaVoiceRefBlob(profile);
+      identity.refBlob = ref?.blob;
+      identity.refKey = ref?.key;
+      if (typeof mod.mapPersonalityToDesign === "function") {
+        identity.seedAttrs = {
+          attrs: mod.mapPersonalityToDesign(profile),
+          instruct:
+            (profile.voiceStyle?.omni?.instruct as string | undefined) ||
+            profile.voiceStyle?.tone ||
+            "",
+          lang: profile.idioma || settings.lang || "es",
+          text: "",
+        };
+      }
+    }
+  } catch {
+    /* sin personalidades resolubles → manda la cuenta (camino previo) */
+  }
+
+  // ── Config OmniVoice EFECTIVA + arquetipo de semilla (una vez por mensaje) ──
+  try {
+    const hybrid = await import("@/lib/aurora/tts-oss/omnivoice-hybrid");
+    const omni = await hybrid.resolveActiveOmni().catch(() => null);
+    if (omni) {
+      identity.omni = omni;
+      identity.styleHint = omni.openvoice?.style;
+      identity.useSeed = omni.openvoice?.use_seed;
+      identity.seedVersion = omni.openvoice?.seed_version;
+    }
+    // Identidad local (sube la semilla al daemon UNA vez) + arquetipo publicado.
+    void hybrid.ensureLocalIdentity(identity.personalityId);
+    if (engine === "omnivoice") {
+      // HANDSHAKE ÚNICO POR MENSAJE: decide local ⟷ nube aquí y no en cada trozo.
+      identity.omniRoute = await hybrid
+        .decideOmniRoute(undefined, undefined, identity.personalityId)
+        .catch(() => undefined);
+    }
+  } catch {
+    /* sin híbrido disponible → cada motor sigue con sus defaults */
+  }
+  try {
+    const ov = await import("@/lib/aurora/tts-oss/openvoice2");
+    identity.personaKind = ov.seedKindFor(identity.personalityId) || "";
+  } catch {
+    identity.personaKind = "";
+  }
+
+  identity.fingerprint = voiceIdentityFingerprint({
+    engine,
+    lang: settings.lang,
+    personalityId: identity.personalityId,
+    styleHint: identity.styleHint,
+    refKey: identity.refKey,
+    useSeed: identity.useSeed,
+    seedVersion: identity.seedVersion,
+    mood: identity.mood,
+    params,
+    seedAttrs: identity.seedAttrs,
+    omni: identity.omni,
+  });
+
+  setVoiceIdentity(identity);
+  return identity;
+}
+
 async function neuralSpeakChunked(
   engine: NeuralVoiceEngine,
   chunks: string[],
   opts: NeuralSpeakOptions,
+  identity: FrozenVoiceIdentity,
 ): Promise<HTMLAudioElement | null> {
   const myGen = ++chunkGeneration;
   const alive = () => myGen === chunkGeneration;
   const fullHash = voiceTextHash(chunks.join(" "));
 
-  // CONTINUIDAD DE VOZ (fix 2026-07-21): fija el motor/ruta/endpoint UNA vez
-  // para TODO el mensaje y lo reutiliza en cada trozo — así ningún trozo
-  // intermedio puede saltar a un motor, ruta o Space distinto (la causa real
-  // de "varias voces" con huecos largos entre trozos). OmniVoice decide su
-  // ruta ANTES del primer trozo (el handshake es barato y no depende del
-  // resultado); OpenVoice V2 congela el endpoint que GANÓ el primer trozo (su
-  // elección depende de la salud/orden de varios Spaces — más natural fijarla
-  // a partir de un éxito real que precalcularla).
-  let omniRoute: OmniRouteDecision | undefined;
-  if (engine === "omnivoice") {
-    try {
-      const hybrid = await import("@/lib/aurora/tts-oss/omnivoice-hybrid");
-      // Adenda 149 · Ola 3: la decisión CONGELADA del mensaje se toma con la
-      // personalidad activa, para que use la misma vía (`voz.modo` por neurona ×
-      // personalidad) que usarán sus trozos. Sin personalidades resolubles o sin
-      // overrides guardados, `decideOmniRoute(undefined, undefined, undefined)`
-      // es exactamente la llamada previa.
-      omniRoute = await hybrid.decideOmniRoute(undefined, undefined, await activePersonalityIdSafe());
-    } catch {
-      omniRoute = undefined; // sin decisión congelada: cada trozo decidirá por sí mismo
-    }
-    if (!alive()) return null;
-  }
-  let openVoiceEndpoint: OpenVoiceEndpoint | undefined;
+  // CONTINUIDAD DE VOZ: la identidad (motor · ruta · endpoint · personalidad ·
+  // semilla · estilo · modulación) YA viene congelada por `neuralSpeak` en
+  // `identity` y la leen todos los eslabones vía `voice-identity.ts`. Aquí solo
+  // queda congelar el ENDPOINT ganador del primer trozo (su elección depende de
+  // la salud real de varios Spaces: más honesto fijarla tras un éxito que
+  // adivinarla) antes de lanzar el prefetch del resto.
+  const omniRoute = identity.omniRoute;
 
   // Presupuesto TOPE por trozo. Dos realidades distintas según la ruta:
   //  · RUTA LOCAL (daemon OmniVoice residente en M1/8 GB): ~40-90 s por frase
@@ -1362,32 +1702,85 @@ async function neuralSpeakChunked(
           ? 120_000 // espera al Space en frío (cold start HF ~120 s)
           : 60_000, // trozos siguientes: Space ya caliente (~60 s)
       omniRouteOverride: omniRoute,
-      openVoiceEndpointOverride: openVoiceEndpoint,
+      // El endpoint congelado viaja DENTRO de la identidad (se rellena al ganar
+      // el trozo 0), así el primero corre con failover completo y los siguientes
+      // heredan el ganador. La identidad se pasa explícita: ningún trozo puede
+      // acabar hablando con la voz de otro mensaje.
+      identityOverride: identity,
     }).catch(() => null);
 
-  const first = await synth(chunks[0], 0);
-  if (!first || !alive()) return null;
+  // ── PIPELINE DE TROZOS (fix "tarda mucho" + "se separa entre pausas") ──────
+  // Un trozo se sintetiza UNA SOLA VEZ aunque el reproductor lo pida varias
+  // (antes: el trozo 0 se sintetizaba para comprobar el motor, otra vez para el
+  // mixer y otra más si el mixer declinaba → hasta 3 viajes idénticos antes del
+  // primer sonido). Y al consumir el trozo `i` se lanzan ya los `LOOKAHEAD`
+  // siguientes, no solo uno: con Spaces que tardan más en sintetizar que lo que
+  // dura el audio, un lookahead de 1 dejaba un hueco EN CADA costura.
+  const LOOKAHEAD = 2;
+  const jobs = new Map<number, Promise<Blob | null>>();
+  const start = (i: number): Promise<Blob | null> => {
+    const hit = jobs.get(i);
+    if (hit) return hit;
+    if (!alive()) return Promise.resolve(null); // mensaje cortado: no gastar red
+    const key = synthCacheKey(identity.fingerprint, chunks[i]);
+    const job = cachedSynthesis(key, () => synth(chunks[i], i));
+    jobs.set(i, job);
+    return job;
+  };
+  /**
+   * El prefetch NO arranca hasta que el trozo 0 ha ganado y la voz del mensaje
+   * está congelada (endpoint incluido). Si los trozos 1..N salieran en paralelo
+   * con el 0, cada uno elegiría su propio Space por salud/orden — que es
+   * exactamente el bug que estamos matando.
+   */
+  let pipelineOpen = false;
+  /** Proveedor del reproductor: devuelve el trozo `i` y adelanta los siguientes. */
+  const provider = (i: number): Promise<Blob | null> => {
+    const job = start(i);
+    if (pipelineOpen && alive()) {
+      for (let k = 1; k <= LOOKAHEAD; k++) {
+        if (i + k < chunks.length) void start(i + k);
+      }
+    }
+    return job;
+  };
 
-  // Tras el PRIMER trozo: si el motor es OpenVoice V2, fija el endpoint que
-  // ganó para que el resto del mensaje hable por el MISMO Space (mismo timbre).
+  const first = await provider(0);
+  if (!first || !alive()) {
+    clearVoiceIdentity(identity.token);
+    return null;
+  }
+
+  // Tras el PRIMER trozo: si el motor es OpenVoice V2, congela el endpoint que
+  // GANÓ para que el resto del mensaje hable por el MISMO Space (mismo timbre).
+  // Se hace ANTES de lanzar el prefetch de los trozos 1..N (el prefetch corre en
+  // paralelo: si no estuviera congelado ya, cada uno elegiría su propio Space).
   if (engine === "openvoice2") {
     try {
       const ov = await import("@/lib/aurora/tts-oss/openvoice2");
-      openVoiceEndpoint = ov.getOpenVoice2LockedEndpoint() ?? undefined;
+      lockVoiceIdentityEndpoint(identity.token, ov.getOpenVoice2LockedEndpoint() ?? undefined);
     } catch {
-      openVoiceEndpoint = undefined;
+      /* sin endpoint congelado: cada trozo usa el orden de salud (como antes) */
     }
   }
+  // El mensaje YA está comprometido con una voz concreta: a partir de aquí
+  // ningún trozo puede saltar a otra FAMILIA de motor (sonaría a otra persona).
+  // Se marca al ganar el trozo 0 —no al empezar a sonar— porque el prefetch de
+  // los trozos 1..N arranca antes de la primera nota.
+  markVoiceIdentitySpoke(identity.token);
 
-  // REPRODUCCIÓN CONTINUA (fix 2026-07-23): en vez de reproducir trozo a trozo
-  // con `waitEnd` (que deja huecos y suena "en varias partes"), hablamos TODO
-  // el mensaje como UNA SOLA VOZ: cada trozo arranca ~280 ms antes de que termine
-  // el anterior (`playSequentialContinuous`). El provider sintetiza bajo demanda
-  // con prefetch del siguiente MIENTRAS suena el actual → misma latencia del
-  // primer sonido, pero locución ininterrumpida y con la MISMA voz (la ruta ya
-  // está congelada en `omniRouteOverride`/`openVoiceEndpointOverride`).
+  // Voz congelada ⇒ ya es seguro adelantar trabajo: los trozos siguientes se
+  // sintetizan MIENTRAS suena el primero, todos con la misma identidad.
+  pipelineOpen = true;
+  for (let k = 1; k <= LOOKAHEAD && k < chunks.length; k++) void start(k);
+
+  // REPRODUCCIÓN CONTINUA: el mensaje suena como UNA SOLA VOZ — el mixer agenda
+  // cada trozo en el reloj de WebAudio justo antes de que acabe el anterior
+  // (hueco ≈ 0, con crossfade) y, si WebAudio no está, el camino clásico
+  // HTMLAudio arranca el siguiente ~280 ms antes del final. El proveedor ya
+  // trae el audio sintetizado de antemano.
   return await playSequentialContinuous(
-    (i: number) => synth(chunks[i], i),
+    provider,
     chunks.length,
     {
       onStart: opts.onStart,
@@ -1396,6 +1789,7 @@ async function neuralSpeakChunked(
         void emitVoiceNote({ textHash: fullHash, chunkIndex: i, chunkCount: chunks.length, engine, blob }),
     },
   ).then((audio) => {
+    clearVoiceIdentity(identity.token); // fin del mensaje: identidad descongelada
     try { opts.onEnd?.(); } catch { /* */ }
     return audio;
   });
@@ -1406,7 +1800,12 @@ export async function neuralSpeak(
   text: string,
   opts: NeuralSpeakOptions = {},
 ): Promise<HTMLAudioElement | null> {
+  /** Token del mensaje en curso (se rellena al congelar su identidad). */
+  let identityToken: number | undefined;
   const fireEnd = () => {
+    // Fin del turno ⇒ se descongela la identidad (el siguiente mensaje resuelve
+    // la suya y la modulación vuelve a leerse en vivo).
+    if (identityToken !== undefined) clearVoiceIdentity(identityToken);
     try { opts.onEnd?.(); } catch { /* */ }
   };
   const fail = (message: string): null => {
@@ -1437,11 +1836,18 @@ export async function neuralSpeak(
   // frontend degradaba a Kokoro. Trozo a trozo, cada síntesis queda muy por
   // debajo del timeout.
   let singleShotBudgetCapMs: number | undefined;
+  // IDENTIDAD DE VOZ del mensaje: se congela ANTES de trocear (así el plan de
+  // trozos ya conoce la ruta local/nube y todos los eslabones comparten una sola
+  // resolución de personalidad/estilo/semilla). Ver `beginMessageVoiceIdentity`.
+  const identity = await beginMessageVoiceIdentity(engine, opts.settings).catch(() =>
+    fallbackVoiceIdentity(engine, opts.settings),
+  );
+  identityToken = identity.token;
   if (engine === "openvoice2" || engine === "omnivoice") {
-    const chunks = splitTextForVoice(text);
+    const chunks = planVoiceChunks(text, chunkBudgetFor(engine, identity.omniRoute));
     if (chunks.length > 1) {
-      stopNeural(); // una voz a la vez (invalida troceos previos)
-      return await neuralSpeakChunked(engine, chunks, opts);
+      stopNeural({ keepIdentity: identity.token }); // una voz a la vez
+      return await neuralSpeakChunked(engine, chunks, opts, identity);
     } else if (engine === "openvoice2") {
       // TURNO CORTO SIN TROCEAR (fix cuelgue ~85 s, 2026-07-21): sin
       // presupuesto TOTAL, el bucle multi-endpoint de OpenVoice2
@@ -1454,18 +1860,24 @@ export async function neuralSpeak(
     }
   }
 
-  const blob = await neuralSynthesize(engine, text, {
-    settings: opts.settings,
-    onError: opts.onError,
-    budgetCapMs: singleShotBudgetCapMs,
-  });
+  // TURNO CORTO (un solo trozo): también pasa por la caché de (texto × identidad)
+  // — repetir el mismo mensaje (o el botón «escuchar otra vez») ya no vuelve a
+  // pagar el viaje al Space.
+  const blob = await cachedSynthesis(synthCacheKey(identity.fingerprint, text), () =>
+    neuralSynthesize(engine, text, {
+      settings: opts.settings,
+      onError: opts.onError,
+      budgetCapMs: singleShotBudgetCapMs,
+      identityOverride: identity,
+    }),
+  );
   if (!blob) {
     fireEnd();
     return null;
   }
   void emitVoiceNote({ textHash: voiceTextHash(text), chunkIndex: 0, chunkCount: 1, engine, blob });
 
-  stopNeural(); // una voz a la vez
+  stopNeural({ keepIdentity: identity.token }); // una voz a la vez
 
   return await new Promise<HTMLAudioElement | null>((resolve) => {
     let settled = false;
@@ -1535,9 +1947,21 @@ export async function neuralSpeak(
   });
 }
 
-/** Detiene la reproducción neural en curso (si la hay). Idempotente. Nunca lanza. */
-export function stopNeural(): void {
+/**
+ * Detiene la reproducción neural en curso (si la hay). Idempotente. Nunca lanza.
+ *
+ * También CIERRA la identidad de voz congelada del mensaje (si no se pide
+ * conservarla): así la modulación emocional vuelve a leerse en vivo para el
+ * siguiente turno en vez de quedarse pegada a la del mensaje anterior.
+ * `keepIdentity` lo usa `neuralSpeak` cuando el stop forma parte del arranque
+ * de un mensaje NUEVO cuya identidad acaba de congelar.
+ */
+export function stopNeural(opts: { keepIdentity?: number } = {}): void {
   chunkGeneration++; // invalida cualquier habla troceada en curso (Adenda 82)
+  try {
+    const cur = getVoiceIdentity();
+    if (cur && cur.token !== opts.keepIdentity) clearVoiceIdentity(cur.token);
+  } catch { /* */ }
   // Adenda 97 (fix): parar TAMBIÉN el pool de <audio> del reproductor troceado
   // continuo (playSequentialContinuous registra su parada en este handle, que
   // hasta ahora NADIE invocaba — el botón de parar dejaba sonando los trozos).
@@ -1683,9 +2107,29 @@ async function delegateOmniHybrid(
   s: NeuralEngineSettings,
   budgetCapMs?: number,
   routeOverride?: OmniRouteDecision,
+  /**
+   * Identidad CONGELADA del mensaje (2026-08-09). Cuando viene, ni la config
+   * OmniVoice efectiva ni la personalidad se vuelven a resolver por trozo: se
+   * usan las del mensaje. Antes, cada trozo repetía `resolveActiveOmni()` (con
+   * su import dinámico de personalidades) y podía salir con OTRO diseño de voz
+   * si algo cambiaba a mitad de respuesta.
+   */
+  frozen?: FrozenVoiceIdentity | null,
 ): Promise<Blob | null> {
   try {
     const hybrid = await import("@/lib/aurora/tts-oss/omnivoice-hybrid");
+    if (frozen) {
+      return await hybrid
+        .synthesizeOmniVoiceHybrid(text, {
+          lang: s.lang,
+          personalityId: frozen.personalityId,
+          budgetCapMs,
+          routeOverride: routeOverride ?? frozen.omniRoute,
+          omniResolved: frozen.omni,
+          personaKind: frozen.personaKind,
+        })
+        .catch(() => null);
+    }
     // IDENTIDAD FEMENINA POR PERSONALIDAD (Adenda 87): resuelve la personalidad
     // activa, publica su "kind" para que el cuerpo local viaje con `personality`
     // (el daemon clona refs/<kind>.<langBase>.wav o fija su --seed estable) y
@@ -1827,103 +2271,21 @@ function personaVoiceRefBlob(profile: PersonalityProfile | null | undefined): { 
   }
 }
 
-/**
- * Delega en el cliente OPENVOICE V2 (Space web, sin instalar). Resuelve la config
- * EFECTIVA de OmniVoice (cuenta + personalidad → sub-esquema `openvoice`) y la
- * personalidad activa (para la semilla de identidad, el estilo y el aprendizaje
- * por voz). NUNCA lanza; null ⇒ la cadena de voz sigue.
+/*
+ * NOTA (2026-08-09) — `delegateOpenVoice2` ELIMINADA.
  *
- * VOZ PROPIA DE LA PERSONALIDAD (Adenda 149 · Ola 3): si esa personalidad tiene
- * una `voiceStyle.audioRef` grabada o importada, su audio viaja como `refBlob` y
- * el Space CLONA esa voz en vez de sintetizar la semilla. Es la única vía de
- * clonación real y siempre parte de audio que el propio usuario aportó.
- *
- * PROPAGACIÓN DE IDIOMA (fix del acento importado, 2026-07-21): igual que en
- * `delegateOmniHybrid`, `s.lang` puede venir YA anulado por la auto-detección
- * CONFIABLE del texto real (`speak-router.ts::detectSpokenLang`). Se pasa tal
- * cual como `lang: s.lang` a `synthesizeOpenVoice2`, que lo usa tanto para el
- * Style del Space (`resolveOpenVoice2Style` — ya NO fuerza acento de
- * personalidad fuera de su propia familia de idioma, ver openvoice2.ts) como
- * para elegir/diseñar la SEMILLA nativa de ese idioma (`seedSpecFor`,
- * cacheada por (personalidad, idioma)).
- *
- * CONTINUIDAD DE VOZ EN MENSAJES TROCEADOS (fix 2026-07-21): `endpointOverride`
- * (el Space que ganó el primer trozo, leído por `neuralSpeakChunked` vía
- * `getOpenVoice2LockedEndpoint()`) se propaga tal cual a `synthesizeOpenVoice2`
- * para que todos los trozos de un mismo mensaje hablen por el MISMO Space.
+ * Era una delegación DIRECTA a `synthesizeOpenVoice2` que resolvía aquí la
+ * personalidad, su semilla, su muestra grabada y el sub-esquema `openvoice` de
+ * la config. Desde que el motor pasó a enrutarse por `omnivoice-web-router.ts`
+ * (V2-VOZ) NADIE la llamaba: `neuralSynthesize` iba directo al router, que NO
+ * recibía nada de eso. El efecto real en producción era doble —
+ *   · la voz GRABADA/IMPORTADA de una personalidad nunca llegaba al Space
+ *     (la clonación de la Adenda 149 · Ola 3 estaba muerta de hecho), y
+ *   · el endpoint congelado del mensaje se perdía por el camino, así que cada
+ *     trozo podía caer en OTRO Space ⇒ otra voz a mitad de mensaje.
+ * Toda esa resolución vive ahora en `beginMessageVoiceIdentity()` (una vez por
+ * mensaje) y viaja congelada hasta `omnivoiceWebSynthesize`.
  */
-async function delegateOpenVoice2(
-  text: string,
-  s: NeuralEngineSettings,
-  onError?: (message: string) => void,
-  budgetCapMs?: number,
-  endpointOverride?: OpenVoiceEndpoint,
-): Promise<Blob | null> {
-  try {
-    const [{ synthesizeOpenVoice2 }, hybrid] = await Promise.all([
-      import("@/lib/aurora/tts-oss/openvoice2"),
-      import("@/lib/aurora/tts-oss/omnivoice-hybrid"),
-    ]);
-    const omni = await hybrid.resolveActiveOmni().catch(() => null);
-    const ov = omni?.openvoice;
-
-    let personalityId: string | undefined;
-    let seedAttrs: OpenVoice2SeedSpec | undefined;
-    let personaRef: { blob: Blob; key: string } | null = null;
-    try {
-      const mod = await import("@/lib/aurora/personalities");
-      const profile = mod.getActivePersonality?.();
-      personalityId = profile?.id;
-      // Adenda 149 · Ola 3: voz GRABADA/IMPORTADA de esta personalidad → clonación
-      // real (kind "builtin" no produce referencia y sigue con la semilla).
-      personaRef = personaVoiceRefBlob(profile);
-      // Semilla ad-hoc (para personalidades sin semilla curada): usa SU diseño de
-      // voz, INSPIRADO en su arquetipo — jamás audio real de nadie.
-      if (profile && typeof mod.mapPersonalityToDesign === "function") {
-        seedAttrs = {
-          attrs: mod.mapPersonalityToDesign(profile),
-          instruct:
-            (profile.voiceStyle?.omni?.instruct as string | undefined) ||
-            profile.voiceStyle?.tone ||
-            "",
-          lang: profile.idioma || s.lang || "es",
-          text: "",
-        };
-      }
-    } catch {
-      /* sin personalidades → manda la cuenta */
-    }
-
-    const blob = await synthesizeOpenVoice2(text, {
-      lang: s.lang,
-      personalityId,
-      // Sin `audioRef` grabada/importada esto es `undefined` y la resolución de
-      // referencia entra por la rama de SIEMPRE (semilla sintética): camino
-      // previo intacto, byte a byte (Adenda 149 · Ola 3).
-      refBlob: personaRef?.blob,
-      refKey: personaRef?.key,
-      styleHint: ov?.style,
-      useSeed: ov?.use_seed,
-      seedVersion: ov?.seed_version,
-      seedAttrs,
-      budgetCapMs,
-      endpointOverride,
-    }).catch(() => null);
-
-    if (!blob) {
-      try {
-        onError?.(
-          "OpenVoice V2 no devolvió audio (Space dormido o fuera de servicio); la cadena de voz sigue.",
-        );
-      } catch {
-        /* */
-      }
-    }
-    return blob;
-  } catch {
-    return null;
-  }
-}
 
 // ── Voicebox: perfiles de voz reales del servidor ────────────────────────────
 

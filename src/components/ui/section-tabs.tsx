@@ -45,7 +45,7 @@ export interface SectionTabItem {
     /**
      * Tono del estado activo. Sin definir → `primary` (comportamiento previo,
      * idéntico). Con él, cada pestaña puede llevar el acento de SU sistema
-     * (p.ej. LLM cian · Astraura ámbar · OpenVoice fucsia · Cerebro violeta ·
+     * (p.ej. LLM cian · Astraura ámbar · OmniVoice fucsia · Cerebro violeta ·
      * Señales esmeralda en la ventana 149).
      */
     accent?: SectionTabAccent;

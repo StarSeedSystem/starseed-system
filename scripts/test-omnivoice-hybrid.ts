@@ -18,6 +18,11 @@ import {
   parseDaemonStatus,
 } from "@/lib/aurora/tts-oss/omnivoice-hybrid";
 import {
+  planVoiceChunks,
+  chunkBudgetFor,
+  splitTextForVoice,
+} from "@/lib/aurora/tts-oss/neural-tts";
+import {
   DEFAULT_ASTRAURA_VOICE,
   mapDesignAttrsToSpace,
   sanitizeAstrauraVoice,
@@ -201,8 +206,69 @@ console.log("\n[7] DEFAULT_ASTRAURA_VOICE = voz cálida de Aurora");
 {
   eq("gender", DEFAULT_ASTRAURA_VOICE.voice_design_attributes.gender, "Female / 女");
   eq("age", DEFAULT_ASTRAURA_VOICE.voice_design_attributes.age, "Young Adult / 青年");
-  eq("pitch", DEFAULT_ASTRAURA_VOICE.voice_design_attributes.pitch, "Moderate Pitch / 中音调");
+  // Tono AGUDO a propósito: es el mismo `pitch` que llevan las semillas curadas
+  // de Aurora y Hermione (openvoice2.ts) — voz femenina joven y luminosa. Si la
+  // cuenta arrancara en "Moderate", el diseño por defecto y la semilla que se
+  // clona no casarían y la voz cambiaría según la vía usada.
+  eq("pitch", DEFAULT_ASTRAURA_VOICE.voice_design_attributes.pitch, "High Pitch / 高音调");
   eq("privacy híbrido", DEFAULT_ASTRAURA_VOICE.privacy_mode, "hybrid_allow_cloud");
+}
+
+// ── 8) Plan de trozos: arranque rápido + menos peticiones ────────────────────
+// Contrato de LATENCIA y CONTINUIDAD (fix 2026-08-09): el PRIMER trozo es corto
+// (Aurora empieza a hablar antes) y los siguientes largos (menos viajes al Space
+// ⇒ menos costuras). Los cortes caen siempre en final de frase.
+console.log("\n[8] planVoiceChunks → primer trozo corto, resto largos");
+{
+  const frase = "Esta es una frase de prueba con cuerpo suficiente para medir. ";
+  const largo = frase.repeat(12); // ~740 caracteres
+
+  const chunks = planVoiceChunks(largo, { first: 120, rest: 360 });
+  ok("hay más de un trozo", chunks.length > 1, chunks.map((c) => c.length));
+  ok("el primero es CORTO (arranque rápido)", chunks[0].length <= 120, chunks[0].length);
+  ok(
+    "algún trozo posterior aprovecha el presupuesto largo",
+    chunks.slice(1).some((c) => c.length > 120),
+    chunks.map((c) => c.length),
+  );
+  ok("ningún trozo excede su presupuesto", chunks.every((c, i) => c.length <= (i === 0 ? 120 : 360)));
+  ok("ningún trozo vacío", chunks.every((c) => c.trim().length > 0));
+  eq("no se pierde ni se inventa texto", chunks.join(" ").replace(/\s+/g, " ").trim(), largo.replace(/\s+/g, " ").trim());
+  ok(
+    "los cortes respetan finales de frase",
+    chunks.slice(0, -1).every((c) => /[.!?…]["»”)]?$/.test(c.trim())),
+    chunks,
+  );
+
+  // Menos peticiones que el troceo histórico de tope único (220).
+  ok(
+    "agrupar por frases reduce el nº de peticiones",
+    planVoiceChunks(largo, { first: 160, rest: 380 }).length < splitTextForVoice(largo).length,
+  );
+
+  // Texto corto → una sola locución (nada que encadenar).
+  eq("texto corto → 1 trozo", planVoiceChunks("Hola, soy Aurora.", { first: 160, rest: 380 }).length, 1);
+  eq("vacío → sin trozos", planVoiceChunks("   ", { first: 160, rest: 380 }), []);
+  // Compatibilidad: tope único = troceo histórico.
+  eq(
+    "first === rest reproduce splitTextForVoice",
+    planVoiceChunks(largo, { first: 220, rest: 220 }),
+    splitTextForVoice(largo),
+  );
+}
+
+// ── 9) Presupuesto por motor y RUTA ──────────────────────────────────────────
+// La nube paga un peaje enorme por petición (cola del Space) ⇒ trozos largos.
+// El daemon local calcula ~6-7× tiempo real ⇒ trozos cortos o se pasa de su
+// watchdog. Por eso el presupuesto depende de la RUTA congelada, no solo del motor.
+console.log("\n[9] chunkBudgetFor → nube trozos largos, local trozos cortos");
+{
+  const nube = chunkBudgetFor("omnivoice", { route: "cloud", preferLocal: false });
+  const local = chunkBudgetFor("omnivoice", { route: "local", preferLocal: true });
+  ok("local < nube (watchdog del daemon)", local.rest < nube.rest, { local, nube });
+  ok("el primer trozo siempre es el más corto", nube.first < nube.rest && local.first < local.rest);
+  ok("openvoice2 (Space) usa trozos largos", chunkBudgetFor("openvoice2").rest >= 300);
+  eq("motor por endpoint → troceo histórico", chunkBudgetFor("voxcpm"), { first: 220, rest: 220 });
 }
 
 console.log(`\n${failed === 0 ? "✅" : "❌"} OmniVoice hybrid — ${passed} passed, ${failed} failed\n`);

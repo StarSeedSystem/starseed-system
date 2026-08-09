@@ -46,6 +46,7 @@ import { uploadEntityMedia } from "@/lib/os-social";
 import EgoContextOption from "@/components/aurora/ego-context-option";
 import { createEgoForContext, type EgoContextKind } from "@/lib/aurora/ego";
 import { PlacePicker, type PlaceSelection } from "@/components/maps/place-picker";
+import { ProfileAccessManager } from "@/components/social/profile-access-manager";
 import { Lock, Loader2, Upload, X, ImageIcon } from "lucide-react";
 import { ImageCropperDialog } from "@/components/ui/image-cropper-dialog";
 
@@ -828,6 +829,20 @@ export function EntityEditorDialog({
                             <span className="text-xs text-muted-foreground tabular-nums">
                                 {accent}
                             </span>
+                        </div>
+                    )}
+
+                    {/* ── Adenda 149 · COMPARTIR esta página / grupo / comunidad ──
+                        MISMO componente que en los perfiles. Para páginas y grupos
+                        escribe en `os_entity_roles` (el RBAC de federación que YA
+                        existía para «varias cuentas gestionan una entidad»), no en
+                        una tabla nueva; la MEMBRESÍA (os_memberships/group_members,
+                        el censo de «una persona, una voz») no se toca ni se duplica:
+                        esto es gestión compartida, no ingreso al grupo.
+                        Solo en modo EDICIÓN: hace falta el id real de la entidad. */}
+                    {isEdit && entity && (type === "page" || type === "group") && (
+                        <div className="border-t border-white/10 pt-4">
+                            <ProfileAccessManager kind={type} id={entity.data.id} />
                         </div>
                     )}
 

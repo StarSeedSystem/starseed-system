@@ -873,6 +873,157 @@ async function main() {
     }
   }
 
+  // ── Adenda 150: inventario REAL multi-antena + anillo de precisión ────────
+  {
+    const S = await import("../src/ai/astraura/mesh/signals");
+    const base = {
+      status: "ready" as const,
+      transport: "serial" as const,
+      nodes: [],
+      edges: [],
+      wifiHealth: { score: 0, detail: "", at: 0 },
+      meshHealth: { score: 0, detail: "", at: 0 },
+      decisions: [],
+      queue: { pending: 0, byClass: { P0: 0, P1: 0, P2: 0, P3: 0 } },
+      budget: { availableMs: 0, capacityMs: 1, reservedP0Ms: 0, targetDutyPct: 1 },
+      region: "EU_868",
+      updatedAt: 0,
+    };
+    const NOW = 1_800_000_000_000;
+
+    // Sin fuentes no se inventa NADA (y sin `navigator` tampoco hay portadora IP).
+    const vacio = S.collectDetectedSignals({ mesh: { ...base, status: "disconnected", transport: null }, now: NOW });
+    check("señales detectadas: sin fuentes reales, lista VACÍA", vacio.length === 0);
+
+    // (a) Nodo LoRa con GPS en ambos extremos → posición REAL y halo pequeño.
+    const self = { num: 1, lastHeard: NOW, presence: "online" as const, isSelf: true, lat: 41.3874, lon: 2.1686 };
+    const conGps = S.collectDetectedSignals({
+      mesh: {
+        ...base,
+        self,
+        nodes: [self, { num: 2, lastHeard: NOW, presence: "online" as const, snr: 8, rssi: -70, lat: 41.3919, lon: 2.1686 }],
+      },
+      now: NOW,
+    });
+    const gpsSig = conGps.find((s) => s.id === "lora:2");
+    check("señales: nodo con GPS de ambos extremos se coloca por GPS", gpsSig?.placement.mode === "gps");
+    check(
+      "señales: distancia GPS real ≈ 500 m (0,0045° de latitud)",
+      !!gpsSig && Math.abs((gpsSig.placement.distanceM ?? 0) - 497) < 30,
+    );
+    check("señales: el halo GPS es PEQUEÑO (<0,1 del radio)", (gpsSig?.placement.accuracyFrac ?? 1) < 0.1);
+    check("señales: el rumbo con GPS es real (norte ⇒ ángulo ≈ −90°)",
+      !!gpsSig && Math.abs(gpsSig.placement.angleRad + Math.PI / 2) < 0.05);
+
+    // (b) Nodo LoRa SIN GPS pero con SNR → distancia por RF, rumbo desconocido.
+    const soloRf = S.collectDetectedSignals({
+      mesh: { ...base, nodes: [{ num: 7, lastHeard: NOW, presence: "online" as const, snr: 8 }] },
+      now: NOW,
+    });
+    const rfSig = soloRf[0];
+    check("señales: sin GPS pero con SNR ⇒ modo RF", rfSig?.placement.mode === "rf");
+    check("señales: el modo RF SÍ da distancia en metros", typeof rfSig?.placement.distanceM === "number");
+    check("señales: el halo RF es mayor que el del GPS",
+      (rfSig?.placement.accuracyFrac ?? 0) > (gpsSig?.placement.accuracyFrac ?? 1));
+    const sectorLora = S.ANTENNA_SECTOR.lora;
+    check("señales: sin rumbo, la señal cae DENTRO del sector de su antena",
+      !!rfSig && Math.abs(rfSig.placement.angleRad - sectorLora.center) <= sectorLora.half);
+
+    // (c) Sin GPS y sin métrica ⇒ sector puro, halo GRANDE, calidad null.
+    const sinNada = S.collectDetectedSignals({
+      mesh: { ...base, nodes: [{ num: 9, lastHeard: NOW, presence: "online" as const }] },
+      now: NOW,
+    });
+    check("señales: sin métrica alguna, calidad = null (no se inventa)", sinNada[0]?.quality === null);
+    check("señales: sin posición ni RF ⇒ modo sector", sinNada[0]?.placement.mode === "sector");
+    check("señales: el halo sin posición es GRANDE (≥0,3 del radio)", (sinNada[0]?.placement.accuracyFrac ?? 0) >= 0.3);
+    check("señales: sin posición NO se afirma distancia en metros", sinNada[0]?.placement.distanceM === null);
+
+    // Determinismo: mismas entradas ⇒ misma colocación (nada de Math.random).
+    const a1 = S.collectDetectedSignals({ mesh: { ...base, nodes: [{ num: 42, lastHeard: NOW, presence: "online" as const, snr: -3 }] }, now: NOW });
+    const a2 = S.collectDetectedSignals({ mesh: { ...base, nodes: [{ num: 42, lastHeard: NOW, presence: "online" as const, snr: -3 }] }, now: NOW });
+    check("señales: colocación DETERMINISTA (mismo id ⇒ mismo ángulo)",
+      a1[0]?.placement.angleRad === a2[0]?.placement.angleRad && a1[0]?.placement.radiusFrac === a2[0]?.placement.radiusFrac);
+
+    // Simulador: SIEMPRE etiquetado (jamás pasa por señal real).
+    const sim = S.collectDetectedSignals({
+      mesh: { ...base, transport: "simulator", nodes: [{ num: 3, lastHeard: NOW, presence: "online" as const, snr: 5 }] },
+      now: NOW,
+    });
+    check("señales: el simulador va SIEMPRE etiquetado", sim[0]?.simulated === true && /SIMULADOR/.test(sim[0]?.signalType ?? ""));
+
+    // (d) Faro del relé: es StarSeed, sin RF ⇒ sector y calidad por frescura.
+    const faro = S.collectDetectedSignals({
+      mesh: base,
+      beacons: [{ deviceId: "dev-x", label: "Neurona vecina", region: "EU_868", preset: "LONG_FAST", onlineCount: 2, at: NOW - 60_000, own: false, offersPublic: true, port: 8443 }],
+      now: NOW,
+    });
+    check("señales: el faro declara cuenta StarSeed", faro[0]?.starseed?.via === "relay-beacon");
+    check("señales: el faro NO afirma distancia física", faro[0]?.placement.distanceM === null && faro[0]?.placement.mode === "sector");
+    check("señales: faro con puerto público ⇒ «Añadir como servidor» habilitado",
+      faro[0]?.actions.some((a) => a.id === "add-server" && a.enabled) === true);
+
+    // (e) Neurona de la cuenta: datos PÚBLICOS + compatible.
+    const cuenta = S.collectDetectedSignals({
+      mesh: base,
+      neurons: [
+        { id: "n-1", name: "Portátil", kind: "laptop", online: true, lastSeenMs: NOW - 5_000, platform: "Linux", capabilities: ["WebGPU (IA local)"], isThisDevice: false },
+        { id: "n-me", name: "Esta", kind: "desktop", online: true, lastSeenMs: NOW, capabilities: [], isThisDevice: true },
+      ],
+      now: NOW,
+    });
+    check("señales: la neurona de la cuenta aparece con sus datos públicos",
+      cuenta.length === 1 && cuenta[0].starseed?.via === "neuron-registry" && cuenta[0].starseed?.ownAccount === true);
+    check("señales: ESTA neurona NO se pinta como señal (es el centro)", !cuenta.some((s) => s.id === "neuron:n-me"));
+
+    // (f) BLE genérico: se muestra AUNQUE NO sea compatible, con su RSSI real.
+    const bleList = S.collectDetectedSignals({
+      mesh: base,
+      ble: [{ id: "ble-abc", name: "Auriculares", rssi: -62, txPower: null, uuids: [], at: NOW - 1000, viaPicker: false }],
+      now: NOW,
+    });
+    check("señales: el BLE ajeno SE MUESTRA aunque no sea compatible",
+      bleList.length === 1 && bleList[0].compatible === false);
+    check("señales: el BLE con RSSI real SÍ tiene calidad", typeof bleList[0]?.quality === "number");
+    check("señales: el BLE incompatible ofrece igualmente una opción real",
+      bleList[0]?.actions.some((a) => a.id === "connect-ble" && a.enabled) === true);
+    const blePicker = S.collectDetectedSignals({
+      mesh: base,
+      ble: [{ id: "ble-p", name: null, rssi: null, txPower: null, uuids: [], at: NOW, viaPicker: true }],
+      now: NOW,
+    });
+    check("señales: BLE del selector (sin RSSI) NO finge calidad ni distancia",
+      blePicker[0]?.quality === null && blePicker[0]?.placement.distanceM === null);
+
+    // Normalizaciones de calidad acotadas a 0..1.
+    check("señales: SNR fuera de rango se acota a 0..1",
+      S.qualityFromSnr(-90) === 0 && S.qualityFromSnr(90) === 1);
+    check("señales: RSSI fuera de rango se acota a 0..1",
+      S.qualityFromRssi(-200) === 0 && S.qualityFromRssi(0) === 1);
+    check("señales: mejor calidad ⇒ más cerca del centro",
+      S.qualityFromRssi(-50) > S.qualityFromRssi(-100));
+
+    // Orden: mejor calidad primero, «sin métrica» al final.
+    const orden = S.collectDetectedSignals({
+      mesh: {
+        ...base,
+        nodes: [
+          { num: 11, lastHeard: NOW, presence: "online" as const, snr: -15 },
+          { num: 12, lastHeard: NOW, presence: "online" as const, snr: 9 },
+          { num: 13, lastHeard: NOW, presence: "online" as const },
+        ],
+      },
+      now: NOW,
+    });
+    check("señales: se ordenan por calidad y las sin métrica van al final",
+      orden[0]?.id === "lora:12" && orden[orden.length - 1]?.id === "lora:13");
+
+    // Resumen por antena (para cabeceras y estados vacíos).
+    const resumen = S.summarizeByAntenna(conGps);
+    check("señales: el resumen por antena cuenta bien la familia LoRa",
+      resumen.find((r) => r.antenna === "lora")?.count === 1);
+  }
+
   console.log(`\n${passed} pasan / ${failed} fallan`);
   if (failed > 0) process.exit(1);
 }

@@ -9,10 +9,19 @@
  * Backend en la base del OS: Supabase **`nxstilnyidvkqeosofuh`** (ref corregida
  * el 2026-07-12 -- la cabecera decia `dzkjapinnewkxzjltadv`, que es el proyecto
  * de Nexus/Cafe, NO el del OS. La tabla SI existe en el OS; verificado):
- *   os_account_profiles(id, account, handle unique, name, kind, avatar_url,
- *   cover_url, bio, is_default, created_at, updated_at) — RLS: lectura para
- *   todos (facetas públicas), escritura solo del dueño (account=auth.uid()).
- *   Realtime ON.
+ *   os_account_profiles(id, account, handle unique, name, kind, categories[],
+ *   avatar_url, cover_url, bio, is_default, created_at, updated_at) — RLS:
+ *   lectura para todos (facetas públicas), escritura solo del dueño
+ *   (account=auth.uid()). Realtime ON.
+ *
+ * Adenda 149 (2026-08-09) — aditivo, nada se rompe:
+ *   · `kind` amplía vocabulario: personal | grupal | publico | tematico
+ *     (+ legados civic/artistic/professional/custom, que se conservan).
+ *   · `categories text[]` — temas creativos multi-seleccionables. Llega con
+ *     supabase/migrations/20260806120000_profile_sharing.sql; MIENTRAS NO ESTÉ
+ *     APLICADA, las escrituras se reintentan sin esa columna.
+ *   · `is_default = true` ES el PERFIL PRINCIPAL: nunca compartible con otras
+ *     cuentas (ver src/lib/social/profile-sharing.ts).
  *
  * Distinto de:
  *   · src/components/profile/profile-switcher.tsx → identidad de LA CUENTA
@@ -32,7 +41,27 @@ import { createClient } from "@/utils/supabase/client";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { useCallback, useEffect, useState } from "react";
 
-export type ProfileKind = "personal" | "civic" | "artistic" | "professional" | "custom";
+/**
+ * TIPO de perfil. Adenda 149 amplía el vocabulario con los cuatro tipos
+ * pedidos (personal · grupal · público · temático) y CONSERVA los legados
+ * (civic/artistic/professional/custom) para no romper ningún perfil existente:
+ * la columna `kind` es texto libre sin CHECK, así que ambos conviven.
+ */
+export type ProfileKind =
+    | "personal"
+    | "grupal"
+    | "publico"
+    | "tematico"
+    | "civic"
+    | "artistic"
+    | "professional"
+    | "custom";
+
+/** Tipos que se ofrecen HOY al crear/editar un perfil (Adenda 149). */
+export const PROFILE_KIND_OPTIONS: ProfileKind[] = ["personal", "grupal", "publico", "tematico"];
+
+/** Tipos legados: solo se muestran si un perfil ya los tenía. */
+export const LEGACY_PROFILE_KINDS: ProfileKind[] = ["civic", "artistic", "professional", "custom"];
 
 export interface AccountProfile {
     id: string;
@@ -40,10 +69,13 @@ export interface AccountProfile {
     handle: string | null;
     name: string;
     kind: ProfileKind;
+    /** Temas creativos multi-seleccionables (Adenda 149). [] si no hay/columna ausente. */
+    categories: string[];
     avatarUrl: string | null;
     coverUrl: string | null;
     bio: string | null;
     visibility: "public" | "private" | "contacts";
+    /** true = PERFIL PRINCIPAL de la cuenta. NUNCA compartible (Adenda 149). */
     isDefault: boolean;
     createdAt: string;
     updatedAt: string;
@@ -59,11 +91,30 @@ export const PROFILES_LIST_EVENT = "starseed:profiles";
 
 const KIND_LABELS: Record<ProfileKind, string> = {
     personal: "Personal",
+    grupal: "Grupal",
+    publico: "Público",
+    tematico: "Temático",
     civic: "Cívico",
     artistic: "Artístico",
     professional: "Profesional",
     custom: "Personalizado",
 };
+
+/** Una línea que explica cada tipo (se muestra bajo el selector). */
+const KIND_HINTS: Record<ProfileKind, string> = {
+    personal: "Tu faceta individual: lo tuyo, a tu ritmo.",
+    grupal: "Una identidad llevada entre varias cuentas.",
+    publico: "Cara pública abierta a toda la red.",
+    tematico: "Centrado en uno o varios temas concretos.",
+    civic: "Faceta cívica (tipo legado).",
+    artistic: "Faceta artística (tipo legado).",
+    professional: "Faceta profesional (tipo legado).",
+    custom: "Faceta personalizada (tipo legado).",
+};
+
+export function profileKindHint(kind: ProfileKind): string {
+    return KIND_HINTS[kind] ?? "";
+}
 
 export function profileKindLabel(kind: ProfileKind): string {
     return KIND_LABELS[kind] ?? "Personalizado";
@@ -73,10 +124,39 @@ function isClient(): boolean {
     return typeof window !== "undefined" && typeof localStorage !== "undefined";
 }
 
+const ALL_PROFILE_KINDS: ProfileKind[] = [...PROFILE_KIND_OPTIONS, ...LEGACY_PROFILE_KINDS];
+
 function normalizeKind(raw: unknown): ProfileKind {
-    return raw === "civic" || raw === "artistic" || raw === "professional" || raw === "custom"
-        ? raw
-        : "personal";
+    const key = String(raw ?? "").trim().toLowerCase();
+    return (ALL_PROFILE_KINDS as string[]).includes(key) ? (key as ProfileKind) : "personal";
+}
+
+/** Lista de temas creativos del perfil (defensiva: siempre un array de strings). */
+function normalizeCategoriesRow(raw: unknown): string[] {
+    if (!Array.isArray(raw)) return [];
+    const out: string[] = [];
+    for (const v of raw) {
+        const id = String(v ?? "").trim().toLowerCase();
+        if (id && !out.includes(id)) out.push(id);
+    }
+    return out;
+}
+
+/**
+ * ¿El error viene de una COLUMNA que aún no existe? La columna `categories`
+ * llega con la migración de la Adenda 149, que se aplica aparte: hasta
+ * entonces, las escrituras se reintentan SIN ella para no romper la creación
+ * ni la edición de perfiles (regla: todo aditivo, nada se rompe).
+ */
+function isMissingColumnError(error: unknown): boolean {
+    if (!error || typeof error !== "object") return false;
+    const code = (error as { code?: string }).code ?? "";
+    const msg = ((error as { message?: string }).message ?? "").toLowerCase();
+    return (
+        code === "42703" ||
+        code === "PGRST204" ||
+        (msg.includes("column") && (msg.includes("does not exist") || msg.includes("schema cache")))
+    );
 }
 
 function normalizeVisibility(raw: unknown): "public" | "private" | "contacts" {
@@ -90,6 +170,7 @@ function mapRow(row: Record<string, unknown>): AccountProfile {
         handle: typeof row.handle === "string" ? row.handle : null,
         name: typeof row.name === "string" && row.name ? row.name : "Sin nombre",
         kind: normalizeKind(row.kind),
+        categories: normalizeCategoriesRow(row.categories),
         avatarUrl: typeof row.avatar_url === "string" ? row.avatar_url : null,
         coverUrl: typeof row.cover_url === "string" ? row.cover_url : null,
         bio: typeof row.bio === "string" ? row.bio : null,
@@ -207,6 +288,8 @@ export interface CreateProfileInput {
     name: string;
     handle?: string | null;
     kind?: ProfileKind;
+    /** Temas creativos (Adenda 149). Se ignora si la columna aún no existe. */
+    categories?: string[];
     avatarUrl?: string | null;
     coverUrl?: string | null;
     bio?: string | null;
@@ -233,21 +316,37 @@ export async function createProfile(input: CreateProfileInput): Promise<AccountP
             }
         }
 
-        const { data, error } = await supabase
+        const basePayload: Record<string, unknown> = {
+            account: uid,
+            name,
+            handle,
+            kind: input.kind ?? "personal",
+            avatar_url: input.avatarUrl ?? null,
+            cover_url: input.coverUrl ?? null,
+            bio: input.bio ?? null,
+            visibility: input.visibility ?? "public",
+            is_default: input.isDefault ?? false,
+        };
+        const categories = normalizeCategoriesRow(input.categories);
+
+        let { data, error } = await supabase
             .from("os_account_profiles")
-            .insert({
-                account: uid,
-                name,
-                handle,
-                kind: input.kind ?? "personal",
-                avatar_url: input.avatarUrl ?? null,
-                cover_url: input.coverUrl ?? null,
-                bio: input.bio ?? null,
-                visibility: input.visibility ?? "public",
-                is_default: input.isDefault ?? false,
-            })
+            .insert({ ...basePayload, categories })
             .select("*")
             .maybeSingle();
+
+        // La columna `categories` llega con la migración de la Adenda 149: si
+        // todavía no está aplicada, se crea el perfil igualmente sin ella.
+        if (error && isMissingColumnError(error)) {
+            const retry = await supabase
+                .from("os_account_profiles")
+                .insert(basePayload)
+                .select("*")
+                .maybeSingle();
+            data = retry.data;
+            error = retry.error;
+        }
+
         if (error) {
             console.error("createProfile error:", error);
             if (error.code === '23505') {
@@ -267,6 +366,8 @@ export interface UpdateProfileInput {
     name?: string;
     handle?: string | null;
     kind?: ProfileKind;
+    /** Temas creativos (Adenda 149). Se ignora si la columna aún no existe. */
+    categories?: string[];
     avatarUrl?: string | null;
     coverUrl?: string | null;
     bio?: string | null;
@@ -288,12 +389,31 @@ export async function updateProfile(id: string, patch: UpdateProfileInput): Prom
         if (patch.bio !== undefined) row.bio = patch.bio;
         if (patch.visibility !== undefined) row.visibility = patch.visibility;
 
-        const { data, error } = await supabase
+        const withCategories =
+            patch.categories !== undefined
+                ? { ...row, categories: normalizeCategoriesRow(patch.categories) }
+                : row;
+
+        let { data, error } = await supabase
             .from("os_account_profiles")
-            .update(row)
+            .update(withCategories)
             .eq("id", id)
             .select("*")
             .maybeSingle();
+
+        // Sin la migración de la Adenda 149 aplicada todavía: se guarda el
+        // resto del perfil igualmente (los temas se persistirán al aplicarla).
+        if (error && patch.categories !== undefined && isMissingColumnError(error)) {
+            const retry = await supabase
+                .from("os_account_profiles")
+                .update(row)
+                .eq("id", id)
+                .select("*")
+                .maybeSingle();
+            data = retry.data;
+            error = retry.error;
+        }
+
         if (error || !data) return null;
         emitListChange();
         return mapRow(data as Record<string, unknown>);

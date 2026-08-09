@@ -24,6 +24,13 @@ import {
 import { sanitizeOpenVoiceConfig, sanitizeAstrauraVoice } from "@/lib/aurora/tts-oss/voice-config";
 import { emotionStyleFor } from "@/lib/aurora/tts-oss/openvoice2";
 import {
+  voiceIdentityFingerprint,
+  synthCacheKey,
+  cachedSynthesis,
+  clearSynthCache,
+  synthCacheSize,
+} from "@/lib/aurora/tts-oss/voice-identity";
+import {
   spaceIdToHost,
   looksLikeV2Design,
   looksLikeV1Predict,
@@ -73,15 +80,24 @@ console.log("\n[2] resolveOpenVoice2Style → prioridad correcta");
     resolveOpenVoice2Style({ styleHint: "no_existe", lang: "es" }),
     "es_default",
   );
+  // El IDIOMA manda SIEMPRE; la personalidad solo afina el sabor DENTRO del
+  // inglés (fix del acento importado, 2026-07-21: forzar "en_br" para un texto
+  // en español era la causa del acento inglés al hablar español). Estos casos
+  // fijan ese contrato en las dos direcciones.
   eq(
-    "Hermione (uuid) → en_br",
-    resolveOpenVoice2Style({ personalityId: "c9fe7030-fc68-49c6-a705-58f7900887f9", lang: "es" }),
+    "Hermione (uuid) + texto EN → en_br",
+    resolveOpenVoice2Style({ personalityId: "c9fe7030-fc68-49c6-a705-58f7900887f9", lang: "en" }),
     "en_br",
   );
   eq(
-    "Hermione (nombre) → en_br",
-    resolveOpenVoice2Style({ personalityId: "preset-hermione", lang: "es" }),
+    "Hermione (nombre) + texto EN → en_br",
+    resolveOpenVoice2Style({ personalityId: "preset-hermione", lang: "en" }),
     "en_br",
+  );
+  eq(
+    "Hermione hablando ESPAÑOL → es_default (jamás acento importado)",
+    resolveOpenVoice2Style({ personalityId: "preset-hermione", lang: "es" }),
+    "es_default",
   );
   eq(
     "Aurora (es) → es_default",
@@ -104,15 +120,22 @@ console.log("\n[3] seedKindFor → semilla curada por personalidad");
   eq("aurora", seedKindFor("preset-aurora"), "aurora");
   eq("desconocida → null", seedKindFor("preset-mentora-sabia"), null);
   eq("vacío → null", seedKindFor(undefined), null);
+  // `OPENVOICE2_SEED_SPECS` es la vista PLANA de compatibilidad y apunta a la
+  // variante ESPAÑOLA de cada semilla (el idioma por defecto del OS). Por eso su
+  // acento es "Auto" y NO el británico/americano de las variantes inglesas: es
+  // justo el fix del acento importado — la referencia que se clona en español no
+  // puede arrastrar acento inglés.
   ok(
-    "seed Hermione: mujer joven, agudo, británico (INSPIRADO, no real)",
-    OPENVOICE2_SEED_SPECS.hermione.attrs.accent === "British Accent / 英国口音" &&
-      OPENVOICE2_SEED_SPECS.hermione.attrs.gender === "Female / 女",
+    "seed Hermione (es): mujer joven, agudo, sin acento importado",
+    OPENVOICE2_SEED_SPECS.hermione.attrs.accent === "Auto" &&
+      OPENVOICE2_SEED_SPECS.hermione.attrs.gender === "Female / 女" &&
+      OPENVOICE2_SEED_SPECS.hermione.lang === "es",
   );
   ok(
-    "seed Aurora: mujer joven, US neutro, tono medio",
-    OPENVOICE2_SEED_SPECS.aurora.attrs.accent === "American Accent / 美式口音" &&
-      OPENVOICE2_SEED_SPECS.aurora.attrs.pitch === "Moderate Pitch / 中音调",
+    "seed Aurora (es): mujer joven, cálida, sin acento importado",
+    OPENVOICE2_SEED_SPECS.aurora.attrs.accent === "Auto" &&
+      OPENVOICE2_SEED_SPECS.aurora.attrs.gender === "Female / 女" &&
+      OPENVOICE2_SEED_SPECS.aurora.lang === "es",
   );
 }
 
@@ -272,5 +295,85 @@ console.log("\n[6] validateOpenVoice2Contract → detecta cambios de contrato");
 }
 
 // ── Resumen ──────────────────────────────────────────────────────────────────
-console.log(`\n${failed === 0 ? "✅" : "❌"} OpenVoice V2 — ${passed} OK, ${failed} fallos\n`);
-if (failed > 0) process.exit(1);
+// ── 7) Identidad de voz CONGELADA por mensaje ────────────────────────────────
+// INVARIANTE #1: la misma voz dentro del mismo mensaje. La huella resume todo lo
+// que puede cambiar el timbre; si dos síntesis comparten huella y texto, suenan
+// igual y se pueden compartir (caché). Si cambia CUALQUIER pieza del timbre, la
+// huella cambia y no se reutiliza audio de otra voz.
+console.log("\n[7] voiceIdentityFingerprint → estable por voz, distinta al cambiar de voz");
+{
+  const base = {
+    engine: "openvoice2",
+    lang: "es",
+    personalityId: "preset-aurora",
+    useSeed: true,
+    seedVersion: 2,
+    params: { rate: 1, pitch: 1, energy: 55 },
+  };
+  eq("misma voz → misma huella", voiceIdentityFingerprint(base), voiceIdentityFingerprint({ ...base }));
+  ok(
+    "otra personalidad → otra huella",
+    voiceIdentityFingerprint(base) !==
+      voiceIdentityFingerprint({ ...base, personalityId: "preset-hermione" }),
+  );
+  ok(
+    "otro idioma → otra huella (la semilla es nativa por idioma)",
+    voiceIdentityFingerprint(base) !== voiceIdentityFingerprint({ ...base, lang: "en" }),
+  );
+  ok(
+    "otro estilo/emoción → otra huella",
+    voiceIdentityFingerprint(base) !==
+      voiceIdentityFingerprint({ ...base, params: { rate: 1.08, pitch: 1, energy: 80 } }),
+  );
+  ok(
+    "otra muestra grabada → otra huella",
+    voiceIdentityFingerprint(base) !== voiceIdentityFingerprint({ ...base, refKey: "p1.abc" }),
+  );
+  ok(
+    "otro motor → otra huella",
+    voiceIdentityFingerprint(base) !== voiceIdentityFingerprint({ ...base, engine: "omnivoice" }),
+  );
+  ok(
+    "misma voz, texto distinto → clave de caché distinta",
+    synthCacheKey(voiceIdentityFingerprint(base), "Hola") !==
+      synthCacheKey(voiceIdentityFingerprint(base), "Adiós"),
+  );
+}
+
+// ── 8) Caché de síntesis: un trozo se sintetiza UNA sola vez ─────────────────
+// Es la mitad del fix de latencia: el trozo 0 lo pedían el comprobador de motor,
+// la ruta del mixer y la clásica ⇒ hasta 3 viajes idénticos al Space antes del
+// primer sonido. Con la caché por (texto × identidad), uno.
+console.log("\n[8] cachedSynthesis → dedupe real, y los fallos NO se cachean");
+void (async () => {
+  try {
+    clearSynthCache();
+    let viajes = 0;
+    const fake = async () => {
+      viajes++;
+      return { size: 1 } as unknown as Blob;
+    };
+    const key = synthCacheKey("huella-test", "Hola, soy Aurora.");
+    const [a, b] = await Promise.all([cachedSynthesis(key, fake), cachedSynthesis(key, fake)]);
+    const c = await cachedSynthesis(key, fake);
+    eq("3 peticiones del mismo trozo = 1 viaje", viajes, 1);
+    ok("todas reciben el mismo audio", a === b && b === c);
+
+    let fallos = 0;
+    const roto = async () => {
+      fallos++;
+      return null;
+    };
+    const keyBad = synthCacheKey("huella-test", "trozo que falla");
+    await cachedSynthesis(keyBad, roto);
+    await cachedSynthesis(keyBad, roto);
+    eq("un fallo no se queda pegado (se reintenta)", fallos, 2);
+    ok("la caché queda acotada", synthCacheSize() <= 16);
+  } catch (e) {
+    ok("la caché de síntesis no lanza", false, e);
+  }
+  // El resumen se imprime AQUÍ (el bloque [8] es asíncrono: si se imprimiera
+  // fuera, saldría antes de que estas comprobaciones hayan corrido).
+  console.log(`\n${failed === 0 ? "✅" : "❌"} OpenVoice V2 — ${passed} OK, ${failed} fallos\n`);
+  process.exit(failed === 0 ? 0 : 1);
+})();

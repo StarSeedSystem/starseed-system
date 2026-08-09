@@ -1,8 +1,17 @@
 "use client";
 
 /**
- * StarSeed OS — Enrutador de VOZ de Aurora (elige el motor activo, con fallback).
+ * StarSeed OS — OMNIVOICE · enrutador del SISTEMA DE VOZ de Astraura.
  * ============================================================================
+ * NOMBRES (renombre honesto, 2026-08-09). El SISTEMA de voz de Astraura se llama
+ * **OmniVoice**: es la cadena COMPLETA — este router + los motores + la identidad
+ * congelada por mensaje (`voice-identity.ts`) + la coherencia de persona
+ * (`persona-coherence.ts`) + el mixer de salida. **OpenVoice** NO es el sistema:
+ * es UNO de sus motores (`openvoice2`, etiquetado «OpenVoice 2 (motor)»), igual
+ * que lo son «OmniVoice k2-fsa (motor)», VoxCPM, Bark, Kokoro o el navegador.
+ * Los IDs internos (`openvoice`, `openvoice2`, `omnivoice`) NO cambian: son
+ * claves de configuración y de deep-links.
+ *
  * Punto ÚNICO al que el engine de Aurora (`engine.ts`) delega el habla. Lee la
  * config unificada (`voice-config.ts`, clave `starseed.aurora.voice.v1`), pide la
  * CADENA al registro de motores (`engine-registry.ts`) y la recorre hasta que
@@ -535,6 +544,17 @@ export async function speakWithConfiguredEngine(
         /* */
       }
     })();
+    // ── DECISIÓN EXPLÍCITA (2026-08-09): NO se parte un mensaje entre dos
+    // motores («la primera frase por el motor instantáneo y el resto por el
+    // principal»). Sobre el papel arrancaría antes; en la práctica el navegador,
+    // Kokoro y OpenVoice son modelos DISTINTOS y no hay forma de darles los
+    // mismos parámetros de timbre — la primera frase sonaría a otra persona.
+    // La invariante #1 del sistema es «la misma voz dentro del mismo mensaje»,
+    // así que el arranque rápido se consigue por el otro lado: PRIMER TROZO MÁS
+    // CORTO y prefetch encadenado (ver `neural-tts.ts::planVoiceChunks` y
+    // `playSequentialViaMixer`), sin tocar la voz. El cambio de motor solo
+    // ocurre cuando el actual FALLA de verdad, y nunca a mitad de locución ya
+    // empezada (`allowFamilyFailover`).
     for (const link of orderedChain) {
       // Cada eslabón envuelto: nunca lanzar sin capturar en cadenas de failover.
       const outcome = await Promise.resolve()

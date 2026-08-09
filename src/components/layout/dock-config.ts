@@ -15,6 +15,19 @@ import {
   CalendarClock, GitBranch, Sparkles, Zap, Wrench, Plug, Eye, HardDrive, Boxes,
   Camera, Images, RadioTower, Antenna, Radio,
 } from 'lucide-react';
+// Garantía de botones predeterminados con la VERSIÓN DENTRO DEL PAYLOAD
+// (Adenda 149 · tanda 3). El módulo es puro y sin dependencias: lo comparten
+// este archivo y el motor de sincronización, que también debe normalizar.
+import {
+  DOCK_STORAGE_KEY,
+  DOCK_DEFAULTS_VERSION,
+  DOCK_DEFAULT_ON_IDS,
+  normalizeDockState,
+  parseDockPayload,
+  registerDockSeedProvider,
+  toDockPayload,
+  type DockItemLike,
+} from '@/lib/dock/dock-defaults';
 
 export type DockColor = 'neutral' | 'cyan' | 'crimson' | 'amber' | 'emerald' | 'purple';
 
@@ -68,7 +81,7 @@ export const DOCK_ICON_MAP: Record<DockIconKey, React.ComponentType<{ className?
 /** Icono de respaldo defensivo (DOCK_ICON_MAP es total: no debería usarse). */
 export const DOCK_FALLBACK_ICON = LayoutGrid;
 
-const STORAGE_KEY = 'starseed.dock.items.v2';
+const STORAGE_KEY = DOCK_STORAGE_KEY;
 const FOLDERS_KEY = 'starseed.dock.folders.v1';
 const FOLDER_STATE_KEY = 'starseed.dock.folders.open.v1';
 
@@ -661,77 +674,85 @@ function applyDockSenalesForceV12(items: DockItemConfig[], hadSaved: boolean): D
   return migrated;
 }
 
-/**
- * BOTONES PREDETERMINADOS GARANTIZADOS (petición Alex 2026-08-06 · tanda 3 olas).
- * ============================================================================
- * Problema real: las migraciones vN son ONE-SHOT por navegador (banderas
- * locales), pero `starseed.dock.items.v2` SÍ viaja con la cuenta. Una config
- * antigua sincronizada desde otra neurona puede llegar SIN 'senales' o
- * 'red-feed' a un navegador que ya consumió sus banderas → el botón desaparece
- * y ninguna migración vuelve a correr. Por eso «en algunas neuronas y cuentas
- * aún no aparecen».
+/* ═══════════════════════════════════════════════════════════════════════════
+ * BOTONES PREDETERMINADOS GARANTIZADOS — Adenda 149 · tanda 3 (2026-08-09)
+ * ═══════════════════════════════════════════════════════════════════════════
+ * Tercer intento sobre el mismo síntoma («Señales» y «Feed de red» no aparecen
+ * en algunas neuronas/cuentas). Los dos anteriores vivían AQUÍ y fallaban así:
  *
- * Solución en dos capas:
- *  · `ensureDefaultDockItems` — CONTINUA e idempotente, corre en CADA carga
- *    (también tras aplicar un sync remoto): si un botón predeterminado NO está
- *    en la lista, se AÑADE habilitado. Si está presente (aunque deshabilitado)
- *    se respeta: eso es la personalización del usuario.
- *  · Migración v13 — one-shot que re-HABILITA 'senales' y 'red-feed' una vez
- *    más por navegador (converge estados heredados de syncs antiguos con el
- *    botón apagado sin que el usuario lo apagara). Después de la v13, apagar
- *    un botón vuelve a ser decisión del usuario y se respeta.
+ *  · `applyDockDefaultsOnV13` — bandera one-shot en localStorage. Se consumía
+ *    en el PRIMER `loadDockConfig()` del arranque, que ocurre SIEMPRE antes de
+ *    que `pullAndApplyNow()` (una ida y vuelta de red) traiga el payload de la
+ *    cuenta. Cuando el payload viejo llegaba y el dock releía, la bandera ya
+ *    estaba gastada y la migración no volvía a correr NUNCA.
+ *  · `ensureDefaultDockItems` — «continua», pero solo añadía ids AUSENTES:
+ *    un item presente con `enabled:false` no se re-encendía jamás. Y cuando sí
+ *    reparaba, su escritura caía dentro de la ventana anti-eco del sync
+ *    (`recentlyAppliedRemote`), así que la reparación NO se empujaba a la
+ *    cuenta y el siguiente pull la volvía a pisar (marcas LWW empatadas).
+ *
+ * Ambos se sustituyen por `normalizeDockState` (lib/dock/dock-defaults.ts),
+ * que lleva la VERSIÓN DENTRO DEL PAYLOAD sincronizado en vez de una bandera
+ * local por dispositivo, y se aplica en TODOS los caminos de entrada: carga
+ * local, sync entrante (realtime + pull manual) y cambio de cuenta/perfil.
+ * Los `applyDock*V5..V12` se conservan intactos: siguen resolviendo cosas que
+ * la garantía no cubre (fusiones, orden, retiradas) y son inofensivos.
  */
-const DOCK_DEFAULT_ON_IDS = ['senales', 'red-feed'] as const;
 
-function ensureDefaultDockItems(items: DockItemConfig[], hadSaved: boolean): DockItemConfig[] {
-  let migrated = items;
-  let changed = false;
-  for (const id of DOCK_DEFAULT_ON_IDS) {
-    if (migrated.some((i) => i.id === id)) continue;
-    const preset = DOCK_PRESETS.find((p) => p.id === id);
-    if (!preset) continue;
-    migrated = [...migrated, { ...preset, enabled: true }];
-    changed = true;
-  }
-  if (changed && hadSaved && typeof window !== 'undefined') {
-    try { window.localStorage.setItem(STORAGE_KEY, JSON.stringify(migrated)); } catch { /* noop */ }
-  }
-  return migrated;
+/* `DockItemLike` (módulo puro) describe «un item con id/enabled y campos extra
+ * desconocidos»; `DockItemConfig` es la forma fuerte con uniones literales de
+ * icono y color. Estructuralmente no son intercambiables para TS (falta la
+ * firma de índice en un sentido y los campos obligatorios en el otro), pero en
+ * ejecución son EL MISMO objeto: la normalización solo mira `id`/`enabled` y
+ * conserva el resto por spread. Estos dos puentes acotan la conversión a un
+ * único sitio en lugar de esparcir castings por el archivo. */
+const asItemsLike = (items: DockItemConfig[]): DockItemLike[] => items as unknown as DockItemLike[];
+const asItemsConfig = (items: DockItemLike[]): DockItemConfig[] => items as unknown as DockItemConfig[];
+
+/** Semillas canónicas para el camino de sync (que no puede importar este catálogo). */
+registerDockSeedProvider((id) => {
+  const preset = DOCK_PRESETS.find((p) => p.id === id);
+  return preset ? asItemsLike([preset])[0] : null;
+});
+
+/** Escribe el estado del dock SIEMPRE como sobre versionado `{defaultsVersion, items}`. */
+function persistDockPayload(items: DockItemConfig[], defaultsVersion = DOCK_DEFAULTS_VERSION) {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(toDockPayload(asItemsLike(items), defaultsVersion)));
+  } catch { /* noop: cuota llena o storage bloqueado — el dock sigue vivo en memoria */ }
 }
 
-const DOCK_MIGRATION_V13_KEY = 'starseed.dock.items.migrated.v13';
-function applyDockDefaultsOnV13(items: DockItemConfig[], hadSaved: boolean): DockItemConfig[] {
-  if (typeof window === 'undefined') return items;
-  try { if (window.localStorage.getItem(DOCK_MIGRATION_V13_KEY)) return items; } catch { return items; }
-  let migrated = items;
-  let changed = false;
-  for (const id of DOCK_DEFAULT_ON_IDS) {
-    const idx = migrated.findIndex((i) => i.id === id);
-    if (idx !== -1 && !migrated[idx].enabled) {
-      migrated = migrated.map((it, i) => (i === idx ? { ...it, enabled: true } : it));
-      changed = true;
-    }
-  }
-  try {
-    if (hadSaved && changed) window.localStorage.setItem(STORAGE_KEY, JSON.stringify(migrated));
-    window.localStorage.setItem(DOCK_MIGRATION_V13_KEY, '1');
-  } catch { /* noop */ }
-  return migrated;
+/**
+ * Aplica la garantía de predeterminados y persiste SOLO si algo cambió. Es el
+ * último paso de todos los flujos de `loadDockConfig`, para que el resultado
+ * que ve la UI y el que queda guardado/sincronizado sean el mismo.
+ */
+function finalizeDockItems(items: DockItemConfig[], hadSaved: boolean, defaultsVersion: number): DockItemConfig[] {
+  const { payload, changed } = normalizeDockState({ defaultsVersion, items: asItemsLike(items) });
+  const next = asItemsConfig(payload.items);
+  // Sin config guardada no se persiste nada: se mantiene el modo «presets vivos»
+  // (el catálogo ya trae los botones encendidos) y así un dispositivo recién
+  // estrenado no crea una config que pisaría la que va a bajar de la cuenta.
+  if (changed && hadSaved) persistDockPayload(next, payload.defaultsVersion);
+  return next;
 }
 
 export function loadDockConfig(): DockItemConfig[] {
   if (typeof window === 'undefined') return DOCK_PRESETS;
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
-    const parsed = raw ? (JSON.parse(raw) as unknown) : null;
-    const saved = Array.isArray(parsed) ? (parsed as DockItemConfig[]) : null;
+    // `parseDockPayload` entiende las DOS formas: el array LEGADO (lo que hay
+    // hoy en las cuentas ya generadas) y el sobre versionado nuevo.
+    const { items: savedItems, defaultsVersion } = parseDockPayload(raw);
+    const saved = savedItems ? asItemsConfig(savedItems) : null;
 
     // Migración v4 (one-shot): si se ejecuta ahora, su resultado ya está
     // persistido; la v5 se aplica encima (quita Tienda/Red·Nodos del dock);
     // la v6 fuerza 'escritorios' al primer puesto; la v7 añade Medios al final.
     const fused = applyDockFusionMigrationV4(saved);
     if (fused) {
-      return ensureDefaultDockItems(applyDockDefaultsOnV13(applyDockSenalesForceV12(applyDockRedFeedV11(applyDockRemoveRedMeshV10(applyDockSenalesV9(applyDockConnectivityGroupV8(applyDockMediaGroupV7(applyDockEscritorioFirstV6(applyDockLibraryMigrationV5(fused, true), true), true), true), true), true), true), true), true), true);
+      return finalizeDockItems(applyDockSenalesForceV12(applyDockRedFeedV11(applyDockRemoveRedMeshV10(applyDockSenalesV9(applyDockConnectivityGroupV8(applyDockMediaGroupV7(applyDockEscritorioFirstV6(applyDockLibraryMigrationV5(fused, true), true), true), true), true), true), true), true), true, defaultsVersion);
     }
 
     if (saved) {
@@ -739,7 +760,7 @@ export function loadDockConfig(): DockItemConfig[] {
       // final como deshabilitado, se aplica la migración v3 legada, la v5, la v6 y la v7.
       const known = new Set(saved.map((i) => i.id));
       const missing = DOCK_PRESETS.filter((p) => !known.has(p.id)).map((p) => ({ ...p, enabled: false }));
-      return ensureDefaultDockItems(applyDockDefaultsOnV13(applyDockSenalesForceV12(
+      return finalizeDockItems(applyDockSenalesForceV12(
         applyDockRedFeedV11(
           applyDockRemoveRedMeshV10(
             applyDockSenalesV9(
@@ -760,21 +781,27 @@ export function loadDockConfig(): DockItemConfig[] {
           true,
         ),
         true,
-      ), true), true);
+      ), true, defaultsVersion);
     }
   } catch { /* noop */ }
   // Sin config guardada: presets vivos (ya sin 'tienda'); la v5 purga folders
   // huérfanas, la v6 confirma 'escritorios' al inicio y la v7 confirma Medios al final (ambos ya lo están en presets).
-  return ensureDefaultDockItems(applyDockDefaultsOnV13(applyDockSenalesForceV12(applyDockRedFeedV11(applyDockRemoveRedMeshV10(applyDockSenalesV9(applyDockConnectivityGroupV8(applyDockMediaGroupV7(applyDockEscritorioFirstV6(applyDockLibraryMigrationV5(DOCK_PRESETS, false), false), false), false), false), false), false), false), false), false);
+  return finalizeDockItems(applyDockSenalesForceV12(applyDockRedFeedV11(applyDockRemoveRedMeshV10(applyDockSenalesV9(applyDockConnectivityGroupV8(applyDockMediaGroupV7(applyDockEscritorioFirstV6(applyDockLibraryMigrationV5(DOCK_PRESETS, false), false), false), false), false), false), false), false), false, 0);
 }
 
+/**
+ * Guarda la personalización del usuario ESTAMPANDO la versión actual: a partir
+ * de aquí, apagar «Señales» o «Feed de red» es una decisión suya y la garantía
+ * ya no vuelve a encenderlos (personalizable de verdad). Solo un
+ * `DOCK_DEFAULTS_VERSION` mayor en un despliegue futuro volvería a forzarlos.
+ */
 export function saveDockConfig(items: DockItemConfig[]) {
-  if (typeof window === 'undefined') return;
-  try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
-  } catch { /* noop */ }
+  persistDockPayload(items);
 }
 
 export function resetDockConfig() {
   saveDockConfig(DOCK_PRESETS);
 }
+
+/** Re-exportado para las superficies que necesiten conocer la garantía (UI/tests). */
+export { DOCK_DEFAULT_ON_IDS, DOCK_DEFAULTS_VERSION };

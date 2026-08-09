@@ -25,22 +25,32 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import {
     Search, Users, Scale, School, Palette, Landmark, Flag, CalendarDays,
     Globe, Users2, Check, Plus, UserPlus, Share2, ArrowUpRight, Lock,
-    Sparkles, Compass, LayoutGrid, Star, MapPin, X,
+    Sparkles, Compass, LayoutGrid, Star, MapPin, X, MessageSquare, Loader2,
+    ChevronDown, Globe2,
 } from "lucide-react";
 import { useOsPages, useOsGroups, useOsEvents } from "@/hooks/use-os-entities";
 import { setFollow, setMembership, getCurrentUserId } from "@/lib/os-social";
+import { createDm } from "@/lib/messages/dm";
 import { createClient } from "@/utils/supabase/client";
 import { listFederativeEntities, listPartidos } from "@/data/sample-governance";
 import { entityKindMeta, type SystemKey } from "@/lib/entity-kinds";
-import { pageHref, groupHref, eventHref } from "@/lib/entity-links";
+import { pageHref, groupHref, eventHref, profileHref } from "@/lib/entity-links";
+import {
+    listNetworkProfiles, countNetworkProfiles, searchNetworkProfiles, suggestedProfiles,
+    NETWORK_PAGE_SIZE,
+    type NetworkProfile, type NetworkCursor, type SuggestedProfile,
+} from "@/lib/social/network-directory";
 
 const GOLD = "#E9C46A";
 
@@ -197,17 +207,19 @@ function FilterChip({
 }
 
 // ── Acción rápida Seguir/Unirse conectada a Supabase (optimista) ─────────────
+// Recibe los datos primitivos (no un ConnItem) para que la MISMA acción sirva a
+// las tarjetas de entidades y a las de PERSONAS de la red (seguir a alguien es
+// `os_follows` con page_slug=username, la primitiva real del sistema).
 function QuickJoinButton({
-    item, initialActive, onChanged,
+    slug, isJoin, accent, initialActive, onChanged,
 }: {
-    item: ConnItem; initialActive: boolean; onChanged: () => void;
+    slug: string; isJoin: boolean; accent: string; initialActive: boolean; onChanged: () => void;
 }) {
     const [active, setActive] = useState(initialActive);
     const [busy, setBusy] = useState(false);
     const [needsAuth, setNeedsAuth] = useState(false);
     useEffect(() => setActive(initialActive), [initialActive]);
 
-    const isJoin = item.type === "grupo";
     const label = active ? (isJoin ? "Miembro" : "Siguiendo") : isJoin ? "Unirse" : "Seguir";
     const Icon = active ? Check : isJoin ? Plus : UserPlus;
 
@@ -215,9 +227,7 @@ function QuickJoinButton({
         setBusy(true);
         const next = !active;
         setActive(next); // optimista
-        const res = isJoin
-            ? await setMembership(item.joinSlug ?? item.slug, next)
-            : await setFollow(item.followSlug ?? item.slug, next);
+        const res = isJoin ? await setMembership(slug, next) : await setFollow(slug, next);
         setBusy(false);
         if (res.needsAuth) {
             setActive(!next); // revertir
@@ -237,13 +247,14 @@ function QuickJoinButton({
                 onClick={handle}
                 disabled={busy}
                 aria-pressed={active}
+                aria-label={`${label} ${slug}`}
                 className={cn(
-                    "inline-flex min-h-[2.75rem] cursor-pointer items-center justify-center gap-1.5 rounded-lg border px-3 text-xs font-semibold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 disabled:opacity-60 sm:min-h-[2.25rem]",
+                    "inline-flex min-h-[2.75rem] cursor-pointer items-center justify-center gap-1.5 rounded-lg border px-3 text-xs font-semibold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 disabled:opacity-60 sm:min-h-[2.5rem]",
                 )}
                 style={
                     active
-                        ? { borderColor: `${item.accent}88`, color: item.accent, background: `${item.accent}14` }
-                        : { borderColor: item.accent, background: item.accent, color: "#0b0b12" }
+                        ? { borderColor: `${accent}88`, color: accent, background: `${accent}14` }
+                        : { borderColor: accent, background: accent, color: "#0b0b12" }
                 }
             >
                 <Icon className="h-3.5 w-3.5" /> {label}
@@ -340,7 +351,13 @@ function ConnCard({ item, myConn, onChanged }: { item: ConnItem; myConn: MyConne
                 {/* Acciones rápidas */}
                 <div className="mt-auto flex items-center gap-2 pt-1">
                     {canAct && (
-                        <QuickJoinButton item={item} initialActive={item.type === "grupo" ? isMember : isFollowing} onChanged={onChanged} />
+                        <QuickJoinButton
+                            slug={item.type === "grupo" ? (item.joinSlug ?? item.slug) : (item.followSlug ?? item.slug)}
+                            isJoin={item.type === "grupo"}
+                            accent={item.accent}
+                            initialActive={item.type === "grupo" ? isMember : isFollowing}
+                            onChanged={onChanged}
+                        />
                     )}
                     <Link
                         href={item.href}
@@ -373,6 +390,400 @@ function MiniConnRow({ item }: { item: ConnItem }) {
             </div>
             <ArrowUpRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground/50 transition-all group-hover:text-primary" />
         </Link>
+    );
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// PERSONAS DE LA RED — «Sugeridos» + «Toda la red» + búsqueda transversal
+// ---------------------------------------------------------------------------
+// Faltaba lo esencial: en las recomendaciones solo cabían las conexiones por
+// afinidad; ahora se puede BUSCAR y VER a TODAS las personas de la red.
+//   · Datos: `@/lib/social/network-directory` (keyset sobre `os_profiles`,
+//     búsqueda unificada Typesense→Supabase, y `recommendations()` de siempre).
+//   · Acciones: las MISMAS del Hub — Seguir (QuickJoinButton → `os_follows`
+//     con page_slug=username), Mensaje (`createDm`, igual que el directorio del
+//     Buscador) y Ver perfil (`profileHref` → /profile/<username>).
+// ═════════════════════════════════════════════════════════════════════════════
+
+const PEOPLE_ACCENT = SYSTEM_META.social.color;
+
+/** Abre (o crea) el DM con esa persona — mismo flujo que el directorio del Hub. */
+function ProfileMessageButton({ userId, name }: { userId: string; name: string }) {
+    const router = useRouter();
+    const [busy, setBusy] = useState(false);
+    const open = async () => {
+        setBusy(true);
+        try {
+            const res = await createDm(userId);
+            if (res.needsAuth) {
+                toast.error("Inicia sesión para escribir a alguien.");
+                return;
+            }
+            if (!res.ok || !res.thread) {
+                toast.error(res.error || "No se pudo iniciar la conversación.");
+                return;
+            }
+            router.push("/messages");
+        } finally {
+            setBusy(false);
+        }
+    };
+    return (
+        <button
+            type="button"
+            onClick={() => void open()}
+            disabled={busy}
+            aria-label={`Enviar mensaje a ${name}`}
+            className="inline-flex min-h-[2.75rem] min-w-[2.75rem] cursor-pointer items-center justify-center rounded-lg border border-white/12 bg-white/[0.04] text-muted-foreground transition-colors duration-200 hover:border-white/25 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 disabled:opacity-60 sm:min-h-[2.5rem] sm:min-w-[2.5rem]"
+        >
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageSquare className="h-4 w-4" />}
+        </button>
+    );
+}
+
+/** Tarjeta de PERSONA — mismo lenguaje visual que <ConnCard>. */
+function ProfileCard({
+    profile, reason, myConn,
+}: {
+    profile: NetworkProfile; reason?: string; myConn: MyConnections;
+}) {
+    // Seguir a una persona usa `os_follows` con page_slug = username, así que el
+    // set ya cargado en "Mis conexiones" nos da el estado inicial sin más consultas.
+    const isFollowing = myConn.followPageSlugs.has(profile.username);
+    const href = profileHref({ handle: profile.username });
+    const initial = (profile.displayName || profile.username || "S").trim().charAt(0).toUpperCase() || "S";
+
+    return (
+        <Card
+            className="liquid-glass-panel group relative flex h-full flex-col overflow-hidden border transition-all duration-300 hover:-translate-y-0.5"
+            style={{ borderColor: `${PEOPLE_ACCENT}2e` }}
+        >
+            <div className="absolute inset-x-0 top-0 h-0.5" style={{ background: `linear-gradient(90deg, ${PEOPLE_ACCENT}, transparent)` }} aria-hidden />
+            <CardContent className="flex flex-1 flex-col gap-3 p-4">
+                <div className="flex items-start justify-between gap-2">
+                    <div className="flex min-w-0 items-center gap-2">
+                        <Avatar className="h-9 w-9 shrink-0 ring-2 ring-white/10">
+                            <AvatarImage src={profile.avatarUrl} alt="" />
+                            <AvatarFallback className="text-xs font-bold" style={{ background: `${PEOPLE_ACCENT}22`, color: PEOPLE_ACCENT }}>
+                                {initial}
+                            </AvatarFallback>
+                        </Avatar>
+                        <div className="min-w-0">
+                            <Link href={href} className="block truncate text-sm font-bold leading-snug text-foreground transition-colors hover:text-primary focus-visible:underline focus-visible:outline-none">
+                                {profile.displayName}
+                            </Link>
+                            <p className="mt-0.5 truncate text-[10px] text-muted-foreground/80">@{profile.username}</p>
+                        </div>
+                    </div>
+                    {isFollowing && (
+                        <Badge variant="outline" className="shrink-0 gap-1 border-emerald-500/30 bg-emerald-500/10 text-[9px] text-emerald-300">
+                            <Check className="h-2.5 w-2.5" /> Sigues
+                        </Badge>
+                    )}
+                </div>
+
+                {profile.bio && (
+                    <p className="line-clamp-2 text-[11px] leading-relaxed text-muted-foreground">{profile.bio}</p>
+                )}
+
+                {reason && (
+                    <p className="flex items-start gap-1 text-[10px] leading-snug text-primary/90">
+                        <Sparkles className="mt-0.5 h-3 w-3 shrink-0" /> {reason}
+                    </p>
+                )}
+
+                {profile.tags.length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                        {profile.tags.slice(0, 3).map((t) => (
+                            <span key={t} className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[9px] text-muted-foreground">
+                                {t}
+                            </span>
+                        ))}
+                    </div>
+                )}
+
+                <div className="mt-auto flex items-center gap-2 pt-1">
+                    <QuickJoinButton
+                        slug={profile.username}
+                        isJoin={false}
+                        accent={PEOPLE_ACCENT}
+                        initialActive={isFollowing}
+                        onChanged={myConn.refresh}
+                    />
+                    <Link
+                        href={href}
+                        aria-label={`Ver el perfil de ${profile.displayName}`}
+                        className="inline-flex min-h-[2.75rem] flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-white/12 bg-white/[0.03] px-3 text-xs font-semibold text-foreground/90 transition-colors duration-200 hover:border-white/25 hover:bg-white/[0.06] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 sm:min-h-[2.5rem]"
+                    >
+                        Ver perfil <ArrowUpRight className="h-3.5 w-3.5" />
+                    </Link>
+                    <ProfileMessageButton userId={profile.userId} name={profile.displayName} />
+                </div>
+            </CardContent>
+        </Card>
+    );
+}
+
+/** Skeleton simple mientras carga el directorio. */
+function PeopleSkeleton({ count = 6 }: { count?: number }) {
+    return (
+        <div role="status" aria-live="polite">
+            <span className="sr-only">Cargando personas…</span>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3" aria-hidden>
+                {Array.from({ length: count }, (_, i) => (
+                    <div key={i} className="h-[9.5rem] animate-pulse rounded-2xl border border-white/10 bg-white/[0.02]" />
+                ))}
+            </div>
+        </div>
+    );
+}
+
+/** Estado vacío honesto reutilizable dentro de la sección de personas. */
+function PeopleEmpty({ icon, children }: { icon: React.ReactNode; children: React.ReactNode }) {
+    return (
+        <Card className="liquid-glass-panel border-white/10">
+            <CardContent className="flex flex-col items-center gap-3 py-8 text-center">
+                <div className="grid h-11 w-11 place-items-center rounded-2xl border border-white/10 bg-white/[0.03] text-muted-foreground">
+                    {icon}
+                </div>
+                <div className="max-w-sm text-sm text-muted-foreground">{children}</div>
+            </CardContent>
+        </Card>
+    );
+}
+
+type PeopleTab = "sugeridos" | "red";
+
+/** ¿Coincide el perfil con el término? (nombre · handle · bio) */
+function matchesPerson(p: NetworkProfile, term: string): boolean {
+    if (!term) return true;
+    return `${p.displayName} ${p.username} ${p.bio}`.toLowerCase().includes(term.toLowerCase());
+}
+
+function NetworkPeople({ myConn }: { myConn: MyConnections }) {
+    const [tab, setTab] = useState<PeopleTab>("sugeridos");
+    /** ¿Ha elegido el usuario el segmento a mano? (bloquea el auto-salto de abajo) */
+    const [tabPicked, setTabPicked] = useState(false);
+    const [query, setQuery] = useState("");
+    const [term, setTerm] = useState("");
+
+    const [suggested, setSuggested] = useState<SuggestedProfile[]>([]);
+    const [suggestedLoading, setSuggestedLoading] = useState(true);
+
+    const [network, setNetwork] = useState<NetworkProfile[]>([]);
+    const [cursor, setCursor] = useState<NetworkCursor | null>(null);
+    const [networkLoading, setNetworkLoading] = useState(true);
+    const [loadingMore, setLoadingMore] = useState(false);
+    const [unavailable, setUnavailable] = useState(false);
+    const [total, setTotal] = useState<number | null>(null);
+
+    const [hits, setHits] = useState<NetworkProfile[]>([]);
+    const [hitsLoading, setHitsLoading] = useState(false);
+
+    // Debounce ~300 ms del buscador (evita una consulta por pulsación).
+    useEffect(() => {
+        const t = setTimeout(() => setTerm(query.trim()), 300);
+        return () => clearTimeout(t);
+    }, [query]);
+
+    // Sugerencias por afinidad (las de siempre) — sin sesión devuelven [].
+    useEffect(() => {
+        let alive = true;
+        void suggestedProfiles(12).then((r) => {
+            if (!alive) return;
+            setSuggested(r);
+            setSuggestedLoading(false);
+        });
+        return () => { alive = false; };
+    }, []);
+
+    // Primera página de TODA la red + total (si es barato saberlo).
+    useEffect(() => {
+        let alive = true;
+        void (async () => {
+            const page = await listNetworkProfiles({ limit: NETWORK_PAGE_SIZE });
+            if (!alive) return;
+            setNetwork(page.profiles);
+            setCursor(page.cursor);
+            setUnavailable(page.unavailable);
+            setNetworkLoading(false);
+        })();
+        void countNetworkProfiles().then((c) => { if (alive) setTotal(c); });
+        return () => { alive = false; };
+    }, []);
+
+    // Búsqueda REAL en toda la red a partir de 2 caracteres (con 1 se filtra en
+    // local sobre lo ya cargado: ni una consulta de más).
+    useEffect(() => {
+        if (term.length < 2) {
+            setHits([]);
+            setHitsLoading(false);
+            return;
+        }
+        let alive = true;
+        setHitsLoading(true);
+        void searchNetworkProfiles(term, 48).then((r) => {
+            if (!alive) return;
+            setHits(r);
+            setHitsLoading(false);
+        });
+        return () => { alive = false; };
+    }, [term]);
+
+    // Sin sugerencias (sin sesión, sin etiquetas, sin grupos) el panel quedaría
+    // vacío pese a HABER gente en la red: se abre entonces «Toda la red». Solo
+    // mientras el usuario no haya elegido segmento a mano.
+    useEffect(() => {
+        if (tabPicked || suggestedLoading || networkLoading) return;
+        if (suggested.length === 0 && network.length > 0) setTab("red");
+    }, [tabPicked, suggestedLoading, networkLoading, suggested.length, network.length]);
+
+    const pickTab = useCallback((next: PeopleTab) => {
+        setTabPicked(true);
+        setTab(next);
+    }, []);
+
+    const loadMore = useCallback(async () => {
+        if (!cursor || loadingMore) return;
+        setLoadingMore(true);
+        const page = await listNetworkProfiles({ limit: NETWORK_PAGE_SIZE, cursor });
+        setNetwork((prev) => {
+            const seen = new Set(prev.map((p) => p.userId));
+            return [...prev, ...page.profiles.filter((p) => !seen.has(p.userId))];
+        });
+        setCursor(page.cursor);
+        setLoadingMore(false);
+    }, [cursor, loadingMore]);
+
+    // La búsqueda es TRANSVERSAL: filtra los dos segmentos a la vez.
+    const suggestedVisible = useMemo(
+        () => suggested.filter((p) => matchesPerson(p, term)),
+        [suggested, term],
+    );
+    const networkVisible = useMemo(() => {
+        if (term.length >= 2) return hits;
+        if (term.length === 1) return network.filter((p) => matchesPerson(p, term));
+        return network;
+    }, [network, hits, term]);
+
+    const searching = term.length > 0;
+    const listLoading = tab === "sugeridos"
+        ? suggestedLoading
+        : networkLoading || (term.length >= 2 && hitsLoading);
+    const visible: (NetworkProfile | SuggestedProfile)[] = tab === "sugeridos" ? suggestedVisible : networkVisible;
+    const canLoadMore = tab === "red" && !searching && !!cursor;
+
+    return (
+        <section aria-label="Personas de la red" className="space-y-3">
+            <div className="section-label px-1 flex items-center gap-1.5">
+                <Users className="h-3.5 w-3.5 text-violet-300" /> Personas de la red
+                {total !== null && (
+                    <Badge variant="outline" className="ml-1 border-violet-500/30 bg-violet-500/5 text-[9px] uppercase tracking-widest text-violet-300">
+                        {total.toLocaleString("es-ES")} {total === 1 ? "perfil" : "perfiles"}
+                    </Badge>
+                )}
+            </div>
+
+            {/* Buscador transversal (nombre · @handle · bio) */}
+            <div className="relative">
+                <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    placeholder="Buscar personas por nombre, @handle o biografía…"
+                    aria-label="Buscar personas en toda la red"
+                    className="h-11 rounded-xl border-white/12 bg-background/40 pl-10 backdrop-blur"
+                />
+                {query && (
+                    <button
+                        type="button"
+                        onClick={() => setQuery("")}
+                        aria-label="Limpiar búsqueda de personas"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer text-muted-foreground hover:text-foreground"
+                    >
+                        <X className="h-4 w-4" />
+                    </button>
+                )}
+            </div>
+
+            {/* Segmentos (con el recuento de CADA uno bajo la búsqueda activa) */}
+            <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Segmento de personas">
+                <FilterChip active={tab === "sugeridos"} onClick={() => pickTab("sugeridos")} color={PEOPLE_ACCENT} ariaLabel="Personas sugeridas">
+                    <Sparkles className="h-3.5 w-3.5" /> Sugeridos
+                    {suggestedVisible.length > 0 && <span className="opacity-70">· {suggestedVisible.length}</span>}
+                </FilterChip>
+                <FilterChip active={tab === "red"} onClick={() => pickTab("red")} color={PEOPLE_ACCENT} ariaLabel="Todos los perfiles de la red">
+                    <Globe2 className="h-3.5 w-3.5" /> Toda la red
+                    {searching
+                        ? networkVisible.length > 0 && <span className="opacity-70">· {networkVisible.length}</span>
+                        : total !== null && <span className="opacity-70">· {total.toLocaleString("es-ES")}</span>}
+                </FilterChip>
+            </div>
+
+            {/* Resultados */}
+            {listLoading ? (
+                <PeopleSkeleton count={tab === "sugeridos" ? 3 : 6} />
+            ) : visible.length === 0 ? (
+                <PeopleEmpty icon={searching ? <Search className="h-5 w-5" /> : <Users className="h-5 w-5" />}>
+                    {searching ? (
+                        <>
+                            Ninguna persona coincide con «{term}»
+                            {tab === "sugeridos" ? " entre tus sugerencias" : " en la red"}.
+                            {tab === "sugeridos" && hits.length > 0 && (
+                                <>
+                                    {" "}Hay {hits.length.toLocaleString("es-ES")} en toda la red —{" "}
+                                    <button type="button" onClick={() => pickTab("red")} className="cursor-pointer font-semibold text-primary hover:underline">
+                                        verlas
+                                    </button>.
+                                </>
+                            )}
+                        </>
+                    ) : tab === "sugeridos" ? (
+                        myConn.needsAuth
+                            ? "Inicia sesión para recibir sugerencias por afinidad. Mientras tanto, explora «Toda la red»."
+                            : "Aún no hay sugerencias para ti: añade etiquetas a tu perfil o únete a un grupo y aparecerán aquí. Puedes explorar «Toda la red» mientras tanto."
+                    ) : unavailable ? (
+                        "El directorio de perfiles no está disponible ahora mismo. Vuelve a intentarlo en un momento."
+                    ) : (
+                        "Aún no hay más perfiles en la red. Cuando alguien más cree su perfil, aparecerá aquí."
+                    )}
+                </PeopleEmpty>
+            ) : (
+                <>
+                    {/* Cuentas HONESTAS y separadas: lo que se está viendo y, aparte, el
+                        total real de la red (que incluye tu propio perfil, no listado aquí). */}
+                    <p className="px-1 text-[11px] text-muted-foreground">
+                        {visible.length.toLocaleString("es-ES")} {visible.length === 1 ? "persona" : "personas"}
+                        {searching ? " coinciden con la búsqueda" : ""}
+                        {!searching && tab === "red" && total !== null ? ` · ${total.toLocaleString("es-ES")} en la red` : ""}
+                    </p>
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                        {visible.map((p) => (
+                            <ProfileCard
+                                key={p.userId}
+                                profile={p}
+                                reason={(p as SuggestedProfile).reason}
+                                myConn={myConn}
+                            />
+                        ))}
+                    </div>
+                    {canLoadMore && (
+                        <div className="flex justify-center pt-1">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => void loadMore()}
+                                disabled={loadingMore}
+                                className="btn-pill min-h-[2.75rem] cursor-pointer gap-1.5"
+                            >
+                                {loadingMore ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                                {loadingMore ? "Cargando…" : "Cargar más perfiles"}
+                            </Button>
+                        </div>
+                    )}
+                </>
+            )}
+        </section>
     );
 }
 
@@ -476,8 +887,9 @@ export function ConnectionsHub() {
                     </Badge>
                 </div>
                 <p className="max-w-2xl text-sm text-muted-foreground text-balance leading-relaxed">
-                    Todo tipo de vínculos de tu cuenta y de los perfiles en la red: páginas, grupos, eventos,
-                    Entidades Federativas y partidos. Sigue, únete, abre o comparte — filtra por sistema y tipo.
+                    Todo tipo de vínculos de tu cuenta y de los perfiles en la red: personas, páginas, grupos,
+                    eventos, Entidades Federativas y partidos. Busca en toda la red, sigue, únete, abre o
+                    comparte — filtra por sistema y tipo.
                 </p>
             </div>
 
@@ -527,6 +939,9 @@ export function ConnectionsHub() {
                     </div>
                 )}
             </section>
+
+            {/* ── Personas: Sugeridos · Toda la red + buscador transversal ── */}
+            <NetworkPeople myConn={myConn} />
 
             {/* ── Descubrir: filtros + tarjetas ── */}
             <section aria-label="Descubrir conexiones" className="space-y-3">

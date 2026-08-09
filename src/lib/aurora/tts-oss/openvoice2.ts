@@ -1353,13 +1353,23 @@ export interface OpenVoice2Options {
   budgetCapMs?: number;
   /**
    * Endpoint YA FIJADO para todo el mensaje (fix continuidad de voz,
-   * 2026-07-21): cuando viene informado, se usa TAL CUAL — sin recorrer
-   * `orderedOpenVoiceEndpoints()` de nuevo — así todos los trozos de un mismo
-   * mensaje troceado hablan por el MISMO Space. Lo produce
-   * `getOpenVoice2LockedEndpoint()` tras el éxito del primer trozo (ver
-   * `neural-tts.ts::neuralSpeakChunked`).
+   * 2026-07-21): cuando viene informado se prueba SIEMPRE el primero, así todos
+   * los trozos de un mismo mensaje troceado hablan por el MISMO Space. Lo
+   * produce `getOpenVoice2LockedEndpoint()` tras el éxito del primer trozo (ver
+   * `neural-tts.ts::neuralSpeakChunked`), y llega hasta aquí a través de la
+   * identidad congelada del mensaje (`voice-identity.ts`). Si ese Space se cae a
+   * mitad de mensaje, el reintento se limita a su MISMA FAMILIA (`kind`), que
+   * clona la misma semilla ⇒ misma voz.
    */
   endpointOverride?: OpenVoiceEndpoint;
+  /**
+   * Ánimo CONGELADO del mensaje (2026-08-09). Los endpoints con emociones
+   * (`v1-predict`) elegían su emoción leyendo el oído emocional EN VIVO, así que
+   * dos trozos del mismo mensaje podían salir con emociones distintas — se oye
+   * como un cambio de voz. Con la identidad congelada, todos los trozos usan el
+   * mismo ánimo. Ausente ⇒ lectura en vivo (comportamiento previo).
+   */
+  moodOverride?: string;
 }
 
 /**
@@ -1379,8 +1389,15 @@ export async function synthesizeOpenVoice2(
   // Autoactualización: refresco de DESCUBRIMIENTO en segundo plano (si caducó)
   // + contrato del Space oficial (best-effort; si cambió, ese endpoint degrada
   // pero el bucle multi-endpoint sigue con los demás).
-  ensureDiscoveryFresh();
-  await ensureContractFresh(opts.signal).catch(() => true);
+  //
+  // MENSAJE YA EN CURSO (`endpointOverride`): nada de esto se repite. El
+  // descubrimiento y el contrato ya se validaron para el PRIMER trozo de este
+  // mensaje; repetirlos por trozo solo añadía trabajo (y una posible reescritura
+  // del pool) entre dos frases que deben sonar seguidas.
+  if (!opts.endpointOverride) {
+    ensureDiscoveryFresh();
+    await ensureContractFresh(opts.signal).catch(() => true);
+  }
 
   const style = resolveOpenVoice2Style({
     styleHint: opts.styleHint,
@@ -1400,14 +1417,22 @@ export async function synthesizeOpenVoice2(
   const deadlineAt = opts.budgetCapMs && opts.budgetCapMs > 0 ? Date.now() + opts.budgetCapMs : 0;
   const pastDeadline = () => deadlineAt > 0 && Date.now() >= deadlineAt;
   // ENDPOINT FIJADO (fix continuidad de voz, 2026-07-21): un trozo anterior de
-  // este MISMO mensaje ya ganó con este endpoint — lo reutilizamos TAL CUAL,
-  // sin volver a recorrer orderedOpenVoiceEndpoints(), para que todos los
-  // trozos hablen por el MISMO Space (mismo timbre). Si justo éste cayó
-  // entretanto (raro), este trozo declina en vez de saltar a otro Space a
-  // mitad de mensaje — mejor un hueco que "varias voces" (neuralSpeakChunked
-  // cierra con dignidad y lo ya hablado no se toca).
+  // este MISMO mensaje ya ganó con este endpoint — se prueba SIEMPRE el primero,
+  // para que todos los trozos hablen por el MISMO Space (mismo timbre).
+  //
+  // FAILOVER SIN CAMBIAR DE VOZ (2026-08-09): si el Space congelado se cae a
+  // mitad de mensaje, antes el trozo se rendía (para no mezclar voces) y la
+  // locución se cortaba. Ahora hay una segunda oportunidad HONESTA: los demás
+  // Spaces de su MISMA FAMILIA (`kind`) reciben la MISMA referencia/semilla —
+  // clonan el mismo timbre—, así que reintentar ahí conserva la voz. Fuera de
+  // la familia no se salta nunca: eso ya sería otro modelo y otra persona.
   let endpoints = opts.endpointOverride
-    ? [opts.endpointOverride]
+    ? [
+        opts.endpointOverride,
+        ...orderedOpenVoiceEndpoints().filter(
+          (e) => e.kind === opts.endpointOverride!.kind && e.id !== opts.endpointOverride!.id,
+        ).slice(0, 2),
+      ]
     : orderedOpenVoiceEndpoints().slice(0, 3);
   // CORTAFUEGOS ANTI-ATASCO (Adenda 81): si TODOS los endpoints están apartados
   // por fallos recientes, no gastamos el turno de voz en ellos en cada frase —
@@ -1429,7 +1454,7 @@ export async function synthesizeOpenVoice2(
     }
     return null;
   }
-  const mood = liveUserMood();
+  const mood = opts.moodOverride ?? liveUserMood();
 
   for (const ep of endpoints) {
     if (opts.signal?.aborted) return null;

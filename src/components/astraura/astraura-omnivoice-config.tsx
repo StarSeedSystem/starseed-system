@@ -16,7 +16,8 @@
  *                  CUENTA⟷NEURONA (UI de la A133 íntegra), modo Auto/Fijo,
  *                  permitir pago, auto-actualización, novedades clasificadas
  *                  y «Diagnosticar y reparar».
- *   3. OpenVoice → motor de voz por personalidad + vía de la neurona
+ *   3. OmniVoice → SISTEMA de voz de Astraura: motor por personalidad (OpenVoice
+ *                  es uno de ellos) + vía de la neurona
  *                  (nube⟷local) + coherencia de persona (A112).
  *   4. Cerebro   → memorias por personalidad, cerebros permitidos, almacén
  *                  local⟷servidores y sync de cerebros con esta neurona.
@@ -156,7 +157,10 @@ const NARROW_SECTIONS: SetupSection[] = SYSTEM_SECTIONS;
 const SECTION_META: Record<SetupSection, { label: string; icon: LucideIcon; accent?: SectionTabAccent }> = {
   llm: { label: "LLM", icon: Bot, accent: "cyan" },
   astraura: { label: "Astraura", icon: Sparkles, accent: "amber" },
-  openvoice: { label: "OpenVoice", icon: Volume2, accent: "fuchsia" },
+  // El SISTEMA de voz se llama OmniVoice; «OpenVoice» es solo uno de sus
+  // motores. El id `openvoice` NO cambia: es la clave de los deep-links y de
+  // los sinónimos históricos (voz/omnivoice→openvoice).
+  openvoice: { label: "OmniVoice", icon: Volume2, accent: "fuchsia" },
   cerebro: { label: "Cerebro", icon: Brain, accent: "violet" },
   senales: { label: "Señales", icon: RadioTower, accent: "emerald" },
   neuronas: { label: "Neuronas", icon: Cpu },
@@ -198,7 +202,7 @@ const TAB_SYSTEM: Partial<Record<SetupSection, SystemKey>> = {
 };
 /** Etiqueta corta de cada sistema (la misma que su pestaña). */
 const SYSTEM_LABEL: Record<SystemKey, string> = {
-  llm: "LLM", astraura: "Astraura", voz: "OpenVoice", cerebro: "Cerebro", senales: "Señales",
+  llm: "LLM", astraura: "Astraura", voz: "OmniVoice", cerebro: "Cerebro", senales: "Señales",
 };
 
 /** Nº de sistemas con ajuste propio REAL (objetos vacíos no cuentan). */
@@ -1381,7 +1385,7 @@ export function AstrauraOmniVoiceConfig({
     </div>
   );
 
-  /** Novedades como CHIPS que saltan a su pestaña («Ver en LLM/OpenVoice»). */
+  /** Novedades como CHIPS que saltan a su pestaña («Ver en LLM/OmniVoice»). */
   const specChips = (specs: ModelSpec[], max = 6) => (
     <div className="mt-1 flex flex-wrap gap-1">
       {specs.slice(0, max).map((s) => {

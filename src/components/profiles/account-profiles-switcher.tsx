@@ -2,7 +2,7 @@
 
 /*
  * AccountProfilesSwitcher — selector compacto de PERFILES MÚLTIPLES por
- * cuenta (personal/cívico/artístico/profesional/custom). Distinto de
+ * cuenta (personal/grupal/público/temático + tipos legados). Distinto de
  * src/components/profile/profile-switcher.tsx (identidad de la Cuenta/
  * StarSeed ID) — esto son las FACETAS públicas vinculadas a esa cuenta única
  * (os_account_profiles, SOP §10).
@@ -15,6 +15,17 @@
  * editar. El editor de perfil (nombre, handle, tipo, bio) permite fijar
  * avatar/cover pegando una URL o subiendo/eligiendo un archivo con el
  * picker universal (`AttachFilePickerButton`), con vista previa en vivo.
+ *
+ * ── Adenda 149 (2026-08-09) · ESTE ES EL EDITOR DE CREACIÓN **Y** DE AJUSTES
+ *    de cada perfil. Se le añaden tres secciones, idénticas en ambos modos:
+ *      1. TIPO de perfil: personal · grupal · público · temático.
+ *      2. TEMAS creativos multi-seleccionables (chips; catálogo ampliable en
+ *         src/lib/social/profile-sharing.ts · PROFILE_CATEGORIES).
+ *      3. «Compartir con cuentas» (<ProfileAccessManager kind="profile">):
+ *         permisos graduales por cuenta (observador · colaborador · gestor ·
+ *         total). Al CREAR, los accesos se preparan y se aplican en cuanto el
+ *         perfil existe (applyPendingAccess). El PERFIL PRINCIPAL no se puede
+ *         compartir: el panel aparece bloqueado y explicado.
  */
 
 import { useCallback, useMemo, useState, useEffect, useRef } from "react";
@@ -61,9 +72,17 @@ import {
     deleteProfile,
     setDefaultProfile,
     profileKindLabel,
+    profileKindHint,
+    PROFILE_KIND_OPTIONS,
     type AccountProfile,
     type ProfileKind,
 } from "@/lib/profiles/profiles";
+import { ProfileAccessManager } from "@/components/social/profile-access-manager";
+import {
+    applyPendingAccess,
+    PROFILE_CATEGORIES,
+    type PendingAccessGrant,
+} from "@/lib/social/profile-sharing";
 import { AttachFilePickerButton } from "@/components/files/universal-file-picker";
 import { uploadFile } from "@/lib/files/os-files";
 import { ImageCropperDialog } from "@/components/ui/image-cropper-dialog";
@@ -72,7 +91,16 @@ import { toast } from "sonner";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useAccount } from "@/context/account-context";
 
-const KIND_OPTIONS: ProfileKind[] = ["personal", "civic", "artistic", "professional", "custom"];
+/**
+ * Adenda 149 · TIPOS de perfil ofrecidos al crear/editar. Si el perfil ya tenía
+ * un tipo LEGADO (civic/artistic/professional/custom) se añade al final para no
+ * "cambiárselo" por sorpresa al abrir el editor.
+ */
+function kindOptionsFor(current: ProfileKind): ProfileKind[] {
+    return PROFILE_KIND_OPTIONS.includes(current)
+        ? PROFILE_KIND_OPTIONS
+        : [...PROFILE_KIND_OPTIONS, current];
+}
 
 function initialsOf(label: string): string {
     const parts = (label || "").trim().split(/\s+/).filter(Boolean);
@@ -88,14 +116,39 @@ interface EditorState {
     name: string;
     handle: string;
     kind: ProfileKind;
+    /** Temas creativos multi-seleccionables (Adenda 149). */
+    categories: string[];
     bio: string;
     avatarUrl: string;
     coverUrl: string;
     visibility: "public" | "private" | "contacts";
+    /** true si es el PERFIL PRINCIPAL de la cuenta (no compartible). */
+    isPrimary: boolean;
+    /** Accesos preparados en la CREACIÓN (se aplican tras crear el perfil). */
+    pendingAccess: PendingAccessGrant[];
 }
 
-function emptyEditor(mode: "create" | "edit"): EditorState {
-    return { open: true, mode, name: "", handle: "", kind: "custom", bio: "", avatarUrl: "", coverUrl: "", visibility: "public" };
+/**
+ * `willBePrimary`: el PRIMER perfil de una cuenta nace como PRINCIPAL (identidad
+ * soberana) y, por tanto, NO se puede compartir — la sección de compartir se
+ * muestra bloqueada y explicada en vez de dejar preparar accesos que la base de
+ * datos rechazaría después.
+ */
+function emptyEditor(mode: "create" | "edit", willBePrimary = false): EditorState {
+    return {
+        open: true,
+        mode,
+        name: "",
+        handle: "",
+        kind: "personal",
+        categories: [],
+        bio: "",
+        avatarUrl: "",
+        coverUrl: "",
+        visibility: "public",
+        isPrimary: willBePrimary,
+        pendingAccess: [],
+    };
 }
 
 function editorFromProfile(p: AccountProfile): EditorState {
@@ -106,11 +159,29 @@ function editorFromProfile(p: AccountProfile): EditorState {
         name: p.name,
         handle: p.handle ?? "",
         kind: p.kind,
+        categories: Array.isArray(p.categories) ? p.categories : [],
         bio: p.bio ?? "",
         avatarUrl: p.avatarUrl ?? "",
         coverUrl: p.coverUrl ?? "",
         visibility: p.visibility ?? "public",
+        isPrimary: p.isDefault === true,
+        pendingAccess: [],
     };
+}
+
+/**
+ * Id del PERFIL PRINCIPAL efectivo de la cuenta (Adenda 149). Normalmente el
+ * marcado `is_default`; si ninguno lo está (cuentas antiguas creadas antes de
+ * que el primer perfil se marcara), el principal es el MÁS ANTIGUO — que es
+ * también el que el OS sincronizó con la identidad soberana `os_profiles`.
+ * Nunca compartible.
+ */
+function primaryProfileIdOf(profiles: AccountProfile[]): string | null {
+    if (profiles.length === 0) return null;
+    const flagged = profiles.find((p) => p.isDefault);
+    if (flagged) return flagged.id;
+    const oldest = [...profiles].sort((a, b) => (a.createdAt || "").localeCompare(b.createdAt || ""))[0];
+    return oldest?.id ?? null;
 }
 
 export function AccountProfilesSwitcher({ compact = false }: { compact?: boolean }) {
@@ -128,13 +199,13 @@ export function AccountProfilesSwitcher({ compact = false }: { compact?: boolean
         if (justSavedRef.current) return;
         if (!loading && !editor) {
             if (searchParams.get("createProfile") === "true") {
-                setEditor(emptyEditor("create"));
+                setEditor(emptyEditor("create", profiles.length === 0));
                 // Remove param without redirecting to a different page
                 const newUrl = new URL(window.location.href);
                 newUrl.searchParams.delete("createProfile");
                 router.replace(newUrl.pathname + newUrl.search, { scroll: false });
             } else if (profiles.length === 0) {
-                setEditor(emptyEditor("create"));
+                setEditor(emptyEditor("create", profiles.length === 0));
             }
         }
     }, [searchParams, loading, editor, router, profiles.length, mainProfile]);
@@ -142,6 +213,18 @@ export function AccountProfilesSwitcher({ compact = false }: { compact?: boolean
     const sorted = useMemo(
         () => [...profiles].sort((a, b) => Number(b.isDefault) - Number(a.isDefault) || a.name.localeCompare(b.name, "es")),
         [profiles],
+    );
+
+    /** Perfil principal efectivo: el único que NO se puede compartir. */
+    const primaryId = useMemo(() => primaryProfileIdOf(profiles), [profiles]);
+
+    /** Abre el editor de un perfil marcando si es el principal (no compartible). */
+    const openEditorFor = useCallback(
+        (p: AccountProfile) => {
+            const state = editorFromProfile(p);
+            setEditor({ ...state, isPrimary: p.isDefault === true || p.id === primaryId });
+        },
+        [primaryId],
     );
 
     const closeEditor = useCallback(() => setEditor(null), []);
@@ -161,10 +244,15 @@ export function AccountProfilesSwitcher({ compact = false }: { compact?: boolean
                     name,
                     handle: editor.handle.trim(),
                     kind: editor.kind,
+                    categories: editor.categories,
                     bio: editor.bio || null,
                     avatarUrl: editor.avatarUrl || null,
                     coverUrl: editor.coverUrl || null,
                     visibility: editor.visibility,
+                    // El PRIMER perfil de la cuenta es el PRINCIPAL (Adenda 149):
+                    // se marca explícitamente para que la regla "el principal no
+                    // se comparte" sea comprobable también en la base de datos.
+                    isDefault: profiles.length === 0,
                 };
                 console.log("Creando perfil con:", input);
                 let created = null;
@@ -182,7 +270,26 @@ export function AccountProfilesSwitcher({ compact = false }: { compact?: boolean
                 
                 if (created) {
                     setActive(created.id);
-                    
+
+                    // Adenda 149 · Accesos elegidos DURANTE la creación: ahora que
+                    // el perfil existe, se conceden de verdad. Nunca bloquea la
+                    // creación: si alguno falla, se avisa y el perfil queda hecho.
+                    if (editor.pendingAccess.length > 0 && !created.isDefault) {
+                        const { granted, errors } = await applyPendingAccess(
+                            "profile",
+                            created.id,
+                            editor.pendingAccess,
+                        );
+                        if (granted > 0) {
+                            toast.success(
+                                granted === 1
+                                    ? "Acceso concedido a 1 cuenta."
+                                    : `Acceso concedido a ${granted} cuentas.`,
+                            );
+                        }
+                        for (const err of errors.slice(0, 3)) toast.error(err);
+                    }
+
                     // Sync to Main Identity (os_profiles) if this is their very first facet,
                     // so the Sovereign Identity form also gets populated automatically.
                     if (profiles.length === 0 || !mainProfile || (!mainProfile.handle && !mainProfile.username)) {
@@ -213,6 +320,7 @@ export function AccountProfilesSwitcher({ compact = false }: { compact?: boolean
                     name,
                     handle: editor.handle.trim(),
                     kind: editor.kind,
+                    categories: editor.categories,
                     bio: editor.bio || null,
                     avatarUrl: editor.avatarUrl || null,
                     coverUrl: editor.coverUrl || null,
@@ -253,7 +361,7 @@ export function AccountProfilesSwitcher({ compact = false }: { compact?: boolean
                     size="sm"
                     variant="outline"
                     className="gap-1.5 border-white/15 text-xs cursor-pointer"
-                    onClick={() => setEditor(emptyEditor("create"))}
+                    onClick={() => setEditor(emptyEditor("create", profiles.length === 0))}
                 >
                     <Plus className="h-3.5 w-3.5" /> Crear perfil
                 </Button>
@@ -334,7 +442,7 @@ export function AccountProfilesSwitcher({ compact = false }: { compact?: boolean
                                     onClick={(e) => {
                                         e.stopPropagation();
                                         setMenuOpen(false);
-                                        setEditor(editorFromProfile(p));
+                                        openEditorFor(p);
                                     }}
                                     className="grid h-6 w-6 shrink-0 place-items-center rounded-md text-muted-foreground/70 transition-colors hover:bg-white/10 hover:text-foreground cursor-pointer"
                                 >
@@ -363,7 +471,7 @@ export function AccountProfilesSwitcher({ compact = false }: { compact?: boolean
                         onSelect={(e) => {
                             e.preventDefault();
                             setMenuOpen(false);
-                            setEditor(emptyEditor("create"));
+                            setEditor(emptyEditor("create", profiles.length === 0));
                         }}
                     >
                         <Plus className="h-3.5 w-3.5" /> Crear nuevo perfil
@@ -436,7 +544,8 @@ function ProfileEditorDialog({
 
     return (
         <Dialog open={editor.open} onOpenChange={(o) => !o && onClose()}>
-            <DialogContent className="max-w-md border-white/10 bg-black/90 backdrop-blur-2xl">
+            {/* max-h + scroll: el editor creció con Tipo/Temas/Compartir (Adenda 149). */}
+            <DialogContent className="max-h-[90vh] max-w-md overflow-y-auto border-white/10 bg-black/90 backdrop-blur-2xl">
                 <DialogHeader>
                     <DialogTitle>{editor.mode === "create" ? "Crear perfil" : "Editar perfil"}</DialogTitle>
                     <DialogDescription>
@@ -463,16 +572,18 @@ function ProfileEditorDialog({
                             className="bg-black/30 border-white/10"
                         />
                     </div>
+                    {/* ── Adenda 149 · TIPO de perfil (personal · grupal · público · temático) ── */}
                     <div>
                         <label className="mb-1 block text-[11px] font-semibold text-muted-foreground">Tipo</label>
                         <div className="flex flex-wrap gap-1.5">
-                            {KIND_OPTIONS.map((k) => (
+                            {kindOptionsFor(editor.kind).map((k) => (
                                 <button
                                     key={k}
                                     type="button"
+                                    title={profileKindHint(k)}
                                     onClick={() => onChange({ ...editor, kind: k })}
                                     className={cn(
-                                        "rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-colors cursor-pointer",
+                                        "min-h-10 rounded-full border px-3 py-1 text-[11px] font-semibold transition-colors cursor-pointer",
                                         editor.kind === k
                                             ? "border-primary/50 bg-primary/15 text-primary"
                                             : "border-white/10 text-muted-foreground hover:bg-white/5",
@@ -482,6 +593,48 @@ function ProfileEditorDialog({
                                 </button>
                             ))}
                         </div>
+                        <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">
+                            {profileKindHint(editor.kind)}
+                        </p>
+                    </div>
+
+                    {/* ── Adenda 149 · TEMAS creativos (multi-selección) ── */}
+                    <div>
+                        <label className="mb-1 block text-[11px] font-semibold text-muted-foreground">
+                            Temas del perfil
+                            {editor.categories.length > 0 ? ` · ${editor.categories.length}` : ""}
+                        </label>
+                        <div className="flex flex-wrap gap-1.5">
+                            {PROFILE_CATEGORIES.map((c) => {
+                                const active = editor.categories.includes(c.id);
+                                return (
+                                    <button
+                                        key={c.id}
+                                        type="button"
+                                        aria-pressed={active}
+                                        onClick={() =>
+                                            onChange({
+                                                ...editor,
+                                                categories: active
+                                                    ? editor.categories.filter((x) => x !== c.id)
+                                                    : [...editor.categories, c.id],
+                                            })
+                                        }
+                                        className={cn(
+                                            "min-h-10 rounded-full border px-3 py-1 text-[11px] font-medium transition-colors cursor-pointer",
+                                            active
+                                                ? "border-accent/50 bg-accent/15 text-accent-foreground"
+                                                : "border-white/10 text-muted-foreground hover:bg-white/5",
+                                        )}
+                                    >
+                                        <span aria-hidden="true">{c.emoji}</span> {c.label}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                        <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">
+                            Elige tantos como quieras: ayudan a que otras personas encuentren este perfil.
+                        </p>
                     </div>
                     <div>
                         <label className="mb-1 block text-[11px] font-semibold text-muted-foreground">Visibilidad</label>
@@ -615,6 +768,20 @@ function ProfileEditorDialog({
                             <Star className="h-3.5 w-3.5" /> Marcar como perfil predeterminado
                         </button>
                     )}
+
+                    {/* ── Adenda 149 · COMPARTIR el perfil con otras cuentas ──
+                        · Creación: los accesos se preparan y se aplican al guardar.
+                        · Ajustes: se gestionan en vivo.
+                        · Perfil PRINCIPAL: el panel se muestra bloqueado y explicado. */}
+                    <div className="border-t border-white/10 pt-3">
+                        <ProfileAccessManager
+                            kind="profile"
+                            id={editor.mode === "edit" ? (editor.id ?? null) : null}
+                            isPrimary={editor.isPrimary}
+                            pending={editor.pendingAccess}
+                            onPendingChange={(next) => onChange({ ...editor, pendingAccess: next })}
+                        />
+                    </div>
                 </div>
 
                 <DialogFooter>

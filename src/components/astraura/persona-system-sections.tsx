@@ -7,7 +7,7 @@
  *
  * Piezas de la ventana «Configuración/actualización de sistemas de Astraura en
  * esta neurona» (`astraura-omnivoice-config.tsx`): el selector de personalidad
- * y las secciones LLM · OpenVoice · Cerebro · Señales. (La sección Astraura —
+ * y las secciones LLM · OmniVoice · Cerebro · Señales. (La sección Astraura —
  * orden de clases, modo, novedades — vive en el componente principal, que ya la
  * tenía de las Adendas 132/133.)
  *
@@ -140,7 +140,7 @@ function personaIcon(name?: string): LucideIcon {
 type SystemKey = keyof PersonaNeuronOverrides;
 
 /** Riel izquierdo con el ACENTO DE SU PESTAÑA (LLM cian · Astraura ámbar ·
- *  OpenVoice fucsia · Cerebro violeta · Señales esmeralda): marca a simple
+ *  OmniVoice fucsia · Cerebro violeta · Señales esmeralda): marca a simple
  *  vista una tarjeta CON ajuste propio, sin depender de que aparezca el botón. */
 const SYSTEM_RAIL: Record<SystemKey, string> = {
   llm: "border-l-2 border-l-cyan-400/60",
@@ -735,13 +735,19 @@ export function LlmSection({ personaId, deviceId, caps, full = false }: SectionP
   );
 }
 
-/* ═══════════════════ Sección OpenVoice ═══════════════════ */
+/* ═══════════════════ Sección OmniVoice ═══════════════════ */
 
 /**
- * OpenVoice — voz de la personalidad seleccionada en esta neurona: motor
- * efectivo + pin por personalidad, vía de la neurona (nube ⟷ local) y
- * coherencia de persona (Adenda 112: el carácter se conserva en TODOS los
- * motores; la referencia de audio, donde el motor sabe clonar).
+ * OmniVoice — SISTEMA de voz de Astraura para la personalidad seleccionada en
+ * esta neurona: motor efectivo + pin por personalidad, vía de la neurona
+ * (nube ⟷ local) y coherencia de persona (Adenda 112: el carácter se conserva
+ * en TODOS los motores; la referencia de audio, donde el motor sabe clonar).
+ *
+ * NOMBRES (renombre honesto, 2026-08-09): el SISTEMA es **OmniVoice** — el
+ * router de voz, sus motores y la coherencia de persona. **OpenVoice** es UNO
+ * de esos motores (`openvoice2`, «OpenVoice V2»), no el sistema. El nombre del
+ * componente (`OpenVoiceSection`) se conserva porque es API interna que ya
+ * importan otras ventanas; lo que ve el usuario dice OmniVoice.
  */
 export function OpenVoiceSection({ personaId, deviceId, caps: _caps, full = false }: SectionProps) {
   const resolved = useResolvedPersonaSystems(personaId, deviceId);

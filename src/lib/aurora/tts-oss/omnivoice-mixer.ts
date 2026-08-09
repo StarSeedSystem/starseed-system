@@ -211,55 +211,117 @@ export async function mixerPlayBlob(blob: Blob, opts: MixerPlayOptions = {}): Pr
   }
 }
 
-/**
- * Como `mixerPlayBlob` pero devuelve además la DURACIÓN del audio (segundos),
- * para que un reproductor troceado pueda agendar el siguiente trozo justo
- * antes de que este termine (crossfade encadenado sin huecos). Devuelve
- * `{ ok:false, durationSec:0 }` si no se pudo (→ el llamador usa HTMLAudio).
+/*
+ * NOTA (2026-08-09) — `mixerPlayBlobInfo` ELIMINADA.
+ *
+ * Reproducía un blob "ya" y devolvía su duración para que el reproductor
+ * troceado agendara el siguiente con un `setTimeout`. Ese diseño tenía el hueco
+ * metido dentro: el timer llega tarde y, sobre todo, el decode del trozo
+ * siguiente ocurría DESPUÉS de despertar — justo en la costura. Su sustituto es
+ * el par `mixerDecodeBlob` (decodifica por adelantado, mientras suena el trozo
+ * anterior) + `mixerPlayBufferAt` (agenda en un instante EXACTO del reloj de
+ * audio). Ver `neural-tts.ts::playSequentialViaMixer`.
  */
-export async function mixerPlayBlobInfo(
-  blob: Blob,
-  opts: MixerPlayOptions = {},
-): Promise<{ ok: boolean; durationSec: number }> {
+
+/* ── Encadenado SIN HUECOS por reloj de audio (fix 2026-08-09) ─────────────── */
+
+/**
+ * Fuentes ya AGENDADAS que aún no han terminado. Con el encadenado por reloj
+ * puede haber dos a la vez (la que suena y la que ya está agendada para el
+ * instante exacto en que la anterior acaba): `stopMixer` tiene que cortarlas
+ * TODAS o el "parar" dejaría sonando la siguiente frase.
+ */
+let scheduledSources: AudioBufferSourceNode[] = [];
+
+/** Reloj del mixer (segundos). 0 si WebAudio no está disponible. */
+export function mixerNow(): number {
+  const c = ctx;
+  return c ? c.currentTime : 0;
+}
+
+/**
+ * Decodifica un Blob a AudioBuffer POR ADELANTADO (mientras suena el trozo
+ * anterior). Separar el decode de la reproducción es lo que permite agendar el
+ * siguiente trozo en un instante EXACTO: antes se decodificaba dentro de
+ * `mixerPlayBlobInfo`, ya en el último momento, y ese tiempo (decenas o cientos
+ * de ms en móviles) se oía como una costura entre frases. null ⇒ no decodifica
+ * (el llamador usa su camino clásico). NUNCA lanza.
+ */
+export async function mixerDecodeBlob(blob: Blob): Promise<AudioBuffer | null> {
   const c = getCtx();
-  if (!c || !master) return { ok: false, durationSec: 0 };
-  let buffer: AudioBuffer;
+  if (!c) return null;
   try {
     const bytes = await blob.arrayBuffer();
-    buffer = await c.decodeAudioData(bytes);
+    return await c.decodeAudioData(bytes);
   } catch {
-    return { ok: false, durationSec: 0 };
+    return null;
   }
+}
+
+export interface MixerScheduleResult {
+  ok: boolean;
+  /** Instante (reloj del mixer) en que EMPIEZA a sonar. */
+  startAt: number;
+  /** Instante en que TERMINA (ya con la velocidad aplicada). */
+  endAt: number;
+}
+
+/**
+ * Agenda un AudioBuffer en un instante ABSOLUTO del reloj de audio (`at`), con
+ * crossfade sobre lo que estuviera sonando. Es la pieza que hace que un mensaje
+ * troceado suene DE CORRIDO: el trozo N+1 se agenda en el instante exacto en que
+ * termina el N (menos el crossfade), en vez de arrancarse "cuando llegue" un
+ * `setTimeout` — que siempre llega tarde y deja un silencio audible.
+ *
+ * `at` en el pasado (o ausente) ⇒ suena ya. Devuelve el intervalo real para que
+ * el llamador encadene el siguiente. NUNCA lanza.
+ */
+export function mixerPlayBufferAt(
+  buffer: AudioBuffer,
+  opts: MixerPlayOptions & { at?: number } = {},
+): MixerScheduleResult {
+  const c = getCtx();
+  if (!c || !master) return { ok: false, startAt: 0, endAt: 0 };
   try {
     const now = c.currentTime;
+    const startAt = Math.max(now, opts.at ?? now);
     const fade = Math.max(0, (opts.crossfadeMs ?? MIXER_DEFAULT_CROSSFADE_MS) / 1000);
     const gain = c.createGain();
     const target = gainFor(opts.neuronId) * Math.max(0, Math.min(1, opts.volume ?? 1));
     if (active && !active.fading) {
-      fadeOutActive(now, fade);
-      gain.gain.setValueAtTime(0.0001, now);
-      gain.gain.setTargetAtTime(target, now, Math.max(0.02, fade / 3));
+      fadeOutActive(startAt, fade);
+      gain.gain.setValueAtTime(0.0001, startAt);
+      gain.gain.setTargetAtTime(target, startAt, Math.max(0.02, fade / 3));
     } else {
-      gain.gain.setValueAtTime(target, now);
+      gain.gain.setValueAtTime(target, startAt);
     }
     gain.connect(master);
     const source = c.createBufferSource();
     source.buffer = buffer;
-    if (opts.rate && opts.rate > 0) source.playbackRate.value = opts.rate;
+    const rate = opts.rate && opts.rate > 0 ? opts.rate : 1;
+    if (rate !== 1) source.playbackRate.value = rate;
     source.connect(gain);
-    const voice: ActiveVoice = { source, gain, neuronId: opts.neuronId ?? null, startedAt: now, fading: false, onEnd: opts.onEnd };
+    const voice: ActiveVoice = {
+      source,
+      gain,
+      neuronId: opts.neuronId ?? null,
+      startedAt: startAt,
+      fading: false,
+      onEnd: opts.onEnd,
+    };
     source.onended = () => {
       try { gain.disconnect(); } catch { /* */ }
+      scheduledSources = scheduledSources.filter((s) => s !== source);
       if (active === voice) active = null;
       try { voice.onEnd?.(); } catch { /* */ }
     };
     active = voice;
-    source.start(now);
+    scheduledSources.push(source);
+    source.start(startAt);
     try { opts.onStart?.(); } catch { /* */ }
-    const rate = opts.rate && opts.rate > 0 ? opts.rate : 1;
-    return { ok: true, durationSec: buffer.duration / rate };
+    return { ok: true, startAt, endAt: startAt + buffer.duration / rate };
   } catch {
-    return { ok: false, durationSec: 0 };
+    return { ok: false, startAt: 0, endAt: 0 };
   }
 }
 
@@ -372,6 +434,16 @@ export function stopMixer(): void {
   } catch {
     /* */
   }
+  // Trozos AGENDADOS por reloj que aún no han empezado (encadenado sin huecos):
+  // hay que pararlos explícitamente o "parar" dejaría entrar la frase siguiente.
+  try {
+    for (const src of scheduledSources) {
+      try { src.stop(c.currentTime + 0.14); } catch { /* ya parada */ }
+    }
+  } catch {
+    /* */
+  }
+  scheduledSources = [];
   mixerEndPcmStream(true); // hard: corta de verdad las fuentes PCM agendadas
 }
 

@@ -3,8 +3,14 @@
 /**
  * VoiceOssPanel — Ajustes → Experiencia (Aurora & Sentidos)
  * ============================================================================
- * Panel "Motor de voz de Aurora". Aurora puede hablar con distintos motores de
- * texto-a-voz, todos GRATIS (Adenda voz de Aurora, jul-2026 · SOP §10):
+ * Panel "Motor de voz de Aurora" — los MOTORES del sistema de voz **OmniVoice**.
+ *
+ * NOMBRES (renombre honesto, 2026-08-09): el SISTEMA de voz de Astraura se llama
+ * OmniVoice (router de voz + motores + coherencia de persona). «OpenVoice 2» y
+ * «OmniVoice k2-fsa» son MOTORES suyos, no el sistema — sus etiquetas lo dicen.
+ *
+ * Aurora puede hablar con distintos motores de texto-a-voz, todos GRATIS
+ * (Adenda voz de Aurora, jul-2026 · SOP §10):
  *
  *   · Navegador     → Web Speech API. Siempre disponible, cero descargas. La voz
  *                     por defecto es la MEJOR RANKEADA del dispositivo
@@ -16,7 +22,8 @@
  *                     propia/CasaOS u hospedado). Generativo y expresivo.
  *   · GPT-SoVITS    → clonación few-shot por ENDPOINT (refAudio ~5 s + refText).
  *                     Simbiótico con Bark (puede clonar/refinar su referencia).
- *   · OmniVoice     → k2-fsa, voz neural multilingüe por ENDPOINT.
+ *   · OmniVoice k2-fsa → voz neural multilingüe (motor híbrido por defecto).
+ *   · OpenVoice 2   → motor de nube gratis del sistema OmniVoice, sin instalar.
  *
  * TODO se guarda DENTRO de `starseed.aurora.voice.v1` (motor, voz, endpoints,
  * estilo emocional, voz del navegador, modo simbiótico) y VIAJA con la cuenta
@@ -259,7 +266,7 @@ export function VoiceOssPanel({ className }: { className?: string }) {
     setOv2Status("Despertando OpenVoice V2 en la web…");
     try {
       const blob = await synthesizeOpenVoice2(
-        "Hola, soy Aurora. Esta es mi voz OpenVoice versión dos, en la web y sin instalar nada.",
+        "Hola, soy Aurora. Esta es mi voz por OmniVoice con el motor OpenVoice versión dos, en la web y sin instalar nada.",
         { lang: "es", personalityId: "preset-aurora", onStatus: (m) => setOv2Status(m) },
       );
       const st = getOpenVoice2State();
@@ -820,13 +827,13 @@ export function VoiceOssPanel({ className }: { className?: string }) {
           Equivalente a la tarjeta de la sección de Neuronas — misma lógica. */}
       <NeuronVoiceChoice />
 
-      {/* ── OmniVoice · voz por defecto (motor híbrido · CERO config) ───────── */}
+      {/* ── OmniVoice k2-fsa · motor por defecto (híbrido · CERO config) ────── */}
       <div className="rounded-xl border border-[#7fb8ff]/25 bg-[#7fb8ff]/[0.05] p-3 space-y-2.5">
         <div className="flex items-center gap-2 flex-wrap">
           <Waves className="w-4 h-4 text-[#7fb8ff]" />
-          <span className="text-sm font-medium text-foreground/90">OmniVoice</span>
+          <span className="text-sm font-medium text-foreground/90">OmniVoice k2-fsa (motor)</span>
           <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] text-muted-foreground">
-            voz por defecto · nube gratis o local
+            motor por defecto · nube gratis o local
           </span>
           {/* Chip de RUTA (Adenda 77-voz · getOmniVoiceRouteState) */}
           {omniRoute === "local" ? (
@@ -901,7 +908,7 @@ export function VoiceOssPanel({ className }: { className?: string }) {
         <div className="flex items-center gap-2 flex-wrap">
           <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs" disabled={omniTesting} onClick={probarOmni}>
             {omniTesting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
-            Probar OmniVoice
+            Probar OmniVoice k2-fsa
           </Button>
           <span className="text-[11px] text-muted-foreground">
             El diseño de voz (género, edad, tono…) se ajusta por personalidad.
@@ -910,11 +917,11 @@ export function VoiceOssPanel({ className }: { className?: string }) {
         {omniStatus && <p className="text-[11px] text-foreground/60">{omniStatus}</p>}
       </div>
 
-      {/* ── OpenVoice V2 · voz de nube (web, sin instalar · Adenda V2-VOZ) ────── */}
+      {/* ── OpenVoice 2 · MOTOR de nube del sistema OmniVoice (sin instalar) ──── */}
       <div className="space-y-2 rounded-lg border border-white/10 bg-white/[0.02] p-3">
         <div className="flex items-center gap-2">
           <Cloud className="w-4 h-4 text-sky-300" />
-          <span className="text-sm font-medium text-foreground/90">OpenVoice V2 (web)</span>
+          <span className="text-sm font-medium text-foreground/90">OpenVoice 2 (motor · web)</span>
           {/* Chip de estado honesto del Space */}
           <span
             className={cn(
@@ -939,7 +946,7 @@ export function VoiceOssPanel({ className }: { className?: string }) {
         <p className="text-[11px] leading-relaxed text-muted-foreground">
           Voz de nube gratis, sin instalar nada. Clona el <b className="text-foreground/80">timbre</b>{" "}
           desde una semilla de identidad sintética (inspirada en el arquetipo del personaje, nunca
-          audio real) o desde tu propio audio. Va justo detrás de OmniVoice: si el Space duerme o
+          audio real) o desde tu propio audio. Va justo detrás del motor k2-fsa: si el Space duerme o
           falla, la cadena sigue y Aurora nunca calla.
         </p>
         <div className="flex items-center gap-2 flex-wrap">
@@ -952,7 +959,7 @@ export function VoiceOssPanel({ className }: { className?: string }) {
             disabled={ov2Testing}
           >
             {ov2Testing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
-            Probar OpenVoice V2
+            Probar OpenVoice 2
           </Button>
           {ov2Testing && (
             <span className="inline-flex items-center gap-1.5 text-[11px] text-sky-200">

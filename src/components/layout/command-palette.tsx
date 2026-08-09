@@ -300,8 +300,8 @@ export function CommandPalette() {
       {
         id: "action:astraura-openvoice",
         kind: "action",
-        label: "Sistemas de Astraura: OpenVoice",
-        hint: "Motor de voz y vía (nube gratis o motor local) por personalidad",
+        label: "Sistemas de Astraura: OmniVoice",
+        hint: "Sistema de voz: motor (OpenVoice 2 y compañía) y vía por personalidad",
         icon: Mic,
         color: "purple",
         activate: () => openAstrauraConfig("openvoice"),

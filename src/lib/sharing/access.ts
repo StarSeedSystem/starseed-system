@@ -177,6 +177,47 @@ export const SCOPE_LABELS: Record<AccessScope, string> = {
     public: "Público",
 };
 
+/* ══════════ Puente con los PERFILES COMPARTIDOS (Adenda 149) ══════════
+ *
+ * `src/lib/social/profile-sharing.ts` comparte IDENTIDADES (perfiles, páginas,
+ * grupos) entre cuentas con un vocabulario GRADUAL propio:
+ *   observador < colaborador < gestor < total
+ * Este módulo sigue siendo el único modelo de permisos de RECURSOS
+ * (escritorios, pizarras, cerebros, archivos…). Para que ambos hablen el mismo
+ * idioma sin duplicar lógica, la traducción vive AQUÍ (así profile-sharing.ts
+ * depende de access.ts y no al revés: access.ts no importa nada nuevo).
+ *
+ *   observador  → view    (ver / usar en lectura)
+ *   colaborador → edit    (publicar y editar contenido)
+ *   gestor      → admin   (configurar e invitar accesos menores)
+ *   total       → admin   (+ cerebros, memorias, configuraciones y logs)
+ *
+ * `gestor` y `total` comparten `admin` A PROPÓSITO: el modelo universal
+ * describe qué se puede hacer con un RECURSO, y ahí ambos mandan por igual. La
+ * diferencia (cerebros/memorias/configs/logs de la identidad) es un asunto de
+ * la capa de identidad y se consulta con `canActOnProfile(id, "total")` o, en
+ * la base, con `public.profile_access_allows(profile_id, 'total')`.
+ * Por eso la conversión inversa NUNCA devuelve `total`: no se puede deducir un
+ * acceso absoluto a partir de un rol de recurso (sería regalar poder).
+ */
+
+/** Rol gradual de una IDENTIDAD compartida (perfil · página · grupo). */
+export type ProfileShareRole = "observador" | "colaborador" | "gestor" | "total";
+
+/** Rol gradual de identidad → rol del modelo universal de recursos. */
+export function accessRoleFromProfileRole(role: ProfileShareRole): AccessRole {
+    if (role === "total" || role === "gestor") return "admin";
+    if (role === "colaborador") return "edit";
+    return "view";
+}
+
+/** Rol universal de recurso → rol gradual de identidad (nunca `total`). */
+export function profileRoleFromAccessRole(role: AccessRole): ProfileShareRole {
+    if (role === "admin") return "gestor";
+    if (role === "edit") return "colaborador";
+    return "observador";
+}
+
 /* ─────────────────────────── Helpers básicos ─────────────────────────── */
 
 function isClient(): boolean {

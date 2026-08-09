@@ -9,7 +9,7 @@
  * manual (`subscribeStartupOpen` / `openStartupUpdates`) y su overlay centrado z-[120].
  * El CONTENIDO es el componente reutilizable `AstrauraOmniVoiceConfig`
  * (variant="modal"): título dinámico por contexto (neurona nueva / actualización
- * de sistemas en uso / recomendaciones) y pestañas LLM · Astraura · OpenVoice ·
+ * de sistemas en uso / recomendaciones) y pestañas LLM · Astraura · OmniVoice ·
  * Cerebro · Señales por personalidad — ver `astraura-omnivoice-config.tsx` y el
  * SOP `architecture/astraura-config-sistemas-neurona.md`.
  *

@@ -176,6 +176,20 @@ export interface OmniSynthOptions {
    * local con `preferLocal`).
    */
   budgetCapMs?: number;
+  /**
+   * Config OmniVoice EFECTIVA ya resuelta para TODO el mensaje (identidad
+   * congelada, 2026-08-09). Con ella no se vuelve a llamar a `resolveActiveOmni()`
+   * en cada trozo: además de ahorrar un import dinámico + lecturas por frase,
+   * evita que un cambio de personalidad o de ajustes a mitad de respuesta le dé
+   * OTRO diseño de voz al trozo siguiente. Ausente ⇒ resolución por turno (igual
+   * que antes).
+   */
+  omniResolved?: AstrauraVoiceConfig;
+  /**
+   * Arquetipo de semilla congelado ("aurora"/"hermione"/"") para el cuerpo del
+   * daemon local. Ausente ⇒ se lee el publicado por `ensureLocalIdentity`.
+   */
+  personaKind?: string;
 }
 
 // ── Idioma → nombre del Space ────────────────────────────────────────────────
@@ -611,6 +625,8 @@ async function synthLocal(
   langName: string,
   signal?: AbortSignal,
   timeoutMs: number = LOCAL_TTS_TIMEOUT_MS,
+  /** Arquetipo congelado del mensaje (identidad); ausente ⇒ el publicado. */
+  personaKind?: string,
 ): Promise<{ blob: Blob | null; timedOut: boolean }> {
   if (typeof window === "undefined") return { blob: null, timedOut: false };
   const pb = omni.playback_parameters;
@@ -624,8 +640,10 @@ async function synthLocal(
     allow_non_verbal: pb.allow_non_verbal_symbols !== false,
     // IDENTIDAD (Adenda 87): el daemon clona refs/<personalidad>.wav si existe
     // (subida una vez vía ensureLocalIdentity) y, si no, fija --seed estable por
-    // personalidad → voz FEMENINA consistente también en local.
-    personality: activePersonalityKind(),
+    // personalidad → voz FEMENINA consistente también en local. Con identidad
+    // congelada manda la del mensaje: si la personalidad activa cambiaba entre
+    // dos trozos, el daemon cambiaba de semilla a media locución.
+    personality: personaKind ?? activePersonalityKind(),
   };
   if (
     omni.generation_mode === "voice_cloning" &&
@@ -1042,7 +1060,9 @@ export async function synthesizeOmniVoiceHybrid(
   const clean = (text || "").trim();
   if (!clean || typeof window === "undefined") return null;
 
-  const omni = await resolveActiveOmni(opts.omni);
+  // Config EFECTIVA: la congelada del mensaje si la hay (una resolución por
+  // mensaje, no por trozo), si no la de siempre.
+  const omni = opts.omniResolved ?? (await resolveActiveOmni(opts.omni));
   const langName = mapLangToSpace(opts.lang);
   // Mantén el daemon caliente para los turnos siguientes (no bloquea este),
   // tanto en la decisión normal como en la ruta congelada.
@@ -1079,7 +1099,7 @@ export async function synthesizeOmniVoiceHybrid(
         opts.budgetCapMs && opts.budgetCapMs > 0
           ? Math.min(naturalBudget, opts.budgetCapMs)
           : naturalBudget;
-      const local = await synthLocal(clean, omni, langName, opts.signal, budget).catch(
+      const local = await synthLocal(clean, omni, langName, opts.signal, budget, opts.personaKind).catch(
         () => ({ blob: null as Blob | null, timedOut: false }),
       );
       if (local.blob) {
@@ -1119,7 +1139,7 @@ export async function synthesizeOmniVoiceHybrid(
         opts.budgetCapMs && opts.budgetCapMs > 0
           ? Math.min(LOCAL_TTS_TIMEOUT_MS, opts.budgetCapMs)
           : LOCAL_TTS_TIMEOUT_MS;
-      const fb = await synthLocal(clean, omni, langName, opts.signal, fbBudget).catch(() => ({
+      const fb = await synthLocal(clean, omni, langName, opts.signal, fbBudget, opts.personaKind).catch(() => ({
         blob: null as Blob | null,
         timedOut: false,
       }));
@@ -1173,7 +1193,7 @@ export async function synthesizeOmniVoiceHybrid(
       // resuelta, p.ej. si decideOmniRoute() falló): nunca dejamos que un solo
       // trozo agote un presupuesto de minutos.
       if (opts.budgetCapMs && opts.budgetCapMs > 0) budget = Math.min(budget, opts.budgetCapMs);
-      const local = await synthLocal(clean, omni, langName, opts.signal, budget).catch(
+      const local = await synthLocal(clean, omni, langName, opts.signal, budget, opts.personaKind).catch(
         () => ({ blob: null as Blob | null, timedOut: false }),
       );
       if (local.blob) {
@@ -1240,7 +1260,7 @@ export async function synthesizeOmniVoiceHybrid(
       }
       let fbBudget = LOCAL_TTS_TIMEOUT_MS;
       if (opts.budgetCapMs && opts.budgetCapMs > 0) fbBudget = Math.min(fbBudget, opts.budgetCapMs);
-      const fb = await synthLocal(clean, omni, langName, opts.signal, fbBudget).catch(() => ({
+      const fb = await synthLocal(clean, omni, langName, opts.signal, fbBudget, opts.personaKind).catch(() => ({
         blob: null as Blob | null,
         timedOut: false,
       }));
