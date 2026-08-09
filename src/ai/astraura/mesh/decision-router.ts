@@ -69,6 +69,14 @@ export interface DecideRouteInput {
   neuronRules?: MeshRules | null;
   /** ¿Hay tokens de airtime para al menos 1 trozo? (lo responde sync.ts). */
   airtimeAvailable?: boolean;
+  /**
+   * PERSONALIDAD EMISORA (Adenda 149 · Ola 3). Cuando el llamador sabe QUIÉN
+   * emite, la RUTA PREFERIDA se lee de sus reglas de la pestaña «Señales»
+   * (`getOverrides` fusiona «Todas» «*» con las propias y gana la más
+   * específica). Omitido ⇒ `preferredRouteFor(undefined)` cae en los defaults
+   * «*» de la neurona: EXACTAMENTE el comportamiento previo a esta ola.
+   */
+  personaId?: string | null;
 }
 
 /**
@@ -134,11 +142,13 @@ export function decideRoute(input: DecideRouteInput): RouteDecision {
   //     preferida "mesh" de la neurona.
   //   · "servidor" → como "wifi" (la vía por la que se alcanza el servidor).
   //   · "auto" → NO cambia nada: manda el ajuste de la neurona, como siempre.
-  // HONESTO (rev. A149·2ª ola): aquí no llega personalidad emisora todavía, así
-  // que rigen los defaults «Todas» ("*") de la neurona; cuando la transmisión
-  // lleve personalidad, pásala a `preferredRouteFor(personaId)` y su regla más
-  // específica ganará (precedencia del SOP A149).
-  const personaRoute = preferredRouteFor();
+  // (Ola 3 · cierre del pendiente del SOP §9) La PERSONALIDAD EMISORA ya llega
+  // aquí cuando el llamador la conoce (`sendOverMesh` la propaga desde su
+  // `neuronId`, que es el mismo id que gobierna las puertas de antena), así que
+  // su regla MÁS ESPECÍFICA gana sobre los defaults «Todas» ("*") — precedencia
+  // del SOP A149. Sin `personaId` (o sin overrides guardados) `preferredRouteFor`
+  // devuelve "auto" y esta rama no toca nada: manda el ajuste de la neurona.
+  const personaRoute = preferredRouteFor(input.personaId);
   const preferred: PreferredRoute =
     personaRoute === "mesh" || personaRoute === "privada"
       ? "mesh"

@@ -809,6 +809,70 @@ async function main() {
     check("revocación: el drenado ASC paginado SIEMPRE aprende la revocación legítima", newSet.has(LEGIT));
   }
 
+  // 35) Adenda 149 · Ola 3: la RUTA PREFERIDA de la pestaña «Señales» es POR
+  //     PERSONALIDAD (`decideRoute({ personaId })`). Al FINAL del archivo a
+  //     propósito: es el único bloque que necesita un `window.localStorage`
+  //     simulado (la puerta de antenas lee los overrides de disco), y así ese
+  //     shim no puede contaminar a ningún otro test. Se restaura en `finally`.
+  {
+    const fake = new Map<string, string>();
+    const g = globalThis as unknown as { window?: unknown };
+    const hadWindow = "window" in g;
+    const prevWindow = g.window;
+    g.window = {
+      localStorage: {
+        getItem: (k: string) => fake.get(k) ?? null,
+        setItem: (k: string, v: string) => void fake.set(k, v),
+        removeItem: (k: string) => void fake.delete(k),
+      },
+      dispatchEvent: () => true,
+    };
+    try {
+      // Regla guardada: la personalidad "p-mesh" fija la antena LoRa en ruta "mesh".
+      fake.set("starseed.neuron.device-id", "dev-test");
+      fake.set(
+        "starseed.astraura.neuron-persona.v1",
+        JSON.stringify({ "dev-test": { "p-mesh": { senales: { porAntena: { lora: { ruta: "mesh" } } } } } }),
+      );
+      resetMeshState();
+      _resetRouterHysteresis();
+      setMeshState({
+        status: "ready",
+        meshHealth: { score: 0.8, detail: "", at: Date.now() },
+        wifiHealth: { score: 0.9, detail: "", at: Date.now() },
+      });
+      // SIN personalidad rigen los defaults «*» (no hay ninguno) → Wi-Fi sana = wifi.
+      const sinPersona = decideRoute({ cls: "P2", sizeBytes: 100, neuronRules: DEFAULT_MESH_RULES });
+      check("señales: sin personalidad manda «*» (Wi-Fi sana → wifi)", sinPersona.route === "wifi");
+      // CON la personalidad, su regla más específica gana y fuerza la malla.
+      _resetRouterHysteresis();
+      const conPersona = decideRoute({
+        cls: "P2",
+        sizeBytes: 100,
+        neuronRules: DEFAULT_MESH_RULES,
+        personaId: "p-mesh",
+      });
+      check(
+        "señales: la ruta preferida de la personalidad fuerza mesh",
+        conPersona.route === "mesh" && conPersona.reason === "mesh-forced-by-rule",
+      );
+      // Otra personalidad SIN reglas propias no hereda las ajenas: sigue en wifi.
+      _resetRouterHysteresis();
+      const otraPersona = decideRoute({
+        cls: "P2",
+        sizeBytes: 100,
+        neuronRules: DEFAULT_MESH_RULES,
+        personaId: "p-otra",
+      });
+      check("señales: otra personalidad sin reglas NO hereda la ruta ajena", otraPersona.route === "wifi");
+    } finally {
+      if (hadWindow) g.window = prevWindow;
+      else delete g.window;
+      resetMeshState();
+      _resetRouterHysteresis();
+    }
+  }
+
   console.log(`\n${passed} pasan / ${failed} fallan`);
   if (failed > 0) process.exit(1);
 }

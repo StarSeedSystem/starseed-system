@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
     BrainCircuit, Pause, Search, Zap, Loader2, Check, X, ChevronLeft, type LucideIcon,
@@ -47,6 +47,17 @@ function detailOf(kind: Kind): { drivers: string[]; rationale: string } {
     return { rationale: "Una acción de bajo coste con alto impacto en el procomún está disponible ahora.", drivers: ["excedente disponible", "ventana óptima", "consenso vecinal"] };
 }
 
+/** Valores REALES abreviados de los 5 sistemas de la neurona (A149). */
+interface RealSystems { llm: string; astraura: string; voz: string; cerebro: string; senales: string }
+
+const SYSTEM_STRIP: ReadonlyArray<readonly [tab: string, label: string, key: keyof RealSystems, color: string]> = [
+    ["llm", "LLM", "llm", "#22d3ee"],
+    ["astraura", "Astraura", "astraura", "#fbbf24"],
+    ["openvoice", "Voz", "voz", "#e879f9"],
+    ["cerebro", "Cerebro", "cerebro", "#a78bfa"],
+    ["senales", "Señales", "senales", "#34d399"],
+];
+
 export function AstrauraCortexWidget() {
     const { data, loading } = useWidgetData("ai.astraura", { refreshMs: 4000 });
     const [filter, setFilter] = useState<Kind | "all">("all");
@@ -54,6 +65,45 @@ export function AstrauraCortexWidget() {
     const [openId, setOpenId] = useState<string | null>(null);
 
     const managed = useMemo(() => Object.keys(resolved).length, [resolved]);
+
+    // ── ESTADO REAL de los sistemas de la neurona (A149 · pendientes) ─────────
+    // Las sugerencias de arriba siguen siendo simuladas (useWidgetData), pero
+    // esta franja lee la resolución REAL de la capa neurona×personalidad —
+    // el escritorio era la única superficie de la SPEC con cobertura cero.
+    // Import PEREZOSO dentro del efecto: no arrastra personalities/engine-registry
+    // al chunk del escritorio (mismo patrón que /cuenta y la paleta de comandos).
+    const [real, setReal] = useState<RealSystems | null>(null);
+    useEffect(() => {
+        let alive = true;
+        let off: (() => void) | null = null;
+        void (async () => {
+            try {
+                const mod = await import("@/lib/astraura/neuron-persona-systems");
+                const compute = () => {
+                    try {
+                        const r = mod.resolvePersonaSystems(mod.ALL_PERSONAS, undefined, null);
+                        const cerradas = Object.values(r.senales.porAntena).filter((x) => !x.enabled || !x.salida).length;
+                        if (!alive) return;
+                        setReal({
+                            llm: r.llm.modelo || r.llm.fuente || "Auto",
+                            astraura: r.astraura.modo === "fija" ? "Fija" : "Auto",
+                            voz: String(r.voz.motor),
+                            cerebro: !r.cerebro.usarMemorias ? "sin memorias" : r.cerebro.almacen === "auto" ? "memorias ON" : r.cerebro.almacen,
+                            senales: cerradas === 0 ? "abiertas" : `${cerradas} cerrada(s)`,
+                        });
+                    } catch { /* best-effort */ }
+                };
+                compute();
+                off = mod.subscribeNeuronPersona(compute);
+            } catch { /* módulo no disponible: la franja simplemente no se pinta */ }
+        })();
+        return () => { alive = false; off?.(); };
+    }, []);
+
+    /** Abre la ventana de sistemas en la pestaña pedida (drawer global A149). */
+    const openSystems = (tab: string) => {
+        void import("@/lib/astraura/config-ui").then((m) => m.openAstrauraConfig(tab)).catch(() => { /* */ });
+    };
 
     return (
         <WidgetShell title="Córtex Astraura" subtitle="Tu exocórtex" icon={BrainCircuit} accent="#8b5cf6" live>
@@ -97,6 +147,25 @@ export function AstrauraCortexWidget() {
                                         className={cn("rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider border transition-colors cursor-pointer",
                                             filter === f.id ? "bg-violet-500/20 border-violet-500/40 text-violet-200" : "border-border/40 bg-white/[0.02] text-muted-foreground hover:text-foreground")}>
                                         {f.label}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+
+                        {/* SISTEMAS REALES de esta neurona (A149): clic → su pestaña. */}
+                        {!micro && real && (
+                            <div className="flex flex-wrap items-center gap-1" aria-label="Sistemas de Astraura en esta neurona (estado real)">
+                                {SYSTEM_STRIP.map(([tab, label, key, color]) => (
+                                    <button
+                                        key={tab}
+                                        type="button"
+                                        onClick={() => openSystems(tab)}
+                                        title={`${label}: ${real[key]} — abrir configuración de sistemas`}
+                                        className="inline-flex max-w-full items-center gap-1 rounded-full border border-border/40 bg-white/[0.03] px-1.5 py-0.5 text-[8px] text-muted-foreground transition-colors duration-200 hover:text-foreground hover:border-violet-500/30 cursor-pointer"
+                                    >
+                                        <span className="size-1.5 shrink-0 rounded-full" style={{ background: color }} aria-hidden="true" />
+                                        <span className="font-bold uppercase tracking-wider">{label}</span>
+                                        <span className="max-w-[72px] truncate normal-case">{real[key]}</span>
                                     </button>
                                 ))}
                             </div>

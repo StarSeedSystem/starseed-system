@@ -462,10 +462,16 @@ export async function sendAuroraTurn(opts: SendAuroraTurnOptions): Promise<Auror
     // Adenda 101: transmite la respuesta por la red sináptica según la
     // conectividad del CHAT (privado → cuenta). No bloquea ni altera el
     // retorno (fire-and-forget; nunca lanza).
+    // Adenda 149 · Ola 3 (cierre del pendiente del SOP §9): este turno SÍ sabe
+    // QUIÉN emite (la personalidad efectiva ya resuelta en el paso 3), así que
+    // la propaga: sus reglas de la pestaña «Señales» (puertas de antena +
+    // ruta preferida) gobiernan este envío. Sin personalidad efectiva viaja
+    // `undefined` y rigen los defaults «Todas» ("*") de la neurona — el
+    // comportamiento exacto de antes.
     void transmitForContext(
       { kind: "config", config: normalizeConnectivityConfig(getChatConfig(convId)?.connectivity) },
       { scope: "private", type: "message", cls: "P3", target: "account", recipient: convId,
-        body: { convId, role: "assistant", text: finalText } },
+        body: { convId, role: "assistant", text: finalText }, personalityId: persona?.profile?.id },
     ).catch(() => {});
   }
 

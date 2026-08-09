@@ -64,10 +64,10 @@ import { CONTROL_CENTER_NAVIGATE_EVENT } from "../control-center-events";
 import { openAstrauraConfig } from "@/lib/astraura/config-ui";
 // (Adenda 149) …y el ESTADO EFECTIVO de esos 5 sistemas, para que el atajo no
 // sea mudo: se resuelve para «Todas las personalidades» (defaults de la neurona).
-import {
-    ALL_PERSONAS, resolvePersonaSystems, subscribeNeuronPersona,
-    type ResolvedPersonaSystems,
-} from "@/lib/astraura/neuron-persona-systems";
+// Import PEREZOSO (rev. 3 olas): `neuron-persona-systems` arrastra
+// personalities/engine-registry; cargarlo estático metía ese grafo entero en el
+// chunk de Trinity. Solo el TIPO se importa estático (se borra al compilar).
+import type { ResolvedPersonaSystems } from "@/lib/astraura/neuron-persona-systems";
 import { thisDeviceId } from "@/lib/neurons/neurons";
 
 const AURORA_ENGINE_LABEL: Record<AuroraVoiceEngine, string> = {
@@ -123,15 +123,23 @@ export function QuickSettingsTab() {
     // SSR-safe: se resuelve dentro del efecto y se refresca con el store.
     const [astraura, setAstraura] = useState<ResolvedPersonaSystems | null>(null);
     useEffect(() => {
-        const refresh = () => {
+        let alive = true;
+        let off: (() => void) | null = null;
+        void (async () => {
             try {
-                setAstraura(resolvePersonaSystems(ALL_PERSONAS, thisDeviceId(), null));
-            } catch {
-                setAstraura(null);
-            }
-        };
-        refresh();
-        return subscribeNeuronPersona(refresh);
+                const mod = await import("@/lib/astraura/neuron-persona-systems");
+                const refresh = () => {
+                    try {
+                        if (alive) setAstraura(mod.resolvePersonaSystems(mod.ALL_PERSONAS, thisDeviceId(), null));
+                    } catch {
+                        if (alive) setAstraura(null);
+                    }
+                };
+                refresh();
+                off = mod.subscribeNeuronPersona(refresh);
+            } catch { /* módulo no disponible: los chips no se pintan */ }
+        })();
+        return () => { alive = false; off?.(); };
     }, []);
 
     // Valor ABREVIADO por sistema (el detalle completo vive en la ventana).

@@ -107,6 +107,37 @@ async function getHermioneIntelligencePin(): Promise<any | null> {
 }
 
 /**
+ * ── Adenda 149 · pendientes: pago = AND (la cuenta manda; la persona solo niega) ──
+ *
+ * Espejo SERVIDOR de `personalities.ts::personaAllowsPaid` para el pin de
+ * Hermione leído de `aurora_personalities.intelligence`. Mismo CONTRATO: el
+ * resultado es una restricción AND que solo puede NEGAR (`false` ⇒ esta
+ * personalidad no gasta; `true`/`null` ⇒ manda la cuenta, jamás afloja).
+ *
+ * ÁMBITO del campo (idéntico al del cliente y al del router): `permitirPago`
+ * SOLO cuenta en `modo: "fija"`. En `modo: "auto"` ese campo se materializa
+ * SIEMPRE con default `false` (`defaultPersonalityIntelligence()`), así que
+ * tratarlo como veto apagaría las fuentes de pago de toda cuenta sin overrides
+ * (CRÍTICO cazado en la revisión adversarial de la tanda «3 olas»).
+ *
+ * DIFERENCIA CON EL CLIENTE (documentada a propósito): aquí NO existe el paso 1
+ * de `personaAllowsPaid` — el override por neurona × personalidad de la ventana
+ * «Sistemas de Astraura en esta neurona» vive en localStorage del dispositivo y
+ * es inalcanzable desde el servidor. El servidor aplica solo el veto del PERFIL;
+ * el veto por neurona lo aplica el camino cliente (`hermione-bridge.ts`).
+ * Nunca lanza: cualquier forma rara ⇒ `null` (sin opinión).
+ */
+function personaPaidVerdictFromPin(pin: any): boolean | null {
+  try {
+    if (!pin || typeof pin !== "object") return null;
+    if (pin.modo !== "fija") return null;
+    return typeof pin.permitirPago === "boolean" ? pin.permitirPago : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Elige el mejor modelo :free combinando OpenRouter :free vivos + fuentes sin
  * clave del OS + defaults de Astraura + IntelligenceSettings de la cuenta +
  * el pin de Hermione. Server-safe.
@@ -142,7 +173,13 @@ export async function selectBestFreeModelForHermione(
       pin?.global?.modelo;
     if (overrideId) {
       const isFree = isFreeModelId(overrideId) || overrideId === "openrouter/free";
-      const allowPaid = pin?.permitirPago === true || account?.allowConfiguredPaid === true;
+      // ── Adenda 149 · pendientes: pago = AND (la cuenta manda; la persona solo niega) ──
+      // Unificado con `router.ts::rankCandidates` (§9 del SOP). Antes era un OR
+      // que AFLOJABA (un pin con `permitirPago: true` habilitaba gasto con la
+      // cuenta apagada); ahora el permiso lo da la CUENTA y el pin solo puede
+      // vetar. Ver `personaPaidVerdictFromPin` para el ámbito del campo.
+      const allowPaid =
+        account?.allowConfiguredPaid === true && personaPaidVerdictFromPin(pin) !== false;
       if (isFree || allowPaid) {
         return { id: overrideId, source: "override", label: overrideId, free: isFree };
       }

@@ -217,14 +217,38 @@ overrides el comportamiento del router/voz/memoria/señales es EXACTAMENTE el pr
   v13 — cierra el agujero de banderas locales vs clave sincronizada). Personalizable: un botón
   presente pero deshabilitado por el usuario se respeta.
 
+**Cerrado después de la tanda (2026-08-09):**
+- RUTA PREFERIDA por personalidad: `DecideRouteInput.personaId` →
+  `decision-router.ts::decideRoute` llama `preferredRouteFor(input.personaId)`; `sendOverMesh`
+  propaga su `neuronId` (el MISMO id que ya gobierna las puertas de antena) y `turn.ts` añade
+  `personalityId: persona?.profile?.id` a su `transmitForContext`. Sin personalidad el valor viaja
+  `undefined` y el router decide EXACTAMENTE igual que antes (defaults «*»). `transmit` no llama a
+  `decideRoute` (planifica por `deriveNetworkContext`+`deliver`), así que ahí la personalidad sigue
+  actuando solo por las puertas de salida — que es todo lo que esa vía usa. 149/149 tests de
+  `scripts/test-mesh-core.ts` (3 nuevos: «*» sin persona · persona que fuerza mesh · persona ajena
+  que NO hereda).
+- PAGO del puente Hermione unificado con el AND del router: `hermione-bridge` usa
+  `account.allowConfiguredPaid === true && personaAllowsPaid(profile) !== false`; el servidor
+  (`hermione-server`, sin acceso a localStorage) aplica el espejo `personaPaidVerdictFromPin`
+  (veto del perfil SOLO en modo «fija»). CAMBIO INTENCIONAL: cuenta-off + pin-true ya NO habilita
+  pago (cierra un agujero de gasto; la cuenta manda, la persona solo niega). 16/16 verificados.
+- `voz.modo:"cloud"` EXPLÍCITO por personalidad ahora pone la NUBE primero aunque el daemon local
+  esté vivo, con el local como RESPALDO (`OmniRouteDecision.localFallback`; la voz nunca se rompe;
+  `local_only`/`cloud_only` de privacidad siguen mandando). La elección por DISPOSITIVO conserva
+  su semántica histórica («el local, si lo instalas, la adelanta») — asimetría documentada.
+- MIGRACIÓN REALTIME `20260711120000_realtime_publication.sql` APLICADA al proyecto del OS
+  (`nxstilnyidvkqeosofuh`) vía Management API (HTTP 201) y verificada: `entity_state`, `os_posts`,
+  `os_profiles`, `canvases`, `os_spaces`, `os_space_editors`, `user_settings` y `proposals` están
+  en `supabase_realtime`.
+- ESCRITORIO con estado real: el widget Córtex Astraura añade la franja «sistemas de esta neurona»
+  (5 chips con valores de `resolvePersonaSystems`, import perezoso, clic → `openAstrauraConfig`);
+  `quick-settings-tab` pasa a import perezoso (no arrastra personalities al chunk de Trinity).
+
 **Pendiente honesto (aplazado):**
-- `decideRoute` aún no recibe personalidad (la ruta PREFERIDA sigue leyendo «*»; las puertas de
-  salida sí son por persona); `turn.ts` es el llamador natural para propagarla.
 - Entrada/`anyAlertRelayRole`: tráfico no atribuible, usan «*» por diseño; «repetidor sordo»
   (entrada LoRa cerrada + salida abierta reemite alertas) documentado como semántica.
-- `voz.modo:"cloud"` no fuerza nube con daemon local vivo (misma semántica que la elección por
-  dispositivo); puente Hermione usa OR de pago (aflojante) — unificar con el AND del router.
 - Trampa de foco vs capas portalizadas: mitigada con guarda global en `use-modal-a11y` (cede ante
   alertdialog/sonner); revisar el ciclo completo si se añaden más capas.
-- Widget propio de escritorio (el Córtex Astraura sigue con datos simulados); sync LWW del mapa
-  completo (patrón general de claves sincronizadas).
+- Las SUGERENCIAS del widget Córtex siguen simuladas (la franja de sistemas ya es real); sync LWW
+  del mapa completo (patrón general de claves sincronizadas); rotar service_role + DashScope
+  (acción de Alex en los dashboards); modo claro global (la capa `--aw-*` ya deja la ventana lista).

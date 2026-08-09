@@ -377,6 +377,11 @@ export function sendOverMesh(input: SendOverMeshInput): SendOverMeshResult {
     sizeBytes: bodyStr.length,
     neuronRules: gatedRules,
     airtimeAvailable: airtimeAvailableFor(input.cls, Math.ceil(bodyStr.length / 180) || 1),
+    // (Ola 3 · SOP §9) MISMA personalidad que gobierna las puertas de antena
+    // arriba: así la RUTA PREFERIDA de «Señales» también es por personalidad y
+    // no solo los defaults «*». Sin `neuronId` viaja `undefined` y el router
+    // decide exactamente igual que antes.
+    personaId: input.neuronId,
   });
   // Encolar en la malla SOLO cuando la ruta es realmente mesh-recuperable.
   // `offline-queue` significa "ninguna ruta viva / clase prohibida / payload

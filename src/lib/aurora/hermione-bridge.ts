@@ -60,7 +60,12 @@ import {
 import { listOpenRouterFreeModels } from "@/ai/providers/openrouter";
 import { DEFAULT_INTELLIGENCE, type IntelligenceSettings } from "@/ai/astraura/router";
 import { skillsSystemPrompt, skillsRoutingBias } from "@/ai/astraura/skills";
-import { listPersonalityProfiles, resolvePersonalityForContext } from "@/lib/aurora/personalities";
+import {
+  listPersonalityProfiles,
+  personaAllowsPaid,
+  resolvePersonalityForContext,
+  type PersonalityProfile,
+} from "@/lib/aurora/personalities";
 // Carpetas de chat (Adenda 74): puerta ÚNICA a `aurora_chat_folders`. Se IMPORTA
 // (no se edita) para crear/asegurar la carpeta "Hermione" de forma idempotente.
 import { createFolder, refreshFolders, cachedFolders } from "@/lib/aurora/chat-folders-store";
@@ -337,12 +342,24 @@ export interface HermioneModelChoice {
   free: boolean;
 }
 
-/** Lee el bloque `intelligence` de la personalidad Hermione (su pin de créditos). */
-function getHermioneIntelligencePin(): { modo?: string; global?: { fuente?: string; modelo?: string }; porSentido?: Record<string, { fuente?: string; modelo?: string }>; permitirPago?: boolean } | null {
+/**
+ * Perfil COMPLETO de Hermione en el catálogo local (o `null` si no está).
+ * Se aísla en su propio helper porque el veredicto de PAGO (`personaAllowsPaid`)
+ * necesita el perfil entero —no solo su bloque `intelligence`— para poder
+ * consultar también el override por neurona × personalidad.
+ */
+function getHermioneProfile(): PersonalityProfile | null {
   try {
-    const list = listPersonalityProfiles();
-    const p = list.find((x) => x.id === HERMIONE_PERSONALITY_ID);
-    return (p as any)?.intelligence ?? null;
+    return listPersonalityProfiles().find((x) => x.id === HERMIONE_PERSONALITY_ID) ?? null;
+  } catch { return null; }
+}
+
+/** Lee el bloque `intelligence` de la personalidad Hermione (su pin de créditos). */
+function getHermioneIntelligencePin(
+  profile: PersonalityProfile | null = getHermioneProfile(),
+): { modo?: string; global?: { fuente?: string; modelo?: string }; porSentido?: Record<string, { fuente?: string; modelo?: string }>; permitirPago?: boolean } | null {
+  try {
+    return (profile as any)?.intelligence ?? null;
   } catch { return null; }
 }
 
@@ -405,7 +422,8 @@ export async function selectBestFreeModelForHermione(
 
     // 4) Override por tarea de la CUENTA y del PIN de Hermione (gratis siempre).
     const account = await getAccountIntelligence();
-    const pin = getHermioneIntelligencePin();
+    const profile = getHermioneProfile();
+    const pin = getHermioneIntelligencePin(profile);
     const overrideId =
       account?.perTask?.[task] ||
       pin?.porSentido?.[task]?.modelo ||
@@ -413,7 +431,17 @@ export async function selectBestFreeModelForHermione(
       DEFAULT_INTELLIGENCE.perTask?.[task];
     if (overrideId) {
       const isFree = isFreeModelId(overrideId) || overrideId === "openrouter/free";
-      const allowPaid = pin?.permitirPago === true || account?.allowConfiguredPaid === true;
+      // ── Adenda 149 · pendientes: pago = AND (la cuenta manda; la persona solo niega) ──
+      // MISMA semántica que `router.ts::rankCandidates` (§9 del SOP): el permiso
+      // vive en la CUENTA (`allowConfiguredPaid`) y la personalidad es una
+      // restricción que SOLO PUEDE NEGAR (`personaAllowsPaid(...) === false`).
+      // ANTES esto era un OR que AFLOJABA: un pin con `permitirPago: true` abría
+      // el gasto aunque la cuenta lo tuviera apagado — agujero de gasto cerrado.
+      // `personaAllowsPaid` mira, en este orden: el override de ESTA neurona ×
+      // Hermione («Permitir fuentes de pago» de la ventana de sistemas) y, solo
+      // en `modo: "fija"`, el `permitirPago` del perfil (en «auto» ese campo
+      // existe SIEMPRE con default `false` y NO es una opinión del usuario).
+      const allowPaid = account?.allowConfiguredPaid === true && personaAllowsPaid(profile) !== false;
       if (isFree || allowPaid) {
         return { id: overrideId, source: "override", label: overrideId, free: isFree };
       }

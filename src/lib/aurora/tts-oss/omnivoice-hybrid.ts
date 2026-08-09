@@ -19,6 +19,9 @@
  *   · "hybrid_allow_cloud" (defecto): local si está vivo, si no nube.
  *   · "local_only": solo daemon local (sin daemon → null → la cadena sigue).
  *   · "cloud_only": solo nube.
+ * Adenda 149 · pendientes: dentro de "hybrid_allow_cloud", una PERSONALIDAD con
+ * `voz.modo: "cloud"` EXPLÍCITO en esta neurona invierte el orden — nube primero
+ * aunque el daemon esté vivo, con lo local de RESPALDO si la nube falla.
  * Devuelve `Blob|null`. NULL ⇒ la cadena de voz sigue (Kokoro/navegador): Aurora
  * SIEMPRE habla. NUNCA lanza.
  *
@@ -118,6 +121,16 @@ export interface OmniRouteDecision {
   route: OmniRoute;
   /** ¿Esta neurona ELIGIÓ voz local? (afecta solo el presupuesto por trozo). */
   preferLocal: boolean;
+  /**
+   * Adenda 149 · pendientes — RESPALDO LOCAL de una ruta `"cloud"` que va
+   * primero por decisión EXPLÍCITA de la personalidad (`voz.modo: "cloud"` de la
+   * ventana «Sistemas de Astraura en esta neurona»). Si la nube falla, ese trozo
+   * se sintetiza con el daemon local en vez de callar: la voz NUNCA se rompe.
+   * Solo se marca cuando el daemon estaba VIVO al decidir y la privacidad
+   * permite lo local (`privacy_mode !== "cloud_only"`). Ausente/`false` ⇒
+   * comportamiento previo exacto (la nube falla ⇒ `null` ⇒ sigue la cadena).
+   */
+  localFallback?: boolean;
 }
 
 /** Estado del daemon local (parseado de `GET /status`). */
@@ -485,6 +498,21 @@ function neuronDeviceId(): string {
  * `personalityId` ausente ⇒ `"*"` (defaults de la neurona para «Todas»), igual
  * que hace el mesh con el tráfico no atribuible; con personalidad, `getOverrides`
  * ya fusiona `"*"` ⊕ propia campo a campo. NUNCA lanza.
+ */
+/**
+ * Adenda 149 · pendientes — ASIMETRÍA DELIBERADA con la elección por DISPOSITIVO.
+ *
+ * `voz.modo: "cloud"` guardado en la ventana de sistemas (para esta personalidad
+ * o para «Todas», `"*"`) es una decisión EXPLÍCITA de la personalidad: la ruta
+ * pone la NUBE PRIMERO aunque el daemon local esté vivo (con lo local de
+ * RESPALDO si la nube falla). La elección por DISPOSITIVO
+ * (`starseed.voz.neurona.v2`, `neuron-voice-choice.tsx`) NO se toca: su copy
+ * promete «el motor local, si lo instalas, la adelanta», así que "cloud" ahí
+ * sigue significando solo «no te comprometas con lo local» (apaga `preferLocal`)
+ * y el daemon vivo sigue ganando. Ese contrato de UI es el que fija la
+ * diferencia: lo que el usuario eligió PARA ESTA PERSONA manda sobre la
+ * heurística del dispositivo; lo que eligió para el dispositivo es preferencia,
+ * no orden. "local" y "fastweb" se comportan igual que antes en ambos niveles.
  */
 function personaVoiceMode(personalityId?: string | null): "cloud" | "local" | "fastweb" | null {
   try {
@@ -909,10 +937,24 @@ export function getOmniVoiceRouteState(): OmniRoute {
  * para la UI. Úsalo al abrir un panel para pintar el chip "Voz local activa ⚡" /
  * "Voz en la nube". NUNCA lanza.
  */
-export async function refreshOmniRoute(signal?: AbortSignal): Promise<OmniRoute> {
+export async function refreshOmniRoute(
+  signal?: AbortSignal,
+  /**
+   * Adenda 149 · pendientes: personalidad para la que se predice la ruta. Con
+   * `voz.modo: "cloud"` explícito la predicción dice "cloud" aunque el daemon
+   * esté vivo — el chip de la UI no puede prometer «Voz local activa ⚡» cuando
+   * la síntesis va a salir por la nube. Ausente ⇒ defaults «Todas» (`"*"`),
+   * igual que `decideOmniRoute`.
+   */
+  personalityId?: string | null,
+): Promise<OmniRoute> {
   const omni = safeOmniConfig();
   if (omni.privacy_mode === "cloud_only") {
     lastRoute = "cloud";
+    return lastRoute;
+  }
+  if (omni.privacy_mode !== "local_only" && personaVoiceMode(personalityId) === "cloud") {
+    lastRoute = "cloud"; // la personalidad pidió nube: es lo que hará la síntesis
     return lastRoute;
   }
   const hs = await omniHandshake({ signal });
@@ -949,6 +991,17 @@ export async function decideOmniRoute(
     if (omni.privacy_mode === "cloud_only") return { route: "cloud", preferLocal: false };
     const preferLocal = omni.privacy_mode === "local_only" || neuronPrefersLocalLS(personalityId);
     const hs = await omniHandshake({ signal });
+    // ── Adenda 149 · pendientes — NUBE PRIMERO por decisión EXPLÍCITA de la
+    // PERSONALIDAD (`voz.modo: "cloud"` de la ventana de sistemas, propia o de
+    // «Todas»). Adelanta la nube AUNQUE el daemon local esté listo, y deja lo
+    // local de RESPALDO si la nube falla (`localFallback`) para que la voz nunca
+    // se rompa. La privacidad sigue mandando: en `local_only` no hay nube que
+    // valer. Sin override (`personaVoiceMode` ⇒ null) esta rama no existe y el
+    // orden es byte-idéntico al previo; ver la nota de asimetría en
+    // `personaVoiceMode` (la elección por DISPOSITIVO no fuerza nada).
+    if (omni.privacy_mode !== "local_only" && personaVoiceMode(personalityId) === "cloud") {
+      return { route: "cloud", preferLocal: false, localFallback: !!(hs && hs.ready) };
+    }
     if (hs && hs.ready) return { route: "local", preferLocal };
     if (omni.privacy_mode === "local_only") return { route: "off", preferLocal };
     return { route: "cloud", preferLocal };
@@ -966,6 +1019,13 @@ export async function decideOmniRoute(
  *   2. NUBE (si privacy≠"local_only"): Space (diseño por defecto o clonación).
  *   3. null si ambos fallan → la cadena de voz sigue (Kokoro/navegador).
  * NUNCA lanza.
+ *
+ * ORDEN INVERTIDO POR PERSONALIDAD (Adenda 149 · pendientes): si la ventana
+ * «Sistemas de Astraura en esta neurona» guardó `voz.modo: "cloud"` para
+ * `opts.personalityId` (o para «Todas»), el paso 1 se salta y la nube va
+ * primero aunque el daemon esté listo; si la nube falla, el paso 3 pasa a ser un
+ * RESPALDO LOCAL antes de rendirse (la voz nunca se rompe). Sin ese override el
+ * orden es el de siempre.
  *
  * CONTINUIDAD DE VOZ EN MENSAJES TROCEADOS (fix 2026-07-21): si `opts.routeOverride`
  * viene informado (producido UNA vez por `decideOmniRoute()` antes de trocear un
@@ -1039,14 +1099,53 @@ export async function synthesizeOmniVoiceHybrid(
         ? Math.min(CLOUD_TIMEOUT_MS, opts.budgetCapMs)
         : undefined;
     const cloud = await synthCloud(clean, omni, langName, opts, cloudBudget).catch(() => null);
-    lastRoute = cloud ? "cloud" : "off";
-    return cloud;
+    if (cloud) {
+      lastRoute = "cloud";
+      return cloud;
+    }
+    // Adenda 149 · pendientes — RESPALDO LOCAL de la nube-primero por
+    // personalidad: la nube falló, pero el daemon estaba vivo al decidir la ruta
+    // → sintetizamos en local en vez de callar (invariante: la voz nunca se
+    // rompe). Solo con `localFallback` marcado (decisión con `voz.modo:"cloud"`
+    // explícito) y con la privacidad de lado; cualquier otra ruta congelada
+    // "cloud" se comporta EXACTAMENTE como antes.
+    if (opts.routeOverride.localFallback && omni.privacy_mode !== "cloud_only") {
+      try {
+        opts.onStatus?.("La nube no responde; hablo con la voz local…");
+      } catch {
+        /* */
+      }
+      const fbBudget =
+        opts.budgetCapMs && opts.budgetCapMs > 0
+          ? Math.min(LOCAL_TTS_TIMEOUT_MS, opts.budgetCapMs)
+          : LOCAL_TTS_TIMEOUT_MS;
+      const fb = await synthLocal(clean, omni, langName, opts.signal, fbBudget).catch(() => ({
+        blob: null as Blob | null,
+        timedOut: false,
+      }));
+      if (fb.blob) {
+        lastRoute = "local";
+        return fb.blob;
+      }
+    }
+    lastRoute = "off";
+    return null;
   }
 
   const privacy = omni.privacy_mode;
 
+  // ── Adenda 149 · pendientes — NUBE PRIMERO por decisión EXPLÍCITA de la
+  // PERSONALIDAD (`voz.modo: "cloud"` de la ventana «Sistemas de Astraura en
+  // esta neurona», propia o de «Todas»): saltamos el tramo LOCAL aunque el
+  // daemon esté vivo y hablamos por la nube; si la nube falla, lo local queda de
+  // RESPALDO más abajo (la voz nunca se rompe). La privacidad manda por encima:
+  // en `local_only` no se adelanta nada (no hay nube permitida). Sin override
+  // guardado esto es `false` y el flujo es byte-idéntico al previo; la elección
+  // por DISPOSITIVO nunca activa esta rama (ver nota en `personaVoiceMode`).
+  const personaCloudFirst = privacy !== "local_only" && personaVoiceMode(opts.personalityId) === "cloud";
+
   // 1) LOCAL — daemon en 127.0.0.1 (baja latencia, privado).
-  if (privacy !== "cloud_only") {
+  if (privacy !== "cloud_only" && !personaCloudFirst) {
     // ¿Esta neurona ELIGIÓ voz local? Entonces nos comprometemos con el daemon:
     // presupuesto en frío generoso y SIN castigo de "nube 10 min" (Adenda 88).
     // Adenda 149 · Ola 3: la vía de voz de ESTA personalidad en ESTA neurona
@@ -1116,13 +1215,40 @@ export async function synthesizeOmniVoiceHybrid(
   }
 
   // 2) NUBE — Space gratis (puede tardar en despertar). Aquí solo llegan los modos
-  //    "hybrid_allow_cloud" (local falló) y "cloud_only"; "local_only" ya retornó.
+  //    "hybrid_allow_cloud" (local falló, o la personalidad pidió nube y se saltó
+  //    el tramo local) y "cloud_only"; "local_only" ya retornó.
   const cloudBudget =
     opts.budgetCapMs && opts.budgetCapMs > 0 ? Math.min(CLOUD_TIMEOUT_MS, opts.budgetCapMs) : undefined;
   const cloud = await synthCloud(clean, omni, langName, opts, cloudBudget).catch(() => null);
   if (cloud) {
     lastRoute = "cloud";
     return cloud;
+  }
+
+  // 3) RESPALDO LOCAL (Adenda 149 · pendientes) — SOLO cuando la nube iba primero
+  //    por decisión EXPLÍCITA de la personalidad y ha fallado: el daemon local
+  //    recoge el turno en vez de dejar a Aurora muda. Nunca en `cloud_only`
+  //    (privacidad) y nunca en el flujo normal (ahí lo local ya se intentó
+  //    primero, así que reintentarlo sería duplicar la espera).
+  if (personaCloudFirst && privacy !== "cloud_only") {
+    const hs = await omniHandshake({ signal: opts.signal });
+    if (hs && hs.ready) {
+      try {
+        opts.onStatus?.("La nube no responde; hablo con la voz local…");
+      } catch {
+        /* */
+      }
+      let fbBudget = LOCAL_TTS_TIMEOUT_MS;
+      if (opts.budgetCapMs && opts.budgetCapMs > 0) fbBudget = Math.min(fbBudget, opts.budgetCapMs);
+      const fb = await synthLocal(clean, omni, langName, opts.signal, fbBudget).catch(() => ({
+        blob: null as Blob | null,
+        timedOut: false,
+      }));
+      if (fb.blob) {
+        lastRoute = "local";
+        return fb.blob;
+      }
+    }
   }
 
   lastRoute = "off";

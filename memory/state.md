@@ -3530,3 +3530,19 @@ persistidas, con la app como origen) y **ventanas emergentes** (toasts + popups 
 ### Pendiente (SOP §9 nuevo)
 - decideRoute sin personalidad (ruta preferida lee «*»; propagar desde turn.ts); unificar OR de pago del puente Hermione con el AND del router; voz.modo "cloud" no fuerza nube con daemon vivo; widget propio de escritorio; LWW.
 - Arrastrados: migración realtime 20260711120000; rotar service_role+DashScope; modo claro (la capa --aw-* ya lo deja a un cambio de hoja).
+
+---
+
+## 2026-08-09 — Adenda 149 · cierre de PENDIENTES §9
+**Sesión por:** Claude (Cowork) — Fable 5 + 2 agentes Opus
+**Resumen ejecutivo:** Todos los pendientes accionables del SOP §9 quedan cerrados. `tsc` 0 · mesh **149/149** (3 tests nuevos) · verificación de pago/voz 16/16 · migración realtime APLICADA.
+
+### Hecho
+- **Ruta preferida por personalidad de extremo a extremo:** `DecideRouteInput.personaId` + `preferredRouteFor(input.personaId)`; `sendOverMesh` propaga su id (el mismo de las puertas) y `turn.ts` pasa `personalityId: persona?.profile?.id` al `transmitForContext`. Sin persona → byte-idéntico. +3 tests en `test-mesh-core.ts` (149 total).
+- **Pago del puente Hermione unificado (AND):** bridge usa `personaAllowsPaid(profile)`; server aplica espejo por pin (solo modo «fija»). CAMBIO INTENCIONAL: cuenta-off+pin-true ya NO gasta (cerrado el agujero de gasto).
+- **`voz.modo:"cloud"` por personalidad fuerza nube primero** con local de respaldo (`localFallback`); privacidad (`local_only`/`cloud_only`) sigue mandando; la elección por dispositivo conserva su semántica.
+- **Migración realtime `20260711120000` APLICADA** a `nxstilnyidvkqeosofuh` vía Management API (HTTP 201) y verificada en `pg_publication_tables` (las 8 tablas presentes). Se retira de arrastrados.
+- **Escritorio con estado real:** franja de 5 sistemas en el widget Córtex Astraura (resolvePersonaSystems, import perezoso, clic→openAstrauraConfig); quick-settings de Trinity pasa a import perezoso (chunk más liviano).
+
+### Pendiente restante (SOP §9 final)
+- Sugerencias del Córtex aún simuladas; LWW del mapa; rotar service_role+DashScope (acción de Alex); modo claro global (la ventana ya está tokenizada). Nota: fallos PREEXISTENTES ajenos en `test-omnivoice-hybrid` (1) y `test-openvoice2` (4) por deriva de defaults de voz — anteriores a estas olas, documentados para la próxima sesión.
