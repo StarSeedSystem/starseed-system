@@ -20,7 +20,8 @@
   **ReLU²** → perplejidad **40.9 → 5.38**. Guarda: `backend/scripts/check_bitnet_patch.sh` (repo astraura).
 - **Verificación funcional real**: 11/11 PASS con el modelo cargado
   (`backend/scripts/verify_real_ola3.py`); OS con `tsc` 0, vitest 90/90 y `next build` ✓.
-- ⚠️ **Pendiente para el OS publicado**: commit + push + redeploy de Vercel. Detalle completo en
+- ✅ **PUBLICADO 2026-08-23**: OS `main` `4f0af4d` + astraura `main` `e8c6011`; CI success y deploy
+  de producción de Vercel success (`/api/ai/astraura-158/api/status` responde 401 en vivo). Detalle en
   `architecture/astraura-158-sistema-primario.md` §14 y `memory/state.md` (Adenda 155).
 
 ---

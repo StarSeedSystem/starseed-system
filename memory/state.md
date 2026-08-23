@@ -3643,3 +3643,10 @@ invoke real de personalidad · air-gap · ciclo del Director). Tres fallos REALE
 la verificación: parche ReLU² del motor (PPL 40.9→5.38), disparo de imaginación no bloqueante
 (la UI se colgaba minutos) y reparto justo del feed de eventos + `unread_count` que faltaba
 (el enjambre tapaba las notificaciones especiales de la imaginación y el Director). SOP §14.6/§14.7.
+
+### Publicación (2026-08-23)
+Ola 3 PUBLICADA en el OS oficial: `starseed-system` main `b0e66ea → 4f0af4d` y `astraura` main
+`6a76723 → e8c6011`, empujados desde la terminal de la Mac con las credenciales de la cuenta.
+CI «Typecheck · Unit · Mesh · Build» success; despliegue de producción de Vercel success;
+verificación en vivo: `https://starseed-os.vercel.app/api/ai/astraura-158/api/status` → 401
+(ruta nueva desplegada y protegida por sesión). Queda recompilar BitNet en la Mac (parche ReLU²).

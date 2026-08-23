@@ -322,3 +322,13 @@ sintética habría visto, y las tres están corregidas:
 Velocidad medida en el contenedor de verificación (2 núcleos x86): ~10 tok/s. En el M1 con
 NEON el mismo binario va varias veces más rápido; los timeouts de `cognition` se adaptan solos
 a la velocidad medida, así que el comportamiento es correcto en ambos.
+
+### 14.8 Publicación (2026-08-23)
+
+Publicado desde la terminal de la Mac con las credenciales de la cuenta:
+`StarSeedSystem/starseed-system` main **b0e66ea → 4f0af4d** (60 archivos) y
+`StarSeedSystem/astraura` main **6a76723 → e8c6011** (58 archivos).
+CI «Typecheck · Unit · Mesh · Build» **success**; despliegue de producción de Vercel **success**.
+Verificación en vivo: `https://starseed-os.vercel.app/api/ai/astraura-158/api/status` → **401**
+(la ruta del proxy 1.58 existe y exige sesión; antes de la Ola 3 habría devuelto 404).
+Pendiente en la máquina: recompilar BitNet tras el parche ReLU² (`check_bitnet_patch.sh` + `cmake --build`).
