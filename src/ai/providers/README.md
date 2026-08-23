@@ -19,6 +19,7 @@ clave, sin lock-in.
 +----------------------------+
 |  src/ai/providers/         |
 |    index.ts (registry)     |
+|    astraura-158.ts         |   <- Astraura 1.58-bit: backend soberano, PRIMARIO (Adenda 153)
 |    ollama.ts               |   <- local, sin clave
 |    openai.ts               |   <- OpenAI + compatibles (Groq, Together…)
 |    anthropic.ts            |   <- Claude
@@ -101,3 +102,14 @@ Migración recomendada de flujos a la nueva capa:
 - [ ] Soporte de tool-use / function calling unificado.
 - [ ] Provider "Federación StarSeed": cuando un nodo de la red ofrece su modelo
       a otros nodos federados.
+
+## Astraura 1.58-bit — sistema primario (Adenda 153)
+
+`astraura-158.ts` habla con el backend soberano `StarSeedSystem/astraura`
+(`POST /api/starseed/chat` o `POST /api/chat/stream`, SSE `token`/`done`).
+El OS lo coloca **primero** en la cadena del router (`src/lib/astraura/primary-system.ts`,
+configurable por agente/personalidad/cerebro/neurona/cuenta) y mantiene todos los
+demás proveedores como secundarios. Los «modelos» de la fuente son las
+personalidades del backend (`astraura-158/<persona>`). SOP:
+`architecture/astraura-158-sistema-primario.md`.
+

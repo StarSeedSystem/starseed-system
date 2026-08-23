@@ -361,6 +361,14 @@ const CORE_ROUTE_PACKAGES: LibraryPackage[] = [
     payload: { route: "/red-feed" },
   },
   {
+    // Adenda 153: panel del sistema PRIMARIO Astraura 1.58-bit (backend soberano).
+    id: "app-astraura-158", kind: "app", name: "Astraura 1.58-bit",
+    description: "Sistema primario de inteligencia de StarSeed OS: estado del backend soberano (BitNet b1.58 / motor local), endpoint de la neurona, personalidades, agentes, habilidades, cerebros y memoria.",
+    icon: "Binary", tags: ["app", "ia", "astraura", "bitnet", "1.58", "primario", "soberano"], version: "1.0.0",
+    author: "StarSeed Core", sourceRepoId: "starseed-core", free: true, featured: true,
+    payload: { route: "/agent?tab=astraura-158" },
+  },
+  {
     id: "app-red-3d", kind: "app", name: "Red 3D",
     description: "Visualización tridimensional de la red StarSeed: entidades, conexiones y flujo de la voluntad colectiva.",
     icon: "Orbit", tags: ["app", "3d", "red"], version: "1.0.0",

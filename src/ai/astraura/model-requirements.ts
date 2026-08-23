@@ -69,6 +69,14 @@ export function runsRemotely(spec: ModelSpec): boolean {
 /* ── LLM LOCALES (requisitos reales de hardware) ─────────────────────────────── */
 export const LOCAL_LLM_SPECS: ModelSpec[] = [
   {
+    // (Adenda 155) SISTEMA PRIMARIO del OS: backend soberano Astraura 1.58-bit con
+    // BitNet b1.58 2B-4T ternario (i2_s) servido por `llama-server` nativo. Pesa ~1.2 GB
+    // y corre en CPU sin GPU: por eso su encaje es bueno incluso en equipos modestos.
+    id: "astraura-158", label: "Astraura 1.58-bit (BitNet ternario, soberano)", kind: "llm", access: "local", engine: "Astraura 1.58",
+    req: { minCores: 4, minRamGb: 8, gpu: "no", approxSizeGb: 1.2 }, langs: ["multi"], offline: true,
+    note: "Sistema primario del OS. Necesita el backend Astraura 1.58 corriendo en esta neurona (o su nube propia).",
+  },
+  {
     id: "chrome-ai", label: "Gemini Nano (Chrome AI)", kind: "llm", access: "local", engine: "Chrome AI",
     req: { chromeAi: true, minRamGb: 4, gpu: "opcional", approxSizeGb: 4 }, langs: ["multi"], offline: true,
     note: "Integrado en Chrome; lo gestiona el navegador.",

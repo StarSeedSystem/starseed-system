@@ -72,6 +72,18 @@ export interface NeuronCapabilities {
     autoLinked?: boolean;
   };
   hermesInstalled?: boolean;
+  /**
+   * Backend Astraura 1.58-bit detectado en esta neurona (Adenda 153). Se publica
+   * en `neuron_devices.capabilities` para que otras neuronas de la cuenta puedan
+   * descubrir dónde corre el sistema primario (patrón del bridge Hermes).
+   */
+  astraura158?: {
+    online: boolean;
+    endpoint: string;
+    model?: string;
+    /** true si el backend reporta binario BitNet compilado. */
+    bitnet?: boolean;
+  };
 }
 
 /** Permisos de la neurona. PREDETERMINADO: todo true (máxima interconexión). */
@@ -139,6 +151,12 @@ export interface NeuronSettings {
   offerPublicInternet?: boolean;
   /** Puerto específico para vínculos privados personalizables (cuando ofrece servicio). */
   publicPort?: number;
+  /**
+   * Endpoint del backend Astraura 1.58-bit para ESTA neurona (Adenda 153):
+   * local (`http://127.0.0.1:8000`, por defecto), LAN, túnel cloudflared o
+   * Cloud Run propio. `enabled:false` apaga la fuente local en esta neurona.
+   */
+  astraura158?: { endpoint?: string; enabled?: boolean };
 }
 
 export const DEFAULT_SETTINGS: NeuronSettings = {
@@ -261,7 +279,41 @@ export async function detectCapabilities(): Promise<NeuronCapabilities> {
   // Servidores locales (solo tiene sentido sondear en el propio dispositivo).
   caps.ollama = await probeLocal("http://localhost:11434/api/tags");
   caps.lmstudio = await probeLocal("http://localhost:1234/v1/models");
+  // Backend Astraura 1.58-bit (Adenda 153): sonda honesta a /api/status en el
+  // endpoint declarado por la neurona (o el local por defecto). Publica modelo
+  // y si hay BitNet compilado; nunca lanza.
+  try {
+    const endpoint = astraura158EndpointOf(thisDeviceId());
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 1500);
+    const res = await fetch(`${endpoint}/api/status`, { signal: ctrl.signal });
+    clearTimeout(t);
+    if (res.ok) {
+      const j = (await res.json().catch(() => null)) as { engine?: { active_model?: string; bitnet_cpp_installed?: boolean } } | null;
+      caps.astraura158 = {
+        online: true,
+        endpoint,
+        model: typeof j?.engine?.active_model === "string" ? j.engine.active_model.slice(0, 80) : undefined,
+        bitnet: !!j?.engine?.bitnet_cpp_installed,
+      };
+    } else {
+      caps.astraura158 = { online: false, endpoint };
+    }
+  } catch {
+    try { caps.astraura158 = { online: false, endpoint: astraura158EndpointOf(thisDeviceId()) }; } catch { /* */ }
+  }
   return caps;
+}
+
+/** Endpoint Astraura 1.58 efectivo de una neurona (ajuste propio o local). Adenda 153. */
+export function astraura158EndpointOf(deviceId: string): string {
+  try {
+    const s = settingsFor(deviceId).astraura158;
+    if (s && s.enabled !== false && typeof s.endpoint === "string" && s.endpoint.trim()) {
+      return s.endpoint.trim().replace(/\/+$/, "");
+    }
+  } catch { /* */ }
+  return "http://127.0.0.1:8000";
 }
 
 function defaultName(caps: NeuronCapabilities, kind: NeuronKind): string {
@@ -340,6 +392,7 @@ export function setNeuronSettings(deviceId: string, patch: Partial<NeuronSetting
     ...current,
     ...patch,
     ...(patch.casaos ? { casaos: { ...(current.casaos ?? {}), ...patch.casaos } } : {}),
+    ...(patch.astraura158 ? { astraura158: { ...(current.astraura158 ?? {}), ...patch.astraura158 } } : {}),
   };
   writePrefs(prefs);
 }

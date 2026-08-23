@@ -30,6 +30,7 @@ import {
 } from "@/ai/astraura/model-requirements";
 import { ModelDownloadsPanel } from "@/components/neurons/model-downloads-panel";
 import { NeuronServerConfig } from "@/components/neurons/neuron-server-config";
+import { Astraura158NeuronCard } from "@/components/neurons/astraura-158-neuron-card";
 
 /**
  * Adenda 149 · PUENTE entre los dos recomendadores: este panel usa
@@ -85,6 +86,12 @@ async function testSpec(spec: ModelSpec, caps: NeuronCapabilities): Promise<{ ok
     }
     if (spec.engine === "Ollama") {
       return caps.ollama || caps.lmstudio ? { ok: true, msg: "Servidor local detectado" } : { ok: false, msg: "Inicia Ollama o LM Studio local" };
+    }
+    if (spec.engine === "Astraura 1.58") {
+      const a = caps.astraura158;
+      return a?.online
+        ? { ok: true, msg: `Backend soberano en línea${a.model ? ` · ${a.model}` : ""}${a.bitnet ? " · BitNet nativo" : ""}` }
+        : { ok: false, msg: "Arranca el backend Astraura 1.58 en esta neurona (Studio → Instalación)" };
     }
     if (caps.installedApp) return { ok: true, msg: "App del OS instalada · stack local listo" };
     return { ok: false, msg: "Instala la app del OS para usarlo en local" };
@@ -247,6 +254,10 @@ export function NeuronModelsPanel({ embedded = false }: { embedded?: boolean }) 
           <KindSection title="Voz (OmniVoice)" icon={<Mic className="h-4 w-4 text-fuchsia-300" />} kind={rec.voz} caps={caps} scoutKind="voz" />
         </>
       )}
+
+      {/* Backend soberano Astraura 1.58 de ESTA neurona (Ola 3 · Adenda 155):
+          endpoint local/LAN/túnel, motor honesto y neuronas hermanas. */}
+      <Astraura158NeuronCard />
 
       {/* Descargas locales en 2º plano + modelos propios (Adenda 113). */}
       <div className="border-t border-white/10 pt-3">

@@ -52,6 +52,9 @@ import {
   type AntennaRouteMode, type NeuronAntenna, type PersonaChip, type PersonaNeuronOverrides,
   type Provenance, type ResolvedPersonaSystems,
 } from "@/lib/astraura/neuron-persona-systems";
+// (Adenda 153) Sistema PRIMARIO (Astraura 1.58-bit por defecto) por ámbito.
+import { PrimaryChoiceEditor } from "@/components/astraura/primary-choice-editor";
+import { Astraura158ProcessesCard } from "@/components/astraura/astraura-158-processes-card";
 
 /* Paneles pesados reutilizados: SOLO se descargan si su sección los muestra. */
 const NeuronVoiceChoice = dynamic(
@@ -710,6 +713,22 @@ export function LlmSection({ personaId, deviceId, caps, full = false }: SectionP
           </span>
         </div>
       </div>
+
+      {/* (Adenda 153) SISTEMA PRIMARIO: Astraura 1.58-bit por defecto; «Todas»
+          edita el ámbito de la neurona, una personalidad su propio ámbito. Los
+          pines de arriba (fuente/modelo) siguen ganando a esta capa. */}
+      <PrimaryChoiceEditor
+        scope={esTodas ? "neurona" : "personalidad"}
+        scopeId={esTodas ? deviceId : personaId}
+        context={{ deviceId, personaId: esTodas ? undefined : personaId }}
+        compact={!full}
+        scopeLabel={esTodas ? "esta neurona" : "esta personalidad"}
+      />
+
+      {/* (Ola 3 · Adenda 155) Procesos de fondo del backend soberano 1.58:
+          imaginación siempre-activa, frecuencia y capacidad del enjambre,
+          gobernables desde aquí sin abrir el Studio. */}
+      {full && <Astraura158ProcessesCard />}
 
       {/* Recomendación inteligente según el hardware real (Adenda 138). */}
       <div className="rounded-xl border border-[var(--aw-line)] bg-[var(--aw-surface)] px-3 py-2.5">

@@ -40,6 +40,21 @@ export interface CommandListListing {
 
 export const COMMAND_LIST_LISTINGS: CommandListListing[] = [
     {
+        // (Adenda 155) Sistema primario Astraura 1.58-bit: sus superficies en un salto.
+        id: "inteligencia-soberana",
+        name: "Inteligencia soberana 1.58",
+        desc: "Tu IA propia: estado del motor ternario, procesos autónomos que imaginan de fondo y los avisos que dejan para ti.",
+        icon: "Binary",
+        accent: "#00F0FF",
+        commands: [
+            { label: "Abrir Studio Astraura 1.58", action: "navigate", target: "/agent?tab=astraura-158" },
+            { label: "Imaginación y procesos de fondo", action: "navigate", target: "/agent?tab=astraura-158&sub=imaginacion" },
+            { label: "Agentes, enjambre y Director", action: "navigate", target: "/agent?tab=astraura-158&sub=agentes" },
+            { label: "Notificaciones de los procesos 1.58", action: "navigate", target: "/agent?tab=astraura-158&sub=notificaciones" },
+            { label: "Invocar el Exocórtex de Aurora", action: "event", target: "starseed:open-aurora-exocortex" },
+        ],
+    },
+    {
         id: "arranque-rapido",
         name: "Arranque rápido",
         desc: "Abre tus escritorios, invoca el Exocórtex de Aurora y pasa a pantalla completa. Tu sesión lista en tres pasos.",

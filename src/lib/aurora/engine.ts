@@ -60,6 +60,8 @@ import { containsWake, stripWake } from "@/lib/aurora/wake-word";
 import { isInstalledApp, isMobileDevice } from "@/lib/aurora/voice-autonomy";
 // Descriptor de "Revertir cambios" (Adenda "Aurora siempre responde", jul-2026).
 import type { AuroraUndoInfo } from "@/lib/aurora/undo";
+// (Adenda 154) Trazas del enjambre Astraura 1.58-bit → meta del mensaje (capa pura).
+import { astraura158MetaFromRaw, astraura158ToolMetas, isAstraura158Source } from "@/lib/astraura/astraura-158-meta";
 // VOZ NATURAL + ESTILO VIVO (Adenda voz de Aurora, jul-2026): ranking de voces
 // del navegador (neurales/premium primero, es-* preferente) y modulación
 // emocional persistida en `starseed.aurora.voice.v1`. Módulos LIGEROS y
@@ -124,6 +126,22 @@ export interface AuroraMessageMeta {
   route?: RouteRecord & { modelId?: string };
   /** Tokens consumidos por la respuesta (si la fuente los reporta). */
   tokens?: number | string;
+  /**
+   * (Adenda 154) Trazas del enjambre Astraura 1.58-bit cuando ESA fuente
+   * respondió: plan de ramificación, trazas de agentes, ejecuciones de
+   * herramientas y personalidades que intervinieron. Lo pinta el modal «Ver
+   * proceso» (sección «Ramificación y agentes 1.58»). Aditivo.
+   */
+  astraura158?: Astraura158Meta;
+}
+
+/** Trazas del enjambre 1.58 adjuntas a un mensaje (Adenda 154). */
+export interface Astraura158Meta {
+  /** Plan de ramificación tal cual lo emitió el backend (`branching_plan.plan`). */
+  plan?: unknown;
+  traces?: { agent: string; color?: string; thoughts: string[] }[];
+  tools?: { tool: string; target?: string; success?: boolean; summary?: string }[];
+  personalities?: { id?: string; name: string; color?: string }[];
 }
 
 /** Una entrada del historial de conversación (para el chat-widget). */
@@ -1183,8 +1201,13 @@ export function useAuroraEngine(): AuroraEngine {
         if (cfg && typeof cfg === "object") orbChatConfig = cfg;
       } catch { /* sin conversación: el router degrada a global */ }
 
+      // (Adenda 154) 120 s en vez de 60 s: el SISTEMA PRIMARIO (Astraura
+      // 1.58-bit) corre BitNet/Ollama en CPU — en una neurona modesta la
+      // carga del modelo + un ciclo de ramificación multiagente puede superar
+      // el minuto; abortar antes tiraba respuestas que SÍ iban a llegar y
+      // obligaba al failover a repetir la petición en una fuente de nube.
       const abortCtrl = new AbortController();
-      const timeoutId = setTimeout(() => abortCtrl.abort(), 60000);
+      const timeoutId = setTimeout(() => abortCtrl.abort(), 120000);
 
       const res = await astrauraChat({
         messages,
@@ -1228,6 +1251,16 @@ export function useAuroraEngine(): AuroraEngine {
       // El discurso final: lo que dijo el modelo (ya sin directivas) o, si solo
       // emitió acciones, el resumen honesto de lo que Aurora hizo.
       reply = reply.trim() || actionMsgs.join(" ") || "Hecho.";
+      // (Adenda 154) Trazas del enjambre 1.58 si respondió el sistema primario
+      // (mismo criterio que `sendAuroraTurn`): sus herramientas cuentan junto a
+      // las directivas del OS. Defensivo: cualquier fallo deja el meta como antes.
+      let astraura158: AuroraMessageMeta["astraura158"];
+      try {
+        if (isAstraura158Source(res?.route?.sourceId)) {
+          astraura158 = astraura158MetaFromRaw(res?.raw) ?? undefined;
+          for (const t of astraura158ToolMetas(astraura158)) toolMetas.push(t);
+        }
+      } catch { astraura158 = undefined; }
       // Metadatos de PROCESO (§17.3): proveedor/modelo/intentos/duración/
       // dificultad + herramientas invocadas. Siempre se adjunta algo honesto,
       // incluso si `res.route` faltara por algún motivo defensivo.
@@ -1244,6 +1277,7 @@ export function useAuroraEngine(): AuroraEngine {
         // Adenda 97: la ruta COMPLETA para la barra de acciones («Transparencia
         // y Alternativas»); antes el campo existía pero nadie lo rellenaba.
         route: res?.route ?? undefined,
+        ...(astraura158 ? { astraura158 } : {}),
       };
       pushReply(reply, meta);
       speak(reply);

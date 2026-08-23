@@ -77,15 +77,22 @@ export const STARSEED_APP_LISTINGS: StarSeedAppListing[] = [
         author: "StarSeedSystem",
         web: "https://starseed-os.vercel.app",
         repo: "https://github.com/StarSeedSystem/starseed-system",
-        build: "2026.07.01",
+        build: "2026.08.23",
         pwa: true,
-        tags: ["os", "pwa", "soberanía", "código abierto"],
+        tags: ["os", "pwa", "soberanía", "código abierto", "ia 1.58-bit"],
         links: [
             { label: "Web oficial", url: "https://starseed-os.vercel.app" },
             { label: "Código fuente (GitHub)", url: "https://github.com/StarSeedSystem/starseed-system" },
             { label: "Releases", url: "https://github.com/StarSeedSystem/starseed-system/releases" },
         ],
         versions: [
+            {
+                version: "2026.08.23",
+                date: "2026-08-23",
+                notes:
+                    "Astraura 1.58-bit pasa a ser el SISTEMA PRIMARIO de inteligencia del OS: motor ternario BitNet b1.58 nativo en tu propia neurona (sin nube), 10 personalidades y sus agentes con procesos imaginativos e intuitivos en segundo plano, Studio 1.58 con 13 secciones (imaginación, enjambre, director, sentidos, memoria, almacenamiento, proyectos, voz) y notificaciones especiales de esos procesos en el centro de avisos. Los demás sistemas (Ollama, WebLLM, OpenRouter :free, servidor StarSeed…) siguen operativos como secundarios y configurables por cerebro, personalidad o agente.",
+                url: "https://starseed-os.vercel.app",
+            },
             {
                 version: "2026.07.01",
                 date: "2026-07-01",

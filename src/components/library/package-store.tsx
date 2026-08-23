@@ -54,7 +54,7 @@ import {
   // Iconos de la ficha ampliada (valoración/uso/permisos/relacionados/vista previa)
   Star, Shield, Mic, ScanEye, Globe2, Link as LinkCap,
   Sparkle, ArrowUpRight, Image as ImageIcon, Music2, FileCode2, FileType2,
-  Wifi, RefreshCcwDot, CircleCheck, RadioTower, Antenna,
+  Wifi, RefreshCcwDot, CircleCheck, RadioTower, Antenna, Binary,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -162,6 +162,8 @@ const ICON_MAP: Record<string, LucideIcon> = {
   Bookmark, Headphones, Home, Drama, Dna,
   // Red / Conexiones (Red Mesh + Señales)
   RadioTower, Antenna,
+  // Astraura 1.58-bit (Adenda 153)
+  Binary,
 };
 
 /** Id del repo builtin de Herramientas IA & Agentes (para la sección destacada). */

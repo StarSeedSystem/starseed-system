@@ -46,6 +46,7 @@ export const SYNCED_KEYS = [
     //    Nexus y Café, en todos los dispositivos de la cuenta. Las claves API
     //    NUNCA viajan (starseed.ai.providers queda local por diseño).
     "starseed.astraura.intelligence.v1", // modo auto/manual, overrides por tarea
+    "starseed.astraura.primary-system.v1", // (Adenda 153) sistema PRIMARIO por cuenta/neurona/cerebro/agente/personalidad (sin secretos)
     "starseed.oss.defaults.v1",          // servicio elegido por función/scope
     "starseed.ai.function-models.v1",    // preferencias de UI de modelos por función
     "starseed.neurons.prefs.v1",         // permisos/preferencias de neuronas (dispositivos)

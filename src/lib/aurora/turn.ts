@@ -69,6 +69,8 @@ import type { AuroraMessageMeta } from "@/lib/aurora/engine";
 import { buildAttachmentsContext, type UniversalAttachment } from "@/lib/aurora/attachments";
 import { workspaceSystemExtra } from "@/lib/workspaces/workspaces";
 import { describeUserVoiceEmotionForPrompt } from "@/lib/aurora/audio-emotion";
+// Adenda 154: trazas del enjambre Astraura 1.58-bit → metadatos del mensaje.
+import { astraura158MetaFromRaw, astraura158ToolMetas, isAstraura158Source } from "@/lib/astraura/astraura-158-meta";
 
 // ── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -90,6 +92,12 @@ export interface SendAuroraTurnOptions {
   convId?: string | null;
   /** Cerebro activo (herramientas + routing). */
   brainId?: string;
+  /**
+   * (Adenda 153) Agente de la Biblioteca que actúa en este turno, si lo hay:
+   * el router aplicará SU sistema primario (`porAgente`) antes que el de la
+   * personalidad/cerebro/neurona/cuenta.
+   */
+  agentId?: string;
   /** Superficie de origen (para la conversación nueva y la transparencia). */
   surface?: AiSurface;
   /** Etiqueta de ruta actual (conocimiento + nota de contexto). Por defecto: URL. */
@@ -412,6 +420,7 @@ export async function sendAuroraTurn(opts: SendAuroraTurnOptions): Promise<Auror
     messages,
     temperature,
     brainId: opts.brainId,
+    agentId: opts.agentId,
     chatId: convId,
     chatConfig,
     onStatus: opts.onStatus,
@@ -432,6 +441,18 @@ export async function sendAuroraTurn(opts: SendAuroraTurnOptions): Promise<Auror
   const finalText = stripDirectives(rawReply).trim() || "Hecho.";
 
   // 7) Metadatos de proceso.
+  // (Adenda 154) Si respondió el SISTEMA PRIMARIO 1.58, adjunta sus trazas
+  // (plan · agentes · herramientas · personalidades) y cuenta las herramientas
+  // que ejecutó el backend junto a las directivas del OS. Type-guard: otras
+  // fuentes (o un `raw` ajeno) no dejan rastro.
+  let astraura158: AuroraMessageMeta["astraura158"];
+  try {
+    if (isAstraura158Source(res?.route?.sourceId)) astraura158 = astraura158MetaFromRaw(res?.raw) ?? undefined;
+  } catch { astraura158 = undefined; }
+  const tools = [
+    ...actions.map((a) => ({ name: a.name, ok: a.ok, summary: "" })),
+    ...astraura158ToolMetas(astraura158),
+  ];
   const meta: AuroraMessageMeta = {
     provider: res?.route?.sourceLabel,
     model: res?.route?.modelLabel,
@@ -441,11 +462,10 @@ export async function sendAuroraTurn(opts: SendAuroraTurnOptions): Promise<Auror
     ms: res?.route?.ms,
     difficulty: res?.route?.difficulty,
     reason: res?.route?.reason,
-    tools: actions.length
-      ? actions.map((a) => ({ name: a.name, ok: a.ok, summary: "" }))
-      : undefined,
+    tools: tools.length ? tools : undefined,
     // Adenda 97: ruta completa para la barra de acciones (transparencia).
     route: res?.route ?? undefined,
+    ...(astraura158 ? { astraura158 } : {}),
   };
 
   // 8) Persistir la respuesta.

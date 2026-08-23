@@ -593,6 +593,12 @@ export function llmSourceAccessClass(sourceId: string): ModelAccessClass {
     return "api-external";
   }
 
+  // 1b) ASTRAURA 1.58-BIT (Adenda 153): la fuente LOCAL cae en «local» (abajo,
+  //     por su segmento `-local`); la NUBE propia del ecosistema es «starseed».
+  if (id.includes("astraura") && !/(^|[-_])local([-_]|$)/.test(id)) {
+    return "starseed";
+  }
+
   // 2) SERVIDOR STARSEED / OPENVOICE — auto inteligente del propio ecosistema.
   if (id.includes("starseed") || id.includes("hermione") || id.includes("openvoice")) {
     return "starseed";

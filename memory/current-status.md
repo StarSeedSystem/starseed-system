@@ -1,4 +1,29 @@
-# StarSeed OS - Current Status (Updated 2026-07-08)
+# StarSeed OS - Current Status (Updated 2026-08-23)
+
+## 🧠 NOVEDAD (2026-08-23 · Adendas 153–155): Astraura 1.58-bit es el sistema primario de IA
+
+- **Toda la inteligencia del OS pasa por defecto por el backend soberano Astraura 1.58-bit**
+  (BitNet b1.58 2B-4T ternario, `llama-server` nativo gestionado en dos perfiles: interactivo para
+  el chat y de fondo con prioridad baja para los procesos autónomos). Ollama, LM Studio, WebLLM,
+  OpenRouter :free, Groq/Cerebras/Gemini, Pollinations y el servidor StarSeed **siguen operativos
+  como secundarios**, con la cadena de failover intacta.
+- **Configurable por ámbito**: agente > personalidad > cerebro > neurona > cuenta > defecto
+  (`src/lib/astraura/primary-system.ts`, clave sincronizada con la cuenta).
+- **Studio Astraura 1.58** (`/agent?tab=astraura-158&sub=…`, 13 secciones) opera de verdad los
+  procesos del backend: imaginación intuitiva, sueños, enjambre multi-área, Director «Metis»,
+  orquestador de autorizaciones, sentidos y air-gap, almacenamiento, proyectos, memoria y voz.
+- **Personalidades y agentes 1.58 sembrados** en las bibliotecas del OS (`p158-*`, `agent158-*`)
+  con su primario fijado; menciones `@Hermes @Logos` activan el modo multi-personalidad.
+- **Notificaciones especiales** de los procesos autónomos en el centro de avisos del OS
+  (puente `/api/starseed/events` + ack, reparto justo por proceso).
+- **Corrección crítica del motor**: el llama.cpp del submódulo BitNet usaba SiLU donde el 2B-4T usa
+  **ReLU²** → perplejidad **40.9 → 5.38**. Guarda: `backend/scripts/check_bitnet_patch.sh` (repo astraura).
+- **Verificación funcional real**: 11/11 PASS con el modelo cargado
+  (`backend/scripts/verify_real_ola3.py`); OS con `tsc` 0, vitest 90/90 y `next build` ✓.
+- ⚠️ **Pendiente para el OS publicado**: commit + push + redeploy de Vercel. Detalle completo en
+  `architecture/astraura-158-sistema-primario.md` §14 y `memory/state.md` (Adenda 155).
+
+---
 
 ## Novedades y Última Migración Masiva (Proceso 4 & Sincronización Total)
 

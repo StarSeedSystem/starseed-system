@@ -56,6 +56,7 @@ import {
   ArrowDown,
   ArrowRight,
   ArrowUp,
+  Binary,
   Brain,
   Command as CommandIcon,
   CornerDownLeft,
@@ -259,6 +260,16 @@ export function CommandPalette() {
   const quickActions = useMemo<PaletteEntry[]>(
     () => [
       {
+        // (Adenda 153) Panel del SISTEMA PRIMARIO Astraura 1.58-bit.
+        id: "action:astraura-158",
+        kind: "action",
+        label: "Astraura 1.58-bit: sistema primario",
+        hint: "Estado del backend soberano, endpoint, personalidades, agentes, habilidades y cerebros",
+        icon: Binary,
+        color: "cyan",
+        activate: () => router.push("/agent?tab=astraura-158"),
+      },
+      {
         id: "action:aurora-setup",
         kind: "action",
         label: "Configurar Neurona",
@@ -345,7 +356,9 @@ export function CommandPalette() {
         },
       },
     ],
-    [],
+    // `router` es estable entre renders (next/navigation); se declara por
+    // honestidad con exhaustive-deps (la acción 1.58 navega con router.push).
+    [router],
   );
 
   const destinationEntries = useMemo<PaletteEntry[]>(

@@ -126,7 +126,11 @@ const nextConfig: NextConfig = {
       `script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://unpkg.com https://esm.run https://cdnjs.cloudflare.com`,
       `style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com`,
       `font-src 'self' data: https:`,
-      `connect-src 'self' https: wss:`,
+      // (Adenda 153) Loopback explícito: el sistema primario Astraura 1.58-bit
+      // (127.0.0.1:8000), Ollama (11434), LM Studio (1234) y OmniVoice (4444)
+      // viven en la propia neurona y se llaman por http/ws desde el OS en https.
+      // Hoy la CSP es Report-Only; al pasar a enforcing, esto evita romperlos.
+      `connect-src 'self' https: wss: http://127.0.0.1:* http://localhost:* ws://127.0.0.1:* ws://localhost:*`,
       `frame-src 'self' https:`,
       `object-src 'self' https:`,
       `worker-src 'self' blob:`,

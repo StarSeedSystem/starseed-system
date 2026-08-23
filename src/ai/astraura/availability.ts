@@ -21,6 +21,9 @@ import { FREE_CATALOG, type CatalogSource } from "./free-catalog";
 import { getUnifiedCatalog } from "./unified-intelligence";
 import { chromeAiAvailable, webgpuAvailable } from "./builtin-engines";
 import { isDownloadableSource, isModelInstalled } from "./installed-models";
+// (Adenda 153) Endpoint Astraura 1.58 declarado por ESTA neurona. `neurons.ts`
+// solo importa supabase/entity-state (sin ciclo con el router ni con este módulo).
+import { settingsFor, thisDeviceId } from "@/lib/neurons/neurons";
 
 export interface SourceAvailability {
   source: CatalogSource;
@@ -64,9 +67,48 @@ export function userConfigForSource(source: CatalogSource, configs?: ProviderCon
     if (!c.enabled) return false;
     if (norm(c.baseUrl) === norm(source.baseUrl)) return true;
     // Providers dedicados (groq/google/anthropic/openai/ollama) casan por id.
-    if (source.providerId !== "openai-compatible" && source.providerId !== "starseed" && c.id === source.providerId) return true;
+    // `astraura-158` NO (Adenda 153): tiene DOS fuentes (local y nube) bajo el
+    // mismo proveedor; casar por id haría que la nube heredase el baseUrl local.
+    // Solo casa por baseUrl (la config local por defecto = 127.0.0.1:8000).
+    if (
+      source.providerId !== "openai-compatible" &&
+      source.providerId !== "starseed" &&
+      source.providerId !== "astraura-158" &&
+      c.id === source.providerId
+    ) return true;
     return false;
   });
+}
+
+/**
+ * (Adenda 153) Endpoint EFECTIVO de una fuente Astraura 1.58: la neurona puede
+ * declarar el suyo (túnel/LAN/Cloud Run propio) para la fuente local; la nube
+ * usa `NEXT_PUBLIC_ASTRAURA_158_URL` o el proxy del OS. Import perezoso de
+ * `neurons.ts` para no crear ciclos (neurons → supabase; nunca → router).
+ */
+export function astraura158EndpointFor(source: CatalogSource, userConfig?: ProviderConfig): string {
+  const fallback = (userConfig?.baseUrl || source.baseUrl || "").replace(/\/+$/, "");
+  if (source.id !== "astraura-158-local") return fallback;
+  try {
+    if (typeof window === "undefined") return fallback;
+    const dev = thisDeviceId();
+    const s = settingsFor(dev).astraura158;
+    // Ajuste propio de la neurona (túnel/LAN/nube propia) > config de usuario > catálogo.
+    if (s && s.enabled !== false && typeof s.endpoint === "string" && s.endpoint.trim()) {
+      return s.endpoint.trim().replace(/\/+$/, "");
+    }
+  } catch { /* defensivo */ }
+  return fallback;
+}
+
+/** (Adenda 153) ¿La neurona apagó explícitamente su fuente Astraura 1.58 local? */
+export function astraura158LocalDisabled(): boolean {
+  try {
+    if (typeof window === "undefined") return false;
+    return settingsFor(thisDeviceId()).astraura158?.enabled === false;
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -120,6 +162,28 @@ export async function detectAvailability(fast = false): Promise<SourceAvailabili
       out.push({
         source, ready: ok, userConfig,
         reason: ok ? undefined : `OmniRoute no responde en ${endpoint} (¿está corriendo?).`,
+      });
+      continue;
+    }
+    // ── ASTRAURA 1.58-BIT (Adenda 153): sonda HONESTA a `/api/status` del backend
+    //    (local 1.5 s · nube 4 s — Cloud Run puede arrancar en frío). Si no
+    //    responde, NO está lista: ese turno va a los secundarios y se re-sondea
+    //    al expirar el TTL. Nunca se asume «lista» por ser nube sin clave.
+    if (source.providerId === "astraura-158") {
+      const endpoint = astraura158EndpointFor(source, userConfig);
+      const isLocal = source.id === "astraura-158-local";
+      if (isLocal && astraura158LocalDisabled()) {
+        out.push({ source, ready: false, userConfig, reason: "Desactivada en esta neurona (Sistemas de Astraura → Astraura 1.58)." });
+        continue;
+      }
+      const ok = fast ? (isLocal ? !!userConfig : true) : await probe(`${endpoint}/api/status`, isLocal ? 1500 : 4000);
+      out.push({
+        source, ready: ok, userConfig,
+        reason: ok
+          ? undefined
+          : isLocal
+            ? `El backend Astraura 1.58 no responde en ${endpoint} (¿está arrancado? ./install_and_run.sh).`
+            : "La nube de Astraura 1.58 no responde ahora (¿arrancando en frío?); se usan los sistemas secundarios.",
       });
       continue;
     }

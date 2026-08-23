@@ -3560,3 +3560,86 @@ persistidas, con la app como origen) y **ventanas emergentes** (toasts + popups 
 
 ### Pendiente (SOP §9-bis)
 - Adopción de `profile_access_allows(...,'total')` en las RLS de cerebros/memorias/user_settings/logs (pasarela lista); resolución de invitaciones por correo al primer login; sugerencias del Córtex simuladas; modo claro global; rotar service_role+DashScope (acción de Alex).
+
+---
+
+## 2026-08-22 — Adenda 153 · Astraura 1.58-bit como SISTEMA PRIMARIO de inteligencia (fusión con el backend soberano)
+**Sesión por:** Claude (Cowork) — Fable 5 orquestando + 4 agentes de análisis (backend/frontend 1.58, código y docs del OS)
+**Resumen ejecutivo:** El backend soberano **Astraura 1.58-bit** (`StarSeedSystem/astraura`, `~/Documents/IA 1.58 bit`, Vercel `astraura.vercel.app`, Cloud Run `astraura-backend-334237619848.us-central1.run.app`, Supabase del OS `astraura_state`) pasa a ser el **sistema primario por defecto** de toda la inteligencia del OS; las fuentes anteriores siguen como secundarias (failover intacto). Configurable por agente › personalidad › cerebro › neurona › cuenta. `tsc` 0 · vitest **76/76** (23 nuevos) · `next build` ✓ (104 páginas, ruta `/api/ai/astraura-158/[...path]`). Migración `astraura_state` ESCRITA (pendiente de aplicar por Management API).
+
+### Hecho
+- SOP nuevo `architecture/astraura-158-sistema-primario.md` (correlación completa de conceptos 1.58 ⇄ OS: motor, personalidades, agentes, habilidades, cerebros, memoria, voz, gateway, sync, secciones).
+- Proveedor `src/ai/providers/astraura-158.ts` (SSE `/api/starseed/chat` → fallback `/api/chat/stream`; transcripción single-turn; `system_prompt` del OS manda; modelo = personalidad 1.58 `astraura-158/<id>`; `persona158For`). `ProviderId` += `astraura-158`; registro y config por defecto (habilitada) en `providerStore.ts`.
+- Catálogo: `astraura-158-local` (127.0.0.1:8000 o endpoint de la neurona) y `astraura-158-nube` (`NEXT_PUBLIC_ASTRAURA_158_URL` o proxy). Disponibilidad con sonda honesta a `/api/status` (`availability.ts`, `astraura158EndpointFor`, `userConfigForSource` ya no hereda baseUrl por id).
+- Capa `src/lib/astraura/primary-system.ts` (clave sincronizada `starseed.astraura.primary-system.v1`; `resolvePrimaryFrom` pura; `exclusivo`).
+- Router: bloque «SISTEMA PRIMARIO» (tras pines A149/A67, antes de forceSource), `agentId` en `AstrauraChatRequest`/`turn.ts`, `RouteRecord.primary`, **fix** del pin por chat (`chatConfig.provider` casaba por id de fuente y además nunca llegaba a la cadena), primario exclusivo ⇒ respuesta honesta sin secundarios.
+- Proxy `src/app/api/ai/astraura-158/[...path]/route.ts` (sesión + rate-limit + allowlist; stream passthrough; `ASTRAURA_158_URL` / `ASTRAURA_158_KEY`).
+- Neurona: `NeuronCapabilities.astraura158` (sonda en `detectCapabilities`, publicada en `neuron_devices`), `NeuronSettings.astraura158{endpoint,enabled}`.
+- UI: `PrimaryChoiceEditor` (tarjeta en la pestaña LLM de la ventana A149 — «Todas»=neurona, personalidad=personalidad; en `AgentConfigPanel` por agente), panel `/agent?tab=astraura-158` (`Astraura158Panel`: estado local/nube honesto, endpoint, primario cuenta/neurona, personalidades con correlación OS→1.58, agentes, habilidades, cerebros, memoria mem0, instalación, últimas rutas), paleta de comandos `action:astraura-158`, app `astraura-158` en catálogo y Biblioteca (`app-astraura-158`, icono `Binary`). Sin migración de dock (pestaña ya registrada).
+- Backend 1.58 (repo `astraura`): `backend/app/api/starseed_bridge.py` (`/api/starseed/{health,manifest,chat}`) registrado en `main.py`; `bitnet_engine.py` honra `ASTRAURA_OLLAMA_URL`/`ASTRAURA_OLLAMA_MODEL` y reporta el modelo real en `active_model`.
+- Docs: `architecture/astraura-inteligencia.md` §23, `src/ai/providers/README.md`, `CLAUDE.md` §2/§10, tests `primary-system.test.ts` + `astraura-158.test.ts`.
+
+### Decisiones tomadas
+- «Primario» ≠ «exclusivo»: Aurora siempre responde; el primario va primero y los secundarios siguen salvo `exclusivo:true`.
+- Los pines explícitos existentes (chat, neurona×personalidad A149, «fija» A67) ganan a la capa primaria.
+- Personalidades 1.58 = «modelos» de la fuente; el prompt de la personalidad del OS sustituye la identidad hardcoded del backend.
+- La nube 1.58 se usa vía proxy propio con sesión (el backend no tiene auth): solo chat y lectura; jamás exec/archivos/claves.
+
+### Pendiente / Próximos pasos
+- Aplicar `20260822120000_astraura_state.sql` (Management API) y registrarla en `schema_migrations`.
+- Alex: rotar y sacar del repo 1.58 las claves de `data/*_apis.json` y `backend/data/*_apis.json`; retirar `r2_credentials.local.json` del Proyecto de Claude; redeploy de Vercel `astraura` (sin link a GitHub, último deploy 2026-08-20 < commits 21-22; `active_tunnel.json` 404); `min-instances 1` en Cloud Run.
+- Backend 1.58: auth (`X-Astraura-Key` global) y retirar RCE sin clave; compilar BitNet + GGUF `i2_s` en la neurona; rutas `/Users/alex` hardcoded → `DATA_DIR`.
+- OS: importar perfiles VoiceStudio→OmniVoice; fusionar mem0/grafo con `memories`; CSP enforcing con loopback; `persona158` explícito en el editor de personalidad.
+
+### Notas / aprendizajes
+- El backend 1.58 infiere HOY con Ollama (primer modelo de `/api/tags`) o con plantillas; el BitNet C++ no está compilado ni hay GGUF. El OS lo detecta y lo dice («sin modelo real»).
+- `keylessCloudSources()` incluye ahora `astraura-158-nube` (sin clave, nube, no de pago) → entra también como red de seguridad y en el reintento automático.
+
+---
+
+## 2026-08-22 — Adenda 153 · TANDA 2: migración aplicada, backend 1.58 endurecido y portable, frontend 1.58 corregido
+**Sesión por:** Claude (Cowork) — Fable 5 + 1 agente (frontend 1.58)
+**Resumen ejecutivo:** «Siguientes pasos» ejecutados: migración `astraura_state` **APLICADA y registrada** (Management API); backend Astraura 1.58 con **control de acceso** (`core/security.py`: local-only/key/open, clave maestra, claves fuera del repo, enmascarado), **rutas portables** (101 `/Users/alex` → `WORKSPACE`/`HOME`), 8 bugs corregidos, motor **honesto** (`real_mode`), memoria con tope y **sync incremental**, scripts de rotación/purga/compactación; frontend 1.58 con gateway unificado, deep-link, QR local y GatewayModal accesible. OS: CSP con loopback, cliente lee `real_mode`. `tsc` 0 · vitest 76/76 · backend importa 259 rutas y pasa el smoke (403 sin clave / 200 con clave) · `vite build` ✓.
+
+### Hecho
+- Ver SOP `architecture/astraura-158-sistema-primario.md` §13 (lista completa).
+
+### Pendiente (acción de Alex)
+- Re-iniciar sesión en la app de escritorio de Claude (staging denegado `untrusted_device`) y aplicar los parches/zip en ambos repos; commits.
+- Vercel: dar acceso a la app de GitHub de Vercel sobre `StarSeedSystem` y enlazar el proyecto `astraura` (root `frontend`), o `npx vercel --prod`; Cloud Run `min-instances 1` + `ASTRAURA_AUTH_MODE=key`.
+- `scripts/rotate_keys.py` → `purge_secrets_from_repo.sh`; `compact_memory_docs.py --apply`; BitNet + GGUF.
+
+## 2026-08-23 — Adenda 155 · OLA 3: integración TOTAL Astraura 1.58 (Studio completo + motor nativo real + verificación en vivo)
+
+### Hecho
+- **Backend**: motor BitNet NATIVO real vía `llama-server` gestionado (2 perfiles interactivo/fondo con `nice`,
+  plantilla de chat oficial, pre-tokenizer llama-bpe, presupuesto de contexto, prioridad de turno). Parche
+  CRÍTICO ReLU² en `3rdparty/llama.cpp` (PPL 40.9→5.38; guarda `scripts/check_bitnet_patch.sh`). Diagnóstico
+  de layout I2_S contra los pesos bf16 de HF (strided32 correcto, 98.8% de coincidencia bit a bit).
+  `scripts/verify_real_ola3.py`: verificación funcional real contra backend vivo (motor, @menciones multi-
+  personalidad, imaginación `generated_by: llm`, eventos+ack, procesos, invoke, síntesis, air-gap, director).
+- **OS · Studio 1.58 completo** (`/agent?tab=astraura-158&sub=…`): 13 pestañas (resumen · personalidades ·
+  agentes · imaginación · notificaciones · cerebros · memoria · sentidos · almacenamiento · proyectos · voz ·
+  habilidades · instalación) sobre `s158/*` + cliente tipado; badges de contadores y deep-links `?sub=`.
+- **OS · integración**: `astraura-158-import.ts` (siembra `p158-*`/`agent158-*` + primario por ámbito),
+  `astraura-158-feed.ts` (eventos→centro de notificaciones + ack, montado en app-globals),
+  tarjeta «Procesos autónomos 1.58» en la sección LLM, tarjeta «Backend 1.58» en neuronas, tira 1.58 en
+  Trinity, sección «Ramificación y agentes 1.58» en el modal de proceso. SOP §14.5 con el estado.
+
+### Verificación
+- Backend vivo: chat bridge single-persona REAL en español (Logos) ✓; resto de la batería en
+  `scripts/verify_real_ola3.py` (ver salida al cierre de la ola). OS: `tsc --noEmit` 0.
+
+### Pendiente (acción de Alex)
+- Commits en ambos repos; en el Mac: recompilar BitNet tras el parche (`bash backend/scripts/check_bitnet_patch.sh`
+  + `python3 setup_env.py -md models/BitNet-b1.58-2B-4T -q i2_s` o `cmake --build build -j`); resto igual que
+  la tanda 2 (rotación de claves, Vercel, Cloud Run).
+
+### Verificación REAL (cierre de la Ola 3, 2026-08-23)
+`backend/scripts/verify_real_ola3.py` contra backend vivo con BitNet nativo: **11/11 PASS en 601 s**
+(motor real · puente 1.1.0 · chat @menciones multi-personalidad · disparo no bloqueante 0.99 s ·
+rama `generated_by: llm` · feed con imaginación+enjambre+director+aprendizaje · ack · 8 procesos ·
+invoke real de personalidad · air-gap · ciclo del Director). Tres fallos REALES corregidos durante
+la verificación: parche ReLU² del motor (PPL 40.9→5.38), disparo de imaginación no bloqueante
+(la UI se colgaba minutos) y reparto justo del feed de eventos + `unread_count` que faltaba
+(el enjambre tapaba las notificaciones especiales de la imaginación y el Director). SOP §14.6/§14.7.

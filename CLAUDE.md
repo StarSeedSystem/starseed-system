@@ -24,7 +24,7 @@
 - **Carpeta local:** `/Users/alex/Documents/starseed-os-main`
 - **Git:** ✅ La carpeta **SÍ es un repositorio git** en la rama `main` (HEAD `5de826a`+), vinculado a `StarSeedSystem/starseed-system`. Los push disparan auto-deploy en Vercel. *(corregido 2026-07-21: antes decía erróneamente "NO es un repositorio git inicializado".)*
 - **Servidor / deployment:** Configurado para Vercel (auto-deploy desde GitHub). **Google Cloud Run activo** como alternativa soberana (`Dockerfile` + `cloudbuild.yaml`, min 0 / max 5) → todo lo nuevo debe funcionar en **standalone** y leer su config por **env vars**. Existe además `apphosting.yaml` (Firebase App Hosting).
-- **Base de datos:** Supabase — **proyecto propio del OS `nxstilnyidvkqeosofuh`**, con cuentas **SEPARADAS** de las de Nexus/Café (que usan `dzkjapinnewkxzjltadv`). Config en `supabase/` + cliente **singleton** en `src/utils/supabase/client.ts`. Schema implementado (`Account`, `Profile`, `Page`, `Post`, `StoreItem`, `LibraryItem`, `os_*`, `entity_state`, `os_spaces`). ⚠️ Migración `supabase/migrations/20260711120000_realtime_publication.sql` **pendiente de aplicar**.
+- **Base de datos:** Supabase — **proyecto propio del OS `nxstilnyidvkqeosofuh`**, con cuentas **SEPARADAS** de las de Nexus/Café (que usan `dzkjapinnewkxzjltadv`). Config en `supabase/` + cliente **singleton** en `src/utils/supabase/client.ts`. Schema implementado (`Account`, `Profile`, `Page`, `Post`, `StoreItem`, `LibraryItem`, `os_*`, `entity_state`, `os_spaces`). Migración `supabase/migrations/20260711120000_realtime_publication.sql` **APLICADA** (2026-08-09, A149 tanda 4). El backend **Astraura 1.58-bit** (repo `StarSeedSystem/astraura`) sincroniza su estado en la tabla `astraura_state` de ESTE proyecto (clave `service_role`, `~/.astraura/supabase_astraura.json`); migración que la formaliza con RLS: `20260822120000_astraura_state.sql` (A153, pendiente de aplicar por Management API).
 - **Tema visual:** Sistema "Crystal Liquid Glass" + "Trinity" (Zenith/Horizon/Logic/Anchor).
 - **Diseño activo:** Documentado en `design-system/starseed-system/MASTER.md` y en `STARSEED_ANALISIS_COMPLETO.md`.
 
@@ -186,6 +186,7 @@ Más detalles en `STARSEED_ANALISIS_COMPLETO.md` y en `memory/design-tokens.md`.
 - `design-system/starseed-system/MASTER.md` — design system completo
 - `architecture/astraura-mesh-meshtastic.md` — **SOP de la Adenda 97**: Red Mesh Meshtastic/LoRa en el núcleo de Astraura (descubrimiento P2P pasivo, router inteligente Mesh↔Wi-Fi con histéresis, sync comprimida con presupuesto de duty cycle, hardware por Web Serial/BLE/daemon + simulador, reglas mesh por neurona, pestañas «Personalidades»/«Red Mesh» de /agent, OmniVoice Mixer y xAI one-shot). **Ampliado en la Adenda 98** (§11): modo dual malla+router simultáneo, autodetección de banda/preset, selector inteligente de radiofrecuencia, federación de topologías (os_mesh_topology), privacidad/permisos, Centro de Conexiones (Control Center + barra superior) y página /red-mesh con mapa 3D. Fuente de verdad de esa ola.
 - `architecture/centro-creacion-sync-permisos.md` — **SOP de la Adenda 63** (2026-07-11/12): sesión persistente (singleton Supabase), Centro de Creación Trinity + `/crear`, sync realtime de la Biblioteca, **permisos universales** (`src/lib/sharing/access.ts`), neuronas + CasaOS, voz y personalidades de Aurora, mapa del Hub, seguridad estilo Strix. Fuente de verdad de esa ola.
+- `architecture/astraura-158-sistema-primario.md` — **SOP de la Adenda 153** (2026-08-22): **Astraura 1.58-bit** (repo `StarSeedSystem/astraura`, carpeta `~/Documents/IA 1.58 bit`, Vercel `astraura.vercel.app`, Cloud Run, Supabase del OS) como **sistema PRIMARIO de inteligencia** del OS; todas las fuentes anteriores quedan como secundarias. Proveedor `src/ai/providers/astraura-158.ts`, fuentes `astraura-158-local`/`-nube`, capa `src/lib/astraura/primary-system.ts` (clave `starseed.astraura.primary-system.v1`; precedencia agente › personalidad › cerebro › neurona › cuenta › defecto), bloque «SISTEMA PRIMARIO» en `router.ts`, proxy `/api/ai/astraura-158`, panel `/agent?tab=astraura-158`, tarjeta en la pestaña LLM de la ventana A149, puente `backend/app/api/starseed_bridge.py` en el repo 1.58 y migración `astraura_state`. Fuente de verdad de esa ola.
 - `architecture/astraura-config-sistemas-neurona.md` — **SOP de la Adenda 149** (2026-08-06): ventana «Configuración/actualización de sistemas de Astraura en esta neurona» (título por contexto; pestañas LLM · Astraura · OpenVoice · Cerebro · Señales POR PERSONALIDAD con procedencia y «volver a auto»), capa neurona×personalidad (`src/lib/astraura/neuron-persona-store.ts` + `neuron-persona-systems.ts`, clave `starseed.astraura.neuron-persona.v1`) **cableada al runtime** (router LLM `intelligencePinFor`, voz `engine-registry`, memoria `effectiveMemoryPolicy`, mesh `persona-antenna-gate.ts`) y accesos en 6 superficies. Fuente de verdad de esa ola.
 - `starseed.config.json` — config global de runtime
 - `task_plan.md` — checklist de fases B.L.A.S.T.
@@ -237,7 +238,7 @@ Más detalles en `STARSEED_ANALISIS_COMPLETO.md` y en `memory/design-tokens.md`.
 
 ---
 
-*Última actualización del archivo: 2026-08-06 (Adenda 149 · ventana de sistemas de Astraura por neurona×personalidad, capa cableada al runtime y SOP nuevo en architecture/)*
+*Última actualización del archivo: 2026-08-22 (Adenda 153 · Astraura 1.58-bit como sistema primario de inteligencia, fusión con el backend soberano y SOP nuevo en architecture/)*
 
 
 ---
@@ -252,3 +253,17 @@ tasks/ logs/` + `index.md` + `sync.md` + `memory.manifest.json`.
 - Espejo en Google Drive (*My Drive/StarSeed_Memory_Root*) + enlace en el Escritorio.
 - Vinculable a cerebros/servidores/VMs (ver `sync.md` + `architecture/memoria-cerebros-sync.md`). ⚠️ No conectado a cuenta aún (prueba futura: *Ester*).
 - La **memoria profunda** (architecture/principles/glossary/roadmap/state) sigue en `memory/`.
+
+---
+
+## 🌌 Inteligencia primaria del OS (Adenda 155 · 2026-08-23)
+
+**Astraura 1.58-bit** (backend soberano propio: BitNet b1.58 ternario nativo) es el **sistema
+primario** de toda la inteligencia del OS; el resto de sistemas siguen como secundarios y se
+configuran por **agente > personalidad > cerebro > neurona > cuenta**
+(`src/lib/astraura/primary-system.ts`). Superficies: **Studio 1.58**
+(`/agent?tab=astraura-158&sub=…`, 13 pestañas en `src/components/astraura/s158/`), feed de eventos
+→ centro de notificaciones (`src/lib/astraura/astraura-158-feed.ts`), siembra de personalidades y
+agentes (`astraura-158-import.ts`), proxy `/api/ai/astraura-158/*`. SOP:
+`architecture/astraura-158-sistema-primario.md` (§14 Ola 3, §14.6 correcciones, §14.7 verificación
+real 11/11). Antes de tocar esta capa, leer ese SOP.

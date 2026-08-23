@@ -55,6 +55,18 @@ export function setActiveProviderId(id: ProviderId | null): void {
 export function defaultConfigs(): ProviderConfig[] {
   return [
     {
+      // Astraura 1.58-bit (Adenda 153): el sistema primario soberano. Sin clave;
+      // el endpoint por defecto es el backend local (127.0.0.1:8000). Habilitado
+      // por defecto: si no responde, el router sigue con los secundarios.
+      id: "astraura-158",
+      label: PROVIDERS["astraura-158"].info.label,
+      baseUrl: PROVIDERS["astraura-158"].info.defaultBaseUrl,
+      encryptedKey: "",
+      models: [...PROVIDERS["astraura-158"].info.defaultModels],
+      defaultModel: PROVIDERS["astraura-158"].info.defaultModels[0],
+      enabled: true,
+    },
+    {
       id: "starseed",
       label: PROVIDERS.starseed.info.label,
       baseUrl: PROVIDERS.starseed.info.defaultBaseUrl,

@@ -137,7 +137,74 @@ export interface CatalogSource {
 
 /* ───────────────────────── Catálogo ───────────────────────── */
 
+/* ── ASTRAURA 1.58-BIT (Adenda 153): sistema PRIMARIO soberano ──────────────
+ * Dos fuentes del mismo proveedor `astraura-158`:
+ *   · `astraura-158-local` — el backend en ESTA neurona (127.0.0.1:8000), o el
+ *     endpoint que la neurona declare (túnel/LAN/Cloud Run propio) en
+ *     `NeuronSettings.astraura158.endpoint`.
+ *   · `astraura-158-nube`  — el backend publicado (Cloud Run / gateway), vía
+ *     `NEXT_PUBLIC_ASTRAURA_158_URL` o el proxy propio del OS `/api/ai/astraura-158`
+ *     (sin CORS ni contenido mixto; allowlist de rutas).
+ * Los «modelos» son las PERSONALIDADES del backend (`astraura-158/<persona>`);
+ * `auto` deja que el router elija la afín a la personalidad activa del OS.
+ * Ver architecture/astraura-158-sistema-primario.md §4. */
+export const ASTRAURA_158_LOCAL_SOURCE_ID = "astraura-158-local";
+export const ASTRAURA_158_CLOUD_SOURCE_ID = "astraura-158-nube";
+export const ASTRAURA_158_PROXY_BASE = "/api/ai/astraura-158";
+
+const ASTRAURA_158_MODELS: CatalogModel[] = [
+  { id: "astraura-158/auto", label: "Astraura (personalidad afín, auto)", strengths: ["chat", "fast", "summary", "translate", "code", "reasoning", "creative", "long"], quality: 7, context: 4096, note: "Elige la personalidad 1.58 afín a la personalidad activa del OS" },
+  { id: "astraura-158/astraura_prime", label: "Astraura Prime · núcleo", strengths: ["chat", "summary", "reasoning"], quality: 7, context: 4096 },
+  { id: "astraura-158/aurora", label: "Aurora · voz viva", strengths: ["chat", "fast", "creative"], quality: 7, context: 4096 },
+  { id: "astraura-158/hermione", label: "Hermione · puente del OS", strengths: ["chat", "code", "fast"], quality: 6, context: 4096 },
+  { id: "astraura-158/hephaestus", label: "Hephaestus · forja y código", strengths: ["code", "reasoning"], quality: 7, context: 4096 },
+  { id: "astraura-158/hermes", label: "Hermes · web y verificación", strengths: ["chat", "summary", "long"], quality: 6, context: 4096, note: "Búsqueda web real del backend" },
+  { id: "astraura-158/atenea", label: "Atenea · seguridad", strengths: ["reasoning", "summary"], quality: 6, context: 4096 },
+  { id: "astraura-158/oneiros", label: "Oneiros · creatividad y 3D", strengths: ["creative", "code"], quality: 6, context: 4096 },
+  { id: "astraura-158/kallisti", label: "Kallisti · poesía ciberdélica", strengths: ["creative", "chat"], quality: 6, context: 4096 },
+  { id: "astraura-158/mnemosyne", label: "Mnemosyne · memoria", strengths: ["long", "summary", "reasoning"], quality: 6, context: 4096 },
+  { id: "astraura-158/logos", label: "Logos · lógica ternaria", strengths: ["reasoning", "translate"], quality: 6, context: 4096 },
+];
+
+/** Base pública del backend 1.58 para el OS desplegado (inlinada en build). */
+function astraura158CloudBase(): string {
+  const env = typeof process !== "undefined" ? process.env.NEXT_PUBLIC_ASTRAURA_158_URL : undefined;
+  const v = String(env ?? "").trim().replace(/\/+$/, "");
+  return v || ASTRAURA_158_PROXY_BASE;
+}
+
 export const FREE_CATALOG: CatalogSource[] = [
+  {
+    id: ASTRAURA_158_LOCAL_SOURCE_ID,
+    label: "Astraura 1.58-bit (esta neurona)",
+    tier: "local",
+    providerId: "astraura-158",
+    baseUrl: "http://127.0.0.1:8000",
+    requiresKey: false,
+    limits: "Sin límites: es tu propio backend soberano (BitNet b1.58 / motor local).",
+    why: "Sistema primario de StarSeed OS: inteligencia propia, personalidades, agentes, habilidades y cerebros; nada sale de tu neurona.",
+    privacy: "local",
+    weight: 1.3,
+    // El motor local (BitNet CPU / Ollama) puede tardar en arrancar el modelo.
+    timeoutMs: 95_000,
+    cooldownMinutes: 2,
+    models: ASTRAURA_158_MODELS,
+  },
+  {
+    id: ASTRAURA_158_CLOUD_SOURCE_ID,
+    label: "Astraura 1.58-bit (nube StarSeed)",
+    tier: "instant",
+    providerId: "astraura-158",
+    baseUrl: astraura158CloudBase(),
+    requiresKey: false,
+    limits: "Backend publicado de Astraura (Cloud Run/gateway). Puede arrancar en frío.",
+    why: "El mismo sistema primario, servido por la nube de StarSeed cuando esta neurona no corre el backend.",
+    privacy: "cloud",
+    weight: 1.2,
+    timeoutMs: 95_000,
+    cooldownMinutes: 5,
+    models: ASTRAURA_158_MODELS,
+  },
   /* ── LOCAL (soberanía máxima) ─────────────────────────────── */
   {
     id: "ollama-local",
@@ -863,6 +930,7 @@ export function cooldownMinutesFor(sourceId: string, fallback: number): number {
  */
 export function providerSlugForSource(source: CatalogSource): string {
   switch (source.providerId) {
+    case "astraura-158": return "astraura";
     case "google": return "gemini";
     case "groq": return "groq";
     case "anthropic": return "anthropic";

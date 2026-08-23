@@ -134,6 +134,8 @@ const AiAppGenerator = nextDynamic(() => import("@/components/appgen/ai-app-gene
 const NeuronModelsPanel = nextDynamic(() => import("@/components/neurons/neuron-models-panel").then(m => m.NeuronModelsPanel), { ssr: false });
 // Integraciones: fuentes OSS/gratuitas recomendadas por servicio del OS (Adenda 110).
 const IntegrationSourcesPanel = nextDynamic(() => import("@/components/integrations/integration-sources-panel").then(m => m.IntegrationSourcesPanel), { ssr: false });
+// Astraura 1.58-bit: panel del SISTEMA PRIMARIO soberano (Adenda 153).
+const Astraura158Panel = nextDynamic(() => import("@/components/astraura/astraura-158-panel").then(m => m.Astraura158Panel), { ssr: false });
 // Voz coherente: persona portátil que se mantiene al cambiar de modelo (Adenda 112).
 const PersonaCoherencePanel = nextDynamic(() => import("@/components/aurora/persona-coherence-panel").then(m => m.PersonaCoherencePanel), { ssr: false });
 import { TelegramSpacesPanel } from "@/components/exocortex/telegram-spaces-panel";
@@ -160,7 +162,7 @@ import { VaultsPanel } from "@/components/exocortex/vaults-panel";
 import { BatchJobsPanel } from "@/components/hermes/batch-jobs-panel";
 import { ServerRegistryPanel } from "@/components/hermes/server-registry-panel";
 import { HardDrive } from "lucide-react";
-import { Eye, Server, LayoutDashboard, Brain, Layers, RadioTower } from "lucide-react";
+import { Eye, Server, LayoutDashboard, Brain, Layers, RadioTower, Binary } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { buildSystemContext, snapshotToSystemPrompt } from "@/hermes-integration/system-context";
 import { getLivingGraphStore } from "@/hermes-integration/living-graph-store";
@@ -311,6 +313,8 @@ const STUDIO_SECTIONS: StudioSection[] = [
     items: [
       // Adenda 132: «Configuración IA» (config unificada de Astraura & OmniVoice), primero.
       { value: "config-ia", label: "Configuración IA", icon: Sliders },
+      // Adenda 153: Astraura 1.58-bit, el sistema PRIMARIO soberano (backend propio).
+      { value: "astraura-158", label: "Astraura 1.58", icon: Binary },
       { value: "cerebros", label: "Cerebros", icon: BrainCircuit },
       { value: "servidores", label: "Servidores", icon: Server },
       { value: "servers", label: "Registro de servidores", icon: HardDrive },
@@ -391,6 +395,20 @@ const TAB_ALIASES: Record<string, string> = {
   // Astraura · OpenVoice · Cerebro · Señales), que vive en Configuración de IA.
   sistemas: "config-ia",
   "sistemas-neurona": "config-ia",
+  // Adenda 153: panel del sistema primario Astraura 1.58-bit.
+  "astraura-158": "astraura-158",
+  astraura158: "astraura-158",
+  bitnet: "astraura-158",
+  "1.58": "astraura-158",
+  primario: "astraura-158",
+  // Studio 1.58 (subsistemas del backend): el panel lee `?tab=` y `?sub=` y
+  // abre la pestaña interna correspondiente (imaginación · enjambre · sentidos…).
+  imaginacion: "astraura-158",
+  imagination: "astraura-158",
+  enjambre: "astraura-158",
+  swarm: "astraura-158",
+  sensorium: "astraura-158",
+  "notificaciones-158": "astraura-158",
 };
 function normalizeTab(raw: string | null | undefined): string | null {
   if (!raw) return null;
@@ -1451,6 +1469,9 @@ function AgentPageInner() {
 
         {/* --- TAB: CONFIGURACIÓN IA (config unificada Astraura & OmniVoice · Adenda 132) --- */}
         <TabsContent value="config-ia" className={TAB_SCROLL}><AstrauraOmniVoiceConfig variant="embedded" onNavigate={(t) => setActiveTab(t)} /></TabsContent>
+
+        {/* --- TAB: ASTRAURA 1.58-BIT (sistema primario soberano · Adenda 153) --- */}
+        <TabsContent value="astraura-158" className={TAB_SCROLL}><Astraura158Panel /></TabsContent>
 
         <TabsContent value="cerebros" className={TAB_SCROLL}><BrainsPanel /></TabsContent>
 

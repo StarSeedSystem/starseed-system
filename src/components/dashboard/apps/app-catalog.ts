@@ -10,7 +10,7 @@
 import {
     Globe, Coffee, AudioWaveform, Radio, MessageSquare, Network,
     Library, BrainCircuit, CloudSun, Music, Waves, Orbit, Camera, Images,
-    RadioTower, Antenna,
+    RadioTower, Antenna, Binary,
 } from "lucide-react";
 import type { StarseedApp, LauncherCollection } from "./launcher-types";
 
@@ -195,6 +195,18 @@ export const APP_CATALOG: StarseedApp[] = [
         status: "native",
         open: { primary: "route", allowed: ["route", "tab"], route: "/agent" },
     },
+    {
+        // Adenda 153: Astraura 1.58-bit — el SISTEMA PRIMARIO soberano de inteligencia.
+        id: "astraura-158",
+        name: "Astraura 1.58",
+        short: "Astraura 1.58",
+        description: "Sistema primario de inteligencia: tu backend soberano BitNet b1.58 con personalidades, agentes, habilidades y cerebros.",
+        icon: Binary,
+        accent: "#00F0FF",
+        category: "sistema",
+        status: "native",
+        open: { primary: "route", allowed: ["route", "tab"], route: "/agent?tab=astraura-158" },
+    },
 
     // ── Apps utilitarias / media ─────────────────────────────────
     {
@@ -281,7 +293,7 @@ export function getApp(id: string): StarseedApp | undefined {
 export const APP_COLLECTIONS: Record<LauncherCollection, string[]> = {
     // 'starseed' = folder de inicio por defecto (marca + módulos clave)
     starseed: ["nexus", "cafe", "audiomorphic", "omnifrecuencias", "red-mesh", "senales", "red-feed", "messages", "network", "musica", "clima"],
-    sistema: ["messages", "network", "library", "agent", "red-mesh", "senales", "red-feed"],
+    sistema: ["messages", "network", "library", "agent", "astraura-158", "red-mesh", "senales", "red-feed"],
     media: ["musica", "radio", "omnifrecuencias", "audiomorphic", "immersive", "camara", "galeria"],
     custom: [],
 };

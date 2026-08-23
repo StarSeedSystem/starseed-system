@@ -1,11 +1,45 @@
 "use client";
 import React from "react";
-import { Bell, Info, AlertTriangle, CheckCircle, X, ExternalLink } from "lucide-react";
+import { Bell, Info, AlertTriangle, CheckCircle, X, ExternalLink, Binary, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNotifications, type AppNotification } from "@/context/notifications-context";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { useAstraura158Feed } from "@/lib/astraura/astraura-158-feed";
+
+/** (Ola 3 · Adenda 155) Avisos vivos de los procesos de fondo Astraura 1.58:
+ * lo que la imaginación/enjambre/director acaban de emitir por el puente,
+ * con deep-link a la pestaña de notificaciones del Studio. */
+function Astraura158Strip() {
+    const feed = useAstraura158Feed();
+    const fresh = feed.events.filter((e) => !e.read && !e.acked).slice(-3).reverse();
+    if (!feed.target && !fresh.length) return null;
+    return (
+        <div className="mx-2 rounded-lg border border-cyan-400/15 bg-cyan-500/[0.05] px-3 py-2">
+            <div className="flex items-center gap-2">
+                <Binary className="h-3.5 w-3.5 shrink-0 text-cyan-300" aria-hidden="true" />
+                <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-cyan-100/90">
+                    Procesos 1.58 {feed.target ? `(${feed.target === "local" ? "neurona" : "nube"})` : ""}
+                    {feed.unread > 0 ? ` · ${feed.unread} sin leer` : " · al día"}
+                </span>
+                <Link href="/agent?tab=astraura-158&sub=notificaciones" className="text-[10px] text-cyan-300/80 underline-offset-2 hover:underline">
+                    abrir
+                </Link>
+            </div>
+            {fresh.length > 0 && (
+                <ul className="mt-1.5 space-y-0.5">
+                    {fresh.map((e) => (
+                        <li key={e.id} className="flex items-start gap-1.5 text-[10px] leading-snug text-white/70">
+                            <Zap className="mt-0.5 h-2.5 w-2.5 shrink-0 text-cyan-300/70" aria-hidden="true" />
+                            <span className="min-w-0 truncate">{e.title ?? e.message ?? e.id}</span>
+                        </li>
+                    ))}
+                </ul>
+            )}
+        </div>
+    );
+}
 
 export function NotificationsTab() {
     const { inbox, markRead, clearAll, archive } = useNotifications();
@@ -28,6 +62,9 @@ export function NotificationsTab() {
                     </button>
                 )}
             </div>
+
+            {/* Procesos de fondo Astraura 1.58 (imaginación · enjambre · director). */}
+            <Astraura158Strip />
 
             <div className="flex-1 px-2 space-y-2 overflow-y-auto max-h-[340px] custom-scrollbar">
                 <AnimatePresence mode="popLayout">

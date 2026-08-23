@@ -1194,3 +1194,25 @@ pollinations-text    openai                     HTTP 200   'HOLA'
 ```
 
 `npx tsc --noEmit` → **0 errores** (42 s, sin caché). `npm run build` → **Compiled successfully**, 92/92 páginas.
+
+## 23. Astraura 1.58-bit como SISTEMA PRIMARIO (2026-08-22 · Adenda 153)
+
+> Fuente de verdad detallada: `architecture/astraura-158-sistema-primario.md`. Aquí solo el encaje con el router.
+
+- **Nuevo proveedor** `astraura-158` (`src/ai/providers/astraura-158.ts`) = backend soberano `StarSeedSystem/astraura`
+  (FastAPI; BitNet b1.58 / Ollama local; personalidades, agentes, habilidades, cerebros). Dos fuentes del catálogo:
+  `astraura-158-local` (127.0.0.1:8000 o el endpoint que declare la neurona) y `astraura-158-nube`
+  (`NEXT_PUBLIC_ASTRAURA_158_URL` o el proxy `/api/ai/astraura-158`, con sesión y allowlist).
+- **Cadena del router** (`astrauraChat`), de más a menos específico: `forceSource` → pin por chat (ahora casa por
+  id de fuente **o** `providerId`, y se honra de verdad) → pin neurona×personalidad (A149) / «fija» (A67) →
+  **sistema primario** (`resolvePrimarySystem`: agente › personalidad › cerebro › neurona › cuenta › defecto
+  `astraura-158`) → ranking gratis-primero → redes de seguridad → IA del navegador → reintento → respuesta honesta.
+  `exclusivo:true` corta la cadena tras el primario. `RouteRecord.primary` deja constancia de qué primario actuó.
+- **Disponibilidad honesta**: sonda `GET /api/status` (1.5 s local · 4 s nube, TTL 60 s). Sin respuesta ⇒ ese turno lo
+  contestan los secundarios, sin que el usuario se quede sin Aurora.
+- **Modelo = personalidad 1.58**: `astraura-158/auto` elige la afín a la personalidad activa del OS
+  (`persona158For`: Aurora→aurora, Hermione→hermione, Poeta→kallisti, Analista→logos, Guardiana→atenea,
+  Exploradora→hermes, Mentora→mnemosyne, Cómplice→oneiros…). El prompt del OS viaja como `system_prompt` y manda.
+- **Límites honestos** (verificado 2026-08-22): la inferencia real del backend es Ollama (o plantillas sin Ollama);
+  BitNet nativo exige compilar + GGUF `i2_s`; enjambre/imaginación/voz del backend son simulaciones o Web Speech.
+

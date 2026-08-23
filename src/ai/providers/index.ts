@@ -11,8 +11,11 @@ import { googleProvider } from "./google";
 import { deepseekProvider } from "./deepseek";
 import { groqProvider } from "./groq";
 import { openrouterProvider } from "./openrouter";
+import { astraura158Provider } from "./astraura-158";
 
 export const PROVIDERS: Record<ProviderId, Provider> = {
+  // Astraura 1.58-bit (Adenda 153): backend soberano propio, PRIMARIO por defecto.
+  "astraura-158": astraura158Provider,
   starseed: starseedProvider,
   ollama: ollamaProvider,
   openai: openaiProvider,
@@ -32,6 +35,7 @@ export const PROVIDERS: Record<ProviderId, Provider> = {
 
 /** Ordered for the picker UI: privacy-first first. */
 export const PROVIDER_ORDER: ProviderId[] = [
+  "astraura-158",
   "starseed",
   "ollama",
   "deepseek",

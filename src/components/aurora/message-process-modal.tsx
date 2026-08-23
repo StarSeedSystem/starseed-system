@@ -10,12 +10,19 @@
  *
  * Mensajes anteriores a esta función (chatlog viejo) no tienen `meta`: se
  * explica honestamente en vez de mostrar un modal vacío o roto.
+ *
+ * Adenda 154/155: cuando respondió Astraura 1.58-bit, la sección «Ramificación
+ * y agentes 1.58» enseña el plan de ramificación del backend, las trazas de
+ * cada agente (pensamientos), las herramientas que ejecutó y las
+ * personalidades que intervinieron (modo multi-personalidad por @menciones).
  */
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { Undo2 } from "lucide-react";
+import { Undo2, Binary } from "lucide-react";
+import Link from "next/link";
 import type { AuroraMessageMeta } from "@/lib/aurora/engine";
+import { astraura158PlanBranches, describeAstraura158Plan } from "@/lib/astraura/astraura-158-meta";
 
 export interface MessageProcessModalProps {
   open: boolean;
@@ -85,6 +92,57 @@ export function MessageProcessModal({ open, meta, onOpenChange }: MessageProcess
             {meta.modelText && (
               <div className="rounded-lg border border-white/10 bg-white/5 p-3 text-white/70">
                 {meta.modelText}
+              </div>
+            )}
+
+            {meta.astraura158 && (
+              <div className="space-y-1.5 rounded-lg border border-cyan-400/20 bg-cyan-500/[0.05] p-2.5">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-cyan-200/80"><Binary className="h-3 w-3" aria-hidden="true" /> Ramificación y agentes 1.58</div>
+                  <Link href="/agent?tab=astraura-158&sub=agentes" className="text-[10px] text-cyan-300/80 underline-offset-2 hover:underline">abrir Studio</Link>
+                </div>
+                {meta.astraura158.plan != null && (
+                  <p className="text-white/70">Plan: <span className="text-white/90">{describeAstraura158Plan(meta.astraura158.plan) || "ramificación del backend"}</span></p>
+                )}
+                {astraura158PlanBranches(meta.astraura158.plan).length > 0 && (
+                  <div className="flex flex-wrap gap-1">
+                    {astraura158PlanBranches(meta.astraura158.plan).map((b, i) => (
+                      <span key={`${b.name}-${i}`} className="rounded-full border px-1.5 py-0.5 text-[10px] text-white/80" style={{ borderColor: b.color ? `${b.color}66` : "rgba(255,255,255,0.15)" }}>
+                        {b.name}{b.agent ? ` · ${b.agent}` : ""}{b.status ? ` · ${b.status}` : ""}
+                      </span>
+                    ))}
+                  </div>
+                )}
+                {meta.astraura158.personalities && meta.astraura158.personalities.length > 0 && (
+                  <p className="text-white/70">
+                    Personalidades:{" "}
+                    {meta.astraura158.personalities.map((p, i) => (
+                      <span key={`${p.id ?? p.name}-${i}`} className="mr-1 font-medium" style={{ color: p.color ?? "#67e8f9" }}>{p.name}</span>
+                    ))}
+                  </p>
+                )}
+                {meta.astraura158.traces && meta.astraura158.traces.length > 0 && (
+                  <div className="space-y-1">
+                    {meta.astraura158.traces.map((t, i) => (
+                      <div key={`${t.agent}-${i}`} className="rounded-md border border-white/10 bg-black/30 p-2">
+                        <div className="flex items-center gap-1.5">
+                          <span className="h-1.5 w-1.5 rounded-full" style={{ background: t.color ?? "#67e8f9" }} aria-hidden="true" />
+                          <span className="font-medium text-white/85">{t.agent}</span>
+                        </div>
+                        {t.thoughts.length > 0 && (
+                          <ul className="mt-1 space-y-0.5 text-[11px] text-white/60">
+                            {t.thoughts.slice(0, 6).map((th, j) => <li key={j}>· {th}</li>)}
+                          </ul>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {meta.astraura158.tools && meta.astraura158.tools.length > 0 && (
+                  <p className="text-[11px] text-white/60">
+                    Herramientas del backend: {meta.astraura158.tools.map((t) => `${t.tool}${t.success === false ? " (falló)" : ""}`).join(" · ")}
+                  </p>
+                )}
               </div>
             )}
 

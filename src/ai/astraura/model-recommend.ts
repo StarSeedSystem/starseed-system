@@ -94,6 +94,9 @@ export function availableNow(
   if (spec.req.chromeAi) return !!caps.chromeAi;
   if (spec.req.webgpu) return !!caps.webgpu;
   if (spec.engine === "Ollama") return !!caps.ollama || !!caps.lmstudio;
+  // (Adenda 155) Sistema primario soberano: disponible si el backend 1.58 de esta
+  // neurona responde (lo detecta `detectCapabilities` sondeando su endpoint).
+  if (spec.engine === "Astraura 1.58") return !!caps.astraura158?.online;
   // Motores de voz locales y demás: necesitan la app del OS instalada (stack local).
   return osInstalled || !!caps.installedApp;
 }
@@ -106,7 +109,7 @@ function rationaleFor(caps: NeuronCapabilities, spec: ModelSpec, fit: { level: F
     return "Tu propio servidor (API/MCP): corre fuera del dispositivo, disponible en cualquier neurona.";
   }
   const base = fit.level === "ideal" ? "Corre con holgura en local" : fit.level === "suficiente" ? "Corre en local" : fit.level === "justo" ? "Corre justo en local" : "No alcanza para local fluido";
-  if (!avail) return `${base}; requiere ${spec.req.chromeAi ? "Chrome AI" : spec.req.webgpu ? "WebGPU" : spec.engine === "Ollama" ? "Ollama activo" : "instalar la app del OS"} para usarlo.`;
+  if (!avail) return `${base}; requiere ${spec.req.chromeAi ? "Chrome AI" : spec.req.webgpu ? "WebGPU" : spec.engine === "Ollama" ? "Ollama activo" : spec.engine === "Astraura 1.58" ? "el backend Astraura 1.58 encendido en esta neurona" : "instalar la app del OS"} para usarlo.`;
   return `${base}, privado y sin conexión.`;
 }
 

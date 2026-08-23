@@ -44,6 +44,7 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 
 import { SKILL_CAPABILITIES } from "@/ai/astraura/skills";
+import { PrimaryChoiceEditor } from "@/components/astraura/primary-choice-editor";
 import type { Agent, AgentVisibility } from "@/lib/agents/model";
 import {
   createAgent,
@@ -345,6 +346,15 @@ export function AgentConfigPanel({ agent, onSaved, onCancel, className }: AgentC
             />
           </div>
         </div>
+
+        {/* (Adenda 153) Sistema PRIMARIO de este agente: Astraura 1.58-bit por
+            defecto; puede ser «automático» o una fuente concreta. Se guarda al
+            instante por id de agente (los nuevos lo fijan tras guardarse). */}
+        {agent?.id ? (
+          <PrimaryChoiceEditor scope="agente" scopeId={agent.id} compact scopeLabel="este agente" />
+        ) : (
+          <p className="text-xs text-muted-foreground">Guarda el agente para poder fijar su sistema primario (por defecto, Astraura 1.58-bit).</p>
+        )}
 
         {/* Visibilidad */}
         <div className="flex items-center justify-between rounded-xl border border-foreground/10 p-3 bg-background/40">

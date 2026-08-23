@@ -34,7 +34,12 @@ import {
   type CatalogSource,
   type TaskKind,
 } from "./free-catalog";
-import { detectAvailabilitySafe, userConfigForSource, type SourceAvailability } from "./availability";
+import { detectAvailabilitySafe, userConfigForSource, astraura158EndpointFor, type SourceAvailability } from "./availability";
+// SISTEMA PRIMARIO (Adenda 153): Astraura 1.58-bit va primero por defecto;
+// configurable por agente/personalidad/cerebro/neurona/cuenta. Capa pura.
+import { resolvePrimarySystem, type PrimaryMode, type PrimaryProvenance } from "@/lib/astraura/primary-system";
+import { persona158For, modelToPersona158, ASTRAURA_158_MODEL_PREFIX } from "@/ai/providers/astraura-158";
+import { ASTRAURA_158_LOCAL_SOURCE_ID, ASTRAURA_158_CLOUD_SOURCE_ID } from "./free-catalog";
 import { chromeAiChat, chromeAiReadyNow, webllmChat, transformersChat } from "./builtin-engines";
 import { noteUsage, isCoolingDown, markCooldown } from "./usage";
 import { skillsSystemPrompt, skillsRoutingBias } from "./skills";
@@ -510,6 +515,19 @@ export interface RouteRecord {
   local?: boolean;
   /** Nº de fuentes probadas en esta llamada (incluye la que ganó, si ganó alguna). */
   attempts?: number;
+  /**
+   * (Adenda 153) Sistema PRIMARIO que actuó en esta llamada: qué modo se
+   * resolvió, de dónde salió la decisión y si el primario estaba listo (si no,
+   * la cadena de secundarios respondió). Transparencia para la barra de acciones.
+   */
+  primary?: {
+    modo: PrimaryMode;
+    provenance: PrimaryProvenance;
+    ready: boolean;
+    sourceId?: string;
+    model?: string;
+    exclusivo?: boolean;
+  };
 }
 
 export function readRouteLog(): RouteRecord[] {
@@ -551,6 +569,11 @@ export interface AstrauraChatRequest {
   brainId?: string;
   /** Chat activo (op opcional): permite resolver la personalidad POR CHAT. */
   chatId?: string;
+  /**
+   * (Adenda 153) Agente de la Biblioteca que actúa en este turno (si lo hay):
+   * permite que el agente fije SU sistema primario (`porAgente`).
+   */
+  agentId?: string;
   /**
    * Configuración POR CHAT del menú unificado de Astraura (Adenda 71-bis).
    * Leída de aurora_conversations.meta.config por el llamador y pasada aquí
@@ -701,6 +724,21 @@ async function runCandidate(c: RouteCandidate, req: AstrauraChatRequest): Promis
   // Ahora resolvemos explícitamente: adaptador del catálogo + baseUrl y clave de
   // la config concreta que sirve a ESTA fuente.
   const cfg = userConfigForSource(c.source);
+  // ── ASTRAURA 1.58-BIT (Adenda 153): endpoint efectivo de la neurona (túnel/
+  //    LAN/nube propia) para la fuente local; la nube usa su base pública o el
+  //    proxy del OS. El «modelo» es la personalidad 1.58 (`astraura-158/<id>`).
+  if (c.source.providerId === "astraura-158") {
+    return chat({
+      ...base,
+      providerOverride: {
+        providerId: "astraura-158",
+        baseUrl: astraura158EndpointFor(c.source, cfg),
+        model: c.model.id,
+        apiKey: "",
+        label: c.source.label,
+      },
+    });
+  }
   const modelId = c.model.id === "local-model" && cfg?.defaultModel ? cfg.defaultModel : c.model.id;
   let apiKey = "";
   if (cfg?.encryptedKey) {
@@ -949,7 +987,13 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
   // este chat y hay un candidato con esa fuente, lo antepone vía forceSource
   // (degrada al ranking normal si esa fuente no está disponible ahora).
   if (req.chatConfig?.provider && !req.forceSource) {
-    const pinned = candidates.find((c) => c.source.id === req.chatConfig!.provider);
+    // (Adenda 153) Casa por id de FUENTE del catálogo o por `providerId` del
+    // adaptador: `chat-config-menu.tsx` guarda un ProviderId ("ollama",
+    // "astraura-158"…), no un id de fuente, así que antes nunca coincidía.
+    const want = String(req.chatConfig.provider);
+    const pinned =
+      candidates.find((c) => c.source.id === want) ??
+      candidates.find((c) => c.source.providerId === want);
     if (pinned) reqX = { ...reqX, forceSource: { sourceId: pinned.source.id, modelId: pinned.model.id } };
   }
 
@@ -995,13 +1039,74 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
     }
   }
 
+  // ── SISTEMA PRIMARIO (Adenda 153) ─────────────────────────────────────────
+  // Astraura 1.58-bit va PRIMERO por defecto; por agente / personalidad /
+  // cerebro / neurona / cuenta puede ser otro sistema («auto» = gratis-primero
+  // clásico, o una fuente/modelo concreta). Solo actúa cuando no hay un pin
+  // explícito más concreto (chat, neurona×personalidad, personalidad «fija»).
+  // NO es exclusivo salvo `exclusivo:true`: si el primario no está listo ahora
+  // (backend apagado, nube fría), la cadena de secundarios sigue intacta.
+  let primaryFirst: RouteCandidate | undefined;
+  let primaryInfo: RouteRecord["primary"] | undefined;
+  let exclusiveChain = false;
+  if (!pinnedFirst && !reqX.forceSource && !req.forceSource) {
+    try {
+      let neuronId: string | undefined;
+      try { neuronId = thisDeviceId() || undefined; } catch { neuronId = undefined; }
+      const resolved = resolvePrimarySystem({
+        deviceId: neuronId,
+        personaId: persona?.id,
+        agentId: req.agentId,
+        brainId: req.brainId,
+      });
+      const choice = resolved.choice;
+      if (choice.modo === "astraura-158") {
+        // Modelo = personalidad 1.58. Si la elección no fija una, se usa la
+        // afín a la personalidad ACTIVA del OS (Aurora→aurora, Hermione→hermione…).
+        const explicit = modelToPersona158(choice.modelo);
+        const wantModel = `${ASTRAURA_158_MODEL_PREFIX}${explicit ?? persona158For(persona)}`;
+        const pickFrom = (sourceId: string): RouteCandidate | undefined =>
+          candidates.find((c) => c.source.id === sourceId && c.model.id === wantModel) ??
+          candidates.find((c) => c.source.id === sourceId);
+        // Local antes que nube. Si el modelo afín no está en `candidates` (p.ej.
+        // descalificado por visión), `pickFrom` degrada a otro modelo de la
+        // fuente; si NINGUNO es candidato, no hay primario y mandan los secundarios.
+        primaryFirst = pickFrom(ASTRAURA_158_LOCAL_SOURCE_ID) ?? pickFrom(ASTRAURA_158_CLOUD_SOURCE_ID);
+      } else if (choice.modo === "fuente" && choice.fuente) {
+        primaryFirst =
+          candidates.find((c) => c.source.id === choice.fuente && (!choice.modelo || c.model.id === choice.modelo)) ??
+          candidates.find((c) => c.source.id === choice.fuente);
+      }
+      exclusiveChain = choice.exclusivo === true && choice.modo !== "auto";
+      primaryInfo = {
+        modo: choice.modo,
+        provenance: resolved.provenance,
+        ready: !!primaryFirst,
+        ...(primaryFirst ? { sourceId: primaryFirst.source.id, model: primaryFirst.model.id } : {}),
+        ...(exclusiveChain ? { exclusivo: true } : {}),
+      };
+      if (primaryFirst) {
+        const p = primaryFirst;
+        p.reason = `Sistema primario (${resolved.provenance}) · ${p.reason}`;
+        chain = exclusiveChain ? [p] : [p, ...chain.filter((c) => c !== p && !(c.source.id === p.source.id && c.model.id === p.model.id))];
+      } else if (exclusiveChain) {
+        // Primario exclusivo y NO listo: respuesta honesta sin probar secundarios.
+        chain = [];
+      }
+    } catch { /* defensivo: sin capa primaria, el router sigue como siempre */ }
+  }
+
   // REINTENTAR con proveedor elegido a mano (menú contextual de mensajes,
   // "Reintentar"): si sigue disponible AHORA se prueba en solitario; si ya no
   // lo está, degradamos con normalidad al ranking automático de arriba (nunca
   // falla en seco por un forceSource obsoleto).
-  if (req.forceSource) {
+  // (Adenda 153) También honra el pin POR CHAT, que arriba se expresa como
+  // `reqX.forceSource` (antes solo se leía `req.forceSource` → el pin del menú
+  // unificado no alteraba la cadena).
+  const force = reqX.forceSource ?? req.forceSource;
+  if (force) {
     const forced = candidates.find(
-      (c) => c.source.id === req.forceSource!.sourceId && c.model.id === req.forceSource!.modelId,
+      (c) => c.source.id === force.sourceId && c.model.id === force.modelId,
     );
     if (forced) chain = [forced];
   }
@@ -1014,18 +1119,21 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
   // Ahora garantizamos que TODAS las fuentes gratis-SIN-CLAVE (OVHcloud anónimo,
   // LLM7.io, Pollinations) estén al final de la cadena, en orden de calidad, y
   // Pollinations SIEMPRE la última (nunca se enfría, es la red de seguridad final).
-  for (const src of keylessCloudSources()) {
-    if (prefs.disabledSources.includes(src.id)) continue;
-    if (chain.some((c) => c.source.id === src.id)) continue;
-    const fb = candidates.find((c) => c.source.id === src.id);
-    if (fb) chain.push(fb);
+  // (Adenda 153) Con un primario EXCLUSIVO no se añaden redes de seguridad.
+  if (!exclusiveChain) {
+    for (const src of keylessCloudSources()) {
+      if (prefs.disabledSources.includes(src.id)) continue;
+      if (chain.some((c) => c.source.id === src.id)) continue;
+      const fb = candidates.find((c) => c.source.id === src.id);
+      if (fb) chain.push(fb);
+    }
   }
   // Pollinations SIEMPRE la última (red de seguridad final: nunca se enfría, pero
   // es la más lenta y la de menor calidad). `sort` es estable en JS ⇒ el resto de
   // la cadena conserva su orden de ranking.
   // EXCEPCIONES: si el usuario forzó una fuente a mano (`forceSource`) o la
   // personalidad la fijó (`pinnedFirst`), su elección MANDA — no la degradamos.
-  const respectExplicitChoice = !!req.forceSource || !!pinnedFirst;
+  const respectExplicitChoice = !!force || !!pinnedFirst || !!primaryFirst;
   if (!respectExplicitChoice) {
     chain.sort(
       (a, b) =>
@@ -1082,6 +1190,7 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
         })),
         ...(failovers.length ? { failovers } : {}),
         attempts: failovers.length + 1,
+        ...(primaryInfo ? { primary: primaryInfo } : {}),
       };
       pushRouteRecord(rec);
       req.onStatus?.("");
@@ -1148,7 +1257,7 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
   // verdad, sin red y sin coste. Solo si está "available"/"readily" — jamás
   // dispara una descarga de GB sin permiso — y siempre topado con timeout.
   try {
-    if (await chromeAiReadyNow()) {
+    if (!exclusiveChain && await chromeAiReadyNow()) {
       req.onStatus?.("Usando la IA de tu navegador (sin red)…");
       const t0 = Date.now();
       const res = await withTimeout(
@@ -1195,7 +1304,7 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
   // reintenta SOLA y en silencio las fuentes SIN CLAVE (que nunca se enfrían)
   // tras una breve espera. Así responde sin que el usuario tenga que reintentar
   // a mano. Acotado (2 pasadas, timeouts recortados) para no colgarse.
-  {
+  if (!exclusiveChain) {
     const retrySources = keylessCloudSources()
       .filter((src) => !prefs.disabledSources.includes(src.id))
       .map((src) => candidates.find((c) => c.source.id === src.id))
@@ -1250,8 +1359,19 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
   // explica qué probó y qué puede hacer el usuario. Ver §17.1 de la doc.
   const last = chain[chain.length - 1];
   const rec = honestFallbackRecord(profile, failovers, avail, last);
+  if (primaryInfo) rec.primary = primaryInfo;
   pushRouteRecord(rec);
   req.onStatus?.("");
+  // (Adenda 153) Primario EXCLUSIVO sin respuesta: se explica con claridad.
+  if (exclusiveChain) {
+    const why = primaryInfo?.ready
+      ? "El sistema primario exclusivo falló al responder"
+      : "El sistema primario exclusivo no está disponible ahora mismo";
+    return {
+      text: `${why} (${primaryInfo?.modo === "astraura-158" ? "Astraura 1.58-bit" : primaryInfo?.sourceId ?? "fuente fijada"}). Como está marcado como exclusivo, no he usado sistemas secundarios. Arranca el backend o desactiva «exclusivo» en Sistemas de Astraura.`,
+      route: rec,
+    };
+  }
   return { text: buildHonestFallback(profile, failovers, avail), route: rec };
 }
 

@@ -31,6 +31,15 @@ import { StartupUpdatesModal } from "@/components/astraura/startup-updates-modal
 import { AstrauraConfigDrawer } from "@/components/astraura/astraura-config-drawer";
 import { ModelDownloadNotifier } from "@/components/neurons/model-download-notifier";
 import { NeuronActivityLogger } from "@/components/neurons/neuron-activity-logger";
+import { useEffect } from "react";
+import { startAstraura158Feed } from "@/lib/astraura/astraura-158-feed";
+
+/** (Ola 3 · Adenda 155) Sondeo del puente de eventos Astraura 1.58 → centro de
+ * notificaciones del OS + siembra de personalidades/agentes 1.58. Singleton. */
+function Astraura158FeedMount() {
+  useEffect(() => startAstraura158Feed(), []);
+  return null;
+}
 
 // AppGlobals es HERMANO de `{children}` (ver app/(app)/layout.tsx): NO envuelve a
 // los children (eso reintroduce el React #310 y rompe el prerender de not-found).
@@ -45,6 +54,9 @@ export default function AppGlobals() {
       <AstrauraConfigDrawer />
       <ModelDownloadNotifier />
       <NeuronActivityLogger />
+      {/* Eventos de los procesos de fondo Astraura 1.58 (imaginación · enjambre ·
+          director) → avisos del OS con deep-link al Studio (Adenda 155). */}
+      <Astraura158FeedMount />
     </>
   );
 }
