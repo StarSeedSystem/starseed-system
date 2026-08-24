@@ -3671,3 +3671,64 @@ verificación en vivo: `https://starseed-os.vercel.app/api/ai/astraura-158/api/s
   y `/api/status → engine.quantization_stack`; tarjeta «Pila de cuantización» en Telemetría.
 - Medido: 4 bits ⇒ coseno 0.9953 · 7.4× compresión; búsqueda 2.8× más rápida con top-5 idéntico (2 000 docs).
 - SOP: `architecture/astraura-158-ola5-orquestacion.md`. Puertas: tsc 0 · vitest 125/125 (build por CI).
+
+## 2026-08-24 — Adenda 158 · OLA 6: el menú de Astraura pasa a ser el del sistema original 1.58-bit
+- **El menú de «Astraura AI & Orchestration» se reestructura**: las 11 secciones históricas del OS se
+  sustituyen por las **21 áreas del programa original** (Chat Multiagéntico & Voz · VoiceStudio · Proyectos
+  y Creaciones · Imaginación Intuitiva · Enrutamiento de Almacenamiento & Medios · Sensorium 360° ·
+  Privacidad & Permisos de Sensores · Notificaciones & Logs · Cerebros Multidimensionales · Memorias y
+  Recuerdos · Personalidades / Arquetipos · Enjambre de Agentes · Navegador Autónomo · Explorador del
+  Dispositivo · Workflows & Automatización · Habilidades & Bóveda · Instalador Universal & Scan ·
+  Biblioteca StarSeed · Telemetría 1.58-Bit · Terminal & Sandbox · Configuración & Preferencias) más una
+  sección 22 propia del OS, «Gobernanza de la Red». **Los 45 `value` anteriores se conservan**, repartidos
+  dentro del área que les corresponde, con todos sus deep-links vivos vía `TAB_ALIASES`.
+- `src/components/astraura/s158-host.tsx` (nuevo): `S158TabHost` + `useAstraura158Host` + `S158EndpointStrip`
+  — monta cualquier pestaña `s158` como sección de primer nivel resolviendo destino, manifiesto y recarga.
+- **Página nueva `/imaginacion`** (`src/components/astraura/imaginacion/*`, 8 componentes): gobernador de
+  troncos A/B con debounce 400 ms, catálogo de procesos oníricos con permisos graduales, ramas y logs en
+  vivo (3 s) con fork/regenerar/editar/eliminar, informe de síntesis, modal del Director (Metis) y agentes
+  imaginando en 2º plano. Mejora propia: insignia `generated_by` (modelo real vs plantilla), que el
+  original recibía del backend y nunca pintaba.
+- **Orbe cuántica de voz**: `quantum-orb.tsx` + `quantum-orb-avatar.tsx` + `quantum-orb-theme.ts` +
+  `quantum-orb-bus.ts`. La orbe del OS sigue siendo la base y el reposo; al activarse la voz conmuta con
+  fundido de 260 ms. Mejoras: ruido simplex propio, bandas graves/medios/agudos por personalidad,
+  partículas atadas a bin, estela líquida, crossfade de paleta, `ResizeObserver`+dpr,
+  `prefers-reduced-motion`, y geometría propia para Astraura Prime y Aurora (en el original compartían
+  rama y solo cambiaban de color). Reutiliza el micrófono singleton existente: ningún `AnalyserNode` nuevo.
+- **Paridad**: 4 pestañas nuevas (`boveda`, `workflows`, `privacidad`, `instalador`) y ampliación de
+  `memoria`, `almacenamiento`, `proyectos`, `telemetria` y `configuracion`. Destaca la de privacidad, que
+  es el primer sitio del OS donde se ven y se conceden los **permisos reales del navegador**.
+- Registro (CLAUDE.md §11): dock (`imaginacion`, con `DOCK_DEFAULTS_VERSION` 14 → 15 para que llegue a
+  cuentas ya existentes), `app-catalog`, `packages.ts` y `funciones-index` reescrito.
+- SOP: `architecture/astraura-158-ola6-menu-imaginacion-orbe.md`.
+- **Pendiente**: los endpoints nuevos (`/api/vault/*`, `/api/workflows/save`, `/api/projects/*`,
+  `/api/creations/*`, `/api/memory/starseed/document*`, `/api/memory/openviking`, `/api/cerebros/external/*`,
+  `/api/cerebros/portable/sync_to_storage`, `/api/storage/rules/{id}/simulate`, `/api/installer/script`,
+  `/api/discovery/scan`, `/api/bitnet/build`, `/api/system/os/*`, `/api/imagination/branch/*`,
+  `/api/imagination/process/{id}/step`, `/api/imagination/sync_execution_state`) están escritos contra el
+  contrato del original pero **aún no verificados contra `backend/app/main.py`** del repo `astraura`.
+  Mientras no existan, cada superficie enseña «sin conexión» con su motivo real.
+
+## 2026-08-24 — Adenda 158 · Ola 6 (tanda 2): verificación contra el backend real y cierre de contratos
+- **Se verificaron los 25 endpoints contra `backend/app/main.py` y se probaron EN VIVO** contra la neurona
+  local. De los 25, **22 ya existían**: lo que estaba roto no eran las rutas, sino los **contratos**. Ese
+  fallo es especialmente traicionero porque el backend responde 200 y el OS pinta un estado vacío como si
+  simplemente no hubiera datos.
+- **Implementados en el backend** (`astraura`): `POST /api/creations/run_sample` (compiló y ejecutó C++ ARM64
+  NEON real: 4,1 s, `return_code 0`), `POST /api/system/index_path` (acota `DocumentIndexer` a cualquier ruta;
+  17,4 s por carpeta con un `.md`; ruta inexistente → error con motivo) y `POST /api/bitnet/build`.
+- **Corregido en el backend**: `/api/vault/connection/update` **tiraba el token** (solo ponía `token_set=True`)
+  y `vault.py` declaraba `vault_file` sin leerlo ni escribirlo jamás — todo en memoria, perdido al reiniciar.
+  La bóveda del OS decía «token guardado» sin nada guardado. Ahora persiste en `~/.astraura/vault.json`
+  (carpeta 0700, fichero 0600, escritura atómica), sobrevive al reinicio, admite conexiones nuevas y **nunca
+  devuelve el token en claro** (`token_set` + `masked_token`). Verificado de punta a punta.
+- **`/api/memory/starseed/documents` con `limit`/`offset`** opcionales y compatibles hacia atrás: el memory
+  root real tiene **10 147 documentos** y la pestaña Memoria los pedía todos en cada carga.
+- **15 contratos del cliente corregidos** (bóveda, proyectos, versiones, ramas, fusión, bifurcar creación,
+  documentos, cerebros externos, portátil, descubrimiento, instalador, actualizaciones y auto-modificación).
+  Destacan tres que fallaban siempre: `external/scan` y `discovery/scan` son **GET**, no POST, y el instalador
+  sirve **texto plano** (`text/x-shellscript`) que se pasaba por `res.json()`.
+- **Timeouts medidos, no supuestos**: `discovery/scan` tarda **48 s y devuelve 8,6 MB**; `index_path` 17 s;
+  `bitnet/build` minutos en frío. Con `longTimeout` (30 s) se abortaban solas y el usuario leía «sin conexión»
+  de un sistema sano. Pasan a 180 s / 180 s / 600 s.
+- Puertas: tsc 0 · vitest 125/125 · mesh 178/0 · backend importa limpio con 255 rutas.

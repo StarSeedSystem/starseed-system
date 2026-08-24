@@ -23,7 +23,11 @@ export type S158TabId =
   // (Ola 4 · Adenda 156) paridad con las 21 pestañas del sistema original 1.58.
   | "chat" | "navegador" | "dispositivo" | "biblioteca" | "telemetria" | "terminal" | "configuracion"
   // (Ola 5 · Adenda 157) orquestación autónoma y gobierno de permisos y accesos.
-  | "orquestacion" | "permisos";
+  | "orquestacion" | "permisos"
+  // (Ola 6 · Adenda 158) áreas del original que faltaban: bóveda de credenciales
+  // y parámetros de inferencia, ciclo completo de workflows, permisos REALES del
+  // navegador e instalador universal con descubrimiento.
+  | "boveda" | "workflows" | "privacidad" | "instalador";
 
 export interface S158TabProps {
   target: Astraura158Target;

@@ -608,6 +608,15 @@ export function AuroraWidget() {
   const visListening = useStableFlag(rawListening);
   const visSpeaking = useStableFlag(rawSpeaking);
 
+  // Personalidad activa → colorea la ORBE CUÁNTICA (`aurora-orb.tsx` conmuta a
+  // ella al hablar/escuchar/pensar; ver `quantum-orb-theme.ts`). El analizador
+  // de audio REAL que alimenta su nivel/espectro vive dentro de `aurora-orb.tsx`
+  // (reutiliza el singleton compartido de `aurora-orb-bus.ts`) — este widget no
+  // tiene ni abre un `AnalyserNode` propio (comprobado: es el único en `src`
+  // fuera de la app, no relacionada, "Omnifrecuencias"), solo reenvía el id de
+  // la personalidad activa y el flag `thinking`.
+  const personaId = (aurora?.activePersonality as { id?: string } | undefined)?.id;
+
   // Sesión de voz activa: el GLOBO DE DIÁLOGO sobre el orbe es ahora la
   // superficie conversacional (habla / escucha / sugerencias). El mini-popover
   // completo YA NO se auto-abre con la voz — queda disponible bajo demanda
@@ -1075,6 +1084,8 @@ export function AuroraWidget() {
                     paused={paused}
                     supported={supported}
                     unavailable={voiceUnavailable}
+                    thinking={rawThinking}
+                    personaId={personaId}
                   />
                 </div>
               </motion.div>
@@ -1219,6 +1230,8 @@ export function AuroraWidget() {
               paused={paused}
               supported={supported}
               unavailable={voiceUnavailable}
+              thinking={rawThinking}
+              personaId={personaId}
             />
             {/* Indicador de "Aurora activa" (LED verde). Cede su sitio cuando hay
                 una insignia de estado (voz no disponible / falta micrófono). */}

@@ -52,6 +52,19 @@ import {
   GraduationCap,
   SlidersHorizontal,
   Radio,
+  // Ola 6 · Adenda 158 — iconos de las áreas del sistema original 1.58-bit.
+  MessageSquare,
+  Headphones,
+  FolderTree,
+  ShieldCheck,
+  Bell,
+  Users,
+  Globe,
+  GitBranch,
+  Key,
+  KeyRound,
+  Box,
+  TerminalSquare,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -129,6 +142,9 @@ import { QuickOptionsGrid } from "@/components/hermes/quick-options-grid";
 // cabecera del Exocórtex — «N procesos activos · M agentes vivos · K
 // aprobaciones pendientes» — solo cuando el backend 1.58 responde.
 import { Astraura158PresenceBar } from "@/components/astraura/astraura-158-presence";
+// Ola 6 · Adenda 158: anfitrión que monta una pestaña del Studio 1.58 como
+// sección de primer nivel del menú (resuelve destino, manifiesto y recarga).
+import { S158TabHost } from "@/components/astraura/s158-host";
 
 const MemoryBrain3D = nextDynamic(() => import("@/components/exocortex/memory-brain-3d").then(m => m.MemoryBrain3D), { ssr: false });
 const CanvasBoard = nextDynamic(() => import("@/components/canvas/canvas-board"), { ssr: false });
@@ -140,6 +156,16 @@ const NeuronModelsPanel = nextDynamic(() => import("@/components/neurons/neuron-
 const IntegrationSourcesPanel = nextDynamic(() => import("@/components/integrations/integration-sources-panel").then(m => m.IntegrationSourcesPanel), { ssr: false });
 // Astraura 1.58-bit: panel del SISTEMA PRIMARIO soberano (Adenda 153).
 const Astraura158Panel = nextDynamic(() => import("@/components/astraura/astraura-158-panel").then(m => m.Astraura158Panel), { ssr: false });
+// Ola 6 · Adenda 158: la vista completa de Imaginación Intuitiva, embebida aquí
+// y disponible además como página propia en `/imaginacion`.
+const ImaginacionView = nextDynamic(() => import("@/components/astraura/imaginacion/imaginacion-view").then(m => m.ImaginacionView), {
+  ssr: false,
+  loading: () => (
+    <div className="rounded-xl border border-white/10 bg-black/20 p-10 text-center text-sm text-white/50">
+      Sincronizando Sistema de Imaginación Intuitiva 1.58-Bit…
+    </div>
+  ),
+});
 // Voz coherente: persona portátil que se mantiene al cambiar de modelo (Adenda 112).
 const PersonaCoherencePanel = nextDynamic(() => import("@/components/aurora/persona-coherence-panel").then(m => m.PersonaCoherencePanel), { ssr: false });
 import { TelegramSpacesPanel } from "@/components/exocortex/telegram-spaces-panel";
@@ -197,156 +223,277 @@ type StudioSection = {
   items: SectionItem[];
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
+// OLA 6 · Adenda 158 — el menú pasa a ser el del sistema original 1.58-bit.
+// -----------------------------------------------------------------------------
+// Hasta la Ola 5 este menú tenía 11 secciones propias del OS (Chats, Nexus,
+// Espacios, Cerebro & Memorias, Modelos, Habilidades, Sentidos, Personalidades,
+// Infraestructura, Estudio, Gobernanza) mientras que las 21 áreas del programa
+// original Astraura 1.58-bit vivían enterradas dentro de UNA pestaña
+// (`Infraestructura › Astraura 1.58 › ?sub=`). Para el usuario, esas áreas no
+// existían.
+//
+// Ahora el esqueleto del menú son las 21 áreas del original, RENOMBRADAS con sus
+// nombres propios, y cada pestaña que ya tenía el OS se ha COLOCADO dentro del
+// área a la que pertenece (no se ha perdido ninguna: los 45 `value` anteriores
+// siguen existiendo, con su mismo contenido y sus mismos deep-links). Se añade
+// una sección 22 «Gobernanza», que es del OS y no tiene equivalente en el
+// original, para no esconder la democracia directa de la red.
+//
+// Las áreas nuevas montan la pestaña `s158` correspondiente a través de
+// `S158TabHost`, que resuelve por su cuenta destino (neurona local o nube
+// propia), manifiesto y recarga — sin duplicar la lógica del panel.
+// ─────────────────────────────────────────────────────────────────────────────
 const STUDIO_SECTIONS: StudioSection[] = [
-  // Adenda 76 · G1: «Chats», «Nexus» y «Espacios de trabajo» pasan a ser
-  // ENTRADAS DE PRIMER NIVEL del menú (antes eran sub-pestañas dentro de
-  // «Inicio»). Cada una es una sección de un solo ítem → sin sub-toggle.
   {
-    id: "chats",
-    label: "Chats",
-    icon: Bot,
-    accent: "text-primary",
-    hint: "Conversa con Astraura IA — el mismo hilo que el orbe y el Exocórtex.",
-    items: [{ value: "chat", label: "Chats", icon: Bot }],
-  },
-  {
-    id: "nexus",
-    label: "Nexus",
-    icon: Activity,
+    id: "chat",
+    label: "Chat Multiagéntico & Voz",
+    icon: MessageSquare,
     accent: "text-cyan-300",
-    hint: "Panel gráfico de uso del sistema Astraura, por perfil.",
-    items: [{ value: "overview", label: "Nexus", icon: Activity }],
-  },
-  {
-    id: "espacios",
-    label: "Espacios de trabajo",
-    icon: Layers,
-    accent: "text-fuchsia-300",
-    hint: "Tus espacios (carpetas) de trabajo, sus accesos rápidos y su gestión completa.",
+    hint: "Conversa con Astraura — el mismo hilo que el orbe y el Exocórtex — y gobierna el chat multiagente 1.58 y sus canales.",
     items: [
-      { value: "espacios", label: "Espacios de trabajo", icon: Layers },
-      // Adenda 132: «Accesos rápidos» se traslada aquí desde «Sentidos & Canales».
-      { value: "quick", label: "Accesos rápidos", icon: Plus },
+      { value: "chat", label: "Chats", icon: Bot },
+      { value: "chat-158", label: "Multiagente 1.58", icon: Users },
+      { value: "conexiones-chat", label: "Conexiones de chat", icon: Send },
+      { value: "telegram", label: "Telegram", icon: Send },
     ],
   },
   {
-    id: "cerebro",
-    label: "Cerebro & Memorias",
-    icon: Brain,
-    accent: "text-fuchsia-300",
-    hint: "El núcleo cognitivo, sus recuerdos, baúles y conocimiento.",
+    id: "voz",
+    label: "VoiceStudio & Forja de Sonido",
+    icon: Headphones,
+    accent: "text-purple-300",
+    hint: "La voz de cada personalidad: estudio, coherencia entre motores y el demonio de voz OmniVoice 1.58.",
     items: [
-      { value: "cerebro", label: "Cerebro", icon: Brain },
+      { value: "aurora", label: "Estudio de voz", icon: Mic },
+      { value: "coherencia", label: "Voz coherente", icon: Languages },
+      { value: "voz-158", label: "OmniVoice 1.58", icon: Headphones },
+    ],
+  },
+  {
+    id: "proyectos",
+    label: "Proyectos y Creaciones",
+    icon: FolderTree,
+    accent: "text-emerald-300",
+    hint: "La bóveda de proyectos (Daedalus 1.58b), las creaciones proactivas, tus espacios de trabajo y el lienzo universal.",
+    items: [
+      { value: "proyectos-158", label: "Proyectos 1.58", icon: FolderTree },
+      { value: "espacios", label: "Espacios de trabajo", icon: Layers },
+      { value: "quick", label: "Accesos rápidos", icon: Plus },
+      { value: "pizarra", label: "Pizarra", icon: Layers },
+      { value: "pizarras", label: "Pizarras", icon: LayoutDashboard },
+      { value: "publicar", label: "Publicar", icon: Send },
+    ],
+  },
+  {
+    id: "imaginacion",
+    label: "Imaginación Intuitiva",
+    icon: Sparkles,
+    accent: "text-purple-300",
+    hint: "Always-On: procesos oníricos, troncos de recursos, ramas, propuestas y el Director que lo supervisa todo.",
+    items: [{ value: "imaginacion", label: "Imaginación Intuitiva", icon: Sparkles }],
+  },
+  {
+    id: "almacenamiento",
+    label: "Enrutamiento de Almacenamiento & Medios",
+    icon: HardDrive,
+    accent: "text-cyan-300",
+    hint: "Dónde vive cada cosa: reglas de enrutado, unidades, cerebros externos, almacenes y conexiones.",
+    items: [
+      { value: "almacenamiento-158", label: "Enrutamiento 1.58", icon: HardDrive },
+      { value: "almacenes", label: "Almacenes", icon: HardDrive },
+      { value: "conexiones", label: "Conexiones", icon: Cloud },
+    ],
+  },
+  {
+    id: "sensorium",
+    label: "Sensorium 360° & Clima",
+    icon: Activity,
+    accent: "text-cyan-300",
+    hint: "Lo que la IA percibe del mundo: sensores del entorno, ubicación, clima y canales de percepción del OS.",
+    items: [
+      { value: "sensorium", label: "Sensorium 360°", icon: Activity },
+      { value: "senses", label: "Sentidos", icon: Eye },
+    ],
+  },
+  {
+    id: "privacidad",
+    label: "Privacidad & Permisos de Sensores",
+    icon: ShieldCheck,
+    accent: "text-emerald-300",
+    hint: "Permisos reales del navegador, ajustes de privacidad del backend soberano, modo air-gap y seguridad del OS.",
+    items: [
+      { value: "privacidad", label: "Privacidad & sensores", icon: ShieldCheck },
+      { value: "permisos-158", label: "Permisos y accesos", icon: KeyRound },
+      { value: "seguridad", label: "Seguridad", icon: Shield },
+    ],
+  },
+  {
+    id: "notificaciones",
+    label: "Notificaciones & Logs",
+    icon: Bell,
+    accent: "text-amber-300",
+    hint: "Solicitudes de autorización, auto-mejoras aplicadas, eventos del ecosistema y el orquestador de autorizaciones.",
+    items: [{ value: "notificaciones", label: "Notificaciones & logs", icon: Bell }],
+  },
+  {
+    id: "cerebros",
+    label: "Cerebros Multidimensionales",
+    icon: Brain,
+    accent: "text-purple-300",
+    hint: "Los cerebros que empaquetan memoria, conexiones y permisos; sus servidores y su red viva en 3D.",
+    items: [
+      { value: "cerebros", label: "Cerebros", icon: BrainCircuit },
+      { value: "cerebro", label: "Cerebro 3D", icon: Brain },
+      { value: "servidores", label: "Servidores", icon: Server },
+      { value: "servers", label: "Registro de servidores", icon: HardDrive },
+      { value: "red3d", label: "Red 3D", icon: Network },
+    ],
+  },
+  {
+    id: "memorias",
+    label: "Memorias y Recuerdos",
+    icon: Network,
+    accent: "text-indigo-300",
+    hint: "El grafo sináptico, los recuerdos fijados, los documentos StarSeed, los baúles y la wiki del conocimiento.",
+    items: [
       { value: "memorias", label: "Memorias", icon: Brain },
+      { value: "memoria-158", label: "Memoria 1.58", icon: Database },
       { value: "baules", label: "Baúles", icon: Layers },
-      // Adenda 132: «Mapa 3D» se fusiona con «Cerebro» (que ya monta el MemoryBrain3D real).
       { value: "conocimiento", label: "Conocimiento", icon: BookOpen },
       { value: "okf", label: "Wiki / OKF", icon: BookOpen },
     ],
   },
   {
-    id: "modelos",
-    label: "Modelos & Proveedores",
-    icon: Cpu,
-    accent: "text-blue-300",
-    hint: "Qué modelos usa tu IA, sus neuronas, agentes, reglas y directivas.",
+    id: "personalidades",
+    label: "Personalidades / Arquetipos",
+    icon: Sparkles,
+    accent: "text-emerald-300",
+    hint: "Los arquetipos de Astraura: identidad, voz, memoria y reglas de malla por neurona.",
     items: [
-      { value: "proveedor", label: "Proveedor", icon: Database },
-      // Adenda 132: «Neuronas», «Agentes (runtimes)» y «Batch» se trasladan aquí desde Infraestructura.
-      { value: "neuronas", label: "Neuronas", icon: Cpu },
-      { value: "foundry", label: "Agent Foundry", icon: Sparkles },
-      { value: "rules", label: "Reglas", icon: Shield },
-      { value: "workflows", label: "Workflows", icon: Workflow },
+      { value: "personalidades", label: "Personalidades", icon: Sparkles },
+      { value: "mesh", label: "Red Mesh", icon: RadioTower },
+    ],
+  },
+  {
+    id: "enjambre",
+    label: "Enjambre de Agentes",
+    icon: Users,
+    accent: "text-cyan-300",
+    hint: "Quién trabaja ahora mismo en segundo plano, bajo qué director, con qué CPU y hacia qué proyecto.",
+    items: [
+      { value: "enjambre", label: "Orquestación", icon: Workflow },
+      { value: "agentes-158", label: "Agentes 1.58", icon: Bot },
       { value: "runtimes", label: "Agentes (runtimes)", icon: Server },
+      { value: "foundry", label: "Agent Foundry", icon: Sparkles },
+    ],
+  },
+  {
+    id: "navegador",
+    label: "Navegador Autónomo",
+    icon: Globe,
+    accent: "text-emerald-300",
+    hint: "La IA navegando por su cuenta: búsqueda, lectura saneada, acciones web y tus ventanas guardadas.",
+    items: [
+      { value: "navegador-158", label: "Navegador autónomo", icon: Globe },
+      { value: "navegador", label: "Ventanas", icon: Network },
+    ],
+  },
+  {
+    id: "explorador",
+    label: "Explorador del Dispositivo",
+    icon: FolderTree,
+    accent: "text-blue-300",
+    hint: "El sistema de archivos de la neurona: carpetas, unidades, vista previa e indexado en la memoria 1.58.",
+    items: [{ value: "explorador", label: "Explorador del dispositivo", icon: FolderTree }],
+  },
+  {
+    id: "workflows",
+    label: "Workflows & Automatización",
+    icon: GitBranch,
+    accent: "text-emerald-300",
+    hint: "Automatizaciones que se disparan solas: workflows del backend soberano, reglas del OS y lotes.",
+    items: [
+      { value: "workflows-158", label: "Workflows 1.58", icon: GitBranch },
+      { value: "workflows", label: "Workflows del OS", icon: Workflow },
+      { value: "rules", label: "Reglas", icon: Shield },
       { value: "batch", label: "Batch", icon: Layers },
     ],
   },
   {
     id: "habilidades",
-    label: "Habilidades",
-    icon: GraduationCap,
+    label: "Habilidades & Bóveda",
+    icon: Key,
     accent: "text-purple-300",
-    hint: "Skills, herramientas, MCPs y plugins de código abierto.",
+    hint: "Lo que tu IA sabe hacer y con qué llaves lo hace: skills, tools, MCPs, fuentes y la bóveda soberana.",
     items: [
+      { value: "boveda", label: "Bóveda soberana", icon: Key },
       { value: "skills", label: "Skills", icon: BookOpen },
       { value: "tools", label: "Tools", icon: Wrench },
       { value: "mcp", label: "MCPs", icon: Server },
       { value: "fuentes", label: "Fuentes", icon: BookMarked },
-      // Adenda 132: «Integraciones» se traslada aquí desde Infraestructura.
       { value: "integraciones", label: "Integraciones", icon: Blocks },
-      { value: "habilidades", label: "Habilidades", icon: Zap },
+      { value: "habilidades", label: "Habilidades", icon: GraduationCap },
       { value: "apps-ia", label: "Apps IA", icon: Code },
     ],
   },
   {
-    id: "sentidos",
-    label: "Sentidos & Canales",
-    icon: Radio,
-    accent: "text-sky-300",
-    hint: "Percepción multimodal, permisos y canales de mensajería.",
-    items: [
-      { value: "senses", label: "Sentidos", icon: Eye },
-      { value: "conexiones-chat", label: "Conexiones de chat", icon: Send },
-      { value: "telegram", label: "Telegram", icon: Send },
-    ],
-  },
-  // Adenda 97: la antigua sección de un solo ítem «Aurora & Astraura» se
-  // convierte en la sección GLOBAL «Personalidades»: el hub centralizado de
-  // personalidades (con métricas, memoria local y reglas mesh por neurona),
-  // el Estudio de voz de siempre (deep-links `?tab=aurora` intactos) y el
-  // panel de control de la Red Mesh Meshtastic/LoRa.
-  {
-    id: "aurora",
-    label: "Personalidades",
-    icon: Sparkles,
-    accent: "text-emerald-300",
-    hint: "Personalidades globales de Astraura: identidad, voz OmniVoice, memoria y red mesh por neurona.",
-    items: [
-      { value: "personalidades", label: "Personalidades", icon: Sparkles },
-      { value: "aurora", label: "Estudio de voz", icon: Mic },
-      { value: "coherencia", label: "Voz coherente", icon: Languages },
-      { value: "mesh", label: "Red Mesh", icon: RadioTower },
-    ],
-  },
-  {
-    id: "infra",
-    label: "Infraestructura",
-    icon: Server,
-    accent: "text-amber-300",
-    hint: "Configuración IA, cerebros, servidores, almacenes, conexiones y seguridad.",
-    items: [
-      // Adenda 132: «Configuración IA» (config unificada de Astraura & OmniVoice), primero.
-      { value: "config-ia", label: "Configuración IA", icon: Sliders },
-      // Adenda 153: Astraura 1.58-bit, el sistema PRIMARIO soberano (backend propio).
-      { value: "astraura-158", label: "Astraura 1.58", icon: Binary },
-      { value: "cerebros", label: "Cerebros", icon: BrainCircuit },
-      { value: "servidores", label: "Servidores", icon: Server },
-      { value: "servers", label: "Registro de servidores", icon: HardDrive },
-      { value: "almacenes", label: "Almacenes", icon: HardDrive },
-      { value: "conexiones", label: "Conexiones", icon: Cloud },
-      { value: "red3d", label: "Red 3D", icon: Network },
-      { value: "seguridad", label: "Seguridad", icon: Shield },
-    ],
-  },
-  {
-    id: "estudio",
-    label: "Estudio",
-    icon: Layers,
+    id: "instalador",
+    label: "Instalador Universal & Scan",
+    icon: Box,
     accent: "text-cyan-300",
-    hint: "Pizarras, navegador y publicación de contenido.",
+    hint: "Instalar la neurona soberana en cualquier sistema y descubrir los dispositivos del ecosistema.",
+    items: [{ value: "instalador", label: "Instalador & scan", icon: Box }],
+  },
+  {
+    id: "biblioteca",
+    label: "Biblioteca StarSeed",
+    icon: Layers,
+    accent: "text-pink-300",
+    hint: "El catálogo instalable del ecosistema: habilidades, paquetes y apps de la red.",
+    items: [{ value: "biblioteca", label: "Biblioteca StarSeed", icon: Layers }],
+  },
+  {
+    id: "telemetria",
+    label: "Telemetría 1.58-Bit",
+    icon: Cpu,
+    accent: "text-teal-300",
+    hint: "Qué motor está corriendo de verdad, a qué velocidad, con cuánta memoria — y tu uso real del sistema.",
     items: [
-      { value: "pizarra", label: "Pizarra", icon: Layers },
-      { value: "pizarras", label: "Pizarras", icon: LayoutDashboard },
-      { value: "navegador", label: "Navegador", icon: Network },
-      { value: "publicar", label: "Publicar", icon: Send },
+      { value: "telemetria", label: "Telemetría 1.58", icon: Cpu },
+      { value: "overview", label: "Nexus (uso)", icon: Activity },
     ],
   },
+  {
+    id: "terminal",
+    label: "Terminal & Sandbox",
+    icon: TerminalSquare,
+    accent: "text-amber-300",
+    hint: "Consola de la neurona y sandbox aislado del navegador para ejecutar código sin riesgo.",
+    items: [{ value: "terminal", label: "Terminal & sandbox", icon: TerminalSquare }],
+  },
+  {
+    id: "configuracion",
+    label: "Configuración & Preferencias",
+    icon: Sliders,
+    accent: "text-cyan-300",
+    hint: "El sistema primario de inteligencia, los proveedores, las neuronas y las preferencias del backend soberano.",
+    items: [
+      { value: "config-ia", label: "Configuración IA", icon: Sliders },
+      { value: "astraura-158", label: "Studio 1.58", icon: Binary },
+      { value: "configuracion-158", label: "Preferencias 1.58", icon: Sliders },
+      { value: "proveedor", label: "Proveedor", icon: Database },
+      { value: "neuronas", label: "Neuronas", icon: Cpu },
+    ],
+  },
+  // Sección propia del OS: la red StarSeed es una ontocracia, y su gobernanza no
+  // tiene equivalente en el programa original. Se conserva como área 22.
   {
     id: "gobernanza",
-    label: "Gobernanza",
+    label: "Gobernanza de la Red",
     icon: Vote,
     accent: "text-rose-300",
-    hint: "Decisiones y tu actividad en la red.",
+    hint: "Decisiones de la red y tu actividad democrática.",
     items: [
       { value: "decisiones", label: "Decisiones", icon: Vote },
       { value: "mi-actividad", label: "Mi actividad", icon: Activity },
@@ -405,14 +552,76 @@ const TAB_ALIASES: Record<string, string> = {
   bitnet: "astraura-158",
   "1.58": "astraura-158",
   primario: "astraura-158",
-  // Studio 1.58 (subsistemas del backend): el panel lee `?tab=` y `?sub=` y
-  // abre la pestaña interna correspondiente (imaginación · enjambre · sentidos…).
-  imaginacion: "astraura-158",
-  imagination: "astraura-158",
-  enjambre: "astraura-158",
-  swarm: "astraura-158",
-  sensorium: "astraura-158",
-  "notificaciones-158": "astraura-158",
+  // ── Ola 6 · Adenda 158 ────────────────────────────────────────────────────
+  // Estas áreas ya NO son sub-pestañas del Studio 1.58: son secciones de primer
+  // nivel del menú. Los enlaces históricos que apuntaban al Studio siguen vivos
+  // porque aquí se redirigen al nuevo `value` de primer nivel.
+  imaginacion: "imaginacion",
+  imagination: "imaginacion",
+  suenos: "imaginacion",
+  "sueños": "imaginacion",
+  onirico: "imaginacion",
+  enjambre: "enjambre",
+  swarm: "enjambre",
+  orquestacion: "enjambre",
+  metis: "enjambre",
+  director: "enjambre",
+  sensorium: "sensorium",
+  clima: "sensorium",
+  entorno: "sensorium",
+  "notificaciones-158": "notificaciones",
+  notificaciones: "notificaciones",
+  notifications: "notificaciones",
+  logs: "notificaciones",
+  privacidad: "privacidad",
+  privacy: "privacidad",
+  permisos: "permisos-158",
+  permissions: "permisos-158",
+  autorizaciones: "permisos-158",
+  boveda: "boveda",
+  "bóveda": "boveda",
+  vault: "boveda",
+  credenciales: "boveda",
+  explorador: "explorador",
+  explorer: "explorador",
+  dispositivo: "explorador",
+  archivos: "explorador",
+  instalador: "instalador",
+  installer: "instalador",
+  scan: "instalador",
+  biblioteca: "biblioteca",
+  library: "biblioteca",
+  telemetria: "telemetria",
+  "telemetría": "telemetria",
+  telemetry: "telemetria",
+  terminal: "terminal",
+  sandbox: "terminal",
+  consola: "terminal",
+  proyectos: "proyectos-158",
+  projects: "proyectos-158",
+  creaciones: "proyectos-158",
+  daedalus: "proyectos-158",
+  almacenamiento: "almacenamiento-158",
+  storage: "almacenamiento-158",
+  enrutamiento: "almacenamiento-158",
+  memoria: "memoria-158",
+  memory: "memoria-158",
+  recuerdos: "memoria-158",
+  voz: "voz-158",
+  voice: "voz-158",
+  voicestudio: "voz-158",
+  omnivoice: "voz-158",
+  "chat-158": "chat-158",
+  multiagente: "chat-158",
+  "workflows-158": "workflows-158",
+  automatizacion: "workflows-158",
+  "configuracion-158": "configuracion-158",
+  // OJO: `navegador` NO se aliasa — es un `value` que ya existía (las ventanas
+  // de navegador guardadas del OS) y `funciones-index` enlaza a él. El navegador
+  // autónomo del backend soberano vive en `navegador-158`, en la misma sección.
+  browser: "navegador-158",
+  web: "navegador-158",
+  autonomo: "navegador-158",
 };
 function normalizeTab(raw: string | null | undefined): string | null {
   if (!raw) return null;
@@ -1524,6 +1733,51 @@ function AgentPageInner() {
             editable
           />
         </TabsContent>
+
+        {/* ═══════════════════════════════════════════════════════════════════
+            OLA 6 · Adenda 158 — las áreas del sistema original 1.58-bit, ahora
+            como pestañas de primer nivel. Cada una monta su pestaña `s158` a
+            través de `S158TabHost`, que resuelve destino (neurona local o nube
+            propia), manifiesto y recarga por su cuenta. Si el backend soberano
+            no responde, la cinta superior lo dice con su motivo: nunca se
+            rellena con datos inventados.
+            ═══════════════════════════════════════════════════════════════════ */}
+
+        {/* Imaginación Intuitiva: la vista completa, embebida, con salto a su página propia. */}
+        <TabsContent value="imaginacion" className={TAB_SCROLL}>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-purple-400/25 bg-purple-500/[0.06] px-3 py-2">
+            <p className="text-xs text-white/60">
+              Procesos oníricos siempre activos, troncos de recursos, ramas, propuestas y el Director que lo supervisa.
+            </p>
+            <Link href="/imaginacion">
+              <Button size="sm" className="gap-2 bg-purple-600 hover:bg-purple-500">
+                <Sparkles className="h-4 w-4" /> Abrir a pantalla completa
+              </Button>
+            </Link>
+          </div>
+          <ImaginacionView />
+        </TabsContent>
+
+        <TabsContent value="chat-158" className={TAB_SCROLL}><S158TabHost tab="chat" /></TabsContent>
+        <TabsContent value="voz-158" className={TAB_SCROLL}><S158TabHost tab="voz" /></TabsContent>
+        <TabsContent value="proyectos-158" className={TAB_SCROLL}><S158TabHost tab="proyectos" /></TabsContent>
+        <TabsContent value="almacenamiento-158" className={TAB_SCROLL}><S158TabHost tab="almacenamiento" /></TabsContent>
+        <TabsContent value="sensorium" className={TAB_SCROLL}><S158TabHost tab="sentidos" /></TabsContent>
+        <TabsContent value="privacidad" className={TAB_SCROLL}><S158TabHost tab="privacidad" /></TabsContent>
+        <TabsContent value="permisos-158" className={TAB_SCROLL}><S158TabHost tab="permisos" /></TabsContent>
+        <TabsContent value="notificaciones" className={TAB_SCROLL}><S158TabHost tab="notificaciones" /></TabsContent>
+        <TabsContent value="memoria-158" className={TAB_SCROLL}><S158TabHost tab="memoria" /></TabsContent>
+        <TabsContent value="enjambre" className={TAB_SCROLL}><S158TabHost tab="orquestacion" /></TabsContent>
+        <TabsContent value="agentes-158" className={TAB_SCROLL}><S158TabHost tab="agentes" /></TabsContent>
+        <TabsContent value="navegador-158" className={TAB_SCROLL}><S158TabHost tab="navegador" /></TabsContent>
+        <TabsContent value="explorador" className={TAB_SCROLL}><S158TabHost tab="dispositivo" /></TabsContent>
+        <TabsContent value="workflows-158" className={TAB_SCROLL}><S158TabHost tab="workflows" /></TabsContent>
+        <TabsContent value="boveda" className={TAB_SCROLL}><S158TabHost tab="boveda" /></TabsContent>
+        <TabsContent value="instalador" className={TAB_SCROLL}><S158TabHost tab="instalador" /></TabsContent>
+        <TabsContent value="biblioteca" className={TAB_SCROLL}><S158TabHost tab="biblioteca" /></TabsContent>
+        <TabsContent value="telemetria" className={TAB_SCROLL}><S158TabHost tab="telemetria" /></TabsContent>
+        <TabsContent value="terminal" className={TAB_SCROLL}><S158TabHost tab="terminal" /></TabsContent>
+        <TabsContent value="configuracion-158" className={TAB_SCROLL}><S158TabHost tab="configuracion" /></TabsContent>
         </div>
       </Tabs>
     </div>

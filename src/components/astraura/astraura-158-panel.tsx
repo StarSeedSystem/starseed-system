@@ -27,6 +27,7 @@ import {
   Binary, Cpu, Cloud, HardDrive, RefreshCw, Loader2, CheckCircle2, XCircle, Sparkles, Bot,
   Brain, Wand2, Download, ExternalLink, Radio, Link2, AlertTriangle, Users, Network, Activity, Bell, Eye, FolderKanban, Mic, Database,
   MessageSquare, Globe, HardDriveDownload, BookOpen, Gauge, TerminalSquare, SlidersHorizontal, Workflow, KeyRound,
+  ShieldCheck, Box,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -63,6 +64,11 @@ const ConfiguracionTab = dynamic(() => import("@/components/astraura/s158/config
 // (Ola 5 · Adenda 157) Centro de orquestación autónoma y sala de gobierno de permisos.
 const OrquestacionTab = dynamic(() => import("@/components/astraura/s158/orquestacion-tab"), { ssr: false, loading: tabLoading });
 const PermisosTab = dynamic(() => import("@/components/astraura/s158/permisos-tab"), { ssr: false, loading: tabLoading });
+// (Ola 6 · Adenda 158) las 4 áreas del original que aún no tenían pestaña propia.
+const BovedaTab = dynamic(() => import("@/components/astraura/s158/boveda-tab"), { ssr: false, loading: tabLoading });
+const WorkflowsTab = dynamic(() => import("@/components/astraura/s158/workflows-tab"), { ssr: false, loading: tabLoading });
+const PrivacidadTab = dynamic(() => import("@/components/astraura/s158/privacidad-tab"), { ssr: false, loading: tabLoading });
+const InstaladorTab = dynamic(() => import("@/components/astraura/s158/instalador-tab"), { ssr: false, loading: tabLoading });
 import { PrimaryChoiceEditor } from "@/components/astraura/primary-choice-editor";
 import { readRouteLog, type RouteRecord } from "@/ai/astraura/router";
 
@@ -75,10 +81,12 @@ const TABS: { id: Tab; label: string; icon: typeof Sparkles; badge?: keyof Astra
   { id: "orquestacion", label: "Orquestación", icon: Workflow, badge: "running" },
   { id: "permisos", label: "Permisos y accesos", icon: KeyRound, badge: "pending" },
   { id: "imaginacion", label: "Imaginación", icon: Wand2, badge: "pending" },
+  { id: "workflows", label: "Workflows", icon: Workflow },
   { id: "notificaciones", label: "Notificaciones", icon: Bell, badge: "unread" },
   { id: "cerebros", label: "Cerebros", icon: Brain },
   { id: "memoria", label: "Memoria", icon: Database },
   { id: "sentidos", label: "Sentidos", icon: Eye },
+  { id: "privacidad", label: "Privacidad", icon: ShieldCheck },
   { id: "almacenamiento", label: "Almacenamiento", icon: HardDrive },
   { id: "proyectos", label: "Proyectos", icon: FolderKanban },
   { id: "voz", label: "Voz", icon: Mic },
@@ -89,7 +97,9 @@ const TABS: { id: Tab; label: string; icon: typeof Sparkles; badge?: keyof Astra
   { id: "telemetria", label: "Telemetría", icon: Gauge },
   { id: "terminal", label: "Terminal", icon: TerminalSquare },
   { id: "habilidades", label: "Habilidades", icon: Network },
+  { id: "boveda", label: "Bóveda", icon: KeyRound },
   { id: "configuracion", label: "Configuración", icon: SlidersHorizontal },
+  { id: "instalador", label: "Instalador & scan", icon: Box },
   { id: "instalacion", label: "Instalación", icon: Download },
 ];
 
@@ -102,7 +112,7 @@ export function s158TabFromParam(raw: string | null | undefined): Tab {
     imagination: "imaginacion", suenos: "imaginacion", "sueños": "imaginacion", dream: "imaginacion",
     swarm: "agentes", enjambre: "agentes", director: "agentes", agents: "agentes",
     notifications: "notificaciones", eventos: "notificaciones", events: "notificaciones",
-    sensorium: "sentidos", privacidad: "sentidos", privacy: "sentidos", sensors: "sentidos",
+    sensorium: "sentidos", sensors: "sentidos",
     storage: "almacenamiento", almacen: "almacenamiento",
     projects: "proyectos", creaciones: "proyectos", workflows: "proyectos",
     voice: "voz", brains: "cerebros", memory: "memoria", skills: "habilidades", install: "instalacion", summary: "resumen", procesos: "resumen",
@@ -115,6 +125,11 @@ export function s158TabFromParam(raw: string | null | undefined): Tab {
     config: "configuracion", ajustes: "configuracion", preferencias: "configuracion",
     orchestration: "orquestacion", orquesta: "orquestacion", metis: "orquestacion", "segundo-plano": "orquestacion",
     permissions: "permisos", accesos: "permisos", aprobaciones: "permisos", gobernanza: "permisos", autorizaciones: "permisos",
+    // Ola 6 · Adenda 158.
+    vault: "boveda", credenciales: "boveda", tokens: "boveda",
+    automatizacion: "workflows", automation: "workflows", flujos: "workflows",
+    privacy: "privacidad", sensores: "privacidad",
+    installer: "instalador", scan: "instalador", descubrimiento: "instalador",
   };
   if (TAB_IDS.has(v)) return v as Tab;
   return alias[v] ?? "resumen";
@@ -484,6 +499,11 @@ function Astraura158PanelInner({ className }: { className?: string }) {
         {/* (Ola 5) Orquestación autónoma del enjambre y gobierno de permisos/accesos */}
         {tab === "orquestacion" && <div className="mt-3"><OrquestacionTab target={target} manifest={manifest} refresh={refreshAll} /></div>}
         {tab === "permisos" && <div className="mt-3"><PermisosTab target={target} manifest={manifest} refresh={refreshAll} /></div>}
+        {/* Ola 6 · Adenda 158 — bóveda, workflows, privacidad e instalador. */}
+        {tab === "boveda" && <div className="mt-3"><BovedaTab target={target} manifest={manifest} refresh={refreshAll} /></div>}
+        {tab === "workflows" && <div className="mt-3"><WorkflowsTab target={target} manifest={manifest} refresh={refreshAll} /></div>}
+        {tab === "privacidad" && <div className="mt-3"><PrivacidadTab target={target} manifest={manifest} refresh={refreshAll} /></div>}
+        {tab === "instalador" && <div className="mt-3"><InstaladorTab target={target} manifest={manifest} refresh={refreshAll} /></div>}
 
         {/* Habilidades */}
         {tab === "habilidades" && (

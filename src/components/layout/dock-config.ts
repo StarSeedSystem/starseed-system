@@ -185,6 +185,10 @@ export const DOCK_PRESETS: DockItemConfig[] = [
   { id: 'nodes',         label: 'Red · Nodos',        iconKey: 'Network',         path: '/hub?tab=red',           color: 'crimson', enabled: false, origin: 'preset' },
   // ── IA: UN solo botón a la página principal por defecto ──
   { id: 'ai-studio',     label: 'Astraura AI',           iconKey: 'BrainCircuit',    path: '/agent',                 color: 'purple',  enabled: true,  origin: 'preset' },
+  // Ola 6 · Adenda 158: la Imaginación Intuitiva es una PÁGINA propia, siempre
+  // activa en segundo plano. Va al dock porque es donde el usuario va a querer
+  // asomarse a lo que su IA está imaginando ahora mismo.
+  { id: 'imaginacion',   label: 'Imaginación',         iconKey: 'Sparkles',        path: '/imaginacion',           color: 'purple',  enabled: true,  origin: 'preset' },
   { id: 'settings',      label: 'Ajustes',             iconKey: 'Settings',        path: '/settings',              color: 'neutral', enabled: true,  origin: 'preset' },
   { id: 'navegador',     label: 'Navegador',           iconKey: 'Compass',         path: '/navegador',             color: 'cyan',    enabled: true,  origin: 'preset' },
   { id: 'pizarra',       label: 'Pizarra',             iconKey: 'PenLine',         path: '/pizarra',               color: 'purple',  enabled: true,  origin: 'preset' },

@@ -369,6 +369,15 @@ const CORE_ROUTE_PACKAGES: LibraryPackage[] = [
     payload: { route: "/agent?tab=astraura-158" },
   },
   {
+    // Ola 6 · Adenda 158: la sala de Imaginación Intuitiva, como paquete
+    // instalable para tener paridad con el dock y el catálogo de apps.
+    id: "app-imaginacion", kind: "app", name: "Imaginación Intuitiva",
+    description: "Always-On: el catálogo de procesos oníricos con sus permisos graduales, el gobernador de troncos de recursos, las ramas y propuestas de cada proceso, los agentes imaginando en segundo plano y el Director que lo supervisa todo.",
+    icon: "Sparkles", tags: ["app", "ia", "astraura", "imaginacion", "1.58", "always-on", "onirico"], version: "1.0.0",
+    author: "StarSeed Core", sourceRepoId: "starseed-core", free: true, featured: true,
+    payload: { route: "/imaginacion" },
+  },
+  {
     id: "app-red-3d", kind: "app", name: "Red 3D",
     description: "Visualización tridimensional de la red StarSeed: entidades, conexiones y flujo de la voluntad colectiva.",
     icon: "Orbit", tags: ["app", "3d", "red"], version: "1.0.0",

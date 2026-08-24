@@ -11,6 +11,8 @@ import {
     Globe, Coffee, AudioWaveform, Radio, MessageSquare, Network,
     Library, BrainCircuit, CloudSun, Music, Waves, Orbit, Camera, Images,
     RadioTower, Antenna, Binary,
+    // Ola 6 · Adenda 158.
+    Sparkles, Users,
 } from "lucide-react";
 import type { StarseedApp, LauncherCollection } from "./launcher-types";
 
@@ -207,6 +209,31 @@ export const APP_CATALOG: StarseedApp[] = [
         status: "native",
         open: { primary: "route", allowed: ["route", "tab"], route: "/agent?tab=astraura-158" },
     },
+    {
+        // Ola 6 · Adenda 158: Imaginación Intuitiva, la sala donde se ve pensar
+        // al sistema — procesos oníricos siempre activos, ramas y propuestas.
+        id: "imaginacion",
+        name: "Imaginación Intuitiva",
+        short: "Imaginación",
+        description: "Always-On: procesos oníricos, troncos de recursos, ramas, propuestas y el Director que lo supervisa.",
+        icon: Sparkles,
+        accent: "#A855F7",
+        category: "sistema",
+        status: "native",
+        open: { primary: "route", allowed: ["route", "tab"], route: "/imaginacion" },
+    },
+    {
+        // El enjambre en segundo plano: quién trabaja ahora y en qué.
+        id: "enjambre",
+        name: "Enjambre de Agentes",
+        short: "Enjambre",
+        description: "Tareas en segundo plano por agente, con su fase, su CPU y el Director que las renueva.",
+        icon: Users,
+        accent: "#22D3EE",
+        category: "sistema",
+        status: "native",
+        open: { primary: "route", allowed: ["route", "tab"], route: "/agent?tab=enjambre" },
+    },
 
     // ── Apps utilitarias / media ─────────────────────────────────
     {
@@ -292,8 +319,8 @@ export function getApp(id: string): StarseedApp | undefined {
 /** Colecciones predeterminadas (presets de origen de un folder). */
 export const APP_COLLECTIONS: Record<LauncherCollection, string[]> = {
     // 'starseed' = folder de inicio por defecto (marca + módulos clave)
-    starseed: ["nexus", "cafe", "audiomorphic", "omnifrecuencias", "red-mesh", "senales", "red-feed", "messages", "network", "musica", "clima"],
-    sistema: ["messages", "network", "library", "agent", "astraura-158", "red-mesh", "senales", "red-feed"],
+    starseed: ["nexus", "cafe", "audiomorphic", "omnifrecuencias", "red-mesh", "senales", "red-feed", "messages", "network", "musica", "clima", "imaginacion"],
+    sistema: ["messages", "network", "library", "agent", "astraura-158", "imaginacion", "enjambre", "red-mesh", "senales", "red-feed"],
     media: ["musica", "radio", "omnifrecuencias", "audiomorphic", "immersive", "camara", "galeria"],
     custom: [],
 };

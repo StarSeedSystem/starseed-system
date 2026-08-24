@@ -15,16 +15,17 @@
  * lo inventa ni lo estima (arquitectura: astraura-158-ola4-runtime-y-pestanas.md §3).
  */
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
-  Activity, BrainCircuit, Cpu, Database, Gauge, MemoryStick, Network, RefreshCw, Server, Waves,
+  Activity, BrainCircuit, Cpu, Database, Gauge, Hammer, MemoryStick, Network, RefreshCw, Server, Waves,
 } from "lucide-react";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import {
-  describeAstraura158Engine, fetchAstraura158BitnetStatus, fetchAstraura158Processes, fetchAstraura158Status,
+  buildAstraura158Bitnet, describeAstraura158Engine, fetchAstraura158BitnetStatus, fetchAstraura158Processes, fetchAstraura158Status,
   fetchAstraura158SyncTelemetry, fetchAstraura158SystemSenses, type Astraura158BitnetServerProfile,
 } from "@/lib/astraura/astraura-158-client";
-import { BTN, Badge, Bar, CARD, Empty, MONO, SUB, SectionTitle, Stat, useS158Load, type S158TabProps } from "./shared";
+import { BTN, BTN_PRIMARY, Badge, Bar, BusyIcon, CARD, Empty, MONO, SUB, SectionTitle, Stat, useBusy, useS158Load, type S158TabProps } from "./shared";
 
 /* ── utilidades locales (lectura tolerante de campos no tipados) ───────────── */
 
@@ -60,6 +61,23 @@ export function TelemetriaTab({ target }: S158TabProps) {
   const sync = useS158Load(fetchAstraura158SyncTelemetry, target, 15_000);
   const senses = useS158Load(fetchAstraura158SystemSenses, target, 15_000);
   const procs = useS158Load(fetchAstraura158Processes, target, 15_000);
+  // (Ola 6 · Adenda 158) Recompilación nativa de bitnet.cpp — única acción que faltaba en esta pestaña.
+  const { busy, wrap } = useBusy();
+  const [buildLog, setBuildLog] = useState<string[] | null>(null);
+
+  async function rebuildBitnet() {
+    await wrap("build", async () => {
+      const res = await buildAstraura158Bitnet(target);
+      if (res.ok) {
+        setBuildLog(res.data.log ?? []);
+        toast.success("Recompilación de bitnet.cpp completada", { description: res.data.log?.length ? `${res.data.log.length} línea(s) de log` : undefined });
+        await bitnet.reload(true);
+        await status.reload(true);
+      } else {
+        toast.error(`Recompilación fallida: ${res.error}`);
+      }
+    });
+  }
 
   const s = status.data;
   const engine = describeAstraura158Engine(s);
@@ -131,6 +149,18 @@ export function TelemetriaTab({ target }: S158TabProps) {
           <div className="mt-2 grid gap-2 sm:grid-cols-2">
             <ProfileRow label="Interactivo" profile={interactive} />
             <ProfileRow label="Fondo" profile={background} />
+          </div>
+        )}
+        <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-white/10 pt-2.5">
+          <button type="button" className={BTN_PRIMARY} disabled={busy !== ""} aria-label="Recompilar bitnet.cpp nativo" onClick={() => { void rebuildBitnet(); }}>
+            <BusyIcon busy={busy === "build"} icon={Hammer} /> Recompilar bitnet.cpp nativo
+          </button>
+          <p className="text-[10px] leading-snug text-amber-200/80">Operación larga (puede tardar varios minutos): compila el motor ternario con las optimizaciones del silicio de esta máquina. No cierres esta pestaña mientras corre.</p>
+        </div>
+        {buildLog && (
+          <div className={cn(SUB, "mt-2 max-h-40 overflow-auto px-2.5 py-2")}>
+            <p className="text-[10px] font-medium text-white/70">Log de compilación ({buildLog.length} línea(s)):</p>
+            {buildLog.length === 0 ? <p className="mt-1 text-[10px] text-white/50">El backend no devolvió log.</p> : <pre className="mt-1 whitespace-pre-wrap break-words font-code text-[10px] text-cyan-100/80">{buildLog.join("\n")}</pre>}
           </div>
         )}
       </div>

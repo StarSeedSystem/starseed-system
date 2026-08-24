@@ -207,11 +207,33 @@ Más detalles en `STARSEED_ANALISIS_COMPLETO.md` y en `memory/design-tokens.md`.
 
 > **Regla dorada de descubribilidad:** crear una ruta `src/app/(app)/<x>/page.tsx` NO la hace accesible. El usuario navega por el **OmniDock** y el **App Launcher**, NO por URLs. Si una función no se registra en los medios correctos, para el usuario "no cambió nada". Registra SIEMPRE en los tres sitios.
 
+### ⚠️ El menú de `/agent` son ahora las 21 áreas del sistema original (Adenda 158)
+
+`src/app/(app)/agent/page.tsx` → `STUDIO_SECTIONS`. Desde la **Ola 6** el esqueleto del menú de «Astraura
+AI & Orchestration» son las **21 áreas del programa original Astraura 1.58-bit** (Chat Multiagéntico &
+Voz · VoiceStudio & Forja de Sonido · Proyectos y Creaciones · Imaginación Intuitiva · Enrutamiento de
+Almacenamiento & Medios · Sensorium 360° & Clima · Privacidad & Permisos de Sensores · Notificaciones &
+Logs · Cerebros Multidimensionales · Memorias y Recuerdos · Personalidades / Arquetipos · Enjambre de
+Agentes · Navegador Autónomo · Explorador del Dispositivo · Workflows & Automatización · Habilidades &
+Bóveda · Instalador Universal & Scan · Biblioteca StarSeed · Telemetría 1.58-Bit · Terminal & Sandbox ·
+Configuración & Preferencias), más una sección 22 propia del OS: «Gobernanza de la Red».
+
+- Las pestañas del Studio 1.58 (`src/components/astraura/s158/*`) se montan como secciones de primer nivel
+  con **`S158TabHost`** (`src/components/astraura/s158-host.tsx`), que resuelve destino (local/nube),
+  manifiesto y recarga. Añadir un área nueva = añadir su `value` a `STUDIO_SECTIONS` + un `<TabsContent>`
+  con `<S158TabHost tab="…" />` + su alias.
+- Los 45 `value` históricos **siguen existiendo** dentro del área que les corresponde. Nunca renombres un
+  `value`: añade un alias en `TAB_ALIASES`. Un `value` desconocido falla **en silencio**.
+- ⚠️ `navegador` (ventanas guardadas del OS) y `navegador-158` (navegador autónomo del backend) son cosas
+  DISTINTAS. `navegador` no se aliasa.
+- **Página propia nueva:** `/imaginacion` (Imaginación Intuitiva), también embebida en `?tab=imaginacion`.
+- SOP de la ola: `architecture/astraura-158-ola6-menu-imaginacion-orbe.md`.
+
 ### Cómo se registra una app/página para que el usuario la vea
 1. **OmniDock** (dock inferior, Trinity Anchor — el lanzador principal): `src/components/layout/dock-config.ts`
    - Añade un `DockItemConfig` a `DOCK_PRESETS` (`{id,label,iconKey,path,color,enabled:true,origin:'preset'}`).
    - Iconos: importa de lucide + añade la clave a `DockIconKey` y a `DOCK_ICON_MAP` (deben coincidir).
-   - **CRÍTICO:** para cuentas ya existentes, `loadDockConfig` añade los presets nuevos como `enabled:false` (por eso "no aparecen"). Hay que escribir una **migración one-shot** (patrón `applyDockMediaGroupV7` / `applyDockConnectivityGroupV8`, clave `starseed.dock.items.migrated.vN`) y encadenarla en los tres `return` de `loadDockConfig`. El dock del usuario se guarda en **localStorage** (`starseed.dock.items.v2`), no en Supabase.
+   - **CRÍTICO:** para cuentas ya existentes, `loadDockConfig` añade los presets nuevos como `enabled:false` (por eso "no aparecen"). La forma CORRECTA de garantizarlos hoy es subir `DOCK_DEFAULTS_VERSION` y añadir el id a `DOCK_DEFAULT_ON_IDS` en `src/lib/dock/dock-defaults.ts` — la versión viaja DENTRO del payload sincronizado, así que llega a todas las cuentas, neuronas y perfiles (las viejas migraciones one-shot `starseed.dock.items.migrated.vN` eran locales al navegador y no llegaban; se conservan por compatibilidad). El dock del usuario se guarda en **localStorage** (`starseed.dock.items.v2`) y se sincroniza con la cuenta vía `user_settings.prefs`.
 2. **App Launcher / Catálogo**: `src/components/dashboard/apps/app-catalog.ts`
    - Añade un `StarseedApp` a `APP_CATALOG` (`open:{primary:'route',allowed:[...],route:'/x'}`) y su `id` a `APP_COLLECTIONS.starseed`/`.sistema`. Alimenta también el desktop add-panel y el XR hub.
 3. **Biblioteca instalable** (opcional, paridad): `src/lib/library/packages.ts` (`kind:'app', payload:{route:'/x'}`). El icono string se resuelve por `ICON_MAP` en `package-store.tsx` (añade la clave allí si es nueva).
@@ -238,7 +260,7 @@ Más detalles en `STARSEED_ANALISIS_COMPLETO.md` y en `memory/design-tokens.md`.
 
 ---
 
-*Última actualización del archivo: 2026-08-22 (Adenda 153 · Astraura 1.58-bit como sistema primario de inteligencia, fusión con el backend soberano y SOP nuevo en architecture/)*
+*Última actualización del archivo: 2026-08-24 (Adenda 158 · Ola 6 — el menú de `/agent` pasa a ser el del sistema original 1.58-bit, página propia de Imaginación Intuitiva y orbe cuántica de voz)*
 
 
 ---

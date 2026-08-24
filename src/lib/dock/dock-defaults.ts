@@ -65,10 +65,15 @@ export const DOCK_STORAGE_KEY = 'starseed.dock.items.v2';
  * banderas one-shot por navegador (`starseed.dock.items.migrated.vN`), que era
  * justo lo que no llegaba a las cuentas viejas.
  */
-export const DOCK_DEFAULTS_VERSION = 14;
+export const DOCK_DEFAULTS_VERSION = 15;
 
-/** Ids que el OS garantiza presentes y encendidos hasta DOCK_DEFAULTS_VERSION. */
-export const DOCK_DEFAULT_ON_IDS = ['senales', 'red-feed'] as const;
+/**
+ * Ids que el OS garantiza presentes y encendidos hasta DOCK_DEFAULTS_VERSION.
+ * v15 (Ola 6 · Adenda 158) añade `imaginacion`: la página de Imaginación
+ * Intuitiva es nueva, así que ninguna cuenta la tiene todavía en su payload y
+ * sin esta garantía no aparecería en el dock de nadie.
+ */
+export const DOCK_DEFAULT_ON_IDS = ['senales', 'red-feed', 'imaginacion'] as const;
 
 /**
  * Forma mínima de un item del dock para ESTE módulo. Deliberadamente laxa

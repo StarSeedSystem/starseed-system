@@ -202,6 +202,29 @@ async function post<T extends { success?: boolean; error?: string; message?: str
   return unwrap(await call<T>(target, path, { method: "POST", body: body ?? {}, timeoutMs }));
 }
 
+/**
+ * Igual que `call`, pero para respuestas que NO son JSON. El backend soberano
+ * sirve el script del instalador como `text/x-shellscript` (PlainTextResponse):
+ * pasarlo por `res.json()` reventaba con «Unexpected token» y la pestaña
+ * mostraba un error de red que no existía.
+ */
+async function callText(target: Astraura158Target, path: string, timeoutMs?: number): Promise<Astraura158Response<string>> {
+  const endpoint = astraura158Endpoint(target);
+  if (typeof window === "undefined") return { ok: false, error: "SSR", target, endpoint };
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), timeoutMs ?? (target === "nube" ? 12_000 : 4_000));
+  try {
+    const res = await fetch(`${endpoint}${path}`, { signal: ctrl.signal });
+    clearTimeout(t);
+    if (!res.ok) return { ok: false, error: `HTTP ${res.status}`, target, endpoint };
+    return { ok: true, data: await res.text(), target, endpoint };
+  } catch (e) {
+    clearTimeout(t);
+    const msg = e instanceof Error ? e.message : String(e);
+    return { ok: false, error: /abort/i.test(msg) ? "sin respuesta (timeout)" : msg.slice(0, 160), target, endpoint };
+  }
+}
+
 export function fetchAstraura158Status(target: Astraura158Target): Promise<Astraura158Response<Astraura158Status>> {
   return call<Astraura158Status>(target, "/api/status");
 }
@@ -1549,4 +1572,343 @@ export function updateAstraura158BrainNeuronPermissions(target: Astraura158Targe
 /** Auto-enlace sináptico: el sistema conecta memorias/creaciones afines por su cuenta. */
 export function autoLinkAstraura158Synapses(target: Astraura158Target, brainId?: string) {
   return post<Astraura158Ack & { linked?: number }>(target, "/api/cerebros/auto_link_synapses", { brain_id: brainId ?? null }, longTimeout(target));
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * OLA 6 · Adenda 158 — paridad total con el programa original 1.58-bit.
+ * Todo lo que el original llamaba y el OS todavía no envolvía: ramas vivas de
+ * un proceso imaginativo, bóveda de credenciales, CRUD de workflows y
+ * proyectos, documentos/OpenViking de memoria, fusión de cerebros externos,
+ * permisos nativos del navegador (aquí solo la parte de backend), instalador
+ * y auto-modificación del sistema.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Ramas de un proceso imaginativo (control fino) ────────────────────────── */
+
+/** Avanza un paso de ejecución de una rama en caliente (el «Paso en Vivo» del original). */
+export function stepAstraura158Process(target: Astraura158Target, processId: string, branchId?: string) {
+  return post<Astraura158Ack & { branch?: Astraura158Branch }>(target, `/api/imagination/process/${encodeURIComponent(processId)}/step`, { branch_id: branchId ?? null }, longTimeout(target));
+}
+
+/** Vuelve a generar el contenido de una rama con el motor real. */
+export function regenerateAstraura158Branch(target: Astraura158Target, branchId: string) {
+  return post<Astraura158Ack & { branch?: Astraura158Branch }>(target, `/api/imagination/branch/${encodeURIComponent(branchId)}/regenerate`, {}, longTimeout(target));
+}
+
+/** Bifurca una rama en una sub-rama con una nota de enfoque. */
+export function forkAstraura158Branch(target: Astraura158Target, branchId: string, forkNote: string) {
+  return post<Astraura158Ack & { branch?: Astraura158Branch }>(target, `/api/imagination/branch/${encodeURIComponent(branchId)}/fork`, { fork_note: forkNote }, longTimeout(target));
+}
+
+/** Edita hipótesis/insights de una rama existente. */
+export function modifyAstraura158Branch(target: Astraura158Target, branchId: string, data: { hypothesis?: string; insights?: string; theme?: string }) {
+  return post<Astraura158Ack>(target, `/api/imagination/branch/${encodeURIComponent(branchId)}/modify`, { data });
+}
+
+/** Elimina una rama. */
+export async function deleteAstraura158Branch(target: Astraura158Target, branchId: string) {
+  return unwrap(await call<Astraura158Ack>(target, `/api/imagination/branch/${encodeURIComponent(branchId)}`, { method: "DELETE" }));
+}
+
+/** Borra el historial de informes de síntesis. */
+export async function clearAstraura158SynthesisReports(target: Astraura158Target) {
+  return unwrap(await call<Astraura158Ack>(target, "/api/imagination/synthesis_reports/clear", { method: "DELETE" }));
+}
+
+export interface Astraura158SyncExecution {
+  is_running?: boolean;
+  progress_percent?: number;
+  completed_tasks?: number;
+  total_tasks?: number;
+  current_logs?: string[];
+  agent_progress?: Record<string, { tasks?: number; status?: string }>;
+  [k: string]: unknown;
+}
+
+/** Estado del aplicado sincronizado multi-agente (modal de progreso del original). */
+export function fetchAstraura158SyncExecution(target: Astraura158Target) {
+  return call<Astraura158SyncExecution>(target, "/api/imagination/sync_execution_state");
+}
+
+/* ── Bóveda soberana (credenciales de servicios + parámetros de inferencia) ── */
+
+export interface Astraura158VaultConnection {
+  id?: string;
+  service?: string;
+  name?: string;
+  status?: string;
+  connected?: boolean;
+  has_token?: boolean;
+  masked_token?: string;
+  scopes?: string[];
+  updated_at?: string;
+  [k: string]: unknown;
+}
+
+export interface Astraura158VaultParameters {
+  bitnet_threads?: number;
+  bitnet_context_size?: number;
+  memory_cache_mb?: number;
+  dream_interval_minutes?: number;
+  [k: string]: unknown;
+}
+
+export interface Astraura158Vault {
+  connections?: Astraura158VaultConnection[];
+  parameters?: Astraura158VaultParameters;
+  [k: string]: unknown;
+}
+
+export function fetchAstraura158Vault(target: Astraura158Target) {
+  return call<Astraura158Vault>(target, "/api/vault");
+}
+
+/**
+ * Guarda el token de un servicio (Vercel, GitHub, Supabase, Hugging Face…).
+ * El backend identifica la conexión por `conn_id` — que es la CLAVE del objeto
+ * `connections` de la bóveda, no el nombre visible del servicio.
+ */
+export function updateAstraura158VaultConnection(target: Astraura158Target, connId: string, token: string, opts?: { account?: string; status?: string }) {
+  return post<Astraura158Ack>(target, "/api/vault/connection/update", {
+    conn_id: connId, token, account: opts?.account ?? null, status: opts?.status ?? null,
+  });
+}
+
+/** Ajusta los parámetros de inferencia del motor soberano. */
+export function updateAstraura158VaultParameters(target: Astraura158Target, parameters: Astraura158VaultParameters) {
+  return post<Astraura158Ack>(target, "/api/vault/parameters/update", { parameters });
+}
+
+/* ── Workflows: crear, editar y eliminar ──────────────────────────────────── */
+
+export function saveAstraura158Workflow(target: Astraura158Target, workflow: Astraura158Workflow) {
+  return post<Astraura158Ack & { workflow?: Astraura158Workflow }>(target, "/api/workflows/save", { workflow });
+}
+
+export async function deleteAstraura158Workflow(target: Astraura158Target, workflowId: string) {
+  return unwrap(await call<Astraura158Ack>(target, `/api/workflows/${encodeURIComponent(workflowId)}`, { method: "DELETE" }));
+}
+
+/* ── Proyectos y creaciones: ciclo completo ───────────────────────────────── */
+
+export function createAstraura158Project(target: Astraura158Target, project: { name: string; description: string; type?: string; status?: string; priority?: string }) {
+  return post<Astraura158Ack & { project?: Astraura158Project }>(target, "/api/projects/create", { type: "personal", ...project });
+}
+
+export function deleteAstraura158Project(target: Astraura158Target, projectId: string) {
+  return post<Astraura158Ack>(target, "/api/projects/delete", { project_id: projectId });
+}
+
+export function addAstraura158ProjectVersion(target: Astraura158Target, projectId: string, version: { summary: string; version?: string; changes?: string[]; author?: string }) {
+  return post<Astraura158Ack>(target, "/api/projects/add_version", { project_id: projectId, ...version });
+}
+
+export function createAstraura158ProjectBranch(target: Astraura158Target, projectId: string, branchName: string, notes?: string, originBranch = "main") {
+  return post<Astraura158Ack>(target, "/api/projects/branch/create", { project_id: projectId, branch_name: branchName, origin_branch: originBranch, notes: notes ?? "" });
+}
+
+export function mergeAstraura158ProjectBranch(target: Astraura158Target, projectId: string, sourceBranch: string, targetBranch = "main") {
+  return post<Astraura158Ack>(target, "/api/projects/branch/merge", { project_id: projectId, source_branch: sourceBranch, target_branch: targetBranch }, longTimeout(target));
+}
+
+export function deleteAstraura158ProjectFile(target: Astraura158Target, projectId: string, filePath: string) {
+  return post<Astraura158Ack>(target, "/api/projects/file/delete", { project_id: projectId, file_path: filePath });
+}
+
+export function forkAstraura158CreationVersion(target: Astraura158Target, req: { creation_id: string; branch_name: string; diff_summary: string; new_content: string; author_agent?: string }) {
+  return post<Astraura158Ack>(target, "/api/creations/fork_version", req);
+}
+
+/** Ejecuta una muestra de código de una creación en el sandbox del backend. */
+export function runAstraura158CreationSample(target: Astraura158Target, creationId: string) {
+  return post<Astraura158Ack & { output?: string; stdout?: string; stderr?: string }>(target, "/api/creations/run_sample", { creation_id: creationId }, longTimeout(target));
+}
+
+/* ── Memoria: documentos StarSeed y OpenViking ────────────────────────────── */
+
+/**
+ * Documento del memory root soberano. Campos REALES del backend
+ * (`SaveMemoryDocRequest`): el cuerpo es `markdown` y el título es `name` —
+ * no `content`/`title`, que es lo que se supuso antes de verificar el contrato.
+ */
+export interface Astraura158Document {
+  id?: string;
+  name: string;
+  branch: string;
+  markdown: string;
+  category?: string;
+  tags?: string[];
+  color?: string;
+  active?: boolean;
+  [k: string]: unknown;
+}
+
+/**
+ * OJO: este endpoint devuelve un ARRAY pelado, no `{ documents: [...] }`.
+ * Y el memory root real de una neurona pasa de los 10 000 documentos, así que
+ * SIEMPRE se pide una página: sin `limit` el backend los manda todos y la
+ * pestaña se come megabytes por gusto. Los más recientes van primero.
+ */
+export function fetchAstraura158Documents(target: Astraura158Target, opts?: { branch?: string; limit?: number; offset?: number }) {
+  const q = new URLSearchParams();
+  if (opts?.branch) q.set("branch", opts.branch);
+  q.set("limit", String(opts?.limit ?? 200));
+  if (opts?.offset) q.set("offset", String(opts.offset));
+  return call<Astraura158Document[]>(target, `/api/memory/starseed/documents?${q.toString()}`);
+}
+
+export function saveAstraura158Document(target: Astraura158Target, doc: Astraura158Document) {
+  return post<Astraura158Ack & { document?: Astraura158Document }>(target, "/api/memory/starseed/document", doc);
+}
+
+export async function deleteAstraura158Document(target: Astraura158Target, docId: string) {
+  return unwrap(await call<Astraura158Ack>(target, `/api/memory/starseed/document/${encodeURIComponent(docId)}`, { method: "DELETE" }));
+}
+
+export interface Astraura158OpenViking {
+  session_buffer?: { id?: string; role?: string; content?: string; timestamp?: number; tokens?: number }[];
+  events?: { id?: string; kind?: string; summary?: string; timestamp?: number; valence?: number }[];
+  concept_propagation?: { concept?: string; strength?: number; linked?: string[] }[];
+  pipelines?: { id?: string; name?: string; stage?: string; progress?: number; status?: string }[];
+  [k: string]: unknown;
+}
+
+/** Memoria de trabajo jerárquica «OpenViking» (buffer, eventos, conceptos, pipelines). */
+export function fetchAstraura158OpenViking(target: Astraura158Target) {
+  return call<Astraura158OpenViking>(target, "/api/memory/openviking");
+}
+
+/* ── Cerebros externos: escanear, fusionar y llevar en el bolsillo ─────────── */
+
+export interface Astraura158ExternalBrain {
+  id?: string;
+  name?: string;
+  owner?: string;
+  device?: string;
+  path?: string;
+  volume?: string;
+  size_mb?: number;
+  memories?: number;
+  permission_mode?: string;
+  last_seen?: string;
+  [k: string]: unknown;
+}
+
+/** Busca cerebros Astraura de otras personas o dispositivos en las unidades conectadas. */
+export function scanAstraura158ExternalBrains(target: Astraura158Target) {
+  return call<{ success?: boolean; total_detected?: number; external_brains?: Astraura158ExternalBrain[] }>(
+    target, "/api/cerebros/external/scan", { timeoutMs: longTimeout(target) },
+  );
+}
+
+/** Fusiona un cerebro externo con el propio según una estrategia. */
+export function fuseAstraura158ExternalBrain(target: Astraura158Target, brainId: string, strategy: "bidirectional_merge" | "import_only" | "export_only" = "bidirectional_merge") {
+  return post<Astraura158Ack & { merged?: number }>(target, "/api/cerebros/external/fuse", { brain_id: brainId, strategy }, longTimeout(target));
+}
+
+/** Modo de permiso con el que se trata un cerebro externo. */
+export function setAstraura158ExternalBrainPermissions(target: Astraura158Target, brainId: string, mode: string) {
+  return post<Astraura158Ack>(target, "/api/cerebros/external/permissions", { brain_id: brainId, mode });
+}
+
+/** Copia una app portátil autoejecutable (backend + cerebro) a una unidad extraíble. */
+export function syncAstraura158Portable(target: Astraura158Target, opts: { drive_path: string; brain_id?: string; include_projects?: boolean; include_voice_studio?: boolean }) {
+  return post<Astraura158Ack & { path?: string; size_mb?: number }>(target, "/api/cerebros/portable/sync_to_storage", {
+    brain_id: opts.brain_id ?? "starseed_unified_brain",
+    drive_path: opts.drive_path,
+    include_projects: opts.include_projects ?? true,
+    include_voice_studio: opts.include_voice_studio ?? true,
+  }, longTimeout(target));
+}
+
+/** Prueba en seco de una regla de enrutamiento (sin evento real). */
+export function simulateAstraura158StorageRule(target: Astraura158Target, ruleId: string) {
+  return post<Astraura158Ack & { steps?: string[] }>(target, `/api/storage/rules/${encodeURIComponent(ruleId)}/simulate`, {});
+}
+
+/* ── Explorador: indexar cualquier ruta en la memoria 1.58 ─────────────────── */
+
+/**
+ * Indexar es LENTO de verdad: medido en vivo, ~17 s por una carpeta con un solo
+ * `.md` (trocea, extrae conceptos y reconstruye el grafo). Con `longTimeout`
+ * (30 s) se abortaba a mitad y parecía un fallo de red. 3 minutos.
+ */
+export function indexAstraura158Path(target: Astraura158Target, path: string, opts?: { brain_id?: string; recursive?: boolean; force?: boolean }) {
+  return post<Astraura158Ack & { indexed?: number; indexed_files_count?: number; new_chunks_added?: number; files_processed?: string[] }>(
+    target, "/api/system/index_path", { path, force: true, ...opts }, 180_000,
+  );
+}
+
+/* ── Instalador universal y descubrimiento ────────────────────────────────── */
+
+/** El script del instalador llega como TEXTO (`text/x-shellscript`), no como JSON. */
+export function fetchAstraura158InstallerScript(target: Astraura158Target) {
+  return callText(target, "/api/installer/script", longTimeout(target));
+}
+
+export interface Astraura158DiscoveryScan {
+  devices?: { id?: string; name?: string; kind?: string; address?: string; reachable?: boolean; version?: string }[];
+  [k: string]: unknown;
+}
+
+/**
+ * El descubrimiento del ecosistema es GET en el backend soberano, y es CARO:
+ * medido en vivo, 48 s y ~8,6 MB de respuesta (recorre el dispositivo entero).
+ * Con `longTimeout` se abortaba siempre. 3 minutos.
+ */
+export function runAstraura158DiscoveryScan(target: Astraura158Target) {
+  return call<Astraura158DiscoveryScan>(target, "/api/discovery/scan", { timeoutMs: 180_000 });
+}
+
+/**
+ * Recompila el motor nativo bitnet.cpp con las optimizaciones del silicio local.
+ * Clonar + compilar tarda MINUTOS la primera vez; con `force:false` (por
+ * defecto) responde al instante si ya está compilado. 10 minutos de margen.
+ */
+export function buildAstraura158Bitnet(target: Astraura158Target, force = false) {
+  return post<Astraura158Ack & { log?: string[]; message?: string }>(target, "/api/bitnet/build", { force }, 600_000);
+}
+
+/* ── Sistema operativo soberano: estado, actualizaciones y auto-modificación ─ */
+
+export interface Astraura158OsStatus {
+  version?: string;
+  channel?: string;
+  build?: string;
+  update_available?: boolean;
+  latest_version?: string;
+  changelog?: string[];
+  [k: string]: unknown;
+}
+
+export function fetchAstraura158OsStatus(target: Astraura158Target) {
+  return call<Astraura158OsStatus>(target, "/api/system/os/status");
+}
+
+export function checkAstraura158OsUpdates(target: Astraura158Target, channel?: "stable" | "beta") {
+  return post<Astraura158Ack & Astraura158OsStatus>(target, "/api/system/os/check-updates", { channel: channel ?? null }, longTimeout(target));
+}
+
+export function installAstraura158OsUpdate(target: Astraura158Target, opts?: { auto_restart?: boolean; channel?: string }) {
+  return post<Astraura158Ack & { log?: string[] }>(target, "/api/system/os/install-update", {
+    channel: opts?.channel ?? "stable", auto_restart: opts?.auto_restart ?? false,
+  }, longTimeout(target));
+}
+
+/**
+ * Aplica al sistema una modificación de configuración propuesta por la IA.
+ * Requiere consentimiento explícito del usuario (`granted: true`): sin él, el
+ * backend debe rechazarla — el OS nunca la envía sin confirmación.
+ */
+export function modifyAstraura158OsConfiguration(target: Astraura158Target, body: { modifications: Record<string, unknown>; granted: boolean; osType?: string; consentToken?: string }) {
+  return post<Astraura158Ack & { applied?: string[] }>(target, "/api/system/os/modify", {
+    os_type: body.osType ?? "starseed_os",
+    modifications: body.modifications,
+    user_permissions_granted: body.granted,
+    security_consent_token: body.consentToken ?? null,
+  }, longTimeout(target));
+}
+
+export function saveAstraura158OsPreferences(target: Astraura158Target, preferences: Record<string, unknown>) {
+  return post<Astraura158Ack>(target, "/api/system/os/preferences", { preferences });
 }

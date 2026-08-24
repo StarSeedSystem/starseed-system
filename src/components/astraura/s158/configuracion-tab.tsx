@@ -23,7 +23,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import {
-  Bell, Code2, Cpu, Database, ExternalLink, RotateCcw, Trash2,
+  Bell, CheckCircle2, Code2, Cpu, Database, DownloadCloud, ExternalLink, RefreshCw, RotateCcw, ShieldCheck, Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Switch } from "@/components/ui/switch";
@@ -39,7 +39,12 @@ import {
   type CodeRuntimePrefs, type CodeViewMode,
 } from "@/lib/aurora/code-runtime";
 import {
-  BTN, BTN_DANGER, BusyIcon, CARD, LABEL, PILL, PILL_ON, PILL_OFF, SectionTitle, useBusy, type S158TabProps,
+  checkAstraura158OsUpdates, fetchAstraura158OsStatus, installAstraura158OsUpdate, modifyAstraura158OsConfiguration,
+  type Astraura158OsStatus, type Astraura158Target,
+} from "@/lib/astraura/astraura-158-client";
+import {
+  BTN, BTN_DANGER, BTN_PRIMARY, BusyIcon, CARD, Empty, Field, INPUT, LABEL, PILL, PILL_ON, PILL_OFF, SUB,
+  SectionTitle, Stat, TEXTAREA, useBusy, useS158Load, type S158TabProps,
 } from "./shared";
 
 export function ConfiguracionTab({ target }: S158TabProps) {
@@ -200,6 +205,10 @@ export function ConfiguracionTab({ target }: S158TabProps) {
         </p>
       </div>
 
+      {/* Sistema soberano ─ Ola 6 · Adenda 158: estado/versión, actualizaciones (con changelog)
+          y auto-modificación con consentimiento explícito (checkbox de concesión obligatoria). */}
+      <OsSovereignCard target={target} />
+
       {/* Datos y limpieza ─ acciones locales, honestas y reversibles solo por re-siembra/re-sondeo. */}
       <div className={cn(CARD, "p-3")}>
         <SectionTitle icon={Database} title="Datos y limpieza" tone="text-rose-300" hint="Ajustes guardados en ESTE navegador (localStorage); nada de esto toca al backend soberano ni a otras neuronas." />
@@ -224,6 +233,186 @@ export function ConfiguracionTab({ target }: S158TabProps) {
         </Link>
       </div>
     </div>
+  );
+}
+
+/* ── Sistema soberano: estado/versión, actualizaciones y auto-modificación ─── */
+
+function OsSovereignCard({ target }: { target: Astraura158Target }) {
+  const confirm = useConfirm();
+  const { busy, wrap } = useBusy();
+  const osStatus = useS158Load(fetchAstraura158OsStatus, target);
+  const [channel, setChannel] = useState<"stable" | "beta">("stable");
+  const [checkedStatus, setCheckedStatus] = useState<Astraura158OsStatus | null>(null);
+  const [installLog, setInstallLog] = useState<string[] | null>(null);
+  const [restartAfterInstall, setRestartAfterInstall] = useState(false);
+
+  const eff = checkedStatus ?? osStatus.data;
+  const changelog = checkedStatus?.changelog ?? osStatus.data?.changelog ?? [];
+  const knownNoUpdate = checkedStatus != null && checkedStatus.update_available === false;
+
+  async function checkUpdates() {
+    await wrap("check", async () => {
+      const res = await checkAstraura158OsUpdates(target, channel);
+      if (res.ok) {
+        setCheckedStatus(res.data);
+        toast.success(res.data.update_available ? `Actualización disponible: ${res.data.latest_version ?? "?"}` : "El sistema ya está al día", {
+          description: res.data.changelog?.length ? `${res.data.changelog.length} nota(s) de cambios` : undefined,
+        });
+      } else {
+        toast.error(`No se pudo comprobar actualizaciones: ${res.error}`);
+      }
+    });
+  }
+
+  async function installUpdate() {
+    const ok = await confirm({
+      title: "¿Instalar la actualización del sistema soberano?",
+      description: `Se instalará ${eff?.latest_version ? `la versión ${eff.latest_version}` : "la última versión disponible"} en el backend de ESTA neurona (no en el frontend de Vercel).${restartAfterInstall ? " El servicio se reiniciará al terminar." : " El servicio NO se reiniciará automáticamente: reinícialo tú cuando convenga."}`,
+      confirmText: "Instalar", cancelText: "Cancelar",
+    });
+    if (!ok) return;
+    await wrap("install", async () => {
+      const res = await installAstraura158OsUpdate(target, { auto_restart: restartAfterInstall });
+      if (res.ok) {
+        setInstallLog(res.data.log ?? []);
+        toast.success("Actualización instalada");
+        setCheckedStatus(null);
+        await osStatus.reload(true);
+      } else {
+        toast.error(`No se pudo instalar: ${res.error}`);
+      }
+    });
+  }
+
+  // Consentimiento explícito para auto-modificación: el textarea es la única fuente honesta de
+  // "modificaciones propuestas" (no hay endpoint que las liste), se previsualizan y solo se
+  // envían con `granted:true` tras marcar la casilla — nunca antes.
+  const [modJson, setModJson] = useState("{\n  \n}");
+  const [modReason, setModReason] = useState("");
+  const [parsedMods, setParsedMods] = useState<Record<string, unknown> | null>(null);
+  const [modParseError, setModParseError] = useState("");
+  const [modGranted, setModGranted] = useState(false);
+  const [appliedMods, setAppliedMods] = useState<string[] | null>(null);
+
+  function previewMods() {
+    try {
+      const obj: unknown = JSON.parse(modJson);
+      if (!obj || typeof obj !== "object" || Array.isArray(obj)) throw new Error("debe ser un objeto JSON de pares clave/valor, p. ej. {\"campo\": \"valor\"}");
+      setParsedMods(obj as Record<string, unknown>);
+      setModParseError("");
+      setModGranted(false);
+    } catch (e) {
+      setParsedMods(null);
+      setModParseError(e instanceof Error ? e.message : "JSON inválido");
+    }
+  }
+
+  async function applyMods() {
+    if (!parsedMods || !modGranted || Object.keys(parsedMods).length === 0) return;
+    await wrap("apply-mods", async () => {
+      const res = await modifyAstraura158OsConfiguration(target, {
+        // El backend exige consentimiento explícito: sin `granted` rechaza la
+        // modificación. El motivo escrito por el usuario viaja como parte de
+        // las modificaciones, porque `/api/system/os/modify` no tiene campo propio.
+        modifications: modReason.trim() ? { ...parsedMods, _reason: modReason.trim() } : parsedMods,
+        granted: true,
+      });
+      if (res.ok) {
+        setAppliedMods(res.data.applied ?? []);
+        toast.success("Modificaciones aplicadas", { description: res.data.applied?.length ? `${res.data.applied.length} cambio(s)` : undefined });
+        setParsedMods(null);
+        setModGranted(false);
+        setModJson("{\n  \n}");
+      } else {
+        toast.error(`No se aplicaron las modificaciones: ${res.error}`);
+      }
+    });
+  }
+
+  return (
+    <>
+      <div className={cn(CARD, "p-3")}>
+        <SectionTitle icon={Cpu} title="Sistema soberano — estado y actualizaciones" tone="text-cyan-300"
+          hint="Versión y canal del backend soberano de ESTA neurona (la máquina donde corre) — no del frontend en Vercel."
+          right={<button type="button" className={BTN} onClick={() => { void osStatus.reload(); }} aria-label="Recargar estado del sistema soberano"><RefreshCw className={cn("h-3 w-3", osStatus.loading && "animate-spin")} aria-hidden="true" /></button>} />
+        {!eff && <Empty loading={osStatus.loading} error={osStatus.error} text="Sin estado del sistema soberano." />}
+        {eff && (
+          <>
+            <div className="mt-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+              <Stat label="Versión" value={eff.version ?? "—"} />
+              <Stat label="Canal actual" value={eff.channel ?? "—"} />
+              <Stat label="Build" value={eff.build ?? "—"} />
+              <Stat label="Actualización" value={eff.update_available ? `disponible${eff.latest_version ? ` (${eff.latest_version})` : ""}` : knownNoUpdate ? "al día" : "sin comprobar"} />
+            </div>
+            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+              <span className={LABEL}>canal a comprobar</span>
+              {(["stable", "beta"] as const).map((c) => (
+                <button key={c} type="button" aria-pressed={channel === c} aria-label={`Canal ${c}`} className={cn(PILL, channel === c ? PILL_ON : PILL_OFF)} onClick={() => setChannel(c)}>{c}</button>
+              ))}
+              <button type="button" className={BTN} disabled={busy !== ""} aria-label="Buscar actualizaciones" onClick={() => { void checkUpdates(); }}>
+                <BusyIcon busy={busy === "check"} icon={DownloadCloud} /> Buscar actualizaciones
+              </button>
+              <button type="button" className={BTN_PRIMARY} disabled={busy !== "" || knownNoUpdate} aria-label="Instalar actualización" onClick={() => { void installUpdate(); }}>
+                <BusyIcon busy={busy === "install"} icon={CheckCircle2} /> Instalar actualización
+              </button>
+              <label className="flex items-center gap-1.5 text-[10px] text-white/70">
+                <input type="checkbox" className="h-3 w-3 cursor-pointer accent-cyan-400" checked={restartAfterInstall} onChange={(e) => setRestartAfterInstall(e.target.checked)} aria-label="Reiniciar el servicio tras instalar" />
+                reiniciar servicio al terminar
+              </label>
+            </div>
+            {changelog.length > 0 && (
+              <div className={cn(SUB, "mt-2 p-2.5")}>
+                <p className="text-[10px] font-medium text-white/70">Changelog:</p>
+                <ul className="mt-1 list-disc space-y-0.5 pl-4 text-[10px] text-white/70">
+                  {changelog.map((line, i) => <li key={i}>{line}</li>)}
+                </ul>
+              </div>
+            )}
+            {installLog && (
+              <div className={cn(SUB, "mt-2 p-2.5")}>
+                <p className="text-[10px] font-medium text-white/70">Log de instalación ({installLog.length} línea(s)):</p>
+                <pre className="mt-1 max-h-32 overflow-auto whitespace-pre-wrap break-words font-code text-[10px] text-cyan-100/80">{installLog.join("\n") || "(sin salida)"}</pre>
+              </div>
+            )}
+          </>
+        )}
+        <p className="mt-2 text-[10px] leading-snug text-amber-200/80">Honesto: en el frontend desplegado en Vercel, «actualizar» no hace nada — esto gobierna el backend soberano de ESTA neurona, no el sitio web.</p>
+      </div>
+
+      <div className={cn(CARD, "p-3")}>
+        <SectionTitle icon={ShieldCheck} title="Aplicar modificaciones al sistema" tone="text-rose-300" hint="El backend soberano puede proponer cambios de configuración; tú decides. Sin marcar la casilla de concesión no se envía nada." />
+        <Field label="Modificaciones propuestas (JSON de pares clave/valor)">
+          <textarea className={cn(TEXTAREA, "font-code")} rows={5} value={modJson} onChange={(e) => { setModJson(e.target.value); setParsedMods(null); setModGranted(false); }} aria-label="Modificaciones propuestas en JSON" />
+        </Field>
+        <Field label="Motivo (opcional)" className="mt-2">
+          <input className={INPUT} value={modReason} onChange={(e) => setModReason(e.target.value)} aria-label="Motivo de la modificación" placeholder="p. ej. sugerido por el ciclo de imaginación #42" />
+        </Field>
+        <button type="button" className={cn(BTN, "mt-2")} aria-label="Previsualizar modificaciones propuestas" onClick={previewMods}>Previsualizar</button>
+        {modParseError && <p className="mt-1.5 text-[10px] text-rose-200/85">{modParseError}</p>}
+        {parsedMods && (
+          <div className={cn(SUB, "mt-2 p-2.5")}>
+            <p className="text-[10px] font-medium text-white/70">Se van a proponer estos cambios:</p>
+            {Object.keys(parsedMods).length === 0 ? (
+              <p className="mt-1 text-[10px] text-white/50">El objeto está vacío: no hay nada que conceder.</p>
+            ) : (
+              <ul className="mt-1 space-y-0.5">
+                {Object.entries(parsedMods).map(([k, v]) => <li key={k} className="text-[10px] text-white/70"><span className="font-code text-cyan-200">{k}</span> → {JSON.stringify(v)}</li>)}
+              </ul>
+            )}
+            <label className="mt-2 flex items-start gap-2 text-[11px] text-white/85">
+              <input type="checkbox" className="mt-0.5 h-3.5 w-3.5 shrink-0 cursor-pointer accent-rose-400" checked={modGranted} onChange={(e) => setModGranted(e.target.checked)} aria-label="Confirmo que reviso estas modificaciones y concedo autorización" />
+              Confirmo que he revisado estas modificaciones y concedo autorización explícita para aplicarlas.
+            </label>
+            <button type="button" className={cn(BTN_DANGER, "mt-2")} disabled={busy !== "" || !modGranted || Object.keys(parsedMods).length === 0} aria-label="Enviar modificaciones con concesión" onClick={() => { void applyMods(); }}>
+              <BusyIcon busy={busy === "apply-mods"} icon={ShieldCheck} /> Enviar con concesión
+            </button>
+          </div>
+        )}
+        {appliedMods && <p className="mt-2 text-[10px] text-emerald-200/80">Aplicado: {appliedMods.length ? appliedMods.join(", ") : "el backend no listó los cambios aplicados"}.</p>}
+        <p className="mt-2 text-[10px] leading-snug text-white/45">Sin marcar la casilla, el botón de envío queda deshabilitado: nada se manda al backend sin tu concesión explícita.</p>
+      </div>
+    </>
   );
 }
 

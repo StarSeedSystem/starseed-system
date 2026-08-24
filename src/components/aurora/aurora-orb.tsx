@@ -37,7 +37,7 @@
  * bucle de animación (CSS vars vía rAF).
  */
 
-import { useEffect, useId, useRef } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import {
   subscribeAuroraSpeak,
   acquireMicAnalyser,
@@ -53,6 +53,11 @@ import { Astraura158PresenceDot } from "@/components/astraura/astraura-158-prese
 // así que esto no añade peso al arranque.
 import { ROUTE_EVENT, lastRoute } from "@/ai/astraura/router";
 import { llmSourceAccessClass, type ModelAccessClass } from "@/lib/astraura/model-preferences";
+// ORBE CUÁNTICA (nuevo): renderizador de canvas al que este componente
+// CONMUTA cuando la voz está activa (hablando/escuchando/pensando) — ver el
+// bloque "ORBE CUÁNTICA — conmutación" más abajo. `aurora-orb.module.css` NO
+// se toca: la capa cuántica se monta con estilos inline propios.
+import { QuantumOrb, type QuantumOrbState } from "./quantum-orb";
 import styles from "./aurora-orb.module.css";
 
 type RGB = [number, number, number];
@@ -148,6 +153,42 @@ interface AuroraOrbProps {
   supported: boolean;
   /** true → la voz quedó no disponible (el orbe se atenúa en carmesí sereno). */
   unavailable?: boolean;
+  /**
+   * (Aditivo, orbe cuántica) true → Aurora está "pensando" (generando la
+   * respuesta, sin habla ni escucha activas todavía — p. ej. `aurora.thinking`
+   * en `engine.ts`). Activa la conmutación a `<QuantumOrb>` igual que hablar
+   * o escuchar. Opcional y por defecto `false`: quien no lo pase no ve ningún
+   * cambio de comportamiento.
+   */
+  thinking?: boolean;
+  /**
+   * (Aditivo, orbe cuántica) id de la personalidad activa — colorea/da forma
+   * a `<QuantumOrb>` (ver `quantum-orb-theme.ts`). Opcional: sin él, la orbe
+   * cuántica usa la paleta "aurora" por defecto.
+   */
+  personaId?: string;
+}
+
+/**
+ * Puente MIC (3 bandas) → espectro sintético de 24 bins para `<QuantumOrb>`.
+ * `aurora-orb-bus.ts` deliberadamente NO expone el `Uint8Array` crudo del
+ * `AnalyserNode` (ver su cabecera) — solo `level` + 3 bandas resumidas. En vez
+ * de crear un analizador nuevo (prohibido por el encargo: ya existe UNO
+ * compartido y crear otro reabriría el bug del "glitch loop" documentado
+ * allí), expandimos esas 3 bandas reales a un espectro grueso pero genuino:
+ * cada tercio de bins hereda la energía real de su banda, con una variación
+ * determinista (sin `Math.random()` por frame) para que no se vea perfectamente
+ * plano dentro de cada tercio.
+ */
+function expandBandsToFreq(bands: readonly [number, number, number]): Uint8Array {
+  const [low, mid, high] = bands;
+  const out = new Uint8Array(24);
+  for (let i = 0; i < 24; i++) {
+    const seg = i < 8 ? low : i < 16 ? mid : high;
+    const jitter = ((i * 37) % 17) / 17 - 0.5;
+    out[i] = Math.max(0, Math.min(255, Math.round((seg + jitter * 0.08) * 255)));
+  }
+  return out;
 }
 
 function prefersReducedMotion(): boolean {
@@ -171,6 +212,8 @@ export function AuroraOrb({
   paused,
   supported,
   unavailable = false,
+  thinking = false,
+  personaId,
 }: AuroraOrbProps) {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -178,8 +221,8 @@ export function AuroraOrb({
   const gid = useId().replace(/[^a-zA-Z0-9_-]/g, "");
 
   // Estado vivo leído dentro del bucle de animación (sin re-crear el bucle).
-  const modeRef = useRef({ speaking, listening, paused, supported, unavailable });
-  modeRef.current = { speaking, listening, paused, supported, unavailable };
+  const modeRef = useRef({ speaking, listening, paused, supported, unavailable, thinking });
+  modeRef.current = { speaking, listening, paused, supported, unavailable, thinking };
 
   // Nivel de "latido" por eventos de voz (TTS) — decae con el tiempo.
   const beatRef = useRef(0);
@@ -260,6 +303,58 @@ export function AuroraOrb({
       }
     };
   }, [listening, supported, unavailable]);
+
+  // ══ ORBE CUÁNTICA — conmutación ══════════════════════════════════════════
+  // Al activarse la voz (hablando/escuchando/pensando) esta orbe CONMUTA a
+  // `<QuantumOrb>` (el renderizador del Astraura 1.58-bit original, mejorado);
+  // en reposo sigue siendo la orbe del OS de siempre (nada de lo de arriba
+  // cambia). `unavailable` NO activa la orbe cuántica: sigue con su propio
+  // aviso carmesí existente.
+  const quantumActive = !unavailable && (speaking || listening || thinking);
+  const quantumState: QuantumOrbState = speaking
+    ? "speaking"
+    : listening
+      ? "listening"
+      : thinking
+        ? "thinking"
+        : "idle";
+
+  // Nivel/espectro real para `<QuantumOrb>`, muestreados (no cada rAF: basta
+  // ~20Hz, la orbe cuántica interpola internamente) del MISMO analizador
+  // compartido que ya usa el bucle de abajo — jamás se abre un segundo
+  // `AnalyserNode` (ver `expandBandsToFreq` y la cabecera de `aurora-orb-bus.ts`).
+  const [quantumLevel, setQuantumLevel] = useState(0);
+  const [quantumFreq, setQuantumFreq] = useState<Uint8Array | null>(null);
+
+  useEffect(() => {
+    if (!quantumActive) {
+      setQuantumLevel(0);
+      setQuantumFreq(null);
+      return;
+    }
+    let raf = 0;
+    let lastSample = 0;
+    const tick = (t: number) => {
+      if (t - lastSample > 50) {
+        lastSample = t;
+        const m = modeRef.current;
+        if (m.listening) {
+          const mic = micLevelRef.current;
+          setQuantumLevel(Math.max(0, Math.min(1, mic.level)));
+          setQuantumFreq(expandBandsToFreq(mic.bands));
+        } else {
+          // Hablando/pensando: no hay bandas espectrales reales (el TTS no
+          // expone FFT) — solo el latido `aurora:speak`. `frequencies=null`
+          // deja que `<QuantumOrb>` sintetice su propio pseudo-espectro.
+          setQuantumLevel(Math.max(0, Math.min(1, beatRef.current)));
+          setQuantumFreq(null);
+        }
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [quantumActive]);
 
   // ── Geometría de capas ──
   // Grosor del aro aurora visible (rim) y diámetro del núcleo de cristal.
@@ -501,6 +596,19 @@ export function AuroraOrb({
         "--aurora-rgb": "159 232 112",
       } as React.CSSProperties}
     >
+      {/* Capa REPOSO — la orbe del OS de siempre, intacta byte a byte. Se
+          desvanece (solo opacity — el bucle de dibujo de abajo sigue vivo,
+          así el regreso a reposo es instantáneo y sin parpadeo) cuando la
+          orbe cuántica (hablando/escuchando/pensando) toma el relevo. */}
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          opacity: quantumActive ? 0 : 1,
+          transition: "opacity 260ms ease",
+          pointerEvents: quantumActive ? "none" : undefined,
+        }}
+      >
       {/* (a) Glow neón exterior ANCHO y difuminado (blur amplio) + halo. */}
       <div className={styles.glowWide} />
       <div className={styles.halo} />
@@ -570,6 +678,31 @@ export function AuroraOrb({
         <circle cx="12" cy="12" r="3.4" fill={`url(#${gid}c)`} />
         <circle cx="12" cy="12" r="1.4" fill="#FFFFFF" />
       </svg>
+      </div>
+
+      {/* Capa VOZ ACTIVA — orbe cuántica (fade 260ms, ver arriba). Renderizador
+          de canvas 2D propio (`quantum-orb.tsx`), independiente del bucle de
+          la capa de reposo. `frequencies`/`level` vienen del MISMO analizador
+          compartido (`aurora-orb-bus.ts`) — nunca se abre un segundo mic. */}
+      <div
+        aria-hidden
+        style={{
+          position: "absolute",
+          inset: 0,
+          opacity: quantumActive ? 1 : 0,
+          transition: "opacity 260ms ease",
+          pointerEvents: "none",
+        }}
+      >
+        <QuantumOrb
+          personaId={personaId}
+          state={quantumState}
+          level={quantumLevel}
+          frequencies={quantumFreq}
+          size={size}
+          trail
+        />
+      </div>
     </div>
 
       {/* Presencia Astraura 1.58 (Ola 5 · Adenda 157, SOP §5): HERMANA del
