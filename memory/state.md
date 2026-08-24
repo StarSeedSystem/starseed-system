@@ -3732,3 +3732,42 @@ verificación en vivo: `https://starseed-os.vercel.app/api/ai/astraura-158/api/s
   `bitnet/build` minutos en frío. Con `longTimeout` (30 s) se abortaban solas y el usuario leía «sin conexión»
   de un sistema sano. Pasan a 180 s / 180 s / 600 s.
 - Puertas: tsc 0 · vitest 125/125 · mesh 178/0 · backend importa limpio con 255 rutas.
+
+## 2026-08-24 — Adenda 159: el chat 1.58 respondía SIEMPRE lo mismo (bucle de plantillas) — diagnóstico y arreglo
+- **Síntoma**: dijeras lo que dijeras en el chat, Astraura devolvía el mismo bloque «Identidad & Ontología
+  Soberana». No era un fallo de estilo: **el modelo no se estaba usando en absoluto**.
+- **Causa raíz (reproducida y verificada contra el backend real)**, una cadena de cuatro eslabones:
+  1. `/api/starseed/chat` **no existe** en el backend (solo se menciona en comentarios de `starseed_bridge.py`),
+     así que el OS siempre cae al camino clásico `/api/chat/stream`.
+  2. `buildAstraura158Prompt` aplanaba **toda la conversación** dentro de `prompt`.
+  3. El backend decide con **coincidencia de subcadena sobre `prompt`** si responde con una plantilla
+     determinista en vez de llamar al modelo (`any(w in p_lower for w in [...])`, 11 sitios).
+  4. ⇒ En cuanto «quién eres» aparecía UNA vez —incluso dentro de una respuesta anterior de la propia IA—,
+     quedaba en la transcripción y **cada mensaje siguiente volvía a disparar la misma plantilla, para siempre**.
+     Un bucle que se reforzaba solo. Prueba decisiva: pedí «cuánto es dos más dos» con «quien eres» en la
+     transcripción → devolvió el bloque de identidad, exactamente el que veía el usuario.
+- **Arreglo en el OS**: el historial pasa a `system_prompt` (es contexto, no la pregunta) y `prompt` lleva
+  **solo el último mensaje del usuario**. El modelo sigue viendo la conversación entera. Test de regresión
+  añadido (`el historial NUNCA contamina el prompt con disparadores de plantilla`).
+- **Arreglo en el backend** (para que no dependa de que el cliente se porte bien): `dispara_plantilla()`
+  exige que el prompt **sea** la pregunta corta (≤200 caracteres), no que la contenga. Aplicado a los 11
+  disparadores de `reasoner.py` y `orchestrator.py`.
+- **Segundo fallo, independiente y grave — el sistema ocultaba su propia avería**: cuando el motor real
+  fallaba, la plantilla salía disfrazada de respuesta. «hola» devolvía «He preparado un entorno interactivo
+  completo para tu consulta» con un bloque HTML. Ahora una respuesta degradada **se declara**: aviso visible
+  + `meta.degraded` + el motivo real de cada motor.
+- **Tercer fallo — diagnóstico imposible**: `print(f"...: {e}")` sobre un `ReadTimeout` de httpx imprime
+  **cadena vacía**; el log decía «Ollama streaming notice: » y nada más. Ahora se registra el TIPO.
+- **Cuarto — 120 s tirados**: se esperaba a `ensure_server(120.0)` aunque no hubiera **ningún** modelo GGUF
+  instalado (`models_available: []`). Ahora se salta al instante si no hay modelo.
+- **Timeout**: 90 s era demasiado corto. Medido en esta máquina, el **primer token tarda 68-88 s** — y
+  `keep_alive` NO lo cambia (probado en frío y en caliente): no es carga del modelo, es **contención de CPU**
+  (load average 15,67 en 8 núcleos; Chrome solo se llevaba 73 %+51 %). Subido a 300 s para que la respuesta
+  real llegue en vez de descartarse.
+- **Verificado en vivo tras el arreglo**: (1) «cuánto es dos más dos» con «quien eres» en la transcripción →
+  *«El resultado de "dos más dos" es cuatro (2 + 2 = 4)»* (inferencia real, 102 s); (2) otra pregunta → otra
+  respuesta real, distinta; (3) preguntar «quien eres» directamente → la plantilla legítima sigue saliendo.
+- **Pendiente real**: la lentitud (~100 s por respuesta) NO es un bug del código, es la máquina saturada.
+  Opciones: aliviar el enjambre en 2º plano / la imaginación Always-On (para eso existe la «Reserva de Chat»
+  del gobernador de troncos), cerrar pestañas de Chrome, o instalar el GGUF i2_s de BitNet nativo —
+  `models_available` está **vacío**, así que el motor 1.58 real nunca se ha llegado a usar.

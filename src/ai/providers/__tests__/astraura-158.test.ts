@@ -23,7 +23,7 @@ describe("buildAstraura158Prompt", () => {
     expect(out.prompt).toBe("Hola");
   });
 
-  it("con historial ⇒ transcripción + último mensaje marcado", () => {
+  it("con historial ⇒ la transcripción va al system_prompt y el prompt es SOLO el último mensaje", () => {
     const msgs: ChatMessage[] = [
       { role: "system", content: "S1" },
       { role: "user", content: "¿Qué es BitNet?" },
@@ -32,10 +32,33 @@ describe("buildAstraura158Prompt", () => {
       { role: "user", content: "¿Y por qué 1.58?" },
     ];
     const out = buildAstraura158Prompt(msgs);
-    expect(out.system_prompt).toBe("S1\n\nS2");
-    expect(out.prompt).toContain("Usuario: ¿Qué es BitNet?");
-    expect(out.prompt).toContain("Astraura: Un modelo ternario.");
-    expect(out.prompt).toMatch(/Último mensaje del usuario:\n¿Y por qué 1\.58\?$/);
+    expect(out.system_prompt).toContain("S1");
+    expect(out.system_prompt).toContain("S2");
+    expect(out.system_prompt).toContain("Usuario: ¿Qué es BitNet?");
+    expect(out.system_prompt).toContain("Astraura: Un modelo ternario.");
+    // Lo esencial: el `prompt` es EXACTAMENTE la pregunta, sin transcripción.
+    expect(out.prompt).toBe("¿Y por qué 1.58?");
+  });
+
+  /**
+   * Adenda 159 · regresión del bucle de plantillas.
+   * El backend soberano decide por SUBCADENA sobre `prompt` si contesta con una
+   * plantilla determinista en vez de llamar al modelo. Si el historial viaja
+   * dentro de `prompt`, basta que «quién eres» haya aparecido una vez —incluso
+   * en una respuesta anterior de la IA— para que TODOS los mensajes siguientes
+   * devuelvan la misma plantilla. Verificado contra el backend real.
+   */
+  it("el historial NUNCA contamina el prompt con disparadores de plantilla", () => {
+    const out = buildAstraura158Prompt([
+      { role: "user", content: "quién eres" },
+      { role: "assistant", content: "Yo soy Astraura, el sistema cognitivo de 1.58 bits." },
+      { role: "user", content: "cuánto es dos más dos" },
+    ]);
+    expect(out.prompt).toBe("cuánto es dos más dos");
+    expect(out.prompt.toLowerCase()).not.toContain("quién eres");
+    expect(out.prompt.toLowerCase()).not.toContain("astraura");
+    // El modelo sigue viendo la conversación: está en el contexto, no en la pregunta.
+    expect(out.system_prompt).toContain("quién eres");
   });
 
   it("recorta los turnos MÁS ANTIGUOS cuando el historial excede el presupuesto", () => {
@@ -47,10 +70,10 @@ describe("buildAstraura158Prompt", () => {
       { role: "assistant", content: "ok" },
       { role: "user", content: "final" },
     ]);
-    expect(out.prompt).toContain("Usuario: reciente");
-    expect(out.prompt).toContain("Astraura: ok");
-    expect(out.prompt).not.toContain("viejo");
-    expect(out.prompt.endsWith("final")).toBe(true);
+    expect(out.system_prompt).toContain("Usuario: reciente");
+    expect(out.system_prompt).toContain("Astraura: ok");
+    expect(out.system_prompt).not.toContain("viejo");
+    expect(out.prompt).toBe("final");
   });
 
   it("sin mensajes de usuario ⇒ prompt vacío", () => {

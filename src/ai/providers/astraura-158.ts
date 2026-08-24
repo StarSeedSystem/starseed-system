@@ -204,10 +204,31 @@ export function buildAstraura158Prompt(messages: ChatMessage[]): Astraura158Prom
     used += line.length + 1;
   }
   const transcript = lines.join("\n");
-  const prompt = lastUser
-    ? `Transcripción de la conversación hasta ahora (responde SOLO al último mensaje del usuario, sin repetir la transcripción):\n${transcript}\n\nÚltimo mensaje del usuario:\n${lastUser.trim()}`
-    : `Transcripción de la conversación hasta ahora. Continúa de forma natural:\n${transcript}`;
-  return { system_prompt: system, prompt };
+
+  // ── Adenda 159 · POR QUÉ el historial va en `system_prompt` y NO en `prompt` ──
+  // El backend soberano decide con COINCIDENCIA DE SUBCADENA sobre `prompt` si
+  // responde con una plantilla determinista («¿quién eres?», «¿cómo funciona tu
+  // sistema?»…) en lugar de invocar al modelo. Mientras aquí se aplanaba TODA la
+  // conversación dentro de `prompt`, bastaba que esas palabras hubieran aparecido
+  // UNA vez —incluso en una respuesta anterior de la propia IA— para que cada
+  // mensaje siguiente volviera a disparar la misma plantilla: un bucle que se
+  // reforzaba solo y hacía que el chat contestara siempre lo mismo dijeras lo que
+  // dijeras. Reproducido y verificado contra el backend real.
+  //
+  // El historial es CONTEXTO, no la pregunta. Va al `system_prompt`, que el
+  // backend no escanea; `prompt` lleva SOLO el último mensaje del usuario, que es
+  // lo que de verdad hay que responder. El modelo sigue recibiendo ambas cosas.
+  if (lastUser) {
+    const withHistory = [
+      system,
+      `[TRANSCRIPCIÓN DE LA CONVERSACIÓN HASTA AHORA]\nResponde SOLO al último mensaje del usuario, sin repetir la transcripción.\n${transcript}`,
+    ].filter(Boolean).join("\n\n");
+    return { system_prompt: withHistory, prompt: lastUser.trim() };
+  }
+  return {
+    system_prompt: system,
+    prompt: `Transcripción de la conversación hasta ahora. Continúa de forma natural:\n${transcript}`,
+  };
 }
 
 /* ───────────────────── SSE ───────────────────── */
