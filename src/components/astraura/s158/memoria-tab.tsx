@@ -32,6 +32,9 @@ import {
   BTN, BTN_DANGER, BTN_PRIMARY, Badge, Bar, BusyIcon, CARD, Empty, Field, INPUT, MONO, PILL, PILL_ON, PILL_OFF,
   SELECT, SUB, SectionTitle, Stat, TEXTAREA, fmtTs, levelTone, runS158, useBusy, useS158Load, type S158TabProps,
 } from "./shared";
+// (Ola 6 · Adenda 158, ronda «memoria total») Sección aparte por tamaño propio
+// (carpetas del dispositivo + probador de contexto) — ver cabecera del fichero.
+import { MemoriaDispositivoSection } from "./memoria-dispositivo";
 
 const PREF_FIELDS: { key: string; label: string }[] = [
   { key: "preferred_name", label: "Cómo quieres que te llame" },
@@ -45,9 +48,10 @@ const PREF_FIELDS: { key: string; label: string }[] = [
 /** Mismas ramas que el memory root de StarSeed (§ CLAUDE.md) + «general». */
 const DOC_CATEGORIES = ["general", "soul", "ego", "style", "skills", "memory", "dream", "accounts", "tasks", "logs"];
 
-type MemSubTab = "recuerdos" | "documentos" | "openviking";
+type MemSubTab = "recuerdos" | "dispositivo" | "documentos" | "openviking";
 const SUB_TABS: { id: MemSubTab; label: string }[] = [
   { id: "recuerdos", label: "Recuerdos" },
+  { id: "dispositivo", label: "Memoria del dispositivo" },
   { id: "documentos", label: "Documentos StarSeed" },
   { id: "openviking", label: "OpenViking" },
 ];
@@ -203,6 +207,7 @@ export function MemoriaTab({ target }: S158TabProps) {
         </div>
       )}
 
+      {sub === "dispositivo" && <MemoriaDispositivoSection target={target} />}
       {sub === "documentos" && <DocumentosSection target={target} />}
       {sub === "openviking" && <OpenVikingSection target={target} />}
     </div>

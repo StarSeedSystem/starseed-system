@@ -21,7 +21,9 @@
  *
  * Funciones puras (testeables sin red): `buildAstraura158Prompt`,
  * `parseAstrauraSseLine`, `persona158For`, `modelToPersona158`,
- * `detectMentions158`, `collectAstraura158Event`, `readAstraura158Sse`.
+ * `detectMentions158`, `collectAstraura158Event`, `readAstraura158Sse`,
+ * `attemptAstraura158WsTurn` (esta última con un doble de `WebSocket` en
+ * memoria, no con red real — ver `astraura-158-ws.test.ts`).
  * Los errores HTTP llevan el código en el mensaje (`error 503`) para que el
  * router aplique cooldown/dead-source con sus regex de siempre.
  *
@@ -33,6 +35,15 @@
  * MENCIONES: `@Hermes`, `@Logos`… en el último mensaje del usuario seleccionan
  * personalidades 1.58 (`preferences.selected_personalities`) y el modo
  * multi-personalidad (`single` · `multi_dialogue` · `coral_synthesis`).
+ *
+ * TRANSPORTE (Adenda 164): además del POST+SSE de siempre (`/api/chat/stream`,
+ * de un handshake HTTP por turno), `chat()` intenta primero el WebSocket
+ * persistente `/ws/chat` (transporte en `astraura-158-ws.ts`; protocolo,
+ * conexión compartida, reconexión con backoff y latido documentados ahí).
+ * `attemptAstraura158WsTurn` decide, orquesta y — si el WS no está listo a
+ * tiempo o falla — devuelve `null` para que `chat()` use la reserva SSE de
+ * siempre, sin reescribirla. Ver el comentario junto a su llamada en `chat()`
+ * para el razonamiento completo de por qué nunca hay doble respuesta.
  * ═══════════════════════════════════════════════════════════════════════════
  */
 
@@ -44,6 +55,7 @@ import type {
   Provider,
   ProviderInfo,
 } from "./types";
+import { ASTRAURA_158_WS_READY_TIMEOUT_MS, getAstraura158Ws, type Astraura158Ws } from "./astraura-158-ws";
 
 /* ───────────────────── Personalidades 1.58 (modelos de la fuente) ───────────────────── */
 
@@ -596,6 +608,181 @@ async function postJson(url: string, body: unknown, signal?: AbortSignal): Promi
   });
 }
 
+/**
+ * Intenta entregar UN turno por el WebSocket persistente (`astraura-158-ws.ts`).
+ * Devuelve `null` cuando hay que usar la reserva SSE — el WS no abrió a
+ * tiempo (`readyTimeoutMs`, por defecto `ASTRAURA_158_WS_READY_TIMEOUT_MS`) o
+ * `send` no pudo despachar el mensaje — y en ese caso NO ha emitido nada al
+ * consumidor: `chat()` ejecuta entonces, tal cual, el camino SSE de siempre.
+ *
+ * ── PUNTO 5 (nunca dos respuestas) — cómo se garantiza ──
+ * Cada turno tiene su propia máquina de tres fases, cerrada sobre esta
+ * llamada y sobre nada más (no hay estado compartido entre turnos aquí):
+ *   "waiting"   → aún no sabemos si el WS estará listo a tiempo. NINGÚN
+ *                 evento se entrega al consumidor todavía, aunque ya
+ *                 estemos suscritos a una conexión (quizá reutilizada de un
+ *                 turno anterior) que en teoría podría emitir algo.
+ *   "committed" → `ws.send(...)` CONFIRMÓ el envío. Solo a partir de aquí
+ *                 —y solo dentro de esta llamada— se permite tocar
+ *                 `onChunk` o resolver/rechazar la promesa con datos.
+ *   "done"      → ya se resolvió o rechazó (éxito, error, aborto o
+ *                 reserva). Cualquier evento posterior se descarta: el
+ *                 `if (phase !== "committed") return;` de `onEvent`, más
+ *                 abajo, es la última línea de defensa.
+ * La ÚNICA transición "waiting" → "committed" ocurre dentro de `commit()`,
+ * y siempre ANTES de que exista la más mínima posibilidad de haber emitido
+ * nada. Por construcción, entonces, un turno solo puede terminar de una de
+ * estas formas, nunca dos:
+ *   (a) nunca llega a "committed" ⇒ esta función resuelve `null` ⇒ `chat()`
+ *       ejecuta el SSE de abajo — el WS no ha tocado al consumidor en NADA;
+ *   (b) llega a "committed" ⇒ esta función resuelve/rechaza con los datos
+ *       del propio turno WS ⇒ `chat()` hace `return` en cuanto ve un
+ *       resultado no-nulo: el código SSE de abajo NI SIQUIERA SE ALCANZA.
+ * No hay ninguna ruta donde ambos transportes lleguen a entregar datos para
+ * el mismo turno — ni siquiera si la conexión compartida recibe eventos
+ * "tardíos" de un intento anterior ya abandonado (fase "done": se ignoran).
+ */
+export async function attemptAstraura158WsTurn(
+  base: string,
+  turn: { prompt: string; systemPrompt: string; preferences: ChatPreferences },
+  persona: string,
+  mode: Astraura158MultiMode | undefined,
+  options: ChatOptions,
+  readyTimeoutMs: number = ASTRAURA_158_WS_READY_TIMEOUT_MS,
+): Promise<ChatResponse | null> {
+  // SSR (requisito 7): `getAstraura158Ws` ya se autoprotege, pero cortamos
+  // aquí también para no esperar `readyTimeoutMs` en balde en el servidor.
+  if (typeof window === "undefined") return null;
+  if (options.signal?.aborted) throw new DOMException("Astraura 1.58: turno abortado.", "AbortError");
+
+  return new Promise<ChatResponse | null>((resolve, reject) => {
+    let phase: "waiting" | "committed" | "done" = "waiting";
+    const collected = emptyAstraura158Collected();
+    let acc = "";
+    let full: string | undefined;
+    let involved: unknown;
+    let events = 0;
+
+    const cleanup = () => {
+      clearTimeout(readyTimer);
+      options.signal?.removeEventListener("abort", onAbort);
+    };
+    const finish = (result: ChatResponse) => {
+      if (phase === "done") return;
+      phase = "done";
+      cleanup();
+      resolve(result);
+    };
+    const fail = (err: unknown) => {
+      if (phase === "done") return;
+      phase = "done";
+      cleanup();
+      reject(err);
+    };
+    // "Reserva honesta" (requisito 4): solo tiene efecto si aún estábamos
+    // "waiting" — si ya se decidió lo que sea (WS comprometido, error,
+    // aborto…), es un no-op por el guard de abajo.
+    const fallback = () => {
+      if (phase !== "waiting") return;
+      phase = "done";
+      cleanup();
+      resolve(null);
+    };
+    const commit = (): void => {
+      if (phase !== "waiting") return; // ya decidido: un `open` tardío no reabre nada.
+      const sent = handle.send({
+        prompt: turn.prompt,
+        system_prompt: turn.systemPrompt,
+        // `ChatPreferences` no tiene índice de firma `string`; un objeto
+        // LITERAL nuevo (spread) sí es asignable a `Record<string, unknown>`
+        // en TS estricto sin recurrir a ningún cast.
+        preferences: { ...turn.preferences },
+      });
+      if (!sent) {
+        fallback();
+        return;
+      }
+      phase = "committed";
+      clearTimeout(readyTimer);
+    };
+    // Cancelación (requisito 6): el backend no tiene mensaje de «para» (el
+    // `ChatWebSocketClient` original tampoco lo tenía — comprobado). No
+    // fingimos que el servidor deja de generar: solo dejamos de EMITIR al
+    // consumidor. `fail()` pone `phase = "done"`, así que cualquier `token`
+    // que el backend siga mandando (seguirá generando la respuesta entera)
+    // cae en el `if (phase !== "committed") return;` de `onEvent` de abajo
+    // y se descarta en silencio, en el cliente — nunca llega a `onChunk`.
+    const onAbort = () => {
+      fail(new DOMException("Astraura 1.58: turno abortado.", "AbortError"));
+    };
+    options.signal?.addEventListener("abort", onAbort, { once: true });
+    // Requisito 4: si el WS no abre en este plazo, se cae a la reserva SSE.
+    const readyTimer = setTimeout(fallback, readyTimeoutMs);
+
+    let handle: Astraura158Ws;
+    try {
+      handle = getAstraura158Ws({
+        baseUrl: base,
+        onEvent: (ev) => {
+          // "waiting": nada que consumir todavía. "done": turno ya resuelto
+          // (reserva, error o aborto) — un evento tardío no reabre nada.
+          if (phase !== "committed") return;
+          events++;
+          if (ev.type === "token" && typeof ev.token === "string" && ev.token) {
+            acc += ev.token;
+            options.onChunk?.(ev.token);
+            return;
+          }
+          if (ev.type === "done") {
+            if (typeof ev.full_text === "string" && ev.full_text.trim()) full = ev.full_text;
+            if (ev.personalities_involved) involved = ev.personalities_involved;
+            collectAstraura158Event(collected, ev);
+            // Igual que en `readAstraura158Sse`: el texto por tokens manda;
+            // `full_text` es solo el respaldo de un backend que no los emitió.
+            const text = acc.trim() ? acc : (full ?? "");
+            const raw: Astraura158Raw = {
+              astraura158: collected,
+              persona,
+              backend: base,
+              events,
+              personalities_involved: involved,
+              ...(mode ? { mode } : {}),
+            };
+            finish({ text, raw });
+            return;
+          }
+          if (ev.type === "error" && typeof ev.message === "string") {
+            fail(new Error(`Astraura 1.58 error: ${ev.message}`));
+            return;
+          }
+          // `init_state`, `learning_event`, `dream_cycle_event`,
+          // `imagination_insight_event`… — mismo tratamiento tolerante que
+          // ya usa `readAstraura158Sse` para eventos que no son el texto.
+          collectAstraura158Event(collected, ev);
+        },
+        onOpen: () => commit(),
+        onClose: (reason) => {
+          if (phase === "committed") {
+            // Comprometidos con el WS y la conexión cayó a mitad del turno:
+            // es un error DE ESTE TURNO, no una señal para reintentar por
+            // SSE (eso duplicaría o mezclaría lo que el usuario ya vio).
+            fail(new Error(`Astraura 1.58 error: conexión WS perdida a mitad del turno (${reason}).`));
+            return;
+          }
+          fallback(); // "waiting": no va a abrir a tiempo, no agotamos el plazo.
+        },
+      });
+    } catch (e) {
+      fail(e);
+      return;
+    }
+
+    // La conexión YA estaba abierta (reutilizada de un turno anterior): no
+    // habrá un `onOpen` nuevo que esperar — decide y envía ya mismo.
+    if (handle.ready) commit();
+  });
+}
+
 async function chat(
   config: DecryptedProviderConfig,
   messages: ChatMessage[],
@@ -613,7 +800,19 @@ async function chat(
   if (!built.prompt.trim()) throw new Error("Astraura 1.58 error: no hay mensaje del usuario.");
   const note = mentionsSystemNote(mentions, persona);
   const systemPrompt = note ? [built.system_prompt, note].filter(Boolean).join("\n\n") : built.system_prompt;
+  const mode = mentions.personas.length ? preferences.multi_personality_mode : undefined;
 
+  // ═══════ Adenda 164 · WS con reserva a SSE ═══════
+  // `attemptAstraura158WsTurn` decide TODO antes de que este `chat()` sepa
+  // nada: si devuelve un resultado, el turno YA se entregó por WS y el
+  // código SSE de abajo ni se toca (ver el porqué del punto 5 —nunca dos
+  // respuestas— en el comentario grande junto a esa función). Si devuelve
+  // `null`, no emitió NADA al consumidor y seguimos por la reserva SSE, que
+  // es exactamente la que ya existía antes de esta adenda — sin reescribir.
+  const wsResponse = await attemptAstraura158WsTurn(base, { prompt: built.prompt, systemPrompt, preferences }, persona, mode, options);
+  if (wsResponse) return wsResponse;
+
+  // ── Reserva SSE (idéntica a la de antes de la Adenda 164) ──
   // 1) Puente nuevo (mensajes estructurados; el backend transcribe). 404/405 ⇒ backend antiguo.
   let res: Response | null = null;
   try {
@@ -641,7 +840,6 @@ async function chat(
     const text = await res.text().catch(() => "");
     throw new Error(`Astraura 1.58 error ${res.status}: ${(text || res.statusText).slice(0, 300)}`);
   }
-  const mode = mentions.personas.length ? preferences.multi_personality_mode : undefined;
   const ctype = (res.headers.get("content-type") || "").toLowerCase();
   if (ctype.includes("application/json")) {
     // Respuesta no-stream (p.ej. proxy que tamponó): {response|full_text|text}

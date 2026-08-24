@@ -1912,3 +1912,122 @@ export function modifyAstraura158OsConfiguration(target: Astraura158Target, body
 export function saveAstraura158OsPreferences(target: Astraura158Target, preferences: Record<string, unknown>) {
   return post<Astraura158Ack>(target, "/api/system/os/preferences", { preferences });
 }
+
+/* ── Memoria del dispositivo: sincronizar almacenamiento local con la IA ─────
+ * (Ola 6 · Adenda 158, ronda «memoria total») Hasta ahora el backend metía 3
+ * recuerdos fijos en cada respuesta y nunca tocaba los documentos reales del
+ * usuario. Este bloque habla con el módulo nuevo del backend soberano que
+ * vigila carpetas REALES del dispositivo donde corre la neurona (nunca del
+ * navegador) y las indexa en el MISMO grafo/índice que usa para responder:
+ * `searchAstraura158MemoryContext` golpea la función que arma el contexto de
+ * cada turno de chat, así que sirve también como «qué recuerda de esto». ───── */
+
+export interface Astraura158DeviceSyncFolder {
+  /** Ruta absoluta en el dispositivo donde corre el backend soberano. Identificador natural (no hay `id` separado). */
+  path: string;
+  enabled?: boolean;
+  /** Epoch (s o ms, `fmtAgo` detecta cuál) de la última vez que se indexó esta carpeta; ausente/0 = nunca. */
+  last_indexed?: number | null;
+  files_indexed?: number;
+  chunks_added?: number;
+  /** Motivo del último fallo (ruta inexistente, permiso denegado…) TAL CUAL lo manda el backend. Nunca se esconde. */
+  last_error?: string | null;
+  [k: string]: unknown;
+}
+
+export interface Astraura158DeviceSync {
+  folders?: Astraura158DeviceSyncFolder[];
+  /** Si el demonio de fondo re-sincroniza solo cada `interval_minutes`. */
+  auto?: boolean;
+  interval_minutes?: number;
+  /** El demonio está ejecutándose AHORA MISMO (no solo «activado»). */
+  running?: boolean;
+  total_documents?: number;
+  total_nodes?: number;
+  [k: string]: unknown;
+}
+
+/** Estado de la sincronización: carpetas vigiladas, demonio automático y totales del índice. Rápido. */
+export function fetchAstraura158DeviceSync(target: Astraura158Target) {
+  return call<Astraura158DeviceSync>(target, "/api/memory/device_sync", { timeoutMs: target === "nube" ? 15_000 : 8_000 });
+}
+
+/**
+ * Da de alta (o actualiza — upsert por `path`) una carpeta a vigilar. Si el
+ * backend la rechaza (no existe, no es directorio, sin permiso…) el `error`
+ * que llega en la respuesta es el motivo TAL CUAL: no se reinterpreta aquí.
+ */
+export function addAstraura158DeviceSyncFolder(target: Astraura158Target, path: string, enabled?: boolean) {
+  return post<Astraura158Ack & { folder?: Astraura158DeviceSyncFolder }>(target, "/api/memory/device_sync/folder", { path, enabled });
+}
+
+/** Activa o desactiva una carpeta ya vigilada. Mismo endpoint de alta (upsert por `path`): el backend no distingue «crear» de «actualizar». */
+export function toggleAstraura158DeviceSyncFolder(target: Astraura158Target, path: string, enabled: boolean) {
+  return post<Astraura158Ack & { folder?: Astraura158DeviceSyncFolder }>(target, "/api/memory/device_sync/folder", { path, enabled });
+}
+
+/** Deja de vigilar una carpeta (no borra lo que ya se indexó, solo la saca de la lista sincronizada). */
+export async function removeAstraura158DeviceSyncFolder(target: Astraura158Target, path: string) {
+  return unwrap(await call<Astraura158Ack>(target, `/api/memory/device_sync/folder?path=${encodeURIComponent(path)}`, { method: "DELETE" }));
+}
+
+/** Enciende/apaga el demonio automático y/o cambia cada cuántos minutos re-sincroniza. */
+export function configureAstraura158DeviceSync(target: Astraura158Target, patch: { auto?: boolean; interval_minutes?: number }) {
+  return post<Astraura158Ack & Astraura158DeviceSync>(target, "/api/memory/device_sync/config", patch);
+}
+
+export interface Astraura158DeviceSyncFolderResult {
+  path?: string;
+  indexed_files?: number;
+  new_chunks?: number;
+  error?: string;
+  [k: string]: unknown;
+}
+
+export interface Astraura158DeviceSyncRunResult {
+  success?: boolean;
+  indexed_files?: number;
+  new_chunks?: number;
+  seconds?: number;
+  per_folder?: Astraura158DeviceSyncFolderResult[];
+  error?: string;
+  message?: string;
+  [k: string]: unknown;
+}
+
+/**
+ * Indexa AHORA: una carpeta concreta (`path`) o todas las vigiladas (`path`
+ * omitido/`null`). LENTO de verdad: medido en vivo, ~17 s por una carpeta
+ * pequeña — con muchas carpetas o los 10 000+ documentos de un usuario real
+ * esto son minutos, no segundos. Mismo margen que `indexAstraura158Path`
+ * (con `longTimeout`, 30 s, se abortaba a mitad): 3 minutos.
+ */
+export function runAstraura158DeviceSync(target: Astraura158Target, path?: string | null) {
+  return post<Astraura158DeviceSyncRunResult>(target, "/api/memory/device_sync/run", { path: path ?? null }, 180_000);
+}
+
+export interface Astraura158ContextHit {
+  /** De dónde sale este fragmento de contexto: memoria fijada/mem0, documento indexado, o concepto del grafo. */
+  source?: "memory" | "document" | "concept" | string;
+  title?: string;
+  text?: string;
+  score?: number;
+  [k: string]: unknown;
+}
+
+export interface Astraura158ContextSearch {
+  query?: string;
+  hits?: Astraura158ContextHit[];
+  [k: string]: unknown;
+}
+
+/**
+ * «Qué recuerda de esto»: NO es una vista aparte de la memoria — es la MISMA
+ * función que el backend usa para armar el contexto de cada respuesta del
+ * chat (1.58-bit, todas las memorias). Lo que devuelve esto es literalmente
+ * lo que ve el modelo. Rápido.
+ */
+export function searchAstraura158MemoryContext(target: Astraura158Target, query: string, topK = 8) {
+  const q = new URLSearchParams({ q: query, top_k: String(topK) });
+  return call<Astraura158ContextSearch>(target, `/api/memory/search?${q.toString()}`, { timeoutMs: 8000 });
+}
