@@ -47,11 +47,38 @@ export interface Astraura158Status {
     process_memory_mb?: number;
     /** Servidor nativo `llama-server` embebido (bitnet.cpp): perfiles interactivo y de fondo. Ola 4. */
     bitnet_server?: { interactive?: Astraura158BitnetServerProfile; background?: Astraura158BitnetServerProfile; [k: string]: unknown };
+    /** (Adenda 157) Pila de cuantización: motores de PESOS + índice comprimido de MEMORIA. */
+    quantization_stack?: Astraura158QuantizationStack;
   };
   memory_summary?: { knowledge_nodes?: number; knowledge_edges?: number; vector_documents?: number; learned_events_count?: number };
   skills_active?: number;
   profiler?: { hardware_family?: string; system?: Record<string, unknown> };
   telemetry?: Record<string, unknown>;
+}
+
+/** (Adenda 157) Inventario honesto de cuantización que publica el backend. */
+export interface Astraura158QuantizationEngine {
+  id?: string;
+  nombre?: string;
+  disponible?: boolean;
+  activo?: boolean;
+  cuantizacion?: string;
+  detalle?: string;
+  binario?: string | null;
+  url?: string;
+  requisitos?: string;
+  [k: string]: unknown;
+}
+
+export interface Astraura158QuantizationStack {
+  pesos?: { activo?: string; maquina?: string; nota?: string; motores?: Astraura158QuantizationEngine[]; error?: string };
+  memoria?: {
+    codec?: string; disponible?: boolean; activo?: boolean; bits?: number; dim?: number;
+    documentos?: number; indexados?: number; minimo_para_activarse?: number;
+    coseno_medio?: number; coseno_minimo?: number; ratio_compresion?: number; nota?: string; error?: string;
+    [k: string]: unknown;
+  };
+  [k: string]: unknown;
 }
 
 export interface Astraura158Personality {
@@ -1430,4 +1457,96 @@ export function fetchAstraura158UniversalDeviceAccess(target: Astraura158Target)
 /** Concesión EXPLÍCITA (botón dedicado en el Explorador del Dispositivo); el backend decide el alcance real. */
 export function grantAstraura158UniversalDeviceAccess(target: Astraura158Target, opts?: { scope?: string }) {
   return post<Astraura158Ack & { granted?: boolean }>(target, "/api/system/universal_device_access/grant", { confirm: true, ...(opts ?? {}) }, longTimeout(target));
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * ORQUESTACIÓN AUTÓNOMA · VENTANAS POR ENTIDAD · PERMISOS Y ACCESOS (Ola 5 · Adenda 157)
+ * Lo que faltaba del sistema original: abrir la «página completa» de cualquier
+ * entidad viva (proceso · agente · personalidad · cerebro · proyecto), gobernar
+ * el enjambre agente a agente y aprobar permisos y accesos desde el OS.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/** Detalle de UN agente de la bóveda (`/api/agents/{id}`). */
+export interface Astraura158AgentDetail extends Astraura158Agent {
+  description?: string;
+  imagination_enabled?: boolean;
+  imagination_frequency?: string;
+  imagination_permission_level?: string;
+  cpu_quota_percent?: number;
+  ram_limit_mb?: number;
+  concurrency?: number;
+  compute_trunk?: string;
+  linked_cerebros?: { id: string; name?: string; color?: string }[];
+  skills?: string[];
+  history?: unknown[];
+  permissions?: Record<string, unknown>;
+  [k: string]: unknown;
+}
+
+export function fetchAstraura158Agent(target: Astraura158Target, agentId: string) {
+  return call<{ success?: boolean; agent?: Astraura158AgentDetail; error?: string }>(target, `/api/agents/${encodeURIComponent(agentId)}`);
+}
+
+export function fetchAstraura158EcosystemAgent(target: Astraura158Target, agentId: string) {
+  return call<{ success?: boolean; agent?: Astraura158EcosystemAgent; error?: string }>(target, `/api/ecosystem/agents/${encodeURIComponent(agentId)}`);
+}
+
+/** Concurrencia (hilos simultáneos) de un agente del enjambre. */
+export function setAstraura158AgentConcurrency(target: Astraura158Target, agentId: string, concurrency: number) {
+  return post<Astraura158Ack>(target, "/api/swarm/agent/concurrency", { agent_id: agentId, concurrency: Math.max(1, Math.min(16, Math.round(concurrency))) });
+}
+
+/** Permisos granulares de un agente (`/api/agents_api/{id}/update_permissions`). */
+export function updateAstraura158AgentPermissions(target: Astraura158Target, agentId: string, permissions: Record<string, boolean | string | number>) {
+  return post<Astraura158Ack & { permissions?: Record<string, unknown> }>(target, `/api/agents_api/${encodeURIComponent(agentId)}/update_permissions`, { permissions });
+}
+
+/** Permisos granulares de una personalidad (`/api/personalities/{id}/update_permissions`). */
+export function updateAstraura158PersonalityPermissions(target: Astraura158Target, personaId: string, permissions: Record<string, boolean | string | number>) {
+  return post<Astraura158Ack & { permissions?: Record<string, unknown> }>(target, `/api/personalities/${encodeURIComponent(personaId)}/update_permissions`, { permissions });
+}
+
+/** Estado de la API de una personalidad (scopes, sincronizaciones, clave enmascarada). */
+export function fetchAstraura158PersonalityApiStatus(target: Astraura158Target, personaId: string) {
+  return call<{ success?: boolean; detail?: Record<string, unknown>; error?: string }>(target, `/api/personalities/${encodeURIComponent(personaId)}/api_status`);
+}
+
+/** Estado de la API de un agente (mismo contrato que el de personalidades). */
+export function fetchAstraura158AgentApiStatus(target: Astraura158Target, agentId: string) {
+  return call<{ success?: boolean; detail?: Record<string, unknown>; error?: string }>(target, `/api/agents_api/${encodeURIComponent(agentId)}/api_status`);
+}
+
+/** Árbol sináptico de un cerebro: nodos (memorias/creaciones/agentes) y sus enlaces. */
+export interface Astraura158SynapticTree {
+  success?: boolean;
+  brain?: { id?: string; name?: string; color?: string };
+  nodes?: { id?: string; label?: string; kind?: string; weight?: number; color?: string; [k: string]: unknown }[];
+  edges?: { source?: string; target?: string; weight?: number; kind?: string; [k: string]: unknown }[];
+  links?: { source?: string; target?: string; [k: string]: unknown }[];
+  stats?: Record<string, number>;
+  [k: string]: unknown;
+}
+
+export function fetchAstraura158SynapticTree(target: Astraura158Target, brainId: string) {
+  return call<Astraura158SynapticTree>(target, `/api/cerebros/${encodeURIComponent(brainId)}/synaptic_tree`, { timeoutMs: target === "nube" ? 15_000 : 8_000 });
+}
+
+/** Métricas de contexto de los cerebros (cuánto ocupa cada rama en el contexto). */
+export function fetchAstraura158BrainContextMetrics(target: Astraura158Target) {
+  return call<{ metrics?: Record<string, unknown>; cerebros?: unknown[]; [k: string]: unknown }>(target, "/api/cerebros/context_metrics");
+}
+
+/** Control de los procesos de un cerebro (pausar/reanudar/prioridad). */
+export function controlAstraura158BrainProcess(target: Astraura158Target, body: { brain_id: string; action: string; process_id?: string; value?: number }) {
+  return post<Astraura158Ack>(target, "/api/cerebros/process/control", body, longTimeout(target));
+}
+
+/** Permisos de una neurona sobre un cerebro (lectura/escritura/sincronización). */
+export function updateAstraura158BrainNeuronPermissions(target: Astraura158Target, body: { brain_id: string; neuron_id?: string; permissions: Record<string, boolean | string> }) {
+  return post<Astraura158Ack>(target, "/api/cerebros/neuron/permissions", body);
+}
+
+/** Auto-enlace sináptico: el sistema conecta memorias/creaciones afines por su cuenta. */
+export function autoLinkAstraura158Synapses(target: Astraura158Target, brainId?: string) {
+  return post<Astraura158Ack & { linked?: number }>(target, "/api/cerebros/auto_link_synapses", { brain_id: brainId ?? null }, longTimeout(target));
 }

@@ -33,6 +33,12 @@ import { ModelDownloadNotifier } from "@/components/neurons/model-download-notif
 import { NeuronActivityLogger } from "@/components/neurons/neuron-activity-logger";
 import { useEffect } from "react";
 import { startAstraura158Feed } from "@/lib/astraura/astraura-158-feed";
+// Ventana universal Astraura 1.58 (Ola 5 · Adenda 157): se monta UNA sola vez
+// aquí (mismo patrón que el resto de globales de este archivo) para que
+// CUALQUIER superficie del OS (orbe, Exocórtex, notificaciones, pestañas del
+// Studio 1.58) pueda abrir la ventana de una entidad viva con
+// `openAstraura158Window(...)` sin tener que montar nada por su cuenta.
+import { Astraura158WindowHost } from "@/components/astraura/window/astraura-158-window-host";
 
 /** (Ola 3 · Adenda 155) Sondeo del puente de eventos Astraura 1.58 → centro de
  * notificaciones del OS + siembra de personalidades/agentes 1.58. Singleton. */
@@ -57,6 +63,12 @@ export default function AppGlobals() {
       {/* Eventos de los procesos de fondo Astraura 1.58 (imaginación · enjambre ·
           director) → avisos del OS con deep-link al Studio (Adenda 155). */}
       <Astraura158FeedMount />
+      {/* Anfitrión global de la ventana universal Astraura 1.58 (Ola 5 ·
+          Adenda 157): escucha `starseed:astraura158-open-window` y monta
+          `Astraura158Window` (superpuesta) por cada entidad abierta — así la
+          orbe, el Exocórtex y cualquier pestaña abren la MISMA ventana con
+          `openAstraura158Window({kind, id})` sin acoplarse entre sí. */}
+      <Astraura158WindowHost />
     </>
   );
 }

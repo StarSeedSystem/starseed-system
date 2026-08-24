@@ -3661,3 +3661,13 @@ verificación en vivo: `https://starseed-os.vercel.app/api/ai/astraura-158/api/s
 - 7 pestañas nuevas del Studio (chat · navegador · dispositivo · biblioteca · telemetría · terminal ·
   configuración) → 21/21 del sistema original cubiertas. Allowlist del proxy ampliada solo a lecturas/acciones seguras.
 - Puertas: tsc 0 · vitest 125/125 · next build ✓. SOP: `architecture/astraura-158-ola4-runtime-y-pestanas.md`.
+
+## 2026-08-24 — Adenda 157 · OLA 5: ventanas vivas, orquestación autónoma, permisos y pila de cuantización
+- `src/components/astraura/window/*` (bus + ventana universal + Hablar en Vivo + anfitrión) y ruta
+  `/(app)/agent/astraura/[kind]/[id]`; pestañas nuevas `orquestacion` y `permisos`; presencia 1.58 en la
+  orbe y el Exocórtex (`astraura-158-presence.tsx`).
+- Backend: `app/memory/turboquant.py` (TurboQuant en NumPy) + índice comprimido de primer paso en
+  `vector_store.py`; `bitnet_cpp_manager.quantization_backends()` (bitnet.cpp · spbitnet con motivo honesto)
+  y `/api/status → engine.quantization_stack`; tarjeta «Pila de cuantización» en Telemetría.
+- Medido: 4 bits ⇒ coseno 0.9953 · 7.4× compresión; búsqueda 2.8× más rápida con top-5 idéntico (2 000 docs).
+- SOP: `architecture/astraura-158-ola5-orquestacion.md`. Puertas: tsc 0 · vitest 125/125 (build por CI).

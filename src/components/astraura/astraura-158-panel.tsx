@@ -26,7 +26,7 @@ import dynamic from "next/dynamic";
 import {
   Binary, Cpu, Cloud, HardDrive, RefreshCw, Loader2, CheckCircle2, XCircle, Sparkles, Bot,
   Brain, Wand2, Download, ExternalLink, Radio, Link2, AlertTriangle, Users, Network, Activity, Bell, Eye, FolderKanban, Mic, Database,
-  MessageSquare, Globe, HardDriveDownload, BookOpen, Gauge, TerminalSquare, SlidersHorizontal,
+  MessageSquare, Globe, HardDriveDownload, BookOpen, Gauge, TerminalSquare, SlidersHorizontal, Workflow, KeyRound,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -60,6 +60,9 @@ const BibliotecaTab = dynamic(() => import("@/components/astraura/s158/bibliotec
 const TelemetriaTab = dynamic(() => import("@/components/astraura/s158/telemetria-tab"), { ssr: false, loading: tabLoading });
 const TerminalTab = dynamic(() => import("@/components/astraura/s158/terminal-tab"), { ssr: false, loading: tabLoading });
 const ConfiguracionTab = dynamic(() => import("@/components/astraura/s158/configuracion-tab"), { ssr: false, loading: tabLoading });
+// (Ola 5 · Adenda 157) Centro de orquestación autónoma y sala de gobierno de permisos.
+const OrquestacionTab = dynamic(() => import("@/components/astraura/s158/orquestacion-tab"), { ssr: false, loading: tabLoading });
+const PermisosTab = dynamic(() => import("@/components/astraura/s158/permisos-tab"), { ssr: false, loading: tabLoading });
 import { PrimaryChoiceEditor } from "@/components/astraura/primary-choice-editor";
 import { readRouteLog, type RouteRecord } from "@/ai/astraura/router";
 
@@ -69,6 +72,8 @@ const TABS: { id: Tab; label: string; icon: typeof Sparkles; badge?: keyof Astra
   { id: "resumen", label: "Resumen", icon: Activity },
   { id: "personalidades", label: "Personalidades", icon: Sparkles },
   { id: "agentes", label: "Agentes", icon: Bot, badge: "running" },
+  { id: "orquestacion", label: "Orquestación", icon: Workflow, badge: "running" },
+  { id: "permisos", label: "Permisos y accesos", icon: KeyRound, badge: "pending" },
   { id: "imaginacion", label: "Imaginación", icon: Wand2, badge: "pending" },
   { id: "notificaciones", label: "Notificaciones", icon: Bell, badge: "unread" },
   { id: "cerebros", label: "Cerebros", icon: Brain },
@@ -101,13 +106,15 @@ export function s158TabFromParam(raw: string | null | undefined): Tab {
     storage: "almacenamiento", almacen: "almacenamiento",
     projects: "proyectos", creaciones: "proyectos", workflows: "proyectos",
     voice: "voz", brains: "cerebros", memory: "memoria", skills: "habilidades", install: "instalacion", summary: "resumen", procesos: "resumen",
-    chat: "chat", multiagente: "chat", voz2: "voz",
+    multiagente: "chat", voz2: "voz",
     browser: "navegador", web: "navegador", navegador: "navegador",
     device: "dispositivo", explorador: "dispositivo", archivos: "dispositivo",
     library: "biblioteca", biblioteca: "biblioteca",
-    telemetry: "telemetria", telemetria: "telemetria", metricas: "telemetria",
-    terminal: "terminal", sandbox: "terminal", consola: "terminal",
+    telemetry: "telemetria", metricas: "telemetria",
+    sandbox: "terminal", consola: "terminal",
     config: "configuracion", ajustes: "configuracion", preferencias: "configuracion",
+    orchestration: "orquestacion", orquesta: "orquestacion", metis: "orquestacion", "segundo-plano": "orquestacion",
+    permissions: "permisos", accesos: "permisos", aprobaciones: "permisos", gobernanza: "permisos", autorizaciones: "permisos",
   };
   if (TAB_IDS.has(v)) return v as Tab;
   return alias[v] ?? "resumen";
@@ -473,6 +480,10 @@ function Astraura158PanelInner({ className }: { className?: string }) {
         {tab === "telemetria" && <div className="mt-3"><TelemetriaTab target={target} manifest={manifest} refresh={refreshAll} /></div>}
         {tab === "terminal" && <div className="mt-3"><TerminalTab target={target} manifest={manifest} refresh={refreshAll} /></div>}
         {tab === "configuracion" && <div className="mt-3"><ConfiguracionTab target={target} manifest={manifest} refresh={refreshAll} /></div>}
+
+        {/* (Ola 5) Orquestación autónoma del enjambre y gobierno de permisos/accesos */}
+        {tab === "orquestacion" && <div className="mt-3"><OrquestacionTab target={target} manifest={manifest} refresh={refreshAll} /></div>}
+        {tab === "permisos" && <div className="mt-3"><PermisosTab target={target} manifest={manifest} refresh={refreshAll} /></div>}
 
         {/* Habilidades */}
         {tab === "habilidades" && (

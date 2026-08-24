@@ -64,6 +64,8 @@ export function TelemetriaTab({ target }: S158TabProps) {
   const s = status.data;
   const engine = describeAstraura158Engine(s);
   const eng = s?.engine;
+  // (Adenda 157) Pila de cuantización publicada por el backend soberano.
+  const qstack = eng?.quantization_stack;
 
   const cognition = useMemo(() => (procs.data ?? []).find((p) => p.id === "cognition"), [procs.data]);
   const cogCounters = cognition?.counters;
@@ -136,7 +138,45 @@ export function TelemetriaTab({ target }: S158TabProps) {
       {/* Memoria + Hardware */}
       <div className="grid gap-3 lg:grid-cols-2">
         <div className={cn(CARD, "p-3")}>
-          <SectionTitle icon={Database} title="Resumen de memoria" tone="text-emerald-300" />
+          {/* (Ola 5 · Adenda 157) Pila de cuantización: pesos del modelo y memoria. */}
+        {qstack && (
+          <div className={cn(CARD, "p-3")}>
+            <SectionTitle icon={Cpu} title="Pila de cuantización" tone="text-fuchsia-300"
+              hint="Qué motor ternario sirve los PESOS en esta neurona y cómo está comprimido el ÍNDICE de memoria. Fuente: `/api/status` → engine.quantization_stack." />
+            <div className="mt-2 space-y-1.5">
+              {(qstack.pesos?.motores ?? []).map((m, i) => (
+                <div key={m.id ?? i} className={cn(SUB, "px-3 py-2")}>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="min-w-0 flex-1 truncate text-[12px] font-medium text-white/90">{m.nombre ?? m.id}</span>
+                    <Badge tone={m.activo ? "border-emerald-400/30 text-emerald-200" : m.disponible ? "border-cyan-400/30 text-cyan-200" : "border-white/10 text-white/50"}>
+                      {m.activo ? "activo" : m.disponible ? "disponible" : "no aplicable"}
+                    </Badge>
+                  </div>
+                  {m.cuantizacion && <p className={MONO}>{m.cuantizacion}</p>}
+                  {m.detalle && <p className="mt-0.5 text-[10px] leading-snug text-white/60">{m.detalle}</p>}
+                  {m.url && <a className="text-[10px] text-cyan-300/80 underline-offset-2 hover:underline" href={m.url} target="_blank" rel="noopener noreferrer">código del acelerador</a>}
+                </div>
+              ))}
+              {qstack.pesos?.maquina && <p className={MONO}>máquina: {qstack.pesos.maquina}</p>}
+            </div>
+            {qstack.memoria && (
+              <div className="mt-2 border-t border-white/10 pt-2">
+                <p className="text-[11px] font-medium text-white/85">Índice de memoria comprimido ({qstack.memoria.codec ?? "—"})</p>
+                <div className="mt-1.5 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                  <Stat label="Estado" value={qstack.memoria.activo ? "activo" : qstack.memoria.disponible ? "en espera" : "no disponible"}
+                    hint={typeof qstack.memoria.minimo_para_activarse === "number" ? `se activa desde ${qstack.memoria.minimo_para_activarse} documentos` : undefined} />
+                  <Stat label="Precisión" value={`${qstack.memoria.bits ?? "?"} bits`} hint={qstack.memoria.dim ? `dimensión ${qstack.memoria.dim}` : undefined} />
+                  <Stat label="Compresión" value={typeof qstack.memoria.ratio_compresion === "number" ? `${qstack.memoria.ratio_compresion.toFixed(1)}×` : "—"}
+                    hint={typeof qstack.memoria.coseno_medio === "number" ? `coseno medio ${qstack.memoria.coseno_medio.toFixed(4)}` : undefined} />
+                  <Stat label="Documentos" value={qstack.memoria.documentos ?? 0} hint={`${qstack.memoria.indexados ?? 0} indexados`} />
+                </div>
+                {qstack.memoria.nota && <p className="mt-1 text-[10px] leading-snug text-white/50">{qstack.memoria.nota}</p>}
+              </div>
+            )}
+          </div>
+        )}
+
+        <SectionTitle icon={Database} title="Resumen de memoria" tone="text-emerald-300" />
           {!s?.memory_summary && <Empty loading={status.loading} error={status.error} text="Sin resumen de memoria." />}
           {s?.memory_summary && (
             <div className="mt-2 grid grid-cols-2 gap-2">

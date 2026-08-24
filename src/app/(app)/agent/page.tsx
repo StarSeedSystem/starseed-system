@@ -125,6 +125,10 @@ import nextDynamic from "next/dynamic";
 import { SensesPanel } from "@/components/hermes/senses-panel";
 import { McpPanel } from "@/components/hermes/mcp-panel";
 import { QuickOptionsGrid } from "@/components/hermes/quick-options-grid";
+// Presencia Astraura 1.58 (Ola 5 · Adenda 157, SOP §5): tira discreta bajo la
+// cabecera del Exocórtex — «N procesos activos · M agentes vivos · K
+// aprobaciones pendientes» — solo cuando el backend 1.58 responde.
+import { Astraura158PresenceBar } from "@/components/astraura/astraura-158-presence";
 
 const MemoryBrain3D = nextDynamic(() => import("@/components/exocortex/memory-brain-3d").then(m => m.MemoryBrain3D), { ssr: false });
 const CanvasBoard = nextDynamic(() => import("@/components/canvas/canvas-board"), { ssr: false });
@@ -943,6 +947,11 @@ function AgentPageInner() {
           </Button>
         </div>
       </div>
+
+      {/* Presencia Astraura 1.58 (Ola 5 · Adenda 157, SOP §5): línea discreta
+          bajo la cabecera de la sección — no es una notificación, no se
+          superpone a nada, y no pinta nada si el backend 1.58 no responde. */}
+      <Astraura158PresenceBar />
 
       {/* --- Vínculo Astraura ↔ Aurora ↔ Exocórtex (mismo cerebro/contexto) --- */}
       <button

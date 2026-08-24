@@ -44,6 +44,9 @@ import {
   disableMicAnalyserForSession,
   type MicAnalyser,
 } from "@/lib/aurora/aurora-orb-bus";
+// Presencia Astraura 1.58 (Ola 5 · Adenda 157, SOP §5): punto/número discreto
+// en una esquina de la orbe — ver el comentario junto a su uso más abajo.
+import { Astraura158PresenceDot } from "@/components/astraura/astraura-158-presence";
 // SOBERANÍA VISIBLE (Adenda 149 · ola 3): el orbe se tiñe con la CLASE DE
 // ACCESO de la fuente que respondió de verdad. `router.ts` ya vive en el chunk
 // global (lo importa `aurora-provider`) y `model-preferences` es autocontenido,
@@ -485,6 +488,7 @@ export function AuroraOrb({
   }, [coreSize]);
 
   return (
+    <>
     <div
       ref={rootRef}
       aria-hidden
@@ -567,6 +571,20 @@ export function AuroraOrb({
         <circle cx="12" cy="12" r="1.4" fill="#FFFFFF" />
       </svg>
     </div>
+
+      {/* Presencia Astraura 1.58 (Ola 5 · Adenda 157, SOP §5): HERMANA del
+          núcleo visual de arriba (que es aria-hidden), no descendiente — así
+          conserva su propio nombre accesible y foco de teclado. Comparte el
+          mismo contenedor `position:relative` de tamaño `size` que el
+          caller ya provee para `.root` (ver la nota de `aurora-avatar.tsx`
+          sobre por qué hace falta ese contenedor), así que se ancla en una
+          esquina de la orbe sin tocar la estructura existente. En el widget
+          flotante la orbe vive dentro de un <button> real (arrastrable):
+          el propio componente detiene la propagación de sus punteros/clic
+          para no disparar ese arrastre ni el menú Trinity. No pinta nada si
+          el backend 1.58 no responde (cero ruido). */}
+      <Astraura158PresenceDot />
+    </>
   );
 }
 

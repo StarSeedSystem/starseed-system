@@ -44,6 +44,13 @@ const GET_TIMEOUT_MS = 12_000;
 const CHAT_TIMEOUT_MS = 110_000;
 
 const GET_ALLOW: RegExp[] = [
+  // (Ola 5 · Adenda 157) Ventanas por entidad y orquestación: SOLO lecturas.
+  /^\/api\/agents\/[\w.-]+$/,
+  /^\/api\/ecosystem\/agents\/[\w.-]+$/,
+  /^\/api\/agents_api\/[\w.-]+\/api_status$/,
+  /^\/api\/personalities\/[\w.-]+\/api_status$/,
+  /^\/api\/cerebros\/[\w.-]+\/synaptic_tree$/,
+  /^\/api\/cerebros\/context_metrics$/,
   /^\/api\/status$/,
   /^\/api\/bitnet\/status$/,
   /^\/api\/starseed\/(manifest|health)$/,
@@ -95,6 +102,14 @@ const GET_ALLOW: RegExp[] = [
 ];
 
 const POST_ALLOW: RegExp[] = [
+  // (Ola 5 · Adenda 157) Gobernanza: concurrencia del enjambre, permisos de agentes,
+  // personalidades y cerebros, control de procesos de cerebro y auto-enlace sináptico.
+  /^\/api\/swarm\/agent\/concurrency$/,
+  /^\/api\/agents_api\/[\w.-]+\/update_permissions$/,
+  /^\/api\/personalities\/[\w.-]+\/update_permissions$/,
+  /^\/api\/cerebros\/process\/control$/,
+  /^\/api\/cerebros\/neuron\/permissions$/,
+  /^\/api\/cerebros\/auto_link_synapses$/,
   /^\/api\/chat$/,
   /^\/api\/chat\/stream$/,
   /^\/api\/starseed\/chat$/,
