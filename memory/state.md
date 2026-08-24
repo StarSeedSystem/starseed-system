@@ -3771,3 +3771,19 @@ verificación en vivo: `https://starseed-os.vercel.app/api/ai/astraura-158/api/s
   Opciones: aliviar el enjambre en 2º plano / la imaginación Always-On (para eso existe la «Reserva de Chat»
   del gobernador de troncos), cerrar pestañas de Chrome, o instalar el GGUF i2_s de BitNet nativo —
   `models_available` está **vacío**, así que el motor 1.58 real nunca se ha llegado a usar.
+
+## 2026-08-24 — Adenda 163: por qué el original se sentía mejor, y las cuatro piezas que lo devuelven
+- **Diagnóstico (leyendo el original, no suponiendo)**. Alex comparó: «las respuestas eran inmediatas, la voz acompañaba el mensaje en tiempo real, tonos cambiantes para varias personalidades dentro de una misma respuesta… la voz actual se separa». Las causas, con evidencia:
+  1. **La voz llegaba tarde por diseño.** El OS llamaba a `speakAuroraReply(acc)` en `chat-surface.tsx:341` **cuando el streaming ya había terminado**, con el texto completo y UNA sola voz. El original alimentaba su motor **token a token** (`omniVoice.feedStreamToken`) y hablaba **por cláusulas mientras generaba**: final de frase, o coma/dos puntos con ≥6 palabras, o tope de 14. Eso es exactamente «la voz acompaña al mensaje».
+  2. **Multi-personalidad**: en el original NO hay evento estructurado (`multi_personality_start` no existe: 0 coincidencias). Es **textual** — el backend escribe cabeceras `### 💬 [Hephaestus]:` y el cliente las detecta por regex a mitad del stream para cambiar de voz. El OS no las detectaba.
+  3. **Transporte**: el original usa **WebSocket** `/ws/chat` persistente (`ChatWebSocketClient`, `api.js:1561`); el OS abre un POST+SSE por turno. El WS da menor time-to-first-token, aunque la lentitud real de estos días era la contención de CPU y los kernels rotos, ya resueltos.
+  4. **Controles por mensaje**: el original tenía regenerar y bifurcar; el OS solo «regenerar voz».
+- **Corregido un bug del original, no copiado**: su `feedStreamToken` **no quitaba la cabecera** antes de hablar, así que leía en voz alta el nombre de la personalidad. Y su «regenerar» reenviaba **sin las preferencias** del turno, perdiendo personalidades y modo. Aquí ninguna de las dos cosas.
+- **Lo construido**:
+  - `src/lib/aurora/streaming-voice.ts` (+17 tests): trocea el stream en cláusulas, detecta cabeceras de personalidad, **elimina la cabecera del habla**, cambia de voz a mitad de respuesta y silencia bloques de código. Puro, sin `window`, testeable en Node.
+  - `chat-surface.tsx`: la voz pasa a ir **en vivo** (`voice.feed` en cada token, `flush` al cerrar, `stop` al abortar); se retira la llamada final a `speakAuroraReply`.
+  - `chat-message-actions.tsx`: **Regenerar** (conservando las preferencias del turno) y **Bifurcar en un chat nuevo** (historial hasta ese mensaje, con timestamps nuevos para no colisionar con el upsert `ignoreDuplicates` de la nube).
+  - `chat-personality-tray.tsx`: bandeja colapsable de **personalidades activas** + modo `single`/`multi_dialogue`/`coral_synthesis`, recordada por conversación.
+  - `quantum-orb-live-talk.tsx`: **charla en directo** desde la orbe — ciclo manos libres reutilizando el reconocedor y el medio-dúplex anti-eco que el OS ya tenía (`markTtsSpeaking`, `pausedForTts`), con estado honesto (sin micrófono / permiso denegado / sin proveedor) y la orbe reaccionando por su bus.
+- Puertas: tsc 0 · vitest **143/143** · mesh 178/0.
+- **Pendiente (la ola siguiente, tal como la pidió Alex)**: sincronizar el almacenamiento local del dispositivo con la memoria 1.58 para que cada respuesta use todas las memorias — el endpoint `/api/system/index_path` ya existe y funciona (adenda 160), falta el barrido automático y la inyección de fragmentos en cada turno; y el transporte WebSocket para el chat.

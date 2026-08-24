@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Sparkles, X, Play, Pause, SkipForward, SkipBack, Square, Wand2,
   MessageSquare, EyeOff, Trash2, MicOff, Mic, Layout, LayoutGrid, Settings2,
+  AudioLines,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAurora } from "./aurora-provider";
@@ -12,6 +13,7 @@ import { voiceModeChipLabel } from "@/lib/aurora/capabilities";
 import { usePerimeter, type PerimeterEdge } from "@/context/perimeter-context";
 import { AURORA_TRINITY_FLAG, AURORA_TRINITY_EVENT } from "@/components/layout/trinity-fab";
 import { AuroraOrb } from "./aurora-orb";
+import { QuantumOrbLiveTalk } from "./quantum-orb-live-talk";
 import {
   AuroraMiniPlayer,
   type AuroraMiniPlayerAnchor,
@@ -175,6 +177,8 @@ export function AuroraWidget() {
   const [open, setOpen] = useState(false);
   // Menú Trinity CENTRADO en pantalla.
   const [trinityOpen, setTrinityOpen] = useState(false);
+  // Panel de charla en directo (manos libres) de la orbe cuántica.
+  const [liveTalkOpen, setLiveTalkOpen] = useState(false);
   // Opción cardinal resaltada durante el deslizar-para-abrir.
   const [aimDir, setAimDir] = useState<Cardinal | null>(null);
   // Distancia del centro a cada opción (se calcula al abrir, por viewport).
@@ -832,7 +836,7 @@ export function AuroraWidget() {
           orbe): transporte ampliado, historial deslizable, iluminación
           reactiva, chip de ruta y texto proactivo. Restaurado (Adenda 70):
           el agente previo lo había quitado del árbol dejando solo el popover. */}
-      {!trinityOpen && !open && miniPlayerActive && (
+      {!trinityOpen && !open && !liveTalkOpen && miniPlayerActive && (
         <AuroraMiniPlayer
           anchor={miniAnchor}
           active={miniPlayerActive}
@@ -843,13 +847,22 @@ export function AuroraWidget() {
         />
       )}
 
+      {/* Charla en directo (manos libres) de la orbe cuántica — superficie
+          propia; cierra el mini-reproductor/popover mientras está abierta (una
+          sola superficie conversacional a la vez, como el resto del orbe). */}
+      <AnimatePresence>
+        {liveTalkOpen && (
+          <QuantumOrbLiveTalk key="quantum-orb-live-talk" onClose={() => setLiveTalkOpen(false)} />
+        )}
+      </AnimatePresence>
+
       {/* ══════════════════════════════════════════════════════════════════
           MINI-POPOVER anclado al orbe: estado + transporte + últimas 2 líneas
           + «Abrir chat en Exocórtex» / «Ocultar orbe». El chat completo vive
           en el Exocórtex (Zenith).
       ══════════════════════════════════════════════════════════════════ */}
       <AnimatePresence>
-        {open && !trinityOpen && !fullChatOpen && (
+        {open && !trinityOpen && !fullChatOpen && !liveTalkOpen && (
           <motion.div
             initial={{ opacity: 0, y: openUp ? 10 : -10, scale: 0.9 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -961,6 +974,15 @@ export function AuroraWidget() {
                   )}
                 </div>
               )}
+
+              {/* Charla en directo: conversación continua manos libres. */}
+              <button
+                onClick={() => { setOpen(false); dismissMini(); setLiveTalkOpen(true); }}
+                className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-fuchsia-400/30 bg-gradient-to-r from-fuchsia-500/15 to-cyan-500/15 px-2.5 py-1.5 text-[11px] font-medium text-fuchsia-100 transition hover:from-fuchsia-500/25 hover:to-cyan-500/25 cursor-pointer"
+                title="Conversación continua manos libres con Aurora: escucha, responde y vuelve a escuchar sola"
+              >
+                <AudioLines className="w-3.5 h-3.5" /> Charla en directo
+              </button>
 
               {/* Acciones */}
               <div className="flex items-center gap-2">

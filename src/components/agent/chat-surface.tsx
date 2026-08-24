@@ -41,7 +41,7 @@ import { MessageRenderer } from "@/components/aurora/message-renderer";
 import { MessageActionBar } from "@/components/aurora/message-action-bar";
 import { MessageProcessModal } from "@/components/aurora/message-process-modal";
 import { VoiceNoteBar } from "@/components/aurora/voice-note-bar";
-import { registerActiveAuroraChat } from "@/lib/aurora/personalities";
+import { registerActiveAuroraChat, listPersonalityProfiles, getPersonalityProfile } from "@/lib/aurora/personalities";
 import { initVoiceNotesCapture } from "@/lib/aurora/voice-notes";
 import { useAurora } from "@/components/aurora/aurora-provider";
 import { ChatHeaderOptions } from "@/components/aurora/chat-header-options";
@@ -50,6 +50,13 @@ import { ChatVoiceButtons } from "@/components/aurora/chat-voice-buttons";
 import { ConfigChangeNotice, isConfigChangeMessage } from "@/components/aurora/config-change-notice";
 import { ChatNeuralSidebar } from "@/components/agent/chat-neural-sidebar";
 import { ChatNavPanel } from "@/components/agent/chat-nav-panel";
+import { ChatMessageActions } from "@/components/agent/chat-message-actions";
+import {
+  ChatPersonalityTray,
+  readAstraura158Selection,
+  astraura158MentionHint,
+  type Astraura158Selection,
+} from "@/components/agent/chat-personality-tray";
 
 import {
   useAiConversations,
@@ -61,13 +68,16 @@ import {
 } from "@/lib/aurora/conversations";
 import { astrauraChat, type RouteRecord } from "@/ai/astraura/router";
 import { ProcessLine } from "@/components/aurora/process-line";
-import { composeAuroraSystem, speakAuroraReply, resolveTurnPersona } from "@/lib/aurora/turn";
+import { composeAuroraSystem, getChatConfig, resolveTurnPersona } from "@/lib/aurora/turn";
+import { patchChatConfig } from "@/lib/aurora/config-change";
 import { buildAttachmentsContext, summarizeAttachments, type UniversalAttachment } from "@/lib/aurora/attachments";
 import type { AuroraMessageMeta } from "@/lib/aurora/engine";
 import { parseDirectives } from "@/lib/aurora/actions";
 import { loadConfigs, getActiveProviderId } from "@/ai/client/providerStore";
 import { PROVIDERS } from "@/ai/providers";
 import type { ProviderConfig, ChatMessage } from "@/ai/providers/types";
+import { persona158For } from "@/ai/providers/astraura-158";
+import { createStreamingVoice, type StreamingVoicePersona } from "@/lib/aurora/streaming-voice";
 import { buildSystemContext, snapshotToSystemPrompt } from "@/hermes-integration/system-context";
 import { getLivingGraphStore } from "@/hermes-integration/living-graph-store";
 import { getOpenHumanEngine } from "@/hermes-integration/openhuman-bridge";
@@ -116,6 +126,92 @@ function metaFromRoute(
     difficulty: route.difficulty,
     route,
   };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// VOZ EN VIVO (Tarea 1) — helpers PUROS, sin estado de React, reutilizables
+// tanto por un envío nuevo como por «Regenerar».
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Normaliza un nombre de personalidad para comparar de forma tolerante: sin
+ * tildes, sin mayúsculas, y sólo el nombre corto antes del paréntesis (p.ej.
+ * "Aurora (Alma Viva)" compara como "aurora", igual que la cabecera
+ * `### 🌸 Aurora (Alma Viva):` que puede traer el streaming).
+ */
+function foldPersonaName(raw: string): string {
+  return raw
+    .split("(")[0]
+    // Diacríticos (tildes) sueltos tras NFD — referenciados por escape Unicode
+    // (no como caracteres sueltos) para no dejar un combining character
+    // ilegible en el código, mismo criterio que `streaming-voice.ts`.
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+}
+
+/**
+ * `resolvePersona` de `createStreamingVoice`: resuelve el nombre de una
+ * cabecera detectada a mitad de respuesta (`### 💬 [Nombre]:`) contra las
+ * personalidades REALES del OS (`listPersonalityProfiles()`) — no contra el
+ * catálogo del backend 1.58: son dos rosters distintos, y sólo el del OS
+ * tiene voz configurada. Sin match ⇒ null: la cabecera se trata como texto
+ * normal (no corta la voz esperando un cambio que no va a llegar).
+ */
+function resolveStreamingPersona(name: string): StreamingVoicePersona | null {
+  const target = foldPersonaName(name);
+  if (!target) return null;
+  const hit = listPersonalityProfiles().find((p) => foldPersonaName(p.name) === target);
+  return hit ? { id: hit.id, name: hit.name } : null;
+}
+
+/**
+ * ¿Debe sonar la voz de este chat? Misma lógica que usaba `speakAuroraReply`
+ * (retirada de aquí — ver el porqué en `runAssistantTurn`): si el chat
+ * desactivó la voz a mano gana esa preferencia; si no dijo nada, suena sólo
+ * si la personalidad efectiva del turno tiene voz configurada.
+ */
+function computeVoiceEnabled(convId: string | null | undefined): boolean {
+  const cfg = getChatConfig(convId);
+  if (cfg.voice === false) return false;
+  if (cfg.voice === true) return true;
+  const persona = resolveTurnPersona({ convId, route: "/agent" });
+  return !!persona?.hasVoice;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PREFERENCIAS 1.58 (Tarea 3) — inyección en la petición + snapshot por turno
+// (Tarea 2: lo que «Regenerar» necesita para conservarlas).
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Añade la selección de la bandeja de personalidades al ÚLTIMO turno de
+ * usuario como menciones `@id` (+ "coral" en síntesis coral): es el ÚNICO
+ * canal que de verdad llega hasta `preferences.selected_personalities` /
+ * `multi_personality_mode` en el proveedor 1.58 (`detectMentions158`,
+ * `astraura-158.ts`) sin tocar ese fichero. Pura: devuelve un array nuevo: no
+ * muta `messages` ni lo que ya se guardó/mostró (sólo lo que se ENVÍA).
+ */
+function withAstraura158Hint(messages: ChatMessage[], sel: Astraura158Selection | null): ChatMessage[] {
+  const hint = astraura158MentionHint(sel);
+  if (!hint) return messages;
+  let lastUserIdx = -1;
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i].role === "user") {
+      lastUserIdx = i;
+      break;
+    }
+  }
+  if (lastUserIdx === -1) return messages;
+  const next = messages.slice();
+  next[lastUserIdx] = { ...next[lastUserIdx], content: `${next[lastUserIdx].content}\n\n${hint}` };
+  return next;
+}
+
+/** Lee, sin `any`, el snapshot 1.58 guardado en `meta.astr158Turn` de un mensaje. */
+function turnSelectionFromMeta(meta: AuroraMessageMeta | null | undefined): Astraura158Selection | null {
+  return (meta as (AuroraMessageMeta & { astr158Turn?: Astraura158Selection }) | null | undefined)?.astr158Turn ?? null;
 }
 
 interface AgentRenderMsg {
@@ -217,6 +313,197 @@ export function ChatSurface({ variant = "embedded", className, initialConvId }: 
     }
   }, [conv.activeId, conv.conversations]);
 
+  // Personalidad 1.58 que se usaría HOY sin tocar la bandeja de la Tarea 3
+  // (deriva de `activePersona`, igual que hace el router internamente). Es lo
+  // que la bandeja muestra activo mientras el usuario no eligió nada explícito.
+  const astr158DefaultPersonaId = useMemo(() => {
+    try {
+      return persona158For(activePersona);
+    } catch {
+      return "astraura_prime";
+    }
+  }, [activePersona]);
+
+  /**
+   * System prompt COMPLETO de un turno (agente + reglas + adjuntos + snapshot
+   * del sistema + grafo vivo + calendario + extras del orbe). Compartido por
+   * un envío nuevo y por «Regenerar» (mismas piezas; distinto historial).
+   */
+  async function buildSystemPieces(atts: UniversalAttachment[]): Promise<string[]> {
+    const systemPieces: string[] = [DEFAULT_AGENT.systemPrompt];
+    DEFAULT_RULES.forEach((r) => systemPieces.push(`Regla "${r.name}": ${r.content}`));
+
+    if (atts.length) {
+      try {
+        const ac = await buildAttachmentsContext(atts);
+        if (ac) systemPieces.push(ac);
+      } catch { /* sin contexto: responde igual */ }
+    }
+
+    try {
+      const upcomingEvents = calendar.items
+        .filter((it) => eventDateTimeMs(it) >= Date.now())
+        .sort((a, b) => eventDateTimeMs(a) - eventDateTimeMs(b))
+        .slice(0, 10)
+        .map((it) => `[${it.date}${it.time ? " " + it.time : ""}] (${it.layer}) ${it.title}`);
+      const snapshot = buildSystemContext({ upcomingEvents });
+      systemPieces.push(snapshotToSystemPrompt(snapshot));
+      systemPieces.push(getLivingGraphStore().textualSummary());
+      systemPieces.push(calendar.aiContextSnapshot());
+      try {
+        const extras = await composeAuroraSystem({
+          route: typeof window !== "undefined" ? window.location.pathname : "/agent",
+        });
+        if (extras) systemPieces.push(extras);
+      } catch { /* defensivo */ }
+    } catch (e) {
+      console.warn("[ChatSurface] No se pudo construir contexto completo:", e);
+    }
+    return systemPieces;
+  }
+
+  /**
+   * `speak` de `createStreamingVoice`: resuelve el id de personalidad (si lo
+   * hay) a su ficha completa y delega en el puente de Aurora — el MISMO
+   * `aurora.speak(text, forcePersonality)` que ya usa `MessageActionBar`
+   * ("leer con esta personalidad") y que acepta personalidad de sobra
+   * (aurora-provider.tsx ~línea 617).
+   */
+  function speakStreamingClause(text: string, personaId?: string) {
+    const profile = personaId ? getPersonalityProfile(personaId) : null;
+    try {
+      aurora?.speak?.(text, profile ?? undefined);
+    } catch {
+      /* la voz nunca debe romper el turno */
+    }
+  }
+
+  /**
+   * Núcleo COMPARTIDO de generación de una respuesta de Astraura: llama al
+   * proveedor activo con streaming, alimenta la VOZ EN VIVO cláusula a
+   * cláusula y persiste el resultado. Lo usan tanto un envío nuevo
+   * (`handleSend`) como «Regenerar» (`handleRegenerate`) — mismo núcleo,
+   * distinto historial de entrada — para que ambos se comporten igual.
+   */
+  async function runAssistantTurn(
+    convId: string,
+    messagesForModel: ChatMessage[],
+    turnSel: Astraura158Selection | null,
+  ) {
+    const provider = activeProviderConfig;
+    if (!provider) return; // defensivo: los llamantes ya lo comprueban antes de invocar esto
+
+    // La bandeja de personalidades (Tarea 3) sólo tiene efecto con el
+    // proveedor Astraura 1.58-bit activo: con cualquier otro se ignora sin
+    // más (ni se inyecta la mención ni se guarda el snapshot del turno).
+    const effectiveSel = provider.id === "astraura-158" ? turnSel : null;
+    const messagesToSend = withAstraura158Hint(messagesForModel, effectiveSel);
+
+    abortRef.current = new AbortController();
+    setStreaming(true);
+    setStreamText("");
+    let acc = "";
+    const startedAt = Date.now();
+
+    // VOZ EN VIVO: antes `speakAuroraReply(acc, …)` se llamaba DESPUÉS de que
+    // el streaming terminara — el mensaje aparecía entero y la voz arrancaba
+    // a leerlo de un tirón («la voz se separa» del texto, el síntoma que
+    // reportó el usuario). Ahora el motor recibe cada token EN VIVO
+    // (`voice.feed` dentro de `onChunk`, abajo) y habla cláusula a cláusula
+    // mientras Astraura sigue escribiendo, cambiando de personalidad al vuelo
+    // si el texto trae una cabecera de diálogo/coral (`### 💬 [Nombre]:`) a
+    // mitad de respuesta — igual que hacía el programa original.
+    const voice = createStreamingVoice({
+      speak: speakStreamingClause,
+      resolvePersona: resolveStreamingPersona,
+      enabled: computeVoiceEnabled(convId),
+    });
+
+    try {
+      // El retorno de `astrauraChat` trae la RUTA REAL elegida por el router
+      // (Adenda 149 · ola 3): antes se descartaba y el chip de proceso decía
+      // siempre el proveedor configurado, respondiera quien respondiera.
+      const res = await astrauraChat({
+        chatId: convId,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        chatConfig: (conv.conversations.find((c) => c.id === convId)?.meta as any)?.config,
+        messages: messagesToSend,
+        temperature: DEFAULT_AGENT.temperature,
+        signal: abortRef.current.signal,
+        onChunk: (delta) => {
+          const match = delta.match(/\[\[(.*?)\]\]/);
+          if (!match) setStreamText((prev) => prev + delta);
+          acc += delta;
+          // Alimenta la voz TOKEN A TOKEN: habla en cuanto se cierra una
+          // cláusula hablable, sin esperar a que termine el mensaje completo.
+          voice.feed(delta);
+        },
+      });
+
+      // Vacía lo que quedó pendiente en el buffer (la última cláusula, que no
+      // cerró con puntuación antes de que el stream terminara).
+      voice.flush();
+
+      const directives = parseDirectives(acc);
+      if (directives.length > 0 && aurora) {
+        await aurora.runDirectives(acc);
+      }
+      if (acc.trim()) {
+        const meta = metaFromRoute(res?.route, provider, Date.now() - startedAt);
+        // Snapshot de las preferencias 1.58 de ESTE turno (Tareas 2+3): así
+        // «Regenerar» puede reproducir EXACTAMENTE esta selección más
+        // adelante aunque la bandeja, para entonces, ya haya cambiado — el
+        // bug del original era justo el contrario (regenerar la perdía).
+        const metaToSave: AuroraMessageMeta & { astr158Turn?: Astraura158Selection } = {
+          ...meta,
+          ...(effectiveSel ? { astr158Turn: effectiveSel } : {}),
+        };
+        await appendUnifiedMessage({
+          role: "assistant",
+          text: acc,
+          convId,
+          kind: "aurora",
+          surface: "agent",
+          source: meta.provider ?? provider.label,
+          meta: metaToSave,
+        });
+        // NOTA: aquí YA NO se llama a `speakAuroraReply(acc, …)`. La voz ya
+        // sonó EN VIVO arriba (`voice.feed`/`voice.flush`); volver a leer el
+        // texto completo ahora la duplicaría (y volvería a "separarse").
+      }
+    } catch (err) {
+      // Se detuvo a mitad (botón «Detener») o falló: no se lee en voz alta un
+      // mensaje roto o incompleto — se descarta lo que quedó en el buffer.
+      voice.stop();
+      const msg = (err as Error).message;
+      if (acc.trim()) {
+        await appendUnifiedMessage({
+          role: "assistant",
+          text: `${acc}\n\n⚠ ${msg}`,
+          convId,
+          kind: "aurora",
+          surface: "agent",
+          source: provider.label,
+          meta: { provider: provider.label, model: provider.defaultModel },
+        });
+      } else {
+        await appendUnifiedMessage({
+          role: "assistant",
+          text: `⚠ ${msg}`,
+          convId,
+          kind: "aurora",
+          surface: "agent",
+          meta: { local: true, provider: "Astraura (error)" },
+        });
+      }
+      toast.error(`Error: ${msg}`);
+    } finally {
+      setStreaming(false);
+      setStreamText("");
+      abortRef.current = null;
+    }
+  }
+
   async function handleSend(override?: string) {
     const typed = (override ?? inputValue).trim();
     const atts = pendingAttachments;
@@ -258,36 +545,10 @@ export function ChatSurface({ variant = "embedded", className, initialConvId }: 
       return;
     }
 
-    const systemPieces: string[] = [DEFAULT_AGENT.systemPrompt];
-    DEFAULT_RULES.forEach((r) => systemPieces.push(`Regla "${r.name}": ${r.content}`));
-
-    if (atts.length) {
-      try {
-        const ac = await buildAttachmentsContext(atts);
-        if (ac) systemPieces.push(ac);
-      } catch { /* sin contexto: responde igual */ }
-    }
-
+    const systemPieces = await buildSystemPieces(atts);
     try {
-      const upcomingEvents = calendar.items
-        .filter((it) => eventDateTimeMs(it) >= Date.now())
-        .sort((a, b) => eventDateTimeMs(a) - eventDateTimeMs(b))
-        .slice(0, 10)
-        .map((it) => `[${it.date}${it.time ? " " + it.time : ""}] (${it.layer}) ${it.title}`);
-      const snapshot = buildSystemContext({ upcomingEvents });
-      systemPieces.push(snapshotToSystemPrompt(snapshot));
-      systemPieces.push(getLivingGraphStore().textualSummary());
-      systemPieces.push(calendar.aiContextSnapshot());
-      try {
-        const extras = await composeAuroraSystem({
-          route: typeof window !== "undefined" ? window.location.pathname : "/agent",
-        });
-        if (extras) systemPieces.push(extras);
-      } catch { /* defensivo */ }
       getOpenHumanEngine().ingest(text, "chat", `chat-${Date.now()}`);
-    } catch (e) {
-      console.warn("[ChatSurface] No se pudo construir contexto completo:", e);
-    }
+    } catch { /* defensivo: la ingesta nunca debe romper el envío */ }
 
     const history: ChatMessage[] = [
       { role: "system", content: systemPieces.join("\n\n---\n\n") },
@@ -300,73 +561,102 @@ export function ChatSurface({ variant = "embedded", className, initialConvId }: 
       { role: "user", content: text },
     ];
 
-    abortRef.current = new AbortController();
-    setStreaming(true);
-    setStreamText("");
-    let acc = "";
-    const startedAt = Date.now();
+    await runAssistantTurn(convId, history, readAstraura158Selection(convId));
+  }
+
+  /**
+   * «Regenerar» (Tarea 2): vuelve a pedir la respuesta al MISMO mensaje de
+   * usuario que disparó `msg`, con el MISMO historial previo — pero
+   * conservando las preferencias 1.58 de AQUEL turno (`turnSelectionFromMeta`),
+   * no las que estén activas ahora mismo en la bandeja. El bug del original
+   * era justo el contrario: regenerar perdía la configuración del turno.
+   */
+  async function handleRegenerate(msg: AgentRenderMsg) {
+    if (streaming) return;
+    const convId = conv.activeId;
+    if (!convId) return;
+
+    // El turno de usuario que disparó ESTA respuesta: el último "user" antes
+    // de ella en su propio historial (mismo criterio que ya usa
+    // `MessageActionBar.handleRetry` para "Reintentar").
+    const upto = msg.history.slice(0, -1);
+    let userText = "";
+    let cutIdx = upto.length;
+    for (let i = upto.length - 1; i >= 0; i--) {
+      if (upto[i].role === "user") {
+        userText = upto[i].text;
+        cutIdx = i;
+        break;
+      }
+    }
+    if (!userText) {
+      toast.error("No se encontró el mensaje de usuario de este turno.");
+      return;
+    }
+    if (!activeProviderConfig) {
+      toast.error("Aún no tienes un proveedor de IA configurado.");
+      return;
+    }
+
+    toast.success("Regenerando con las preferencias de aquel turno…");
+
+    const systemPieces = await buildSystemPieces([]);
+    const messagesForModel: ChatMessage[] = [
+      { role: "system", content: systemPieces.join("\n\n---\n\n") },
+      ...upto
+        .slice(0, cutIdx)
+        .filter((h) => h.text?.trim())
+        .map<ChatMessage>((h) => ({ role: h.role === "aurora" ? "assistant" : "user", content: h.text })),
+      { role: "user", content: userText },
+    ];
+
+    await runAssistantTurn(convId, messagesForModel, turnSelectionFromMeta(msg.meta));
+  }
+
+  /**
+   * «Bifurcar en un chat nuevo» (Tarea 2): crea una conversación nueva con el
+   * historial hasta `msg` incluido (ya viene así en `msg.history`) y navega a
+   * ella. Reutiliza las funciones del OS para conversaciones — nada de
+   * almacenamiento propio.
+   */
+  async function handleBranch(msg: AgentRenderMsg) {
+    if (streaming) return;
+    const entries = msg.history.filter((h) => h.text?.trim());
+    if (!entries.length) return;
+    const sourceConvId = conv.activeId;
+
     try {
-      // El retorno de `astrauraChat` trae la RUTA REAL elegida por el router
-      // (Adenda 149 · ola 3): antes se descartaba y el chip de proceso decía
-      // siempre el proveedor configurado, respondiera quien respondiera.
-      const res = await astrauraChat({
-        chatId: convId,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        chatConfig: (conv.conversations.find((c) => c.id === convId)?.meta as any)?.config,
-        messages: history,
-        temperature: DEFAULT_AGENT.temperature,
-        signal: abortRef.current.signal,
-        onChunk: (delta) => {
-          const match = delta.match(/\[\[(.*?)\]\]/);
-          if (!match) setStreamText((prev) => prev + delta);
-          acc += delta;
-        },
+      const firstUserText = entries.find((h) => h.role === "user")?.text || msg.content;
+      const created = await conv.create({
+        title: titleFromText(firstUserText),
+        kind: "aurora",
+        surface: "agent",
       });
 
-      const directives = parseDirectives(acc);
-      if (directives.length > 0 && aurora) {
-        await aurora.runDirectives(acc);
-      }
-      if (acc.trim()) {
-        const meta = metaFromRoute(res?.route, activeProviderConfig, Date.now() - startedAt);
+      // Timestamps NUEVOS y crecientes — NO los originales: `client_id` sale
+      // de (rol, ts, texto) SIN el id de conversación (`clientIdFor` en
+      // conversations.ts); reusar el `ts` de origen generaría el MISMO
+      // client_id que el mensaje de la conversación fuente, y el upsert
+      // (`onConflict: user_id,client_id`) lo descartaría como "ya existe" —
+      // nunca llegaría a guardarse en la rama nueva.
+      const baseTs = Date.now();
+      for (let i = 0; i < entries.length; i++) {
+        const e = entries[i];
+        // eslint-disable-next-line no-await-in-loop
         await appendUnifiedMessage({
-          role: "assistant",
-          text: acc,
-          convId,
+          role: e.role === "aurora" ? "assistant" : "user",
+          text: e.text,
+          ts: baseTs + i,
+          convId: created.id,
           kind: "aurora",
           surface: "agent",
-          source: meta.provider ?? activeProviderConfig.label,
-          meta,
-        });
-        speakAuroraReply(acc, { convId });
-      }
-    } catch (err) {
-      const msg = (err as Error).message;
-      if (acc.trim()) {
-        await appendUnifiedMessage({
-          role: "assistant",
-          text: `${acc}\n\n⚠ ${msg}`,
-          convId,
-          kind: "aurora",
-          surface: "agent",
-          source: activeProviderConfig.label,
-          meta: { provider: activeProviderConfig.label, model: activeProviderConfig.defaultModel },
-        });
-      } else {
-        await appendUnifiedMessage({
-          role: "assistant",
-          text: `⚠ ${msg}`,
-          convId,
-          kind: "aurora",
-          surface: "agent",
-          meta: { local: true, provider: "Astraura (error)" },
         });
       }
-      toast.error(`Error: ${msg}`);
-    } finally {
-      setStreaming(false);
-      setStreamText("");
-      abortRef.current = null;
+      if (sourceConvId) await patchChatConfig(created.id, { branchedFrom: sourceConvId });
+
+      toast.success("Chat bifurcado: continúas esta conversación en un hilo nuevo.");
+    } catch (e) {
+      toast.error(`No se pudo bifurcar el chat: ${(e as Error).message}`);
     }
   }
 
@@ -545,6 +835,17 @@ export function ChatSurface({ variant = "embedded", className, initialConvId }: 
                       onViewProcess={(meta) => setProcess({ open: true, meta })}
                     />
                   )}
+                  {/* Regenerar / bifurcar (Tarea 2): sólo en respuestas REALES de
+                      Astraura (msg.meta descarta el placeholder de bienvenida y el
+                      streaming en curso, igual que MessageActionBar arriba). */}
+                  {!msg.pending && msg.role === "agent" && msg.meta && (
+                    <ChatMessageActions
+                      onRegenerate={() => void handleRegenerate(msg)}
+                      onBranch={() => void handleBranch(msg)}
+                      busy={streaming}
+                      className="mt-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                    />
+                  )}
                   {/* Nota de voz (Adenda 87): mini reproductor del audio que sonó +
                       «Regenerar voz». Solo en respuestas de Astraura con contenido.
                       `convId` (Adenda 87-bis): permite encontrar el audio en la
@@ -582,6 +883,17 @@ export function ChatSurface({ variant = "embedded", className, initialConvId }: 
             <PendingAttachmentChips items={pendingAttachments} onRemove={removeAttachment} />
           </div>
         )}
+        {/* Bandeja de personalidades activas (Tarea 3): colapsable, sobre el
+            cuadro de escritura. Su selección viaja como menciones ocultas al
+            proveedor Astraura 1.58-bit (ver `withAstraura158Hint`); con
+            cualquier otro proveedor activo simplemente no hace nada. */}
+        <div className="max-w-3xl mx-auto w-full">
+          <ChatPersonalityTray
+            convId={conv.activeId}
+            activeProviderId={activeProviderConfig?.id ?? null}
+            defaultPersonaId={astr158DefaultPersonaId}
+          />
+        </div>
         <div className="flex gap-2 max-w-3xl mx-auto items-center">
           <ChatAttachButton
             onPick={(picked) => setPendingAttachments((prev) => [...prev, ...picked])}
