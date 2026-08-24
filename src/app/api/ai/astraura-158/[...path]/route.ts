@@ -12,14 +12,23 @@
  *   · ALLOWLIST estricta de rutas: estado, catálogos (personalidades, agentes,
  *     habilidades, cerebros), chat, búsquedas y —Studio 1.58— los subsistemas
  *     (imaginación, enjambre/director, notificaciones, sentidos/privacidad,
- *     almacenamiento, proyectos/creaciones/workflows, voz, memoria). JAMÁS
- *     ejecución (`/api/system/exec`, `/api/execute/*`), archivos de proyectos,
- *     sistema de archivos/OS, arranque-parada del túnel ni claves de API.
+ *     almacenamiento, proyectos/creaciones/workflows, voz, memoria) y —Ola 4
+ *     (Adenda 156)— telemetría, navegador autónomo (navigate/search/action/
+ *     index_memory) y el Explorador del dispositivo: SOLO LECTURA del sistema
+ *     de archivos del backend (`system/fs`, `system/file`, `system/item_details`,
+ *     `system/search`, `system/storage/drives`, `system/senses`) más la
+ *     concesión explícita de `system/universal_device_access`. JAMÁS ejecución
+ *     (`/api/system/exec`, `/api/execute/*`), JAMÁS escritura de archivos
+ *     (ningún método distinto de GET sobre `system/file` ni sobre `system/fs`),
+ *     arranque-parada del túnel ni claves de API.
  *   · DELETE solo para reglas de almacenamiento (`/api/storage/rules/{id}`).
  *   · Upstream fijo por entorno (`ASTRAURA_158_URL`; por defecto el Cloud Run
  *     oficial) → no hay SSRF: el usuario no elige el host.
  *   · Cuerpo ≤ 256 KB · timeouts duros · el stream SSE se reenvía tal cual.
  *   · `ASTRAURA_158_KEY` (opcional) viaja como `X-Astraura-Key` solo servidor→backend.
+ *   · El Explorador del dispositivo lee la MÁQUINA del backend soberano (la
+ *     neurona), NO el servidor del OS ni el navegador de quien lo usa; el
+ *     propio backend es responsable de sanear las rutas que recibe por `?path=`.
  */
 
 import { NextRequest } from "next/server";
@@ -75,6 +84,14 @@ const GET_ALLOW: RegExp[] = [
   /^\/api\/voice\/matrix$/,
   /^\/api\/voice_studio\/profiles$/,
   /^\/api\/memory\/recuerdos$/,
+  // ── Ola 4 (Adenda 156): Telemetría · Navegador autónomo (estado) · Explorador del dispositivo (SOLO lectura) ──
+  /^\/api\/system\/senses$/,
+  /^\/api\/system\/fs$/,
+  /^\/api\/system\/file$/,
+  /^\/api\/system\/item_details$/,
+  /^\/api\/system\/search$/,
+  /^\/api\/system\/storage\/drives$/,
+  /^\/api\/system\/universal_device_access$/,
 ];
 
 const POST_ALLOW: RegExp[] = [
@@ -111,6 +128,11 @@ const POST_ALLOW: RegExp[] = [
   /^\/api\/starseed\/processes\/imagination\/trigger$/,
   /^\/api\/agents\/[\w.-]+\/(toggle_imagination|update_imagination_config)$/,
   /^\/api\/ecosystem\/agents\/[\w.-]+\/config$/,
+  // ── Ola 4 (Adenda 156): Navegador autónomo y concesión de acceso universal del Explorador del dispositivo ──
+  /^\/api\/browser\/navigate$/,
+  /^\/api\/browser\/action$/,
+  /^\/api\/browser\/index_memory$/,
+  /^\/api\/system\/universal_device_access\/grant$/,
 ];
 
 /** DELETE: únicamente reglas de enrutamiento de almacenamiento (Studio 1.58). */

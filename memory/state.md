@@ -3650,3 +3650,14 @@ Ola 3 PUBLICADA en el OS oficial: `starseed-system` main `b0e66ea → 4f0af4d` y
 CI «Typecheck · Unit · Mesh · Build» success; despliegue de producción de Vercel success;
 verificación en vivo: `https://starseed-os.vercel.app/api/ai/astraura-158/api/status` → 401
 (ruta nueva desplegada y protegida por sesión). Queda recompilar BitNet en la Mac (parche ReLU²).
+
+## 2026-08-24 — Adenda 156 · OLA 4: runtime de código en el chat, avisos de IA en su pestaña, 21/21 pestañas
+- `src/lib/aurora/code-runtime.ts` (puro, 14 tests) + `src/components/aurora/code-runner.tsx`, enganchados en
+  `message-renderer.tsx` → TODOS los chats ejecutan los programas que escribe la IA en un iframe de origen opaco.
+  Directivas en el propio bloque + preferencias `starseed.aurora.code-runtime.v1` (sincronizada).
+- Avisos de la IA: `astraura-158-feed.ts` deja de empujar al centro del OS/toasts (opt-in
+  `starseed.astraura158.notify.v1`), fuera la tira de Trinity, y `s158/notificaciones-tab.tsx` rediseñada con
+  paridad con el original (+ `astraura-158-notify.ts`, 21 tests).
+- 7 pestañas nuevas del Studio (chat · navegador · dispositivo · biblioteca · telemetría · terminal ·
+  configuración) → 21/21 del sistema original cubiertas. Allowlist del proxy ampliada solo a lecturas/acciones seguras.
+- Puertas: tsc 0 · vitest 125/125 · next build ✓. SOP: `architecture/astraura-158-ola4-runtime-y-pestanas.md`.

@@ -26,6 +26,7 @@ import dynamic from "next/dynamic";
 import {
   Binary, Cpu, Cloud, HardDrive, RefreshCw, Loader2, CheckCircle2, XCircle, Sparkles, Bot,
   Brain, Wand2, Download, ExternalLink, Radio, Link2, AlertTriangle, Users, Network, Activity, Bell, Eye, FolderKanban, Mic, Database,
+  MessageSquare, Globe, HardDriveDownload, BookOpen, Gauge, TerminalSquare, SlidersHorizontal,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -51,6 +52,14 @@ const AlmacenamientoTab = dynamic(() => import("@/components/astraura/s158/almac
 const ProyectosTab = dynamic(() => import("@/components/astraura/s158/proyectos-tab"), { ssr: false, loading: tabLoading });
 const VozTab = dynamic(() => import("@/components/astraura/s158/voz-tab"), { ssr: false, loading: tabLoading });
 const MemoriaTab = dynamic(() => import("@/components/astraura/s158/memoria-tab"), { ssr: false, loading: tabLoading });
+// (Ola 4 · Adenda 156) Pestañas que faltaban para cubrir las 21 del original.
+const ChatTab = dynamic(() => import("@/components/astraura/s158/chat-tab"), { ssr: false, loading: tabLoading });
+const NavegadorTab = dynamic(() => import("@/components/astraura/s158/navegador-tab"), { ssr: false, loading: tabLoading });
+const DispositivoTab = dynamic(() => import("@/components/astraura/s158/dispositivo-tab"), { ssr: false, loading: tabLoading });
+const BibliotecaTab = dynamic(() => import("@/components/astraura/s158/biblioteca-tab"), { ssr: false, loading: tabLoading });
+const TelemetriaTab = dynamic(() => import("@/components/astraura/s158/telemetria-tab"), { ssr: false, loading: tabLoading });
+const TerminalTab = dynamic(() => import("@/components/astraura/s158/terminal-tab"), { ssr: false, loading: tabLoading });
+const ConfiguracionTab = dynamic(() => import("@/components/astraura/s158/configuracion-tab"), { ssr: false, loading: tabLoading });
 import { PrimaryChoiceEditor } from "@/components/astraura/primary-choice-editor";
 import { readRouteLog, type RouteRecord } from "@/ai/astraura/router";
 
@@ -68,7 +77,14 @@ const TABS: { id: Tab; label: string; icon: typeof Sparkles; badge?: keyof Astra
   { id: "almacenamiento", label: "Almacenamiento", icon: HardDrive },
   { id: "proyectos", label: "Proyectos", icon: FolderKanban },
   { id: "voz", label: "Voz", icon: Mic },
+  { id: "chat", label: "Chat multiagente", icon: MessageSquare },
+  { id: "navegador", label: "Navegador", icon: Globe },
+  { id: "dispositivo", label: "Dispositivo", icon: HardDriveDownload },
+  { id: "biblioteca", label: "Biblioteca", icon: BookOpen },
+  { id: "telemetria", label: "Telemetría", icon: Gauge },
+  { id: "terminal", label: "Terminal", icon: TerminalSquare },
   { id: "habilidades", label: "Habilidades", icon: Network },
+  { id: "configuracion", label: "Configuración", icon: SlidersHorizontal },
   { id: "instalacion", label: "Instalación", icon: Download },
 ];
 
@@ -85,6 +101,13 @@ export function s158TabFromParam(raw: string | null | undefined): Tab {
     storage: "almacenamiento", almacen: "almacenamiento",
     projects: "proyectos", creaciones: "proyectos", workflows: "proyectos",
     voice: "voz", brains: "cerebros", memory: "memoria", skills: "habilidades", install: "instalacion", summary: "resumen", procesos: "resumen",
+    chat: "chat", multiagente: "chat", voz2: "voz",
+    browser: "navegador", web: "navegador", navegador: "navegador",
+    device: "dispositivo", explorador: "dispositivo", archivos: "dispositivo",
+    library: "biblioteca", biblioteca: "biblioteca",
+    telemetry: "telemetria", telemetria: "telemetria", metricas: "telemetria",
+    terminal: "terminal", sandbox: "terminal", consola: "terminal",
+    config: "configuracion", ajustes: "configuracion", preferencias: "configuracion",
   };
   if (TAB_IDS.has(v)) return v as Tab;
   return alias[v] ?? "resumen";
@@ -441,6 +464,15 @@ function Astraura158PanelInner({ className }: { className?: string }) {
 
         {/* Voz */}
         {tab === "voz" && <div className="mt-3"><VozTab target={target} manifest={manifest} refresh={refreshAll} /></div>}
+
+        {/* (Ola 4) Chat multiagente · Navegador · Dispositivo · Biblioteca · Telemetría · Terminal · Configuración */}
+        {tab === "chat" && <div className="mt-3"><ChatTab target={target} manifest={manifest} refresh={refreshAll} /></div>}
+        {tab === "navegador" && <div className="mt-3"><NavegadorTab target={target} manifest={manifest} refresh={refreshAll} /></div>}
+        {tab === "dispositivo" && <div className="mt-3"><DispositivoTab target={target} manifest={manifest} refresh={refreshAll} /></div>}
+        {tab === "biblioteca" && <div className="mt-3"><BibliotecaTab target={target} manifest={manifest} refresh={refreshAll} /></div>}
+        {tab === "telemetria" && <div className="mt-3"><TelemetriaTab target={target} manifest={manifest} refresh={refreshAll} /></div>}
+        {tab === "terminal" && <div className="mt-3"><TerminalTab target={target} manifest={manifest} refresh={refreshAll} /></div>}
+        {tab === "configuracion" && <div className="mt-3"><ConfiguracionTab target={target} manifest={manifest} refresh={refreshAll} /></div>}
 
         {/* Habilidades */}
         {tab === "habilidades" && (

@@ -41,6 +41,12 @@ export interface Astraura158Status {
     quantization?: string;
     tokens_generated?: number;
     speed_tps?: number;
+    /** "bitnet-native" | "ollama" | "templates" (backend fusionado, Adenda 153). */
+    real_mode?: string;
+    /** Memoria RSS del proceso del motor, en MB (si el backend la mide). Ola 4 (§3, Telemetría). */
+    process_memory_mb?: number;
+    /** Servidor nativo `llama-server` embebido (bitnet.cpp): perfiles interactivo y de fondo. Ola 4. */
+    bitnet_server?: { interactive?: Astraura158BitnetServerProfile; background?: Astraura158BitnetServerProfile; [k: string]: unknown };
   };
   memory_summary?: { knowledge_nodes?: number; knowledge_edges?: number; vector_documents?: number; learned_events_count?: number };
   skills_active?: number;
@@ -1201,4 +1207,227 @@ export function addAstraura158Memory(target: Astraura158Target, memory: string, 
 
 export function fetchAstraura158DreamStatus(target: Astraura158Target) {
   return call<{ is_dreaming?: boolean; is_always_on?: boolean; operation_mode?: string; next_cycle_seconds_left?: number; cycles_completed?: number; [k: string]: unknown }>(target, "/api/dream/status");
+}
+
+
+/* ════════════════════════════════════════════════════════════════════════════
+ * OLA 4 (Adenda 156) — Telemetría 1.58-bit, Navegador autónomo y Explorador
+ * del dispositivo (arquitectura: astraura-158-ola4-runtime-y-pestanas.md §3).
+ * Mismas reglas del archivo: nunca lanza; `{ok:false,error}` explicito;
+ * formas NO verificadas contra `backend/app/main.py` (backend fuera de este
+ * repo) se leen de forma TOLERANTE (`[k:string]:unknown` + helpers
+ * defensivos en cada pestaña) — honestidad ante todo: si el dato no llega,
+ * la pestaña lo dice, nunca lo inventa.
+ * ════════════════════════════════════════════════════════════════════════════ */
+
+/* ── Telemetría 1.58-bit (motor nativo · sentidos del sistema) ─────────────── */
+
+/** Un perfil del servidor nativo `llama-server` (bitnet.cpp) embebido en el backend: interactivo o de fondo. */
+export interface Astraura158BitnetServerProfile {
+  running?: boolean;
+  ready?: boolean;
+  port?: number;
+  model?: string;
+  pid?: number;
+  [k: string]: unknown;
+}
+
+/**
+ * `/api/bitnet/status`: estado dedicado del motor nativo BitNet b1.58 (ademas
+ * de lo que ya trae `/api/status.engine`). Forma NO verificada contra
+ * `backend/app/main.py` (backend fuera de este repo): lectura tolerante.
+ */
+export interface Astraura158BitnetStatus {
+  installed?: boolean;
+  cpp_installed?: boolean;
+  native_available?: boolean;
+  active_model?: string;
+  quantization?: string;
+  models_on_disk?: unknown[];
+  server?: { interactive?: Astraura158BitnetServerProfile; background?: Astraura158BitnetServerProfile; [k: string]: unknown };
+  interactive?: Astraura158BitnetServerProfile;
+  background?: Astraura158BitnetServerProfile;
+  process_memory_mb?: number;
+  [k: string]: unknown;
+}
+
+export function fetchAstraura158BitnetStatus(target: Astraura158Target) {
+  return call<Astraura158BitnetStatus>(target, "/api/bitnet/status", { timeoutMs: target === "nube" ? 15_000 : 6_000 });
+}
+
+/**
+ * `/api/system/senses`: telemetría de sensores del sistema (distinta de
+ * `/api/sensorium/live`, que es tiempo/lugar/clima). Forma NO verificada:
+ * lectura tolerante.
+ */
+export interface Astraura158SystemSenses {
+  active_sensors?: number;
+  sensors_count?: number;
+  sensors?: { id?: string; name?: string; type?: string; active?: boolean; status?: string; [k: string]: unknown }[];
+  summary?: string;
+  [k: string]: unknown;
+}
+
+export function fetchAstraura158SystemSenses(target: Astraura158Target) {
+  return call<Astraura158SystemSenses>(target, "/api/system/senses", { timeoutMs: target === "nube" ? 15_000 : 6_000 });
+}
+
+/* ── Navegador autónomo ──────────────────────────────────────────────────── */
+
+/** Resultado de navegar a una URL. Se pinta SIEMPRE como texto/extracto — nunca `dangerouslySetInnerHTML`. */
+export interface Astraura158BrowserPage {
+  success?: boolean;
+  url?: string;
+  final_url?: string;
+  title?: string;
+  excerpt?: string;
+  text?: string;
+  status_code?: number;
+  fetched_at?: number;
+  error?: string;
+  message?: string;
+  [k: string]: unknown;
+}
+
+export function navigateAstraura158Browser(target: Astraura158Target, url: string) {
+  return post<Astraura158BrowserPage>(target, "/api/browser/navigate", { url }, longTimeout(target));
+}
+
+export interface Astraura158BrowserSearchItem { title?: string; url?: string; link?: string; excerpt?: string; snippet?: string; [k: string]: unknown }
+
+export interface Astraura158BrowserSearch {
+  success?: boolean;
+  query?: string;
+  results?: Astraura158BrowserSearchItem[];
+  error?: string;
+  message?: string;
+  [k: string]: unknown;
+}
+
+export function searchAstraura158Browser(target: Astraura158Target, query: string, limit = 8) {
+  return post<Astraura158BrowserSearch>(target, "/api/browser/search", { query, limit }, longTimeout(target));
+}
+
+/** Catálogo de acciones: lo ofrece el OS (no hay endpoint de catálogo en el backend); si el backend no soporta la acción, responde `success:false` y se ve como fallo honesto. */
+export function runAstraura158BrowserAction(target: Astraura158Target, action: string, params?: Record<string, unknown>) {
+  return post<Astraura158Ack & { result?: unknown }>(target, "/api/browser/action", { action, params: params ?? {} }, longTimeout(target));
+}
+
+export function indexAstraura158BrowserMemory(target: Astraura158Target, payload: { url?: string; title?: string; content?: string; category?: string }) {
+  return post<Astraura158Ack>(target, "/api/browser/index_memory", payload, longTimeout(target));
+}
+
+/* ── Explorador del dispositivo (sistema de archivos del BACKEND) ──────────── */
+/* Lee la MÁQUINA donde corre el backend soberano (la neurona) — NUNCA la del
+ * navegador. Solo lectura: el proxy del OS no expone escritura ni ejecución. */
+
+export interface Astraura158FsEntry {
+  name?: string;
+  path?: string;
+  is_dir?: boolean;
+  type?: string;
+  size_bytes?: number;
+  modified_at?: number;
+  [k: string]: unknown;
+}
+
+export interface Astraura158FsListing {
+  path?: string;
+  parent?: string;
+  entries?: Astraura158FsEntry[];
+  items?: Astraura158FsEntry[];
+  error?: string;
+  [k: string]: unknown;
+}
+
+export function fetchAstraura158Fs(target: Astraura158Target, path?: string) {
+  const qs = new URLSearchParams();
+  if (path) qs.set("path", path);
+  const suffix = qs.toString() ? `?${qs.toString()}` : "";
+  return call<Astraura158FsListing>(target, `/api/system/fs${suffix}`, { timeoutMs: target === "nube" ? 15_000 : 8_000 });
+}
+
+export interface Astraura158FileContent {
+  path?: string;
+  content?: string;
+  text?: string;
+  size_bytes?: number;
+  truncated?: boolean;
+  is_binary?: boolean;
+  encoding?: string;
+  error?: string;
+  [k: string]: unknown;
+}
+
+/** Vista previa de texto acotada (~40 KB de tope pedido al backend); el componente además recorta en cliente por si el backend no respeta `max_bytes`. */
+export function fetchAstraura158File(target: Astraura158Target, path: string, maxBytes = 40_000) {
+  const qs = new URLSearchParams({ path, max_bytes: String(maxBytes) });
+  return call<Astraura158FileContent>(target, `/api/system/file?${qs.toString()}`, { timeoutMs: target === "nube" ? 15_000 : 8_000 });
+}
+
+export interface Astraura158ItemDetails {
+  path?: string;
+  name?: string;
+  size_bytes?: number;
+  is_dir?: boolean;
+  created_at?: number;
+  modified_at?: number;
+  mime_type?: string;
+  error?: string;
+  [k: string]: unknown;
+}
+
+export function fetchAstraura158ItemDetails(target: Astraura158Target, path: string) {
+  const qs = new URLSearchParams({ path });
+  return call<Astraura158ItemDetails>(target, `/api/system/item_details?${qs.toString()}`, { timeoutMs: target === "nube" ? 15_000 : 8_000 });
+}
+
+export interface Astraura158FsSearch {
+  query?: string;
+  path?: string;
+  results?: Astraura158FsEntry[];
+  matches?: Astraura158FsEntry[];
+  error?: string;
+  [k: string]: unknown;
+}
+
+export function searchAstraura158Fs(target: Astraura158Target, query: string, path?: string) {
+  const qs = new URLSearchParams({ query });
+  if (path) qs.set("path", path);
+  return call<Astraura158FsSearch>(target, `/api/system/search?${qs.toString()}`, { timeoutMs: target === "nube" ? 20_000 : 10_000 });
+}
+
+export interface Astraura158Drive {
+  name?: string;
+  mountpoint?: string;
+  device?: string;
+  fstype?: string;
+  total_gb?: number;
+  free_gb?: number;
+  percent_used?: number;
+  is_removable?: boolean;
+  [k: string]: unknown;
+}
+
+export function fetchAstraura158Drives(target: Astraura158Target) {
+  return call<{ drives?: Astraura158Drive[] }>(target, "/api/system/storage/drives", { timeoutMs: target === "nube" ? 15_000 : 8_000 });
+}
+
+export interface Astraura158UniversalDeviceAccess {
+  granted?: boolean;
+  enabled?: boolean;
+  scope?: string;
+  granted_at?: number;
+  granted_paths?: string[];
+  message?: string;
+  [k: string]: unknown;
+}
+
+export function fetchAstraura158UniversalDeviceAccess(target: Astraura158Target) {
+  return call<Astraura158UniversalDeviceAccess>(target, "/api/system/universal_device_access", { timeoutMs: target === "nube" ? 15_000 : 6_000 });
+}
+
+/** Concesión EXPLÍCITA (botón dedicado en el Explorador del Dispositivo); el backend decide el alcance real. */
+export function grantAstraura158UniversalDeviceAccess(target: Astraura158Target, opts?: { scope?: string }) {
+  return post<Astraura158Ack & { granted?: boolean }>(target, "/api/system/universal_device_access/grant", { confirm: true, ...(opts ?? {}) }, longTimeout(target));
 }

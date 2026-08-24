@@ -47,6 +47,8 @@ export const SYNCED_KEYS = [
     //    NUNCA viajan (starseed.ai.providers queda local por diseño).
     "starseed.astraura.intelligence.v1", // modo auto/manual, overrides por tarea
     "starseed.astraura.primary-system.v1", // (Adenda 153) sistema PRIMARIO por cuenta/neurona/cerebro/agente/personalidad (sin secretos)
+    "starseed.aurora.code-runtime.v1", // (Adenda 156) cómo se ejecutan en el chat los programas que escribe la IA
+    "starseed.astraura158.notify.v1", // (Adenda 156) dónde se ven los avisos de la IA (su pestaña · o también el centro del OS)
     "starseed.oss.defaults.v1",          // servicio elegido por función/scope
     "starseed.ai.function-models.v1",    // preferencias de UI de modelos por función
     "starseed.neurons.prefs.v1",         // permisos/preferencias de neuronas (dispositivos)

@@ -19,7 +19,9 @@ import type { Astraura158Manifest, Astraura158Response, Astraura158Target } from
 
 export type S158TabId =
   | "resumen" | "personalidades" | "agentes" | "imaginacion" | "notificaciones" | "cerebros" | "memoria"
-  | "sentidos" | "almacenamiento" | "proyectos" | "voz" | "habilidades" | "instalacion";
+  | "sentidos" | "almacenamiento" | "proyectos" | "voz" | "habilidades" | "instalacion"
+  // (Ola 4 · Adenda 156) paridad con las 21 pestañas del sistema original 1.58.
+  | "chat" | "navegador" | "dispositivo" | "biblioteca" | "telemetria" | "terminal" | "configuracion";
 
 export interface S158TabProps {
   target: Astraura158Target;

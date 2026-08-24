@@ -36,6 +36,7 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { MessageMedia } from "@/components/aurora/universal-viewer";
 import { AuroraReadButton } from "@/components/aurora/aurora-read-button";
+import { CodeRunner } from "@/components/aurora/code-runner";
 
 
 /* ═══════════════════════════ Sanitización HTML/SVG ═══════════════════════════
@@ -121,7 +122,9 @@ export function sanitizeHtmlFragment(html: string): string {
 
 type Segment =
   | { kind: "prose"; text: string }
-  | { kind: "code"; lang: string; code: string }
+  // `info` = cadena COMPLETA del fence (```html run mode=split height=520): el
+  // ejecutor lee de ahí las directivas del propio código (Ola 4 · Adenda 156).
+  | { kind: "code"; lang: string; code: string; info?: string }
   | { kind: "svg"; svg: string };
 
 const MAX_TEXT_LEN = 40_000;
@@ -130,7 +133,7 @@ const MAX_TEXT_LEN = 40_000;
 function splitSegments(raw: string): Segment[] {
   const text = raw.length > MAX_TEXT_LEN ? raw.slice(0, MAX_TEXT_LEN) : raw;
   const segments: Segment[] = [];
-  const FENCE_RX = /```([a-zA-Z0-9_+-]*)\n?([\s\S]*?)```/g;
+  const FENCE_RX = /```([^\n]*)\n?([\s\S]*?)```/g;
   let lastIndex = 0;
   let m: RegExpExecArray | null;
 
@@ -139,9 +142,10 @@ function splitSegments(raw: string): Segment[] {
     if (m.index > lastIndex) {
       pushProseWithSvg(segments, text.slice(lastIndex, m.index));
     }
-    const lang = (m[1] || "").trim().toLowerCase();
+    const info = (m[1] || "").trim();
+    const lang = (info.split(/\s+/)[0] || "").toLowerCase();
     const code = (m[2] || "").replace(/\n$/, "");
-    if (code.trim()) segments.push({ kind: "code", lang, code });
+    if (code.trim()) segments.push({ kind: "code", lang, code, info });
     lastIndex = FENCE_RX.lastIndex;
   }
   if (lastIndex < text.length) pushProseWithSvg(segments, text.slice(lastIndex));
@@ -274,9 +278,16 @@ function CopyButton({ value, className }: { value: string; className?: string })
 
 /* ═══════════════════════════ Bloque de código ═══════════════════════════ */
 
-function CodeBlock({ lang, code }: { lang: string; code: string }) {
+function CodeBlock({ lang, code, info }: { lang: string; code: string; info?: string }) {
   const json = useMemo(() => tryParseJson(code), [code]);
   if (json !== undefined) return <JsonBlock value={json} raw={code} />;
+  // (Ola 4 · Adenda 156) Todo bloque ejecutable se entrega como PROGRAMA VIVO en
+  // el propio chat (ejecutar/cerrar, ventana o pestaña nueva, tamaño, modo de uso,
+  // código y consola). El ejecutor cae al bloque plano si no hay nada que correr.
+  return <CodeRunner lang={lang} code={code} info={info} fallback={<PlainCodeBlock lang={lang} code={code} />} />;
+}
+
+function PlainCodeBlock({ lang, code }: { lang: string; code: string }) {
   return (
     <div className="my-1.5 overflow-hidden rounded-xl border border-white/10 bg-black/50 backdrop-blur-md">
       <div className="flex items-center justify-between gap-2 border-b border-white/10 bg-white/[0.03] px-2.5 py-1.5">
@@ -553,7 +564,7 @@ export function MessageRenderer({ text, compact = false, media = true, className
   return (
     <div className={cn("min-w-0 relative group/renderer", className)}>
       {segments.map((seg, i) => {
-        if (seg.kind === "code") return <CodeBlock key={i} lang={seg.lang} code={seg.code} />;
+        if (seg.kind === "code") return <CodeBlock key={i} lang={seg.lang} code={seg.code} info={seg.info} />;
         if (seg.kind === "svg") return <InlineSvg key={i} svg={seg.svg} />;
         return <ProseSegment key={i} text={seg.text} />;
       })}
