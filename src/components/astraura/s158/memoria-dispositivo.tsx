@@ -23,7 +23,7 @@
  */
 
 import { useState } from "react";
-import { FolderPlus, FolderSync, HardDrive, RefreshCw, Telescope, Trash2, Zap } from "lucide-react";
+import { Brain, FolderPlus, FolderSync, HardDrive, HelpCircle, RefreshCw, Server, Telescope, Trash2, Zap, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Switch } from "@/components/ui/switch";
 import { useConfirm } from "@/components/ui/confirm-dialog";
@@ -61,6 +61,74 @@ function summarizeRun(r: Astraura158DeviceSyncRunResult): string {
   return failed > 0 ? `${base} · ${failed} carpeta(s) con error` : base;
 }
 
+/** Identidad mínima de un cerebro o un almacenamiento de origen: `{id, name}` tal cual lo manda el backend. */
+interface FuenteRef {
+  id?: string;
+  name?: string;
+}
+
+/**
+ * `Astraura158ContextHit` con los campos nuevos de `GET /api/memory/search`
+ * (ronda «procedencia del recuerdo»): además de source/title/text/score,
+ * ahora manda `recency` (peso por antigüedad, 0–1) y `brain`/`server` — de
+ * qué cerebro y qué almacenamiento salió el recuerdo, o `null` cuando el
+ * propio backend no puede saberlo. El cliente compartido
+ * (`astraura-158-client.ts`) solo tipa source/title/text/score explícitamente
+ * y deja el resto en `[k: string]: unknown` — así que, igual que
+ * `branches-modal.tsx` hace con `BranchFull` para las ramas, se amplía aquí
+ * localmente en vez de tocar el tipo compartido.
+ *
+ * Tres estados para `brain`/`server` (y, por ausencia, para `recency`) que
+ * NUNCA se pintan igual que un dato real:
+ *   - `{id, name}` → procedencia conocida: se enseña el nombre.
+ *   - `null`       → el backend AFIRMA que no se puede saber — la mayoría de
+ *                    los recuerdos hoy caen aquí (p. ej. un concepto del
+ *                    grafo no tiene, por diseño, un cerebro de origen).
+ *   - `undefined`  → backend viejo que todavía no manda el campo. No rompe
+ *                    nada ni pinta «undefined»: se enseña igual que `null`
+ *                    (en los dos casos lo honesto es «sin procedencia
+ *                    conocida»), aunque el motivo de fondo sea distinto.
+ */
+interface ContextHitFull extends Astraura158ContextHit {
+  recency?: number;
+  brain?: FuenteRef | null;
+  server?: FuenteRef | null;
+}
+
+/** Nombre legible de una fuente. Si falta el nombre cae al id; nunca inventa uno plausible. */
+function fuenteLabel(f: FuenteRef): string {
+  return f.name?.trim() || f.id?.trim() || "(sin nombre)";
+}
+
+/**
+ * Insignia de procedencia (cerebro o almacén) de un recuerdo. `null` y
+ * `undefined` se ven IGUAL a propósito — «sin procedencia conocida» es
+ * honesto en los dos casos — pero nunca como un hueco en blanco ni como un
+ * nombre por defecto que parezca un dato real (spec de esta ronda: enseñar
+ * bien el `null`, no esconderlo).
+ */
+function ProcedenciaBadge({ icon: Icon, label, fuente }: { icon: LucideIcon; label: string; fuente: FuenteRef | null | undefined }) {
+  if (fuente) {
+    const nombre = fuenteLabel(fuente);
+    return (
+      <span
+        className="inline-flex items-center gap-1 rounded-full border border-white/15 bg-white/[0.04] px-1.5 py-0.5 text-[9px] text-white/70"
+        title={`${label}: ${nombre}`}
+      >
+        <Icon className="h-2.5 w-2.5 shrink-0" aria-hidden="true" /> {label}: {nombre}
+      </span>
+    );
+  }
+  return (
+    <span
+      className="inline-flex items-center gap-1 rounded-full border border-dashed border-white/15 bg-transparent px-1.5 py-0.5 text-[9px] italic text-white/40"
+      title={`${label}: sin procedencia conocida — el backend no puede saber de qué ${label.toLowerCase()} salió este recuerdo`}
+    >
+      <HelpCircle className="h-2.5 w-2.5 shrink-0" aria-hidden="true" /> {label}: sin procedencia conocida
+    </span>
+  );
+}
+
 export function MemoriaDispositivoSection({ target }: { target: Astraura158Target }) {
   // `fetchAstraura158DeviceSync` se pasa TAL CUAL (función de módulo, estable):
   // `useS158Load` recarga en cada render si el loader cambia de identidad, y un
@@ -70,7 +138,7 @@ export function MemoriaDispositivoSection({ target }: { target: Astraura158Targe
   const confirm = useConfirm();
   const [newPath, setNewPath] = useState("");
   const [ctxQuery, setCtxQuery] = useState("");
-  const [ctxResults, setCtxResults] = useState<Astraura158ContextHit[] | null>(null);
+  const [ctxResults, setCtxResults] = useState<ContextHitFull[] | null>(null);
   const [ctxSearching, setCtxSearching] = useState(false);
   const [ctxError, setCtxError] = useState("");
 
@@ -127,7 +195,11 @@ export function MemoriaDispositivoSection({ target }: { target: Astraura158Targe
     setCtxSearching(true);
     const res = await searchAstraura158MemoryContext(target, query, 8);
     setCtxSearching(false);
-    if (res.ok) { setCtxResults(res.data.hits ?? []); setCtxError(""); } else { setCtxResults(null); setCtxError(res.error); }
+    // `Astraura158ContextHit` (tipo compartido) no tipa `recency`/`brain`/
+    // `server` todavía — llegan igualmente en el JSON (index signature
+    // `[k: string]: unknown`), así que se amplían aquí a `ContextHitFull`,
+    // igual que `branches-modal.tsx` hace con `as BranchFull[]`.
+    if (res.ok) { setCtxResults((res.data.hits ?? []) as ContextHitFull[]); setCtxError(""); } else { setCtxResults(null); setCtxError(res.error); }
   }
 
   return (
@@ -240,9 +312,18 @@ export function MemoriaDispositivoSection({ target }: { target: Astraura158Targe
                 <div className="flex items-center gap-1.5">
                   <Badge tone={sourceTone(h.source)}>{sourceLabel(h.source)}</Badge>
                   <p className="min-w-0 flex-1 truncate text-[11px] font-medium text-white/90">{h.title ?? "(sin título)"}</p>
-                  {typeof h.score === "number" && <span className={MONO}>{h.score.toFixed(2)}</span>}
+                  {typeof h.score === "number" && <span className={MONO} title="Puntuación de relevancia">rel. {h.score.toFixed(2)}</span>}
+                  {typeof h.recency === "number" && <span className={MONO} title="Peso por antigüedad (recencia), de 0 a 1">rec. {h.recency.toFixed(2)}</span>}
                 </div>
                 {h.text && <p className="mt-0.5 line-clamp-3 text-[10px] leading-snug text-white/65">{h.text}</p>}
+                {/* Procedencia (Adenda «trazabilidad del recuerdo»): de qué cerebro y qué
+                    almacenamiento salió — o «sin procedencia conocida» cuando no se puede
+                    saber. Hoy eso es la MAYORÍA de los recuerdos (los conceptos del grafo
+                    nunca lo sabrán, por diseño) — se enseña con palabras, nunca en blanco. */}
+                <div className="mt-1 flex flex-wrap gap-1">
+                  <ProcedenciaBadge icon={Brain} label="Cerebro" fuente={h.brain} />
+                  <ProcedenciaBadge icon={Server} label="Almacén" fuente={h.server} />
+                </div>
               </div>
             ))}
           </div>

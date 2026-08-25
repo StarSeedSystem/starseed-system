@@ -65,6 +65,9 @@ import {
   KeyRound,
   Box,
   TerminalSquare,
+  // Génesis de Seres (área 23): sección nueva, recién enganchada al menú.
+  Dna,
+  Orbit,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -145,6 +148,15 @@ import { Astraura158PresenceBar } from "@/components/astraura/astraura-158-prese
 // Ola 6 · Adenda 158: anfitrión que monta una pestaña del Studio 1.58 como
 // sección de primer nivel del menú (resuelve destino, manifiesto y recarga).
 import { S158TabHost } from "@/components/astraura/s158-host";
+// Génesis de Seres (área 23): la sección ya estaba terminada y probada pero
+// sin enganchar a ningún menú — nadie podía llegar a ella. `MundoSeres` es
+// un componente de PRESENTACIÓN puro (nunca llama al backend por su
+// cuenta), así que esta página es quien le trae los datos con el mismo
+// idioma de carga que el resto de paneles de Génesis (`useS158Load`,
+// `Empty`, `CARD`…) y el mismo selector local/nube (`GenesisTargetSwitcher`).
+import { fetchGenesisSeres, fetchGenesisVinculos, fetchGenesisComunidades, fetchGenesisEspacios, type GenesisTarget } from "@/lib/astraura/genesis-client";
+import { GenesisTargetSwitcher } from "@/components/astraura/genesis/genesis-shared";
+import { CARD as GENESIS_CARD, SectionTitle as GenesisSectionTitle, Empty as GenesisEmpty, useS158Load } from "@/components/astraura/s158/shared";
 
 const MemoryBrain3D = nextDynamic(() => import("@/components/exocortex/memory-brain-3d").then(m => m.MemoryBrain3D), { ssr: false });
 const CanvasBoard = nextDynamic(() => import("@/components/canvas/canvas-board"), { ssr: false });
@@ -163,6 +175,28 @@ const ImaginacionView = nextDynamic(() => import("@/components/astraura/imaginac
   loading: () => (
     <div className="rounded-xl border border-white/10 bg-black/20 p-10 text-center text-sm text-white/50">
       Sincronizando Sistema de Imaginación Intuitiva 1.58-Bit…
+    </div>
+  ),
+});
+// Génesis de Seres (área 23): sección completa (lista + ficha + ritual +
+// propuestas) recién enganchada al menú — se difiere igual que Imaginación,
+// tanto por peso propio como porque monta avatares WebGL más abajo.
+const GenesisSection = nextDynamic(() => import("@/components/astraura/genesis/genesis-section").then(m => m.GenesisSection), {
+  ssr: false,
+  loading: () => (
+    <div className="rounded-xl border border-white/10 bg-black/20 p-10 text-center text-sm text-white/50">
+      Invocando la sección de Génesis de Seres…
+    </div>
+  ),
+});
+// El mundo 3D compartido de Génesis: arrastra three.js/@react-three/fiber vía
+// `mundo-escena-3d.tsx`, así que NUNCA debe entrar en el paquete inicial del
+// menú — se difiere exactamente igual que `MemoryBrain3D` más abajo.
+const MundoSeres = nextDynamic(() => import("@/components/astraura/genesis/mundo").then(m => m.MundoSeres), {
+  ssr: false,
+  loading: () => (
+    <div className="rounded-xl border border-white/10 bg-black/20 p-10 text-center text-sm text-white/50">
+      Cargando el mundo 3D de Génesis…
     </div>
   ),
 });
@@ -499,6 +533,24 @@ const STUDIO_SECTIONS: StudioSection[] = [
       { value: "mi-actividad", label: "Mi actividad", icon: Activity },
     ],
   },
+  // Área 23 · Génesis de Seres: tampoco es de las 21 áreas originales del
+  // 1.58-bit ni corresponde al hueco de Gobernanza (área 22, propia del OS) —
+  // es la incorporación más reciente. Se añade al final para no reordenar
+  // ninguna de las 22 secciones ya existentes. La sección invoca, configura y
+  // contempla seres autónomos (su cuerpo, su ADN, su soberanía, con qué
+  // modelos piensan de verdad) y el mundo 3D compartido donde conviven —
+  // estaba terminada y probada, pero hasta hoy no llegaba a ningún menú.
+  {
+    id: "genesis",
+    label: "Génesis de Seres",
+    icon: Dna,
+    accent: "text-fuchsia-300",
+    hint: "Invoca, configura y contempla a tus seres autónomos — su ADN, su soberanía, sus propuestas — y el mundo 3D compartido donde conviven.",
+    items: [
+      { value: "genesis-seres", label: "Seres", icon: Sparkles },
+      { value: "genesis-mundo", label: "Mundo 3D", icon: Orbit },
+    ],
+  },
 ];
 
 // Mapa value → sección, para auto-seleccionar la sección correcta al abrir un
@@ -622,6 +674,15 @@ const TAB_ALIASES: Record<string, string> = {
   browser: "navegador-158",
   web: "navegador-158",
   autonomo: "navegador-158",
+  // Área 23 · Génesis de Seres: sin alias históricos que migrar (es una
+  // sección nueva) — solo entradas cortas razonables por si algo externo
+  // enlaza aquí antes de que exista una página propia (`?tab=genesis`,
+  // `?tab=seres`, `?tab=mundo`…). Los `value` reales ya funcionan sin alias.
+  genesis: "genesis-seres",
+  seres: "genesis-seres",
+  mundo: "genesis-mundo",
+  "mundo-3d": "genesis-mundo",
+  "genesis-mundo-3d": "genesis-mundo",
 };
 function normalizeTab(raw: string | null | undefined): string | null {
   if (!raw) return null;
@@ -716,6 +777,51 @@ interface AgentRenderMsg {
 // ─────────────────────────────────────────────────────────────────────────────
 const TAB_SCROLL = "mt-0 flex-1 min-h-0 w-full max-w-full box-border overflow-y-auto";
 const TAB_FILL = "mt-0 flex-1 min-h-0 w-full max-w-full box-border overflow-hidden data-[state=active]:flex data-[state=active]:flex-col";
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Mundo 3D de Génesis: `<MundoSeres>` es puro presentacional (nunca llama al
+// backend por su cuenta — ver mundo-seres.tsx), así que este envoltorio le
+// trae los cuatro recursos que necesita, con el mismo idioma de carga que el
+// resto de Génesis (`useS158Load`, un poll por recurso — igual que hace
+// `seres-lista.tsx` con Seres y Comunidades).
+//
+// Solo "Seres" bloquea la vista con "cargando" / "sin conexión": es el único
+// recurso sin el que el mundo no tiene sentido. Vínculos, comunidades y
+// espacios pueden llegar tarde o fallar sueltos sin tapar nada — MundoSeres
+// ya sabe pintarse con cualquiera de los tres vacío ("Aún no hay seres en
+// este mundo" es SU aviso, no lo duplicamos aquí).
+// ─────────────────────────────────────────────────────────────────────────────
+function GenesisMundoTab() {
+  const [target, setTarget] = useState<GenesisTarget>("local");
+  const seres = useS158Load(fetchGenesisSeres, target, 20_000);
+  const vinculos = useS158Load(fetchGenesisVinculos, target, 60_000);
+  const comunidades = useS158Load(fetchGenesisComunidades, target, 60_000);
+  const espacios = useS158Load(fetchGenesisEspacios, target, 60_000);
+
+  return (
+    <div className={cn(GENESIS_CARD, "p-3")}>
+      <GenesisSectionTitle
+        icon={Orbit}
+        title="Mundo 3D de Génesis"
+        tone="text-fuchsia-300"
+        hint="El espacio compartido donde conviven tus seres: comunidades, espacios y los vínculos entre ellos."
+        right={<GenesisTargetSwitcher target={target} onChange={setTarget} />}
+      />
+      <div className="mt-3">
+        {seres.data === null ? (
+          <GenesisEmpty loading={seres.loading} error={seres.error} text="Aún no hay seres en este mundo." />
+        ) : (
+          <MundoSeres
+            seres={seres.data}
+            vinculos={vinculos.data ?? []}
+            comunidades={comunidades.data ?? []}
+            espacios={espacios.data ?? []}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
 
 function AgentPageInner() {
   const params = useSearchParams();
@@ -1796,6 +1902,22 @@ function AgentPageInner() {
         <TabsContent value="telemetria" className={TAB_SCROLL}><S158TabHost tab="telemetria" /></TabsContent>
         <TabsContent value="terminal" className={TAB_SCROLL}><S158TabHost tab="terminal" /></TabsContent>
         <TabsContent value="configuracion-158" className={TAB_SCROLL}><S158TabHost tab="configuracion" /></TabsContent>
+
+        {/* ═══════════════════════════════════════════════════════════════════
+            Área 23 · Génesis de Seres — sección propia, recién construida y
+            probada, que hasta hoy no llegaba a ningún menú. «Seres» monta la
+            sección completa (lista + ficha + ritual + propuestas, con su
+            propio selector local/nube); «Mundo 3D» trae los datos del mundo
+            compartido y se los pasa a `<MundoSeres>`, que es puro
+            presentacional y nunca llama al backend por su cuenta.
+            ═══════════════════════════════════════════════════════════════════ */}
+        <TabsContent value="genesis-seres" className={TAB_SCROLL}>
+          <GenesisSection />
+        </TabsContent>
+
+        <TabsContent value="genesis-mundo" className={TAB_SCROLL}>
+          <GenesisMundoTab />
+        </TabsContent>
         </div>
       </Tabs>
     </div>

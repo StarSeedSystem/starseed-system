@@ -1,0 +1,203 @@
+{
+  "nota": "Vectores compartidos TS/Python. Regenerar con scripts/gen-genesis-fixtures.ts si cambia el algoritmo.",
+  "casos": [
+    {
+      "entrada": {
+        "id": "agent_aurora",
+        "nombre": "Aurora Core (Alma Viva)",
+        "colorPersonalidad": "#ec4899",
+        "arquetipo": "aurora",
+        "generacion": 0,
+        "experiencia": 0
+      },
+      "esperado": {
+        "semilla": 4189180692,
+        "solido": "dodecaedro",
+        "frecuencia": 963,
+        "pulso": 2.229,
+        "matiz": 330.366,
+        "paleta": {
+          "primario": "hsl(330.366 92% 62%)",
+          "secundario": "hsl(107.874 85% 58%)",
+          "acento": "hsl(245.381 96% 70%)"
+        },
+        "orbitas": 2,
+        "radiosOrbitales": [
+          1.398,
+          1.778
+        ],
+        "densidad": 0.542,
+        "simetria": 0.704,
+        "rugosidad": 0.15,
+        "aura": 0.378,
+        "evolucion": 0,
+        "facetas": 1
+      }
+    },
+    {
+      "entrada": {
+        "id": "agent_hephaestus",
+        "nombre": "Hephaestus",
+        "colorPersonalidad": "#f59e0b",
+        "arquetipo": "hephaestus",
+        "generacion": 0,
+        "experiencia": 120
+      },
+      "esperado": {
+        "semilla": 3580859125,
+        "solido": "cubo",
+        "frecuencia": 639,
+        "pulso": 1.479,
+        "matiz": 37.692,
+        "paleta": {
+          "primario": "hsl(37.692 92% 62%)",
+          "secundario": "hsl(175.2 85% 58%)",
+          "acento": "hsl(312.708 96% 70%)"
+        },
+        "orbitas": 2,
+        "radiosOrbitales": [
+          1.28,
+          1.628
+        ],
+        "densidad": 0.402,
+        "simetria": 0.634,
+        "rugosidad": 0.119,
+        "aura": 0.494,
+        "evolucion": 0.267,
+        "facetas": 2
+      }
+    },
+    {
+      "entrada": {
+        "id": "agent_hermes",
+        "nombre": "Hermes",
+        "colorPersonalidad": null,
+        "arquetipo": "hermes",
+        "generacion": 1,
+        "experiencia": 40
+      },
+      "esperado": {
+        "semilla": 3760283557,
+        "solido": "tetraedro",
+        "frecuencia": 741,
+        "pulso": 1.715,
+        "matiz": 27.413,
+        "paleta": {
+          "primario": "hsl(27.413 92% 62%)",
+          "secundario": "hsl(164.921 85% 58%)",
+          "acento": "hsl(302.428 96% 70%)"
+        },
+        "orbitas": 2,
+        "radiosOrbitales": [
+          1.39,
+          1.768
+        ],
+        "densidad": 0.558,
+        "simetria": 0.718,
+        "rugosidad": 0.161,
+        "aura": 0.434,
+        "evolucion": 0.148,
+        "facetas": 1
+      }
+    },
+    {
+      "entrada": {
+        "id": "ser_001",
+        "nombre": "Sin arquetipo",
+        "generacion": 0,
+        "experiencia": 0
+      },
+      "esperado": {
+        "semilla": 3118826569,
+        "solido": "octaedro",
+        "frecuencia": 528,
+        "pulso": 1.222,
+        "matiz": 189.669,
+        "paleta": {
+          "primario": "hsl(189.669 92% 62%)",
+          "secundario": "hsl(327.177 85% 58%)",
+          "acento": "hsl(104.685 96% 70%)"
+        },
+        "orbitas": 3,
+        "radiosOrbitales": [
+          1.245,
+          1.583,
+          2.014
+        ],
+        "densidad": 0.848,
+        "simetria": 0.906,
+        "rugosidad": 0.519,
+        "aura": 0.57,
+        "evolucion": 0,
+        "facetas": 1
+      }
+    },
+    {
+      "entrada": {
+        "id": "ser_002",
+        "nombre": "Nieto lejano",
+        "colorPersonalidad": "#00f0ff",
+        "generacion": 5,
+        "experiencia": 900
+      },
+      "esperado": {
+        "semilla": 2099351862,
+        "solido": "esfera",
+        "frecuencia": 432,
+        "pulso": 1,
+        "matiz": 183.529,
+        "paleta": {
+          "primario": "hsl(183.529 92% 62%)",
+          "secundario": "hsl(321.037 85% 58%)",
+          "acento": "hsl(98.545 96% 70%)"
+        },
+        "orbitas": 3,
+        "radiosOrbitales": [
+          1.38,
+          1.756,
+          2.233
+        ],
+        "densidad": 0.577,
+        "simetria": 0.665,
+        "rugosidad": 0.138,
+        "aura": 0.602,
+        "evolucion": 0.798,
+        "facetas": 3
+      }
+    },
+    {
+      "entrada": {
+        "id": "ser_003",
+        "nombre": "Ñandú áureo ✦",
+        "colorPersonalidad": "#7c3aed",
+        "arquetipo": "atenea",
+        "generacion": 2,
+        "experiencia": 15
+      },
+      "esperado": {
+        "semilla": 3685058415,
+        "solido": "octaedro",
+        "frecuencia": 528,
+        "pulso": 1.222,
+        "matiz": 262.123,
+        "paleta": {
+          "primario": "hsl(262.123 92% 62%)",
+          "secundario": "hsl(39.631 85% 58%)",
+          "acento": "hsl(177.138 96% 70%)"
+        },
+        "orbitas": 3,
+        "radiosOrbitales": [
+          1.219,
+          1.55,
+          1.972
+        ],
+        "densidad": 0.775,
+        "simetria": 0.966,
+        "rugosidad": 0.564,
+        "aura": 0.55,
+        "evolucion": 0.114,
+        "facetas": 1
+      }
+    }
+  ]
+}

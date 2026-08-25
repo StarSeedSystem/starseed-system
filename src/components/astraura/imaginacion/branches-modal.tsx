@@ -51,6 +51,19 @@ export interface BranchFull extends Astraura158Branch {
     delta_metrics?: { latency_reduction_pct?: number; ram_reduction_pct?: number; throughput_increase_pct?: number };
     code_diff?: { file_path?: string; summary?: string; before_snippet?: string; after_snippet?: string };
   };
+  /**
+   * Backend curado: dice si `diff_comparison` es una medición real del
+   * silicio, o si sencillamente no hay nada que comparar todavía.
+   *   - `true`  → hay comparación real.
+   *   - `false` → el backend AFIRMA que no hay nada real que comparar (rama
+   *               sin regenerar, sin diff todavía…) — un "no aplica"
+   *               legítimo, no un fallo ni un hueco vacío por accidente.
+   *   - `undefined` → backend viejo que aún no manda este campo: no
+   *               sabemos si lo que llega (si llega algo) es real. Antes
+   *               este hueco se rellenaba con -74.2/-62.8/135/100 como si
+   *               fueran una medición — ver `DiffComparatorTab` más abajo.
+   */
+  datos_reales?: boolean;
   historical_versions?: { version?: string; summary?: string; timestamp?: number; author?: string; changes?: string[]; file_link?: string }[];
 }
 
@@ -338,6 +351,23 @@ function DiffComparatorTab({ all, selected, selectedId, onSelect, onOpenFile }: 
   const diff = selected?.diff_comparison?.code_diff;
   const files = selected?.real_links?.files ?? [];
   const folders = selected?.real_links?.folders ?? [];
+  // El backend curado ya no fabrica métricas cuando no tiene medición real:
+  // si no manda ni métricas de silicio ni diff de código, no hay NADA que
+  // pintar aquí — mismo criterio que ya usa HistoryTab con sus versiones
+  // (`versions.length === 0 && <Empty .../>`, ver más abajo en este fichero).
+  const hayComparacion = !!metrics || !!diff;
+  // `datos_reales` distingue DOS motivos de "nada que comparar" que antes
+  // se confundían en el mismo hueco relleno de números inventados
+  // (-74.2 / -62.8 / 135 / 100, idénticos a lo que fabricaba el backend
+  // viejo): que el propio backend afirme que no hay nada real (`false`), o
+  // que simplemente no lo diga porque todavía no manda el campo
+  // (`undefined`, backend anterior a este arreglo).
+  const datosReales = selected?.datos_reales;
+  const sinComparacionTexto =
+    datosReales === false
+      ? "Esta rama todavía no tiene nada que comparar: sin métricas de silicio ni diff de código."
+      : "El backend no informa si existe una comparación real para esta rama.";
+
   return (
     <div className="space-y-3">
       <label className="flex flex-wrap items-center gap-2 text-[11px] text-white/70">
@@ -350,13 +380,15 @@ function DiffComparatorTab({ all, selected, selectedId, onSelect, onOpenFile }: 
 
       {!selected && <Empty text="Selecciona una rama para ver su comparador de mejoras." />}
 
-      {selected && (
+      {selected && !hayComparacion && <Empty text={sinComparacionTexto} />}
+
+      {selected && hayComparacion && (
         <>
           <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-            <MetricCard label="Reducción de Latencia" value={metrics?.latency_reduction_pct} suffix="%" fallback={-74.2} />
-            <MetricCard label="Huella RAM" value={metrics?.ram_reduction_pct} suffix="%" fallback={-62.8} />
-            <MetricCard label="Eficiencia TOPS/W" value={metrics?.throughput_increase_pct} suffix="%" fallback={135} showPlus />
-            <MetricCard label="Verificación Silicio M1" value={selected.verification?.score !== undefined ? Math.round(selected.verification.score * 100) : undefined} suffix="%" fallback={100} />
+            <MetricCard label="Reducción de Latencia" value={metrics?.latency_reduction_pct} suffix="%" />
+            <MetricCard label="Huella RAM" value={metrics?.ram_reduction_pct} suffix="%" />
+            <MetricCard label="Eficiencia TOPS/W" value={metrics?.throughput_increase_pct} suffix="%" showPlus />
+            <MetricCard label="Verificación Silicio M1" value={selected.verification?.score !== undefined ? Math.round(selected.verification.score * 100) : undefined} suffix="%" />
           </div>
 
           <div className="grid gap-2 sm:grid-cols-2">
@@ -369,7 +401,11 @@ function DiffComparatorTab({ all, selected, selectedId, onSelect, onOpenFile }: 
               <pre className="mt-1.5 max-h-48 overflow-auto whitespace-pre-wrap break-words font-code text-[10px] leading-snug text-emerald-100/80">{diff?.after_snippet ?? "Sin snippet «después» del backend."}</pre>
             </div>
           </div>
-          <p className={MONO}>{diff?.file_path ?? "backend/app/core/bitnet_neon_engine.cpp"}{diff?.summary ? ` — ${diff.summary}` : ""}</p>
+          {/* Antes caía en una ruta de fichero FALSA
+              ("backend/app/core/bitnet_neon_engine.cpp") si el backend no
+              mandaba `file_path` — un fichero que probablemente ni existe,
+              pintado como si fuera el que de verdad se tocó. */}
+          <p className={MONO}>{diff?.file_path ? `${diff.file_path}${diff.summary ? ` — ${diff.summary}` : ""}` : "Sin ruta de fichero del backend."}</p>
 
           {(files.length > 0 || folders.length > 0) && (
             <div>
@@ -386,13 +422,22 @@ function DiffComparatorTab({ all, selected, selectedId, onSelect, onOpenFile }: 
   );
 }
 
-function MetricCard({ label, value, fallback, suffix, showPlus }: { label: string; value?: number; fallback: number; suffix: string; showPlus?: boolean }) {
-  const v = value ?? fallback;
-  const shown = showPlus && v > 0 ? `+${v}` : `${v}`;
+function MetricCard({ label, value, suffix, showPlus }: { label: string; value?: number; suffix: string; showPlus?: boolean }) {
+  // Antes: `value ?? fallback` pintaba -74.2 / -62.8 / 135 / 100 como si
+  // fueran una medición real en cuanto el backend no tenía dato — la misma
+  // mentira en pantalla que este proyecto lleva semanas quitando en otros
+  // sitios (bóvedas que decían "guardado" sin guardar, auditorías que
+  // devolvían 0.85 por una excepción tragada...). Ahora, sin dato real, se
+  // dice con palabras — nunca un número que nadie midió — y se marca
+  // aparte también en el texto (no solo con color) para accesibilidad.
+  const hayValor = typeof value === "number" && Number.isFinite(value);
+  const shown = value === undefined || !Number.isFinite(value)
+    ? "Sin dato"
+    : `${showPlus && value > 0 ? "+" : ""}${value}${suffix}`;
   return (
     <div className="rounded-lg border border-white/10 bg-black/20 px-3 py-2">
       <p className={LABEL}>{label}</p>
-      <p className="mt-0.5 text-[14px] font-semibold text-white/90">{shown}{suffix}</p>
+      <p className={cn("mt-0.5 text-[14px] font-semibold", hayValor ? "text-white/90" : "text-white/40")}>{shown}</p>
     </div>
   );
 }
