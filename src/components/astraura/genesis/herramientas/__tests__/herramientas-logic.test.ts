@@ -2,26 +2,33 @@
  * Tests de `herramientas-logic.ts` — toda lógica pura, sin red ni React.
  */
 import { describe, expect, it } from "vitest";
-import type { BotPredeterminado, CapacidadInternet, CerebroSer, HerramientaDisponible } from "@/lib/astraura/genesis-types";
+import type { BotPredeterminado, CapacidadInternet, CerebroSer, HerramientaDisponible, ResultadoSincronizacion, ViaSincronizacion } from "@/lib/astraura/genesis-types";
 import {
   CAPACIDAD_INTERNET_VACIA,
   FUENTES_INTERNET,
   agruparHerramientasPorFuente,
   capacidadInternetEfectiva,
+  cerebrosPropiosSeguros,
   conCerebroActualizado,
   describirCapacidadInternet,
+  describirDeposito,
   describirDominios,
   estadoSyncEfectivo,
   estadoSyncTono,
   etiquetaFuenteHerramienta,
+  huellaPaquetes,
   idsPendientesDeInstalar,
   motivoNoDisponible,
+  paquetesDeLibreria,
   resumenSyncCerebro,
   resumirBots,
   resumirCerebros,
   resumirHerramientas,
+  resumirResultadoGlobal,
+  resumirVias,
   riesgoTono,
   sinCerebro,
+  viasSeguras,
 } from "../herramientas-logic";
 
 /* ─────────────────────────── Internet: catálogo de fuentes ─────────────────────────── */
@@ -326,5 +333,157 @@ describe("idsPendientesDeInstalar", () => {
   it("un `instalado` ambiguo (no es literalmente `true`) se trata como pendiente, nunca se esconde el bot", () => {
     const lista = [{ id: "1", nombre: "a", rol: "x", procesoTipoId: "p1" } as unknown as BotPredeterminado];
     expect(idsPendientesDeInstalar(lista)).toEqual(["1"]);
+  });
+});
+
+/* ─────────────────────────── Cierre de deudas: biblioteca del usuario ─────────────────────────── */
+
+describe("paquetesDeLibreria", () => {
+  it("traduce id/kind/name/description al cuerpo mínimo del backend", () => {
+    const libs = [{ id: "p1", kind: "function", name: "Traductor", description: "traduce texto" }];
+    expect(paquetesDeLibreria(libs)).toEqual([{ id: "p1", kind: "function", name: "Traductor", description: "traduce texto" }]);
+  });
+
+  it("descarta silenciosamente entradas sin id o sin name real (nunca manda un paquete que no podría depositarse)", () => {
+    const libs = [
+      { id: "", kind: "app", name: "sin id" },
+      { id: "p2", kind: "app", name: "   " },
+      { id: "p3", kind: "app", name: "válido" },
+    ];
+    expect(paquetesDeLibreria(libs)).toEqual([{ id: "p3", kind: "app", name: "válido", description: undefined }]);
+  });
+
+  it("kind/description vacíos o ausentes se mandan como undefined, nunca como cadena vacía", () => {
+    const libs = [{ id: "p1", kind: "", name: "Widget", description: "" }];
+    expect(paquetesDeLibreria(libs)).toEqual([{ id: "p1", kind: undefined, name: "Widget", description: undefined }]);
+  });
+
+  it("forma inesperada (no-array) ⇒ lista vacía, nunca revienta", () => {
+    expect(paquetesDeLibreria(null)).toEqual([]);
+    expect(paquetesDeLibreria(undefined)).toEqual([]);
+    expect(paquetesDeLibreria("no es una lista" as unknown as never)).toEqual([]);
+  });
+});
+
+describe("huellaPaquetes", () => {
+  it("la misma lista da la misma huella", () => {
+    const paquetes = [{ id: "p1", name: "Uno" }, { id: "p2", kind: "app", name: "Dos", description: "dos" }];
+    expect(huellaPaquetes(paquetes)).toBe(huellaPaquetes(paquetes.map((p) => ({ ...p }))));
+  });
+
+  it("contenido distinto da huellas distintas", () => {
+    const a = [{ id: "p1", name: "Uno" }];
+    const b = [{ id: "p1", name: "Uno (editado)" }];
+    expect(huellaPaquetes(a)).not.toBe(huellaPaquetes(b));
+  });
+
+  it("la lista vacía tiene su propia huella estable", () => {
+    expect(huellaPaquetes([])).toBe(huellaPaquetes([]));
+  });
+});
+
+describe("describirDeposito", () => {
+  it("inactivo ⇒ cadena vacía (nada que enseñar todavía)", () => {
+    expect(describirDeposito({ fase: "inactivo" })).toBe("");
+  });
+
+  it("vacío ⇒ dice explícitamente que no hay paquetes propios", () => {
+    expect(describirDeposito({ fase: "vacio" })).toMatch(/no tiene paquetes propios/);
+  });
+
+  it("depositando ⇒ frase de progreso", () => {
+    expect(describirDeposito({ fase: "depositando" })).toMatch(/Depositando/);
+  });
+
+  it("ok sin descartados ⇒ cuenta recibidos, sin mencionar descartados", () => {
+    const texto = describirDeposito({ fase: "ok", recibidos: 5, descartados: 0, en: 1000 });
+    expect(texto).toBe("Biblioteca depositada: 5 paquetes recibidos.");
+  });
+
+  it("ok con descartados ⇒ los menciona también, nunca los esconde", () => {
+    const texto = describirDeposito({ fase: "ok", recibidos: 1, descartados: 2, en: 1000 });
+    expect(texto).toBe("Biblioteca depositada: 1 paquete recibido, 2 descartados.");
+  });
+
+  it("error ⇒ el motivo real se enseña tal cual, nunca en blanco", () => {
+    expect(describirDeposito({ fase: "error", error: "HTTP 500: índice corrupto", en: 1 })).toBe("No se pudo depositar tu biblioteca: HTTP 500: índice corrupto");
+  });
+});
+
+/* ─────────────────────────── Cierre de deudas: sincronizar cerebros ─────────────────────────── */
+
+describe("viasSeguras", () => {
+  it("sanea cada vía: medio/ok/error con valores por defecto honestos", () => {
+    const sucias = [{ medio: "supabase", ok: true }, { medio: "", ok: "sí" as unknown as boolean, error: "  " }] as ViaSincronizacion[];
+    expect(viasSeguras(sucias)).toEqual([
+      { medio: "supabase", ok: true, error: null },
+      { medio: "medio sin nombre", ok: false, error: null },
+    ]);
+  });
+
+  it("conserva el error real cuando la vía falló de verdad", () => {
+    const vias: ViaSincronizacion[] = [{ medio: "r2", ok: false, error: "handshake TLS falló contra Cloudflare R2" }];
+    expect(viasSeguras(vias)).toEqual([{ medio: "r2", ok: false, error: "handshake TLS falló contra Cloudflare R2" }]);
+  });
+
+  it("forma inesperada (no-array) ⇒ ninguna vía, nunca revienta", () => {
+    expect(viasSeguras(null)).toEqual([]);
+    expect(viasSeguras(undefined)).toEqual([]);
+    expect(viasSeguras("no es una lista" as unknown as ViaSincronizacion[])).toEqual([]);
+  });
+});
+
+describe("resumirVias — el caso de hoy: Supabase salva, R2 sigue roto", () => {
+  it("una vía falla y otra funciona ⇒ `algunaFalla` es verdad AUNQUE haya al menos un `ok`, y el texto lo dice", () => {
+    const vias: ViaSincronizacion[] = [{ medio: "supabase", ok: true }, { medio: "r2", ok: false, error: "handshake TLS falló contra Cloudflare R2" }];
+    const r = resumirVias(vias);
+    expect(r.okCount).toBe(1);
+    expect(r.algunaFalla).toBe(true); // nunca se esconde detrás de un ok global
+    expect(r.texto).toBe("supabase ok · r2 con fallo");
+  });
+
+  it("todas ok ⇒ `algunaFalla` falso", () => {
+    const r = resumirVias([{ medio: "supabase", ok: true }, { medio: "r2", ok: true }]);
+    expect(r.algunaFalla).toBe(false);
+    expect(r.okCount).toBe(2);
+  });
+
+  it("sin vías ⇒ resumen vacío pero con forma completa, nunca undefined", () => {
+    const r = resumirVias(null);
+    expect(r).toEqual({ vias: [], okCount: 0, algunaFalla: false, texto: "" });
+  });
+});
+
+describe("cerebrosPropiosSeguros", () => {
+  it("un ser con array real lo devuelve tal cual", () => {
+    const cerebros: CerebroSer[] = [{ id: "c1", nombre: "Memoria", sincronizable: true }];
+    expect(cerebrosPropiosSeguros({ cerebrosPropios: cerebros })).toBe(cerebros);
+  });
+
+  it("ausente, null o forma rara ⇒ array vacío, nunca revienta un `.map()` en el panel", () => {
+    expect(cerebrosPropiosSeguros(null)).toEqual([]);
+    expect(cerebrosPropiosSeguros(undefined)).toEqual([]);
+    expect(cerebrosPropiosSeguros({ cerebrosPropios: "no es un array" as unknown as CerebroSer[] })).toEqual([]);
+  });
+});
+
+describe("resumirResultadoGlobal", () => {
+  it("junta el desglose de vías con cerebrosTocados/en del resultado global", () => {
+    const resultado: ResultadoSincronizacion = {
+      ok: true,
+      vias: [{ medio: "supabase", ok: true }, { medio: "r2", ok: false, error: "handshake TLS" }],
+      cerebrosTocados: 3,
+      en: 12345,
+    };
+    const r = resumirResultadoGlobal(resultado);
+    expect(r.cerebrosTocados).toBe(3);
+    expect(r.en).toBe(12345);
+    expect(r.vias.algunaFalla).toBe(true);
+    expect(r.vias.okCount).toBe(1);
+  });
+
+  it("cerebrosTocados no-finito (backend roto) ⇒ se sanea a 0", () => {
+    const resultado = { ok: true, vias: [], cerebrosTocados: Number.NaN, en: 1 } as ResultadoSincronizacion;
+    expect(resumirResultadoGlobal(resultado).cerebrosTocados).toBe(0);
   });
 });

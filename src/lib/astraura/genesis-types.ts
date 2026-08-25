@@ -376,6 +376,15 @@ export interface CerebroSer {
   estadoSync?: "ok" | "fallo" | "nunca";
   /** Detalle del último fallo de sincronización, si lo hubo. */
   errorSync?: string | null;
+  /**
+   * Desglose vía por vía del ÚLTIMO intento de sincronización (cierre de
+   * deuda, ver `ResultadoSincronizacion` al final de este fichero). Con más
+   * de un medio en juego (hoy: R2 y Supabase) un fallback que salva el
+   * resultado global no debe esconder que otro medio sigue roto: arriba
+   * `estadoSync` sigue siendo el veredicto de conjunto, esto es la verdad
+   * completa. Ausente = el backend todavía no manda este desglose.
+   */
+  vias?: ViaSincronizacion[] | null;
 }
 
 /** De dónde salió el cuerpo del ser. */
@@ -444,4 +453,66 @@ export interface BotPredeterminado {
   /** true si ya existe como ser en la bóveda. */
   instalado: boolean;
   descripcion?: string | null;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// OLA 2 — Cierre de deudas: depósito de la biblioteca del usuario y
+// sincronización REAL de cerebros (más de una vía, con la verdad de cada
+// una por delante).
+//
+// ENDPOINTS NUEVOS (los implementa el backend; ninguno más, ninguno menos):
+//   POST   /api/genesis/herramientas/biblioteca_usuario              → { ok, recibidos, descartados }
+//   POST   /api/genesis/cerebros/sincronizar                         → { ok, resultado }   (todos los cerebros del sistema)
+//   POST   /api/genesis/seres/{id}/cerebros/{cerebro_id}/sincronizar → { ok, ser }         (uno solo, de este ser)
+//   DELETE /api/genesis/seres/{id}/cerebros/{cerebro_id}             → { ok }
+// ═══════════════════════════════════════════════════════════════════════
+
+/**
+ * Un paquete de la biblioteca del USUARIO tal y como el backend lo necesita
+ * para dejar de decir "no disponible" con razón. Vive de verdad en
+ * `localStorage` del navegador (`starseed.library.mine.v1`, ver
+ * `src/lib/library/packages.ts` → `LibraryPackage`) — esto es lo mínimo que
+ * viaja al depositarla, no el paquete completo (payload, tags, versión…).
+ */
+export interface PaqueteBibliotecaUsuario {
+  id: string;
+  /** Tipo de paquete (función, diseño, plantilla…). El backend no impone un vocabulario cerrado. */
+  kind?: string;
+  name: string;
+  description?: string;
+}
+
+/** Respuesta de depositar la biblioteca: cuántos entraron y cuántos no — nunca solo un "ok" a secas. */
+export interface DepositoBiblioteca {
+  recibidos: number;
+  descartados: number;
+}
+
+/**
+ * Un medio de sincronización probado DE VERDAD (R2, Supabase…) y si
+ * respondió. El backend no tiene por qué limitarse a estos dos con el
+ * tiempo — por eso `medio` es texto libre, no una unión cerrada.
+ */
+export interface ViaSincronizacion {
+  medio: string;
+  ok: boolean;
+  /** Detalle real del fallo EN ESTA vía — nunca se esconde detrás de un `ok` global que otra vía sí ganó. */
+  error?: string | null;
+}
+
+/**
+ * Resultado de un intento de sincronizar cerebros. `ok` es el veredicto
+ * GLOBAL (con que una vía capaz de guardar funcione — hoy Supabase — ya
+ * vale); `vias` es la verdad completa, vía por vía, para que un fallback
+ * que salvó el resultado nunca esconda que otro medio — hoy R2, por un
+ * handshake TLS roto — sigue sin funcionar. Un check verde a secas
+ * escondería que la mitad del mecanismo está roto: por eso las dos cosas
+ * viajan siempre juntas.
+ */
+export interface ResultadoSincronizacion {
+  ok: boolean;
+  vias: ViaSincronizacion[];
+  /** Cuántos cerebros tocó este intento: 1 para "uno", puede ser más para "todos". */
+  cerebrosTocados: number;
+  en: number;
 }

@@ -33,12 +33,23 @@
  * `genesis/avatar/`, otra ola en paralelo. Viven aquí de todos modos porque
  * este fichero es el cliente COMPLETO de OLA 2 — una función por endpoint
  * nuevo, sin excepciones, tal y como pide el encargo.
+ *
+ * CIERRE DE DEUDAS (4 funciones más, al final del fichero): depositar la
+ * biblioteca del usuario (`depositGenesisBibliotecaUsuario`) y sincronizar
+ * cerebros de verdad — todos (`syncGenesisCerebros`), uno
+ * (`syncGenesisSerCerebro`) y quitar uno (`deleteGenesisSerCerebro`). Antes
+ * no existían estos tres endpoints de sincronización; ahora sí, y con ellos
+ * llega `ViaSincronizacion`/`ResultadoSincronizacion` (`genesis-types.ts`):
+ * el sync con R2 está roto de verdad (handshake TLS) y el backend cae a
+ * Supabase — así que un resultado "ok" puede convivir con una vía rota por
+ * detrás, y eso se enseña, nunca se esconde detrás de un solo check verde.
  */
 
 import { astraura158Endpoint } from "./astraura-158-client";
 import {
   asGenesisList,
   unwrapEnvelope,
+  type GenesisAck,
   type GenesisResponse,
   type GenesisTarget,
 } from "./genesis-client";
@@ -46,13 +57,16 @@ import type {
   BotPredeterminado,
   CapacidadInternet,
   CerebroSer,
+  DepositoBiblioteca,
   EstadoOficina,
   FuenteAvatar,
   HerramientaDisponible,
+  PaqueteBibliotecaUsuario,
+  ResultadoSincronizacion,
   Ser,
 } from "./genesis-types";
 
-export type { GenesisResponse, GenesisTarget };
+export type { GenesisAck, GenesisResponse, GenesisTarget };
 
 /* ════════════════════════════════ Transporte ═══════════════════════════════
  * Copia literal del `call()`/`callList()`/timeouts privados de
@@ -124,6 +138,18 @@ async function callList<T>(target: GenesisTarget, path: string, timeoutMs?: numb
   if (!r.ok) return r;
   // Misma tolerancia que `genesis-client.ts`: forma inesperada ⇒ lista vacía, nunca revienta un `.map()`.
   return { ok: true, data: asGenesisList<T>(r.data), target: r.target, endpoint: r.endpoint };
+}
+
+/** Forma mínima de cualquier sobre de mutación del contrato de Génesis — copia literal de `genesis-client.ts` (ver la cabecera de este fichero: el transporte se duplica a propósito). */
+interface AckLike {
+  ok?: boolean;
+  error?: string;
+  message?: string;
+}
+
+/** Copia literal de `unwrapAck` (privado en `genesis-client.ts`) para los DELETE de esta ola que no devuelven más que `{ok}`. */
+function unwrapAck<TBody extends AckLike>(r: GenesisResponse<TBody>): GenesisResponse<GenesisAck> {
+  return unwrapEnvelope(r, () => ({ ok: true as const }));
 }
 
 /* ════════════════════════════════ Oficina ═══════════════════════════════
@@ -226,4 +252,82 @@ export async function updateGenesisSerCerebros(target: GenesisTarget, id: string
     { method: "POST", body: { cerebrosPropios }, timeoutMs: heavyTimeoutMs(target) },
   );
   return unwrapEnvelope(r, (b) => b.ser);
+}
+
+/* ═══════════════════ Cierre de deudas: biblioteca del usuario ════════════
+ * `GET /api/genesis/herramientas` es honesto hoy: marca "biblioteca del
+ * usuario" como no disponible porque esa biblioteca vive en `localStorage`
+ * del navegador (`starseed.library.mine.v1`) y el backend en Python no
+ * tenía forma de leerla. Esta función es esa forma.
+ * ════════════════════════════════════════════════════════════════════════ */
+
+/**
+ * `POST /api/genesis/herramientas/biblioteca_usuario` — deposita la
+ * biblioteca del usuario en el backend. Manda solo lo mínimo
+ * (`PaqueteBibliotecaUsuario`), nunca el paquete completo con su `payload`.
+ * Respuesta exacta del contrato: `{ok:true, recibidos, descartados}` — sin
+ * envoltorio anidado, así que `recibidos` no numérico ⇒ fallo explícito
+ * (el mismo criterio que el resto de `unwrapEnvelope`: nunca se cuela un
+ * éxito sin los datos que lo prueban).
+ */
+export async function depositGenesisBibliotecaUsuario(
+  target: GenesisTarget,
+  paquetes: PaqueteBibliotecaUsuario[],
+): Promise<GenesisResponse<DepositoBiblioteca>> {
+  const r = await call<{ ok?: boolean; recibidos?: number; descartados?: number; error?: string; message?: string }>(
+    target,
+    "/api/genesis/herramientas/biblioteca_usuario",
+    { method: "POST", body: { paquetes }, timeoutMs: heavyTimeoutMs(target) },
+  );
+  return unwrapEnvelope(r, (b) =>
+    typeof b.recibidos === "number"
+      ? { recibidos: b.recibidos, descartados: typeof b.descartados === "number" ? b.descartados : 0 }
+      : undefined,
+  );
+}
+
+/* ═══════════════════ Cierre de deudas: sincronizar cerebros ══════════════
+ * Antes no había endpoint para esto — no había botón, y era lo correcto:
+ * un botón "sincronizar" sin backend detrás es un botón que miente. Ahora
+ * SÍ existen los tres. El contexto que hay que reflejar tal cual en la
+ * interfaz: el sync con R2 está roto de verdad (handshake TLS) y el
+ * backend cae a Supabase automáticamente — así que "éxito" puede significar
+ * "una vía funcionó mientras otra sigue rota por detrás". `vias`, en
+ * `ResultadoSincronizacion` y en `CerebroSer.vias`, es la manera de que eso
+ * no quede escondido detrás de un solo check verde.
+ * ════════════════════════════════════════════════════════════════════════ */
+
+/** `POST /api/genesis/cerebros/sincronizar` — sincroniza TODOS los cerebros del sistema (no solo los de un ser). */
+export async function syncGenesisCerebros(target: GenesisTarget): Promise<GenesisResponse<ResultadoSincronizacion>> {
+  const r = await call<{ ok?: boolean; resultado?: ResultadoSincronizacion; error?: string; message?: string }>(
+    target,
+    "/api/genesis/cerebros/sincronizar",
+    { method: "POST", body: {}, timeoutMs: heavyTimeoutMs(target) },
+  );
+  return unwrapEnvelope(r, (b) => b.resultado);
+}
+
+/**
+ * `POST /api/genesis/seres/{id}/cerebros/{cerebro_id}/sincronizar` —
+ * sincroniza UN cerebro de UN ser. Mismo sobre `{ok, ser}` que el resto de
+ * mutaciones sobre un ser: el `Ser` devuelto trae `cerebrosPropios`
+ * actualizado con el resultado REAL (estado, error, vías) de este intento.
+ */
+export async function syncGenesisSerCerebro(target: GenesisTarget, serId: string, cerebroId: string): Promise<GenesisResponse<Ser>> {
+  const r = await call<{ ok?: boolean; ser?: Ser; error?: string; message?: string }>(
+    target,
+    `/api/genesis/seres/${encodeURIComponent(serId)}/cerebros/${encodeURIComponent(cerebroId)}/sincronizar`,
+    { method: "POST", body: {}, timeoutMs: heavyTimeoutMs(target) },
+  );
+  return unwrapEnvelope(r, (b) => b.ser);
+}
+
+/** `DELETE /api/genesis/seres/{id}/cerebros/{cerebro_id}` — quita un cerebro propio del ser, de verdad (no solo del array local). */
+export async function deleteGenesisSerCerebro(target: GenesisTarget, serId: string, cerebroId: string): Promise<GenesisResponse<GenesisAck>> {
+  const r = await call<{ ok?: boolean; error?: string; message?: string }>(
+    target,
+    `/api/genesis/seres/${encodeURIComponent(serId)}/cerebros/${encodeURIComponent(cerebroId)}`,
+    { method: "DELETE" },
+  );
+  return unwrapAck(r);
 }

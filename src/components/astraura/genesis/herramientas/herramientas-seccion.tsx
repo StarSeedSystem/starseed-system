@@ -20,6 +20,16 @@
  * ola de integración futura (fuera del alcance de esta): esta ola no toca
  * `ser-ficha.tsx`, así que este componente es, por ahora, la manera de usar
  * de verdad los cuatro paneles nuevos.
+ *
+ * CIERRE DE DEUDAS: `HerramientasLista` y `CerebrosPanel` ganaron props
+ * opcionales (`target`, y `CerebrosPanel` además `serId`) para depositar la
+ * biblioteca del usuario y sincronizar/quitar cerebros de verdad contra el
+ * backend. Aquí se pasan siempre — esta sección SÍ conoce `target`/`serId`
+ * — así que aquí es donde esas dos capacidades quedan realmente activas.
+ * `ser-ficha.tsx` monta las mismas dos piezas SIN esas props (sigue fuera
+ * de mi alcance, ver arriba), así que ahí se quedan en su comportamiento de
+ * antes hasta que alguien las pase también — dos props, ningún cambio de
+ * lógica.
  */
 import { useCallback } from "react";
 import { Brain, Globe } from "lucide-react";
@@ -102,7 +112,8 @@ export function HerramientasSeccion({ target, serId, onCambiado }: HerramientasS
         </div>
       )}
 
-      <HerramientasLista lista={herramientas.data} loading={herramientas.loading} error={herramientas.error} />
+      {/* `target` habilita el depósito real de la biblioteca del usuario al abrir este panel — ver la cabecera de `herramientas-lista.tsx`. */}
+      <HerramientasLista lista={herramientas.data} loading={herramientas.loading} error={herramientas.error} target={target} />
 
       {s && (
         <div className={cn(CARD, "p-3")}>
@@ -113,7 +124,8 @@ export function HerramientasSeccion({ target, serId, onCambiado }: HerramientasS
             hint='Alex: "memorias en cerebros propios configurables y enrutables y sincronizables".'
           />
           <div className="mt-2">
-            <CerebrosPanel key={s.id} value={s.cerebrosPropios} disabled={busy !== ""} onCommit={commitCerebros} />
+            {/* `target`+`serId` habilitan sincronizar/quitar contra los endpoints dedicados — ver la cabecera de `cerebros-panel.tsx`. */}
+            <CerebrosPanel key={s.id} value={s.cerebrosPropios} disabled={busy !== ""} onCommit={commitCerebros} target={target} serId={serId} />
           </div>
         </div>
       )}

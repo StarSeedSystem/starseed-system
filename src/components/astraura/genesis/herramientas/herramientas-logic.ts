@@ -9,7 +9,10 @@
  * estado a medias disfrazado de éxito) vive aquí — los ficheros `.tsx` solo
  * pintan lo que esto decide.
  */
-import type { BotPredeterminado, CapacidadInternet, CerebroSer, HerramientaDisponible } from "@/lib/astraura/genesis-types";
+import type {
+  BotPredeterminado, CapacidadInternet, CerebroSer, HerramientaDisponible,
+  PaqueteBibliotecaUsuario, ResultadoSincronizacion, Ser, ViaSincronizacion,
+} from "@/lib/astraura/genesis-types";
 
 /* ══════════════════════════ Internet y herramientas ══════════════════════
  * Alex: "deben tener una opción de acceso a internet que use todas las
@@ -317,4 +320,119 @@ export function resumirBots(lista: readonly BotPredeterminado[] | null | undefin
 export function idsPendientesDeInstalar(lista: readonly BotPredeterminado[] | null | undefined): string[] {
   const seguras = Array.isArray(lista) ? lista : [];
   return seguras.filter((b) => b?.instalado !== true).map((b) => b.id);
+}
+
+/* ══════════════════════ Cierre de deudas: biblioteca del usuario ══════════
+ * "Hoy GET /api/genesis/herramientas marca la biblioteca del usuario como
+ * no disponible, y es honesto: vive en localStorage y desde el backend no
+ * hay forma de leerla." Esto deja de ser cierto en cuanto el OS deposita —
+ * lo de aquí es la traducción PURA de paquetes reales a lo mínimo que el
+ * backend pide, y el vocabulario de estado del propio depósito. Leer la
+ * biblioteca de verdad (localStorage) es cosa de `herramientas-lista.tsx`.
+ * ════════════════════════════════════════════════════════════════════════ */
+
+/** Fases honestas del depósito — nunca un booleano suelto que no dice ni cuántos ni cuándo. */
+export type EstadoDeposito =
+  | { fase: "inactivo" }
+  | { fase: "vacio" }
+  | { fase: "depositando" }
+  | { fase: "ok"; recibidos: number; descartados: number; en: number }
+  | { fase: "error"; error: string; en: number };
+
+/**
+ * Traduce paquetes reales de la biblioteca (`LibraryPackage`, de
+ * `@/lib/library/packages` — aceptado aquí por estructura, no por import: un
+ * `LibraryPackage` real encaja sin problema, y así esta función sigue
+ * siendo trivial de testear con literales sueltos) al cuerpo mínimo que el
+ * backend espera — nunca el `payload`/`tags`/versión completos, que no le
+ * hacen falta y son más superficie que exponer. Pura: no lee `localStorage`,
+ * solo transforma lo que ya se le entrega. Descarta silenciosamente
+ * cualquier entrada sin `id`/`name` reales — nunca manda un paquete que no
+ * podría depositarse.
+ */
+export function paquetesDeLibreria(
+  libs: readonly { id: string; kind?: string | null; name: string; description?: string | null }[] | null | undefined,
+): PaqueteBibliotecaUsuario[] {
+  const seguros = Array.isArray(libs) ? libs : [];
+  return seguros
+    .filter((p) => typeof p?.id === "string" && p.id.trim().length > 0 && typeof p?.name === "string" && p.name.trim().length > 0)
+    .map((p) => ({
+      id: p.id,
+      kind: p.kind || undefined,
+      name: p.name,
+      description: (p.description ?? "").trim() || undefined,
+    }));
+}
+
+/**
+ * Huella de contenido estable — para no volver a depositar EXACTAMENTE lo
+ * mismo cuando `subscribeLibrary` dispara por un cambio ajeno a "mine"
+ * (instalar algo del catálogo del OS también toca `starseed.library.*` y
+ * dispararía el mismo evento). No es criptográfica: solo hace falta que dos
+ * listas distintas casi siempre den huellas distintas.
+ */
+export function huellaPaquetes(paquetes: readonly PaqueteBibliotecaUsuario[]): string {
+  return JSON.stringify(paquetes.map((p) => [p.id, p.kind ?? "", p.name, p.description ?? ""]));
+}
+
+/** Frase honesta del estado del depósito — SIN fecha (el componente la añade con `fmtTs`/`fmtAgo`, igual que el resto del OS). */
+export function describirDeposito(estado: EstadoDeposito): string {
+  if (estado.fase === "inactivo") return "";
+  if (estado.fase === "vacio") return "Tu biblioteca no tiene paquetes propios todavía: nada que depositar.";
+  if (estado.fase === "depositando") return "Depositando tu biblioteca en el backend…";
+  if (estado.fase === "error") return `No se pudo depositar tu biblioteca: ${estado.error}`;
+  const desc = estado.descartados > 0 ? `, ${estado.descartados} descartado${estado.descartados === 1 ? "" : "s"}` : "";
+  return `Biblioteca depositada: ${estado.recibidos} paquete${estado.recibidos === 1 ? "" : "s"} recibido${estado.recibidos === 1 ? "" : "s"}${desc}.`;
+}
+
+/* ══════════════════════ Cierre de deudas: sincronizar cerebros ════════════
+ * "El resultado real de un «sincronizar ahora» puede ser: éxito por
+ * Supabase, con R2 fallando por detrás. Enséñalo tal cual — qué vía
+ * funcionó y cuál no. Un check verde a secas escondería que la mitad del
+ * mecanismo está rota." Esta sección construye ese desglose de forma seria
+ * (nunca revienta con una forma inesperada del backend) y sin adivinar.
+ * ════════════════════════════════════════════════════════════════════════ */
+
+/** Cualquier `vias` que no sea un array usable ⇒ ninguna — nunca revienta un `.map()`; cada entrada se sanea por su cuenta. */
+export function viasSeguras(vias: readonly ViaSincronizacion[] | null | undefined): ViaSincronizacion[] {
+  if (!Array.isArray(vias)) return [];
+  return vias.map((v) => ({
+    medio: typeof v?.medio === "string" && v.medio.trim() ? v.medio.trim() : "medio sin nombre",
+    ok: v?.ok === true,
+    error: typeof v?.error === "string" && v.error.trim() ? v.error : null,
+  }));
+}
+
+export interface ResumenVias {
+  vias: ViaSincronizacion[];
+  /** Cuántas vías de verdad funcionaron. */
+  okCount: number;
+  /** Al menos una vía falló — independiente de si el resultado GLOBAL es `ok` (el caso de hoy: Supabase salva, R2 sigue roto). */
+  algunaFalla: boolean;
+  /** Frase honesta lista para pintar, ej. "supabase ok · r2 con fallo". Vacía si no hay vías que desglosar. */
+  texto: string;
+}
+
+export function resumirVias(vias: readonly ViaSincronizacion[] | null | undefined): ResumenVias {
+  const seguras = viasSeguras(vias);
+  const okCount = seguras.filter((v) => v.ok).length;
+  const algunaFalla = seguras.some((v) => !v.ok);
+  const texto = seguras.map((v) => `${v.medio} ${v.ok ? "ok" : "con fallo"}`).join(" · ");
+  return { vias: seguras, okCount, algunaFalla, texto };
+}
+
+/** Nunca deja `cerebrosPropios` como `undefined`/forma rara tras una respuesta del backend: siempre un array usable. */
+export function cerebrosPropiosSeguros(ser: Pick<Ser, "cerebrosPropios"> | null | undefined): CerebroSer[] {
+  return Array.isArray(ser?.cerebrosPropios) ? (ser.cerebrosPropios as CerebroSer[]) : [];
+}
+
+/** Resumen de un `ResultadoSincronizacion` global (el de "todos"), con el mismo desglose por vía que un cerebro individual. */
+export interface ResumenResultadoGlobal {
+  vias: ResumenVias;
+  cerebrosTocados: number;
+  en: number;
+}
+
+export function resumirResultadoGlobal(r: ResultadoSincronizacion): ResumenResultadoGlobal {
+  return { vias: resumirVias(r.vias), cerebrosTocados: Number.isFinite(r.cerebrosTocados) ? r.cerebrosTocados : 0, en: r.en };
 }
