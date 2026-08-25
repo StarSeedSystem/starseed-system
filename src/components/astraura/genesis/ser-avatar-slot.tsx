@@ -10,28 +10,36 @@
  * si `./avatar` todavía no existiera al compilar, el error de tipos
  * quedaría aislado aquí, en un solo fichero, sin bloquear el resto.
  *
- * `./avatar` expone DOS componentes (ver su `index.ts`): `AvatarSer` — un
- * fragmento de escena SIN Canvas propio, pensado para el mundo compartido
- * donde muchos avatares comparten un único contexto WebGL — y
- * `AvatarAutonomo` — con Canvas, luces y respaldo SVG ya resueltos,
- * documentado explícitamente para "tarjetas de perfil… listados". Génesis
- * enseña UN ser suelto a la vez (una fila de la lista, la cabecera de la
- * ficha): ese es exactamente el segundo caso, así que es el que se usa
- * aquí — usar el primero habría significado reconstruir a mano el Canvas,
- * las luces y el respaldo que `AvatarAutonomo` ya resuelve.
+ * OLA 2 (enganche): antes se usaba `AvatarAutonomo` directo — SIEMPRE
+ * procedural, ignorando `avatarFuente` aunque el ser ya tuviera un cuerpo en
+ * línea o subido elegido en su ficha. Ahora se usa `AvatarConFuente`, la
+ * puerta que decide POR ENCIMA cuál de los tres pintar y cae sola al
+ * procedural si la imagen falla — con su licencia y su atribución al lado
+ * cuando el cuerpo es "en línea" (`mostrarProcedencia`, encendido por
+ * defecto en `AvatarConFuente`: es requisito del encargo, no adorno).
+ *
+ * `avatarFuente` es un prop NUEVO y OPCIONAL a propósito: `SerListado`
+ * (lo que trae `seres-lista.tsx` para cada fila) todavía no incluye ese
+ * campo en el contrato — solo `Ser` (la ficha completa) lo tiene. Omitirlo
+ * es exactamente "ausente = procedural, como siempre", así que las filas de
+ * lista no cambian de comportamiento; solo la ficha, que sí puede pasarlo,
+ * empieza a enseñar el cuerpo real elegido.
  *
  * `ser.adn` puede faltar (backend viejo, ser recién listado sin recalcular
- * todavía): `adnDeSer` (genesis-logic.ts) lo deriva de forma determinista
- * para que el avatar SIEMPRE reciba un `RasgosAdn` completo, nunca `null`.
+ * todavía): `adnDeSer` ya NO se llama aquí — `AvatarConFuente` lo deriva
+ * internamente con la misma `adnDeSer` (genesis-logic.ts), así que sigue
+ * recibiendo SIEMPRE un `RasgosAdn` completo, nunca `null`.
  *
- * `AvatarAutonomo` monta un `<Canvas>` de react-three-fiber y NO es
- * SSR-safe (su propia cabecera lo documenta) — por eso quien coloque este
- * componente en el árbol debe importarlo con
+ * `AvatarConFuente` (como `AvatarAutonomo`, al que envuelve) monta un
+ * `<Canvas>` de react-three-fiber en su rama procedural y NO es SSR-safe
+ * (su propia cabecera lo documenta) — por eso quien coloque este componente
+ * en el árbol debe importarlo con
  * `next/dynamic(() => import("./ser-avatar-slot"), { ssr: false })`, igual
  * que ya hace el resto del OS con sus paneles 3D/Canvas.
  */
-import { AvatarAutonomo } from "./avatar";
-import { adnDeSer, type SerAdnInput } from "./genesis-logic";
+import type { FuenteAvatar } from "@/lib/astraura/genesis-types";
+import { AvatarConFuente } from "./avatar";
+import { type SerAdnInput } from "./genesis-logic";
 
 export interface SerAvatarSlotProps {
   ser: SerAdnInput;
@@ -39,12 +47,27 @@ export interface SerAvatarSlotProps {
   tamano?: number;
   /** El nombre como texto real junto al avatar (el visual en sí es decorativo). Apágalo si el nombre ya se muestra al lado por otro sitio. */
   mostrarNombre?: boolean;
+  /** De dónde sale el cuerpo real del ser (OLA 2). Ausente = procedural, como
+   * siempre — así es como llegan las filas de `seres-lista.tsx`, que solo
+   * tienen `SerListado` y ese campo no está en su contrato. */
+  avatarFuente?: FuenteAvatar | null;
+  /** Licencia + atribución junto al avatar cuando el cuerpo es "en línea".
+   * Sin especificar, manda el propio default de `AvatarConFuente` (encendido). */
+  mostrarProcedencia?: boolean;
   className?: string;
 }
 
-export function SerAvatarSlot({ ser, tamano = 56, mostrarNombre = false, className }: SerAvatarSlotProps) {
-  const adn = adnDeSer(ser);
-  return <AvatarAutonomo adn={adn} tamano={tamano} nombre={mostrarNombre ? ser.nombre : undefined} className={className} />;
+export function SerAvatarSlot({ ser, tamano = 56, mostrarNombre = false, avatarFuente, mostrarProcedencia, className }: SerAvatarSlotProps) {
+  return (
+    <AvatarConFuente
+      ser={ser}
+      avatarFuente={avatarFuente}
+      tamano={tamano}
+      mostrarNombre={mostrarNombre}
+      mostrarProcedencia={mostrarProcedencia}
+      className={className}
+    />
+  );
 }
 
 export default SerAvatarSlot;

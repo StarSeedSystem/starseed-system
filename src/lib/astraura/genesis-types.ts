@@ -224,6 +224,15 @@ export interface Ser {
   /** Cuotas reales de máquina. */
   recursos: { concurrencia: number; cpuPorcentaje: number; ramMb: number };
 
+  /** Acceso a internet y herramientas. Ausente = nunca se le concedió. */
+  internet?: CapacidadInternet | null;
+  /** De dónde salió su cuerpo. Ausente = procedural, el de siempre. */
+  avatarFuente?: FuenteAvatar | null;
+  /** Sus cerebros con enrutado y sincronización. Complementa `cerebros`. */
+  cerebrosPropios?: CerebroSer[] | null;
+  /** Si nació de un proceso de Imaginación Intuitiva, cuál. */
+  procesoTipoId?: string | null;
+
   /** Ciclos, tareas y recuerdos acumulados; alimenta la evolución del cuerpo. */
   experiencia: number;
   creadoEn: number;
@@ -287,3 +296,152 @@ export const ENRUTADO_POR_DEFECTO: EnrutadoCognitivo = {
   ultimoUsado: null,
   ultimaFueDegradada: false,
 };
+
+// ═══════════════════════════════════════════════════════════════════════
+// OLA 2 — Oficina, capacidades y avatares
+//
+// Portamos la oficina 3D de Hermes3D (MIT, © 2026 Luke The Dev,
+// github.com/iamlukethedev/Hermes3D). Hermes3D es «gateway-first»: la
+// interfaz no posee el estado de los agentes, lo pide a un backend por
+// WebSocket. Eso es justo lo que nos permite integrarlo de verdad en vez de
+// copiarlo: Astraura ES el gateway, y los trabajadores de la oficina son
+// nuestros seres, con sus personalidades y su sistema 1.58 bit.
+//
+// ENDPOINTS NUEVOS (los implementa el backend; ninguno más, ninguno menos):
+//   GET    /api/genesis/oficina                     → EstadoOficina
+//   GET    /api/genesis/bots_predeterminados        → BotPredeterminado[]
+//   POST   /api/genesis/bots_predeterminados/instalar → { ok, creados: string[] }
+//   POST   /api/genesis/seres/{id}/internet         → { ok, ser }
+//   POST   /api/genesis/seres/{id}/avatar/buscar    → { ok, candidatos: FuenteAvatar[] }
+//   POST   /api/genesis/seres/{id}/avatar           → { ok, ser }
+//   GET    /api/genesis/herramientas                → HerramientaDisponible[]
+//   POST   /api/genesis/seres/{id}/cerebros         → { ok, ser }
+// ═══════════════════════════════════════════════════════════════════════
+
+/**
+ * Acceso a internet y a las herramientas del sistema, por ser.
+ *
+ * Es opcional y se concede a conciencia: un ser con `activa` en false no sale
+ * a la red, punto. Y cada fuente se concede por separado, porque «leer la
+ * biblioteca del OS» y «leer tus carpetas» no son el mismo permiso ni de lejos.
+ */
+export interface CapacidadInternet {
+  activa: boolean;
+  /** Biblioteca en línea del OS (paquetes, diseños, funciones publicadas). */
+  bibliotecaOS: boolean;
+  /** Biblioteca propia del usuario. */
+  bibliotecaUsuario: boolean;
+  /** Carpetas y archivos del dispositivo, dentro de su soberanía. */
+  dispositivo: boolean;
+  /** Búsqueda web abierta. Lo más amplio, y por eso aparte. */
+  web: boolean;
+  /** Si no está vacío, SOLO estos dominios. Gana sobre `bloqueados`. */
+  dominiosPermitidos: string[];
+  dominiosBloqueados: string[];
+  ultimoAcceso?: number | null;
+  /** Último error real de red, para que un acceso roto no parezca apagado. */
+  ultimoError?: string | null;
+}
+
+/** Una herramienta que un ser puede usar, con su origen real. */
+export interface HerramientaDisponible {
+  id: string;
+  nombre: string;
+  /** "biblioteca-os" | "biblioteca-usuario" | "dispositivo" | "web" | "nativa" */
+  fuente: string;
+  descripcion?: string | null;
+  /** Permiso que exige; vacío = ninguno. */
+  requierePermiso?: string | null;
+  disponible: boolean;
+  /** Por qué no está disponible, cuando no lo está. */
+  motivo?: string | null;
+}
+
+/**
+ * Un cerebro propio del ser: dónde vive, a dónde se enruta y si se sincroniza.
+ * Alex lo pidió literal: «memorias en cerebros propios configurables y
+ * enrutables y sincronizables».
+ */
+export interface CerebroSer {
+  id: string;
+  nombre: string;
+  color?: string | null;
+  /** Dónde vive físicamente. */
+  rutaAlmacen?: string | null;
+  /** Medio o servidor al que se enruta (R2, disco externo, otro nodo). */
+  enrutadoA?: string | null;
+  sincronizable: boolean;
+  ultimaSync?: number | null;
+  /** Nunca "ok" por defecto: si no se ha sincronizado nunca, se dice. */
+  estadoSync?: "ok" | "fallo" | "nunca";
+  /** Detalle del último fallo de sincronización, si lo hubo. */
+  errorSync?: string | null;
+}
+
+/** De dónde salió el cuerpo del ser. */
+export interface FuenteAvatar {
+  /** "procedural" = derivado de su ADN; "enlinea" = encontrado; "subido" = puesto a mano. */
+  modo: "procedural" | "enlinea" | "subido";
+  url?: string | null;
+  /** Qué buscó el ser para encontrarlo. */
+  consulta?: string | null;
+  proveedor?: string | null;
+  /** Licencia declarada del recurso. Sin licencia conocida no se usa por defecto. */
+  licencia?: string | null;
+  atribucion?: string | null;
+  elegidoEn?: number | null;
+}
+
+// ─────────────────────────────────────────── La oficina
+
+export interface SalaOficina {
+  id: string;
+  nombre: string;
+  /** Tipo de proceso imaginativo que se hace aquí, si corresponde. */
+  procesoTipoId?: string | null;
+  /** 0–1: cuánta actividad real hay ahora mismo. */
+  actividad: number;
+  color?: string | null;
+}
+
+export type ActividadOcupante = "pensando" | "hablando" | "trabajando" | "inactivo";
+
+export interface OcupanteOficina {
+  serId: string;
+  salaId: string | null;
+  actividad: ActividadOcupante;
+  /** Proceso imaginativo concreto que está corriendo, si lo hay. */
+  procesoId?: string | null;
+  /** Qué está haciendo, en una frase. Sale del proceso real. */
+  detalle?: string | null;
+  desde: number;
+}
+
+export interface EstadoOficina {
+  salas: SalaOficina[];
+  ocupantes: OcupanteOficina[];
+  actualizadoEn: number;
+  /** Falso cuando el estado no viene de procesos reales. La oficina no debe
+   *  animar actividad inventada: si no hay nada corriendo, se ve quieta. */
+  datosReales: boolean;
+}
+
+// ─────────────────────────────────────────── Bots predeterminados
+
+/**
+ * Los 7 procesos de Imaginación Intuitiva pasan a ser los 7 bots de fábrica,
+ * cada uno con el agente y la personalidad que YA le corresponden en el motor.
+ * No son bots nuevos inventados: son los que llevan tiempo trabajando.
+ */
+export interface BotPredeterminado {
+  /** Coincide con el id del tipo de proceso imaginativo. */
+  id: string;
+  nombre: string;
+  rol: string;
+  procesoTipoId: string;
+  personalidadId?: string | null;
+  agenteId?: string | null;
+  /** true si ya existe como ser en la bóveda. */
+  instalado: boolean;
+  descripcion?: string | null;
+}

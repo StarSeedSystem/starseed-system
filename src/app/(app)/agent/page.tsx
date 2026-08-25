@@ -68,6 +68,8 @@ import {
   // Génesis de Seres (área 23): sección nueva, recién enganchada al menú.
   Dna,
   Orbit,
+  // Oficina 3D de Génesis (portada de Hermes3D): tercera pestaña del área 23.
+  Building2,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -155,6 +157,10 @@ import { S158TabHost } from "@/components/astraura/s158-host";
 // idioma de carga que el resto de paneles de Génesis (`useS158Load`,
 // `Empty`, `CARD`…) y el mismo selector local/nube (`GenesisTargetSwitcher`).
 import { fetchGenesisSeres, fetchGenesisVinculos, fetchGenesisComunidades, fetchGenesisEspacios, type GenesisTarget } from "@/lib/astraura/genesis-client";
+// Oficina 3D (OLA 2, `genesis-client-ola2.ts`): el único endpoint nuevo que
+// esta página necesita para traerle sus datos a `<OficinaSeres>` — mismo
+// `GenesisResponse`/`useS158Load` que el resto de Génesis, sin adaptador.
+import { fetchGenesisOficina } from "@/lib/astraura/genesis-client-ola2";
 import { GenesisTargetSwitcher } from "@/components/astraura/genesis/genesis-shared";
 import { CARD as GENESIS_CARD, SectionTitle as GenesisSectionTitle, Empty as GenesisEmpty, useS158Load } from "@/components/astraura/s158/shared";
 
@@ -197,6 +203,18 @@ const MundoSeres = nextDynamic(() => import("@/components/astraura/genesis/mundo
   loading: () => (
     <div className="rounded-xl border border-white/10 bg-black/20 p-10 text-center text-sm text-white/50">
       Cargando el mundo 3D de Génesis…
+    </div>
+  ),
+});
+// La oficina 3D de Génesis (portada de Hermes3D): arrastra three.js exactamente
+// igual que `MundoSeres` (misma familia de escena) — mismo motivo, mismo
+// diferido. Es de PRESENTACIÓN pura y tiene su propia pantalla completa (ver
+// `GenesisOficinaTab` más abajo): esta página solo le trae `estado`/`seres`.
+const OficinaSeres = nextDynamic(() => import("@/components/astraura/genesis/oficina").then(m => m.OficinaSeres), {
+  ssr: false,
+  loading: () => (
+    <div className="rounded-xl border border-white/10 bg-black/20 p-10 text-center text-sm text-white/50">
+      Abriendo la oficina 3D de Génesis…
     </div>
   ),
 });
@@ -545,10 +563,15 @@ const STUDIO_SECTIONS: StudioSection[] = [
     label: "Génesis de Seres",
     icon: Dna,
     accent: "text-fuchsia-300",
-    hint: "Invoca, configura y contempla a tus seres autónomos — su ADN, su soberanía, sus propuestas — y el mundo 3D compartido donde conviven.",
+    hint: "Invoca, configura y contempla a tus seres autónomos — su ADN, su soberanía, sus propuestas — el mundo 3D donde conviven y la oficina donde trabajan.",
     items: [
       { value: "genesis-seres", label: "Seres", icon: Sparkles },
       { value: "genesis-mundo", label: "Mundo 3D", icon: Orbit },
+      // Oficina 3D (portada de Hermes3D, MIT): la tercera pieza de Génesis
+      // que estaba terminada y probada pero, hasta hoy, sin enganchar a
+      // ningún menú. Misma familia que "Mundo 3D": presentación pura, carga
+      // diferida porque arrastra three.js entera.
+      { value: "genesis-oficina", label: "Oficina 3D", icon: Building2 },
     ],
   },
 ];
@@ -683,6 +706,10 @@ const TAB_ALIASES: Record<string, string> = {
   mundo: "genesis-mundo",
   "mundo-3d": "genesis-mundo",
   "genesis-mundo-3d": "genesis-mundo",
+  // Oficina 3D (nueva): mismo criterio de alias cortos que el resto del área.
+  oficina: "genesis-oficina",
+  "oficina-3d": "genesis-oficina",
+  "genesis-oficina-3d": "genesis-oficina",
 };
 function normalizeTab(raw: string | null | undefined): string | null {
   if (!raw) return null;
@@ -820,6 +847,54 @@ function GenesisMundoTab() {
         )}
       </div>
     </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Oficina 3D de Génesis: mismo criterio de carga que `GenesisMundoTab` de
+// arriba — trae `seres` y el `estado` de la oficina (salas + ocupantes) con
+// el mismo `useS158Load`/selector local·nube.
+//
+// SÍ se diferencia en el montaje: `OficinaSeres` tiene pantalla completa
+// PROPIA (Fullscreen API real, con un respaldo `fixed inset-0` por CSS si el
+// navegador la deniega — ver `oficina-fullscreen.ts`), así que una vez hay
+// datos se monta SUELTA, sin la tarjeta `GENESIS_CARD` que envuelve a
+// `MundoSeres` arriba: esa tarjeta lleva `backdrop-blur-xl`, y un
+// `backdrop-filter` en un antepasado crea, en varios motores, un
+// "containing block" nuevo para `position:fixed` — justo lo que usa ese
+// respaldo — dejando la pantalla completa presa dentro de la tarjeta en vez
+// de cubrir el viewport. El selector de destino no se pierde por eso:
+// `OficinaSeres` ya trae un hueco (`controlesExtra`) para montarlo en su
+// propia barra superior, junto al botón de pantalla completa.
+// ─────────────────────────────────────────────────────────────────────────────
+function GenesisOficinaTab() {
+  const [target, setTarget] = useState<GenesisTarget>("local");
+  const estado = useS158Load(fetchGenesisOficina, target, 20_000);
+  const seres = useS158Load(fetchGenesisSeres, target, 20_000);
+
+  if (!estado.data) {
+    return (
+      <div className={cn(GENESIS_CARD, "p-3")}>
+        <GenesisSectionTitle
+          icon={Building2}
+          title="Oficina 3D de Génesis"
+          tone="text-fuchsia-300"
+          hint="La oficina 3D donde tus seres piensan, hablan y trabajan — en salas reales, no decorativas."
+          right={<GenesisTargetSwitcher target={target} onChange={setTarget} />}
+        />
+        <div className="mt-3">
+          <GenesisEmpty loading={estado.loading} error={estado.error} text="Aún no hay datos de la oficina todavía." />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <OficinaSeres
+      estado={estado.data}
+      seres={seres.data ?? []}
+      controlesExtra={<GenesisTargetSwitcher target={target} onChange={setTarget} />}
+    />
   );
 }
 
@@ -1917,6 +1992,14 @@ function AgentPageInner() {
 
         <TabsContent value="genesis-mundo" className={TAB_SCROLL}>
           <GenesisMundoTab />
+        </TabsContent>
+
+        {/* «Oficina 3D»: la portada de Hermes3D, con sus propios seres
+            trabajando en salas reales — ver el porqué de `TAB_SCROLL` (en
+            vez de envolverla en más tarjetas) en la cabecera de
+            `GenesisOficinaTab`. */}
+        <TabsContent value="genesis-oficina" className={TAB_SCROLL}>
+          <GenesisOficinaTab />
         </TabsContent>
         </div>
       </Tabs>

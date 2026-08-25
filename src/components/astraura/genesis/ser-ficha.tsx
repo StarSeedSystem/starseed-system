@@ -20,19 +20,26 @@
 import { useCallback, useState } from "react";
 import dynamic from "next/dynamic";
 import {
-  ArrowLeft, Dna, Gauge, GitFork, Network, Plus, RefreshCw, ShieldCheck, Sparkles, Trash2, User, Users, Cpu as CpuIcon,
+  ArrowLeft, Brain, CircleUserRound, Dna, Gauge, GitFork, Globe, Network, Plus, RefreshCw, ShieldCheck, Sparkles, Trash2, User, Users, Cpu as CpuIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Switch } from "@/components/ui/switch";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { fetchAstraura158Manifest } from "@/lib/astraura/astraura-158-client";
-import type { EnrutadoCognitivo, Ser, Soberania } from "@/lib/astraura/genesis-types";
+import type { CapacidadInternet, CerebroSer, EnrutadoCognitivo, FuenteAvatar, Ser, Soberania } from "@/lib/astraura/genesis-types";
 import {
   createGenesisComunidad, createGenesisEspacio, deleteGenesisSer, fetchGenesisComunidades, fetchGenesisEspacios,
   fetchGenesisLinaje, fetchGenesisModelos, fetchGenesisSer, recomputeGenesisAdn, updateGenesisSer,
   type GenesisTarget, type SerPatch,
 } from "@/lib/astraura/genesis-client";
+// OLA 2 (`genesis-client-ola2.ts`): internet/herramientas/cerebros propios y
+// avatar de UN ser, más el catálogo global de herramientas del sistema.
+// Mismo `GenesisResponse`/`useS158Load` que el resto — se integran aquí con
+// el mismo patrón `commit*Core`/`commit*` que ya usa el resto de la ficha.
+import {
+  fetchGenesisHerramientas, setGenesisSerAvatar, updateGenesisSerCerebros, updateGenesisSerInternet,
+} from "@/lib/astraura/genesis-client-ola2";
 import {
   BTN, BTN_DANGER, BusyIcon, CARD, Empty, Field, INPUT, LABEL, MONO, PERMISSION_LABEL, PERMISSION_LEVEL_IDS,
   PILL, PILL_ON, PILL_OFF, SELECT, SUB, Stat, SectionTitle, TEXTAREA, clampInt, fmtTs, runS158, useBusy, useS158Load,
@@ -41,11 +48,27 @@ import { adnDeSer, joinLineList, nivelEvolutivoLabel, nombreEnLinaje, parseLineL
 import { EstadoSerBadge } from "./genesis-shared";
 import { SoberaniaPanel } from "./soberania-panel";
 import { EnrutadoPanel } from "./enrutado-panel";
+// OLA 2, en paralelo: catálogo de herramientas + acceso a internet + cerebros
+// propios de ESTE ser (leen/mutan por `serId`, así que son "de un ser" — su
+// sitio es la ficha). Los bots predeterminados (el otro panel de esa misma
+// ola) NO están aquí a propósito: son de fábrica, no de un ser en concreto —
+// viven en `genesis-section.tsx`, junto al censo completo.
+import { CerebrosPanel, HerramientasLista, InternetPanel } from "./herramientas";
 
 // Igual que en seres-lista.tsx: el avatar monta un <Canvas> WebGL y no es SSR-safe.
 const SerAvatarSlot = dynamic(() => import("./ser-avatar-slot"), {
   ssr: false,
   loading: () => <div className="h-16 w-16 shrink-0 animate-pulse rounded-full bg-white/10" aria-hidden="true" />,
+});
+// El selector de cuerpo reutiliza `AvatarAutonomo` en su pestaña procedural
+// (mismo Canvas WebGL) — se difiere exactamente igual, y aparte de
+// `SerAvatarSlot`: es una pieza bastante más grande (tres pestañas,
+// buscador en línea) que no debe descargarse hasta que la ficha llegue a
+// pintar su sección "Cuerpo", ni bloquear el resto de esta si three.js
+// tarda en cargar.
+const SelectorCuerpoSer = dynamic(() => import("./avatar").then((m) => m.SelectorCuerpoSer), {
+  ssr: false,
+  loading: () => <div className="h-40 w-full animate-pulse rounded-xl border border-white/10 bg-white/[0.02]" aria-hidden="true" />,
 });
 
 /** Vocabulario de frecuencia de imaginación ya establecido en `agentes-tab.tsx`; repetido aquí porque no se exporta desde allí. */
@@ -113,6 +136,9 @@ export function SerFicha({ target, serId, onVolver, onBorrado, onEngendrar, onCa
   const modelos = useS158Load(fetchGenesisModelos, target, 60_000);
   const linaje = useS158Load(fetchGenesisLinaje, target, 60_000);
   const manifest = useS158Load(fetchAstraura158Manifest, target, 60_000);
+  // OLA 2: catálogo global de herramientas del sistema (no por ser — mismo
+  // criterio de poll que el resto de catálogos de arriba).
+  const herramientas = useS158Load(fetchGenesisHerramientas, target, 60_000);
 
   const [nuevaComunidad, setNuevaComunidad] = useState({ nombre: "", proposito: "" });
   const [nuevoEspacio, setNuevoEspacio] = useState({ nombre: "", arquetipo: "" });
@@ -125,6 +151,33 @@ export function SerFicha({ target, serId, onVolver, onBorrado, onEngendrar, onCa
     [target, serId, reloadSer, onCambiado],
   );
   const commit = useCallback((label: string, patch: SerPatch) => { void wrap(label, () => commitCore(label, patch)); }, [wrap, commitCore]);
+
+  // OLA 2 — internet, cerebros propios y avatar: endpoints DEDICADOS
+  // (`/seres/{id}/internet`, `/cerebros`, `/avatar`), no el PATCH genérico
+  // de arriba, así que cada uno lleva su propio `commit*Core`/`commit*` —
+  // mismo patrón que `commitCore`/`commit`, mismo `runS158`, mismo `busy`
+  // compartido de toda la ficha (deshabilita el resto mientras cualquiera
+  // de estos guarda, igual que ya hace cada campo de arriba).
+  const commitInternetCore = useCallback(
+    (patch: Partial<CapacidadInternet>) =>
+      runS158("Acceso a internet actualizado", () => updateGenesisSerInternet(target, serId, patch), { after: async () => { await reloadSer(true); onCambiado(); } }),
+    [target, serId, reloadSer, onCambiado],
+  );
+  const commitInternet = useCallback((patch: Partial<CapacidadInternet>) => { void wrap("internet", () => commitInternetCore(patch)); }, [wrap, commitInternetCore]);
+
+  const commitCerebrosCore = useCallback(
+    (next: CerebroSer[]) =>
+      runS158("Cerebros propios actualizados", () => updateGenesisSerCerebros(target, serId, next), { after: async () => { await reloadSer(true); onCambiado(); } }),
+    [target, serId, reloadSer, onCambiado],
+  );
+  const commitCerebros = useCallback((next: CerebroSer[]) => { void wrap("cerebros", () => commitCerebrosCore(next)); }, [wrap, commitCerebrosCore]);
+
+  const commitAvatarCore = useCallback(
+    (fuente: FuenteAvatar) =>
+      runS158(fuente.modo === "procedural" ? "Cuerpo procedural restaurado" : "Cuerpo del avatar actualizado", () => setGenesisSerAvatar(target, serId, fuente), { after: async () => { await reloadSer(true); onCambiado(); } }),
+    [target, serId, reloadSer, onCambiado],
+  );
+  const commitAvatar = useCallback((fuente: FuenteAvatar) => { void wrap("avatar", () => commitAvatarCore(fuente)); }, [wrap, commitAvatarCore]);
 
   const handleDelete = () => {
     if (!s) return;
@@ -195,7 +248,7 @@ export function SerFicha({ target, serId, onVolver, onBorrado, onEngendrar, onCa
           {/* Cabecera: avatar, identidad de un vistazo, acciones de riesgo */}
           <div className={cn(CARD, "p-3")}>
             <div className="flex flex-wrap items-center gap-3">
-              <SerAvatarSlot ser={s} tamano={72} />
+              <SerAvatarSlot ser={s} tamano={72} avatarFuente={s.avatarFuente} />
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <h2 className="truncate text-[15px] font-semibold text-white/95">{s.nombre}</h2>
@@ -249,6 +302,22 @@ export function SerFicha({ target, serId, onVolver, onBorrado, onEngendrar, onCa
             </div>
           </div>
 
+          {/* Cuerpo — OLA 2: procedural (del ADN), en línea o subido.
+              `SelectorCuerpoSer` trae su propia tarjeta pero no un título
+              como el resto de la ficha, así que aquí se le antepone uno,
+              sin envolverlo en una segunda tarjeta (evita el doble borde). */}
+          <div>
+            <SectionTitle
+              icon={CircleUserRound}
+              title="Cuerpo"
+              tone="text-cyan-300"
+              hint="De dónde sale su forma: procedural (derivada del ADN), encontrada en línea o subida a mano."
+            />
+            <div className="mt-2">
+              <SelectorCuerpoSer key={s.id} ser={s} avatarFuente={s.avatarFuente} onElegir={commitAvatar} guardando={busy !== ""} />
+            </div>
+          </div>
+
           {/* Personalidades y cerebros — catálogo real del backend 1.58 */}
           <div className="grid gap-3 lg:grid-cols-2">
             <div className={cn(CARD, "p-3")}>
@@ -299,6 +368,44 @@ export function SerFicha({ target, serId, onVolver, onBorrado, onEngendrar, onCa
               </Field>
             </div>
           </div>
+
+          {/* Acceso a internet y cerebros propios — OLA 2: capacidades reales
+              y concedidas a conciencia, distintas del campo de texto libre
+              "Herramientas" de arriba (ese es del contrato original; estas
+              son estructuradas y con endpoint propio). Mismo idioma de
+              agrupar-en-grid que "Personalidades y cerebros" / "Imaginación
+              y recursos" arriba, para no sumar dos tarjetas sueltas más. */}
+          <div className="grid gap-3 lg:grid-cols-2">
+            <div className={cn(CARD, "p-3")}>
+              <SectionTitle
+                icon={Globe}
+                title="Acceso a internet"
+                tone="text-cyan-300"
+                hint='Alex: "una opción de acceso a internet que use todas las herramientas de la librería en línea del os y la biblioteca del usuario y las carpetas y archivos de dispositivo".'
+              />
+              <div className="mt-2">
+                <InternetPanel key={s.id} value={s.internet} disabled={busy !== ""} onCommit={commitInternet} />
+              </div>
+            </div>
+            <div className={cn(CARD, "p-3")}>
+              <SectionTitle
+                icon={Brain}
+                title="Cerebros propios"
+                tone="text-violet-300"
+                hint='Alex: "memorias en cerebros propios configurables y enrutables y sincronizables".'
+              />
+              <div className="mt-2">
+                <CerebrosPanel key={s.id} value={s.cerebrosPropios} disabled={busy !== ""} onCommit={commitCerebros} />
+              </div>
+            </div>
+          </div>
+
+          {/* Catálogo real de herramientas del sistema — global (no por ser),
+              trae su propia tarjeta y su propio título: se monta tal cual,
+              sin envolverlo en otra (mismo criterio que `propuestas-bandeja.tsx`
+              en `genesis-section.tsx`). Útil aquí, junto al interruptor de
+              arriba, para saber qué habilita de verdad conceder acceso. */}
+          <HerramientasLista lista={herramientas.data} loading={herramientas.loading} error={herramientas.error} />
 
           {/* Soberanía — explicada, no solo editable */}
           <div className={cn(CARD, "p-3")}>

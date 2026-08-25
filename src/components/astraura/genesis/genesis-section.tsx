@@ -22,12 +22,39 @@ import { Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Ser } from "@/lib/astraura/genesis-types";
 import type { GenesisTarget } from "@/lib/astraura/genesis-client";
-import { CARD, PILL, PILL_ON, PILL_OFF } from "../s158/shared";
+// OLA 2: catálogo de bots predeterminados (los 7 procesos de Imaginación
+// Intuitiva como bots de fábrica). Son "de la sección, no de un ser" — el
+// contrato no los ata a ningún `serId` — así que viven aquí, junto a la
+// lista de seres, y NO en `ser-ficha.tsx`.
+import { fetchGenesisBotsPredeterminados } from "@/lib/astraura/genesis-client-ola2";
+import { BotsPredeterminadosPanel } from "./herramientas";
+import { CARD, PILL, PILL_ON, PILL_OFF, useS158Load } from "../s158/shared";
 import { GENESIS_VIEW_LABEL, GenesisTargetSwitcher, type GenesisView } from "./genesis-shared";
 import { SeresLista } from "./seres-lista";
 import { SerFicha } from "./ser-ficha";
 import { RitualCreacion } from "./ritual-creacion";
 import { PropuestasBandeja } from "./propuestas-bandeja";
+
+/**
+ * Envoltorio local: `BotsPredeterminadosPanel` solo necesita `target` (es
+ * global, no por ser — ver su propia cabecera), así que trae su propio
+ * `useS158Load` en vez de esperar props ya resueltas de nadie. Vive AQUÍ
+ * (no en `ser-ficha.tsx`) para que instalar un bot de fábrica sea una
+ * acción de "toda la sección", visible junto al resto del censo de seres —
+ * nunca escondida dentro de la ficha de un ser en concreto.
+ */
+function GenesisBotsPredeterminados({ target }: { target: GenesisTarget }) {
+  const bots = useS158Load(fetchGenesisBotsPredeterminados, target, 60_000);
+  return (
+    <BotsPredeterminadosPanel
+      target={target}
+      lista={bots.data}
+      loading={bots.loading}
+      error={bots.error}
+      onInstalado={() => bots.reload(true)}
+    />
+  );
+}
 
 /** Las dos vistas persistentes; "ficha" y "ritual" son sub-estados de cualquiera de las dos. */
 type Raiz = Extract<GenesisView, "lista" | "propuestas">;
@@ -107,7 +134,14 @@ export function GenesisSection({ className }: GenesisSectionProps) {
         </div>
       </div>
 
-      {view === "lista" && <SeresLista key={listaEpoch} target={target} onAbrir={abrirSer} onCrear={() => irARitual(null)} />}
+      {view === "lista" && (
+        <>
+          <SeresLista key={listaEpoch} target={target} onAbrir={abrirSer} onCrear={() => irARitual(null)} />
+          {/* Bots predeterminados: de la sección entera, no de un ser — se
+              instalan como seres nuevos, así que viven junto al censo. */}
+          <GenesisBotsPredeterminados target={target} />
+        </>
+      )}
 
       {view === "ficha" && serId && (
         <SerFicha
