@@ -1282,27 +1282,43 @@ function AgentPageInner() {
     return base;
   }, [cloudMessages, streaming, streamText]);
 
+  // (Verificación 1.58 · fix corte inferior) Altura REAL del OmniDock medida
+  // en vivo: el dock es `position:fixed` y nada en CSS puede deducir su hueco;
+  // las estimaciones fijas de antes (7/8/11rem) se quedaban cortas según la
+  // densidad del dock, la pantalla o el zoom → últimos elementos recortados.
+  const [omnidockPx, setOmnidockPx] = useState<number | null>(null);
+  useEffect(() => {
+    const el = document.querySelector<HTMLElement>("[data-omnidock-root]");
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const measure = () => {
+      const r = el.getBoundingClientRect();
+      // Solo cuenta la parte del dock DENTRO del viewport (lo que de verdad tapa).
+      const visible = Math.max(0, Math.min(r.bottom, window.innerHeight) - Math.max(r.top, 0));
+      setOmnidockPx((prev) => (prev != null && Math.abs(prev - visible) <= 1 ? prev : Math.round(visible)));
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    window.addEventListener("resize", measure);
+    window.addEventListener("orientationchange", measure);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", measure);
+      window.removeEventListener("orientationchange", measure);
+    };
+  }, []);
 
   return (
     // Alto del contenedor = viewport MENOS el hueco que necesita OmniDock (el
-    // dock inferior fijo, `omni-dock.tsx`) para no taparse con él cuando está
-    // anclado (Ajustes > Trinity > dock siempre visible, o al anclarlo por
-    // gesto de borde) — OmniDock es `position:fixed`, no ocupa hueco en el
-    // flujo normal, así que nada aquí lo "ve": si no reservamos manualmente
-    // sitio para él, esta página se dibuja bajo su píldora.
-    //
-    // "4rem" (valor previo, Adenda 133) se quedó corto: la píldora del dock
-    // en densidad "cómoda" (por defecto) más su propio padding/margen mide,
-    // medido en vivo, ~6.7rem en móvil, ~8rem en tablet y ~10.6rem en
-    // escritorio (crece con lg: por los iconos/etiquetas más grandes) — no
-    // ~4rem en ningún caso. De ahí el corte "a media fila"/"a mitad de
-    // párrafo" en Conversaciones y en el hilo de chat: el panel SÍ llegaba
-    // hasta el borde del viewport, pero OmniDock lo tapaba visualmente ahí
-    // (pintado encima, no un recorte de overflow). Si OmniDock vuelve a
-    // rediseñarse (paleta más alta/baja, otra densidad por defecto), estos
-    // valores hay que remedirlos y ajustarlos aquí — no hay forma de que
-    // flexbox lo infiera solo de un hermano `position:fixed`.
-    <div className="flex flex-col h-[calc(100dvh-7rem-env(safe-area-inset-bottom))] sm:h-[calc(100dvh-8rem-env(safe-area-inset-bottom))] lg:h-[calc(100dvh-11rem-env(safe-area-inset-bottom))] gap-4 p-3 sm:p-4 md:p-5 pl-[max(0.75rem,env(safe-area-inset-left))] pr-[max(0.75rem,env(safe-area-inset-right))] max-w-[1600px] mx-auto w-full box-border overflow-x-hidden">
+    // dock inferior fijo, `omni-dock.tsx`). ANTES eran estimaciones fijas
+    // (7/8/11rem) pensadas para una densidad concreta del dock: si la densidad,
+    // el tamaño de pantalla o el zoom no coincidían, la reserva se quedaba
+    // CORTA y los últimos elementos de la sección quedaban tapados/recortados
+    // "más arriba de lo que deberían". AHORA la reserva se MIDE en vivo: un
+    // ResizeObserver lee la altura real del dock (`[data-omnidock-root]`) y
+    // publica `--omnidock-h`; las estimaciones viejas quedan como respaldo
+    // (máximo) hasta que llega la primera medición.
+    <div style={{ ["--omnidock-h" as string]: omnidockPx != null ? `${omnidockPx}px` : undefined }} className="flex flex-col h-[calc(100dvh-7rem-env(safe-area-inset-bottom))] sm:h-[calc(100dvh-8rem-env(safe-area-inset-bottom))] lg:h-[calc(100dvh-11rem-env(safe-area-inset-bottom))] supports-[--omnidock-h]:h-[calc(100dvh-var(--omnidock-h)-env(safe-area-inset-bottom))] gap-4 p-3 sm:p-4 md:p-5 pl-[max(0.75rem,env(safe-area-inset-left))] pr-[max(0.75rem,env(safe-area-inset-right))] max-w-[1600px] mx-auto w-full box-border overflow-x-hidden">
 
       <div className="flex items-center justify-between flex-wrap gap-3 w-full max-w-full box-border">
         <h1 className="text-xl sm:text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary to-purple-400 flex items-center gap-2 sm:gap-3 min-w-0">
