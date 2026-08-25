@@ -114,7 +114,16 @@ export function ChatNeuralSidebar({
   return (
     <div className={cn(
       "flex flex-col rounded-xl border bg-background/40 overflow-hidden",
-      variant === "panel" ? "w-full h-full min-h-0" : "hidden lg:flex w-64 shrink-0",
+      // min-h-0: sin esto, en la fila de escritorio (ChatSurface embebido va a
+      // `md:flex-row`) este panel se estira por `align-items:stretch` pero su
+      // `min-height` por defecto es "auto" (=el alto de TODO su contenido:
+      // cabecera + folders + lista completa de conversaciones). Con contenido
+      // largo, un navegador puede preferir ese alto de contenido al de estirar
+      // y desbordar el panel en vez de dejar que la lista de abajo (que sí es
+      // `flex-1 overflow-y-auto`) haga scroll interno. La variante "panel" de
+      // abajo YA lo lleva (`h-full min-h-0`); aquí faltaba — mismo patrón que
+      // TAB_SCROLL/TAB_FILL en agent/page.tsx.
+      variant === "panel" ? "w-full h-full min-h-0" : "hidden lg:flex w-64 shrink-0 min-h-0",
     )}>
       <div className="px-3 py-3 border-b flex items-center gap-2 text-sm font-semibold text-cyan-100">
         <Network className="w-4 h-4 text-cyan-400" />

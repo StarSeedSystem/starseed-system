@@ -214,6 +214,15 @@ export interface AuroraEngine {
   stop: () => void;
   toggle: () => void;
   speak: (text: string, forcePersonality?: any) => void;
+  /**
+   * Como `speak`, pero ENCOLA en vez de cancelar lo que ya está sonando: la
+   * usa la voz en vivo por cláusulas (una llamada por cláusula de la MISMA
+   * respuesta, mientras Astraura sigue escribiendo) para que ninguna
+   * cláusula corte a la anterior a mitad de palabra. `speak` conserva su
+   * semántica de siempre ("cancela y di esto YA") para el resto de
+   * superficies.
+   */
+  speakQueued: (text: string, forcePersonality?: any) => void;
   runCommand: (transcript: string, opts?: { forceSource?: { sourceId: string; modelId: string } }) => Promise<void>;
   /** ¿La síntesis de voz está pausada (transporte)? */
   paused: boolean;
@@ -392,6 +401,116 @@ function markTtsSpeaking(on: boolean): void {
   if (!on) ttsGuardUntilGlobal = Date.now() + 800; // cola de eco tras hablar
 }
 
+/**
+ * Limpieza del texto antes de hablar (Adenda 85): DOS variantes, EXTRAÍDA de
+ * `speak()` para que `speakQueued()` (voz en vivo por cláusulas) limpie
+ * EXACTAMENTE igual sin duplicar la regex a mano dentro de este archivo:
+ *  · `clean` — para el NAVEGADOR (histórica): quita también la puntuación — la
+ *    Web Speech API la lee mal ("punto", pausas raras) en algunas voces.
+ *  · `cleanChain` — para la CADENA NEURAL/OSS: quita markdown/símbolos pero
+ *    CONSERVA la puntuación de frase (. , ; : ! ? …) — la que marca la
+ *    prosodia y la que usa el troceo por frases para hablar los turnos
+ *    largos frase a frase.
+ * ⚠️ Esta limpieza (rama `cleanChain`) está REPLICADA en voice-notes.ts
+ * (`cleanTextForVoiceChain`) para hashear la nota de voz con el MISMO texto
+ * que suena. Si cambias esta regex, cámbiala también allí o las notas de voz
+ * dejarán de casar con su mensaje (Adenda 87). Pura: nunca lanza.
+ */
+function sanitizeSpeechText(text: string): { clean: string; cleanChain: string } {
+  const sinDirectivas = (text || "").replace(/\[\[goto:[^\]]+\]\]/gi, "");
+  let clean = sinDirectivas.replace(/[*_~`´#|><.,;:\-\[\](){}\\\/"—–]/g, " ");
+  clean = clean.replace(/\s+/g, " ").trim();
+  let cleanChain = sinDirectivas.replace(/[*_~`´#|><\[\](){}\\\/"]/g, " ");
+  cleanChain = cleanChain.replace(/\s+/g, " ").trim();
+  if (!clean && !cleanChain) return { clean: "", cleanChain: "" };
+  if (!cleanChain) cleanChain = clean;
+  if (!clean) clean = cleanChain;
+  return { clean, cleanChain };
+}
+
+/**
+ * Construye el `SpeechSynthesisUtterance` para `clean` con la resolución de
+ * voz/rate/pitch/estilo de `speakWithBrowser` (voz fijada en la personalidad
+ * → cadena rankeada del navegador → cadena histórica Mónica es-MX → es →
+ * cualquiera, con preferencia de género femenino salvo pin/preferencia "m"
+ * explícita). EXTRAÍDA como función pura (no cancela, no habla, no toca refs
+ * ni estado de React — solo lee `window.speechSynthesis.getVoices()`) para
+ * que `speakWithBrowser` (single-shot, cancela) y `speakWithBrowserQueued`
+ * (encolado, NO cancela) construyan la MISMA voz sin duplicar la cadena.
+ * Requiere que `window.speechSynthesis` exista (los llamantes ya lo comprueban).
+ */
+function resolveBrowserUtterance(clean: string, p: Personality): SpeechSynthesisUtterance {
+  const u = new SpeechSynthesisUtterance(clean);
+  u.lang = p.voice?.lang || "es-MX";
+  // Mapear un par de parámetros sobre la entrega.
+  const energia = Number(p.params?.energia ?? 60);
+  const calidez = Number(p.params?.calidez ?? 70);
+  const basePitch = Number(p.voice?.pitch ?? 1);
+  const baseRate = Number(p.voice?.rate ?? 1);
+  u.pitch = Math.max(0, Math.min(2, basePitch + (calidez - 50) / 250)); // calidez → +pitch leve
+  u.rate = Math.max(0.1, Math.min(2, baseRate + (energia - 50) / 200)); // energía → +rate
+  // (Adenda voz de Aurora) ESTILO EMOCIONAL VIVO: multiplica sobre la entrega
+  // de la personalidad con el estilo persistido (evento
+  // 'starseed:aurora-voice-style', herramienta ajustar_voz, sliders del panel).
+  try {
+    const style = resolveVoiceParams();
+    u.rate = Math.max(0.1, Math.min(2, u.rate * style.rate));
+    u.pitch = Math.max(0, Math.min(2, u.pitch * style.pitch));
+    u.volume = style.volume;
+  } catch { /* estilo no disponible → entrega histórica intacta */ }
+  const all = window.speechSynthesis.getVoices() || [];
+  // Voz: 1) la fijada en la personalidad → 2) la elegida/mejor RANKEADA del
+  // navegador (config unificada; "" = automática = neurales/premium primero,
+  // es-* preferente) → 3) cadena histórica (Mónica es-MX → es → cualquiera).
+  let ranked: SpeechSynthesisVoice | null = null;
+  try {
+    ranked = resolveBrowserVoice(getUnifiedVoiceConfig().browserVoiceURI, all, u.lang || "es");
+  } catch { ranked = null; }
+  // GÉNERO FEMENINO — preferencia FUERTE (Adenda voz-femenina, 2026-07-21):
+  // las personalidades incluidas en StarSeed son femeninas por defecto
+  // (`currentPreferredVoiceGender()`, voice-config.ts). Con esa
+  // preferencia recorremos la MISMA cadena histórica pero EXCLUYENDO en
+  // cada eslabón los nombres masculinos conocidos (Jorge, Diego, Carlos,
+  // Juan, Pablo, Enrique); si tras excluirlos no queda ninguna voz,
+  // repetimos la cadena SIN excluir — mejor "voz equivocada" que dejar a
+  // Aurora muda. Con preferencia "m" explícita la cadena es EXACTAMENTE
+  // la histórica (comportamiento intacto). Nunca lanza: cualquier fallo
+  // cae a la cadena de siempre.
+  const isKnownMaleVoiceName = (x: unknown): boolean => {
+    try {
+      const name = (x as { name?: unknown } | null | undefined)?.name;
+      return typeof name === "string" && /\b(jorge|diego|carlos|juan|pablo|enrique)\b/i.test(name);
+    } catch {
+      return false;
+    }
+  };
+  const pinnedVoice: SpeechSynthesisVoice | undefined = p.voice?.voiceURI
+    ? all.find((x) => x.voiceURI === p.voice.voiceURI)
+    : undefined;
+  const buildVoiceChain = (excludeMale: boolean): SpeechSynthesisVoice | null => {
+    const ok = (x: SpeechSynthesisVoice | null | undefined): x is SpeechSynthesisVoice =>
+      !!x && (!excludeMale || !isKnownMaleVoiceName(x));
+    return (
+      (ok(pinnedVoice) ? pinnedVoice : null)
+      || (ok(ranked) ? ranked : null)
+      || all.find((x) => ok(x) && /m[oó]nica/i.test(x.name) && /es[-_]MX/i.test(x.lang))
+      || all.find((x) => ok(x) && /es[-_]MX/i.test(x.lang))
+      || all.find((x) => ok(x) && x.lang === u.lang)
+      || all.find((x) => ok(x) && (x.lang || "").toLowerCase().startsWith("es"))
+      || null
+    );
+  };
+  let wantFemale = true;
+  try {
+    wantFemale = currentPreferredVoiceGender() !== "m";
+  } catch {
+    wantFemale = true;
+  }
+  const v = wantFemale ? (buildVoiceChain(true) || buildVoiceChain(false)) : buildVoiceChain(false);
+  if (v) u.voice = v;
+  return u;
+}
+
 export function useAuroraEngine(): AuroraEngine {
   const router = useRouter();
   const pathname = usePathname();
@@ -463,6 +582,25 @@ export function useAuroraEngine(): AuroraEngine {
   // `onend` del reconocimiento viejo queda OBSOLETO y no arranca otro en paralelo
   // (esa era la causa del "se reinicia en loop y no escucha").
   const recGenRef = useRef<number>(0);
+  // ── COLA DE HABLA (voz en vivo por cláusulas) ──────────────────────────
+  // A diferencia de `speak()` (que CANCELA todo lo anterior — correcto para
+  // "lee esto YA": alertas de la malla, "leer este mensaje", cambiar de
+  // conversación…), `speakQueued()` ENCOLA: cada cláusula de una MISMA
+  // respuesta debe sonar completa antes de que empiece la siguiente, sin que
+  // ninguna corte a la anterior. `ttsQueueRef` es la cola PROPIA del motor
+  // (no la nativa de speechSynthesis): funciona igual por el navegador o por
+  // un motor OSS, y con ella controlamos EXACTAMENTE cuándo se puede cerrar
+  // la ventana anti-eco — no al `onend` de CADA cláusula (la reabriría entre
+  // cláusulas y la siguiente podría oír a Astraura misma) sino solo cuando la
+  // cola queda REALMENTE vacía (ver `advanceTtsQueue`). `ttsQueueBusyRef`
+  // evita arrancar dos drenajes a la vez. `ttsQueueGenRef` se incrementa
+  // cuando la cola se vacía a la fuerza (`interrupt()`/barge-in) para que una
+  // cláusula que sigue en vuelo (su onend/onerror/watchdog puede llegar
+  // igual tras el cancel()) no reviva un drenaje ya cancelado ni cierre el
+  // turno equivocado.
+  const ttsQueueRef = useRef<{ clean: string; cleanChain: string; p: Personality }[]>([]);
+  const ttsQueueBusyRef = useRef<boolean>(false);
+  const ttsQueueGenRef = useRef<number>(0);
   // Índice del historial para Adelantar/Retroceder (-1 = última respuesta).
   const historyIndexRef = useRef<number>(-1);
   // Espejo del historial de respuestas, para el transporte sin depender del render.
@@ -597,74 +735,7 @@ export function useAuroraEngine(): AuroraEngine {
 
     try {
       window.speechSynthesis.cancel();
-      const u = new SpeechSynthesisUtterance(clean);
-      u.lang = p.voice?.lang || "es-MX";
-      // Mapear un par de parámetros sobre la entrega.
-      const energia = Number(p.params?.energia ?? 60);
-      const calidez = Number(p.params?.calidez ?? 70);
-      const basePitch = Number(p.voice?.pitch ?? 1);
-      const baseRate = Number(p.voice?.rate ?? 1);
-      u.pitch = Math.max(0, Math.min(2, basePitch + (calidez - 50) / 250)); // calidez → +pitch leve
-      u.rate = Math.max(0.1, Math.min(2, baseRate + (energia - 50) / 200)); // energía → +rate
-      // (Adenda voz de Aurora) ESTILO EMOCIONAL VIVO: multiplica sobre la entrega
-      // de la personalidad con el estilo persistido (evento
-      // 'starseed:aurora-voice-style', herramienta ajustar_voz, sliders del panel).
-      try {
-        const style = resolveVoiceParams();
-        u.rate = Math.max(0.1, Math.min(2, u.rate * style.rate));
-        u.pitch = Math.max(0, Math.min(2, u.pitch * style.pitch));
-        u.volume = style.volume;
-      } catch { /* estilo no disponible → entrega histórica intacta */ }
-      const all = window.speechSynthesis.getVoices() || [];
-      // Voz: 1) la fijada en la personalidad → 2) la elegida/mejor RANKEADA del
-      // navegador (config unificada; "" = automática = neurales/premium primero,
-      // es-* preferente) → 3) cadena histórica (Mónica es-MX → es → cualquiera).
-      let ranked: SpeechSynthesisVoice | null = null;
-      try {
-        ranked = resolveBrowserVoice(getUnifiedVoiceConfig().browserVoiceURI, all, u.lang || "es");
-      } catch { ranked = null; }
-      // GÉNERO FEMENINO — preferencia FUERTE (Adenda voz-femenina, 2026-07-21):
-      // las personalidades incluidas en StarSeed son femeninas por defecto
-      // (`currentPreferredVoiceGender()`, voice-config.ts). Con esa
-      // preferencia recorremos la MISMA cadena histórica pero EXCLUYENDO en
-      // cada eslabón los nombres masculinos conocidos (Jorge, Diego, Carlos,
-      // Juan, Pablo, Enrique); si tras excluirlos no queda ninguna voz,
-      // repetimos la cadena SIN excluir — mejor "voz equivocada" que dejar a
-      // Aurora muda. Con preferencia "m" explícita la cadena es EXACTAMENTE
-      // la histórica (comportamiento intacto). Nunca lanza: cualquier fallo
-      // cae a la cadena de siempre.
-      const isKnownMaleVoiceName = (x: unknown): boolean => {
-        try {
-          const name = (x as { name?: unknown } | null | undefined)?.name;
-          return typeof name === "string" && /\b(jorge|diego|carlos|juan|pablo|enrique)\b/i.test(name);
-        } catch {
-          return false;
-        }
-      };
-      const pinnedVoice: SpeechSynthesisVoice | undefined = p.voice?.voiceURI
-        ? all.find((x) => x.voiceURI === p.voice.voiceURI)
-        : undefined;
-      const buildVoiceChain = (excludeMale: boolean): SpeechSynthesisVoice | null => {
-        const ok = (x: SpeechSynthesisVoice | null | undefined): x is SpeechSynthesisVoice =>
-          !!x && (!excludeMale || !isKnownMaleVoiceName(x));
-        return (
-          (ok(pinnedVoice) ? pinnedVoice : null)
-          || (ok(ranked) ? ranked : null)
-          || all.find((x) => ok(x) && /m[oó]nica/i.test(x.name) && /es[-_]MX/i.test(x.lang))
-          || all.find((x) => ok(x) && /es[-_]MX/i.test(x.lang))
-          || all.find((x) => ok(x) && x.lang === u.lang)
-          || all.find((x) => ok(x) && (x.lang || "").toLowerCase().startsWith("es"))
-          || null
-        );
-      };
-      let wantFemale = true;
-      try {
-        wantFemale = currentPreferredVoiceGender() !== "m";
-      } catch {
-        wantFemale = true;
-      }
-      const v = wantFemale ? (buildVoiceChain(true) || buildVoiceChain(false)) : buildVoiceChain(false);
-      if (v) u.voice = v;
+      const u = resolveBrowserUtterance(clean, p);
       u.onstart = () => {
         setSpeaking(true); setPaused(false); emitAuroraSpeak("start");
         markTtsSpeaking(true); // anti-eco GLOBAL: ignora la voz propia
@@ -704,25 +775,10 @@ export function useAuroraEngine(): AuroraEngine {
   //      navegador (speakWithBrowser) — comportamiento histórico intacto.
   const speak = useCallback((text: string, forcePersonality?: any) => {
     if (typeof window === "undefined") return;
-    const sinDirectivas = (text || "").replace(/\[\[goto:[^\]]+\]\]/gi, "");
-    // DOS limpiezas (Adenda 85):
-    //  · Para el NAVEGADOR (histórica): quita también la puntuación — la Web
-    //    Speech API la lee mal ("punto", pausas raras) en algunas voces.
-    //  · Para la CADENA NEURAL: quita markdown/símbolos pero CONSERVA la
-    //    puntuación de frase (. , ; : ! ? …) — es la que marca la prosodia y la
-    //    que usa el troceo por frases (splitTextForVoice) para que OpenVoice y
-    //    el OmniVoice local hablen los turnos largos frase a frase.
-    let clean = sinDirectivas.replace(/[*_~`´#|><.,;:\-\[\](){}\\\/"—–]/g, " ");
-    clean = clean.replace(/\s+/g, " ").trim();
-    // ⚠️ Esta limpieza (rama `cleanChain`) está REPLICADA en voice-notes.ts
-    // (`cleanTextForVoiceChain`) para hashear la nota de voz con el MISMO texto que
-    // suena. Si cambias la regex aquí, cámbiala también allí o las notas de voz
-    // dejarán de casar con su mensaje (Adenda 87).
-    let cleanChain = sinDirectivas.replace(/[*_~`´#|><\[\](){}\\\/"]/g, " ");
-    cleanChain = cleanChain.replace(/\s+/g, " ").trim();
+    // Limpieza (Adenda 85), ver `sanitizeSpeechText` — compartida con
+    // `speakQueued()` para que ambas rutas limpien EXACTAMENTE igual.
+    const { clean, cleanChain } = sanitizeSpeechText(text);
     if (!clean && !cleanChain) return;
-    if (!cleanChain) cleanChain = clean;
-    if (!clean) clean = cleanChain;
     const p = forcePersonality || activeRef.current;
 
     const runBrowser = () => speakWithBrowser(clean, p);
@@ -797,6 +853,182 @@ export function useAuroraEngine(): AuroraEngine {
     })();
   }, [speakWithBrowser, finishTts]);
 
+  // speakWithBrowserQueued — habla `clean` por el navegador SIN cancelar lo
+  // que ya esté sonando o en cola: usa la MISMA resolución de voz que
+  // `speakWithBrowser` (vía `resolveBrowserUtterance`) pero llama a
+  // `speechSynthesis.speak()` SIN `cancel()` antes — el navegador ENCOLA de
+  // forma nativa cuando se llama así varias veces seguidas (spec de la Web
+  // Speech API: mientras no haya `cancel()` de por medio, cada utterance
+  // nueva se añade al final y suena tras la anterior). Esta es la pieza que
+  // arregla la regresión reportada: antes, cada cláusula pasaba por
+  // `speakWithBrowser`, que SIEMPRE cancela — la cláusula N+1 mataba a la N
+  // a mitad de palabra (arranca, se corta, reinicia, nunca completa una
+  // frase). Aquí, ninguna cláusula toca a otra.
+  //
+  // `onDone` se llama EXACTAMENTE UNA VEZ, al terminar/fallar ESTA cláusula
+  // (onend/onerror) — nunca cierra el turno por su cuenta (no toca el
+  // anti-eco ni llama a `finishTts`): eso lo decide `advanceTtsQueue`, que es
+  // quien sabe si queda más cola pendiente. Devuelve `false` si no pudo ni
+  // empezar (SSR, sin speechSynthesis, o excepción al construir/hablar la
+  // utterance) — el llamador debe entonces avanzar la cola él mismo.
+  const speakWithBrowserQueued = useCallback((clean: string, p: Personality, onDone: () => void): boolean => {
+    if (typeof window === "undefined" || typeof window.speechSynthesis === "undefined") return false;
+    if (p.provider !== "browser" && p.provider !== "astraura") {
+      const ok = speakPremium(clean, p);
+      // Hoy `speakPremium` es un stub que SIEMPRE devuelve `false` (ver su
+      // definición arriba): esta rama nunca se toma en la práctica — igual
+      // que en `speakWithBrowser`. Si alguna vez se implementa de verdad,
+      // tendrá que llamar a `onDone()` al terminar, o la cola se quedaría
+      // esperando para siempre.
+      if (ok) return true;
+    }
+    try {
+      const u = resolveBrowserUtterance(clean, p);
+      u.onstart = () => {
+        setSpeaking(true); setPaused(false); emitAuroraSpeak("start");
+      };
+      // Cada límite de palabra/frase impulsa el latido del glow del Orbe.
+      u.onboundary = () => emitAuroraSpeak("boundary");
+      u.onend = () => onDone();
+      u.onerror = () => onDone();
+      window.speechSynthesis.speak(u); // ENCOLA (sin cancel()): ver comentario de arriba
+      setPaused(false);
+      return true;
+    } catch {
+      return false;
+    }
+  }, [speakPremium]);
+
+  // advanceTtsQueue — drena la cola de habla: saca la siguiente cláusula
+  // pendiente y la habla con la MISMA cadena que `speak()` (motor OSS
+  // primero, navegador como suelo) pero SIN cancelar nada — cada cláusula
+  // ENCOLA. Cuando esa cláusula termina de verdad (onend/onerror/watchdog) se
+  // llama a sí misma para sacar la siguiente: el anti-eco permanece ABIERTO
+  // durante todo ese relevo, así el micrófono NUNCA se reabre entre
+  // cláusulas de la MISMA respuesta. Solo cuando la cola queda REALMENTE
+  // vacía se cierra el turno de verdad (`finishTts`): apaga el anti-eco y
+  // reanuda la escucha.
+  //
+  // Este es "el punto delicado": `finishTts()` HOY se dispara al `onend` de
+  // UNA utterance; con cola, cerrar el micrófono a la primera dejaría que
+  // Astraura se oyera a sí misma en las cláusulas siguientes. La garantía
+  // aquí es doble: (1) NINGÚN camino de una cláusula individual llama a
+  // `finishTts` — ni `speakWithBrowserQueued` ni el `onEnd`/watchdog del
+  // intento OSS de abajo lo hacen; TODOS terminan en `onDone` →
+  // `advanceTtsQueue`. (2) `advanceTtsQueue` solo cierra el turno en la rama
+  // `!next` (el `shift()` de la cola devolvió `undefined`: no queda NADA
+  // pendiente). Como cada cláusula, sin excepción, pasa por este mismo
+  // relevo antes de poder seguir a la siguiente, el anti-eco no puede
+  // cerrarse "de más" (mientras aún queda cola) ni quedarse abierto "de
+  // menos" (en cuanto la cola se vacía, esta misma llamada lo cierra — no
+  // hay ninguna otra ruta que debiera cerrarlo y no lo haga).
+  //
+  // `gen` es la "generación" de la cola en el momento en que ESTE relevo
+  // arrancó: si `interrupt()` vacía la cola a la fuerza mientras una cláusula
+  // suena, incrementa `ttsQueueGenRef` — cuando esa cláusula por fin termine
+  // (o su watchdog dispare), su `gen` ya no coincidirá con la generación
+  // vigente y esta función no hace NADA: ni revive una cola que ya no existe,
+  // ni vuelve a cerrar (ni reabre la escucha) un turno que `interrupt()` ya
+  // cerró por su cuenta. Mismo patrón que `recGenRef` (arriba) para el
+  // reconocimiento — anti bucle competitivo.
+  const advanceTtsQueue = useCallback((gen: number) => {
+    if (gen !== ttsQueueGenRef.current) return; // cola obsoleta: interrupt()/barge-in ya la vació
+    const next = ttsQueueRef.current.shift();
+    if (!next) {
+      // Cola REALMENTE vacía: AHORA sí termina el turno completo.
+      ttsQueueBusyRef.current = false;
+      finishTts();
+      return;
+    }
+    if (typeof window === "undefined") { advanceTtsQueue(gen); return; } // SSR defensivo
+
+    let handedOff = false;
+    let settled = false;
+    const onDone = () => {
+      if (settled) return; // idempotente: onend/onerror/watchdog nunca avanzan dos veces
+      settled = true;
+      if (ttsWatchdogRef.current) { clearTimeout(ttsWatchdogRef.current); ttsWatchdogRef.current = null; }
+      advanceTtsQueue(gen);
+    };
+
+    // Abre (o mantiene abierta) la ventana anti-eco YA, antes de intentar
+    // sonar ESTA cláusula — igual que hace `speak()` con cada llamada suya
+    // (la apertura eager de `speakWithBrowser` y el `onStart` OSS de
+    // `speak()`). Repetirlo en cada cláusula es idempotente (ya está abierta
+    // desde la cláusula anterior) y barato; lo que importa es que nada aquí
+    // abajo la CIERRA hasta la rama `!next` de arriba.
+    markTtsSpeaking(true);
+    pausedForTtsRef.current = true;
+    recGenRef.current++;
+    try { recognitionRef.current?.abort?.(); } catch { /* */ }
+
+    // Watchdog de ESTA cláusula (no del turno completo): si ni el motor OSS
+    // ni el navegador disparan su fin, avanza la cola igual — nunca se queda
+    // atascada por una cláusula que nunca cierra. Cláusulas son cortas (ver
+    // `splitClauses`: tope de ~14 palabras), así que el tope de 30s de
+    // `speakWithBrowser` (no el de 4 min que usa `speak()` para un mensaje
+    // OSS entero sin trocear) es más que sobrado y recupera la cola antes.
+    if (ttsWatchdogRef.current) clearTimeout(ttsWatchdogRef.current);
+    const estMs = Math.min(30000, 1600 + next.cleanChain.length * 80);
+    ttsWatchdogRef.current = setTimeout(onDone, estMs);
+
+    void (async () => {
+      try {
+        const { speakWithConfiguredEngine } = await import("@/lib/aurora/tts-oss/speak-router");
+        const spoke = await speakWithConfiguredEngine(next.cleanChain, {
+          onStart: () => {
+            handedOff = true;
+            setSpeaking(true); setPaused(false); emitAuroraSpeak("start");
+          },
+          onEnd: () => onDone(),
+          onError: () => { /* si aún no había empezado, cae al navegador abajo */ },
+        });
+        if (spoke) return; // el motor OSS se hizo cargo de ESTA cláusula (onDone llegará por su onEnd)
+        if (!handedOff) {
+          const started = speakWithBrowserQueued(next.clean, next.p, onDone);
+          if (!started) onDone();
+        } else {
+          // Improbable: arrancó pero devolvió false → cierra ESTA cláusula
+          // con dignidad y sigue con la siguiente.
+          onDone();
+        }
+      } catch {
+        if (!handedOff) {
+          const started = speakWithBrowserQueued(next.clean, next.p, onDone);
+          if (!started) onDone();
+        } else {
+          onDone();
+        }
+      }
+    })();
+  }, [finishTts, speakWithBrowserQueued]);
+
+  // speakQueued — como `speak()`, pero ENCOLA en vez de cancelar: la usa la
+  // VOZ EN VIVO por cláusulas (`chat-surface.tsx` → `streaming-voice.ts`, una
+  // llamada por cláusula de la MISMA respuesta mientras Astraura sigue
+  // escribiendo). `speak()` se queda intacto para el resto de superficies
+  // (MessageActionBar, alertas de la malla, multichat, "leer última
+  // respuesta"…), que quieren "cancela lo que suene y di esto YA" — esa
+  // semántica sigue siendo la correcta para ellas.
+  const speakQueued = useCallback((text: string, forcePersonality?: any) => {
+    if (typeof window === "undefined") return;
+    // Misma limpieza que `speak()` (`sanitizeSpeechText`, compartida: una
+    // sola fuente para ambas rutas).
+    const { clean, cleanChain } = sanitizeSpeechText(text);
+    if (!clean && !cleanChain) return;
+    const p = forcePersonality || activeRef.current;
+    ttsQueueRef.current.push({ clean, cleanChain, p });
+    if (!ttsQueueBusyRef.current) {
+      // Nadie está drenando ahora mismo → arranca el relevo con ESTA
+      // cláusula. Si YA había un drenaje en curso, no hace falta hacer nada
+      // más: la cláusula recién encolada la recogerá `advanceTtsQueue` en
+      // cuanto la cláusula actual termine (su `onDone` vuelve a llamarse a
+      // sí misma y hace `shift()` sobre la cola).
+      ttsQueueBusyRef.current = true;
+      advanceTtsQueue(ttsQueueGenRef.current);
+    }
+  }, [advanceTtsQueue]);
+
   // ── historial de respuestas + conversación ──
   // Registra una respuesta de Aurora en el historial (para el transporte y el chat).
   // `meta` es OPCIONAL y ADITIVO: si el llamador no la pasa (reglas
@@ -851,6 +1083,15 @@ export function useAuroraEngine(): AuroraEngine {
 
   const interrupt = useCallback(() => {
     if (typeof window === "undefined") return;
+    // Vacía la COLA de habla encolada (barge-in real: nada de lo que quedaba
+    // pendiente debe sonar después de esto). La generación se incrementa
+    // PRIMERO: una cláusula que sigue en vuelo puede disparar su
+    // onend/onerror/watchdog DESPUÉS del cancel() de abajo — con la
+    // generación ya obsoleta, `advanceTtsQueue` la reconoce como tal y no
+    // hace nada (ni revive la cola, ni cierra el turno una segunda vez).
+    ttsQueueGenRef.current++;
+    ttsQueueRef.current = [];
+    ttsQueueBusyRef.current = false;
     try { if (typeof window.speechSynthesis !== "undefined") window.speechSynthesis.cancel(); } catch { /* */ }
     // También corta cualquier voz OSS en curso (Kokoro/Kitten). Fire-and-forget.
     void import("@/lib/aurora/tts-oss/speak-router")
@@ -1662,6 +1903,7 @@ export function useAuroraEngine(): AuroraEngine {
       stop,
       toggle,
       speak,
+      speakQueued,
       runCommand,
       runDirectives,
       runAction,
@@ -1691,7 +1933,7 @@ export function useAuroraEngine(): AuroraEngine {
     [
       supported, enabled, listening, speaking, thinking, transcript, interim, lastReply, actionStatus,
       activePersonality, settings, listVoicesNow, personalities,
-      start, stop, toggle, speak, runCommand, runDirectives, runAction, setActivePersonality, setEnabled, reloadPersonalities,
+      start, stop, toggle, speak, speakQueued, runCommand, runDirectives, runAction, setActivePersonality, setEnabled, reloadPersonalities,
       paused, pauseSpeech, resumeSpeech, toggleSpeech, skipForward, skipBack, interrupt,
       replyHistory, conversation, send, actionLog,
       engaged, engage, disengage, sttFatal,

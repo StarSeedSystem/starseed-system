@@ -29,7 +29,11 @@
  *     por `feed()`, mantiene el buffer pendiente, decide cuándo hay cabecera
  *     (cambia de personalidad) y cuándo hay cláusula (llama a `opts.speak`),
  *     con higiene de lo que NUNCA debe leerse en voz alta (bloques de código,
- *     marcadores `[[goto:...]]`).
+ *     marcadores `[[goto:...]]`, y directivas `[[ACCION: nombre {json}]]` del
+ *     protocolo de control del OS — ver `actions.ts` — incluidas las que
+ *     llegan PARTIDAS entre varios `feed()`: el bloque queda pendiente sin
+ *     hablarse hasta que su `]]` de cierre aparece, igual que un bloque de
+ *     código a medio llegar).
  *
  * Deliberadamente NO toca `window` ni el DOM: es lógica pura, testable en
  * Node. Quien lo use en el navegador (el puente de Aurora, `AuroraProvider`)
@@ -195,43 +199,86 @@ function scanClauseBoundaries(text: string, force: boolean): { clauses: string[]
   return { clauses, rest: text.slice(clauseStart) };
 }
 
+// ── Bloques que NUNCA deben leerse en voz alta ──────────────────────────────
+// Dos formas de bloque "silencioso": un bloque de código ` ``` `…` ``` ` y una
+// directiva `[[ACCION: nombre {json}]]` (el protocolo de control del OS, ver
+// `actions.ts`). Ambos se tratan con el MISMO mecanismo: se busca cuál de los
+// dos empieza ANTES en el texto pendiente, se fuerza a hablar lo anterior, y
+// el bloque en sí se descarta entero (o se retiene en `rest` mientras no
+// cierre) — así una directiva partida entre varios `feed()` nunca se lee a
+// medias, igual que ya pasaba con un bloque de código a medio llegar.
+
+/** Apertura de una directiva de voz — misma forma que `DIRECTIVE_RE` de `actions.ts`, sin exigir el cierre. */
+const DIRECTIVE_OPEN_RE = /\[\[\s*ACCION\s*:/i;
+
+/** Un bloque "silencioso" localizado en `text`: dónde empieza y qué marcador de cierre hay que buscar. */
+interface SilentBlock {
+  start: number;
+  /** Índice desde el que buscar el marcador de cierre (justo tras la apertura). */
+  searchCloseFrom: number;
+  closeMarker: "```" | "]]";
+}
+
+/**
+ * Localiza el PRÓXIMO bloque silencioso (código o directiva) en `text`, el
+ * que empiece antes de los dos. `null` si no hay ninguno.
+ */
+function findNextSilentBlock(text: string): SilentBlock | null {
+  const fenceStart = text.indexOf("```");
+  const directiveMatch = DIRECTIVE_OPEN_RE.exec(text);
+
+  if (fenceStart === -1 && !directiveMatch) return null;
+  // Sin match de directiva, o el fence va ANTES (o empatan): gana el fence.
+  // TS estrecha `directiveMatch` a no-nulo en la rama de abajo a partir de
+  // esta misma condición (sin necesidad de un cast).
+  if (!directiveMatch || (fenceStart !== -1 && fenceStart <= directiveMatch.index)) {
+    return { start: fenceStart, searchCloseFrom: fenceStart + 3, closeMarker: "```" };
+  }
+  return {
+    start: directiveMatch.index,
+    searchCloseFrom: directiveMatch.index + directiveMatch[0].length,
+    closeMarker: "]]",
+  };
+}
+
 /**
  * Núcleo compartido de `splitClauses` (pública) y del forzado total que usa
  * `flush()`/los cortes internos. Antes de trocear por puntuación, aísla los
- * bloques de código ` ``` `…` ``` `: lo anterior a un bloque se trocea (y se
- * fuerza, porque el bloque interrumpe la frase igual que lo haría un punto);
- * el bloque en sí se descarta ENTERO (nunca se habla); si el bloque abierto
- * aún no cerró, todo desde su apertura queda pendiente en `rest` —salvo que
- * `force` sea true (fin de mensaje de verdad), en cuyo caso también se
- * descarta, porque no hay nada legible que forzar dentro de código a medias.
+ * bloques SILENCIOSOS (código ` ``` `…` ``` `, o directiva `[[ACCION: …]]`):
+ * lo anterior a un bloque se trocea (y se fuerza, porque el bloque interrumpe
+ * la frase igual que lo haría un punto); el bloque en sí se descarta ENTERO
+ * (nunca se habla); si el bloque abierto aún no cerró, todo desde su apertura
+ * queda pendiente en `rest` —salvo que `force` sea true (fin de mensaje de
+ * verdad), en cuyo caso también se descarta, porque no hay nada legible que
+ * forzar dentro de código o de una directiva a medias.
  */
 function splitClausesCore(text: string, force: boolean): { clauses: string[]; rest: string } {
   const clauses: string[] = [];
   let pending = text;
 
   for (;;) {
-    const fenceStart = pending.indexOf("```");
-    if (fenceStart === -1) {
+    const block = findNextSilentBlock(pending);
+    if (!block) {
       const r = scanClauseBoundaries(pending, force);
       clauses.push(...r.clauses);
       return { clauses, rest: r.rest };
     }
 
-    // Lo anterior al bloque de código se fuerza: el bloque corta el hilo, así
-    // que lo que quedó a medias antes de él no va a completarse con más texto.
-    const before = pending.slice(0, fenceStart);
+    // Lo anterior al bloque se fuerza: el bloque corta el hilo, así que lo
+    // que quedó a medias antes de él no va a completarse con más texto.
+    const before = pending.slice(0, block.start);
     const r = scanClauseBoundaries(before, true);
     clauses.push(...r.clauses);
 
-    const fenceEnd = pending.indexOf("```", fenceStart + 3);
-    if (fenceEnd === -1) {
-      // Bloque abierto sin cerrar todavía: no se sabe si es código de verdad
-      // ni cuánto va a durar — no se habla nada de él hasta que cierre.
-      if (force) return { clauses, rest: "" }; // fin de mensaje: se descarta, nunca se lee código
-      return { clauses, rest: pending.slice(fenceStart) };
+    const closeIdx = pending.indexOf(block.closeMarker, block.searchCloseFrom);
+    if (closeIdx === -1) {
+      // Bloque abierto sin cerrar todavía: no se sabe si es código/directiva
+      // completa ni cuánto va a durar — no se habla nada de él hasta que cierre.
+      if (force) return { clauses, rest: "" }; // fin de mensaje: se descarta, nunca se lee código ni JSON de directiva
+      return { clauses, rest: pending.slice(block.start) };
     }
     // Bloque COMPLETO: se descarta entero y se sigue con lo que venga después.
-    pending = pending.slice(fenceEnd + 3);
+    pending = pending.slice(closeIdx + block.closeMarker.length);
   }
 }
 

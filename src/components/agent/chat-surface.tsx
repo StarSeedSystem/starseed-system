@@ -73,6 +73,7 @@ import { patchChatConfig } from "@/lib/aurora/config-change";
 import { buildAttachmentsContext, summarizeAttachments, type UniversalAttachment } from "@/lib/aurora/attachments";
 import type { AuroraMessageMeta } from "@/lib/aurora/engine";
 import { parseDirectives } from "@/lib/aurora/actions";
+import { formatAssistantText } from "@/lib/aurora/chat-format";
 import { loadConfigs, getActiveProviderId } from "@/ai/client/providerStore";
 import { PROVIDERS } from "@/ai/providers";
 import type { ProviderConfig, ChatMessage } from "@/ai/providers/types";
@@ -364,15 +365,21 @@ export function ChatSurface({ variant = "embedded", className, initialConvId }: 
 
   /**
    * `speak` de `createStreamingVoice`: resuelve el id de personalidad (si lo
-   * hay) a su ficha completa y delega en el puente de Aurora — el MISMO
-   * `aurora.speak(text, forcePersonality)` que ya usa `MessageActionBar`
-   * ("leer con esta personalidad") y que acepta personalidad de sobra
-   * (aurora-provider.tsx ~línea 617).
+   * hay) a su ficha completa y delega en el puente de Aurora — pero por
+   * `aurora.speakQueued`, NO `aurora.speak`. `speak` CANCELA lo que suene en
+   * cada llamada (correcto para "lee esto YA" — `MessageActionBar`, alertas
+   * de la malla); aquí se llama UNA VEZ POR CLÁUSULA de la MISMA respuesta
+   * mientras Astraura sigue escribiendo, así que cancelar en cada llamada
+   * mataba a la cláusula anterior a mitad de palabra antes de que pudiera
+   * completarse (arranca, se corta, reinicia en bucle — la regresión que
+   * este cambio corrige). `speakQueued` encola: cada cláusula suena entera y
+   * la ventana anti-eco se mantiene abierta hasta que la cola completa
+   * termina de verdad (ver `advanceTtsQueue` en engine.ts).
    */
   function speakStreamingClause(text: string, personaId?: string) {
     const profile = personaId ? getPersonalityProfile(personaId) : null;
     try {
-      aurora?.speak?.(text, profile ?? undefined);
+      aurora?.speakQueued?.(text, profile ?? undefined);
     } catch {
       /* la voz nunca debe romper el turno */
     }
@@ -431,11 +438,24 @@ export function ChatSurface({ variant = "embedded", className, initialConvId }: 
         temperature: DEFAULT_AGENT.temperature,
         signal: abortRef.current.signal,
         onChunk: (delta) => {
-          const match = delta.match(/\[\[(.*?)\]\]/);
-          if (!match) setStreamText((prev) => prev + delta);
           acc += delta;
-          // Alimenta la voz TOKEN A TOKEN: habla en cuanto se cierra una
-          // cláusula hablable, sin esperar a que termine el mensaje completo.
+          // Saneado EN VIVO (adenda formato de chat): antes se intentaba
+          // detectar una directiva completa DENTRO de un único `delta` (un
+          // trozo de unos pocos tokens) — algo que casi nunca ocurre, porque
+          // una directiva real (`[[ACCION: nombre {json}]]`) se reparte entre
+          // muchos chunks. Como el chequeo casi siempre fallaba, el texto
+          // crudo (JSON de la directiva incluido) se iba mostrando tal cual
+          // llegaba. `formatAssistantText` es la misma función que sanea lo
+          // que se GUARDA (más abajo): quita las directivas ya cerradas y
+          // OCULTA la que esté a medio escribir (ver `hideIncompleteDirective`
+          // en `chat-format.ts`) hasta que su `]]` de cierre llega — así la
+          // burbuja nunca enseña JSON a medias mientras Astraura sigue
+          // generando.
+          setStreamText(formatAssistantText(acc));
+          // Alimenta la voz con el TOKEN CRUDO (no el saneado): el motor de
+          // voz (`streaming-voice.ts`) tiene su PROPIA higiene — cabeceras,
+          // bloques de código y directivas — y necesita ver los tokens en el
+          // orden real en que llegan para trocear cláusulas correctamente.
           voice.feed(delta);
         },
       });
@@ -444,11 +464,21 @@ export function ChatSurface({ variant = "embedded", className, initialConvId }: 
       // cerró con puntuación antes de que el stream terminara).
       voice.flush();
 
+      // Las directivas se ejecutan SIEMPRE sobre el texto CRUDO (`acc`), antes
+      // de sanear nada — el saneado de abajo es solo para lo que se MUESTRA y
+      // se GUARDA, nunca debe afectar a qué se ejecuta.
       const directives = parseDirectives(acc);
       if (directives.length > 0 && aurora) {
         await aurora.runDirectives(acc);
       }
-      if (acc.trim()) {
+      // Texto saneado para GUARDAR: sin directivas (ya ejecutadas arriba),
+      // sin cabeceras de personalidad duplicadas, sin "\n" literales sueltos
+      // (ver `chat-format.ts`). Se comprueba ESTO (no `acc.trim()`) porque una
+      // respuesta que sea SOLO una directiva (p.ej. "[[ACCION: abrir_pizarra
+      // {}]]" sin ninguna frase alrededor) no debe dejar una burbuja vacía en
+      // el chat — la acción ya se ejecutó arriba, no hay nada más que mostrar.
+      const cleanText = formatAssistantText(acc);
+      if (cleanText) {
         const meta = metaFromRoute(res?.route, provider, Date.now() - startedAt);
         // Snapshot de las preferencias 1.58 de ESTE turno (Tareas 2+3): así
         // «Regenerar» puede reproducir EXACTAMENTE esta selección más
@@ -460,7 +490,7 @@ export function ChatSurface({ variant = "embedded", className, initialConvId }: 
         };
         await appendUnifiedMessage({
           role: "assistant",
-          text: acc,
+          text: cleanText,
           convId,
           kind: "aurora",
           surface: "agent",
@@ -476,10 +506,14 @@ export function ChatSurface({ variant = "embedded", className, initialConvId }: 
       // mensaje roto o incompleto — se descarta lo que quedó en el buffer.
       voice.stop();
       const msg = (err as Error).message;
-      if (acc.trim()) {
+      // Mismo saneado que el camino feliz (ver arriba): si el corte llegó a
+      // mitad de una directiva, el fragmento crudo (JSON sin cerrar incluido)
+      // no debe quedar pegado al aviso de error.
+      const cleanText = formatAssistantText(acc);
+      if (cleanText) {
         await appendUnifiedMessage({
           role: "assistant",
-          text: `${acc}\n\n⚠ ${msg}`,
+          text: `${cleanText}\n\n⚠ ${msg}`,
           convId,
           kind: "aurora",
           surface: "agent",
@@ -662,6 +696,13 @@ export function ChatSurface({ variant = "embedded", className, initialConvId }: 
 
   function handleStop() {
     abortRef.current?.abort();
+    // Detener la generación también vacía la COLA de voz encolada: si no, las
+    // cláusulas que ya se habían encolado de la respuesta cortada seguirían
+    // sonando después del corte — la generación de texto se detuvo, pero la
+    // voz seguiría "terminando" un mensaje que ya no va a completarse.
+    // `interrupt()` vacía la cola entera y cancela lo que esté sonando (ver
+    // engine.ts); la voz nunca debe romper el botón «Detener».
+    try { aurora?.interrupt?.(); } catch { /* */ }
   }
 
   useEffect(() => {
@@ -710,7 +751,16 @@ export function ChatSurface({ variant = "embedded", className, initialConvId }: 
 
   // ── Interfaz del chat (idéntica en ambas variantes) ──
   const chatColumn = (
-    <div className="flex-1 flex flex-col rounded-xl border bg-background/50 overflow-hidden shadow-sm relative min-w-0 w-full max-w-full box-border">
+    // min-h-0 (además de min-w-0): esta columna es hermana de ChatNeuralSidebar
+    // dentro de una fila (`md:flex-row` en el wrapper de más abajo). Sin
+    // min-h-0, el alto "auto" por defecto de un hijo flex se calcula por su
+    // CONTENIDO (aquí, el hilo de mensajes) en vez de por el hueco que le
+    // corresponde al estirarse (`align-items:stretch`) — con una conversación
+    // larga eso empuja la columna (y de paso la fila entera) más alta de lo
+    // que cabe, y el `overflow-hidden` del TabsContent que la envuelve
+    // (TAB_FILL, agent/page.tsx) recorta el sobrante en vez de dejar que el
+    // ScrollArea de abajo, que sí es quien debe scrollear, lo resuelva.
+    <div className="flex-1 flex flex-col rounded-xl border bg-background/50 overflow-hidden shadow-sm relative min-w-0 min-h-0 w-full max-w-full box-border">
       {/* Indicador ANIMADO de procesamiento de voz (Adenda V2-VOZ): flota sobre el
           hilo mientras el sistema de voz da voz a la respuesta. */}
       <VoiceProcessingIndicator variant="float" />

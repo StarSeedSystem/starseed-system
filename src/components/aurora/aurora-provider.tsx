@@ -615,6 +615,12 @@ export function AuroraProvider({ children }: { children: ReactNode }) {
       interrupt: () => engineRef.current?.interrupt(),
       /** Hace hablar a Aurora (TTS) con un texto dado. */
       speak: (text: string, forcePersonality?: any) => engineRef.current?.speak(text, forcePersonality),
+      /**
+       * Como `speak`, pero ENCOLA en vez de cancelar lo que ya está sonando
+       * (voz en vivo por cláusulas de una MISMA respuesta). Ver
+       * `speakQueued` en `engine.ts` para el porqué.
+       */
+      speakQueued: (text: string, forcePersonality?: any) => engineRef.current?.speakQueued(text, forcePersonality),
       /** Activa/pausa/interrumpe la voz — SUPERVISADO (sin bucles de arranque). */
       toggle: () => supervisedRef.current?.toggle(),
       /** Enciende la escucha continua — SUPERVISADO (backoff + watchdog). */

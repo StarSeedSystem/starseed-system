@@ -1103,7 +1103,25 @@ function AgentPageInner() {
 
 
   return (
-    <div className="flex flex-col h-[calc(100dvh-4rem-env(safe-area-inset-bottom))] gap-4 p-3 sm:p-4 md:p-5 pl-[max(0.75rem,env(safe-area-inset-left))] pr-[max(0.75rem,env(safe-area-inset-right))] max-w-[1600px] mx-auto w-full box-border overflow-x-hidden">
+    // Alto del contenedor = viewport MENOS el hueco que necesita OmniDock (el
+    // dock inferior fijo, `omni-dock.tsx`) para no taparse con él cuando está
+    // anclado (Ajustes > Trinity > dock siempre visible, o al anclarlo por
+    // gesto de borde) — OmniDock es `position:fixed`, no ocupa hueco en el
+    // flujo normal, así que nada aquí lo "ve": si no reservamos manualmente
+    // sitio para él, esta página se dibuja bajo su píldora.
+    //
+    // "4rem" (valor previo, Adenda 133) se quedó corto: la píldora del dock
+    // en densidad "cómoda" (por defecto) más su propio padding/margen mide,
+    // medido en vivo, ~6.7rem en móvil, ~8rem en tablet y ~10.6rem en
+    // escritorio (crece con lg: por los iconos/etiquetas más grandes) — no
+    // ~4rem en ningún caso. De ahí el corte "a media fila"/"a mitad de
+    // párrafo" en Conversaciones y en el hilo de chat: el panel SÍ llegaba
+    // hasta el borde del viewport, pero OmniDock lo tapaba visualmente ahí
+    // (pintado encima, no un recorte de overflow). Si OmniDock vuelve a
+    // rediseñarse (paleta más alta/baja, otra densidad por defecto), estos
+    // valores hay que remedirlos y ajustarlos aquí — no hay forma de que
+    // flexbox lo infiera solo de un hermano `position:fixed`.
+    <div className="flex flex-col h-[calc(100dvh-7rem-env(safe-area-inset-bottom))] sm:h-[calc(100dvh-8rem-env(safe-area-inset-bottom))] lg:h-[calc(100dvh-11rem-env(safe-area-inset-bottom))] gap-4 p-3 sm:p-4 md:p-5 pl-[max(0.75rem,env(safe-area-inset-left))] pr-[max(0.75rem,env(safe-area-inset-right))] max-w-[1600px] mx-auto w-full box-border overflow-x-hidden">
 
       <div className="flex items-center justify-between flex-wrap gap-3 w-full max-w-full box-border">
         <h1 className="text-xl sm:text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary to-purple-400 flex items-center gap-2 sm:gap-3 min-w-0">
