@@ -15,11 +15,20 @@
  * (`fetchProcessDetails` / §1.6-§6 del original) — el original no le da un
  * componente propio, así que vive junto a la tarjeta que lo abre. El botón
  * "Ramas & Logs" monta `BranchesModal` (fichero aparte, spec §6.A).
+ *
+ * PROCEDENCIA DE LA ACTIVACIÓN (encargo aparte): el backend puede mandar,
+ * por proceso, `generated_by` (ya usado en las ramas), `personality`,
+ * `agents` y `memory_items` con su fuente real (mem0/documento/grafo). Toda
+ * la lectura defensiva y el etiquetado honesto viven en
+ * `./process-provenance` (sin JSX, testeado aparte); aquí solo se pinta.
+ * `QuantumOrbAvatar` sustituye al icono genérico como avatar de personalidad
+ * y agentes. Backend viejo que no manda estos campos ⇒ la tarjeta se ve
+ * exactamente igual que antes (ver `hasProvenance` más abajo).
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  Compass, Code2, ExternalLink, GitBranch, Layers, Loader2, Moon, PauseCircle, Play, PlayCircle,
+  AlertTriangle, Compass, Code2, ExternalLink, GitBranch, Layers, Loader2, Moon, PauseCircle, Play, PlayCircle,
   Sliders as SlidersIcon, Sparkles, Wand2, X, type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -31,8 +40,13 @@ import {
   type Astraura158ProcessType, type Astraura158Target,
 } from "@/lib/astraura/astraura-158-client";
 import { Slider } from "@/components/ui/slider";
+import { QuantumOrbAvatar } from "@/components/aurora/quantum-orb-avatar";
 import { BTN, BTN_PRIMARY, Badge, Bar, BusyIcon, Empty, LABEL, MONO, SELECT, useBusy } from "@/components/astraura/s158/shared";
 import { BranchesModal } from "./branches-modal";
+import {
+  generatedByBadgeMeta, memoryOriginLabel, memorySourceMeta, participantLabel,
+  processAgents, processGeneratedBy, processMemoryItems, processPersonality,
+} from "./process-provenance";
 
 const LAST_ACTIVATED_FALLBACK = "18/08/2026 13:45:00";
 
@@ -101,6 +115,18 @@ export function ProcessCard({ target, pt, customTheme, maxProposals, onReload }:
   const [resource, setResource] = useState(pt.allocated_resource_percent ?? 20);
   const isPaused = pt.status === "paused";
 
+  // Procedencia de la última activación — cada lectura es `undefined` cuando
+  // el backend no manda ese campo (compatibilidad con backends viejos); ver
+  // `./process-provenance` para el porqué de cada distinción.
+  const genBadge = generatedByBadgeMeta(processGeneratedBy(pt));
+  const personality = processPersonality(pt);
+  const agents = processAgents(pt);
+  const memoryItems = processMemoryItems(pt);
+  const hasProvenance = genBadge !== null || personality !== undefined || agents !== undefined || memoryItems !== undefined;
+  // El avatar vivo "piensa" mientras el proceso corre de verdad (spec del
+  // propio `QuantumOrbAvatar`: "'thinking' mientras ese agente procesa").
+  const orbState = pt.status === "running" ? "thinking" : "idle";
+
   const handlePermission = (value: string) => {
     void wrap("permiso", async () => {
       const r = await updateAstraura158ProcessPolicy(target, pt.id, { level: value, notify_on_important: true });
@@ -162,6 +188,70 @@ export function ProcessCard({ target, pt, customTheme, maxProposals, onReload }:
       <p className={cn("text-[10px]", pt.is_auto_paused_by_limit ? "animate-pulse text-amber-300" : "text-cyan-300")}>
         Propuestas Acumuladas: {pending} / {maxProposals}{pt.is_auto_paused_by_limit ? " (Auto-Pausa)" : ""}
       </p>
+
+      {hasProvenance && (
+        <div className="space-y-1.5 rounded-lg border border-white/10 bg-black/20 px-2.5 py-2">
+          <div className="flex items-center justify-between gap-2">
+            <span className={LABEL}>Procedencia de la Última Activación:</span>
+            {genBadge && <Badge tone={genBadge.tone}>{genBadge.label}</Badge>}
+          </div>
+
+          {personality !== undefined && (
+            <div>
+              <p className={LABEL}>Personalidad:</p>
+              <div className="mt-1 flex items-center gap-1.5">
+                <QuantumOrbAvatar personaId={personality.id} size={28} state={orbState} />
+                <span className="truncate text-[10.5px] text-white/80">{participantLabel(personality, "Personalidad sin nombre del backend")}</span>
+              </div>
+            </div>
+          )}
+
+          {agents !== undefined && (
+            <div>
+              <p className={LABEL}>Agentes Participantes:</p>
+              {agents.length === 0 ? (
+                <p className="mt-1 text-[10px] text-white/40">Sin agentes registrados para esta activación.</p>
+              ) : (
+                <div className="mt-1 flex flex-wrap gap-1.5">
+                  {agents.map((a, i) => (
+                    <span key={a.id ?? i} className="inline-flex max-w-full items-center gap-1 rounded-full border border-white/10 bg-white/[0.03] py-0.5 pl-0.5 pr-2">
+                      <QuantumOrbAvatar personaId={a.id} size={28} state={orbState} />
+                      <span className="max-w-[88px] truncate text-[9.5px] text-white/70">{participantLabel(a, "Agente sin nombre")}</span>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {memoryItems !== undefined && (
+            <div>
+              <p className={LABEL}>Memoria Real Consultada:</p>
+              {memoryItems.length === 0 ? (
+                <p className="mt-1 flex items-center gap-1.5 text-[10px] text-amber-200/85">
+                  <AlertTriangle className="h-3 w-3 shrink-0" aria-hidden="true" /> Sin memoria real: esta activación no se apoyó en ningún recuerdo.
+                </p>
+              ) : (
+                <ul className="mt-1 space-y-1">
+                  {memoryItems.slice(0, 4).map((m, i) => {
+                    const src = memorySourceMeta(m.source);
+                    const origin = memoryOriginLabel(m);
+                    return (
+                      <li key={m.id ?? i} className="flex items-start gap-1.5">
+                        <Badge tone={src.tone} className="mt-px shrink-0">{src.label}</Badge>
+                        <span className="min-w-0 truncate text-[10px] text-white/60">
+                          {m.title ?? m.content ?? "Ítem de memoria sin título"}{origin ? ` · ${origin}` : ""}
+                        </span>
+                      </li>
+                    );
+                  })}
+                  {memoryItems.length > 4 && <li className="text-[9px] text-white/35">+{memoryItems.length - 4} más</li>}
+                </ul>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       <div>
         <div className="flex items-center justify-between">
