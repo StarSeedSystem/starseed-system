@@ -1282,43 +1282,64 @@ function AgentPageInner() {
     return base;
   }, [cloudMessages, streaming, streamText]);
 
-  // (Verificación 1.58 · fix corte inferior) Altura REAL del OmniDock medida
-  // en vivo: el dock es `position:fixed` y nada en CSS puede deducir su hueco;
-  // las estimaciones fijas de antes (7/8/11rem) se quedaban cortas según la
-  // densidad del dock, la pantalla o el zoom → últimos elementos recortados.
+  // (Verificación 1.58 · fix corte inferior v2) Altura REAL del OmniDock medida
+  // en vivo. Hallazgos verificados: (1) la variante `supports-[--omnidock-h]:` de
+  // Tailwind 3.4 NUNCA se compiló al CSS — la reserva medida jamás se aplicó;
+  // (2) el dock SOLO se monta cuando está anclado o en modo siempre-visible
+  // (`isVisible` en omni-dock.tsx): desmontado, hay que reservar CERO — pero las
+  // estimaciones fijas restaban su hueco IGUAL, y ese era el corte que seguía
+  // viéndose sin dock a la vista; (3) si el dock aparece tarde (gesto de borde),
+  // un observador de una sola pasada nunca lo llega a ver. Ahora: sondeo ligero
+  // (1 Hz) que detecta montaje/desmontaje, ResizeObserver mientras esté montado,
+  // y la altura medida se aplica como ESTILO INLINE (gana sobre las clases h-*
+  // de respaldo). Dock ausente ⇒ reserva 0 ⇒ altura completa.
   const [omnidockPx, setOmnidockPx] = useState<number | null>(null);
   useEffect(() => {
-    const el = document.querySelector<HTMLElement>("[data-omnidock-root]");
-    if (!el || typeof ResizeObserver === "undefined") return;
+    let ro: ResizeObserver | null = null;
+    let actual: HTMLElement | null = null;
     const measure = () => {
-      const r = el.getBoundingClientRect();
+      if (!actual) {
+        setOmnidockPx((prev) => (prev === 0 ? prev : 0));
+        return;
+      }
+      const r = actual.getBoundingClientRect();
       // Solo cuenta la parte del dock DENTRO del viewport (lo que de verdad tapa).
       const visible = Math.max(0, Math.min(r.bottom, window.innerHeight) - Math.max(r.top, 0));
       setOmnidockPx((prev) => (prev != null && Math.abs(prev - visible) <= 1 ? prev : Math.round(visible)));
     };
-    measure();
-    const ro = new ResizeObserver(measure);
-    ro.observe(el);
+    const adjuntar = () => {
+      const el = document.querySelector<HTMLElement>("[data-omnidock-root]");
+      if (el === actual) return;
+      ro?.disconnect();
+      ro = null;
+      actual = el;
+      if (el && typeof ResizeObserver !== "undefined") {
+        ro = new ResizeObserver(measure);
+        ro.observe(el);
+      }
+      measure();
+    };
+    adjuntar();
+    const iv = window.setInterval(adjuntar, 1000);
     window.addEventListener("resize", measure);
     window.addEventListener("orientationchange", measure);
     return () => {
-      ro.disconnect();
+      window.clearInterval(iv);
+      ro?.disconnect();
       window.removeEventListener("resize", measure);
       window.removeEventListener("orientationchange", measure);
     };
   }, []);
 
   return (
-    // Alto del contenedor = viewport MENOS el hueco que necesita OmniDock (el
-    // dock inferior fijo, `omni-dock.tsx`). ANTES eran estimaciones fijas
-    // (7/8/11rem) pensadas para una densidad concreta del dock: si la densidad,
-    // el tamaño de pantalla o el zoom no coincidían, la reserva se quedaba
-    // CORTA y los últimos elementos de la sección quedaban tapados/recortados
-    // "más arriba de lo que deberían". AHORA la reserva se MIDE en vivo: un
-    // ResizeObserver lee la altura real del dock (`[data-omnidock-root]`) y
-    // publica `--omnidock-h`; las estimaciones viejas quedan como respaldo
-    // (máximo) hasta que llega la primera medición.
-    <div style={{ ["--omnidock-h" as string]: omnidockPx != null ? `${omnidockPx}px` : undefined }} className="flex flex-col h-[calc(100dvh-7rem-env(safe-area-inset-bottom))] sm:h-[calc(100dvh-8rem-env(safe-area-inset-bottom))] lg:h-[calc(100dvh-11rem-env(safe-area-inset-bottom))] supports-[--omnidock-h]:h-[calc(100dvh-var(--omnidock-h)-env(safe-area-inset-bottom))] gap-4 p-3 sm:p-4 md:p-5 pl-[max(0.75rem,env(safe-area-inset-left))] pr-[max(0.75rem,env(safe-area-inset-right))] max-w-[1600px] mx-auto w-full box-border overflow-x-hidden">
+    // Alto del contenedor = viewport MENOS el hueco REAL medido del OmniDock
+    // (estilo inline: gana siempre). Sin medición aún, las estimaciones fijas
+    // de las clases h-* sirven de primer render; con medición manda el número
+    // real (0 si el dock no está montado) y el corte desaparece en cualquier
+    // densidad/pantalla/zoom y también con el dock oculto.
+    <div
+      style={omnidockPx != null ? { height: `calc(100dvh - ${omnidockPx}px - env(safe-area-inset-bottom))` } : undefined}
+      className="flex flex-col h-[calc(100dvh-7rem-env(safe-area-inset-bottom))] sm:h-[calc(100dvh-8rem-env(safe-area-inset-bottom))] lg:h-[calc(100dvh-11rem-env(safe-area-inset-bottom))] gap-4 p-3 sm:p-4 md:p-5 pl-[max(0.75rem,env(safe-area-inset-left))] pr-[max(0.75rem,env(safe-area-inset-right))] max-w-[1600px] mx-auto w-full box-border overflow-x-hidden">
 
       <div className="flex items-center justify-between flex-wrap gap-3 w-full max-w-full box-border">
         <h1 className="text-xl sm:text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary to-purple-400 flex items-center gap-2 sm:gap-3 min-w-0">

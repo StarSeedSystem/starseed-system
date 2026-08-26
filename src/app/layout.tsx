@@ -40,6 +40,7 @@ import { NotificationsProvider } from "@/context/notifications-context";
 import { AccountProvider } from "@/context/account-context";
 
 import { OmniDock } from "@/components/layout/omni-dock";
+import { EntornoMontaje } from "@/components/entorno/entorno-montaje";
 // Paleta de comandos global (Cmd/Ctrl+K): buscar y saltar a cualquier app o
 // página del OS + acciones rápidas. Hermana de {children} (no lo envuelve,
 // igual que el resto de la chrome global) para estar disponible en TODAS las
@@ -268,6 +269,9 @@ export default function RootLayout({
                         <SideCurtains />
 
                         <OmniDock />
+                        {/* Detección automática de entorno: medios + cuentas de este
+                            dispositivo, en cualquier ventana/medio donde se abra el OS. */}
+                        <EntornoMontaje />
                         <PinnedWidgetOverlay />
                         {/* Mini-reproductor global del media center (aparece al reproducir). */}
                         <MediaMiniDock />
