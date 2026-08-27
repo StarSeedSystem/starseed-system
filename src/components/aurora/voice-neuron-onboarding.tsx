@@ -555,6 +555,13 @@ export function VoiceNeuronOnboarding() {
     }
   }, []);
 
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  // [fix hydration] El portal solo existe en el cliente (document.body no existe
+  // en SSR). Devolver null en SSR y en el primer render cliente evita el mismatch
+  // de hydration (el servidor serializaba <script>, el cliente <div>).
+  if (!mounted) return null;
+
   return createPortal(
     <div
       data-v310={__VOICE_ONBOARDING_310_FIX__}
