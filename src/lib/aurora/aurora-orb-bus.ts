@@ -346,8 +346,8 @@ interface MicShared {
   analyser: AnalyserNode;
   bins: number;
   // TS ≥5.7 tipa los TypedArray por su buffer: el AnalyserNode exige ArrayBuffer.
-  freq: Uint8Array<ArrayBuffer>;
-  time: Uint8Array<ArrayBuffer>;
+  freq: Uint8Array;
+  time: Uint8Array;
 }
 
 let micShared: MicShared | null = null;

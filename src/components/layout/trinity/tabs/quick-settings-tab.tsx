@@ -87,6 +87,8 @@ const AURORA_ENGINE_LABEL: Record<AuroraVoiceEngine, string> = {
     omnivoice: "OmniVoice (sistema · local/nube)",
     openvoice2: "OpenVoice 2 (motor por defecto · web)",
     xai: "xAI · Grok Voice (tiempo real)",
+    vibevoice: "VibeVoice (clonación neuronal)",
+    voice158: "Voz 1.58-bit (Astro · CPU local)",
 };
 
 const PERF_OPTIONS: Array<{ id: PerfMode; label: string; Icon: React.ComponentType<{ className?: string }> }> = [

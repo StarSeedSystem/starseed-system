@@ -117,7 +117,7 @@ export function buildZipBlob(entries: ZipEntryInput[], now: Date = new Date()): 
         writeUint16LE(lv, 28, 0); // extra length
 
         // `new Uint8Array(view)` (un solo argumento ArrayLike) siempre reserva un
-        // ArrayBuffer real nuevo → tipo `Uint8Array<ArrayBuffer>`, compatible con
+        // ArrayBuffer real nuevo → tipo `Uint8Array`, compatible con
         // `BlobPart` (TS 5.9 distingue ArrayBuffer de ArrayBufferLike/Shared).
         parts.push(local, new Uint8Array(nameBytes), new Uint8Array(bytes));
         const localHeaderSize = 30 + nameBytes.length + bytes.length;

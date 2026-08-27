@@ -88,7 +88,7 @@ function toB64(bytes: Uint8Array): string {
   return btoa(bin);
 }
 
-function fromB64(b64: string): Uint8Array<ArrayBuffer> | null {
+function fromB64(b64: string): Uint8Array | null {
   try {
     const bin = atob(b64);
     const buf = new ArrayBuffer(bin.length);

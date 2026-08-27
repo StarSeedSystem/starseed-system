@@ -44,6 +44,7 @@ export interface PortablePersona {
 export const ENGINE_SUPPORTS_REF: Record<AuroraVoiceEngine, boolean> = {
   browser: false, kokoro: false, kitten: false, bark: false, xai: false,
   voxcpm: true, voicebox: true, "gpt-sovits": true, omnivoice: true, openvoice2: true,
+  vibevoice: true, voice158: false,
 };
 
 export function engineSupportsRef(engine: AuroraVoiceEngine): boolean {

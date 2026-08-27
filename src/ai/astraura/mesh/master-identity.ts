@@ -100,7 +100,7 @@ function b64url(buf: ArrayBuffer): string {
   for (let i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
   return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
-function fromB64url(str: string): Uint8Array<ArrayBuffer> {
+function fromB64url(str: string): Uint8Array {
   const s = str.replace(/-/g, "+").replace(/_/g, "/");
   const pad = s.length % 4 ? "=".repeat(4 - (s.length % 4)) : "";
   const bin = atob(s + pad);
@@ -193,7 +193,7 @@ export function hasMasterKey(): boolean {
  *  literal preserva el orden de inserción), así que un `relayDeviceId` INYECTADO en un
  *  cert viejo produce un mensaje DISTINTO y su firma deja de validar.
  *  Devuelve un buffer respaldado por ArrayBuffer (BufferSource para WebCrypto). */
-function certMessage(deviceFp: string, account: string, iat: number, relayDeviceId?: string): Uint8Array<ArrayBuffer> {
+function certMessage(deviceFp: string, account: string, iat: number, relayDeviceId?: string): Uint8Array {
   const canonical = relayDeviceId
     ? { deviceFp, account, relayDeviceId, iat }
     : { deviceFp, account, iat };
@@ -328,7 +328,7 @@ export function revokeDeviceCertMessage(certId: string): string {
 }
 
 /** Bytes (respaldados por ArrayBuffer, BufferSource para WebCrypto) del mensaje canónico. */
-function revokeDeviceCertBytes(certId: string): Uint8Array<ArrayBuffer> {
+function revokeDeviceCertBytes(certId: string): Uint8Array {
   const u = new TextEncoder().encode(revokeDeviceCertMessage(certId));
   const buf = new ArrayBuffer(u.length);
   const out = new Uint8Array(buf);
@@ -473,7 +473,7 @@ export async function importMasterKeyEncrypted(blob: MasterBlob, passphrase: str
  * ---------------------------------------------------------------------------- */
 
 /** Mensaje canónico de un acta de revocación de maestra (orden fijo). */
-function revMessage(mfp: string): Uint8Array<ArrayBuffer> {
+function revMessage(mfp: string): Uint8Array {
   const u = new TextEncoder().encode(JSON.stringify({ revokeMaster: mfp }));
   const buf = new ArrayBuffer(u.length);
   const out = new Uint8Array(buf);

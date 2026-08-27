@@ -94,7 +94,7 @@ export function PrivacidadTab({ target }: S158TabProps) {
     if (hasPermissionsApi) {
       for (const name of ["geolocation", "microphone", "camera"] as const) {
         try {
-          const status = await navigator.permissions.query({ name });
+          const status = await navigator.permissions.query({ name: name as PermissionName });
           statusesRef.current[name] = status;
           next[name] = status.state;
           status.onchange = () => { setPerms((p) => ({ ...p, [name]: status.state })); };
