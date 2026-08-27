@@ -29,6 +29,7 @@
     "hermes-integration",
     "integraciones-de-codigo",
     "native",
-    "venv"
+    "venv",
+    "_to_delete"
   ]
 }
