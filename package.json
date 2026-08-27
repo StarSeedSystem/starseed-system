@@ -5,7 +5,7 @@
   "license": "AGPL-3.0-or-later",
   "private": true,
   "engines": {
-    "node": "24.x"
+    "node": "22.x"
   },
   "homepage": "https://starseed-nexus.vercel.app",
   "repository": {
