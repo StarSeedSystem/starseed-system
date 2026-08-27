@@ -5,7 +5,7 @@
   "license": "AGPL-3.0-or-later",
   "private": true,
   "engines": {
-    "node": "20.17.0"
+    "node": "24.x"
   },
   "homepage": "https://starseed-nexus.vercel.app",
   "repository": {
@@ -17,7 +17,7 @@
     "genkit:dev": "genkit start -- tsx src/ai/dev.ts",
     "genkit:watch": "genkit start -- tsx --watch src/ai/dev.ts",
     "prebuild": "node scripts/gen-version.mjs",
-    "build": "NODE_OPTIONS=--max-old-space-size=4096 next build",
+    "build": "NODE_OPTIONS=--max-old-space-size=7168 next build",
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
