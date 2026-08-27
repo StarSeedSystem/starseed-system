@@ -1282,64 +1282,16 @@ function AgentPageInner() {
     return base;
   }, [cloudMessages, streaming, streamText]);
 
-  // (Verificación 1.58 · fix corte inferior v2) Altura REAL del OmniDock medida
-  // en vivo. Hallazgos verificados: (1) la variante `supports-[--omnidock-h]:` de
-  // Tailwind 3.4 NUNCA se compiló al CSS — la reserva medida jamás se aplicó;
-  // (2) el dock SOLO se monta cuando está anclado o en modo siempre-visible
-  // (`isVisible` en omni-dock.tsx): desmontado, hay que reservar CERO — pero las
-  // estimaciones fijas restaban su hueco IGUAL, y ese era el corte que seguía
-  // viéndose sin dock a la vista; (3) si el dock aparece tarde (gesto de borde),
-  // un observador de una sola pasada nunca lo llega a ver. Ahora: sondeo ligero
-  // (1 Hz) que detecta montaje/desmontaje, ResizeObserver mientras esté montado,
-  // y la altura medida se aplica como ESTILO INLINE (gana sobre las clases h-*
-  // de respaldo). Dock ausente ⇒ reserva 0 ⇒ altura completa.
-  const [omnidockPx, setOmnidockPx] = useState<number | null>(null);
-  useEffect(() => {
-    let ro: ResizeObserver | null = null;
-    let actual: HTMLElement | null = null;
-    const measure = () => {
-      if (!actual) {
-        setOmnidockPx((prev) => (prev === 0 ? prev : 0));
-        return;
-      }
-      const r = actual.getBoundingClientRect();
-      // Solo cuenta la parte del dock DENTRO del viewport (lo que de verdad tapa).
-      const visible = Math.max(0, Math.min(r.bottom, window.innerHeight) - Math.max(r.top, 0));
-      setOmnidockPx((prev) => (prev != null && Math.abs(prev - visible) <= 1 ? prev : Math.round(visible)));
-    };
-    const adjuntar = () => {
-      const el = document.querySelector<HTMLElement>("[data-omnidock-root]");
-      if (el === actual) return;
-      ro?.disconnect();
-      ro = null;
-      actual = el;
-      if (el && typeof ResizeObserver !== "undefined") {
-        ro = new ResizeObserver(measure);
-        ro.observe(el);
-      }
-      measure();
-    };
-    adjuntar();
-    const iv = window.setInterval(adjuntar, 1000);
-    window.addEventListener("resize", measure);
-    window.addEventListener("orientationchange", measure);
-    return () => {
-      window.clearInterval(iv);
-      ro?.disconnect();
-      window.removeEventListener("resize", measure);
-      window.removeEventListener("orientationchange", measure);
-    };
-  }, []);
+  // (Adenda 169 · corte inferior) El OmniDock es una CAPA SUPERIOR (overlay
+  // `fixed bottom-0 z-[70]`) que se auto-oculta: NO ocupa espacio de flujo y
+  // debe poder solaparse sobre el contenido. Por diseño NO se resta su altura
+  // al contenedor (esa reserva dejaba un hueco muerto que recortaba la sección
+  // «Astraura AI & Orchestration» por abajo y la impedía usar pantalla completa).
+  // El contenedor raíz usa `h-[100dvh]` (pantalla completa) y el dock flota encima.
 
   return (
-    // Alto del contenedor = viewport MENOS el hueco REAL medido del OmniDock
-    // (estilo inline: gana siempre). Sin medición aún, las estimaciones fijas
-    // de las clases h-* sirven de primer render; con medición manda el número
-    // real (0 si el dock no está montado) y el corte desaparece en cualquier
-    // densidad/pantalla/zoom y también con el dock oculto.
     <div
-      style={omnidockPx != null ? { height: `calc(100dvh - ${omnidockPx}px - env(safe-area-inset-bottom))` } : undefined}
-      className="flex flex-col h-[calc(100dvh-7rem-env(safe-area-inset-bottom))] sm:h-[calc(100dvh-8rem-env(safe-area-inset-bottom))] lg:h-[calc(100dvh-11rem-env(safe-area-inset-bottom))] gap-4 p-3 sm:p-4 md:p-5 pl-[max(0.75rem,env(safe-area-inset-left))] pr-[max(0.75rem,env(safe-area-inset-right))] max-w-[1600px] mx-auto w-full box-border overflow-x-hidden">
+      className="flex flex-col h-[100dvh] gap-4 p-3 sm:p-4 md:p-5 pl-[max(0.75rem,env(safe-area-inset-left))] pr-[max(0.75rem,env(safe-area-inset-right))] pb-20 sm:pb-6 max-w-[1600px] mx-auto w-full box-border overflow-x-hidden">
 
       <div className="flex items-center justify-between flex-wrap gap-3 w-full max-w-full box-border">
         <h1 className="text-xl sm:text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary to-purple-400 flex items-center gap-2 sm:gap-3 min-w-0">

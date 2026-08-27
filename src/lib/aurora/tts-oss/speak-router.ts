@@ -102,6 +102,13 @@ export interface ConfiguredSpeakOptions {
   onBoundary?: () => void;
   /** Errores no fatales (informativo). */
   onError?: (message: string) => void;
+  /**
+   * Guion multi-locutor VibeVoice (opcional). Cuando el motor activo es
+   * `vibevoice`, `runLink` lo pasa a neuralSpeakVibeVoice en vez del texto
+   * limpio, para que Aurora hable el diálogo con voces distintas por Speaker
+   * en UNA sola síntesis. Si no aplica, se ignora.
+   */
+  multiSpeakerScript?: string;
 }
 
 // ── Auto-detección de idioma HABLADO (sin dependencias) ─────────────────────
@@ -403,7 +410,13 @@ async function runLink(
     const settingsOverride: NeuralEngineSettings | undefined = detectedLang
       ? { ...getEngineSettings(link), lang: detectedLang }
       : undefined;
-    const audio = await neuralSpeak(link, text, { ...safe, settings: settingsOverride });
+    // VibeVoice multi-locutor: si el llamador pasó un guion `Speaker N:` (modo
+    // multi-agente), lo usamos en vez del texto limpio para que Aurora hable el
+    // diálogo con voces distintas en UNA síntesis. Si no, neuralSpeakVibeVoice
+    // etiqueta el texto suelto como Speaker 0.
+    const speakText =
+      link === "vibevoice" && opts.multiSpeakerScript ? opts.multiSpeakerScript : text;
+    const audio = await neuralSpeak(link, speakText, { ...safe, settings: settingsOverride });
     if (audio) return "spoke";
     return started ? "started" : "declined";
   }

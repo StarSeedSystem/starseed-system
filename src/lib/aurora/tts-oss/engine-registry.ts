@@ -248,6 +248,37 @@ export const VOICE_ENGINE_REGISTRY: Record<AuroraVoiceEngine, VoiceEngineMeta> =
     repo: "https://github.com/myshell-ai/OpenVoice",
     requirements: ["Ninguno: funciona en la web. Usa una semilla de identidad sintética o tu propio audio."],
   },
+  // ── VibeVoice (Microsoft, fork comunitario) — TTS expresivo MULTI-LOCUTOR ──
+  // Hasta 4 speakers en un mismo guion: es el motor que da "varias personalidades
+  // con voces distintas en un mismo diálogo" (cada personalidad = un speaker).
+  // Clona voces desde ~30 s de audio. Modelos: 1.5B / 7B (larga duración,
+  // multi-locutor) y Streaming-0.5B (tiempo real, 1 speaker). Licencia MIT.
+  // REQUISITO DURO: GPU (VRAM para los modelos diffusion + LLM). En 8 GB sin GPU
+  // no corre local — por eso vive en una neurona/PC con GPU o en la nube (Cloud
+  // Run GPU). La cadena AUTO lo elige cuando hay endpoint; si no, cae a los
+  // demás eslabones (OmniVoice/OpenVoice) sin que Aurora quede muda.
+  vibevoice: {
+    id: "vibevoice",
+    label: "VibeVoice (multi-locutor)",
+    hint: "Diálogos con varias personalidades: hasta 4 voces distintas en el mismo guion. Clona tu voz desde 30 s.",
+    kind: "endpoint",
+    realism: 5, // multi-locutor expresivo de larga duración, muy natural
+    requiresEndpoint: true,
+    requiresDownload: false, // el modelo lo sirve el servidor (GPU), no el navegador
+    free: true,
+    langs: "en · zh (y cross-lingual emergente)",
+    spanish: false, // el entrenamiento es mayormente en/zh; es-ES puede requerir muestra de referencia
+    emotions: true, // entonación/expresión natural del diálogo
+    cloning: true, // ~30 s de audio → voz propia o de una personalidad
+    latency: "~30-90 s (1.5B/7B, larga duración) · tiempo real (0.5B)",
+    license: "MIT",
+    repo: "https://github.com/vibevoice-community/VibeVoice",
+    requirements: [
+      "Servidor VibeVoice con GPU (neurona/PC con VRAM o Cloud Run GPU) y su URL en Ajustes → Voz.",
+      "Para diálogos multi-personalidad: un audio de referencia (o clone) por cada speaker.",
+      "Inglés/chino nativos; para español usa una muestra de referencia en es-ES como speaker.",
+    ],
+  },
   // ── xAI Voice Agent (grok-voice) — conversacional en tiempo real ──
   // NO es un motor de TTS one-shot: es un AGENTE que escucha el micrófono y
   // responde por voz (WebSocket, server_vad) como EXPERIENCIA conversacional
@@ -340,13 +371,18 @@ export const VOICE_ENGINE_REGISTRY: Record<AuroraVoiceEngine, VoiceEngineMeta> =
  * elegido motor (o ha dejado `auto` encendido).
  */
 export const AUTO_ENDPOINT_ORDER: readonly NeuralVoiceEngine[] = [
+  // VibeVoice va PRIMERO en AUTO: es el único motor multi-locutor nativo (hasta
+  // 4 speakers en un mismo guion) — da "varias personalidades con voces distintas
+  // en un mismo diálogo". Cuando su endpoint (GPU local/nube) está vivo, Aurora
+  // lo usa solo; si no, la cadena sigue con VoxCPM y los demás sin que quede muda.
+  "vibevoice",
   "voxcpm",
   "voicebox",
   "gpt-sovits",
   "bark",
   "omnivoice",
   // OpenVoice V2 va SIEMPRE justo detrás del híbrido OmniVoice (Adenda V2-VOZ):
-  // en instalación CERO la cadena queda [omnivoice → openvoice2 → kokoro].
+  // en instalación CERO la cadena queda [vibevoice? → omnivoice → openvoice2 → kokoro].
   "openvoice2",
 ];
 

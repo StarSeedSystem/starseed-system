@@ -773,7 +773,7 @@ export function useAuroraEngine(): AuroraEngine {
   //      LATIDO del orbe (emitAuroraSpeak start/boundary/end) alrededor del audio.
   //   3) Si el motor OSS no aplica / no está disponible / falla, cae a la voz del
   //      navegador (speakWithBrowser) — comportamiento histórico intacto.
-  const speak = useCallback((text: string, forcePersonality?: any) => {
+  const speak = useCallback((text: string, forcePersonality?: any, vibeVoiceScript?: string | null) => {
     if (typeof window === "undefined") return;
     // Limpieza (Adenda 85), ver `sanitizeSpeechText` — compartida con
     // `speakQueued()` para que ambas rutas limpien EXACTAMENTE igual.
@@ -829,6 +829,9 @@ export function useAuroraEngine(): AuroraEngine {
             finishTts();
           },
           onError: () => { /* no fatal: si además declina, caemos a navegador abajo */ },
+          // Guion multi-locutor VibeVoice: si viene y el motor activo es VibeVoice,
+          // runLink lo usa en vez del texto limpio (varias voces en un diálogo).
+          multiSpeakerScript: vibeVoiceScript ?? undefined,
         });
 
         if (spoke) return; // el motor OSS se hizo cargo del turno completo.
@@ -1072,8 +1075,16 @@ export function useAuroraEngine(): AuroraEngine {
 
   // ── transporte de voz (Reproducir / Pausar / Adelantar / Retroceder) ──
   const pauseSpeech = useCallback(() => {
-    if (typeof window === "undefined" || typeof window.speechSynthesis === "undefined") return;
-    try { window.speechSynthesis.pause(); setPaused(true); } catch { /* */ }
+    if (typeof window === "undefined") return;
+    try { if (typeof window.speechSynthesis !== "undefined") window.speechSynthesis.pause(); } catch { /* */ }
+    // (Adenda 169 · fix bucle de voz) La ruta de voz por defecto es el mixer
+    // OmniVoice (WebAudio), NO speechSynthesis. Pausar solo este último dejaba
+    // el mixer sonando en loop y el streaming seguía metiendo cláusulas. Al
+    // pausar hay que cortar TAMBIÉN el mixer (igual que hace `interrupt`).
+    void import("@/lib/aurora/tts-oss/speak-router")
+      .then((m) => m.stopConfiguredEngine())
+      .catch(() => { /* */ });
+    setPaused(true);
   }, []);
 
   const resumeSpeech = useCallback(() => {
@@ -1521,7 +1532,7 @@ export function useAuroraEngine(): AuroraEngine {
         ...(astraura158 ? { astraura158 } : {}),
       };
       pushReply(reply, meta);
-      speak(reply);
+      speak(reply, undefined, res?.vibeVoiceScript ?? null);
     } catch (e: any) {
       // GARANTÍA DE RESPUESTA: ni aquí se vuelca un error crudo. Mensaje
       // siempre honesto + accionable (nunca un stack/JSON en bruto).

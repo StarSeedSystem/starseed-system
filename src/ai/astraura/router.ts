@@ -1207,7 +1207,16 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
             workers: Math.max(1, Math.min(5, prefs.multiAgentWorkers || 3)),
           });
           if (enriched.enriched && enriched.text) {
-            return { ...res, text: enriched.text, route: rec };
+            // Si el motor de voz activo es VibeVoice, pegamos el guion multi-locutor
+            // (cada subagente = un Speaker) para que Aurora hable el diálogo con
+            // voces distintas en UNA síntesis. Si no es VibeVoice, se ignora y se
+            // habla el `text` normal (voz única).
+            let vibeVoiceScript: string | null | undefined;
+            try {
+              const { resolveActiveVoiceEngine } = await import("@/lib/aurora/tts-oss/engine-registry");
+              if (resolveActiveVoiceEngine() === "vibevoice") vibeVoiceScript = enriched.dialogue;
+            } catch { /* motor de voz no disponible en SSR/runtime → ignorar */ }
+            return { ...res, text: enriched.text, route: rec, vibeVoiceScript: vibeVoiceScript ?? null };
           }
         } catch {
           /* contraste falló → devolvemos la respuesta principal sin tocar */

@@ -43,6 +43,13 @@ export interface AstrauraMultiResult {
   enriched: boolean;
   /** Desglose de qué modelo :free aportó qué (observabilidad). */
   contributors: { role: string; model: string; ok: boolean }[];
+  /**
+   * Guion multi-locutor para VibeVoice (cuando el motor de voz activo es VibeVoice):
+   * cada aportación útil de un subagente se etiqueta como `Speaker N:` para que
+   * VibeVoice las funda en UNA sola síntesis con voces distintas. La respuesta
+   * principal es el Speaker 0. `null` si no aplica (sin enriquecimiento).
+   */
+  dialogue: string | null;
 }
 
 /** Rol de "crítico" que contrasta la respuesta principal. */
@@ -65,7 +72,7 @@ export async function astrauraMultiContrast(
   const primaryText = input.primary.text?.trim() ?? "";
 
   if (!primaryText) {
-    return { text: "", enriched: false, contributors: [] };
+    return { text: "", enriched: false, contributors: [], dialogue: null };
   }
 
   // Último mensaje del usuario como base del contraste.
@@ -86,7 +93,7 @@ export async function astrauraMultiContrast(
   try {
     results = await runSubAgents(tasks);
   } catch {
-    return { text: primaryText, enriched: false, contributors: [] };
+    return { text: primaryText, enriched: false, contributors: [], dialogue: null };
   }
 
   const useful = results.filter((r) => r.ok && !/^\s*OK\b/i.test(r.text));
@@ -96,9 +103,19 @@ export async function astrauraMultiContrast(
     ok: r.ok,
   }));
 
+  // Guion multi-locutor para VibeVoice: la respuesta principal es el Speaker 0 y
+  // cada aportación útil de un subagente es un Speaker N distinto (hasta 4 en
+  // total, límite de VibeVoice). Si no hay aportaciones útiles, no aplica.
+  const buildDialogue = (): string | null => {
+    if (useful.length === 0) return null;
+    const lines = [`Speaker 0: ${primaryText}`];
+    useful.slice(0, 3).forEach((r, i) => lines.push(`Speaker ${i + 1}: ${r.text.trim()}`));
+    return lines.join("\n");
+  };
+
   if (useful.length === 0) {
     // Ningún subagente aportó mejora → devolvemos el primary tal cual.
-    return { text: primaryText, enriched: false, contributors };
+    return { text: primaryText, enriched: false, contributors, dialogue: null };
   }
 
   // Síntesis Chairman: pegamos las aportaciones y las resumimos en un único
@@ -111,5 +128,5 @@ export async function astrauraMultiContrast(
       .map((r, i) => `• [${r.model}] ${r.text.trim()}`)
       .join("\n");
 
-  return { text: synthesis, enriched: true, contributors };
+  return { text: synthesis, enriched: true, contributors, dialogue: buildDialogue() };
 }

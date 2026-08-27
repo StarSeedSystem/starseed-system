@@ -142,6 +142,11 @@ export const ENGINE_TIMEOUT_MS: Record<NeuralVoiceEngine, number> = {
   bark: 20_000,
   "gpt-sovits": 20_000,
   omnivoice: 20_000,
+  // VibeVoice (multi-locutor, larga duración 1.5B/7B) tarda SEGUNDOS-minutos por
+  // diálogo completo. 90 s da margen para un guion corto; el cliente del OS
+  // trocea el diálogo en sí (cada personalidad = un turno) y VibeVoice los
+  // une, así que un turno suele ser rápido. 120 s cubre guiones medianos.
+  vibevoice: 120_000,
   // OpenVoice V2 gestiona su propio presupuesto POR INTENTO dentro de su
   // cliente (cola + cold start del Space). El Space gratis de HF tarda
   // HASTA ~120 s en el primer arranque en frío (QUEUE_TIMEOUT_FIRST_MS) antes
@@ -174,6 +179,10 @@ const ENGINE_PATHS: Record<NeuralVoiceEngine, string[]> = {
   bark: ["/generate", "/tts", "/api/tts"],
   "gpt-sovits": ["/tts", "/", "/api/tts"],
   omnivoice: ["/tts", "/generate", "/api/tts"],
+  // VibeVoice: servidor FastAPI propio del backend Astraura (`/api/vibevoice`).
+  // Si alguien corre el demo Gradio de la comunidad en su lugar, el cliente
+  // tolera `/api/predict` (formato Gradio) como fallback (ver neuralSynthesize).
+  vibevoice: ["/api/vibevoice/synthesize", "/api/predict", "/tts"],
   // OpenVoice V2 no usa POST JSON directo: habla por el protocolo de cola de su
   // Space (openvoice2.ts). Sin rutas → nunca entra en el bucle de candidateUrls.
   openvoice2: [],
@@ -248,6 +257,13 @@ export const NEURAL_ENGINE_META: Record<
     voicePlaceholder: "voz xAI (eve · ara · rex · sal · leo)",
     defaultVoice: "eve",
     repo: "https://docs.x.ai/",
+  },
+  vibevoice: {
+    label: "VibeVoice (multi-locutor)",
+    hint: "Diálogos con varias personalidades: hasta 4 voces distintas en el mismo guion. Clona tu voz desde 30 s.",
+    voicePlaceholder: "voz preloaded (p.ej. Alice) o muestra de referencia",
+    defaultVoice: "", // clonación: la voz la define la referencia o el preloaded del servidor
+    repo: "https://github.com/vibevoice-community/VibeVoice",
   },
 };
 
@@ -526,6 +542,98 @@ function buildBody(
 }
 
 // ── Síntesis (POST → Blob) ───────────────────────────────────────────────────
+
+/**
+ * VibeVoice (multi-locutor) — habla DEDICADA.
+ * VibeVoice une TODOS los speakers en UNA síntesis (no se trocea por frase).
+ * El `text` puede ser un guion ya formateado ("Speaker 0: ...\nSpeaker 1: ...")
+ * o una sola frase (Speaker 0). Llama al servidor FastAPI del backend Astraura
+ * (`/api/vibevoice/synthesize`), que envuelve VibeVoiceDemo (fork comunidad).
+ * NUNCA lanza.
+ */
+async function neuralSpeakVibeVoice(
+  engine: NeuralVoiceEngine,
+  text: string,
+  opts: NeuralSpeakOptions = {},
+): Promise<HTMLAudioElement | null> {
+  const clean = (text || "").trim();
+  if (!clean) return null;
+  if (typeof window === "undefined") return null;
+
+  const s = getEngineSettings(engine);
+  const endpoint = normalizeEndpoint(s.endpoint);
+  if (!endpoint) {
+    try {
+      opts.onError?.(
+        "VibeVoice necesita un endpoint (servidor con GPU: neurona/PC o Cloud Run). Añádelo en Ajustes → Voz.",
+      );
+    } catch { /* */ }
+    return null;
+  }
+
+  // Siempre enviamos `script`. Si es una frase suelta, la etiquetamos como Speaker 0.
+  const isScript = /^\s*Speaker\s+\d+\s*:/im.test(clean);
+  const script = isScript ? clean : `Speaker 0: ${clean}`;
+  const body: Record<string, unknown> = { script };
+
+  const budget = ENGINE_TIMEOUT_MS[engine] ?? NEURAL_TTS_TIMEOUT_MS;
+  const controller = new AbortController();
+  const killer = setTimeout(() => { try { controller.abort(); } catch { /* */ } }, budget);
+
+  let blob: Blob | null = null;
+  try {
+    const url = endpoint.replace(/\/$/, "") + "/api/vibevoice/synthesize";
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+    if (!res.ok) {
+      const msg = await res.text().catch(() => "");
+      try { opts.onError?.(`VibeVoice ${res.status}: ${msg.slice(0, 200)}`); } catch { /* */ }
+      return null;
+    }
+    const ctype = (res.headers.get("content-type") || "").toLowerCase();
+    if (ctype.includes("application/json") || ctype.includes("text/json")) {
+      const json = await res.json().catch(() => null);
+      blob = await audioFromJson(json, endpoint, controller.signal);
+    } else {
+      const buf = new Uint8Array(await res.arrayBuffer());
+      if (looksLikeAudio(buf)) blob = new Blob([buf], { type: ctype.split(";")[0] || "audio/wav" });
+    }
+  } catch (e) {
+    try { opts.onError?.("VibeVoice no respondió (¿servidor apagado o sin GPU?)."); } catch { /* */ }
+  } finally {
+    clearTimeout(killer);
+  }
+
+  if (!blob) {
+    try { opts.onError?.("VibeVoice no devolvió audio (¿servidor apagado o sin GPU?)."); } catch { /* */ }
+    return null;
+  }
+
+  return await new Promise<HTMLAudioElement | null>((resolve) => {
+    let settled = false;
+    let url: string | null = null;
+    let audio: HTMLAudioElement | null = null;
+    const cleanup = () => {
+      if (url) { try { URL.revokeObjectURL(url); } catch { /* */ } }
+      if (currentAudio === audio) { currentAudio = null; currentUrl = null; }
+    };
+    const settle = (val: HTMLAudioElement | null) => { if (settled) return; settled = true; resolve(val); };
+    try {
+      url = URL.createObjectURL(blob);
+      audio = new Audio(url);
+      currentAudio = audio;
+      currentUrl = url;
+      audio.onended = () => { cleanup(); try { opts.onEnd?.(); } catch { /* */ } settle(audio); };
+      audio.onerror = () => { cleanup(); try { opts.onError?.("Fallo al reproducir el audio de VibeVoice."); } catch { /* */ } settle(null); };
+      try { opts.onStart?.(); } catch { /* */ }
+      audio.play().catch(() => { cleanup(); try { opts.onEnd?.(); } catch { /* */ } settle(null); });
+    } catch { cleanup(); settle(null); }
+  });
+}
 
 /**
  * Sintetiza `text` en el endpoint del motor y devuelve el Blob de audio, o
@@ -1815,6 +1923,14 @@ export async function neuralSpeak(
   };
 
   if (typeof window === "undefined") return null;
+
+  // VibeVoice (multi-locutor): ruta DEDICADA. El `text` que llega puede ser un
+  // guion ya formateado ("Speaker 0: ...\nSpeaker 1: ...") o una sola frase.
+  // VibeVoice une TODOS los speakers en UNA síntesis (no se trocea por frase,
+  // eso rompería el diálogo). Delegamos a la función dedicada.
+  if (engine === "vibevoice") {
+    return await neuralSpeakVibeVoice(engine, text, opts);
+  }
 
   // RESPUESTAS LARGAS por OpenVoice → habla TROCEADA (Adenda 82): los Spaces
   // gratis (CPU) no pueden sintetizar 2.000 caracteres de una pieza dentro del

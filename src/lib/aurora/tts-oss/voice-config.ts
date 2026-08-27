@@ -97,9 +97,12 @@ export type AuroraVoiceEngine =
   | "gpt-sovits"
   | "omnivoice"
   | "openvoice2"
+  // VibeVoice (Microsoft, comunidad) — TTS expresivo multi-locutor de larga
+  // duración. Soporta hasta 4 speakers en un mismo guion (diálogos de
+  // personalidades) y clonación de voz desde ~30 s de audio. Requiere GPU
+  // (modelos diffusion + LLM). Local (servidor en la neurona) o nube.
+  | "vibevoice"
   // xAI Voice Agent (grok-voice) — conversacional en tiempo real por WebSocket.
-  // Usa la API de StarSeed por defecto (gratuita, server-side) y permite la API
-  // key propia de cada usuario (opcional). Ver xai-voice-agent.ts / xai-persona-voices.ts.
   | "xai";
 
 /** Motores NEURALES por endpoint (servidores Python: neurona/CasaOS u hospedados). */
@@ -109,8 +112,8 @@ export type NeuralVoiceEngine =
   | "bark"
   | "gpt-sovits"
   | "omnivoice"
+  | "vibevoice"
   // OpenVoice V2 (web, sin instalar): Space público integrado (Adenda V2-VOZ).
-  // No es un endpoint del usuario — habla por la nube gratis como OmniVoice.
   | "openvoice2"
   // xAI Voice Agent: WebSocket en tiempo real (no es un endpoint HTTP del
   // usuario — el server-side usa process.env.XAI_API_KEY). Siempre "configurado".

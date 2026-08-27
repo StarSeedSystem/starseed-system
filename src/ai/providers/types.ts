@@ -80,6 +80,13 @@ export interface ChatResponse {
     inputTokens?: number;
     outputTokens?: number;
   };
+  /**
+   * Guion multi-locutor VibeVoice (opcional). Cuando el motor de voz activo es
+   * VibeVoice y la respuesta salió del modo multi-agente, este campo lleva el
+   * guion "Speaker N: ..." para que Aurora lo hable con voces distintas por
+   * personalidad en UNA sola síntesis. Si está ausente, se habla `text` normal.
+   */
+  vibeVoiceScript?: string | null;
 }
 
 /**
