@@ -14,7 +14,10 @@ const nextConfig: NextConfig = {
   // silencio (antes `ignoreBuildErrors:true` la ocultaba). ESLint sigue desactivado en
   // build: su config no está migrada a flat-config (ESLint 9) y no ejecuta — tarea aparte.
   typescript: {
-    ignoreBuildErrors: false,
+    // DIAGNÓSTICO TEMPORAL (Adenda 171): false para detectar si el fallo de
+    // Vercel es type-check o OOM de la máquina de 8GB. Si con true el deploy
+    // pasa -> era type error; si falla igual -> OOM. REVERTIR a false tras diagnosticar.
+    ignoreBuildErrors: true,
   },
   eslint: {
     ignoreDuringBuilds: true,
