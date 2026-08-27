@@ -163,6 +163,9 @@ export const ENGINE_TIMEOUT_MS: Record<NeuralVoiceEngine, number> = {
   // xAI (grok-voice) habla por WebSocket realtime (xai-voice-agent.ts), no por
   // HTTP: este presupuesto solo aplica si algún día se enruta por aquí.
   xai: 30_000,
+  // voice158 (motor 1.58-bit del backend, CPU pura): síntesis streaming rápida.
+  // 30 s cubre turnos largos en CPU; el backend ya trocea eficientemente.
+  voice158: 30_000,
 };
 
 /** TTL de la caché de disponibilidad (ping), en ms. */
@@ -188,6 +191,8 @@ const ENGINE_PATHS: Record<NeuralVoiceEngine, string[]> = {
   openvoice2: [],
   // xAI: WebSocket realtime vía proxy/token (nunca HTTP TTS) → sin rutas.
   xai: [],
+  // voice158: servidor FastAPI del backend Astraura (`/api/voice/synthesize`).
+  voice158: ["/api/voice/synthesize"],
 };
 
 /**
@@ -264,6 +269,13 @@ export const NEURAL_ENGINE_META: Record<
     voicePlaceholder: "voz preloaded (p.ej. Alice) o muestra de referencia",
     defaultVoice: "", // clonación: la voz la define la referencia o el preloaded del servidor
     repo: "https://github.com/vibevoice-community/VibeVoice",
+  },
+  voice158: {
+    label: "Voz 1.58-bit (Astraura, CPU)",
+    hint: "Voz neuronal ligera en CPU pura del backend Astraura. Sin GPU. Multi-personalidad vía el micelio simbiótico de voz.",
+    voicePlaceholder: "Speaker-0 (el micelio asigna el voice pack)",
+    defaultVoice: "Speaker-0",
+    repo: "https://github.com/0xShug0/audio.cpp",
   },
 };
 
@@ -551,6 +563,48 @@ function buildBody(
  * (`/api/vibevoice/synthesize`), que envuelve VibeVoiceDemo (fork comunidad).
  * NUNCA lanza.
  */
+async function neuralSpeakVoice158(
+  engine: NeuralVoiceEngine,
+  text: string,
+  opts: NeuralSpeakOptions = {},
+): Promise<HTMLAudioElement | null> {
+  const clean = (text || "").trim();
+  if (!clean) return null;
+  if (typeof window === "undefined") return null;
+
+  // URL del backend Astraura (neurona local / túnel / nube). Fallback 127.0.0.1.
+  let base = "http://127.0.0.1:8000";
+  try {
+    const { astraura158EndpointOf } = await import("@/lib/neurons/neurons");
+    base = astraura158EndpointOf(/* deviceId */ undefined as any) || base;
+  } catch { /* usa fallback */ }
+
+  const url = `${base.replace(/\/$/, "")}/api/voice/synthesize`;
+  // El backend elige el voice pack del micelio para el speaker por defecto.
+  const speaker = "Speaker-0";
+
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: clean, speaker }),
+    });
+    if (!res.ok) {
+      const err = await res.text().catch(() => "");
+      return opts.onError?.(`voice158 ${res.status}: ${err}`) ?? null;
+    }
+    const blob = await res.blob();
+    if (!blob || blob.size === 0) return opts.onError?.("voice158: audio vacío") ?? null;
+    const audio = new Audio(URL.createObjectURL(blob));
+    audio.onended = () => { try { opts.onEnd?.(); } catch { /* */ } };
+    try { opts.onStart?.(); } catch { /* */ }
+    await audio.play().catch(() => { /* autoplay puede requerir gesto */ });
+    return audio;
+  } catch (e: any) {
+    return opts.onError?.(`voice158: ${e?.message || e}`) ?? null;
+  }
+}
+
 async function neuralSpeakVibeVoice(
   engine: NeuralVoiceEngine,
   text: string,
@@ -1930,6 +1984,14 @@ export async function neuralSpeak(
   // eso rompería el diálogo). Delegamos a la función dedicada.
   if (engine === "vibevoice") {
     return await neuralSpeakVibeVoice(engine, text, opts);
+  }
+
+  // voice158 (motor 1.58-bit del backend Astraura, CPU pura): ruta DEDICADA.
+  // El backend sintetiza vía el puente de voz (piper/voice pack 1.58-bit del
+  // micelio). Multi-personalidad: el backend elige el voice pack del speaker.
+  // No se trocea (el backend ya hace streaming eficiente en CPU).
+  if (engine === "voice158") {
+    return await neuralSpeakVoice158(engine, text, opts);
   }
 
   // RESPUESTAS LARGAS por OpenVoice → habla TROCEADA (Adenda 82): los Spaces

@@ -279,6 +279,33 @@ export const VOICE_ENGINE_REGISTRY: Record<AuroraVoiceEngine, VoiceEngineMeta> =
       "Inglés/chino nativos; para español usa una muestra de referencia en es-ES como speaker.",
     ],
   },
+  // ── voice158 — motor de voz 1.58-bit del Astraura backend (local-primero) ──
+  // TTS ligero que corre en CPU PURA (sin GPU) vía el puente de voz del backend
+  // (piper/kokoro + voice pack 1.58-bit del micelio simbiótico). Multi-personalidad
+  // porque el micelio le da un voice pack por cada Speaker N. Funciona en CUALQUIER
+  // neurona (M1 8GB incluido). Es el respaldo local instantáneo cuando no hay GPU.
+  voice158: {
+    id: "voice158",
+    label: "Voz 1.58-bit (Astraura, CPU)",
+    hint: "Voz neuronal ligera en CPU pura del backend Astraura. Sin GPU. Multi-personalidad vía el micelio simbiótico de voz.",
+    kind: "endpoint",
+    realism: 3, // TTS ligero (piper) + mejora continua del micelio hacia 1.58-bit
+    requiresEndpoint: true,
+    requiresDownload: false,
+    free: true,
+    langs: "es · en (piper) + cualquier idioma del voice pack 1.58-bit",
+    spanish: true,
+    emotions: false, // mejora con el entrenamiento del micelio (prosodia aprendida)
+    cloning: true, // vía voice packs 1.58-bit entrenados del micelio
+    latency: "tiempo real (~0.05 RTF en CPU)",
+    license: "MIT (piper) + propio 1.58-bit",
+    repo: "https://github.com/0xShug0/audio.cpp",
+    requirements: [
+      "Backend Astraura corriendo (neurona local) con el puente de voz habilitado en Ajustes → Voz.",
+      "Para voice packs 1.58-bit propios: el micelio entrena con muestras locales (auto-mejora en segundo plano).",
+      "Funciona sin GPU: CPU pura en cualquier dispositivo StarSeed.",
+    ],
+  },
   // ── xAI Voice Agent (grok-voice) — conversacional en tiempo real ──
   // NO es un motor de TTS one-shot: es un AGENTE que escucha el micrófono y
   // responde por voz (WebSocket, server_vad) como EXPERIENCIA conversacional
@@ -371,10 +398,12 @@ export const VOICE_ENGINE_REGISTRY: Record<AuroraVoiceEngine, VoiceEngineMeta> =
  * elegido motor (o ha dejado `auto` encendido).
  */
 export const AUTO_ENDPOINT_ORDER: readonly NeuralVoiceEngine[] = [
-  // VibeVoice va PRIMERO en AUTO: es el único motor multi-locutor nativo (hasta
-  // 4 speakers en un mismo guion) — da "varias personalidades con voces distintas
-  // en un mismo diálogo". Cuando su endpoint (GPU local/nube) está vivo, Aurora
-  // lo usa solo; si no, la cadena sigue con VoxCPM y los demás sin que quede muda.
+  // voice158 VA PRIMERO en AUTO cuando su endpoint (backend Astraura local) está
+  // vivo: es el motor 1.58-bit en CPU pura, SIN GPU, multi-personalidad vía el
+  // micelio simbiótico. Funciona en cualquier neurona (M1 8GB). Si no hay
+  // backend local, la cadena sigue con VibeVoice y los demás sin que Aurora quede muda.
+  "voice158",
+  // VibeVoice va después: único motor multi-locutor GPU-native (hasta 4 speakers).
   "vibevoice",
   "voxcpm",
   "voicebox",
@@ -382,7 +411,7 @@ export const AUTO_ENDPOINT_ORDER: readonly NeuralVoiceEngine[] = [
   "bark",
   "omnivoice",
   // OpenVoice V2 va SIEMPRE justo detrás del híbrido OmniVoice (Adenda V2-VOZ):
-  // en instalación CERO la cadena queda [vibevoice? → omnivoice → openvoice2 → kokoro].
+  // en instalación CERO la cadena queda [voice158? → vibevoice? → omnivoice → openvoice2 → kokoro].
   "openvoice2",
 ];
 

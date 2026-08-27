@@ -102,6 +102,11 @@ export type AuroraVoiceEngine =
   // personalidades) y clonación de voz desde ~30 s de audio. Requiere GPU
   // (modelos diffusion + LLM). Local (servidor en la neurona) o nube.
   | "vibevoice"
+  // voice158 — motor de voz 1.58-bit del Astraura backend: TTS ligero en CPU
+  // pura (piper/kokoro + voice pack 1.58-bit del micelio). Local-PRIMERO, sin
+  // GPU, multi-personalidad vía el micelio simbiótico de voz. Funciona en
+  // cualquier neurona (M1 8GB incluido). Ver backend/app/core/voice_bridge.py.
+  | "voice158"
   // xAI Voice Agent (grok-voice) — conversacional en tiempo real por WebSocket.
   | "xai";
 
@@ -113,6 +118,8 @@ export type NeuralVoiceEngine =
   | "gpt-sovits"
   | "omnivoice"
   | "vibevoice"
+  // voice158 — TTS 1.58-bit en CPU (puente de voz del backend). Local-primero.
+  | "voice158"
   // OpenVoice V2 (web, sin instalar): Space público integrado (Adenda V2-VOZ).
   | "openvoice2"
   // xAI Voice Agent: WebSocket en tiempo real (no es un endpoint HTTP del
