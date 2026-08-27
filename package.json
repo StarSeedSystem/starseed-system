@@ -17,7 +17,7 @@
     "genkit:dev": "genkit start -- tsx src/ai/dev.ts",
     "genkit:watch": "genkit start -- tsx --watch src/ai/dev.ts",
     "prebuild": "node scripts/gen-version.mjs",
-    "build": "NODE_OPTIONS=--max-old-space-size=7168 next build",
+    "build": "NODE_OPTIONS=--max-old-space-size=6144 next build",
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
