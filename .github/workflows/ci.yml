@@ -31,6 +31,7 @@ jobs:
           # puede instanciar dos veces un módulo (cachés en memoria desincronizadas)
           # y romper una prueba de aislamiento del cifrado por-destinatario que en
           # la app EMPAQUETADA (instancia única) no ocurre. Node 22 = mismo runtime real.
+          node-version: '22'
           node-version-file: .nvmrc
           cache: npm
       - name: Instalar dependencias
