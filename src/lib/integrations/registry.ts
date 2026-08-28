@@ -651,6 +651,39 @@ export const INTEGRATIONS: IntegrationDescriptorExt[] = [
               { id: "persist_memory", label: "Persistir memoria", description: "Extrae y persiste memoria de sesión al exocortex." },
             ],
           },
+        // ── qm — memoria vectorial local cuantizada (1.58-bit embeddings) ──
+        {
+          id: "qm",
+          ossId: "qm",
+          label: "qm (memoria vectorial cuantizada)",
+          category: "memory",
+          capabilities: [
+            "Base de datos vectorial local 100% en SQLite + sqlite-vec (WASM/Node)",
+            "Cuantización nativa: 1-bit (Hamming), 2-4 bit (TurboQuant), INT8, FP16, FP32",
+            "Embeddings 1.58-bit (BitNet) nativos — ~50MB para 1M vectores dim 384",
+            "Cero dependencias externas, corre en navegador (OPFS/IndexedDB), Node, WASM",
+            "Búsqueda k-NN con métricas Hamming/L2/Cosine según cuantización",
+            "Export/Import de BD para backup y sync entre neuronas",
+            "Generación de embeddings local vía Transformers.js / ONNX Runtime Web",
+          ],
+          defaultEndpoint: "local",
+          needsKey: false,
+          docsUrl: "https://github.com/sqliteai/sqlite-vector",
+          freeHostingHint:
+            "100% LOCAL: corre en la propia neurona (browser/Node) sin servidor separado. Usa sqlite-vec WASM (browser) o nativo (Node). Cero costes, cero latencia de red. Ideal para memoria vectorial soberana del exocortex.",
+          actions: [
+            { id: "health", label: "Comprobar disponibilidad", description: "Verifica si sqlite3 + sqlite-vec están disponibles en el entorno." },
+            { id: "initialize", label: "Inicializar BD", description: "Crea el esquema vectorial (colecciones, dimensiones, cuantización)." },
+            { id: "upsert", label: "Insertar/actualizar vectores", description: "Inserta vectores con cuantización automática (needs collection, vectors[])." },
+            { id: "search", label: "Buscar similares (k-NN)", description: "Búsqueda vectorial k-NN (needs collection, queryEmbedding, k opcional)." },
+            { id: "remove", label: "Eliminar vectores", description: "Elimina vectores por IDs (needs collection, ids[])." },
+            { id: "listCollections", label: "Listar colecciones", description: "Lista colecciones con count, dimensions, quantization." },
+            { id: "collectionStats", label: "Stats de colección", description: "Estadísticas de una colección concreta." },
+            { id: "embedLocal", label: "Generar embeddings locales", description: "Genera embeddings binarios 1.58-bit con Transformers.js (needs texts[])." },
+            { id: "exportDb", label: "Exportar BD", description: "Exporta la base de datos completa a Uint8Array (backup/sync)." },
+            { id: "importDb", label: "Importar BD", description: "Importa base de datos desde Uint8Array (restaura/sync)." },
+          ],
+        },
       ];
 
       // ── Helpers de búsqueda ──────────────────────────────────────────

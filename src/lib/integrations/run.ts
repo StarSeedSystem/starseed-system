@@ -37,6 +37,8 @@ import * as TdaiMemory from "./clients/tencentdb-memory";
 import * as Databasement from "./clients/databasement";
 import * as Instance from "./clients/instance";
 import * as AgentReach from "./clients/agent-reach";
+// ── qm + AgentHarness (Adenda 172) ──
+import * as QM from "./clients/qm";
 
 /** Comprueba que la integración pueda llamar (habilitada + endpoint). */
 function gate(cfg: IntegrationConfig, fallbackEndpoint?: string): { ok: true; cfg: IntegrationConfig } | { ok: false; error: string } {
@@ -224,6 +226,21 @@ export async function runIntegration(
         if (a === "persist_memory") return await OpenViking.persistSessionMemory(c, String(input.sessionId));
         break;
 
+      case "qm":
+        // qm — memoria vectorial local cuantizada (100% local, SQLite + sqlite-vec WASM/Node).
+        // Endpoint placeholder "local" — el cliente usa OPFS/IndexedDB (browser) o archivo (Node).
+        if (a === "health") return await QM.runQmAction("health", c, input);
+        if (a === "initialize") return await QM.runQmAction("initialize", c, input);
+        if (a === "upsert") return await QM.runQmAction("upsert", c, input);
+        if (a === "search") return await QM.runQmAction("search", c, input);
+        if (a === "remove") return await QM.runQmAction("remove", c, input);
+        if (a === "listCollections") return await QM.runQmAction("listCollections", c, input);
+        if (a === "collectionStats") return await QM.runQmAction("collectionStats", c, input);
+        if (a === "embedLocal") return await QM.runQmAction("embedLocal", c, input);
+        if (a === "exportDb") return await QM.runQmAction("exportDb", c, input);
+        if (a === "importDb") return await QM.runQmAction("importDb", c, input);
+        break;
+
       default:
         return { ok: false, error: `Integración sin runner: "${id}".` };
     }
@@ -292,6 +309,9 @@ export async function testIntegration(id: string, cfg?: IntegrationConfig): Prom
         return await AgentReach.health(c);
       case "openviking":
         return await OpenViking.healthCheck(c);
+      case "qm":
+        // qm — test de disponibilidad (sqlite3 + sqlite-vec en el entorno).
+        return await QM.health(c);
 
       default:
         return { ok: false, error: `Sin prueba de salud para "${id}".` };
