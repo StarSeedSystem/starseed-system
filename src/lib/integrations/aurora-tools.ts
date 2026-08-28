@@ -82,6 +82,42 @@ export const AURORA_INTEGRATION_TOOLS: AuroraIntegrationTool[] = [
     actionId: "search",
     category: "web-search", // default gratis/OSS (SearXNG propio; si no, buscar_web/DuckDuckGo)
   },
+  // ── Agent-Reach — sentidos web GRATIS multi-backend (X/Reddit/YouTube/GitHub/RSS/web) ──
+  {
+    name: "agent_reach_web_search",
+    description: "Busca en la web multi-backend gratis (Google/DuckDuckGo/Brave/Reddit/YouTube/Bilibili/XHS/GitHub/RSS). Entrada: { q } o { query }.",
+    integrationId: "agent-reach",
+    actionId: "web-search",
+    category: "web-search", // default gratis/OSS (agent-reach CLI local + proxy)
+  },
+  {
+    name: "agent_reach_read_web",
+    description: "Lee una página web / X (Twitter) / Reddit / GitHub / RSS / genérico y devuelve Markdown. Entrada: { url }.",
+    integrationId: "agent-reach",
+    actionId: "read-web",
+    category: "web-fetch", // default gratis/OSS (agent-reach CLI local + proxy)
+  },
+  {
+    name: "agent_reach_youtube_transcript",
+    description: "Extrae la transcripción de un vídeo de YouTube. Entrada: { url }.",
+    integrationId: "agent-reach",
+    actionId: "youtube-transcript",
+    category: "web-fetch",
+  },
+  {
+    name: "agent_reach_github_read",
+    description: "Lee un archivo o repo de GitHub. Entrada: { url }.",
+    integrationId: "agent-reach",
+    actionId: "github-read",
+    category: "web-fetch",
+  },
+  {
+    name: "agent_reach_reddit_search",
+    description: "Busca y lee posts/comentarios de Reddit. Entrada: { url } (o { q } para búsqueda).",
+    integrationId: "agent-reach",
+    actionId: "reddit-search",
+    category: "web-search",
+  },
   {
     name: "pdf_merge",
     description: "Fusiona varios PDFs en uno (Stirling-PDF). Entrada: { files: [File|URL|base64, ...] }.",
@@ -1532,9 +1568,14 @@ export function listAvailableAuroraTools(brainId?: string): AuroraIntegrationToo
 
 /** Alternativas por tool, en orden de preferencia (misma tarea, otro motor). */
 const TOOL_ALTERNATES: Record<string, string[]> = {
-  web_search: ["scrape_url", "buscar_web"],
-  scrape_url: ["crawl_url", "buscar_web"],
-  crawl_url: ["scrape_url", "buscar_web"],
+  web_search: ["scrape_url", "buscar_web", "agent_reach_web_search"],
+  scrape_url: ["crawl_url", "buscar_web", "agent_reach_read_web"],
+  crawl_url: ["scrape_url", "buscar_web", "agent_reach_read_web"],
+  agent_reach_web_search: ["web_search", "scrape_url", "buscar_web"],
+  agent_reach_read_web: ["scrape_url", "crawl_url", "buscar_web"],
+  agent_reach_youtube_transcript: ["agent_reach_read_web"],
+  agent_reach_github_read: ["agent_reach_read_web"],
+  agent_reach_reddit_search: ["agent_reach_web_search", "web_search"],
 };
 
 /** Adapta el input de una tool a la forma que espera una alternativa distinta. */
@@ -1542,8 +1583,11 @@ function adaptInputForAlternate(altName: string, input: unknown): Record<string,
   const raw = input && typeof input === "object" ? (input as Record<string, unknown>) : {};
   const term = pickInput(raw, "q", "consulta", "query", "texto", "text", "url", "urls");
   if (altName === "buscar_web") return { consulta: term ?? raw };
-  if (altName === "crawl_url" || altName === "scrape_url") return { url: term ?? raw };
-  if (altName === "web_search") return { q: term ?? raw };
+  if (altName === "crawl_url" || altName === "scrape_url" || altName === "agent_reach_read_web") return { url: term ?? raw };
+  if (altName === "web_search" || altName === "agent_reach_web_search") return { q: term ?? raw };
+  if (altName === "agent_reach_youtube_transcript") return { url: term ?? raw };
+  if (altName === "agent_reach_github_read") return { url: term ?? raw };
+  if (altName === "agent_reach_reddit_search") return { q: term ?? raw };
   return raw;
 }
 

@@ -35,6 +35,7 @@ import * as Postiz from "./clients/postiz";
 import * as TdaiMemory from "./clients/tencentdb-memory";
 import * as Databasement from "./clients/databasement";
 import * as Instance from "./clients/instance";
+import * as AgentReach from "./clients/agent-reach";
 
 /** Comprueba que la integración pueda llamar (habilitada + endpoint). */
 function gate(cfg: IntegrationConfig, fallbackEndpoint?: string): { ok: true; cfg: IntegrationConfig } | { ok: false; error: string } {
@@ -170,6 +171,18 @@ export async function runIntegration(
         }
         break;
 
+      case "agent-reach":
+        // Agent-Reach es CLI local + proxy HTTP del OS.
+        // El endpoint placeholder es "http://localhost:0"; el cliente ignora endpoint
+        // y llama directo a /api/agent-reach/*. No requiere API key.
+        if (a === "web-search") return await AgentReach.web_search(c, input);
+        if (a === "read-web") return await AgentReach.read_web(c, input);
+        if (a === "youtube-transcript") return await AgentReach.read_youtube(c, input);
+        if (a === "github-read") return await AgentReach.read_github(c, input);
+        if (a === "reddit-search") return await AgentReach.read_reddit(c, input);
+        if (a === "health") return await AgentReach.health(c);
+        break;
+
       default:
         return { ok: false, error: `Integración sin runner: "${id}".` };
     }
@@ -234,6 +247,8 @@ export async function testIntegration(id: string, cfg?: IntegrationConfig): Prom
         return await Instance.health(id, c, Instance.PENPOT_DEFAULT);
       case "opencut":
         return await Instance.health(id, c, Instance.OPENCUT_DEFAULT);
+      case "agent-reach":
+        return await AgentReach.health(c);
 
       default:
         return { ok: false, error: `Sin prueba de salud para "${id}".` };

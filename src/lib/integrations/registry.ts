@@ -591,7 +591,33 @@ export const INTEGRATIONS: IntegrationDescriptorExt[] = [
       { id: "ping", label: "Comprobar instancia", description: "Comprueba que la instancia del editor responde. No hay más API que el OS use." },
     ],
   },
-];
+  // ── Agent-Reach — sentidos web GRATIS multi-backend (CLI local + proxy) ──
+    {
+      id: "agent-reach",
+      ossId: "agent-reach",
+      label: "Agent-Reach (sentidos web)",
+      category: "data-ingest",
+      capabilities: [
+        "Búsqueda web multi-backend GRATIS (Google/DuckDuckGo/Brave/Reddit/YouTube/Bilibili/XHS/GitHub/RSS)",
+        "Lectura de páginas web / X (Twitter) / Reddit / GitHub / RSS / genérico → Markdown",
+        "Transcripción de YouTube (sin API key)",
+        "CLI local nativo (Node) + proxy HTTP del OS; sin claves, sin cuotas",
+      ],
+      defaultEndpoint: "http://localhost:0",
+      needsKey: false,
+      docsUrl: "https://github.com/Panniantong/Agent-Reach",
+      freeHostingHint:
+        "CLI Node (npx agent-reach) instalado en la neurona (Mac/Linux/WSL) — el OS lo invoca por spawn seguro y expone /api/agent-reach/* como proxy. En Vercel no hay CLI; el proxy degrada limpio (ok:false) y Aurora usa alternativas configuradas (SearXNG, Crawl4AI).",
+      actions: [
+        { id: "web-search", label: "Buscar web", description: "Búsqueda multi-backend gratis. Entrada: { q }." },
+        { id: "read-web", label: "Leer página", description: "Lee web/X/Reddit/GitHub/RSS → Markdown. Entrada: { url }." },
+        { id: "youtube-transcript", label: "Transcribir YouTube", description: "Extrae transcripción de YouTube. Entrada: { url }." },
+        { id: "github-read", label: "Leer GitHub", description: "Lee archivo/repo de GitHub. Entrada: { url }." },
+        { id: "reddit-search", label: "Buscar Reddit", description: "Busca/lee posts de Reddit. Entrada: { url } o { q }." },
+        { id: "health", label: "Comprobar CLI", description: "Verifica si agent-reach CLI está instalado y responde." },
+      ],
+    },
+  ];
 
 // ── Helpers de búsqueda ──────────────────────────────────────────
 export function getIntegration(id: string): IntegrationDescriptor | undefined {
