@@ -74,7 +74,7 @@ export async function encryptKey(plaintext: string, passphrase: string): Promise
   const ciphertext = await crypto.subtle.encrypt(
     { name: "AES-GCM", iv },
     key,
-    new TextEncoder().encode(plaintext)
+    new TextEncoder().encode(plaintext) as BufferSource
   );
   // Package: base64(iv ++ ciphertext) for compact localStorage.
   const packed = new Uint8Array(iv.byteLength + ciphertext.byteLength);
@@ -88,8 +88,8 @@ export async function decryptKey(ciphertextB64: string, passphrase: string): Pro
   if (typeof window === "undefined") return "";
   if (!ciphertextB64) return "";
   const packed = fromB64(ciphertextB64);
-  const iv = packed.slice(0, 12);
-  const data = packed.slice(12);
+  const iv = packed.slice(0, 12) as BufferSource;
+  const data = packed.slice(12) as BufferSource;
   const key = await deriveKey(passphrase);
   const decrypted = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, data);
   return new TextDecoder().decode(decrypted);

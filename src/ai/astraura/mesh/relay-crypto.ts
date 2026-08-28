@@ -87,7 +87,7 @@ async function importRaw(rawB64: string): Promise<CryptoKey | null> {
   const raw = fromB64(rawB64);
   if (!s || !raw || raw.length !== 32) return null;
   try {
-    return await s.importKey("raw", raw, { name: "AES-GCM" }, true, ["encrypt", "decrypt"]);
+    return await s.importKey("raw", raw as BufferSource, { name: "AES-GCM" }, true, ["encrypt", "decrypt"]);
   } catch {
     return null;
   }
@@ -323,7 +323,7 @@ export async function decryptEnvelope(env: EncEnvelope | RecipientEnvelope): Pro
     }
     for (const key of candidates) {
       try {
-        const plain = await s.decrypt({ name: "AES-GCM", iv }, key, ct);
+        const plain = await s.decrypt({ name: "AES-GCM", iv }, key, ct as BufferSource);
         return JSON.parse(new TextDecoder().decode(plain));
       } catch {
         /* clave equivocada: prueba la siguiente */

@@ -265,7 +265,7 @@ export function getMetrics(sensitivity: number, freqRange: number): AudioMetrics
     if (!analyser || !data || engine.state !== "live") return SILENT_METRICS;
 
     // El tipo de `getByteFrequencyData` varía entre libs de TS (Uint8Array).
-    analyser.getByteFrequencyData(data as Uint8Array);
+    analyser.getByteFrequencyData(data);
 
     const rangeLimit = Math.floor(data.length * freqRange);
     let totalMagnitude = 0;

@@ -266,7 +266,7 @@ export async function verifyDeviceCert(
   try {
     if ((await fpOfMaster(cert.mpub)) !== cert.mfp) return false; // mfp debe ser la huella de mpub
     const key = await s.importKey("jwk", cert.mpub, { name: "ECDSA", namedCurve: "P-256" }, false, ["verify"]);
-    const sig = fromB64url(cert.sig);
+    const sig = fromB64url(cert.sig) as BufferSource;
     // Si el cert ATA un `relayDeviceId` se verifica sobre el mensaje EXTENDIDO
     // {deviceFp,account,relayDeviceId,iat}; los certs viejos (sin ese campo) siguen
     // verificando sobre {deviceFp,account,iat}. Un `relayDeviceId` INYECTADO a posteriori
@@ -274,7 +274,7 @@ export async function verifyDeviceCert(
     const sigOk = await s.verify(
       { name: "ECDSA", hash: "SHA-256" },
       key,
-      sig as BufferSource,
+      sig,
       certMessage(cert.deviceFp, cert.account, cert.iat, cert.relayDeviceId) as BufferSource,
     );
     if (!sigOk) return false;
@@ -345,7 +345,7 @@ export async function signDeviceCertRevocation(certId: string): Promise<DeviceCe
   if (!s || !m || !certId) return null;
   try {
     const iat = Date.now();
-    const sig = await s.sign({ name: "ECDSA", hash: "SHA-256" }, m.privKey, revokeDeviceCertBytes(certId));
+    const sig = await s.sign({ name: "ECDSA", hash: "SHA-256" }, m.privKey, revokeDeviceCertBytes(certId) as BufferSource);
     return { certId, mfp: m.fp, mpub: m.pub, iat, sig: b64url(sig) };
   } catch {
     return null;
@@ -487,7 +487,7 @@ export async function signMasterRevocation(): Promise<{ mfp: string; mpub: JsonW
   const m = await getOrCreateMasterKey();
   if (!s || !m) return null;
   try {
-    const sig = await s.sign({ name: "ECDSA", hash: "SHA-256" }, m.privKey, revMessage(m.fp));
+    const sig = await s.sign({ name: "ECDSA", hash: "SHA-256" }, m.privKey, revMessage(m.fp) as BufferSource);
     return { mfp: m.fp, mpub: m.pub, sig: b64url(sig) };
   } catch {
     return null;
