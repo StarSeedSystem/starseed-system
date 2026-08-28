@@ -176,7 +176,7 @@ export async function detectAvailability(fast = false): Promise<SourceAvailabili
         out.push({ source, ready: false, userConfig, reason: "Desactivada en esta neurona (Sistemas de Astraura → Astraura 1.58)." });
         continue;
       }
-      const ok = fast ? (isLocal ? !!userConfig : true) : await probe(`${endpoint}/api/status`, isLocal ? 1500 : 4000);
+      const ok = fast ? (isLocal ? !!userConfig : true) : await probe(`${endpoint}/api/status`, isLocal ? 5000 : 8000);
       out.push({
         source, ready: ok, userConfig,
         reason: ok
