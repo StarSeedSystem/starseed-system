@@ -1287,11 +1287,13 @@ function AgentPageInner() {
   // debe poder solaparse sobre el contenido. Por diseño NO se resta su altura
   // al contenedor (esa reserva dejaba un hueco muerto que recortaba la sección
   // «Astraura AI & Orchestration» por abajo y la impedía usar pantalla completa).
-  // El contenedor raíz usa `h-[100dvh]` (pantalla completa) y el dock flota encima.
+  // El contenedor raíz usa `h-[100dvh]` (pantalla completa, SIN scroll global)
+  // y el dock flota encima. Los tabs internos (`TAB_SCROLL` / `TAB_FILL`)
+  // gestionan su propio scroll con `flex-1 min-h-0`.
 
   return (
     <div
-      className="flex flex-col min-h-[100dvh] gap-4 p-3 sm:p-4 md:p-5 pl-[max(0.75rem,env(safe-area-inset-left))] pr-[max(0.75rem,env(safe-area-inset-right))] max-w-[1600px] mx-auto w-full box-border overflow-x-hidden overflow-y-auto">
+      className="flex flex-col h-[100dvh] gap-4 p-3 sm:p-4 md:p-5 pl-[max(0.75rem,env(safe-area-inset-left))] pr-[max(0.75rem,env(safe-area-inset-right))] max-w-[1600px] mx-auto w-full box-border overflow-hidden">
 
       <div className="flex items-center justify-between flex-wrap gap-3 w-full max-w-full box-border">
         <h1 className="text-xl sm:text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary to-purple-400 flex items-center gap-2 sm:gap-3 min-w-0">
