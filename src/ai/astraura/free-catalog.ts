@@ -41,7 +41,25 @@ export type TaskKind =
   | "long"        // contexto muy largo (documentos, memorias)
   | "creative"    // escritura creativa / cultura
   | "translate"   // traducción / multilingüe
-  | "summary";    // resumen / síntesis
+  | "summary"     // resumen / síntesis
+  | "embedding"   // embeddings / búsqueda vectorial
+  | "rag"         // retrieval-augmented generation
+  | "orchestration" // orquestación multi-agente
+  | "dag"         // grafos acíclicos dirigidos
+  | "tools"       // tool calling / function calling
+  | "inference"   // inference de modelos grandes
+  | "collab"      // colaboración en tiempo real
+  | "drawing"     // dibujo / canvas
+  | "webgpu"      // WebGPU shaders
+  | "webrtc"      // WebRTC data channels
+  | "theory"      // teoría / formalización
+  | "quantization" // cuantización
+  | "training"    // entrenamiento
+  | "1.58-bit"    // 1.58-bit específico
+  | "coding"      // agente de código
+  | "terminal"    // terminal / shell
+  | "autonomous"  // agente autónomo
+  | "git";        // git / version control
 
 export const TASK_LABELS: Record<TaskKind, string> = {
   chat: "Conversación",
@@ -53,9 +71,27 @@ export const TASK_LABELS: Record<TaskKind, string> = {
   creative: "Creatividad",
   translate: "Traducción",
   summary: "Resumen",
+  embedding: "Embeddings",
+  rag: "RAG",
+  orchestration: "Orquestación",
+  dag: "DAG",
+  tools: "Tools",
+  inference: "Inference",
+  collab: "Colaboración",
+  drawing: "Dibujo",
+  webgpu: "WebGPU",
+  webrtc: "WebRTC",
+  theory: "Teoría",
+  quantization: "Cuantización",
+  training: "Entrenamiento",
+  "1.58-bit": "1.58-bit",
+  coding: "Coding",
+  terminal: "Terminal",
+  autonomous: "Autónomo",
+  git: "Git",
 };
 
-export type SourceTier = "instant" | "free-key" | "local" | "paid";
+export type SourceTier = "instant" | "free-key" | "local" | "local-gpu" | "paid";
 
 /** Un modelo concreto dentro de una fuente. */
 export interface CatalogModel {
@@ -805,6 +841,105 @@ export const FREE_CATALOG: CatalogSource[] = [
     models: [
       { id: "Llama-3.2-3B-Instruct-q4f16_1-MLC", label: "Llama 3.2 3B (navegador)", strengths: ["chat", "fast"], quality: 5 },
       { id: "Qwen3-4B-q4f16_1-MLC", label: "Qwen3 4B (navegador)", strengths: ["chat", "translate"], quality: 5 },
+    ],
+  },
+
+  /* ── HERRAMIENTAS MULTI-AGENTE (Adenda 172 · A-3..A-8) ───── */
+  // qm — memoria vectorial cuántica/cuantificada local (sobre SQLite/FAISS)
+  {
+    id: "qm-local",
+    label: "qm (memoria vectorial cuantificada · local)",
+    tier: "instant",
+    providerId: "starseed",
+    baseUrl: "builtin://qm",
+    requiresKey: false,
+    limits: "Local y sin clave; requiere SQLite + WASM/FAISS. Modelo embeddings ~50 MB.",
+    why: "Memoria vectorial 1.58-bit nativa: búsqueda semántica ultra-ligera en el dispositivo, sin servidor. Ideal para RAG personal y contexto de agentes.",
+    privacy: "local",
+    weight: 0.9,
+    models: [
+      { id: "qm-embedding-1.58b", label: "qm Embedding 1.58-bit", strengths: ["embedding", "rag", "long"], quality: 8, context: 8192, note: "ternario · 50 MB" },
+    ],
+  },
+  // AgentHarness — orquestación multi-agente nativa (Rust/TypeScript)
+  {
+    id: "agentharness-local",
+    label: "AgentHarness (orquestación multi-agente · local)",
+    tier: "instant",
+    providerId: "starseed",
+    baseUrl: "builtin://agentharness",
+    requiresKey: false,
+    limits: "Local; binario Rust + bindings TS. Concurrencia adaptativa a RAM (M1 8GB → 2-3 agentes).",
+    why: "Motor de orquestación nativo para flujos multi-agente: DAG, handoffs, tool-calling, memoria compartida. Sustituye frameworks pesados (LangGraph, CrewAI) con binario único.",
+    privacy: "local",
+    weight: 0.95,
+    models: [
+      { id: "agentharness-core", label: "AgentHarness Core", strengths: ["orchestration", "dag", "tools", "autonomous"], quality: 9, context: 128000 },
+    ],
+  },
+  // OxiBonsai — inference GPU pesado (Rust + Metal/MPS)
+  {
+    id: "oxibonsai-gpu",
+    label: "OxiBonsai (inference GPU · Rust/Metal)",
+    tier: "local-gpu",
+    providerId: "starseed",
+    baseUrl: "builtin://oxibonsai",
+    requiresKey: false,
+    limits: "Requiere GPU dedicada (Metal/MPS en Apple Silicon). En M1 8GB: modelos ≤7B q4. No forzado en CI/edge.",
+    why: "Motor de inference Rust nativo con kernels Metal/MPS optimizados. Para modelos locales grandes (Llama 3.3 70B, Qwen3 30B) que exceden CPU. Documentado como arquitectura opcional.",
+    privacy: "local",
+    weight: 0.7,
+    models: [
+      { id: "oxibonsai-llama-70b-q4", label: "Llama 3.3 70B q4 (Metal)", strengths: ["inference", "chat", "code"], quality: 9, context: 128000, note: "requiere GPU · 38 GB" },
+      { id: "oxibonsai-qwen3-30b-q4", label: "Qwen3 Coder 30B q4 (Metal)", strengths: ["code", "inference"], quality: 9, context: 262144, note: "requiere GPU · 17 GB" },
+    ],
+  },
+  // draw-realtime — dibujo colaborativo GPU (WebGPU/WebRTC)
+  {
+    id: "draw-realtime-gpu",
+    label: "draw-realtime (dibujo colaborativo · WebGPU)",
+    tier: "local-gpu",
+    providerId: "starseed",
+    baseUrl: "builtin://draw-realtime",
+    requiresKey: false,
+    limits: "WebGPU + WebRTC DataChannels. P2P entre navegadores; fallback WebSocket. No forzado en CI/edge.",
+    why: "Canvas colaborativo en tiempo real con shaders WebGPU: dibujo, anotación, diagramas multi-usuario. Integra con orbe cuántico de voz y Multiverso.",
+    privacy: "local",
+    weight: 0.6,
+    models: [
+      { id: "draw-realtime-core", label: "draw-realtime Engine", strengths: ["collab", "drawing", "webgpu", "webrtc"], quality: 8, context: 65536 },
+    ],
+  },
+  // 1.58-bit FLUX theory — formalización matemática BitNet
+  {
+    id: "bitnet-flux-theory",
+    label: "1.58-bit FLUX Theory (formalización BitNet · docs)",
+    tier: "instant",
+    providerId: "starseed",
+    baseUrl: "builtin://bitnet-flux",
+    requiresKey: false,
+    limits: "Documentación viva + especificaciones matemáticas. Sin binario; alimenta entrenamiento 1.58-bit.",
+    why: "Teoría formal de redes 1.58-bit (ternarias): cuantización, entrenamiento, distillation, kernel fusion. Base de conocimiento para Astraura 1.58-bit y micelio federado.",
+    privacy: "local",
+    weight: 0.95,
+    models: [
+      { id: "bitnet-flux-spec", label: "FLUX Spec v1", strengths: ["theory", "quantization", "training", "1.58-bit"], quality: 10, context: 32768 },
+    ],
+  },
+  // OpenCode — agente de código CLI (ya instalado v1.2.15)
+  {
+    id: "opencode-local",
+    label: "OpenCode (agente código CLI · v1.2.15)",
+    tier: "instant",
+    providerId: "starseed",
+    baseUrl: "builtin://opencode",
+    requiresKey: false,
+    limits: "Binario instalado en neurona. Funciona con cualquier proveedor del catálogo (BitNet 1.58 primero).",
+    why: "Agente de código autónomo open-source: edita, testea, commitea. Integrado en /agent → Terminal & Sandbox. Usa Astraura 1.58-bit como cerebro por defecto.",
+    privacy: "local",
+    weight: 0.9,
+    models: [
+      { id: "opencode-agent", label: "OpenCode Agent", strengths: ["coding", "terminal", "autonomous", "git"], quality: 9, context: 128000 },
     ],
   },
 
