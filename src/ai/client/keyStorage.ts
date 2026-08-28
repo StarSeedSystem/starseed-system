@@ -72,7 +72,7 @@ export async function encryptKey(plaintext: string, passphrase: string): Promise
   const key = await deriveKey(passphrase);
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const ciphertext = await crypto.subtle.encrypt(
-    { name: "AES-GCM", iv },
+    { name: "AES-GCM", iv: iv as BufferSource },
     key,
     new TextEncoder().encode(plaintext) as BufferSource
   );

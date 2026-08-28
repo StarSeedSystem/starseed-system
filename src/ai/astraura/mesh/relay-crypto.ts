@@ -323,7 +323,7 @@ export async function decryptEnvelope(env: EncEnvelope | RecipientEnvelope): Pro
     }
     for (const key of candidates) {
       try {
-        const plain = await s.decrypt({ name: "AES-GCM", iv }, key, ct as BufferSource);
+        const plain = await s.decrypt({ name: "AES-GCM", iv: iv as any }, key, ct as any);
         return JSON.parse(new TextDecoder().decode(plain));
       } catch {
         /* clave equivocada: prueba la siguiente */

@@ -473,8 +473,8 @@ export async function acquireMicAnalyser(): Promise<MicAnalyser | null> {
     const s = micShared;
     if (!s) return { level: 0, bands: [0, 0, 0] as [number, number, number] };
     try {
-      s.analyser.getByteTimeDomainData(s.time);
-      s.analyser.getByteFrequencyData(s.freq);
+      s.analyser.getByteTimeDomainData(s.time as any);
+      s.analyser.getByteFrequencyData(s.freq as any);
       // Amplitud RMS (0..1) del dominio temporal.
       let sum = 0;
       for (let i = 0; i < s.bins; i++) {

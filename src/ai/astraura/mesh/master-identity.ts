@@ -446,9 +446,9 @@ export async function importMasterKeyEncrypted(blob: MasterBlob, passphrase: str
     // Acota las iteraciones que dicta un blob NO confiable: sin cota, un `iters`
     // gigante congelaría la CPU al derivar (DoS barato, antes de autenticar nada).
     const iters = Math.min(KDF_ITERS_MAX, Math.max(KDF_ITERS_MIN, Number(blob.iters) || KDF_ITERS));
-    const wrap = await deriveWrapKey(passphrase, salt, iters);
+    const wrap = await deriveWrapKey(passphrase, salt as any, iters);
     if (!wrap) return null;
-    const plain = await s.decrypt({ name: "AES-GCM", iv: iv as BufferSource }, wrap, ct as BufferSource); // lanza si la passphrase es incorrecta
+    const plain = await s.decrypt({ name: "AES-GCM", iv: iv as any }, wrap, ct as any); // lanza si la passphrase es incorrecta
     const privJwk = JSON.parse(new TextDecoder().decode(plain)) as JsonWebKey;
     // La huella declarada debe casar con la clave pública del blob…
     const fp = await fpOfMaster(blob.mpub);
