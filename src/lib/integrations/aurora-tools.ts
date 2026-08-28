@@ -30,7 +30,7 @@
 import type { IntegrationConfig, IntegrationResult } from "./types";
 import { getIntegration, loadIntegrationConfig } from "./registry";
 import { runIntegration } from "./run";
-import { resolveProvider, modeForCategory, type ProviderCategory } from "@/ai/astraura/provider-resolution";
+import { resolveProvider, modeForCategory, type ProviderCategory } from "../../ai/astraura/provider-resolution";
 
 export interface AuroraIntegrationTool {
   /** Nombre que el modelo usa para invocar (snake_case, estable). */
@@ -117,6 +117,70 @@ export const AURORA_INTEGRATION_TOOLS: AuroraIntegrationTool[] = [
     integrationId: "agent-reach",
     actionId: "reddit-search",
     category: "web-search",
+  },
+  // ── OpenViking — memoria/contexto agente (L0/L1/L2, búsqueda semántica, extracción auto) ──
+  {
+    name: "viking_recall",
+    description: "Recupera contexto relevante para query (inyectable en prompt Aurora/exocortex). Entrada: { query, scope?, limit? }.",
+    integrationId: "openviking",
+    actionId: "recall",
+    category: "memory",
+  },
+  {
+    name: "viking_search",
+    description: "Búsqueda semántica context-aware en base viking:// (inyectable en prompt). Entrada: { query, limit?, uriScope?, mode? }.",
+    integrationId: "openviking",
+    actionId: "search",
+    category: "memory",
+  },
+  {
+    name: "viking_find",
+    description: "Búsqueda semántica simple en base viking://. Entrada: { query, limit? }.",
+    integrationId: "openviking",
+    actionId: "find",
+    category: "memory",
+  },
+  {
+    name: "viking_read",
+    description: "Lee contenido completo L2 de recurso viking://. Entrada: { uri }.",
+    integrationId: "openviking",
+    actionId: "read",
+    category: "memory",
+  },
+  {
+    name: "viking_abstract",
+    description: "Lee abstracto L0 de recurso viking://. Entrada: { uri }.",
+    integrationId: "openviking",
+    actionId: "abstract",
+    category: "memory",
+  },
+  {
+    name: "viking_overview",
+    description: "Lee overview L1 de recurso viking://. Entrada: { uri }.",
+    integrationId: "openviking",
+    actionId: "overview",
+    category: "memory",
+  },
+  {
+    name: "viking_ls",
+    description: "Lista directorio viking:// (ej: viking://resources/, viking://user/memories/). Entrada: { uri? }.",
+    integrationId: "openviking",
+    actionId: "ls",
+    category: "memory",
+  },
+  {
+    name: "viking_ingest",
+    description: "Ingiere URL externa al contexto del agente (viking://resources/) con tags. Entrada: { url, tags? }.",
+    integrationId: "openviking",
+    actionId: "ingest",
+    category: "memory",
+  },
+  {
+    name: "viking_persist_memory",
+    description: "Persiste memoria de sesión actual al exocortex (commit + extracción 6 categorías). Entrada: { sessionId }.",
+    integrationId: "openviking",
+    actionId: "persist_memory",
+    category: "memory",
   },
   {
     name: "pdf_merge",
@@ -257,7 +321,7 @@ export function isAuroraScreenTool(
 }
 
 /** Tipado del módulo de acciones de pantalla (import dinámico). */
-type ScreenActionsModule = typeof import("@/lib/aurora/screen-control/screen-actions");
+type ScreenActionsModule = typeof import("../../lib/aurora/screen-control/screen-actions");
 type ScreenOutcome = { ok: boolean; message: string; data?: Record<string, unknown> };
 
 /** Primer valor no vacío entre varias claves del input (defensivo). */
@@ -281,7 +345,7 @@ async function runScreenControl(
     return { ok: false, error: "El control de pantalla solo funciona en el navegador." };
   }
   try {
-    const mod = await import("@/lib/aurora/screen-control/screen-actions");
+    const mod = await import("../../lib/aurora/screen-control/screen-actions");
     const res = await exec(mod);
     if (!res || typeof res.ok !== "boolean") {
       return { ok: false, error: "El control de pantalla no respondió." };
@@ -300,7 +364,7 @@ async function runScreenControl(
 // también LOCALES (kind:"screen" ⇒ ejecución sin integración/endpoint) y su
 // resultado se adapta al mismo contrato IntegrationResult (data.text decible).
 
-type TaskManagerModule = typeof import("@/lib/aurora/background/task-manager");
+type TaskManagerModule = typeof import("../../lib/aurora/background/task-manager");
 
 /**
  * Ejecuta una acción sobre el gestor de tareas de fondo con import perezoso y
@@ -313,7 +377,7 @@ async function runBackgroundControl(
     return { ok: false, error: "Las tareas en segundo plano solo funcionan en el navegador." };
   }
   try {
-    const mod = await import("@/lib/aurora/background/task-manager");
+    const mod = await import("../../lib/aurora/background/task-manager");
     const res = await exec(mod);
     if (!res || typeof res.ok !== "boolean") {
       return { ok: false, error: "El gestor de tareas no respondió." };
@@ -571,7 +635,7 @@ export const AURORA_SCREEN_TOOLS: AuroraScreenTool[] = [
 // ════════════════════════════════════════════════════════════════════════════
 
 /** Tipado del módulo de generación de contenido (import dinámico). */
-type ContentActionsModule = typeof import("@/lib/aurora/generate/content-actions");
+type ContentActionsModule = typeof import("../../lib/aurora/generate/content-actions");
 
 /**
  * Ejecuta una acción de generación de contenido con import perezoso del módulo
@@ -585,7 +649,7 @@ async function runContentAction(
     return { ok: false, error: "Generar y usar contenido solo funciona en el navegador." };
   }
   try {
-    const mod = await import("@/lib/aurora/generate/content-actions");
+    const mod = await import("../../lib/aurora/generate/content-actions");
     const res = await exec(mod);
     if (!res || typeof res.ok !== "boolean") {
       return { ok: false, error: "La generación de contenido no respondió." };
@@ -608,7 +672,7 @@ async function runContentAction(
 // NUNCA lanza; si no hay servicio, degrada con un mensaje honesto → /servicios.
 
 /** Tipado del módulo de generación con servicios (import dinámico). */
-type ServiceGenerationModule = typeof import("@/lib/aurora/generate/service-generation");
+type ServiceGenerationModule = typeof import("../../lib/aurora/generate/service-generation");
 
 /**
  * Ejecuta una acción de generación-con-servicios con import perezoso del módulo
@@ -622,7 +686,7 @@ async function runServiceGeneration(
     return { ok: false, error: "Generar con servicios solo funciona en el navegador." };
   }
   try {
-    const mod = await import("@/lib/aurora/generate/service-generation");
+    const mod = await import("../../lib/aurora/generate/service-generation");
     const res = await exec(mod);
     if (!res || typeof res.ok !== "boolean") {
       return { ok: false, error: "La generación con servicios no respondió." };
@@ -858,7 +922,7 @@ export const AURORA_GENERATE_TOOLS: AuroraScreenTool[] = [
 // ════════════════════════════════════════════════════════════════════════════
 
 /** Tipado del módulo de contexto de usuario (import dinámico). */
-type UserContextModule = typeof import("@/ai/astraura/user-context");
+type UserContextModule = typeof import("../../ai/astraura/user-context");
 
 /**
  * Ejecuta una consulta de contexto de usuario/red con import perezoso del
@@ -872,7 +936,7 @@ async function runUserContextQuery(
     return { ok: false, error: "El contexto del usuario solo está disponible en el navegador." };
   }
   try {
-    const mod = await import("@/ai/astraura/user-context");
+    const mod = await import("../../ai/astraura/user-context");
     const text = (await exec(mod)).trim();
     return { ok: true, data: { text: text || "No encontré nada relevante ahora mismo." } };
   } catch {
@@ -962,7 +1026,7 @@ function isAuroraLocalTool(t: AuroraIntegrationTool | undefined | null): boolean
 }
 
 /** Tipado del módulo de personalidades (import dinámico). */
-type PersonalitiesModule = typeof import("@/lib/aurora/personalities");
+type PersonalitiesModule = typeof import("../../lib/aurora/personalities");
 
 /**
  * Ejecuta una acción de personalidad con import perezoso del módulo y adapta
@@ -976,7 +1040,7 @@ async function runPersonalityControl(
     return { ok: false, error: "Las personalidades solo funcionan en el navegador." };
   }
   try {
-    const mod = await import("@/lib/aurora/personalities");
+    const mod = await import("../../lib/aurora/personalities");
     const res = await exec(mod);
     if (!res || typeof res.ok !== "boolean") {
       return { ok: false, error: "El sistema de personalidades no respondió." };
@@ -1093,7 +1157,7 @@ export function isAuroraVoiceTool(
 }
 
 /** Tipado del barrel de voz (import dinámico). */
-type VoiceModule = typeof import("@/lib/aurora/tts-oss");
+type VoiceModule = typeof import("../../lib/aurora/tts-oss/index");
 
 /**
  * Ejecuta una acción de voz con import perezoso del barrel tts-oss y adapta su
@@ -1107,7 +1171,7 @@ async function runVoiceControl(
     return { ok: false, error: "Los ajustes de voz solo funcionan en el navegador." };
   }
   try {
-    const mod = await import("@/lib/aurora/tts-oss");
+    const mod = await import("../../lib/aurora/tts-oss/index");
     const res = await exec(mod);
     if (!res || typeof res.ok !== "boolean") {
       return { ok: false, error: "El sistema de voz no respondió." };
@@ -1228,7 +1292,7 @@ export const AURORA_VOICE_TOOLS: AuroraVoiceTool[] = [
       runVoiceControl(async (m) => {
         const changes: string[] = [];
         const style = m.getVoiceStyle();
-        const stylePatch: Partial<import("@/lib/aurora/tts-oss").AuroraVoiceStyle> = {};
+        const stylePatch: Partial<import("../../lib/aurora/tts-oss/index").AuroraVoiceStyle> = {};
 
         const emotion = m.normalizeEmotion(
           pickInput(input, "emocion", "emoción", "emotion", "estilo", "animo", "ánimo", "humor"),
@@ -1453,7 +1517,7 @@ export async function describeVoiceStateForPrompt(): Promise<string> {
 /** Cuerpo de {@link describeVoiceStateForPrompt}, separado para poder acotarlo con timeout. Nunca lanza. */
 async function describeVoiceStateForPromptInner(): Promise<string> {
   try {
-    const m = await import("@/lib/aurora/tts-oss");
+    const m = await import("../../lib/aurora/tts-oss/index");
     await m.refreshPersonalityVoicePin().catch(() => null);
     // Sonda de red OPCIONAL (¿daemon local de OmniVoice vivo?): timeout propio
     // y corto — si no responde a tiempo seguimos con el último estado ya
@@ -1576,6 +1640,16 @@ const TOOL_ALTERNATES: Record<string, string[]> = {
   agent_reach_youtube_transcript: ["agent_reach_read_web"],
   agent_reach_github_read: ["agent_reach_read_web"],
   agent_reach_reddit_search: ["agent_reach_web_search", "web_search"],
+  // OpenViking (memory)
+  viking_recall: ["viking_search", "viking_find", "web_search", "agent_reach_web_search"],
+  viking_search: ["viking_recall", "viking_find", "web_search"],
+  viking_find: ["viking_search", "viking_recall", "web_search"],
+  viking_read: ["viking_overview", "viking_abstract", "agent_reach_read_web"],
+  viking_abstract: ["viking_read", "viking_overview"],
+  viking_overview: ["viking_abstract", "viking_read"],
+  viking_ls: [],
+  viking_ingest: ["agent_reach_read_web", "scrape_url", "crawl_url"],
+  viking_persist_memory: [],
 };
 
 /** Adapta el input de una tool a la forma que espera una alternativa distinta. */
@@ -1588,6 +1662,14 @@ function adaptInputForAlternate(altName: string, input: unknown): Record<string,
   if (altName === "agent_reach_youtube_transcript") return { url: term ?? raw };
   if (altName === "agent_reach_github_read") return { url: term ?? raw };
   if (altName === "agent_reach_reddit_search") return { q: term ?? raw };
+  // OpenViking
+  if (altName === "viking_recall") return { query: term ?? raw };
+  if (altName === "viking_search") return { query: term ?? raw };
+  if (altName === "viking_find") return { query: term ?? raw };
+  if (altName === "viking_read") return { uri: term ?? raw };
+  if (altName === "viking_abstract") return { uri: term ?? raw };
+  if (altName === "viking_overview") return { uri: term ?? raw };
+  if (altName === "viking_ingest") return { url: term ?? raw };
   return raw;
 }
 

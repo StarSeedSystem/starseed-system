@@ -28,6 +28,7 @@ import * as Audiobookshelf from "./clients/audiobookshelf";
 import * as HomeAssistant from "./clients/home-assistant";
 import * as Immich from "./clients/immich";
 import * as Perplexica from "./clients/perplexica";
+import * as OpenViking from "./clients/openviking";
 import * as AnythingLLM from "./clients/anything-llm";
 // ── Adenda 67 · P4 (jul-2026) ──
 import * as Typesense from "./clients/typesense";
@@ -63,7 +64,7 @@ export async function runIntegration(
 
     const effective = cfg ?? loadIntegrationConfig(id);
     const g = gate(effective, desc.defaultEndpoint);
-    if (!g.ok) return { ok: false, error: g.error };
+    if (!g.ok) return g;
     const c = g.cfg;
     const a = actionId;
 
@@ -183,6 +184,46 @@ export async function runIntegration(
         if (a === "health") return await AgentReach.health(c);
         break;
 
+      case "openviking":
+        // OpenViking — base de datos de contexto para agentes (HTTP API en servidor local).
+        if (a === "health") return await OpenViking.healthCheck(c);
+        if (a === "ls") return await OpenViking.ls(c, String(input.uri || "viking://resources/"));
+        if (a === "tree") return await OpenViking.tree(c, String(input.uri || "viking://resources/"), Number(input.depth) || 3);
+        if (a === "stat") return await OpenViking.stat(c, String(input.uri));
+        if (a === "mkdir") return await OpenViking.mkdir(c, String(input.uri));
+        if (a === "mv") return await OpenViking.mv(c, String(input.fromUri), String(input.toUri));
+        if (a === "remove") return await OpenViking.remove(c, String(input.uri));
+        if (a === "read") return await OpenViking.readContent(c, String(input.uri));
+        if (a === "abstract") return await OpenViking.readAbstract(c, String(input.uri));
+        if (a === "overview") return await OpenViking.readOverview(c, String(input.uri));
+        if (a === "search") return await OpenViking.semanticSearch(c, String(input.query), {
+          limit: Number(input.limit) || 10,
+          uriScope: input.uriScope as string | undefined,
+          mode: (input.mode as "context" | "chunks") || "context",
+        });
+        if (a === "find") return await OpenViking.find(c, String(input.query), Number(input.limit) || 10);
+        if (a === "grep") return await OpenViking.grep(c, String(input.pattern), input.uriScope as string | undefined);
+        if (a === "glob") return await OpenViking.glob(c, String(input.pattern), input.uriScope as string | undefined);
+        if (a === "create_session") return await OpenViking.createSession(c, input.agentId as string | undefined);
+        if (a === "add_messages") return await OpenViking.addSessionMessages(
+          c, String(input.sessionId), input.messages as Array<{ role: "user" | "assistant" | "system"; content: string }>
+        );
+        if (a === "get_context") return await OpenViking.getSessionContext(c, String(input.sessionId));
+        if (a === "commit_session") return await OpenViking.commitSession(c, String(input.sessionId));
+        if (a === "extract_memory") return await OpenViking.extractMemory(c, String(input.sessionId));
+        if (a === "add_resource") return await OpenViking.addResource(c, String(input.path), {
+          tags: input.tags as string[] | undefined,
+          uriScope: input.uriScope as string | undefined,
+        });
+        if (a === "list_skills") return await OpenViking.listSkills(c);
+        if (a === "ingest") return await OpenViking.ingestResource(c, String(input.url), input.tags as string[] | undefined);
+        if (a === "recall") return await OpenViking.recallContext(c, String(input.query), {
+          scope: input.scope as "resources" | "memories" | "skills" | "all" | undefined,
+          limit: Number(input.limit) || 8,
+        });
+        if (a === "persist_memory") return await OpenViking.persistSessionMemory(c, String(input.sessionId));
+        break;
+
       default:
         return { ok: false, error: `Integración sin runner: "${id}".` };
     }
@@ -249,6 +290,8 @@ export async function testIntegration(id: string, cfg?: IntegrationConfig): Prom
         return await Instance.health(id, c, Instance.OPENCUT_DEFAULT);
       case "agent-reach":
         return await AgentReach.health(c);
+      case "openviking":
+        return await OpenViking.healthCheck(c);
 
       default:
         return { ok: false, error: `Sin prueba de salud para "${id}".` };
