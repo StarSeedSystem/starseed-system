@@ -42,7 +42,8 @@ export type IntegrationCategory =
   | "automation"
   | "backend"
   | "runtime"
-  | "devops";
+  | "devops"
+  | "memory";
 
 /** Metadatos de una herramienta integrable del catálogo. */
 export interface IntegrationDescriptor {
@@ -67,10 +68,10 @@ export interface IntegrationDescriptor {
 }
 
 /** Resultado honesto y serializable de ejecutar una acción. */
-export interface IntegrationResult {
+export interface IntegrationResult<T = any> {
   ok: boolean;
   /** Datos devueltos por la herramienta (forma libre y defensiva). */
-  data?: any;
+  data?: T;
   /** Mensaje de error en español si `ok` es false. */
   error?: string;
 }

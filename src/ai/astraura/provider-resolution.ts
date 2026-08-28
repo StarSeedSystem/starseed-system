@@ -106,7 +106,8 @@ export type ProviderCategory =
   | "email"
   | "calendar"
   | "pdf-tools"
-  | "automation";
+  | "automation"
+  | "memory";
 
 /** Orden estable de categorías (para iterar/mostrar). */
 export const PROVIDER_CATEGORIES: ProviderCategory[] = [
@@ -123,6 +124,7 @@ export const PROVIDER_CATEGORIES: ProviderCategory[] = [
   "calendar",
   "pdf-tools",
   "automation",
+  "memory",
 ];
 
 /* ══════════════════════════ Modo del usuario (sincronizado) ══════════════════════════ */
@@ -531,6 +533,22 @@ export const CATEGORY_PROVIDERS: Record<ProviderCategory, ProviderCategoryDescri
     howChosen:
       "n8n self-host, una vez configurado, puede alcanzar lo mismo que Zapier (nodos HTTP genéricos): no es un límite estructural, es solo esfuerzo de auto-hospedaje. Por eso \"auto\" se queda con n8n; Zapier propia queda declarada para cuando tenga conector dedicado.",
   },
+
+  memory: {
+    id: "memory",
+    label: "Memoria y contexto agente",
+    description: "Memoria persistente, búsqueda semántica, extracción automática de contexto para exocortex/Astraura.",
+    default: {
+      id: "openviking",
+      label: "OpenViking (self-host)",
+      summary:
+        "`lib/integrations/clients/openviking.ts` + adapter `ai/astraura/integrations/openviking.ts`: conector real a OpenViking (memoria L0/L1/L2, búsqueda semántica, sesiones, skills). Funciona cuando el usuario ejecuta `openviking serve` local (puerto 1933) o configura endpoint remoto. El default gratis/OSS siempre disponible si el servidor OpenViking corre.",
+    },
+    ownServices: [],
+    externalReach: false,
+    howChosen:
+      "OpenViking es el default gratis/OSS para memoria/contexto estructurado de agente. No hay servicio de marca opcional (mismo criterio que PDF tools): solo gratis/OSS. \"Auto\" y \"prefer-own\" se comportan igual — la única variable es si el usuario ya tiene OpenViking corriendo (local o remoto).",
+  },
 };
 
 /** Descriptor de una categoría (o `undefined` si el id no está en el catálogo). */
@@ -659,6 +677,18 @@ function resolveCategoryDefaultLive(category: ProviderCategory, ctx?: ResolvePro
         label: "n8n (self-host, sin configurar todavía)",
         healthy: false,
         note: "Auto-hospeda n8n y pega su endpoint/webhook en Ajustes → Integraciones o en /servicios.",
+      };
+    }
+
+    case "memory": {
+      if (integrationConfigured("openviking")) {
+        return { id: "openviking", label: "OpenViking (tu instancia)", healthy: true };
+      }
+      return {
+        id: "openviking",
+        label: "OpenViking (self-host, sin configurar todavía)",
+        healthy: false,
+        note: "Ejecuta `openviking serve` local (puerto 1933) o configura endpoint remoto en Ajustes → Integraciones.",
       };
     }
 

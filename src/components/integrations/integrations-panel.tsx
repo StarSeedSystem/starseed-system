@@ -66,6 +66,7 @@ const CATEGORY_LABELS: Record<IntegrationCategory, string> = {
   backend: "Backends",
   runtime: "Runtimes locales (compatibles OpenAI)",
   devops: "DevOps",
+  memory: "Memoria y contexto",
 };
 
 const CATEGORY_ICONS: Record<IntegrationCategory, typeof Database> = {
@@ -75,6 +76,7 @@ const CATEGORY_ICONS: Record<IntegrationCategory, typeof Database> = {
   backend: Database,
   runtime: Cpu,
   devops: Globe2,
+  memory: Database,
 };
 
 // Orden estable de presentación de las categorías.

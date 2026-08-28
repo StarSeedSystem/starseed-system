@@ -616,10 +616,44 @@ export const INTEGRATIONS: IntegrationDescriptorExt[] = [
         { id: "reddit-search", label: "Buscar Reddit", description: "Busca/lee posts de Reddit. Entrada: { url } o { q }." },
         { id: "health", label: "Comprobar CLI", description: "Verifica si agent-reach CLI está instalado y responde." },
       ],
-    },
-  ];
+          },
+        // ── OpenViking — base de datos de contexto para agentes (memoria L0/L1/L2) ──
+          {
+            id: "openviking",
+            ossId: "openviking",
+            label: "OpenViking (contexto agente)",
+            category: "memory",
+            capabilities: [
+              "Base de datos de contexto con URI viking:// y capas L0 (abstract) / L1 (overview) / L2 (full)",
+              "Búsqueda semántica y context-aware (inyectable en prompt Aurora/exocortex)",
+              "Extracción automática de memoria de sesiones (6 categorías: profile, preferences, entities, events, cases, patterns)",
+              "Servidor HTTP auto-hospedado (openviking-server) en neurona/CasaOS; API REST + Python SDK + CLI",
+              "Snapshots, watches, skills, recursos, relaciones — todo versionado",
+            ],
+            defaultEndpoint: "http://localhost:1933",
+            needsKey: false, // opcional (user_key para multi-tenancy)
+            docsUrl: "https://docs.openviking.ai",
+            freeHostingHint:
+              "Auto-hospedado en la neurona del usuario (pip install openviking; openviking-server) o CasaOS. Sin costes de nube. Requiere proveedor de embeddings (configurable: volcengine, openai, local).",
+            actions: [
+              { id: "health", label: "Comprobar servidor", description: "Health check del servidor OpenViking (no auth)." },
+              { id: "ls", label: "Listar directorio", description: "Lista viking://resources/, viking://user/memories/, etc." },
+              { id: "tree", label: "Árbol recursivo", description: "Árbol de directorio viking:// (depth configurable)." },
+              { id: "search", label: "Búsqueda semántica", description: "Búsqueda context-aware lista para inyectar en prompt Aurora." },
+              { id: "find", label: "Búsqueda simple", description: "Semantic find ligero." },
+              { id: "read", label: "Leer contenido L2", description: "Contenido completo de recurso." },
+              { id: "abstract", label: "Leer abstracto L0", description: "Resumen abstracto del recurso." },
+              { id: "overview", label: "Leer overview L1", description: "Visión general estructurada." },
+              { id: "ingest", label: "Ingerir recurso", description: "Añade URL/archivo a viking://resources/ con tags." },
+              { id: "recall", label: "Recuperar contexto", description: "Recupera contexto relevante para query (para exocortex/Aurora)." },
+              { id: "create_session", label: "Crear sesión", description: "Inicia sesión de agente para extracción de memoria." },
+              { id: "commit_session", label: "Commit sesión", description: "Archiva y extrae memoria (6 categorías)." },
+              { id: "persist_memory", label: "Persistir memoria", description: "Extrae y persiste memoria de sesión al exocortex." },
+            ],
+          },
+      ];
 
-// ── Helpers de búsqueda ──────────────────────────────────────────
+      // ── Helpers de búsqueda ──────────────────────────────────────────
 export function getIntegration(id: string): IntegrationDescriptor | undefined {
   return INTEGRATIONS.find((i) => i.id === id);
 }
