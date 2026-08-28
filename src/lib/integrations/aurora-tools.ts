@@ -350,9 +350,72 @@ export const AURORA_INTEGRATION_TOOLS: AuroraIntegrationTool[] = [
   },
   {
     name: "rag_ask",
-    description: "Pregunta a un workspace de AnythingLLM (RAG sobre sus documentos propios). Entrada: { message } (workspace en extra.workspaceSlug).",
+    description: "Pregunta a un workspace de AnythingLLM (RAG sobre sus documentos propios). Entrada: { message } (workspace en extra.workspaceSlug del workspace).",
     integrationId: "anything-llm",
     actionId: "chat",
+  },
+  // ── Adenda 172 t8/t9 ──
+  // qm — memoria vectorial local cuantizada (1.58-bit)
+  {
+    name: "qm_init",
+    description: "Inicializa la base de datos vectorial local qm (SQLite + sqlite-vec). Entrada: { dimensions?, quantization?, dbPath? }.",
+    integrationId: "qm",
+    actionId: "initialize",
+  },
+  {
+    name: "qm_upsert",
+    description: "Inserta/actualiza vectores en qm con cuantización automática. Entrada: { collection, vectors[] {id, embedding, metadata} }.",
+    integrationId: "qm",
+    actionId: "upsert",
+  },
+  {
+    name: "qm_search",
+    description: "Búsqueda k-NN en qm (Hamming/L2/Cosine según cuantización). Entrada: { collection, queryEmbedding, k?, filter? }.",
+    integrationId: "qm",
+    actionId: "search",
+  },
+  {
+    name: "qm_collections",
+    description: "Lista colecciones de qm con estadísticas. Sin entrada.",
+    integrationId: "qm",
+    actionId: "listCollections",
+  },
+  {
+    name: "qm_embed",
+    description: "Genera embeddings 1.58-bit locales con Transformers.js. Entrada: { texts[] }.",
+    integrationId: "qm",
+    actionId: "embedLocal",
+  },
+  // AgentHarness — orquestación multi-agente
+  {
+    name: "ah_define_workflow",
+    description: "Define un workflow DAG de agentes. Entrada: { workflow: {id, name, nodes[], edges[]} }.",
+    integrationId: "agentharness",
+    actionId: "defineWorkflow",
+  },
+  {
+    name: "ah_launch_workflow",
+    description: "Lanza ejecución de un workflow. Entrada: { workflowId, input? }.",
+    integrationId: "agentharness",
+    actionId: "launchWorkflow",
+  },
+  {
+    name: "ah_query_run",
+    description: "Consulta estado y resultados de una ejecución. Entrada: { runId }.",
+    integrationId: "agentharness",
+    actionId: "getRunStatus",
+  },
+  {
+    name: "ah_cancel_run",
+    description: "Cancela un workflow en curso. Entrada: { runId }.",
+    integrationId: "agentharness",
+    actionId: "cancelRun",
+  },
+  {
+    name: "ah_list_workflows",
+    description: "Lista todos los workflows registrados en AgentHarness. Sin entrada.",
+    integrationId: "agentharness",
+    actionId: "listWorkflows",
   },
 ];
 
@@ -1714,6 +1777,18 @@ const TOOL_ALTERNATES: Record<string, string[]> = {
   viking_ls: [],
   viking_ingest: ["agent_reach_read_web", "scrape_url", "crawl_url"],
   viking_persist_memory: [],
+  // qm (memoria vectorial local)
+  qm_init: [],
+  qm_upsert: [],
+  qm_search: ["qm_collections"],
+  qm_collections: ["qm_search"],
+  qm_embed: [],
+  // AgentHarness (orquestación multi-agente)
+  ah_define_workflow: [],
+  ah_launch_workflow: ["ah_query_run", "ah_list_workflows"],
+  ah_query_run: ["ah_list_workflows"],
+  ah_cancel_run: ["ah_list_workflows"],
+  ah_list_workflows: ["ah_query_run"],
 };
 
 /** Adapta el input de una tool a la forma que espera una alternativa distinta. */
@@ -1734,6 +1809,16 @@ function adaptInputForAlternate(altName: string, input: unknown): Record<string,
   if (altName === "viking_abstract") return { uri: term ?? raw };
   if (altName === "viking_overview") return { uri: term ?? raw };
   if (altName === "viking_ingest") return { url: term ?? raw };
+  // qm
+  if (altName === "qm_search") return { collection: pickInput(raw, "collection") ?? "default", queryEmbedding: pickInput(raw, "embedding", "vector", "queryEmbedding") ?? raw, k: Number(pickInput(raw, "k")) || 10 };
+  if (altName === "qm_collections") return {};
+  if (altName === "qm_embed") return { texts: Array.isArray(pickInput(raw, "texts")) ? pickInput(raw, "texts") : [String(term ?? raw)] };
+  if (altName === "qm_upsert") return { collection: pickInput(raw, "collection") ?? "default", vectors: pickInput(raw, "vectors") ?? [] };
+  // AgentHarness
+  if (altName === "ah_launch_workflow") return { workflowId: pickInput(raw, "workflowId", "workflow_id", "id") ?? String(term ?? ""), input: pickInput(raw, "input", "context") ?? {} };
+  if (altName === "ah_query_run") return { runId: pickInput(raw, "runId", "run_id") ?? String(term ?? "") };
+  if (altName === "ah_list_workflows") return {};
+  if (altName === "ah_cancel_run") return { runId: pickInput(raw, "runId") ?? String(term ?? "") };
   return raw;
 }
 

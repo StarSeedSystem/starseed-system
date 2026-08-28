@@ -684,6 +684,35 @@ export const INTEGRATIONS: IntegrationDescriptorExt[] = [
             { id: "importDb", label: "Importar BD", description: "Importa base de datos desde Uint8Array (restaura/sync)." },
           ],
         },
+        // ── AgentHarness — orquestación multi-agente (DAG, handoffs, tool-calling, shared memory) ──
+        {
+          id: "agentharness",
+          ossId: "agentharness",
+          label: "AgentHarness (orquestación multi-agente)",
+          category: "automation",
+          capabilities: [
+            "Motor de orquestación multi-agente con DAG (Rust core + TS bridge)",
+            "Definición de workflows: agentes, edges, condiciones, handoffs",
+            "Tool-calling distribuido entre agentes con herramientas Aurora/qm/OpenViking",
+            "Memoria compartida entre agentes (context window + qm vector store)",
+            "Monitoreo en tiempo real: estado, logs, métricas de ejecución",
+            "Servidor HTTP local (puerto 1984) o WASM en browser",
+            "Cancelación y reintentos granular por nodo",
+          ],
+          defaultEndpoint: "http://localhost:1984",
+          needsKey: false,
+          docsUrl: "https://github.com/starseedsystem/astraura",
+          freeHostingHint:
+            "100% LOCAL: el motor Rust se ejecuta en la neurona del usuario (puerto 1984) o vía WASM en browser. Cero costes de nube. Configura modeles via OpenRouter/ollama/local. Ideal para workflows multi-agente soberanos (análisis, investigación, creación).",
+          actions: [
+            { id: "health", label: "Comprobar servidor", description: "Health check del servidor AgentHarness." },
+            { id: "defineWorkflow", label: "Definir workflow", description: "Crea/actualiza un DAG de agentes (needs workflow: {id, name, nodes[], edges[]})." },
+            { id: "launchWorkflow", label: "Lanzar workflow", description: "Inicia ejecución del workflow (needs workflowId, input opcional)." },
+            { id: "getRunStatus", label: "Consultar estado", description: "Obtiene estado y resultados de una ejecución (needs runId)." },
+            { id: "cancelRun", label: "Cancelar ejecución", description: "Cancela un workflow en curso (needs runId)." },
+            { id: "listWorkflows", label: "Listar workflows", description: "Lista todos los workflows registrados." },
+          ],
+        },
       ];
 
       // ── Helpers de búsqueda ──────────────────────────────────────────

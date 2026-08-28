@@ -39,6 +39,7 @@ import * as Instance from "./clients/instance";
 import * as AgentReach from "./clients/agent-reach";
 // ── qm + AgentHarness (Adenda 172) ──
 import * as QM from "./clients/qm";
+import * as AgentHarness from "./clients/agentharness";
 
 /** Comprueba que la integración pueda llamar (habilitada + endpoint). */
 function gate(cfg: IntegrationConfig, fallbackEndpoint?: string): { ok: true; cfg: IntegrationConfig } | { ok: false; error: string } {
@@ -228,7 +229,6 @@ export async function runIntegration(
 
       case "qm":
         // qm — memoria vectorial local cuantizada (100% local, SQLite + sqlite-vec WASM/Node).
-        // Endpoint placeholder "local" — el cliente usa OPFS/IndexedDB (browser) o archivo (Node).
         if (a === "health") return await QM.runQmAction("health", c, input);
         if (a === "initialize") return await QM.runQmAction("initialize", c, input);
         if (a === "upsert") return await QM.runQmAction("upsert", c, input);
@@ -239,6 +239,16 @@ export async function runIntegration(
         if (a === "embedLocal") return await QM.runQmAction("embedLocal", c, input);
         if (a === "exportDb") return await QM.runQmAction("exportDb", c, input);
         if (a === "importDb") return await QM.runQmAction("importDb", c, input);
+        break;
+
+      case "agentharness":
+        // AgentHarness — orquestación multi-agente (DAG, handoffs, tool-calling, shared memory).
+        if (a === "health") return await AgentHarness.runAgentHarnessAction("health", c, input);
+        if (a === "defineWorkflow") return await AgentHarness.runAgentHarnessAction("defineWorkflow", c, input);
+        if (a === "launchWorkflow") return await AgentHarness.runAgentHarnessAction("launchWorkflow", c, input);
+        if (a === "getRunStatus") return await AgentHarness.runAgentHarnessAction("getRunStatus", c, input);
+        if (a === "cancelRun") return await AgentHarness.runAgentHarnessAction("cancelRun", c, input);
+        if (a === "listWorkflows") return await AgentHarness.runAgentHarnessAction("listWorkflows", c, input);
         break;
 
       default:
@@ -312,6 +322,9 @@ export async function testIntegration(id: string, cfg?: IntegrationConfig): Prom
       case "qm":
         // qm — test de disponibilidad (sqlite3 + sqlite-vec en el entorno).
         return await QM.health(c);
+      case "agentharness":
+        // AgentHarness — test de disponibilidad (servidor local puerto 1984).
+        return await AgentHarness.healthCheck(c);
 
       default:
         return { ok: false, error: `Sin prueba de salud para "${id}".` };
