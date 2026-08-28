@@ -218,7 +218,7 @@ export async function signDeviceCert(deviceFp: string, account: string, relayDev
   if (!s || !m || !deviceFp || !account) return null;
   try {
     const iat = Date.now();
-    const sig = await s.sign({ name: "ECDSA", hash: "SHA-256" }, m.privKey, certMessage(deviceFp, account, iat, relayDeviceId));
+    const sig = await s.sign({ name: "ECDSA", hash: "SHA-256" }, m.privKey, certMessage(deviceFp, account, iat, relayDeviceId) as BufferSource);
     const cert: DeviceCert = { mfp: m.fp, mpub: m.pub, deviceFp, account, iat, sig: b64url(sig) };
     if (relayDeviceId) cert.relayDeviceId = relayDeviceId; // solo si se ató (retrocompat)
     return cert;

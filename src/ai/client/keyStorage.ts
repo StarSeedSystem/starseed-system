@@ -46,7 +46,7 @@ async function deriveKey(passphrase: string): Promise<CryptoKey> {
   const enc = new TextEncoder();
   const baseKey = await crypto.subtle.importKey(
     "raw",
-    enc.encode(material),
+    enc.encode(material) as BufferSource,
     "PBKDF2",
     false,
     ["deriveKey"]
@@ -54,7 +54,7 @@ async function deriveKey(passphrase: string): Promise<CryptoKey> {
   return crypto.subtle.deriveKey(
     {
       name: "PBKDF2",
-      salt: getOrCreateSalt(),
+      salt: getOrCreateSalt() as BufferSource,
       iterations: 250_000,
       hash: "SHA-256",
     },
@@ -88,10 +88,10 @@ export async function decryptKey(ciphertextB64: string, passphrase: string): Pro
   if (typeof window === "undefined") return "";
   if (!ciphertextB64) return "";
   const packed = fromB64(ciphertextB64);
-  const iv = packed.slice(0, 12) as BufferSource;
-  const data = packed.slice(12) as BufferSource;
+  const iv = packed.slice(0, 12);
+  const data = packed.slice(12);
   const key = await deriveKey(passphrase);
-  const decrypted = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, data);
+  const decrypted = await crypto.subtle.decrypt({ name: "AES-GCM", iv: iv as BufferSource }, key, data as BufferSource);
   return new TextDecoder().decode(decrypted);
 }
 
