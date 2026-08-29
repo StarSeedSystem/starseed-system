@@ -44,6 +44,7 @@ import {
   detectAvailability, summarizeAvailability, userConfigForSource,
   type SourceAvailability,
 } from "@/ai/astraura/availability";
+import { Motor158PreferenceCard } from "./motor-158-preference";
 import {
   DEFAULT_INTELLIGENCE, getIntelligenceSettings, saveIntelligenceSettings,
   readRouteLog, ROUTE_EVENT,
@@ -555,6 +556,9 @@ export function IntelligencePanel() {
           </div>
         </CardContent>
       </Card>
+
+      {/* ── (Adenda 175) Motor 1.58: preferencia de cognición del backend soberano ── */}
+      <Motor158PreferenceCard />
 
       {/* ── Contexto Total de Aurora: "Aurora conoce mi contexto" ── */}
       <Card className="bg-background/40 backdrop-blur-sm">

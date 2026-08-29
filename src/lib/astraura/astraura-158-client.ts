@@ -862,6 +862,28 @@ export function ackAstraura158Events(target: Astraura158Target, ids: string[]) {
   return post<Astraura158Ack & { acked?: number }>(target, "/api/starseed/events/ack", { ids });
 }
 
+/** (Adenda 175) Preferencia de motor de cognición del backend 1.58. */
+export type Astraura158CognitionPreferenceValue = "auto" | "bitnet-158" | "multimodel";
+
+export interface Astraura158CognitionPreference {
+  preference: Astraura158CognitionPreferenceValue;
+  /** Procedencia honesta del valor: variable de entorno · archivo persistido · por defecto. */
+  source?: "env" | "stored" | "default";
+  /** true = ASTRAURA_COGNITION_PREFERENCE manda y el cambio en caliente no aplica. */
+  env_override?: boolean;
+  options?: string[];
+  applied?: boolean;
+  reason?: string;
+}
+
+export function fetchAstraura158CognitionPreference(target: Astraura158Target) {
+  return call<Astraura158CognitionPreference & { success?: boolean }>(target, "/api/starseed/cognition/preference");
+}
+
+export function setAstraura158CognitionPreference(target: Astraura158Target, preference: Astraura158CognitionPreferenceValue) {
+  return post<Astraura158CognitionPreference & { success?: boolean }>(target, "/api/starseed/cognition/preference", { preference });
+}
+
 /** Resumen de procesos del puente (`/api/starseed/processes`): forma tolerante (lista u objeto por id). */
 export interface Astraura158ProcessSummary {
   id: string;

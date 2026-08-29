@@ -67,6 +67,7 @@ const GET_ALLOW: RegExp[] = [
   /^\/active_tunnel\.json$/,
   // ── Studio 1.58 (lectura de subsistemas; sin archivos, sin OS, sin claves) ──
   /^\/api\/starseed\/(events|processes)$/,
+  /^\/api\/starseed\/cognition\/preference$/,
   /^\/api\/imagination\/(status|process_types|sync_execution_state)$/,
   /^\/api\/imagination\/process\/[\w.-]+(\/branches)?$/,
   /^\/api\/imagination\/synthesis_reports(\/latest|\/[\w.-]+)?$/,
@@ -141,6 +142,7 @@ const POST_ALLOW: RegExp[] = [
   /^\/api\/memory\/mem0\/add$/,
   /^\/api\/starseed\/events\/ack$/,
   /^\/api\/starseed\/processes\/imagination\/trigger$/,
+  /^\/api\/starseed\/cognition\/preference$/,
   /^\/api\/agents\/[\w.-]+\/(toggle_imagination|update_imagination_config)$/,
   /^\/api\/ecosystem\/agents\/[\w.-]+\/config$/,
   // ── Ola 4 (Adenda 156): Navegador autónomo y concesión de acceso universal del Explorador del dispositivo ──
