@@ -1,5 +1,7 @@
 "use client";
 
+import { QuantumOrbAvatar } from "@/components/aurora/quantum-orb-avatar";
+
 /**
  * STUDIO 1.58 · Orquestación — el «centro de orquestación» del enjambre
  * multi-agente (Ola 5 · Adenda 157; SOP `architecture/astraura-158-ola5-orquestacion.md`
@@ -67,7 +69,12 @@ function AgentLiveCard({
   return (
     <div className={cn(SUB, "flex flex-col gap-1.5 px-3 py-2")}>
       <div className="flex items-center gap-2">
-        <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: a.color ?? "#22d3ee", boxShadow: `0 0 8px ${a.color ?? "#22d3ee"}` }} aria-hidden="true" />
+        {a.used_personalities?.[0]?.id ? (
+          /* (Adenda 176) Avatar de orbe VIVO — "thinking" mientras el agente tiene tarea. */
+          <QuantumOrbAvatar personaId={a.used_personalities[0].id} size={28} state={on && task ? "thinking" : "idle"} className="shrink-0" />
+        ) : (
+          <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: a.color ?? "#22d3ee", boxShadow: `0 0 8px ${a.color ?? "#22d3ee"}` }} aria-hidden="true" />
+        )}
         <p className="min-w-0 flex-1 truncate text-[12px] font-medium text-white/90">{a.name}</p>
         <Badge tone={levelTone(a.status)}>{a.status ?? "idle"}</Badge>
         <Switch checked={on} disabled={busy !== ""} aria-label={`Agente ${a.name} ${on ? "activo" : "inactivo"}`}

@@ -1,5 +1,7 @@
 "use client";
 
+import { QuantumOrbAvatar } from "@/components/aurora/quantum-orb-avatar";
+
 /**
  * STUDIO 1.58 · Agentes — las tres capas de agentes del backend soberano:
  *   · Director «Metis Prime» (`/api/director/*`): directiva maestra, ciclo de
@@ -43,7 +45,12 @@ function AgentRow({ a, target, busy, wrap, reload }: { a: Astraura158SwarmAgent;
   return (
     <div className={cn(SUB, "flex flex-col gap-1 px-3 py-2")}>
       <div className="flex items-center gap-2">
-        <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: a.color ?? "#22d3ee", boxShadow: `0 0 8px ${a.color ?? "#22d3ee"}` }} aria-hidden="true" />
+        {a.used_personalities?.[0]?.id ? (
+          /* (Adenda 176) Avatar de orbe VIVO en vez del punto estático — Adenda 158 §8.3. */
+          <QuantumOrbAvatar personaId={a.used_personalities[0].id} size={28} state={on && a.current_task ? "thinking" : "idle"} className="shrink-0" />
+        ) : (
+          <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: a.color ?? "#22d3ee", boxShadow: `0 0 8px ${a.color ?? "#22d3ee"}` }} aria-hidden="true" />
+        )}
         <p className="min-w-0 flex-1 truncate text-[12px] font-medium text-white/90">{a.name}</p>
         <Badge tone={levelTone(a.status)}>{a.status ?? "idle"}</Badge>
         <Switch checked={on} disabled={busy !== ""} aria-label={`Agente ${a.name} ${on ? "activo" : "inactivo"}`}
@@ -284,7 +291,11 @@ export function AgentesTab({ target, manifest, refresh }: S158TabProps) {
           {vaultAgents.map((a) => (
             <div key={a.id} className={cn(SUB, "flex flex-col gap-1.5 px-3 py-2")}>
               <div className="flex items-center gap-2">
-                <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: a.color ?? "#d946ef" }} aria-hidden="true" />
+                {a.used_personalities?.[0]?.id ? (
+                  <QuantumOrbAvatar personaId={a.used_personalities[0].id} size={28} state={a.is_busy ? "thinking" : "idle"} className="shrink-0" />
+                ) : (
+                  <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: a.color ?? "#d946ef" }} aria-hidden="true" />
+                )}
                 <p className="min-w-0 flex-1 truncate text-[12px] font-medium text-white/90">{a.emoji ? `${a.emoji} ` : ""}{a.name}</p>
                 <Badge tone={levelTone(a.status)}>{a.status ?? (a.enabled === false ? "off" : "on")}</Badge>
               </div>
@@ -326,7 +337,11 @@ export function AgentesTab({ target, manifest, refresh }: S158TabProps) {
           <div className="mt-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
             {ecosystem.map((a) => (
               <div key={a.id} className={cn(SUB, "flex items-center gap-2 px-3 py-2")}>
-                <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: a.color ?? "#64748b" }} aria-hidden="true" />
+                {a.used_personalities?.[0]?.id ? (
+                  <QuantumOrbAvatar personaId={a.used_personalities[0].id} size={28} state={a.is_busy ? "thinking" : "idle"} className="shrink-0" />
+                ) : (
+                  <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: a.color ?? "#64748b" }} aria-hidden="true" />
+                )}
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-[12px] font-medium text-white/90">{a.emoji ? `${a.emoji} ` : ""}{a.name}</p>
                   <p className="truncate text-[10px] text-white/50">{a.role ?? a.area ?? ""}{a.is_busy ? " · ocupado" : ""}</p>

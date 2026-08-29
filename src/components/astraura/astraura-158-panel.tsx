@@ -1,5 +1,7 @@
 "use client";
 
+import { QuantumOrbAvatar } from "@/components/aurora/quantum-orb-avatar";
+
 /**
  * PANEL «ASTRAURA 1.58-BIT» — sistema primario de inteligencia (Adenda 153).
  * ----------------------------------------------------------------------------
@@ -432,7 +434,8 @@ function Astraura158PanelInner({ className }: { className?: string }) {
                 return (
                   <div key={p.id} className={cn("rounded-lg border px-3 py-2", isActive ? "border-cyan-400/40 bg-cyan-500/[0.08]" : "border-white/10 bg-black/20")}>
                     <div className="flex items-center gap-2">
-                      <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: p.color ?? "#00f0ff", boxShadow: `0 0 10px ${p.color ?? "#00f0ff"}` }} aria-hidden="true" />
+                      {/* (Adenda 176) Avatar de orbe vivo por personalidad — cierra el pendiente de la Adenda 158 §8.3. */}
+                      <QuantumOrbAvatar personaId={p.id} size={28} className="shrink-0" />
                       <p className="min-w-0 truncate text-[12px] font-medium text-white/90">{p.name}</p>
                       {isActive && <span className="ml-auto rounded-full border border-cyan-400/30 px-1.5 py-0.5 text-[9px] text-cyan-200">activa</span>}
                     </div>
