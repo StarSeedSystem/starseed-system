@@ -713,6 +713,35 @@ export const INTEGRATIONS: IntegrationDescriptorExt[] = [
             { id: "listWorkflows", label: "Listar workflows", description: "Lista todos los workflows registrados." },
           ],
         },
+        // ── Bonsai — motor 1-bit & Ternary acelerado por GPU Metal (PrismML) ──
+        {
+          id: "bonsai",
+          ossId: "bonsai",
+          label: "Bonsai (1-bit & Ternary AI Engine)",
+          category: "runtime",
+          capabilities: [
+            "Inferencia acelerada por Metal GPU (Apple Silicon) para modelos Ternary 1.58-bit (Q2_0 / PQ2_0)",
+            "Modelos Ternary-Bonsai (1.7B, 4B, 8B, 27B) y Bonsai 1-bit (Q1_0) locales",
+            "Visión multimodal (VLM 27B) con proyector multimodal (mmproj / image_url)",
+            "Llamadas a herramientas nativas estilo OpenAI (tool_calls) y puente MCP",
+            "Presupuesto de razonamiento (thinking/reasoning budget)",
+            "Contexto largo (hasta 256k tokens) con Flash Attention y caché KV cuantizada a 4-bit (BONSAI_KV4)",
+            "Servidor OpenAI-compatible en puerto 8080 (llama-server / MLX)",
+          ],
+          defaultEndpoint: "http://127.0.0.1:8080",
+          needsKey: false,
+          docsUrl: "https://github.com/PrismML-Eng/Bonsai-demo",
+          freeHostingHint:
+            "100% LOCAL: corre en tu propio Apple Silicon (Metal GPU) o CPU. Modelos públicos en HuggingFace (prism-ml/Ternary-Bonsai-*). Acelera 1.58-bit en GPU superando el límite CPU de BitNet i2_s.",
+          actions: [
+            { id: "health", label: "Comprobar servidor", description: "Health check del servidor Bonsai (puerto 8080)." },
+            { id: "status", label: "Telemetría y estado", description: "Consulta modelo activo, soporte GPU Metal y visión." },
+            { id: "chat", label: "Inferencia de chat", description: "Chat con soporte de tool calling y reasoning budget." },
+            { id: "vision", label: "Visión multimodal", description: "Analiza imágenes o capturas de pantalla con el modelo 27B VLM." },
+            { id: "models", label: "Listar modelos", description: "Lista la matriz de modelos 1.7B, 4B, 8B y 27B." },
+            { id: "benchmark", label: "Benchmark de velocidad", description: "Mide tokens/segundo y latencia de inferencia 1.58-bit." },
+          ],
+        },
       ];
 
       // ── Helpers de búsqueda ──────────────────────────────────────────

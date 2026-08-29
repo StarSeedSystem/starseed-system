@@ -188,6 +188,63 @@ export const ASTRAURA_158_LOCAL_SOURCE_ID = "astraura-158-local";
 export const ASTRAURA_158_CLOUD_SOURCE_ID = "astraura-158-nube";
 export const ASTRAURA_158_PROXY_BASE = "/api/ai/astraura-158";
 
+// ── BONSAI 1-BIT & TERNARY (Adenda 174) ────────────────────────────────────
+export const ASTRAURA_BONSAI_LOCAL_SOURCE_ID = "astraura-bonsai-local";
+export const ASTRAURA_BONSAI_CLOUD_SOURCE_ID = "astraura-bonsai";
+
+export const ASTRAURA_BONSAI_MODELS: CatalogModel[] = [
+  {
+    id: "ternary-27b-vlm",
+    label: "Ternary-Bonsai 27B (VLM + Tools)",
+    strengths: ["vision", "tools", "reasoning", "1.58-bit", "long", "chat", "code"],
+    quality: 8,
+    vision: true,
+    context: 262144,
+    note: "VLM 1.58-bit acelerado por Metal GPU con visión multimodal (mmproj) y tool calling nativo",
+  },
+  {
+    id: "ternary-8b",
+    label: "Ternary-Bonsai 8B (Deep Reasoning)",
+    strengths: ["reasoning", "code", "1.58-bit", "tools", "long", "chat", "summary"],
+    quality: 8,
+    context: 262144,
+    note: "Ternary 1.58-bit con razonamiento profundo y 256k contexto",
+  },
+  {
+    id: "ternary-4b",
+    label: "Ternary-Bonsai 4B (Code & Fast Agent)",
+    strengths: ["code", "fast", "tools", "1.58-bit", "chat"],
+    quality: 7,
+    context: 65536,
+    note: "Ternary 1.58-bit optimizado para código y ejecución rápida de herramientas",
+  },
+  {
+    id: "ternary-1.7b",
+    label: "Ternary-Bonsai 1.7B (Real-Time Voice & Edge)",
+    strengths: ["fast", "chat", "1.58-bit"],
+    quality: 6,
+    context: 32768,
+    note: "Ultra-rápido en Metal GPU para voz viva y latencia sub-segundo",
+  },
+  {
+    id: "bonsai-1bit-27b",
+    label: "Bonsai 27B (1-Bit VLM)",
+    strengths: ["vision", "tools", "long", "1.58-bit"],
+    quality: 7,
+    vision: true,
+    context: 262144,
+    note: "1-bit VLM con compresión extrema (~1.125 bits/peso) y visión",
+  },
+  {
+    id: "bonsai-1bit-8b",
+    label: "Bonsai 8B (1-Bit Lightweight)",
+    strengths: ["reasoning", "1.58-bit", "tools", "chat"],
+    quality: 7,
+    context: 131072,
+    note: "1-bit modelo ligero para dispositivos con RAM restringida",
+  },
+];
+
 const ASTRAURA_158_MODELS: CatalogModel[] = [
   { id: "astraura-158/auto", label: "Astraura (personalidad afín, auto)", strengths: ["chat", "fast", "summary", "translate", "code", "reasoning", "creative", "long"], quality: 7, context: 4096, note: "Elige la personalidad 1.58 afín a la personalidad activa del OS" },
   { id: "astraura-158/astraura_prime", label: "Astraura Prime · núcleo", strengths: ["chat", "summary", "reasoning"], quality: 7, context: 4096 },
@@ -210,6 +267,21 @@ function astraura158CloudBase(): string {
 }
 
 export const FREE_CATALOG: CatalogSource[] = [
+  {
+    id: ASTRAURA_BONSAI_LOCAL_SOURCE_ID,
+    label: "Astraura Bonsai (Metal GPU 1.58-bit / VLM)",
+    tier: "local",
+    providerId: "openai-compatible",
+    baseUrl: "http://127.0.0.1:8080/v1",
+    requiresKey: false,
+    limits: "Sin límites: aceleración por GPU Metal (Apple Silicon) para modelos Ternary 1.58-bit (1.7B-27B) y visión VLM.",
+    why: "Inferencia 1.58-bit ultra-rápida por GPU Metal + visión multimodal nativa + tool calling OpenAI.",
+    privacy: "local",
+    weight: 1.35,
+    timeoutMs: 120_000,
+    cooldownMinutes: 2,
+    models: ASTRAURA_BONSAI_MODELS,
+  },
   {
     id: ASTRAURA_158_LOCAL_SOURCE_ID,
     label: "Astraura 1.58-bit (esta neurona)",

@@ -417,6 +417,37 @@ export const AURORA_INTEGRATION_TOOLS: AuroraIntegrationTool[] = [
     integrationId: "agentharness",
     actionId: "listWorkflows",
   },
+  // ── Bonsai (Adenda 174) ──────────────────────────────────────────
+  {
+    name: "bonsai_chat",
+    description: "Ejecuta inferencia de lenguaje 1.58-bit acelerada por Metal GPU (Apple Silicon). Entrada: { prompt, system_prompt?, tools?, temperature?, max_tokens? }.",
+    integrationId: "bonsai",
+    actionId: "chat",
+  },
+  {
+    name: "bonsai_vision",
+    description: "Analiza imágenes o capturas de pantalla con el modelo multimodal Ternary-Bonsai 27B VLM. Entrada: { prompt, images: string[], system_prompt? }.",
+    integrationId: "bonsai",
+    actionId: "vision",
+  },
+  {
+    name: "bonsai_models",
+    description: "Lista la matriz de modelos 1.58-bit y 1-bit disponibles (1.7B, 4B, 8B, 27B). Sin entrada.",
+    integrationId: "bonsai",
+    actionId: "models",
+  },
+  {
+    name: "bonsai_status",
+    description: "Consulta telemetría y estado del motor Bonsai (Metal GPU, KV cache, contexto, proyector VLM). Sin entrada.",
+    integrationId: "bonsai",
+    actionId: "status",
+  },
+  {
+    name: "bonsai_benchmark",
+    description: "Ejecuta benchmark de velocidad y latencia 1.58-bit en la neurona. Entrada: { prompt?, tokens? }.",
+    integrationId: "bonsai",
+    actionId: "benchmark",
+  },
 ];
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -1789,6 +1820,12 @@ const TOOL_ALTERNATES: Record<string, string[]> = {
   ah_query_run: ["ah_list_workflows"],
   ah_cancel_run: ["ah_list_workflows"],
   ah_list_workflows: ["ah_query_run"],
+  // Bonsai (1-bit & Ternary AI Engine)
+  bonsai_chat: ["bonsai_status", "bonsai_models"],
+  bonsai_vision: ["bonsai_status"],
+  bonsai_models: ["bonsai_status"],
+  bonsai_status: ["bonsai_models"],
+  bonsai_benchmark: ["bonsai_status"],
 };
 
 /** Adapta el input de una tool a la forma que espera una alternativa distinta. */
@@ -1819,6 +1856,11 @@ function adaptInputForAlternate(altName: string, input: unknown): Record<string,
   if (altName === "ah_query_run") return { runId: pickInput(raw, "runId", "run_id") ?? String(term ?? "") };
   if (altName === "ah_list_workflows") return {};
   if (altName === "ah_cancel_run") return { runId: pickInput(raw, "runId") ?? String(term ?? "") };
+  // Bonsai
+  if (altName === "bonsai_chat") return { prompt: term ?? raw, system_prompt: pickInput(raw, "system_prompt", "system") };
+  if (altName === "bonsai_vision") return { prompt: pickInput(raw, "prompt", "query", "text") ?? "Describe la imagen", images: pickInput(raw, "images", "image_urls", "image") ?? [] };
+  if (altName === "bonsai_models" || altName === "bonsai_status") return {};
+  if (altName === "bonsai_benchmark") return { prompt: pickInput(raw, "prompt"), tokens: pickInput(raw, "tokens") };
   return raw;
 }
 

@@ -40,6 +40,8 @@ import * as AgentReach from "./clients/agent-reach";
 // ── qm + AgentHarness (Adenda 172) ──
 import * as QM from "./clients/qm";
 import * as AgentHarness from "./clients/agentharness";
+// ── Bonsai (Adenda 174) ──
+import * as Bonsai from "./clients/bonsai";
 
 /** Comprueba que la integración pueda llamar (habilitada + endpoint). */
 function gate(cfg: IntegrationConfig, fallbackEndpoint?: string): { ok: true; cfg: IntegrationConfig } | { ok: false; error: string } {
@@ -251,6 +253,16 @@ export async function runIntegration(
         if (a === "listWorkflows") return await AgentHarness.runAgentHarnessAction("listWorkflows", c, input);
         break;
 
+      case "bonsai":
+        // Bonsai — motor 1-bit & Ternary acelerado por GPU Metal (PrismML).
+        if (a === "health") return await Bonsai.runBonsaiAction("health", c, input);
+        if (a === "status") return await Bonsai.runBonsaiAction("status", c, input);
+        if (a === "chat") return await Bonsai.runBonsaiAction("chat", c, input);
+        if (a === "vision") return await Bonsai.runBonsaiAction("vision", c, input);
+        if (a === "models") return await Bonsai.runBonsaiAction("models", c, input);
+        if (a === "benchmark") return await Bonsai.runBonsaiAction("benchmark", c, input);
+        break;
+
       default:
         return { ok: false, error: `Integración sin runner: "${id}".` };
     }
@@ -325,6 +337,9 @@ export async function testIntegration(id: string, cfg?: IntegrationConfig): Prom
       case "agentharness":
         // AgentHarness — test de disponibilidad (servidor local puerto 1984).
         return await AgentHarness.healthCheck(c);
+      case "bonsai":
+        // Bonsai — test de disponibilidad (servidor local puerto 8080).
+        return await Bonsai.health(c);
 
       default:
         return { ok: false, error: `Sin prueba de salud para "${id}".` };

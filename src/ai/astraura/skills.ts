@@ -279,6 +279,14 @@ export const SKILL_CAPABILITIES: SkillCapability[] = [
     packageIds: ["iatool-openhands", "iatool-opencode", "iatool-openclaw"],
   },
   {
+    id: "bonsai-engine",
+    label: "Inferencia 1.58-bit & Ternary GPU (Bonsai · PrismML)",
+    systemPrompt:
+      "Tienes acceso al motor de inferencia 1-bit y Ternary 1.58-bit Bonsai (PrismML): ejecuta modelos Ternary-Bonsai (1.7B, 4B, 8B, 27B) y Bonsai 1-bit acelerados por GPU Metal en Apple Silicon (macOS) o CUDA/Vulkan. Ofrece visión multimodal VLM (mmproj) para analizar capturas y diagramas, llamadas a herramientas nativas estilo OpenAI (tool_calls), presupuesto de razonamiento y contexto de hasta 256k tokens con Flash Attention y caché KV Q4_0.",
+    routing: { preferStrong: true, vision: true },
+    packageIds: ["iatool-bonsai"],
+  },
+  {
     id: "web-robots",
     label: "Robots web no-code (Maxun)",
     systemPrompt:

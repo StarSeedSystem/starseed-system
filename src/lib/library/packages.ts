@@ -1131,6 +1131,15 @@ const IA_TOOLS_PACKAGES: LibraryPackage[] = [
     author: "tldraw Inc.", sourceRepoId: "starseed-ia-tools", free: true,
     payload: { skillId: "whiteboard-pro", externalUrl: "https://github.com/tldraw/tldraw", note: "SDK de pizarra infinita YA integrado en /pizarra (\"tldraw license\", marca de agua «Made with tldraw» obligatoria)." },
   },
+  /* ── Bonsai · motor 1-bit & Ternary acelerado por GPU Metal (PrismML) ── */
+  {
+    id: "iatool-bonsai", kind: "function", name: "Bonsai (1-bit & Ternary AI Engine)",
+    description:
+      "Motor de inferencia 1-bit y Ternary (1.58-bit) acelerado por GPU Metal (Apple Silicon) y CUDA/Vulkan. Permite correr modelos Ternary-Bonsai (1.7B, 4B, 8B, 27B) con visión multimodal VLM (mmproj), tool calling nativo estilo OpenAI, presupuesto de razonamiento y contexto largo (256k). Supera el límite CPU-only de BitNet i2_s offloadeando capas a la GPU Metal en Mac.",
+    icon: "Cpu", tags: ["ai", "1.58-bit", "ternary", "metal", "gpu", "vision", "tools", "oss"], version: "1.0.0", featured: true,
+    author: "PrismML-Eng", sourceRepoId: "starseed-ia-tools", free: true,
+    payload: { skillId: "bonsai-engine", externalUrl: "https://github.com/PrismML-Eng/Bonsai-demo", note: "Motor 1-bit & Ternary con aceleración GPU Metal y visión VLM (Apache-2.0)." },
+  },
   /* ══ SERVIDORES CASEROS + VOZ NEURAL (jul-2026 · SOP centro-creacion §6b/§10) ══
    * CasaOS y los tres motores de voz neural del sistema de voz de Aurora.
    * SEMBRADOS POR DEFECTO desde SEED_VERSION 13 (Adenda 66): instalar solo deja
