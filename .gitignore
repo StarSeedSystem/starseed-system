@@ -90,3 +90,6 @@ test-account-creds.json
 public/version.json
 .ss_migration/
 .env.local.bak*
+
+!src-tauri/icons/
+!src-tauri/icons/**
