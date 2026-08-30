@@ -16,6 +16,10 @@ export function AuthForm() {
     const { toast } = useToast()
     const supabase = createClient()
     const [isLoading, setIsLoading] = React.useState(false)
+    // (Adenda 184) Mensaje INLINE a prueba de fallos: el sistema de toast de esta
+    // app no renderizaba el aviso (login «no hacía nada, sin mensaje»). Este <p>
+    // en el propio formulario SIEMPRE se ve, pase lo que pase con los toasts.
+    const [authMsg, setAuthMsg] = React.useState<{ tipo: 'error' | 'ok'; txt: string } | null>(null)
 
     // (Adenda 182) Un fetch de auth RECHAZADO (red caída, o el proyecto Supabase
     // restringido por cuota — su 402 llega sin CORS y el navegador lo convierte
@@ -30,18 +34,16 @@ export function AuthForm() {
 
     function authFalloDuro(e: unknown, titulo: string) {
         console.error('[auth] fallo duro:', e)
-        toast({
-            title: titulo,
-            description:
-                'No se pudo contactar la autenticación. Puede ser tu red, o el proyecto Supabase del OS restringido por cuota (revisa su dashboard: estado/egress).',
-            variant: 'destructive',
-        })
+        const desc = 'No se pudo contactar la autenticación. Puede ser tu red, o el proyecto Supabase del OS restringido por cuota (revisa su dashboard: estado/egress).'
+        setAuthMsg({ tipo: 'error', txt: `${titulo}: ${desc}` })
+        toast({ title: titulo, description: desc, variant: 'destructive' })
         setIsLoading(false)
     }
 
     async function handleSignUp(event: React.FormEvent<HTMLFormElement>) {
         event.preventDefault()
         setIsLoading(true)
+        setAuthMsg(null)
 
         const formData = new FormData(event.currentTarget)
         const email = formData.get('email') as string
@@ -67,12 +69,14 @@ export function AuthForm() {
         }
 
         if (error) {
+            setAuthMsg({ tipo: 'error', txt: `Error de registro: ${error.message}` })
             toast({
                 title: 'Error de registro',
                 description: error.message,
                 variant: 'destructive',
             })
         } else {
+            setAuthMsg({ tipo: 'ok', txt: 'Verifica tu correo: te enviamos un enlace de confirmación.' })
             toast({
                 title: 'Verifica tu correo',
                 description: 'Te hemos enviado un enlace de confirmación.',
@@ -85,6 +89,7 @@ export function AuthForm() {
     async function handleSignIn(event: React.FormEvent<HTMLFormElement>) {
         event.preventDefault()
         setIsLoading(true)
+        setAuthMsg(null)
 
         const formData = new FormData(event.currentTarget)
         const email = formData.get('email') as string
@@ -104,6 +109,7 @@ export function AuthForm() {
         }
 
         if (error) {
+            setAuthMsg({ tipo: 'error', txt: `Error de inicio de sesión: ${error.message}` })
             toast({
                 title: 'Error de inicio de sesión',
                 description: error.message,
@@ -125,6 +131,14 @@ export function AuthForm() {
                 <CardDescription>Accede al StarSeed Network</CardDescription>
             </CardHeader>
             <CardContent>
+                {authMsg && (
+                    <p role="alert" style={{ fontSize: 12.5, lineHeight: 1.5, borderRadius: 10, padding: '9px 11px', marginBottom: 12,
+                        color: authMsg.tipo === 'error' ? '#fca5a5' : '#6ee7b7',
+                        background: authMsg.tipo === 'error' ? 'rgba(244,63,94,.08)' : 'rgba(16,185,129,.08)',
+                        border: `1px solid ${authMsg.tipo === 'error' ? 'rgba(244,63,94,.28)' : 'rgba(16,185,129,.28)'}` }}>
+                        {authMsg.txt}
+                    </p>
+                )}
                 <Tabs defaultValue="signin" className="w-full">
                     <TabsList className="grid w-full grid-cols-2 gap-1">
                         <TabsTrigger value="signin">Entrar</TabsTrigger>
