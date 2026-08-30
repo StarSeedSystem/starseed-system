@@ -37,7 +37,7 @@
       "endpoints": [
         "https://github.com/StarSeedSystem/starseed-system/releases/latest/download/latest.json"
       ],
-      "pubkey": "PENDIENTE_GENERAR_CON__npx_tauri_signer_generate"
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEVGNzA5QzREOUMzOTFDRTUKUldUbEhEbWNUWnh3N3dCUlpQNmtIM05NOUs3Mmt0TkRzRXFleHdzYmlIaUVHd2poWDluM1JsVFQK"
     }
   }
 }
