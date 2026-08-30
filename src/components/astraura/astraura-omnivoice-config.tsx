@@ -90,6 +90,9 @@ import {
 import {
   PersonaSelector, LlmSection, OpenVoiceSection, CerebroSection, SenalesSection, AstrauraPersonaCard,
 } from "@/components/astraura/persona-system-sections";
+// (Adenda 179) Control EXPLÍCITO y configurable del motor primario de la neurona
+// (Astraura 1.58b local marcado por defecto) reutilizando el editor ya probado.
+import { PrimaryChoiceEditor } from "@/components/astraura/primary-choice-editor";
 import { PersonaConstellation } from "@/components/astraura/persona-constellation";
 
 /** Feedback de carga de una sección perezosa. */
@@ -1636,6 +1639,22 @@ export function AstrauraOmniVoiceConfig({
         {currentSection === "astraura" && (
           <div className={bodySpace}>
             {updatesCard}
+            {/* (Adenda 179) INTRO del onboarding unificado: control EXPLÍCITO y
+                configurable del motor de IA de ESTA neurona, con Astraura 1.58b
+                local MARCADO por defecto (nativo StarSeed). Si el usuario no toca
+                nada, la neurona ya funciona con ese predeterminado nativo. */}
+            <div className="scroll-mt-2 rounded-xl border border-cyan-400/25 bg-cyan-500/[0.05] px-3 py-2.5">
+              <p className="flex flex-wrap items-center gap-2 text-[12px] font-semibold text-[var(--aw-strong)]">
+                <Cpu className="h-3.5 w-3.5 text-cyan-300" /> IA de esta neurona
+                <span className="rounded-full border border-cyan-400/30 bg-cyan-500/10 px-1.5 py-0.5 text-[9px] font-medium text-cyan-200">Recomendado · Astraura 1.58b local</span>
+              </p>
+              <p className="mt-1 text-[10px] leading-snug text-[var(--aw-muted)]">
+                Nativo de StarSeed: funciona sin conexión y sin coste. Ya está seleccionado por defecto — si no cambias nada, esta neurona usa Astraura 1.58b local (con los sistemas StarSeed). Puedes fijar otro motor abajo cuando quieras.
+              </p>
+              <div className="mt-2">
+                <PrimaryChoiceEditor scope="neurona" scopeId={deviceId} context={{ deviceId }} scopeLabel="Esta neurona" compact />
+              </div>
+            </div>
             {/* RELACIONES de modelos y sistemas POR PERSONALIDAD (petición Alex
                 2026-08-06): la pestaña Astraura es la vista de conjunto — qué
                 modelo LLM, voz, memoria y señales usa CADA personalidad de la

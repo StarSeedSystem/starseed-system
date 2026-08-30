@@ -56,7 +56,30 @@ export function EntornoMontaje() {
   // Solo con cuenta DETECTADA y SIN sesión activa: con sesión abierta el
   // cambio de cuenta sería ruido, no ayuda.
   const candidata = snap?.otrasCuentas.find((c) => !descartadas.includes(c.user_id));
-  if (!candidata) return null;
+  if (!candidata) {
+    // (Adenda 179) En dev/local el navegador NO comparte la cookie de sesión del
+    // dominio de producción (cookies por origen), así que el OS no reconoce tu
+    // cuenta. En vez de aparecer como desconocido, ofrecemos iniciar sesión —
+    // SIN tocar la auth del servidor (es un límite del navegador, no un bug).
+    const esLocal = typeof window !== "undefined" && /^(localhost|127\.0\.0\.1|\[::1\])$/.test(window.location.hostname);
+    if (esLocal && !snap?.sesionActual) {
+      return (
+        <div role="dialog" aria-label="Sesión en modo local" className="fixed bottom-[max(0.75rem,env(safe-area-inset-bottom))] left-[max(0.75rem,env(safe-area-inset-left))] z-[65] max-w-[92vw] sm:max-w-sm rounded-xl border border-white/10 bg-black/70 p-3 shadow-lg backdrop-blur-md">
+          <div className="flex items-start gap-2.5">
+            <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-white/10 bg-white/[0.06]">
+              <MonitorSmartphone className="h-4 w-4 text-cyan-200" aria-hidden="true" />
+            </span>
+            <div className="min-w-0">
+              <p className="text-[12px] font-semibold text-white/90">Modo local (dev)</p>
+              <p className="mt-0.5 text-[11px] leading-snug text-white/60">Aquí no llega tu sesión de producción (las cookies son por dominio). Inicia sesión con tu cuenta para reconocer esta neurona.</p>
+              <a href="/login" className="mt-2 inline-flex items-center gap-1 rounded-md border border-cyan-400/40 bg-cyan-500/10 px-2.5 py-1 text-[11px] font-medium text-cyan-100 transition-colors hover:bg-cyan-500/20">Iniciar sesión</a>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    return null;
+  }
 
   return (
     <div
