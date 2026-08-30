@@ -417,7 +417,9 @@ export function CommandPalette() {
     if (typeof window === "undefined") return;
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.repeat) return;
-      const isTrigger = e.key.toLowerCase() === "k" && (e.metaKey || e.ctrlKey);
+      // (Adenda 181) `e.key` puede venir undefined en eventos sintéticos (gestores
+      // de contraseñas/autofill en el login) → guard antes de toLowerCase.
+      const isTrigger = typeof e.key === "string" && e.key.toLowerCase() === "k" && (e.metaKey || e.ctrlKey);
       if (!isTrigger) return;
       // Con la paleta CERRADA, si el foco está en un campo editable de la
       // página, dejamos pasar el atajo (no lo robamos a inputs/editores).
