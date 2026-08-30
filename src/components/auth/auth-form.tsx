@@ -21,6 +21,13 @@ export function AuthForm() {
     // restringido por cuota — su 402 llega sin CORS y el navegador lo convierte
     // en excepción) moría en SILENCIO: sin toast, botón colgado. Honesto: se
     // captura y se DICE, con el motivo más probable.
+    // (Adenda 182b) supabase-js REINTENTA en silencio ~10s los fallos de red
+    // (nuestro caso real: el 402 de cuota llega sin CORS → parece red caída).
+    // Sin este corte, el usuario pulsa y «no pasa nada» durante 10s. 8s y se dice.
+    function conTimeout<T>(p: Promise<T>, ms: number): Promise<T | "timeout"> {
+        return Promise.race([p, new Promise<"timeout">((res) => setTimeout(() => res("timeout"), ms))])
+    }
+
     function authFalloDuro(e: unknown, titulo: string) {
         console.error('[auth] fallo duro:', e)
         toast({
@@ -42,13 +49,18 @@ export function AuthForm() {
 
         let error: { message: string } | null = null
         try {
-            ({ error } = await supabase.auth.signUp({
+            const res = await conTimeout(supabase.auth.signUp({
                 email,
                 password,
                 options: {
                     emailRedirectTo: `${location.origin}/auth/callback`,
                 },
-            }))
+            }), 12000)
+            if (res === 'timeout') {
+                authFalloDuro(new Error('sin respuesta en 12s (reintentos silenciosos)'), 'Registro sin respuesta')
+                return
+            }
+            ;({ error } = res)
         } catch (e) {
             authFalloDuro(e, 'Registro sin respuesta')
             return
@@ -80,10 +92,12 @@ export function AuthForm() {
 
         let error: { message: string } | null = null
         try {
-            ({ error } = await supabase.auth.signInWithPassword({
-                email,
-                password,
-            }))
+            const res = await conTimeout(supabase.auth.signInWithPassword({ email, password }), 8000)
+            if (res === 'timeout') {
+                authFalloDuro(new Error('sin respuesta en 8s (reintentos silenciosos)'), 'Inicio de sesión sin respuesta')
+                return
+            }
+            ;({ error } = res)
         } catch (e) {
             authFalloDuro(e, 'Inicio de sesión sin respuesta')
             return
