@@ -106,8 +106,13 @@ export function StartupUpdatesModal() {
       aria-modal="true"
       aria-label="Configuración de sistemas de Astraura en esta neurona"
     >
+      {/* (Adenda 178) El onboarding unificado LIDERA con el paso «Astraura» — la IA
+          de la neurona, cuyo motor por defecto es el local 1.58-bit (`local` es la
+          primera clase del orden). La voz (OmniVoice) es un paso del MISMO wizard, así
+          que voz e IA quedan en una sola ventana (integración pedida). */}
       <AstrauraOmniVoiceConfig
         variant="modal"
+        initialSection="astraura"
         onApply={() => setOpen(false)}
         onDismiss={() => setOpen(false)}
       />
