@@ -192,7 +192,16 @@ export function SetupSentidos() {
       syncToolsToPersonality(c);
       // (Adenda 180) Al ACTIVAR una herramienta con permiso real (archivos, ubicación,
       // sensores, notificaciones) se solicita AHORA, con el gesto del clic.
-      if (añadido && TOOL_PERMISSION[kind]) {
+      if (añadido && TOOL_PERMISSION[kind] === "archivos") {
+        // (Adenda 180) Archivos = flujo REAL: elegir carpeta (con respaldo universal
+        // para Safari/Firefox), detectar configs de cerebros/cuentas dentro, y
+        // disparar la auto-detección/escaneo del backend de la neurona.
+        void import("@/lib/aurora/senses/folder-detect").then((m) => m.conectarCarpetaYDetectar()).then((res) => {
+          if (!res) { toast.warning("No se conectó ninguna carpeta (cancelado)."); return; }
+          toast.success(res.resumen, { duration: 9000 });
+          if (res.backend) toast.info(res.backend, { duration: 7000 });
+        }).catch(() => toast.error("No se pudo abrir el selector de carpetas."));
+      } else if (añadido && TOOL_PERMISSION[kind]) {
         void requestDevicePermission(TOOL_PERMISSION[kind]).then((r) => {
           if (r.concedido) toast.success("Permiso concedido.");
           else if (!r.soportado) toast.info(r.motivo ?? "No disponible en este navegador.");

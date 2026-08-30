@@ -1591,6 +1591,16 @@ export function updateAstraura158BrainNeuronPermissions(target: Astraura158Targe
   return post<Astraura158Ack>(target, "/api/cerebros/neuron/permissions", body);
 }
 
+/** (Adenda 180) Auto-DETECCIÓN de cerebros en los almacenamientos conectados al dispositivo. */
+export function autoDetectAstraura158Brains(target: Astraura158Target) {
+  return call<Astraura158Ack & { detected?: unknown[]; cerebros?: unknown[] }>(target, "/api/cerebros/auto_detect", { timeoutMs: 30_000 });
+}
+
+/** (Adenda 180) Auto-ENLACE de los cerebros detectados en almacenamientos (sync automático). */
+export function autoLinkAstraura158Brains(target: Astraura158Target) {
+  return post<Astraura158Ack & { linked?: number }>(target, "/api/cerebros/auto_link", {}, longTimeout(target));
+}
+
 /** Auto-enlace sináptico: el sistema conecta memorias/creaciones afines por su cuenta. */
 export function autoLinkAstraura158Synapses(target: Astraura158Target, brainId?: string) {
   return post<Astraura158Ack & { linked?: number }>(target, "/api/cerebros/auto_link_synapses", { brain_id: brainId ?? null }, longTimeout(target));

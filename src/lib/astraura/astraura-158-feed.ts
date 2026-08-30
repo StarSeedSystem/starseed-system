@@ -186,6 +186,24 @@ async function tick(): Promise<void> {
       }
     } catch { /* siembra best-effort */ }
 
+    // (Adenda 180) AUTO-detección de cerebros/cuentas en los almacenamientos del
+    // dispositivo + auto-enlace + escaneo de medios: automática al ver el backend
+    // vivo, desde CUALQUIER medio del OS. Máx. 1 vez al día por neurona;
+    // best-effort y sin bloquear el feed.
+    try {
+      const K = "starseed.astraura158.autodetect.at";
+      const last = Number(localStorage.getItem(K) || 0);
+      if (Date.now() - last > 86_400_000) {
+        localStorage.setItem(K, String(Date.now()));
+        const t = got.target;
+        void import("./astraura-158-client").then(async (c) => {
+          await c.autoDetectAstraura158Brains(t).catch(() => null);
+          await c.autoLinkAstraura158Brains(t).catch(() => null);
+          await c.scanAstraura158StorageNow(t).catch(() => null);
+        }).catch(() => { /* */ });
+      }
+    } catch { /* localStorage bloqueado: sin auto-detección persistida */ }
+
     // Novedades: dedupe persistente + ack al backend SIEMPRE (es la confirmación de
     // entrega, no un aviso); avisar por el centro del OS / toasts solo si se pidió.
     const seen = readSeen();

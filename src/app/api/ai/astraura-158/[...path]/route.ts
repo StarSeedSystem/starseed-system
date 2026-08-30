@@ -68,6 +68,7 @@ const GET_ALLOW: RegExp[] = [
   // ── Studio 1.58 (lectura de subsistemas; sin archivos, sin OS, sin claves) ──
   /^\/api\/starseed\/(events|processes)$/,
   /^\/api\/starseed\/cognition\/preference$/,
+  /^\/api\/cerebros\/auto_detect$/,
   /^\/api\/imagination\/(status|process_types|sync_execution_state)$/,
   /^\/api\/imagination\/process\/[\w.-]+(\/branches)?$/,
   /^\/api\/imagination\/synthesis_reports(\/latest|\/[\w.-]+)?$/,
@@ -111,6 +112,7 @@ const POST_ALLOW: RegExp[] = [
   /^\/api\/cerebros\/process\/control$/,
   /^\/api\/cerebros\/neuron\/permissions$/,
   /^\/api\/cerebros\/auto_link_synapses$/,
+  /^\/api\/cerebros\/auto_link$/,
   /^\/api\/chat$/,
   /^\/api\/chat\/stream$/,
   /^\/api\/starseed\/chat$/,
