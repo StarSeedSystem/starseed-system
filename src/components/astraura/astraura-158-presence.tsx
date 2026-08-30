@@ -54,7 +54,9 @@ import { openAstraura158Window } from "@/components/astraura/window/astraura-158
 /* ─────────────────── deep-links del Studio 1.58 (SOP §5) ─────────────────── */
 
 const ORQUESTACION_HREF = "/agent?tab=astraura-158&sub=orquestacion";
-const IMAGINACION_HREF = "/agent?tab=astraura-158&sub=imaginacion";
+// (Adenda 178) La barra de procesos activos lleva a la SECCIÓN PRINCIPAL de
+// Imaginación Intuitiva (página propia `/imaginacion`, Ola 6), no a la sub-pestaña.
+const IMAGINACION_HREF = "/imaginacion";
 const NOTIFICACIONES_HREF = "/agent?tab=astraura-158&sub=notificaciones";
 
 /* ═══════════════════ sondeo propio, ligero (singleton de módulo) ═══════════════════

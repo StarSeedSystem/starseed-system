@@ -264,7 +264,10 @@ export function ImaginacionTab({ target, refresh }: S158TabProps) {
           right={branches.length > 12 ? <button type="button" className={BTN} onClick={() => setShowAll((v) => !v)}>{showAll ? "Ver menos" : `Ver todas (${branches.length})`}</button> : undefined} />
         <div className="mt-2 grid gap-2 lg:grid-cols-2">
           {branches.length === 0 && <Empty loading={loading} error={error} text="Aún no hay ramas: dispara un ciclo." />}
-          {[...pending, ...shown.filter((b) => !pending.includes(b))].slice(0, showAll ? undefined : 12).map((b) => <BranchCard key={b.id} b={b} busy={busy} onAction={onAction} />)}
+          {/* (Adenda 178) Dedup por id, no por referencia: `pending` y `shown` pueden traer
+              instancias distintas de la MISMA rama (mismo id) → key duplicada. Map preserva el
+              orden de primera aparición (pendientes primero) y colapsa duplicados. */}
+          {Array.from(new Map([...pending, ...shown].map((b) => [b.id, b])).values()).slice(0, showAll ? undefined : 12).map((b) => <BranchCard key={b.id} b={b} busy={busy} onAction={onAction} />)}
         </div>
       </div>
 
