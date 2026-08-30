@@ -1,0 +1,20 @@
+{
+  "descripcion": "Manifiesto de versiones instalables de StarSeed OS. Ejes: sistema operativo × procesador × modelo base de Astraura × conciencia colectiva. Lo consumen la página /instalar, el onboarding de la app y los Ajustes de cada neurona (todo reconfigurable después).",
+  "modelos_base": [
+    { "id": "needle2", "nombre": "Needle 2", "parametros": "45 M", "arquitectura": "CQ2-bit (Cactus)", "disco": "~14 MB", "ram_min_gb": 1, "url": null, "estado": "por publicar" },
+    { "id": "bitnet-2b", "nombre": "BitNet b1.58 (Microsoft)", "parametros": "2 B", "arquitectura": "1.58-bit ternario", "disco": "~400-500 MB", "ram_min_gb": 2, "url": "https://huggingface.co/microsoft/BitNet-b1.58-2B-4T-gguf/resolve/main/ggml-model-i2_s.gguf", "estado": "activo (el que corre hoy en la neurona Mac)" },
+    { "id": "bonsai-1.7b", "nombre": "Ternary Bonsai (mini)", "parametros": "1.7 B", "arquitectura": "1.58-bit ternario", "disco": "~462 MB", "ram_min_gb": 2, "url": null, "estado": "por publicar" },
+    { "id": "bonsai-8b-1bit", "nombre": "Bonsai 8B (1-bit puro)", "parametros": "8 B", "arquitectura": "1-bit puro", "disco": "~1.15 GB", "ram_min_gb": 6, "url": null, "estado": "por publicar" },
+    { "id": "bonsai-8b", "nombre": "Ternary Bonsai (estándar)", "parametros": "8 B", "arquitectura": "1.58-bit ternario", "disco": "~1.75 GB", "ram_min_gb": 8, "url": null, "estado": "por publicar" }
+  ],
+  "conciencia_colectiva": [
+    { "id": "semilla", "nombre": "Semilla", "descripcion": "Solo conexión mesh remota; sin réplica local.", "extra_disco": "0 MB" },
+    { "id": "brote", "nombre": "Brote", "descripcion": "Caché local ligera del estado colectivo (memorias y señales frecuentes).", "extra_disco": "~256-512 MB" },
+    { "id": "bosque", "nombre": "Bosque", "descripcion": "Réplica amplia para operar sin conexión y servir a otras neuronas.", "extra_disco": "2 GB+" }
+  ],
+  "canales_de_actualizacion": {
+    "contenido_instantaneo": "Red, áreas sociales, publicaciones, archivos, mejoras de Astraura del lado servidor: cambian al momento para todos, sin reinstalar (la app carga la interfaz viva).",
+    "por_seccion": "Módulos y modelos se actualizan individualmente desde Ajustes → Actualizaciones, con notificación.",
+    "shell_nativo": "Cuando cambia el instalador en sí, la app se re-instala sola desde GitHub Releases conservando todos los datos (updater firmado de Tauri)."
+  }
+}

@@ -88,3 +88,5 @@ scripts/hermione-bridge-server.mjs
 _commit_msg.txt
 test-account-creds.json
 public/version.json
+.ss_migration/
+.env.local.bak*

@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Permisos base de la ventana principal de StarSeed OS",
+  "windows": ["main"],
+  "permissions": ["core:default", "updater:default"]
+}
