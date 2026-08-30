@@ -36,8 +36,13 @@ export function EntornoMontaje() {
   const router = useRouter();
   const [snap, setSnap] = useState<SnapshotEntorno | null>(null);
   const [descartadas, setDescartadas] = useState<string[]>([]);
+  // (Adenda 179 · fix hidratación) SSR y primer render del cliente NO deben leer
+  // `window`: se gatea con `mounted` para que ambos rindan null y el aviso local
+  // aparezca solo tras montar (mismo patrón que el portal de voz #310).
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
     setSnap(ultimoEntorno());
     try { setDescartadas(JSON.parse(sessionStorage.getItem(SS_DESCARTADAS) || "[]")); } catch { /* noop */ }
     let vivo = true;
@@ -61,7 +66,7 @@ export function EntornoMontaje() {
     // dominio de producción (cookies por origen), así que el OS no reconoce tu
     // cuenta. En vez de aparecer como desconocido, ofrecemos iniciar sesión —
     // SIN tocar la auth del servidor (es un límite del navegador, no un bug).
-    const esLocal = typeof window !== "undefined" && /^(localhost|127\.0\.0\.1|\[::1\])$/.test(window.location.hostname);
+    const esLocal = mounted && /^(localhost|127\.0\.0\.1|\[::1\])$/.test(window.location.hostname);
     if (esLocal && !snap?.sesionActual) {
       return (
         <div role="dialog" aria-label="Sesión en modo local" className="fixed bottom-[max(0.75rem,env(safe-area-inset-bottom))] left-[max(0.75rem,env(safe-area-inset-left))] z-[65] max-w-[92vw] sm:max-w-sm rounded-xl border border-white/10 bg-black/70 p-3 shadow-lg backdrop-blur-md">
