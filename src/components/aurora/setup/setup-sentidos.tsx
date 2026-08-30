@@ -57,6 +57,8 @@ import {
   type OssSttModelId,
 } from "@/lib/aurora/stt-oss/opt-in";
 import { getVisionPrefs, setVisionPrefs } from "@/lib/aurora/senses/vision-sense";
+// (Adenda 180) Solicitud REAL del permiso del navegador al activar un sentido/herramienta.
+import { requestDevicePermission, SENSE_PERMISSION, TOOL_PERMISSION } from "@/lib/aurora/senses/request-permission";
 import { Block, Chip, Icon, Note, StatusBadge, Toggle, btnCls, inputCls, labelCls, selectCls } from "./setup-ui";
 
 /** Personalidad sobre la que se escriben los pines (la activa, o Aurora). */
@@ -184,9 +186,19 @@ export function SetupSentidos() {
   const toggleTool = useCallback(
     (id: SetupSenseId, kind: string) => {
       const current = (cfg?.[id]?.herramientas ?? []) as string[];
-      const next = current.includes(kind) ? current.filter((k) => k !== kind) : [...current, kind];
+      const añadido = !current.includes(kind);
+      const next = añadido ? [...current, kind] : current.filter((k) => k !== kind);
       const c = patch(id, { herramientas: next });
       syncToolsToPersonality(c);
+      // (Adenda 180) Al ACTIVAR una herramienta con permiso real (archivos, ubicación,
+      // sensores, notificaciones) se solicita AHORA, con el gesto del clic.
+      if (añadido && TOOL_PERMISSION[kind]) {
+        void requestDevicePermission(TOOL_PERMISSION[kind]).then((r) => {
+          if (r.concedido) toast.success("Permiso concedido.");
+          else if (!r.soportado) toast.info(r.motivo ?? "No disponible en este navegador.");
+          else toast.warning(r.motivo ?? "Permiso pendiente.");
+        });
+      }
     },
     [cfg, patch, syncToolsToPersonality],
   );
@@ -195,6 +207,15 @@ export function SetupSentidos() {
     (spec: SetupSenseSpec, enabled: boolean) => {
       const c = patch(spec.id, { enabled });
       syncToolsToPersonality(c);
+      // (Adenda 180) Solicita el permiso REAL del navegador con el gesto del clic
+      // (antes solo se guardaba el flag y el permiso del SO nunca se pedía).
+      if (enabled && SENSE_PERMISSION[spec.id]) {
+        void requestDevicePermission(SENSE_PERMISSION[spec.id]).then((r) => {
+          if (r.concedido) toast.success(`Permiso concedido: ${spec.label}.`);
+          else if (!r.soportado) toast.info(r.motivo ?? "No disponible en este navegador.");
+          else toast.warning(`Permiso pendiente: ${r.motivo ?? "denegado"}.`);
+        });
+      }
       // Efectos REALES en los motores propios del sentido.
       if (spec.id === "vision") {
         try {
