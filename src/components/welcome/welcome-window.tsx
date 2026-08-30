@@ -89,6 +89,12 @@ export function WelcomeWindow({ onContinue, className }: WelcomeWindowProps) {
   // (Adenda 181) Resumen honesto de la carpeta conectada por el permiso de archivos
   // (qué configs de cerebros/cuentas StarSeed se detectaron dentro).
   const [carpetaInfo, setCarpetaInfo] = useState("");
+  // (Adenda 182 · contexto) Visor embebido que bloquea permisos a nivel navegador
+  // (p.ej. el visor de Claude): se detecta tras montar (SSR-safe) y se DICE.
+  const [visor, setVisor] = useState<{ bloqueado: boolean; visor: string }>({ bloqueado: false, visor: "" });
+  useEffect(() => {
+    import("@/lib/senses/senses").then((m) => setVisor(m.visorBloqueaPermisos())).catch(() => { /* */ });
+  }, []);
   useEffect(() => {
     const h = (e: Event) => {
       const d = (e as CustomEvent<{ resumen?: string; backend?: string }>).detail;
@@ -312,11 +318,19 @@ export function WelcomeWindow({ onContinue, className }: WelcomeWindowProps) {
                 <ShieldCheck size={15} aria-hidden /> Solicitar todos los permisos
               </button>
 
+              {visor.bloqueado && (
+                <p role="status" style={{ fontSize: 11, color: "#fcd34d", background: "rgba(252,211,77,.08)", border: "1px solid rgba(252,211,77,.25)", borderRadius: 10, padding: "8px 10px", margin: "0 0 10px", lineHeight: 1.5 }}>
+                  Estás en {visor.visor}: bloquea los permisos del dispositivo a nivel navegador (no es un fallo de StarSeed).
+                  Abre <b>este mismo enlace en Chrome o Safari</b> para que aparezcan los diálogos reales.
+                </p>
+              )}
               <div style={{ display: "grid", gap: 8 }}>
                 {SENSES.map((s) => {
                   const Icon = s.icon;
                   const state = perms[s.id] ?? "prompt";
-                  const meta = STATE_LABEL[state];
+                  const meta = visor.bloqueado && state === "denied"
+                    ? { text: "Bloqueado por el visor", color: "#fcd34d" }
+                    : STATE_LABEL[state];
                   const isTesting = !!testing[s.id];
                   return (
                     <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 11, padding: "10px 12px", borderRadius: 12, background: "rgba(255,255,255,.03)", border: "1px solid rgba(255,255,255,.1)" }}>

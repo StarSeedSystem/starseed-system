@@ -61,6 +61,19 @@ export interface SensesConfig {
   astraura: SenseFlags;
 }
 
+/** (Adenda 182) ¿Este navegador es un VISOR EMBEBIDO que bloquea los permisos de
+ * dispositivo a nivel navegador (sin mostrar diálogos)? Verificado en vivo: el
+ * visor integrado de Claude (UA `Claude/x.y`) pre-deniega micrófono/cámara/
+ * ubicación/notificaciones/portapapeles — no es un fallo del OS. La UI debe
+ * decirlo con su motivo en vez de pintar «Denegado» como si fuera culpa tuya. */
+export function visorBloqueaPermisos(): { bloqueado: boolean; visor: string } {
+  if (typeof navigator === "undefined") return { bloqueado: false, visor: "" };
+  const ua = navigator.userAgent;
+  if (/ Claude\//.test(ua)) return { bloqueado: true, visor: "el visor integrado de Claude" };
+  if (/ Electron\//.test(ua)) return { bloqueado: true, visor: "esta app embebida" };
+  return { bloqueado: false, visor: "" };
+}
+
 export interface SenseTestResult {
   ok: boolean;
   /** Estado de permiso conocido tras el intento. */
