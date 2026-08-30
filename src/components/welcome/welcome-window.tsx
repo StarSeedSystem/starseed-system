@@ -86,6 +86,17 @@ export function WelcomeWindow({ onContinue, className }: WelcomeWindowProps) {
   const [testing, setTesting] = useState<Record<string, boolean>>({});
   const [auroraBusy, setAuroraBusy] = useState(false);
   const [auroraDone, setAuroraDone] = useState(false);
+  // (Adenda 181) Resumen honesto de la carpeta conectada por el permiso de archivos
+  // (qué configs de cerebros/cuentas StarSeed se detectaron dentro).
+  const [carpetaInfo, setCarpetaInfo] = useState("");
+  useEffect(() => {
+    const h = (e: Event) => {
+      const d = (e as CustomEvent<{ resumen?: string; backend?: string }>).detail;
+      if (d?.resumen) setCarpetaInfo([d.resumen, d.backend].filter(Boolean).join(" "));
+    };
+    window.addEventListener("starseed:carpeta-detectada", h);
+    return () => window.removeEventListener("starseed:carpeta-detectada", h);
+  }, []);
 
   // Estado de permisos en vivo al abrir la vista de permisos (SSR-safe).
   useEffect(() => {
@@ -336,6 +347,12 @@ export function WelcomeWindow({ onContinue, className }: WelcomeWindowProps) {
                   );
                 })}
               </div>
+
+              {carpetaInfo && (
+                <p role="status" style={{ fontSize: 11, color: "#6ee7b7", margin: "10px 0 0", lineHeight: 1.5 }}>
+                  {carpetaInfo}
+                </p>
+              )}
 
               <p style={{ fontSize: 10.5, opacity: 0.5, margin: "14px 0 0", lineHeight: 1.5 }}>
                 Honestidad: cada permiso abre el diálogo real de tu navegador y sólo se usa a través de los sentidos que actives. Nada se captura de forma automática.

@@ -441,9 +441,18 @@ export async function requestSense(senseId: string): Promise<SenseTestResult> {
         };
       }
       case "files": {
-        // Los archivos se adjuntan vía un <input>/drag-drop bajo demanda;
-        // no hay un permiso persistente que consultar.
-        return { ok: true, state: "prompt" };
+        // (Adenda 181) Antes era un STUB que no hacía nada — por eso «archivos»
+        // parecía roto en la Bienvenida. Ahora abre el flujo REAL: elegir carpeta
+        // (File System Access, con respaldo universal por subida en Safari/Firefox),
+        // DETECTAR configs de cerebros/cuentas StarSeed dentro, y disparar la
+        // auto-detección/escaneo del backend de la neurona.
+        const m = await import("@/lib/aurora/senses/folder-detect");
+        const res = await m.conectarCarpetaYDetectar();
+        if (!res) return { ok: false, state: "prompt", error: "cancelado (no se eligió carpeta)" };
+        try {
+          window.dispatchEvent(new CustomEvent("starseed:carpeta-detectada", { detail: res }));
+        } catch { /* el resumen es cortesía; el permiso ya quedó concedido */ }
+        return { ok: true, state: "granted" };
       }
       default:
         return { ok: false, state: "unsupported" };

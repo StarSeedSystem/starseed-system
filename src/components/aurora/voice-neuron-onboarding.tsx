@@ -291,6 +291,11 @@ export function VoiceNeuronOnboarding() {
       // al chunk de este componente, montado en el layout raíz (ver #310).
       // NO afecta a la apertura MANUAL ni al evento de reapertura desde
       // Ajustes (`NEURON_VOICE_REOPEN_EVENT`), que siguen abriendo siempre.
+      // (Adenda 181 · integración pedida por Alex) SIN SESIÓN (ruta /login con la
+      // Bienvenida) esta ventana NO se auto-abre: la voz se configura en la
+      // ventana UNIFICADA post-login (paso OmniVoice del wizard Astraura, con el
+      // 1.58 al frente). La reapertura manual desde Ajustes sigue funcionando.
+      if (window.location.pathname.startsWith("/login")) return;
       const updatesWillShow = await import("@/lib/astraura/startup-updates")
         .then((m) => {
           try { return m.shouldShowUpdates(); } catch { return false; }
@@ -328,7 +333,10 @@ export function VoiceNeuronOnboarding() {
     return () => window.removeEventListener(NEURON_VOICE_REOPEN_EVENT, onReopen as EventListener);
   }, []);
 
-  if (!open || typeof document === "undefined") return null;
+  // (Adenda 181 · fix «Rendered fewer hooks») El return temprano vivía AQUÍ, con
+  // ~10 hooks declarados más abajo (vbKey, mounted, useCallbacks…): al cerrar la
+  // ventana, React veía menos hooks y CRASHEABA la página entera. El gate se
+  // movió DESPUÉS de todos los hooks, justo antes del portal.
 
   const choose = (mode: NeuronVoiceMode) => {
     writeNeuronVoiceChoice(mode);
@@ -557,6 +565,9 @@ export function VoiceNeuronOnboarding() {
 
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
+
+  // (Adenda 181) Gate de render DESPUÉS de todos los hooks (ver nota arriba).
+  if (!open || typeof document === "undefined") return null;
   // [fix hydration] El portal solo existe en el cliente (document.body no existe
   // en SSR). Devolver null en SSR y en el primer render cliente evita el mismatch
   // de hydration (el servidor serializaba <script>, el cliente <div>).
