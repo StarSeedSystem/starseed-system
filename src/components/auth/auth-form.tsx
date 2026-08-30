@@ -17,6 +17,21 @@ export function AuthForm() {
     const supabase = createClient()
     const [isLoading, setIsLoading] = React.useState(false)
 
+    // (Adenda 182) Un fetch de auth RECHAZADO (red caída, o el proyecto Supabase
+    // restringido por cuota — su 402 llega sin CORS y el navegador lo convierte
+    // en excepción) moría en SILENCIO: sin toast, botón colgado. Honesto: se
+    // captura y se DICE, con el motivo más probable.
+    function authFalloDuro(e: unknown, titulo: string) {
+        console.error('[auth] fallo duro:', e)
+        toast({
+            title: titulo,
+            description:
+                'No se pudo contactar la autenticación. Puede ser tu red, o el proyecto Supabase del OS restringido por cuota (revisa su dashboard: estado/egress).',
+            variant: 'destructive',
+        })
+        setIsLoading(false)
+    }
+
     async function handleSignUp(event: React.FormEvent<HTMLFormElement>) {
         event.preventDefault()
         setIsLoading(true)
@@ -25,13 +40,19 @@ export function AuthForm() {
         const email = formData.get('email') as string
         const password = formData.get('password') as string
 
-        const { error } = await supabase.auth.signUp({
-            email,
-            password,
-            options: {
-                emailRedirectTo: `${location.origin}/auth/callback`,
-            },
-        })
+        let error: { message: string } | null = null
+        try {
+            ({ error } = await supabase.auth.signUp({
+                email,
+                password,
+                options: {
+                    emailRedirectTo: `${location.origin}/auth/callback`,
+                },
+            }))
+        } catch (e) {
+            authFalloDuro(e, 'Registro sin respuesta')
+            return
+        }
 
         if (error) {
             toast({
@@ -57,10 +78,16 @@ export function AuthForm() {
         const email = formData.get('email') as string
         const password = formData.get('password') as string
 
-        const { error } = await supabase.auth.signInWithPassword({
-            email,
-            password,
-        })
+        let error: { message: string } | null = null
+        try {
+            ({ error } = await supabase.auth.signInWithPassword({
+                email,
+                password,
+            }))
+        } catch (e) {
+            authFalloDuro(e, 'Inicio de sesión sin respuesta')
+            return
+        }
 
         if (error) {
             toast({
