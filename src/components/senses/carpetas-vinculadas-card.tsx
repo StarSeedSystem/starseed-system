@@ -10,6 +10,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { FolderOpen, Cloud, Plus, X, RefreshCw, HardDrive } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import {
   listarCarpetas, suscribirCarpetas, agregarCarpetaDispositivo, agregarCarpetaServicio,
@@ -17,12 +18,21 @@ import {
   type CarpetaVinculada, type ServicioAlmacenamiento,
 } from "@/lib/storage/carpetas-vinculadas";
 import type { PermisoUI } from "@/components/senses/permisos-dispositivo";
+// (Adenda 194) Conexión REAL a la cuenta del servicio (OAuth PKCE).
+import {
+  conectarAlmacenamiento, cuentaDe, guardarClientId, redirectUri,
+  OAUTH_ALMACENAMIENTO, type CuentaConectada,
+} from "@/lib/storage/oauth-almacenamiento";
 
 export function FilaCarpetas({ p }: { p: PermisoUI }) {
   const [carpetas, setCarpetas] = useState<CarpetaVinculada[]>([]);
   const [ocupado, setOcupado] = useState(false);
   const [verServicios, setVerServicios] = useState(false);
   const [nota, setNota] = useState<string | null>(null);
+  // Conexión real: cuentas ya autorizadas y alta de ID de cliente si falta.
+  const [cuentas, setCuentas] = useState<Record<string, CuentaConectada>>({});
+  const [pidiendoId, setPidiendoId] = useState<{ servicio: ServicioAlmacenamiento; consola?: string; detalle?: string } | null>(null);
+  const [clientId, setClientId] = useState("");
   const soportado = soportaCarpetasDispositivo();
 
   useEffect(() => {
@@ -38,10 +48,42 @@ export function FilaCarpetas({ p }: { p: PermisoUI }) {
     } finally { setOcupado(false); }
   }, []);
 
-  const agregarServicio = useCallback((id: ServicioAlmacenamiento) => {
-    agregarCarpetaServicio(id);
+  /**
+   * (Adenda 194) Conecta la CUENTA de verdad: abre el consentimiento del
+   * proveedor y pide los permisos de carpetas. Si el servicio aún no tiene
+   * conexión directa, queda declarado como antes (y se dice tal cual).
+   */
+  const agregarServicio = useCallback(async (id: ServicioAlmacenamiento) => {
     setVerServicios(false);
-    setNota("Almacenamiento declarado. Termina de autorizarlo en Ajustes → Integraciones cuando quieras.");
+    setNota(null);
+    if (!OAUTH_ALMACENAMIENTO[id]) {
+      agregarCarpetaServicio(id);
+      setNota("Este servicio aún no tiene conexión directa: queda declarado y se conecta desde Ajustes → Integraciones.");
+      return;
+    }
+    setOcupado(true);
+    try {
+      const r = await conectarAlmacenamiento(id);
+      if (r.ok) {
+        agregarCarpetaServicio(id, r.cuenta.cuenta);
+        setCuentas((c) => ({ ...c, [id]: r.cuenta }));
+        setNota(`${OAUTH_ALMACENAMIENTO[id]!.label} conectado${r.cuenta.cuenta ? ` como ${r.cuenta.cuenta}` : ""} ✓ Sus carpetas ya se pueden vincular a tus cerebros.`);
+      } else if (r.motivo === "sin-client-id") {
+        setPidiendoId({ servicio: id, consola: r.consola, detalle: r.detalle });
+      } else if (r.motivo === "cancelado") {
+        setNota("Conexión cancelada: no se autorizó nada.");
+      } else {
+        setNota(r.detalle || "No se pudo conectar con el servicio.");
+      }
+    } finally {
+      setOcupado(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const m: Record<string, CuentaConectada> = {};
+    for (const s of SERVICIOS) { const c = cuentaDe(s.id); if (c) m[s.id] = c; }
+    setCuentas(m);
   }, []);
 
   const { Icon } = p;
@@ -69,7 +111,21 @@ export function FilaCarpetas({ p }: { p: PermisoUI }) {
               {c.tipo === "dispositivo"
                 ? <HardDrive className="h-3.5 w-3.5 shrink-0 text-cyan-300" aria-hidden />
                 : <Cloud className="h-3.5 w-3.5 shrink-0 text-fuchsia-300" aria-hidden />}
-              <span className="min-w-0 flex-1 truncate">{c.nombre}</span>
+              <span className="min-w-0 flex-1 truncate">
+                {c.nombre}
+                {c.tipo === "servicio" && c.servicio && cuentas[c.servicio]?.cuenta && (
+                  <span className="ml-1 text-[10px] text-emerald-300">· {cuentas[c.servicio]!.cuenta}</span>
+                )}
+                {c.tipo === "servicio" && c.servicio && OAUTH_ALMACENAMIENTO[c.servicio] && !cuentas[c.servicio] && (
+                  <button
+                    type="button"
+                    onClick={() => void agregarServicio(c.servicio!)}
+                    className="ml-1 text-[10px] text-amber-300 underline-offset-2 hover:underline"
+                  >
+                    conectar cuenta
+                  </button>
+                )}
+              </span>
               {c.tipo === "dispositivo" && !c.vivo && (
                 <button
                   type="button" onClick={() => void agregar()}
@@ -112,7 +168,12 @@ export function FilaCarpetas({ p }: { p: PermisoUI }) {
               )}
             >
               <Plus className="h-3 w-3 shrink-0 text-fuchsia-300" aria-hidden />
-              <span className="min-w-0"><span className="block truncate">{s.label}</span></span>
+              <span className="min-w-0">
+                <span className="block truncate">{s.label}</span>
+                <span className="block truncate text-[9px] text-white/40">
+                  {OAUTH_ALMACENAMIENTO[s.id] ? (cuentas[s.id] ? "cuenta conectada ✓" : "conectar cuenta y permisos") : "se conecta en Integraciones"}
+                </span>
+              </span>
             </button>
           ))}
         </div>
@@ -123,6 +184,37 @@ export function FilaCarpetas({ p }: { p: PermisoUI }) {
           Este navegador no puede abrir carpetas del equipo (File System Access): usa Chrome o Edge, o vincula un
           almacenamiento externo — y para acceso completo al disco, la app de escritorio o el backend de tu neurona.
         </p>
+      )}
+      {pidiendoId && (
+        <div className="mt-2 space-y-2 rounded-xl border border-amber-400/25 bg-amber-400/[0.06] p-2.5">
+          <p className="text-[11px] leading-snug text-amber-100/90">{pidiendoId.detalle}</p>
+          <p className="text-[10px] leading-snug text-white/55">
+            URI de redirección a declarar: <code className="rounded bg-black/30 px-1">{redirectUri()}</code>
+          </p>
+          <div className="flex gap-2">
+            <Input
+              value={clientId}
+              onChange={(e) => setClientId(e.target.value)}
+              placeholder="ID de cliente del proveedor"
+              className="h-8 text-xs"
+            />
+            <Button
+              size="sm" variant="outline" className="h-8 shrink-0 text-xs"
+              onClick={() => {
+                if (!clientId.trim()) return;
+                guardarClientId(pidiendoId.servicio, clientId.trim());
+                const srv = pidiendoId.servicio;
+                setPidiendoId(null); setClientId("");
+                void agregarServicio(srv);
+              }}
+            >
+              Guardar y conectar
+            </Button>
+          </div>
+          {pidiendoId.consola && (
+            <p className="text-[10px] text-white/45">Consola del proveedor: {pidiendoId.consola}</p>
+          )}
+        </div>
       )}
       {nota && <p className="mt-2 text-[11px] leading-snug text-cyan-200/80">{nota}</p>}
       <p className="mt-2 text-[10px] leading-snug text-white/45">

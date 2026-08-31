@@ -51,13 +51,22 @@ export function StartupUpdatesModal() {
       if (window.sessionStorage.getItem("starseed.guia.pendiente") !== "1") return;
       window.sessionStorage.removeItem("starseed.guia.pendiente");
     } catch { return; }
+    // (Adenda 194) Antes de la guía va la VENTANA DE PERFIL: se sube avatar y
+    // portada, se corrige el @handle y luego se ve el perfil completo; desde
+    // ahí arranca el recorrido en el Escritorio. Si esa ventana no estuviera
+    // montada, se cae a la guía directa para no dejar el flujo colgado.
     window.setTimeout(() => {
+      try {
+        window.sessionStorage.setItem("starseed.perfil.launch", "1");
+        window.dispatchEvent(new Event("starseed:open-perfil-inicial"));
+        return;
+      } catch { /* sin sessionStorage: guía directa */ }
       try {
         const w = window as unknown as { openStarseedGuide?: () => void };
         if (typeof w.openStarseedGuide === "function") w.openStarseedGuide();
         else window.dispatchEvent(new Event("starseed:open-guide"));
       } catch { /* la guía queda disponible en Ajustes */ }
-    }, 500);
+    }, 400);
   }, []);
 
   /** Escape = «Recordar luego»: pospone y cierra (nunca lanza). */

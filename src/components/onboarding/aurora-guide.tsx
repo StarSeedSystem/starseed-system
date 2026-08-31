@@ -496,6 +496,22 @@ export function AuroraGuide() {
         window.sessionStorage.removeItem("starseed.guide.launch");
         window.setTimeout(() => openGuide(0), 900);
       }
+      // (Adenda 194) Cierre del rito: el usuario acaba de ver su perfil recién
+      // creado. Se le deja mirarlo un momento y el recorrido arranca YA en el
+      // Escritorio, que es donde empieza el tour.
+      if (window.sessionStorage.getItem("starseed.guia.tras.perfil") === "1") {
+        window.sessionStorage.removeItem("starseed.guia.tras.perfil");
+        window.setTimeout(() => {
+          try {
+            if (!window.location.pathname.startsWith("/escritorios")) {
+              window.sessionStorage.setItem("starseed.guide.launch", "1");
+              window.location.assign("/escritorios");
+              return;
+            }
+          } catch { /* seguimos aquí */ }
+          openGuide(0);
+        }, 3200);
+      }
     } catch { /* sin sessionStorage: la guía queda en Ajustes */ }
     return () => {
       window.removeEventListener(OPEN_GUIDE_EVENT, onOpen);

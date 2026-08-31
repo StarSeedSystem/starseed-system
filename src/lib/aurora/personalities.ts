@@ -2006,6 +2006,13 @@ export function deriveVoiceStyle(p: PersonalityProfile): AuroraVoiceStyleDetail 
 export function emitVoiceStyleForProfile(p: PersonalityProfile): void {
   if (!hasWindow()) return;
   try {
+    // (Adenda 194) Publica los RASGOS de la personalidad activa: la voz
+    // autónoma se modula con ellos y el motor los necesita de forma síncrona
+    // al construir cada locución.
+    (window as unknown as { STARSEED_personality_traits?: Record<string, number> })
+      .STARSEED_personality_traits = { ...(p.traits || {}) };
+  } catch { /* la voz sigue con su modulación base */ }
+  try {
     window.dispatchEvent(new CustomEvent(AURORA_VOICE_STYLE_EVENT, { detail: deriveVoiceStyle(p) }));
   } catch { /* noop */ }
 }

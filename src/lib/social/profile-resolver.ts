@@ -55,6 +55,33 @@ export async function resolveProfileData(handle: string, viewerId?: string | nul
         };
     }
 
+    // 3. (Adenda 194) Red de seguridad: `public.profiles` — la tabla que
+    // escriben el alta de cuenta y el rito de iniciación. Antes solo se miraba
+    // en os_profiles/os_account_profiles, así que TODA cuenta nueva veía
+    // «Perfil no encontrado» aunque su perfil existiera.
+    const { data: baseData } = await supabase
+        .from("profiles")
+        .select("user_id,handle,display_name,bio,avatar_url,cover_url")
+        .ilike("handle", cleanHandle)
+        .maybeSingle();
+
+    if (baseData) {
+        const b = baseData as {
+            user_id: string; handle?: string; display_name?: string;
+            bio?: string; avatar_url?: string; cover_url?: string;
+        };
+        return {
+            isOwner: viewerId === b.user_id,
+            name: b.display_name || b.handle || cleanHandle,
+            handle: b.handle || cleanHandle,
+            bio: b.bio || "",
+            avatar: b.avatar_url || "",
+            cover: b.cover_url || "",
+            type: "sovereign",
+            id: b.user_id,
+        };
+    }
+
     return {
         isOwner: false,
         name: cleanHandle,

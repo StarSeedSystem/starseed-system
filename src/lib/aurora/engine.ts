@@ -66,7 +66,8 @@ import { astraura158MetaFromRaw, astraura158ToolMetas, isAstraura158Source } fro
 // del navegador (neurales/premium primero, es-* preferente) y modulación
 // emocional persistida en `starseed.aurora.voice.v1`. Módulos LIGEROS y
 // SSR-safe: importarlos no carga nada pesado.
-import { resolveBrowserVoice } from "@/lib/aurora/tts-oss/browser-voices";
+import { resolveBrowserVoice, elegirVozPorGenero } from "@/lib/aurora/tts-oss/browser-voices";
+import { getModoVoz, generoEfectivo, ajustesVozEfectivos } from "@/lib/aurora/voz-inicial";
 import { resolveVoiceParams } from "@/lib/aurora/tts-oss/voice-style";
 import {
   getVoiceConfig as getUnifiedVoiceConfig,
@@ -508,6 +509,29 @@ function resolveBrowserUtterance(clean: string, p: Personality): SpeechSynthesis
   }
   const v = wantFemale ? (buildVoiceChain(true) || buildVoiceChain(false)) : buildVoiceChain(false);
   if (v) u.voice = v;
+
+  // (Adenda 194) MODO DE VOZ elegido en la bienvenida (femenina · masculina ·
+  // neutra · autónoma). Manda sobre el ranking histórico: elige la mejor voz
+  // del sistema de ESE género y aplica su modulación, de modo que las tres
+  // suenen bien sin que nadie toque un ajuste. Una voz fijada a mano en la
+  // personalidad sigue ganando (gesto explícito del usuario).
+  try {
+    const modo = getModoVoz();
+    if (!p.voice?.voiceURI) {
+      const elegida = elegirVozPorGenero(generoEfectivo(modo), all, u.lang || "es");
+      if (elegida) u.voice = elegida;
+    }
+    // Los rasgos para la modulación autónoma viven en el PERFIL de personalidad
+    // (no en la Personality del motor): se leen de forma defensiva.
+    let rasgos: Record<string, number> | undefined;
+    try {
+      const act = (globalThis as unknown as { STARSEED_personality_traits?: Record<string, number> }).STARSEED_personality_traits;
+      rasgos = act;
+    } catch { rasgos = undefined; }
+    const aj = ajustesVozEfectivos(rasgos);
+    u.pitch = Math.max(0, Math.min(2, u.pitch * aj.pitch));
+    u.rate = Math.max(0.1, Math.min(2, u.rate * aj.rate));
+  } catch { /* sin modo elegido: queda la cadena de siempre */ }
   return u;
 }
 

@@ -62,6 +62,7 @@ import { AuroraWidget } from "@/components/aurora/aurora-widget";
 import { AuroraGuide } from "@/components/onboarding/aurora-guide";
 import { OnboardingGate } from "@/components/onboarding/onboarding-gate";
 import { StartupUpdatesModal } from "@/components/astraura/startup-updates-modal";
+import VentanaPerfilInicial from "@/components/onboarding/ventana-perfil-inicial";
 import { CursorFxHost } from "@/components/desktop/cursor-fx";
 import { PerfController, PerfHeavyOnly, PerfStaticBackdrop } from "@/components/perf/perf-gate";
 import { PinnedWidgetOverlay } from "@/components/dashboard/widgets/pinned-widget-overlay";
@@ -320,6 +321,9 @@ export default function RootLayout({
                             (main)—, así que su turno del orden (rito → sistemas
                             → guía) no llegaba a existir en esa ruta. */}
                         <StartupUpdatesModal />
+                        {/* (Adenda 194) Ventana de perfil del rito: última
+                            parada antes del recorrido, en cualquier ruta. */}
+                        <VentanaPerfilInicial />
                         {/* Cursor personalizado + animaciones de clic (config en
                             Apariencia → Cursor; 'starseed.cursorfx.v1'). Global. */}
                         <CursorFxHost />

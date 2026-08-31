@@ -158,10 +158,57 @@ export async function saveProfileOptional(optional: {
     const sb = createClient();
     const { error } = await sb.from("profiles").update(patch).eq("user_id", owner);
     if (error) return { ok: false, error: error.message };
+    // (Adenda 194) Espejo en el perfil PÚBLICO: avatar, portada y bio son lo
+    // que se ve en /profile, que lee `os_profiles`.
+    await sincronizarPerfilPublico(owner, patch);
     return { ok: true };
   } catch (e) {
     return { ok: false, error: (e as Error)?.message || "Error al guardar." };
   }
+}
+
+/**
+ * (Adenda 194) Espejo en `os_profiles` — el perfil PÚBLICO que sirve
+ * /profile/<handle>. Best-effort: si falla, la cuenta ya quedó bien en
+ * `profiles` y no se bloquea el rito.
+ */
+export async function sincronizarPerfilPublico(
+  owner: string,
+  campos: { handle?: string; display_name?: string; avatar_url?: string; cover_url?: string; bio?: string },
+): Promise<void> {
+  try {
+    const sb = createClient();
+    const patch: Record<string, unknown> = { user_id: owner, is_default: true, kind: "sovereign" };
+    if (campos.handle) { patch.handle = campos.handle; patch.username = campos.handle; }
+    if (campos.display_name) patch.display_name = campos.display_name;
+    if (campos.avatar_url) patch.avatar_url = campos.avatar_url;
+    if (campos.cover_url) patch.cover_url = campos.cover_url;
+    if (campos.bio) patch.bio = campos.bio;
+    await sb.from("os_profiles").upsert(patch, { onConflict: "user_id" });
+  } catch { /* el perfil privado ya está guardado; esto es el espejo público */ }
+}
+
+/**
+ * (Adenda 194) Renombra la identidad interna y su dirección @star.seed al
+ * handle REAL elegido. Sin esto quedaba colgado el nombre secundario que el
+ * trigger inventaba al crear la cuenta.
+ */
+export async function renombrarIdentidadInterna(owner: string, handle: string): Promise<void> {
+  const nueva = `${handle}@${STARSEED_DOMAIN}`;
+  try {
+    const sb = createClient();
+    // ¿Esa dirección ya la tiene alguien más? Entonces no se toca nada.
+    const { data: ocupada } = await sb
+      .from("account_emails").select("id,user_id").ilike("address", nueva).limit(1);
+    const ajena = ((ocupada as { user_id?: string }[]) || []).find((r) => r.user_id && r.user_id !== owner);
+    if (ajena) return;
+    await sb.from("starseed_identities")
+      .update({ handle, email_handle: handle, address: nueva })
+      .eq("owner", owner).eq("kind", "internal");
+    await sb.from("account_emails")
+      .update({ address: nueva })
+      .eq("user_id", owner).eq("kind", "internal");
+  } catch { /* la cuenta funciona igual con la dirección anterior */ }
 }
 
 // ── @handle en la red (profiles) ─────────────────────────────────────────
@@ -278,6 +325,21 @@ export async function claimProfile(
       .from("profiles")
       .upsert(payload, { onConflict: "user_id" });
     if (error) return { ok: false, error: error.message };
+
+    // (Adenda 194) El PERFIL PÚBLICO vive en `os_profiles`: es la tabla que lee
+    // /profile/<handle>. Antes solo se escribía `profiles`, así que toda cuenta
+    // nueva aterrizaba en «Perfil no encontrado» con el handle inventado por el
+    // trigger. Se sincroniza aquí, con el handle que el usuario SÍ eligió.
+    await sincronizarPerfilPublico(owner, {
+      handle,
+      display_name: fullName,
+      avatar_url: (optional as { avatar_url?: string }).avatar_url,
+      cover_url: (optional as { cover_url?: string }).cover_url,
+      bio: (optional as { bio?: string }).bio,
+    });
+    // Y la identidad interna sigue al handle elegido: sin ella quedaba vivo el
+    // «nombre secundario» (handle_aleatorio@star.seed) que nadie pidió.
+    await renombrarIdentidadInterna(owner, handle);
     return { ok: true };
   } catch (e) {
     return { ok: false, error: (e as Error)?.message || "Error al guardar el perfil." };

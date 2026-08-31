@@ -50,6 +50,17 @@ const FEMALE_NAME_HINTS = [
   "samantha", "victoria", "karen", "moira", "tessa", "ava", "allison", "susan",
   "zira", "aria", "jenny", "sonia", "libby", "emma", "olivia", "amy", "joanna",
 ];
+/** (Adenda 194) Pistas de voz MASCULINA por nombre (es + en). Sin esta lista,
+ *  «masculina» no se podía elegir: solo existía la preferencia femenina. */
+const MALE_NAME_HINTS = [
+  "male", "hombre", "masculina", "masculino",
+  // Español (Apple/Microsoft/Google/Android)
+  "jorge", "diego", "carlos", "juan", "pablo", "enrique", "miguel", "raul", "raúl",
+  "alvaro", "álvaro", "dario", "darío", "andres", "andrés", "javier", "gonzalo",
+  // Inglés frecuentes
+  "daniel", "alex", "fred", "tom", "james", "george", "guy", "ryan", "brian", "matthew",
+];
+
 /** Pistas de baja calidad / voz antigua. */
 const LOW_QUALITY_HINTS = ["espeak", "eloquence", "compact", "novelty", "whisper", "bad news", "albert", "zarvox", "trinoids"];
 
@@ -64,6 +75,8 @@ function lower(s: string | undefined | null): string {
 export function scoreVoice(
   v: SpeechSynthesisVoice,
   preferLang: string = "es",
+  /** (Adenda 194) Género pedido: la preferencia deja de ser siempre femenina. */
+  preferGender: "femenina" | "masculina" | "neutra" = "femenina",
 ): { score: number; reasons: string[] } {
   const reasons: string[] = [];
   let score = 0;
@@ -97,10 +110,21 @@ export function scoreVoice(
       score += 6; // inglés como respaldo razonable
     }
 
-    // Género: femenina agradable por defecto (preferencia suave).
-    if (FEMALE_NAME_HINTS.some((h) => name.includes(h))) {
-      score += 10;
-      reasons.push("Femenina");
+    // Género PEDIDO (Adenda 194): suma la coincidencia y penaliza la contraria,
+    // lo justo para que gane la del género elegido sin sacrificar la calidad
+    // (una neural del otro género sigue ganando a una robótica del correcto).
+    const esFem = FEMALE_NAME_HINTS.some((h) => name.includes(h));
+    const esMasc = MALE_NAME_HINTS.some((h) => name.includes(h));
+    if (preferGender === "femenina") {
+      if (esFem) { score += 22; reasons.push("Femenina"); }
+      if (esMasc) score -= 18;
+    } else if (preferGender === "masculina") {
+      if (esMasc) { score += 22; reasons.push("Masculina"); }
+      if (esFem) score -= 18;
+    } else {
+      // Neutra: sin marca de género. Gana la de mejor calidad y, a igualdad,
+      // la que no delata género por el nombre.
+      if (!esFem && !esMasc) { score += 8; reasons.push("Sin marca de género"); }
     }
 
     // Voz local = menos latencia, más privacidad.
@@ -157,6 +181,28 @@ export function getBestBrowserVoice(
 ): SpeechSynthesisVoice | null {
   const ranked = rankBrowserVoices(voices, preferLang);
   return ranked.length ? ranked[0].voice : null;
+}
+
+/**
+ * (Adenda 194) La MEJOR voz del sistema para un género concreto. Es lo que
+ * hace que «femenina», «masculina» y «neutra» suenen bien de fábrica: se
+ * reordena todo el catálogo con esa preferencia en vez de filtrar por nombre.
+ */
+export function elegirVozPorGenero(
+  genero: "femenina" | "masculina" | "neutra",
+  voices?: SpeechSynthesisVoice[],
+  preferLang: string = "es",
+): SpeechSynthesisVoice | null {
+  try {
+    const list = voices ?? listBrowserVoices();
+    if (!list.length) return null;
+    const ranked = list
+      .map((v) => ({ v, s: scoreVoice(v, preferLang, genero).score }))
+      .sort((a, b) => b.s - a.s);
+    return ranked[0]?.v ?? null;
+  } catch {
+    return null;
+  }
 }
 
 /**

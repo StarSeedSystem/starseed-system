@@ -44,6 +44,7 @@ import { loadConfigs } from "@/ai/client/providerStore";
 import { buildSystemPrompt, DEFAULT_PERSONALITY } from "@/lib/aurora/types";
 import { OPEN_GUIDE_EVENT } from "./aurora-guide";
 import { marcarVozDelRito } from "@/lib/aurora/narracion-ventana";
+import SelectorVozInicial from "@/components/onboarding/selector-voz-inicial";
 import {
   getOnboarding,
   saveProfileOptional,
@@ -680,17 +681,19 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
                 Una red abierta y segura. Astraura te acompañará paso a paso: solo aceptas y eliges, sin configurar nada a mano. ¿Cómo prefieres empezar?
               </p>
               <div className="grid sm:grid-cols-2 gap-3 mt-4">
-                <button
-                  onClick={startVoice}
-                  className={cn(
-                    "p-5 rounded-2xl border-2 text-left transition-all hover:scale-[1.02]",
-                    voiceStarted ? "border-fuchsia-400 bg-fuchsia-500/10 shadow-[0_0_30px_rgba(217,70,239,0.25)]" : "border-white/10 hover:border-fuchsia-400/50 bg-white/[0.02]",
-                  )}
-                >
-                  <Mic className="w-8 h-8 text-fuchsia-300 mb-2" />
-                  <h3 className="font-bold text-base mb-1">Empezar con voz (Aurora)</h3>
-                  <p className="text-xs text-white/55">Activa la guía de voz inteligente. Aurora te explica y navega contigo.</p>
-                </button>
+                {/* (Adenda 194) La voz ya no es un sí/no: se elige timbre
+                    (femenina · masculina · neutra), hay ajustes opcionales y
+                    modo autónomo. La elegida acompaña el resto del rito y la
+                    guía, y queda vinculada a la personalidad de Astraura. */}
+                <div className={cn(
+                  "p-4 rounded-2xl border-2 transition-all sm:col-span-1",
+                  voiceStarted ? "border-fuchsia-400 bg-fuchsia-500/10 shadow-[0_0_30px_rgba(217,70,239,0.25)]" : "border-white/10 bg-white/[0.02]",
+                )}>
+                  <h3 className="mb-2 flex items-center gap-2 text-base font-bold">
+                    <Mic className="h-5 w-5 text-fuchsia-300" aria-hidden /> Empezar con voz
+                  </h3>
+                  <SelectorVozInicial onElegir={() => startVoice()} />
+                </div>
                 <button
                   onClick={() => { setVoiceStarted(false); setAstrauraText(STEP_NARRATION[0]); }}
                   className={cn(
