@@ -61,6 +61,7 @@ import { AuroraWidget } from "@/components/aurora/aurora-widget";
 // evento 'starseed:open-guide' o el acceso flotante "Guía".
 import { AuroraGuide } from "@/components/onboarding/aurora-guide";
 import { OnboardingGate } from "@/components/onboarding/onboarding-gate";
+import { StartupUpdatesModal } from "@/components/astraura/startup-updates-modal";
 import { CursorFxHost } from "@/components/desktop/cursor-fx";
 import { PerfController, PerfHeavyOnly, PerfStaticBackdrop } from "@/components/perf/perf-gate";
 import { PinnedWidgetOverlay } from "@/components/dashboard/widgets/pinned-widget-overlay";
@@ -313,6 +314,12 @@ export default function RootLayout({
                             (Adenda 188): global, en CUALQUIER medio/ruta — antes
                             vivía solo en (app) y el escritorio raíz se lo perdía. */}
                         <OnboardingGate />
+                        {/* (Adenda 193) Ventana «Sistemas de Astraura en esta
+                            neurona»: GLOBAL, como el gate y la guía. Vivía solo
+                            en (app) y el rito termina en /escritorios —grupo
+                            (main)—, así que su turno del orden (rito → sistemas
+                            → guía) no llegaba a existir en esa ruta. */}
+                        <StartupUpdatesModal />
                         {/* Cursor personalizado + animaciones de clic (config en
                             Apariencia → Cursor; 'starseed.cursorfx.v1'). Global. */}
                         <CursorFxHost />

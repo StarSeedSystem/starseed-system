@@ -107,7 +107,8 @@ export function AgentesFondoSection({ compact = false }: { compact?: boolean }) 
           Ya está todo elegido para este equipo{hw ? ` (${hw.so}${hw.nucleos ? `, ${hw.nucleos} núcleos` : ""})` : ""}:
           imaginan y proponen en segundo plano, se automejoran, y cada uno usa
           {cerebros[0] ? ` tu cerebro «${cerebros[0].name}»` : " tu cerebro principal"}
-          {carpetas.length > 0 ? ` con las ${carpetas.length} carpeta(s) que vinculaste` : ""}. Cambia lo que quieras.
+          {carpetas.length === 1 ? ` con la carpeta que vinculaste (${carpetas[0].nombre})`
+            : carpetas.length > 1 ? ` con las ${carpetas.length} carpetas que vinculaste` : ""}. Cambia lo que quieras.
         </p>
       </div>
 

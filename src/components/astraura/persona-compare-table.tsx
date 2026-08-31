@@ -131,7 +131,9 @@ export function PersonaCompareTable({ deviceId, onClose, caps = null, className,
       return { key, label, values, major, differs: new Set(values).size > 1 };
     };
     return [
-      build("llm", "LLM", llmValue),
+      // (Adenda 193) La pestaña «LLM» se fusionó en Astraura: el SISTEMA sigue
+      // existiendo en el store, pero su nombre visible es el de su decisión.
+      build("llm", "Modelo de IA", llmValue),
       build("voz", "Voz", vozValue),
       build("memoria", "Memoria", memoriaValue),
       build("antenas", "Antenas cerradas", antenasValue),
@@ -301,7 +303,7 @@ export function PersonaCompareTable({ deviceId, onClose, caps = null, className,
                       type="button"
                       onClick={() => onSelectSystem(r.key as "llm" | "voz" | "memoria" | "antenas")}
                       className="cursor-pointer underline-offset-2 transition-colors duration-200 hover:text-[var(--aw-ink)] hover:underline"
-                      title={`Abrir la pestaña de ${r.label}`}
+                      title={`Abrir la configuración de ${r.label}`}
                     >
                       {r.label}
                     </button>

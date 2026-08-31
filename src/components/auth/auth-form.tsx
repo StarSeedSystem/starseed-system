@@ -119,8 +119,18 @@ export function AuthForm() {
             // la guía corren así DENTRO del perfil recién creado, con sus
             // vínculos coherentes (perfil, cerebros, biblioteca…), y no sobre el
             // fondo del inicio de sesión, que reaparecía al terminar la guía.
+            // (Adenda 193) Navegación VERIFICADA: el rito se abre en cuanto hay
+            // sesión y, con un modal encima, `router.push` se cancela en
+            // silencio (mismo patrón que los vínculos de la guía) — el registro
+            // se quedaba en /login con la bienvenida encima. Si en 1,2 s no
+            // hemos salido, se fuerza la navegación dura.
             router.push('/escritorios')
             router.refresh()
+            window.setTimeout(() => {
+                try {
+                    if (window.location.pathname.startsWith('/login')) window.location.assign('/escritorios')
+                } catch { /* el gate reabrirá el rito igualmente */ }
+            }, 1200)
         } else {
             // Sin sesión automática. Con la confirmación desactivada esto casi
             // siempre significa que el correo YA tenía cuenta (Supabase lo

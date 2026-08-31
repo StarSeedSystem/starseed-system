@@ -12,7 +12,6 @@ import { ActiveAlertModal } from "@/components/calendar/active-alert-modal";
 import { useEffect } from "react";
 import { hermes } from "@/hermes-integration";
 import { AuroraIntro } from "@/components/onboarding/aurora-intro";
-import { StartupUpdatesModal } from "@/components/astraura/startup-updates-modal";
 import { ModelDownloadNotifier } from "@/components/neurons/model-download-notifier";
 import { NeuronActivityLogger } from "@/components/neurons/neuron-activity-logger";
 import { AuthGate } from "@/components/auth/auth-gate";
@@ -42,7 +41,8 @@ export default function AppProviders({ children }: { children: ReactNode }) {
         <AuroraIntro />
         {/* Ventana unificada de inicio/actualizaciones de Astraura + OmniVoice
             (Adenda 111): primera entrada de la neurona o novedades de modelos/fuentes. */}
-        <StartupUpdatesModal />
+        {/* (Adenda 193) StartupUpdatesModal se monta en el layout RAÍZ: aquí
+          sería un SEGUNDO montaje (dos ventanas y dos helpers globales). */}
         {/* Aviso global al completar una descarga de modelo en 2º plano (Adenda 113). */}
         <ModelDownloadNotifier />
         {/* Alimenta la bitácora por neurona con eventos reales de red/descargas (Adenda 115). */}

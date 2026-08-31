@@ -103,8 +103,8 @@ const STEP_NARRATION: Record<number, string> = {
   2: "Ahora los correos de tu cuenta: tu dirección StarSeed interna y, si quieres, vincula aquí mismo tus correos externos. Todos conviven en la misma cuenta.",
   3: "Configuremos tu recuperación: un correo externo y un teléfono, para que nunca pierdas el acceso.",
   4: "Tu perfil: un avatar, una portada y una breve biografía, todos opcionales. Es tu cara ante la red y puedes cambiarla cuando quieras.",
-  5: "Ahora tus cerebros y dónde viven sus memorias: elegimos el enrutamiento de almacenamiento entre la nube StarSeed y esta neurona. Analicé tu cuenta y te propongo la mejor configuración.",
-  6: "Permisos del dispositivo: te recomiendo micrófono y notificaciones para hablar conmigo y no perderte nada. El resto es opcional y cada función lo pedirá cuando lo necesite.",
+  5: "Permisos de este dispositivo: te recomiendo micrófono y notificaciones para hablar conmigo y no perderte nada. Aquí también puedes vincular las carpetas y almacenamientos que quieras que conozca.",
+  6: "Ahora tus cerebros y dónde viven sus memorias: enlazo solas las carpetas que acabas de vincular y elegimos el enrutamiento entre la nube StarSeed y esta neurona.",
   7: "Configuremos mi presencia en esta neurona: ya analicé tu equipo y elegí el motor y el modelo que mejor le sientan. Tú decides; todo se puede cambiar en Ajustes.",
   8: "Te muestro las áreas de la red: cómo vincular, conectar, crear, publicar y usar cada una.",
 };
@@ -115,8 +115,11 @@ const STEPS = [
   { key: "correo", label: "Correos vinculados", icon: Mail },
   { key: "recuperacion", label: "Recuperación", icon: ShieldCheck },
   { key: "opcionales", label: "Tu perfil", icon: ImageIcon },
+  // (Adenda 193) Permisos VA ANTES que cerebros: las carpetas y almacenamientos
+  // que se vinculan ahí se heredan solos en el paso siguiente, enlazados al
+  // cerebro principal. Al revés no había nada que heredar.
+  { key: "permisos", label: "Permisos y carpetas", icon: Lock },
   { key: "cerebros", label: "Memorias y almacenamiento", icon: Brain },
-  { key: "permisos", label: "Permisos", icon: Lock },
   { key: "neurona", label: "Astraura local", icon: Cpu },
   { key: "guia", label: "Guía de la red", icon: Compass },
 ] as const;
@@ -985,9 +988,9 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
 
           {/* 5-7 · Cerebros · Permisos · Astraura local (Adenda 188) — el
               agente de integración analiza el dispositivo y recomienda. */}
-          {step === 5 && <StepCerebros />}
+          {step === 5 && <StepPermisos />}
 
-          {step === 6 && <StepPermisos />}
+          {step === 6 && <StepCerebros />}
 
           {step === 7 && <StepNeurona />}
 
