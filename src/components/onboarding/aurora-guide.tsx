@@ -126,10 +126,19 @@ function emit(name: string, detail?: unknown) {
   }
 }
 
-/** Navega de forma defensiva (router → fallback a location). */
+/** Navega de forma defensiva (router → fallback a location).
+ * (Adenda 192) Con VERIFICACIÓN: un diálogo modal abierto encima (p. ej. los
+ * popups de primera ejecución) cancela `router.push` EN SILENCIO — visto en
+ * vivo con «Ir a Cerebros». Si la ruta no cambió tras un momento, navegación
+ * dura con location.assign: los vínculos de la guía funcionan SIEMPRE. */
 function safeGoto(router: ReturnType<typeof useRouter>, path: string) {
   try {
     router.push(path);
+    if (typeof window !== "undefined" && window.location.pathname !== path) {
+      window.setTimeout(() => {
+        try { if (window.location.pathname !== path) window.location.assign(path); } catch { /* */ }
+      }, 1600);
+    }
   } catch {
     if (typeof window !== "undefined") {
       try { window.location.assign(path); } catch { /* */ }
@@ -419,6 +428,19 @@ export function AuroraGuide() {
 
   const step = STEPS[index];
   const ctx = useMemo<GuideCtx>(() => ({ router, setActiveEdge }), [router, setActiveEdge]);
+
+  // (Adenda 192) Señal de primer plano: mientras la guía está abierta, los
+  // popups de primera ejecución (OmniVoice, sistemas de Astraura…) ESPERAN —
+  // abiertos encima enterraban la guía y sus modales cancelaban router.push
+  // de los vínculos («Ir a Cerebros» no navegaba). Ver lib/ui/fullscreen-modal.
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    try {
+      if (open) document.body.dataset.ssGuia = "1";
+      else delete document.body.dataset.ssGuia;
+    } catch { /* defensivo */ }
+    return () => { try { delete document.body.dataset.ssGuia; } catch { /* */ } };
+  }, [open]);
   const isLast = index >= STEPS.length - 1;
   const isFirst = index <= 0;
   // ¿Estamos ya en el tour (modo elegido)? Si no, se muestra la pregunta inicial.

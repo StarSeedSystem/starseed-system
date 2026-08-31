@@ -272,6 +272,7 @@ export function VoiceNeuronOnboarding() {
 
   useEffect(() => {
     let alive = true;
+    let cancelaEspera: (() => void) | null = null;
     const t = setTimeout(async () => {
       const choice = readNeuronVoiceChoice();
       // Adenda 88: si el sistema de voz se ACTUALIZÓ desde que esta neurona eligió
@@ -303,15 +304,24 @@ export function VoiceNeuronOnboarding() {
         .catch(() => false);
       if (!alive) return;
       if (updatesWillShow) return;
-      if (stale) setUpdated(true);
-      setOpen(true);
-      void probeLocalDaemon().then((local) => {
-        if (alive) setLocalVivo(local);
+      // (Adenda 192) Cortesía con el RITO y la GUÍA de bienvenida: si están en
+      // primer plano, esta ventana ESPERA a que terminen — abierta encima los
+      // enterraba y su modal cancelaba la navegación de los vínculos de la guía.
+      const { alLiberarsePrimerPlano } = await import("@/lib/ui/fullscreen-modal");
+      if (!alive) return;
+      cancelaEspera = alLiberarsePrimerPlano(() => {
+        if (!alive) return;
+        if (stale) setUpdated(true);
+        setOpen(true);
+        void probeLocalDaemon().then((local) => {
+          if (alive) setLocalVivo(local);
+        });
       });
     }, 3500); // deja que la app respire antes de saludar
     return () => {
       alive = false;
       clearTimeout(t);
+      cancelaEspera?.();
     };
   }, []);
 

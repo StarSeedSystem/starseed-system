@@ -57,6 +57,20 @@ export function StartupUpdatesModal() {
     let offSetup: (() => void) | null = null;
     let t2: ReturnType<typeof setTimeout> | null = null;
     let tFallback: ReturnType<typeof setTimeout> | null = null;
+    // (Adenda 192) Cortesía con el RITO y la GUÍA de bienvenida: toda auto-
+    // apertura pasa por aquí y ESPERA a que el primer plano quede libre —
+    // abierta encima los enterraba y su modal cancelaba la navegación de los
+    // vínculos de la guía («Ir a Cerebros» no navegaba). La apertura MANUAL
+    // (evento/ajustes) sigue siendo inmediata.
+    let cancelaEspera: (() => void) | null = null;
+    const abrirConCortesia = () => {
+      void import("@/lib/ui/fullscreen-modal")
+        .then((m) => {
+          cancelaEspera?.();
+          cancelaEspera = m.alLiberarsePrimerPlano(() => setOpen(true));
+        })
+        .catch(() => setOpen(true));
+    };
     const t = setTimeout(() => {
       try {
         if (isSetupPending()) {
@@ -65,7 +79,7 @@ export function StartupUpdatesModal() {
               if (isSetupPending()) return; // sigue pendiente: esperar al siguiente evento
               offSetup?.();
               offSetup = null;
-              t2 = setTimeout(() => { if (shouldShowUpdates()) setOpen(true); }, 800);
+              t2 = setTimeout(() => { if (shouldShowUpdates()) abrirConCortesia(); }, 800);
             } catch { /* */ }
           });
           // RED DE SEGURIDAD (garantía de aparición por neurona): el Centro solo
@@ -80,20 +94,20 @@ export function StartupUpdatesModal() {
               if (!centerOnScreen && shouldShowUpdates()) {
                 offSetup?.();
                 offSetup = null;
-                setOpen(true);
+                abrirConCortesia();
               }
             } catch { /* */ }
           }, 9000);
           return;
         }
       } catch { /* si falla el gate, seguimos con el flujo normal */ }
-      if (shouldShowUpdates()) setOpen(true);
+      if (shouldShowUpdates()) abrirConCortesia();
     }, 1200);
     // Apertura manual por evento (desde ajustes/notificaciones): siempre abre.
     const off = subscribeStartupOpen(() => setOpen(true));
     // Paridad con openAuroraSetup: disparador global.
     try { (window as unknown as { openAstrauraStartup?: () => void }).openAstrauraStartup = openStartupUpdates; } catch { /* */ }
-    return () => { clearTimeout(t); if (t2) clearTimeout(t2); if (tFallback) clearTimeout(tFallback); offSetup?.(); off(); };
+    return () => { clearTimeout(t); if (t2) clearTimeout(t2); if (tFallback) clearTimeout(tFallback); offSetup?.(); off(); cancelaEspera?.(); };
   }, []);
 
   if (!open) return null;

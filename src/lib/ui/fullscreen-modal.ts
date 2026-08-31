@@ -70,3 +70,39 @@ export function subscribeFullscreenModal(cb: () => void): () => void {
 export function useFullscreenModalActive(): boolean {
   return useSyncExternalStore(subscribeFullscreenModal, fullscreenModalActive, () => false);
 }
+
+// ════════════════════════════════════════════════════════════════════════════
+// (Adenda 192) Primer plano del RITO y la GUÍA — cortesía de los popups
+// ----------------------------------------------------------------------------
+// Los diálogos de primera ejecución (OmniVoice, sistemas de Astraura…) se
+// auto-abrían ENCIMA del rito/guía de bienvenida: la enterraban y, con un modal
+// abierto, `router.push` de los vínculos de la guía se cancelaba EN SILENCIO
+// (visto en vivo con «Ir a Cerebros»). Regla nueva: quien quiera auto-abrirse
+// espera a que el primer plano quede libre.
+
+/** ¿Está el primer plano ocupado por un modal a pantalla completa o la guía? */
+export function primerPlanoOcupado(): boolean {
+  if (typeof document === "undefined") return false;
+  try {
+    if (document.body.dataset.ssModal === "1") return true; // wizard/diálogos
+    if (document.body.dataset.ssGuia === "1") return true;  // guía del sistema
+  } catch { /* defensivo */ }
+  return false;
+}
+
+/** Espera (sondeo suave) a que el primer plano quede libre y llama cb UNA vez.
+ * Devuelve un cancelador. Si ya está libre, cb corre en el acto. */
+export function alLiberarsePrimerPlano(
+  cb: () => void,
+  opts?: { intervaloMs?: number; maxMs?: number },
+): () => void {
+  if (typeof window === "undefined") return () => {};
+  if (!primerPlanoOcupado()) { cb(); return () => {}; }
+  const cada = opts?.intervaloMs ?? 2000;
+  const tope = Date.now() + (opts?.maxMs ?? 10 * 60 * 1000);
+  const id = window.setInterval(() => {
+    if (!primerPlanoOcupado()) { window.clearInterval(id); cb(); }
+    else if (Date.now() > tope) { window.clearInterval(id); }
+  }, cada);
+  return () => window.clearInterval(id);
+}
