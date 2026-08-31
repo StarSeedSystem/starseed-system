@@ -507,6 +507,11 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
     setBusy(true);
     await saveOnboarding({ completed: true, steps: { last: STEPS.length - 1 } });
     setBusy(false);
+    // (Adenda 192) El rito YA incluye el paso «Astraura local»: esta neurona
+    // queda marcada como configurada aunque el usuario haya pasado el paso sin
+    // pulsar «Aceptar» — si no, la alta corta de neurona (NeuronSetup) volvía a
+    // preguntar lo mismo nada más terminar la bienvenida.
+    try { window.localStorage.setItem("starseed.neuron.setup.v1", "1"); } catch { /* */ }
     toast.success("¡Bienvenida completada!");
     closeAll();
     // (Adenda 192) Si el rito corría sobre /login (p. ej. una sesión retomada a

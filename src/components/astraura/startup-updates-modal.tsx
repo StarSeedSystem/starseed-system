@@ -35,6 +35,10 @@ import { AstrauraOmniVoiceConfig } from "@/components/astraura/astraura-omnivoic
 export function StartupUpdatesModal() {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  // (Adenda 192) Cortesía con el rito/guía: manual = nunca replegar; espera viva.
+  const manualRef = useRef(false);
+  const esperaRef = useRef<(() => void) | null>(null);
+  useEffect(() => () => { esperaRef.current?.(); }, []); // solo al desmontar
 
   /** Escape = «Recordar luego»: pospone y cierra (nunca lanza). */
   const remindLater = useCallback(() => {
@@ -104,11 +108,36 @@ export function StartupUpdatesModal() {
       if (shouldShowUpdates()) abrirConCortesia();
     }, 1200);
     // Apertura manual por evento (desde ajustes/notificaciones): siempre abre.
-    const off = subscribeStartupOpen(() => setOpen(true));
+    const off = subscribeStartupOpen(() => { manualRef.current = true; setOpen(true); });
     // Paridad con openAuroraSetup: disparador global.
     try { (window as unknown as { openAstrauraStartup?: () => void }).openAstrauraStartup = openStartupUpdates; } catch { /* */ }
     return () => { clearTimeout(t); if (t2) clearTimeout(t2); if (tFallback) clearTimeout(tFallback); offSetup?.(); off(); cancelaEspera?.(); };
   }, []);
+
+  // (Adenda 192) RED DE CORTESÍA FINAL: si esta ventana quedó abierta por
+  // cualquier vía automática mientras el rito o la guía están en primer plano,
+  // se repliega y espera su turno (ver lib/ui/fullscreen-modal). La apertura
+  // manual (evento de ajustes) marca manualRef y nunca se repliega.
+  useEffect(() => {
+    if (!open || manualRef.current) return;
+    let offSub: (() => void) | null = null;
+    void import("@/lib/ui/fullscreen-modal")
+      .then((m) => {
+        const replegar = () => {
+          if (manualRef.current || !m.primerPlanoOcupado()) return;
+          setOpen(false);
+          esperaRef.current?.();
+          esperaRef.current = m.alLiberarsePrimerPlano(() => {
+            esperaRef.current = null;
+            setOpen(true);
+          });
+        };
+        replegar();
+        offSub = m.subscribeFullscreenModal(replegar);
+      })
+      .catch(() => { /* sin cortesía: mejor abierta que rota */ });
+    return () => { offSub?.(); };
+  }, [open]);
 
   if (!open) return null;
 

@@ -135,9 +135,12 @@ function safeGoto(router: ReturnType<typeof useRouter>, path: string) {
   try {
     router.push(path);
     if (typeof window !== "undefined" && window.location.pathname !== path) {
+      // 4 s: margen para compilaciones en dev y RSC lentos — en esos casos el
+      // push SÍ llega y el recambio duro nunca dispara (mantiene viva la guía);
+      // con un modal bloqueando, el push muere al instante y el rescate entra.
       window.setTimeout(() => {
         try { if (window.location.pathname !== path) window.location.assign(path); } catch { /* */ }
-      }, 1600);
+      }, 4000);
     }
   } catch {
     if (typeof window !== "undefined") {

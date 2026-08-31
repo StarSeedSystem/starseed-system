@@ -331,6 +331,7 @@ export function VoiceNeuronOnboarding() {
     const onReopen = (e: Event) => {
       const detail = (e as CustomEvent<{ reopen?: boolean }>).detail;
       if (!detail?.reopen) return; // los avisos "silent" (guardado inline) no abren
+      manualRef.current = true; // apertura MANUAL: la cortesía del rito no aplica
       setOpen(true); // abrir YA; el daemon se carga en paralelo
       void probeLocalDaemon().then((local) => {
         setLocalVivo(local);
@@ -342,6 +343,35 @@ export function VoiceNeuronOnboarding() {
     window.addEventListener(NEURON_VOICE_REOPEN_EVENT, onReopen as EventListener);
     return () => window.removeEventListener(NEURON_VOICE_REOPEN_EVENT, onReopen as EventListener);
   }, []);
+
+  // (Adenda 192) RED DE CORTESÍA FINAL con el rito/guía de bienvenida: esta
+  // ventana tiene VARIAS vías de auto-apertura (timer, instancias anidadas del
+  // provider…). Si quedó abierta por CUALQUIERA de ellas mientras el rito o la
+  // guía están en primer plano, se repliega y espera su turno — abierta encima
+  // los enterraba y su modal cancelaba router.push de los vínculos de la guía.
+  const manualRef = useRef(false);
+  const esperaRef = useRef<(() => void) | null>(null);
+  useEffect(() => () => { esperaRef.current?.(); }, []); // solo al desmontar
+  useEffect(() => {
+    if (!open || manualRef.current) return;
+    let offSub: (() => void) | null = null;
+    void import("@/lib/ui/fullscreen-modal")
+      .then((m) => {
+        const replegar = () => {
+          if (manualRef.current || !m.primerPlanoOcupado()) return;
+          setOpen(false);
+          esperaRef.current?.();
+          esperaRef.current = m.alLiberarsePrimerPlano(() => {
+            esperaRef.current = null;
+            setOpen(true);
+          });
+        };
+        replegar();
+        offSub = m.subscribeFullscreenModal(replegar);
+      })
+      .catch(() => { /* sin cortesía disponible: mejor abierta que rota */ });
+    return () => { offSub?.(); };
+  }, [open]);
 
   // (Adenda 181 · fix «Rendered fewer hooks») El return temprano vivía AQUÍ, con
   // ~10 hooks declarados más abajo (vbKey, mounted, useCallbacks…): al cerrar la

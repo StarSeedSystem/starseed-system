@@ -91,18 +91,27 @@ export function primerPlanoOcupado(): boolean {
 }
 
 /** Espera (sondeo suave) a que el primer plano quede libre y llama cb UNA vez.
- * Devuelve un cancelador. Si ya está libre, cb corre en el acto. */
+ * Devuelve un cancelador. Aunque esté libre ya, siempre hay un asentamiento de
+ * ~2 lecturas para no colarse en los huecos entre registro→rito→guía. */
 export function alLiberarsePrimerPlano(
   cb: () => void,
   opts?: { intervaloMs?: number; maxMs?: number },
 ): () => void {
   if (typeof window === "undefined") return () => {};
-  if (!primerPlanoOcupado()) { cb(); return () => {}; }
-  const cada = opts?.intervaloMs ?? 2000;
+  const cada = opts?.intervaloMs ?? 1200;
   const tope = Date.now() + (opts?.maxMs ?? 10 * 60 * 1000);
+  // SIEMPRE con asentamiento: DOS lecturas libres seguidas. El rito encadena la
+  // guía ~650 ms después de cerrarse, y el propio rito puede abrirse ~1-2 s tras
+  // el registro — un único instante libre NUNCA debe colar el popup en medio.
+  let libresSeguidos = 0;
   const id = window.setInterval(() => {
-    if (!primerPlanoOcupado()) { window.clearInterval(id); cb(); }
-    else if (Date.now() > tope) { window.clearInterval(id); }
+    if (!primerPlanoOcupado()) {
+      libresSeguidos += 1;
+      if (libresSeguidos >= 2) { window.clearInterval(id); cb(); }
+    } else {
+      libresSeguidos = 0;
+      if (Date.now() > tope) window.clearInterval(id);
+    }
   }, cada);
   return () => window.clearInterval(id);
 }
