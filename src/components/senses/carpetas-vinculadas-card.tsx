@@ -8,7 +8,7 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
-import { FolderOpen, Cloud, Plus, X, RefreshCw, HardDrive } from "lucide-react";
+import { FolderOpen, Cloud, Plus, X, RefreshCw, HardDrive, ListTree, Copy, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -23,6 +23,7 @@ import {
   conectarAlmacenamiento, cuentaDe, guardarClientId, redirectUri,
   OAUTH_ALMACENAMIENTO, type CuentaConectada,
 } from "@/lib/storage/oauth-almacenamiento";
+import SelectorCarpetasRemotas from "@/components/senses/selector-carpetas-remotas";
 
 export function FilaCarpetas({ p }: { p: PermisoUI }) {
   const [carpetas, setCarpetas] = useState<CarpetaVinculada[]>([]);
@@ -33,6 +34,9 @@ export function FilaCarpetas({ p }: { p: PermisoUI }) {
   const [cuentas, setCuentas] = useState<Record<string, CuentaConectada>>({});
   const [pidiendoId, setPidiendoId] = useState<{ servicio: ServicioAlmacenamiento; consola?: string; detalle?: string } | null>(null);
   const [clientId, setClientId] = useState("");
+  // (Adenda 195) Explorador de las carpetas REALES de la cuenta conectada.
+  const [explorando, setExplorando] = useState<ServicioAlmacenamiento | null>(null);
+  const [copiado, setCopiado] = useState<string | null>(null);
   const soportado = soportaCarpetasDispositivo();
 
   useEffect(() => {
@@ -65,9 +69,11 @@ export function FilaCarpetas({ p }: { p: PermisoUI }) {
     try {
       const r = await conectarAlmacenamiento(id);
       if (r.ok) {
-        agregarCarpetaServicio(id, r.cuenta.cuenta);
         setCuentas((c) => ({ ...c, [id]: r.cuenta }));
-        setNota(`${OAUTH_ALMACENAMIENTO[id]!.label} conectado${r.cuenta.cuenta ? ` como ${r.cuenta.cuenta}` : ""} ✓ Sus carpetas ya se pueden vincular a tus cerebros.`);
+        setNota(`${OAUTH_ALMACENAMIENTO[id]!.label} conectado${r.cuenta.cuenta ? ` como ${r.cuenta.cuenta}` : ""} ✓ Elige abajo qué carpetas quieres vincular.`);
+        // (Adenda 195) Ya no se vincula «el servicio entero» a ciegas: se abre
+        // el explorador para que el usuario elija carpetas concretas.
+        setExplorando(id);
       } else if (r.motivo === "sin-client-id") {
         setPidiendoId({ servicio: id, consola: r.consola, detalle: r.detalle });
       } else if (r.motivo === "cancelado") {
@@ -116,6 +122,15 @@ export function FilaCarpetas({ p }: { p: PermisoUI }) {
                 {c.tipo === "servicio" && c.servicio && cuentas[c.servicio]?.cuenta && (
                   <span className="ml-1 text-[10px] text-emerald-300">· {cuentas[c.servicio]!.cuenta}</span>
                 )}
+                {c.tipo === "servicio" && c.servicio && cuentas[c.servicio] && (
+                  <button
+                    type="button"
+                    onClick={() => setExplorando(c.servicio!)}
+                    className="ml-1 inline-flex items-center gap-0.5 text-[10px] text-cyan-300 underline-offset-2 hover:underline"
+                  >
+                    <ListTree className="h-3 w-3" aria-hidden /> carpetas
+                  </button>
+                )}
                 {c.tipo === "servicio" && c.servicio && OAUTH_ALMACENAMIENTO[c.servicio] && !cuentas[c.servicio] && (
                   <button
                     type="button"
@@ -157,6 +172,17 @@ export function FilaCarpetas({ p }: { p: PermisoUI }) {
         </Button>
       </div>
 
+      {/* (Adenda 195) Carpetas reales de la cuenta conectada. */}
+      {explorando && (
+        <div className="mt-2">
+          <SelectorCarpetasRemotas
+            servicio={explorando}
+            onReconectar={() => { setExplorando(null); void agregarServicio(explorando); }}
+            onCerrar={() => setExplorando(null)}
+          />
+        </div>
+      )}
+
       {verServicios && (
         <div className="mt-2 grid gap-1 sm:grid-cols-2">
           {SERVICIOS.map((s) => (
@@ -188,9 +214,44 @@ export function FilaCarpetas({ p }: { p: PermisoUI }) {
       {pidiendoId && (
         <div className="mt-2 space-y-2 rounded-xl border border-amber-400/25 bg-amber-400/[0.06] p-2.5">
           <p className="text-[11px] leading-snug text-amber-100/90">{pidiendoId.detalle}</p>
-          <p className="text-[10px] leading-snug text-white/55">
-            URI de redirección a declarar: <code className="rounded bg-black/30 px-1">{redirectUri()}</code>
-          </p>
+          {/* (Adenda 195) Alta guiada: tres pasos y todo copiable. Se hace una
+              vez por servicio; si el despliegue trae el ID en sus variables de
+              entorno, esto no aparece nunca. */}
+          <ol className="space-y-1 text-[10px] leading-snug text-white/65">
+            <li className="flex items-start gap-1.5">
+              <span className="mt-px shrink-0 font-semibold text-white/40">1.</span>
+              <span className="min-w-0">
+                Abre la consola del proveedor y crea una app (tipo «aplicación web»).
+                {pidiendoId.consola?.startsWith("http") && (
+                  <a
+                    href={pidiendoId.consola} target="_blank" rel="noreferrer"
+                    className="ml-1 inline-flex items-center gap-0.5 text-cyan-300 underline-offset-2 hover:underline"
+                  >
+                    abrir <ExternalLink className="h-2.5 w-2.5" aria-hidden />
+                  </a>
+                )}
+              </span>
+            </li>
+            <li className="flex items-start gap-1.5">
+              <span className="mt-px shrink-0 font-semibold text-white/40">2.</span>
+              <span className="min-w-0">
+                Pega esta URI de redirección autorizada:
+                <button
+                  type="button"
+                  onClick={() => { void navigator.clipboard?.writeText(redirectUri()); setCopiado("uri"); }}
+                  className="ml-1 inline-flex items-center gap-1 rounded bg-black/30 px-1 py-0.5 font-mono text-[9px] text-white/80 transition-colors hover:bg-black/50"
+                  title="Copiar"
+                >
+                  {redirectUri()} <Copy className="h-2.5 w-2.5" aria-hidden />
+                </button>
+                {copiado === "uri" && <span className="ml-1 text-emerald-300">copiada ✓</span>}
+              </span>
+            </li>
+            <li className="flex items-start gap-1.5">
+              <span className="mt-px shrink-0 font-semibold text-white/40">3.</span>
+              <span className="min-w-0">Copia el ID de cliente que te da y pégalo aquí abajo.</span>
+            </li>
+          </ol>
           <div className="flex gap-2">
             <Input
               value={clientId}
