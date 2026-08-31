@@ -509,6 +509,16 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
     setBusy(false);
     toast.success("¡Bienvenida completada!");
     closeAll();
+    // (Adenda 192) Si el rito corría sobre /login (p. ej. una sesión retomada a
+    // mitad del registro), primero se ENTRA al OS: la guía debe correr dentro
+    // del perfil, con sus vínculos coherentes, nunca sobre el inicio de sesión.
+    try {
+      if (window.location.pathname.startsWith("/login")) {
+        window.sessionStorage.setItem("starseed.guide.launch", "1");
+        window.location.assign("/escritorios");
+        return; // AuroraGuide ve la marca al montar y arranca la guía allí
+      }
+    } catch { /* seguimos con la guía aquí */ }
     // (Adenda 191) Al terminar el rito arranca la GUÍA del sistema (el tour
     // vivo que presenta orbe, Trinity, Escritorio, Astraura…), SIEMPRE para
     // cuentas nuevas — sin depender de la marca local "ya vista".

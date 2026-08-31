@@ -32,6 +32,9 @@ import {
 } from "@/lib/senses/senses";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+// (Adenda 192) Ayuda accionable + banner de entorno + refresco vivo de permisos.
+import { BannerEntornoPermisos } from "@/components/senses/permisos-dispositivo";
+import { ayudaPermiso, EVENTO_PERMISO, type PermisoDispositivo } from "@/lib/aurora/senses/request-permission";
 import {
   ShieldCheck,
   Save,
@@ -57,6 +60,16 @@ import {
 import { getOmniConfig, setOmniConfig } from "@/lib/aurora/tts-oss/voice-config";
 
 type PermState = SenseTestResult["state"];
+
+// (Adenda 192) Puente sentido → permiso del dispositivo (para la ayuda por
+// navegador/SO). Portapapeles y pantalla no aparecen: siempre preguntan al usar.
+const SENSE_A_PERMISO: Partial<Record<string, PermisoDispositivo>> = {
+  "getUserMedia-audio": "microfono",
+  "getUserMedia-video": "camara",
+  geolocation: "ubicacion",
+  notifications: "notificaciones",
+  files: "archivos",
+};
 
 const STATE_META: Record<
   PermState,
@@ -127,6 +140,19 @@ export default function SensesPanel() {
     return () => {
       alive = false;
     };
+  }, []);
+
+  // (Adenda 192) Refresco EN VIVO: cualquier petición hecha en otra superficie
+  // (Bienvenida, Ajustes, un área con BotonPermiso) actualiza estas insignias.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onPermiso = () => {
+      void Promise.all(
+        SENSES.map(async (s) => [s.id, await permissionState(s.id)] as const),
+      ).then((entries) => setPerms(Object.fromEntries(entries)));
+    };
+    window.addEventListener(EVENTO_PERMISO, onPermiso);
+    return () => window.removeEventListener(EVENTO_PERMISO, onPermiso);
   }, []);
 
   const setFlag = (
@@ -214,6 +240,9 @@ export default function SensesPanel() {
           Ajustes avanzados del ecosistema IA
         </a>
       </div>
+
+      {/* (Adenda 192) Visor embebido u origen http:// → decirlo con la salida. */}
+      <BannerEntornoPermisos />
 
       {loading ? (
         <div className="flex items-center gap-2 text-sm text-white/50 px-1 py-6">
@@ -360,6 +389,19 @@ export default function SensesPanel() {
                         Probar
                       </Button>
                     </div>
+
+                    {/* (Adenda 192) Bloqueado o no disponible → pasos EXACTOS
+                        por navegador/SO para desbloquearlo (antes solo se
+                        pintaba «Denegado» sin camino de salida). */}
+                    {(() => {
+                      const per = SENSE_A_PERMISO[s.permission];
+                      if (!per || (state !== "denied" && state !== "unsupported")) return null;
+                      return (
+                        <p className="mt-2 rounded-lg border border-white/10 bg-black/25 p-2 text-[11px] leading-snug text-white/60">
+                          {ayudaPermiso(per, state)}
+                        </p>
+                      );
+                    })()}
                   </div>
 
                   {/* Interruptor maestro */}

@@ -11,15 +11,16 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Brain as BrainIcon, Mic, Bell, Camera, MapPin, FolderOpen } from "lucide-react";
+import { Brain as BrainIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { listBrains, saveBrain, type Brain } from "@/lib/brains/brains";
 import { ensureHermionePersonalityInstalled } from "@/lib/aurora/personalities";
-import { requestDevicePermission, type PermisoDispositivo } from "@/lib/aurora/senses/request-permission";
+import { pedirPermisosEnSecuencia } from "@/lib/aurora/senses/request-permission";
 import { visorBloqueaPermisos } from "@/lib/senses/senses";
+import { PermisosDispositivoPanel } from "@/components/senses/permisos-dispositivo";
 import { thisDeviceId, setNeuronName } from "@/lib/neurons/neurons";
 import { saveOnboarding } from "@/lib/onboarding/onboarding";
 import { detectar, recomendar, MODELOS, CONCIENCIAS, type HW } from "@/lib/onboarding/neuron-recommend";
@@ -131,19 +132,7 @@ export function StepCerebros() {
 // ════════════════════════════════════════════════════════════════════════════
 // Paso: Permisos del dispositivo
 // ════════════════════════════════════════════════════════════════════════════
-type EstadoPermiso = "pendiente" | "ok" | "denegado" | "nodisp";
-
-const PERMISOS: { id: PermisoDispositivo; label: string; desc: string; rec: boolean; Icon: any }[] = [
-  { id: "microfono", label: "Micrófono", desc: "Hablar con Astraura por voz.", rec: true, Icon: Mic },
-  { id: "notificaciones", label: "Notificaciones", desc: "Avisos de la red, mensajes y agentes.", rec: true, Icon: Bell },
-  { id: "camara", label: "Cámara", desc: "Videollamadas y visión de Aurora (opcional).", rec: false, Icon: Camera },
-  { id: "ubicacion", label: "Ubicación", desc: "Funciones locales y clima (opcional).", rec: false, Icon: MapPin },
-  { id: "archivos", label: "Archivos", desc: "Conectar carpetas de este equipo (opcional).", rec: false, Icon: FolderOpen },
-];
-
 export function StepPermisos() {
-  const [estados, setEstados] = useState<Record<string, EstadoPermiso>>({});
-  const [motivos, setMotivos] = useState<Record<string, string>>({});
   const [visor, setVisor] = useState<{ bloqueado: boolean; visor: string } | null>(null);
   const [aplicado, setAplicado] = useState(false);
   const [cargando, setCargando] = useState(false);
@@ -155,67 +144,27 @@ export function StepPermisos() {
   const razones = useMemo(() => {
     const r: string[] = [];
     if (visor?.bloqueado)
-      r.push(`Estás en el visor integrado (${visor.visor}): este entorno bloquea los permisos del sistema. Puedes continuar y concederlos luego desde tu navegador.`);
+      r.push(`Estás en el visor integrado (${visor.visor}): este medio no muestra los diálogos de permiso. Usa «Abrir en tu navegador» (abajo) para concederlos allí; tu cuenta se sincroniza sola.`);
     r.push("Recomiendo activar micrófono y notificaciones: son la base para hablar con Astraura y enterarte de lo importante.");
-    r.push("Cámara, ubicación y archivos son opcionales: cada función los pedirá cuando de verdad los necesite.");
+    r.push("Cámara, ubicación y archivos son opcionales: además de aquí, cada área los pide cuando de verdad los necesita, y siempre viven en Ajustes → Sentidos.");
     return r;
   }, [visor]);
 
-  const pedir = useCallback(async (id: PermisoDispositivo) => {
-    setEstados((e) => ({ ...e, [id]: "pendiente" }));
-    try {
-      // (Adenda 191) Contrato REAL de la lib: { soportado, concedido, motivo }.
-      // Antes se leían campos inexistentes y TODO se pintaba como denegado
-      // aunque el navegador hubiera concedido el permiso.
-      const r = await requestDevicePermission(id);
-      setEstados((e) => ({ ...e, [id]: r.concedido ? "ok" : r.soportado ? "denegado" : "nodisp" }));
-      if (r.motivo) setMotivos((m) => ({ ...m, [id]: r.motivo! }));
-    } catch {
-      setEstados((e) => ({ ...e, [id]: "nodisp" }));
-    }
-  }, []);
-
   const aceptar = useCallback(async () => {
     setCargando(true);
-    for (const p of PERMISOS.filter((p) => p.rec)) {
-      // secuencial: los navegadores muestran un prompt a la vez
-      // eslint-disable-next-line no-await-in-loop
-      await pedir(p.id);
-    }
+    // (Adenda 192) Peticiones REALES de uno en uno (regla del navegador). Las
+    // filas del panel se actualizan solas vía el evento `starseed:permiso` y
+    // permissions.onchange — el mismo panel vive en Ajustes y en Sentidos.
+    await pedirPermisosEnSecuencia(["microfono", "notificaciones"]);
     try { await saveOnboarding({ steps: { permisos: { pedidos: ["microfono", "notificaciones"] } } }); } catch { /* best-effort */ }
     setAplicado(true);
     setCargando(false);
-  }, [pedir]);
-
-  const chip = (s: EstadoPermiso | undefined, m?: string) =>
-    s === "ok" ? <span className="text-[10px] text-emerald-300">concedido ✓</span>
-    : s === "denegado" ? <span className="text-[10px] text-amber-300">denegado{m ? ` (${m})` : ""} — reactívalo en el candado del navegador</span>
-    : s === "nodisp" ? <span className="text-[10px] text-slate-400">no disponible en este medio{m ? ` (${m})` : ""}</span>
-    : s === "pendiente" ? <span className="text-[10px] text-slate-400">pidiendo…</span>
-    : null;
+  }, []);
 
   return (
     <div className="space-y-4">
       <AgentRecommendation razones={razones} aplicado={aplicado} onAceptar={aceptar} cargando={cargando} />
-      <div className="grid gap-2">
-        {PERMISOS.map(({ id, label, desc, rec, Icon }) => (
-          <div key={id} className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.02] p-3">
-            <span aria-hidden className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-white/10 bg-white/5">
-              <Icon className="h-4 w-4 text-cyan-300" />
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="flex items-center gap-2 text-sm font-medium">
-                {label}
-                {rec && <span className="rounded-full bg-cyan-400/15 px-1.5 py-px text-[9px] uppercase tracking-wide text-cyan-200">recomendado</span>}
-              </span>
-              <span className="block text-xs text-muted-foreground">{desc} {chip(estados[id], motivos[id])}</span>
-            </span>
-            <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => pedir(id)} disabled={estados[id] === "pendiente"}>
-              {estados[id] === "ok" ? "Volver a pedir" : "Permitir"}
-            </Button>
-          </div>
-        ))}
-      </div>
+      <PermisosDispositivoPanel ids={["microfono", "notificaciones", "camara", "ubicacion", "archivos"]} />
     </div>
   );
 }

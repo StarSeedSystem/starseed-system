@@ -30,6 +30,8 @@ import {
   type AppNotifyPref,
 } from "@/lib/notifications/app-notify";
 import { openAppPopup } from "@/lib/notifications/app-popups";
+// (Adenda 192) Si el permiso del SISTEMA falta, esta área lo pide aquí mismo.
+import { BotonPermiso } from "@/components/senses/permisos-dispositivo";
 
 /** Tipos de paquete que pueden actuar como «app» que notifica. */
 const APP_LIKE: PackageKind[] = ["app", "widget", "page", "board", "research", "project", "publication", "agent", "function"];
@@ -126,6 +128,10 @@ export function AppNotificationsPanel() {
           </p>
         </div>
       </div>
+
+      {/* (Adenda 192) Falta el permiso de notificaciones del SISTEMA → se pide
+          aquí mismo (invisible si ya está concedido; con ayuda si está bloqueado). */}
+      <BotonPermiso permiso="notificaciones" etiqueta="notificaciones del sistema" className="mb-3" />
 
       {rows.length === 0 ? (
         <div className="rounded-xl border border-dashed border-white/10 bg-white/[0.01] px-4 py-6 text-center text-[12px] text-muted-foreground">

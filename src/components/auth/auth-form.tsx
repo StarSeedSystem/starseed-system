@@ -114,6 +114,13 @@ export function AuthForm() {
             // Continuidad TOTAL: el rito de iniciación arranca al instante,
             // sin pantallas muertas entre el registro y la configuración.
             try { window.dispatchEvent(new Event('starseed:open-onboarding')) } catch { /* gate lo abre igual */ }
+            // (Adenda 192) Auto-entrada REAL: ya hay sesión → salimos de /login
+            // al OS (/escritorios) COMO en el inicio de sesión normal. El rito y
+            // la guía corren así DENTRO del perfil recién creado, con sus
+            // vínculos coherentes (perfil, cerebros, biblioteca…), y no sobre el
+            // fondo del inicio de sesión, que reaparecía al terminar la guía.
+            router.push('/escritorios')
+            router.refresh()
         } else {
             // Sin sesión automática. Con la confirmación desactivada esto casi
             // siempre significa que el correo YA tenía cuenta (Supabase lo

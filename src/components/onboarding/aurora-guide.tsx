@@ -463,6 +463,15 @@ export function AuroraGuide() {
       (window as unknown as Record<string, unknown>).openStarseedGuide = (at?: number) =>
         openGuide(typeof at === "number" ? at : 0);
     } catch { /* */ }
+    // (Adenda 192) Relevo tras navegación completa: si el rito de iniciación
+    // terminó sobre /login, salta al OS dejando esta marca — al montar aquí
+    // (ya dentro del perfil) la guía arranca sola, una única vez.
+    try {
+      if (window.sessionStorage.getItem("starseed.guide.launch") === "1") {
+        window.sessionStorage.removeItem("starseed.guide.launch");
+        window.setTimeout(() => openGuide(0), 900);
+      }
+    } catch { /* sin sessionStorage: la guía queda en Ajustes */ }
     return () => {
       window.removeEventListener(OPEN_GUIDE_EVENT, onOpen);
       try { delete (window as unknown as Record<string, unknown>).openStarseedGuide; } catch { /* */ }
