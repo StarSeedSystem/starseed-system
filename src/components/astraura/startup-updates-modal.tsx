@@ -38,6 +38,10 @@ export function StartupUpdatesModal() {
   // (Adenda 192) Cortesía con el rito/guía: manual = nunca replegar; espera viva.
   const manualRef = useRef(false);
   const esperaRef = useRef<(() => void) | null>(null);
+  // (Adenda 194) Una vez que el usuario la cierra, NO vuelve a abrirse sola en
+  // esta sesión: la espera de cortesía que se registró mientras estaba plegada
+  // seguía viva y la resucitaba justo después de cerrarla.
+  const cerradaPorUsuarioRef = useRef(false);
   useEffect(() => () => { esperaRef.current?.(); }, []); // solo al desmontar
 
   /**
@@ -70,11 +74,19 @@ export function StartupUpdatesModal() {
   }, []);
 
   /** Escape = «Recordar luego»: pospone y cierra (nunca lanza). */
+  /** Cierre definitivo: corta esperas pendientes y no reabre. */
+  const cerrarDefinitivo = useCallback(() => {
+    cerradaPorUsuarioRef.current = true;
+    esperaRef.current?.();
+    esperaRef.current = null;
+    setOpen(false);
+  }, []);
+
   const remindLater = useCallback(() => {
     try { snoozeUpdates(); } catch { /* */ }
-    setOpen(false);
+    cerrarDefinitivo();
     lanzarGuiaPendiente();
-  }, [lanzarGuiaPendiente]);
+  }, [lanzarGuiaPendiente, cerrarDefinitivo]);
 
   // Foco inicial + trampa de Tab + Escape (patrón de la Adenda 137).
   useModalA11y({ open, onClose: remindLater, containerRef });
@@ -98,12 +110,15 @@ export function StartupUpdatesModal() {
     // (evento/ajustes) sigue siendo inmediata.
     let cancelaEspera: (() => void) | null = null;
     const abrirConCortesia = () => {
+      if (cerradaPorUsuarioRef.current) return;
       void import("@/lib/ui/fullscreen-modal")
         .then((m) => {
           cancelaEspera?.();
-          cancelaEspera = m.alLiberarsePrimerPlano(() => setOpen(true));
+          cancelaEspera = m.alLiberarsePrimerPlano(() => {
+            if (!cerradaPorUsuarioRef.current) setOpen(true);
+          });
         })
-        .catch(() => setOpen(true));
+        .catch(() => { if (!cerradaPorUsuarioRef.current) setOpen(true); });
     };
     // (Adenda 193) Relevo directo del rito: si la bienvenida acaba de terminar
     // (marca de sesión), esta ventana se abre YA — es su turno en el orden,
@@ -160,17 +175,17 @@ export function StartupUpdatesModal() {
   // se repliega y espera su turno (ver lib/ui/fullscreen-modal). La apertura
   // manual (evento de ajustes) marca manualRef y nunca se repliega.
   useEffect(() => {
-    if (!open || manualRef.current) return;
+    if (!open || manualRef.current || cerradaPorUsuarioRef.current) return;
     let offSub: (() => void) | null = null;
     void import("@/lib/ui/fullscreen-modal")
       .then((m) => {
         const replegar = () => {
-          if (manualRef.current || !m.primerPlanoOcupado()) return;
+          if (manualRef.current || cerradaPorUsuarioRef.current || !m.primerPlanoOcupado()) return;
           setOpen(false);
           esperaRef.current?.();
           esperaRef.current = m.alLiberarsePrimerPlano(() => {
             esperaRef.current = null;
-            setOpen(true);
+            if (!cerradaPorUsuarioRef.current) setOpen(true);
           });
         };
         replegar();
@@ -197,8 +212,8 @@ export function StartupUpdatesModal() {
       <AstrauraOmniVoiceConfig
         variant="modal"
         initialSection="astraura"
-        onApply={() => { setOpen(false); lanzarGuiaPendiente(); }}
-        onDismiss={() => { setOpen(false); lanzarGuiaPendiente(); }}
+        onApply={() => { cerrarDefinitivo(); lanzarGuiaPendiente(); }}
+        onDismiss={() => { cerrarDefinitivo(); lanzarGuiaPendiente(); }}
       />
     </div>
   );

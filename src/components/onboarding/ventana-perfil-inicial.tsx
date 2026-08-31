@@ -106,7 +106,16 @@ export function VentanaPerfilInicial({ onCerrar }: { onCerrar?: () => void }) {
     }
   }, []);
 
-  /** Guarda todo y lleva al perfil completo; la guía arranca desde allí. */
+  /**
+   * Guarda todo y lleva al perfil completo; la guía arranca desde allí.
+   * (Adenda 194) BLINDADO: cada guardado tiene tope de tiempo y su propio
+   * try/catch — visto en vivo que una consulta lenta dejaba el botón sin hacer
+   * nada. Pase lo que pase, siempre se navega: el usuario nunca se queda
+   * atrapado en esta ventana.
+   */
+  const conTope = useCallback(<T,>(p: Promise<T>, ms = 6000): Promise<T | null> =>
+    Promise.race([p.catch(() => null), new Promise<null>((r) => setTimeout(() => r(null), ms))]), []);
+
   const terminar = useCallback(async () => {
     setGuardando(true);
     try {
@@ -116,29 +125,28 @@ export function VentanaPerfilInicial({ onCerrar }: { onCerrar?: () => void }) {
         return;
       }
       if (h && nombre.trim()) {
-        const r = await claimProfile({ fullName: nombre.trim(), handle: h });
-        if (!r.ok) { toast.error(r.error || "No se pudo guardar el nombre."); return; }
+        const r = await conTope(claimProfile({ fullName: nombre.trim(), handle: h }));
+        if (r && !r.ok) { toast.error(r.error || "No se pudo guardar el nombre."); return; }
       }
-      await saveProfileOptional({
+      await conTope(saveProfileOptional({
         avatar_url: avatar || undefined,
         cover_url: portada || undefined,
         bio: bio || undefined,
-      });
-      await (async () => {
-        try {
-          const sb = createClient();
-          const { data: u } = await sb.auth.getUser();
-          if (u?.user?.id) {
-            await sincronizarPerfilPublico(u.user.id, {
-              handle: h || undefined,
-              display_name: nombre.trim() || undefined,
-              avatar_url: avatar || undefined,
-              cover_url: portada || undefined,
-              bio: bio || undefined,
-            });
-          }
-        } catch { /* espejo best-effort */ }
-      })();
+      }));
+      await conTope((async () => {
+        const sb = createClient();
+        const { data: u } = await sb.auth.getUser();
+        if (u?.user?.id) {
+          await sincronizarPerfilPublico(u.user.id, {
+            handle: h || undefined,
+            display_name: nombre.trim() || undefined,
+            avatar_url: avatar || undefined,
+            cover_url: portada || undefined,
+            bio: bio || undefined,
+          });
+        }
+        return true;
+      })());
 
       setAbierta(false);
       onCerrar?.();
@@ -149,7 +157,7 @@ export function VentanaPerfilInicial({ onCerrar }: { onCerrar?: () => void }) {
     } finally {
       setGuardando(false);
     }
-  }, [handle, nombre, avatar, portada, bio, onCerrar]);
+  }, [handle, nombre, avatar, portada, bio, onCerrar, conTope]);
 
   const saltar = useCallback(() => {
     setAbierta(false);

@@ -315,7 +315,12 @@ export async function claimProfile(
     const optional = input.optional || {};
     const payload: Record<string, unknown> = {
       user_id: owner,
-      type: "user",
+      // (Adenda 194) El enum `profile_type` de la BD solo admite OFFICIAL ·
+      // ARTISTIC · ANONYMOUS. Se enviaba "user" y TODO el upsert fallaba con
+      // «invalid input value for enum profile_type» — por eso el nombre y el
+      // @handle elegidos no llegaban a guardarse y mandaba el que inventó el
+      // alta de cuenta. El perfil soberano de una persona es OFFICIAL.
+      type: "OFFICIAL",
       handle,
       display_name: fullName,
       ...optional,
