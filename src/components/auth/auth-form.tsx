@@ -20,8 +20,14 @@ export function AuthForm() {
     // app no renderizaba el aviso (login «no hacía nada, sin mensaje»). Este <p>
     // en el propio formulario SIEMPRE se ve, pase lo que pase con los toasts.
     const [authMsg, setAuthMsg] = React.useState<{ tipo: 'error' | 'ok'; txt: string } | null>(null)
-    // Adenda 188: registro con identidad — sugerencia @star.seed en vivo.
+    // Adenda 188/189: registro con identidad — sugerencia @star.seed en vivo,
+    // confirmación de contraseña y vinculación opcional de correo externo.
     const [signupEmail, setSignupEmail] = React.useState('')
+    const [signupPass, setSignupPass] = React.useState('')
+    const [signupPass2, setSignupPass2] = React.useState('')
+    const [signupExterno, setSignupExterno] = React.useState('')
+    const passNoCoincide = signupPass2.length > 0 && signupPass !== signupPass2
+    const esStarSeed = signupEmail.trim().toLowerCase().endsWith('@star.seed')
 
     // (Adenda 182) Un fetch de auth RECHAZADO (red caída, o el proyecto Supabase
     // restringido por cuota — su 402 llega sin CORS y el navegador lo convierte
@@ -47,9 +53,18 @@ export function AuthForm() {
         setIsLoading(true)
         setAuthMsg(null)
 
-        const formData = new FormData(event.currentTarget)
-        const email = formData.get('email') as string
-        const password = formData.get('password') as string
+        const email = signupEmail.trim()
+        const password = signupPass
+        if (!email || !password) {
+            setAuthMsg({ tipo: 'error', txt: 'Escribe tu correo y una contraseña.' })
+            setIsLoading(false)
+            return
+        }
+        if (password !== signupPass2) {
+            setAuthMsg({ tipo: 'error', txt: 'Las contraseñas no coinciden: revísalas.' })
+            setIsLoading(false)
+            return
+        }
 
         let error: { message: string } | null = null
         let sesionYa = false
@@ -82,16 +97,31 @@ export function AuthForm() {
                 variant: 'destructive',
             })
         } else if (sesionYa) {
-            setAuthMsg({ tipo: 'ok', txt: '¡Cuenta creada! Entrando a StarSeed… Astraura te guiará en tu primera configuración.' })
+            setAuthMsg({ tipo: 'ok', txt: '¡Cuenta creada! Astraura te guía ahora en tu primera configuración.' })
             toast({
                 title: '¡Cuenta creada!',
                 description: 'Astraura te acompaña ahora en tu primera configuración.',
             })
+            // (Adenda 189) Vinculación opcional del correo externo indicada al
+            // registrarse con @star.seed — best-effort, nunca bloquea el alta.
+            const externo = signupExterno.trim().toLowerCase()
+            if (externo.includes('@')) {
+                try {
+                    const { addExternalEmail } = await import('@/lib/mail/starseed-mail')
+                    void addExternalEmail(externo)
+                } catch { /* se puede vincular después en Correos */ }
+            }
+            // Continuidad TOTAL: el rito de iniciación arranca al instante,
+            // sin pantallas muertas entre el registro y la configuración.
+            try { window.dispatchEvent(new Event('starseed:open-onboarding')) } catch { /* gate lo abre igual */ }
         } else {
-            setAuthMsg({ tipo: 'ok', txt: 'Verifica tu correo: te enviamos un enlace de confirmación.' })
+            // Sin sesión automática. Con la confirmación desactivada esto casi
+            // siempre significa que el correo YA tenía cuenta (Supabase lo
+            // disimula por privacidad) — decirlo con honestidad y sin enredos.
+            setAuthMsg({ tipo: 'ok', txt: 'No se abrió sesión automática. Si ese correo ya tenía cuenta, usa «Entrar»; si es un correo externo nuevo, revisa su bandeja por un enlace de confirmación.' })
             toast({
-                title: 'Verifica tu correo',
-                description: 'Te hemos enviado un enlace de confirmación.',
+                title: 'Un paso más',
+                description: 'Si el correo ya tenía cuenta, entra con tu contraseña.',
             })
         }
 
@@ -197,9 +227,30 @@ export function AuthForm() {
                             </div>
                             <div className="space-y-2">
                                 <Label htmlFor="password-signup">Contraseña</Label>
-                                <Input id="password-signup" name="password" type="password" required />
+                                <Input id="password-signup" name="password" type="password" required
+                                    value={signupPass} onChange={(e) => setSignupPass(e.target.value)} />
                             </div>
-                            <Button type="submit" className="w-full" disabled={isLoading}>
+                            <div className="space-y-2">
+                                <Label htmlFor="password-signup-2">Confirmar contraseña</Label>
+                                <Input id="password-signup-2" type="password" required
+                                    value={signupPass2} onChange={(e) => setSignupPass2(e.target.value)} />
+                                {passNoCoincide && (
+                                    <p className="text-[11px] text-red-300" role="alert">Las contraseñas no coinciden.</p>
+                                )}
+                            </div>
+                            {esStarSeed && (
+                                <div className="space-y-2">
+                                    <Label htmlFor="email-externo">Correo externo a vincular (opcional)</Label>
+                                    <Input id="email-externo" type="email" placeholder="tu-correo@gmail.com"
+                                        value={signupExterno} onChange={(e) => setSignupExterno(e.target.value)} />
+                                    <p className="text-[11px] leading-snug text-muted-foreground">
+                                        Como tu dirección @star.seed es nueva, puedes enlazar un correo externo a tu
+                                        cuenta desde el inicio (recuperación y avisos). Podrás vincular más en
+                                        Ajustes → Correos.
+                                    </p>
+                                </div>
+                            )}
+                            <Button type="submit" className="w-full" disabled={isLoading || passNoCoincide}>
                                 {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                                 Crear Cuenta
                             </Button>

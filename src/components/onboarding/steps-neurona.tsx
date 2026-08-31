@@ -34,6 +34,8 @@ const selectCls =
 export function StepCerebros() {
   const [cerebros, setCerebros] = useState<Brain[] | null>(null);
   const [syncNube, setSyncNube] = useState(true);
+  // (Adenda 189) Enrutamiento de las memorias: dónde viven físicamente.
+  const [ruta, setRuta] = useState<"nube-local" | "nube" | "local">("nube-local");
   const [personalidad, setPersonalidad] = useState(true);
   const [aplicado, setAplicado] = useState(false);
   const [cargando, setCargando] = useState(false);
@@ -54,6 +56,7 @@ export function StepCerebros() {
       r.push("No tienes cerebros todavía: crearé «Cerebro principal», el hogar de tus memorias, el de tus perfiles y el de los agentes de Astraura.");
     else r.push(`Encontré ${cerebros.length} cerebro(s) en tu cuenta: los dejo conectados a esta neurona.`);
     r.push("Sincronización en la nube StarSeed activada: tus memorias te siguen a cualquier dispositivo donde inicies sesión.");
+    r.push("Enrutamiento recomendado: nube + copia local espejada — velocidad local con respaldo en tu cuenta. Puedes cambiarlo a solo-nube o solo-local.");
     r.push("Personalidad base de Astraura incluida (opcional): un punto de partida configurable para tu exocórtex.");
     return r;
   }, [cerebros]);
@@ -73,7 +76,7 @@ export function StepCerebros() {
         try { await ensureHermionePersonalityInstalled(); } catch { /* opcional */ }
       }
       await saveOnboarding({
-        steps: { cerebros: { creado, syncNube, personalidad } },
+        steps: { cerebros: { creado, syncNube, personalidad, enrutamiento: ruta } },
       });
       setAplicado(true);
     } catch {
@@ -82,7 +85,7 @@ export function StepCerebros() {
     } finally {
       setCargando(false);
     }
-  }, [cerebros, syncNube, personalidad]);
+  }, [cerebros, syncNube, personalidad, ruta]);
 
   return (
     <div className="space-y-4">
@@ -110,6 +113,14 @@ export function StepCerebros() {
             <span className="block text-xs text-muted-foreground">Instala una personalidad inicial configurable; puedes crear más después.</span>
           </span>
           <Switch checked={personalidad} onCheckedChange={setPersonalidad} aria-label="Instalar personalidad base" />
+        </label>
+        <label className="block text-sm">
+          <span className="text-muted-foreground">Enrutamiento de las memorias (medios de almacenamiento)</span>
+          <select value={ruta} onChange={(e) => setRuta(e.target.value as typeof ruta)} className={cn(selectCls, "mt-1")}>
+            <option value="nube-local">Nube StarSeed + copia local espejada (recomendado)</option>
+            <option value="nube">Solo nube StarSeed — mínima huella en este equipo</option>
+            <option value="local">Solo local en esta neurona — máxima soberanía, sin réplica remota</option>
+          </select>
         </label>
         {nota && <p className="text-xs text-amber-300/90">{nota}</p>}
       </div>
@@ -292,6 +303,85 @@ export function StepNeurona() {
           El modelo se descarga al activarlo y todo esto vive en Ajustes → Neurona, por dispositivo.
         </p>
       </div>
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// Correos vinculados de la cuenta (se usa dentro del paso "Correos" del wizard)
+// Lista REAL (account_emails) + alta de un correo externo vinculado opcional.
+// ════════════════════════════════════════════════════════════════════════════
+export function CorreosVinculados() {
+  const [correos, setCorreos] = useState<{ id: string; address: string; kind: string; is_primary: boolean }[] | null>(null);
+  const [nuevo, setNuevo] = useState("");
+  const [ocupado, setOcupado] = useState(false);
+  const [nota, setNota] = useState<string | null>(null);
+
+  const cargar = useCallback(async () => {
+    try {
+      const { listAccountEmails } = await import("@/lib/mail/starseed-mail");
+      const ls = await listAccountEmails();
+      setCorreos(ls.map((e) => ({ id: e.id, address: e.address, kind: String(e.kind), is_primary: !!e.is_primary })));
+    } catch {
+      setCorreos([]);
+    }
+  }, []);
+
+  useEffect(() => { void cargar(); }, [cargar]);
+
+  const vincular = useCallback(async () => {
+    const addr = nuevo.trim().toLowerCase();
+    if (!addr.includes("@")) { setNota("Escribe un correo válido."); return; }
+    setOcupado(true);
+    setNota(null);
+    try {
+      const { addExternalEmail } = await import("@/lib/mail/starseed-mail");
+      const r = await addExternalEmail(addr);
+      if (r.ok) {
+        setNuevo("");
+        setNota("Correo vinculado a tu cuenta ✓ (la sincronización completa se activa en Correos).");
+        void cargar();
+      } else {
+        setNota(r.error || "No se pudo vincular ahora.");
+      }
+    } catch {
+      setNota("No se pudo vincular ahora (¿sin red?). Inténtalo en Ajustes → Correos.");
+    } finally {
+      setOcupado(false);
+    }
+  }, [nuevo, cargar]);
+
+  return (
+    <div className="space-y-2 rounded-xl border border-white/10 bg-white/[0.02] p-3">
+      <p className="text-[11px] font-semibold uppercase tracking-wider text-white/50">Correos vinculados a tu cuenta</p>
+      {correos === null ? (
+        <p className="text-xs text-white/50">Cargando…</p>
+      ) : correos.length === 0 ? (
+        <p className="text-xs text-white/50">Aún no hay correos vinculados aquí.</p>
+      ) : (
+        <ul className="space-y-1">
+          {correos.map((c) => (
+            <li key={c.id} className="flex items-center gap-2 text-xs text-white/80">
+              <span className={cn("h-1.5 w-1.5 rounded-full", c.kind === "external" ? "bg-fuchsia-300" : "bg-cyan-300")} aria-hidden />
+              <span className="truncate">{c.address}</span>
+              <span className="text-[10px] text-white/40">{c.kind === "external" ? "externo" : "star.seed"}{c.is_primary ? " · principal" : ""}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className="flex gap-2 pt-1">
+        <Input
+          value={nuevo}
+          onChange={(e) => setNuevo(e.target.value)}
+          placeholder="vincular-otro@correo.com (opcional)"
+          type="email"
+          className="h-8 text-xs"
+        />
+        <Button size="sm" variant="outline" className="h-8 shrink-0 text-xs" onClick={vincular} disabled={ocupado}>
+          {ocupado ? "Vinculando…" : "Vincular"}
+        </Button>
+      </div>
+      {nota && <p className="text-[11px] text-cyan-200/80">{nota}</p>}
     </div>
   );
 }

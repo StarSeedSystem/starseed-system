@@ -33,7 +33,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { StepCerebros, StepPermisos, StepNeurona } from "./steps-neurona";
+import { StepCerebros, StepPermisos, StepNeurona, CorreosVinculados } from "./steps-neurona";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -96,11 +96,11 @@ import {
 // ── narraciones de Astraura por paso ─────────────────────────────────────
 const STEP_NARRATION: Record<number, string> = {
   0: "Hola, soy Astraura. Te doy la bienvenida a StarSeed. Voy a guiarte para dejar tu cuenta lista: solo aceptas y eliges, yo me encargo del resto. Puedo acompañarte por voz o seguimos en texto, como prefieras.",
-  1: "Vamos a crear tu identidad en la red. Solo necesito tu nombre y un @handle único; te propongo opciones y lo demás es opcional.",
-  2: "Si quieres, te creo tu dirección StarSeed: tu correo dentro de la red, algo arroba star punto seed. Funciona ya entre cuentas, y más tarde puedes vincular correos externos.",
+  1: "Primero tu cuenta: tu nombre oficial y un @handle único en la red. Te propongo opciones y todo se puede editar después.",
+  2: "Ahora los correos de tu cuenta: tu dirección StarSeed interna y, si quieres, vincula aquí mismo tus correos externos. Todos conviven en la misma cuenta.",
   3: "Configuremos tu recuperación: un correo externo y un teléfono, para que nunca pierdas el acceso.",
-  4: "Estos datos son opcionales: un avatar y una breve biografía. Puedes editarlos cuando quieras.",
-  5: "Ahora tus cerebros: el hogar de tus memorias, las de tus perfiles y las de tus agentes. Analicé tu cuenta y te propongo la mejor configuración; acéptala con un toque o ajústala a tu gusto.",
+  4: "Tu perfil: un avatar, una portada y una breve biografía, todos opcionales. Es tu cara ante la red y puedes cambiarla cuando quieras.",
+  5: "Ahora tus cerebros y dónde viven sus memorias: elegimos el enrutamiento de almacenamiento entre la nube StarSeed y esta neurona. Analicé tu cuenta y te propongo la mejor configuración.",
   6: "Permisos del dispositivo: te recomiendo micrófono y notificaciones para hablar conmigo y no perderte nada. El resto es opcional y cada función lo pedirá cuando lo necesite.",
   7: "Configuremos mi presencia en esta neurona: ya analicé tu equipo y elegí el motor y el modelo que mejor le sientan. Tú decides; todo se puede cambiar en Ajustes.",
   8: "Te muestro las áreas de la red: cómo vincular, conectar, crear, publicar y usar cada una.",
@@ -108,11 +108,11 @@ const STEP_NARRATION: Record<number, string> = {
 
 const STEPS = [
   { key: "bienvenida", label: "Bienvenida", icon: Sparkles },
-  { key: "identidad", label: "Tu identidad", icon: AtSign },
-  { key: "correo", label: "Correo StarSeed", icon: Mail },
+  { key: "identidad", label: "Cuenta y nombre", icon: AtSign },
+  { key: "correo", label: "Correos vinculados", icon: Mail },
   { key: "recuperacion", label: "Recuperación", icon: ShieldCheck },
-  { key: "opcionales", label: "Datos opcionales", icon: ImageIcon },
-  { key: "cerebros", label: "Cerebros y memoria", icon: Brain },
+  { key: "opcionales", label: "Tu perfil", icon: ImageIcon },
+  { key: "cerebros", label: "Memorias y almacenamiento", icon: Brain },
   { key: "permisos", label: "Permisos", icon: Lock },
   { key: "neurona", label: "Astraura local", icon: Cpu },
   { key: "guia", label: "Guía de la red", icon: Compass },
@@ -748,6 +748,9 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
                   </Link>
                 </div>
               </div>
+              {/* (Adenda 189) Correos REALES vinculados a la cuenta + alta de
+                  externo, aquí mismo — sin salir del rito de iniciación. */}
+              <CorreosVinculados />
               {emailVariants.length > 0 && (
                 <div className="space-y-1.5">
                   <label className="text-[11px] uppercase tracking-wider text-white/50 font-semibold">Variantes sugeridas</label>
