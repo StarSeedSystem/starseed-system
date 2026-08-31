@@ -42,8 +42,10 @@ import { useAurora } from "@/components/aurora/aurora-provider";
 import { chat } from "@/ai/client/chat";
 import { loadConfigs } from "@/ai/client/providerStore";
 import { buildSystemPrompt, DEFAULT_PERSONALITY } from "@/lib/aurora/types";
+import { OPEN_GUIDE_EVENT } from "./aurora-guide";
 import {
   getOnboarding,
+  saveProfileOptional,
   saveOnboarding,
   isHandleAvailable,
   isValidHandle,
@@ -206,6 +208,15 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
         if (id.recovery?.phone) setRecPhone(id.recovery.phone);
         if (id.recovery?.method) setRecMethod(id.recovery.method);
         if (id.verified) setChannels({ ...id.verified });
+      }
+      // (Adenda 191) El correo externo se pide UNA sola vez: si ya se vinculó
+      // (en el registro o en el paso Correos), Recuperación lo PRE-RELLENA.
+      if (!id?.recovery?.email) {
+        try {
+          const { listAccountEmails } = await import("@/lib/mail/starseed-mail");
+          const ext = (await listAccountEmails()).find((e) => String(e.kind) === "external");
+          if (ext?.address) setRecEmail((prev) => prev || ext.address);
+        } catch { /* sin vinculados aún */ }
       }
       // Prefill de datos ya guardados en el perfil (datos REALES, owner-scoped).
       try {
@@ -441,14 +452,12 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
   const doSaveOptional = useCallback(async (): Promise<boolean> => {
     if (!avatarUrl && !coverUrl && !bio) return true;
     setBusy(true);
-    const res = await claimProfile({
-      fullName,
-      handle: handle.trim().toLowerCase(),
-      optional: {
-        avatar_url: avatarUrl || undefined,
-        cover_url: coverUrl || undefined,
-        bio: bio || undefined,
-      },
+    // (Adenda 191) Solo los OPCIONALES, por user_id — sin re-reclamar
+    // nombre/handle (la raíz del "@handle no válido" tras los avatares).
+    const res = await saveProfileOptional({
+      avatar_url: avatarUrl || undefined,
+      cover_url: coverUrl || undefined,
+      bio: bio || undefined,
     });
     setBusy(false);
     // (Adenda 190) Los datos OPCIONALES jamás bloquean el rito: si el guardado
@@ -500,6 +509,16 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
     setBusy(false);
     toast.success("¡Bienvenida completada!");
     closeAll();
+    // (Adenda 191) Al terminar el rito arranca la GUÍA del sistema (el tour
+    // vivo que presenta orbe, Trinity, Escritorio, Astraura…), SIEMPRE para
+    // cuentas nuevas — sin depender de la marca local "ya vista".
+    setTimeout(() => {
+      try {
+        const w = window as unknown as { openStarseedGuide?: () => void };
+        if (typeof w.openStarseedGuide === "function") w.openStarseedGuide();
+        else window.dispatchEvent(new Event(OPEN_GUIDE_EVENT));
+      } catch { /* la guía queda en Ajustes */ }
+    }, 650);
   }, [closeAll]);
 
   const skip = useCallback(async () => {

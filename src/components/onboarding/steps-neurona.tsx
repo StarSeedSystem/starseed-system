@@ -143,6 +143,7 @@ const PERMISOS: { id: PermisoDispositivo; label: string; desc: string; rec: bool
 
 export function StepPermisos() {
   const [estados, setEstados] = useState<Record<string, EstadoPermiso>>({});
+  const [motivos, setMotivos] = useState<Record<string, string>>({});
   const [visor, setVisor] = useState<{ bloqueado: boolean; visor: string } | null>(null);
   const [aplicado, setAplicado] = useState(false);
   const [cargando, setCargando] = useState(false);
@@ -163,10 +164,12 @@ export function StepPermisos() {
   const pedir = useCallback(async (id: PermisoDispositivo) => {
     setEstados((e) => ({ ...e, [id]: "pendiente" }));
     try {
-      const r: any = await requestDevicePermission(id);
-      const ok = r?.ok === true || r?.granted === true || /conced|granted|ok/i.test(String(r?.estado ?? ""));
-      const nodisp = /no soportado|no disponible|unsupported/i.test(String(r?.detalle ?? r?.estado ?? ""));
-      setEstados((e) => ({ ...e, [id]: ok ? "ok" : nodisp ? "nodisp" : "denegado" }));
+      // (Adenda 191) Contrato REAL de la lib: { soportado, concedido, motivo }.
+      // Antes se leían campos inexistentes y TODO se pintaba como denegado
+      // aunque el navegador hubiera concedido el permiso.
+      const r = await requestDevicePermission(id);
+      setEstados((e) => ({ ...e, [id]: r.concedido ? "ok" : r.soportado ? "denegado" : "nodisp" }));
+      if (r.motivo) setMotivos((m) => ({ ...m, [id]: r.motivo! }));
     } catch {
       setEstados((e) => ({ ...e, [id]: "nodisp" }));
     }
@@ -184,10 +187,10 @@ export function StepPermisos() {
     setCargando(false);
   }, [pedir]);
 
-  const chip = (s: EstadoPermiso | undefined) =>
+  const chip = (s: EstadoPermiso | undefined, m?: string) =>
     s === "ok" ? <span className="text-[10px] text-emerald-300">concedido ✓</span>
-    : s === "denegado" ? <span className="text-[10px] text-amber-300">denegado — actívalo en el navegador</span>
-    : s === "nodisp" ? <span className="text-[10px] text-slate-400">no disponible aquí</span>
+    : s === "denegado" ? <span className="text-[10px] text-amber-300">denegado{m ? ` (${m})` : ""} — reactívalo en el candado del navegador</span>
+    : s === "nodisp" ? <span className="text-[10px] text-slate-400">no disponible en este medio{m ? ` (${m})` : ""}</span>
     : s === "pendiente" ? <span className="text-[10px] text-slate-400">pidiendo…</span>
     : null;
 
@@ -205,7 +208,7 @@ export function StepPermisos() {
                 {label}
                 {rec && <span className="rounded-full bg-cyan-400/15 px-1.5 py-px text-[9px] uppercase tracking-wide text-cyan-200">recomendado</span>}
               </span>
-              <span className="block text-xs text-muted-foreground">{desc} {chip(estados[id])}</span>
+              <span className="block text-xs text-muted-foreground">{desc} {chip(estados[id], motivos[id])}</span>
             </span>
             <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => pedir(id)} disabled={estados[id] === "pendiente"}>
               {estados[id] === "ok" ? "Volver a pedir" : "Permitir"}
@@ -316,6 +319,9 @@ export function CorreosVinculados() {
   const [nuevo, setNuevo] = useState("");
   const [ocupado, setOcupado] = useState(false);
   const [nota, setNota] = useState<string | null>(null);
+  // (Adenda 191) El correo externo se pide UNA vez: si ya hay uno vinculado,
+  // el alta de otro queda plegada tras un botón discreto.
+  const [mostrarAlta, setMostrarAlta] = useState(false);
 
   const cargar = useCallback(async () => {
     try {
@@ -369,18 +375,34 @@ export function CorreosVinculados() {
           ))}
         </ul>
       )}
-      <div className="flex gap-2 pt-1">
-        <Input
-          value={nuevo}
-          onChange={(e) => setNuevo(e.target.value)}
-          placeholder="vincular-otro@correo.com (opcional)"
-          type="email"
-          className="h-8 text-xs"
-        />
-        <Button size="sm" variant="outline" className="h-8 shrink-0 text-xs" onClick={vincular} disabled={ocupado}>
-          {ocupado ? "Vinculando…" : "Vincular"}
-        </Button>
-      </div>
+      {(() => {
+        const hayExterno = (correos ?? []).some((c) => c.kind === "external");
+        if (hayExterno && !mostrarAlta) {
+          return (
+            <button
+              type="button"
+              onClick={() => setMostrarAlta(true)}
+              className="pt-1 text-[11px] text-cyan-300/80 transition-colors hover:text-cyan-200"
+            >
+              + Vincular otro correo (opcional)
+            </button>
+          );
+        }
+        return (
+          <div className="flex gap-2 pt-1">
+            <Input
+              value={nuevo}
+              onChange={(e) => setNuevo(e.target.value)}
+              placeholder="vincular-otro@correo.com (opcional)"
+              type="email"
+              className="h-8 text-xs"
+            />
+            <Button size="sm" variant="outline" className="h-8 shrink-0 text-xs" onClick={vincular} disabled={ocupado}>
+              {ocupado ? "Vinculando…" : "Vincular"}
+            </Button>
+          </div>
+        );
+      })()}
       {nota && <p className="text-[11px] text-cyan-200/80">{nota}</p>}
     </div>
   );

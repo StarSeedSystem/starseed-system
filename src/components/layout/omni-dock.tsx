@@ -613,7 +613,11 @@ function DockItem({ icon, label, onClick, color = "neutral", active = false, bad
                     // biblioteca/hub vía .ss-icon-3d--sheen: barrido especular al
                     // hover/focus, 260ms, respeta prefers-reduced-motion y data-perf=eco).
                     "relative flex items-center justify-center cursor-pointer ss-icon-3d--sheen",
-                    redondo ? "rounded-full" : "rounded-2xl",
+                    // (Adenda 191) !important: una regla CSS global fijaba 8px y
+                    // pisaba el radio — por eso el dock se veía "cuadrado" aunque
+                    // la preferencia dijera redondo. El diseño clásico circular
+                    // vuelve a mandar; "square" queda como variante de tema.
+                    redondo ? "!rounded-full" : "!rounded-2xl",
                     compact ? "w-9 h-9 lg:w-12 lg:h-12" : "w-12 h-12 lg:w-16 lg:h-16",
                     // Transiciones 150–300ms (guía de diseño): micro-interacción viva.
                     "transition-[transform,box-shadow,background-color,border-color] duration-200 ease-out",
@@ -633,7 +637,7 @@ function DockItem({ icon, label, onClick, color = "neutral", active = false, bad
                     aria-hidden
                     className={cn(
                         "pointer-events-none absolute inset-0 bg-gradient-to-t from-transparent via-white/0 to-white/10 opacity-0 transition-opacity duration-200 group-hover:opacity-100",
-                        redondo ? "rounded-full" : "rounded-2xl",
+                        redondo ? "!rounded-full" : "!rounded-2xl",
                     )}
                 />
                 {icon}

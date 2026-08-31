@@ -136,6 +136,34 @@ export async function saveOnboarding(
   }
 }
 
+/**
+ * (Adenda 191) Guarda SOLO los datos opcionales del perfil (avatar, portada,
+ * bio) con un UPDATE directo por user_id — sin re-reclamar nombre/handle.
+ * Antes, el paso opcional reutilizaba claimProfile y si el estado del handle
+ * llegaba vacío (reanudación, prefill) explotaba con "@handle no válido".
+ */
+export async function saveProfileOptional(optional: {
+  avatar_url?: string;
+  cover_url?: string;
+  bio?: string;
+}): Promise<{ ok: boolean; error?: string }> {
+  const owner = await uid();
+  if (!owner) return { ok: false, error: "Necesitas iniciar sesión." };
+  const patch: Record<string, string> = {};
+  if (optional.avatar_url) patch.avatar_url = optional.avatar_url;
+  if (optional.cover_url) patch.cover_url = optional.cover_url;
+  if (optional.bio) patch.bio = optional.bio;
+  if (Object.keys(patch).length === 0) return { ok: true };
+  try {
+    const sb = createClient();
+    const { error } = await sb.from("profiles").update(patch).eq("user_id", owner);
+    if (error) return { ok: false, error: error.message };
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: (e as Error)?.message || "Error al guardar." };
+  }
+}
+
 // ── @handle en la red (profiles) ─────────────────────────────────────────
 export const HANDLE_RE = /^[a-z0-9_]{3,20}$/;
 
