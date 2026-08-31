@@ -191,6 +191,14 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
     (async () => {
       const ob = await getOnboarding();
       setVoiceStarted(!!ob.voice_started);
+      // (Adenda 190) REANUDACIÓN: si el rito quedó a medias (sesión reiniciada,
+      // pestaña cerrada…), se retoma EXACTAMENTE en el paso donde se quedó.
+      try {
+        const last = Number((ob.steps as Record<string, unknown> | undefined)?.last);
+        if (!ob.completed && Number.isFinite(last) && last > 0) {
+          setStep(Math.min(Math.max(0, Math.trunc(last)), STEPS.length - 1));
+        }
+      } catch { /* arranca desde el inicio */ }
       const id = await getStarseedIdentity();
       if (id) {
         if (id.address) { setAddress(id.address); setEmailClaimed(true); }
@@ -443,7 +451,13 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
       },
     });
     setBusy(false);
-    if (!res.ok) { toast.error(res.error || "No se pudieron guardar los datos."); return false; }
+    // (Adenda 190) Los datos OPCIONALES jamás bloquean el rito: si el guardado
+    // falla (p.ej. el re-claim del handle choca consigo mismo), se avisa con
+    // honestidad y se CONTINÚA — todo es editable después desde el perfil.
+    if (!res.ok) {
+      toast.warning((res.error || "No se pudieron guardar ahora") + " — puedes editarlos luego en tu perfil.");
+      return true;
+    }
     toast.success("Datos guardados.");
     return true;
   }, [avatarUrl, coverUrl, bio, fullName, handle]);
@@ -531,9 +545,15 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
     </div>
   );
 
+  // (Adenda 190) El rito NO se cierra con Esc, clic fuera ni la X: solo
+  // «Saltar por ahora» o «Finalizar». Así nadie queda a medias sin querer.
   return (
-    <Dialog open={open} onOpenChange={(v) => { if (!v) skip(); setOpen(v); }}>
-      <DialogContent className="w-[95vw] sm:max-w-2xl max-h-[90vh] overflow-y-auto p-4 sm:p-6">
+    <Dialog open={open} onOpenChange={() => { /* cierre solo vía Saltar/Finalizar */ }}>
+      <DialogContent
+        className="w-[95vw] sm:max-w-2xl max-h-[90dvh] overflow-y-auto p-4 sm:p-6 [&>button.absolute]:hidden"
+        onInteractOutside={(e) => e.preventDefault()}
+        onEscapeKeyDown={(e) => e.preventDefault()}
+      >
         <DialogHeader>
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-fuchsia-500 via-purple-500 to-cyan-400 flex items-center justify-center shrink-0 shadow-lg">

@@ -316,6 +316,12 @@ export interface AppearanceConfig {
          */
         dockDensity?: "comfortable" | "compact";
         /**
+         * (Adenda 190) Forma de los ICONOS del OmniDock. "round" es el diseño
+         * clásico predeterminado (iconos circulares); "square" (cuadrado
+         * redondeado) queda como variante elegible por perfil en Ajustes.
+         */
+        dockIconShape?: "round" | "square";
+        /**
          * Indicadores sutiles de borde (Bloque 4 extendido): una franja muy
          * tenue con el color cardinal de cada nodo, visible en reposo tanto
          * con ratón (perimeter-interface) como en táctil (trinity-edge-access),
@@ -641,6 +647,7 @@ const defaultConfig: AppearanceConfig = {
         // Densidad histórica del dock: "comfortable" (sin cambios visuales
         // para cuentas existentes). El modo "compact" es opt-in.
         dockDensity: "comfortable",
+        dockIconShape: "round",
         // Indicadores sutiles de borde: desactivados por defecto (no intrusivo
         // por defecto; el usuario los activa si los quiere).
         showEdgeIndicators: false,

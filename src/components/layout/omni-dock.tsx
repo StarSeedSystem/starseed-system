@@ -594,6 +594,10 @@ function DockItem({ icon, label, onClick, color = "neutral", active = false, bad
     compact?: boolean;
 }) {
     const p = DOCK_PALETTE[color];
+    // (Adenda 190) Forma de los iconos: REDONDOS por defecto (el diseño
+    // clásico); "square" (cuadrado redondeado) es opción de tema por perfil.
+    const { config: cfgForma } = useAppearance();
+    const redondo = ((cfgForma?.trinity as { dockIconShape?: string } | undefined)?.dockIconShape ?? "round") !== "square";
 
     return (
         <div className={cn(
@@ -608,7 +612,8 @@ function DockItem({ icon, label, onClick, color = "neutral", active = false, bad
                     // Contenedor de icono "cristal" unificado (misma familia que
                     // biblioteca/hub vía .ss-icon-3d--sheen: barrido especular al
                     // hover/focus, 260ms, respeta prefers-reduced-motion y data-perf=eco).
-                    "relative flex items-center justify-center rounded-2xl cursor-pointer ss-icon-3d--sheen",
+                    "relative flex items-center justify-center cursor-pointer ss-icon-3d--sheen",
+                    redondo ? "rounded-full" : "rounded-2xl",
                     compact ? "w-9 h-9 lg:w-12 lg:h-12" : "w-12 h-12 lg:w-16 lg:h-16",
                     // Transiciones 150–300ms (guía de diseño): micro-interacción viva.
                     "transition-[transform,box-shadow,background-color,border-color] duration-200 ease-out",
@@ -626,7 +631,10 @@ function DockItem({ icon, label, onClick, color = "neutral", active = false, bad
                 {/* Brillo de cristal sutil que aparece al pasar el cursor (Liquid Glass). */}
                 <span
                     aria-hidden
-                    className="pointer-events-none absolute inset-0 rounded-2xl bg-gradient-to-t from-transparent via-white/0 to-white/10 opacity-0 transition-opacity duration-200 group-hover:opacity-100"
+                    className={cn(
+                        "pointer-events-none absolute inset-0 bg-gradient-to-t from-transparent via-white/0 to-white/10 opacity-0 transition-opacity duration-200 group-hover:opacity-100",
+                        redondo ? "rounded-full" : "rounded-2xl",
+                    )}
                 />
                 {icon}
                 {active && (

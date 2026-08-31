@@ -84,6 +84,7 @@ export function TrinityEdgeSettings() {
     };
     const showEdgeIndicators = config.trinity?.showEdgeIndicators ?? false;
     const dockDensity = config.trinity?.dockDensity ?? "comfortable";
+    const dockIconShape = (config.trinity as { dockIconShape?: string } | undefined)?.dockIconShape ?? "round";
 
     const setTouch = (patch: Partial<typeof touch>) => updateConfig({ trinity: { touch: { ...touch, ...patch } } } as any);
     const setEA = (patch: any) => updateConfig({ trinity: { edgeAccess: patch } } as any);
@@ -103,6 +104,41 @@ export function TrinityEdgeSettings() {
                 </CardDescription>
             </CardHeader>
             <CardContent className="space-y-7">
+
+                {/* ── Forma de los iconos del dock (Adenda 190) ────── */}
+                <section className="space-y-3">
+                    <div>
+                        <p className="text-sm font-semibold">Iconos del OmniDock</p>
+                        <p className="text-xs text-muted-foreground">
+                            Redondos es el diseño clásico predeterminado. Cuadrados (esquinas
+                            redondeadas) es una variante de tema por perfil.
+                        </p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                        {([
+                            { value: "round" as const, label: "Redondos (predeterminado)" },
+                            { value: "square" as const, label: "Cuadrados" },
+                        ]).map(({ value, label }) => {
+                            const activo = dockIconShape === value;
+                            return (
+                                <button
+                                    key={value}
+                                    type="button"
+                                    onClick={() => updateConfig({ trinity: { dockIconShape: value } } as any)}
+                                    aria-pressed={activo}
+                                    className={cn(
+                                        "p-2.5 rounded-xl border text-xs font-medium transition-all cursor-pointer",
+                                        activo ? "border-primary/50 bg-primary/10 text-primary ring-1 ring-primary/30" : "border-border/60 bg-card/40 hover:bg-card/70"
+                                    )}
+                                >
+                                    {label}
+                                </button>
+                            );
+                        })}
+                    </div>
+                </section>
+
+                <div className="h-px bg-border/50" />
 
                 {/* ── Tamaño del dock ──────────────────────────────── */}
                 <section className="space-y-3">

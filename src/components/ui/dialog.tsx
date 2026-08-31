@@ -59,7 +59,9 @@ const DialogContent = React.forwardRef<
         {isPrimary && (
           <div className="absolute inset-0 z-0 opacity-40 bg-gradient-to-br from-white/10 to-transparent pointer-events-none sm:rounded-lg" />
         )}
-        <div className={cn("relative z-10 w-full h-full", isPrimary && "drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]")}>
+        {/* (Adenda 190) flex-1 + min-h-0 + overflow: el contenido largo SCROLLEA
+            dentro del diálogo (antes h-full lo recortaba en pantallas bajas). */}
+        <div className={cn("relative z-10 w-full flex-1 min-h-0 overflow-y-auto", isPrimary && "drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]")}>
           {children}
         </div>
         <DialogPrimitive.Close className="absolute right-4 top-4 z-20 grid h-8 w-8 place-items-center rounded-full cursor-pointer opacity-70 ring-offset-background transition-[opacity,background-color,box-shadow] duration-200 hover:opacity-100 hover:bg-foreground/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground">
