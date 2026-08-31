@@ -62,7 +62,14 @@ const MALE_NAME_HINTS = [
 ];
 
 /** Pistas de baja calidad / voz antigua. */
-const LOW_QUALITY_HINTS = ["espeak", "eloquence", "compact", "novelty", "whisper", "bad news", "albert", "zarvox", "trinoids"];
+const LOW_QUALITY_HINTS = [
+  "espeak", "eloquence", "compact", "novelty", "whisper", "bad news", "albert", "zarvox", "trinoids",
+  // (Adenda 194) Familia de voces «de broma» que macOS instala de fábrica en
+  // TODOS los idiomas: en un equipo sin voces buenas descargadas, ganaban por
+  // ser las únicas de es-* y Astraura sonaba a juguete.
+  "eddy", "flo", "grandma", "grandpa", "reed", "rocko", "sandy", "shelley",
+  "jester", "superstar", "wobble", "boing", "bubbles", "organ", "cellos", "bahh", "bells",
+];
 
 function lower(s: string | undefined | null): string {
   return (s || "").toLowerCase();
@@ -102,7 +109,11 @@ export function scoreVoice(
 
     // Idioma: es-* preferente (o el idioma pedido).
     if (lang.startsWith(want)) {
-      score += 30;
+      // (Adenda 194) El IDIOMA pesa más que el género: una voz española a la
+      // que se le baja el tono suena mucho mejor que una voz masculina inglesa
+      // leyendo español. Verificado en vivo (el equipo de referencia solo tiene
+      // Mónica y Paulina en es-*).
+      score += 45;
       reasons.push(want === "es" ? "Español" : `Idioma ${want}`);
       // Variantes es-ES / es-MX / es-US ligeramente por delante.
       if (lang === "es-es" || lang === "es-mx" || lang === "es-us") score += 4;
@@ -181,6 +192,33 @@ export function getBestBrowserVoice(
 ): SpeechSynthesisVoice | null {
   const ranked = rankBrowserVoices(voices, preferLang);
   return ranked.length ? ranked[0].voice : null;
+}
+
+/* (Adenda 194) Puente en `window` para que la UI del rito pregunte si existe
+ * una voz real del género elegido sin crear un ciclo de imports. */
+if (typeof window !== "undefined") {
+  try {
+    (window as unknown as { __ssBrowserVoices?: unknown }).__ssBrowserVoices = {
+      elegirVozPorGenero: (g: "femenina" | "masculina" | "neutra", v?: SpeechSynthesisVoice[], l?: string) =>
+        elegirVozPorGenero(g, v, l ?? "es"),
+      vozCoincideConGenero: (v: SpeechSynthesisVoice | null, g: "femenina" | "masculina" | "neutra") =>
+        vozCoincideConGenero(v, g),
+    };
+  } catch { /* sin puente: la UI simplemente no muestra el aviso */ }
+}
+
+/** (Adenda 194) ¿El NOMBRE de esta voz delata el género pedido? */
+export function vozCoincideConGenero(
+  v: SpeechSynthesisVoice | null | undefined,
+  genero: "femenina" | "masculina" | "neutra",
+): boolean {
+  if (!v) return false;
+  const n = lower(v.name);
+  const f = FEMALE_NAME_HINTS.some((h) => n.includes(h));
+  const m = MALE_NAME_HINTS.some((h) => n.includes(h));
+  if (genero === "femenina") return f;
+  if (genero === "masculina") return m;
+  return !f && !m;
 }
 
 /**

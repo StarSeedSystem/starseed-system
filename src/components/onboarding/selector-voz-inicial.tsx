@@ -17,7 +17,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Mic, Volume2, Sliders, Sparkles, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { getModoVoz, setModoVoz, MODOS_VOZ, type ModoVoz } from "@/lib/aurora/voz-inicial";
+import { getModoVoz, setModoVoz, MODOS_VOZ, hayVozRealPara, generoEfectivo, type ModoVoz } from "@/lib/aurora/voz-inicial";
 
 const FRASE_PRUEBA =
   "Hola, soy Astraura. Así sueno en este dispositivo; puedes cambiarme cuando quieras.";
@@ -32,6 +32,8 @@ export function SelectorVozInicial({
 }) {
   const [modo, setModo] = useState<ModoVoz>("femenina");
   const [probando, setProbando] = useState<ModoVoz | null>(null);
+  // ¿El equipo tiene voz real del género elegido? Si no, se dice con honestidad.
+  const [sinVozReal, setSinVozReal] = useState(false);
 
   useEffect(() => { setModo(getModoVoz()); }, []);
 
@@ -40,6 +42,7 @@ export function SelectorVozInicial({
     setModo(m);
     try {
       await setModoVoz(m);
+      try { setSinVozReal(!hayVozRealPara(generoEfectivo(m))); } catch { setSinVozReal(false); }
       await onElegir(m);
     } finally {
       setProbando(null);
@@ -109,6 +112,13 @@ export function SelectorVozInicial({
         </button>
       </div>
 
+      {sinVozReal && (
+        <p className="rounded-lg border border-white/10 bg-black/20 p-2 text-center text-[10px] leading-snug text-white/55">
+          Este equipo no tiene instalada una voz de sistema de ese género en español, así que ajusto el timbre de la
+          mejor voz disponible — suena bien igualmente. Si quieres la voz nativa, se descarga en los ajustes de voz
+          de tu sistema operativo.
+        </p>
+      )}
       <p className="text-center text-[10px] leading-snug text-white/40">
         {modo === "autonoma"
           ? "Cada personalidad y cada agente modularán su propia voz según su carácter y el momento."

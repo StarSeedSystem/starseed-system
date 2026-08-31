@@ -34,14 +34,42 @@ export const MODOS_VOZ: { id: ModoVoz; label: string; desc: string }[] = [
   { id: "autonoma", label: "Autónoma", desc: "Se modula sola según su carácter y el momento." },
 ];
 
-/** Modulación base por género: hace que las tres suenen naturales de fábrica. */
-export function ajustesVoz(modo: ModoVoz): { pitch: number; rate: number } {
+/**
+ * Modulación base por género. `vozDelGenero` dice si la voz del sistema que
+ * sonará YA es de ese género: muchos equipos solo traen voces buenas de UNO
+ * (el Mac de referencia solo tiene Mónica y Paulina en español, ambas
+ * femeninas, y sus voces masculinas son las «de broma» del sistema). Cuando no
+ * coincide, se desplaza el tono para que masculina y neutra suenen bien de
+ * verdad en vez de caer en una voz de juguete.
+ */
+export function ajustesVoz(modo: ModoVoz, vozDelGenero = true): { pitch: number; rate: number } {
   switch (modo) {
-    case "masculina": return { pitch: 0.88, rate: 1.0 };
-    case "neutra": return { pitch: 1.0, rate: 1.0 };
-    case "autonoma": return { pitch: 1.0, rate: 1.0 }; // el modulador decide encima
+    case "masculina": return vozDelGenero ? { pitch: 0.94, rate: 0.99 } : { pitch: 0.74, rate: 0.96 };
+    case "neutra": return vozDelGenero ? { pitch: 1.0, rate: 1.0 } : { pitch: 0.88, rate: 0.99 };
+    case "autonoma": return vozDelGenero ? { pitch: 1.0, rate: 1.0 } : { pitch: 0.92, rate: 1.0 };
     case "femenina":
-    default: return { pitch: 1.06, rate: 1.02 };
+    default: return vozDelGenero ? { pitch: 1.05, rate: 1.02 } : { pitch: 1.22, rate: 1.02 };
+  }
+}
+
+/**
+ * ¿Este equipo tiene una voz REAL del género pedido en el idioma preferido?
+ * Si no, la voz suena igual de bien (se desplaza el tono), pero conviene
+ * decirlo: instalar la voz del sistema la mejora aún más.
+ */
+export function hayVozRealPara(genero: VoiceGender, lang = "es"): boolean {
+  if (typeof window === "undefined" || !window.speechSynthesis) return true;
+  try {
+    // Import diferido para no arrastrar el ranking al chunk inicial.
+    const mod = (window as unknown as { __ssBrowserVoices?: {
+      elegirVozPorGenero: (g: VoiceGender, v?: SpeechSynthesisVoice[], l?: string) => SpeechSynthesisVoice | null;
+      vozCoincideConGenero: (v: SpeechSynthesisVoice | null, g: VoiceGender) => boolean;
+    } }).__ssBrowserVoices;
+    if (!mod) return true;
+    const v = mod.elegirVozPorGenero(genero, undefined, lang);
+    return mod.vozCoincideConGenero(v, genero);
+  } catch {
+    return true;
   }
 }
 
@@ -132,9 +160,12 @@ export function modulacionAutonoma(traits?: Record<string, number> | null): { pi
  * Ajustes FINALES de la voz para esta neurona: base por género y, en modo
  * autónomo, la modulación viva encima. Lo consume el motor al hablar.
  */
-export function ajustesVozEfectivos(traits?: Record<string, number> | null): { pitch: number; rate: number } {
+export function ajustesVozEfectivos(
+  traits?: Record<string, number> | null,
+  vozDelGenero = true,
+): { pitch: number; rate: number } {
   const modo = getModoVoz();
-  const base = ajustesVoz(modo);
+  const base = ajustesVoz(modo, vozDelGenero);
   if (modo !== "autonoma") return base;
   const m = modulacionAutonoma(traits);
   return {

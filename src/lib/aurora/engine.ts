@@ -66,7 +66,7 @@ import { astraura158MetaFromRaw, astraura158ToolMetas, isAstraura158Source } fro
 // del navegador (neurales/premium primero, es-* preferente) y modulación
 // emocional persistida en `starseed.aurora.voice.v1`. Módulos LIGEROS y
 // SSR-safe: importarlos no carga nada pesado.
-import { resolveBrowserVoice, elegirVozPorGenero } from "@/lib/aurora/tts-oss/browser-voices";
+import { resolveBrowserVoice, elegirVozPorGenero, vozCoincideConGenero } from "@/lib/aurora/tts-oss/browser-voices";
 import { getModoVoz, generoEfectivo, ajustesVozEfectivos } from "@/lib/aurora/voz-inicial";
 import { resolveVoiceParams } from "@/lib/aurora/tts-oss/voice-style";
 import {
@@ -517,9 +517,13 @@ function resolveBrowserUtterance(clean: string, p: Personality): SpeechSynthesis
   // personalidad sigue ganando (gesto explícito del usuario).
   try {
     const modo = getModoVoz();
+    const gen = generoEfectivo(modo);
+    let coincide = true;
     if (!p.voice?.voiceURI) {
-      const elegida = elegirVozPorGenero(generoEfectivo(modo), all, u.lang || "es");
-      if (elegida) u.voice = elegida;
+      const elegida = elegirVozPorGenero(gen, all, u.lang || "es");
+      if (elegida) { u.voice = elegida; coincide = vozCoincideConGenero(elegida, gen); }
+    } else {
+      coincide = vozCoincideConGenero(u.voice, gen);
     }
     // Los rasgos para la modulación autónoma viven en el PERFIL de personalidad
     // (no en la Personality del motor): se leen de forma defensiva.
@@ -528,7 +532,7 @@ function resolveBrowserUtterance(clean: string, p: Personality): SpeechSynthesis
       const act = (globalThis as unknown as { STARSEED_personality_traits?: Record<string, number> }).STARSEED_personality_traits;
       rasgos = act;
     } catch { rasgos = undefined; }
-    const aj = ajustesVozEfectivos(rasgos);
+    const aj = ajustesVozEfectivos(rasgos, coincide);
     u.pitch = Math.max(0, Math.min(2, u.pitch * aj.pitch));
     u.rate = Math.max(0.1, Math.min(2, u.rate * aj.rate));
   } catch { /* sin modo elegido: queda la cadena de siempre */ }
