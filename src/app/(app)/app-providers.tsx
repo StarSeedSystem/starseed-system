@@ -11,7 +11,6 @@ import { AlarmScheduler } from "@/components/calendar/alarm-scheduler";
 import { ActiveAlertModal } from "@/components/calendar/active-alert-modal";
 import { useEffect } from "react";
 import { hermes } from "@/hermes-integration";
-import { OnboardingGate } from "@/components/onboarding/onboarding-gate";
 import { AuroraIntro } from "@/components/onboarding/aurora-intro";
 import { StartupUpdatesModal } from "@/components/astraura/startup-updates-modal";
 import { ModelDownloadNotifier } from "@/components/neurons/model-download-notifier";
@@ -36,7 +35,8 @@ export default function AppProviders({ children }: { children: ReactNode }) {
         {children}
         <TextSelectionToolbar />
         <AuthGate />
-        <OnboardingGate />
+        {/* OnboardingGate ahora vive en el layout RAÍZ (Adenda 188): cubre
+            todas las rutas y evita el doble montaje aquí. */}
         {/* Presentación breve de Aurora (tras el alta de cuenta): 3-5
             preguntas opcionales que alimentan voz/personalidad/contexto. */}
         <AuroraIntro />

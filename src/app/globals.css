@@ -3573,3 +3573,19 @@ html[data-perf="eco"] *:not(input):not(textarea) {
   --aw-muted: rgba(23, 18, 38, 0.62);
   --aw-faint: rgba(23, 18, 38, 0.45);
 }
+
+
+/* ── Adenda 188: modales a pantalla completa sobre el dock Trinity ─────────
+   Mientras exista body[data-ss-modal] (lo ponen ui/dialog y ui/sheet vía
+   src/lib/ui/fullscreen-modal.ts), las capas Trinity (FAB, accesos de borde,
+   cortinas) se repliegan a sus esquinas y el botón flotante de la guía se
+   oculta: la ventana emergente recupera la pantalla completa. */
+body[data-ss-modal="1"] [class*="trinity-fab_"],
+body[data-ss-modal="1"] [class*="trinity-edge-access_"],
+body[data-ss-modal="1"] [class*="trinity-curtains_"],
+body[data-ss-modal="1"] [aria-label="Abrir la guía de StarSeed"] {
+  opacity: 0 !important;
+  pointer-events: none !important;
+  visibility: hidden !important;
+  transition: opacity 0.18s ease;
+}

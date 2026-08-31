@@ -23,10 +23,13 @@ import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { getOnboarding } from "@/lib/onboarding/onboarding";
 import OnboardingWizard from "@/components/onboarding/onboarding-wizard";
+import NeuronSetup from "@/components/onboarding/neuron-setup";
 
 export function OnboardingGate() {
   const [ready, setReady] = useState(false);
   const [show, setShow] = useState(false);
+  // Adenda 188: neurona nueva con cuenta ya iniciada → alta corta especializada.
+  const [showNeuron, setShowNeuron] = useState(false);
 
   const check = useCallback(async () => {
     try {
@@ -62,7 +65,17 @@ export function OnboardingGate() {
       }
 
       const ob = await getOnboarding();
-      setShow(!ob.completed);
+      if (!ob.completed) {
+        setShow(true);
+      } else {
+        setShow(false);
+        // Cuenta YA iniciada pero este dispositivo/medio nunca se configuró →
+        // alta corta de neurona: solo cerebros y modo de sincronización.
+        try {
+          const marca = window.localStorage.getItem("starseed.neuron.setup.v1");
+          if (!marca) setShowNeuron(true);
+        } catch { /* fail-open */ }
+      }
     } catch {
       setShow(false);
     } finally {
@@ -93,9 +106,10 @@ export function OnboardingGate() {
     };
   }, [check]);
 
-  if (!ready || !show) return null;
-
-  return <OnboardingWizard onClose={() => setShow(false)} />;
+  if (!ready) return null;
+  if (show) return <OnboardingWizard onClose={() => setShow(false)} />;
+  if (showNeuron) return <NeuronSetup onClose={() => setShowNeuron(false)} />;
+  return null;
 }
 
 export default OnboardingGate;

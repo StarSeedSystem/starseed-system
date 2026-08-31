@@ -10,7 +10,8 @@
  * mismo criterio que `avatar-config.ts` y `sync-providers.ts`) controla si el
  * botón se muestra.
  *
- *   · Default: VISIBLE (true) — no cambia el comportamiento de hoy.
+ *   · Default: OCULTO (false) — Adenda 188: la guía corre sola al terminar el
+ *     wizard de cuentas nuevas y se reproduce desde Ajustes cuando se quiera.
  *   · Se conmuta desde Ajustes → Personalización (interruptor "Botón de guía").
  *   · `AuroraGuide` lo LEE y se resuscribe: el cambio se aplica en vivo, en
  *     todas las rutas, sin recargar.
@@ -25,7 +26,9 @@ export const GUIDE_BUTTON_VISIBLE_KEY = "starseed.guide.button.visible.v1";
 export const GUIDE_BUTTON_VISIBLE_EVENT = "starseed:guide-button-visible";
 
 /** Por defecto el botón de guía está VISIBLE. */
-export const DEFAULT_GUIDE_BUTTON_VISIBLE = true;
+// Adenda 188: OCULTO por defecto — la guía corre sola al crear la cuenta
+// (final del wizard) y puede reproducirse desde Ajustes → Personalización.
+export const DEFAULT_GUIDE_BUTTON_VISIBLE = false;
 
 function safeLocalStorage(): Storage | null {
   if (typeof window === "undefined") return null;

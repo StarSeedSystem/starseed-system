@@ -60,6 +60,7 @@ import { AuroraWidget } from "@/components/aurora/aurora-widget";
 // defensiva y SSR-safe: arranca sola en la primera visita y se reabre con el
 // evento 'starseed:open-guide' o el acceso flotante "Guía".
 import { AuroraGuide } from "@/components/onboarding/aurora-guide";
+import { OnboardingGate } from "@/components/onboarding/onboarding-gate";
 import { CursorFxHost } from "@/components/desktop/cursor-fx";
 import { PerfController, PerfHeavyOnly, PerfStaticBackdrop } from "@/components/perf/perf-gate";
 import { PinnedWidgetOverlay } from "@/components/dashboard/widgets/pinned-widget-overlay";
@@ -308,6 +309,10 @@ export default function RootLayout({
                             Dashboard, Astraura, Perfil, Cerebros y Librería.
                             Arranca sola la primera vez; reabrible siempre. */}
                         <AuroraGuide />
+                        {/* Iniciación de cuentas nuevas + alta corta de neurona
+                            (Adenda 188): global, en CUALQUIER medio/ruta — antes
+                            vivía solo en (app) y el escritorio raíz se lo perdía. */}
+                        <OnboardingGate />
                         {/* Cursor personalizado + animaciones de clic (config en
                             Apariencia → Cursor; 'starseed.cursorfx.v1'). Global. */}
                         <CursorFxHost />

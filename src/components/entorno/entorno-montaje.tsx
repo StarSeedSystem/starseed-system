@@ -11,7 +11,8 @@
  * app carga exactamente igual que siempre.
  */
 import { useCallback, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
+import { createClient } from "@/utils/supabase/client";
 import { History, MonitorSmartphone, X } from "lucide-react";
 import {
   detectarEntorno,
@@ -21,6 +22,7 @@ import {
 } from "@/lib/entorno/deteccion-entorno";
 
 const SS_DESCARTADAS = "starseed.entorno.descartadas.v1";
+const SS_LOCALDEV_CERRADO = "starseed.entorno.localdev.cerrado.v1";
 
 function hace(ts: number): string {
   const s = Math.max(1, Math.round((Date.now() - ts) / 1000));
@@ -34,8 +36,13 @@ function hace(ts: number): string {
 
 export function EntornoMontaje() {
   const router = useRouter();
+  const pathname = usePathname();
   const [snap, setSnap] = useState<SnapshotEntorno | null>(null);
   const [descartadas, setDescartadas] = useState<string[]>([]);
+  // (Adenda 188) El aviso "Modo local (dev)" ahora se puede CERRAR (X, recordado
+  // en la sesión del navegador) y se quita solo al iniciar sesión o al entrar
+  // al alta de cuenta (/login), donde sería redundante.
+  const [cerradoLocal, setCerradoLocal] = useState(false);
   // (Adenda 179 · fix hidratación) SSR y primer render del cliente NO deben leer
   // `window`: se gatea con `mounted` para que ambos rindan null y el aviso local
   // aparezca solo tras montar (mismo patrón que el portal de voz #310).
@@ -45,9 +52,24 @@ export function EntornoMontaje() {
     setMounted(true);
     setSnap(ultimoEntorno());
     try { setDescartadas(JSON.parse(sessionStorage.getItem(SS_DESCARTADAS) || "[]")); } catch { /* noop */ }
+    try { setCerradoLocal(sessionStorage.getItem(SS_LOCALDEV_CERRADO) === "1"); } catch { /* noop */ }
     let vivo = true;
     void detectarEntorno().then((s) => { if (vivo) setSnap(s); }).catch(() => { /* noop */ });
-    return () => { vivo = false; };
+    // Al iniciarse una sesión (login o cuenta recién creada), el aviso sobra.
+    let unsub: (() => void) | undefined;
+    try {
+      const sb = createClient();
+      const { data: sub } = sb.auth.onAuthStateChange((ev) => {
+        if (ev === "SIGNED_IN") setCerradoLocal(true);
+      });
+      unsub = () => sub.subscription.unsubscribe();
+    } catch { /* defensivo */ }
+    return () => { vivo = false; unsub?.(); };
+  }, []);
+
+  const cerrarLocalDev = useCallback(() => {
+    setCerradoLocal(true);
+    try { sessionStorage.setItem(SS_LOCALDEV_CERRADO, "1"); } catch { /* noop */ }
   }, []);
 
   const descartar = useCallback((uid: string) => {
@@ -67,9 +89,18 @@ export function EntornoMontaje() {
     // cuenta. En vez de aparecer como desconocido, ofrecemos iniciar sesión —
     // SIN tocar la auth del servidor (es un límite del navegador, no un bug).
     const esLocal = mounted && /^(localhost|127\.0\.0\.1|\[::1\])$/.test(window.location.hostname);
-    if (esLocal && !snap?.sesionActual) {
+    const enAcceso = !!pathname && pathname.startsWith("/login");
+    if (esLocal && !snap?.sesionActual && !cerradoLocal && !enAcceso) {
       return (
         <div role="dialog" aria-label="Sesión en modo local" className="fixed bottom-[max(0.75rem,env(safe-area-inset-bottom))] left-[max(0.75rem,env(safe-area-inset-left))] z-[65] max-w-[92vw] sm:max-w-sm rounded-xl border border-white/10 bg-black/70 p-3 shadow-lg backdrop-blur-md">
+          <button
+            type="button"
+            onClick={cerrarLocalDev}
+            aria-label="Cerrar aviso de modo local"
+            className="absolute right-1.5 top-1.5 grid h-6 w-6 cursor-pointer place-items-center rounded-md text-white/50 transition-colors hover:bg-white/10 hover:text-white"
+          >
+            <X className="h-3.5 w-3.5" aria-hidden="true" />
+          </button>
           <div className="flex items-start gap-2.5">
             <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-white/10 bg-white/[0.06]">
               <MonitorSmartphone className="h-4 w-4 text-cyan-200" aria-hidden="true" />

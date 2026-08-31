@@ -20,6 +20,8 @@ export function AuthForm() {
     // app no renderizaba el aviso (login «no hacía nada, sin mensaje»). Este <p>
     // en el propio formulario SIEMPRE se ve, pase lo que pase con los toasts.
     const [authMsg, setAuthMsg] = React.useState<{ tipo: 'error' | 'ok'; txt: string } | null>(null)
+    // Adenda 188: registro con identidad — sugerencia @star.seed en vivo.
+    const [signupEmail, setSignupEmail] = React.useState('')
 
     // (Adenda 182) Un fetch de auth RECHAZADO (red caída, o el proyecto Supabase
     // restringido por cuota — su 402 llega sin CORS y el navegador lo convierte
@@ -50,6 +52,7 @@ export function AuthForm() {
         const password = formData.get('password') as string
 
         let error: { message: string } | null = null
+        let sesionYa = false
         try {
             const res = await conTimeout(supabase.auth.signUp({
                 email,
@@ -63,6 +66,9 @@ export function AuthForm() {
                 return
             }
             ;({ error } = res)
+            // Con la confirmación de correo desactivada, signUp devuelve sesión
+            // al instante: el mensaje debe decir la verdad (Adenda 188).
+            sesionYa = !!(res as { data?: { session?: unknown } })?.data?.session
         } catch (e) {
             authFalloDuro(e, 'Registro sin respuesta')
             return
@@ -74,6 +80,12 @@ export function AuthForm() {
                 title: 'Error de registro',
                 description: error.message,
                 variant: 'destructive',
+            })
+        } else if (sesionYa) {
+            setAuthMsg({ tipo: 'ok', txt: '¡Cuenta creada! Entrando a StarSeed… Astraura te guiará en tu primera configuración.' })
+            toast({
+                title: '¡Cuenta creada!',
+                description: 'Astraura te acompaña ahora en tu primera configuración.',
             })
         } else {
             setAuthMsg({ tipo: 'ok', txt: 'Verifica tu correo: te enviamos un enlace de confirmación.' })
@@ -166,7 +178,22 @@ export function AuthForm() {
                         <form onSubmit={handleSignUp} className="space-y-4 pt-4">
                             <div className="space-y-2">
                                 <Label htmlFor="email-signup">Email</Label>
-                                <Input id="email-signup" name="email" type="email" placeholder="nombre@starseed.net" required />
+                                <Input id="email-signup" name="email" type="email" placeholder="tu-nombre@star.seed"
+                                    value={signupEmail} onChange={(e) => setSignupEmail(e.target.value)} required />
+                                {signupEmail.length > 1 && !signupEmail.includes('@') && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setSignupEmail(`${signupEmail.trim().toLowerCase().replace(/[^a-z0-9._-]/g, '')}@star.seed`)}
+                                        className="rounded-full border border-cyan-400/30 bg-cyan-400/10 px-2.5 py-1 text-xs text-cyan-200 transition-colors hover:bg-cyan-400/20"
+                                    >
+                                        ✦ Usar {signupEmail.trim().toLowerCase().replace(/[^a-z0-9._-]/g, '')}@star.seed
+                                    </button>
+                                )}
+                                <p className="text-[11px] leading-snug text-muted-foreground">
+                                    Tu dirección <span className="text-cyan-300">@star.seed</span> es tu identidad en la red —
+                                    o usa cualquier correo externo (Gmail, Outlook…). Después puedes vincular varios
+                                    correos a tu misma cuenta en Ajustes → Correos.
+                                </p>
                             </div>
                             <div className="space-y-2">
                                 <Label htmlFor="password-signup">Contraseña</Label>

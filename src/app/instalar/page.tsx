@@ -8,90 +8,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/utils/supabase/client";
-
-type HW = {
-  so: string;
-  arch: string;
-  nucleos: number | null;
-  ramGB: number | null;
-  gpu: string | null;
-  movil: boolean;
-};
-
-const MODELOS: { id: string; nombre: string; params: string; arq: string; disco: string; ramMin: number }[] = [
-  { id: "needle2", nombre: "Needle 2", params: "45 M", arq: "CQ2-bit (Cactus)", disco: "~14 MB", ramMin: 1 },
-  { id: "bitnet-2b", nombre: "BitNet b1.58 (Microsoft)", params: "2 B", arq: "1.58-bit ternario", disco: "~400-500 MB", ramMin: 2 },
-  { id: "bonsai-1.7b", nombre: "Ternary Bonsai (mini)", params: "1.7 B", arq: "1.58-bit ternario", disco: "~462 MB", ramMin: 2 },
-  { id: "bonsai-8b-1bit", nombre: "Bonsai 8B (1-bit puro)", params: "8 B", arq: "1-bit puro", disco: "~1.15 GB", ramMin: 6 },
-  { id: "bonsai-8b", nombre: "Ternary Bonsai (estándar)", params: "8 B", arq: "1.58-bit ternario", disco: "~1.75 GB", ramMin: 8 },
-];
-
-const CONCIENCIAS: { id: string; nombre: string; desc: string; extra: string }[] = [
-  { id: "semilla", nombre: "Semilla", desc: "Solo conexión mesh remota; sin réplica local.", extra: "0 MB" },
-  { id: "brote", nombre: "Brote", desc: "Caché local ligera del estado colectivo.", extra: "~256-512 MB" },
-  { id: "bosque", nombre: "Bosque", desc: "Réplica amplia para operar sin conexión y servir a otras neuronas.", extra: "2 GB+" },
-];
+import { detectar, recomendar, MODELOS, CONCIENCIAS, assetDirecto, type HW } from "@/lib/onboarding/neuron-recommend";
 
 const RELEASES_URL = "https://github.com/StarSeedSystem/starseed-system/releases";
-
-async function detectar(): Promise<HW> {
-  const n: any = typeof navigator !== "undefined" ? navigator : {};
-  const plat: string = (n.userAgentData && n.userAgentData.platform) || n.platform || "";
-  const ua: string = n.userAgent || "";
-  let so = "Desconocido";
-  if (/Android/i.test(ua)) so = "Android";
-  else if (/iPhone|iPad|iPod/i.test(ua + " " + plat)) so = "iOS / iPadOS";
-  else if (/Mac/i.test(plat)) so = "macOS";
-  else if (/Win/i.test(plat)) so = "Windows";
-  else if (/Linux|X11/i.test(plat)) so = "Linux";
-  const movil = /Android|iPhone|iPad|Mobile/i.test(ua);
-  let arch = "desconocida";
-  try {
-    if (n.userAgentData && n.userAgentData.getHighEntropyValues) {
-      const h = await n.userAgentData.getHighEntropyValues(["architecture", "bitness"]);
-      if (h && h.architecture) arch = h.architecture + (h.bitness ? " " + h.bitness + "-bit" : "");
-    }
-  } catch {}
-  let gpu: string | null = null;
-  try {
-    const c = document.createElement("canvas");
-    const gl: any = c.getContext("webgl2") || c.getContext("webgl");
-    const ext = gl ? gl.getExtension("WEBGL_debug_renderer_info") : null;
-    if (gl && ext) gpu = String(gl.getParameter(ext.UNMASKED_RENDERER_WEBGL));
-  } catch {}
-  if (arch === "desconocida" && so === "macOS" && gpu && /Apple/i.test(gpu)) arch = "arm 64-bit (Apple Silicon)";
-  const ramGB = typeof n.deviceMemory === "number" ? n.deviceMemory : null;
-  const nucleos = typeof n.hardwareConcurrency === "number" ? n.hardwareConcurrency : null;
-  return { so, arch, nucleos, ramGB, gpu, movil };
-}
-
-function recomendar(hw: HW): { modelo: string; conciencia: string; razones: string[] } {
-  const razones: string[] = [];
-  let modelo = "bitnet-2b";
-  let conciencia = "semilla";
-  const ram = hw.ramGB;
-  if (ram === null) {
-    modelo = hw.movil ? "needle2" : "bitnet-2b";
-    razones.push("Tu navegador no expone la RAM, así que recomiendo una opción conservadora que corre bien en casi cualquier equipo. Puedes subir de modelo en Ajustes cuando quieras.");
-  } else if (ram >= 8) {
-    modelo = "bonsai-8b";
-    conciencia = "brote";
-    razones.push(`Detecté ${ram} GB de RAM (o más): tu equipo puede con el modelo estándar de 8B ternario, el más capaz de la familia 1.58-bit, y con una caché local de conciencia colectiva (Brote).`);
-  } else if (ram >= 6) {
-    modelo = "bonsai-8b-1bit";
-    razones.push(`Con ${ram} GB de RAM cabe el Bonsai 8B en 1-bit puro (~1.15 GB): máxima capacidad sin arriesgar la fluidez del sistema.`);
-  } else if (ram >= 4) {
-    modelo = "bonsai-1.7b";
-    razones.push(`Con ${ram} GB de RAM, el Ternary Bonsai mini (1.7B, ~462 MB) da el mejor equilibrio entre inteligencia local y memoria libre para tus apps.`);
-  } else {
-    modelo = hw.movil ? "needle2" : "bitnet-2b";
-    razones.push(`Con ${ram} GB de RAM conviene la opción más ligera para que StarSeed OS vuele: puedes apoyarte en la conciencia colectiva remota para el razonamiento pesado.`);
-  }
-  if (hw.movil) razones.push("Dispositivo móvil detectado: mientras las apps nativas móviles están en diseño, la web instalable (PWA) es la vía recomendada.");
-  if (hw.nucleos) razones.push(`${hw.nucleos} núcleos de CPU disponibles para la inferencia ternaria local.`);
-  if (hw.gpu) razones.push(`GPU detectada: ${hw.gpu}.`);
-  return { modelo, conciencia, razones };
-}
 
 export default function InstalarPage() {
   const [hw, setHw] = useState<HW | null>(null);
@@ -130,6 +49,7 @@ export default function InstalarPage() {
   }, []);
 
   const modeloRec = MODELOS.find((m) => m.id === (rec?.modelo ?? ""));
+  const directo = hw ? assetDirecto(hw) : null;
 
   return (
     <main className="min-h-screen bg-[#070a14] text-slate-100 px-5 py-10">
@@ -220,6 +140,15 @@ export default function InstalarPage() {
 
         <section className="space-y-3">
           <h2 className="text-lg font-medium">Descargar instalador</h2>
+          {directo && (
+            <a
+              href={directo.href}
+              className="flex items-center justify-between gap-3 rounded-xl border border-cyan-400/40 bg-cyan-400/10 p-3.5 text-sm font-medium text-cyan-100 transition-colors hover:bg-cyan-400/20"
+            >
+              <span>⬇ Descarga directa para tu equipo</span>
+              <span className="text-xs font-normal text-cyan-200/90">{directo.etiqueta}</span>
+            </a>
+          )}
           <div className="grid gap-2 text-sm">
             <a href={RELEASES_URL} target="_blank" rel="noreferrer" className="rounded-lg border border-white/15 bg-white/5 p-3 hover:border-cyan-300/50">
               macOS — .dmg (Apple Silicon e Intel)

@@ -33,6 +33,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
+import { StepCerebros, StepPermisos, StepNeurona } from "./steps-neurona";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -89,6 +90,7 @@ import {
   Lock,
   UserPlus,
   Volume2,
+  Cpu,
 } from "lucide-react";
 
 // ── narraciones de Astraura por paso ─────────────────────────────────────
@@ -98,7 +100,10 @@ const STEP_NARRATION: Record<number, string> = {
   2: "Si quieres, te creo tu dirección StarSeed: tu correo dentro de la red, algo arroba star punto seed. Funciona ya entre cuentas, y más tarde puedes vincular correos externos.",
   3: "Configuremos tu recuperación: un correo externo y un teléfono, para que nunca pierdas el acceso.",
   4: "Estos datos son opcionales: un avatar y una breve biografía. Puedes editarlos cuando quieras.",
-  5: "Te muestro las áreas de la red: cómo vincular, conectar, crear, publicar y usar cada una.",
+  5: "Ahora tus cerebros: el hogar de tus memorias, las de tus perfiles y las de tus agentes. Analicé tu cuenta y te propongo la mejor configuración; acéptala con un toque o ajústala a tu gusto.",
+  6: "Permisos del dispositivo: te recomiendo micrófono y notificaciones para hablar conmigo y no perderte nada. El resto es opcional y cada función lo pedirá cuando lo necesite.",
+  7: "Configuremos mi presencia en esta neurona: ya analicé tu equipo y elegí el motor y el modelo que mejor le sientan. Tú decides; todo se puede cambiar en Ajustes.",
+  8: "Te muestro las áreas de la red: cómo vincular, conectar, crear, publicar y usar cada una.",
 };
 
 const STEPS = [
@@ -107,6 +112,9 @@ const STEPS = [
   { key: "correo", label: "Correo StarSeed", icon: Mail },
   { key: "recuperacion", label: "Recuperación", icon: ShieldCheck },
   { key: "opcionales", label: "Datos opcionales", icon: ImageIcon },
+  { key: "cerebros", label: "Cerebros y memoria", icon: Brain },
+  { key: "permisos", label: "Permisos", icon: Lock },
+  { key: "neurona", label: "Astraura local", icon: Cpu },
   { key: "guia", label: "Guía de la red", icon: Compass },
 ] as const;
 
@@ -900,8 +908,15 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
             </div>
           )}
 
-          {/* 5 · Guía de la red */}
-          {step === 5 && (
+          {/* 5-7 · Cerebros · Permisos · Astraura local (Adenda 188) — el
+              agente de integración analiza el dispositivo y recomienda. */}
+          {step === 5 && <StepCerebros />}
+
+          {step === 6 && <StepPermisos />}
+
+          {step === 7 && <StepNeurona />}
+
+          {step === 8 && (
             <div className="space-y-3">
               <p className="text-sm text-white/60">
                 Estas son las áreas de StarSeed. Cada tarjeta te dice cómo vincular, conectar, crear, publicar o usar. Ábrelas cuando quieras.

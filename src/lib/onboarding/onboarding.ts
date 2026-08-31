@@ -109,11 +109,20 @@ export async function saveOnboarding(
     const owner = await uid();
     if (!owner) return null;
     const sb = createClient();
-    const payload = {
+    const payload: Record<string, unknown> = {
       owner,
       ...patch,
       updated_at: new Date().toISOString(),
     };
+    // Adenda 188: `steps` se FUSIONA (shallow) con lo ya guardado — cada paso
+    // del wizard escribe su parcela (cerebros, permisos, neurona, last…) sin
+    // borrar las de los demás. Antes el upsert reemplazaba el JSON completo.
+    if (patch.steps) {
+      try {
+        const cur = await getOnboarding();
+        payload.steps = { ...(cur?.steps ?? {}), ...patch.steps };
+      } catch { /* sin lectura previa: se escribe el patch tal cual */ }
+    }
     const { data } = await sb
       .from("onboarding_state")
       .upsert(payload, { onConflict: "owner" })
