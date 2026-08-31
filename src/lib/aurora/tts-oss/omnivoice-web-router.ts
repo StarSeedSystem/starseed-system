@@ -121,17 +121,43 @@ const DEFAULT_CHAIN_PRIORITY = [
   "browser",
 ];
 
+/**
+ * (Adenda 193) Clave que deja `speak-router` con el motor que DE VERDAD sonó en
+ * esta neurona (se lee directo para no crear un ciclo de imports). Mientras el
+ * usuario no fije su propio orden, ese motor va PRIMERO: el predeterminado es
+ * «el que ya te funcionó» (el de la guía de introducción), no un recomendado
+ * teórico que en este equipo quizá ni arranca — de ahí la espera larga antes.
+ */
+const MOTOR_VIVO_KEY = "starseed.aurora.voice.motor-vivo.v1";
+
+function conMotorVivoDelante(orden: string[], ls: Storage): string[] {
+  try {
+    const vivo = ls.getItem(MOTOR_VIVO_KEY);
+    if (!vivo || !orden.includes(vivo)) return orden;
+    return [vivo, ...orden.filter((m) => m !== vivo)];
+  } catch {
+    return orden;
+  }
+}
+
+/** Motor que ya sonó en esta neurona (para marcarlo como predeterminado en la UI). */
+export function motorVivoDeEstaNeurona(): string | null {
+  const ls = safeLS();
+  if (!ls) return null;
+  try { return ls.getItem(MOTOR_VIVO_KEY); } catch { return null; }
+}
+
 /** Lee el orden de prioridad de motores (o el recomendado si no hay/inválido). */
 export function getVoiceChainPriority(): string[] {
   const ls = safeLS();
   if (!ls) return [...DEFAULT_CHAIN_PRIORITY];
   try {
     const raw = ls.getItem(VOICE_CHAIN_PRIORITY_KEY);
-    if (!raw) return [...DEFAULT_CHAIN_PRIORITY];
+    if (!raw) return conMotorVivoDelante([...DEFAULT_CHAIN_PRIORITY], ls);
     const arr = JSON.parse(raw) as string[];
     const valid = arr.filter((m) => DEFAULT_CHAIN_PRIORITY.includes(m));
     if (valid.length === DEFAULT_CHAIN_PRIORITY.length) return valid;
-    return [...DEFAULT_CHAIN_PRIORITY];
+    return conMotorVivoDelante([...DEFAULT_CHAIN_PRIORITY], ls);
   } catch {
     return [...DEFAULT_CHAIN_PRIORITY];
   }

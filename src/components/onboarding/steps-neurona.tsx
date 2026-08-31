@@ -17,6 +17,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { listBrains, saveBrain, type Brain } from "@/lib/brains/brains";
+// (Adenda 193) Las carpetas elegidas en Permisos se vinculan SOLAS aquí.
+import { listarCarpetas, suscribirCarpetas, mezclarCarpetasEnServidores, type CarpetaVinculada } from "@/lib/storage/carpetas-vinculadas";
 import { ensureHermionePersonalityInstalled } from "@/lib/aurora/personalities";
 import { pedirPermisosEnSecuencia } from "@/lib/aurora/senses/request-permission";
 import { visorBloqueaPermisos } from "@/lib/senses/senses";
@@ -34,6 +36,8 @@ const selectCls =
 // ════════════════════════════════════════════════════════════════════════════
 export function StepCerebros() {
   const [cerebros, setCerebros] = useState<Brain[] | null>(null);
+  const [carpetas, setCarpetas] = useState<CarpetaVinculada[]>([]);
+  const [vincularCarpetas, setVincularCarpetas] = useState(true);
   const [syncNube, setSyncNube] = useState(true);
   // (Adenda 189) Enrutamiento de las memorias: dónde viven físicamente.
   const [ruta, setRuta] = useState<"nube-local" | "nube" | "local">("nube-local");
@@ -47,7 +51,9 @@ export function StepCerebros() {
     listBrains()
       .then((bs) => { if (alive) setCerebros(bs); })
       .catch(() => { if (alive) setCerebros([]); });
-    return () => { alive = false; };
+    setCarpetas(listarCarpetas());
+    const off = suscribirCarpetas((l) => { if (alive) setCarpetas(l); });
+    return () => { alive = false; off(); };
   }, []);
 
   const razones = useMemo(() => {
@@ -58,26 +64,40 @@ export function StepCerebros() {
     else r.push(`Encontré ${cerebros.length} cerebro(s) en tu cuenta: los dejo conectados a esta neurona.`);
     r.push("Sincronización en la nube StarSeed activada: tus memorias te siguen a cualquier dispositivo donde inicies sesión.");
     r.push("Enrutamiento recomendado: nube + copia local espejada — velocidad local con respaldo en tu cuenta. Puedes cambiarlo a solo-nube o solo-local.");
+    if (carpetas.length > 0)
+      r.push(`Vincularé al cerebro principal las ${carpetas.length} carpeta(s) que elegiste en Permisos: ${carpetas.map((c) => c.nombre).join(", ")}.`);
+    else
+      r.push("No vinculaste carpetas en el paso anterior: puedes añadirlas cuando quieras desde Ajustes → Sentidos, y aparecerán aquí solas.");
     r.push("Personalidad base de Astraura incluida (opcional): un punto de partida configurable para tu exocórtex.");
     return r;
-  }, [cerebros]);
+  }, [cerebros, carpetas]);
 
   const aceptar = useCallback(async () => {
     setCargando(true);
     setNota(null);
     try {
       let creado: string | null = null;
+      // (Adenda 193) El cerebro nace ya con las carpetas vinculadas como
+      // servidores: lo elegido en Permisos no hay que volver a declararlo.
+      const servidores = vincularCarpetas
+        ? (mezclarCarpetasEnServidores([], carpetas) as unknown as Brain["servers"])
+        : undefined;
       if ((cerebros?.length ?? 0) === 0) {
-        const b = await saveBrain({ name: "Cerebro principal" });
+        const b = await saveBrain({ name: "Cerebro principal", ...(servidores ? { servers: servidores } : {}) });
         creado = b?.id ?? null;
         if (b) setCerebros([b]);
         if (!b) setNota("No pude crear el cerebro ahora (¿sin red?). Puedes crearlo luego en Cerebros.");
+      } else if (vincularCarpetas && carpetas.length > 0 && cerebros?.[0]) {
+        // Ya tenía cerebro: se le AÑADEN las carpetas sin tocar sus servidores.
+        const principal = cerebros[0];
+        const fusion = mezclarCarpetasEnServidores(principal.servers as unknown as { id: string }[], carpetas);
+        await saveBrain({ ...principal, servers: fusion as unknown as Brain["servers"] });
       }
       if (personalidad) {
         try { await ensureHermionePersonalityInstalled(); } catch { /* opcional */ }
       }
       await saveOnboarding({
-        steps: { cerebros: { creado, syncNube, personalidad, enrutamiento: ruta } },
+        steps: { cerebros: { creado, syncNube, personalidad, enrutamiento: ruta, carpetas: carpetas.map((c) => c.nombre) } },
       });
       setAplicado(true);
     } catch {
@@ -86,7 +106,7 @@ export function StepCerebros() {
     } finally {
       setCargando(false);
     }
-  }, [cerebros, syncNube, personalidad, ruta]);
+  }, [cerebros, syncNube, personalidad, ruta, carpetas, vincularCarpetas]);
 
   return (
     <div className="space-y-4">
@@ -115,6 +135,17 @@ export function StepCerebros() {
           </span>
           <Switch checked={personalidad} onCheckedChange={setPersonalidad} aria-label="Instalar personalidad base" />
         </label>
+        {carpetas.length > 0 && (
+          <label className="flex items-center justify-between gap-3 rounded-xl border border-cyan-400/20 bg-cyan-500/[0.05] p-3">
+            <span className="min-w-0">
+              <span className="block text-sm font-medium">Vincular tus carpetas al cerebro principal</span>
+              <span className="block text-xs text-muted-foreground">
+                {carpetas.map((c) => c.nombre).join(" · ")}
+              </span>
+            </span>
+            <Switch checked={vincularCarpetas} onCheckedChange={setVincularCarpetas} aria-label="Vincular carpetas al cerebro" />
+          </label>
+        )}
         <label className="block text-sm">
           <span className="text-muted-foreground">Enrutamiento de las memorias (medios de almacenamiento)</span>
           <select value={ruta} onChange={(e) => setRuta(e.target.value as typeof ruta)} className={cn(selectCls, "mt-1")}>
@@ -227,22 +258,22 @@ export function StepNeurona() {
           <span className="text-muted-foreground">Nombre de esta neurona</span>
           <Input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Mi computadora" className="mt-1" />
         </label>
-        <label className="block text-sm">
-          <span className="text-muted-foreground">Motor de cognición</span>
-          <select value={motor} onChange={(e) => setMotor(e.target.value as any)} className={cn(selectCls, "mt-1")}>
-            <option value="auto">Auto — BitNet local con relevo inteligente (recomendado)</option>
-            <option value="bitnet-158">Solo BitNet 1.58 local</option>
-            <option value="multimodel">Multimodelo (proveedores configurados)</option>
-          </select>
-        </label>
-        <label className="block text-sm">
-          <span className="text-muted-foreground">Modelo base de Astraura</span>
-          <select value={modelo} onChange={(e) => setModelo(e.target.value)} className={cn(selectCls, "mt-1")}>
-            {MODELOS.map((m) => (
-              <option key={m.id} value={m.id}>{m.nombre} — {m.params} · {m.disco}</option>
-            ))}
-          </select>
-        </label>
+        {/* (Adenda 193) El MOTOR y el MODELO ya no se eligen aquí: vivían a la
+            vez en este paso y en la ventana «Sistemas de Astraura», que se abre
+            justo después y es su sitio coherente (allí está el sistema primario
+            con 1.58b local por defecto). Aquí se muestra lo que el agente eligió
+            para este equipo, y allí se cambia si hace falta. */}
+        <div className="rounded-xl border border-cyan-400/20 bg-cyan-500/[0.05] p-3 text-xs">
+          <p className="font-medium text-[13px]">Astraura 1.58-bit local, elegida para este equipo</p>
+          <p className="mt-1 text-muted-foreground">
+            Motor: {motor === "auto" ? "automático (1.58-bit local con relevo)" : motor === "bitnet-158" ? "solo 1.58-bit local" : "multimodelo"} ·
+            Modelo: {MODELOS.find((m) => m.id === modelo)?.nombre ?? modelo}
+          </p>
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            Al terminar esta bienvenida se abre la ventana de sistemas de Astraura: ahí puedes afinar el motor, el
+            modelo y sus preferencias, sin repetir nada de lo que ya elegiste aquí.
+          </p>
+        </div>
         <label className="block text-sm">
           <span className="text-muted-foreground">Conciencia colectiva</span>
           <select value={conciencia} onChange={(e) => setConciencia(e.target.value)} className={cn(selectCls, "mt-1")}>
@@ -252,7 +283,7 @@ export function StepNeurona() {
           </select>
         </label>
         <p className="text-[11px] text-muted-foreground">
-          El modelo se descarga al activarlo y todo esto vive en Ajustes → Neurona, por dispositivo.
+          El modelo se descarga al activarlo. Todo esto vive luego en Ajustes → Neurona, por dispositivo.
         </p>
       </div>
     </div>

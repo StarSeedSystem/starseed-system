@@ -93,6 +93,8 @@ import {
 // (Adenda 179) Control EXPLÍCITO y configurable del motor primario de la neurona
 // (Astraura 1.58b local marcado por defecto) reutilizando el editor ya probado.
 import { PrimaryChoiceEditor } from "@/components/astraura/primary-choice-editor";
+import { AgentesFondoSection } from "@/components/astraura/agentes-fondo-section";
+import { useNarracionVentana } from "@/lib/aurora/narracion-ventana";
 import { PersonaConstellation } from "@/components/astraura/persona-constellation";
 
 /** Feedback de carga de una sección perezosa. */
@@ -142,11 +144,16 @@ export interface AstrauraOmniVoiceConfigProps {
 
 /** Identificador de cada pestaña del hub. */
 export type SetupSection =
-  | "llm" | "astraura" | "openvoice" | "cerebro" | "senales"
+  | "astraura" | "openvoice" | "cerebro" | "senales" | "agentes"
   | "neuronas" | "integraciones" | "apis";
 
 /** Los 5 SISTEMAS de la neurona (barra del modal/drawer). */
-const SYSTEM_SECTIONS: SetupSection[] = ["llm", "astraura", "openvoice", "cerebro", "senales"];
+// (Adenda 193) La pestaña «LLM» se FUSIONÓ en «Astraura»: ambas mostraban el
+// mismo «Sistema primario de esta neurona» (PrimaryChoiceEditor) y separaban en
+// dos sitios una sola decisión — qué IA usa esta neurona. Ahora Astraura reúne
+// el sistema primario (1.58-bit local por defecto), los pines de fuente/modelo
+// y el recomendador por hardware. Los deep-links `llm` siguen vivos (sinónimo).
+const SYSTEM_SECTIONS: SetupSection[] = ["astraura", "openvoice", "cerebro", "senales", "agentes"];
 const ALL_SECTIONS: SetupSection[] = [...SYSTEM_SECTIONS, "neuronas", "integraciones", "apis"];
 const NARROW_SECTIONS: SetupSection[] = SYSTEM_SECTIONS;
 
@@ -158,8 +165,8 @@ const NARROW_SECTIONS: SetupSection[] = SYSTEM_SECTIONS;
  * tema, como el resto de carriles del OS.
  */
 const SECTION_META: Record<SetupSection, { label: string; icon: LucideIcon; accent?: SectionTabAccent }> = {
-  llm: { label: "LLM", icon: Bot, accent: "cyan" },
   astraura: { label: "Astraura", icon: Sparkles, accent: "amber" },
+  agentes: { label: "Agentes", icon: Bot, accent: "cyan" },
   // El SISTEMA de voz se llama OmniVoice; «OpenVoice» es solo uno de sus
   // motores. El id `openvoice` NO cambia: es la clave de los deep-links y de
   // los sinónimos históricos (voz/omnivoice→openvoice).
@@ -195,13 +202,25 @@ const HEADING_SKIN: Record<UpdateMode, { grad: string; icon: LucideIcon; iconCls
   },
 };
 
+/**
+ * (Adenda 193) Lo que Astraura DICE en cada pestaña. Una frase por pantalla:
+ * corta, presente y sin lista de pasos — lo que se ve es lo que se oye.
+ */
+const NARRACION_SECCION: Partial<Record<SetupSection, string>> = {
+  astraura: "Esta es la inteligencia de tu neurona. Ya viene elegida Astraura 1.58 bits en local: funciona sin conexión y sin coste. Si quieres, debajo puedes afinar el modelo.",
+  openvoice: "Aquí eliges cómo sueno en este dispositivo. La voz que escuchas ahora es la que viene puesta y funciona sin instalar nada; cámbiala solo si te apetece otra.",
+  cerebro: "Este es el cerebro de la neurona: donde viven tus memorias y las carpetas que vinculaste antes.",
+  senales: "Señales: cómo habla tu neurona con la red y con tus otros dispositivos.",
+  agentes: "Y por último, tus agentes. Ya está todo elegido para este equipo: imaginan y proponen en segundo plano, y se automejoran mientras no miras.",
+};
+
 /** Sistema del store A149 → pestaña de esta ventana (para las insignias). */
 const SYSTEM_TAB: Record<keyof PersonaNeuronOverrides, SetupSection> = {
-  llm: "llm", astraura: "astraura", voz: "openvoice", cerebro: "cerebro", senales: "senales",
+  llm: "astraura", astraura: "astraura", voz: "openvoice", cerebro: "cerebro", senales: "senales",
 };
 /** Pestaña → sistema del store (ámbito «solo esta pestaña», atajos, diff). */
 const TAB_SYSTEM: Partial<Record<SetupSection, SystemKey>> = {
-  llm: "llm", astraura: "astraura", openvoice: "voz", cerebro: "cerebro", senales: "senales",
+  astraura: "astraura", openvoice: "voz", cerebro: "cerebro", senales: "senales",
 };
 /** Etiqueta corta de cada sistema (la misma que su pestaña). */
 const SYSTEM_LABEL: Record<SystemKey, string> = {
@@ -306,12 +325,13 @@ function sectionFromSynonym(section?: string): SetupSection | null {
   if ((ALL_SECTIONS as string[]).includes(s)) return s as SetupSection;
   const map: Record<string, SetupSection> = {
     // Históricos de la ventana (A132/A133) → nuevas pestañas.
-    modelos: "astraura", modelo: "llm", orden: "astraura", preferencia: "astraura", preferencias: "astraura",
+    llm: "astraura", modelos: "astraura", modelo: "astraura", orden: "astraura", preferencia: "astraura", preferencias: "astraura",
     cuenta: "astraura", estrategia: "astraura", "auto-actualizacion": "astraura", "auto-actualización": "astraura",
     novedades: "astraura", actualizaciones: "astraura",
     voz: "openvoice", omnivoice: "openvoice", "omni-voice": "openvoice", "open-voice": "openvoice",
     // Sistemas nuevos.
-    ia: "llm", inteligencia: "llm",
+    ia: "astraura", inteligencia: "astraura",
+    agente: "agentes", agents: "agentes", enjambre: "agentes", imaginacion: "agentes", "imaginación": "agentes",
     memoria: "cerebro", memorias: "cerebro", cerebros: "cerebro", almacen: "cerebro", "almacén": "cerebro",
     "señales": "senales", antena: "senales", antenas: "senales", conectividad: "senales", mesh: "senales", malla: "senales",
     // Hub embebido.
@@ -379,7 +399,7 @@ export function AstrauraOmniVoiceConfig({
 }: AstrauraOmniVoiceConfigProps) {
   const availableSections = variant === "embedded" ? ALL_SECTIONS : NARROW_SECTIONS;
 
-  const [section, setSection] = useState<SetupSection>(() => sectionFromSynonym(initialSection) ?? "llm");
+  const [section, setSection] = useState<SetupSection>(() => sectionFromSynonym(initialSection) ?? "astraura");
   useEffect(() => {
     const s = sectionFromSynonym(initialSection);
     if (s) setSection(s);
@@ -985,7 +1005,7 @@ export function AstrauraOmniVoiceConfig({
     const set = new Set<SetupSection>();
     if (!updates) return set;
     for (const spec of [...updates.sistemas, ...updates.recomendadas]) {
-      set.add(spec.kind === "voz" ? "openvoice" : "llm");
+      set.add(spec.kind === "voz" ? "openvoice" : "astraura");
     }
     if (updates.nuevasFuentes > 0) set.add("astraura");
     return set;
@@ -1081,6 +1101,11 @@ export function AstrauraOmniVoiceConfig({
   /* ── MODO GUÍA de primera vez (§2.1): las mismas 5 pestañas, con rail de
    *    progreso y pie «Atrás · Siguiente · Terminar». Las pestañas siguen
    *    clicables: es una guía, no un asistente que secuestre la ventana. */
+  // (Adenda 193) Voz de Astraura POR PESTAÑA: instantánea, sin cola y sin
+  // arrastrar pasos ya pasados. Cambiar de pestaña corta y sustituye; cerrar la
+  // ventana calla. Misma voz que la bienvenida (continuidad hasta OmniVoice).
+  useNarracionVentana(NARRACION_SECCION[currentSection] ?? null);
+
   const enSistemas = SYSTEM_SECTIONS.includes(currentSection);
   const guiaActiva = heading.mode === "primera-vez" && enSistemas;
   const pasoIdx = SYSTEM_SECTIONS.indexOf(currentSection);
@@ -1319,7 +1344,9 @@ export function AstrauraOmniVoiceConfig({
               personaId={personaId}
               deviceId={deviceId}
               caps={caps}
-              onSelect={(s) => setSection(s)}
+              // (Adenda 193) La constelación sigue teniendo su nodo «llm»
+              // (sistema del store); su pestaña ahora es Astraura.
+              onSelect={(s) => setSection(s === "llm" ? "astraura" : s)}
               compact={compact}
               size={compact ? 92 : 104}
               className="mt-1"
@@ -1392,7 +1419,7 @@ export function AstrauraOmniVoiceConfig({
   const specChips = (specs: ModelSpec[], max = 6) => (
     <div className="mt-1 flex flex-wrap gap-1">
       {specs.slice(0, max).map((s) => {
-        const target: SetupSection = s.kind === "voz" ? "openvoice" : "llm";
+        const target: SetupSection = s.kind === "voz" ? "openvoice" : "astraura";
         return (
           <button
             key={s.id}
@@ -1434,7 +1461,7 @@ export function AstrauraOmniVoiceConfig({
               <span className="min-w-0">Falta por configurar {p.label}.</span>
               <button
                 type="button"
-                onClick={() => setSection(p.sistema === "voz" ? "openvoice" : "llm")}
+                onClick={() => setSection(p.sistema === "voz" ? "openvoice" : "astraura")}
                 className="inline-flex shrink-0 cursor-pointer items-center gap-1 rounded-md border border-cyan-400/40 bg-cyan-500/15 px-2 py-0.5 text-[10px] font-semibold text-cyan-100 transition-colors duration-200 hover:bg-cyan-500/25"
               >
                 Configurar ahora <ArrowRight className="h-3 w-3" />
@@ -1632,10 +1659,6 @@ export function AstrauraOmniVoiceConfig({
           key={currentSection === "astraura" ? "astraura" : `${currentSection}:${personaId}`}
           className={cn(bodySpace, "animate-in fade-in-0 slide-in-from-bottom-1 duration-200")}
         >
-        {currentSection === "llm" && (
-          <LlmSection personaId={personaId} deviceId={deviceId} caps={caps} compact={compact} full={variant === "embedded"} />
-        )}
-
         {currentSection === "astraura" && (
           <div className={bodySpace}>
             {updatesCard}
@@ -1666,11 +1689,16 @@ export function AstrauraOmniVoiceConfig({
               title="Relaciones de modelos y sistemas por personalidad en esta neurona"
               onSelectPersona={(id) => setPersonaId(id)}
               onSelectSystem={(sys) =>
-                setSection(sys === "llm" ? "llm" : sys === "voz" ? "openvoice" : sys === "memoria" ? "cerebro" : "senales")
+                setSection(sys === "llm" ? "astraura" : sys === "voz" ? "openvoice" : sys === "memoria" ? "cerebro" : "senales")
               }
             />
             {/* Modo/pago del sistema Astraura POR PERSONALIDAD (rev. A149·M3). */}
             <AstrauraPersonaCard personaId={personaId} deviceId={deviceId} caps={caps} />
+            {/* (Adenda 193) Lo que antes vivía en la pestaña «LLM»: pines de
+                fuente/modelo por personalidad y recomendador por hardware. Sin
+                su PrimaryChoiceEditor (`hidePrimary`): el sistema primario ya
+                está arriba, una sola vez, con 1.58b local marcado por defecto. */}
+            <LlmSection personaId={personaId} deviceId={deviceId} caps={caps} compact={compact} full={variant === "embedded"} hidePrimary />
             <div className="scroll-mt-2 rounded-xl border border-[var(--aw-line)] bg-[var(--aw-surface)] px-3 py-2.5">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="flex items-center gap-2 text-[12px] font-semibold text-[var(--aw-strong)]">
@@ -1847,6 +1875,8 @@ export function AstrauraOmniVoiceConfig({
             <p className="px-0.5 text-[10px] leading-snug text-[var(--aw-muted)]">{savedNote}</p>
           </div>
         )}
+
+        {currentSection === "agentes" && <AgentesFondoSection compact={compact} />}
 
         {currentSection === "openvoice" && (
           <OpenVoiceSection personaId={personaId} deviceId={deviceId} caps={caps} compact={compact} full={variant === "embedded"} />

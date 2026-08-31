@@ -271,6 +271,14 @@ export function VoiceNeuronOnboarding() {
   }, [libsReady]);
 
   useEffect(() => {
+    // (Adenda 193) ESTA VENTANA YA NO SE AUTO-ABRE. Aparecía ANTES de
+    // «Configuración de sistemas de Astraura», que ya trae dentro su sección
+    // OmniVoice: eran dos ventanas para la misma decisión, y la primera tapaba
+    // al rito. La elección de voz vive ahora en esa pestaña; aquí solo queda la
+    // reapertura MANUAL desde Ajustes (evento NEURON_VOICE_REOPEN_EVENT).
+    if (typeof window === "undefined") return;
+    return;
+    // eslint-disable-next-line no-unreachable
     let alive = true;
     let cancelaEspera: (() => void) | null = null;
     const t = setTimeout(async () => {

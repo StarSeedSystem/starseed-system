@@ -54,6 +54,7 @@ import {
 } from "@/lib/astraura/neuron-persona-systems";
 // (Adenda 153) Sistema PRIMARIO (Astraura 1.58-bit por defecto) por ámbito.
 import { PrimaryChoiceEditor } from "@/components/astraura/primary-choice-editor";
+import { motorVivoDeEstaNeurona } from "@/lib/aurora/tts-oss/omnivoice-web-router";
 import { Astraura158ProcessesCard } from "@/components/astraura/astraura-158-processes-card";
 
 /* Paneles pesados reutilizados: SOLO se descargan si su sección los muestra. */
@@ -614,6 +615,9 @@ export interface SectionProps {
   onDismiss?: () => void;
   /** Navegación por callback a las pestañas de /agent (evita el query param). */
   onNavigate?: (tab: string) => void;
+  /** (Adenda 193) Oculta el «Sistema primario»: al fusionarse LLM en Astraura,
+   *  ese editor vive UNA sola vez, arriba de la pestaña Astraura. */
+  hidePrimary?: boolean;
 }
 
 /**
@@ -621,7 +625,7 @@ export interface SectionProps {
  * neurona: efectivo + procedencia, pin fuente/modelo (catálogo gratis-primero)
  * y recomendación inteligente del scout (Adenda 138).
  */
-export function LlmSection({ personaId, deviceId, caps, full = false }: SectionProps) {
+export function LlmSection({ personaId, deviceId, caps, full = false, hidePrimary = false }: SectionProps) {
   const resolved = useResolvedPersonaSystems(personaId, deviceId, caps);
   const sources = useMemo(() => { try { return freeSources(); } catch { return []; } }, []);
   const raw = useMemo(() => {
@@ -717,13 +721,15 @@ export function LlmSection({ personaId, deviceId, caps, full = false }: SectionP
       {/* (Adenda 153) SISTEMA PRIMARIO: Astraura 1.58-bit por defecto; «Todas»
           edita el ámbito de la neurona, una personalidad su propio ámbito. Los
           pines de arriba (fuente/modelo) siguen ganando a esta capa. */}
-      <PrimaryChoiceEditor
-        scope={esTodas ? "neurona" : "personalidad"}
-        scopeId={esTodas ? deviceId : personaId}
-        context={{ deviceId, personaId: esTodas ? undefined : personaId }}
-        compact={!full}
-        scopeLabel={esTodas ? "esta neurona" : "esta personalidad"}
-      />
+      {!hidePrimary && (
+        <PrimaryChoiceEditor
+          scope={esTodas ? "neurona" : "personalidad"}
+          scopeId={esTodas ? deviceId : personaId}
+          context={{ deviceId, personaId: esTodas ? undefined : personaId }}
+          compact={!full}
+          scopeLabel={esTodas ? "esta neurona" : "esta personalidad"}
+        />
+      )}
 
       {/* (Ola 3 · Adenda 155) Procesos de fondo del backend soberano 1.58:
           imaginación siempre-activa, frecuencia y capacidad del enjambre,
@@ -809,8 +815,18 @@ export function OpenVoiceSection({ personaId, deviceId, caps: _caps, full = fals
   /** ¿El motor EFECTIVO sabe clonar por referencia de audio? (en vivo, A112). */
   const clona = (() => { try { return engineSupportsRef(resolved.voz.motor); } catch { return false; } })();
 
+  /** (Adenda 193) El motor que YA sonó aquí (el de la guía de introducción). */
+  const motorVivo = (() => { try { return motorVivoDeEstaNeurona(); } catch { return null; } })();
+
   return (
     <div className="space-y-3">
+      {motorVivo && (
+        <p className="rounded-xl border border-emerald-400/25 bg-emerald-500/[0.06] px-3 py-2 text-[11px] leading-snug text-emerald-100/90">
+          <span className="font-semibold">{engineLabel(motorVivo)}</span> es la voz que ya te está hablando en este
+          dispositivo, así que queda como predeterminada: suena al instante y sin instalar nada. Cambia el orden solo si
+          quieres otra — la que elijas se prueba en cuanto la fijes.
+        </p>
+      )}
       <div className={cn("rounded-xl border border-[var(--aw-line)] bg-[var(--aw-surface)] px-3 py-2.5", rail(!!raw.voz, "voz"))}>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="flex items-center gap-2 text-[12px] font-semibold text-[var(--aw-strong)]">

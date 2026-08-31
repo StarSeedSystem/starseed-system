@@ -37,6 +37,7 @@ import {
   type EstadoPermisoDispositivo,
   type EntornoPermisos,
 } from "@/lib/aurora/senses/request-permission";
+import { FilaCarpetas } from "@/components/senses/carpetas-vinculadas-card";
 
 // ── Catálogo de permisos visibles en el panel ────────────────────────────────
 
@@ -53,7 +54,10 @@ export const PERMISOS_UI: PermisoUI[] = [
   { id: "notificaciones", label: "Notificaciones", desc: "Avisos de la red, mensajes y agentes.", rec: true, Icon: Bell },
   { id: "camara", label: "Cámara", desc: "Videollamadas y visión de Aurora (opcional).", rec: false, Icon: Camera },
   { id: "ubicacion", label: "Ubicación", desc: "Funciones locales y clima (opcional).", rec: false, Icon: MapPin },
-  { id: "archivos", label: "Archivos", desc: "Conectar carpetas de este equipo (opcional).", rec: false, Icon: FolderOpen },
+  // (Adenda 193) «Archivos» era una sola carpeta y sin rastro. Ahora son
+  // CARPETAS: varias del dispositivo y almacenamientos externos, que el paso de
+  // Cerebros vincula solo al cerebro principal. Su fila se pinta aparte.
+  { id: "archivos", label: "Carpetas y almacenamientos", desc: "Vincula varias carpetas de este equipo y servicios como Google Drive.", rec: false, Icon: FolderOpen },
   { id: "almacenamiento", label: "Almacenamiento persistente", desc: "Que el navegador no borre tus datos locales (opcional).", rec: false, Icon: HardDrive },
 ];
 
@@ -168,7 +172,9 @@ export function PermisosDispositivoPanel({
   return (
     <div className={cn("space-y-2", className)}>
       <BannerEntornoPermisos />
-      {lista.map((p) => <FilaPermiso key={p.id} p={p} />)}
+      {lista.map((p) => (p.id === "archivos"
+        ? <FilaCarpetas key={p.id} p={p} />
+        : <FilaPermiso key={p.id} p={p} />))}
     </div>
   );
 }

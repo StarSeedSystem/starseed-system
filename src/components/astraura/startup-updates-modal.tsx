@@ -40,11 +40,32 @@ export function StartupUpdatesModal() {
   const esperaRef = useRef<(() => void) | null>(null);
   useEffect(() => () => { esperaRef.current?.(); }, []); // solo al desmontar
 
+  /**
+   * (Adenda 193) Al CERRAR esta ventana arranca la guía de introducción si el
+   * rito la dejó pendiente: el orden pedido es bienvenida → sistemas de
+   * Astraura → guía. Idempotente: la marca se consume una sola vez.
+   */
+  const lanzarGuiaPendiente = useCallback(() => {
+    if (typeof window === "undefined") return;
+    try {
+      if (window.sessionStorage.getItem("starseed.guia.pendiente") !== "1") return;
+      window.sessionStorage.removeItem("starseed.guia.pendiente");
+    } catch { return; }
+    window.setTimeout(() => {
+      try {
+        const w = window as unknown as { openStarseedGuide?: () => void };
+        if (typeof w.openStarseedGuide === "function") w.openStarseedGuide();
+        else window.dispatchEvent(new Event("starseed:open-guide"));
+      } catch { /* la guía queda disponible en Ajustes */ }
+    }, 500);
+  }, []);
+
   /** Escape = «Recordar luego»: pospone y cierra (nunca lanza). */
   const remindLater = useCallback(() => {
     try { snoozeUpdates(); } catch { /* */ }
     setOpen(false);
-  }, []);
+    lanzarGuiaPendiente();
+  }, [lanzarGuiaPendiente]);
 
   // Foco inicial + trampa de Tab + Escape (patrón de la Adenda 137).
   useModalA11y({ open, onClose: remindLater, containerRef });
@@ -75,6 +96,17 @@ export function StartupUpdatesModal() {
         })
         .catch(() => setOpen(true));
     };
+    // (Adenda 193) Relevo directo del rito: si la bienvenida acaba de terminar
+    // (marca de sesión), esta ventana se abre YA — es su turno en el orden,
+    // antes de la guía — sin esperar al sondeo de cortesía.
+    try {
+      if (window.sessionStorage.getItem("starseed.sistemas.launch") === "1") {
+        window.sessionStorage.removeItem("starseed.sistemas.launch");
+        manualRef.current = true;
+        setOpen(true);
+      }
+    } catch { /* sin sessionStorage: sigue el flujo normal */ }
+
     const t = setTimeout(() => {
       try {
         if (isSetupPending()) {
@@ -156,8 +188,8 @@ export function StartupUpdatesModal() {
       <AstrauraOmniVoiceConfig
         variant="modal"
         initialSection="astraura"
-        onApply={() => setOpen(false)}
-        onDismiss={() => setOpen(false)}
+        onApply={() => { setOpen(false); lanzarGuiaPendiente(); }}
+        onDismiss={() => { setOpen(false); lanzarGuiaPendiente(); }}
       />
     </div>
   );

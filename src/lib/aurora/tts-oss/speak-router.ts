@@ -295,6 +295,27 @@ export async function isConfiguredOssEngineReady(): Promise<boolean> {
 }
 
 /**
+ * (Adenda 193) Deja constancia del motor que DE VERDAD sonó en esta neurona.
+ * La ventana de voz lo marca como predeterminado: «el que ya te funcionó» en
+ * vez de un recomendado teórico que quizá aquí no arranca. Nunca lanza.
+ */
+const MOTOR_QUE_SONO_KEY = "starseed.aurora.voice.motor-vivo.v1";
+function recordarMotorQueSono(link: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    if (window.localStorage.getItem(MOTOR_QUE_SONO_KEY) === link) return;
+    window.localStorage.setItem(MOTOR_QUE_SONO_KEY, link);
+    window.dispatchEvent(new CustomEvent("starseed:voz-motor-vivo", { detail: link }));
+  } catch { /* modo privado: la voz sigue funcionando igual */ }
+}
+
+/** Motor que sonó por última vez en esta neurona (o null si aún ninguno). */
+export function motorQueSono(): string | null {
+  if (typeof window === "undefined") return null;
+  try { return window.localStorage.getItem(MOTOR_QUE_SONO_KEY); } catch { return null; }
+}
+
+/**
  * Ejecuta UN eslabón de la cadena. Solo si el audio empieza de verdad se
  * disparan onStart/onEnd del llamador. Envuelto por el llamador en
  * Promise.resolve().then() — aquí además todo es defensivo. NUNCA lanza.
@@ -573,8 +594,9 @@ export async function speakWithConfiguredEngine(
       const outcome = await Promise.resolve()
         .then(() => runLink(link, clean, cfg, wrappedOpts, detectedLang))
         .catch((): LinkOutcome => "declined");
-      if (outcome === "spoke") return true;
+      if (outcome === "spoke") { recordarMotorQueSono(link); return true; }
       if (outcome === "started") {
+        recordarMotorQueSono(link);
         // Llegó a sonar y se cortó: el turno YA se consumió; re-hablar el mismo
         // texto con otro motor duplicaría la locución. Turno cerrado con dignidad.
         return true;

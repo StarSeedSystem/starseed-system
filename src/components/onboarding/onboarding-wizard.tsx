@@ -43,6 +43,7 @@ import { chat } from "@/ai/client/chat";
 import { loadConfigs } from "@/ai/client/providerStore";
 import { buildSystemPrompt, DEFAULT_PERSONALITY } from "@/lib/aurora/types";
 import { OPEN_GUIDE_EVENT } from "./aurora-guide";
+import { marcarVozDelRito } from "@/lib/aurora/narracion-ventana";
 import {
   getOnboarding,
   saveProfileOptional,
@@ -300,6 +301,8 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
       const intro = STEP_NARRATION[0];
       setAstrauraText(intro);
       if (aurora?.supported && aurora?.speak) {
+        // (Adenda 193) La voz elegida aquí CONTINÚA en la ventana de sistemas.
+        marcarVozDelRito(true);
         aurora.speak(intro);
       } else {
         toast.message("Tu navegador no soporta voz", {
@@ -512,6 +515,13 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
     // pulsar «Aceptar» — si no, la alta corta de neurona (NeuronSetup) volvía a
     // preguntar lo mismo nada más terminar la bienvenida.
     try { window.localStorage.setItem("starseed.neuron.setup.v1", "1"); } catch { /* */ }
+    // (Adenda 193) ORDEN pedido: bienvenida → sistemas de Astraura → guía. Se
+    // dejan las dos marcas y la ventana de sistemas toma el relevo; ella lanza
+    // la guía al cerrarse. Así ni se solapan ni se pierde ninguna.
+    try {
+      window.sessionStorage.setItem("starseed.sistemas.launch", "1");
+      window.sessionStorage.setItem("starseed.guia.pendiente", "1");
+    } catch { /* sin sessionStorage: se lanza la guía directamente abajo */ }
     toast.success("¡Bienvenida completada!");
     closeAll();
     // (Adenda 192) Si el rito corría sobre /login (p. ej. una sesión retomada a
@@ -519,17 +529,25 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
     // del perfil, con sus vínculos coherentes, nunca sobre el inicio de sesión.
     try {
       if (window.location.pathname.startsWith("/login")) {
-        window.sessionStorage.setItem("starseed.guide.launch", "1");
+        // Las marcas `sistemas.launch` + `guia.pendiente` (arriba) sobreviven al
+        // salto: al llegar al OS se abre la ventana de sistemas y, al cerrarla,
+        // la guía. NO se marca `guide.launch`: abriría la guía en paralelo.
         window.location.assign("/escritorios");
-        return; // AuroraGuide ve la marca al montar y arranca la guía allí
+        return;
       }
     } catch { /* seguimos con la guía aquí */ }
-    // (Adenda 191) Al terminar el rito arranca la GUÍA del sistema (el tour
-    // vivo que presenta orbe, Trinity, Escritorio, Astraura…), SIEMPRE para
-    // cuentas nuevas — sin depender de la marca local "ya vista".
+    // (Adenda 193) Turno de la ventana «Sistemas de Astraura en esta neurona».
+    // Al cerrarla, ELLA arranca la guía (marca `starseed.guia.pendiente`). Si no
+    // estuviera montada, se lanza la guía aquí para no dejar el flujo colgado.
     setTimeout(() => {
+      const w = window as unknown as { openAstrauraStartup?: () => void; openStarseedGuide?: () => void };
+      if (typeof w.openAstrauraStartup === "function") {
+        try { window.sessionStorage.removeItem("starseed.sistemas.launch"); } catch { /* */ }
+        w.openAstrauraStartup();
+        return;
+      }
+      try { window.sessionStorage.removeItem("starseed.guia.pendiente"); } catch { /* */ }
       try {
-        const w = window as unknown as { openStarseedGuide?: () => void };
         if (typeof w.openStarseedGuide === "function") w.openStarseedGuide();
         else window.dispatchEvent(new Event(OPEN_GUIDE_EVENT));
       } catch { /* la guía queda en Ajustes */ }
