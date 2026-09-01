@@ -111,26 +111,23 @@ export function AuthForm() {
                     void addExternalEmail(externo)
                 } catch { /* se puede vincular después en Correos */ }
             }
-            // Continuidad TOTAL: el rito de iniciación arranca al instante,
-            // sin pantallas muertas entre el registro y la configuración.
-            try { window.dispatchEvent(new Event('starseed:open-onboarding')) } catch { /* gate lo abre igual */ }
-            // (Adenda 192) Auto-entrada REAL: ya hay sesión → salimos de /login
-            // al OS (/escritorios) COMO en el inicio de sesión normal. El rito y
-            // la guía corren así DENTRO del perfil recién creado, con sus
-            // vínculos coherentes (perfil, cerebros, biblioteca…), y no sobre el
-            // fondo del inicio de sesión, que reaparecía al terminar la guía.
-            // (Adenda 193) Navegación VERIFICADA: el rito se abre en cuanto hay
-            // sesión y, con un modal encima, `router.push` se cancela en
-            // silencio (mismo patrón que los vínculos de la guía) — el registro
-            // se quedaba en /login con la bienvenida encima. Si en 1,2 s no
-            // hemos salido, se fuerza la navegación dura.
-            router.push('/escritorios')
-            router.refresh()
-            window.setTimeout(() => {
-                try {
-                    if (window.location.pathname.startsWith('/login')) window.location.assign('/escritorios')
-                } catch { /* el gate reabrirá el rito igualmente */ }
-            }, 1200)
+            // ── (Adenda 210) EL CAMINO REAL DEL REGISTRO ────────────────────
+            // Este formulario —el de /login— es por el que se registra la gente,
+            // NO el <AuthGate> que parcheé en la 208/209. Aquí se mandaba a
+            // /escritorios confiando en que el portero global captara el evento
+            // `starseed:open-onboarding`; entre la navegación y el refresh ese
+            // evento se perdía y la cuenta nueva aterrizaba en el escritorio sin
+            // configuración inicial ni guía. Exactamente lo que reportó Alex.
+            //
+            // Ahora: se marca el alta y se navega DIRECTO al rito. Una sola vía,
+            // sin eventos que se puedan perder ni carreras entre porteros. El
+            // rito, al terminar, ya lleva al escritorio por su cuenta.
+            try { window.sessionStorage.setItem('starseed.recien.registrado', '1') } catch { /* sin sessionStorage */ }
+            try { window.dispatchEvent(new Event('starseed:open-onboarding')) } catch { /* el rito se abre igual abajo */ }
+            // Navegación DURA a propósito: `router.push` se cancela en silencio
+            // cuando hay un modal encima (mismo patrón que ya nos mordió con los
+            // vínculos de la guía). Aquí no puede fallar.
+            window.location.assign('/bienvenida')
         } else {
             // Sin sesión automática. Con la confirmación desactivada esto casi
             // siempre significa que el correo YA tenía cuenta (Supabase lo
