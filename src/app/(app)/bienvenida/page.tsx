@@ -1,13 +1,66 @@
 "use client";
 
 /**
- * /bienvenida — permite revisitar la guía de StarSeed con Astraura en cualquier
- * momento. Renderiza el wizard en línea (baúles-style <main>).
+ * /bienvenida — la puerta de entrada del OS.
+ * ─────────────────────────────────────────────────────────────────────────────
+ * (Adenda 207) ANTES esta página montaba el wizard SIN comprobar nada, y como
+ * los accesos «Entrar / Crear cuenta» de la app apuntan aquí, la guía de
+ * Astraura aparecía antes de que la persona hubiera puesto su correo y su
+ * contraseña. Arreglar el portero global (Adenda 205) no bastaba: esta ruta lo
+ * saltaba por completo.
+ *
+ * Ahora la página decide:
+ *   · Sin sesión, o con sesión ANÓNIMA (invitado) → se muestra el acceso
+ *     (<AuthGate>): entrar o crear cuenta. Nada de guía todavía.
+ *   · Con cuenta REAL (tiene correo) → arranca la guía con Astraura.
+ *
+ * En cuanto el registro termina, `onAuthStateChange` reevalúa y la guía aparece
+ * sola: no hay que recargar ni volver a navegar.
  */
 
+import { useCallback, useEffect, useState } from "react";
+import { createClient } from "@/utils/supabase/client";
 import OnboardingWizard from "@/components/onboarding/onboarding-wizard";
+import AuthGate from "@/components/auth/auth-gate";
+
+type Estado = "comprobando" | "sin-cuenta" | "con-cuenta";
 
 export default function BienvenidaPage() {
+  const [estado, setEstado] = useState<Estado>("comprobando");
+
+  const comprobar = useCallback(async () => {
+    try {
+      const sb = createClient();
+      const { data } = await sb.auth.getUser();
+      const user = data?.user ?? null;
+      // Cuenta REAL = tiene correo y no es una sesión anónima de invitado.
+      const registrada =
+        !!user && !!user.email && !(user as { is_anonymous?: boolean }).is_anonymous;
+      setEstado(registrada ? "con-cuenta" : "sin-cuenta");
+    } catch {
+      // Fail-safe: ante un fallo de red NO se enseña la guía, se pide acceso.
+      setEstado("sin-cuenta");
+    }
+  }, []);
+
+  useEffect(() => {
+    void comprobar();
+    let unsub: (() => void) | undefined;
+    try {
+      const sb = createClient();
+      const { data: sub } = sb.auth.onAuthStateChange(() => { void comprobar(); });
+      unsub = () => sub.subscription.unsubscribe();
+    } catch { /* sin realtime de auth: basta la comprobación inicial */ }
+    return () => unsub?.();
+  }, [comprobar]);
+
+  // Mientras se comprueba no se enseña nada: ni guía ni acceso parpadeando.
+  if (estado === "comprobando") return null;
+
+  // Sin registro: el acceso ocupa la pantalla. AuthGate se desmonta solo
+  // cuando la sesión pasa a estar activa.
+  if (estado === "sin-cuenta") return <AuthGate />;
+
   return (
     <main className="min-h-screen px-4 py-8 md:px-8">
       <div className="max-w-4xl mx-auto">
