@@ -230,18 +230,27 @@ async function canjear(
 ): Promise<ResultadoConexion> {
   const spec = OAUTH_ALMACENAMIENTO[servicio]!;
   try {
-    const body = new URLSearchParams({
-      client_id: clientId,
-      code,
-      code_verifier: verifier,
-      grant_type: "authorization_code",
-      redirect_uri: redirectUri(),
-    });
-    const r = await fetch(spec.tokenUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body,
-    });
+    // (Adenda 198) Google exige `client_secret` para clientes de tipo web,
+    // incluso con PKCE: ese canje lo hace NUESTRO servidor, donde el secreto
+    // vive como variable de entorno. Los demás siguen siendo cliente público.
+    const porServidor = servicio === "google-drive";
+    const r = porServidor
+      ? await fetch("/api/storage/oauth/token", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ servicio, code, verifier, clientId, redirectUri: redirectUri() }),
+        })
+      : await fetch(spec.tokenUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({
+            client_id: clientId,
+            code,
+            code_verifier: verifier,
+            grant_type: "authorization_code",
+            redirect_uri: redirectUri(),
+          }),
+        });
     const j = (await r.json()) as {
       access_token?: string; refresh_token?: string; expires_in?: number; scope?: string; error_description?: string; error?: string;
     };

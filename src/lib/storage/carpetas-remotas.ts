@@ -58,16 +58,24 @@ export async function tokenVigente(servicio: ServicioAlmacenamiento): Promise<st
   const clientId = clientIdDe(servicio);
   if (!spec || !clientId) return cuenta.accessToken;
   try {
-    const body = new URLSearchParams({
-      client_id: clientId,
-      refresh_token: cuenta.refreshToken,
-      grant_type: "refresh_token",
-    });
-    const r = await fetch(spec.tokenUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body,
-    });
+    // (Adenda 198) Mismo motivo que el canje: el refresco de Google necesita el
+    // secreto y por eso pasa por nuestro servidor.
+    const porServidor = servicio === "google-drive";
+    const r = porServidor
+      ? await fetch("/api/storage/oauth/token", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ servicio, refreshToken: cuenta.refreshToken, clientId }),
+        })
+      : await fetch(spec.tokenUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({
+            client_id: clientId,
+            refresh_token: cuenta.refreshToken,
+            grant_type: "refresh_token",
+          }),
+        });
     const j = (await r.json()) as { access_token?: string; expires_in?: number; refresh_token?: string };
     if (!r.ok || !j.access_token) return null; // el proveedor lo invalidó: reconectar
     const nueva: CuentaConectada = {
