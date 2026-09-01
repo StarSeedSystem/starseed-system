@@ -83,7 +83,9 @@ export function OnboardingGate() {
       try { recienRegistrado = window.sessionStorage.getItem(RECIEN_REGISTRADO) === "1"; } catch { /* */ }
 
       if (!hasProfile) {
-        setShow(recienRegistrado);
+        // (Adenda 209) Cuenta real con sesión y sin identidad = acaba de nacer.
+        // No depende de que la marca de sesión sobreviva a las recargas.
+        setShow(true);
         setReady(true);
         return;
       }

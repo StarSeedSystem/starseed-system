@@ -41,7 +41,20 @@ export default function BienvenidaPage() {
       // reabrir la guía cuando quiera.
       let recien = false;
       try { recien = window.sessionStorage.getItem(RECIEN_REGISTRADO) === "1"; } catch { /* */ }
-      setEstado(registrada && recien ? "con-cuenta" : "sin-cuenta");
+
+      // (Adenda 209) La marca de sesión no puede ser el ÚNICO criterio: si algo
+      // recarga por el camino y se pierde, la persona se queda sin rito. Una
+      // cuenta con sesión y SIN perfil acaba de nacer por definición, así que
+      // también entra. Quien ya tiene su identidad creada no lo ve.
+      let sinPerfil = false;
+      if (registrada) {
+        try {
+          const { data: prof } = await sb
+            .from("profiles").select("handle").eq("user_id", user!.id).maybeSingle();
+          sinPerfil = !(prof && (prof as { handle?: string }).handle);
+        } catch { sinPerfil = false; }
+      }
+      setEstado(registrada && (recien || sinPerfil) ? "con-cuenta" : "sin-cuenta");
     } catch {
       // Fail-safe: ante un fallo de red NO se enseña la guía, se pide acceso.
       setEstado("sin-cuenta");

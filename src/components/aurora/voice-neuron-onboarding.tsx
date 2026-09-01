@@ -317,14 +317,15 @@ export function VoiceNeuronOnboarding() {
       // enterraba y su modal cancelaba la navegación de los vínculos de la guía.
       const { alLiberarsePrimerPlano } = await import("@/lib/ui/fullscreen-modal");
       if (!alive) return;
-      cancelaEspera = alLiberarsePrimerPlano(() => {
-        if (!alive) return;
-        if (stale) setUpdated(true);
-        setOpen(true);
-        void probeLocalDaemon().then((local) => {
-          if (alive) setLocalVivo(local);
-        });
-      });
+      // (Adenda 209) YA NO SE ABRE SOLA. Alex la vio colarse justo después de
+      // crear la cuenta —«la ventana anterior de openvoice obsoleta»— y su
+      // contenido vive desde la Adenda 193 en la sección OmniVoice de
+      // «Configuración de sistemas de Astraura». Dos ventanas para lo mismo
+      // sobran, y ésta se colaba encima del rito. Sigue disponible a demanda:
+      // el evento de reapertura de abajo la abre desde Ajustes.
+      void alLiberarsePrimerPlano;
+      void stale;
+      return;
     }, 3500); // deja que la app respire antes de saludar
     return () => {
       alive = false;

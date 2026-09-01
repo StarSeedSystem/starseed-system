@@ -109,6 +109,12 @@ export function AuthGate() {
           // sesión con el rito a medias se la volvía a encontrar de golpe.
           try { window.sessionStorage.setItem(RECIEN_REGISTRADO, "1"); } catch { /* sin sessionStorage */ }
           setOk("¡Cuenta creada! Te lleva la guía de Astraura…");
+          // (Adenda 209) Navegación EXPLÍCITA al rito. Antes se confiaba en que
+          // varios porteros reaccionaran al cambio de sesión y ganara el
+          // correcto; en la práctica la app recargaba, se colaba la ventana
+          // vieja de voz y acababa en el escritorio sin guía ni configuración.
+          // Ahora hay un único camino y no depende de quién reaccione antes.
+          setTimeout(() => { try { window.location.assign("/bienvenida"); } catch { /* */ } }, 350);
         }
       }
     } catch (err: any) {
