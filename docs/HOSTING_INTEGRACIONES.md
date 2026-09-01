@@ -212,3 +212,20 @@ Ambos son **opcionales**: cualquier consumidor existente que use
 ---
 
 *Última actualización: 2026-06-30. Fuente de verdad del catálogo: `src/lib/integrations/registry.ts`.*
+
+## Selector de carpetas de Google (Adenda 196)
+
+El explorador propio de Drive se sustituyó por el **selector oficial de Google**
+(Picker), porque `drive.file` —el scope que usa ahora StarSeed— es NO SENSIBLE:
+la app se publica para cualquiera sin verificación de Google ni auditoría anual,
+y solo ve las carpetas que el usuario elige. Variables públicas necesarias
+(creadas por terminal, ver `scripts/google-picker-setup.sh`):
+
+- `NEXT_PUBLIC_GOOGLE_PROJECT_NUMBER` — número del proyecto de Google Cloud.
+- `NEXT_PUBLIC_GOOGLE_API_KEY` — clave de API restringida al Picker y a los
+  dominios del OS. Es pública por diseño.
+- `NEXT_PUBLIC_GOOGLE_CLIENT_ID` — ID del cliente OAuth (único paso manual:
+  Google no expone API para crearlo).
+
+Al ser `NEXT_PUBLIC_*` se incrustan en el BUILD: tras cambiarlas hay que
+redesplegar para que producción las vea.
