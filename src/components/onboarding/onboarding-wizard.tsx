@@ -187,6 +187,9 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
 
   // narración por IA
   const [astrauraText, setAstrauraText] = useState<string>(STEP_NARRATION[0]);
+  // (Adenda 200) Modo de la bienvenida: sin elegir · voz · texto. Antes el
+  // booleano `voiceStarted` hacía que «texto» pareciera preseleccionado.
+  const [modoInicio, setModoInicio] = useState<null | "voz" | "texto">(null);
   const [thinking, setThinking] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -673,39 +676,84 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
         <div className="min-h-[260px]">
           {/* 0 · Bienvenida */}
           {step === 0 && (
-            <div className="space-y-4 text-center py-2">
-              <h2 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-fuchsia-300 via-purple-300 to-cyan-200">
-                Te damos la bienvenida a StarSeed
-              </h2>
-              <p className="text-sm text-white/60 max-w-md mx-auto">
-                Una red abierta y segura. Astraura te acompañará paso a paso: solo aceptas y eliges, sin configurar nada a mano. ¿Cómo prefieres empezar?
+            <div className="space-y-5 py-1">
+              {/* (Adenda 200) Bienvenida rediseñada: la elección de MODO va
+                  primero, en dos tarjetas iguales y grandes; el timbre de la voz
+                  solo aparece si eliges voz. Antes convivían en la misma fila un
+                  panel con cinco controles y un botón suelto — desequilibrado y
+                  apretado. */}
+              <div className="text-center">
+                <span className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl border border-fuchsia-400/25 bg-gradient-to-br from-fuchsia-500/20 to-cyan-500/10">
+                  <Sparkles className="h-6 w-6 text-fuchsia-200" aria-hidden />
+                </span>
+                <h2 className="bg-gradient-to-r from-fuchsia-200 via-purple-200 to-cyan-200 bg-clip-text text-2xl font-bold text-transparent sm:text-[28px]">
+                  Te damos la bienvenida a StarSeed
+                </h2>
+                <p className="mx-auto mt-2 max-w-sm text-[13px] leading-relaxed text-white/60">
+                  Una red abierta y segura. Astraura te acompaña paso a paso: solo aceptas y eliges.
+                </p>
+              </div>
+
+              <p className="text-center text-[11px] font-semibold uppercase tracking-[0.14em] text-white/35">
+                ¿Cómo prefieres empezar?
               </p>
-              <div className="grid sm:grid-cols-2 gap-3 mt-4">
-                {/* (Adenda 194) La voz ya no es un sí/no: se elige timbre
-                    (femenina · masculina · neutra), hay ajustes opcionales y
-                    modo autónomo. La elegida acompaña el resto del rito y la
-                    guía, y queda vinculada a la personalidad de Astraura. */}
-                <div className={cn(
-                  "p-4 rounded-2xl border-2 transition-all sm:col-span-1",
-                  voiceStarted ? "border-fuchsia-400 bg-fuchsia-500/10 shadow-[0_0_30px_rgba(217,70,239,0.25)]" : "border-white/10 bg-white/[0.02]",
-                )}>
-                  <h3 className="mb-2 flex items-center gap-2 text-base font-bold">
-                    <Mic className="h-5 w-5 text-fuchsia-300" aria-hidden /> Empezar con voz
-                  </h3>
-                  <SelectorVozInicial onElegir={() => startVoice()} />
-                </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
                 <button
-                  onClick={() => { setVoiceStarted(false); setAstrauraText(STEP_NARRATION[0]); }}
+                  type="button"
+                  onClick={() => setModoInicio("voz")}
+                  aria-pressed={modoInicio === "voz"}
                   className={cn(
-                    "p-5 rounded-2xl border-2 text-left transition-all hover:scale-[1.02]",
-                    !voiceStarted ? "border-cyan-400 bg-cyan-500/10" : "border-white/10 hover:border-cyan-400/50 bg-white/[0.02]",
+                    "group relative overflow-hidden rounded-2xl border p-4 text-left transition-all duration-200",
+                    "hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-fuchsia-400/60",
+                    modoInicio === "voz"
+                      ? "border-fuchsia-400/70 bg-fuchsia-500/[0.10] shadow-[0_0_28px_-6px_rgba(217,70,239,0.45)]"
+                      : "border-white/10 bg-white/[0.02] hover:border-fuchsia-400/40 hover:bg-white/[0.04]",
                   )}
                 >
-                  <TypeIcon className="w-8 h-8 text-cyan-300 mb-2" />
-                  <h3 className="font-bold text-base mb-1">Continuar en texto</h3>
-                  <p className="text-xs text-white/55">Sigue la guía leyendo. Puedes activar la voz cuando quieras.</p>
+                  <span className="mb-2.5 flex h-10 w-10 items-center justify-center rounded-xl border border-fuchsia-400/25 bg-fuchsia-500/10">
+                    <Mic className="h-[18px] w-[18px] text-fuchsia-200" aria-hidden />
+                  </span>
+                  <span className="block text-[15px] font-semibold">Con voz</span>
+                  <span className="mt-0.5 block text-[12px] leading-snug text-white/55">
+                    Astraura te lo cuenta en voz alta y te escucha.
+                  </span>
+                  {modoInicio === "voz" && (
+                    <Check className="absolute right-3 top-3 h-4 w-4 text-fuchsia-300" aria-hidden />
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => { setModoInicio("texto"); setVoiceStarted(false); setAstrauraText(STEP_NARRATION[0]); }}
+                  aria-pressed={modoInicio === "texto"}
+                  className={cn(
+                    "group relative overflow-hidden rounded-2xl border p-4 text-left transition-all duration-200",
+                    "hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/60",
+                    modoInicio === "texto"
+                      ? "border-cyan-400/70 bg-cyan-500/[0.10] shadow-[0_0_28px_-6px_rgba(34,211,238,0.4)]"
+                      : "border-white/10 bg-white/[0.02] hover:border-cyan-400/40 hover:bg-white/[0.04]",
+                  )}
+                >
+                  <span className="mb-2.5 flex h-10 w-10 items-center justify-center rounded-xl border border-cyan-400/25 bg-cyan-500/10">
+                    <TypeIcon className="h-[18px] w-[18px] text-cyan-200" aria-hidden />
+                  </span>
+                  <span className="block text-[15px] font-semibold">En texto</span>
+                  <span className="mt-0.5 block text-[12px] leading-snug text-white/55">
+                    Lees a tu ritmo. Puedes activar la voz cuando quieras.
+                  </span>
+                  {modoInicio === "texto" && (
+                    <Check className="absolute right-3 top-3 h-4 w-4 text-cyan-300" aria-hidden />
+                  )}
                 </button>
               </div>
+
+              {/* El timbre solo aparece cuando eliges voz: una decisión cada vez. */}
+              {modoInicio === "voz" && (
+                <div className="animate-in fade-in-0 slide-in-from-top-1 rounded-2xl border border-fuchsia-400/20 bg-fuchsia-500/[0.04] p-4 duration-300">
+                  <SelectorVozInicial onElegir={() => startVoice()} />
+                </div>
+              )}
 
               {/* Invitado: convertir a cuenta plena (opcional) */}
               {isGuest && GuestUpgrade}

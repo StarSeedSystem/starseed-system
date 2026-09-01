@@ -20,6 +20,7 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
 import { getOnboarding } from "@/lib/onboarding/onboarding";
 import OnboardingWizard from "@/components/onboarding/onboarding-wizard";
@@ -30,6 +31,8 @@ export function OnboardingGate() {
   const [show, setShow] = useState(false);
   // Adenda 188: neurona nueva con cuenta ya iniciada → alta corta especializada.
   const [showNeuron, setShowNeuron] = useState(false);
+  const pathname = usePathname();
+  const enBienvenida = (pathname || "").startsWith("/bienvenida");
 
   const check = useCallback(async () => {
     try {
@@ -107,6 +110,10 @@ export function OnboardingGate() {
   }, [check]);
 
   if (!ready) return null;
+  // (Adenda 200) `/bienvenida` YA renderiza el wizard por sí misma: si el
+  // portero montara otro encima aparecerían dos guías superpuestas, cada una en
+  // su propio paso. El portero se calla en esa ruta.
+  if (enBienvenida) return null;
   if (show) return <OnboardingWizard onClose={() => setShow(false)} />;
   if (showNeuron) return <NeuronSetup onClose={() => setShowNeuron(false)} />;
   return null;

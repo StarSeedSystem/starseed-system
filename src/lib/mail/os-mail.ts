@@ -449,6 +449,69 @@ export interface SendExternalMailResult {
     href?: string;
     threadId?: string;
     error?: string;
+    /** (Adenda 200) true si SALIÓ de verdad por el proveedor de envío. */
+    enviadoDeVerdad?: boolean;
+    /** Dirección pública desde la que salió. */
+    desde?: string;
+}
+
+/** (Adenda 200) Mi dirección pública `handle@dominio`, o "" si aún no hay. */
+export async function miDireccionPublica(): Promise<string> {
+    try {
+        const uid = await getCurrentUserId();
+        if (!uid) return "";
+        const supabase = createClient();
+        const { data } = await supabase.from("profiles").select("handle").eq("user_id", uid).maybeSingle();
+        const handle = ((data as { handle?: string } | null)?.handle || "").replace(/^@/, "").trim();
+        return handle;
+    } catch {
+        return "";
+    }
+}
+
+/** ¿Puede este despliegue enviar correo real a internet? (cacheado por sesión) */
+let _envioReal: { disponible: boolean; dominio: string | null } | null = null;
+export async function envioExternoDisponible(): Promise<{ disponible: boolean; dominio: string | null }> {
+    if (_envioReal) return _envioReal;
+    try {
+        const r = await fetch("/api/mail/enviar", { method: "GET" });
+        const j = (await r.json()) as { disponible?: boolean; dominio?: string | null };
+        _envioReal = { disponible: !!j?.disponible, dominio: j?.dominio ?? null };
+    } catch {
+        _envioReal = { disponible: false, dominio: null };
+    }
+    return _envioReal;
+}
+
+/**
+ * (Adenda 200) Intenta el envío REAL por el proveedor del servidor. Devuelve
+ * null si no hay proveedor (entonces quien llama cae al `mailto:`).
+ */
+async function intentarEnvioReal(params: {
+    to: string;
+    subject: string;
+    body: string;
+}): Promise<{ ok: boolean; desde?: string; error?: string } | null> {
+    try {
+        const supabase = createClient();
+        const { data } = await supabase.auth.getSession();
+        const token = data?.session?.access_token;
+        if (!token) return null;
+
+        const r = await fetch("/api/mail/enviar", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ to: [params.to], subject: params.subject, text: params.body }),
+        });
+        const j = (await r.json().catch(() => ({}))) as {
+            ok?: boolean; from?: string; error?: string; sinProveedor?: boolean; sinDominio?: boolean;
+        };
+        // Sin proveedor/dominio ⇒ no es un fallo del usuario: se cae al mailto:.
+        if (j?.sinProveedor || j?.sinDominio) return null;
+        return { ok: !!j?.ok, desde: j?.from, error: j?.error };
+    } catch {
+        return null;
+    }
 }
 
 /**
@@ -469,6 +532,15 @@ export async function sendExternalMail(params: {
 
     const subject = params.subject.trim() || "(sin asunto)";
     const href = buildMailtoHref(to, subject, params.body || "");
+
+    // (Adenda 200) Si el despliegue tiene proveedor de envío, el correo SALE de
+    // verdad desde `tuhandle@<dominio público>`; el `mailto:` queda solo como
+    // red de seguridad honesta cuando no hay proveedor configurado.
+    const real = await intentarEnvioReal({ to, subject, body: params.body || "" });
+    const salioDeVerdad = real?.ok === true;
+    if (real && !real.ok) {
+        return { ok: false, href, error: real.error || "No se pudo enviar el correo." };
+    }
 
     try {
         const supabase = createClient();
@@ -498,10 +570,10 @@ export async function sendExternalMail(params: {
             .from("os_dm_messages")
             .insert({ thread_id: threadId, sender: uid, body: params.body || "", attachments: [], kind: "user" });
 
-        return { ok: true, href, threadId };
+        return { ok: true, href, threadId, enviadoDeVerdad: salioDeVerdad, desde: real?.desde };
     } catch (e) {
         // El mailto: sigue siendo válido para el usuario aunque falle el registro.
-        return { ok: true, href, error: (e as Error)?.message };
+        return { ok: true, href, error: (e as Error)?.message, enviadoDeVerdad: salioDeVerdad, desde: real?.desde };
     }
 }
 

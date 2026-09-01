@@ -62,8 +62,8 @@ export function SelectorVozInicial({
 
   return (
     <div className={cn("space-y-2", className)}>
-      <p className="flex items-center justify-center gap-2 text-[12px] text-white/70">
-        <Mic className="h-3.5 w-3.5 text-fuchsia-300" aria-hidden /> Elige cómo quieres que suene
+      <p className="text-center text-[11px] font-semibold uppercase tracking-[0.14em] text-white/35">
+        El timbre de Astraura
       </p>
       <div className="grid gap-2 sm:grid-cols-3">
         {principales.map((m) => (
@@ -73,31 +73,34 @@ export function SelectorVozInicial({
             onClick={() => void elegir(m.id)}
             aria-pressed={modo === m.id}
             className={cn(
-              "rounded-2xl border-2 p-3 text-left transition-all hover:scale-[1.02]",
+              "group rounded-xl border px-3 py-2.5 text-left transition-all duration-200",
+              "hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-fuchsia-400/60",
               modo === m.id
-                ? "border-fuchsia-400 bg-fuchsia-500/10 shadow-[0_0_24px_rgba(217,70,239,0.2)]"
-                : "border-white/10 bg-white/[0.02] hover:border-fuchsia-400/50",
+                ? "border-fuchsia-400/70 bg-fuchsia-500/[0.12]"
+                : "border-white/10 bg-white/[0.03] hover:border-fuchsia-400/40",
             )}
           >
-            <span className="mb-1 flex items-center gap-1.5 text-[13px] font-bold">
-              {probando === m.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <Volume2 className="h-3.5 w-3.5 text-fuchsia-300" aria-hidden />}
+            <span className="flex items-center gap-1.5 text-[13px] font-semibold">
+              {probando === m.id
+                ? <Loader2 className="h-3.5 w-3.5 animate-spin text-fuchsia-200" aria-hidden />
+                : <Volume2 className={cn("h-3.5 w-3.5", modo === m.id ? "text-fuchsia-200" : "text-white/40")} aria-hidden />}
               {m.label}
             </span>
-            <span className="block text-[11px] leading-snug text-white/55">{m.desc}</span>
+            <span className="mt-0.5 block text-[11px] leading-snug text-white/50">{m.desc}</span>
           </button>
         ))}
       </div>
 
-      <div className="flex flex-wrap items-center justify-center gap-2 pt-0.5">
+      <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
         <button
           type="button"
           onClick={() => void elegir("autonoma")}
           aria-pressed={modo === "autonoma"}
           className={cn(
-            "inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-[11px] transition-colors",
+            "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] transition-colors",
             modo === "autonoma"
               ? "border-cyan-400/60 bg-cyan-500/15 text-cyan-100"
-              : "border-white/12 bg-white/[0.03] text-white/70 hover:border-cyan-400/40",
+              : "border-white/12 bg-white/[0.03] text-white/65 hover:border-cyan-400/40 hover:text-white/85",
           )}
           title={autonoma.desc}
         >
@@ -106,7 +109,7 @@ export function SelectorVozInicial({
         <button
           type="button"
           onClick={abrirAjustes}
-          className="inline-flex items-center gap-1.5 rounded-xl border border-white/12 bg-white/[0.03] px-3 py-1.5 text-[11px] text-white/70 transition-colors hover:border-white/25"
+          className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/[0.03] px-3 py-1.5 text-[11px] text-white/65 transition-colors hover:border-white/25 hover:text-white/85"
         >
           <Sliders className="h-3.5 w-3.5" aria-hidden /> Ajustes de voz (opcional)
         </button>

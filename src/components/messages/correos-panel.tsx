@@ -65,6 +65,8 @@ import {
     subscribeMailThreadsList,
     subscribeMailThread,
     sendExternalMail,
+    envioExternoDisponible,
+    miDireccionPublica,
     getLinkedExternalEmail,
     messageFromRealtimeRow,
     type MailFolder,
@@ -284,6 +286,9 @@ function ComposeDialog({
     const [external, setExternal] = useState(false);
     const [externalTo, setExternalTo] = useState("");
     const [linkedExternal, setLinkedExternal] = useState("");
+    // (Adenda 200) Estado REAL del envío saliente de este despliegue.
+    const [envioReal, setEnvioReal] = useState<{ disponible: boolean; dominio: string | null } | null>(null);
+    const [miDireccion, setMiDireccion] = useState("");
     const [sending, setSending] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -299,6 +304,8 @@ function ComposeDialog({
         setExternalTo("");
         setError(null);
         void getLinkedExternalEmail().then(setLinkedExternal);
+        void envioExternoDisponible().then(setEnvioReal);
+        void miDireccionPublica().then(setMiDireccion);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [open, isForward]);
 
@@ -316,9 +323,18 @@ function ComposeDialog({
                     body: isForward ? `${note.trim() ? note.trim() + "\n\n" : ""}--- Mensaje reenviado ---\n${forwardSeed!.body}` : body,
                 });
                 if (res.needsAuth) { setError("Inicia sesión para enviar."); return; }
-                if (!res.href) { setError(res.error || "No se pudo preparar el envío externo."); return; }
-                if (typeof window !== "undefined") window.location.href = res.href;
-                toast.success("Cliente de correo abierto. Copia guardada en Enviados con etiqueta «Externo».");
+                if (!res.ok) { setError(res.error || "No se pudo enviar el correo."); return; }
+
+                // (Adenda 200) Si el OS tiene proveedor de envío, el correo SALIÓ
+                // de verdad desde tu dirección pública: no abrimos nada. Si no,
+                // se cae al cliente del sistema con `mailto:` como antes.
+                if (res.enviadoDeVerdad) {
+                    toast.success(`Correo enviado a ${to}${res.desde ? ` desde ${res.desde}` : ""}.`);
+                } else {
+                    if (!res.href) { setError(res.error || "No se pudo preparar el envío externo."); return; }
+                    if (typeof window !== "undefined") window.location.href = res.href;
+                    toast.success("Cliente de correo abierto. Copia guardada en Enviados con etiqueta «Externo».");
+                }
                 onOpenChange(false);
                 if (res.threadId) onSent(res.threadId);
             } finally {
@@ -371,7 +387,7 @@ function ComposeDialog({
 
                 <div className="space-y-3">
                     <div className="flex items-center justify-between gap-3 rounded-lg border border-white/10 bg-white/[0.02] px-3 py-2">
-                        <span className="text-xs font-medium">Correo externo (mailto:)</span>
+                        <span className="text-xs font-medium">Correo externo (a todo internet)</span>
                         <Switch checked={external} onCheckedChange={setExternal} />
                     </div>
 
@@ -459,11 +475,21 @@ function ComposeDialog({
                     )}
 
                     {external && (
-                        <p className="text-[11px] text-muted-foreground rounded-lg border border-amber-400/20 bg-amber-500/5 px-3 py-2">
-                            Sin SMTP propio: esto abrirá tu cliente de correo con un borrador listo, y guardará una copia
-                            en Enviados etiquetada «Externo». Los adjuntos no viajan por mailto:. El envío/recepción real
-                            con proveedores externos (Gmail, etc.) requiere una integración futura.
-                        </p>
+                        envioReal?.disponible ? (
+                            <p className="rounded-lg border border-emerald-400/25 bg-emerald-500/5 px-3 py-2 text-[11px] text-muted-foreground">
+                                Sale de verdad a cualquier dirección de internet
+                                {miDireccion && envioReal.dominio
+                                    ? <> desde <span className="font-mono text-emerald-200">{miDireccion}@{envioReal.dominio}</span></>
+                                    : null}
+                                . Las respuestas vuelven a tu bandeja del OS. Los adjuntos aún no viajan en el envío externo.
+                            </p>
+                        ) : (
+                            <p className="rounded-lg border border-amber-400/20 bg-amber-500/5 px-3 py-2 text-[11px] text-muted-foreground">
+                                Este despliegue todavía no tiene proveedor de envío: se abrirá tu cliente de correo con el
+                                borrador listo y quedará copia en Enviados etiquetada «Externo». Recibir ya funciona en
+                                {envioReal?.dominio ? <span className="font-mono"> @{envioReal.dominio}</span> : " tu dirección pública"}.
+                            </p>
+                        )
                     )}
 
                     {error && <p className="text-xs text-red-400" role="alert">{error}</p>}
