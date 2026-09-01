@@ -132,7 +132,7 @@ const nextConfig: NextConfig = {
     const cspReportOnly = [
       `default-src 'self'`,
       `img-src 'self' data: blob: https:`,
-      `script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://unpkg.com https://esm.run https://cdnjs.cloudflare.com`,
+      `script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://unpkg.com https://esm.run https://cdnjs.cloudflare.com https://apis.google.com https://accounts.google.com`,
       `style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com`,
       `font-src 'self' data: https:`,
       // (Adenda 153) Loopback explícito: el sistema primario Astraura 1.58-bit

@@ -24,6 +24,10 @@ import {
   OAUTH_ALMACENAMIENTO, type CuentaConectada,
 } from "@/lib/storage/oauth-almacenamiento";
 import SelectorCarpetasRemotas from "@/components/senses/selector-carpetas-remotas";
+// (Adenda 196) Drive usa el selector OFICIAL de Google: con `drive.file` la app
+// no lista tu Drive, tú eliges las carpetas y solo esas quedan accesibles.
+import { elegirCarpetasDrive } from "@/lib/storage/google-picker";
+import { tokenVigente } from "@/lib/storage/carpetas-remotas";
 
 export function FilaCarpetas({ p }: { p: PermisoUI }) {
   const [carpetas, setCarpetas] = useState<CarpetaVinculada[]>([]);
@@ -70,10 +74,12 @@ export function FilaCarpetas({ p }: { p: PermisoUI }) {
       const r = await conectarAlmacenamiento(id);
       if (r.ok) {
         setCuentas((c) => ({ ...c, [id]: r.cuenta }));
-        setNota(`${OAUTH_ALMACENAMIENTO[id]!.label} conectado${r.cuenta.cuenta ? ` como ${r.cuenta.cuenta}` : ""} ✓ Elige abajo qué carpetas quieres vincular.`);
-        // (Adenda 195) Ya no se vincula «el servicio entero» a ciegas: se abre
-        // el explorador para que el usuario elija carpetas concretas.
-        setExplorando(id);
+        setNota(`${OAUTH_ALMACENAMIENTO[id]!.label} conectado${r.cuenta.cuenta ? ` como ${r.cuenta.cuenta}` : ""} ✓ Elige ahora qué carpetas quieres vincular.`);
+        // (Adenda 195/196) Nunca se vincula «el servicio entero» a ciegas: se
+        // abre el selector de carpetas — el de Google para Drive, el nuestro
+        // para el resto.
+        if (id === "google-drive") await elegirEnDrive();
+        else setExplorando(id);
       } else if (r.motivo === "sin-client-id") {
         setPidiendoId({ servicio: id, consola: r.consola, detalle: r.detalle });
       } else if (r.motivo === "cancelado") {
@@ -90,6 +96,30 @@ export function FilaCarpetas({ p }: { p: PermisoUI }) {
     const m: Record<string, CuentaConectada> = {};
     for (const s of SERVICIOS) { const c = cuentaDe(s.id); if (c) m[s.id] = c; }
     setCuentas(m);
+  }, []);
+
+  /**
+   * (Adenda 196) Carpetas de Drive por el SELECTOR DE GOOGLE. Lo elegido se
+   * guarda como carpeta vinculada y el paso de Cerebros lo enlaza solo.
+   */
+  const elegirEnDrive = useCallback(async () => {
+    setOcupado(true);
+    try {
+      const token = await tokenVigente("google-drive");
+      if (!token) { setNota("Conecta primero tu cuenta de Google Drive."); return; }
+      const r = await elegirCarpetasDrive(token);
+      if (r.ok) {
+        if (r.carpetas.length === 0) { setNota("No elegiste ninguna carpeta."); return; }
+        for (const c of r.carpetas) agregarCarpetaServicio("google-drive", c.nombre);
+        setNota(`${r.carpetas.length} carpeta(s) de Drive vinculadas ✓ Se enlazan solas a tu cerebro principal.`);
+      } else if (r.motivo === "cancelado") {
+        setNota("Selector cerrado sin elegir carpetas.");
+      } else {
+        setNota(r.detalle || "No se pudo abrir el selector de Google.");
+      }
+    } finally {
+      setOcupado(false);
+    }
   }, []);
 
   const { Icon } = p;
@@ -125,7 +155,7 @@ export function FilaCarpetas({ p }: { p: PermisoUI }) {
                 {c.tipo === "servicio" && c.servicio && cuentas[c.servicio] && (
                   <button
                     type="button"
-                    onClick={() => setExplorando(c.servicio!)}
+                    onClick={() => { if (c.servicio === "google-drive") void elegirEnDrive(); else setExplorando(c.servicio!); }}
                     className="ml-1 inline-flex items-center gap-0.5 text-[10px] text-cyan-300 underline-offset-2 hover:underline"
                   >
                     <ListTree className="h-3 w-3" aria-hidden /> carpetas
@@ -173,7 +203,7 @@ export function FilaCarpetas({ p }: { p: PermisoUI }) {
       </div>
 
       {/* (Adenda 195) Carpetas reales de la cuenta conectada. */}
-      {explorando && (
+      {explorando && explorando !== "google-drive" && (
         <div className="mt-2">
           <SelectorCarpetasRemotas
             servicio={explorando}

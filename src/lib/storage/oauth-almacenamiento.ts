@@ -44,8 +44,13 @@ export const OAUTH_ALMACENAMIENTO: Partial<Record<ServicioAlmacenamiento, EspecO
     label: "Google Drive",
     authUrl: "https://accounts.google.com/o/oauth2/v2/auth",
     tokenUrl: "https://oauth2.googleapis.com/token",
+    // (Adenda 196) SOLO `drive.file`: es un scope NO SENSIBLE, así que la app
+    // se publica para cualquiera sin verificación de Google ni auditoría anual.
+    // `drive.readonly` (leer TODO el Drive) es RESTRINGIDO: obligaba a
+    // verificación + evaluación de seguridad de pago, y encima daba mucho más
+    // acceso del necesario. Con `drive.file` el usuario elige las carpetas en
+    // el selector de Google y la app solo ve ESAS.
     scopes: [
-      "https://www.googleapis.com/auth/drive.readonly",
       "https://www.googleapis.com/auth/drive.file",
       "https://www.googleapis.com/auth/userinfo.email",
     ],
