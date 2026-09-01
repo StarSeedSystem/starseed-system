@@ -21,7 +21,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/utils/supabase/client";
 import OnboardingWizard from "@/components/onboarding/onboarding-wizard";
-import AuthGate from "@/components/auth/auth-gate";
+import AuthGate, { RECIEN_REGISTRADO } from "@/components/auth/auth-gate";
 
 type Estado = "comprobando" | "sin-cuenta" | "con-cuenta";
 
@@ -36,7 +36,12 @@ export default function BienvenidaPage() {
       // Cuenta REAL = tiene correo y no es una sesión anónima de invitado.
       const registrada =
         !!user && !!user.email && !(user as { is_anonymous?: boolean }).is_anonymous;
-      setEstado(registrada ? "con-cuenta" : "sin-cuenta");
+      // (Adenda 208) La guía se muestra a quien ACABA de crear su cuenta. Quien
+      // ya la tenía y entra por aquí ve el acceso, y desde dentro del OS puede
+      // reabrir la guía cuando quiera.
+      let recien = false;
+      try { recien = window.sessionStorage.getItem(RECIEN_REGISTRADO) === "1"; } catch { /* */ }
+      setEstado(registrada && recien ? "con-cuenta" : "sin-cuenta");
     } catch {
       // Fail-safe: ante un fallo de red NO se enseña la guía, se pide acceso.
       setEstado("sin-cuenta");

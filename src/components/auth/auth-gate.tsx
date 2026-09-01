@@ -45,6 +45,12 @@ const VALUE_PROPS: { icon: string; title: string; desc: string }[] = [
   { icon: "✦", title: "Aurora te guía", desc: "Una guía inteligente te ayuda a dejar todo listo." },
 ];
 
+/**
+ * (Adenda 208) Marca de sesión que dice «esta persona ACABA de crear su cuenta
+ * en esta pestaña». Solo entonces arranca sola la guía de Astraura.
+ */
+export const RECIEN_REGISTRADO = "starseed.recien.registrado";
+
 export function AuthGate() {
   const [sb] = useState(() => createClient());
   const [ready, setReady] = useState(false);
@@ -97,7 +103,13 @@ export function AuthGate() {
         const { data, error } = await sb.auth.signUp({ email: email.trim(), password: pwd });
         if (error) setMsg(traducir(error.message));
         else if (data.user && !data.session) setOk("Cuenta creada. Revisa tu correo para confirmarla y luego inicia sesión.");
-        else setOk("¡Cuenta creada! Te lleva la guía de Astraura…");
+        else {
+          // (Adenda 208) La guía de Astraura arranca SOLO tras crear la cuenta
+          // aquí mismo. Sin esta marca, cualquiera que simplemente iniciara
+          // sesión con el rito a medias se la volvía a encontrar de golpe.
+          try { window.sessionStorage.setItem(RECIEN_REGISTRADO, "1"); } catch { /* sin sessionStorage */ }
+          setOk("¡Cuenta creada! Te lleva la guía de Astraura…");
+        }
       }
     } catch (err: any) {
       setMsg(traducir(err?.message || ""));

@@ -25,6 +25,7 @@ import { createClient } from "@/utils/supabase/client";
 import { getOnboarding } from "@/lib/onboarding/onboarding";
 import OnboardingWizard from "@/components/onboarding/onboarding-wizard";
 import NeuronSetup from "@/components/onboarding/neuron-setup";
+import { RECIEN_REGISTRADO } from "@/components/auth/auth-gate";
 
 export function OnboardingGate() {
   const [ready, setReady] = useState(false);
@@ -75,15 +76,20 @@ export function OnboardingGate() {
         return;
       }
 
+      // (Adenda 208) Solo arranca sola para quien ACABA de crear su cuenta en
+      // esta pestaña. Quien únicamente inicia sesión no se encuentra la guía
+      // encima: la abre cuando quiera desde /bienvenida o desde Ajustes.
+      let recienRegistrado = false;
+      try { recienRegistrado = window.sessionStorage.getItem(RECIEN_REGISTRADO) === "1"; } catch { /* */ }
+
       if (!hasProfile) {
-        // Cuenta recién registrada sin identidad → guía de creación guiada.
-        setShow(true);
+        setShow(recienRegistrado);
         setReady(true);
         return;
       }
 
       const ob = await getOnboarding();
-      if (!ob.completed) {
+      if (!ob.completed && recienRegistrado) {
         setShow(true);
       } else {
         setShow(false);

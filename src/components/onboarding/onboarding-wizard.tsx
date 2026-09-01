@@ -44,6 +44,7 @@ import { loadConfigs } from "@/ai/client/providerStore";
 import { buildSystemPrompt, DEFAULT_PERSONALITY } from "@/lib/aurora/types";
 import { OPEN_GUIDE_EVENT } from "./aurora-guide";
 import { marcarVozDelRito } from "@/lib/aurora/narracion-ventana";
+import { hablarRito, callarRito } from "@/lib/aurora/voz-rito";
 import SelectorVozInicial from "@/components/onboarding/selector-voz-inicial";
 import {
   getOnboarding,
@@ -257,8 +258,11 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
   useEffect(() => {
     const base = STEP_NARRATION[step] || "";
     setAstrauraText(base);
-    if (voiceStarted && aurora?.speak) {
-      try { aurora.speak(base); } catch { /* */ }
+    if (voiceStarted) {
+      // Solo se narra lo que está en pantalla AHORA: hablar sustituye, no encola.
+      if (!hablarRito(base) && aurora?.speak) {
+        try { aurora.speak(base); } catch { /* */ }
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step]);
@@ -307,9 +311,12 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
       await saveOnboarding({ voice_started: true });
       const intro = STEP_NARRATION[0];
       setAstrauraText(intro);
-      if (aurora?.supported && aurora?.speak) {
-        // (Adenda 193) La voz elegida aquí CONTINÚA en la ventana de sistemas.
-        marcarVozDelRito(true);
+      // (Adenda 208) El rito habla YA, por el motor del navegador: el `speak()`
+      // general prueba antes la cadena OSS por red y eso se oye como silencio.
+      marcarVozDelRito(true);
+      if (hablarRito(intro)) {
+        // sonando al instante
+      } else if (aurora?.supported && aurora?.speak) {
         aurora.speak(intro);
       } else {
         toast.message("Tu navegador no soporta voz", {
@@ -327,7 +334,11 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
       toast.message("Voz no disponible", { description: "Tu navegador no soporta la voz de Aurora." });
       return;
     }
-    try { aurora.setEnabled?.(true); aurora.speak(astrauraText); setVoiceStarted(true); } catch { /* */ }
+    try {
+      aurora.setEnabled?.(true);
+      if (!hablarRito(astrauraText)) aurora.speak(astrauraText);
+      setVoiceStarted(true);
+    } catch { /* */ }
   }, [aurora, astrauraText]);
 
   // ── "explícame este paso" (chat-powered, con fallback) ──
@@ -562,6 +573,7 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
   }, [closeAll]);
 
   const skip = useCallback(async () => {
+    callarRito();
     await saveOnboarding({ completed: true });
     closeAll();
   }, [closeAll]);

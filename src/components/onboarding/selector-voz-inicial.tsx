@@ -136,11 +136,12 @@ export function SelectorVozInicial({
 
 
   const abrirAjustes = useCallback(() => {
-    try {
-      // Ventana de voz de la neurona (motor, idioma, timbre): existe y se abre
-      // a demanda; aquí es OPCIONAL, nunca aparece sola.
-      window.dispatchEvent(new CustomEvent("starseed:voz-neurona-reopen", { detail: { reopen: true } }));
-    } catch { /* si no está montada, los ajustes siguen en Ajustes → Voz */ }
+    // (Adenda 208) Los ajustes de voz NO abren una ventana aparte: llevan a la
+    // sección OmniVoice de «Configuración de sistemas de Astraura», que es
+    // donde vive la configuración de voz. Una sola ventana, como pidió Alex.
+    void import("@/lib/astraura/config-ui")
+      .then((m) => m.openAstrauraConfig("openvoice"))
+      .catch(() => { /* si el drawer no está montado, siguen en Ajustes → Voz */ });
   }, []);
 
   const principales = MODOS_VOZ.filter((m) => m.id !== "autonoma");
@@ -212,7 +213,7 @@ export function SelectorVozInicial({
           onClick={abrirAjustes}
           className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/[0.03] px-3 py-1.5 text-[11px] text-white/65 transition-colors hover:border-white/25 hover:text-white/85"
         >
-          <Sliders className="h-3.5 w-3.5" aria-hidden /> Ajustes de voz (opcional)
+          <Sliders className="h-3.5 w-3.5" aria-hidden /> Ajustes de voz (en Astraura)
         </button>
       </div>
 
