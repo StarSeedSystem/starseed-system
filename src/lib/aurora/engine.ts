@@ -814,6 +814,26 @@ export function useAuroraEngine(): AuroraEngine {
     // Intento OSS (asíncrono, import dinámico). Nunca lanza; si declina → navegador.
     void (async () => {
       let handedOff = false;
+      // ── (Adenda 202) PLAZO DE ARRANQUE ────────────────────────────────────
+      // Fallo reportado en vivo: «no se escucha ninguna voz». Causa real: la
+      // cadena OSS intenta sus motores EN SERIE y, con los Spaces de HF caídos
+      // (503), cada eslabón tarda segundos en rendirse. Hasta que la cadena
+      // entera declinaba, el suelo del navegador no llegaba a sonar — o llegaba
+      // tan tarde que ya no correspondía a la pantalla.
+      // Ahora hay un plazo: si en RELEVO_MS nadie ha empezado a sonar, habla el
+      // navegador. Si un motor OSS despierta después, se corta en su `onStart`
+      // para que jamás suenen dos voces a la vez.
+      const RELEVO_MS = 2500;
+      let relevoNavegador = false;
+      let relevoTimer: ReturnType<typeof setTimeout> | null = setTimeout(() => {
+        relevoTimer = null;
+        if (handedOff) return;
+        relevoNavegador = true;
+        runBrowser();
+      }, RELEVO_MS);
+      const clearRelevo = () => {
+        if (relevoTimer) { clearTimeout(relevoTimer); relevoTimer = null; }
+      };
       // Latido del orbe mientras suena el audio OSS (el <audio> no expone amplitud):
       // pulsos periódicos de "boundary" que el bus de glow ya sabe interpretar.
       let boundaryTimer: ReturnType<typeof setInterval> | null = null;
@@ -830,6 +850,14 @@ export function useAuroraEngine(): AuroraEngine {
         const { speakWithConfiguredEngine } = await import("@/lib/aurora/tts-oss/speak-router");
         const spoke = await speakWithConfiguredEngine(cleanChain, {
           onStart: () => {
+            // El navegador ya tomó el relevo: este motor llegó tarde y NO habla.
+            if (relevoNavegador) {
+              void import("@/lib/aurora/tts-oss/speak-router")
+                .then((m) => m.stopConfiguredEngine())
+                .catch(() => null);
+              return;
+            }
+            clearRelevo();
             handedOff = true;
             // Corta cualquier voz nativa por si acaso (una sola voz a la vez).
             try { if (typeof window.speechSynthesis !== "undefined") window.speechSynthesis.cancel(); } catch { /* */ }
@@ -862,11 +890,13 @@ export function useAuroraEngine(): AuroraEngine {
           multiSpeakerScript: vibeVoiceScript ?? undefined,
         });
 
-        if (spoke) return; // el motor OSS se hizo cargo del turno completo.
+        if (spoke && !relevoNavegador) return; // el motor OSS se hizo cargo del turno.
 
         // Declinó (motor navegador, no disponible, o fallo antes de sonar).
+        clearRelevo();
         clearBoundary();
         clearOssWatchdog();
+        if (relevoNavegador) return; // ya lo dijo el navegador: no se repite.
         if (!handedOff) {
           // Nunca llegó a hablar → voz del navegador, turno limpio.
           runBrowser();
@@ -876,8 +906,10 @@ export function useAuroraEngine(): AuroraEngine {
         }
       } catch {
         // El import/enrutador falló → comportamiento histórico intacto.
+        clearRelevo();
         clearBoundary();
         clearOssWatchdog();
+        if (relevoNavegador) return;
         if (!handedOff) runBrowser();
         else finishTts();
       }

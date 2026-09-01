@@ -628,24 +628,22 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
             className="pointer-events-none absolute -right-16 -top-28 h-56 w-72 rounded-full bg-cyan-400/15 blur-3xl"
           />
 
-          <DialogHeader className="relative">
-            <div className="flex items-center gap-3.5">
-              <span className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-tr from-fuchsia-500 via-purple-500 to-cyan-400 shadow-[0_0_24px_-4px_rgba(217,70,239,0.6)]">
-                <Sparkles className="h-5 w-5 text-white" />
+          {/* (Adenda 202) Eje central: emblema, título y paso se alinean al
+              centro, como el resto de la ventana. */}
+          <DialogHeader className="relative items-center text-center">
+            <span className="mx-auto flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-tr from-fuchsia-500 via-purple-500 to-cyan-400 shadow-[0_0_24px_-4px_rgba(217,70,239,0.6)]">
+              <Sparkles className="h-5 w-5 text-white" />
+            </span>
+            <DialogTitle className="mt-3 text-center text-[17px] leading-tight sm:text-lg">
+              Bienvenida · Guía de StarSeed con Astraura
+            </DialogTitle>
+            <DialogDescription className="mt-1.5 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-center text-[12px]">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/[0.04] px-2 py-0.5 font-medium text-white/70">
+                <StepIcon className="h-3 w-3 text-fuchsia-300" aria-hidden />
+                Paso {step + 1} de {STEPS.length}
               </span>
-              <div className="min-w-0 flex-1">
-                <DialogTitle className="text-left text-[17px] leading-tight sm:text-lg">
-                  Bienvenida · Guía de StarSeed con Astraura
-                </DialogTitle>
-                <DialogDescription className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-left text-[12px]">
-                  <span className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/[0.04] px-2 py-0.5 font-medium text-white/70">
-                    <StepIcon className="h-3 w-3 text-fuchsia-300" aria-hidden />
-                    Paso {step + 1} de {STEPS.length}
-                  </span>
-                  <span className="text-white/55">{STEPS[step].label}</span>
-                </DialogDescription>
-              </div>
-            </div>
+              <span className="text-white/55">{STEPS[step].label}</span>
+            </DialogDescription>
           </DialogHeader>
 
           {/* progreso · el tramo actual late para saber dónde estás */}
@@ -668,17 +666,17 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-5 sm:px-7">
 
         {/* narración de Astraura */}
-        <div className="relative flex items-start gap-3 overflow-hidden rounded-2xl border border-fuchsia-400/20 bg-gradient-to-br from-fuchsia-500/[0.09] via-purple-500/[0.04] to-transparent p-3.5">
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-tr from-fuchsia-500 to-cyan-400 shadow-[0_0_18px_-4px_rgba(217,70,239,0.7)]">
+        <div className="relative overflow-hidden rounded-2xl border border-fuchsia-400/20 bg-gradient-to-br from-fuchsia-500/[0.09] via-purple-500/[0.04] to-transparent p-4 text-center">
+          <span className="mx-auto mb-2 flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-tr from-fuchsia-500 to-cyan-400 shadow-[0_0_18px_-4px_rgba(217,70,239,0.7)]">
             <Wand2 className="h-4 w-4 text-white" />
           </span>
-          <div className="min-w-0 flex-1">
-            <div className="mb-1 flex items-center gap-2 text-[10.5px] font-semibold uppercase tracking-[0.14em] text-fuchsia-300/75">
+          <div className="min-w-0">
+            <div className="mb-1.5 flex items-center justify-center gap-2 text-[10.5px] font-semibold uppercase tracking-[0.14em] text-fuchsia-300/75">
               Astraura
               {voiceStarted && <Badge variant="outline" className="text-[9px] border-fuchsia-400/40 text-fuchsia-200">voz activa</Badge>}
             </div>
-            <p className="text-[13.5px] leading-relaxed text-white/85">{astrauraText}</p>
-            <div className="mt-2.5 flex flex-wrap items-center gap-2">
+            <p className="mx-auto max-w-md text-[13.5px] leading-relaxed text-white/85">{astrauraText}</p>
+            <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
               <button
                 onClick={explainStep}
                 disabled={thinking}
@@ -746,7 +744,7 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
                   onClick={() => setModoInicio("voz")}
                   aria-pressed={modoInicio === "voz"}
                   className={cn(
-                    "group relative overflow-hidden rounded-2xl border p-5 text-left transition-all duration-200",
+                    "group relative overflow-hidden rounded-2xl border p-5 text-center transition-all duration-200",
                     "hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-fuchsia-400/60",
                     modoInicio === "voz"
                       ? "border-fuchsia-400/70 bg-gradient-to-br from-fuchsia-500/[0.16] to-fuchsia-500/[0.04] shadow-[0_0_34px_-8px_rgba(217,70,239,0.6)]"
@@ -758,7 +756,7 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
                     className="pointer-events-none absolute -right-10 -top-10 h-28 w-28 rounded-full bg-fuchsia-500/20 opacity-0 blur-2xl transition-opacity duration-300 group-hover:opacity-100"
                   />
                   <span className={cn(
-                    "relative mb-3 flex h-11 w-11 items-center justify-center rounded-xl border transition-colors",
+                    "relative mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-xl border transition-colors",
                     modoInicio === "voz"
                       ? "border-fuchsia-400/50 bg-fuchsia-500/20"
                       : "border-fuchsia-400/25 bg-fuchsia-500/10 group-hover:border-fuchsia-400/45",
@@ -766,7 +764,7 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
                     <Mic className="h-5 w-5 text-fuchsia-200" aria-hidden />
                   </span>
                   <span className="relative block text-[15.5px] font-semibold">Con voz</span>
-                  <span className="relative mt-1 block text-[12px] leading-snug text-white/55">
+                  <span className="relative mx-auto mt-1 block max-w-[15rem] text-[12px] leading-snug text-white/55">
                     Astraura te lo cuenta en voz alta y te escucha.
                   </span>
                   {modoInicio === "voz" && (
@@ -781,7 +779,7 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
                   onClick={() => { setModoInicio("texto"); setVoiceStarted(false); setAstrauraText(STEP_NARRATION[0]); }}
                   aria-pressed={modoInicio === "texto"}
                   className={cn(
-                    "group relative overflow-hidden rounded-2xl border p-5 text-left transition-all duration-200",
+                    "group relative overflow-hidden rounded-2xl border p-5 text-center transition-all duration-200",
                     "hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/60",
                     modoInicio === "texto"
                       ? "border-cyan-400/70 bg-gradient-to-br from-cyan-500/[0.16] to-cyan-500/[0.04] shadow-[0_0_34px_-8px_rgba(34,211,238,0.55)]"
@@ -793,7 +791,7 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
                     className="pointer-events-none absolute -right-10 -top-10 h-28 w-28 rounded-full bg-cyan-400/20 opacity-0 blur-2xl transition-opacity duration-300 group-hover:opacity-100"
                   />
                   <span className={cn(
-                    "relative mb-3 flex h-11 w-11 items-center justify-center rounded-xl border transition-colors",
+                    "relative mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-xl border transition-colors",
                     modoInicio === "texto"
                       ? "border-cyan-400/50 bg-cyan-500/20"
                       : "border-cyan-400/25 bg-cyan-500/10 group-hover:border-cyan-400/45",
@@ -801,7 +799,7 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
                     <TypeIcon className="h-5 w-5 text-cyan-200" aria-hidden />
                   </span>
                   <span className="relative block text-[15.5px] font-semibold">En texto</span>
-                  <span className="relative mt-1 block text-[12px] leading-snug text-white/55">
+                  <span className="relative mx-auto mt-1 block max-w-[15rem] text-[12px] leading-snug text-white/55">
                     Lees a tu ritmo. Puedes activar la voz cuando quieras.
                   </span>
                   {modoInicio === "texto" && (
@@ -826,33 +824,33 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
               {isGuest && GuestUpgrade}
 
               {/* Permisos / qué deja lista esta guía — sin configuración manual */}
-              <div className="mt-1 rounded-2xl border border-white/10 bg-white/[0.02] p-4 text-left sm:p-5">
-                <div className="mb-3 flex items-center gap-2">
+              <div className="mt-1 rounded-2xl border border-white/10 bg-white/[0.02] p-4 text-center sm:p-5">
+                <div className="mb-3 flex items-center justify-center gap-2">
                   <span className="flex h-6 w-6 items-center justify-center rounded-lg border border-emerald-400/25 bg-emerald-500/10">
                     <ShieldCheck className="h-3.5 w-3.5 text-emerald-300" aria-hidden />
                   </span>
                   <span className="text-[12px] font-semibold text-white/85">Qué prepara esta guía contigo</span>
                 </div>
-                <ul className="space-y-2 text-[12px] leading-snug text-white/60">
-                  <li className="flex items-start gap-2.5">
+                <ul className="mx-auto max-w-md space-y-2.5 text-[12px] leading-snug text-white/60">
+                  <li className="flex items-start justify-center gap-2.5 text-center">
                     <span className="mt-px flex h-5 w-5 shrink-0 items-center justify-center rounded-md border border-fuchsia-400/20 bg-fuchsia-500/10">
                       <AtSign className="h-3 w-3 text-fuchsia-300" aria-hidden />
                     </span>
                     <span>Tu identidad en la red: nombre y un <b className="text-white/80">@handle</b> único (sugerido, editable).</span>
                   </li>
-                  <li className="flex items-start gap-2.5">
+                  <li className="flex items-start justify-center gap-2.5 text-center">
                     <span className="mt-px flex h-5 w-5 shrink-0 items-center justify-center rounded-md border border-cyan-400/20 bg-cyan-500/10">
                       <Mail className="h-3 w-3 text-cyan-300" aria-hidden />
                     </span>
                     <span>Tu dirección interna <b className="text-white/80">@star.seed</b> (opcional, también puedes crearla luego).</span>
                   </li>
-                  <li className="flex items-start gap-2.5">
+                  <li className="flex items-start justify-center gap-2.5 text-center">
                     <span className="mt-px flex h-5 w-5 shrink-0 items-center justify-center rounded-md border border-violet-400/20 bg-violet-500/10">
                       <ImageIcon className="h-3 w-3 text-violet-300" aria-hidden />
                     </span>
                     <span>Avatar, portada y bio (opcionales, editables cuando quieras).</span>
                   </li>
-                  <li className="flex items-start gap-2.5">
+                  <li className="flex items-start justify-center gap-2.5 text-center">
                     <span className="mt-px flex h-5 w-5 shrink-0 items-center justify-center rounded-md border border-rose-400/20 bg-rose-500/10">
                       <Lock className="h-3 w-3 text-rose-300" aria-hidden />
                     </span>

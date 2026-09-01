@@ -66,22 +66,15 @@ export function SelectorVozInicial({
     setSonando(false);
   }, []);
 
-  /**
-   * (Adenda 201) Escucha la voz elegida cuando tú quieras, no solo al cambiarla.
-   * Corta primero lo que estuviera sonando: nunca se encima ni se encola.
-   */
-  const probarVozActual = useCallback(() => {
-    if (sonando) { detener(); return; }
-    cortarVoz();
-    setSonando(true);
-
+  /** Reproduce la frase de prueba. Ya no hay nada sonando cuando entra aquí. */
+  const arrancarPrueba = useCallback(() => {
     // 1) Si Astraura ya tiene puente (voz del rito arrancada), habla ELLA:
     //    así lo que pruebas es exactamente lo que vas a oír después.
     const puente = auroraBridge();
     if (puente?.speak) {
       try {
         puente.speak(FRASE_PRUEBA);
-        window.setTimeout(() => setSonando(false), 5200);
+        window.setTimeout(() => setSonando(false), 6500);
         return;
       } catch { /* caemos al motor del navegador */ }
     }
@@ -110,7 +103,24 @@ export function SelectorVozInicial({
     } catch {
       setSonando(false);
     }
-  }, [sonando, modo, detener]);
+  }, [modo]);
+
+  /**
+   * (Adenda 201) Escucha la voz elegida cuando tú quieras, no solo al cambiarla.
+   * Corta primero lo que estuviera sonando: nunca se encima ni se encola.
+   */
+  const probarVozActual = useCallback(() => {
+    if (sonando) { detener(); return; }
+    cortarVoz();
+    setSonando(true);
+
+    // (Adenda 202) El corte anterior es ASÍNCRONO: `interrupt()` lanza el
+    // apagado del motor OSS por import dinámico y resuelve unos ms después.
+    // Si hablábamos en el mismo tick, ese apagado tardío mataba la locución
+    // recién empezada y la prueba salía muda. Le damos su respiro.
+    window.setTimeout(() => arrancarPrueba(), 140);
+  }, [sonando, detener, arrancarPrueba]);
+
 
   const abrirAjustes = useCallback(() => {
     try {
@@ -136,19 +146,19 @@ export function SelectorVozInicial({
             onClick={() => void elegir(m.id)}
             aria-pressed={modo === m.id}
             className={cn(
-              "group rounded-xl border px-3 py-2.5 text-left transition-all duration-200",
+              "group rounded-xl border px-3 py-3 text-center transition-all duration-200",
               "hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-fuchsia-400/60",
               modo === m.id
                 ? "border-fuchsia-400/70 bg-fuchsia-500/[0.12]"
                 : "border-white/10 bg-white/[0.03] hover:border-fuchsia-400/40",
             )}
           >
-            <span className="flex items-center gap-1.5 text-[13px] font-semibold">
+            <span className="mx-auto mb-1.5 flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 bg-white/[0.04]">
               {probando === m.id
-                ? <Loader2 className="h-3.5 w-3.5 animate-spin text-fuchsia-200" aria-hidden />
-                : <Volume2 className={cn("h-3.5 w-3.5", modo === m.id ? "text-fuchsia-200" : "text-white/40")} aria-hidden />}
-              {m.label}
+                ? <Loader2 className="h-4 w-4 animate-spin text-fuchsia-200" aria-hidden />
+                : <Volume2 className={cn("h-4 w-4", modo === m.id ? "text-fuchsia-200" : "text-white/40")} aria-hidden />}
             </span>
+            <span className="block text-[13px] font-semibold">{m.label}</span>
             <span className="mt-0.5 block text-[11px] leading-snug text-white/50">{m.desc}</span>
           </button>
         ))}
