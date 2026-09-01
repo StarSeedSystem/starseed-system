@@ -44,7 +44,7 @@ import { loadConfigs } from "@/ai/client/providerStore";
 import { buildSystemPrompt, DEFAULT_PERSONALITY } from "@/lib/aurora/types";
 import { OPEN_GUIDE_EVENT } from "./aurora-guide";
 import { marcarVozDelRito } from "@/lib/aurora/narracion-ventana";
-import { hablarRito, callarRito } from "@/lib/aurora/voz-rito";
+import { hablarRito, callarRito, instalarVozPropia, VOZ_RITO_EVENT, type EstadoVozRito } from "@/lib/aurora/voz-rito";
 import SelectorVozInicial from "@/components/onboarding/selector-voz-inicial";
 import {
   getOnboarding,
@@ -191,6 +191,12 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
   // (Adenda 200) Modo de la bienvenida: sin elegir · voz · texto. Antes el
   // booleano `voiceStarted` hacía que «texto» pareciera preseleccionado.
   const [modoInicio, setModoInicio] = useState<null | "voz" | "texto">(null);
+  // (Adenda 211) Qué está sonando DE VERDAD: la voz del navegador, el motor
+  // por <audio>, o nada. Sin esto el usuario se queda mirando en silencio sin
+  // saber si falla el sistema o su equipo.
+  const [vozReal, setVozReal] = useState<EstadoVozRito | null>(null);
+  const [instalandoVoz, setInstalandoVoz] = useState(false);
+  const [progresoVoz, setProgresoVoz] = useState(0);
   const [thinking, setThinking] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -252,6 +258,13 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
       } catch { /* prefill best-effort */ }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // (Adenda 211) Escucha el resultado real de cada intento de hablar.
+  useEffect(() => {
+    const on = (e: Event) => setVozReal((e as CustomEvent<EstadoVozRito>).detail);
+    window.addEventListener(VOZ_RITO_EVENT, on);
+    return () => window.removeEventListener(VOZ_RITO_EVENT, on);
   }, []);
 
   // ── narración de Astraura al cambiar de paso ──
@@ -685,7 +698,11 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
           <div className="min-w-0">
             <div className="mb-1.5 flex items-center justify-center gap-2 text-[10.5px] font-semibold uppercase tracking-[0.14em] text-fuchsia-300/75">
               Astraura
-              {voiceStarted && <Badge variant="outline" className="text-[9px] border-fuchsia-400/40 text-fuchsia-200">voz activa</Badge>}
+              {voiceStarted && (
+                vozReal === "muda" || vozReal === "instalable"
+                  ? <Badge variant="outline" className="border-amber-400/40 text-[9px] text-amber-200">sin sonido</Badge>
+                  : <Badge variant="outline" className="border-fuchsia-400/40 text-[9px] text-fuchsia-200">voz activa</Badge>
+              )}
             </div>
             <p className="mx-auto max-w-md text-[13.5px] leading-relaxed text-white/85">{astrauraText}</p>
             <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
@@ -870,6 +887,54 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
                   </li>
                 </ul>
               </div>
+              {/* (Adenda 211) Aviso HONESTO: `speak()` no falla cuando el motor
+                  de voz del navegador está muerto — simplemente no suena. Si
+                  ninguna de las dos vías ha producido sonido, se dice, en vez
+                  de dejar al usuario esperando una voz que no va a llegar. */}
+              {/* (Adenda 212) La voz del navegador puede estar MUERTA aunque el
+                  equipo tenga audio y el navegador enumere voces: `speak()` no
+                  falla, simplemente no suena. Cuando eso pasa se ofrece la voz
+                  propia de Astraura, que sintetiza en el propio equipo y suena
+                  por audio normal. La descarga la decides tú: son ~80 MB y no se
+                  disparan a hurtadillas. */}
+              {vozReal === "instalable" && (
+                <div className="rounded-2xl border border-amber-400/30 bg-amber-500/[0.07] p-4 text-left">
+                  <p className="text-[12px] font-semibold text-amber-100">La voz del navegador no responde en este equipo</p>
+                  <p className="mt-1 text-[11.5px] leading-relaxed text-white/65">
+                    Tu equipo tiene audio, pero el motor de voz del navegador acepta la orden y no emite sonido.
+                    Astraura puede traer su <b className="text-white/85">propia voz</b>, que se sintetiza aquí mismo sin
+                    depender de él ni de internet. Se descarga una vez (~80 MB) y queda para siempre.
+                  </p>
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <Button
+                      size="sm"
+                      disabled={instalandoVoz}
+                      onClick={async () => {
+                        setInstalandoVoz(true);
+                        setProgresoVoz(0);
+                        await instalarVozPropia(astrauraText, setProgresoVoz);
+                        setInstalandoVoz(false);
+                      }}
+                      className="gap-1.5 bg-gradient-to-r from-amber-600 to-fuchsia-600 text-white hover:from-amber-500 hover:to-fuchsia-500"
+                    >
+                      {instalandoVoz
+                        ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Trayendo su voz… {progresoVoz > 0 ? `${progresoVoz}%` : ""}</>
+                        : <><Volume2 className="h-3.5 w-3.5" /> Traer la voz de Astraura</>}
+                    </Button>
+                    <span className="text-[10.5px] text-white/45">O sigue en texto: no pierdes nada de la guía.</span>
+                  </div>
+                </div>
+              )}
+              {vozReal === "muda" && (
+                <div className="rounded-2xl border border-amber-400/30 bg-amber-500/[0.07] p-3.5 text-left">
+                  <p className="text-[12px] font-semibold text-amber-100">No he conseguido que suene la voz aquí</p>
+                  <p className="mt-1 text-[11.5px] leading-relaxed text-white/65">
+                    Lo he intentado por todas las vías: la voz del sistema, el motor configurado y la voz propia de
+                    Astraura. Tu equipo tiene audio, así que lo más probable es que el motor de voz del navegador se
+                    haya colgado — suele arreglarse cerrándolo y volviéndolo a abrir. Sigo contigo por texto.
+                  </p>
+                </div>
+              )}
               {!aurora?.supported && (
                 <p className="text-[11px] text-amber-300/70">Nota: tu navegador podría no soportar voz; en ese caso Astraura narra por texto.</p>
               )}
