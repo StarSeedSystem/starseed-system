@@ -25,6 +25,7 @@ import { visorBloqueaPermisos } from "@/lib/senses/senses";
 import { PermisosDispositivoPanel } from "@/components/senses/permisos-dispositivo";
 import { thisDeviceId, setNeuronName } from "@/lib/neurons/neurons";
 import { saveOnboarding } from "@/lib/onboarding/onboarding";
+import { hayDireccionPublica, AVISO_SIN_DOMINIO } from "@/lib/mail/direccion-publica";
 import { detectar, recomendar, MODELOS, CONCIENCIAS, type HW } from "@/lib/onboarding/neuron-recommend";
 import AgentRecommendation from "./agent-recommendation";
 
@@ -305,6 +306,15 @@ export function CorreosVinculados() {
 
   const cargar = useCallback(async () => {
     try {
+      // (Adenda 197) Antes de listar, se asegura la DIRECCIÓN PÚBLICA de la
+      // cuenta: la que el usuario da al resto de internet.
+      try {
+        const dp = await import("@/lib/mail/direccion-publica");
+        const { listAccountEmails: la } = await import("@/lib/mail/starseed-mail");
+        const previa = await la();
+        const interna = previa.find((e) => String(e.kind) === "internal")?.address;
+        if (interna) await dp.asegurarDireccionPublica(interna);
+      } catch { /* si no hay dominio aún, se explica abajo */ }
       const { listAccountEmails } = await import("@/lib/mail/starseed-mail");
       const ls = await listAccountEmails();
       setCorreos(ls.map((e) => ({ id: e.id, address: e.address, kind: String(e.kind), is_primary: !!e.is_primary })));
@@ -340,6 +350,16 @@ export function CorreosVinculados() {
   return (
     <div className="space-y-2 rounded-xl border border-white/10 bg-white/[0.02] p-3">
       <p className="text-[11px] font-semibold uppercase tracking-wider text-white/50">Correos vinculados a tu cuenta</p>
+      {hayDireccionPublica() ? (
+        <p className="text-[10px] leading-snug text-white/45">
+          Tu <span className="text-cyan-200">@star.seed</span> es tu identidad dentro de la red. Para que te escriban desde
+          fuera se usa tu dirección <span className="text-emerald-200">para todo internet</span>, con tu mismo nombre.
+        </p>
+      ) : (
+        <p className="rounded-lg border border-white/10 bg-black/20 p-2 text-[10px] leading-snug text-white/55">
+          {AVISO_SIN_DOMINIO}
+        </p>
+      )}
       {correos === null ? (
         <p className="text-xs text-white/50">Cargando…</p>
       ) : correos.length === 0 ? (
@@ -348,9 +368,27 @@ export function CorreosVinculados() {
         <ul className="space-y-1">
           {correos.map((c) => (
             <li key={c.id} className="flex items-center gap-2 text-xs text-white/80">
-              <span className={cn("h-1.5 w-1.5 rounded-full", c.kind === "external" ? "bg-fuchsia-300" : "bg-cyan-300")} aria-hidden />
+              <span
+                className={cn("h-1.5 w-1.5 rounded-full",
+                  c.kind === "external" ? "bg-fuchsia-300" : c.kind === "created" ? "bg-emerald-300" : "bg-cyan-300")}
+                aria-hidden
+              />
               <span className="truncate">{c.address}</span>
-              <span className="text-[10px] text-white/40">{c.kind === "external" ? "externo" : "star.seed"}{c.is_primary ? " · principal" : ""}</span>
+              <span className="text-[10px] text-white/40">
+                {c.kind === "external" ? "tuyo, de fuera"
+                  : c.kind === "created" ? "para todo internet"
+                  : "identidad StarSeed"}
+                {c.is_primary ? " · principal" : ""}
+              </span>
+              {c.kind === "created" && (
+                <button
+                  type="button"
+                  onClick={() => { void navigator.clipboard?.writeText(c.address); setNota(`${c.address} copiada ✓`); }}
+                  className="ml-auto shrink-0 text-[10px] text-emerald-300 underline-offset-2 hover:underline"
+                >
+                  copiar
+                </button>
+              )}
             </li>
           ))}
         </ul>

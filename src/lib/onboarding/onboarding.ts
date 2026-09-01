@@ -208,6 +208,11 @@ export async function renombrarIdentidadInterna(owner: string, handle: string): 
     await sb.from("account_emails")
       .update({ address: nueva })
       .eq("user_id", owner).eq("kind", "internal");
+    // (Adenda 197) Y su DIRECCIÓN PÚBLICA emparejada, la que sirve para recibir
+    // correo del resto de internet (`@star.seed` no existe en el DNS mundial).
+    // Si la red aún no tiene dominio conectado, esto no hace nada.
+    const dp = await import("@/lib/mail/direccion-publica");
+    await dp.asegurarDireccionPublica(nueva);
   } catch { /* la cuenta funciona igual con la dirección anterior */ }
 }
 
