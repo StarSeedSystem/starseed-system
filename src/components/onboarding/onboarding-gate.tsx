@@ -60,8 +60,23 @@ export function OnboardingGate() {
         hasProfile = false;
       }
 
+      // ── (Adenda 205) El rito empieza DESPUÉS del registro ──────────────
+      // Antes bastaba con tener sesión sin perfil, así que la guía se abría
+      // sola a cualquier sesión anónima —incluida la que crea «Explorar sin
+      // cuenta»— y aparecía antes de que la persona hubiera puesto su correo
+      // y contraseña. Ahora solo arranca sola para una cuenta REAL (con
+      // correo). El invitado sigue pudiendo abrirla a mano: el botón dispara
+      // `starseed:open-onboarding`, que la muestra igual.
+      const esAnonimo =
+        !!(user as { is_anonymous?: boolean }).is_anonymous || !user.email;
+      if (esAnonimo) {
+        setShow(false);
+        setReady(true);
+        return;
+      }
+
       if (!hasProfile) {
-        // Cuenta nueva / invitado sin identidad → guía de creación guiada.
+        // Cuenta recién registrada sin identidad → guía de creación guiada.
         setShow(true);
         setReady(true);
         return;
