@@ -22,8 +22,9 @@
 // toca: sigue montando <CorreosPanel userId={...}/> exactamente igual.
 // -----------------------------------------------------------------------------
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import { avisarCorreoEnviado, avisarCorreoRecibido, sembrarAvisados } from "@/lib/mail/avisos-correo";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -330,6 +331,14 @@ function ComposeDialog({
                 // se cae al cliente del sistema con `mailto:` como antes.
                 if (res.enviadoDeVerdad) {
                     toast.success(`Correo enviado a ${to}${res.desde ? ` desde ${res.desde}` : ""}.`);
+                    // (Adenda 206) Deja rastro en el centro de notificaciones:
+                    // el correo ya no vive solo dentro de su sección.
+                    avisarCorreoEnviado({
+                        para: to,
+                        asunto: isForward ? `Fwd: ${forwardSeed!.subject}` : (subject || "(sin asunto)"),
+                        desde: res.desde,
+                        threadId: res.threadId,
+                    });
                 } else {
                     if (!res.href) { setError(res.error || "No se pudo preparar el envío externo."); return; }
                     if (typeof window !== "undefined") window.location.href = res.href;
@@ -756,9 +765,33 @@ export function CorreosPanel({ userId }: { userId: string | null }) {
     const [forwardSeed, setForwardSeed] = useState<ForwardSeed | null>(null);
     const [search, setSearch] = useState("");
 
+    // (Adenda 206) La primera carga SIEMBRA los hilos ya existentes como
+    // avisados: si no, al abrir Correos el histórico entero se volcaría de
+    // golpe en el centro de notificaciones. A partir de ahí, cada hilo nuevo
+    // sin leer que aparezca sí avisa.
+    const primeraCargaRef = useRef(true);
+
     const load = useCallback(async (which: MailFolder) => {
         const rows = await listMailThreads(which);
         setThreads(rows);
+
+        if (which === "inbox") {
+            if (primeraCargaRef.current) {
+                primeraCargaRef.current = false;
+                sembrarAvisados(rows.map((t) => t.id));
+            } else {
+                for (const t of rows) {
+                    if (!t.unread) continue;
+                    avisarCorreoRecibido({
+                        de: t.externalTo || "la red StarSeed",
+                        asunto: t.subject || "(sin asunto)",
+                        id: t.id,
+                        externo: !!t.external,
+                    });
+                }
+            }
+        }
+
         const ids = Array.from(new Set(rows.flatMap((t) => [t.creatorId, ...t.memberIds]).filter(Boolean)));
         if (ids.length) setProfiles(await fetchProfilesByIds(ids));
         setLoading(false);

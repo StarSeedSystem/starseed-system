@@ -11,7 +11,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Brain as BrainIcon } from "lucide-react";
+import { Brain as BrainIcon, ArrowDownToLine, Send } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,6 +26,7 @@ import { PermisosDispositivoPanel } from "@/components/senses/permisos-dispositi
 import { thisDeviceId, setNeuronName } from "@/lib/neurons/neurons";
 import { saveOnboarding } from "@/lib/onboarding/onboarding";
 import { hayDireccionPublica, AVISO_SIN_DOMINIO } from "@/lib/mail/direccion-publica";
+import { estadoCorreo, type EstadoCorreo } from "@/lib/mail/estado-correo";
 import { detectar, recomendar, MODELOS, CONCIENCIAS, type HW } from "@/lib/onboarding/neuron-recommend";
 import AgentRecommendation from "./agent-recommendation";
 
@@ -347,14 +348,39 @@ export function CorreosVinculados() {
     }
   }, [nuevo, cargar]);
 
+  // (Adenda 206) Estado real del correo de la red (recibir / enviar).
+  const [estado, setEstado] = useState<EstadoCorreo | null>(null);
+  useEffect(() => { void estadoCorreo().then(setEstado).catch(() => setEstado(null)); }, []);
+
   return (
     <div className="space-y-2 rounded-xl border border-white/10 bg-white/[0.02] p-3">
       <p className="text-[11px] font-semibold uppercase tracking-wider text-white/50">Correos vinculados a tu cuenta</p>
+      {/* (Adenda 206) Lo que se promete aquí sale del estado REAL del
+          despliegue, no de una frase fija: recibir y enviar se anuncian por
+          separado y solo cuando de verdad funcionan. */}
       {hayDireccionPublica() ? (
-        <p className="text-[10px] leading-snug text-white/45">
-          Tu <span className="text-cyan-200">@star.seed</span> es tu identidad dentro de la red. Para que te escriban desde
-          fuera se usa tu dirección <span className="text-emerald-200">para todo internet</span>, con tu mismo nombre.
-        </p>
+        <div className="space-y-1.5">
+          <p className="text-[10px] leading-snug text-white/45">
+            Tu <span className="text-cyan-200">@star.seed</span> es tu identidad dentro de la red. Para que te escriban desde
+            fuera se usa tu dirección <span className="text-emerald-200">para todo internet</span>, con tu mismo nombre.
+          </p>
+          {estado && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="inline-flex items-center gap-1 rounded-full border border-emerald-400/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] text-emerald-200">
+                <ArrowDownToLine className="h-3 w-3" aria-hidden /> Recibes de todo internet
+              </span>
+              {estado.envia ? (
+                <span className="inline-flex items-center gap-1 rounded-full border border-emerald-400/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] text-emerald-200">
+                  <Send className="h-3 w-3" aria-hidden /> Envías a todo internet
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 rounded-full border border-amber-400/25 bg-amber-500/10 px-2 py-0.5 text-[10px] text-amber-200/90">
+                  <Send className="h-3 w-3" aria-hidden /> Envío aún no activado aquí
+                </span>
+              )}
+            </div>
+          )}
+        </div>
       ) : (
         <p className="rounded-lg border border-white/10 bg-black/20 p-2 text-[10px] leading-snug text-white/55">
           {AVISO_SIN_DOMINIO}
