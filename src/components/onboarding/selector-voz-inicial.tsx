@@ -15,9 +15,15 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
-import { Mic, Volume2, Sliders, Sparkles, Loader2 } from "lucide-react";
+import { Volume2, Sliders, Sparkles, Loader2, Play, Square } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { getModoVoz, setModoVoz, MODOS_VOZ, hayVozRealPara, generoEfectivo, type ModoVoz } from "@/lib/aurora/voz-inicial";
+import {
+  getModoVoz, setModoVoz, MODOS_VOZ, hayVozRealPara, generoEfectivo,
+  ajustesVozEfectivos, type ModoVoz,
+} from "@/lib/aurora/voz-inicial";
+import { elegirVozPorGenero } from "@/lib/aurora/tts-oss/browser-voices";
+import { auroraBridge } from "@/components/onboarding/aurora-guide-voice";
+import { cortarVoz } from "@/lib/aurora/narracion-ventana";
 
 const FRASE_PRUEBA =
   "Hola, soy Astraura. Así sueno en este dispositivo; puedes cambiarme cuando quieras.";
@@ -32,10 +38,14 @@ export function SelectorVozInicial({
 }) {
   const [modo, setModo] = useState<ModoVoz>("femenina");
   const [probando, setProbando] = useState<ModoVoz | null>(null);
+  // (Adenda 201) Prueba a demanda de la voz YA seleccionada, sin cambiar nada.
+  const [sonando, setSonando] = useState(false);
   // ¿El equipo tiene voz real del género elegido? Si no, se dice con honestidad.
   const [sinVozReal, setSinVozReal] = useState(false);
 
   useEffect(() => { setModo(getModoVoz()); }, []);
+  // Si cierras o cambias de paso mientras suena la prueba, se corta.
+  useEffect(() => () => { try { window.speechSynthesis?.cancel(); } catch { /* sin motor */ } }, []);
 
   const elegir = useCallback(async (m: ModoVoz) => {
     setProbando(m);
@@ -48,6 +58,59 @@ export function SelectorVozInicial({
       setProbando(null);
     }
   }, [onElegir]);
+
+  /** Corta la prueba venga del puente o del motor del navegador. */
+  const detener = useCallback(() => {
+    cortarVoz();
+    try { window.speechSynthesis?.cancel(); } catch { /* sin motor */ }
+    setSonando(false);
+  }, []);
+
+  /**
+   * (Adenda 201) Escucha la voz elegida cuando tú quieras, no solo al cambiarla.
+   * Corta primero lo que estuviera sonando: nunca se encima ni se encola.
+   */
+  const probarVozActual = useCallback(() => {
+    if (sonando) { detener(); return; }
+    cortarVoz();
+    setSonando(true);
+
+    // 1) Si Astraura ya tiene puente (voz del rito arrancada), habla ELLA:
+    //    así lo que pruebas es exactamente lo que vas a oír después.
+    const puente = auroraBridge();
+    if (puente?.speak) {
+      try {
+        puente.speak(FRASE_PRUEBA);
+        window.setTimeout(() => setSonando(false), 5200);
+        return;
+      } catch { /* caemos al motor del navegador */ }
+    }
+
+    // 2) Aún no hay puente (todavía no has elegido timbre): probamos directo
+    //    con el motor del navegador y los MISMOS ajustes que usará Astraura.
+    //    Sin esto, «Probar» no sonaría justo cuando más falta hace.
+    try {
+      const synth = window.speechSynthesis;
+      if (!synth) { setSonando(false); return; }
+      synth.cancel();
+      const u = new SpeechSynthesisUtterance(FRASE_PRUEBA);
+      const { pitch, rate } = ajustesVozEfectivos(
+        (window as unknown as { STARSEED_personality_traits?: Record<string, number> }).STARSEED_personality_traits,
+      );
+      u.pitch = pitch;
+      u.rate = rate;
+      u.lang = "es-ES";
+      const voz = elegirVozPorGenero(generoEfectivo(modo));
+      if (voz) { u.voice = voz; u.lang = voz.lang || u.lang; }
+      u.onend = () => setSonando(false);
+      u.onerror = () => setSonando(false);
+      synth.speak(u);
+      // Red de seguridad: algunos motores no disparan onend.
+      window.setTimeout(() => setSonando(false), 8000);
+    } catch {
+      setSonando(false);
+    }
+  }, [sonando, modo, detener]);
 
   const abrirAjustes = useCallback(() => {
     try {
@@ -92,6 +155,21 @@ export function SelectorVozInicial({
       </div>
 
       <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+        <button
+          type="button"
+          onClick={probarVozActual}
+          className={cn(
+            "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-medium transition-colors",
+            sonando
+              ? "border-fuchsia-400/60 bg-fuchsia-500/20 text-fuchsia-100"
+              : "border-fuchsia-400/35 bg-fuchsia-500/10 text-fuchsia-100/90 hover:border-fuchsia-400/60 hover:bg-fuchsia-500/20",
+          )}
+          title="Escucha cómo suena la voz que tienes seleccionada"
+        >
+          {sonando
+            ? <><Square className="h-3 w-3" aria-hidden /> Parar</>
+            : <><Play className="h-3 w-3" aria-hidden /> Probar esta voz</>}
+        </button>
         <button
           type="button"
           onClick={() => void elegir("autonoma")}

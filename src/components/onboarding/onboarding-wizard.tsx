@@ -609,63 +609,90 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
   return (
     <Dialog open={open} onOpenChange={() => { /* cierre solo vía Saltar/Finalizar */ }}>
       <DialogContent
-        className="w-[95vw] sm:max-w-2xl max-h-[90dvh] overflow-y-auto p-4 sm:p-6 [&>button.absolute]:hidden"
+        className="w-[95vw] sm:max-w-2xl max-h-[92dvh] gap-0 overflow-hidden p-0 [&>button.absolute]:hidden"
         onInteractOutside={(e) => e.preventDefault()}
         onEscapeKeyDown={(e) => e.preventDefault()}
       >
-        <DialogHeader>
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-fuchsia-500 via-purple-500 to-cyan-400 flex items-center justify-center shrink-0 shadow-lg">
-              <Sparkles className="w-5 h-5 text-white" />
-            </div>
-            <div className="min-w-0">
-              <DialogTitle className="text-left">Bienvenida · Guía de StarSeed con Astraura</DialogTitle>
-              <DialogDescription className="text-left">
-                Paso {step + 1} de {STEPS.length}: {STEPS[step].label}
-              </DialogDescription>
-            </div>
-          </div>
-        </DialogHeader>
+        {/* ── (Adenda 201) BANDA SUPERIOR ─────────────────────────────────────
+            Antes el título, el subtítulo y la barra de progreso se apilaban
+            pegados al borde del diálogo. Ahora es una banda propia con aire,
+            resplandor de aurora detrás y una línea que la separa del cuerpo:
+            el mismo lenguaje que las demás ventanas de la guía. */}
+        <div className="relative shrink-0 overflow-hidden border-b border-white/10 px-5 pb-4 pt-6 sm:px-7 sm:pt-7">
+          <div
+            aria-hidden
+            className="pointer-events-none absolute -left-16 -top-24 h-56 w-72 rounded-full bg-fuchsia-500/20 blur-3xl"
+          />
+          <div
+            aria-hidden
+            className="pointer-events-none absolute -right-16 -top-28 h-56 w-72 rounded-full bg-cyan-400/15 blur-3xl"
+          />
 
-        {/* progreso */}
-        <div className="flex items-center gap-1.5">
-          {STEPS.map((s, i) => (
-            <div
-              key={s.key}
-              className={cn(
-                "h-1 flex-1 rounded-full transition-all",
-                i <= step ? "bg-gradient-to-r from-fuchsia-400 to-cyan-400" : "bg-white/10",
-              )}
-            />
-          ))}
+          <DialogHeader className="relative">
+            <div className="flex items-center gap-3.5">
+              <span className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-tr from-fuchsia-500 via-purple-500 to-cyan-400 shadow-[0_0_24px_-4px_rgba(217,70,239,0.6)]">
+                <Sparkles className="h-5 w-5 text-white" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <DialogTitle className="text-left text-[17px] leading-tight sm:text-lg">
+                  Bienvenida · Guía de StarSeed con Astraura
+                </DialogTitle>
+                <DialogDescription className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-left text-[12px]">
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/[0.04] px-2 py-0.5 font-medium text-white/70">
+                    <StepIcon className="h-3 w-3 text-fuchsia-300" aria-hidden />
+                    Paso {step + 1} de {STEPS.length}
+                  </span>
+                  <span className="text-white/55">{STEPS[step].label}</span>
+                </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+
+          {/* progreso · el tramo actual late para saber dónde estás */}
+          <div className="relative mt-4 flex items-center gap-1" role="progressbar" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100}>
+            {STEPS.map((s, i) => (
+              <div
+                key={s.key}
+                className={cn(
+                  "h-1.5 flex-1 rounded-full transition-all duration-300",
+                  i < step && "bg-gradient-to-r from-fuchsia-400/70 to-cyan-400/70",
+                  i === step && "bg-gradient-to-r from-fuchsia-300 to-cyan-300 shadow-[0_0_10px_-1px_rgba(217,70,239,0.8)]",
+                  i > step && "bg-white/10",
+                )}
+              />
+            ))}
+          </div>
         </div>
 
+        {/* ── CUERPO (lo único que hace scroll) ───────────────────────────── */}
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-5 sm:px-7">
+
         {/* narración de Astraura */}
-        <div className="rounded-xl border border-fuchsia-500/20 bg-fuchsia-950/10 p-3 flex items-start gap-3">
-          <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-fuchsia-500 to-cyan-400 flex items-center justify-center shrink-0">
-            <Wand2 className="w-4 h-4 text-white" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="text-[11px] uppercase tracking-wider text-fuchsia-300/70 font-semibold mb-0.5 flex items-center gap-2">
+        <div className="relative flex items-start gap-3 overflow-hidden rounded-2xl border border-fuchsia-400/20 bg-gradient-to-br from-fuchsia-500/[0.09] via-purple-500/[0.04] to-transparent p-3.5">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-tr from-fuchsia-500 to-cyan-400 shadow-[0_0_18px_-4px_rgba(217,70,239,0.7)]">
+            <Wand2 className="h-4 w-4 text-white" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="mb-1 flex items-center gap-2 text-[10.5px] font-semibold uppercase tracking-[0.14em] text-fuchsia-300/75">
               Astraura
               {voiceStarted && <Badge variant="outline" className="text-[9px] border-fuchsia-400/40 text-fuchsia-200">voz activa</Badge>}
             </div>
-            <p className="text-sm text-white/85 leading-snug">{astrauraText}</p>
-            <div className="mt-1.5 flex items-center gap-3 flex-wrap">
+            <p className="text-[13.5px] leading-relaxed text-white/85">{astrauraText}</p>
+            <div className="mt-2.5 flex flex-wrap items-center gap-2">
               <button
                 onClick={explainStep}
                 disabled={thinking}
-                className="inline-flex items-center gap-1 text-[11px] text-cyan-300/80 hover:text-cyan-200 disabled:opacity-50"
+                className="inline-flex min-h-7 items-center gap-1.5 rounded-full border border-cyan-400/25 bg-cyan-500/[0.07] px-2.5 py-1 text-[11px] text-cyan-200/90 transition-colors hover:border-cyan-400/50 hover:text-cyan-100 disabled:opacity-50"
               >
-                {thinking ? <Loader2 className="w-3 h-3 animate-spin" /> : <MessageCircle className="w-3 h-3" />}
+                {thinking ? <Loader2 className="h-3 w-3 animate-spin" /> : <MessageCircle className="h-3 w-3" />}
                 Explícame este paso
               </button>
               {aurora?.supported && (
                 <button
                   onClick={speakCurrent}
-                  className="inline-flex items-center gap-1 text-[11px] text-fuchsia-300/80 hover:text-fuchsia-200"
+                  className="inline-flex min-h-7 items-center gap-1.5 rounded-full border border-fuchsia-400/25 bg-fuchsia-500/[0.07] px-2.5 py-1 text-[11px] text-fuchsia-200/90 transition-colors hover:border-fuchsia-400/50 hover:text-fuchsia-100"
                 >
-                  <Volume2 className="w-3 h-3" /> Escuchar
+                  <Volume2 className="h-3 w-3" /> Escuchar
                 </button>
               )}
             </div>
@@ -682,21 +709,36 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
                   solo aparece si eliges voz. Antes convivían en la misma fila un
                   panel con cinco controles y un botón suelto — desequilibrado y
                   apretado. */}
-              <div className="text-center">
-                <span className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl border border-fuchsia-400/25 bg-gradient-to-br from-fuchsia-500/20 to-cyan-500/10">
-                  <Sparkles className="h-6 w-6 text-fuchsia-200" aria-hidden />
+              {/* Portada: semilla con órbita — el emblema de StarSeed, no un
+                  icono suelto en el vacío. */}
+              <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-b from-white/[0.05] to-transparent px-5 py-7 text-center">
+                <div aria-hidden className="pointer-events-none absolute inset-x-0 -top-24 mx-auto h-48 w-48 rounded-full bg-fuchsia-500/20 blur-3xl" />
+                <div aria-hidden className="pointer-events-none absolute -bottom-24 right-0 h-48 w-48 rounded-full bg-cyan-400/12 blur-3xl" />
+
+                <span className="relative mx-auto mb-4 flex h-16 w-16 items-center justify-center">
+                  <span aria-hidden className="absolute inset-0 rounded-full border border-fuchsia-400/30" />
+                  <span aria-hidden className="absolute inset-[-8px] rounded-full border border-cyan-400/15" />
+                  <span aria-hidden className="absolute inset-[-8px] animate-spin rounded-full border border-transparent border-t-cyan-300/50 [animation-duration:6s]" />
+                  <span className="flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-tr from-fuchsia-500 via-purple-500 to-cyan-400 shadow-[0_0_30px_-6px_rgba(217,70,239,0.8)]">
+                    <Sparkles className="h-5 w-5 text-white" aria-hidden />
+                  </span>
                 </span>
-                <h2 className="bg-gradient-to-r from-fuchsia-200 via-purple-200 to-cyan-200 bg-clip-text text-2xl font-bold text-transparent sm:text-[28px]">
+
+                <h2 className="relative bg-gradient-to-r from-fuchsia-200 via-purple-200 to-cyan-200 bg-clip-text text-2xl font-bold text-transparent sm:text-[28px]">
                   Te damos la bienvenida a StarSeed
                 </h2>
-                <p className="mx-auto mt-2 max-w-sm text-[13px] leading-relaxed text-white/60">
+                <p className="relative mx-auto mt-2.5 max-w-sm text-[13px] leading-relaxed text-white/60">
                   Una red abierta y segura. Astraura te acompaña paso a paso: solo aceptas y eliges.
                 </p>
               </div>
 
-              <p className="text-center text-[11px] font-semibold uppercase tracking-[0.14em] text-white/35">
-                ¿Cómo prefieres empezar?
-              </p>
+              <div className="flex items-center gap-3">
+                <span aria-hidden className="h-px flex-1 bg-gradient-to-r from-transparent to-white/12" />
+                <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/40">
+                  ¿Cómo prefieres empezar?
+                </span>
+                <span aria-hidden className="h-px flex-1 bg-gradient-to-l from-transparent to-white/12" />
+              </div>
 
               <div className="grid gap-3 sm:grid-cols-2">
                 <button
@@ -704,22 +746,33 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
                   onClick={() => setModoInicio("voz")}
                   aria-pressed={modoInicio === "voz"}
                   className={cn(
-                    "group relative overflow-hidden rounded-2xl border p-4 text-left transition-all duration-200",
+                    "group relative overflow-hidden rounded-2xl border p-5 text-left transition-all duration-200",
                     "hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-fuchsia-400/60",
                     modoInicio === "voz"
-                      ? "border-fuchsia-400/70 bg-fuchsia-500/[0.10] shadow-[0_0_28px_-6px_rgba(217,70,239,0.45)]"
-                      : "border-white/10 bg-white/[0.02] hover:border-fuchsia-400/40 hover:bg-white/[0.04]",
+                      ? "border-fuchsia-400/70 bg-gradient-to-br from-fuchsia-500/[0.16] to-fuchsia-500/[0.04] shadow-[0_0_34px_-8px_rgba(217,70,239,0.6)]"
+                      : "border-white/10 bg-white/[0.02] hover:border-fuchsia-400/40 hover:bg-white/[0.045]",
                   )}
                 >
-                  <span className="mb-2.5 flex h-10 w-10 items-center justify-center rounded-xl border border-fuchsia-400/25 bg-fuchsia-500/10">
-                    <Mic className="h-[18px] w-[18px] text-fuchsia-200" aria-hidden />
+                  <span
+                    aria-hidden
+                    className="pointer-events-none absolute -right-10 -top-10 h-28 w-28 rounded-full bg-fuchsia-500/20 opacity-0 blur-2xl transition-opacity duration-300 group-hover:opacity-100"
+                  />
+                  <span className={cn(
+                    "relative mb-3 flex h-11 w-11 items-center justify-center rounded-xl border transition-colors",
+                    modoInicio === "voz"
+                      ? "border-fuchsia-400/50 bg-fuchsia-500/20"
+                      : "border-fuchsia-400/25 bg-fuchsia-500/10 group-hover:border-fuchsia-400/45",
+                  )}>
+                    <Mic className="h-5 w-5 text-fuchsia-200" aria-hidden />
                   </span>
-                  <span className="block text-[15px] font-semibold">Con voz</span>
-                  <span className="mt-0.5 block text-[12px] leading-snug text-white/55">
+                  <span className="relative block text-[15.5px] font-semibold">Con voz</span>
+                  <span className="relative mt-1 block text-[12px] leading-snug text-white/55">
                     Astraura te lo cuenta en voz alta y te escucha.
                   </span>
                   {modoInicio === "voz" && (
-                    <Check className="absolute right-3 top-3 h-4 w-4 text-fuchsia-300" aria-hidden />
+                    <span className="absolute right-3 top-3 flex h-5 w-5 items-center justify-center rounded-full bg-fuchsia-500/25">
+                      <Check className="h-3 w-3 text-fuchsia-200" aria-hidden />
+                    </span>
                   )}
                 </button>
 
@@ -728,30 +781,44 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
                   onClick={() => { setModoInicio("texto"); setVoiceStarted(false); setAstrauraText(STEP_NARRATION[0]); }}
                   aria-pressed={modoInicio === "texto"}
                   className={cn(
-                    "group relative overflow-hidden rounded-2xl border p-4 text-left transition-all duration-200",
+                    "group relative overflow-hidden rounded-2xl border p-5 text-left transition-all duration-200",
                     "hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/60",
                     modoInicio === "texto"
-                      ? "border-cyan-400/70 bg-cyan-500/[0.10] shadow-[0_0_28px_-6px_rgba(34,211,238,0.4)]"
-                      : "border-white/10 bg-white/[0.02] hover:border-cyan-400/40 hover:bg-white/[0.04]",
+                      ? "border-cyan-400/70 bg-gradient-to-br from-cyan-500/[0.16] to-cyan-500/[0.04] shadow-[0_0_34px_-8px_rgba(34,211,238,0.55)]"
+                      : "border-white/10 bg-white/[0.02] hover:border-cyan-400/40 hover:bg-white/[0.045]",
                   )}
                 >
-                  <span className="mb-2.5 flex h-10 w-10 items-center justify-center rounded-xl border border-cyan-400/25 bg-cyan-500/10">
-                    <TypeIcon className="h-[18px] w-[18px] text-cyan-200" aria-hidden />
+                  <span
+                    aria-hidden
+                    className="pointer-events-none absolute -right-10 -top-10 h-28 w-28 rounded-full bg-cyan-400/20 opacity-0 blur-2xl transition-opacity duration-300 group-hover:opacity-100"
+                  />
+                  <span className={cn(
+                    "relative mb-3 flex h-11 w-11 items-center justify-center rounded-xl border transition-colors",
+                    modoInicio === "texto"
+                      ? "border-cyan-400/50 bg-cyan-500/20"
+                      : "border-cyan-400/25 bg-cyan-500/10 group-hover:border-cyan-400/45",
+                  )}>
+                    <TypeIcon className="h-5 w-5 text-cyan-200" aria-hidden />
                   </span>
-                  <span className="block text-[15px] font-semibold">En texto</span>
-                  <span className="mt-0.5 block text-[12px] leading-snug text-white/55">
+                  <span className="relative block text-[15.5px] font-semibold">En texto</span>
+                  <span className="relative mt-1 block text-[12px] leading-snug text-white/55">
                     Lees a tu ritmo. Puedes activar la voz cuando quieras.
                   </span>
                   {modoInicio === "texto" && (
-                    <Check className="absolute right-3 top-3 h-4 w-4 text-cyan-300" aria-hidden />
+                    <span className="absolute right-3 top-3 flex h-5 w-5 items-center justify-center rounded-full bg-cyan-500/25">
+                      <Check className="h-3 w-3 text-cyan-200" aria-hidden />
+                    </span>
                   )}
                 </button>
               </div>
 
               {/* El timbre solo aparece cuando eliges voz: una decisión cada vez. */}
               {modoInicio === "voz" && (
-                <div className="animate-in fade-in-0 slide-in-from-top-1 rounded-2xl border border-fuchsia-400/20 bg-fuchsia-500/[0.04] p-4 duration-300">
-                  <SelectorVozInicial onElegir={() => startVoice()} />
+                <div className="animate-in fade-in-0 slide-in-from-top-2 relative overflow-hidden rounded-2xl border border-fuchsia-400/25 bg-gradient-to-br from-fuchsia-500/[0.07] to-transparent p-4 duration-300 sm:p-5">
+                  <span aria-hidden className="pointer-events-none absolute -left-12 -top-12 h-40 w-40 rounded-full bg-fuchsia-500/12 blur-3xl" />
+                  <div className="relative">
+                    <SelectorVozInicial onElegir={() => startVoice()} />
+                  </div>
                 </div>
               )}
 
@@ -759,16 +826,38 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
               {isGuest && GuestUpgrade}
 
               {/* Permisos / qué deja lista esta guía — sin configuración manual */}
-              <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4 text-left mt-2">
-                <div className="flex items-center gap-2 mb-2">
-                  <ShieldCheck className="w-4 h-4 text-emerald-300" />
+              <div className="mt-1 rounded-2xl border border-white/10 bg-white/[0.02] p-4 text-left sm:p-5">
+                <div className="mb-3 flex items-center gap-2">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-lg border border-emerald-400/25 bg-emerald-500/10">
+                    <ShieldCheck className="h-3.5 w-3.5 text-emerald-300" aria-hidden />
+                  </span>
                   <span className="text-[12px] font-semibold text-white/85">Qué prepara esta guía contigo</span>
                 </div>
-                <ul className="space-y-1.5 text-[12px] text-white/60">
-                  <li className="flex items-start gap-2"><AtSign className="w-3.5 h-3.5 text-fuchsia-300 mt-0.5 shrink-0" /> Tu identidad en la red: nombre y un <b className="text-white/80">@handle</b> único (sugerido, editable).</li>
-                  <li className="flex items-start gap-2"><Mail className="w-3.5 h-3.5 text-cyan-300 mt-0.5 shrink-0" /> Tu dirección interna <b className="text-white/80">@star.seed</b> (opcional, también puedes crearla luego).</li>
-                  <li className="flex items-start gap-2"><ImageIcon className="w-3.5 h-3.5 text-violet-300 mt-0.5 shrink-0" /> Avatar, portada y bio (opcionales, editables cuando quieras).</li>
-                  <li className="flex items-start gap-2"><Lock className="w-3.5 h-3.5 text-rose-300 mt-0.5 shrink-0" /> Solo aceptas y eliges: no hay que configurar nada a mano. Tus datos son tuyos y privados por defecto.</li>
+                <ul className="space-y-2 text-[12px] leading-snug text-white/60">
+                  <li className="flex items-start gap-2.5">
+                    <span className="mt-px flex h-5 w-5 shrink-0 items-center justify-center rounded-md border border-fuchsia-400/20 bg-fuchsia-500/10">
+                      <AtSign className="h-3 w-3 text-fuchsia-300" aria-hidden />
+                    </span>
+                    <span>Tu identidad en la red: nombre y un <b className="text-white/80">@handle</b> único (sugerido, editable).</span>
+                  </li>
+                  <li className="flex items-start gap-2.5">
+                    <span className="mt-px flex h-5 w-5 shrink-0 items-center justify-center rounded-md border border-cyan-400/20 bg-cyan-500/10">
+                      <Mail className="h-3 w-3 text-cyan-300" aria-hidden />
+                    </span>
+                    <span>Tu dirección interna <b className="text-white/80">@star.seed</b> (opcional, también puedes crearla luego).</span>
+                  </li>
+                  <li className="flex items-start gap-2.5">
+                    <span className="mt-px flex h-5 w-5 shrink-0 items-center justify-center rounded-md border border-violet-400/20 bg-violet-500/10">
+                      <ImageIcon className="h-3 w-3 text-violet-300" aria-hidden />
+                    </span>
+                    <span>Avatar, portada y bio (opcionales, editables cuando quieras).</span>
+                  </li>
+                  <li className="flex items-start gap-2.5">
+                    <span className="mt-px flex h-5 w-5 shrink-0 items-center justify-center rounded-md border border-rose-400/20 bg-rose-500/10">
+                      <Lock className="h-3 w-3 text-rose-300" aria-hidden />
+                    </span>
+                    <span>Solo aceptas y eliges: no hay que configurar nada a mano. Tus datos son tuyos y privados por defecto.</span>
+                  </li>
                 </ul>
               </div>
               {!aurora?.supported && (
@@ -1083,24 +1172,38 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
           )}
         </div>
 
-        {/* navegación */}
-        <div className="flex items-center justify-between gap-2 pt-1 border-t border-white/10 mt-1">
-          <div className="flex items-center gap-2">
+        </div>{/* fin del cuerpo con scroll */}
+
+        {/* ── BANDA INFERIOR · siempre visible, no se va con el scroll ────── */}
+        <div className="flex shrink-0 items-center justify-between gap-2 border-t border-white/10 bg-white/[0.02] px-5 py-3.5 sm:px-7">
+          <div className="flex items-center gap-1">
             <Button variant="ghost" size="sm" onClick={prev} disabled={step === 0} className="text-xs">
-              <ChevronLeft className="w-3.5 h-3.5 mr-1" /> Anterior
+              <ChevronLeft className="mr-1 h-3.5 w-3.5" /> Anterior
             </Button>
-            <button onClick={skip} className="text-[11px] text-white/40 hover:text-white/70">Saltar por ahora</button>
+            <button onClick={skip} className="rounded-full px-2 py-1 text-[11px] text-white/40 transition-colors hover:bg-white/5 hover:text-white/70">
+              Saltar por ahora
+            </button>
           </div>
           <div className="flex items-center gap-2">
             {step < STEPS.length - 1 ? (
-              <Button size="sm" onClick={next} disabled={busy || !canAdvance} className="gap-1 bg-gradient-to-r from-fuchsia-600 to-cyan-600 hover:from-fuchsia-500 hover:to-cyan-500 text-white">
-                {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+              <Button
+                size="sm"
+                onClick={next}
+                disabled={busy || !canAdvance}
+                className="gap-1 bg-gradient-to-r from-fuchsia-600 to-cyan-600 text-white shadow-[0_0_20px_-6px_rgba(217,70,239,0.8)] transition-shadow hover:from-fuchsia-500 hover:to-cyan-500 hover:shadow-[0_0_26px_-4px_rgba(217,70,239,0.9)]"
+              >
+                {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
                 {step === 1 && !profileSaved ? "Crear identidad" : "Continuar"}
-                {!busy && <ChevronRight className="w-3.5 h-3.5" />}
+                {!busy && <ChevronRight className="h-3.5 w-3.5" />}
               </Button>
             ) : (
-              <Button size="sm" onClick={finish} disabled={busy} className="gap-1 bg-gradient-to-r from-emerald-600 to-cyan-600 hover:from-emerald-500 hover:to-cyan-500 text-white">
-                {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+              <Button
+                size="sm"
+                onClick={finish}
+                disabled={busy}
+                className="gap-1 bg-gradient-to-r from-emerald-600 to-cyan-600 text-white shadow-[0_0_20px_-6px_rgba(16,185,129,0.8)] hover:from-emerald-500 hover:to-cyan-500"
+              >
+                {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
                 Finalizar
               </Button>
             )}
