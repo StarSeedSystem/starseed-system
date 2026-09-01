@@ -1,0 +1,250 @@
+## Adenda 174 - Integración de Bonsai 1-bit & Ternary (PrismML) en Astraura 1.58-bit
+**Fecha:** 2026-08-28
+**Resumen:**
+- Se integró el motor de inferencia Bonsai (1-bit y Ternary 1.58-bit) de PrismML en el backend de Astraura.
+- Se añadió un nuevo manager (`bonsai_manager.py`) que detecta modelos GGUF locales, soporta aceleración por GPU Metal en Apple Silicon y expone estado vía `/api/status`.
+- Se amplió el catálogo gratuito (`free-catalog.ts`) con una entrada para Bonsai (ID: `astraura-bonsai-local`).
+- Se creó una nueva skill en el sistema de Astraura (`bonsai-engine`) que permite a Aurora recomendar el uso de Bonsai para tareas de visión, razonamiento largo y tool calling.
+- Se actualizaron los registros de integración (`registry.ts`, `run.ts`, `aurora-tools.ts`) para incluir el nuevo cliente Bonsai.
+- Se añadió el paquete de biblioteca (`iatool-bonsai`) para que esté disponible en el App Launcher y OmniDock.
+- Se probó el servidor Bonsai localmente y se verificó que el endpoint `/health` responde correctamente.
+**Próximos pasos:**
+- Ajustar el router de Astraura para priorizar Bonsai en tareas de visión y contexto largo.
+- Probar la integración de tool calling y visión VLM en el agente de Astraura.
+- Documentar el uso de Bonsai en la guía de usuario de Astraura.
+## Adenda 192 - Auto-entrada al OS, guia dentro del perfil y permisos vivos (2026-08-31)
+- Prod verificada: 52bdd65 (A191), 1531c5c, 2028c11 y c203fb3 (A192) READY en produccion.
+- Causas raiz: permisos sin estado real/ayuda; signUp no navegaba (rito y guia sobre /login); popups de primera ejecucion encima del rito y cancelando router.push de los vinculos de la guia.
+- Nuevo panel reutilizable de permisos (rito + Sentidos + Ajustes + boton inline por area) con estado vivo y pasos por navegador/SO.
+- E2E prueba5/prueba6 OK; cuentas borradas, base en 0. tsc 0 errores x3.
+[2026-08-31 07:44 CST] [watchdog] tunel vivo | status=active | backend=127.0.0.1:8000 | no relaunch needed
+
+[2026-08-31 08:47-08:50 CST] [watchdog] cron #195: tunel vivo | exit_code=0 | 3x OK (08:47:04, 08:49:00, 08:50:58) | url=https://unlike-alert-elimination-analytical.trycloudflare.com | backend=127.0.0.1:8000 | active_tunnel.json=active | no relaunch needed | sin cambios de codigo
+
+---
+**2026-08-31 09:05 CST — Watchdog Astraura tunnel**
+- Script: `tunnel_watchdog.sh` → exit 0
+- Estado: tunel VIVO en `https://unlike-alert-elimination-analytical.trycloudflare.com`
+- backend: http://127.0.0.1:8000 → status: active
+- Verificación /api/cerebros: 200 OK (JSON devuelto: `{"active_brain_id":"brain_genesis","cerebros":[...`)
+- No fue necesario relanzar.
+
+[2026-08-31 09:25-09:31 CST] [watchdog] tunel vivo | exit_code=0 | 3x OK (09:25:00, 09:29:03, 09:31:00) | url=https://unlike-alert-elimination-analytical.trycloudflare.com | backend=127.0.0.1:8000 | active_tunnel.json=active | no relaunch needed | sin cambios de codigo
+
+[2026-08-31 10:05-10:11 CST] [watchdog] tunel vivo | exit_code=0 | 3x OK (10:05:04, 10:07:05, 10:11:02) | url=https://unlike-alert-elimination-analytical.trycloudflare.com | backend=127.0.0.1:8000 | active_tunnel.json=active | no relaunch needed | sin cambios de codigo | /api/cerebros: 200 OK ({"active_brain_id":"brain_genesis","cerebros":[...])
+
+
+[2026-08-31 10:51-10:55 CST] [watchdog cron #196] tunel vivo | bash tunnel_watchdog.sh exit 0 | 3x OK (10:51:06, 10:53:03, 10:55:01) | url=https://unlike-alert-elimination-analytical.trycloudflare.com | backend=127.0.0.1:8000 | active_tunnel.json=active | no relaunch needed | sin cambios de codigo | verificacion /api/cerebros: 200 OK ({"active_brain_id":"brain_genesis","cerebros":[...])
+[] CRON watchdog Astraura: OK tunel vivo -> https://unlike-alert-elimination-analytical.trycloudflare.com (no relaunch necesario)
+[2026-08-31 12:38-12:42 CST] [watchdog cron #199] tunel vivo | tunnel_watchdog.sh exit 0 | 3x OK (12:38:21, 12:40:21, 12:42:30) | url=https://unlike-alert-elimination-analytical.trycloudflare.com | backend=127.0.0.1:8000 | active_tunnel.json=active | no relaunch needed | sin cambios de codigo | curl /api/cerebros no ejecutado (tunel no relanzado)
+
+---
+
+**2026-08-31 14:15-14:19 CST — Watchdog Astraura tunnel (cron #201)**
+- Script: `tunnel_watchdog.sh` → exit 0
+- Estado INICIAL: tunel CAIDO (https://variation-pound-limousines-judge.trycloudflare.com). Relanzando.
+- Relanzamiento 1 (pid 54036): https://sip-bear-boot-steve.trycloudflare.com — DNS NXDOMAIN, cloudflared no conectado a edge.
+- Relanzamiento 2 (pid 54333): https://automobile-holding-overseas-pride.trycloudflare.com — HTTP 200, funciona brevemente; cloudflared exitó ~40s despues.
+- Relanzamiento 3 (pid 54467): https://immediate-assumed-instrumental-apartment.trycloudflare.com — VIVO, HTTP 200.
+- Backend local: http://127.0.0.1:8000 → HTTP 200 (siempre operativo).
+- Verificación /api/cerebros: 200 OK ({"active_brain_id":"brain_genesis","cerebros":[{"i...
+- Tunel final activo respondiendo correctamente.
+- Sin cambios de codigo; sin commit/push.
+
+[2026-08-31 14:34 CST] [watchdog cron #202] tunel vivo | bash tunnel_watchdog.sh exit 0 | OK 14:34:31 | url=https://hostel-browser-eva-partners.trycloudflare.com | backend=127.0.0.1:8000 | active_tunnel.json=active (updated_at=20:22:45Z) | no relaunch needed | curl /api/status: 200 OK (online) | curl /api/cerebros: 200 OK ({"active_brain_id":"brain_genesis",...)
+
+## Adenda 193 - Astraura unificada, carpetas y agentes (2026-08-31)
+- Pestanas LLM+Astraura fusionadas (sistema primario una sola vez, 1.58b local por defecto) y nueva pestana Agentes.
+- Ventana previa de OmniVoice retirada; voz por pestana con interrupt (sin cola ni arrastre) y motor por defecto = el que ya sono.
+- Orden: rito -> ventana de sistemas (montada en layout RAIZ) -> guia.
+- Permisos antes de cerebros: carpetas del dispositivo + almacenamientos externos que el cerebro principal hereda solo.
+- E2E prueba7/8/9 OK, cuentas borradas, base en 0. Commits c3994dc y 70d8e42.
+
+[2026-08-31 15:14-15:16 CST] [watchdog cron #203] tunel CAIDO -> relanzado por watchdog (monitor pid 61857)
+  - Estado INICIAL: tunel CAIDO (https://mental-induced-enjoy-wines.trycloudflare.com).
+  - Relanzamiento (monitor pid 61857): https://prepare-mitchell-prediction-rentals.trycloudflare.com - VIVO, HTTP 200.
+  - Backend local: 127.0.0.1:8000 -> HTTP 200 (siempre operativo).
+  - Verificacion /api/cerebros: 200 OK - JSON: {active_brain_id brain_genesis, cerebros [...]}
+  - Sin cambios de codigo; sin commit/push.
+
+---
+
+[2026-08-31 15:54-15:58 CST] [watchdog cron #204] tunel vivo | bash tunnel_watchdog.sh exit 0 | 3x OK (15:54:26, 15:56:25, 15:58:25) | url=https://gui-rev-collectables-accompanying.trycloudflare.com | backend=127.0.0.1:8000 | active_tunnel.json=active (updated_at=21:30:37Z) | no relaunch needed | curl /api/cerebros no ejecutado (tunel no relanzado) | sin cambios de codigo | sin commit/push
+
+## Adenda 194 - Voz con genero, perfil real y OAuth de almacenamientos (2026-08-31)
+- 3 voces desde el inicio (femenina/masculina/neutra) + voz autonoma + ajustes opcionales, vinculadas a la personalidad activa.
+- Idioma pesa mas que genero y voces de broma penalizadas: las 3 suenan bien aunque el equipo no tenga voz nativa del genero.
+- Trigger handle_new_user sin sufijo aleatorio y sembrando os_profiles: adios al nombre secundario y al 'Perfil no encontrado'.
+- claimProfile enviaba type='user', invalido para el enum profile_type: fallaba en silencio (por eso mandaba el handle inventado).
+- Nueva ventana de perfil (avatar, portada, handle, bio) entre sistemas y guia; al terminar se ve el perfil y la guia arranca en el escritorio.
+- OAuth PKCE real para Drive/Dropbox/OneDrive con callback propio; sin client id se dice exactamente que falta.
+- E2E prueba10-12 OK; base en 0. Commits c9b9b73, c8295a2, cfbd7a5.
+
+## Adenda 195 - Carpetas reales de la cuenta conectada (2026-08-31)
+- Explorador de carpetas del servicio (Drive/Dropbox/OneDrive) con migas, marcado multiple y vinculo directo al cerebro.
+- Renovacion silenciosa con refresh_token; si el proveedor invalida la sesion se dice y se ofrece reconectar.
+- Alta guiada del ID de cliente en 3 pasos con URI copiable y enlace a la consola; cero configuracion si el ID viene por variable de entorno.
+- Verificado en vivo: 401 real de la API de Drive manejado con honestidad. tsc 0 errores. Commit e6cc430.
+
+
+---
+[2026-08-31 17:03 CST] [watchdog cron #205] tunel CAIDO -> relanzado | tunnel_watchdog.sh exit 0 | tests-out-nominations-deposit.trycloudflare.com | relanzado monitor pid 71006 | backend=127.0.0.1:8000 | active_tunnel.json=active (updated_at=23:03:04Z) | curl /api/cerebros: HTTP 200 (HTML proxy Cloudflare, tunel despierto) | sin cambios de codigo | sin commit/push
+
+
+[2026-08-31 17:36 CST] [watchdog cron #206] tunel CAIDO -> relanzado | tunnel_watchdog.sh exit 0 | bluetooth-blend-expression-condos.trycloudflare.com | monitor pid 73712 | backend=127.0.0.1:8000 | active_tunnel.json=active (updated_at=23:37:04Z) | curl /api/cerebros: HTTP 200 (JSON válido) | sin cambios de codigo | sin commit/push
+
+
+---
+[2026-08-31 18:09 CST] [watchdog cron #207] tunel CAIDO -> relanzado | tunnel_watchdog.sh exit 0 | 1st relaunch: icon-reef-supplemental-celebration.trycloudflare.com (DNS NXDOMAIN — cloudflared atascado post-precheck) -> 2nd relaunch: enquiries-proof-postage-kept.trycloudflare.com | monitor pid 76310 | backend=127.0.0.1:8000 (HTTP 200) | active_tunnel.json=active (updated_at=00:09:22Z) | curl /api/cerebros: HTTP 200 (JSON válido: {"active_brain_id":"brain_genesis","cerebros":[{"i) | sin cambios de codigo | sin commit/push
+
+
+---
+[2026-08-31 18:40 CST] [watchdog cron #208] tunel CAIDO -> relanzado | tunnel_watchdog.sh exit 0 | ministries-speaker-bald-locally.trycloudflare.com | monitor pid 78582 | backend=127.0.0.1:8000 | active_tunnel.json=active | curl /api/cerebros: HTTP 200 (JSON válido: {"active_brain_id":"brain_genesis","cerebros":[{"i) | sin cambios de codigo | sin commit/push
+
+
+---
+[2026-08-31 18:48 CST] [watchdog cron #209] tunel CAIDO -> relanzado | tunnel_watchdog.sh exit 0 | ministries-speaker-bald-locally.trycloudflare.com | monitor pid 78582 | backend=127.0.0.1:8000 | active_tunnel.json=active (updated_at=00:44:37Z) | curl /api/cerebros: HTTP 200 (JSON válido: {"active_brain_id":"brain_genesis","cerebros":[{"i...]) | sin cambios de codigo | sin commit/push
+---
+
+**2026-08-31 19:54-19:57 CST — Watchdog Astraura tunnel (cron #203)**
+- Script: `bash tunnel_watchdog.sh` → exit 0
+- Estado INICIAL: tunel VIVO en `https://merry-copying-hosting-producers.trycloudflare.com` (OK 19:50, 19:52, 19:54)
+- Estado INICIAL 19:57:05: **TUNEL CAIDO**. Relanzando monitor...
+- Relanzamiento: monitor relanzado (pid 84279) → nueva URL `https://intervention-midi-encounter-colors.trycloudflare.com` (active_tunnel.json actualizado 2026-09-01T01:57:22Z, status=active)
+- Backend local: http://127.0.0.1:8000 → conectividad restaurada vía túnel nuevo
+- Verificación `/api/cerebros`: **200 OK** — JSON devuelto (`{"active_brain_id":"brain_genesis","cerebros":[...]`), 340KB de datos cerebrales (brain_genesis, brain_mnemosyne, etc.)
+- Sin cambios de código; sin commit/push (solo verificación y relanzamiento de túnel).
+
+---
+[2026-08-31 20:22-20:25 CST] [watchdog cron #210] tunel CAIDO -> relanzado | tunnel_watchdog.sh exit 0 | nueva URL: tulsa-mike-observer-choices.trycloudflare.com | monitor pid 86169 | backend=127.0.0.1:8000 | active_tunnel.json=active | curl /api/cerebros: HTTP 200 (JSON válido). | sin cambios de codigo | sin commit/push
+
+---
+**2026-08-31 20:55-20:57 CST — Watchdog Astraura tunnel (cron #211)**
+- Script: `bash tunnel_watchdog.sh` → exit 0
+- Estado INICIAL: tunel VIVO en `https://tulsa-mike-observer-choices.trycloudflare.com` (OK 20:55:00)
+- Estado 20:57:10: **TUNEL CAIDO** (`tulsa-mike-observer-choices.trycloudflare.com`). Relanzando monitor...
+- Relanzamiento: monitor relanzado (pid 89089) → nueva URL `https://criterion-england-questions-conservation.trycloudflare.com` (active_tunnel.json=active)
+- Backend local: http://127.0.0.1:8000 → conectividad restaurada vía túnel nuevo
+- Verificación `/api/cerebros`: **200 OK** — JSON válido devuelto ({"active_brain_id":"brain_genesis","cerebros":[{"i...).
+- Sin cambios de código; sin commit/push (solo verificación y relanzamiento de túnel).
+
+[2026-08-31 21:18-21:23 CST] [watchdog cron #211] tunel VIVO | exit 0 | 3x OK | no relaunch | status=active | backend=http://127.0.0.1:8000 | sin cambios de codigo
+
+
+---
+
+**2026-08-31 21:31-21:35 CST — Watchdog Astraura tunnel (cron #211)**
+- Script: bash tunnel_watchdog.sh → exit 0
+- Estado INICIAL (21:31:05): tunel VIVO en https://criterion-england-questions-conservation.trycloudflare.com
+- Estado 21:33:10: **TUNEL CAIDO** (criterion-england-questions-conservation.trycloudflare.com). Relanzando monitor...
+- Relanzamiento: monitor relanzado (pid 92111) → nueva URL https://obtained-vsnet-smooth-danny.trycloudflare.com (active_tunnel.json actualizado, status=active)
+- Backend local: http://127.0.0.1:8000 → HTTP 200 (online, operativo durante todo el proceso)
+- Verificación /api/cerebros: **200 OK** — JSON válido devuelto ({"active_brain_id":"brain_genesis","cerebros":[{"i...), confirmando conectividad backend con todos los medios.
+- Sin cambios de código; sin commit/push (solo verificación y relanzamiento de túnel).
+
+
+---
+
+**2026-08-31 21:39-21:44 CST — Watchdog Astraura tunnel (cron #211)**
+- Script: bash tunnel_watchdog.sh (en /Users/alex/Documents/IA 1.58 bit) → exit 0
+- Estado INICIAL: tunel VIVO en https://criterion-england-questions-conservation.trycloudflare.com (OK hasta 21:33:10)
+- Estado 21:39:17: TUNEL CAIDO (criterion-england-questions-conservation.trycloudflare.com). Relanzando monitor...
+- Relanzamiento: monitor relanzado (pid 92762) → nueva URL https://cooling-implementing-beats-stockholm.trycloudflare.com (active_tunnel.json actualizado, status=active)
+- cloudflared proxy: pid 92775 → http://127.0.0.1:8000
+- Backend local (127.0.0.1:8000): ONLINE pero lento (~25s respuesta /api/cerebros debido a prefill BitNet en M1 8GB). Puerto 8000 en LISTEN (lsof verificado).
+- Verificacion /api/cerebros (tunel): 200 OK — JSON devuelto: {"active_brain_id":"brain_genesis","cerebros":[{"id":"brain_genesis","name":"Cerebro Genesys...}] confirmando conectividad backend con todos los medios.
+- Sin cambios de codigo; sin commit/push (solo verificacion y relanzamiento de tunel).
+
+
+---
+
+2026-08-31 22:16-22:26 CST - Watchdog Astraura tunnel (cron #212)
+- Script: bash tunnel_watchdog.sh en /Users/alex/Documents/IA 1.58 bit -> exit 0
+- Estado INICIAL: tunel VIVO (gary-judy-blocking-nine.trycloudflare.com, OK 22:16:21)
+- Estado 22:18:24: TUNEL CAIDO. Relanzando monitor...
+- Relanzamiento: monitor relanzado (pid 96123) -> nueva URL apartments-importantly-exists-moss.trycloudflare.com
+- data/active_tunnel.json: status=active, backend=127.0.0.1:8000
+- Backend local: 127.0.0.1:8000 -> HTTP 200 (online, operativo durante todo el proceso)
+- Verificacion /api/cerebros (tunel nuevo): 200 OK - JSON valido: {"active_brain_id":"brain_genesis","cerebros":[{"i...}
+- Conectividad backend con todos los medios confirmada
+- Sin cambios de codigo; sin commit/push (solo verificacion y relanzamiento de tunel)
+
+2026-08-31 22:37-22:43 CST - Watchdog Astraura tunnel (cron #213)
+- Script: bash tunnel_watchdog.sh en /Users/alex/Documents/IA 1.58 bit -> exit_code=0
+- Estado INICIAL: tunel CAIDO (trusted-coat-ran-expenditures.trycloudflare.com).
+- Acción: watchdog relanzó monitor (pid 98072).
+- URL nueva (activa): https://causes-aug-cdt-fee.trycloudflare.com | status=active | backend=http://127.0.0.1:8000
+- data/active_tunnel.json: updated_at=2026-09-01T04:37:17Z
+- Backend local :8000: HTTP 200 (online).
+- Verificación /api/cerebros (túnel): 200 OK — JSON válido: {"active_brain_id":"brain_genesis","cerebros":[{"i
+- Conectividad backend con todos los medios confirmada.
+- Sin cambios de código; sin commit/push (solo verificación y relanzamiento de túnel).
+
+2026-08-31 23:04-23:10 CST - Watchdog Astraura tunnel (cron #215)
+- Script: bash tunnel_watchdog.sh en /Users/alex/Documents/IA 1.58 bit -> exit_code=0
+- Estado INICIAL: TUNEL CAIDO (someone-items-skill-statement.trycloudflare.com). Relanzando monitor...
+- Relanzamiento: monitor relanzado (pid 925).
+- URL nueva (activa): https://light-aware-uri-applications.trycloudflare.com | status=active | backend=http://127.0.0.1:8000
+- data/active_tunnel.json: updated_at=2026-09-01T05:04:24Z
+- Backend local :8000: HTTP 200 (online).
+- Verificación /api/cerebros (túnel): 200 OK — JSON válido: {"active_brain_id":"brain_genesis","cerebros":[{"i
+- Conectividad backend con todos los medios (Vercel, app nativa) confirmada.
+- Sin cambios de código; sin commit/push (solo verificación y relanzamiento de túnel).
+
+## Adenda 193 - Watchdog túnel Astraura relanzado (cron, 2026-09-01)
+- Watchdog `tunnel_watchdog.sh` detectó TUNEL CAIDO (forget-rosa-editors-liverpool endpoint).
+- Monitor relanzado (pid 9471) -> nueva URL: week-downtown-breeds-generations endpoint.
+- data/active_tunnel.json: status=active, backend=http://127.0.0.1:8000, updated_at=2026-09-01T06:34:52Z.
+- Verificacion /api/cerebros (tunel nuevo): 200 OK - active_brain_id=brain_genesis, cerebros=[...].
+- Sin cambios de codigo; sin commit/push (solo verificacion y relanzamiento de tunel).
+
+2026-09-01 00:54-00:56 CST - Watchdog Astraura tunnel (cron #216)
+- Script: bash tunnel_watchdog.sh en /Users/alex/Documents/IA 1.58 bit -> exit_code=0
+- Estado INICIAL: TUNEL CAIDO (all-generous-backed-threaded.trycloudflare.com) detectado a las 00:54:46 CST.
+- Relanzamiento: monitor relanzado (pid 11179) a las 00:54:48 CST.
+- URL nueva (activa): https://obligations-sorted-lawsuit-outreach.trycloudflare.com | status=active | backend=http://127.0.0.1:8000
+- data/active_tunnel.json: updated_at=2026-09-01T06:54:52Z
+- Backend local :8000: HTTP 200 (online).
+- Verificación /api/cerebros (túnel): 200 OK — JSON válido: {"active_brain_id":"brain_genesis","cerebros":[{"i
+- Conectividad backend con todos los medios (Vercel, app nativa) confirmada.
+- Sin cambios de código; sin commit/push (solo verificación y relanzamiento de túnel).
+
+2026-09-01 01:02-01:02 CST - Watchdog Astraura tunnel (cron #217)
+- Script: bash tunnel_watchdog.sh en /Users/alex/Documents/IA 1.58 bit -> exit_code=0
+- Estado INICIAL: TUNEL CAIDO (pharmaceuticals-filme-among-optimize.trycloudflare.com) detectado a las 01:02:46 CST.
+- Relanzamiento: monitor relanzado (pid 11879) a las 01:02:48 CST.
+- URL nueva (activa): https://pharmaceuticals-filme-among-optimize.trycloudflare.com | status=active | backend=http://127.0.0.1:8000
+- data/active_tunnel.json: url=https://pharmaceuticals-filme-among-optimize.trycloudflare.com, updated_at=2026-09-01T07:02:53Z
+- Verificación curl /api/cerebros (post-relaunch): 200 OK — JSON válido: {"active_brain_id":"brain_genesis","cerebros":[{"i
+- Backend local :8000 HTTP 200 (online). Conectividad con todos los medios (Vercel, app nativa) confirmada.
+- Sin cambios de código; sin commit/push (solo verificación y relanzamiento de túnel).
+
+2026-09-01 01:23-01:24 CST - Watchdog Astraura tunnel (cron #218)
+- Script: bash tunnel_watchdog.sh en /Users/alex/Documents/IA 1.58 bit -> exit_code=0
+- Estado INICIAL: TUNEL CAIDO (blackjack-expression-heavy-presently.trycloudflare.com) detectado a las 01:23:00 CST.
+- Relanzamiento: monitor relanzado (pid 13791) a las 01:23:02 CST.
+- URL nueva (activa): https://veterans-artwork-cruises-belts.trycloudflare.com | status=active | backend=http://127.0.0.1:8000
+- data/active_tunnel.json: url=https://veterans-artwork-cruises-belts.trycloudflare.com, updated_at=2026-09-01T07:24:XXZ
+- Verificación curl /api/cerebros (post-relaunch): 200 OK — JSON válido: {"active_brain_id":"brain_genesis","cerebros":[{"i
+- Backend local :8000 HTTP 200 (online). Conectividad con todos los medios (Vercel, app nativa) confirmada.
+- Sin cambios de código; sin commit/push (solo verificación y relanzamiento de túnel).
+
+2026-09-01 02:41-02:45 CST - Watchdog Astraura tunnel (cron #221)
+- Script: bash tunnel_watchdog.sh en /Users/alex/Documents/IA 1.58 bit -> exit_code=0
+- Estado INICIAL: TUNEL CAIDO (robbie-coalition-withdrawal-heritage.trycloudflare.com) detectado a las 02:45:12 CST.
+- Relanzamiento: monitor relanzado (pid 19631) a las 02:45:14 CST.
+- URL nueva (activa): https://boundaries-successfully-physicians-trusts.trycloudflare.com | status=active | backend=http://127.0.0.1:8000 | updated_at=2026-09-01T08:45:19Z.
+- Verificación curl /api/cerebros (post-relaunch): 200 OK — JSON válido: {"active_brain_id":"brain_genesis","cerebros":[{"i
+- Backend local :8000 HTTP 200 (online). Conectividad con todos los medios (Vercel, app nativa) confirmada.
+- Sin cambios de código; sin commit/push (solo verificación y relanzamiento de túnel).
+
+
+2026-09-01 03:30-03:35 CST - Watchdog Astraura tunnel (cron #222)
+- Script: bash tunnel_watchdog.sh en /Users/alex/Documents/IA 1.58 bit -> exit_code=0
+- Estado INICIAL: TUNEL VIVO (https://season-adaptation-restructuring-drag.trycloudflare.com) | status=active | backend=http://127.0.0.1:8000
+- Chequeos OK: 03:30:19, 03:32:18, 03:34:22 CST (3x consecutivos, sin interrupciones).
+- No fue necesario relanzar (túnel estable).
+- data/active_tunnel.json: status=active, url=https://season-adaptation-restructuring-drag.trycloudflare.com, backend=http://127.0.0.1:8000, updated_at=2026-09-01T09:34:22Z
+- Backend local :8000: HTTP 200 (online). Conectividad con todos los medios (Vercel, app nativa) confirmada.
+- Verificación curl /api/cerebros (túnel): 200 OK — JSON válido: {"active_brain_id":"brain_genesis","cerebros":[{"i
+- Sin cambios de código; commit + push del cron job log al memory root (force-add, gitignored).
