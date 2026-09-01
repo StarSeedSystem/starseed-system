@@ -14,7 +14,7 @@
  * cambiar después desde su editor.
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Volume2, Sliders, Sparkles, Loader2, Play, Square } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -44,8 +44,17 @@ export function SelectorVozInicial({
   const [sinVozReal, setSinVozReal] = useState(false);
 
   useEffect(() => { setModo(getModoVoz()); }, []);
-  // Si cierras o cambias de paso mientras suena la prueba, se corta.
-  useEffect(() => () => { try { window.speechSynthesis?.cancel(); } catch { /* sin motor */ } }, []);
+  // (Adenda 204) Al desmontar se corta SOLO si esta prueba estaba sonando.
+  // La versión anterior cancelaba SIEMPRE, y como React monta-desmonta-monta
+  // los efectos en desarrollo, ese `cancel()` mataba la locución de bienvenida
+  // en el mismo instante en que arrancaba: pulsabas «Con voz» y no se oía nada.
+  // En producción hacía lo mismo al pasar de paso, callando la guía entera.
+  const sonandoRef = useRef(false);
+  useEffect(() => { sonandoRef.current = sonando; }, [sonando]);
+  useEffect(() => () => {
+    if (!sonandoRef.current) return;
+    try { window.speechSynthesis?.cancel(); } catch { /* sin motor */ }
+  }, []);
 
   const elegir = useCallback(async (m: ModoVoz) => {
     setProbando(m);
@@ -85,7 +94,10 @@ export function SelectorVozInicial({
     try {
       const synth = window.speechSynthesis;
       if (!synth) { setSonando(false); return; }
-      synth.cancel();
+      // (Adenda 203) `cancel()` + `speak()` en el mismo tick encalla el motor de
+      // Chrome: la locución se crea, `speaking` pasa a true y `onstart` no llega
+      // nunca. Aquí no cancelamos: `probarVozActual` ya dejó silencio 140 ms
+      // antes, así que solo hace falta reanudar por si quedó en pausa.
       const u = new SpeechSynthesisUtterance(FRASE_PRUEBA);
       const { pitch, rate } = ajustesVozEfectivos(
         (window as unknown as { STARSEED_personality_traits?: Record<string, number> }).STARSEED_personality_traits,
@@ -97,6 +109,7 @@ export function SelectorVozInicial({
       if (voz) { u.voice = voz; u.lang = voz.lang || u.lang; }
       u.onend = () => setSonando(false);
       u.onerror = () => setSonando(false);
+      try { synth.resume(); } catch { /* sin pausa previa */ }
       synth.speak(u);
       // Red de seguridad: algunos motores no disparan onend.
       window.setTimeout(() => setSonando(false), 8000);

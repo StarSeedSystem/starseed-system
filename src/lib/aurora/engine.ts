@@ -754,6 +754,19 @@ export function useAuroraEngine(): AuroraEngine {
 
   // speakWithBrowser — habla con la Web Speech API del navegador (comportamiento
   // HISTÓRICO, intacto). Se invoca directamente o como fallback del motor OSS.
+  // (Adenda 203) Cancelador del `resume()` periódico que evita el corte de
+  // Chrome a los ~15 s de habla. Nombre propio: `keepAliveRef` ya existe y es
+  // del MICRÓFONO — pisarlo apagaría la escucha para siempre.
+  const ttsKeepAliveRef = useRef<null | (() => void)>(null);
+  // Última petición de habla (texto + instante), para no duplicar locuciones.
+  const ultimaPeticionRef = useRef<{ texto: string; t: number }>({ texto: "", t: 0 });
+  // Texto que el navegador tiene ahora mismo sonando o en cola.
+  const enVueloRef = useRef<string | null>(null);
+  const clearKeepAlive = useCallback(() => {
+    try { ttsKeepAliveRef.current?.(); } catch { /* */ }
+    ttsKeepAliveRef.current = null;
+  }, []);
+
   const speakWithBrowser = useCallback((clean: string, p: Personality) => {
     if (typeof window === "undefined" || typeof window.speechSynthesis === "undefined") return;
     if (p.provider !== "browser" && p.provider !== "astraura") {
@@ -762,16 +775,34 @@ export function useAuroraEngine(): AuroraEngine {
     }
 
     try {
-      window.speechSynthesis.cancel();
+      const synth = window.speechSynthesis;
+      // (Adenda 204) Si YA está sonando —o en cola— exactamente este texto, no
+      // se vuelve a empezar. `speakWithBrowser` arranca cancelando, así que una
+      // segunda petición del mismo texto mataría la locución en curso y el
+      // usuario no oiría nada: es justo el fallo que se reprodujo en vivo (una
+      // locución con `error: "canceled"` y otra que ya no llegaba a sonar).
+      if ((synth.speaking || synth.pending) && enVueloRef.current === clean) return;
+      enVueloRef.current = clean;
+      // ── (Adenda 203) EL ENCALLE DE CHROME ────────────────────────────────
+      // Diagnóstico en vivo: la locución se creaba con su voz correcta y
+      // `speechSynthesis.speaking` pasaba a true, pero `onstart` NO disparaba
+      // NUNCA y no salía ni un sonido. Es el fallo conocido de Chrome (macOS
+      // sobre todo): `cancel()` y `speak()` en el MISMO tick dejan la cola del
+      // motor encallada. Aquí se hacía exactamente eso.
+      // Ahora: cancelar → ceder un tick → `resume()` (por si quedó en pausa) →
+      // hablar. Y si aun así no arranca en 1,2 s, un reintento limpio.
+      synth.cancel();
       const u = resolveBrowserUtterance(clean, p);
+      let arranco = false;
       u.onstart = () => {
+        arranco = true;
         setSpeaking(true); setPaused(false); emitAuroraSpeak("start");
         markTtsSpeaking(true); // anti-eco GLOBAL: ignora la voz propia
       };
       // Cada límite de palabra/frase impulsa el latido del glow del Orbe.
       u.onboundary = () => emitAuroraSpeak("boundary");
-      u.onend = () => { finishTts(); };
-      u.onerror = () => { finishTts(); };
+      u.onend = () => { if (enVueloRef.current === clean) enVueloRef.current = null; clearKeepAlive(); finishTts(); };
+      u.onerror = () => { if (enVueloRef.current === clean) enVueloRef.current = null; clearKeepAlive(); finishTts(); };
       // Abre la ventana anti-eco YA (antes de onstart) para cubrir el arranque
       // del habla: el micrófono no debe procesar ni el primer fonema propio.
       markTtsSpeaking(true);
@@ -786,13 +817,39 @@ export function useAuroraEngine(): AuroraEngine {
       // textos largos), reanuda igualmente tras una duración estimada.
       if (ttsWatchdogRef.current) clearTimeout(ttsWatchdogRef.current);
       const estMs = Math.min(30000, 1600 + clean.length * 80);
-      ttsWatchdogRef.current = setTimeout(() => { finishTts(); }, estMs);
-      window.speechSynthesis.speak(u);
+      ttsWatchdogRef.current = setTimeout(() => { clearKeepAlive(); finishTts(); }, estMs);
+
+      // Chrome corta el habla sola a los ~15 s. Un `resume()` periódico mientras
+      // suena evita que la guía se quede a medias en las frases largas.
+      const keepAlive = window.setInterval(() => {
+        try { if (synth.speaking) synth.resume(); } catch { /* */ }
+      }, 9000);
+      ttsKeepAliveRef.current = () => window.clearInterval(keepAlive);
+
+      const lanzar = () => {
+        try { synth.resume(); } catch { /* */ }
+        synth.speak(u);
+      };
+      // El tick de respiro es lo que desencalla el motor.
+      window.setTimeout(() => {
+        lanzar();
+        // (Adenda 204) Reintento MUY conservador. El de la 203 cancelaba a los
+        // 1,2 s "por si acaso" y, como el motor de macOS tarda más que eso en
+        // arrancar un texto largo, mataba la locución que iba a empezar: cuatro
+        // intentos seguidos cancelándose y silencio absoluto.
+        // Ahora solo se reintenta ante la firma REAL del encalle: no arrancó Y
+        // no hay nada sonando NI en cola. Si está `pending`, está a punto de
+        // hablar: no se toca.
+        window.setTimeout(() => {
+          if (arranco || synth.speaking || synth.pending) return;
+          try { lanzar(); } catch { /* */ }
+        }, 1800);
+      }, 90);
       setPaused(false);
     } catch {
       finishTts();
     }
-  }, [speakPremium, finishTts]);
+  }, [speakPremium, finishTts, clearKeepAlive]);
 
   // speak — Punto de entrada del habla de Aurora. ADITIVO Y DEFENSIVO:
   //   1) Limpia el texto (quita marcadores [[goto:...]]).
@@ -807,6 +864,21 @@ export function useAuroraEngine(): AuroraEngine {
     // `speakQueued()` para que ambas rutas limpien EXACTAMENTE igual.
     const { clean, cleanChain } = sanitizeSpeechText(text);
     if (!clean && !cleanChain) return;
+
+    // ── (Adenda 204) UNA VOZ POR TEXTO ────────────────────────────────────
+    // Diagnóstico en vivo: al empezar la guía salían CUATRO locuciones del
+    // mismo saludo y las tres primeras morían con `error: "canceled"` — cada
+    // `speakWithBrowser` arranca cancelando, así que peticiones solapadas del
+    // MISMO texto se matan entre sí y no se oye nada. Pasa en cuanto dos
+    // caminos piden lo mismo casi a la vez (arranque del rito + narración del
+    // paso, o un doble render en desarrollo).
+    // Si ya hay en vuelo una petición con este mismo texto, se ignora la nueva.
+    const ahora = Date.now();
+    if (ultimaPeticionRef.current.texto === clean && ahora - ultimaPeticionRef.current.t < 5000) {
+      return;
+    }
+    ultimaPeticionRef.current = { texto: clean, t: ahora };
+
     const p = forcePersonality || activeRef.current;
 
     const runBrowser = () => speakWithBrowser(clean, p);

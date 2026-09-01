@@ -741,7 +741,7 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
               <div className="grid gap-3 sm:grid-cols-2">
                 <button
                   type="button"
-                  onClick={() => setModoInicio("voz")}
+                  onClick={() => { setModoInicio("voz"); void startVoice(); }}
                   aria-pressed={modoInicio === "voz"}
                   className={cn(
                     "group relative overflow-hidden rounded-2xl border p-5 text-center transition-all duration-200",
