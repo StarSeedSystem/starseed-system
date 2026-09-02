@@ -90,6 +90,21 @@ async function hay158(): Promise<boolean> {
 export async function motorPreferido(): Promise<MotorVoz> {
     if (typeof window === "undefined") return SISTEMA;
 
+    // 0 · (Adenda 217) El motor neuronal local (OmniVoice GGUF por llama.cpp),
+    //     si su daemon está listo en esta máquina. Es la voz de verdad.
+    try {
+        const ml = await import("@/lib/aurora/motor-local");
+        const est = await ml.estadoMotorLocal();
+        if (est.listo) {
+            return {
+                id: "astraura-158",
+                nombre: `Astraura local · OmniVoice ${est.quant || "GGUF"} · ${est.backend === "metal" ? "Metal" : "CPU"}`,
+                nota: "Voz neuronal sintetizada en tu propio equipo, sin red. Las frases siguientes se anticipan para sonar al instante.",
+                local: true,
+            };
+        }
+    } catch { /* */ }
+
     // 1 · El nuestro, si está.
     try { if (await hay158()) return ASTRAURA_158; } catch { /* */ }
 

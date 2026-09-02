@@ -43,6 +43,8 @@ const RELEVO_MS = 1200;
 /** Evento con el resultado real del intento de hablar. */
 export const VOZ_RITO_EVENT = "starseed:voz-rito";
 export type EstadoVozRito =
+    /** El motor local está sintetizando esta frase (se muestra la semilla). */
+    | "preparando"
     /** Suena por la voz del sistema (la vía instantánea). */
     | "navegador"
     /** Suena por el motor propio de Astraura (audio, otra vía). */
@@ -98,6 +100,7 @@ export function callarRito(): void {
     if (relevo) { clearTimeout(relevo); relevo = null; }
     pararLatido();
     try { window.speechSynthesis?.cancel(); } catch { /* sin motor */ }
+    void import("@/lib/aurora/motor-local").then((m) => m.pararLocal()).catch(() => null);
     void import("@/lib/aurora/tts-oss/speak-router")
         .then((m) => m.stopConfiguredEngine())
         .catch(() => null);
@@ -231,6 +234,29 @@ export function hablarRito(texto: string): boolean {
     // Así que si el motor local ya está en este dispositivo, habla él. Sin
     // esperas ni comprobaciones: es la vía buena, no el plan B.
     void (async () => {
+        // ── (Adenda 217) EL MOTOR NEURONAL LOCAL, PRIMERO ────────────────────
+        // OmniVoice en GGUF cuantizado corriendo en esta máquina (daemon en
+        // 127.0.0.1:4444). Si está listo, habla él: voz neuronal real, sin red,
+        // igual en cualquier equipo. La frase se pide (o ya estaba anticipada)
+        // y se reproduce por <audio>, que funciona donde funciona cualquier
+        // sonido — incluidos los navegadores con el motor de voz muerto.
+        try {
+            const ml = await import("@/lib/aurora/motor-local");
+            if (miTurno !== turno) return;
+            const est = await ml.estadoMotorLocal();
+            if (miTurno !== turno) return;
+            if (est.listo) {
+                avisar("preparando");
+                // Por frases: la primera suena en segundos; el resto se encadena.
+                const sono = await ml.hablarLocalPorFrases(limpio, timbreEfectivo(), () => {
+                    if (miTurno === turno) avisar("motor");   // primera frase sonando
+                });
+                if (miTurno !== turno) return;
+                if (sono) return;   // sonó de verdad: turno cerrado
+                // Si el daemon no pudo con esta frase, seguimos con las otras vías.
+            }
+        } catch { /* seguimos con las otras vías */ }
+
         try {
             const kok = await import("@/lib/aurora/tts-oss/kokoro");
             if (miTurno !== turno) return;
@@ -349,4 +375,21 @@ function porElSistema(limpio: string, miTurno: number): void {
             porElMotor(limpio, miTurno);
         }
     }, 90);
+}
+
+
+/**
+ * (Adenda 217) Anticipa frases en el motor local para que, cuando toquen,
+ * suenen al instante. No espera, no lanza: si el daemon no está, no hace nada.
+ */
+export function anticiparRito(textos: string[]): void {
+    if (typeof window === "undefined") return;
+    void import("@/lib/aurora/motor-local")
+        .then(async (m) => {
+            const est = await m.estadoMotorLocal();
+            if (!est.listo) return;
+            m.precalentarMotorLocal();
+            m.anticiparLocal(textos, timbreEfectivo());
+        })
+        .catch(() => null);
 }

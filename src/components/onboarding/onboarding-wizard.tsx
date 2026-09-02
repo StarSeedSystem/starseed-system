@@ -44,7 +44,7 @@ import { loadConfigs } from "@/ai/client/providerStore";
 import { buildSystemPrompt, DEFAULT_PERSONALITY } from "@/lib/aurora/types";
 import { OPEN_GUIDE_EVENT } from "./aurora-guide";
 import { marcarVozDelRito } from "@/lib/aurora/narracion-ventana";
-import { hablarRito, callarRito, instalarVozPropia, VOZ_RITO_EVENT, type EstadoVozRito } from "@/lib/aurora/voz-rito";
+import { hablarRito, callarRito, instalarVozPropia, anticiparRito, VOZ_RITO_EVENT, type EstadoVozRito } from "@/lib/aurora/voz-rito";
 import { AnimatePresence, motion } from "framer-motion";
 import { PasoEscena } from "@/components/onboarding/paso-escena";
 import { StarSeedLoader } from "@/components/ui/starseed-loader";
@@ -270,6 +270,28 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
     return () => window.removeEventListener(VOZ_RITO_EVENT, on);
   }, []);
 
+  // (Adenda 217) El daemon de voz se duerme tras unos minutos sin uso y
+  // relanzar su servidor cuesta ~20 s. Mientras el rito esté abierto, se le
+  // mantiene despierto: así la siguiente frase no paga ese arranque.
+  useEffect(() => {
+    let abierto = true;
+    let parar: (() => void) | null = null;
+    void import("@/lib/aurora/motor-local")
+      .then((m) => { if (abierto) parar = m.mantenerCaliente(() => abierto); })
+      .catch(() => null);
+    // Y la INTRO se sintetiza ya, antes de que pulses nada: para cuando
+    // elijas «Con voz», Astraura tiene su saludo listo y suena al instante.
+    anticiparRito([STEP_NARRATION[0]]);
+    return () => { abierto = false; parar?.(); };
+  }, []);
+
+  // (Adenda 217) ANTICIPACIÓN: mientras lees este paso, el motor local ya
+  // sintetiza los dos siguientes. Al llegar, la voz sale al instante.
+  useEffect(() => {
+    if (!voiceStarted) return;
+    anticiparRito([STEP_NARRATION[step + 1], STEP_NARRATION[step + 2]].filter(Boolean) as string[]);
+  }, [step, voiceStarted]);
+
   // ── narración de Astraura al cambiar de paso ──
   useEffect(() => {
     const base = STEP_NARRATION[step] || "";
@@ -330,6 +352,7 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
       // (Adenda 208) El rito habla YA, por el motor del navegador: el `speak()`
       // general prueba antes la cadena OSS por red y eso se oye como silencio.
       marcarVozDelRito(true);
+      anticiparRito([STEP_NARRATION[1], STEP_NARRATION[2]].filter(Boolean) as string[]);
       if (hablarRito(intro)) {
         // sonando al instante
       } else if (aurora?.supported && aurora?.speak) {
@@ -704,7 +727,9 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
               {voiceStarted && (
                 vozReal === "muda" || vozReal === "instalable"
                   ? <Badge variant="outline" className="border-amber-400/40 text-[9px] text-amber-200">sin sonido</Badge>
-                  : <Badge variant="outline" className="border-fuchsia-400/40 text-[9px] text-fuchsia-200">voz activa</Badge>
+                  : vozReal === "preparando"
+                    ? <Badge variant="outline" className="border-cyan-400/40 text-[9px] text-cyan-200">preparando voz…</Badge>
+                    : <Badge variant="outline" className="border-fuchsia-400/40 text-[9px] text-fuchsia-200">voz activa</Badge>
               )}
             </div>
             <p className="mx-auto max-w-md text-[13.5px] leading-relaxed text-white/85">{astrauraText}</p>

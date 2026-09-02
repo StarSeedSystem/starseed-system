@@ -34,8 +34,17 @@ export interface Timbre {
     nombre: string;
     genero: VoiceGender;
     desc: string;
-    /** Receta en el MOTOR LOCAL (la que manda). */
-    local: { voz: string; speed: number };
+    /**
+     * Receta en el MOTOR LOCAL (la que manda).
+     *  · voz      — voz del motor WASM (Kokoro) si se usa esa vía.
+     *  · speed    — velocidad.
+     *  · instruct — (Adenda 217) instrucción de estilo para el motor neuronal
+     *               local (OmniVoice): el CARÁCTER, en palabras. Es lo que
+     *               Chatterbox llama «exaggeration»/estilo y VoxCPM «prosodia
+     *               consciente del contexto»: aquí viaja como texto.
+     *  · ref      — WAV de referencia para clonar (la voz de Aurora), si aplica.
+     */
+    local: { voz: string; speed: number; instruct?: string; ref?: string };
     /** Respaldo con voz del sistema, solo mientras no esté el motor local. */
     sistema: { bases: string[]; pitch: number; rate: number };
     /**
@@ -64,20 +73,20 @@ const VOCES_PERSONAJE = ["eddy", "flo", "grandma", "grandpa", "reed", "rocko", "
  */
 export const TIMBRES: Timbre[] = [
     // ── Femeninas · voz neuronal ef_dora ──────────────────────────────────────────
-    { id: "fem-aurora", nombre: "Aurora", genero: "femenina", desc: "Cálida, cercana y natural", local: { voz: "ef_dora", speed: 1.0 }, sistema: { bases: ["Paulina", "Mónica", "Monica"], pitch: 1.0, rate: 0.94 }, expr: { arco: 0.16, vivacidad: 0.1, calidez: 0.14 } },
-    { id: "fem-luna", nombre: "Luna", genero: "femenina", desc: "Luminosa y expresiva", local: { voz: "ef_dora", speed: 1.14 }, sistema: { bases: ["Paulina", "Mónica", "Monica"], pitch: 1.16, rate: 1.08 }, expr: { arco: 0.22, vivacidad: 0.2, calidez: 0.1 } },
-    { id: "fem-vega", nombre: "Vega", genero: "femenina", desc: "Profunda y envolvente", local: { voz: "ef_dora", speed: 0.86 }, sistema: { bases: ["Mónica", "Monica", "Paulina"], pitch: 0.86, rate: 0.86 }, expr: { arco: 0.1, vivacidad: 0.05, calidez: 0.06 } },
-    { id: "fem-iris", nombre: "Iris", genero: "femenina", desc: "Ágil, viva y despierta", local: { voz: "ef_dora", speed: 1.28 }, sistema: { bases: ["Paulina", "Mónica", "Monica"], pitch: 1.08, rate: 1.22 }, expr: { arco: 0.26, vivacidad: 0.28, calidez: 0.12 } },
+    { id: "fem-aurora", nombre: "Aurora", genero: "femenina", desc: "Cálida, cercana y natural", local: { voz: "ef_dora", speed: 1.0, instruct: "cálida, cercana y serena, como quien acompaña", ref: "/Users/alex/.starseed/astraura-voice/refs/aurora.wav" }, sistema: { bases: ["Paulina", "Mónica", "Monica"], pitch: 1.0, rate: 0.94 }, expr: { arco: 0.16, vivacidad: 0.1, calidez: 0.14 } },
+    { id: "fem-luna", nombre: "Luna", genero: "femenina", desc: "Luminosa y expresiva", local: { voz: "ef_dora", speed: 1.14, instruct: "luminosa, alegre y expresiva", ref: "/Users/alex/.starseed/astraura-voice/refs/aurora.wav" }, sistema: { bases: ["Paulina", "Mónica", "Monica"], pitch: 1.16, rate: 1.08 }, expr: { arco: 0.22, vivacidad: 0.2, calidez: 0.1 } },
+    { id: "fem-vega", nombre: "Vega", genero: "femenina", desc: "Profunda y envolvente", local: { voz: "ef_dora", speed: 0.86, instruct: "grave, envolvente y pausada", ref: "/Users/alex/.starseed/astraura-voice/refs/aurora.wav" }, sistema: { bases: ["Mónica", "Monica", "Paulina"], pitch: 0.86, rate: 0.86 }, expr: { arco: 0.1, vivacidad: 0.05, calidez: 0.06 } },
+    { id: "fem-iris", nombre: "Iris", genero: "femenina", desc: "Ágil, viva y despierta", local: { voz: "ef_dora", speed: 1.28, instruct: "ágil, vivaz y despierta", ref: "/Users/alex/.starseed/astraura-voice/refs/aurora.wav" }, sistema: { bases: ["Paulina", "Mónica", "Monica"], pitch: 1.08, rate: 1.22 }, expr: { arco: 0.26, vivacidad: 0.28, calidez: 0.12 } },
     // ── Masculinas · em_alex / em_santa ──────────────────────────────────────────
-    { id: "masc-orion", nombre: "Orión", genero: "masculina", desc: "Grave y sereno", local: { voz: "em_alex", speed: 0.94 }, sistema: { bases: ["Jorge", "Diego", "Paulina", "Mónica", "Monica"], pitch: 0.72, rate: 0.92 }, expr: { arco: 0.13, vivacidad: 0.08, calidez: 0.08 } },
-    { id: "masc-atlas", nombre: "Atlas", genero: "masculina", desc: "Rotundo y solemne", local: { voz: "em_santa", speed: 0.86 }, sistema: { bases: ["Jorge", "Diego", "Mónica", "Monica", "Paulina"], pitch: 0.6, rate: 0.84 }, expr: { arco: 0.08, vivacidad: 0.04, calidez: 0.04 } },
-    { id: "masc-hermes", nombre: "Hermes", genero: "masculina", desc: "Cercano y conversacional", local: { voz: "em_alex", speed: 1.18 }, sistema: { bases: ["Jorge", "Diego", "Paulina", "Mónica", "Monica"], pitch: 0.86, rate: 1.12 }, expr: { arco: 0.24, vivacidad: 0.26, calidez: 0.16 } },
-    { id: "masc-kepler", nombre: "Kepler", genero: "masculina", desc: "Suave y reflexivo", local: { voz: "em_santa", speed: 1.02 }, sistema: { bases: ["Jorge", "Diego", "Paulina", "Mónica", "Monica"], pitch: 0.78, rate: 0.8 }, expr: { arco: 0.11, vivacidad: 0.06, calidez: 0.1 } },
+    { id: "masc-orion", nombre: "Orión", genero: "masculina", desc: "Grave y sereno", local: { voz: "em_alex", speed: 0.94, instruct: "voz masculina grave, serena y segura" }, sistema: { bases: ["Jorge", "Diego", "Paulina", "Mónica", "Monica"], pitch: 0.72, rate: 0.92 }, expr: { arco: 0.13, vivacidad: 0.08, calidez: 0.08 } },
+    { id: "masc-atlas", nombre: "Atlas", genero: "masculina", desc: "Rotundo y solemne", local: { voz: "em_santa", speed: 0.86, instruct: "voz masculina profunda, rotunda y solemne" }, sistema: { bases: ["Jorge", "Diego", "Mónica", "Monica", "Paulina"], pitch: 0.6, rate: 0.84 }, expr: { arco: 0.08, vivacidad: 0.04, calidez: 0.04 } },
+    { id: "masc-hermes", nombre: "Hermes", genero: "masculina", desc: "Cercano y conversacional", local: { voz: "em_alex", speed: 1.18, instruct: "voz masculina cercana, ágil y conversacional" }, sistema: { bases: ["Jorge", "Diego", "Paulina", "Mónica", "Monica"], pitch: 0.86, rate: 1.12 }, expr: { arco: 0.24, vivacidad: 0.26, calidez: 0.16 } },
+    { id: "masc-kepler", nombre: "Kepler", genero: "masculina", desc: "Suave y reflexivo", local: { voz: "em_santa", speed: 1.02, instruct: "voz masculina suave, reflexiva y pausada" }, sistema: { bases: ["Jorge", "Diego", "Paulina", "Mónica", "Monica"], pitch: 0.78, rate: 0.8 }, expr: { arco: 0.11, vivacidad: 0.06, calidez: 0.1 } },
     // ── Neutras ──────────────────────────────────────────
-    { id: "neu-zenit", nombre: "Zenit", genero: "neutra", desc: "Equilibrado y claro", local: { voz: "em_alex", speed: 1.06 }, sistema: { bases: ["Paulina", "Mónica", "Monica"], pitch: 0.9, rate: 1.0 }, expr: { arco: 0.15, vivacidad: 0.14, calidez: 0.1 } },
-    { id: "neu-eco", nombre: "Eco", genero: "neutra", desc: "Sereno, sin marca", local: { voz: "ef_dora", speed: 0.92 }, sistema: { bases: ["Mónica", "Monica", "Paulina"], pitch: 0.94, rate: 0.9 }, expr: { arco: 0.1, vivacidad: 0.07, calidez: 0.07 } },
-    { id: "neu-nova", nombre: "Nova", genero: "neutra", desc: "Brillante y despierto", local: { voz: "em_alex", speed: 1.22 }, sistema: { bases: ["Paulina", "Mónica", "Monica"], pitch: 1.02, rate: 1.16 }, expr: { arco: 0.23, vivacidad: 0.24, calidez: 0.13 } },
-    { id: "neu-solis", nombre: "Solis", genero: "neutra", desc: "Amplio y calmado", local: { voz: "em_santa", speed: 1.1 }, sistema: { bases: ["Mónica", "Monica", "Paulina"], pitch: 0.82, rate: 0.88 }, expr: { arco: 0.12, vivacidad: 0.06, calidez: 0.09 } },
+    { id: "neu-zenit", nombre: "Zenit", genero: "neutra", desc: "Equilibrado y claro", local: { voz: "em_alex", speed: 1.06, instruct: "timbre neutro, equilibrado y claro" }, sistema: { bases: ["Paulina", "Mónica", "Monica"], pitch: 0.9, rate: 1.0 }, expr: { arco: 0.15, vivacidad: 0.14, calidez: 0.1 } },
+    { id: "neu-eco", nombre: "Eco", genero: "neutra", desc: "Sereno, sin marca", local: { voz: "ef_dora", speed: 0.92, instruct: "timbre neutro, sereno y sin marca de género" }, sistema: { bases: ["Mónica", "Monica", "Paulina"], pitch: 0.94, rate: 0.9 }, expr: { arco: 0.1, vivacidad: 0.07, calidez: 0.07 } },
+    { id: "neu-nova", nombre: "Nova", genero: "neutra", desc: "Brillante y despierto", local: { voz: "em_alex", speed: 1.22, instruct: "timbre neutro, brillante y despierto" }, sistema: { bases: ["Paulina", "Mónica", "Monica"], pitch: 1.02, rate: 1.16 }, expr: { arco: 0.23, vivacidad: 0.24, calidez: 0.13 } },
+    { id: "neu-solis", nombre: "Solis", genero: "neutra", desc: "Amplio y calmado", local: { voz: "em_santa", speed: 1.1, instruct: "timbre neutro, amplio y calmado" }, sistema: { bases: ["Mónica", "Monica", "Paulina"], pitch: 0.82, rate: 0.88 }, expr: { arco: 0.12, vivacidad: 0.06, calidez: 0.09 } },
 ];
 
 export const TIMBRE_PREDETERMINADO: Record<VoiceGender, string> = {
