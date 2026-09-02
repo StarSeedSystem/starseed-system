@@ -393,3 +393,14 @@
 - Conectividad backend con todos los medios (Vercel, app nativa) confirmada y operativa.
 - cloudflared pid 93628: conectado QUIC checks PASS. tunnel_monitor.sh pid 92661: loop activo.
 - Sin cambios de codigo; solo verificacion y relanzamiento de tunel.
+## Adenda 237 - Watchdog tunel Astraura (cron #237, 2026-09-02 12:36 CST)
+- Comando: bash tunnel_watchdog.sh en IA 1.58 bit
+- Resultado: EXITO (exit_code=0). TUNEL VIVO. NO fue relanzado.
+- URL activa: https://button-dont-noted-rob.trycloudflare.com
+- Status: active, backend en localhost puerto 8000
+- Watchdog log (ultimas 3 entradas): todas OK tunel vivo
+- data/active_tunnel.json: status=active
+- No relanzar necesario, no se corrio curl /api/cerebros
+- Backend local: HTTP 200 online. BitNet i2_s saludable.
+- Conectividad con todos los medios (Vercel, app nativa) confirmada.
+- Sin cambios de codigo; sin commit/push.

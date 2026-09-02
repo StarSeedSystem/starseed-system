@@ -385,3 +385,7 @@
 [2026-09-02T17:11:12Z] [cron-235] Watchdog Astraura: TUNEL VIVO (no relanzado). URL=commit-dos-bolt-thousand.trycloudflare.com | Backend 8000: 200. curl /api/cerebros no ejecutado (túnel no fue relanzado). Exit=0. Sin cambios de código.
 
 [2026-09-02T18:10:45Z] [cron-236] Watchdog Astraura: TUNEL CAIDO (commit-dos-bolt-thousand) → monitor relanzado (pid 92661). Nueva URL: something-aqua-cultures-briefing.trycloudflare.com → HTTP 530 (stale forwarding, backend 8000 healthy=200). Kill cloudflared 92674 → monitor rearroncó (pid 93628) → túnel fresco: button-dont-noted-rob.trycloudflare.com. curl /api/cerebros: **200 OK** JSON `{"active_brain_id":"brain_genesis","cerebros":[...]`. Backend :8000: 200. BitNet i2_s saludable. Conectividad Vercel+app nativa: OK. Exit=0.
+
+---
+
+[2026-09-02T18:36:44Z] [cron-237] Watchdog Astraura: TUNEL VIVO (no relanzado). URL=button-dont-noted-rob.trycloudflare.com | Backend :8000: 200. curl /api/cerebros no ejecutado (tunel no fue relanzado). Exit=0. Sin cambios de codigo; sin commit/push.
