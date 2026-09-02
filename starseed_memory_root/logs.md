@@ -335,3 +335,45 @@
 - Vercel starseed-system: READY (sin cambios desde A192). Sin deploy necesario.
 - Sin cambios de codigo; sin commit/push (solo verificacion y relanzamiento de tunel).
 
+
+---
+- [Wed Sep  2 00:53:02 CST 2026] Watchdog Astraura tunnel ejecutado.
+- Resultado: TUNEL VIVO (exit_code=0). No se requirió relanzamiento.
+- URL activa: https://encryption-first-apparatus-style.trycloudflare.com | status=active | backend=http://127.0.0.1:8000
+- Watchdog log (ultimas 3 entradas): todas "OK tunel vivo" con la misma URL.
+- active_tunnel.json: ALIVE flag no presente (solo url), pero watchdog confirma status activo.
+- No se hicieron cambios de codigo; sin commit/push (solo verificacion).
+
+
+---
+## Adenda 230 - Watchdog túnel Astraura (cron, 2026-09-02 01:11-01:14 CST)
+- Acción: ejecutar tunnel_watchdog.sh y confirmar con curl /api/cerebros.
+- Resultado: TUNEL CAIDO detectado por watchdog → relanzado (exit_code=0).
+- Watchdog log (últimas 3 entradas):
+  [Wed Sep  2 01:11:32 CST 2026] OK tunel vivo: https://separate-determined-medication-strengths.trycloudflare.com
+  [Wed Sep  2 01:12:35 CST 2026] TUNEL CAIDO (...separate-determined-medication-strengths...). Relanzando monitor...
+  [Wed Sep  2 01:12:38 CST 2026] Monitor relanzado (pid 69825)
+- Estado INICIAL: VIVO (separate-determined-medication-strengths) → CAIDO → monitor relanzado.
+- Estado FINAL: VIVO tras corrección de URL en JSON.
+- Cloudflared (pid 69838): conectado a Cloudflare (QUIC, región QRO), todos los checks PASS.
+  URL real del túnel: https://pets-cabin-mileage-isaac.trycloudflare.com
+- Race condition: monitor escribió URL vieja en active_tunnel.json antes de que cloudflared imprimiera la nueva. -> HTTP 530.
+- Fix operacional: actualizados data/active_tunnel.json + frontend/public/active_tunnel.json con URL real.
+- data/active_tunnel.json: status=active, url=https://pets-cabin-mileage-isaac.trycloudflare.com, backend=http://127.0.0.1:8000, updated_at corregido.
+- Backend local 8000: HTTP 200 (online, JSON válido: {"active_brain_id":"brain_genesis","cerebros":[{"i...}).
+- curl /api/cerebros (túnel post-fix): HTTP 200 — JSON válido (`{"active_brain_id":"brain_genesis","cerebros":[{"i...`).
+- Conectividad backend con todos los medios (Vercel, app nativa) confirmada.
+- Sin cambios de código (solo data/JSON operacional); commit + push pendiente.
+
+---
+
+## Adenda 231 - Watchdog túnel Astraura (cron, 2026-09-02 01:44 CST)
+- Acción: ejecutar tunnel_watchdog.sh. No relanzamiento necesario (túnel ya VIVO en este run).
+- Resultado: TUNEL VIVO (exit_code=0). NO fue relanzado en este run.
+- URL activa: https://parliamentary-raised-product-contamination.trycloudflare.com | status=active | backend=http://127.0.0.1:8000
+- Watchdog log (últimas 3 entradas): todas "OK tunel vivo" con la URL parliamentary-raised-product-contamination.
+- Nota: el túnel fue relanzado previamente (~01:24 CST, pid 71152) con una URL nueva; el watchdog de ESTE run lo encontró ya VIVO.
+- Backend local 8000: HTTP 200 (online, JSON válido).
+- curl /api/cerebros: HTTP 200 — JSON válido (\`{"active_brain_id":"brain_genesis","cerebros":[{"i...\`).
+- Conectividad backend con todos los medios (Vercel, app nativa) confirmada.
+- Sin cambios de código (solo verificación). commit + push pendiente.

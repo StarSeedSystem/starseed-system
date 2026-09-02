@@ -378,3 +378,25 @@
 - starseed-system en producción: READY (sin cambios desde A192).
 - Sin deploy necesario (tunel Astraura verificado directamente; no hubo cambios de codigo).
 - Sin commit/push del codigo (solo actualizacion de memory root).
+
+### §0.0 — Medios actualización (cron watchdog Astraura, 2026-09-02 01:11-01:14 CST)
+- Túnel Astraura: CAIDO → relanzado → VIVO (post-fix JSON URL).
+- URL activa: https://pets-cabin-mileage-isaac.trycloudflare.com | status=active | backend=http://127.0.0.1:8000
+- Backend local :8000: HTTP 200 (online). BitNet i2_s saludable (llama-server 8790).
+- Cloudflared pid 69838: conectado (QUIC, región QRO), checks PASS.
+- Nota: race condition en tunnel_monitor.sh — escribió URL vieja antes de la nueva. Corregido manualmente en data/active_tunnel.json y frontend/public/active_tunnel.json.
+### §2.3 Vercel — Estado (2026-09-02 01:12 CST)
+- starseed-system en producción: READY (sin cambios desde A192). Sin deploy necesario.
+- Astraura túnel: relanzado, active_tunnel.json corregido. Backend BitNet conectado OK.
+
+
+### §0.0 — Medios actualización (cron watchdog Astraura, 2026-09-02 01:44 CST)
+- Túnel Astraura: VIVO (no relanzado en este run). URL: https://parliamentary-raised-product-contamination.trycloudflare.com | status=active | backend=http://127.0.0.1:8000
+- Backend local :8000: HTTP 200 (online). BitNet i2_s saludable (llama-server 8790).
+- curl /api/cerebros: HTTP 200 — JSON válido (brain_genesis respondiendo).
+- Conectividad con todos los medios (Vercel, app nativa) confirmada.
+- Nota: túnel fue relanzado previamente (~01:24 CST) con URL nueva; watchdog de este run lo encontró VIVO.
+- Sin cambios de código; sin commit/push (solo verificación).
+### §2.3 Vercel — Estado (2026-09-02 01:44 CST)
+- starseed-system: READY (sin cambios desde A192). Sin deploy necesario.
+- Astraura túnel: VIVO. Backend BitNet conectado OK.
