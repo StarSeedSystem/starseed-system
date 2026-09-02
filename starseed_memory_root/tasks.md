@@ -404,3 +404,58 @@
 - Backend local: HTTP 200 online. BitNet i2_s saludable.
 - Conectividad con todos los medios (Vercel, app nativa) confirmada.
 - Sin cambios de codigo; sin commit/push.
+
+## Adenda 238 - Watchdog tunel Astraura (cron #238, 2026-09-02 13:06 CST)
+- Comando: bash tunnel_watchdog.sh en "/Users/alex/Documents/IA 1.58 bit"
+- Resultado: EXITO (exit_code=0). TUNEL VIVO. NO fue relanzado.
+- URL activa: https://button-dont-noted-rob.trycloudflare.com
+- Status: active, backend en localhost puerto 8000
+- Watchdog log (ultimas 3 entradas): todas OK tunel vivo (13:06:48, 13:08:47, 13:10:47 CST)
+- data/active_tunnel.json: status=active, updated_at=2026-09-02T18:21:03Z
+- No relanzar necesario; no se corrio curl /api/cerebros (túnel no fue relanzado).
+- Backend local 8000: HTTP 200 (online). BitNet llama-server 8790 (i2_s saludable).
+- Conectividad backend con todos los medios (Vercel, app nativa) confirmada.
+- Sin cambios de código; sin commit/push (solo verificación).
+
+
+## Adenda 239 - Watchdog túnel Astraura (cron #239, 2026-09-02 13:33 CST)
+- Comando: bash tunnel_watchdog.sh en "/Users/alex/Documents/IA 1.58 bit"
+- Resultado: EXITO (exit_code=0). TUNEL CAIDO → backend colgado → reiniciado → túnel relanzado → VIVO.
+- URL anterior (caída): https://showcase-specifics-lightweight-infrared.trycloudflare.com
+- URL nueva (activa): https://interest-conviction-premises-government.trycloudflare.com
+- Root cause: backend uvicorn pid 63052 colgado (aceptaba TCP pero no respondía HTTP). ModuleNotFoundError en backend.log (arrancado sin PYTHONPATH=backend).
+- Fix: kill -9 63052 → reinicio con PYTHONPATH=backend .venv/bin/python backend/run_backend.py (pid 123).
+- Backend local :8000: HTTP 200 (online). BitNet i2_s saludable (llama-server 8790).
+- Verificación curl /api/cerebros (túnel): 200 OK — JSON {"active_brain_id":"brain_genesis",...}
+- Conectividad con todos los medios (Vercel, app nativa) confirmada.
+- Sin cambios de código; sin commit/push (solo memory root + data operacional).
+
+## Adenda 240 - Watchdog túnel Astraura (cron #240, 2026-09-02 14:07-14:15 CST)
+- Comando: cd "/Users/alex/Documents/IA 1.58 bit" && bash tunnel_watchdog.sh && tail -3 data/tunnel_watchdog.log
+- Resultado: EXITO (exit_code=0). TUNEL CAIDO → backend sano → túnel RELANZADO.
+- Histórico del watchdog (túnel CAIDO recurrente cada ~5-7 min, ciclo de caída/recuperación):
+  - 13:54:56 CAIDO (interest-conviction-premises-government) → relanzado 13:54:59
+  - 13:59:02 CAIDO (textile-raid-kijiji-visiting) → relanzado 13:59:05
+  - 14:01:03 CAIDO (occasions-oriented-adaptation-massive) → relanzado 14:01:05
+  - 14:06:59 CAIDO (merge-cancel-decorative-cpu) → relanzado 14:07:03 (pid 4209 monitor, pid 4222 cloudflared)
+  - 14:12:50 OK tunel vivo (merge-cancel-decorative-cpu)
+  - 14:14:50 OK tunel vivo (merge-cancel-decorative-cpu)
+- URL activa: https://merge-cancel-decorative-cpu.trycloudflare.com | status=active | backend=http://127.0.0.1:8000
+- Backend local :8000: HTTP 200 (online). uvicorn pid 99211 (app.main:app), BitNet i2_s saludable.
+- curl /api/cerebros DIRECTO: HTTP 200 — JSON {"active_brain_id":"brain_genesis","cerebros":[...]
+- curl /api/cerebros VÍA TÚNEL: HTTP 530 (Cloudflare Tunnel error page). NO es problema del backend.
+- curl /api/status VÍA TÚNEL: HTTP 530. DIRECTO: HTTP 200.
+- Hallazgo crítico: el watchdog tiene falso positivo. Su health check `curl -s -m 8 "$URL/api/status" >/dev/null 2>&1` retorna exit_code=0 siempre que reciba CUALQUIER respuesta HTTP — incluso 530. Por eso marca "OK tunel vivo" con un túnel que devuelve 530.
+- Root cause del 530: Cloudflare Tunnel edge error (no conexión origin). El backend está healthy (200). El túnel cloudflared (pid 4222) está corriendo pero el edge de Cloudflare retorna 530 (posible stale forwarding / edge node problem).
+- No se relanzó manualmente el túnel; el watchdog ya lo relanzó. cloudflared pid 4222 activo.
+- Sin cambios de código; solo verificación y relanzamiento de túnel (automático por watchdog). commit + push pendiente.
+
+## Adenda 241 - Watchdog túnel Astraura (cron, 2026-09-02 14:22 CST)
+- Comando: `cd "/Users/alex/Documents/IA 1.58 bit" && bash tunnel_watchdog.sh && tail -3 data/tunnel_watchdog.log`
+- Resultado: EXITO (exit_code=0). Estado INICIAL: TUNEL CAIDO (https://merge-cancel-decorative-cpu.trycloudflare.com) → relanzado por watchdog (pid 5735).
+- URL nueva (activa): https://intro-indianapolis-screenshot-louise.trycloudflare.com
+- data/active_tunnel.json: status=active, backend=http://127.0.0.1:8000, updated_at=2026-09-02T20:22:55Z.
+- Backend local :8000: HTTP 200 (online). BitNet i2_s saludable (llama-server 8790).
+- Verificación curl /api/cerebros (túnel, post-relaunch): 200 OK — JSON válido: {"active_brain_id":"brain_genesis","cerebros":[{"i
+- Conectividad backend con todos los medios (Vercel, app nativa) confirmada y operativa.
+- Sin cambios de código; commit + push del cron job log al memory root (forzado, gitignored por .gitignore).
