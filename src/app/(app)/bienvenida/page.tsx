@@ -46,15 +46,26 @@ export default function BienvenidaPage() {
       // recarga por el camino y se pierde, la persona se queda sin rito. Una
       // cuenta con sesión y SIN perfil acaba de nacer por definición, así que
       // también entra. Quien ya tiene su identidad creada no lo ve.
-      let sinPerfil = false;
+      // (Adenda 215) Recargar debe DEVOLVERTE a la misma ventana. Antes solo
+      // entraba quien no tuviera perfil todavía, así que en cuanto creabas tu
+      // identidad (paso 2) una recarga te dejaba fuera y no podías seguir
+      // probando. Ahora entra también quien tenga el rito SIN TERMINAR: es
+      // exactamente quien estaba dentro de la configuración inicial.
+      let sinTerminar = false;
       if (registrada) {
         try {
           const { data: prof } = await sb
             .from("profiles").select("handle").eq("user_id", user!.id).maybeSingle();
-          sinPerfil = !(prof && (prof as { handle?: string }).handle);
-        } catch { sinPerfil = false; }
+          if (!(prof && (prof as { handle?: string }).handle)) {
+            sinTerminar = true;
+          } else {
+            const { getOnboarding } = await import("@/lib/onboarding/onboarding");
+            const ob = await getOnboarding();
+            sinTerminar = !ob?.completed;
+          }
+        } catch { sinTerminar = false; }
       }
-      setEstado(registrada && (recien || sinPerfil) ? "con-cuenta" : "sin-cuenta");
+      setEstado(registrada && (recien || sinTerminar) ? "con-cuenta" : "sin-cuenta");
     } catch {
       // Fail-safe: ante un fallo de red NO se enseña la guía, se pide acceso.
       setEstado("sin-cuenta");

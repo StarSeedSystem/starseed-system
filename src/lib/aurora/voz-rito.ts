@@ -52,6 +52,29 @@ export type EstadoVozRito =
     /** Ninguna vía suena y no hay nada más que intentar. */
     | "muda";
 
+/**
+ * (Adenda 215) Parte el texto en cláusulas para entonar cada una. Se corta por
+ * puntuación fuerte y por comas, que es donde una persona respira. Las piezas
+ * muy cortas se pegan a la anterior: trocear de más suena entrecortado.
+ */
+function partirEnClausulas(texto: string): string[] {
+    const bruto = texto
+        .split(/(?<=[.!?…])\s+|(?<=[,;:])\s+/)
+        .map((x) => x.trim())
+        .filter(Boolean);
+    if (bruto.length <= 1) return [texto];
+
+    const out: string[] = [];
+    for (const pieza of bruto) {
+        if (out.length && (pieza.length < 14 || out[out.length - 1].length < 14)) {
+            out[out.length - 1] = `${out[out.length - 1]} ${pieza}`;
+        } else {
+            out.push(pieza);
+        }
+    }
+    return out.slice(0, 12); // techo sano: nadie entona 30 trozos
+}
+
 let latido: ReturnType<typeof setInterval> | null = null;
 let pendiente: ReturnType<typeof setTimeout> | null = null;
 let relevo: ReturnType<typeof setTimeout> | null = null;
@@ -246,28 +269,61 @@ function porElSistema(limpio: string, miTurno: number): void {
         if (miTurno !== turno) return;
         let arranco = false;
         try {
-            const u = new SpeechSynthesisUtterance(limpio);
             // (Adenda 213) El timbre es una RECETA FIJA —voz base + tono +
             // ritmo—, no un ranking que se recalcula en cada pulsación. Por eso
             // cada botón suena siempre igual y coincide con su etiqueta.
             const t = timbreEfectivo();
-            u.pitch = t.sistema.pitch;
-            u.rate = t.sistema.rate;
-            u.lang = "es-ES";
             const voz = vozDelTimbre(t);
-            if (voz) { u.voice = voz; u.lang = voz.lang || u.lang; }
 
-            u.onstart = () => {
-                if (miTurno !== turno) return;
-                arranco = true;
-                if (relevo) { clearTimeout(relevo); relevo = null; }
-                avisar("navegador");
-            };
-            u.onend = pararLatido;
-            u.onerror = pararLatido;
+            // ── (Adenda 215) ENTREGA EXPRESIVA ───────────────────────────────
+            // Un TTS plano suena a robot porque dice TODA la frase con el mismo
+            // tono y la misma prisa. Aquí el texto se parte en cláusulas y cada
+            // una lleva su propio tono y velocidad:
+            //   · el tono CAE del principio al final (declinación entonativa,
+            //     la señal más fuerte de habla natural),
+            //   · sube al final si la cláusula es una pregunta,
+            //   · la apertura se abre según la «calidez» del timbre,
+            //   · la velocidad varía según su «vivacidad».
+            // Las cláusulas se ENCOLAN (speak sin cancel entre medias), que es
+            // como la Web Speech API encadena de forma nativa; los signos de
+            // puntuación aportan las pausas.
+            const clausulas = partirEnClausulas(limpio);
+            const n = clausulas.length;
 
-            try { synth.resume(); } catch { /* no estaba en pausa */ }
-            synth.speak(u);
+            clausulas.forEach((frase, i) => {
+                const u = new SpeechSynthesisUtterance(frase);
+                const pos = n > 1 ? i / (n - 1) : 0;          // 0 = inicio, 1 = final
+                const pregunta = /[?¿]\s*$/.test(frase);
+
+                // Declinación: empieza por encima y termina por debajo.
+                let pitch = t.sistema.pitch * (1 + t.expr.arco * (0.5 - pos));
+                if (i === 0) pitch *= 1 + t.expr.calidez;      // apertura cálida
+                if (pregunta) pitch *= 1 + t.expr.arco * 0.9;  // final ascendente
+
+                // Ritmo: algo más ágil en medio, más pausado al cerrar.
+                const rate = t.sistema.rate * (1 + t.expr.vivacidad * (0.35 - Math.abs(pos - 0.45)));
+
+                u.pitch = Math.max(0.4, Math.min(1.8, pitch));
+                u.rate = Math.max(0.6, Math.min(1.6, rate));
+                u.lang = "es-ES";
+                if (voz) { u.voice = voz; u.lang = voz.lang || u.lang; }
+
+                if (i === 0) {
+                    u.onstart = () => {
+                        if (miTurno !== turno) return;
+                        arranco = true;
+                        if (relevo) { clearTimeout(relevo); relevo = null; }
+                        avisar("navegador");
+                    };
+                }
+                if (i === n - 1) {
+                    u.onend = pararLatido;
+                    u.onerror = pararLatido;
+                }
+
+                if (i === 0) { try { synth.resume(); } catch { /* no estaba en pausa */ } }
+                synth.speak(u);
+            });
 
             // Chrome corta solo a los ~15 s; este pulso lo mantiene vivo.
             pararLatido();
