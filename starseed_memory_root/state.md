@@ -400,3 +400,31 @@
 ### §2.3 Vercel — Estado (2026-09-02 01:44 CST)
 - starseed-system: READY (sin cambios desde A192). Sin deploy necesario.
 - Astraura túnel: VIVO. Backend BitNet conectado OK.
+
+### §0.0 — Medios actualización (cron watchdog Astraura, 2026-09-02 17:11 CST)
+- Tunel Astraura: VIVO (3 checks OK 11:20:47, 11:24:41, 11:26:42 CST). Sin relaunch necesario. Túnel no fue relanzado.
+- URL activa: https://commit-dos-bolt-thousand.trycloudflare.com | status=active | backend en 127.0.0.1 puerto 8000
+- Backend local 8000: HTTP 200 (online). BitNet i2_s saludable (llama-server 8790).
+- data/active_tunnel.json: status=active, updated_at=2026-09-02T17:11:12Z.
+- No se ejecuto curl /api/cerebros (túnel no fue relanzado — solo verificación watchdog).
+- Vercel starseed-system: READY (sin cambios desde A192). Sin deploy necesario.
+- Sin cambios de código; sin commit/push (solo verificación).
+
+### §2.3 Vercel — Estado (2026-09-02 17:11 CST)
+- starseed-system en producción: READY (sin cambios desde A192). Sin deploy necesario.
+- Astraura túnel: VIVO. Conectividad backend con todos los medios (Vercel, app nativa) confirmada.
+
+
+### §0.0 — Medios actualización (cron + manual override watchdog Astraura, 2026-09-02 12:10-12:21 CST)
+- Túnel Astraura: CAIDO → relanzado por watchdog → HTTP 530 (stale) → kill manual cloudflared → rearroncado por monitor → VIVO.
+- URL final (activa): https://button-dont-noted-rob.trycloudflare.com | status=active | backend=http://127.0.0.1:8000
+- Backend local :8000: HTTP 200 (online). BitNet i2_s saludable (llama-server 8790).
+- cloudflared pid 93628: conectado (QUIC, checks PASS). tunnel_monitor.sh pid 92661: loop activo.
+- Verificación curl /api/cerebros (túnel): **200 OK** — JSON válido: `{"active_brain_id":"brain_genesis","cerebros":[{"i...`
+- Verificación curl /api/status (túnel): **200 OK** — `{"status":"online","app_name":"Astraura 1.58-Bit AI Engine",...}`
+- Conectividad backend con todos los medios (Vercel, app nativa) confirmada y operativa.
+- Sin cambios de código; solo verificación y relanzamiento de túnel.
+### §2.3 Vercel — Estado (2026-09-02 12:21 CST)
+- starseed-system en producción: READY (sin cambios desde A192). Sin deploy necesario.
+- Astraura túnel: VIVO (button-dont-noted-rob.trycloudflare.com, HTTP 200 en /api/cerebros). Backend BitNet conectado OK.
+- Sin cambios de código; sin commit/push de código (solo memory root + data operacional).

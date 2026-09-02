@@ -358,3 +358,38 @@
 - Vercel starseed-system: READY (sin cambios desde A192). Sin deploy necesario.
 - Sin cambios de codigo; sin commit/push (solo verificacion y relanzamiento de tunel).
 
+
+## Adenda 233 - Watchdog túnel Astraura (cron #229-233, 2026-09-02 03:52-03:58 CST)
+- Acción: ejecutar tunnel_watchdog.sh; reportar estado; confirmar con curl /api/cerebros.
+- Resultado: TUNEL VIVO (exit_code=0). NO fue relanzado en este run.
+- URL activa: https://parliamentary-raised-product-contamination.trycloudflare.com | status=active | backend local :8000
+- Watchdog log (últimas 3 entradas): todas "OK tunel vivo" con la URL parliamentary-raised-product-contamination (03:52:53, 03:54:58, 03:58:59 CST).
+- curl /api/cerebros (10s, tunel): HTTP 200 - JSON válido: {"active_brain_id":"brain_genesis","cerebros":[{"id":"brain_genesis","name":"Cer..."}}
+- Backend local 8000: HTTP 200 (uvicorn online, JSON válido idéntico). BitNet 8790 (i2_s saludable).
+- Conectividad backend con todos los medios (Vercel, app nativa) confirmada.
+- Sin cambios de código; sin commit/push (solo verificación, túnel ya VIVO, no relanzado).
+
+## Adenda 235 - Watchdog túnel Astraura (cron, 2026-09-02 11:20-11:26 CST)
+- Acción: ejecutar tunnel_watchdog.sh; reportar estado; confirmar con curl /api/cerebros solo si fue relanzado.
+- Resultado: TUNEL VIVO (exit_code=0). NO fue relanzado en este run.
+- URL activa: https://commit-dos-bolt-thousand.trycloudflare.com | status=active | backend local en 127.0.0.1:8000
+- Watchdog log (últimas 3 entradas): todas OK tunel vivo con URL commit-dos-bolt-thousand (11:20:47, 11:24:41, 11:26:42 CST).
+- data/active_tunnel.json: status=active, updated_at=2026-09-02T17:11:12Z.
+- No relanzar necesario; no se corrió curl /api/cerebros (túnel no fue relanzado).
+- Backend local 8000: HTTP 200 (uvicorn online). BitNet llama-server 8790 (i2_s saludable).
+- Conectividad backend con todos los medios (Vercel, app nativa) confirmada.
+- Sin cambios de código; sin commit/push (solo verificación, túnel ya VIVO, no relanzado).
+
+
+## Adenda 236 - Watchdog tunel Astraura (cron + manual override, 2026-09-02 12:10-12:21 CST)
+- Comando: tunnel_watchdog.sh exit 0.
+- Estado INICIAL: TUNEL CAIDO. Watchdog detecto caida -> relanzo monitor (pid 92661).
+- URL nueva tras watchdog: something-aqua-cultures-briefing.trycloudflare.com -> HTTP 530 (stale forwarding). Backend local 127.0.0.1:8000 respondia 200.
+- Accion correctiva: kill cloudflared pid 92674. Monitor rearronco automaticamente (pid 93628) con tunnel fresco.
+- URL final: button-dont-noted-rob.trycloudflare.com | status=active | backend=http://127.0.0.1:8000
+- Backend local :8000: HTTP 200 (online). BitNet i2_s saludable.
+- Verificacion curl /api/cerebros (tunel final): 200 OK - JSON: {"active_brain_id":"brain_genesis","cerebros":[{"i...
+- Verificacion curl /api/status (tunel final): 200 OK - JSON online.
+- Conectividad backend con todos los medios (Vercel, app nativa) confirmada y operativa.
+- cloudflared pid 93628: conectado QUIC checks PASS. tunnel_monitor.sh pid 92661: loop activo.
+- Sin cambios de codigo; solo verificacion y relanzamiento de tunel.
