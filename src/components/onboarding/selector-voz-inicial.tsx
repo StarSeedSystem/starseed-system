@@ -23,6 +23,8 @@ import {
 } from "@/lib/aurora/voz-inicial";
 import { elegirVozPorGenero } from "@/lib/aurora/tts-oss/browser-voices";
 import { auroraBridge } from "@/components/onboarding/aurora-guide-voice";
+import { SelectorTimbres } from "@/components/onboarding/selector-timbres";
+import { hablarRito } from "@/lib/aurora/voz-rito";
 import { cortarVoz } from "@/lib/aurora/narracion-ventana";
 
 const FRASE_PRUEBA =
@@ -77,6 +79,13 @@ export function SelectorVozInicial({
 
   /** Reproduce la frase de prueba. Ya no hay nada sonando cuando entra aquí. */
   const arrancarPrueba = useCallback(() => {
+    // (Adenda 213) La prueba usa la MISMA vía que la guía (`hablarRito`), que
+    // ya resuelve timbre, relevo y motor. Antes había aquí una copia de esa
+    // lógica y podía sonar distinto de lo que luego se oía de verdad.
+    if (hablarRito(FRASE_PRUEBA)) {
+      window.setTimeout(() => setSonando(false), 6500);
+      return;
+    }
     // 1) Si Astraura ya tiene puente (voz del rito arrancada), habla ELLA:
     //    así lo que pruebas es exactamente lo que vas a oír después.
     const puente = auroraBridge();
@@ -216,6 +225,14 @@ export function SelectorVozInicial({
           <Sliders className="h-3.5 w-3.5" aria-hidden /> Ajustes de voz (en Astraura)
         </button>
       </div>
+
+      {/* (Adenda 213) Variedades del género elegido: cada una es una receta
+          fija, así que el botón y lo que suena siempre coinciden. */}
+      {modo !== "autonoma" && (
+        <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3">
+          <SelectorTimbres genero={generoEfectivo(modo)} onProbar={probarVozActual} />
+        </div>
+      )}
 
       {sinVozReal && (
         <p className="rounded-lg border border-white/10 bg-black/20 p-2 text-center text-[10px] leading-snug text-white/55">

@@ -34,8 +34,8 @@
  *   · Solo suena lo de la pantalla actual: hablar sustituye, nunca encola.
  */
 
-import { ajustesVozEfectivos, generoEfectivo, getModoVoz } from "@/lib/aurora/voz-inicial";
-import { elegirVozPorGenero } from "@/lib/aurora/tts-oss/browser-voices";
+import { generoEfectivo, getModoVoz, modulacionAutonoma } from "@/lib/aurora/voz-inicial";
+import { timbreActual, vozDelTimbre, buscarTimbre, TIMBRE_AUTONOMO_BASE, type Timbre } from "@/lib/aurora/timbres";
 
 /** Margen para que la voz del navegador demuestre que suena de verdad. */
 const RELEVO_MS = 1200;
@@ -83,6 +83,38 @@ export function callarRito(): void {
         .catch(() => null);
 }
 
+/**
+ * Timbre que corresponde AHORA: el elegido, o —en modo autónomo— la base
+ * neutra con la modulación viva de la personalidad encima (Adenda 213: Alex
+ * pidió expresamente que la autónoma parta de la neutra).
+ */
+export function timbreEfectivo(): Timbre {
+    const modo = getModoVoz();
+    if (modo === "autonoma") {
+        const base = buscarTimbre(TIMBRE_AUTONOMO_BASE) ?? timbreActual("neutra");
+        const traits = (window as unknown as { STARSEED_personality_traits?: Record<string, number> })
+            .STARSEED_personality_traits;
+        const m = modulacionAutonoma(traits);
+        return {
+            ...base,
+            id: `${base.id}-autonomo`,
+            nombre: "Autónoma",
+            // La autónoma modula la BASE NEUTRA: velocidad en el motor local
+            // y tono/ritmo en el respaldo del sistema.
+            local: {
+                ...base.local,
+                speed: Math.max(0.7, Math.min(1.4, base.local.speed * m.rate)),
+            },
+            sistema: {
+                ...base.sistema,
+                pitch: Math.max(0.6, Math.min(1.4, base.sistema.pitch * m.pitch)),
+                rate: Math.max(0.7, Math.min(1.35, base.sistema.rate * m.rate)),
+            },
+        };
+    }
+    return timbreActual(generoEfectivo(modo));
+}
+
 /** ¿Hay algún motor de voz utilizable en este navegador? */
 export function ritoPuedeHablar(): boolean {
     try { return typeof window !== "undefined" && !!window.speechSynthesis; } catch { return false; }
@@ -113,19 +145,12 @@ function porElMotor(texto: string, miTurno: number): void {
             if (miTurno !== turno) return;
             if (sono) return;
 
+            // El motor local ya se intentó ANTES que nada (ver `hablarRito`).
+            // Si estamos aquí es que no está instalado: se ofrece traerlo, que
+            // es la solución de fondo — funciona en cualquier dispositivo.
             const kok = await import("@/lib/aurora/tts-oss/kokoro");
             if (miTurno !== turno) return;
-            if (!kok.kokoroAvailable()) { avisar("muda"); return; }
-
-            if (kok.kokoroModelReady()) {
-                const audio = await kok.kokoroSpeak(texto, {
-                    onStart: () => { if (miTurno === turno) avisar("motor"); },
-                });
-                if (miTurno !== turno) return;
-                if (!audio) avisar("muda");
-                return;
-            }
-            avisar("instalable");
+            avisar(kok.kokoroAvailable() ? "instalable" : "muda");
         } catch {
             if (miTurno === turno) avisar("muda");
         }
@@ -150,7 +175,10 @@ export async function instalarVozPropia(
         });
         if (!listo) { avisar("muda"); return false; }
         const miTurno = turno;
+        const t = timbreEfectivo();
         const audio = await kok.kokoroSpeak(texto, {
+            voice: t.local.voz,
+            speed: t.local.speed,
             onStart: () => { if (miTurno === turno) avisar("motor"); },
         });
         if (!audio) { avisar("muda"); return false; }
@@ -172,11 +200,44 @@ export function hablarRito(texto: string): boolean {
     callarRito();
     const miTurno = turno;
 
+    // ── (Adenda 213) EL MOTOR LOCAL MANDA ────────────────────────────────────
+    // Decisión de Alex, y la correcta para el principio de StarSeed: la voz NO
+    // se apoya en el motor de Apple. Un modelo cuantizado a 1.58 bits corre en
+    // CPU en cualquier equipo y suena IGUAL en todos; las voces del sistema
+    // suenan distinto en cada máquina y en la suya solo 2 de 18 eran naturales.
+    // Así que si el motor local ya está en este dispositivo, habla él. Sin
+    // esperas ni comprobaciones: es la vía buena, no el plan B.
+    void (async () => {
+        try {
+            const kok = await import("@/lib/aurora/tts-oss/kokoro");
+            if (miTurno !== turno) return;
+            if (kok.kokoroAvailable() && kok.kokoroModelReady()) {
+                const t = timbreEfectivo();
+                const audio = await kok.kokoroSpeak(limpio, {
+                    voice: t.local.voz,
+                    speed: t.local.speed,
+                    onStart: () => { if (miTurno === turno) avisar("motor"); },
+                });
+                if (audio) return;              // sonó el motor local: turno cerrado
+            }
+        } catch { /* seguimos con el respaldo */ }
+        if (miTurno === turno) porElSistema(limpio, miTurno);
+    })();
+
+    return true;
+}
+
+/**
+ * RESPALDO mientras el motor local no esté instalado: la voz del sistema.
+ * Es instantánea, pero depende del navegador y suena distinta en cada equipo,
+ * así que solo cubre el hueco — y si tampoco arranca, se ofrece traer el motor
+ * local, que es lo que de verdad resuelve el problema para siempre.
+ */
+function porElSistema(limpio: string, miTurno: number): void {
     const synth = window.speechSynthesis;
     if (!synth) {
-        // Sin Web Speech: directo al motor por <audio>.
         porElMotor(limpio, miTurno);
-        return true;
+        return;
     }
 
     // El tick de respiro tras `cancel()` evita el encalle conocido de Chrome.
@@ -186,13 +247,14 @@ export function hablarRito(texto: string): boolean {
         let arranco = false;
         try {
             const u = new SpeechSynthesisUtterance(limpio);
-            const traits = (window as unknown as { STARSEED_personality_traits?: Record<string, number> })
-                .STARSEED_personality_traits;
-            const { pitch, rate } = ajustesVozEfectivos(traits);
-            u.pitch = pitch;
-            u.rate = rate;
+            // (Adenda 213) El timbre es una RECETA FIJA —voz base + tono +
+            // ritmo—, no un ranking que se recalcula en cada pulsación. Por eso
+            // cada botón suena siempre igual y coincide con su etiqueta.
+            const t = timbreEfectivo();
+            u.pitch = t.sistema.pitch;
+            u.rate = t.sistema.rate;
             u.lang = "es-ES";
-            const voz = elegirVozPorGenero(generoEfectivo(getModoVoz()));
+            const voz = vozDelTimbre(t);
             if (voz) { u.voice = voz; u.lang = voz.lang || u.lang; }
 
             u.onstart = () => {
@@ -231,6 +293,4 @@ export function hablarRito(texto: string): boolean {
             porElMotor(limpio, miTurno);
         }
     }, 90);
-
-    return true;
 }

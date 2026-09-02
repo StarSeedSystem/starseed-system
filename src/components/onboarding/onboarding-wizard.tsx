@@ -899,11 +899,13 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
                   disparan a hurtadillas. */}
               {vozReal === "instalable" && (
                 <div className="rounded-2xl border border-amber-400/30 bg-amber-500/[0.07] p-4 text-left">
-                  <p className="text-[12px] font-semibold text-amber-100">La voz del navegador no responde en este equipo</p>
+                  <p className="text-[12px] font-semibold text-amber-100">Trae la voz propia de Astraura</p>
                   <p className="mt-1 text-[11.5px] leading-relaxed text-white/65">
-                    Tu equipo tiene audio, pero el motor de voz del navegador acepta la orden y no emite sonido.
-                    Astraura puede traer su <b className="text-white/85">propia voz</b>, que se sintetiza aquí mismo sin
-                    depender de él ni de internet. Se descarga una vez (~80 MB) y queda para siempre.
+                    Astraura no depende de las voces del sistema: tiene la <b className="text-white/85">suya</b>, cuantizada
+                    a <b className="text-white/85">1,58 bits</b>, que se sintetiza en tu propio equipo <b className="text-white/85">en CPU</b> —
+                    sin GPU, sin internet y sonando igual en cualquier dispositivo, sea un Mac, un Windows, un Linux o un
+                    móvil. Las voces del sistema solo cubren el hueco mientras tanto, y en cada equipo suenan distinto.
+                    Se descarga una vez (~80 MB) y queda para siempre.
                   </p>
                   <div className="mt-3 flex flex-wrap items-center gap-2">
                     <Button
