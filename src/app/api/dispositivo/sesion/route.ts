@@ -115,15 +115,42 @@ export async function GET(req: NextRequest) {
     if (error) return NextResponse.json({ ok: false, error: error.message, sesiones: [] }, { status: 200 });
 
     const vistos = new Set<string>();
-    const sesiones: SesionValue[] = [];
+    const candidatas: Array<{ key: string; v: SesionValue }> = [];
     for (const r of data ?? []) {
       const v = r.value as SesionValue | null;
       if (!v?.user_id || vistos.has(v.user_id)) continue;
       vistos.add(v.user_id);
-      sesiones.push(v);
+      candidatas.push({ key: r.key as string, v });
     }
-    sesiones.sort((a, b) => b.ts - a.ts);
-    return NextResponse.json({ ok: true, sesiones });
+
+    // ── (Adenda 214) NO OFRECER CUENTAS QUE YA NO EXISTEN ────────────────────
+    // Estas filas viven en `entity_state`, que no tiene columna de usuario: al
+    // borrar una cuenta del servidor, su rastro de dispositivo sobrevivía y el
+    // acceso seguía ofreciendo «Continuar como @fulano» de alguien que ya no
+    // está. Alex lo vivió, con razón, como «no borraste la cuenta».
+    // Aquí se comprueba cada candidata contra auth y se PURGA la fila de las
+    // que hayan desaparecido: así el rastro se limpia solo, sin mantenimiento.
+    const vivas: SesionValue[] = [];
+    const muertas: string[] = [];
+    for (const c of candidatas) {
+      let existe = false;
+      try {
+        const { data: u, error: e } = await sb.auth.admin.getUserById(c.v.user_id);
+        existe = !e && !!u?.user;
+      } catch {
+        // Ante un fallo de red NO se borra nada: mejor un fantasma temporal
+        // que perder el rastro de una cuenta que sí existe.
+        existe = true;
+      }
+      if (existe) vivas.push(c.v);
+      else muertas.push(c.key);
+    }
+    if (muertas.length) {
+      try { await sb.from("entity_state").delete().in("key", muertas); } catch { /* se reintenta en la próxima lectura */ }
+    }
+
+    vivas.sort((a, b) => b.ts - a.ts);
+    return NextResponse.json({ ok: true, sesiones: vivas });
   } catch (e) {
     return NextResponse.json({ ok: false, error: (e as Error)?.message ?? "error", sesiones: [] });
   }

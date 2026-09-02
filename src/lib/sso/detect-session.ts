@@ -152,6 +152,29 @@ export function hasStoredStarSeedToken(): boolean {
  *
  * Nunca lanza: cualquier fallo se traduce en `{ found: false }`.
  */
+/**
+ * Borra el rastro local de una cuenta que ya no existe en el servidor: cierra
+ * la sesión y limpia las memorias del dispositivo que la mostraban. Nunca
+ * lanza — si algo falla, peor es dejar el fantasma.
+ */
+async function olvidarCuentaLocal(
+    supabase: { auth: { signOut: () => Promise<unknown> } },
+): Promise<void> {
+    try { await supabase.auth.signOut(); } catch { /* el token ya no vale igualmente */ }
+    try {
+        const ls = window.localStorage;
+        for (const clave of Object.keys(ls)) {
+            // Cachés de identidad y del rito. NO se tocan los ajustes del
+            // dispositivo (voz, apariencia, timbres): esos son de la neurona,
+            // no de la cuenta, y sobreviven a un borrado.
+            if (/^starseed\.(account|sso|session|guia|perfil|sistemas|onboard|recien)/.test(clave)) {
+                ls.removeItem(clave);
+            }
+        }
+    } catch { /* sin almacenamiento: nada que limpiar */ }
+    try { window.sessionStorage.clear(); } catch { /* */ }
+}
+
 export async function detectStarSeedSession(): Promise<DetectSessionResult> {
     try {
         if (typeof window === "undefined") return EMPTY;
@@ -161,6 +184,21 @@ export async function detectStarSeedSession(): Promise<DetectSessionResult> {
         const session = data?.session ?? null;
 
         if (!error && session?.user) {
+            // ── (Adenda 214) EL FANTASMA DE LA CUENTA BORRADA ────────────────
+            // `getSession()` NO habla con el servidor: lee el token guardado en
+            // este dispositivo. Si la cuenta se borró en el servidor, el token
+            // sigue pareciendo válido hasta que caduca, y el OS seguía
+            // ofreciendo «Continuar como @fulano» de una cuenta que ya no
+            // existe. Alex lo vivió como «no borraste la cuenta».
+            // `getUser()` SÍ pregunta al servidor de auth: si la cuenta no
+            // está, falla. Entonces se cierra sesión y se borra el rastro local
+            // para que el dispositivo deje de recordar un fantasma.
+            const { data: verif, error: errVerif } = await supabase.auth.getUser();
+            if (errVerif || !verif?.user) {
+                await olvidarCuentaLocal(supabase);
+                return EMPTY;
+            }
+
             const user = session.user;
             const isAnonymous = (user as { is_anonymous?: boolean }).is_anonymous === true;
             const email = (user.email ?? null) || null;
@@ -181,6 +219,9 @@ export async function detectStarSeedSession(): Promise<DetectSessionResult> {
         }
 
         // Señal secundaria: hay token guardado pero getSession() no resolvió.
+        // (Adenda 214) Antes esto bastaba para seguir mostrando la cuenta. Un
+        // token que no resuelve es exactamente lo que deja una cuenta borrada,
+        // así que ya no se anuncia identidad ninguna a partir de él.
         if (hasStoredStarSeedToken()) {
             return { ...EMPTY, source: "localStorage" };
         }
