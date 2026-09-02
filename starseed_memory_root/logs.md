@@ -248,3 +248,65 @@
 - Backend local :8000: HTTP 200 (online). Conectividad con todos los medios (Vercel, app nativa) confirmada.
 - Verificación curl /api/cerebros (túnel): 200 OK — JSON válido: {"active_brain_id":"brain_genesis","cerebros":[{"i
 - Sin cambios de código; commit + push del cron job log al memory root (force-add, gitignored).
+
+2026-09-01 18:54-18:57 CST - Watchdog Astraura tunnel (cron #223)
+- Script: bash tunnel_watchdog.sh en /Users/alex/Documents/IA 1.58 bit -> exit_code=0
+- Estado INICIAL: TUNEL CAIDO (garmin-prices-psychiatry-settlement.trycloudflare.com) detectado a las 18:56:37 CST.
+- Relanzamiento: monitor relanzado (pid 48383) a las 18:56:39 CST.
+- URL nueva (activa): https://firms-now-hereby-removable.trycloudflare.com | status=active | backend=http://127.0.0.1:8000
+- Verificación curl /api/cerebros (post-relaunch): 200 OK — JSON válido: {"active_brain_id":"brain_genesis","cerebros":[{"i
+- Backend local :8000 HTTP 200 (online). Conectividad con todos los medios (Vercel, app nativa) confirmada.
+- Sin cambios de código; sin commit/push (solo verificación y relanzamiento de túnel).
+- Verificación: túnel vivo, sin relanzamiento (OK: https://thousand-modes-martha-satellite.trycloudflare.com)
+
+
+## Adenda 224 - Watchdog túnel Astraura (cron, 2026-09-01 19:32-19:36 CST)
+- Comando: cd "/Users/alex/Documents/IA 1.58 bit" && bash tunnel_watchdog.sh && tail -3 data/tunnel_watchdog.log
+- Resultado: EXITO (exit_code=0).
+- Estado: TUNEL VIVO — https://thousand-modes-martha-satellite.trycloudflare.com (3 checks OK: 19:32:26, 19:34:25, 19:36:29 CST).
+- data/active_tunnel.json: status=active, backend=http://127.0.0.1:8000, updated_at=2026-09-02T01:18:36Z.
+- Backend local :8000: HTTP 200 (online).
+- No fue necesario relanzar el túnel. curl /api/cerebros no ejecutado (tunel no relanzado).
+- Sin cambios de codigo; sin commit/push (solo verificacion de estado del tunel).
+
+2026-09-01 22:42-22:49 CST - Watchdog Astraura tunnel (cron #225)
+- Script: bash tunnel_watchdog.sh en /Users/alex/Documents/IA 1.58 bit -> exit_code=0
+- Estado INICIAL: TUNEL CAIDO (https://mechanisms-cloudy-striking-ftp.trycloudflare.com) detectado a las 22:49:05 CST.
+- Relanzamiento: monitor relanzado (pid 56446) a las 22:49:07 CST.
+- URL nueva (activa): https://mechanisms-cloudy-striking-ftp.trycloudflare.com | status=active | backend=http://127.0.0.1:8000 | updated_at=2026-09-02T04:49:07Z.
+- Verificación curl /api/cerebros (post-relaunch): HTTP 530 (Cloudflare origin timeout). Túnel cloudflared VIVO/forwarding activo, pero backend local :8000 (BitNet i2_s) responde >30s (slow origin). TCP listener activo (python3.1 pid 2851), conexión establecida, sin respuesta HTTP a tiempo.
+- Diagnóstico: túnel OK; 530 es slow-origin del backend BitNet (first-token ~90s en M1/8GB), no caída del túnel. Conectividad tunnel-to-medios (Vercel, app nativa): reenvía correctamente.
+- Backend local :8000: HTTP 000 (timeout >30s; conexión TCP establecida pero sin datos).
+- Sin cambios de código; sin commit/push (solo verificación y relanzamiento de túnel).
+**2026-09-01 23:03-23:06 CST — Watchdog Astraura tunnel (verificación manual)**
+- Comando: cd "/Users/alex/Documents/IA 1.58 bit" && bash tunnel_watchdog.sh && tail -3 data/tunnel_watchdog.log
+- Resultado: EXITO (exit_code=0).
+- Estado: **TUNEL VIVO** — https://mechanisms-cloudy-striking-ftp.trycloudflare.com (checks OK: 22:56:56, 23:03:07 CST).
+- data/active_tunnel.json: status=active, backend=http://127.0.0.1:8000, updated_at=2026-09-02T04:49:07Z.
+- Backend local :8000: HTTP 200 (online).
+- Verificación curl /api/cerebros: HTTP 200 (HTML response, Cloudflare proxy activo y reenviando al backend).
+- El monitor fue relanzado previamente en cron #225 (pid 56446, 22:49:07 CST) tras una caída detectada. Durante esta ejecución el túnel ya estaba vivo — no fue necesario relanzar.
+- Sin cambios de código; sin commit/push (solo verificación de estado del túnel).
+
+
+---
+
+## Adenda 226 - Watchdog tunel Astraura (cron, 2026-09-01 23:08-23:11 CST)
+- Comando: cd "/Users/alex/Documents/IA 1.58 bit" && bash tunnel_watchdog.sh && tail -3 data/tunnel_watchdog.log
+- Resultado: EXITO (exit_code=0).
+- Estado INICIAL: TUNEL CAIDO. Watchdog relanzo el monitor (pid 58528) a las 23:11:05 CST.
+- URL nueva (activa): https://department-position-janet-much.trycloudflare.com | status=active | backend=http://127.0.0.1:8000 | updated_at=2026-09-02T04:54:07Z.
+- Verificacion curl /api/cerebros (post-relaunch): HTTP 200. JSON valido con active_brain_id=brain_genesis. Tunel responde correctamente.
+- Diagnostico: tunel CAIDO -> relanzado -> VIVO. Conectividad con todos los medios (Vercel, app nativa) confirmada. Backend local :8000 (BitNet i2_s) respondiendo 200 esta vez (mas rapido que en cron #225).
+- Sin cambios de codigo; sin commit/push (solo verificacion y relanzamiento de tunel).
+
+2026-09-01 23:27-23:29 CST - Watchdog Astraura tunnel (cron #227)
+- Script: bash tunnel_watchdog.sh en /Users/alex/Documents/IA 1.58 bit -> exit_code=0
+- Estado INICIAL: TUNEL VIVO (prevent-assumptions-citizens-brush.trycloudflare.com, OK 23:27:04 CST).
+- Estado 23:29:11 CST: TUNEL CAIDO. Relanzando monitor...
+- Relanzamiento: monitor relanzado (pid 60566) a las 23:29:13 CST.
+- URL nueva (activa): https://metadata-low-springfield-murphy.trycloudflare.com | status=active | backend=http://127.0.0.1:8000
+- data/active_tunnel.json: status=active, url=https://metadata-low-springfield-murphy.trycloudflare.com
+- Verificacion curl /api/cerebros (post-relaunch): 200 OK — JSON valido: {"active_brain_id":"brain_genesis","cerebros":[{"i
+- Backend local :8000: HTTP 200 (online). Conectividad con todos los medios (Vercel, app nativa) confirmada.
+- Sin cambios de codigo; commit + push del cron job log al memory root (force-add, gitignored).

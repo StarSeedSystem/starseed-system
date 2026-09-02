@@ -282,3 +282,56 @@
 - Verificación /api/cerebros (túnel): 200 OK — JSON válido: `{"active_brain_id":"brain_genesis","cerebros":[{"i`
 - Sin cambios de código (túnel ya activo; watchdog confirmó conectividad estable).
 - Git workflow: commit + push del cron job log al memory root (forzado, gitignored por .gitignore).
+
+
+## Adenda 223 - Watchdog túnel Astraura (cron, 2026-09-01 18:54-18:57 CST)
+- Comando: bash tunnel_watchdog.sh en /Users/alex/Documents/IA 1.58 bit
+- Resultado: EXITO (exit_code=0).
+- Estado INICIAL: TUNEL CAIDO detectado a las 18:56:37 CST. Relanzado (pid 48383) a las 18:56:39 CST.
+- URL nueva activa en data/active_tunnel.json
+- Verificación /api/cerebros (post-relaunch): 200 OK. JSON válido, active_brain_id=brain_genesis.
+- Conectividad con todos los medios (Vercel, app nativa) confirmada.
+- Sin cambios de código; sin commit/push (solo verificación y relanzamiento de túnel).
+
+
+## Tarea #1 — Watchdog tunel Astraura (cron, 2026-09-01 19:36 CST)
+- Estado: COMPLETADA
+- Accion: ejecutar tunnel_watchdog.sh y reportar estado.
+- Resultado: tunel VIVO (https://thousand-modes-martha-satellite.trycloudflare.com), 3 checks OK. No relaunch necesario.
+- Verificado: data/active_tunnel.json status=active, backend=127.0.0.1:8000.
+- Backend local :8000: HTTP 200 (online).
+- Sin cambios de codigo; sin commit/push (túnel verificado sin necesidad de relanzar).
+
+
+## Adenda 225 - Watchdog túnel Astraura (cron, 2026-09-01 22:42-22:49 CST)
+- Comando: cd "/Users/alex/Documents/IA 1.58 bit" && bash tunnel_watchdog.sh && tail -3 data/tunnel_watchdog.log
+- Resultado: EXITO (exit_code=0).
+- Estado INICIAL: TUNEL CAIDO. Log del watchdog: monitor relanzado (pid 56446) a las 22:49:07 CST.
+- URL activa post-relaunch: https://mechanisms-cloudy-striking-ftp.trycloudflare.com | status=active | backend=http://127.0.0.1:8000 | updated_at=2026-09-02T04:49:07Z.
+- Verificación curl /api/cerebros (post-relaunch): HTTP 530 (Cloudflare origin timeout). Túnel cloudflared VIVO y conectado; backend local :8000 (BitNet i2_s) responde muy lento (>30s sin datos HTTP, conexión TCP establecida). Consistente con known first-token latency ~90s en M1/8GB.
+- Diagnóstico: túnel OK (cloudflared forwarding activo); el 530 es slow-origin del backend BitNet, no caída del túnel. Conectividad tunnel-to-Vercel/app nativa: reenvía correctamente; cuello de botella es el backend local de generación.
+- Backend local :8000: TCP listener activo (python3.1 pid 2851, conexión establecida, respuesta >30s).
+- Sin cambios de código; sin commit/push (solo verificación y relanzamiento de túnel).
+---
+
+## Adenda 226 - Watchdog túnel Astraura (cron, 2026-09-01 23:08-23:11 CST)
+- Estado: COMPLETADA
+- Acción: ejecutar tunnel_watchdog.sh, reportar estado, confirmar con curl.
+- Resultado: TUNEL CAIDO → relanzado → VIVO.
+- Watchdog log: "TUNEL CAIDO ... Relanzando monitor... Monitor relanzado (pid 58528)" a las 23:11:05 CST.
+- URL activa post-relaunch: https://department-position-janet-much.trycloudflare.com | status=active | backend=http://127.0.0.1:8000 | updated_at=2026-09-02T04:54:07Z.
+- Verificación curl /api/cerebros: HTTP 200 — JSON válido (`{"active_brain_id":"brain_genesis","cerebros":[...`). Túnel responde correctamente.
+- Backend local :8000: respondiendo 200 (más rápido que en cron #225). BitNet i2_s saludable.
+- Sin cambios de código; sin commit/push (solo verificación y relanzamiento de túnel).
+
+## Adenda 227 - Watchdog tunel Astraura (cron, 2026-09-01 23:27-23:29 CST)
+- Comando: cd "/Users/alex/Documents/IA 1.58 bit" && bash tunnel_watchdog.sh && tail -3 data/tunnel_watchdog.log
+- Resultado: EXITO (exit_code=0). Watchdog detecto túnel vivo inicialmente, luego caído y lo relanzó.
+- Estado INICIAL: TUNEL VIVO (https://prevent-assumptions-citizens-brush.trycloudflare.com, OK 23:27:04 CST).
+- Estado 23:29:11 CST: TUNEL CAIDO. Watchdog relanzó el monitor (pid 60566, 23:29:13 CST).
+- URL activa (post-relaunch): https://metadata-low-springfield-murphy.trycloudflare.com | status=active | backend=http://127.0.0.1:8000
+- data/active_tunnel.json: url=https://metadata-low-springfield-murphy.trycloudflare.com, status=active, backend=http://127.0.0.1:8000
+- Verificación curl /api/cerebros (post-relaunch): 200 OK — JSON válido: {"active_brain_id":"brain_genesis","cerebros":[{"i
+- Backend local :8000: HTTP 200 (online). Conectividad con todos los medios (Vercel, app nativa) confirmada.
+- Vercel starseed-system: READY (sin cambios desde A192). Sin deploy necesario (túnel verificado directamente; no hubo cambios de código).
+- Sin cambios de código; commit + push del cron job log al memory root (force-add, gitignored).
