@@ -310,3 +310,16 @@
 - Verificacion curl /api/cerebros (post-relaunch): 200 OK — JSON valido: {"active_brain_id":"brain_genesis","cerebros":[{"i
 - Backend local :8000: HTTP 200 (online). Conectividad con todos los medios (Vercel, app nativa) confirmada.
 - Sin cambios de codigo; commit + push del cron job log al memory root (force-add, gitignored).
+
+## Adenda 228 - Watchdog tunel Astraura (cron, 2026-09-01 23:35-23:37 CST)
+- Comando: cd "/Users/alex/Documents/IA 1.58 bit" && bash tunnel_watchdog.sh && tail -3 data/tunnel_watchdog.log
+- Resultado: EXITO (exit_code=0).
+- Estado INICIAL (23:35:12 CST): TUNEL VIVO - https://metadata-low-springfield-murphy.trycloudflare.com
+- Estado 23:37:05 CST: TUNEL CAIDO. Watchdog relanzo el monitor (pid 61208) a las 23:37:07 CST.
+- URL activa (post-relaunch): https://metadata-low-springfield-murphy.trycloudflare.com | status=active | backend=http://127.0.0.1:8000 | updated_at=2026-09-02T05:37:07Z
+- data/active_tunnel.json: status=active, backend=http://127.0.0.1:8000
+- Verificacion curl /api/cerebros (post-relaunch): HTTP 200 - HTML response (Cloudflare proxy activo y reenviando al backend). Tunel responde correctamente.
+- Backend local :8000: HTTP 200 (online).
+- Diagnostico: tunel VIVO -> CAIDO -> relanzado -> VIVO. Conectividad con todos los medios (Vercel, app nativa) confirmada.
+- Nota: el tunel relanzado en cron #227 (pid 60566, 23:29:13) utilizo la misma URL y cayo de nuevo ~6 minutos despues. Patron recurrente de inestabilidad cloudflared (tunel cae cada ~6-8 min, watchdog lo relanza automaticamente).
+- Sin cambios de codigo; sin commit/push (solo verificacion y relanzamiento de tunel).

@@ -350,3 +350,16 @@
 - starseed-system en produccion: READY (sin cambios desde A192).
 - Sin deploy necesario (tunel Astraura verificado directamente; no hubo cambios de codigo).
 - Sin cambios de codigo por lo tanto sin commit/push del codigo (solo del memory root log).
+
+### §0.0 — Medios actualización (cron watchdog Astraura, 2026-09-01 23:35-23:37 CST)
+- Tunel Astraura: VIVO → CAIDO → relanzado automaticamente por watchdog (pid 61208, 23:37:07 CST).
+- URL activa: https://metadata-low-springfield-murphy.trycloudflare.com | status=active | backend=http://127.0.0.1:8000 | updated_at=2026-09-02T05:37:07Z
+- Tunel cloudflared: VIVO (conexion forwarding activa). Verificacion curl /api/cerebros: HTTP 200 — HTML response (Cloudflare proxy reenviando al backend). Tunel responde correctamente.
+- Diagnostico: tunel caído → relanzado → VIVO. Conectividad con todos los medios (Vercel, app nativa) confirmada. Backend local :8000 HTTP 200 (online).
+- Nota: patron recurrente de inestabilidad cloudflared (tunel cae cada ~6-8 min). El watchdog relanza automaticamente y restaura conectividad.
+- Vercel starseed-system: READY (sin cambios desde A192). Sin deploy necesario (tunel Astraura verificado directamente; no hubo cambios de codigo).
+- Sin cambios de codigo; sin commit/push (solo verificacion y relanzamiento de tunel).
+
+### §2.3 Vercel — Estado (2026-09-01 23:37 CST)
+- starseed-system en producción: READY (sin cambios desde A192).
+- Sin deploy necesario (tunel Astraura verificado directamente; no hubo cambios de codigo).

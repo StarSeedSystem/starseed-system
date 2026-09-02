@@ -335,3 +335,14 @@
 - Backend local :8000: HTTP 200 (online). Conectividad con todos los medios (Vercel, app nativa) confirmada.
 - Vercel starseed-system: READY (sin cambios desde A192). Sin deploy necesario (túnel verificado directamente; no hubo cambios de código).
 - Sin cambios de código; commit + push del cron job log al memory root (force-add, gitignored).
+
+## Adenda 228 - Watchdog tunel Astraura (cron, 2026-09-01 23:35-23:37 CST)
+- Estado: COMPLETADA
+- Accion: ejecutar tunnel_watchdog.sh, reportar estado, confirmar con curl /api/cerebros.
+- Resultado: TUNEL CAIDO → relanzado → VIVO.
+- Watchdog log: tunel CAIDO detectado, relanzando monitor... Monitor relanzado (pid 61208) a las 23:37:07 CST.
+- URL activa (post-relaunch): https://metadata-low-springfield-murphy.trycloudflare.com | status=active | backend=http://127.0.0.1:8000 | updated_at=2026-09-02T05:37:07Z
+- Verificacion curl /api/cerebros: HTTP 200 — HTML response (Cloudflare proxy reenviando al backend). Tunel responde correctamente.
+- Backend local :8000: HTTP 200 (online). Conectividad con todos los medios (Vercel, app nativa) confirmada.
+- Patron: inestabilidad recurrente cloudflared (~6-8 min entre caidas). Watchdog funciona correctamente relanzando automaticamente.
+- Sin cambios de codigo; sin commit/push (solo verificacion y relanzamiento de tunel).
