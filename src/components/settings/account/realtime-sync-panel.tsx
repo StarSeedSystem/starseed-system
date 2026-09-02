@@ -170,11 +170,11 @@ export function RealtimeSyncPanel() {
                     (`supabase_realtime`). El aviso de postgres_changes es informativo:
                     el sync no depende de él, así que nunca se muestra como error. */}
                 <div className="rounded-xl border border-white/5 bg-black/20 p-3 space-y-1">
-                    <p className="flex items-center gap-2 text-xs">
+                    <div className="flex items-center gap-2 text-xs">
                         <Radio className="w-3.5 h-3.5 text-emerald-300 shrink-0" />
                         <span className="font-medium">Sync en vivo: por broadcast</span>
                         <Badge className="bg-emerald-500/15 text-emerald-300 border-emerald-400/30 text-[9px]">Activo</Badge>
-                    </p>
+                    </div>
                     <p className="text-[10px] text-muted-foreground">
                         Los cambios (biblioteca, publicaciones…) se anuncian por canales de tiempo real, sin
                         depender de la configuración de replicación de la base de datos.

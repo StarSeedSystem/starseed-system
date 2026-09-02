@@ -45,6 +45,9 @@ import { buildSystemPrompt, DEFAULT_PERSONALITY } from "@/lib/aurora/types";
 import { OPEN_GUIDE_EVENT } from "./aurora-guide";
 import { marcarVozDelRito } from "@/lib/aurora/narracion-ventana";
 import { hablarRito, callarRito, instalarVozPropia, VOZ_RITO_EVENT, type EstadoVozRito } from "@/lib/aurora/voz-rito";
+import { AnimatePresence, motion } from "framer-motion";
+import { PasoEscena } from "@/components/onboarding/paso-escena";
+import { StarSeedLoader } from "@/components/ui/starseed-loader";
 import SelectorVozInicial from "@/components/onboarding/selector-voz-inicial";
 import {
   getOnboarding,
@@ -726,8 +729,20 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
           </div>
         </div>
 
-        {/* contenido por paso */}
+        {/* (Adenda 216) Escena viva del paso: enseña lo que ese paso HACE, en
+            vez de dejar un icono quieto. Se reinicia al cambiar de paso. */}
+        <PasoEscena paso={STEPS[step].key} />
+
+        {/* contenido por paso, con transición direccional entre pasos */}
         <div className="min-h-[260px]">
+          <AnimatePresence mode="wait" initial={false}>
+          <motion.div
+            key={STEPS[step].key}
+            initial={{ opacity: 0, x: 18 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -18 }}
+            transition={{ duration: 0.26, ease: "easeOut" }}
+          >
           {/* 0 · Bienvenida */}
           {step === 0 && (
             <div className="space-y-5 py-1">
@@ -920,11 +935,21 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
                       className="gap-1.5 bg-gradient-to-r from-amber-600 to-fuchsia-600 text-white hover:from-amber-500 hover:to-fuchsia-500"
                     >
                       {instalandoVoz
-                        ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Trayendo su voz… {progresoVoz > 0 ? `${progresoVoz}%` : ""}</>
+                        ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Trayendo su voz…</>
                         : <><Volume2 className="h-3.5 w-3.5" /> Traer la voz de Astraura</>}
                     </Button>
                     <span className="text-[10.5px] text-white/45">O sigue en texto: no pierdes nada de la guía.</span>
                   </div>
+                  {/* La semilla girando con el porcentaje real de la descarga. */}
+                  {instalandoVoz && (
+                    <div className="mt-3 flex justify-center">
+                      <StarSeedLoader
+                        tamano="sm"
+                        progreso={progresoVoz}
+                        etiqueta="Trayendo la voz de Astraura a este equipo"
+                      />
+                    </div>
+                  )}
                 </div>
               )}
               {vozReal === "muda" && (
@@ -1247,8 +1272,9 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
               </div>
             </div>
           )}
-        </div>
-
+          </motion.div>
+          </AnimatePresence>
+        </div>{/* fin del bloque de pasos */}
         </div>{/* fin del cuerpo con scroll */}
 
         {/* ── BANDA INFERIOR · siempre visible, no se va con el scroll ────── */}

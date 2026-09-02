@@ -195,18 +195,31 @@ export function AccountProfilesSwitcher({ compact = false }: { compact?: boolean
     const justSavedRef = useRef(false);
     const router = useRouter();
 
+    // (Adenda 216) El editor se abría SOLO cada vez que no había perfiles… y
+    // este efecto depende de `editor`. Al cerrarlo, `editor` pasaba a null, el
+    // efecto se volvía a disparar y lo reabría: la ventana «Crear perfil» no se
+    // podía cerrar nunca. Alex lo vivió tal cual, teniendo ya su perfil hecho.
+    // Ahora la apertura automática ocurre UNA sola vez por montaje y, si la
+    // cierras, se respeta.
+    const aperturaAutoHecha = useRef(false);
+
     useEffect(() => {
-        if (justSavedRef.current) return;
-        if (!loading && !editor) {
-            if (searchParams.get("createProfile") === "true") {
-                setEditor(emptyEditor("create", profiles.length === 0));
-                // Remove param without redirecting to a different page
-                const newUrl = new URL(window.location.href);
-                newUrl.searchParams.delete("createProfile");
-                router.replace(newUrl.pathname + newUrl.search, { scroll: false });
-            } else if (profiles.length === 0) {
-                setEditor(emptyEditor("create", profiles.length === 0));
-            }
+        if (justSavedRef.current || loading || editor) return;
+
+        // Petición explícita por URL: siempre se atiende (es una acción del
+        // usuario, no una sugerencia del sistema).
+        if (searchParams.get("createProfile") === "true") {
+            setEditor(emptyEditor("create", profiles.length === 0));
+            const newUrl = new URL(window.location.href);
+            newUrl.searchParams.delete("createProfile");
+            router.replace(newUrl.pathname + newUrl.search, { scroll: false });
+            return;
+        }
+
+        // Invitación automática al primer perfil: una vez y no más.
+        if (profiles.length === 0 && !aperturaAutoHecha.current) {
+            aperturaAutoHecha.current = true;
+            setEditor(emptyEditor("create", true));
         }
     }, [searchParams, loading, editor, router, profiles.length, mainProfile]);
 
