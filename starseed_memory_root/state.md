@@ -363,3 +363,18 @@
 ### §2.3 Vercel — Estado (2026-09-01 23:37 CST)
 - starseed-system en producción: READY (sin cambios desde A192).
 - Sin deploy necesario (tunel Astraura verificado directamente; no hubo cambios de codigo).
+
+
+### §0.0 — Medios actualización (cron watchdog Astraura, 2026-09-02 00:33-00:35 CST)
+- Tunel Astraura: CAIDO -> relanzado automaticamente por watchdog (monitor pid 65980, 00:33:08 CST).
+- URL activa: https://encryption-first-apparatus-style.trycloudflare.com | status=active | backend=http://127.0.0.1:8000
+- data/active_tunnel.json: status=active, backend=http://127.0.0.1:8000
+- Tunel cloudflared: VIVO. curl /api/cerebros con 60s timeout: HTTP 200 JSON valido brain_genesis. Con 10s: HTTP 000 (timeout backend lento).
+- Backend local 8000: HTTP 200 (online). Conectividad medios (Vercel, app nativa) confirmada.
+- Vercel starseed-system: READY (sin cambios desde A192). Sin deploy necesario.
+- Sin cambios de codigo; sin commit/push (solo log en memory root).
+
+### §2.3 Vercel — Estado (2026-09-02 00:33 CST)
+- starseed-system en producción: READY (sin cambios desde A192).
+- Sin deploy necesario (tunel Astraura verificado directamente; no hubo cambios de codigo).
+- Sin commit/push del codigo (solo actualizacion de memory root).

@@ -323,3 +323,15 @@
 - Diagnostico: tunel VIVO -> CAIDO -> relanzado -> VIVO. Conectividad con todos los medios (Vercel, app nativa) confirmada.
 - Nota: el tunel relanzado en cron #227 (pid 60566, 23:29:13) utilizo la misma URL y cayo de nuevo ~6 minutos despues. Patron recurrente de inestabilidad cloudflared (tunel cae cada ~6-8 min, watchdog lo relanza automaticamente).
 - Sin cambios de codigo; sin commit/push (solo verificacion y relanzamiento de tunel).
+## Adenda 229 - Watchdog tunel Astraura (cron #229, 2026-09-02 00:33-00:35 CST)
+- Accion: ejecutar tunnel_watchdog.sh y confirmar con curl /api/cerebros.
+- Resultado: TUNEL CAIDO, relanzado, VIVO (exit_code=0).
+- Watchdog log: [Wed Sep  2 00:33:06 CST 2026] TUNEL CAIDO (https://occurred-yellow-indicating-cruises.trycloudflare.com). Relanzando monitor...
+[Wed Sep  2 00:33:08 CST 2026] Monitor relanzado (pid 65980)
+[Wed Sep  2 00:35:01 CST 2026] OK tunel vivo: https://encryption-first-apparatus-style.trycloudflare.com
+- URL activa (post-relaunch): https://encryption-first-apparatus-style.trycloudflare.com | status=active | backend=http://127.0.0.1:8000
+- curl /api/cerebros (10s): HTTP 000 timeout exit 28 (backend lento i2_s M1 8GB ~90s). Con 60s: HTTP 200 JSON valido brain_genesis. Tunel responde correctamente.
+- Backend local 8000: HTTP 200 (uvicorn online). BitNet llama-server 8790 (i2_s saludable). Conectividad medios (Vercel, app nativa) confirmada.
+- Vercel starseed-system: READY (sin cambios desde A192). Sin deploy necesario.
+- Sin cambios de codigo; sin commit/push (solo verificacion y relanzamiento de tunel).
+
