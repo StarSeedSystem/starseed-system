@@ -56,8 +56,7 @@ import {
   KeyRound, Volume2, UserCog, Stethoscope, User, GitBranch, Trash2, Info, AlertTriangle,
   Bot, RadioTower, BellRing, Compass, Columns3, Copy, Download, Upload, Undo2, Waves,
   ChevronLeft, ChevronRight, Wand2, SlidersHorizontal,
-  type LucideIcon,
-} from "lucide-react";
+  type LucideIcon, BrainCircuit } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Switch } from "@/components/ui/switch";
 import { SectionTabs, type SectionTabItem, type SectionTabAccent } from "@/components/ui/section-tabs";
@@ -94,6 +93,7 @@ import {
 // (Astraura 1.58b local marcado por defecto) reutilizando el editor ya probado.
 import { PrimaryChoiceEditor } from "@/components/astraura/primary-choice-editor";
 import { AgentesFondoSection } from "@/components/astraura/agentes-fondo-section";
+import { InteligenciaSection } from "@/components/astraura/inteligencia-section";
 import { useNarracionVentana } from "@/lib/aurora/narracion-ventana";
 import { PersonaConstellation } from "@/components/astraura/persona-constellation";
 
@@ -144,7 +144,7 @@ export interface AstrauraOmniVoiceConfigProps {
 
 /** Identificador de cada pestaña del hub. */
 export type SetupSection =
-  | "astraura" | "openvoice" | "cerebro" | "senales" | "agentes"
+  | "astraura" | "openvoice" | "cerebro" | "senales" | "agentes" | "inteligencia"
   | "neuronas" | "integraciones" | "apis";
 
 /** Los 5 SISTEMAS de la neurona (barra del modal/drawer). */
@@ -153,7 +153,7 @@ export type SetupSection =
 // dos sitios una sola decisión — qué IA usa esta neurona. Ahora Astraura reúne
 // el sistema primario (1.58-bit local por defecto), los pines de fuente/modelo
 // y el recomendador por hardware. Los deep-links `llm` siguen vivos (sinónimo).
-const SYSTEM_SECTIONS: SetupSection[] = ["astraura", "openvoice", "cerebro", "senales", "agentes"];
+const SYSTEM_SECTIONS: SetupSection[] = ["astraura", "openvoice", "cerebro", "senales", "agentes", "inteligencia"];
 const ALL_SECTIONS: SetupSection[] = [...SYSTEM_SECTIONS, "neuronas", "integraciones", "apis"];
 const NARROW_SECTIONS: SetupSection[] = SYSTEM_SECTIONS;
 
@@ -167,10 +167,12 @@ const NARROW_SECTIONS: SetupSection[] = SYSTEM_SECTIONS;
 const SECTION_META: Record<SetupSection, { label: string; icon: LucideIcon; accent?: SectionTabAccent }> = {
   astraura: { label: "Astraura", icon: Sparkles, accent: "amber" },
   agentes: { label: "Agentes", icon: Bot, accent: "cyan" },
+  // (Adenda 218) La pestaña que faltaba: qué IA usa cada cosa y dónde cambiarla.
+  inteligencia: { label: "Inteligencia", icon: BrainCircuit, accent: "violet" },
   // El SISTEMA de voz se llama OmniVoice; «OpenVoice» es solo uno de sus
   // motores. El id `openvoice` NO cambia: es la clave de los deep-links y de
   // los sinónimos históricos (voz/omnivoice→openvoice).
-  openvoice: { label: "OmniVoice", icon: Volume2, accent: "fuchsia" },
+  openvoice: { label: "VoiceMorphic", icon: Volume2, accent: "fuchsia" },
   cerebro: { label: "Cerebro", icon: Brain, accent: "violet" },
   senales: { label: "Señales", icon: RadioTower, accent: "emerald" },
   neuronas: { label: "Neuronas", icon: Cpu },
@@ -211,7 +213,8 @@ const NARRACION_SECCION: Partial<Record<SetupSection, string>> = {
   openvoice: "Aquí eliges cómo sueno en este dispositivo. La voz que escuchas ahora es la que viene puesta y funciona sin instalar nada; cámbiala solo si te apetece otra.",
   cerebro: "Este es el cerebro de la neurona: donde viven tus memorias y las carpetas que vinculaste antes.",
   senales: "Señales: cómo habla tu neurona con la red y con tus otros dispositivos.",
-  agentes: "Y por último, tus agentes. Ya está todo elegido para este equipo: imaginan y proponen en segundo plano, y se automejoran mientras no miras.",
+  agentes: "Tus agentes. Ya está todo elegido para este equipo: imaginan y proponen en segundo plano, y se automejoran mientras no miras.",
+  inteligencia: "Y aquí ves toda la inteligencia en marcha: qué modelo respondió cada cosa, cuántos tokens usó, qué corre en segundo plano y dónde cambiar cualquiera de ellos.",
 };
 
 /** Sistema del store A149 → pestaña de esta ventana (para las insignias). */
@@ -330,8 +333,9 @@ function sectionFromSynonym(section?: string): SetupSection | null {
     novedades: "astraura", actualizaciones: "astraura",
     voz: "openvoice", omnivoice: "openvoice", "omni-voice": "openvoice", "open-voice": "openvoice",
     // Sistemas nuevos.
-    ia: "astraura", inteligencia: "astraura",
+    ia: "astraura",
     agente: "agentes", agents: "agentes", enjambre: "agentes", imaginacion: "agentes", "imaginación": "agentes",
+    inteligencia: "inteligencia", tokens: "inteligencia", rutas: "inteligencia", router: "inteligencia", voicemorphic: "openvoice",
     memoria: "cerebro", memorias: "cerebro", cerebros: "cerebro", almacen: "cerebro", "almacén": "cerebro",
     "señales": "senales", antena: "senales", antenas: "senales", conectividad: "senales", mesh: "senales", malla: "senales",
     // Hub embebido.
@@ -1877,6 +1881,7 @@ export function AstrauraOmniVoiceConfig({
         )}
 
         {currentSection === "agentes" && <AgentesFondoSection compact={compact} />}
+        {currentSection === "inteligencia" && <InteligenciaSection compact={compact} />}
 
         {currentSection === "openvoice" && (
           <OpenVoiceSection personaId={personaId} deviceId={deviceId} caps={caps} compact={compact} full={variant === "embedded"} />

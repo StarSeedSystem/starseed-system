@@ -43,6 +43,8 @@ import { DesignSettingsPanel } from "@/components/settings/appearance/design-set
 import { GuideButtonToggle } from "@/components/settings/appearance/guide-button-toggle";
 import { PrivacyPanel } from "@/components/settings/privacy/privacy-panel";
 import { NeuronsPanel } from "@/components/settings/neurons/neurons-panel";
+import { CambiarContrasena } from "@/components/settings/account/cambiar-contrasena";
+import { EditarHandle } from "@/components/settings/account/editar-handle";
 import { AccountSyncPanel } from "@/components/settings/account/account-sync-panel";
 import { RealtimeSyncPanel } from "@/components/settings/account/realtime-sync-panel";
 import { ProfilesSyncPanel } from "@/components/profiles/profiles-sync-panel";
@@ -677,6 +679,10 @@ function CuentaContent() {
 
       {/* ═══════════════════════ 1) INFORMACIÓN PERSONAL ═══════════════════════ */}
       <section id="info-personal" className="scroll-mt-6 pt-4">
+        {/* (Adenda 218) El @handle se edita aquí, no solo en el rito. */}
+        <div className="mb-4">
+          <EditarHandle actual={String(profile?.handle ?? profile?.username ?? "")} />
+        </div>
         <h2 className="text-base font-semibold mb-1">Información personal</h2>
         <p className="text-xs text-muted-foreground mb-3">Tus perfiles, tu @, tu bio y tus correos adjuntos.</p>
 
@@ -883,6 +889,11 @@ function CuentaContent() {
             <LogOut className="w-3.5 h-3.5" /> Cerrar sesión en este dispositivo
           </button>
         </div>
+
+        {/* (Adenda 218) Cambio de contraseña con verificación de la actual. */}
+        {user?.app_metadata?.provider === "email" || !user?.app_metadata?.provider ? (
+          <CambiarContrasena email={user?.email} />
+        ) : null}
 
         <NeuronsPanel />
       </section>

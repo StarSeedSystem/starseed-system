@@ -36,6 +36,7 @@
 
 import { generoEfectivo, getModoVoz, modulacionAutonoma } from "@/lib/aurora/voz-inicial";
 import { timbreActual, vozDelTimbre, buscarTimbre, TIMBRE_AUTONOMO_BASE, type Timbre } from "@/lib/aurora/timbres";
+import { decidirEntonacion } from "@/lib/aurora/agente-entonacion";
 
 /** Margen para que la voz del navegador demuestre que suena de verdad. */
 const RELEVO_MS = 1200;
@@ -114,9 +115,26 @@ export function callarRito(): void {
  * neutra con la modulación viva de la personalidad encima (Adenda 213: Alex
  * pidió expresamente que la autónoma parta de la neutra).
  */
-export function timbreEfectivo(): Timbre {
+export function timbreEfectivo(texto?: string, ctx: "rito" | "conversacion" | "aviso" | "lectura" | "imaginacion" = "rito"): Timbre {
     const modo = getModoVoz();
     if (modo === "autonoma") {
+        // (Adenda 218) En modo autónomo decide el AGENTE DE ENTONACIÓN: lee el
+        // texto, la hora, la personalidad y su memoria de tono, y elige timbre
+        // e instrucción con coherencia. Instantáneo (heurística local); la
+        // política la afina en segundo plano el router económico.
+        if (texto) {
+            try {
+                const d = decidirEntonacion(texto, ctx);
+                const elegido = buscarTimbre(d.timbreId) ?? buscarTimbre(TIMBRE_AUTONOMO_BASE) ?? timbreActual("neutra");
+                return {
+                    ...elegido,
+                    id: `${elegido.id}-autonomo`,
+                    nombre: "Autónoma",
+                    local: { ...elegido.local, speed: +(elegido.local.speed * d.speed).toFixed(3), instruct: d.instruct },
+                    sistema: { ...elegido.sistema, pitch: +(elegido.sistema.pitch * d.pitch).toFixed(3), rate: +(elegido.sistema.rate * d.speed).toFixed(3) },
+                };
+            } catch { /* si el agente falla, sigue la modulación clásica */ }
+        }
         const base = buscarTimbre(TIMBRE_AUTONOMO_BASE) ?? timbreActual("neutra");
         const traits = (window as unknown as { STARSEED_personality_traits?: Record<string, number> })
             .STARSEED_personality_traits;
@@ -248,7 +266,7 @@ export function hablarRito(texto: string): boolean {
             if (est.listo) {
                 avisar("preparando");
                 // Por frases: la primera suena en segundos; el resto se encadena.
-                const sono = await ml.hablarLocalPorFrases(limpio, timbreEfectivo(), () => {
+                const sono = await ml.hablarLocalPorFrases(limpio, timbreEfectivo(limpio, "rito"), () => {
                     if (miTurno === turno) avisar("motor");   // primera frase sonando
                 });
                 if (miTurno !== turno) return;
@@ -298,7 +316,7 @@ function porElSistema(limpio: string, miTurno: number): void {
             // (Adenda 213) El timbre es una RECETA FIJA —voz base + tono +
             // ritmo—, no un ranking que se recalcula en cada pulsación. Por eso
             // cada botón suena siempre igual y coincide con su etiqueta.
-            const t = timbreEfectivo();
+            const t = timbreEfectivo(limpio, "rito");
             const voz = vozDelTimbre(t);
 
             // ── (Adenda 215) ENTREGA EXPRESIVA ───────────────────────────────

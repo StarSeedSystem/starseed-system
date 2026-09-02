@@ -49,7 +49,7 @@ const KOKORO: MotorVoz = {
 
 const OMNIVOICE: MotorVoz = {
     id: "omnivoice",
-    nombre: "OmniVoice",
+    nombre: "VoiceMorphic (motor configurado)",
     nota: "El motor que hayas configurado. Astraura preferirá el 1.58-bit local cuando esté disponible.",
     local: false,
 };
@@ -98,7 +98,7 @@ export async function motorPreferido(): Promise<MotorVoz> {
         if (est.listo) {
             return {
                 id: "astraura-158",
-                nombre: `Astraura local · OmniVoice ${est.quant || "GGUF"} · ${est.backend === "metal" ? "Metal" : "CPU"}`,
+                nombre: `VoiceMorphic · voz nativa de Astraura · ${est.quant || "GGUF"} · ${est.backend === "metal" ? "Metal" : "CPU"}`,
                 nota: "Voz neuronal sintetizada en tu propio equipo, sin red. Las frases siguientes se anticipan para sonar al instante.",
                 local: true,
             };

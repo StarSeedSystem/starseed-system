@@ -559,6 +559,59 @@ const LABS_PACKAGES: LibraryPackage[] = [
     author: "Kokoro · StarSeed Labs", sourceRepoId: "starseed-labs", free: true,
     payload: { skillId: "aurora-voice-kokoro", route: "/settings" },
   },
+  /* ═══════════════════════ CATEGORÍA «VOCES» (Adenda 218) ═══════════════════════
+     Todos los motores de voz del OS con su repositorio, para que la Biblioteca
+     muestre versión instalada frente a publicada (los `repo` con
+     `payload.githubRepo` se consultan en tiempo real por releases). El primero
+     es el nuestro: VoiceMorphic, la voz nativa de Astraura. */
+  {
+    id: "voz-voicemorphic", kind: "repo", name: "VoiceMorphic · voz nativa de Astraura",
+    description:
+      "Nuestro sistema de voz: fusión adaptada sobre OmniVoice portado a llama.cpp (GGUF Q8_0, Metal/CPU), con clonación por referencia, instrucción de estilo, entonación por contexto y anticipación de frases. Funciona sin internet. Motor por defecto en macOS, Windows y Linux. En evolución hacia pesos ternarios (1,58-bit).",
+    icon: "AudioWaveform", tags: ["voces", "voz", "tts", "local", "starseed", "1.58"], version: "1.0.0",
+    author: "StarSeed", sourceRepoId: "starseed-labs", free: true,
+    payload: { externalUrl: "https://github.com/StarSeedSystem/starseed-system/tree/main/native/astraura-voice", githubRepo: "StarSeedSystem/starseed-system", categoria: "voces", motorId: "voicemorphic", route: "/settings" },
+  },
+  {
+    id: "voz-kokoro", kind: "repo", name: "Kokoro · voz local en el navegador",
+    description:
+      "Motor TTS de 82 M parámetros (Apache-2.0) en WebAssembly/WebGPU: ~80 MB, sin internet, menos de tiempo real incluso en móviles. Motor por defecto en Android, iOS y web. Voces españolas ef_dora, em_alex y em_santa.",
+    icon: "Mic", tags: ["voces", "voz", "tts", "local", "movil", "wasm"], version: "0.9.4",
+    author: "hexgrad", sourceRepoId: "starseed-labs", free: true,
+    payload: { externalUrl: "https://github.com/hexgrad/kokoro", githubRepo: "hexgrad/kokoro", categoria: "voces", motorId: "kokoro" },
+  },
+  {
+    id: "voz-chatterbox", kind: "repo", name: "Chatterbox · Resemble AI",
+    description:
+      "TTS de 0,5 B parámetros (MIT) con control de exageración emocional y clonación zero-shot. PyTorch: necesita GPU o una CPU potente y ~1,5 GB de pesos. Se integra como segundo daemon detrás del mismo contrato de VoiceMorphic. Su dial de estilo ya viaja como instrucción por timbre.",
+    icon: "Sparkles", tags: ["voces", "voz", "tts", "emocion", "pytorch"], version: "0.1.0",
+    author: "Resemble AI", sourceRepoId: "starseed-labs", free: true,
+    payload: { externalUrl: "https://github.com/resemble-ai/chatterbox", githubRepo: "resemble-ai/chatterbox", categoria: "voces", motorId: "chatterbox" },
+  },
+  {
+    id: "voz-voxcpm", kind: "repo", name: "VoxCPM · OpenBMB",
+    description:
+      "TTS tokenizer-free de 0,5 B (Apache-2.0) con prosodia consciente del contexto y clonación. PyTorch. Su entonación por contexto es lo que VoiceMorphic imita por cláusulas; candidato a fusión en cuanto exista port cuantizado.",
+    icon: "Waves", tags: ["voces", "voz", "tts", "prosodia", "pytorch"], version: "0.1.0",
+    author: "OpenBMB", sourceRepoId: "starseed-labs", free: true,
+    payload: { externalUrl: "https://github.com/OpenBMB/VoxCPM", githubRepo: "OpenBMB/VoxCPM", categoria: "voces", motorId: "voxcpm" },
+  },
+  {
+    id: "voz-openvoice2", kind: "repo", name: "OpenVoice V2 · MyShell (nube gratuita)",
+    description:
+      "Clonación de voz (MIT) usada por Spaces públicos de Hugging Face: requiere internet y depende de que estén despiertos. Solo respaldo; nunca por defecto en descargas.",
+    icon: "Cloud", tags: ["voces", "voz", "tts", "nube", "respaldo"], version: "2.0.0",
+    author: "MyShell", sourceRepoId: "starseed-labs", free: true,
+    payload: { externalUrl: "https://github.com/myshell-ai/OpenVoice", githubRepo: "myshell-ai/OpenVoice", categoria: "voces", motorId: "openvoice2" },
+  },
+  {
+    id: "voz-referencias", kind: "research", name: "Referencias de voz humana · fuentes públicas",
+    description:
+      "Catálogo verificado de datasets, archivos y bibliotecas de efectos con audio humano para clonar, afinar o entrenar voces, con licencia y uso comercial por fuente: Common Voice (CC0), MLS (CC BY), CSS10, LibriVox, VCTK, CIEMPIESS, Expresso, EmoV-DB, RAVDESS, CREMA-D, BBC Sound Effects, Freesound, Internet Archive… Para español con licencia libre: MLS, Common Voice y CSS10 primero.",
+    icon: "Library", tags: ["voces", "datasets", "referencias", "licencias", "investigacion"], version: "1.0.0",
+    author: "StarSeed", sourceRepoId: "starseed-labs", free: true,
+    payload: { externalUrl: "https://github.com/jim-schwoebel/voice_datasets", categoria: "voces", catalogo: "FUENTES_REFERENCIA", route: "/settings" },
+  },
   /* ── KittenTTS / KittenML — repo (fuente de paquetes) ── */
   {
     id: "repo-kittentts", kind: "repo", name: "KittenTTS / KittenML",

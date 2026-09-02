@@ -244,14 +244,24 @@ export async function isHandleAvailable(handle: string): Promise<boolean> {
   if (!isValidHandle(h)) return false;
   try {
     const sb = createClient();
-    // case-insensitive: comparamos ilike exacto contra el handle.
-    const { data } = await sb
-      .from("profiles")
-      .select("id,handle")
-      .ilike("handle", h)
-      .limit(1);
-    const rows = (data as { id: string }[]) || [];
-    return rows.length === 0;
+    // (Adenda 218) TU PROPIO HANDLE NUNCA ESTÁ «EN USO». El registro ya crea
+    // el perfil con el handle derivado del correo; al llegar al paso de
+    // identidad y teclear ese mismo handle, la comprobación encontraba la
+    // fila del propio usuario y decía «ya está en uso». Alex lo vivió como
+    // «no me deja ponerlo». Se excluye al usuario actual de la búsqueda, y
+    // se mira también `os_profiles`, que guarda el handle público.
+    const { data: auth } = await sb.auth.getUser();
+    const yo = auth?.user?.id ?? null;
+
+    let q = sb.from("profiles").select("id,user_id,handle").ilike("handle", h).limit(2);
+    if (yo) q = q.neq("user_id", yo);
+    const { data } = await q;
+    if (((data as { id: string }[]) || []).length > 0) return false;
+
+    let q2 = sb.from("os_profiles").select("user_id,handle").ilike("handle", h).limit(2);
+    if (yo) q2 = q2.neq("user_id", yo);
+    const { data: d2 } = await q2;
+    return (((d2 as { user_id: string }[]) || []).length === 0);
   } catch {
     // En caso de error de red, no afirmamos disponibilidad.
     return false;

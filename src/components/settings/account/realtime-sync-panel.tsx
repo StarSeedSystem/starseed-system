@@ -192,7 +192,7 @@ export function RealtimeSyncPanel() {
 
                 {/* ── Aurora y Astraura: estado REAL, sin fingir (Adenda 68 · A) ── */}
                 <div className="rounded-xl border border-white/5 bg-black/20 p-3 space-y-1.5">
-                    <p className="flex items-center gap-2 text-xs">
+                    <div className="flex items-center gap-2 text-xs">
                         <Sparkles className="w-3.5 h-3.5 text-primary shrink-0" />
                         <span className="font-medium">Aurora y Astraura</span>
                         {session === false ? (
@@ -208,7 +208,7 @@ export function RealtimeSyncPanel() {
                                 {connected ? "Sin cambios todavía" : "En espera"}
                             </Badge>
                         )}
-                    </p>
+                    </div>
                     <p className="text-[10px] text-muted-foreground">
                         {session === false ? (
                             <>
