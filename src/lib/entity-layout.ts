@@ -34,6 +34,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import type { Marco } from "@/lib/profile/marco-foto"; // (Ola 224) marcos de forma en la galería
 import {
     getEntityState,
     setEntityState,
@@ -62,6 +63,8 @@ export interface FreeSection {
 export interface GalleryImage {
     url: string;
     caption?: string;
+    /** (Ola 224) Marco de forma opcional (Adenda 219): ausente en datos antiguos, sin regresión. */
+    marco?: Marco;
 }
 
 export interface EntityLayout {
@@ -171,7 +174,7 @@ export interface UseEntityLayout {
     updateSection: (id: string, patch: Partial<Pick<FreeSection, "title" | "body">>) => Promise<void>;
     removeSection: (id: string) => Promise<void>;
     toggleIntegration: (key: string, on: boolean) => Promise<void>;
-    addGalleryImage: (url: string, caption?: string) => Promise<void>;
+    addGalleryImage: (url: string, caption?: string, marco?: Marco) => Promise<void>; // (Ola 224)
     removeGalleryImage: (index: number) => Promise<void>;
     setAboutExtended: (text: string) => Promise<void>;
 }
@@ -272,7 +275,9 @@ export function useEntityLayout(ref: EntityRef | null): UseEntityLayout {
     );
 
     const addGalleryImage = useCallback(
-        (url: string, caption?: string) => patch({ gallery: [...layout.gallery, { url, caption }] }),
+        // (Ola 224) el marco viaja opcional junto a la imagen
+        (url: string, caption?: string, marco?: Marco) =>
+            patch({ gallery: [...layout.gallery, { url, caption, ...(marco ? { marco } : {}) }] }),
         [layout.gallery, patch],
     );
 

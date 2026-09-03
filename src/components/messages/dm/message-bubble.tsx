@@ -31,6 +31,15 @@ import { UniversalAttachmentView, isInviteLike, isNetworkRefLike } from "@/compo
 // Previsualización rica (pdf/código/genérico descargable — Requisito 4):
 // reutiliza el mismo visor universal que ya usan comentarios/biblioteca.
 import { FilePreview } from "@/components/files/file-preview";
+// Marcos de forma en adjuntos imagen/vídeo (Ola 224 · Adenda 219).
+import { FotoConMarco } from "@/components/profile/foto-con-marco";
+import { normalizarMarco, type Marco } from "@/lib/profile/marco-foto";
+
+/** (Ola 224) El marco viaja como campo extra JSON del adjunto (sin tocar el tipo en dm.ts). */
+function marcoDeAdjunto(attachment: DmAttachment): Marco | null {
+    const raw = (attachment as DmAttachment & { marco?: unknown }).marco;
+    return raw && typeof raw === "object" ? normalizarMarco(raw) : null;
+}
 
 function AttachmentView({ attachment }: { attachment: DmAttachment }) {
     if (isInviteLike(attachment) || isNetworkRefLike(attachment)) {
@@ -51,6 +60,14 @@ function AttachmentView({ attachment }: { attachment: DmAttachment }) {
     }
 
     if (attachment.kind === "image" && attachment.url) {
+        const marco = marcoDeAdjunto(attachment); // (Ola 224)
+        if (marco) {
+            return (
+                <div className="flex w-[min(280px,68vw)] justify-center py-1">
+                    <FotoConMarco src={attachment.url} marco={marco} alt={attachment.name || "Imagen"} size={220} />
+                </div>
+            );
+        }
         return (
             <div className="relative w-[min(280px,68vw)] aspect-video overflow-hidden rounded-xl border border-white/10">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -69,6 +86,14 @@ function AttachmentView({ attachment }: { attachment: DmAttachment }) {
     }
 
     if (attachment.kind === "video" && attachment.url) {
+        const marco = marcoDeAdjunto(attachment); // (Ola 224) vídeo con controles y marco de forma
+        if (marco) {
+            return (
+                <div className="flex w-[min(280px,68vw)] justify-center py-1">
+                    <FotoConMarco src={attachment.url} marco={marco} alt={attachment.name || "Vídeo"} size={240} video={true} controles={true} /> {/* (Ola 224) props booleanas explícitas: evita ambigüedad JSX */}
+                </div>
+            );
+        }
         return (
             <div className="w-[min(280px,68vw)] rounded-xl overflow-hidden border border-white/10">
                 <video controls src={attachment.url} className="w-full" />
