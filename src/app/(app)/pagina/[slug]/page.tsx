@@ -289,6 +289,12 @@ function PaginaPageContent() {
     // activa se declara ANTES de las pestañas porque la bienvenida navega entre ellas.
     const [activeTab, setActiveTab] = useState("");
     const postCount = useOsPostCount("page", page?.slug);
+    // (Adenda 220) `useFollow` se llamaba DENTRO del JSX, después de los returns
+    // tempranos (loading/notFound): en el primer render con datos React contaba
+    // un hook más que en el anterior («Rendered more hooks than during the
+    // previous render») y la página caía al límite de error. Ahora es un hook
+    // incondicional arriba, como manda la regla de hooks.
+    const followState = useFollow(page?.slug ?? "");
     const effectiveCoverForWelcome = layout.coverUrl || page?.coverUrl || "";
 
     const baseTabs = useMemo(() => {
@@ -590,7 +596,7 @@ function PaginaPageContent() {
                 isCommunity={isCommunity}
                 onEdit={() => setEditOpen(true)}
                 onCustomize={() => setLayoutEditorOpen(true)}
-                followState={useFollow(page.slug)}
+                followState={followState}
             />
 
             <div className="grid min-w-0 gap-4 sm:gap-6 lg:grid-cols-3">
