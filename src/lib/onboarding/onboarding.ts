@@ -35,7 +35,13 @@ export interface OnboardingState {
   // (Ola 221) «Saltar por ahora» NO es completar: se guarda como pospuesto
   // para que la guía no se reabra en bucle pero pueda relanzarse a mano.
   skipped?: boolean;
-  // (Ola 221) admite null: completar limpia el «pospuesto» limpiando skippedAt
+  // (Ola 221) admite null: completar limpia el «pospuesto» limpiando skippedAt.
+  // (Ola 221 · T3F) skippedAt aún NO tiene lector: queda reservado para los
+  // recordatorios de «retoma tu guía»; no borrar aunque hoy parezca muerto.
+  // Auditoría de lectores de `completed` (riesgo 2 de la revisión): gate,
+  // /bienvenida y el propio wizard ya miran `skipped`; aurora-setup-center
+  // solo DIFIERE su oferta automática cuando completed=false (no reabre la
+  // guía), que es exactamente lo deseado para un rito pospuesto.
   skippedAt?: string | null;
   steps: Record<string, unknown>;
   voice_started: boolean;
