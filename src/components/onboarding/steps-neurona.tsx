@@ -33,6 +33,38 @@ import AgentRecommendation from "./agent-recommendation";
 const selectCls =
   "w-full rounded-lg border border-white/15 bg-black/30 p-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-cyan-400/50";
 
+// (Ola 221) Registro de «aceptar pendiente» por paso: «Continuar» del wizard
+// aplica solo lo que el usuario no pulsó. La tabla se crea PEREZOSA y SOLO en
+// el cliente (los Steps son "use client" y nunca registran durante SSR): así
+// ninguna petición de render en servidor comparte estado con otra.
+type Aplicador = { fn: () => Promise<void> | void; aplicado: boolean };
+let aplicadores: Map<number, Aplicador> | null = null;
+
+function tablaAplicadores(): Map<number, Aplicador> {
+  // (Ola 221 fix) Guard SSR: en servidor no existe registro alguno.
+  if (typeof window === "undefined") return new Map<number, Aplicador>();
+  if (!aplicadores) aplicadores = new Map<number, Aplicador>();
+  return aplicadores;
+}
+
+// La limpieza retornada SÍ se ejecuta: cada Step la devuelve desde su propio
+// useEffect (`useEffect(() => registrarAplicar(...), [...])`), por lo que la
+// entrada se borra al desmontar y al re-renderizar con deps nuevas.
+export function registrarAplicar(step: number, fn: () => Promise<void> | void, aplicado: boolean): () => void {
+  const tabla = tablaAplicadores();
+  tabla.set(step, { fn, aplicado });
+  return () => {
+    tabla.delete(step);
+    // (Ola 221 fix) Sin entradas, la tabla se libera: nada que acumular.
+    if (aplicadores && aplicadores.size === 0) aplicadores = null;
+  };
+}
+
+export async function aplicarPendiente(step: number): Promise<void> {
+  const a = tablaAplicadores().get(step);
+  if (a && !a.aplicado) await a.fn();
+}
+
 // ════════════════════════════════════════════════════════════════════════════
 // Paso: Cerebros y memoria
 // ════════════════════════════════════════════════════════════════════════════
@@ -109,6 +141,9 @@ export function StepCerebros() {
       setCargando(false);
     }
   }, [cerebros, syncNube, personalidad, ruta, carpetas, vincularCarpetas]);
+
+  // (Ola 221) El «Continuar» del wizard aplica esta recomendación si no se pulsó «Aceptar».
+  useEffect(() => registrarAplicar(6, aceptar, aplicado), [aceptar, aplicado]);
 
   return (
     <div className="space-y-4">
@@ -194,6 +229,9 @@ export function StepPermisos() {
     setCargando(false);
   }, []);
 
+  // (Ola 221) El «Continuar» del wizard aplica esta recomendación si no se pulsó «Aceptar».
+  useEffect(() => registrarAplicar(5, aceptar, aplicado), [aceptar, aplicado]);
+
   return (
     <div className="space-y-4">
       <AgentRecommendation razones={razones} aplicado={aplicado} onAceptar={aceptar} cargando={cargando} />
@@ -246,6 +284,9 @@ export function StepNeurona() {
       setCargando(false);
     }
   }, [motor, modelo, conciencia, nombre, hw]);
+
+  // (Ola 221) El «Continuar» del wizard aplica esta recomendación si no se pulsó «Aceptar».
+  useEffect(() => registrarAplicar(7, aceptar, aplicado), [aceptar, aplicado]);
 
   return (
     <div className="space-y-4">

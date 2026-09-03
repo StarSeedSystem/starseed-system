@@ -33,7 +33,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { StepCerebros, StepPermisos, StepNeurona, CorreosVinculados } from "./steps-neurona";
+import { StepCerebros, StepPermisos, StepNeurona, CorreosVinculados, aplicarPendiente } from "./steps-neurona";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -554,6 +554,16 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
     if (step === 4) {
       const ok = await doSaveOptional();
       if (!ok) return;
+    }
+    // (Ola 221) Los pasos Permisos, Cerebros y Neurona tienen recomendaciones
+    // que antes solo se aplicaban con su botón «Aceptar»: «Continuar» las
+    // aplica también. Si fallan, se avisa y se avanza igualmente (fail-open).
+    if (step === 5 || step === 6 || step === 7) {
+      try {
+        await aplicarPendiente(step);
+      } catch {
+        toast.warning("No pude aplicar esta recomendación ahora; sigo adelante y puedes ajustarlo luego en Ajustes.");
+      }
     }
     if (step < STEPS.length - 1) {
       setStep((s) => s + 1);
