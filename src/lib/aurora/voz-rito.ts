@@ -37,7 +37,8 @@
 import { generoEfectivo, getModoVoz, modulacionAutonoma } from "@/lib/aurora/voz-inicial";
 import { timbreActual, vozDelTimbre, buscarTimbre, TIMBRE_AUTONOMO_BASE, type Timbre } from "@/lib/aurora/timbres";
 import { decidirEntonacion } from "@/lib/aurora/agente-entonacion";
-import { motorNeuralListo, precalentarMotorNeural, type MotorVoz } from "@/lib/aurora/motor-voz";
+import { hablarStarSeed, nivelActual } from "@/lib/aurora/voz-starseed/motor";
+import type { NivelVoz } from "@/lib/aurora/voz-starseed/niveles";
 
 /** Margen para que la voz del navegador demuestre que suena de verdad. */
 const RELEVO_MS = 1200;
@@ -235,49 +236,6 @@ export async function instalarVozPropia(
 }
 
 /**
- * (Ola 227) Habla por el motor neuronal ya listo (VoiceMorphic, Kokoro u
- * OmniVoice) con el mismo timbre que usaría cualquier otra superficie. Si el
- * motor falla en esta frase, cae al respaldo del sistema. Nunca lanza.
- */
-function hablarPorMotorNeural(motor: MotorVoz, limpio: string, miTurno: number): void {
-    void (async () => {
-        try {
-            if (motor.id === "astraura-158") {
-                const ml = await import("@/lib/aurora/motor-local");
-                if (miTurno !== turno) return;
-                const sono = await ml.hablarLocalPorFrases(limpio, timbreEfectivo(limpio, "rito"), () => {
-                    if (miTurno === turno) avisar("motor");
-                });
-                if (miTurno !== turno) return;
-                if (sono) return;
-            } else if (motor.id === "kokoro") {
-                const kok = await import("@/lib/aurora/tts-oss/kokoro");
-                if (miTurno !== turno) return;
-                const t = timbreEfectivo(limpio, "rito");
-                const audio = await kok.kokoroSpeak(limpio, {
-                    voice: t.local.voz,
-                    speed: t.local.speed,
-                    onStart: () => { if (miTurno === turno) avisar("motor"); },
-                });
-                if (miTurno !== turno) return;
-                if (audio) return;
-            } else {
-                // OmniVoice: el enrutador de Aurora con la cadena configurada.
-                const router = await import("@/lib/aurora/tts-oss/speak-router");
-                if (miTurno !== turno) return;
-                const sono = await router.speakWithConfiguredEngine(limpio, {
-                    onStart: () => { if (miTurno === turno) avisar("motor"); },
-                });
-                if (miTurno !== turno) return;
-                if (sono) return;
-            }
-        } catch { /* el motor falló en esta frase */ }
-        // Último recurso de ESTA frase: la voz del sistema.
-        if (miTurno === turno) porElSistema(limpio, miTurno);
-    })();
-}
-
-/**
  * Habla `texto` al instante y COMPRUEBA que ha sonado. Sustituye lo anterior.
  * Devuelve false solo si no hay ningún motor con el que intentarlo.
  */
@@ -285,72 +243,39 @@ export function hablarRito(texto: string): boolean {
     const limpio = (texto || "").trim();
     if (!limpio || typeof window === "undefined") return false;
 
+    // Hablar sustituye, nunca encola: se corta lo anterior y toma el turno.
     callarRito();
     const miTurno = turno;
 
-    // ── (Ola 227) LA VOZ NEURONAL MANDA DESDE LA PRIMERA FRASE ──────────────
-    // Diagnóstico de Alex: la ventana de sistemas sonaba natural (motor
-    // neuronal) y la bienvenida robótica (voz del navegador), porque el rito
-    // hablaba YA por `speechSynthesis`. Ahora el punto único de decisión es
-    // `motor-voz.ts`: si el precalentado (lanzado al montar login y el wizard)
-    // ya confirmó un motor neuronal, el rito habla por él con el mismo timbre
-    // que la ventana de sistemas y la guía del Escritorio.
-    const neuronal = motorNeuralListo();
-    if (neuronal) {
-        avisar("preparando");
-        hablarPorMotorNeural(neuronal, limpio, miTurno);
-        return true;
-    }
-    // Aún no está listo: ESTA frase sale por el navegador (abajo, como hasta
-    // ahora) y el precalentado sigue en marcha para que las siguientes salgan
-    // ya por el motor neuronal.
-    void precalentarMotorNeural();
-
-    // ── (Adenda 213) EL MOTOR LOCAL MANDA ────────────────────────────────────
-    // Decisión de Alex, y la correcta para el principio de StarSeed: la voz NO
-    // se apoya en el motor de Apple. Un modelo cuantizado a 1.58 bits corre en
-    // CPU en cualquier equipo y suena IGUAL en todos; las voces del sistema
-    // suenan distinto en cada máquina y en la suya solo 2 de 18 eran naturales.
-    // Así que si el motor local ya está en este dispositivo, habla él. Sin
-    // esperas ni comprobaciones: es la vía buena, no el plan B.
+    // ── (Ola 228) EL MOTOR ÚNICO «VOZ STARSEED» ─────────────────────────────
+    // El rito ya no elige motor por su cuenta: habla por `hablarStarSeed`,
+    // con la MISMA voz (mismo timbre) que el resto de ventanas. El nivel
+    // (estudio/alta/ligera/minima) lo decide el motor según el hardware y, si
+    // una vía falla, degrada SIN cambiar el timbre. La voz del navegador ha
+    // quedado como el nivel «minima», el suelo de la cadena.
+    avisar("preparando");
     void (async () => {
-        // ── (Adenda 217) EL MOTOR NEURONAL LOCAL, PRIMERO ────────────────────
-        // OmniVoice en GGUF cuantizado corriendo en esta máquina (daemon en
-        // 127.0.0.1:4444). Si está listo, habla él: voz neuronal real, sin red,
-        // igual en cualquier equipo. La frase se pide (o ya estaba anticipada)
-        // y se reproduce por <audio>, que funciona donde funciona cualquier
-        // sonido — incluidos los navegadores con el motor de voz muerto.
+        let sono = false;
         try {
-            const ml = await import("@/lib/aurora/motor-local");
-            if (miTurno !== turno) return;
-            const est = await ml.estadoMotorLocal();
-            if (miTurno !== turno) return;
-            if (est.listo) {
-                avisar("preparando");
-                // Por frases: la primera suena en segundos; el resto se encadena.
-                const sono = await ml.hablarLocalPorFrases(limpio, timbreEfectivo(limpio, "rito"), () => {
-                    if (miTurno === turno) avisar("motor");   // primera frase sonando
-                });
-                if (miTurno !== turno) return;
-                if (sono) return;   // sonó de verdad: turno cerrado
-                // Si el daemon no pudo con esta frase, seguimos con las otras vías.
-            }
-        } catch { /* seguimos con las otras vías */ }
-
-        try {
-            const kok = await import("@/lib/aurora/tts-oss/kokoro");
-            if (miTurno !== turno) return;
-            if (kok.kokoroAvailable() && kok.kokoroModelReady()) {
-                const t = timbreEfectivo();
-                const audio = await kok.kokoroSpeak(limpio, {
-                    voice: t.local.voz,
-                    speed: t.local.speed,
-                    onStart: () => { if (miTurno === turno) avisar("motor"); },
-                });
-                if (audio) return;              // sonó el motor local: turno cerrado
-            }
-        } catch { /* seguimos con el respaldo */ }
-        if (miTurno === turno) porElSistema(limpio, miTurno);
+            sono = await hablarStarSeed(limpio, {
+                timbre: timbreEfectivo(limpio, "rito"),
+                contexto: "rito",
+                alDegradar: (_desde: NivelVoz, hasta: NivelVoz) => {
+                    if (miTurno !== turno) return;
+                    if (hasta === "minima") avisar("navegador");
+                },
+            });
+        } catch { sono = false; }
+        if (miTurno !== turno) return;
+        if (sono) {
+            avisar(nivelActual() === "minima" ? "navegador" : "motor");
+            return;
+        }
+        // El motor único agotó sus niveles: un último intento por la vía
+        // verificada del rito (la más tolerant con navegadores caprichosos) y,
+        // si tampoco, se dice en pantalla.
+        avisar("muda");
+        porElSistema(limpio, miTurno);
     })();
 
     return true;

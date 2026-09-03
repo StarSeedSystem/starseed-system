@@ -24,6 +24,27 @@
  * qué se usa mientras tanto.
  */
 
+// ── (Ola 228) MOTOR ÚNICO «VOZ STARSEED» ────────────────────────────────────
+// Puerta de entrada de todo el habla del OS: un solo motor con cuatro niveles
+// y LA MISMA identidad de voz (el timbre) en todos ellos. Se reexporta aquí
+// para que las ventanas antiguas no cambien sus imports.
+export {
+    VOZ_STARSEED_ID,
+    hablarStarSeed,
+    precalentar,
+    nivelActual,
+    nivelPreferido,
+    fijarNivel,
+    parametrosPorNivel,
+    type ContextoVoz,
+    type OpcionesHablar,
+    type PreferenciaNivel,
+} from "@/lib/aurora/voz-starseed/motor";
+import { VOZ_STARSEED_ID, nivelPreferido } from "@/lib/aurora/voz-starseed/motor";
+import { nivelPara } from "@/lib/aurora/voz-starseed/niveles";
+import type { NivelVoz } from "@/lib/aurora/voz-starseed/niveles";
+import type { Capacidades } from "@/lib/aurora/voz-starseed/capacidades";
+
 export interface MotorVoz {
     id: "astraura-158" | "kokoro" | "omnivoice" | "sistema" | "ninguno";
     nombre: string;
@@ -31,6 +52,8 @@ export interface MotorVoz {
     nota: string;
     /** ¿Corre entero en este dispositivo, sin red? */
     local: boolean;
+    /** (Ola 228) Nivel del motor único al que corresponde, si aplica. */
+    nivel?: NivelVoz;
 }
 
 const ASTRAURA_158: MotorVoz = {
@@ -87,8 +110,31 @@ async function hay158(): Promise<boolean> {
  * Motor que Astraura usará ahora mismo, por orden de preferencia declarado
  * arriba. Nunca lanza: ante cualquier fallo informa del suelo honesto.
  */
+/**
+ * (Ola 228) Nivel del motor único que el hardware puede sostener AHORA, según
+ * el sondeo de `voz-starseed/capacidades.ts`. Sirve para que el panel diga con
+ * honestidad en qué nivel está hablando la voz, no solo qué motor interno.
+ */
+async function nivelDetectado(): Promise<NivelVoz> {
+    try {
+        const cap = await import("@/lib/aurora/voz-starseed/capacidades");
+        let caps: Capacidades;
+        const enCache = cap.capacidadesEnCache();
+        if (enCache) caps = enCache;
+        else caps = await cap.detectarCapacidades();
+        const preferida = nivelPreferido();
+        return preferida === "auto" ? nivelPara(caps) : preferida;
+    } catch {
+        return "minima";
+    }
+}
+
 export async function motorPreferido(): Promise<MotorVoz> {
     if (typeof window === "undefined") return SISTEMA;
+
+    // (Ola 228) Además de informar del motor interno, informamos del NIVEL del
+    // motor único en el que está trabajando: estudio/alta/ligera/minima.
+    const nivel = await nivelDetectado();
 
     // 0 · (Adenda 217) El motor neuronal local (OmniVoice GGUF por llama.cpp),
     //     si su daemon está listo en esta máquina. Es la voz de verdad.
@@ -101,29 +147,30 @@ export async function motorPreferido(): Promise<MotorVoz> {
                 nombre: `VoiceMorphic · voz nativa de Astraura · ${est.quant || "GGUF"} · ${est.backend === "metal" ? "Metal" : "CPU"}`,
                 nota: "Voz neuronal sintetizada en tu propio equipo, sin red. Las frases siguientes se anticipan para sonar al instante.",
                 local: true,
+                nivel: nivel === "estudio" || nivel === "alta" ? nivel : "alta",
             };
         }
     } catch { /* */ }
 
     // 1 · El nuestro, si está.
-    try { if (await hay158()) return ASTRAURA_158; } catch { /* */ }
+    try { if (await hay158()) return { ...ASTRAURA_158, nivel }; } catch { /* */ }
 
     // 2 · Kokoro local, si su modelo ya está descargado.
     try {
         const kok = await import("@/lib/aurora/tts-oss/kokoro");
-        if (kok.kokoroAvailable() && kok.kokoroModelReady()) return KOKORO;
+        if (kok.kokoroAvailable() && kok.kokoroModelReady()) return { ...KOKORO, nivel: "ligera" };
     } catch { /* */ }
 
     // 3 · Lo que el usuario tenga configurado en OmniVoice.
     try {
         const raw = window.localStorage.getItem("starseed.aurora.voice.v1");
         const cfg = raw ? (JSON.parse(raw) as { engine?: string }) : null;
-        if (cfg?.engine && cfg.engine !== "browser") return OMNIVOICE;
+        if (cfg?.engine && cfg.engine !== "browser") return { ...OMNIVOICE, nivel };
     } catch { /* */ }
 
     // 4 · Suelo: la voz del sistema, si el navegador la tiene.
     try {
-        if (window.speechSynthesis && window.speechSynthesis.getVoices().length > 0) return SISTEMA;
+        if (window.speechSynthesis && window.speechSynthesis.getVoices().length > 0) return { ...SISTEMA, nivel: "minima" };
     } catch { /* */ }
 
     return NINGUNO;
@@ -210,12 +257,14 @@ export async function precalentarMotorNeural(): Promise<void> {
 }
 
 /**
- * (Ola 227) Ficha honesta de cada motor: qué es, dónde vive su código y cómo
- * funciona. Alimenta las tarjetas de selección de voz para que el usuario sepa
- * exactamente qué está sonando.
+ * (Ola 228) Ficha honesta de cada NIVEL del motor único «Voz StarSeed»: qué es,
+ * dónde vive su código y qué hardware necesita. Los cuatro niveles comparten la
+ * MISMA identidad de voz (el timbre); solo cambia la fábrica que lo sintetiza.
+ * Alimenta las tarjetas de selección de voz para que el usuario sepa con
+ * exactitude qué está sonando.
  */
 export const MOTORES_VOZ_INFO: Array<{
-    id: MotorVoz["id"];
+    id: NivelVoz;
     nombre: string;
     local: boolean;
     modelo: string;
@@ -225,43 +274,43 @@ export const MOTORES_VOZ_INFO: Array<{
     comoFunciona: string;
 }> = [
     {
-        id: "astraura-158",
-        nombre: "Astraura · voz neural (local)",
+        id: "estudio",
+        nombre: "Estudio · Astraura local",
         local: true,
-        modelo: "VoiceMorphic GGUF cuantizado sobre llama.cpp (daemon 127.0.0.1:4444), Metal en Apple Silicon y CPU en el resto",
-        latencia: "Primera frase en segundos; las anticipadas suenan al instante",
-        calidad: "Voz neuronal natural, idéntica en cualquier dispositivo",
+        modelo: "OmniVoice GGUF Q8_0 sobre llama.cpp en el demonio local (~1000 MB); Metal en Apple Silicon y CPU en el resto",
+        latencia: "Baja (local); las frases anticipadas suenan al instante",
+        calidad: "Máxima, grado de estudio; la misma en cualquier dispositivo",
         archivo: "src/lib/aurora/motor-local.ts",
-        comoFunciona: "Un daemon local sintetiza por frases y reproduce por un <audio>; no usa red ni el TTS del sistema.",
+        comoFunciona: `El motor único (${VOZ_STARSEED_ID}) delega en el demonio local, que sintetiza por frases y reproduce por un <audio>; no usa red ni el TTS del sistema.`,
     },
     {
-        id: "kokoro",
-        nombre: "Kokoro · 82M (en este navegador)",
+        id: "alta",
+        nombre: "Alta · Astraura local",
         local: true,
-        modelo: "Kokoro 82M en ONNX/WebAssembly, cuantizado, se descarga una vez (~80 MB) y corre en CPU",
-        latencia: "Segundos por frase; sin esperas una vez descargado el modelo",
-        calidad: "Neural ligera, estable y la misma en todos los equipos",
+        modelo: "OmniVoice GGUF Q4_K_M sobre llama.cpp en el demonio local (~600 MB)",
+        latencia: "Baja (local)",
+        calidad: "Alta, casi estudio; idéntica identidad de voz",
+        archivo: "src/lib/aurora/motor-local.ts",
+        comoFunciona: "La misma vía que el nivel Estudio con un modelo más ligero: el timbre no cambia, solo el tamaño del modelo que lo expresa.",
+    },
+    {
+        id: "ligera",
+        nombre: "Ligera · Kokoro en este navegador",
+        local: true,
+        modelo: "Kokoro 82M en ONNX/WebAssembly, cuantizado; se descarga una vez (~120 MB) y corre en CPU",
+        latencia: "Media (primera descarga del modelo); luego fluida",
+        calidad: "Buena y estable; la misma en todos los equipos",
         archivo: "src/lib/aurora/tts-oss/kokoro.ts",
-        comoFunciona: "El modelo corre entero dentro del navegador en WASM: sin red, sin cuenta y sin el motor de voz del sistema.",
+        comoFunciona: "El modelo corre entero dentro del navegador en WASM: sin red, sin cuenta y sin la voz del sistema; el timbre manda igual.",
     },
     {
-        id: "omnivoice",
-        nombre: "OmniVoice (motor configurado)",
-        local: false,
-        modelo: "El motor que hayas elegido en la ventana de voz (endpoint k2-fsa u otros de la cadena)",
-        latencia: "Depende del motor elegido",
-        calidad: "Depende del motor elegido",
-        archivo: "src/lib/aurora/tts-oss/speak-router.ts",
-        comoFunciona: "El enrutador de Aurora consulta tu cadena de motores configurada y habla por el primero que responda.",
-    },
-    {
-        id: "sistema",
-        nombre: "Voz del sistema (último recurso)",
+        id: "minima",
+        nombre: "Mínima · voz del sistema",
         local: false,
         modelo: "speechSynthesis del navegador: voces instaladas en el sistema operativo",
-        latencia: "Instantánea",
+        latencia: "Inmediata",
         calidad: "Variable: suena distinta en cada navegador y en cada equipo",
         archivo: "src/lib/aurora/voz-rito.ts",
-        comoFunciona: "Es el respaldo mientras el motor neuronal no está listo; en cuanto lo está, deja de usarse.",
+        comoFunciona: "La red de seguridad que nunca deja la interfaz muda: en cuanto un nivel superior está listo, deja de usarse (mismo timbre).",
     },
 ];
