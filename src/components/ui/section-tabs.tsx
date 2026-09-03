@@ -150,22 +150,17 @@ export function SectionTabs({
         // dejar que el carril haga scroll → las pestañas de la derecha quedan
         // INALCANZABLES (el mismo patrón que ya rompió el dock). Ver Adenda 68 §C.
         <div className={cn("relative w-full min-w-0", className)}>
-            {/* Máscara de fundido lateral (indica que hay más pestañas al hacer scroll). */}
-            <div
-                className="pointer-events-none absolute inset-y-0 left-0 z-10 w-6 rounded-l-2xl bg-gradient-to-r from-black/25 to-transparent"
-                aria-hidden
-            />
-            <div
-                className="pointer-events-none absolute inset-y-0 right-0 z-10 w-6 rounded-r-2xl bg-gradient-to-l from-black/25 to-transparent"
-                aria-hidden
-            />
-
+            {/* (Adenda 219) El carril ya no se desliza con scrollbar oculta: las
+                pestañas que no caben PASAN A OTRA FILA. Medido en vivo en el perfil
+                a 1280 px: «Sobre mí», «Galería» y «Secciones» quedaban fuera del
+                marco sin ninguna pista. Con filas se ven todas, siempre, en
+                cualquier menú superior del OS (este es el patrón único). */}
             <div
                 ref={listRef}
                 role="tablist"
                 aria-label={ariaLabel}
                 onKeyDown={onKeyDown}
-                className="flex w-full min-w-0 items-center gap-1.5 overflow-x-auto overscroll-x-contain scrollbar-hide snap-x scroll-px-2 rounded-2xl border border-white/10 bg-black/25 p-1.5 shadow-lg backdrop-blur-md"
+                className="flex w-full min-w-0 flex-wrap items-center justify-center gap-1.5 rounded-2xl border border-white/10 bg-black/25 p-1.5 shadow-lg backdrop-blur-md"
             >
                 {items.map((it, i) => {
                     const active = isActive(it);

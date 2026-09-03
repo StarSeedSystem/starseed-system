@@ -11,6 +11,7 @@ import { googleProvider } from "./google";
 import { deepseekProvider } from "./deepseek";
 import { groqProvider } from "./groq";
 import { openrouterProvider } from "./openrouter";
+import { nvidiaProvider } from "./nvidia";
 import { astraura158Provider } from "./astraura-158";
 
 export const PROVIDERS: Record<ProviderId, Provider> = {
@@ -31,6 +32,9 @@ export const PROVIDERS: Record<ProviderId, Provider> = {
   // Antes era un `openaiProvider` con otra `info` → sin cabeceras, y con ids de
   // modelo por defecto obsoletos (`google/gemini-pro` ya no existe).
   openrouter: openrouterProvider,
+  // NVIDIA NIM (Adenda 219): 80+ modelos abiertos en GPUs de NVIDIA; acceso
+  // comunitario por /api/ai/nvidia (clave compartida solo en el servidor).
+  nvidia: nvidiaProvider,
 };
 
 /** Ordered for the picker UI: privacy-first first. */
@@ -41,6 +45,7 @@ export const PROVIDER_ORDER: ProviderId[] = [
   "deepseek",
   "groq",
   "openrouter",
+  "nvidia",
   "openai",
   "anthropic",
   "google",

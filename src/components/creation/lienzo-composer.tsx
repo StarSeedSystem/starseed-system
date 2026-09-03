@@ -41,6 +41,9 @@ import {
     type LibraryLocation,
 } from "@/components/creation/library-location-picker";
 import { NEW_BLOCK_DEFS, RichBlockEditor } from "@/components/creation/creation-blocks";
+// (Adenda 219) Marco de forma opcional para fotos y vídeos del Lienzo.
+import { MarcoDeMedio } from "@/components/creation/marco-de-medio";
+import type { Marco } from "@/lib/profile/marco-foto";
 import { SocialCrosspost } from "@/components/creation/social-crosspost";
 import {
     isRichBlock,
@@ -282,12 +285,21 @@ export function LienzoComposer({ initialDest, initialGeo }: LienzoComposerProps)
         // Bloques RICOS → ss:meta.blocks (el renderer los pinta; no van como markdown).
         const richBlocks = serializeBlocks(blocks.filter((b) => isRichBlock(b.type)));
         const primaryTipo = tags[0] || defaultTagFor(dest);
+        // (Adenda 219) Marcos de forma por URL: la tarjeta del feed los aplica a la
+        // foto/vídeo principal aunque el bloque viaje como markdown.
+        const marcos: Record<string, Marco> = {};
+        for (const b of blocks) {
+            if ((b.type === "imagen" || b.type === "portada" || b.type === "video") && b.url && b.marco) {
+                marcos[b.url] = b.marco;
+            }
+        }
         const meta = buildSsMetaComment({
             area: dest,
             tipo: primaryTipo,
             tags,
             ...(richBlocks.length > 0 ? { blocks: richBlocks } : {}),
             ...(geo ? { geo } : {}),
+            ...(Object.keys(marcos).length > 0 ? { marcos } : {}),
         });
         const body = `${parts.join("\n\n")}${meta ? `\n\n${meta}` : ""}`;
         return { body, firstImage };
@@ -506,6 +518,13 @@ export function LienzoComposer({ initialDest, initialGeo }: LienzoComposerProps)
                                                     <p className="text-xs text-white/50 truncate">
                                                         {b.name} — subido a tu nube
                                                     </p>
+                                                    {b.type === "imagen" && (
+                                                        <MarcoDeMedio
+                                                            src={b.url}
+                                                            value={b.marco ?? null}
+                                                            onChange={(marco) => patchBlock(b.id, { marco })}
+                                                        />
+                                                    )}
                                                 </div>
                                             ) : (
                                                 <Button

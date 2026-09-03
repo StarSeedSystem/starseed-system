@@ -44,6 +44,12 @@ import { cn } from "@/lib/utils";
 // foto real (dispositivo o biblioteca) en vez de solo pegar una URL externa.
 import { AttachFilePickerButton } from "@/components/files/universal-file-picker";
 import type { UniversalAttachment } from "@/lib/files/os-files";
+// (Adenda 219) Marco de forma de la foto y avatar 3D, también desde «Editar perfil».
+import { uploadEntityMedia } from "@/lib/os-social";
+import { MarcoDeMedio } from "@/components/creation/marco-de-medio";
+import { FotoConMarco } from "@/components/profile/foto-con-marco";
+import { EditorAvatar3D, Avatar3DVisor, type Avatar3D } from "@/components/profile/avatar-3d";
+import { type Marco, normalizarMarco } from "@/lib/profile/marco-foto";
 
 type Row = Record<string, any>;
 
@@ -54,9 +60,13 @@ interface ProfileForm {
     avatar_url: string;
     cover_url: string;
     visibility: "public" | "private" | "contacts";
+    /** (Adenda 219) Forma y encuadre de la foto de perfil (null = círculo simple). */
+    avatar_marco: Marco | null;
+    /** (Adenda 219) Avatar 3D opcional (GLB/glTF + cámara, luz, animación). */
+    avatar_3d: Avatar3D | null;
 }
 
-const EMPTY_FORM: ProfileForm = { handle: "", display_name: "", bio: "", avatar_url: "", cover_url: "", visibility: "public" };
+const EMPTY_FORM: ProfileForm = { handle: "", display_name: "", bio: "", avatar_url: "", cover_url: "", visibility: "public", avatar_marco: null, avatar_3d: null };
 
 // ── De-mock local: valores demo históricos que NO deben poblar el formulario ──
 // como si fueran datos reales del usuario. Si la fila trae alguno, lo tratamos
@@ -147,6 +157,8 @@ export function ProfileIdentityPanel() {
             avatar_url: (row?.avatar_url as string) ?? "",
             cover_url: (row?.cover_url as string) ?? "",
             visibility: (row?.visibility as "public" | "private" | "contacts") ?? "public",
+            avatar_marco: row?.avatar_marco && typeof row.avatar_marco === "object" ? normalizarMarco(row.avatar_marco) : null,
+            avatar_3d: row?.avatar_3d && typeof row.avatar_3d === "object" && (row.avatar_3d as { url?: string }).url ? (row.avatar_3d as Avatar3D) : null,
         });
         setDirty(false);
     }, []);
@@ -211,11 +223,14 @@ export function ProfileIdentityPanel() {
             bio: form.bio?.trim() ?? "",
             cover_url: form.cover_url?.trim() ?? "",
             visibility: form.visibility ?? "public",
+            // (Adenda 219) marco de la foto y avatar 3D (null borra).
+            avatar_marco: form.avatar_marco ? normalizarMarco(form.avatar_marco) : null,
+            avatar_3d: form.avatar_3d?.url ? form.avatar_3d : null,
             updated_at: new Date().toISOString(),
         };
         if (handle && handle !== (profileRow?.handle ?? "")) fullPatch.handle = handle;
 
-        const optionalCols = ["cover_url", "bio", "visibility", "updated_at"];
+        const optionalCols = ["cover_url", "bio", "visibility", "updated_at", "avatar_marco", "avatar_3d"];
 
         const attempt = async (patch: Row): Promise<{ ok: boolean; error?: any }> => {
             if (profileRow) {
@@ -263,6 +278,20 @@ export function ProfileIdentityPanel() {
                 /* tabla opcional: ignorar sin romper */
             }
         }
+
+        // (Adenda 219) Espejo en `profiles` (la ventana de perfil del rito lee de
+        // ahí): mejor esfuerzo, sin romper el guardado principal.
+        try {
+            await supabase
+                .from("profiles")
+                .update({
+                    avatar_url: fullPatch.avatar_url,
+                    cover_url: fullPatch.cover_url,
+                    avatar_marco: fullPatch.avatar_marco,
+                    avatar_3d: fullPatch.avatar_3d,
+                })
+                .eq("user_id", uid);
+        } catch { /* tabla espejo opcional */ }
 
         toast.success("Perfil guardado en tu cuenta StarSeed.");
         setSaving(false);
@@ -435,7 +464,7 @@ export function ProfileIdentityPanel() {
                         <div className="grid md:grid-cols-2 gap-4">
                             <div className="space-y-1.5">
                                 <label htmlFor="profile-avatar-url" className="text-sm font-medium flex items-center gap-1.5">
-                                    <ImageIcon className="w-3.5 h-3.5 text-muted-foreground" /> Avatar
+                                    <ImageIcon className="w-3.5 h-3.5 text-muted-foreground" /> Foto de perfil
                                 </label>
                                 <div className="flex items-center gap-2">
                                     <Input
@@ -490,6 +519,47 @@ export function ProfileIdentityPanel() {
                                         <Upload className="w-3.5 h-3.5" />
                                     </AttachFilePickerButton>
                                 </div>
+                            </div>
+                        </div>
+
+                        {/* ── (Adenda 219) Marco de la foto + avatar 3D opcional ── */}
+                        <div className="grid gap-4 md:grid-cols-2">
+                            <div className="space-y-2 rounded-xl border border-white/10 bg-white/[0.02] p-3">
+                                <div className="flex items-center gap-3">
+                                    <FotoConMarco src={form.avatar_url?.trim() || null} marco={form.avatar_marco} size={64} alt="Foto de perfil">
+                                        <span className="text-xs text-white/50">{initialsOf(previewName || previewHandle)}</span>
+                                    </FotoConMarco>
+                                    <div className="min-w-0">
+                                        <p className="text-sm font-medium">Marco de la foto</p>
+                                        <p className="text-[11px] text-muted-foreground">Círculo, estrella, hexágono… y colocas la foto a mano dentro.</p>
+                                    </div>
+                                </div>
+                                <MarcoDeMedio
+                                    src={form.avatar_url?.trim() || null}
+                                    value={form.avatar_marco}
+                                    onChange={(m) => setField("avatar_marco", m ?? null)}
+                                />
+                                {!form.avatar_url?.trim() && (
+                                    <p className="text-[11px] text-muted-foreground">Añade primero una foto de perfil para elegir su marco.</p>
+                                )}
+                            </div>
+                            <div className="space-y-2 rounded-xl border border-white/10 bg-white/[0.02] p-3">
+                                <div className="flex items-center gap-3">
+                                    {form.avatar_3d?.url ? (
+                                        <Avatar3DVisor config={form.avatar_3d} size={64} className="border border-white/10 bg-black/30" />
+                                    ) : (
+                                        <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl border border-dashed border-white/15 text-[10px] text-white/40">3D</div>
+                                    )}
+                                    <div className="min-w-0">
+                                        <p className="text-sm font-medium">Avatar 3D (opcional)</p>
+                                        <p className="text-[11px] text-muted-foreground">Un modelo GLB/glTF junto a tu foto: posición, rotación, animación, luz, distancia y ángulo.</p>
+                                    </div>
+                                </div>
+                                <EditorAvatar3D
+                                    value={form.avatar_3d}
+                                    onChange={(a) => setField("avatar_3d", a.url ? a : null)}
+                                    onSubir={async (f) => { const r = await uploadEntityMedia(f, "avatar"); return r?.url ?? null; }}
+                                />
                             </div>
                         </div>
 

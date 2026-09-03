@@ -26,6 +26,8 @@ import {
 import { astrauraChat } from "@/ai/astraura/router";
 import type { ChatMessage } from "@/ai/providers/types";
 import { loadLeaflet, type LeafletNS } from "@/lib/map/leaflet-loader";
+// (Adenda 219) Portada y vídeo con marco de forma opcional.
+import { FotoConMarco } from "@/components/profile/foto-con-marco";
 import {
     Play,
     GitBranch,
@@ -220,6 +222,22 @@ function PenpotBlock({ block }: { block: PostBlock }) {
 function VideoBlock({ block }: { block: PostBlock }) {
     const url = block.url?.trim();
     if (!url) return null;
+    // (Adenda 219) Con marco de forma: el vídeo recortado y centrado.
+    if (block.marco) {
+        return (
+            <figure className="flex flex-col items-center gap-2">
+                <div className="aspect-square w-[min(100%,340px)]">
+                    <FotoConMarco src={url} marco={block.marco} size="100%" video controles alt={block.text?.trim() || "Vídeo"} />
+                </div>
+                {(block.text?.trim() || block.name?.trim()) && (
+                    <figcaption className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <Film className="h-3.5 w-3.5 shrink-0 text-emerald-300" />
+                        <span className="min-w-0 truncate">{block.text?.trim() || block.name?.trim()}</span>
+                    </figcaption>
+                )}
+            </figure>
+        );
+    }
     return (
         <figure className="overflow-hidden rounded-xl border border-border/50 bg-black/40">
             <video
@@ -243,6 +261,17 @@ function VideoBlock({ block }: { block: PostBlock }) {
 
 function PortadaBlock({ block }: { block: PostBlock }) {
     if (!block.url) return null;
+    // (Adenda 219) Portada con marco de forma: recortada y centrada, con su título debajo.
+    if (block.marco) {
+        return (
+            <figure className="flex flex-col items-center gap-2">
+                <div className="aspect-square w-[min(100%,300px)]">
+                    <FotoConMarco src={block.url} marco={block.marco} size="100%" alt={block.text || block.name || "Portada"} />
+                </div>
+                {block.text && <figcaption className="text-center text-sm font-semibold text-white/90">{block.text}</figcaption>}
+            </figure>
+        );
+    }
     return (
         <figure className="relative w-full overflow-hidden rounded-xl border border-border/50 bg-muted/40">
             {/* eslint-disable-next-line @next/next/no-img-element */}

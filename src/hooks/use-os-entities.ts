@@ -338,6 +338,8 @@ function osPostToNormalized(p: OsPost): NormalizedPost {
         // Adenda 66 §6 · etiquetas múltiples + bloques ricos del Lienzo Universal.
         tags: split.tags.length > 0 ? split.tags : undefined,
         blocks: split.blocks.length > 0 ? split.blocks : undefined,
+        // (Adenda 219) marcos de forma de fotos/vídeos, por URL.
+        marcos: Object.keys(split.marcos).length > 0 ? split.marcos : undefined,
     };
 }
 

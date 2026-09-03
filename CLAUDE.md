@@ -278,6 +278,19 @@ tasks/ logs/` + `index.md` + `sync.md` + `memory.manifest.json`.
 
 ---
 
+## 💠 Economía de créditos y orquestación multiagente (regla permanente · Adenda 219)
+
+**Ningún modelo, proveedor ni sesión debe agotar sus créditos.** Quien trabaje aquí —Claude
+Code, Cowork, Hermes, Gemini, Codex, OpenCode, Antigravity o el propio OS— ramifica las tareas
+por coste (lo mecánico a subagentes gratis: `starseed-sub <rol> "prompt"`; lo difícil al modelo
+capaz), releva al siguiente proveedor ante 429/402 sin insistir, y **deja el punto de relevo**
+(commit + adenda + `starseed_memory_root/state.md`) antes de acercarse a su límite para que otro
+modelo continúe solo. Capas y dónde se editan: `memory/orquestacion-economica.md` (léelo).
+Proveedores comunitarios con clave solo en el servidor: `/api/ai/openrouter`
+(`OPENROUTER_SHARED_KEY`) y `/api/ai/nvidia` (`NVIDIA_SHARED_KEY`, NVIDIA NIM · 82 modelos).
+Hermes tiene `providers.nvidia` (`NVIDIA_API_KEY` en `~/.hermes/.env`). Claves: nunca en el repo
+ni en memorias — solo nombres de variables.
+
 ## 🌌 Inteligencia primaria del OS (Adenda 155 · 2026-08-23)
 
 **Astraura 1.58-bit** (backend soberano propio: BitNet b1.58 ternario nativo) es el **sistema

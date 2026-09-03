@@ -6,6 +6,7 @@
 // `recipe` y `col`. Si un campo no existe simplemente se ignora.
 
 import { parseBlocks, type PostBlock } from "@/lib/creation/post-blocks";
+import { type Marco, normalizarMarco } from "@/lib/profile/marco-foto";
 
 /** Forma cruda de una fila de `cafe_posts` (campos relevantes, todos opcionales/seguros). */
 export interface CafePostRow {
@@ -57,6 +58,8 @@ export interface NormalizedPost {
     tags?: string[];
     /** Adenda 66 §6 · Bloques RICOS del Lienzo (ss:meta.blocks) para el post-blocks-renderer. */
     blocks?: PostBlock[];
+    /** (Adenda 219) Marcos de forma por URL de medio (ss:meta.marcos). */
+    marcos?: Record<string, Marco>;
     isFallback?: boolean;     // viene de datos de ejemplo
 }
 
@@ -149,6 +152,8 @@ export interface SplitBodyResult {
     tags: string[];
     /** Adenda 66 §6 · Bloques ricos (ss:meta.blocks) ya parseados. */
     blocks: PostBlock[];
+    /** (Adenda 219) Marcos de forma por URL de medio (ss:meta.marcos), ya normalizados. */
+    marcos: Record<string, Marco>;
 }
 
 /** Infiere el PostMedia adecuado para una URL de adjunto (por extensión). */
@@ -173,6 +178,7 @@ export function splitBodyAttachments(raw: string | null | undefined): SplitBodyR
     let meta: SplitBodyResult["meta"] = null;
     let tags: string[] = [];
     let blocks: PostBlock[] = [];
+    const marcos: Record<string, Marco> = {};
 
     // 1) Metadata embebida (invisible para la lectura humana).
     const mm = body.match(SS_META_COMMENT_RE);
@@ -189,6 +195,12 @@ export function splitBodyAttachments(raw: string | null | undefined): SplitBodyR
                     tags = parsed.tags.filter((t): t is string => typeof t === "string");
                 }
                 blocks = parseBlocks(parsed.blocks);
+                // (Adenda 219) marcos de forma por URL de medio.
+                if (parsed.marcos && typeof parsed.marcos === "object") {
+                    for (const [u, m] of Object.entries(parsed.marcos as Record<string, unknown>)) {
+                        if (u && m && typeof m === "object") marcos[u] = normalizarMarco(m);
+                    }
+                }
             }
         } catch {
             /* metadata corrupta: se ignora */
@@ -226,7 +238,7 @@ export function splitBodyAttachments(raw: string | null | undefined): SplitBodyR
         body = body.replace(ATTACH_BLOCK_RE, "\n");
     }
 
-    return { body: body.trim(), attachments, meta, tags, blocks };
+    return { body: body.trim(), attachments, meta, tags, blocks, marcos };
 }
 
 /** Normaliza una fila cruda de Supabase a la forma de UI. */
@@ -249,6 +261,7 @@ export function normalizeCafePost(row: CafePostRow): NormalizedPost {
         attachments: split.attachments.length > 0 ? split.attachments : undefined,
         tags: split.tags.length > 0 ? split.tags : undefined,
         blocks: split.blocks.length > 0 ? split.blocks : undefined,
+        marcos: Object.keys(split.marcos).length > 0 ? split.marcos : undefined,
     };
 }
 

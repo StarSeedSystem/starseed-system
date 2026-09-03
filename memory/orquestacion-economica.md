@@ -1,0 +1,59 @@
+# 💠 Orquestación multiagente económica — regla permanente (Adenda 219 · 2026-09-02)
+
+> **Para cualquier modelo que trabaje en StarSeed, desde cualquier medio** (Claude Code en
+> el Mac, Cowork/claude.ai, Hermes, Gemini, Codex, OpenCode, Antigravity, el propio OS):
+> **ningún modelo, proveedor ni sesión debe agotar sus créditos.** Las tareas se
+> **ramifican** por coste e inteligencia (lo mecánico a modelos gratis/baratos, lo difícil
+> a modelos capaces), el progreso se **autoenruta** a otros modelos y sesiones para que la
+> tarea continúe sola, y cada ola termina con su **punto de relevo** escrito.
+
+## 1. Regla de conducta del modelo (léela como instrucción)
+
+1. Antes de empezar una ola, estima su coste. Si tu presupuesto de sesión no la cubre,
+   **divide** la ola y delega las partes mecánicas (búsquedas, resúmenes, clasificación,
+   refactors pequeños, verificación de texto) a subagentes gratuitos.
+2. Reserva tu capacidad para **orquestar, decidir y verificar**. Texto antes que capturas;
+   ediciones dirigidas antes que regenerar archivos; mapas/adendas antes que re-explorar.
+3. Cuando un proveedor devuelva 429/402/«quota», **no insistas**: releva al siguiente de la
+   cadena y sigue. El relevo es preventivo (presupuesto diario) y también reactivo.
+4. Si te acercas a tu propio límite (contexto o créditos), **deja el punto de relevo**:
+   commit + adenda del proyecto + `starseed_memory_root/state.md` con «hecho / verificado /
+   pendiente / siguiente paso exacto». Otro modelo continúa desde ahí sin re-explorar.
+5. Nunca guardes claves en el repo, en las memorias ni en documentos: solo nombres de
+   variables. Las claves viven en `.env.local`, en Vercel (Environment Variables) y en
+   `~/.hermes/.env`.
+
+## 2. Las tres capas que ya existen (y dónde se editan)
+
+| Capa | Qué hace | Dónde se ve/edita |
+|---|---|---|
+| **Desarrollo · `starseed-sub <rol> "prompt"`** (`~/.local/bin/starseed-sub`) | Despacha subtareas por ROL (`resumen`, `razonar`, `codigo` + alias) a una cadena de motores gratis: `hermes` (OpenRouter `:free`, Nous), `opencode`, **`nim`** (NVIDIA NIM directo). Relevo preventivo por presupuesto diario (`uso-diario.json`, `_LIMITE_DIA`) y reactivo por fallo. | Editar `ROLES` y `_LIMITE_DIA` en el script. |
+| **Hermes (gateway y CLI)** (`~/.hermes/config.yaml`) | Modelo por defecto + `fallback_providers` (nous → openrouter → **nvidia**). Proveedor personalizado `providers.nvidia` (OpenAI-compatible, `key_env: NVIDIA_API_KEY`). | `hermes -z "…" -m <modelo> --provider nvidia` · editar `fallback_providers`. |
+| **Runtime del OS · Astraura** (`src/ai/astraura/router.ts` + `free-catalog.ts`) | `astrauraChat` clasifica la tarea, puntúa fuentes (`freeFirst`, `perTask`, `disabledSources`, privacidad, dificultad), releva con enfriamiento por fuente y registra cada ruta (`readRouteLog`, clave `starseed.astraura.routes.v1`). Proxies comunitarios con clave rotatoria **solo en el servidor**: `/api/ai/openrouter` (`OPENROUTER_SHARED_KEY`) y `/api/ai/nvidia` (`NVIDIA_SHARED_KEY`). | Ventana de Astraura → pestaña **Inteligencia** (`src/components/astraura/inteligencia-section.tsx`): motores en uso, modelo/tokens/contexto, editar motor por tipo de agente, instrucciones, conexiones. |
+
+## 3. Proveedores gratuitos disponibles (catálogo vivo en `free-catalog.ts`)
+
+Astraura 1.58-bit (propio, primario) · Ollama/LM Studio locales · Gemini (clave gratis) ·
+Groq · Cerebras · OpenRouter `:free` (comunitario) · **NVIDIA NIM** (comunitario; 82 modelos
+verificados el 2026-09-02: Nemotron 3 Ultra/Super/Nano/3.5 Lightning, DeepSeek V4 Flash/Pro,
+Kimi K3, gpt-oss 120B, Gemma 4 31B, Mistral Large 2, Llama 3.2 Vision) · Pollinations/LLM7
+sin clave · Cloudflare Workers AI · Hugging Face · Mistral · Nous · OpenCode.
+
+Medido el 2026-09-02 con la clave comunitaria: Nemotron 3 Super 1,0 s · Ultra 2,3 s ·
+Kimi K3 3,8 s · DeepSeek V4 Flash 7,4 s · gpt-oss 120B 24 s · DeepSeek V4 Pro puede pasar
+del minuto (dejarlo para tareas largas). `mistralai/codestral-22b` NO se sirve en chat (404).
+
+## 4. Variables de entorno (solo nombres)
+
+`NVIDIA_SHARED_KEY` (+`_2`,`_3`,`_4`) · `OPENROUTER_SHARED_KEY` (+`_2`…) · `RESEND_API_KEY` ·
+`GROQ_API_KEY`/claves personales en Ajustes → Inteligencia (cifradas en el dispositivo) ·
+`NVIDIA_API_KEY` en `~/.hermes/.env` (Hermes y `starseed-sub`).
+
+## 5. Protocolo de relevo entre sesiones y medios
+
+1. **Al abrir**: leer `CLAUDE.md`, `starseed_memory_root/index.md`, la última adenda del
+   proyecto (`claude/adenda-NNN-…`) y `claude/memorias-workflow-continuidad.md`.
+2. **Durante**: cada bloque verificado → commit con trailer; cada decisión → adenda.
+3. **Al cerrar o al acercarse al límite**: punto de relevo en `state.md` + adenda + push.
+4. **Verificación obligatoria**: nada se reporta como hecho sin probarlo en localhost con
+   interacción real (regla de Alex).

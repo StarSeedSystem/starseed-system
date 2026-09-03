@@ -2,6 +2,8 @@
 
 import React from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { FotoConMarco } from "@/components/profile/foto-con-marco";
+import { Avatar3DVisor } from "@/components/profile/avatar-3d";
 import { Badge } from "@/components/ui/badge";
 import Image from "next/image";
 import { ProfileStatsBlocks } from "./profile-stats-blocks";
@@ -15,6 +17,10 @@ interface ProfileHeaderProps {
         bio: string;
         avatar: string;
         cover: string;
+        /** (Adenda 219) Forma y encuadre de la foto de perfil. */
+        avatarMarco?: Record<string, unknown> | null;
+        /** (Adenda 219) Avatar 3D opcional. */
+        avatar3d?: Record<string, unknown> | null;
         coverHint?: string;
         dataAiHint?: string;
         isUser?: boolean;
@@ -70,19 +76,37 @@ export function ProfileHeader({ profileData }: ProfileHeaderProps) {
                 cabecera NO hacían nada (no tenían onClick): eran decoración. */}
             <div className="relative z-10 flex min-w-0 flex-col gap-[clamp(0.75rem,3vw,1.5rem)] px-[clamp(0.875rem,4vw,2rem)] pt-[clamp(4rem,16vw,8rem)] sm:flex-row sm:items-end">
                 {/* Identity Core (Avatar) — imagen real o iniciales */}
-                <div className="relative shrink-0">
-                    <div className="h-[clamp(4.5rem,18vw,8rem)] w-[clamp(4.5rem,18vw,8rem)] rounded-full bg-gradient-to-br from-white/50 to-white/10 p-1 shadow-2xl ring-1 ring-white/30 backdrop-blur-xl">
-                        <Avatar className="h-full w-full rounded-full border-2 border-transparent">
-                            <AvatarImage
-                                src={profileData.avatar || undefined}
-                                className="object-cover"
-                                data-ai-hint={profileData.dataAiHint}
-                            />
-                            <AvatarFallback className="bg-background/50 text-[clamp(1.1rem,5vw,1.5rem)] font-bold backdrop-blur">
-                                {initialsOf(profileData.name)}
-                            </AvatarFallback>
-                        </Avatar>
-                    </div>
+                <div className="relative flex shrink-0 items-end gap-2">
+                    {/* (Adenda 219) Si el perfil eligió un MARCO (estrella,
+                        hexágono…) o encuadró su foto, se respeta aquí. Si no,
+                        el círculo de siempre. Y al lado, su avatar 3D si lo hay. */}
+                    {profileData.avatarMarco ? (
+                        <FotoConMarco
+                            src={profileData.avatar || null}
+                            marco={profileData.avatarMarco as never}
+                            size={112}
+                            alt={profileData.name}
+                            className="drop-shadow-2xl"
+                        >
+                            <span className="text-[clamp(1.1rem,5vw,1.5rem)] font-bold text-white/80">{initialsOf(profileData.name)}</span>
+                        </FotoConMarco>
+                    ) : (
+                        <div className="h-[clamp(4.5rem,18vw,8rem)] w-[clamp(4.5rem,18vw,8rem)] rounded-full bg-gradient-to-br from-white/50 to-white/10 p-1 shadow-2xl ring-1 ring-white/30 backdrop-blur-xl">
+                            <Avatar className="h-full w-full rounded-full border-2 border-transparent">
+                                <AvatarImage
+                                    src={profileData.avatar || undefined}
+                                    className="object-cover"
+                                    data-ai-hint={profileData.dataAiHint}
+                                />
+                                <AvatarFallback className="bg-background/50 text-[clamp(1.1rem,5vw,1.5rem)] font-bold backdrop-blur">
+                                    {initialsOf(profileData.name)}
+                                </AvatarFallback>
+                            </Avatar>
+                        </div>
+                    )}
+                    {profileData.avatar3d && (profileData.avatar3d as { url?: string }).url ? (
+                        <Avatar3DVisor config={profileData.avatar3d as never} size={112} className="border border-white/10 bg-black/30 shadow-2xl" />
+                    ) : null}
                 </div>
 
                 {/* Info Array — `min-w-0` es lo que permite truncar/envolver aquí dentro. */}

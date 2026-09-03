@@ -305,6 +305,10 @@ export default function ProfilePage() {
         coverHint: "abstract pattern",
         isUser: resolvedData?.isOwner || false,
         pageType: 'personal',
+        // (Adenda 219) Marco de la foto y avatar 3D: sin pasarlos aquí la
+        // cabecera nunca los veía (guardados bien en la base, invisibles en la página).
+        avatarMarco: resolvedData?.avatarMarco ?? null,
+        avatar3d: resolvedData?.avatar3d ?? null,
     };
 
     // "Ver como visitante" (Adenda 63 §8): toggle LOCAL del dueño real que

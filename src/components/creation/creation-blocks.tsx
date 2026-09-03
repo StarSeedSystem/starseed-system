@@ -31,6 +31,8 @@ import {
     type CodeLang,
 } from "@/lib/creation/post-blocks";
 import { SourcePicker, type SourceRef } from "@/components/creation/source-picker";
+// (Adenda 219) Marco de forma opcional para portada y vídeo.
+import { MarcoDeMedio } from "@/components/creation/marco-de-medio";
 import {
     LayoutTemplate,
     Code2,
@@ -286,6 +288,12 @@ function VideoEditor({ block, patch }: EditorProps) {
                 onChange={(e) => patch({ text: e.target.value })}
                 className={FIELD}
             />
+            <MarcoDeMedio
+                src={block.url?.trim() || null}
+                video
+                value={block.marco ?? null}
+                onChange={(marco) => patch({ marco })}
+            />
             <div className="flex flex-wrap items-center gap-2 rounded-lg border border-white/10 bg-black/20 p-2.5">
                 <Film className="h-3.5 w-3.5 shrink-0 text-emerald-300" />
                 <span className="text-[11px] text-white/55">¿Necesitas editarlo antes?</span>
@@ -334,6 +342,11 @@ function PortadaEditor({ block, patch }: EditorProps) {
                             }
                         />
                     </div>
+                    <MarcoDeMedio
+                        src={block.url}
+                        value={block.marco ?? null}
+                        onChange={(marco) => patch({ marco })}
+                    />
                 </div>
             ) : (
                 <SourcePicker

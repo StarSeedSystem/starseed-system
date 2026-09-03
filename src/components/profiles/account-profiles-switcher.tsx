@@ -216,11 +216,10 @@ export function AccountProfilesSwitcher({ compact = false }: { compact?: boolean
             return;
         }
 
-        // Invitación automática al primer perfil: una vez y no más.
-        if (profiles.length === 0 && !aperturaAutoHecha.current) {
-            aperturaAutoHecha.current = true;
-            setEditor(emptyEditor("create", true));
-        }
+        // (Adenda 219) SIN apertura automática. Alex: «que no aparezca
+        // automáticamente, solo cuando se selecciona el botón de crear perfil».
+        // La invitación al primer perfil ya está en pantalla como botón.
+        void aperturaAutoHecha;
     }, [searchParams, loading, editor, router, profiles.length, mainProfile]);
 
     const sorted = useMemo(
@@ -680,7 +679,7 @@ function ProfileEditorDialog({
                     </div>
                     <div className="grid grid-cols-2 gap-2">
                         <div>
-                            <label className="mb-1 block text-[11px] font-semibold text-muted-foreground">Avatar</label>
+                            <label className="mb-1 block text-[11px] font-semibold text-muted-foreground">Foto de perfil</label>
                             <div className="flex items-center gap-2">
                                 <Avatar className="h-12 w-12 shrink-0 border border-white/10">
                                     {editor.avatarUrl ? <AvatarImage src={editor.avatarUrl} alt={editor.name} /> : null}

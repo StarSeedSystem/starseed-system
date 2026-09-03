@@ -28,7 +28,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { shouldShowUpdates, subscribeStartupOpen, openStartupUpdates, snoozeUpdates } from "@/lib/astraura/startup-updates";
-import { isSetupPending, subscribeSetup } from "@/lib/aurora/setup-config";
+import { isSetupPending, subscribeSetup, markSetupDone } from "@/lib/aurora/setup-config";
 import { useModalA11y } from "@/hooks/use-modal-a11y";
 import { AstrauraOmniVoiceConfig } from "@/components/astraura/astraura-omnivoice-config";
 
@@ -55,6 +55,11 @@ export function StartupUpdatesModal() {
       if (window.sessionStorage.getItem("starseed.guia.pendiente") !== "1") return;
       window.sessionStorage.removeItem("starseed.guia.pendiente");
     } catch { return; }
+    // (Adenda 219) Esta ventana YA configuró la neurona en el rito: el centro
+    // «Configurar Neurona» (aurora-setup-center) no debe abrirse solo después
+    // del perfil — visto en vivo tras «Ver mi perfil». Queda disponible en
+    // Ajustes y en la paleta de comandos.
+    try { markSetupDone(); } catch { /* sin storage */ }
     // (Adenda 194) Antes de la guía va la VENTANA DE PERFIL: se sube avatar y
     // portada, se corrige el @handle y luego se ve el perfil completo; desde
     // ahí arranca el recorrido en el Escritorio. Si esa ventana no estuviera

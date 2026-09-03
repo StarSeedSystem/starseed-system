@@ -27,6 +27,9 @@ import {
 } from "@/components/ui/dialog";
 import { createClient } from "@/utils/supabase/client";
 import { uploadEntityMedia } from "@/lib/os-social";
+import { FotoConMarco, EditorMarco } from "@/components/profile/foto-con-marco";
+import { EditorAvatar3D, Avatar3DVisor, type Avatar3D } from "@/components/profile/avatar-3d";
+import { type Marco, MARCO_POR_DEFECTO } from "@/lib/profile/marco-foto";
 import {
   claimProfile, saveProfileOptional, isValidHandle, sincronizarPerfilPublico,
 } from "@/lib/onboarding/onboarding";
@@ -44,6 +47,10 @@ export function VentanaPerfilInicial({ onCerrar }: { onCerrar?: () => void }) {
   const [bio, setBio] = useState("");
   const [avatar, setAvatar] = useState("");
   const [portada, setPortada] = useState("");
+  // (Adenda 219) Forma/encuadre de la foto y avatar 3D opcional.
+  const [marco, setMarco] = useState<Marco>(MARCO_POR_DEFECTO);
+  const [avatar3d, setAvatar3d] = useState<Avatar3D | null>(null);
+  const [editando, setEditando] = useState<null | "marco" | "3d">(null);
   const [subiendo, setSubiendo] = useState<"avatar" | "cover" | null>(null);
   const [guardando, setGuardando] = useState(false);
   const avatarRef = useRef<HTMLInputElement>(null);
@@ -75,11 +82,13 @@ export function VentanaPerfilInicial({ onCerrar }: { onCerrar?: () => void }) {
         if (!uid) return;
         const { data } = await sb
           .from("profiles")
-          .select("handle,display_name,bio,avatar_url,cover_url")
+          .select("handle,display_name,bio,avatar_url,cover_url,avatar_marco,avatar_3d")
           .eq("user_id", uid)
           .maybeSingle();
         if (!vivo || !data) return;
-        const p = data as { handle?: string; display_name?: string; bio?: string; avatar_url?: string; cover_url?: string };
+        const p = data as { handle?: string; display_name?: string; bio?: string; avatar_url?: string; cover_url?: string; avatar_marco?: Marco | null; avatar_3d?: Avatar3D | null };
+        if (p.avatar_marco) setMarco({ ...MARCO_POR_DEFECTO, ...p.avatar_marco });
+        if (p.avatar_3d?.url) setAvatar3d(p.avatar_3d);
         setNombre(p.display_name || "");
         setHandle(p.handle || "");
         setBio(p.bio || "");
@@ -132,6 +141,8 @@ export function VentanaPerfilInicial({ onCerrar }: { onCerrar?: () => void }) {
         avatar_url: avatar || undefined,
         cover_url: portada || undefined,
         bio: bio || undefined,
+        avatar_marco: marco as unknown as Record<string, unknown>,
+        avatar_3d: avatar3d?.url ? (avatar3d as unknown as Record<string, unknown>) : null,
       }));
       await conTope((async () => {
         const sb = createClient();
@@ -143,6 +154,8 @@ export function VentanaPerfilInicial({ onCerrar }: { onCerrar?: () => void }) {
             avatar_url: avatar || undefined,
             cover_url: portada || undefined,
             bio: bio || undefined,
+            avatar_marco: marco as unknown as Record<string, unknown>,
+            avatar_3d: avatar3d?.url ? (avatar3d as unknown as Record<string, unknown>) : null,
           });
         }
         return true;
@@ -157,7 +170,10 @@ export function VentanaPerfilInicial({ onCerrar }: { onCerrar?: () => void }) {
     } finally {
       setGuardando(false);
     }
-  }, [handle, nombre, avatar, portada, bio, onCerrar, conTope]);
+    // (Adenda 219) `marco` y `avatar3d` en las dependencias: sin ellas el
+    // callback guardaba el marco POR DEFECTO y ningún avatar 3D (clausura
+    // vieja) — visto en vivo: la estrella elegida llegaba a la base como círculo.
+  }, [handle, nombre, avatar, portada, bio, marco, avatar3d, onCerrar, conTope]);
 
   const saltar = useCallback(() => {
     setAbierta(false);
@@ -207,19 +223,25 @@ export function VentanaPerfilInicial({ onCerrar }: { onCerrar?: () => void }) {
                   <span className="absolute inset-0 grid place-items-center bg-black/50"><Loader2 className="h-5 w-5 animate-spin" aria-hidden /></span>
                 )}
               </button>
-              <button
-                type="button"
-                onClick={() => avatarRef.current?.click()}
-                className="absolute -bottom-6 left-4 grid h-20 w-20 place-items-center overflow-hidden rounded-full border-4 border-background bg-white/10 transition-transform hover:scale-105"
-                aria-label="Cambiar imagen de perfil"
-              >
-                {avatar
-                  ? <img src={avatar} alt="" className="h-full w-full object-cover" />
-                  : <Camera className="h-6 w-6 text-white/70" aria-hidden />}
-                {subiendo === "avatar" && (
-                  <span className="absolute inset-0 grid place-items-center bg-black/50"><Loader2 className="h-5 w-5 animate-spin" aria-hidden /></span>
-                )}
-              </button>
+              {/* (Adenda 219) Foto de perfil con su MARCO (forma + encuadre)
+                  y, a su lado, el avatar 3D opcional. */}
+              <div className="absolute -bottom-7 left-4 flex items-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => avatarRef.current?.click()}
+                  className="relative transition-transform hover:scale-105"
+                  aria-label="Cambiar foto de perfil"
+                  title="Foto de perfil"
+                >
+                  <FotoConMarco src={avatar || null} marco={marco} size={84}>
+                    <Camera className="h-6 w-6 text-white/70" aria-hidden />
+                  </FotoConMarco>
+                  {subiendo === "avatar" && (
+                    <span className="absolute inset-0 grid place-items-center rounded-full bg-black/50"><Loader2 className="h-5 w-5 animate-spin" aria-hidden /></span>
+                  )}
+                </button>
+                {avatar3d?.url && <Avatar3DVisor config={avatar3d} size={84} className="border border-white/10 bg-black/30" />}
+              </div>
               <input
                 ref={avatarRef} type="file" accept="image/*" className="hidden"
                 onChange={(e) => { const f = e.target.files?.[0]; if (f) void subir(f, "avatar"); }}
@@ -230,7 +252,32 @@ export function VentanaPerfilInicial({ onCerrar }: { onCerrar?: () => void }) {
               />
             </div>
 
-            <div className="grid gap-3 pt-7 sm:grid-cols-2">
+            <div className="flex flex-wrap items-center gap-2 pt-8">
+              <button type="button" onClick={() => setEditando(editando === "marco" ? null : "marco")} disabled={!avatar} className="inline-flex items-center gap-1.5 rounded-full border border-fuchsia-400/35 bg-fuchsia-500/10 px-3 py-1.5 text-[11px] text-fuchsia-100 hover:bg-fuchsia-500/20 disabled:opacity-40">
+                Marco y encuadre de la foto
+              </button>
+              <button type="button" onClick={() => setEditando(editando === "3d" ? null : "3d")} className="inline-flex items-center gap-1.5 rounded-full border border-cyan-400/35 bg-cyan-500/10 px-3 py-1.5 text-[11px] text-cyan-100 hover:bg-cyan-500/20">
+                Avatar 3D {avatar3d?.url ? "· editar" : "· añadir (opcional)"}
+              </button>
+              <span className="text-[10.5px] text-white/40">Portada arriba · Foto de perfil abajo a la izquierda</span>
+            </div>
+
+            {editando === "marco" && avatar && (
+              <div className="rounded-2xl border border-fuchsia-400/20 bg-fuchsia-500/[0.04] p-3">
+                <EditorMarco src={avatar} value={marco} onChange={setMarco} size={180} />
+              </div>
+            )}
+            {editando === "3d" && (
+              <div className="rounded-2xl border border-cyan-400/20 bg-cyan-500/[0.04] p-3">
+                <EditorAvatar3D
+                  value={avatar3d}
+                  onChange={setAvatar3d}
+                  onSubir={async (f) => { const r = await uploadEntityMedia(f, "avatar"); return r?.url ?? null; }}
+                />
+              </div>
+            )}
+
+            <div className="grid gap-3 pt-2 sm:grid-cols-2">
               <label className="block text-sm">
                 <span className="text-muted-foreground">Nombre visible</span>
                 <Input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Tu nombre" className="mt-1" />

@@ -105,17 +105,15 @@ export function VoiceNeuronOnboarding() {
   // este grafo no propaga el re-render del portal). Decide leyendo la elección
   // guardada: si no hay elección válida o está desactualizada (versión 97),
   // abre solo al entrar.
-  const [open, setOpen] = useState<boolean>(() => {
-    try {
-      const c = readNeuronVoiceChoice();
-      const stale = neuronVoiceChoiceIsStale(c);
-      if (c && c.mode !== "later" && !stale) return false; // ya eligió y está al día
-      if (c?.mode === "later" && !stale && Date.now() - c.at < LATER_RETRY_MS) return false;
-      return true; // primera vez o actualización pendiente
-    } catch {
-      return true;
-    }
-  });
+  // (Adenda 219) ESTA VENTANA YA NO NACE ABIERTA. Antes arrancaba en `open =
+  // true` cuando la neurona no tenía elección de voz; la red de cortesía la
+  // plegaba mientras el rito estaba delante y la REABRÍA en cuanto la ventana
+  // de perfil liberaba el primer plano — por eso aparecía «OmniVoice: la voz
+  // de Astraura en esta neurona» justo después de los datos del perfil. La
+  // configuración de voz vive en la sección VoiceMorphic de «Configuración de
+  // sistemas de Astraura», que viene DESPUÉS en el mismo flujo. Esta ventana
+  // solo se abre ya a mano (evento de reapertura desde Ajustes).
+  const [open, setOpen] = useState<boolean>(() => false);
   const [localVivo, setLocalVivo] = useState(false);
   const [installing, setInstalling] = useState(false);
   const [checking, setChecking] = useState(false);
@@ -372,7 +370,8 @@ export function VoiceNeuronOnboarding() {
           esperaRef.current?.();
           esperaRef.current = m.alLiberarsePrimerPlano(() => {
             esperaRef.current = null;
-            setOpen(true);
+            // (Adenda 219) Solo se reabre si la abrió el usuario a mano.
+            if (manualRef.current) setOpen(true);
           });
         };
         replegar();

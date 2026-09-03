@@ -17,6 +17,8 @@
 // SSR-safe: TypeScript puro, sin React ni acceso a `window`.
 // ─────────────────────────────────────────────────────────────────────────────
 
+import { type Marco, normalizarMarco } from "@/lib/profile/marco-foto";
+
 /** Tipos de bloque. Los 5 primeros son LEGADOS (markdown en el cuerpo). */
 export type PostBlockType =
     | "texto"
@@ -126,6 +128,12 @@ export interface PostBlock {
     persona?: string;
     // ── referencia (cerebro/biblioteca/folder/archivo/entidad/neurona) ──
     ref?: PostBlockRef;
+    /**
+     * (Adenda 219) imagen/portada/video: MARCO opcional — forma de recorte
+     * (círculo, estrella, hexágono…) y encuadre del medio dentro de ella. El
+     * mismo modelo que la foto de perfil (src/lib/profile/marco-foto.ts).
+     */
+    marco?: Marco;
     /** SÓLO compositor (se elimina al serializar): subida en curso. */
     uploading?: boolean;
 }
@@ -187,6 +195,7 @@ export function serializeBlock(b: PostBlock): PostBlock {
     put("system", b.system);
     put("persona", b.persona);
     if (b.ref && typeof b.ref === "object" && b.ref.kind && b.ref.id) out.ref = b.ref;
+    if (b.marco && typeof b.marco === "object") out.marco = normalizarMarco(b.marco);
     return out;
 }
 
@@ -229,6 +238,7 @@ export function parseBlocks(raw: unknown): PostBlock[] {
         }
         if (typeof o.system === "string") b.system = o.system;
         if (typeof o.persona === "string") b.persona = o.persona;
+        if (o.marco && typeof o.marco === "object") b.marco = normalizarMarco(o.marco);
         if (o.ref && typeof o.ref === "object") {
             const rr = o.ref as Record<string, unknown>;
             if (typeof rr.kind === "string" && typeof rr.id === "string") {

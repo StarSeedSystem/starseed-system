@@ -34,6 +34,8 @@ import {
     formatRelativeTime,
 } from "@/lib/social-posts";
 import { PostBlocksRenderer, PostTagChips } from "@/components/social/post-blocks-renderer";
+// (Adenda 219) Fotos y vídeos con MARCO de forma (círculo, estrella, hexágono…).
+import { FotoConMarco } from "@/components/profile/foto-con-marco";
 // Enviar a… (DESTINOS · Adenda 66 §5): publicar en el Lienzo, mensaje, cerebro, etc.
 import { ShareToDialog } from "@/components/sharing/share-to-dialog";
 import type { ShareResourceRef } from "@/lib/sharing/share-targets";
@@ -613,9 +615,21 @@ function PostAttachmentList({ post }: { post: NormalizedPost }) {
 /** Render del preview de media adaptable por tipo. */
 function PostMediaPreview({ post }: { post: NormalizedPost }) {
     const media = post.media!;
+    // (Adenda 219) Marco de forma elegido en el Lienzo para este medio (por URL).
+    const marcoDe = (u?: string) => (u && post.marcos ? post.marcos[u] : undefined);
 
     switch (media.kind) {
-        case "image":
+        case "image": {
+            const marco = marcoDe(media.url);
+            if (marco) {
+                return (
+                    <div className="mt-3 flex justify-center">
+                        <div className="aspect-square w-[min(100%,280px)]">
+                            <FotoConMarco src={media.url} marco={marco} size="100%" alt={post.title || "Imagen de la publicación"} />
+                        </div>
+                    </div>
+                );
+            }
             return (
                 <div className="relative mt-3 w-full aspect-video rounded-xl overflow-hidden border border-border/50 bg-muted/40">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -627,6 +641,7 @@ function PostMediaPreview({ post }: { post: NormalizedPost }) {
                     />
                 </div>
             );
+        }
 
         case "gallery": {
             const urls = (media.urls || []).slice(0, 4);
@@ -645,13 +660,21 @@ function PostMediaPreview({ post }: { post: NormalizedPost }) {
                                 urls.length === 3 && i === 0 ? "col-span-2 aspect-video" : "aspect-square",
                             )}
                         >
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img
-                                src={u}
-                                alt={`Imagen ${i + 1}`}
-                                loading="lazy"
-                                className="absolute inset-0 h-full w-full object-cover"
-                            />
+                            {marcoDe(u) ? (
+                                <div className="absolute inset-0 flex items-center justify-center p-1.5">
+                                    <div className="aspect-square h-full max-w-full">
+                                        <FotoConMarco src={u} marco={marcoDe(u)} size="100%" alt={`Imagen ${i + 1}`} />
+                                    </div>
+                                </div>
+                            ) : (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img
+                                    src={u}
+                                    alt={`Imagen ${i + 1}`}
+                                    loading="lazy"
+                                    className="absolute inset-0 h-full w-full object-cover"
+                                />
+                            )}
                             {i === 3 && (media.urls?.length || 0) > 4 && (
                                 <div className="absolute inset-0 flex items-center justify-center bg-black/60 text-white text-lg font-bold">
                                     +{(media.urls!.length || 0) - 4}
@@ -663,7 +686,17 @@ function PostMediaPreview({ post }: { post: NormalizedPost }) {
             );
         }
 
-        case "video":
+        case "video": {
+            const marco = marcoDe(media.url);
+            if (marco) {
+                return (
+                    <div className="mt-3 flex justify-center">
+                        <div className="aspect-square w-[min(100%,340px)]">
+                            <FotoConMarco src={media.url} marco={marco} size="100%" video controles alt={post.title || "Vídeo"} />
+                        </div>
+                    </div>
+                );
+            }
             return (
                 <div className="relative mt-3 w-full aspect-video rounded-xl overflow-hidden border border-border/50 bg-black">
                     <video
@@ -675,6 +708,7 @@ function PostMediaPreview({ post }: { post: NormalizedPost }) {
                     />
                 </div>
             );
+        }
 
         case "audio":
             return (

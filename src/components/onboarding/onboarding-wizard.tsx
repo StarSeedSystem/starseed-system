@@ -107,7 +107,7 @@ const STEP_NARRATION: Record<number, string> = {
   1: "Primero tu cuenta: tu nombre oficial y un @handle único en la red. Te propongo opciones y todo se puede editar después.",
   2: "Ahora los correos de tu cuenta: tu dirección StarSeed interna y, si quieres, vincula aquí mismo tus correos externos. Todos conviven en la misma cuenta.",
   3: "Configuremos tu recuperación: un correo externo y un teléfono, para que nunca pierdas el acceso.",
-  4: "Tu perfil: un avatar, una portada y una breve biografía, todos opcionales. Es tu cara ante la red y puedes cambiarla cuando quieras.",
+  4: "Tu perfil: una foto de perfil, una portada y una breve biografía, todos opcionales. Es tu cara ante la red y puedes cambiarla cuando quieras. La forma del marco y el avatar 3D los eliges en la ventana de perfil, al final.",
   5: "Permisos de este dispositivo: te recomiendo micrófono y notificaciones para hablar conmigo y no perderte nada. Aquí también puedes vincular las carpetas y almacenamientos que quieras que conozca.",
   6: "Ahora tus cerebros y dónde viven sus memorias: enlazo solas las carpetas que acabas de vincular y elegimos el enrutamiento entre la nube StarSeed y esta neurona.",
   7: "Configuremos mi presencia en esta neurona: ya analicé tu equipo y elegí el motor y el modelo que mejor le sientan. Tú decides; todo se puede cambiar en Ajustes.",
@@ -917,7 +917,7 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
                     <span className="mt-px flex h-5 w-5 shrink-0 items-center justify-center rounded-md border border-violet-400/20 bg-violet-500/10">
                       <ImageIcon className="h-3 w-3 text-violet-300" aria-hidden />
                     </span>
-                    <span>Avatar, portada y bio (opcionales, editables cuando quieras).</span>
+                    <span>Foto de perfil, portada y bio (opcionales, editables cuando quieras).</span>
                   </li>
                   <li className="flex items-start justify-center gap-2.5 text-center">
                     <span className="mt-px flex h-5 w-5 shrink-0 items-center justify-center rounded-md border border-rose-400/20 bg-rose-500/10">
@@ -1224,13 +1224,13 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
           {step === 4 && (
             <div className="space-y-4">
               <div className="grid gap-1.5">
-                <label className="text-[11px] uppercase tracking-wider text-white/50 font-semibold">URL del avatar (opcional)</label>
-                <Input value={avatarUrl} onChange={(e) => setAvatarUrl(e.target.value)} placeholder="https://…/tu-avatar.png" className="bg-white/5 font-mono text-xs" />
+                <label className="text-[11px] uppercase tracking-wider text-white/50 font-semibold">URL de la foto de perfil (opcional)</label>
+                <Input value={avatarUrl} onChange={(e) => setAvatarUrl(e.target.value)} placeholder="https://…/tu-foto.png" className="bg-white/5 font-mono text-xs" />
               </div>
               {avatarUrl && (
                 <div className="flex items-center gap-3">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={avatarUrl} alt="avatar" className="w-12 h-12 rounded-full object-cover border border-white/10" onError={(e) => { (e.currentTarget as HTMLImageElement).style.opacity = "0.3"; }} />
+                  <img src={avatarUrl} alt="foto de perfil" className="w-12 h-12 rounded-full object-cover border border-white/10" onError={(e) => { (e.currentTarget as HTMLImageElement).style.opacity = "0.3"; }} />
                   <span className="text-[11px] text-white/40">Vista previa</span>
                 </div>
               )}

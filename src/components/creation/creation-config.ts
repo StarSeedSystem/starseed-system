@@ -68,6 +68,7 @@ import {
 } from "lucide-react";
 import type { OsEntityType } from "@/lib/os-social";
 import type { PostBlock } from "@/lib/creation/post-blocks";
+import type { Marco } from "@/lib/profile/marco-foto";
 
 // ── Destinos ─────────────────────────────────────────────────────────────────
 
@@ -390,6 +391,13 @@ export interface SsPostMeta {
      * "Publicaciones" del mapa (src/lib/map/map-data.ts) la parsea.
      */
     geo?: { lat: number; lng: number; label?: string | null };
+    /**
+     * (Adenda 219) MARCOS de los medios de la publicación, por URL: forma de
+     * recorte (círculo, estrella, hexágono…) y encuadre. Los bloques de imagen
+     * legados viajan como markdown (sin sitio para el marco), así que el marco
+     * va aquí y la tarjeta lo aplica a la foto o vídeo con esa URL.
+     */
+    marcos?: Record<string, Marco>;
 }
 
 const SS_META_RE = /<!--ss:meta\s+([\s\S]*?)-->/;

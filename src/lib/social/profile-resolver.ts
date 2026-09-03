@@ -9,6 +9,10 @@ export type ResolvedProfileData = {
     cover: string;
     type: "sovereign" | "facet" | "not_found";
     id: string | null;
+    /** (Adenda 219) Forma y encuadre de la foto de perfil, si el perfil lo definió. */
+    avatarMarco?: Record<string, unknown> | null;
+    /** (Adenda 219) Avatar 3D opcional (GLB/glTF + cámara, luz, animación). */
+    avatar3d?: Record<string, unknown> | null;
 };
 
 export async function resolveProfileData(handle: string, viewerId?: string | null): Promise<ResolvedProfileData> {
@@ -30,6 +34,9 @@ export async function resolveProfileData(handle: string, viewerId?: string | nul
             bio: sovData.bio || sovData.about || "",
             avatar: sovData.avatar_url || "",
             cover: sovData.cover_url || sovData.banner_url || "",
+            // (Adenda 219) Forma/encuadre de la foto y avatar 3D, si los hay.
+            avatarMarco: (sovData as { avatar_marco?: Record<string, unknown> | null }).avatar_marco ?? null,
+            avatar3d: (sovData as { avatar_3d?: Record<string, unknown> | null }).avatar_3d ?? null,
             type: "sovereign",
             id: sovData.user_id,
         };

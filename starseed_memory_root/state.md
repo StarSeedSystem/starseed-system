@@ -428,3 +428,55 @@
 - starseed-system en producción: READY (sin cambios desde A192). Sin deploy necesario.
 - Astraura túnel: VIVO (button-dont-noted-rob.trycloudflare.com, HTTP 200 en /api/cerebros). Backend BitNet conectado OK.
 - Sin cambios de código; sin commit/push de código (solo memory root + data operacional).
+
+### §0.0 — Medios actualización (cron watchdog Astraura, 2026-09-02 13:06 CST)
+- Tunel Astraura: VIVO (3 checks OK 13:06:48, 13:08:47, 13:10:47 CST). Sin relaunch necesario. Túnel no fue relanzado.
+- URL activa: https://button-dont-noted-rob.trycloudflare.com | status=active | backend=http://127.0.0.1:8000
+- Backend local 8000: HTTP 200 (online). BitNet i2_s saludable (llama-server 8790).
+- data/active_tunnel.json: status=active, updated_at=2026-09-02T18:21:03Z.
+- No se ejecuto curl /api/cerebros (túnel no fue relanzado — solo verificación watchdog).
+- Vercel starseed-system: READY (sin cambios desde A192). Sin deploy necesario.
+- Sin cambios de código; sin commit/push (solo verificación).
+
+### §2.3 Vercel — Estado (2026-09-02 13:06 CST)
+- starseed-system en producción: READY (sin cambios desde A192). Sin deploy necesario.
+- Astraura túnel: VIVO (button-dont-noted-rob.trycloudflare.com). Backend BitNet conectado OK (HTTP 200 en :8000).
+- Sin cambios de código; sin commit/push (solo verificación).
+
+
+### §0.0 — Medios actualización (cron watchdog Astraura, 2026-09-02 13:33 CST)
+- Túnel Astraura: CAIDO → backend uvicorn colgado (pid 63052, ModuleNotFoundError: No module named 'app'). Relanzado backend con PYTHONPATH=backend (pid 123) → HTTP 200. Túnel cloudflared rearroncado → VIVO.
+- URL final (activa): https://interest-conviction-premises-government.trycloudflare.com | status=active | backend=http://127.0.0.1:8000
+- Backend local :8000: HTTP 200 (online). BitNet i2_s saludable (llama-server 8790).
+- cloudflared pid 705: conectado. tunnel_monitor.sh pid 691: loop activo.
+- Verificación curl /api/cerebros (túnel): 200 OK — JSON válido: {"active_brain_id":"brain_genesis","cerebros":[{"i...
+- Conectividad backend con todos los medios (Vercel, app nativa) confirmada y operativa.
+- Sin cambios de código; solo verificación, relanzamiento de túnel y reinicio de backend.
+
+### §2.3 Vercel — Estado (2026-09-02 13:33 CST)
+- starseed-system en producción: READY (sin cambios desde A192). Sin deploy necesario.
+- Astraura túnel: VIVO (interest-conviction-premises-government.trycloudflare.com, HTTP 200 en /api/cerebros). Backend BitNet conectado OK.
+- Sin cambios de código; sin commit/push (solo memory root + data operacional).
+
+
+### §0.0 — Medios actualizacion (cron watchdog Astraura, 2026-09-02 15:12 CST)
+- Tunel Astraura: CAIDO → relanzado por watchdog (pid 4976) → VIVO. 
+- URL activa: https://asia-round-pages-discrete.trycloudflare.com | status=active | backend=http://127.0.0.1:8000
+- Backend local :8000: HTTP 200 (online). BitNet i2_s saludable (llama-server 8790).
+- Verificacion curl /api/cerebros (tunel, post-relaunch): 200 OK — JSON {"active_brain_id":"brain_genesis","cerebros":[...]
+- Conectividad con todos los medios (Vercel, app nativa) confirmada y operativa.
+- Sin cambios de codigo; solo verificacion y relanzamiento de tunel.
+
+### §2.3 Vercel — Estado (2026-09-02 15:12 CST)
+- starseed-system en produccion: READY (sin cambios). Sin deploy necesario.
+- Astraura tunel: VIVO (asia-round-pages-discrete.trycloudflare.com, HTTP 200 en /api/cerebros). Backend BitNet conectado OK.
+- Sin cambios de codigo; sin commit/push de codigo (solo memory root + data operacional).
+
+## Adenda 219 — Marcos de foto, avatar 3D, orquestación económica con NVIDIA NIM
+**Fecha:** 2026-09-02  
+- Ventana OmniVoice ya no aparece tras los datos del perfil; barra de pestañas global corregida (`safe center`); «Crear perfil» solo por botón; «Avatar» → «Foto de perfil».
+- Marco de forma para la foto de perfil (11 formas, encuadre a mano) y avatar 3D `<model-viewer>` (GLB/glTF; posición, rotación, animación, luz, distancia, ángulo, AR). Migración `avatar_marco`/`avatar_3d` en `os_profiles` y `profiles`.
+- Marcos opcionales en fotos y vídeos del Lienzo Universal (bloques imagen/portada/vídeo → `ss:meta.marcos` y `block.marco`; PostCard y renderer los pintan).
+- **Regla permanente de economía de créditos** (CLAUDE.md + `memory/orquestacion-economica.md`): ningún modelo agota sus créditos; ramificar por coste; relevar ante 429/402; punto de relevo antes del límite.
+- NVIDIA NIM integrado en las tres capas: proveedor `nvidia` + proxy comunitario `/api/ai/nvidia` (`NVIDIA_SHARED_KEY`, solo servidor) + fuente `nvidia-nim` del catálogo; Hermes `providers.nvidia` + fallback; `starseed-sub` motor `nim`. 82 modelos verificados; latencias medidas (Super 1,0 s · Ultra 2,3 s · Kimi K3 3,8 s).
+**Punto de relevo:** falta `NVIDIA_SHARED_KEY` en Vercel (el token CLI del Mac no pertenece al team del OS): añadirla a mano en Settings → Environment Variables. Siguiente ola: rediseño de bienvenida de perfiles/páginas/grupos y pestañas predeterminadas.

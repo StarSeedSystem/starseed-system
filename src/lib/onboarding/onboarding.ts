@@ -146,13 +146,19 @@ export async function saveProfileOptional(optional: {
   avatar_url?: string;
   cover_url?: string;
   bio?: string;
+  /** (Adenda 219) Forma y encuadre de la foto de perfil. */
+  avatar_marco?: Record<string, unknown> | null;
+  /** (Adenda 219) Avatar 3D opcional con sus ajustes. */
+  avatar_3d?: Record<string, unknown> | null;
 }): Promise<{ ok: boolean; error?: string }> {
   const owner = await uid();
   if (!owner) return { ok: false, error: "Necesitas iniciar sesión." };
-  const patch: Record<string, string> = {};
+  const patch: Record<string, unknown> = {};
   if (optional.avatar_url) patch.avatar_url = optional.avatar_url;
   if (optional.cover_url) patch.cover_url = optional.cover_url;
   if (optional.bio) patch.bio = optional.bio;
+  if (optional.avatar_marco !== undefined) patch.avatar_marco = optional.avatar_marco;
+  if (optional.avatar_3d !== undefined) patch.avatar_3d = optional.avatar_3d;
   if (Object.keys(patch).length === 0) return { ok: true };
   try {
     const sb = createClient();
@@ -174,11 +180,16 @@ export async function saveProfileOptional(optional: {
  */
 export async function sincronizarPerfilPublico(
   owner: string,
-  campos: { handle?: string; display_name?: string; avatar_url?: string; cover_url?: string; bio?: string },
+  campos: {
+    handle?: string; display_name?: string; avatar_url?: string; cover_url?: string; bio?: string;
+    avatar_marco?: Record<string, unknown> | null; avatar_3d?: Record<string, unknown> | null;
+  },
 ): Promise<void> {
   try {
     const sb = createClient();
     const patch: Record<string, unknown> = { user_id: owner, is_default: true, kind: "sovereign" };
+    if (campos.avatar_marco !== undefined) patch.avatar_marco = campos.avatar_marco;
+    if (campos.avatar_3d !== undefined) patch.avatar_3d = campos.avatar_3d;
     if (campos.handle) { patch.handle = campos.handle; patch.username = campos.handle; }
     if (campos.display_name) patch.display_name = campos.display_name;
     if (campos.avatar_url) patch.avatar_url = campos.avatar_url;

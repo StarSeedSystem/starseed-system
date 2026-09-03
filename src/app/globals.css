@@ -1882,7 +1882,18 @@ textarea:focus {
 [role="tablist"] {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
+  /* (Adenda 219) NUNCA `justify-content: center` en un carril que puede
+     desbordar. Con pocas pestañas centra bonito; en cuanto sobran píxeles el
+     exceso se reparte a AMBOS lados y el lado izquierdo queda fuera del
+     marco e INALCANZABLE por scroll (el scroll no va a negativo). Medido en la
+     ventana de Astraura: carril de 535 px, contenido de 630 px → la pestaña
+     «Astraura» arrancaba 92 px a la izquierda del borde y no se veía. Lo
+     mismo pasaba en el perfil y en cualquier sección con más pestañas que
+     ancho. `safe center` centra solo cuando cabe y alinea al inicio cuando
+     desborda; en navegadores sin soporte, `flex-start` con márgenes auto en
+     los extremos (ver abajo) da el mismo resultado. */
+  justify-content: flex-start;
+  justify-content: safe center;
   gap: clamp(0.125rem, 0.3vw, 0.25rem);
   border-radius: var(--radius-lg);
   padding: clamp(0.15rem, 0.3vw, 0.25rem);
@@ -1891,13 +1902,23 @@ textarea:focus {
      en vez de desbordar el viewport o partirse — arregla las pestañas
      desbordadas de casi todas las secciones sin tocar cada página. */
   max-width: 100%;
-  overflow-x: auto;
-  overflow-y: hidden;
-  flex-wrap: nowrap;
-  -webkit-overflow-scrolling: touch;
-  overscroll-behavior-x: contain;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
+  /* (Adenda 219) El carril ya NO se desliza con scrollbar invisible: se PARTE
+     en filas. Medido en vivo: en la ventana de Astraura «Inteligencia» quedaba
+     a medias (carril 524 px, contenido 603 px) y en el perfil, a 1280 px de
+     ancho, «Sobre mí», «Galería» y «Secciones» quedaban fuera (carril 758 px,
+     contenido 1031 px) sin ninguna pista de que existieran. Con filas, TODAS
+     las pestañas se ven siempre, en cualquier ventana, página o pantalla, y el
+     centrado vuelve a ser seguro. */
+  overflow: visible;
+  flex-wrap: wrap;
+  row-gap: clamp(0.125rem, 0.3vw, 0.25rem);
+}
+
+/* (Adenda 219) Las pestañas nunca se encogen ni se parten: cada una conserva
+   su ancho y el carril se desliza. Sin esto, algunos carriles dejaban que la
+   primera pestaña se aplastara hasta desaparecer. */
+[role="tablist"] > [role="tab"] {
+  flex-shrink: 0;
 }
 
 [role="tablist"]::-webkit-scrollbar {

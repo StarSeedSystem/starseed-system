@@ -388,6 +388,40 @@ export const FREE_CATALOG: CatalogSource[] = [
 
   /* ── FREE-KEY (gratis con clave gratuita) ─────────────────── */
   {
+    // NVIDIA NIM (Adenda 219): 82 modelos abiertos en GPUs de NVIDIA, VERIFICADOS
+    // contra GET https://integrate.api.nvidia.com/v1/models el 2026-09-02 con
+    // la clave comunitaria. Sin clave personal va por /api/ai/nvidia (clave
+    // compartida SOLO en el servidor, con rotación); con clave gratuita propia
+    // de build.nvidia.com, directo. Entra en la cadena de RELEVO como una fuente
+    // más: 429/402 → enfriamiento y la tarea sigue en otra fuente gratis.
+    id: "nvidia-nim",
+    label: "NVIDIA NIM (comunitario)",
+    tier: "free-key",
+    providerId: "nvidia",
+    baseUrl: "https://integrate.api.nvidia.com/v1",
+    requiresKey: false,
+    keyOptional: true,
+    getKeyUrl: "https://build.nvidia.com/settings/api-keys",
+    limits: "40 req/min por clave · créditos gratuitos de build.nvidia.com por clave (se piden más gratis) · la clave comunitaria se rota y nunca sale del servidor.",
+    why: "Modelos gigantes abiertos (Nemotron 3 Ultra 550B, DeepSeek V4, Kimi K3, gpt-oss 120B) en GPUs de NVIDIA sin coste: razonamiento y contexto largo de primera para las tareas difíciles.",
+    privacy: "cloud",
+    weight: 1,
+    models: [
+      { id: "nvidia/nemotron-3.5-lightning-30b-a3b", label: "Nemotron 3.5 Lightning 30B", strengths: ["fast", "chat", "summary"], quality: 7, context: 131072, note: "0,9 s de respuesta medidos · razona antes de contestar" },
+      { id: "nvidia/nemotron-nano-3-30b-a3b", label: "Nemotron Nano 3 30B", strengths: ["fast", "chat", "translate"], quality: 7, context: 131072 },
+      { id: "nvidia/nemotron-3-super-120b-a12b", label: "Nemotron 3 Super 120B", strengths: ["reasoning", "long", "code"], quality: 8, context: 1000000 },
+      { id: "nvidia/nemotron-3-ultra-550b-a55b", label: "Nemotron 3 Ultra 550B", strengths: ["reasoning", "long"], quality: 9, context: 1000000, note: "Mejor razonamiento de la fuente (1M ctx)" },
+      { id: "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning", label: "Nemotron 3 Nano Omni (visión)", strengths: ["vision", "reasoning"], quality: 8, vision: true, context: 256000 },
+      { id: "deepseek-ai/deepseek-v4-flash-0731", label: "DeepSeek V4 Flash", strengths: ["reasoning", "code", "fast"], quality: 8, context: 128000 },
+      { id: "deepseek-ai/deepseek-v4-pro-0813", label: "DeepSeek V4 Pro", strengths: ["reasoning", "code", "long"], quality: 9, context: 128000 },
+      { id: "moonshotai/kimi-k3", label: "Kimi K3", strengths: ["reasoning", "creative", "long"], quality: 9, context: 256000 },
+      { id: "openai/gpt-oss-120b", label: "GPT-OSS 120B", strengths: ["reasoning", "code"], quality: 8, context: 128000 },
+      { id: "google/gemma-4-31b-it", label: "Gemma 4 31B", strengths: ["chat", "translate", "vision"], quality: 8, vision: true, context: 262144 },
+      { id: "mistralai/mistral-large-2-instruct", label: "Mistral Large 2", strengths: ["chat", "translate", "creative"], quality: 8, context: 128000 },
+      { id: "meta/llama-3.2-90b-vision-instruct", label: "Llama 3.2 90B Vision", strengths: ["vision", "chat"], quality: 8, vision: true, context: 128000 },
+    ],
+  },
+  {
     id: "groq-free",
     label: "Groq (gratis)",
     tier: "free-key",
@@ -1145,6 +1179,7 @@ export function providerSlugForSource(source: CatalogSource): string {
     case "ollama": return "ollama";
     case "deepseek": return "deepseek";
     case "starseed": return "starseed";
+    case "nvidia": return "nvidia";
     default: break; // openai-compatible → usa el id de catálogo
   }
   // De "groq-free" → "groq", "cloudflare-workers-ai" → "cloudflare",
