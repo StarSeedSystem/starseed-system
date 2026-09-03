@@ -15,7 +15,9 @@ import { GlassCard } from "@/components/ui/glass-card";
 import { ShareButton } from "@/components/social/SocialActions";
 import { GovernanceToolkit } from "@/components/social/toolkits";
 import { entityKindMeta } from "@/lib/entity-kinds";
-import { Check, Plus } from "lucide-react";
+// (Ola 224) followState real persistido vía useFollow en vez del useState local.
+import { useFollow } from "@/hooks/use-os-entities";
+import { Check, Lock, Plus } from "lucide-react";
 
 const GOLD = "#E9C46A";
 
@@ -50,7 +52,20 @@ export function GovernanceEntityPage({
     const meta = entityKindMeta(kind);
     const ac = accent ?? meta.accent;
     const Icon = meta.icon;
-    const [following, setFollowing] = useState(false);
+    // (Ola 224) Estado real de afiliación persistido en Supabase (perdura al recargar).
+    const follow = useFollow(slug);
+    const [authHint, setAuthHint] = useState(false);
+
+    // (Ola 224) Si el toggle devuelve needsAuth, mostramos el aviso de login.
+    const handleFollowClick = async () => {
+        const res = await follow.toggle();
+        if (res.needsAuth) {
+            setAuthHint(true);
+            setTimeout(() => setAuthHint(false), 4000);
+        } else {
+            setAuthHint(false);
+        }
+    };
 
     return (
         <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
@@ -94,20 +109,30 @@ export function GovernanceEntityPage({
                         <div className="flex flex-wrap items-center gap-2">
                             <Button
                                 type="button"
-                                variant={following ? "outline" : "default"}
-                                onClick={() => setFollowing((v) => !v)}
+                                variant={follow.active ? "outline" : "default"}
+                                onClick={handleFollowClick}
+                                disabled={follow.loading}
                                 className="gap-2 cursor-pointer transition-all"
                                 style={
-                                    following
+                                    follow.active
                                         ? { borderColor: `${ac}88`, color: ac }
                                         : { background: ac, color: "#0b0b12", borderColor: ac }
                                 }
-                                aria-pressed={following}
+                                aria-pressed={follow.active}
                             >
-                                {following ? <Check className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
-                                {following ? followedLabel : followLabel}
+                                {follow.active ? <Check className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+                                {follow.active ? followedLabel : followLabel}
                             </Button>
                             <ShareButton title={name} accent={ac} />
+                            {/* (Ola 224) Aviso de inicio de sesión al intentar afiliarse sin sesión. */}
+                            {authHint && (
+                                <span className="flex w-full items-center gap-1 text-[11px] text-muted-foreground">
+                                    <Lock className="h-3 w-3" />
+                                    <Link href="/login" className="cursor-pointer underline" style={{ color: ac }}>
+                                        Inicia sesión para afiliarte
+                                    </Link>
+                                </span>
+                            )}
                         </div>
                     </div>
 
