@@ -34,6 +34,7 @@ import {
   claimProfile, saveProfileOptional, isValidHandle, sincronizarPerfilPublico,
 } from "@/lib/onboarding/onboarding";
 import { marcarRitoActivo } from "@/lib/ui/rito-activo";
+import { IconoStarSeed } from "@/components/onboarding/icono-starseed";
 
 /** Marca de sesión: el rito pide abrir esta ventana tras los sistemas. */
 export const PERFIL_LAUNCH_KEY = "starseed.perfil.launch";
@@ -199,7 +200,8 @@ export function VentanaPerfilInicial({ onCerrar }: { onCerrar?: () => void }) {
         onInteractOutside={(e) => e.preventDefault()}
         onEscapeKeyDown={(e) => e.preventDefault()}
       >
-        <DialogHeader>
+        <DialogHeader className="items-center text-center">
+          <IconoStarSeed className="mx-auto" />
           <DialogTitle className="flex items-center gap-2">
             <UserCircle className="h-5 w-5 text-fuchsia-300" aria-hidden /> Tu perfil en la red
           </DialogTitle>

@@ -31,6 +31,7 @@ import { shouldShowUpdates, subscribeStartupOpen, openStartupUpdates, snoozeUpda
 import { isSetupPending, subscribeSetup, markSetupDone } from "@/lib/aurora/setup-config";
 import { useModalA11y } from "@/hooks/use-modal-a11y";
 import { AstrauraOmniVoiceConfig } from "@/components/astraura/astraura-omnivoice-config";
+import { IconoStarSeed } from "@/components/onboarding/icono-starseed";
 import { marcarRitoActivo } from "@/lib/ui/rito-activo";
 
 export function StartupUpdatesModal() {
@@ -213,7 +214,7 @@ export function StartupUpdatesModal() {
   return (
     <div
       ref={containerRef}
-      className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 p-3 backdrop-blur-sm"
+      className="fixed inset-0 z-[120] flex flex-col items-center justify-center bg-black/60 p-3 backdrop-blur-sm"
       role="dialog"
       aria-modal="true"
       aria-label="Configuración de sistemas de Astraura en esta neurona"
@@ -222,6 +223,10 @@ export function StartupUpdatesModal() {
           de la neurona, cuyo motor por defecto es el local 1.58-bit (`local` es la
           primera clase del orden). La voz (OmniVoice) es un paso del MISMO wizard, así
           que voz e IA quedan en una sola ventana (integración pedida). */}
+      {/* Emblema de StarSeed arriba del todo, centrado sobre la ventana. */}
+      <div className="pointer-events-none relative z-10 -mb-6 flex justify-center">
+        <IconoStarSeed size={48} />
+      </div>
       <AstrauraOmniVoiceConfig
         variant="modal"
         initialSection="astraura"

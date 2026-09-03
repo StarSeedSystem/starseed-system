@@ -93,6 +93,7 @@ import {
 import { cn } from "@/lib/utils";
 import { usePerimeter, type PerimeterEdge } from "@/context/perimeter-context";
 import { StepDemo } from "./aurora-guide-demos";
+import { IconoStarSeed } from "./icono-starseed";
 import {
   auroraSpeak,
   auroraStopSpeaking,
@@ -815,6 +816,10 @@ export function AuroraGuide() {
                     className="h-[2px] w-full bg-gradient-to-r from-[#9FE870] via-[#6FE6D6] to-[#C9A8FF] opacity-85 shadow-[0_0_14px_rgba(111,230,214,0.55)]"
                   />
                   <div className="p-5 sm:p-6">
+                    {/* Emblema de StarSeed arriba del todo, centrado. */}
+                    <div className="mb-4 flex justify-center">
+                      <IconoStarSeed />
+                    </div>
                     {/* Cerrar (arriba-derecha) */}
                     <button
                       type="button"

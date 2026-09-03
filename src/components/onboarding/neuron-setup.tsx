@@ -22,6 +22,7 @@ import { thisDeviceId, setNeuronName } from "@/lib/neurons/neurons";
 import { saveOnboarding } from "@/lib/onboarding/onboarding";
 import { detectar, recomendar, type HW } from "@/lib/onboarding/neuron-recommend";
 import AgentRecommendation from "./agent-recommendation";
+import { IconoStarSeed } from "./icono-starseed";
 
 type ModoSync = "tiempo-real" | "al-abrir" | "manual";
 
@@ -79,7 +80,8 @@ export function NeuronSetup({ onClose }: { onClose: () => void }) {
   return (
     <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
       <DialogContent className="max-w-xl">
-        <DialogHeader>
+        <DialogHeader className="items-center text-center">
+          <IconoStarSeed className="mx-auto" />
           <DialogTitle>Nueva neurona detectada</DialogTitle>
           <DialogDescription>
             Tu cuenta ya está lista; solo configuremos cómo trabaja este dispositivo.

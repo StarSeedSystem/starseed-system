@@ -52,6 +52,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { PasoEscena } from "@/components/onboarding/paso-escena";
 import { StarSeedLoader } from "@/components/ui/starseed-loader";
 import SelectorVozInicial from "@/components/onboarding/selector-voz-inicial";
+import { IconoStarSeed } from "@/components/onboarding/icono-starseed";
 import {
   getOnboarding,
   saveProfileOptional,
@@ -676,9 +677,7 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
           {/* (Adenda 202) Eje central: emblema, título y paso se alinean al
               centro, como el resto de la ventana. */}
           <DialogHeader className="relative items-center text-center">
-            <span className="mx-auto flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-tr from-fuchsia-500 via-purple-500 to-cyan-400 shadow-[0_0_24px_-4px_rgba(217,70,239,0.6)]">
-              <Sparkles className="h-5 w-5 text-white" />
-            </span>
+            <IconoStarSeed />
             <DialogTitle className="mt-3 text-center text-[17px] leading-tight sm:text-lg">
               Bienvenida · Guía de StarSeed con Astraura
             </DialogTitle>
