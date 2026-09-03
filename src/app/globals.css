@@ -3610,3 +3610,15 @@ body[data-ss-modal="1"] [aria-label="Abrir la guía de StarSeed"] {
   visibility: hidden !important;
   transition: opacity 0.18s ease;
 }
+
+/* ── Ola 228 · R1F — Cinturón CSS del rito de verdad ────────────────────────
+   Mientras haya un rito en primer plano (`data-rito="1"` en <html>, puesto por
+   rito-activo.ts), los accesos Trinity (bordes, dock, paleta, cortinas) se
+   apagan de raíz: invisibles e inalcanzables por puntero, pase lo que pase. */
+html[data-rito="1"] [data-trinity-edge],
+html[data-rito="1"] [data-omnidock],
+html[data-rito="1"] [data-command-palette],
+html[data-rito="1"] [data-trinity-curtain] {
+  pointer-events: none !important;
+  opacity: 0 !important;
+}

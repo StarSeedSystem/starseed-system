@@ -79,6 +79,7 @@ import {
 } from "@/components/layout/dock-config";
 import { APP_CATALOG } from "@/components/dashboard/apps/app-catalog";
 import { openAuroraSetup } from "@/lib/aurora/setup-config";
+import { useRitoActivo } from "@/lib/ui/rito-activo";
 import { openAstrauraConfig } from "@/lib/astraura/config-ui";
 
 /* ═══════════════════════════ Tipos ═══════════════════════════ */
@@ -248,6 +249,9 @@ export function CommandPalette() {
   const [activeIndex, setActiveIndex] = useState(0);
   const [recentsSnapshot, setRecentsSnapshot] = useState<string[]>([]);
   const containerRef = useRef<HTMLDivElement>(null);
+  // (Ola 228 · R1F) Rito de verdad en primer plano: la paleta NO puede abrirse
+  // mientras haya un rito activo y, si ya estaba abierta, se cierra sola.
+  const rito = useRitoActivo();
 
   // Catálogo de destinos: se calcula UNA vez (DOCK_PRESETS/APP_CATALOG son
   // constantes estáticas del módulo, no cambian en tiempo de ejecución).
@@ -426,13 +430,21 @@ export function CommandPalette() {
       // Con la paleta YA ABIERTA, el propio input de búsqueda cuenta como
       // "editable" y aun así debe poder cerrarse con el mismo atajo.
       if (!open && isEditableTarget(e.target)) return;
+      // Con el rito activo, el atajo no abre nada (el cierre si está abierta
+      // lo maneja el efecto de abajo que observa `rito`).
+      if (rito) return;
       e.preventDefault();
       e.stopPropagation();
       setOpen((o) => !o);
     };
     window.addEventListener("keydown", onKeyDown, true);
     return () => window.removeEventListener("keydown", onKeyDown, true);
-  }, [open]);
+  }, [open, rito]);
+
+  // Si el rito se activa con la paleta abierta, ciérrala de inmediato.
+  useEffect(() => {
+    if (rito && open) setOpen(false);
+  }, [rito, open]);
 
   // ↑/↓ mientras la paleta está abierta (funciona con foco en el input o,
   // tras Tab, en cualquier fila — por eso vive en window, no en el input).
@@ -464,6 +476,7 @@ export function CommandPalette() {
   return (
     <div
       ref={containerRef}
+      data-command-palette="1"
       className="fixed inset-0 z-[10000] flex items-start justify-center bg-black/70 p-4 pt-[10vh] backdrop-blur-sm duration-200 animate-in fade-in-0 sm:items-center sm:pt-4"
       onClick={() => setOpen(false)}
       role="dialog"

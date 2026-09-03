@@ -28,6 +28,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { usePerimeter, PerimeterEdge } from "@/context/perimeter-context";
 import { useAppearance } from "@/context/appearance-context";
 import { cn } from "@/lib/utils";
+import { useRitoActivo } from "@/lib/ui/rito-activo";
 import styles from "./trinity-edge-access.module.css";
 
 type Edge = Exclude<PerimeterEdge, null>;
@@ -98,7 +99,11 @@ export function TrinityEdgeAccess() {
         };
     }, []);
 
-    const enabled = mounted && cfg.mode !== "off" && (cfg.mode === "on" || autoOk);
+    // (Ola 228 · R1F) Rito de verdad en primer plano: ni asas ni gestos de
+    // borde pueden disparar un menú cardinal mientras haya un rito activo.
+    const rito = useRitoActivo();
+
+    const enabled = !rito && mounted && cfg.mode !== "off" && (cfg.mode === "on" || autoOk);
 
     // ── Deslizamiento desde cada orilla ─────────────────────────────
     const gestureRef = useRef<{
@@ -201,6 +206,7 @@ export function TrinityEdgeAccess() {
                         type="button"
                         aria-label={`${EDGE_META[edge].label} (toca o desliza desde el borde)`}
                         title={EDGE_META[edge].label}
+                        data-trinity-edge={edge}
                         data-trinity-edge-handle={edge}
                         className={cn(styles.handle, activeEdge === edge && styles.handleActive)}
                         style={handleStyle(edge)}

@@ -45,6 +45,9 @@ export function marcarRitoActivo(id: string, activo: boolean): void {
   if (activo) ritos.add(id);
   else ritos.delete(id);
   if (ritos.size === antes && ritos.has(id) === activo) return; // sin cambio real
+  // (Ola 228 · R1F) Si el registro quedó vacío, se reinicia `avisados` para que
+  // la PRÓXIMA suscripción vuelva a aplicar el DOM (estado limpio por ciclo).
+  if (ritos.size === 0) avisados = false;
   aplicarAlDom();
   emitir();
 }

@@ -131,6 +131,11 @@ export function SideCurtains() {
         deleteBoard,
     } = useBoardSystem();
 
+    // (Ola 228 · R1F) Rito de verdad en primer plano: las cortinas NO deben
+    // poder salir mientras haya un rito activo. Se declara aquí (tras TODOS
+    // los hooks del componente) y corta el render con `return null`.
+    const rito = useRitoActivo();
+
     const activeBoardData = boards.find(b => b.id === activeBoardId);
 
     const handleClose = () => setActiveEdge(null);
@@ -162,11 +167,15 @@ export function SideCurtains() {
         )
     );
 
+    // Rito en primer plano → nada de cortinas (después de TODOS los hooks).
+    if (rito) return null;
+
     return (
         <AnimatePresence>
             {/* Horizon (Left) - Creation / Green */}
             {activeEdge === "horizon" && (
                 <motion.div
+                    data-trinity-curtain="horizon"
                     initial={{ x: "-100%", opacity: 0 }}
                     animate={{ x: 0, opacity: 1 }}
                     exit={{ x: "-100%", opacity: 0 }}
@@ -412,6 +421,7 @@ export function SideCurtains() {
             */}
             {activeEdge === "logic" && (
                 <motion.div
+                    data-trinity-curtain="logic"
                     initial={{ x: "110%", opacity: 0 }}
                     animate={{ x: 0, opacity: 1 }}
                     exit={{ x: "110%", opacity: 0 }}
