@@ -27,6 +27,23 @@ describe("cache-respuestas (Ola 223)", () => {
     expect(claveCache([{ role: "user", content: "hola" }], "m", 0.3)).not.toBe(base);
   });
 
+  // (Ola 223 · I4F) Revisión: la clave incluye ámbito de sesión/usuario — dos
+  // sesiones con el mismo prompt NO comparten respuesta.
+  it("el ámbito de sesión separa las claves del mismo prompt", () => {
+    const msgs = [{ role: "user", content: "hola" }];
+    const a = claveCache(msgs, "m", 0.2, "chat-1");
+    const b = claveCache(msgs, "m", 0.2, "chat-2");
+    expect(a).not.toBe(b);
+    guardarCache(a, "respuesta-sesion-a");
+    expect(leerCache(b)).toBeNull();
+    expect(leerCache(a)).toBe("respuesta-sesion-a");
+  });
+
+  // (Ola 223 · I4F) Hash doble (~64 bits hex) para reducir colisiones djb2.
+  it("genera claves de doble hash (16 hex)", () => {
+    expect(claveCache([{ role: "user", content: "x" }], "m", 0.1)).toMatch(/^[0-9a-f]{16}$/);
+  });
+
   it("lee lo guardado y expira tras el TTL", () => {
     vi.useFakeTimers();
     const clave = claveCache([{ role: "user", content: "q" }], "m", 0.1);

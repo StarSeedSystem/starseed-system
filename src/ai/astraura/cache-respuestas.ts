@@ -2,7 +2,7 @@
  * (Ola 223) Caché LRU en memoria de respuestas repetidas del router de Astraura.
  * Evita gastar cuota en llamadas idénticas (mismo mensajes+modelo+temperature).
  * Solo lectura/escritura en memoria: SSR-safe y defensiva (nunca lanza).
- * Clave = djb2(JSON.stringify({messages, model, temperature})) en hex.
+ * Clave = djb2-doble(JSON.stringify({messages, model, temperature, scope})) en hex.
  * TTL 10 min, máx. 60 entradas (las más antiguas/usadas menos se expulsan).
  */
 
@@ -16,13 +16,13 @@ interface CacheEntry {
 
 const memoria = new Map<string, CacheEntry>();
 
-/** djb2 sobre el string, devuelto en hex (estable entre llamadas). */
-function djb2Hex(input: string): string {
-  let h = 5381;
+/** djb2 sobre el string con semilla configurable, devuelto en hex (estable). */
+function djb2Hex(input: string, seed: number): string {
+  let h = seed;
   for (let i = 0; i < input.length; i++) {
     h = ((h << 5) + h + input.charCodeAt(i)) >>> 0;
   }
-  return h.toString(16);
+  return h.toString(16).padStart(8, "0");
 }
 
 /** Clave estable de la caché para una petición concreta. */
@@ -30,9 +30,15 @@ export function claveCache(
   messages: unknown,
   model: string,
   temperature?: number,
+  // (Ola 223 · I4F) Ámbito de sesión/usuario (p.ej. chatId): impide la fuga de
+  // respuestas entre sesiones distintas con el mismo prompt.
+  scope?: string,
 ): string {
   try {
-    return djb2Hex(JSON.stringify({ messages, model, temperature }));
+    const raw = JSON.stringify({ messages, model, temperature, scope: scope ?? "" });
+    // (Ola 223 · I4F) Doble djb2 con semillas distintas (~64 bits): reduce las
+    // colisiones del hash de 32 bits señaladas en la revisión.
+    return djb2Hex(raw, 5381) + djb2Hex(raw, 52711);
   } catch {
     return "";
   }

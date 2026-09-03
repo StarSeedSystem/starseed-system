@@ -1168,9 +1168,17 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
   const deadSources = new Set<string>();
 
   // (Ola 223) Caché de respuestas repetidas: solo aplica si la petición es
-  // determinista (temperature ≤ 0.3) o no hay streaming — ahí la misma clave
-  // representa la misma respuesta y reutilizarla ahorra cuota del proveedor.
-  const cacheElegible = (typeof req.temperature === "number" && req.temperature <= 0.3) || !req.onChunk;
+  // determinista (temperature explícita ≤ 0.3) Y no hay streaming — ahí la
+  // misma clave representa la misma respuesta y reutilizarla ahorra cuota.
+  // (Ola 223 · I4F) Revisión: la condición anterior cacheaba con temperature
+  // alta solo por no tener onChunk (no determinista) — ahora se exige SIEMPRE
+  // temperature ≤ 0.3 y ausencia de streaming.
+  const cacheElegible =
+    typeof req.temperature === "number" && req.temperature <= 0.3 && !req.onChunk;
+  // (Ola 223 · I4F) Ámbito de sesión en la clave: la caché es global en
+  // memoria del proceso, así que sin esto dos usuarios/chats con el mismo
+  // prompt compartirían respuesta (riesgo de privacidad).
+  const cacheScope = req.chatId ?? req.agentId ?? "";
 
   for (const c of chain) {
     if (deadSources.has(c.source.id)) continue; // clave rota: ni lo intentamos
@@ -1180,8 +1188,9 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
     // punto) en vez de `reqX.messages`: ambas contienen lo mismo, pero así la
     // generación de la clave no depende de ninguna variable reasignable y se
     // descarta cualquier ReferenceError por ámbito.
-    const clave = cacheElegible ? claveCache(messages, c.model.id, req.temperature) : "";
+    const clave = cacheElegible ? claveCache(messages, c.model.id, req.temperature, cacheScope) : "";
     if (cacheElegible && clave) {
+      const tHit = Date.now(); // (Ola 223 · I4F) ms reales del hit, no 0 fijo
       const hit = leerCache(clave);
       if (hit) {
         const rec: RouteRecord = {
@@ -1197,7 +1206,7 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
           free: c.source.tier !== "paid",
           reason: `${c.reason} · respuesta reutilizada desde la caché (0 cuota gastada)`,
           ok: true,
-          ms: 0,
+          ms: Date.now() - tHit,
           cached: true,
           difficulty: profile.difficulty,
           alternatives: [],
