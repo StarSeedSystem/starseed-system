@@ -82,6 +82,8 @@ import { accessBias, llmSourceAccessClass } from "@/lib/astraura/model-preferenc
 // `neurons.ts` NO importa `router.ts` (sin ciclo): solo Supabase/entity-state y
 // un `import type` de `ai/astraura/mesh` (erased, sin runtime).
 import { thisDeviceId } from "@/lib/neurons/neurons";
+// (Ola 223) Caché LRU de respuestas repetidas (cuota-cero para prompts idénticos).
+import { claveCache, leerCache, guardarCache } from "./cache-respuestas";
 
 /* ───────────────────── Ajustes de Inteligencia ───────────────────── */
 
@@ -531,6 +533,8 @@ export interface RouteRecord {
    * que lee `inteligencia-section.tsx`.
    */
   usage?: { inputTokens?: number; outputTokens?: number };
+  /** (Ola 223) true si esta ruta devolvió una respuesta desde la caché LRU. */
+  cached?: boolean;
   /**
    * (Adenda 153) Sistema PRIMARIO que actuó en esta llamada: qué modo se
    * resolvió, de dónde salió la decisión y si el primario estaba listo (si no,
@@ -1162,8 +1166,49 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
   // de la fuente lo da, lo darán todos — así que no se reintenta ni una vez más.
   const deadSources = new Set<string>();
 
+  // (Ola 223) Caché de respuestas repetidas: solo aplica si la petición es
+  // determinista (temperature ≤ 0.3) o no hay streaming — ahí la misma clave
+  // representa la misma respuesta y reutilizarla ahorra cuota del proveedor.
+  const cacheElegible = (typeof req.temperature === "number" && req.temperature <= 0.3) || !req.onChunk;
+
   for (const c of chain) {
     if (deadSources.has(c.source.id)) continue; // clave rota: ni lo intentamos
+    // (Ola 223) Antes de llamar al proveedor: si esta petición exacta ya se
+    // respondió hace menos de 10 min, la devolvemos sin gastar cuota.
+    // (Ola 223 · I4) La clave usa `messages` (local, siempre definida en este
+    // punto) en vez de `reqX.messages`: ambas contienen lo mismo, pero así la
+    // generación de la clave no depende de ninguna variable reasignable y se
+    // descarta cualquier ReferenceError por ámbito.
+    const clave = cacheElegible ? claveCache(messages, c.model.id, req.temperature) : "";
+    if (cacheElegible && clave) {
+      const hit = leerCache(clave);
+      if (hit) {
+        const rec: RouteRecord = {
+          at: Date.now(),
+          task: profile.kind,
+          taskLabel: TASK_LABELS[profile.kind],
+          sourceId: c.source.id,
+          sourceLabel: c.source.label,
+          model: c.model.id,
+          modelLabel: c.model.label,
+          providerModel: toProviderModel(c.source, c.model),
+          tier: c.source.tier,
+          free: c.source.tier !== "paid",
+          reason: `${c.reason} · respuesta reutilizada desde la caché (0 cuota gastada)`,
+          ok: true,
+          ms: 0,
+          cached: true,
+          difficulty: profile.difficulty,
+          alternatives: [],
+          paidSuggestions: [],
+          attempts: failovers.length,
+          ...(primaryInfo ? { primary: primaryInfo } : {}),
+        };
+        pushRouteRecord(rec);
+        req.onStatus?.("");
+        return { text: hit, route: rec };
+      }
+    }
     const t0 = Date.now();
     try {
       req.onStatus?.(`Usando ${c.source.label} · ${c.model.label}…`);
@@ -1211,6 +1256,12 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
       };
       pushRouteRecord(rec);
       req.onStatus?.("");
+      // (Ola 223) Guarda la respuesta buena en la caché (nunca errores ni vacías:
+      // `guardarCache` ya filtra texto vacío y aquí solo llegamos si pasó el
+      // check de respuesta no vacía).
+      if (cacheElegible && clave) {
+        try { guardarCache(clave, String(res.text ?? "")); } catch { /* defensivo */ }
+      }
       // ── MODO MULTI-AGENTE (subagentes OpenRouter :free) ─────────────────────
       // Si el usuario lo activó, contrastamos la respuesta principal con varios
       // subagentes que corren en modelos :free distintos (proxy /api/ai/openrouter,
