@@ -50,6 +50,7 @@ import { marcarRitoActivo } from "@/lib/ui/rito-activo";
 import { hablarRito, callarRito, instalarVozPropia, anticiparRito, VOZ_RITO_EVENT, type EstadoVozRito } from "@/lib/aurora/voz-rito";
 import { AnimatePresence, motion } from "framer-motion";
 import { PasoEscena } from "@/components/onboarding/paso-escena";
+import { AreasExplicadas } from "@/components/onboarding/areas-explicadas";
 import { StarSeedLoader } from "@/components/ui/starseed-loader";
 import SelectorVozInicial from "@/components/onboarding/selector-voz-inicial";
 import { IconoStarSeed } from "@/components/onboarding/icono-starseed";
@@ -103,6 +104,13 @@ import {
   UserPlus,
   Volume2,
   Cpu,
+  Library,
+  Users,
+  Palette,
+  Monitor,
+  RadioTower,
+  UserCircle,
+  type LucideIcon,
 } from "lucide-react";
 
 // ── narraciones de Astraura por paso ─────────────────────────────────────
@@ -131,10 +139,10 @@ const STEPS = [
   { key: "guia", label: "Guía de la red", icon: Compass },
 ] as const;
 
-type AreaTip = {
+export type AreaTip = {
   path: string;
   label: string;
-  icon: any;
+  icon: LucideIcon;
   tip: string;
   accent: string;
 };
@@ -147,8 +155,14 @@ const AREAS: AreaTip[] = [
   { path: "/pizarra", label: "Pizarra", icon: PenSquare, accent: "text-violet-300", tip: "Crear: dibuja y co-crea ideas en un lienzo compartido." },
   { path: "/navegador", label: "Navegador", icon: Globe, accent: "text-sky-300", tip: "Usar: explora la red y descubre contenidos y nodos." },
   { path: "/conexiones", label: "Conexiones", icon: Link2, accent: "text-pink-300", tip: "Vincular: enlaza personas, grupos y servicios externos." },
-  { path: "/correos", label: "Correos · @star.seed", icon: Mail, accent: "text-cyan-300", tip: "Usar: tu correo interno @star.seed y vincula correos externos (DNS/sync)." },
+  { path: "/correos", label: "Correos · @star.seed", icon: Mail, accent: "text-indigo-300", tip: "Usar: tu correo interno @star.seed y vincula correos externos (DNS/sync)." },
   { path: "/seguridad", label: "Seguridad", icon: Lock, accent: "text-rose-300", tip: "Usar: gestiona claves, recuperación y privacidad." },
+  { path: "/library", label: "Biblioteca", icon: Library, accent: "text-yellow-300", tip: "Crear: instala apps, skills y recursos de la colección común." },
+  { path: "/hub", label: "Hub · Comunidades", icon: Users, accent: "text-teal-300", tip: "Conectar: únete a comunidades y nodos territoriales (Sanghas)." },
+  { path: "/crear", label: "Crear · Lienzo Universal", icon: Palette, accent: "text-lime-300", tip: "Crear: publica entidades únicas que se referencian, no se duplican." },
+  { path: "/profile", label: "Perfil", icon: UserCircle, accent: "text-orange-300", tip: "Usar: tus facetas públicas (cívica, artística, profesional) de la cuenta." },
+  { path: "/escritorios", label: "Escritorios", icon: Monitor, accent: "text-purple-300", tip: "Usar: tu espacio principal con widgets, apps y el OmniDock." },
+  { path: "/red-mesh", label: "Red Mesh", icon: RadioTower, accent: "text-red-300", tip: "Conectar: malla LoRa nodo a nodo, sin depender de un servidor central." },
 ];
 
 export default function OnboardingWizard({ onClose }: { onClose?: () => void }) {
@@ -342,6 +356,12 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
     setOpen(false);
     onClose?.();
   }, [onClose]);
+
+  // (Ola 227) «Ir a <área>» desde la guía: cierra el rito y navega al área.
+  const irA = useCallback((path: string) => {
+    closeAll();
+    router.push(path);
+  }, [closeAll, router]);
 
   // ── empezar con voz (Aurora) ──
   const startVoice = useCallback(async () => {
@@ -1248,25 +1268,7 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
                   <span>Sigues como invitado. Cuando quieras conservar tu cuenta para siempre, añade un correo en <Link href="/seguridad" className="underline underline-offset-2 text-fuchsia-200 hover:text-white">/seguridad</Link> o vuelve a esta guía.</span>
                 </div>
               )}
-              <div className="grid sm:grid-cols-2 gap-2">
-                {AREAS.map((a) => {
-                  const Icon = a.icon;
-                  return (
-                    <Link
-                      key={a.path}
-                      href={a.path}
-                      className="group rounded-xl border border-white/10 bg-white/[0.02] hover:bg-white/[0.05] hover:border-white/20 p-3 transition-all"
-                    >
-                      <div className="flex items-center gap-2 mb-1">
-                        <Icon className={cn("w-4 h-4", a.accent)} />
-                        <span className="text-sm font-semibold text-white/90">{a.label}</span>
-                        <ChevronRight className="w-3.5 h-3.5 text-white/30 ml-auto group-hover:translate-x-0.5 transition-transform" />
-                      </div>
-                      <p className="text-[11px] text-white/50 leading-snug">{a.tip}</p>
-                    </Link>
-                  );
-                })}
-              </div>
+              <AreasExplicadas areas={AREAS} onIr={irA} />
               <div className="rounded-xl border border-fuchsia-500/20 bg-fuchsia-950/10 p-3 text-[12px] text-fuchsia-200/80 flex items-center gap-2">
                 <Sparkles className="w-4 h-4 shrink-0" />
                 Puedes volver a esta guía cuando quieras desde <b>/bienvenida</b>. Aurora estará disponible en cualquier sección.
