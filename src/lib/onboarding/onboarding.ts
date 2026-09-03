@@ -32,6 +32,11 @@ async function uid(): Promise<string | null> {
 export interface OnboardingState {
   owner?: string;
   completed: boolean;
+  // (Ola 221) «Saltar por ahora» NO es completar: se guarda como pospuesto
+  // para que la guía no se reabra en bucle pero pueda relanzarse a mano.
+  skipped?: boolean;
+  // (Ola 221) admite null: completar limpia el «pospuesto» limpiando skippedAt
+  skippedAt?: string | null;
   steps: Record<string, unknown>;
   voice_started: boolean;
   updated_at?: string;
@@ -114,6 +119,12 @@ export async function saveOnboarding(
       ...patch,
       updated_at: new Date().toISOString(),
     };
+    // (Ola 221) Completar de verdad limpia el «pospuesto»: el rito ya no está
+    // saltado, está terminado.
+    if (patch.completed === true) {
+      payload.skipped = false;
+      payload.skippedAt = null;
+    }
     // Adenda 188: `steps` se FUSIONA (shallow) con lo ya guardado — cada paso
     // del wizard escribe su parcela (cerebros, permisos, neurona, last…) sin
     // borrar las de los demás. Antes el upsert reemplazaba el JSON completo.

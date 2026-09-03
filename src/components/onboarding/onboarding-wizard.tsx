@@ -623,7 +623,14 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
 
   const skip = useCallback(async () => {
     callarRito();
-    await saveOnboarding({ completed: true });
+    // (Ola 221) «Saltar por ahora» = POSPUESTO, no completado: así puede
+    // reabrirse desde la guía/Ajustes y la lógica de «sin terminar» lo trata
+    // como pendiente sin reabrirlo en bucle.
+    await saveOnboarding({
+      completed: false,
+      skipped: true,
+      skippedAt: new Date().toISOString(),
+    });
     closeAll();
   }, [closeAll]);
 

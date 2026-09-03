@@ -61,7 +61,10 @@ export default function BienvenidaPage() {
           } else {
             const { getOnboarding } = await import("@/lib/onboarding/onboarding");
             const ob = await getOnboarding();
-            sinTerminar = !ob?.completed;
+            // (Ola 221) El rito saltado es «pospuesto», no «sin terminar»:
+            // /bienvenida muestra el acceso y la guía se reabre a mano
+            // (evento starseed:open-onboarding), sin bucle automático.
+            sinTerminar = !ob?.completed && !ob?.skipped;
           }
         } catch { sinTerminar = false; }
       }

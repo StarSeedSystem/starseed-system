@@ -91,7 +91,9 @@ export function OnboardingGate() {
       }
 
       const ob = await getOnboarding();
-      if (!ob.completed && recienRegistrado) {
+      // (Ola 221) `skipped` cuenta como «pospuesto»: no se reabre solo aunque
+      // la marca de recién registrado siga viva en la pestaña.
+      if (!ob.completed && !ob.skipped && recienRegistrado) {
         setShow(true);
       } else {
         setShow(false);
