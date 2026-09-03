@@ -58,13 +58,24 @@ export function PostFeed({
     // onLiveChange del broadcast). Se agrupa con coalescing: cualquier llamada
     // dentro de 400 ms se ignora y solo se ejecuta un refetch real al final.
     const dedupeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+    // (Ola 224 S1F) refetch en refs para no rearmar el callback ni llamarlo desmontado
+    const refetchRef = useRef(refetch);
+    refetchRef.current = refetch;
+    const montadoRef = useRef(true);
+    useEffect(() => {
+        montadoRef.current = true;
+        return () => {
+            montadoRef.current = false;
+            if (dedupeTimer.current) clearTimeout(dedupeTimer.current);
+        };
+    }, []);
     const refetchDedupe = useCallback(() => {
         if (dedupeTimer.current) return;
         dedupeTimer.current = setTimeout(() => {
             dedupeTimer.current = null;
-            refetch();
+            if (montadoRef.current) refetchRef.current();
         }, 400);
-    }, [refetch]);
+    }, []);
 
     // ── Filtros · orden · búsqueda inteligente (Adenda 66 §7) ──
     // Preferencias POR PERFIL (perfil activo) y POR ENTORNO (grupo/perfil/canal).
