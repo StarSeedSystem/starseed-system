@@ -34,11 +34,13 @@
 import { NextRequest } from "next/server";
 import { createClient } from "@/utils/supabase/server";
 import { rateLimit } from "@/lib/security/rate-limit";
+// (Ola 228 · N1) El upstream ya no es fijo de una sola máquina: se resuelve
+// por orden (env → túnel/publicado) con sonda de salud y caché de 60 s.
+import { destinoNube } from "@/lib/astraura/destino-nube";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const DEFAULT_UPSTREAM = "https://astraura-backend-334237619848.us-central1.run.app";
 const MAX_BODY_BYTES = 256 * 1024;
 const GET_TIMEOUT_MS = 12_000;
 const CHAT_TIMEOUT_MS = 110_000;
@@ -159,9 +161,15 @@ const DELETE_ALLOW: RegExp[] = [
   /^\/api\/storage\/rules\/[\w.-]+$/,
 ];
 
-function upstreamBase(): string {
-  const v = String(process.env.ASTRAURA_158_URL ?? "").trim().replace(/\/+$/, "");
-  return v || DEFAULT_UPSTREAM;
+/** Sin destino sano: respuesta clara y NUNCA cuelga (el router cliente releva solo). */
+function sinDestino(): Response {
+  return Response.json(
+    {
+      error: "astraura-nube-no-disponible",
+      sugerencia: "usa una fuente libre o tu Astraura local",
+    },
+    { status: 503 },
+  );
 }
 
 function joinPath(segments: string[] | undefined): string {
@@ -198,10 +206,13 @@ function upstreamHeaders(extra?: Record<string, string>): Record<string, string>
 }
 
 async function forward(method: "GET" | "POST" | "DELETE", path: string, search: string, body?: string): Promise<Response> {
+  // (Ola 228 · N1) Destino resistente: env → túnel/publicado, con sonda previa.
+  const destino = await destinoNube();
+  if (!destino) return sinDestino();
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), method === "POST" ? CHAT_TIMEOUT_MS : GET_TIMEOUT_MS);
   try {
-    const res = await fetch(`${upstreamBase()}${path}${search}`, {
+    const res = await fetch(`${destino.base}${path}${search}`, {
       method,
       headers: upstreamHeaders(body ? { "Content-Type": "application/json" } : undefined),
       body,

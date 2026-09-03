@@ -1303,6 +1303,19 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
       return { ...res, route: rec };
     } catch (e: any) {
       const msg = String(e?.message ?? e);
+      // (Ola 228 · N1) NUBE 1.58 CAÍDA O SIN SALUD (503 / «nube-no-disponible» /
+      // timeout de la sonda): la enfriamos de inmediato (usa sus `cooldownMinutes`
+      // del catálogo, 5 min) para que los próximos turnos vayan DIRECTOS a la
+      // siguiente fuente gratuita sin esperar a que falle. El usuario nunca ve
+      // error: el failover de abajo sigue la cadena en silencio y el relevo
+      // queda registrado en `failovers` (registro de rutas), como con cualquier
+      // otro proveedor (NVIDIA NIM, OpenRouter :free, Groq…).
+      if (
+        c.source.id === ASTRAURA_158_CLOUD_SOURCE_ID &&
+        (/\b503\b|no disponible|nube-no-disponible|no respond|timeout|abort|arrancando en fr|contactar la nube/i.test(msg))
+      ) {
+        try { markCooldown(c.source.id); } catch { /* */ }
+      }
       // Cuota agotada / límite (429) o "insufficient" → enfría la fuente. Si el
       // proveedor DICE cuánto ("Retry after 4851 seconds" · "retry in 2h"), le
       // hacemos caso EXACTO (Adenda 87) — ni martillear antes de tiempo ni
