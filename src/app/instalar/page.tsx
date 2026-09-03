@@ -12,6 +12,9 @@ import { detectar, recomendar, MODELOS, CONCIENCIAS, assetDirecto, type HW } fro
 
 const RELEASES_URL = "https://github.com/StarSeedSystem/starseed-system/releases";
 
+// (Ola 226) VARIANTE: no hay carpeta «(app)», el página vive en src/app/instalar/page.tsx.
+// Los modelos con url null (config/astraura-models.json) se muestran como «Próximamente»:
+// badge, sin descarga y con opacidad 60%, nunca como recomendables.
 export default function InstalarPage() {
   const [hw, setHw] = useState<HW | null>(null);
   const [sesion, setSesion] = useState<string | null | "buscando">("buscando");
@@ -86,11 +89,28 @@ export default function InstalarPage() {
         </section>
 
         {rec && modeloRec && (
-          <section className="rounded-2xl border border-cyan-400/30 bg-cyan-400/5 p-5 space-y-3">
+          <section
+            className={`rounded-2xl border p-5 space-y-3 ${
+              // (Ola 226) si el modelo recomendado no tiene url, no se presenta como recomendable.
+              modeloRec.url ? "border-cyan-400/30 bg-cyan-400/5" : "border-white/10 bg-white/[0.03] opacity-60"
+            }`}
+          >
             <h2 className="text-lg font-medium text-cyan-200">Recomendación personalizada</h2>
             <p className="text-sm">
-              <span className="font-semibold">{modeloRec.nombre}</span> ({modeloRec.params}, {modeloRec.arq}, {modeloRec.disco}) + conciencia colectiva{" "}
-              <span className="font-semibold">{CONCIENCIAS.find((c) => c.id === rec.conciencia)?.nombre}</span>.
+              {modeloRec.url ? (
+                <>
+                  <span className="font-semibold">{modeloRec.nombre}</span> ({modeloRec.params}, {modeloRec.arq}, {modeloRec.disco}) + conciencia colectiva{" "}
+                  <span className="font-semibold">{CONCIENCIAS.find((c) => c.id === rec.conciencia)?.nombre}</span>.
+                </>
+              ) : (
+                <>
+                  <span className="font-semibold">{modeloRec.nombre}</span>{" "}
+                  <span className="ml-1 inline-block rounded-full border border-amber-300/40 bg-amber-300/10 px-2 py-0.5 text-[11px] text-amber-200">
+                    Próximamente
+                  </span>{" "}
+                  — aún sin descarga publicada, no recomendable todavía.
+                </>
+              )}
             </p>
             <ul className="list-disc space-y-1 pl-5 text-sm text-slate-300">
               {rec.razones.map((r, i) => (
@@ -111,8 +131,9 @@ export default function InstalarPage() {
                 className="mt-1 w-full rounded-lg border border-white/15 bg-[#0c1122] p-2.5"
               >
                 {MODELOS.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.nombre} — {m.params} · {m.disco}
+                  // (Ola 226) modelos sin url aparecen como «Próximamente» y no son elegibles.
+                  <option key={m.id} value={m.id} disabled={!m.url} style={!m.url ? { opacity: 0.6 } : undefined}>
+                    {m.nombre} — {m.params} · {m.disco}{!m.url ? " · Próximamente" : ""}
                   </option>
                 ))}
               </select>

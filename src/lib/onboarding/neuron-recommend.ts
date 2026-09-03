@@ -17,12 +17,14 @@ export type HW = {
   movil: boolean;
 };
 
-export const MODELOS: { id: string; nombre: string; params: string; arq: string; disco: string; ramMin: number }[] = [
-  { id: "needle2", nombre: "Needle 2", params: "45 M", arq: "CQ2-bit (Cactus)", disco: "~14 MB", ramMin: 1 },
-  { id: "bitnet-2b", nombre: "BitNet b1.58 (Microsoft)", params: "2 B", arq: "1.58-bit ternario", disco: "~400-500 MB", ramMin: 2 },
-  { id: "bonsai-1.7b", nombre: "Ternary Bonsai (mini)", params: "1.7 B", arq: "1.58-bit ternario", disco: "~462 MB", ramMin: 2 },
-  { id: "bonsai-8b-1bit", nombre: "Bonsai 8B (1-bit puro)", params: "8 B", arq: "1-bit puro", disco: "~1.15 GB", ramMin: 6 },
-  { id: "bonsai-8b", nombre: "Ternary Bonsai (estándar)", params: "8 B", arq: "1.58-bit ternario", disco: "~1.75 GB", ramMin: 8 },
+// (Ola 226) url/es estado lean el manifiesto config/astraura-models.json: solo se
+// recomiendan y descargan los modelos con url publicada; el resto son «Próximamente».
+export const MODELOS: { id: string; nombre: string; params: string; arq: string; disco: string; ramMin: number; url: string | null }[] = [
+  { id: "needle2", nombre: "Needle 2", params: "45 M", arq: "CQ2-bit (Cactus)", disco: "~14 MB", ramMin: 1, url: null },
+  { id: "bitnet-2b", nombre: "BitNet b1.58 (Microsoft)", params: "2 B", arq: "1.58-bit ternario", disco: "~400-500 MB", ramMin: 2, url: "https://huggingface.co/microsoft/BitNet-b1.58-2B-4T-gguf/resolve/main/ggml-model-i2_s.gguf" },
+  { id: "bonsai-1.7b", nombre: "Ternary Bonsai (mini)", params: "1.7 B", arq: "1.58-bit ternario", disco: "~462 MB", ramMin: 2, url: null },
+  { id: "bonsai-8b-1bit", nombre: "Bonsai 8B (1-bit puro)", params: "8 B", arq: "1-bit puro", disco: "~1.15 GB", ramMin: 6, url: null },
+  { id: "bonsai-8b", nombre: "Ternary Bonsai (estándar)", params: "8 B", arq: "1.58-bit ternario", disco: "~1.75 GB", ramMin: 8, url: null },
 ];
 
 export const CONCIENCIAS: { id: string; nombre: string; desc: string; extra: string }[] = [
@@ -86,6 +88,15 @@ export function recomendar(hw: HW): { modelo: string; conciencia: string; motor:
   }
   const motor: "auto" | "bitnet-158" = "auto";
   razones.push("Motor en modo auto: usa tu BitNet 1.58 local cuando está disponible y releva a la red cuando conviene.");
+  // (Ola 226) Nunca recomendar un modelo sin url publicada: cae al primer descargable.
+  const elegido = MODELOS.find((m) => m.id === modelo);
+  if (elegido && !elegido.url) {
+    const descargable = [...MODELOS].filter((m) => m.url).sort((a, b) => a.ramMin - b.ramMin)[0];
+    if (descargable) {
+      razones.push(`El modelo ${elegido.nombre} está «por publicar»: aún no tiene descarga. De momento recomiendo ${descargable.nombre}, el único que puedes instalar hoy.`);
+      modelo = descargable.id;
+    }
+  }
   if (hw.movil) razones.push("Dispositivo móvil: mientras las apps nativas móviles están en diseño, la web instalable (PWA) es la vía recomendada.");
   if (hw.nucleos) razones.push(`${hw.nucleos} núcleos de CPU disponibles para la inferencia ternaria local.`);
   if (hw.gpu) razones.push(`GPU detectada: ${hw.gpu}.`);
