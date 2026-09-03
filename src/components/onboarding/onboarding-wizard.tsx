@@ -10,8 +10,10 @@
  * y para INVITADOS anónimos (sin correo). Un invitado puede, desde aquí, añadir
  * un correo para convertir su sesión en una cuenta plena conservando todo.
  *
- * Pasos: Bienvenida (voz/texto) → Identidad (@handle único) → Correo StarSeed
- * → Recuperación → Datos opcionales → Guía de la red.
+ * Pasos: Bienvenida (voz/texto) → Identidad (@handle único) → Correos y
+ * recuperación (dirección StarSeed + externos + teléfono) → Permisos →
+ * Cerebros → Astraura local → Guía de la red. La biografía y las fotos se
+ * piden DESPUÉS, en la ventana de perfil (VentanaPerfilInicial).
  *
  * Usa la capa de datos de @/lib/onboarding/onboarding (RLS por owner/user, así
  * que vale igual para invitados, que tienen un user.id real). Si el usuario
@@ -106,21 +108,19 @@ import {
 const STEP_NARRATION: Record<number, string> = {
   0: "Hola, soy Astraura. Te doy la bienvenida a StarSeed. Voy a guiarte para dejar tu cuenta lista: solo aceptas y eliges, yo me encargo del resto. Puedo acompañarte por voz o seguimos en texto, como prefieras.",
   1: "Primero tu cuenta: tu nombre oficial y un @handle único en la red. Te propongo opciones y todo se puede editar después.",
-  2: "Ahora los correos de tu cuenta: tu dirección StarSeed interna y, si quieres, vincula aquí mismo tus correos externos. Todos conviven en la misma cuenta.",
-  3: "Configuremos tu recuperación: un correo externo y un teléfono, para que nunca pierdas el acceso.",
-  4: "Tu perfil: una breve biografía, opcional, para presentarte ante la red. La foto de perfil, la portada, el marco y tu avatar 3D los eliges al final, en la ventana de perfil, donde se suben de verdad.",
-  5: "Permisos de este dispositivo: te recomiendo micrófono y notificaciones para hablar conmigo y no perderte nada. Aquí también puedes vincular las carpetas y almacenamientos que quieras que conozca.",
-  6: "Ahora tus cerebros y dónde viven sus memorias: enlazo solas las carpetas que acabas de vincular y elegimos el enrutamiento entre la nube StarSeed y esta neurona.",
-  7: "Configuremos mi presencia en esta neurona: ya analicé tu equipo y elegí el motor y el modelo que mejor le sientan. Tú decides; todo se puede cambiar en Ajustes.",
-  8: "Te muestro las áreas de la red: cómo vincular, conectar, crear, publicar y usar cada una.",
+  2: "Tus correos: tu dirección StarSeed interna, los correos externos que quieras vincular —el primero será tu recuperación— y un teléfono por si pierdes el acceso.",
+  3: "Permisos de este dispositivo: te recomiendo micrófono y notificaciones para hablar conmigo y no perderte nada. Aquí también puedes vincular las carpetas y almacenamientos que quieras que conozca.",
+  4: "Ahora tus cerebros y dónde viven sus memorias: enlazo solas las carpetas que acabas de vincular y elegimos el enrutamiento entre la nube StarSeed y esta neurona.",
+  5: "Configuremos mi presencia en esta neurona: ya analicé tu equipo y elegí el motor y el modelo que mejor le sientan. Tú decides; todo se puede cambiar en Ajustes.",
+  6: "Te muestro las áreas de la red: cómo vincular, conectar, crear, publicar y usar cada una.",
 };
 
 const STEPS = [
   { key: "bienvenida", label: "Bienvenida", icon: Sparkles },
   { key: "identidad", label: "Cuenta y nombre", icon: AtSign },
-  { key: "correo", label: "Correos vinculados", icon: Mail },
-  { key: "recuperacion", label: "Recuperación", icon: ShieldCheck },
-  { key: "opcionales", label: "Tu perfil", icon: ImageIcon },
+  // (Ola 227) Correos y recuperación se piden UNA sola vez, en un solo paso:
+  // el correo de recuperación es el primer correo externo vinculado.
+  { key: "correos", label: "Correos y recuperación", icon: Mail },
   // (Adenda 193) Permisos VA ANTES que cerebros: las carpetas y almacenamientos
   // que se vinculan ahí se heredan solos en el paso siguiente, enlazados al
   // cerebro principal. Al revés no había nada que heredar.
@@ -177,17 +177,13 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
   const [emailState, setEmailState] = useState<"idle" | "checking" | "ok" | "taken" | "invalid">("idle");
   const [emailClaimed, setEmailClaimed] = useState(false);
 
-  // recuperación
+  // recuperación (el correo es el primer correo EXTERNO vinculado — Ola 227)
   const [recEmail, setRecEmail] = useState("");
   const [recPhone, setRecPhone] = useState("");
   const [recMethod, setRecMethod] = useState<RecoveryMethod>("telegram");
   const [channels, setChannels] = useState<Record<string, ChannelStatus>>({});
   const [pendingCode, setPendingCode] = useState<{ channel: RecoveryMethod | "email"; code: string } | null>(null);
   const [codeInput, setCodeInput] = useState("");
-
-  // opcionales
-  const [avatarUrl, setAvatarUrl] = useState("");
-  const [coverUrl, setCoverUrl] = useState("");
   const [bio, setBio] = useState("");
 
   // narración por IA
@@ -245,18 +241,15 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
         if (me) {
           // ¿Es invitado anónimo? Entonces ofrecemos convertir a cuenta plena.
           setIsGuest(!!(me as { is_anonymous?: boolean }).is_anonymous && !me.email);
-          const { data: prof } = await sb
+            const { data: prof } = await sb
             .from("profiles")
-            .select("display_name,handle,avatar_url,cover_url,bio")
+            .select("display_name,handle")
             .eq("user_id", me.id)
             .single();
           if (prof) {
             const row = prof as Record<string, unknown>;
             if (row.display_name) setFullName(String(row.display_name));
             if (row.handle) { setHandle(String(row.handle)); setProfileSaved(true); }
-            if (row.avatar_url) setAvatarUrl(String(row.avatar_url));
-            if (row.cover_url) setCoverUrl(String(row.cover_url));
-            if (row.bio) setBio(String(row.bio));
           }
         }
       } catch { /* prefill best-effort */ }
@@ -517,28 +510,6 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
     toast.success("Canal verificado.");
   }, [pendingCode, codeInput]);
 
-  const doSaveOptional = useCallback(async (): Promise<boolean> => {
-    if (!avatarUrl && !coverUrl && !bio) return true;
-    setBusy(true);
-    // (Adenda 191) Solo los OPCIONALES, por user_id — sin re-reclamar
-    // nombre/handle (la raíz del "@handle no válido" tras los avatares).
-    const res = await saveProfileOptional({
-      avatar_url: avatarUrl || undefined,
-      cover_url: coverUrl || undefined,
-      bio: bio || undefined,
-    });
-    setBusy(false);
-    // (Adenda 190) Los datos OPCIONALES jamás bloquean el rito: si el guardado
-    // falla (p.ej. el re-claim del handle choca consigo mismo), se avisa con
-    // honestidad y se CONTINÚA — todo es editable después desde el perfil.
-    if (!res.ok) {
-      toast.warning((res.error || "No se pudieron guardar ahora") + " — puedes editarlos luego en tu perfil.");
-      return true;
-    }
-    toast.success("Datos guardados.");
-    return true;
-  }, [avatarUrl, coverUrl, bio, fullName, handle]);
-
   // ── navegación entre pasos (con guardas por paso) ──
   const canAdvance = useMemo(() => {
     if (step === 1) return profileSaved || (handleState === "ok" && fullName.trim().length > 0);
@@ -551,22 +522,20 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
       const ok = await doClaimProfile();
       if (!ok) return;
     }
-    if (step === 2 && address.trim() && !emailClaimed) {
-      const ok = await doClaimEmail();
-      if (!ok) return;
-    }
-    if (step === 3) {
+    if (step === 2) {
+      // (Ola 227) Paso fundido «Correos y recuperación»: se reclama la
+      // dirección StarSeed y se guarda la recuperación en el mismo Continuar.
+      if (address.trim() && !emailClaimed) {
+        const ok = await doClaimEmail();
+        if (!ok) return;
+      }
       const ok = await doSetRecovery();
-      if (!ok) return;
-    }
-    if (step === 4) {
-      const ok = await doSaveOptional();
       if (!ok) return;
     }
     // (Ola 221) Los pasos Permisos, Cerebros y Neurona tienen recomendaciones
     // que antes solo se aplicaban con su botón «Aceptar»: «Continuar» las
     // aplica también. Si fallan, se avisa y se avanza igualmente (fail-open).
-    if (step === 5 || step === 6 || step === 7) {
+    if (step === 3 || step === 4 || step === 5) {
       try {
         await aplicarPendiente(step);
       } catch {
@@ -577,7 +546,7 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
       setStep((s) => s + 1);
       await saveOnboarding({ steps: { last: step + 1 } });
     }
-  }, [step, profileSaved, address, emailClaimed, doClaimProfile, doClaimEmail, doSetRecovery, doSaveOptional]);
+  }, [step, profileSaved, address, emailClaimed, doClaimProfile, doClaimEmail, doSetRecovery]);
 
   const prev = useCallback(() => setStep((s) => Math.max(0, s - 1)), []);
 

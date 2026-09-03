@@ -143,7 +143,7 @@ export function StepCerebros() {
   }, [cerebros, syncNube, personalidad, ruta, carpetas, vincularCarpetas]);
 
   // (Ola 221) El «Continuar» del wizard aplica esta recomendación si no se pulsó «Aceptar».
-  useEffect(() => registrarAplicar(6, aceptar, aplicado), [aceptar, aplicado]);
+  useEffect(() => registrarAplicar(4, aceptar, aplicado), [aceptar, aplicado]);
 
   return (
     <div className="space-y-4">
@@ -230,7 +230,7 @@ export function StepPermisos() {
   }, []);
 
   // (Ola 221) El «Continuar» del wizard aplica esta recomendación si no se pulsó «Aceptar».
-  useEffect(() => registrarAplicar(5, aceptar, aplicado), [aceptar, aplicado]);
+  useEffect(() => registrarAplicar(3, aceptar, aplicado), [aceptar, aplicado]);
 
   return (
     <div className="space-y-4">
@@ -286,7 +286,7 @@ export function StepNeurona() {
   }, [motor, modelo, conciencia, nombre, hw]);
 
   // (Ola 221) El «Continuar» del wizard aplica esta recomendación si no se pulsó «Aceptar».
-  useEffect(() => registrarAplicar(7, aceptar, aplicado), [aceptar, aplicado]);
+  useEffect(() => registrarAplicar(5, aceptar, aplicado), [aceptar, aplicado]);
 
   return (
     <div className="space-y-4">
@@ -335,9 +335,18 @@ export function StepNeurona() {
 
 // ════════════════════════════════════════════════════════════════════════════
 // Correos vinculados de la cuenta (se usa dentro del paso "Correos" del wizard)
-// Lista REAL (account_emails) + alta de un correo externo vinculado opcional.
+// Lista REAL (account_emails) + alta de correos externos vinculados opcionales.
+// (Ola 227) El correo de RECUPERACIÓN vive aquí: es uno de los correos
+// externos vinculados (chip «Recuperación»; radio para elegir si hay varios).
+// `onVerificar` deja que el paso lance el flujo de verificación por correo.
 // ════════════════════════════════════════════════════════════════════════════
-export function CorreosVinculados() {
+export function CorreosVinculados({
+  recuperacion,
+  onVerificar,
+}: {
+  recuperacion?: { elegida: string; onElegir: (addr: string) => void };
+  onVerificar?: (addr: string) => void;
+} = {}) {
   const [correos, setCorreos] = useState<{ id: string; address: string; kind: string; is_primary: boolean }[] | null>(null);
   const [nuevo, setNuevo] = useState("");
   const [ocupado, setOcupado] = useState(false);
@@ -393,9 +402,19 @@ export function CorreosVinculados() {
   const [estado, setEstado] = useState<EstadoCorreo | null>(null);
   useEffect(() => { void estadoCorreo().then(setEstado).catch(() => setEstado(null)); }, []);
 
+  // (Ola 227) Recuperación = uno de los correos EXTERNOS: por defecto el
+  // primero de la lista; si el elegido desaparece, cae al primero que quede.
+  const externos = (correos ?? []).filter((c) => c.kind === "external");
+  useEffect(() => {
+    if (!recuperacion || correos === null) return;
+    const elegidaOK = externos.some((c) => c.address === recuperacion.elegida);
+    if (!elegidaOK) recuperacion.onElegir(externos[0]?.address ?? "");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [correos, recuperacion?.elegida]);
+
   return (
     <div className="space-y-2 rounded-xl border border-white/10 bg-white/[0.02] p-3">
-      <p className="text-[11px] font-semibold uppercase tracking-wider text-white/50">Correos vinculados a tu cuenta</p>
+      <p className="text-[11px] font-semibold uppercase tracking-wider text-white/50">Correos externos vinculados</p>
       {/* (Adenda 206) Lo que se promete aquí sale del estado REAL del
           despliegue, no de una frase fija: recibir y enviar se anuncian por
           separado y solo cuando de verdad funcionan. */}
@@ -433,13 +452,33 @@ export function CorreosVinculados() {
         <p className="text-xs text-white/50">Aún no hay correos vinculados aquí.</p>
       ) : (
         <ul className="space-y-1">
-          {correos.map((c) => (
+          {correos.map((c) => {
+            // (Ola 227) De los correos externos, UNO es el de recuperación:
+            // chip «Recuperación»; si hay varios, radio para elegir cuál.
+            const esRecuperacion = c.kind === "external" && !!recuperacion && recuperacion.elegida === c.address;
+            return (
             <li key={c.id} className="flex items-center gap-2 text-xs text-white/80">
-              <span
-                className={cn("h-1.5 w-1.5 rounded-full",
-                  c.kind === "external" ? "bg-fuchsia-300" : c.kind === "created" ? "bg-emerald-300" : "bg-cyan-300")}
-                aria-hidden
-              />
+              {c.kind === "external" && recuperacion ? (
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={esRecuperacion}
+                  title={esRecuperacion ? "Correo de recuperación" : "Usar como correo de recuperación"}
+                  onClick={() => recuperacion.onElegir(c.address)}
+                  className={cn(
+                    "flex h-3.5 w-3.5 shrink-0 cursor-pointer items-center justify-center rounded-full border transition-colors",
+                    esRecuperacion ? "border-emerald-400 bg-emerald-500/20" : "border-white/25 hover:border-emerald-300/60",
+                  )}
+                >
+                  {esRecuperacion && <span className="h-1.5 w-1.5 rounded-full bg-emerald-300" aria-hidden />}
+                </button>
+              ) : (
+                <span
+                  className={cn("h-1.5 w-1.5 shrink-0 rounded-full",
+                    c.kind === "external" ? "bg-fuchsia-300" : c.kind === "created" ? "bg-emerald-300" : "bg-cyan-300")}
+                  aria-hidden
+                />
+              )}
               <span className="truncate">{c.address}</span>
               <span className="text-[10px] text-white/40">
                 {c.kind === "external" ? "tuyo, de fuera"
@@ -447,21 +486,43 @@ export function CorreosVinculados() {
                   : "identidad StarSeed"}
                 {c.is_primary ? " · principal" : ""}
               </span>
+              {esRecuperacion && (
+                <span className="inline-flex shrink-0 items-center rounded-full border border-emerald-400/40 bg-emerald-500/10 px-1.5 py-px text-[9px] font-semibold text-emerald-200">
+                  Recuperación
+                </span>
+              )}
+              {c.kind === "external" && onVerificar && (
+                <button
+                  type="button"
+                  onClick={() => onVerificar(c.address)}
+                  className="ml-auto shrink-0 cursor-pointer text-[10px] text-cyan-300 underline-offset-2 hover:underline"
+                >
+                  Verificar
+                </button>
+              )}
               {c.kind === "created" && (
                 <button
                   type="button"
                   onClick={() => { void navigator.clipboard?.writeText(c.address); setNota(`${c.address} copiada ✓`); }}
-                  className="ml-auto shrink-0 text-[10px] text-emerald-300 underline-offset-2 hover:underline"
+                  className="ml-auto shrink-0 cursor-pointer text-[10px] text-emerald-300 underline-offset-2 hover:underline"
                 >
                   copiar
                 </button>
               )}
             </li>
-          ))}
+            );
+          })}
         </ul>
       )}
+      {/* (Ola 227) Sin correos externos aún: la recuperación por correo no
+          existe, y se dice para que se entienda por qué no hay chip. */}
+      {recuperacion && correos !== null && externos.length === 0 && (
+        <p className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/[0.04] px-2.5 py-1 text-[10.5px] text-white/55">
+          Añade un correo externo para tu recuperación
+        </p>
+      )}
       {(() => {
-        const hayExterno = (correos ?? []).some((c) => c.kind === "external");
+        const hayExterno = externos.length > 0;
         if (hayExterno && !mostrarAlta) {
           return (
             <button
