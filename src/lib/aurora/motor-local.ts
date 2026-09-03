@@ -75,9 +75,38 @@ const APAGADO: EstadoMotorLocal = { vivo: false, listo: false, caliente: false, 
 
 let estadoCache: { at: number; v: EstadoMotorLocal } | null = null;
 
+const DAEMON_AUSENTE_KEY = "starseed.voz.daemon.ausente.hasta";
+const DAEMON_AUSENTE_MS = 3 * 60_000;
+
+// (Ola 222) La «esquina de enfriamiento» del daemon: al fallar un sondeo se
+// recuerda hasta cuándo no volver a sondear (3 min), evitando latencia repetida
+// a un daemon que no existe. Las marcas viven en localStorage (persisten entre
+// páginas) y solo afectan al lado cliente/`window`.
+function leerAusenteHasta(): number {
+    if (typeof window === "undefined") return 0;
+    try {
+        const n = Number(localStorage.getItem(DAEMON_AUSENTE_KEY));
+        return Number.isFinite(n) ? n : 0;
+    } catch {
+        return 0;
+    }
+}
+
+function marcarAusente(): void {
+    if (typeof window === "undefined") return;
+    try { localStorage.setItem(DAEMON_AUSENTE_KEY, String(Date.now() + DAEMON_AUSENTE_MS)); } catch { /* */ }
+}
+
+function limpiarAusente(): void {
+    if (typeof window === "undefined") return;
+    try { localStorage.removeItem(DAEMON_AUSENTE_KEY); } catch { /* */ }
+}
+
 /** Estado del daemon, cacheado 5 s. Nunca lanza. */
 export async function estadoMotorLocal(): Promise<EstadoMotorLocal> {
     if (typeof window === "undefined") return APAGADO;
+    // (Ola 222) Si el daemon se marcó ausente hace < 3 min, no volver a sondear: fallar al instante.
+    if (Date.now() < leerAusenteHasta()) return APAGADO;
     if (estadoCache && Date.now() - estadoCache.at < 5000) return estadoCache.v;
     try {
         const r = await pedir("status", { timeoutMs: 2500 });
@@ -91,9 +120,11 @@ export async function estadoMotorLocal(): Promise<EstadoMotorLocal> {
             backend: j?.backend ?? "",
         };
         estadoCache = { at: Date.now(), v };
+        limpiarAusente(); // (Ola 222) Respondió: el daemon existe, olvidar que estaba ausente.
         return v;
     } catch {
         estadoCache = { at: Date.now(), v: APAGADO };
+        marcarAusente(); // (Ola 222) Sondeo fallido: no insistir durante 3 minutos.
         return APAGADO;
     }
 }
@@ -106,7 +137,9 @@ export function precalentarMotorLocal(): void {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ lang: "Spanish" }),
         timeoutMs: 8000,
-    }).catch(() => null);
+    })
+        .then((r) => { if (r.ok) limpiarAusente(); }) // (Ola 222) /warm con éxito: borrar la marca de ausente.
+        .catch(() => null);
 }
 
 /* ── Caché de anticipación ─────────────────────────────────────────────────── */
@@ -136,6 +169,10 @@ export function sintetizarLocal(texto: string, t: Timbre): Promise<Blob | null> 
                     text: texto.trim(),
                     lang: "Spanish",
                     speed: t.local.speed,
+                    // (Ola 222) La personalidad fija la semilla determinista por timbre
+                    // en el daemon (antes siempre caía al default "aurora" y todos
+                    // los timbres sonaban igual).
+                    personality: t.id,
                     // El carácter del timbre viaja como instrucción de estilo; el
                     // daemon la sanea contra su vocabulario y la ignora si no aplica.
                     instruct: t.local.instruct || undefined,
@@ -144,6 +181,7 @@ export function sintetizarLocal(texto: string, t: Timbre): Promise<Blob | null> 
                 }),
             });
             if (!r.ok) return null;
+            limpiarAusente(); // (Ola 222) Síntesis con éxito: el daemon responde, olvidar que estaba ausente.
             const b = await r.blob();
             return b.size > 44 ? b : null;
         } catch {
