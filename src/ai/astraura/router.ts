@@ -459,6 +459,7 @@ export function rankCandidates(
       const fromUser = !!a.userConfig;
       const preferOwnBoost = connectorsMode === "prefer-own" && fromUser;
       let score = s + (fromUser ? 2.5 : 0); // los servicios del usuario mandan
+      if (budgetPenalty) score -= budgetPenalty; // (Ola 223) relevo preventivo por presupuesto
       if (prefs.freeFirst && a.source.tier === "paid" && !preferOwnBoost) score -= 6;
       if (preferOwnBoost) score += 8; // "usar mi cuenta": gana de verdad, no solo compite
       let reason = fromUser
