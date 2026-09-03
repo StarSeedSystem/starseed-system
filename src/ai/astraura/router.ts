@@ -41,7 +41,7 @@ import { resolvePrimarySystem, type PrimaryMode, type PrimaryProvenance } from "
 import { persona158For, modelToPersona158, ASTRAURA_158_MODEL_PREFIX } from "@/ai/providers/astraura-158";
 import { ASTRAURA_158_LOCAL_SOURCE_ID, ASTRAURA_158_CLOUD_SOURCE_ID } from "./free-catalog";
 import { chromeAiChat, chromeAiReadyNow, webllmChat, transformersChat } from "./builtin-engines";
-import { noteUsage, isCoolingDown, markCooldown } from "./usage";
+import { noteUsage, isCoolingDown, markCooldown, dailyPercent } from "./usage";
 import { skillsSystemPrompt, skillsRoutingBias } from "./skills";
 import { findOssService } from "@/lib/services/oss-services";
 // Personalidad activa (Adenda 63 §11): bloque de system prompt compilado desde
@@ -444,6 +444,15 @@ export function rankCandidates(
     if (prefs.disabledSources.includes(a.source.id)) continue;
     if (a.source.tier === "paid" && connectorsMode === "only-free") continue;
     if (a.source.tier === "paid" && !(allowConfiguredPaid && a.userConfig)) continue;
+    // (Ola 223) relevo preventivo por presupuesto: >=90% del cupo diario → la
+    // fuente se descarta (salvo las locales, que no gastan presupuesto); en el
+    // tramo 70-90% se le resta 4 puntos de score para desbancarla suavemente.
+    let budgetPenalty = 0;
+    const dayPct = dailyPercent(a.source.id);
+    if (typeof dayPct === "number") {
+      if (dayPct >= 90 && a.source.tier !== "local") continue;
+      if (dayPct >= 70 && dayPct < 90) budgetPenalty = 4;
+    }
     for (const m of a.source.models) {
       const s = scoreModelForTask(a.source, m, profile.kind, profile.needsVision);
       if (s < 0) continue;

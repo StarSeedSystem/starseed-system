@@ -480,3 +480,12 @@
 - **Regla permanente de economía de créditos** (CLAUDE.md + `memory/orquestacion-economica.md`): ningún modelo agota sus créditos; ramificar por coste; relevar ante 429/402; punto de relevo antes del límite.
 - NVIDIA NIM integrado en las tres capas: proveedor `nvidia` + proxy comunitario `/api/ai/nvidia` (`NVIDIA_SHARED_KEY`, solo servidor) + fuente `nvidia-nim` del catálogo; Hermes `providers.nvidia` + fallback; `starseed-sub` motor `nim`. 82 modelos verificados; latencias medidas (Super 1,0 s · Ultra 2,3 s · Kimi K3 3,8 s).
 **Punto de relevo:** falta `NVIDIA_SHARED_KEY` en Vercel (el token CLI del Mac no pertenece al team del OS): añadirla a mano en Settings → Environment Variables. Siguiente ola: rediseño de bienvenida de perfiles/páginas/grupos y pestañas predeterminadas.
+
+### S17 - Medios actualizacion (cron watchdog Astraura, 2026-09-02 20:32-20:36 CST)
+- Tunel Astraura: VIVO (3 checks OK 20:32:42, 20:34:26, 20:36:30 CST). Sin relaunch necesario.
+- URL activa: https://publications-prove-post-infections.trycloudflare.com | status=active | backend=http://127.0.0.1:8000
+- data/active_tunnel.json: status=active, backend=http://127.0.0.1:8000, updated_at=2026-09-03T02:36:30Z
+- Backend local :8000: HTTP 200 (online). BitNet i2_s saludable (llama-server 8790).
+- Verificacion /api/cerebros (tunel): 200 OK - {\"active_brain_id\":\"brain_genesis\",\"cerebros\":[{\"i...\n- Vercel starseed-system: sin cambios (READY segun A192). Sin deploy necesario.
+- Sin cambios de codigo; sin commit/push (solo verificacion).
+
