@@ -413,15 +413,19 @@ export async function fetchPosts(
     entityType: OsEntityType,
     entitySlug: string,
     limit = 30,
+    // (Ola 224) cursor keyset: devuelve solo filas anteriores a este created_at ISO
+    antesDe?: string,
 ): Promise<OsPost[]> {
     const supabase = createClient();
-    const { data, error } = await supabase
+    let query = supabase
         .from("os_posts")
         .select("*")
         .eq("entity_type", entityType)
         .eq("entity_slug", entitySlug)
         .order("created_at", { ascending: false })
         .limit(limit);
+    if (antesDe) query = query.lt("created_at", antesDe);
+    const { data, error } = await query;
     if (error) throw error;
     return ((data as PostRow[]) || []).map(normalizePost);
 }

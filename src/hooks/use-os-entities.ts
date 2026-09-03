@@ -355,7 +355,16 @@ interface PostsState {
     refetch: () => void;
     /** Publica en Supabase (si hay sesión). Devuelve needsAuth si no la hay. */
     publish: (body: string, mediaUrl?: string, authorName?: string) => Promise<MutationResult>;
+    /** (Ola 224) Paginación keyset: carga la página anterior a la más vieja mostrada. */
+    cargarMas: () => Promise<void>;
+    /** (Ola 224) true si la última página trajo el límite completo (puede haber más). */
+    hayMas: boolean;
+    /** (Ola 224) Estado de carga de «Cargar más». */
+    cargandoMas: boolean;
 }
+
+// (Ola 224) tamaño de página del feed de entidad; hayMas = página llena
+const OS_POSTS_PAGE = 30;
 
 export function useOsPosts(
     entityType: OsEntityType,
@@ -367,13 +376,22 @@ export function useOsPosts(
     const [usingFallback, setUsingFallback] = useState(false);
     const [needsAuth, setNeedsAuth] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [hayMas, setHayMas] = useState(false); // (Ola 224)
+    const [cargandoMas, setCargandoMas] = useState(false); // (Ola 224)
     const mounted = useRef(true);
 
     const load = useCallback(async () => {
         try {
-            const real = await fetchPosts(entityType, slug);
+            const real = await fetchPosts(entityType, slug, OS_POSTS_PAGE);
             if (!mounted.current) return;
-            setPosts(real.map(osPostToNormalized));
+            const frescos = real.map(osPostToNormalized);
+            // (Ola 224) fusión sin duplicados: conserva páginas antiguas ya cargadas
+            setPosts((prev) => {
+                const vistos = new Set(frescos.map((p) => p.id));
+                const resto = prev.filter((p) => !vistos.has(p.id));
+                return [...frescos, ...resto];
+            });
+            setHayMas(frescos.length >= OS_POSTS_PAGE);
             setUsingFallback(false);
             setError(null);
         } catch (e: any) {
@@ -447,7 +465,32 @@ export function useOsPosts(
         [entityType, slug, load],
     );
 
-    return { posts, loading, usingFallback, needsAuth, error, refetch: load, publish };
+    // (Ola 224) página siguiente por cursor keyset (created_at de la más vieja)
+    const cargarMas = useCallback(async () => {
+        const masVieja = posts[posts.length - 1];
+        if (!masVieja || cargandoMas) return;
+        setCargandoMas(true);
+        try {
+            const real = await fetchPosts(entityType, slug, OS_POSTS_PAGE, masVieja.createdAt);
+            if (!mounted.current) return;
+            const nuevas = real.map(osPostToNormalized);
+            setPosts((prev) => {
+                const vistos = new Set(prev.map((p) => p.id));
+                return [...prev, ...nuevas.filter((p) => !vistos.has(p.id))];
+            });
+            setHayMas(nuevas.length >= OS_POSTS_PAGE);
+        } catch {
+            /* el botón se puede reintentar */
+        } finally {
+            if (mounted.current) setCargandoMas(false);
+        }
+    }, [posts, cargandoMas, entityType, slug]);
+
+    return {
+        posts, loading, usingFallback, needsAuth, error,
+        refetch: load, publish,
+        cargarMas, hayMas, cargandoMas, // (Ola 224)
+    };
 }
 
 /**

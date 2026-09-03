@@ -24,7 +24,7 @@ import { useOsEntity, useOsPosts, useOsPostCount, useMembership, useEntityOwner 
 // (Adenda 220) Bienvenida unificada + estados vacíos con acción.
 import { EntityWelcome, type WelcomeStep } from "@/components/social/entity-welcome";
 import { EmptyState } from "@/components/ui/empty-state";
-import { FileText, PenSquare } from "lucide-react";
+import { FileText, PenSquare, Loader2 } from "lucide-react";
 import { EntityEditorDialog } from "@/components/social/entity-editor-dialog";
 import type { OsGroup } from "@/lib/os-social";
 import { UnifiedCalendar } from "@/components/calendar/unified-calendar";
@@ -158,7 +158,8 @@ function JoinButton({
 
 /** Composer + feed real del grupo (os_posts, entity_type = group). */
 function GroupFeed({ slug, accent }: { slug: string; accent: string }) {
-    const { posts, loading, needsAuth, publish } = useOsPosts("group", slug);
+    // (Ola 224) paginación keyset del feed
+    const { posts, loading, needsAuth, publish, cargarMas, hayMas, cargandoMas } = useOsPosts("group", slug);
     const [body, setBody] = useState("");
     const [sending, setSending] = useState(false);
     const [authHint, setAuthHint] = useState(false);
@@ -239,7 +240,24 @@ function GroupFeed({ slug, accent }: { slug: string; accent: string }) {
                     action={<Button asChild size="sm" variant="outline" className="cursor-pointer gap-1.5"><Link href="/crear"><PenSquare className="h-3.5 w-3.5" /> Abrir el Lienzo</Link></Button>}
                 />
             ) : (
-                posts.map((post) => <PostCard key={post.id} post={post} />)
+                <>
+                    {posts.map((post) => <PostCard key={post.id} post={post} />)}
+                    {/* (Ola 224) paginación keyset del feed */}
+                    {hayMas && (
+                        <div className="flex justify-center">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => void cargarMas()}
+                                disabled={cargandoMas}
+                                className="gap-2 cursor-pointer"
+                            >
+                                {cargandoMas && <Loader2 className="h-4 w-4 animate-spin" />}
+                                {cargandoMas ? "Cargando…" : "Cargar más publicaciones"}
+                            </Button>
+                        </div>
+                    )}
+                </>
             )}
         </div>
     );

@@ -32,7 +32,7 @@ import {
 // (Adenda 220) Bienvenida unificada + estados vacíos con acción.
 import { EntityWelcome, type WelcomeStep } from "@/components/social/entity-welcome";
 import { EmptyState } from "@/components/ui/empty-state";
-import { FileText, CalendarPlus, PenSquare } from "lucide-react";
+import { FileText, CalendarPlus, PenSquare, Loader2 } from "lucide-react";
 import { EntityEditorDialog } from "@/components/social/entity-editor-dialog";
 import type { OsPage } from "@/lib/os-social";
 import { UnifiedCalendar } from "@/components/calendar/unified-calendar";
@@ -150,7 +150,8 @@ function FollowButton({
 
 /** Composer + feed de publicaciones reales de la página (os_posts). */
 function PageFeed({ slug, accent }: { slug: string; accent: string }) {
-    const { posts, loading, needsAuth, publish } = useOsPosts("page", slug);
+    // (Ola 224) paginación keyset del feed
+    const { posts, loading, needsAuth, publish, cargarMas, hayMas, cargandoMas } = useOsPosts("page", slug);
     const [body, setBody] = useState("");
     const [sending, setSending] = useState(false);
     const [authHint, setAuthHint] = useState(false);
@@ -232,7 +233,24 @@ function PageFeed({ slug, accent }: { slug: string; accent: string }) {
                     action={<Button asChild size="sm" variant="outline" className="cursor-pointer gap-1.5"><Link href="/crear"><PenSquare className="h-3.5 w-3.5" /> Abrir el Lienzo</Link></Button>}
                 />
             ) : (
-                posts.map((post) => <PostCard key={post.id} post={post} />)
+                <>
+                    {posts.map((post) => <PostCard key={post.id} post={post} />)}
+                    {/* (Ola 224) paginación keyset del feed */}
+                    {hayMas && (
+                        <div className="flex justify-center">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => void cargarMas()}
+                                disabled={cargandoMas}
+                                className="gap-2 cursor-pointer"
+                            >
+                                {cargandoMas && <Loader2 className="h-4 w-4 animate-spin" />}
+                                {cargandoMas ? "Cargando…" : "Cargar más publicaciones"}
+                            </Button>
+                        </div>
+                    )}
+                </>
             )}
         </div>
     );
