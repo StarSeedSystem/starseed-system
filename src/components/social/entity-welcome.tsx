@@ -23,6 +23,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Check, ChevronDown, ChevronUp, Sparkles, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { acentoDeIndice, clasesAcento } from "@/lib/ui/acentos";
 
 export type EntityWelcomeKind = "profile" | "page" | "group";
 
@@ -169,18 +170,22 @@ export function EntityWelcome({
                             <div className="h-full rounded-full bg-gradient-to-r from-fuchsia-400 via-violet-400 to-cyan-300 transition-[width] duration-500" style={{ width: `${total ? (hechos / total) * 100 : 0}%` }} />
                         </div>
                         <ul className="space-y-1.5">
-                            {steps.map((s) => {
+                            {steps.map((s, i) => {
+                                // (Ola 227) Cada paso rota un acento Trinity:
+                                // menos morado/verde repetido en la lista.
+                                const cl = clasesAcento(acentoDeIndice(i));
                                 const inner = (
                                     <>
                                         <span
                                             className={cn(
                                                 "flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[10px]",
-                                                s.done ? "border-emerald-400/50 bg-emerald-500/20 text-emerald-200" : "border-white/20 text-transparent",
+                                                s.done ? "border-emerald-400/50 bg-emerald-500/20 text-emerald-200" : cn(cl.borde, cl.fondo, cl.texto),
                                             )}
                                             aria-hidden
                                         >
                                             <Check className="h-3 w-3" />
                                         </span>
+                                        <span className={cn("h-4 w-1 shrink-0 rounded-full bg-gradient-to-b", cl.degradado)} aria-hidden />
                                         <span className={cn("min-w-0 flex-1 text-left text-[13px]", s.done ? "text-white/45 line-through" : "text-white/85")}>{s.label}</span>
                                         {!s.done && s.hint && <span className="text-[10.5px] text-white/40">{s.hint}</span>}
                                     </>

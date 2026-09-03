@@ -68,6 +68,18 @@ export default {
         "solar-amber": "#FFBF00",
         "background-light": "#f8f6f6",
         "background-dark": "#000510",
+        trinity: {
+          azure: 'hsl(var(--trinity-azure-hsl) / <alpha-value>)',
+          lime: 'hsl(var(--trinity-lime-hsl) / <alpha-value>)',
+          emerald: 'hsl(var(--trinity-emerald-hsl) / <alpha-value>)',
+          amber: 'hsl(var(--trinity-amber-hsl) / <alpha-value>)',
+          crimson: 'hsl(var(--trinity-crimson-hsl) / <alpha-value>)',
+          cyan: 'hsl(var(--trinity-cyan-hsl) / <alpha-value>)',
+          magenta: 'hsl(var(--trinity-magenta-hsl) / <alpha-value>)',
+          violet: 'hsl(var(--trinity-violet-hsl) / <alpha-value>)',
+          rose: 'hsl(var(--trinity-rose-hsl) / <alpha-value>)',
+          indigo: 'hsl(var(--trinity-indigo-hsl) / <alpha-value>)',
+        },
       },
       borderRadius: {
         lg: 'var(--radius)',

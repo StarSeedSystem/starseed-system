@@ -33,6 +33,8 @@ import { useModalA11y } from "@/hooks/use-modal-a11y";
 import { AstrauraOmniVoiceConfig } from "@/components/astraura/astraura-omnivoice-config";
 import { IconoStarSeed } from "@/components/onboarding/icono-starseed";
 import { marcarRitoActivo } from "@/lib/ui/rito-activo";
+import { acentoDeIndice, clasesAcento } from "@/lib/ui/acentos";
+import { cn } from "@/lib/utils";
 
 export function StartupUpdatesModal() {
   const [open, setOpen] = useState(false);
@@ -211,6 +213,12 @@ export function StartupUpdatesModal() {
 
   if (!open) return null;
 
+  // (Ola 227) Aura de acentos Trinity ROTATIVA: cada apertura avanza en la
+  // paleta, así la ventana no queda siempre en morado/verde.
+  const giro = new Date().getDate();
+  const clA = clasesAcento(acentoDeIndice(giro));
+  const clB = clasesAcento(acentoDeIndice(giro + 4));
+
   return (
     <div
       ref={containerRef}
@@ -219,6 +227,9 @@ export function StartupUpdatesModal() {
       aria-modal="true"
       aria-label="Configuración de sistemas de Astraura en esta neurona"
     >
+      {/* Auras de acento rotativas (no interactivas) */}
+      <div aria-hidden className={cn("pointer-events-none absolute -left-24 -top-24 h-72 w-72 rounded-full blur-3xl", clA.fondo)} />
+      <div aria-hidden className={cn("pointer-events-none absolute -bottom-24 -right-24 h-72 w-72 rounded-full blur-3xl", clB.fondo)} />
       {/* (Adenda 178) El onboarding unificado LIDERA con el paso «Astraura» — la IA
           de la neurona, cuyo motor por defecto es el local 1.58-bit (`local` es la
           primera clase del orden). La voz (OmniVoice) es un paso del MISMO wizard, así
@@ -227,6 +238,8 @@ export function StartupUpdatesModal() {
       <div className="pointer-events-none relative z-10 -mb-6 flex justify-center">
         <IconoStarSeed size={48} />
       </div>
+      {/* Línea de acento superior, también rotativa */}
+      <div aria-hidden className={cn("pointer-events-none relative z-10 -mb-px h-0.5 w-full max-w-3xl rounded-full bg-gradient-to-r", clA.degradado)} />
       <AstrauraOmniVoiceConfig
         variant="modal"
         initialSection="astraura"

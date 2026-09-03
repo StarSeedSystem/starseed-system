@@ -27,6 +27,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { acentoDePaso, clasesAcento } from "@/lib/ui/acentos";
 import { createClient } from "@/utils/supabase/client";
 import {
   Dialog,
@@ -640,6 +641,8 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
 
   const progress = Math.round(((step + 1) / STEPS.length) * 100);
   const StepIcon = STEPS[step].icon;
+  // (Ola 227) Acento Trinity del paso actual: icono, progreso y Continuar.
+  const clPaso = clasesAcento(acentoDePaso(STEPS[step].key));
 
   // Bloque reutilizable: "convertir invitado en cuenta plena" (correo opcional).
   const GuestUpgrade = (
@@ -709,7 +712,7 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
             </DialogTitle>
             <DialogDescription className="mt-1.5 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-center text-[12px]">
               <span className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/[0.04] px-2 py-0.5 font-medium text-white/70">
-                <StepIcon className="h-3 w-3 text-fuchsia-300" aria-hidden />
+                <StepIcon className={cn("h-3 w-3", clPaso.texto)} aria-hidden />
                 Paso {step + 1} de {STEPS.length}
               </span>
               <span className="text-white/55">{STEPS[step].label}</span>
@@ -718,17 +721,22 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
 
           {/* progreso · el tramo actual late para saber dónde estás */}
           <div className="relative mt-4 flex items-center gap-1" role="progressbar" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100}>
-            {STEPS.map((s, i) => (
-              <div
-                key={s.key}
-                className={cn(
-                  "h-1.5 flex-1 rounded-full transition-all duration-300",
-                  i < step && "bg-gradient-to-r from-fuchsia-400/70 to-cyan-400/70",
-                  i === step && "bg-gradient-to-r from-fuchsia-300 to-cyan-300 shadow-[0_0_10px_-1px_rgba(217,70,239,0.8)]",
-                  i > step && "bg-white/10",
-                )}
-              />
-            ))}
+            {STEPS.map((s, i) => {
+              // (Ola 227) Cada segmento usa el acento de SU paso: más variedad,
+              // menos fucsia/cian repetido.
+              const clSeg = clasesAcento(acentoDePaso(s.key));
+              return (
+                <div
+                  key={s.key}
+                  className={cn(
+                    "h-1.5 flex-1 rounded-full transition-all duration-300",
+                    i < step && cn("bg-gradient-to-r opacity-70", clSeg.degradado),
+                    i === step && cn("bg-gradient-to-r shadow-md", clSeg.degradado),
+                    i > step && "bg-white/10",
+                  )}
+                />
+              );
+            })}
           </div>
         </div>
 
@@ -1302,7 +1310,10 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
                 size="sm"
                 onClick={next}
                 disabled={busy || !canAdvance}
-                className="gap-1 bg-gradient-to-r from-fuchsia-600 to-cyan-600 text-white shadow-[0_0_20px_-6px_rgba(217,70,239,0.8)] transition-shadow hover:from-fuchsia-500 hover:to-cyan-500 hover:shadow-[0_0_26px_-4px_rgba(217,70,239,0.9)]"
+                className={cn(
+                  "gap-1 bg-gradient-to-r text-white shadow-lg transition-shadow hover:shadow-xl",
+                  clPaso.degradado,
+                )}
               >
                 {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
                 {step === 1 && !profileSaved ? "Crear identidad" : "Continuar"}

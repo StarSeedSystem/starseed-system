@@ -139,6 +139,30 @@
     --dur-fast: 150ms;
     --dur-base: 220ms;
     --dur-slow: 300ms;
+
+    /* ---- PALETA TRINITY AMPLIADA (Ola 227) ----
+       Acentos por paso/tarjeta: menos morado/verde, más variedad cromática.
+       Cada token tiene su gemelo resuelto para usarlo directo en CSS. */
+    --trinity-azure-hsl: 210 100% 50%;
+    --trinity-azure: hsl(var(--trinity-azure-hsl));
+    --trinity-lime-hsl: 111 100% 54%;
+    --trinity-lime: hsl(var(--trinity-lime-hsl));
+    --trinity-emerald-hsl: 160 84% 39%;
+    --trinity-emerald: hsl(var(--trinity-emerald-hsl));
+    --trinity-amber-hsl: 45 100% 50%;
+    --trinity-amber: hsl(var(--trinity-amber-hsl));
+    --trinity-crimson-hsl: 348 83% 47%;
+    --trinity-crimson: hsl(var(--trinity-crimson-hsl));
+    --trinity-cyan-hsl: 187 92% 55%;
+    --trinity-cyan: hsl(var(--trinity-cyan-hsl));
+    --trinity-magenta-hsl: 300 85% 60%;
+    --trinity-magenta: hsl(var(--trinity-magenta-hsl));
+    --trinity-violet-hsl: 276 85% 55%;
+    --trinity-violet: hsl(var(--trinity-violet-hsl));
+    --trinity-rose-hsl: 340 90% 62%;
+    --trinity-rose: hsl(var(--trinity-rose-hsl));
+    --trinity-indigo-hsl: 240 80% 62%;
+    --trinity-indigo: hsl(var(--trinity-indigo-hsl));
   }
 
   /* ═══════════════════════════════════════════════════════════
@@ -205,6 +229,28 @@
     --glass-shadow-layer-2: 0 16px 32px -8px rgba(34, 211, 238, 0.08);
     --glass-shadow-layer-3: 0 32px 64px -16px rgba(168, 85, 247, 0.06);
     --glass-shadow-ambient: 0 0 60px rgba(168, 85, 247, 0.08);
+
+    /* Paleta Trinity ampliada (Ola 227) — mismos valores en oscuro */
+    --trinity-azure-hsl: 210 100% 50%;
+    --trinity-azure: hsl(var(--trinity-azure-hsl));
+    --trinity-lime-hsl: 111 100% 54%;
+    --trinity-lime: hsl(var(--trinity-lime-hsl));
+    --trinity-emerald-hsl: 160 84% 39%;
+    --trinity-emerald: hsl(var(--trinity-emerald-hsl));
+    --trinity-amber-hsl: 45 100% 50%;
+    --trinity-amber: hsl(var(--trinity-amber-hsl));
+    --trinity-crimson-hsl: 348 83% 47%;
+    --trinity-crimson: hsl(var(--trinity-crimson-hsl));
+    --trinity-cyan-hsl: 187 92% 55%;
+    --trinity-cyan: hsl(var(--trinity-cyan-hsl));
+    --trinity-magenta-hsl: 300 85% 60%;
+    --trinity-magenta: hsl(var(--trinity-magenta-hsl));
+    --trinity-violet-hsl: 276 85% 55%;
+    --trinity-violet: hsl(var(--trinity-violet-hsl));
+    --trinity-rose-hsl: 340 90% 62%;
+    --trinity-rose: hsl(var(--trinity-rose-hsl));
+    --trinity-indigo-hsl: 240 80% 62%;
+    --trinity-indigo: hsl(var(--trinity-indigo-hsl));
   }
 
   /* ═══════════════════════════════════════════════════════════
