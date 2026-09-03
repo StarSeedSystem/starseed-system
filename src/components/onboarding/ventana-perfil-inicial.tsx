@@ -33,6 +33,7 @@ import { type Marco, MARCO_POR_DEFECTO } from "@/lib/profile/marco-foto";
 import {
   claimProfile, saveProfileOptional, isValidHandle, sincronizarPerfilPublico,
 } from "@/lib/onboarding/onboarding";
+import { marcarRitoActivo } from "@/lib/ui/rito-activo";
 
 /** Marca de sesión: el rito pide abrir esta ventana tras los sistemas. */
 export const PERFIL_LAUNCH_KEY = "starseed.perfil.launch";
@@ -69,6 +70,13 @@ export function VentanaPerfilInicial({ onCerrar }: { onCerrar?: () => void }) {
     window.addEventListener("starseed:open-perfil-inicial", abrir);
     return () => window.removeEventListener("starseed:open-perfil-inicial", abrir);
   }, []);
+
+  // (Ola 227) Rito en primer plano: mientras esta ventana esté abierta, el
+  // OmniDock, las cortinas/bordes Trinity y la paleta de comandos quedan fuera.
+  useEffect(() => {
+    marcarRitoActivo("perfil-inicial", abierta);
+    return () => marcarRitoActivo("perfil-inicial", false);
+  }, [abierta]);
 
   // Carga lo que ya haya: el handle que se eligió (o el que puso el alta).
   useEffect(() => {

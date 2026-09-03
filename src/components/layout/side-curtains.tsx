@@ -24,6 +24,7 @@ import {
     Send, Maximize2, Trash2, X, Sparkles, Users, Palette, Globe, Cpu, Pencil
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useRitoActivo } from "@/lib/ui/rito-activo";
 import { Button } from "@/components/ui/button";
 
 // ── Swipe-to-close (centro de control) ──────────────────────────────

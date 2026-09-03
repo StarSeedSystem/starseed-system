@@ -31,6 +31,7 @@ import { shouldShowUpdates, subscribeStartupOpen, openStartupUpdates, snoozeUpda
 import { isSetupPending, subscribeSetup, markSetupDone } from "@/lib/aurora/setup-config";
 import { useModalA11y } from "@/hooks/use-modal-a11y";
 import { AstrauraOmniVoiceConfig } from "@/components/astraura/astraura-omnivoice-config";
+import { marcarRitoActivo } from "@/lib/ui/rito-activo";
 
 export function StartupUpdatesModal() {
   const [open, setOpen] = useState(false);
@@ -95,6 +96,13 @@ export function StartupUpdatesModal() {
 
   // Foco inicial + trampa de Tab + Escape (patrón de la Adenda 137).
   useModalA11y({ open, onClose: remindLater, containerRef });
+
+  // (Ola 227) Esta ventana ES parte del rito: mientras esté abierta ni el
+  // OmniDock, ni las cortinas/bordes Trinity ni la paleta de comandos salen.
+  useEffect(() => {
+    marcarRitoActivo("sistemas-neurona", open);
+    return () => marcarRitoActivo("sistemas-neurona", false);
+  }, [open]);
 
   useEffect(() => {
     // Auto-apertura GARANTIZADA por neurona (A149 · olas): primera entrada,

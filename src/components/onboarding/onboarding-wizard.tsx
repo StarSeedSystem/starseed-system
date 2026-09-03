@@ -44,6 +44,7 @@ import { loadConfigs } from "@/ai/client/providerStore";
 import { buildSystemPrompt, DEFAULT_PERSONALITY } from "@/lib/aurora/types";
 import { OPEN_GUIDE_EVENT } from "./aurora-guide";
 import { marcarVozDelRito } from "@/lib/aurora/narracion-ventana";
+import { marcarRitoActivo } from "@/lib/ui/rito-activo";
 import { hablarRito, callarRito, instalarVozPropia, anticiparRito, VOZ_RITO_EVENT, type EstadoVozRito } from "@/lib/aurora/voz-rito";
 import { AnimatePresence, motion } from "framer-motion";
 import { PasoEscena } from "@/components/onboarding/paso-escena";
@@ -262,6 +263,13 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // (Ola 227) Primer plano ritual: mientras la bienvenida está abierta, ni el
+  // dock, ni las cortinas/bordes Trinity ni la paleta de comandos pueden salir.
+  useEffect(() => {
+    marcarRitoActivo("bienvenida", open);
+    return () => marcarRitoActivo("bienvenida", false);
+  }, [open]);
 
   // (Adenda 211) Escucha el resultado real de cada intento de hablar.
   useEffect(() => {

@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 
 import { useAppearance } from "@/context/appearance-context";
+import { useRitoActivo } from "@/lib/ui/rito-activo";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { TrinityFab } from "./trinity-fab";
 import {
@@ -348,6 +349,11 @@ export function OmniDock() {
         return entries;
     }, [items, activeFolders, foldedItemIds, itemById]);
 
+    // (Ola 227) Rito de verdad en primer plano: el dock NO puede salir
+    // (ni siquiera el FAB Trinity; él también se auto-oculta por su cuenta).
+    const rito = useRitoActivo();
+    if (rito) return null;
+
     return (
         <>
         {/* Trinity Móvil · Bloque 2 — FAB de acceso a los 4 menús cardinales.
@@ -362,6 +368,7 @@ export function OmniDock() {
                     exit={{ y: "100%", opacity: 0 }}
                     transition={{ type: "spring", stiffness: 300, damping: 30 }}
                     className="fixed bottom-0 left-0 right-0 z-[70] flex flex-col items-center pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:pb-8 pointer-events-none data-omnidock-root"
+                    data-omnidock="1"
                 >
                     {editMode && (
                         <div className="pointer-events-auto mb-3 w-full max-w-3xl px-4">
