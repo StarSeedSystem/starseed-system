@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { DashboardWidget, AiWidgetSettings } from '../dashboard-types';
 import { Sparkles, Pencil, Wand2, Bot, Layers, Code2, Image as ImageIcon, Music } from 'lucide-react';
+import { buildSandboxDoc } from '@/lib/creation/post-blocks';
 
 // ════════════════════════════════════════════════════════════════
 // AiGeneratedWidget v2 — vitrina de outputs de La Fragua.
@@ -68,6 +69,11 @@ export function AiGeneratedWidget({ widget, onEditRequest }: AiGeneratedWidgetPr
     };
 
     const customHtml = settings?.customHtml || '';
+
+    // (Ola 226) HTML generado por IA aislado en iframe sandbox: allow-scripts SIN
+    // allow-same-origin → sin acceso a la sesión/cookies del OS. Se reutiliza la
+    // función buildSandboxDoc (misma que CodeBlock de post-blocks-renderer.tsx).
+    const sandboxDoc = buildSandboxDoc({ code: customHtml, language: 'html' });
 
     // ── Empty state ───────────────────────────────────────────────
     if (!customHtml) {
@@ -166,10 +172,14 @@ export function AiGeneratedWidget({ widget, onEditRequest }: AiGeneratedWidgetPr
                 perspective: '1200px',
             } as React.CSSProperties}
         >
-            {/* Content */}
-            <div
-                className="h-full w-full text-white overflow-auto"
-                dangerouslySetInnerHTML={{ __html: customHtml }}
+            {/* Content (Ola 226): HTML aislado en iframe sandbox en lugar de dangerouslySetInnerHTML */}
+            <iframe
+                title={ontology.title || 'Widget generado por IA'}
+                sandbox="allow-scripts"
+                referrerPolicy="no-referrer"
+                srcDoc={sandboxDoc}
+                loading="lazy"
+                className="h-full w-full min-h-[160px] bg-transparent"
             />
 
             {/* Title badge overlay */}
