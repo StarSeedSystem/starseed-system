@@ -204,6 +204,21 @@ export function serializeBlocks(list: PostBlock[]): PostBlock[] {
     return (list || []).map(serializeBlock);
 }
 
+// (Ola 224) Tope de tamaño para la metadata `ss:meta`. Viaja embebida en el body
+// de os_posts sin columna propia, así que limitamos el JSON serializado para que
+// un post enorme (código o datos de gráficas gigantes) no corrompa su cuerpo.
+export const MAX_SS_META_BYTES = 48 * 1024;
+
+/**
+ * (Ola 224) Mide, en bytes (UTF-8), el JSON serializado de una lista de bloques
+ * tal y como se embebería en `ss:meta.blocks` (vía serializeBlocks). Devuelve 0
+ * si no hay bloques. SSR-safe: usa TextEncoder, global en Node y navegador.
+ */
+export function ssMetaBytes(blocks: PostBlock[]): number {
+    const json = JSON.stringify(serializeBlocks(blocks));
+    return new TextEncoder().encode(json).length;
+}
+
 /** Parsea, de forma defensiva, un array desconocido de ss:meta a PostBlock[]. */
 export function parseBlocks(raw: unknown): PostBlock[] {
     if (!Array.isArray(raw)) return [];

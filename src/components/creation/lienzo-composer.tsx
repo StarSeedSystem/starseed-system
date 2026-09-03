@@ -49,6 +49,7 @@ import {
     isRichBlock,
     newBlockId,
     serializeBlocks,
+    MAX_SS_META_BYTES,
     type PostBlock,
     type PostBlockType,
 } from "@/lib/creation/post-blocks";
@@ -259,7 +260,8 @@ export function LienzoComposer({ initialDest, initialGeo }: LienzoComposerProps)
     const anyUploading = blocks.some((b) => b.uploading);
 
     // Compone el cuerpo (markdown de bloques legados) + metadata ss:meta.
-    const composeBody = useCallback((): { body: string; firstImage?: string } => {
+    // (Ola 224) Devuelve también `meta` para poder medir su tamaño antes de publicar.
+    const composeBody = useCallback((): { body: string; firstImage?: string; meta: string } => {
         const parts: string[] = [];
         if (titulo.trim()) parts.push(titulo.trim());
         let firstImage: string | undefined;
@@ -302,7 +304,7 @@ export function LienzoComposer({ initialDest, initialGeo }: LienzoComposerProps)
             ...(Object.keys(marcos).length > 0 ? { marcos } : {}),
         });
         const body = `${parts.join("\n\n")}${meta ? `\n\n${meta}` : ""}`;
-        return { body, firstImage };
+        return { body, firstImage, meta };
     }, [titulo, blocks, tags, dest, geo]);
 
     // ── Publicación real ──
@@ -318,6 +320,21 @@ export function LienzoComposer({ initialDest, initialGeo }: LienzoComposerProps)
         }
         if (anyUploading) {
             toast({ title: "Subida en curso", description: "Espera a que terminen los archivos." });
+            return;
+        }
+
+        // (Ola 224) Tope de tamaño de la metadata ss:meta: si el comentario generado
+        // supera el límite, ni guardamos en la Librería ni publicamos en la red.
+        const metaCheck = composeBody().meta;
+        const metaBytes = new TextEncoder().encode(metaCheck).length;
+        if (metaBytes > MAX_SS_META_BYTES) {
+            const kb = (metaBytes / 1024).toFixed(1);
+            const cap = Math.round(MAX_SS_META_BYTES / 1024);
+            toast({
+                title: "Publicación demasiado grande",
+                description: `La publicación es demasiado grande (${kb} KB de ${cap}). Reduce el código o los datos de las gráficas.`,
+                variant: "destructive",
+            });
             return;
         }
 
