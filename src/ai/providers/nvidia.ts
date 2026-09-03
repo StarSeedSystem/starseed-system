@@ -66,6 +66,7 @@ async function chat(
     stream,
     temperature: options.temperature ?? 0.7,
   };
+  if (stream) body.stream_options = { include_usage: true }; // (Ola 223)
   if (options.maxTokens) body.max_tokens = options.maxTokens;
 
   const doFetch = (viaProxy: boolean): Promise<Response> =>
@@ -106,6 +107,7 @@ async function chat(
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
     let buffer = "", full = "";
+    let inputTokens: number | undefined, outputTokens: number | undefined; // (Ola 223)
     for (;;) {
       const { done, value } = await reader.read();
       if (done) break;
@@ -121,10 +123,17 @@ async function chat(
           const obj = JSON.parse(payload);
           const delta = obj?.choices?.[0]?.delta?.content ?? "";
           if (delta) { full += delta; options.onChunk!(delta); }
+          // (Ola 223) El último chunk con usage (include_usage) marca el total.
+          if (obj?.usage != null) {
+            inputTokens = obj.usage.prompt_tokens ?? inputTokens;
+            outputTokens = obj.usage.completion_tokens ?? outputTokens;
+          }
         } catch { /* fragmento parcial */ }
       }
     }
-    return { text: full };
+    return inputTokens != null || outputTokens != null
+      ? { text: full, usage: { inputTokens, outputTokens } }
+      : { text: full };
   }
 
   const json = await res.json();
