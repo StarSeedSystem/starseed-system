@@ -207,6 +207,8 @@ export interface UploadFileResult {
     ok: boolean;
     file?: OsFile;
     error?: string;
+    /** (Ola 225) true si no se volvió a subir: ya existía uno con el mismo checksum y se devolvió ese registro. */
+    deduplicado?: boolean;
     /**
      * Réplicas REALES intentadas (solo backends con driver real marcados como
      * réplica del recurso «archivo» en `/almacenes`; hoy: Google Cloud Storage).
@@ -482,6 +484,49 @@ async function uploadBlobWithProgress(
 }
 
 /**
+ * (Ola 225) FNV-1a 32 bits sobre los BYTES crudos del `File` (vía `arrayBuffer`),
+ * no sobre su texto. Hash del contenido binario exacto para un dedupe fiable.
+ */
+async function fileChecksum(file: File): Promise<string | null> {
+    try {
+        // (Ola 225) `file.text()` decodifica como UTF-8 y corrompería archivos
+        // binarios (falsos positivos de dedupe → pérdida de datos). Se hashea
+        // el contenido original byte a byte.
+        const buf = new Uint8Array(await file.arrayBuffer());
+        let h = 0x811c9dc5;
+        for (let i = 0; i < buf.length; i++) {
+            h ^= buf[i];
+            h = Math.imul(h, 0x01000193) >>> 0;
+        }
+        return h.toString(16).padStart(8, "0");
+    } catch {
+        return null;
+    }
+}
+
+async function findDuplicate(
+    supabase: ReturnType<typeof createClient>,
+    uid: string,
+    size: number,
+    checksum: string | null,
+): Promise<OsFile | null> {
+    if (!checksum) return null;
+    try {
+        const { data } = await supabase
+            .from("os_files")
+            .select(FILE_COLUMNS)
+            .eq("owner", uid)
+            .eq("size", size)
+            .eq("meta->>checksum", checksum)
+            .limit(1);
+        if (!data || !Array.isArray(data) || data.length === 0) return null;
+        return normalizeRow(data[0] as OsFileRow);
+    } catch {
+        return null;
+    }
+}
+
+/**
  * Sube un archivo (CUALQUIER tipo) al almacenamiento real del OS y registra
  * su fila en `os_files`. Nunca lanza: siempre devuelve `{ok:false,error}` con
  * un mensaje claro ante cualquier fallo (sin sesión, límite superado, red).
@@ -509,6 +554,13 @@ export async function uploadFile(file: File, options: UploadFileOptions = {}): P
         const folder = (options.folder || "general").replace(/^\/+|\/+$/g, "");
         const cleanName = safeFileName(file.name || "archivo");
         const path = `${uid}/${folder}/${uniqueSegment()}-${cleanName}`;
+
+        // (Ola 225) Dedupe por checksum: antes de subir, comprueba si ya existe
+        // un archivo propio con el mismo contenido (mismo owner, tamaño y
+        // checksum). Si existe, se devuelve ese registro sin volver a subir.
+        const checksum = await fileChecksum(file);
+        const dup = await findDuplicate(supabase, uid, file.size, checksum);
+        if (dup) return { ok: true, file: dup, deduplicado: true };
 
         options.onProgress?.(0);
 
@@ -594,7 +646,7 @@ export async function uploadFile(file: File, options: UploadFileOptions = {}): P
             acl_read: options.aclRead ?? [uid],
             acl_write: options.aclWrite ?? [uid],
             group_slug: options.groupSlug ?? null,
-            meta: { ...(options.meta ?? {}), ...replicaMeta(replicas) },
+            meta: { ...(options.meta ?? {}), ...(checksum ? { checksum } : {}), ...replicaMeta(replicas) },
         };
 
         const { data, error } = await supabase.from("os_files").insert(insertRow).select(FILE_COLUMNS).single(); // (Ola 225) columnas explícitas (Adenda 186)
