@@ -1,7 +1,7 @@
 // src/components/social/PostFeed.tsx
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
@@ -53,6 +53,19 @@ export function PostFeed({
         limit,
     });
 
+    // (Ola 224) Guard de deduplicación: el feed recibe refetch() desde 4 fuentes
+    // redundantes a propósito (useRealtime de `posts`, de `os_posts`, y los dos
+    // onLiveChange del broadcast). Se agrupa con coalescing: cualquier llamada
+    // dentro de 400 ms se ignora y solo se ejecuta un refetch real al final.
+    const dedupeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const refetchDedupe = useCallback(() => {
+        if (dedupeTimer.current) return;
+        dedupeTimer.current = setTimeout(() => {
+            dedupeTimer.current = null;
+            refetch();
+        }, 400);
+    }, [refetch]);
+
     // ── Filtros · orden · búsqueda inteligente (Adenda 66 §7) ──
     // Preferencias POR PERFIL (perfil activo) y POR ENTORNO (grupo/perfil/canal).
     const envKey = groupId ? `group:${groupId}` : profileId ? `profile:${profileId}` : `channel:${channelKey}`;
@@ -94,7 +107,7 @@ export function PostFeed({
                   ? `profile_id=eq.${profileId}`
                   : undefined,
         },
-        () => refetch(),
+        () => refetchDedupe(),
     );
 
     // TIEMPO REAL (Adenda 63 §4/§8): publicaciones del OS (`os_posts`) —
@@ -105,7 +118,7 @@ export function PostFeed({
     useRealtime("os_posts", { event: "*" }, (payload) => {
         const row = (payload?.new ?? payload?.old) as { id?: string | null; created_at?: string | null } | null;
         if (!shouldProcessChange(changeKey(FEED_GLOBAL_TOPIC, row?.id, row?.created_at))) return;
-        refetch();
+        refetchDedupe();
     });
 
     // TIEMPO REAL SIN DDL (broadcast): `createPost` emite en `feed:global` y en
@@ -114,13 +127,18 @@ export function PostFeed({
     // no solo las de otros dispositivos míos) y el tema de esta instancia del
     // feed. No depende de ninguna migración.
     React.useEffect(() => {
-        const offGlobal = onLiveChange(FEED_GLOBAL_TOPIC, () => refetch(), { entity: FEED_GLOBAL_ENTITY });
-        const offChannel = onLiveChange(feedTopic(channelKey), () => refetch());
+        const offGlobal = onLiveChange(FEED_GLOBAL_TOPIC, () => refetchDedupe(), { entity: FEED_GLOBAL_ENTITY });
+        const offChannel = onLiveChange(feedTopic(channelKey), () => refetchDedupe());
         return () => {
             offGlobal();
             offChannel();
+            // (Ola 224) Limpia el temporizador pendiente de deduplicación al desmontar.
+            if (dedupeTimer.current) {
+                clearTimeout(dedupeTimer.current);
+                dedupeTimer.current = null;
+            }
         };
-    }, [refetch, channelKey]);
+    }, [refetchDedupe, channelKey]);
 
     if (loading) {
         return (
