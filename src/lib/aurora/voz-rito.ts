@@ -37,6 +37,7 @@
 import { generoEfectivo, getModoVoz, modulacionAutonoma } from "@/lib/aurora/voz-inicial";
 import { timbreActual, vozDelTimbre, buscarTimbre, TIMBRE_AUTONOMO_BASE, type Timbre } from "@/lib/aurora/timbres";
 import { decidirEntonacion } from "@/lib/aurora/agente-entonacion";
+import { motorNeuralListo, precalentarMotorNeural, type MotorVoz } from "@/lib/aurora/motor-voz";
 
 /** Margen para que la voz del navegador demuestre que suena de verdad. */
 const RELEVO_MS = 1200;
@@ -234,6 +235,49 @@ export async function instalarVozPropia(
 }
 
 /**
+ * (Ola 227) Habla por el motor neuronal ya listo (VoiceMorphic, Kokoro u
+ * OmniVoice) con el mismo timbre que usaría cualquier otra superficie. Si el
+ * motor falla en esta frase, cae al respaldo del sistema. Nunca lanza.
+ */
+function hablarPorMotorNeural(motor: MotorVoz, limpio: string, miTurno: number): void {
+    void (async () => {
+        try {
+            if (motor.id === "astraura-158") {
+                const ml = await import("@/lib/aurora/motor-local");
+                if (miTurno !== turno) return;
+                const sono = await ml.hablarLocalPorFrases(limpio, timbreEfectivo(limpio, "rito"), () => {
+                    if (miTurno === turno) avisar("motor");
+                });
+                if (miTurno !== turno) return;
+                if (sono) return;
+            } else if (motor.id === "kokoro") {
+                const kok = await import("@/lib/aurora/tts-oss/kokoro");
+                if (miTurno !== turno) return;
+                const t = timbreEfectivo(limpio, "rito");
+                const audio = await kok.kokoroSpeak(limpio, {
+                    voice: t.local.voz,
+                    speed: t.local.speed,
+                    onStart: () => { if (miTurno === turno) avisar("motor"); },
+                });
+                if (miTurno !== turno) return;
+                if (audio) return;
+            } else {
+                // OmniVoice: el enrutador de Aurora con la cadena configurada.
+                const router = await import("@/lib/aurora/tts-oss/speak-router");
+                if (miTurno !== turno) return;
+                const sono = await router.speakWithConfiguredEngine(limpio, {
+                    onStart: () => { if (miTurno === turno) avisar("motor"); },
+                });
+                if (miTurno !== turno) return;
+                if (sono) return;
+            }
+        } catch { /* el motor falló en esta frase */ }
+        // Último recurso de ESTA frase: la voz del sistema.
+        if (miTurno === turno) porElSistema(limpio, miTurno);
+    })();
+}
+
+/**
  * Habla `texto` al instante y COMPRUEBA que ha sonado. Sustituye lo anterior.
  * Devuelve false solo si no hay ningún motor con el que intentarlo.
  */
@@ -243,6 +287,24 @@ export function hablarRito(texto: string): boolean {
 
     callarRito();
     const miTurno = turno;
+
+    // ── (Ola 227) LA VOZ NEURONAL MANDA DESDE LA PRIMERA FRASE ──────────────
+    // Diagnóstico de Alex: la ventana de sistemas sonaba natural (motor
+    // neuronal) y la bienvenida robótica (voz del navegador), porque el rito
+    // hablaba YA por `speechSynthesis`. Ahora el punto único de decisión es
+    // `motor-voz.ts`: si el precalentado (lanzado al montar login y el wizard)
+    // ya confirmó un motor neuronal, el rito habla por él con el mismo timbre
+    // que la ventana de sistemas y la guía del Escritorio.
+    const neuronal = motorNeuralListo();
+    if (neuronal) {
+        avisar("preparando");
+        hablarPorMotorNeural(neuronal, limpio, miTurno);
+        return true;
+    }
+    // Aún no está listo: ESTA frase sale por el navegador (abajo, como hasta
+    // ahora) y el precalentado sigue en marcha para que las siguientes salgan
+    // ya por el motor neuronal.
+    void precalentarMotorNeural();
 
     // ── (Adenda 213) EL MOTOR LOCAL MANDA ────────────────────────────────────
     // Decisión de Alex, y la correcta para el principio de StarSeed: la voz NO

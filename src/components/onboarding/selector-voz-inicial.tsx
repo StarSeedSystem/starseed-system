@@ -15,16 +15,18 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Volume2, Sliders, Sparkles, Loader2, Play, Square } from "lucide-react";
+import { Volume2, Sliders, Sparkles, Loader2, Play, Square, Cpu } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   getModoVoz, setModoVoz, MODOS_VOZ, hayVozRealPara, generoEfectivo,
-  ajustesVozEfectivos, type ModoVoz,
+  ajustesVozEfectivos,
+  type ModoVoz,
 } from "@/lib/aurora/voz-inicial";
 import { elegirVozPorGenero } from "@/lib/aurora/tts-oss/browser-voices";
 import { auroraBridge } from "@/components/onboarding/aurora-guide-voice";
 import { SelectorTimbres } from "@/components/onboarding/selector-timbres";
-import { hablarRito } from "@/lib/aurora/voz-rito";
+import { hablarRito, callarRito } from "@/lib/aurora/voz-rito";
+import { motorNeuralListo, precalentarMotorNeural, type MotorVoz } from "@/lib/aurora/motor-voz";
 import { cortarVoz } from "@/lib/aurora/narracion-ventana";
 
 const FRASE_PRUEBA =

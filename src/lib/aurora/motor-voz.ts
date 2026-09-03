@@ -128,3 +128,140 @@ export async function motorPreferido(): Promise<MotorVoz> {
 
     return NINGUNO;
 }
+
+// ── (Ola 227) MOTOR NEURONAL: PUNTO ÚNICO DE DECISIÓN ───────────────────────
+// La voz del rito, la de la ventana de sistemas y la de la guía del Escritorio
+// deben sonar IGUAL. Antes la bienvenida hablaba por `speechSynthesis` (voz
+// del sistema, robótica y distinta en cada navegador) aunque el motor neuronal
+// estuviera listo. La regla ahora: en cuanto la página monta se precalienta
+// el motor neuronal en segundo plano; cuando está listo se guarda aquí y TODO
+// lo que hable lo usa. La voz del navegador queda como variación de último
+// recurso, no como voz por defecto.
+
+/** Motor neuronal confirmado como listo en esta sesión (null = aún no). */
+let neuronalListo: MotorVoz | null = null;
+/** Evita lanzar dos precalentados a la vez. */
+let precalentando = false;
+
+/**
+ * ¿Hay ya un motor neuronal listo para hablar? Devuelve astraura-158
+ * (VoiceMorphic), kokoro u omnivoice; null si aún no está listo ninguno.
+ * Síncrono: lee el resultado que dejó `precalentarMotorNeural`.
+ */
+export function motorNeuralListo(): MotorVoz | null {
+    return neuronalListo;
+}
+
+/**
+ * Arranca en SEGUNDO PLANO la preparación del motor neuronal, sin bloquear:
+ *   1. Sondea el daemon VoiceMorphic (la misma detección de `motorPreferido`);
+ *      si está listo, lo marca y lo mantiene caliente.
+ *   2. Kokoro: si el navegador lo admite y el modelo no está, lo descarga en
+ *      segundo plano (~80 MB, WASM, corre local en CPU); si ya está, lo marca.
+ *   3. Si nada de lo anterior, pero el usuario configuró OmniVoice, lo marca.
+ * Nunca lanza ni bloquea la interfaz: el clic «Con voz» sigue siendo el gesto
+ * de usuario que habilita el audio.
+ */
+export async function precalentarMotorNeural(): Promise<void> {
+    if (typeof window === "undefined" || precalentando) return;
+    precalentando = true;
+    try {
+        // 1 · VoiceMorphic: daemon neuronal local (GGUF, llama.cpp).
+        try {
+            const ml = await import("@/lib/aurora/motor-local");
+            const est = await ml.estadoMotorLocal();
+            if (est.listo) {
+                neuronalListo = {
+                    id: "astraura-158",
+                    nombre: `VoiceMorphic · voz nativa de Astraura · ${est.quant || "GGUF"} · ${est.backend === "metal" ? "Metal" : "CPU"}`,
+                    nota: "Voz neuronal sintetizada en tu propio equipo, sin red.",
+                    local: true,
+                };
+                ml.precalentarMotorLocal();
+                return;
+            }
+        } catch { /* daemon ausente: seguimos */ }
+
+        // 2 · Kokoro: modelo de 82M en WASM dentro del propio navegador.
+        try {
+            const kok = await import("@/lib/aurora/tts-oss/kokoro");
+            if (kok.kokoroAvailable()) {
+                if (!kok.kokoroModelReady()) {
+                    // Descarga en segundo plano; la próxima frase ya saldrá neural.
+                    void kok.kokoroPreload().then((ok) => {
+                        if (ok) neuronalListo = KOKORO;
+                    }).catch(() => null);
+                } else {
+                    neuronalListo = KOKORO;
+                    return;
+                }
+            }
+        } catch { /* Kokoro no disponible aquí */ }
+
+        // 3 · OmniVoice: el motor que el usuario haya configurado.
+        try {
+            const raw = window.localStorage.getItem("starseed.aurora.voice.v1");
+            const cfg = raw ? (JSON.parse(raw) as { engine?: string }) : null;
+            if (cfg?.engine && cfg.engine !== "browser") neuronalListo = OMNIVOICE;
+        } catch { /* sin configuración previa */ }
+    } finally {
+        precalentando = false;
+    }
+}
+
+/**
+ * (Ola 227) Ficha honesta de cada motor: qué es, dónde vive su código y cómo
+ * funciona. Alimenta las tarjetas de selección de voz para que el usuario sepa
+ * exactamente qué está sonando.
+ */
+export const MOTORES_VOZ_INFO: Array<{
+    id: MotorVoz["id"];
+    nombre: string;
+    local: boolean;
+    modelo: string;
+    latencia: string;
+    calidad: string;
+    archivo: string;
+    comoFunciona: string;
+}> = [
+    {
+        id: "astraura-158",
+        nombre: "Astraura · voz neural (local)",
+        local: true,
+        modelo: "VoiceMorphic GGUF cuantizado sobre llama.cpp (daemon 127.0.0.1:4444), Metal en Apple Silicon y CPU en el resto",
+        latencia: "Primera frase en segundos; las anticipadas suenan al instante",
+        calidad: "Voz neuronal natural, idéntica en cualquier dispositivo",
+        archivo: "src/lib/aurora/motor-local.ts",
+        comoFunciona: "Un daemon local sintetiza por frases y reproduce por un <audio>; no usa red ni el TTS del sistema.",
+    },
+    {
+        id: "kokoro",
+        nombre: "Kokoro · 82M (en este navegador)",
+        local: true,
+        modelo: "Kokoro 82M en ONNX/WebAssembly, cuantizado, se descarga una vez (~80 MB) y corre en CPU",
+        latencia: "Segundos por frase; sin esperas una vez descargado el modelo",
+        calidad: "Neural ligera, estable y la misma en todos los equipos",
+        archivo: "src/lib/aurora/tts-oss/kokoro.ts",
+        comoFunciona: "El modelo corre entero dentro del navegador en WASM: sin red, sin cuenta y sin el motor de voz del sistema.",
+    },
+    {
+        id: "omnivoice",
+        nombre: "OmniVoice (motor configurado)",
+        local: false,
+        modelo: "El motor que hayas elegido en la ventana de voz (endpoint k2-fsa u otros de la cadena)",
+        latencia: "Depende del motor elegido",
+        calidad: "Depende del motor elegido",
+        archivo: "src/lib/aurora/tts-oss/speak-router.ts",
+        comoFunciona: "El enrutador de Aurora consulta tu cadena de motores configurada y habla por el primero que responda.",
+    },
+    {
+        id: "sistema",
+        nombre: "Voz del sistema (último recurso)",
+        local: false,
+        modelo: "speechSynthesis del navegador: voces instaladas en el sistema operativo",
+        latencia: "Instantánea",
+        calidad: "Variable: suena distinta en cada navegador y en cada equipo",
+        archivo: "src/lib/aurora/voz-rito.ts",
+        comoFunciona: "Es el respaldo mientras el motor neuronal no está listo; en cuanto lo está, deja de usarse.",
+    },
+];

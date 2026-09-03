@@ -292,6 +292,12 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
   useEffect(() => {
     let abierto = true;
     let parar: (() => void) | null = null;
+    // (Ola 227) Precalienta el motor neuronal en segundo plano: así la primera
+    // frase del rito ya puede salir por la voz neural, no por la del navegador.
+    // No bloquea: el clic «Con voz» sigue siendo el gesto que habilita el audio.
+    void import("@/lib/aurora/motor-voz")
+      .then((m) => { if (abierto) void m.precalentarMotorNeural(); })
+      .catch(() => null);
     void import("@/lib/aurora/motor-local")
       .then((m) => { if (abierto) parar = m.mantenerCaliente(() => abierto); })
       .catch(() => null);
