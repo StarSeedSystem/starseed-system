@@ -301,6 +301,8 @@ function PostCardShell({
                             size="sm"
                             onClick={handleLike}
                             aria-pressed={liked}
+                            aria-label={liked ? "Quitar me gusta" : "Me gusta"}
+                            title={liked ? "Quitar me gusta" : "Me gusta"}
                             className={cn(
                                 "flex items-center gap-2 hover:bg-primary/10 hover:text-primary cursor-pointer",
                                 liked && "text-primary",
@@ -314,6 +316,8 @@ function PostCardShell({
                             size="sm"
                             onClick={onToggleComments}
                             aria-expanded={showComments}
+                            aria-label="Comentar"
+                            title="Comentar"
                             className={cn(
                                 "flex items-center gap-2 hover:bg-primary/10 hover:text-primary cursor-pointer",
                                 showComments && "text-primary",
@@ -339,6 +343,8 @@ function PostCardShell({
                             size="sm"
                             onClick={onShare}
                             className="flex items-center gap-2 cursor-pointer"
+                            aria-label={copied ? "Enlace copiado" : "Compartir"}
+                            title={copied ? "Enlace copiado" : "Compartir"}
                         >
                             {copied ? (
                                 <>
