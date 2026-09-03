@@ -516,6 +516,12 @@ export interface RouteRecord {
   /** Nº de fuentes probadas en esta llamada (incluye la que ganó, si ganó alguna). */
   attempts?: number;
   /**
+   * (Ola 223) Tokens reales que notificó el proveedor (por si la UI quiere
+   * acumularlos sin llamar de nuevo a `noteUsage`). Nombres coinciden con los
+   * que lee `inteligencia-section.tsx`.
+   */
+  usage?: { inputTokens?: number; outputTokens?: number };
+  /**
    * (Adenda 153) Sistema PRIMARIO que actuó en esta llamada: qué modo se
    * resolvió, de dónde salió la decisión y si el primario estaba listo (si no,
    * la cadena de secundarios respondió). Transparencia para la barra de acciones.
@@ -1190,6 +1196,7 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
         })),
         ...(failovers.length ? { failovers } : {}),
         attempts: failovers.length + 1,
+        ...(res?.usage ? { usage: res.usage } : {}), // (Ola 223)
         ...(primaryInfo ? { primary: primaryInfo } : {}),
       };
       pushRouteRecord(rec);
