@@ -139,8 +139,8 @@ export function sintetizarLocal(texto: string, t: Timbre): Promise<Blob | null> 
                     // El carácter del timbre viaja como instrucción de estilo; el
                     // daemon la sanea contra su vocabulario y la ignora si no aplica.
                     instruct: t.local.instruct || undefined,
-                    // Clonación: la referencia de Aurora para los timbres que la piden.
-                    ref_wav_path: t.local.ref || undefined,
+                    // (Ola 222) Solo se envía ref_wav_path si el timbre tiene una ref real; nunca undefined ni rutas huecas.
+                    ...(t.local.ref ? { ref_wav_path: t.local.ref } : {}),
                 }),
             });
             if (!r.ok) return null;
