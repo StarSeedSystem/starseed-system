@@ -42,6 +42,7 @@ import { persona158For, modelToPersona158, ASTRAURA_158_MODEL_PREFIX } from "@/a
 import { ASTRAURA_158_LOCAL_SOURCE_ID, ASTRAURA_158_CLOUD_SOURCE_ID } from "./free-catalog";
 import { chromeAiChat, chromeAiReadyNow, webllmChat, transformersChat } from "./builtin-engines";
 import { noteUsage, isCoolingDown, markCooldown, dailyPercent } from "./usage";
+import { penalizacionPorPresupuesto } from "./presupuesto"; // (Ola 223 I1F)
 import { skillsSystemPrompt, skillsRoutingBias } from "./skills";
 import { findOssService } from "@/lib/services/oss-services";
 // Personalidad activa (Adenda 63 §11): bloque de system prompt compilado desde
@@ -446,24 +447,24 @@ export function rankCandidates(
     if (prefs.disabledSources.includes(a.source.id)) continue;
     if (a.source.tier === "paid" && connectorsMode === "only-free") continue;
     if (a.source.tier === "paid" && !(allowConfiguredPaid && a.userConfig)) continue;
-    // (Ola 223) relevo preventivo por presupuesto: >=90% del cupo diario → la
-    // fuente se descarta (salvo las locales, que no gastan presupuesto); en el
-    // tramo 70-90% se le resta 4 puntos de score para desbancarla suavemente.
-    let budgetPenalty = 0;
-    const dayPct = dailyPercent(a.source.id);
-    if (typeof dayPct === "number") {
-      if (dayPct >= 90 && a.source.tier !== "local") continue;
-      if (dayPct >= 70 && dayPct < 90) budgetPenalty = 4;
-    }
+    // (Ola 223 I1F) relevo preventivo por presupuesto: regla pura en
+    // ./presupuesto — remota >=90% se descarta (filtro ANTES del ranking,
+    // cubre incluso a fuentes propias del usuario); en 70-90% va una
+    // penalización proporcional que se resta DESPUÉS del preferOwnBoost.
+    const esLocal = a.source.tier === "local";
+    const presupuesto = penalizacionPorPresupuesto(dailyPercent(a.source.id), esLocal);
+    if (presupuesto.descartar) continue;
     for (const m of a.source.models) {
       const s = scoreModelForTask(a.source, m, profile.kind, profile.needsVision);
       if (s < 0) continue;
       const fromUser = !!a.userConfig;
       const preferOwnBoost = connectorsMode === "prefer-own" && fromUser;
       let score = s + (fromUser ? 2.5 : 0); // los servicios del usuario mandan
-      if (budgetPenalty) score -= budgetPenalty; // (Ola 223) relevo preventivo por presupuesto
       if (prefs.freeFirst && a.source.tier === "paid" && !preferOwnBoost) score -= 6;
       if (preferOwnBoost) score += 8; // "usar mi cuenta": gana de verdad, no solo compite
+      // (Ola 223 I1F) la penalización por presupuesto se resta DESPUÉS del
+      // preferOwnBoost para que una fuente agotada no gane aun siendo propia.
+      if (presupuesto.penalizacion) score -= presupuesto.penalizacion;
       let reason = fromUser
         ? `Servicio que TÚ conectaste (${a.source.label})`
         : a.source.why;
