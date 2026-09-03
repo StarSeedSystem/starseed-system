@@ -303,3 +303,18 @@ configuran por **agente > personalidad > cerebro > neurona > cuenta**
 agentes (`astraura-158-import.ts`), proxy `/api/ai/astraura-158/*`. SOP:
 `architecture/astraura-158-sistema-primario.md` (§14 Ola 3, §14.6 correcciones, §14.7 verificación
 real 11/11). Antes de tocar esta capa, leer ese SOP.
+
+## 🔁 Relevo Claude ⇄ Hermes ⇄ enjambre (regla permanente · 2026-09-03)
+
+Estado ÚNICO compartido en la Mac: `starseed_memory_root/relevo/` (`estado.json`, `relevo.md`,
+`bitacora.jsonl`, `PROMPT-HERMES.md`, `PROMPT-CLAUDE.md`), mantenido por `~/.local/bin/starseed-relevo`.
+**Al empezar** cualquier sesión (Claude con puente, Hermes, Codex, OpenCode…): `starseed-relevo estado --por <agente>`
+y leer `relevo.md`; continuar desde «Último relevo»/«Última nota». **Al avanzar:** `starseed-relevo nota
+--de <agente> "hecho…; sigue…"`. **Al parar o cambiar de agente:** `starseed-relevo handoff --de <agente>
+--a <otro> "resumen"` (regenera los PROMPT-*.md que Alex pega en un chat nuevo). Tareas compartidas:
+`starseed-relevo tarea add|nota|done|list`. **Un solo agente escribe en el working tree a la vez** (si
+`pgrep -f starseed-olas.py` responde, el enjambre está activo: nadie más edita ni commitea); los crons nunca
+hacen `git add -A` ni `push`. Numeración de adendas: la del relevo. Sesión Claude SIN puente a la Mac: leer
+el doc del proyecto `claude/relevo-actual.md` (copia de relevo.md subida en cada handoff). **Contexto largo
+= créditos**: cada llamada reenvía todo el historial; antes que una sesión eterna, sesión nueva + relevo.
+Hermes tiene la skill `~/.hermes/skills/starseed-relevo` y la regla en `~/.hermes/SOUL.md`.

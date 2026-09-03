@@ -61,3 +61,13 @@ del minuto (dejarlo para tareas largas). `mistralai/codestral-22b` NO se sirve e
 3. **Al cerrar o al acercarse al límite**: punto de relevo en `state.md` + adenda + push.
 4. **Verificación obligatoria**: nada se reporta como hecho sin probarlo en localhost con
    interacción real (regla de Alex).
+
+## 7. Relevo Claude ⇄ Hermes ⇄ enjambre (2026-09-03)
+
+- Estado compartido: `starseed_memory_root/relevo/` (estado.json · relevo.md · bitacora.jsonl · PROMPT-HERMES.md · PROMPT-CLAUDE.md), CLI `~/.local/bin/starseed-relevo` (Python sin dependencias).
+- Protocolo: `estado --por <agente>` al empezar → `nota --de <agente>` al avanzar → `handoff --de <agente> --a <otro> "resumen"` al parar. `tarea`/`pendiente` para trabajo compartido; `contexto <agente> clave=valor` para sesión/modelo/estado.
+- Qué comparte: uso/cuota por motor (uso-diario.json del enjambre + modelos de progreso.md + límites), contexto de cada agente (sesión, modelo, tamaño), rutas y carpetas, git (HEAD, sin push, sin commit), cola y progreso de olas (procesadas, sin cambios, bloqueantes, restantes), tareas, pendientes, adenda actual, enlaces.
+- Hermes: skill `~/.hermes/skills/starseed-relevo/SKILL.md` + bloque en `~/.hermes/SOUL.md` + enlace en `~/.hermes/memories/MEMORY.md`. Chat nuevo de StarSeed en Hermes = pegar `PROMPT-HERMES.md` (o `starseed-relevo prompt --para hermes`).
+- Claude sin puente a la Mac: doc del proyecto `claude/relevo-actual.md`; Alex pega `PROMPT-CLAUDE.md` en la sesión nueva.
+- Un solo agente escribe en el working tree a la vez; los crons de Hermes no hacen git add -A ni push (el watchdog del túnel quedó sin permiso de git el 03-09).
+- Contexto largo = créditos: cada llamada reenvía TODO el historial (>200k tokens es caro aunque los tokens nuevos sean pocos). Sesión nueva + relevo antes que sesión eterna. Nunca reportar como «créditos restantes» un contador de contexto.
