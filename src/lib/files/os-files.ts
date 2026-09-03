@@ -484,21 +484,22 @@ async function uploadBlobWithProgress(
 }
 
 /**
- * (Ola 225) FNV-1a 32 bits sobre los BYTES crudos del `File` (vía `arrayBuffer`),
- * no sobre su texto. Hash del contenido binario exacto para un dedupe fiable.
+ * (Ola 225 · L3F) SHA-256 (WebCrypto nativo) sobre los BYTES crudos del `File`.
+ * Revisión bloqueante de L3: FNV-1a 32 bits colisionaba de verdad (un falso
+ * positivo devolvía el archivo equivocado → pérdida silenciosa de datos). Solo
+ * se llama DESPUÉS de la comprobación `MAX_UPLOAD_BYTES` (50MB), así que el
+ * `arrayBuffer()` en RAM queda acotado por el propio límite de subida — el
+ * archivo jamás se subiría entero a Storage si superara eso. Devuelve hex
+ * minúsculas (64 chars) o null si WebCrypto no está disponible (sin dedupe).
  */
 async function fileChecksum(file: File): Promise<string | null> {
     try {
-        // (Ola 225) `file.text()` decodifica como UTF-8 y corrompería archivos
-        // binarios (falsos positivos de dedupe → pérdida de datos). Se hashea
-        // el contenido original byte a byte.
-        const buf = new Uint8Array(await file.arrayBuffer());
-        let h = 0x811c9dc5;
-        for (let i = 0; i < buf.length; i++) {
-            h ^= buf[i];
-            h = Math.imul(h, 0x01000193) >>> 0;
-        }
-        return h.toString(16).padStart(8, "0");
+        if (typeof crypto === "undefined" || !crypto.subtle?.digest) return null;
+        const buf = await file.arrayBuffer();
+        const digest = await crypto.subtle.digest("SHA-256", buf);
+        return Array.from(new Uint8Array(digest))
+            .map((b) => b.toString(16).padStart(2, "0"))
+            .join("");
     } catch {
         return null;
     }
@@ -509,15 +510,22 @@ async function findDuplicate(
     uid: string,
     size: number,
     checksum: string | null,
+    folder: string,
 ): Promise<OsFile | null> {
     if (!checksum) return null;
     try {
+        // (Ola 225 · L3F) El dedupe se limita a la MISMA carpeta destino (`path`
+        // bajo `<uid>/<folder>/`: subir el mismo contenido a otra carpeta debe
+        // crear un registro nuevo con su ruta/nombre, no devolver el antiguo.
+        // (Rendimiento: la query requiere índice `(owner, size, (meta->>'checksum'))
+        // en `os_files` — migración SQL fuera del alcance de esta ola.)
         const { data } = await supabase
             .from("os_files")
             .select(FILE_COLUMNS)
             .eq("owner", uid)
             .eq("size", size)
             .eq("meta->>checksum", checksum)
+            .like("path", `${uid}/${folder}/%`)
             .limit(1);
         if (!data || !Array.isArray(data) || data.length === 0) return null;
         return normalizeRow(data[0] as OsFileRow);
@@ -556,10 +564,11 @@ export async function uploadFile(file: File, options: UploadFileOptions = {}): P
         const path = `${uid}/${folder}/${uniqueSegment()}-${cleanName}`;
 
         // (Ola 225) Dedupe por checksum: antes de subir, comprueba si ya existe
-        // un archivo propio con el mismo contenido (mismo owner, tamaño y
-        // checksum). Si existe, se devuelve ese registro sin volver a subir.
+        // un archivo propio con el mismo contenido (mismo owner, carpeta,
+        // tamaño y checksum SHA-256). Si existe, se devuelve ese registro sin
+        // volver a subir.
         const checksum = await fileChecksum(file);
-        const dup = await findDuplicate(supabase, uid, file.size, checksum);
+        const dup = await findDuplicate(supabase, uid, file.size, checksum, folder);
         if (dup) return { ok: true, file: dup, deduplicado: true };
 
         options.onProgress?.(0);
@@ -614,6 +623,15 @@ export async function uploadFile(file: File, options: UploadFileOptions = {}): P
 
         const { data: pub } = supabase.storage.from(BUCKET).getPublicUrl(path);
         const publicUrl = pub?.publicUrl ?? null;
+
+        // (Ola 225 · L3F) Carrera de la subida concurrente: si OTRA subida del
+        // mismo contenido (misma carpeta) se registró mientras subíamos, no
+        // creamos doble fila — devolvemos el registro ya existente (el objeto
+        // recién subido queda redundante pero inmutable e inofensivo).
+        if (checksum) {
+            const dupAfter = await findDuplicate(supabase, uid, file.size, checksum, folder);
+            if (dupAfter) return { ok: true, file: dupAfter, deduplicado: true };
+        }
 
         // Réplica REAL best-effort en los backends externos marcados por el usuario
         // (hoy: Google Cloud Storage). Nunca rompe la subida; sus fallos se avisan.
