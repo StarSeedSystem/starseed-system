@@ -459,3 +459,26 @@
 - Verificación curl /api/cerebros (túnel, post-relaunch): 200 OK — JSON válido: {"active_brain_id":"brain_genesis","cerebros":[{"i
 - Conectividad backend con todos los medios (Vercel, app nativa) confirmada y operativa.
 - Sin cambios de código; commit + push del cron job log al memory root (forzado, gitignored por .gitignore).
+
+## Adenda 242 - Watchdog túnel Astraura (cron, 2026-09-02 20:50 CST)
+- Comando: `cd "/Users/alex/Documents/IA 1.58 bit" && bash tunnel_watchdog.sh && tail -3 data/tunnel_watchdog.log`
+- Resultado watchdog: EXITO (exit_code=0). Estado INICIAL: TUNEL CAIDO (https://norm-wishing-concern-discrete.trycloudflare.com) → relanzado por watchdog (pid 42719).
+- cloudflared relanzado creó URL NUEVA: https://home-russia-resume-lincoln.trycloudflare.com — DIFERENTE a la registrada en active_tunnel.json (race condition en tunnel_monitor.sh: grep encontró URL vieja en /tmp/astraura_cloudflared.log antes de que cloudflared escribiera la nueva URL).
+- CORRECCIÓN OPERATIVA (sin cambios de código): actualizados data/active_tunnel.json y frontend/public/active_tunnel.json con la URL correcta (home-russia-resume-lincoln.trycloudflare.com).
+- Backend local :8000: HTTP 200 (online, JSON válido). BitNet i2_s saludable (llama-server 8790 ready).
+- Verificación curl /api/cerebros (túnel, post-fix): 200 OK — JSON válido: {"active_brain_id":"brain_genesis","cerebros":[{"i
+- Verificación curl /api/status (túnel, post-fix): 200 OK.
+- Conectividad backend con todos los medios (Vercel, app nativa): confirmada y operativa.
+- Sin cambios de código; commit + push del memory root (gitignored, espejo Drive).
+
+## Adenda 242b - Análisis root cause race condition tunnel_monitor.sh
+- BUG: tunnel_monitor.sh usa `> /tmp/astraura_cloudflared.log` (truncation) al lanzar cloudflared, luego grepara la URL en un loop de 30s. Si el archivo no se trunca a tiempo (race condition kernel/buffering), el grep encuentra la URL del proceso cloudflared ANTERIOR (ya asesinado) y la registra como "activa". El edge de Cloudflare 530s la URL vieja (túnel muerto).
+- BUG secundario: watchdog.sh health check (`curl -s -m 8 "$URL/api/status" >/dev/null 2>&1`) retorna exit_code=0 con CUALQUIER respuesta HTTP, incluso 530. No distingue túnel vivo de túnel muerto.
+- RECOMENDACIÓN (NO aplicada — sin cambios de código): 1) usar `>>` append o file rename para evitar race; 2) watchdog verificar HTTP 200 explícitamente con `-w "%{http_code}"` o `-f`.
+
+## Adenda 243 - Watchdog túnel Astraura (cron, 2026-09-02 21:00 CST)
+- Comando: `cd "/Users/alex/Documents/IA 1.58 bit" && bash tunnel_watchdog.sh && tail -3 data/tunnel_watchdog.log`
+- Resultado: exit_code=0. Watchdog detectó active_tunnel.json con URL obsoleta (530) → corregida a URL viva de cloudflared (home-russia-resume-lincoln.trycloudflare.com) → HTTP 200. Sin cambios de código.
+- Verificación curl /api/cerebros: 200 OK — JSON `{"active_brain_id":"brain_genesis","cerebros":[{"id":"brain_genesis","name":"Cerebro Génesis // Ontocracia & Soberanía",...}]`
+- Backend local :8000: HTTP 200 (online). BitNet i2_s saludable.
+- Conectividad Vercel + app nativa: OK.

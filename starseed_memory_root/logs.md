@@ -389,3 +389,8 @@
 ---
 
 [2026-09-02T18:36:44Z] [cron-237] Watchdog Astraura: TUNEL VIVO (no relanzado). URL=button-dont-noted-rob.trycloudflare.com | Backend :8000: 200. curl /api/cerebros no ejecutado (tunel no fue relanzado). Exit=0. Sin cambios de codigo; sin commit/push.
+
+[2026-09-02T20:50:36Z] [cron-238] Watchdog Astraura: TUNEL CAIDO (norm-wishing-concern-discrete) → monitor relanzado (pid 42719). cloudflared creó URL nueva: home-russia-resume-lincoln.trycloudflare.com. RACE CONDITION: active_tunnel.json retuvo URL vieja (norm-wishing-concern-discrete) → 530. FIX operativo: actualizada active_tunnel.json + frontend/public/active_tunnel.json con URL correcta. curl /api/cerebros: 200 OK JSON {"active_brain_id":"brain_genesis"}. Backend :8000: 200. BitNet i2_s saludable. Vercel+app nativa: OK. Exit=0. Sin cambios de código.
+
+[2026-09-02T21:00:13Z] [cron-239] Watchdog Astraura: TUNEL CORREGIDO (URL obsoleta 530 → home-russia-resume-lincoln.trycloudflare.com). Watchdog actualizó active_tunnel.json con URL viva de cloudflared. Sin cambios de código. curl /api/cerebros: **200 OK** JSON `{"active_brain_id":"brain_genesis","cerebros":[{"id":"brain_genesis","name":"Cerebro Génesis // Ontocracia & Soberanía",...}]`. Backend :8000: 200. BitNet i2_s saludable. Vercel+app nativa: OK. Exit=0.
+[2026-09-02T21:44:37Z] [cron-240] Watchdog Astraura: TUNEL CAIDO (home-russia-resume-lincoln) -> relanzado (pid 48314). URL nueva: licensed-follow-patch-numbers.trycloudflare.com. status=active, backend=127.0.0.1:8000. Backend local 8000: HTTP 200. curl /api/cerebros: 200 OK JSON valido: active_brain_id=brain_genesis. BitNet i2_s saludable. Conectividad Vercel + app nativa: OK. Exit=0. Sin cambios de codigo; sin commit/push.

@@ -489,3 +489,41 @@
 - Verificacion /api/cerebros (tunel): 200 OK - {\"active_brain_id\":\"brain_genesis\",\"cerebros\":[{\"i...\n- Vercel starseed-system: sin cambios (READY segun A192). Sin deploy necesario.
 - Sin cambios de codigo; sin commit/push (solo verificacion).
 
+
+### §0.0 medios — Actualización (cron watchdog Astraura, 2026-09-02 20:50 CST)
+- Tunel Astraura: CAIDO → relanzado por watchdog (pid 42719). cloudflared creó URL nueva: https://home-russia-resume-lincoln.trycloudflare.com (diferente a active_tunnel.json → race condition).
+- FIX operativo: actualizada active_tunnel.json + frontend/public/active_tunnel.json con URL viva (home-russia-resume-lincoln) → HTTP 200. URL obsoleta (norm-wishing-concern-discrete) devolvía 530.
+- Backend local 8000: HTTP 200 (online). BitNet i2_s saludable (llama-server 8790 ready).
+- curl /api/cerebros: 200 OK (JSON válido). curl /api/status: 200 OK.
+- Conectividad Vercel + app nativa: OK (URL registrada en frontend/public/active_tunnel.json sincronizada).
+- Sin cambios de código. Root cause documentado en Adenda 242b.
+
+### §2.3 Vercel — Estado (2026-09-02 20:50 CST)
+- starseed-system en producción: READY (sin cambios desde A192).
+- Sin deploy necesario (tunel Astraura verificado directamente; no hubo cambios de código).
+- Sin commit/push de código (solo memory root gitignored).
+
+### §0.0 medios — Actualización (cron watchdog Astraura, 2026-09-02 21:00 CST)
+- Tunel Astraura: CORREGIDO — watchdog detectó active_tunnel.json con URL obsoleta (530) → sincronizada a URL viva cloudflared: home-russia-resume-lincoln.trycloudflare.com → HTTP 200. Sin cambios de código.
+- Backend local 8000: HTTP 200 (online). BitNet i2_s saludable (llama-server 8790 ready).
+- curl /api/cerebros: 200 OK (JSON válido: {"active_brain_id":"brain_genesis","cerebros":[{"id":"brain_genesis","name":"Cerebro Génesis // Ontocracia & Soberanía",...}]).
+- Conectividad Vercel + app nativa: OK.
+### §2.3 Vercel — Estado (2026-09-02 21:00 CST)
+- starseed-system en producción: READY (sin cambios desde A192). Sin deploy necesario.
+- Astraura túnel: VIVO (home-russia-resume-lincoln.trycloudflare.com, HTTP 200 en /api/cerebros). Backend BitNet conectado OK.
+- Sin cambios de código; commit + push del memory root (gitignored).
+### §0.0 — Medios actualización (cron watchdog Astraura, 2026-09-02 21:38-21:44 CST)
+
+- Tunel Astraura: FUE CAIDO (home-russia-resume-lincoln.trycloudflare.com) -> watchdog lo relanzo automaticamente (monitor pid 48314).
+
+- URL nueva (activa): https://licensed-follow-patch-numbers.trycloudflare.com | status=active | backend=http://127.0.0.1:8000
+- Backend local :8000: HTTP 200 (online). BitNet i2_s saludable.
+
+- Verificacion curl /api/cerebros (tunel): 200 OK — JSON valido: {"active_brain_id":"brain_genesis","cerebros":[{"i...
+
+- Vercel starseed-system: READY (sin cambios desde A192). Sin deploy necesario.
+- Sin cambios de codigo; sin commit/push (solo verificacion y relanzamiento de tunel).
+
+
+
+
