@@ -558,23 +558,9 @@ export const FREE_CATALOG: CatalogSource[] = [
       { id: "mistral-large-latest", label: "Mistral Large", strengths: ["reasoning", "creative"], quality: 8 },
     ],
   },
-  {
-    id: "nvidia-nim-free",
-    label: "NVIDIA NIM (gratis)",
-    tier: "free-key",
-    providerId: "openai-compatible",
-    baseUrl: "https://integrate.api.nvidia.com/v1",
-    requiresKey: true,
-    getKeyUrl: "https://build.nvidia.com",
-    limits: "~1.000 req/día gratis.",
-    why: "Catálogo NIM ya integrado en StarSeed (ver Ajustes → NVIDIA); buenos modelos de razonamiento.",
-    privacy: "cloud",
-    weight: 0.95,
-    models: [
-      { id: "nvidia/llama-3.3-nemotron-super-49b-v1", label: "Nemotron Super 49B", strengths: ["reasoning", "chat"], quality: 8 },
-      { id: "deepseek-ai/deepseek-r1", label: "DeepSeek R1", strengths: ["reasoning", "code"], quality: 9 },
-    ],
-  },
+  // (Ola 223) Se retira `nvidia-nim-free` (Adenda 219): duplicaba el baseUrl de
+  // `nvidia-nim` con ids de modelo obsoletos y requiresKey:true. `nvidia-nim`
+  // (comunitaria, sin clave obligatoria, proxy) es la fuente correcta.
   {
     id: "github-models-free",
     label: "GitHub Models",
