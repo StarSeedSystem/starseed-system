@@ -10,7 +10,12 @@ import { comments as defaultComments } from "@/lib/data";
 import { CommentSystem } from "@/components/comment-system";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { ProfileWelcomeWidget } from "@/components/profile/widgets/profile-welcome-widget";
+// (Adenda 220) Bienvenida unificada con datos reales (sustituye al widget estático).
+import { EntityWelcome, type WelcomeStep } from "@/components/social/entity-welcome";
+import { ProfilePostsFeed } from "@/components/profile/profile-posts-feed";
+import { useOsPostsByAuthor } from "@/hooks/use-os-entities";
+import { StarSeedLoader } from "@/components/ui/starseed-loader";
+import { Globe, MessageSquare } from "lucide-react";
 import { FeaturedBadgesWidget } from "@/components/profile/widgets/featured-badges-widget";
 import { RecentPostsWidget } from "@/components/profile/widgets/recent-posts-widget";
 import { ConnectionsWidget } from "@/components/profile/widgets/connections-widget";
@@ -23,11 +28,9 @@ import { ProfilePublicLibrary } from "@/components/profile/profile-public-librar
 import { libraryRef } from "@/lib/library/entity-library";
 import { UnifiedCalendar } from "@/components/calendar/unified-calendar";
 import { StoriesStrip } from "@/components/stories/stories-strip";
-import { PostFeed } from "@/components/social/PostFeed";
 import { useMemo, useState, useEffect } from "react";
 import { useAccount } from "@/context/account-context";
 import { resolveProfileData, type ResolvedProfileData } from "@/lib/social/profile-resolver";
-import { Loader2 } from "lucide-react";
 import { ProfileModeBar } from "@/components/profile/profile-mode-bar";
 import { ProfileQuickActions } from "@/components/profile/profile-quick-actions";
 import { ProfileFreeLayout, type FreeSectionDef } from "@/components/profile/profile-free-layout";
@@ -354,23 +357,74 @@ export default function ProfilePage() {
         setAboutExtended: setProfileAboutExtended,
     } = useEntityLayout(profileEntityRef);
 
+    // ── Contadores REALES (Adenda 68 §C-3 · movido arriba en la Adenda 220 para que
+    // la bienvenida los use): Supabase para publicaciones/grupos/comunidades y la
+    // Biblioteca soberana para archivos. Sin dato real, NO se pinta insignia.
+    const counts = useProfileRealCounts({ isOwner, linksCount: config.links.length, targetUserId: visitedOwnerUid ?? undefined });
+    const badge = (n: number | null) => (typeof n === "number" && n > 0 ? n : undefined);
+
+    // ── (Adenda 220) Bienvenida unificada: saludo real + «Primeros pasos» del dueño ──
+    const recientes = useOsPostsByAuthor(visitedOwnerUid, 1);
+    const tienePublicaciones = (counts.publicaciones ?? 0) > 0 || recientes.posts.length > 0;
+    const welcomeSteps: WelcomeStep[] = isOwner ? [
+        { id: "foto", label: "Foto de perfil", done: Boolean(profileData.avatar), href: "/cuenta", hint: "Editar perfil" },
+        { id: "portada", label: "Portada", done: Boolean(profileData.cover), href: "/cuenta", hint: "Editar perfil" },
+        { id: "bio", label: "Biografía", done: Boolean(profileData.bio?.trim()), href: "/cuenta", hint: "Editar perfil" },
+        { id: "post", label: "Primera publicación", done: tienePublicaciones, href: "/crear", hint: "Lienzo" },
+        { id: "enlace", label: "Primer enlace", done: config.links.length > 0, onClick: () => setActiveTab("enlaces"), hint: "Enlaces" },
+    ] : [];
+    const dashboardNode = (
+        <div className="grid min-w-0 gap-4 sm:gap-6 lg:grid-cols-2">
+            <div className="min-w-0 lg:col-span-2">
+                <EntityWelcome
+                    kind="profile"
+                    name={profileData.name}
+                    handle={profileData.handle}
+                    description={profileData.bio}
+                    isOwner={isOwner}
+                    storageKey={`profile:${pageHandle}`}
+                    stats={[
+                        { label: "publicaciones", value: counts.publicaciones ?? (recientes.posts.length > 0 ? recientes.posts.length : null), icon: FileText },
+                        { label: "comunidades", value: counts.comunidades, icon: Globe },
+                        { label: "grupos", value: counts.grupos, icon: Users },
+                        { label: "enlaces", value: counts.enlaces, icon: Link2 },
+                        { label: "archivos", value: counts.archivos, icon: Library },
+                    ]}
+                    steps={welcomeSteps}
+                    actions={!isOwner ? (
+                        <>
+                            <Button asChild size="sm" variant="outline" className="cursor-pointer gap-1.5">
+                                <Link href={`/messages?to=${pageHandle}`}><MessageSquare className="h-3.5 w-3.5" /> Mensaje</Link>
+                            </Button>
+                            <Button size="sm" variant="outline" className="cursor-pointer gap-1.5" onClick={() => setActiveTab("posts")}>
+                                <FileText className="h-3.5 w-3.5" /> Ver publicaciones
+                            </Button>
+                        </>
+                    ) : undefined}
+                />
+            </div>
+            <div className="min-w-0"><FeaturedBadgesWidget pageType={pageType} /></div>
+            <div className="min-w-0"><RecentPostsWidget authorId={visitedOwnerUid} isOwner={isOwner} name={profileData.name} onVerTodas={() => setActiveTab("posts")} /></div>
+            <div className="min-w-0 lg:col-span-2">
+                <ConnectionsWidget isOwner={isOwner} name={profileData.name} counts={{ comunidades: counts.comunidades, grupos: counts.grupos }} />
+            </div>
+        </div>
+    );
+    const postsNode = (
+        <ProfilePostsFeed
+            authorId={visitedOwnerUid}
+            profileId={isOwner && typeof accountProfile?.id === "string" ? accountProfile.id : null}
+            isOwner={isOwner}
+            name={profileData.name}
+        />
+    );
+
     // Secciones del modo Libre (los MISMOS consumidores que las pestañas).
     const freeSections: FreeSectionDef[] = [
         {
             id: 'dashboard',
             title: 'Dashboard',
-            node: (
-                <div className="grid gap-6 lg:grid-cols-2">
-                    <div className="lg:col-span-2">
-                        <ProfileWelcomeWidget pageType={pageType} />
-                    </div>
-                    <FeaturedBadgesWidget pageType={pageType} />
-                    <RecentPostsWidget pageType={pageType} />
-                    <div className="lg:col-span-2">
-                        <ConnectionsWidget pageType={pageType} />
-                    </div>
-                </div>
-            ),
+            node: dashboardNode,
         },
         ...(hasToolkit(pageType)
             ? [{
@@ -393,14 +447,9 @@ export default function ProfilePage() {
         {
             id: 'posts',
             title: 'Publicaciones',
-            node: (
-                <PostFeed
-                    channelKey={`profile-${username}`}
-                    emptyCta={isOwner ? { label: "Crea tu primera publicación", href: "/crear" } : undefined}
-                />
-            ),
+            node: postsNode,
         },
-        { id: 'connections', title: 'Conexiones', node: <ConnectionsWidget pageType={pageType} /> },
+        { id: 'connections', title: 'Conexiones', node: <ConnectionsWidget isOwner={isOwner} name={profileData.name} counts={{ comunidades: counts.comunidades, grupos: counts.grupos }} /> },
         { id: 'library', title: 'Biblioteca', node: <ProfileLibraryCard name={profileData.name} uid={user?.id ?? null} ownerUid={visitedOwnerUid} isOwner={isOwner} /> },
         { id: 'collections', title: 'Colecciones', node: <CollectionsGrid /> },
         { id: 'enlaces', title: 'Enlaces', node: <ProfileLinksSection handle={pageHandle} isOwner={isOwner} name={profileData.name} /> },
@@ -447,13 +496,6 @@ export default function ProfilePage() {
         },
     ];
 
-    // ── Contadores REALES para las insignias de las pestañas (Adenda 68 §C-3) ──
-    // Misma fuente que los bloques del display (`useProfileRealCounts`): Supabase
-    // para publicaciones/grupos/comunidades y la Biblioteca soberana para
-    // archivos. Si no hay dato real, NO se pinta insignia (jamás un número
-    // inventado ni un 0 de relleno).
-    const counts = useProfileRealCounts({ isOwner, linksCount: config.links.length });
-    const badge = (n: number | null) => (typeof n === "number" && n > 0 ? n : undefined);
 
     const tabItems: SectionTabItem[] = useMemo(() => [
         { value: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -478,7 +520,7 @@ export default function ProfilePage() {
     if (loadingProfile) {
         return (
             <div className="flex flex-1 items-center justify-center py-16">
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" aria-label="Cargando perfil..." />
+                <StarSeedLoader tamano="md" etiqueta="Cargando perfil…" />
             </div>
         );
     }
@@ -547,17 +589,8 @@ export default function ProfilePage() {
                             ariaLabel={`Secciones del perfil de ${profileData.name}`}
                         />
 
-                        <TabsContent value="dashboard" className="mt-6">
-                            <div className="grid min-w-0 gap-4 sm:gap-6 lg:grid-cols-2">
-                                <div className="min-w-0 lg:col-span-2">
-                                    <ProfileWelcomeWidget pageType={pageType} />
-                                </div>
-                                <div className="min-w-0"><FeaturedBadgesWidget pageType={pageType} /></div>
-                                <div className="min-w-0"><RecentPostsWidget pageType={pageType} /></div>
-                                <div className="min-w-0 lg:col-span-2">
-                                    <ConnectionsWidget pageType={pageType} />
-                                </div>
-                            </div>
+                        <TabsContent value="dashboard" className="mt-6 animate-in fade-in-50 duration-500">
+                            {dashboardNode}
                         </TabsContent>
 
                         <TabsContent value="agenda" className="mt-6 animate-in fade-in-50 duration-500">
@@ -577,14 +610,11 @@ export default function ProfilePage() {
                             </TabsContent>
                         )}
 
-                        <TabsContent value="posts" className="mt-6">
-                            <PostFeed
-                                channelKey={`profile-${username}`}
-                                emptyCta={isOwner ? { label: "Crea tu primera publicación", href: "/crear" } : undefined}
-                            />
+                        <TabsContent value="posts" className="mt-6 animate-in fade-in-50 duration-500">
+                            {postsNode}
                         </TabsContent>
-                        <TabsContent value="connections" className="mt-6">
-                            <ConnectionsWidget pageType={pageType} />
+                        <TabsContent value="connections" className="mt-6 animate-in fade-in-50 duration-500">
+                            <ConnectionsWidget isOwner={isOwner} name={profileData.name} counts={{ comunidades: counts.comunidades, grupos: counts.grupos }} />
                         </TabsContent>
                         <TabsContent value="library" className="mt-6">
                             <ProfileLibraryCard name={profileData.name} uid={user?.id ?? null} ownerUid={visitedOwnerUid} isOwner={isOwner} />

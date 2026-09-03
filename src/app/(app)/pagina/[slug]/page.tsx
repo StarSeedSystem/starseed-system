@@ -25,9 +25,14 @@ import {
     useOsEntity,
     useOsEvents,
     useOsPosts,
+    useOsPostCount,
     useFollow,
     useEntityOwner,
 } from "@/hooks/use-os-entities";
+// (Adenda 220) Bienvenida unificada + estados vacíos con acción.
+import { EntityWelcome, type WelcomeStep } from "@/components/social/entity-welcome";
+import { EmptyState } from "@/components/ui/empty-state";
+import { FileText, CalendarPlus, PenSquare } from "lucide-react";
 import { EntityEditorDialog } from "@/components/social/entity-editor-dialog";
 import type { OsPage } from "@/lib/os-social";
 import { UnifiedCalendar } from "@/components/calendar/unified-calendar";
@@ -220,9 +225,12 @@ function PageFeed({ slug, accent }: { slug: string; accent: string }) {
                     ))}
                 </div>
             ) : posts.length === 0 ? (
-                <div className="rounded-2xl border border-border/50 p-8 text-center text-sm text-muted-foreground">
-                    Aún no hay publicaciones. ¡Sé el primero en compartir algo!
-                </div>
+                <EmptyState
+                    icon={FileText}
+                    title="Aún no hay publicaciones"
+                    description="Sé quien abra la conversación: escribe arriba o crea algo más elaborado en el Lienzo Universal."
+                    action={<Button asChild size="sm" variant="outline" className="cursor-pointer gap-1.5"><Link href="/crear"><PenSquare className="h-3.5 w-3.5" /> Abrir el Lienzo</Link></Button>}
+                />
             ) : (
                 posts.map((post) => <PostCard key={post.id} post={post} />)
             )}
@@ -277,10 +285,55 @@ function PaginaPageContent() {
     const pageHasToolkit = hasToolkit(pageKind);
     const accentForTabs = layout.accent || page?.accent || "#E9C46A";
     const suggestions = useMemo(() => suggestedIntegrations(pageHasToolkit), [pageHasToolkit]);
+    // (Adenda 220) recuento real de publicaciones para la bienvenida; la pestaña
+    // activa se declara ANTES de las pestañas porque la bienvenida navega entre ellas.
+    const [activeTab, setActiveTab] = useState("");
+    const postCount = useOsPostCount("page", page?.slug);
+    const effectiveCoverForWelcome = layout.coverUrl || page?.coverUrl || "";
 
     const baseTabs = useMemo(() => {
         if (!page) return [] as Array<{ id: string; label: string; node: React.ReactNode }>;
         const list: Array<{ id: string; label: string; node: React.ReactNode }> = [];
+        // ── (Adenda 220) INICIO: bienvenida unificada, primera pestaña para todos ──
+        const welcomeSteps: WelcomeStep[] = isOwner ? [
+            { id: "portada", label: "Portada", done: Boolean(effectiveCoverForWelcome), onClick: () => setLayoutEditorOpen(true), hint: "Personalizar" },
+            { id: "foto", label: "Foto de la página", done: Boolean(page.avatarUrl), onClick: () => setEditOpen(true), hint: "Editar" },
+            { id: "desc", label: "Descripción", done: Boolean(page.description?.trim()), onClick: () => setEditOpen(true), hint: "Editar" },
+            { id: "post", label: "Primera publicación", done: (postCount ?? 0) > 0, onClick: () => setActiveTab("posts"), hint: "Publicaciones" },
+            { id: "miembros", label: "Primer miembro o seguidor", done: (page.memberCount ?? 0) > 0, onClick: () => setActiveTab("members"), hint: "Miembros" },
+        ] : [];
+        list.push({
+            id: "dashboard",
+            label: "Inicio",
+            node: (
+                <div className="space-y-6">
+                    <EntityWelcome
+                        kind="page"
+                        name={page.name}
+                        description={page.description}
+                        accent={accentForTabs}
+                        isOwner={isOwner}
+                        storageKey={`page:${page.slug}`}
+                        stats={[
+                            { label: page.kind === "comunidad" ? "miembros" : "seguidores", value: page.memberCount ?? null, icon: Users },
+                            { label: "publicaciones", value: postCount, icon: FileText },
+                            { label: "eventos", value: events.length, icon: CalendarDays },
+                        ]}
+                        steps={welcomeSteps}
+                        actions={
+                            <>
+                                <Button size="sm" variant="outline" className="cursor-pointer gap-1.5" onClick={() => setActiveTab("posts")} style={{ borderColor: `${accentForTabs}55`, color: accentForTabs }}>
+                                    <PenSquare className="h-3.5 w-3.5" /> Publicar aquí
+                                </Button>
+                                <Button size="sm" variant="outline" className="cursor-pointer gap-1.5" onClick={() => setActiveTab("members")}>
+                                    <Users className="h-3.5 w-3.5" /> Ver miembros
+                                </Button>
+                            </>
+                        }
+                    />
+                </div>
+            ),
+        });
         if (pageHasToolkit) {
             list.push({
                 id: "tools",
@@ -289,31 +342,19 @@ function PaginaPageContent() {
             });
         }
         list.push({ id: "posts", label: "Publicaciones", node: <PageFeed slug={page.slug} accent={accentForTabs} /> });
-        list.push({
-            id: "dashboard",
-            label: "Dashboard",
-            node: (
-                <div className="grid gap-6 lg:grid-cols-2">
-                    <div className="lg:col-span-2">
-                        <GlassCard className="p-[clamp(1rem,3vw,1.75rem)]">
-                    <div className="mb-3 flex items-center gap-2" style={{ color: accentForTabs }}>
-                        <Info className="h-5 w-5" />
-                        <h2 className="font-headline text-lg font-semibold">Acerca de</h2>
-                    </div>
-                    <p className="leading-relaxed text-foreground/90">{page.description}</p>
-                        </GlassCard>
-                    </div>
-                </div>
-            ),
-        });
         list.push({ id: "members", label: "Miembros", node: <MemberAvatars system="politico" total={page.memberCount ?? 0} accent={accentForTabs} seed={page.slug ?? page.id ?? ""} /> });
         list.push({
             id: "events",
             label: "Eventos",
             node: events.length === 0 ? (
-                <div className="rounded-2xl border border-border/50 p-8 text-center text-sm text-muted-foreground">
-                    Esta página todavía no organiza eventos próximos.
-                </div>
+                <EmptyState
+                    icon={CalendarPlus}
+                    title="Todavía no hay eventos"
+                    description={isOwner ? "Convoca el primer encuentro de esta página y aparecerá aquí y en la Agenda de la red." : "Esta página todavía no organiza eventos próximos."}
+                    action={isOwner ? (
+                        <Button asChild size="sm" variant="outline" className="cursor-pointer gap-1.5"><Link href="/crear"><CalendarPlus className="h-3.5 w-3.5" /> Convocar evento</Link></Button>
+                    ) : undefined}
+                />
             ) : (
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     {events.map((e) => (
@@ -454,12 +495,21 @@ function PaginaPageContent() {
         }
         return list;
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [page, pageHasToolkit, pageKind, accentForTabs, events, layout.sections, layout.integrations, layout.gallery, isOwner]);
+    }, [page, pageHasToolkit, pageKind, accentForTabs, events, layout.sections, layout.integrations, layout.gallery, isOwner, postCount, effectiveCoverForWelcome]);
 
-    const orderedTabs = useMemo(() => applyTabLayout(baseTabs, layout.tabs), [baseTabs, layout.tabs]);
+    const orderedTabs = useMemo(() => {
+        const o = applyTabLayout(baseTabs, layout.tabs);
+        // (Adenda 220) «Inicio» va primero salvo que el dueño ya lo hubiera
+        // recolocado a mano en su layout guardado.
+        const i = o.findIndex((t) => t.id === "dashboard");
+        if (i > 0 && !layout.tabs.some((t) => t.id === "dashboard")) {
+            const [d] = o.splice(i, 1);
+            o.unshift(d);
+        }
+        return o;
+    }, [baseTabs, layout.tabs]);
     const visibleTabs = useMemo(() => orderedTabs.filter((t) => t.visible), [orderedTabs]);
 
-    const [activeTab, setActiveTab] = useState("");
     useEffect(() => {
         if (visibleTabs.length === 0) return;
         if (!visibleTabs.some((t) => t.id === activeTab)) setActiveTab(visibleTabs[0].id);
@@ -531,6 +581,8 @@ function PaginaPageContent() {
                     name: page.name,
                     description: page.description ?? "",
                     coverUrl: effectiveCover ?? "",
+                    // (Adenda 220) la foto de la página existía en la tabla pero nunca llegaba a la cabecera.
+                    avatarUrl: page.avatarUrl,
                     memberCount: safeMemberCount,
                     accent: accent
                 }}

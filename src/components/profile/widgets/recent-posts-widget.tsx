@@ -1,75 +1,90 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { feedItems } from "@/lib/data";
+"use client";
+
+/**
+ * PUBLICACIONES RECIENTES del perfil (Adenda 220): datos REALES por autor
+ * (`useOsPostsByAuthor`) en vez de la lista de ejemplo `feedItems` (vacía
+ * desde el de-mock) que dejaba la tarjeta muda. Estado vacío honesto con
+ * acción para el dueño.
+ */
+
 import Link from "next/link";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { FileText, PenSquare } from "lucide-react";
+import { EmptyState } from "@/components/ui/empty-state";
+import { useOsPostsByAuthor } from "@/hooks/use-os-entities";
+import { formatRelativeTime } from "@/lib/social-posts";
 import { FilePreview, type FileLike } from "@/components/files/file-preview";
 
-const postsData = {
-    personal: {
-        title: "Publicaciones Recientes",
-        description: "Última actividad y pensamientos compartidos.",
-        posts: feedItems.slice(0, 2),
-    },
-    comunidad: {
-        title: "Actividad de la Comunidad",
-        description: "Publicaciones y debates recientes.",
-        posts: [
-            { id: 'comm-1', content: '¡El taller de compostaje de este fin de semana fue un éxito! Gracias a todos los que vinieron.', timestamp: 'hace 1 día' },
-            { id: 'comm-2', content: 'Se busca voluntario para liderar el proyecto de jardín de polinizadores.', timestamp: 'hace 3 días' },
-        ]
-    },
-    ef: {
-        title: "Propuestas y Anuncios",
-        description: "Actividad legislativa y ejecutiva reciente.",
-         posts: [
-            { id: 'ef-1', content: 'Votación Abierta: Propuesta de Ley de Agua Comunitaria. Fecha límite: 30 de junio.', timestamp: 'hace 2 días' },
-            { id: 'ef-2', content: 'Proyecto Aprobado: Financiamiento para Jardín Urbano en el Sector 5.', timestamp: 'hace 1 semana' },
-        ]
-    }
-    // Add other page types if needed
-}
-
-export function RecentPostsWidget({ pageType = 'personal' }: { pageType: string }) {
-    const data = postsData[pageType as keyof typeof postsData] || postsData.personal;
+export function RecentPostsWidget({
+    authorId,
+    isOwner = false,
+    name,
+    onVerTodas,
+}: {
+    /** uid real de la cuenta dueña del perfil (null = desconocido). */
+    authorId?: string | null;
+    isOwner?: boolean;
+    name?: string;
+    /** Abre la pestaña «Publicaciones» del perfil. */
+    onVerTodas?: () => void;
+}) {
+    const { posts, loading } = useOsPostsByAuthor(authorId ?? null, 3);
 
     return (
         <Card>
             <CardHeader>
-                <CardTitle className="font-headline">{data.title}</CardTitle>
-                <CardDescription>{data.description}</CardDescription>
+                <CardTitle className="font-headline">Publicaciones recientes</CardTitle>
+                <CardDescription>{isOwner ? "Lo último que compartiste en la red." : `Última actividad de ${name || "este perfil"}.`}</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-                {data.posts.map((item) => {
-                    // Algunos posts traen un medio adjunto; lo previsualizamos con
-                    // FilePreview FUERA del <Link> (no anidar interactivos en <a>).
-                    const anyItem = item as any;
-                    const mediaUrl: string | undefined =
-                        anyItem.imageUrl || anyItem.media_url || anyItem.mediaUrl || anyItem.fileUrl || anyItem.url;
-                    const file: FileLike | null = mediaUrl
-                        ? {
-                            url: mediaUrl,
-                            name: anyItem.fileName || anyItem.title || undefined,
-                            type: anyItem.mediaType || anyItem.type || undefined,
-                            thumbnail: anyItem.thumbnail || anyItem.imageUrl || undefined,
-                        }
-                        : null;
-                    return (
-                        <div key={item.id} className="rounded-lg border hover:bg-muted/50 transition-colors">
-                            <Link href={anyItem.href || "#"} className="block p-3">
-                                <p className="text-sm font-medium truncate">{item.content}</p>
-                                <p className="text-xs text-muted-foreground mt-1">{item.timestamp}</p>
-                            </Link>
-                            {file && (
-                                <div className="px-3 pb-3">
-                                    <FilePreview file={file} context="post" compact actions={false} />
+            <CardContent className="space-y-3">
+                {loading ? (
+                    <div className="space-y-2">
+                        <Skeleton className="h-12 w-full rounded-lg" />
+                        <Skeleton className="h-12 w-4/5 rounded-lg" />
+                    </div>
+                ) : posts.length === 0 ? (
+                    <EmptyState
+                        icon={FileText}
+                        title="Todavía no hay publicaciones"
+                        description={isOwner ? "Tu primera publicación aparecerá aquí y en tu pestaña «Publicaciones»." : "Cuando publique algo, lo verás aquí."}
+                        className="py-8 sm:py-10"
+                        action={isOwner ? (
+                            <Button asChild size="sm" variant="outline" className="cursor-pointer gap-1.5">
+                                <Link href="/crear"><PenSquare className="h-3.5 w-3.5" /> Crear publicación</Link>
+                            </Button>
+                        ) : undefined}
+                    />
+                ) : (
+                    <>
+                        {posts.map((p) => {
+                            const file: FileLike | null = p.media?.url && (p.media.kind === "image" || p.media.kind === "video")
+                                ? { url: p.media.url, name: p.media.name, type: p.media.kind === "video" ? "video/*" : "image/*" }
+                                : null;
+                            const resumen = (p.title || p.body || "").replace(/\s+/g, " ").trim();
+                            return (
+                                <div key={p.id} className="rounded-lg border border-white/10 transition-colors hover:bg-white/[0.04]">
+                                    <Link href={`/post/${p.id}`} className="block p-3">
+                                        <p className="truncate text-sm font-medium">{resumen || "Publicación"}</p>
+                                        <p className="mt-1 text-xs text-muted-foreground">{formatRelativeTime(p.createdAt)}</p>
+                                    </Link>
+                                    {file && (
+                                        <div className="px-3 pb-3">
+                                            <FilePreview file={file} context="post" compact actions={false} />
+                                        </div>
+                                    )}
                                 </div>
-                            )}
-                        </div>
-                    );
-                })}
-                 <Link href="#" className="text-sm font-semibold text-primary hover:underline">
-                    Ver todas las publicaciones...
-                </Link>
+                            );
+                        })}
+                        {onVerTodas ? (
+                            <button type="button" onClick={onVerTodas} className="cursor-pointer text-sm font-semibold text-primary hover:underline">
+                                Ver todas las publicaciones
+                            </button>
+                        ) : null}
+                    </>
+                )}
             </CardContent>
         </Card>
-    )
+    );
 }

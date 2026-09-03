@@ -20,7 +20,11 @@ import { GroupJoinRequests } from "@/components/social/group-join-requests";
 import { GovernanceToolkit, hasToolkit, toolkitMeta } from "@/components/social/toolkits";
 import { EntityLibraryPanel } from "@/components/library/entity-library-panel";
 import { libraryRef } from "@/lib/library/entity-library";
-import { useOsEntity, useOsPosts, useMembership, useEntityOwner } from "@/hooks/use-os-entities";
+import { useOsEntity, useOsPosts, useOsPostCount, useMembership, useEntityOwner } from "@/hooks/use-os-entities";
+// (Adenda 220) Bienvenida unificada + estados vacíos con acción.
+import { EntityWelcome, type WelcomeStep } from "@/components/social/entity-welcome";
+import { EmptyState } from "@/components/ui/empty-state";
+import { FileText, PenSquare } from "lucide-react";
 import { EntityEditorDialog } from "@/components/social/entity-editor-dialog";
 import type { OsGroup } from "@/lib/os-social";
 import { UnifiedCalendar } from "@/components/calendar/unified-calendar";
@@ -228,9 +232,12 @@ function GroupFeed({ slug, accent }: { slug: string; accent: string }) {
                     ))}
                 </div>
             ) : posts.length === 0 ? (
-                <div className="rounded-2xl border border-border/50 p-8 text-center text-sm text-muted-foreground">
-                    Aún no hay publicaciones en este grupo. ¡Inicia la conversación!
-                </div>
+                <EmptyState
+                    icon={FileText}
+                    title="Aún no hay publicaciones en este grupo"
+                    description="Inicia la conversación: escribe arriba o crea algo más elaborado en el Lienzo Universal."
+                    action={<Button asChild size="sm" variant="outline" className="cursor-pointer gap-1.5"><Link href="/crear"><PenSquare className="h-3.5 w-3.5" /> Abrir el Lienzo</Link></Button>}
+                />
             ) : (
                 posts.map((post) => <PostCard key={post.id} post={post} />)
             )}
@@ -280,11 +287,53 @@ function GrupoPageContent() {
     const groupHasToolkit = hasToolkit(groupKind);
     const accentForTabs = layout.accent || group?.accent || "#22d3ee";
     const suggestions = useMemo(() => suggestedIntegrations(groupHasToolkit), [groupHasToolkit]);
+    // (Adenda 220) pestaña activa declarada ANTES (la bienvenida navega entre
+    // pestañas) + recuento real de publicaciones.
+    const [activeTab, setActiveTab] = useState("");
+    const postCount = useOsPostCount("group", group?.slug);
+    const coverForWelcome = layout.coverUrl || group?.coverUrl || "";
 
     // Definición de pestañas (base + integraciones activas), en su orden natural.
     const baseTabs = useMemo(() => {
         if (!group) return [] as Array<{ id: string; label: string; node: React.ReactNode }>;
         const list: Array<{ id: string; label: string; node: React.ReactNode }> = [];
+        // ── (Adenda 220) INICIO: bienvenida unificada, primera pestaña para todos ──
+        const welcomeSteps: WelcomeStep[] = isOwner ? [
+            { id: "portada", label: "Portada", done: Boolean(coverForWelcome), onClick: () => setLayoutEditorOpen(true), hint: "Personalizar" },
+            { id: "foto", label: "Foto del grupo", done: Boolean(group.avatarUrl), onClick: () => setEditOpen(true), hint: "Editar" },
+            { id: "desc", label: "Descripción", done: Boolean(group.description?.trim()), onClick: () => setEditOpen(true), hint: "Editar" },
+            { id: "post", label: "Primera publicación", done: (postCount ?? 0) > 0, onClick: () => setActiveTab("feed"), hint: "Feed" },
+            { id: "miembros", label: "Segundo miembro", done: (group.memberCount ?? 0) > 1, onClick: () => setActiveTab("members"), hint: "Miembros" },
+        ] : [];
+        list.push({
+            id: "dashboard",
+            label: "Inicio",
+            node: (
+                <EntityWelcome
+                    kind="group"
+                    name={group.name}
+                    description={group.description}
+                    accent={accentForTabs}
+                    isOwner={isOwner}
+                    storageKey={`group:${group.slug}`}
+                    stats={[
+                        { label: "miembros", value: group.memberCount ?? null, icon: UsersRound },
+                        { label: "publicaciones", value: postCount, icon: FileText },
+                    ]}
+                    steps={welcomeSteps}
+                    actions={
+                        <>
+                            <Button size="sm" variant="outline" className="cursor-pointer gap-1.5" onClick={() => setActiveTab("feed")} style={{ borderColor: `${accentForTabs}55`, color: accentForTabs }}>
+                                <PenSquare className="h-3.5 w-3.5" /> Publicar en el grupo
+                            </Button>
+                            <Button size="sm" variant="outline" className="cursor-pointer gap-1.5" onClick={() => setActiveTab("members")}>
+                                <UsersRound className="h-3.5 w-3.5" /> Ver miembros
+                            </Button>
+                        </>
+                    }
+                />
+            ),
+        });
         if (groupHasToolkit) {
             list.push({
                 id: "tools",
@@ -424,12 +473,21 @@ function GrupoPageContent() {
         }
         return list;
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [group, groupHasToolkit, groupKind, accentForTabs, layout.sections, layout.integrations, layout.gallery, isOwner]);
+    }, [group, groupHasToolkit, groupKind, accentForTabs, layout.sections, layout.integrations, layout.gallery, isOwner, postCount, coverForWelcome]);
 
-    const orderedTabs = useMemo(() => applyTabLayout(baseTabs, layout.tabs), [baseTabs, layout.tabs]);
+    const orderedTabs = useMemo(() => {
+        const o = applyTabLayout(baseTabs, layout.tabs);
+        // (Adenda 220) «Inicio» va primero salvo que el dueño ya lo hubiera
+        // recolocado a mano en su layout guardado.
+        const i = o.findIndex((t) => t.id === "dashboard");
+        if (i > 0 && !layout.tabs.some((t) => t.id === "dashboard")) {
+            const [d] = o.splice(i, 1);
+            o.unshift(d);
+        }
+        return o;
+    }, [baseTabs, layout.tabs]);
     const visibleTabs = useMemo(() => orderedTabs.filter((t) => t.visible), [orderedTabs]);
 
-    const [activeTab, setActiveTab] = useState("");
     useEffect(() => {
         if (visibleTabs.length === 0) return;
         if (!visibleTabs.some((t) => t.id === activeTab)) setActiveTab(visibleTabs[0].id);
@@ -516,7 +574,7 @@ function GrupoPageContent() {
                     {group.avatarUrl && (
                         <div className="-mt-16 flex items-end gap-4">
                             <span
-                                className="h-20 w-20 shrink-0 overflow-hidden rounded-2xl border-2 border-background bg-muted ring-2"
+                                className="h-20 w-20 shrink-0 overflow-hidden rounded-full border-2 border-background bg-muted ring-2"
                                 style={{ ["--tw-ring-color" as any]: `${accent}55` }}
                             >
                                 {/* eslint-disable-next-line @next/next/no-img-element */}

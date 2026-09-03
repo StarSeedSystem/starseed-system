@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { PostCard } from "@/components/social/PostCard";
+import { EmptyState } from "@/components/ui/empty-state";
 import { FeedControls } from "@/components/social/feed-controls";
 import { useFeedPrefs, useFeedFiltered } from "@/lib/social/feed-filters";
 import { fetchMyProfile } from "@/lib/social/os-profiles";
@@ -173,16 +174,18 @@ export function PostFeed({
 
             {visible.length === 0 &&
                 (posts.length === 0 ? (
-                    <div className="rounded-2xl border border-dashed border-border/50 p-8 text-center text-sm text-muted-foreground">
-                        <p>Aún no hay publicaciones. ¡Sé el primero en compartir algo!</p>
-                        {emptyCta && (
-                            <Button asChild variant="outline" size="sm" className="mt-4 gap-1.5 cursor-pointer">
+                    <EmptyState
+                        icon={PenSquare}
+                        title="Aún no hay publicaciones"
+                        description="Sé quien comparta lo primero en este espacio."
+                        action={emptyCta ? (
+                            <Button asChild variant="outline" size="sm" className="gap-1.5 cursor-pointer">
                                 <Link href={emptyCta.href}>
                                     <PenSquare className="h-3.5 w-3.5" /> {emptyCta.label}
                                 </Link>
                             </Button>
-                        )}
-                    </div>
+                        ) : undefined}
+                    />
                 ) : (
                     <div className="rounded-2xl border border-dashed border-border/50 p-8 text-center text-sm text-muted-foreground">
                         <p>Ninguna publicación coincide con los filtros.</p>

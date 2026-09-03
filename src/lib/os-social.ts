@@ -426,6 +426,36 @@ export async function fetchPosts(
     return ((data as PostRow[]) || []).map(normalizePost);
 }
 
+/**
+ * (Adenda 220) Publicaciones de una CUENTA, estén donde estén (su perfil
+ * virtual `page/perfil-mi-perfil`, páginas, grupos, secciones). Es lo que la
+ * pestaña «Publicaciones» del perfil necesita: antes leía el feed global de
+ * `cafe_posts` sin filtrar y nunca veía lo publicado desde el Lienzo.
+ */
+export async function fetchPostsByAuthor(authorId: string, limit = 30): Promise<OsPost[]> {
+    const supabase = createClient();
+    const { data, error } = await supabase
+        .from("os_posts")
+        .select("id,author_id,author_name,entity_type,entity_slug,body,media_url,created_at")
+        .eq("author_id", authorId)
+        .order("created_at", { ascending: false })
+        .limit(limit);
+    if (error) throw error;
+    return ((data as PostRow[]) || []).map(normalizePost);
+}
+
+/** (Adenda 220) Recuento real de publicaciones de una entidad (sin traer filas). */
+export async function countPosts(entityType: OsEntityType, entitySlug: string): Promise<number | null> {
+    const supabase = createClient();
+    const { count, error } = await supabase
+        .from("os_posts")
+        .select("id", { count: "exact", head: true })
+        .eq("entity_type", entityType)
+        .eq("entity_slug", entitySlug);
+    if (error) return null;
+    return typeof count === "number" ? count : null;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // SESIÓN
 // ─────────────────────────────────────────────────────────────────────────────

@@ -25,6 +25,8 @@ import {
     fetchGroupBySlug,
     fetchEventBySlug,
     fetchPosts,
+    fetchPostsByAuthor,
+    countPosts,
     mergePages,
     mergeGroups,
     mergeEvents,
@@ -445,6 +447,79 @@ export function useOsPosts(
     );
 
     return { posts, loading, usingFallback, needsAuth, error, refetch: load, publish };
+}
+
+/**
+ * (Adenda 220) Publicaciones de una CUENTA (por `author_id`), para la pestaña
+ * «Publicaciones» y el widget de recientes del perfil. Realtime por
+ * postgres_changes (filtro `author_id`) + broadcast global, deduplicados.
+ */
+export function useOsPostsByAuthor(
+    authorId: string | null | undefined,
+    limit = 30,
+): { posts: NormalizedPost[]; loading: boolean; error: string | null; refetch: () => void } {
+    const [posts, setPosts] = useState<NormalizedPost[]>([]);
+    const [loading, setLoading] = useState(Boolean(authorId));
+    const [error, setError] = useState<string | null>(null);
+    const mounted = useRef(true);
+
+    const load = useCallback(async () => {
+        if (!authorId) { setPosts([]); setLoading(false); return; }
+        try {
+            const real = await fetchPostsByAuthor(authorId, limit);
+            if (!mounted.current) return;
+            setPosts(real.map(osPostToNormalized));
+            setError(null);
+        } catch (e: any) {
+            if (!mounted.current) return;
+            setPosts([]);
+            setError(e?.message || "error");
+        } finally {
+            if (mounted.current) setLoading(false);
+        }
+    }, [authorId, limit]);
+
+    useEffect(() => {
+        mounted.current = true;
+        setLoading(Boolean(authorId));
+        load();
+        let unsubPg = () => {};
+        let unsubLive = () => {};
+        if (authorId) {
+            try {
+                const { syncManager } = require("@/lib/sync/sync-manager");
+                unsubPg = syncManager.subscribe(
+                    "os_posts",
+                    "author_id",
+                    authorId,
+                    (payload: { record?: { id?: string | null; created_at?: string | null } | null }) => {
+                        const row = payload?.record ?? null;
+                        if (!shouldProcessChange(changeKey(`author:${authorId}`, row?.id, row?.created_at))) return;
+                        load();
+                    },
+                );
+            } catch { /* realtime no disponible */ }
+            try {
+                unsubLive = onLiveChange("feed:global", () => load());
+            } catch { /* broadcast no disponible */ }
+        }
+        return () => { mounted.current = false; unsubPg(); unsubLive(); };
+    }, [load, authorId]);
+
+    return { posts, loading, error, refetch: load };
+}
+
+/** (Adenda 220) Recuento real de publicaciones de una entidad (null si no se sabe). */
+export function useOsPostCount(entityType: OsEntityType, slug: string | null | undefined): number | null {
+    const [n, setN] = useState<number | null>(null);
+    useEffect(() => {
+        let vivo = true;
+        if (!slug) { setN(null); return; }
+        countPosts(entityType, slug).then((c) => { if (vivo) setN(c); }).catch(() => { if (vivo) setN(null); });
+        const off = (() => { try { return onLiveChange(entityFeedTopic(entityType, slug), () => { countPosts(entityType, slug).then((c) => { if (vivo) setN(c); }).catch(() => {}); }); } catch { return () => {}; } })();
+        return () => { vivo = false; off(); };
+    }, [entityType, slug]);
+    return n;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -289,7 +289,8 @@ modelo continúe solo. Capas y dónde se editan: `memory/orquestacion-economica.
 Proveedores comunitarios con clave solo en el servidor: `/api/ai/openrouter`
 (`OPENROUTER_SHARED_KEY`) y `/api/ai/nvidia` (`NVIDIA_SHARED_KEY`, NVIDIA NIM · 82 modelos).
 Hermes tiene `providers.nvidia` (`NVIDIA_API_KEY` en `~/.hermes/.env`). Claves: nunca en el repo
-ni en memorias — solo nombres de variables.
+ni en memorias — solo nombres de variables. **Cada respuesta termina con un informe de uso**
+(modelos/APIs/tokens/créditos usados, cuánto queda y opciones de enrutamiento).
 
 ## 🌌 Inteligencia primaria del OS (Adenda 155 · 2026-08-23)
 

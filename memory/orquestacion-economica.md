@@ -22,6 +22,10 @@
 5. Nunca guardes claves en el repo, en las memorias ni en documentos: solo nombres de
    variables. Las claves viven en `.env.local`, en Vercel (Environment Variables) y en
    `~/.hermes/.env`.
+6. **Cierra cada respuesta con un informe de uso** (regla de Alex, 2026-09-03): qué modelos,
+   APIs, tokens y créditos se usaron en la respuesta, cuánto queda (presupuesto de la sesión,
+   contadores diarios de `uso-diario.json`, `GET openrouter.ai/api/v1/auth/key`, lo que cada
+   proveedor exponga) y qué opciones de enrutamiento hay para continuar (capas de §2).
 
 ## 2. Las tres capas que ya existen (y dónde se editan)
 
