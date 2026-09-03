@@ -48,6 +48,8 @@ import { emitChange } from "@/lib/sync/live-signal";
 import { logAccess, quickChecksum, recordVersion, versionStoragePath } from "@/lib/versions/versions";
 // Tipo solo (sin runtime): la capa de backends se carga dinámicamente donde se usa.
 import type { StorageBackend } from "@/lib/storage/backends";
+// (Ola 225) Compresión de imágenes en cliente antes de subir.
+import { comprimirImagen } from "@/lib/files/comprimir-imagen";
 
 const BUCKET = "os-files";
 /** Límite honesto de subida (bytes). ~50MB. */
@@ -487,6 +489,11 @@ async function uploadBlobWithProgress(
 export async function uploadFile(file: File, options: UploadFileOptions = {}): Promise<UploadFileResult> {
     if (!isClient()) return { ok: false, error: "No disponible en el servidor." };
     if (!file) return { ok: false, error: "Archivo inválido." };
+    // (Ola 225) Imágenes comprimibles (no svg/gif): redimensionar/comprimir en
+    // cliente antes de subir — ahorra egress y puede hacer pasar el límite.
+    if (file.type.startsWith("image/") && file.type !== "image/svg+xml" && file.type !== "image/gif") {
+        file = await comprimirImagen(file);
+    }
     if (file.size > MAX_UPLOAD_BYTES) {
         return {
             ok: false,
