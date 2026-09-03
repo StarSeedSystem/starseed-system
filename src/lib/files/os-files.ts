@@ -94,6 +94,12 @@ interface OsFileRow {
     created_at: string;
 }
 
+// (Ola 225) Columnas explícitas para todo SELECT sobre `os_files`: son las que
+// consume realmente `normalizeRow` (regla Adenda 186, egress de Supabase: no
+// traer `*`). Ni una columna de más, ni una de menos.
+const FILE_COLUMNS =
+    "id, owner, profile_id, name, mime, size, path, url, device_id, is_public, acl_read, acl_write, group_slug, meta, created_at";
+
 function normalizeRow(row: OsFileRow): OsFile {
     return {
         id: row.id,
@@ -297,7 +303,7 @@ export async function flushPendingFiles(): Promise<{ flushed: number; remaining:
         const map = readPendingFiles();
         for (const [path, entry] of Object.entries(map)) {
             try {
-                const { data, error } = await supabase.from("os_files").insert(entry.row).select("*").single();
+                const { data, error } = await supabase.from("os_files").insert(entry.row).select(FILE_COLUMNS).single(); // (Ola 225) columnas explícitas (Adenda 186)
                 if (!error && data) {
                     const current = readPendingFiles();
                     delete current[path];
@@ -584,7 +590,7 @@ export async function uploadFile(file: File, options: UploadFileOptions = {}): P
             meta: { ...(options.meta ?? {}), ...replicaMeta(replicas) },
         };
 
-        const { data, error } = await supabase.from("os_files").insert(insertRow).select("*").single();
+        const { data, error } = await supabase.from("os_files").insert(insertRow).select(FILE_COLUMNS).single(); // (Ola 225) columnas explícitas (Adenda 186)
         if (error || !data) {
             // ── Adenda 66 §2 · CAUSA RAÍZ del "solo se guarda en local" ──────────
             // El objeto YA está en Storage, pero su fila no. ANTES esto devolvía
@@ -663,7 +669,7 @@ export async function uploadFileVersion(
         const supabase = createClient();
         const { data: existingRow, error: readErr } = await supabase
             .from("os_files")
-            .select("*")
+            .select(FILE_COLUMNS) // (Ola 225) columnas explícitas (Adenda 186)
             .eq("id", fileId)
             .maybeSingle();
         if (readErr || !existingRow) {
@@ -700,7 +706,7 @@ export async function uploadFileVersion(
                 device_id: deviceId(),
             })
             .eq("id", fileId)
-            .select("*")
+            .select(FILE_COLUMNS) // (Ola 225) columnas explícitas (Adenda 186)
             .single();
 
         if (updErr || !updated) {
@@ -735,7 +741,7 @@ export async function listMyFiles(options: ListMyFilesOptions = {}): Promise<OsF
     if (!uid) return [];
     try {
         const supabase = createClient();
-        let q = supabase.from("os_files").select("*").eq("owner", uid).order("created_at", { ascending: false });
+        let q = supabase.from("os_files").select(FILE_COLUMNS).eq("owner", uid).order("created_at", { ascending: false }); // (Ola 225) columnas explícitas (Adenda 186)
         if (options.deviceId) q = q.eq("device_id", options.deviceId);
         if (options.search?.trim()) q = q.ilike("name", `%${options.search.trim()}%`);
         q = q.limit(options.limit ?? 200);
@@ -765,7 +771,7 @@ export async function listPublicFiles(options: ListPublicFilesOptions = {}): Pro
         const supabase = createClient();
         let q = supabase
             .from("os_files")
-            .select("*")
+            .select(FILE_COLUMNS) // (Ola 225) columnas explícitas (Adenda 186)
             .eq("is_public", true)
             .order("created_at", { ascending: false });
         if (options.search?.trim()) q = q.ilike("name", `%${options.search.trim()}%`);
@@ -1015,7 +1021,7 @@ export async function findFileByUrl(url: string): Promise<OsFile | null> {
     if (!url) return null;
     try {
         const supabase = createClient();
-        const { data, error } = await supabase.from("os_files").select("*").eq("url", url).maybeSingle();
+        const { data, error } = await supabase.from("os_files").select(FILE_COLUMNS).eq("url", url).maybeSingle(); // (Ola 225) columnas explícitas (Adenda 186)
         if (error || !data) return null;
         return normalizeRow(data as OsFileRow);
     } catch {
