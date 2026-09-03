@@ -27,6 +27,7 @@ import {
     fetchPosts,
     fetchPostsByAuthor,
     countPosts,
+    countPostsByAuthor,
     mergePages,
     mergeGroups,
     mergeEvents,
@@ -507,6 +508,20 @@ export function useOsPostsByAuthor(
     }, [load, authorId]);
 
     return { posts, loading, error, refetch: load };
+}
+
+/** (Adenda 220) Recuento real de publicaciones de una cuenta (null si no se sabe). */
+export function useOsPostCountByAuthor(authorId: string | null | undefined): number | null {
+    const [n, setN] = useState<number | null>(null);
+    useEffect(() => {
+        let vivo = true;
+        if (!authorId) { setN(null); return; }
+        const leer = () => { countPostsByAuthor(authorId).then((c) => { if (vivo) setN(c); }).catch(() => {}); };
+        leer();
+        const off = (() => { try { return onLiveChange("feed:global", leer); } catch { return () => {}; } })();
+        return () => { vivo = false; off(); };
+    }, [authorId]);
+    return n;
 }
 
 /** (Adenda 220) Recuento real de publicaciones de una entidad (null si no se sabe). */

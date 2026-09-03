@@ -444,6 +444,17 @@ export async function fetchPostsByAuthor(authorId: string, limit = 30): Promise<
     return ((data as PostRow[]) || []).map(normalizePost);
 }
 
+/** (Adenda 220) Recuento real de publicaciones de una CUENTA (sin traer filas). */
+export async function countPostsByAuthor(authorId: string): Promise<number | null> {
+    const supabase = createClient();
+    const { count, error } = await supabase
+        .from("os_posts")
+        .select("id", { count: "exact", head: true })
+        .eq("author_id", authorId);
+    if (error) return null;
+    return typeof count === "number" ? count : null;
+}
+
 /** (Adenda 220) Recuento real de publicaciones de una entidad (sin traer filas). */
 export async function countPosts(entityType: OsEntityType, entitySlug: string): Promise<number | null> {
     const supabase = createClient();

@@ -43,13 +43,16 @@ export function ProfilePostsFeed({
 
     const posts = useMemo<NormalizedPost[]>(() => {
         const vistos = new Set<string>();
-        const todos = [...os.posts, ...(profileId ? cafe.posts : [])].filter((p) => {
+        // Las os_posts del autor son de ESTE perfil: si la fila no guardó nombre
+        // (fallback «Ciudadano StarSeed»), se firma con el nombre real del perfil.
+        const firmadas = os.posts.map((p) => (!p.authorName || p.authorName === "Ciudadano StarSeed" ? { ...p, authorName: name } : p));
+        const todos = [...firmadas, ...(profileId ? cafe.posts : [])].filter((p) => {
             if (vistos.has(p.id)) return false;
             vistos.add(p.id);
             return true;
         });
         return todos.sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
-    }, [os.posts, cafe.posts, profileId]);
+    }, [os.posts, cafe.posts, profileId, name]);
 
     const cargando = os.loading || (Boolean(profileId) && cafe.loading);
 

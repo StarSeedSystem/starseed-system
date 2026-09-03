@@ -13,7 +13,7 @@ import { useParams } from "next/navigation";
 // (Adenda 220) Bienvenida unificada con datos reales (sustituye al widget estático).
 import { EntityWelcome, type WelcomeStep } from "@/components/social/entity-welcome";
 import { ProfilePostsFeed } from "@/components/profile/profile-posts-feed";
-import { useOsPostsByAuthor } from "@/hooks/use-os-entities";
+import { useOsPostsByAuthor, useOsPostCountByAuthor } from "@/hooks/use-os-entities";
 import { StarSeedLoader } from "@/components/ui/starseed-loader";
 import { Globe, MessageSquare } from "lucide-react";
 import { FeaturedBadgesWidget } from "@/components/profile/widgets/featured-badges-widget";
@@ -365,7 +365,9 @@ export default function ProfilePage() {
 
     // ── (Adenda 220) Bienvenida unificada: saludo real + «Primeros pasos» del dueño ──
     const recientes = useOsPostsByAuthor(visitedOwnerUid, 1);
-    const tienePublicaciones = (counts.publicaciones ?? 0) > 0 || recientes.posts.length > 0;
+    const osCount = useOsPostCountByAuthor(visitedOwnerUid);
+    const totalPublicaciones = (counts.publicaciones ?? 0) + (osCount ?? 0);
+    const tienePublicaciones = totalPublicaciones > 0 || recientes.posts.length > 0;
     const welcomeSteps: WelcomeStep[] = isOwner ? [
         { id: "foto", label: "Foto de perfil", done: Boolean(profileData.avatar), href: "/cuenta", hint: "Editar perfil" },
         { id: "portada", label: "Portada", done: Boolean(profileData.cover), href: "/cuenta", hint: "Editar perfil" },
@@ -384,7 +386,7 @@ export default function ProfilePage() {
                     isOwner={isOwner}
                     storageKey={`profile:${pageHandle}`}
                     stats={[
-                        { label: "publicaciones", value: counts.publicaciones ?? (recientes.posts.length > 0 ? recientes.posts.length : null), icon: FileText },
+                        { label: "publicaciones", value: counts.publicaciones === null && osCount === null ? null : totalPublicaciones, icon: FileText },
                         { label: "comunidades", value: counts.comunidades, icon: Globe },
                         { label: "grupos", value: counts.grupos, icon: Users },
                         { label: "enlaces", value: counts.enlaces, icon: Link2 },
@@ -503,7 +505,7 @@ export default function ProfilePage() {
             ? [{ value: 'gobierno', label: toolkitMeta(pageType).toolkitTab, icon: Landmark }]
             : []),
         { value: 'agenda', label: 'Agenda', icon: CalendarDays },
-        { value: 'posts', label: 'Publicaciones', icon: FileText, badge: badge(counts.publicaciones) },
+        { value: 'posts', label: 'Publicaciones', icon: FileText, badge: badge(totalPublicaciones) },
         { value: 'connections', label: 'Conexiones', icon: Users },
         { value: 'library', label: 'Biblioteca', icon: Library },
         { value: 'collections', label: 'Colecciones', icon: Layers },
@@ -513,7 +515,7 @@ export default function ProfilePage() {
         { value: 'secciones', label: 'Secciones', icon: LayoutList, badge: badge(profileLayout.sections.length) },
     ], [
         pageType,
-        counts.publicaciones, counts.enlaces, counts.archivos,
+        totalPublicaciones, counts.enlaces, counts.archivos,
         profileLayout.gallery.length, profileLayout.sections.length,
     ]);
 
