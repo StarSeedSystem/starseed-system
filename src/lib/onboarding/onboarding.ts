@@ -103,15 +103,28 @@ export async function getOnboarding(): Promise<OnboardingState> {
       .eq("owner", owner)
       .single();
     if (!data) return { ...DEFAULT_ONBOARDING };
-    return {
-      ...DEFAULT_ONBOARDING,
-      ...(data as Partial<OnboardingState>),
-      steps: ((data as { steps?: Record<string, unknown> }).steps) || {},
-    };
+    return deFila(data as Record<string, unknown>);
   } catch {
     return { ...DEFAULT_ONBOARDING };
   }
 }
+
+/**
+ * (Ola 227) Fila de `onboarding_state` → estado. La columna es `skipped_at`
+ * (snake_case, como el resto de la tabla); el estado la expone como `skippedAt`.
+ */
+function deFila(data: Record<string, unknown>): OnboardingState {
+  const { skipped_at, ...resto } = data as { skipped_at?: string | null } & Record<string, unknown>;
+  return {
+    ...DEFAULT_ONBOARDING,
+    ...(resto as Partial<OnboardingState>),
+    skippedAt: skipped_at ?? null,
+    steps: ((data as { steps?: Record<string, unknown> }).steps) || {},
+  };
+}
+
+/** Marca de sesión «acabo de registrarme» (la pone el acceso; el rito la consume). */
+const RECIEN_REGISTRADO_KEY = "starseed.recien.registrado";
 
 export async function saveOnboarding(
   patch: Partial<OnboardingState>,
@@ -120,16 +133,29 @@ export async function saveOnboarding(
     const owner = await uid();
     if (!owner) return null;
     const sb = createClient();
+    // (Ola 227) `skippedAt` NO es columna: la tabla tiene `skipped_at`. Enviar
+    // la clave camelCase hacía fallar TODO el upsert (400) y `completed` nunca
+    // se guardaba → el portero reabría el rito en bucle tras la ventana de
+    // perfil. Se traduce aquí y solo aquí.
+    const { skippedAt, ...patchCols } = patch;
     const payload: Record<string, unknown> = {
       owner,
-      ...patch,
+      ...patchCols,
       updated_at: new Date().toISOString(),
     };
+    if (skippedAt !== undefined) payload.skipped_at = skippedAt;
     // (Ola 221) Completar de verdad limpia el «pospuesto»: el rito ya no está
     // saltado, está terminado.
     if (patch.completed === true) {
       payload.skipped = false;
-      payload.skippedAt = null;
+      payload.skipped_at = null;
+    }
+    // (Ola 227) Terminar o posponer el rito consume la marca de «recién
+    // registrado»: sin esto, cada recarga de la pestaña (p. ej. el salto al
+    // perfil tras la ventana de perfil) volvía a abrir la bienvenida encima de
+    // la guía.
+    if (patch.completed === true || patch.skipped === true) {
+      try { window.sessionStorage.removeItem(RECIEN_REGISTRADO_KEY); } catch { /* sin sessionStorage */ }
     }
     // Adenda 188: `steps` se FUSIONA (shallow) con lo ya guardado — cada paso
     // del wizard escribe su parcela (cerebros, permisos, neurona, last…) sin
@@ -140,14 +166,15 @@ export async function saveOnboarding(
         payload.steps = { ...(cur?.steps ?? {}), ...patch.steps };
       } catch { /* sin lectura previa: se escribe el patch tal cual */ }
     }
-    const { data } = await sb
+    const { data, error } = await sb
       .from("onboarding_state")
       .upsert(payload, { onConflict: "owner" })
       .select("*")
       .single();
-    return data
-      ? { ...DEFAULT_ONBOARDING, ...(data as Partial<OnboardingState>) }
-      : null;
+    // (Ola 227) Un fallo aquí antes era invisible y dejaba el rito en bucle:
+    // se deja rastro en consola para que la próxima vez se vea a la primera.
+    if (error) console.warn("[onboarding] no se pudo guardar el estado del rito:", error.message);
+    return data ? deFila(data as Record<string, unknown>) : null;
   } catch {
     return null;
   }
