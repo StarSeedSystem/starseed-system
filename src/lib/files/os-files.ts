@@ -505,7 +505,7 @@ export async function uploadFile(file: File, options: UploadFileOptions = {}): P
         let uploadErrorMsg = "";
         try {
             const { error } = await supabase.storage.from(BUCKET).upload(path, file, {
-                cacheControl: "3600",
+                cacheControl: "31536000", // (Ola 225) ruta inmutable: caché de un año (regla Adenda 186, egress)
                 upsert: false,
                 contentType: file.type || undefined,
             });
@@ -680,7 +680,7 @@ export async function uploadFileVersion(
 
         options.onProgress?.(0);
         const { error: upErr } = await supabase.storage.from(BUCKET).upload(path, file, {
-            cacheControl: "3600",
+            cacheControl: "31536000", // (Ola 225) ruta inmutable: caché de un año (regla Adenda 186, egress)
             upsert: false, // jamás sobrescribir: cada revisión es un objeto nuevo
             contentType: file.type || undefined,
         });

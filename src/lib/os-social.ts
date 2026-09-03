@@ -1359,7 +1359,8 @@ export async function uploadEntityMedia(
             .from(OS_MEDIA_BUCKET)
             .upload(path, file, {
                 upsert: true,
-                cacheControl: "3600",
+                // (Ola 225) ruta inmutable (kind + Date.now): caché de un año (regla Adenda 186, egress)
+                cacheControl: "31536000",
                 contentType: file.type || undefined,
             });
         if (error) throw error;
