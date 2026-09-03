@@ -39,7 +39,6 @@ import {
 import { StepCerebros, StepPermisos, StepNeurona, CorreosVinculados, aplicarPendiente } from "./steps-neurona";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { useAurora } from "@/components/aurora/aurora-provider";
 import { chat } from "@/ai/client/chat";
@@ -57,7 +56,6 @@ import SelectorVozInicial from "@/components/onboarding/selector-voz-inicial";
 import { IconoStarSeed } from "@/components/onboarding/icono-starseed";
 import {
   getOnboarding,
-  saveProfileOptional,
   saveOnboarding,
   isHandleAvailable,
   isValidHandle,
@@ -200,7 +198,6 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
   const [channels, setChannels] = useState<Record<string, ChannelStatus>>({});
   const [pendingCode, setPendingCode] = useState<{ channel: RecoveryMethod | "email"; code: string } | null>(null);
   const [codeInput, setCodeInput] = useState("");
-  const [bio, setBio] = useState("");
 
   // narración por IA
   const [astrauraText, setAstrauraText] = useState<string>(STEP_NARRATION[0]);
@@ -557,8 +554,12 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
         const ok = await doClaimEmail();
         if (!ok) return;
       }
-      const ok = await doSetRecovery();
-      if (!ok) return;
+      // (Ola 228) La recuperación es SALVABLE: sin correo externo elegido ni
+      // teléfono no hay nada que guardar y «Continuar» no puede bloquearse.
+      if (recEmail || recPhone) {
+        const ok = await doSetRecovery();
+        if (!ok) return;
+      }
     }
     // (Ola 221) Los pasos Permisos, Cerebros y Neurona tienen recomendaciones
     // que antes solo se aplicaban con su botón «Aceptar»: «Continuar» las
@@ -574,7 +575,7 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
       setStep((s) => s + 1);
       await saveOnboarding({ steps: { last: step + 1 } });
     }
-  }, [step, profileSaved, address, emailClaimed, doClaimProfile, doClaimEmail, doSetRecovery]);
+  }, [step, profileSaved, address, emailClaimed,         doClaimProfile, doClaimEmail, doSetRecovery, recEmail, recPhone]);
 
   const prev = useCallback(() => setStep((s) => Math.max(0, s - 1)), []);
 
@@ -1078,7 +1079,7 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
             </div>
           )}
 
-          {/* 2 · Correo StarSeed */}
+          {/* 2 · Correo StarSeed + recuperación (Ola 227/228: un solo paso) */}
           {step === 2 && (
             <div className="space-y-4">
               <div className="rounded-xl border border-cyan-500/20 bg-cyan-950/10 p-3.5 space-y-2.5">
@@ -1118,8 +1119,84 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
                 </div>
               </div>
               {/* (Adenda 189) Correos REALES vinculados a la cuenta + alta de
-                  externo, aquí mismo — sin salir del rito de iniciación. */}
-              <CorreosVinculados />
+                  externo, aquí mismo — sin salir del rito de iniciación.
+                  (Ola 228) El chip «Recuperación» ES la fuente única del
+                  correo de recuperación: lo que aquí se elige es exactamente
+                  lo que doSetRecovery guarda (`recEmail`). */}
+              {isGuest && GuestUpgrade}
+              <CorreosVinculados
+                recuperacion={{ elegida: recEmail, onElegir: setRecEmail }}
+                onVerificar={(addr) => { setRecEmail(addr); void doVerify("email"); }}
+              />
+              {recEmail && (
+                <div className="rounded-lg border border-emerald-500/25 bg-emerald-950/10 px-3 py-2 text-[12px] text-emerald-200/90 flex items-center gap-2">
+                  <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
+                  Correo de recuperación: <b className="truncate">{recEmail}</b>
+                  <ChannelBadge status={channels.email} live={false} pendingLabel="registrado" />
+                </div>
+              )}
+
+              {/* Teléfono + método de confirmación (opcional) */}
+              <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3 space-y-3">
+                <div className="grid gap-1.5">
+                  <label className="text-[11px] uppercase tracking-wider text-white/50 font-semibold">Teléfono (recuperación, opcional)</label>
+                  <Input value={recPhone} onChange={(e) => setRecPhone(e.target.value)} placeholder="+34 600 000 000" className="bg-white/5" />
+                </div>
+                <div className="grid gap-1.5">
+                  <label className="text-[11px] uppercase tracking-wider text-white/50 font-semibold">Método de confirmación</label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {([
+                      { id: "telegram", label: "Telegram", icon: MessageCircle, live: true },
+                      { id: "whatsapp", label: "WhatsApp", icon: Phone, live: false },
+                      { id: "sms", label: "SMS", icon: Phone, live: false },
+                    ] as { id: RecoveryMethod; label: string; icon: typeof Phone; live: boolean }[]).map((m) => {
+                      const Icon = m.icon;
+                      const sel = recMethod === m.id;
+                      return (
+                        <button
+                          key={m.id}
+                          onClick={() => setRecMethod(m.id)}
+                          className={cn(
+                            "cursor-pointer p-2.5 rounded-xl border-2 text-left transition-all",
+                            sel ? "border-emerald-400 bg-emerald-500/10" : "border-white/10 hover:border-white/30 bg-white/[0.02]",
+                          )}
+                        >
+                          <Icon className="w-4 h-4 mb-1 text-emerald-300" />
+                          <div className="text-[12px] font-semibold">{m.label}</div>
+                          <div className={cn("text-[10px]", m.live ? "text-emerald-400/70" : "text-amber-300/70")}>
+                            {m.live ? "registrable" : "pendiente de proveedor"}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="flex items-center gap-2 pt-1">
+                    <Button size="sm" variant="outline" disabled={(!recPhone && recMethod !== "telegram") || busy} onClick={() => doVerify(recMethod)} className="gap-1">
+                      <ShieldCheck className="w-3.5 h-3.5" /> Verificar por {recMethod}
+                    </Button>
+                    <ChannelBadge status={channels[recMethod]} live={recMethod === "telegram"} pendingLabel={recMethod === "telegram" ? "registrado" : "pendiente"} />
+                  </div>
+                </div>
+
+                {/* Flujo de verificación con código: sigue alcanzable desde los
+                    botones «Verificar» de cada correo externo y de método. */}
+                {pendingCode && (
+                  <div className="rounded-xl border border-cyan-500/30 bg-cyan-950/10 p-3 space-y-2">
+                    <div className="text-[12px] text-cyan-200/80">
+                      Flujo registrado para <b>{pendingCode.channel}</b>. No se envía a un proveedor externo todavía;
+                      para completar el flujo, introduce el código generado: <b className="font-mono">{pendingCode.code}</b>
+                    </div>
+                    <div className="flex gap-2">
+                      <Input value={codeInput} onChange={(e) => setCodeInput(e.target.value)} placeholder="Código de 6 dígitos" className="bg-white/5 font-mono" />
+                      <Button size="sm" disabled={busy || !codeInput} onClick={doConfirmCode} className="shrink-0">Confirmar</Button>
+                    </div>
+                  </div>
+                )}
+
+                <p className="text-[11px] text-white/40">
+                  Hoy: <b>Telegram</b> y <b>correo externo</b> se registran como canal de recuperación. <b>SMS</b> y <b>WhatsApp</b> quedan <i>pendientes de proveedor</i>. Todo es opcional.
+                </p>
+              </div>
               {emailVariants.length > 0 && (
                 <div className="space-y-1.5">
                   <label className="text-[11px] uppercase tracking-wider text-white/50 font-semibold">Variantes sugeridas</label>
@@ -1169,109 +1246,18 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
             </div>
           )}
 
-          {/* 3 · Recuperación */}
-          {step === 3 && (
-            <div className="space-y-4">
-              {/* Para invitados, este correo también convierte la sesión en cuenta plena. */}
-              {isGuest && GuestUpgrade}
-              <div className="grid gap-1.5">
-                <label className="text-[11px] uppercase tracking-wider text-white/50 font-semibold">Correo externo (recuperación)</label>
-                <div className="flex gap-2">
-                  <Input type="email" value={recEmail} onChange={(e) => setRecEmail(e.target.value)} placeholder="tu@correo.com" className="bg-white/5" />
-                  <Button size="sm" variant="outline" disabled={!recEmail || busy} onClick={() => doVerify("email")} className="shrink-0 gap-1">
-                    <Send className="w-3.5 h-3.5" /> Verificar
-                  </Button>
-                </div>
-                <ChannelBadge status={channels.email} live={false} pendingLabel="registrado" />
-              </div>
+          {/* 3-5 · Permisos · Cerebros · Astraura local (Adenda 188) — el
+              agente de integración analiza el dispositivo y recomienda. Los
+              índices coinciden con STEPS y con `registrarAplicar` (3/4/5), así
+              «Continuar» aplica la recomendación pendiente de cada paso. */}
+          {step === 3 && <StepPermisos />}
 
-              <div className="grid gap-1.5">
-                <label className="text-[11px] uppercase tracking-wider text-white/50 font-semibold">Teléfono (recuperación)</label>
-                <div className="flex gap-2">
-                  <Input value={recPhone} onChange={(e) => setRecPhone(e.target.value)} placeholder="+34 600 000 000" className="bg-white/5" />
-                </div>
-              </div>
+          {step === 4 && <StepCerebros />}
 
-              <div className="grid gap-1.5">
-                <label className="text-[11px] uppercase tracking-wider text-white/50 font-semibold">Método de confirmación</label>
-                <div className="grid grid-cols-3 gap-2">
-                  {([
-                    { id: "telegram", label: "Telegram", icon: MessageCircle, live: true },
-                    { id: "whatsapp", label: "WhatsApp", icon: Phone, live: false },
-                    { id: "sms", label: "SMS", icon: Phone, live: false },
-                  ] as { id: RecoveryMethod; label: string; icon: any; live: boolean }[]).map((m) => {
-                    const Icon = m.icon;
-                    const sel = recMethod === m.id;
-                    return (
-                      <button
-                        key={m.id}
-                        onClick={() => setRecMethod(m.id)}
-                        className={cn(
-                          "p-2.5 rounded-xl border-2 text-left transition-all",
-                          sel ? "border-emerald-400 bg-emerald-500/10" : "border-white/10 hover:border-white/30 bg-white/[0.02]",
-                        )}
-                      >
-                        <Icon className="w-4 h-4 mb-1 text-emerald-300" />
-                        <div className="text-[12px] font-semibold">{m.label}</div>
-                        <div className={cn("text-[10px]", m.live ? "text-emerald-400/70" : "text-amber-300/70")}>
-                          {m.live ? "registrable" : "pendiente de proveedor"}
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-                <div className="flex items-center gap-2 pt-1">
-                  <Button size="sm" variant="outline" disabled={(!recPhone && recMethod !== "telegram") || busy} onClick={() => doVerify(recMethod)} className="gap-1">
-                    <ShieldCheck className="w-3.5 h-3.5" /> Verificar por {recMethod}
-                  </Button>
-                  <ChannelBadge status={channels[recMethod]} live={recMethod === "telegram"} pendingLabel={recMethod === "telegram" ? "registrado" : "pendiente"} />
-                </div>
-              </div>
+          {step === 5 && <StepNeurona />}
 
-              {pendingCode && (
-                <div className="rounded-xl border border-cyan-500/30 bg-cyan-950/10 p-3 space-y-2">
-                  <div className="text-[12px] text-cyan-200/80">
-                    Flujo registrado para <b>{pendingCode.channel}</b>. No se envía a un proveedor externo todavía;
-                    para completar el flujo, introduce el código generado: <b className="font-mono">{pendingCode.code}</b>
-                  </div>
-                  <div className="flex gap-2">
-                    <Input value={codeInput} onChange={(e) => setCodeInput(e.target.value)} placeholder="Código de 6 dígitos" className="bg-white/5 font-mono" />
-                    <Button size="sm" disabled={busy || !codeInput} onClick={doConfirmCode} className="shrink-0">Confirmar</Button>
-                  </div>
-                </div>
-              )}
-
-              <p className="text-[11px] text-white/40">
-                Hoy: <b>Telegram</b> y <b>correo externo</b> se registran como canal de recuperación. <b>SMS</b> y <b>WhatsApp</b> quedan <i>pendientes de proveedor</i>. Todo es opcional.
-              </p>
-            </div>
-          )}
-
-          {/* 4 · Datos opcionales */}
-          {step === 4 && (
-            <div className="space-y-4">
-              <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-                <p className="text-xs text-white/60">
-                  La foto de perfil, la portada, el marco y tu avatar 3D los eliges al final, en la ventana de perfil.
-                </p>
-              </div>
-              <div className="grid gap-1.5">
-                <label className="text-[11px] uppercase tracking-wider text-white/50 font-semibold">Biografía (opcional)</label>
-                <Textarea value={bio} onChange={(e) => setBio(e.target.value)} rows={3} placeholder="Cuéntale a la red quién eres…" className="bg-white/5 text-sm" />
-              </div>
-              <p className="text-[11px] text-white/40">Todo esto es opcional y podrás editarlo cuando quieras desde tu perfil.</p>
-            </div>
-          )}
-
-          {/* 5-7 · Cerebros · Permisos · Astraura local (Adenda 188) — el
-              agente de integración analiza el dispositivo y recomienda. */}
-          {step === 5 && <StepPermisos />}
-
-          {step === 6 && <StepCerebros />}
-
-          {step === 7 && <StepNeurona />}
-
-          {step === 8 && (
+          {/* 6 · Guía de la red */}
+          {step === 6 && (
             <div className="space-y-3">
               <p className="text-sm text-white/60">
                 Estas son las áreas de StarSeed. Cada tarjeta te dice cómo vincular, conectar, crear, publicar o usar. Ábrelas cuando quieras.
