@@ -13,7 +13,7 @@ import {
   Network, BrainCircuit, Settings, Compass, PenLine, ShieldCheck, LayoutGrid,
   Server, Vote, Lightbulb, Cpu, Brain, ShoppingBag, Award, AppWindow,
   CalendarClock, GitBranch, Sparkles, Zap, Wrench, Plug, Eye, HardDrive, Boxes,
-  Camera, Images, RadioTower, Antenna, Radio, AudioLines,
+  Camera, Images, RadioTower, Antenna, Radio, AudioLines, Gauge,
 } from 'lucide-react';
 // Garantía de botones predeterminados con la VERSIÓN DENTRO DEL PAYLOAD
 // (Adenda 149 · tanda 3). El módulo es puro y sin dependencias: lo comparten
@@ -64,7 +64,9 @@ export type DockIconKey =
   // ── Feed de red ──
   | 'Radio'
   // ── Voces (Ola 228) ──
-  | 'AudioLines';
+  | 'AudioLines'
+  // ── Mando (Ola 231) ──
+  | 'Gauge';
 
 /**
  * Mapa iconKey → componente de lucide-react. Fuente ÚNICA de verdad: la usan
@@ -77,7 +79,7 @@ export const DOCK_ICON_MAP: Record<DockIconKey, React.ComponentType<{ className?
   Network, BrainCircuit, Settings, Compass, PenLine, ShieldCheck, LayoutGrid,
   Server, Vote, Lightbulb, Cpu, Brain, ShoppingBag, Award, AppWindow,
   CalendarClock, GitBranch, Sparkles, Zap, Wrench, Plug, Eye, HardDrive, Boxes,
-  Camera, Images, RadioTower, Antenna, Radio, AudioLines,
+  Camera, Images, RadioTower, Antenna, Radio, AudioLines, Gauge,
 };
 
 /** Icono de respaldo defensivo (DOCK_ICON_MAP es total: no debería usarse). */
@@ -242,6 +244,8 @@ export const DOCK_PRESETS: DockItemConfig[] = [
   { id: 'red-feed',      label: 'Feed de red',         iconKey: 'Radio',           path: '/red-feed',              color: 'purple',  enabled: true,  origin: 'preset' },
   // Ola 228: página Voces — estudio de voces y emisión de voz del OS.
   { id: 'voces',         label: 'Voces',               iconKey: 'AudioLines',      path: '/voces',                 color: 'purple',  enabled: true,  origin: 'preset' },
+  // Ola 231: Puente de Mando — consola de producción y desarrollo (solo local).
+  { id: 'mando',         label: 'Mando',               iconKey: 'Gauge',           path: '/mando',                 color: 'amber',   enabled: true,  origin: 'preset' },
 ];
 
 /**

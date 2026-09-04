@@ -10,7 +10,7 @@
 import {
     Globe, Coffee, AudioWaveform, Radio, MessageSquare, Network,
     Library, BrainCircuit, CloudSun, Music, Waves, Orbit, Camera, Images,
-    RadioTower, Antenna, Binary, AudioLines,
+    RadioTower, Antenna, Binary, AudioLines, Gauge,
     // Ola 6 · Adenda 158.
     Sparkles, Users,
 } from "lucide-react";
@@ -142,6 +142,18 @@ export const APP_CATALOG: StarseedApp[] = [
         category: "sistema",
         status: "native",
         open: { primary: "route", allowed: ["route"], route: "/voces" },
+    },
+    {
+        // Ola 231: Puente de Mando — consola de producción y desarrollo (solo local).
+        id: "mando",
+        name: "Mando",
+        short: "Mando",
+        description: "Puente de Mando: pulso del desarrollo (olas, tareas, commits, flota de proveedores) y relevo entre agentes. Solo en tu máquina.",
+        icon: Gauge,
+        accent: "#FFBF00",
+        category: "sistema",
+        status: "native",
+        open: { primary: "route", allowed: ["route"], route: "/mando" },
     },
     {
         id: "omnifrecuencias",
@@ -332,7 +344,7 @@ export function getApp(id: string): StarseedApp | undefined {
 export const APP_COLLECTIONS: Record<LauncherCollection, string[]> = {
     // 'starseed' = folder de inicio por defecto (marca + módulos clave)
     starseed: ["nexus", "cafe", "audiomorphic", "omnifrecuencias", "red-mesh", "senales", "red-feed", "messages", "network", "musica", "clima", "imaginacion"],
-    sistema: ["messages", "network", "library", "agent", "astraura-158", "imaginacion", "enjambre", "red-mesh", "senales", "red-feed", "voces"],
+    sistema: ["messages", "network", "library", "agent", "astraura-158", "imaginacion", "enjambre", "red-mesh", "senales", "red-feed", "voces", "mando"],
     media: ["musica", "radio", "omnifrecuencias", "audiomorphic", "immersive", "camara", "galeria"],
     custom: [],
 };
