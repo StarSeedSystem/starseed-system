@@ -49,6 +49,39 @@ export interface TareaOla {
     dependencias: string[];
 }
 
+/** Latido de una tarea viva: lo escribe el vigilante del enjambre cada 20 s. */
+export interface LatidoTarea {
+    tarea: string;
+    cola: string;
+    /** escribiendo · esperando-memoria · tsc · tests · revision · integrando */
+    fase: string;
+    modelo: string;
+    minutos: number;
+    quietoSegundos: number;
+}
+
+/** Cuántos agentes están escribiendo, cuántos caben y con cuánta memoria. */
+export interface MedidorAgentes {
+    activos: number;
+    orquestadores: number;
+    capacidad: number;
+    memoriaLibreMb: number | null;
+    holgado: boolean;
+}
+
+/** Una tarea esperando turno, con el porqué de su posición en la fila. */
+export interface TareaEnFila {
+    id: string;
+    ola: string;
+    titulo: string;
+    estado: string;
+    dependenciasPendientes: string[];
+    modelosFallidos: number;
+    /** Menor = antes. 0 = ya está en marcha. */
+    prioridad: number;
+    motivo: string;
+}
+
 /** Resumen de una ola (procesadas, bloqueantes, restantes…). */
 export interface OlaResumen {
     id: string;
@@ -102,6 +135,14 @@ export interface EstadoMando {
     relevo: RelevoInfo | null;
     olas: OlaResumen[];
     tareas: TareaOla[];
+    /** Qué está escribiendo cada agente AHORA (vacío si no hay ola en marcha). */
+    latidos: LatidoTarea[];
+    /** Medidor de agentes: activos, capacidad y memoria. */
+    agentes: MedidorAgentes;
+    /** Fila de tareas en orden inteligente para el siguiente agente. */
+    fila: TareaEnFila[];
+    /** True si hay un orquestador vivo en la máquina, no lo que diga un archivo de estado. */
+    enjambreEnMarcha: boolean;
     informes: InformeOla[];
     uso: ProveedorUso[];
     revisiones: RevisionRef[];

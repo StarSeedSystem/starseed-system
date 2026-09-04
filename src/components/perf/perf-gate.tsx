@@ -10,6 +10,7 @@
  * (bonito, del tema StarSeed) que se muestra siempre por debajo.
  */
 
+import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
   applyPerf,
@@ -42,7 +43,15 @@ export function PerfController() {
 }
 
 /** Renderiza los fondos pesados SOLO si el dispositivo los tolera. */
+/**
+ * Rutas de CONSOLA: herramientas de trabajo, no escaparate. El Puente de Mando se abre
+ * mientras los agentes escriben, y en una máquina de 8 GB cada fondo WebGL le quita sitio
+ * a un agente. Aquí no se monta ninguna capa pesada.
+ */
+const RUTAS_CONSOLA = ["/mando"];
+
 export function PerfHeavyOnly({ children }: { children: React.ReactNode }) {
+  const ruta = usePathname();
   const [heavy, setHeavy] = useState(false); // SSR/primer paint: nada pesado
   useEffect(() => {
     const evaluate = () => setHeavy(allowHeavyFx());
@@ -50,6 +59,7 @@ export function PerfHeavyOnly({ children }: { children: React.ReactNode }) {
     window.addEventListener(PERF_CHANGED_EVENT, evaluate);
     return () => window.removeEventListener(PERF_CHANGED_EVENT, evaluate);
   }, []);
+  if (RUTAS_CONSOLA.some((r) => ruta?.startsWith(r))) return null;
   if (!heavy) return null;
   return <>{children}</>;
 }

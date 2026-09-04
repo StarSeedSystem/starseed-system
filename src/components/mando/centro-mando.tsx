@@ -15,6 +15,7 @@
  * marca Radix Tabs).
  */
 
+import { marcarRitoActivo } from "@/lib/ui/rito-activo";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CircleDashed, ShieldAlert } from "lucide-react";
 
@@ -87,6 +88,14 @@ function DatoPulso({
 }
 
 export function CentroMando() {
+    // La consola ocupa la pantalla entera y no necesita el cromo del OS: al declararse
+    // «rito» se apagan dock, cortinas, bordes Trinity y paleta de comandos, que es
+    // capacidad de la máquina que vuelve a los agentes.
+    useEffect(() => {
+        marcarRitoActivo("puente-de-mando", true);
+        return () => marcarRitoActivo("puente-de-mando", false);
+    }, []);
+
     const [pestana, setPestana] = useState<IdPestana>("procesos");
     const [estado, setEstado] = useState<EstadoMando | null>(null);
     const [soloLocal, setSoloLocal] = useState(false);
@@ -132,11 +141,21 @@ export function CentroMando() {
     /** Pulso de la cabecera: ola activa, tareas en curso, sin push, flota agotada. */
     const pulso = useMemo(() => {
         if (!estado) return null;
+        // La ola activa de verdad es la cola que están latiendo los agentes.
+        const latidos = estado.latidos ?? [];
+        const colaViva = latidos[0]?.cola ?? "";
         const olaActiva =
+            (colaViva ? estado.olas.find((o) => o.id.includes(colaViva) || colaViva.includes(o.id)) : null) ??
             estado.olas.find((o) => o.restantes > 0) ??
             estado.olas[0] ??
             null;
-        const tareasEnCurso = estado.olas.reduce((acc, o) => acc + o.restantes, 0);
+        // «En curso» es lo que un agente está escribiendo AHORA (latidos del vigilante).
+        // Sumar `restantes` contaba como en curso todo lo que aún no se ha hecho, aunque no
+        // hubiera ninguna ola en marcha: por eso este número no se movía.
+        const tareasEnCurso =
+            latidos.length > 0
+                ? latidos.length
+                : estado.olas.reduce((acc, o) => acc + o.restantes, 0);
         const flota = flotaConocida(usoPorMotor(estado.uso));
         const agotados = flota.filter((p) => p.estado === "agotado").length;
         return {

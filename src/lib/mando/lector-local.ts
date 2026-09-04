@@ -11,10 +11,15 @@
  * jamás incluyen claves, tokens ni rutas absolutas del disco del usuario.
  */
 
-import { readFile, readdir } from "node:fs/promises";
+import { execFile } from "node:child_process";
+import { readFile, readdir, stat } from "node:fs/promises";
+import { promisify } from "node:util";
 import path from "node:path";
 
 import type {
+    LatidoTarea,
+    MedidorAgentes,
+    TareaEnFila,
     EventoRelevo,
     InformeOla,
     OlaResumen,
@@ -51,6 +56,27 @@ async function listarArchivos(dirRelativa: string, prefijo: string): Promise<str
     } catch {
         return [];
     }
+}
+
+/**
+ * Dónde vive la carpeta de olas. En este repositorio es `starseed_memory_root/olas`, pero el
+ * lector buscaba en `olas/` a secas y por eso las colas, el progreso y los latidos llegaban
+ * vacíos al Mando mientras los informes —que sí probaban las dos rutas— sí aparecían.
+ */
+let olasResuelta: string | null = null;
+async function directorioOlas(): Promise<string> {
+    if (olasResuelta) return olasResuelta;
+    for (const candidata of ["starseed_memory_root/olas", "olas"]) {
+        try {
+            await readdir(path.join(RAÍZ, candidata));
+            olasResuelta = candidata;
+            return candidata;
+        } catch {
+            // se prueba la siguiente
+        }
+    }
+    olasResuelta = "starseed_memory_root/olas";
+    return olasResuelta;
 }
 
 /** Valor numérico seguro: devuelve `alternativo` si `v` no es finito. */
@@ -144,40 +170,211 @@ async function leerBitacora(): Promise<EventoRelevo[]> {
 
 /** Progreso de olas: `olas/progreso.json`. */
 export async function leerProgreso(): Promise<Record<string, unknown>> {
-    const datos = await leerJson("olas/progreso.json");
+    const datos = await leerJson(`${await directorioOlas()}/progreso.json`);
     return typeof datos === "object" && datos !== null ? (datos as Record<string, unknown>) : {};
 }
 
 /** Colas de olas: todos los `olas/cola-*.json` → `TareaOla[]`. */
 export async function leerColas(): Promise<TareaOla[]> {
-    const nombres = await listarArchivos("olas", "cola-");
+    const dirOlas = await directorioOlas();
+    const nombres = await listarArchivos(dirOlas, "cola-");
     const tareas: TareaOla[] = [];
 
     for (const nombre of nombres) {
-        const datos = objeto(await leerJson(`olas/${nombre}`));
-        const derps = Array.isArray(datos.dependencias) ? (datos.dependencias as unknown[]) : [];
+        const crudo = await leerJson(`${dirOlas}/${nombre}`);
+        // Las colas del enjambre son ARRAYS de tareas ([{id, ola, titulo, archivos, prompt, depende}]).
+        // Leerlas como un objeto suelto es lo que dejaba el Mando en «0 tareas» con 11 colas en disco.
+        const lista: unknown[] = Array.isArray(crudo)
+            ? crudo
+            : Array.isArray((objeto(crudo) as { tareas?: unknown }).tareas)
+              ? ((objeto(crudo) as { tareas: unknown[] }).tareas)
+              : [crudo];
+        const nombreCola = nombre.replace(/^cola-/, "").replace(/\.json$/, "");
 
-        const tarea: TareaOla = {
-            id: texto(datos.id ?? nombre.replace(/^cola-/, "").replace(/\.json$/, "")),
-            ola: texto(datos.ola ?? datos.numero),
-            titulo: texto(datos.titulo ?? datos.título ?? datos.nombre ?? datos.descripcion),
-            dependencias: derps
-                .map((d) => texto(d))
-                .filter((d) => d.trim().length > 0),
-        };
-        if (olatareaValida(tarea)) tareas.push(tarea);
+        for (const bruto of lista) {
+            const datos = objeto(bruto);
+            const id = texto(datos.id);
+            if (!tieneTexto(id)) continue;
+            const deps = Array.isArray(datos.depende)
+                ? (datos.depende as unknown[])
+                : Array.isArray(datos.dependencias)
+                  ? (datos.dependencias as unknown[])
+                  : [];
+            tareas.push({
+                id,
+                ola: texto(datos.ola) || nombreCola,
+                titulo: texto(datos.titulo ?? datos.título ?? datos.nombre ?? datos.descripcion),
+                dependencias: deps.map((d) => texto(d)).filter((d) => tieneTexto(d)),
+            });
+        }
     }
 
-    return tareas.sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }));
+    return tareas;
 }
 
-/** Heurística: una tarea solo cuenta si tiene ola o título. */
-function olatareaValida(tarea: TareaOla): boolean {
-    return tieneTexto(tarea.ola) || tieneTexto(tarea.titulo);
+/**
+ * ¿Hay alguna ola en marcha AHORA? No se pregunta a un archivo de estado que alguien tiene que
+ * acordarse de actualizar, sino a la máquina: si no hay proceso, no hay ola.
+ */
+export async function enjambreEnMarcha(): Promise<boolean> {
+    try {
+        const { stdout } = await promisify(execFile)("ps", ["ax", "-o", "command="], {
+            timeout: 5000,
+            maxBuffer: 4 * 1024 * 1024,
+        });
+        return stdout.split("\n").some((l) => l.includes("starseed-enjambre.py"));
+    } catch {
+        return false;
+    }
 }
 
-/** Resúmenes por ola derivados de las colas leídas. */
-export function resumirOlas(tareas: TareaOla[]): OlaResumen[] {
+/**
+ * Medidor de agentes: cuántos están escribiendo AHORA, cuántos caben y cuánta memoria queda.
+ * El techo real de este enjambre no son las APIs, es la RAM: cada `opencode run` pesa, y por
+ * debajo del umbral los agentes arrancan igual pero se arrastran.
+ */
+export async function medirAgentes(): Promise<MedidorAgentes> {
+    let activos = 0;
+    let orquestadores = 0;
+    try {
+        const { stdout } = await promisify(execFile)("ps", ["ax", "-o", "command="], {
+            timeout: 5000,
+            maxBuffer: 4 * 1024 * 1024,
+        });
+        for (const linea of stdout.split("\n")) {
+            if (linea.includes("opencode run")) activos += 1;
+            else if (linea.includes("starseed-enjambre.py")) orquestadores += 1;
+        }
+    } catch {
+        // sin ps no se puede medir; se devuelve lo que haya
+    }
+
+    let memoriaLibreMb: number | null = null;
+    try {
+        const { stdout } = await promisify(execFile)("vm_stat", [], { timeout: 5000 });
+        let pagina = 4096;
+        let libres = 0;
+        for (const linea of stdout.split("\n")) {
+            const tam = /page size of (\d+) bytes/.exec(linea);
+            if (tam) pagina = Number(tam[1]);
+            const libre = /^Pages (free|inactive):\s+(\d+)/.exec(linea);
+            if (libre) libres += Number(libre[2]);
+        }
+        memoriaLibreMb = Math.round((libres * pagina) / 1048576);
+    } catch {
+        // en Linux no hay vm_stat: se queda en null y el panel no lo pinta
+    }
+
+    // Cuántos caben: uno por cada ~700 MB libres, con el umbral del enjambre (1400 MB) como
+    // suelo. No es una cifra teórica: sale de ver la Mac ahogarse con tres a la vez.
+    const capacidad =
+        memoriaLibreMb === null ? activos : Math.max(activos, Math.floor(memoriaLibreMb / 700));
+
+    return { activos, orquestadores, capacidad, memoriaLibreMb, holgado: (memoriaLibreMb ?? 0) > 1400 };
+}
+
+/**
+ * Fila de tareas en orden inteligente: qué debería tocarle al siguiente agente y POR QUÉ.
+ * El orden no es el del archivo: primero lo que está listo para empezar (sin dependencias
+ * pendientes), después lo que ya falló menos veces, y al final lo bloqueado.
+ */
+export function colaInteligente(
+    tareas: TareaOla[],
+    progreso: Record<string, unknown>,
+    latidos: LatidoTarea[],
+): TareaEnFila[] {
+    const estadoDe = (id: string): string => texto(objeto(progreso[id]).estado);
+    const terminada = (id: string): boolean =>
+        ["commit", "sin_cambios", "sustituida"].includes(estadoDe(id));
+    const enMarcha = new Set(latidos.map((l) => l.tarea));
+
+    const fila: TareaEnFila[] = [];
+    for (const tarea of tareas) {
+        if (terminada(tarea.id)) continue;
+        const estado = estadoDe(tarea.id);
+        const pendientes = tarea.dependencias.filter((d) => !terminada(d));
+        const fallidos = Array.isArray(objeto(progreso[tarea.id]).modelos_fallidos)
+            ? (objeto(progreso[tarea.id]).modelos_fallidos as unknown[]).length
+            : 0;
+
+        let prioridad: number;
+        let motivo: string;
+        if (enMarcha.has(tarea.id)) {
+            prioridad = 0;
+            motivo = "un agente la está escribiendo ahora";
+        } else if (pendientes.length > 0) {
+            prioridad = 40;
+            motivo = `espera a ${pendientes.join(", ")}`;
+        } else if (estado.startsWith("fallo") || estado === "conflicto") {
+            prioridad = 20;
+            motivo = `quedó en ${estado}; reintento con otro modelo`;
+        } else if (fallidos > 0) {
+            prioridad = 15;
+            motivo = `${fallidos} modelo(s) ya fallaron aquí; empieza por otro`;
+        } else {
+            prioridad = 10;
+            motivo = "lista para empezar";
+        }
+
+        fila.push({
+            id: tarea.id,
+            ola: tarea.ola,
+            titulo: tarea.titulo,
+            estado: estado || "pendiente",
+            dependenciasPendientes: pendientes,
+            modelosFallidos: fallidos,
+            prioridad,
+            motivo,
+        });
+    }
+
+    return fila.sort((a, b) => a.prioridad - b.prioridad || a.id.localeCompare(b.id, undefined, { numeric: true }));
+}
+
+/**
+ * Latidos: qué está haciendo CADA tarea ahora mismo. Los escribe el vigilante del enjambre en
+ * `olas/latidos-<cola>.json` cada 20 s, con la fase real y el modelo que la está escribiendo.
+ */
+export async function leerLatidos(): Promise<LatidoTarea[]> {
+    const dirOlas = await directorioOlas();
+    const nombres = await listarArchivos(dirOlas, "latidos-");
+    const ahora = Date.now();
+    const latidos: LatidoTarea[] = [];
+
+    for (const nombre of nombres) {
+        // Un orquestador que muere de golpe deja su archivo de latidos con la última tarea
+        // marcada como «escribiendo» para siempre. El vigilante lo reescribe cada 20 s, así que
+        // si el archivo no se ha tocado en 3 minutos, esa ola ya no está viva: se ignora.
+        try {
+            const info = await stat(path.join(RAÍZ, dirOlas, nombre));
+            if (ahora - info.mtimeMs > 3 * 60 * 1000) continue;
+        } catch {
+            continue;
+        }
+        const datos = objeto(await leerJson(`${dirOlas}/${nombre}`));
+        const cola = texto(datos.cola) || nombre.replace(/^latidos-/, "").replace(/\.json$/, "");
+        const porTarea = objeto(datos.tareas);
+        for (const [tarea, bruto] of Object.entries(porTarea)) {
+            const d = objeto(bruto);
+            const fase = texto(d.fase);
+            if (!tieneTexto(fase) || fase === "hecho") continue;
+            const desde = número(d.desde, 0) * 1000;
+            const avance = número(d.avance, 0) * 1000;
+            latidos.push({
+                tarea,
+                cola,
+                fase,
+                modelo: texto(d.modelo),
+                minutos: desde > 0 ? Math.max(0, Math.round((ahora - desde) / 60000)) : 0,
+                quietoSegundos: avance > 0 ? Math.max(0, Math.round((ahora - avance) / 1000)) : 0,
+            });
+        }
+    }
+
+    return latidos.sort((a, b) => a.tarea.localeCompare(b.tarea));
+}
+
+export function resumirOlas(tareas: TareaOla[], progreso: Record<string, unknown> = {}): OlaResumen[] {
     const porOla = new Map<string, TareaOla[]>();
     for (const tarea of tareas) {
         const clave = tarea.ola || tarea.id;
@@ -186,20 +383,35 @@ export function resumirOlas(tareas: TareaOla[]): OlaResumen[] {
         porOla.set(clave, actual);
     }
 
+    const estadoDe = (id: string): string => texto(objeto(progreso[id]).estado);
+
     const resúmenes: OlaResumen[] = [];
     for (const [ola, lista] of porOla) {
+        // Antes se daba todo por procesado y `restantes` era 0 fijo, así que el Mando decía
+        // «0 tareas en curso» aunque hubiera una ola escribiendo. Ahora se cruza con progreso.json.
+        let procesadas = 0;
+        let sinCambios = 0;
+        let bloqueantes = 0;
+        let restantes = 0;
+        for (const tarea of lista) {
+            const estado = estadoDe(tarea.id);
+            if (estado === "commit") procesadas += 1;
+            else if (estado === "sin_cambios" || estado === "sustituida") sinCambios += 1;
+            else if (estado.startsWith("fallo") || estado === "conflicto") bloqueantes += 1;
+            else restantes += 1;
+        }
         resúmenes.push({
             id: ola,
             titulo: lista[0]?.titulo ?? ola,
             seccion: ola,
-            procesadas: lista.length,
-            sinCambios: 0,
-            bloqueantes: 0,
-            restantes: 0,
+            procesadas,
+            sinCambios,
+            bloqueantes,
+            restantes,
             total: lista.length,
         });
     }
-    return resúmenes.sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }));
+    return resúmenes.sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }))
 }
 
 /** Informes de ola: `relevo/informe-*.md`. */

@@ -138,13 +138,13 @@ export function PanelProcesos() {
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 <Indicador
                     titulo="Enjambre libre"
-                    valor={relevo?.enjambreActivo ? "Activo" : "Detenido"}
+                    valor={estado.enjambreEnMarcha ? "Activo" : "Detenido"}
                     detalle={
-                        relevo?.enjambreActivo
+                        estado.enjambreEnMarcha
                             ? "Hay olas ejecutándose en segundo plano."
                             : "Ninguna ola automática en marcha."
                     }
-                    activo={relevo?.enjambreActivo ?? false}
+                    activo={Boolean(estado.enjambreEnMarcha)}
                 />
                 <Indicador
                     titulo="Rama"

@@ -19,7 +19,12 @@ import { createClient } from "@/utils/supabase/server";
 import type { EstadoMando, RepoInfo } from "@/lib/mando/tipos";
 import {
     leerColas,
+    colaInteligente,
+    enjambreEnMarcha,
     leerEstadoRelevo,
+    leerLatidos,
+    leerProgreso,
+    medirAgentes,
     leerInformes,
     leerRevisiones,
     leerUsoDiario,
@@ -107,21 +112,30 @@ export async function GET(): Promise<Response> {
         }
     }
 
-    const [relevo, tareas, informes, uso, revisiones, repo] = await Promise.all([
-        leerEstadoRelevo(),
-        leerColas(),
-        leerInformes(),
-        leerUsoDiario(),
-        leerRevisiones(),
-        leerRepo(),
-    ]);
+    const [relevo, tareas, informes, uso, revisiones, repo, progreso, latidos, enMarcha, agentes] =
+        await Promise.all([
+            leerEstadoRelevo(),
+            leerColas(),
+            leerInformes(),
+            leerUsoDiario(),
+            leerRevisiones(),
+            leerRepo(),
+            leerProgreso(),
+            leerLatidos(),
+            enjambreEnMarcha(),
+            medirAgentes(),
+        ]);
 
     const estado: EstadoMando = {
         generadoEn: new Date().toISOString(),
         mandoActivo: true,
         relevo,
-        olas: resumirOlas(tareas),
+        olas: resumirOlas(tareas, progreso),
         tareas,
+        latidos,
+        enjambreEnMarcha: enMarcha,
+        agentes,
+        fila: colaInteligente(tareas, progreso, latidos),
         informes,
         uso,
         revisiones,
