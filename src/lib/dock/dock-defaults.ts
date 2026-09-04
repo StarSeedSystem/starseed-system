@@ -65,15 +65,17 @@ export const DOCK_STORAGE_KEY = 'starseed.dock.items.v2';
  * banderas one-shot por navegador (`starseed.dock.items.migrated.vN`), que era
  * justo lo que no llegaba a las cuentas viejas.
  */
-export const DOCK_DEFAULTS_VERSION = 15;
+export const DOCK_DEFAULTS_VERSION = 16;
 
 /**
  * Ids que el OS garantiza presentes y encendidos hasta DOCK_DEFAULTS_VERSION.
  * v15 (Ola 6 · Adenda 158) añade `imaginacion`: la página de Imaginación
  * Intuitiva es nueva, así que ninguna cuenta la tiene todavía en su payload y
  * sin esta garantía no aparecería en el dock de nadie.
+ * v16 (Ola 228) añade `voces`: la página Voces es nueva y sin esta garantía
+ * no aparecería en el dock de las cuentas ya existentes.
  */
-export const DOCK_DEFAULT_ON_IDS = ['senales', 'red-feed', 'imaginacion'] as const;
+export const DOCK_DEFAULT_ON_IDS = ['senales', 'red-feed', 'imaginacion', 'voces'] as const;
 
 /**
  * Forma mínima de un item del dock para ESTE módulo. Deliberadamente laxa
@@ -116,6 +118,10 @@ const FALLBACK_SEEDS: Record<string, DockItemLike> = {
   },
   'red-feed': {
     id: 'red-feed', label: 'Feed de red', iconKey: 'Radio', path: '/red-feed',
+    color: 'purple', enabled: true, origin: 'preset',
+  },
+  voces: {
+    id: 'voces', label: 'Voces', iconKey: 'AudioLines', path: '/voces',
     color: 'purple', enabled: true, origin: 'preset',
   },
 };

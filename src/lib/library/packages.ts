@@ -361,6 +361,15 @@ const CORE_ROUTE_PACKAGES: LibraryPackage[] = [
     payload: { route: "/red-feed" },
   },
   {
+    // Ola 228: la página Voces, como paquete instalable para tener paridad
+    // con el dock y el catálogo de apps.
+    id: "app-voces", kind: "app", name: "Voces",
+    description: "Estudio de voces del OS: voces disponibles, ajustes de emisión y pruebas en vivo.",
+    icon: "Volume2", tags: ["app", "voces", "voz", "audio", "sistema"], version: "1.0.0",
+    author: "StarSeed Core", sourceRepoId: "starseed-core", free: true, featured: false,
+    payload: { route: "/voces" },
+  },
+  {
     // Adenda 153: panel del sistema PRIMARIO Astraura 1.58-bit (backend soberano).
     id: "app-astraura-158", kind: "app", name: "Astraura 1.58-bit",
     description: "Sistema primario de inteligencia de StarSeed OS: estado del backend soberano (BitNet b1.58 / motor local), endpoint de la neurona, personalidades, agentes, habilidades, cerebros y memoria.",

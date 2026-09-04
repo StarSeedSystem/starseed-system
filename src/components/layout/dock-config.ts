@@ -13,7 +13,7 @@ import {
   Network, BrainCircuit, Settings, Compass, PenLine, ShieldCheck, LayoutGrid,
   Server, Vote, Lightbulb, Cpu, Brain, ShoppingBag, Award, AppWindow,
   CalendarClock, GitBranch, Sparkles, Zap, Wrench, Plug, Eye, HardDrive, Boxes,
-  Camera, Images, RadioTower, Antenna, Radio,
+  Camera, Images, RadioTower, Antenna, Radio, AudioLines,
 } from 'lucide-react';
 // Garantía de botones predeterminados con la VERSIÓN DENTRO DEL PAYLOAD
 // (Adenda 149 · tanda 3). El módulo es puro y sin dependencias: lo comparten
@@ -62,7 +62,9 @@ export type DockIconKey =
   // ── Red / Conexiones (Red Mesh + Señales) ──
   | 'RadioTower' | 'Antenna'
   // ── Feed de red ──
-  | 'Radio';
+  | 'Radio'
+  // ── Voces (Ola 228) ──
+  | 'AudioLines';
 
 /**
  * Mapa iconKey → componente de lucide-react. Fuente ÚNICA de verdad: la usan
@@ -75,7 +77,7 @@ export const DOCK_ICON_MAP: Record<DockIconKey, React.ComponentType<{ className?
   Network, BrainCircuit, Settings, Compass, PenLine, ShieldCheck, LayoutGrid,
   Server, Vote, Lightbulb, Cpu, Brain, ShoppingBag, Award, AppWindow,
   CalendarClock, GitBranch, Sparkles, Zap, Wrench, Plug, Eye, HardDrive, Boxes,
-  Camera, Images, RadioTower, Antenna, Radio,
+  Camera, Images, RadioTower, Antenna, Radio, AudioLines,
 };
 
 /** Icono de respaldo defensivo (DOCK_ICON_MAP es total: no debería usarse). */
@@ -238,6 +240,8 @@ export const DOCK_PRESETS: DockItemConfig[] = [
   { id: 'red-mesh',      label: 'Red Mesh',            iconKey: 'Antenna',         path: '/red-mesh',              color: 'emerald', enabled: false, origin: 'preset' },
   { id: 'senales',       label: 'Señales',             iconKey: 'RadioTower',      path: '/senales',               color: 'cyan',    enabled: true,  origin: 'preset' },
   { id: 'red-feed',      label: 'Feed de red',         iconKey: 'Radio',           path: '/red-feed',              color: 'purple',  enabled: true,  origin: 'preset' },
+  // Ola 228: página Voces — estudio de voces y emisión de voz del OS.
+  { id: 'voces',         label: 'Voces',               iconKey: 'AudioLines',      path: '/voces',                 color: 'purple',  enabled: true,  origin: 'preset' },
 ];
 
 /**
