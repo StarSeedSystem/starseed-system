@@ -386,3 +386,41 @@ La espera por memoria bajó de 15 a 5 minutos (`STARSEED_ESPERA_MEM_S`): pasado 
 igual y, si de verdad no puede, el vigilante lo corta a los dos minutos.
 
 `starseed-vivo` muestra la salud de los cinco proveedores junto al estado de cada tarea.
+
+### Un solo orquestador para la Mac y la nube · espera en vez de rendirse (2026-09-04, noche)
+
+`starseed-enjambre.py` es EL MISMO archivo en `~/.local/bin/` (Mac) y `~/bin/` (contenedor de
+Cowork): adivina el repo (`~/Documents/starseed-os-main` o `~/starseed-system`) y los worktrees
+si no hay `STARSEED_ROOT`/`STARSEED_WT`. Lo que aprendió esta noche:
+
+- **Un 200 con aviso de cuota NO es una respuesta.** aihubmix devolvía «accounts that have not
+  been recharged can only try 10 times» como contenido y seis commits (MD2, MD6, VZ1, VZ3-5) se
+  integraron con eso archivado como «revisión ok». `es_aviso_de_cuota()` lo convierte en fallo del
+  proveedor (revisor y sonda). Se revisaron después de verdad (revisiones.md, «RETROACTIVA»).
+- **429 = esperar, no quemar la lista.** `ESPERA_429_S`=75 s y se reintenta el MISMO modelo (2
+  veces) antes de pasar al siguiente. Si TODOS los proveedores útiles están caídos, la tarea espera
+  hasta `ESPERA_PROVEEDOR_S`=45 min (fase «esperando proveedor») en vez de darse por perdida en
+  2 segundos (VZ2, 22:31).
+- **La cola viaja en el bus**: el evento `arranque` lleva las tareas (id, ola, título, depende)
+  para que el Puente de Mando de la otra máquina las dibuje aunque no tenga el archivo
+  (`starseed_memory_root/` no se versiona).
+- xKiro tiene **cuota diaria** para los modelos `:free` (la agotamos el 04-09 a las ~20:50 UTC);
+  aihubmix gratis solo permite 10 llamadas sin recarga. Revisores que sí quedan: tokenrouter
+  (`z-ai/glm-5.3-free`, pensante: `max_tokens` 2500) y NIM.
+- El supervisor avisa «recuperado» UNA vez (estado en memoria, no releyendo el archivo).
+
+### Puente de Mando · Ramificación multiagéntica (2026-09-04, noche)
+
+Pestaña **Procesos** → `RamificacionAgentes` (`src/components/mando/ramificacion-agentes.tsx`):
+el árbol de cada ola por niveles de dependencia con flechas, tarjeta por tarea con su rama
+agente → revisor → commit, latido vivo (fase, modelo·proveedor, tokens reales in/out, llamadas,
+barra de ventana), ficha con pasos/eventos/contexto. Datos: `GET /api/mando/ramificacion`
+(`src/lib/mando/ramificacion.ts`: colas de disco + colas del bus + progreso + pasos + eventos +
+latidos). Se relee cada 20 s. En `/mando` no se montan los globales del OS (`AppGlobals`).
+
+### Voz: una sola copia del modelo en la Mac (2026-09-04, noche)
+
+`/api/voz/salud` y `/api/voz/hablar` prueban primero el tts-server crudo en 4500 y, si no hay,
+hablan con el **demonio Astraura** (`native/astraura-voice/daemon.mjs`, 127.0.0.1:4444, pool de
+tts-server en 4501+; launchd `com.starseed.astraura-voice`). No lances un segundo tts-server a
+mano: son 900 MB por copia en una Mac de 8 GB.
