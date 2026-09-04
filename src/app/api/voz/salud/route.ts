@@ -18,14 +18,19 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(): Promise<Response> {
-    try {
-        const supabase = await createClient();
-        const { data, error } = await supabase.auth.getUser();
-        if (error || !data.user) {
-            return Response.json({ error: "Necesitas iniciar sesión." }, { status: 401 });
+    // El rito de bienvenida habla ANTES de que exista sesión: exigirla aquí dejaba la voz
+    // neuronal fuera de la primera pantalla y el OS caía a la voz robótica del navegador.
+    // El demonio vive en 127.0.0.1 y no toca datos del usuario; en producción no existe.
+    if (process.env.NODE_ENV === "production") {
+        try {
+            const supabase = await createClient();
+            const { data, error } = await supabase.auth.getUser();
+            if (error || !data.user) {
+                return Response.json({ error: "Necesitas iniciar sesión." }, { status: 401 });
+            }
+        } catch {
+            return Response.json({ error: "No se pudo verificar la sesión." }, { status: 401 });
         }
-    } catch {
-        return Response.json({ error: "No se pudo verificar la sesión." }, { status: 401 });
     }
 
     const salud = await saludDaemon(800);

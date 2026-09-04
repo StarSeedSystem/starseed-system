@@ -23,15 +23,19 @@ const MAX_TEXTO = 4000;
 
 export async function POST(req: Request): Promise<Response> {
     let userId: string | null = null;
-    try {
-        const supabase = await createClient();
-        const { data, error } = await supabase.auth.getUser();
-        if (error || !data.user) {
-            return Response.json({ error: "Necesitas iniciar sesión para hablar por esta neurona." }, { status: 401 });
+    // Igual que /api/voz/salud: la bienvenida habla antes de que haya sesión. En local el
+    // demonio es del usuario y está en 127.0.0.1; solo en producción se exige sesión.
+    if (process.env.NODE_ENV === "production") {
+        try {
+            const supabase = await createClient();
+            const { data, error } = await supabase.auth.getUser();
+            if (error || !data.user) {
+                return Response.json({ error: "Necesitas iniciar sesión para hablar por esta neurona." }, { status: 401 });
+            }
+            userId = data.user.id;
+        } catch {
+            return Response.json({ error: "No se pudo verificar la sesión." }, { status: 401 });
         }
-        userId = data.user.id;
-    } catch {
-        return Response.json({ error: "No se pudo verificar la sesión." }, { status: 401 });
     }
 
     const rl = rateLimit(`voz-hablar:${userId}`, 30, 10 * 60 * 1000);

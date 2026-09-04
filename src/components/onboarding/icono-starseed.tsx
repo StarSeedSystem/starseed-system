@@ -20,14 +20,17 @@ export function IconoStarSeed({ size = 56, className }: { size?: number; classNa
         aria-hidden
         className="pointer-events-none absolute inset-0 rounded-full bg-gradient-to-tr from-amber-400/20 to-sky-400/20 blur-md"
       />
+      {/* El símbolo es un PNG de 1000×1497 (2:3, vertical). Forzarlo a un cuadrado y recortarlo
+          en círculo lo aplastaba: el icono conserva SIEMPRE sus proporciones; el anillo es solo
+          decoración detrás, con holgura, y el símbolo se ajusta por su lado mayor. */}
       <Image
         src="/starseed-symbol.png"
         alt="StarSeed"
-        width={size}
-        height={size}
+        width={1000}
+        height={1497}
         priority
-        className="relative h-auto w-auto rounded-full"
-        style={{ width: size, height: size }}
+        className="relative"
+        style={{ width: "auto", height: Math.round(size * 0.82), maxWidth: size, objectFit: "contain" }}
       />
     </span>
   );
