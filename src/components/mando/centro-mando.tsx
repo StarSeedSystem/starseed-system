@@ -146,10 +146,14 @@ export function CentroMando() {
         // La ola activa de verdad es la cola que están latiendo los agentes.
         const latidos = estado.latidos ?? [];
         const colaViva = latidos[0]?.cola ?? "";
+        // La cola late como «cola-240-estudio-voces» y la ola se llama «Ola 240 · estudio de
+        // voces»: se casan por el número, no por el texto (antes salía la 221 con la 240 viva).
+        const numeroDe = (s: string): string => (/(\d{2,4})/.exec(s)?.[1] ?? "");
+        const numeroViva = numeroDe(colaViva);
         const olaActiva =
-            (colaViva ? estado.olas.find((o) => o.id.includes(colaViva) || colaViva.includes(o.id)) : null) ??
-            estado.olas.find((o) => o.restantes > 0) ??
-            estado.olas[0] ??
+            (numeroViva ? estado.olas.find((o) => numeroDe(o.id) === numeroViva) : null) ??
+            [...estado.olas].reverse().find((o) => o.restantes > 0) ??
+            estado.olas[estado.olas.length - 1] ??
             null;
         // «En curso» es lo que un agente está escribiendo AHORA (latidos del vigilante).
         // Sumar `restantes` contaba como en curso todo lo que aún no se ha hecho, aunque no
@@ -159,9 +163,17 @@ export function CentroMando() {
                 ? latidos.length
                 : estado.olas.reduce((acc, o) => acc + o.restantes, 0);
         const flota = flotaConocida(usoPorMotor(estado.uso));
-        const agotados = flota.filter((p) => p.estado === "agotado").length;
+        // Agotados según el uso diario + caídos según el supervisor de cada enjambre (bus):
+        // xkiro sin cuota diaria es «caído» para el supervisor aunque el contador local no lo sepa.
+        const fuera = new Set<string>(flota.filter((p) => p.estado === "agotado").map((p) => p.id));
+        for (const e of estado.enjambres ?? []) {
+            for (const [prov, salud] of Object.entries(e.proveedores ?? {})) {
+                if (salud.estado === "caido") fuera.add(prov);
+            }
+        }
+        const agotados = fuera.size;
         return {
-            olaActiva: olaActiva ? `Ola ${olaActiva.id} · ${olaActiva.titulo}` : "Sin olas activas",
+            olaActiva: olaActiva ? (/^ola\s/i.test(olaActiva.id) ? olaActiva.id : `Ola ${olaActiva.id}`) : "Sin olas activas",
             tareasEnCurso,
             sinPush: estado.repo?.sinPush ?? null,
             agotados,

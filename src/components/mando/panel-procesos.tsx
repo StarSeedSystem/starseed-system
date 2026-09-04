@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 
 import type { EstadoMando } from "@/lib/mando/tipos";
+import { RamificacionAgentes } from "@/components/mando/ramificacion-agentes";
 
 /** Formatea una fecha ISO a hora local corta. */
 function horaCorta(fecha: string): string {
@@ -212,6 +213,9 @@ export function PanelProcesos() {
 
     useEffect(() => {
         void recargar();
+        // En vivo: el estado se relee cada 20 s (los latidos del enjambre llegan cada 20 s / 2 min).
+        const id = window.setInterval(() => void recargar(), 20_000);
+        return () => window.clearInterval(id);
     }, [recargar]);
 
     if (cargando && !estado) {
@@ -245,6 +249,7 @@ export function PanelProcesos() {
 
     return (
         <div className="space-y-4">
+            <RamificacionAgentes />
             <AgentesEnVivo estado={estado} />
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 <Indicador
