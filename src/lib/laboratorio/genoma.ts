@@ -89,6 +89,21 @@ export const CAPAS: Record<CapaId, CapaInfo> = {
   },
 };
 
+export interface CapaOrdenada {
+  id: CapaId;
+  nombre: string;
+  indice: number;
+  mutabilidad: number;
+  color: string;
+}
+
+/** Devuelve las nueve capas ordenadas por índice (de lo fundamental a lo cambiante). */
+export function capasOrdenadas(): CapaOrdenada[] {
+  return (Object.keys(CAPAS) as CapaId[])
+    .map((id) => ({ id, ...CAPAS[id] }))
+    .sort((a, b) => a.indice - b.indice);
+}
+
 export type MedioNodo =
   | "texto"
   | "voz"
