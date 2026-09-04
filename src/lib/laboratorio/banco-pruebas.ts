@@ -6,6 +6,7 @@
 // red ni Supabase: solo razona sobre los nodos del genoma en el navegador.
 
 import type { Genoma, NodoGenoma } from "./genoma";
+import type { VersionLab } from "./versiones";
 
 export interface CasoDePrueba {
   id: string;
