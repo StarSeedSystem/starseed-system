@@ -362,3 +362,27 @@ qwen3-coder-480b (fuera del catálogo) y kimi-k2.6 (opencode no lo resuelve).
 
 ⚠️ Claves SOLO en `~/.hermes/.env` (chmod 600) y `.env.local` (ignorado por git). Nunca en el
 repositorio, ni en documentos, ni en memorias: solo el nombre de la variable.
+
+### Supervisor en tiempo real (2026-09-04)
+
+Nada espera a una comprobación programada. Tres capas, todas dentro del propio orquestador:
+
+1. **Supervisor de proveedores** (`supervisor_proveedores`, cada `STARSEED_SONDEO_S`=60 s): sondea
+   con un GET barato xkiro, nim, aihubmix, tokenrouter y openrouter. Dos fallos seguidos y el
+   proveedor se marca **caído** en `~/.starseed/salud-proveedores.json`, que **comparten todas las
+   olas**: sus modelos salen de la rotación al instante y ninguna tarea pierde el tiempo
+   intentándolo. Cuando vuelve a responder, se reincorpora solo. Ambos sucesos avisan al momento
+   (bus + Hermes).
+2. **Reenrutado dentro del bucle**: antes de cada intento se relee la salud; si ese proveedor
+   acaba de caerse, se salta sin gastar intento (evento `reenrutado`).
+3. **Vigilante de tareas** (cada 20 s), en dos tiempos:
+   - `STARSEED_ARRANQUE_S`=120 s sin escribir **ni una línea** desde que empezó la fase → no está
+     pensando, está atascado: se corta y se reenruta.
+   - `STARSEED_ESTANCADO_S`=420 s sin avance a mitad de trabajo → mismo corte.
+   La línea de partida del log se guarda por fase, para no confundir «escribió algo» con «el log
+   ya venía lleno de una ola anterior».
+
+La espera por memoria bajó de 15 a 5 minutos (`STARSEED_ESPERA_MEM_S`): pasado ese plazo arranca
+igual y, si de verdad no puede, el vigilante lo corta a los dos minutos.
+
+`starseed-vivo` muestra la salud de los cinco proveedores junto al estado de cada tarea.
