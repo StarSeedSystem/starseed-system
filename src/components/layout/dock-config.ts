@@ -14,6 +14,7 @@ import {
   Server, Vote, Lightbulb, Cpu, Brain, ShoppingBag, Award, AppWindow,
   CalendarClock, GitBranch, Sparkles, Zap, Wrench, Plug, Eye, HardDrive, Boxes,
   Camera, Images, RadioTower, Antenna, Radio, AudioLines, Gauge,
+  Smile,
 } from 'lucide-react';
 // Garantía de botones predeterminados con la VERSIÓN DENTRO DEL PAYLOAD
 // (Adenda 149 · tanda 3). El módulo es puro y sin dependencias: lo comparten
@@ -66,7 +67,9 @@ export type DockIconKey =
   // ── Voces (Ola 228) ──
   | 'AudioLines'
   // ── Mando (Ola 231) ──
-  | 'Gauge';
+  | 'Gauge'
+  // ── Mundo de los avatares (Ola 234) ──
+  | 'Smile';
 
 /**
  * Mapa iconKey → componente de lucide-react. Fuente ÚNICA de verdad: la usan
@@ -79,7 +82,7 @@ export const DOCK_ICON_MAP: Record<DockIconKey, React.ComponentType<{ className?
   Network, BrainCircuit, Settings, Compass, PenLine, ShieldCheck, LayoutGrid,
   Server, Vote, Lightbulb, Cpu, Brain, ShoppingBag, Award, AppWindow,
   CalendarClock, GitBranch, Sparkles, Zap, Wrench, Plug, Eye, HardDrive, Boxes,
-  Camera, Images, RadioTower, Antenna, Radio, AudioLines, Gauge,
+  Camera, Images, RadioTower, Antenna, Radio, AudioLines, Gauge, Smile,
 };
 
 /** Icono de respaldo defensivo (DOCK_ICON_MAP es total: no debería usarse). */
@@ -246,6 +249,8 @@ export const DOCK_PRESETS: DockItemConfig[] = [
   { id: 'voces',         label: 'Voces',               iconKey: 'AudioLines',      path: '/voces',                 color: 'purple',  enabled: true,  origin: 'preset' },
   // Ola 231: Puente de Mando — consola de producción y desarrollo (solo local).
   { id: 'mando',         label: 'Mando',               iconKey: 'Gauge',           path: '/mando',                 color: 'amber',   enabled: true,  origin: 'preset' },
+  // Ola 234: Mundo de los avatares — escena 3D viva de los habitantes de la red.
+  { id: 'mundo-avatares', label: 'Mundo de los avatares', iconKey: 'Smile',      path: '/mundo-avatares',         color: 'purple',  enabled: true,  origin: 'preset' },
 ];
 
 /**

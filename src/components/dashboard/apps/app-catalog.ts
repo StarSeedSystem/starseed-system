@@ -10,7 +10,7 @@
 import {
     Globe, Coffee, AudioWaveform, Radio, MessageSquare, Network,
     Library, BrainCircuit, CloudSun, Music, Waves, Orbit, Camera, Images,
-    RadioTower, Antenna, Binary, AudioLines, Gauge,
+    RadioTower, Antenna, Binary, AudioLines, Gauge, Smile,
     // Ola 6 · Adenda 158.
     Sparkles, Users,
 } from "lucide-react";
@@ -154,6 +154,18 @@ export const APP_CATALOG: StarseedApp[] = [
         category: "sistema",
         status: "native",
         open: { primary: "route", allowed: ["route"], route: "/mando" },
+    },
+    {
+        // Ola 234: Mundo de los avatares — escena 3D viva de los habitantes.
+        id: "mundo-avatares",
+        name: "Mundo de los avatares",
+        short: "Mundo avatar",
+        description: "Escena 3D viva de la red: cada avatar con su propio gesto, moviéndose según su personalidad.",
+        icon: Smile,
+        accent: "#A855F7",
+        category: "sistema",
+        status: "native",
+        open: { primary: "route", allowed: ["route"], route: "/mundo-avatares" },
     },
     {
         id: "omnifrecuencias",
@@ -344,7 +356,7 @@ export function getApp(id: string): StarseedApp | undefined {
 export const APP_COLLECTIONS: Record<LauncherCollection, string[]> = {
     // 'starseed' = folder de inicio por defecto (marca + módulos clave)
     starseed: ["nexus", "cafe", "audiomorphic", "omnifrecuencias", "red-mesh", "senales", "red-feed", "messages", "network", "musica", "clima", "imaginacion"],
-    sistema: ["messages", "network", "library", "agent", "astraura-158", "imaginacion", "enjambre", "red-mesh", "senales", "red-feed", "voces", "mando"],
+    sistema: ["messages", "network", "library", "agent", "astraura-158", "imaginacion", "enjambre", "red-mesh", "senales", "red-feed", "voces", "mando", "mundo-avatares"],
     media: ["musica", "radio", "omnifrecuencias", "audiomorphic", "immersive", "camara", "galeria"],
     custom: [],
 };
