@@ -7,7 +7,7 @@
  * repositorio y a resúmenes sin material sensible.
  */
 
-/** Un evento de la bitácora de relevo (línea de `bitacora.jsonl`). */
+/** Un evento de la bitácora de relevo (línea de `bitacora.jsonl` o fila de `relevo_eventos`). */
 export interface EventoRelevo {
     id: string;
     t: string;
@@ -15,6 +15,8 @@ export interface EventoRelevo {
     tipo: string;
     tarea: string;
     texto: string;
+    /** Metadatos libres del evento (columna `datos` de la tabla `relevo_eventos`). */
+    datos?: unknown;
 }
 
 /** Un relevo (handoff) registrado en `estado.json`. */
