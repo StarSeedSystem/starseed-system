@@ -340,3 +340,25 @@ hacen `git add -A` ni `push`. Numeración de adendas: la del relevo. Sesión Cla
 el doc del proyecto `claude/relevo-actual.md` (copia de relevo.md subida en cada handoff). **Contexto largo
 = créditos**: cada llamada reenvía todo el historial; antes que una sesión eterna, sesión nueva + relevo.
 Hermes tiene la skill `~/.hermes/skills/starseed-relevo` y la regla en `~/.hermes/SOUL.md`.
+
+### Flota de escritores del enjambre (verificada 2026-09-04)
+
+**xKiro** (`https://api.xkiro.com/v1`, clave en la variable `XKIRO_API_KEY`) — 110 modelos, **40
+gratis con tool-calling** y 5M tokens/día. Comprobado en vivo que **opencode SÍ edita archivos**
+con ellos (qwen3-coder-plus, minimax-m3 y devstral-medium modificaron un archivo de prueba);
+esto es lo que fallaba con aihubmix y tokenrouter, que se quedan de revisores. Su Cloudflare
+rechaza el User-Agent por defecto de urllib con 403: las llamadas HTTP mandan uno propio.
+
+Escritores en rotación, alternando proveedor para repartir carga:
+xkiro/qwen3-coder-plus · nim/kimi-k3 · xkiro/minimax-m3 · nim/deepseek-v4-flash ·
+xkiro/qwen3.8-max · nim/deepseek-v4-pro · xkiro/deepseek-v4-pro · xkiro/devstral-medium.
+
+Revisores: xkiro/qwen3.7-plus y xkiro/minimax-m2.7-highspeed primero, luego aihubmix,
+tokenrouter, NIM, OpenRouter y Gemini al final (Google se reserva).
+
+`validar_modelos()` comprueba los catálogos de NIM y xKiro al arrancar cada ola y saca de la
+rotación lo que ya no exista. Modelos caídos el 2026-09-04: gpt-oss-120b (410, fin de vida),
+qwen3-coder-480b (fuera del catálogo) y kimi-k2.6 (opencode no lo resuelve).
+
+⚠️ Claves SOLO en `~/.hermes/.env` (chmod 600) y `.env.local` (ignorado por git). Nunca en el
+repositorio, ni en documentos, ni en memorias: solo el nombre de la variable.
