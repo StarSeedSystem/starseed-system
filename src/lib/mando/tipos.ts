@@ -151,6 +151,28 @@ export interface RepoInfo {
     log: string[];
 }
 
+/** Un nodo del grafo de orquestación (Ola 239). */
+export interface NodoGrafo {
+    id: string;
+    tipo: "ola" | "tarea" | "modelo" | "revisor" | "commit";
+    etiqueta: string;
+    estado?: string;
+    ola?: string;
+}
+
+/** Una arista (relación dirigida) entre dos nodos del grafo de orquestación. */
+export interface AristaGrafo {
+    de: string;
+    a: string;
+    tipo: "contiene" | "depende" | "escribio" | "reviso" | "produjo";
+}
+
+/** El grafo de orquestación completo que devuelve `GET /api/mando/grafo`. */
+export interface GrafoOrquestacion {
+    nodos: NodoGrafo[];
+    aristas: AristaGrafo[];
+}
+
 /** El contrato completo que devuelve `GET /api/mando/estado`. */
 export interface EstadoMando {
     generadoEn: string;
