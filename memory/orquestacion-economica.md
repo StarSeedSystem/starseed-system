@@ -53,7 +53,37 @@ del minuto (dejarlo para tareas largas). `mistralai/codestral-22b` NO se sirve e
 `GROQ_API_KEY`/claves personales en Ajustes → Inteligencia (cifradas en el dispositivo) ·
 `NVIDIA_API_KEY` en `~/.hermes/.env` (Hermes y `starseed-sub`).
 
-## 5. Protocolo de relevo entre sesiones y medios
+## 5. Flota de proveedores (2026-09-04)
+
+Flota real comprobada hoy. REGLA ABSOLUTA: nunca escribir una clave; solo el **nombre** de la
+variable de entorno (viven en `~/.hermes/.env` con permisos 600 y en `.env.local`, jamás en el
+repositorio).
+
+| Proveedor | base_url | Variable de entorno | Modelos gratuitos verificados | Límite conocido | Papel en el enjambre |
+|---|---|---|---|---|---|
+| **NVIDIA NIM** | `https://integrate.api.nvidia.com/v1` | `NVIDIA_API_KEY` / `NVIDIA_SHARED_KEY` | 82 modelos (`kimi-k3`, `deepseek-v4-flash`, `gpt-oss-120b`, `nemotron-3-super`) | ~40 req/min | **ESCRITOR principal** vía opencode |
+| **AIHubMix** | `https://aihubmix.com/v1` | `AIHUBMIX_API_KEY` | 412 modelos, 54 gratuitos; verificados: `coding-glm-5.3-free` (1,4 s) y `gemini-3.7-flash-free` (3,2 s); sin canal ahora mismo: `minimax-m3-free`, `nemotron-3.5-lightning-free`, `hy3-free`; los NO gratuitos (`glm-5.2`) dan 403 por saldo | — | **REVISOR principal** desde hoy |
+| **OpenRouter `:free`** | `https://openrouter.ai/api/v1` | `OPENROUTER_API_KEY` | modelos `:free` | 50 peticiones/día sin saldo (se agota pronto: da 429 el resto del día) | revisor de reserva |
+| **Google Gemini** | `generativelanguage.googleapis.com` | `GEMINI_API_KEY` | `flash-lite` | ~15 req/min | última reserva (se deja al final para no gastar en Google) |
+| **TokenRouter** | `https://api.tokenrouter.io/v1` | `TOKENROUTER_API_KEY` | `z-ai/glm-5.3-free`, `nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free` | **PENDIENTE**: su API exige una clave de INFERENCIA que empieza por `tr_`; los tokens `sk-` del panel (de gestión) devuelven 401 «Missing or malformed API key» | — |
+| **Nous Portal** | — | — | — | cuota del plan | orquestación y verificación |
+
+## 6. Agentes de código disponibles
+
+- **opencode 1.2.15** — `opencode run --model <proveedor>/<modelo> --dir <ruta>`, configurado en
+  `~/.config/opencode/opencode.json` con los proveedores `nvidia` y `aihubmix`. Es el ESCRITOR
+  principal del enjambre.
+- **UTIM** (`@emend-ai/utim` v2.3.19) — «Universal Terminal Intelligence Manager», instalado
+  como segundo tipo de trabajador para multiplicar agentes en paralelo.
+
+## 7. Política de enrutamiento automático del enjambre
+
+Escribir con NVIDIA NIM (opencode) y revisar con AIHubMix. Ante un fallo o cuota agotada se
+releva en cascada NIM → OpenRouter → Gemini, sin que ningún proveedor llegue a agotarse. Los
+cupos por minuto los declara cada proveedor en `~/.local/bin/starseed-enjambre.py` (constante
+`CUPOS_RPM`).
+
+## 8. Protocolo de relevo entre sesiones y medios
 
 1. **Al abrir**: leer `CLAUDE.md`, `starseed_memory_root/index.md`, la última adenda del
    proyecto (`claude/adenda-NNN-…`) y `claude/memorias-workflow-continuidad.md`.

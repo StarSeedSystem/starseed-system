@@ -286,6 +286,10 @@ por coste (lo mecánico a subagentes gratis: `starseed-sub <rol> "prompt"`; lo d
 capaz), releva al siguiente proveedor ante 429/402 sin insistir, y **deja el punto de relevo**
 (commit + adenda + `starseed_memory_root/state.md`) antes de acercarse a su límite para que otro
 modelo continúe solo. Capas y dónde se editan: `memory/orquestacion-economica.md` (léelo).
+En esta flota, **AIHubMix** (`AIHUBMIX_API_KEY`, 412 modelos con 54 gratuitos) es el **revisor
+principal**, y **UTIM** (`@emend-ai/utim` v2.3.19) actúa como **segundo agente de código** para
+multiplicar agentes en paralelo; la tabla completa de proveedores y cupos está en
+`memory/orquestacion-economica.md` (sección «Flota de proveedores»).
 Proveedores comunitarios con clave solo en el servidor: `/api/ai/openrouter`
 (`OPENROUTER_SHARED_KEY`) y `/api/ai/nvidia` (`NVIDIA_SHARED_KEY`, NVIDIA NIM · 82 modelos).
 Hermes tiene `providers.nvidia` (`NVIDIA_API_KEY` en `~/.hermes/.env`). Claves: nunca en el repo
