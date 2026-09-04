@@ -31,6 +31,7 @@ import { Slider } from "@/components/ui/slider";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { FichaVoz } from "@/components/voces/ficha-voz";
+import { PanelMotorVoz } from "@/components/voces/panel-motor";
 
 type FiltroGenero = "todas" | VozEditable["genero"];
 
@@ -250,30 +251,37 @@ export function EstudioVoces() {
                 </CardContent>
             </Card>
 
-            {/* ── Detalle: Ajustes / Ficha técnica ─────────────────────────── */}
+            {/* ── Detalle: Motor / Ajustes / Ficha técnica ─────────────────── */}
             <Card>
-                {borrador ? (
-                    <>
-                        <CardHeader>
-                            <CardTitle className="flex items-center gap-2 text-base">
-                                {borrador.nombre}
-                                <Badge variant="outline">
-                                    {borrador.genero === "femenina"
-                                        ? "Femenina"
-                                        : borrador.genero === "masculina"
-                                          ? "Masculina"
-                                          : "Neutra"}
-                                </Badge>
-                            </CardTitle>
-                            <CardDescription>{borrador.id}</CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            <Tabs defaultValue="ajustes">
-                                <TabsList>
-                                    <TabsTrigger value="ajustes" className="cursor-pointer">Ajustes</TabsTrigger>
-                                    <TabsTrigger value="ficha" className="cursor-pointer">Ficha técnica</TabsTrigger>
-                                </TabsList>
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-base">
+                        {borrador ? borrador.nombre : "Estudio de Voces"}
+                        {borrador && (
+                            <Badge variant="outline">
+                                {borrador.genero === "femenina"
+                                    ? "Femenina"
+                                    : borrador.genero === "masculina"
+                                      ? "Masculina"
+                                      : "Neutra"}
+                            </Badge>
+                        )}
+                    </CardTitle>
+                    {borrador && <CardDescription>{borrador.id}</CardDescription>}
+                </CardHeader>
+                <CardContent>
+                    <Tabs defaultValue="motor">
+                        <TabsList>
+                            <TabsTrigger value="motor" className="cursor-pointer">Motor</TabsTrigger>
+                            <TabsTrigger value="ajustes" className="cursor-pointer">Ajustes</TabsTrigger>
+                            <TabsTrigger value="ficha" className="cursor-pointer">Ficha técnica</TabsTrigger>
+                        </TabsList>
 
+                        <TabsContent value="motor" className="pt-4">
+                            <PanelMotorVoz />
+                        </TabsContent>
+
+                        {borrador ? (
+                    <>
                                 <TabsContent value="ajustes" className="space-y-5 pt-4">
                                     <div className="grid gap-4 sm:grid-cols-2">
                                         <div className="space-y-1.5">
@@ -417,14 +425,14 @@ export function EstudioVoces() {
                                 <TabsContent value="ficha" className="pt-4">
                                     <FichaVoz voz={borrador} />
                                 </TabsContent>
-                            </Tabs>
-                        </CardContent>
                     </>
-                ) : (
-                    <CardContent className="py-10 text-center text-sm text-muted-foreground">
-                        Selecciona una voz de la lista para empezar.
-                    </CardContent>
-                )}
+                        ) : (
+                            <p className="py-10 text-center text-sm text-muted-foreground">
+                                Selecciona una voz de la lista para ver sus ajustes.
+                            </p>
+                        )}
+                    </Tabs>
+                </CardContent>
             </Card>
         </div>
     );
