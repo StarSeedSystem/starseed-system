@@ -10,7 +10,7 @@
 import {
     Globe, Coffee, AudioWaveform, Radio, MessageSquare, Network,
     Library, BrainCircuit, CloudSun, Music, Waves, Orbit, Camera, Images,
-    RadioTower, Antenna, Binary, AudioLines, Gauge, Smile,
+    RadioTower, Antenna, Binary, AudioLines, Gauge, Smile, FlaskConical,
     // Ola 6 · Adenda 158.
     Sparkles, Users,
 } from "lucide-react";
@@ -166,6 +166,18 @@ export const APP_CATALOG: StarseedApp[] = [
         category: "sistema",
         status: "native",
         open: { primary: "route", allowed: ["route"], route: "/mundo-avatares" },
+    },
+    {
+        // Ola 237: Laboratorio de Astraura — genoma de nueve capas fásicas.
+        id: "laboratorio",
+        name: "Laboratorio de Astraura",
+        short: "Laboratorio",
+        description: "El genoma de nueve capas fásicas, del núcleo ternario 1,58 bits al contexto. Nada escribe en el OS sin tu confirmación.",
+        icon: FlaskConical,
+        accent: "#A78BFA",
+        category: "sistema",
+        status: "native",
+        open: { primary: "route", allowed: ["route"], route: "/laboratorio" },
     },
     {
         id: "omnifrecuencias",
@@ -356,7 +368,7 @@ export function getApp(id: string): StarseedApp | undefined {
 export const APP_COLLECTIONS: Record<LauncherCollection, string[]> = {
     // 'starseed' = folder de inicio por defecto (marca + módulos clave)
     starseed: ["nexus", "cafe", "audiomorphic", "omnifrecuencias", "red-mesh", "senales", "red-feed", "messages", "network", "musica", "clima", "imaginacion"],
-    sistema: ["messages", "network", "library", "agent", "astraura-158", "imaginacion", "enjambre", "red-mesh", "senales", "red-feed", "voces", "mando", "mundo-avatares"],
+    sistema: ["messages", "network", "library", "agent", "astraura-158", "imaginacion", "enjambre", "red-mesh", "senales", "red-feed", "voces", "mando", "mundo-avatares", "laboratorio"],
     media: ["musica", "radio", "omnifrecuencias", "audiomorphic", "immersive", "camara", "galeria"],
     custom: [],
 };

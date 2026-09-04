@@ -65,7 +65,7 @@ export const DOCK_STORAGE_KEY = 'starseed.dock.items.v2';
  * banderas one-shot por navegador (`starseed.dock.items.migrated.vN`), que era
  * justo lo que no llegaba a las cuentas viejas.
  */
-export const DOCK_DEFAULTS_VERSION = 18;
+export const DOCK_DEFAULTS_VERSION = 19;
 
 /**
  * Ids que el OS garantiza presentes y encendidos hasta DOCK_DEFAULTS_VERSION.
@@ -78,8 +78,11 @@ export const DOCK_DEFAULTS_VERSION = 18;
  * garantía no aparecería en el dock de las cuentas ya existentes.
  * v18 (Ola 234) añade `mundo-avatares`: la escena 3D de los avatares es nueva
  * y sin esta garantía no aparecería en el dock de las cuentas ya existentes.
+ * v19 (Ola 237) añade `laboratorio`: el Laboratorio de Astraura (genoma de
+ * nueve capas fásicas) es nuevo y sin esta garantía no aparecería en el dock
+ * de las cuentas ya existentes.
  */
-export const DOCK_DEFAULT_ON_IDS = ['senales', 'red-feed', 'imaginacion', 'voces', 'mando', 'mundo-avatares'] as const;
+export const DOCK_DEFAULT_ON_IDS = ['senales', 'red-feed', 'imaginacion', 'voces', 'mando', 'mundo-avatares', 'laboratorio'] as const;
 
 /**
  * Forma mínima de un item del dock para ESTE módulo. Deliberadamente laxa
@@ -135,6 +138,10 @@ const FALLBACK_SEEDS: Record<string, DockItemLike> = {
   'mundo-avatares': {
     id: 'mundo-avatares', label: 'Mundo de los avatares', iconKey: 'Smile',
     path: '/mundo-avatares', color: 'purple', enabled: true, origin: 'preset',
+  },
+  laboratorio: {
+    id: 'laboratorio', label: 'Laboratorio de Astraura', iconKey: 'FlaskConical',
+    path: '/laboratorio', color: 'purple', enabled: true, origin: 'preset',
   },
 };
 

@@ -14,7 +14,7 @@ import {
   Server, Vote, Lightbulb, Cpu, Brain, ShoppingBag, Award, AppWindow,
   CalendarClock, GitBranch, Sparkles, Zap, Wrench, Plug, Eye, HardDrive, Boxes,
   Camera, Images, RadioTower, Antenna, Radio, AudioLines, Gauge,
-  Smile,
+  Smile, FlaskConical,
 } from 'lucide-react';
 // Garantía de botones predeterminados con la VERSIÓN DENTRO DEL PAYLOAD
 // (Adenda 149 · tanda 3). El módulo es puro y sin dependencias: lo comparten
@@ -69,7 +69,9 @@ export type DockIconKey =
   // ── Mando (Ola 231) ──
   | 'Gauge'
   // ── Mundo de los avatares (Ola 234) ──
-  | 'Smile';
+  | 'Smile'
+  // ── Laboratorio de Astraura (Ola 237) ──
+  | 'FlaskConical';
 
 /**
  * Mapa iconKey → componente de lucide-react. Fuente ÚNICA de verdad: la usan
@@ -83,6 +85,7 @@ export const DOCK_ICON_MAP: Record<DockIconKey, React.ComponentType<{ className?
   Server, Vote, Lightbulb, Cpu, Brain, ShoppingBag, Award, AppWindow,
   CalendarClock, GitBranch, Sparkles, Zap, Wrench, Plug, Eye, HardDrive, Boxes,
   Camera, Images, RadioTower, Antenna, Radio, AudioLines, Gauge, Smile,
+  FlaskConical,
 };
 
 /** Icono de respaldo defensivo (DOCK_ICON_MAP es total: no debería usarse). */
@@ -251,6 +254,9 @@ export const DOCK_PRESETS: DockItemConfig[] = [
   { id: 'mando',         label: 'Mando',               iconKey: 'Gauge',           path: '/mando',                 color: 'amber',   enabled: true,  origin: 'preset' },
   // Ola 234: Mundo de los avatares — escena 3D viva de los habitantes de la red.
   { id: 'mundo-avatares', label: 'Mundo de los avatares', iconKey: 'Smile',      path: '/mundo-avatares',         color: 'purple',  enabled: true,  origin: 'preset' },
+  // Ola 237: Laboratorio de Astraura — el genoma de nueve capas fásicas, del
+  // núcleo ternario 1,58 bits al contexto. Nada escribe en el OS sin confirmación.
+  { id: 'laboratorio',   label: 'Laboratorio de Astraura', iconKey: 'FlaskConical', path: '/laboratorio',          color: 'purple',  enabled: true,  origin: 'preset' },
 ];
 
 /**
