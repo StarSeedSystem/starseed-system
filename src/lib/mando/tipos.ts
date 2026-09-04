@@ -58,6 +58,29 @@ export interface LatidoTarea {
     modelo: string;
     minutos: number;
     quietoSegundos: number;
+    /** Dónde corre el agente: "mac" (esta máquina) o "nube" (contenedor de Cowork). */
+    donde: string;
+    /** Proveedor del modelo (nim, xkiro, aihubmix…). */
+    proveedor?: string;
+    /** Ventana de contexto del modelo, en tokens, si se conoce. */
+    ventana?: number | null;
+    /** Tokens REALES gastados por la tarea (de la base de opencode), si el latido los trae. */
+    tokens?: { entrada: number; salida: number; razonamiento: number; cacheLeida: number; llamadas: number } | null;
+    /** Tamaño del registro de la tarea, en bytes (crece mientras el agente escribe). */
+    bytesLog?: number;
+    intento?: number;
+}
+
+/** Foto de un orquestador tal como la publica en el bus con cada latido. */
+export interface FotoEnjambre {
+    donde: string;
+    cola: string;
+    agentesActivos: number;
+    memoriaMb: number | null;
+    integradas: number;
+    proveedores: Record<string, { estado: string; llamadasMin: number; rpm: number }>;
+    /** Momento del latido (ISO). */
+    t: string;
 }
 
 /** Cuántos agentes están escribiendo, cuántos caben y con cuánta memoria. */
@@ -139,6 +162,8 @@ export interface EstadoMando {
     latidos: LatidoTarea[];
     /** Medidor de agentes: activos, capacidad y memoria. */
     agentes: MedidorAgentes;
+    /** Un orquestador por máquina/cola, según el bus (mac y nube). */
+    enjambres: FotoEnjambre[];
     /** Fila de tareas en orden inteligente para el siguiente agente. */
     fila: TareaEnFila[];
     /** True si hay un orquestador vivo en la máquina, no lo que diga un archivo de estado. */

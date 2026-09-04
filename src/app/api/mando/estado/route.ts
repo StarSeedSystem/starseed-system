@@ -23,6 +23,7 @@ import {
     enjambreEnMarcha,
     leerEstadoRelevo,
     leerLatidos,
+    leerLatidosDelBus,
     leerProgreso,
     medirAgentes,
     leerInformes,
@@ -112,7 +113,7 @@ export async function GET(): Promise<Response> {
         }
     }
 
-    const [relevo, tareas, informes, uso, revisiones, repo, progreso, latidos, enMarcha, agentes] =
+    const [relevo, tareas, informes, uso, revisiones, repo, progreso, latidosMac, enMarcha, agentes, bus] =
         await Promise.all([
             leerEstadoRelevo(),
             leerColas(),
@@ -124,7 +125,11 @@ export async function GET(): Promise<Response> {
             leerLatidos(),
             enjambreEnMarcha(),
             medirAgentes(),
+            leerLatidosDelBus(),
         ]);
+    // Lo local manda sobre lo que diga el bus de la misma tarea; la nube se añade.
+    const idsMac = new Set(latidosMac.map((l) => `${l.cola}|${l.tarea}`));
+    const latidos = [...latidosMac, ...bus.latidos.filter((l) => l.donde !== "mac" || !idsMac.has(`${l.cola}|${l.tarea}`))];
 
     const estado: EstadoMando = {
         generadoEn: new Date().toISOString(),
@@ -135,6 +140,7 @@ export async function GET(): Promise<Response> {
         latidos,
         enjambreEnMarcha: enMarcha,
         agentes,
+        enjambres: bus.enjambres,
         fila: colaInteligente(tareas, progreso, latidos),
         informes,
         uso,

@@ -17,6 +17,7 @@ import { promisify } from "node:util";
 import path from "node:path";
 
 import type {
+    FotoEnjambre,
     LatidoTarea,
     MedidorAgentes,
     TareaEnFila,
@@ -332,6 +333,79 @@ export function colaInteligente(
 }
 
 /**
+ * Latidos del BUS: los orquestadores —de esta Mac y del contenedor de Cowork— publican cada
+ * 2 min un evento `latido` en `relevo_eventos` con la foto completa en `datos`: tareas, fase,
+ * modelo, tokens reales, proveedores y memoria. Sin esto el Mando solo veía la máquina donde
+ * corre, y los agentes de la nube «no aparecían».
+ */
+export async function leerLatidosDelBus(): Promise<{ latidos: LatidoTarea[]; enjambres: FotoEnjambre[] }> {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const clave = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    if (!url || !clave) return { latidos: [], enjambres: [] };
+    let filas: Array<{ t: string; texto: string; datos: unknown }> = [];
+    try {
+        const desde = new Date(Date.now() - 4 * 60 * 1000).toISOString();
+        const r = await fetch(
+            `${url}/rest/v1/relevo_eventos?select=t,texto,datos&tipo=eq.latido&t=gte.${encodeURIComponent(desde)}&order=id.desc&limit=40`,
+            { headers: { apikey: clave, Authorization: `Bearer ${clave}` }, cache: "no-store" },
+        );
+        if (!r.ok) return { latidos: [], enjambres: [] };
+        filas = (await r.json()) as typeof filas;
+    } catch {
+        return { latidos: [], enjambres: [] };
+    }
+    // Un latido por (donde, cola): el más reciente manda.
+    const vistos = new Set<string>();
+    const latidos: LatidoTarea[] = [];
+    const enjambres: FotoEnjambre[] = [];
+    for (const fila of filas) {
+        const d = objeto(fila.datos);
+        const donde = texto(d.donde) || "nube";
+        const cola = texto(d.cola);
+        const clave2 = `${donde}|${cola}`;
+        if (!cola || vistos.has(clave2)) continue;
+        vistos.add(clave2);
+        enjambres.push({
+            donde,
+            cola,
+            agentesActivos: número(d.agentesActivos, 0),
+            memoriaMb: typeof d.memoriaMb === "number" ? d.memoriaMb : null,
+            integradas: número(d.integradas, 0),
+            proveedores: (objeto(d.proveedores) as FotoEnjambre["proveedores"]) ?? {},
+            t: fila.t,
+        });
+        const tareas = Array.isArray(d.tareas) ? (d.tareas as unknown[]) : [];
+        for (const bruto of tareas) {
+            const tk = objeto(bruto);
+            const tokens = objeto(tk.tokens);
+            latidos.push({
+                tarea: texto(tk.id),
+                cola,
+                fase: texto(tk.fase),
+                modelo: texto(tk.modelo),
+                minutos: número(tk.minutos, 0),
+                quietoSegundos: número(tk.quietoS, 0),
+                donde,
+                proveedor: texto(tk.proveedor),
+                ventana: typeof tk.ventana === "number" ? tk.ventana : null,
+                tokens: Object.keys(tokens).length
+                    ? {
+                          entrada: número(tokens.entrada, 0),
+                          salida: número(tokens.salida, 0),
+                          razonamiento: número(tokens.razonamiento, 0),
+                          cacheLeida: número(tokens.cacheLeida, 0),
+                          llamadas: número(tokens.llamadas, 0),
+                      }
+                    : null,
+                bytesLog: número(tk.bytesLog, 0),
+                intento: número(tk.intento, 1),
+            });
+        }
+    }
+    return { latidos, enjambres };
+}
+
+/**
  * Latidos: qué está haciendo CADA tarea ahora mismo. Los escribe el vigilante del enjambre en
  * `olas/latidos-<cola>.json` cada 20 s, con la fase real y el modelo que la está escribiendo.
  */
@@ -367,6 +441,7 @@ export async function leerLatidos(): Promise<LatidoTarea[]> {
                 modelo: texto(d.modelo),
                 minutos: desde > 0 ? Math.max(0, Math.round((ahora - desde) / 60000)) : 0,
                 quietoSegundos: avance > 0 ? Math.max(0, Math.round((ahora - avance) / 1000)) : 0,
+                donde: "mac",
             });
         }
     }

@@ -34,6 +34,116 @@ function horaCorta(fecha: string): string {
     });
 }
 
+/** Miles con punto, para tokens. */
+function miles(n: number | undefined | null): string {
+    if (typeof n !== "number" || !Number.isFinite(n)) return "—";
+    return n.toLocaleString("es-ES");
+}
+
+/** Color por fase: lo que hace el agente, de un vistazo. */
+function tonoFase(fase: string): string {
+    if (fase === "escribiendo") return "text-emerald-300";
+    if (fase === "tsc" || fase === "tests") return "text-sky-300";
+    if (fase === "revision" || fase === "integrando") return "text-amber-300";
+    if (fase.startsWith("esperando")) return "text-white/50";
+    return "text-white/70";
+}
+
+/**
+ * Agentes en vivo: una fila por agente, venga de esta Mac o del contenedor de la nube.
+ * Todo sale del latido que cada orquestador publica en el bus cada 2 min: tarea, fase,
+ * modelo y proveedor, ventana de contexto, tokens REALES gastados (de la base de opencode),
+ * tiempo, y si lleva rato mudo.
+ */
+function AgentesEnVivo({ estado }: { estado: EstadoMando }) {
+    const latidos = estado.latidos ?? [];
+    const enjambres = estado.enjambres ?? [];
+    if (latidos.length === 0 && enjambres.length === 0) {
+        return (
+            <section className="rounded-xl border border-white/10 bg-black/30 p-4 backdrop-blur">
+                <h3 className="text-sm font-semibold text-white">Agentes en vivo</h3>
+                <p className="mt-2 text-sm text-white/50">
+                    Ningún orquestador ha latido en los últimos minutos, ni aquí ni en la nube.
+                </p>
+            </section>
+        );
+    }
+    return (
+        <section className="rounded-xl border border-white/10 bg-black/30 p-4 backdrop-blur">
+            <header className="flex flex-wrap items-center justify-between gap-2">
+                <h3 className="text-sm font-semibold text-white">
+                    Agentes en vivo · {latidos.length}
+                </h3>
+                <div className="flex flex-wrap gap-2 text-[11px] text-white/60">
+                    {enjambres.map((e) => (
+                        <span
+                            key={`${e.donde}-${e.cola}`}
+                            className="rounded-md border border-white/10 bg-white/[0.04] px-2 py-1"
+                            title={Object.entries(e.proveedores ?? {})
+                                .map(([p, v]) => `${p}: ${v.estado} · ${v.llamadasMin}/${v.rpm} por min`)
+                                .join("\n")}
+                        >
+                            <span className={e.donde === "nube" ? "text-sky-300" : "text-amber-300"}>
+                                {e.donde === "nube" ? "nube" : "mac"}
+                            </span>{" "}
+                            · {e.cola.replace(/^cola-/, "").replace(/\.json$/, "")} · {e.agentesActivos} escribiendo
+                            {typeof e.memoriaMb === "number" ? ` · ${miles(e.memoriaMb)} MB libres` : ""}
+                            {" · "}
+                            {Object.values(e.proveedores ?? {}).filter((v) => v.estado === "caido").length} prov. caídos
+                        </span>
+                    ))}
+                </div>
+            </header>
+            <div className="mt-3 overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                    <thead className="text-[11px] uppercase tracking-wide text-white/40">
+                        <tr>
+                            <th className="py-1 pr-3">Dónde</th>
+                            <th className="py-1 pr-3">Tarea</th>
+                            <th className="py-1 pr-3">Fase</th>
+                            <th className="py-1 pr-3">Modelo · proveedor</th>
+                            <th className="py-1 pr-3">Ventana</th>
+                            <th className="py-1 pr-3">Tokens (in / out)</th>
+                            <th className="py-1 pr-3">Llamadas</th>
+                            <th className="py-1 pr-3">Tiempo</th>
+                            <th className="py-1 pr-3">Registro</th>
+                        </tr>
+                    </thead>
+                    <tbody className="text-white/80">
+                        {latidos.map((l, i) => (
+                            <tr key={`${l.donde}-${l.cola}-${l.tarea}-${i}`} className="border-t border-white/5">
+                                <td className={`py-1.5 pr-3 font-medium ${l.donde === "nube" ? "text-sky-300" : "text-amber-300"}`}>
+                                    {l.donde}
+                                </td>
+                                <td className="py-1.5 pr-3 font-mono">{l.tarea}</td>
+                                <td className={`py-1.5 pr-3 ${tonoFase(l.fase)}`}>
+                                    {l.fase}
+                                    {l.quietoSegundos > 180 ? ` · mudo ${Math.round(l.quietoSegundos / 60)} min` : ""}
+                                </td>
+                                <td className="py-1.5 pr-3">
+                                    {(l.modelo || "—").split("/").slice(-1)[0]}
+                                    {l.proveedor ? <span className="text-white/40"> · {l.proveedor}</span> : null}
+                                </td>
+                                <td className="py-1.5 pr-3 text-white/60">{l.ventana ? `${Math.round(l.ventana / 1024)}k` : "—"}</td>
+                                <td className="py-1.5 pr-3 font-mono">
+                                    {l.tokens ? `${miles(l.tokens.entrada)} / ${miles(l.tokens.salida)}` : "—"}
+                                </td>
+                                <td className="py-1.5 pr-3 text-white/60">{l.tokens ? l.tokens.llamadas : "—"}</td>
+                                <td className="py-1.5 pr-3 text-white/60">{l.minutos} min{l.intento && l.intento > 1 ? ` · intento ${l.intento}` : ""}</td>
+                                <td className="py-1.5 pr-3 text-white/60">{l.bytesLog ? `${Math.round(l.bytesLog / 1024)} KB` : "—"}</td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+            <p className="mt-2 text-[11px] text-white/40">
+                Tokens = suma real de entrada/salida de cada llamada del agente (base de opencode), no una estimación.
+                La ventana es la del modelo; el consumo de contexto crece con cada archivo que lee.
+            </p>
+        </section>
+    );
+}
+
 /** Tarjeta pequeña de indicador. */
 function Indicador({
     titulo,
@@ -135,16 +245,21 @@ export function PanelProcesos() {
 
     return (
         <div className="space-y-4">
+            <AgentesEnVivo estado={estado} />
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 <Indicador
                     titulo="Enjambre libre"
-                    valor={estado.enjambreEnMarcha ? "Activo" : "Detenido"}
+                    valor={estado.enjambreEnMarcha || (estado.enjambres ?? []).length > 0 ? "Activo" : "Detenido"}
                     detalle={
-                        estado.enjambreEnMarcha
-                            ? "Hay olas ejecutándose en segundo plano."
-                            : "Ninguna ola automática en marcha."
+                        estado.enjambreEnMarcha && (estado.enjambres ?? []).some((e) => e.donde === "nube")
+                            ? "Olas en esta Mac y en la nube."
+                            : estado.enjambreEnMarcha
+                              ? "Olas ejecutándose en esta Mac."
+                              : (estado.enjambres ?? []).length > 0
+                                ? `${(estado.enjambres ?? []).length} ola(s) en la nube, ninguna aquí.`
+                                : "Ninguna ola automática en marcha."
                     }
-                    activo={Boolean(estado.enjambreEnMarcha)}
+                    activo={Boolean(estado.enjambreEnMarcha) || (estado.enjambres ?? []).length > 0}
                 />
                 <Indicador
                     titulo="Rama"
