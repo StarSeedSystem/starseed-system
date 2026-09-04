@@ -24,6 +24,7 @@ import {
     leerEstadoRelevo,
     leerLatidos,
     leerLatidosDelBus,
+    leerEventosDelBus,
     leerProgreso,
     medirAgentes,
     leerInformes,
@@ -113,7 +114,7 @@ export async function GET(): Promise<Response> {
         }
     }
 
-    const [relevo, tareas, informes, uso, revisiones, repo, progreso, latidosMac, enMarcha, agentes, bus] =
+    const [relevo, tareas, informes, uso, revisiones, repo, progreso, latidosMac, enMarcha, agentes, bus, eventosBus] =
         await Promise.all([
             leerEstadoRelevo(),
             leerColas(),
@@ -126,7 +127,13 @@ export async function GET(): Promise<Response> {
             enjambreEnMarcha(),
             medirAgentes(),
             leerLatidosDelBus(),
+            leerEventosDelBus(20),
         ]);
+    // «Últimos eventos»: primero lo que acaba de pasar en el bus (Mac + nube), después la bitácora local.
+    if (eventosBus.length > 0) {
+        const vistos = new Set(eventosBus.map((e) => e.id));
+        relevo.eventos = [...eventosBus, ...relevo.eventos.filter((e) => !vistos.has(e.id))].slice(0, 40);
+    }
     // Lo local manda sobre lo que diga el bus de la misma tarea; la nube se añade.
     const idsMac = new Set(latidosMac.map((l) => `${l.cola}|${l.tarea}`));
     const latidos = [...latidosMac, ...bus.latidos.filter((l) => l.donde !== "mac" || !idsMac.has(`${l.cola}|${l.tarea}`))];

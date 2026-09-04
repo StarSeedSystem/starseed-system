@@ -38,6 +38,9 @@ import { startAstraura158Feed } from "@/lib/astraura/astraura-158-feed";
 // Studio 1.58) pueda abrir la ventana de una entidad viva con
 // `openAstraura158Window(...)` sin tener que montar nada por su cuenta.
 import { Astraura158WindowHost } from "@/components/astraura/window/astraura-158-window-host";
+// El Puente de Mando (/mando) no monta nada de esto: ni el sondeo del feed 1.58 (401 antes
+// de iniciar sesión), ni la intro, ni el registro de neuronas. Ahorra memoria para los agentes.
+import { SoloFueraDeConsola } from "@/components/layout/solo-fuera-de-consola";
 
 /** (Ola 3 · Adenda 155) Sondeo del puente de eventos Astraura 1.58 → centro de
  * notificaciones del OS + siembra de personalidades/agentes 1.58. Singleton. */
@@ -51,7 +54,7 @@ function Astraura158FeedMount() {
 // `<ConfirmProvider>` (Adenda 137) se monta en el layout, no aquí.
 export default function AppGlobals() {
   return (
-    <>
+    <SoloFueraDeConsola>
       <AuroraIntro />
       {/* (Adenda 193) StartupUpdatesModal se monta en el layout RAÍZ: aquí
           sería un SEGUNDO montaje (dos ventanas y dos helpers globales). */}
@@ -69,6 +72,6 @@ export default function AppGlobals() {
           orbe, el Exocórtex y cualquier pestaña abren la MISMA ventana con
           `openAstraura158Window({kind, id})` sin acoplarse entre sí. */}
       <Astraura158WindowHost />
-    </>
+    </SoloFueraDeConsola>
   );
 }

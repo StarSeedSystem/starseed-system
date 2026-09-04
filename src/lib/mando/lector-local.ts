@@ -406,6 +406,43 @@ export async function leerLatidosDelBus(): Promise<{ latidos: LatidoTarea[]; enj
 }
 
 /**
+ * Eventos del BUS (no latidos): lo que los orquestadores de la Mac y de la nube, Hermes y
+ * Claude van anotando en `relevo_eventos`. La bitácora local solo ve esta máquina; sin esto
+ * «Últimos eventos» se quedaba en las notas de hace dos días mientras la nube integraba.
+ */
+export async function leerEventosDelBus(limite = 20): Promise<EventoRelevo[]> {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const clave = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    if (!url || !clave) return [];
+    try {
+        const desde = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
+        const r = await fetch(
+            `${url}/rest/v1/relevo_eventos?select=id,t,quien,tipo,tarea,texto,datos&tipo=not.in.(latido,tunel,paso)&t=gte.${encodeURIComponent(desde)}&order=id.desc&limit=${Math.max(1, Math.min(100, limite))}`,
+            { headers: { apikey: clave, Authorization: `Bearer ${clave}` }, cache: "no-store" },
+        );
+        if (!r.ok) return [];
+        const filas = (await r.json()) as unknown;
+        if (!Array.isArray(filas)) return [];
+        return (filas as unknown[]).map((f) => {
+            const d = objeto(f);
+            const datos = objeto(d.datos);
+            const donde = texto(datos.donde);
+            return {
+                id: `bus-${número(d.id, 0)}`,
+                t: texto(d.t),
+                quien: texto(d.quien) + (donde ? ` · ${donde}` : ""),
+                tipo: texto(d.tipo),
+                tarea: texto(d.tarea),
+                texto: texto(d.texto),
+                datos: d.datos,
+            };
+        });
+    } catch {
+        return [];
+    }
+}
+
+/**
  * Latidos: qué está haciendo CADA tarea ahora mismo. Los escribe el vigilante del enjambre en
  * `olas/latidos-<cola>.json` cada 20 s, con la fase real y el modelo que la está escribiendo.
  */
