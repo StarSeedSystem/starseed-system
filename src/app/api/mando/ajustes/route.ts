@@ -51,14 +51,21 @@ function mandoHabilitado(): boolean {
 
 /** Devuelve 401 si la sesión no es válida. */
 async function exigirSesion(): Promise<Response | null> {
-    try {
-        const supabase = await createClient();
-        const { data, error } = await supabase.auth.getUser();
-        if (error || !data.user) {
-            return Response.json({ error: "Necesitas iniciar sesión." }, { status: 401 });
+    // El mando ya responde 404 fuera de local (arriba). Exigir ADEMÁS sesión dejaba la
+    // consola inservible justo en la máquina donde tiene que usarse: la base puede estar
+    // vacía y aún no haber ninguna cuenta. En desarrollo basta con ese candado; si alguien
+    // levanta una instancia propia con STARSEED_MANDO=1, ahí sí se exige sesión porque
+    // entonces la consola es alcanzable desde fuera.
+    if (process.env.NODE_ENV === "production") {
+        try {
+            const supabase = await createClient();
+            const { data, error } = await supabase.auth.getUser();
+            if (error || !data.user) {
+                return Response.json({ error: "Necesitas iniciar sesión." }, { status: 401 });
+            }
+        } catch {
+            return Response.json({ error: "No se pudo verificar la sesión." }, { status: 401 });
         }
-    } catch {
-        return Response.json({ error: "No se pudo verificar la sesión." }, { status: 401 });
     }
     return null;
 }

@@ -80,7 +80,15 @@ export function PanelProcesos() {
         try {
             const respuesta = await fetch("/api/mando/estado", { cache: "no-store" });
             if (!respuesta.ok) {
-                setError("El mando no está disponible (solo funciona en local).");
+                // Un mensaje que no distingue el motivo hace perder el tiempo: 404 es que la
+                // consola está apagada en esta instancia; 401 es que falta la sesión.
+                setError(
+                    respuesta.status === 404
+                        ? "La consola está apagada en esta instancia (solo funciona en local o con STARSEED_MANDO=1)."
+                        : respuesta.status === 401
+                          ? "Necesitas iniciar sesión para ver el estado del mando."
+                          : `No se pudo leer el estado del mando (HTTP ${respuesta.status}).`,
+                );
                 setEstado(null);
                 return;
             }
