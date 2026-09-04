@@ -93,3 +93,6 @@ public/version.json
 
 !src-tauri/icons/
 !src-tauri/icons/**
+
+# Paquetes temporales para llevar commits al contenedor de Cowork
+.transfer/
