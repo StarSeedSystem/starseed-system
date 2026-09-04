@@ -122,6 +122,10 @@ export interface OpcionesHablar {
     nivel?: NivelVoz;
     /** Aviso cuando se ha tenido que bajar de nivel (con el mismo timbre). */
     alDegradar?: (desde: NivelVoz, hasta: NivelVoz) => void;
+    /** Personalidad dueña del turno: viaja en el evento `starseed:gesto`. */
+    personalidadId?: string;
+    /** Emoción del turno: se incorpora al gesto derivado para el avatar. */
+    emocion?: string;
 }
 
 /**
@@ -199,6 +203,26 @@ export async function hablarStarSeed(texto: string, opciones: OpcionesHablar): P
     } catch {
         nivel = "minima"; // red de seguridad absoluta
     }
+
+    // ── (Ola 232 · M5) GESTO EN EL MISMO INSTANTE ───────────────────────────
+    // Al empezar a hablar se deriva el gesto del texto y se emite `starseed:gesto`
+    // por `window.dispatchEvent`, SIN importar el motor de movimiento: el puente
+    // se carga en dinámico y todo va envuelto, de modo que si el módulo de
+    // movimiento no está disponible (o falla), la voz sigue sonando IGUAL.
+    try {
+        const { gestoDesdeTexto, emitirGestoVoz, estimarDuracionAudioMs } =
+            await import("@/lib/avatares/movimiento/sincronia-voz");
+        const gesto = gestoDesdeTexto(limpio, {
+            emocion: opciones.emocion,
+            personalidadId: opciones.personalidadId,
+        });
+        emitirGestoVoz({
+            personalidadId: opciones.personalidadId,
+            gesto,
+            duracionMs: estimarDuracionAudioMs(limpio),
+            texto: limpio,
+        });
+    } catch { /* sin gesto la voz no se detiene */ }
 
     // Cadena de degradación: mismo timbre, niveles cada vez más ligeros.
     let actual: NivelVoz | null = nivel;
