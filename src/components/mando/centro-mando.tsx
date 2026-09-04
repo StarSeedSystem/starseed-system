@@ -27,6 +27,7 @@ import { PanelOlas } from "@/components/mando/panel-olas";
 import { PanelFlota } from "@/components/mando/panel-flota";
 import { ChatOrquestacion } from "@/components/mando/chat-orquestacion";
 import { PanelAreas } from "@/components/mando/panel-areas";
+import { PanelEntornos } from "@/components/mando/panel-entornos";
 import { PanelAjustes } from "@/components/mando/panel-ajustes";
 
 const CLAVE_PESTANA = "starseed.mando.pestana";
@@ -38,6 +39,7 @@ const PESTANAS = [
     { id: "flota", etiqueta: "Flota" },
     { id: "chat", etiqueta: "Chat" },
     { id: "areas", etiqueta: "Áreas" },
+    { id: "entornos", etiqueta: "Entornos" },
     { id: "ajustes", etiqueta: "Ajustes" },
 ] as const;
 
@@ -233,6 +235,9 @@ export function CentroMando() {
                 </TabsContent>
                 <TabsContent value="areas">
                     <PanelAreas />
+                </TabsContent>
+                <TabsContent value="entornos">
+                    <PanelEntornos />
                 </TabsContent>
                 <TabsContent value="ajustes">
                     <PanelAjustes />
