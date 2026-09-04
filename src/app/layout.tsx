@@ -41,6 +41,7 @@ import { AccountProvider } from "@/context/account-context";
 
 import { OmniDock } from "@/components/layout/omni-dock";
 import { EntornoMontaje } from "@/components/entorno/entorno-montaje";
+import { SoloFueraDeConsola } from "@/components/layout/solo-fuera-de-consola";
 // Paleta de comandos global (Cmd/Ctrl+K): buscar y saltar a cualquier app o
 // página del OS + acciones rápidas. Hermana de {children} (no lo envuelve,
 // igual que el resto de la chrome global) para estar disponible en TODAS las
@@ -240,8 +241,9 @@ export default function RootLayout({
                             En móviles/gama baja (eco) NO se montan las 6 capas
                             pesadas; queda el fondo estático cristalino StarSeed. */}
                         <PerfController />
+                        <SoloFueraDeConsola>
                         <PerfStaticBackdrop />
-                        <LiquidGlass />
+                        <LiquidGlass /></SoloFueraDeConsola>
                         <PerfHeavyOnly>
                           <DynamicWebGLBackground />
                           <DynamicSplineDefaultBackground />
@@ -255,10 +257,10 @@ export default function RootLayout({
                               y Audiomorphic NO se monta. */}
                           <BackgroundLayerStack />
                         </PerfHeavyOnly>
-                        <CrystalFilters />
-                        <GlobalEnvironment />
+                        <SoloFueraDeConsola><CrystalFilters /></SoloFueraDeConsola>
+                        <SoloFueraDeConsola><GlobalEnvironment /></SoloFueraDeConsola>
                         {/* Fondo del ThemePack activo (catálogo de temas), si define uno. */}
-                        <DynamicThemeBackgroundHost />
+                        <SoloFueraDeConsola><DynamicThemeBackgroundHost /></SoloFueraDeConsola>
                         <SystemSelectionProvider>
                           {/* Landmark objetivo del salto de accesibilidad y del
                               enfoque por cambio de ruta (RouteFocus). display:contents
@@ -274,18 +276,18 @@ export default function RootLayout({
                         <OmniDock />
                         {/* Detección automática de entorno: medios + cuentas de este
                             dispositivo, en cualquier ventana/medio donde se abra el OS. */}
-                        <EntornoMontaje />
-                        <PinnedWidgetOverlay />
+                        <SoloFueraDeConsola><EntornoMontaje /></SoloFueraDeConsola>
+                        <SoloFueraDeConsola><PinnedWidgetOverlay /></SoloFueraDeConsola>
                         {/* Mini-reproductor global del media center (aparece al reproducir). */}
-                        <MediaMiniDock />
+                        <SoloFueraDeConsola><MediaMiniDock /></SoloFueraDeConsola>
                         {/* Sincronización soberana: biblioteca/apps/dashboards ↔ Supabase (defensiva). */}
                         <SovereignSyncMount />
                         {/* Sincronización en TIEMPO REAL entre dispositivos de la cuenta (defensiva). */}
                         <RealtimeSyncProvider />
                         {/* App Omnifrecuencias en ventana del OS (escucha 'starseed:open-omnifrecuencias'). */}
-                        <OmniAppHost />
+                        <SoloFueraDeConsola><OmniAppHost /></SoloFueraDeConsola>
                         {/* Ventana de configuración del fondo Audiomorphic (escucha 'starseed:open-audiomorphic-config'). */}
-                        <AudiomorphicConfigHost />
+                        <SoloFueraDeConsola><AudiomorphicConfigHost /></SoloFueraDeConsola>
                         {/* Receptor de solicitudes de archivo entre neuronas de la cuenta (defensivo, sin UI hasta que llega una). */}
                         <FileRequestListener />
                         {/* Notificaciones/popups de apps (J-1): persiste avisos de apps en el centro + valida iframes; pinta popups apilables. */}
