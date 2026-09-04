@@ -208,9 +208,9 @@ function DetalleOla({ ola, estado }: { ola: OlaResumen; estado: EstadoMando }) {
                 <section className="rounded-xl border border-white/10 bg-black/30 p-4">
                     <h3 className="mb-2 text-sm font-semibold text-white">Commits de la ola</h3>
                     <ul className="space-y-1">
-                        {commits.map((línea) => (
+                        {commits.map((línea, índice) => (
                             <li
-                                key={línea}
+                                key={`c-${índice}-${línea.slice(0, 12)}`}
                                 className="truncate font-mono text-[11px] text-white/60"
                             >
                                 {línea}

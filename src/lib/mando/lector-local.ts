@@ -116,13 +116,18 @@ async function leerBitacora(): Promise<EventoRelevo[]> {
     }
 
     const eventos: EventoRelevo[] = [];
+    // `bitacora.jsonl` no trae `id` en sus líneas: sin esto todos los eventos salían con
+    // id "" y React recibía doce hijos con la misma clave. El número de línea es estable
+    // (la bitácora solo crece por el final) y único.
+    let numeroDeLinea = 0;
     for (const linea of contenido.split("\n")) {
         if (!linea.trim()) continue;
+        numeroDeLinea += 1;
         try {
             const bruto = JSON.parse(linea) as unknown;
             const e = objeto(bruto);
             const evento: EventoRelevo = {
-                id: texto(e.id ?? e.nodo ?? e.linea),
+                id: texto(e.id ?? e.nodo ?? e.linea) || `bit-${numeroDeLinea}`,
                 t: texto(e.t ?? e.fecha ?? e.timestamp),
                 quien: texto(e.quien ?? e.de ?? e.agente),
                 tipo: texto(e.tipo),

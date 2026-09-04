@@ -118,8 +118,8 @@ export function ChatOrquestacion() {
                 </p>
             ) : (
                 <ol className="mt-4 space-y-2.5">
-                    {eventos.map((evento) => (
-                        <li key={evento.id}>
+                    {eventos.map((evento, índice) => (
+                        <li key={evento.id || `ev-${índice}`}>
                             <Mensaje evento={evento} />
                         </li>
                     ))}

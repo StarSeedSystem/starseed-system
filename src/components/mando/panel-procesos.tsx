@@ -180,8 +180,8 @@ export function PanelProcesos() {
                         Últimos commits
                     </h3>
                     <ul className="mt-2 space-y-1 font-mono text-xs text-white/70">
-                        {repo.log.slice(0, 8).map((linea) => (
-                            <li key={linea} className="truncate">
+                        {repo.log.slice(0, 8).map((linea, índice) => (
+                            <li key={`log-${índice}-${linea.slice(0, 12)}`} className="truncate">
                                 {linea}
                             </li>
                         ))}
@@ -210,9 +210,9 @@ export function PanelProcesos() {
                     </p>
                 ) : (
                     <ul className="mt-3 space-y-2">
-                        {eventos.map((evento) => (
+                        {eventos.map((evento, índice) => (
                             <li
-                                key={evento.id}
+                                key={evento.id || `ev-${índice}`}
                                 className="rounded-lg border border-white/5 bg-white/[0.03] px-3 py-2"
                             >
                                 <div className="flex items-center justify-between gap-2 text-[11px] text-white/50">
