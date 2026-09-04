@@ -101,3 +101,21 @@ cupos por minuto los declara cada proveedor en `~/.local/bin/starseed-enjambre.p
 - Claude sin puente a la Mac: doc del proyecto `claude/relevo-actual.md`; Alex pega `PROMPT-CLAUDE.md` en la sesión nueva.
 - Un solo agente escribe en el working tree a la vez; los crons de Hermes no hacen git add -A ni push (el watchdog del túnel quedó sin permiso de git el 03-09).
 - Contexto largo = créditos: cada llamada reenvía TODO el historial (>200k tokens es caro aunque los tokens nuevos sean pocos). Sesión nueva + relevo antes que sesión eterna. Nunca reportar como «créditos restantes» un contador de contexto.
+
+## 📚 Fuentes externas de APIs, herramientas y patrones (regla permanente · 2026-09-04)
+
+Antes de inventar un endpoint, un conector o un patrón de agente, **se mira si ya existe**. Seis
+catálogos indexados en local, refrescables con `starseed-fuentes refrescar` y consultables con
+`starseed-fuentes buscar <texto>` (acepta español). Índices en `starseed_memory_root/fuentes/`:
+
+| Fuente | Licencia | Para qué |
+|---|---|---|
+| [public-apis](https://github.com/public-apis/public-apis) | MIT | 1737 APIs públicas gratuitas en 51 categorías → `apis-publicas.json` |
+| [awesome-mcp-servers](https://github.com/punkpeye/awesome-mcp-servers) | MIT | 3477 servidores MCP → `mcp-servers.json`. Todo agente debe llevar los MCP que su tarea necesite |
+| [awesome-llm-apps](https://github.com/Shubhamsaboo/awesome-llm-apps) | Apache-2.0 | 100+ agentes y habilidades: siempre activos, equipos multiagente, voz, UI generativa, memoria, RAG |
+| [OpenDesign](https://github.com/nexu-io/open-design) | Apache-2.0 | Diseño nativo de agentes: prototipos, presentaciones, paneles, imágenes, documentos y motion MP4; importa de Figma |
+| [Langflow](https://github.com/langflow-ai/langflow) | MIT | Flujos de agente visuales desplegables como API o servidor MCP; candidato a diseñar las olas |
+| [OpenHands Agent Canvas](https://github.com/OpenHands/openhands) | MIT | Ejecuta agentes en local/Docker/VM. Sin CLI headless (verificado): sirve para paralelizar fuera de la Mac, no como ejecutor del enjambre |
+
+El enjambre las reparte solo: `contexto_inteligente()` mira las palabras de cada tarea y le pasa al
+agente **el puntero y el comando de búsqueda**, nunca el catálogo entero (economía de contexto).

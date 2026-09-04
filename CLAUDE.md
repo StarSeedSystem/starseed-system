@@ -296,6 +296,24 @@ Hermes tiene `providers.nvidia` (`NVIDIA_API_KEY` en `~/.hermes/.env`). Claves: 
 ni en memorias — solo nombres de variables. **Cada respuesta termina con un informe de uso**
 (modelos/APIs/tokens/créditos usados, cuánto queda y opciones de enrutamiento).
 
+## 📚 Fuentes externas de APIs, herramientas y patrones (regla permanente · 2026-09-04)
+
+Antes de inventar un endpoint, un conector o un patrón de agente, **se mira si ya existe**. Seis
+catálogos indexados en local, refrescables con `starseed-fuentes refrescar` y consultables con
+`starseed-fuentes buscar <texto>` (acepta español). Índices en `starseed_memory_root/fuentes/`:
+
+| Fuente | Licencia | Para qué |
+|---|---|---|
+| [public-apis](https://github.com/public-apis/public-apis) | MIT | 1737 APIs públicas gratuitas en 51 categorías → `apis-publicas.json` |
+| [awesome-mcp-servers](https://github.com/punkpeye/awesome-mcp-servers) | MIT | 3477 servidores MCP → `mcp-servers.json`. Todo agente debe llevar los MCP que su tarea necesite |
+| [awesome-llm-apps](https://github.com/Shubhamsaboo/awesome-llm-apps) | Apache-2.0 | 100+ agentes y habilidades: siempre activos, equipos multiagente, voz, UI generativa, memoria, RAG |
+| [OpenDesign](https://github.com/nexu-io/open-design) | Apache-2.0 | Diseño nativo de agentes: prototipos, presentaciones, paneles, imágenes, documentos y motion MP4; importa de Figma |
+| [Langflow](https://github.com/langflow-ai/langflow) | MIT | Flujos de agente visuales desplegables como API o servidor MCP; candidato a diseñar las olas |
+| [OpenHands Agent Canvas](https://github.com/OpenHands/openhands) | MIT | Ejecuta agentes en local/Docker/VM. Sin CLI headless (verificado): sirve para paralelizar fuera de la Mac, no como ejecutor del enjambre |
+
+El enjambre las reparte solo: `contexto_inteligente()` mira las palabras de cada tarea y le pasa al
+agente **el puntero y el comando de búsqueda**, nunca el catálogo entero (economía de contexto).
+
 ## 🌌 Inteligencia primaria del OS (Adenda 155 · 2026-08-23)
 
 **Astraura 1.58-bit** (backend soberano propio: BitNet b1.58 ternario nativo) es el **sistema
