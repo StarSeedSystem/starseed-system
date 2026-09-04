@@ -97,7 +97,7 @@ export interface Ramificacion {
 const RAÍZ = process.cwd();
 const TIPOS_BUS = [
     "inicio", "paso", "commit", "bloqueante", "fallo", "sin_cambios", "conflicto",
-    "reintento", "reenrutado", "proveedor", "aviso", "estancado", "cola_terminada",
+    "reintento", "reenrutado", "proveedor", "aviso", "estancado", "cola_terminada", "arranque",
 ];
 const TERMINALES = new Set(["commit", "bloqueante", "sin_cambios", "fallo", "conflicto"]);
 const PREFIJO_PROVEEDOR: Record<string, string> = { nvidia: "nim" };
@@ -237,7 +237,7 @@ function niveles(tareas: TareaOla[]): Map<string, number> {
  * Construye la ramificación de las `cuantas` olas más recientes (por número), leyendo disco,
  * bus y latidos. `horasBus` acota cuánto historial del bus se cruza (por defecto 72 h).
  */
-export async function construirRamificacion(cuantas = 4, horasBus = 72): Promise<Ramificacion> {
+export async function construirRamificacion(cuantas = 4, horasBus = 24 * 30): Promise<Ramificacion> {
     const [tareas, progreso, pasosLocales, bus, latidosMac, delBus] = await Promise.all([
         leerColas(),
         leerProgreso(),
@@ -256,9 +256,29 @@ export async function construirRamificacion(cuantas = 4, horasBus = 72): Promise
     const vivoPor = new Map<string, LatidoTarea>();
     for (const l of latidos) vivoPor.set(l.tarea, l);
 
-    // Bus por tarea, en orden cronológico.
+    // Bus por tarea, en orden cronológico. Los «arranque» traen la cola entera: si esta
+    // máquina no tiene ese archivo (la ola corre en la otra), las tareas se toman de ahí.
     const busPor = new Map<string, FilaBus[]>();
+    const conocidas = new Set(tareas.map((t) => t.id));
     for (const f of bus) {
+        if (f.tipo === "arranque") {
+            const d = objeto(f.datos);
+            const lista = Array.isArray(d.tareas) ? (d.tareas as unknown[]) : [];
+            for (const bruto of lista) {
+                const t = objeto(bruto);
+                const id = texto(t.id);
+                if (!id || conocidas.has(id)) continue;
+                conocidas.add(id);
+                const deps = Array.isArray(t.depende) ? (t.depende as unknown[]) : [];
+                tareas.push({
+                    id,
+                    ola: texto(t.ola) || texto(d.cola).replace(/^cola-/, ""),
+                    titulo: texto(t.titulo),
+                    dependencias: deps.map((x) => texto(x)).filter(Boolean),
+                });
+            }
+            continue;
+        }
         if (!f.tarea) continue;
         const lista = busPor.get(f.tarea) ?? [];
         lista.push(f);
