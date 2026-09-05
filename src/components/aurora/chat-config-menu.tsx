@@ -38,6 +38,7 @@ import { SENSES, getActiveSenses, setActiveSenses } from "@/lib/senses/senses";
 import { getOssServices } from "@/lib/services/oss-services";
 import { readConnections } from "@/lib/services/oss-connections";
 import { getCapabilities } from "@/lib/aurora/capabilities";
+import { activeCapabilityIds } from "@/ai/astraura/skills";
 
 export type ChatConfigContext = "exocortex" | "orbe" | "astraura";
 /** Alias mantenido para ChatHeaderOptions (antes venía de personality-options-window). */
@@ -187,6 +188,8 @@ export function ChatConfigMenu({
   const [sensesActive, setSensesActive] = useState<string[]>([]);
   const [connections, setConnections] = useState<{ id: string; label: string; category: string; purpose: string; connected: boolean }[]>([]);
   const [capsEnv, setCapsEnv] = useState<Record<string, boolean>>({});
+  /** Habilidades activas en el sistema (lo que el router usa cuando el chat no elige ninguna). */
+  const [skillsActivas, setSkillsActivas] = useState<string[]>([]);
   const [connQuery, setConnQuery] = useState("");
   // Estado EFECTIVO global (Adenda 71-ter · fix convId): cuando el chat no fijó
   // un valor, el menú muestra el estado REAL del sistema (personalidad activa,
@@ -226,6 +229,7 @@ export function ChatConfigMenu({
     } catch { /* */ }
     try { setSenses(SENSES.map((s) => ({ id: s.id, label: s.label }))); } catch { /* */ }
     try { setSensesActive(getActiveSenses()); } catch { /* */ }
+    try { setSkillsActivas(activeCapabilityIds()); } catch { /* */ }
     try {
       const connectedIds = new Set(readConnections().map((c) => c.serviceId));
       setConnections(
@@ -283,9 +287,18 @@ export function ChatConfigMenu({
     void patchChatConfig(convId, p);
   }, [convId]);
 
+  // AJUSTES POR DEFECTO VISIBLES (2026-09-05): cada opción enseña su estado EFECTIVO —lo que
+  // el router usa de verdad cuando el chat no dice nada— y no «apagado» por el mero hecho de
+  // no haberse tocado. Capacidades: lo que este dispositivo tiene; habilidades: las activas en
+  // el sistema (`activeCapabilityIds`); conexiones: los servicios conectados. Tocar una opción
+  // parte de ese valor efectivo, no de «false».
+  const capEfectiva = (k: string): boolean => cfg.capabilities?.[k] ?? capsEnv[k] !== false;
+  const skillEfectiva = (k: string): boolean => (cfg.skills ? cfg.skills.includes(k) : skillsActivas.includes(k));
+  const conexionEfectiva = (id: string, conectada: boolean): boolean => (cfg.connections ? cfg.connections.includes(id) : conectada);
+
   const toggleCap = (k: string) => {
     const caps = { ...(cfg.capabilities || {}) };
-    caps[k] = !caps[k];
+    caps[k] = !capEfectiva(k);
     patch({ capabilities: caps });
   };
   const toggleSense = (k: string) => {
@@ -301,13 +314,15 @@ export function ChatConfigMenu({
   const toggleVoice = () => patch({ voice: !cfg.voice });
   const toggleLog = () => patch({ log: !cfg.log });
   const toggleSkill = (k: string) => {
-    const arr = cfg.skills ? [...cfg.skills] : [];
+    // Sin elección explícita, la lista de partida es la activa en el sistema.
+    const arr = cfg.skills ? [...cfg.skills] : SKILL_KEYS.filter((id) => skillsActivas.includes(id));
     const i = arr.indexOf(k);
     if (i >= 0) arr.splice(i, 1); else arr.push(k);
     patch({ skills: arr });
   };
   const toggleConn = (k: string) => {
-    const arr = cfg.connections ? [...cfg.connections] : [];
+    // Sin elección explícita, el chat puede usar todo lo conectado: se parte de ahí.
+    const arr = cfg.connections ? [...cfg.connections] : connections.filter((c) => c.connected).map((c) => c.id);
     const i = arr.indexOf(k);
     if (i >= 0) arr.splice(i, 1); else arr.push(k);
     patch({ connections: arr });
@@ -333,8 +348,8 @@ export function ChatConfigMenu({
         )}
       </div>
       <div className="px-4 pt-2 pb-1 flex flex-wrap gap-1.5 text-[10px] text-white/45">
-        <span className="rounded-full bg-white/5 px-2 py-0.5">🔗 {cfg.connections?.length || 0} conexiones</span>
-        <span className="rounded-full bg-white/5 px-2 py-0.5">⚡ {cfg.skills?.length || 0} habilidades</span>
+        <span className="rounded-full bg-white/5 px-2 py-0.5">🔗 {cfg.connections ? cfg.connections.length : connections.filter((c) => c.connected).length} conexiones</span>
+        <span className="rounded-full bg-white/5 px-2 py-0.5">⚡ {cfg.skills ? cfg.skills.length : SKILL_KEYS.filter((k) => skillsActivas.includes(k)).length} habilidades</span>
         <span className="rounded-full bg-white/5 px-2 py-0.5">👁 {Object.values(cfg.senses || {}).filter(Boolean).length} sentidos</span>
         <span className="rounded-full bg-white/5 px-2 py-0.5">{cfg.voice === false ? "🔇 sin voz" : "🔊 voz"}</span>
         <span className="rounded-full bg-white/5 px-2 py-0.5">{cfg.log === false ? "🚫 sin registro" : "📝 registro"}</span>
@@ -392,13 +407,13 @@ export function ChatConfigMenu({
                 <Row
                   key={k}
                   label={CAP_LABELS[k]}
-                  hint={capsEnv[k] === false ? "no disponible en este dispositivo" : undefined}
-                  active={capsEnv[k] !== false && !!cfg.capabilities?.[k]}
+                  hint={capsEnv[k] === false ? "no disponible en este dispositivo" : cfg.capabilities?.[k] === undefined ? "por defecto" : undefined}
+                  active={capsEnv[k] !== false && capEfectiva(k)}
                   onClick={() => toggleCap(k)}
                 />
               ))}
-              <Row label="Voz (Aurora habla)" active={cfg.voice !== false} onClick={toggleVoice} />
-              <Row label="Registro (historial persistente)" active={cfg.log !== false} onClick={toggleLog} />
+              <Row label="Voz (Aurora habla)" hint={cfg.voice === undefined ? "por defecto" : undefined} active={cfg.voice !== false} onClick={toggleVoice} />
+              <Row label="Registro (historial persistente)" hint={cfg.log === undefined ? "por defecto" : undefined} active={cfg.log !== false} onClick={toggleLog} />
             </Section>
           )}
           {open === "sentidos" && (
@@ -417,7 +432,7 @@ export function ChatConfigMenu({
           {open === "habilidades" && (
             <Section title="Habilidades (skills de Astraura)">
               {SKILL_KEYS.map((k) => (
-                <Row key={k} label={SKILL_LABELS[k] || k} active={cfg.skills?.includes(k)} onClick={() => toggleSkill(k)} />
+                <Row key={k} label={SKILL_LABELS[k] || k} hint={!cfg.skills && skillsActivas.includes(k) ? "activa en el sistema" : undefined} active={skillEfectiva(k)} onClick={() => toggleSkill(k)} />
               ))}
             </Section>
           )}
@@ -441,9 +456,9 @@ export function ChatConfigMenu({
                         <Row
                           key={c.id}
                           label={c.label}
-                          hint={c.connected ? `conectado · ${c.purpose}` : c.purpose}
+                          hint={c.connected ? `conectado${!cfg.connections ? " · por defecto" : ""} · ${c.purpose}` : c.purpose}
                           connected={c.connected}
-                          active={cfg.connections?.includes(c.id)}
+                          active={conexionEfectiva(c.id, c.connected)}
                           onClick={() => toggleConn(c.id)}
                           action={
                             !c.connected ? (

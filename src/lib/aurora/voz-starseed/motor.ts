@@ -126,13 +126,21 @@ export interface OpcionesHablar {
     personalidadId?: string;
     /** Emoción del turno: se incorpora al gesto derivado para el avatar. */
     emocion?: string;
+    /** Aviso en cuanto el audio EMPIEZA a sonar (no al terminar). */
+    alEmpezar?: () => void;
+    /**
+     * No bajar hasta la voz del sistema: devuelve `false` en vez de hablar por
+     * `speechSynthesis`, para que quien llama (la cola de cláusulas del chat) use
+     * su propia vía de navegador, que sí espera al `onend` de cada cláusula.
+     */
+    sinSistema?: boolean;
 }
 
 /**
  * Habla por la vía del nivel de demonio local (estudio/alta): OmniVoice GGUF
  * por `motor-local.ts`. Devuelve true si la frase llegó a sonar.
  */
-async function hablarPorLocal(texto: string, timbre: Timbre): Promise<boolean> {
+async function hablarPorLocal(texto: string, timbre: Timbre, alEmpezar?: () => void): Promise<boolean> {
     try {
         const ml = await import("@/lib/aurora/motor-local");
         const est = await ml.estadoMotorLocal();
@@ -143,18 +151,19 @@ async function hablarPorLocal(texto: string, timbre: Timbre): Promise<boolean> {
             if (!est.vivo) return false;
             if (!(await ml.esperarListo(30_000))) return false;
         }
-        return await ml.hablarLocalPorFrases(texto, timbre);
+        return await ml.hablarLocalPorFrases(texto, timbre, alEmpezar);
     } catch {
         return false;
     }
 }
 
 /** Habla por el nivel ligero: Kokoro WASM en el navegador (`tts-oss/kokoro.ts`). */
-async function hablarPorKokoro(texto: string, timbre: Timbre): Promise<boolean> {
+async function hablarPorKokoro(texto: string, timbre: Timbre, alEmpezar?: () => void): Promise<boolean> {
     try {
         const kok = await import("@/lib/aurora/tts-oss/kokoro");
         if (!kok.kokoroAvailable() || !kok.kokoroModelReady()) return false;
         const p = parametrosPorNivel(timbre, "ligera");
+        try { alEmpezar?.(); } catch { /* */ }
         const audio = await kok.kokoroSpeak(texto, {
             voice: p.via === "kokoro" ? p.voice : timbre.local.voz,
             speed: p.via === "kokoro" ? p.speed : timbre.local.speed,
@@ -166,7 +175,7 @@ async function hablarPorKokoro(texto: string, timbre: Timbre): Promise<boolean> 
 }
 
 /** Habla por el nivel mínimo: la voz del sistema (`speechSynthesis`). */
-async function hablarPorSistema(texto: string, timbre: Timbre): Promise<boolean> {
+async function hablarPorSistema(texto: string, timbre: Timbre, alEmpezar?: () => void): Promise<boolean> {
     if (typeof window === "undefined") return false;
     try {
         const synth = window.speechSynthesis;
@@ -176,6 +185,7 @@ async function hablarPorSistema(texto: string, timbre: Timbre): Promise<boolean>
         u.pitch = p.via === "sistema" ? p.pitch : timbre.sistema.pitch;
         u.rate = p.via === "sistema" ? p.rate : timbre.sistema.rate;
         u.lang = "es-ES";
+        if (alEmpezar) u.onstart = () => { try { alEmpezar(); } catch { /* */ } };
         synth.cancel();
         synth.speak(u);
         return true;
@@ -185,10 +195,11 @@ async function hablarPorSistema(texto: string, timbre: Timbre): Promise<boolean>
 }
 
 /** Sintetiza por la vía existente en el OS para ese nivel. Nunca lanza. */
-async function sintetizar(nivel: NivelVoz, texto: string, timbre: Timbre): Promise<boolean> {
-    if (nivel === "estudio" || nivel === "alta") return hablarPorLocal(texto, timbre);
-    if (nivel === "ligera") return hablarPorKokoro(texto, timbre);
-    return hablarPorSistema(texto, timbre);
+async function sintetizar(nivel: NivelVoz, texto: string, timbre: Timbre, opciones: OpcionesHablar): Promise<boolean> {
+    if (nivel === "estudio" || nivel === "alta") return hablarPorLocal(texto, timbre, opciones.alEmpezar);
+    if (nivel === "ligera") return hablarPorKokoro(texto, timbre, opciones.alEmpezar);
+    if (opciones.sinSistema) return false;
+    return hablarPorSistema(texto, timbre, opciones.alEmpezar);
 }
 
 /**
@@ -234,7 +245,7 @@ export async function hablarStarSeed(texto: string, opciones: OpcionesHablar): P
     let actual: NivelVoz | null = nivel;
     while (actual) {
         try {
-            if (await sintetizar(actual, limpio, opciones.timbre)) {
+            if (await sintetizar(actual, limpio, opciones.timbre, opciones)) {
                 nivelEnUso = actual;
                 return true;
             }

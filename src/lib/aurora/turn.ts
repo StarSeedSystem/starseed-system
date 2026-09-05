@@ -326,10 +326,10 @@ export function speakAuroraReply(
   const clean = (text || "").trim();
   if (!clean) return;
   const cfg = getChatConfig(opts.convId);
-  const persona = resolveTurnPersona({ convId: opts.convId, brainId: opts.brainId, route: opts.route });
-  // Automático: voz activa salvo que el chat la desactive; si el chat no dice
-  // nada, se activa cuando la personalidad tiene voz.
-  const enabled = opts.force ?? (cfg.voice === false ? false : (cfg.voice === true || !!persona?.hasVoice));
+  // Automático: voz activa salvo que el chat la desactive (2026-09-05: antes,
+  // sin ajuste explícito, solo hablaban las personalidades con género e idioma
+  // en su ficha; el resto de chats quedaban mudos con «Voz» marcada por defecto).
+  const enabled = opts.force ?? cfg.voice !== false;
   if (!enabled) return;
   const b = bridge();
   try { b?.speak?.(clean); } catch { /* */ }

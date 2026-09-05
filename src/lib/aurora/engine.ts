@@ -993,28 +993,56 @@ export function useAuroraEngine(): AuroraEngine {
     recGenRef.current++;
     try { recognitionRef.current?.abort?.(); } catch { /* */ }
 
-    // Watchdog de ESTA cláusula (no del turno completo): si ni el motor OSS
-    // ni el navegador disparan su fin, avanza la cola igual — nunca se queda
-    // atascada por una cláusula que nunca cierra. Cláusulas son cortas (ver
-    // `splitClauses`: tope de ~14 palabras), así que el tope de 30s de
-    // `speakWithBrowser` (no el de 4 min que usa `speak()` para un mensaje
-    // OSS entero sin trocear) es más que sobrado y recupera la cola antes.
+    // Watchdog de ESTA cláusula (no del turno completo): si ni el motor ni el
+    // navegador disparan su fin, avanza la cola igual — nunca se queda atascada
+    // por una cláusula que nunca cierra. (2026-09-05) Antes eran 30 s como
+    // máximo: la voz neuronal local sintetiza a ~9× tiempo real en esta Mac
+    // (46 s por 5 s de audio) y además puede esperar ~20 s a que el demonio
+    // despierte, así que el watchdog cortaba CADA cláusula a medio sintetizar,
+    // la siguiente entraba, la cola del demonio se llenaba («cola llena» 503)
+    // y ningún chat de Astraura llegaba a sonar. Ahora el tope es 150 s y crece
+    // con la longitud de la cláusula; el corte real por barge-in sigue siendo
+    // `interrupt()` (generación de cola), no este temporizador.
     if (ttsWatchdogRef.current) clearTimeout(ttsWatchdogRef.current);
-    const estMs = Math.min(30000, 1600 + next.cleanChain.length * 80);
+    const estMs = Math.min(150_000, 15_000 + next.cleanChain.length * 800);
     ttsWatchdogRef.current = setTimeout(onDone, estMs);
 
     void (async () => {
       try {
-        const { speakWithConfiguredEngine } = await import("@/lib/aurora/tts-oss/speak-router");
-        const spoke = await speakWithConfiguredEngine(next.cleanChain, {
-          onStart: () => {
+        // (2026-09-05) LA MISMA VOZ QUE EL RESTO DEL OS: el chat habla por el motor
+        // único «voz StarSeed» (`hablarStarSeed`: demonio neuronal local con espera
+        // y cola de una síntesis a la vez → Kokoro → navegador), con el mismo
+        // timbre que el rito, la guía y la orbe. Antes pasaba por la cadena vieja
+        // `speakWithConfiguredEngine` (mixer OmniVoice web/nube, xAI, VoxCPM…),
+        // que lanzaba peticiones en paralelo contra el demonio y no esperaba a
+        // que despertara. La voz del sistema se deja fuera (`sinSistema`): si no
+        // hay nivel neuronal ni ligero, la cláusula suena por
+        // `speakWithBrowserQueued`, que sí espera al `onend` de cada cláusula.
+        const [{ hablarStarSeed }, { timbreEfectivo }] = await Promise.all([
+          import("@/lib/aurora/voz-starseed/motor"),
+          import("@/lib/aurora/voz-rito"),
+        ]);
+        const timbre = timbreEfectivo(next.cleanChain, "conversacion");
+        // Mientras suena ESTA cláusula, la siguiente de la cola se sintetiza ya en
+        // segundo plano (prioridad baja, cacheada por el demonio): así el hueco
+        // entre cláusulas no es el tiempo entero de síntesis.
+        const siguiente = ttsQueueRef.current[0];
+        if (siguiente?.cleanChain) {
+          void import("@/lib/aurora/motor-local")
+            .then((m) => m.anticiparLocal([siguiente.cleanChain], timbre))
+            .catch(() => { /* la anticipación es opcional */ });
+        }
+        const sono = await hablarStarSeed(next.cleanChain, {
+          timbre,
+          contexto: "conversacion",
+          sinSistema: true,
+          personalidadId: typeof next.p?.id === "string" ? next.p.id : undefined,
+          alEmpezar: () => {
             handedOff = true;
             setSpeaking(true); setPaused(false); emitAuroraSpeak("start");
           },
-          onEnd: () => onDone(),
-          onError: () => { /* si aún no había empezado, cae al navegador abajo */ },
         });
-        if (spoke) return; // el motor OSS se hizo cargo de ESTA cláusula (onDone llegará por su onEnd)
+        if (sono) { onDone(); return; } // la cláusula sonó entera por el motor único
         if (!handedOff) {
           const started = speakWithBrowserQueued(next.clean, next.p, onDone);
           if (!started) onDone();
@@ -1132,9 +1160,12 @@ export function useAuroraEngine(): AuroraEngine {
     ttsQueueRef.current = [];
     ttsQueueBusyRef.current = false;
     try { if (typeof window.speechSynthesis !== "undefined") window.speechSynthesis.cancel(); } catch { /* */ }
-    // También corta cualquier voz OSS en curso (Kokoro/Kitten). Fire-and-forget.
+    // También corta cualquier voz OSS en curso (Kokoro/Kitten) y la neuronal local. Fire-and-forget.
     void import("@/lib/aurora/tts-oss/speak-router")
       .then((m) => m.stopConfiguredEngine())
+      .catch(() => { /* */ });
+    void import("@/lib/aurora/motor-local")
+      .then((m) => { m.abortarSintesisAnteriores(); m.pararLocal(); })
       .catch(() => { /* */ });
     setSpeaking(false);
     setPaused(false);

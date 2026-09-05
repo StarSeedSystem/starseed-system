@@ -176,9 +176,12 @@ function resolveStreamingPersona(name: string): StreamingVoicePersona | null {
 function computeVoiceEnabled(convId: string | null | undefined): boolean {
   const cfg = getChatConfig(convId);
   if (cfg.voice === false) return false;
-  if (cfg.voice === true) return true;
-  const persona = resolveTurnPersona({ convId, route: "/agent" });
-  return !!persona?.hasVoice;
+  // (2026-09-05) Por defecto el chat HABLA: el menú de ajustes enseña «Voz» activa
+  // por defecto y el motor único siempre tiene un timbre (Aurora si la
+  // personalidad no fija género/idioma). Antes se exigía `persona.hasVoice`
+  // (generoVoz + idioma en la ficha) y la mayoría de chats quedaban mudos sin
+  // que ningún ajuste lo dijera.
+  return true;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -248,6 +251,13 @@ export function ChatSurface({ variant = "embedded", className, initialConvId }: 
 
   const [streamText, setStreamText] = useState("");
   const [inputValue, setInputValue] = useState("");
+  const composerRef = useRef<HTMLTextAreaElement | null>(null);
+  /** El área de texto crece con el contenido (hasta ~6 líneas) y vuelve a una al vaciarse. */
+  const ajustarAlturaComposer = (el: HTMLTextAreaElement | null) => {
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(176, Math.max(44, el.scrollHeight))}px`;
+  };
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Proveedor de IA (capa multi-proveedor).
@@ -546,6 +556,7 @@ export function ChatSurface({ variant = "embedded", className, initialConvId }: 
 
     setInputValue("");
     setPendingAttachments([]);
+    if (composerRef.current) composerRef.current.style.height = "44px";
 
     let convId = conv.activeId;
     if (!convId) {
@@ -944,32 +955,45 @@ export function ChatSurface({ variant = "embedded", className, initialConvId }: 
             defaultPersonaId={astr158DefaultPersonaId}
           />
         </div>
-        <div className="flex gap-2 max-w-3xl mx-auto items-center">
+        {/* Cuadro de escritura (2026-09-05): a tamaño de conversación —área de texto que
+            crece hasta seis líneas (Enter envía, Mayús+Enter salta de línea), botones de
+            40 px y letra de 15 px— en vez del input de una línea de 36 px que se veía
+            «reducido» al pie de la página. */}
+        <div className="mx-auto flex w-full max-w-4xl items-end gap-2 rounded-2xl border border-white/10 bg-white/[0.03] p-2 backdrop-blur-sm" data-testid="chat-composer">
           <ChatAttachButton
             onPick={(picked) => setPendingAttachments((prev) => [...prev, ...picked])}
             folder="aurora"
-            className="shrink-0 size-9 rounded-full border border-white/12 bg-white/[0.03] text-white/70 hover:border-white/25 hover:text-white"
+            className="mb-0.5 size-10 shrink-0 rounded-full border border-white/12 bg-white/[0.03] text-white/70 hover:border-white/25 hover:text-white"
           />
           <ChatVoiceButtons
             convId={conv.activeId ?? null}
             onInterim={(t) => setInputValue(t)}
             onFinal={(t) => { setInputValue(""); void handleSend(t); }}
-            className="shrink-0"
+            className="mb-0.5 shrink-0"
+            buttonClassName="size-10"
           />
-          <Input
+          <textarea
+            ref={composerRef}
+            rows={1}
             placeholder={`Conversando con ${DEFAULT_AGENT.name}${activeProviderConfig ? ` vía ${activeProviderConfig.label}` : ""}...`}
-            className="flex-1 bg-background/50"
+            className="max-h-44 min-h-[44px] flex-1 resize-none rounded-xl border border-white/10 bg-background/50 px-4 py-3 text-[15px] leading-6 text-white placeholder:text-white/40 focus:border-violet-400/50 focus:outline-none focus:ring-2 focus:ring-violet-500/30 disabled:opacity-60"
             value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && !streaming && handleSend()}
+            onChange={(e) => { setInputValue(e.target.value); ajustarAlturaComposer(e.target); }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+                e.preventDefault();
+                if (!streaming) void handleSend();
+              }
+            }}
             disabled={streaming}
+            aria-label="Mensaje para Astraura"
           />
           {streaming ? (
-            <Button onClick={handleStop} variant="destructive" className="shrink-0 gap-2">
+            <Button onClick={handleStop} variant="destructive" className="mb-0.5 h-10 shrink-0 gap-2 px-4">
               <Square className="w-4 h-4" /> Detener
             </Button>
           ) : (
-            <Button onClick={() => handleSend()} className="shrink-0 gap-2" disabled={!inputValue.trim() && pendingAttachments.length === 0}>
+            <Button onClick={() => handleSend()} className="mb-0.5 h-10 w-12 shrink-0 gap-2" disabled={!inputValue.trim() && pendingAttachments.length === 0} aria-label="Enviar">
               <Send className="w-4 h-4" />
             </Button>
           )}
