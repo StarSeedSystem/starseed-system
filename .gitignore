@@ -40,6 +40,8 @@ next-env.d.ts
 
 .genkit/*
 .env*
+# La plantilla sin valores SÍ se versiona (QW4, Ola 226): solo nombres de variables.
+!.env.example
 
 # firebase
 firebase-debug.log
