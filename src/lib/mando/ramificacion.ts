@@ -353,7 +353,11 @@ export async function construirRamificacion(cuantas = 4, horasBus = 24 * 30): Pr
             }
 
             const localTerminal = TERMINALES.has(estado) || estado.startsWith("fallo");
-            if (ultimoTerminal && (!localTerminal || (ultimoTerminal.tipo === "commit" && estado !== "commit"))) {
+            if (vivo) {
+                // Un latido manda sobre cualquier cierre anterior: la tarea se está REHACIENDO ahora.
+                estado = "en_curso";
+                donde = vivo.donde;
+            } else if (ultimoTerminal && (!localTerminal || (ultimoTerminal.tipo === "commit" && estado !== "commit"))) {
                 // El bus tiene un cierre y lo local no (o el bus dice «commit» y lo local no): el
                 // cierre del bus manda, porque esa tarea la hizo un orquestador de otra máquina.
                 estado = ultimoTerminal.tipo === "commit" ? "commit" : ultimoTerminal.tipo;
@@ -361,9 +365,6 @@ export async function construirRamificacion(cuantas = 4, horasBus = 24 * 30): Pr
                 if (!nota) nota = ultimoTerminal.texto.slice(0, 160);
             } else if (localTerminal) {
                 // lo local ya lo dice
-            } else if (vivo) {
-                estado = "en_curso";
-                donde = vivo.donde;
             } else if (ultimoInicio && (!ultimoTerminal || ultimoInicio.id > ultimoTerminal.id)) {
                 // Empezó y no hay cierre: solo cuenta como en curso si el inicio es reciente (<3 h);
                 // si no, el orquestador murió y la tarea vuelve a estar pendiente.
