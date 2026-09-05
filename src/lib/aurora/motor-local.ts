@@ -40,14 +40,17 @@ export const MOTOR_LOCAL_URL = "http://127.0.0.1:4444";
 let proxyMuerto = false;
 
 async function pedir(ruta: string, init: RequestInit & { timeoutMs?: number } = {}): Promise<Response> {
-    const { timeoutMs = 5000, ...resto } = init;
+    const { timeoutMs = 5000, signal: externa, ...resto } = init;
     const intentar = async (base: string) => {
         const ctrl = new AbortController();
         const t = setTimeout(() => ctrl.abort(), timeoutMs);
+        const enlazar = () => ctrl.abort();
         try {
+            if (externa) { if (externa.aborted) ctrl.abort(); else externa.addEventListener("abort", enlazar, { once: true }); }
             return await fetch(`${base}/${ruta}`, { ...resto, signal: ctrl.signal });
         } finally {
             clearTimeout(t);
+            externa?.removeEventListener("abort", enlazar);
         }
     };
     if (!proxyMuerto) {
@@ -132,6 +135,29 @@ export async function estadoMotorLocal(): Promise<EstadoMotorLocal> {
     }
 }
 
+/**
+ * (2026-09-05) Espera a que el daemon esté LISTO (modelo cargado) hasta `maxMs`, pidiendo el
+ * precalentado y sondeando cada 2 s sin caché. El tts-server tarda ~22 s en despertar tras el
+ * auto-sleep de 10 min: antes el rito no esperaba y caía a la voz robótica del navegador en la
+ * primera frase («las de la bienvenida sonaron mal»). Devuelve true si quedó listo.
+ */
+export async function esperarListo(maxMs = 30_000): Promise<boolean> {
+    if (typeof window === "undefined") return false;
+    const inicio = Date.now();
+    let est = await estadoMotorLocal();
+    if (est.listo) return true;
+    if (!est.vivo) return false;   // no hay daemon: no hay nada que esperar
+    precalentarMotorLocal();
+    while (Date.now() - inicio < maxMs) {
+        await new Promise((r) => setTimeout(r, 2000));
+        estadoCache = null;
+        est = await estadoMotorLocal();
+        if (est.listo) return true;
+        if (!est.vivo) return false;
+    }
+    return false;
+}
+
 /** Pide al daemon que cargue el modelo ya, para que la primera frase no espere. */
 export function precalentarMotorLocal(): void {
     if (typeof window === "undefined") return;
@@ -153,21 +179,77 @@ function clave(texto: string, t: Timbre): string {
     return `${t.id}|${t.local.speed}|${texto.trim()}`;
 }
 
+/*
+ * (2026-09-05) UNA SÍNTESIS A LA VEZ, con prioridad para lo que va a sonar YA.
+ * Antes cada frase de un párrafo salía en paralelo (6 peticiones a la vez): el daemon las
+ * serializa en un solo tts-server (~40-90 s por frase en un M1 de 8 GB), las últimas
+ * superaban el tope de 120 s y quedaban mudas, y las de la ventana siguiente esperaban detrás
+ * de las de la anterior («las de después no suenan»). Ahora: cola en el cliente, las frases
+ * vivas por delante de las anticipaciones, y al cambiar de turno se ABORTAN las pendientes.
+ */
+type Trabajo = { k: string; prioridad: number; turno: number; ejecutar: (ctrl: AbortController) => Promise<Blob | null>; resolver: (b: Blob | null) => void; ctrl: AbortController };
+const pendientes: Trabajo[] = [];
+let sintetizando: Trabajo | null = null;
+let turnoSintesis = 0;
+
+function despachar(): void {
+    if (sintetizando || pendientes.length === 0) return;
+    pendientes.sort((a, b) => b.prioridad - a.prioridad);
+    const t = pendientes.shift()!;
+    sintetizando = t;
+    void t.ejecutar(t.ctrl).then(
+        (b) => { t.resolver(b); },
+        () => { t.resolver(null); },
+    ).finally(() => { sintetizando = null; despachar(); });
+}
+
+/**
+ * Nuevo turno de habla: se abortan las frases VIVAS de turnos anteriores que aún no sonaron
+ * (pendientes o en curso). Las anticipaciones (prioridad baja) se respetan: son las frases de
+ * los pasos siguientes y siguen valiendo.
+ */
+export function abortarSintesisAnteriores(): void {
+    turnoSintesis += 1;
+    const quedan: Trabajo[] = [];
+    for (const t of pendientes.splice(0)) {
+        if (t.prioridad >= 5) { t.ctrl.abort(); t.resolver(null); }
+        else quedan.push(t);
+    }
+    pendientes.push(...quedan);
+    if (sintetizando && sintetizando.prioridad >= 5 && sintetizando.turno < turnoSintesis) { try { sintetizando.ctrl.abort(); } catch { /* */ } }
+}
+
 /**
  * Sintetiza `texto` con el timbre dado. Devuelve el WAV como Blob, o null si el
  * daemon no pudo. Las peticiones idénticas se comparten (una sola síntesis).
+ * `prioridad` 10 = va a sonar ahora; 1 = anticipación de fondo.
  */
-export function sintetizarLocal(texto: string, t: Timbre): Promise<Blob | null> {
+export function sintetizarLocal(texto: string, t: Timbre, prioridad = 10): Promise<Blob | null> {
     const k = clave(texto, t);
     const previa = audios.get(k);
     if (previa) return previa;
 
-    const p = (async () => {
+    const p = new Promise<Blob | null>((resolver) => {
+        pendientes.push({ k, prioridad, turno: turnoSintesis, ctrl: new AbortController(), resolver, ejecutar: (ctrl) => sintetizarAhora(texto, t, ctrl) });
+        despachar();
+    });
+
+    audios.set(k, p);
+    // Un fallo no se cachea: la próxima vez se vuelve a intentar.
+    void p.then((b) => { if (!b) audios.delete(k); });
+    return p;
+}
+
+async function sintetizarAhora(texto: string, t: Timbre, ctrl: AbortController): Promise<Blob | null> {
+    {
         try {
             const r = await pedir("tts", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                timeoutMs: 120_000,
+                // Una frase larga puede tardar ~90 s en un M1/8 GB y el daemon da 150 s al
+                // servidor antes de caer al CLI: 200 s deja terminar lo que iba a terminar.
+                timeoutMs: 200_000,
+                signal: ctrl.signal,
                 body: JSON.stringify({
                     text: texto.trim(),
                     lang: "Spanish",
@@ -190,18 +272,15 @@ export function sintetizarLocal(texto: string, t: Timbre): Promise<Blob | null> 
         } catch {
             return null;
         }
-    })();
-
-    audios.set(k, p);
-    // Un fallo no se cachea: la próxima vez se vuelve a intentar.
-    void p.then((b) => { if (!b) audios.delete(k); });
-    return p;
+    }
 }
 
-/** Anticipa varias frases en segundo plano (no espera, no lanza). */
+/** Anticipa varias frases en segundo plano, por frases y en cola de baja prioridad (no espera, no lanza). */
 export function anticiparLocal(textos: string[], t: Timbre): void {
     for (const texto of textos) {
-        if (texto && texto.trim()) void sintetizarLocal(texto, t);
+        for (const frase of partirEnFrases(texto || "")) {
+            if (frase && frase.trim()) void sintetizarLocal(frase, t, 1);
+        }
     }
 }
 
@@ -275,10 +354,13 @@ let turnoFrases = 0;
  */
 export async function hablarLocalPorFrases(texto: string, t: Timbre, onInicio?: () => void): Promise<boolean> {
     const mio = ++turnoFrases;
+    // Nuevo turno de habla: lo que estuviera pendiente de turnos anteriores ya no va a sonar.
+    abortarSintesisAnteriores();
     const frases = partirEnFrases(texto);
 
-    // Lanza todas las síntesis ya (comparten caché); se reproducen en orden.
-    const blobs = frases.map((f) => sintetizarLocal(f, t));
+    // La primera frase va con prioridad máxima; las siguientes se piden de una en una mientras
+    // suena la anterior (cola de una síntesis a la vez: nada de seis peticiones en paralelo).
+    const blobs: Array<Promise<Blob | null>> = [sintetizarLocal(frases[0], t, 10)];
 
     const primera = await blobs[0];
     if (mio !== turnoFrases) return false;
@@ -287,6 +369,7 @@ export async function hablarLocalPorFrases(texto: string, t: Timbre, onInicio?: 
     let arranco = false;
     for (let i = 0; i < frases.length; i++) {
         if (mio !== turnoFrases) return arranco;
+        if (i + 1 < frases.length && !blobs[i + 1]) blobs[i + 1] = sintetizarLocal(frases[i + 1], t, 9);
         const b = i === 0 ? primera : await blobs[i];
         if (mio !== turnoFrases) return arranco;
         if (!b) continue; // una frase fallida no calla las demás

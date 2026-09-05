@@ -136,7 +136,13 @@ async function hablarPorLocal(texto: string, timbre: Timbre): Promise<boolean> {
     try {
         const ml = await import("@/lib/aurora/motor-local");
         const est = await ml.estadoMotorLocal();
-        if (!est.listo) return false;
+        if (!est.listo) {
+            // (2026-09-05) El daemon existe pero duerme (auto-sleep) o está cargando el modelo
+            // (~22 s): se le espera en vez de caer a la voz robótica del navegador, que es lo
+            // que sonaba «mal» en las primeras ventanas de la bienvenida. Si no hay daemon, no.
+            if (!est.vivo) return false;
+            if (!(await ml.esperarListo(30_000))) return false;
+        }
         return await ml.hablarLocalPorFrases(texto, timbre);
     } catch {
         return false;

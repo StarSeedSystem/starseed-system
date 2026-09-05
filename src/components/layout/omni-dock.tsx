@@ -487,6 +487,7 @@ export function OmniDock() {
                                     return (
                                         <DockItem
                                             key={item.id}
+                                            guia={`dock-${item.id}`}
                                             icon={<Icon className={iconSizeCls} />}
                                             label={item.label}
                                             color={item.color}
@@ -587,9 +588,11 @@ const DOCK_PALETTE: Record<DockColor, { text: string; ring: string; glow: string
     purple: { text: "text-purple-300", ring: "ring-purple-400/70", glow: "shadow-[0_0_18px_rgba(168,85,247,0.45)]", bg: "from-purple-500/15 to-purple-500/0", activeBg: "from-purple-500/30 to-purple-500/5" },
 };
 
-function DockItem({ icon, label, onClick, color = "neutral", active = false, badge, indicator, compact = false }: {
+function DockItem({ icon, label, onClick, color = "neutral", active = false, badge, indicator, compact = false, guia }: {
     icon: React.ReactNode;
     label: string;
+    /** Ancla para la guía de StarSeed (`[data-guide="dock-<id>"]`): el foco del recorrido ilumina este icono. */
+    guia?: string;
     onClick: () => void;
     color?: DockColor;
     active?: boolean;
@@ -615,6 +618,7 @@ function DockItem({ icon, label, onClick, color = "neutral", active = false, bad
                 onClick={onClick}
                 aria-current={active ? "page" : undefined}
                 title={label}
+                data-guide={guia}
                 className={cn(
                     // Contenedor de icono "cristal" unificado (misma familia que
                     // biblioteca/hub vía .ss-icon-3d--sheen: barrido especular al

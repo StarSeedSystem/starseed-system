@@ -305,7 +305,7 @@ const STEPS: GuideStep[] = [
       "El Escritorio es tu página principal: un espacio soberano con iconos y ventanas que organizas a tu gusto, como un sistema operativo.",
     icon: MonitorSmartphone,
     accent: "#6FE6D6",
-    targets: ['[data-guide="escritorio"]'],
+    targets: ['[data-guide="escritorio"]', '[data-guide="dock-escritorios"]'],
     go: {
       label: "Ir al Escritorio",
       run: ({ router }) => safeGoto(router, R.escritorios),
@@ -325,7 +325,7 @@ const STEPS: GuideStep[] = [
       "El Dashboard reúne tus widgets en una rejilla que reordenas arrastrando: un vistazo vivo a tu red, tus datos y tus herramientas.",
     icon: Gauge,
     accent: "#9FE870",
-    targets: ['[data-guide="dashboard"]'],
+    targets: ['[data-guide="dashboard"]', '[data-guide="dock-dashboard"]'],
     go: {
       label: "Ir al Dashboard",
       run: ({ router }) => safeGoto(router, R.dashboard),
@@ -341,7 +341,7 @@ const STEPS: GuideStep[] = [
       "Astraura es mi mente: aquí configuras mi cerebro, mis memorias, mis skills y mis sentidos. Soy tu Exocórtex, propiedad tuya y leal a ti.",
     icon: Brain,
     accent: "#E879F9",
-    targets: ['[data-guide="astraura"]'],
+    targets: ['[data-guide="astraura"]', '[data-guide="dock-ai-studio"]', '[data-guide="dock-apps-ia"]'],
     go: {
       label: "Abrir Astraura",
       run: ({ router }) => safeGoto(router, R.agent),
@@ -361,7 +361,7 @@ const STEPS: GuideStep[] = [
       "Tu Perfil es tu cara pública: nombre, arroba, avatar y lo que compartes. Tu Cuenta privada es el ancla, y puedes tener varios perfiles sobre ella.",
     icon: UserCircle,
     accent: "#F0ABFC",
-    targets: ['[data-guide="perfil"]'],
+    targets: ['[data-guide="perfil"]', '[data-guide="dock-profile"]'],
     go: {
       label: "Ver mi Perfil",
       run: ({ router }) => safeGoto(router, R.profile),
@@ -377,7 +377,7 @@ const STEPS: GuideStep[] = [
       "En Cerebros enlazas servidores y memorias en un grafo vivo: fuentes de conocimiento, máquinas y recuerdos para que yo piense con más contexto.",
     icon: Server,
     accent: "#22D3EE",
-    targets: ['[data-guide="cerebros"]'],
+    targets: ['[data-guide="cerebros"]', '[data-guide="dock-cerebros"]', '[data-guide="dock-cerebro"]'],
     go: {
       label: "Ir a Cerebros",
       run: ({ router }) => safeGoto(router, R.cerebros),
@@ -393,7 +393,7 @@ const STEPS: GuideStep[] = [
       "La Librería es el catálogo unificado de la red: apps, widgets, recursos y saberes que puedes abrir, instalar o vincular. Es tu puerta a lo común.",
     icon: BookOpen,
     accent: "#FBBF24",
-    targets: ['[data-guide="libreria"]'],
+    targets: ['[data-guide="libreria"]', '[data-guide="dock-mylib"]', '[data-guide="dock-netlib"]'],
     go: {
       label: "Abrir la Librería",
       run: ({ router }) => safeGoto(router, R.library),
@@ -640,24 +640,27 @@ export function AuroraGuide() {
     }
     if (!el) { setSpot(null); return; }
     try {
+      // Un icono del dock fuera del carril visible no se puede iluminar: se trae a la vista
+      // (el carril del dock es desplazable) y se recalcula el rectángulo en la siguiente vuelta.
+      try { (el as HTMLElement).scrollIntoView?.({ block: "nearest", inline: "center", behavior: reduceMotion ? "auto" : "smooth" }); } catch { /* */ }
       const r = el.getBoundingClientRect();
       // Si el elemento no es visible (0x0 u oculto), no dibujamos recorte.
       if (r.width < 2 || r.height < 2) { setSpot(null); return; }
       setSpot(r);
     } catch { setSpot(null); }
-  }, [step, inTour]);
+  }, [step, inTour, reduceMotion]);
 
   useEffect(() => {
     if (!inTour) { setSpot(null); return; }
-    // Reintenta un par de veces por si el target aparece con animación.
+    // Reintenta varias veces: el dock y las cortinas aparecen con animación y el
+    // desplazamiento suave del carril tarda unos cientos de ms en dejar el icono quieto.
     locateTarget();
-    const t1 = setTimeout(locateTarget, 180);
-    const t2 = setTimeout(locateTarget, 520);
+    const temporizadores = [180, 520, 900, 1400].map((ms) => setTimeout(locateTarget, ms));
     const onResize = () => locateTarget();
     window.addEventListener("resize", onResize);
     window.addEventListener("scroll", onResize, true);
     return () => {
-      clearTimeout(t1); clearTimeout(t2);
+      temporizadores.forEach(clearTimeout);
       window.removeEventListener("resize", onResize);
       window.removeEventListener("scroll", onResize, true);
     };
@@ -790,6 +793,27 @@ export function AuroraGuide() {
                     boxShadow: `0 0 0 2px color-mix(in srgb, ${step.accent} 35%, transparent), 0 0 34px color-mix(in srgb, ${step.accent} 65%, transparent)`,
                   }}
                 />
+                {/* Onda que sale del elemento (la «iluminación» automática del paso):
+                    un anillo que se expande y se desvanece en bucle, para que el ojo
+                    vaya solo al elemento del que habla Aurora. */}
+                {!reduceMotion && (
+                  <motion.div
+                    aria-hidden
+                    className="pointer-events-none absolute"
+                    initial={{ opacity: 0.75, scale: 1 }}
+                    animate={{ opacity: [0.75, 0], scale: [1, 1.45] }}
+                    transition={{ duration: 1.8, repeat: Infinity, ease: "easeOut", delay: 0.3 }}
+                    style={{
+                      left: spot.left - 8,
+                      top: spot.top - 8,
+                      width: spot.width + 16,
+                      height: spot.height + 16,
+                      borderRadius: 18,
+                      border: `2px solid ${step.accent}`,
+                      transformOrigin: "center",
+                    }}
+                  />
+                )}
               </>
             )}
 

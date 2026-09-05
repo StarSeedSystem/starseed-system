@@ -25,7 +25,9 @@ async function reenviar(req: NextRequest, ruta: string[]): Promise<Response> {
     if (!RUTAS.has(destino)) return NextResponse.json({ ok: false, error: "ruta no permitida" }, { status: 404 });
     try {
         const ctrl = new AbortController();
-        const t = setTimeout(() => ctrl.abort(), destino === "tts" ? 120_000 : 5_000);
+        // tts: una frase larga tarda ~90 s en un M1/8 GB y el daemon da 150 s al servidor
+        // residente; con 120 s las últimas frases de un párrafo se quedaban mudas.
+        const t = setTimeout(() => ctrl.abort(), destino === "tts" ? 200_000 : 5_000);
         const r = await fetch(`${DAEMON}/${destino}`, {
             method: req.method,
             headers: { "Content-Type": req.headers.get("content-type") || "application/json" },

@@ -1231,6 +1231,7 @@ export function AuroraWidget() {
               openExocortexChat();
             }}
             aria-label="Aurora"
+            data-guide="orbe"
             data-aurora-state={state}
             title={!supported
               ? "Tu navegador no soporta voz · toca para opciones · clic derecho abre el chat en el Exocórtex"
