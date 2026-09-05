@@ -448,6 +448,19 @@ proponer acciones en JSON —`ver_tarea`, `leer` (rutas de una lista blanca; nun
 `lanzar`, `detener`— que la interfaz ejecuta; lanzar y detener piden confirmación humana.
 Verificado el 2026-09-05 con Kimi K3 (4.573/260 tokens, 35 s) y xKiro qwen3-coder-plus.
 
+### Medidores de tareas y «medio» de cada agente (2026-09-05)
+
+Cabecera del Mando: además de ola activa, en curso, commits y proveedores, **Integradas · En
+curso · Fallidas · Sin cambios · Pendientes** de la ola activa (detalle: total de las últimas
+olas), calculados por la ramificación (`cuentas` en `/api/mando/estado`). Cada agente y cada
+tarea llevan su **medio** —desde dónde se están usando las APIs: quién lanzó el orquestador—:
+`hermes`, `claude` (Cowork/Claude Code, también el contenedor), `terminal`, `mando` (Diseñador
+de olas o lanzador de la nube), `cron`, `opencode`. Lo detecta `medio_de_lanzamiento()` en el
+orquestador (`STARSEED_MEDIO` explícito → `CLAUDECODE` → ejecutables de la cadena de procesos
+padre → consola) y viaja en todos los eventos, en los latidos locales y en la foto del bus. Las
+colas son portables: el evento `arranque` lleva también el prompt de cada tarea y el Diseñador
+de la otra máquina las importa («de la otra máquina»).
+
 ### Voz: una sola copia del modelo en la Mac (2026-09-04, noche)
 
 `/api/voz/salud` y `/api/voz/hablar` prueban primero el tts-server crudo en 4500 y, si no hay,
