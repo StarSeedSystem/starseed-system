@@ -12,7 +12,9 @@ import { guardarChat, leerArchivoPermitido, leerChat, responder, crearChat } fro
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 180;
+// 60 es el techo del plan de Vercel (el despliegue de a3ff578 falló con 180; las demás rutas
+// ya usaban 60). En local no aplica: el asistente responde en 5-35 s.
+export const maxDuration = 60;
 
 export async function POST(peticion: Request): Promise<Response> {
     const veto = await guardianMando();
