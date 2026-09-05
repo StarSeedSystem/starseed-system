@@ -62,6 +62,8 @@ function tonoEstado(estado: string): { borde: string; punto: string; texto: stri
             return { borde: "border-white/10", punto: "bg-white/25", texto: "text-white/40", etiqueta: "pendiente" };
         case "reasignada":
             return { borde: "border-violet-400/40", punto: "bg-violet-400", texto: "text-violet-300", etiqueta: "movida de servidor" };
+        case "interrumpida":
+            return { borde: "border-amber-400/30", punto: "bg-amber-400/70", texto: "text-amber-200/80", etiqueta: "interrumpida · pendiente de rehacer" };
         default:
             if (estado.startsWith("fallo")) {
                 return { borde: "border-rose-400/50", punto: "bg-rose-400", texto: "text-rose-300", etiqueta: estado.replace("_", " ") };
@@ -698,7 +700,7 @@ function FichaTarea({ tarea, estadosOla, onCerrar, onCambio }: { tarea: RamaTare
 function pesoFila(t: RamaTarea): number {
     if (t.vivo) return 0;
     if (t.estado === "en_curso") return 1;
-    if (t.estado === "pendiente") return 2;
+    if (t.estado === "pendiente" || t.estado === "interrumpida") return 2;
     return 3;
 }
 
@@ -740,14 +742,14 @@ function FilasDeProcesos({ olas, olaSel, latidos, enjambres, onVer }: {
     });
     const colasVivas = new Set(agentes.map((a) => a.cola));
     const sinAgente = [...porCola.entries()]
-        .filter(([cola, tareas]) => !colasVivas.has(cola) && tareas.some((t) => t.estado === "pendiente" || t.estado === "en_curso"))
+        .filter(([cola, tareas]) => !colasVivas.has(cola) && tareas.some((t) => t.estado === "pendiente" || t.estado === "en_curso" || t.estado === "interrumpida"))
         .map(([cola, tareas]) => ({ cola, tareas }));
 
     const Fila = ({ tareas, marcarHechas }: { tareas: RamaTarea[]; marcarHechas: Set<string> }) => (
         <ol className="mt-2 space-y-1 text-xs">
             {tareas.map((t, i) => {
                 const tono = tonoEstado(t.estado);
-                const espera = t.estado === "pendiente" ? t.dependencias.filter((d) => !marcarHechas.has(d)) : [];
+                const espera = t.estado === "pendiente" || t.estado === "interrumpida" ? t.dependencias.filter((d) => !marcarHechas.has(d)) : [];
                 return (
                     <li key={t.id} className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                         <span className="w-5 text-right font-mono text-white/35">{i + 1}.</span>
@@ -788,7 +790,7 @@ function FilasDeProcesos({ olas, olaSel, latidos, enjambres, onVer }: {
                 {agentes.map((a) => {
                     const hechasCola = new Set(a.tareas.filter((t) => ["commit", "bloqueante", "sin_cambios", "sustituida", "reasignada"].includes(t.estado)).map((t) => t.id));
                     const fila = [...a.tareas]
-                        .filter((t) => t.vivo || t.estado === "en_curso" || t.estado === "pendiente")
+                        .filter((t) => t.vivo || t.estado === "en_curso" || t.estado === "pendiente" || t.estado === "interrumpida")
                         .sort((x, y) => pesoFila(x) - pesoFila(y) || x.nivel - y.nivel || x.id.localeCompare(y.id, undefined, { numeric: true }));
                     return (
                         <div key={a.clave} className="mt-2 rounded-lg border border-white/10 bg-white/[0.03] p-2">
@@ -796,7 +798,7 @@ function FilasDeProcesos({ olas, olaSel, latidos, enjambres, onVer }: {
                                 <span className={`font-medium ${a.donde === "nube" ? "text-sky-300" : "text-amber-300"}`}>{a.donde}</span>
                                 {a.medio ? <span className="text-violet-200">desde {a.medio}</span> : null}
                                 <span className="font-mono text-white/70">cola-{a.cola}</span>
-                                <span className="text-white/45">{a.vivas.length} escribiendo · {fila.filter((t) => t.estado === "pendiente").length} en fila · {a.integradas} integradas</span>
+                                <span className="text-white/45">{a.vivas.length} escribiendo · {fila.filter((t) => t.estado === "pendiente" || t.estado === "interrumpida").length} en fila · {a.integradas} integradas</span>
                             </div>
                             {fila.length ? <Fila tareas={fila} marcarHechas={hechasCola} /> : <p className="mt-1 text-[11px] text-white/40">Sin tareas en fila: está cerrando.</p>}
                         </div>
@@ -804,7 +806,7 @@ function FilasDeProcesos({ olas, olaSel, latidos, enjambres, onVer }: {
                 })}
                 {sinAgente.map((c) => {
                     const hechasCola = new Set(c.tareas.filter((t) => ["commit", "bloqueante", "sin_cambios", "sustituida", "reasignada"].includes(t.estado)).map((t) => t.id));
-                    const fila = c.tareas.filter((t) => t.estado === "pendiente" || t.estado === "en_curso").sort((x, y) => x.nivel - y.nivel || x.id.localeCompare(y.id, undefined, { numeric: true }));
+                    const fila = c.tareas.filter((t) => t.estado === "pendiente" || t.estado === "en_curso" || t.estado === "interrumpida").sort((x, y) => x.nivel - y.nivel || x.id.localeCompare(y.id, undefined, { numeric: true }));
                     return (
                         <div key={`sin-${c.cola}`} className="mt-2 rounded-lg border border-dashed border-white/10 p-2">
                             <div className="flex flex-wrap items-center gap-2 text-xs">

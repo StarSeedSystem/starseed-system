@@ -297,7 +297,10 @@ export function colaInteligente(
     const fila: TareaEnFila[] = [];
     for (const tarea of tareas) {
         if (terminada(tarea.id)) continue;
-        const estado = estadoDe(tarea.id);
+        // «en_curso» en progreso.json sin ningún latido vivo = el orquestador murió a medias:
+        // la tarea está interrumpida, no en curso.
+        const bruto = estadoDe(tarea.id);
+        const estado = bruto === "en_curso" && !enMarcha.has(tarea.id) ? "interrumpida" : bruto;
         const pendientes = tarea.dependencias.filter((d) => !terminada(d));
         const fallidos = Array.isArray(objeto(progreso[tarea.id]).modelos_fallidos)
             ? (objeto(progreso[tarea.id]).modelos_fallidos as unknown[]).length
@@ -314,6 +317,9 @@ export function colaInteligente(
         } else if (estado.startsWith("fallo") || estado === "conflicto") {
             prioridad = 20;
             motivo = `quedó en ${estado}; reintento con otro modelo`;
+        } else if (estado === "interrumpida") {
+            prioridad = 12;
+            motivo = "quedó a medias cuando murió su orquestador; se vuelve a hacer desde cero";
         } else if (fallidos > 0) {
             prioridad = 15;
             motivo = `${fallidos} modelo(s) ya fallaron aquí; empieza por otro`;

@@ -406,6 +406,8 @@ export async function construirRamificacion(cuantas = 4, horasBus = 24 * 30): Pr
             }
             // Un commit cuya revisión fue bloqueante se marca así (lo dice la nota o el evento).
             if (estado === "commit" && /bloqueante/.test(nota) && !/no bloqueante|revisión ok/.test(nota)) estado = "bloqueante";
+            // «en_curso» sin latido: el orquestador murió a medias; hay que rehacerla.
+            if (estado === "en_curso" && !vivo) estado = "interrumpida";
             if (vivo && !modelo) modelo = vivo.modelo;
             if (vivo?.medio) medio = vivo.medio;
             if (!sha && estado === "commit") {
@@ -447,7 +449,7 @@ export async function construirRamificacion(cuantas = 4, horasBus = 24 * 30): Pr
             enCurso: cuenta((r) => r.estado === "en_curso"),
             fallidas: cuenta((r) => r.estado.startsWith("fallo") || r.estado === "conflicto"),
             sinCambios: cuenta((r) => r.estado === "sin_cambios" || r.estado === "sustituida"),
-            pendientes: cuenta((r) => r.estado === "pendiente"),
+            pendientes: cuenta((r) => r.estado === "pendiente" || r.estado === "interrumpida"),
             viva: ramas.some((r) => r.vivo !== null),
         });
     }
