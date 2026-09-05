@@ -292,13 +292,27 @@ export async function construirRamificacion(cuantas = 4, horasBus = 24 * 30): Pr
     }
 
     // Agrupar por ola y quedarse con las más recientes.
+    // Una tarea movida de servidor existe en dos colas (la original y `cola-<n>-<id>`): en el
+    // árbol es UNA sola; su cola es la que tenga un latido vivo o, si no, la derivada (más larga).
     const porOla = new Map<string, TareaOla[]>();
     for (const t of tareas) {
         const clave = t.ola || t.id;
         const lista = porOla.get(clave) ?? [];
-        lista.push(t);
+        const previa = lista.find((x) => x.id === t.id);
+        if (previa) {
+            const viva = vivoPor.get(t.id)?.cola;
+            const prefiereNueva = viva ? t.cola === viva : (t.cola ?? "").length > (previa.cola ?? "").length;
+            if (prefiereNueva) previa.cola = t.cola;
+            for (const d of t.dependencias) if (!previa.dependencias.includes(d)) previa.dependencias.push(d);
+            continue;
+        }
+        lista.push({ ...t, dependencias: [...t.dependencias] });
         porOla.set(clave, lista);
     }
+    // Dónde corre cada cola ahora mismo (para tareas pendientes, que aún no tienen historia).
+    const dondeCola = new Map<string, string>();
+    for (const e of delBus.enjambres) dondeCola.set(e.cola.replace(/^cola-/, ""), e.donde);
+    for (const l of latidosMac) dondeCola.set(l.cola.replace(/^cola-/, ""), "mac");
     const etiquetas = [...porOla.keys()].sort((a, b) => numeroOla(a) - numeroOla(b) || a.localeCompare(b));
     const elegidas = etiquetas.slice(-Math.max(1, cuantas));
 
@@ -315,7 +329,7 @@ export async function construirRamificacion(cuantas = 4, horasBus = 24 * 30): Pr
             // Estado: local si es terminal; si no, el último evento terminal del bus; si no,
             // en_curso si hay latido o un «inicio» reciente sin cierre; si no, pendiente.
             let estado = texto(prog.estado);
-            let donde: string | null = Object.keys(prog).length ? "mac" : null;
+            let donde: string | null = Object.keys(prog).length ? "mac" : (t.cola && dondeCola.get(t.cola)) || null;
             let modelo = texto(prog.modelo);
             let nota = texto(prog.nota);
             let segundos = número(prog.segundos, 0);
