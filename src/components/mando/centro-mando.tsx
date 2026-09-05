@@ -159,10 +159,10 @@ export function CentroMando() {
         // «En curso» es lo que un agente está escribiendo AHORA (latidos del vigilante).
         // Sumar `restantes` contaba como en curso todo lo que aún no se ha hecho, aunque no
         // hubiera ninguna ola en marcha: por eso este número no se movía.
-        const tareasEnCurso =
-            latidos.length > 0
-                ? latidos.length
-                : estado.olas.reduce((acc, o) => acc + o.restantes, 0);
+        // «En curso» = agentes latiendo AHORA. Lo pendiente se muestra aparte (antes salía «60»
+        // con cero agentes porque sumaba todo lo no hecho de todas las olas).
+        const tareasEnCurso = latidos.length;
+        const pendientes = estado.olas.reduce((acc, o) => acc + o.restantes, 0);
         const flota = flotaConocida(usoPorMotor(estado.uso));
         // Agotados según el uso diario + caídos según el supervisor de cada enjambre (bus):
         // xkiro sin cuota diaria es «caído» para el supervisor aunque el contador local no lo sepa.
@@ -176,6 +176,7 @@ export function CentroMando() {
         return {
             olaActiva: olaActiva ? (/^ola\s/i.test(olaActiva.id) ? olaActiva.id : `Ola ${olaActiva.id}`) : "Sin olas activas",
             tareasEnCurso,
+            pendientes,
             sinPush: estado.repo?.sinPush ?? null,
             agotados,
         };
@@ -209,7 +210,7 @@ export function CentroMando() {
                     <DatoPulso titulo="Ola activa" valor={pulso.olaActiva} />
                     <DatoPulso
                         titulo="Tareas en curso"
-                        valor={String(pulso.tareasEnCurso)}
+                        valor={`${pulso.tareasEnCurso}${pulso.pendientes ? ` · ${pulso.pendientes} pendientes` : ""}`}
                         tono={pulso.tareasEnCurso > 0 ? "aviso" : "normal"}
                     />
                     <DatoPulso

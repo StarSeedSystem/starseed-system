@@ -40,6 +40,37 @@ function hora(iso: string): string {
     return Number.isNaN(d.getTime()) ? "" : d.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
 }
 
+/** Acciones propuestas en un texto del asistente (mismo formato que extrae el servidor). */
+function accionesDe(texto: string): AccionPropuesta[] {
+    const salida: AccionPropuesta[] = [];
+    const re = /\{[^{}\n]*"accion"\s*:\s*"(lanzar|detener|ver_tarea|leer)"[^{}\n]*\}/g;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(texto)) !== null) {
+        try {
+            const d = JSON.parse(m[0]) as Record<string, unknown>;
+            const a: AccionPropuesta = { accion: d.accion as AccionPropuesta["accion"] };
+            if (typeof d.cola === "string") a.cola = d.cola.replace(/^cola-/, "").replace(/\.json$/, "");
+            if (typeof d.donde === "string") a.donde = d.donde === "mac" ? "mac" : "nube";
+            if (typeof d.workers === "number") a.workers = Math.min(4, Math.max(1, Math.round(d.workers)));
+            if (typeof d.id === "string") a.id = d.id;
+            if (typeof d.ruta === "string") a.ruta = d.ruta;
+            salida.push(a);
+        } catch {
+            // bloque mal formado
+        }
+    }
+    return salida.slice(0, 6);
+}
+
+/** Quita del texto los bloques JSON de acción (se muestran como botones, no como texto). */
+function sinBloquesDeAccion(texto: string): string {
+    return texto
+        .split("\n")
+        .filter((l) => !/^\s*\{[^{}]*"accion"\s*:[^{}]*\}\s*$/.test(l))
+        .join("\n")
+        .trim();
+}
+
 function puntoSalud(salud: string): string {
     if (salud === "vivo") return "bg-emerald-400";
     if (salud === "caido") return "bg-rose-400";
@@ -145,7 +176,6 @@ export function AsistenteMando({ modo, onCerrar }: { modo: "panel" | "flotante";
     const [texto, setTexto] = useState("");
     const [ocupado, setOcupado] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [acciones, setAcciones] = useState<Record<number, AccionPropuesta[]>>({});
     const final = useRef<HTMLDivElement | null>(null);
 
     const cargarChats = useCallback(async () => {
@@ -263,9 +293,6 @@ export function AsistenteMando({ modo, onCerrar }: { modo: "panel" | "flotante";
                 setError(d.error ?? `El modelo no respondió (HTTP ${r.status}).`);
             }
             if (d.chatId) await cargarChat(d.chatId);
-            if (d.respuesta && d.acciones?.length) {
-                setAcciones((prev) => ({ ...prev, [Date.parse(d.respuesta!.t)]: d.acciones! }));
-            }
             void cargarChats();
         } catch {
             setError("No se pudo hablar con el mando.");
@@ -331,7 +358,7 @@ export function AsistenteMando({ modo, onCerrar }: { modo: "panel" | "flotante";
                         ) : null}
                         {mensajes.map((m, i) => {
                             const clave = Date.parse(m.t);
-                            const propuestas = m.rol === "asistente" ? acciones[clave] : undefined;
+                            const propuestas = m.rol === "asistente" ? accionesDe(m.texto) : undefined;
                             return (
                                 <div key={`${m.t}-${i}`} className={`rounded-lg px-3 py-2 text-sm ${m.rol === "usuario" ? "ml-6 bg-violet-500/15 text-white" : m.rol === "herramienta" ? "border border-white/10 bg-white/[0.03] font-mono text-[11px] text-white/60" : "mr-6 bg-white/[0.05] text-white/90"}`}>
                                     <div className="mb-1 flex items-center justify-between text-[10px] text-white/40">
@@ -340,7 +367,7 @@ export function AsistenteMando({ modo, onCerrar }: { modo: "panel" | "flotante";
                                     </div>
                                     {m.rol === "asistente" ? (
                                         <div className="prose prose-invert prose-sm max-w-none text-white/90 [&_code]:text-[12px] [&_pre]:overflow-x-auto [&_pre]:text-[11px]">
-                                            <ReactMarkdown>{m.texto}</ReactMarkdown>
+                                            <ReactMarkdown>{sinBloquesDeAccion(m.texto)}</ReactMarkdown>
                                         </div>
                                     ) : (
                                         <p className="whitespace-pre-wrap">{m.rol === "herramienta" ? m.texto.slice(0, 1200) + (m.texto.length > 1200 ? "…" : "") : m.texto}</p>
