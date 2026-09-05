@@ -147,8 +147,8 @@ async function hablarPorLocal(texto: string, timbre: Timbre, alEmpezar?: () => v
         if (!est.listo) {
             // (2026-09-05) El daemon existe pero duerme (auto-sleep) o está cargando el modelo
             // (~22 s): se le espera en vez de caer a la voz robótica del navegador, que es lo
-            // que sonaba «mal» en las primeras ventanas de la bienvenida. Si no hay daemon, no.
-            if (!est.vivo) return false;
+            // que sonaba «mal» en las primeras ventanas de la bienvenida. `esperarListo` ya
+            // distingue «no hay daemon» (no espera) de «respondió tarde» (espera hasta 30 s).
             if (!(await ml.esperarListo(30_000))) return false;
         }
         return await ml.hablarLocalPorFrases(texto, timbre, alEmpezar);

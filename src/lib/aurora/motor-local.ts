@@ -37,7 +37,9 @@ export const MOTOR_LOCAL_URL = "http://127.0.0.1:4444";
  *    está en la nube (Vercel) y no ve el 127.0.0.1 del usuario.
  * Se prueba el proxy; si responde 502/404 se recuerda y se va directo.
  */
-let proxyMuerto = false;
+/** Hasta cuándo se evita el proxy `/api/voz-local` (tras un fallo de red real; nunca por timeout). */
+let proxyMuertoHasta = 0;
+const PROXY_MUERTO_MS = 30_000;
 
 async function pedir(ruta: string, init: RequestInit & { timeoutMs?: number } = {}): Promise<Response> {
     const { timeoutMs = 5000, signal: externa, ...resto } = init;
@@ -53,13 +55,20 @@ async function pedir(ruta: string, init: RequestInit & { timeoutMs?: number } = 
             externa?.removeEventListener("abort", enlazar);
         }
     };
-    if (!proxyMuerto) {
+    if (Date.now() >= proxyMuertoHasta) {
         try {
             const r = await intentar("/api/voz-local");
             if (r.status !== 502 && r.status !== 404) return r;
-            proxyMuerto = true; // el servidor no ve el daemon: a partir de ahora, directo
-        } catch {
-            proxyMuerto = true;
+            proxyMuertoHasta = Date.now() + PROXY_MUERTO_MS; // el servidor no ve el daemon: un rato directo
+        } catch (e) {
+            // (2026-09-05) Un TIMEOUT del proxy (la ruta compilando en el servidor de desarrollo,
+            // la Mac cargada) no significa que el proxy no exista. Antes bastaba uno para marcarlo
+            // muerto durante TODA la página: cada petición siguiente iba directa a 127.0.0.1:4444,
+            // que el navegador puede bloquear (CORS, panel embebido) → «demonio apagado» con el
+            // demonio vivo. Ahora el timeout se propaga tal cual (quien llama espera y reintenta)
+            // y solo un fallo de red real aparta el proxy, y solo 30 s.
+            if (e instanceof Error && e.name === "AbortError") throw e;
+            proxyMuertoHasta = Date.now() + PROXY_MUERTO_MS;
         }
     }
     return intentar(MOTOR_LOCAL_URL);
@@ -146,14 +155,16 @@ export async function esperarListo(maxMs = 30_000): Promise<boolean> {
     const inicio = Date.now();
     let est = await estadoMotorLocal();
     if (est.listo) return true;
-    if (!est.vivo) return false;   // no hay daemon: no hay nada que esperar
+    // Sin daemon de verdad (marcado ausente por un fallo de red real) no hay nada que esperar;
+    // un «apagado» por timeout (la Mac cargada) sí merece la espera.
+    if (!est.vivo && Date.now() < leerAusenteHasta()) return false;
     precalentarMotorLocal();
     while (Date.now() - inicio < maxMs) {
         await new Promise((r) => setTimeout(r, 2000));
         estadoCache = null;
         est = await estadoMotorLocal();
         if (est.listo) return true;
-        if (!est.vivo) return false;
+        if (!est.vivo && Date.now() < leerAusenteHasta()) return false;
     }
     return false;
 }
