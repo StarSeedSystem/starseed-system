@@ -310,6 +310,7 @@ catálogos indexados en local, refrescables con `starseed-fuentes refrescar` y c
 | [OpenDesign](https://github.com/nexu-io/open-design) | Apache-2.0 | Diseño nativo de agentes: prototipos, presentaciones, paneles, imágenes, documentos y motion MP4; importa de Figma |
 | [Langflow](https://github.com/langflow-ai/langflow) | MIT | Flujos de agente visuales desplegables como API o servidor MCP; candidato a diseñar las olas |
 | [OpenHands Agent Canvas](https://github.com/OpenHands/openhands) | MIT | Ejecuta agentes en local/Docker/VM. Sin CLI headless (verificado): sirve para paralelizar fuera de la Mac, no como ejecutor del enjambre |
+| [Flowise](https://github.com/FlowiseAI/Flowise) | Apache-2.0 | **Archivado el 2026-08-13 (EOL, sin sucesor)**: no se instala. Se tomó como patrón: el **Diseñador de olas** del Mando (nodos editables → guardar cola → lanzar por API, aquí o en la nube con orden firmada), la ficha de ejecución por nodo y los nodos de aprobación humana (pendiente). Sus `packages/components/nodes` valen como catálogo de patrones de conectores |
 
 El enjambre las reparte solo: `contexto_inteligente()` mira las palabras de cada tarea y le pasa al
 agente **el puntero y el comando de búsqueda**, nunca el catálogo entero (economía de contexto).
@@ -417,6 +418,19 @@ agente → revisor → commit, latido vivo (fase, modelo·proveedor, tokens real
 barra de ventana), ficha con pasos/eventos/contexto. Datos: `GET /api/mando/ramificacion`
 (`src/lib/mando/ramificacion.ts`: colas de disco + colas del bus + progreso + pasos + eventos +
 latidos). Se relee cada 20 s. En `/mando` no se montan los globales del OS (`AppGlobals`).
+
+### Diseñador de olas y lanzamiento remoto (2026-09-05)
+
+Pestaña Procesos → botón **Diseñar ola**: tareas con id, título, archivos, prompt, dependencias
+(chips) y modelo; importar una cola existente para rehacer lo que falló; vista previa con el
+mismo árbol; **Validar · Guardar cola · Lanzar** (`src/lib/mando/colas.ts`, `/api/mando/colas`).
+Lanzar «aquí» arranca `~/.local/bin/starseed-enjambre.py` desacoplado; lanzar «en la nube»
+publica en el bus un evento `lanzar` con la cola entera y una firma HMAC
+(`STARSEED_LANZADOR_SECRETO`, solo en `.env.local` y `~/.starseed/env` de las dos máquinas) que
+recoge `~/starseed-vigia/lanzador.py` en el contenedor (`setsid -f python3 -u …`; no sobrevive a
+un reinicio del contenedor: relanzarlo al retomar la sesión). Órdenes sin firma, caducadas
+(>15 min) o de otra máquina se anotan como `lanzar_rechazado`. Verificado de punta a punta el
+2026-09-05 con `cola-241-prueba-disenador` (P1 → commit e3c22c9).
 
 ### Voz: una sola copia del modelo en la Mac (2026-09-04, noche)
 

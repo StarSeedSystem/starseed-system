@@ -1,5 +1,6 @@
 "use client";
 
+import { esRutaConsola } from "@/components/layout/solo-fuera-de-consola";
 import {
   createContext,
   useCallback,
@@ -141,6 +142,9 @@ export function AuroraProvider({ children }: { children: ReactNode }) {
   });
 
   const superStart = useCallback(() => {
+    // El Puente de Mando (/mando) es una consola de trabajo: Aurora no escucha ahí
+    // (pedía el micrófono al cargar y gastaba CPU en una máquina que ya va justa).
+    if (typeof window !== "undefined" && esRutaConsola(window.location.pathname)) return;
     const g = guardRef.current;
     const now = Date.now();
     // Nunca dos start() encadenados ni arranques más rápidos que el backoff.
