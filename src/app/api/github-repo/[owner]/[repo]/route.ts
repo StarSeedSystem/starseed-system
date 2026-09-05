@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@/utils/supabase/server";
+import { rateLimit, clientIp } from "@/lib/security/rate-limit";
 
 // ════════════════════════════════════════════════════════════════
 // Proxy de metadatos de repositorios GitHub — lado servidor (Adenda 65, §17)
@@ -20,6 +22,8 @@ import { NextRequest, NextResponse } from "next/server";
 //     implica el límite público de GitHub (60 peticiones/hora por IP) — el
 //     mensaje de error lo explica si se agota.
 //   · Timeout duro con AbortController. Caché corta en el edge (Vercel).
+//   · Rate-limit por usuario (si hay sesión) o por IP: 30/10min — mismo
+//     patrón que `api/ai/nvidia/route.ts` (Adenda 243).
 // ════════════════════════════════════════════════════════════════
 
 export const runtime = "nodejs";
@@ -61,8 +65,27 @@ async function fetchJson(path: string, signal: AbortSignal): Promise<{ ok: boole
   }
 }
 
-export async function GET(_req: NextRequest, ctx: { params: Promise<{ owner: string; repo: string }> }) {
+export async function GET(req: NextRequest, ctx: { params: Promise<{ owner: string; repo: string }> }) {
   const { owner, repo } = await ctx.params;
+
+  // Rate-limit por usuario (si hay sesión) o por IP si la ruta se usa
+  // sin login. Clave: `github-repo:<uid|ip>`. Mismo patrón que
+  // `api/ai/nvidia/route.ts` (Adenda 243).
+  let rlKey = `github-repo:ip:${clientIp(req)}`;
+  try {
+    const supabase = await createClient();
+    const { data: u } = await supabase.auth.getUser();
+    if (u?.user?.id) rlKey = `github-repo:user:${u.user.id}`;
+  } catch {
+    // Sin sesión usable: se mantiene la clave por IP.
+  }
+  const rl = rateLimit(rlKey, 30, 10 * 60 * 1000);
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { ok: false, error: "Demasiadas solicitudes. Inténtalo más tarde." },
+      { status: 429, headers: { "Retry-After": String(rl.retryAfterSec) } },
+    );
+  }
 
   if (!owner || !repo || !NAME_RE.test(owner) || !NAME_RE.test(repo)) {
     return jsonError("Owner/repo inválido (usa el formato github.com/owner/repo).", 400);

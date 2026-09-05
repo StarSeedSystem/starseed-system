@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@/utils/supabase/server";
+import { rateLimit, clientIp } from "@/lib/security/rate-limit";
 
 // ════════════════════════════════════════════════════════════════
 // POST /api/telegram/send — proxy server-side a la Bot API de Telegram
@@ -9,6 +11,11 @@ import { NextRequest, NextResponse } from "next/server";
 // servidor (evita CORS en el navegador y mantiene la petición fuera
 // del cliente). El token llega en el cuerpo de CADA petición — es del
 // usuario — y NUNCA se persiste aquí.
+//
+// Rate-limit por usuario (si hay sesión) o por IP: 30/10min — mismo
+// patrón que `api/ai/nvidia/route.ts` (Adenda 243). Telegram no comparte
+// cuota: cada bot tiene la suya, pero protegemos el proxy de ráfagas
+// accidentales o abusivas.
 // ════════════════════════════════════════════════════════════════
 
 export const runtime = "nodejs";
@@ -31,6 +38,26 @@ function looksLikeToken(token: string): boolean {
 }
 
 export async function POST(req: NextRequest) {
+  // Rate-limit por usuario (si hay sesión) o por IP. Clave:
+  // `telegram-send:<uid|ip>`. Mismo patrón que `api/ai/nvidia/route.ts`
+  // (Adenda 243). Se aplica ANTES de leer el cuerpo para no gastar
+  // parseo en peticiones rechazadas.
+  let rlKey = `telegram-send:ip:${clientIp(req)}`;
+  try {
+    const supabase = await createClient();
+    const { data: u } = await supabase.auth.getUser();
+    if (u?.user?.id) rlKey = `telegram-send:user:${u.user.id}`;
+  } catch {
+    // Sin sesión usable: se mantiene la clave por IP.
+  }
+  const rl = rateLimit(rlKey, 30, 10 * 60 * 1000);
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { ok: false, error: "Demasiadas solicitudes. Inténtalo más tarde." },
+      { status: 429, headers: { "Retry-After": String(rl.retryAfterSec) } },
+    );
+  }
+
   let body: SendBody;
   try {
     body = (await req.json()) as SendBody;

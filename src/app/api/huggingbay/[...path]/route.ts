@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@/utils/supabase/server";
+import { rateLimit, clientIp } from "@/lib/security/rate-limit";
 
 // ════════════════════════════════════════════════════════════════
 // Proxy de THE HUGGING BAY (https://huggingbay.xyz) — lado servidor
@@ -27,6 +29,8 @@ import { NextRequest, NextResponse } from "next/server";
 //   · Timeout duro con AbortController.
 //   · Cache HTTP corto (s-maxage) para aliviar la API pública sin
 //     servir datos obsoletos por mucho tiempo.
+//   · Rate-limit por usuario (si hay sesión) o por IP: 30/10min — mismo
+//     patrón que `api/ai/nvidia/route.ts` (Adenda 243).
 // ════════════════════════════════════════════════════════════════
 
 export const runtime = "nodejs";
@@ -67,6 +71,25 @@ function jsonError(error: string, status = 200) {
 }
 
 export async function GET(req: NextRequest, ctx: { params: Promise<{ path: string[] }> }) {
+  // Rate-limit por usuario (si hay sesión) o por IP si la ruta se usa
+  // sin login. Clave: `huggingbay:<uid|ip>`. Mismo patrón que
+  // `api/ai/nvidia/route.ts` (Adenda 243).
+  let rlKey = `huggingbay:ip:${clientIp(req)}`;
+  try {
+    const supabase = await createClient();
+    const { data: u } = await supabase.auth.getUser();
+    if (u?.user?.id) rlKey = `huggingbay:user:${u.user.id}`;
+  } catch {
+    // Sin sesión usable: se mantiene la clave por IP.
+  }
+  const rl = rateLimit(rlKey, 30, 10 * 60 * 1000);
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { ok: false, error: "Demasiadas solicitudes. Inténtalo más tarde." },
+      { status: 429, headers: { "Retry-After": String(rl.retryAfterSec) } },
+    );
+  }
+
   const { path } = await ctx.params;
   const segments = Array.isArray(path) ? path : [];
 

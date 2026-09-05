@@ -1,10 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@/utils/supabase/server";
+import { rateLimit, clientIp } from "@/lib/security/rate-limit";
 
 // ════════════════════════════════════════════════════════════════
 // POST /api/telegram/test — comprueba el bot del usuario (getMe) y,
 // opcionalmente, lista chats recientes (getUpdates) para ayudarle a
 // encontrar SU chat id. Igual que /send: el token es del usuario, va
 // en el cuerpo y NO se persiste. Sirve para el botón "Probar".
+//
+// Rate-limit por usuario (si hay sesión) o por IP: 30/10min — mismo
+// patrón que `api/ai/nvidia/route.ts` (Adenda 243).
 // ════════════════════════════════════════════════════════════════
 
 export const runtime = "nodejs";
@@ -33,6 +38,25 @@ interface DiscoveredChat {
 }
 
 export async function POST(req: NextRequest) {
+  // Rate-limit por usuario (si hay sesión) o por IP. Clave:
+  // `telegram-test:<uid|ip>`. Mismo patrón que `api/ai/nvidia/route.ts`
+  // (Adenda 243). Se aplica ANTES de leer el cuerpo.
+  let rlKey = `telegram-test:ip:${clientIp(req)}`;
+  try {
+    const supabase = await createClient();
+    const { data: u } = await supabase.auth.getUser();
+    if (u?.user?.id) rlKey = `telegram-test:user:${u.user.id}`;
+  } catch {
+    // Sin sesión usable: se mantiene la clave por IP.
+  }
+  const rl = rateLimit(rlKey, 30, 10 * 60 * 1000);
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { ok: false, error: "Demasiadas solicitudes. Inténtalo más tarde." },
+      { status: 429, headers: { "Retry-After": String(rl.retryAfterSec) } },
+    );
+  }
+
   let body: TestBody;
   try {
     body = (await req.json()) as TestBody;
