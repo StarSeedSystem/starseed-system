@@ -137,7 +137,7 @@ export async function GET(): Promise<Response> {
     let cuentas: CuentasTareas | undefined;
     if (rama && rama.olas.length > 0) {
         const activa = rama.olas[0];
-        const suma = (k: "hechas" | "enCurso" | "fallidas" | "sinCambios" | "pendientes") => rama.olas.reduce((acc, o) => acc + o[k], 0);
+        const suma = (k: "hechas" | "enCurso" | "fallidas" | "sinCambios" | "pendientes" | "esperandoAprobacion") => rama.olas.reduce((acc, o) => acc + o[k], 0);
         cuentas = {
             ola: activa.id,
             integradas: activa.hechas,
@@ -145,7 +145,8 @@ export async function GET(): Promise<Response> {
             fallidas: activa.fallidas,
             sinCambios: activa.sinCambios,
             pendientes: activa.pendientes,
-            ultimas: { olas: rama.olas.length, integradas: suma("hechas"), enCurso: suma("enCurso"), fallidas: suma("fallidas"), sinCambios: suma("sinCambios"), pendientes: suma("pendientes") },
+            esperandoAprobacion: activa.esperandoAprobacion,
+            ultimas: { olas: rama.olas.length, integradas: suma("hechas"), enCurso: suma("enCurso"), fallidas: suma("fallidas"), sinCambios: suma("sinCambios"), pendientes: suma("pendientes"), esperandoAprobacion: suma("esperandoAprobacion") },
         };
     }
     // «Últimos eventos»: primero lo que acaba de pasar en el bus (Mac + nube), después la bitácora local.

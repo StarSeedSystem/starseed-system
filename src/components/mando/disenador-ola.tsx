@@ -68,6 +68,7 @@ function ramaDelBorrador(nombre: string, tareas: TareaCola[]): RamaOla {
         pasos: [],
         eventos: [],
         vivo: null,
+        aprobacion: null,
     }));
     return {
         id: nombre,
@@ -79,6 +80,7 @@ function ramaDelBorrador(nombre: string, tareas: TareaCola[]): RamaOla {
         fallidas: 0,
         sinCambios: 0,
         pendientes: ramas.length,
+        esperandoAprobacion: 0,
         viva: false,
     };
 }
@@ -95,6 +97,7 @@ export function DisenadorOla({ onCerrar }: { onCerrar: () => void }) {
     const [tareas, setTareas] = useState<TareaCola[]>([]);
     const [sel, setSel] = useState(0);
     const [workers, setWorkers] = useState(2);
+    const [aprobacion, setAprobacion] = useState(false);
     const [donde, setDonde] = useState<"mac" | "nube">("nube");
     const [sobrescribir, setSobrescribir] = useState(false);
     const [aviso, setAviso] = useState<Aviso | null>(null);
@@ -158,7 +161,7 @@ export function DisenadorOla({ onCerrar }: { onCerrar: () => void }) {
         setOcupado(true);
         setAviso(null);
         try {
-            const cuerpo: Record<string, unknown> = { accion, nombre, tareas, sobrescribir, workers, donde };
+            const cuerpo: Record<string, unknown> = { accion, nombre, tareas, sobrescribir, workers, donde, aprobacion };
             const r = await fetch("/api/mando/colas", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(cuerpo) });
             const d = (await r.json()) as { ok?: boolean; errores?: string[]; error?: string; archivo?: string; pid?: number };
             if (accion === "validar") {
@@ -371,6 +374,10 @@ export function DisenadorOla({ onCerrar }: { onCerrar: () => void }) {
                 <label className="flex items-center gap-1 text-white/60">
                     <input type="checkbox" checked={sobrescribir} onChange={(e) => setSobrescribir(e.target.checked)} className="cursor-pointer" />
                     sobrescribir si existe
+                </label>
+                <label className="flex items-center gap-1 text-violet-200/90" title="Nodo de aprobación humana: cada tarea se detiene con su rama lista (tsc, tests y revisión hechos) hasta que la apruebes o la rechaces desde Procesos">
+                    <input type="checkbox" checked={aprobacion} onChange={(e) => setAprobacion(e.target.checked)} className="cursor-pointer" />
+                    mi visto bueno antes de integrar
                 </label>
                 <div className="ml-auto flex flex-wrap gap-1.5">
                     <button type="button" disabled={ocupado} onClick={() => void enviar("validar")} className="cursor-pointer rounded-md border border-white/10 px-2 py-1 text-white/80 hover:bg-white/5 disabled:opacity-50">

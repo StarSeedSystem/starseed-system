@@ -8,6 +8,8 @@
  *   · guardar: `{ nombre, tareas, sobrescribir? }` → escribe `olas/cola-<nombre>.json`
  *   · lanzar:  `{ nombre, donde: "mac" | "nube", workers?, tareas? }`
  *              mac → arranca el orquestador local; nube → orden firmada en el bus.
+ *   · aprobar | rechazar: `{ nombre, tarea, dondeActual }` → visto bueno humano de una tarea
+ *              que espera antes de integrarse (orden de control aquí o firmada en el bus).
  *   · reasignar: `{ nombre, tarea, dondeActual, donde?, modelo?, estados? }` → cambia el
  *              modelo/API de una tarea (en marcha o pendiente) conservando el flujo, o la
  *              mueve al otro servidor con sus dependientes pendientes.
@@ -26,6 +28,7 @@ import {
     leerColasCompletas,
     modelosAsignables,
     reasignarTarea,
+    decidirTarea,
     validarCola,
 } from "@/lib/mando/colas";
 
@@ -85,15 +88,22 @@ export async function POST(peticion: Request): Promise<Response> {
         });
     }
 
+    if (accion === "aprobar" || accion === "rechazar") {
+        const tarea = typeof cuerpo.tarea === "string" ? cuerpo.tarea.trim() : "";
+        const r = await decidirTarea({ nombre, tarea, dondeActual: cuerpo.dondeActual === "nube" ? "nube" : "mac", decision: accion });
+        return Response.json(r, { status: r.ok ? 200 : 400, headers: { "Cache-Control": "no-store" } });
+    }
+
     if (accion === "lanzar") {
         const donde = cuerpo.donde === "nube" ? "nube" : "mac";
         const workers = typeof cuerpo.workers === "number" ? cuerpo.workers : 2;
+        const aprobacion = cuerpo.aprobacion === true;
         if (!/^[0-9]{2,4}(-[a-z0-9]+){0,6}$/.test(nombre)) {
             return Response.json({ ok: false, error: "Nombre de cola no válido." }, { status: 400 });
         }
         if (donde === "mac") {
             const extra = Array.isArray(cuerpo.extra) ? (cuerpo.extra as unknown[]).filter((x): x is string => typeof x === "string") : [];
-            const r = await lanzarAqui(nombre, workers, extra);
+            const r = await lanzarAqui(nombre, workers, aprobacion ? [...extra, "--aprobacion"] : extra);
             return Response.json(r, { status: r.ok ? 200 : 400, headers: { "Cache-Control": "no-store" } });
         }
         // nube: la cola viaja entera y firmada; si no viene, se lee del disco.
@@ -103,7 +113,7 @@ export async function POST(peticion: Request): Promise<Response> {
             tareas = enDisco?.tareas ?? [];
         }
         if (tareas.length === 0) return Response.json({ ok: false, error: "La cola está vacía o no existe." }, { status: 400 });
-        const r = await lanzarEnNube(nombre, tareas, Math.min(4, Math.max(1, Math.round(workers))));
+        const r = await lanzarEnNube(nombre, tareas, Math.min(4, Math.max(1, Math.round(workers))), aprobacion);
         return Response.json(r, { status: r.ok ? 200 : 400, headers: { "Cache-Control": "no-store" } });
     }
 

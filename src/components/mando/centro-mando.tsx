@@ -248,6 +248,9 @@ export function CentroMando() {
                             <DatoPulso titulo="Fallidas" valor={String(estado.cuentas.fallidas)} tono={estado.cuentas.fallidas > 0 ? "peligro" : "normal"} detalle={`últimas olas: ${estado.cuentas.ultimas.fallidas}`} />
                             <DatoPulso titulo="Sin cambios" valor={String(estado.cuentas.sinCambios)} tono="normal" detalle={`últimas olas: ${estado.cuentas.ultimas.sinCambios}`} />
                             <DatoPulso titulo="Pendientes" valor={String(estado.cuentas.pendientes)} tono="normal" detalle={`últimas olas: ${estado.cuentas.ultimas.pendientes}`} />
+                            {(estado.cuentas.ultimas.esperandoAprobacion ?? 0) > 0 ? (
+                                <DatoPulso titulo="Tu visto bueno" valor={String(estado.cuentas.ultimas.esperandoAprobacion)} tono="aviso" detalle="ramas listas que esperan tu decisión (Procesos)" />
+                            ) : null}
                         </>
                     ) : null}
                 </ul>

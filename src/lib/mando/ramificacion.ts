@@ -73,6 +73,8 @@ export interface RamaTarea {
     eventos: EventoRama[];
     /** Latido si un agente la tiene entre manos ahora mismo. */
     vivo: LatidoTarea | null;
+    /** Si espera el visto bueno humano: la rama lista, su diff y lo que dijo el revisor. */
+    aprobacion: { rama: string; sha: string; diffstat: string; revision: string; bloqueante: boolean; modelo: string; desde: string } | null;
 }
 
 /** Una ola con su árbol de tareas y el recuento. */
@@ -86,6 +88,7 @@ export interface RamaOla {
     fallidas: number;
     sinCambios: number;
     pendientes: number;
+    esperandoAprobacion: number;
     /** true si algún agente está latiendo en esta ola. */
     viva: boolean;
 }
@@ -104,9 +107,9 @@ const RAÍZ = raizDelProyecto();
 const TIPOS_BUS = [
     "inicio", "paso", "commit", "bloqueante", "fallo", "sin_cambios", "conflicto",
     "reintento", "reenrutado", "proveedor", "aviso", "estancado", "cola_terminada", "arranque",
-    "reasignado", "reasignada",
+    "reasignado", "reasignada", "esperando_aprobacion", "aprobacion", "rechazada", "pendiente_aprobacion",
 ];
-const TERMINALES = new Set(["commit", "bloqueante", "sin_cambios", "sustituida", "fallo", "conflicto", "reasignada"]);
+const TERMINALES = new Set(["commit", "bloqueante", "sin_cambios", "sustituida", "fallo", "conflicto", "reasignada", "rechazada", "pendiente_aprobacion"]);
 const PREFIJO_PROVEEDOR: Record<string, string> = { nvidia: "nim" };
 
 function texto(v: unknown): string {
@@ -344,10 +347,16 @@ export async function construirRamificacion(cuantas = 4, horasBus = 24 * 30): Pr
             let ultimoTerminal: FilaBus | null = null;
             let ultimoInicio: FilaBus | null = null;
             let medio: string | null = null;
+            let aprobacion: RamaTarea["aprobacion"] = null;
             for (const e of eventos) {
                 const d = objeto(e.datos);
                 const dondeEv = texto(d.donde) || "mac";
                 if (texto(d.medio)) medio = texto(d.medio);
+                if (e.tipo === "esperando_aprobacion") {
+                    aprobacion = { rama: texto(d.rama), sha: texto(d.sha), diffstat: texto(d.diffstat), revision: texto(d.revision), bloqueante: d.bloqueante === true, modelo: texto(d.modelo), desde: e.t };
+                }
+                // Cualquier cierre posterior (commit, rechazo, caducidad) apaga la espera.
+                if (e.tipo === "commit" || e.tipo === "bloqueante" || e.tipo === "rechazada" || e.tipo === "pendiente_aprobacion" || e.tipo === "conflicto") aprobacion = null;
                 if (e.tipo === "paso") {
                     const nombre = e.texto.split(" · ")[0]?.trim() ?? "paso";
                     const { donde: _d, categoria: _c, ...resto } = d;
@@ -376,7 +385,7 @@ export async function construirRamificacion(cuantas = 4, horasBus = 24 * 30): Pr
             const localTerminal = TERMINALES.has(estado) || estado.startsWith("fallo");
             if (vivo) {
                 // Un latido manda sobre cualquier cierre anterior: la tarea se está REHACIENDO ahora.
-                estado = "en_curso";
+                estado = /aprobaci/.test(vivo.fase) ? "esperando_aprobacion" : "en_curso";
                 donde = vivo.donde;
             } else if (ultimoTerminal && (!localTerminal || (ultimoTerminal.tipo === "commit" && estado !== "commit"))) {
                 // El bus tiene un cierre y lo local no (o el bus dice «commit» y lo local no): el
@@ -408,6 +417,8 @@ export async function construirRamificacion(cuantas = 4, horasBus = 24 * 30): Pr
             if (estado === "commit" && /bloqueante/.test(nota) && !/no bloqueante|revisión ok/.test(nota)) estado = "bloqueante";
             // «en_curso» sin latido: el orquestador murió a medias; hay que rehacerla.
             if (estado === "en_curso" && !vivo) estado = "interrumpida";
+            if (estado === "esperando_aprobacion" && !vivo) estado = "pendiente_aprobacion";
+            if (estado !== "esperando_aprobacion") aprobacion = aprobacion && estado === "pendiente_aprobacion" ? aprobacion : null;
             if (vivo && !modelo) modelo = vivo.modelo;
             if (vivo?.medio) medio = vivo.medio;
             if (!sha && estado === "commit") {
@@ -436,6 +447,7 @@ export async function construirRamificacion(cuantas = 4, horasBus = 24 * 30): Pr
                 pasos: pasos.sort((a, b) => a.t.localeCompare(b.t)),
                 eventos: eventosRama.slice(-12),
                 vivo,
+                aprobacion,
             });
         }
         ramas.sort((a, b) => a.nivel - b.nivel || a.id.localeCompare(b.id, undefined, { numeric: true }));
@@ -450,6 +462,7 @@ export async function construirRamificacion(cuantas = 4, horasBus = 24 * 30): Pr
             fallidas: cuenta((r) => r.estado.startsWith("fallo") || r.estado === "conflicto"),
             sinCambios: cuenta((r) => r.estado === "sin_cambios" || r.estado === "sustituida"),
             pendientes: cuenta((r) => r.estado === "pendiente" || r.estado === "interrumpida"),
+            esperandoAprobacion: cuenta((r) => r.estado === "esperando_aprobacion" || r.estado === "pendiente_aprobacion"),
             viva: ramas.some((r) => r.vivo !== null),
         });
     }

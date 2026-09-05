@@ -64,6 +64,12 @@ function tonoEstado(estado: string): { borde: string; punto: string; texto: stri
             return { borde: "border-violet-400/40", punto: "bg-violet-400", texto: "text-violet-300", etiqueta: "movida de servidor" };
         case "interrumpida":
             return { borde: "border-amber-400/30", punto: "bg-amber-400/70", texto: "text-amber-200/80", etiqueta: "interrumpida · pendiente de rehacer" };
+        case "esperando_aprobacion":
+            return { borde: "border-fuchsia-400/60", punto: "bg-fuchsia-400 animate-pulse", texto: "text-fuchsia-300", etiqueta: "espera tu visto bueno" };
+        case "pendiente_aprobacion":
+            return { borde: "border-fuchsia-400/30", punto: "bg-fuchsia-400/60", texto: "text-fuchsia-200/80", etiqueta: "sin visto bueno · rama conservada" };
+        case "rechazada":
+            return { borde: "border-rose-400/30", punto: "bg-rose-400/60", texto: "text-rose-200/80", etiqueta: "rechazada · rama conservada" };
         default:
             if (estado.startsWith("fallo")) {
                 return { borde: "border-rose-400/50", punto: "bg-rose-400", texto: "text-rose-300", etiqueta: estado.replace("_", " ") };
@@ -543,6 +549,7 @@ function FichaTarea({ tarea, estadosOla, onCerrar, onCambio }: { tarea: RamaTare
                     </p>
                 </div>
                 <div className="flex items-center gap-2">
+                    <DecidirTarea tarea={tarea} onHecho={onCambio} />
                     <ReasignarTarea tarea={tarea} estadosOla={estadosOla} onHecho={onCambio} />
                     <button
                         type="button"
@@ -692,6 +699,89 @@ function FichaTarea({ tarea, estadosOla, onCerrar, onCambio }: { tarea: RamaTare
                     </div>
                 ) : null}
             </div>
+        </section>
+    );
+}
+
+/** Botones Aprobar / Rechazar con confirmación; hablan con /api/mando/colas. */
+function DecidirTarea({ tarea, compacto, onHecho }: { tarea: RamaTarea; compacto?: boolean; onHecho: () => void }) {
+    const [pregunta, setPregunta] = useState<"aprobar" | "rechazar" | null>(null);
+    const [enviando, setEnviando] = useState(false);
+    const [resultado, setResultado] = useState<{ ok: boolean; texto: string } | null>(null);
+    const dondeActual: "mac" | "nube" = tarea.donde === "nube" ? "nube" : "mac";
+    const decidir = useCallback(async (decision: "aprobar" | "rechazar") => {
+        setEnviando(true);
+        setResultado(null);
+        try {
+            const r = await fetch("/api/mando/colas", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ accion: decision, nombre: tarea.cola, tarea: tarea.id, dondeActual }) });
+            const cuerpo = (await r.json()) as { ok?: boolean; error?: string; detalle?: string };
+            setResultado({ ok: Boolean(cuerpo.ok), texto: cuerpo.ok ? cuerpo.detalle ?? "Hecho." : cuerpo.error ?? `HTTP ${r.status}` });
+            if (cuerpo.ok) onHecho();
+        } catch {
+            setResultado({ ok: false, texto: "No se pudo enviar la decisión." });
+        } finally {
+            setEnviando(false);
+            setPregunta(null);
+        }
+    }, [tarea.cola, tarea.id, dondeActual, onHecho]);
+    if (tarea.estado !== "esperando_aprobacion") return null;
+    return (
+        <div className={`flex flex-wrap items-center gap-2 ${compacto ? "text-[11px]" : "text-xs"}`} data-testid={`decidir-${tarea.id}`}>
+            {pregunta === null ? (
+                <>
+                    <button type="button" disabled={enviando} onClick={() => setPregunta("aprobar")} className="cursor-pointer rounded-md border border-emerald-400/40 bg-emerald-500/15 px-2 py-1 text-emerald-100 hover:bg-emerald-500/25 disabled:opacity-50">
+                        Aprobar e integrar
+                    </button>
+                    <button type="button" disabled={enviando} onClick={() => setPregunta("rechazar")} className="cursor-pointer rounded-md border border-rose-400/30 px-2 py-1 text-rose-200 hover:bg-rose-500/10 disabled:opacity-50">
+                        Rechazar
+                    </button>
+                </>
+            ) : (
+                <span className="flex items-center gap-2">
+                    <span className="text-white/70">{pregunta === "aprobar" ? `¿Integrar ola/${tarea.id} en main de ${dondeActual}?` : `¿Rechazar ${tarea.id}? La rama se conserva.`}</span>
+                    <button type="button" disabled={enviando} onClick={() => void decidir(pregunta)} className="cursor-pointer rounded-md bg-white/15 px-2 py-1 text-white hover:bg-white/25 disabled:opacity-50">{enviando ? "enviando…" : "sí"}</button>
+                    <button type="button" disabled={enviando} onClick={() => setPregunta(null)} className="cursor-pointer rounded-md border border-white/10 px-2 py-1 text-white/70 hover:bg-white/5">no</button>
+                </span>
+            )}
+            {resultado ? <span className={resultado.ok ? "text-emerald-300" : "text-rose-300"}>{resultado.texto}</span> : null}
+        </div>
+    );
+}
+
+/**
+ * Lo que espera tu visto bueno (nodos de aprobación humana): cada tarea con su rama lista,
+ * sus comprobaciones (tsc, tests, revisión) y el diff resumido, para aprobar o rechazar sin
+ * salir del Mando. Es la pestaña «Publicar» de la Ola 239 (MD8) en su forma mínima y real.
+ */
+function EsperandoVistoBueno({ olas, onVer, onHecho }: { olas: RamaOla[]; onVer: (id: string) => void; onHecho: () => void }) {
+    const esperan = olas.flatMap((o) => o.tareas.filter((t) => t.estado === "esperando_aprobacion" || t.estado === "pendiente_aprobacion"));
+    if (esperan.length === 0) return null;
+    return (
+        <section className="rounded-xl border border-fuchsia-400/40 bg-fuchsia-500/[0.06] p-3" data-testid="esperando-visto-bueno">
+            <h4 className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-wide text-fuchsia-200">
+                <span className="h-2 w-2 animate-pulse rounded-full bg-fuchsia-400" aria-hidden />
+                Esperando tu visto bueno · {esperan.length}
+            </h4>
+            <ul className="mt-2 space-y-2">
+                {esperan.map((t) => (
+                    <li key={`${t.cola}-${t.id}`} className="rounded-lg border border-white/10 bg-black/30 p-2 text-xs">
+                        <div className="flex flex-wrap items-center gap-2">
+                            <button type="button" onClick={() => onVer(t.id)} className="cursor-pointer font-mono font-medium text-white hover:underline">{t.id}</button>
+                            <span className="text-white/70">{t.titulo}</span>
+                            <span className={t.donde === "nube" ? "text-sky-300" : "text-amber-300"}>{t.donde}{t.medio ? ` · ${t.medio}` : ""}</span>
+                            {t.aprobacion ? (
+                                <span className="font-mono text-white/50">{t.aprobacion.rama} @ {t.aprobacion.sha} · {corto(t.aprobacion.modelo)}{t.aprobacion.bloqueante ? " · revisión BLOQUEANTE" : " · revisión ok"}</span>
+                            ) : null}
+                            {t.estado === "pendiente_aprobacion" ? <span className="text-fuchsia-200/70">el orquestador ya no espera: intégrala a mano (git merge --ff-only {t.aprobacion?.rama ?? `ola/${t.id}`})</span> : null}
+                        </div>
+                        {t.aprobacion?.diffstat ? <pre className="mt-1 max-h-32 overflow-auto whitespace-pre-wrap font-mono text-[10px] text-white/55">{t.aprobacion.diffstat.trim()}</pre> : null}
+                        {t.aprobacion?.revision ? <p className="mt-1 text-[11px] text-white/60">Revisor: {t.aprobacion.revision}</p> : null}
+                        <div className="mt-2">
+                            <DecidirTarea tarea={t} compacto onHecho={onHecho} />
+                        </div>
+                    </li>
+                ))}
+            </ul>
         </section>
     );
 }
@@ -988,6 +1078,15 @@ export function RamificacionAgentes() {
 
             {ola ? (
                 <div className="mt-4 space-y-4">
+                    <EsperandoVistoBueno
+                        olas={datos?.olas ?? []}
+                        onVer={(id) => {
+                            const dueña = (datos?.olas ?? []).find((o) => o.tareas.some((t) => t.id === id));
+                            if (dueña) setOlaSel(dueña.id);
+                            setTareaSel(id);
+                        }}
+                        onHecho={() => void recargar()}
+                    />
                     <div className="flex flex-wrap gap-3 text-[11px] text-white/55">
                         <span>
                             <span className="text-emerald-300">{ola.hechas}</span> integradas

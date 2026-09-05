@@ -284,7 +284,7 @@ export async function lanzarAqui(nombre: string, workers: number, extra: string[
     await mkdir(logs, { recursive: true });
     const registro = openSync(path.join(logs, `lanzamiento-${nombre}.log`), "a");
     const n = Math.min(4, Math.max(1, Math.round(workers)));
-    const permitidos = extra.filter((x) => ["--sin-revision", "--reanudar"].includes(x));
+    const permitidos = extra.filter((x) => ["--sin-revision", "--reanudar", "--aprobacion"].includes(x));
     const hijo = spawn("python3", [orquestador, path.join("starseed_memory_root", "olas", archivo), "--workers", String(n), ...permitidos], {
         cwd: RAÍZ,
         detached: true,
@@ -296,7 +296,7 @@ export async function lanzarAqui(nombre: string, workers: number, extra: string[
 }
 
 /** Publica en el bus la orden firmada de lanzar la cola en la nube (con la cola entera). */
-export async function lanzarEnNube(nombre: string, tareas: TareaCola[], workers: number): Promise<{ ok: boolean; error?: string }> {
+export async function lanzarEnNube(nombre: string, tareas: TareaCola[], workers: number, aprobacion = false): Promise<{ ok: boolean; error?: string }> {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const clave = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
     if (!url || !clave) return { ok: false, error: "Sin acceso al bus (variables de Supabase)." };
@@ -311,8 +311,8 @@ export async function lanzarEnNube(nombre: string, tareas: TareaCola[], workers:
                 quien: "mando",
                 tipo: "lanzar",
                 tarea: "",
-                texto: `lanzar cola-${nombre} en la nube · ${tareas.length} tareas · ${workers} trabajadores`,
-                datos: { donde: "nube", cola: `cola-${nombre}`, workers, t, firma, tareas, categoria: "ola" },
+                texto: `lanzar cola-${nombre} en la nube · ${tareas.length} tareas · ${workers} trabajadores${aprobacion ? " · con visto bueno antes de integrar" : ""}`,
+                datos: { donde: "nube", cola: `cola-${nombre}`, workers, t, firma, tareas, aprobacion, categoria: "ola" },
             }),
         });
         if (!r.ok) return { ok: false, error: `El bus rechazó la orden (HTTP ${r.status}).` };
@@ -366,7 +366,7 @@ export async function detenerEnNube(nombre: string): Promise<{ ok: boolean; erro
 
 /** Orden por tarea para el orquestador (archivo `control-<cola>.json`, lo lee cada 20 s). */
 interface OrdenControl {
-    accion: "reasignar" | "soltar";
+    accion: "reasignar" | "soltar" | "aprobar" | "rechazar";
     modelo?: string;
     dondeNuevo?: string;
 }
@@ -375,6 +375,7 @@ interface OrdenControl {
 async function controlAqui(nombre: string, tarea: string, orden: OrdenControl): Promise<{ ok: boolean; error?: string }> {
     const hayOrquestador = await orquestadorAqui(nombre);
     if (!hayOrquestador) {
+        if (orden.accion === "aprobar" || orden.accion === "rechazar") return { ok: false, error: "El orquestador de esa cola ya no está: la rama quedó como pendiente_aprobacion. Intégrala a mano (git merge --ff-only ola/<tarea>) o relanza la tarea con --solo." };
         if (orden.accion !== "reasignar" || !orden.modelo) return { ok: false, error: "No hay ningún orquestador con esa cola en esta máquina." };
         const ruta = path.join(OLAS, `cola-${nombre}.json`);
         try {
@@ -519,4 +520,15 @@ export async function reasignarTarea(p: PeticionReasignar): Promise<{ ok: boolea
         colaNueva: nombreNuevo,
         detalle: `${[...mover].join(", ")} → ${destino} como cola-${nombreNuevo}${modelo ? ` (${p.tarea} con ${modelo})` : ""}${soltadas.length ? `; soltadas en ${p.dondeActual}: ${soltadas.join(", ")}` : ""}.`,
     };
+}
+
+/** Visto bueno humano: aprueba (integra) o rechaza (conserva la rama) una tarea que espera. */
+export async function decidirTarea(p: { nombre: string; tarea: string; dondeActual: "mac" | "nube"; decision: "aprobar" | "rechazar" }): Promise<{ ok: boolean; error?: string; detalle?: string }> {
+    if (!PATRON_NOMBRE.test(p.nombre)) return { ok: false, error: "Nombre de cola no válido." };
+    if (!PATRON_ID.test(p.tarea)) return { ok: false, error: "Id de tarea no válido." };
+    const orden: OrdenControl = { accion: p.decision };
+    const r = p.dondeActual === "nube" ? await controlEnNube(p.nombre, p.tarea, orden) : await controlAqui(p.nombre, p.tarea, orden);
+    return r.ok
+        ? { ok: true, detalle: p.decision === "aprobar" ? `${p.tarea}: el orquestador de ${p.dondeActual} la integra en main en su próxima vuelta (≤ 20 s).` : `${p.tarea}: rechazada; la rama ola/${p.tarea} se conserva en ${p.dondeActual}.` }
+        : r;
 }
