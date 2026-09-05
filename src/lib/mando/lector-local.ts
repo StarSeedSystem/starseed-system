@@ -206,6 +206,7 @@ export async function leerColas(): Promise<TareaOla[]> {
                 ola: texto(datos.ola) || nombreCola,
                 titulo: texto(datos.titulo ?? datos.título ?? datos.nombre ?? datos.descripcion),
                 dependencias: deps.map((d) => texto(d)).filter((d) => tieneTexto(d)),
+                cola: nombreCola,
             });
         }
     }

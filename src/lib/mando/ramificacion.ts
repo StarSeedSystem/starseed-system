@@ -48,6 +48,8 @@ export interface EventoRama {
 export interface RamaTarea {
     id: string;
     ola: string;
+    /** Cola de la que salió (sin `cola-`), para poder reasignarla o moverla. */
+    cola: string;
     titulo: string;
     dependencias: string[];
     /** pendiente · en_curso · commit · sin_cambios · fallo · fallo_tsc · fallo_tests · conflicto · bloqueante */
@@ -100,8 +102,9 @@ const RAÍZ = process.cwd();
 const TIPOS_BUS = [
     "inicio", "paso", "commit", "bloqueante", "fallo", "sin_cambios", "conflicto",
     "reintento", "reenrutado", "proveedor", "aviso", "estancado", "cola_terminada", "arranque",
+    "reasignado", "reasignada",
 ];
-const TERMINALES = new Set(["commit", "bloqueante", "sin_cambios", "fallo", "conflicto"]);
+const TERMINALES = new Set(["commit", "bloqueante", "sin_cambios", "fallo", "conflicto", "reasignada"]);
 const PREFIJO_PROVEEDOR: Record<string, string> = { nvidia: "nim" };
 
 function texto(v: unknown): string {
@@ -277,6 +280,7 @@ export async function construirRamificacion(cuantas = 4, horasBus = 24 * 30): Pr
                     ola: texto(t.ola) || texto(d.cola).replace(/^cola-/, ""),
                     titulo: texto(t.titulo),
                     dependencias: deps.map((x) => texto(x)).filter(Boolean),
+                    cola: texto(d.cola).replace(/^cola-/, "").replace(/\.json$/, ""),
                 });
             }
             continue;
@@ -387,6 +391,7 @@ export async function construirRamificacion(cuantas = 4, horasBus = 24 * 30): Pr
             ramas.push({
                 id: t.id,
                 ola: etiqueta,
+                cola: t.cola ?? "",
                 titulo: t.titulo,
                 dependencias: t.dependencias,
                 estado,

@@ -51,6 +51,7 @@ function ramaDelBorrador(nombre: string, tareas: TareaCola[]): RamaOla {
     const ramas: RamaTarea[] = tareas.map((t) => ({
         id: t.id || "?",
         ola: nombre,
+        cola: "",
         titulo: t.titulo,
         dependencias: t.depende,
         estado: "pendiente",

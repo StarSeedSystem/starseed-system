@@ -8,6 +8,9 @@
  *   · guardar: `{ nombre, tareas, sobrescribir? }` → escribe `olas/cola-<nombre>.json`
  *   · lanzar:  `{ nombre, donde: "mac" | "nube", workers?, tareas? }`
  *              mac → arranca el orquestador local; nube → orden firmada en el bus.
+ *   · reasignar: `{ nombre, tarea, dondeActual, donde?, modelo?, estados? }` → cambia el
+ *              modelo/API de una tarea (en marcha o pendiente) conservando el flujo, o la
+ *              mueve al otro servidor con sus dependientes pendientes.
  *
  * ⚠️ Seguridad: 404 fuera de local; sesión en producción; validación estricta de
  * nombres, ids, rutas y modelos; nunca devuelve claves ni rutas absolutas.
@@ -22,6 +25,7 @@ import {
     lanzarEnNube,
     leerColasCompletas,
     modelosAsignables,
+    reasignarTarea,
     validarCola,
 } from "@/lib/mando/colas";
 
@@ -108,6 +112,22 @@ export async function POST(peticion: Request): Promise<Response> {
             return Response.json({ ok: false, error: "Nombre de cola no válido." }, { status: 400 });
         }
         const r = cuerpo.donde === "mac" ? await detenerAqui(nombre) : await detenerEnNube(nombre);
+        return Response.json(r, { status: r.ok ? 200 : 400, headers: { "Cache-Control": "no-store" } });
+    }
+
+    if (accion === "reasignar") {
+        const tarea = typeof cuerpo.tarea === "string" ? cuerpo.tarea.trim() : "";
+        const estadosBrutos = typeof cuerpo.estados === "object" && cuerpo.estados !== null ? (cuerpo.estados as Record<string, unknown>) : {};
+        const estados: Record<string, string> = {};
+        for (const [k, v] of Object.entries(estadosBrutos)) if (typeof v === "string") estados[k] = v;
+        const r = await reasignarTarea({
+            nombre,
+            tarea,
+            dondeActual: cuerpo.dondeActual === "nube" ? "nube" : "mac",
+            donde: cuerpo.donde === "nube" ? "nube" : cuerpo.donde === "mac" ? "mac" : undefined,
+            modelo: typeof cuerpo.modelo === "string" ? cuerpo.modelo : undefined,
+            estados,
+        });
         return Response.json(r, { status: r.ok ? 200 : 400, headers: { "Cache-Control": "no-store" } });
     }
 

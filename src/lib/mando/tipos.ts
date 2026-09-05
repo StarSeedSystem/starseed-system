@@ -47,6 +47,8 @@ export interface TareaOla {
     ola: string;
     titulo: string;
     dependencias: string[];
+    /** Nombre de la cola (sin `cola-` ni `.json`) de la que salió, si se sabe. */
+    cola?: string;
 }
 
 /** Latido de una tarea viva: lo escribe el vigilante del enjambre cada 20 s. */

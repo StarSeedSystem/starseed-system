@@ -22,6 +22,7 @@ import {
 
 import type { EstadoMando } from "@/lib/mando/tipos";
 import { RamificacionAgentes } from "@/components/mando/ramificacion-agentes";
+import { pedirVerTarea } from "@/lib/mando/asistente-cliente";
 
 /** Formatea una fecha ISO a hora local corta. */
 function horaCorta(fecha: string): string {
@@ -110,6 +111,7 @@ function AgentesEnVivo({ estado }: { estado: EstadoMando }) {
                             <th className="py-1 pr-3">Llamadas</th>
                             <th className="py-1 pr-3">Tiempo</th>
                             <th className="py-1 pr-3">Registro</th>
+                            <th className="py-1 pr-3" title="Cambiar servidor, API o modelo de este agente">Reasignar</th>
                         </tr>
                     </thead>
                     <tbody className="text-white/80">
@@ -135,6 +137,16 @@ function AgentesEnVivo({ estado }: { estado: EstadoMando }) {
                                 <td className="py-1.5 pr-3 text-white/60">{l.tokens ? l.tokens.llamadas : "—"}</td>
                                 <td className="py-1.5 pr-3 text-white/60">{l.minutos} min{l.intento && l.intento > 1 ? ` · intento ${l.intento}` : ""}</td>
                                 <td className="py-1.5 pr-3 text-white/60">{l.bytesLog ? `${Math.round(l.bytesLog / 1024)} KB` : "—"}</td>
+                                <td className="py-1.5 pr-3">
+                                    <button
+                                        type="button"
+                                        onClick={() => pedirVerTarea(l.tarea)}
+                                        className="cursor-pointer rounded-md border border-violet-400/30 px-2 py-0.5 text-[11px] text-violet-200 hover:bg-violet-400/10"
+                                        title="Abre la ficha de la tarea en la ramificación, donde se cambia servidor, API o modelo"
+                                    >
+                                        servidor · API · modelo
+                                    </button>
+                                </td>
                             </tr>
                         ))}
                     </tbody>

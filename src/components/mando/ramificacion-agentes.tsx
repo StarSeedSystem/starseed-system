@@ -60,6 +60,8 @@ function tonoEstado(estado: string): { borde: string; punto: string; texto: stri
             return { borde: "border-orange-400/50", punto: "bg-orange-400", texto: "text-orange-300", etiqueta: "conflicto" };
         case "pendiente":
             return { borde: "border-white/10", punto: "bg-white/25", texto: "text-white/40", etiqueta: "pendiente" };
+        case "reasignada":
+            return { borde: "border-violet-400/40", punto: "bg-violet-400", texto: "text-violet-300", etiqueta: "movida de servidor" };
         default:
             if (estado.startsWith("fallo")) {
                 return { borde: "border-rose-400/50", punto: "bg-rose-400", texto: "text-rose-300", etiqueta: estado.replace("_", " ") };
@@ -311,8 +313,173 @@ interface ContextoResumen {
     archivos: string[];
 }
 
+/** APIs con las que el orquestador puede escribir (opencode las tiene cableadas). */
+const APIS_ESCRITORAS = ["xkiro", "nim", "aihubmix", "tokenrouter", "openrouter"];
+
+interface ModeloCatalogo {
+    id: string;
+    proveedor: string;
+    nombre: string;
+    salud: string;
+    contexto: number | null;
+}
+
+/**
+ * Cambiar el servidor (Mac ⇄ nube) o el modelo/API de UNA tarea, conservando el flujo:
+ * el orquestador corta la escritura en curso y sigue con el nuevo modelo por el mismo
+ * camino (tsc → tests → revisión → integración); si cambia de servidor, la tarea y sus
+ * dependientes pendientes se sueltan aquí y se lanzan allí como cola nueva.
+ */
+function ReasignarTarea({ tarea, estadosOla, onHecho }: { tarea: RamaTarea; estadosOla: Record<string, string>; onHecho: () => void }) {
+    const dondeActual: "mac" | "nube" = tarea.donde === "nube" ? "nube" : "mac";
+    const [abierto, setAbierto] = useState(false);
+    const [modelos, setModelos] = useState<ModeloCatalogo[] | null>(null);
+    const [donde, setDonde] = useState<"mac" | "nube">(dondeActual);
+    const [api, setApi] = useState<string>(tarea.proveedor && APIS_ESCRITORAS.includes(tarea.proveedor) ? tarea.proveedor : "xkiro");
+    const [modelo, setModelo] = useState<string>("");
+    const [confirmando, setConfirmando] = useState(false);
+    const [enviando, setEnviando] = useState(false);
+    const [resultado, setResultado] = useState<{ ok: boolean; texto: string } | null>(null);
+
+    useEffect(() => {
+        setDonde(dondeActual);
+        setResultado(null);
+        setConfirmando(false);
+    }, [tarea.id, dondeActual]);
+
+    const abrir = useCallback(async () => {
+        setAbierto(true);
+        if (modelos !== null) return;
+        try {
+            const r = await fetch("/api/mando/modelos", { cache: "no-store" });
+            const cuerpo = (await r.json()) as { modelos?: ModeloCatalogo[] };
+            setModelos((cuerpo.modelos ?? []).filter((m) => APIS_ESCRITORAS.includes(m.proveedor)));
+        } catch {
+            setModelos([]);
+        }
+    }, [modelos]);
+
+    const deLaApi = useMemo(() => (modelos ?? []).filter((m) => m.proveedor === api), [modelos, api]);
+    const cambiaServidor = donde !== dondeActual;
+    const listo = cambiaServidor || modelo !== "";
+    const terminada = ["commit", "bloqueante", "sin_cambios", "sustituida", "reasignada"].includes(tarea.estado);
+
+    const aplicar = useCallback(async () => {
+        setEnviando(true);
+        setResultado(null);
+        try {
+            const r = await fetch("/api/mando/colas", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ accion: "reasignar", nombre: tarea.cola, tarea: tarea.id, dondeActual, donde, modelo: modelo || undefined, estados: estadosOla }),
+            });
+            const cuerpo = (await r.json()) as { ok?: boolean; error?: string; detalle?: string };
+            setResultado({ ok: Boolean(cuerpo.ok), texto: cuerpo.ok ? cuerpo.detalle ?? "Hecho." : cuerpo.error ?? `HTTP ${r.status}` });
+            if (cuerpo.ok) onHecho();
+        } catch {
+            setResultado({ ok: false, texto: "No se pudo enviar la orden." });
+        } finally {
+            setEnviando(false);
+            setConfirmando(false);
+        }
+    }, [tarea.cola, tarea.id, dondeActual, donde, modelo, estadosOla, onHecho]);
+
+    if (!tarea.cola) return null;
+    if (!abierto) {
+        return (
+            <button
+                type="button"
+                onClick={() => void abrir()}
+                className="cursor-pointer rounded-md border border-violet-400/30 px-2 py-1 text-xs text-violet-200 hover:bg-violet-400/10"
+                title="Cambiar el servidor, el modelo o la API de esta tarea conservando el flujo"
+            >
+                Reasignar
+            </button>
+        );
+    }
+    return (
+        <div className="mt-3 rounded-lg border border-violet-400/25 bg-violet-400/[0.04] p-3" data-testid="reasignar-tarea">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+                <h5 className="text-[11px] font-medium uppercase tracking-wide text-violet-200/80">
+                    Reasignar {tarea.id} · ahora en {dondeActual}{tarea.modelo ? ` con ${corto(tarea.modelo)}` : " (rotación)"}
+                </h5>
+                <button type="button" onClick={() => setAbierto(false)} className="cursor-pointer text-[11px] text-white/50 hover:text-white/80">
+                    cerrar
+                </button>
+            </div>
+            {terminada ? (
+                <p className="mt-1 text-[11px] text-white/50">
+                    La tarea ya terminó ({tonoEstado(tarea.estado).etiqueta}): reasignarla la vuelve a ejecutar desde cero en el servidor elegido.
+                </p>
+            ) : null}
+            <div className="mt-2 flex flex-wrap items-end gap-3 text-xs">
+                <label className="flex flex-col gap-1 text-white/60">
+                    Servidor
+                    <select value={donde} onChange={(e) => setDonde(e.target.value === "nube" ? "nube" : "mac")} className="cursor-pointer rounded-md border border-white/10 bg-black/50 px-2 py-1 text-white" aria-label="Servidor de la tarea">
+                        <option value="mac">Mac (esta máquina)</option>
+                        <option value="nube">Nube (contenedor)</option>
+                    </select>
+                </label>
+                <label className="flex flex-col gap-1 text-white/60">
+                    API
+                    <select value={api} onChange={(e) => { setApi(e.target.value); setModelo(""); }} className="cursor-pointer rounded-md border border-white/10 bg-black/50 px-2 py-1 text-white" aria-label="API del agente">
+                        {APIS_ESCRITORAS.map((a) => {
+                            const n = (modelos ?? []).filter((m) => m.proveedor === a);
+                            const salud = n[0]?.salud ?? "";
+                            return (
+                                <option key={a} value={a}>{a}{n.length ? ` · ${n.length}` : ""}{salud === "caido" ? " · caída" : salud === "sin-clave" ? " · sin clave" : ""}</option>
+                            );
+                        })}
+                    </select>
+                </label>
+                <label className="flex flex-col gap-1 text-white/60">
+                    Modelo
+                    <select value={modelo} onChange={(e) => setModelo(e.target.value)} className="max-w-[280px] cursor-pointer rounded-md border border-white/10 bg-black/50 px-2 py-1 text-white" aria-label="Modelo del agente">
+                        <option value="">{modelos === null ? "cargando…" : "(rotación del orquestador)"}</option>
+                        {deLaApi.map((m) => (
+                            <option key={m.id} value={m.id} disabled={m.salud === "sin-clave"}>
+                                {m.nombre}{m.contexto ? ` · ${Math.round(m.contexto / 1024)}k` : ""}{m.salud === "caido" ? " · caído" : ""}
+                            </option>
+                        ))}
+                    </select>
+                </label>
+                {!confirmando ? (
+                    <button
+                        type="button"
+                        disabled={!listo || enviando}
+                        onClick={() => setConfirmando(true)}
+                        className="cursor-pointer rounded-md border border-violet-400/40 bg-violet-500/20 px-3 py-1 text-violet-100 hover:bg-violet-500/30 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                        Aplicar
+                    </button>
+                ) : (
+                    <span className="flex items-center gap-2">
+                        <span className="text-white/70">
+                            {cambiaServidor
+                                ? `¿Mover ${tarea.id} (y sus dependientes pendientes) de ${dondeActual} a ${donde}${modelo ? ` con ${corto(modelo)}` : ""}?`
+                                : `¿Cambiar ${tarea.id} a ${corto(modelo)} en ${dondeActual}?`}
+                        </span>
+                        <button type="button" disabled={enviando} onClick={() => void aplicar()} className="cursor-pointer rounded-md bg-violet-500/40 px-2 py-1 text-white hover:bg-violet-500/60 disabled:opacity-50">
+                            {enviando ? "enviando…" : "sí"}
+                        </button>
+                        <button type="button" disabled={enviando} onClick={() => setConfirmando(false)} className="cursor-pointer rounded-md border border-white/10 px-2 py-1 text-white/70 hover:bg-white/5">
+                            no
+                        </button>
+                    </span>
+                )}
+            </div>
+            <p className="mt-2 text-[11px] text-white/45">
+                El flujo no cambia: escritura → tsc → tests → revisión → integración. Al cambiar de servidor, el otro debe tener `main` al día (paquete) para que las dependencias ya integradas existan allí.
+            </p>
+            {resultado ? (
+                <p className={`mt-2 text-xs ${resultado.ok ? "text-emerald-300" : "text-rose-300"}`} data-testid="reasignar-resultado">{resultado.texto}</p>
+            ) : null}
+        </div>
+    );
+}
+
 /** Ficha de la tarea seleccionada: pasos, eventos, modelos fallidos y contexto. */
-function FichaTarea({ tarea, onCerrar }: { tarea: RamaTarea; onCerrar: () => void }) {
+function FichaTarea({ tarea, estadosOla, onCerrar, onCambio }: { tarea: RamaTarea; estadosOla: Record<string, string>; onCerrar: () => void; onCambio: () => void }) {
     const [contexto, setContexto] = useState<ContextoResumen | null | "cargando" | "sin">(null);
     const tono = tonoEstado(tarea.estado);
 
@@ -373,13 +540,16 @@ function FichaTarea({ tarea, onCerrar }: { tarea: RamaTarea; onCerrar: () => voi
                         {tarea.nota ? ` · ${tarea.nota}` : ""}
                     </p>
                 </div>
-                <button
-                    type="button"
-                    onClick={onCerrar}
-                    className="cursor-pointer rounded-md border border-white/10 px-2 py-1 text-xs text-white/60 hover:bg-white/5"
-                >
-                    Cerrar
-                </button>
+                <div className="flex items-center gap-2">
+                    <ReasignarTarea tarea={tarea} estadosOla={estadosOla} onHecho={onCambio} />
+                    <button
+                        type="button"
+                        onClick={onCerrar}
+                        className="cursor-pointer rounded-md border border-white/10 px-2 py-1 text-xs text-white/60 hover:bg-white/5"
+                    >
+                        Cerrar
+                    </button>
+                </div>
             </header>
 
             <div className="mt-3 grid gap-3 lg:grid-cols-3">
@@ -707,7 +877,14 @@ export function RamificacionAgentes() {
                         </span>
                     </div>
                     <ArbolOla ola={ola} seleccion={tareaSel} onSeleccionar={(id) => setTareaSel((prev) => (prev === id ? null : id))} />
-                    {tarea ? <FichaTarea tarea={tarea} onCerrar={() => setTareaSel(null)} /> : null}
+                    {tarea ? (
+                        <FichaTarea
+                            tarea={tarea}
+                            estadosOla={Object.fromEntries(ola.tareas.map((t) => [t.id, t.estado]))}
+                            onCerrar={() => setTareaSel(null)}
+                            onCambio={() => void recargar()}
+                        />
+                    ) : null}
                 </div>
             ) : null}
         </section>
