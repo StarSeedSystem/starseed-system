@@ -182,9 +182,15 @@ async function modelosOllama(): Promise<ModeloDisponible[]> {
 /** Salud por proveedor según el supervisor del enjambre (archivo compartido). */
 async function saludProveedores(): Promise<Record<string, string>> {
     try {
-        const d = JSON.parse(await readFile(path.join(homedir(), ".starseed", "salud-proveedores.json"), "utf-8")) as Record<string, { estado?: string }>;
+        const d = JSON.parse(await readFile(path.join(homedir(), ".starseed", "salud-proveedores.json"), "utf-8")) as Record<string, { estado?: string; t?: string }>;
         const salida: Record<string, string> = {};
-        for (const [p, v] of Object.entries(d)) salida[p] = v?.estado ?? "desconocido";
+        for (const [p, v] of Object.entries(d)) {
+            // Un sondeo de hace más de 10 min no dice nada del ahora (en la Mac el archivo se
+            // queda con la última ola): «caído» viejo se degrada a «desconocido».
+            const t = v?.t ? Date.parse(v.t.replace(" ", "T") + (v.t.length <= 19 ? "Z" : "")) : NaN;
+            const viejo = !Number.isFinite(t) || Date.now() - t > 10 * 60 * 1000;
+            salida[p] = viejo ? "desconocido" : v?.estado ?? "desconocido";
+        }
         return salida;
     } catch {
         return {};
