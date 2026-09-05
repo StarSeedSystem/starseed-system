@@ -29,6 +29,18 @@ export function AuthForm() {
     const passNoCoincide = signupPass2.length > 0 && signupPass !== signupPass2
     const esStarSeed = signupEmail.trim().toLowerCase().endsWith('@star.seed')
 
+    // (Ola 247 · 2026-09-05) La voz lista desde la primera ventana. El demonio
+    // neuronal (127.0.0.1:4444) duerme tras 10 min y tarda ~13-22 s en despertar;
+    // la primera narración del rito lo pillaba dormido. Precalentamos en cuanto se
+    // monta el acceso (mientras la persona escribe su correo y contraseña) para que,
+    // si sigue al rito, la primera frase ya suene por la vía neuronal. Import dinámico
+    // y envuelto: nunca bloquea el render ni rompe el formulario.
+    React.useEffect(() => {
+        void import('@/lib/aurora/voz-starseed/motor')
+            .then((m) => m.precalentar())
+            .catch(() => null)
+    }, [])
+
     // (Adenda 182) Un fetch de auth RECHAZADO (red caída, o el proyecto Supabase
     // restringido por cuota — su 402 llega sin CORS y el navegador lo convierte
     // en excepción) moría en SILENCIO: sin toast, botón colgado. Honesto: se

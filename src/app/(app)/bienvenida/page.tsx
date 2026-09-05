@@ -86,6 +86,25 @@ export default function BienvenidaPage() {
     return () => unsub?.();
   }, [comprobar]);
 
+  // (Ola 247 · 2026-09-05) La voz lista desde que se abre esta ventana. Igual que en
+  // /login: precalentamos el motor neuronal en cuanto se monta y lo MANTENEMOS caliente
+  // mientras el rito esté a la vista (el daemon vuelve a dormirse a los 10 min y la
+  // primera narración no debe volver a esperar ~22 s). `mantenerCaliente` devuelve la
+  // función de parada, que se invoca al desmontar. Todo con import dinámico y envuelto:
+  // si la voz no está disponible, el rito sigue funcionando igual.
+  useEffect(() => {
+    let detener: (() => void) | undefined;
+    try {
+      void import("@/lib/aurora/voz-starseed/motor").then((m) => m.precalentar()).catch(() => null);
+      void import("@/lib/aurora/motor-local").then((ml) => {
+        detener = ml.mantenerCaliente(
+          () => document.visibilityState !== "hidden" && !window.location.pathname.startsWith("/login"),
+        );
+      }).catch(() => null);
+    } catch { /* la voz nunca debe romper la bienvenida */ }
+    return () => detener?.();
+  }, []);
+
   // Mientras se comprueba no se enseña nada: ni guía ni acceso parpadeando.
   if (estado === "comprobando") return null;
 
