@@ -40,6 +40,7 @@ import { Slider } from "@/components/ui/slider";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { FichaVoz } from "@/components/voces/ficha-voz";
+import { PanelForja } from "@/components/voces/panel-forja";
 import { PanelMotorVoz } from "@/components/voces/panel-motor";
 import { PanelVersiones } from "@/components/voces/panel-versiones";
 import { BancoPruebasVoz } from "@/components/voces/banco-pruebas-voz";
@@ -339,6 +340,7 @@ export function EstudioVoces() {
                     <Tabs defaultValue="motor">
                         <TabsList className="flex-wrap">
                             <TabsTrigger value="motor" className="cursor-pointer">Motor</TabsTrigger>
+                            <TabsTrigger value="forja" className="cursor-pointer">Forja 1.58</TabsTrigger>
                             <TabsTrigger value="ajustes" className="cursor-pointer">Ajustes</TabsTrigger>
                             <TabsTrigger value="ficha" className="cursor-pointer">Ficha técnica</TabsTrigger>
                             <TabsTrigger value="versiones" className="cursor-pointer">Versiones</TabsTrigger>
@@ -350,6 +352,11 @@ export function EstudioVoces() {
 
                         <TabsContent value="motor" className="pt-4">
                             <PanelMotorVoz />
+                        </TabsContent>
+
+                        {/* ── Ola 246: Forja de Voz 1.58, el programa propio ── */}
+                        <TabsContent value="forja" className="pt-4">
+                            <PanelForja />
                         </TabsContent>
 
                         {/* ── Ola 240: flujo de versiones del Estudio ─────────── */}
