@@ -67,6 +67,23 @@ repositorio).
 | **Google Gemini** | `generativelanguage.googleapis.com` | `GEMINI_API_KEY` | `flash-lite` | ~15 req/min | última reserva (se deja al final para no gastar en Google) |
 | **TokenRouter** | `https://api.tokenrouter.io/v1` | `TOKENROUTER_API_KEY` | `z-ai/glm-5.3-free`, `nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free` | **PENDIENTE**: su API exige una clave de INFERENCIA que empieza por `tr_`; los tokens `sk-` del panel (de gestión) devuelven 401 «Missing or malformed API key» | — |
 | **Nous Portal** | — | — | — | cuota del plan | orquestación y verificación |
+| **xKiro** | `https://api.xkiro.com/v1` | `XKIRO_API_KEY` | 40 gratuitos con tool-calling (`qwen3-coder-plus`, `minimax-m3`, `devstral-medium`…) | 5M tokens/día; cuota diaria en los `:free` | **ESCRITOR** (opencode edita de verdad con ellos) y revisor primero |
+| **LLM7.io** (itsfree.ai) | `https://api.llm7.io/v1` | `LLM7_API_KEY` (opcional) | **sin clave**: `gpt-oss` (20B) y `minimax-m2.7` (verificados 2026-09-05, revisión real en 14 s); con token: 44 modelos (deepseek-v4-flash, glm-5.3-flash…). Sus etiquetas «claude/gpt-6» son reventa: no se usan | 10 req/min sin clave (40 con token) | revisor de respaldo, siempre disponible |
+| **FreeTheAi** | `https://api.freetheai.xyz/v1` | `FREETHEAI_API_KEY` | 60+ modelos (gpt-oss-120b…); clave por su Discord (`/signup` y `/checkin` diario; la crea Alex, nunca un agente) | 10-35 req/min, 250/día | revisor de reserva (solo con clave) |
+| **Pasarela declarada por entorno** | `STARSEED_PASARELA_<NOMBRE>_URL` | `STARSEED_PASARELA_<NOMBRE>_KEY` (+ `_MODELOS`, `_RPM`) | cualquier enrutador OpenAI-compatible: **freellmapi** en local (`http://127.0.0.1:3001/v1`, 29 proveedores gratis tras un bearer, ~40 MB RSS), NavyAI, pasarela propia… | el que declare `_RPM` (10 si falta) | revisor; entra sin tocar código en el orquestador y en el catálogo del Mando |
+
+### Catálogos de proveedores gratuitos (2026-09-05)
+
+- **itsfree.ai/?cat=api** — directorio de 25 proveedores con nivel gratuito verificado (Groq, Cerebras,
+  Cloudflare Workers AI, ModelScope, Z.ai, SambaNova, OpenCode Zen, LLM7, NVIDIA, Gemini…). Los que
+  faltan en nuestra flota necesitan una cuenta que solo Alex puede abrir: Groq, Cerebras, Cloudflare,
+  ModelScope, Z.ai, SambaNova, OpenCode Zen (y el token de LLM7 para pasar de 10 a 40 req/min).
+- **github.com/tashfeenahmed/freellmapi** (MIT) — enrutador autoalojado: 29-34 proveedores gratis,
+  358-635 endpoints, ~4-7.400 M tokens/mes, un solo bearer, failover automático en 429/5xx, perfiles
+  `auto`, `auto:fast`, `auto:smart`; catálogo vivo en freellmapi.co/models. Candidato a correr en la nube
+  (Node 20+, ~40 MB) cuando Alex meta sus claves en su panel (puerto 3001); se conecta como pasarela.
+- **github.com/Free-The-Ai/free-ai** — pasarela comunitaria (ver fila FreeTheAi).
+- **github.com/public-apis/public-apis** — ya indexado en `starseed_memory_root/fuentes/apis-publicas.json`.
 
 ## 6. Agentes de código disponibles
 
@@ -78,10 +95,11 @@ repositorio).
 
 ## 7. Política de enrutamiento automático del enjambre
 
-Escribir con NVIDIA NIM (opencode) y revisar con AIHubMix. Ante un fallo o cuota agotada se
-releva en cascada NIM → OpenRouter → Gemini, sin que ningún proveedor llegue a agotarse. Los
-cupos por minuto los declara cada proveedor en `~/.local/bin/starseed-enjambre.py` (constante
-`CUPOS_RPM`).
+Escribir con xKiro y NVIDIA NIM (opencode) y revisar con xKiro → LLM7 (sin clave) → AIHubMix →
+tokenrouter → NIM → OpenRouter → Gemini → FreeTheAi → pasarelas declaradas. Ante un fallo o cuota
+agotada se releva en cascada sin que ningún proveedor llegue a agotarse. Los cupos por minuto los
+declara cada proveedor en `~/.local/bin/starseed-enjambre.py` (constante `CUPOS_RPM`; las
+pasarelas, con `STARSEED_PASARELA_<NOMBRE>_RPM`).
 
 ## 8. Protocolo de relevo entre sesiones y medios
 

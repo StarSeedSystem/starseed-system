@@ -69,6 +69,7 @@ function ramaDelBorrador(nombre: string, tareas: TareaCola[]): RamaOla {
         eventos: [],
         vivo: null,
         aprobacion: null,
+        impacto: null,
     }));
     return {
         id: nombre,

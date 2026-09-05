@@ -88,7 +88,14 @@ const CLAVES: Record<string, string[]> = {
     tokenrouter: ["TOKENROUTER_API_KEY"],
     openrouter: ["OPENROUTER_API_KEY", "OPENROUTER_SHARED_KEY"],
     gemini: ["GEMINI_API_KEY", "GOOGLE_API_KEY", "NEXT_PUBLIC_GOOGLE_API_KEY"],
+    // LLM7.io (itsfree.ai): sin clave sirve gpt-oss y minimax-m2.7 a 10 req/min; con LLM7_API_KEY, 44 modelos.
+    llm7: ["LLM7_API_KEY"],
+    // FreeTheAi (pasarela comunitaria): clave por su Discord (/signup + /checkin diario), 250 llamadas/día.
+    freetheai: ["FREETHEAI_API_KEY"],
 };
+
+/** Proveedores que responden sin clave (a cupo reducido): el catálogo no los marca «sin-clave». */
+const SIN_CLAVE_OK = new Set(["llm7"]);
 
 const URLS: Record<string, string> = {
     xkiro: "https://api.xkiro.com/v1/chat/completions",
@@ -97,6 +104,8 @@ const URLS: Record<string, string> = {
     tokenrouter: "https://api.tokenrouter.com/v1/chat/completions",
     openrouter: "https://openrouter.ai/api/v1/chat/completions",
     ollama: "http://127.0.0.1:11434/v1/chat/completions",
+    llm7: "https://api.llm7.io/v1/chat/completions",
+    freetheai: "https://api.freetheai.xyz/v1/chat/completions",
 };
 
 /** Catálogo fijo de lo que el enjambre ya usa (verificado en las olas 238-241). */
@@ -111,6 +120,11 @@ const FIJOS: Array<Omit<ModeloDisponible, "salud">> = [
     { id: "openrouter/nvidia/nemotron-3-super-120b-a12b:free", proveedor: "openrouter", nombre: "Nemotron 3 Super (OpenRouter)", gratis: true, contexto: 131072, papel: "revisor" },
     { id: "gemini/gemini-2.5-flash-lite", proveedor: "gemini", nombre: "Gemini 2.5 Flash Lite", gratis: true, contexto: 1048576, papel: "revisor" },
     { id: "gemini/gemini-2.5-flash", proveedor: "gemini", nombre: "Gemini 2.5 Flash", gratis: true, contexto: 1048576, papel: "general" },
+    // Gratis y sin clave (verificado 2026-09-05: revisión real en 14 s). Solo estos dos responden anónimos.
+    { id: "llm7/minimax-m2.7", proveedor: "llm7", nombre: "MiniMax M2.7 (LLM7, sin clave)", gratis: true, contexto: 196608, papel: "revisor" },
+    { id: "llm7/gpt-oss", proveedor: "llm7", nombre: "gpt-oss 20B (LLM7, sin clave)", gratis: true, contexto: 131072, papel: "revisor" },
+    // Con FREETHEAI_API_KEY (Discord de FreeTheAi): 10-35 req/min, 250/día.
+    { id: "freetheai/gpt-oss-120b", proveedor: "freetheai", nombre: "gpt-oss 120B (FreeTheAi)", gratis: true, contexto: 131072, papel: "revisor" },
 ];
 
 function objeto(v: unknown): Record<string, unknown> {
@@ -161,6 +175,64 @@ async function modelosXkiro(): Promise<ModeloDisponible[]> {
     }
 }
 
+/**
+ * Pasarelas OpenAI-compatibles declaradas por entorno (mismo contrato que el orquestador):
+ * `STARSEED_PASARELA_<NOMBRE>_URL` (base `/v1`), `_KEY` («sin-clave» si no exige), `_MODELOS`
+ * (lista separada por comas; si falta se pide `GET /models`, hasta 40) y `_RPM`. Así entran
+ * freellmapi en local (127.0.0.1:3001/v1), NavyAI o una pasarela propia sin tocar código.
+ */
+interface Pasarela {
+    nombre: string;
+    url: string;
+    clave: string;
+    modelos: string[];
+}
+
+async function pasarelas(): Promise<Pasarela[]> {
+    const fuentes: Record<string, string> = { ...(await leerEnvExtra()) };
+    for (const [k, v] of Object.entries(process.env)) if (typeof v === "string" && v.trim()) fuentes[k] = v.trim();
+    const salida: Pasarela[] = [];
+    for (const [k, v] of Object.entries(fuentes)) {
+        const m = /^STARSEED_PASARELA_([A-Z0-9]+)_URL$/.exec(k);
+        if (!m || !v) continue;
+        const pref = `STARSEED_PASARELA_${m[1]}`;
+        salida.push({
+            nombre: m[1].toLowerCase(),
+            url: v.replace(/\/+$/, ""),
+            clave: fuentes[`${pref}_KEY`] || "sin-clave",
+            modelos: (fuentes[`${pref}_MODELOS`] ?? "").split(",").map((x) => x.trim()).filter(Boolean),
+        });
+    }
+    return salida;
+}
+
+let cachePasarelas: { t: number; modelos: ModeloDisponible[] } | null = null;
+
+async function modelosPasarelas(): Promise<ModeloDisponible[]> {
+    if (cachePasarelas && Date.now() - cachePasarelas.t < 10 * 60 * 1000) return cachePasarelas.modelos;
+    const modelos: ModeloDisponible[] = [];
+    for (const p of await pasarelas()) {
+        let ids = p.modelos;
+        if (ids.length === 0) {
+            try {
+                const ctrl = new AbortController();
+                const temporizador = setTimeout(() => ctrl.abort(), 6000);
+                const r = await fetch(`${p.url}/models`, { headers: { Authorization: `Bearer ${p.clave}`, "User-Agent": UA }, signal: ctrl.signal, cache: "no-store" });
+                clearTimeout(temporizador);
+                const d = r.ok ? ((await r.json()) as { data?: unknown[] }) : {};
+                ids = (Array.isArray(d.data) ? d.data : []).map((x) => objeto(x).id).filter((x): x is string => typeof x === "string").slice(0, 40);
+            } catch {
+                ids = [];
+            }
+        }
+        for (const id of ids) {
+            modelos.push({ id: `${p.nombre}/${id}`, proveedor: p.nombre, nombre: `${id} (${p.nombre})`, gratis: true, contexto: null, salud: "desconocido", papel: "revisor" });
+        }
+    }
+    cachePasarelas = { t: Date.now(), modelos };
+    return modelos;
+}
+
 /** Modelos cargables en Ollama local (si está). */
 async function modelosOllama(): Promise<ModeloDisponible[]> {
     try {
@@ -199,10 +271,11 @@ async function saludProveedores(): Promise<Record<string, string>> {
 
 /** Todos los modelos usables ahora, con salud y si hay clave. */
 export async function listarModelos(): Promise<ModeloDisponible[]> {
-    const [xk, ol, salud] = await Promise.all([modelosXkiro(), modelosOllama(), saludProveedores()]);
+    const [xk, ol, pa, salud] = await Promise.all([modelosXkiro(), modelosOllama(), modelosPasarelas(), saludProveedores()]);
     const conClave: Record<string, boolean> = {};
-    for (const p of Object.keys(CLAVES)) conClave[p] = Boolean(await claveDe(...CLAVES[p]));
-    const todos = [...FIJOS.map((m) => ({ ...m, salud: "desconocido" })), ...xk, ...ol];
+    for (const p of Object.keys(CLAVES)) conClave[p] = SIN_CLAVE_OK.has(p) || Boolean(await claveDe(...CLAVES[p]));
+    for (const m of pa) conClave[m.proveedor] = true;
+    const todos = [...FIJOS.map((m) => ({ ...m, salud: "desconocido" })), ...xk, ...ol, ...pa];
     return todos.map((m) => ({
         ...m,
         salud: m.proveedor === "ollama" ? m.salud : !conClave[m.proveedor] ? "sin-clave" : salud[m.proveedor] ?? "desconocido",
@@ -261,9 +334,10 @@ export async function llamarModelo(
                 tokens: d.usageMetadata ? { entrada: d.usageMetadata.promptTokenCount ?? 0, salida: d.usageMetadata.candidatesTokenCount ?? 0 } : null,
             };
         }
-        const url = URLS[proveedor];
+        const pasarela = (await pasarelas()).find((p) => p.nombre === proveedor);
+        const url = pasarela ? `${pasarela.url}/chat/completions` : URLS[proveedor];
         if (!url) throw new Error(`Proveedor desconocido: ${proveedor}.`);
-        const clave = proveedor === "ollama" ? "ollama" : await claveDe(...(CLAVES[proveedor] ?? []));
+        const clave = pasarela ? pasarela.clave : proveedor === "ollama" ? "ollama" : (await claveDe(...(CLAVES[proveedor] ?? []))) ?? (SIN_CLAVE_OK.has(proveedor) ? "sin-clave" : null);
         if (!clave) throw new Error(`Sin clave de ${proveedor} en esta máquina (variable ${(CLAVES[proveedor] ?? []).join(" o ")}).`);
         const r = await fetch(url, {
             method: "POST",

@@ -98,3 +98,6 @@ public/version.json
 
 # Paquetes temporales para llevar commits al contenedor de Cowork
 .transfer/
+
+# Grafo del código (GitNexus): 650 MB, se indexa en la nube y se copia
+.gitnexus/

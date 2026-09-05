@@ -3,12 +3,13 @@
  *
  *   {chatId, modelo, mensaje}            → responde con el modelo elegido (estado vivo + memorias)
  *   {accion:"leer", chatId?, ruta}       → lee un archivo permitido y, si hay chat, lo añade como turno «herramienta»
+ *   {accion:"mapa", chatId?, consulta}   → consulta el grafo del código (GitNexus) y lo añade como turno «herramienta»
  *
- * El modelo solo PROPONE acciones (lanzar/detener/ver_tarea/leer); las ejecuta la interfaz,
+ * El modelo solo PROPONE acciones (lanzar/detener/ver_tarea/leer/mapa); las ejecuta la interfaz,
  * las de lanzar/detener con confirmación humana y por `/api/mando/colas`.
  */
 import { guardianMando } from "@/lib/mando/guardian";
-import { guardarChat, leerArchivoPermitido, leerChat, responder, crearChat } from "@/lib/mando/asistente";
+import { consultarGrafo, guardarChat, leerArchivoPermitido, leerChat, responder, crearChat } from "@/lib/mando/asistente";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -35,6 +36,19 @@ export async function POST(peticion: Request): Promise<Response> {
             const chat = await leerChat(chatId).catch(() => null);
             if (chat) {
                 chat.mensajes.push({ rol: "herramienta", texto: `${r.ruta} (${r.bytes} bytes):\n${r.contenido}`, t: new Date().toISOString() });
+                await guardarChat(chat);
+            }
+        }
+        return Response.json(r, { status: r.ok ? 200 : 400, headers: { "Cache-Control": "no-store" } });
+    }
+
+    if (cuerpo.accion === "mapa") {
+        const consulta = typeof cuerpo.consulta === "string" ? cuerpo.consulta : "";
+        const r = await consultarGrafo(consulta);
+        if (r.ok && chatId) {
+            const chat = await leerChat(chatId).catch(() => null);
+            if (chat) {
+                chat.mensajes.push({ rol: "herramienta", texto: `grafo del código · ${r.consulta}:\n${r.texto}`, t: new Date().toISOString() });
                 await guardarChat(chat);
             }
         }

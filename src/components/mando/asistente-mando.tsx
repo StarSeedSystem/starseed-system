@@ -133,6 +133,7 @@ function BotonAccion({ accion, onEjecutar }: { accion: AccionPropuesta; onEjecut
     const etiqueta =
         accion.accion === "ver_tarea" ? `Ver ${accion.id ?? "tarea"}`
         : accion.accion === "leer" ? `Leer ${accion.ruta ?? "archivo"}`
+        : accion.accion === "mapa" ? `Grafo: ${accion.consulta ?? "?"}`
         : accion.accion === "lanzar" ? `Lanzar cola-${accion.cola ?? "?"} en ${accion.donde ?? "nube"}${accion.workers ? ` (${accion.workers})` : ""}`
         : `Detener cola-${accion.cola ?? "?"}`;
     const ejecutar = async () => {
@@ -262,6 +263,12 @@ export function AsistenteMando({ modo, onCerrar }: { modo: "panel" | "flotante";
             if (chat?.id) void cargarChat(chat.id);
             return d.ok ? `Leído (${d.bytes} bytes); ya está en el chat. Pregunta de nuevo para que lo use.` : d.contenido;
         }
+        if (a.accion === "mapa" && a.consulta) {
+            const r = await fetch("/api/mando/asistente", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ accion: "mapa", chatId: chat?.id, consulta: a.consulta }) });
+            const d = (await r.json()) as { ok: boolean; texto: string };
+            if (chat?.id) void cargarChat(chat.id);
+            return d.ok ? "Consultado el grafo del código; ya está en el chat. Pregunta de nuevo para que lo use." : d.texto;
+        }
         if ((a.accion === "lanzar" || a.accion === "detener") && a.cola) {
             if (a.accion === "detener") {
                 // detener viaja por el bus como orden firmada (nube) o mata el orquestador local por cola
@@ -362,7 +369,7 @@ export function AsistenteMando({ modo, onCerrar }: { modo: "panel" | "flotante";
                             return (
                                 <div key={`${m.t}-${i}`} className={`rounded-lg px-3 py-2 text-sm ${m.rol === "usuario" ? "ml-6 bg-violet-500/15 text-white" : m.rol === "herramienta" ? "border border-white/10 bg-white/[0.03] font-mono text-[11px] text-white/60" : "mr-6 bg-white/[0.05] text-white/90"}`}>
                                     <div className="mb-1 flex items-center justify-between text-[10px] text-white/40">
-                                        <span>{m.rol === "usuario" ? "Tú" : m.rol === "herramienta" ? "archivo" : (m.modelo ?? "asistente").split("/").slice(-1)[0]}</span>
+                                        <span>{m.rol === "usuario" ? "Tú" : m.rol === "herramienta" ? (m.texto.startsWith("grafo del código") ? "grafo" : "archivo") : (m.modelo ?? "asistente").split("/").slice(-1)[0]}</span>
                                         <span>{hora(m.t)}{m.tokens ? ` · ${m.tokens.entrada}/${m.tokens.salida} tokens` : ""}{m.latenciaMs ? ` · ${Math.round(m.latenciaMs / 1000)} s` : ""}</span>
                                     </div>
                                     {m.rol === "asistente" ? (

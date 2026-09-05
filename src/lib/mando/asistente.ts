@@ -18,8 +18,11 @@
  * son los MISMOS para la orbe y para la pestaña.
  */
 
-import { mkdir, readdir, readFile, stat, writeFile, unlink } from "node:fs/promises";
+import { execFile } from "node:child_process";
+import { access, mkdir, readdir, readFile, stat, writeFile, unlink } from "node:fs/promises";
+import { homedir } from "node:os";
 import path from "node:path";
+import { promisify } from "node:util";
 
 import { construirRamificacion } from "@/lib/mando/ramificacion";
 import { leerEstadoRelevo, leerEventosDelBus, leerProgreso, colaInteligente, leerColas } from "@/lib/mando/lector-local";
@@ -63,12 +66,14 @@ export interface ChatMando {
 }
 
 export interface AccionPropuesta {
-    accion: "lanzar" | "detener" | "ver_tarea" | "leer";
+    accion: "lanzar" | "detener" | "ver_tarea" | "leer" | "mapa";
     cola?: string;
     donde?: string;
     workers?: number;
     id?: string;
     ruta?: string;
+    /** Para `mapa`: concepto, símbolo (`context`), o `impacto <símbolo>`. */
+    consulta?: string;
 }
 
 function ahora(): string {
@@ -173,6 +178,56 @@ export async function leerArchivoPermitido(ruta: string, maxChars = 12_000): Pro
 // ── Briefing vivo ───────────────────────────────────────────────────────────
 
 /** Estado vivo del sistema en texto compacto (≈2-4k tokens). */
+const ejecutarBinario = promisify(execFile);
+
+/**
+ * Grafo del código (GitNexus, github.com/abhigyanpatwari/GitNexus): binario `gitnexus` en el PATH
+ * o en ~/.npm-global/bin, e índice `.gitnexus/` en la raíz del repositorio (`gitnexus analyze .`
+ * en la nube: 337 s y 2,2 GB de pico; las consultas, 1-2 s y cero tokens).
+ */
+export async function grafoDisponible(): Promise<string | null> {
+    try {
+        await access(path.join(RAÍZ, ".gitnexus", "lbug"));
+    } catch {
+        return null;
+    }
+    const carpetas = [...(process.env.PATH ?? "").split(path.delimiter), path.join(homedir(), ".npm-global", "bin"), "/opt/homebrew/bin", "/usr/local/bin"];
+    for (const c of carpetas) {
+        if (!c) continue;
+        const bin = path.join(c, "gitnexus");
+        try {
+            await access(bin);
+            return bin;
+        } catch {
+            // siguiente carpeta
+        }
+    }
+    return null;
+}
+
+/**
+ * Consulta al grafo: un identificador → `context` (quién lo llama y a quién llama);
+ * «impacto <símbolo>» → `impact` (qué se rompe si cambia); otro texto → `query` (flujos y
+ * definiciones ligados al concepto). Devuelve texto listo para el chat (sin la cabecera del CLI).
+ */
+export async function consultarGrafo(consulta: string, maxChars = 6000): Promise<{ ok: boolean; consulta: string; texto: string }> {
+    const q = consulta.trim().slice(0, 200);
+    if (!q) return { ok: false, consulta: q, texto: "Falta la consulta." };
+    const bin = await grafoDisponible();
+    if (!bin) return { ok: false, consulta: q, texto: "El grafo del código (GitNexus) no está en esta máquina: `npm i -g gitnexus && gitnexus analyze .` en la raíz del repositorio (mejor en la nube: 2,2 GB al indexar)." };
+    const mImpacto = /^impacto\s+([\w$.]+)$/i.exec(q);
+    const mContexto = /^(?:contexto|context)\s+([\w$.]+)$/i.exec(q);
+    const args = mImpacto ? ["impact", mImpacto[1]] : mContexto ? ["context", mContexto[1]] : /^[A-Za-z_$][\w$]*$/.test(q) ? ["context", q] : ["query", q, "-l", "3"];
+    try {
+        const { stdout } = await ejecutarBinario(bin, args, { cwd: RAÍZ, timeout: 30_000, maxBuffer: 4_000_000, env: { ...process.env, NODE_OPTIONS: "--max-old-space-size=1024" } });
+        const limpio = stdout.replace(/^\s*GitNexus [^\n]*\(\d[^\n]*\)\s*$/m, "").trim();
+        if (!limpio) return { ok: false, consulta: q, texto: "El grafo no devolvió nada para esa consulta." };
+        return { ok: true, consulta: q, texto: limpio.length > maxChars ? `${limpio.slice(0, maxChars)}\n… (recortado)` : limpio };
+    } catch (e) {
+        return { ok: false, consulta: q, texto: `gitnexus ${args[0]} falló: ${e instanceof Error ? e.message.slice(0, 200) : String(e)}` };
+    }
+}
+
 export async function construirBriefing(): Promise<string> {
     const [rama, relevo, eventos, progreso, tareas] = await Promise.all([
         construirRamificacion(4).catch(() => null),
@@ -255,6 +310,7 @@ Reglas permanentes del proyecto: ningún proveedor debe agotar sus créditos; la
 Puedes PROPONER acciones para que la interfaz las ejecute. Escríbelas como un bloque JSON en una línea propia (puede haber varias):
 {"accion":"ver_tarea","id":"VZ6"}                         → abre la ficha de esa tarea en la ramificación
 {"accion":"leer","ruta":"memory/state.md"}                 → te devuelve ese archivo en el siguiente turno (solo rutas de memorias, relevo, olas, informes, CLAUDE.md, architecture/)
+{"accion":"mapa","consulta":"reasignarTarea"}              → grafo del código (GitNexus): un símbolo = quién lo llama y a quién llama; «impacto <símbolo>» = qué se rompe si cambia; un concepto = flujos y definiciones relacionados. Úsalo antes de opinar sobre código o sobre el riesgo de una rama.
 {"accion":"lanzar","cola":"241-x","donde":"nube","workers":2} → lanza una cola existente (pide confirmación humana)
 {"accion":"detener","cola":"241-x","donde":"nube"}           → detiene el orquestador de esa cola (pide confirmación humana)
 Cuando el usuario pida crear o corregir una ola, describe las tareas con id, título, archivos, prompt y dependencias y remítelo al Diseñador de olas del Mando (botón «Diseñar ola»), o propón la cola en JSON con ese formato.
@@ -263,7 +319,7 @@ No añadas líneas de «uso» ni digas qué modelo eres: la interfaz muestra el 
 /** Extrae las acciones propuestas (bloques JSON) del texto del modelo. */
 export function extraerAcciones(textoModelo: string): AccionPropuesta[] {
     const acciones: AccionPropuesta[] = [];
-    const re = /\{[^{}\n]*"accion"\s*:\s*"(lanzar|detener|ver_tarea|leer)"[^{}\n]*\}/g;
+    const re = /\{[^{}\n]*"accion"\s*:\s*"(lanzar|detener|ver_tarea|leer|mapa)"[^{}\n]*\}/g;
     let m: RegExpExecArray | null;
     while ((m = re.exec(textoModelo)) !== null) {
         try {

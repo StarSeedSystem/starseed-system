@@ -74,7 +74,19 @@ export interface RamaTarea {
     /** Latido si un agente la tiene entre manos ahora mismo. */
     vivo: LatidoTarea | null;
     /** Si espera el visto bueno humano: la rama lista, su diff y lo que dijo el revisor. */
-    aprobacion: { rama: string; sha: string; diffstat: string; revision: string; bloqueante: boolean; modelo: string; desde: string } | null;
+    aprobacion: { rama: string; sha: string; diffstat: string; revision: string; bloqueante: boolean; modelo: string; desde: string; impacto: ImpactoRama | null } | null;
+    /** Radio de impacto del diff según el grafo del código (GitNexus), si la máquina lo tiene. */
+    impacto: ImpactoRama | null;
+}
+
+/** Lo que `gitnexus detect-changes` dice de un diff: cuántos flujos de ejecución toca y con qué riesgo. */
+export interface ImpactoRama {
+    archivos: number;
+    simbolos: number;
+    flujos: number;
+    /** low · medium · high · critical. */
+    riesgo: string;
+    detalle: string[];
 }
 
 /** Una ola con su árbol de tareas y el recuento. */
@@ -111,6 +123,19 @@ const TIPOS_BUS = [
 ];
 const TERMINALES = new Set(["commit", "bloqueante", "sin_cambios", "sustituida", "fallo", "conflicto", "reasignada", "rechazada", "pendiente_aprobacion"]);
 const PREFIJO_PROVEEDOR: Record<string, string> = { nvidia: "nim" };
+
+/** `impacto` tal como lo publica el orquestador (paso `impacto` o datos de `esperando_aprobacion`). */
+function leerImpacto(v: unknown): ImpactoRama | null {
+    const d = objeto(v);
+    if (typeof d.riesgo !== "string" && typeof d.simbolos !== "number") return null;
+    return {
+        archivos: número(d.archivos, 0),
+        simbolos: número(d.simbolos, 0),
+        flujos: número(d.flujos, 0),
+        riesgo: texto(d.riesgo) || "?",
+        detalle: Array.isArray(d.detalle) ? (d.detalle as unknown[]).map(String).filter(Boolean).slice(0, 8) : [],
+    };
+}
 
 function texto(v: unknown): string {
     return typeof v === "string" ? v : "";
@@ -353,7 +378,7 @@ export async function construirRamificacion(cuantas = 4, horasBus = 24 * 30): Pr
                 const dondeEv = texto(d.donde) || "mac";
                 if (texto(d.medio)) medio = texto(d.medio);
                 if (e.tipo === "esperando_aprobacion") {
-                    aprobacion = { rama: texto(d.rama), sha: texto(d.sha), diffstat: texto(d.diffstat), revision: texto(d.revision), bloqueante: d.bloqueante === true, modelo: texto(d.modelo), desde: e.t };
+                    aprobacion = { rama: texto(d.rama), sha: texto(d.sha), diffstat: texto(d.diffstat), revision: texto(d.revision), bloqueante: d.bloqueante === true, modelo: texto(d.modelo), desde: e.t, impacto: leerImpacto(d.impacto) };
                 }
                 // Cualquier cierre posterior (commit, rechazo, caducidad) apaga la espera.
                 if (e.tipo === "commit" || e.tipo === "bloqueante" || e.tipo === "rechazada" || e.tipo === "pendiente_aprobacion" || e.tipo === "conflicto") aprobacion = null;
@@ -430,6 +455,11 @@ export async function construirRamificacion(cuantas = 4, horasBus = 24 * 30): Pr
             }
 
             const fallidosBruto = Array.isArray(prog.modelos_fallidos) ? (prog.modelos_fallidos as unknown[]) : [];
+            // Radio de impacto: el de la espera de aprobación o el último paso «impacto» del orquestador.
+            const pasoImpacto = [...pasos].reverse().find((p) => p.paso === "impacto");
+            const impacto = aprobacion?.impacto ?? (pasoImpacto
+                ? leerImpacto({ ...pasoImpacto.datos, detalle: typeof pasoImpacto.datos.detalle === "string" && pasoImpacto.datos.detalle ? pasoImpacto.datos.detalle.split(" | ") : [] })
+                : null);
             ramas.push({
                 id: t.id,
                 ola: etiqueta,
@@ -451,6 +481,7 @@ export async function construirRamificacion(cuantas = 4, horasBus = 24 * 30): Pr
                 eventos: eventosRama.slice(-12),
                 vivo,
                 aprobacion,
+                impacto,
             });
         }
         ramas.sort((a, b) => a.nivel - b.nivel || a.id.localeCompare(b.id, undefined, { numeric: true }));

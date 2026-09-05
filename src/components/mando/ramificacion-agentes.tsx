@@ -16,13 +16,13 @@
  */
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Bot, ChevronRight, GitCommit, Pause, Play, RefreshCw, ShieldCheck, Wand2 } from "lucide-react";
+import { Bot, ChevronRight, GitCommit, Pause, Play, Radar, RefreshCw, ShieldCheck, Wand2 } from "lucide-react";
 
 import { DisenadorOla } from "@/components/mando/disenador-ola";
 import { escuchar as escucharAsistente, tomarTareaPendiente } from "@/lib/mando/asistente-cliente";
 
 import type { FotoEnjambre, LatidoTarea } from "@/lib/mando/tipos";
-import type { RamaOla, RamaTarea, Ramificacion } from "@/lib/mando/ramificacion";
+import type { ImpactoRama, RamaOla, RamaTarea, Ramificacion } from "@/lib/mando/ramificacion";
 
 const INTERVALO_MS = 20_000;
 
@@ -581,6 +581,7 @@ function FichaTarea({ tarea, estadosOla, onCerrar, onCambio }: { tarea: RamaTare
                             <span>{tarea.sha || "sin commit"}</span>
                         </li>
                     </ul>
+                    <ImpactoDiff impacto={tarea.impacto} detalle />
                     {tarea.modelosFallidos.length ? (
                         <p className="mt-2 text-[11px] text-rose-200/80">
                             Modelos que ya fallaron aquí: {tarea.modelosFallidos.map(corto).join(", ")}
@@ -753,6 +754,35 @@ function DecidirTarea({ tarea, compacto, onHecho }: { tarea: RamaTarea; compacto
  * sus comprobaciones (tsc, tests, revisión) y el diff resumido, para aprobar o rechazar sin
  * salir del Mando. Es la pestaña «Publicar» de la Ola 239 (MD8) en su forma mínima y real.
  */
+/** Tono del riesgo que da el grafo del código (GitNexus): low · medium · high · critical. */
+function tonoRiesgo(riesgo: string): string {
+    if (/critical/i.test(riesgo)) return "border-rose-400/50 bg-rose-500/15 text-rose-200";
+    if (/high/i.test(riesgo)) return "border-orange-400/50 bg-orange-500/15 text-orange-200";
+    if (/medium/i.test(riesgo)) return "border-amber-400/50 bg-amber-500/15 text-amber-100";
+    return "border-emerald-400/40 bg-emerald-500/10 text-emerald-200";
+}
+
+/**
+ * Radio de impacto de un diff según el grafo del código: cuántos flujos de ejecución toca y
+ * con qué riesgo (lo calcula el orquestador con `gitnexus detect-changes` antes de la revisión).
+ */
+function ImpactoDiff({ impacto, detalle = false }: { impacto: ImpactoRama | null; detalle?: boolean }) {
+    if (!impacto) return null;
+    return (
+        <div className="mt-1 text-[11px]" data-testid="impacto-diff">
+            <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 ${tonoRiesgo(impacto.riesgo)}`} title="Radio de impacto según el grafo del código (GitNexus)">
+                <Radar className="h-3 w-3" aria-hidden />
+                impacto {impacto.riesgo} · {impacto.archivos} archivos · {impacto.simbolos} símbolos · {impacto.flujos} flujos
+            </span>
+            {detalle && impacto.detalle.length ? (
+                <ul className="mt-1 space-y-0.5 pl-1 text-white/55">
+                    {impacto.detalle.map((f) => <li key={f}>• {f}</li>)}
+                </ul>
+            ) : null}
+        </div>
+    );
+}
+
 function EsperandoVistoBueno({ olas, onVer, onHecho }: { olas: RamaOla[]; onVer: (id: string) => void; onHecho: () => void }) {
     const esperan = olas.flatMap((o) => o.tareas.filter((t) => t.estado === "esperando_aprobacion" || t.estado === "pendiente_aprobacion"));
     if (esperan.length === 0) return null;
@@ -775,6 +805,7 @@ function EsperandoVistoBueno({ olas, onVer, onHecho }: { olas: RamaOla[]; onVer:
                             {t.estado === "pendiente_aprobacion" ? <span className="text-fuchsia-200/70">el orquestador ya no espera: intégrala a mano (git merge --ff-only {t.aprobacion?.rama ?? `ola/${t.id}`})</span> : null}
                         </div>
                         {t.aprobacion?.diffstat ? <pre className="mt-1 max-h-32 overflow-auto whitespace-pre-wrap font-mono text-[10px] text-white/55">{t.aprobacion.diffstat.trim()}</pre> : null}
+                        <ImpactoDiff impacto={t.aprobacion?.impacto ?? t.impacto} detalle />
                         {t.aprobacion?.revision ? <p className="mt-1 text-[11px] text-white/60">Revisor: {t.aprobacion.revision}</p> : null}
                         <div className="mt-2">
                             <DecidirTarea tarea={t} compacto onHecho={onHecho} />

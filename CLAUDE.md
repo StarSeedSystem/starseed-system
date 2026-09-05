@@ -310,7 +310,9 @@ catálogos indexados en local, refrescables con `starseed-fuentes refrescar` y c
 | [OpenDesign](https://github.com/nexu-io/open-design) | Apache-2.0 | Diseño nativo de agentes: prototipos, presentaciones, paneles, imágenes, documentos y motion MP4; importa de Figma |
 | [Langflow](https://github.com/langflow-ai/langflow) | MIT | Flujos de agente visuales desplegables como API o servidor MCP; candidato a diseñar las olas |
 | [OpenHands Agent Canvas](https://github.com/OpenHands/openhands) | MIT | Ejecuta agentes en local/Docker/VM. Sin CLI headless (verificado): sirve para paralelizar fuera de la Mac, no como ejecutor del enjambre |
-| [Flowise](https://github.com/FlowiseAI/Flowise) | Apache-2.0 | **Archivado el 2026-08-13 (EOL, sin sucesor)**: no se instala. Se tomó como patrón: el **Diseñador de olas** del Mando (nodos editables → guardar cola → lanzar por API, aquí o en la nube con orden firmada), la ficha de ejecución por nodo y los nodos de aprobación humana (pendiente). Sus `packages/components/nodes` valen como catálogo de patrones de conectores |
+| [Flowise](https://github.com/FlowiseAI/Flowise) | Apache-2.0 | **Archivado el 2026-08-13 (EOL, sin sucesor)**: no se instala. Se tomó como patrón: el **Diseñador de olas** del Mando (nodos editables → guardar cola → lanzar por API, aquí o en la nube con orden firmada), la ficha de ejecución por nodo y los nodos de aprobación humana (ya reales) |
+| [itsfree.ai](https://itsfree.ai/?cat=api) · [FreeTheAi](https://github.com/Free-The-Ai/free-ai) · [freellmapi](https://github.com/tashfeenahmed/freellmapi) | — · — · MIT | Catálogos de **APIs de IA gratuitas** para la orquestación económica (2026-09-05): de itsfree.ai entró **LLM7.io** (sin clave: `gpt-oss`, `minimax-m2.7`; revisor siempre disponible) y la lista de cuentas que solo Alex puede abrir (Groq, Cerebras, Cloudflare, ModelScope, Z.ai, SambaNova, OpenCode Zen); FreeTheAi entra con `FREETHEAI_API_KEY` (Discord); freellmapi es un enrutador autoalojado (29 proveedores, un bearer, failover) que se conecta como **pasarela declarada por entorno** (`STARSEED_PASARELA_<NOMBRE>_URL/_KEY/_MODELOS/_RPM`, sin tocar código). Tabla completa en `memory/orquestacion-economica.md` §5 |
+| [GitNexus](https://github.com/abhigyanpatwari/GitNexus) | PolyForm Noncommercial | **Grafo del código** del repositorio (`.gitnexus/`, ignorado): símbolos, llamadas, comunidades y flujos. El orquestador da a cada agente el **mapa** de su tarea, al revisor el **radio de impacto** del diff y al visto bueno humano los flujos que la rama toca; la orbe del Mando lo consulta con `{"accion":"mapa"}`. Habilidad `.agent/skills/grafo-codigo`. Solo uso interno (no se empaqueta en el producto) |
 
 El enjambre las reparte solo: `contexto_inteligente()` mira las palabras de cada tarea y le pasa al
 agente **el puntero y el comando de búsqueda**, nunca el catálogo entero (economía de contexto).
@@ -508,6 +510,38 @@ Otras lecciones del 05-09: `database is locked` (dos opencode arrancando a la ve
 SQLite) ya no cuenta como «sin cambios» del modelo: se espera 8 s y se reintenta el mismo, y los
 arranques de opencode se escalonan 4 s. `venv/` estaba versionado por error (1.623 archivos):
 fuera del repo, sigue ignorado. `.env.example` sí se versiona (`!.env.example` en .gitignore).
+
+### Grafo del código (GitNexus) en la orquestación (2026-09-05)
+
+`npm i -g gitnexus && gitnexus analyze --skip-agents-md --skip-skills --no-stats .` en la raíz
+deja en `.gitnexus/` (652 MB, ignorado por git) un grafo de conocimiento del código: 70.844 nodos,
+177.834 aristas, 1.578 comunidades y 909 flujos de ejecución. Indexar cuesta 337 s y 2,2 GB de
+pico → **solo en la nube**; la Mac recibe el índice copiado (`tar` de `.gitnexus/`) y lo consulta.
+Consultar cuesta 1-2 s y cero tokens. Tres usos, todos en `starseed-enjambre.py`:
+
+1. `mapa_codigo(t)` → en el contexto de cada tarea: los símbolos (archivo:líneas) y flujos que el
+   grafo liga al título y a los archivos, más los comandos `gitnexus context|impact|query|
+   detect-changes` para que el agente no haga grep a ciegas.
+2. `impacto_cambios("ola/<id>")` antes de la revisión → paso `impacto` (archivos, símbolos, flujos,
+   riesgo low…critical) y el radio de impacto entra en el prompt del revisor.
+3. El evento `esperando_aprobacion` lleva `impacto`; el Mando lo enseña como chip en «Esperando
+   tu visto bueno» y en la ficha de la tarea (`ImpactoDiff`, `data-testid="impacto-diff"`).
+
+La orbe del Mando puede proponer `{"accion":"mapa","consulta":"reasignarTarea"}` (símbolo →
+`context`; «impacto <símbolo>» → `impact`; concepto → `query`), que `consultarGrafo()` ejecuta y
+deja como turno «grafo» del chat. **No** se configura su servidor MCP en opencode (`gitnexus
+setup`): 17 herramientas por turno cuestan más contexto de lo que ahorran; la CLI basta. Licencia
+PolyForm Noncommercial: uso interno de la fundación, nunca dentro del producto.
+
+### Pasarelas OpenAI-compatibles declaradas por entorno (2026-09-05)
+
+Cualquier enrutador gratuito entra en la flota sin tocar código, con cuatro variables en
+`~/.starseed/env` (chmod 600): `STARSEED_PASARELA_<NOMBRE>_URL` (base `/v1`), `_KEY`
+(«sin-clave» si no exige), `_MODELOS` (revisores en orden; el primero es la sonda) y `_RPM`.
+El orquestador lo sondea, lo mete en `REVISORES`/`CUPOS_RPM` y `llamar_llm` le habla; el catálogo
+del Mando (`/api/mando/modelos`, `modelosPasarelas()`) lo lista y `llamarModelo` lo usa. Verificado
+con una pasarela de prueba sobre LLM7 (sonda 1,1 s; respuesta 3,8 s). Candidato: **freellmapi**
+en local (`http://127.0.0.1:3001/v1`) cuando Alex cargue sus claves en su panel.
 
 ### Vercel: 250 MB por función y el trazador de archivos (2026-09-05)
 
