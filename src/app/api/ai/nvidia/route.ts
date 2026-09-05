@@ -20,6 +20,7 @@
 import { NextRequest } from "next/server";
 import { createClient } from "@/utils/supabase/server";
 import { rateLimit } from "@/lib/security/rate-limit";
+import { findSource } from "@/ai/astraura/free-catalog";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -101,6 +102,15 @@ export async function POST(req: NextRequest): Promise<Response> {
   }
   if (typeof body.model !== "string" || !/^[a-z0-9._\-]+\/[a-z0-9._\-]+$/i.test(body.model)) {
     return Response.json({ error: "Modelo no válido (formato org/modelo de build.nvidia.com)." }, { status: 400 });
+  }
+  const nvidiaSource = findSource("nvidia-nim");
+  const allowlist = nvidiaSource?.models.map((m) => m.id) ?? [];
+  if (allowlist.length > 0 && !allowlist.includes(body.model)) {
+    const ejemplos = allowlist.slice(0, 3).map((id) => `\`${id}\``).join(", ");
+    return Response.json(
+      { error: `Modelo «${body.model}» no está en la lista de modelos NVIDIA comunitarios permitidos. Usa uno de la lista, p. ej.: ${ejemplos}.` },
+      { status: 400 },
+    );
   }
   if (!Array.isArray(body.messages) || body.messages.length === 0) {
     return Response.json({ error: "Faltan messages." }, { status: 400 });
