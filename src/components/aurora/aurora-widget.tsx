@@ -1,6 +1,6 @@
 "use client";
 
-import { esRutaConsola } from "@/components/layout/solo-fuera-de-consola";
+import { esRutaConsola, esRutaMinima } from "@/components/layout/solo-fuera-de-consola";
 import { useCallback, useEffect, useRef, useState, type ComponentType } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -506,6 +506,14 @@ export function AuroraWidget() {
 
     // (2026-09-05) En el Puente de Mando la orbe es el ASISTENTE TÉCNICO de la orquestación:
     // un toque abre/cierra su panel (mismo chat y selector de modelo que la pestaña Chat).
+    if (esRutaMinima(window.location.pathname)) {
+      // (2026-09-05) En el Estudio de Voces la orbe es el BOTÓN DE PRUEBA: un toque habla la
+      // frase de muestra con la voz activa por el motor único (lo que se está afinando).
+      void import("@/lib/aurora/voz-rito").then((m) => {
+        m.hablarRito("Hola, soy Aurora. Así sueno ahora mismo: esta es mi voz en este equipo.");
+      }).catch(() => null);
+      return;
+    }
     if (esRutaConsola(window.location.pathname)) {
       try { window.dispatchEvent(new CustomEvent("starseed:mando-asistente", { detail: { tipo: "toggle" } })); } catch { /* */ }
       return;

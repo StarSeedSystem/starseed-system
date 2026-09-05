@@ -41,7 +41,7 @@ import { AccountProvider } from "@/context/account-context";
 
 import { OmniDock } from "@/components/layout/omni-dock";
 import { EntornoMontaje } from "@/components/entorno/entorno-montaje";
-import { SoloFueraDeConsola } from "@/components/layout/solo-fuera-de-consola";
+import { SoloFueraDeConsola, SoloFueraDeMinima } from "@/components/layout/solo-fuera-de-consola";
 // Paleta de comandos global (Cmd/Ctrl+K): buscar y saltar a cualquier app o
 // página del OS + acciones rápidas. Hermana de {children} (no lo envuelve,
 // igual que el resto de la chrome global) para estar disponible en TODAS las
@@ -273,7 +273,7 @@ export default function RootLayout({
                         <ZenithCurtain />
                         <SideCurtains />
 
-                        <OmniDock />
+                        <SoloFueraDeMinima><OmniDock /></SoloFueraDeMinima>
                         {/* Detección automática de entorno: medios + cuentas de este
                             dispositivo, en cualquier ventana/medio donde se abra el OS. */}
                         <SoloFueraDeConsola><EntornoMontaje /></SoloFueraDeConsola>
@@ -304,7 +304,7 @@ export default function RootLayout({
                         {/* Trinity Móvil · Bloque 4 — asas de borde + deslizar desde
                             cada orilla para abrir los menús cardinales en táctil.
                             Decide por sí mismo si renderizarse (auto/on/off). */}
-                        <TrinityEdgeAccess />
+                        <SoloFueraDeMinima><TrinityEdgeAccess /></SoloFueraDeMinima>
                         {/* ORBE de Aurora: acceso universal a la voz + menú
                             Trinity centrado, presente en todas las rutas. */}
                         <AuroraWidget />
@@ -312,7 +312,7 @@ export default function RootLayout({
                             presenta y resalta orbe, menús Trinity, Escritorio,
                             Dashboard, Astraura, Perfil, Cerebros y Librería.
                             Arranca sola la primera vez; reabrible siempre. */}
-                        <AuroraGuide />
+                        <SoloFueraDeMinima><AuroraGuide /></SoloFueraDeMinima>
                         {/* Iniciación de cuentas nuevas + alta corta de neurona
                             (Adenda 188): global, en CUALQUIER medio/ruta — antes
                             vivía solo en (app) y el escritorio raíz se lo perdía. */}
@@ -322,10 +322,10 @@ export default function RootLayout({
                             en (app) y el rito termina en /escritorios —grupo
                             (main)—, así que su turno del orden (rito → sistemas
                             → guía) no llegaba a existir en esa ruta. */}
-                        <StartupUpdatesModal />
+                        <SoloFueraDeMinima><StartupUpdatesModal /></SoloFueraDeMinima>
                         {/* (Adenda 194) Ventana de perfil del rito: última
                             parada antes del recorrido, en cualquier ruta. */}
-                        <VentanaPerfilInicial />
+                        <SoloFueraDeMinima><VentanaPerfilInicial /></SoloFueraDeMinima>
                         {/* Cursor personalizado + animaciones de clic (config en
                             Apariencia → Cursor; 'starseed.cursorfx.v1'). Global. */}
                         <CursorFxHost />
