@@ -107,10 +107,21 @@ export async function GET(): Promise<Response> {
     // ── Comprobaciones de disco (en serie, acotadas) ─────────────────────────
     // 5 operaciones de I/O: access del motor (1), access del bitnet (2),
     // readdir base (3), readdir models (4) y el stat acumulado de los .gguf (5).
-    const rutaMotor = join(directorioVoz(), "omnivoice.cpp", "build", "bin", "tts-server");
+    // El binario del motor vive en `omnivoice.cpp/build/tts-server` (sin `bin/`).
+    // Por compatibilidad se comprueba también la variante antigua
+    // `omnivoice.cpp/build/bin/tts-server`; `presente` es true si existe cualquiera.
+    const rutasMotor = [
+        join(directorioVoz(), "omnivoice.cpp", "build", "tts-server"),
+        join(directorioVoz(), "omnivoice.cpp", "build", "bin", "tts-server"),
+    ];
     let motorPresente = false;
     try {
-        motorPresente = await existe(rutaMotor);
+        for (const rutaMotor of rutasMotor) {
+            if (await existe(rutaMotor)) {
+                motorPresente = true;
+                break;
+            }
+        }
     } catch {
         motorPresente = false;
     }
@@ -122,6 +133,7 @@ export async function GET(): Promise<Response> {
         for (const m of [
             ...(await modelosDe(base)),
             ...(await modelosDe(join(base, "models"))),
+            ...(await modelosDe(join(base, "omnivoice.cpp", "models"))),
         ]) {
             if (!vistos.has(m.nombre)) {
                 vistos.add(m.nombre);
@@ -152,8 +164,8 @@ export async function GET(): Promise<Response> {
     const urlDemonio = process.env.STARSEED_VOZ_DAEMON_URL ?? "http://127.0.0.1:4444";
 
     const [sonda158, sondaDemonio] = await Promise.all([
-        sondear(`${url158}/api/starseed/health`, 2500),
-        sondear(`${urlDemonio}/status`, 2500),
+        sondear(`${url158}/api/starseed/health`, 4000),
+        sondear(`${urlDemonio}/status`, 4000),
     ]);
 
     let backend158: { url: string; vivo: boolean; latenciaMs: number } = {
@@ -165,11 +177,18 @@ export async function GET(): Promise<Response> {
         backend158 = { url: url158, vivo: sonda158.respuesta.ok, latenciaMs: sonda158.latenciaMs };
     }
 
-    let demonio: { url: string; vivo: boolean; listo: boolean; modelo: string | null } = {
+    let demonio: {
+        url: string;
+        vivo: boolean;
+        listo: boolean;
+        modelo: string | null;
+        caliente: boolean;
+    } = {
         url: urlDemonio,
         vivo: false,
         listo: false,
         modelo: null,
+        caliente: false,
     };
     if (sondaDemonio && sondaDemonio.respuesta.ok) {
         try {
@@ -177,12 +196,14 @@ export async function GET(): Promise<Response> {
                 ok?: unknown;
                 ready?: unknown;
                 model?: unknown;
+                warm?: unknown;
             };
             demonio = {
                 url: urlDemonio,
                 vivo: cuerpo.ok === true,
                 listo: cuerpo.ready === true,
                 modelo: typeof cuerpo.model === "string" ? cuerpo.model : null,
+                caliente: cuerpo.warm === true,
             };
         } catch {
             // Respuesta no JSON: se queda vivo: false.
@@ -192,6 +213,13 @@ export async function GET(): Promise<Response> {
     return Response.json(
         {
             generadoEn: new Date().toISOString(),
+            // Solo el último segmento de cada carpeta base, nunca la ruta completa.
+            carpetas: {
+                voz: basename(directorioVoz()),
+                astraura158: basename(
+                    process.env.ASTRAURA_158_DIR ?? join(homedir(), "Documents", "IA 1.58 bit"),
+                ),
+            },
             motor: { presente: motorPresente, binario: "tts-server" },
             modelos,
             bitnet: { presente: bitnetPresente, binario: "llama-server" },
