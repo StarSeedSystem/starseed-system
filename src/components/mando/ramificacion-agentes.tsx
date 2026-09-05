@@ -16,7 +16,9 @@
  */
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Bot, ChevronRight, GitCommit, Pause, Play, RefreshCw, ShieldCheck } from "lucide-react";
+import { Bot, ChevronRight, GitCommit, Pause, Play, RefreshCw, ShieldCheck, Wand2 } from "lucide-react";
+
+import { DisenadorOla } from "@/components/mando/disenador-ola";
 
 import type { LatidoTarea } from "@/lib/mando/tipos";
 import type { RamaOla, RamaTarea, Ramificacion } from "@/lib/mando/ramificacion";
@@ -188,7 +190,7 @@ interface Arista {
     d: string;
 }
 
-function ArbolOla({
+export function ArbolOla({
     ola,
     seleccion,
     onSeleccionar,
@@ -523,6 +525,7 @@ export function RamificacionAgentes() {
     const [tareaSel, setTareaSel] = useState<string | null>(null);
     const [pausado, setPausado] = useState(false);
     const [actualizado, setActualizado] = useState<string>("");
+    const [disenando, setDisenando] = useState(false);
 
     const recargar = useCallback(async () => {
         try {
@@ -589,6 +592,17 @@ export function RamificacionAgentes() {
                     ))}
                     <button
                         type="button"
+                        onClick={() => setDisenando((d) => !d)}
+                        className={`inline-flex cursor-pointer items-center gap-1 rounded-md border px-2 py-1 ${
+                            disenando ? "border-violet-400/60 bg-violet-500/15 text-white" : "border-white/10 text-white/70 hover:bg-white/5"
+                        }`}
+                        title="Crear o corregir una ola: tareas, dependencias, modelo; guardar y lanzar"
+                    >
+                        <Wand2 className="h-3 w-3" aria-hidden />
+                        Diseñar ola
+                    </button>
+                    <button
+                        type="button"
                         onClick={() => setPausado((p) => !p)}
                         className="inline-flex cursor-pointer items-center gap-1 rounded-md border border-white/10 px-2 py-1 text-white/70 hover:bg-white/5"
                         title={pausado ? "Reanudar la actualización cada 20 s" : "Pausar la actualización automática"}
@@ -609,6 +623,12 @@ export function RamificacionAgentes() {
 
             {error ? (
                 <p className="mt-3 rounded-lg border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">{error}</p>
+            ) : null}
+
+            {disenando ? (
+                <div className="mt-3">
+                    <DisenadorOla onCerrar={() => setDisenando(false)} />
+                </div>
             ) : null}
 
             {olas.length > 0 ? (
