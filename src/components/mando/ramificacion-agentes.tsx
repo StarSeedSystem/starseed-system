@@ -19,7 +19,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { Bot, ChevronRight, GitCommit, Pause, Play, RefreshCw, ShieldCheck, Wand2 } from "lucide-react";
 
 import { DisenadorOla } from "@/components/mando/disenador-ola";
-import { escuchar as escucharAsistente } from "@/lib/mando/asistente-cliente";
+import { escuchar as escucharAsistente, tomarTareaPendiente } from "@/lib/mando/asistente-cliente";
 
 import type { LatidoTarea } from "@/lib/mando/tipos";
 import type { RamaOla, RamaTarea, Ramificacion } from "@/lib/mando/ramificacion";
@@ -560,12 +560,19 @@ export function RamificacionAgentes() {
     }, [pausado, recargar]);
 
     // El asistente puede pedir «ver tarea»: se selecciona la ola que la contiene y la tarea.
+    // Si la petición llegó antes de montarse esta pestaña, queda apuntada y se atiende aquí.
     useEffect(() => {
-        return escucharAsistente((aviso) => {
-            if (aviso.tipo !== "tarea" || !aviso.tareaId) return;
-            const ola = (datos?.olas ?? []).find((o) => o.tareas.some((t) => t.id === aviso.tareaId));
+        const abrir = (id: string) => {
+            const ola = (datos?.olas ?? []).find((o) => o.tareas.some((t) => t.id === id));
             if (ola) setOlaSel(ola.id);
-            setTareaSel(aviso.tareaId);
+            setTareaSel(id);
+        };
+        if (datos) {
+            const pendiente = tomarTareaPendiente();
+            if (pendiente) abrir(pendiente);
+        }
+        return escucharAsistente((aviso) => {
+            if (aviso.tipo === "tarea" && aviso.tareaId) abrir(aviso.tareaId);
         });
     }, [datos]);
 

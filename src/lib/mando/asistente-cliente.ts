@@ -67,3 +67,27 @@ export function escuchar(fn: (aviso: AvisoAsistente) => void): () => void {
     window.addEventListener(EVENTO_ASISTENTE, manejador);
     return () => window.removeEventListener(EVENTO_ASISTENTE, manejador);
 }
+
+const CLAVE_TAREA = "starseed.mando.asistente.tarea";
+
+/** Deja apuntada una tarea para que la ramificación la abra al montarse (la pestaña
+ * Procesos puede no estar montada cuando el asistente pide «ver tarea»). */
+export function pedirVerTarea(id: string): void {
+    try {
+        window.sessionStorage.setItem(CLAVE_TAREA, id);
+    } catch {
+        // sin almacenamiento
+    }
+    anunciar({ tipo: "tarea", tareaId: id });
+}
+
+/** Devuelve (y borra) la tarea pendiente de abrir, si la hay. */
+export function tomarTareaPendiente(): string | null {
+    try {
+        const id = window.sessionStorage.getItem(CLAVE_TAREA);
+        if (id) window.sessionStorage.removeItem(CLAVE_TAREA);
+        return id;
+    } catch {
+        return null;
+    }
+}

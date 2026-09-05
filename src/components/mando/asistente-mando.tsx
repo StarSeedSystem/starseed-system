@@ -18,8 +18,8 @@ import { Bot, Check, CircleDashed, Plus, RefreshCw, Send, Trash2, X } from "luci
 import type { AccionPropuesta, ChatMando, MensajeChat } from "@/lib/mando/asistente";
 import type { ModeloDisponible } from "@/lib/mando/modelos-disponibles";
 import {
-    anunciar,
     escuchar,
+    pedirVerTarea,
     fijarChatActual,
     fijarModeloActual,
     leerChatActual,
@@ -253,7 +253,7 @@ export function AsistenteMando({ modo, onCerrar }: { modo: "panel" | "flotante";
 
     const ejecutarAccion = useCallback(async (a: AccionPropuesta): Promise<string> => {
         if (a.accion === "ver_tarea" && a.id) {
-            anunciar({ tipo: "tarea", tareaId: a.id });
+            pedirVerTarea(a.id);
             return `Abierta ${a.id} en la ramificación.`;
         }
         if (a.accion === "leer" && a.ruta) {

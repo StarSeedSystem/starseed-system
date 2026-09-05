@@ -27,6 +27,7 @@ import { PanelOlas } from "@/components/mando/panel-olas";
 import { PanelFlota } from "@/components/mando/panel-flota";
 import { ChatOrquestacion } from "@/components/mando/chat-orquestacion";
 import { OrbeAsistente } from "@/components/mando/orbe-asistente";
+import { escuchar as escucharAsistente } from "@/lib/mando/asistente-cliente";
 import { PanelAreas } from "@/components/mando/panel-areas";
 import { PanelEntornos } from "@/components/mando/panel-entornos";
 import { PanelAjustes } from "@/components/mando/panel-ajustes";
@@ -106,6 +107,13 @@ export function CentroMando() {
 
     useEffect(() => {
         setPestana(pestanaInicial());
+    }, []);
+
+    // «Ver tarea» desde el asistente (orbe o pestaña Chat): la ficha vive en Procesos.
+    useEffect(() => {
+        return escucharAsistente((aviso) => {
+            if (aviso.tipo === "tarea") setPestana("procesos");
+        });
     }, []);
 
     const alCambiarPestana = useCallback((id: string) => {
