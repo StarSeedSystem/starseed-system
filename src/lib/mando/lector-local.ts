@@ -288,8 +288,13 @@ export function colaInteligente(
     commitsGit: Map<string, { sha: string; titulo: string }> = new Map(),
 ): TareaEnFila[] {
     const olaDe = new Map(tareas.map((t) => [t.id, (/(\d{2,4})/.exec(t.ola) ?? [])[1] ?? ""]));
-    const estadoDe = (id: string): string =>
-        texto(objeto(progreso[id]).estado) || (commitsGit.has(`${olaDe.get(id) ?? ""}|${id}`) ? "commit" : "");
+    const tituloDe = new Map(tareas.map((t) => [t.id, t.titulo.trim()]));
+    const estadoDe = (id: string): string => {
+        const local = texto(objeto(progreso[id]).estado);
+        if (["commit", "sin_cambios", "sustituida", "reasignada", "rechazada"].includes(local)) return local;
+        const enGit = commitsGit.has(`${olaDe.get(id) ?? ""}|${id}`) || commitsGit.has(`${id}|${tituloDe.get(id) ?? ""}`);
+        return enGit ? "commit" : local;
+    };
     const terminada = (id: string): boolean =>
         ["commit", "sin_cambios", "sustituida", "reasignada"].includes(estadoDe(id));
     const enMarcha = new Set(latidos.map((l) => l.tarea));
@@ -529,6 +534,10 @@ export async function leerCommitsDeOlas(): Promise<Map<string, { sha: string; ti
             const clave = `${m[1]}|${m[2]}`;
             // El más reciente manda (git log va de nuevo a viejo).
             if (!salida.has(clave)) salida.set(clave, { sha, titulo: m[3] });
+            // Una tarea rehecha en una ola de recuperación («Ola 232 · recuperación · L6: …») es la
+            // misma tarea de la ola original: se indexa también por id + título exacto.
+            const porTitulo = `${m[2]}|${m[3].trim()}`;
+            if (!salida.has(porTitulo)) salida.set(porTitulo, { sha, titulo: m[3] });
         }
     } catch {
         // sin git: no pasa nada
@@ -546,9 +555,15 @@ export function resumirOlas(tareas: TareaOla[], progreso: Record<string, unknown
     }
 
     const numero = (etiqueta: string): string => (/(\d{2,4})/.exec(etiqueta) ?? [])[1] ?? "";
-    // Sin rastro en progreso.json, git es el último recurso (olas integradas por el orquestador anterior).
-    const estadoDe = (id: string, ola: string): string =>
-        texto(objeto(progreso[id]).estado) || (commitsGit.has(`${numero(ola)}|${id}`) ? "commit" : "");
+    const tituloDe = new Map(tareas.map((t) => [t.id + "|" + (t.ola || ""), t.titulo.trim()]));
+    // Git manda sobre un estado local que no sea un cierre: «en_curso» de un orquestador muerto
+    // o un «fallo» antiguo no valen si el commit de esa tarea ya está en main.
+    const estadoDe = (id: string, ola: string): string => {
+        const local = texto(objeto(progreso[id]).estado);
+        if (["commit", "sin_cambios", "sustituida", "reasignada", "rechazada"].includes(local)) return local;
+        const enGit = commitsGit.has(`${numero(ola)}|${id}`) || commitsGit.has(`${id}|${tituloDe.get(id + "|" + ola) ?? ""}`);
+        return enGit ? "commit" : local;
+    };
 
     const resúmenes: OlaResumen[] = [];
     for (const [ola, lista] of porOla) {

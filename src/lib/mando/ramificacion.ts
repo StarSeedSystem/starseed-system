@@ -402,15 +402,18 @@ export async function construirRamificacion(cuantas = 4, horasBus = 24 * 30): Pr
                 estado = hace < 3 * 3600 * 1000 ? "en_curso" : "pendiente";
                 donde = texto(objeto(ultimoInicio.datos).donde) || donde;
             } else if (!estado) {
-                // Sin rastro en progreso ni en el bus: si git tiene su commit, está integrada.
-                const enGit = commitsGit.get(`${numeroOla(etiqueta)}|${t.id}`);
+                estado = "pendiente";
+            }
+            // Git manda sobre lo que no sea un cierre: sin rastro, «en_curso» de un orquestador
+            // muerto o un «fallo» viejo no valen si el commit de la tarea ya está en main (también
+            // si se rehízo en una ola de recuperación con el mismo id y título).
+            if (!vivo && !TERMINALES.has(estado) && estado !== "sustituida") {
+                const enGit = commitsGit.get(`${numeroOla(etiqueta)}|${t.id}`) ?? commitsGit.get(`${t.id}|${t.titulo.trim()}`);
                 if (enGit) {
                     estado = "commit";
-                    sha = enGit.sha;
+                    sha = sha || enGit.sha;
                     donde = donde ?? "mac";
-                    nota = `${enGit.sha} · integrada (según git)`;
-                } else {
-                    estado = "pendiente";
+                    if (!nota) nota = `${enGit.sha} · integrada (según git)`;
                 }
             }
             // Un commit cuya revisión fue bloqueante se marca así (lo dice la nota o el evento).
