@@ -1,4 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@/utils/supabase/server";
+import { rateLimit } from "@/lib/security/rate-limit";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 // ─── Design Context Enrichment ───────────────────────────────────
 const DESIGN_CONTEXT = `Design System: StarSeed Network — Ontocratic Cyberdelic Transhumanist aesthetic.
@@ -15,6 +20,7 @@ Generate the following UI component with this aesthetic:
 const STITCH_PROJECT_ID = process.env.STITCH_PROJECT_ID || "9377170978642673597";
 const STITCH_API_URL = process.env.STITCH_MCP_URL || "https://autopush-stitchmcpserver-pa.googleapis.com/sse";
 const STITCH_API_KEY = process.env.STITCH_API_KEY || "";
+const MAX_BODY_BYTES = 64 * 1024;
 
 interface StitchRequest {
     prompt: string;
@@ -32,12 +38,43 @@ interface StitchGenerateResult {
 
 export async function POST(req: NextRequest) {
     try {
-        const body: StitchRequest = await req.json();
-
-        if (!body.prompt?.trim()) {
+        // Sesión obligatoria (mismo patrón que /api/ai/nvidia): un proxy con
+        // clave compartida no puede quedar abierto a anónimos.
+        const supabase = await createClient();
+        const { data: userData, error: userErr } = await supabase.auth.getUser();
+        const userId = !userErr && userData.user ? userData.user.id : null;
+        if (!userId) {
             return NextResponse.json(
-                { error: "Prompt is required" },
-                { status: 400 }
+                { error: "Necesitas iniciar sesión para generar con Stitch." },
+                { status: 401 },
+            );
+        }
+        const rl = rateLimit(`stitch:${userId}`, 20, 10 * 60 * 1000);
+        if (!rl.allowed) {
+            return NextResponse.json(
+                { error: "Demasiadas solicitudes. Inténtalo más tarde." },
+                { status: 429, headers: { "Retry-After": String(rl.retryAfterSec) } },
+            );
+        }
+
+        const raw = await req.text().catch(() => "");
+        if (!raw || raw.length > MAX_BODY_BYTES) {
+            return NextResponse.json(
+                { error: "Cuerpo vacío o demasiado grande (máx. 64 KB)." },
+                { status: 400 },
+            );
+        }
+        let body: StitchRequest;
+        try {
+            body = JSON.parse(raw) as StitchRequest;
+        } catch {
+            return NextResponse.json({ error: "JSON inválido." }, { status: 400 });
+        }
+
+        if (typeof body.prompt !== "string" || !body.prompt.trim()) {
+            return NextResponse.json(
+                { error: "El campo 'prompt' es obligatorio." },
+                { status: 400 },
             );
         }
 
@@ -116,10 +153,11 @@ export async function POST(req: NextRequest) {
             fallback: true,
         });
 
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error("Stitch generate error:", error);
+        const message = error instanceof Error ? error.message : "Generation failed";
         return NextResponse.json(
-            { error: error.message || "Generation failed" },
+            { error: message },
             { status: 500 }
         );
     }
