@@ -166,7 +166,10 @@ export function CentroMando() {
         // voces»: se casan por el número, no por el texto (antes salía la 221 con la 240 viva).
         const numeroDe = (s: string): string => (/(\d{2,4})/.exec(s)?.[1] ?? "");
         const numeroViva = numeroDe(colaViva);
+        // La ramificación ya sabe cuál es la ola viva o más reciente (incluidas las que solo
+        // existen en la otra máquina); si no, se casa por número con la cola que late.
         const olaActiva =
+            (estado.cuentas?.ola ? { id: estado.cuentas.ola } : null) ??
             (numeroViva ? estado.olas.find((o) => numeroDe(o.id) === numeroViva) : null) ??
             [...estado.olas].reverse().find((o) => o.restantes > 0) ??
             estado.olas[estado.olas.length - 1] ??
