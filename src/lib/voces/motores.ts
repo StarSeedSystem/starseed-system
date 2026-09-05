@@ -22,7 +22,7 @@ import path from "node:path";
 import { promisify } from "node:util";
 
 import { NIVELES, type InfoNivel } from "@/lib/aurora/voz-starseed/niveles";
-import { PUERTO_VOZ, saludDaemon } from "@/lib/aurora/voz-starseed/daemon";
+import { PUERTO_DEMONIO_ASTRAURA, PUERTO_VOZ, saludDaemon } from "@/lib/aurora/voz-starseed/daemon";
 
 /** Tamaños de modelo OmniVoice que el OS sabe arrancar. */
 export type TamanoModelo = "Q4_K_M" | "Q8_0";
@@ -170,12 +170,44 @@ export async function leerMotores(): Promise<EstadoMotores> {
     };
 }
 
+/** ¿Hay un demonio Astraura de voz (4444) que gobierne el pool de tts-server? */
+async function demonioAstrauraVivo(): Promise<boolean> {
+    const control = new AbortController();
+    const temporizador = setTimeout(() => control.abort(), 1500);
+    try {
+        const r = await fetch(`http://127.0.0.1:${PUERTO_DEMONIO_ASTRAURA}/status`, { signal: control.signal, cache: "no-store" });
+        if (!r.ok) return false;
+        const d = (await r.json()) as { ok?: unknown };
+        return d.ok === true;
+    } catch {
+        return false;
+    } finally {
+        clearTimeout(temporizador);
+    }
+}
+
+/** PIDs que escuchan en un puerto TCP local (lsof; vacío si no hay o no se puede saber). */
+async function pidsEnPuerto(puerto: number): Promise<number[]> {
+    try {
+        const { stdout } = await execFileAsync("lsof", ["-ti", `tcp:${puerto}`, "-sTCP:LISTEN"], { timeout: 5000, windowsHide: true });
+        return stdout.split("\n").map((l) => Number.parseInt(l.trim(), 10)).filter((n) => Number.isFinite(n) && n > 1);
+    } catch {
+        return [];
+    }
+}
+
 /**
- * REINICIA el demonio local con el modelo del tamaño pedido:
- *   1. Mata el `tts-server` actual (si lo hay).
- *   2. Lanza `tts-server` detached con modelo y tokenizer de ese tamaño,
- *      escribiendo su salida en `logs/tts-server.out`.
- *   3. Espera hasta `esperaMs` (40 s por defecto) a que `/health` responda.
+ * Cambia el tamaño del modelo del demonio de voz y lo reinicia.
+ *
+ * Dos caminos, y NUNCA `pkill -f tts-server` (mataba también el pool del demonio
+ * Astraura y el sistema acababa con dos copias del modelo, 1,8 GB, en una Mac de 8 GB):
+ *
+ *   A. Si el demonio Astraura (127.0.0.1:4444) está vivo, el modelo lo decide su
+ *      `config.json`: se reescriben `modelFile`/`codecFile`/`variant.quant`, se para SOLO
+ *      el tts-server de su pool (puertos 4501-4510) y se le pide `POST /warm`; el demonio
+ *      relanza con el modelo nuevo.
+ *   B. Si no hay demonio, se para SOLO el proceso que escuche en 4500 y se lanza un
+ *      tts-server crudo con ese tamaño, esperando a que `/health` responda.
  *
  * Devuelve `{ ok, modelo, segundos }`. Si el modelo o el tokenizer no existen
  * en disco, devuelve `{ ok: false }` sin tocar el proceso actual.
@@ -183,21 +215,55 @@ export async function leerMotores(): Promise<EstadoMotores> {
 export async function reiniciarConModelo(
     tamano: TamanoModelo,
     esperaMs = 40_000,
-): Promise<{ ok: boolean; modelo: string; segundos: number }> {
+): Promise<{ ok: boolean; modelo: string; segundos: number; via?: "demonio" | "directo" }> {
     const modelo = `omnivoice-base-${tamano}.gguf`;
     const tokenizer = `omnivoice-tokenizer-${tamano}.gguf`;
     // Sin archivos, no hay reinicio: el demonio actual sigue como está.
     if (!(await existe(path.join(CARPETA_MODELOS, modelo)))) return { ok: false, modelo, segundos: 0 };
     if (!(await existe(path.join(CARPETA_MODELOS, tokenizer)))) return { ok: false, modelo, segundos: 0 };
+    const inicio = Date.now();
 
-    // 1) Parar el servidor actual (pkill devuelve 1 si no había proceso: está bien).
-    try {
-        await execFileAsync("pkill", ["-f", "tts-server"], { timeout: 5000, windowsHide: true });
-    } catch {
-        // No había proceso anterior, o no se pudo matar: se intenta arrancar igual.
+    if (await demonioAstrauraVivo()) {
+        // A · El demonio manda: config.json + parar su pool + /warm.
+        let cfg: Record<string, unknown> = {};
+        try {
+            cfg = JSON.parse(await fs.readFile(CONFIG_JSON, "utf8")) as Record<string, unknown>;
+        } catch {
+            cfg = {};
+        }
+        const variante = typeof cfg.variant === "object" && cfg.variant !== null ? (cfg.variant as Record<string, unknown>) : {};
+        const nuevo = {
+            ...cfg,
+            modelFile: path.join(CARPETA_MODELOS, modelo),
+            codecFile: path.join(CARPETA_MODELOS, tokenizer),
+            variant: { ...variante, quant: tamano, tier: tamano === "Q8_0" ? "alta" : "baja" },
+        };
+        const temporal = `${CONFIG_JSON}.tmp`;
+        await fs.writeFile(temporal, JSON.stringify(nuevo, null, 2), "utf8");
+        await fs.rename(temporal, CONFIG_JSON);
+        for (let puerto = PUERTO_VOZ + 1; puerto <= PUERTO_VOZ + 10; puerto += 1) {
+            for (const pid of await pidsEnPuerto(puerto)) {
+                try { process.kill(pid, "SIGTERM"); } catch { /* ya no está */ }
+            }
+        }
+        try {
+            await fetch(`http://127.0.0.1:${PUERTO_DEMONIO_ASTRAURA}/warm`, { method: "POST", cache: "no-store" });
+        } catch {
+            // el demonio relanza igualmente en la próxima síntesis
+        }
+        let vivo = false;
+        while (Date.now() - inicio < esperaMs) {
+            await new Promise((r) => setTimeout(r, 2000));
+            const salud = await saludDaemon(1500);
+            if (salud.vivo) { vivo = true; break; }
+        }
+        return { ok: vivo, modelo, segundos: Math.round((Date.now() - inicio) / 1000), via: "demonio" };
     }
 
-    // 2) Lanzar el nuevo demonio, desacoplado de este proceso de Node.
+    // B · Sin demonio: solo se toca el proceso que escucha en PUERTO_VOZ.
+    for (const pid of await pidsEnPuerto(PUERTO_VOZ)) {
+        try { process.kill(pid, "SIGTERM"); } catch { /* ya no está */ }
+    }
     await fs.mkdir(path.dirname(REGISTRO_TTS), { recursive: true });
     const registro = openSync(REGISTRO_TTS, "a");
     const hijo = spawn(BINARIO_TTS, [
@@ -207,23 +273,17 @@ export async function reiniciarConModelo(
         "--port", String(PUERTO_VOZ),
         "--lang", "Spanish",
     ], {
-        cwd: BASE_VOZ,
+        cwd: path.join(BASE_VOZ, "omnivoice.cpp"),
         detached: true,
         stdio: ["ignore", registro, registro],
         env: process.env,
     });
     hijo.unref();
-
-    // 3) Esperar a que /health responda (sondeo de 1 segundo entre intentos).
-    const inicio = Date.now();
     let vivo = false;
     while (Date.now() - inicio < esperaMs) {
         await new Promise((r) => setTimeout(r, 1000));
         const salud = await saludDaemon(1500);
-        if (salud.vivo) {
-            vivo = true;
-            break;
-        }
+        if (salud.vivo) { vivo = true; break; }
     }
-    return { ok: vivo, modelo, segundos: Math.round((Date.now() - inicio) / 1000) };
+    return { ok: vivo, modelo, segundos: Math.round((Date.now() - inicio) / 1000), via: "directo" };
 }
