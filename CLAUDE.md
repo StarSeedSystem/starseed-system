@@ -432,6 +432,22 @@ un reinicio del contenedor: relanzarlo al retomar la sesión). Órdenes sin firm
 (>15 min) o de otra máquina se anotan como `lanzar_rechazado`. Verificado de punta a punta el
 2026-09-05 con `cola-241-prueba-disenador` (P1 → commit e3c22c9).
 
+### Asistente técnico del Mando · la orbe (2026-09-05)
+
+En `/mando`, tocar la orbe de Astraura abre el **asistente técnico de administración de la
+orquestación** (`src/components/mando/{asistente-mando,orbe-asistente}.tsx`); la pestaña Chat
+tiene la sección «Asistente técnico» (mismos chats, guardados en
+`starseed_memory_root/mando/chats/`, no versionados) y la sección «Orquestación (bus)».
+Selector de modelo con TODO lo disponible (`GET /api/mando/modelos`: los 40 gratuitos de xKiro
+por su catálogo, NIM, aihubmix, tokenrouter, OpenRouter, Gemini y Ollama local; salud del
+supervisor, claves de `process.env` o de `~/.starseed/env`/`~/.hermes/.env`, nunca al cliente).
+Cada turno (`POST /api/mando/asistente`, `src/lib/mando/asistente.ts`) lleva el estado vivo
+(repo, olas y tareas, agentes con tokens/fase, proveedores, fila, relevo, bus) y memorias por
+palabras (memory/*.md, CLAUDE.md, relevo, progreso, revisiones, informes). El modelo puede
+proponer acciones en JSON —`ver_tarea`, `leer` (rutas de una lista blanca; nunca .env),
+`lanzar`, `detener`— que la interfaz ejecuta; lanzar y detener piden confirmación humana.
+Verificado el 2026-09-05 con Kimi K3 (4.573/260 tokens, 35 s) y xKiro qwen3-coder-plus.
+
 ### Voz: una sola copia del modelo en la Mac (2026-09-04, noche)
 
 `/api/voz/salud` y `/api/voz/hablar` prueban primero el tts-server crudo en 4500 y, si no hay,
