@@ -17,8 +17,10 @@
  * ⚠️ Seguridad: no devuelve claves ni rutas absolutas; solo identificadores de trabajo.
  */
 
+import { execFile } from "node:child_process";
 import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
+import { promisify } from "node:util";
 
 import {
     leerColas,
@@ -137,6 +139,32 @@ export function numeroOla(etiqueta: string): number {
     return m ? Number.parseInt(m[1], 10) : 0;
 }
 
+const execFileAsync = promisify(execFile);
+
+/**
+ * Commits del enjambre en la historia de git («Ola 226 · X4F2: …» → `226|X4F2` → sha).
+ * Es el último recurso para saber que una tarea se hizo: las olas 221-226 se integraron
+ * con el orquestador anterior y `progreso.json` ya no las recuerda, así que el Mando las
+ * contaba como «pendientes» (64 en la cabecera el 2026-09-05) cuando llevan días en main.
+ */
+async function leerCommitsDeOlas(): Promise<Map<string, { sha: string; titulo: string }>> {
+    const salida = new Map<string, { sha: string; titulo: string }>();
+    try {
+        const { stdout } = await execFileAsync("git", ["log", "--format=%h%x09%s", "-n", "1500"], { cwd: RAÍZ, timeout: 8000, windowsHide: true, maxBuffer: 4 * 1024 * 1024 });
+        for (const linea of stdout.split("\n")) {
+            const [sha, asunto = ""] = linea.split("\t");
+            const m = /^Ola (\d{2,4})(?: · [^:]*?)? · ([A-Z][A-Z0-9]{0,8}): (.*)$/.exec(asunto);
+            if (!m || !sha) continue;
+            const clave = `${m[1]}|${m[2]}`;
+            // El más reciente manda (git log va de nuevo a viejo).
+            if (!salida.has(clave)) salida.set(clave, { sha, titulo: m[3] });
+        }
+    } catch {
+        // sin git: no pasa nada
+    }
+    return salida;
+}
+
 /** Pasos locales: `olas/pasos/<id>.jsonl` (una línea JSON por paso). */
 async function leerPasosLocales(): Promise<Map<string, PasoRama[]>> {
     const salida = new Map<string, PasoRama[]>();
@@ -244,13 +272,14 @@ function niveles(tareas: TareaOla[]): Map<string, number> {
  * bus y latidos. `horasBus` acota cuánto historial del bus se cruza (por defecto 72 h).
  */
 export async function construirRamificacion(cuantas = 4, horasBus = 24 * 30): Promise<Ramificacion> {
-    const [tareas, progreso, pasosLocales, bus, latidosMac, delBus] = await Promise.all([
+    const [tareas, progreso, pasosLocales, bus, latidosMac, delBus, commitsGit] = await Promise.all([
         leerColas(),
         leerProgreso(),
         leerPasosLocales(),
         leerBus(horasBus),
         leerLatidos(),
         leerLatidosDelBus(),
+        leerCommitsDeOlas(),
     ]);
 
     // Latidos: lo local manda sobre el bus para la misma tarea; la nube se añade.
@@ -391,7 +420,16 @@ export async function construirRamificacion(cuantas = 4, horasBus = 24 * 30): Pr
                 estado = hace < 3 * 3600 * 1000 ? "en_curso" : "pendiente";
                 donde = texto(objeto(ultimoInicio.datos).donde) || donde;
             } else if (!estado) {
-                estado = "pendiente";
+                // Sin rastro en progreso ni en el bus: si git tiene su commit, está integrada.
+                const enGit = commitsGit.get(`${numeroOla(etiqueta)}|${t.id}`);
+                if (enGit) {
+                    estado = "commit";
+                    sha = enGit.sha;
+                    donde = donde ?? "mac";
+                    nota = `${enGit.sha} · integrada (según git)`;
+                } else {
+                    estado = "pendiente";
+                }
             }
             // Un commit cuya revisión fue bloqueante se marca así (lo dice la nota o el evento).
             if (estado === "commit" && /bloqueante/.test(nota) && !/no bloqueante|revisión ok/.test(nota)) estado = "bloqueante";

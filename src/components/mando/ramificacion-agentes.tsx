@@ -21,7 +21,7 @@ import { Bot, ChevronRight, GitCommit, Pause, Play, RefreshCw, ShieldCheck, Wand
 import { DisenadorOla } from "@/components/mando/disenador-ola";
 import { escuchar as escucharAsistente, tomarTareaPendiente } from "@/lib/mando/asistente-cliente";
 
-import type { LatidoTarea } from "@/lib/mando/tipos";
+import type { FotoEnjambre, LatidoTarea } from "@/lib/mando/tipos";
 import type { RamaOla, RamaTarea, Ramificacion } from "@/lib/mando/ramificacion";
 
 const INTERVALO_MS = 20_000;
@@ -694,6 +694,133 @@ function FichaTarea({ tarea, estadosOla, onCerrar, onCambio }: { tarea: RamaTare
     );
 }
 
+/** Orden de fila de una tarea: primero lo vivo, luego lo pendiente por nivel, luego lo cerrado. */
+function pesoFila(t: RamaTarea): number {
+    if (t.vivo) return 0;
+    if (t.estado === "en_curso") return 1;
+    if (t.estado === "pendiente") return 2;
+    return 3;
+}
+
+function etiquetaCorta(t: RamaTarea): string {
+    const tono = tonoEstado(t.estado);
+    return tono.etiqueta;
+}
+
+/**
+ * Filas de procesos: la lista ORDENADA de la ola (qué va antes, qué espera a qué) y la fila
+ * de cada agente vivo (qué está escribiendo y qué tiene detrás). Complementa el árbol: el
+ * árbol enseña las dependencias; la fila enseña el turno.
+ */
+function FilasDeProcesos({ olas, olaSel, latidos, enjambres, onVer }: {
+    olas: RamaOla[];
+    olaSel: RamaOla;
+    latidos: LatidoTarea[];
+    enjambres: FotoEnjambre[];
+    onVer: (id: string) => void;
+}) {
+    const hechas = new Set(olaSel.tareas.filter((t) => ["commit", "bloqueante", "sin_cambios", "sustituida", "reasignada"].includes(t.estado)).map((t) => t.id));
+    const filaOla = [...olaSel.tareas].sort((a, b) => pesoFila(a) - pesoFila(b) || a.nivel - b.nivel || a.id.localeCompare(b.id, undefined, { numeric: true }));
+
+    // Agentes: cada orquestador vivo (donde · cola · medio) con su fila; y las colas con tareas
+    // pendientes sin nadie vivo, para que se vea lo que espera un lanzamiento.
+    const todas = olas.flatMap((o) => o.tareas);
+    const porCola = new Map<string, RamaTarea[]>();
+    for (const t of todas) {
+        if (!t.cola) continue;
+        const lista = porCola.get(t.cola) ?? [];
+        lista.push(t);
+        porCola.set(t.cola, lista);
+    }
+    const agentes = enjambres.map((e) => {
+        const cola = e.cola.replace(/^cola-/, "").replace(/\.json$/, "");
+        const tareas = porCola.get(cola) ?? [];
+        const vivas = latidos.filter((l) => l.cola.replace(/^cola-/, "").replace(/\.json$/, "") === cola && l.donde === e.donde);
+        return { clave: `${e.donde}|${cola}`, donde: e.donde, cola, medio: e.medio, vivas, tareas, t: e.t, integradas: e.integradas };
+    });
+    const colasVivas = new Set(agentes.map((a) => a.cola));
+    const sinAgente = [...porCola.entries()]
+        .filter(([cola, tareas]) => !colasVivas.has(cola) && tareas.some((t) => t.estado === "pendiente" || t.estado === "en_curso"))
+        .map(([cola, tareas]) => ({ cola, tareas }));
+
+    const Fila = ({ tareas, marcarHechas }: { tareas: RamaTarea[]; marcarHechas: Set<string> }) => (
+        <ol className="mt-2 space-y-1 text-xs">
+            {tareas.map((t, i) => {
+                const tono = tonoEstado(t.estado);
+                const espera = t.estado === "pendiente" ? t.dependencias.filter((d) => !marcarHechas.has(d)) : [];
+                return (
+                    <li key={t.id} className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                        <span className="w-5 text-right font-mono text-white/35">{i + 1}.</span>
+                        <button type="button" onClick={() => onVer(t.id)} className="cursor-pointer font-mono font-medium text-white hover:underline" title="Abrir la ficha">
+                            {t.id}
+                        </button>
+                        <span className={`h-1.5 w-1.5 rounded-full ${tono.punto}`} aria-hidden />
+                        <span className={tono.texto}>{etiquetaCorta(t)}</span>
+                        {t.vivo ? (
+                            <span className={tonoFase(t.vivo.fase)}>{t.vivo.fase} · {corto(t.vivo.modelo)}{t.vivo.minutos ? ` · ${t.vivo.minutos} min` : ""}</span>
+                        ) : t.modelo ? (
+                            <span className="text-white/45">{corto(t.modelo)}{t.proveedor ? ` · ${t.proveedor}` : ""}</span>
+                        ) : null}
+                        {t.donde ? <span className={t.donde === "nube" ? "text-sky-300/80" : "text-amber-300/80"}>{t.donde}{t.medio ? ` · ${t.medio}` : ""}</span> : null}
+                        {espera.length ? <span className="text-white/40">espera {espera.join(", ")}</span> : null}
+                        {t.sha ? <span className="font-mono text-white/35">{t.sha}</span> : null}
+                        <span className="truncate text-white/50" title={t.titulo}>· {t.titulo}</span>
+                    </li>
+                );
+            })}
+        </ol>
+    );
+
+    return (
+        <div className="grid gap-3 lg:grid-cols-2" data-testid="filas-procesos">
+            <section className="rounded-xl border border-white/10 bg-black/30 p-3">
+                <h4 className="text-[11px] font-medium uppercase tracking-wide text-white/50">
+                    Fila de la ola · {olaSel.id} · {olaSel.tareas.length} tareas
+                </h4>
+                <p className="mt-1 text-[11px] text-white/40">Turno real: primero lo que late, luego lo pendiente por nivel de dependencias, al final lo cerrado.</p>
+                <Fila tareas={filaOla} marcarHechas={hechas} />
+            </section>
+            <section className="rounded-xl border border-white/10 bg-black/30 p-3">
+                <h4 className="text-[11px] font-medium uppercase tracking-wide text-white/50">Fila por agente · {agentes.length} vivo{agentes.length === 1 ? "" : "s"}</h4>
+                {agentes.length === 0 && sinAgente.length === 0 ? (
+                    <p className="mt-2 text-xs text-white/40">Ningún orquestador vivo y ninguna cola con tareas pendientes.</p>
+                ) : null}
+                {agentes.map((a) => {
+                    const hechasCola = new Set(a.tareas.filter((t) => ["commit", "bloqueante", "sin_cambios", "sustituida", "reasignada"].includes(t.estado)).map((t) => t.id));
+                    const fila = [...a.tareas]
+                        .filter((t) => t.vivo || t.estado === "en_curso" || t.estado === "pendiente")
+                        .sort((x, y) => pesoFila(x) - pesoFila(y) || x.nivel - y.nivel || x.id.localeCompare(y.id, undefined, { numeric: true }));
+                    return (
+                        <div key={a.clave} className="mt-2 rounded-lg border border-white/10 bg-white/[0.03] p-2">
+                            <div className="flex flex-wrap items-center gap-2 text-xs">
+                                <span className={`font-medium ${a.donde === "nube" ? "text-sky-300" : "text-amber-300"}`}>{a.donde}</span>
+                                {a.medio ? <span className="text-violet-200">desde {a.medio}</span> : null}
+                                <span className="font-mono text-white/70">cola-{a.cola}</span>
+                                <span className="text-white/45">{a.vivas.length} escribiendo · {fila.filter((t) => t.estado === "pendiente").length} en fila · {a.integradas} integradas</span>
+                            </div>
+                            {fila.length ? <Fila tareas={fila} marcarHechas={hechasCola} /> : <p className="mt-1 text-[11px] text-white/40">Sin tareas en fila: está cerrando.</p>}
+                        </div>
+                    );
+                })}
+                {sinAgente.map((c) => {
+                    const hechasCola = new Set(c.tareas.filter((t) => ["commit", "bloqueante", "sin_cambios", "sustituida", "reasignada"].includes(t.estado)).map((t) => t.id));
+                    const fila = c.tareas.filter((t) => t.estado === "pendiente" || t.estado === "en_curso").sort((x, y) => x.nivel - y.nivel || x.id.localeCompare(y.id, undefined, { numeric: true }));
+                    return (
+                        <div key={`sin-${c.cola}`} className="mt-2 rounded-lg border border-dashed border-white/10 p-2">
+                            <div className="flex flex-wrap items-center gap-2 text-xs">
+                                <span className="text-white/50">sin agente vivo</span>
+                                <span className="font-mono text-white/70">cola-{c.cola}</span>
+                                <span className="text-white/45">{fila.length} esperan un lanzamiento (Diseñar ola → importar)</span>
+                            </div>
+                            <Fila tareas={fila} marcarHechas={hechasCola} />
+                        </div>
+                    );
+                })}
+            </section>
+        </div>
+    );
+}
+
 export function RamificacionAgentes() {
     const [datos, setDatos] = useState<Ramificacion | null>(null);
     const [error, setError] = useState<string | null>(null);
@@ -877,6 +1004,17 @@ export function RamificacionAgentes() {
                         </span>
                     </div>
                     <ArbolOla ola={ola} seleccion={tareaSel} onSeleccionar={(id) => setTareaSel((prev) => (prev === id ? null : id))} />
+                    <FilasDeProcesos
+                        olas={datos?.olas ?? []}
+                        olaSel={ola}
+                        latidos={datos?.latidos ?? []}
+                        enjambres={datos?.enjambres ?? []}
+                        onVer={(id) => {
+                            const dueña = (datos?.olas ?? []).find((o) => o.tareas.some((t) => t.id === id));
+                            if (dueña) setOlaSel(dueña.id);
+                            setTareaSel(id);
+                        }}
+                    />
                     {tarea ? (
                         <FichaTarea
                             tarea={tarea}
