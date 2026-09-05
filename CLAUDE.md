@@ -488,6 +488,27 @@ Verificado el 2026-09-05 con la Ola 242 (tres tests reales): P1 reasignada de NI
 mientras escribía (API), P2 movida de la nube a la Mac (API) e integrada allí, P3 reasignada
 de DeepSeek a Kimi desde la ficha del Mando (UI) e integrada en la nube; 115 tests en verde.
 
+### Nodos de aprobación humana (2026-09-05)
+
+Patrón «human in the loop» de Flowise, ya real: en el Diseñador de olas la casilla **«mi visto
+bueno antes de integrar»** lanza la cola con `--aprobacion` (Mac) o `aprobacion: true` en la
+orden firmada (nube → `STARSEED_APROBACION=1`); también vale `"aprobacion": true` en una tarea
+suelta de la cola. El orquestador hace todo lo de siempre (escritura → tsc → tests → revisión)
+y, en vez de integrar, deja la rama `ola/<id>` lista, publica `esperando_aprobacion` (rama, sha,
+diffstat, dictamen del revisor, modelo) y espera hasta `STARSEED_ESPERA_APROBACION_S` (6 h). El
+Mando lo enseña arriba de Procesos («Esperando tu visto bueno», con el diff y el dictamen), en
+la ficha de la tarea y en la cabecera («Tu visto bueno»). **Aprobar e integrar** / **Rechazar**
+viajan como orden de control (`aprobar`/`rechazar`: archivo `control-<cola>.json` en la Mac o
+evento firmado `control` para la nube): aprobar integra en main por ff; rechazar conserva la
+rama (`rechazada`); sin decisión a tiempo, `pendiente_aprobacion` con la rama conservada
+(`git merge --ff-only ola/<id>` a mano o relanzar `--solo`). El worker queda ocupado mientras
+espera: con 2 trabajadores, dos ramas esperando paran la cola hasta que decidas.
+
+Otras lecciones del 05-09: `database is locked` (dos opencode arrancando a la vez sobre su
+SQLite) ya no cuenta como «sin cambios» del modelo: se espera 8 s y se reintenta el mismo, y los
+arranques de opencode se escalonan 4 s. `venv/` estaba versionado por error (1.623 archivos):
+fuera del repo, sigue ignorado. `.env.example` sí se versiona (`!.env.example` en .gitignore).
+
 ### Vercel: 250 MB por función y el trazador de archivos (2026-09-05)
 
 El primer despliegue del Mando falló: «api/mando/asistente is 2.21gb uncompressed». Causa: con
