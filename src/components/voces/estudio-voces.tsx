@@ -1,12 +1,15 @@
 "use client";
 
 /**
- * ESTUDIO DE VOCES (Ola 228)
+ * ESTUDIO DE VOCES (Ola 228 · ampliado en la Ola 240, tarea VZ6)
  * ─────────────────────────────────────────────────────────────────────────────
  * Taller para afinar el catálogo de voces de Aurora (`voces-catalogo.ts`).
  * A la izquierda: buscador, filtro por género y la lista de voces.
- * A la derecha: pestañas «Ajustes» (edición, prueba y archivos) y
- * «Ficha técnica» (radiografía de la voz seleccionada).
+ * A la derecha: pestañas «Motor», «Ajustes» (edición, prueba y archivos) y
+ * «Ficha técnica» (radiografía de la voz seleccionada), más el flujo de
+ * versiones de la Ola 240: «Versiones», «Pruebas A/B», «Fusión», «Motores»
+ * y «Vincular». El estado de las versiones vive AQUÍ y baja por props; cada
+ * cambio se persiste con `guardarVersiones` (`starseed.voces.versiones.v1`).
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -21,6 +24,12 @@ import {
     restablecerVoz,
     type VozEditable,
 } from "@/lib/aurora/voces-catalogo";
+import { buscarTimbre, type Timbre } from "@/lib/aurora/timbres";
+import {
+    cargarVersiones,
+    guardarVersiones,
+    type VersionVoz,
+} from "@/lib/voces/versiones";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -32,6 +41,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { FichaVoz } from "@/components/voces/ficha-voz";
 import { PanelMotorVoz } from "@/components/voces/panel-motor";
+import { PanelVersiones } from "@/components/voces/panel-versiones";
+import { BancoPruebasVoz } from "@/components/voces/banco-pruebas-voz";
+import { FusionVoz } from "@/components/voces/fusion-voz";
+import { PanelMotores } from "@/components/voces/panel-motores";
+import { VincularVoz } from "@/components/voces/vincular-voz";
 
 type FiltroGenero = "todas" | VozEditable["genero"];
 
@@ -51,7 +65,59 @@ export function EstudioVoces() {
     /** Copia de trabajo de la voz seleccionada: lo que editan los controles. */
     const [borrador, setBorrador] = useState<VozEditable | null>(null);
     const [aviso, setAviso] = useState<Aviso | null>(null);
+    /** Versiones de voz del Estudio (Ola 240): el estado vive aquí y baja por props. */
+    const [versiones, setVersiones] = useState<VersionVoz[]>([]);
     const entradaArchivo = useRef<HTMLInputElement | null>(null);
+
+    /** Timbre real detrás de la voz seleccionada (lo que «Crear versión» usa). */
+    const timbreSeleccionado = useMemo<Timbre | null>(() => {
+        if (!borrador) return null;
+        const real = buscarTimbre(borrador.id);
+        if (real) return real;
+        // Clones: no están en el catálogo de timbres, se reconstruyen igual.
+        return {
+            id: borrador.id,
+            nombre: borrador.nombre,
+            genero: borrador.genero,
+            desc: borrador.desc,
+            local: {
+                voz: borrador.local.voz,
+                speed: borrador.local.speed,
+                ...(borrador.local.instruct ? { instruct: borrador.local.instruct } : {}),
+            },
+            sistema: {
+                bases: ["Paulina", "Mónica", "Monica"],
+                pitch: borrador.sistema.pitch,
+                rate: borrador.sistema.rate,
+            },
+            expr: { ...borrador.expr },
+        };
+    }, [borrador]);
+
+    /** Sustituye la lista de versiones y la persiste de inmediato. */
+    const guardarListaVersiones = (lista: VersionVoz[], avisoNuevo: Aviso | null) => {
+        guardarVersiones(lista);
+        setVersiones(lista);
+        if (avisoNuevo) setAviso(avisoNuevo);
+    };
+
+    /** Valoración 1–5 que llega desde el banco de pruebas A/B. */
+    const valorarVersion = (id: string, valor: number) => {
+        guardarListaVersiones(
+            versiones.map((v) =>
+                v.id === id ? { ...v, valoracion: valor, modificadaEn: new Date().toISOString() } : v,
+            ),
+            null,
+        );
+    };
+
+    /** La fusión crea la hija; aquí se incorpora a la lista y se guarda. */
+    const incorporarVersion = (v: VersionVoz) => {
+        guardarListaVersiones(
+            [...versiones, v],
+            { tipo: "ok", texto: `Versión «${v.nombre}» fusionada y guardada.` },
+        );
+    };
 
     const recargar = (mantenerId?: string) => {
         const lista = cargarVoces();
@@ -64,6 +130,7 @@ export function EstudioVoces() {
 
     useEffect(() => {
         recargar();
+        setVersiones(cargarVersiones());
         // Estado real de la vía de voz: preparando, sonando o sin motor.
         const alEstado = (e: Event) => {
             const detalle = (e as CustomEvent<string>).detail;
@@ -270,14 +337,47 @@ export function EstudioVoces() {
                 </CardHeader>
                 <CardContent>
                     <Tabs defaultValue="motor">
-                        <TabsList>
+                        <TabsList className="flex-wrap">
                             <TabsTrigger value="motor" className="cursor-pointer">Motor</TabsTrigger>
                             <TabsTrigger value="ajustes" className="cursor-pointer">Ajustes</TabsTrigger>
                             <TabsTrigger value="ficha" className="cursor-pointer">Ficha técnica</TabsTrigger>
+                            <TabsTrigger value="versiones" className="cursor-pointer">Versiones</TabsTrigger>
+                            <TabsTrigger value="pruebas" className="cursor-pointer">Pruebas A/B</TabsTrigger>
+                            <TabsTrigger value="fusion" className="cursor-pointer">Fusión</TabsTrigger>
+                            <TabsTrigger value="motores" className="cursor-pointer">Motores</TabsTrigger>
+                            <TabsTrigger value="vincular" className="cursor-pointer">Vincular</TabsTrigger>
                         </TabsList>
 
                         <TabsContent value="motor" className="pt-4">
                             <PanelMotorVoz />
+                        </TabsContent>
+
+                        {/* ── Ola 240: flujo de versiones del Estudio ─────────── */}
+                        <TabsContent value="versiones" className="pt-4">
+                            <PanelVersiones
+                                versiones={versiones}
+                                timbre={timbreSeleccionado}
+                                onGuardar={guardarListaVersiones}
+                            />
+                        </TabsContent>
+
+                        <TabsContent value="pruebas" className="pt-4">
+                            <BancoPruebasVoz
+                                versiones={versiones.slice(0, 4)}
+                                onValorar={valorarVersion}
+                            />
+                        </TabsContent>
+
+                        <TabsContent value="fusion" className="pt-4">
+                            <FusionVoz versiones={versiones} onCrear={incorporarVersion} />
+                        </TabsContent>
+
+                        <TabsContent value="motores" className="pt-4">
+                            <PanelMotores />
+                        </TabsContent>
+
+                        <TabsContent value="vincular" className="pt-4">
+                            <VincularVoz versiones={versiones} />
                         </TabsContent>
 
                         {borrador ? (
