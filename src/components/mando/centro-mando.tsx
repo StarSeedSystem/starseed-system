@@ -138,8 +138,11 @@ export function CentroMando() {
     useEffect(() => {
         let vivo = true;
         let enCurso = false;
-        const cargar = async () => {
-            if (enCurso || document.visibilityState === "hidden") return;
+        // `forzar`: la primera lectura y la vuelta a la pestaña siempre se hacen; solo el
+        // refresco periódico se salta mientras la pestaña está oculta (una pestaña de fondo
+        // se quedaba en «Midiendo el pulso…» para siempre).
+        const cargar = async (forzar = false) => {
+            if (enCurso || (!forzar && document.visibilityState === "hidden")) return;
             enCurso = true;
             try {
                 const respuesta = await fetch("/api/mando/estado", { cache: "no-store" });
@@ -157,10 +160,10 @@ export function CentroMando() {
                 if (vivo) setCargando(false);
             }
         };
-        void cargar();
+        void cargar(true);
         const cada = window.setInterval(() => void cargar(), 20_000);
         const alVolver = () => {
-            if (document.visibilityState === "visible") void cargar();
+            if (document.visibilityState === "visible") void cargar(true);
         };
         document.addEventListener("visibilitychange", alVolver);
         return () => {
