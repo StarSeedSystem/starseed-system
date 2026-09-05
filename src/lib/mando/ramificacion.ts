@@ -27,6 +27,7 @@ import {
     leerProgreso,
 } from "@/lib/mando/lector-local";
 import type { FotoEnjambre, LatidoTarea, TareaOla } from "@/lib/mando/tipos";
+import { raizDelProyecto } from "@/lib/mando/raiz";
 
 /** Un paso registrado de una tarea (escritura, tsc, tests, revision, integracion). */
 export interface PasoRama {
@@ -98,7 +99,7 @@ export interface Ramificacion {
     olasEnDisco: number;
 }
 
-const RAÍZ = process.cwd();
+const RAÍZ = raizDelProyecto();
 const TIPOS_BUS = [
     "inicio", "paso", "commit", "bloqueante", "fallo", "sin_cambios", "conflicto",
     "reintento", "reenrutado", "proveedor", "aviso", "estancado", "cola_terminada", "arranque",

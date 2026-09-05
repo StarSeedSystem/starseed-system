@@ -18,11 +18,12 @@ import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
+import { raizDelProyecto } from "@/lib/mando/raiz";
 
 const ejecutar = promisify(execFile);
 
 /** Raíz del repositorio (en Next.js `process.cwd()` apunta al proyecto). */
-const RAIZ = process.cwd();
+const RAIZ = raizDelProyecto();
 
 /** Sesión normalizada de un agente del Mando. */
 export interface SesionAgente {

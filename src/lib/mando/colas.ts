@@ -23,8 +23,9 @@ import { openSync } from "node:fs";
 import { mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
+import { raizDelProyecto } from "@/lib/mando/raiz";
 
-const RAÍZ = process.cwd();
+const RAÍZ = raizDelProyecto();
 const OLAS = path.join(RAÍZ, "starseed_memory_root", "olas");
 const PATRON_ID = /^[A-Z][A-Z0-9]{0,7}[0-9]?$/;
 const PATRON_NOMBRE = /^[0-9]{2,4}(-[a-z0-9]+){0,6}$/;

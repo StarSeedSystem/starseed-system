@@ -28,6 +28,7 @@
 
 import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
+import { raizDelProyecto } from "@/lib/mando/raiz";
 
 /** Contexto que recibió cada tarea del enjambre (normalizado desde `contextos/<id>.json`). */
 export interface ContextoAgente {
@@ -62,7 +63,7 @@ export interface ContextoAgente {
 }
 
 /** Raíz del repositorio (en Next.js `process.cwd()` apunta al proyecto). */
-const RAÍZ = process.cwd();
+const RAÍZ = raizDelProyecto();
 
 /** True si un texto tiene contenido más allá de espacios. */
 function tieneTexto(s: string): boolean {

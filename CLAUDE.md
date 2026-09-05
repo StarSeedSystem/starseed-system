@@ -488,6 +488,18 @@ Verificado el 2026-09-05 con la Ola 242 (tres tests reales): P1 reasignada de NI
 mientras escribía (API), P2 movida de la nube a la Mac (API) e integrada allí, P3 reasignada
 de DeepSeek a Kimi desde la ficha del Mando (UI) e integrada en la nube; 115 tests en verde.
 
+### Vercel: 250 MB por función y el trazador de archivos (2026-09-05)
+
+El primer despliegue del Mando falló: «api/mando/asistente is 2.21gb uncompressed». Causa: con
+`const RAÍZ = process.cwd()` y lecturas `readFile(path.join(RAÍZ, rutaVariable))`, el trazador
+(`@vercel/nft`) mete el proyecto entero en la función (src/, venv/, .git/, .next/cache/…).
+Regla: en código de servidor la raíz sale de `raizDelProyecto()` (`src/lib/mando/raiz.ts`:
+`STARSEED_ROOT` o `process.cwd()` en tiempo de ejecución, opaco para el trazador) y
+`next.config.ts` lleva `outputFileTracingExcludes` (venv, .git, .next/cache para todo; src,
+public, memorias, docs… para `/api/mando/**`). `maxDuration` de las rutas: 60 s como máximo
+(plan de Vercel). Para ver los registros de un despliegue: `vercel inspect <dpl_…> --logs
+--scope starseeds-projects` (la CLI de la Mac está en el equipo StarSeed's projects).
+
 ### Voz: una sola copia del modelo en la Mac (2026-09-04, noche)
 
 `/api/voz/salud` y `/api/voz/hablar` prueban primero el tts-server crudo en 4500 y, si no hay,

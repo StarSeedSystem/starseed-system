@@ -30,9 +30,10 @@ import type {
     RevisionRef,
     TareaOla,
 } from "@/lib/mando/tipos";
+import { raizDelProyecto } from "@/lib/mando/raiz";
 
 /** Raíz del repositorio (en Next.js `process.cwd()` apunta al proyecto). */
-const RAÍZ = process.cwd();
+const RAÍZ = raizDelProyecto();
 
 /** Texto vacío por defecto cuando falta el archivo. */
 const VACÍO = "";

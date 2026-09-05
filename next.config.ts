@@ -5,6 +5,20 @@ const nextConfig: NextConfig = {
   /* config options here */
   output: 'standalone',
   outputFileTracingRoot: path.join(__dirname),
+  // Lo que NUNCA debe viajar dentro de una función de Vercel (límite: 250 MB sin comprimir).
+  // El 2026-09-05 «api/mando/asistente» salió de 2,21 GB porque el trazador arrastró el
+  // proyecto entero (src/, venv/, .git/, .next/cache/…) al ver lecturas con rutas variables
+  // bajo process.cwd() (arreglado además en src/lib/mando/raiz.ts). El Mando es 404 en
+  // producción: sus funciones no necesitan ningún archivo del disco.
+  outputFileTracingExcludes: {
+    '**': ['./venv/**', './.git/**', './.next/cache/**', './.tmp/**', './.transfer/**'],
+    '/api/mando/**': [
+      './src/**', './public/**', './starseed_memory_root/**', './memory/**', './docs/**', './claude/**',
+      './src-tauri/**', './scripts/**', './native/**', './architecture/**', './.agent/**', './supabase/**',
+      './integraciones-de-codigo/**', './hermes-integration/**', './theme-antigravity-flux/**', './queue/**',
+      './.github/**',
+    ],
+  },
   transpilePackages: ['@splinetool/react-spline'],
   experimental: {
     optimizePackageImports: ['lucide-react', 'date-fns', 'recharts', '@radix-ui/react-icons'],

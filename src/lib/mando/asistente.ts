@@ -24,8 +24,9 @@ import path from "node:path";
 import { construirRamificacion } from "@/lib/mando/ramificacion";
 import { leerEstadoRelevo, leerEventosDelBus, leerProgreso, colaInteligente, leerColas } from "@/lib/mando/lector-local";
 import { llamarModelo, type MensajeModelo } from "@/lib/mando/modelos-disponibles";
+import { raizDelProyecto } from "@/lib/mando/raiz";
 
-const RAÍZ = process.cwd();
+const RAÍZ = raizDelProyecto();
 const CARPETA_CHATS = path.join(RAÍZ, "starseed_memory_root", "mando", "chats");
 
 /** Archivos que el asistente puede leer (rutas relativas al repositorio, sin `..`). */
