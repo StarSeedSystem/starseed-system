@@ -1,5 +1,5 @@
 /**
- * GET /api/voz/forja (Ola 246 · forja de voz 1.58 · Tarea F3)
+ * GET /api/voz/forja (Ola 246 · forja de voz 1.58 · Tarea F3b)
  * ─────────────────────────────────────────────────────────────────────────────
  * Radiografía de lo que hay DE VERDAD en esta neurona para la forja de voz y el
  * backend 1.58: el motor OmniVoice compilado, los modelos GGUF descargados, el
@@ -7,16 +7,30 @@
  *
  * Cada comprobación va en su propio try/catch: un componente ausente nunca
  * rompe el resto del informe. Nunca se devuelven contenidos de archivos ni
- * secretos; solo presencia, tamaños y estado de salud.
+ * secretos; solo presencia, nombres base, tamaños y estado de salud.
  *
  * ⚠️ Vercel: no usar `process.cwd()` ni rutas relativas al proyecto (el
  * trazador de archivos metería el repo entero en la función). Solo rutas
  * absolutas del usuario construidas desde `homedir()` o variables de entorno.
+ *
+ * Corrección F3b (revisión bloqueante de F3):
+ *  - SIN FUGA DE RUTAS: la respuesta nunca expone rutas absolutas del sistema.
+ *    `motor` y `bitnet` devuelven `{ presente, binario }`, donde `binario` es
+ *    SOLO el nombre del archivo (`tts-server`, `llama-server`), nunca la ruta;
+ *    no existe ningún campo `ruta`/`rutaMotor`/`rutaBitnet`. Los modelos GGUF
+ *    son `{ nombre, bytes }` con el nombre base únicamente.
+ *  - PUERTA DE SESIÓN: misma que `/api/voz/salud`. En producción se exige un
+ *    usuario autenticado (`supabase.auth.getUser()`); en desarrollo no se exige,
+ *    porque el demonio y el backend viven en 127.0.0.1.
+ *  - I/O ACOTADA: las dos peticiones a 127.0.0.1 (backend 1.58 y demonio) se
+ *    disparan en paralelo con `Promise.all`; las comprobaciones de disco son en
+ *    serie y acotadas a 5 operaciones de I/O como máximo.
  */
 
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { join, basename } from "node:path";
 import { access, readdir, stat } from "node:fs/promises";
+import { createClient } from "@/utils/supabase/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -50,7 +64,7 @@ async function modelosDe(carpeta: string): Promise<Array<{ nombre: string; bytes
         if (!nombre.toLowerCase().endsWith(".gguf")) continue;
         try {
             const info = await stat(join(carpeta, nombre));
-            if (info.isFile()) lista.push({ nombre, bytes: info.size });
+            if (info.isFile()) lista.push({ nombre: basename(nombre), bytes: info.size });
         } catch {
             // Un archivo ilegible no rompe el listado.
         }
@@ -77,7 +91,22 @@ async function sondear(
 }
 
 export async function GET(): Promise<Response> {
-    // ── Motor OmniVoice compilado ────────────────────────────────────────────
+    // Puerta de sesión (misma que /api/voz/salud): solo exigida en producción.
+    if (process.env.NODE_ENV === "production") {
+        try {
+            const supabase = await createClient();
+            const { data, error } = await supabase.auth.getUser();
+            if (error || !data.user) {
+                return Response.json({ error: "Necesitas iniciar sesión." }, { status: 401 });
+            }
+        } catch {
+            return Response.json({ error: "No se pudo verificar la sesión." }, { status: 401 });
+        }
+    }
+
+    // ── Comprobaciones de disco (en serie, acotadas) ─────────────────────────
+    // 5 operaciones de I/O: access del motor (1), access del bitnet (2),
+    // readdir base (3), readdir models (4) y el stat acumulado de los .gguf (5).
     const rutaMotor = join(directorioVoz(), "omnivoice.cpp", "build", "bin", "tts-server");
     let motorPresente = false;
     try {
@@ -86,7 +115,6 @@ export async function GET(): Promise<Response> {
         motorPresente = false;
     }
 
-    // ── Modelos GGUF (carpeta base y subcarpeta models) ──────────────────────
     let modelos: Array<{ nombre: string; bytes: number }> = [];
     try {
         const base = directorioVoz();
@@ -104,7 +132,6 @@ export async function GET(): Promise<Response> {
         modelos = [];
     }
 
-    // ── Servidor BitNet (llama-server del backend 1.58) ──────────────────────
     const rutaBitnet = join(
         process.env.ASTRAURA_158_DIR ?? join(homedir(), "Documents", "IA 1.58 bit"),
         "backend",
@@ -120,34 +147,33 @@ export async function GET(): Promise<Response> {
         bitnetPresente = false;
     }
 
-    // ── Backend Astraura 1.58 (salud HTTP) ───────────────────────────────────
+    // ── Peticiones a 127.0.0.1 (en paralelo) ─────────────────────────────────
     const url158 = process.env.ASTRAURA_158_LOCAL_URL ?? "http://127.0.0.1:8000";
+    const urlDemonio = process.env.STARSEED_VOZ_DAEMON_URL ?? "http://127.0.0.1:4444";
+
+    const [sonda158, sondaDemonio] = await Promise.all([
+        sondear(`${url158}/api/starseed/health`, 2500),
+        sondear(`${urlDemonio}/status`, 2500),
+    ]);
+
     let backend158: { url: string; vivo: boolean; latenciaMs: number } = {
         url: url158,
         vivo: false,
         latenciaMs: 0,
     };
-    try {
-        const sonda = await sondear(`${url158}/api/starseed/health`, 2500);
-        if (sonda) {
-            backend158 = { url: url158, vivo: sonda.respuesta.ok, latenciaMs: sonda.latenciaMs };
-        }
-    } catch {
-        // Backend apagado: se queda vivo: false.
+    if (sonda158) {
+        backend158 = { url: url158, vivo: sonda158.respuesta.ok, latenciaMs: sonda158.latenciaMs };
     }
 
-    // ── Demonio de voz (mezclador OmniVoice) ─────────────────────────────────
-    const urlDemonio = process.env.STARSEED_VOZ_DAEMON_URL ?? "http://127.0.0.1:4444";
     let demonio: { url: string; vivo: boolean; listo: boolean; modelo: string | null } = {
         url: urlDemonio,
         vivo: false,
         listo: false,
         modelo: null,
     };
-    try {
-        const sonda = await sondear(`${urlDemonio}/status`, 2500);
-        if (sonda && sonda.respuesta.ok) {
-            const cuerpo = (await sonda.respuesta.json()) as {
+    if (sondaDemonio && sondaDemonio.respuesta.ok) {
+        try {
+            const cuerpo = (await sondaDemonio.respuesta.json()) as {
                 ok?: unknown;
                 ready?: unknown;
                 model?: unknown;
@@ -158,17 +184,17 @@ export async function GET(): Promise<Response> {
                 listo: cuerpo.ready === true,
                 modelo: typeof cuerpo.model === "string" ? cuerpo.model : null,
             };
+        } catch {
+            // Respuesta no JSON: se queda vivo: false.
         }
-    } catch {
-        // Demonio apagado: se queda vivo: false.
     }
 
     return Response.json(
         {
             generadoEn: new Date().toISOString(),
-            motor: { ruta: rutaMotor, presente: motorPresente },
+            motor: { presente: motorPresente, binario: "tts-server" },
             modelos,
-            bitnet: { ruta: rutaBitnet, presente: bitnetPresente },
+            bitnet: { presente: bitnetPresente, binario: "llama-server" },
             backend158,
             demonio,
         },
