@@ -19,6 +19,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { Bot, ChevronRight, GitCommit, Pause, Play, RefreshCw, ShieldCheck, Wand2 } from "lucide-react";
 
 import { DisenadorOla } from "@/components/mando/disenador-ola";
+import { escuchar as escucharAsistente } from "@/lib/mando/asistente-cliente";
 
 import type { LatidoTarea } from "@/lib/mando/tipos";
 import type { RamaOla, RamaTarea, Ramificacion } from "@/lib/mando/ramificacion";
@@ -557,6 +558,16 @@ export function RamificacionAgentes() {
         const id = window.setInterval(() => void recargar(), INTERVALO_MS);
         return () => window.clearInterval(id);
     }, [pausado, recargar]);
+
+    // El asistente puede pedir «ver tarea»: se selecciona la ola que la contiene y la tarea.
+    useEffect(() => {
+        return escucharAsistente((aviso) => {
+            if (aviso.tipo !== "tarea" || !aviso.tareaId) return;
+            const ola = (datos?.olas ?? []).find((o) => o.tareas.some((t) => t.id === aviso.tareaId));
+            if (ola) setOlaSel(ola.id);
+            setTareaSel(aviso.tareaId);
+        });
+    }, [datos]);
 
     const olas = datos?.olas ?? [];
     const ola = useMemo(() => {

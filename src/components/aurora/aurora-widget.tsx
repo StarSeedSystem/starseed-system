@@ -1,5 +1,6 @@
 "use client";
 
+import { esRutaConsola } from "@/components/layout/solo-fuera-de-consola";
 import { useCallback, useEffect, useRef, useState, type ComponentType } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -500,6 +501,13 @@ export function AuroraWidget() {
         setPos(next);
         writeOrbPosition(next);
       }
+      return;
+    }
+
+    // (2026-09-05) En el Puente de Mando la orbe es el ASISTENTE TÉCNICO de la orquestación:
+    // un toque abre/cierra su panel (mismo chat y selector de modelo que la pestaña Chat).
+    if (esRutaConsola(window.location.pathname)) {
+      try { window.dispatchEvent(new CustomEvent("starseed:mando-asistente", { detail: { tipo: "toggle" } })); } catch { /* */ }
       return;
     }
 

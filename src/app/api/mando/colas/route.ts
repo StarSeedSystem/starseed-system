@@ -15,6 +15,8 @@
 
 import { createClient } from "@/utils/supabase/server";
 import {
+    detenerAqui,
+    detenerEnNube,
     guardarCola,
     lanzarAqui,
     lanzarEnNube,
@@ -98,6 +100,14 @@ export async function POST(peticion: Request): Promise<Response> {
         }
         if (tareas.length === 0) return Response.json({ ok: false, error: "La cola está vacía o no existe." }, { status: 400 });
         const r = await lanzarEnNube(nombre, tareas, Math.min(4, Math.max(1, Math.round(workers))));
+        return Response.json(r, { status: r.ok ? 200 : 400, headers: { "Cache-Control": "no-store" } });
+    }
+
+    if (accion === "detener") {
+        if (!/^[0-9]{2,4}(-[a-z0-9]+){0,6}$/.test(nombre)) {
+            return Response.json({ ok: false, error: "Nombre de cola no válido." }, { status: 400 });
+        }
+        const r = cuerpo.donde === "mac" ? await detenerAqui(nombre) : await detenerEnNube(nombre);
         return Response.json(r, { status: r.ok ? 200 : 400, headers: { "Cache-Control": "no-store" } });
     }
 

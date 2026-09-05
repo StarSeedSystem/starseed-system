@@ -17,7 +17,8 @@
  */
 
 import { createHmac } from "node:crypto";
-import { spawn } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
+import { promisify } from "node:util";
 import { openSync } from "node:fs";
 import { mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
@@ -246,6 +247,46 @@ export async function lanzarEnNube(nombre: string, tareas: TareaCola[], workers:
         });
         if (!r.ok) return { ok: false, error: `El bus rechazó la orden (HTTP ${r.status}).` };
         return { ok: true };
+    } catch {
+        return { ok: false, error: "No se pudo escribir en el bus." };
+    }
+}
+
+const execFileAsync = promisify(execFile);
+
+/** Detiene el orquestador de una cola en esta máquina (SIGTERM a los python3 con esa cola). */
+export async function detenerAqui(nombre: string): Promise<{ ok: boolean; detenidos: number; error?: string }> {
+    try {
+        const { stdout } = await execFileAsync("pgrep", ["-af", "starseed-enjambre.py"], { timeout: 5000, windowsHide: true });
+        const pids = stdout
+            .split("\n")
+            .filter((l) => l.includes(`cola-${nombre}.json`) && !l.includes("pgrep"))
+            .map((l) => Number.parseInt(l.trim().split(/\s+/)[0] ?? "", 10))
+            .filter((n) => Number.isFinite(n) && n > 1);
+        for (const pid of pids) {
+            try { process.kill(pid, "SIGTERM"); } catch { /* ya no está */ }
+        }
+        return pids.length ? { ok: true, detenidos: pids.length } : { ok: false, detenidos: 0, error: "No hay ningún orquestador con esa cola en esta máquina." };
+    } catch {
+        return { ok: false, detenidos: 0, error: "No se pudo consultar los procesos." };
+    }
+}
+
+/** Publica en el bus la orden firmada de detener la cola en la nube. */
+export async function detenerEnNube(nombre: string): Promise<{ ok: boolean; error?: string }> {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const clave = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    if (!url || !clave) return { ok: false, error: "Sin acceso al bus (variables de Supabase)." };
+    const t = new Date().toISOString();
+    const firma = firmarLanzamiento(`cola-${nombre}`, t);
+    if (!firma) return { ok: false, error: "Falta STARSEED_LANZADOR_SECRETO en el entorno de esta máquina." };
+    try {
+        const r = await fetch(`${url}/rest/v1/relevo_eventos`, {
+            method: "POST",
+            headers: { apikey: clave, Authorization: `Bearer ${clave}`, "Content-Type": "application/json", Prefer: "return=minimal" },
+            body: JSON.stringify({ quien: "mando", tipo: "detener", tarea: "", texto: `detener cola-${nombre} en la nube`, datos: { donde: "nube", cola: `cola-${nombre}`, t, firma, categoria: "ola" } }),
+        });
+        return r.ok ? { ok: true } : { ok: false, error: `El bus rechazó la orden (HTTP ${r.status}).` };
     } catch {
         return { ok: false, error: "No se pudo escribir en el bus." };
     }

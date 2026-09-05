@@ -18,6 +18,7 @@ import { CircleDashed, MessagesSquare, RefreshCw } from "lucide-react";
 
 import { cargarEventos, clasificar } from "@/lib/mando/eventos";
 import type { EventoRelevo } from "@/lib/mando/tipos";
+import { AsistenteMando } from "@/components/mando/asistente-mando";
 
 /** Intervalo de sondeo del bus (ms). */
 const SONDA_MS = 15_000;
@@ -65,6 +66,9 @@ function Mensaje({ evento }: { evento: EventoRelevo }) {
 }
 
 export function ChatOrquestacion() {
+    // Dos secciones: el bus de orquestación (solo lectura) y el asistente técnico (chats
+    // propios, vinculados a la orbe flotante del Mando).
+    const [seccion, setSeccion] = useState<"asistente" | "orquestacion">("asistente");
     const [eventos, setEventos] = useState<EventoRelevo[]>([]);
     const [cargando, setCargando] = useState(true);
     const sondeo = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -87,8 +91,20 @@ export function ChatOrquestacion() {
         };
     }, [recargar]);
 
+    if (seccion === "asistente") {
+        return (
+            <div className="space-y-3">
+                <SelectorSeccion seccion={seccion} onCambio={setSeccion} />
+                <div className="rounded-xl border border-white/10 bg-black/30 p-3 backdrop-blur">
+                    <AsistenteMando modo="panel" />
+                </div>
+            </div>
+        );
+    }
+
     return (
         <section className="rounded-xl border border-white/10 bg-black/30 p-4 backdrop-blur">
+            <div className="mb-3"><SelectorSeccion seccion={seccion} onCambio={setSeccion} /></div>
             <header className="flex items-center justify-between gap-2">
                 <h3 className="flex items-center gap-2 text-sm font-semibold text-white">
                     <MessagesSquare className="h-4 w-4 text-white/60" aria-hidden />
@@ -126,5 +142,24 @@ export function ChatOrquestacion() {
                 </ol>
             )}
         </section>
+    );
+}
+
+
+/** Pestañas internas de la pestaña Chat: Asistente técnico · Orquestación (bus). */
+function SelectorSeccion({ seccion, onCambio }: { seccion: "asistente" | "orquestacion"; onCambio: (s: "asistente" | "orquestacion") => void }) {
+    return (
+        <div className="flex flex-wrap gap-1.5 text-[11px]">
+            {(["asistente", "orquestacion"] as const).map((s) => (
+                <button
+                    key={s}
+                    type="button"
+                    onClick={() => onCambio(s)}
+                    className={`cursor-pointer rounded-md border px-2 py-1 ${seccion === s ? "border-violet-400/60 bg-violet-500/15 text-white" : "border-white/10 text-white/60 hover:bg-white/5"}`}
+                >
+                    {s === "asistente" ? "Asistente técnico" : "Orquestación (bus)"}
+                </button>
+            ))}
+        </div>
     );
 }

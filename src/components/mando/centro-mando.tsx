@@ -26,6 +26,7 @@ import { PanelProcesos } from "@/components/mando/panel-procesos";
 import { PanelOlas } from "@/components/mando/panel-olas";
 import { PanelFlota } from "@/components/mando/panel-flota";
 import { ChatOrquestacion } from "@/components/mando/chat-orquestacion";
+import { OrbeAsistente } from "@/components/mando/orbe-asistente";
 import { PanelAreas } from "@/components/mando/panel-areas";
 import { PanelEntornos } from "@/components/mando/panel-entornos";
 import { PanelAjustes } from "@/components/mando/panel-ajustes";
@@ -255,6 +256,7 @@ export function CentroMando() {
                     <PanelAjustes />
                 </TabsContent>
             </Tabs>
+            <OrbeAsistente />
         </div>
     );
 }
