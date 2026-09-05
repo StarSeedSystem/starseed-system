@@ -46,12 +46,14 @@ export interface TareaCola {
     modelo?: string;
 }
 
-/** Una cola completa en disco. */
+/** Una cola completa en disco (o reconstruida del bus si la lanzó la otra máquina). */
 export interface ColaCompleta {
     nombre: string;
     archivo: string;
     tareas: TareaCola[];
     modificada: string;
+    /** disco · bus (la trajo el evento «arranque» de un orquestador de otra máquina). */
+    origen?: "disco" | "bus";
 }
 
 function texto(v: unknown): string {
@@ -90,6 +92,7 @@ export async function leerColasCompletas(): Promise<ColaCompleta[]> {
             salida.push({
                 nombre: archivo.replace(/^cola-/, "").replace(/\.json$/, ""),
                 archivo,
+                origen: "disco",
                 modificada: info.mtime.toISOString(),
                 tareas: bruto.map((b) => {
                     const d = objeto(b);
@@ -108,7 +111,53 @@ export async function leerColasCompletas(): Promise<ColaCompleta[]> {
             // cola ilegible: se salta
         }
     }
+    // Colas que solo existen en la otra máquina: se reconstruyen del bus (evento «arranque»).
+    const enDisco = new Set(salida.map((c) => c.nombre));
+    for (const c of await colasDelBus()) {
+        if (!enDisco.has(c.nombre)) salida.push(c);
+    }
     return salida.sort((a, b) => b.nombre.localeCompare(a.nombre, undefined, { numeric: true }));
+}
+
+/** Colas publicadas por los orquestadores en sus eventos «arranque» (últimos 30 días). */
+async function colasDelBus(): Promise<ColaCompleta[]> {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const clave = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    if (!url || !clave) return [];
+    try {
+        const desde = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString();
+        const r = await fetch(
+            `${url}/rest/v1/relevo_eventos?select=t,datos&tipo=eq.arranque&t=gte.${encodeURIComponent(desde)}&order=id.desc&limit=200`,
+            { headers: { apikey: clave, Authorization: `Bearer ${clave}` }, cache: "no-store" },
+        );
+        if (!r.ok) return [];
+        const filas = (await r.json()) as Array<{ t: string; datos: unknown }>;
+        const vistas = new Map<string, ColaCompleta>();
+        for (const f of filas) {
+            const d = objeto(f.datos);
+            const nombre = texto(d.cola).replace(/^cola-/, "").replace(/\.json$/, "");
+            const brutas = Array.isArray(d.tareas) ? (d.tareas as unknown[]) : [];
+            if (!nombre || vistas.has(nombre) || brutas.length === 0) continue;
+            const tareas: TareaCola[] = brutas.map((b) => {
+                const t = objeto(b);
+                return {
+                    id: texto(t.id),
+                    ola: texto(t.ola),
+                    titulo: texto(t.titulo),
+                    archivos: lista(t.archivos),
+                    prompt: texto(t.prompt),
+                    depende: lista(t.depende),
+                    ...(texto(t.modelo) ? { modelo: texto(t.modelo) } : {}),
+                };
+            }).filter((t) => t.id);
+            // Sin prompt (arranques anteriores al 2026-09-05) no sirve para relanzar.
+            if (tareas.some((t) => !t.prompt)) continue;
+            vistas.set(nombre, { nombre, archivo: `cola-${nombre}.json`, tareas, modificada: f.t, origen: "bus" });
+        }
+        return [...vistas.values()];
+    } catch {
+        return [];
+    }
 }
 
 /** Valida una cola diseñada. Devuelve los errores (vacío = válida) y la cola normalizada. */

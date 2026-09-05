@@ -214,7 +214,7 @@ export function DisenadorOla({ onCerrar }: { onCerrar: () => void }) {
                         <option value="">Importar cola…</option>
                         {colas.map((c) => (
                             <option key={c.nombre} value={c.nombre}>
-                                {c.nombre} · {c.tareas.length} tareas
+                                {c.nombre} · {c.tareas.length} tareas{c.origen === "bus" ? " · de la otra máquina" : ""}
                             </option>
                         ))}
                     </select>
