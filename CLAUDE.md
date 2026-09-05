@@ -461,6 +461,33 @@ padre → consola) y viaja en todos los eventos, en los latidos locales y en la 
 colas son portables: el evento `arranque` lleva también el prompt de cada tarea y el Diseñador
 de la otra máquina las importa («de la otra máquina»).
 
+### Reasignar agentes: servidor, API y modelo por tarea (2026-09-05)
+
+En la ficha de cada tarea de la ramificación (botón **Reasignar**; también desde «Agentes en
+vivo») se elige **Servidor** (Mac ⇄ nube), **API** (xkiro, nim, aihubmix, tokenrouter,
+openrouter: las que opencode puede usar para escribir) y **Modelo** (catálogo vivo de
+`/api/mando/modelos`), con confirmación. `POST /api/mando/colas {accion:"reasignar"}` →
+`reasignarTarea()` (`src/lib/mando/colas.ts`):
+
+- **Mismo servidor** → orden `reasignar` por tarea: archivo `olas/control-<cola>.json` en la
+  Mac o evento firmado `control` en el bus para la nube (el lanzador lo deja en el archivo).
+  El vigilante del orquestador lo lee cada 20 s: si la tarea está escribiendo, corta ese
+  opencode, descarta lo que dejó a medias y sigue **el mismo flujo** (escritura → tsc → tests
+  → revisión → integración) con el nuevo modelo, sin gastar intento; si está en otra fase,
+  queda anotado para la próxima escritura; si aún no empezó, empieza con él. Un modelo que
+  no esté en `~/.config/opencode/opencode.json` se añade al vuelo (solo el nombre; las claves
+  siguen en `{env:…}`). Si el proveedor consta «caído» por un dato viejo (>10 min), se
+  sondea antes de apartarlo.
+- **Otro servidor** → la tarea y sus dependientes aún no terminados se `sueltan` donde estaban
+  (estado `reasignada`, no se vuelven a ejecutar allí) y se lanzan en el destino como cola
+  nueva `cola-<nombre>-<tarea>` con el modelo elegido. El otro servidor debe tener `main` al
+  día (paquete) para que las dependencias ya integradas existan allí; en el árbol la tarea
+  movida es una sola rama.
+
+Verificado el 2026-09-05 con la Ola 242 (tres tests reales): P1 reasignada de NIM a xkiro
+mientras escribía (API), P2 movida de la nube a la Mac (API) e integrada allí, P3 reasignada
+de DeepSeek a Kimi desde la ficha del Mando (UI) e integrada en la nube; 115 tests en verde.
+
 ### Voz: una sola copia del modelo en la Mac (2026-09-04, noche)
 
 `/api/voz/salud` y `/api/voz/hablar` prueban primero el tts-server crudo en 4500 y, si no hay,
