@@ -342,11 +342,14 @@ export async function leerLatidosDelBus(): Promise<{ latidos: LatidoTarea[]; enj
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const clave = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
     if (!url || !clave) return { latidos: [], enjambres: [] };
-    let filas: Array<{ t: string; texto: string; datos: unknown }> = [];
+    let filas: Array<{ t: string; tipo: string; texto: string; datos: unknown }> = [];
     try {
         const desde = new Date(Date.now() - 4 * 60 * 1000).toISOString();
+        // También `cola_terminada` y `detenida`: un latido de hace 3 min con «P2 escribiendo»
+        // ya no vale si después la cola terminó o la pararon (el orquestador muerto no
+        // publica más latidos, y la ventana de 4 min lo dejaba «en curso» hasta caducar).
         const r = await fetch(
-            `${url}/rest/v1/relevo_eventos?select=t,texto,datos&tipo=eq.latido&t=gte.${encodeURIComponent(desde)}&order=id.desc&limit=40`,
+            `${url}/rest/v1/relevo_eventos?select=t,tipo,texto,datos&tipo=in.(latido,cola_terminada,detenida)&t=gte.${encodeURIComponent(desde)}&order=id.desc&limit=60`,
             { headers: { apikey: clave, Authorization: `Bearer ${clave}` }, cache: "no-store" },
         );
         if (!r.ok) return { latidos: [], enjambres: [] };
@@ -354,17 +357,19 @@ export async function leerLatidosDelBus(): Promise<{ latidos: LatidoTarea[]; enj
     } catch {
         return { latidos: [], enjambres: [] };
     }
-    // Un latido por (donde, cola): el más reciente manda.
+    // Un latido por (donde, cola): el más reciente manda; si lo más reciente de esa cola es
+    // su cierre, no hay nada vivo que mostrar.
     const vistos = new Set<string>();
     const latidos: LatidoTarea[] = [];
     const enjambres: FotoEnjambre[] = [];
     for (const fila of filas) {
         const d = objeto(fila.datos);
         const donde = texto(d.donde) || "nube";
-        const cola = texto(d.cola);
+        const cola = texto(d.cola).replace(/\.json$/, "");
         const clave2 = `${donde}|${cola}`;
         if (!cola || vistos.has(clave2)) continue;
         vistos.add(clave2);
+        if (fila.tipo !== "latido") continue;
         const medio = texto(d.medio) || undefined;
         enjambres.push({
             donde,
@@ -466,7 +471,7 @@ export async function leerLatidos(): Promise<LatidoTarea[]> {
             continue;
         }
         const datos = objeto(await leerJson(`${dirOlas}/${nombre}`));
-        const cola = texto(datos.cola) || nombre.replace(/^latidos-/, "").replace(/\.json$/, "");
+        const cola = (texto(datos.cola) || nombre.replace(/^latidos-/, "")).replace(/\.json$/, "");
         const medioArchivo = texto(datos.medio) || undefined;
         const porTarea = objeto(datos.tareas);
         for (const [tarea, bruto] of Object.entries(porTarea)) {
