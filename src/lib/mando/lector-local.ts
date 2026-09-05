@@ -365,6 +365,7 @@ export async function leerLatidosDelBus(): Promise<{ latidos: LatidoTarea[]; enj
         const clave2 = `${donde}|${cola}`;
         if (!cola || vistos.has(clave2)) continue;
         vistos.add(clave2);
+        const medio = texto(d.medio) || undefined;
         enjambres.push({
             donde,
             cola,
@@ -373,6 +374,7 @@ export async function leerLatidosDelBus(): Promise<{ latidos: LatidoTarea[]; enj
             integradas: número(d.integradas, 0),
             proveedores: (objeto(d.proveedores) as FotoEnjambre["proveedores"]) ?? {},
             t: fila.t,
+            medio,
         });
         const tareas = Array.isArray(d.tareas) ? (d.tareas as unknown[]) : [];
         for (const bruto of tareas) {
@@ -399,6 +401,7 @@ export async function leerLatidosDelBus(): Promise<{ latidos: LatidoTarea[]; enj
                     : null,
                 bytesLog: número(tk.bytesLog, 0),
                 intento: número(tk.intento, 1),
+                medio: texto(tk.medio) || medio,
             });
         }
     }
@@ -464,6 +467,7 @@ export async function leerLatidos(): Promise<LatidoTarea[]> {
         }
         const datos = objeto(await leerJson(`${dirOlas}/${nombre}`));
         const cola = texto(datos.cola) || nombre.replace(/^latidos-/, "").replace(/\.json$/, "");
+        const medioArchivo = texto(datos.medio) || undefined;
         const porTarea = objeto(datos.tareas);
         for (const [tarea, bruto] of Object.entries(porTarea)) {
             const d = objeto(bruto);
@@ -479,6 +483,7 @@ export async function leerLatidos(): Promise<LatidoTarea[]> {
                 minutos: desde > 0 ? Math.max(0, Math.round((ahora - desde) / 60000)) : 0,
                 quietoSegundos: avance > 0 ? Math.max(0, Math.round((ahora - avance) / 1000)) : 0,
                 donde: "mac",
+                medio: medioArchivo,
             });
         }
     }

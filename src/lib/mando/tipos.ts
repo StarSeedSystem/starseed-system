@@ -69,6 +69,8 @@ export interface LatidoTarea {
     /** Tamaño del registro de la tarea, en bytes (crece mientras el agente escribe). */
     bytesLog?: number;
     intento?: number;
+    /** Desde dónde se usan las APIs: hermes · claude · terminal · mando · cron · opencode… */
+    medio?: string;
 }
 
 /** Foto de un orquestador tal como la publica en el bus con cada latido. */
@@ -81,6 +83,20 @@ export interface FotoEnjambre {
     proveedores: Record<string, { estado: string; llamadasMin: number; rpm: number }>;
     /** Momento del latido (ISO). */
     t: string;
+    /** Quién lanzó ese orquestador (hermes, claude, terminal, mando, cron…). */
+    medio?: string;
+}
+
+/** Recuento de tareas de la ola activa (y de las últimas olas), para la cabecera del Mando. */
+export interface CuentasTareas {
+    ola: string;
+    integradas: number;
+    enCurso: number;
+    fallidas: number;
+    sinCambios: number;
+    pendientes: number;
+    /** Lo mismo sumando las últimas olas (las que dibuja la ramificación). */
+    ultimas: { olas: number; integradas: number; enCurso: number; fallidas: number; sinCambios: number; pendientes: number };
 }
 
 /** Cuántos agentes están escribiendo, cuántos caben y con cuánta memoria. */
@@ -188,6 +204,8 @@ export interface EstadoMando {
     enjambres: FotoEnjambre[];
     /** Fila de tareas en orden inteligente para el siguiente agente. */
     fila: TareaEnFila[];
+    /** Integradas · en curso · fallidas · sin cambios · pendientes (ola activa + últimas olas). */
+    cuentas?: CuentasTareas;
     /** True si hay un orquestador vivo en la máquina, no lo que diga un archivo de estado. */
     enjambreEnMarcha: boolean;
     informes: InformeOla[];

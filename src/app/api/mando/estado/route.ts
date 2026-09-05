@@ -16,7 +16,8 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
 import { createClient } from "@/utils/supabase/server";
-import type { EstadoMando, RepoInfo } from "@/lib/mando/tipos";
+import type { CuentasTareas, EstadoMando, RepoInfo } from "@/lib/mando/tipos";
+import { construirRamificacion } from "@/lib/mando/ramificacion";
 import {
     leerColas,
     colaInteligente,
@@ -114,7 +115,7 @@ export async function GET(): Promise<Response> {
         }
     }
 
-    const [relevo, tareas, informes, uso, revisiones, repo, progreso, latidosMac, enMarcha, agentes, bus, eventosBus] =
+    const [relevo, tareas, informes, uso, revisiones, repo, progreso, latidosMac, enMarcha, agentes, bus, eventosBus, rama] =
         await Promise.all([
             leerEstadoRelevo(),
             leerColas(),
@@ -128,7 +129,23 @@ export async function GET(): Promise<Response> {
             medirAgentes(),
             leerLatidosDelBus(),
             leerEventosDelBus(20),
+            construirRamificacion(4).catch(() => null),
         ]);
+    // Recuento de tareas para la cabecera: la ola activa (la viva o la más reciente) y las últimas olas.
+    let cuentas: CuentasTareas | undefined;
+    if (rama && rama.olas.length > 0) {
+        const activa = rama.olas[0];
+        const suma = (k: "hechas" | "enCurso" | "fallidas" | "sinCambios" | "pendientes") => rama.olas.reduce((acc, o) => acc + o[k], 0);
+        cuentas = {
+            ola: activa.id,
+            integradas: activa.hechas,
+            enCurso: activa.enCurso,
+            fallidas: activa.fallidas,
+            sinCambios: activa.sinCambios,
+            pendientes: activa.pendientes,
+            ultimas: { olas: rama.olas.length, integradas: suma("hechas"), enCurso: suma("enCurso"), fallidas: suma("fallidas"), sinCambios: suma("sinCambios"), pendientes: suma("pendientes") },
+        };
+    }
     // «Últimos eventos»: primero lo que acaba de pasar en el bus (Mac + nube), después la bitácora local.
     if (eventosBus.length > 0) {
         const vistos = new Set(eventosBus.map((e) => e.id));
@@ -139,6 +156,7 @@ export async function GET(): Promise<Response> {
     const latidos = [...latidosMac, ...bus.latidos.filter((l) => l.donde !== "mac" || !idsMac.has(`${l.cola}|${l.tarea}`))];
 
     const estado: EstadoMando = {
+        cuentas,
         generadoEn: new Date().toISOString(),
         mandoActivo: true,
         relevo,

@@ -87,7 +87,8 @@ function AgentesEnVivo({ estado }: { estado: EstadoMando }) {
                             <span className={e.donde === "nube" ? "text-sky-300" : "text-amber-300"}>
                                 {e.donde === "nube" ? "nube" : "mac"}
                             </span>{" "}
-                            · {e.cola.replace(/^cola-/, "").replace(/\.json$/, "")} · {e.agentesActivos} escribiendo
+                            {e.medio ? <span className="text-violet-200"> · desde {e.medio}</span> : null}
+                            {" "}· {e.cola.replace(/^cola-/, "").replace(/\.json$/, "")} · {e.agentesActivos} escribiendo
                             {typeof e.memoriaMb === "number" ? ` · ${miles(e.memoriaMb)} MB libres` : ""}
                             {" · "}
                             {Object.values(e.proveedores ?? {}).filter((v) => v.estado === "caido").length} prov. caídos
@@ -100,6 +101,7 @@ function AgentesEnVivo({ estado }: { estado: EstadoMando }) {
                     <thead className="text-[11px] uppercase tracking-wide text-white/40">
                         <tr>
                             <th className="py-1 pr-3">Dónde</th>
+                            <th className="py-1 pr-3">Medio</th>
                             <th className="py-1 pr-3">Tarea</th>
                             <th className="py-1 pr-3">Fase</th>
                             <th className="py-1 pr-3">Modelo · proveedor</th>
@@ -116,6 +118,7 @@ function AgentesEnVivo({ estado }: { estado: EstadoMando }) {
                                 <td className={`py-1.5 pr-3 font-medium ${l.donde === "nube" ? "text-sky-300" : "text-amber-300"}`}>
                                     {l.donde}
                                 </td>
+                                <td className="py-1.5 pr-3 text-violet-200" title="Desde dónde se usan las APIs: quién lanzó el orquestador">{l.medio ?? "—"}</td>
                                 <td className="py-1.5 pr-3 font-mono">{l.tarea}</td>
                                 <td className={`py-1.5 pr-3 ${tonoFase(l.fase)}`}>
                                     {l.fase}
@@ -139,7 +142,8 @@ function AgentesEnVivo({ estado }: { estado: EstadoMando }) {
             </div>
             <p className="mt-2 text-[11px] text-white/40">
                 Tokens = suma real de entrada/salida de cada llamada del agente (base de opencode), no una estimación.
-                La ventana es la del modelo; el consumo de contexto crece con cada archivo que lee.
+                La ventana es la del modelo; el consumo de contexto crece con cada archivo que lee. «Medio» = desde dónde
+                se usan las APIs: quién lanzó ese orquestador (hermes, claude, terminal, mando, cron…).
             </p>
         </section>
     );

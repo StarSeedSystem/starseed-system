@@ -219,7 +219,7 @@ export async function lanzarAqui(nombre: string, workers: number, extra: string[
         cwd: RAÍZ,
         detached: true,
         stdio: ["ignore", registro, registro],
-        env: { ...process.env, STARSEED_ROOT: RAÍZ, STARSEED_DONDE: "mac" },
+        env: { ...process.env, STARSEED_ROOT: RAÍZ, STARSEED_DONDE: "mac", STARSEED_MEDIO: "mando" },
     });
     hijo.unref();
     return { ok: true, pid: hijo.pid };

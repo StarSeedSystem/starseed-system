@@ -132,6 +132,9 @@ function TarjetaTarea({
                     {tarea.donde ? (
                         <span className={tarea.donde === "nube" ? "text-sky-300" : "text-amber-300"}>{tarea.donde}</span>
                     ) : null}
+                    {tarea.medio ? (
+                        <span className="text-violet-200" title="Desde dónde se usan las APIs (quién lanzó el orquestador)">· {tarea.medio}</span>
+                    ) : null}
                     <span className={tono.texto}>{tono.etiqueta}</span>
                 </span>
             </div>
@@ -357,6 +360,9 @@ function FichaTarea({ tarea, onCerrar }: { tarea: RamaTarea; onCerrar: () => voi
                             <span className={`text-xs font-normal ${tarea.donde === "nube" ? "text-sky-300" : "text-amber-300"}`}>
                                 · {tarea.donde}
                             </span>
+                        ) : null}
+                        {tarea.medio ? (
+                            <span className="text-xs font-normal text-violet-200" title="Desde dónde se usan las APIs">· desde {tarea.medio}</span>
                         ) : null}
                     </h4>
                     <p className="mt-1 text-sm text-white/80">{tarea.titulo}</p>

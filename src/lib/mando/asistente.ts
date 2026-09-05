@@ -189,7 +189,7 @@ export async function construirBriefing(): Promise<string> {
     if (rama) {
         lineas.push(`Agentes vivos ahora: ${rama.latidos.length}`);
         for (const l of rama.latidos) {
-            lineas.push(`  · ${l.donde} · ${l.tarea} · ${l.fase} · ${l.modelo} (${l.proveedor ?? "?"}) · ${l.minutos} min · tokens in/out ${l.tokens?.entrada ?? "?"}/${l.tokens?.salida ?? "?"} · ventana ${l.ventana ?? "?"}`);
+            lineas.push(`  · ${l.donde}${l.medio ? ` (desde ${l.medio})` : ""} · ${l.tarea} · ${l.fase} · ${l.modelo} (${l.proveedor ?? "?"}) · ${l.minutos} min · tokens in/out ${l.tokens?.entrada ?? "?"}/${l.tokens?.salida ?? "?"} · ventana ${l.ventana ?? "?"}`);
         }
         for (const e of rama.enjambres) {
             const caidos = Object.entries(e.proveedores ?? {}).filter(([, v]) => v.estado === "caido").map(([p]) => p);
@@ -199,7 +199,7 @@ export async function construirBriefing(): Promise<string> {
         for (const o of rama.olas) {
             lineas.push(`  ${o.id}: ${o.hechas}/${o.total} integradas · ${o.enCurso} en curso · ${o.fallidas} fallidas · ${o.sinCambios} sin cambios · ${o.pendientes} pendientes`);
             for (const t of o.tareas) {
-                lineas.push(`    - ${t.id} [${t.estado}${t.donde ? ` · ${t.donde}` : ""}] ${t.titulo.slice(0, 90)}${t.dependencias.length ? ` (depende de ${t.dependencias.join(", ")})` : ""}${t.modelo ? ` · ${t.modelo.split("/").slice(-1)[0]}` : ""}${t.sha ? ` · ${t.sha}` : ""}${t.nota ? ` · ${t.nota.slice(0, 80)}` : ""}`);
+                lineas.push(`    - ${t.id} [${t.estado}${t.donde ? ` · ${t.donde}` : ""}${t.medio ? ` · desde ${t.medio}` : ""}] ${t.titulo.slice(0, 90)}${t.dependencias.length ? ` (depende de ${t.dependencias.join(", ")})` : ""}${t.modelo ? ` · ${t.modelo.split("/").slice(-1)[0]}` : ""}${t.sha ? ` · ${t.sha}` : ""}${t.nota ? ` · ${t.nota.slice(0, 80)}` : ""}`);
             }
         }
     }

@@ -56,6 +56,7 @@ function ramaDelBorrador(nombre: string, tareas: TareaCola[]): RamaOla {
         estado: "pendiente",
         nivel: niv.get(t.id) ?? 0,
         donde: null,
+        medio: null,
         modelo: t.modelo ?? "",
         proveedor: t.modelo ? (t.modelo.startsWith("nvidia/") ? "nim" : t.modelo.split("/")[0] ?? "") : "",
         revisor: "",

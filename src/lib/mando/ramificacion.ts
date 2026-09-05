@@ -56,6 +56,8 @@ export interface RamaTarea {
     nivel: number;
     /** Dónde corrió o corre: mac · nube · null si nunca empezó. */
     donde: string | null;
+    /** Desde qué medio se usaron las APIs: hermes · claude · terminal · mando · cron… */
+    medio: string | null;
     modelo: string;
     proveedor: string;
     revisor: string;
@@ -320,9 +322,11 @@ export async function construirRamificacion(cuantas = 4, horasBus = 24 * 30): Pr
 
             let ultimoTerminal: FilaBus | null = null;
             let ultimoInicio: FilaBus | null = null;
+            let medio: string | null = null;
             for (const e of eventos) {
                 const d = objeto(e.datos);
                 const dondeEv = texto(d.donde) || "mac";
+                if (texto(d.medio)) medio = texto(d.medio);
                 if (e.tipo === "paso") {
                     const nombre = e.texto.split(" · ")[0]?.trim() ?? "paso";
                     const { donde: _d, categoria: _c, ...resto } = d;
@@ -372,6 +376,7 @@ export async function construirRamificacion(cuantas = 4, horasBus = 24 * 30): Pr
             // Un commit cuya revisión fue bloqueante se marca así (lo dice la nota o el evento).
             if (estado === "commit" && /bloqueante/.test(nota) && !/no bloqueante|revisión ok/.test(nota)) estado = "bloqueante";
             if (vivo && !modelo) modelo = vivo.modelo;
+            if (vivo?.medio) medio = vivo.medio;
             if (!sha && estado === "commit") {
                 const m = /^([0-9a-f]{7,10})\b/.exec(nota);
                 if (m) sha = m[1];
@@ -386,6 +391,7 @@ export async function construirRamificacion(cuantas = 4, horasBus = 24 * 30): Pr
                 estado,
                 nivel: nivelDe.get(t.id) ?? 0,
                 donde,
+                medio,
                 modelo,
                 proveedor: modelo ? proveedorDe(modelo) : "",
                 revisor,

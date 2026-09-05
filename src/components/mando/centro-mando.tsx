@@ -70,23 +70,30 @@ function DatoPulso({
     titulo,
     valor,
     tono,
+    detalle,
 }: {
     titulo: string;
     valor: string;
-    tono?: "normal" | "aviso" | "peligro";
+    tono?: "normal" | "aviso" | "peligro" | "ok";
+    /** Texto pequeño bajo el valor (y tooltip). */
+    detalle?: string;
 }) {
     const clase =
         tono === "peligro"
             ? "border-red-400/30 bg-red-500/10 text-red-200"
             : tono === "aviso"
               ? "border-amber-400/30 bg-amber-500/10 text-amber-200"
-              : "border-white/10 bg-white/5 text-white/80";
+              : tono === "ok"
+                ? "border-emerald-400/30 bg-emerald-500/10 text-emerald-200"
+                : "border-white/10 bg-white/5 text-white/80";
     return (
         <li
-            className={`flex min-w-36 flex-col gap-0.5 rounded-lg border px-3 py-2 ${clase}`}
+            className={`flex min-w-28 flex-col gap-0.5 rounded-lg border px-3 py-2 ${clase}`}
+            title={detalle}
         >
             <span className="text-[11px] uppercase tracking-wide opacity-70">{titulo}</span>
             <span className="truncate text-sm font-semibold">{valor}</span>
+            {detalle ? <span className="truncate text-[10px] opacity-60">{detalle}</span> : null}
         </li>
     );
 }
@@ -231,6 +238,15 @@ export function CentroMando() {
                         valor={String(pulso.agotados)}
                         tono={pulso.agotados > 0 ? "peligro" : "normal"}
                     />
+                    {estado?.cuentas ? (
+                        <>
+                            <DatoPulso titulo="Integradas" valor={String(estado.cuentas.integradas)} tono="ok" detalle={`${estado.cuentas.ola} · últimas ${estado.cuentas.ultimas.olas} olas: ${estado.cuentas.ultimas.integradas}`} />
+                            <DatoPulso titulo="En curso" valor={String(estado.cuentas.enCurso)} tono={estado.cuentas.enCurso > 0 ? "aviso" : "normal"} detalle={`últimas olas: ${estado.cuentas.ultimas.enCurso}`} />
+                            <DatoPulso titulo="Fallidas" valor={String(estado.cuentas.fallidas)} tono={estado.cuentas.fallidas > 0 ? "peligro" : "normal"} detalle={`últimas olas: ${estado.cuentas.ultimas.fallidas}`} />
+                            <DatoPulso titulo="Sin cambios" valor={String(estado.cuentas.sinCambios)} tono="normal" detalle={`últimas olas: ${estado.cuentas.ultimas.sinCambios}`} />
+                            <DatoPulso titulo="Pendientes" valor={String(estado.cuentas.pendientes)} tono="normal" detalle={`últimas olas: ${estado.cuentas.ultimas.pendientes}`} />
+                        </>
+                    ) : null}
                 </ul>
             ) : null}
 
