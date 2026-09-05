@@ -61,13 +61,19 @@ function haySimd(): boolean {
     }
 }
 
-/** Sondeo al demonio local de voz con límite de 800 ms. Nunca lanza. */
+/** Sondeo al demonio local de voz (límite 4 s; vivo de verdad, no solo 200). Nunca lanza. */
 async function sondearDaemon(): Promise<boolean> {
     const control = new AbortController();
-    const temporizador = setTimeout(() => control.abort(), 800);
+    // 4 s y no 800 ms: en una Mac cargada la ruta tardaba más y el rito caía a Kokoro (que
+    // no tiene voces en español) o a la voz del sistema —«las voces suenan robóticas»— con
+    // el demonio neuronal perfectamente vivo. Y se mira `vivo`, no solo el 200: la ruta
+    // responde 200 también cuando el demonio está apagado.
+    const temporizador = setTimeout(() => control.abort(), 4000);
     try {
         const resp = await fetch("/api/voz/salud", { signal: control.signal, cache: "no-store" });
-        return resp.ok;
+        if (!resp.ok) return false;
+        const datos = (await resp.json()) as { vivo?: unknown };
+        return datos.vivo === true;
     } catch {
         return false;
     } finally {

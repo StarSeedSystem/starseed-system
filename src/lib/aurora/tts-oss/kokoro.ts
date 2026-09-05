@@ -32,6 +32,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import {
+  getLoadedTts,
   isOssTtsSupported,
   isTtsModelReady,
   loadTtsModel,
@@ -221,6 +222,18 @@ export async function kokoroSpeak(
         ? requestedVoice
         : KOKORO_DEFAULT_SPANISH_VOICE
       : requestedVoice ?? KOKORO_DEFAULT_SPANISH_MALE_VOICE;
+
+  // kokoro-js 1.2.x solo trae voces inglesas (af_*/am_*/bf_*/bm_*): las españolas de la
+  // lista (`ef_dora`, `em_alex`…) NO existen en el modelo cargado y `generate` lanzaba
+  // «Voice "ef_dora" not found» por consola en la ventana de bienvenida. Si la voz no está,
+  // este nivel no sirve: se falla en silencio y el motor baja a la voz del sistema.
+  try {
+    const tts = await getLoadedTts();
+    const conocidas = tts && typeof tts.voices === "object" && tts.voices ? Object.keys(tts.voices as object) : [];
+    if (conocidas.length > 0 && !conocidas.includes(voice)) {
+      return fail(`La voz «${voice}» no existe en el modelo Kokoro cargado (solo ${conocidas.length} voces, ninguna en español).`);
+    }
+  } catch { /* si no se puede comprobar, se intenta igual */ }
 
   // Sintetiza (reutiliza el modelo cargado de oss-tts.ts).
   const raw = await generateOssRaw(clean, {

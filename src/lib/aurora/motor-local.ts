@@ -109,7 +109,7 @@ export async function estadoMotorLocal(): Promise<EstadoMotorLocal> {
     if (Date.now() < leerAusenteHasta()) return APAGADO;
     if (estadoCache && Date.now() - estadoCache.at < 5000) return estadoCache.v;
     try {
-        const r = await pedir("status", { timeoutMs: 2500 });
+        const r = await pedir("status", { timeoutMs: 4000 });
         const j = (await r.json()) as { ok?: boolean; ready?: boolean; warm?: boolean; model?: string; quant?: string; backend?: string };
         const v: EstadoMotorLocal = {
             vivo: !!j?.ok,
@@ -122,9 +122,12 @@ export async function estadoMotorLocal(): Promise<EstadoMotorLocal> {
         estadoCache = { at: Date.now(), v };
         limpiarAusente(); // (Ola 222) Respondió: el daemon existe, olvidar que estaba ausente.
         return v;
-    } catch {
+    } catch (e) {
         estadoCache = { at: Date.now(), v: APAGADO };
-        marcarAusente(); // (Ola 222) Sondeo fallido: no insistir durante 3 minutos.
+        // (Ola 222) Sondeo fallido: no insistir durante 3 minutos… salvo que haya sido un
+        // TIMEOUT: el demonio existe pero la máquina va lenta; marcarlo ausente 3 min dejaba
+        // al rito sin voz neuronal justo cuando más tardaba en responder.
+        if (!(e instanceof Error && e.name === "AbortError")) marcarAusente();
         return APAGADO;
     }
 }
