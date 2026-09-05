@@ -39,10 +39,28 @@ const NEUTRAS: Capacidades = {
     daemonLocal: false,
 };
 
-/** Duración de la caché: 5 minutos. */
+/** Duración de la caché: 5 minutos si el demonio respondió vivo. */
 const CACHE_MS = 5 * 60 * 1000;
+/**
+ * Si el demonio NO respondió, la caché dura solo 15 s: el 2026-09-05 la primera medición
+ * cayó en los 4 s de espera porque la ruta /api/voz/salud estaba compilando, y la voz se
+ * quedó cinco minutos en «ligera/minima» (Kokoro sin español → voz del sistema) con el
+ * demonio neuronal vivo. Un «no» merece volver a preguntar pronto; un «sí» puede durar.
+ */
+const CACHE_NEGATIVA_MS = 15 * 1000;
 
 let cache: { datos: Capacidades; en: number } | null = null;
+
+function cacheVigente(): boolean {
+    if (!cache) return false;
+    const ttl = cache.datos.daemonLocal ? CACHE_MS : CACHE_NEGATIVA_MS;
+    return Date.now() - cache.en < ttl;
+}
+
+/** Olvida la medición (p. ej. tras «Volver a medir» o al arrancar el demonio). */
+export function olvidarCapacidades(): void {
+    cache = null;
+}
 
 /** Comprueba si WebAssembly puede compilar un módulo con SIMD. */
 function haySimd(): boolean {
@@ -88,7 +106,7 @@ async function sondearDaemon(): Promise<boolean> {
 export async function detectarCapacidades(): Promise<Capacidades> {
     if (typeof window === "undefined") return { ...NEUTRAS };
     const ahora = Date.now();
-    if (cache && ahora - cache.en < CACHE_MS) return cache.datos;
+    if (cache && cacheVigente()) return cache.datos;
 
     const nav = window.navigator as Navigator & { deviceMemory?: number };
     const datos: Capacidades = {
@@ -105,7 +123,6 @@ export async function detectarCapacidades(): Promise<Capacidades> {
 
 /** Devuelve la última medición guardada, o `null` si aún no se ha medido. */
 export function capacidadesEnCache(): Capacidades | null {
-    if (!cache) return null;
-    if (Date.now() - cache.en >= CACHE_MS) return null;
+    if (!cache || !cacheVigente()) return null;
     return cache.datos;
 }

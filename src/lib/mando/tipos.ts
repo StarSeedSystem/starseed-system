@@ -212,6 +212,12 @@ export interface EstadoMando {
     cuentas?: CuentasTareas;
     /** True si hay un orquestador vivo en la máquina, no lo que diga un archivo de estado. */
     enjambreEnMarcha: boolean;
+    /**
+     * Órdenes firmadas para la nube (lanzar/detener/control) publicadas hace más de 90 s que
+     * ningún lanzador ha recogido: el lanzador del contenedor muere con cada reinicio y hay
+     * que relanzarlo (`setsid -f python3 -u ~/starseed-vigia/lanzador.py`).
+     */
+    ordenesSinAtender?: Array<{ id: string; t: string; tipo: string; tarea: string; texto: string }>;
     informes: InformeOla[];
     uso: ProveedorUso[];
     revisiones: RevisionRef[];

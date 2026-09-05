@@ -30,6 +30,7 @@ import {
 
 import {
     detectarCapacidades,
+    olvidarCapacidades,
     type Capacidades,
 } from "@/lib/aurora/voz-starseed/capacidades";
 import { NIVELES, nivelPara, type NivelVoz } from "@/lib/aurora/voz-starseed/niveles";
@@ -76,6 +77,9 @@ export function PanelMotorVoz() {
     /** Sondea `/api/voz/salud`. Nunca lanza. */
     const medirSalud = useCallback(async () => {
         setMidiendo(true);
+        // «Volver a medir» también olvida la medición cacheada del motor: si se midió con el
+        // demonio dormido, el nivel automático se quedaba en «ligera» aunque ya estuviera vivo.
+        olvidarCapacidades();
         try {
             const resp = await fetch("/api/voz/salud", { cache: "no-store" });
             if (!resp.ok) {
@@ -92,6 +96,7 @@ export function PanelMotorVoz() {
                 latenciaMs: typeof datos.latenciaMs === "number" ? datos.latenciaMs : null,
                 modelo: typeof datos.modelo === "string" ? datos.modelo : null,
             });
+            void detectarCapacidades().then(setCapacidades).catch(() => null);
         } catch {
             setSalud({ vivo: false, latenciaMs: null, modelo: null });
         } finally {
@@ -106,7 +111,11 @@ export function PanelMotorVoz() {
         // Solo al montar: medir hardware y demonio una vez.
     }, [medirSalud]);
 
-    const nivelDetectado: NivelVoz | null = capacidades ? nivelPara(capacidades) : null;
+    // El nivel detectado sigue a la última medición del demonio: si al montar estaba compilando
+    // la ruta (o dormido) y luego «Volver a medir» lo encuentra vivo, sube a Alta/Estudio.
+    const nivelDetectado: NivelVoz | null = capacidades
+        ? nivelPara(salud ? { ...capacidades, daemonLocal: salud.vivo } : capacidades)
+        : null;
 
     const cambiarPreferencia = (v: PreferenciaNivel) => {
         fijarNivel(v);

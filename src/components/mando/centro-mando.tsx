@@ -133,26 +133,40 @@ export function CentroMando() {
         }
     }, []);
 
+    // La cabecera se relee cada 20 s (como la ramificación) y al volver a la pestaña: antes se
+    // leía UNA vez al montar y «Tareas en curso» se quedaba en 0 con agentes trabajando.
     useEffect(() => {
         let vivo = true;
-        (async () => {
+        let enCurso = false;
+        const cargar = async () => {
+            if (enCurso || document.visibilityState === "hidden") return;
+            enCurso = true;
             try {
                 const respuesta = await fetch("/api/mando/estado", { cache: "no-store" });
                 if (!vivo) return;
                 if (!respuesta.ok) {
                     setSoloLocal(true);
-                    setCargando(false);
                     return;
                 }
                 setEstado((await respuesta.json()) as EstadoMando);
+                setSoloLocal(false);
             } catch {
                 if (vivo) setSoloLocal(true);
             } finally {
+                enCurso = false;
                 if (vivo) setCargando(false);
             }
-        })();
+        };
+        void cargar();
+        const cada = window.setInterval(() => void cargar(), 20_000);
+        const alVolver = () => {
+            if (document.visibilityState === "visible") void cargar();
+        };
+        document.addEventListener("visibilitychange", alVolver);
         return () => {
             vivo = false;
+            window.clearInterval(cada);
+            document.removeEventListener("visibilitychange", alVolver);
         };
     }, []);
 
@@ -250,6 +264,14 @@ export function CentroMando() {
                             <DatoPulso titulo="Pendientes" valor={String(estado.cuentas.pendientes)} tono="normal" detalle={`últimas olas: ${estado.cuentas.ultimas.pendientes}`} />
                             {(estado.cuentas.ultimas.esperandoAprobacion ?? 0) > 0 ? (
                                 <DatoPulso titulo="Tu visto bueno" valor={String(estado.cuentas.ultimas.esperandoAprobacion)} tono="aviso" detalle="ramas listas que esperan tu decisión (Procesos)" />
+                            ) : null}
+                            {(estado.ordenesSinAtender?.length ?? 0) > 0 ? (
+                                <DatoPulso
+                                    titulo="Nube sin lanzador"
+                                    valor={String(estado.ordenesSinAtender?.length ?? 0)}
+                                    tono="peligro"
+                                    detalle={`orden «${estado.ordenesSinAtender?.[0]?.tipo ?? ""}» sin recoger desde hace ${Math.round((Date.now() - Date.parse(estado.ordenesSinAtender?.[0]?.t ?? "")) / 60000)} min: relanza ~/starseed-vigia/lanzador.py en el contenedor`}
+                                />
                             ) : null}
                         </>
                     ) : null}

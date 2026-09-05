@@ -16,7 +16,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
 import { createClient } from "@/utils/supabase/server";
-import type { CuentasTareas, EstadoMando, RepoInfo } from "@/lib/mando/tipos";
+import type { CuentasTareas, EstadoMando, EventoRelevo, RepoInfo } from "@/lib/mando/tipos";
 import { construirRamificacion } from "@/lib/mando/ramificacion";
 import {
     leerColas,
@@ -158,7 +158,13 @@ export async function GET(): Promise<Response> {
     const idsMac = new Set(latidosMac.map((l) => `${l.cola}|${l.tarea}`));
     const latidos = [...latidosMac, ...bus.latidos.filter((l) => l.donde !== "mac" || !idsMac.has(`${l.cola}|${l.tarea}`))];
 
+    // Órdenes para la nube que nadie recogió: cada `lanzar`/`detener`/`control` con datos.donde
+    // «nube» debe tener después un `lanzada`/`detenida`/`controlada` (o `lanzar_rechazado`) de
+    // la misma cola; si pasan 90 s sin respuesta, el lanzador del contenedor está muerto.
+    const ordenesSinAtender = ordenesNubeSinRespuesta(eventosBus);
+
     const estado: EstadoMando = {
+        ordenesSinAtender,
         cuentas,
         generadoEn: new Date().toISOString(),
         mandoActivo: true,
@@ -177,4 +183,22 @@ export async function GET(): Promise<Response> {
     };
 
     return Response.json(estado, { headers: { "Cache-Control": "no-store" } });
+}
+/** Órdenes firmadas para la nube publicadas hace >90 s sin evento de respuesta posterior de su cola. */
+function ordenesNubeSinRespuesta(eventos: EventoRelevo[]): EstadoMando["ordenesSinAtender"] {
+    const ORDENES = new Set(["lanzar", "detener", "control"]);
+    const RESPUESTAS = new Set(["lanzada", "detenida", "controlada", "lanzar_rechazado", "arranque", "aprobacion", "reasignado", "rechazada"]);
+    const objeto = (v: unknown): Record<string, unknown> => (typeof v === "object" && v !== null && !Array.isArray(v) ? (v as Record<string, unknown>) : {});
+    const colaDe = (e: EventoRelevo): string => String(objeto(e.datos).cola ?? "").replace(/\.json$/, "");
+    const ahora = Date.now();
+    const salida: NonNullable<EstadoMando["ordenesSinAtender"]> = [];
+    for (const e of eventos) {
+        if (!ORDENES.has(e.tipo) || String(objeto(e.datos).donde ?? "") !== "nube") continue;
+        const t = Date.parse(e.t);
+        if (!Number.isFinite(t) || ahora - t < 90_000 || ahora - t > 15 * 60_000) continue;
+        const cola = colaDe(e);
+        const atendida = eventos.some((r) => RESPUESTAS.has(r.tipo) && Date.parse(r.t) >= t && (colaDe(r) === cola || (r.tarea && r.tarea === e.tarea)));
+        if (!atendida) salida.push({ id: e.id, t: e.t, tipo: e.tipo, tarea: e.tarea, texto: e.texto });
+    }
+    return salida;
 }
