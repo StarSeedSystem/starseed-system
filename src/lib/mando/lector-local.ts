@@ -285,10 +285,13 @@ export function colaInteligente(
     tareas: TareaOla[],
     progreso: Record<string, unknown>,
     latidos: LatidoTarea[],
+    commitsGit: Map<string, { sha: string; titulo: string }> = new Map(),
 ): TareaEnFila[] {
-    const estadoDe = (id: string): string => texto(objeto(progreso[id]).estado);
+    const olaDe = new Map(tareas.map((t) => [t.id, (/(\d{2,4})/.exec(t.ola) ?? [])[1] ?? ""]));
+    const estadoDe = (id: string): string =>
+        texto(objeto(progreso[id]).estado) || (commitsGit.has(`${olaDe.get(id) ?? ""}|${id}`) ? "commit" : "");
     const terminada = (id: string): boolean =>
-        ["commit", "sin_cambios", "sustituida"].includes(estadoDe(id));
+        ["commit", "sin_cambios", "sustituida", "reasignada"].includes(estadoDe(id));
     const enMarcha = new Set(latidos.map((l) => l.tarea));
 
     const fila: TareaEnFila[] = [];
@@ -501,7 +504,33 @@ export async function leerLatidos(): Promise<LatidoTarea[]> {
     return latidos.sort((a, b) => a.tarea.localeCompare(b.tarea));
 }
 
-export function resumirOlas(tareas: TareaOla[], progreso: Record<string, unknown> = {}): OlaResumen[] {
+const execFileAsync = promisify(execFile);
+
+/**
+ * Commits del enjambre en la historia de git («Ola 226 · X4F2: …» → `226|X4F2` → sha).
+ * Es el último recurso para saber que una tarea se hizo: las olas 221-226 se integraron
+ * con el orquestador anterior y `progreso.json` ya no las recuerda, así que el Mando las
+ * contaba como «pendientes» (64 en la cabecera el 2026-09-05) cuando llevan días en main.
+ */
+export async function leerCommitsDeOlas(): Promise<Map<string, { sha: string; titulo: string }>> {
+    const salida = new Map<string, { sha: string; titulo: string }>();
+    try {
+        const { stdout } = await execFileAsync("git", ["log", "--format=%h%x09%s", "-n", "1500"], { cwd: RAÍZ, timeout: 8000, windowsHide: true, maxBuffer: 4 * 1024 * 1024 });
+        for (const linea of stdout.split("\n")) {
+            const [sha, asunto = ""] = linea.split("\t");
+            const m = /^Ola (\d{2,4})(?: · [^:]*?)? · ([A-Z][A-Z0-9]{0,8}): (.*)$/.exec(asunto);
+            if (!m || !sha) continue;
+            const clave = `${m[1]}|${m[2]}`;
+            // El más reciente manda (git log va de nuevo a viejo).
+            if (!salida.has(clave)) salida.set(clave, { sha, titulo: m[3] });
+        }
+    } catch {
+        // sin git: no pasa nada
+    }
+    return salida;
+}
+
+export function resumirOlas(tareas: TareaOla[], progreso: Record<string, unknown> = {}, commitsGit: Map<string, { sha: string; titulo: string }> = new Map()): OlaResumen[] {
     const porOla = new Map<string, TareaOla[]>();
     for (const tarea of tareas) {
         const clave = tarea.ola || tarea.id;
@@ -510,7 +539,10 @@ export function resumirOlas(tareas: TareaOla[], progreso: Record<string, unknown
         porOla.set(clave, actual);
     }
 
-    const estadoDe = (id: string): string => texto(objeto(progreso[id]).estado);
+    const numero = (etiqueta: string): string => (/(\d{2,4})/.exec(etiqueta) ?? [])[1] ?? "";
+    // Sin rastro en progreso.json, git es el último recurso (olas integradas por el orquestador anterior).
+    const estadoDe = (id: string, ola: string): string =>
+        texto(objeto(progreso[id]).estado) || (commitsGit.has(`${numero(ola)}|${id}`) ? "commit" : "");
 
     const resúmenes: OlaResumen[] = [];
     for (const [ola, lista] of porOla) {
@@ -521,7 +553,7 @@ export function resumirOlas(tareas: TareaOla[], progreso: Record<string, unknown
         let bloqueantes = 0;
         let restantes = 0;
         for (const tarea of lista) {
-            const estado = estadoDe(tarea.id);
+            const estado = estadoDe(tarea.id, tarea.ola);
             if (estado === "commit") procesadas += 1;
             else if (estado === "sin_cambios" || estado === "sustituida") sinCambios += 1;
             else if (estado.startsWith("fallo") || estado === "conflicto") bloqueantes += 1;

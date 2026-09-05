@@ -32,6 +32,7 @@ import {
     leerRevisiones,
     leerUsoDiario,
     resumirOlas,
+    leerCommitsDeOlas,
 } from "@/lib/mando/lector-local";
 
 export const runtime = "nodejs";
@@ -115,7 +116,7 @@ export async function GET(): Promise<Response> {
         }
     }
 
-    const [relevo, tareas, informes, uso, revisiones, repo, progreso, latidosMac, enMarcha, agentes, bus, eventosBus, rama] =
+    const [relevo, tareas, informes, uso, revisiones, repo, progreso, latidosMac, enMarcha, agentes, bus, eventosBus, rama, commitsGit] =
         await Promise.all([
             leerEstadoRelevo(),
             leerColas(),
@@ -130,6 +131,7 @@ export async function GET(): Promise<Response> {
             leerLatidosDelBus(),
             leerEventosDelBus(20),
             construirRamificacion(4).catch(() => null),
+            leerCommitsDeOlas(),
         ]);
     // Recuento de tareas para la cabecera: la ola activa (la viva o la más reciente) y las últimas olas.
     let cuentas: CuentasTareas | undefined;
@@ -160,13 +162,13 @@ export async function GET(): Promise<Response> {
         generadoEn: new Date().toISOString(),
         mandoActivo: true,
         relevo,
-        olas: resumirOlas(tareas, progreso),
+        olas: resumirOlas(tareas, progreso, commitsGit),
         tareas,
         latidos,
         enjambreEnMarcha: enMarcha,
         agentes,
         enjambres: bus.enjambres,
-        fila: colaInteligente(tareas, progreso, latidos),
+        fila: colaInteligente(tareas, progreso, latidos, commitsGit),
         informes,
         uso,
         revisiones,

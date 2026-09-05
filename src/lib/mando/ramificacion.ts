@@ -17,14 +17,13 @@
  * ⚠️ Seguridad: no devuelve claves ni rutas absolutas; solo identificadores de trabajo.
  */
 
-import { execFile } from "node:child_process";
 import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
-import { promisify } from "node:util";
 
 import {
     leerColas,
     leerLatidos,
+    leerCommitsDeOlas,
     leerLatidosDelBus,
     leerProgreso,
 } from "@/lib/mando/lector-local";
@@ -107,7 +106,7 @@ const TIPOS_BUS = [
     "reintento", "reenrutado", "proveedor", "aviso", "estancado", "cola_terminada", "arranque",
     "reasignado", "reasignada",
 ];
-const TERMINALES = new Set(["commit", "bloqueante", "sin_cambios", "fallo", "conflicto", "reasignada"]);
+const TERMINALES = new Set(["commit", "bloqueante", "sin_cambios", "sustituida", "fallo", "conflicto", "reasignada"]);
 const PREFIJO_PROVEEDOR: Record<string, string> = { nvidia: "nim" };
 
 function texto(v: unknown): string {
@@ -137,32 +136,6 @@ export function proveedorDe(modelo: string): string {
 export function numeroOla(etiqueta: string): number {
     const m = /(\d{2,4})/.exec(etiqueta);
     return m ? Number.parseInt(m[1], 10) : 0;
-}
-
-const execFileAsync = promisify(execFile);
-
-/**
- * Commits del enjambre en la historia de git («Ola 226 · X4F2: …» → `226|X4F2` → sha).
- * Es el último recurso para saber que una tarea se hizo: las olas 221-226 se integraron
- * con el orquestador anterior y `progreso.json` ya no las recuerda, así que el Mando las
- * contaba como «pendientes» (64 en la cabecera el 2026-09-05) cuando llevan días en main.
- */
-async function leerCommitsDeOlas(): Promise<Map<string, { sha: string; titulo: string }>> {
-    const salida = new Map<string, { sha: string; titulo: string }>();
-    try {
-        const { stdout } = await execFileAsync("git", ["log", "--format=%h%x09%s", "-n", "1500"], { cwd: RAÍZ, timeout: 8000, windowsHide: true, maxBuffer: 4 * 1024 * 1024 });
-        for (const linea of stdout.split("\n")) {
-            const [sha, asunto = ""] = linea.split("\t");
-            const m = /^Ola (\d{2,4})(?: · [^:]*?)? · ([A-Z][A-Z0-9]{0,8}): (.*)$/.exec(asunto);
-            if (!m || !sha) continue;
-            const clave = `${m[1]}|${m[2]}`;
-            // El más reciente manda (git log va de nuevo a viejo).
-            if (!salida.has(clave)) salida.set(clave, { sha, titulo: m[3] });
-        }
-    } catch {
-        // sin git: no pasa nada
-    }
-    return salida;
 }
 
 /** Pasos locales: `olas/pasos/<id>.jsonl` (una línea JSON por paso). */
