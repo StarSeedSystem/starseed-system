@@ -371,6 +371,9 @@ export async function leerLatidosDelBus(): Promise<{ latidos: LatidoTarea[]; enj
         if (!cola || vistos.has(clave2)) continue;
         vistos.add(clave2);
         if (fila.tipo !== "latido") continue;
+        // El último latido de un orquestador («cola terminada · sin tareas activas») solo sirve
+        // para apagar el anterior: no es un enjambre vivo que mostrar.
+        if (/^cola terminada/.test(fila.texto) && !(Array.isArray(d.tareas) && (d.tareas as unknown[]).length)) continue;
         const medio = texto(d.medio) || undefined;
         enjambres.push({
             donde,
