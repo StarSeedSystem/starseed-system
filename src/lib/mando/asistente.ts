@@ -331,6 +331,7 @@ export function extraerAcciones(textoModelo: string): AccionPropuesta[] {
             if (typeof d.workers === "number") a.workers = Math.min(4, Math.max(1, Math.round(d.workers)));
             if (texto(d.id)) a.id = texto(d.id);
             if (texto(d.ruta)) a.ruta = texto(d.ruta);
+            if (texto(d.consulta)) a.consulta = texto(d.consulta);
             acciones.push(a);
         } catch {
             // bloque mal formado: se ignora
