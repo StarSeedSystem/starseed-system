@@ -154,10 +154,11 @@ export async function POST(req: NextRequest) {
         });
 
     } catch (error: unknown) {
+        // El detalle real (mensajes de Stitch/Supabase, rutas, claves parciales) se queda en el
+        // servidor; al cliente solo un mensaje fijo (revisión bloqueante de X1, Ola 243).
         console.error("Stitch generate error:", error);
-        const message = error instanceof Error ? error.message : "Generation failed";
         return NextResponse.json(
-            { error: message },
+            { error: "No se pudo generar con Stitch. Inténtalo de nuevo en un momento." },
             { status: 500 }
         );
     }
