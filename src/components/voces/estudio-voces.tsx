@@ -10,10 +10,18 @@
  * versiones de la Ola 240: «Versiones», «Pruebas A/B», «Fusión», «Motores»
  * y «Vincular». El estado de las versiones vive AQUÍ y baja por props; cada
  * cambio se persiste con `guardarVersiones` (`starseed.voces.versiones.v1`).
+ *
+ * (Ola 263 · F6, 2026-09-06) En «Ajustes» la instrucción de estilo ya no es
+ * texto libre (el demonio OmniVoice solo entiende su vocabulario y descartaba
+ * el resto en silencio): se edita con fichas de `VOCABULARIO_INSTRUCT`, con
+ * aviso de lo que el motor ignoraría si el timbre traía tokens ajenos. La
+ * variación neuronal se completa con semilla (vacía = la del demonio) y tono
+ * (1 = natural), y «Probar» suena con el borrador COMPLETO, no con el timbre
+ * guardado.
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Dna, Play, RotateCcw, Save, Upload, Download } from "lucide-react";
+import { Dna, Play, RotateCcw, Save, Shuffle, Upload, Download } from "lucide-react";
 
 import {
     cargarVoces,
@@ -26,6 +34,11 @@ import {
 } from "@/lib/aurora/voces-catalogo";
 import { buscarTimbre, type Timbre } from "@/lib/aurora/timbres";
 import {
+    VOCABULARIO_INSTRUCT,
+    semillaPorDefecto,
+    validarInstruct,
+} from "@/lib/voces/perfil-neuronal";
+import {
     cargarVersiones,
     guardarVersiones,
     type VersionVoz,
@@ -37,6 +50,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
+import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { FichaVoz } from "@/components/voces/ficha-voz";
@@ -53,6 +67,79 @@ type FiltroGenero = "todas" | VozEditable["genero"];
 
 const FRASE_MUESTRA =
     "Hola, soy una voz de StarSeed. Así sueno con estos ajustes: cálida al saludar, clara al contar y serena al cerrar.";
+
+/**
+ * Etiquetas en español para los tokens del vocabulario del demonio
+ * (`VOCABULARIO_INSTRUCT`, Ola 263 · F4). El instruct se guarda SIEMPRE con
+ * los tokens en inglés que el demonio entiende; esto es solo la presentación.
+ */
+const ETIQUETAS_TOKEN: Record<string, string> = {
+    female: "Femenina",
+    male: "Masculina",
+    child: "Infantil",
+    teenager: "Adolescente",
+    "young adult": "Joven adulto",
+    "middle-aged": "Mediana edad",
+    elderly: "Mayor",
+    "very low pitch": "Muy grave",
+    "low pitch": "Grave",
+    "moderate pitch": "Moderado",
+    "high pitch": "Agudo",
+    "very high pitch": "Muy agudo",
+    whisper: "Susurro",
+    "american accent": "Estadounidense",
+    "australian accent": "Australiano",
+    "british accent": "Británico",
+    "canadian accent": "Canadiense",
+    "chinese accent": "Chino",
+    "indian accent": "Indio",
+    "japanese accent": "Japonés",
+    "korean accent": "Coreano",
+    "portuguese accent": "Portugués",
+    "russian accent": "Ruso",
+};
+
+function etiquetaToken(token: string): string {
+    return ETIQUETAS_TOKEN[token] ?? token;
+}
+
+/** Selección actual del editor de fichas, derivada DEL instruct guardado. */
+interface SeleccionInstruct {
+    genero: string;
+    edad: string;
+    tono: string;
+    whisper: boolean;
+    acento: string;
+}
+
+const SELECCION_VACIA: SeleccionInstruct = { genero: "", edad: "", tono: "", whisper: false, acento: "" };
+
+/** Descompone el instruct (cadena de tokens) en la selección visible. */
+function seleccionDeInstruct(instruct: string): { sel: SeleccionInstruct; ignorados: string[] } {
+    const v = validarInstruct(instruct);
+    const sel: SeleccionInstruct = { ...SELECCION_VACIA };
+    for (const t of v.tokens) {
+        if ((VOCABULARIO_INSTRUCT.genero as readonly string[]).includes(t)) sel.genero = t;
+        else if ((VOCABULARIO_INSTRUCT.edad as readonly string[]).includes(t)) sel.edad = t;
+        else if ((VOCABULARIO_INSTRUCT.tono as readonly string[]).includes(t)) sel.tono = t;
+        else if (t === "whisper") sel.whisper = true;
+        else if ((VOCABULARIO_INSTRUCT.acento as readonly string[]).includes(t)) sel.acento = t;
+    }
+    return { sel, ignorados: v.ignorados };
+}
+
+/**
+ * Recompone el instruct desde la selección, en el orden canónico del demonio
+ * (género → edad → tono → otros → acento). Al guardar SOLO tokens del
+ * vocabulario, `validarInstruct(...).valido` devuelve la misma cadena y el
+ * motor aplicará exactamente lo que se ve aquí.
+ */
+function instructDesdeSeleccion(sel: SeleccionInstruct): string {
+    const partes = [sel.genero, sel.edad, sel.tono].filter((t) => t !== "");
+    if (sel.whisper) partes.push("whisper");
+    if (sel.acento) partes.push(sel.acento);
+    return partes.join(", ");
+}
 
 interface Aviso {
     tipo: "ok" | "error";
@@ -95,6 +182,62 @@ export function EstudioVoces() {
             expr: { ...borrador.expr },
         };
     }, [borrador]);
+
+    /**
+     * Timbre con el BORRADOR COMPLETO tal y como se editará/probará: instruct
+     * validado contra el vocabulario del demonio, `seed` y `pitch` incluidos.
+     * «Probar» suena EXACTAMENTE con esto (Ola 263 · F6): nada de caer al
+     * timbre guardado, que dejaría fuera lo que se está ajustando.
+     */
+    const timbreBorrador = useMemo<Timbre | null>(() => {
+        if (!borrador) return null;
+        const real = buscarTimbre(borrador.id);
+        const instruct = validarInstruct(borrador.local.instruct).valido;
+        return {
+            id: borrador.id,
+            nombre: borrador.nombre,
+            genero: borrador.genero,
+            desc: borrador.desc,
+            local: {
+                voz: borrador.local.voz,
+                speed: borrador.local.speed,
+                ...(instruct ? { instruct } : {}),
+                ...(real?.local.ref ? { ref: real.local.ref } : {}),
+                ...(borrador.local.seed !== undefined ? { seed: borrador.local.seed } : {}),
+                ...(borrador.local.pitch !== undefined ? { pitch: borrador.local.pitch } : {}),
+            },
+            sistema: real?.sistema ?? {
+                bases: ["Paulina", "Mónica", "Monica"],
+                pitch: borrador.sistema.pitch,
+                rate: borrador.sistema.rate,
+            },
+            expr: { ...borrador.expr },
+        };
+    }, [borrador]);
+
+    /**
+     * Selección visible del editor de fichas, derivada del instruct del
+     * borrador. Los tokens que no pertenecen al vocabulario quedan en
+     * `ignoradosInstruct` para el aviso «El motor ignoraría: …».
+     */
+    const { sel: seleccionInstruct, ignorados: ignoradosInstruct } = useMemo(
+        () => seleccionDeInstruct(borrador?.local.instruct ?? ""),
+        [borrador?.local.instruct],
+    );
+
+    /** Cambia UNA ficha y recompone el instruct en el orden del demonio. */
+    const fijarFicha = (parche: Partial<SeleccionInstruct>) => {
+        if (!borrador) return;
+        const instruct = instructDesdeSeleccion({ ...seleccionInstruct, ...parche });
+        cambiar({ local: { ...borrador.local, instruct } });
+    };
+
+    /** «Otra variante»: semilla aleatoria en el rango del demonio [700000, 789999]. */
+    const otraVariante = () => {
+        if (!borrador) return;
+        const seed = 700000 + Math.floor(Math.random() * 90000);
+        cambiar({ local: { ...borrador.local, seed } });
+    };
 
     /** Sustituye la lista de versiones y la persiste de inmediato. */
     const guardarListaVersiones = (lista: VersionVoz[], avisoNuevo: Aviso | null) => {
@@ -179,19 +322,35 @@ export function EstudioVoces() {
     };
 
     const probar = () => {
-        if (!borrador) return;
+        if (!borrador || !timbreBorrador) return;
         setAviso(null);
-        void import("@/lib/aurora/voz-rito")
-            .then((m) => {
-                if (!m.ritoPuedeHablar()) {
+        void (async () => {
+            try {
+                const vozRito = await import("@/lib/aurora/voz-rito");
+                if (!vozRito.ritoPuedeHablar()) {
                     setAviso({ tipo: "error", texto: "Este dispositivo no tiene motor de voz disponible." });
                     return;
                 }
-                if (!m.hablarRito(FRASE_MUESTRA)) {
+                // (Ola 263 · F6) Se habla con el timbre del BORRADOR completo
+                // (instruct validado + seed + pitch + speed), no con el timbre
+                // guardado; si no, lo que suena no sería lo que se está viendo.
+                const { hablarStarSeed, nivelActual } = await import("@/lib/aurora/voz-starseed/motor");
+                const sono = await hablarStarSeed(FRASE_MUESTRA, {
+                    timbre: timbreBorrador,
+                    contexto: "rito",
+                });
+                if (!sono) {
                     setAviso({ tipo: "error", texto: "No se pudo iniciar la prueba de voz." });
+                    return;
                 }
-            })
-            .catch(() => setAviso({ tipo: "error", texto: "No se pudo cargar la vía de voz." }));
+                setAviso({
+                    tipo: "ok",
+                    texto: nivelActual() === "minima" ? "Sonando por la voz del sistema." : "Sonando por el motor local.",
+                });
+            } catch {
+                setAviso({ tipo: "error", texto: "No se pudo cargar la vía de voz." });
+            }
+        })();
     };
 
     const guardar = () => {
@@ -407,16 +566,116 @@ export function EstudioVoces() {
                                             />
                                         </div>
                                         <div className="space-y-1.5">
-                                            <Label htmlFor="voz-instruct">Instrucción de estilo</Label>
-                                            <Input
-                                                id="voz-instruct"
-                                                value={borrador.local.instruct}
-                                                onChange={(e) =>
-                                                    cambiar({ local: { ...borrador.local, instruct: e.target.value } })
-                                                }
-                                                placeholder="p. ej. female, young adult, moderate pitch"
-                                            />
+                                            <Label htmlFor="voz-semilla">Semilla</Label>
+                                            <div className="flex gap-2">
+                                                <Input
+                                                    id="voz-semilla"
+                                                    type="number"
+                                                    min={700000}
+                                                    max={789999}
+                                                    step={1}
+                                                    value={borrador.local.seed ?? ""}
+                                                    placeholder={String(semillaPorDefecto(borrador.id))}
+                                                    onChange={(e) => {
+                                                        const crudo = e.target.value.trim();
+                                                        const n = Number(crudo);
+                                                        cambiar({
+                                                            local: {
+                                                                ...borrador.local,
+                                                                // Vacío o no numérico → sin fijar (usa la de por defecto).
+                                                                ...(crudo !== "" && Number.isFinite(n)
+                                                                    ? { seed: Math.round(n) }
+                                                                    : { seed: undefined }),
+                                                            },
+                                                        });
+                                                    }}
+                                                />
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    onClick={otraVariante}
+                                                    className="shrink-0 cursor-pointer"
+                                                >
+                                                    <Shuffle className="mr-1.5 h-4 w-4" /> Otra variante
+                                                </Button>
+                                            </div>
+                                            <p className="text-xs text-muted-foreground">
+                                                La misma semilla hace sonar siempre la misma voz; vacía usa la suya por defecto.
+                                            </p>
                                         </div>
+                                    </div>
+
+                                    {/* Instrucción de estilo: editor de fichas (Ola 263 · F6).
+                                        Texto libre que el demonio descarta ya no se puede escribir:
+                                        cada ficha es un token del vocabulario válido y el instruct
+                                        resultante pasa `validarInstruct` siempre. */}
+                                    <div className="space-y-3 rounded-lg border p-3">
+                                        <p className="text-sm font-medium leading-none">Instrucción de estilo</p>
+                                        {(
+                                            [
+                                                { titulo: "Género", clave: "genero" as const, actual: seleccionInstruct.genero, opciones: VOCABULARIO_INSTRUCT.genero },
+                                                { titulo: "Edad", clave: "edad" as const, actual: seleccionInstruct.edad, opciones: VOCABULARIO_INSTRUCT.edad },
+                                                { titulo: "Tono", clave: "tono" as const, actual: seleccionInstruct.tono, opciones: VOCABULARIO_INSTRUCT.tono },
+                                            ]
+                                        ).map((grupo) => (
+                                            <div key={grupo.clave} className="space-y-1.5">
+                                                <Label>{grupo.titulo}</Label>
+                                                <div className="flex flex-wrap gap-1.5">
+                                                    {["", ...grupo.opciones].map((token) => {
+                                                        const activo = seleccionInstruct[grupo.clave] === token;
+                                                        return (
+                                                            <button
+                                                                key={token || "sin-fijar"}
+                                                                type="button"
+                                                                aria-pressed={activo}
+                                                                onClick={() => fijarFicha({ [grupo.clave]: token })}
+                                                                className={`cursor-pointer rounded-full border px-2.5 py-1 text-xs transition-colors duration-200 ${
+                                                                    activo
+                                                                        ? "border-primary/60 bg-primary/10 text-foreground"
+                                                                        : "border-border text-muted-foreground hover:bg-muted/60"
+                                                                }`}
+                                                            >
+                                                                {token === "" ? "Sin fijar" : etiquetaToken(token)}
+                                                            </button>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        ))}
+                                        <div className="flex items-center gap-2">
+                                            <Switch
+                                                id="voz-whisper"
+                                                checked={seleccionInstruct.whisper}
+                                                onCheckedChange={(on) => fijarFicha({ whisper: on })}
+                                                className="cursor-pointer"
+                                            />
+                                            <Label htmlFor="voz-whisper" className="cursor-pointer">Susurro</Label>
+                                        </div>
+                                        <div className="space-y-1.5">
+                                            <Label htmlFor="voz-acento">Acento</Label>
+                                            <Select
+                                                value={seleccionInstruct.acento || "ninguno"}
+                                                onValueChange={(v) => fijarFicha({ acento: v === "ninguno" ? "" : v })}
+                                            >
+                                                <SelectTrigger id="voz-acento" className="cursor-pointer">
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="ninguno">Ninguno</SelectItem>
+                                                    {VOCABULARIO_INSTRUCT.acento.map((a) => (
+                                                        <SelectItem key={a} value={a}>{etiquetaToken(a)}</SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                            <p className="text-xs text-muted-foreground">
+                                                Solo tiene efecto cuando el servidor habla inglés.
+                                            </p>
+                                        </div>
+                                        {ignoradosInstruct.length > 0 && (
+                                            <p className="text-xs text-amber-500">
+                                                El motor ignoraría: {ignoradosInstruct.join(", ")}
+                                            </p>
+                                        )}
                                     </div>
                                     <div className="space-y-1.5">
                                         <Label htmlFor="voz-desc">Descripción</Label>
@@ -439,6 +698,18 @@ export function EstudioVoces() {
                                                     max: 1.4,
                                                     aplicar: (x: number) =>
                                                         cambiar({ local: { ...borrador.local, speed: x } }),
+                                                },
+                                                {
+                                                    // (Ola 263 · F6) Tono del post-proceso local: 1 = natural;
+                                                    // acotado igual que en `perfilNeuronal` ([0.7, 1.4]).
+                                                    clave: "tono",
+                                                    titulo: "Tono (1 = natural)",
+                                                    valor: borrador.local.pitch ?? 1,
+                                                    min: 0.7,
+                                                    max: 1.4,
+                                                    paso: 0.02,
+                                                    aplicar: (x: number) =>
+                                                        cambiar({ local: { ...borrador.local, pitch: x } }),
                                                 },
                                                 {
                                                     clave: "arco",
@@ -481,7 +752,7 @@ export function EstudioVoces() {
                                                     value={[s.valor]}
                                                     min={s.min}
                                                     max={s.max}
-                                                    step={0.01}
+                                                    step={"paso" in s ? s.paso : 0.01}
                                                     onValueChange={(v) => s.aplicar(v[0] ?? s.valor)}
                                                     className="cursor-pointer"
                                                 />

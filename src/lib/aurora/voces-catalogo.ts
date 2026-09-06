@@ -18,7 +18,8 @@ export interface VozEditable {
     nombre: string;
     genero: "femenina" | "masculina" | "neutra";
     desc: string;
-    local: { voz: string; speed: number; instruct: string };
+    /** (Ola 263 · F6) seed/pitch son variaciones opcionales; anteriores quedan intactas. */
+    local: { voz: string; speed: number; instruct: string; seed?: number; pitch?: number };
     sistema: { pitch: number; rate: number };
     expr: { arco: number; vivacidad: number; calidez: number };
     origen: "defecto" | "editada" | "clon";
@@ -44,7 +45,13 @@ export function vocesDefecto(): VozEditable[] {
         nombre: t.nombre,
         genero: t.genero,
         desc: t.desc,
-        local: { voz: t.local.voz, speed: t.local.speed, instruct: t.local.instruct ?? "" },
+        local: {
+            voz: t.local.voz,
+            speed: t.local.speed,
+            instruct: t.local.instruct ?? "",
+            ...(t.local.seed !== undefined ? { seed: t.local.seed } : {}),
+            ...(t.local.pitch !== undefined ? { pitch: t.local.pitch } : {}),
+        },
         sistema: { pitch: t.sistema.pitch, rate: t.sistema.rate },
         expr: { arco: t.expr.arco, vivacidad: t.expr.vivacidad, calidez: t.expr.calidez },
         origen: "defecto",
