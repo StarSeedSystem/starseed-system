@@ -39,6 +39,11 @@ export async function GET(): Promise<Response> {
             vivo: salud.vivo,
             latenciaMs: salud.latenciaMs,
             modelo: salud.modelo,
+            // (2026-09-06, Ola 251) el cliente distingue «despertando» de «apagado»
+            // y enseña la memoria libre (poca memoria = despertar más lento).
+            estado: salud.estado,
+            despertandoDesdeMs: salud.despertandoDesdeMs,
+            memoriaLibreMb: salud.memoriaLibreMb,
             puerto: PUERTO_VOZ,
         },
         { headers: { "Cache-Control": "no-store" } },

@@ -22,6 +22,12 @@
  * y `POST /tts`), que mantiene su propio tts-server residente en 4501+. Antes había que
  * lanzar DOS copias del mismo modelo (≈900 MB cada una) en una Mac de 8 GB para que la
  * bienvenida hablara; ahora basta con el demonio, que además duerme solo a los 10 min.
+ *
+ * (2026-09-06, Ola 251) TERCER ESTADO «despertando»: con la Mac al límite de memoria el
+ * modelo de 900 MB tarda más de 30 s en cargar y el demonio responde `ok/ready` con
+ * `warm:false` y el pool `launching` lleno mientras tanto. Antes el OS lo pintaba como
+ * «apagado», cuando en realidad estaba DESPERTANDO; ahora `interpretarStatus` distingue
+ * los tres estados y la interfaz puede esperar en vez de rendirse.
  */
 
 /** Puerto fijo del demonio de voz en esta neurona. */
@@ -34,14 +40,23 @@ export const PUERTO_DEMONIO_ASTRAURA = 4444;
 const ORIGEN = `http://127.0.0.1:${PUERTO_VOZ}`;
 const ORIGEN_ASTRAURA = `http://127.0.0.1:${PUERTO_DEMONIO_ASTRAURA}`;
 
+/** Estado de ánimo del demonio: vivo (sintetiza ya), despertando (cargando el modelo) o apagado. */
+export type EstadoDaemon = "vivo" | "despertando" | "apagado";
+
 /** Estado de salud del demonio, medido en una llamada. */
 export interface SaludDaemon {
-    /** El demonio respondió 200 al sondeo. */
+    /** El demonio respondió y puede atender (vivo o despertando). */
     vivo: boolean;
-    /** Milisegundos que tardó `/health` en responder; `null` si no respondió. */
+    /** Milisegundos que tardó el sondeo en responder; `null` si no respondió. */
     latenciaMs: number | null;
     /** Modelo declarado por el demonio, si lo informa; `null` si no consta. */
     modelo: string | null;
+    /** Estado fino del demonio (activo, cargando el modelo o sin respuesta). */
+    estado: EstadoDaemon;
+    /** Marca de tiempo (ms) desde la que el demonio lleva despertando, si la informa. */
+    despertandoDesdeMs: number | null;
+    /** Memoria libre del equipo en MB, si el demonio la informa; `null` si no consta. */
+    memoriaLibreMb: number | null;
 }
 
 /** Opciones de síntesis hacia el demonio. */
@@ -62,6 +77,74 @@ export interface SintesisDaemon {
     tipo: string;
 }
 
+/** Salida pura de interpretar el cuerpo de `GET /status` del demonio Astraura. */
+export interface LecturaStatus {
+    vivo: boolean;
+    estado: EstadoDaemon;
+    despertandoDesdeMs: number | null;
+    memoriaLibreMb: number | null;
+}
+
+/**
+ * Interpreta (función pura, sin red) el cuerpo JSON de `GET /status` del demonio
+ * Astraura (4444) y decide el estado:
+ *   - `ok !== true` → apagado.
+ *   - `despertando === true`, o `ready && !warm && launching lleno && active vacío`
+ *     → despertando (el modelo de ~900 MB aún está cargando; ver cabecera 2026-09-06).
+ *   - `ok && ready` con servidor activo → vivo.
+ */
+export function interpretarStatus(cuerpo: unknown): LecturaStatus {
+    const apagado: LecturaStatus = {
+        vivo: false,
+        estado: "apagado",
+        despertandoDesdeMs: null,
+        memoriaLibreMb: null,
+    };
+    if (typeof cuerpo !== "object" || cuerpo === null) return apagado;
+    const c = cuerpo as Record<string, unknown>;
+    if (c.ok !== true) return apagado;
+
+    const despertandoDesdeMs =
+        typeof c.despertandoDesdeMs === "number" && Number.isFinite(c.despertandoDesdeMs)
+            ? c.despertandoDesdeMs
+            : null;
+    const memoriaLibreMb =
+        typeof c.memoriaLibreMb === "number" && Number.isFinite(c.memoriaLibreMb)
+            ? c.memoriaLibreMb
+            : null;
+
+    const pool =
+        typeof c.serverPool === "object" && c.serverPool !== null
+            ? (c.serverPool as Record<string, unknown>)
+            : null;
+    const launching = Array.isArray(pool?.launching) ? pool.launching.length : 0;
+    const active = Array.isArray(pool?.active) ? pool.active.length : 0;
+
+    // Despertando: lo declara el demonio, o se deduce de «listo pero sin nadie activo aún».
+    const despertando =
+        c.despertando === true ||
+        (c.ready === true && c.warm === false && launching > 0 && active === 0);
+    if (despertando) {
+        return { vivo: true, estado: "despertando", despertandoDesdeMs, memoriaLibreMb };
+    }
+    if (c.ready === true) {
+        return { vivo: true, estado: "vivo", despertandoDesdeMs, memoriaLibreMb };
+    }
+    return apagado;
+}
+
+/** Salud apagada de factoría, para no repetir el literal cinco veces. */
+function saludApagada(): SaludDaemon {
+    return {
+        vivo: false,
+        latenciaMs: null,
+        modelo: null,
+        estado: "apagado",
+        despertandoDesdeMs: null,
+        memoriaLibreMb: null,
+    };
+}
+
 /**
  * Sondea `GET /health` del demonio y mide su latencia.
  * `timeoutMs` (800 ms por defecto) es el límite de espera. Nunca lanza: si el
@@ -77,7 +160,7 @@ export async function saludDaemon(timeoutMs = 800): Promise<SaludDaemon> {
             cache: "no-store",
         });
         const latenciaMs = Date.now() - inicio;
-        if (!resp.ok) return { vivo: false, latenciaMs: null, modelo: null };
+        if (!resp.ok) return saludApagada();
         // El demonio PUEDE devolver un JSON con datos (p. ej. el modelo cargado).
         let modelo: string | null = null;
         try {
@@ -87,7 +170,14 @@ export async function saludDaemon(timeoutMs = 800): Promise<SaludDaemon> {
         } catch {
             // Sin cuerpo JSON: el 200 ya basta para saber que está vivo.
         }
-        return { vivo: true, latenciaMs, modelo };
+        return {
+            vivo: true,
+            latenciaMs,
+            modelo,
+            estado: "vivo",
+            despertandoDesdeMs: null,
+            memoriaLibreMb: null,
+        };
     } catch {
         return saludDemonioAstraura(timeoutMs);
     } finally {
@@ -98,6 +188,7 @@ export async function saludDaemon(timeoutMs = 800): Promise<SaludDaemon> {
 /**
  * Segunda puerta: `GET /status` del demonio Astraura (4444). Cuenta como vivo si el
  * demonio responde `ok` y está `ready` (tiene motor); el pool se lanza solo al hablar.
+ * Desde la Ola 251 distingue «despertando» (modelo cargando) de «apagado».
  */
 async function saludDemonioAstraura(timeoutMs: number): Promise<SaludDaemon> {
     const control = new AbortController();
@@ -106,13 +197,21 @@ async function saludDemonioAstraura(timeoutMs: number): Promise<SaludDaemon> {
     try {
         const resp = await fetch(`${ORIGEN_ASTRAURA}/status`, { signal: control.signal, cache: "no-store" });
         const latenciaMs = Date.now() - inicio;
-        if (!resp.ok) return { vivo: false, latenciaMs: null, modelo: null };
-        const cuerpo = (await resp.json()) as { ok?: unknown; ready?: unknown; model?: unknown };
-        if (cuerpo.ok !== true || cuerpo.ready !== true) return { vivo: false, latenciaMs: null, modelo: null };
+        if (!resp.ok) return saludApagada();
+        const cuerpo = (await resp.json()) as { model?: unknown } & Record<string, unknown>;
+        const lectura = interpretarStatus(cuerpo);
+        if (!lectura.vivo) return saludApagada();
         const modelo = typeof cuerpo.model === "string" && cuerpo.model.trim() ? `${cuerpo.model.trim()} · demonio 4444` : "demonio 4444";
-        return { vivo: true, latenciaMs, modelo };
+        return {
+            vivo: true,
+            latenciaMs,
+            modelo,
+            estado: lectura.estado,
+            despertandoDesdeMs: lectura.despertandoDesdeMs,
+            memoriaLibreMb: lectura.memoriaLibreMb,
+        };
     } catch {
-        return { vivo: false, latenciaMs: null, modelo: null };
+        return saludApagada();
     } finally {
         clearTimeout(temporizador);
     }

@@ -45,6 +45,17 @@ interface EstadoSalud {
     vivo: boolean;
     latenciaMs: number | null;
     modelo: string | null;
+    /** «vivo» | «despertando» | «apagado» (Ola 251: cargar 900 MB tarda > 30 s). */
+    estado: "vivo" | "despertando" | "apagado";
+    despertandoDesdeMs: number | null;
+    memoriaLibreMb: number | null;
+}
+
+/** Cuántos segundos lleva el demonio despertando, según su propia marca de tiempo. */
+function segundosDespertando(desde: number | null): number | null {
+    if (desde == null) return null;
+    const s = Math.max(0, Math.round((Date.now() - desde) / 1000));
+    return Number.isFinite(s) ? s : null;
 }
 
 const FRASE_PRUEBA =
@@ -72,37 +83,71 @@ export function PanelMotorVoz() {
     const [salud, setSalud] = useState<EstadoSalud | null>(null);
     const [midiendo, setMidiendo] = useState(false);
     const [probando, setProbando] = useState(false);
+    const [esperandoDespertar, setEsperandoDespertar] = useState(false);
     const [aviso, setAviso] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
 
-    /** Sondea `/api/voz/salud`. Nunca lanza. */
-    const medirSalud = useCallback(async () => {
-        setMidiendo(true);
+    /** Estado apagado de factoría (sin red ni ambigüedad de tipos). */
+    const saludApagada = (): EstadoSalud => ({
+        vivo: false,
+        latenciaMs: null,
+        modelo: null,
+        estado: "apagado",
+        despertandoDesdeMs: null,
+        memoriaLibreMb: null,
+    });
+
+    /** Sondea `/api/voz/salud` una vez y devuelve el estado (o `null` si falló la red). */
+    const sondearSalud = useCallback(async (): Promise<EstadoSalud | null> => {
         // «Volver a medir» también olvida la medición cacheada del motor: si se midió con el
         // demonio dormido, el nivel automático se quedaba en «ligera» aunque ya estuviera vivo.
         olvidarCapacidades();
         try {
             const resp = await fetch("/api/voz/salud", { cache: "no-store" });
-            if (!resp.ok) {
-                setSalud({ vivo: false, latenciaMs: null, modelo: null });
-                return;
-            }
+            if (!resp.ok) return saludApagada();
             const datos = (await resp.json()) as {
                 vivo?: unknown;
                 latenciaMs?: unknown;
                 modelo?: unknown;
+                estado?: unknown;
+                despertandoDesdeMs?: unknown;
+                memoriaLibreMb?: unknown;
             };
-            setSalud({
-                vivo: datos.vivo === true,
+            const estado: EstadoSalud["estado"] =
+                datos.estado === "vivo" || datos.estado === "despertando" || datos.estado === "apagado"
+                    ? datos.estado
+                    : datos.vivo === true
+                      ? "vivo"
+                      : "apagado";
+            return {
+                vivo: estado !== "apagado",
                 latenciaMs: typeof datos.latenciaMs === "number" ? datos.latenciaMs : null,
                 modelo: typeof datos.modelo === "string" ? datos.modelo : null,
-            });
-            void detectarCapacidades().then(setCapacidades).catch(() => null);
+                estado,
+                despertandoDesdeMs:
+                    typeof datos.despertandoDesdeMs === "number" ? datos.despertandoDesdeMs : null,
+                memoriaLibreMb:
+                    typeof datos.memoriaLibreMb === "number" ? datos.memoriaLibreMb : null,
+            };
         } catch {
-            setSalud({ vivo: false, latenciaMs: null, modelo: null });
+            return null;
+        }
+    }, []);
+
+    /** Sondea `/api/voz/salud`. Nunca lanza. */
+    const medirSalud = useCallback(async () => {
+        setMidiendo(true);
+        try {
+            const lectura = await sondearSalud();
+            const saludNueva = lectura ?? saludApagada();
+            setSalud(saludNueva);
+            if (saludNueva.vivo) {
+                void detectarCapacidades().then(setCapacidades).catch(() => null);
+            }
+            return saludNueva;
         } finally {
             setMidiendo(false);
         }
-    }, []);
+    }, [sondearSalud]);
 
     useEffect(() => {
         setPreferencia(nivelPreferido());
@@ -114,7 +159,7 @@ export function PanelMotorVoz() {
     // El nivel detectado sigue a la última medición del demonio: si al montar estaba compilando
     // la ruta (o dormido) y luego «Volver a medir» lo encuentra vivo, sube a Alta/Estudio.
     const nivelDetectado: NivelVoz | null = capacidades
-        ? nivelPara(salud ? { ...capacidades, daemonLocal: salud.vivo } : capacidades)
+        ? nivelPara(salud ? { ...capacidades, daemonLocal: salud.estado === "vivo" } : capacidades)
         : null;
 
     const cambiarPreferencia = (v: PreferenciaNivel) => {
@@ -153,6 +198,48 @@ export function PanelMotorVoz() {
         }
     };
 
+    /**
+     * «Esperar y probar»: mientras el demonio carga el modelo (~900 MB, más de 30 s
+     * con la memoria justa, 2026-09-06), sondea cada 3 s hasta 120 s y, al pasar a
+     * «vivo», lanza la prueba de sonido. Si no despierta a tiempo, lo dice y para.
+     */
+    const esperarYProbar = async () => {
+        setEsperandoDespertar(true);
+        setAviso(null);
+        const limite = Date.now() + 120_000;
+        try {
+            // eslint-disable-next-line no-constant-condition
+            while (true) {
+                const lectura = await sondearSalud();
+                if (lectura) setSalud(lectura);
+                if (lectura?.estado === "vivo") {
+                    setEsperandoDespertar(false);
+                    await probar();
+                    return;
+                }
+                if (lectura?.estado === "apagado") {
+                    setAviso({
+                        tipo: "error",
+                        texto: "El demonio se apagó mientras despertaba. Vuelve a lanzarlo.",
+                    });
+                    return;
+                }
+                if (Date.now() >= limite) {
+                    setAviso({
+                        tipo: "error",
+                        texto: "El demonio sigue despertando tras 120 s. Revisa la memoria libre y reintenta.",
+                    });
+                    return;
+                }
+                await new Promise((r) => setTimeout(r, 3000));
+            }
+        } finally {
+            setEsperandoDespertar(false);
+        }
+    };
+
+    const segundos = segundosDespertando(salud?.despertandoDesdeMs ?? null);
+
     return (
         <div className="space-y-6">
             <Card>
@@ -173,11 +260,43 @@ export function PanelMotorVoz() {
                             <span
                                 aria-hidden
                                 className={`h-2.5 w-2.5 rounded-full ${
-                                    salud ? (salud.vivo ? "bg-emerald-500" : "bg-destructive") : "bg-muted-foreground/40"
+                                    salud
+                                        ? salud.estado === "vivo"
+                                            ? "bg-emerald-500"
+                                            : salud.estado === "despertando"
+                                              ? "animate-pulse bg-amber-500"
+                                              : "bg-destructive"
+                                        : "bg-muted-foreground/40"
                                 }`}
                             />
-                            Demonio: {salud ? (salud.vivo ? "vivo" : "apagado") : "midiendo…"}
+                            Demonio:{" "}
+                            {salud
+                                ? salud.estado === "vivo"
+                                    ? "vivo"
+                                    : salud.estado === "despertando"
+                                      ? `despertando${segundos != null ? ` (${segundos} s)` : "…"}`
+                                      : "apagado"
+                                : "midiendo…"}
                         </span>
+                        {salud?.memoriaLibreMb != null && (
+                            // (2026-09-06) Con menos de ~700 MB libres el modelo de 900 MB
+                            // compite con el swap y el despertar se alarga: se avisa en ámbar.
+                            <Badge
+                                variant={salud.memoriaLibreMb < 700 ? "outline" : "secondary"}
+                                className={
+                                    salud.memoriaLibreMb < 700
+                                        ? "border-amber-500/60 text-amber-600 dark:text-amber-400"
+                                        : undefined
+                                }
+                                title={
+                                    salud.memoriaLibreMb < 700
+                                        ? "poca memoria: la voz tarda más en despertar; cierra apps o reinicia el servidor de desarrollo"
+                                        : undefined
+                                }
+                            >
+                                Memoria libre: {salud.memoriaLibreMb} MB
+                            </Badge>
+                        )}
                         {salud?.modelo && <Badge variant="secondary">{salud.modelo}</Badge>}
                         {salud?.latenciaMs != null && (
                             <Badge variant="outline">{salud.latenciaMs} ms</Badge>
@@ -223,17 +342,38 @@ export function PanelMotorVoz() {
                         </p>
                     </div>
 
+                    {salud?.memoriaLibreMb != null && salud.memoriaLibreMb < 700 && (
+                        <p className="text-xs text-amber-600 dark:text-amber-400">
+                            Poca memoria: la voz tarda más en despertar; cierra apps o reinicia el
+                            servidor de desarrollo.
+                        </p>
+                    )}
+
                     {/* Prueba de sonido */}
                     <div className="flex flex-wrap items-center gap-3">
                         <Button
                             type="button"
                             onClick={() => void probar()}
-                            disabled={probando || salud?.vivo === false}
+                            disabled={probando || esperandoDespertar || salud?.estado !== "vivo"}
                             className="cursor-pointer"
                         >
                             <Play className="mr-1.5 h-4 w-4" />
                             {probando ? "Sintetizando…" : "Probar esta neurona"}
                         </Button>
+                        {salud?.estado === "despertando" && (
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => void esperarYProbar()}
+                                disabled={esperandoDespertar || probando}
+                                className="cursor-pointer"
+                            >
+                                <RefreshCw
+                                    className={`mr-1.5 h-4 w-4 ${esperandoDespertar ? "animate-spin" : ""}`}
+                                />
+                                {esperandoDespertar ? "Esperando al demonio…" : "Esperar y probar"}
+                            </Button>
+                        )}
                         {aviso && (
                             <p
                                 role="status"
@@ -244,8 +384,19 @@ export function PanelMotorVoz() {
                         )}
                     </div>
 
+                    {/* El demonio está cargando el modelo: no es que falte, es que tarda. */}
+                    {salud?.estado === "despertando" && (
+                        <div className="space-y-2 rounded-lg border border-amber-500/40 bg-amber-500/5 p-3">
+                            <p className="text-sm">
+                                El demonio está despertando: está cargando el modelo de voz
+                                (~900 MB) en memoria. Con el equipo al límite puede tardar más de
+                                30 segundos. Usa «Esperar y probar» y sonará en cuanto despierte.
+                            </p>
+                        </div>
+                    )}
+
                     {/* Comando para levantar el demonio cuando está apagado */}
-                    {salud && !salud.vivo && (
+                    {salud?.estado === "apagado" && (
                         <div className="space-y-2 rounded-lg border border-amber-500/40 bg-amber-500/5 p-3">
                             <p className="text-sm">
                                 El demonio está apagado. Para tener los niveles Estudio y Alta,
