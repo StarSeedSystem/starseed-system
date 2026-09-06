@@ -13,8 +13,22 @@ import {
 } from "../manifiesto";
 
 describe("Manifiesto de la Forja de Voz 1.58", () => {
-  test("debe tener 13 modelos fuente", () => {
-    expect(MODELOS_FUENTE).toHaveLength(13);
+  test("debe tener 16 modelos fuente", () => {
+    expect(MODELOS_FUENTE).toHaveLength(16);
+  });
+
+  test("modelosUsablesEnProducto incluye VibeVoice, VibeASR.cpp y Voicebox", () => {
+    const idsUsables = modelosUsablesEnProducto().map(modelo => modelo.id);
+    expect(idsUsables).toContain("vibevoice");
+    expect(idsUsables).toContain("vibeasr-cpp");
+    expect(idsUsables).toContain("voicebox");
+  });
+
+  test("existe el módulo reconocimiento-voz en desarrollo", () => {
+    const modulo = MODULOS_PROGRAMA.find(m => m.id === "reconocimiento-voz");
+    expect(modulo).toBeDefined();
+    expect(modulo?.estado).toBe("en-desarrollo");
+    expect(modulo?.origen).toEqual(expect.arrayContaining(["vibeasr-cpp", "vibevoice"]));
   });
 
   test("ninguno de modelosUsablesEnProducto tiene 'NC' en licencia ni licenciaPesos", () => {

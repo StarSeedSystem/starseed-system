@@ -199,3 +199,70 @@ Desde `MODELOS_FUENTE` (campo `queTomamos`), resumido:
 > Reglas transversales: TypeScript estricto sin `any`; cursor-pointer en lo
 > clicable; comentarios y textos en español (con acentos); nunca escribir claves
 > ni rutas de secretos; no tocar archivos fuera de la lista salvo imprescindible.
+
+---
+
+## 9. Motor de voces v2 (2026-09-06): VibeVoice · VibeASR.cpp · Voicebox
+
+> Ola 249 · «vamos a reconstruir el motor de las voces» integrando estos tres
+> sistemas con el procesamiento local Astraura 1.58-bit y probándolos en el
+> **Estudio de Voces**. Los datos de modelos, licencias y pesos nacen de
+> `MODELOS_FUENTE` en `src/lib/voces/forja/manifiesto.ts` (los tres quedan
+> `verificado: false`: están tomados de sus repos, pendientes de verificación en
+> esta máquina).
+
+### 9.1 Los tres sistemas
+
+| Sistema | Repo | Licencia | Qué es | Qué se toma |
+|---|---|---|---|---|
+| **VibeVoice** | `microsoft/VibeVoice` | MIT | Familia TTS+ASR: tokenizadores continuos a 7,5 Hz + LLM (Qwen2.5) + cabeza de difusión. `VibeVoice-ASR-BitNet` = reconocimiento de voz **ternario 1.58-bit** en CPU en tiempo real (RTF 0,52 en un M4 con 3 hilos); `VibeVoice-Realtime-0.5B` = TTS en streaming (~300 ms de latencia inicial) con español, PyTorch | `VibeVoice-ASR-BitNet` como reconocimiento de voz ternario del programa único (primer módulo 1.58-bit real) y `Realtime-0.5B` como candidato a TTS en streaming. Estado `candidato-principal` |
+| **VibeASR.cpp** | `microsoft/VibeASR.cpp` | MIT | Runtime oficial en C++/GGML de VibeVoice-ASR-BitNet con kernels SIMD (AVX2, NEON); CPU en tiempo real (RTF 0,52 en M4). Build: `cmake -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build -j`; binario `./build/bin/asr_infer --vae-model <ruta> --lm-model <ruta> --audio input.wav -t 4`. Modelos GGUF en HF `microsoft/VibeVoice-ASR-BitNet`: `vibeasr-vae-encoder-i8_s.gguf` (703.080.064 B) y `vibeasr-lm-i2_s-embed-q6_k.gguf` (992.877.600 B), **1,58 GB en total** | El binario `asr_infer` y los GGUF `I8_S`/`I2_S` como **motor de reconocimiento local del demonio de voz**. Estado `en-uso`. Misma familia GGML que omnivoice.cpp y BitNet, sin GPU |
+| **Voicebox** | `jamiepine/voicebox` | MIT | Estudio de voz de escritorio (Tauri + FastAPI + React) con 7 motores de clonación (Qwen3-TTS, Chatterbox, Kokoro, HumeAI TADA…), Whisper para STT, API REST en el puerto **17493** (`POST /generate`, `POST /speak`, `POST /transcribe`, `GET /profiles`) y MCP en `/mcp` | Los **patrones del estudio**: cola de generación asíncrona con estado en vivo (SSE), historial de tomas con versiones y linaje, cadena de efectos (pitch, reverb, delay, chorus, compresor, filtros; 4 presets), editor multipista «Stories», perfiles de voz con varias muestras; y su **API como motor externo opcional**. Estado `candidato` |
+
+### 9.2 Cómo encaja en el programa único
+
+- **Oído** = `VibeASR.cpp` **ternario** en el demonio (módulo `reconocimiento-voz`,
+  estado `en-desarrollo`), con Whisper en navegador como respaldo. Es el **primer
+  módulo 1.58-bit real** que corre de verdad en la Mac de 8 GB.
+- **Voz** = OmniVoice hoy (motor único `hablarStarSeed`); **VibeVoice-Realtime-0.5B**
+  queda como candidato a TTS en streaming (latencia inicial ~300 ms).
+- **Estudio** = patrones de Voicebox: cola de generación, historial de tomas con
+  linaje y cadena de efectos (módulo `efectos-y-tomas`, `planeado`).
+- Hitos en el manifiesto: fase 1 → `asr-ternario` («reconocimiento de voz 1.58-bit
+  con VibeASR.cpp en el demonio», `en-curso`); fase 3 → `efectos-y-tomas` («cola de
+  generación, historial de tomas y cadena de efectos al estilo Voicebox», `pendiente`).
+
+### 9.3 Rutas exactas en el repo (objetivo de integración)
+
+| Pieza | Ruta |
+|---|---|
+| Demonio de voz (rutas HTTP) | `native/astraura-voice/daemon.mjs` — añadir `POST /asr` (junto a `GET /status`, `POST /tts`, `POST /warm`) |
+| Proxy del OS (allowlist) | `src/app/api/voz-local/[...ruta]/route.ts` — añadir `"asr"` a `RUTAS` |
+| Instalador del reconocimiento | `native/astraura-voice/install-vibeasr.sh` |
+| Carpeta del runtime | `~/.starseed/astraura-voice/vibeasr.cpp/` |
+| Modelos GGUF | `~/.starseed/astraura-voice/vibeasr.cpp/models/` (`vibeasr-vae-encoder-i8_s.gguf` + `vibeasr-lm-i2_s-embed-q6_k.gguf`, 1,58 GB) |
+
+### 9.4 Memoria y carga
+
+La Mac de Alex tiene **8 GB**: el reconocimiento no convive en RAM con el `tts-server`
+salvo que quepa. Cada motor (ASR o TTS) se carga **bajo demanda y se libera**; nada
+corre en paralelo con el tts-server salvo que el demonio lo decida. Los 1,58 GB de
+modelos ASR se cargan por petición y se descargan al terminar.
+
+### 9.5 Criterio de verificación
+
+Una **nota de voz en español** grabada desde el Estudio de Voces se transcribe por
+el oído ternario (`POST /asr` → `asr_infer`) y el texto resultante aparece en
+pantalla. Todo en local, sin GPU y sin agotar ningún proveedor (gratis primero,
+relevo a Whisper del navegador si el ternario no responde).
+
+---
+
+## 10. Próximos pasos del motor v2 (para el enjambre)
+
+| # | Tarea | Archivo | Criterio de verificación |
+|---|---|---|---|
+| 1 | Instalador y runtime de VibeASR.cpp en el demonio (build + modelos) | `native/astraura-voice/install-vibeasr.sh` | `asr_infer` transcribe una nota de voz en español |
+| 2 | Ruta `POST /asr` en el demonio y `"asr"` en la allowlist del proxy | `native/astraura-voice/daemon.mjs`, `src/app/api/voz-local/[...ruta]/route.ts` | `POST /api/voz-local/asr` devuelve texto |
+| 3 | Módulo `reconocimiento-voz` cableado (ternario primero, Whisper de respaldo) | `src/lib/voces/forja/` | Transcripción con fallback correcto, sin `any` |
+| 4 | Patrones de Voicebox (cola, tomas, efectos) en el Estudio de Voces | `src/components/voces/` + `src/lib/voces/` | Historial con linaje y cadena de efectos funcionales |

@@ -170,6 +170,42 @@ export const MODELOS_FUENTE: ModeloFuente[] = [
     queTomamos: "el motor de inferencia ternario y la receta de cuantización consciente del entrenamiento (QAT) para el modelo acústico",
     motivo: "es el núcleo 1.58 de Astraura",
     verificado: false
+  },
+  {
+    id: "vibevoice",
+    nombre: "VibeVoice (Microsoft)",
+    repo: "https://github.com/microsoft/VibeVoice",
+    licencia: "MIT",
+    arquitectura: "familia TTS+ASR: tokenizadores continuos a 7,5 Hz + LLM (Qwen2.5) + cabeza de difusión; Realtime-0.5B en streaming con español; ASR-BitNet ternario 1.58-bit",
+    idiomas: "TTS multilingüe con español (Realtime-0.5B), ASR 50+",
+    estado: "candidato-principal",
+    queTomamos: "VibeVoice-ASR-BitNet como reconocimiento de voz ternario del programa único (primer módulo 1.58-bit real) y Realtime-0.5B como candidato a TTS en streaming",
+    motivo: "es el único sistema abierto con un modelo de voz ya cuantizado a 1.58-bit por su autor",
+    verificado: false
+  },
+  {
+    id: "vibeasr-cpp",
+    nombre: "VibeASR.cpp (Microsoft)",
+    repo: "https://github.com/microsoft/VibeASR.cpp",
+    licencia: "MIT",
+    arquitectura: "runtime C++/GGML con kernels SIMD (AVX2, NEON) para VibeVoice-ASR-BitNet; CPU en tiempo real (RTF 0,52 en M4)",
+    idiomas: "inglés, francés, italiano, coreano, portugués, vietnamita, chino (español por probar)",
+    estado: "en-uso",
+    queTomamos: "el binario asr_infer y los GGUF I8_S/I2_S como motor de reconocimiento local del demonio de voz",
+    motivo: "1,58 GB, sin GPU, misma familia GGML que omnivoice.cpp y BitNet",
+    verificado: false
+  },
+  {
+    id: "voicebox",
+    nombre: "Voicebox (jamiepine)",
+    repo: "https://github.com/jamiepine/voicebox",
+    licencia: "MIT",
+    arquitectura: "estudio de voz de escritorio (Tauri + FastAPI + React): 7 motores de clonación, Whisper, cola asíncrona, historial con versiones, cadena de efectos, editor multipista, API REST 17493 y MCP",
+    idiomas: "según motor",
+    estado: "candidato",
+    queTomamos: "los patrones del estudio: cola de generación con estado en vivo, historial de tomas con linaje, cadena de efectos con presets y perfiles con varias muestras; y su API como motor externo opcional",
+    motivo: "MIT y el estudio más completo en abierto",
+    verificado: false
   }
 ];
 
@@ -209,6 +245,11 @@ export const FASES_FORJA: FaseForja[] = [
         id: "acustico-ternario",
         titulo: "QAT 1.58-bit de un LM de tokens de audio tipo Orpheus con la receta de BitNet",
         estado: "bloqueado-por-hardware"
+      },
+      {
+        id: "asr-ternario",
+        titulo: "reconocimiento de voz 1.58-bit con VibeASR.cpp en el demonio",
+        estado: "en-curso"
       }
     ]
   },
@@ -253,6 +294,11 @@ export const FASES_FORJA: FaseForja[] = [
         id: "versiones-guardadas",
         titulo: "Versiones del estudio",
         estado: "hecho"
+      },
+      {
+        id: "efectos-y-tomas",
+        titulo: "cola de generación, historial de tomas y cadena de efectos al estilo Voicebox",
+        estado: "pendiente"
       }
     ]
   },
@@ -356,6 +402,20 @@ export const MODULOS_PROGRAMA: ModuloPrograma[] = [
     origen: ["gpt-sovits"],
     estado: "planeado",
     descripcion: "clonación con 1 min de audio, VITS + GPT"
+  },
+  {
+    id: "reconocimiento-voz",
+    nombre: "reconocimiento-voz",
+    origen: ["vibeasr-cpp", "vibevoice"],
+    estado: "en-desarrollo",
+    descripcion: "oído del programa: VibeASR.cpp ternario en el demonio, con Whisper en navegador como respaldo"
+  },
+  {
+    id: "efectos-y-tomas",
+    nombre: "efectos-y-tomas",
+    origen: ["voicebox"],
+    estado: "planeado",
+    descripcion: "cola de generación, historial de tomas y cadena de efectos al estilo Voicebox"
   }
 ];
 
