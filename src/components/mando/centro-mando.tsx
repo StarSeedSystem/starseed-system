@@ -31,6 +31,10 @@ import { escuchar as escucharAsistente } from "@/lib/mando/asistente-cliente";
 import { PanelAreas } from "@/components/mando/panel-areas";
 import { PanelEntornos } from "@/components/mando/panel-entornos";
 import { PanelAjustes } from "@/components/mando/panel-ajustes";
+import { PanelNeurona } from "@/components/mando/panel-neurona";
+// Solo el tipo viaja al cliente: `neurona.ts` es código de servidor (sonda la
+// máquina) y un import de valor metería `node:child_process` en el bundle web.
+import type { SaludNeurona } from "@/lib/mando/neurona";
 
 const CLAVE_PESTANA = "starseed.mando.pestana";
 
@@ -39,6 +43,7 @@ const PESTANAS = [
     { id: "procesos", etiqueta: "Procesos" },
     { id: "olas", etiqueta: "Olas e informes" },
     { id: "flota", etiqueta: "Flota" },
+    { id: "neurona", etiqueta: "Neurona" },
     { id: "chat", etiqueta: "Chat" },
     { id: "areas", etiqueta: "Áreas" },
     { id: "entornos", etiqueta: "Entornos" },
@@ -109,6 +114,9 @@ export function CentroMando() {
 
     const [pestana, setPestana] = useState<IdPestana>("procesos");
     const [estado, setEstado] = useState<EstadoMando | null>(null);
+    // Salud de la neurona (memoria, voz, BitNet, Ollama) para los medidores de
+    // la cabecera; si la sonda falla, se queda en null y la cabecera sigue igual.
+    const [neurona, setNeurona] = useState<SaludNeurona | null>(null);
     const [soloLocal, setSoloLocal] = useState(false);
     const [cargando, setCargando] = useState(true);
 
@@ -145,14 +153,23 @@ export function CentroMando() {
             if (enCurso || (!forzar && document.visibilityState === "hidden")) return;
             enCurso = true;
             try {
-                const respuesta = await fetch("/api/mando/estado", { cache: "no-store" });
+                // Estado del trabajo y salud de la neurona se piden en paralelo y
+                // por separado (allSettled): si la sonda falla (por ejemplo, se
+                // agotó la memoria midiendo) la cabecera del trabajo no se cae.
+                const [resEstado, resNeurona] = await Promise.allSettled([
+                    fetch("/api/mando/estado", { cache: "no-store" }),
+                    fetch("/api/mando/neurona", { cache: "no-store" }),
+                ]);
                 if (!vivo) return;
-                if (!respuesta.ok) {
+                if (resEstado.status !== "fulfilled" || !resEstado.value.ok) {
                     setSoloLocal(true);
                     return;
                 }
-                setEstado((await respuesta.json()) as EstadoMando);
+                setEstado((await resEstado.value.json()) as EstadoMando);
                 setSoloLocal(false);
+                if (resNeurona.status === "fulfilled" && resNeurona.value.ok) {
+                    setNeurona((await resNeurona.value.json()) as SaludNeurona);
+                }
             } catch {
                 if (vivo) setSoloLocal(true);
             } finally {
@@ -217,6 +234,32 @@ export function CentroMando() {
         };
     }, [estado]);
 
+    // Medidores de la neurona en la cabecera (Ola 258): memoria disponible de
+    // verdad (libre + inactiva) y estado del llama-server BitNet. Mismos umbrales
+    // que el PanelNeurona para que cabecera y pestaña digan lo mismo.
+    const pulsoNeurona = useMemo(() => {
+        if (!neurona) return null;
+        const m = neurona.memoria;
+        const disponibleMb = (m.libreMb ?? 0) + (m.inactivaMb ?? 0);
+        const memoriaTono: "peligro" | "aviso" | "normal" =
+            disponibleMb < 800 ? "peligro" : disponibleMb < 1500 ? "aviso" : "normal";
+        const bitnetTono: "ok" | "aviso" = neurona.bitnet.estado === "vivo" ? "ok" : "aviso";
+        return {
+            memoriaValor: `${Math.round(disponibleMb)} MB`,
+            memoriaTono,
+            memoriaDetalle:
+                m.swapUsadoMb !== null && m.swapUsadoMb !== undefined
+                    ? `swap ${Math.round(m.swapUsadoMb)} MB`
+                    : undefined,
+            bitnetValor: neurona.bitnet.estado,
+            bitnetTono,
+            bitnetDetalle:
+                neurona.bitnet.crashes24h && neurona.bitnet.crashes24h > 0
+                    ? `${neurona.bitnet.crashes24h} crashes en 24 h`
+                    : undefined,
+        };
+    }, [neurona]);
+
     return (
         <div className="space-y-5">
             {cargando ? (
@@ -259,6 +302,22 @@ export function CentroMando() {
                         valor={String(pulso.agotados)}
                         tono={pulso.agotados > 0 ? "peligro" : "normal"}
                     />
+                    {pulsoNeurona ? (
+                        <>
+                            <DatoPulso
+                                titulo="Memoria"
+                                valor={pulsoNeurona.memoriaValor}
+                                tono={pulsoNeurona.memoriaTono}
+                                detalle={pulsoNeurona.memoriaDetalle}
+                            />
+                            <DatoPulso
+                                titulo="BitNet 1.58"
+                                valor={pulsoNeurona.bitnetValor}
+                                tono={pulsoNeurona.bitnetTono}
+                                detalle={pulsoNeurona.bitnetDetalle}
+                            />
+                        </>
+                    ) : null}
                     {estado?.cuentas ? (
                         <>
                             <DatoPulso titulo="Integradas" valor={String(estado.cuentas.integradas)} tono="ok" detalle={`${estado.cuentas.ola} · últimas ${estado.cuentas.ultimas.olas} olas: ${estado.cuentas.ultimas.integradas}`} />
@@ -282,6 +341,19 @@ export function CentroMando() {
                 </ul>
             ) : null}
 
+            {neurona && neurona.avisos.length > 0 ? (
+                // Primer aviso de la neurona con la misma estética de peligro que
+                // el «Nube sin lanzador» de la cabecera: rojo suave, borde tenue.
+                <p
+                    role="status"
+                    data-testid="aviso-neurona"
+                    className="flex items-center gap-2 rounded-lg border border-red-400/30 bg-red-500/10 px-3 py-2 text-xs text-red-200"
+                >
+                    <ShieldAlert className="h-4 w-4 shrink-0" aria-hidden />
+                    {neurona.avisos[0]}
+                </p>
+            ) : null}
+
             <Tabs value={pestana} onValueChange={alCambiarPestana}>
                 <TabsList aria-label="Pestañas del Centro de Mando" className="flex-wrap">
                     {PESTANAS.map((p) => (
@@ -299,6 +371,9 @@ export function CentroMando() {
                 </TabsContent>
                 <TabsContent value="flota">
                     <PanelFlota />
+                </TabsContent>
+                <TabsContent value="neurona">
+                    <PanelNeurona />
                 </TabsContent>
                 <TabsContent value="chat">
                     <ChatOrquestacion />
