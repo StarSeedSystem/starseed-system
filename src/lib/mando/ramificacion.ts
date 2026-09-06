@@ -166,6 +166,29 @@ export function numeroOla(etiqueta: string): number {
     return m ? Number.parseInt(m[1], 10) : 0;
 }
 
+/**
+ * Clave de identidad de una tarea: `ola|id`. Los ids se REPITEN entre olas (R1-R4 de la
+ * Ola 227 y de la 247 no son las mismas), así que deduplicar solo por id hacía invisibles
+ * las tareas del bus cuando esta máquina ya conocía una cola vieja con esos ids (2026-09-05).
+ */
+export function claveTarea(ola: string, id: string): string {
+    return `${ola}|${id}`;
+}
+
+/** Nombre de cola normalizado: sin `cola-` ni `.json`, como hace `TareaOla.cola`. */
+function normalizarCola(cola: string): string {
+    return cola.replace(/^cola-/, "").replace(/\.json$/, "");
+}
+
+/**
+ * Clave de un latido: `cola|tarea`. Los latidos llegan por el bus con otro formato de cola
+ * que los locales (`cola-247-rito-fluido.json` vs `247-rito-fluido`), así que aquí se
+ * normaliza; sin esto, el latido de «R2» de la Ola 247 se pegaba a la «R2» de la Ola 227.
+ */
+export function claveLatido(cola: string, tarea: string): string {
+    return `${normalizarCola(cola)}|${tarea}`;
+}
+
 /** Pasos locales: `olas/pasos/<id>.jsonl` (una línea JSON por paso). */
 async function leerPasosLocales(): Promise<Map<string, PasoRama[]>> {
     const salida = new Map<string, PasoRama[]>();
@@ -284,18 +307,29 @@ export async function construirRamificacion(cuantas = 4, horasBus = 24 * 30): Pr
     ]);
 
     // Latidos: lo local manda sobre el bus para la misma tarea; la nube se añade.
-    const idsMac = new Set(latidosMac.map((l) => `${l.cola}|${l.tarea}`));
+    const idsMac = new Set(latidosMac.map((l) => claveLatido(l.cola, l.tarea)));
     const latidos = [
         ...latidosMac,
-        ...delBus.latidos.filter((l) => l.donde !== "mac" || !idsMac.has(`${l.cola}|${l.tarea}`)),
+        ...delBus.latidos.filter((l) => l.donde !== "mac" || !idsMac.has(claveLatido(l.cola, l.tarea))),
     ];
+    // Indexado por `cola|tarea`: un id solo no basta, porque se repite entre olas.
     const vivoPor = new Map<string, LatidoTarea>();
-    for (const l of latidos) vivoPor.set(l.tarea, l);
+    for (const l of latidos) vivoPor.set(claveLatido(l.cola, l.tarea), l);
+    /**
+     * Latido de una tarea: primero por su cola conocida; solo si la tarea no tiene cola
+     * (aún no se sabe de dónde salió) se busca por id a secas, aceptando la ambigüedad.
+     */
+    const latidoDe = (t: { id: string; cola?: string }): LatidoTarea | null => {
+        if (t.cola) return vivoPor.get(claveLatido(t.cola, t.id)) ?? null;
+        return latidos.find((l) => l.tarea === t.id) ?? null;
+    };
 
     // Bus por tarea, en orden cronológico. Los «arranque» traen la cola entera: si esta
     // máquina no tiene ese archivo (la ola corre en la otra), las tareas se toman de ahí.
     const busPor = new Map<string, FilaBus[]>();
-    const conocidas = new Set(tareas.map((t) => t.id));
+    // Una tarea del bus solo se descarta si YA existe esa misma ola|id (no basta el id:
+    // la Ola 227 local no puede ocultar las R1-R4 de la Ola 247 que llegan por el bus).
+    const conocidas = new Set(tareas.map((t) => claveTarea(t.ola || t.id, t.id)));
     for (const f of bus) {
         if (f.tipo === "arranque") {
             const d = objeto(f.datos);
@@ -303,15 +337,17 @@ export async function construirRamificacion(cuantas = 4, horasBus = 24 * 30): Pr
             for (const bruto of lista) {
                 const t = objeto(bruto);
                 const id = texto(t.id);
-                if (!id || conocidas.has(id)) continue;
-                conocidas.add(id);
+                const cola = normalizarCola(texto(d.cola));
+                const ola = texto(t.ola) || cola;
+                if (!id || conocidas.has(claveTarea(ola, id))) continue;
+                conocidas.add(claveTarea(ola, id));
                 const deps = Array.isArray(t.depende) ? (t.depende as unknown[]) : [];
                 tareas.push({
                     id,
-                    ola: texto(t.ola) || texto(d.cola).replace(/^cola-/, ""),
+                    ola,
                     titulo: texto(t.titulo),
                     dependencias: deps.map((x) => texto(x)).filter(Boolean),
-                    cola: texto(d.cola).replace(/^cola-/, "").replace(/\.json$/, ""),
+                    cola,
                 });
             }
             continue;
@@ -331,7 +367,7 @@ export async function construirRamificacion(cuantas = 4, horasBus = 24 * 30): Pr
         const lista = porOla.get(clave) ?? [];
         const previa = lista.find((x) => x.id === t.id);
         if (previa) {
-            const viva = vivoPor.get(t.id)?.cola;
+            const viva = latidoDe(t)?.cola;
             const prefiereNueva = viva ? t.cola === viva : (t.cola ?? "").length > (previa.cola ?? "").length;
             if (prefiereNueva) previa.cola = t.cola;
             for (const d of t.dependencias) if (!previa.dependencias.includes(d)) previa.dependencias.push(d);
@@ -355,7 +391,7 @@ export async function construirRamificacion(cuantas = 4, horasBus = 24 * 30): Pr
         for (const t of lista) {
             const prog = objeto(progreso[t.id]);
             const eventos = busPor.get(t.id) ?? [];
-            const vivo = vivoPor.get(t.id) ?? null;
+            const vivo = latidoDe(t);
 
             // Estado: local si es terminal; si no, el último evento terminal del bus; si no,
             // en_curso si hay latido o un «inicio» reciente sin cierre; si no, pendiente.
