@@ -18,7 +18,7 @@ import { NextRequest, NextResponse } from "next/server";
 export const runtime = "nodejs";
 
 const DAEMON = "http://127.0.0.1:4444";
-const RUTAS = new Set(["status", "tts", "warm", "identity"]);
+const RUTAS = new Set(["status", "tts", "warm", "identity", "asr"]);
 
 async function reenviar(req: NextRequest, ruta: string[]): Promise<Response> {
     const destino = ruta.join("/");
@@ -27,13 +27,24 @@ async function reenviar(req: NextRequest, ruta: string[]): Promise<Response> {
         const ctrl = new AbortController();
         // tts: una frase larga tarda ~90 s en un M1/8 GB y el daemon da 150 s al servidor
         // residente; con 120 s las últimas frases de un párrafo se quedaban mudas.
-        const t = setTimeout(() => ctrl.abort(), destino === "tts" ? 200_000 : 5_000);
-        const r = await fetch(`${DAEMON}/${destino}`, {
+        // asr: el daemon da 120 s al proceso asr_infer; damos 130 s de margen.
+        const t = setTimeout(() => ctrl.abort(), destino === "tts" ? 200_000 : destino === "asr" ? 130_000 : 5_000);
+        // Multipart (campo `audio` de /asr): reenviamos el cuerpo binario TAL CUAL,
+        // pasando el stream del request con duplex:"half" y la cabecera content-type
+        // original (incluye el boundary), para no romper el parseo en el daemon.
+        const contentType = req.headers.get("content-type") || "application/json";
+        const esMultipart = contentType.startsWith("multipart/form-data");
+        const body = req.method === "POST" ? (esMultipart ? req.body : await req.text()) : undefined;
+        const init: RequestInit = {
             method: req.method,
-            headers: { "Content-Type": req.headers.get("content-type") || "application/json" },
-            body: req.method === "POST" ? await req.text() : undefined,
+            headers: { "Content-Type": contentType },
             signal: ctrl.signal,
-        });
+        };
+        if (body !== undefined) {
+            init.body = body as BodyInit;
+            if (esMultipart) (init as RequestInit & { duplex: string }).duplex = "half";
+        }
+        const r = await fetch(`${DAEMON}/${destino}`, init);
         clearTimeout(t);
         const cuerpo = await r.arrayBuffer();
         return new Response(cuerpo, {

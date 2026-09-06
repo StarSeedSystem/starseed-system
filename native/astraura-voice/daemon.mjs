@@ -63,7 +63,7 @@ import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import {
   PATHS,
   BIN,
@@ -143,6 +143,20 @@ const SERVER_SYNTH_TIMEOUT_MS = 150 * 1000; // presupuesto por síntesis del SER
 const MAX_BODY_BYTES = 512 * 1024; // límite del cuerpo POST
 const MAX_TEXT_CHARS = 8000; // límite de texto por locución
 const MAX_QUEUE = 8; // síntesis en cola antes de responder 503
+
+// ── Parámetros del OÍDO LOCAL (ASR ternario VibeASR.cpp, Adenda 249) ─────────
+// Reconstrucción del motor de voces v2: VibeVoice-ASR-BitNet (ternario 1.58-bit)
+// reconoce voz en CPU en tiempo real a través del runtime C++/GGML `asr_infer`.
+// Aquí se define dónde vive (VIBEASR_DIR, reutilizando la misma carpeta BASE que
+// omnivoice.cpp), cuántos hilos usa y el cupo de la cola FIFO de un solo proceso.
+const VIBEASR_DIR = process.env.STARSEED_VIBEASR_DIR || path.join(PATHS.root, "vibeasr.cpp");
+const VIBEASR_HILOS = process.env.STARSEED_VIBEASR_HILOS || "3";
+const VIBEASR_BIN = "asr_infer";
+const VIBEASR_MODEL_VAE = "vibeasr-vae-encoder-i8_s.gguf";
+const VIBEASR_MODEL_LM = "vibeasr-lm-i2_s-embed-q6_k.gguf";
+const ASR_MAX_BODY_BYTES = 25 * 1024 * 1024; // audio ≤ 25 MB
+const ASR_TIMEOUT_MS = 120 * 1000; // presupuesto por reconocimiento (mata el proceso si se pasa)
+const ASR_MAX_QUEUE = 4; // reconocimientos esperando antes de responder 503
 const RAM_CACHE_MAX = 16; // WAV cacheados en RAM (se purgan al dormir)
 const DISK_CACHE_MAX = 64; // WAV cacheados en disco (cache/)
 
@@ -166,6 +180,55 @@ let lastReq = Date.now(); // última SÍNTESIS (no cuenta /status)
 let inFlight = 0; // síntesis (servidor o CLI) ejecutándose ahora
 let queueDepth = 0; // síntesis esperando su turno
 const ramCache = new Map(); // hash → Buffer (LRU sencillo)
+
+// ── Estado del OÍDO (ASR VibeASR.cpp, Adenda 249) ─────────────────────────────
+// Un ÚNICO proceso `asr_infer` a la vez (un solo uso de CPU/8 GB: el modelo
+// ternario ocupa 1,58 GB y no debe convivir con el tts-server ni con otro ASR).
+// `asrBusy` marca si el proceso corre AHORA; `asrQueueDepth` cuenta los
+// reconocimientos esperando su turno en la cola FIFO. Sin cerrojo separado: la
+// cola serializa los trabajos igual que `enqueue` (ver función enqueueAsr).
+let asrBusy = false;
+let asrQueueDepth = 0;
+let asrChain = Promise.resolve();
+function enqueueAsr(job) {
+  if (asrQueueDepth >= ASR_MAX_QUEUE) return Promise.reject(new Error("cola llena"));
+  asrQueueDepth++;
+  const run = asrChain.then(async () => {
+    asrQueueDepth--;
+    asrBusy = true;
+    try {
+      return await job();
+    } finally {
+      asrBusy = false;
+    }
+  });
+  // La cadena sigue aunque un trabajo falle (no rompe la cola).
+  asrChain = run.then(
+    () => undefined,
+    () => undefined,
+  );
+  return run;
+}
+
+/** Rutas de los binarios/modelos de VibeASR.cpp (derivadas de VIBEASR_DIR). */
+function vibeasrPaths() {
+  const buildDir = path.join(VIBEASR_DIR, "build");
+  const binName = process.platform === "win32" ? `${VIBEASR_BIN}.exe` : VIBEASR_BIN;
+  return {
+    bin: path.join(buildDir, "bin", binName),
+    vae: path.join(VIBEASR_DIR, "models", VIBEASR_MODEL_VAE),
+    lm: path.join(VIBEASR_DIR, "models", VIBEASR_MODEL_LM),
+  };
+}
+
+/** ¿Está instalado VibeASR.cpp (binario + los dos modelos GGUF)? */
+function vibeasrStatus() {
+  const p = vibeasrPaths();
+  return {
+    instalado: fileOk(p.bin),
+    modelos: fileOk(p.vae) && fileOk(p.lm),
+  };
+}
 
 // ── Cola de síntesis (serializa TODA síntesis: servidor o CLI) ───────────────
 // El CLI carga el modelo entero en CADA llamada; en máquinas modestas dos cargas
@@ -904,6 +967,328 @@ function handleWarm(req, res, cors) {
     });
 }
 
+// ── /asr — OÍDO LOCAL (VibeASR.cpp ternario, Adenda 249) ─────────────────────
+//
+// Reconocimiento de voz TOTALLY local: el cuerpo es `multipart/form-data` con el
+// campo `audio` (WAV/WEBM/OGG/M4A, ≤ 25 MB) o JSON `{ audio_base64, mime }`. Se
+// guarda en un temporal, se convierte a WAV 16 kHz mono con `ffmpeg` (si no es
+// ya un WAV utilizable) y se pasa al binario `asr_infer` de VibeASR.cpp. UN
+// proceso a la vez (cola FIFO con cupo); la transcripción se parsea de stdout.
+// Los temporales se borran SIEMPRE. Si el binario o los modelos faltan, 503 con
+// la instrucción de instalación. Nunca lanza.
+
+/** ¿Es un WAV RIFF/WAVE que ya sirve (se asume PCM 16 kHz mono si está bien formado)? */
+function esWav16kMono(buf) {
+  try {
+    if (!isWav(buf)) return false;
+    const fmt = buf.toString("ascii", 12, 16); // "fmt "
+    if (fmt !== "fmt ") return false;
+    const channels = buf.readUInt16LE(22);
+    const sampleRate = buf.readUInt32LE(24);
+    return channels === 1 && sampleRate === 16000;
+  } catch {
+    return false;
+  }
+}
+
+/** ¿Existe el binario `ffmpeg` en el PATH? Se comprueba una vez y se recuerda. */
+let _ffmpeg = null;
+function hayFfmpeg() {
+  if (_ffmpeg !== null) return _ffmpeg;
+  _ffmpeg = false;
+  try {
+    const r = spawnSync("ffmpeg", ["-version"], { stdio: "ignore" });
+    _ffmpeg = r.error ? false : true;
+  } catch {
+    _ffmpeg = false;
+  }
+  return _ffmpeg;
+}
+
+/** Convierte un audio a WAV 16 kHz mono con ffmpeg. Devuelve {ok, error}. */
+function convertirAWav(entrada, salida) {
+  return new Promise((resolve) => {
+    let child;
+    try {
+      child = spawn("ffmpeg", ["-y", "-i", entrada, "-ac", "1", "-ar", "16000", "-f", "wav", salida], { stdio: ["ignore", "ignore", "pipe"] });
+    } catch (e) {
+      return resolve({ ok: false, error: `no se pudo lanzar ffmpeg: ${e.message}` });
+    }
+    let stderr = "";
+    const killer = setTimeout(() => {
+      try {
+        child.kill("SIGKILL");
+      } catch {
+        /* */
+      }
+      resolve({ ok: false, error: "timeout convirtiendo el audio" });
+    }, 60000);
+    child.stderr?.on("data", (d) => {
+      stderr += String(d);
+      if (stderr.length > 4096) stderr = stderr.slice(-4096);
+    });
+    child.on("error", (e) => resolve({ ok: false, error: e.message }));
+    child.on("close", (code) => {
+      clearTimeout(killer);
+      if (code !== 0) return resolve({ ok: false, error: `ffmpeg salió con código ${code}: ${stderr.trim().slice(-300)}` });
+      resolve({ ok: true });
+    });
+  });
+}
+
+/**
+ * Parseo de la salida de `asr_infer`: la transcripción es el texto de stdout
+ * tras la última línea que contenga «Transcription» o «Result». Si no aparece,
+ * se devuelve la última línea no vacía. Se recorta y se devuelve vacío si no hay.
+ */
+function parsearTranscripcion(stdout) {
+  const lines = String(stdout)
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean);
+  let idx = -1;
+  for (let i = 0; i < lines.length; i++) {
+    if (/Transcription|Result/i.test(lines[i])) idx = i;
+  }
+  if (idx >= 0 && idx < lines.length - 1) {
+    // El texto puede estar en la MISMA línea (p.ej. "Result: hola") o en la siguiente.
+    const after = lines[idx];
+    const m = after.match(/Transcription|Result[:\s]*/i);
+    const resto = m ? after.slice(m.index + m[0].length).trim() : "";
+    if (resto) return resto;
+    if (idx + 1 < lines.length) return lines[idx + 1];
+  }
+  if (idx >= 0) {
+    const m = lines[idx].match(/Transcription|Result[:\s]*/i);
+    const resto = m ? lines[idx].slice(m.index + m[0].length).trim() : "";
+    if (resto) return resto;
+  }
+  return lines.length ? lines[lines.length - 1] : "";
+}
+
+/**
+ * Ejecuta `asr_infer` sobre un WAV y devuelve { ok, texto, segundos }.
+ * NUNCA lanza: los errores van en el objeto de retorno. Mide el tiempo real.
+ */
+function runVibeasr(wavPath) {
+  const t0 = Date.now();
+  return new Promise((resolve) => {
+    const p = vibeasrPaths();
+    const args = [
+      "--vae-model", p.vae,
+      "--lm-model", p.lm,
+      "--audio", wavPath,
+      "-t", VIBEASR_HILOS,
+    ];
+    let child;
+    try {
+      child = spawn(p.bin, args, { cwd: VIBEASR_DIR, stdio: ["ignore", "pipe", "pipe"] });
+    } catch (e) {
+      return resolve({ ok: false, error: `no se pudo lanzar asr_infer: ${e.message}` });
+    }
+    let stdout = "";
+    let stderr = "";
+    const killer = setTimeout(() => {
+      try {
+        child.kill("SIGKILL");
+      } catch {
+        /* */
+      }
+      resolve({ ok: false, error: `timeout de reconocimiento (${ASR_TIMEOUT_MS} ms)` });
+    }, ASR_TIMEOUT_MS);
+    child.stdout?.on("data", (d) => {
+      stdout += String(d);
+      if (stdout.length > 65536) stdout = stdout.slice(-65536);
+    });
+    child.stderr?.on("data", (d) => {
+      stderr += String(d);
+      if (stderr.length > 8192) stderr = stderr.slice(-8192);
+    });
+    child.on("error", (e) => resolve({ ok: false, error: `error de proceso asr_infer: ${e.message}` }));
+    child.on("close", (code) => {
+      clearTimeout(killer);
+      const segundos = Math.round((Date.now() - t0) / 10) / 100;
+      if (code !== 0) {
+        return resolve({ ok: false, error: `asr_infer salió con código ${code}: ${stderr.trim().slice(-500)}` });
+      }
+      const texto = parsearTranscripcion(stdout);
+      resolve({ ok: true, texto, segundos });
+    });
+  });
+}
+
+/** Lee el cuerpo POST crudo hasta `maxBytes`. Devuelve Buffer o null (excedido). */
+function readRawBody(req, maxBytes) {
+  return new Promise((resolve) => {
+    const chunks = [];
+    let size = 0;
+    let aborted = false;
+    req.on("data", (c) => {
+      if (aborted) return;
+      size += c.length;
+      if (size > maxBytes) {
+        aborted = true;
+        resolve(null);
+        try {
+          req.destroy();
+        } catch {
+          /* */
+        }
+        return;
+      }
+      chunks.push(c);
+    });
+    req.on("end", () => !aborted && resolve(Buffer.concat(chunks)));
+    req.on("error", () => resolve(null));
+  });
+}
+
+/**
+ * Extrae el contenido binario del campo `audio` de un `multipart/form-data` ya
+ * recibido como Buffer. Devuelve { buf, nombre, mime } o null si no hay campo.
+ * Parser mínimo (un solo campo de fichero): busca la cabecera del campo entre
+ * límites. Suficiente para un upload de audio de un navegador (FormData).
+ */
+function parsearMultipartAudio(body, contentType) {
+  const m = /boundary=(?:"([^"]+)"|([^;]+))/i.exec(contentType || "");
+  const boundary = m ? (m[1] || m[2]).trim() : "";
+  if (!boundary) return null;
+  const delim = Buffer.from(`--${boundary}`);
+  // Buscamos la parte que contiene `name="audio"`.
+  const headerRe = /content-disposition:[^\r\n]*name="audio"/i;
+  const bufStr = body.toString("latin1");
+  const parts = bufStr.split(`--${boundary}`);
+  for (const part of parts) {
+    if (!headerRe.test(part)) continue;
+    // Separamos cabeceras del cuerpo binario por la primera CRLFCRLF (o LFLF).
+    const mimeMatch = /content-type:\s*([^\r\n;]+)/i.exec(part);
+    const mime = mimeMatch ? mimeMatch[1].trim() : "application/octet-stream";
+    const idx4 = part.indexOf("\r\n\r\n");
+    const idx2 = part.indexOf("\n\n");
+    let start = -1;
+    if (idx4 >= 0) start = idx4 + 4;
+    else if (idx2 >= 0) start = idx2 + 2;
+    if (start < 0) continue;
+    // El cuerpo termina antes del CRLF final que precede al siguiente límite.
+    const raw = part.slice(start);
+    let body2 = raw;
+    // Quita el CRLF (o LF) final que el multipart añade antes del límite.
+    if (body2.endsWith("\r\n")) body2 = body2.slice(0, -2);
+    else if (body2.endsWith("\n")) body2 = body2.slice(0, -1);
+    return { buf: Buffer.from(body2, "latin1"), mime };
+  }
+  return null;
+}
+
+async function handleAsr(req, res, cors) {
+  const est = vibeasrStatus();
+  if (!est.instalado || !est.modelos) {
+    return sendJson(res, 503, cors, {
+      ok: false,
+      error: "vibeasr no instalado",
+      instalar: "bash native/astraura-voice/install-vibeasr.sh",
+    });
+  }
+
+  const contentType = (req.headers["content-type"] || "").toLowerCase();
+  const raw = await readRawBody(req, ASR_MAX_BODY_BYTES);
+  if (raw === null) return sendJson(res, 413, cors, { ok: false, error: "audio demasiado grande (máx. 25 MB)" });
+
+  // Extrae el audio: multipart (campo `audio`) o JSON { audio_base64, mime }.
+  let audioBuf = null;
+  let mimeHint = "";
+  let nombre = "audio";
+  if (contentType.includes("multipart/form-data")) {
+    const parsed = parsearMultipartAudio(raw, contentType);
+    if (!parsed || !parsed.buf || parsed.buf.length === 0) {
+      return sendJson(res, 400, cors, { ok: false, error: "no se encontró el campo 'audio' en el multipart" });
+    }
+    audioBuf = parsed.buf;
+    mimeHint = parsed.mime;
+  } else {
+    let body;
+    try {
+      body = JSON.parse(raw.toString("utf8") || "{}");
+    } catch {
+      return sendJson(res, 400, cors, { ok: false, error: "cuerpo inválido: espera multipart con 'audio' o JSON { audio_base64, mime }" });
+    }
+    if (!body || typeof body.audio_base64 !== "string" || !body.audio_base64) {
+      return sendJson(res, 400, cors, { ok: false, error: "falta 'audio_base64'" });
+    }
+    mimeHint = typeof body.mime === "string" ? body.mime : "audio/wav";
+    try {
+      audioBuf = Buffer.from(body.audio_base64, "base64");
+    } catch {
+      return sendJson(res, 400, cors, { ok: false, error: "audio_base64 no es base64 válido" });
+    }
+  }
+
+  if (!audioBuf || audioBuf.length === 0) {
+    return sendJson(res, 400, cors, { ok: false, error: "audio vacío" });
+  }
+
+  // Guarda en temporal y, si hace falta, convierte a WAV 16 kHz mono.
+  const ext = nombre.includes(".") ? "" : "";
+  const tmpIn = path.join(PATHS.tmpDir, `asr-in-${Date.now()}-${Math.random().toString(36).slice(2, 8)}${ext ? "" : ".bin"}`);
+  const tmpWav = path.join(PATHS.tmpDir, `asr-wav-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.wav`);
+  const limpiar = () => {
+    for (const f of [tmpIn, tmpWav]) {
+      try {
+        if (fs.existsSync(f)) fs.unlinkSync(f);
+      } catch {
+        /* */
+      }
+    }
+  };
+
+  try {
+    fs.writeFileSync(tmpIn, audioBuf);
+  } catch (e) {
+    limpiar();
+    return sendJson(res, 500, cors, { ok: false, error: `no se pudo escribir el temporal: ${e.message}` });
+  }
+
+  let wavPath = tmpIn;
+  if (!esWav16kMono(audioBuf)) {
+    if (!hayFfmpeg()) {
+      limpiar();
+      return sendJson(res, 415, cors, {
+        ok: false,
+        error: "formato de audio no soportado sin ffmpeg: instala ffmpeg o envía WAV 16 kHz mono",
+      });
+    }
+    const conv = await convertirAWav(tmpIn, tmpWav);
+    if (!conv.ok) {
+      limpiar();
+      return sendJson(res, 415, cors, { ok: false, error: `no se pudo convertir el audio a WAV 16 kHz mono: ${conv.error}` });
+    }
+    wavPath = tmpWav;
+  }
+
+  // UN proceso a la vez (cola FIFO con cupo).
+  let result;
+  try {
+    result = await enqueueAsr(() => runVibeasr(wavPath));
+  } catch (e) {
+    limpiar();
+    return sendJson(res, 503, cors, { ok: false, error: `cola llena: ${e.message}` });
+  }
+
+  limpiar();
+  if (!result.ok) {
+    log("daemon", `reconocimiento ASR fallido: ${result.error}`);
+    return sendJson(res, 500, cors, { ok: false, error: result.error });
+  }
+  return sendJson(res, 200, cors, {
+    ok: true,
+    texto: result.texto,
+    segundos: result.segundos,
+    idioma: null,
+    motor: "vibeasr.cpp",
+    modelo: "VibeVoice-ASR-BitNet",
+  });
+}
+
 // ── /status ──────────────────────────────────────────────────────────────────
 
 function handleStatus(res, cors) {
@@ -929,6 +1314,13 @@ function handleStatus(res, cors) {
     inFlight,
     queueDepth,
     cloudFallback: cfg?.capabilities?.cloudFallback || "k2-fsa/OmniVoice",
+    // OÍDO (Adenda 249): estado del ASR ternario VibeASR.cpp.
+    asr: {
+      instalado: vibeasrStatus().instalado,
+      modelos: vibeasrStatus().modelos,
+      ocupado: asrBusy,
+      cola: asrQueueDepth,
+    },
   };
   if (!state.ready) payload.reasons = state.reasons;
   sendJson(res, 200, cors, payload);
@@ -981,8 +1373,11 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "POST" && url === "/tts") {
       return await handleTts(req, res, cors);
     }
+    if (req.method === "POST" && url === "/asr") {
+      return await handleAsr(req, res, cors);
+    }
 
-    return sendJson(res, 404, cors, { ok: false, error: "ruta no encontrada", routes: ["GET /status", "POST /tts", "POST /identity", "POST /warm"] });
+    return sendJson(res, 404, cors, { ok: false, error: "ruta no encontrada", routes: ["GET /status", "POST /tts", "POST /identity", "POST /warm", "POST /asr"] });
   } catch (e) {
     // Blindaje total: ninguna petición mala tumba el daemon.
     try {
