@@ -15,8 +15,8 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
-import { createClient } from "@/utils/supabase/server";
 import type { CuentasTareas, EstadoMando, EventoRelevo, RepoInfo } from "@/lib/mando/tipos";
+import { guardianMando } from "@/lib/mando/guardian";
 import { construirRamificacion } from "@/lib/mando/ramificacion";
 import {
     leerColas,
@@ -39,11 +39,6 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const execFileAsync = promisify(execFile);
-
-/** Comprueba si el mando está permitido en esta instancia (solo local). */
-function mandoHabilitado(): boolean {
-    return process.env.NODE_ENV !== "production" || process.env.STARSEED_MANDO === "1";
-}
 
 /** Ejecuta un comando git de la lista fija y devuelve su stdout recortado. */
 async function git(cmd: string, args: string[]): Promise<string> {
@@ -94,27 +89,14 @@ async function leerRepo(): Promise<RepoInfo> {
     };
 }
 
-export async function GET(): Promise<Response> {
-    if (!mandoHabilitado()) {
-        return new Response("Not Found", { status: 404 });
-    }
-
-    // El mando ya responde 404 fuera de local (arriba). Exigir ADEMÁS sesión dejaba la
-    // consola inservible justo en la máquina donde tiene que usarse: la base puede estar
-    // vacía y aún no haber ninguna cuenta. En desarrollo basta con ese candado; si alguien
-    // levanta una instancia propia con STARSEED_MANDO=1, ahí sí se exige sesión porque
-    // entonces la consola es alcanzable desde fuera.
-    if (process.env.NODE_ENV === "production") {
-        try {
-            const supabase = await createClient();
-            const { data, error } = await supabase.auth.getUser();
-            if (error || !data.user) {
-                return Response.json({ error: "Necesitas iniciar sesión." }, { status: 401 });
-            }
-        } catch {
-            return Response.json({ error: "No se pudo verificar la sesión." }, { status: 401 });
-        }
-    }
+export async function GET(request: Request): Promise<Response> {
+    // La puerta completa vive en el guardián (Ola 253 · 2026-09-06): 404 fuera de
+    // local; sesión solo en producción desplegada; en un despliegue LOCAL (modo
+    // ligero en la neurona) pasa sin sesión, igual que las rutas de voz. Antes la
+    // puerta estaba duplicada aquí y pedía sesión en `next start` local, dejando
+    // la consola inservible justo en la máquina donde tiene que usarse.
+    const veto = await guardianMando(request);
+    if (veto) return veto;
 
     const [relevo, tareas, informes, uso, revisiones, repo, progreso, latidosMac, enMarcha, agentes, bus, eventosBus, rama, commitsGit] =
         await Promise.all([

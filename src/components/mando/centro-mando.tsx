@@ -233,10 +233,11 @@ export function CentroMando() {
                     <div>
                         <p className="font-semibold">La consola solo funciona en tu máquina.</p>
                         <p className="mt-1 text-amber-100/80">
-                            Las rutas <code>/api/mando/*</code> están apagadas en el
-                            despliegue público (responden 404) para no exponer el estado
-                            del desarrollo. Ábrela en <code>localhost</code> o en una
-                            instancia propia con <code>STARSEED_MANDO=1</code>.
+                            La consola está apagada en esta instancia (funciona en
+                            localhost, con <code>STARSEED_MANDO=1</code> o con sesión).
+                            Las rutas <code>/api/mando/*</code> responden 404 en el
+                            despliegue público para no exponer el estado del desarrollo;
+                            en tu máquina (modo ligero incluido) entran sin sesión.
                         </p>
                     </div>
                 </div>

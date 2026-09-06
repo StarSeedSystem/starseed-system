@@ -13,7 +13,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(peticion: Request): Promise<Response> {
-    const veto = await guardianMando();
+    const veto = await guardianMando(peticion);
     if (veto) return veto;
     const id = new URL(peticion.url).searchParams.get("id");
     if (id) {
@@ -24,7 +24,7 @@ export async function GET(peticion: Request): Promise<Response> {
 }
 
 export async function POST(peticion: Request): Promise<Response> {
-    const veto = await guardianMando();
+    const veto = await guardianMando(peticion);
     if (veto) return veto;
     let cuerpo: Record<string, unknown> = {};
     try {

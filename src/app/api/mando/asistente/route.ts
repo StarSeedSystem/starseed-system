@@ -18,7 +18,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 export async function POST(peticion: Request): Promise<Response> {
-    const veto = await guardianMando();
+    const veto = await guardianMando(peticion);
     if (veto) return veto;
     let cuerpo: Record<string, unknown> = {};
     try {

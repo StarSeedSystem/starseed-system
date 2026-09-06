@@ -70,7 +70,16 @@ arrancar() {
     return 0
   fi
   echo "🚀 Sirviendo el OS compilado en http://localhost:${PUERTO} (log: $LOG_SERVER)…"
-  (cd "$REPO" && NODE_ENV=production PORT=$PUERTO nohup npx next start -p "$PUERTO" >"$LOG_SERVER" 2>&1 &)
+  # STARSEED_MANDO=1 abre las rutas /api/mando/* en esta instancia producción y
+  # STARSEED_LOCAL=1 marca el despliegue como propio de la neurona: así la voz y
+  # el Puente de Mando funcionan SIN sesión en localhost (Ola 253 · 2026-09-06).
+  # Antes, el modo ligero devolvía «La consola está apagada» o 401 en /api/mando/*.
+  # Se guardan en /tmp/starseed-ligero.env para que `estado` pueda enseñarlas.
+  cat > /tmp/starseed-ligero.env <<EOF_ENV
+STARSEED_MANDO=1
+STARSEED_LOCAL=1
+EOF_ENV
+  (cd "$REPO" && NODE_ENV=production PORT=$PUERTO STARSEED_MANDO=1 STARSEED_LOCAL=1 nohup npx next start -p "$PUERTO" >"$LOG_SERVER" 2>&1 &)
   # Espera activa hasta 60 s: la primera carga puede tardar unos segundos.
   local codigo=""
   for _ in $(seq 1 60); do
@@ -111,6 +120,13 @@ estado() {
       mb=$(ps -o rss= -p "$pid" 2>/dev/null | awk '{printf "%.0f", $1/1024}' || echo "?")
       echo "🟢 pid $pid · ${mb} MB · http://localhost:${PUERTO}"
     done
+    # Variables con las que arrancó (guardadas por `arrancar`): si falta el Mando
+    # o el modo local del despliegue, la voz y la consola pedirían sesión.
+    if [ -f /tmp/starseed-ligero.env ]; then
+      echo "🔧 Entorno del arranque: $(tr '\n' ' ' < /tmp/starseed-ligero.env | sed 's/ $//')"
+    else
+      echo "⚠️  Sin /tmp/starseed-ligero.env: arrancó sin STARSEED_MANDO=1 ni STARSEED_LOCAL=1. Relanza con: $0 arrancar"
+    fi
   else
     echo "⚪ Modo ligero NO está corriendo en :${PUERTO}."
   fi

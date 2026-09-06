@@ -50,4 +50,4 @@ scripts/starseed-ligero.sh parar       # detiene el modo ligero
 scripts/starseed-ligero.sh dev         # vuelve al modo desarrollo con recarga en vivo
 ```
 
-Las rutas de servidor (`/api/mando/*`, `/api/voz-local/*`, `/api/ai/*`) funcionan **igual** en producción local: el daemon de voz (127.0.0.1:4500) y el 1.58 se hablan con el OS igual que en desarrollo. Úsalo solo para probar voz/modelos; para desarrollar con cambios en vivo, vuelve con `dev`.
+Las rutas de servidor (`/api/mando/*`, `/api/voz-local/*`, `/api/ai/*`) funcionan **igual** en producción local: el daemon de voz (127.0.0.1:4500) y el 1.58 se hablan con el OS igual que en desarrollo. Además, el arranque con `starseed-ligero.sh` exporta `STARSEED_MANDO=1` y `STARSEED_LOCAL=1`, así que el **Puente de Mando y la voz funcionan sin sesión en localhost** (la sesión solo se exige en el despliegue público; en Vercel nunca se abre la puerta). Úsalo solo para probar voz/modelos; para desarrollar con cambios en vivo, vuelve con `dev`.
