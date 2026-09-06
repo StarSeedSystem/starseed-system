@@ -21,9 +21,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
-import {
+	import {
     COMANDO_INSTALAR_OIDO,
     estadoOido,
+    presupuestoOidoMs,
     transcribirLocal,
     type EstadoOido,
 } from "@/lib/aurora/stt-oss/vibeasr-local";
@@ -44,6 +45,8 @@ interface Toma {
     texto: string;
     motor: string;
     segundos: number;
+    /** Duración del audio transcrito (para el RTF del historial). */
+    duracionS: number | null;
 }
 
 /** Cachea la duración del último blob grabado/subido (para el RTF aproximado). */
@@ -186,7 +189,13 @@ export function PanelOido() {
             }
             setTomas((prev) =>
                 [
-                    { id: siguienteId.current++, texto: r.texto, motor: r.motor, segundos: r.segundos },
+                    {
+                        id: siguienteId.current++,
+                        texto: r.texto,
+                        motor: r.motor,
+                        segundos: r.segundos,
+                        duracionS: audio.duracionS,
+                    },
                     ...prev,
                 ].slice(0, MAX_TOMAS),
             );
@@ -248,6 +257,33 @@ export function PanelOido() {
                                     : "Oído listo"}
                         </span>
                         {estado?.modelos && <Badge variant="secondary">modelos GGUF presentes</Badge>}
+                        {/* Ola 257: pastilla del oído residente — es la fuente real de
+                            latencia (si carga, la primera toma tarda mucho más). */}
+                        {estado != null && listo && (
+                            <Badge
+                                variant={
+                                    estado.residente
+                                        ? "default"
+                                        : estado.cargandoDesdeMs != null
+                                          ? "outline"
+                                          : "secondary"
+                                }
+                                className={
+                                    estado.residente
+                                        ? "bg-emerald-600 hover:bg-emerald-600"
+                                        : estado.cargandoDesdeMs != null
+                                          ? "border-amber-500/60 text-amber-600"
+                                          : ""
+                                }
+                                title="El residente mantiene 1,7 GB de modelos cargados en memoria y se duerme solo a los 5 minutos sin uso."
+                            >
+                                {estado.residente
+                                    ? "Residente listo"
+                                    : estado.cargandoDesdeMs != null
+                                      ? `Cargando modelos (${Math.round(estado.cargandoDesdeMs / 1000)} s)`
+                                      : "Residente dormido"}
+                            </Badge>
+                        )}
                         {estado != null && estado.cola > 0 && (
                             <Badge variant="outline">cola: {estado.cola}</Badge>
                         )}
@@ -263,6 +299,16 @@ export function PanelOido() {
                             Volver a medir
                         </Button>
                     </div>
+
+                    {/* Ola 257: nota tranquila cuando el oído cedió memoria a la voz,
+                        para entender por qué la siguiente transcripción puede tardar. */}
+                    {estado != null && (estado.cesiones ?? 0) > 0 && (
+                        <p className="text-xs text-muted-foreground">
+                            El oído cedió la memoria de la voz {estado.cesiones}{" "}
+                            {estado.cesiones === 1 ? "vez" : "veces"}; la voz vuelve a
+                            despertar sola en la siguiente locución.
+                        </p>
+                    )}
 
                     {/* Comando de instalación cuando falta el binario o los modelos */}
                     {estado != null && !listo && (
@@ -330,6 +376,17 @@ export function PanelOido() {
                             <Ear className="mr-1.5 h-4 w-4" />
                             {transcribiendo ? "Transcribiendo…" : "Transcribir con el oído 1.58"}
                         </Button>
+                        {/* Ola 257: presupuesto que el daemon dará a esta toma,
+                            según su duración (misma fórmula del demonio). */}
+                        {audio?.duracionS != null && (
+                            <span className="text-xs text-muted-foreground">
+                                Presupuesto: hasta{" "}
+                                {Math.round(presupuestoOidoMs(audio.duracionS) / 1000)} s
+                                {estado != null && !estado.residente
+                                    ? " (+ carga del residente, hasta 4 min)"
+                                    : ""}
+                            </span>
+                        )}
                         {/* oss-stt.ts solo dicta en vivo; no hay transcripción de blob. */}
                         <Button
                             type="button"
@@ -372,7 +429,16 @@ export function PanelOido() {
                                 >
                                     <p className="whitespace-pre-wrap">{t.texto}</p>
                                     <p className="mt-1 text-xs text-muted-foreground">
-                                        {t.motor} · {t.segundos.toFixed(1)} s
+                                        {/* «-residente» = modelos ya en memoria; si no,
+                                            fue un arranque one-shot (más lento). */}
+                                        {t.motor.endsWith("-residente") ? "residente" : "one-shot"} ·{" "}
+                                        {t.segundos.toFixed(1)} s
+                                        {t.duracionS != null && t.duracionS > 0 && (
+                                            <span title="segundos de cómputo por segundo de audio">
+                                                {" "}
+                                                · RTF {(t.segundos / t.duracionS).toFixed(1)}
+                                            </span>
+                                        )}
                                     </p>
                                 </li>
                             ))}

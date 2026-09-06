@@ -33,9 +33,11 @@ export interface EstadoOido {
     cargandoDesdeMs?: number | null;
     /** Presupuesto (ms) del último reconocimiento (proporcional al audio). */
     presupuestoMs?: number;
+    /** Veces que el oído cedió la memoria a la voz en esta sesión del daemon. */
+    cesiones?: number;
+    /** Marca temporal (epoch ms) de la última cesión, o null si no hubo. */
+    ultimaCesionMs?: number | null;
 }
-
-/** Resultado de una transcripción por el oído local. */
 export interface ResultadoOido {
     texto: string;
     /** Segundos que tardó el motor en transcribir. */
@@ -88,6 +90,8 @@ export async function estadoOido(): Promise<EstadoOido | null> {
             residente: a.residente === true,
             cargandoDesdeMs: typeof a.cargandoDesdeMs === "number" ? a.cargandoDesdeMs : null,
             presupuestoMs: typeof a.presupuestoMs === "number" ? a.presupuestoMs : undefined,
+            cesiones: typeof a.cesiones === "number" ? a.cesiones : undefined,
+            ultimaCesionMs: typeof a.ultimaCesionMs === "number" ? a.ultimaCesionMs : null,
         };
     } catch {
         return null;
