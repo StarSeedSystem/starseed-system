@@ -36,6 +36,17 @@ Estado y trazas: `starseed_memory_root/olas/{progreso.json,progreso.md,eventos.j
 - `STARSEED_MEDIO` — quién lanza (`claude`, `hermes`, `mando`, `cron`…); viaja en los eventos.
 - `STARSEED_APROBACION=1` — nodo humano: integra solo tras tu visto bueno (rama `ola/<id>` lista).
 
+## Puerta de alcance (Ola 259, E2)
+
+Al terminar la escritura, `alcance_tarea` compara los `archivos` pedidos por la cola con lo
+tocado de verdad en el worktree (diff sobre `main` + cambios sin commit). Si falta alguno se
+hace **una pasada de compleción** con el mismo modelo (fase `completando`, pintada como
+«escribiendo» en el Mando), repitiéndole el enunciado y permitiéndole justificar `SIN TOCAR
+<ruta>: <motivo>`. Si aun así siguen faltando, se registra el paso `alcance`, se emite el
+aviso «TAREA INCOMPLETA» y el revisor recibe el bloque ALCANCE: si el enunciado exigía esos
+cambios, debe marcarlo BLOQUEANTE. Nació el 2026-09-06, tras dos tareas integradas a medias
+(V8/255 y N2/258) sin que nadie lo notara. Prueba: `python3 -m pytest -q scripts/enjambre/test_alcance.py`.
+
 ## Puertas según el tipo de repo
 
 Si la raíz **no** tiene `tsconfig.json`, el orquestador lo trata como repo Python: compila con

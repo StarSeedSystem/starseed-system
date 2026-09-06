@@ -641,7 +641,7 @@ def confirmar_bloqueo(tid, titulo, motivo, diff):
     return "", "", True      # si nadie contesta, se respeta el bloqueo
 
 
-def revisar(tid, titulo, diff, impacto=""):
+def revisar(tid, titulo, diff, impacto="", alcance=""):
     prompt = ("Eres revisor senior de StarSeed OS (Next.js 15, React 19, TypeScript estricto, Supabase). Revisa este diff de la tarea «%s». "
               "Responde en español, máximo 220 palabras, con: **Riesgos reales** (numerados, solo los que de verdad rompan algo o abran un agujero), "
               "**Probar a mano en localhost** (3-4 pasos concretos) y **Seguimiento:** «no» si se puede fusionar tal cual, o «sí, bloqueante — <qué>» "
@@ -653,6 +653,9 @@ def revisar(tid, titulo, diff, impacto=""):
               "el commit ya pasó tsc y vitest antes de llegarte. Marca «bloqueante» SOLO por un defecto que veas en el código mostrado "
               "y que rompa el comportamiento, la seguridad o los datos. Si tu duda es de contexto, dila como riesgo y pon «Seguimiento: no».\n\n"
               + ("RADIO DE IMPACTO según el grafo del código (GitNexus): %s\nMira con más cuidado los flujos listados: son los que este diff toca.\n\n" % impacto if impacto else "")
+              # Puerta de alcance (Ola 259, E2): si la pasada de compleción no bastó, el
+              # revisor lo sabe y decide si el enunciado exigía de verdad esos archivos.
+              + ("ALCANCE: %s. Si el enunciado exigía esos cambios, marca BLOQUEANTE y di qué falta.\n\n" % alcance if alcance else "")
               + "```diff\n%s\n```") % (titulo, diff[:22000])
     for prov, modelo in REVISORES:
         try:
@@ -797,6 +800,36 @@ def vitest(cwd, log):
     with SEM_PESADO, cerrojo("pesado"):
         rc, out = sh("npx vitest run src/lib/__tests__", cwd=cwd, timeout=600, env=ENV_TSC, log=log)
     return rc, out
+
+def alcance_tarea(t, wt):
+    """Puerta de alcance (2026-09-06, Ola 259, E2): compara los archivos que la tarea pedía
+    tocar (`t["archivos"]`) con los tocados de verdad en el worktree (commits sobre main +
+    cambios sin commit). El 2026-09-06 se integraron DOS tareas a medias sin que el revisor
+    se diera cuenta (V8/255 y N2/258). Función pura: solo recibe `wt` y lanza git a mano,
+    para poder probarla desde un repo temporal sin montar el orquestador entero.
+    Un pedido que ya existía y no cambió cuenta como faltante: no sabemos si debía cambiar
+    y el modelo lo aclarará. `extra` ordenado para que el resultado sea determinista."""
+    pedidos = [str(a).strip() for a in (t.get("archivos") or []) if str(a).strip()]
+    tocados = []
+    def _git(*args):
+        p = subprocess.run(["git"] + list(args), cwd=wt, capture_output=True, text=True, timeout=60)
+        return (p.stdout or "")
+    for l in _git("diff", "--name-only", "main...HEAD").splitlines():
+        if l.strip():
+            tocados.append(l.strip())
+    # --porcelain cuenta lo que aún no tiene commit: «XY ruta»; en renombrados «XY vieja -> nueva».
+    for l in _git("status", "--porcelain").splitlines():
+        ruta = l[3:] if len(l) > 3 else ""
+        if " -> " in ruta:
+            ruta = ruta.split(" -> ")[-1]
+        ruta = ruta.strip().strip('"')
+        if ruta:
+            tocados.append(ruta)
+    tocados = sorted(set(tocados))
+    return {"pedidos": pedidos, "tocados": tocados,
+            "faltan": [p for p in pedidos if p not in tocados],
+            "extra": [x for x in tocados if x not in pedidos]}
+
 
 def worktree(tid):
     """Prepara el árbol de trabajo de la tarea. Una ola anterior que quedó en conflicto deja
@@ -1280,7 +1313,8 @@ def foto_enjambre(vivas_txt):
         "donde": os.environ.get("STARSEED_DONDE", "nube"),
         "medio": MEDIO,
         "tareas": tareas,
-        "agentesActivos": len([t for t in tareas if t["fase"] == "escribiendo"]),
+        # «completando» pinta como «escribiendo» en el Mando: es una escritura de alcance.
+        "agentesActivos": len([t for t in tareas if t["fase"] in ("escribiendo", "completando")]),
         "proveedores": {p: {"estado": (salud.get(p) or {}).get("estado", "vivo"),
                             "llamadasMin": len(CUPOS[p].ts), "rpm": CUPOS[p].rpm} for p in CUPOS},
         "memoriaMb": memoria_libre_mb(),
@@ -1311,7 +1345,9 @@ def vigilante():
                          "/" + (d.get("modelo") or "").split("/")[-1] if d.get("modelo") else "",
                          int((t - d.get("desde", t)) / 60)))
             escrito = bytes_log - d.get("base", 0)
-            if fase == "escribiendo" and escrito <= 0 and (t - d.get("desde", t)) > ARRANQUE_S:
+            # «completando» (puerta de alcance, Ola 259) es escritura: mismo trato por si se
+            # cuelga y misma pintura en el Mando (cuenta como agente escribiendo).
+            if fase in ("escribiendo", "completando") and escrito <= 0 and (t - d.get("desde", t)) > ARRANQUE_S:
                 with PROCESOS_LOCK: p = PROCESOS.get(tid)
                 d["desde"] = t; d["avance"] = t
                 if p and p.poll() is None:
@@ -1321,7 +1357,7 @@ def vigilante():
                     try: p.kill()
                     except Exception: pass
                 continue
-            if fase == "escribiendo" and quieto > ESTANCADO_S:
+            if fase in ("escribiendo", "completando") and quieto > ESTANCADO_S:
                 with PROCESOS_LOCK: p = PROCESOS.get(tid)
                 d["avance"] = t
                 if p and p.poll() is None:
@@ -1524,6 +1560,29 @@ def ejecutar(t, intento=1):
     if not cambios:
         set_estado(tid, estado="sin_cambios", modelo="-", segundos=int(time.time() - t0), nota="")
         evento("sin_cambios", tid, "ningún modelo tocó archivos"); limpiar_worktree(tid); return
+    # ── puerta de alcance (2026-09-06, Ola 259, E2): la escritura no vale si deja archivos ─
+    # pedidos sin tocar. Si faltan, UNA pasada de compleción con el mismo modelo; si aun así
+    # siguen faltando, aviso «TAREA INCOMPLETA» y el revisor lo recibe explicado (`alcance_txt`).
+    alcance_txt = ""
+    if t.get("archivos"):
+        medida = alcance_tarea(t, wt)
+        hubo_pasada = False
+        if medida["faltan"]:
+            hubo_pasada = True
+            latir(tid, "completando", modelo=modelo_ok)
+            opencode("Tu tarea pedía tocar estos archivos y no los has tocado: %s.\n"
+                     "Complétalos ahora siguiendo el enunciado original (te lo repito abajo). "
+                     "Si de verdad alguno no hace falta tocarlo, escribe en tu respuesta una línea "
+                     "`SIN TOCAR <ruta>: <motivo>` por cada uno.\n\nEnunciado original:\n%s"
+                     % (", ".join(medida["faltan"]), t.get("prompt", "")),
+                     modelo_ok, wt, log, timeout=900, tid=tid)
+            medida = alcance_tarea(t, wt)
+        paso(tid, "alcance", pedidos=len(medida["pedidos"]), tocados=len(medida["tocados"]),
+             faltan=",".join(medida["faltan"])[:300], completado=bool(hubo_pasada))
+        if medida["faltan"]:
+            alcance_txt = ("la tarea pedía tocar %d archivos y el diff no toca: %s"
+                           % (len(medida["pedidos"]), ", ".join(medida["faltan"])))
+            evento("aviso", tid, "TAREA INCOMPLETA: faltan %s" % ", ".join(medida["faltan"]))
     # puerta tsc + reparación
     latir(tid, "tsc", modelo=modelo_ok)
     rc, errs = tsc(wt, log)
@@ -1565,7 +1624,7 @@ def ejecutar(t, intento=1):
     impacto = impacto_cambios("ola/" + tid)          # grafo GitNexus: qué flujos toca la rama (None si no hay índice)
     if impacto:
         paso(tid, "impacto", **{k: v for k, v in impacto.items() if k != "detalle"}, detalle=" | ".join(impacto["detalle"]))
-    revisor, rev = ("", "") if "--sin-revision" in sys.argv else revisar(tid, t.get("titulo", ""), diff, impacto_texto(impacto))
+    revisor, rev = ("", "") if "--sin-revision" in sys.argv else revisar(tid, t.get("titulo", ""), diff, impacto_texto(impacto), alcance=alcance_txt)
     bloqueante = bool(re.search(r"seguimiento:?\**\s*s[ií]\b.*bloqueante", rev, re.I | re.S)) or ("bloqueante" in rev.lower() and "no bloqueante" not in rev.lower())
     # Al revisor se le pide expresamente que NO bloquee por no ver el diff entero, y aun así lo
     # hace (Ola 233, C7: «el diff está truncado» sobre un commit que había pasado tsc y vitest).
