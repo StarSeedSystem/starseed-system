@@ -1261,6 +1261,11 @@ async function handleTts(req, res, cors) {
   // resolveLang/langName.
   const langBase = langBaseOf(body.lang);
   const speed = Number.isFinite(body.speed) ? body.speed : 1;
+  // TONO (Ola 263): post-proceso local con ffmpeg (asetrate+aresample+atempo).
+  // Acotado a [0.7, 1.4] para que el factor `atempo=1/pitch` quede dentro de
+  // [0.5, 2], el rango que ffmpeg admite. `1` (o un valor fuera de rango que
+  // acabe en 1, o no numérico) = tono natural, sin post-proceso.
+  const pitch = pitchEfectivo(body.pitch);
 
   // Clonación de voz (SÓLO camino de respaldo del CLI: el servidor NO clona,
   // ver §/identity): ref_wav_path (o voice_clone_prompt como ruta a WAV) + ref_text.
@@ -1325,7 +1330,7 @@ async function handleTts(req, res, cors) {
   ultimaSintesisReal = Date.now();
   const cfg = state.cfg || {};
   const variantTag = cfg?.variant?.quant || "";
-  const key = sha256([text, langName, langBase, refWav, refTextFile, speed, variantTag, instruct, String(seed)].join("|"));
+  const key = sha256([text, langName, langBase, refWav, refTextFile, speed, variantTag, instruct, String(seed), String(pitch)].join("|"));
 
   const extraHeaders = {
     "X-Astraura-Engine": "omnivoice.cpp",
@@ -1338,7 +1343,7 @@ async function handleTts(req, res, cors) {
   if (ramHit) {
     ramCache.delete(key);
     ramCache.set(key, ramHit); // refresca LRU
-    return sendWav(res, cors, applySpeed(ramHit, speed, extraHeaders), { ...extraHeaders, "X-Astraura-Cache": "ram" });
+    return responderWav(res, cors, ramHit, speed, pitch, extraHeaders, { ...extraHeaders, "X-Astraura-Cache": "ram" });
   }
   // 2) Caché en disco.
   try {
@@ -1347,7 +1352,7 @@ async function handleTts(req, res, cors) {
       const buf = fs.readFileSync(dp);
       if (isWav(buf)) {
         ramCachePut(key, buf);
-        return sendWav(res, cors, applySpeed(buf, speed, extraHeaders), { ...extraHeaders, "X-Astraura-Cache": "disk" });
+        return responderWav(res, cors, buf, speed, pitch, extraHeaders, { ...extraHeaders, "X-Astraura-Cache": "disk" });
       }
     }
   } catch {
@@ -1394,7 +1399,7 @@ async function handleTts(req, res, cors) {
   }
   extraHeaders["X-Astraura-Backend"] = result.engine === "server" ? "tts-server" : "omnivoice-tts-cli";
 
-  // Guarda en cachés (el WAV base, SIN el retimeo de velocidad).
+  // Guarda en cachés (el WAV base, SIN el retimeo de velocidad ni el tono).
   ramCachePut(key, result.buffer);
   try {
     fs.writeFileSync(diskCachePath(key), result.buffer);
@@ -1404,7 +1409,10 @@ async function handleTts(req, res, cors) {
   }
   lastReq = Date.now();
   ultimaSintesisReal = Date.now();
-  return sendWav(res, cors, applySpeed(result.buffer, speed, extraHeaders), { ...extraHeaders, "X-Astraura-Cache": "miss" });
+  // (Ola 263) Log con la semilla y el tono EFECTIVOS de cada locución: es lo
+  // que hace reproducible «este timbre suena así» en cualquier equipo.
+  log("daemon", `síntesis ok (${result.engine}) seed=${seed} pitch=${pitch} speed=${speed} instruct=${instruct}`);
+  return responderWav(res, cors, result.buffer, speed, pitch, extraHeaders, { ...extraHeaders, "X-Astraura-Cache": "miss" });
 }
 
 /** Aplica velocidad por cabecera WAV (si procede) y anota la nota en headers. */
@@ -1415,6 +1423,102 @@ function applySpeed(buf, speed, headers) {
     return out;
   }
   return buf;
+}
+
+/** ¿Hay algo que acotar? No: el valor de `pitch` pedido (número). */
+function pitchEfectivo(v) {
+  if (!Number.isFinite(v)) return 1;
+  const acotado = Math.max(0.7, Math.min(1.4, v));
+  return Math.abs(acotado - 1) < 0.001 ? 1 : acotado;
+}
+
+/**
+ * (Ola 263) Aplica el TONO al WAV con ffmpeg: `asetrate` sube/baja el tono, se
+ * vuelve a muestrear a la frecuencia de muestreo original con `aresample` y
+ * `atempo` compensa la duración para que NO se acelere la voz (solo cambia el
+ * tono). Lee por stdin y escribe por stdout (sin ficheros temporales), con un
+ * presupuesto de 20 s. `atempo` solo acepta [0.5, 2]; con pitch acotado a
+ * [0.7, 1.4] el factor `1/pitch` queda en [0.71, 1.43], siempre válido.
+ * Devuelve { ok, buf } — si ffmpeg falta o falla, `ok` es false y `buf` es el
+ * original (el llamador anota `X-Astraura-Ignored: pitch`). Nunca lanza.
+ */
+function aplicarPitch(buf, pitch) {
+  return new Promise((resolve) => {
+    if (Math.abs(pitch - 1) < 0.001) return resolve({ ok: true, buf });
+    if (!hayFfmpeg()) return resolve({ ok: false, buf });
+    let sr = 24000; // salida nativa del motor (ver X-Astraura-SampleRate)
+    try {
+      const v = buf.readUInt32LE(24);
+      if (Number.isFinite(v) && v > 0) sr = v;
+    } catch {
+      /* sin cabecera legible: usamos 24 kHz, la salida nativa */
+    }
+    const factor = 1 / pitch;
+    const args = [
+      "-i", "-",
+      "-af", `asetrate=${Math.round(sr * pitch)},aresample=${Math.round(sr)},atempo=${factor.toFixed(6)}`,
+      "-f", "wav", "-",
+    ];
+    let child;
+    try {
+      child = spawn("ffmpeg", args, { stdio: ["pipe", "pipe", "pipe"] });
+    } catch (e) {
+      return resolve({ ok: false, buf });
+    }
+    const trozos = [];
+    let stderr = "";
+    let done = false;
+    const finish = (ok, out) => {
+      if (done) return;
+      done = true;
+      clearTimeout(killer);
+      resolve(ok ? { ok: true, buf: out } : { ok: false, buf });
+    };
+    const killer = setTimeout(() => {
+      try { child.kill("SIGKILL"); } catch { /* */ }
+      finish(false);
+    }, 20000);
+    child.stderr?.on("data", (d) => {
+      stderr += String(d);
+      if (stderr.length > 4096) stderr = stderr.slice(-4096);
+    });
+    child.stdout?.on("data", (d) => trozos.push(d));
+    child.on("error", () => finish(false));
+    child.on("close", (code) => {
+      if (code !== 0) {
+        log("daemon", `ffmpeg (pitch) salió con código ${code}: ${stderr.trim().slice(-300)}`);
+        return finish(false);
+      }
+      const out = Buffer.concat(trozos);
+      if (!isWav(out)) {
+        log("daemon", "ffmpeg (pitch) no produjo un WAV válido");
+        return finish(false);
+      }
+      finish(true, out);
+    });
+    try {
+      child.stdin.write(buf);
+      child.stdin.end();
+    } catch (e) {
+      finish(false);
+    }
+  });
+}
+
+/** Envía un WAV aplicando velocidad (síncrono) y tono (async), anotando ignorados. */
+async function responderWav(res, cors, buf, speed, pitch, extraHeaders, outHeaders) {
+  const vel = applySpeed(buf, speed, extraHeaders);
+  if (pitch !== 1) {
+    const r = await aplicarPitch(vel, pitch);
+    if (r.ok) {
+      sendWav(res, cors, r.buf, { ...outHeaders, "X-Astraura-Pitch": `asetrate/atempo:${pitch}` });
+    } else {
+      // ffmpeg ausente o falló: devolvemos el audio sin tono y lo decimos.
+      sendWav(res, cors, vel, { ...outHeaders, "X-Astraura-Ignored": [extraHeaders["X-Astraura-Ignored"], "pitch"].filter(Boolean).join(",") });
+    }
+    return;
+  }
+  sendWav(res, cors, vel, outHeaders);
 }
 
 // ── Respuestas ───────────────────────────────────────────────────────────────
@@ -1902,6 +2006,9 @@ function handleStatus(res, cors) {
     backend: cfg?.variant?.backend || null,
     quant: cfg?.variant?.quant || null,
     version: DAEMON_VERSION,
+    // (Ola 263) Tono post-proceso: disponible solo si hay ffmpeg en el PATH.
+    // Sin él el demonio devuelve el audio con tono natural y `X-Astraura-Ignored: pitch`.
+    pitchDisponible: hayFfmpeg(),
     // "Caliente" = hay al menos un servidor tts-server residente y listo (ver
     // isWarm()) — ya NO es una bandera manual: es un hecho observable del pool.
     warm: isWarm(),

@@ -67,6 +67,10 @@ export interface OpcionesSintesis {
     speed: number;
     /** Instrucción de estilo para el motor neuronal (carácter, en palabras). */
     instruct?: string;
+    /** (Ola 263) Semilla del muestreo neuronal: fija el timbre resultante; si falta, el demonio deriva una determinista. */
+    seed?: number;
+    /** (Ola 263) Desplazamiento de tono del post-proceso local (1 = natural; el demonio lo acota a [0.7, 1.4]). */
+    pitch?: number;
 }
 
 /** Resultado de una síntesis en el demonio. */
@@ -83,6 +87,8 @@ export interface LecturaStatus {
     estado: EstadoDaemon;
     despertandoDesdeMs: number | null;
     memoriaLibreMb: number | null;
+    /** (Ola 263) Si el demonio puede aplicar tono post-proceso (tiene ffmpeg); `null` si no lo declara. */
+    pitchDisponible: boolean | null;
 }
 
 /**
@@ -99,6 +105,7 @@ export function interpretarStatus(cuerpo: unknown): LecturaStatus {
         estado: "apagado",
         despertandoDesdeMs: null,
         memoriaLibreMb: null,
+        pitchDisponible: null,
     };
     if (typeof cuerpo !== "object" || cuerpo === null) return apagado;
     const c = cuerpo as Record<string, unknown>;
@@ -112,6 +119,9 @@ export function interpretarStatus(cuerpo: unknown): LecturaStatus {
         typeof c.memoriaLibreMb === "number" && Number.isFinite(c.memoriaLibreMb)
             ? c.memoriaLibreMb
             : null;
+    // (Ola 263) Tono post-proceso disponible solo si el demonio lo declara y hay ffmpeg.
+    const pitchDisponible =
+        typeof c.pitchDisponible === "boolean" ? c.pitchDisponible : null;
 
     const pool =
         typeof c.serverPool === "object" && c.serverPool !== null
@@ -125,10 +135,10 @@ export function interpretarStatus(cuerpo: unknown): LecturaStatus {
         c.despertando === true ||
         (c.ready === true && c.warm === false && launching > 0 && active === 0);
     if (despertando) {
-        return { vivo: true, estado: "despertando", despertandoDesdeMs, memoriaLibreMb };
+        return { vivo: true, estado: "despertando", despertandoDesdeMs, memoriaLibreMb, pitchDisponible };
     }
     if (c.ready === true) {
-        return { vivo: true, estado: "vivo", despertandoDesdeMs, memoriaLibreMb };
+        return { vivo: true, estado: "vivo", despertandoDesdeMs, memoriaLibreMb, pitchDisponible };
     }
     return apagado;
 }
@@ -228,12 +238,20 @@ export async function sintetizarEnDaemon(
 ): Promise<SintesisDaemon | null> {
     const limpio = (texto || "").trim();
     if (!limpio) return null;
+    // (Ola 263) seed y pitch viajan al cuerpo del POST si vienen informados; el
+    // demonio los aplica (el tono es post-proceso local) y no se mandan cuando
+    // ausentes para no fijar valores que el llamador no pidió.
+    const perfil = {
+        ...(opciones.seed !== undefined ? { seed: opciones.seed } : {}),
+        ...(opciones.pitch !== undefined ? { pitch: opciones.pitch } : {}),
+    };
     // Primera puerta: tts-server crudo en 4500 (si alguien lo lanzó a mano).
     const directo = await pedirAudio(`${ORIGEN}/tts`, {
         text: limpio,
         voice: opciones.voz,
         speed: opciones.speed,
         ...(opciones.instruct ? { instruct: opciones.instruct } : {}),
+        ...perfil,
     });
     if (directo) return directo;
     // Segunda puerta: el demonio Astraura (4444). No conoce `voice`: la identidad va como
@@ -245,6 +263,7 @@ export async function sintetizarEnDaemon(
         speed: opciones.speed,
         ...(personalidad && personalidad !== "default" ? { personality: personalidad } : {}),
         ...(opciones.instruct ? { instruct: opciones.instruct } : {}),
+        ...perfil,
     });
 }
 

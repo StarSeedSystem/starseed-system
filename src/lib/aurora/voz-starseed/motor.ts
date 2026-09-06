@@ -24,6 +24,7 @@
 import type { Timbre } from "@/lib/aurora/timbres";
 import { detectarCapacidades, capacidadesEnCache, type Capacidades } from "./capacidades";
 import { nivelPara, siguienteNivel, NIVELES, type NivelVoz } from "./niveles";
+import { perfilNeuronal } from "@/lib/voces/perfil-neuronal";
 
 /** Identificador público del motor único, para registros y paneles. */
 export const VOZ_STARSEED_ID = "starseed.voz-unica.v1";
@@ -96,15 +97,22 @@ export function parametrosPorNivel(
     timbre: Timbre,
     nivel: NivelVoz,
 ):
-    | { via: "local"; voz: string; speed: number; instruct?: string }
+    | { via: "local"; voz: string; speed: number; instruct?: string; seed: number; pitch: number }
     | { via: "kokoro"; voice: string; speed: number }
     | { via: "sistema"; pitch: number; rate: number } {
     if (nivel === "estudio" || nivel === "alta") {
+        // (Ola 263) El motor local aplica ahora el PERFIL COMPLETO del timbre: el
+        // instruct se valida contra el vocabulario del demonio (nada de texto libre
+        // que caiga al default) y la semilla + el tono viajan con él. `perfilNeuronal`
+        // es el espejo del demonio y garantiza que «este timbre suena así» sea verdad.
+        const p = perfilNeuronal(timbre);
         return {
             via: "local",
-            voz: timbre.local.voz,
-            speed: timbre.local.speed,
-            instruct: timbre.local.instruct,
+            voz: p.voz,
+            speed: p.speed,
+            instruct: p.instruct || undefined,
+            seed: p.seed,
+            pitch: p.pitch,
         };
     }
     if (nivel === "ligera") {

@@ -24,6 +24,9 @@ describe("interpretarStatus", () => {
             estado: "vivo",
             despertandoDesdeMs: null,
             memoriaLibreMb: 2400,
+            // (Ola 263) pitchDisponible entra al contrato de status; ausente en
+            // este cuerpo → null (el demonio no lo declara aquí).
+            pitchDisponible: null,
         });
     });
 
@@ -55,6 +58,7 @@ describe("interpretarStatus", () => {
             estado: "apagado",
             despertandoDesdeMs: null,
             memoriaLibreMb: null,
+            pitchDisponible: null,
         });
     });
 
