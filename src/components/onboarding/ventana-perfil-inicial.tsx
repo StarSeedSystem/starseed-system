@@ -16,7 +16,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { Camera, ImageIcon, Loader2, UserCircle, Check } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -37,6 +37,7 @@ import {
 import { marcarRitoActivo } from "@/lib/ui/rito-activo";
 import { IconoStarSeed } from "@/components/onboarding/icono-starseed";
 import { esMiTurno, terminarEtapa, suscribirRito, navegarSuave } from "@/lib/onboarding/director-rito";
+import { esRutaConsola } from "@/components/layout/solo-fuera-de-consola";
 
 /** Marca de sesión: el rito pide abrir esta ventana tras los sistemas (legada). */
 export const PERFIL_LAUNCH_KEY = "starseed.perfil.launch";
@@ -45,6 +46,13 @@ export const GUIA_TRAS_PERFIL_KEY = "starseed.guia.tras.perfil";
 
 export function VentanaPerfilInicial({ onCerrar }: { onCerrar?: () => void }) {
   const router = useRouter();
+  const pathname = usePathname();
+  // (Ola 250 · 2026-09-06) ¿Estamos en una ruta del propio rito (bienvenida,
+  // login o el perfil)? Solo desde aquí se navega al Escritorio al guardar o
+  // saltar. En cualquier otra página del OS la etapa avanza con «terminarEtapa»
+  // pero NO se navega: no se secuestra la ruta actual del usuario.
+  const enRutaDelRito =
+    pathname === "/bienvenida" || pathname === "/login" || (pathname ?? "").startsWith("/profile/");
   const [abierta, setAbierta] = useState(false);
   const [cargando, setCargando] = useState(true);
   const [nombre, setNombre] = useState("");
@@ -71,6 +79,10 @@ export function VentanaPerfilInicial({ onCerrar }: { onCerrar?: () => void }) {
   useEffect(() => {
     const abrirSiEsPerfil = () => {
       if (etapaAtendidaRef.current === "perfil") return;
+      // (Ola 250 · 2026-09-06) En rutas de consola de trabajo (/mando, /voces)
+      // la ventana de perfil NO se abre: no debe secuestrar la sesión del
+      // operador. Se re-comprueba al cambiar la ruta (usePathname en deps).
+      if (esRutaConsola(pathname)) return;
       if (esMiTurno("perfil")) {
         etapaAtendidaRef.current = "perfil";
         setAbierta(true);
@@ -78,7 +90,7 @@ export function VentanaPerfilInicial({ onCerrar }: { onCerrar?: () => void }) {
     };
     abrirSiEsPerfil();
     return suscribirRito(abrirSiEsPerfil);
-  }, []);
+  }, [pathname]);
 
   // (Ola 227) Rito en primer plano: mientras esta ventana esté abierta, el
   // OmniDock, las cortinas/bordes Trinity y la paleta de comandos quedan fuera.
@@ -182,25 +194,28 @@ export function VentanaPerfilInicial({ onCerrar }: { onCerrar?: () => void }) {
       onCerrar?.();
       // (Ola 247 · 2026-09-05) Cerrar «perfil» pasa el turno a «guía» en el
       // director del rito. Sin recargas: navegación SUAVE al Escritorio solo si
-      // no estamos ya ahí; la guía observa el cambio de ruta y arranca sola.
+      // estamos en una ruta del rito (y no ya ahí); la guía observa el cambio.
+      // (Ola 250) Fuera de las rutas del rito NO se navega: la etapa avanza
+      // igual y el escritorio no secuestra la sesión actual del usuario.
       terminarEtapa("perfil");
-      navegarSuave(router, "/escritorios");
+      if (enRutaDelRito) navegarSuave(router, "/escritorios");
     } finally {
       setGuardando(false);
     }
     // (Adenda 219) `marco` y `avatar3d` en las dependencias: sin ellas el
     // callback guardaba el marco POR DEFECTO y ningún avatar 3D (clausura
     // vieja) — visto en vivo: la estrella elegida llegaba a la base como círculo.
-  }, [handle, nombre, avatar, portada, bio, marco, avatar3d, onCerrar, conTope, router]);
+  }, [handle, nombre, avatar, portada, bio, marco, avatar3d, onCerrar, conTope, router, enRutaDelRito]);
 
   const saltar = useCallback(() => {
     setAbierta(false);
     onCerrar?.();
     // (Ola 247 · 2026-09-05) Saltar también avanza el rito, sin recargas:
     // «perfil» → «guía», y la guía arranca en el Escritorio por el director.
+    // (Ola 250) La navegación al Escritorio solo ocurre desde rutas del rito.
     terminarEtapa("perfil");
-    navegarSuave(router, "/escritorios");
-  }, [onCerrar, router]);
+    if (enRutaDelRito) navegarSuave(router, "/escritorios");
+  }, [onCerrar, router, enRutaDelRito]);
 
   if (!abierta) return null;
 

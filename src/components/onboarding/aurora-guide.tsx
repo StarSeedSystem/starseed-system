@@ -107,6 +107,7 @@ import {
   subscribeGuideButtonVisible,
 } from "@/lib/onboarding/guide-visibility";
 import { esMiTurno, terminarEtapa, suscribirRito, navegarSuave } from "@/lib/onboarding/director-rito";
+import { esRutaConsola } from "@/components/layout/solo-fuera-de-consola";
 
 // ── contratos externos (solo strings/constantes; sin importar el motor) ──────
 const GUIDE_SEEN_KEY = "starseed.guide.seen.v1";
@@ -504,15 +505,28 @@ export function AuroraGuide() {
   //     cambiar la ruta (usePathname);
   //   · ya en /escritorios, abre la guía una sola vez (ref de etapa atendida)
   //     tras 900 ms de respiro.
+  // (Ola 250 · 2026-09-06) PRIMERO el turno y SOLO se navega desde rutas del
+  // propio rito. Antes se comprobaba el pathname ANTES que `esMiTurno`, así que
+  // cualquier página que monta la guía navegaba al escritorio aunque no hubiera
+  // rito (el Mando redirigía y secuestraba la sesión). Ahora, fuera del rito
+  // (consola /mando, /voces o cualquier página del OS) la guía ESPERA: el efecto
+  // se re-ejecuta con usePathname y abrirá cuando la persona llegue a /escritorios.
   const etapaGuiaAtendidaRef = useRef(false);
   useEffect(() => {
     const atenderGuia = () => {
       if (etapaGuiaAtendidaRef.current) return;
+      // El turno decide primero: sin rito en «guia», no hacemos nada.
+      if (!esMiTurno("guia")) return;
       if (pathname && !pathname.startsWith("/escritorios")) {
-        navegarSuave(router, "/escritorios");
+        // Nunca en consola de trabajo: el operador no debe ser secuestrado.
+        if (esRutaConsola(pathname)) return;
+        // Solo navegamos desde rutas del propio rito (bienvenida, login o el
+        // perfil); en cualquier otra página del OS la guía se queda esperando.
+        const esRutaDelRito =
+          pathname === "/bienvenida" || pathname === "/login" || pathname.startsWith("/profile/");
+        if (esRutaDelRito) navegarSuave(router, "/escritorios");
         return;
       }
-      if (!esMiTurno("guia")) return;
       etapaGuiaAtendidaRef.current = true;
       const t = setTimeout(() => openGuide(0), 900);
       return () => clearTimeout(t);

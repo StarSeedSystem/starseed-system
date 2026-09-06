@@ -33,6 +33,14 @@ export type EtapaRito = (typeof ETAPAS)[number];
 export const CLAVE_RITO = "starseed.rito.v2";
 
 /**
+ * (Ola 250 · 2026-09-06) Edad máxima de un rito en curso. Un rito abandonado
+ * (el alta se quedó a medias y la sesión siguió) no debe secuestrar la sesión
+ * al día siguiente: pasadas estas 6 horas, `etapaActual()` devuelve null y
+ * borra el estado.
+ */
+export const CADUCIDAD_MS = 6 * 60 * 60 * 1000;
+
+/**
  * Evento de ventana que anuncia cada avance de etapa. Detalle: la etapa nueva
  * y la anterior. Así las ventanas del rito reaccionan sin sondear el storage.
  */
@@ -155,7 +163,17 @@ export function migrarMarcasLegadas(): EtapaRito | null {
  */
 export function etapaActual(): EtapaRito | null {
   migrarMarcasLegadas();
-  return leerEstado()?.etapa ?? null;
+  const estado = leerEstado();
+  if (!estado) return null;
+  // (Ola 250 · 2026-09-06) Rito viejo caduca: si el último avance tiene más de
+  // CADUCIDAD_MS (6 h), el rito se da por abandonado y se borra — así un alta
+  // a medias de ayer no reabre la cadena de ventanas ni secuestra el escritorio
+  // en la visita de hoy. REGLA DEL ÁREA: el rito nunca deja al usuario en bucle.
+  if (Date.now() - estado.t > CADUCIDAD_MS) {
+    abandonarRito();
+    return null;
+  }
+  return estado.etapa ?? null;
 }
 
 /**

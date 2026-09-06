@@ -11,6 +11,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import {
   CLAVE_RITO,
   ETAPAS,
+  CADUCIDAD_MS,
   abandonarRito,
   esMiTurno,
   etapaActual,
@@ -184,5 +185,32 @@ describe("director del rito — máquina de estados", () => {
 
   it("las etapas declaradas son las seis del rito, en orden", () => {
     expect(ETAPAS).toEqual(["registro", "bienvenida", "sistemas", "perfil", "guia", "hecho"]);
+  });
+
+  it("(8) un rito de hace más de CADUCIDAD_MS caduca: etapaActual() null y el estado desaparece", () => {
+    // Fijamos el reloj para que Date.now() sea determinista.
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-06T12:00:00Z"));
+    // Estado escrito hace 7 h (> 6 h): un alta a medias de ayer.
+    ventana.sessionStorage.setItem(
+      CLAVE_RITO,
+      JSON.stringify({ etapa: "guia", t: Date.now() - (7 * 60 * 60 * 1000) }),
+    );
+    expect(etapaActual()).toBeNull();
+    // El estado caducado se borró: la clave ya no existe.
+    expect(ventana.sessionStorage.getItem(CLAVE_RITO)).toBeNull();
+    vi.useRealTimers();
+  });
+
+  it("(8b) un rito reciente (menos de CADUCIDAD_MS) sigue vivo y no se borra", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-06T12:00:00Z"));
+    ventana.sessionStorage.setItem(
+      CLAVE_RITO,
+      JSON.stringify({ etapa: "guia", t: Date.now() - (60 * 60 * 1000) }), // hace 1 h
+    );
+    expect(etapaActual()).toBe("guia");
+    expect(ventana.sessionStorage.getItem(CLAVE_RITO)).not.toBeNull();
+    vi.useRealTimers();
   });
 });
