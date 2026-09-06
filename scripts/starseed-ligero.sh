@@ -13,11 +13,18 @@
 # Las rutas de servidor (/api/mando/*, /api/ai/*, /api/voz-local/*) funcionan igual.
 #
 # Uso:
-#   scripts/starseed-ligero.sh construir   # compila producción (.next) con log en /tmp
-#   scripts/starseed-ligero.sh arrancar    # sirve en :9002 (construye si hace falta)
+#   scripts/starseed-ligero.sh construir [--limpiar]  # compila producción (.next) con log en /tmp;
+#                                                     # --limpiar borra cachés regenerables antes
+#   scripts/starseed-ligero.sh arrancar   # sirve en :9002 (construye si hace falta)
 #   scripts/starseed-ligero.sh parar       # detiene el servidor ligero
-#   scripts/starseed-ligero.sh estado      # pid, MB, commit del build y si va viejo
+#   scripts/starseed-ligero.sh estado      # pid, MB, disco/RAM libres, vigilante y si va viejo
 #   scripts/starseed-ligero.sh dev         # vuelve al modo desarrollo (turbopack)
+#
+# Variables de entorno opcionales:
+#   STARSEED_BUILD_HEAP_MB  Heap de Node para el build (defecto 4096; 2026-09-06: 2048 se
+#                           queda sin heap en este repo — «JavaScript heap out of memory»).
+#   STARSEED_DISCO_MIN_GB   GB libres mínimos para compilar (defecto 4; el build necesita
+#                           ~2 GB para .next más caché y un ENOSPC a mitad deja .next roto).
 #
 # Nunca usa sudo. Todo vive en el usuario actual.
 
@@ -29,22 +36,82 @@ PUERTO=9002
 LOG_BUILD=/tmp/starseed-ligero-build.log
 LOG_SERVER=/tmp/starseed-ligero.log
 
+# Vigilante launchd del dev server: si está cargado relanza `next dev` solo y se pelea
+# con el modo ligero por el puerto y la RAM; hay que descargarlo antes de compilar/
+# arrancar y recargarlo al volver a `dev` (2026-09-06: se hacía a mano).
+PLIST_VIGILANTE="$HOME/Library/LaunchAgents/com.starseed.dev-vigilante.plist"
+ETIQUETA_VIGILANTE="com.starseed.dev-vigilante"
+
 # Patrón del proceso de desarrollo / producción en este puerto (para pkill/pgrep).
 PATRON_DEV="bin/next dev --turbopack -p ${PUERTO}"
 PATRON_START="next start -p ${PUERTO}"
+
+# --- helpers de vigilante (solo macOS; en Linux se saltan solos) ---------------
+descargar_vigilante() {
+  # Sin launchctl (Linux) no hay nada que hacer.
+  command -v launchctl >/dev/null 2>&1 || return 0
+  if [ -f "$PLIST_VIGILANTE" ] && launchctl list 2>/dev/null | grep -q "$ETIQUETA_VIGILANTE"; then
+    launchctl unload "$PLIST_VIGILANTE" 2>/dev/null || true
+    echo "⏸  Vigilante del dev server ($ETIQUETA_VIGILANTE) descargado para que no lo relance."
+  fi
+}
+
+cargar_vigilante() {
+  command -v launchctl >/dev/null 2>&1 || return 0
+  if [ -f "$PLIST_VIGILANTE" ] && ! launchctl list 2>/dev/null | grep -q "$ETIQUETA_VIGILANTE"; then
+    launchctl load "$PLIST_VIGILANTE" 2>/dev/null || true
+    echo "▶️  Vigilante del dev server ($ETIQUETA_VIGILANTE) recargado."
+  fi
+}
+
+# --- helpers de disco ---------------------------------------------------------
+# GB libres en la partición del repo (df -k funciona igual en macOS y Linux).
+gb_libres() {
+  # `|| true` por set -e + pipefail: si la ruta no existe no queremos morir en silencio.
+  { df -k "$REPO" 2>/dev/null || true; } | awk 'NR==2{printf "%.1f", $4/1048576}'
+}
+
+comprobar_disco() {
+  local limpiar="${1:-}"
+  local min="${STARSEED_DISCO_MIN_GB:-4}"
+  if [ "$limpiar" = "--limpiar" ]; then
+    # Solo cosas regenerables: nunca se pierde trabajo.
+    echo "🧹 Limpiando cachés regenerables (.next, caché de npm, cachés de GitNexus)…"
+    rm -rf "$REPO/.next" "$REPO/.gitnexus/parse-cache" "$REPO/.gitnexus/parsedfile-cache"
+    npm cache clean --force >/dev/null 2>&1 || true
+  fi
+  local libres
+  libres=$(gb_libres)
+  if ! awk -v l="$libres" -v m="$min" 'BEGIN{exit !(l+0 >= m+0)}'; then
+    {
+      echo "❌ Disco casi lleno: ${libres} GB libres (mínimo ${min} GB; el build necesita ~2 GB)."
+      echo "   Cosas regenerables que puedes borrar sin perder nada:"
+      echo "   · $REPO/.next (build anterior; se reconstruye)"
+      echo "   · npm cache clean --force"
+      echo "   · $REPO/.gitnexus/parse-cache y parsedfile-cache (se regeneran)"
+      echo "   · $REPO/.transfer/*.bundle ya integrados"
+      echo "   O vuelve a intentarlo con: $0 construir --limpiar"
+    } >&2
+    exit 3
+  fi
+  echo "💾 Disco: ${libres} GB libres (mínimo ${min} GB)."
+}
 
 # --- construir -------------------------------------------------------------
 # Para el dev server si corre (libera 3-5 GB antes de compilar, que también pica)
 # y compila producción con un tope de heap razonable para una Mac de 8 GB.
 construir() {
+  comprobar_disco "${1:-}"
+  descargar_vigilante
   if pgrep -f "$PATRON_DEV" >/dev/null 2>&1; then
     echo "⏸  Parando el servidor de desarrollo para liberar memoria…"
     pkill -f "$PATRON_DEV" || true
     sleep 2
   fi
   echo "🔨 Compilando el OS en modo producción (log: $LOG_BUILD)…"
-  # 2 GB de heap bastan para el build y dejan margen al resto del sistema.
-  export NODE_OPTIONS="--max-old-space-size=2048"
+  # 2026-09-06: con 2048 MB el build muere por heap («JavaScript heap out of memory»);
+  # 4096 compila bien en la Mac de 8 GB. Sobrescribible con STARSEED_BUILD_HEAP_MB.
+  export NODE_OPTIONS="--max-old-space-size=${STARSEED_BUILD_HEAP_MB:-4096}"
   export NEXT_TELEMETRY_DISABLED=1
   if (cd "$REPO" && npx next build >"$LOG_BUILD" 2>&1); then
     # Guardamos el commit compilado para que `estado` avise si el build va viejo.
@@ -53,6 +120,9 @@ construir() {
   else
     echo "❌ Falló el build. Últimos 20 renglones del log:" >&2
     tail -n 20 "$LOG_BUILD" >&2
+    if grep -q "ENOSPC" "$LOG_BUILD"; then
+      echo "❌ Disco lleno (ENOSPC): $(gb_libres) GB libres; prueba \`$0 construir --limpiar\`." >&2
+    fi
     exit 1
   fi
 }
@@ -60,6 +130,7 @@ construir() {
 # --- arrancar ----------------------------------------------------------------
 # Lanza `next start` desacoplado (nohup) y espera a que responda 200/307.
 arrancar() {
+  descargar_vigilante
   if [ ! -f "$REPO/.next/BUILD_ID" ]; then
     echo "No hay build de producción; compilando primero…"
     construir
@@ -142,12 +213,29 @@ estado() {
   else
     echo "📦 Sin build de producción todavía."
   fi
+  # Recursos del sistema: disco libre en la partición del repo y RAM recuperable
+  # (páginas free + inactive; vm_stat solo existe en macOS, en Linux se salta).
+  echo "💾 Disco libre: $(gb_libres) GB"
+  if command -v vm_stat >/dev/null 2>&1; then
+    local mb_libres
+    mb_libres=$(vm_stat | awk '/Pages free/{f=$3} /Pages inactive/{i=$3} END{gsub(/\./,"",f); gsub(/\./,"",i); printf "%.0f", (f+i)*4096/1048576}')
+    echo "🧠 RAM libre+inactiva: ${mb_libres} MB"
+  fi
+  if command -v launchctl >/dev/null 2>&1; then
+    if [ -f "$PLIST_VIGILANTE" ] && launchctl list 2>/dev/null | grep -q "$ETIQUETA_VIGILANTE"; then
+      echo "👁  Vigilante del dev server: cargado (relanzará next dev si muere)."
+    else
+      echo "👁  Vigilante del dev server: NO cargado."
+    fi
+  fi
 }
 
 # --- dev ---------------------------------------------------------------------
 # Vuelve al modo desarrollo (recarga en vivo) una vez terminadas las pruebas.
 dev() {
   parar
+  # Recargamos el vigilante de launchd para que cuide el dev server otra vez.
+  cargar_vigilante
   if [ -x "$HOME/.local/bin/starseed-dev" ]; then
     echo "🔄 Relanzando desarrollo con starseed-dev…"
     "$HOME/.local/bin/starseed-dev" reiniciar
@@ -160,13 +248,13 @@ dev() {
 
 # --- entrada -----------------------------------------------------------------
 case "${1:-}" in
-  construir) construir ;;
+  construir) construir "${2:-}" ;;
   arrancar)  arrancar ;;
   parar)     parar ;;
   estado)    estado ;;
   dev)       dev ;;
   *)
-    echo "Uso: $0 {construir|arrancar|parar|estado|dev}" >&2
+    echo "Uso: $0 {construir [--limpiar]|arrancar|parar|estado|dev}" >&2
     exit 2
     ;;
 esac
