@@ -217,10 +217,54 @@ estado() {
   # (páginas free + inactive; vm_stat solo existe en macOS, en Linux se salta).
   echo "💾 Disco libre: $(gb_libres) GB"
   if command -v vm_stat >/dev/null 2>&1; then
-    local mb_libres
-    mb_libres=$(vm_stat | awk '/Pages free/{f=$3} /Pages inactive/{i=$3} END{gsub(/\./,"",f); gsub(/\./,"",i); printf "%.0f", (f+i)*4096/1048576}')
-    echo "🧠 RAM libre+inactiva: ${mb_libres} MB"
+    # 2026-09-06, Ola 257: en Apple Silicon la página es de 16384 bytes, no 4096,
+    # y vm_stat lo anuncia en su primera línea («page size of 16384 bytes»). Antes
+    # fijábamos 4096 a pelo y la RAM libre+inactiva salía 4× menor de lo real
+    # (decía 338 MB cuando había ~1,35 GB). Leemos el tamaño de página de esa
+    # línea; 4096 como valor por defecto si no se puede leer. Guardamos la salida
+    # una sola vez para no llamar a vm_stat tres veces.
+    local vm tam_pagina mb_libres
+    vm=$(vm_stat 2>/dev/null || true)
+    tam_pagina=$(printf '%s\n' "$vm" | sed -nE 's/.*page size of ([0-9]+) bytes.*/\1/p' | tr -d '[:space:]')
+    tam_pagina=${tam_pagina:-4096}
+    mb_libres=$(printf '%s\n' "$vm" | awk -v p="$tam_pagina" '/Pages free/{f=$3} /Pages inactive/{i=$3} END{gsub(/\./,"",f); gsub(/\./,"",i); printf "%.0f", (f+i)*p/1048576}')
+    echo "🧠 RAM libre+inactiva: ${mb_libres} MB (página ${tam_pagina} B)"
   fi
+  # Swap usado (Ola 257): cuánto está comprimiendo/volcando a disco el sistema.
+  # `sysctl vm.swapusage` solo existe en macOS; en Linux se salta con command -v.
+  if command -v sysctl >/dev/null 2>&1; then
+    # El campo `used` viene en bytes en «vm.swapusage: total = X  used = Y free = Z».
+    local swap_mb
+    swap_mb=$(sysctl vm.swapusage 2>/dev/null | sed -nE 's/.*used = ([0-9]+).*/\1/p' | awk '{printf "%.0f", $1/1048576}' || true)
+    if [ -n "$swap_mb" ]; then
+      echo "💱 Swap usado: ${swap_mb} MB"
+    fi
+  fi
+  # Salud de la voz (Ola 257): el demonio OmniVoice vive en 127.0.0.1:4444 y
+  # responde /status con 200; el campo "ready" dice si ya cargó sus modelos.
+  # Todo con || true: que no esté el demonio no debe hacer fallar el estado.
+  local voz_codigo voz_ready
+  voz_codigo=$(curl -s -m 3 -o /dev/null -w '%{http_code}' http://127.0.0.1:4444/status 2>/dev/null || true)
+  if [ "$voz_codigo" = "200" ]; then
+    voz_ready=$(curl -s -m 3 http://127.0.0.1:4444/status 2>/dev/null | grep -o '"ready":true\|"ready":false' | head -n1 || true)
+    if [ "$voz_ready" = '"ready":true' ]; then
+      echo "🎙 Demonio de voz: vivo (listo)"
+    else
+      echo "🎙 Demonio de voz: vivo (cargando)"
+    fi
+  else
+    echo "🎙 Demonio de voz: apagado"
+  fi
+  # Salud del BitNet 1.58 (Ola 257): /health responde 200 (vivo) o 503 (cargando);
+  # sin respuesta, apagado o dormido. Puerto sobrescribible con STARSEED_BITNET_PUERTO.
+  local bitnet_puerto bitnet_codigo
+  bitnet_puerto="${STARSEED_BITNET_PUERTO:-8790}"
+  bitnet_codigo=$(curl -s -m 3 -o /dev/null -w '%{http_code}' "http://127.0.0.1:${bitnet_puerto}/health" 2>/dev/null || true)
+  case "$bitnet_codigo" in
+    200) echo "🧠 BitNet 1.58: vivo" ;;
+    503) echo "🧠 BitNet 1.58: cargando" ;;
+    *)   echo "🧠 BitNet 1.58: apagado o dormido" ;;
+  esac
   if command -v launchctl >/dev/null 2>&1; then
     if [ -f "$PLIST_VIGILANTE" ] && launchctl list 2>/dev/null | grep -q "$ETIQUETA_VIGILANTE"; then
       echo "👁  Vigilante del dev server: cargado (relanzará next dev si muere)."
