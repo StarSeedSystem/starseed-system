@@ -164,7 +164,24 @@ const DISK_CACHE_MAX = 64; // WAV cacheados en disco (cache/)
 const SERVER_BASE_PORT = 4500; // base de puertos del pool (el daemon usa 4444)
 const SERVER_PORT_RANGE = 1000; // puertos [4500, 5499): de sobra para un pool de 3
 const SERVER_POOL_MAX = 3; // nº máx. de servidores tts-server vivos a la vez (LRU)
-const SERVER_HEALTH_TIMEOUT_MS = 30 * 1000; // plazo máx. para que /health diga "ok"
+// (2026-09-06) El plazo para que /health diga "ok" se lee de STARSEED_VOZ_HEALTH_MS:
+// en una Mac de 8 GB al límite de memoria (servidor de desarrollo + backend 1.58 +
+// Ollama), el modelo de ~900 MB tarda más de 30 s en cargar, y 30 s lo mataba antes
+// de que arrancara. Por eso el valor por defecto sube a 90 s (mínimo 15 s). Es solo
+// la PRIMERA vuelta de espera: si el proceso sigue vivo, se prolonga en tramos de
+// SERVER_HEALTH_EXTEND_MS hasta SERVER_HEALTH_MAX_MS (ver launchServer).
+function leerHealthMs() {
+  const bruto = Number.parseInt(process.env.STARSEED_VOZ_HEALTH_MS, 10);
+  const ms = Number.isFinite(bruto) && bruto > 0 ? bruto : 90_000;
+  return Math.max(ms, 15_000); // mínimo 15 s: no permitir límites absurdamente cortos
+}
+const SERVER_HEALTH_TIMEOUT_MS = leerHealthMs(); // plazo inicial de espera de /health
+const SERVER_HEALTH_MAX_MS = (() => {
+  const bruto = Number.parseInt(process.env.STARSEED_VOZ_HEALTH_MAX_MS, 10);
+  // Máximo total de espera si el proceso sigue vivo, por defecto 4 min.
+  return Number.isFinite(bruto) && bruto > 0 ? Math.max(bruto, SERVER_HEALTH_TIMEOUT_MS) : 240_000;
+})();
+const SERVER_HEALTH_EXTEND_MS = 15 * 1000; // tramo extra de espera si el proceso sigue cargando
 const SERVER_HEALTH_POLL_MS = 300; // intervalo de sondeo de /health mientras carga
 const PRIMARY_LANG = "Spanish"; // idioma que se precalienta EAGER al arrancar el daemon
 
@@ -373,6 +390,29 @@ function serverPoolSummary() {
   return { active, launching, max: SERVER_POOL_MAX, size: serverPool.size };
 }
 
+/**
+ * Estado de "despertando" (2026-09-06): true cuando hay servidores en arranque
+ * (launching) y NINGUNO listo (active). Sirve al panel Motor del OS para
+ * distinguir «apagado» de «despertando»: el demonio está vivo pero el modelo
+ * aún no ha terminado de cargar. `despertandoDesdeMs` es el tiempo transcurrido
+ * desde el arranque MÁS ANTIGUO (mínimo `startedAt` de las entradas en vuelo),
+ * o null si no hay ningún arranque en curso.
+ */
+function estadoDespertando() {
+  let activos = 0;
+  let masAntiguo = null;
+  for (const [, e] of serverPool) {
+    if (e.dead) continue;
+    if (e.ready) activos++;
+    else if (e.startedAt > 0) masAntiguo = masAntiguo === null ? e.startedAt : Math.min(masAntiguo, e.startedAt);
+  }
+  const despertando = activos === 0 && masAntiguo !== null;
+  return {
+    despertando,
+    despertandoDesdeMs: despertando && masAntiguo !== null ? Date.now() - masAntiguo : null,
+  };
+}
+
 /** Mata (SIGTERM) el servidor de un idioma y lo saca del pool. Idempotente. */
 function killServerEntry(lang, reason) {
   const entry = serverPool.get(lang);
@@ -467,9 +507,12 @@ function launchServer(entry, paths) {
       }
     });
 
-    // Sondeo de /health hasta SERVER_HEALTH_TIMEOUT_MS (el socket puede tardar
-    // unos segundos en escuchar mientras el modelo se carga en GPU).
-    const deadline = Date.now() + SERVER_HEALTH_TIMEOUT_MS;
+    // Sondeo de /health. El socket puede tardar unos segundos en escuchar
+    // mientras el modelo se carga en GPU. Plazo inicial = SERVER_HEALTH_TIMEOUT_MS.
+    const startedDeadline = Date.now() + SERVER_HEALTH_TIMEOUT_MS;
+    const maxDeadline = Date.now() + SERVER_HEALTH_MAX_MS;
+    let extended = false; // ya pasamos a la fase de espera prolongada
+    const procVivo = () => entry.proc && entry.proc.exitCode === null && !entry.dead;
     const poll = async () => {
       if (entry.dead) return resolve(false);
       try {
@@ -488,11 +531,31 @@ function launchServer(entry, paths) {
         /* aún no escucha, o el modelo sigue cargando: reintenta */
       }
       if (entry.dead) return resolve(false);
-      if (Date.now() >= deadline) {
-        log("daemon", `tts-server[${entry.lang}]: /health no respondió a tiempo (${SERVER_HEALTH_TIMEOUT_MS} ms)`);
-        return resolve(false);
+      const now = Date.now();
+      // (2026-09-06) Vencido el plazo inicial, NO damos por muerto el servidor si
+      // su proceso sigue vivo: en una Mac de 8 GB al límite de RAM el modelo de
+      // ~900 MB tarda más de 30 s en cargar, y matarlo aquí era un desperdicio
+      // (el CLI tendría que recargarlo entero, aún más caro). Prolongamos la
+      // espera en tramos de SERVER_HEALTH_EXTEND_MS hasta SERVER_HEALTH_MAX_MS.
+      if (now < maxDeadline && (now < startedDeadline || procVivo())) {
+        if (now >= startedDeadline && now - entry.startedAt >= SERVER_HEALTH_TIMEOUT_MS) {
+          // Registramos el aviso una vez por cada tramo extra de espera.
+          if (!extended) {
+            extended = true;
+            log("daemon", `tts-server[${entry.lang}] sigue cargando (${now - entry.startedAt} ms) — prolongo la espera hasta ${SERVER_HEALTH_MAX_MS} ms`);
+          } else if ((now - startedDeadline) % SERVER_HEALTH_EXTEND_MS < SERVER_HEALTH_POLL_MS) {
+            log("daemon", `tts-server[${entry.lang}] sigue cargando (${now - entry.startedAt} ms)`);
+          }
+        }
+        setTimeout(poll, SERVER_HEALTH_POLL_MS);
+        return;
       }
-      setTimeout(poll, SERVER_HEALTH_POLL_MS);
+      // Se agotó el máximo total, o el proceso murió antes del plazo: lo damos por fallido.
+      const motivo = procVivo()
+        ? `se agotó el máximo de ${SERVER_HEALTH_MAX_MS} ms`
+        : `el proceso terminó antes de estar listo`;
+      log("daemon", `tts-server[${entry.lang}]: /health no respondió a tiempo (${motivo})`);
+      return resolve(false);
     };
     poll();
   });
@@ -949,9 +1012,12 @@ function handleWarm(req, res, cors) {
   // siga viva.
   if (already && already.ready && !already.dead && Date.now() - lastReq < SLEEP_MS) {
     lastReq = Date.now();
-    return sendJson(res, 200, cors, { ok: true, warmed: false, warm: true, reason: "ya caliente" });
+    return sendJson(res, 200, cors, {
+      ok: true, warmed: false, warm: true, reason: "ya caliente",
+      ...estadoDespertando(),
+    });
   }
-  sendJson(res, 200, cors, { ok: true, warmed: true, background: true });
+  sendJson(res, 200, cors, { ok: true, warmed: true, background: true, ...estadoDespertando() });
   const t0 = Date.now();
   getReadyServer(langName, state.paths)
     .then((entry) => {
@@ -1307,6 +1373,11 @@ function handleStatus(res, cors) {
     // isWarm()) — ya NO es una bandera manual: es un hecho observable del pool.
     warm: isWarm(),
     serverPool: serverPoolSummary(),
+    // "Despertando" (2026-09-06): el demonio está vivo y tiene servidores en
+    // arranque, pero ninguno listo todavía. El panel Motor lo usa para no decir
+    // "apagado" mientras el modelo de ~900 MB sigue cargando en RAM.
+    ...estadoDespertando(),
+    memoriaLibreMb: Math.trunc(os.freemem() / (1024 * 1024)),
     uptime: Math.round((Date.now() - startedAt) / 1000),
     sampleRate: 24000,
     idleMs: Date.now() - lastReq, // para el autosync: ¿lleva rato inactivo?
