@@ -561,3 +561,18 @@ public, memorias, docs… para `/api/mando/**`). `maxDuration` de las rutas: 60 
 hablan con el **demonio Astraura** (`native/astraura-voice/daemon.mjs`, 127.0.0.1:4444, pool de
 tts-server en 4501+; launchd `com.starseed.astraura-voice`). No lances un segundo tts-server a
 mano: son 900 MB por copia en una Mac de 8 GB.
+
+### Modo ligero, oído residente y BitNet estable (2026-09-06)
+
+El **modo ligero** (`scripts/starseed-ligero.sh {construir|arrancar|parar|estado|dev}`) sirve el OS
+compilado (`next start -p 9002`, ~48 MB) y exporta `STARSEED_MANDO=1` y `STARSEED_LOCAL=1`: la **voz
+y el Mando funcionan sin sesión en localhost** (nunca en Vercel). El build necesita **heap 4096**
+por defecto, `construir --limpiar` y **≥ 4 GB de disco**; `construir/arrancar` descargan el vigilante
+launchd `com.starseed.dev-vigilante` y `dev` lo recarga. El demonio de voz (`daemon.mjs`) usa el
+**residente `asr_stream_server`** de VibeASR.cpp (modelos cargados una vez, sueño a los 5 min,
+cesión de memoria del pool TTS cuando quedan < 1200 MB y 10 s sin síntesis) y **debe ir en
+`ProcessType Interactive`** (Background hace que macOS ahogue CPU/I/O: un reconocimiento pasó de
+15 s a 186+ s). El llama-server **BitNet** del backend Astraura (repo `astraura`) segfaulteaba en
+`dequantize_row_i2_s` (BLAS) con prompts ≥ 32 tokens: se lanza con **`-ub 24 -b 24`** y la sonda de
+cordura prueba un prompt ≥ 64 tokens; Ollama solo actúa con `ASTRAURA_OLLAMA_RESPALDO=1`. Detalle
+en `docs/adendas/adenda-227-ligero-oido-residente-bitnet-estable-olas-254-256-2026-09-06.md`.
