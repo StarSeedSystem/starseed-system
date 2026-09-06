@@ -527,6 +527,10 @@ async function cederMemoriaSiHaceFalta() {
 }
 
 /**
+ * Reconoce un WAV con el residente. Devuelve { ok, texto|error, segundos }.
+ * El presupuesto es proporcional a la duración del audio (asrTimeoutMs). Si el
+ * residente se cuelga, se mata (la siguiente petición lo relanza limpio).
+ */
 async function reconocerResidente(wavPath, segundosAudio) {
   const okCarga = await asegurarOidoResidente();
   if (!okCarga) return { ok: false, error: "no se pudo dejar listo el oído residente" };
