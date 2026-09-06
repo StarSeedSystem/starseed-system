@@ -42,6 +42,22 @@
     <string>__STDERR_LOG__</string>
 
     <!--
+      PATH para el agente y sus hijos (Ola 263 · 2026-09-06):
+      launchd NO hereda el PATH del usuario: arranca el agente con el mínimo del
+      sistema (/usr/bin:/bin:/usr/sbin:/sbin), que no incluye Homebrew — y en
+      Apple Silicon Homebrew vive en /opt/homebrew. Sin este PATH el demonio no
+      encontraba `ffmpeg` (tono, efectos y conversión a 16 kHz del oído quedaban
+      desactivados aunque `which ffmpeg` en una shell sí lo viera). El demonio
+      además resuelve la ruta absoluta por su cuenta (STARSEED_FFMPEG, PATH,
+      /opt/homebrew/bin…): este PATH es el segundo cinturón de seguridad.
+    -->
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    </dict>
+
+    <!--
       Prioridad del proceso (Ola 255 · 2026-09-06):
       ProcessType "Background" hace que macOS aplique a este agente —y a TODOS sus
       hijos: tts-server, asr_stream_server, ffmpeg— la clase de servicio de fondo:

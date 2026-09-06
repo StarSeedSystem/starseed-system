@@ -1461,7 +1461,9 @@ function aplicarPitch(buf, pitch) {
     ];
     let child;
     try {
-      child = spawn("ffmpeg", args, { stdio: ["pipe", "pipe", "pipe"] });
+      // (Ola 263) Ruta absoluta resuelta: bajo launchd el PATH mínimo no trae
+      // ffmpeg (Homebrew vive en /opt/homebrew/bin). `hayFfmpeg()` ya lo validó.
+      child = spawn(rutaFfmpeg(), args, { stdio: ["pipe", "pipe", "pipe"] });
     } catch (e) {
       return resolve({ ok: false, buf });
     }
@@ -1631,17 +1633,53 @@ function extDeAudio(mime) {
   return ".wav";
 }
 
-/** ¿Existe el binario `ffmpeg` en el PATH? Se comprueba una vez y se recuerda. */
+/**
+ * Ruta ABSOLUTA del binario ffmpeg, o `null` si no hay ninguno utilizable.
+ *
+ * 2026-09-06 (Ola 263): bajo launchd el agente arranca con el PATH mínimo del
+ * sistema (/usr/bin:/bin:/usr/sbin:/sbin), que NO incluye Homebrew — donde
+ * vive ffmpeg en macOS. Por eso `spawn("ffmpeg")` fallaba (tono, efectos y
+ * conversión a 16 kHz del oído desactivados) aunque `which ffmpeg` en una
+ * shell sí lo encontrara. Se resuelve UNA vez y se cachea: 1) la ruta
+ * explícita STARSEED_FFMPEG, 2) cada directorio del PATH del proceso,
+ * 3) las rutas típicas de macOS/Linux por orden de preferencia (Homebrew de
+ * Apple Silicon primero). Sólo cuenta si el fichero existe Y es ejecutable.
+ */
+let _rutaFfmpeg;
+function rutaFfmpeg() {
+  if (_rutaFfmpeg !== undefined) return _rutaFfmpeg;
+  _rutaFfmpeg = null;
+  const candidatas = [];
+  const explicita = String(process.env.STARSEED_FFMPEG || "").trim();
+  if (explicita) candidatas.push(explicita);
+  for (const dir of String(process.env.PATH || "").split(path.delimiter)) {
+    if (dir) candidatas.push(path.join(dir, "ffmpeg"));
+  }
+  // Rutas típicas fuera del PATH mínimo de launchd: Homebrew Apple Silicon,
+  // Homebrew Intel, MacPorts y el sistema. El orden importa: priman las
+  // instalaciones locales del usuario sobre la del sistema.
+  candidatas.push(
+    "/opt/homebrew/bin/ffmpeg",
+    "/usr/local/bin/ffmpeg",
+    "/opt/local/bin/ffmpeg",
+    "/usr/bin/ffmpeg",
+  );
+  for (const ruta of candidatas) {
+    try {
+      fs.accessSync(ruta, fs.constants.X_OK);
+      _rutaFfmpeg = ruta;
+      break;
+    } catch {
+      /* esta candidata no existe o no es ejecutable: seguimos buscando */
+    }
+  }
+  return _rutaFfmpeg;
+}
+
+/** ¿Hay ffmpeg utilizable? Cacheado sobre `rutaFfmpeg()` (Ola 263). */
 let _ffmpeg = null;
 function hayFfmpeg() {
-  if (_ffmpeg !== null) return _ffmpeg;
-  _ffmpeg = false;
-  try {
-    const r = spawnSync("ffmpeg", ["-version"], { stdio: "ignore" });
-    _ffmpeg = r.error ? false : true;
-  } catch {
-    _ffmpeg = false;
-  }
+  if (_ffmpeg === null) _ffmpeg = rutaFfmpeg() !== null;
   return _ffmpeg;
 }
 
@@ -1650,7 +1688,8 @@ function convertirAWav(entrada, salida) {
   return new Promise((resolve) => {
     let child;
     try {
-      child = spawn("ffmpeg", ["-y", "-i", entrada, "-ac", "1", "-ar", "16000", "-f", "wav", salida], { stdio: ["ignore", "ignore", "pipe"] });
+      // (Ola 263) Ruta absoluta (launchd no hereda el PATH del usuario).
+      child = spawn(rutaFfmpeg(), ["-y", "-i", entrada, "-ac", "1", "-ar", "16000", "-f", "wav", salida], { stdio: ["ignore", "ignore", "pipe"] });
     } catch (e) {
       return resolve({ ok: false, error: `no se pudo lanzar ffmpeg: ${e.message}` });
     }
@@ -2006,9 +2045,13 @@ function handleStatus(res, cors) {
     backend: cfg?.variant?.backend || null,
     quant: cfg?.variant?.quant || null,
     version: DAEMON_VERSION,
-    // (Ola 263) Tono post-proceso: disponible solo si hay ffmpeg en el PATH.
-    // Sin él el demonio devuelve el audio con tono natural y `X-Astraura-Ignored: pitch`.
+    // (Ola 263) Tono post-proceso: disponible solo si hay ffmpeg RESUELTO (ruta
+    // absoluta, no el nombre plano: launchd arranca con un PATH mínimo sin
+    // Homebrew). Sin él el demonio devuelve el audio con tono natural y
+    // `X-Astraura-Ignored: pitch`. `ffmpeg` dice la ruta exacta en uso (o null).
+    ffmpeg: rutaFfmpeg(),
     pitchDisponible: hayFfmpeg(),
+    efectosDisponibles: hayFfmpeg(),
     // "Caliente" = hay al menos un servidor tts-server residente y listo (ver
     // isWarm()) — ya NO es una bandera manual: es un hecho observable del pool.
     warm: isWarm(),
@@ -2152,6 +2195,11 @@ setInterval(() => {
 
 ensureDirs();
 const state0 = readiness();
+// (Ola 263) Diagnóstico de ffmpeg al arrancar: bajo launchd el PATH mínimo no
+// incluye Homebrew, así que la resolución por ruta absoluta es la que decide si
+// el tono, los efectos y la conversión del oído funcionan. Dejarlo en el log
+// evita averiguarlo a mano con curl.
+log("daemon", `ffmpeg: ${rutaFfmpeg() ?? "no encontrado (tono, efectos y conversión de audio desactivados)"}`);
 server.listen(DAEMON_PORT, DAEMON_HOST, () => {
   log(
     "daemon",

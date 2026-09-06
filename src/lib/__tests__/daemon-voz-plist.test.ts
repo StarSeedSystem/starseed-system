@@ -35,3 +35,17 @@ describe("plantilla plist del demonio de voz: prioridad normal (Ola 255)", () =>
     expect(m![1]).toBe("<false/>");
   });
 });
+
+describe("plantilla plist del demonio de voz: PATH con Homebrew (Ola 263)", () => {
+  it("declara EnvironmentVariables con un PATH que incluye /opt/homebrew/bin (launchd no hereda el PATH del usuario y ffmpeg vive en Homebrew)", () => {
+    const contenido = contenidoDelPlist();
+    // launchd arranca el agente con el PATH mínimo del sistema; sin esta clave
+    // el demonio no encuentra ffmpeg (tono, efectos y conversión del oído).
+    const m = contenido.match(/<key>EnvironmentVariables<\/key>\s*<dict>\s*<key>PATH<\/key>\s*<string>([^<]+)<\/string>/);
+    expect(m).not.toBeNull();
+    expect(m![1]).toContain("/opt/homebrew/bin");
+    // El PATH declarado debe seguir incluyendo los directorios del sistema.
+    expect(m![1]).toContain("/usr/bin");
+    expect(m![1]).toContain("/bin");
+  });
+});
