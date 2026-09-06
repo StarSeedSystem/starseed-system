@@ -91,6 +91,18 @@ print_status() {
     fi
 }
 
+# Detectar número de CPUs para la compilación (-j)
+# sysctl solo aplica en macOS; en Linux se usa nproc (sysctl -n hw.ncpu falla)
+detect_num_cpus() {
+    local num_cpus=4  # Valor por defecto
+    if [[ "$OSTYPE" == "darwin"* ]] && command -v sysctl &> /dev/null; then
+        num_cpus=$(sysctl -n hw.ncpu 2>/dev/null || echo 4)
+    elif command -v nproc &> /dev/null; then
+        num_cpus=$(nproc 2>/dev/null || echo 4)
+    fi
+    echo "$num_cpus"
+}
+
 # Verificar prerequisitos
 check_prerequisites() {
     print_status "Verificando prerequisitos..."
@@ -136,6 +148,7 @@ check_prerequisites() {
 # Verificar estado actual
 check_status() {
     local cloned=false
+    local submodule=false
     local compiled=false
     local models_downloaded=false
     local vae_exists=false
@@ -145,6 +158,12 @@ check_status() {
     
     if [ -d "$DIR" ] && [ -d "$DIR/.git" ]; then
         cloned=true
+    fi
+    
+    # El submódulo 3rdparty/llama.cpp es necesario para compilar; su CMakeLists.txt
+    # confirma que el submódulo se inicializó correctamente
+    if [ -f "$DIR/3rdparty/llama.cpp/CMakeLists.txt" ]; then
+        submodule=true
     fi
     
     if [ -f "$DIR/build/bin/asr_infer" ]; then
@@ -180,6 +199,7 @@ check_status() {
     echo "Estado de VibeASR.cpp:"
     echo "  Directorio: $DIR"
     echo "  Clonado: $([ "$cloned" = true ] && echo "sí" || echo "no")"
+    echo "  Submódulo llama.cpp: $([ "$submodule" = true ] && echo "sí" || echo "no")"
     echo "  Compilado: $([ "$compiled" = true ] && echo "sí" || echo "no")"
     echo "  Modelos descargados: $([ "$models_downloaded" = true ] && echo "sí" || echo "no")"
     if [ "$vae_exists" = true ]; then
@@ -201,8 +221,11 @@ clone_or_update_repo() {
             print_status "Actualizando repositorio existente..."
             if [ "$SIMULATE" = false ]; then
                 git -C "$DIR" pull --ff-only
+                # Tras el pull se actualizan los submódulos (pueden apuntar a commits nuevos)
+                git -C "$DIR" submodule update --init --recursive --depth 1
             else
                 echo "[SIMULACIÓN] git -C \"$DIR\" pull --ff-only"
+                echo "[SIMULACIÓN] git -C \"$DIR\" submodule update --init --recursive --depth 1"
             fi
         else
             print_status "Usando repositorio existente sin actualizar..."
@@ -211,9 +234,16 @@ clone_or_update_repo() {
         print_status "Clonando repositorio VibeASR.cpp..."
         if [ "$SIMULATE" = false ]; then
             mkdir -p "$(dirname "$DIR")"
-            git clone --depth 1 https://github.com/microsoft/VibeASR.cpp "$DIR"
+            # VibeASR.cpp trae 3rdparty/llama.cpp como submódulo; sin él cmake falla.
+            # --recurse-submodules clona los submódulos y --shallow-submodules evita
+            # descargar el historial completo de llama.cpp
+            git clone --depth 1 --recurse-submodules --shallow-submodules \
+                https://github.com/microsoft/VibeASR.cpp "$DIR"
+            # Por si el recurse-submodules no llegara a inicializar todo el árbol
+            git -C "$DIR" submodule update --init --recursive --depth 1
         else
-            echo "[SIMULACIÓN] git clone --depth 1 https://github.com/microsoft/VibeASR.cpp \"$DIR\""
+            echo "[SIMULACIÓN] git clone --depth 1 --recurse-submodules --shallow-submodules https://github.com/microsoft/VibeASR.cpp \"$DIR\""
+            echo "[SIMULACIÓN] git -C \"$DIR\" submodule update --init --recursive --depth 1"
         fi
     fi
 }
@@ -225,38 +255,40 @@ compile_project() {
     if [ "$SIMULATE" = false ]; then
         cd "$DIR"
         
+        # Antes de compilar se comprueba el submódulo 3rdparty/llama.cpp; si no está
+        # inicializado cmake falla sin explicar bien la causa, así que fallamos antes
+        if [ ! -f "$DIR/3rdparty/llama.cpp/CMakeLists.txt" ]; then
+            echo "Error: El submódulo 3rdparty/llama.cpp no está presente en $DIR/3rdparty/llama.cpp"
+            echo "Reinicie el script con --sin-actualizar o ejecute manualmente:"
+            echo "  git -C \"$DIR\" submodule update --init --recursive --depth 1"
+            exit 1
+        fi
+        
         # Detectar número de CPUs
         local num_cpus
-        if command -v sysctl &> /dev/null; then
-            num_cpus=$(sysctl -n hw.ncpu 2>/dev/null)
-        elif command -v nproc &> /dev/null; then
-            num_cpus=$(nproc 2>/dev/null)
-        else
-            num_cpus=4  # Valor por defecto
-        fi
+        num_cpus=$(detect_num_cpus)
         
         # Construir proyecto
         cmake -B build -DCMAKE_BUILD_TYPE=Release
         cmake --build build -j"$num_cpus"
         
-        # Verificar que el binario existe
+        # Verificar que el binario existe y es ejecutable
         if [ ! -f "build/bin/asr_infer" ]; then
             echo "Error: No se encontró el binario asr_infer después de la compilación"
             exit 1
         fi
+        if [ ! -x "build/bin/asr_infer" ]; then
+            echo "Error: El binario build/bin/asr_infer no es ejecutable"
+            exit 1
+        fi
     else
         echo "[SIMULACIÓN] cd \"$DIR\""
+        echo "[SIMULACIÓN] Verificar existencia de $DIR/3rdparty/llama.cpp/CMakeLists.txt"
         echo "[SIMULACIÓN] cmake -B build -DCMAKE_BUILD_TYPE=Release"
         local num_cpus
-        if command -v sysctl &> /dev/null; then
-            num_cpus=$(sysctl -n hw.ncpu 2>/dev/null)
-        elif command -v nproc &> /dev/null; then
-            num_cpus=$(nproc 2>/dev/null)
-        else
-            num_cpus=4
-        fi
+        num_cpus=$(detect_num_cpus)
         echo "[SIMULACIÓN] cmake --build build -j$num_cpus"
-        echo "[SIMULACIÓN] Verificar existencia de build/bin/asr_infer"
+        echo "[SIMULACIÓN] Verificar que build/bin/asr_infer existe y es ejecutable"
     fi
 }
 
@@ -287,8 +319,8 @@ EOF
 download_models() {
     print_status "Preparando para descargar modelos (tamaño total: $((TOTAL_SIZE / 1024 / 1024)) MB)..."
     
-    # Confirmar descarga si no se especificó --si
-    if [ "$CONFIRM" = true ]; then
+    # Confirmar descarga si no se especificó --si (en simulación no se descarga nada)
+    if [ "$CONFIRM" = true ] && [ "$SIMULATE" = false ]; then
         read -p "¿Desea continuar con la descarga de los modelos? (s/N): " -n 1 -r
         echo
         if [[ ! $REPLY =~ ^[Ss]$ ]]; then
@@ -404,4 +436,3 @@ if [ "$STATUS_ONLY" = true ]; then
 else
     main
 fi
-</ARG>
