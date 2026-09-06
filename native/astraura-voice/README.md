@@ -221,6 +221,35 @@ Programación recomendada — launchd (macOS) o cron/systemd-timer (Linux):
 
 ---
 
+## 8.5 · Prioridad del proceso (macOS)
+
+Desde la **Ola 255** (2026-09-06), la plantilla launchd
+`com.starseed.astraura-voice.plist` declara **`ProcessType` `Interactive`** (y añade
+`LowPriorityIO=false` y `Nice=0`) en vez de `Background`. El motivo: con `Background`,
+macOS aplica a este agente **y a todos sus hijos** (`tts-server`, `asr_stream_server`,
+`ffmpeg`) la clase de servicio de fondo —CPU limitada y prioridad de E/S baja. Con la
+memoria al límite (swap ~3,8 GB en la Mac de Alex), cada fallo de página del modelo
+mmap se sirve a prioridad de disco de fondo y la inferencia se arrastra: el mismo
+`asr_stream_server` transcribe un WAV de 2,96 s en **15 s desde una shell normal** y en
+**120-186 s desde el demonio** (RTF 5 → ~40-60), con el proceso al 1-2 % de CPU y su
+RSS en 20-220 MB (los ~1,7 GB de modelos no llegan a quedar residentes). La síntesis
+TTS sufre lo mismo (4,4 s de audio en 48 s). El backend Astraura
+(`com.starseed.astraura`) ya usaba `Standard` y no tiene este problema.
+
+`Interactive` restaura CPU e I/O normales, `LowPriorityIO=false` evita la prioridad de
+E/S de fondo y `Nice=0` deja la prioridad del proceso en la del sistema
+(`ps -o pri` vuelve a ~31 frente al 4 de `Background`).
+
+Si ya tenías una instalación anterior a la Ola 255 (con el plist `Background`),
+`install.mjs` detecta el plist antiguo y lo regenera+recarga solo. También puedes
+forzarlo en cualquier momento sin reinstalar nada más:
+
+```bash
+node install.mjs --reinstalar-plist     # solo regenera y recarga el plist launchd
+```
+
+---
+
 ## 9 · Cómo lo consume el frontend
 
 StarSeed OS guarda la config del motor híbrido en **`astraura_voice_config`** y, al

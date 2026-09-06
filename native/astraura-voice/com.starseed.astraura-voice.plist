@@ -41,7 +41,26 @@
     <key>StandardErrorPath</key>
     <string>__STDERR_LOG__</string>
 
+    <!--
+      Prioridad del proceso (Ola 255 · 2026-09-06):
+      ProcessType "Background" hace que macOS aplique a este agente —y a TODOS sus
+      hijos: tts-server, asr_stream_server, ffmpeg— la clase de servicio de fondo:
+      CPU limitada y prioridad de E/S baja. Con la memoria al límite (swap ~3,8 GB),
+      cada fallo de página del modelo mmap se sirve a prioridad de disco de fondo y
+      la inferencia se arrastra: el mismo asr_stream_server transcribe un WAV de
+      2,96 s en 15 s desde una shell normal y en 120-186 s desde el demonio
+      (RTF 5 → ~40-60). La síntesis TTS sufre lo mismo (4,4 s de audio en 48 s).
+
+      "Interactive" restaura CPU e I/O normales (igual que `Standard`, que ya usa el
+      backend Astraura), `LowPriorityIO=false` evita la prioridad de E/S de fondo y
+      `Nice=0` deja la prioridad del proceso en la del sistema (ps -o pri vuelve a
+      ~31 frente al 4 de Background).
+    -->
     <key>ProcessType</key>
-    <string>Background</string>
+    <string>Interactive</string>
+    <key>LowPriorityIO</key>
+    <false/>
+    <key>Nice</key>
+    <integer>0</integer>
 </dict>
 </plist>

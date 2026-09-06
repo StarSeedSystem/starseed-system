@@ -18,6 +18,10 @@
  * Banderas:  --reinstall   fuerza clon/descarga/compilación desde cero
  *            --cpu-only     ignora la GPU: gama BAJA (Q4_K_M) + buildcpu.sh
  *            --no-service   no instala el servicio del sistema
+ *            --reinstalar-plist   solo regenera y recarga el plist launchd
+ *                   (macOS), sin reinstalar nada más. Aplica el cambio de
+ *                   prioridad ProcessType "Interactive" (Ola 255) a una
+ *                   instalación existente.
  *
  * Idempotente: si el repo ya está, hace pull; si el binario/modelos ya están y
  * su tamaño cuadra, no rehace el trabajo (salvo --reinstall). CERO secretos.
@@ -57,6 +61,7 @@ const OPT = {
   cpuOnly: FLAGS.has("--cpu-only"),
   noService: FLAGS.has("--no-service"),
   uninstall: FLAGS.has("--uninstall"),
+  reinstalarPlist: FLAGS.has("--reinstalar-plist"),
 };
 
 // ── Salida con estilo StarSeed ───────────────────────────────────────────────
@@ -276,6 +281,50 @@ function fillTemplate(tpl) {
     .replaceAll("__STDERR_LOG__", path.join(PATHS.logsDir, "daemon.err.log"));
 }
 
+// ── Servicio launchd en macOS ────────────────────────────────────────────────
+/**
+ * ¿El plist instalado en ~/Library/LaunchAgents usa aún ProcessType "Background"?
+ * La plantilla lo dejó de usar en la Ola 255 (2026-09-06): "Background" hace que
+ * macOS aplique a este agente y a sus hijos (tts-server, asr_stream_server, ffmpeg)
+ * la clase de servicio de fondo —CPU limitada y E/S a baja prioridad— y la
+ * inferencia del modelo se arrastra (15 s frente a 120-186 s para el mismo WAV).
+ */
+function plistInstaladoEsAntiguo(dest) {
+  try {
+    if (!fs.existsSync(dest)) return false;
+    const contenido = fs.readFileSync(dest, "utf8");
+    // Busca el valor que sigue a ProcessType; si es "Background", es la plantilla vieja.
+    const m = contenido.match(/<key>ProcessType<\/key>\s*<string>([^<]+)<\/string>/);
+    return !!m && m[1].trim() === "Background";
+  } catch {
+    return false;
+  }
+}
+
+/** Regenera el plist a partir de la plantilla y lo recarga con launchctl. */
+async function recargarPlistLaunchd(dest, { motivo } = {}) {
+  try {
+    const tplPath = path.join(HERE, "com.starseed.astraura-voice.plist");
+    const tpl = fs.readFileSync(tplPath, "utf8");
+    fs.mkdirSync(path.dirname(dest), { recursive: true });
+    fs.writeFileSync(dest, fillTemplate(tpl));
+    if (motivo) warn(motivo);
+    await runStreaming("launchctl", ["unload", dest], { quiet: true }); // por si ya estaba
+    const r = await runStreaming("launchctl", ["load", "-w", dest], { quiet: true });
+    if (r.code === 0) {
+      ok(`servicio launchd instalado y cargado: ${dest}`);
+      say("        (se arranca solo al iniciar sesión; KeepAlive lo mantiene vivo)");
+      return true;
+    }
+    warn(`escribí el plist en ${dest} pero launchctl load devolvió ${r.code}. Cárgalo a mano:`);
+    say(`        launchctl load -w ${dest}`);
+    return false;
+  } catch (e) {
+    err(`no pude regenerar el servicio launchd: ${e.message}`);
+    return false;
+  }
+}
+
 async function installService() {
   if (OPT.noService) {
     warn("--no-service: no instalo el servicio. Arranca el daemon a mano:");
@@ -285,24 +334,15 @@ async function installService() {
   const platform = os.platform();
 
   if (platform === "darwin") {
-    const tplPath = path.join(HERE, "com.starseed.astraura-voice.plist");
     const dest = path.join(os.homedir(), "Library", "LaunchAgents", "com.starseed.astraura-voice.plist");
-    try {
-      const tpl = fs.readFileSync(tplPath, "utf8");
-      fs.mkdirSync(path.dirname(dest), { recursive: true });
-      fs.writeFileSync(dest, fillTemplate(tpl));
-      await runStreaming("launchctl", ["unload", dest], { quiet: true }); // por si ya estaba
-      const r = await runStreaming("launchctl", ["load", "-w", dest], { quiet: true });
-      if (r.code === 0) {
-        ok(`servicio launchd instalado y cargado: ${dest}`);
-        say("        (se arranca solo al iniciar sesión; KeepAlive lo mantiene vivo)");
-      } else {
-        warn(`escribí el plist en ${dest} pero launchctl load devolvió ${r.code}. Cárgalo a mano:`);
-        say(`        launchctl load -w ${dest}`);
-      }
-    } catch (e) {
-      err(`no pude instalar el servicio launchd: ${e.message}`);
+    // Ola 255: si la instalación previa quedó con ProcessType "Background" (CPU y
+    // E/S estranguladas para este agente y sus hijos), regenérala y recárgala
+    // AUNQUE el resto no haya cambiado, para que recupere la prioridad normal.
+    if (plistInstaladoEsAntiguo(dest)) {
+      await recargarPlistLaunchd(dest, { motivo: "plist antiguo con ProcessType Background → actualizado a Interactive" });
+      return;
     }
+    await recargarPlistLaunchd(dest);
     return;
   }
 
@@ -386,8 +426,26 @@ async function uninstall() {
   say("\n  ✓ Motor de voz desinstalado. La web seguirá hablando por la nube gratis.\n");
 }
 
+/**
+ * Modo SÓLO plist (--reinstalar-plist): no toca repo, build, modelos ni config;
+ * únicamente regenera el plist launchd desde la plantilla y lo recarga con
+ * launchctl. Sirve para aplicar el cambio de prioridad (Ola 255) a una
+ * instalación ya existente sin reinstalar nada más.
+ */
+async function reinstalarPlistSolo() {
+  say("");
+  say("  🌌  ASTRAURA · Reinstalando solo el plist launchd (macOS)…");
+  const dest = path.join(os.homedir(), "Library", "LaunchAgents", "com.starseed.astraura-voice.plist");
+  const esAntiguo = plistInstaladoEsAntiguo(dest);
+  await recargarPlistLaunchd(dest, {
+    motivo: esAntiguo ? "plist antiguo con ProcessType Background → actualizado a Interactive" : undefined,
+  });
+  say("  ══════════════════════════════════════════════════════════════\n");
+}
+
 async function main() {
   if (OPT.uninstall) return uninstall();
+  if (OPT.reinstalarPlist) return reinstalarPlistSolo();
   say("");
   say("  🌌  ASTRAURA · Instalador del Motor de Voz local (StarSeed OS)");
   say("  ══════════════════════════════════════════════════════════════");
