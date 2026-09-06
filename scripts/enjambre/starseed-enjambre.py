@@ -159,6 +159,120 @@ def proveedor_vivo(prov):
     return True if not e else e.get("estado") != "caido"
 
 
+# ── memoria de cupo de los revisores (2026-09-06, Ola 261) ─────────────────
+# El 06-09 xkiro contestó 429 y aihubmix su aviso de cuota en TODAS las revisiones del día:
+# se intentaban una y otra vez en orden fijo y cada tarea perdía 5-12 minutos antes de llegar
+# a un revisor que respondiera. Desde esta ola el archivo de salud también recuerda quién se
+# quedó sin cuota (24 h) y quiénn recibió 429 hace poco (enfriamiento de 10 min), y esos
+# proveedores se saltan sin intentarlos.
+REVISOR_ULTIMO_OK = ""   # «proveedor/modelo» del último revisor que sí respondió: va primero la próxima vez
+
+
+def marcar_sin_cupo(prov, motivo, horas=24):
+    """Anota en la entrada del proveedor que se quedó SIN cupo hasta dentro de `horas`.
+    Respeta el resto de campos (estado, desde, ultimo_429…): solo toca los suyos."""
+    d = _salud()
+    e = d.get(prov) or {}
+    e["sin_cupo_hasta"] = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(time.time() + horas * 3600))
+    e["motivo"] = str(motivo or "")[:200]
+    d[prov] = e
+    _salud_guardar(d)
+
+
+def sin_cupo(prov) -> bool:
+    """True si la cuota del proveedor consta agotada aún (fecha futura)."""
+    hasta = ( _salud().get(prov) or {}).get("sin_cupo_hasta") or ""
+    if not hasta:
+        return False
+    try:
+        return time.strptime(hasta, "%Y-%m-%d %H:%M:%S") > time.localtime()
+    except Exception:
+        return False
+
+
+def marcar_429(prov):
+    """429 NO es fin de cuota, es ritmo: se anota la hora y el proveedor se enfría 10 min."""
+    d = _salud()
+    e = d.get(prov) or {}
+    e["ultimo_429"] = ahora()
+    d[prov] = e
+    _salud_guardar(d)
+
+
+def enfriandose(prov) -> bool:
+    """True si el proveedor recibió un 429 hace menos de 10 minutos."""
+    ultimo = (_salud().get(prov) or {}).get("ultimo_429") or ""
+    if not ultimo:
+        return False
+    try:
+        return time.time() - time.mktime(time.strptime(ultimo, "%Y-%m-%d %H:%M:%S")) < 600
+    except Exception:
+        return False
+
+
+def _clasificar_fallo_cupo(prov, exc):
+    """Clasifica el fallo de una llamada a un proveedor y deja la memoria de cupo al día:
+    402 / aviso de cuota / «quota» / «daily limit» → sin cupo 24 h; 429 → enfriamiento.
+    Se llama desde llamar_llm y sondear, que es TODA llamada que el orquestador hace, así
+    el recuerdo no depende de quién capturó la excepción."""
+    m = str(exc or "")
+    ml = m.lower()
+    if "429" in m:
+        marcar_429(prov)
+    elif "402" in m or any(k in ml for k in ("quota", "cuota", "daily limit", "rate limit exceeded for today")):
+        marcar_sin_cupo(prov, ml)
+
+
+def _revisor_ultimo_ok():
+    """El último revisor que respondió: primero la variable de esta ola, luego la del
+    archivo de salud (así el recuerdo sobrevive a reinicios del orquestador)."""
+    if REVISOR_ULTIMO_OK:
+        return REVISOR_ULTIMO_OK
+    d = _salud()
+    return d.get("ultimo_revisor_ok") if isinstance(d.get("ultimo_revisor_ok"), str) else ""
+
+
+def candidatos_revision():
+    """Orden de provisión: los de REVISORES vivos, con cupo y no enfriándose, y el último
+    que respondió SIEMPRE primero. Devuelve (candidatos, saltados_humanos); si todos están
+    excluidos, devuelve la lista completa — nunca nos quedamos sin revisor."""
+    orden = list(REVISORES)                     # NO se cambia el orden base, solo el arranque
+    ultimo = _revisor_ultimo_ok()
+    i = next((j for j, r in enumerate(orden) if "%s/%s" % r == ultimo), None)
+    if i is not None:
+        orden = [orden[i]] + orden[:i] + orden[i + 1:]
+    d = _salud()
+    candidatos, saltados = [], []
+    for prov, modelo in orden:
+        e = d.get(prov) or {}
+        if not proveedor_vivo(prov):
+            saltados.append("%s (caído)" % prov)
+        elif sin_cupo(prov):
+            saltados.append("%s (sin cupo hasta %s)" % (prov, e.get("sin_cupo_hasta") or "¿?"))
+        elif enfriandose(prov):
+            try:
+                minutos = int((time.time() - time.mktime(time.strptime(e.get("ultimo_429", ""), "%Y-%m-%d %H:%M:%S"))) / 60)
+            except Exception:
+                minutos = 0
+            saltados.append("%s (429 hace %d min)" % (prov, minutos))
+        else:
+            candidatos.append((prov, modelo))
+    return (candidatos or orden), saltados   # sin candidatos limpios: todos, como antes
+
+
+def _revisor_respondio(prov, modelo):
+    """Anota el último revisor que sí contestó: en esta ola (global) y en el archivo de
+    salud (útil para las Oläs siguientes y para el Mando)."""
+    global REVISOR_ULTIMO_OK
+    REVISOR_ULTIMO_OK = "%s/%s" % (prov, modelo)
+    try:
+        d = _salud()
+        d["ultimo_revisor_ok"] = REVISOR_ULTIMO_OK
+        _salud_guardar(d)
+    except Exception:
+        pass
+
+
 def revalidar_proveedor(prov):
     """Para un modelo pedido EXPRESAMENTE (cola o Mando): si su proveedor consta «caído» pero
     el dato es viejo (>10 min: el supervisor de esta máquina llevaba tiempo sin mirar), se
@@ -215,10 +329,12 @@ def sondear(prov, forzar=False):
                     contenido = ((cuerpo_r.get("choices") or [{}])[0].get("message") or {}).get("content") or ""
                     if es_aviso_de_cuota(contenido):
                         vivo = False          # 200 con aviso de cuota = agotado, no vivo
+                        marcar_sin_cupo(prov, "sonda: " + contenido[:90])
                 except Exception:
                     pass
-    except Exception:
+    except Exception as e:
         vivo = False
+        _clasificar_fallo_cupo(prov, e)
     registrar_uso(prov, vivo)
     return vivo
 
@@ -250,16 +366,22 @@ def supervisor_proveedores():
                     desde = ahora()
                 elif en_disco == "caido":
                     desde = ahora()
-                d[prov] = {"estado": "vivo", "t": ahora(), "desde": desde}
+                e = d.get(prov) or {}   # se fusiona, no se pisa: conserva sin_cupo_hasta / ultimo_429 (Ola 261)
+                e.update({"estado": "vivo", "t": ahora(), "desde": desde})
+                d[prov] = e
                 visto[prov] = "vivo"
             else:
                 fallos[prov] = fallos.get(prov, 0) + 1
                 if fallos[prov] >= 3 and antes != "caido":
-                    d[prov] = {"estado": "caido", "t": ahora(), "desde": ahora()}
+                    e = d.get(prov) or {}
+                    e.update({"estado": "caido", "t": ahora(), "desde": ahora()})
+                    d[prov] = e
                     visto[prov] = "caido"
                     evento("proveedor_caido", "", "%s no responde a TRES sondeos seguidos → fuera de la rotación en TODAS las olas" % prov)
                 elif antes == "caido" or en_disco == "caido":
-                    d[prov] = {"estado": "caido", "t": ahora(), "desde": desde}   # sigue caído: solo se anota la hora del sondeo
+                    e = d.get(prov) or {}
+                    e.update({"estado": "caido", "t": ahora(), "desde": desde})   # sigue caído: solo se anota la hora del sondeo
+                    d[prov] = e
                     visto[prov] = "caido"
         _salud_guardar(d)
         FIN.wait(SONDEO_S)
@@ -556,7 +678,11 @@ def llamar_llm(proveedor, modelo, prompt, timeout=120):
         url = "https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s" % (modelo, key)
         cuerpo = {"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"temperature": 0.2, "maxOutputTokens": 1200}}
         req = urllib.request.Request(url, data=json.dumps(cuerpo).encode(), headers={"Content-Type": "application/json"})
-        d = json.loads(urllib.request.urlopen(req, timeout=timeout).read())
+        try:
+            d = json.loads(urllib.request.urlopen(req, timeout=timeout).read())
+        except urllib.error.HTTPError as e:       # 429/402 de Gemini también alimentan la memoria de cupo
+            _clasificar_fallo_cupo(proveedor, e)
+            raise
         return "".join(p.get("text", "") for p in d["candidates"][0]["content"]["parts"])
     if proveedor == "xkiro":
         key = ENV.get("XKIRO_API_KEY"); url = "https://api.xkiro.com/v1/chat/completions"
@@ -592,8 +718,9 @@ def llamar_llm(proveedor, modelo, prompt, timeout=120):
                                           "User-Agent": "starseed-enjambre/2 (+starseed-os)"})
     try:
         d = json.loads(urllib.request.urlopen(req, timeout=timeout).read())
-    except Exception:
+    except Exception as e:
         USO_REAL[proveedor] = (time.time(), False)
+        _clasificar_fallo_cupo(proveedor, e)   # 402/cuota → 24 h sin intentarlo; 429 → 10 min de enfriamiento
         raise
     txt = d["choices"][0]["message"]["content"] or ""
     txt = re.sub(r"<think>.*?</think>", "", txt, flags=re.S).strip()
@@ -602,6 +729,7 @@ def llamar_llm(proveedor, modelo, prompt, timeout=120):
     # se integraron con esa frase archivada como «revisión ok». Eso es un fallo del proveedor.
     if es_aviso_de_cuota(txt):
         USO_REAL[proveedor] = (time.time(), False)
+        marcar_sin_cupo(proveedor, txt[:160])   # aviso de cuota en el contenido: 24 h sin intentarlo
         raise RuntimeError("cuota agotada en %s: %s" % (proveedor, txt[:90]))
     USO_REAL[proveedor] = (time.time(), True)
     return txt
@@ -629,11 +757,15 @@ def confirmar_bloqueo(tid, titulo, motivo, diff):
               "Responde en la PRIMERA línea solo con SI o NO, y debajo una frase de justificación. "
               "Responde NO si el motivo es no poder ver un archivo, no poder verificar algo, el diff truncado "
               "o una suposición sobre código que no se muestra.\n\n%s") % (titulo, motivo[:600], diff[:12000])
-    for prov, modelo in REVISORES:
+    candidatos, saltados = candidatos_revision()   # sin caídos, sin cupo agotado ni enfriándose (Ola 261)
+    if saltados:
+        evento("aviso", tid, "revisores saltados: %s" % ", ".join(saltados))
+    for prov, modelo in candidatos:
         try:
             r = llamar_llm(prov, modelo, prompt, timeout=90).strip()
             if not r:
                 continue
+            _revisor_respondio(prov, modelo)
             primera = r.splitlines()[0].strip().lower()
             return ("%s/%s" % (prov, modelo)), r, primera.startswith(("si", "sí", "yes"))
         except Exception:
@@ -657,15 +789,26 @@ def revisar(tid, titulo, diff, impacto="", alcance=""):
               # revisor lo sabe y decide si el enunciado exigía de verdad esos archivos.
               + ("ALCANCE: %s. Si el enunciado exigía esos cambios, marca BLOQUEANTE y di qué falta.\n\n" % alcance if alcance else "")
               + "```diff\n%s\n```") % (titulo, diff[:22000])
-    for prov, modelo in REVISORES:
+    # Solo se intentan revisores vivos, con cupo y atemperados; el último que respondió va
+    # primero. El 2026-09-06 xkiro (429) y aihubmix (cuota) se intentaban en cada revisión
+    # y cada tarea perdía 5-12 minutos antes de llegar a un revisor que respondiera.
+    candidatos, saltados = candidatos_revision()
+    if saltados:
+        evento("aviso", tid, "revisores saltados: %s" % ", ".join(saltados))
+    intentos = 0
+    for prov, modelo in candidatos:
+        t_llamada = time.time()
         try:
             # 240 s: los revisores pensantes (glm-5.3 en tokenrouter) tardan más de 2 min con un
             # diff grande y se perdían por «read operation timed out», cayendo hasta Gemini.
+            intentos += 1
             txt = llamar_llm(prov, modelo, prompt, timeout=240)
-            if txt.strip(): return prov + "/" + modelo, txt.strip()
+            if txt.strip():
+                _revisor_respondio(prov, modelo)
+                return prov + "/" + modelo, txt.strip(), {"segundos": int(time.time() - t_llamada), "intentos": intentos}
         except Exception as e:
             evento("aviso", tid, "revisor %s no disponible: %s" % (prov, str(e)[:120]))
-    return "", ""
+    return "", "", {"segundos": 0, "intentos": intentos}
 
 # ── trabajador ──────────────────────────────────────────────────────────────
 
@@ -1624,7 +1767,7 @@ def ejecutar(t, intento=1):
     impacto = impacto_cambios("ola/" + tid)          # grafo GitNexus: qué flujos toca la rama (None si no hay índice)
     if impacto:
         paso(tid, "impacto", **{k: v for k, v in impacto.items() if k != "detalle"}, detalle=" | ".join(impacto["detalle"]))
-    revisor, rev = ("", "") if "--sin-revision" in sys.argv else revisar(tid, t.get("titulo", ""), diff, impacto_texto(impacto), alcance=alcance_txt)
+    revisor, rev, meta_rev = ("", "", {}) if "--sin-revision" in sys.argv else revisar(tid, t.get("titulo", ""), diff, impacto_texto(impacto), alcance=alcance_txt)
     bloqueante = bool(re.search(r"seguimiento:?\**\s*s[ií]\b.*bloqueante", rev, re.I | re.S)) or ("bloqueante" in rev.lower() and "no bloqueante" not in rev.lower())
     # Al revisor se le pide expresamente que NO bloquee por no ver el diff entero, y aun así lo
     # hace (Ola 233, C7: «el diff está truncado» sobre un commit que había pasado tsc y vitest).
@@ -1648,7 +1791,8 @@ def ejecutar(t, intento=1):
             elif segundo:
                 evento("aviso", tid, "bloqueo CONFIRMADO por %s: %s" % (segundo, dictamen[:160]))
                 rev += "\n\n**Segunda opinión (%s): el bloqueo se confirma.** %s" % (segundo, dictamen[:400])
-    paso(tid, "revision", revisor=revisor or "ninguno", bloqueante=bloqueante, caracteres=len(rev or ""))
+    paso(tid, "revision", revisor=revisor or "ninguno", bloqueante=bloqueante, caracteres=len(rev or ""),
+         segundos=meta_rev.get("segundos", 0), intentos=meta_rev.get("intentos", 0))    # Ola 261: quién respondió, cuánto tardó y cuántos se probaron
     if rev:
         with cerrojo("revisiones"), open(REVIS, "a", encoding="utf-8") as f:
             f.write("\n## %s · %s · %s: %s\n**Revisión (%s)**\n\n%s\n" % (ahora()[:16], t.get("ola", ""), tid, t.get("titulo", ""), revisor, rev))

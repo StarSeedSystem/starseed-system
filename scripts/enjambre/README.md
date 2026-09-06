@@ -47,6 +47,20 @@ aviso «TAREA INCOMPLETA» y el revisor recibe el bloque ALCANCE: si el enunciad
 cambios, debe marcarlo BLOQUEANTE. Nació el 2026-09-06, tras dos tareas integradas a medias
 (V8/255 y N2/258) sin que nadie lo notara. Prueba: `python3 -m pytest -q scripts/enjambre/test_alcance.py`.
 
+## Revisores con memoria (Ola 261, 2026-09-06)
+
+Antes, cada revisión intentaba TODOS los `REVISORES` en orden aunque supiera que estaban caídos:
+xkiro respondía 429 todo el día, aihubmix su aviso de cuota y tokenrouter quemaba timeouts —
+5-12 min perdidos por tarea. Ahora el archivo de salud (`~/.starseed/salud-proveedores.json`)
+también memoriza cupo: `marcar_sin_cupo(prov, motivo, horas=24)` se dispara con avisos de cuota
+en la respuesta, HTTP 402 o mensajes de «quota»/«daily limit»; un 429 NO apaga (es temporal),
+solo guarda `ultimo_429` y el proveedor queda «enfriándose» 10 min (`enfriandose()`).
+`candidatos_revision()` filtra caídos/sin cupo/enfriándose y pone primero el último que respondió
+con éxito (`REVISOR_ULTIMO_OK`, también persistido como `ultimo_revisor_ok`); si todos quedan
+excluidos se vuelve a la lista completa — nunca sin revisor. Los saltados dejan un único evento
+`aviso` por revisión y no cuentan como intento en el paso `revision` (que anota revisor, segundos
+e intentos). Prueba: `python3 -m pytest -q scripts/enjambre/test_revisores.py`.
+
 ## Puertas según el tipo de repo
 
 Si la raíz **no** tiene `tsconfig.json`, el orquestador lo trata como repo Python: compila con
