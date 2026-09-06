@@ -72,7 +72,13 @@ import { resolveVoiceParams } from "@/lib/aurora/tts-oss/voice-style";
 import {
   getVoiceConfig as getUnifiedVoiceConfig,
   currentPreferredVoiceGender,
+  getVoiceStyle,
 } from "@/lib/aurora/tts-oss/voice-config";
+// (2026-09-06, Ola 264 · G2) Emoción del turno en el motor único «Voz StarSeed»:
+// la etiqueta `[emocion]` que Astraura escribe al inicio de una cláusula y el
+// mapa chato chat→catálogo de la Forja (estilo vivo, personalidad).
+import { emocionDesdeTexto, type EmocionVoz } from "@/lib/voces/emociones";
+import { emocionChatAVoz } from "@/lib/aurora/voz-starseed/motor";
 
 type Voice = { name: string; lang: string; voiceURI: string; default?: boolean };
 
@@ -417,16 +423,38 @@ function markTtsSpeaking(on: boolean): void {
  * que suena. Si cambias esta regex, cámbiala también allí o las notas de voz
  * dejarán de casar con su mensaje (Adenda 87). Pura: nunca lanza.
  */
-function sanitizeSpeechText(text: string): { clean: string; cleanChain: string } {
+function sanitizeSpeechText(text: string): {
+  clean: string;
+  cleanChain: string;
+  /** (2026-09-06, Ola 264 · G2) Emoción de la etiqueta `[emocion]`, si la traía. */
+  emocion?: EmocionVoz;
+  /** Intensidad de la etiqueta `[emocion 1.5]`, si la traía. */
+  intensidad?: number;
+} {
   const sinDirectivas = (text || "").replace(/\[\[goto:[^\]]+\]\]/gi, "");
-  let clean = sinDirectivas.replace(/[*_~`´#|><.,;:\-\[\](){}\\\/"—–]/g, " ");
+  // (Ola 264 · G2) Etiqueta de emoción AL INICIO del texto (`[alegre]`,
+  // `[susurro 1.4]`…): la lee Astraura para modular su propia voz. Se extrae
+  // ANTES de limpiar (la regex de abajo borra los corchetes) y NO llega a
+  // ninguna de las dos salidas: ni suena literal ni queda en el texto del chat.
+  let sinEtiqueta = sinDirectivas;
+  let emocion: EmocionVoz | undefined;
+  let intensidad: number | undefined;
+  try {
+    const e = emocionDesdeTexto(sinDirectivas);
+    if (e.emocion) {
+      emocion = e.emocion;
+      intensidad = e.intensidad ?? undefined;
+      sinEtiqueta = e.textoLimpio;
+    }
+  } catch { /* la etiqueta nunca rompe el habla */ }
+  let clean = sinEtiqueta.replace(/[*_~`´#|><.,;:\-\[\](){}\\\/"—–]/g, " ");
   clean = clean.replace(/\s+/g, " ").trim();
-  let cleanChain = sinDirectivas.replace(/[*_~`´#|><\[\](){}\\\/"]/g, " ");
+  let cleanChain = sinEtiqueta.replace(/[*_~`´#|><\[\](){}\\\/"]/g, " ");
   cleanChain = cleanChain.replace(/\s+/g, " ").trim();
   if (!clean && !cleanChain) return { clean: "", cleanChain: "" };
   if (!cleanChain) cleanChain = clean;
   if (!clean) clean = cleanChain;
-  return { clean, cleanChain };
+  return { clean, cleanChain, emocion, intensidad };
 }
 
 /**
@@ -626,7 +654,14 @@ export function useAuroraEngine(): AuroraEngine {
   // cláusula que sigue en vuelo (su onend/onerror/watchdog puede llegar
   // igual tras el cancel()) no reviva un drenaje ya cancelado ni cierre el
   // turno equivocado.
-  const ttsQueueRef = useRef<{ clean: string; cleanChain: string; p: Personality }[]>([]);
+  const ttsQueueRef = useRef<{
+    clean: string;
+    cleanChain: string;
+    p: Personality;
+    /** (2026-09-06, Ola 264 · G2) Emoción/intensidad EFECTIVAS del turno. */
+    emocion?: EmocionVoz;
+    intensidad?: number;
+  }[]>([]);
   const ttsQueueBusyRef = useRef<boolean>(false);
   const ttsQueueGenRef = useRef<number>(0);
   // Índice del historial para Adelantar/Retroceder (-1 = última respuesta).
@@ -1037,6 +1072,11 @@ export function useAuroraEngine(): AuroraEngine {
           contexto: "conversacion",
           sinSistema: true,
           personalidadId: typeof next.p?.id === "string" ? next.p.id : undefined,
+          // (2026-09-06, Ola 264 · G2) La emoción/intensidad del turno viajan al
+          // motor único (etiqueta `[emocion]` o estilo vivo, ya resuelto al
+          // encolar); una etiqueta dentro del propio texto seguiría mandando.
+          ...(next.emocion ? { emocion: next.emocion } : {}),
+          ...(next.intensidad !== undefined ? { intensidad: next.intensidad } : {}),
           alEmpezar: () => {
             handedOff = true;
             setSpeaking(true); setPaused(false); emitAuroraSpeak("start");
@@ -1073,10 +1113,20 @@ export function useAuroraEngine(): AuroraEngine {
     if (typeof window === "undefined") return;
     // Misma limpieza que `speak()` (`sanitizeSpeechText`, compartida: una
     // sola fuente para ambas rutas).
-    const { clean, cleanChain } = sanitizeSpeechText(text);
+    const { clean, cleanChain, emocion, intensidad } = sanitizeSpeechText(text);
     if (!clean && !cleanChain) return;
     const p = forcePersonality || activeRef.current;
-    ttsQueueRef.current.push({ clean, cleanChain, p });
+    // (2026-09-06, Ola 264 · G2) Emoción del turno, UNA VEZ, al encolar.
+    // Precedencia: etiqueta `[emocion]` que Astraura escriba al inicio de la
+    // cláusula MANDA > emoción viva persistida (`starseed.aurora.voice.v1`)
+    // > `voiceStyle.emotion` de la personalidad que habla. Lo que no mapea
+    // queda en undefined y el motor cae a la emoción base del timbre.
+    let emocionTurno: EmocionVoz | undefined = emocion;
+    if (!emocionTurno) {
+      try { emocionTurno = emocionChatAVoz(getVoiceStyle().emotion); } catch { /* sin estilo */ }
+    }
+    if (!emocionTurno) emocionTurno = emocionChatAVoz(p?.voiceStyle?.emotion);
+    ttsQueueRef.current.push({ clean, cleanChain, p, emocion: emocionTurno, intensidad });
     if (!ttsQueueBusyRef.current) {
       // Nadie está drenando ahora mismo → arranca el relevo con ESTA
       // cláusula. Si YA había un drenaje en curso, no hace falta hacer nada

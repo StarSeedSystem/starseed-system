@@ -25,6 +25,14 @@ import type { Timbre } from "@/lib/aurora/timbres";
 import { detectarCapacidades, capacidadesEnCache, type Capacidades } from "./capacidades";
 import { nivelPara, siguienteNivel, NIVELES, type NivelVoz } from "./niveles";
 import { perfilNeuronal } from "@/lib/voces/perfil-neuronal";
+// (2026-09-06, Ola 264 · G2) Emoción e intensidad: etiquetas `[emocion]` del
+// texto, capa `aplicarEmocion` sobre el perfil neuronal y catálogo `EmocionVoz`.
+import {
+    aplicarEmocion,
+    emocionDesdeTexto,
+    EMOCIONES,
+    type EmocionVoz,
+} from "@/lib/voces/emociones";
 
 /** Identificador público del motor único, para registros y paneles. */
 export const VOZ_STARSEED_ID = "starseed.voz-unica.v1";
@@ -61,6 +69,121 @@ export function fijarNivel(n: PreferenciaNivel): void {
 
 /** Nivel en el que está sonando AHORA la voz (lo fija `hablarStarSeed`). */
 let nivelEnUso: NivelVoz | null = null;
+
+// ── (2026-09-06, Ola 264 · G2) EMOCIÓN E INTENSIDAD EN EL MOTOR ─────────────
+
+/**
+ * Mapa chato entre las emociones que ya existen en el CHAT (el estilo vivo
+ * persistido en `starseed.aurora.voice.v1` y `voiceStyle.emotion` de cada
+ * personalidad) y el catálogo `EmocionVoz` de la Forja. Lo que no está aquí
+ * devuelve `undefined`: mejor caer al timbre neutro que adivinar una emoción
+ * equivocada. Las claves guardan sinónimos sin tilde (se compara normalizado).
+ */
+const MAPA_EMOCION_CHAT: Record<string, EmocionVoz> = {
+    alegre: "alegre", feliz: "alegre", entusiasta: "alegre",
+    serena: "serena", calma: "serena", dulce: "serena", empatica: "serena",
+    urgente: "urgente", prisa: "urgente", alerta: "urgente",
+    triste: "triste", tristeza: "triste",
+    solemne: "solemne", seria: "solemne",
+    jugueton: "jugueton", juguetona: "jugueton",
+    susurro: "susurro", misteriosa: "susurro",
+    asombro: "asombro", sorpresa: "asombro",
+    neutra: "neutra", neutral: "neutra",
+};
+
+/** Minúsculas y sin tildes, para aceptar «Calma», «empática»… */
+function normalizarClaveEmocion(s: string): string {
+    return s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").trim();
+}
+
+/**
+ * Traduce una emoción del CHAT (estilo vivo, personalidad) al catálogo de la
+ * Forja. Lo desconocido/vacío devuelve `undefined`. Pura.
+ */
+export function emocionChatAVoz(emocion: string | undefined | null): EmocionVoz | undefined {
+    if (!emocion) return undefined;
+    return MAPA_EMOCION_CHAT[normalizarClaveEmocion(emocion)];
+}
+
+/** Resultado de resolver la emoción efectiva de un turno de habla. */
+export interface ResolucionEmocion {
+    /** Emoción eficaz (nunca undefined: sin ninguna pista cae a "neutra"). */
+    emocion: EmocionVoz;
+    /** Cuánto se exagera (0–2; 1 = la de manual de la emoción). */
+    intensidad: number;
+    /** El texto YA sin la etiqueta `[emocion]`, listo para hablar. */
+    texto: string;
+}
+
+/**
+ * Resuelve la emoción EFECTIVA de un turno (2026-09-06, Ola 264 · G2).
+ *
+ * Precedencia fija, de más específica a más general:
+ *
+ *   1. La etiqueta `[emocion]` (con intensidad opcional) al inicio del texto:
+ *      es lo que Astraura escribió para ESTE turno y manda sobre todo. Su
+ *      intensidad, si la trae, también manda sobre la de las opciones.
+ *   2. `opciones.emocion` / `opciones.intensidad` (si la emoción es válida).
+ *   3. La emoción base del timbre (`emocionBase` / `intensidad` del timbre).
+ *   4. Nada: "neutra" con intensidad 1.
+ *
+ * Si la etiqueta no era una emoción válida, el texto se queda intacto (no se
+ * recorta nada por error). Pura.
+ */
+export function resolverEmocion(
+    texto: string,
+    opciones: { emocion?: string; intensidad?: number } = {},
+    timbre?: Pick<Timbre, "emocionBase" | "intensidad">,
+): ResolucionEmocion {
+    const delTexto = emocionDesdeTexto(texto || "");
+    const claveOpcion = opciones.emocion ? normalizarClaveEmocion(opciones.emocion) : "";
+    const deOpciones = (EMOCIONES as Partial<Record<string, unknown>>)[claveOpcion] !== undefined
+        ? (claveOpcion as EmocionVoz)
+        : undefined;
+    return {
+        emocion: delTexto.emocion ?? deOpciones ?? timbre?.emocionBase ?? "neutra",
+        intensidad: delTexto.intensidad ?? opciones.intensidad ?? timbre?.intensidad ?? 1,
+        texto: delTexto.textoLimpio,
+    };
+}
+
+/**
+ * Timbre AJUSTADO por la emoción del turno (2026-09-06, Ola 264 · G2).
+ *
+ * La emoción es una CAPA sobre el perfil, no otra voz: mismo timbre, misma
+ * voz neuronal y misma semilla (la identidad no se toca); solo se mueven
+ * `speed`, `pitch`, `instruct` y `expr` por `aplicarEmocion`. La desviación ya
+ * calculada sobre el perfil neuronal se traslada como FACTOR a los niveles
+ * que no entienden instruct (Kokoro usa el `speed` resultante; la voz del
+ * sistema recibe `sistema.rate` y `sistema.pitch` escalados).
+ *
+ * `neutra` (o intensidad ≤ 0) devuelve el timbre INTACTO: volver a «sin
+ * marca» no debe reescribir el timbre base — p. ej. el `whisper` del instruct
+ * de Eco es identidad forjada, no una emoción que haya que apagar.
+ */
+function timbreConEmocion(timbre: Timbre, emocion: EmocionVoz, intensidad: number): Timbre {
+    if (emocion === "neutra" || intensidad <= 0) return timbre;
+    const base = perfilNeuronal(timbre);
+    const { perfil, expr } = aplicarEmocion(base, timbre.expr, emocion, intensidad);
+    const factorSpeed = base.speed > 0 ? perfil.speed / base.speed : 1;
+    const factorPitch = base.pitch > 0 ? perfil.pitch / base.pitch : 1;
+    return {
+        ...timbre,
+        local: {
+            ...timbre.local,
+            speed: perfil.speed,
+            instruct: perfil.instruct,
+            seed: perfil.seed,
+            pitch: perfil.pitch,
+        },
+        expr,
+        sistema: {
+            ...timbre.sistema,
+            pitch: Math.min(2, Math.max(0.5, timbre.sistema.pitch * factorPitch)),
+            rate: Math.min(2, Math.max(0.5, timbre.sistema.rate * factorSpeed)),
+        },
+    };
+}
 
 /** Último nivel que usó el motor, o `null` si aún no ha hablado en esta sesión. */
 export function nivelActual(): NivelVoz | null {
@@ -132,8 +255,13 @@ export interface OpcionesHablar {
     alDegradar?: (desde: NivelVoz, hasta: NivelVoz) => void;
     /** Personalidad dueña del turno: viaja en el evento `starseed:gesto`. */
     personalidadId?: string;
-    /** Emoción del turno: se incorpora al gesto derivado para el avatar. */
+    /** Emoción del turno: se aplica al perfil neuronal y viaja al gesto. */
     emocion?: string;
+    /**
+     * (2026-09-06, Ola 264 · G2) Intensidad de la emoción (0–2; 1 = la de
+     * manual). Escala la DESVIACIÓN, no el valor: 0 = sin marca, 2 = doble.
+     */
+    intensidad?: number;
     /** Aviso en cuanto el audio EMPIEZA a sonar (no al terminar). */
     alEmpezar?: () => void;
     /**
@@ -219,8 +347,16 @@ async function sintetizar(nivel: NivelVoz, texto: string, timbre: Timbre, opcion
  * si ni el nivel mínimo pudo sonar. Nunca lanza.
  */
 export async function hablarStarSeed(texto: string, opciones: OpcionesHablar): Promise<boolean> {
-    const limpio = (texto || "").trim();
+    // (2026-09-06, Ola 264 · G2) La etiqueta `[emocion]` al inicio del texto
+    // manda sobre las opciones y suena SIN ella — nadie oye «alegre, hola».
+    const resuelta = resolverEmocion(texto, opciones, opciones.timbre);
+    const limpio = (resuelta.texto || "").trim();
     if (!limpio || typeof window === "undefined") return false;
+
+    // La emoción es una capa sobre el PERFIL del timbre (no otra voz): aquí se
+    // aplica UNA vez y el timbre ajustado recorre todos los niveles, de modo
+    // que la degradación de nivel no cambia ni el carácter ni la emoción.
+    const timbre = timbreConEmocion(opciones.timbre, resuelta.emocion, resuelta.intensidad);
 
     let nivel: NivelVoz;
     try {
@@ -238,7 +374,7 @@ export async function hablarStarSeed(texto: string, opciones: OpcionesHablar): P
         const { gestoDesdeTexto, emitirGestoVoz, estimarDuracionAudioMs } =
             await import("@/lib/avatares/movimiento/sincronia-voz");
         const gesto = gestoDesdeTexto(limpio, {
-            emocion: opciones.emocion,
+            emocion: resuelta.emocion,
             personalidadId: opciones.personalidadId,
         });
         emitirGestoVoz({
@@ -253,7 +389,7 @@ export async function hablarStarSeed(texto: string, opciones: OpcionesHablar): P
     let actual: NivelVoz | null = nivel;
     while (actual) {
         try {
-            if (await sintetizar(actual, limpio, opciones.timbre, opciones)) {
+            if (await sintetizar(actual, limpio, timbre, opciones)) {
                 nivelEnUso = actual;
                 return true;
             }
