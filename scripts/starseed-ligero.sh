@@ -230,14 +230,22 @@ estado() {
     mb_libres=$(printf '%s\n' "$vm" | awk -v p="$tam_pagina" '/Pages free/{f=$3} /Pages inactive/{i=$3} END{gsub(/\./,"",f); gsub(/\./,"",i); printf "%.0f", (f+i)*p/1048576}')
     echo "🧠 RAM libre+inactiva: ${mb_libres} MB (página ${tam_pagina} B)"
   fi
-  # Swap usado (Ola 257): cuánto está comprimiendo/volcando a disco el sistema.
-  # `sysctl vm.swapusage` solo existe en macOS; en Linux se salta con command -v.
+  # Swap usado y total (Ola 257): cuánto está comprimiendo/volcando a disco el
+  # sistema. `sysctl vm.swapusage` solo existe en macOS; en Linux se salta con
+  # command -v.
   if command -v sysctl >/dev/null 2>&1; then
-    # El campo `used` viene en bytes en «vm.swapusage: total = X  used = Y free = Z».
-    local swap_mb
-    swap_mb=$(sysctl vm.swapusage 2>/dev/null | sed -nE 's/.*used = ([0-9]+).*/\1/p' | awk '{printf "%.0f", $1/1048576}' || true)
-    if [ -n "$swap_mb" ]; then
-      echo "💱 Swap usado: ${swap_mb} MB"
+    # 2026-09-06, Ola 257: `sysctl vm.swapusage` devuelve los valores en MEGABYTES
+    # con sufijo y decimales — «used = 3821.31M» — NO en bytes. La Ola 257 (L4,
+    # 71fab7b) los trataba como bytes y dividía entre 1048576, así que imprimía
+    # «💱 Swap usado: 0 MB» siempre. Capturamos el número y su sufijo (K/M/G) y
+    # convertimos a MB redondeando a entero (K → /1024, M → tal cual, G → ×1024).
+    # Si no se puede leer, no imprimimos la línea.
+    local swap_line swap_used_mb swap_total_mb
+    swap_line=$(sysctl vm.swapusage 2>/dev/null || true)
+    swap_used_mb=$(printf '%s\n' "$swap_line" | sed -nE 's/.*used = ([0-9.]+)([KMG]).*/\1 \2/p' | awk '{v=$1; s=$2; if(s=="K")v=v/1024; else if(s=="G")v=v*1024; printf "%.0f", v}')
+    swap_total_mb=$(printf '%s\n' "$swap_line" | sed -nE 's/.*total = ([0-9.]+)([KMG]).*/\1 \2/p' | awk '{v=$1; s=$2; if(s=="K")v=v/1024; else if(s=="G")v=v*1024; printf "%.0f", v}')
+    if [ -n "$swap_used_mb" ]; then
+      echo "💱 Swap usado: ${swap_used_mb} MB de ${swap_total_mb:-?} MB"
     fi
   fi
   # Salud de la voz (Ola 257): el demonio OmniVoice vive en 127.0.0.1:4444 y
