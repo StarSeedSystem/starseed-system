@@ -106,7 +106,10 @@ case "${1:-}" in
     echo "Hecho: revisa `git diff scripts/enjambre/` antes de versionar."
     ;;
   "")
-    echo "Instalando en $OS…"
+    # Uso ${OS} con llaves: el carácter «…» (puntos suspensivos Unicode) que le sigue lo toma
+    # bash 3.2 de macOS (con `set -u`) como parte del nombre de la variable, provocando
+    # «OS…: unbound variable». En Linux (bash 5) no fallaba, pero es portátil escribir con llaves.
+    echo "Instalando en ${OS}…"
     echo "  origen orquestador [md5 $(md5_de "$SRC_ENJAMBRE")]"
     copia_de "$SRC_ENJAMBRE" "$DEST_ENJAMBRE"
     if [ -n "$DEST_LANZADOR" ]; then

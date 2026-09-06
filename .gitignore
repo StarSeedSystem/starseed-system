@@ -51,6 +51,10 @@ firestore-debug.log
 venv/
 .venv/
 
+# Python bytecode (nunca versionar los .pyc generados por pytest)
+__pycache__/
+*.pyc
+
 # IDX (Firebase Studio / project IDX artifacts)
 .idx/
 .modified
