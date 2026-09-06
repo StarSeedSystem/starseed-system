@@ -27,6 +27,12 @@ export interface EstadoOido {
     ocupado: boolean;
     /** Peticiones esperando turno en la cola del daemon. */
     cola: number;
+    /** El oído residemente (asr_stream_server) vive y está listo (Ola 255). */
+    residente?: boolean;
+    /** ms desde que empezó a cargar el residente si aún no está listo. */
+    cargandoDesdeMs?: number | null;
+    /** Presupuesto (ms) del último reconocimiento (proporcional al audio). */
+    presupuestoMs?: number;
 }
 
 /** Resultado de una transcripción por el oído local. */
@@ -38,13 +44,28 @@ export interface ResultadoOido {
     motor: string;
     /** Modelo usado (ruta o nombre del GGUF del LM). */
     modelo: string;
+    /** Duración real del audio reconocido en segundos (null si no se leyó). */
+    segundosAudio?: number | null;
+    /** Presupuesto (ms) que el daemon dio a este reconocimiento. */
+    presupuestoMs?: number;
 }
 
 /** Comando de instalación que se muestra al usuario (script del propio repo). */
 export const COMANDO_INSTALAR_OIDO = "bash native/astraura-voice/install-vibeasr.sh";
 
-/** Timeout del lado cliente: el proxy da 130 s al daemon; damos margen propio. */
-const TIMEOUT_OIDO_MS = 130_000;
+/** Timeout del lado cliente: el proxy da 370 s al daemon; damos margen propio. */
+const TIMEOUT_OIDO_MS = 380_000;
+
+/**
+ * Presupuesto de reconocimiento proporcional a la duración del audio, con la
+ * MISMA fórmula que usa el demonio (`asrTimeoutMs`, Ola 255): 60 s de base más
+ * 20 s por segundo de audio, acotado a [120 s, 360 s]. NaN o negativo → 180 s.
+ */
+export function presupuestoOidoMs(segundosAudio: number): number {
+    if (!Number.isFinite(segundosAudio) || segundosAudio < 0) return 180_000;
+    const ms = 60_000 + 20_000 * segundosAudio;
+    return Math.min(360_000, Math.max(120_000, ms));
+}
 
 /**
  * Lee el estado de instalación del oído desde `/api/voz-local/status`.
@@ -64,6 +85,9 @@ export async function estadoOido(): Promise<EstadoOido | null> {
             modelos: a.modelos === true,
             ocupado: a.ocupado === true,
             cola: typeof a.cola === "number" ? a.cola : 0,
+            residente: a.residente === true,
+            cargandoDesdeMs: typeof a.cargandoDesdeMs === "number" ? a.cargandoDesdeMs : null,
+            presupuestoMs: typeof a.presupuestoMs === "number" ? a.presupuestoMs : undefined,
         };
     } catch {
         return null;
@@ -86,7 +110,7 @@ export async function transcribirLocal(
     const form = new FormData();
     form.append("audio", blob, "toma.webm");
 
-    // Timeout propio de 130 s combinado con la señal del llamante (si la hay).
+    // Timeout propio de 380 s combinado con la señal del llamante (si la hay).
     const ctrl = new AbortController();
     const temporizador = setTimeout(() => ctrl.abort(new Error("timeout")), TIMEOUT_OIDO_MS);
     const alAbortarExterno = () => ctrl.abort(opts?.signal?.reason);
@@ -126,19 +150,23 @@ export async function transcribirLocal(
             segundos?: unknown;
             motor?: unknown;
             modelo?: unknown;
+            segundosAudio?: unknown;
+            presupuestoMs?: unknown;
         };
         return {
             texto: typeof datos.texto === "string" ? datos.texto : "",
             segundos: typeof datos.segundos === "number" ? datos.segundos : 0,
             motor: typeof datos.motor === "string" ? datos.motor : "vibeasr-1.58",
             modelo: typeof datos.modelo === "string" ? datos.modelo : "",
+            segundosAudio: typeof datos.segundosAudio === "number" ? datos.segundosAudio : null,
+            presupuestoMs: typeof datos.presupuestoMs === "number" ? datos.presupuestoMs : undefined,
         };
     } catch (e) {
         // Traduce el abort por timeout a un mensaje humano; el resto ya lo es.
         if (ctrl.signal.aborted) {
             const razon = ctrl.signal.reason;
             if (razon instanceof Error && razon.message === "timeout") {
-                throw new Error("La transcripción tardó demasiado (más de 130 s).");
+                throw new Error("La transcripción tardó demasiado (más de 380 s).");
             }
             throw new Error("Transcripción cancelada.");
         }

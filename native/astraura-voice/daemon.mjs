@@ -286,14 +286,22 @@ let oidoPresupuestoMs = 0; // presupuesto del último reconocimiento (para /stat
 let oidoSuenoTimer = null; // temporizador del sueño por inactividad
 
 /**
- * Mata el proceso residente (SIGKILL directo o tras un EXIT que no obedeció)
- * y limpia el estado. Si había una petición en curso la resuelve con error
- * para que la cola no se quede colgada. Nunca lanza.
+ * Mata el proceso residente (SIGTERM y, si no muere en 5 s, SIGKILL) y limpia
+ * el estado. Si había una petición en curso la resuelve con error para que la
+ * cola no se quede colgada. Nunca lanza.
+ *
+ * 2026-09-06 (Ola 255, riesgos de la revisión de V8):
+ *   - `oidoProc = null` se pone SOLO en el manejador `exit`/`close` del proceso
+ *     (no aquí arriba): así, si el SIGTERM/EXIT no se materializa aún, la
+ *     variable sigue señalando al proceso vivo y una segunda petición no lanza
+ *     un `asr_stream_server` duplicado mientras el anterior aún ocupa 1,7 GB.
+ *   - En vez de SIGKILL directo (suave=false) o EXIT, se intenta primero
+ *     SIGTERM y, a los 5 s, SIGKILL como respaldo — evita dejar procesos
+ *     huérfanos sin recurrir solo a la fuerza bruta.
  */
 function matarOidoResidente(motivo, suave) {
   const proc = oidoProc;
   if (!proc) return;
-  oidoProc = null;
   oidoListo = false;
   oidoCargandoDesde = 0;
   oidoCargaPromesa = null;
@@ -309,6 +317,11 @@ function matarOidoResidente(motivo, suave) {
     p.resolve({ ok: false, error: `el oído residente se detuvo: ${motivo}` });
   }
   log("daemon", `oído residente detenido: ${motivo}`);
+  // Limpia `oidoProc` SOLO cuando el proceso de hecho muere (exit/close), no
+  // aquí: mantener la referencia durante el apagado evita relanzar a ciegas.
+  const liberar = () => {
+    if (oidoProc === proc) oidoProc = null;
+  };
   try {
     if (suave) {
       // EXIT ordenado; si no muere en 5 s, SIGKILL (no puede quedar un proceso
@@ -328,11 +341,24 @@ function matarOidoResidente(motivo, suave) {
       }, 5000);
       if (t.unref) t.unref();
     } else if (!proc.killed && proc.exitCode === null) {
-      proc.kill("SIGKILL");
+      proc.kill("SIGTERM");
+      const p2 = proc;
+      const t = setTimeout(() => {
+        try {
+          if (p2.exitCode === null) p2.kill("SIGKILL");
+        } catch {
+          /* */
+        }
+      }, 5000);
+      if (t.unref) t.unref();
     }
   } catch {
     /* */
   }
+  proc.once("exit", liberar);
+  proc.once("close", liberar);
+  // Si ya había muerto antes de esta llamada, liberamos ya la referencia.
+  if (proc.exitCode !== null || proc.killed) liberar();
 }
 
 /** Programa el sueño por inactividad: ASR_SUENO_MS sin peticiones → EXIT. */
@@ -394,9 +420,15 @@ function asegurarOidoResidente() {
   const bin = rutaOidoResidente();
   if (!fileOk(bin)) return Promise.resolve(false);
   const p = vibeasrPaths();
+  // 2026-09-06 (Ola 255, riesgo de la revisión de V8): guardamos la promesa
+  // de carga ANTES de la primera declaración asíncrona del ejecutor. Como
+  // `new Promise(resolve => {...})` crea y devuelve la promesa de forma SÍNCRONA
+  // y no hay `await` entre la asignación y el registro de `oidoCargaPromesa`,
+  // dos peticiones simultáneas leen la MISMA carga en curso (la del primer
+  // llamador) en vez de lanzar dos `asr_stream_server` de 1,7 GB.
   oidoCargandoDesde = Date.now();
   const t0 = oidoCargandoDesde;
-  oidoCargaPromesa = new Promise((resolve) => {
+  const promesa = new Promise((resolve) => {
     let proc;
     try {
       proc = spawn(bin, ["--vae-model", p.vae, "--lm-model", p.lm, "-t", VIBEASR_HILOS, "--no-token-stream"], {
@@ -470,14 +502,31 @@ function asegurarOidoResidente() {
       }
     });
   });
-  return oidoCargaPromesa;
+  oidoCargaPromesa = promesa;
+  return promesa;
 }
 
 /**
- * Reconoce un WAV con el residente. Devuelve { ok, texto|error, segundos }.
- * El presupuesto es proporcional a la duración del audio (asrTimeoutMs). Si
- * el residente se cuelga, se mata (la siguiente petición lo relanza limpio).
+ * Cede la memoria del pool TTS al oído si escasea (2026-09-06, Ola 255).
+ * El oído residente carga 1,7 GB y en una Mac de 8 GB al límite cada
+ * reconocimiento moría por timeout por falta de RAM. Si quedan menos de
+ * ASR_MEM_MIN_MB libres, la última síntesis fue hace ASR_TTS_INACTIVO_MS o más
+ * y no hay ninguna síntesis en curso ahora (inFlight === 0), mata todos los
+ * servidores tts-server — el TTS se relanza solo en la siguiente locución.
+ * NUNCA mata el pool si hay una síntesis en vuelo. Devuelve true si cedió.
  */
+async function cederMemoriaSiHaceFalta() {
+  const libres = os.freemem();
+  if (libres >= ASR_MEM_MIN_MB * 1024 * 1024) return false;
+  if (Date.now() - lastReq < ASR_TTS_INACTIVO_MS) return false;
+  if (inFlight > 0) return false; // hay síntesis en curso: no interrumpirla
+  if (serverPool.size === 0) return false; // nada que ceder
+  const mb = Math.trunc(libres / (1024 * 1024));
+  killAllServers(`oído: cediendo memoria del pool TTS (${mb} MB libres)`);
+  return true;
+}
+
+/**
 async function reconocerResidente(wavPath, segundosAudio) {
   const okCarga = await asegurarOidoResidente();
   if (!okCarga) return { ok: false, error: "no se pudo dejar listo el oído residente" };
@@ -533,8 +582,9 @@ function asrTimeoutMs(segundosAudio) {
 
 /**
  * Lee la duración en segundos de un WAV PCM (cabecera RIFF): recorre los
- * chunks hasta `data` y divide sus bytes entre (sampleRate × canales × 2).
- * Devuelve NaN si no se puede leer (el llamador usa entonces 180 s).
+ * chunks hasta `data` y divide sus bytes entre
+ * (sampleRate × canales × bitsPorMuestra/8). Devuelve NaN si no se puede leer
+ * (el llamador usa entonces 180 s).
  */
 function segundosDeWav(ruta) {
   let fd = null;
@@ -548,15 +598,18 @@ function segundosDeWav(ruta) {
     if (fs.readSync(fd, cabFmt, 0, 24, 12) < 24 || cabFmt.toString("ascii", 0, 4) !== "fmt ") return NaN;
     const canales = cabFmt.readUInt16LE(10);
     const sampleRate = cabFmt.readUInt32LE(12);
-    if (!canales || !sampleRate) return NaN;
-    // Recorre los chunks tras `fmt ` hasta encontrar `data`.
+    const bitsPorMuestra = cabFmt.readUInt16LE(22);
+    if (!canales || !sampleRate || !bitsPorMuestra) return NaN;
+    const bytesPorMuestra = bitsPorMuestra / 8;
+    // Recorre los chunks tras `fmt ` hasta encontrar `data`. No se asume que
+    // `data` empiece en el byte 44: ffmpeg puede escribir un chunk LIST antes.
     let pos = 36;
     const cabChunk = Buffer.alloc(8);
     while (pos + 8 <= st.size) {
       if (fs.readSync(fd, cabChunk, 0, 8, pos) < 8) return NaN;
       const nombre = cabChunk.toString("ascii", 0, 4);
       const bytes = cabChunk.readUInt32LE(4);
-      if (nombre === "data") return bytes / (sampleRate * canales * 2);
+      if (nombre === "data") return bytes / (sampleRate * canales * bytesPorMuestra);
       pos += 8 + bytes + (bytes % 2); // los chunks se aliñean a 2 bytes
     }
     return NaN;
@@ -1701,9 +1754,31 @@ async function handleAsr(req, res, cors) {
   }
 
   // UN proceso a la vez (cola FIFO con cupo).
+  //
+  // 2026-09-06 (Ola 255): se lee la duración REAL del WAV 16 kHz (la cabecera
+  // RIFF recorre los chunks, no asume `data` en el byte 44) y se cede memoria
+  // del pool TTS si escasea antes de reconocer. Se prefiere el RESIDENTE
+  // (`asr_stream_server`, modelos cargados una vez); si no existe el binario o
+  // no llegó a READY, se cae UNA vez al one-shot `asr_infer`.
+  const segundosAudio = segundosDeWav(wavPath);
   let result;
   try {
-    result = await enqueueAsr(() => runVibeasr(wavPath));
+    result = await enqueueAsr(async () => {
+      await cederMemoriaSiHaceFalta();
+      if (fs.existsSync(rutaOidoResidente())) {
+        const r = await reconocerResidente(wavPath, segundosAudio);
+        if (r.ok) return { ...r, motor: "vibeasr-1.58-residente" };
+        // Si el residente falló por un error de ARRANQUE/carga (no llegó a
+        // READY), caemos UNA vez al one-shot; si el error es del propio
+        // reconocimiento (p. ej. timeout ya con el modelo cargado), no tiene
+        // sentido recargar 1,7 GB otra vez: propagamos el error.
+        const esCarga = /listo|ready|cargando|carga|residente/i.test(r.error || "");
+        if (!esCarga) return { motor: "vibeasr-1.58-residente", error: r.error };
+        log("daemon", `oído residente no quedó listo, caigo a asr_infer (one-shot): ${r.error}`);
+      }
+      const r2 = runVibeasr(wavPath, segundosAudio);
+      return r2.then((x) => ({ ...x, motor: "vibeasr-1.58" }));
+    });
   } catch (e) {
     limpiar();
     return sendJson(res, 503, cors, { ok: false, error: `cola llena: ${e.message}` });
@@ -1719,8 +1794,10 @@ async function handleAsr(req, res, cors) {
     texto: result.texto,
     segundos: result.segundos,
     idioma: null,
-    motor: "vibeasr.cpp",
+    motor: result.motor,
     modelo: "VibeVoice-ASR-BitNet",
+    segundosAudio: Number.isFinite(segundosAudio) ? segundosAudio : null,
+    presupuestoMs: oidoPresupuestoMs,
   });
 }
 
@@ -1729,6 +1806,11 @@ async function handleAsr(req, res, cors) {
 function handleStatus(res, cors) {
   const state = readiness();
   const cfg = state.cfg || {};
+  // 2026-09-06 (Ola 255): residente = proceso vivo y listo; cargandoDesdeMs =
+  // ms desde que empezó a cargar si aún no está listo (null en otro caso).
+  const asrResidente = !!oidoProc && oidoListo;
+  const asrCargandoDesdeMs = !asrResidente && oidoCargandoDesde > 0 ? Date.now() - oidoCargandoDesde : null;
+  const mark = { asrResidente, asrCargandoDesdeMs };
   const payload = {
     ok: true,
     engine: "omnivoice.cpp",
@@ -1760,6 +1842,12 @@ function handleStatus(res, cors) {
       modelos: vibeasrStatus().modelos,
       ocupado: asrBusy,
       cola: asrQueueDepth,
+      // 2026-09-06 (Ola 255, oído residente): si hay un asr_stream_server vivo
+      // y listo, cuánto lleva cargando aún y el presupuesto del último
+      // reconocimiento.
+      residente: mark.asrResidente,
+      cargandoDesdeMs: mark.asrCargandoDesdeMs,
+      presupuestoMs: oidoPresupuestoMs,
     },
   };
   if (!state.ready) payload.reasons = state.reasons;

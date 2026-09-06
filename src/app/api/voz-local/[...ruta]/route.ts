@@ -27,8 +27,10 @@ async function reenviar(req: NextRequest, ruta: string[]): Promise<Response> {
         const ctrl = new AbortController();
         // tts: una frase larga tarda ~90 s en un M1/8 GB y el daemon da 150 s al servidor
         // residente; con 120 s las últimas frases de un párrafo se quedaban mudas.
-        // asr: el daemon da 120 s al proceso asr_infer; damos 130 s de margen.
-        const t = setTimeout(() => ctrl.abort(), destino === "tts" ? 200_000 : destino === "asr" ? 130_000 : 5_000);
+        // asr: el daemon da hasta 360 s (presupuesto proporcional al audio con el oído
+        // residente, Ola 255); damos 370 s de margen (10 s más que el tope del daemon)
+        // para no abortar un reconocimiento largo antes de que el daemon responda.
+        const t = setTimeout(() => ctrl.abort(), destino === "tts" ? 200_000 : destino === "asr" ? 370_000 : 5_000);
         // Multipart (campo `audio` de /asr): reenviamos el cuerpo binario TAL CUAL,
         // pasando el stream del request con duplex:"half" y la cabecera content-type
         // original (incluye el boundary), para no romper el parseo en el daemon.
