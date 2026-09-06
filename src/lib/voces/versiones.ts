@@ -14,6 +14,7 @@
 import type { Timbre } from "@/lib/aurora/timbres";
 import { buscarTimbre } from "@/lib/aurora/timbres";
 import type { NivelVoz } from "@/lib/aurora/voz-starseed/niveles";
+import type { EmocionVoz } from "@/lib/voces/emociones";
 
 export interface VersionVoz {
     id: string;
@@ -30,6 +31,10 @@ export interface VersionVoz {
         seed?: number;
         /** (Ola 263) Desplazamiento de tono del post-proceso local (1 = natural). */
         pitch?: number;
+        /** (Ola 264) Emoción por defecto que fija esta versión. */
+        emocionBase?: EmocionVoz;
+        /** (Ola 264) Cuánto se exagera la emoción (0–2). */
+        intensidad?: number;
         expr: { arco: number; vivacidad: number; calidez: number };
     };
     notas: string;
@@ -72,6 +77,8 @@ export function versionDesdeTimbre(t: Timbre, nombre?: string): VersionVoz {
             ...(t.local.ref ? { ref: t.local.ref } : {}),
             ...(t.local.seed !== undefined ? { seed: t.local.seed } : {}),
             ...(t.local.pitch !== undefined ? { pitch: t.local.pitch } : {}),
+            ...(t.emocionBase ? { emocionBase: t.emocionBase } : {}),
+            ...(t.intensidad !== undefined ? { intensidad: t.intensidad } : {}),
             expr: { ...t.expr },
         },
         notas: "",
@@ -147,6 +154,9 @@ export function duplicarVersion(id: string, nombre?: string): VersionVoz | null 
  *    tiene uno, se hereda el suyo;
  *  · `seed` la de A (Ola 263): mezclar semillas no tiene sentido, la voz
  *    resultante se ancla al padre A;
+ *  · `emocionBase` la de A (Ola 264): una mezcla de emociones no es otra
+ *    emoción reconocible, así que prevalece la del padre dominante;
+ *  · `intensidad` PROMEDIADA (Ola 264): la exageración sí se interpola;
  *  · `instruct` = el de A + « · » + el de B, sin repetir frases;
  *  · `voz` la de la de mayor peso (A en caso de empate).
  */
@@ -179,6 +189,12 @@ export function fusionarVersiones(a: VersionVoz, b: VersionVoz, peso = 0.5, nomb
             ...(a.params.pitch !== undefined
                 ? { pitch: b.params.pitch !== undefined ? interp(a.params.pitch, b.params.pitch) : a.params.pitch }
                 : b.params.pitch !== undefined ? { pitch: b.params.pitch } : {}),
+            ...(a.params.emocionBase ? { emocionBase: a.params.emocionBase } : {}),
+            ...(a.params.intensidad !== undefined && b.params.intensidad !== undefined
+                ? { intensidad: interp(a.params.intensidad, b.params.intensidad) }
+                : a.params.intensidad !== undefined
+                ? { intensidad: a.params.intensidad }
+                : b.params.intensidad !== undefined ? { intensidad: b.params.intensidad } : {}),
             expr: {
                 arco: interp(a.params.expr.arco, b.params.expr.arco),
                 vivacidad: interp(a.params.expr.vivacidad, b.params.expr.vivacidad),

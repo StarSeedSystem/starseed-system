@@ -27,6 +27,7 @@
  */
 
 import type { VoiceGender } from "@/lib/aurora/personalities";
+import type { EmocionVoz } from "@/lib/voces/emociones";
 
 export interface Timbre {
     id: string;
@@ -65,6 +66,16 @@ export interface Timbre {
      *                es lo que se percibe como cercanía o distancia.
      */
     expr: { arco: number; vivacidad: number; calidez: number };
+    /**
+     * (Ola 264) Emoción por defecto de esta voz. Opcional: si falta, suena
+     * neutra. Se importa como tipo para no arrastrar el módulo al cliente.
+     */
+    emocionBase?: EmocionVoz;
+    /**
+     * (Ola 264) Cuánto se EXAGERA la emoción de esta voz (0–2; 1 = la de
+     * manual). Es el control continuo de intensidad de la Forja fase 3.
+     */
+    intensidad?: number;
 }
 
 /** Voces de personaje de Apple: nunca por defecto (suenan a caricatura). */
