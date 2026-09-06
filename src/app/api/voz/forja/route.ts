@@ -30,7 +30,7 @@
 import { homedir } from "node:os";
 import { join, basename } from "node:path";
 import { access, readdir, stat } from "node:fs/promises";
-import { createClient } from "@/utils/supabase/server";
+import { exigirSesionSalvoLocal } from "@/lib/aurora/voz-starseed/puerta-local";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -90,19 +90,12 @@ async function sondear(
     }
 }
 
-export async function GET(): Promise<Response> {
-    // Puerta de sesión (misma que /api/voz/salud): solo exigida en producción.
-    if (process.env.NODE_ENV === "production") {
-        try {
-            const supabase = await createClient();
-            const { data, error } = await supabase.auth.getUser();
-            if (error || !data.user) {
-                return Response.json({ error: "Necesitas iniciar sesión." }, { status: 401 });
-            }
-        } catch {
-            return Response.json({ error: "No se pudo verificar la sesión." }, { status: 401 });
-        }
-    }
+export async function GET(request: Request): Promise<Response> {
+    // Puerta de sesión (misma que /api/voz/salud): solo se exige en producción
+    // desplegada (Vercel). En producción LOCAL (modo ligero en la neurona,
+    // 2026-09-06) la forja es del propio usuario y no se exige sesión.
+    const puerta = await exigirSesionSalvoLocal(request);
+    if (puerta) return puerta;
 
     // ── Comprobaciones de disco (en serie, acotadas) ─────────────────────────
     // 5 operaciones de I/O: access del motor (1), access del bitnet (2),

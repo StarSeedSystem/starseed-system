@@ -11,27 +11,20 @@
  * del cliente y jamás expone rutas absolutas del disco.
  */
 
-import { createClient } from "@/utils/supabase/server";
 import { PUERTO_VOZ, saludDaemon } from "@/lib/aurora/voz-starseed/daemon";
+import { exigirSesionSalvoLocal } from "@/lib/aurora/voz-starseed/puerta-local";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function GET(): Promise<Response> {
+export async function GET(request: Request): Promise<Response> {
     // El rito de bienvenida habla ANTES de que exista sesión: exigirla aquí dejaba la voz
     // neuronal fuera de la primera pantalla y el OS caía a la voz robótica del navegador.
-    // El demonio vive en 127.0.0.1 y no toca datos del usuario; en producción no existe.
-    if (process.env.NODE_ENV === "production") {
-        try {
-            const supabase = await createClient();
-            const { data, error } = await supabase.auth.getUser();
-            if (error || !data.user) {
-                return Response.json({ error: "Necesitas iniciar sesión." }, { status: 401 });
-            }
-        } catch {
-            return Response.json({ error: "No se pudo verificar la sesión." }, { status: 401 });
-        }
-    }
+    // El demonio vive en 127.0.0.1 y no toca datos del usuario. La sesión solo se exige
+    // en producción desplegada (Vercel); en producción LOCAL (modo ligero en la Mac,
+    // 2026-09-06) la puerta local la deja pasar.
+    const puerta = await exigirSesionSalvoLocal(request);
+    if (puerta) return puerta;
 
     const salud = await saludDaemon(800);
     return Response.json(

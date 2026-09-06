@@ -14,6 +14,7 @@
 import { createClient } from "@/utils/supabase/server";
 import { rateLimit } from "@/lib/security/rate-limit";
 import { sintetizarEnDaemon } from "@/lib/aurora/voz-starseed/daemon";
+import { esDespliegueLocal, exigirSesionSalvoLocal } from "@/lib/aurora/voz-starseed/puerta-local";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -22,19 +23,22 @@ export const dynamic = "force-dynamic";
 const MAX_TEXTO = 4000;
 
 export async function POST(req: Request): Promise<Response> {
-    let userId: string | null = null;
     // Igual que /api/voz/salud: la bienvenida habla antes de que haya sesión. En local el
-    // demonio es del usuario y está en 127.0.0.1; solo en producción se exige sesión.
-    if (process.env.NODE_ENV === "production") {
+    // demonio es del usuario y está en 127.0.0.1; la sesión solo se exige en producción
+    // desplegada (Vercel), no en el modo ligero local (2026-09-06).
+    const puerta = await exigirSesionSalvoLocal(req);
+    if (puerta) return puerta;
+
+    // Identificador para el rate-limit: en producción desplegada es el usuario
+    // autenticado (la puerta ya lo verificó); en local no hay sesión y basta `null`.
+    let userId: string | null = null;
+    if (process.env.NODE_ENV === "production" && !esDespliegueLocal(req)) {
         try {
             const supabase = await createClient();
-            const { data, error } = await supabase.auth.getUser();
-            if (error || !data.user) {
-                return Response.json({ error: "Necesitas iniciar sesión para hablar por esta neurona." }, { status: 401 });
-            }
-            userId = data.user.id;
+            const { data } = await supabase.auth.getUser();
+            userId = data.user?.id ?? null;
         } catch {
-            return Response.json({ error: "No se pudo verificar la sesión." }, { status: 401 });
+            userId = null;
         }
     }
 
