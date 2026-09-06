@@ -184,14 +184,32 @@ const ASR_SUENO_MS = (() => {
   const bruto = Number.parseInt(process.env.STARSEED_ASR_SUEÑO_MS || process.env.STARSEED_ASR_SUENO_MS, 10);
   return Number.isFinite(bruto) && bruto > 0 ? bruto : 5 * 60_000;
 })();
-// Umbral de memoria: antes de un reconocimiento, si quedan menos de
-// STARSEED_ASR_MEM_MIN_MB libres (600 MB) y el pool TTS lleva ≥ 60 s sin
-// sintetizar, se cede su memoria al oído (el TTS se relanza solo después).
+// Umbral de memoria: antes de un reconocimiento (o de cargar el residente), si
+// quedan menos de STARSEED_ASR_MEM_MIN_MB disponibles y el pool TTS lleva ≥
+// ASR_TTS_INACTIVO_MS sin sintetizar de verdad, se cede su memoria al oído (el
+// TTS se relanza solo después).
+//
+// 2026-09-06 (Ola 255, oído residente): dos cambios de umbral.
+//   (a) ASR_MEM_MIN_MB sube de 600 a 1200: `os.freemem()` en macOS cuenta SOLO
+//       las páginas libres y en la Mac de 8 GB de Alex raras veces pasa de
+//       100 MB, así que con 600 el umbral nunca se alcanzaba. `memDisponible()`
+//       suma a freemem una estimación conservadora de las páginas inactivas
+//       (recuperables al instante), y 1200 MB es un margen prudente para que el
+//       residente (1,7 GB) cargue sin pelear con el pool (~900 MB).
+//   (b) ASR_TTS_INACTIVO_MS baja de 60 a 10 s: el oído es una acción EXPLÍCITA
+//       del usuario — relanzar el tts-server cuesta 30-40 s en la siguiente
+//       locución, pero un reconocimiento que compite por memoria con el pool no
+//       termina nunca. Con 10 s, en cuanto no haya síntesis en vuelo se cede.
 const ASR_MEM_MIN_MB = (() => {
   const bruto = Number.parseInt(process.env.STARSEED_ASR_MEM_MIN_MB, 10);
-  return Number.isFinite(bruto) && bruto > 0 ? bruto : 600;
+  return Number.isFinite(bruto) && bruto > 0 ? bruto : 1200;
 })();
-const ASR_TTS_INACTIVO_MS = 60_000; // el pool TTS debe llevar ≥ 60 s sin sintetizar
+// Cuánto debe llevar el pool SIN SÍNTESIS REAL para ceder su memoria (ver (b)
+// arriba). Configurable con STARSEED_ASR_TTS_INACTIVO_MS.
+const ASR_TTS_INACTIVO_MS = (() => {
+  const bruto = Number.parseInt(process.env.STARSEED_ASR_TTS_INACTIVO_MS, 10);
+  return Number.isFinite(bruto) && bruto > 0 ? bruto : 10_000;
+})();
 const RAM_CACHE_MAX = 16; // WAV cacheados en RAM (se purgan al dormir)
 const DISK_CACHE_MAX = 64; // WAV cacheados en disco (cache/)
 
@@ -224,6 +242,13 @@ const PRIMARY_LANG = "Spanish"; // idioma que se precalienta EAGER al arrancar e
 
 const startedAt = Date.now();
 let lastReq = Date.now(); // última SÍNTESIS (no cuenta /status)
+// 2026-09-06 (Ola 255, oído residente): última SÍNTESIS REAL pedida por un
+// CLIENTE (un /tts real), a diferencia de `lastReq` que también lo actualiza
+// el precalentado (`/warm` y el arranque EAGER). `cederMemoriaSiHaceFalta`
+// mira ESTA variable: el calentamiento inicial del pool NO debe contar como
+// uso reciente para decidir si se cede memoria al oído. `lastReq` sigue igual
+// para el auto-sleep y `/status.idleMs`.
+let ultimaSintesisReal = null;
 // "Caliente" YA NO es una bandera manual (Adenda 88) sino un HECHO observable:
 // hay al menos un servidor tts-server RESIDENTE con el modelo cargado en GPU
 // (ver isWarm() más abajo, derivada de `serverPool`). Arranca FRÍO igual que
@@ -284,6 +309,12 @@ let oidoPendiente = null; // { salida, error, timer, resolve, t0 } de la petici�
 let oidoUltimoUso = 0; // última petición atendida (para el sueño por inactividad)
 let oidoPresupuestoMs = 0; // presupuesto del último reconocimiento (para /status)
 let oidoSuenoTimer = null; // temporizador del sueño por inactividad
+// 2026-09-06 (Ola 255, oído residente): contabilidad de las CESIONES del pool
+// TTS al oído. `ultimaCesionEn` es el Date.now() de la última vez que se
+// cedió (null si aún no se ha cedido ninguna); `cesiones` cuenta cuántas
+// veces se ha cedido el pool desde el arranque. Se exponen en /status.asr.
+let ultimaCesionEn = null;
+let cesiones = 0;
 
 /**
  * Mata el proceso residente (SIGTERM y, si no muere en 5 s, SIGKILL) y limpia
@@ -428,6 +459,13 @@ function asegurarOidoResidente() {
   // llamador) en vez de lanzar dos `asr_stream_server` de 1,7 GB.
   oidoCargandoDesde = Date.now();
   const t0 = oidoCargandoDesde;
+  // 2026-09-06 (Ola 255, oído residente): la carga de los 1,7 GB es el momento
+  // MÁS crítico para la RAM — ceder aquí la memoria del pool TTS (si escasea y
+  // no hay síntesis en vuelo) evita que el residente muera por timeout mientras
+  // carga. `cederMemoriaSiHaceFalta` es síncrona en efecto (no tiene awaits),
+  // así que llamarla sin await se ejecuta ANTES del spawn y no rompe la
+  // exclusión de doble carga (ver comentario de oidoCargaPromesa más abajo).
+  cederMemoriaSiHaceFalta();
   const promesa = new Promise((resolve) => {
     let proc;
     try {
@@ -507,22 +545,58 @@ function asegurarOidoResidente() {
 }
 
 /**
+ * Memoria disponible de forma CONSERVADORA (2026-09-06, Ola 255).
+ * `os.freemem()` en macOS cuenta SÓLO las páginas libres; en la Mac de 8 GB de
+ * Alex raras veces pasa de 100 MB, así que un umbral basado en freemem a secas
+ * hacía que `cederMemoriaSiHaceFalta` nunca actuara. A freemem le sumamos una
+ * estimación conservadora de las páginas INACTIVAS (recuperables al instante
+ * sin tocar disco): se leen con `vm_stat` (comando estándar de macOS, sin
+ * dependencias y barato de invocar). En otros SO sin esa fuente barata
+ * devolvemos sólo `os.freemem()` — explicado aquí para quien lo lea. Devuelve
+ * bytes de memoria disponible estimada.
+ */
+function memDisponible() {
+  const libre = os.freemem();
+  if (process.platform !== "darwin") return libre; // fuera de macOS no hay vm_stat: solo freemem
+  try {
+    const r = spawnSync("vm_stat", { encoding: "utf8" });
+    if (r.error || r.status !== 0 || !r.stdout) return libre;
+    const out = r.stdout;
+    const pageMatch = /page size of (\d+)/.exec(out);
+    const pageSize = pageMatch ? Number(pageMatch[1]) : 4096;
+    const m = /^Pages inactive:\s+(\d+)/m.exec(out);
+    if (!m) return libre;
+    const inactivas = Number(m[1]);
+    if (!Number.isFinite(inactivas) || inactivas < 0) return libre;
+    return libre + inactivas * pageSize;
+  } catch {
+    return libre;
+  }
+}
+
+/**
  * Cede la memoria del pool TTS al oído si escasea (2026-09-06, Ola 255).
  * El oído residente carga 1,7 GB y en una Mac de 8 GB al límite cada
  * reconocimiento moría por timeout por falta de RAM. Si quedan menos de
- * ASR_MEM_MIN_MB libres, la última síntesis fue hace ASR_TTS_INACTIVO_MS o más
- * y no hay ninguna síntesis en curso ahora (inFlight === 0), mata todos los
- * servidores tts-server — el TTS se relanza solo en la siguiente locución.
- * NUNCA mata el pool si hay una síntesis en vuelo. Devuelve true si cedió.
+ * ASR_MEM_MIN_MB disponibles (memDisponible()), la última SÍNTESIS REAL fue
+ * hace ASR_TTS_INACTIVO_MS o más y no hay ninguna síntesis en curso ahora
+ * (inFlight === 0), mata todos los servidores tts-server — el TTS se relanza
+ * solo en la siguiente locución. NUNCA mata el pool si hay una síntesis en
+ * vuelo. El calentamiento inicial NO cuenta como uso reciente (mira
+ * `ultimaSintesisReal`, no `lastReq`). Devuelve true si cedió. Síncrona en
+ * efecto (no tiene awaits): llamarla sin `await` garantiza que la cesión se
+ * complete antes de seguir, p. ej. antes de cargar el residente.
  */
-async function cederMemoriaSiHaceFalta() {
-  const libres = os.freemem();
-  if (libres >= ASR_MEM_MIN_MB * 1024 * 1024) return false;
-  if (Date.now() - lastReq < ASR_TTS_INACTIVO_MS) return false;
+function cederMemoriaSiHaceFalta() {
+  const disponibles = memDisponible();
+  if (disponibles >= ASR_MEM_MIN_MB * 1024 * 1024) return false;
+  if (Date.now() - ultimaSintesisReal < ASR_TTS_INACTIVO_MS) return false;
   if (inFlight > 0) return false; // hay síntesis en curso: no interrumpirla
   if (serverPool.size === 0) return false; // nada que ceder
-  const mb = Math.trunc(libres / (1024 * 1024));
-  killAllServers(`oído: cediendo memoria del pool TTS (${mb} MB libres)`);
+  const mb = Math.trunc(disponibles / (1024 * 1024));
+  killAllServers(`oído: cediendo memoria del pool TTS (${mb} MB disponibles)`);
+  cesiones++;
+  ultimaCesionEn = Date.now();
   return true;
 }
 
@@ -1244,8 +1318,11 @@ async function handleTts(req, res, cors) {
   }
 
   // Marca actividad (cuenta para /status.idleMs y el auto-sleep) y clave de
-  // caché (incluye idioma + identidad + instruct + seed).
+  // caché (incluye idioma + identidad + instruct + seed). Una petición /tts de
+  // un CLIENTE cuenta como síntesis REAL para la cesión de memoria al oído
+  // (ver ultimaSintesisReal): a diferencia del /warm, esto SÍ es voz pedida.
   lastReq = Date.now();
+  ultimaSintesisReal = Date.now();
   const cfg = state.cfg || {};
   const variantTag = cfg?.variant?.quant || "";
   const key = sha256([text, langName, langBase, refWav, refTextFile, speed, variantTag, instruct, String(seed)].join("|"));
@@ -1326,6 +1403,7 @@ async function handleTts(req, res, cors) {
     /* */
   }
   lastReq = Date.now();
+  ultimaSintesisReal = Date.now();
   return sendWav(res, cors, applySpeed(result.buffer, speed, extraHeaders), { ...extraHeaders, "X-Astraura-Cache": "miss" });
 }
 
@@ -1768,7 +1846,7 @@ async function handleAsr(req, res, cors) {
   let result;
   try {
     result = await enqueueAsr(async () => {
-      await cederMemoriaSiHaceFalta();
+      cederMemoriaSiHaceFalta();
       if (fs.existsSync(rutaOidoResidente())) {
         const r = await reconocerResidente(wavPath, segundosAudio);
         if (r.ok) return { ...r, motor: "vibeasr-1.58-residente" };
@@ -1852,6 +1930,11 @@ function handleStatus(res, cors) {
       residente: mark.asrResidente,
       cargandoDesdeMs: mark.asrCargandoDesdeMs,
       presupuestoMs: oidoPresupuestoMs,
+      // 2026-09-06 (Ola 255, oído residente): últimas CESIONES del pool TTS
+      // al oído. `ultimaCesionMs` = ms desde la última cesión (null si aún no
+      // se cedió ninguna); `cesiones` = nº de cesiones desde el arranque.
+      ultimaCesionMs: ultimaCesionEn === null ? null : Date.now() - ultimaCesionEn,
+      cesiones,
     },
   };
   if (!state.ready) payload.reasons = state.reasons;
