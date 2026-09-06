@@ -43,8 +43,12 @@ export interface Timbre {
      *               Chatterbox llama «exaggeration»/estilo y VoxCPM «prosodia
      *               consciente del contexto»: aquí viaja como texto.
      *  · ref      — WAV de referencia para clonar (la voz de Aurora), si aplica.
+     *  · seed     — (Ola 263) semilla del muestreo neuronal: fija el timbre
+     *               resultante; si falta, el demonio deriva una determinista.
+     *  · pitch    — (Ola 263) desplazamiento de tono del post-proceso local
+     *               (1 = natural).
      */
-    local: { voz: string; speed: number; instruct?: string; ref?: string };
+    local: { voz: string; speed: number; instruct?: string; ref?: string; seed?: number; pitch?: number };
     /** Respaldo con voz del sistema, solo mientras no esté el motor local. */
     sistema: { bases: string[]; pitch: number; rate: number };
     /**

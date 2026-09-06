@@ -26,6 +26,10 @@ export interface VersionVoz {
         speed: number;
         instruct: string;
         ref?: string;
+        /** (Ola 263) Semilla del muestreo neuronal: fija el timbre resultante. */
+        seed?: number;
+        /** (Ola 263) Desplazamiento de tono del post-proceso local (1 = natural). */
+        pitch?: number;
         expr: { arco: number; vivacidad: number; calidez: number };
     };
     notas: string;
@@ -66,6 +70,8 @@ export function versionDesdeTimbre(t: Timbre, nombre?: string): VersionVoz {
             speed: t.local.speed,
             instruct: t.local.instruct ?? "",
             ...(t.local.ref ? { ref: t.local.ref } : {}),
+            ...(t.local.seed !== undefined ? { seed: t.local.seed } : {}),
+            ...(t.local.pitch !== undefined ? { pitch: t.local.pitch } : {}),
             expr: { ...t.expr },
         },
         notas: "",
@@ -137,6 +143,10 @@ export function duplicarVersion(id: string, nombre?: string): VersionVoz | null 
 /**
  * Fusiona dos versiones en una hija:
  *  · números (speed y expr) interpolados por `peso` (0 = A, 1 = B);
+ *  · `pitch` INTERPOLADO si ambos padres lo traen (Ola 263); si solo lo
+ *    tiene uno, se hereda el suyo;
+ *  · `seed` la de A (Ola 263): mezclar semillas no tiene sentido, la voz
+ *    resultante se ancla al padre A;
  *  · `instruct` = el de A + « · » + el de B, sin repetir frases;
  *  · `voz` la de la de mayor peso (A en caso de empate).
  */
@@ -165,6 +175,10 @@ export function fusionarVersiones(a: VersionVoz, b: VersionVoz, peso = 0.5, nomb
             ...(p <= 0.5
                 ? a.params.ref ? { ref: a.params.ref } : {}
                 : b.params.ref ? { ref: b.params.ref } : {}),
+            ...(a.params.seed !== undefined ? { seed: a.params.seed } : {}),
+            ...(a.params.pitch !== undefined
+                ? { pitch: b.params.pitch !== undefined ? interp(a.params.pitch, b.params.pitch) : a.params.pitch }
+                : b.params.pitch !== undefined ? { pitch: b.params.pitch } : {}),
             expr: {
                 arco: interp(a.params.expr.arco, b.params.expr.arco),
                 vivacidad: interp(a.params.expr.vivacidad, b.params.expr.vivacidad),
@@ -197,6 +211,9 @@ function validarVersion(x: unknown, indice: number): string | null {
     if (typeof p.voz !== "string") return `entrada ${indice}: falta «params.voz»`;
     if (typeof p.speed !== "number") return `entrada ${indice}: «params.speed» no es número`;
     if (typeof p.instruct !== "string") return `entrada ${indice}: falta «params.instruct»`;
+    // (Ola 263) Los campos nuevos son opcionales, pero si vienen deben ser números.
+    if (p.seed !== undefined && typeof p.seed !== "number") return `entrada ${indice}: «params.seed» no es número`;
+    if (p.pitch !== undefined && typeof p.pitch !== "number") return `entrada ${indice}: «params.pitch» no es número`;
     const e = p.expr as Record<string, unknown> | undefined;
     if (typeof e !== "object" || e === null) return `entrada ${indice}: falta «params.expr»`;
     for (const k of ["arco", "vivacidad", "calidez"]) {
@@ -248,6 +265,8 @@ export function aplicarVersionATimbre(v: VersionVoz): Timbre {
             speed: v.params.speed,
             ...(v.params.instruct ? { instruct: v.params.instruct } : {}),
             ...(v.params.ref ? { ref: v.params.ref } : {}),
+            ...(v.params.seed !== undefined ? { seed: v.params.seed } : {}),
+            ...(v.params.pitch !== undefined ? { pitch: v.params.pitch } : {}),
         },
         sistema: base?.sistema ?? { bases: ["Paulina", "Mónica", "Monica"], pitch: 0.9, rate: 1.0 },
         expr: { ...v.params.expr },
