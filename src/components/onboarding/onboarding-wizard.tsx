@@ -44,10 +44,10 @@ import { useAurora } from "@/components/aurora/aurora-provider";
 import { chat } from "@/ai/client/chat";
 import { loadConfigs } from "@/ai/client/providerStore";
 import { buildSystemPrompt, DEFAULT_PERSONALITY } from "@/lib/aurora/types";
-import { OPEN_GUIDE_EVENT } from "./aurora-guide";
 import { marcarVozDelRito } from "@/lib/aurora/narracion-ventana";
 import { marcarRitoActivo } from "@/lib/ui/rito-activo";
 import { hablarRito, callarRito, instalarVozPropia, anticiparRito, VOZ_RITO_EVENT, type EstadoVozRito } from "@/lib/aurora/voz-rito";
+import { terminarEtapa, navegarSuave } from "@/lib/onboarding/director-rito";
 import { AnimatePresence, motion } from "framer-motion";
 import { PasoEscena } from "@/components/onboarding/paso-escena";
 import { AreasExplicadas } from "@/components/onboarding/areas-explicadas";
@@ -588,44 +588,17 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
     // pulsar «Aceptar» — si no, la alta corta de neurona (NeuronSetup) volvía a
     // preguntar lo mismo nada más terminar la bienvenida.
     try { window.localStorage.setItem("starseed.neuron.setup.v1", "1"); } catch { /* */ }
-    // (Adenda 193) ORDEN pedido: bienvenida → sistemas de Astraura → guía. Se
-    // dejan las dos marcas y la ventana de sistemas toma el relevo; ella lanza
-    // la guía al cerrarse. Así ni se solapan ni se pierde ninguna.
-    try {
-      window.sessionStorage.setItem("starseed.sistemas.launch", "1");
-      window.sessionStorage.setItem("starseed.guia.pendiente", "1");
-    } catch { /* sin sessionStorage: se lanza la guía directamente abajo */ }
     toast.success("¡Bienvenida completada!");
     closeAll();
-    // (Adenda 192) Si el rito corría sobre /login (p. ej. una sesión retomada a
-    // mitad del registro), primero se ENTRA al OS: la guía debe correr dentro
-    // del perfil, con sus vínculos coherentes, nunca sobre el inicio de sesión.
-    try {
-      if (window.location.pathname.startsWith("/login")) {
-        // Las marcas `sistemas.launch` + `guia.pendiente` (arriba) sobreviven al
-        // salto: al llegar al OS se abre la ventana de sistemas y, al cerrarla,
-        // la guía. NO se marca `guide.launch`: abriría la guía en paralelo.
-        window.location.assign("/escritorios");
-        return;
-      }
-    } catch { /* seguimos con la guía aquí */ }
-    // (Adenda 193) Turno de la ventana «Sistemas de Astraura en esta neurona».
-    // Al cerrarla, ELLA arranca la guía (marca `starseed.guia.pendiente`). Si no
-    // estuviera montada, se lanza la guía aquí para no dejar el flujo colgado.
-    setTimeout(() => {
-      const w = window as unknown as { openAstrauraStartup?: () => void; openStarseedGuide?: () => void };
-      if (typeof w.openAstrauraStartup === "function") {
-        try { window.sessionStorage.removeItem("starseed.sistemas.launch"); } catch { /* */ }
-        w.openAstrauraStartup();
-        return;
-      }
-      try { window.sessionStorage.removeItem("starseed.guia.pendiente"); } catch { /* */ }
-      try {
-        if (typeof w.openStarseedGuide === "function") w.openStarseedGuide();
-        else window.dispatchEvent(new Event(OPEN_GUIDE_EVENT));
-      } catch { /* la guía queda en Ajustes */ }
-    }, 650);
-  }, [closeAll]);
+    // (Ola 247 · 2026-09-05) ORDEN pedido: bienvenida → sistemas → perfil →
+    // guía. Ya no se dejan marcas sueltas ni se recarga con location.assign:
+    // el DIRECTOR del rito (director-rito.ts) es la única máquina de estados.
+    // Cerrar «bienvenida» avanza a «sistemas» y la ventana de sistemas se abre
+    // sola porque pregunta «¿es mi turno?». La navegación es SUAVE (router), con
+    // reserva dura solo si el push no llega.
+    terminarEtapa("bienvenida");
+    navegarSuave(router, "/escritorios");
+  }, [closeAll, router]);
 
   const skip = useCallback(async () => {
     callarRito();

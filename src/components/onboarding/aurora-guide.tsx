@@ -59,7 +59,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import {
   Sparkles,
@@ -106,6 +106,7 @@ import {
   getGuideButtonVisible,
   subscribeGuideButtonVisible,
 } from "@/lib/onboarding/guide-visibility";
+import { esMiTurno, terminarEtapa, suscribirRito, navegarSuave } from "@/lib/onboarding/director-rito";
 
 // ── contratos externos (solo strings/constantes; sin importar el motor) ──────
 const GUIDE_SEEN_KEY = "starseed.guide.seen.v1";
@@ -408,6 +409,7 @@ const INTRO_SAY =
 
 export function AuroraGuide() {
   const router = useRouter();
+  const pathname = usePathname();
   const { setActiveEdge } = useSafePerimeter();
   const reduceMotion = useReducedMotion() ?? false;
 
@@ -489,36 +491,35 @@ export function AuroraGuide() {
       (window as unknown as Record<string, unknown>).openStarseedGuide = (at?: number) =>
         openGuide(typeof at === "number" ? at : 0);
     } catch { /* */ }
-    // (Adenda 192) Relevo tras navegación completa: si el rito de iniciación
-    // terminó sobre /login, salta al OS dejando esta marca — al montar aquí
-    // (ya dentro del perfil) la guía arranca sola, una única vez.
-    try {
-      if (window.sessionStorage.getItem("starseed.guide.launch") === "1") {
-        window.sessionStorage.removeItem("starseed.guide.launch");
-        window.setTimeout(() => openGuide(0), 900);
-      }
-      // (Adenda 194) Cierre del rito: el usuario acaba de ver su perfil recién
-      // creado. Se le deja mirarlo un momento y el recorrido arranca YA en el
-      // Escritorio, que es donde empieza el tour.
-      if (window.sessionStorage.getItem("starseed.guia.tras.perfil") === "1") {
-        window.sessionStorage.removeItem("starseed.guia.tras.perfil");
-        window.setTimeout(() => {
-          try {
-            if (!window.location.pathname.startsWith("/escritorios")) {
-              window.sessionStorage.setItem("starseed.guide.launch", "1");
-              window.location.assign("/escritorios");
-              return;
-            }
-          } catch { /* seguimos aquí */ }
-          openGuide(0);
-        }, 3200);
-      }
-    } catch { /* sin sessionStorage: la guía queda en Ajustes */ }
     return () => {
       window.removeEventListener(OPEN_GUIDE_EVENT, onOpen);
       try { delete (window as unknown as Record<string, unknown>).openStarseedGuide; } catch { /* */ }
     };
   }, [openGuide]);
+
+  // (Ola 247 · 2026-09-05) TURNO DE LA GUÍA, por el DIRECTOR del rito y no por
+  // marcas sueltas (`starseed.guide.launch` / `starseed.guia.tras.perfil`).
+  // Cuando `esMiTurno("guia")`:
+  //   · si aún no estamos en /escritorios, se navega SUAVE y se re-comprueba al
+  //     cambiar la ruta (usePathname);
+  //   · ya en /escritorios, abre la guía una sola vez (ref de etapa atendida)
+  //     tras 900 ms de respiro.
+  const etapaGuiaAtendidaRef = useRef(false);
+  useEffect(() => {
+    const atenderGuia = () => {
+      if (etapaGuiaAtendidaRef.current) return;
+      if (pathname && !pathname.startsWith("/escritorios")) {
+        navegarSuave(router, "/escritorios");
+        return;
+      }
+      if (!esMiTurno("guia")) return;
+      etapaGuiaAtendidaRef.current = true;
+      const t = setTimeout(() => openGuide(0), 900);
+      return () => clearTimeout(t);
+    };
+    atenderGuia();
+    return suscribirRito(atenderGuia);
+  }, [pathname, router, openGuide]);
 
   // Al cerrar, marca visto (no reaparece sola). Reabrible siempre por evento.
   const markSeen = useCallback(() => {
@@ -529,6 +530,9 @@ export function AuroraGuide() {
   const close = useCallback(() => {
     setOpen(false);
     markSeen();
+    // (Ola 247 · 2026-09-05) Cerrar o terminar la guía cierra el rito: «guia»
+    // → «hecho». Antes las ventanas no sabían cuándo terminaba la cadena.
+    terminarEtapa("guia");
     // Cortesía: al cerrar, calla cualquier narración en curso.
     try { auroraStopSpeaking(); } catch { /* */ }
   }, [markSeen]);

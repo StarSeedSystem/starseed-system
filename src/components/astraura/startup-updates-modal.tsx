@@ -29,6 +29,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { shouldShowUpdates, subscribeStartupOpen, openStartupUpdates, snoozeUpdates } from "@/lib/astraura/startup-updates";
 import { isSetupPending, subscribeSetup, markSetupDone } from "@/lib/aurora/setup-config";
+import { esMiTurno, terminarEtapa, suscribirRito } from "@/lib/onboarding/director-rito";
 import { useModalA11y } from "@/hooks/use-modal-a11y";
 import { AstrauraOmniVoiceConfig } from "@/components/astraura/astraura-omnivoice-config";
 import { IconoStarSeed } from "@/components/onboarding/icono-starseed";
@@ -46,40 +47,28 @@ export function StartupUpdatesModal() {
   // esta sesión: la espera de cortesía que se registró mientras estaba plegada
   // seguía viva y la resucitaba justo después de cerrarla.
   const cerradaPorUsuarioRef = useRef(false);
+  // (Ola 247 · 2026-09-05) Etapa del rito que YA atiende esta ventana. Es el
+  // guardián anti-duplicado: aunque el director emita el avance varias veces
+  // (montaje + evento), la ventana de sistemas solo se abre cuando es su turno
+  // y una única vez en esta sesión.
+  const etapaAtendidaRef = useRef<string | null>(null);
   useEffect(() => () => { esperaRef.current?.(); }, []); // solo al desmontar
 
   /**
-   * (Adenda 193) Al CERRAR esta ventana arranca la guía de introducción si el
-   * rito la dejó pendiente: el orden pedido es bienvenida → sistemas de
-   * Astraura → guía. Idempotente: la marca se consume una sola vez.
+   * (Ola 247 · 2026-09-05) Al CERRAR esta ventana avanza el rito hacia el
+   * perfil. Antes se dejaba una marca suelta de guía y se abría la ventana de
+   * perfil a mano por evento; ahora el DIRECTOR es quien decide: cerrar
+   * «sistemas» pasa el turno a «perfil» y la ventana de perfil se abre sola.
+   * `markSetupDone()` se conserva para que el centro «Configurar Neurona» no se
+   * abra solo después del perfil.
    */
   const lanzarGuiaPendiente = useCallback(() => {
-    if (typeof window === "undefined") return;
-    try {
-      if (window.sessionStorage.getItem("starseed.guia.pendiente") !== "1") return;
-      window.sessionStorage.removeItem("starseed.guia.pendiente");
-    } catch { return; }
     // (Adenda 219) Esta ventana YA configuró la neurona en el rito: el centro
     // «Configurar Neurona» (aurora-setup-center) no debe abrirse solo después
     // del perfil — visto en vivo tras «Ver mi perfil». Queda disponible en
     // Ajustes y en la paleta de comandos.
     try { markSetupDone(); } catch { /* sin storage */ }
-    // (Adenda 194) Antes de la guía va la VENTANA DE PERFIL: se sube avatar y
-    // portada, se corrige el @handle y luego se ve el perfil completo; desde
-    // ahí arranca el recorrido en el Escritorio. Si esa ventana no estuviera
-    // montada, se cae a la guía directa para no dejar el flujo colgado.
-    window.setTimeout(() => {
-      try {
-        window.sessionStorage.setItem("starseed.perfil.launch", "1");
-        window.dispatchEvent(new Event("starseed:open-perfil-inicial"));
-        return;
-      } catch { /* sin sessionStorage: guía directa */ }
-      try {
-        const w = window as unknown as { openStarseedGuide?: () => void };
-        if (typeof w.openStarseedGuide === "function") w.openStarseedGuide();
-        else window.dispatchEvent(new Event("starseed:open-guide"));
-      } catch { /* la guía queda disponible en Ajustes */ }
-    }, 400);
+    terminarEtapa("sistemas");
   }, []);
 
   /** Escape = «Recordar luego»: pospone y cierra (nunca lanza). */
@@ -136,16 +125,21 @@ export function StartupUpdatesModal() {
         })
         .catch(() => { if (!cerradaPorUsuarioRef.current) setOpen(true); });
     };
-    // (Adenda 193) Relevo directo del rito: si la bienvenida acaba de terminar
-    // (marca de sesión), esta ventana se abre YA — es su turno en el orden,
-    // antes de la guía — sin esperar al sondeo de cortesía.
-    try {
-      if (window.sessionStorage.getItem("starseed.sistemas.launch") === "1") {
-        window.sessionStorage.removeItem("starseed.sistemas.launch");
+    // (Ola 247 · 2026-09-05) Relevo directo del rito: si la máquina de estados
+    // del director está en «sistemas» (la bienvenida acaba de terminar), esta
+    // ventana se abre YA — es su turno, antes del perfil — sin esperar al sondeo
+    // de cortesía. `esMiTurno` es la señal única; ya no se leen marcas sueltas
+    // de sessionStorage. Se abre una sola vez por sesión (ref de etapa atendida).
+    const abrirSiEsSistemas = () => {
+      if (cerradaPorUsuarioRef.current || etapaAtendidaRef.current === "sistemas") return;
+      if (esMiTurno("sistemas")) {
+        etapaAtendidaRef.current = "sistemas";
         manualRef.current = true;
         setOpen(true);
       }
-    } catch { /* sin sessionStorage: sigue el flujo normal */ }
+    };
+    abrirSiEsSistemas();
+    const offRito = suscribirRito(() => abrirSiEsSistemas());
 
     const t = setTimeout(() => {
       try {
@@ -183,7 +177,7 @@ export function StartupUpdatesModal() {
     const off = subscribeStartupOpen(() => { manualRef.current = true; setOpen(true); });
     // Paridad con openAuroraSetup: disparador global.
     try { (window as unknown as { openAstrauraStartup?: () => void }).openAstrauraStartup = openStartupUpdates; } catch { /* */ }
-    return () => { clearTimeout(t); if (t2) clearTimeout(t2); if (tFallback) clearTimeout(tFallback); offSetup?.(); off(); cancelaEspera?.(); };
+    return () => { clearTimeout(t); if (t2) clearTimeout(t2); if (tFallback) clearTimeout(tFallback); offSetup?.(); off(); offRito(); cancelaEspera?.(); };
   }, []);
 
   // (Adenda 192) RED DE CORTESÍA FINAL: si esta ventana quedó abierta por

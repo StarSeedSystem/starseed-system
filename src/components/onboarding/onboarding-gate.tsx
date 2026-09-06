@@ -23,9 +23,9 @@ import { useCallback, useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
 import { getOnboarding } from "@/lib/onboarding/onboarding";
+import { etapaActual } from "@/lib/onboarding/director-rito";
 import OnboardingWizard from "@/components/onboarding/onboarding-wizard";
 import NeuronSetup from "@/components/onboarding/neuron-setup";
-import { RECIEN_REGISTRADO } from "@/components/auth/auth-gate";
 
 export function OnboardingGate() {
   const [ready, setReady] = useState(false);
@@ -76,11 +76,12 @@ export function OnboardingGate() {
         return;
       }
 
-      // (Adenda 208) Solo arranca sola para quien ACABA de crear su cuenta en
-      // esta pestaña. Quien únicamente inicia sesión no se encuentra la guía
-      // encima: la abre cuando quiera desde /bienvenida o desde Ajustes.
-      let recienRegistrado = false;
-      try { recienRegistrado = window.sessionStorage.getItem(RECIEN_REGISTRADO) === "1"; } catch { /* */ }
+      // (Ola 247 · 2026-09-05) Solo arranca sola cuando el director del rito está
+      // en «bienvenida» (la marca de recién registrado es legada y queda dentro de
+      // `iniciarRito`; la máquina de estados es la fuente única). Quien únicamente
+      // inicia sesión no se encuentra la guía encima: la abre a mano desde
+      // /bienvenida o Ajustes.
+      const enBienvenidaRito = etapaActual() === "bienvenida";
 
       if (!hasProfile) {
         // (Adenda 209) Cuenta real con sesión y sin identidad = acaba de nacer.
@@ -93,7 +94,7 @@ export function OnboardingGate() {
       const ob = await getOnboarding();
       // (Ola 221) `skipped` cuenta como «pospuesto»: no se reabre solo aunque
       // la marca de recién registrado siga viva en la pestaña.
-      if (!ob.completed && !ob.skipped && recienRegistrado) {
+      if (!ob.completed && !ob.skipped && enBienvenidaRito) {
         setShow(true);
       } else {
         setShow(false);

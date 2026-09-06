@@ -16,6 +16,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Camera, ImageIcon, Loader2, UserCircle, Check } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -35,13 +36,15 @@ import {
 } from "@/lib/onboarding/onboarding";
 import { marcarRitoActivo } from "@/lib/ui/rito-activo";
 import { IconoStarSeed } from "@/components/onboarding/icono-starseed";
+import { esMiTurno, terminarEtapa, suscribirRito, navegarSuave } from "@/lib/onboarding/director-rito";
 
-/** Marca de sesión: el rito pide abrir esta ventana tras los sistemas. */
+/** Marca de sesión: el rito pide abrir esta ventana tras los sistemas (legada). */
 export const PERFIL_LAUNCH_KEY = "starseed.perfil.launch";
-/** Marca de sesión: tras ver el perfil, arranca la guía en el Escritorio. */
+/** Marca de sesión: tras ver el perfil, arranca la guía en el Escritorio (legada). */
 export const GUIA_TRAS_PERFIL_KEY = "starseed.guia.tras.perfil";
 
 export function VentanaPerfilInicial({ onCerrar }: { onCerrar?: () => void }) {
+  const router = useRouter();
   const [abierta, setAbierta] = useState(false);
   const [cargando, setCargando] = useState(true);
   const [nombre, setNombre] = useState("");
@@ -57,19 +60,24 @@ export function VentanaPerfilInicial({ onCerrar }: { onCerrar?: () => void }) {
   const [guardando, setGuardando] = useState(false);
   const avatarRef = useRef<HTMLInputElement>(null);
   const portadaRef = useRef<HTMLInputElement>(null);
+  // (Ola 247 · 2026-09-05) Etapa del rito ya atendida por esta ventana: abre
+  // una sola vez cuando el director le da el turno «perfil», sin importar
+  // cuántas veces emita el avance (montaje + evento).
+  const etapaAtendidaRef = useRef<string | null>(null);
 
-  // Se abre por la marca que deja la ventana de sistemas al cerrarse.
+  // (Ola 247 · 2026-09-05) Se abre por la MÁQUINA DE ESTADOS del rito, no por
+  // marcas sueltas de sessionStorage ni por eventos puntuales: pregunta «¿es mi
+  // turno?» (etapa «perfil») al montar y cada vez que el director avanza.
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    try {
-      if (window.sessionStorage.getItem(PERFIL_LAUNCH_KEY) === "1") {
-        window.sessionStorage.removeItem(PERFIL_LAUNCH_KEY);
+    const abrirSiEsPerfil = () => {
+      if (etapaAtendidaRef.current === "perfil") return;
+      if (esMiTurno("perfil")) {
+        etapaAtendidaRef.current = "perfil";
         setAbierta(true);
       }
-    } catch { /* sin sessionStorage: el perfil se edita en Ajustes */ }
-    const abrir = () => setAbierta(true);
-    window.addEventListener("starseed:open-perfil-inicial", abrir);
-    return () => window.removeEventListener("starseed:open-perfil-inicial", abrir);
+    };
+    abrirSiEsPerfil();
+    return suscribirRito(abrirSiEsPerfil);
   }, []);
 
   // (Ola 227) Rito en primer plano: mientras esta ventana esté abierta, el
@@ -172,24 +180,27 @@ export function VentanaPerfilInicial({ onCerrar }: { onCerrar?: () => void }) {
 
       setAbierta(false);
       onCerrar?.();
-      // Ver el perfil COMPLETO y, desde ahí, arrancar la guía en el Escritorio.
-      try { window.sessionStorage.setItem(GUIA_TRAS_PERFIL_KEY, "1"); } catch { /* */ }
-      const destino = h || handle.trim().toLowerCase();
-      window.location.assign(destino ? `/profile/${destino}` : "/escritorios");
+      // (Ola 247 · 2026-09-05) Cerrar «perfil» pasa el turno a «guía» en el
+      // director del rito. Sin recargas: navegación SUAVE al Escritorio solo si
+      // no estamos ya ahí; la guía observa el cambio de ruta y arranca sola.
+      terminarEtapa("perfil");
+      navegarSuave(router, "/escritorios");
     } finally {
       setGuardando(false);
     }
     // (Adenda 219) `marco` y `avatar3d` en las dependencias: sin ellas el
     // callback guardaba el marco POR DEFECTO y ningún avatar 3D (clausura
     // vieja) — visto en vivo: la estrella elegida llegaba a la base como círculo.
-  }, [handle, nombre, avatar, portada, bio, marco, avatar3d, onCerrar, conTope]);
+  }, [handle, nombre, avatar, portada, bio, marco, avatar3d, onCerrar, conTope, router]);
 
   const saltar = useCallback(() => {
     setAbierta(false);
     onCerrar?.();
-    try { window.sessionStorage.setItem(GUIA_TRAS_PERFIL_KEY, "1"); } catch { /* */ }
-    window.location.assign("/escritorios");
-  }, [onCerrar]);
+    // (Ola 247 · 2026-09-05) Saltar también avanza el rito, sin recargas:
+    // «perfil» → «guía», y la guía arranca en el Escritorio por el director.
+    terminarEtapa("perfil");
+    navegarSuave(router, "/escritorios");
+  }, [onCerrar, router]);
 
   if (!abierta) return null;
 
