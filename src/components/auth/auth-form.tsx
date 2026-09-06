@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label'
 import { useToast } from '@/components/ui/use-toast'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { iniciarRito, navegarSuave } from '@/lib/onboarding/director-rito'
 
 export function AuthForm() {
     const router = useRouter()
@@ -123,23 +124,19 @@ export function AuthForm() {
                     void addExternalEmail(externo)
                 } catch { /* se puede vincular después en Correos */ }
             }
-            // ── (Adenda 210) EL CAMINO REAL DEL REGISTRO ────────────────────
-            // Este formulario —el de /login— es por el que se registra la gente,
-            // NO el <AuthGate> que parcheé en la 208/209. Aquí se mandaba a
-            // /escritorios confiando en que el portero global captara el evento
-            // `starseed:open-onboarding`; entre la navegación y el refresh ese
-            // evento se perdía y la cuenta nueva aterrizaba en el escritorio sin
-            // configuración inicial ni guía. Exactamente lo que reportó Alex.
-            //
-            // Ahora: se marca el alta y se navega DIRECTO al rito. Una sola vía,
-            // sin eventos que se puedan perder ni carreras entre porteros. El
-            // rito, al terminar, ya lleva al escritorio por su cuenta.
-            try { window.sessionStorage.setItem('starseed.recien.registrado', '1') } catch { /* sin sessionStorage */ }
-            try { window.dispatchEvent(new Event('starseed:open-onboarding')) } catch { /* el rito se abre igual abajo */ }
-            // Navegación DURA a propósito: `router.push` se cancela en silencio
-            // cuando hay un modal encima (mismo patrón que ya nos mordió con los
-            // vínculos de la guía). Aquí no puede fallar.
-            window.location.assign('/bienvenida')
+            // ── (Ola 247 · 2026-09-05) EL CAMINO DEL REGISTRO LO MANDA EL DIRECTOR ──
+            // Antes: marca suelta de sessionStorage + evento + recarga DURA
+            // (`location.assign`). La recarga recreaba todos los porteros y la
+            // página de destino podía fallar el `getUser` de red con la máquina
+            // cargada → la persona veía un SEGUNDO formulario de acceso teniendo
+            // ya sesión. Ahora el director de `director-rito.ts` abre el rito
+            // (escribe también la marca legada por compatibilidad) y se navega
+            // SUAVE con el router; `navegarSuave` solo recarga como último
+            // recurso si el push no llega (modal encima). Sin el evento
+            // `starseed:open-onboarding`: el director manda y así se evita que
+            // dos porteros reaccionen a la vez.
+            iniciarRito()
+            navegarSuave(router, '/bienvenida')
         } else {
             // Sin sesión automática. Con la confirmación desactivada esto casi
             // siempre significa que el correo YA tenía cuenta (Supabase lo

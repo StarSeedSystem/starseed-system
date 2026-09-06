@@ -21,9 +21,17 @@
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/utils/supabase/client";
 import OnboardingWizard from "@/components/onboarding/onboarding-wizard";
-import AuthGate, { RECIEN_REGISTRADO } from "@/components/auth/auth-gate";
+import AuthGate from "@/components/auth/auth-gate";
+import { etapaActual, iniciarRito } from "@/lib/onboarding/director-rito";
 
 type Estado = "comprobando" | "sin-cuenta" | "con-cuenta";
+
+/** Esperas (ms) entre reintentos de `getUser` cuando la red va lenta o caída. */
+const ESPERAS_REINTENTO = [500, 1000, 2000] as const;
+
+function esperar(ms: number): Promise<void> {
+  return new Promise((res) => setTimeout(res, ms));
+}
 
 export default function BienvenidaPage() {
   const [estado, setEstado] = useState<Estado>("comprobando");
@@ -31,46 +39,87 @@ export default function BienvenidaPage() {
   const comprobar = useCallback(async () => {
     try {
       const sb = createClient();
-      const { data } = await sb.auth.getUser();
-      const user = data?.user ?? null;
-      // Cuenta REAL = tiene correo y no es una sesión anónima de invitado.
-      const registrada =
-        !!user && !!user.email && !(user as { is_anonymous?: boolean }).is_anonymous;
-      // (Adenda 208) La guía se muestra a quien ACABA de crear su cuenta. Quien
-      // ya la tenía y entra por aquí ve el acceso, y desde dentro del OS puede
-      // reabrir la guía cuando quiera.
-      let recien = false;
-      try { recien = window.sessionStorage.getItem(RECIEN_REGISTRADO) === "1"; } catch { /* */ }
 
-      // (Adenda 209) La marca de sesión no puede ser el ÚNICO criterio: si algo
-      // recarga por el camino y se pierde, la persona se queda sin rito. Una
-      // cuenta con sesión y SIN perfil acaba de nacer por definición, así que
-      // también entra. Quien ya tiene su identidad creada no lo ve.
-      // (Adenda 215) Recargar debe DEVOLVERTE a la misma ventana. Antes solo
-      // entraba quien no tuviera perfil todavía, así que en cuanto creabas tu
-      // identidad (paso 2) una recarga te dejaba fuera y no podías seguir
-      // probando. Ahora entra también quien tenga el rito SIN TERMINAR: es
-      // exactamente quien estaba dentro de la configuración inicial.
-      let sinTerminar = false;
-      if (registrada) {
+      // (Ola 247 · 2026-09-05) PRIMERO la sesión LOCAL: `getSession` lee la
+      // cookie/el almacenamiento, sin red. Antes la primera llamada era
+      // `getUser` (red) y, con la máquina cargada o un transporte lento, podía
+      // fallar o tardar; entonces la página enseñaba <AuthGate> = un SEGUNDO
+      // formulario de acceso a alguien que acababa de registrarse. Con la
+      // sesión local decidimos «con-cuenta» AL INSTANTE y solo después
+      // confirmamos por red en segundo plano.
+      const { data: s } = await sb.auth.getSession();
+      let user = s?.session?.user ?? null;
+      // Cuenta REAL = tiene correo y no es una sesión anónima de invitado.
+      let registrada =
+        !!user && !!user.email && !(user as { is_anonymous?: boolean }).is_anonymous;
+
+      // Si la sesión local está vacía puede ser simplemente que el cliente aún
+      // no haya refrescado tras el alta. `getUser` (red) se reintenta con
+      // esperas crecientes (500, 1000, 2000 ms) antes de rendirse y pedir
+      // acceso: nunca se decide «sin-cuenta» por un fallo transitorio suelto.
+      if (!registrada) {
+        for (let intento = 0; intento < ESPERAS_REINTENTO.length; intento += 1) {
+          try {
+            await esperar(ESPERAS_REINTENTO[intento]);
+            const { data, error } = await sb.auth.getUser();
+            if (!error && data?.user && !!data.user.email &&
+                !(data.user as { is_anonymous?: boolean }).is_anonymous) {
+              user = data.user;
+              registrada = true;
+              break;
+            }
+            if (!error && !data?.user) break; // respuesta CLARA: no hay usuario
+            // error de red transitorio → siguiente reintento con más espera
+          } catch {
+            /* fallo transitorio: se reintenta */
+          }
+        }
+      }
+
+      if (registrada && user) {
+        // El DIRECTOR del rito manda (Ola 247): la etapa actual sustituye a la
+        // marca suelta `starseed.recien.registrado` como señal de «esto es el
+        // rito». Además: una cuenta con sesión y SIN perfil acaba de nacer por
+        // definición, y quien tiene el rito SIN TERMINAR (onboarding ni
+        // completado ni pospuesto) estaba dentro de la configuración inicial
+        // (Adendas 209/215/221): recargar devuelve a la misma ventana.
+        const etapa = etapaActual();
+        let sinPerfil = false;
+        let sinTerminar = false;
         try {
           const { data: prof } = await sb
-            .from("profiles").select("handle").eq("user_id", user!.id).maybeSingle();
+            .from("profiles").select("handle").eq("user_id", user.id).maybeSingle();
           if (!(prof && (prof as { handle?: string }).handle)) {
-            sinTerminar = true;
+            sinPerfil = true;
           } else {
             const { getOnboarding } = await import("@/lib/onboarding/onboarding");
             const ob = await getOnboarding();
             // (Ola 221) El rito saltado es «pospuesto», no «sin terminar»:
-            // /bienvenida muestra el acceso y la guía se reabre a mano
-            // (evento starseed:open-onboarding), sin bucle automático.
+            // no se reabre en bucle, se relanza a mano.
             sinTerminar = !ob?.completed && !ob?.skipped;
           }
-        } catch { sinTerminar = false; }
+        } catch {
+          // Red caída: NO se decide contra la persona. Con sesión local y rito
+          // declarado se entra igual; sin rito, se prefiere mostrar el acceso.
+          sinPerfil = false;
+          sinTerminar = false;
+        }
+
+        if (etapa === "bienvenida" || sinPerfil || etapa !== null || sinTerminar) {
+          // Si hay sesión real y no hay perfil pero NADIE inició el rito
+          // (pestaña nueva, sesión restaurada, marca perdida), lo arranca esta
+          // página: el rito nunca se queda huérfano.
+          if (!etapa && sinPerfil) iniciarRito();
+          // «con-cuenta» es una vía de un solo sentido: una vez mostrada la
+          // guía, un fallo de red posterior NO la quita de debajo.
+          setEstado("con-cuenta");
+          return;
+        }
       }
-      setEstado(registrada && (recien || sinTerminar) ? "con-cuenta" : "sin-cuenta");
+
+      setEstado("sin-cuenta");
     } catch {
-      // Fail-safe: ante un fallo de red NO se enseña la guía, se pide acceso.
+      // Fail-safe: ante un fallo NO se enseña la guía, se pide acceso.
       setEstado("sin-cuenta");
     }
   }, []);

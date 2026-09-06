@@ -23,8 +23,10 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
 import { WelcomeGate } from "@/components/welcome/welcome-gate";
+import { iniciarRito, navegarSuave } from "@/lib/onboarding/director-rito";
 
 function traducir(m: string): string {
   const s = (m || "").toLowerCase();
@@ -52,6 +54,7 @@ const VALUE_PROPS: { icon: string; title: string; desc: string }[] = [
 export const RECIEN_REGISTRADO = "starseed.recien.registrado";
 
 export function AuthGate() {
+  const router = useRouter();
   const [sb] = useState(() => createClient());
   const [ready, setReady] = useState(false);
   const [authed, setAuthed] = useState(false);
@@ -104,17 +107,16 @@ export function AuthGate() {
         if (error) setMsg(traducir(error.message));
         else if (data.user && !data.session) setOk("Cuenta creada. Revisa tu correo para confirmarla y luego inicia sesión.");
         else {
-          // (Adenda 208) La guía de Astraura arranca SOLO tras crear la cuenta
-          // aquí mismo. Sin esta marca, cualquiera que simplemente iniciara
-          // sesión con el rito a medias se la volvía a encontrar de golpe.
-          try { window.sessionStorage.setItem(RECIEN_REGISTRADO, "1"); } catch { /* sin sessionStorage */ }
+          // (Ola 247 · 2026-09-05) El rito lo coordina el DIRECTOR de
+          // `director-rito.ts`: una máquina de estados única, en vez de la
+          // marca suelta + recarga dura que encadenaba ventanas por recargas
+          // y colaba un segundo formulario de acceso. `iniciarRito()` ya
+          // escribe también la marca legada RECIEN_REGISTRADO (compatibilidad).
+          iniciarRito();
           setOk("¡Cuenta creada! Te lleva la guía de Astraura…");
-          // (Adenda 209) Navegación EXPLÍCITA al rito. Antes se confiaba en que
-          // varios porteros reaccionaran al cambio de sesión y ganara el
-          // correcto; en la práctica la app recargaba, se colaba la ventana
-          // vieja de voz y acababa en el escritorio sin guía ni configuración.
-          // Ahora hay un único camino y no depende de quién reaccione antes.
-          setTimeout(() => { try { window.location.assign("/bienvenida"); } catch { /* */ } }, 350);
+          // Navegación SUAVE con el router; `navegarSuave` solo recae en una
+          // recarga dura si el push no consiguió cambiar la ruta (modal encima).
+          navegarSuave(router, "/bienvenida");
         }
       }
     } catch (err: any) {
