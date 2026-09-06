@@ -42,6 +42,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { FichaVoz } from "@/components/voces/ficha-voz";
 import { PanelForja } from "@/components/voces/panel-forja";
 import { PanelMotorVoz } from "@/components/voces/panel-motor";
+import { PanelOido } from "@/components/voces/panel-oido";
 import { PanelVersiones } from "@/components/voces/panel-versiones";
 import { BancoPruebasVoz } from "@/components/voces/banco-pruebas-voz";
 import { FusionVoz } from "@/components/voces/fusion-voz";
@@ -341,6 +342,7 @@ export function EstudioVoces() {
                         <TabsList className="flex-wrap">
                             <TabsTrigger value="motor" className="cursor-pointer">Motor</TabsTrigger>
                             <TabsTrigger value="forja" className="cursor-pointer">Forja 1.58</TabsTrigger>
+                            <TabsTrigger value="oido" className="cursor-pointer">Oído 1.58</TabsTrigger>
                             <TabsTrigger value="ajustes" className="cursor-pointer">Ajustes</TabsTrigger>
                             <TabsTrigger value="ficha" className="cursor-pointer">Ficha técnica</TabsTrigger>
                             <TabsTrigger value="versiones" className="cursor-pointer">Versiones</TabsTrigger>
@@ -357,6 +359,11 @@ export function EstudioVoces() {
                         {/* ── Ola 246: Forja de Voz 1.58, el programa propio ── */}
                         <TabsContent value="forja" className="pt-4">
                             <PanelForja />
+                        </TabsContent>
+
+                        {/* ── Ola 249: oído ternario VibeASR.cpp por el daemon ── */}
+                        <TabsContent value="oido" className="pt-4">
+                            <PanelOido />
                         </TabsContent>
 
                         {/* ── Ola 240: flujo de versiones del Estudio ─────────── */}
