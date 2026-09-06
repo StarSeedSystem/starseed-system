@@ -1043,18 +1043,20 @@ function handleWarm(req, res, cors) {
 // Los temporales se borran SIEMPRE. Si el binario o los modelos faltan, 503 con
 // la instrucción de instalación. Nunca lanza.
 
-/** ¿Es un WAV RIFF/WAVE que ya sirve (se asume PCM 16 kHz mono si está bien formado)? */
-function esWav16kMono(buf) {
-  try {
-    if (!isWav(buf)) return false;
-    const fmt = buf.toString("ascii", 12, 16); // "fmt "
-    if (fmt !== "fmt ") return false;
-    const channels = buf.readUInt16LE(22);
-    const sampleRate = buf.readUInt32LE(24);
-    return channels === 1 && sampleRate === 16000;
-  } catch {
-    return false;
-  }
+/**
+ * Devuelve la extensión real del audio según el mime. Por defecto `.wav`: si no
+ * sabemos qué es, asumimos WAV (el caso más común: el propio demonio y el
+ * frontend envían WAV). 2026-09-06 (Ola 253): el temporal DEBE llevar la extensión
+ * correcta porque `asr_infer` la usa para decidir el decodificador.
+ */
+function extDeAudio(mime) {
+  const m = String(mime || "").toLowerCase();
+  if (m.includes("webm")) return ".webm";
+  if (m.includes("ogg") || m.includes("opus")) return ".ogg";
+  if (m.includes("m4a") || m.includes("mp4")) return ".m4a";
+  if (m.includes("mpeg") || m.includes("mp3")) return ".mp3";
+  // audio/wav, audio/x-wav, audio/wave, application/octet-stream o vacío → wav.
+  return ".wav";
 }
 
 /** ¿Existe el binario `ffmpeg` en el PATH? Se comprueba una vez y se recuerda. */
@@ -1133,6 +1135,20 @@ function parsearTranscripcion(stdout) {
 }
 
 /**
+ * Devuelve las últimas `n` líneas no vacías de una salida de proceso. En los
+ * errores de `asr_infer` solo nos interesa la cola del mensaje (2026-09-06,
+ * Ola 253): el volcado completo puede ser enorme y oscurece la causa real.
+ */
+function ultimasLineas(texto, n) {
+  return String(texto)
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .slice(-n)
+    .join("\n");
+}
+
+/**
  * Ejecuta `asr_infer` sobre un WAV y devuelve { ok, texto, segundos }.
  * NUNCA lanza: los errores van en el objeto de retorno. Mide el tiempo real.
  */
@@ -1175,7 +1191,8 @@ function runVibeasr(wavPath) {
       clearTimeout(killer);
       const segundos = Math.round((Date.now() - t0) / 10) / 100;
       if (code !== 0) {
-        return resolve({ ok: false, error: `asr_infer salió con código ${code}: ${stderr.trim().slice(-500)}` });
+        // Solo la cola de la salida: las últimas 12 líneas (2026-09-06, Ola 253).
+        return resolve({ ok: false, error: `asr_infer salió con código ${code}: ${ultimasLineas(stderr, 12)}` });
       }
       const texto = parsearTranscripcion(stdout);
       resolve({ ok: true, texto, segundos });
@@ -1263,7 +1280,6 @@ async function handleAsr(req, res, cors) {
   // Extrae el audio: multipart (campo `audio`) o JSON { audio_base64, mime }.
   let audioBuf = null;
   let mimeHint = "";
-  let nombre = "audio";
   if (contentType.includes("multipart/form-data")) {
     const parsed = parsearMultipartAudio(raw, contentType);
     if (!parsed || !parsed.buf || parsed.buf.length === 0) {
@@ -1293,12 +1309,22 @@ async function handleAsr(req, res, cors) {
     return sendJson(res, 400, cors, { ok: false, error: "audio vacío" });
   }
 
-  // Guarda en temporal y, si hace falta, convierte a WAV 16 kHz mono.
-  const ext = nombre.includes(".") ? "" : "";
-  const tmpIn = path.join(PATHS.tmpDir, `asr-in-${Date.now()}-${Math.random().toString(36).slice(2, 8)}${ext ? "" : ".bin"}`);
-  const tmpWav = path.join(PATHS.tmpDir, `asr-wav-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.wav`);
+  // Guarda en temporal y SIEMPRE entrega a `asr_infer` un archivo con extensión
+  // `.wav` (que es lo único que acepta junto a `.mp3`).
+  //
+  // 2026-09-06 (Ola 253): ANTES el temporal de entrada se guardaba con extensión
+  // `.bin` y, cuando el WAV ya era 16 kHz mono, se pasaba tal cual → `asr_infer`
+  // respondía "Unsupported audio format '.bin'". AHORA (1) el temporal lleva la
+  // extensión real según el mime; (2) con ffmpeg se produce SIEMPRE un
+  // `asr-16k-<id>.wav` normalizado (corrige también un WAV de 24 kHz como el que
+  // genera el propio demonio); sin ffmpeg y con entrada ya `.wav` se usa directo,
+  // y sin ffmpeg con otro formato se responde 415 con un mensaje claro.
+  const extIn = extDeAudio(mimeHint);
+  const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const tmpIn = path.join(PATHS.tmpDir, `asr-in-${id}${extIn}`);
+  const tmp16k = path.join(PATHS.tmpDir, `asr-16k-${id}.wav`);
   const limpiar = () => {
-    for (const f of [tmpIn, tmpWav]) {
+    for (const f of [tmpIn, tmp16k]) {
       try {
         if (fs.existsSync(f)) fs.unlinkSync(f);
       } catch {
@@ -1314,21 +1340,26 @@ async function handleAsr(req, res, cors) {
     return sendJson(res, 500, cors, { ok: false, error: `no se pudo escribir el temporal: ${e.message}` });
   }
 
-  let wavPath = tmpIn;
-  if (!esWav16kMono(audioBuf)) {
-    if (!hayFfmpeg()) {
-      limpiar();
-      return sendJson(res, 415, cors, {
-        ok: false,
-        error: "formato de audio no soportado sin ffmpeg: instala ffmpeg o envía WAV 16 kHz mono",
-      });
-    }
-    const conv = await convertirAWav(tmpIn, tmpWav);
+  let wavPath;
+  if (hayFfmpeg()) {
+    // Con ffmpeg NORMALIZAMOS siempre a WAV 16 kHz mono, aunque la entrada ya lo
+    // sea: así un WAV de 24 kHz del propio demonio también llega correcto a
+    // `asr_infer`.
+    const conv = await convertirAWav(tmpIn, tmp16k);
     if (!conv.ok) {
       limpiar();
       return sendJson(res, 415, cors, { ok: false, error: `no se pudo convertir el audio a WAV 16 kHz mono: ${conv.error}` });
     }
-    wavPath = tmpWav;
+    wavPath = tmp16k;
+  } else if (extIn === ".wav") {
+    // Sin ffmpeg y la entrada ya es WAV: `asr_infer` la acepta tal cual.
+    wavPath = tmpIn;
+  } else {
+    limpiar();
+    return sendJson(res, 415, cors, {
+      ok: false,
+      error: `formato '${extIn.slice(1)}' no soportado sin ffmpeg: instala ffmpeg o envía WAV`,
+    });
   }
 
   // UN proceso a la vez (cola FIFO con cupo).
