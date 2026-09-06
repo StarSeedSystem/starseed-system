@@ -61,6 +61,17 @@ excluidos se vuelve a la lista completa — nunca sin revisor. Los saltados deja
 `aviso` por revisión y no cuentan como intento en el paso `revision` (que anota revisor, segundos
 e intentos). Prueba: `python3 -m pytest -q scripts/enjambre/test_revisores.py`.
 
+## Bloqueos y visto bueno (Ola 261, P4)
+
+Un bloqueo confirmado por segunda opinión (`confirmar_bloqueo`) o un alcance que sigue
+incompleto tras la pasada de compleción **ya no se integran en main**: la rama `ola/<id>` queda
+lista y la tarea entra en el flujo de visto bueno humano (`esperando_aprobacion` con campo
+extra `motivo`, a la espera de `aprobar`/`rechazar` como con `--aprobacion`); sin decisión,
+`pendiente_aprobacion` con la rama conservada. La bandera `--integrar-bloqueantes` recupera el
+comportamiento antiguo y se anota en la nota del commit; el evento de integración es siempre
+`commit` (nunca «bloqueante» sobre código ya dentro de main). La decisión vive en la función
+pura `debe_pedir_visto_bueno`. Prueba: `python3 -m pytest -q scripts/enjambre/test_bloqueo.py`.
+
 ## Puertas según el tipo de repo
 
 Si la raíz **no** tiene `tsconfig.json`, el orquestador lo trata como repo Python: compila con

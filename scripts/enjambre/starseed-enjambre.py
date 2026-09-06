@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """starseed-enjambre · orquestador PARALELO del enjambre libre de StarSeed OS (v2, Ola 227)
 
-  python3 ~/.local/bin/starseed-enjambre.py cola.json [--workers 3] [--solo ID,ID] [--sin-revision] [--aprobacion]
+  python3 ~/.local/bin/starseed-enjambre.py cola.json [--workers 3] [--solo ID,ID] [--sin-revision] [--aprobacion] [--integrar-bloqueantes]
 
 Qué hace (todo gratis: opencode → NVIDIA NIM para escribir; OpenRouter/NIM/Gemini para revisar):
   · N trabajadores en paralelo, cada uno en su propio `git worktree` (rama ola/<id>) → nadie pisa a nadie.
@@ -1527,6 +1527,26 @@ def _anotar_fallido(tid, modelo):
         set_estado(tid, modelos_fallidos=(prev + [modelo])[-6:])
 
 
+def debe_pedir_visto_bueno(bloqueante, faltan, aprobacion_pedida, argv):
+    """(2026-09-06, Ola 261, P4) Decide si la rama pide visto bueno humano antes de integrar.
+
+    Un bloqueo confirmado por segunda opinión o un alcance incompleto NO se integran solos
+    (antes de esta ola, un bloqueo confirmado como B2 o Q1 se fusionaba igual en main): la rama
+    queda lista y pasa al flujo `esperando_aprobacion`. La bandera `--integrar-bloqueantes`
+    recupera el comportamiento antiguo para cuando Alex decide forzarlo a mano.
+    Devuelve (True, motivo) o (False, ""). Función pura: la testea test_bloqueo.py.
+    """
+    if "--integrar-bloqueantes" in (argv or []):
+        return False, ""
+    if bloqueante:
+        return True, "revisión bloqueante confirmada"
+    if faltan:
+        return True, "alcance incompleto: faltan %s" % ", ".join(list(faltan)[:8])
+    if aprobacion_pedida:
+        return True, "pedido por la cola (--aprobacion / STARSEED_APROBACION / aprobacion en la tarea)"
+    return False, ""
+
+
 def ejecutar(t, intento=1):
     tid = t["id"]; t0 = time.time()
     os.makedirs(LOGS, exist_ok=True); log = os.path.join(LOGS, tid + ".log")
@@ -1707,6 +1727,7 @@ def ejecutar(t, intento=1):
     # pedidos sin tocar. Si faltan, UNA pasada de compleción con el mismo modelo; si aun así
     # siguen faltando, aviso «TAREA INCOMPLETA» y el revisor lo recibe explicado (`alcance_txt`).
     alcance_txt = ""
+    medida = {"pedidos": [], "tocados": [], "faltan": [], "extra": []}
     if t.get("archivos"):
         medida = alcance_tarea(t, wt)
         hubo_pasada = False
@@ -1802,17 +1823,26 @@ def ejecutar(t, intento=1):
     # diff y sus comprobaciones, y la orden `aprobar`/`rechazar` llega por el archivo de control
     # (Mac) o por el bus firmado (nube). Si nadie decide en ESPERA_APROBACION_S, la rama se
     # conserva y la tarea queda «pendiente_aprobacion» (se integra a mano o relanzando --solo).
-    if "--aprobacion" in sys.argv or os.environ.get("STARSEED_APROBACION") == "1" or t.get("aprobacion"):
+    # (2026-09-06, Ola 261, P4) Y desde la Ola 261 tampoco se integra un bloqueo confirmado ni
+    # un alcance incompleto aunque la cola no pidiera aprobación: pasan por el mismo visto
+    # bueno. `--integrar-bloqueantes` recupera el comportamiento antiguo si se fuerza a mano.
+    aprobacion_pedida = ("--aprobacion" in sys.argv or os.environ.get("STARSEED_APROBACION") == "1"
+                         or bool(t.get("aprobacion")))
+    pedir_vb, motivo_vb = debe_pedir_visto_bueno(bloqueante, medida.get("faltan", []), aprobacion_pedida, sys.argv)
+    if pedir_vb:
         _, sha_rama = sh(["git", "rev-parse", "--short", "HEAD"], cwd=wt, timeout=30)
         _, stat = sh(["git", "diff", "HEAD~1", "--stat"], cwd=wt, timeout=60)
         resumen_rev = (rev or "").strip().replace("\n", " ")[:400]
         set_estado(tid, estado="esperando_aprobacion", modelo=modelo_ok, segundos=int(time.time() - t0),
                    nota="rama ola/%s (%s) lista · revisión %s" % (tid, sha_rama.strip(), "bloqueante" if bloqueante else ("ok" if rev else "sin revisor")))
         latir(tid, "esperando aprobación", modelo=modelo_ok)
-        evento("esperando_aprobacion", tid, "rama ola/%s lista (%s): tsc 0 · tests ok · revisión %s. Espera tu visto bueno en el Mando."
-               % (tid, sha_rama.strip(), "bloqueante" if bloqueante else ("ok" if rev else "sin revisor")),
+        # `motivo` (Ola 261, P4): por qué pide visto bueno — cola, bloqueo confirmado o alcance
+        # incompleto. El Mando lo enseña junto al resto de campos (rama, sha, diffstat, revisión,
+        # bloqueante, modelo, impacto), que se mantienen idénticos al flujo ya existente.
+        evento("esperando_aprobacion", tid, "rama ola/%s lista (%s): tsc 0 · tests ok · revisión %s. Espera tu visto bueno en el Mando. Motivo: %s."
+               % (tid, sha_rama.strip(), "bloqueante" if bloqueante else ("ok" if rev else "sin revisor"), motivo_vb),
                datos={"rama": "ola/" + tid, "sha": sha_rama.strip(), "diffstat": stat[-1500:], "revision": resumen_rev, "bloqueante": bloqueante, "modelo": modelo_ok,
-                      "impacto": impacto})
+                      "impacto": impacto, "motivo": motivo_vb})
         t_esp = time.time(); decision = None
         while time.time() - t_esp < ESPERA_APROBACION_S and not FIN.is_set():
             decision = APROBACIONES.pop(tid, None)
@@ -1855,9 +1885,17 @@ def ejecutar(t, intento=1):
         return ejecutar(t, intento=2)
     limpiar_worktree(tid)
     paso(tid, "integracion", sha=sha.strip(), resultado="ff", intento=intento, segundos_total=int(time.time() - t0))
-    nota = "%s · revisión %s" % (sha.strip(), "bloqueante" if bloqueante else ("ok" if rev else "sin revisor"))
+    # (2026-09-06, Ola 261, P4) Si llega aquí con bloqueante=True es porque alguien aprobó en el
+    # Mando o porque se forzó con `--integrar-bloqueantes`: el evento es `commit` (se integró) y
+    # la nota lo dice, en vez de publicar «bloqueante» sobre un commit ya dentro de main.
+    if bloqueante:
+        detalle = ("integrado con --integrar-bloqueantes" if "--integrar-bloqueantes" in sys.argv
+                   else "bloqueo revisado y aprobado en el Mando")
+        nota = "%s · revisión bloqueante (%s)" % (sha.strip(), detalle)
+    else:
+        nota = "%s · revisión %s" % (sha.strip(), "ok" if rev else "sin revisor")
     set_estado(tid, estado="commit", modelo=modelo_ok, segundos=int(time.time() - t0), nota=nota)
-    evento("bloqueante" if bloqueante else "commit", tid, "%s integrado en main (%s)" % (sha.strip(), nota))
+    evento("commit", tid, "%s integrado en main (%s)" % (sha.strip(), nota))
 
 def ejecutar_seguro(t):
     """Un trabajador nunca muere en silencio: excepción → fallo + evento + limpieza."""
