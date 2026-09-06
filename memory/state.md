@@ -3807,3 +3807,12 @@ verificación en vivo: `https://starseed-os.vercel.app/api/ai/astraura-158/api/s
 - **Decaimiento temporal exponencial (base e)** en la relevancia de los recuerdos, del documento de constantes armónicas que envió Alex. `factor = suelo + (1-suelo)·e^(-ln2·días/vida_media)`, vida media 14 días y **suelo 0,35** para que un recuerdo antiguo pero muy pertinente no desaparezca jamás. Medido: ahora 1,000 · 1 día 0,969 · 14 días 0,675 · 1 año 0,350. Sin fecha → 1,000 (no penaliza lo que no sabe fechar).
 - **Del documento, lo que NO se implementó y por qué**: topología Fibonacci de capas, inicialización de pesos por Fibonacci y tasa de aprendizaje áurea aplican al **entrenamiento desde cero**. El modelo es `microsoft/BitNet-b1.58-2B-4T`, **ya entrenado con 4 billones de tokens**: su topología y sus pesos están fijados. Aplicarlas exigiría reentrenar un modelo de 2B —imposible en este M1— y tirar ese entrenamiento. Implementarlas «por encima» sería decorativo o dañino. Anotado, no ejecutado.
 - Puertas: tsc 0 · vitest **174/174** · mesh 178/0.
+
+## 2026-09-06 — Adenda 226: olas 247–253 (rito fluido · Mando ola activa · motor de voces v2 · modo ligero)
+- **Ola 247 — rito fluido**: `director-rito.ts` es UNA máquina de estados (registro→bienvenida→sistemas→perfil→guía→hecho) en `sessionStorage` (`starseed.rito.v2`, caducidad 6 h) con `navegarSuave`; se acabó el doble login y las recargas entre ventanas.
+- **Ola 248 — Mando**: dedupe por `ola|id` (`claveTarea`) y latidos por `cola|id` (`claveLatido`); la Ola 247 dejó de ocultarse tras la 227 y la cabecera se relee cada 20 s.
+- **Ola 249 — motor v2**: manifiesto con 16 modelos abiertos (VibeVoice, VibeASR.cpp, Voicebox…) + §9 del SOP; cola y tomas con linaje en el Estudio.
+- **Ola 250**: la guía ya no secuestra todas las rutas a /escritorios (comprueba su turno, no navega desde la consola).
+- **Ola 251 — voz que despierta**: espera `STARSEED_VOZ_HEALTH_MS` (90 s→4 min) y /status con `despertando`, `memoriaLibreMb` y `asr{...}`.
+- **Olas 252–253 — ligero**: `install-vibeasr.sh` + `POST /asr` + pestaña «Oído 1.58»; `starseed-ligero.sh` sirve el OS compilado (next start, ~48 MB) y `puerta-local.ts` deja voz y Mando sin sesión en localhost (nunca en Vercel).
+- **Regla de Alex**: todo lo ejecuta el orquestador; Claude diseña, supervisa en el Mando, verifica en localhost y aprueba. Detalle en `docs/adendas/adenda-226-rito-mando-voces-v2-ligero-olas-247-253-2026-09-06.md`.
