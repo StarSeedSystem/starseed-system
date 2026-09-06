@@ -14,6 +14,12 @@ Qué hace (todo gratis: opencode → NVIDIA NIM para escribir; OpenRouter/NIM/Ge
     `hermes send` para lo importante + `starseed-relevo nota`. Verificador final: tsc + vitest en main.
   · `depende: ["ID"]` en una tarea la hace esperar a esas tareas.
 Estado: olas/progreso.json + progreso.md (mismo formato de siempre) + logs/<id>.log + revisiones.md
+
+Tiempos configurables (2026-09-06, Ola 261):
+  · STARSEED_ESCRITURA_S  — tope de una llamada de escritura de opencode (defecto 1500 s).
+  · STARSEED_ESTANCADO_S  — sin avance en el log se considera colgado (defecto max(900, ESCRITURA_S//2));
+    una escritura legítima por trozos puede tardar ESCRITURA_S, así que el vigilante nunca debe
+    ser más impaciente que la mitad de ese margen.
 """
 import json, os, re, subprocess, sys, threading, time, urllib.request, urllib.error, shutil, collections
 import contextlib, fcntl
@@ -52,10 +58,16 @@ MODELOS = [
     "nvidia/moonshotai/kimi-k3",
     "xkiro/minimax/minimax-m3:free",
     "nvidia/deepseek-ai/deepseek-v4-flash-0731",
+    # Verificado el 2026-09-06 (Ola 261) en /tmp/prueba-escritor: opencode SÍ crea archivos con
+    # tokenrouter glm-5.3-free, y rápido (era uno de los revisores; ahora también escribe).
+    "tokenrouter/z-ai/glm-5.3-free",
     "xkiro/qwen/qwen3.8-max:free",
     "nvidia/deepseek-ai/deepseek-v4-pro-0813",
     "xkiro/deepseek/deepseek-v4-pro",
     "xkiro/mistralai/devstral-medium",
+    # llm7/gpt-oss también escribió en la prueba, pero con calidad baja: solo entra en la
+    # rotación de una tarea si TODOS sus archivos son Markdown (ver apto_para_tarea).
+    "llm7/gpt-oss",
 ]
 
 MUERTOS = set()          # modelos que el proveedor ha rechazado en esta corrida
@@ -391,6 +403,26 @@ def modelos_para(tid):
     """Rota la lista según el id de la tarea: reparte la carga entre proveedores."""
     i = sum(ord(c) for c in tid) % len(MODELOS)
     return MODELOS[i:] + MODELOS[:i]
+
+def apto_para_tarea(modelo, t):
+    """¿Puede este modelo escribir ESTA tarea? (2026-09-06, Ola 261)
+
+    Dos motivos para excluirlo, ninguno es «el modelo es malo»:
+      · llm7/gpt-oss escribió de verdad en la prueba pero con calidad baja: solo es apto
+        si TODOS los archivos pedidos son Markdown (documentación); para código no sirve.
+      · Un proveedor con cupo agotado hoy (sin_cupo) o enfriándose tras un 429 reciente
+        no debe recibir una escritura nueva: se reintentaría en balde y se gastaría el
+        tiempo de la tarea. La misma memoria de la Ola 261 que ya usan los revisores.
+    """
+    if modelo.split("/", 1)[1] == "gpt-oss" and modelo.startswith("llm7/"):
+        archivos = [str(a) for a in (t.get("archivos") or [])]
+        if not archivos or not all(a.strip().endswith(".md") for a in archivos):
+            return False
+    prov = proveedor_de(modelo)
+    if sin_cupo(prov) or enfriandose(prov):
+        return False
+    return True
+
 # revisores: (proveedor, modelo) — cada uno con su cupo; se prueba en orden
 REVISORES = [
     ("xkiro", "qwen/qwen3.7-plus:free"),
@@ -1254,7 +1286,15 @@ def contexto_tarea(t):
     return ("Trabajas en el repositorio StarSeed OS (Next.js 15 + React 19 + TypeScript estricto + Tailwind/shadcn + Supabase). "
             "Lee primero CLAUDE.md (secciones 8, 11 y 💠) y los archivos implicados. Reglas: sin `any`; cursor-pointer en lo clicable; "
             "español en textos de UI y comentarios (con acentos); no toques archivos ajenos a la tarea; no ejecutes git; deja los cambios "
-            "escritos en disco sin pedir confirmación.\n\n%s\n\nTAREA %s (%s) · %s\nArchivos implicados: %s\n\n%s") % (
+            "escritos en disco sin pedir confirmación.\n\n"
+            # Por qué se pide esto (2026-09-06, Ola 261): el log del orquestador solo crece cuando
+            # TERMINA una llamada de herramienta; una única escritura de 300 líneas con un proveedor
+            # lento (NIM, 5-10 tok/s) tarda 8-20 min sin dejar rastro y el vigilante la cortaba por
+            # estancamiento — de ahí los «sin cambios» masivos de las tareas Q/J. Escrita por
+            # trozos, cada tramo cierra rápido y el avance queda visible.
+            "ESCRITURA POR TROZOS: crea cada archivo nuevo primero con su esqueleto (imports, tipos, firmas y `export`s, ≤ 60 líneas) "
+            "y complétalo con ediciones sucesivas de ≤ 80 líneas cada una; nunca una sola escritura de más de 120 líneas; "
+            "entre trozos no hace falta explicar nada.\n\n%s\n\nTAREA %s (%s) · %s\nArchivos implicados: %s\n\n%s") % (
             inteligente, t["id"], t.get("ola", ""), t.get("titulo", ""),
             ", ".join(t.get("archivos", [])), t["prompt"])
 
@@ -1290,6 +1330,20 @@ def consumir_control():
     except Exception:
         return {}
 
+# Plantilla mínima del bloque `provider` de opencode para escritores nuevos (Ola 261).
+# NUNCA claves aquí: «sin-clave» literal para llm7 y «{env:TOKENROUTER_API_KEY}» para
+# tokenrouter — opencode expande {env:…} en tiempo de ejecución.
+PROVEEDOR_OPENCODE_MINIMO = {
+    "llm7": {"npm": "@ai-sdk/openai-compatible", "name": "LLM7 (sin clave)",
+             "options": {"baseURL": "https://api.llm7.io/v1", "apiKey": "sin-clave"},
+             "models": {}},
+    "tokenrouter": {"npm": "@ai-sdk/openai-compatible", "name": "TokenRouter",
+                    "options": {"baseURL": "https://api.tokenrouter.com/v1",
+                                "apiKey": "{env:TOKENROUTER_API_KEY}"},
+                    "models": {}},
+}
+
+
 def asegurar_modelo_opencode(modelo):
     """Un modelo pedido desde el Mando puede no estar en ~/.config/opencode/opencode.json
     (xkiro tiene 40 y solo hay 10 declarados): si el proveedor está, se añade el modelo
@@ -1303,7 +1357,14 @@ def asegurar_modelo_opencode(modelo):
         return prov in ("openrouter", "google")   # proveedores nativos de opencode
     provs = cfg.get("provider") or {}
     if prov not in provs:
-        return prov in ("openrouter", "google")
+        if prov in PROVEEDOR_OPENCODE_MINIMO:
+            # Bloque nuevo del proveedor (2026-09-06, Ola 261): la Mac no tenía declarado llm7
+            # y cualquier modelo suyo moría en silencio. Las claves jamás se escriben aquí:
+            # siempre con la sintaxis {env:VARIABLE} de opencode, literal.
+            provs[prov] = json.loads(json.dumps(PROVEEDOR_OPENCODE_MINIMO[prov]))  # copia: no mutar la plantilla
+            cfg["provider"] = provs
+        else:
+            return prov in ("openrouter", "google")
     modelos = provs[prov].setdefault("models", {})
     if nombre in modelos:
         return True
@@ -1361,7 +1422,11 @@ def atender_control():
 ARRANQUE_S = int(os.environ.get("STARSEED_ARRANQUE_S", "120"))
 ESPERA_429_S = int(os.environ.get("STARSEED_ESPERA_429_S", "75"))        # 429: esperar y reintentar el mismo modelo
 ESPERA_PROVEEDOR_S = int(os.environ.get("STARSEED_ESPERA_PROVEEDOR_S", "2700"))  # todo caído: esperar hasta 45 min
-ESTANCADO_S = int(os.environ.get("STARSEED_ESTANCADO_S", "900"))   # 7 min sin escribir nada = parada
+# Tope de UNA llamada de escritura de opencode (2026-09-06, Ola 261): NIM iba a 5-10 tok/s y
+# un archivo de 300 líneas tardaba 8-20 min; el corte fijo de 1500 s mataba escrituras largas
+# legítimas. Ahora se configura y también sirve de base al umbral de estancamiento.
+ESCRITURA_S = int(os.environ.get("STARSEED_ESCRITURA_S", "1500"))
+ESTANCADO_S = int(os.environ.get("STARSEED_ESTANCADO_S", str(max(900, ESCRITURA_S // 2))))   # sin escribir nada = parada; nunca menos que media escritura
 LATIDO_S = int(os.environ.get("STARSEED_LATIDO_S", "120"))         # cada cuánto se publica al bus
 
 def _volcar_latidos():
@@ -1567,7 +1632,7 @@ def ejecutar(t, intento=1):
         except Exception as e:
             set_estado(tid, estado="fallo", nota=str(e)[:200]); evento("fallo", tid, "worktree: " + str(e)[:200]); return
     fallidos = list(PROG.get(tid, {}).get("modelos_fallidos") or [])
-    base = [m for m in modelos_para(tid) if m not in MUERTOS and proveedor_vivo(proveedor_de(m))]
+    base = [m for m in modelos_para(tid) if m not in MUERTOS and proveedor_vivo(proveedor_de(m)) and apto_para_tarea(m, t)]
     if fallidos:
         # Los que ya se colgaron o no tocaron nada en esta tarea, al final de la cola.
         base = [m for m in base if m not in fallidos] + [m for m in base if m in fallidos]
@@ -1575,7 +1640,7 @@ def ejecutar(t, intento=1):
     # Los modelos de proveedores caídos NO se descartan: se apartan y se espera a que vuelvan.
     # (El 2026-09-04, VZ2: xkiro sin cuota diaria y nim con «too many requests» → la tarea se
     # dio por fallida en 2 segundos sin que ningún modelo llegara a intentarlo.)
-    apartados = [m for m in modelos_para(tid) if m not in MUERTOS and not proveedor_vivo(proveedor_de(m))]
+    apartados = [m for m in modelos_para(tid) if m not in MUERTOS and apto_para_tarea(m, t) and not proveedor_vivo(proveedor_de(m))]
     if tid in REASIGNADOS:
         t = dict(t); t["modelo"] = REASIGNADOS.pop(tid)
     if t.get("modelo"):
@@ -1587,6 +1652,10 @@ def ejecutar(t, intento=1):
         elif t["modelo"] not in apartados:
             apartados.append(t["modelo"])
     modelos = ([t["modelo"]] + [m for m in base if m != t.get("modelo")]) if t.get("modelo") else base
+    # Los escritores de la rotación también deben EXISTIR en opencode.json (Ola 261: llm7 no
+    # estaba declarado en la Mac y sus modelos morían en silencio dentro de la rotación).
+    for m in modelos:
+        asegurar_modelo_opencode(m)
     cambios = reanudada; modelo_ok = (PROG.get(tid, {}).get("modelo") or modelos[0]) if reanudada else ""
     intentos_reales = 0; ultimo_fallo = ""
     saturados = {}     # modelo -> veces que el proveedor contestó 429 (se reintenta tras esperar)
@@ -1600,7 +1669,7 @@ def ejecutar(t, intento=1):
             evento("reenrutado", tid, "%s está caído ahora mismo → lo aparto y sigo con otro proveedor" % proveedor_de(modelo))
             continue
         latir(tid, "escribiendo", modelo=modelo, intento=intento)
-        rc, out = opencode(contexto_tarea(t), modelo, wt, log, tid=tid)
+        rc, out = opencode(contexto_tarea(t), modelo, wt, log, timeout=ESCRITURA_S, tid=tid)
         if tid in SOLTADAS:
             limpiar_worktree(tid); return
         if tid in CORTADOS and tid in REASIGNADOS:
@@ -1677,7 +1746,7 @@ def ejecutar(t, intento=1):
             if not proveedor_vivo(proveedor_de(modelo)):
                 apartados.append(modelo); continue
             latir(tid, "escribiendo", modelo=modelo, intento=intento)
-            rc, out = opencode(contexto_tarea(t), modelo, wt, log, tid=tid)
+            rc, out = opencode(contexto_tarea(t), modelo, wt, log, timeout=ESCRITURA_S, tid=tid)
             if tid in SOLTADAS:
                 limpiar_worktree(tid); return
             if tid in CORTADOS and tid in REASIGNADOS:
@@ -1739,7 +1808,7 @@ def ejecutar(t, intento=1):
                      "Si de verdad alguno no hace falta tocarlo, escribe en tu respuesta una línea "
                      "`SIN TOCAR <ruta>: <motivo>` por cada uno.\n\nEnunciado original:\n%s"
                      % (", ".join(medida["faltan"]), t.get("prompt", "")),
-                     modelo_ok, wt, log, timeout=900, tid=tid)
+                     modelo_ok, wt, log, timeout=ESCRITURA_S, tid=tid)
             medida = alcance_tarea(t, wt)
         paso(tid, "alcance", pedidos=len(medida["pedidos"]), tocados=len(medida["tocados"]),
              faltan=",".join(medida["faltan"])[:300], completado=bool(hubo_pasada))
