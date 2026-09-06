@@ -14,11 +14,13 @@
  *              modelo/API de una tarea (en marcha o pendiente) conservando el flujo, o la
  *              mueve al otro servidor con sus dependientes pendientes.
  *
- * ⚠️ Seguridad: 404 fuera de local; sesión en producción; validación estricta de
- * nombres, ids, rutas y modelos; nunca devuelve claves ni rutas absolutas.
+ * ⚠️ Seguridad: puerta única `guardianMando` — 404 fuera de local/STARSEED_MANDO;
+ * sesión solo en producción no local; localhost sin sesión (Ola 254 · 2026-09-06).
+ * Validación estricta de nombres, ids, rutas y modelos; nunca devuelve claves ni
+ * rutas absolutas.
  */
 
-import { createClient } from "@/utils/supabase/server";
+import { guardianMando } from "@/lib/mando/guardian";
 import {
     detenerAqui,
     detenerEnNube,
@@ -35,26 +37,8 @@ import {
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-function mandoHabilitado(): boolean {
-    return process.env.NODE_ENV !== "production" || process.env.STARSEED_MANDO === "1";
-}
-
-async function guardian(): Promise<Response | null> {
-    if (!mandoHabilitado()) return new Response("Not Found", { status: 404 });
-    if (process.env.NODE_ENV === "production") {
-        try {
-            const supabase = await createClient();
-            const { data, error } = await supabase.auth.getUser();
-            if (error || !data.user) return Response.json({ error: "Necesitas iniciar sesión." }, { status: 401 });
-        } catch {
-            return Response.json({ error: "No se pudo verificar la sesión." }, { status: 401 });
-        }
-    }
-    return null;
-}
-
-export async function GET(): Promise<Response> {
-    const veto = await guardian();
+export async function GET(peticion: Request): Promise<Response> {
+    const veto = await guardianMando(peticion);
     if (veto) return veto;
     const colas = await leerColasCompletas();
     return Response.json(
@@ -64,7 +48,7 @@ export async function GET(): Promise<Response> {
 }
 
 export async function POST(peticion: Request): Promise<Response> {
-    const veto = await guardian();
+    const veto = await guardianMando(peticion);
     if (veto) return veto;
     let cuerpo: Record<string, unknown>;
     try {

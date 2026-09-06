@@ -4,13 +4,11 @@
  * Chat de orquestación del Centro de Mando: hablar con el sistema multiagéntico
  * del enjambre SIN salir de la consola.
  *
- * ⚠️ Seguridad (innegociable, mismo guardián que el resto de `/api/mando/*`):
- *  • Rutas `/api/mando/*` SOLO funcionan en local: si no estamos en desarrollo
- *    ni `STARSEED_MANDO=1`, responden 404 sin mayor información.
- *  • Exigen sesión iniciada (como el resto de rutas privadas).
- *  • NUNCA devuelven claves, tokens ni rutas absolutas del disco del usuario.
- *  • Esta ruta JAMÁS ejecuta comandos del sistema ni lanza el enjambre por su
- *    cuenta: lanzar una ola es siempre una acción del usuario desde la terminal.
+ * ⚠️ Seguridad: puerta única `guardianMando` — 404 fuera de local/STARSEED_MANDO;
+ * sesión solo en producción no local; localhost sin sesión (Ola 254 · 2026-09-06).
+ * NUNCA devuelve claves, tokens ni rutas absolutas del disco del usuario.
+ * Esta ruta JAMÁS ejecuta comandos del sistema ni lanza el enjambre por su
+ * cuenta: lanzar una ola es siempre una acción del usuario desde la terminal.
  *
  * MODOS (cuerpo `{ mensaje, modo }`):
  *  · "preguntar"  — responde el sistema primario (Astraura 1.58-bit, gratis y
@@ -30,6 +28,7 @@
  */
 
 import { createClient } from "@/utils/supabase/server";
+import { guardianMando } from "@/lib/mando/guardian";
 import { destinoNube } from "@/lib/astraura/destino-nube";
 
 export const runtime = "nodejs";
@@ -57,32 +56,6 @@ interface VozPrimaria {
     motor?: string;
     modelo?: string;
     tokens?: number;
-}
-
-/** ¿El mando está permitido en esta instancia? (404 si no). */
-function mandoHabilitado(): boolean {
-    return process.env.NODE_ENV !== "production" || process.env.STARSEED_MANDO === "1";
-}
-
-/** Devuelve 401 si la sesión no es válida. */
-async function exigirSesion(): Promise<Response | null> {
-    // El mando ya responde 404 fuera de local (arriba). Exigir ADEMÁS sesión dejaba la
-    // consola inservible justo en la máquina donde tiene que usarse: la base puede estar
-    // vacía y aún no haber ninguna cuenta. En desarrollo basta con ese candado; si alguien
-    // levanta una instancia propia con STARSEED_MANDO=1, ahí sí se exige sesión porque
-    // entonces la consola es alcanzable desde fuera.
-    if (process.env.NODE_ENV === "production") {
-        try {
-            const supabase = await createClient();
-            const { data, error } = await supabase.auth.getUser();
-            if (error || !data.user) {
-                return Response.json({ error: "Necesitas iniciar sesión." }, { status: 401 });
-            }
-        } catch {
-            return Response.json({ error: "No se pudo verificar la sesión." }, { status: 401 });
-        }
-    }
-    return null;
 }
 
 /** Escapa un texto para incrustarlo con seguridad en un prompt. */
@@ -249,11 +222,8 @@ enjambre" o "ejecutar un comando", explica que lanzar una ola es siempre una
 acción del usuario desde la terminal, nunca automática desde aquí.`;
 
 export async function POST(req: Request): Promise<Response> {
-    if (!mandoHabilitado()) {
-        return new Response("Not Found", { status: 404 });
-    }
-    const noAuth = await exigirSesion();
-    if (noAuth) return noAuth;
+    const veto = await guardianMando(req);
+    if (veto) return veto;
 
     let cuerpo: unknown;
     try {

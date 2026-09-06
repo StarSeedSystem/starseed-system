@@ -4,18 +4,16 @@
  * Lee y guarda la configuración del enjambre (`~/.starseed/enjambre.json`)
  * que el orquestador consulta al iniciar cada ola.
  *
- * ⚠️ Seguridad (innegociable, mismo guardián que el resto de `/api/mando/*`):
- *  • Si no estamos en desarrollo ni `STARSEED_MANDO=1`, responde 404 sin
- *    mayor información.
- *  • Exige sesión iniciada.
- *  • NUNCA devuelve la ruta absoluta del archivo (solo su etiqueta
- *    `~/.starseed/enjambre.json`) ni claves, tokens o comandos.
- *  • El PUT valida TODO el cuerpo: rangos numéricos (1-6 / 1-6 / 1-120) y
- *    lista blanca de proveedores/modelos. Un valor inválido se descarta y
- *    se cae al valor por defecto documentado de ese campo.
+ * ⚠️ Seguridad: puerta única `guardianMando` — 404 fuera de local/STARSEED_MANDO;
+ * sesión solo en producción no local; localhost sin sesión (Ola 254 · 2026-09-06).
+ * NUNCA devuelve la ruta absoluta del archivo (solo su etiqueta
+ * `~/.starseed/enjambre.json`) ni claves, tokens o comandos.
+ * El PUT valida TODO el cuerpo: rangos numéricos (1-6 / 1-6 / 1-120) y
+ * lista blanca de proveedores/modelos. Un valor inválido se descarta y
+ * se cae al valor por defecto documentado de ese campo.
  */
 
-import { createClient } from "@/utils/supabase/server";
+import { guardianMando } from "@/lib/mando/guardian";
 import {
     ETIQUETA_ARCHIVO,
     escribirConfigEnjambre,
@@ -44,39 +42,10 @@ interface RespuestaAjustes {
     actualizadoEn: string;
 }
 
-/** ¿El mando está permitido en esta instancia? (404 si no). */
-function mandoHabilitado(): boolean {
-    return process.env.NODE_ENV !== "production" || process.env.STARSEED_MANDO === "1";
-}
-
-/** Devuelve 401 si la sesión no es válida. */
-async function exigirSesion(): Promise<Response | null> {
-    // El mando ya responde 404 fuera de local (arriba). Exigir ADEMÁS sesión dejaba la
-    // consola inservible justo en la máquina donde tiene que usarse: la base puede estar
-    // vacía y aún no haber ninguna cuenta. En desarrollo basta con ese candado; si alguien
-    // levanta una instancia propia con STARSEED_MANDO=1, ahí sí se exige sesión porque
-    // entonces la consola es alcanzable desde fuera.
-    if (process.env.NODE_ENV === "production") {
-        try {
-            const supabase = await createClient();
-            const { data, error } = await supabase.auth.getUser();
-            if (error || !data.user) {
-                return Response.json({ error: "Necesitas iniciar sesión." }, { status: 401 });
-            }
-        } catch {
-            return Response.json({ error: "No se pudo verificar la sesión." }, { status: 401 });
-        }
-    }
-    return null;
-}
-
 /** GET: devuelve la configuración actual (o los valores por defecto). */
-export async function GET(): Promise<Response> {
-    if (!mandoHabilitado()) {
-        return new Response("Not Found", { status: 404 });
-    }
-    const noAuth = await exigirSesion();
-    if (noAuth) return noAuth;
+export async function GET(peticion: Request): Promise<Response> {
+    const veto = await guardianMando(peticion);
+    if (veto) return veto;
 
     const config = await leerConfigEnjambre();
     const cuerpo: RespuestaAjustes = {
@@ -96,11 +65,8 @@ export async function GET(): Promise<Response> {
 
 /** PUT: guarda la configuración saneada. */
 export async function PUT(req: Request): Promise<Response> {
-    if (!mandoHabilitado()) {
-        return new Response("Not Found", { status: 404 });
-    }
-    const noAuth = await exigirSesion();
-    if (noAuth) return noAuth;
+    const veto = await guardianMando(req);
+    if (veto) return veto;
 
     let cuerpo: unknown;
     try {
