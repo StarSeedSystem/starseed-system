@@ -34,6 +34,18 @@ import { PanelAjustes } from "@/components/mando/panel-ajustes";
 import { PanelNeurona } from "@/components/mando/panel-neurona";
 import { PanelAprendizaje } from "@/components/mando/panel-aprendizaje";
 import { PanelPublicaciones } from "@/components/mando/panel-publicaciones";
+// Ola 272 · O3B (2026-09-07): la pestaña «Oficina 3D». El componente carga
+// Three.js, así que entra con `next/dynamic` sin SSR y SOLO se monta al abrir
+// la pestaña (dos barreras: el chunk no baja y el render no se ejecuta hasta que
+// el usuario la pide, y el resto del Mando arranca igual de ligero que antes).
+import dynamic from "next/dynamic";
+const OficinaMando = dynamic(
+    () => import("@/components/mando/oficina-mando").then((m) => m.OficinaMando),
+    {
+        ssr: false,
+        loading: () => <p className="text-sm text-white/50">Cargando la oficina…</p>,
+    },
+);
 // Ola 275 · V4 (2026-09-07): la pestaña «Voces» monta el Estudio de Voces dentro
 // del Mando, y la Voz del Mando (provider + control en la cabecera) se cablea aquí
 // UNA sola vez para que los anuncios hablados no se dupliquen.
@@ -57,6 +69,7 @@ const CLAVE_PESTANA = "starseed.mando.pestana";
 /** Pestañas del Centro de Mando, en orden. */
 const PESTANAS = [
     { id: "procesos", etiqueta: "Procesos" },
+    { id: "oficina", etiqueta: "Oficina 3D" },
     { id: "olas", etiqueta: "Olas e informes" },
     { id: "commits", etiqueta: "Commits pendientes" },
     { id: "flota", etiqueta: "Flota" },
@@ -530,6 +543,14 @@ export function CentroMando() {
 
                 <TabsContent value="procesos">
                     <PanelProcesos />
+                </TabsContent>
+                <TabsContent value="oficina">
+                    {/* Ola 272 · O3B: Three.js solo se carga al abrir la pestaña.
+                        El render condicional garantiza que el chunk dinámico ni
+                        siquiera se pida antes de tiempo; al volver a la pestaña
+                        la oficina se vuelve a montar limpia. Así `/mando?pestana=oficina`
+                        funciona igual si el usuario entra directo por URL. */}
+                    {pestana === "oficina" ? <OficinaMando alCambiarPestana={alCambiarPestana} /> : null}
                 </TabsContent>
                 <TabsContent value="olas">
                     <PanelOlas />
