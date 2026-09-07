@@ -22,6 +22,7 @@ describe("interpretarSalud (Ola 269 · salud viva de revisores)", () => {
       ultimo429: "2026-09-07 09:55:00",
       claves: [],
       clavesActiva: null,
+      t: "2026-09-07 10:00:00",
     });
     expect(salida.porProveedor.nim).toEqual({
       estado: "vivo",
@@ -30,6 +31,7 @@ describe("interpretarSalud (Ola 269 · salud viva de revisores)", () => {
       ultimo429: null,
       claves: [],
       clavesActiva: null,
+      t: "2026-09-07 10:00:00",
     });
     // La clave global nunca aparece como si fuera un proveedor.
     expect(salida.porProveedor["ultimo_revisor_ok"]).toBeUndefined();

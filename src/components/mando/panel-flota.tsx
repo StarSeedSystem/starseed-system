@@ -24,7 +24,7 @@ import {
 import type { EstadoMando } from "@/lib/mando/tipos";
 import { flotaConocida, type ModeloFlota, type ProveedorFlota } from "@/lib/mando/flota";
 import type { ModeloDisponible, SaludProveedor } from "@/lib/mando/modelos-disponibles";
-import { proveedoresDisponibles } from "@/lib/mando/proveedores-catalogo";
+import { proveedoresDisponibles, type ProveedorDisponible } from "@/lib/mando/proveedores-catalogo";
 import { ExternalLink } from "lucide-react";
 
 /** Colores de estado (semaforización de la flota). */
@@ -326,21 +326,59 @@ function EnlaceExterno({ href, etiqueta }: { href: string; etiqueta: string }) {
     );
 }
 
+/** Lista de claves (var · medio · huella, nunca valores) con la activa marcada. */
+function ListaClaves({ proveedor }: { proveedor: ProveedorDisponible }) {
+    if (proveedor.claves.length === 0) return null;
+    return (
+        <ul className="mt-2 space-y-1">
+            {proveedor.claves.map((c) => (
+                <li key={`${c.var}-${c.medio}`} className="flex flex-wrap items-center gap-2 font-mono text-[11px] text-white/70">
+                    <span className={c.var === proveedor.activa ? "text-emerald-300" : ""}>{c.var}</span>
+                    <span className="text-white/40">· {c.medio}</span>
+                    <span className="text-white/40">· {c.huella}</span>
+                    {c.var === proveedor.activa ? (
+                        <span className="rounded-full border border-emerald-400/40 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] text-emerald-300">
+                            activa
+                        </span>
+                    ) : null}
+                </li>
+            ))}
+        </ul>
+    );
+}
+
+/** Chip «dato antiguo (hace N min)»: la salud local lleva más de 30 min sin sondeo. */
+function ChipDatoAntiguo({ proveedor }: { proveedor: ProveedorDisponible }) {
+    if (!proveedor.datoAntiguo) return null;
+    return (
+        <span
+            title="La salud local de este proveedor tiene más de 30 minutos; se prefiere la foto del bus."
+            className="cursor-help rounded-full border border-amber-400/40 bg-amber-500/10 px-1.5 py-0.5 text-[10px] text-amber-300"
+        >
+            dato antiguo{proveedor.edadSaludMin !== null ? ` (hace ${proveedor.edadSaludMin} min)` : ""}
+        </span>
+    );
+}
+
 /**
  * Proveedores del catálogo con su estado vivo y enlaces (Ola 271): agotados o
  * enfriándose con hasta cuándo y sus claves por medio; disponibles ahora con su
- * base; y por conseguir, que solo Alex puede abrir.
+ * base; y por conseguir, que solo Alex puede abrir. La clasificación la hace el
+ * servidor con las claves REALES de la máquina (M9B); el cálculo sobre el catálogo
+ * del cliente solo queda como respaldo si el endpoint viejo no trajo `proveedores`.
  */
-function SeccionProveedores({ catalogo }: { catalogo: ModeloDisponible[] }) {
+function SeccionProveedores({ catalogo, proveedores }: { catalogo: ModeloDisponible[]; proveedores: ProveedorDisponible[] | null }) {
     const disponibles = useMemo(() => {
-        // Se reconstruye la salud cruda a partir del detalle que trae cada modelo
-        // del catálogo (`saludDetalle` por proveedor, con claves y la activa).
+        if (proveedores) return proveedores;
+        // Respaldo: sin `proveedores` en la respuesta, se reconstruye la salud cruda a
+        // partir del detalle que trae cada modelo del catálogo (`saludDetalle`).
         const salud: Record<string, unknown> = {};
         for (const m of catalogo) {
             if (!m.saludDetalle || salud[m.proveedor]) continue;
             salud[m.proveedor] = {
                 estado: m.saludDetalle.estado,
                 sin_cupo_hasta: m.saludDetalle.sinCupoHasta,
+                t: m.saludDetalle.t,
                 claves: {
                     claves: m.saludDetalle.claves.map((c) => ({
                         var: c.var,
@@ -353,7 +391,7 @@ function SeccionProveedores({ catalogo }: { catalogo: ModeloDisponible[] }) {
             };
         }
         return proveedoresDisponibles(salud);
-    }, [catalogo]);
+    }, [catalogo, proveedores]);
 
     const agotados = disponibles.filter((p) => p.estado === "sinCupo" || p.estado === "enfriandose");
     const listos = disponibles.filter((p) => p.estado === "activo" || p.estado === "sinClave");
@@ -376,32 +414,18 @@ function SeccionProveedores({ catalogo }: { catalogo: ModeloDisponible[] }) {
                     ) : (
                         agotados.map((p) => (
                             <article key={p.id} className="rounded-lg border border-red-400/20 bg-red-500/5 p-3">
-                                <div className="flex items-center justify-between gap-2">
+                                <div className="flex flex-wrap items-center justify-between gap-2">
                                     <span className="text-sm font-medium text-white">{p.nombre}</span>
-                                    {p.sinCupoHasta ? (
-                                        <span className="text-[11px] text-red-300">sin cupo hasta {p.sinCupoHasta}</span>
-                                    ) : (
-                                        <span className="text-[11px] text-amber-300">enfriándose</span>
-                                    )}
+                                    <span className="flex items-center gap-2">
+                                        <ChipDatoAntiguo proveedor={p} />
+                                        {p.sinCupoHasta ? (
+                                            <span className="text-[11px] text-red-300">sin cupo hasta {p.sinCupoHasta}</span>
+                                        ) : (
+                                            <span className="text-[11px] text-amber-300">enfriándose</span>
+                                        )}
+                                    </span>
                                 </div>
-                                {p.claves.length > 0 && (
-                                    <ul className="mt-2 space-y-1">
-                                        {p.claves.map((c) => (
-                                            <li key={c.var} className="flex items-center gap-2 font-mono text-[11px] text-white/70">
-                                                <span className={c.var === p.activa ? "text-emerald-300" : ""}>
-                                                    {c.var}
-                                                </span>
-                                                <span className="text-white/40">· {c.medio}</span>
-                                                <span className="text-white/40">· {c.huella}</span>
-                                                {c.var === p.activa ? (
-                                                    <span className="rounded-full border border-emerald-400/40 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] text-emerald-300">
-                                                        activa
-                                                    </span>
-                                                ) : null}
-                                            </li>
-                                        ))}
-                                    </ul>
-                                )}
+                                <ListaClaves proveedor={p} />
                                 <div className="mt-2 flex flex-wrap items-center gap-3">
                                     <EnlaceExterno href={p.panelClaves} etiqueta="Conseguir clave" />
                                     <EnlaceExterno href={p.base} etiqueta="API" />
@@ -421,9 +445,13 @@ function SeccionProveedores({ catalogo }: { catalogo: ModeloDisponible[] }) {
                     ) : (
                         listos.map((p) => (
                             <article key={p.id} className="rounded-lg border border-emerald-400/20 bg-emerald-500/5 p-3">
-                                <span className="text-sm font-medium text-white">{p.nombre}</span>
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                    <span className="text-sm font-medium text-white">{p.nombre}</span>
+                                    <ChipDatoAntiguo proveedor={p} />
+                                </div>
                                 <p className="mt-1 font-mono text-[11px] text-white/50">{p.base}</p>
                                 <p className="mt-1 text-[11px] text-white/60">{p.gratis}</p>
+                                <ListaClaves proveedor={p} />
                             </article>
                         ))
                     )}
@@ -456,6 +484,7 @@ function SeccionProveedores({ catalogo }: { catalogo: ModeloDisponible[] }) {
 export function PanelFlota() {
     const [estado, setEstado] = useState<EstadoMando | null>(null);
     const [catalogo, setCatalogo] = useState<ModeloDisponible[]>([]);
+    const [proveedores, setProveedores] = useState<ProveedorDisponible[] | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [cargando, setCargando] = useState(true);
 
@@ -476,9 +505,17 @@ export function PanelFlota() {
             }
             setEstado((await respuesta.json()) as EstadoMando);
             if (respModelos?.ok) {
-                setCatalogo(((await respModelos.json()) as { modelos: ModeloDisponible[] }).modelos ?? []);
+                // El endpoint clasifica los proveedores con las claves REALES de la
+                // máquina (M9B): nombres de variables, medios y huellas, nunca valores.
+                const datos = (await respModelos.json()) as {
+                    modelos: ModeloDisponible[];
+                    proveedores?: ProveedorDisponible[];
+                };
+                setCatalogo(datos.modelos ?? []);
+                setProveedores(datos.proveedores ?? null);
             } else {
                 setCatalogo([]);
+                setProveedores(null);
             }
         } catch {
             setError("No se pudo leer el estado del mando.");
@@ -525,7 +562,8 @@ export function PanelFlota() {
 
             <AvisoSaludRevisores catalogo={catalogo} />
 
-            <SeccionProveedores catalogo={catalogo} />
+            {/* Los proveedores clasificados llegan del endpoint (`clavesPresentes` + bus). */}
+            <SeccionProveedores catalogo={catalogo} proveedores={proveedores} />
 
             {agotados.length > 0 && (
                 <p className="flex items-center gap-2 rounded-lg border border-red-400/30 bg-red-500/10 px-3 py-2 text-xs text-red-200">

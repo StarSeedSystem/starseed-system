@@ -1,9 +1,19 @@
-import { describe, expect, it } from "vitest";
+import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { createHash } from "node:crypto";
+
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
     PROVEEDORES_CATALOGO,
+    clasificarProveedor,
     proveedoresDisponibles,
+    type ClaveProveedor,
+    type FotoProveedorBus,
     type ProveedorInfo,
+    type SaludProvEntrada,
 } from "../mando/proveedores-catalogo";
+import { clavesPresentes } from "../mando/modelos-disponibles";
 
 /** Expresiones que nunca deben aparecer en el catálogo (parecidas a claves reales). */
 const PATRONES_SECRETO = [
@@ -93,5 +103,143 @@ describe("Catálogo de proveedores (Ola 271)", () => {
         // Sin salud: quien no requiere cuenta y tiene variables → alguna clave propia esperada,
         // y quien solo Alex puede abrir queda «porConseguir».
         expect(salida.every((p) => typeof p.estado === "string")).toBe(true);
+    });
+});
+
+// ── Ola 271 · M9B: clasificarProveedor (la regla honesta de la pestaña Flota) ──
+
+describe("clasificarProveedor (Ola 271 · M9B)", () => {
+    const nim = PROVEEDORES_CATALOGO.find((p) => p.id === "nim");
+    if (!nim) throw new Error("nim debe estar en el catálogo");
+
+    const clavePresente: ClaveProveedor = {
+        var: "NVIDIA_API_KEY",
+        medio: "hermes",
+        huella: "abcd1234",
+        agotadaHasta: null,
+    };
+
+    it("clave presente + salud vieja caída + foto del bus viva → activo con datoAntiguo", () => {
+        const ahora = Date.parse("2026-09-07T08:00:00Z");
+        // Salud de hace 2 horas (rebasa los 30 min): decía «caido», pero es un dato viejo.
+        const salud: SaludProvEntrada = { estado: "caido", t: "2026-09-07 06:00:00" };
+        // La foto del bus (el orquestador que corre ahora) lo ve vivo y es más nueva.
+        const foto: FotoProveedorBus = { estado: "vivo", t: "2026-09-07T07:55:00Z" };
+        const r = clasificarProveedor(nim, salud, [clavePresente], foto, ahora);
+        expect(r.estado).toBe("activo");
+        expect(r.datoAntiguo).toBe(true);
+        expect(r.edadSaludMin).toBe(120);
+    });
+
+    it("sin clave y requiereCuenta → porConseguir (aunque la salud diga vivo)", () => {
+        const ahora = Date.parse("2026-09-07T08:00:00Z");
+        const salud: SaludProvEntrada = { estado: "vivo", t: "2026-09-07 07:50:00" };
+        const r = clasificarProveedor(nim, salud, [], null, ahora);
+        expect(r.estado).toBe("porConseguir");
+        expect(r.datoAntiguo).toBe(false);
+    });
+
+    it("con clave y sin_cupo_hasta futuro → sinCupo", () => {
+        const ahora = Date.parse("2026-09-07T08:00:00Z");
+        const salud: SaludProvEntrada = {
+            estado: "vivo",
+            t: "2026-09-07 07:55:00",
+            sin_cupo_hasta: "2026-09-07 12:00:00",
+        };
+        const r = clasificarProveedor(nim, salud, [clavePresente], null, ahora);
+        expect(r.estado).toBe("sinCupo");
+    });
+
+    it("con clave, salud reciente caída y sin foto más nueva → enfriandose", () => {
+        const ahora = Date.parse("2026-09-07T08:00:00Z");
+        const salud: SaludProvEntrada = { estado: "caido", t: "2026-09-07 07:55:00" };
+        const r = clasificarProveedor(nim, salud, [clavePresente], null, ahora);
+        expect(r.estado).toBe("enfriandose");
+        expect(r.datoAntiguo).toBe(false);
+    });
+});
+
+// ── Ola 271 · M9B: clavesPresentes jamás expone un valor de clave ──
+
+describe("clavesPresentes (Ola 271 · M9B)", () => {
+    let hogar = "";
+    let homeOriginal: string | undefined;
+    // Variables reales de la máquina que ensuciarían la prueba: se apartan.
+    const variablesConocidas = [
+        "XKIRO_API_KEY",
+        "XKIRO_API_KEY_2",
+        "NVIDIA_API_KEY",
+        "NVIDIA_API_KEY_2",
+        "NVIDIA_SHARED_KEY",
+        "AIHUBMIX_API_KEY",
+        "TOKENROUTER_API_KEY",
+        "OPENROUTER_API_KEY",
+        "OPENROUTER_SHARED_KEY",
+        "GEMINI_API_KEY",
+        "GOOGLE_API_KEY",
+        "NEXT_PUBLIC_GOOGLE_API_KEY",
+        "LLM7_API_KEY",
+        "FREETHEAI_API_KEY",
+    ] as const;
+    const guardadas = new Map<string, string | undefined>();
+
+    beforeEach(async () => {
+        hogar = await mkdtemp(path.join(tmpdir(), "m9b-claves-"));
+        homeOriginal = process.env.HOME;
+        process.env.HOME = hogar;
+        for (const nombre of variablesConocidas) {
+            guardadas.set(nombre, process.env[nombre]);
+            delete process.env[nombre];
+        }
+    });
+
+    afterEach(async () => {
+        if (homeOriginal === undefined) delete process.env.HOME;
+        else process.env.HOME = homeOriginal;
+        for (const [nombre, valor] of guardadas) {
+            if (valor === undefined) delete process.env[nombre];
+            else process.env[nombre] = valor;
+        }
+        guardadas.clear();
+        await rm(hogar, { recursive: true, force: true });
+    });
+
+    it("lee cada medio por separado y devuelve huellas, nunca valores", async () => {
+        const valorSecreto = "sk-secreto-de-prueba-muy-largo-0123456789abcdef";
+        await mkdir(path.join(hogar, ".starseed"), { recursive: true });
+        await mkdir(path.join(hogar, ".hermes"), { recursive: true });
+        await writeFile(path.join(hogar, ".starseed", "env"), `XKIRO_API_KEY=${valorSecreto}\n`);
+        await writeFile(
+            path.join(hogar, ".hermes", ".env"),
+            `XKIRO_API_KEY_2=${valorSecreto}-2\nNVIDIA_API_KEY=${valorSecreto}-3\n`,
+        );
+
+        const salida = await clavesPresentes();
+        const enJson = JSON.stringify(salida);
+
+        // La huella esperada: sha256(valor).slice(0, 8).
+        const huellaEsperada = createHash("sha256").update(valorSecreto, "utf-8").digest("hex").slice(0, 8);
+        const xkiro = salida.xkiro ?? [];
+        expect(xkiro).toContainEqual({ var: "XKIRO_API_KEY", medio: "starseed", huella: huellaEsperada });
+        expect(xkiro.find((c) => c.var === "XKIRO_API_KEY_2")?.medio).toBe("hermes");
+        expect(salida.nim?.some((c) => c.var === "NVIDIA_API_KEY" && c.medio === "hermes")).toBe(true);
+
+        // Jamás un valor en el JSON (ni los de prueba ni nada parecido a «sk-…»).
+        expect(enJson).not.toContain(valorSecreto);
+        expect(enJson).not.toMatch(/sk-[A-Za-z0-9_-]{12,}/);
+        for (const huellas of Object.values(salida)) {
+            for (const c of huellas) {
+                expect(c).toEqual({ var: expect.any(String), medio: expect.any(String), huella: expect.any(String) });
+                expect(c.huella).toMatch(/^[0-9a-f]{8}$/);
+                expect("valor" in c).toBe(false);
+            }
+        }
+    });
+
+    it("sin archivos de entorno en HOME devuelve proveedores sin claves presentes", async () => {
+        const salida = await clavesPresentes();
+        for (const halladas of Object.values(salida)) {
+            expect(halladas).toEqual([]);
+        }
     });
 });

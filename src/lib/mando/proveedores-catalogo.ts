@@ -26,6 +26,10 @@ export interface ProveedorDisponible extends ProveedorInfo {
     activa: string | null;
     /** Hasta cuándo queda sin cupo («AAAA-MM-DD HH:MM:SS»), si lo hay. */
     sinCupoHasta: string | null;
+    /** La salud local tiene más de 30 min: chip «dato antiguo» en el panel. */
+    datoAntiguo: boolean;
+    /** Edad del dato de salud en minutos, si hay fecha que interpretar. */
+    edadSaludMin: number | null;
 }
 
 /** Salud de claves tal y como la escribe `~/.starseed/salud-proveedores.json` (P9). */
@@ -44,7 +48,38 @@ export interface SaludClavesProveedor {
 export interface SaludProvEntrada {
     estado?: string | null;
     sin_cupo_hasta?: string | null;
+    /** Momento del sondeo del supervisor («AAAA-MM-DD HH:MM:SS»); > 30 min = dato viejo. */
+    t?: string | null;
+    /** Algunos orquestadores lo escriben como `desde` en vez de `t`. */
+    desde?: string | null;
     claves?: { claves?: SaludClavesProveedor[]; activa?: string | null; sin_cupo_hasta?: string | null } | null;
+}
+
+/** Foto de un proveedor en el bus (lo que ve el orquestador de la nube). */
+export interface FotoProveedorBus {
+    estado: string;
+    /** Momento del latido (ISO), para saber si la foto es más nueva que la salud local. */
+    t?: string | null;
+}
+
+/** Entrada nueva de `proveedoresDisponibles` (Ola 271 · M9B): salud + claves reales + bus. */
+export interface ConsultaProveedores {
+    salud: unknown;
+    /** Claves presentes de verdad en la máquina, por proveedor (var · medio · huella). */
+    clavesPresentes?: Record<string, Array<{ var: string; medio: string; huella: string }>>;
+    /** Foto del bus por proveedor (el estado que ve el orquestador que está corriendo). */
+    foto?: Record<string, FotoProveedorBus>;
+    /** «Ahora» en ms (inyectable para los tests). */
+    ahora?: number;
+}
+
+/** Resultado de clasificar un proveedor: estado y si el dato de salud está viejo. */
+export interface ClasificacionProveedor {
+    estado: EstadoProveedor;
+    /** La salud local tiene más de 30 min y manda la foto del bus (o NADA dice «caído»). */
+    datoAntiguo: boolean;
+    /** Edad del dato de salud en minutos, si hay fecha que interpretar. */
+    edadSaludMin: number | null;
 }
 
 /** Una clave de un proveedor: variable de entorno, medio y huella (nunca su valor). */
@@ -249,45 +284,123 @@ function clavesDe(claves: SaludProvEntrada["claves"]): ClaveProveedor[] {
     }));
 }
 
+/** Fecha del supervisor («AAAA-MM-DD HH:MM:SS», hora de la máquina) → ms, o null. */
+function msDeFechaSupervisor(t: string | null | undefined): number | null {
+    if (!t) return null;
+    const ms = Date.parse(t.replace(" ", "T") + (t.length <= 19 ? "Z" : ""));
+    return Number.isFinite(ms) ? ms : null;
+}
+
+/** Un proveedor se considera «caído» con estos estados, vengan de la salud o del bus. */
+function esCaido(estado: string | null | undefined): boolean {
+    return estado === "caido" || estado === "agotado";
+}
+
+/**
+ * Clasificación honesta de un proveedor (Ola 271 · M9B). Regla:
+ *  - Sin clave presente (ni en la máquina ni en la salud) y sin `sinClaveOk` → porConseguir.
+ *  - Con clave y `sin_cupo_hasta` futuro → sinCupo.
+ *  - Con clave y estado «caido» en salud RECIENTE o en la foto del bus → enfriandose.
+ *  - Si la salud tiene más de 30 min → `datoAntiguo` y se prefiere la foto del bus si es
+ *    más nueva; si no hay foto más nueva, la salud vieja NO condena (se descarta).
+ *  - Si nada de lo anterior → activo.
+ */
+export function clasificarProveedor(
+    info: ProveedorInfo,
+    entrada: SaludProvEntrada | null,
+    clavesPresentes: ClaveProveedor[],
+    foto: FotoProveedorBus | null | undefined,
+    ahora: number,
+): ClasificacionProveedor {
+    const clavesSalud = clavesDe(entrada?.claves ?? null);
+    const tieneClave = clavesPresentes.length > 0 || clavesSalud.length > 0;
+    const sinClaveOk = info.sinClaveOk ?? !info.requiereCuenta;
+
+    // Edad del dato de salud: más de 30 min = «dato antiguo» que no condena por sí solo.
+    const msSalud = msDeFechaSupervisor(entrada?.t ?? entrada?.desde);
+    const edadSaludMin = msSalud !== null ? Math.max(0, Math.floor((ahora - msSalud) / 60_000)) : null;
+    const datoAntiguo = msSalud !== null && ahora - msSalud > 30 * 60_000;
+
+    if (!tieneClave) {
+        return { estado: sinClaveOk ? "sinClave" : "porConseguir", datoAntiguo, edadSaludMin };
+    }
+
+    const sinCupoHasta = texto(entrada?.claves?.sin_cupo_hasta) ?? texto(entrada?.sin_cupo_hasta);
+    if (sinCupoHasta) {
+        const ms = msDeFechaSupervisor(sinCupoHasta);
+        // Solo condena si es futuro (o una fecha ilegible: más vale cautela).
+        if (ms === null || ms > ahora) {
+            return { estado: "sinCupo", datoAntiguo, edadSaludMin };
+        }
+    }
+
+    // Fuente del estado: la foto del bus si la salud está vieja y la foto es más nueva.
+    const msFoto = foto?.t ? Date.parse(foto.t) : null;
+    const fotoMasNueva =
+        foto != null && datoAntiguo && (msSalud === null || msFoto === null || msFoto > msSalud);
+    const estadoSalud = datoAntiguo && !fotoMasNueva ? null : (entrada?.estado ?? null);
+    const estadoEfectivo = fotoMasNueva ? foto?.estado : (estadoSalud ?? foto?.estado ?? null);
+    if (esCaido(estadoEfectivo)) {
+        return { estado: "enfriandose", datoAntiguo, edadSaludMin };
+    }
+    return { estado: "activo", datoAntiguo, edadSaludMin };
+}
+
 /**
  * Cruza el catálogo con la salud del supervisor y devuelve cada proveedor con su
  * estado, sus claves (nombres y huellas, nunca valores) y cuál está activa.
- * `salud` es el JSON ya parseado de `salud-proveedores.json`. Función pura.
+ * Firma antigua (solo salud) mantenida como sobrecarga; la nueva recibe además las
+ * claves presentes de verdad en la máquina y la foto del bus (Ola 271 · M9B).
  */
+export function proveedoresDisponibles(salud: unknown, catalogo?: ProveedorInfo[]): ProveedorDisponible[];
+export function proveedoresDisponibles(consulta: ConsultaProveedores, catalogo?: ProveedorInfo[]): ProveedorDisponible[];
 export function proveedoresDisponibles(
-    salud: unknown,
+    consultaOSalud: unknown | ConsultaProveedores,
     catalogo: ProveedorInfo[] = PROVEEDORES_CATALOGO,
 ): ProveedorDisponible[] {
-    const d = typeof salud === "object" && salud !== null && !Array.isArray(salud)
-        ? (salud as Record<string, unknown>)
+    // Sobrecarga: la consulta nueva se distingue por llevar la clave `salud`.
+    const esConsulta =
+        typeof consultaOSalud === "object" &&
+        consultaOSalud !== null &&
+        "salud" in (consultaOSalud as Record<string, unknown>);
+    const consulta: ConsultaProveedores = esConsulta
+        ? (consultaOSalud as ConsultaProveedores)
+        : { salud: consultaOSalud };
+    const d = typeof consulta.salud === "object" && consulta.salud !== null && !Array.isArray(consulta.salud)
+        ? (consulta.salud as Record<string, unknown>)
         : {};
+    const ahora = consulta.ahora ?? Date.now();
 
     return catalogo.map((info) => {
-        const entrada = (d[info.id] ?? {}) as SaludProvEntrada | null;
-        const claves = clavesDe(entrada?.claves);
-        const activa = texto(entrada?.claves?.activa);
-        const sinCupoHasta = texto(entrada?.claves?.sin_cupo_hasta) ?? texto(entrada?.sin_cupo_hasta);
-
-        // Un proveedor del catálogo sin variable de entorno conocida no puede tener
-        // clave propia hoy: se considera «por conseguir» salvo que la salud ya la traiga.
-        const tieneClave = info.variables.length === 0 ? claves.length > 0 || Boolean(activa) : true;
-        // Responde gratis sin clave (a cupo reducido): sin clave sigue siendo válido.
-        const sinClaveOk = info.sinClaveOk ?? !info.requiereCuenta;
-        let estado: EstadoProveedor;
-        if (!tieneClave) {
-            estado = info.requiereCuenta ? "porConseguir" : "sinClave";
-        } else if (claves.length === 0 && info.variables.length > 0 && !sinClaveOk) {
-            estado = "porConseguir";
-        } else if (claves.length === 0 && info.variables.length > 0 && sinClaveOk) {
-            estado = "sinClave";
-        } else if (sinCupoHasta) {
-            estado = "sinCupo";
-        } else if (entrada?.estado === "caido" || entrada?.estado === "agotado") {
-            estado = "enfriandose";
-        } else {
-            estado = "activo";
+        const entrada = (d[info.id] ?? null) as SaludProvEntrada | null;
+        // Las presentes no conocen su agotamiento (lo sabe el supervisor): null.
+        const presentes: ClaveProveedor[] = (consulta.clavesPresentes?.[info.id] ?? []).map((c) => ({
+            var: c.var,
+            medio: c.medio,
+            huella: c.huella,
+            agotadaHasta: null,
+        }));
+        const saludClaves = clavesDe(entrada?.claves ?? null);
+        // Presentes primero (son las que valen: están en ESTA máquina), luego las que
+        // anunció el supervisor, sin repetir por var+medio.
+        const claves: ClaveProveedor[] = [...presentes];
+        const vistas = new Set(presentes.map((c) => `${c.var}|${c.medio}`));
+        for (const c of saludClaves) {
+            const llave = `${c.var}|${c.medio}`;
+            if (!vistas.has(llave)) {
+                vistas.add(llave);
+                claves.push(c);
+            }
         }
-
-        return { ...info, estado, claves, activa, sinCupoHasta };
+        const activa = texto(entrada?.claves?.activa) ?? presentes[0]?.var ?? null;
+        const sinCupoHasta = texto(entrada?.claves?.sin_cupo_hasta) ?? texto(entrada?.sin_cupo_hasta);
+        const clasificacion = clasificarProveedor(
+            info,
+            entrada,
+            presentes,
+            consulta.foto?.[info.id] ?? null,
+            ahora,
+        );
+        return { ...info, ...clasificacion, claves, activa, sinCupoHasta };
     });
 }

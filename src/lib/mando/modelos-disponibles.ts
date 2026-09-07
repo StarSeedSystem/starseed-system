@@ -11,9 +11,12 @@
  * el catálogo solo dice si un proveedor «tiene clave».
  */
 
+import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
+
+import { raizDelProyecto } from "@/lib/mando/raiz";
 
 export interface ModeloDisponible {
     /** `proveedor/modelo`, tal como se pide a `llamarModelo`. */
@@ -58,6 +61,8 @@ export interface SaludProveedor {
     claves: ClaveSalud[];
     /** Variable de la clave activa, si la hay. */
     clavesActiva: string | null;
+    /** Momento del sondeo («AAAA-MM-DD HH:MM:SS» · `t` o `desde`), para detectar datos viejos. */
+    t: string | null;
 }
 
 /** Resultado de interpretar `salud-proveedores.json`: detalle por proveedor y revisor global. */
@@ -118,6 +123,87 @@ export async function claveDe(...nombres: string[]): Promise<string | null> {
         if (extra[n]) return extra[n];
     }
     return null;
+}
+
+/** Una clave de proveedor presente de verdad en esta máquina (nunca su valor). */
+export interface ClavePresente {
+    /** Nombre de la variable, p. ej. `NVIDIA_API_KEY` o `XKIRO_API_KEY_2`. */
+    var: string;
+    /** Medio corto donde vive: `proceso` · `starseed` · `hermes` · `env.local`. */
+    medio: string;
+    /** sha256(valor).slice(0, 8): sirve para comparar sin exponer nada. */
+    huella: string;
+}
+
+// Caché por ruta absoluta: el archivo de entorno se lee una vez por proceso.
+const cacheArchivosEnv = new Map<string, Record<string, string>>();
+
+/** Lee un archivo KEY=VALOR (una vez por proceso y ruta); devuelve {} si no existe. */
+async function leerArchivoEnv(ruta: string): Promise<Record<string, string>> {
+    const guardado = cacheArchivosEnv.get(ruta);
+    if (guardado) return guardado;
+    const salida: Record<string, string> = {};
+    try {
+        const contenido = await readFile(ruta, "utf-8");
+        for (const linea of contenido.split("\n")) {
+            const l = linea.trim();
+            if (!l || l.startsWith("#") || !l.includes("=")) continue;
+            const i = l.indexOf("=");
+            const k = l.slice(0, i).trim();
+            const v = l.slice(i + 1).trim().replace(/^["']|["']$/g, "");
+            if (k && v && !(k in salida)) salida[k] = v;
+        }
+    } catch {
+        // sin archivo: ese medio no aporta claves
+    }
+    cacheArchivosEnv.set(ruta, salida);
+    return salida;
+}
+
+/** Variables candidatas de un proveedor, con los sufijos de relevo `_2`…`_9`. */
+function variablesConSufijos(base: string[]): string[] {
+    const salida: string[] = [];
+    for (const nombre of base) {
+        salida.push(nombre);
+        for (let n = 2; n <= 9; n++) salida.push(`${nombre}_${n}`);
+    }
+    return salida;
+}
+
+/**
+ * Claves que esta máquina tiene DE VERDAD por proveedor y por medio (Ola 271 · M9B):
+ * para cada proveedor del catálogo vivo recorre por separado el entorno del proceso,
+ * `~/.starseed/env`, `~/.hermes/.env` y `.env.local`, y devuelve solo
+ * `{var, medio, huella}` — JAMÁS el valor. Es la fuente honesta para la pestaña Flota:
+ * el JSON de salud del supervisor puede estar viejo o vacío, pero estas claves valen.
+ */
+export async function clavesPresentes(): Promise<Record<string, ClavePresente[]>> {
+    const hogar = homedir();
+    // Medio corto → lista de variables de ese medio (se recorren en orden).
+    const medios: Array<{ medio: string; fuente: Record<string, string | undefined> }> = [
+        { medio: "proceso", fuente: process.env },
+        { medio: "starseed", fuente: await leerArchivoEnv(path.join(hogar, ".starseed", "env")) },
+        { medio: "hermes", fuente: await leerArchivoEnv(path.join(hogar, ".hermes", ".env")) },
+        { medio: "env.local", fuente: await leerArchivoEnv(path.join(raizDelProyecto(), ".env.local")) },
+    ];
+    const salida: Record<string, ClavePresente[]> = {};
+    for (const [proveedor, variables] of Object.entries(CLAVES)) {
+        const halladas: ClavePresente[] = [];
+        for (const { medio, fuente } of medios) {
+            for (const nombre of variablesConSufijos(variables)) {
+                const valor = fuente[nombre];
+                if (typeof valor !== "string" || !valor.trim()) continue;
+                // La huella permite distinguir claves sin filtrar ni un carácter del valor.
+                halladas.push({
+                    var: nombre,
+                    medio,
+                    huella: createHash("sha256").update(valor.trim(), "utf-8").digest("hex").slice(0, 8),
+                });
+            }
+        }
+        salida[proveedor] = halladas;
+    }
+    return salida;
 }
 
 const CLAVES: Record<string, string[]> = {
@@ -332,6 +418,7 @@ export function interpretarSalud(json: unknown): SaludRevisores {
             ultimo429: texto(entrada.ultimo_429),
             claves,
             clavesActiva: texto(clavesBrutas.activa),
+            t: texto(entrada.t) ?? texto(entrada.desde),
         };
     }
     return { porProveedor, ultimoRevisorOk };
@@ -349,6 +436,11 @@ async function leerSaludJson(): Promise<unknown> {
 /** Salud detallada del supervisor, para el panel de flota (Ola 269). */
 export async function saludRevisores(): Promise<SaludRevisores> {
     return interpretarSalud(await leerSaludJson());
+}
+
+/** JSON tal cual de `salud-proveedores.json` (para `proveedoresDisponibles` con sus fechas). */
+export async function saludCruda(): Promise<unknown> {
+    return leerSaludJson();
 }
 
 /** Estado textual por proveedor a partir del JSON ya leído (degrada lo viejo a «desconocido»). */
