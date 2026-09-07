@@ -576,3 +576,16 @@ cesión de memoria del pool TTS cuando quedan < 1200 MB y 10 s sin síntesis) y 
 `dequantize_row_i2_s` (BLAS) con prompts ≥ 32 tokens: se lanza con **`-ub 24 -b 24`** y la sonda de
 cordura prueba un prompt ≥ 64 tokens; Ollama solo actúa con `ASTRAURA_OLLAMA_RESPALDO=1`. Detalle
 en `docs/adendas/adenda-227-ligero-oido-residente-bitnet-estable-olas-254-256-2026-09-06.md`.
+
+## 🧬 Aprendizaje continuo de Astraura 1.58 (2026-09-07)
+
+Astraura 1.58 **aprende sola**: cada personalidad, agente, bot 3D y proceso imaginativo mejora
+con su contexto mediante **adaptadores LoRA GGUF** cargados con `llama-server --lora` — **nunca
+reentrenando el modelo base en la Mac**. Cinco capas: corpus vivo (JSONL por personalidad en
+`data/aprendizaje/corpus/`, con privacidad y consentimiento), fábrica (QVAC `llama-finetune-lora`
+en Metal por turnos; onebitllms en GPU de nube para el base), evaluación con puerta de regresión,
+despliegue con registro y rollback (`starseed_memory_root/aprendizaje/adaptadores.json`) y cinco
+agentes (Curador, Entrenador, Evaluador, Desplegador, Cronista) que corren como olas de tipo
+`aprendizaje`. Manifiesto: `src/lib/astraura/aprendizaje/manifiesto.ts`. **SOP:**
+`architecture/astraura-158-aprendizaje-continuo.md`. Soberanía: los datos no salen de la neurona
+sin consentimiento y el usuario es dueño de cada adaptador.
