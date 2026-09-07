@@ -86,6 +86,7 @@ import { BancoPruebasVoz } from "@/components/voces/banco-pruebas-voz";
 import { FusionVoz } from "@/components/voces/fusion-voz";
 import { PanelMotores } from "@/components/voces/panel-motores";
 import { VincularVoz } from "@/components/voces/vincular-voz";
+import { ClonarVoz } from "@/components/voces/clonar-voz";
 
 type FiltroGenero = "todas" | VozEditable["genero"];
 
@@ -729,6 +730,7 @@ export function EstudioVoces() {
                             <TabsTrigger value="forja" className="cursor-pointer">Forja 1.58</TabsTrigger>
                             <TabsTrigger value="oido" className="cursor-pointer">Oído 1.58</TabsTrigger>
                             <TabsTrigger value="ajustes" className="cursor-pointer">Ajustes</TabsTrigger>
+                            <TabsTrigger value="clonar" className="cursor-pointer">Clonar</TabsTrigger>
                             <TabsTrigger value="ficha" className="cursor-pointer">Ficha técnica</TabsTrigger>
                             <TabsTrigger value="versiones" className="cursor-pointer">Versiones</TabsTrigger>
                             <TabsTrigger value="pruebas" className="cursor-pointer">Pruebas A/B</TabsTrigger>
@@ -1275,6 +1277,14 @@ export function EstudioVoces() {
                                             }}
                                         />
                                     </div>
+                                </TabsContent>
+
+                                <TabsContent value="clonar" className="pt-4">
+                                    {/* Ola 266 · Forja fase 4: clonación con poco audio
+                                        (3-20 s) de la voz seleccionada. El timbre destino
+                                        es el id de la voz (ya validado [a-z0-9-]); guarda y
+                                        escucha contra el daemon local. */}
+                                    <ClonarVoz timbreId={borrador.id} nombre={borrador.nombre} />
                                 </TabsContent>
 
                                 <TabsContent value="ficha" className="pt-4">

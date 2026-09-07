@@ -187,7 +187,10 @@ export function precalentarMotorLocal(): void {
 const audios = new Map<string, Promise<Blob | null>>();
 
 function clave(texto: string, t: Timbre): string {
-    return `${t.id}|${t.local.speed}|${texto.trim()}`;
+    // (Ola 266, Forja fase 4) El clon cambia el resultado con la misma
+    // identidad/texto: hay que distinguirlo en la clave o una síntesis clonada
+    // y otra diseñada compartirían caché y escucharíamos el audio equivocado.
+    return `${t.id}|${t.local.speed}|${t.local.clon === true ? "clon" : "diseno"}|${texto.trim()}`;
 }
 
 /*
@@ -274,6 +277,12 @@ async function sintetizarAhora(texto: string, t: Timbre, ctrl: AbortController):
                     instruct: t.local.instruct || undefined,
                     // (Ola 222) Solo se envía ref_wav_path si el timbre tiene una ref real; nunca undefined ni rutas huecas.
                     ...(t.local.ref ? { ref_wav_path: t.local.ref } : {}),
+                    // (Ola 266, Forja fase 4) Clonación con la referencia guardada:
+                    // `clon: true` le dice al demonio que reclone `refs/<id>.*` en
+                    // lugar de diseñar la voz desde el instruct/seed. Solo se manda
+                    // cuando el timbre lo pide explícitamente (el daemon devuelve 400
+                    // si no hay referencia y no queremos romper la síntesis normal).
+                    ...(t.local.clon === true ? { clon: true } : {}),
                 }),
             });
             if (!r.ok) return null;

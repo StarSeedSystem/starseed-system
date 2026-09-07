@@ -56,8 +56,13 @@ export interface Timbre {
      *               de-esser/ganancia) que el demonio aplica con ffmpeg tras
      *               sintetizar, sin tocar el modelo. Opcional: si falta, la
      *               voz suena como salió del motor.
+     *  · clon     — (Ola 266, Forja fase 4) sintetizar CLONANDO con la
+     *               referencia guardada del timbre en el demonio (`clon: true`
+     *               en `POST /tts`). Solo lo entiende el demonio Astraura
+     *               (4444), no el tts-server crudo. Opcional: si falta, la
+     *               síntesis usa el diseño/instruct del timbre.
      */
-    local: { voz: string; speed: number; instruct?: string; ref?: string; seed?: number; pitch?: number; efectos?: EfectosVoz };
+    local: { voz: string; speed: number; instruct?: string; ref?: string; seed?: number; pitch?: number; efectos?: EfectosVoz; clon?: boolean };
     /** Respaldo con voz del sistema, solo mientras no esté el motor local. */
     sistema: { bases: string[]; pitch: number; rate: number };
     /**
