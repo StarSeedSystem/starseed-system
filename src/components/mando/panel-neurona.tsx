@@ -27,6 +27,8 @@ import {
 } from "lucide-react";
 
 import type { SaludNeurona, VerificacionNeurona } from "@/lib/mando/neurona";
+import type { EstadoAlmacenamiento } from "@/lib/mando/almacenamiento";
+import { TarjetaAlmacenamiento, TarjetaDrive, TarjetaSwapHonesta } from "@/components/mando/tarjetas-almacenamiento";
 
 /** Máximo de regresiones/mejoras que se muestran antes de «+N más». */
 const MAX_LISTA_VERIFICACION = 5;
@@ -377,6 +379,9 @@ export function PanelNeurona() {
     const [salud, setSalud] = useState<SaludNeurona | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [cargando, setCargando] = useState(true);
+    // Almacenamiento (disco, regenerables, Drive, swap honesto): se sondea aparte
+    // cada 60 s (medir con `du`/`df` es más caro que la salud de 20 s).
+    const [almacenamiento, setAlmacenamiento] = useState<EstadoAlmacenamiento | null>(null);
 
     // `forzar`: la primera lectura (y la vuelta a la pestaña) siempre se hacen;
     // el refresco periódico se salta mientras la pestaña está oculta, igual que
@@ -456,6 +461,39 @@ export function PanelNeurona() {
         };
     }, []);
 
+    // Sondeo del almacenamiento (Ola 273): cada 60 s y al volver a la pestaña, con
+    // la misma política de visibilidad que la salud (no se mide con la pestaña en
+    // segundo plano). Un fallo silencioso deja `almacenamiento` en null y las tres
+    // tarjetas no se montan; no rompe la salud de la neurona.
+    useEffect(() => {
+        let vivo = true;
+        let enCurso = false;
+        const cargar = async (forzar = false) => {
+            if (enCurso || (!forzar && document.visibilityState === "hidden")) return;
+            enCurso = true;
+            try {
+                const respuesta = await fetch("/api/mando/almacenamiento", { cache: "no-store" });
+                if (!vivo) return;
+                if (respuesta.ok) setAlmacenamiento((await respuesta.json()) as EstadoAlmacenamiento);
+            } catch {
+                // Sin almacenamiento: las tarjetas simplemente no aparecen.
+            } finally {
+                enCurso = false;
+            }
+        };
+        void cargar(true);
+        const cada = window.setInterval(() => void cargar(), 60_000);
+        const alVolver = () => {
+            if (document.visibilityState === "visible") void cargar(true);
+        };
+        document.addEventListener("visibilitychange", alVolver);
+        return () => {
+            vivo = false;
+            window.clearInterval(cada);
+            document.removeEventListener("visibilitychange", alVolver);
+        };
+    }, []);
+
     if (cargando && !salud) {
         return (
             <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-black/30 p-4 text-sm text-white/60">
@@ -518,7 +556,9 @@ export function PanelNeurona() {
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
                 <TarjetaVerificacion verificacion={salud.verificacion} />
                 <TarjetaMemoria salud={salud} />
-                <TarjetaSwap salud={salud} />
+                {almacenamiento ? <TarjetaSwapHonesta estado={almacenamiento} /> : <TarjetaSwap salud={salud} />}
+                {almacenamiento ? <TarjetaAlmacenamiento estado={almacenamiento} /> : null}
+                {almacenamiento ? <TarjetaDrive estado={almacenamiento} /> : null}
                 <TarjetaVoz salud={salud} />
                 <TarjetaBitNet salud={salud} />
                 <TarjetaOllama salud={salud} />

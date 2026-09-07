@@ -36,6 +36,10 @@ import { PanelAprendizaje } from "@/components/mando/panel-aprendizaje";
 // Solo el tipo viaja al cliente: `neurona.ts` es código de servidor (sonda la
 // máquina) y un import de valor metería `node:child_process` en el bundle web.
 import type { SaludNeurona } from "@/lib/mando/neurona";
+// Ídem para el almacenamiento: solo el tipo y los helpers puros de tono/texto
+// (que no dependen de `node:*`) cruzan al cliente; las sondas quedan en servidor.
+import type { EstadoAlmacenamiento } from "@/lib/mando/almacenamiento";
+import { discoLibreTexto, tonoDiscoLibre } from "@/components/mando/tarjetas-almacenamiento";
 
 const CLAVE_PESTANA = "starseed.mando.pestana";
 
@@ -141,6 +145,7 @@ export function CentroMando() {
     // Salud de la neurona (memoria, voz, BitNet, Ollama) para los medidores de
     // la cabecera; si la sonda falla, se queda en null y la cabecera sigue igual.
     const [neurona, setNeurona] = useState<SaludNeurona | null>(null);
+    const [almacenamiento, setAlmacenamiento] = useState<EstadoAlmacenamiento | null>(null);
     const [soloLocal, setSoloLocal] = useState(false);
     const [cargando, setCargando] = useState(true);
 
@@ -203,6 +208,37 @@ export function CentroMando() {
         };
         void cargar(true);
         const cada = window.setInterval(() => void cargar(), 20_000);
+        const alVolver = () => {
+            if (document.visibilityState === "visible") void cargar(true);
+        };
+        document.addEventListener("visibilitychange", alVolver);
+        return () => {
+            vivo = false;
+            window.clearInterval(cada);
+            document.removeEventListener("visibilitychange", alVolver);
+        };
+    }, []);
+
+    // «Disco libre» de la cabecera (Ola 273): el almacenamiento se mide una vez
+    // por minuto (más caro que la salud) y solo alimenta un `DatoPulso`. Un fallo
+    // silencioso deja `almacenamiento` en null y la pastilla no aparece.
+    useEffect(() => {
+        let vivo = true;
+        let enCurso = false;
+        const cargar = async (forzar = false) => {
+            if (enCurso || (!forzar && document.visibilityState === "hidden")) return;
+            enCurso = true;
+            try {
+                const respuesta = await fetch("/api/mando/almacenamiento", { cache: "no-store" });
+                if (vivo && respuesta.ok) setAlmacenamiento((await respuesta.json()) as EstadoAlmacenamiento);
+            } catch {
+                // Sin disco: la pastilla no aparece.
+            } finally {
+                enCurso = false;
+            }
+        };
+        void cargar(true);
+        const cada = window.setInterval(() => void cargar(), 60_000);
         const alVolver = () => {
             if (document.visibilityState === "visible") void cargar(true);
         };
@@ -345,6 +381,15 @@ export function CentroMando() {
                                 detalle={pulsoNeurona.bitnetDetalle}
                             />
                         </>
+                    ) : null}
+                    {almacenamiento?.disco ? (
+                        <DatoPulso
+                            titulo="Disco libre"
+                            valor={discoLibreTexto(almacenamiento.disco.libreMb)}
+                            tono={tonoDiscoLibre(almacenamiento.disco.libreMb)}
+                            detalle={`${almacenamiento.disco.usadoPct} % usado`}
+                            alClic={() => alCambiarPestana("neurona")}
+                        />
                     ) : null}
                     {estado?.cuentas ? (
                         <>
