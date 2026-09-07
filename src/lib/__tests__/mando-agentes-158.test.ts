@@ -12,6 +12,7 @@ import { describe, expect, it } from "vitest";
 
 import {
     cruzarPersonalidades,
+    normalizarProcesos,
     type CorpusRama,
     type PersonalidadBasica,
 } from "@/lib/mando/agentes-158";
@@ -66,5 +67,81 @@ describe("cruzarPersonalidades", () => {
         const rama = cruzarPersonalidades(corpus, PERS, null);
         expect(rama[1].turnos).toBe(0);
         expect(rama[1].ultimo).toBeNull();
+    });
+
+    it("marca las del OS con origen «os»", () => {
+        const rama = cruzarPersonalidades(null, PERS, null);
+        expect(rama.every((p) => p.origen === "os")).toBe(true);
+    });
+
+    it("las ramas solo del corpus (astraura_prime, cognition…) salen al final con origen «corpus»", () => {
+        const corpus = corpusCon({ Aurora: 2, astraura_prime: 1, cognition: 344, default: 0 });
+        const rama = cruzarPersonalidades(corpus, PERS, null);
+        // Las dos del OS primero, intactas y con su origen.
+        expect(rama[0].id).toBe("preset-aurora");
+        expect(rama[0].origen).toBe("os");
+        expect(rama[0].turnos).toBe(2);
+        expect(rama[1].id).toBe("preset-poeta-ciberdelica");
+        // Después las tres del corpus que no casaron: no se pierde ninguna.
+        expect(rama).toHaveLength(5);
+        const delCorpus = rama.slice(2);
+        expect(delCorpus.every((p) => p.origen === "corpus")).toBe(true);
+        const porId = new Map(delCorpus.map((p) => [p.id, p]));
+        expect(porId.get("astraura_prime")?.nombre).toBe("Astraura Prime");
+        expect(porId.get("astraura_prime")?.turnos).toBe(1);
+        expect(porId.get("cognition")?.nombre).toBe("Cognition (fondo)");
+        expect(porId.get("cognition")?.turnos).toBe(344);
+        expect(porId.get("default")?.nombre).toBe("Default");
+    });
+
+    it("casa por nombre normalizado: «astraura_prime» no cuela como preset y una del OS que sí nombra el corpus casa", () => {
+        const corpus = corpusCon({ "poeta ciberdelica": 9 });
+        const rama = cruzarPersonalidades(corpus, PERS, null);
+        // Casa por nombre (sin acento contra acento) por la normalización.
+        expect(rama[1].turnos).toBe(9);
+        expect(rama[1].origen).toBe("os");
+        // Y no queda duplicada como rama del corpus.
+        expect(rama).toHaveLength(2);
+    });
+
+    it("una rama del corpus marcada activa por el backend se respeta", () => {
+        const corpus = corpusCon({ cognition: 5 });
+        corpus.personalidades.cognition.activa = true;
+        const rama = cruzarPersonalidades(corpus, PERS, null);
+        const cognition = rama.find((p) => p.id === "cognition");
+        expect(cognition?.activa).toBe(true);
+    });
+
+});
+
+describe("normalizarProcesos", () => {
+    it("acepta la forma envuelta del backend: {success, procesos: [...]}", () => {
+        const procesos = normalizarProcesos({
+            success: true,
+            procesos: [
+                { id: "imaginacion", nombre: "Imaginación", activo: true, ultimo: "2026-09-07T10:00:00Z", detalle: "soñando" },
+                { id: "learner", nombre: "Learner", activo: null, ultimo: null, detalle: null },
+            ],
+        });
+        expect(procesos).toHaveLength(2);
+        expect(procesos[0].id).toBe("imaginacion");
+        expect(procesos[0].activo).toBe(true);
+        expect(procesos[1].id).toBe("learner");
+        expect(procesos[1].activo).toBeNull();
+    });
+
+    it("acepta un array suelto y descarta entradas sin id", () => {
+        const procesos = normalizarProcesos([
+            { id: "director", nombre: "Director" },
+            { nombre: "sin id" },
+        ]);
+        expect(procesos).toHaveLength(1);
+        expect(procesos[0].id).toBe("director");
+    });
+
+    it("con cualquier otra forma devuelve vacío", () => {
+        expect(normalizarProcesos(null)).toEqual([]);
+        expect(normalizarProcesos({ success: true })).toEqual([]);
+        expect(normalizarProcesos("no")).toEqual([]);
     });
 });

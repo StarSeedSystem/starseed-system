@@ -35,6 +35,8 @@ export interface CorpusPersonalidad {
     train: number;
     val: number;
     ultimo: string | null;
+    /** Activa si el backend lo dice (opcional; ausente = desconocido). */
+    activa?: boolean;
 }
 
 export interface CorpusRama {
@@ -69,13 +71,15 @@ export interface ProcesoFondo {
     detalle: string | null;
 }
 
-/** Personalidad del OS cruzada con su corpus vivo en el backend 1.58. */
+/** Personalidad del OS o del corpus cruzada con su estado vivo en el backend 1.58. */
 export interface PersonalidadRama {
     id: string;
     nombre: string;
     turnos: number;
     ultimo: string | null;
     activa: boolean;
+    /** «os» = preset del OS; «corpus» = rama que solo existe en el corpus del backend. */
+    origen: "os" | "corpus";
 }
 
 /** Rama completa que dibuja el Mando: BitNet → personalidades → agentes → procesos. */
@@ -110,36 +114,114 @@ export const PERSONALIDADES_OS_158: PersonalidadBasica[] = [
 ];
 
 /**
+ * Normaliza un nombre o id de personalidad para emparejar corpus ↔ OS sin
+ * sustos: minúsculas, sin acentos, sin el prefijo `preset-` del OS y sin
+ * guiones/guiones bajos (el corpus usa `astraura_prime`, el OS usa ids
+ * `preset-aurora` y nombres «Poeta Ciberdélica»).
+ */
+function normalizarNombre(textoCrudo: string): string {
+    return textoCrudo
+        .trim()
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[̀-ͯ]/g, "")
+        .replace(/^preset-/, "")
+        .replace(/[-_\s]+/g, "");
+}
+
+/**
+ * Nombre legible para una rama que solo vive en el corpus (snake_case del
+ * backend → «Title Case»; la cognition de fondo se marca como tal).
+ */
+function nombreLegibleCorpus(nombreCrudo: string): string {
+    const limpio = nombreCrudo.trim();
+    if (limpio === "cognition") return "Cognition (fondo)";
+    return limpio
+        .split(/[_\s-]+/)
+        .filter((trozo) => trozo.length > 0)
+        .map((trozo) => trozo.charAt(0).toUpperCase() + trozo.slice(1))
+        .join(" ");
+}
+
+/**
  * Cruza el corpus del backend con la lista de personalidades del OS.
- * Función pura (probada en `mando-agentes-158.test.ts`): por cada
- * personalidad busca sus turnos por NOMBRE (el corpus se indexa por nombre,
- * no por id) y marca como `activa` la personalidad elegida o, si no se indica,
- * la primera de la lista. Sin corpus, devuelve la lista del OS con ceros.
+ * Función pura (probada en `mando-agentes-158.test.ts`):
+ * 1. Primero las del OS, casadas con el corpus por id exacto o por nombre
+ *    normalizado (sin `preset-`, guiones ni acentos) → `origen: "os"`.
+ * 2. Después las ramas del corpus que no casan con ninguna del OS (el corpus
+ *    usa `astraura_prime`, `cognition`, `default`) → `origen: "corpus"`, con
+ *    id = nombre del corpus, nombre legible y `activa` si el backend lo dice.
+ * Sin corpus, devuelve la lista del OS con ceros. Nada se pierde.
  */
 export function cruzarPersonalidades(
     corpus: CorpusRama | null,
     personalidadesOS: PersonalidadBasica[],
     activaId?: string | null,
 ): PersonalidadRama[] {
-    const porNombre = new Map<string, CorpusPersonalidad>();
+    const porClave = new Map<string, CorpusPersonalidad>();
+    const nombreCorpus = new Map<string, string>();
     if (corpus) {
         for (const [nombre, datos] of Object.entries(corpus.personalidades ?? {})) {
-            // Normalizado para emparejar sin sustos de mayúsculas/acentos.
-            porNombre.set(nombre.trim().toLowerCase(), datos);
+            // Doble llave: el id/nombre crudo y su forma normalizada, para
+            // casar tanto «Aurora» con «aurora» como «astraura_prime» solo
+            // cuando ninguna personalidad del OS se lo lleva.
+            porClave.set(nombre.trim().toLowerCase(), datos);
+            porClave.set(normalizarNombre(nombre), datos);
+            nombreCorpus.set(nombre.trim().toLowerCase(), nombre);
         }
     }
+    const corpusCasado = new Set<string>();
     const marcar = (p: PersonalidadBasica): boolean => (activaId ? p.id === activaId : false);
-    const lista = personalidadesOS.map((p) => {
-        const datos = porNombre.get(p.nombre.trim().toLowerCase()) ?? null;
+    const lista: PersonalidadRama[] = personalidadesOS.map((p) => {
+        const claves = [
+            p.id.trim().toLowerCase(),
+            normalizarNombre(p.id),
+            p.nombre.trim().toLowerCase(),
+            normalizarNombre(p.nombre),
+        ];
+        let datos: CorpusPersonalidad | null = null;
+        for (const clave of claves) {
+            const encontrado = porClave.get(clave);
+            if (encontrado) {
+                datos = encontrado;
+                const original = nombreCorpus.get(clave);
+                if (original) corpusCasado.add(original);
+                // Marca también la entrada original cuyo normalizado coincide.
+                for (const [claveGuardada, d] of porClave.entries()) {
+                    if (d === encontrado) {
+                        const orig = nombreCorpus.get(claveGuardada);
+                        if (orig) corpusCasado.add(orig);
+                    }
+                }
+                break;
+            }
+        }
         return {
             id: p.id,
             nombre: p.nombre,
             turnos: datos?.turnos ?? 0,
             ultimo: datos?.ultimo ?? null,
             activa: marcar(p),
+            origen: "os",
         };
     });
-    if (!activaId && lista.length > 0) lista[0] = { ...lista[0], activa: true };
+    // Ramas del corpus sin pareja en el OS: se muestran al final, sin ocultarlas.
+    if (corpus) {
+        for (const [nombre, datos] of Object.entries(corpus.personalidades ?? {})) {
+            if (corpusCasado.has(nombre.trim())) continue;
+            lista.push({
+                id: nombre,
+                nombre: nombreLegibleCorpus(nombre),
+                turnos: datos.turnos,
+                ultimo: datos.ultimo,
+                activa: datos.activa === true,
+                origen: "corpus",
+            });
+        }
+    }
+    if (!activaId && lista.length > 0 && personalidadesOS.length > 0) {
+        lista[0] = { ...lista[0], activa: true };
+    }
     return lista;
 }
 
@@ -204,6 +286,7 @@ function parsearCorpus(crudo: unknown): CorpusRama | null {
             train: numeroCero(d.train),
             val: numeroCero(d.val),
             ultimo: texto(d.ultimo),
+            activa: typeof d.activa === "boolean" ? d.activa : undefined,
         };
     }
     return {
@@ -250,6 +333,25 @@ function parsearProceso(crudo: unknown): ProcesoFondo | null {
 }
 
 /**
+ * Normaliza la respuesta de `/api/aprendizaje/procesos`: el backend 1.58 la
+ * devuelve envuelta (`{success: true, procesos: [...]}`) y alguna versión la
+ * sirve como array suelto. Función pura exportada para el test: con cualquier
+ * otra forma devuelve `[]`.
+ */
+export function normalizarProcesos(crudo: unknown): ProcesoFondo[] {
+    let fuente: unknown[] = [];
+    if (Array.isArray(crudo)) {
+        fuente = crudo;
+    } else if (typeof crudo === "object" && crudo !== null) {
+        const envuelto = (crudo as Record<string, unknown>).procesos;
+        if (Array.isArray(envuelto)) fuente = envuelto;
+    }
+    return fuente
+        .map(parsearProceso)
+        .filter((p): p is ProcesoFondo => p !== null);
+}
+
+/**
  * Lee el estado vivo del backend 1.58 y devuelve la rama lista para pintar.
  * Pide `/api/aprendizaje/agentes` (que incluye bitnet y corpus),
  * `/api/aprendizaje/procesos` y `/api/bitnet/estado` en paralelo con 4 s de
@@ -278,9 +380,8 @@ export async function leerRama158(
     const agentes = (Array.isArray(caja.agentes) ? caja.agentes : [])
         .map(parsearAgente)
         .filter((a): a is AgenteAprendizajeVivo => a !== null);
-    const procesos = (Array.isArray(procesosJson) ? procesosJson : [])
-        .map(parsearProceso)
-        .filter((p): p is ProcesoFondo => p !== null);
+    // El backend responde {success, procesos: [...]}: se aceptan ambas formas.
+    const procesos = normalizarProcesos(procesosJson);
     // El estado de BitNet puede venir dentro de «agentes» o en su propio endpoint.
     const bitnet = parsearBitnet(bitnetJson) ?? parsearBitnet(caja.bitnet);
     const corpus = parsearCorpus(caja.corpus);

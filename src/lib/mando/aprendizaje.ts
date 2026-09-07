@@ -6,11 +6,12 @@
  * una crónica en prosa y una «fábrica» de adaptadores LoRA GGUF. Este módulo junta
  * todo eso para la pestaña «Aprendizaje» del Centro de Mando.
  *
- *   - El corpus, la curación, las evaluaciones, la crónica y la fábrica se leen del
+ *   - La curación, las evaluaciones, la crónica y la fábrica se leen del
  *     DISCO del repo astraura (`ASTRAURA_158_DIR` o `~/Documents/IA 1.58 bit`), con
  *     `fs` tolerante y `os.homedir()`, nunca rutas absolutas literales.
- *   - El estado del corpus también puede venir del backend por HTTP, pero el panel
- *     prefiere el disco: los archivos son la fuente con más detalle (train/val/bytes).
+ *   - El estado del corpus se lee primero del BACKEND por HTTP
+ *     (`/api/aprendizaje/corpus/estado`): el archivo de estado no existe en
+ *     disco. Solo si el backend no responde se mira el archivo en el disco.
  *   - Los adaptadores salen de `starseed_memory_root/aprendizaje/adaptadores.json`.
  *
  * Tolerancia total: cualquier archivo que falte o esté corrupto queda en `null` o
@@ -136,6 +137,63 @@ function numeroCero(v: unknown): number {
     return typeof v === "number" && Number.isFinite(v) ? v : 0;
 }
 
+/** Entrada de la respuesta `GET /api/aprendizaje/corpus/estado` del backend. */
+interface EstadoCorpusHttp {
+    activo?: unknown;
+    personalidades?: unknown;
+    total?: unknown;
+    valoraciones?: unknown;
+    bytes?: unknown;
+}
+
+/**
+ * Lee el estado del corpus. Primero del BACKEND por HTTP
+ * (`GET /api/aprendizaje/corpus/estado`, 4 s de margen): ese archivo de estado
+ * no existe en disco y el backend es la fuente viva. Solo si el backend no
+ * responde se cae al archivo `data/aprendizaje/corpus/estado.json` del disco
+ * (por si algún día existe). Nunca lanza.
+ */
+async function leerCorpus(dir: string): Promise<{ corpora: CorpusPersonalidadAprendizaje[]; totalBytes: number }> {
+    try {
+        const res = await fetch(`${baseBackendAprendizaje()}/api/aprendizaje/corpus/estado`, {
+            cache: "no-store",
+            signal: AbortSignal.timeout(4000),
+        });
+        if (res.ok) {
+            const d = (await res.json()) as EstadoCorpusHttp;
+            const leido = parsearCorpusEstado(d);
+            if (leido !== null) return leido;
+        }
+    } catch {
+        // Backend apagado o lento: se intenta el disco.
+    }
+    return leerCorpusDisco(dir);
+}
+
+/**
+ * Interpreta estrictamente el JSON de estado del corpus (vale para la
+ * respuesta HTTP del backend y para el archivo de disco). `null` si la forma
+ * no es un objeto.
+ */
+function parsearCorpusEstado(crudo: EstadoCorpusHttp): { corpora: CorpusPersonalidadAprendizaje[]; totalBytes: number } | null {
+    if (typeof crudo !== "object" || crudo === null) return null;
+    const fuente = typeof crudo.personalidades === "object" && crudo.personalidades !== null
+        ? (crudo.personalidades as Record<string, unknown>)
+        : {};
+    const corpora: CorpusPersonalidadAprendizaje[] = [];
+    for (const [nombre, datos] of Object.entries(fuente)) {
+        const d = typeof datos === "object" && datos !== null ? (datos as Record<string, unknown>) : {};
+        corpora.push({
+            nombre,
+            turnos: numeroCero(d.turnos),
+            train: numeroCero(d.train),
+            val: numeroCero(d.val),
+            sinValorar: numeroCero(d.sin_valorar ?? d.sinValorar),
+        });
+    }
+    return { corpora, totalBytes: numeroCero(crudo.bytes) };
+}
+
 /**
  * Lee el estado del corpus (`data/aprendizaje/corpus/estado.json` en el repo
  * astraura). Devuelve el array de personalidades del corpus y los bytes totales.
@@ -144,25 +202,8 @@ function numeroCero(v: unknown): number {
 async function leerCorpusDisco(dir: string): Promise<{ corpora: CorpusPersonalidadAprendizaje[]; totalBytes: number }> {
     const crudo = await leerJson<unknown>(dir, path.join("data", "aprendizaje", "corpus", "estado.json"));
     if (typeof crudo !== "object" || crudo === null) return { corpora: [], totalBytes: 0 };
-    const c = crudo as Record<string, unknown>;
-    const fuente = typeof c.personalidades === "object" && c.personalidades !== null
-        ? (c.personalidades as Record<string, unknown>)
-        : {};
-    const corpora: CorpusPersonalidadAprendizaje[] = [];
-    for (const [nombre, datos] of Object.entries(fuente)) {
-        const d = typeof datos === "object" && datos !== null ? (datos as Record<string, unknown>) : {};
-        const turnos = numeroCero(d.turnos);
-        const train = numeroCero(d.train);
-        const val = numeroCero(d.val);
-        corpora.push({
-            nombre,
-            turnos,
-            train,
-            val,
-            sinValorar: numeroCero(d.sin_valorar ?? d.sinValorar),
-        });
-    }
-    return { corpora, totalBytes: numeroCero(c.bytes) };
+    const leido = parsearCorpusEstado(crudo as EstadoCorpusHttp);
+    return leido ?? { corpora: [], totalBytes: 0 };
 }
 
 /** Lee la curación (`data/aprendizaje/curacion.json`) o `null`. */
@@ -253,7 +294,7 @@ async function leerAdaptadores(): Promise<AdaptadorAprendizaje[]> {
 export async function leerAprendizaje(): Promise<Aprendizaje158> {
     const dir = dirAstraura();
     const [corpusR, curacionR, evaluacionesR, cronicaR, fabricaR, adaptadoresR] = await Promise.allSettled([
-        leerCorpusDisco(dir),
+        leerCorpus(dir),
         leerCuracion(dir),
         leerEvaluaciones(dir),
         leerCronica(dir),
