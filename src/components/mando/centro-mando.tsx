@@ -32,6 +32,7 @@ import { PanelAreas } from "@/components/mando/panel-areas";
 import { PanelEntornos } from "@/components/mando/panel-entornos";
 import { PanelAjustes } from "@/components/mando/panel-ajustes";
 import { PanelNeurona } from "@/components/mando/panel-neurona";
+import { PanelAprendizaje } from "@/components/mando/panel-aprendizaje";
 // Solo el tipo viaja al cliente: `neurona.ts` es código de servidor (sonda la
 // máquina) y un import de valor metería `node:child_process` en el bundle web.
 import type { SaludNeurona } from "@/lib/mando/neurona";
@@ -44,6 +45,7 @@ const PESTANAS = [
     { id: "olas", etiqueta: "Olas e informes" },
     { id: "flota", etiqueta: "Flota" },
     { id: "neurona", etiqueta: "Neurona" },
+    { id: "aprendizaje", etiqueta: "Aprendizaje" },
     { id: "chat", etiqueta: "Chat" },
     { id: "areas", etiqueta: "Áreas" },
     { id: "entornos", etiqueta: "Entornos" },
@@ -374,6 +376,9 @@ export function CentroMando() {
                 </TabsContent>
                 <TabsContent value="neurona">
                     <PanelNeurona />
+                </TabsContent>
+                <TabsContent value="aprendizaje">
+                    <PanelAprendizaje />
                 </TabsContent>
                 <TabsContent value="chat">
                     <ChatOrquestacion />
