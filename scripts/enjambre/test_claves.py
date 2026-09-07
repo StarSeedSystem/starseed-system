@@ -89,7 +89,9 @@ def test_todas_agotadas_dan_none_y_sin_cupo(medios):
     salud = json.load(open(enjambre.SALUD_JSON, encoding="utf-8"))
     agotadas = salud[PROV]["claves_agotadas"]
     assert len(agotadas) == 2
-    assert all(set(v) == {"hasta", "motivo", "var", "medio"} for v in agotadas.values())
+    # (2026-09-07, Ola 271, P9D) `agotar_clave` guarda también el `tipo` (429/402/cuota) que
+    # decide las horas del agotamiento y que la sonda lee para liberar las claves de 429.
+    assert all(set(v) == {"hasta", "motivo", "var", "medio", "tipo"} for v in agotadas.values())
 
 
 def test_estado_claves_jamas_escribe_valores(medios):
@@ -231,3 +233,112 @@ def test_supervisor_escribe_estado_claves_en_salud(flota, monkeypatch):
     assert salud["claves"]["xkiro"]["activa"] == BASE                # la primera, aún viva
     volcado = json.dumps(salud, ensure_ascii=False)
     assert VALOR_1 not in volcado and VALOR_2 not in volcado         # jamás valores
+
+
+# ── P9D: horas por motivo, deduplicación de eventos y sonda ligera ──────────
+# Tarea 3 (2026-09-07, Ola 271): el motivo distingue las horas de agotamiento (429 → 1 h;
+# 402/cuota → 24 h); repetir `agotar_clave` de una huella ya agotada NO añade un segundo
+# evento; la sonda ligera hace GET a `/models` (nunca `/chat/completions`) y un 200 tras un
+# agotamiento por 429 limpia la entrada y recupera el proveedor. Sin red real: `urlopen`
+# parcheado; los eventos se cuentan con el fixture `flota` (o patchando `evento`).
+
+import time as _time
+
+
+def _hasta_de(prov, huella):
+    """Fecha `hasta` (epoch) de la entrada agotada de esa huella, o None."""
+    salud = json.load(open(enjambre.SALUD_JSON, encoding="utf-8"))
+    ent = (salud.get(prov) or {}).get("claves_agotadas") or {}
+    txt = (ent.get(huella) or {}).get("hasta")
+    if not txt:
+        return None
+    return _time.mktime(_time.strptime(txt, "%Y-%m-%d %H:%M:%S"))
+
+
+def test_429_agota_una_hora_y_402_veinticuatro(medios):
+    # (2026-09-07, Ola 271, P9D, Tarea 1) Tres 429 seguidos son solo un atasco de ritmo: 1 h.
+    # Un 402 (o un aviso de cupo) es fin de cuota de verdad: 24 h. La tolerancia de 5 min
+    # absorbe el redondeo de segundos entre `now` y la marca escrita.
+    primera = enjambre.clave_activa(PROV)
+    ahora = _time.time()
+    enjambre.agotar_clave(PROV, primera["huella"], "tres 429 en 10 min", tipo="429")
+    h429 = _hasta_de(PROV, primera["huella"])
+    assert abs(h429 - (ahora + 3600)) < 300
+    # Se re-agota con un motivo más grave (402): la fecha salta a 24 h y el tipo queda en 402.
+    enjambre.agotar_clave(PROV, primera["huella"], "HTTP 402", tipo="402")
+    h402 = _hasta_de(PROV, primera["huella"])
+    assert abs(h402 - (ahora + 24 * 3600)) < 300
+    salud = json.load(open(enjambre.SALUD_JSON, encoding="utf-8"))
+    assert salud[PROV]["claves_agotadas"][primera["huella"]]["tipo"] == "402"
+
+
+def test_repetir_agotar_no_duplica_evento(flota):
+    # (2026-09-07, Ola 271, P9D, Tarea 1) Una huella YA agotada con `hasta` futuro no se
+    # reescribe ni emite evento al repetir el mismo agotamiento; solo un motivo más grave
+    # (402 sobre 429) alarga la fecha y avisa UNA vez más.
+    primera = enjambre.clave_activa("xkiro")
+    enjambre.agotar_clave("xkiro", primera["huella"], "tres 429", tipo="429")
+    n_tras_429 = len(flota)
+    enjambre.agotar_clave("xkiro", primera["huella"], "tres 429 otra vez", tipo="429")
+    assert len(flota) == n_tras_429                     # mismo motivo 429: ni una palabra más
+    enjambre.agotar_clave("xkiro", primera["huella"], "HTTP 402", tipo="402")
+    assert len(flota) == n_tras_429 + 1                 # 402 sobre 429: un único aviso extra
+    enjambre.agotar_clave("xkiro", primera["huella"], "HTTP 402 de nuevo", tipo="402")
+    assert len(flota) == n_tras_429 + 1                 # y ya no vuelve a avisar
+
+
+def _abre_200(_req, timeout=None):
+    return io.BytesIO(b"{}")
+
+
+def _registra_url(urls):
+    def _urlopen(req, timeout=None):
+        urls.append(req.full_url)
+        return _abre_200()
+    return _urlopen
+
+
+def test_sonda_ligera_200_no_llama_chat(medios, monkeypatch):
+    # (2026-09-07, Ola 271, P9D, Tarea 4) La sonda de cada ciclo es un GET a `/models` (que no
+    # consume cupo), NO una generación en `/chat/completions` (que quemaba el cupo diario).
+    # Se fuerza que xkiro disponga de la clave falsa de `medios` para poder sondearlo.
+    monkeypatch.setitem(enjambre.CLAVES_POR_PROVEEDOR, "xkiro", [BASE])
+    urls = []
+    monkeypatch.setattr(enjambre.urllib.request, "urlopen", _registra_url(urls))
+    kay = enjambre.clave_activa("xkiro")
+    assert enjambre._sonda_ligera("xkiro", ("XKIRO_API_KEY",), kay) is True
+    assert urls and all("models" in u and "chat/completions" not in u for u in urls)
+
+
+def test_sonda_ligera_401_agota_clave_rechazada(medios, monkeypatch):
+    # (2026-09-07, Ola 271, P9D, Tarea 4) Un 401/403 es una clave INVALIDA (no un límite de
+    # cuota): se agota 24 h motivo «clave rechazada» y se rota a la siguiente si la hay.
+    monkeypatch.setitem(enjambre.CLAVES_POR_PROVEEDOR, "xkiro", [BASE])
+    primera = enjambre.clave_activa("xkiro")
+
+    def _urlopen(req, timeout=None):
+        raise urllib.error.HTTPError(req.full_url, 401, "Unauthorized", {}, None)
+
+    monkeypatch.setattr(enjambre.urllib.request, "urlopen", _urlopen)
+    assert enjambre._sonda_ligera("xkiro", ("XKIRO_API_KEY",), primera) is False
+    salud = json.load(open(enjambre.SALUD_JSON, encoding="utf-8"))
+    ent = salud["xkiro"]["claves_agotadas"].get(primera["huella"])
+    assert ent and ent["tipo"] == "cuota"                 # 24 h (mismo trato que «cuota»)
+    assert "rechazada" in ent["motivo"]
+
+
+def test_sonda_200_tras_429_limpia_y_recupera(medios, monkeypatch):
+    # (2026-09-07, Ola 271, P9D, Tarea 2) Tras agotar la única clave por 429 (1 h), la sonda
+    # ligera con 200 libera ESA entrada y emite `proveedor_recuperado`; las 402/cuota aguantan.
+    monkeypatch.setitem(enjambre.CLAVES_POR_PROVEEDOR, "xkiro", [BASE])
+    eventos = []
+    monkeypatch.setattr(enjambre, "evento", lambda tipo, tarea, texto, datos=None: eventos.append((tipo, texto)))
+    primera = enjambre.clave_activa("xkiro")
+    enjambre.agotar_clave("xkiro", primera["huella"], "tres 429", tipo="429")
+    assert primera["huella"] in (json.load(open(enjambre.SALUD_JSON, encoding="utf-8"))["xkiro"] or {}).get("claves_agotadas", {})
+    monkeypatch.setattr(enjambre.urllib.request, "urlopen", _abre_200)
+    assert enjambre._sonda_ligera("xkiro", ("XKIRO_API_KEY",), primera) is True
+    salud = json.load(open(enjambre.SALUD_JSON, encoding="utf-8"))
+    assert primera["huella"] not in (salud["xkiro"].get("claves_agotadas") or {})
+    assert not enjambre.sin_cupo("xkiro")                 # la marca de sin cupo se liberó
+    assert any(t == "proveedor_recuperado" for t, _ in eventos)

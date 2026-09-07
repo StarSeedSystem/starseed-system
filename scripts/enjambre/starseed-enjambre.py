@@ -188,6 +188,40 @@ SONDAS = {
 }
 USO_REAL = {}            # proveedor -> (momento, salió bien) del último trabajo de verdad
 FRESCO_S = 120           # si hay noticia real más nueva que esto, no hace falta sondear
+# (2026-09-07, Ola 271, P9D) La sonda de CADA ciclo pasa a ser un GET a `/models` (SONDA LIGERA):
+# la generación real de prueba quemaba el cupo diario de los proveedores gratis (OpenRouter :free
+# ≈ 50/día, aihubmix 10 sin recarga) sin aportar nada que el catálogo no diga. La generación real
+# solo se hace con `forzar=True`, y como máximo una vez cada SONDA_GENERACION_S por proveedor.
+SONDA_GENERACION_S = int(os.environ.get("SONDA_GENERACION_S", str(30 * 60)))
+_ULTIMA_GENERACION = {}  # proveedor -> momento de la última generación real de prueba
+# URL del catálogo `/models` de cada proveedor para la sonda ligera (un GET no consume cupo).
+MODELS_URLS = {
+    "xkiro":       "https://api.xkiro.com/v1/models",
+    "nim":         "https://integrate.api.nvidia.com/v1/models",
+    "aihubmix":    "https://aihubmix.com/v1/models",
+    "tokenrouter": "https://api.tokenrouter.com/v1/models",
+    "openrouter":  "https://openrouter.ai/api/v1/models",
+    "llm7":        "https://api.llm7.io/v1/models",
+    "freetheai":   "https://api.freetheai.xyz/v1/models",
+}
+# (2026-09-07, Ola 271, P9D) Una racha de 429 (límite por minuto o cupo diario) agota la clave
+# 1 hora y la sonda la vuelve a probar; solo un 402 o un aviso de cupo explícito la agotan 24 h.
+HORAS_AGOTAR = {"429": 1, "402": 24, "cuota": 24}
+
+
+def _claves_agotadas_futuras(prov):
+    """Entradas de `claves_agotadas` con `hasta` futuro (mapping huella → entrada). Las vencidas
+    ya no cuentan: se ignora el agotamiento pasado (2026-09-07, Ola 271, P9D)."""
+    agotadas = (_salud().get(prov) or {}).get("claves_agotadas") or {}
+    out = {}
+    for huella, ent in agotadas.items():
+        hasta = ent.get("hasta") or ""
+        try:
+            if time.strptime(hasta, "%Y-%m-%d %H:%M:%S") > time.localtime():
+                out[huella] = ent
+        except Exception:
+            pass
+    return out
 
 
 def registrar_uso(prov, ok):
@@ -243,6 +277,19 @@ def marcar_sin_cupo(prov, motivo, horas=24):
     e["motivo"] = str(motivo or "")[:200]
     d[prov] = e
     _salud_guardar(d)
+
+
+def quitar_sin_cupo(prov):
+    """Quita la marca de «sin cupo» del proveedor (2026-09-07, Ola 271, P9D). La usa la sonda
+    ligera cuando un proveedor cuyas claves estaban agotadas solo por 429 vuelve a responder:
+    se libera el `sin_cupo_hasta` y su motivo. Respeta el resto de campos (estado, ultimo_429…)."""
+    d = _salud()
+    e = d.get(prov) or {}
+    if "sin_cupo_hasta" in e or "motivo" in e:
+        e.pop("sin_cupo_hasta", None)
+        e.pop("motivo", None)
+        d[prov] = e
+        _salud_guardar(d)
 
 
 def sin_cupo(prov) -> bool:
@@ -360,17 +407,85 @@ def revalidar_proveedor(prov):
     return False
 
 
-def sondear(prov, forzar=False):
-    modelo, claves = SONDAS[prov]
-    if prov != "llm7" and prov not in PASARELAS and not any(ENV.get(k) or os.environ.get(k) for k in claves):
-        return None                      # sin clave: ni vivo ni caído, simplemente no se usa
-    if not forzar:
-        visto = USO_REAL.get(prov)
-        if visto and time.time() - visto[0] < FRESCO_S:
-            return visto[1]              # acaba de trabajar de verdad: esa es la respuesta
-    # La sonda comprueba que el proveedor ACEPTA Y CONTESTA una generación. No exige que la
-    # respuesta tenga una forma concreta: dar por caído a tokenrouter porque devolvió un JSON
-    # inesperado (pasó el 2026-09-04, respondía en 6 s) es peor que no sondear.
+def _clave_sonda(prov):
+    """Clave para la sonda de un proveedor (2026-09-07, Ola 271, P9D). Devuelve un item de
+    clave (`{var, medio, valor, huella}`) o None. Regla de la Tarea 2: si TODAS las claves
+    están agotadas por 402/cuota, devuelve None para que el llamador NO sondee hasta su `hasta`;
+    si lo están SOLO por 429 (temporal), devuelve la primera clave cruda (la agotada) para seguir
+    probando, porque un 200 debe liberar ese agotamiento."""
+    kay = None if prov in PASARELAS else clave_activa(prov)
+    if kay:
+        return kay
+    if prov in PASARELAS:
+        return None
+    futuras = _claves_agotadas_futuras(prov)
+    if any((f.get("tipo") or "cuota") != "429" for f in futuras.values()):
+        return None                          # 402/cuota vigente: no sondear hasta su hasta
+    crudas = _claves_crudas(prov)
+    return crudas[0] if crudas else None
+
+
+def _liberar_429(prov):
+    """(2026-09-07, Ola 271, P9D, Tarea 2) Tras un 200 de la sonda, libera las claves agotadas
+    SOLO por 429 (las 402/cuota aguantan su `hasta`), quita `sin_cupo_hasta` y avisa
+    `proveedor_recuperado`. Devuelve True si liberó algo."""
+    d = _salud()
+    e = d.get(prov) or {}
+    agotadas = e.get("claves_agotadas") or {}
+    limpiadas = [h for h, ent in agotadas.items() if (ent.get("tipo") or "cuota") == "429"]
+    if not limpiadas:
+        return False
+    for h in limpiadas:
+        agotadas.pop(h, None)
+    e["claves_agotadas"] = agotadas
+    d[prov] = e
+    _salud_guardar(d)
+    quitar_sin_cupo(prov)
+    evento("proveedor_recuperado", "", "%s responde sin cuota: claves agotadas por 429 liberadas" % prov)
+    return True
+
+
+def _sonda_ligera(prov, claves, kay):
+    """GET a `/models` con la clave activa (2026-09-07, Ola 271, P9D, Tarea 4): no consume cupo de
+    generación. 200 → vivo (y libera las agotadas por 429); 401/403 → clave inválida (agotar 24 h,
+    «clave rechazada»); 402 → agotar 24 h; resto (5xx/timeout/red) → caído."""
+    url = MODELS_URLS.get(prov) or (PASARELAS[prov]["url"].rstrip("/chat/completions") + "/models" if prov in PASARELAS else None)
+    if not url:
+        return _sonda_generacion(prov, claves, kay)  # sin catálogo: caer a generación real
+    key = (PASARELAS[prov]["key"] if prov in PASARELAS else
+           ((kay or {}).get("valor") or
+            next((ENV.get(k) or os.environ.get(k) for k in claves if ENV.get(k) or os.environ.get(k)), None) or
+            (ENV.get("LLM7_API_KEY") or "sin-clave" if prov == "llm7" else None)))
+    req = urllib.request.Request(url, headers={"Authorization": "Bearer " + key,
+                                              "User-Agent": "starseed-enjambre/2 (+starseed-os)"})
+    huella = (kay or {}).get("huella")
+    try:
+        with urllib.request.urlopen(req, timeout=40) as r:
+            _liberar_429(prov)
+            return True
+    except urllib.error.HTTPError as e:
+        if e.code in (401, 403):
+            if huella:
+                agotar_clave(prov, huella, "sonda: clave rechazada (%d)" % e.code, tipo="cuota")
+            else:
+                marcar_sin_cupo(prov, "sonda: clave rechazada (%d)" % e.code, 24)
+        elif e.code == 402:
+            if huella:
+                agotar_clave(prov, huella, "sonda: HTTP 402", tipo="402")
+            else:
+                marcar_sin_cupo(prov, "sonda: HTTP 402", 24)
+        else:
+            _clasificar_fallo_cupo(prov, e)
+    except Exception:
+        pass
+    return False
+
+
+def _sonda_generacion(prov, claves, kay):
+    """Generación real de prueba (2026-09-07, Ola 271, P9D): solo con `forzar=True` y como máximo
+    una vez cada SONDA_GENERACION_S por proveedor. Comprueba que el proveedor ACEPTA y CONTESTA
+    una generación; distingue el motivo del fallo (402/cuota/429) para agotar con las horas justas."""
+    modelo = SONDAS[prov][0]
     url = {"xkiro": "https://api.xkiro.com/v1/chat/completions",
            "nim": "https://integrate.api.nvidia.com/v1/chat/completions",
            "aihubmix": "https://aihubmix.com/v1/chat/completions",
@@ -380,13 +495,9 @@ def sondear(prov, forzar=False):
            "freetheai": "https://api.freetheai.xyz/v1/chat/completions",
            **{n: p["url"] for n, p in PASARELAS.items()}}[prov]
     key = (PASARELAS[prov]["key"] if prov in PASARELAS else
-           next((ENV.get(k) or os.environ.get(k) for k in claves if ENV.get(k) or os.environ.get(k)), None) or (ENV.get("LLM7_API_KEY") or "sin-clave" if prov == "llm7" else None))
-    # (2026-09-07, Ola 271, P9B) Si el proveedor tiene capa de claves, la sonda usa la clave
-    # ACTIVA y anota su huella: un 402 / aviso de cuota / 3×429 agota ESA clave (y la capa rota
-    # a la siguiente), no el proveedor entero. Solo sin capa se conserva la lógica heredada.
-    kay = (None if prov in PASARELAS else clave_activa(prov))
-    if kay:
-        key = kay["valor"]
+           ((kay or {}).get("valor") or
+            next((ENV.get(k) or os.environ.get(k) for k in claves if ENV.get(k) or os.environ.get(k)), None) or
+            (ENV.get("LLM7_API_KEY") or "sin-clave" if prov == "llm7" else None)))
     huella = (kay or {}).get("huella")
     cuerpo = {"model": modelo, "messages": [{"role": "user", "content": "ok"}], "max_tokens": 4}
     try:
@@ -403,20 +514,41 @@ def sondear(prov, forzar=False):
                     if es_aviso_de_cuota(contenido):
                         vivo = False          # 200 con aviso de cuota = agotado, no vivo
                         if huella:
-                            agotar_clave(prov, huella, "sonda: " + contenido[:90])
+                            agotar_clave(prov, huella, "sonda: " + contenido[:90], tipo="cuota")
                         else:
-                            marcar_sin_cupo(prov, "sonda: " + contenido[:90])
+                            marcar_sin_cupo(prov, "sonda: " + contenido[:90], 24)
                 except Exception:
                     pass
     except Exception as e:
         vivo = False
         m = str(e or "")
         if huella and "402" in m:
-            agotar_clave(prov, huella, "sonda: HTTP 402")
+            agotar_clave(prov, huella, "sonda: HTTP 402", tipo="402")
         elif huella and "429" in m and _registrar_429_clave(huella):
-            agotar_clave(prov, huella, "sonda: tres 429 en 10 min")
+            agotar_clave(prov, huella, "sonda: tres 429 en 10 min", tipo="429")
         else:
             _clasificar_fallo_cupo(prov, e)
+    return vivo
+
+
+def sondear(prov, forzar=False):
+    modelo, claves = SONDAS[prov]
+    if prov != "llm7" and prov not in PASARELAS and not any(ENV.get(k) or os.environ.get(k) for k in claves):
+        return None                      # sin clave: ni vivo ni caído, simplemente no se usa
+    if not forzar:
+        visto = USO_REAL.get(prov)
+        if visto and time.time() - visto[0] < FRESCO_S:
+            return visto[1]              # acaba de trabajar de verdad: esa es la respuesta
+    kay = _clave_sonda(prov)
+    if kay is None and prov not in PASARELAS:
+        # (2026-09-07, Ola 271, P9D, Tarea 2) claves TODAS agotadas por 402/cuota: no sondear
+        # hasta que venza su `hasta`. Se devuelve None (ni vivo ni caído: solo se salta el ciclo).
+        return None
+    if forzar and time.time() - _ULTIMA_GENERACION.get(prov, 0) >= SONDA_GENERACION_S:
+        _ULTIMA_GENERACION[prov] = time.time()
+        vivo = _sonda_generacion(prov, claves, kay)
+    else:
+        vivo = _sonda_ligera(prov, claves, kay)
     registrar_uso(prov, vivo)
     return vivo
 
@@ -654,28 +786,45 @@ def clave_activa(prov):
     return None
 
 
-def agotar_clave(prov, huella, motivo, horas=24):
+def agotar_clave(prov, huella, motivo, tipo="cuota"):
     """Marca una clave concreta como agotada (402, aviso de cuota o racha de 429) y deja
     el relevo ya señalado. Solo cuando NO queda ninguna llama a marcar_sin_cupo: el
-    pedido de Alex es gastar TODAS las claves del proveedor antes de darlo por caído."""
+    pedido de Alex es gastar TODAS las claves del proveedor antes de darlo por caído.
+
+    (2026-09-07, Ola 271, P9D) `tipo` ∈ {"429", "402", "cuota"} decide las HORAS de agotamiento
+    (429 → 1 h; 402/cuota → 24 h) y se guarda en la entrada para que la sonda sepa de un vistazo
+    cuáles puede volver a probar. Aviso único: si la huella YA consta agotada con un `hasta`
+    futuro igual o más lejano, no se reescribe ni se emite evento; solo un motivo MÁS grave
+    (402/cuota sobre 429, cuyo plazo es mayor) alarga la fecha y avisa una vez más."""
+    horas = HORAS_AGOTAR.get(tipo, 24)
     claves = _claves_crudas(prov)
     cual = next((c for c in claves if c["huella"] == huella),
                 {"var": "¿?", "medio": "¿?", "huella": huella})
     d = _salud()
     e = d.get(prov) or {}
     agotadas = e.get("claves_agotadas") or {}
-    agotadas[huella] = {"hasta": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(time.time() + horas * 3600)),
-                        "motivo": str(motivo or "")[:140], "var": cual["var"], "medio": cual["medio"]}
+    hasta_epoch = time.time() + horas * 3600
+    hasta_txt = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(hasta_epoch))
+    prev = agotadas.get(huella) or {}
+    try:                                            # plazo ya vigente igual o más lejano: no repetir
+        prev_epoch = time.mktime(time.strptime(prev.get("hasta") or "", "%Y-%m-%d %H:%M:%S"))
+    except Exception:
+        prev_epoch = 0
+    if prev_epoch >= time.time() and prev_epoch >= hasta_epoch:
+        return
+    agotadas[huella] = {"hasta": hasta_txt, "motivo": str(motivo or "")[:140],
+                        "var": cual["var"], "medio": cual["medio"], "tipo": tipo}
     e["claves_agotadas"] = agotadas
     d[prov] = e
     _salud_guardar(d)
     siguiente = clave_activa(prov)
+    hasta_hhmm = hasta_txt[11:16]                    # «HH:MM» local para el aviso y el Mando
     if siguiente:
-        evento("aviso", "", "clave %s (%s) de %s agotada: %s → paso a %s (%s)" % (
-            cual["var"], cual["medio"], prov, str(motivo)[:80], siguiente["var"], siguiente["medio"]))
+        evento("aviso", "", "clave %s (%s) de %s agotada: %s → paso a %s (%s), hasta %s" % (
+            cual["var"], cual["medio"], prov, str(motivo)[:80], siguiente["var"], siguiente["medio"], hasta_hhmm))
     else:
-        evento("aviso", "", "clave %s (%s) de %s agotada: %s → paso a ninguna; sin claves de este proveedor" % (
-            cual["var"], cual["medio"], prov, str(motivo)[:80]))
+        evento("aviso", "", "clave %s (%s) de %s agotada: %s → paso a ninguna; sin claves de este proveedor, hasta %s" % (
+            cual["var"], cual["medio"], prov, str(motivo)[:80], hasta_hhmm))
         marcar_sin_cupo(prov, motivo, horas)      # todas agotadas: ahora sí, proveedor sin cupo
 
 
@@ -1112,7 +1261,10 @@ def llamar_llm(proveedor, modelo, prompt, timeout=120):
 
     def _peticion(kay):
         """Hace la petición con la clave `kay` (item de clave_activa o None). Devuelve
-        (texto, agota): `agota` dice si el fallo (o el contenido) manda agotar ESTA clave."""
+        (texto, agota, motivo): `agota` dice si el fallo (o el contenido) manda agotar ESTA
+        clave, y `motivo` ∈ {"402", "429", "cuota", ""} distingue la RAZÓN para que
+        `agotar_clave` aplique las horas justas (2026-09-07, Ola 271, P9D, Tarea 1):
+        429 → 1 h; 402 y aviso de cuota → 24 h."""
         key = (kay or {}).get("valor")
         if proveedor == "gemini":
             key = key or ENV.get("GEMINI_API_KEY") or ENV.get("GOOGLE_API_KEY") or ENV.get("NEXT_PUBLIC_GOOGLE_API_KEY")
@@ -1129,17 +1281,17 @@ def llamar_llm(proveedor, modelo, prompt, timeout=120):
                 if kay:
                     hu = kay["huella"]
                     if "402" in m:
-                        return "", True
+                        return "", True, "402"
                     if "429" in m:
                         if _registrar_429_clave(hu):
-                            return "", True
+                            return "", True, "429"
                         marcar_429(proveedor)
                     else:
                         _clasificar_fallo_cupo(proveedor, e)
                 else:
                     _clasificar_fallo_cupo(proveedor, e)
                 raise
-            return "".join(p.get("text", "") for p in d["candidates"][0]["content"]["parts"]), False
+            return "".join(p.get("text", "") for p in d["candidates"][0]["content"]["parts"]), False, ""
         modelo_real = modelo
         if proveedor == "xkiro":
             key = key or ENV.get("XKIRO_API_KEY"); url = "https://api.xkiro.com/v1/chat/completions"
@@ -1182,36 +1334,36 @@ def llamar_llm(proveedor, modelo, prompt, timeout=120):
             m = str(e or "")
             if kay:
                 if "402" in m:
-                    return "", True                                   # 402: esta clave no paga más
+                    return "", True, "402"                           # 402: esta clave no paga más
                 if "429" in m:
                     if _registrar_429_clave(kay["huella"]):
-                        return "", True                               # 3 × 429 en 10 min: clave ahogada
+                        return "", True, "429"                       # 3 × 429 en 10 min: clave ahogada
                     marcar_429(proveedor)
                 elif any(k in m.lower() for k in ("quota", "cuota", "daily limit", "rate limit exceeded for today")):
-                    return "", True                                   # límite diario explícito en el error
+                    return "", True, "cuota"                         # límite diario explícito en el error
                 else:
                     _clasificar_fallo_cupo(proveedor, e)
             else:
                 _clasificar_fallo_cupo(proveedor, e)   # 402/cuota → 24 h sin intentarlo; 429 → 10 min de enfriamiento
             raise
         txt = d["choices"][0]["message"]["content"] or ""
-        txt = re.sub(r"<think>.*?</think>", "", txt, flags=re.S).strip()
-        return txt, False
+        txt = re.sub(r" thinking.*? response", "", txt, flags=re.S).strip()
+        return txt, False, ""
 
     kay = _clave_para(proveedor)
-    txt, agota = _peticion(kay)
+    txt, agota, motivo = _peticion(kay)
     if agota and kay:
-        agotar_clave(proveedor, kay["huella"], "llamada: límite de la clave")
+        agotar_clave(proveedor, kay["huella"], "llamada: límite de la clave", tipo=(motivo or "cuota"))
         kay2 = clave_activa(proveedor)
         if kay2:
             # Reintento ÚNICO con la siguiente clave del mismo proveedor (nunca el valor, solo var/medio).
             evento("reenrutado", "", "clave %s (%s) agotada → %s (%s)" % (kay["var"], kay["medio"], kay2["var"], kay2["medio"]))
-            txt, agota2 = _peticion(kay2)
+            txt, agota2, motivo2 = _peticion(kay2)
             if agota2:
                 # La clave de relevo también pide cuota en su misma primera llamada: se
                 # agota también y se aborta. Devolver "" aquí cuenta como respuesta válida
                 # y el revisor archivaría basura (2026-09-07, Ola 271, P9C).
-                agotar_clave(proveedor, kay2["huella"], "relevo también agotado")
+                agotar_clave(proveedor, kay2["huella"], "relevo también agotado", tipo=(motivo2 or "cuota"))
                 USO_REAL[proveedor] = (time.time(), False)
                 raise RuntimeError("sin claves útiles en %s: límite de la clave de relevo (%s)" % (proveedor, kay2["var"]))
         else:
@@ -1231,7 +1383,7 @@ def llamar_llm(proveedor, modelo, prompt, timeout=120):
             kay2 = clave_activa(proveedor)
             if kay2:
                 evento("reenrutado", "", "clave %s (%s) agotada → %s (%s)" % (kay["var"], kay["medio"], kay2["var"], kay2["medio"]))
-                txt, _ = _peticion(kay2)
+                txt, _, _ = _peticion(kay2)
                 if not es_aviso_de_cuota(txt):
                     USO_REAL[proveedor] = (time.time(), True)
                     return txt
