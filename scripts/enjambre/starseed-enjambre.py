@@ -12,7 +12,10 @@ Qué hace (todo gratis: opencode → NVIDIA NIM para escribir; OpenRouter/NIM/Ge
   · Cupos por proveedor (req/min) y semáforo de concurrencia para no pasar los límites gratuitos.
   · Supervisor: eventos → bitácora local (olas/eventos.jsonl) + bus Supabase (relevo_eventos) +
     `hermes send` para lo importante + `starseed-relevo nota`. Verificador final: tsc + vitest en main.
-  · `depende: ["ID"]` en una tarea la hace esperar a esas tareas.
+  · `depende: ["ID"]` en una tarea la hace esperar a esas tareas Y exigir que se integraron
+    (si una terminó sin commit, la dependiente queda «bloqueada»; con `depende_opcional` solo avisa).
+  · Un modelo solo se retira si el CATÁLOGO del proveedor confirma que ya no existe
+    (`debe_retirar`): las pistas «does not exist» de la salida de las herramientas no cuentan.
 Estado: olas/progreso.json + progreso.md (mismo formato de siempre) + logs/<id>.log + revisiones.md
 
 Tiempos configurables (2026-09-06, Ola 261):
@@ -93,6 +96,59 @@ CATALOGOS = {
     "xkiro":  ("https://api.xkiro.com/v1/models", ("XKIRO_API_KEY",)),
 }
 
+_CATALOGOS_CACHE = {}  # proveedor -> (epoch, set de ids o None si falló la consulta)
+
+def catalogo_proveedor(prov):
+    """Catálogo vivo del proveedor (conjunto de ids de modelo), cacheado 10 minutos
+    (2026-09-07, Ola 261). Lo consultan validar_modelos() y debe_retirar(); el caché evita
+    una petición HTTP por cada sospecha de defunción. Devuelve None si el proveedor no
+    tiene catálogo conocido (tokenrouter, llm7), si no hay clave o si la consulta falló."""
+    if prov not in CATALOGOS:
+        return None
+    ts, datos = _CATALOGOS_CACHE.get(prov, (0, None))
+    if time.time() - ts < 600:
+        return datos
+    url, claves = CATALOGOS[prov]
+    key = next((ENV.get(k) or os.environ.get(k) for k in claves if ENV.get(k) or os.environ.get(k)), None)
+    datos = None
+    if key:
+        try:
+            req = urllib.request.Request(url, headers={"Authorization": "Bearer " + key,
+                                                       "User-Agent": "starseed-enjambre/2 (+starseed-os)"})
+            datos = {m["id"] for m in json.loads(urllib.request.urlopen(req, timeout=30).read()).get("data", [])}
+        except Exception:
+            datos = None
+    _CATALOGOS_CACHE[prov] = (time.time(), datos)
+    return datos
+
+
+def debe_retirar(modelo, salida, catalogo=None):
+    """Decide, de forma PURA, si un modelo sale de la rotación al ver una pista de defunción
+    (2026-09-07, Ola 261). Devuelve (retirar: bool, motivo: str).
+
+    Antes la pista «does not exist» se buscaba en TODA la salida de opencode, incluida la
+    salida de las herramientas que el agente ejecuta: en la Ola 264 un `git show main:…`
+    respondió «fatal: path … does not exist in 'main'» y el orquestador retiró dos modelos
+    de NIM que seguían vivos en el catálogo. Por eso ahora:
+      · Si hay catálogo (nvidia, xkiro), manda él: solo se retira si ya NO está en él.
+      · Si NO hay catálogo (tokenrouter, llm7), la pista solo cuenta cuando aparece en una
+        línea de error de la API (empieza por `Error`/`AI_APICallError`/`{"error"` o lleva
+        «HTTP Error»), nunca dentro de la salida de una herramienta del agente."""
+    pista = next((p for p in PISTAS_DEFUNCION if p in (salida or "").lower()), None)
+    if not pista:
+        return False, ""
+    prov = proveedor_de(modelo)
+    if catalogo is not None:
+        if modelo.split("/", 1)[1] in catalogo:
+            return False, "%s sigue en el catálogo de %s" % (modelo, prov)
+        return True, "%s ya no está en el catálogo de %s (pista: %s)" % (modelo, prov, pista)
+    # Sin catálogo de referencia: solo valen las líneas de error reales de la API.
+    for linea in (salida or "").splitlines():
+        l = linea.strip()
+        if pista in l.lower() and (l.startswith(("Error", "AI_APICallError", '{"error"')) or "HTTP Error" in l):
+            return True, "línea de error de la API: " + l[:120]
+    return False, "la pista «%s» no salió de una línea de error de la API (salida de una herramienta)" % pista
+
 
 def validar_modelos():
     """Antes de empezar, comprueba qué modelos existen de verdad en el catálogo de NIM.
@@ -100,15 +156,12 @@ def validar_modelos():
     haber sido intentada nunca: eso ya pasó con gpt-oss-120b y qwen3-coder-480b."""
     fuera = []
     for proveedor, (url, claves) in CATALOGOS.items():
-        key = next((ENV.get(k) or os.environ.get(k) for k in claves if ENV.get(k) or os.environ.get(k)), None)
-        if not key:
+        # Sin clave del proveedor no hay consulta posible: se salta en silencio, como siempre.
+        if not any(ENV.get(k) or os.environ.get(k) for k in claves):
             continue
-        try:
-            req = urllib.request.Request(url, headers={"Authorization": "Bearer " + key,
-                                                       "User-Agent": "starseed-enjambre/2 (+starseed-os)"})
-            vivos = {m["id"] for m in json.loads(urllib.request.urlopen(req, timeout=30).read()).get("data", [])}
-        except Exception as e:
-            evento("aviso", "", "no pude validar el catálogo de %s (%s): sigo con su lista tal cual" % (proveedor, str(e)[:70]))
+        vivos = catalogo_proveedor(proveedor)   # misma consulta cacheada que usa debe_retirar()
+        if vivos is None:
+            evento("aviso", "", "no pude validar el catálogo de %s: sigo con su lista tal cual" % proveedor)
             continue
         fuera += [m for m in MODELOS if m.startswith(proveedor + "/") and m.split("/", 1)[1] not in vivos]
     for m in fuera:
@@ -423,6 +476,23 @@ def apto_para_tarea(modelo, t):
     if sin_cupo(prov) or enfriandose(prov):
         return False
     return True
+
+def dependencias_ok(t):
+    """¿Están INTEGRADAS las dependencias duras de esta tarea? (2026-09-07, Ola 261)
+
+    Antes el planificador solo esperaba a que la dependencia TERMINARA (estado final
+    cualquiera): G3 declaraba `depende: ["G1", "J1"]`, J1 terminó «sin_cambios» (nunca se
+    integró) y G3 se ejecutó igual, buscando un archivo que no existía en main. Ahora una
+    dependencia cuenta solo en estado «commit». Devuelve (ok, [descripción de las malas]).
+    Las dependencias que aún no tienen estado (no han terminado) aquí no bloquean: eso lo
+    decide el planificador esperando; y las de `depende_opcional` nunca bloquean."""
+    malas = []
+    for d in (t.get("depende") or []):
+        est = PROG.get(d, {}).get("estado")
+        if est is not None and est != "commit":
+            malas.append("%s (%s)" % (d, est))
+    return (not malas, malas)
+
 
 # revisores: (proveedor, modelo) — cada uno con su cupo; se prueba en orden
 REVISORES = [
@@ -1852,8 +1922,15 @@ def ejecutar(t, intento=1):
             # no gasta intento. Si el modelo está retirado, fuera de la rotación entera.
             ultimo_fallo = pista
             if any(x in pista for x in PISTAS_DEFUNCION):
-                MUERTOS.add(modelo)
-                evento("proveedor", tid, "%s retirado (%s) → fuera de la rotación" % (modelo, pista))
+                # Una pista de defunción ya NO retira por sí sola: la pudo soltar la salida
+                # de una herramienta del agente (Ola 264: «git show main:… does not exist»).
+                # debe_retirar() lo confirma contra el catálogo del proveedor.
+                retirar, motivo = debe_retirar(modelo, out, catalogo_proveedor(proveedor_de(modelo)))
+                if retirar:
+                    MUERTOS.add(modelo)
+                    evento("proveedor", tid, "%s retirado (%s) → fuera de la rotación" % (modelo, motivo))
+                else:
+                    evento("aviso", tid, "pista de defunción falsa (venía de la salida de una herramienta): %s" % motivo)
             elif any(x in pista for x in ("too many requests", "rate limit", "database is locked")) and saturados.get(modelo, 0) < 2:
                 # Saturación pasajera (429, o la base de opencode ocupada por otro agente): no es
                 # motivo para quemar la lista entera en segundos. Se espera y se vuelve a intentar
@@ -1919,7 +1996,13 @@ def ejecutar(t, intento=1):
             if pista:
                 ultimo_fallo = pista
                 if any(x in pista for x in PISTAS_DEFUNCION):
-                    MUERTOS.add(modelo)
+                    # Misma confirmación que en la primera pasada: no retirar por una pista
+                    # que venía de la salida de una herramienta.
+                    retirar, motivo = debe_retirar(modelo, out, catalogo_proveedor(proveedor_de(modelo)))
+                    if retirar:
+                        MUERTOS.add(modelo)
+                    else:
+                        evento("aviso", tid, "pista de defunción falsa (venía de la salida de una herramienta): %s" % motivo)
                 elif any(x in pista for x in ("too many requests", "rate limit", "database is locked")) and saturados.get(modelo, 0) < 2:
                     saturados[modelo] = saturados.get(modelo, 0) + 1
                     latir(tid, "esperando cupo", modelo=modelo, intento=intento)
@@ -2157,7 +2240,7 @@ def main():
     relevo_nota("enjambre v2 arranca: %d tareas, %d trabajadores (%s)" % (len(tareas), workers, os.path.basename(sys.argv[1])))
     MIAS.update(t["id"] for t in tareas)
     pendientes = {t["id"]: t for t in tareas}; hechas = set(); activos = {}
-    def terminado(tid): return PROG.get(tid, {}).get("estado") in ("commit", "sin_cambios", "fallo", "fallo_tsc", "fallo_tests", "conflicto", "reasignada", "rechazada", "pendiente_aprobacion")
+    def terminado(tid): return PROG.get(tid, {}).get("estado") in ("commit", "sin_cambios", "fallo", "fallo_tsc", "fallo_tests", "conflicto", "reasignada", "rechazada", "pendiente_aprobacion", "bloqueada")
     while pendientes or activos:
         for tid in list(activos):
             if not activos[tid].is_alive(): activos.pop(tid); hechas.add(tid)
@@ -2165,10 +2248,25 @@ def main():
             if tid in SOLTADAS:
                 pendientes.pop(tid); hechas.add(tid); continue
             if len(activos) >= workers: break
-            deps = t.get("depende") or []
-            if all(d in hechas or (d not in pendientes and d not in activos) for d in deps):
-                th = threading.Thread(target=ejecutar_seguro, args=(t,), daemon=True); th.start()
-                activos[tid] = th; pendientes.pop(tid)
+            deps = list(t.get("depende") or []) + list(t.get("depende_opcional") or [])
+            if not all(d in hechas or (d not in pendientes and d not in activos) for d in deps):
+                continue
+            # Terminadas no basta: tienen que estar INTEGRADAS (Ola 264: G3 corrió con J1
+            # «sin_cambios» y buscó un archivo que nunca llegó a main). Solo se bloquea por
+            # las dependencias duras; las opcionales (`depende_opcional`) solo avisan.
+            ok, malas = dependencias_ok(t)
+            if not ok:
+                nota = "dependencia no integrada: " + ", ".join(malas)
+                set_estado(tid, estado="bloqueada", modelo="-", segundos=0, nota=nota)
+                evento("bloqueada", tid, nota)
+                pendientes.pop(tid); hechas.add(tid); continue
+            opcionales_malas = ["%s (%s)" % (d, PROG.get(d, {}).get("estado"))
+                                for d in (t.get("depende_opcional") or [])
+                                if PROG.get(d, {}).get("estado") not in (None, "commit")]
+            if opcionales_malas:
+                evento("aviso", tid, "dependencia opcional no integrada (sigo igual): " + ", ".join(opcionales_malas))
+            th = threading.Thread(target=ejecutar_seguro, args=(t,), daemon=True); th.start()
+            activos[tid] = th; pendientes.pop(tid)
         time.sleep(3)
     FIN.set()
     # verificación final en main
@@ -2177,6 +2275,12 @@ def main():
     rc, errs = tsc(ROOT, log); rcv, vout = vitest(ROOT, log)
     est = {tid: PROG.get(tid, {}).get("estado") for tid in [t["id"] for t in tareas]}
     resumen = " · ".join("%s=%s" % (k, v) for k, v in est.items())
+    bloqueadas = {k: PROG.get(k, {}).get("nota", "") for k, v in est.items() if v == "bloqueada"}
+    if bloqueadas:
+        # Las bloqueadas se listan APARTE del resumen: no fallaron, nunca se ejecutaron
+        # porque su dependencia no llegó a integrarse (2026-09-07, Ola 261).
+        resumen += " · BLOQUEADAS(no ejecutadas): " + " | ".join(
+            "%s (%s)" % (k, v)[:150] for k, v in bloqueadas.items())
     if not errs and rcv == 0:
         evento("verificado", "", "main en verde: tsc 0 errores · vitest ok · " + resumen)
     else:

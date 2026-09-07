@@ -102,3 +102,16 @@ por trap/finally, huérfanos —pid muerto o > 30 min— limpiados solos). El sc
 pasada en verde por hash de contenidos (`git ls-files -co`: incluye archivos sin `git add`,
 arreglo del falso «sin cambios») en `~/.starseed/cerrojos/tsc-cache-<repo>`, fuera del árbol.
 El vigilante mata además los `node …/bin/tsc` huérfanos cada 60 s. Pruebas: `test_cerrojo.py`.
+
+## Retiros y dependencias (Ola 261, P7 · 2026-09-07)
+
+Un modelo **solo se retira si el catálogo del proveedor confirma que ya no existe**
+(`debe_retirar`, con el catálogo cacheado 10 min por `catalogo_proveedor`); las pistas
+«does not exist» / «model not found» que salen de la salida de una HERRAMIENTA del agente
+(p. ej. `git show main:archivo`) ya no retiran nada — solo se anotan como aviso. Si el
+proveedor no tiene catálogo (tokenrouter, llm7), la pista solo cuenta en una línea de
+error real de la API (`Error…`, `AI_APICallError…`, `{"error"` o «HTTP Error»).
+Dependencias: `depende: ["ID"]` exige que la dependencia se INTEGRE (`commit`); si terminó
+en otro estado (`sin_cambios`, `fallo`…), la tarea queda «bloqueada» (evento `bloqueada`,
+listada aparte en el resumen final) y no se ejecuta. `depende_opcional` solo avisa.
+Pruebas: `test_retiros.py`.
