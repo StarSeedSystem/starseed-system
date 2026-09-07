@@ -16,6 +16,7 @@ import {
     AlertTriangle,
     BrainCircuit,
     CircleDashed,
+    ClipboardCheck,
     Cpu,
     Ear,
     Gauge,
@@ -25,7 +26,10 @@ import {
     Server,
 } from "lucide-react";
 
-import type { SaludNeurona } from "@/lib/mando/neurona";
+import type { SaludNeurona, VerificacionNeurona } from "@/lib/mando/neurona";
+
+/** Máximo de regresiones/mejoras que se muestran antes de «+N más». */
+const MAX_LISTA_VERIFICACION = 5;
 
 /** Formatea un número de MB a «1.5 GB» cuando conviene, si no «824 MB». */
 function formatoMb(mb: number | null | undefined): string {
@@ -92,19 +96,129 @@ function Tarjeta({
     titulo,
     icono,
     children,
+    testId,
 }: {
     titulo: string;
     icono: React.ReactNode;
     children: React.ReactNode;
+    testId?: string;
 }) {
     return (
-        <article className="rounded-xl border border-white/10 bg-black/30 p-4 backdrop-blur">
+        <article data-testid={testId} className="rounded-xl border border-white/10 bg-black/30 p-4 backdrop-blur">
             <header className="mb-3 flex items-center gap-2">
                 {icono}
                 <h3 className="text-sm font-semibold text-white">{titulo}</h3>
             </header>
             {children}
         </article>
+    );
+}
+
+/**
+ * Tarjeta «Última verificación» (Ola 269 · 2026-09-07).
+ * Lee `salud.verificacion` (la escribe `scripts/verificar-neurona.mjs` en
+ * `starseed_memory_root/verificaciones/ultimo.json`): puntuación con tono,
+ * chips de fallos/avisos, listas acotadas de regresiones y mejoras y pie
+ * con el commit corto y el «hace cuánto». Si todavía no se ha lanzado la
+ * batería (`verificacion === null`), enseña el comando para hacerlo.
+ */
+function TarjetaVerificacion({ verificacion }: { verificacion: VerificacionNeurona | null }) {
+    if (!verificacion) {
+        // Estado vacío: el usuario necesita saber cómo generar la primera
+        // verificación, así que se le da el comando listo para copiar.
+        return (
+            <Tarjeta
+                titulo="Última verificación"
+                testId="tarjeta-verificacion"
+                icono={<ClipboardCheck className="h-4 w-4 text-white/70" aria-hidden />}
+            >
+                <p className="text-xs text-white/60">Sin verificaciones todavía.</p>
+                <code className="mt-2 block rounded-md bg-white/5 px-2 py-1.5 font-mono text-[11px] text-white/80">
+                    node scripts/verificar-neurona.mjs --voz --bitnet
+                </code>
+                <p className="mt-2 text-[11px] text-white/40">
+                    Lánzala en la raíz del repositorio: mide voz y BitNet y deja aquí la puntuación.
+                </p>
+            </Tarjeta>
+        );
+    }
+
+    const v = verificacion;
+    // Tono de la puntuación: ≥ 90 es verde, ≥ 70 ámbar, por debajo rojo.
+    const tono = v.puntuacion >= 90 ? "ok" : v.puntuacion >= 70 ? "aviso" : "peligro";
+    const clasePuntuacion =
+        tono === "ok" ? "text-emerald-300" : tono === "aviso" ? "text-amber-300" : "text-red-300";
+
+    const ms = Date.parse(v.t);
+    const hace = Number.isFinite(ms) ? haceMs(ms) : "—";
+    // Commit corto estilo git (7 caracteres) o «—» si el JSON no lo trae.
+    const commitCorto = v.commit ? v.commit.slice(0, 7) : "—";
+
+    const regresiones = v.regresiones.slice(0, MAX_LISTA_VERIFICACION);
+    const mejoras = v.mejoras.slice(0, MAX_LISTA_VERIFICACION);
+
+    return (
+        <Tarjeta
+            titulo="Última verificación"
+            testId="tarjeta-verificacion"
+            icono={<ClipboardCheck className="h-4 w-4 text-white/70" aria-hidden />}
+        >
+            <div className="flex items-baseline gap-3">
+                <span className={`font-mono text-2xl font-semibold ${clasePuntuacion}`} data-testid="puntuacion-verificacion">
+                    {v.puntuacion}
+                </span>
+                <div className="flex gap-1.5">
+                    <span
+                        className={`rounded-full px-2 py-0.5 text-[11px] ${
+                            v.fallos > 0
+                                ? "border border-red-400/30 bg-red-500/10 text-red-200"
+                                : "border border-white/10 bg-white/5 text-white/50"
+                        }`}
+                    >
+                        {v.fallos} fallos
+                    </span>
+                    <span
+                        className={`rounded-full px-2 py-0.5 text-[11px] ${
+                            v.avisos > 0
+                                ? "border border-amber-400/30 bg-amber-500/10 text-amber-200"
+                                : "border border-white/10 bg-white/5 text-white/50"
+                        }`}
+                    >
+                        {v.avisos} avisos
+                    </span>
+                </div>
+            </div>
+
+            {v.regresiones.length > 0 && (
+                <ul className="mt-3 space-y-1">
+                    {regresiones.map((regresion) => (
+                        <li key={regresion} className="text-xs text-red-300/90">
+                            · {regresion}
+                        </li>
+                    ))}
+                    {v.regresiones.length > MAX_LISTA_VERIFICACION && (
+                        <li className="text-[11px] text-red-300/60">+{v.regresiones.length - MAX_LISTA_VERIFICACION} más</li>
+                    )}
+                </ul>
+            )}
+
+            {v.mejoras.length > 0 && (
+                <ul className="mt-2 space-y-1">
+                    {mejoras.map((mejora) => (
+                        <li key={mejora} className="text-xs text-emerald-300/90">
+                            · {mejora}
+                        </li>
+                    ))}
+                    {v.mejoras.length > MAX_LISTA_VERIFICACION && (
+                        <li className="text-[11px] text-emerald-300/60">+{v.mejoras.length - MAX_LISTA_VERIFICACION} más</li>
+                    )}
+                </ul>
+            )}
+
+            <p className="mt-3 border-t border-white/10 pt-2 font-mono text-[11px] text-white/40">
+                commit {commitCorto} · {hace}
+            </p>
+        </Tarjeta>
     );
 }
 
@@ -402,6 +516,7 @@ export function PanelNeurona() {
             )}
 
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+                <TarjetaVerificacion verificacion={salud.verificacion} />
                 <TarjetaMemoria salud={salud} />
                 <TarjetaSwap salud={salud} />
                 <TarjetaVoz salud={salud} />
