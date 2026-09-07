@@ -86,6 +86,21 @@ En la nube el techo es **2 trabajadores** (`--workers 2`): más saturan el conte
 **Nunca en el repo ni en memorias** (solo nombres de variable). Viven en `~/.starseed/env`
 (chmod 600) y `~/.hermes/.env`.
 
+## Claves por medio (Ola 271, P9 · 2026-09-07)
+
+Pedido de Alex: si se agotan los recursos de un proveedor, el orquestador **tira de otra
+clave del MISMO proveedor de otro medio** antes de darlo por caído. Cada proveedor puede
+tener varias claves repartidas entre los archivos de entorno (`.env.local` del repo,
+`~/.hermes/.env`, `~/.starseed/env` y los `.env.local` de la Mac y la nube), con sufijos
+`NOMBRE`, `NOMBRE_2` … `NOMBRE_9`; cada archivo se lee por separado (ya no se pisan) y los
+valores repetidos se deduplican. Cuando una clave recibe 402, un aviso de cuota o tres 429
+en 10 min, `agotar_clave` la marca en `~/.starseed/salud-proveedores.json`
+(`claves_agotadas[huella]`) y se salta a la siguiente; solo cuando TODAS están agotadas se
+llama a `marcar_sin_cupo`. Los **valores solo viven en los archivos de entorno (chmod
+600)**: en logs, eventos, JSON y el Mando aparecen únicamente el nombre de la variable, el
+medio y una huella sha256 corta (`estado_claves`, escrito bajo `claves` en cada sondeo).
+Pruebas: `test_claves.py`.
+
 ## Regla de Alex
 
 Todo lo ejecuta el enjambre; Claude **diseña, supervisa y verifica** — no edita a mano lo que una

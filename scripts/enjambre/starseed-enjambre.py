@@ -24,7 +24,7 @@ Tiempos configurables (2026-09-06, Ola 261):
     una escritura legítima por trozos puede tardar ESCRITURA_S, así que el vigilante nunca debe
     ser más impaciente que la mitad de ese margen.
 """
-import json, os, re, subprocess, sys, threading, time, urllib.request, urllib.error, shutil, collections
+import hashlib, json, os, re, subprocess, sys, threading, time, urllib.request, urllib.error, shutil, collections
 import signal
 import contextlib, fcntl
 
@@ -523,6 +523,196 @@ def leer_env(*rutas):
         except Exception: pass
     return env
 ENV = leer_env(os.path.join(ROOT, ".env.local"), "~/.hermes/.env", "~/.starseed/env")
+
+# ── capa de claves por medio (2026-09-07, Ola 271, P9) ────────────────────
+# Pedido de Alex: «si se terminan los recursos de una API debes conseguir una del mismo
+# proveedor de algún otro medio». Cada proveedor puede tener VARIAS claves repartidas
+# entre los archivos de entorno de cada medio (el .env.local del repo, el de Hermes, el
+# de ~/.starseed y los de las otras copias del repo en la Mac y la nube), con la
+# convención de sufijos `NOMBRE`, `NOMBRE_2` … `NOMBRE_9`. Cuando una se agota (402,
+# aviso de cuota o tres 429 seguidos en 10 min) se rota a la siguiente SIN parar.
+# Los valores JAMÁS se escriben en logs, eventos ni JSON: solo el nombre de la variable,
+# el medio (nombre corto del archivo) y una huella sha256 corta para distinguirlas.
+CLAVES_POR_PROVEEDOR = {
+    "nvidia":     ["NVIDIA_API_KEY", "NVIDIA_SHARED_KEY"],
+    "xkiro":      ["XKIRO_API_KEY"],
+    "aihubmix":   ["AIHUBMIX_API_KEY"],
+    "tokenrouter":["TOKENROUTER_API_KEY"],
+    "openrouter": ["OPENROUTER_API_KEY", "OPENROUTER_SHARED_KEY"],
+    "gemini":     ["GEMINI_API_KEY", "GOOGLE_API_KEY", "NEXT_PUBLIC_GOOGLE_API_KEY"],
+    "llm7":       ["LLM7_API_KEY"],
+    "freetheai":  ["FREETHEAI_API_KEY"],
+}
+# En la flota el proveedor de NVIDIA se llama «nim», pero sus variables son NVIDIA_*.
+_ALIAS_CLAVES = {"nim": "nvidia"}
+# Archivos de entorno que se recorren POR SEPARADO (el último ya no pisa a los demás:
+# cada medio conserva sus propias claves). Solo nombres de ruta; los valores nunca
+# salen de estos archivos (viven con permisos 600).
+RUTAS_ENV_CLAVES = [
+    ("env.local-os",   os.path.join(ROOT, ".env.local")),
+    ("hermes",         "~/.hermes/.env"),
+    ("starseed",       "~/.starseed/env"),
+    ("env.local-mac",  "~/Documents/starseed-os-main/.env.local"),
+    ("env.local-nube", "~/starseed-system/.env.local"),
+]
+
+
+def _prov_claves(prov):
+    """Normaliza el nombre del proveedor al del mapa de claves (nim → nvidia)."""
+    return _ALIAS_CLAVES.get(prov, prov)
+
+
+def _nombres_clave(prov):
+    """Nombres de variable de un proveedor, con sus sufijos _2…_9 detrás de cada uno."""
+    for base in CLAVES_POR_PROVEEDOR.get(_prov_claves(prov), []):
+        yield base
+        for n in range(2, 10):
+            yield "%s_%d" % (base, n)
+
+
+def _huella_clave(valor):
+    """Identificador público de una clave: 8 hex de su sha256. Sirve para anotar en el
+    JSON de salud QUÉ clave se agotó sin escribir jamás el valor."""
+    return hashlib.sha256(valor.encode("utf-8", "ignore")).hexdigest()[:8]
+
+
+def _leer_env_ruta(ruta):
+    """Parsea UN archivo de entorno (igual que leer_env pero de una sola ruta)."""
+    return leer_env(ruta)
+
+
+def _claves_crudas(prov):
+    """Todas las claves disponibles de un proveedor, en el orden de los archivos (y del
+    entorno del proceso al final), deduplicadas por VALOR. Cada item:
+    {var, medio, valor, huella}. Los duplicados exactos no cuentan como clave extra."""
+    vistas = set()
+    out = []
+    for medio, ruta in RUTAS_ENV_CLAVES:
+        for nombre in _nombres_clave(prov):
+            v = _leer_env_ruta(ruta).get(nombre)
+            if v and v not in vistas:
+                vistas.add(v)
+                out.append({"var": nombre, "medio": medio, "valor": v, "huella": _huella_clave(v)})
+    for nombre in _nombres_clave(prov):                      # el proceso también es un medio
+        v = os.environ.get(nombre)
+        if v and v not in vistas:
+            vistas.add(v)
+            out.append({"var": nombre, "medio": "proceso", "valor": v, "huella": _huella_clave(v)})
+    return out
+
+
+def _clave_agotada_hasta(prov, huella):
+    """Fecha (texto) hasta la que esta clave consta agotada, o None si está vigente."""
+    ent = ((_salud().get(prov) or {}).get("claves_agotadas") or {}).get(huella)
+    hasta = (ent or {}).get("hasta") or ""
+    if not hasta:
+        return None
+    try:                                                    # agotamiento viejo ya no cuenta
+        return hasta if time.strptime(hasta, "%Y-%m-%d %H:%M:%S") > time.localtime() else None
+    except Exception:
+        return None
+
+
+def claves_de(prov):
+    """Claves del proveedor, NO agotadas primero (en el orden de los archivos) y las
+    agotadas al final, por si no queda otra que reintentarlas tras su enfriamiento."""
+    crudas = _claves_crudas(prov)
+    vivas = [c for c in crudas if not _clave_agotada_hasta(prov, c["huella"])]
+    gastadas = [c for c in crudas if _clave_agotada_hasta(prov, c["huella"])]
+    return vivas + gastadas
+
+
+def clave_activa(prov):
+    """La clave que toca usar AHORA: la primera cuya huella no está en claves_agotadas.
+    None si no hay ninguna o todas están agotadas."""
+    for c in _claves_crudas(prov):
+        if not _clave_agotada_hasta(prov, c["huella"]):
+            return c
+    return None
+
+
+def agotar_clave(prov, huella, motivo, horas=24):
+    """Marca una clave concreta como agotada (402, aviso de cuota o racha de 429) y deja
+    el relevo ya señalado. Solo cuando NO queda ninguna llama a marcar_sin_cupo: el
+    pedido de Alex es gastar TODAS las claves del proveedor antes de darlo por caído."""
+    claves = _claves_crudas(prov)
+    cual = next((c for c in claves if c["huella"] == huella),
+                {"var": "¿?", "medio": "¿?", "huella": huella})
+    d = _salud()
+    e = d.get(prov) or {}
+    agotadas = e.get("claves_agotadas") or {}
+    agotadas[huella] = {"hasta": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(time.time() + horas * 3600)),
+                        "motivo": str(motivo or "")[:140], "var": cual["var"], "medio": cual["medio"]}
+    e["claves_agotadas"] = agotadas
+    d[prov] = e
+    _salud_guardar(d)
+    siguiente = clave_activa(prov)
+    if siguiente:
+        evento("aviso", "", "clave %s (%s) de %s agotada: %s → paso a %s (%s)" % (
+            cual["var"], cual["medio"], prov, str(motivo)[:80], siguiente["var"], siguiente["medio"]))
+    else:
+        evento("aviso", "", "clave %s (%s) de %s agotada: %s → paso a ninguna; sin claves de este proveedor" % (
+            cual["var"], cual["medio"], prov, str(motivo)[:80]))
+        marcar_sin_cupo(prov, motivo, horas)      # todas agotadas: ahora sí, proveedor sin cupo
+
+
+def estado_claves():
+    """Resumen para el Mando y el JSON de salud (Ola 271, Tarea 3). Por proveedor: sus
+    claves con var/medio/huella/agotada_hasta, cuál está activa y el sin_cupo del
+    proveedor. NUNCA incluye valores: solo nombres de variable y huellas."""
+    d = _salud()
+    out = {}
+    for prov in CLAVES_POR_PROVEEDOR:
+        activa = clave_activa(prov)
+        out[prov] = {
+            "claves": [{"var": c["var"], "medio": c["medio"], "huella": c["huella"],
+                        "agotada_hasta": _clave_agotada_hasta(prov, c["huella"])}
+                       for c in _claves_crudas(prov)],
+            "activa": (activa or {}).get("var"),
+            "sin_cupo_hasta": (d.get(prov) or {}).get("sin_cupo_hasta"),
+        }
+    return out
+
+
+RACHA_429 = {}        # huella -> deque de momentos de 429; 3 en 10 min = clave agotada
+
+
+def _registrar_429_clave(huella):
+    """Cuenta 429 POR CLAVE (no por proveedor): una clave con tres 429 seguidos en 10
+    minutos se considera agotada y se rota; el resto del proveedor sigue disponible."""
+    q = RACHA_429.setdefault(huella, collections.deque())
+    t = time.time()
+    while q and t - q[0] > 600:
+        q.popleft()
+    q.append(t)
+    return len(q) >= 3
+
+
+def _sync_opencode_clave(modelo):
+    """(Tarea 2, escritores) opencode lee sus claves de «{env:VAR}» en
+    ~/.config/opencode/opencode.json: si la clave ACTIVA del proveedor ya no es esa,
+    se reescribe solo el nombre de la variable (nunca el valor) y se exporta en el
+    entorno del proceso hijo. Devuelve el dict extra de entorno para entorno_hijo."""
+    prov = modelo.split("/", 1)[0]
+    kay = clave_activa(prov)
+    if not kay:
+        return {}
+    extra = {kay["var"]: kay["valor"]}                 # el hijo la necesita en su entorno
+    try:
+        cfg = json.load(open(RUTA_OPENCODE_CFG, encoding="utf-8"))
+        bloque = (cfg.get("provider") or {}).get(prov)
+        api = ((bloque or {}).get("options") or {}).get("apiKey") or ""
+        m = re.fullmatch(r"\{env:([A-Z0-9_]+)\}", api.strip())
+        if m and m.group(1) != kay["var"]:
+            bloque["options"]["apiKey"] = "{env:%s}" % kay["var"]   # solo el NOMBRE cambia
+            with cerrojo("opencode-cfg", espera_aviso=9999):
+                json.dump(cfg, open(RUTA_OPENCODE_CFG, "w", encoding="utf-8"),
+                          ensure_ascii=False, indent=2)
+            evento("aviso", "", "opencode pasa a usar %s (%s) para %s: la anterior estaba agotada" % (
+                kay["var"], kay["medio"], prov))
+    except Exception:
+        pass              # sin config o proveedor nativo: el entorno extra ya basta
+    return extra
 
 # ── pasarelas OpenAI-compatibles declaradas por entorno (2026-09-05) ───────────
 # Cualquier enrutador gratuito entra en la flota SIN tocar código —freellmapi en local
