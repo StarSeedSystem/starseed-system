@@ -11,6 +11,7 @@
  * siendo la fuente de verdad para `restablecerVoz`.
  */
 
+import type { EmocionVoz } from "@/lib/voces/emociones";
 import { TIMBRES } from "@/lib/aurora/timbres";
 
 export interface VozEditable {
@@ -22,6 +23,17 @@ export interface VozEditable {
     local: { voz: string; speed: number; instruct: string; seed?: number; pitch?: number };
     sistema: { pitch: number; rate: number };
     expr: { arco: number; vivacidad: number; calidez: number };
+    /**
+     * (Ola 264) Emoción por defecto de esta voz. Opcional: si falta, suena
+     * neutra. Replica el campo `emocionBase` de `Timbre` para que las
+     * ediciones del catálogo editable viajen junto al resto.
+     */
+    emocionBase?: EmocionVoz;
+    /**
+     * (Ola 264) Cuánto se exagera la emoción (0–2; 1 = la de manual). Replica
+     * el campo `intensidad` de `Timbre` por la misma razón.
+     */
+    intensidad?: number;
     origen: "defecto" | "editada" | "clon";
     /** Id de la voz base cuando es un clon. */
     base?: string;
@@ -54,6 +66,8 @@ export function vocesDefecto(): VozEditable[] {
         },
         sistema: { pitch: t.sistema.pitch, rate: t.sistema.rate },
         expr: { arco: t.expr.arco, vivacidad: t.expr.vivacidad, calidez: t.expr.calidez },
+        ...(t.emocionBase ? { emocionBase: t.emocionBase } : {}),
+        ...(t.intensidad !== undefined ? { intensidad: t.intensidad } : {}),
         origen: "defecto",
         archivoCodigo: ARCHIVO,
     }));
@@ -119,6 +133,11 @@ export function clonarVoz(id: string, nombre: string): VozEditable | null {
         nombre,
         origen: "clon",
         base: id,
+        // Hereda emoción e intensidad de la base (estos campos opcionales viajan
+        // en el `...origen` de arriba, pero se explicitan para que se vea la
+        // intención en la lectura).
+        ...(origen.emocionBase ? { emocionBase: origen.emocionBase } : {}),
+        ...(origen.intensidad !== undefined ? { intensidad: origen.intensidad } : {}),
     };
     escribirPersistencia([...leerPersistencia(), clon]);
     return clon;

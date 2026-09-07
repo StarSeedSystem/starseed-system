@@ -18,10 +18,20 @@
  * variación neuronal se completa con semilla (vacía = la del demonio) y tono
  * (1 = natural), y «Probar» suena con el borrador COMPLETO, no con el timbre
  * guardado.
+ *
+ * (Ola 264 · G3, 2026-09-06) Forja fase 2-3: la pestaña «Ajustes» añade la
+ * emoción base y la intensidad de la voz (fichas del catálogo `EMOCIONES`
+ * con `title` de la descripción, deslizador 0-2 paso 0.1 y línea gris con
+ * el efecto calculado por `aplicarEmocion`), un segundo «Probar con
+ * etiqueta» que antepone `[emoción intensidad]` al texto de prueba para
+ * ejercitar la ruta de la etiqueta, y un bloque plegable con la vista
+ * previa del texto normalizado que oirá el motor
+ * (`normalizarParaVoz(FRASE_MUESTRA)`, J1). Guardar conserva `emocionBase`
+ * e `intensidad` porque `VozEditable` los replica desde `Timbre`.
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Dna, Play, RotateCcw, Save, Shuffle, Upload, Download } from "lucide-react";
+import { ChevronDown, Dna, Play, RotateCcw, Save, Shuffle, Tag, Upload, Download } from "lucide-react";
 
 import {
     cargarVoces,
@@ -35,9 +45,11 @@ import {
 import { buscarTimbre, type Timbre } from "@/lib/aurora/timbres";
 import {
     VOCABULARIO_INSTRUCT,
+    perfilNeuronal,
     semillaPorDefecto,
     validarInstruct,
 } from "@/lib/voces/perfil-neuronal";
+import { EMOCIONES, type EmocionVoz, aplicarEmocion } from "@/lib/voces/emociones";
 import {
     cargarVersiones,
     guardarVersiones,
@@ -67,6 +79,19 @@ type FiltroGenero = "todas" | VozEditable["genero"];
 
 const FRASE_MUESTRA =
     "Hola, soy una voz de StarSeed. Así sueno con estos ajustes: cálida al saludar, clara al contar y serena al cerrar.";
+
+/** Orden de las fichas de emoción (la "neutra" se muestra como "Sin emoción"). */
+const ORDEN_EMOCIONES: EmocionVoz[] = [
+    "neutra",
+    "alegre",
+    "serena",
+    "urgente",
+    "triste",
+    "solemne",
+    "jugueton",
+    "susurro",
+    "asombro",
+];
 
 /**
  * Etiquetas en español para los tokens del vocabulario del demonio
@@ -156,6 +181,11 @@ export function EstudioVoces() {
     const [aviso, setAviso] = useState<Aviso | null>(null);
     /** Versiones de voz del Estudio (Ola 240): el estado vive aquí y baja por props. */
     const [versiones, setVersiones] = useState<VersionVoz[]>([]);
+    /**
+     * (Ola 264 · G3) Bloque plegable de «Vista previa de lo que oirá el motor»:
+     * cerrado por defecto para no abrumar, se abre con un clic.
+     */
+    const [vistaPreviaAbierta, setVistaPreviaAbierta] = useState(false);
     const entradaArchivo = useRef<HTMLInputElement | null>(null);
 
     /** Timbre real detrás de la voz seleccionada (lo que «Crear versión» usa). */
@@ -214,6 +244,78 @@ export function EstudioVoces() {
             expr: { ...borrador.expr },
         };
     }, [borrador]);
+
+    /**
+     * (Ola 264 · G3) Resumen legible del efecto de la emoción sobre este
+     * timbre: factores de velocidad/tono e instruct efectivo. Es la línea
+     * gris que aparece bajo las fichas y bajo el deslizador de intensidad.
+     * Se calcula SIEMPRE sobre el timbre del borrador (no el guardado) para
+     * que lo que se ve sea lo que sonará al pulsar «Probar».
+     */
+    const efectoCalculado = useMemo(() => {
+        if (!timbreBorrador) return null;
+        const emocion = borrador?.emocionBase ?? "neutra";
+        const intensidad = borrador?.intensidad ?? 1;
+        if (emocion === "neutra" || intensidad <= 0) {
+            return {
+                factorSpeed: 1,
+                factorPitch: 1,
+                instruct: timbreBorrador.local.instruct ?? "",
+                intensidadAplicada: 0,
+            };
+        }
+        const base = perfilNeuronal(timbreBorrador);
+        const { perfil } = aplicarEmocion(base, timbreBorrador.expr, emocion, intensidad);
+        return {
+            factorSpeed: base.speed > 0 ? perfil.speed / base.speed : 1,
+            factorPitch: base.pitch > 0 ? perfil.pitch / base.pitch : 1,
+            instruct: perfil.instruct,
+            intensidadAplicada: intensidad,
+        };
+    }, [timbreBorrador, borrador?.emocionBase, borrador?.intensidad]);
+
+    /**
+     * (Ola 264 · G3) Texto normalizado que oirá el motor: `normalizarParaVoz`
+     * (J1) convierte números a palabras, signos a pausas, etc. La
+     * importación es DINÁMICA y defensiva: si J1 aún no entró al árbol, el
+     * bloque muestra el texto original sin marcar «normalizado» y la app
+     * sigue funcionando. En cuanto J1 integre su archivo, la vista previa
+     * aparece sola sin tocar este código.
+     */
+    const [normalizador, setNormalizador] = useState<
+        ((texto: string) => string) | null
+    >(null);
+    useEffect(() => {
+        let vivo = true;
+        // @ts-expect-error módulo aún no integrado por J1; la importación es defensiva (catch silencioso)
+        void import("@/lib/voces/normalizar-es")
+            .then((mod) => {
+                if (!vivo) return;
+                if (typeof mod.normalizarParaVoz === "function") {
+                    setNormalizador(() => mod.normalizarParaVoz);
+                }
+            })
+            .catch(() => {
+                // Módulo ausente: J1 aún no entra al árbol; se mostrará el original.
+            });
+        return () => {
+            vivo = false;
+        };
+    }, []);
+
+    const textoNormalizado = useMemo<
+        { original: string; normalizado: string; disponible: boolean; difiere: boolean }
+        | null
+    >(() => {
+        if (!borrador) return null;
+        const normalizado = normalizador ? normalizador(FRASE_MUESTRA) : FRASE_MUESTRA;
+        return {
+            original: FRASE_MUESTRA,
+            normalizado,
+            disponible: normalizador !== null,
+            difiere: normalizador !== null && normalizado !== FRASE_MUESTRA,
+        };
+    }, [borrador, normalizador]);
 
     /**
      * Selección visible del editor de fichas, derivada del instruct del
@@ -321,9 +423,25 @@ export function EstudioVoces() {
         setBorrador((b) => (b ? { ...b, ...parche } : b));
     };
 
-    const probar = () => {
+    /**
+     * Habla con la emoción e intensidad del BORRADOR. La emoción se pasa
+     * tanto en `opciones.emocion`/`opciones.intensidad` (lo que el motor usa
+     * para aplicar la capa) como, en `usarEtiqueta: true`, anteponiendo
+     * `[emoción intensidad]` al texto para ejercitar la ruta de la etiqueta
+     * (que siempre manda sobre las opciones y se recorta al hablar).
+     *
+     *  · `usarEtiqueta: false` → camino normal: la emoción viene de las
+     *    opciones y la etiqueta no aparece.
+     *  · `usarEtiqueta: true`  → camino etiqueta: la emoción del texto
+     *    manda; las opciones también la llevan para que ambos caminos
+     *    concuerden (la etiqueta se recorta, las opciones quedan para
+     *    auditorías y para el gesto del avatar).
+     */
+    const probar = (usarEtiqueta: boolean = false) => {
         if (!borrador || !timbreBorrador) return;
         setAviso(null);
+        const emocion = borrador.emocionBase ?? "neutra";
+        const intensidad = borrador.intensidad ?? 1;
         void (async () => {
             try {
                 const vozRito = await import("@/lib/aurora/voz-rito");
@@ -334,10 +452,18 @@ export function EstudioVoces() {
                 // (Ola 263 · F6) Se habla con el timbre del BORRADOR completo
                 // (instruct validado + seed + pitch + speed), no con el timbre
                 // guardado; si no, lo que suena no sería lo que se está viendo.
+                // (Ola 264 · G3) La emoción y la intensidad se pasan en
+                // opciones; con etiqueta se antepone `[emoción intensidad]`
+                // al texto (omitida si no hay emoción efectiva).
                 const { hablarStarSeed, nivelActual } = await import("@/lib/aurora/voz-starseed/motor");
-                const sono = await hablarStarSeed(FRASE_MUESTRA, {
+                const hayEmocion = emocion !== "neutra" && intensidad > 0;
+                const texto = usarEtiqueta && hayEmocion
+                    ? `[${emocion} ${intensidad.toFixed(1)}] ${FRASE_MUESTRA}`
+                    : FRASE_MUESTRA;
+                const sono = await hablarStarSeed(texto, {
                     timbre: timbreBorrador,
                     contexto: "rito",
+                    ...(hayEmocion ? { emocion, intensidad } : {}),
                 });
                 if (!sono) {
                     setAviso({ tipo: "error", texto: "No se pudo iniciar la prueba de voz." });
@@ -677,6 +803,79 @@ export function EstudioVoces() {
                                             </p>
                                         )}
                                     </div>
+
+                                    {/* (Ola 264 · G3) Emoción base e intensidad. La emoción es
+                                        una CAPA sobre el perfil neuronal (mismo timbre, otro
+                                        matiz): se elige con fichas del catálogo `EMOCIONES`,
+                                        se exagera con un deslizador 0-2 y la línea gris de
+                                        abajo muestra el efecto real que oirá el motor. */}
+                                    <div className="space-y-3 rounded-lg border p-3">
+                                        <p className="text-sm font-medium leading-none">Emoción base</p>
+                                        <p className="text-xs text-muted-foreground">
+                                            Capa sobre el perfil: misma voz, distinto matiz.
+                                        </p>
+                                        <div className="flex flex-wrap gap-1.5">
+                                            {ORDEN_EMOCIONES.map((clave) => {
+                                                const meta = EMOCIONES[clave];
+                                                const activo = (borrador.emocionBase ?? "neutra") === clave;
+                                                const esNeutro = clave === "neutra";
+                                                return (
+                                                    <button
+                                                        key={clave}
+                                                        type="button"
+                                                        title={meta.desc}
+                                                        aria-pressed={activo}
+                                                        onClick={() =>
+                                                            cambiar(
+                                                                esNeutro
+                                                                    ? { emocionBase: undefined, intensidad: undefined }
+                                                                    : { emocionBase: clave },
+                                                            )
+                                                        }
+                                                        className={`cursor-pointer rounded-full border px-2.5 py-1 text-xs transition-colors duration-200 ${
+                                                            activo
+                                                                ? "border-primary/60 bg-primary/10 text-foreground"
+                                                                : "border-border text-muted-foreground hover:bg-muted/60"
+                                                        }`}
+                                                    >
+                                                        {meta.nombre}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                        <div className="space-y-1.5">
+                                            <div className="flex items-center justify-between">
+                                                <Label htmlFor="voz-intensidad">Intensidad (0–2, 1 = de manual)</Label>
+                                                <span className="text-xs tabular-nums text-muted-foreground">
+                                                    {(borrador.intensidad ?? 1).toFixed(1)}
+                                                </span>
+                                            </div>
+                                            <Slider
+                                                id="voz-intensidad"
+                                                aria-label="Intensidad de la emoción"
+                                                value={[borrador.intensidad ?? 1]}
+                                                min={0}
+                                                max={2}
+                                                step={0.1}
+                                                onValueChange={(v) =>
+                                                    cambiar({ intensidad: v[0] ?? 1 })
+                                                }
+                                                className="cursor-pointer"
+                                            />
+                                            <p className="text-xs text-muted-foreground">
+                                                Escala la desviación: 0 = sin marca, 2 = caricatura.
+                                            </p>
+                                        </div>
+                                        {efectoCalculado && (
+                                            <p className="text-xs leading-relaxed text-muted-foreground">
+                                                velocidad ×{efectoCalculado.factorSpeed.toFixed(2)} · tono ×
+                                                {efectoCalculado.factorPitch.toFixed(2)} · instruct:{" "}
+                                                <span className="text-foreground/80">
+                                                    {efectoCalculado.instruct.trim() || "—"}
+                                                </span>
+                                            </p>
+                                        )}
+                                    </div>
                                     <div className="space-y-1.5">
                                         <Label htmlFor="voz-desc">Descripción</Label>
                                         <Textarea
@@ -769,9 +968,70 @@ export function EstudioVoces() {
                                         </p>
                                     )}
 
+                                    {/* (Ola 264 · G3) Vista previa de lo que oirá el motor:
+                                        bloque plegable con el texto normalizado por
+                                        `normalizarParaVoz` (J1). Si difiere del original
+                                        aparece marcado; si J1 aún no entró, se ve el
+                                        original sin la marca «normalizado». */}
+                                    {textoNormalizado && (
+                                        <div className="rounded-lg border bg-muted/30">
+                                            <button
+                                                type="button"
+                                                onClick={() => setVistaPreviaAbierta((v) => !v)}
+                                                aria-expanded={vistaPreviaAbierta}
+                                                aria-controls="voz-vista-previa-motor"
+                                                className="flex w-full cursor-pointer items-center justify-between gap-2 px-3 py-2 text-left text-sm font-medium"
+                                            >
+                                                <span>Vista previa de lo que oirá el motor</span>
+                                                <ChevronDown
+                                                    className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 ${
+                                                        vistaPreviaAbierta ? "rotate-180" : ""
+                                                    }`}
+                                                />
+                                            </button>
+                                            {vistaPreviaAbierta && (
+                                                <div
+                                                    id="voz-vista-previa-motor"
+                                                    className="space-y-2 border-t px-3 py-2 text-xs"
+                                                >
+                                                    <p className="text-muted-foreground">Original</p>
+                                                    <p className="rounded bg-background/60 p-2 font-mono text-foreground/90">
+                                                        {textoNormalizado.original}
+                                                    </p>
+                                                    <div className="flex items-center justify-between">
+                                                        <p className="text-muted-foreground">Lo que oirá el motor</p>
+                                                        {textoNormalizado.disponible ? (
+                                                            textoNormalizado.difiere ? (
+                                                                <Badge variant="secondary">normalizado</Badge>
+                                                            ) : (
+                                                                <span className="text-muted-foreground">sin cambios</span>
+                                                            )
+                                                        ) : (
+                                                            <span className="text-muted-foreground">
+                                                                normalizador no disponible
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <p className="rounded bg-background/60 p-2 font-mono text-foreground/90">
+                                                        {textoNormalizado.normalizado}
+                                                    </p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+
                                     <div className="flex flex-wrap gap-2">
-                                        <Button type="button" onClick={probar} className="cursor-pointer">
+                                        <Button type="button" onClick={() => probar(false)} className="cursor-pointer">
                                             <Play className="mr-1.5 h-4 w-4" /> Probar
+                                        </Button>
+                                        <Button
+                                            type="button"
+                                            variant="secondary"
+                                            onClick={() => probar(true)}
+                                            className="cursor-pointer"
+                                            title="Antepone [emoción intensidad] al texto para ejercitar el camino de la etiqueta"
+                                        >
+                                            <Tag className="mr-1.5 h-4 w-4" /> Probar con etiqueta
                                         </Button>
                                         <Button type="button" variant="secondary" onClick={guardar} className="cursor-pointer">
                                             <Save className="mr-1.5 h-4 w-4" /> Guardar
