@@ -24,6 +24,7 @@ import {
   compararConAnterior,
   resumenMarkdown,
   puntuacion,
+  similitudNormalizada,
 } from "./verificar-neurona.lib.mjs";
 
 // Umbrales por defecto con las claves que entiende la lib (ver sus `reglas`).
@@ -208,16 +209,206 @@ function checkRouterDesde(r) {
   return check("astraura_router", ESTADO_AVISO, r.error ?? r.status, "router de Astraura sin respuesta", r.ms);
 }
 
-// ── Pruebas opcionales (Q1d). Hoy solo declaran la omisión y NO entran en
-// el array de checks ni en la puntuación: van aparte en `informe.opcionales`.
-async function pruebaVoz() {
-  return { clave: "prueba_voz", estado: "omitido", valor: null, motivo: "pendiente de la tarea Q1d", ms: null };
+// ── Pruebas opcionales (Q1d · 2026-09-07). Cada una devuelve un check con la
+// misma forma que el resto para poder entrar en `checks` y en `medidas`, de
+// forma que `compararConAnterior` detecte regresiones de RTF de una corrida a
+// la siguiente. No se ejecutan salvo que se pidan por línea de comandos.
+
+/**
+ * Lee la duración en segundos de un WAV PCM (cabecera RIFF) sin asumir que el
+ * chunk `data` empiece en el byte 44: recorre los chunks hasta encontrarlo y
+ * divide sus bytes entre (sampleRate × canales × bitsPorMuestra/8). Devuelve
+ * NaN si el buffer no es un WAV válido o la cabecera está incompleta.
+ */
+function duracionWav(buf) {
+  if (!buf || buf.length < 44) return NaN;
+  const ascii = (inicio, bytes) => buf.toString("ascii", inicio, inicio + bytes);
+  if (ascii(0, 4) !== "RIFF" || ascii(8, 4) !== "WAVE" || ascii(12, 4) !== "fmt ") return NaN;
+  const canales = buf.readUInt16LE(22);
+  const sampleRate = buf.readUInt32LE(24);
+  const bitsPorMuestra = buf.readUInt16LE(34);
+  if (!canales || !sampleRate || !bitsPorMuestra) return NaN;
+  const bytesPorMuestra = bitsPorMuestra / 8;
+  // Tras `fmt ` (byte 12) se recorren los chunks: algunos escriben un chunk
+  // auxiliar (LIST) entre `fmt ` y `data`, así que se busca explícitamente.
+  let pos = 36;
+  while (pos + 8 <= buf.length) {
+    const nombre = ascii(pos, 4);
+    const bytes = buf.readUInt32LE(pos + 4);
+    if (nombre === "data") return bytes / (sampleRate * canales * bytesPorMuestra);
+    pos += 8 + bytes + (bytes % 2);
+  }
+  return NaN;
 }
-async function pruebaOido(_wav, _esperado) {
-  return { clave: "prueba_oido", estado: "omitido", valor: null, motivo: "pendiente de la tarea Q1d", ms: null };
+
+/**
+ * Síntesis real por el daemon de voz: pide la frase de verificación y clasifica
+ * la respuesta por su validez WAV, su duración y el RTF (tiempo de cómputo por
+ * segundo de audio). El resultado alimenta el check `prueba_voz` y las medidas
+ * `rtfVoz` y `segundosAudio`, que compara la corrida anterior.
+ */
+async function probarVoz(base) {
+  const t0 = Date.now();
+  // La síntesis devuelve binario (audio/wav); `pedir` no sirve porque llama a
+  // `.text()`. Se lee el cuerpo como bytes directamente.
+  let bytes = null;
+  let status = 0;
+  let error = null;
+  try {
+    const res = await fetch(`${base}/api/voz/hablar`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ texto: "Hola, soy una voz de StarSeed y esta es una prueba de verificación.", timbre: "aurora" }),
+      signal: AbortSignal.timeout(200_000),
+    });
+    status = res.status;
+    if (res.ok) bytes = Buffer.from(await res.arrayBuffer());
+  } catch (e) {
+    error = String(e?.message ?? e);
+  }
+  const ms = Date.now() - t0;
+  if (!bytes || bytes.toString("ascii", 0, 4) !== "RIFF" || bytes.toString("ascii", 8, 12) !== "WAVE") {
+    return { check: check("prueba_voz", ESTADO_FALLO, error ?? status, "la síntesis no devolvió un WAV válido", ms), medidas: {} };
+  }
+  const segundosAudio = duracionWav(bytes);
+  if (!Number.isFinite(segundosAudio) || segundosAudio < 1) {
+    // Un WAV RIFF con menos de 1 s de audio indica una síntesis truncada.
+    return { check: check("prueba_voz", ESTADO_FALLO, segundosAudio, "audio de síntesis inválido o menor de 1 s", ms), medidas: { segundosAudio } };
+  }
+  const rtfVoz = ms / 1000 / segundosAudio;
+  const estado = rtfVoz <= 12 ? ESTADO_OK : rtfVoz <= 25 ? ESTADO_AVISO : ESTADO_FALLO;
+  return {
+    check: check("prueba_voz", estado, rtfVoz, `síntesis de ${segundosAudio.toFixed(2)} s en ${ms} ms (RTF ${rtfVoz.toFixed(2)})`, ms),
+    medidas: { rtfVoz, segundosAudio },
+  };
 }
-async function pruebaBitnet() {
-  return { clave: "prueba_bitnet", estado: "omitido", valor: null, motivo: "pendiente de la tarea Q1d", ms: null };
+
+/**
+ * Reconocimiento del oído: sube un WAV local por multipart a
+ * `/api/voz-local/asr` y clasifica por el RTF y, si hay texto esperado, por la
+ * similitud entre lo transcrito y lo esperado. Devuelve medidas `rtfOido` y
+ * `similitud` para que la corrida previa detecte regresiones.
+ */
+async function probarOido(base, rutaWav, esperado) {
+  const t0 = Date.now();
+  let bytes = null;
+  try {
+    bytes = await readFile(rutaWav);
+  } catch {
+    return { check: check("prueba_oido", ESTADO_FALLO, null, `no se pudo leer el WAV de prueba (${rutaWav})`, null), medidas: {} };
+  }
+  const forma = new FormData();
+  forma.append("audio", new Blob([bytes], { type: "audio/wav" }), path.basename(rutaWav));
+  let r = { status: 0, json: null, texto: null, error: null };
+  try {
+    const res = await fetch(`${base}/api/voz-local/asr`, {
+      method: "POST",
+      body: forma,
+      signal: AbortSignal.timeout(400_000),
+    });
+    r.status = res.status;
+    const textoCuerpo = await res.text();
+    try {
+      r.json = JSON.parse(textoCuerpo);
+    } catch {
+      r.texto = textoCuerpo;
+    }
+  } catch (e) {
+    r.error = String(e?.message ?? e);
+  }
+  const ms = Date.now() - t0;
+  const j = r.json;
+  const bien = r.status === 200 && j && typeof j === "object" && j.ok === true;
+  if (!bien) {
+    return { check: check("prueba_oido", ESTADO_FALLO, r.error ?? r.status, "el oído no transcribió (respuesta no esperada)", ms), medidas: {} };
+  }
+  const texto = typeof j.texto === "string" ? j.texto.trim() : "";
+  if (!texto) {
+    return { check: check("prueba_oido", ESTADO_FALLO, "", "la transcripción vino vacía", ms), medidas: {} };
+  }
+  const segundosAudio = numero(j.segundosAudio);
+  const rtfOido = segundosAudio && segundosAudio > 0 ? ms / 1000 / segundosAudio : null;
+
+  // Primero el RTF: si no hay duración del audio o el cómputo es muy lento,
+  // no merece la pena comparar con el texto esperado.
+  let estado = ESTADO_OK;
+  let motivo = `transcribió ${texto.length} caracteres en ${ms} ms`;
+  if (rtfOido === null) {
+    estado = ESTADO_FALLO;
+    motivo = "no se pudo medir el RTF del oído";
+  } else {
+    motivo += ` (RTF ${rtfOido.toFixed(2)})`;
+    if (rtfOido > 20) estado = ESTADO_FALLO;
+    else if (rtfOido > 8) estado = ESTADO_AVISO;
+  }
+
+  let similitud = null;
+  if (estado !== ESTADO_FALLO && esperado) {
+    similitud = similitudNormalizada(texto, esperado);
+    if (similitud >= 0.6) estado = ESTADO_OK;
+    else if (similitud >= 0.4) estado = estado === ESTADO_OK ? ESTADO_AVISO : estado;
+    else estado = ESTADO_FALLO;
+    motivo += ` (similitud ${similitud.toFixed(2)} con lo esperado)`;
+  }
+
+  const medidas = {};
+  if (rtfOido !== null) medidas.rtfOido = rtfOido;
+  if (similitud !== null) medidas.similitud = similitud;
+  medidas.textoNoVacio = texto.length > 0 ? 1 : 0;
+  return { check: check("prueba_oido", estado, texto.slice(0, 60), motivo, ms), medidas };
+}
+
+/**
+ * Aterriza un subagente en Astraura: mide la latencia de `POST /api/router/subagents`
+ * y detecta si el número de crashes del llama-server aumentó respecto a antes.
+ * Devuelve las medidas `nExitosos` y `bitnetLatenciaS` para la comparación.
+ */
+async function probarBitnet(astraura, base) {
+  // Crashes en 24 h que reporta la neurona antes de aterrizar el subagente.
+  const antesJ = (await pedir(`${base}/api/mando/neurona`)).json;
+  const antes = numero(antesJ?.crashes24h ?? antesJ?.bitnet?.crashes24h);
+  const t0 = Date.now();
+  let r = { status: 0, json: null, error: null };
+  try {
+    const res = await fetch(`${astraura}/api/router/subagents`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ prompt: "Responde en una frase qué es StarSeed OS." }),
+      signal: AbortSignal.timeout(200_000),
+    });
+    r.status = res.status;
+    r.json = await res.json();
+  } catch (e) {
+    r.error = String(e?.message ?? e);
+  }
+  const ms = Date.now() - t0;
+  const nExitosos = numero(r.json?.n_exitosos);
+  const fallos = Array.isArray(r.json?.fallos) ? r.json.fallos : [];
+  const despuesJ = (await pedir(`${base}/api/mando/neurona`)).json;
+  const despues = numero(despuesJ?.crashes24h ?? despuesJ?.bitnet?.crashes24h);
+  const crashesAumentan = antes !== null && despues !== null && despues > antes;
+  const latenciaS = ms / 1000;
+
+  let estado = ESTADO_OK;
+  let motivo = `subagente con ${nExitosos ?? 0} éxitos en ${ms} ms`;
+  if (fallos.length > 0 || crashesAumentan) {
+    estado = ESTADO_FALLO;
+    motivo = fallos.length > 0 ? `el subagente reportó ${fallos.length} fallos` : "los crashes de BitNet aumentaron durante la prueba";
+  } else if (nExitosos === null || nExitosos < 1) {
+    estado = ESTADO_FALLO;
+    motivo = "el subagente no devolvió ningún éxito";
+  } else if (latenciaS > 300) {
+    estado = ESTADO_FALLO;
+    motivo = `subagente demasiado lento (${ms} ms)`;
+  } else if (latenciaS > 180) {
+    estado = ESTADO_AVISO;
+    motivo = `subagente lento (${ms} ms)`;
+  }
+
+  return {
+    check: check("prueba_bitnet", estado, nExitosos, motivo, ms),
+    medidas: { nExitosos, bitnetLatenciaS: latenciaS, crashesDelta: crashesAumentan ? 1 : 0 },
+  };
 }
 
 /** Commit corto del repo; tolerante: si no hay git, devuelve null. */
@@ -326,7 +517,31 @@ async function main() {
 
   const checks = [raiz, mandoEstado, mandoRamificacion, mandoNeurona, vozSalud, vozLocal, astrauraRouter];
   checks.push(checkBitnet(neuronaJson, { json: rRouter.json }));
-  // Umbrales numéricos evaluados por la lib pura.
+
+  // Pruebas opcionales (Q1d): entran en `checks` y en `medidas` como cualquier
+  // otro, para que `compararConAnterior` detecte regresiones de RTF o crashes.
+  const opcionales = [];
+  if (opciones.voz) {
+    const p = await probarVoz(base);
+    checks.push(p.check);
+    Object.assign(medidas, p.medidas);
+    opcionales.push(p.check);
+  }
+  if (opciones.oido !== null) {
+    const p = await probarOido(base, opciones.oido, opciones.esperado);
+    checks.push(p.check);
+    Object.assign(medidas, p.medidas);
+    opcionales.push(p.check);
+  }
+  if (opciones.bitnet) {
+    const p = await probarBitnet(astraura, base);
+    checks.push(p.check);
+    Object.assign(medidas, p.medidas);
+    opcionales.push(p.check);
+  }
+
+  // Umbrales numéricos evaluados por la lib pura (tras inyectar las medidas de
+  // las pruebas, p. ej. rtfVoz/rtfOido, aunque hoy no tengan umbral por defecto).
   for (const r of evaluarUmbrales(medidas, umbrales)) {
     checks.push({ clave: r.clave, estado: r.estado, valor: r.valor, motivo: r.motivo, ms: null });
   }
@@ -343,12 +558,6 @@ async function main() {
       }
     }
   }
-
-  // Pruebas opcionales (Q1d): se registran aparte; no puntúan todavía.
-  const opcionales = [];
-  if (opciones.voz) opcionales.push(await pruebaVoz());
-  if (opciones.oido !== null) opcionales.push(await pruebaOido(opciones.oido, opciones.esperado));
-  if (opciones.bitnet) opcionales.push(await pruebaBitnet());
 
   const puntos = puntuacion({ checks, resumen: { regresiones } });
   const commit = await commitActual();
