@@ -34,6 +34,16 @@ import { PanelAjustes } from "@/components/mando/panel-ajustes";
 import { PanelNeurona } from "@/components/mando/panel-neurona";
 import { PanelAprendizaje } from "@/components/mando/panel-aprendizaje";
 import { PanelPublicaciones } from "@/components/mando/panel-publicaciones";
+// Ola 275 · V4 (2026-09-07): la pestaña «Voces» monta el Estudio de Voces dentro
+// del Mando, y la Voz del Mando (provider + control en la cabecera) se cablea aquí
+// UNA sola vez para que los anuncios hablados no se dupliquen.
+import { PanelVoces } from "@/components/mando/panel-voces";
+import {
+    ControlVozDelMando,
+    VozMandoProvider,
+    useVozDelMando,
+    type EstadoVozMando,
+} from "@/components/mando/voz-del-mando";
 // Solo el tipo viaja al cliente: `neurona.ts` es código de servidor (sonda la
 // máquina) y un import de valor metería `node:child_process` en el bundle web.
 import type { SaludNeurona } from "@/lib/mando/neurona";
@@ -51,6 +61,7 @@ const PESTANAS = [
     { id: "commits", etiqueta: "Commits pendientes" },
     { id: "flota", etiqueta: "Flota" },
     { id: "neurona", etiqueta: "Neurona" },
+    { id: "voces", etiqueta: "Voces" },
     { id: "aprendizaje", etiqueta: "Aprendizaje" },
     { id: "chat", etiqueta: "Chat" },
     { id: "areas", etiqueta: "Áreas" },
@@ -60,9 +71,13 @@ const PESTANAS = [
 
 type IdPestana = (typeof PESTANAS)[number]["id"];
 
-/** Lee la última pestaña guardada (o la primera). */
+/** Lee la pestaña inicial: primero `?pestana=` de la URL (p. ej. desde /voces), luego la última guardada. */
 function pestanaInicial(): IdPestana {
     if (typeof window === "undefined") return "procesos";
+    // La URL manda sobre el recuerdo: «Abrir en el Puente de Mando» desde /voces
+    // debe aterrizar en la pestaña «Voces» aunque la última visita fuera otra.
+    const deLaUrl = new URLSearchParams(window.location.search).get("pestana");
+    if (deLaUrl && PESTANAS.some((p) => p.id === deLaUrl)) return deLaUrl as IdPestana;
     const guardada = window.localStorage.getItem(CLAVE_PESTANA);
     return (PESTANAS.some((p) => p.id === guardada) ? guardada : "procesos") as IdPestana;
 }
@@ -362,7 +377,36 @@ export function CentroMando() {
         };
     }, [neurona]);
 
+    // Ola 275 · V4: la Voz del Mando se monta UNA vez aquí (no por pestaña), para
+    // que los anuncios hablados no se dupliquen al cambiar de vista. Se alimenta
+    // de los eventos del relevo y de un resumen mínimo del estado («Léeme el
+    // estado»); si no hay estado aún, la voz espera en silencio.
+    const estadoVozMando = useMemo<EstadoVozMando | null>(() => {
+        if (!estado) return null;
+        const proveedoresCaidos = new Set<string>();
+        for (const e of estado.enjambres ?? []) {
+            for (const [prov, salud] of Object.entries(e.proveedores ?? {})) {
+                if (salud.estado === "caido") proveedoresCaidos.add(prov);
+            }
+        }
+        return {
+            olaActiva: estado.cuentas?.ola,
+            cuentas: estado.cuentas
+                ? {
+                      integradas: estado.cuentas.integradas,
+                      enCurso: estado.cuentas.enCurso,
+                      fallidas: estado.cuentas.fallidas,
+                      pendientes: estado.cuentas.pendientes,
+                  }
+                : undefined,
+            proveedoresCaidos: [...proveedoresCaidos],
+            sinPublicar: sinPublicar ?? undefined,
+        };
+    }, [estado, sinPublicar]);
+    const controlVoz = useVozDelMando(estado?.relevo?.eventos ?? [], estadoVozMando);
+
     return (
+        <VozMandoProvider control={controlVoz}>
         <div className="space-y-5">
             {cargando ? (
                 <p className="flex items-center gap-2 text-sm text-white/60">
@@ -499,6 +543,11 @@ export function CentroMando() {
                 <TabsContent value="neurona">
                     <PanelNeurona />
                 </TabsContent>
+                <TabsContent value="voces">
+                    {/* El Estudio pesa (forja, motores, oído): solo se monta al abrir
+                        la pestaña; Radix lo desmonta al salir (forceMount no se usa). */}
+                    {pestana === "voces" ? <PanelVoces /> : null}
+                </TabsContent>
                 <TabsContent value="aprendizaje">
                     <PanelAprendizaje />
                 </TabsContent>
@@ -515,7 +564,10 @@ export function CentroMando() {
                     <PanelAjustes />
                 </TabsContent>
             </Tabs>
+            {/* Control de la voz junto a la orbe: activar/silenciar sin abrir la pestaña. */}
+            <ControlVozDelMando />
             <OrbeAsistente />
         </div>
+        </VozMandoProvider>
     );
 }

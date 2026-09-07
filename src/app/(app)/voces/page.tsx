@@ -26,9 +26,20 @@ export default function VocesPage() {
                         Ajusta, prueba y clona las voces que hablan en todo el sistema. Toca la orbe para oír la voz activa.
                     </p>
                 </div>
-                <Link href="/escritorios" className="rounded-md border border-white/15 px-3 py-1.5 text-xs text-white/70 hover:bg-white/5">
-                    ← Volver al OS
-                </Link>
+                <div className="flex flex-wrap items-center gap-2">
+                    {/* Ola 275 · V4: el mismo Estudio se puede abrir dentro del
+                        Puente de Mando (pestaña «Voces»); la URL manda sobre el
+                        recuerdo de pestaña (`?pestana=voces`). */}
+                    <Link
+                        href="/mando?pestana=voces"
+                        className="rounded-md border border-white/15 px-3 py-1.5 text-xs text-white/70 hover:bg-white/5"
+                    >
+                        Abrir en el Puente de Mando
+                    </Link>
+                    <Link href="/escritorios" className="rounded-md border border-white/15 px-3 py-1.5 text-xs text-white/70 hover:bg-white/5">
+                        ← Volver al OS
+                    </Link>
+                </div>
             </header>
             <EstudioVoces />
         </main>
