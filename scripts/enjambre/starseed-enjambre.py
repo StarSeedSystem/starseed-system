@@ -209,6 +209,13 @@ MODELS_URLS = {
 HORAS_AGOTAR = {"429": 1, "402": 24, "cuota": 24}
 
 
+def _gravedad_tipo(tipo):
+    """(2026-09-07, Ola 271, P9E, Tarea 3) Nivel de gravedad de un motivo de agotamiento:
+    un 429 (atasco de ritmo, 1 h) es menos grave que un 402/cuota (fin de cuota, 24 h). La
+    deduplicación del aviso compara estos niveles, no los segundos del `hasta`."""
+    return 2 if tipo in ("402", "cuota") else 1
+
+
 def _claves_agotadas_futuras(prov):
     """Entradas de `claves_agotadas` con `hasta` futuro (mapping huella → entrada). Las vencidas
     ya no cuentan: se ignora el agotamiento pasado (2026-09-07, Ola 271, P9D)."""
@@ -476,8 +483,12 @@ def _sonda_ligera(prov, claves, kay):
                 marcar_sin_cupo(prov, "sonda: HTTP 402", 24)
         else:
             _clasificar_fallo_cupo(prov, e)
-    except Exception:
-        pass
+    except Exception as e:
+        # (2026-09-07, Ola 271, P9E, Tarea 2) Nada de tragar la excepción en silencio: se anota
+        # el motivo real (sin la clave) en el log y en la memoria de uso, para que el proveedor
+        # conste caído con causa y la sonda no devuelva «muerto» sin explicación.
+        USO_REAL[prov] = (time.time(), False)
+        print("sonda ligera %s: %s: %s" % (prov, type(e).__name__, str(e)[:200]), flush=True)
     return False
 
 
@@ -810,7 +821,12 @@ def agotar_clave(prov, huella, motivo, tipo="cuota"):
         prev_epoch = time.mktime(time.strptime(prev.get("hasta") or "", "%Y-%m-%d %H:%M:%S"))
     except Exception:
         prev_epoch = 0
-    if prev_epoch >= time.time() and prev_epoch >= hasta_epoch:
+    # (2026-09-07, Ola 271, P9E, Tarea 3) La deduplicación NO se decide por los segundos del
+    # `hasta` (cada llamada recalcula `ahora + horas` y un 429 milisegundos después siempre
+    # daba un `hasta_epoch` un poco mayor → se reescribía y avisaba de nuevo). Se decide por la
+    # GRAVEDAD del motivo: una huella ya agotada sigue vigente y solo se re-anuncia cuando el
+    # nuevo tipo es más grave (402/cuota sobre 429). Un 429 repetido no mueve nada.
+    if prev_epoch >= time.time() and _gravedad_tipo(tipo) <= _gravedad_tipo(prev.get("tipo") or "cuota"):
         return
     agotadas[huella] = {"hasta": hasta_txt, "motivo": str(motivo or "")[:140],
                         "var": cual["var"], "medio": cual["medio"], "tipo": tipo}

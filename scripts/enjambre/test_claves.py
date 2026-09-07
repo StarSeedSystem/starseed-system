@@ -294,7 +294,7 @@ def _abre_200(_req, timeout=None):
 def _registra_url(urls):
     def _urlopen(req, timeout=None):
         urls.append(req.full_url)
-        return _abre_200()
+        return _abre_200(req, timeout=timeout)
     return _urlopen
 
 
