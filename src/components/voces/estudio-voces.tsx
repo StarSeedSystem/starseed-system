@@ -287,7 +287,6 @@ export function EstudioVoces() {
     >(null);
     useEffect(() => {
         let vivo = true;
-        // @ts-expect-error módulo aún no integrado por J1; la importación es defensiva (catch silencioso)
         void import("@/lib/voces/normalizar-es")
             .then((mod) => {
                 if (!vivo) return;

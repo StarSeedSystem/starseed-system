@@ -33,6 +33,8 @@ import {
     EMOCIONES,
     type EmocionVoz,
 } from "@/lib/voces/emociones";
+// (2026-09-06, Ola 264 · J1b) Normalización en español del texto hablado.
+import { normalizarParaVoz } from "@/lib/voces/normalizar-es";
 
 /** Identificador público del motor único, para registros y paneles. */
 export const VOZ_STARSEED_ID = "starseed.voz-unica.v1";
@@ -270,6 +272,13 @@ export interface OpcionesHablar {
      * su propia vía de navegador, que sí espera al `onend` de cada cláusula.
      */
     sinSistema?: boolean;
+    /**
+     * (2026-09-06, Ola 264 · J1b) Salta la normalización en español
+     * (`normalizarParaVoz`). Por defecto TODO texto se normaliza en el punto
+     * único antes de sintetizar (números, abreviaturas, siglas, Markdown…);
+     * esta opción solo es para vías que ya entregan el texto normalizado.
+     */
+    sinNormalizar?: boolean;
 }
 
 /**
@@ -350,7 +359,12 @@ export async function hablarStarSeed(texto: string, opciones: OpcionesHablar): P
     // (2026-09-06, Ola 264 · G2) La etiqueta `[emocion]` al inicio del texto
     // manda sobre las opciones y suena SIN ella — nadie oye «alegre, hola».
     const resuelta = resolverEmocion(texto, opciones, opciones.timbre);
-    const limpio = (resuelta.texto || "").trim();
+    // (2026-09-06, Ola 264 · J1b) Normalización en español aplicada UNA vez en
+    // el punto único por el que pasa todo texto antes de sintetizar: así los
+    // cuatro niveles (estudio/alta/ligera/mínima) escuchan lo mismo.
+    const limpio = (
+        opciones.sinNormalizar ? resuelta.texto : normalizarParaVoz(resuelta.texto)
+    ).trim();
     if (!limpio || typeof window === "undefined") return false;
 
     // La emoción es una capa sobre el PERFIL del timbre (no otra voz): aquí se
