@@ -959,7 +959,9 @@ export function ChatSurface({ variant = "embedded", className, initialConvId }: 
             crece hasta seis líneas (Enter envía, Mayús+Enter salta de línea), botones de
             40 px y letra de 15 px— en vez del input de una línea de 36 px que se veía
             «reducido» al pie de la página. */}
-        <div className="mx-auto flex w-full max-w-4xl items-end gap-2 rounded-2xl border border-white/10 bg-white/[0.03] p-2 backdrop-blur-sm" data-testid="chat-composer">
+        {/* pb extra bajo el compositor (Ola 278 · CH1): garantiza 8 px + zona segura
+            inferior aunque el dock aparezca por debajo en algunas configuraciones. */}
+        <div className="mx-auto flex w-full max-w-4xl items-end gap-2 rounded-2xl border border-white/10 bg-white/[0.03] p-2 pb-[calc(env(safe-area-inset-bottom)+8px)] backdrop-blur-sm" data-testid="chat-composer">
           <ChatAttachButton
             onPick={(picked) => setPendingAttachments((prev) => [...prev, ...picked])}
             folder="aurora"
@@ -1023,6 +1025,9 @@ export function ChatSurface({ variant = "embedded", className, initialConvId }: 
   // ── PANTALLA COMPLETA: barra lateral colapsable + chat ──
   if (fullscreen) {
     return (
+      // h-full min-h-0 (Ola 278 · CH1): el contenedor raíz debe llenar el alto que
+      // el layout de la página mida (page.tsx), y solo el ScrollArea interior hace
+      // scroll. Sin min-h-0 el alto por contenido empujaría el compositor fuera.
       <div className={cn("flex h-full min-h-0 w-full gap-3", className)}>
         {navCollapsed ? (
           <button
