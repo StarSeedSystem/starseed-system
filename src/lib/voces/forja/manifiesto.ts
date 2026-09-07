@@ -217,6 +217,7 @@ export interface FaseForja {
     id: string;
     titulo: string;
     estado: "hecho" | "en-curso" | "pendiente" | "bloqueado-por-hardware";
+    nota?: string;
   }>;
 }
 
@@ -239,7 +240,8 @@ export const FASES_FORJA: FaseForja[] = [
       {
         id: "frontend-espanol",
         titulo: "normalización y fonemización en español propia",
-        estado: "pendiente"
+        estado: "en-curso",
+        nota: "normalización real en main (src/lib/voces/normalizar-es.ts, Ola 264 J1); queda la fonemización"
       },
       {
         id: "acustico-ternario",
@@ -249,7 +251,14 @@ export const FASES_FORJA: FaseForja[] = [
       {
         id: "asr-ternario",
         titulo: "reconocimiento de voz 1.58-bit con VibeASR.cpp en el demonio",
-        estado: "en-curso"
+        estado: "hecho",
+        nota: "VibeASR.cpp instalado, POST /asr, residente asr_stream_server; transcripción real en español en 20 s para 6,3 s de audio (Olas 252-255)"
+      },
+      {
+        id: "tts-streaming-158",
+        titulo: "TTS en streaming 1.58: candidato vibevoice.cpp (Realtime 0.5B)",
+        estado: "pendiente",
+        nota: "vibevoice.cpp porta Realtime 0.5B (voces en GGUF, solo inglés documentado, sin clonación en runtime); hoy no sustituye a OmniVoice en español (ver SOP §10)"
       }
     ]
   },
@@ -271,7 +280,8 @@ export const FASES_FORJA: FaseForja[] = [
       {
         id: "emociones-etiquetas",
         titulo: "etiquetas de emoción para las variaciones",
-        estado: "pendiente"
+        estado: "hecho",
+        nota: "src/lib/voces/emociones.ts con etiquetas [emocion intensidad] y aplicación sobre el perfil neuronal (Ola 264 G1)"
       }
     ]
   },
@@ -288,7 +298,8 @@ export const FASES_FORJA: FaseForja[] = [
       {
         id: "intensidad-exageracion",
         titulo: "control continuo de 'exageración/intensidad' como ajuste de personalización por voz",
-        estado: "pendiente"
+        estado: "hecho",
+        nota: "aplicarEmocion escala la desviación con intensidad 0-2 sobre el perfil neuronal (src/lib/voces/emociones.ts, Ola 264 G2)"
       },
       {
         id: "versiones-guardadas",
@@ -298,7 +309,8 @@ export const FASES_FORJA: FaseForja[] = [
       {
         id: "efectos-y-tomas",
         titulo: "cola de generación, historial de tomas y cadena de efectos al estilo Voicebox",
-        estado: "pendiente"
+        estado: "hecho",
+        nota: "cadena de efectos en POST /tts (src/lib/voces/efectos.ts) y tomas reproducibles (src/lib/voces/tomas-voz.ts), Ola 265 H1/H2"
       }
     ]
   },
@@ -314,8 +326,9 @@ export const FASES_FORJA: FaseForja[] = [
       },
       {
         id: "conversion-timbre",
-        titulo: "conversor de timbre como capa de 'variación por personalidad' sin reentrenar el modelo acústico",
-        estado: "pendiente"
+        titulo: "capa ligera de conversión (tono + efectos + clon por referencia) sobre el mismo modelo; la conversión neuronal de timbre (tipo RVC) queda bloqueada por hardware en 8 GB",
+        estado: "en-curso",
+        nota: "la capa ligera existe (tono del perfil neuronal, cadena de efectos, clonación por referencia con clonacion.ts); la conversión neuronal de timbre (tipo RVC) no cabe en la Mac de 8 GB"
       },
       {
         id: "fusion-de-voces",

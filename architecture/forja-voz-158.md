@@ -7,7 +7,7 @@
 > todo lo que dice sobre motores, fases, módulos y decisiones nace de
 > `src/lib/voces/forja/manifiesto.ts`. Léelo antes de tocar la capa de voz.
 >
-> Última actualización: 2026-09-05 (Ola 246).
+> Última actualización: 2026-09-07 (Ola 266 · Forja fase 4).
 
 ---
 
@@ -42,10 +42,10 @@ Tomado de `FASES_FORJA` en `src/lib/voces/forja/manifiesto.ts`. La columna
 
 | # | Fase | Descripción | Hitos | Estado global |
 |---|---|---|---|---|
-| 1 | **programa único** | Fundir con criterio el código de varios modelos abiertos en UN programa (motor de inferencia GGUF/ternario + frontend de texto en español + condicionamiento por personalidad). OmniVoice es la voz base hoy; Orpheus+BitNet es el camino al modelo acústico 1.58-bit. | `demonio-omnivoice` (hecho) · `motor-unico-os` (hecho) · `frontend-espanol` (pendiente) · `acustico-ternario` (bloqueado-por-hardware) | En curso |
-| 2 | **variaciones por personalidad** | Cada personalidad con su variación (instruct, semilla, timbre, prosodia, etiquetas de emoción) sobre el mismo modelo. | `instruct-por-personalidad` (hecho) · `variaciones-catalogo` (en-curso) · `emociones-etiquetas` (pendiente) | En curso |
-| 3 | **ajustes de personalización** | Controles para cada voz (velocidad, tono, intensidad/exageración, calidez, respiración, no verbales) guardados como versiones. | `ajustes-velocidad-tono` (hecho) · `intensidad-exageracion` (pendiente) · `versiones-guardadas` (hecho) | En curso |
-| 4 | **editor de voces** | Crear voces nuevas (clonación con poco audio, conversión de timbre, fusión) sobre el modelo base 1.58 local, cuando ese modelo esté desarrollado a detalle. | `clonacion-poco-audio` (pendiente) · `conversion-timbre` (pendiente) · `fusion-de-voces` (hecho) · `editor-completo` (bloqueado-por-hardware) | En curso |
+| 1 | **programa único** | Fundir con criterio el código de varios modelos abiertos en UN programa (motor de inferencia GGUF/ternario + frontend de texto en español + condicionamiento por personalidad). OmniVoice es la voz base hoy; Orpheus+BitNet es el camino al modelo acústico 1.58-bit. | `demonio-omnivoice` (hecho) · `motor-unico-os` (hecho) · `frontend-espanol` (en-curso) · `asr-ternario` (hecho) · `acustico-ternario` (bloqueado-por-hardware) · `tts-streaming-158` (pendiente) | En curso |
+| 2 | **variaciones por personalidad** | Cada personalidad con su variación (instruct, semilla, timbre, prosodia, etiquetas de emoción) sobre el mismo modelo. | `instruct-por-personalidad` (hecho) · `variaciones-catalogo` (en-curso) · `emociones-etiquetas` (hecho) | En curso |
+| 3 | **ajustes de personalización** | Controles para cada voz (velocidad, tono, intensidad/exageración, calidez, respiración, no verbales) guardados como versiones. | `ajustes-velocidad-tono` (hecho) · `intensidad-exageracion` (hecho) · `versiones-guardadas` (hecho) · `efectos-y-tomas` (hecho) | En curso |
+| 4 | **editor de voces** | Crear voces nuevas (clonación con poco audio, conversión de timbre, fusión) sobre el modelo base 1.58 local, cuando ese modelo esté desarrollado a detalle. | `clonacion-poco-audio` (hecho) · `conversion-timbre` (en-curso) · `fusion-de-voces` (hecho) · `editor-completo` (bloqueado-por-hardware) | En curso |
 
 > Nota: `progresoFase()` y `progresoForja()` del manifiesto computan el %
 > real a partir de los hitos `hecho`; el «Estado global» de esta tabla es una
@@ -258,7 +258,51 @@ relevo a Whisper del navegador si el ternario no responde).
 
 ---
 
-## 10. Próximos pasos del motor v2 (para el enjambre)
+## 10. TTS 1.58 en streaming — investigación 2026-09-06
+
+`localai-org/vibevoice.cpp` (MIT, sobre ggml, CPU/Metal/CUDA/Vulkan) porta
+**VibeVoice** a un runtime en C++ del mismo estilo que omnivoice.cpp y
+VibeASR.cpp, y es el candidato natural para un **TTS en streaming 1.58-bit**
+dentro del programa único. La familia se compone de tres tamaños:
+
+- **Realtime 0.5B**: voces pre-cocidas en GGUF — `vibevoice-realtime-0.5B-q8_0.gguf`
+  (~1,7 GB) + `tokenizer.gguf` (~6 MB) + voces `voice-en-Emma.gguf` /
+  `voice-en-Carter_man.gguf`. Solo inglés documentado y **sin clonación en tiempo
+  de ejecución**. CLI: `vibevoice-cli tts --model … --voice … --tokenizer … --text
+  … --out out.wav`. Es el único tamaño que cabe en la Mac de 8 GB.
+- **1.5B**: con clonación desde 5 s de WAV (Q8_0 ~6,8 GB); **no cabe** en 8 GB.
+- **ASR 7B** (10-14 GB): **no cabe** en 8 GB.
+
+**Veredicto:** para español, hoy NO sustituye a OmniVoice (voces solo en inglés y
+sin clonación en el 0.5B); se mantiene como candidato a nivel «Estudio-streaming»
+cuando existan voces multilingües o un conversor de voces. Instalar el 0.5B
+(~1,7 GB de disco, ~2 GB de RAM en uso) solo con permiso de Alex y por turnos de
+memoria con el oído.
+
+**Fuentes:** github.com/localai-org/vibevoice.cpp ·
+huggingface.co/mudler/vibevoice.cpp-models · github.com/microsoft/VibeVoice
+(`docs/vibevoice-realtime-0.5b.md`). Hito en el manifiesto: `tts-streaming-158`
+(pendiente).
+
+## 11. Estado por fases a 2026-09-06
+
+| Fase | Hito | Estado | Dónde vive en el código |
+|---|---|---|---|
+| 1 | `asr-ternario` | hecho | `native/astraura-voice/` (`POST /asr`, `asr_stream_server`, VibeASR.cpp ternario) |
+| 1 | `frontend-espanol` | en-curso | `src/lib/voces/normalizar-es.ts` (Ola 264 J1); falta la fonemización |
+| 1 | `acustico-ternario` | bloqueado-por-hardware | QAT 1.58 de un LM de audio no cabe en 8 GB |
+| 1 | `tts-streaming-158` | pendiente | candidato vibevoice.cpp (ver §10) |
+| 2 | `instruct-por-personalidad` | hecho | `src/lib/voces/perfil-neuronal.ts`; el demonio acepta `pitch` y `seed` (Ola 263) |
+| 2 | `emociones-etiquetas` | hecho | `src/lib/voces/emociones.ts` (`[emocion intensidad]`) (Ola 264 G1) |
+| 2 | `variaciones-catalogo` | en-curso | `memory/voces-catalogo.md` |
+| 3 | `intensidad-exageracion` | hecho | `src/lib/voces/emociones.ts` (`aplicarEmocion`, intensidad 0-2) (Ola 264 G2) |
+| 3 | `efectos-y-tomas` | hecho | `src/lib/voces/efectos.ts` + `src/lib/voces/tomas-voz.ts` (Ola 265 H1/H2) |
+| 4 | `clonacion-poco-audio` | hecho | `POST /clonar` + `src/lib/voces/clonacion.ts` (Ola 261 I1) |
+| 4 | `conversion-timbre` | en-curso | capa ligera (tono del perfil neuronal + efectos + clon por referencia); la conversión neuronal de timbre (tipo RVC) queda bloqueada por hardware en 8 GB |
+
+---
+
+## 12. Próximos pasos del motor v2 (para el enjambre)
 
 | # | Tarea | Archivo | Criterio de verificación |
 |---|---|---|---|
