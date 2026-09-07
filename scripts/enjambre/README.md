@@ -47,6 +47,19 @@ aviso «TAREA INCOMPLETA» y el revisor recibe el bloque ALCANCE: si el enunciad
 cambios, debe marcarlo BLOQUEANTE. Nació el 2026-09-06, tras dos tareas integradas a medias
 (V8/255 y N2/258) sin que nadie lo notara. Prueba: `python3 -m pytest -q scripts/enjambre/test_alcance.py`.
 
+## Escritura por trozos y escritores (Ola 261, 2026-09-06)
+
+Los archivos largos parecían «cuelgues» del agente: NIM iba a 5-10 tok/s y una escritura de 300
+líneas tardaba 8-20 min, más que el corte fijo de 1500 s. Dos variables desde el entorno lo
+arreglan: `STARSEED_ESCRITURA_S` (tope de UNA llamada de escritura, defecto 1500 s) y
+`STARSEED_ESTANCADO_S` (sin escribir una línea, defecto `max(900, ESCRITURA_S//2)`): ya que el
+agente escribió algo, se le da su tiempo. Los escritores nuevos de la rotación se declaran solos
+en `~/.config/opencode/opencode.json` (`asegurar_modelo_opencode`, sin claves: `sin-clave` para
+llm7 y `{env:VARIABLE}` para el resto); **llm7/gpt-oss solo entra en tareas cuyos archivos son
+todos Markdown** (escribió en la prueba con calidad baja para código) — lo decide
+`apto_para_tarea`, que también excluye proveedores `sin_cupo`/`enfriandose`. Prueba:
+`python3 -m pytest -q scripts/enjambre/test_escritores.py`.
+
 ## Revisores con memoria (Ola 261, 2026-09-06)
 
 Antes, cada revisión intentaba TODOS los `REVISORES` en orden aunque supiera que estaban caídos:
