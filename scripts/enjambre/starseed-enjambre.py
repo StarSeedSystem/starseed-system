@@ -1148,6 +1148,16 @@ def vitest(cwd, log):
         rc, out = sh("npx vitest run src/lib/__tests__", cwd=cwd, timeout=600, env=ENV_TSC, log=log)
     return rc, out
 
+def _norma_ruta(ruta):
+    """Normaliza una ruta para comparar (2026-09-07, Ola 261, P8): quita espacios y comillas
+    de git, y deja './a.ts' como 'a.ts' (os.path.normpath). Los pedidos de la cola pueden
+    venir con './' inicial, pero git nunca escribe rutas así: sin normalizar, el mismo
+    archivo salía a la vez como faltante y como extra."""
+    ruta = (ruta or "").strip().strip('"')
+    if not ruta:
+        return ""
+    return os.path.normpath(ruta)
+
 def alcance_tarea(t, wt):
     """Puerta de alcance (2026-09-06, Ola 259, E2): compara los archivos que la tarea pedía
     tocar (`t["archivos"]`) con los tocados de verdad en el worktree (commits sobre main +
@@ -1155,27 +1165,54 @@ def alcance_tarea(t, wt):
     se diera cuenta (V8/255 y N2/258). Función pura: solo recibe `wt` y lanza git a mano,
     para poder probarla desde un repo temporal sin montar el orquestador entero.
     Un pedido que ya existía y no cambió cuenta como faltante: no sabemos si debía cambiar
-    y el modelo lo aclarará. `extra` ordenado para que el resultado sea determinista."""
-    pedidos = [str(a).strip() for a in (t.get("archivos") or []) if str(a).strip()]
+    y el modelo lo aclarará. `extra` ordenado para que el resultado sea determinista.
+    (2026-09-07, Ola 261, P8) `-uall` + normalización: git status lista una carpeta nueva
+    sin rastrear como «?? carpeta/» y los archivos pedidos dentro de ella contaban como
+    faltantes aunque existieran (falso positivo que frenó a AP1 pidiendo visto bueno);
+    además un pedido terminado en «/» es una carpeta: se cumple si se tocó algo dentro."""
+    pedidos, carpetas, orden = [], [], []
+    for crudo in (t.get("archivos") or []):
+        texto = str(crudo).strip()
+        es_carpeta = texto.endswith("/")
+        norma = _norma_ruta(texto)
+        if not norma:
+            continue
+        orden.append(norma)
+        # Se guarda por separado porque la forma de cumplir es distinta: una carpeta se
+        # cumple con cualquier archivo dentro; un archivo, tocándolo (o cayendo en la carpeta).
+        (carpetas if es_carpeta else pedidos).append(norma)
     tocados = []
     def _git(*args):
         p = subprocess.run(["git"] + list(args), cwd=wt, capture_output=True, text=True, timeout=60)
         return (p.stdout or "")
     for l in _git("diff", "--name-only", "main...HEAD").splitlines():
-        if l.strip():
-            tocados.append(l.strip())
-    # --porcelain cuenta lo que aún no tiene commit: «XY ruta»; en renombrados «XY vieja -> nueva».
-    for l in _git("status", "--porcelain").splitlines():
+        r = _norma_ruta(l)
+        if r:
+            tocados.append(r)
+    # --porcelain -uall cuenta lo que aún no tiene commit y lista CADA archivo sin rastrear
+    # (no la carpeta que los contiene). En renombrados «XY vieja -> nueva» se queda con nueva.
+    for l in _git("status", "--porcelain", "-uall").splitlines():
         ruta = l[3:] if len(l) > 3 else ""
         if " -> " in ruta:
             ruta = ruta.split(" -> ")[-1]
-        ruta = ruta.strip().strip('"')
-        if ruta:
-            tocados.append(ruta)
+        r = _norma_ruta(ruta)
+        if r:
+            tocados.append(r)
     tocados = sorted(set(tocados))
-    return {"pedidos": pedidos, "tocados": tocados,
-            "faltan": [p for p in pedidos if p not in tocados],
-            "extra": [x for x in tocados if x not in pedidos]}
+
+    def _en_carpeta_pedida(ruta):
+        return any(ruta == c or ruta.startswith(c + "/") for c in carpetas)
+
+    # Un pedido de archivo falta si no está tocado ni cae dentro de una carpeta pedida.
+    faltan = [p for p in pedidos if p not in tocados and not _en_carpeta_pedida(p)]
+    # Una carpeta pedida falta si ningún tocado vive dentro de ella.
+    faltan += [c for c in carpetas
+               if not any(t == c or t.startswith(c + "/") for t in tocados)]
+    # extra: tocados fuera de todo lo pedido (archivo o carpeta), en orden determinista.
+    pedidos_todos = set(pedidos) | set(carpetas)
+    extra = [t for t in tocados
+             if t not in pedidos_todos and not _en_carpeta_pedida(t)]
+    return {"pedidos": orden, "tocados": tocados, "faltan": faltan, "extra": extra}
 
 
 def worktree(tid):

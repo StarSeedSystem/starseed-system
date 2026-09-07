@@ -4,7 +4,9 @@
 Sin red: monta un repo git temporal con `main` y una rama de tarea, y comprueba que
 `alcance_tarea` distingue pedidos cumplidos, faltantes y extras. El módulo se importa con
 importlib porque el nombre del archivo lleva guiones; el import es seguro (el arranque vive
-bajo `if __name__ == "__main__"`).
+bajo `if __name__ == "__main__"`). Los casos de carpeta nueva y './' son de la Ola 261 (P8,
+2026-09-07): un archivo nuevo en una carpeta nueva sin `git add` contaba como faltante porque
+git status listaba la carpeta, no el archivo.
 """
 import importlib.util
 import os
@@ -63,6 +65,25 @@ class AlcanceTareaTest(unittest.TestCase):
         medida = enjambre.alcance_tarea({"archivos": ["a.ts", "b.ts", "c.ts"]}, self.wt)
         self.assertEqual(medida["faltan"], ["b.ts"])
         self.assertEqual(medida["extra"], [])
+
+    def test_archivo_nuevo_en_carpeta_nueva_sin_add(self):
+        # Ola 261 (P8, 2026-09-07): sin `git add`, git status lista la CARPETA sin rastrear,
+        # no cada archivo. El archivo pedido dentro debe contar como tocado, no faltante.
+        os.makedirs(os.path.join(self.wt, "src", "lib", "nueva"), exist_ok=True)
+        destino = os.path.join(self.wt, "src", "lib", "nueva", "manifiesto.ts")
+        with open(destino, "w", encoding="utf-8") as f:
+            f.write("// nuevo dentro de carpeta nueva\n")
+        medida = enjambre.alcance_tarea(
+            {"archivos": ["src/lib/nueva/manifiesto.ts"]}, self.wt)
+        self.assertEqual(medida["faltan"], [])
+        self.assertIn("src/lib/nueva/manifiesto.ts", medida["tocados"])
+
+    def test_pedido_con_prefijo_punto_barra(self):
+        # Ola 261 (P8, 2026-09-07): la cola puede pedir './a.ts' pero git nunca escribe
+        # rutas con ese prefijo; sin normalizar saldría faltante Y extra a la vez.
+        medida = enjambre.alcance_tarea({"archivos": ["./a.ts"]}, self.wt)
+        self.assertEqual(medida["faltan"], [])
+        self.assertNotIn("a.ts", medida["extra"])
 
 
 if __name__ == "__main__":
