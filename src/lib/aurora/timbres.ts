@@ -28,6 +28,10 @@
 
 import type { VoiceGender } from "@/lib/aurora/personalities";
 import type { EmocionVoz } from "@/lib/voces/emociones";
+// (Ola 265) La cadena de efectos estilo Voicebox (eq, reverb, compresor,
+// de-esser, ganancia) vive en `efectos.ts`; aquí solo se importa el TIPO para
+// no arrastrar el módulo al cliente (los efectos se aplican en el demonio).
+import type { EfectosVoz } from "@/lib/voces/efectos";
 
 export interface Timbre {
     id: string;
@@ -48,8 +52,12 @@ export interface Timbre {
      *               resultante; si falta, el demonio deriva una determinista.
      *  · pitch    — (Ola 263) desplazamiento de tono del post-proceso local
      *               (1 = natural).
+     *  · efectos  — (Ola 265) cadena de efectos (eq/reverb/compresor/
+     *               de-esser/ganancia) que el demonio aplica con ffmpeg tras
+     *               sintetizar, sin tocar el modelo. Opcional: si falta, la
+     *               voz suena como salió del motor.
      */
-    local: { voz: string; speed: number; instruct?: string; ref?: string; seed?: number; pitch?: number };
+    local: { voz: string; speed: number; instruct?: string; ref?: string; seed?: number; pitch?: number; efectos?: EfectosVoz };
     /** Respaldo con voz del sistema, solo mientras no esté el motor local. */
     sistema: { bases: string[]; pitch: number; rate: number };
     /**

@@ -55,6 +55,18 @@ import {
     guardarVersiones,
     type VersionVoz,
 } from "@/lib/voces/versiones";
+// (Ola 265 · Forja fase 3 — efectos y tomas) La cadena de efectos estilo
+// Voicebox (presets por escena + controles finos) y el registro de tomas de
+// síntesis que deja cada «Probar».
+import {
+    PRESETS_EFECTOS,
+    claveEfectos,
+    efectosVacios,
+    normalizarEfectos,
+    type EfectosVoz,
+} from "@/lib/voces/efectos";
+import { audioABase64, crearTomaVoz } from "@/lib/voces/tomas-voz";
+import { TomasVoz } from "@/components/voces/tomas-voz";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -128,6 +140,15 @@ function etiquetaToken(token: string): string {
     return ETIQUETAS_TOKEN[token] ?? token;
 }
 
+/** (Ola 265) Nombres en español de los presets de efectos por escena. */
+const ETIQUETAS_PRESET: Record<keyof typeof PRESETS_EFECTOS, string> = {
+    narracion: "Narración",
+    chat: "Chat",
+    aviso: "Aviso",
+    intimo: "Íntimo",
+    neutro: "Sin efectos",
+};
+
 /** Selección actual del editor de fichas, derivada DEL instruct guardado. */
 interface SeleccionInstruct {
     genero: string;
@@ -186,6 +207,13 @@ export function EstudioVoces() {
      * cerrado por defecto para no abrumar, se abre con un clic.
      */
     const [vistaPreviaAbierta, setVistaPreviaAbierta] = useState(false);
+    /**
+     * (Ola 265) Si el demonio local está vivo (los efectos se aplican con
+     * ffmpeg en el daemon). Se sondea con `estadoMotorLocal`; si no hay daemon,
+     * los efectos no llegarían a la voz y se avisa. Se asume `true` hasta que
+     * el sondeo diga lo contrario (no bloquear los controles por defecto).
+     */
+    const [efectosDisponibles, setEfectosDisponibles] = useState(true);
     const entradaArchivo = useRef<HTMLInputElement | null>(null);
 
     /** Timbre real detrás de la voz seleccionada (lo que «Crear versión» usa). */
@@ -235,6 +263,10 @@ export function EstudioVoces() {
                 ...(real?.local.ref ? { ref: real.local.ref } : {}),
                 ...(borrador.local.seed !== undefined ? { seed: borrador.local.seed } : {}),
                 ...(borrador.local.pitch !== undefined ? { pitch: borrador.local.pitch } : {}),
+                // (Ola 265) La cadena de efectos del borrador viaja en el timbre
+                // para que «Probar» suene (cuando el motor la aplique) y la toma
+                // la registre reproducible.
+                ...(borrador.local.efectos !== undefined ? { efectos: borrador.local.efectos } : {}),
             },
             sistema: real?.sistema ?? {
                 bases: ["Paulina", "Mónica", "Monica"],
@@ -340,6 +372,46 @@ export function EstudioVoces() {
         cambiar({ local: { ...borrador.local, seed } });
     };
 
+    /**
+     * (Ola 265 · Forja fase 3) Gestión de la cadena de efectos sobre el borrador.
+     * El preset «neutro» (= sin efectos) borra la clave para no dejar un objeto
+     * vacío; el resto sustituye la cadena por la del preset elegido.
+     */
+    const efectosActuales = (): EfectosVoz => borrador?.local.efectos ?? {};
+
+    const fijarPresetEfectos = (clave: keyof typeof PRESETS_EFECTOS) => {
+        if (!borrador) return;
+        const preset = PRESETS_EFECTOS[clave];
+        cambiar({
+            local: {
+                ...borrador.local,
+                ...(efectosVacios(preset) ? { efectos: undefined } : { efectos: normalizarEfectos({ ...preset }) }),
+            },
+        });
+    };
+
+    /** Actualiza un control fino sobre la cadena de efectos actual. */
+    const cambiarEfectos = (parche: Partial<EfectosVoz>) => {
+        if (!borrador) return;
+        const fusionado = normalizarEfectos({ ...efectosActuales(), ...parche });
+        cambiar({
+            local: {
+                ...borrador.local,
+                ...(efectosVacios(fusionado) ? { efectos: undefined } : { efectos: fusionado }),
+            },
+        });
+    };
+
+    /** El preset actual si coincide con uno del catálogo, para el selector. */
+    const presetEfectosActual = (): keyof typeof PRESETS_EFECTOS => {
+        const actual = efectosActuales();
+        if (efectosVacios(actual)) return "neutro";
+        const coincidencia = (Object.keys(PRESETS_EFECTOS) as (keyof typeof PRESETS_EFECTOS)[]).find(
+            (k) => claveEfectos(PRESETS_EFECTOS[k]) === claveEfectos(actual),
+        );
+        return coincidencia ?? "neutro";
+    };
+
     /** Sustituye la lista de versiones y la persiste de inmediato. */
     const guardarListaVersiones = (lista: VersionVoz[], avisoNuevo: Aviso | null) => {
         guardarVersiones(lista);
@@ -377,6 +449,12 @@ export function EstudioVoces() {
     useEffect(() => {
         recargar();
         setVersiones(cargarVersiones());
+        // (Ola 265) Sonda si el demonio local está vivo: los efectos se aplican
+        // con ffmpeg en el daemon, así que sin él se avisa al editar efectos.
+        void import("@/lib/aurora/motor-local").then(async (m) => {
+            const est = await m.estadoMotorLocal();
+            setEfectosDisponibles(est.listo);
+        }).catch(() => null);
         // Estado real de la vía de voz: preparando, sonando o sin motor.
         const alEstado = (e: Event) => {
             const detalle = (e as CustomEvent<string>).detail;
@@ -463,6 +541,29 @@ export function EstudioVoces() {
                     timbre: timbreBorrador,
                     contexto: "rito",
                     ...(hayEmocion ? { emocion, intensidad } : {}),
+                });
+                // (Ola 265) Cada «Probar» deja una TOMA reproducible con los
+                // parámetros exactos que produjeron este sonido (incluidos los
+                // efectos). El audio no vuelve por `hablarStarSeed`, así que la
+                // toma se registra SIN él (`sinAudio`); cuando el motor lo
+                // entregue, `audioABase64` lo caberá en la toma.
+                const nivel = nivelActual() ?? "minima";
+                crearTomaVoz({
+                    timbreId: borrador.id,
+                    nombreVoz: borrador.nombre,
+                    texto,
+                    params: {
+                        instruct: validarInstruct(borrador.local.instruct).valido,
+                        speed: borrador.local.speed,
+                        ...(borrador.local.seed !== undefined ? { seed: borrador.local.seed } : {}),
+                        ...(borrador.local.pitch !== undefined ? { pitch: borrador.local.pitch } : {}),
+                        ...(hayEmocion ? { emocion, intensidad } : {}),
+                        ...(!efectosVacios(efectosActuales()) ? { efectos: efectosActuales() } : {}),
+                    },
+                    nivel,
+                    segundos: 0,
+                    sinAudio: true,
+                    audioDataUrl: null,
                 });
                 if (!sono) {
                     setAviso({ tipo: "error", texto: "No se pudo iniciar la prueba de voz." });
@@ -875,6 +976,116 @@ export function EstudioVoces() {
                                             </p>
                                         )}
                                     </div>
+                                    {/* (Ola 265 · Forja fase 3) EFECTOS: presets por
+                                        escena + controles finos sobre la cadena.
+                                        Se aplican con ffmpeg en el demonio tras
+                                        sintetizar (estilo Voicebox); si el daemon no
+                                        está listo se avisa, pero los controles siguen
+                                        activos para que la toma los registre igual. */}
+                                    <div className="space-y-3 rounded-lg border p-3">
+                                        <p className="text-sm font-medium leading-none">Efectos</p>
+                                        <p className="text-xs text-muted-foreground">
+                                            Post-proceso local (ffmpeg): eq, reverb, compresor, de-esser y ganancia.
+                                        </p>
+                                        {!efectosDisponibles && (
+                                            <p className="text-xs text-amber-500">
+                                                Requiere ffmpeg en el demonio: sin el motor local la voz suena sin efectos.
+                                            </p>
+                                        )}
+                                        <div className="flex flex-wrap gap-1.5">
+                                            {(Object.keys(PRESETS_EFECTOS) as (keyof typeof PRESETS_EFECTOS)[]).map((clave) => {
+                                                const activo = presetEfectosActual() === clave;
+                                                return (
+                                                    <button
+                                                        key={clave}
+                                                        type="button"
+                                                        aria-pressed={activo}
+                                                        onClick={() => fijarPresetEfectos(clave)}
+                                                        className={`cursor-pointer rounded-full border px-2.5 py-1 text-xs transition-colors duration-200 ${
+                                                            activo
+                                                                ? "border-primary/60 bg-primary/10 text-foreground"
+                                                                : "border-border text-muted-foreground hover:bg-muted/60"
+                                                        }`}
+                                                    >
+                                                        {ETIQUETAS_PRESET[clave]}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                        <div className="grid gap-3 sm:grid-cols-2">
+                                            <div className="space-y-1.5">
+                                                <Label htmlFor="voz-efecto-reverb">Reverb (0–1)</Label>
+                                                <Slider
+                                                    id="voz-efecto-reverb"
+                                                    aria-label="Reverb"
+                                                    value={[efectosActuales().reverb ?? 0]}
+                                                    min={0}
+                                                    max={1}
+                                                    step={0.05}
+                                                    onValueChange={(v) => cambiarEfectos({ reverb: v[0] ?? 0 })}
+                                                    className="cursor-pointer"
+                                                />
+                                            </div>
+                                            <div className="space-y-1.5">
+                                                <Label htmlFor="voz-efecto-ganancia">Ganancia (−6 a 6 dB)</Label>
+                                                <Slider
+                                                    id="voz-efecto-ganancia"
+                                                    aria-label="Ganancia"
+                                                    value={[efectosActuales().ganancia ?? 0]}
+                                                    min={-6}
+                                                    max={6}
+                                                    step={1}
+                                                    onValueChange={(v) => cambiarEfectos({ ganancia: v[0] ?? 0 })}
+                                                    className="cursor-pointer"
+                                                />
+                                            </div>
+                                        </div>
+                                        <div className="grid gap-3 sm:grid-cols-2">
+                                            <div className="flex items-center gap-2">
+                                                <Switch
+                                                    id="voz-efecto-compresor"
+                                                    checked={efectosActuales().compresor === true}
+                                                    onCheckedChange={(on) => cambiarEfectos({ compresor: on })}
+                                                    className="cursor-pointer"
+                                                />
+                                                <Label htmlFor="voz-efecto-compresor" className="cursor-pointer">Compresor</Label>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <Switch
+                                                    id="voz-efecto-deesser"
+                                                    checked={efectosActuales().deesser === true}
+                                                    onCheckedChange={(on) => cambiarEfectos({ deesser: on })}
+                                                    className="cursor-pointer"
+                                                />
+                                                <Label htmlFor="voz-efecto-deesser" className="cursor-pointer">De-esser</Label>
+                                            </div>
+                                        </div>
+                                        <div className="space-y-1.5">
+                                            <Label htmlFor="voz-efecto-eq">Ecualización</Label>
+                                            <Select
+                                                value={efectosActuales().eq ?? "ninguna"}
+                                                onValueChange={(v) =>
+                                                    cambiarEfectos({ eq: v === "ninguna" ? "ninguna" : (v as EfectosVoz["eq"]) })
+                                                }
+                                            >
+                                                <SelectTrigger id="voz-efecto-eq" className="cursor-pointer">
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="ninguna">Ninguna</SelectItem>
+                                                    <SelectItem value="cálida">Cálida</SelectItem>
+                                                    <SelectItem value="clara">Clara</SelectItem>
+                                                    <SelectItem value="radio">Radio</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                    </div>
+
+                                    {/* (Ola 265) Tomas de síntesis de esta voz: cada
+                                        «Probar» deja una aquí para reproducirla,
+                                        valorarla, compararla o promoverla. */}
+                                    <TomasVoz timbreId={borrador.id} nombreVoz={borrador.nombre} />
+
                                     <div className="space-y-1.5">
                                         <Label htmlFor="voz-desc">Descripción</Label>
                                         <Textarea

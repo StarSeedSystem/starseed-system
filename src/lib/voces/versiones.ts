@@ -15,6 +15,9 @@ import type { Timbre } from "@/lib/aurora/timbres";
 import { buscarTimbre } from "@/lib/aurora/timbres";
 import type { NivelVoz } from "@/lib/aurora/voz-starseed/niveles";
 import type { EmocionVoz } from "@/lib/voces/emociones";
+// (Ola 265) Cadena de efectos (eq/reverb/compresor/de-esser/ganancia): se
+// importa el TIPO para que la versión pueda congelarla como parte de su receta.
+import type { EfectosVoz } from "@/lib/voces/efectos";
 
 export interface VersionVoz {
     id: string;
@@ -35,6 +38,8 @@ export interface VersionVoz {
         emocionBase?: EmocionVoz;
         /** (Ola 264) Cuánto se exagera la emoción (0–2). */
         intensidad?: number;
+        /** (Ola 265) Cadena de efectos estilo Voicebox que congela la versión. */
+        efectos?: EfectosVoz;
         expr: { arco: number; vivacidad: number; calidez: number };
     };
     notas: string;
@@ -79,6 +84,8 @@ export function versionDesdeTimbre(t: Timbre, nombre?: string): VersionVoz {
             ...(t.local.pitch !== undefined ? { pitch: t.local.pitch } : {}),
             ...(t.emocionBase ? { emocionBase: t.emocionBase } : {}),
             ...(t.intensidad !== undefined ? { intensidad: t.intensidad } : {}),
+            // (Ola 265) La cadena de efectos viaja con la receta del timbre.
+            ...(t.local.efectos !== undefined ? { efectos: t.local.efectos } : {}),
             expr: { ...t.expr },
         },
         notas: "",
@@ -157,6 +164,8 @@ export function duplicarVersion(id: string, nombre?: string): VersionVoz | null 
  *  · `emocionBase` la de A (Ola 264): una mezcla de emociones no es otra
  *    emoción reconocible, así que prevalece la del padre dominante;
  *  · `intensidad` PROMEDIADA (Ola 264): la exageración sí se interpola;
+ *  · `efectos` los de A (Ola 265): una mezcla de cadenas de efectos no es
+ *    otra cadena reconocible, así que prevalece la del padre dominante;
  *  · `instruct` = el de A + « · » + el de B, sin repetir frases;
  *  · `voz` la de la de mayor peso (A en caso de empate).
  */
@@ -195,6 +204,8 @@ export function fusionarVersiones(a: VersionVoz, b: VersionVoz, peso = 0.5, nomb
                 : a.params.intensidad !== undefined
                 ? { intensidad: a.params.intensidad }
                 : b.params.intensidad !== undefined ? { intensidad: b.params.intensidad } : {}),
+            // (Ola 265) Los efectos los toma el padre dominante (A).
+            ...(a.params.efectos ? { efectos: a.params.efectos } : {}),
             expr: {
                 arco: interp(a.params.expr.arco, b.params.expr.arco),
                 vivacidad: interp(a.params.expr.vivacidad, b.params.expr.vivacidad),
@@ -230,6 +241,11 @@ function validarVersion(x: unknown, indice: number): string | null {
     // (Ola 263) Los campos nuevos son opcionales, pero si vienen deben ser números.
     if (p.seed !== undefined && typeof p.seed !== "number") return `entrada ${indice}: «params.seed» no es número`;
     if (p.pitch !== undefined && typeof p.pitch !== "number") return `entrada ${indice}: «params.pitch» no es número`;
+    // (Ola 265) Los efectos son opcionales; si vienen deben ser un objeto
+    // normalizable (la frontera `normalizarEfectos` los acota al leerlos).
+    if (p.efectos !== undefined && (typeof p.efectos !== "object" || p.efectos === null)) {
+        return `entrada ${indice}: «params.efectos» debe ser un objeto`;
+    }
     const e = p.expr as Record<string, unknown> | undefined;
     if (typeof e !== "object" || e === null) return `entrada ${indice}: falta «params.expr»`;
     for (const k of ["arco", "vivacidad", "calidez"]) {
@@ -283,6 +299,7 @@ export function aplicarVersionATimbre(v: VersionVoz): Timbre {
             ...(v.params.ref ? { ref: v.params.ref } : {}),
             ...(v.params.seed !== undefined ? { seed: v.params.seed } : {}),
             ...(v.params.pitch !== undefined ? { pitch: v.params.pitch } : {}),
+            ...(v.params.efectos !== undefined ? { efectos: v.params.efectos } : {}),
         },
         sistema: base?.sistema ?? { bases: ["Paulina", "Mónica", "Monica"], pitch: 0.9, rate: 1.0 },
         expr: { ...v.params.expr },

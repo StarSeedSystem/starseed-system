@@ -12,6 +12,7 @@
  */
 
 import type { EmocionVoz } from "@/lib/voces/emociones";
+import type { EfectosVoz } from "@/lib/voces/efectos";
 import { TIMBRES } from "@/lib/aurora/timbres";
 
 export interface VozEditable {
@@ -20,7 +21,8 @@ export interface VozEditable {
     genero: "femenina" | "masculina" | "neutra";
     desc: string;
     /** (Ola 263 · F6) seed/pitch son variaciones opcionales; anteriores quedan intactas. */
-    local: { voz: string; speed: number; instruct: string; seed?: number; pitch?: number };
+    /** (Ola 265) `efectos` replica la cadena del `Timbre` para que el Estudio las edite. */
+    local: { voz: string; speed: number; instruct: string; seed?: number; pitch?: number; efectos?: EfectosVoz };
     sistema: { pitch: number; rate: number };
     expr: { arco: number; vivacidad: number; calidez: number };
     /**
@@ -63,6 +65,8 @@ export function vocesDefecto(): VozEditable[] {
             instruct: t.local.instruct ?? "",
             ...(t.local.seed !== undefined ? { seed: t.local.seed } : {}),
             ...(t.local.pitch !== undefined ? { pitch: t.local.pitch } : {}),
+            // (Ola 265) La cadena de efectos del timbre viaja al catálogo editable.
+            ...(t.local.efectos !== undefined ? { efectos: t.local.efectos } : {}),
         },
         sistema: { pitch: t.sistema.pitch, rate: t.sistema.rate },
         expr: { arco: t.expr.arco, vivacidad: t.expr.vivacidad, calidez: t.expr.calidez },
