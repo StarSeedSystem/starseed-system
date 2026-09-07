@@ -589,3 +589,44 @@ agentes (Curador, Entrenador, Evaluador, Desplegador, Cronista) que corren como 
 `aprendizaje`. Manifiesto: `src/lib/astraura/aprendizaje/manifiesto.ts`. **SOP:**
 `architecture/astraura-158-aprendizaje-continuo.md`. Soberanía: los datos no salen de la neurona
 sin consentimiento y el usuario es dueño de cada adaptador.
+
+## 🧭 Mando ampliado y flota honesta (Adenda 228 · 2026-09-07)
+
+Las olas 257–276 convirtieron el Mando en la **sala de control honesta y ampliada** de toda la
+orquestación y de la inteligencia 1.58. Todo el código lo escribió el enjambre económico (NIM
+kimi-k3/deepseek-v4 y xKiro; revisores kimi-k3/llm7) y **Claude supervisó, verificó cada endpoint
+en la Mac y aprobó**. Fuente de verdad: `docs/adendas/adenda-228-mando-ampliado-aprendizaje-158-olas-257-276-2026-09-07.md`.
+
+### Pestañas y superficies nuevas del Mando
+- **Oficina 3D** — `src/lib/mando/oficina.ts` (seres con ADN determinista `derivarAdn`, 7 salas,
+  xp/nivel, `fusionarGenoma` nunca baja), servidor `/api/mando/oficina` (genomas en
+  `starseed_memory_root/mando/oficina/genomas.json`, `exportar-predeterminado`), UI reusa `OficinaSeres`.
+- **Almacenamiento/Drive en Neurona** — `/api/mando/almacenamiento` (df, regenerables con lista
+  blanca, DriveFS, espejo rsync sin `--delete` a `My Drive/StarSeed_Memory_Root/neurona-<host>`,
+  swap honesta, «aliviar»); tarjetas y «Disco libre» en cabecera; `POST /ceder` del demonio.
+- **Commits pendientes** — `/api/mando/publicaciones` (commits sin publicar del OS y Astraura por
+  ola, diffstat, delante/detrás, árbol limpio, enjambre escribiendo) + diálogo de confirmación.
+- **Voces** — `voz-mando.ts`, `/api/mando/voces` + `voz-del-mando.tsx`, `panel-voces.tsx`, soporte
+  de `?pestana=`; `TIMBRES` vive en `timbres-catalogo.ts` (sin «use client», para no romper el build).
+- **Aprendizaje** — pestaña «Aprendizaje» y «Ramificación 1.58» en Procesos (BitNet → personalidades
+  → agentes → procesos); `/api/aprendizaje/agentes|procesos`; corpus por HTTP con envoltorio `{procesos:[…]}`.
+
+### Reglas duras del área
+- **Publicación**: solo desde la **Mac**, con `STARSEED_LOCAL=1` y la confirmación **escrita `PUBLICAR`**
+  (o la palabra de Alex); **nunca automática**. Rutas `/api/mando/*` son SOLO locales (404 en producción)
+  y jamás devuelven claves ni rutas del disco.
+- **Claves por medio (P9)**: capa `CLAVES_POR_PROVEEDOR` con `claves_de`, `clave_activa`, `agotar_clave`,
+  `estado_claves`, sufijos `_2…_9` y **huellas sha256** (solo huellas, nunca valores). 429 → 1 h,
+  402/cuota → 24 h, aviso único.
+- **Sonda ligera `GET /models`**: la sonda por minuto es la de listado de modelos, **jamás generación** —
+  la de generación quemaba el cupo diario de OpenRouter/aihubmix y tres 429 dejaban xKiro 24 h fuera.
+- **Flota honesta**: el Mando clasifica proveedores con las claves presentes en la neurona
+  (`clavesPresentes`), «dato antiguo» y la foto del bus; «Por conseguir» solo lista lo que Alex debe crear.
+- **Tareas del enjambre**: **≤ 3 archivos y ≤ 120 líneas por archivo** (ESCRITURA_S 1500 s cortaba las de
+  4–5), con **verificación en la Mac tras cada despliegue** — destapó 9 defectos que ningún revisor vio.
+- **Aprendizaje continuo**: cinco agentes (Curador 30 min, Evaluador 60 min, Cronista 60 min; Entrenador/
+  Desplegador «esperando fábrica»); el fondo **nunca despierta el BitNet** y no cae a Ollama salvo
+  `ASTRAURA_OLLAMA_RESPALDO=1`; Curador atómico con `.bak` y `os.replace`; rotación de `logs.md`/`cronica.md` a 2 MB.
+- **Verificación de la neurona**: `scripts/verificar-neurona.mjs` (checks HTTP, umbrales, `--voz/--oido/--bitnet`,
+  `--help`, `starseed_memory_root/verificaciones/ultimo.json`); primera corrida real 92/100.
+- **Cuidado**: `pgrep -f` mata la propia shell si el patrón aparece en la orden → usar `patr[o]n`.
