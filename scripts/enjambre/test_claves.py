@@ -163,30 +163,41 @@ def test_llamar_llm_402_rota_a_la_siguiente_clave(flota, monkeypatch):
 
 
 def test_llamar_llm_tres_429_agotan_la_huella(flota, monkeypatch):
+    # (2026-09-07, Ola 271, P9C) Diseño real, tres llamadas SEPARADAS a llamar_llm (el
+    # reintento con espera lo hace el bucle exterior con ESPERA_429_S, no esta función):
+    # cada 429 se registra por huella (`_registrar_429_clave`) y la llamada lanza
+    # HTTPError; al TERCER 429 en 10 min la huella se agota, la primera clave se marca
+    # como agotada y ESA tercera llamada rota a la clave 2 y responde con ella.
     autorizaciones = []
 
     def urlopen_falso(req, timeout=None):
         autorizaciones.append(_autorizacion(req))
-        raise urllib.error.HTTPError(req.full_url, 429, "Too Many Requests", {}, None)
+        if _autorizacion(req) == "Bearer " + VALOR_1:
+            raise urllib.error.HTTPError(req.full_url, 429, "Too Many Requests", {}, None)
+        return _respuesta_ok()
 
     monkeypatch.setattr(enjambre.urllib.request, "urlopen", urlopen_falso)
     primera = enjambre.clave_activa("xkiro")
     with pytest.raises(urllib.error.HTTPError):
-        enjambre.llamar_llm("xkiro", "modelo-x", "hola")
-    # Tres intentos con la primera (3×429 en 10 min) y solo entonces salta a la segunda.
+        enjambre.llamar_llm("xkiro", "modelo-x", "hola")       # 1.er 429: lanza
+    with pytest.raises(urllib.error.HTTPError):
+        enjambre.llamar_llm("xkiro", "modelo-x", "hola")       # 2.º 429: lanza
+    assert enjambre.llamar_llm("xkiro", "modelo-x", "hola") == "ok"   # 3.er 429: agota y rota
     assert autorizaciones == ["Bearer " + VALOR_1] * 3 + ["Bearer " + VALOR_2]
     salud = json.load(open(enjambre.SALUD_JSON, encoding="utf-8"))
     assert primera["huella"] in salud["xkiro"]["claves_agotadas"]
 
 
 def test_llamar_llm_clave_unica_agotada_marca_sin_cupo(flota, monkeypatch):
-    # Solo la primera clave visible (se captura ANTES de parchear para no recursar):
-    # al quedarse sin relevo, EL PROVEEDOR entero queda marcado sin cupo.
+    # (2026-09-07, Ola 271, P9C) Solo la primera clave visible. Con un 402 y SIN relevo,
+    # antes llamar_llm devolvía "" como si fuera una respuesta válida (el revisor podía
+    # archivarla). Ahora: agotar la última clave marca al proveedor entero sin cupo y se
+    # lanza RuntimeError; jamás se devuelve una cadena vacía como éxito.
     primera = enjambre.clave_activa("xkiro")
     monkeypatch.setattr(enjambre, "_claves_crudas", lambda prov: [primera])
     monkeypatch.setattr(enjambre.urllib.request, "urlopen",
                         lambda req, timeout=None: _raise_402(req))
-    with pytest.raises(urllib.error.HTTPError):
+    with pytest.raises(RuntimeError):
         enjambre.llamar_llm("xkiro", "modelo-x", "hola")
     assert enjambre.sin_cupo("xkiro")                                # no quedaba otra clave
     assert enjambre.clave_activa("xkiro") is None

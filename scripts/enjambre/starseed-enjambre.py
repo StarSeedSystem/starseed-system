@@ -1206,7 +1206,21 @@ def llamar_llm(proveedor, modelo, prompt, timeout=120):
         if kay2:
             # Reintento ÚNICO con la siguiente clave del mismo proveedor (nunca el valor, solo var/medio).
             evento("reenrutado", "", "clave %s (%s) agotada → %s (%s)" % (kay["var"], kay["medio"], kay2["var"], kay2["medio"]))
-            txt, _ = _peticion(kay2)
+            txt, agota2 = _peticion(kay2)
+            if agota2:
+                # La clave de relevo también pide cuota en su misma primera llamada: se
+                # agota también y se aborta. Devolver "" aquí cuenta como respuesta válida
+                # y el revisor archivaría basura (2026-09-07, Ola 271, P9C).
+                agotar_clave(proveedor, kay2["huella"], "relevo también agotado")
+                USO_REAL[proveedor] = (time.time(), False)
+                raise RuntimeError("sin claves útiles en %s: límite de la clave de relevo (%s)" % (proveedor, kay2["var"]))
+        else:
+            # (2026-09-07, Ola 271, P9C) BUG corregido: agotar_clave ya marcó sin_cupo al
+            # agotar la última clave; seguir con txt="" y devolverlo como respuesta válida
+            # hacía pasar un fracaso del proveedor por éxito. Ahora se lanza, con el nombre
+            # de la variable (jamás el valor) para que quede constancia en el log.
+            USO_REAL[proveedor] = (time.time(), False)
+            raise RuntimeError("sin claves útiles en %s tras agotar %s (límite de la clave)" % (proveedor, kay["var"]))
     # Algunos proveedores devuelven 200 con un AVISO DE CUOTA como si fuera la respuesta (aihubmix
     # el 2026-09-04: «accounts that have not been recharged can only try 10 times»). Seis commits
     # se integraron con esa frase archivada como «revisión ok». Eso es un fallo del proveedor.
@@ -1438,7 +1452,20 @@ def vitest(cwd, log):
         return rc, out
     with SEM_PESADO, cerrojo("pesado"):
         rc, out = sh("npx vitest run src/lib/__tests__", cwd=cwd, timeout=600, env=ENV_TSC, log=log)
-    return rc, out
+        # (2026-09-07, Ola 271, P9C) Si la ola tocó scripts del enjambre, sus tests de
+        # pytest también son puerta: P9B se integró (77f7bca) con dos fallos vivos en
+        # scripts/enjambre porque aquí solo corría vitest. Se suma el rc: cualquier fallo
+        # (vitest o pytest) tumba la puerta.
+        _, archivos = sh("git diff --name-only main...HEAD", cwd=cwd, log=log)
+        toca_enjambre = any((l or "").strip().startswith("scripts/enjambre/")
+                            for l in (archivos or "").splitlines())
+        if not toca_enjambre:
+            return rc, out
+        if not shutil.which("pytest"):
+            return rc, out + "\n[puerta enjambre] sin pytest instalado: no se pudieron correr los tests del enjambre"
+        rc2, out2 = sh(["python3", "-m", "pytest", "-q", "scripts/enjambre/"],
+                       cwd=cwd, timeout=600, log=log)
+        return rc or rc2, (out or "") + "\n[puerta enjambre]\n" + (out2 or "")
 
 def _norma_ruta(ruta):
     """Normaliza una ruta para comparar (2026-09-07, Ola 261, P8): quita espacios y comillas
