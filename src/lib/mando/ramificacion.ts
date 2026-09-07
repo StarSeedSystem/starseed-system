@@ -54,7 +54,7 @@ export interface RamaTarea {
     cola: string;
     titulo: string;
     dependencias: string[];
-    /** pendiente · en_curso · commit · sin_cambios · fallo · fallo_tsc · fallo_tests · conflicto · bloqueante */
+    /** pendiente · en_curso · commit · sin_cambios · fallo · fallo_tsc · fallo_tests · conflicto · bloqueante · bloqueada */
     estado: string;
     /** Profundidad por dependencias (0 = sin dependencias). */
     nivel: number;
@@ -73,6 +73,14 @@ export interface RamaTarea {
     eventos: EventoRama[];
     /** Latido si un agente la tiene entre manos ahora mismo. */
     vivo: LatidoTarea | null;
+    /** Alcance (2026-09-07, Ola 269 · paso `alcance` del orquestador): qué archivos se pidieron, cuántos se tocaron, cuáles faltan. */
+    alcance: AlcanceRama | null;
+    /** Resumen de la pasada de revisión (revisor, segundos, intentos, bloqueante). */
+    revision: RevisionRama | null;
+    /** Por qué la tarea espera el visto bueno (del evento `esperando_aprobacion`, `datos.motivo`). */
+    motivoAprobacion: string | null;
+    /** Nota del evento `bloqueada`: «dependencia no integrada: J1 (sin_cambios)» o similar. */
+    bloqueadaPor: string | null;
     /** Si espera el visto bueno humano: la rama lista, su diff y lo que dijo el revisor. */
     aprobacion: { rama: string; sha: string; diffstat: string; revision: string; bloqueante: boolean; modelo: string; desde: string; impacto: ImpactoRama | null } | null;
     /** Radio de impacto del diff según el grafo del código (GitNexus), si la máquina lo tiene. */
@@ -89,6 +97,24 @@ export interface ImpactoRama {
     detalle: string[];
 }
 
+/** Alcance de una tarea (paso `alcance` del orquestador, Olas 259-261 · 2026-09-07). */
+export interface AlcanceRama {
+    pedidos: number;
+    tocados: number;
+    /** Archivos pedidos que NO se tocaron (ya como array, sin vacíos). */
+    faltan: string[];
+    /** true si el orquestador hizo la pasada de compleción. */
+    completado: boolean;
+}
+
+/** Resumen de la pasada de revisión de una tarea (paso `revision` del orquestador). */
+export interface RevisionRama {
+    revisor: string;
+    segundos: number | null;
+    intentos: number | null;
+    bloqueante: boolean;
+}
+
 /** Una ola con su árbol de tareas y el recuento. */
 export interface RamaOla {
     id: string;
@@ -101,6 +127,8 @@ export interface RamaOla {
     sinCambios: number;
     pendientes: number;
     esperandoAprobacion: number;
+    /** Cuántas quedaron bloqueadas por una dependencia no integrada (evento `bloqueada`, Ola 269). */
+    bloqueadas: number;
     /** true si algún agente está latiendo en esta ola. */
     viva: boolean;
 }
@@ -120,8 +148,10 @@ const TIPOS_BUS = [
     "inicio", "paso", "commit", "bloqueante", "fallo", "sin_cambios", "conflicto",
     "reintento", "reenrutado", "proveedor", "aviso", "estancado", "cola_terminada", "arranque",
     "reasignado", "reasignada", "esperando_aprobacion", "aprobacion", "rechazada", "pendiente_aprobacion",
+    "bloqueada",
 ];
-const TERMINALES = new Set(["commit", "bloqueante", "sin_cambios", "sustituida", "fallo", "conflicto", "reasignada", "rechazada", "pendiente_aprobacion"]);
+// `bloqueada` es terminal: la tarea se queda parada por una dependencia que no se integró.
+const TERMINALES = new Set(["commit", "bloqueante", "sin_cambios", "sustituida", "fallo", "conflicto", "reasignada", "rechazada", "pendiente_aprobacion", "bloqueada"]);
 const PREFIJO_PROVEEDOR: Record<string, string> = { nvidia: "nim" };
 
 /** `impacto` tal como lo publica el orquestador (paso `impacto` o datos de `esperando_aprobacion`). */
@@ -187,6 +217,55 @@ function normalizarCola(cola: string): string {
  */
 export function claveLatido(cola: string, tarea: string): string {
     return `${normalizarCola(cola)}|${tarea}`;
+}
+
+/**
+ * Alcance de una tarea desde sus pasos (2026-09-07, Ola 269): el último paso `alcance`
+ * manda. El orquestador publica `faltan` como CADENA separada por comas (vacía si no
+ * falta nada); aquí se normaliza a array limpio para que la UI no reparsee.
+ */
+export function leerAlcance(pasos: PasoRama[]): AlcanceRama | null {
+    for (let i = pasos.length - 1; i >= 0; i--) {
+        const p = pasos[i];
+        if (p.paso !== "alcance") continue;
+        const d = p.datos;
+        return {
+            pedidos: typeof d.pedidos === "number" && Number.isFinite(d.pedidos) ? d.pedidos : 0,
+            tocados: typeof d.tocados === "number" && Number.isFinite(d.tocados) ? d.tocados : 0,
+            faltan: typeof d.faltan === "string" ? d.faltan.split(",").map((s) => s.trim()).filter(Boolean) : [],
+            completado: d.completado === true,
+        };
+    }
+    return null;
+}
+
+/**
+ * Resumen de la revisión desde sus pasos: el último paso `revision` con revisor manda.
+ * `segundos` e `intentos` son campos NUEVOS del orquestador: si no vienen, null (la UI
+ * entonces no dibuja ese dato, no un «0» que mentiría).
+ */
+export function leerRevision(pasos: PasoRama[]): RevisionRama | null {
+    for (let i = pasos.length - 1; i >= 0; i--) {
+        const p = pasos[i];
+        if (p.paso !== "revision" || typeof p.datos.revisor !== "string" || !p.datos.revisor) continue;
+        const d = p.datos;
+        return {
+            revisor: typeof d.revisor === "string" ? d.revisor : "",
+            segundos: typeof d.segundos === "number" && Number.isFinite(d.segundos) ? d.segundos : null,
+            intentos: typeof d.intentos === "number" && Number.isFinite(d.intentos) ? d.intentos : null,
+            bloqueante: d.bloqueante === true,
+        };
+    }
+    return null;
+}
+
+/**
+ * Motivo del visto bueno pendiente: `datos.motivo` del evento `esperando_aprobacion`
+ * («revisión bloqueante…» · «alcance incompleto…» · «pedido por la cola…»), null si no viene.
+ */
+export function motivoDe(datos: unknown): string | null {
+    const m = objeto(datos).motivo;
+    return typeof m === "string" && m.trim() ? m.trim() : null;
 }
 
 /** Pasos locales: `olas/pasos/<id>.jsonl` (una línea JSON por paso). */
@@ -409,15 +488,23 @@ export async function construirRamificacion(cuantas = 4, horasBus = 24 * 30): Pr
             let ultimoInicio: FilaBus | null = null;
             let medio: string | null = null;
             let aprobacion: RamaTarea["aprobacion"] = null;
+            let motivoAprobacion: string | null = null;
+            let bloqueadaPor: string | null = null;
             for (const e of eventos) {
                 const d = objeto(e.datos);
                 const dondeEv = texto(d.donde) || "mac";
                 if (texto(d.medio)) medio = texto(d.medio);
                 if (e.tipo === "esperando_aprobacion") {
                     aprobacion = { rama: texto(d.rama), sha: texto(d.sha), diffstat: texto(d.diffstat), revision: texto(d.revision), bloqueante: d.bloqueante === true, modelo: texto(d.modelo), desde: e.t, impacto: leerImpacto(d.impacto) };
+                    motivoAprobacion = motivoDe(d);
                 }
-                // Cualquier cierre posterior (commit, rechazo, caducidad) apaga la espera.
-                if (e.tipo === "commit" || e.tipo === "bloqueante" || e.tipo === "rechazada" || e.tipo === "pendiente_aprobacion" || e.tipo === "conflicto") aprobacion = null;
+                // Cualquier cierre posterior (commit, rechazo, caducidad, bloqueo) apaga la espera.
+                if (e.tipo === "commit" || e.tipo === "bloqueante" || e.tipo === "rechazada" || e.tipo === "pendiente_aprobacion" || e.tipo === "conflicto" || e.tipo === "bloqueada") {
+                    aprobacion = null;
+                    motivoAprobacion = null;
+                }
+                // Bloqueo por dependencia no integrada: la nota dice cuál y con qué estado cerró.
+                if (e.tipo === "bloqueada") bloqueadaPor = texto(d.nota) || e.texto.trim() || bloqueadaPor;
                 if (e.tipo === "paso") {
                     const nombre = e.texto.split(" · ")[0]?.trim() ?? "paso";
                     const { donde: _d, categoria: _c, ...resto } = d;
@@ -483,6 +570,9 @@ export async function construirRamificacion(cuantas = 4, horasBus = 24 * 30): Pr
             if (estado === "en_curso" && !vivo) estado = "interrumpida";
             if (estado === "esperando_aprobacion" && !vivo) estado = "pendiente_aprobacion";
             if (estado !== "esperando_aprobacion") aprobacion = aprobacion && estado === "pendiente_aprobacion" ? aprobacion : null;
+            if (!aprobacion) motivoAprobacion = null;
+            // Si la tarea rehízo y cerró con éxito, el bloqueo viejo ya no vale.
+            if (estado !== "bloqueada") bloqueadaPor = null;
             if (vivo && !modelo) modelo = vivo.modelo;
             if (vivo?.medio) medio = vivo.medio;
             if (!sha && estado === "commit") {
@@ -496,6 +586,9 @@ export async function construirRamificacion(cuantas = 4, horasBus = 24 * 30): Pr
             const impacto = aprobacion?.impacto ?? (pasoImpacto
                 ? leerImpacto({ ...pasoImpacto.datos, detalle: typeof pasoImpacto.datos.detalle === "string" && pasoImpacto.datos.detalle ? pasoImpacto.datos.detalle.split(" | ") : [] })
                 : null);
+            // Alcance y revisión: el último paso de cada tipo manda (los pasos ya mezclan local + bus).
+            const alcance = leerAlcance(pasos);
+            const revisionResumen = leerRevision(pasos);
             ramas.push({
                 id: t.id,
                 ola: etiqueta,
@@ -517,6 +610,10 @@ export async function construirRamificacion(cuantas = 4, horasBus = 24 * 30): Pr
                 eventos: eventosRama.slice(-12),
                 vivo,
                 aprobacion,
+                alcance,
+                revision: revisionResumen,
+                motivoAprobacion,
+                bloqueadaPor,
                 impacto,
             });
         }
@@ -533,6 +630,7 @@ export async function construirRamificacion(cuantas = 4, horasBus = 24 * 30): Pr
             sinCambios: cuenta((r) => r.estado === "sin_cambios" || r.estado === "sustituida"),
             pendientes: cuenta((r) => r.estado === "pendiente" || r.estado === "interrumpida"),
             esperandoAprobacion: cuenta((r) => r.estado === "esperando_aprobacion" || r.estado === "pendiente_aprobacion"),
+            bloqueadas: cuenta((r) => r.estado === "bloqueada"),
             viva: ramas.some((r) => r.vivo !== null),
         });
     }

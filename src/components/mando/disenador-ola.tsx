@@ -48,7 +48,7 @@ function nivelesBorrador(tareas: TareaCola[]): Map<string, number> {
 /** El borrador como ola del árbol (todas pendientes). */
 function ramaDelBorrador(nombre: string, tareas: TareaCola[]): RamaOla {
     const niv = nivelesBorrador(tareas);
-    const ramas: RamaTarea[] = tareas.map((t) => ({
+    const ramas: RamaTarea[] = tareas.map((t): RamaTarea => ({
         id: t.id || "?",
         ola: nombre,
         cola: "",
@@ -68,6 +68,10 @@ function ramaDelBorrador(nombre: string, tareas: TareaCola[]): RamaOla {
         pasos: [],
         eventos: [],
         vivo: null,
+        alcance: null,
+        revision: null,
+        motivoAprobacion: null,
+        bloqueadaPor: null,
         aprobacion: null,
         impacto: null,
     }));
@@ -82,6 +86,7 @@ function ramaDelBorrador(nombre: string, tareas: TareaCola[]): RamaOla {
         sinCambios: 0,
         pendientes: ramas.length,
         esperandoAprobacion: 0,
+        bloqueadas: 0,
         viva: false,
     };
 }

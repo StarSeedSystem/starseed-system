@@ -99,8 +99,10 @@ export interface CuentasTareas {
     pendientes: number;
     /** Tareas con la rama lista que esperan el visto bueno humano antes de integrarse. */
     esperandoAprobacion: number;
+    /** Bloqueadas por dependencia no integrada (Ola 269 · opcional: la cabecera aún no lo pide). */
+    bloqueadas?: number;
     /** Lo mismo sumando las últimas olas (las que dibuja la ramificación). */
-    ultimas: { olas: number; integradas: number; enCurso: number; fallidas: number; sinCambios: number; pendientes: number; esperandoAprobacion: number };
+    ultimas: { olas: number; integradas: number; enCurso: number; fallidas: number; sinCambios: number; pendientes: number; esperandoAprobacion: number; bloqueadas?: number };
 }
 
 /** Cuántos agentes están escribiendo, cuántos caben y con cuánta memoria. */

@@ -16,13 +16,13 @@
  */
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Bot, ChevronRight, GitCommit, Pause, Play, Radar, RefreshCw, ShieldCheck, Wand2 } from "lucide-react";
+import { Ban, Bot, ChevronRight, FileWarning, GitCommit, ListOrdered, Pause, Play, Radar, RefreshCw, ScanSearch, ShieldCheck, Wand2 } from "lucide-react";
 
 import { DisenadorOla } from "@/components/mando/disenador-ola";
 import { escuchar as escucharAsistente, tomarTareaPendiente } from "@/lib/mando/asistente-cliente";
 
 import type { FotoEnjambre, LatidoTarea } from "@/lib/mando/tipos";
-import type { ImpactoRama, RamaOla, RamaTarea, Ramificacion } from "@/lib/mando/ramificacion";
+import type { AlcanceRama, ImpactoRama, RamaOla, RamaTarea, Ramificacion } from "@/lib/mando/ramificacion";
 
 const INTERVALO_MS = 20_000;
 
@@ -70,6 +70,9 @@ function tonoEstado(estado: string): { borde: string; punto: string; texto: stri
             return { borde: "border-fuchsia-400/30", punto: "bg-fuchsia-400/60", texto: "text-fuchsia-200/80", etiqueta: "sin visto bueno · rama conservada" };
         case "rechazada":
             return { borde: "border-rose-400/30", punto: "bg-rose-400/60", texto: "text-rose-200/80", etiqueta: "rechazada · rama conservada" };
+        // Ola 269: parada por una dependencia que no se integró; neutra y tachada a la vista.
+        case "bloqueada":
+            return { borde: "border-white/15", punto: "bg-zinc-600", texto: "text-white/45 line-through", etiqueta: "bloqueada por dependencia" };
         default:
             if (estado.startsWith("fallo")) {
                 return { borde: "border-rose-400/50", punto: "bg-rose-400", texto: "text-rose-300", etiqueta: estado.replace("_", " ") };
@@ -148,9 +151,18 @@ function TarjetaTarea({
                     <span className={tono.texto}>{tono.etiqueta}</span>
                 </span>
             </div>
-            <p className="mt-1 line-clamp-2 text-[11px] leading-snug text-white/75" title={tarea.titulo}>
+            <p className={`mt-1 line-clamp-2 text-[11px] leading-snug text-white/75 ${tarea.estado === "bloqueada" ? "line-through decoration-white/30" : ""}`} title={tarea.titulo}>
                 {tarea.titulo}
             </p>
+            {tarea.bloqueadaPor ? (
+                <p data-testid="tarea-bloqueada" className="mt-1 text-[10px] text-white/45">bloqueada por dependencia: {tarea.bloqueadaPor}</p>
+            ) : null}
+            {tarea.impacto || tarea.alcance ? (
+                <div className="mt-2 flex flex-wrap items-center gap-1">
+                    <ImpactoDiff impacto={tarea.impacto} />
+                    {tarea.alcance ? <ChipAlcance alcance={tarea.alcance} /> : null}
+                </div>
+            ) : null}
             {vivo ? (
                 <div className="mt-2 rounded-lg border border-sky-400/20 bg-sky-500/10 px-2 py-1.5">
                     <div className="flex items-center justify-between text-[11px]">
@@ -546,6 +558,7 @@ function FichaTarea({ tarea, estadosOla, onCerrar, onCambio }: { tarea: RamaTare
                         {tarea.dependencias.length ? ` · depende de ${tarea.dependencias.join(", ")}` : " · sin dependencias"}
                         {tarea.segundos ? ` · ${Math.round(tarea.segundos / 60)} min` : ""}
                         {tarea.nota ? ` · ${tarea.nota}` : ""}
+                        {tarea.bloqueadaPor ? ` · bloqueada por dependencia: ${tarea.bloqueadaPor}` : ""}
                     </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -574,8 +587,27 @@ function FichaTarea({ tarea, estadosOla, onCerrar, onCambio }: { tarea: RamaTare
                         </li>
                         <li className="flex items-center gap-2">
                             <ShieldCheck className="h-3.5 w-3.5 text-white/50" aria-hidden />
-                            <span>{tarea.revisor || "sin revisión"}</span>
+                            <span>
+                                {tarea.revision ? tarea.revision.revisor : tarea.revisor || "sin revisión"}
+                                {/* Ola 269: cuánto tardó y cuántos intentos hizo falta, si el orquestador lo dice. */}
+                                {tarea.revision?.segundos != null ? <span className="text-white/40"> · {tarea.revision.segundos} s</span> : null}
+                                {tarea.revision?.intentos != null ? <span className="text-white/40"> · {tarea.revision.intentos} intento{tarea.revision.intentos === 1 ? "" : "s"}</span> : null}
+                                {tarea.revision?.bloqueante ? <span className="text-amber-300"> · bloqueante</span> : null}
+                            </span>
                         </li>
+                        {tarea.alcance ? (
+                            <li className="flex items-start gap-2">
+                                <ScanSearch className="mt-0.5 h-3.5 w-3.5 text-white/50" aria-hidden />
+                                <span>
+                                    Alcance: {tarea.alcance.tocados}/{Math.max(tarea.alcance.pedidos, tarea.alcance.tocados)} archivos{
+                                        tarea.alcance.completado ? <span className="text-white/40"> · compleción hecha</span> : null
+                                    }
+                                    {tarea.alcance.faltan.length ? (
+                                        <span className="text-rose-300/80"> · faltan: {tarea.alcance.faltan.join(", ")}</span>
+                                    ) : null}
+                                </span>
+                            </li>
+                        ) : null}
                         <li className="flex items-center gap-2 font-mono">
                             <GitCommit className="h-3.5 w-3.5 text-white/50" aria-hidden />
                             <span>{tarea.sha || "sin commit"}</span>
@@ -750,6 +782,38 @@ function DecidirTarea({ tarea, compacto, onHecho }: { tarea: RamaTarea; compacto
 }
 
 /**
+ * Chip de alcance (Ola 269): «alcance N/M» con tono ok si no falta nada o aviso si falta;
+ * el título lista los archivos que el agente no tocó y si hubo pasada de compleción.
+ */
+function ChipAlcance({ alcance }: { alcance: AlcanceRama }) {
+    const sinFaltantes = alcance.faltan.length === 0;
+    const titulo = sinFaltantes
+        ? `Todos los archivos pedidos se tocaron${alcance.completado ? " · pasada de compleción hecha" : ""}`
+        : `Faltan: ${alcance.faltan.join(", ")}${alcance.completado ? " · pasada de compleción hecha" : ""}`;
+    return (
+        <span
+            data-testid="chip-alcance"
+            title={titulo}
+            className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] ${
+                sinFaltantes
+                    ? "border-emerald-400/40 bg-emerald-500/10 text-emerald-200"
+                    : "border-amber-400/50 bg-amber-500/15 text-amber-100"
+            }`}
+        >
+            <ScanSearch className="h-3 w-3" aria-hidden />
+            alcance {alcance.tocados}/{Math.max(alcance.pedidos, alcance.tocados)}
+        </span>
+    );
+}
+
+/** Icono del motivo del visto bueno: bloqueo, alcance incompleto o pedido por la cola. */
+function IconoMotivo({ motivo }: { motivo: string }) {
+    if (/bloqueante|bloqueo/i.test(motivo)) return <Ban className="h-3.5 w-3.5 text-rose-200/90" aria-hidden />;
+    if (/alcance|faltan/i.test(motivo)) return <FileWarning className="h-3.5 w-3.5 text-amber-200/90" aria-hidden />;
+    return <ListOrdered className="h-3.5 w-3.5 text-fuchsia-200/90" aria-hidden />;
+}
+
+/**
  * Lo que espera tu visto bueno (nodos de aprobación humana): cada tarea con su rama lista,
  * sus comprobaciones (tsc, tests, revisión) y el diff resumido, para aprobar o rechazar sin
  * salir del Mando. Es la pestaña «Publicar» de la Ola 239 (MD8) en su forma mínima y real.
@@ -804,6 +868,12 @@ function EsperandoVistoBueno({ olas, onVer, onHecho }: { olas: RamaOla[]; onVer:
                             ) : null}
                             {t.estado === "pendiente_aprobacion" ? <span className="text-fuchsia-200/70">el orquestador ya no espera: intégrala a mano (git merge --ff-only {t.aprobacion?.rama ?? `ola/${t.id}`})</span> : null}
                         </div>
+                        {t.motivoAprobacion ? (
+                            <p data-testid="motivo-visto-bueno" className="mt-1 flex items-center gap-1.5 text-[11px] text-fuchsia-100/80">
+                                <IconoMotivo motivo={t.motivoAprobacion} />
+                                {t.motivoAprobacion}
+                            </p>
+                        ) : null}
                         {t.aprobacion?.diffstat ? <pre className="mt-1 max-h-32 overflow-auto whitespace-pre-wrap font-mono text-[10px] text-white/55">{t.aprobacion.diffstat.trim()}</pre> : null}
                         <ImpactoDiff impacto={t.aprobacion?.impacto ?? t.impacto} detalle />
                         {t.aprobacion?.revision ? <p className="mt-1 text-[11px] text-white/60">Revisor: {t.aprobacion.revision}</p> : null}
@@ -1134,6 +1204,11 @@ export function RamificacionAgentes() {
                         <span>
                             <span className="text-white/70">{ola.pendientes}</span> pendientes
                         </span>
+                        {ola.bloqueadas > 0 ? (
+                            <span>
+                                <span className="text-white/50 line-through">{ola.bloqueadas}</span> bloqueadas
+                            </span>
+                        ) : null}
                     </div>
                     <ArbolOla ola={ola} seleccion={tareaSel} onSeleccionar={(id) => setTareaSel((prev) => (prev === id ? null : id))} />
                     <FilasDeProcesos
