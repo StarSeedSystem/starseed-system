@@ -117,10 +117,16 @@ function candidatosRegenerables(raiz: string): Array<Omit<Regenerable, "mb">> {
     ];
 }
 
-/** Logs de olas en /tmp de más de 7 días, agrupados en una sola entrada. */
+/** Carpeta de los registros de olas (parametrizable para pruebas; /tmp por defecto). */
+export function carpetaLogsOlas(): string {
+    return process.env.STARSEED_OLAS_LOG_DIR || "/tmp";
+}
+
+/** Logs de olas de más de 7 días, agrupados en una sola entrada. */
 async function logsViejos(): Promise<Regenerable | null> {
     try {
-        const archivos = await readdir("/tmp").catch(() => []);
+        const dir = carpetaLogsOlas();
+        const archivos = await readdir(dir).catch(() => []);
         const ahora = Date.now();
         const SIETE_DIAS = 7 * 24 * 3600 * 1000;
         let bytes = 0;
@@ -128,7 +134,7 @@ async function logsViejos(): Promise<Regenerable | null> {
         for (const nombre of archivos) {
             if (!nombre.startsWith("ola-") || !nombre.endsWith(".log")) continue;
             try {
-                const st = await stat(path.join("/tmp", nombre));
+                const st = await stat(path.join(dir, nombre));
                 if (ahora - st.mtimeMs > SIETE_DIAS) {
                     bytes += st.size;
                     cuenta += 1;
@@ -138,7 +144,7 @@ async function logsViejos(): Promise<Regenerable | null> {
             }
         }
         if (cuenta === 0) return null;
-        return { id: "olas-logs", ruta: "/tmp/ola-*.log (> 7 días)", mb: Math.round(bytes / 1048576), descripcion: `${cuenta} registros de olas con más de 7 días`, seguro: true };
+        return { id: "olas-logs", ruta: `${dir}/ola-*.log (> 7 días)`, mb: Math.round(bytes / 1048576), descripcion: `${cuenta} registros de olas con más de 7 días`, seguro: true };
     } catch {
         return null;
     }
@@ -301,9 +307,22 @@ export async function limpiarRegenerables(ids: string[]): Promise<{ ok: boolean;
         // pgrep no encontró nada (código 1): se puede limpiar.
     }
     const blanca = new Map(candidatosRegenerables(raizDelProyecto()).filter((c) => c.seguro).map((c) => [c.id, c.ruta]));
+    // 2026-09-07 (A3): los registros de olas no son una carpeta entera sino
+    // ficheros sueltos con más de 7 días; entran en la lista blanca por id y
+    // se borran UNO A UNO con la misma regla que `logsViejos` (nunca un glob).
+    blanca.set("olas-logs", carpetaLogsOlas());
     const limpiados: string[] = [];
     const rechazados: string[] = [];
     for (const id of ids) {
+        if (id === "olas-logs") {
+            try {
+                await limpiarLogsOlas();
+                limpiados.push(id);
+            } catch (e) {
+                rechazados.push(`${id} (${e instanceof Error ? e.message : "error"})`);
+            }
+            continue;
+        }
         const ruta = blanca.get(id);
         if (!ruta) {
             rechazados.push(id);
@@ -323,49 +342,132 @@ export async function limpiarRegenerables(ids: string[]): Promise<{ ok: boolean;
     };
 }
 
-/** Memoria libre aproximada en MB: `os.freemem()` (rápido y suficiente para el antes/después). */
-function memoriaLibreMb(): number {
-    return Math.round(os.freemem() / 1048576);
+/**
+ * Borra uno a uno (sin glob en `rm`) los `ola-*.log` de `carpetaLogsOlas()`
+ * con más de 7 días. Devuelve cuántos borró.
+ */
+async function limpiarLogsOlas(): Promise<number> {
+    const dir = carpetaLogsOlas();
+    const archivos = await readdir(dir).catch(() => [] as string[]);
+    const ahora = Date.now();
+    const SIETE_DIAS = 7 * 24 * 3600 * 1000;
+    let borrados = 0;
+    for (const nombre of archivos) {
+        if (!nombre.startsWith("ola-") || !nombre.endsWith(".log")) continue;
+        const ruta = path.join(dir, nombre);
+        try {
+            const st = await stat(ruta);
+            if (ahora - st.mtimeMs <= SIETE_DIAS) continue;
+            await execFileAsync("rm", ["-f", ruta], { timeout: 10000 });
+            borrados += 1;
+        } catch {
+            // Si el archivo desaparece a mitad, no pasa nada.
+        }
+    }
+    return borrados;
 }
 
-/** POST tolerante con tope de 4 s; no lanza nunca. */
-async function post(url: string): Promise<{ ok: boolean; detalle: string }> {
+/**
+ * Memoria disponible real en MB: `os.freemem()` más las páginas INACTIVAS de
+ * `vm_stat` (recuperables al instante en macOS), la misma medición que usa el
+ * demonio de voz. Sin `vm_stat` (o fuera de macOS) solo freemem.
+ */
+export async function memoriaDisponibleMb(): Promise<number> {
+    const libre = os.freemem();
+    if (process.platform !== "darwin") return Math.round(libre / 1048576);
     try {
-        const r = await fetch(url, { method: "POST", signal: AbortSignal.timeout(4000) });
-        return { ok: r.ok, detalle: `HTTP ${r.status}` };
+        const { stdout } = await execFileAsync("vm_stat", [], { timeout: 3000 });
+        const paginaMatch = /page size of (\d+)/.exec(stdout);
+        const paginasMatch = /^Pages inactive:\s+(\d+)/m.exec(stdout);
+        if (!paginaMatch || !paginasMatch) return Math.round(libre / 1048576);
+        return Math.round((libre + Number(paginasMatch[1]) * Number(paginaMatch[1])) / 1048576);
+    } catch {
+        return Math.round(libre / 1048576);
+    }
+}
+
+/** POST tolerante; `timeoutMs` de tope y sin lanzar nunca. Devuelve el cuerpo JSON si lo hay. */
+async function post(url: string, timeoutMs = 4000): Promise<{ ok: boolean; detalle: string; cuerpo: Record<string, unknown> | null }> {
+    try {
+        const r = await fetch(url, { method: "POST", signal: AbortSignal.timeout(timeoutMs) });
+        const cuerpo = (await r.json().catch(() => null)) as Record<string, unknown> | null;
+        return { ok: r.ok, detalle: `HTTP ${r.status}`, cuerpo };
     } catch (e) {
-        return { ok: false, detalle: e instanceof Error ? e.message : "sin respuesta" };
+        return { ok: false, detalle: e instanceof Error ? e.message : "sin respuesta", cuerpo: null };
     }
 }
 
 /**
- * «Aliviar memoria»: duerme el BitNet (`POST 127.0.0.1:8000/api/bitnet/dormir`)
- * y pide la cesión del pool de voz (`POST 127.0.0.1:4444/ceder`; si la ruta no
- * existe responde 404 y simplemente se anota como «no cede»). Espera 3 s y
- * mide el antes/después para el informe.
+ * Consulta `GET 127.0.0.1:8000/api/bitnet/estado` hasta 3 veces (una cada 3 s)
+ * hasta que `dormido === true`. Sirve para cuando dormir el BitNet se tarda
+ * más que la ventana de la petición: lo IMPORTANTE es que se haya dormido,
+ * no que haya confirmado a tiempo.
+ */
+async function confirmarBitnetDormido(): Promise<boolean> {
+    for (let intento = 0; intento < 3; intento++) {
+        try {
+            const r = await fetch("http://127.0.0.1:8000/api/bitnet/estado", { signal: AbortSignal.timeout(3000) });
+            const j = (await r.json().catch(() => null)) as { dormido?: unknown } | null;
+            if (r.ok && j && j.dormido === true) return true;
+        } catch {
+            // Sin respuesta: lo intentamos de nuevo.
+        }
+        await new Promise((r) => setTimeout(r, 3000));
+    }
+    return false;
+}
+
+/**
+ * «Aliviar memoria»: duerme el BitNet (`POST 127.0.0.1:8000/api/bitnet/dormir`
+ * con 20 s de ventana, confirmando por `/api/bitnet/estado` si expira antes)
+ * y pide la cesión inmediata del pool de voz al demonio (`POST 127.0.0.1:4444/ceder`,
+ * Ola 273 · A3). Espera 5 s y mide el antes/después con `vm_stat` (libre +
+ * inactiva, igual que el demonio) con tope inferior de 0 en el alivio y nota
+ * honesta si se movió poco (la memoria ya estaba cedida).
  */
 export async function aliviarMemoria(): Promise<{
     antesMb: number;
     despuesMb: number;
     liberadoMb: number;
+    nota: string | null;
     pasos: Array<{ que: string; ok: boolean; detalle: string }>;
 }> {
-    const antesMb = memoriaLibreMb();
+    const antesMb = await memoriaDisponibleMb();
     const pasos: Array<{ que: string; ok: boolean; detalle: string }> = [];
 
-    const bitnet = await post("http://127.0.0.1:8000/api/bitnet/dormir");
-    pasos.push({ que: "Dormir el llama-server BitNet", ok: bitnet.ok, detalle: bitnet.detalle });
+    const bitnet = await post("http://127.0.0.1:8000/api/bitnet/dormir", 20000);
+    if (bitnet.ok) {
+        pasos.push({ que: "Dormir el llama-server BitNet", ok: true, detalle: bitnet.detalle });
+    } else {
+        // Dormir tarda hasta ~20 s: si expiró la ventana, confirmamos el estado real.
+        const dormido = await confirmarBitnetDormido();
+        pasos.push({
+            que: "Dormir el llama-server BitNet",
+            ok: dormido,
+            detalle: dormido ? "dormido, confirmado por /estado" : bitnet.detalle,
+        });
+    }
 
     const voz = await post("http://127.0.0.1:4444/ceder");
-    pasos.push({
-        que: "Ceder el pool de voz del demonio",
-        ok: voz.ok,
-        detalle: voz.detalle.includes("404") ? "El demonio no acepta cesión (404): no cede" : voz.detalle,
-    });
+    if (voz.ok && voz.cuerpo && typeof voz.cuerpo.cedidos === "number") {
+        pasos.push({
+            que: "Ceder el pool de voz del demonio",
+            ok: true,
+            detalle: `Cedidos ${voz.cuerpo.cedidos} servidores tts`,
+        });
+    } else {
+        pasos.push({
+            que: "Ceder el pool de voz del demonio",
+            ok: voz.ok,
+            detalle: voz.detalle.includes("404") ? "El demonio no acepta cesión (404): no cede" : voz.detalle,
+        });
+    }
 
-    await new Promise((r) => setTimeout(r, 3000));
-    const despuesMb = memoriaLibreMb();
-    return { antesMb, despuesMb, liberadoMb: despuesMb - antesMb, pasos };
+    await new Promise((r) => setTimeout(r, 5000));
+    const despuesMb = await memoriaDisponibleMb();
+    const liberadoMb = Math.max(0, despuesMb - antesMb);
+    const nota = liberadoMb < 100 ? "Poco alivio: la memoria ya estaba cedida o el sistema la volvió a ocupar." : null;
+    return { antesMb, despuesMb, liberadoMb, nota, pasos };
 }
 
 /**

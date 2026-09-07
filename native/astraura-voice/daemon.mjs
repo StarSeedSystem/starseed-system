@@ -334,6 +334,9 @@ let oidoSuenoTimer = null; // temporizador del sueño por inactividad
 // cedió (null si aún no se ha cedido ninguna); `cesiones` cuenta cuántas
 // veces se ha cedido el pool desde el arranque. Se exponen en /status.asr.
 let ultimaCesionEn = null;
+// 2026-09-07 (Ola 273): motivo de la última cesión («escasez», «petición
+// externa»…), para que el Mando y /status vean QUIÉN la pidió.
+let ultimaCesionMotivo = null;
 let cesiones = 0;
 // 2026-09-06 (Ola 262, turno de memoria): contabilidad del turno pedido al
 // BitNet del backend Astraura y de los recalentamientos del pool TTS. `cesiones`
@@ -636,10 +639,24 @@ function cederMemoriaSiHaceFalta() {
   if (inFlight > 0) return false; // hay síntesis en curso: no interrumpirla
   if (serverPool.size === 0) return false; // nada que ceder
   const mb = Math.trunc(disponibles / (1024 * 1024));
-  killAllServers(`oído: cediendo memoria del pool TTS (${mb} MB disponibles)`);
+  cederMemoria(`escasez: oído, ${mb} MB disponibles`);
+  return true;
+}
+
+/**
+ * Cesión INCONDICIONAL del pool TTS (2026-09-07, Ola 273): mata todos los
+ * tts-server del pool en marcha sin mirar umbrales ni antigüedad — la pide el
+ * Mando («Aliviar memoria») con `POST /ceder`. Devuelve cuántos servidores se
+ * cedieron. Anota el motivo en el log y lo guarda para `/status.asr`.
+ * El pool se relanza solo en la siguiente síntesis, así que nunca rompe el TTS.
+ */
+function cederMemoria(motivo) {
+  const cedidos = serverPool.size;
+  killAllServers(`cesión de memoria (${motivo})`);
   cesiones++;
   ultimaCesionEn = Date.now();
-  return true;
+  ultimaCesionMotivo = motivo;
+  return cedidos;
 }
 
 /**
@@ -2404,6 +2421,8 @@ function handleStatus(res, cors) {
       // al oído. `ultimaCesionMs` = ms desde la última cesión (null si aún no
       // se cedió ninguna); `cesiones` = nº de cesiones desde el arranque.
       ultimaCesionMs: ultimaCesionEn === null ? null : Date.now() - ultimaCesionEn,
+      // 2026-09-07 (Ola 273): motivo de la última cesión (escasez o externa).
+      ultimaCesionMotivo,
       cesiones,
       // 2026-09-06 (Ola 262, turno de memoria): contabilidad del turno pedido
       // al BitNet del backend Astraura y de los recalentamientos del pool TTS
@@ -2472,8 +2491,18 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "POST" && url === "/asr") {
       return await handleAsr(req, res, cors);
     }
+    // 2026-09-07 (Ola 273): cesión inmediata del pool TTS a petición externa
+    // («Aliviar memoria» del Mando). GET /ceder se rechaza con 405 para que un
+    // clic o un preflight de navegador no pueda ceder por accidente.
+    if (req.method === "POST" && url === "/ceder") {
+      const cedidos = cederMemoria("petición externa (Mando)");
+      return sendJson(res, 200, cors, { ok: true, cedidos, memoriaLibreMb: Math.trunc(os.freemem() / 1048576) });
+    }
+    if (req.method === "GET" && url === "/ceder") {
+      return sendJson(res, 405, cors, { ok: false, error: "método no permitido" });
+    }
 
-    return sendJson(res, 404, cors, { ok: false, error: "ruta no encontrada", routes: ["GET /status", "POST /tts", "POST /identity", "POST /warm", "POST /asr"] });
+    return sendJson(res, 404, cors, { ok: false, error: "ruta no encontrada", routes: ["GET /status", "POST /tts", "POST /identity", "POST /warm", "POST /asr", "POST /ceder"] });
   } catch (e) {
     // Blindaje total: ninguna petición mala tumba el daemon.
     try {

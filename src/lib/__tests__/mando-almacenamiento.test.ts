@@ -20,7 +20,11 @@ vi.mock("node:child_process", () => ({
     spawn: () => ({ unref: () => undefined, pid: 123 }),
 }));
 
-import { interpretarDf, explicarSwap, limpiarRegenerables, UMBRAL_SWAP_MB } from "../mando/almacenamiento";
+import { mkdtemp, rm, writeFile, utimes } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
+
+import { interpretarDf, explicarSwap, limpiarRegenerables, aliviarMemoria, UMBRAL_SWAP_MB } from "../mando/almacenamiento";
 
 describe("interpretarDf (Ola 273 · disco)", () => {
     it("lee una salida real de macOS y convierte bloques de 1 KB a MB", () => {
@@ -53,6 +57,39 @@ describe("explicarSwap (Ola 273 · honestidad del swap)", () => {
     });
 });
 
+describe("aliviarMemoria (Ola 273 · A3)", () => {
+    it("si dormir expira, confirma por /estado y cede el pool del demonio", async () => {
+        const pedidas: string[] = [];
+        vi.stubGlobal("fetch", async (url: string) => {
+            pedidas.push(url);
+            if (url.includes("/api/bitnet/dormir")) {
+                // Más lento que la ventana de 20 s: la petición aborta.
+                throw new Error("The operation was aborted due to timeout");
+            }
+            if (url.includes("/api/bitnet/estado")) {
+                return new Response(JSON.stringify({ dormido: true }), { status: 200 });
+            }
+            if (url.endsWith("/ceder")) {
+                return new Response(JSON.stringify({ ok: true, cedidos: 2, memoriaLibreMb: 1200 }), { status: 200 });
+            }
+            return new Response("no", { status: 404 });
+        });
+        try {
+            const r = await aliviarMemoria();
+            const bitnet = r.pasos.find((p) => p.que.includes("BitNet"));
+            const voz = r.pasos.find((p) => p.que.includes("voz"));
+            expect(bitnet?.ok).toBe(true);
+            expect(bitnet?.detalle).toContain("confirmado por /estado");
+            expect(pedidas.filter((u) => u.includes("/api/bitnet/estado")).length).toBeGreaterThanOrEqual(1);
+            expect(voz?.ok).toBe(true);
+            expect(voz?.detalle).toContain("Cedidos 2");
+            expect(r.liberadoMb).toBeGreaterThanOrEqual(0);
+        } finally {
+            vi.unstubAllGlobals();
+        }
+    }, 30000);
+});
+
 describe("limpiarRegenerables (Ola 273 · lista blanca)", () => {
     beforeEach(() => {
         llamadas.length = 0;
@@ -63,5 +100,26 @@ describe("limpiarRegenerables (Ola 273 · lista blanca)", () => {
         expect(r.limpiados).toEqual([]);
         // Solo el pgrep: jamás un rm con una ruta que no vino de medirRegenerables.
         expect(llamadas.filter((l) => l.binario === "rm")).toEqual([]);
+    });
+    it("olas-logs está en la lista blanca y solo borra los de más de 7 días (Ola 273 · A3)", async () => {
+        const dir = await mkdtemp(path.join(tmpdir(), "olas-"));
+        process.env.STARSEED_OLAS_LOG_DIR = dir;
+        try {
+            const antiguo = path.join(dir, "ola-antigua.log");
+            const reciente = path.join(dir, "ola-reciente.log");
+            await writeFile(antiguo, "viejo");
+            await writeFile(reciente, "nuevo");
+            const hace8dias = new Date(Date.now() - 8 * 24 * 3600 * 1000);
+            await utimes(antiguo, hace8dias, hace8dias);
+            const r = await limpiarRegenerables(["olas-logs"]);
+            expect(r.ok).toBe(true);
+            expect(r.limpiados).toEqual(["olas-logs"]);
+            const rms = llamadas.filter((l) => l.binario === "rm").map((l) => l.args.join(" "));
+            // Un rm por archivo viejo, ruta exacta (nunca un glob), y el reciente intacto.
+            expect(rms).toEqual([`-f ${antiguo}`]);
+        } finally {
+            delete process.env.STARSEED_OLAS_LOG_DIR;
+            await rm(dir, { recursive: true, force: true });
+        }
     });
 });
