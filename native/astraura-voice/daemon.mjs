@@ -1507,20 +1507,124 @@ function aplicarPitch(buf, pitch) {
   });
 }
 
+/**
+ * (Ola 263 · 2026-09-07) Duración real en segundos de un WAV a partir de `fmt `
+ * (sampleRate, canales, bits) y el tamaño REAL de `data` (el mínimo entre lo
+ * declarado y los bytes presentes: el 0xFFFFFFFF de una tubería ffmpeg no
+ * cuenta). `null` si no se puede leer. Espejo exacto de
+ * `duracionWavSegundos` en src/lib/voces/wav.ts (mismo contrato, mismo
+ * recorrido de chunks): si cambias uno, cambia el otro.
+ */
+function duracionWavSegundos(buf) {
+  const rec = recorrerWavChunks(buf);
+  if (!rec || !rec.fmt) return null;
+  const bytesPresentes = buf.length - rec.offsetData;
+  const tamanoReal = Math.min(rec.tamanoData, bytesPresentes);
+  if (tamanoReal < 0) return null;
+  const bytesPorFotograma = rec.fmt.canales * (rec.fmt.bits / 8);
+  if (!(bytesPorFotograma > 0)) return null;
+  const seg = tamanoReal / (rec.fmt.sampleRate * bytesPorFotograma);
+  return Number.isFinite(seg) && seg >= 0 ? seg : null;
+}
+
+/**
+ * (Ola 263 · 2026-09-07) ffmpeg no conoce el tamaño final cuando escribe un
+ * WAV a stdout (`-f wav -`, el camino de `aplicarPitch`): deja RIFF/data en
+ * 0xFFFFFFFF y el archivo «dura» 89 s teniendo 3. Recorre los chunks
+ * (`fmt `, `LIST`, `data`…) y, si `data` declara un tamaño mayor que los bytes
+ * restantes (o el «desconocido» 0xFFFFFFFF), reescribe dataSize = total −
+ * offsetData y riffSize = total − 8 a partir del búfer REAL. Devuelve el MISMO
+ * Buffer si la cabecera ya es coherente (permite detectar la reparación con
+ * `out !== buf`). Espejo exacto de `repararCabeceraWav` en src/lib/voces/wav.ts.
+ */
+function repararCabeceraWav(buf) {
+  const rec = recorrerWavChunks(buf);
+  if (!rec) return buf;
+  const bytesPresentes = buf.length - rec.offsetData;
+  if (rec.tamanoData <= bytesPresentes && rec.tamanoData !== 0xffffffff) return buf;
+  const out = Buffer.from(buf); // copia: nunca mutamos el original (caché)
+  out.writeUInt32LE(out.length - 8, 4); // tamaño RIFF
+  out.writeUInt32LE(out.length - rec.offsetData, rec.offsetData - 4); // tamaño data
+  return out;
+}
+
+/**
+ * (Ola 263 · 2026-09-07) Recorre los chunks de un WAV RIFF/WAVE hasta `data`
+ * (fmt va ANTES de data en un WAV bien formado; ffmpeg puede meter un LIST
+ * en medio). Los chunks se alinean a 2 bytes. Devuelve
+ * { fmt, offsetData, tamanoData } o null si no es WAV legible / no hay data /
+ * un tamaño corrupto se sale del búfer.
+ */
+function recorrerWavChunks(buf) {
+  if (!Buffer.isBuffer(buf) || buf.length < 12) return null;
+  if (buf.toString("ascii", 0, 4) !== "RIFF" || buf.toString("ascii", 8, 12) !== "WAVE") return null;
+  let pos = 12;
+  let fmt = null;
+  while (pos + 8 <= buf.length) {
+    const id = buf.toString("ascii", pos, pos + 4);
+    const tamano = buf.readUInt32LE(pos + 4);
+    const offsetCuerpo = pos + 8;
+    if (id === "fmt ") {
+      // fmt mínimo: 16 bytes (PCM). WAVE_FORMAT_EXTENSIBLE trae más, pero
+      // canales/sampleRate/bits están siempre en estas posiciones.
+      if (offsetCuerpo + 16 > buf.length) return null;
+      const canales = buf.readUInt16LE(offsetCuerpo + 2);
+      const sampleRate = buf.readUInt32LE(offsetCuerpo + 4);
+      const bits = buf.readUInt16LE(offsetCuerpo + 14);
+      if (sampleRate > 0 && canales > 0 && bits > 0) fmt = { sampleRate, canales, bits };
+    }
+    if (id === "data") return { fmt, offsetData: offsetCuerpo, tamanoData: tamano };
+    if (tamano > buf.length - offsetCuerpo) return null; // tamaño corrupto
+    pos = offsetCuerpo + tamano + (tamano % 2);
+  }
+  return null;
+}
+
+/** (Ola 263) Repara la cabecera si miente y lo anota en el log del daemon. */
+function repararWavSiHaceFalta(buf) {
+  const out = repararCabeceraWav(buf);
+  if (out !== buf) {
+    const d = duracionWavSegundos(out);
+    log("daemon", `cabecera WAV reparada (${out.length} bytes, ${d === null ? "?" : d.toFixed(2)} s)`);
+  }
+  return out;
+}
+
 /** Envía un WAV aplicando velocidad (síncrono) y tono (async), anotando ignorados. */
 async function responderWav(res, cors, buf, speed, pitch, extraHeaders, outHeaders) {
   const vel = applySpeed(buf, speed, extraHeaders);
+  // (Ola 263) La cabecera se repara AL FINAL, sobre el audio YA post-procesado
+  // (velocidad + tono): es el punto único por el que pasa todo WAV que sale.
+  // Así ni la respuesta ni la caché ven nunca un 0xFFFFFFFF de ffmpeg.
+  const duracion = (seg) => {
+    const s = duracionWavSegundos(seg);
+    return s === null ? undefined : s.toFixed(2);
+  };
   if (pitch !== 1) {
     const r = await aplicarPitch(vel, pitch);
     if (r.ok) {
-      sendWav(res, cors, r.buf, { ...outHeaders, "X-Astraura-Pitch": `asetrate/atempo:${pitch}` });
+      const sano = repararWavSiHaceFalta(r.buf);
+      const dur = duracion(sano);
+      sendWav(res, cors, sano, {
+        ...outHeaders,
+        "X-Astraura-Pitch": `asetrate/atempo:${pitch}`,
+        ...(dur !== undefined ? { "X-Astraura-Duracion": dur } : {}),
+      });
     } else {
       // ffmpeg ausente o falló: devolvemos el audio sin tono y lo decimos.
-      sendWav(res, cors, vel, { ...outHeaders, "X-Astraura-Ignored": [extraHeaders["X-Astraura-Ignored"], "pitch"].filter(Boolean).join(",") });
+      const sano = repararWavSiHaceFalta(vel);
+      const dur = duracion(sano);
+      sendWav(res, cors, sano, {
+        ...outHeaders,
+        "X-Astraura-Ignored": [extraHeaders["X-Astraura-Ignored"], "pitch"].filter(Boolean).join(","),
+        ...(dur !== undefined ? { "X-Astraura-Duracion": dur } : {}),
+      });
     }
     return;
   }
-  sendWav(res, cors, vel, outHeaders);
+  const sano = repararWavSiHaceFalta(vel);
+  const dur = duracion(sano);
+  sendWav(res, cors, sano, { ...outHeaders, ...(dur !== undefined ? { "X-Astraura-Duracion": dur } : {}) });
 }
 
 // ── Respuestas ───────────────────────────────────────────────────────────────
