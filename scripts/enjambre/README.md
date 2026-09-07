@@ -90,3 +90,15 @@ En la nube el techo es **2 trabajadores** (`--workers 2`): más saturan el conte
 
 Todo lo ejecuta el enjambre; Claude **diseña, supervisa y verifica** — no edita a mano lo que una
 ola puede escribir.
+
+## Un solo tsc (Ola 261, P6b · 2026-09-07)
+
+Tres `tsc` simultáneos tumbaron el contenedor (6,4 GB, load 21), así que en TODA la máquina
+los pasa pesados comparten un único turno: el cerrojo-directorio `~/.starseed/cerrojos/pesado.lock`.
+Los agentes ya no ejecutan `npx tsc` suelto: el contexto de cada tarea manda usar
+`bash scripts/enjambre/tsc-turno.sh`, que toma el MISMO cerrojo que la puerta del orquestador
+(`cerrojo("pesado")` → `cerrojo_pesado`, mkdir atómico con `dueno` pid+epoch, liberado siempre
+por trap/finally, huérfanos —pid muerto o > 30 min— limpiados solos). El script cachea la
+pasada en verde por hash de contenidos (`git ls-files -co`: incluye archivos sin `git add`,
+arreglo del falso «sin cambios») en `~/.starseed/cerrojos/tsc-cache-<repo>`, fuera del árbol.
+El vigilante mata además los `node …/bin/tsc` huérfanos cada 60 s. Pruebas: `test_cerrojo.py`.

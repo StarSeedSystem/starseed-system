@@ -22,6 +22,7 @@ Tiempos configurables (2026-09-06, Ola 261):
     ser más impaciente que la mitad de ese margen.
 """
 import json, os, re, subprocess, sys, threading, time, urllib.request, urllib.error, shutil, collections
+import signal
 import contextlib, fcntl
 
 # El MISMO archivo corre en la Mac de Alex y en el contenedor de Cowork: sin variables de
@@ -542,8 +543,97 @@ CERROJOS = os.path.expanduser("~/.starseed/cerrojos")
 os.makedirs(CERROJOS, exist_ok=True)
 
 
+PESADO_MAX_EDAD_S = 30 * 60    # cerrojo pesado más viejo que esto = huérfano
+PESADO_ESPERA_S = 20 * 60      # espera máxima por el turno de tsc
+PESADO_REINTENTO_S = 2
+
+
+def _dueno_pesado(ruta):
+    """Lee el `dueno` del cerrojo-directorio pesado → (pid, epoch); (None, 0) si falta."""
+    try:
+        with open(os.path.join(ruta, "dueno"), encoding="utf-8") as f:
+            partes = f.read().split()
+        return (int(partes[0]), float(partes[1])) if len(partes) >= 2 else (None, 0)
+    except Exception:
+        return (None, 0)
+
+
+def _pid_vivo(pid):
+    try:
+        if pid is None:
+            return False
+        os.kill(pid, 0)
+        return True
+    except OSError:
+        return False
+    except Exception:
+        return True
+
+
+def _limpiar_pesado_huerfano(ruta):
+    """Borra un `pesado.lock` cuyo dueño ya no vive o que tiene más de 30 min.
+    Sin esta limpieza, un orquestador (o tsc-turno.sh) matado a la fuerza dejaba el
+    cerrojo puesto y TODAS las olas se bloqueaban hasta limpiarlo a mano (2026-09-07,
+    Ola 261 — fallo real del intento anterior)."""
+    if not os.path.isdir(ruta):
+        return False
+    pid, epoch = _dueno_pesado(ruta)
+    motivo = None
+    if pid is None:
+        motivo = "dueño ilegible"
+    elif not _pid_vivo(pid):
+        motivo = "dueño muerto (pid %s)" % pid
+    elif epoch and (time.time() - epoch) > PESADO_MAX_EDAD_S:
+        motivo = "más de 30 min de antigüedad (pid %s)" % pid
+    if not motivo:
+        return False
+    try:
+        evento("aviso", "", "cerrojo huérfano eliminado: %s" % motivo)
+    except Exception:
+        pass
+    shutil.rmtree(ruta, ignore_errors=True)
+    return True
+
+
 @contextlib.contextmanager
-def cerrojo(nombre, espera_aviso=60):
+def cerrojo_pesado():
+    """Cerrojo de tsc ENTRE PROCESOS como DIRECTORIO atómico con `dueno` (pid + epoch):
+    el mismo formato que usa `scripts/enjambre/tsc-turno.sh`, para que agentes y
+    orquestadores compitan por un único turno. Se libera siempre en `finally` y solo
+    si el dueño sigue siendo este proceso (2026-09-07, Ola 261, P6b)."""
+    ruta = os.path.join(CERROJOS, "pesado.lock")
+    if os.path.isfile(ruta):
+        try: os.remove(ruta)     # formato antiguo (flock sobre archivo): fuera
+        except Exception: pass
+    t0 = time.time()
+    while True:
+        _limpiar_pesado_huerfano(ruta)
+        try:
+            os.mkdir(ruta)
+            break
+        except FileExistsError:
+            pass
+        except Exception:
+            break
+        if time.time() - t0 > PESADO_ESPERA_S:
+            # Espera agotada (el dueño no soltó): fuerza el turno, igual que el script.
+            shutil.rmtree(ruta, ignore_errors=True)
+            try: os.mkdir(ruta)
+            except Exception: pass
+            break
+        time.sleep(PESADO_REINTENTO_S)
+    with open(os.path.join(ruta, "dueno"), "w", encoding="utf-8") as f:
+        f.write("%d %d" % (os.getpid(), time.time()))
+    try:
+        yield
+    finally:
+        pid, _ = _dueno_pesado(ruta)
+        if pid == os.getpid():
+            shutil.rmtree(ruta, ignore_errors=True)
+
+
+@contextlib.contextmanager
+def _cerrojo_flock(nombre, espera_aviso=60):
     """Cerrojo de archivo: serializa entre TODOS los orquestadores vivos."""
     ruta = os.path.join(CERROJOS, nombre + ".lock")
     f = open(ruta, "w")
@@ -564,6 +654,18 @@ def cerrojo(nombre, espera_aviso=60):
             f.close()
         except Exception:
             pass
+
+
+@contextlib.contextmanager
+def cerrojo(nombre, espera_aviso=60):
+    """Punto único de entrada. El cerrojo «pesado» (tsc/vitest) es un directorio con
+    `dueno` compartido con tsc-turno.sh; el resto sigue siendo un flock de archivo."""
+    if nombre == "pesado":
+        with cerrojo_pesado():
+            yield
+    else:
+        with _cerrojo_flock(nombre, espera_aviso=espera_aviso):
+            yield
 
 # ── eventos (supervisor) ────────────────────────────────────────────────────
 # Cada evento lleva una CATEGORÍA gruesa además de su tipo fino, para que el Puente de
@@ -1287,6 +1389,11 @@ def contexto_tarea(t):
             "Lee primero CLAUDE.md (secciones 8, 11 y 💠) y los archivos implicados. Reglas: sin `any`; cursor-pointer en lo clicable; "
             "español en textos de UI y comentarios (con acentos); no toques archivos ajenos a la tarea; no ejecutes git; deja los cambios "
             "escritos en disco sin pedir confirmación.\n\n"
+            # Por qué (2026-09-07, Ola 261, P6b): 3 tsc simultáneos tumbaron el contenedor
+            # (6,4 GB, load 21). El turno «pesado» lo comparten el orquestador y este script.
+            "IMPORTANTE: NO ejecutes `npx tsc` directamente: usa `bash scripts/enjambre/tsc-turno.sh` "
+            "(un solo tsc a la vez en la máquina, con caché por repo); tests: `npx vitest run <archivo o carpeta concreta>`, "
+            "nunca la suite entera.\n\n"
             # Por qué se pide esto (2026-09-06, Ola 261): el log del orquestador solo crece cuando
             # TERMINA una llamada de herramienta; una única escritura de 300 líneas con un proveedor
             # lento (NIM, 5-10 tok/s) tarda 8-20 min sin dejar rastro y el vigilante la cortaba por
@@ -1531,13 +1638,55 @@ def foto_enjambre(vivas_txt):
     }
 
 
+def _barrer_tsc_huerfanos():
+    """Cada 60 s: mata `node …/bin/tsc` huérfanos (padre muerto o > 20 min) y limpia un
+    `pesado.lock` con dueño muerto (2026-09-07, Ola 261, P6b). Por qué: un opencode
+    cortado por el vigilante puede dejar su `npx tsc` colgado comiendo 3-5 GB y
+    bloqueando el turno del resto de la máquina."""
+    try:
+        p = subprocess.run(["ps", "-eo", "pid,ppid,etimes,args"],
+                           capture_output=True, text=True, timeout=15)
+        ahora_pid = os.getpid()
+        for linea in (p.stdout or "").splitlines():
+            if "bin/tsc" not in linea and not linea.strip().endswith(" tsc"):
+                continue
+            partes = linea.split(None, 3)
+            if len(partes) < 4:
+                continue
+            try:
+                pid, ppid, etimes = int(partes[0]), int(partes[1]), int(partes[2])
+            except ValueError:
+                continue
+            if pid == ahora_pid:
+                continue
+            if not _pid_vivo(ppid) or etimes > 20 * 60:
+                try:
+                    evento("aviso", "", "tsc huérfano eliminado (pid %d, %d min)" % (pid, etimes // 60))
+                    os.kill(pid, signal.SIGKILL)
+                except Exception:
+                    pass
+    except Exception:
+        pass
+    try:
+        if _limpiar_pesado_huerfano(os.path.join(CERROJOS, "pesado.lock")):
+            pass  # la propia limpieza ya anota el aviso
+    except Exception:
+        pass
+
+
 def vigilante():
     """Comprueba CADA 20 s que las tareas activas avanzan de verdad, en vez de descubrir
     al final que una nunca arrancó. Si una lleva ESTANCADO_S sin escribir una sola línea,
     corta ese opencode y el bucle de la tarea pasa solo al siguiente modelo."""
     ultimo_bus = 0.0
+    ultimo_barrido = 0.0
     while not FIN.is_set():
         FIN.wait(20)
+        t_ciclo = time.time()
+        if t_ciclo - ultimo_barrido >= 60:
+            ultimo_barrido = t_ciclo
+            try: _barrer_tsc_huerfanos()
+            except Exception: pass
         try: atender_control()
         except Exception: pass
         t = time.time(); vivas = []
