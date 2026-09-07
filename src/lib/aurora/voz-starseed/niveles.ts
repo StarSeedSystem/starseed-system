@@ -7,13 +7,14 @@
  *
  *  · estudio — OmniVoice GGUF Q8_0 por el demonio local (~1000 MB)
  *  · alta    — OmniVoice GGUF Q4_K_M por el demonio local (~600 MB)
+ *  · nube    — Gemini TTS o Pollinations por el servidor del OS (0 MB, red)
  *  · ligera  — Kokoro ONNX/WASM en el navegador (~120 MB)
  *  · minima  — voz del sistema operativo (0 MB)
  */
 
 import type { Capacidades } from "./capacidades";
 
-export type NivelVoz = "estudio" | "alta" | "ligera" | "minima";
+export type NivelVoz = "estudio" | "alta" | "nube" | "ligera" | "minima";
 
 export interface InfoNivel {
     /** Nombre legible para la interfaz. */
@@ -47,6 +48,14 @@ export const NIVELES: Record<NivelVoz, InfoNivel> = {
         latencia: "Baja (local)",
         calidad: "Alta, casi estudio",
     },
+    nube: {
+        etiqueta: "Nube",
+        motorInterno: "Gemini TTS o Pollinations (servidor del OS)",
+        requisitos: "Conexión a internet",
+        ramMB: 0,
+        latencia: "Media (1-4 s)",
+        calidad: "Alta y estable",
+    },
     ligera: {
         etiqueta: "Ligera",
         motorInterno: "Kokoro ONNX/WASM (navegador)",
@@ -66,20 +75,34 @@ export const NIVELES: Record<NivelVoz, InfoNivel> = {
 };
 
 /** Cadena de descenso: cada nivel puede pasar al siguiente. */
-const ORDEN: NivelVoz[] = ["estudio", "alta", "ligera", "minima"];
+const ORDEN: NivelVoz[] = ["estudio", "alta", "nube", "ligera", "minima"];
+
+/**
+ * Nivel por defecto (decisión automática). A los cuatro niveles por hardware
+ * se une el «nube» (2026-09-07, Ola 279 · V6): si no hay demonio local PERO hay
+ * conexión, la síntesis por el servidor del OS suena bien sin descargar nada,
+ * y queda ANTES que «ligera»/«mínima». Es el nivel que Alex pidió para que la
+ * voz «funcione y suene bien» aunque el demonio esté apagado.
+ */
+export function nivelPorDefecto(c: Capacidades): NivelVoz {
+    if (c.daemonLocal && (c.memoriaGB ?? 0) >= 8) return "estudio";
+    if (c.daemonLocal) return "alta";
+    // `navigator.onLine` solo existe en el navegador; el servidor cae a ligera/mínima.
+    if (typeof navigator !== "undefined" && navigator.onLine) return "nube";
+    if (!c.movil && (c.webgpu || c.wasmSimd)) return "ligera";
+    return "minima";
+}
 
 /**
  * Elige el nivel más alto que el equipo puede sostener:
  *  · demonio local + 8 GB de RAM o más        → estudio
  *  · demonio local                             → alta
+ *  · en línea y sin demonio                    → nube (Gemini/Pollinations)
  *  · escritorio con WebGPU o WASM SIMD         → ligera
  *  · cualquier otro caso                       → minima
  */
 export function nivelPara(c: Capacidades): NivelVoz {
-    if (c.daemonLocal && (c.memoriaGB ?? 0) >= 8) return "estudio";
-    if (c.daemonLocal) return "alta";
-    if (!c.movil && (c.webgpu || c.wasmSimd)) return "ligera";
-    return "minima";
+    return nivelPorDefecto(c);
 }
 
 /**
@@ -93,7 +116,7 @@ export function nivelesDisponibles(c: Capacidades): NivelVoz[] {
 
 /**
  * El nivel inmediatamente inferior (degradación grácil), o `null` cuando ya
- * se está en el mínimo. Cadena: estudio → alta → ligera → minima → null.
+ * se está en el mínimo. Cadena: estudio → alta → nube → ligera → minima → null.
  */
 export function siguienteNivel(n: NivelVoz): NivelVoz | null {
     const i = ORDEN.indexOf(n);

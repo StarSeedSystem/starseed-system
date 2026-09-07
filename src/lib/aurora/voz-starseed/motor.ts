@@ -12,6 +12,7 @@
  *
  *       estudio · OmniVoice GGUF Q8_0 por el demonio local (`motor-local.ts`)
  *       alta    · OmniVoice GGUF Q4_K_M por el demonio local (mismo recorrido)
+ *       nube    · Gemini TTS o Pollinations por el servidor del OS (vía red)
  *       ligera  · Kokoro ONNX/WASM en el navegador (`tts-oss/kokoro.ts`)
  *       minima  · voz del sistema (`speechSynthesis`), la red de seguridad
  *
@@ -46,7 +47,7 @@ export type ContextoVoz = "rito" | "conversacion" | "aviso" | "lectura" | "imagi
 const CLAVE_NIVEL = "starseed.voz.nivel";
 export type PreferenciaNivel = NivelVoz | "auto";
 
-const NIVELES_VALIDOS: PreferenciaNivel[] = ["auto", "estudio", "alta", "ligera", "minima"];
+const NIVELES_VALIDOS: PreferenciaNivel[] = ["auto", "estudio", "alta", "nube", "ligera", "minima"];
 
 /** Nivel que pidió el usuario, o "auto" si no ha elegido (valor por defecto). */
 export function nivelPreferido(): PreferenciaNivel {
@@ -287,16 +288,57 @@ export interface OpcionesHablar {
  */
 async function hablarPorLocal(texto: string, timbre: Timbre, alEmpezar?: () => void): Promise<boolean> {
     try {
-        const ml = await import("@/lib/aurora/motor-local");
-        const est = await ml.estadoMotorLocal();
-        if (!est.listo) {
-            // (2026-09-05) El daemon existe pero duerme (auto-sleep) o está cargando el modelo
-            // (~22 s): se le espera en vez de caer a la voz robótica del navegador, que es lo
-            // que sonaba «mal» en las primeras ventanas de la bienvenida. `esperarListo` ya
-            // distingue «no hay daemon» (no espera) de «respondió tarde» (espera hasta 30 s).
-            if (!(await ml.esperarListo(30_000))) return false;
+        // (2026-09-07, Ola 279 · V6) Tope de 20 s para el demonio local: si no
+        // responde en ese plazo se baja al nivel «nube», que suena bien por red,
+        // en vez de quedarse esperando a un demonio dormido o cargando.
+        const conTope = (async () => {
+            const ml = await import("@/lib/aurora/motor-local");
+            const est = await ml.estadoMotorLocal();
+            if (!est.listo) {
+                // (2026-09-05) El daemon existe pero duerme (auto-sleep) o está cargando el modelo
+                // (~22 s): se le espera en vez de caer a la voz robótica del navegador, que es lo
+                // que sonaba «mal» en las primeras ventanas de la bienvenida. `esperarListo` ya
+                // distingue «no hay daemon» (no espera) de «respondió tarde» (espera hasta 30 s).
+                if (!(await ml.esperarListo(30_000))) return false;
+            }
+            return await ml.hablarLocalPorFrases(texto, timbre, alEmpezar);
+        })();
+        return await Promise.race([conTope, new Promise<boolean>((res) => setTimeout(() => res(false), 20_000))]);
+    } catch {
+        return false;
+    }
+}
+
+/**
+ * Habla por el nivel «nube»: síntesis en el servidor del OS (`/api/voz/nube`),
+ * que usa Gemini TTS y, si no hay clave, Pollinations. Reutiliza la MISMA
+ * utilidad de reproducción que los niveles del demonio (`reproducirLocal`):
+ * resuelve `true` cuando el audio EMPIEZA a sonar. Nunca lanza.
+ */
+async function hablarPorNube(texto: string, timbre: Timbre, alEmpezar?: () => void): Promise<boolean> {
+    try {
+        let resp: Response;
+        try {
+            resp = await fetch("/api/voz/nube", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    texto,
+                    genero: timbre.genero,
+                    velocidad: timbre.local.speed,
+                }),
+                signal: AbortSignal.timeout(25_000),
+                cache: "no-store",
+            });
+        } catch {
+            return false; // red caída o timeout: se baja de nivel
         }
-        return await ml.hablarLocalPorFrases(texto, timbre, alEmpezar);
+        if (!resp.ok) return false;
+        const blob = await resp.blob();
+        if (!blob.size) return false;
+        try { alEmpezar?.(); } catch { /* el aviso no puede romper */ }
+        const ml = await import("@/lib/aurora/motor-local");
+        return await ml.reproducirLocal(blob);
     } catch {
         return false;
     }
@@ -342,6 +384,7 @@ async function hablarPorSistema(texto: string, timbre: Timbre, alEmpezar?: () =>
 /** Sintetiza por la vía existente en el OS para ese nivel. Nunca lanza. */
 async function sintetizar(nivel: NivelVoz, texto: string, timbre: Timbre, opciones: OpcionesHablar): Promise<boolean> {
     if (nivel === "estudio" || nivel === "alta") return hablarPorLocal(texto, timbre, opciones.alEmpezar);
+    if (nivel === "nube") return hablarPorNube(texto, timbre, opciones.alEmpezar);
     if (nivel === "ligera") return hablarPorKokoro(texto, timbre, opciones.alEmpezar);
     if (opciones.sinSistema) return false;
     return hablarPorSistema(texto, timbre, opciones.alEmpezar);

@@ -62,17 +62,18 @@ describe("nivelesDisponibles", () => {
         }
     });
 
-    it("con estudio disponible ofrece los cuatro niveles", () => {
+    it("con estudio disponible ofrece los cinco niveles", () => {
         expect(nivelesDisponibles({ ...base, daemonLocal: true, memoriaGB: 8 })).toEqual([
             "estudio",
             "alta",
+            "nube",
             "ligera",
             "minima",
         ]);
     });
 
-    it("con alta disponible omite estudio", () => {
-        expect(nivelesDisponibles({ ...base, daemonLocal: true })).toEqual(["alta", "ligera", "minima"]);
+    it("con alta disponible omite estudio pero incluye nube", () => {
+        expect(nivelesDisponibles({ ...base, daemonLocal: true })).toEqual(["alta", "nube", "ligera", "minima"]);
     });
 
     it("con ligera disponible omite estudio y alta", () => {
@@ -87,7 +88,8 @@ describe("nivelesDisponibles", () => {
 describe("siguienteNivel", () => {
     it("recorre la cadena completa y acaba en null", () => {
         expect(siguienteNivel("estudio")).toBe("alta");
-        expect(siguienteNivel("alta")).toBe("ligera");
+        expect(siguienteNivel("alta")).toBe("nube");
+        expect(siguienteNivel("nube")).toBe("ligera");
         expect(siguienteNivel("ligera")).toBe("minima");
         expect(siguienteNivel("minima")).toBeNull();
     });
