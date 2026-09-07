@@ -48,6 +48,7 @@ function saludBase(): SaludNeurona {
         bitnet: { puerto: 8790, estado: "vivo", latenciaMs: 5, crashes24h: 0, ultimoCrash: null },
         ollama: { vivo: false, modelos: [] },
         avisos: [],
+        verificacion: null,
     };
 }
 

@@ -21,7 +21,25 @@ import { readFile, readdir, stat } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
+import { raizDelProyecto } from "@/lib/mando/raiz";
+
 const execFileAsync = promisify(execFile);
+
+/**
+ * Resultado de la última verificación de la neurona (Ola 269 · 2026-09-07).
+ * Lo escribe `scripts/verificar-neurona.mjs` en `starseed_memory_root/verificaciones/ultimo.json`;
+ * el Mando lo muestra como tarjeta «Última verificación» de un vistazo.
+ */
+export interface VerificacionNeurona {
+    /** Marca de tiempo de la verificación (ISO). */
+    t: string;
+    commit: string;
+    puntuacion: number;
+    fallos: number;
+    avisos: number;
+    regresiones: string[];
+    mejoras: string[];
+}
 
 /** Salud completa de la neurona que devuelve `GET /api/mando/neurona`. */
 export interface SaludNeurona {
@@ -65,6 +83,8 @@ export interface SaludNeurona {
     };
     /** Avisos en español para la cabecera del Mando (vacío si todo va bien). */
     avisos: string[];
+    /** Última verificación pasada por `node scripts/verificar-neurona.mjs` (null si aún no hay). */
+    verificacion: VerificacionNeurona | null;
 }
 
 /**
@@ -351,17 +371,58 @@ async function medirOllama(): Promise<SaludNeurona["ollama"]> {
     }
 }
 
+/** Lista de cadenas tolerante: cada elemento que no sea `string` se descarta. */
+function listaDeTexto(v: unknown): string[] {
+    if (!Array.isArray(v)) return [];
+    return (v as unknown[]).filter((x): x is string => typeof x === "string");
+}
+
 /**
- * Mide la salud completa de la neurona. Las sondas (memoria, voz, BitNet y
- * Ollama) van en paralelo con `Promise.allSettled`; cada una es tolerante y
- * `medirNeurona` NUNCA lanza. Rellena los avisos al final.
+ * Lee la última verificación de la neurona (`starseed_memory_root/verificaciones/ultimo.json`).
+ * 2026-09-07 (Ola 269): el archivo lo escribe `scripts/verificar-neurona.mjs`; si aún no existe
+ * —todavía no se lanzó la batería por primera vez— devuelve `null` y el panel enseña el comando.
+ * Tolerante: cualquier campo ilegible se normaliza y nunca lanza.
+ */
+export async function leerVerificacion(): Promise<VerificacionNeurona | null> {
+    try {
+        const contenido = await readFile(
+            path.join(raizDelProyecto(), "starseed_memory_root", "verificaciones", "ultimo.json"),
+            "utf-8",
+        );
+        const d = JSON.parse(contenido) as unknown;
+        if (typeof d !== "object" || d === null || Array.isArray(d)) return null;
+        const o = d as Record<string, unknown>;
+        const checks = Array.isArray(o.checks)
+            ? (o.checks as unknown[]).filter((c): c is Record<string, unknown> => typeof c === "object" && c !== null)
+            : [];
+        const fallos = checks.filter((c) => c.estado === "fallo").length;
+        const avisos = checks.filter((c) => c.estado === "aviso").length;
+        return {
+            t: typeof o.t === "string" ? o.t : "",
+            commit: typeof o.commit === "string" ? o.commit : "",
+            puntuacion: typeof o.puntuacion === "number" && Number.isFinite(o.puntuacion) ? o.puntuacion : 0,
+            fallos,
+            avisos,
+            regresiones: listaDeTexto(o.regresiones),
+            mejoras: listaDeTexto(o.mejoras),
+        };
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * Mide la salud completa de la neurona. Las sondas (memoria, voz, BitNet, Ollama
+ * y la última verificación) van en paralelo con `Promise.allSettled`; cada una es
+ * tolerante y `medirNeurona` NUNCA lanza. Rellena los avisos al final.
  */
 export async function medirNeurona(): Promise<SaludNeurona> {
-    const [memoriaR, vozR, bitnetR, ollamaR] = await Promise.allSettled([
+    const [memoriaR, vozR, bitnetR, ollamaR, verificacionR] = await Promise.allSettled([
         medirMemoria(),
         medirVoz(),
         medirBitnet(),
         medirOllama(),
+        leerVerificacion(),
     ]);
     const salud: SaludNeurona = {
         t: new Date().toISOString(),
@@ -370,6 +431,7 @@ export async function medirNeurona(): Promise<SaludNeurona> {
         bitnet: bitnetR.status === "fulfilled" ? bitnetR.value : bitnetVacio(),
         ollama: ollamaR.status === "fulfilled" ? ollamaR.value : ollamaVacia(),
         avisos: [],
+        verificacion: verificacionR.status === "fulfilled" ? verificacionR.value : null,
     };
     salud.avisos = avisosDe(salud);
     return salud;
