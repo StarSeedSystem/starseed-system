@@ -22,6 +22,7 @@ import {
 
 import type { EstadoMando } from "@/lib/mando/tipos";
 import { RamificacionAgentes } from "@/components/mando/ramificacion-agentes";
+import { Ramificacion158 } from "@/components/mando/ramificacion-158";
 import { pedirVerTarea } from "@/lib/mando/asistente-cliente";
 
 /** Formatea una fecha ISO a hora local corta. */
@@ -266,6 +267,17 @@ export function PanelProcesos() {
     return (
         <div className="space-y-4">
             <RamificacionAgentes />
+            {/* Ola 270 (2026-09-07): la rama viva del backend 1.58 de esta neurona,
+                debajo de la ramificación de olas. */}
+            <section className="space-y-1">
+                <h3 className="text-sm font-semibold text-white">
+                    Ramificación 1.58 · personalidades y agentes locales
+                </h3>
+                <p className="text-[11px] text-white/50">
+                    Trabajan de forma continua con el BitNet local y respetan el turno de memoria.
+                </p>
+                <Ramificacion158 />
+            </section>
             <AgentesEnVivo estado={estado} />
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 <Indicador
