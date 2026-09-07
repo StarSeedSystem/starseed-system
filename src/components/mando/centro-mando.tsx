@@ -78,12 +78,15 @@ function DatoPulso({
     valor,
     tono,
     detalle,
+    alClic,
 }: {
     titulo: string;
     valor: string;
     tono?: "normal" | "aviso" | "peligro" | "ok";
     /** Texto pequeño bajo el valor (y tooltip). */
     detalle?: string;
+    /** Si se pasa, la pastilla es un botón accesible que ejecuta esta acción. */
+    alClic?: () => void;
 }) {
     const clase =
         tono === "peligro"
@@ -93,14 +96,33 @@ function DatoPulso({
               : tono === "ok"
                 ? "border-emerald-400/30 bg-emerald-500/10 text-emerald-200"
                 : "border-white/10 bg-white/5 text-white/80";
+    const contenido = (
+        <>
+            <span className="text-[11px] uppercase tracking-wide opacity-70">{titulo}</span>
+            <span className="truncate text-left text-sm font-semibold">{valor}</span>
+            {detalle ? <span className="truncate text-left text-[10px] opacity-60">{detalle}</span> : null}
+        </>
+    );
+    if (alClic) {
+        return (
+            <li className="min-w-28">
+                <button
+                    type="button"
+                    onClick={alClic}
+                    title={detalle}
+                    className={`flex w-full cursor-pointer flex-col gap-0.5 rounded-lg border px-3 py-2 text-left ${clase}`}
+                >
+                    {contenido}
+                </button>
+            </li>
+        );
+    }
     return (
         <li
             className={`flex min-w-28 flex-col gap-0.5 rounded-lg border px-3 py-2 ${clase}`}
             title={detalle}
         >
-            <span className="text-[11px] uppercase tracking-wide opacity-70">{titulo}</span>
-            <span className="truncate text-sm font-semibold">{valor}</span>
-            {detalle ? <span className="truncate text-[10px] opacity-60">{detalle}</span> : null}
+            {contenido}
         </li>
     );
 }
@@ -227,12 +249,14 @@ export function CentroMando() {
             }
         }
         const agotados = fuera.size;
+        const disponibles = flota.filter((p) => p.estado === "listo").length;
         return {
             olaActiva: olaActiva ? (/^ola\s/i.test(olaActiva.id) ? olaActiva.id : `Ola ${olaActiva.id}`) : "Sin olas activas",
             tareasEnCurso,
             pendientes,
             sinPush: estado.repo?.sinPush ?? null,
             agotados,
+            disponibles,
         };
     }, [estado]);
 
@@ -303,6 +327,8 @@ export function CentroMando() {
                         titulo="Proveedores agotados"
                         valor={String(pulso.agotados)}
                         tono={pulso.agotados > 0 ? "peligro" : "normal"}
+                        detalle={`${pulso.disponibles} disponibles`}
+                        alClic={() => alCambiarPestana("flota")}
                     />
                     {pulsoNeurona ? (
                         <>

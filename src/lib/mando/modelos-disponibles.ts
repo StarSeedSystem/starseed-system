@@ -36,6 +36,15 @@ export interface ModeloDisponible {
     ultimoRevisorOk?: string | null;
 }
 
+/** Una clave de un proveedor según el supervisor: nombre y huella, nunca el valor. */
+export interface ClaveSalud {
+    var: string;
+    medio: string;
+    huella: string;
+    /** Hasta cuándo está agotada («AAAA-MM-DD HH:MM:SS»), si lo está. */
+    agotadaHasta: string | null;
+}
+
 /** Detalle de salud de un proveedor según el supervisor del enjambre (Ola 269). */
 export interface SaludProveedor {
     estado: string | null;
@@ -45,6 +54,10 @@ export interface SaludProveedor {
     motivo: string | null;
     /** Momento del último 429 («AAAA-MM-DD HH:MM:SS»). */
     ultimo429: string | null;
+    /** Claves conocidas (P9 · Ola 271): variables, medios y huellas, nunca valores. */
+    claves: ClaveSalud[];
+    /** Variable de la clave activa, si la hay. */
+    clavesActiva: string | null;
 }
 
 /** Resultado de interpretar `salud-proveedores.json`: detalle por proveedor y revisor global. */
@@ -301,11 +314,24 @@ export function interpretarSalud(json: unknown): SaludRevisores {
         }
         const entrada = objeto(v);
         if (Object.keys(entrada).length === 0) continue;
+        const clavesBrutas = objeto(entrada.claves);
+        const listaClaves = Array.isArray(clavesBrutas.claves) ? clavesBrutas.claves : [];
+        const claves: ClaveSalud[] = listaClaves.map((c) => {
+            const k = objeto(c);
+            return {
+                var: texto(k.var) ?? "",
+                medio: texto(k.medio) ?? "",
+                huella: texto(k.huella) ?? "",
+                agotadaHasta: texto(k.agotada_hasta),
+            };
+        });
         porProveedor[proveedor] = {
             estado: texto(entrada.estado),
             sinCupoHasta: texto(entrada.sin_cupo_hasta),
             motivo: texto(entrada.motivo),
             ultimo429: texto(entrada.ultimo_429),
+            claves,
+            clavesActiva: texto(clavesBrutas.activa),
         };
     }
     return { porProveedor, ultimoRevisorOk };

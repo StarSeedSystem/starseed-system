@@ -24,6 +24,8 @@ import {
 import type { EstadoMando } from "@/lib/mando/tipos";
 import { flotaConocida, type ModeloFlota, type ProveedorFlota } from "@/lib/mando/flota";
 import type { ModeloDisponible, SaludProveedor } from "@/lib/mando/modelos-disponibles";
+import { proveedoresDisponibles } from "@/lib/mando/proveedores-catalogo";
+import { ExternalLink } from "lucide-react";
 
 /** Colores de estado (semaforización de la flota). */
 const COLOR_ESTADO: Record<ProveedorFlota["estado"], string> = {
@@ -309,6 +311,147 @@ function TablaEnrutamientos({ estado }: { estado: EstadoMando | null }) {
     );
 }
 
+/** Enlace editorial del catálogo (panel de claves, API o docs). */
+function EnlaceExterno({ href, etiqueta }: { href: string; etiqueta: string }) {
+    return (
+        <a
+            href={href}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex cursor-pointer items-center gap-1 text-[11px] text-sky-300 underline decoration-sky-300/40 underline-offset-2 transition-colors hover:text-sky-200"
+        >
+            {etiqueta}
+            <ExternalLink className="h-3 w-3" />
+        </a>
+    );
+}
+
+/**
+ * Proveedores del catálogo con su estado vivo y enlaces (Ola 271): agotados o
+ * enfriándose con hasta cuándo y sus claves por medio; disponibles ahora con su
+ * base; y por conseguir, que solo Alex puede abrir.
+ */
+function SeccionProveedores({ catalogo }: { catalogo: ModeloDisponible[] }) {
+    const disponibles = useMemo(() => {
+        // Se reconstruye la salud cruda a partir del detalle que trae cada modelo
+        // del catálogo (`saludDetalle` por proveedor, con claves y la activa).
+        const salud: Record<string, unknown> = {};
+        for (const m of catalogo) {
+            if (!m.saludDetalle || salud[m.proveedor]) continue;
+            salud[m.proveedor] = {
+                estado: m.saludDetalle.estado,
+                sin_cupo_hasta: m.saludDetalle.sinCupoHasta,
+                claves: {
+                    claves: m.saludDetalle.claves.map((c) => ({
+                        var: c.var,
+                        medio: c.medio,
+                        huella: c.huella,
+                        agotada_hasta: c.agotadaHasta,
+                    })),
+                    activa: m.saludDetalle.clavesActiva,
+                },
+            };
+        }
+        return proveedoresDisponibles(salud);
+    }, [catalogo]);
+
+    const agotados = disponibles.filter((p) => p.estado === "sinCupo" || p.estado === "enfriandose");
+    const listos = disponibles.filter((p) => p.estado === "activo" || p.estado === "sinClave");
+    const porConseguir = disponibles.filter((p) => p.estado === "porConseguir");
+
+    return (
+        <section data-testid="proveedores-enlaces" className="space-y-4 rounded-xl border border-white/10 bg-black/30 p-4">
+            <h3 className="flex items-center gap-2 text-sm font-semibold text-white">
+                <Cloud className="h-4 w-4" />
+                Proveedores
+            </h3>
+
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                <div className="space-y-2">
+                    <h4 className="text-xs font-medium uppercase tracking-wide text-white/50">
+                        Agotados o enfriándose
+                    </h4>
+                    {agotados.length === 0 ? (
+                        <p className="text-xs text-white/50">Ninguno agotado ahora mismo.</p>
+                    ) : (
+                        agotados.map((p) => (
+                            <article key={p.id} className="rounded-lg border border-red-400/20 bg-red-500/5 p-3">
+                                <div className="flex items-center justify-between gap-2">
+                                    <span className="text-sm font-medium text-white">{p.nombre}</span>
+                                    {p.sinCupoHasta ? (
+                                        <span className="text-[11px] text-red-300">sin cupo hasta {p.sinCupoHasta}</span>
+                                    ) : (
+                                        <span className="text-[11px] text-amber-300">enfriándose</span>
+                                    )}
+                                </div>
+                                {p.claves.length > 0 && (
+                                    <ul className="mt-2 space-y-1">
+                                        {p.claves.map((c) => (
+                                            <li key={c.var} className="flex items-center gap-2 font-mono text-[11px] text-white/70">
+                                                <span className={c.var === p.activa ? "text-emerald-300" : ""}>
+                                                    {c.var}
+                                                </span>
+                                                <span className="text-white/40">· {c.medio}</span>
+                                                <span className="text-white/40">· {c.huella}</span>
+                                                {c.var === p.activa ? (
+                                                    <span className="rounded-full border border-emerald-400/40 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] text-emerald-300">
+                                                        activa
+                                                    </span>
+                                                ) : null}
+                                            </li>
+                                        ))}
+                                    </ul>
+                                )}
+                                <div className="mt-2 flex flex-wrap items-center gap-3">
+                                    <EnlaceExterno href={p.panelClaves} etiqueta="Conseguir clave" />
+                                    <EnlaceExterno href={p.base} etiqueta="API" />
+                                    <EnlaceExterno href={p.docs} etiqueta="Docs" />
+                                </div>
+                            </article>
+                        ))
+                    )}
+                </div>
+
+                <div className="space-y-2">
+                    <h4 className="text-xs font-medium uppercase tracking-wide text-white/50">
+                        Disponibles ahora
+                    </h4>
+                    {listos.length === 0 ? (
+                        <p className="text-xs text-white/50">Ninguno disponible.</p>
+                    ) : (
+                        listos.map((p) => (
+                            <article key={p.id} className="rounded-lg border border-emerald-400/20 bg-emerald-500/5 p-3">
+                                <span className="text-sm font-medium text-white">{p.nombre}</span>
+                                <p className="mt-1 font-mono text-[11px] text-white/50">{p.base}</p>
+                                <p className="mt-1 text-[11px] text-white/60">{p.gratis}</p>
+                            </article>
+                        ))
+                    )}
+                </div>
+            </div>
+
+            {porConseguir.length > 0 && (
+                <div className="space-y-2">
+                    <h4 className="text-xs font-medium uppercase tracking-wide text-white/50">
+                        Por conseguir (solo Alex crea cuentas)
+                    </h4>
+                    <ul className="space-y-1">
+                        {porConseguir.map((p) => (
+                            <li key={p.id} className="flex flex-wrap items-center gap-3 rounded-lg border border-amber-400/20 bg-amber-500/5 p-2 text-[12px]">
+                                <span className="font-medium text-white">{p.nombre}</span>
+                                <span className="text-white/50">{p.gratis}</span>
+                                <EnlaceExterno href={p.panelClaves} etiqueta="Conseguir clave" />
+                                <EnlaceExterno href={p.base} etiqueta="API" />
+                                <EnlaceExterno href={p.docs} etiqueta="Docs" />
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+            )}
+        </section>
+    );
+}
+
 /** Panel principal de la flota de proveedores de inteligencia. */
 export function PanelFlota() {
     const [estado, setEstado] = useState<EstadoMando | null>(null);
@@ -381,6 +524,8 @@ export function PanelFlota() {
             </header>
 
             <AvisoSaludRevisores catalogo={catalogo} />
+
+            <SeccionProveedores catalogo={catalogo} />
 
             {agotados.length > 0 && (
                 <p className="flex items-center gap-2 rounded-lg border border-red-400/30 bg-red-500/10 px-3 py-2 text-xs text-red-200">

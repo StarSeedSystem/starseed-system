@@ -20,15 +20,40 @@ describe("interpretarSalud (Ola 269 · salud viva de revisores)", () => {
       sinCupoHasta: "2026-09-07 23:59:00",
       motivo: "cuota diaria agotada",
       ultimo429: "2026-09-07 09:55:00",
+      claves: [],
+      clavesActiva: null,
     });
     expect(salida.porProveedor.nim).toEqual({
       estado: "vivo",
       sinCupoHasta: null,
       motivo: null,
       ultimo429: null,
+      claves: [],
+      clavesActiva: null,
     });
     // La clave global nunca aparece como si fuera un proveedor.
     expect(salida.porProveedor["ultimo_revisor_ok"]).toBeUndefined();
+  });
+
+  it("extrae las claves por medio y la activa (Ola 271)", () => {
+    const salida = interpretarSalud({
+      nim: {
+        estado: "vivo",
+        t: "2026-09-07 10:00:00",
+        claves: {
+          claves: [
+            { var: "NVIDIA_API_KEY", medio: "~/.hermes/.env", huella: "nvapi-…", agotada_hasta: null },
+            { var: "NVIDIA_SHARED_KEY", medio: "proceso", huella: "sk-…" },
+          ],
+          activa: "NVIDIA_API_KEY",
+        },
+      },
+    });
+    expect(salida.porProveedor.nim?.claves).toEqual([
+      { var: "NVIDIA_API_KEY", medio: "~/.hermes/.env", huella: "nvapi-…", agotadaHasta: null },
+      { var: "NVIDIA_SHARED_KEY", medio: "proceso", huella: "sk-…", agotadaHasta: null },
+    ]);
+    expect(salida.porProveedor.nim?.clavesActiva).toBe("NVIDIA_API_KEY");
   });
 
   it("entrada vacía o deforme → todo a null sin lanzar", () => {
