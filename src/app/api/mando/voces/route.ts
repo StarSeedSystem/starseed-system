@@ -25,7 +25,10 @@ import {
     type PreferenciasVozMando,
     type VozDeAgente,
 } from "@/lib/mando/voz-mando";
-import { TIMBRES } from "@/lib/aurora/timbres";
+// (Ola 275 · Tarea V5A) Importamos el catálogo puro de SERVIDOR, no `timbres.ts`
+// (que es «use client»): en el bundle de servidor un módulo de cliente deja de
+// ser un array y `TIMBRES.map` fallaba en el build ligero.
+import { TIMBRES } from "@/lib/aurora/timbres-catalogo";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
