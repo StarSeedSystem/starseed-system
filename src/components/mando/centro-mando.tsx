@@ -178,10 +178,10 @@ export function CentroMando() {
     const [almacenamiento, setAlmacenamiento] = useState<EstadoAlmacenamiento | null>(null);
     const [soloLocal, setSoloLocal] = useState(false);
     const [cargando, setCargando] = useState(true);
-    // «Sin publicar» de la cabecera (Ola 274): suma de `delante` de los repos, leído
-    // del mismo endpoint de publicaciones una vez por minuto. Un fallo lo deja en null
-    // y la pastilla no aparece (no hay nada que medir sin la Mac).
-    const [sinPublicar, setSinPublicar] = useState<number | null>(null);
+    // «Sin publicar» de la cabecera (Ola 274; un solo dato desde Ola 276 · M10): el
+    // desglose por repos leído del endpoint de publicaciones una vez por minuto. Un
+    // fallo lo deja en null y la pastilla usa `pulso.sinPush` (solo OS) como respaldo.
+    const [sinPublicar, setSinPublicar] = useState<{ total: number; os: number; astraura: number } | null>(null);
 
     useEffect(() => {
         setPestana(pestanaInicial());
@@ -284,9 +284,10 @@ export function CentroMando() {
         };
     }, []);
 
-    // «Sin publicar» de la cabecera (Ola 274): una vez por minuto se suma `delante`
-    // de cada repositorio publicable desde el endpoint de publicaciones. Es la misma
-    // fuente que la pestaña «Commits pendientes», para que cabecera y pestaña casen.
+    // «Sin publicar» de la cabecera (Ola 274; desglose desde Ola 276 · M10): una vez
+    // por minuto se lee el `delante` de cada repositorio publicable (OS y Astraura)
+    // desde el endpoint de publicaciones. Es la misma fuente que la pestaña «Commits
+    // pendientes», para que cabecera y pestaña casen.
     useEffect(() => {
         let vivo = true;
         let enCurso = false;
@@ -297,10 +298,14 @@ export function CentroMando() {
                 const respuesta = await fetch("/api/mando/publicaciones", { cache: "no-store" });
                 if (!vivo) return;
                 if (!respuesta.ok) return;
-                const datos = (await respuesta.json()) as { repos: Array<{ delante: number }> };
-                setSinPublicar(datos.repos.reduce((acc, r) => acc + (r.delante ?? 0), 0));
+                const datos = (await respuesta.json()) as {
+                    repos: Array<{ repo: "os" | "astraura"; delante: number }>;
+                };
+                const os = datos.repos.find((r) => r.repo === "os")?.delante ?? 0;
+                const astraura = datos.repos.find((r) => r.repo === "astraura")?.delante ?? 0;
+                setSinPublicar({ total: os + astraura, os, astraura });
             } catch {
-                // Sin la Mac no hay publicaciones: la pastilla no aparece.
+                // Sin la Mac no hay publicaciones: la pastilla usa el respaldo.
             } finally {
                 enCurso = false;
             }
@@ -413,7 +418,7 @@ export function CentroMando() {
                   }
                 : undefined,
             proveedoresCaidos: [...proveedoresCaidos],
-            sinPublicar: sinPublicar ?? undefined,
+            sinPublicar: sinPublicar?.total,
         };
     }, [estado, sinPublicar]);
     const controlVoz = useVozDelMando(estado?.relevo?.eventos ?? [], estadoVozMando);
@@ -452,9 +457,25 @@ export function CentroMando() {
                         tono={pulso.tareasEnCurso > 0 ? "aviso" : "normal"}
                     />
                     <DatoPulso
-                        titulo="Commits sin publicar"
-                        valor={pulso.sinPush === null ? "—" : String(pulso.sinPush)}
-                        tono={pulso.sinPush && pulso.sinPush > 0 ? "aviso" : "normal"}
+                        titulo="Sin publicar"
+                        valor={
+                            sinPublicar
+                                ? String(sinPublicar.total)
+                                : pulso.sinPush === null
+                                  ? "—"
+                                  : String(pulso.sinPush)
+                        }
+                        tono={
+                            (sinPublicar ? sinPublicar.total : pulso.sinPush ?? 0) > 0
+                                ? "aviso"
+                                : "normal"
+                        }
+                        detalle={
+                            sinPublicar
+                                ? `OS ${sinPublicar.os} · Astraura ${sinPublicar.astraura}`
+                                : "solo OS"
+                        }
+                        alClic={() => alCambiarPestana("commits")}
                     />
                     <DatoPulso
                         titulo="Proveedores agotados"
@@ -463,14 +484,6 @@ export function CentroMando() {
                         detalle={`${pulso.disponibles} disponibles`}
                         alClic={() => alCambiarPestana("flota")}
                     />
-                    {sinPublicar !== null ? (
-                        <DatoPulso
-                            titulo="Sin publicar"
-                            valor={String(sinPublicar)}
-                            tono={sinPublicar > 0 ? "aviso" : "ok"}
-                            alClic={() => alCambiarPestana("commits")}
-                        />
-                    ) : null}
                     {pulsoNeurona ? (
                         <>
                             <DatoPulso
