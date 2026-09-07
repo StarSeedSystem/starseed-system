@@ -35,25 +35,95 @@ export interface SourceAvailability {
   reason?: string;
 }
 
-const PROBE_TTL_MS = 60_000;
-const probeCache = new Map<string, { at: number; ok: boolean }>();
+// (Ola 278 · OS1 · 2026-09-07) Caché de sonda con TTL DISTINTO por resultado:
+// éxito 60 s (no volver a sondeos caros a la ligera), fallo 15 s (reintentar
+// pronto si el backend acaba de arrancar). Antes era un único TTL de 60 s.
+const PROBE_TTL_OK_MS = 60_000;
+const PROBE_TTL_FAIL_MS = 15_000;
 
-async function probe(url: string, ms = 1200): Promise<boolean> {
-  if (typeof window === "undefined") return false;
+type ProbeOutcome =
+  | { kind: "ok"; data: unknown }
+  | { kind: "http"; status: number }
+  | { kind: "network" };
+
+const probeCache = new Map<string, { at: number; outcome: ProbeOutcome }>();
+
+/** Sonda JSON con timeout y caché. La usan `probe()` y la sonda Astraura 1.58. */
+async function probeJson(url: string, ms = 8000): Promise<ProbeOutcome> {
+  if (typeof window === "undefined") return { kind: "network" };
   const hit = probeCache.get(url);
-  if (hit && Date.now() - hit.at < PROBE_TTL_MS) return hit.ok;
+  const ttl = hit ? (hit.outcome.kind === "ok" ? PROBE_TTL_OK_MS : PROBE_TTL_FAIL_MS) : 0;
+  if (hit && Date.now() - hit.at < ttl) return hit.outcome;
   try {
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), ms);
     const res = await fetch(url, { signal: ctrl.signal });
     clearTimeout(t);
-    const ok = res.ok;
-    probeCache.set(url, { at: Date.now(), ok });
-    return ok;
+    let outcome: ProbeOutcome;
+    if (!res.ok) {
+      outcome = { kind: "http", status: res.status };
+    } else {
+      let data: unknown = null;
+      try {
+        data = await res.json();
+      } catch {
+        data = { ok: true };
+      }
+      outcome = { kind: "ok", data };
+    }
+    probeCache.set(url, { at: Date.now(), outcome });
+    return outcome;
   } catch {
-    probeCache.set(url, { at: Date.now(), ok: false });
-    return false;
+    const outcome: ProbeOutcome = { kind: "network" };
+    probeCache.set(url, { at: Date.now(), outcome });
+    return outcome;
   }
+}
+
+/** Sonda booleana clásica: true solo si el endpoint responde 2xx. */
+async function probe(url: string, ms = 1200): Promise<boolean> {
+  const outcome = await probeJson(url, ms);
+  return outcome.kind === "ok";
+}
+
+/**
+ * (Ola 278 · OS1 · 2026-09-07) Interpreta la respuesta de `/api/ping` (o de
+ * `/api/bitnet/estado`) del backend Astraura 1.58. Función PURA para testear.
+ * Reglas: un `ok:false` o un payload no reconocible NO está lista; un BitNet
+ * «vivo:false && dormido:true» SÍ cuenta como lista (el chat interactivo lo
+ * despierta con `ensure_server` en el primer mensaje), pero se anota el motivo.
+ */
+export function interpretarPing(json: unknown): { lista: boolean; motivo?: string } {
+  if (typeof json !== "object" || json === null || Array.isArray(json)) return { lista: false };
+  const j = json as Record<string, unknown>;
+  // `/api/ping` trae `ok`; `/api/bitnet/estado` trae `vivo`/`dormido`.
+  const esPing = typeof j.ok === "boolean" || typeof j.vivo === "boolean" || typeof j.dormido === "boolean";
+  if (!esPing) return { lista: false };
+  if (j.ok === false) return { lista: false };
+  if (j.vivo === false && j.dormido === true) {
+    return { lista: true, motivo: "BitNet dormido: despertará al primer mensaje (30-60 s)" };
+  }
+  return { lista: true };
+}
+
+/**
+ * (Ola 278 · OS1) Sonda LOCAL de Astraura 1.58: `/api/ping` (< 5 ms) y, si el
+ * backend es anterior y responde 404, `/api/bitnet/estado` (3 ms). Nunca el
+ * `/api/status` pesado (2,3-3,9 s en reposo, > 20 s con la Mac cargada), que
+ * era lo que hacía caer al fallback la fuente local en el router.
+ */
+function aLaDisponibilidad(ping: { lista: boolean; motivo?: string }): { ready: boolean; reason?: string } {
+  return { ready: ping.lista, reason: ping.motivo };
+}
+
+async function probeAstraura158Local(endpoint: string): Promise<{ ready: boolean; reason?: string }> {
+  const ping = await probeJson(`${endpoint}/api/ping`, 8000);
+  if (ping.kind === "ok") return aLaDisponibilidad(interpretarPing(ping.data));
+  if (ping.kind === "http" && ping.status === 404) {
+    const estado = await probeJson(`${endpoint}/api/bitnet/estado`, 8000);
+    if (estado.kind === "ok") return aLaDisponibilidad(interpretarPing(estado.data));
+  }
+  return { ready: false };
 }
 
 function norm(u: string): string {
@@ -165,10 +235,13 @@ export async function detectAvailability(fast = false): Promise<SourceAvailabili
       });
       continue;
     }
-    // ── ASTRAURA 1.58-BIT (Adenda 153): sonda HONESTA a `/api/status` del backend
-    //    (local 1.5 s · nube 4 s — Cloud Run puede arrancar en frío). Si no
-    //    responde, NO está lista: ese turno va a los secundarios y se re-sondea
-    //    al expirar el TTL. Nunca se asume «lista» por ser nube sin clave.
+    // ── ASTRAURA 1.58-BIT (Adenda 153 · Ola 278): sonda HONESTA y LIGERA. La
+    //    LOCAL usa `/api/ping` (< 5 ms) con fallback a `/api/bitnet/estado`
+    //    (3 ms) si el backend es anterior (404); la NUBE usa `/api/status`
+    //    (8 s — Cloud Run puede arrancar en frío). Nunca `/api/status` para la
+    //    local: tarda 2,3-3,9 s en reposo y > 20 s con la Mac cargada, lo que
+    //    hacía caer la fuente al fallback. Si no responde, NO está lista: ese
+    //    turno va a los secundarios y se re-sondea al expirar el TTL.
     if (source.providerId === "astraura-158") {
       const endpoint = astraura158EndpointFor(source, userConfig);
       const isLocal = source.id === "astraura-158-local";
@@ -176,11 +249,25 @@ export async function detectAvailability(fast = false): Promise<SourceAvailabili
         out.push({ source, ready: false, userConfig, reason: "Desactivada en esta neurona (Sistemas de Astraura → Astraura 1.58)." });
         continue;
       }
-      const ok = fast ? (isLocal ? !!userConfig : true) : await probe(`${endpoint}/api/status`, isLocal ? 5000 : 8000);
+      let ready: boolean;
+      let reason: string | undefined;
+      if (fast) {
+        ready = isLocal ? !!userConfig : true;
+      } else if (isLocal) {
+        const r = await probeAstraura158Local(endpoint);
+        ready = r.ready;
+        reason = r.reason;
+        // Guarda la última disponibilidad conocida (memoria de módulo) para que
+        // `detectAvailabilitySafe` la conserve si el tope global salta.
+        lastLocalAstrauraKnown = { at: Date.now(), ready, reason };
+      } else {
+        // Nube: Cloud Run puede arrancar en frío → 8 s a `/api/status`.
+        ready = await probe(`${endpoint}/api/status`, 8000);
+      }
       out.push({
-        source, ready: ok, userConfig,
-        reason: ok
-          ? undefined
+        source, ready, userConfig,
+        reason: ready
+          ? reason
           : isLocal
             ? `El backend Astraura 1.58 no responde en ${endpoint} (¿está arrancado? ./install_and_run.sh).`
             : "La nube de Astraura 1.58 no responde ahora (¿arrancando en frío?); se usan los sistemas secundarios.",
@@ -217,6 +304,23 @@ export async function detectAvailability(fast = false): Promise<SourceAvailabili
   return out;
 }
 
+// (Ola 278 · OS1) Memoria de módulo: última disponibilidad conocida de la fuente
+// LOCAL de Astraura 1.58. `detectAvailabilitySafe` la conserva cuando el tope
+// global salta, para no marcar la local «no lista» solo porque la Mac estaba
+// ocupada (el fallback global marca no listas todas las fuentes locales).
+let lastLocalAstrauraKnown: { at: number; ready: boolean; reason?: string } | undefined;
+
+function applyLocalAstrauraMemory(list: SourceAvailability[]): void {
+  if (!lastLocalAstrauraKnown) return;
+  for (const a of list) {
+    if (a.source.id === "astraura-158-local") {
+      a.ready = lastLocalAstrauraKnown.ready;
+      a.reason = lastLocalAstrauraKnown.reason;
+      return;
+    }
+  }
+}
+
 /**
  * (Adenda 67 · P0-2) Disponibilidad BLINDADA: `detectAvailability()` se llama en
  * la ruta crítica de CADA respuesta de Aurora. Si lanzara (localStorage corrupto,
@@ -234,12 +338,17 @@ export async function detectAvailabilitySafe(timeoutMs = 6000): Promise<SourceAv
   // UNIFICADO (que ya incluye los modelos :free VIVOS si applyLiveOpenRouter()
   // corrió). Así la UI de ajustes por contexto refleja el catálogo real aunque
   // el sondeo/fetch falle. (Adenda 71-bis · 2026-07-17)
-  const fallback = (): SourceAvailability[] =>
-    getUnifiedCatalog().map((source) => ({
+  const fallback = (): SourceAvailability[] => {
+    const list = getUnifiedCatalog().map((source) => ({
       source,
       ready: !source.requiresKey && source.privacy === "cloud" && source.tier !== "paid",
       reason: undefined,
     }));
+    // (Ola 278 · OS1) No descartar la local por el tope global: conserva la
+    // última disponibilidad conocida en vez de marcarla no lista.
+    applyLocalAstrauraMemory(list);
+    return list;
+  };
   try {
     const timed = new Promise<SourceAvailability[]>((resolve) => {
       setTimeout(() => resolve(fallback()), timeoutMs);
