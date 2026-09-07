@@ -26,6 +26,32 @@ export interface ModeloDisponible {
     salud: string;
     /** Papel habitual en el enjambre, para orientar al usuario. */
     papel: "escritor" | "revisor" | "local" | "general";
+    /** El enjambre escribe código con este modelo (Ola 269). */
+    escritor?: boolean;
+    /** Solo se usa para tareas de texto/Markdown, nunca para código (Ola 269). */
+    soloMarkdown?: boolean;
+    /** Detalle vivo del supervisor del enjambre para su proveedor (sin cupo, 429…). */
+    saludDetalle?: SaludProveedor | null;
+    /** `proveedor/modelo` del último revisor que respondió bien (global del enjambre). */
+    ultimoRevisorOk?: string | null;
+}
+
+/** Detalle de salud de un proveedor según el supervisor del enjambre (Ola 269). */
+export interface SaludProveedor {
+    estado: string | null;
+    /** Hasta cuándo queda sin cupo («AAAA-MM-DD HH:MM:SS»), si el proveedor lo anunció. */
+    sinCupoHasta: string | null;
+    /** Motivo del último corte o agotamiento, si lo hay. */
+    motivo: string | null;
+    /** Momento del último 429 («AAAA-MM-DD HH:MM:SS»). */
+    ultimo429: string | null;
+}
+
+/** Resultado de interpretar `salud-proveedores.json`: detalle por proveedor y revisor global. */
+export interface SaludRevisores {
+    porProveedor: Record<string, SaludProveedor>;
+    /** `proveedor/modelo` del último revisor que dio una respuesta útil. */
+    ultimoRevisorOk: string | null;
 }
 
 export interface MensajeModelo {
@@ -110,19 +136,20 @@ const URLS: Record<string, string> = {
 
 /** Catálogo fijo de lo que el enjambre ya usa (verificado en las olas 238-241). */
 const FIJOS: Array<Omit<ModeloDisponible, "salud">> = [
-    { id: "nim/moonshotai/kimi-k3", proveedor: "nim", nombre: "Kimi K3", gratis: true, contexto: 262144, papel: "escritor" },
-    { id: "nim/deepseek-ai/deepseek-v4-flash-0731", proveedor: "nim", nombre: "DeepSeek V4 Flash", gratis: true, contexto: 131072, papel: "escritor" },
-    { id: "nim/deepseek-ai/deepseek-v4-pro-0813", proveedor: "nim", nombre: "DeepSeek V4 Pro", gratis: true, contexto: 131072, papel: "escritor" },
+    { id: "nim/moonshotai/kimi-k3", proveedor: "nim", nombre: "Kimi K3", gratis: true, contexto: 262144, papel: "escritor", escritor: true },
+    { id: "nim/deepseek-ai/deepseek-v4-flash-0731", proveedor: "nim", nombre: "DeepSeek V4 Flash", gratis: true, contexto: 131072, papel: "escritor", escritor: true },
+    { id: "nim/deepseek-ai/deepseek-v4-pro-0813", proveedor: "nim", nombre: "DeepSeek V4 Pro", gratis: true, contexto: 131072, papel: "escritor", escritor: true },
     { id: "nim/nvidia/nemotron-3-super-120b-a12b", proveedor: "nim", nombre: "Nemotron 3 Super 120B", gratis: true, contexto: 131072, papel: "general" },
     { id: "aihubmix/coding-glm-5.3-free", proveedor: "aihubmix", nombre: "GLM 5.3 (coding, gratis)", gratis: true, contexto: 128000, papel: "revisor" },
     { id: "aihubmix/gemini-3.7-flash-free", proveedor: "aihubmix", nombre: "Gemini 3.7 Flash (gratis)", gratis: true, contexto: 1000000, papel: "revisor" },
-    { id: "tokenrouter/z-ai/glm-5.3-free", proveedor: "tokenrouter", nombre: "GLM 5.3 (tokenrouter)", gratis: true, contexto: 128000, papel: "revisor" },
+    { id: "tokenrouter/z-ai/glm-5.3-free", proveedor: "tokenrouter", nombre: "GLM 5.3 (tokenrouter)", gratis: true, contexto: 128000, papel: "revisor", escritor: true },
     { id: "openrouter/nvidia/nemotron-3-super-120b-a12b:free", proveedor: "openrouter", nombre: "Nemotron 3 Super (OpenRouter)", gratis: true, contexto: 131072, papel: "revisor" },
     { id: "gemini/gemini-2.5-flash-lite", proveedor: "gemini", nombre: "Gemini 2.5 Flash Lite", gratis: true, contexto: 1048576, papel: "revisor" },
     { id: "gemini/gemini-2.5-flash", proveedor: "gemini", nombre: "Gemini 2.5 Flash", gratis: true, contexto: 1048576, papel: "general" },
     // Gratis y sin clave (verificado 2026-09-05: revisión real en 14 s). Solo estos dos responden anónimos.
     { id: "llm7/minimax-m2.7", proveedor: "llm7", nombre: "MiniMax M2.7 (LLM7, sin clave)", gratis: true, contexto: 196608, papel: "revisor" },
-    { id: "llm7/gpt-oss", proveedor: "llm7", nombre: "gpt-oss 20B (LLM7, sin clave)", gratis: true, contexto: 131072, papel: "revisor" },
+    // gpt-oss de LLM7 escribe, pero solo tareas Markdown: no es fiable para código (Ola 269).
+    { id: "llm7/gpt-oss", proveedor: "llm7", nombre: "gpt-oss 20B (LLM7, sin clave)", gratis: true, contexto: 131072, papel: "revisor", escritor: true, soloMarkdown: true },
     // Con FREETHEAI_API_KEY (Discord de FreeTheAi): 10-35 req/min, 250/día.
     { id: "freetheai/gpt-oss-120b", proveedor: "freetheai", nombre: "gpt-oss 120B (FreeTheAi)", gratis: true, contexto: 131072, papel: "revisor" },
 ];
@@ -165,6 +192,7 @@ async function modelosXkiro(): Promise<ModeloDisponible[]> {
                 contexto: typeof m.context_length === "number" ? m.context_length : null,
                 salud: "desconocido",
                 papel: /coder|code|devstral/i.test(id) ? "escritor" : "general",
+                escritor: /coder|code|devstral/i.test(id) || undefined,
             });
         }
         modelos.sort((a, b) => a.id.localeCompare(b.id));
@@ -251,27 +279,73 @@ async function modelosOllama(): Promise<ModeloDisponible[]> {
     }
 }
 
-/** Salud por proveedor según el supervisor del enjambre (archivo compartido). */
-async function saludProveedores(): Promise<Record<string, string>> {
-    try {
-        const d = JSON.parse(await readFile(path.join(homedir(), ".starseed", "salud-proveedores.json"), "utf-8")) as Record<string, { estado?: string; t?: string }>;
-        const salida: Record<string, string> = {};
-        for (const [p, v] of Object.entries(d)) {
-            // Un sondeo de hace más de 10 min no dice nada del ahora (en la Mac el archivo se
-            // queda con la última ola): «caído» viejo se degrada a «desconocido».
-            const t = v?.t ? Date.parse(v.t.replace(" ", "T") + (v.t.length <= 19 ? "Z" : "")) : NaN;
-            const viejo = !Number.isFinite(t) || Date.now() - t > 10 * 60 * 1000;
-            salida[p] = viejo ? "desconocido" : v?.estado ?? "desconocido";
+/** Solo si el valor es una cadena con algo dentro. */
+function texto(v: unknown): string | null {
+    return typeof v === "string" && v.trim() ? v.trim() : null;
+}
+
+/**
+ * Interpreta el contenido (ya parseado) de `salud-proveedores.json`, que escribe el
+ * supervisor del enjambre: por proveedor `{estado, t, sin_cupo_hasta?, motivo?, ultimo_429?}`
+ * y, como clave global, `ultimo_revisor_ok` («proveedor/modelo»). Función pura (Ola 269):
+ * ante una entrada vacía o deforme devuelve nulls, nunca lanza.
+ */
+export function interpretarSalud(json: unknown): SaludRevisores {
+    const d = objeto(json);
+    const porProveedor: Record<string, SaludProveedor> = {};
+    let ultimoRevisorOk: string | null = null;
+    for (const [proveedor, v] of Object.entries(d)) {
+        if (proveedor === "ultimo_revisor_ok") {
+            ultimoRevisorOk = texto(v);
+            continue;
         }
-        return salida;
-    } catch {
-        return {};
+        const entrada = objeto(v);
+        if (Object.keys(entrada).length === 0) continue;
+        porProveedor[proveedor] = {
+            estado: texto(entrada.estado),
+            sinCupoHasta: texto(entrada.sin_cupo_hasta),
+            motivo: texto(entrada.motivo),
+            ultimo429: texto(entrada.ultimo_429),
+        };
     }
+    return { porProveedor, ultimoRevisorOk };
+}
+
+/** Lee el archivo de salud que comparte el supervisor (null si no existe o está roto). */
+async function leerSaludJson(): Promise<unknown> {
+    try {
+        return JSON.parse(await readFile(path.join(homedir(), ".starseed", "salud-proveedores.json"), "utf-8")) as unknown;
+    } catch {
+        return null;
+    }
+}
+
+/** Salud detallada del supervisor, para el panel de flota (Ola 269). */
+export async function saludRevisores(): Promise<SaludRevisores> {
+    return interpretarSalud(await leerSaludJson());
+}
+
+/** Estado textual por proveedor a partir del JSON ya leído (degrada lo viejo a «desconocido»). */
+function estadosSalud(json: unknown): Record<string, string> {
+    const salida: Record<string, string> = {};
+    for (const [p, v] of Object.entries(objeto(json))) {
+        const entrada = objeto(v);
+        if (typeof entrada.estado !== "string") continue; // p. ej. la clave global ultimo_revisor_ok
+        // Un sondeo de hace más de 10 min no dice nada del ahora (en la Mac el archivo se
+        // queda con la última ola): «caído» viejo se degrada a «desconocido».
+        const t = texto(entrada.t);
+        const ms = t ? Date.parse(t.replace(" ", "T") + (t.length <= 19 ? "Z" : "")) : NaN;
+        const viejo = !Number.isFinite(ms) || Date.now() - ms > 10 * 60 * 1000;
+        salida[p] = viejo ? "desconocido" : entrada.estado;
+    }
+    return salida;
 }
 
 /** Todos los modelos usables ahora, con salud y si hay clave. */
 export async function listarModelos(): Promise<ModeloDisponible[]> {
-    const [xk, ol, pa, salud] = await Promise.all([modelosXkiro(), modelosOllama(), modelosPasarelas(), saludProveedores()]);
+    const [xk, ol, pa, saludJson] = await Promise.all([modelosXkiro(), modelosOllama(), modelosPasarelas(), leerSaludJson()]);
+    const salud = estadosSalud(saludJson);
+    const detalles = interpretarSalud(saludJson);
     const conClave: Record<string, boolean> = {};
     for (const p of Object.keys(CLAVES)) conClave[p] = SIN_CLAVE_OK.has(p) || Boolean(await claveDe(...CLAVES[p]));
     for (const m of pa) conClave[m.proveedor] = true;
@@ -279,6 +353,8 @@ export async function listarModelos(): Promise<ModeloDisponible[]> {
     return todos.map((m) => ({
         ...m,
         salud: m.proveedor === "ollama" ? m.salud : !conClave[m.proveedor] ? "sin-clave" : salud[m.proveedor] ?? "desconocido",
+        saludDetalle: detalles.porProveedor[m.proveedor] ?? null,
+        ultimoRevisorOk: detalles.ultimoRevisorOk,
     }));
 }
 

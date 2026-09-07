@@ -22,7 +22,8 @@ import {
 } from "lucide-react";
 
 import type { EstadoMando } from "@/lib/mando/tipos";
-import { flotaConocida, type ProveedorFlota } from "@/lib/mando/flota";
+import { flotaConocida, type ModeloFlota, type ProveedorFlota } from "@/lib/mando/flota";
+import type { ModeloDisponible, SaludProveedor } from "@/lib/mando/modelos-disponibles";
 
 /** Colores de estado (semaforización de la flota). */
 const COLOR_ESTADO: Record<ProveedorFlota["estado"], string> = {
@@ -60,6 +61,106 @@ function formatoContexto(tokens: number): string {
     return String(tokens);
 }
 
+/**
+ * Marcas del catálogo vivo (`/api/mando/modelos`) para un modelo de la flota:
+ * los ids de la flota no llevan prefijo de proveedor («moonshotai/kimi-k3»
+ * casa con «nim/moonshotai/kimi-k3»).
+ */
+function marcasDeModelo(
+    modelo: ModeloFlota,
+    catalogo: ModeloDisponible[],
+): { escritor: boolean; soloMarkdown: boolean } {
+    for (const m of catalogo) {
+        if (m.id === modelo.id || m.id.endsWith(`/${modelo.id}`)) {
+            return { escritor: m.escritor === true, soloMarkdown: m.soloMarkdown === true };
+        }
+    }
+    return { escritor: false, soloMarkdown: false };
+}
+
+/** Fecha del supervisor («AAAA-MM-DD HH:MM:SS», hora de la máquina) → ms, o null si no cuadra. */
+function fechaSupervisor(t: string | null | undefined): number | null {
+    if (!t) return null;
+    const ms = Date.parse(t.replace(" ", "T") + (t.length <= 19 ? "Z" : ""));
+    return Number.isFinite(ms) ? ms : null;
+}
+
+/** «HH:MM» local para una marca de tiempo. */
+function horaCorta(ms: number): string {
+    return new Date(ms).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
+}
+
+/** «Hace N min» redondeando hacia abajo. */
+function minutosDesde(ms: number): number {
+    return Math.max(0, Math.floor((Date.now() - ms) / 60_000));
+}
+
+/**
+ * Salud viva de los revisores (Ola 269): «sin cupo hasta HH:MM» cuando el proveedor
+ * anunció un agotamiento futuro, «enfriándose · 429 hace N min» en los 10 min tras un
+ * 429, y arriba el último revisor que respondió algo útil.
+ */
+function AvisoSaludRevisores({ catalogo }: { catalogo: ModeloDisponible[] }) {
+    const porProveedor = new Map<string, SaludProveedor>();
+    let ultimoRevisorOk: string | null = null;
+    for (const m of catalogo) {
+        if (m.saludDetalle && !porProveedor.has(m.proveedor)) porProveedor.set(m.proveedor, m.saludDetalle);
+        if (!ultimoRevisorOk && m.ultimoRevisorOk) ultimoRevisorOk = m.ultimoRevisorOk;
+    }
+
+    const ahora = Date.now();
+    const pastillas: Array<{ clave: string; texto: string; titulo: string }> = [];
+    for (const [proveedor, detalle] of porProveedor) {
+        const sinCupo = fechaSupervisor(detalle.sinCupoHasta);
+        if (sinCupo !== null && sinCupo > ahora) {
+            pastillas.push({
+                clave: `${proveedor}-cupo`,
+                texto: `${proveedor}: sin cupo hasta ${horaCorta(sinCupo)}`,
+                titulo: detalle.motivo ?? "Sin cupo según el supervisor del enjambre.",
+            });
+            continue;
+        }
+        const ultimo429 = fechaSupervisor(detalle.ultimo429);
+        if (ultimo429 !== null && ahora - ultimo429 < 10 * 60_000) {
+            pastillas.push({
+                clave: `${proveedor}-429`,
+                texto: `${proveedor}: enfriándose · 429 hace ${minutosDesde(ultimo429)} min`,
+                titulo: detalle.motivo ?? "Último 429 registrado por el supervisor del enjambre.",
+            });
+        }
+    }
+
+    if (!ultimoRevisorOk && pastillas.length === 0) return null;
+
+    return (
+        <div
+            data-testid="salud-revisores"
+            className="space-y-2 rounded-xl border border-white/10 bg-black/30 p-3"
+        >
+            {ultimoRevisorOk && (
+                <p className="text-xs text-white/60">
+                    Último revisor que respondió:{" "}
+                    <span className="font-mono text-emerald-300">{ultimoRevisorOk}</span>
+                </p>
+            )}
+            {pastillas.length > 0 && (
+                <div className="flex flex-wrap items-center gap-2">
+                    {pastillas.map((p) => (
+                        <span
+                            key={p.clave}
+                            title={p.titulo}
+                            className="inline-flex cursor-help items-center gap-1 rounded-full border border-amber-400/40 bg-amber-500/10 px-2 py-0.5 text-[11px] text-amber-200"
+                        >
+                            <AlertTriangle className="h-3 w-3" />
+                            {p.texto}
+                        </span>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+}
+
 /** Convierte el uso diario (`ProveedorUso[]`) en `Record<motor, total>`. */
 function usoPorMotor(estado: EstadoMando | null): Record<string, number> {
     const uso: Record<string, number> = {};
@@ -72,7 +173,7 @@ function usoPorMotor(estado: EstadoMando | null): Record<string, number> {
 }
 
 /** Tarjeta de un proveedor de la flota. */
-function TarjetaProveedor({ proveedor }: { proveedor: ProveedorFlota }) {
+function TarjetaProveedor({ proveedor, catalogo }: { proveedor: ProveedorFlota; catalogo: ModeloDisponible[] }) {
     const porcentaje =
         proveedor.limiteDia !== undefined && proveedor.limiteDia > 0
             ? Math.min(100, Math.round(((proveedor.usoHoy ?? 0) / proveedor.limiteDia) * 100))
@@ -120,23 +221,36 @@ function TarjetaProveedor({ proveedor }: { proveedor: ProveedorFlota }) {
             )}
 
             <ul className="mt-3 space-y-1">
-                {proveedor.modelos.map((modelo) => (
-                    <li
-                        key={modelo.id}
-                        className="flex items-center justify-between gap-2 font-mono text-[11px] text-white/70"
-                    >
-                        <span className="truncate">{modelo.id}</span>
-                        <span className="flex shrink-0 items-center gap-2 text-white/50">
-                            {modelo.contexto !== undefined && (
-                                <span>{formatoContexto(modelo.contexto)} ctx</span>
-                            )}
-                            {modelo.latenciaMs !== undefined && (
-                                <span>{modelo.latenciaMs} ms</span>
-                            )}
-                            {modelo.gratis && <span className="text-emerald-300">gratis</span>}
-                        </span>
-                    </li>
-                ))}
+                {proveedor.modelos.map((modelo) => {
+                    const marcas = marcasDeModelo(modelo, catalogo);
+                    return (
+                        <li
+                            key={modelo.id}
+                            className="flex items-center justify-between gap-2 font-mono text-[11px] text-white/70"
+                        >
+                            <span className="truncate">{modelo.id}</span>
+                            <span className="flex shrink-0 items-center gap-2 text-white/50">
+                                {marcas.escritor && (
+                                    <span className="rounded-full border border-sky-400/40 bg-sky-500/10 px-1.5 py-0.5 text-[10px] text-sky-300">
+                                        escritor
+                                    </span>
+                                )}
+                                {marcas.soloMarkdown && (
+                                    <span className="rounded-full border border-amber-400/40 bg-amber-500/10 px-1.5 py-0.5 text-[10px] text-amber-300">
+                                        solo Markdown
+                                    </span>
+                                )}
+                                {modelo.contexto !== undefined && (
+                                    <span>{formatoContexto(modelo.contexto)} ctx</span>
+                                )}
+                                {modelo.latenciaMs !== undefined && (
+                                    <span>{modelo.latenciaMs} ms</span>
+                                )}
+                                {modelo.gratis && <span className="text-emerald-300">gratis</span>}
+                            </span>
+                        </li>
+                    );
+                })}
             </ul>
 
             <p className="mt-3 text-[11px] leading-relaxed text-white/50">{proveedor.nota}</p>
@@ -198,6 +312,7 @@ function TablaEnrutamientos({ estado }: { estado: EstadoMando | null }) {
 /** Panel principal de la flota de proveedores de inteligencia. */
 export function PanelFlota() {
     const [estado, setEstado] = useState<EstadoMando | null>(null);
+    const [catalogo, setCatalogo] = useState<ModeloDisponible[]>([]);
     const [error, setError] = useState<string | null>(null);
     const [cargando, setCargando] = useState(true);
 
@@ -205,13 +320,23 @@ export function PanelFlota() {
         setCargando(true);
         setError(null);
         try {
-            const respuesta = await fetch("/api/mando/estado", { cache: "no-store" });
+            const [respuesta, respModelos] = await Promise.all([
+                fetch("/api/mando/estado", { cache: "no-store" }),
+                // Catálogo vivo: salud de revisores y marcas escritor/solo Markdown.
+                fetch("/api/mando/modelos", { cache: "no-store" }).catch(() => null),
+            ]);
             if (!respuesta.ok) {
                 setError("El mando no está disponible (solo funciona en local).");
                 setEstado(null);
+                setCatalogo([]);
                 return;
             }
             setEstado((await respuesta.json()) as EstadoMando);
+            if (respModelos?.ok) {
+                setCatalogo(((await respModelos.json()) as { modelos: ModeloDisponible[] }).modelos ?? []);
+            } else {
+                setCatalogo([]);
+            }
         } catch {
             setError("No se pudo leer el estado del mando.");
         } finally {
@@ -255,6 +380,8 @@ export function PanelFlota() {
                 </button>
             </header>
 
+            <AvisoSaludRevisores catalogo={catalogo} />
+
             {agotados.length > 0 && (
                 <p className="flex items-center gap-2 rounded-lg border border-red-400/30 bg-red-500/10 px-3 py-2 text-xs text-red-200">
                     <AlertTriangle className="h-4 w-4" />
@@ -265,7 +392,7 @@ export function PanelFlota() {
 
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
                 {flota.map((proveedor) => (
-                    <TarjetaProveedor key={proveedor.id} proveedor={proveedor} />
+                    <TarjetaProveedor key={proveedor.id} proveedor={proveedor} catalogo={catalogo} />
                 ))}
             </div>
 
