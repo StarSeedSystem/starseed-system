@@ -33,6 +33,7 @@ import { PanelEntornos } from "@/components/mando/panel-entornos";
 import { PanelAjustes } from "@/components/mando/panel-ajustes";
 import { PanelNeurona } from "@/components/mando/panel-neurona";
 import { PanelAprendizaje } from "@/components/mando/panel-aprendizaje";
+import { PanelPublicaciones } from "@/components/mando/panel-publicaciones";
 // Solo el tipo viaja al cliente: `neurona.ts` es código de servidor (sonda la
 // máquina) y un import de valor metería `node:child_process` en el bundle web.
 import type { SaludNeurona } from "@/lib/mando/neurona";
@@ -47,6 +48,7 @@ const CLAVE_PESTANA = "starseed.mando.pestana";
 const PESTANAS = [
     { id: "procesos", etiqueta: "Procesos" },
     { id: "olas", etiqueta: "Olas e informes" },
+    { id: "commits", etiqueta: "Commits pendientes" },
     { id: "flota", etiqueta: "Flota" },
     { id: "neurona", etiqueta: "Neurona" },
     { id: "aprendizaje", etiqueta: "Aprendizaje" },
@@ -148,6 +150,10 @@ export function CentroMando() {
     const [almacenamiento, setAlmacenamiento] = useState<EstadoAlmacenamiento | null>(null);
     const [soloLocal, setSoloLocal] = useState(false);
     const [cargando, setCargando] = useState(true);
+    // «Sin publicar» de la cabecera (Ola 274): suma de `delante` de los repos, leído
+    // del mismo endpoint de publicaciones una vez por minuto. Un fallo lo deja en null
+    // y la pastilla no aparece (no hay nada que medir sin la Mac).
+    const [sinPublicar, setSinPublicar] = useState<number | null>(null);
 
     useEffect(() => {
         setPestana(pestanaInicial());
@@ -233,6 +239,40 @@ export function CentroMando() {
                 if (vivo && respuesta.ok) setAlmacenamiento((await respuesta.json()) as EstadoAlmacenamiento);
             } catch {
                 // Sin disco: la pastilla no aparece.
+            } finally {
+                enCurso = false;
+            }
+        };
+        void cargar(true);
+        const cada = window.setInterval(() => void cargar(), 60_000);
+        const alVolver = () => {
+            if (document.visibilityState === "visible") void cargar(true);
+        };
+        document.addEventListener("visibilitychange", alVolver);
+        return () => {
+            vivo = false;
+            window.clearInterval(cada);
+            document.removeEventListener("visibilitychange", alVolver);
+        };
+    }, []);
+
+    // «Sin publicar» de la cabecera (Ola 274): una vez por minuto se suma `delante`
+    // de cada repositorio publicable desde el endpoint de publicaciones. Es la misma
+    // fuente que la pestaña «Commits pendientes», para que cabecera y pestaña casen.
+    useEffect(() => {
+        let vivo = true;
+        let enCurso = false;
+        const cargar = async (forzar = false) => {
+            if (enCurso || (!forzar && document.visibilityState === "hidden")) return;
+            enCurso = true;
+            try {
+                const respuesta = await fetch("/api/mando/publicaciones", { cache: "no-store" });
+                if (!vivo) return;
+                if (!respuesta.ok) return;
+                const datos = (await respuesta.json()) as { repos: Array<{ delante: number }> };
+                setSinPublicar(datos.repos.reduce((acc, r) => acc + (r.delante ?? 0), 0));
+            } catch {
+                // Sin la Mac no hay publicaciones: la pastilla no aparece.
             } finally {
                 enCurso = false;
             }
@@ -366,6 +406,14 @@ export function CentroMando() {
                         detalle={`${pulso.disponibles} disponibles`}
                         alClic={() => alCambiarPestana("flota")}
                     />
+                    {sinPublicar !== null ? (
+                        <DatoPulso
+                            titulo="Sin publicar"
+                            valor={String(sinPublicar)}
+                            tono={sinPublicar > 0 ? "aviso" : "ok"}
+                            alClic={() => alCambiarPestana("commits")}
+                        />
+                    ) : null}
                     {pulsoNeurona ? (
                         <>
                             <DatoPulso
@@ -441,6 +489,9 @@ export function CentroMando() {
                 </TabsContent>
                 <TabsContent value="olas">
                     <PanelOlas />
+                </TabsContent>
+                <TabsContent value="commits">
+                    <PanelPublicaciones />
                 </TabsContent>
                 <TabsContent value="flota">
                     <PanelFlota />
