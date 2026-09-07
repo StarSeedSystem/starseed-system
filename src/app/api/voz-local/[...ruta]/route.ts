@@ -18,11 +18,20 @@ import { NextRequest, NextResponse } from "next/server";
 export const runtime = "nodejs";
 
 const DAEMON = "http://127.0.0.1:4444";
-const RUTAS = new Set(["status", "tts", "warm", "identity", "asr"]);
+// (Ola 266) `clonar`/`clones` son el flujo de clonación con poco audio del
+// editor de voces: multipart (audio+texto), listado y borrado (DELETE).
+const RUTAS = new Set(["status", "tts", "warm", "identity", "asr", "clonar", "clones"]);
 
 async function reenviar(req: NextRequest, ruta: string[]): Promise<Response> {
     const destino = ruta.join("/");
     if (!RUTAS.has(destino)) return NextResponse.json({ ok: false, error: "ruta no permitida" }, { status: 404 });
+    // DELETE solo en `clonar` (borrar una referencia); GET/POST siguen limitados a la lista blanca.
+    if (req.method === "DELETE" && destino !== "clonar") {
+        return NextResponse.json({ ok: false, error: "método no permitido en esta ruta" }, { status: 405 });
+    }
+    // La query (p. ej. ?timbre=&lang= del DELETE) viaja tal cual; sin ella el
+    // daemon no sabe qué referencia borrar.
+    const query = req.nextUrl.search || "";
     try {
         const ctrl = new AbortController();
         // tts: una frase larga tarda ~90 s en un M1/8 GB y el daemon da 150 s al servidor
@@ -30,8 +39,13 @@ async function reenviar(req: NextRequest, ruta: string[]): Promise<Response> {
         // asr: el daemon da hasta 360 s (presupuesto proporcional al audio con el oído
         // residente, Ola 255); damos 370 s de margen (10 s más que el tope del daemon)
         // para no abortar un reconocimiento largo antes de que el daemon responda.
-        const t = setTimeout(() => ctrl.abort(), destino === "tts" ? 200_000 : destino === "asr" ? 370_000 : 5_000);
-        // Multipart (campo `audio` de /asr): reenviamos el cuerpo binario TAL CUAL,
+        // clonar: normalización a WAV + codec en ~decenas de segundos; 60 s bastan
+        // (el 30-60 s del CLI solo ocurre al SINTETIZAR con la referencia, no al subirla).
+        const t = setTimeout(
+            () => ctrl.abort(),
+            destino === "tts" ? 200_000 : destino === "asr" ? 370_000 : destino === "clonar" ? 60_000 : 5_000,
+        );
+        // Multipart (campo `audio` de /asr y /clonar): reenviamos el cuerpo binario TAL CUAL,
         // pasando el stream del request con duplex:"half" y la cabecera content-type
         // original (incluye el boundary), para no romper el parseo en el daemon.
         const contentType = req.headers.get("content-type") || "application/json";
@@ -46,7 +60,7 @@ async function reenviar(req: NextRequest, ruta: string[]): Promise<Response> {
             init.body = body as BodyInit;
             if (esMultipart) (init as RequestInit & { duplex: string }).duplex = "half";
         }
-        const r = await fetch(`${DAEMON}/${destino}`, init);
+        const r = await fetch(`${DAEMON}/${destino}${query}`, init);
         clearTimeout(t);
         const cuerpo = await r.arrayBuffer();
         return new Response(cuerpo, {
@@ -69,5 +83,8 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ ruta: strin
     return reenviar(req, (await ctx.params).ruta ?? []);
 }
 export async function POST(req: NextRequest, ctx: { params: Promise<{ ruta: string[] }> }) {
+    return reenviar(req, (await ctx.params).ruta ?? []);
+}
+export async function DELETE(req: NextRequest, ctx: { params: Promise<{ ruta: string[] }> }) {
     return reenviar(req, (await ctx.params).ruta ?? []);
 }

@@ -75,6 +75,8 @@ export interface OpcionesSintesis {
     pitch?: number;
     /** (Ola 265) Cadena de efectos estilo Voicebox (eq, reverb, compresor, de-esser, ganancia) aplicada con ffmpeg tras sintetizar; el demonio la normaliza y la acota. */
     efectos?: EfectosVoz;
+    /** (Ola 266, Forja fase 4) Sintetizar clonando con la referencia guardada del timbre (`POST /clonar`); solo la entiende el demonio Astraura, no el tts-server crudo. */
+    clon?: boolean;
 }
 
 /** Resultado de una síntesis en el demonio. */
@@ -252,7 +254,9 @@ export async function sintetizarEnDaemon(
     // demonio los aplica (el tono es post-proceso local) y no se mandan cuando
     // ausentes para no fijar valores que el llamador no pidió. (Ola 265) Lo
     // mismo con los efectos: se mandan solo si vienen, para no fijar una cadena
-    // vacía en la clave de caché del demonio.
+    // vacía en la clave de caché del demonio. (Ola 266) `clon` solo viaja en la
+    // segunda puerta: el tts-server crudo de la primera no conoce las
+    // referencias guardadas y devolvería 400 sin que podamos reclonar.
     const perfil = {
         ...(opciones.seed !== undefined ? { seed: opciones.seed } : {}),
         ...(opciones.pitch !== undefined ? { pitch: opciones.pitch } : {}),
@@ -276,6 +280,7 @@ export async function sintetizarEnDaemon(
         speed: opciones.speed,
         ...(personalidad && personalidad !== "default" ? { personality: personalidad } : {}),
         ...(opciones.instruct ? { instruct: opciones.instruct } : {}),
+        ...(opciones.clon === true ? { clon: true } : {}),
         ...perfil,
     });
 }

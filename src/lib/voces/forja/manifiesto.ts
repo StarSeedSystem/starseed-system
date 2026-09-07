@@ -310,7 +310,7 @@ export const FASES_FORJA: FaseForja[] = [
       {
         id: "clonacion-poco-audio",
         titulo: "flujo de clonación con poco audio para el editor de voces",
-        estado: "pendiente"
+        estado: "hecho"
       },
       {
         id: "conversion-timbre",
