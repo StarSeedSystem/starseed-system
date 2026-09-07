@@ -37,6 +37,15 @@ export interface EstadoOido {
     cesiones?: number;
     /** Marca temporal (epoch ms) de la última cesión, o null si no hubo. */
     ultimaCesionMs?: number | null;
+    /** Turno de memoria pedido al BitNet del backend Astraura (Ola 262). */
+    turnoBitnet?: {
+        pedidos: number;
+        dormidos: number;
+        ultimoMotivo: string | null;
+        ultimoMs: number | null;
+    };
+    /** Veces que la voz se recalentó tras el oído (Ola 262). */
+    recalentados?: number;
 }
 export interface ResultadoOido {
     texto: string;
@@ -70,6 +79,24 @@ export function presupuestoOidoMs(segundosAudio: number): number {
 }
 
 /**
+ * Lee el campo `turnoBitnet` del status con la MISMA tolerancia que el resto de
+ * campos (2026-09-06, Ola 262): si el daemon es viejo o el campo falta, devuelve
+ * `undefined` en vez de lanzar. Cada subcampo se valida por tipo.
+ */
+function leerTurnoBitnet(raw: unknown): EstadoOido["turnoBitnet"] {
+    if (!raw || typeof raw !== "object") return undefined;
+    const t = raw as Record<string, unknown>;
+    const pedidos = typeof t.pedidos === "number" ? t.pedidos : 0;
+    const dormidos = typeof t.dormidos === "number" ? t.dormidos : 0;
+    return {
+        pedidos,
+        dormidos,
+        ultimoMotivo: typeof t.ultimoMotivo === "string" ? t.ultimoMotivo : null,
+        ultimoMs: typeof t.ultimoMs === "number" ? t.ultimoMs : null,
+    };
+}
+
+/**
  * Lee el estado de instalación del oído desde `/api/voz-local/status`.
  * Devuelve `null` si el daemon/proxy no responde (daemon apagado o el servidor
  * corre en la nube y no ve el 127.0.0.1 del usuario). Nunca lanza.
@@ -92,6 +119,8 @@ export async function estadoOido(): Promise<EstadoOido | null> {
             presupuestoMs: typeof a.presupuestoMs === "number" ? a.presupuestoMs : undefined,
             cesiones: typeof a.cesiones === "number" ? a.cesiones : undefined,
             ultimaCesionMs: typeof a.ultimaCesionMs === "number" ? a.ultimaCesionMs : null,
+            turnoBitnet: leerTurnoBitnet(a.turnoBitnet),
+            recalentados: typeof a.recalentados === "number" ? a.recalentados : undefined,
         };
     } catch {
         return null;

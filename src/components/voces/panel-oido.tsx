@@ -310,6 +310,26 @@ export function PanelOido() {
                         </p>
                     )}
 
+                    {/* Ola 262: turno de memoria pedido al BitNet del backend Astraura.
+                        Discreto, informando solo cuando de verdad se pidió ese turno. */}
+                    {estado != null && (estado.turnoBitnet?.pedidos ?? 0) > 0 && (
+                        <p className="text-xs text-muted-foreground">
+                            Pidió el turno al BitNet {estado.turnoBitnet?.pedidos}{" "}
+                            {estado.turnoBitnet?.pedidos === 1 ? "vez" : "veces"} (
+                            {estado.turnoBitnet?.dormidos ?? 0} concedidas); última:{" "}
+                            {estado.turnoBitnet?.ultimoMotivo ?? "—"}.
+                        </p>
+                    )}
+
+                    {/* Ola 262: la voz se recalentó tras el oído cuando volvió a haber
+                        memoria; aviso discreto para explicar latencia en la siguiente frase. */}
+                    {estado != null && (estado.recalentados ?? 0) > 0 && (
+                        <p className="text-xs text-muted-foreground">
+                            La voz se recalentó {estado.recalentados}{" "}
+                            {estado.recalentados === 1 ? "vez" : "veces"} tras el oído.
+                        </p>
+                    )}
+
                     {/* Comando de instalación cuando falta el binario o los modelos */}
                     {estado != null && !listo && (
                         <div className="space-y-2 rounded-lg border border-amber-500/40 bg-amber-500/5 p-3">

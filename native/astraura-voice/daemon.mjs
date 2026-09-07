@@ -210,6 +210,22 @@ const ASR_TTS_INACTIVO_MS = (() => {
   const bruto = Number.parseInt(process.env.STARSEED_ASR_TTS_INACTIVO_MS, 10);
   return Number.isFinite(bruto) && bruto > 0 ? bruto : 10_000;
 })();
+// 2026-09-06 (Ola 262, turno de memoria): umbral de memoria para RECALENTAR el
+// pool TTS después de reconocer. Cuando termina un reconocimiento y no queda
+// ninguno en cola, si se cedió la memoria del pool al menos una vez desde el
+// último calentamiento y vuelve a haber aire (memDisponible() ≥ este umbral),
+// se relanza el pool TTS del idioma por defecto para que la siguiente locución
+// no espere la carga del modelo. Configurable con STARSEED_ASR_RECALENTAR_MB.
+const ASR_RECALENTAR_MB = (() => {
+  const bruto = Number.parseInt(process.env.STARSEED_ASR_RECALENTAR_MB, 10);
+  return Number.isFinite(bruto) && bruto > 0 ? bruto : 1500;
+})();
+// 2026-09-06 (Ola 262, turno de memoria): URL del backend Astraura (proceso del
+// llama-server BitNet), que expone las rutas de control del BitNet. Solo se usa
+// para PEDIR que duerma el BitNet cuando el oído residente no tiene memoria
+// suficiente; cualquier fallo deja al oído igual que antes (la petición nunca
+// lanza). Configurable con STARSEED_ASTRAURA_URL.
+const ASTRAURA_URL = process.env.STARSEED_ASTRAURA_URL || "http://127.0.0.1:8000";
 const RAM_CACHE_MAX = 16; // WAV cacheados en RAM (se purgan al dormir)
 const DISK_CACHE_MAX = 64; // WAV cacheados en disco (cache/)
 
@@ -277,6 +293,10 @@ function enqueueAsr(job) {
       return await job();
     } finally {
       asrBusy = false;
+      // 2026-09-06 (Ola 262, turno de memoria): cuando este reconocimiento
+      // termina (éxito o fallo) y no queda NINGUNO en cola, intentamos devolver
+      // el pool TTS que el oído pidió prestado, si ya vuelve a haber aire.
+      if (asrQueueDepth === 0) recalentarVozTrasOido();
     }
   });
   // La cadena sigue aunque un trabajo falle (no rompe la cola).
@@ -315,6 +335,18 @@ let oidoSuenoTimer = null; // temporizador del sueño por inactividad
 // veces se ha cedido el pool desde el arranque. Se exponen en /status.asr.
 let ultimaCesionEn = null;
 let cesiones = 0;
+// 2026-09-06 (Ola 262, turno de memoria): contabilidad del turno pedido al
+// BitNet del backend Astraura y de los recalentamientos del pool TTS. `cesiones`
+// ya no es el único contador: `turnoBitnet` agrupa cuántas veces se pidió que el
+// BitNet durmiera y cuántas de esas peticiones acabaron durmiéndolo de verdad;
+// `recalentados` cuenta cuántas veces se relanzó el pool TTS tras el oído.
+let turnoBitnetPedidos = 0;
+let turnoBitnetDormidos = 0;
+let turnoBitnetUltimoMotivo = null;
+let turnoBitnetUltimoMs = null;
+let cesionesAlCalentar = 0; // valor de `cesiones` en el último calentamiento
+let recalCalentadoDesde = 0; // Date.now() del último calentamiento (0 = ninguno)
+let recalentados = 0;
 
 /**
  * Mata el proceso residente (SIGTERM y, si no muere en 5 s, SIGKILL) y limpia
@@ -466,7 +498,16 @@ function asegurarOidoResidente() {
   // así que llamarla sin await se ejecuta ANTES del spawn y no rompe la
   // exclusión de doble carga (ver comentario de oidoCargaPromesa más abajo).
   cederMemoriaSiHaceFalta();
-  const promesa = new Promise((resolve) => {
+  // 2026-09-06 (Ola 262, turno de memoria): además de ceder el pool TTS, pedimos
+  // al backend Astraura que duerma su BitNet si aún falta aire, ANTES de lanzar
+  // el residente. Como `pedirTurnoBitnet` es async y un `await` entre el inicio
+  // del ejecutor y el registro de `oidoCargaPromesa` rompería la exclusión de
+  // doble carga, envolvemos el spawn en una IIFE async: la promesa se crea y
+  // devuelve de forma SÍNCRONA (sin `await` intermedio), así dos peticiones
+  // simultáneas leen la MISMA carga en curso.
+  const promesa = (async () => {
+    await pedirTurnoBitnet();
+    return await new Promise((resolve) => {
     let proc;
     try {
       proc = spawn(bin, ["--vae-model", p.vae, "--lm-model", p.lm, "-t", VIBEASR_HILOS, "--no-token-stream"], {
@@ -539,7 +580,8 @@ function asegurarOidoResidente() {
         matarOidoResidente(`salida inesperada (code=${code} signal=${signal}): ${stderr.trim().slice(-300)}`, false);
       }
     });
-  });
+    });
+  })();
   oidoCargaPromesa = promesa;
   return promesa;
 }
@@ -598,6 +640,89 @@ function cederMemoriaSiHaceFalta() {
   cesiones++;
   ultimaCesionEn = Date.now();
   return true;
+}
+
+/**
+ * Pide el turno de memoria al BitNet del backend Astraura (2026-09-06, Ola 262).
+ * En la Mac de 8 GB de Alex, además del pool TTS (~900 MB) el llama-server
+ * BitNet del backend (`http://127.0.0.1:8000`) ocupa ~1,2 GB y es lo que deja al
+ * oído residente paginando. Antes de lanzar el residente (o antes de un
+ * reconocimiento con memoria baja) cedemos PRIMERO el pool TTS y, si aún falta
+ * aire, pedimos al backend que duerma el BitNet — solo lo duerme si lleva
+ * `min_inactivo_s` sin uso, y el chat lo despierta solo en la siguiente
+ * petición (10–40 s). NUNCA lanza: si el backend está apagado o no responde a
+ * tiempo, se anota el motivo y el oído sigue igual. Devuelve un objeto con lo
+ * ocurrido para el log y /status.asr.
+ */
+async function pedirTurnoBitnet() {
+  // Solo pedimos el turno si, tras ceder el pool TTS, la memoria SIGUE por
+  // debajo del umbral. Si ya hay aire, no hay que molestar al backend.
+  if (memDisponible() >= ASR_MEM_MIN_MB * 1024 * 1024) {
+    return { pedido: false, dormido: false, motivo: null, mbEstimados: null };
+  }
+  const t0 = Date.now();
+  let dormido = false;
+  let motivo = null;
+  let mbEstimados = null;
+  try {
+    const r = await fetch(`${ASTRAURA_URL}/api/bitnet/dormir`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ min_inactivo_s: 30 }),
+      signal: AbortSignal.timeout(2500),
+    });
+    const j = await r.json().catch(() => null);
+    if (r.ok && j && typeof j === "object") {
+      dormido = j.dormido === true;
+      motivo = typeof j.motivo === "string" ? j.motivo : null;
+      mbEstimados = typeof j.mb_estimados === "number" ? j.mb_estimados : null;
+      if (!dormido) motivo = j.ya_estaba ? "ya estaba dormido" : (motivo || "el BitNet no se durmió");
+    }
+  } catch (e) {
+    motivo = "astraura no responde";
+    // e no se usa más allá del motivo genérico: el backend caído no es un error
+    // del oído, solo una situación que se comunica sin romper el flujo.
+  }
+  turnoBitnetPedidos++;
+  turnoBitnetUltimoMs = Date.now() - t0;
+  turnoBitnetUltimoMotivo = motivo;
+  if (dormido) turnoBitnetDormidos++;
+  if (dormido) {
+    log("daemon", `oído: turno de memoria pedido al BitNet → dormido (${mbEstimados ?? "?"} MB)`);
+  } else {
+    log("daemon", `oído: turno de memoria pedido al BitNet → ${motivo}`);
+  }
+  return { pedido: true, dormido, motivo, mbEstimados };
+}
+
+/**
+ * Recalienta el pool TTS tras el oído (2026-09-06, Ola 262). Cuando un
+ * reconocimiento termina y no queda ninguno en cola, si se cedió la memoria del
+ * pool al menos una vez desde el ÚLTIMO calentamiento (`cesiones >`
+ * `cesionesAlCalentar`) y vuelve a haber aire (`memDisponible()` ≥
+ * `ASR_RECALENTAR_MB`), relanzamos el servidor tts-server del idioma por defecto
+ * con la MISMA función interna que usa el calentamiento inicial
+ * (`getReadyServer`): así la siguiente locución no paga la carga del modelo de
+ * ~900 MB. Corre en segundo plano y nunca bloquea ni lanza. Registra
+ * `cesionesAlCalentar` para no recalentar dos veces por la misma cesión.
+ */
+function recalentarVozTrasOido() {
+  if (cesiones <= cesionesAlCalentar) return; // ninguna cesión nueva desde el último calentamiento
+  if (memDisponible() < ASR_RECALENTAR_MB * 1024 * 1024) return; // aún sin aire suficiente
+  const estado = readiness();
+  if (!estado.ready) return; // sin motor TTS instalado no hay nada que recalentar
+  cesionesAlCalentar = cesiones;
+  recalCalentadoDesde = Date.now();
+  recalentados++;
+  getReadyServer(PRIMARY_LANG, estado.paths)
+    .then((entry) => {
+      if (entry) {
+        log("daemon", `voz recalentada tras el oído (tts-server[${PRIMARY_LANG}] listo)`);
+      }
+    })
+    .catch(() => {
+      /* un fallo de recalentado no es crítico: la síntesis real lo reintentará */
+    });
 }
 
 /**
@@ -2094,6 +2219,13 @@ async function handleAsr(req, res, cors) {
   try {
     result = await enqueueAsr(async () => {
       cederMemoriaSiHaceFalta();
+      // 2026-09-06 (Ola 262, turno de memoria): además de ceder el pool TTS,
+      // si la memoria sigue baja pedimos el turno al BitNet del backend Astraura
+      // ANTES de reconocer. `pedirTurnoBitnet` decide sola si hace falta (si ya
+      // hay aire, devuelve {pedido:false} sin llamar al backend). Cubre también
+      // el caso del residente ya cargado, en el que `asegurarOidoResidente` no
+      // vuelve a pasar por el camino que despierta al BitNet.
+      await pedirTurnoBitnet();
       if (fs.existsSync(rutaOidoResidente())) {
         const r = await reconocerResidente(wavPath, segundosAudio);
         if (r.ok) return { ...r, motor: "vibeasr-1.58-residente" };
@@ -2189,6 +2321,17 @@ function handleStatus(res, cors) {
       // se cedió ninguna); `cesiones` = nº de cesiones desde el arranque.
       ultimaCesionMs: ultimaCesionEn === null ? null : Date.now() - ultimaCesionEn,
       cesiones,
+      // 2026-09-06 (Ola 262, turno de memoria): contabilidad del turno pedido
+      // al BitNet del backend Astraura y de los recalentamientos del pool TTS
+      // tras el oído. `turnoBitnet` agrupa las peticiones de dormido; `ultimoMs`
+      // es la latencia de la última petición (null si no hubo ninguna).
+      turnoBitnet: {
+        pedidos: turnoBitnetPedidos,
+        dormidos: turnoBitnetDormidos,
+        ultimoMotivo: turnoBitnetUltimoMotivo,
+        ultimoMs: turnoBitnetUltimoMs,
+      },
+      recalentados,
     },
   };
   if (!state.ready) payload.reasons = state.reasons;
