@@ -162,6 +162,8 @@ const CLON_MAX_S = 20; // duración máxima (poco audio basta: es la filosofía 
 const CLON_TEXTO_MIN = 20; // transcripción exacta, en caracteres
 const CLON_TEXTO_MAX = 400;
 const CLON_TIMBRE_RE = /^[a-z0-9-]{2,40}$/; // id seguro para nombres de fichero
+// Código de idioma corto (es, en…): segunda mitad del nombre de la referencia.
+const LANG_RE = /^[a-z]{2}$/;
 const CLON_CODEC_TIMEOUT_MS = 120 * 1000; // presupuesto de la codificación .rvq
 // 24 kHz mono: la frecuencia NATIVA de la salida del motor (sampleRate 24000),
 // para que la referencia suene en el mismo formato que sintetiza el modelo.
@@ -928,10 +930,34 @@ function resolvePaths(cfg) {
 /** ¿Existe un fichero regular no vacío? */
 function fileOk(p) {
   try {
+    // (Ola 266 · I1A2) Un `.rvq.tmp` es un fichero A MEDIO escribir por el
+    // generador en segundo plano: jamás cuenta como referencia disponible.
+    if (typeof p === "string" && p.endsWith(".tmp")) return false;
     return !!p && fs.statSync(p).size > 0;
   } catch {
     return false;
   }
+}
+
+/**
+ * (Ola 266 · I1A2 · 2026-09-07) ÚNICA puerta hacia las rutas de referencias de
+ * clonación. ANTES la ruta se construía interpolando `clonId`/`personality` a
+ * pelo: un id tipo `../../x` salía de `refsDir` (path traversal). AQUÍ tanto el
+ * timbre como el idioma pasan las regex cerradas Y el `path.resolve` final se
+ * comprueba contra `refsDir` resuelto (doble cierre: caracteres y destino).
+ * Devuelve la ruta `${refsDir}/${timbre}.${lang}[.${ext}]` o null si no pasa.
+ * TODA ruta de referencias (/clonar, /clones, DELETE, handleTts con clon y la
+ * identidad por personalidad, generarRvqEnSegundoPlano) sale de aquí.
+ */
+function rutaRef(timbre, lang, ext) {
+  const t = typeof timbre === "string" ? timbre.trim().toLowerCase() : "";
+  const l = typeof lang === "string" ? lang.trim().toLowerCase() : "";
+  if (!CLON_TIMBRE_RE.test(t) || !LANG_RE.test(l)) return null;
+  const rel = ext ? `${t}.${l}.${ext}` : `${t}.${l}`;
+  const ruta = path.join(PATHS.refsDir, rel);
+  const raiz = path.resolve(PATHS.refsDir) + path.sep;
+  if (!path.resolve(ruta).startsWith(raiz)) return null;
+  return ruta;
 }
 
 /**
@@ -1468,12 +1494,14 @@ async function handleTts(req, res, cors) {
   // clona para hablar este. Si no existe, no se clona nada: sólo --instruct
   // (vocabulario, ver INSTRUCT_BY_PERSONALITY) + --seed estable.
   if (!refWav && personality) {
-    const idWav = path.join(PATHS.refsDir, `${personality}.${langBase}.wav`);
-    const idTxt = path.join(PATHS.refsDir, `${personality}.${langBase}.txt`);
+    // (Ola 266 · I1A2) la ruta pasa por rutaRef (regex + resolve): ningún
+    // `personality` puede salir de refsDir (antes se interpolaba a pelo).
+    const idWav = rutaRef(personality, langBase, "wav");
+    const idTxt = rutaRef(personality, langBase, "txt");
     try {
-      if (fs.existsSync(idWav)) {
+      if (idWav && fs.existsSync(idWav)) {
         refWav = idWav;
-        if (fs.existsSync(idTxt)) refTextFile = idTxt;
+        if (idTxt && fs.existsSync(idTxt)) refTextFile = idTxt;
       }
     } catch { /* sin identidad guardada para este idioma: sigue sin clonar */ }
   }
@@ -1489,13 +1517,23 @@ async function handleTts(req, res, cors) {
   let clonMtime = 0;
   let clonId = "";
   if (body.clon === true) {
+    // (Ola 266 · I1A2) el id se VALIDA con CLON_TIMBRE_RE antes de tocar rutas:
+    // un `personality`/`timbre` tipo `../../x` era un path traversal real
+    // (antes sólo la rama `body.timbre` se saneaba, la de personality no).
+    // Id inválido → 400 «timbre inválido», nunca un 404 silencioso ni el join.
     clonId =
       personality ||
-      (typeof body.timbre === "string" ? body.timbre.trim().toLowerCase().replace(/[^a-z0-9-]/g, "").slice(0, 40) : "");
+      (typeof body.timbre === "string" ? body.timbre.trim().toLowerCase() : "");
     if (!clonId) {
       return sendJson(res, 400, cors, { ok: false, error: "con 'clon: true' indica personality (o timbre) del que clonar" });
     }
-    const base = path.join(PATHS.refsDir, `${clonId}.${langBase}`);
+    if (!CLON_TIMBRE_RE.test(clonId)) {
+      return sendJson(res, 400, cors, { ok: false, error: "timbre inválido: debe ser un id [a-z0-9-] de 2 a 40 caracteres" });
+    }
+    const base = rutaRef(clonId, langBase);
+    if (!base) {
+      return sendJson(res, 400, cors, { ok: false, error: "timbre inválido o idioma no soportado" });
+    }
     if (!fileOk(`${base}.wav`)) {
       return sendJson(res, 404, cors, {
         ok: false,
@@ -2032,18 +2070,24 @@ function argsCodec(s, wav, rvq, codecFile) {
 function generarRvqEnSegundoPlano(state, wav, rvq) {
   const codecBin = state.paths.codec;
   if (!fileOk(codecBin)) return false;
+  // (Ola 266 · I1A2) ANTES el codec escribía el .rvq DIRECTO en su ruta final:
+  // un /tts concurrente podía leerlo a medio escribir vía fileOk (no vacío ya).
+  // AHORA se escribe en `<ruta>.rvq.tmp` y al terminar se renombra de una pieza
+  // (rename atómico en el mismo directorio): o está entero o no existe.
+  const tmpRvq = `${rvq}.tmp`;
   (async () => {
     const s = await sintaxisCodec(codecBin);
     if (!s) {
       log("daemon", `clonación: no reconozco la sintaxis de omnivoice-codec (${codecBin}); se omite el .rvq`);
       return;
     }
-    const r = await ejecutarConPresupuesto(codecBin, argsCodec(s, wav, rvq, state.paths.codecFile), CLON_CODEC_TIMEOUT_MS);
-    if (!r.ok || !fileOk(rvq)) {
-      try { fs.unlinkSync(rvq); } catch { /* no quedó fichero */ }
+    const r = await ejecutarConPresupuesto(codecBin, argsCodec(s, wav, tmpRvq, state.paths.codecFile), CLON_CODEC_TIMEOUT_MS);
+    if (!r.ok || !fileOk(tmpRvq)) {
+      try { fs.unlinkSync(tmpRvq); } catch { /* no quedó fichero */ }
       log("daemon", `clonación: omnivoice-codec falló (${path.basename(rvq)}): ${ultimasLineas(r.salida, 6) || "sin salida"}`);
       return;
     }
+    fs.renameSync(tmpRvq, rvq);
     log("daemon", `clonación: códigos .rvq listos en ${path.basename(rvq)}`);
   })().catch(() => { /* blindaje */ });
   return true;
@@ -2077,7 +2121,8 @@ function listarClones() {
       timbre: m[1],
       lang: m[2],
       duracionS,
-      rvq: fileOk(path.join(PATHS.refsDir, `${m[1]}.${m[2]}.rvq`)),
+      // (Ola 266 · I1A2) también la ruta del .rvq sale por rutaRef (misma puerta).
+      rvq: fileOk(rutaRef(m[1], m[2], "rvq") || ""),
       creadaEn: new Date(st.mtimeMs).toISOString(),
     });
   }
@@ -2171,7 +2216,11 @@ async function handleClonar(req, res, cors) {
   try {
     fs.writeFileSync(tmp, entrada.buf);
     fs.mkdirSync(PATHS.refsDir, { recursive: true });
-    destino = path.join(PATHS.refsDir, `${timbre}.${langBase}.wav`);
+    const destinoRef = rutaRef(timbre, langBase, "wav");
+    if (!destinoRef) {
+      return sendJson(res, 400, cors, { ok: false, error: "timbre inválido" });
+    }
+    destino = destinoRef;
     // Normalización: WAV 24 kHz mono. Con ffmpeg SIEMPRE (frecuencia nativa del
     // motor); sin ffmpeg sólo se acepta un WAV ya hecho (tal cual).
     let okNormalizado = false;
@@ -2183,13 +2232,20 @@ async function handleClonar(req, res, cors) {
       fs.writeFileSync(destino, entrada.buf);
     }
     const d = duracionWavSegundos(fs.readFileSync(destino));
-    if (d === null) return sendJson(res, 400, cors, { ok: false, error: "el audio no produce un WAV legible" });
+    // (Ola 266 · I1A2) si la cabecera no se pudo leer el WAV queda HUÉRFANO:
+    // se borra el destino, igual que en la rama de duración fuera de rango.
+    if (d === null) {
+      try { fs.unlinkSync(destino); } catch { /* */ }
+      return sendJson(res, 400, cors, { ok: false, error: "el audio no produce un WAV legible" });
+    }
     if (d < CLON_MIN_S || d > CLON_MAX_S) {
       try { fs.unlinkSync(destino); } catch { /* */ }
       return sendJson(res, 400, cors, { ok: false, error: `la referencia debe durar entre ${CLON_MIN_S} y ${CLON_MAX_S} s (llegó ${d.toFixed(1)} s)` });
     }
-    fs.writeFileSync(path.join(PATHS.refsDir, `${timbre}.${langBase}.txt`), `${texto}\n`);
-    const rvq = generarRvqEnSegundoPlano(state, destino, path.join(PATHS.refsDir, `${timbre}.${langBase}.rvq`));
+    const txtRef = rutaRef(timbre, langBase, "txt");
+    const rvqRef = rutaRef(timbre, langBase, "rvq");
+    if (txtRef) fs.writeFileSync(txtRef, `${texto}\n`);
+    const rvq = rvqRef ? generarRvqEnSegundoPlano(state, destino, rvqRef) : false;
     const duracionS = Math.round(d * 100) / 100;
     log("daemon", `clonación guardada: ${timbre}.${langBase} (${duracionS} s, rvq en camino: ${rvq ? "sí" : "no"})`);
     return sendJson(res, 200, cors, { ok: true, timbre, lang: langBase, duracionS, rvq });
@@ -2218,7 +2274,9 @@ function handleBorrarClon(req, res, cors) {
     return sendJson(res, 400, cors, { ok: false, error: "falta 'timbre' ([a-z0-9-]{2,40})" });
   }
   const langBase = langBaseOf(u.searchParams.get("lang") || "");
-  const base = path.join(PATHS.refsDir, `${timbre}.${langBase}`);
+  // (Ola 266 · I1A2) también el borrado pasa por rutaRef, la puerta única.
+  const base = rutaRef(timbre, langBase);
+  if (!base) return sendJson(res, 400, cors, { ok: false, error: "timbre inválido" });
   let borrados = 0;
   for (const ext of ["wav", "txt", "rvq"]) {
     try {

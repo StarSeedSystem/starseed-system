@@ -129,3 +129,43 @@ describe("daemon de voz: ninguna función tragada por un comentario (Ola 255)", 
     }
   });
 });
+
+describe("daemon de voz: rutas de clonación blindadas (Ola 266 · I1A2)", () => {
+  // La revisión de I1A encontró un path traversal REAL: `clonId` se tomaba de
+  // `body.personality` sin sanitizar y se interpolaba en refsDir (`../../x`
+  // salía de la carpeta). El cierre fue: regex validadora definida UNA vez
+  // (`CLON_TIMBRE_RE`) + una única función puerta (`rutaRef`) que construye y
+  // verifica TODA ruta de referencias. Este test lee el FUENTE (grep textual)
+  // porque el daemon corre fuera de vitest: garantiza que la constante existe
+  // y que ninguna ruta de clonación vuelve a construirse a pelo.
+  it("CLON_TIMBRE_RE y rutaRef existen en el fuente del demonio", () => {
+    const fuente = codigoSinComentarios(lineasDelDaemon()).join("\n");
+    expect(fuente.includes("const CLON_TIMBRE_RE = /^[a-z0-9-]{2,40}$/")).toBe(true);
+    expect(fuente.includes("const LANG_RE = /^[a-z]{2}$/")).toBe(true);
+    expect(/function\s+rutaRef\s*\(\s*timbre,\s*lang,\s*ext\s*\)/.test(fuente)).toBe(true);
+    // La puerta comprueba el destino resuelto, no solo los caracteres.
+    expect(fuente.includes("path.resolve(PATHS.refsDir) + path.sep")).toBe(true);
+  });
+
+  it("ninguna línea que usa refsDir y un id del cliente construye la ruta sin pasar por rutaRef", () => {
+    // Heurística textual: una línea con `refsDir` que además mencione
+    // `personality`, `clonId` o `timbre` es donde el path traversal coló la
+    // última vez; TODAS deben pasar por rutaRef (join directo = error).
+    const codigo = codigoSinComentarios(lineasDelDaemon());
+    for (const linea of codigo) {
+      if (!linea.includes("refsDir")) continue;
+      if (!/personality|clonId|timbre/.test(linea)) continue;
+      expect(
+        linea.includes("rutaRef("),
+        `la línea construye una ruta de referencias fuera de rutaRef: ${linea.trim()}`,
+      ).toBe(true);
+    }
+  });
+
+  it("el .rvq se escribe en temporal y fileOk ignora los .tmp", () => {
+    const fuente = codigoSinComentarios(lineasDelDaemon()).join("\n");
+    expect(fuente.includes('`${rvq}.tmp`')).toBe(true);
+    expect(fuente.includes("fs.renameSync(tmpRvq, rvq)")).toBe(true);
+    expect(fuente.includes('.endsWith(".tmp")')).toBe(true);
+  });
+});
