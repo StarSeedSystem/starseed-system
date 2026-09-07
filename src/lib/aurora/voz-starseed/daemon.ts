@@ -40,6 +40,8 @@ export const PUERTO_DEMONIO_ASTRAURA = 4444;
 const ORIGEN = `http://127.0.0.1:${PUERTO_VOZ}`;
 const ORIGEN_ASTRAURA = `http://127.0.0.1:${PUERTO_DEMONIO_ASTRAURA}`;
 
+import type { EfectosVoz } from "../../voces/efectos";
+
 /** Estado de ánimo del demonio: vivo (sintetiza ya), despertando (cargando el modelo) o apagado. */
 export type EstadoDaemon = "vivo" | "despertando" | "apagado";
 
@@ -71,6 +73,8 @@ export interface OpcionesSintesis {
     seed?: number;
     /** (Ola 263) Desplazamiento de tono del post-proceso local (1 = natural; el demonio lo acota a [0.7, 1.4]). */
     pitch?: number;
+    /** (Ola 265) Cadena de efectos estilo Voicebox (eq, reverb, compresor, de-esser, ganancia) aplicada con ffmpeg tras sintetizar; el demonio la normaliza y la acota. */
+    efectos?: EfectosVoz;
 }
 
 /** Resultado de una síntesis en el demonio. */
@@ -89,6 +93,8 @@ export interface LecturaStatus {
     memoriaLibreMb: number | null;
     /** (Ola 263) Si el demonio puede aplicar tono post-proceso (tiene ffmpeg); `null` si no lo declara. */
     pitchDisponible: boolean | null;
+    /** (Ola 265) Si el demonio puede aplicar la cadena de efectos con ffmpeg; `null` si no lo declara. */
+    efectosDisponibles: boolean | null;
 }
 
 /**
@@ -106,6 +112,7 @@ export function interpretarStatus(cuerpo: unknown): LecturaStatus {
         despertandoDesdeMs: null,
         memoriaLibreMb: null,
         pitchDisponible: null,
+        efectosDisponibles: null,
     };
     if (typeof cuerpo !== "object" || cuerpo === null) return apagado;
     const c = cuerpo as Record<string, unknown>;
@@ -122,6 +129,9 @@ export function interpretarStatus(cuerpo: unknown): LecturaStatus {
     // (Ola 263) Tono post-proceso disponible solo si el demonio lo declara y hay ffmpeg.
     const pitchDisponible =
         typeof c.pitchDisponible === "boolean" ? c.pitchDisponible : null;
+    // (Ola 265) Efectos post-proceso disponibles solo si el demonio los declara (tiene ffmpeg).
+    const efectosDisponibles =
+        typeof c.efectosDisponibles === "boolean" ? c.efectosDisponibles : null;
 
     const pool =
         typeof c.serverPool === "object" && c.serverPool !== null
@@ -135,10 +145,10 @@ export function interpretarStatus(cuerpo: unknown): LecturaStatus {
         c.despertando === true ||
         (c.ready === true && c.warm === false && launching > 0 && active === 0);
     if (despertando) {
-        return { vivo: true, estado: "despertando", despertandoDesdeMs, memoriaLibreMb, pitchDisponible };
+        return { vivo: true, estado: "despertando", despertandoDesdeMs, memoriaLibreMb, pitchDisponible, efectosDisponibles };
     }
     if (c.ready === true) {
-        return { vivo: true, estado: "vivo", despertandoDesdeMs, memoriaLibreMb, pitchDisponible };
+        return { vivo: true, estado: "vivo", despertandoDesdeMs, memoriaLibreMb, pitchDisponible, efectosDisponibles };
     }
     return apagado;
 }
@@ -240,10 +250,13 @@ export async function sintetizarEnDaemon(
     if (!limpio) return null;
     // (Ola 263) seed y pitch viajan al cuerpo del POST si vienen informados; el
     // demonio los aplica (el tono es post-proceso local) y no se mandan cuando
-    // ausentes para no fijar valores que el llamador no pidió.
+    // ausentes para no fijar valores que el llamador no pidió. (Ola 265) Lo
+    // mismo con los efectos: se mandan solo si vienen, para no fijar una cadena
+    // vacía en la clave de caché del demonio.
     const perfil = {
         ...(opciones.seed !== undefined ? { seed: opciones.seed } : {}),
         ...(opciones.pitch !== undefined ? { pitch: opciones.pitch } : {}),
+        ...(opciones.efectos !== undefined ? { efectos: opciones.efectos } : {}),
     };
     // Primera puerta: tts-server crudo en 4500 (si alguien lo lanzó a mano).
     const directo = await pedirAudio(`${ORIGEN}/tts`, {

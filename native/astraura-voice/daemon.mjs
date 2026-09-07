@@ -1391,6 +1391,13 @@ async function handleTts(req, res, cors) {
   // [0.5, 2], el rango que ffmpeg admite. `1` (o un valor fuera de rango que
   // acabe en 1, o no numérico) = tono natural, sin post-proceso.
   const pitch = pitchEfectivo(body.pitch);
+  // EFECTOS (Ola 265): cadena estilo Voicebox aplicada tras la síntesis con
+  // ffmpeg, en la MISMA invocación que el pitch. Normalizados y acotados aquí
+  // (frontera con el cliente) y traducidos a filtros `-af` — si la cadena es
+  // vacía no hay post-proceso de efectos ninguno. Si ffmpeg no está, se sirve
+  // el audio sin efectos con `X-Astraura-Ignored: efectos`.
+  const efectos = normalizarEfectos(body.efectos);
+  const cadenaEfectos = filtrosFfmpeg(efectos).join(",");
 
   // Clonación de voz (SÓLO camino de respaldo del CLI: el servidor NO clona,
   // ver §/identity): ref_wav_path (o voice_clone_prompt como ruta a WAV) + ref_text.
@@ -1455,7 +1462,9 @@ async function handleTts(req, res, cors) {
   ultimaSintesisReal = Date.now();
   const cfg = state.cfg || {};
   const variantTag = cfg?.variant?.quant || "";
-  const key = sha256([text, langName, langBase, refWav, refTextFile, speed, variantTag, instruct, String(seed), String(pitch)].join("|"));
+  // (Ola 265) Los efectos entran en la clave con su JSON canónico ordenado:
+  // «cálida+reverb 0.25» NO es el mismo WAV que la voz al natural.
+  const key = sha256([text, langName, langBase, refWav, refTextFile, speed, variantTag, instruct, String(seed), String(pitch), claveEfectos(efectos)].join("|"));
 
   const extraHeaders = {
     "X-Astraura-Engine": "omnivoice.cpp",
@@ -1468,7 +1477,7 @@ async function handleTts(req, res, cors) {
   if (ramHit) {
     ramCache.delete(key);
     ramCache.set(key, ramHit); // refresca LRU
-    return responderWav(res, cors, ramHit, speed, pitch, extraHeaders, { ...extraHeaders, "X-Astraura-Cache": "ram" });
+    return responderWav(res, cors, ramHit, speed, pitch, cadenaEfectos, extraHeaders, { ...extraHeaders, "X-Astraura-Cache": "ram" });
   }
   // 2) Caché en disco.
   try {
@@ -1477,7 +1486,7 @@ async function handleTts(req, res, cors) {
       const buf = fs.readFileSync(dp);
       if (isWav(buf)) {
         ramCachePut(key, buf);
-        return responderWav(res, cors, buf, speed, pitch, extraHeaders, { ...extraHeaders, "X-Astraura-Cache": "disk" });
+        return responderWav(res, cors, buf, speed, pitch, cadenaEfectos, extraHeaders, { ...extraHeaders, "X-Astraura-Cache": "disk" });
       }
     }
   } catch {
@@ -1536,8 +1545,11 @@ async function handleTts(req, res, cors) {
   ultimaSintesisReal = Date.now();
   // (Ola 263) Log con la semilla y el tono EFECTIVOS de cada locución: es lo
   // que hace reproducible «este timbre suena así» en cualquier equipo.
-  log("daemon", `síntesis ok (${result.engine}) seed=${seed} pitch=${pitch} speed=${speed} instruct=${instruct}`);
-  return responderWav(res, cors, result.buffer, speed, pitch, extraHeaders, { ...extraHeaders, "X-Astraura-Cache": "miss" });
+  // (Olas 263/265) Log con semilla, tono, velocidad, instruct y la CADENA DE
+  // EFECTOS aplicada a cada locución: es lo que hace reproducible «este timbre
+  // suena así» en cualquier equipo.
+  log("daemon", `síntesis ok (${result.engine}) seed=${seed} pitch=${pitch} speed=${speed} instruct=${instruct} efectos=${cadenaEfectos || "ninguno"}`);
+  return responderWav(res, cors, result.buffer, speed, pitch, cadenaEfectos, extraHeaders, { ...extraHeaders, "X-Astraura-Cache": "miss" });
 }
 
 /** Aplica velocidad por cabecera WAV (si procede) y anota la nota en headers. */
@@ -1557,19 +1569,81 @@ function pitchEfectivo(v) {
   return Math.abs(acotado - 1) < 0.001 ? 1 : acotado;
 }
 
+// ── Efectos de voz (Ola 265 · Forja fase 3 · 2026-09-07) ────────────────────
+// Cadena estilo Voicebox: post-proceso con ffmpeg DESPUÉS de sintetizar, sin
+// tocar el modelo. ⚠️ ESPEJO EXACTO de src/lib/voces/efectos.ts (el demonio no
+// importa TypeScript): si una de las dos copias cambia, cambia la otra y los
+// tests de src/lib/__tests__/efectos-voz.test.ts.
+
+/** Normaliza la entrada `efectos` del cliente: acota rangos y descarta claves desconocidas. Nunca lanza. */
+function normalizarEfectos(x) {
+  if (typeof x !== "object" || x === null) return {};
+  const salida = {};
+  if (x.eq === "cálida" || x.eq === "clara" || x.eq === "radio") salida.eq = x.eq;
+  if (Number.isFinite(x.reverb)) salida.reverb = Math.max(0, Math.min(1, Number(x.reverb)));
+  if (x.compresor === true) salida.compresor = true;
+  if (x.deesser === true) salida.deesser = true;
+  if (Number.isFinite(x.ganancia)) salida.ganancia = Math.max(-6, Math.min(6, Number(x.ganancia)));
+  return salida;
+}
+
+/** Redondeo estable: la cadena ffmpeg debe ser byte-idéntica para la clave de caché. */
+function redondear3(n) {
+  return String(Math.round(n * 1000) / 1000);
+}
+
 /**
- * (Ola 263) Aplica el TONO al WAV con ffmpeg: `asetrate` sube/baja el tono, se
- * vuelve a muestrear a la frecuencia de muestreo original con `aresample` y
- * `atempo` compensa la duración para que NO se acelere la voz (solo cambia el
- * tono). Lee por stdin y escribe por stdout (sin ficheros temporales), con un
- * presupuesto de 20 s. `atempo` solo acepta [0.5, 2]; con pitch acotado a
- * [0.7, 1.4] el factor `1/pitch` queda en [0.71, 1.43], siempre válido.
- * Devuelve { ok, buf } — si ffmpeg falta o falla, `ok` es false y `buf` es el
- * original (el llamador anota `X-Astraura-Ignored: pitch`). Nunca lanza.
+ * Traduce unos efectos (ya normalizados) a la lista de filtros `-af` en ORDEN
+ * (eq → reverb → compresor → de-esser → ganancia). Mismo algoritmo que
+ * `filtrosFfmpeg` de src/lib/voces/efectos.ts.
  */
-function aplicarPitch(buf, pitch) {
+function filtrosFfmpeg(efx) {
+  const cadena = [];
+  if (efx.eq === "cálida") {
+    cadena.push("equalizer=f=200:t=q:w=1:g=2", "equalizer=f=4000:t=q:w=1:g=-1.5");
+  } else if (efx.eq === "clara") {
+    cadena.push("equalizer=f=3000:t=q:w=1:g=2.5", "highpass=f=90");
+  } else if (efx.eq === "radio") {
+    cadena.push("highpass=f=300", "lowpass=f=3400", "acompressor=threshold=-18dB:ratio=4");
+  }
+  if (efx.reverb !== undefined && efx.reverb > 0) {
+    cadena.push(`aecho=0.8:0.7:${redondear3(20 + 40 * efx.reverb)}:${redondear3(0.15 + 0.35 * efx.reverb)}`);
+  }
+  if (efx.compresor === true) cadena.push("acompressor=threshold=-20dB:ratio=3:attack=10:release=120");
+  if (efx.deesser === true) cadena.push("deesser");
+  if (efx.ganancia !== undefined && efx.ganancia !== 0) cadena.push(`volume=${redondear3(efx.ganancia)}dB`);
+  return cadena;
+}
+
+/** Clave canónica de caché: JSON con claves ordenadas (mismo contrato que `claveEfectos`). */
+function claveEfectos(efx) {
+  const ordenado = {};
+  if (efx.eq) ordenado.eq = efx.eq;
+  if (efx.reverb) ordenado.reverb = efx.reverb;
+  if (efx.compresor) ordenado.compresor = efx.compresor;
+  if (efx.deesser) ordenado.deesser = efx.deesser;
+  if (efx.ganancia) ordenado.ganancia = efx.ganancia;
+  return JSON.stringify(ordenado);
+}
+
+/**
+ * (Olas 263/265) Post-proceso del WAV con una ÚNICA invocación de ffmpeg:
+ * primero el TONO (`asetrate` sube/baja el tono, `aresample` vuelve a la
+ * frecuencia original y `atempo` compensa la duración para que NO se acelere
+ * la voz) y a continuación la CADENA DE EFECTOS (`cadenaEfectos`: eq → reverb
+ * → compresor → de-esser → ganancia, ver `filtrosFfmpeg`). Lee por stdin y
+ * escribe por stdout (sin ficheros temporales), con un presupuesto de 20 s.
+ * `atempo` solo acepta [0.5, 2]; con pitch acotado a [0.7, 1.4] el factor
+ * `1/pitch` queda en [0.71, 1.43], siempre válido.
+ * Devuelve { ok, buf } — si ffmpeg falta o falla, `ok` es false y `buf` es el
+ * original (el llamador anota `X-Astraura-Ignored` con pitch y/o efectos).
+ * Nunca lanza.
+ */
+function aplicarPostProceso(buf, pitch, cadenaEfectos) {
   return new Promise((resolve) => {
-    if (Math.abs(pitch - 1) < 0.001) return resolve({ ok: true, buf });
+    const hayPitch = Math.abs(pitch - 1) >= 0.001;
+    const hayEfectos = typeof cadenaEfectos === "string" && cadenaEfectos.length > 0;
+    if (!hayPitch && !hayEfectos) return resolve({ ok: true, buf });
     if (!hayFfmpeg()) return resolve({ ok: false, buf });
     let sr = 24000; // salida nativa del motor (ver X-Astraura-SampleRate)
     try {
@@ -1578,10 +1652,15 @@ function aplicarPitch(buf, pitch) {
     } catch {
       /* sin cabecera legible: usamos 24 kHz, la salida nativa */
     }
-    const factor = 1 / pitch;
+    const filtros = [];
+    if (hayPitch) {
+      const factor = 1 / pitch;
+      filtros.push(`asetrate=${Math.round(sr * pitch)},aresample=${Math.round(sr)},atempo=${factor.toFixed(6)}`);
+    }
+    if (hayEfectos) filtros.push(cadenaEfectos);
     const args = [
       "-i", "-",
-      "-af", `asetrate=${Math.round(sr * pitch)},aresample=${Math.round(sr)},atempo=${factor.toFixed(6)}`,
+      "-af", filtros.join(","),
       "-f", "wav", "-",
     ];
     let child;
@@ -1654,7 +1733,7 @@ function duracionWavSegundos(buf) {
 
 /**
  * (Ola 263 · 2026-09-07) ffmpeg no conoce el tamaño final cuando escribe un
- * WAV a stdout (`-f wav -`, el camino de `aplicarPitch`): deja RIFF/data en
+ * WAV a stdout (`-f wav -`, el camino de `aplicarPostProceso`): deja RIFF/data en
  * 0xFFFFFFFF y el archivo «dura» 89 s teniendo 3. Recorre los chunks
  * (`fmt `, `LIST`, `data`…) y, si `data` declara un tamaño mayor que los bytes
  * restantes (o el «desconocido» 0xFFFFFFFF), reescribe dataSize = total −
@@ -1715,33 +1794,38 @@ function repararWavSiHaceFalta(buf) {
   return out;
 }
 
-/** Envía un WAV aplicando velocidad (síncrono) y tono (async), anotando ignorados. */
-async function responderWav(res, cors, buf, speed, pitch, extraHeaders, outHeaders) {
+/** Envía un WAV aplicando velocidad (síncrono) y post-proceso ffmpeg (async: tono + efectos). */
+async function responderWav(res, cors, buf, speed, pitch, cadenaEfectos, extraHeaders, outHeaders) {
   const vel = applySpeed(buf, speed, extraHeaders);
-  // (Ola 263) La cabecera se repara AL FINAL, sobre el audio YA post-procesado
-  // (velocidad + tono): es el punto único por el que pasa todo WAV que sale.
-  // Así ni la respuesta ni la caché ven nunca un 0xFFFFFFFF de ffmpeg.
+  // (Ola 265) La cabecera se repara AL FINAL, sobre el audio YA post-procesado
+  // (velocidad + tono + efectos): es el punto único por el que pasa todo WAV
+  // que sale. Así ni la respuesta ni la caché ven nunca un 0xFFFFFFFF de ffmpeg.
   const duracion = (seg) => {
     const s = duracionWavSegundos(seg);
     return s === null ? undefined : s.toFixed(2);
   };
-  if (pitch !== 1) {
-    const r = await aplicarPitch(vel, pitch);
+  const hayPitch = pitch !== 1;
+  const hayEfectos = typeof cadenaEfectos === "string" && cadenaEfectos.length > 0;
+  if (hayPitch || hayEfectos) {
+    const r = await aplicarPostProceso(vel, pitch, cadenaEfectos);
     if (r.ok) {
       const sano = repararWavSiHaceFalta(r.buf);
       const dur = duracion(sano);
       sendWav(res, cors, sano, {
         ...outHeaders,
-        "X-Astraura-Pitch": `asetrate/atempo:${pitch}`,
+        // (Ola 265) La cabecera de tono informa además de la cadena aplicada.
+        ...(hayPitch || hayEfectos ? { "X-Astraura-Pitch": `asetrate/atempo:${pitch}${hayEfectos ? ` efectos=[${cadenaEfectos}]` : ""}` } : {}),
         ...(dur !== undefined ? { "X-Astraura-Duracion": dur } : {}),
       });
     } else {
-      // ffmpeg ausente o falló: devolvemos el audio sin tono y lo decimos.
+      // ffmpeg ausente o falló: devolvemos el audio sin post-proceso y lo decimos.
       const sano = repararWavSiHaceFalta(vel);
       const dur = duracion(sano);
       sendWav(res, cors, sano, {
         ...outHeaders,
-        "X-Astraura-Ignored": [extraHeaders["X-Astraura-Ignored"], "pitch"].filter(Boolean).join(","),
+        "X-Astraura-Ignored": [extraHeaders["X-Astraura-Ignored"], hayPitch ? "pitch" : null, hayEfectos ? "efectos" : null]
+          .filter(Boolean)
+          .join(","),
         ...(dur !== undefined ? { "X-Astraura-Duracion": dur } : {}),
       });
     }
