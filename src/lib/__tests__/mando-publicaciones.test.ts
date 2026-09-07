@@ -16,7 +16,7 @@ vi.mock("node:child_process", () => ({
     execFile: mockExecFile,
 }));
 
-import { interpretarLog, publicar } from "@/lib/mando/publicaciones";
+import { argumentosPublicacion, interpretarLog, publicar } from "@/lib/mando/publicaciones";
 
 const LOG_EJEMPLO = [
     "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2\ta1b2c3d\t2026-09-07T10:00:00+00:00\tAlex\tOla 265 · Forja fase 3: efectos y tomas · H1: Cadena de efectos",
@@ -42,6 +42,41 @@ describe("interpretarLog", () => {
         });
         // El merge sin shortstat queda a cero y sin ola/tarea.
         expect(commits[1]).toMatchObject({ ola: null, tarea: null, archivos: 0, mas: 0, menos: 0 });
+    });
+});
+
+describe("argumentosPublicacion", () => {
+    const base = {
+        desde: "a".repeat(40),
+        hasta: "b".repeat(40),
+        rama: "main",
+        id: "pub-20260907-154506",
+    };
+
+    it("producción empuja el corte a la rama remota sin ref temporal", () => {
+        const r = argumentosPublicacion({ ...base, modo: "produccion", esHead: false });
+        expect(r).toEqual({
+            args: ["push", "origin", `${base.hasta}:refs/heads/main`],
+            refTemporal: null,
+        });
+    });
+
+    it("vista previa usa --force-with-lease a la rama del Mando", () => {
+        const r = argumentosPublicacion({ ...base, modo: "vista-previa", esHead: false });
+        expect(r.args).toEqual(["push", "--force-with-lease", "origin", `${base.hasta}:refs/heads/vista-previa/mando`]);
+        expect(r.refTemporal).toBeNull();
+    });
+
+    it("paquete con HEAD empaqueta <desde>..<rama> sin ref temporal", () => {
+        const r = argumentosPublicacion({ ...base, modo: "paquete", esHead: true });
+        expect(r.args).toEqual(["bundle", "create", ".transfer/mando-pub-20260907-154506.bundle", `${base.desde}..main`]);
+        expect(r.refTemporal).toBeNull();
+    });
+
+    it("paquete con corte parcial pide una ref temporal refs/publicar/<id>", () => {
+        const r = argumentosPublicacion({ ...base, modo: "paquete", esHead: false });
+        expect(r.args).toEqual(["bundle", "create", ".transfer/mando-pub-20260907-154506.bundle", `${base.desde}..refs/publicar/${base.id}`]);
+        expect(r.refTemporal).toBe(`refs/publicar/${base.id}`);
     });
 });
 

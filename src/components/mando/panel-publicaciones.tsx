@@ -157,7 +157,8 @@ function TrabajoEnCurso({ trabajo }: { trabajo: TrabajoPublicacion }) {
                 <span>
                     {trabajo.repo} · {trabajo.modo} · {TEXTO_ESTADO_TRABAJO[trabajo.estado]}
                 </span>
-                <span className="text-white/40">hasta {trabajo.hasta.slice(0, 7)}</span>
+                <span className="text-white/40">hasta {trabajo.hastaCorto || trabajo.hasta.slice(0, 7)}</span>
+                <span className="text-white/40">{trabajo.commits} commits</span>
             </div>
             {trabajo.estado === "en_curso" ? (
                 <div className="mt-2 h-1 overflow-hidden rounded-full bg-white/10" aria-hidden>
@@ -183,12 +184,40 @@ function TrabajoEnCurso({ trabajo }: { trabajo: TrabajoPublicacion }) {
                     ) : null}
                     {trabajo.enlaces.vercel ? (
                         <a href={trabajo.enlaces.vercel} target="_blank" rel="noreferrer noopener" className="cursor-pointer text-white/60 hover:text-white">
-                            Vercel / paquete
+                            Vercel
                         </a>
+                    ) : null}
+                    {trabajo.enlaces.paquete ? (
+                        <CopiarRuta ruta={trabajo.enlaces.paquete} />
                     ) : null}
                 </div>
             ) : null}
         </div>
+    );
+}
+
+/** Ruta del paquete `.bundle` copiable: se muestra en mono y se copia al portapapeles. */
+function CopiarRuta({ ruta }: { ruta: string }) {
+    const [copiado, setCopiado] = useState(false);
+    return (
+        <button
+            type="button"
+            title="Copiar ruta del paquete"
+            onClick={() => {
+                void navigator.clipboard
+                    .writeText(ruta)
+                    .then(() => {
+                        setCopiado(true);
+                        window.setTimeout(() => setCopiado(false), 1200);
+                    })
+                    .catch(() => undefined);
+            }}
+            className="inline-flex cursor-pointer items-center gap-1.5 font-mono text-white/60 hover:text-white"
+        >
+            {copiado ? <Check className="h-3 w-3 text-emerald-400" aria-hidden /> : <Package className="h-3 w-3" aria-hidden />}
+            {ruta}
+            <span className="rounded bg-white/10 px-1 py-0.5 text-[10px] text-white/60">{copiado ? "Copiada" : "Copiar ruta"}</span>
+        </button>
     );
 }
 

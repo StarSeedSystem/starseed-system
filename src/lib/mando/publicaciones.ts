@@ -35,6 +35,15 @@ export type CommitPendiente = {
 
 export type PorOla = { ola: number | null; etiqueta: string; commits: number; ultimo: string };
 
+/** Enlaces de una publicación: GitHub, comparar, Vercel y la ruta del paquete. */
+export type EnlacesPublicacion = {
+    github: string | null;
+    comparar: string | null;
+    vercel: string | null;
+    /** Ruta relativa del `.bundle` creado (solo modo «paquete»); nunca en vercel. */
+    paquete: string | null;
+};
+
 export type EstadoRepoPublicable = {
     repo: RepoPublicable;
     nombre: string;
@@ -50,7 +59,7 @@ export type EstadoRepoPublicable = {
     aviso: string | null;
     commits: CommitPendiente[];
     porOla: PorOla[];
-    enlaces: { github: string | null; comparar: string | null; vercel: string | null };
+    enlaces: EnlacesPublicacion;
 };
 
 /** Trabajo desacoplado de una publicación: se responde al instante y el resultado madura solo. */
@@ -59,12 +68,15 @@ export type TrabajoPublicacion = {
     repo: RepoPublicable;
     modo: ModoPublicacion;
     hasta: string;
+    hastaCorto: string;
     desde: string;
+    desdeCorto: string;
+    commits: number;
     estado: "en_curso" | "publicado" | "fallo";
     inicio: string;
     fin: string | null;
     salida: string; // últimas 40 líneas
-    enlaces: { github: string | null; comparar: string | null; vercel: string | null };
+    enlaces: EnlacesPublicacion;
 };
 
 export type ModoPublicacion = "produccion" | "vista-previa" | "paquete";
@@ -159,6 +171,45 @@ function agruparPorOla(commits: CommitPendiente[]): PorOla[] {
     return grupos;
 }
 
+/** Argumentos de git de una publicación y, si el paquete necesita ref temporal, su nombre. */
+export type ArgumentosPublicacion = {
+    args: string[];
+    refTemporal: string | null;
+};
+
+/**
+ * Función pura que decide la orden de git de una publicación. «esHead» indica que
+ * el corte `hasta` es exactamente HEAD. El modo paquete (2026-09-07 · Ola 274 · C3)
+ * NO puede empaquetar `<desde>..<sha>` porque `git bundle` exige que el extremo sea
+ * una ref: si el corte es HEAD se usa `<desde>..<rama>`; si no, se pide una ref
+ * temporal `refs/publicar/<id>` que quien la llama crea y borra alrededor del bundle.
+ */
+export function argumentosPublicacion(opts: {
+    modo: ModoPublicacion;
+    desde: string;
+    hasta: string;
+    rama: string;
+    id: string;
+    esHead: boolean;
+}): ArgumentosPublicacion {
+    const { modo, desde, hasta, rama, id, esHead } = opts;
+    if (modo === "produccion") {
+        // Push a la rama remota registrada; jamás --force ni otra rama.
+        return { args: ["push", "origin", `${hasta}:refs/heads/${rama}`], refTemporal: null };
+    }
+    if (modo === "vista-previa") {
+        // Rama propia del Mando, con --force-with-lease (nunca --force a secas).
+        return { args: ["push", "--force-with-lease", "origin", `${hasta}:refs/heads/vista-previa/mando`], refTemporal: null };
+    }
+    // Paquete: el extremo superior debe ser una ref, no un sha suelto.
+    const fichero = path.join(".transfer", `mando-${id}.bundle`);
+    if (esHead) {
+        return { args: ["bundle", "create", fichero, `${desde}..${rama}`], refTemporal: null };
+    }
+    const ref = `refs/publicar/${id}`;
+    return { args: ["bundle", "create", fichero, `${desde}..${ref}`], refTemporal: ref };
+}
+
 /** Ejecuta git en un repo con tope de tiempo; devuelve stdout o lanza con stderr recortado. */
 async function git(cwd: string, args: string[], topeMs = 10000): Promise<string> {
     const { stdout } = await execFileAsync("git", args, { cwd, timeout: topeMs, windowsHide: true, maxBuffer: 4 * 1024 * 1024 });
@@ -219,7 +270,7 @@ export async function leerPendientes(repo: RepoPublicable): Promise<EstadoRepoPu
         aviso: null,
         commits: [],
         porOla: [],
-        enlaces: { github: null, comparar: null, vercel: null },
+        enlaces: { github: null, comparar: null, vercel: null, paquete: null },
     };
 
     let rama = "";
@@ -277,6 +328,7 @@ export async function leerPendientes(repo: RepoPublicable): Promise<EstadoRepoPu
         github,
         comparar: github && headCorto ? `${github}/compare/${shaBase.slice(0, 7)}...${headCorto}` : null,
         vercel,
+        paquete: null,
     };
     return base;
 }
@@ -350,16 +402,42 @@ async function eventoBus(tipo: "publicado" | "publicacion_fallida", trabajo: Tra
 }
 
 /** Ejecuta la orden de git del trabajo y deja el resultado en su archivo JSON. */
-async function ejecutarTrabajo(trabajo: TrabajoPublicacion, cwd: string, args: string[], quien: string, carpetaAbs: string, commits: number): Promise<void> {
+async function ejecutarTrabajo(
+    trabajo: TrabajoPublicacion,
+    cwd: string,
+    args: string[],
+    quien: string,
+    carpetaAbs: string,
+    commits: number,
+    refTemporal: string | null,
+): Promise<void> {
     let estado: "publicado" | "fallo" = "publicado";
     let salida = "";
-    try {
-        const { stdout, stderr } = await execFileAsync("git", args, { cwd, timeout: 55000, maxBuffer: 4 * 1024 * 1024, windowsHide: true });
-        salida = `${stdout}\n${stderr}`.trim();
-    } catch (e) {
-        estado = "fallo";
-        const err = e as { stdout?: string; stderr?: string; message?: string };
-        salida = `${err.stdout ?? ""}\n${err.stderr ?? err.message ?? "error"}`.trim();
+    // Si el paquete pide ref temporal (corte parcial), se crea antes del bundle
+    // y se borra al terminar —también si el bundle falla— para no dejar refs sueltas.
+    if (refTemporal) {
+        try {
+            await execFileAsync("git", ["update-ref", refTemporal, trabajo.hasta], { cwd, timeout: 8000, windowsHide: true });
+        } catch (e) {
+            estado = "fallo";
+            const err = e as { stderr?: string; message?: string };
+            salida = `no se pudo crear la ref temporal ${refTemporal}: ${err.stderr ?? err.message ?? "error"}`;
+        }
+    }
+    if (estado === "publicado") {
+        try {
+            const { stdout, stderr } = await execFileAsync("git", args, { cwd, timeout: 55000, maxBuffer: 4 * 1024 * 1024, windowsHide: true });
+            salida = `${stdout}\n${stderr}`.trim();
+        } catch (e) {
+            estado = "fallo";
+            const err = e as { stdout?: string; stderr?: string; message?: string };
+            salida = `${err.stdout ?? ""}\n${err.stderr ?? err.message ?? "error"}`.trim();
+        }
+    }
+    if (refTemporal) {
+        try {
+            await execFileAsync("git", ["update-ref", "-d", refTemporal], { cwd, timeout: 8000, windowsHide: true });
+        } catch { /* la ref temporal queda en el repo para que el humano la borre a mano */ }
     }
     trabajo.estado = estado;
     trabajo.fin = new Date().toISOString();
@@ -415,7 +493,9 @@ export async function publicar(p: PeticionPublicar): Promise<RespuestaPublicacio
 
     // Punto de corte: HEAD por defecto; si viene `hasta`, debe ser un sha completo,
     // ancestro de HEAD y que aún no esté publicado en la rama remota.
+    const headSha = (await git(cwd, ["rev-parse", "HEAD"])).trim();
     let hasta = "";
+    let esHead = true;
     if (p.hasta !== undefined && p.hasta !== "") {
         if (!RE_SHA.test(p.hasta)) return { ok: false, error: "«hasta» debe ser un sha completo de 40 caracteres." };
         const esDeHead = await execFileAsync("git", ["merge-base", "--is-ancestor", p.hasta, "HEAD"], { cwd, timeout: 8000, windowsHide: true }).then(() => true).catch(() => false);
@@ -423,8 +503,9 @@ export async function publicar(p: PeticionPublicar): Promise<RespuestaPublicacio
         const yaPublicado = await execFileAsync("git", ["merge-base", "--is-ancestor", p.hasta, "@{u}"], { cwd, timeout: 8000, windowsHide: true }).then(() => true).catch(() => false);
         if (yaPublicado)         return { ok: false, error: "Ese commit ya está publicado en el remoto." };
         hasta = p.hasta;
+        esHead = p.hasta === headSha;
     } else {
-        hasta = (await git(cwd, ["rev-parse", "HEAD"])).trim();
+        hasta = headSha;
     }
     // Cuántos commits publica esta orden: del más nuevo al `hasta`, ambos incluidos
     // (el log viene de nuevo a viejo; si `hasta` no está en la lista es HEAD y los cuenta todos).
@@ -440,30 +521,30 @@ export async function publicar(p: PeticionPublicar): Promise<RespuestaPublicacio
     const carpetaAbs = path.join(raizDelProyecto(), CARPETA);
     await mkdir(carpetaAbs, { recursive: true });
 
-    let args: string[];
-    let enlaces = estado.enlaces;
-    if (p.modo === "produccion") {
-        args = ["push", "origin", `${hasta}:refs/heads/${estado.rama}`];
-    } else if (p.modo === "vista-previa") {
-        // Rama propia del Mando: nunca main, nunca --force a secas.
-        args = ["push", "--force-with-lease", "origin", `${hasta}:refs/heads/vista-previa/mando`];
+    // La orden de git la decide la función pura; el paquete puede pedir una ref temporal.
+    const { args, refTemporal } = argumentosPublicacion({
+        modo: p.modo, desde, hasta, rama: estado.rama, id, esHead,
+    });
+    let enlaces: EnlacesPublicacion = estado.enlaces;
+    if (p.modo === "vista-previa") {
         enlaces = {
             github: estado.enlaces.github,
             comparar: estado.enlaces.github ? `${estado.enlaces.github}/compare/${desde.slice(0, 7)}...vista-previa/mando` : null,
             vercel: estado.enlaces.vercel,
+            paquete: null,
         };
-    } else {
+    } else if (p.modo === "paquete") {
         await mkdir(path.join(cwd, ".transfer"), { recursive: true });
-        args = ["bundle", "create", path.join(".transfer", `mando-${id}.bundle`), `${desde}..${hasta}`];
-        enlaces = { github: null, comparar: null, vercel: `.transfer/mando-${id}.bundle` };
+        enlaces = { github: null, comparar: null, vercel: null, paquete: path.join(".transfer", `mando-${id}.bundle`) };
     }
 
     const trabajo: TrabajoPublicacion = {
-        id, repo: p.repo, modo: p.modo, hasta, desde,
+        id, repo: p.repo, modo: p.modo, hasta, hastaCorto: hasta.slice(0, 7), desde, desdeCorto: desde.slice(0, 7),
+        commits: seleccionados,
         estado: "en_curso", inicio: ahora.toISOString(), fin: null, salida: "", enlaces,
     };
     await writeFile(path.join(carpetaAbs, `${id}.json`), JSON.stringify(trabajo, null, 2), "utf8");
-    void ejecutarTrabajo(trabajo, cwd, args, p.quien, carpetaAbs, seleccionados).catch(() => undefined);
+    void ejecutarTrabajo(trabajo, cwd, args, p.quien, carpetaAbs, seleccionados, refTemporal).catch(() => undefined);
     return { ok: true, id };
 }
 
