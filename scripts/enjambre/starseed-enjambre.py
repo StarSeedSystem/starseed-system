@@ -381,6 +381,13 @@ def sondear(prov, forzar=False):
            **{n: p["url"] for n, p in PASARELAS.items()}}[prov]
     key = (PASARELAS[prov]["key"] if prov in PASARELAS else
            next((ENV.get(k) or os.environ.get(k) for k in claves if ENV.get(k) or os.environ.get(k)), None) or (ENV.get("LLM7_API_KEY") or "sin-clave" if prov == "llm7" else None))
+    # (2026-09-07, Ola 271, P9B) Si el proveedor tiene capa de claves, la sonda usa la clave
+    # ACTIVA y anota su huella: un 402 / aviso de cuota / 3×429 agota ESA clave (y la capa rota
+    # a la siguiente), no el proveedor entero. Solo sin capa se conserva la lógica heredada.
+    kay = (None if prov in PASARELAS else clave_activa(prov))
+    if kay:
+        key = kay["valor"]
+    huella = (kay or {}).get("huella")
     cuerpo = {"model": modelo, "messages": [{"role": "user", "content": "ok"}], "max_tokens": 4}
     try:
         req = urllib.request.Request(url, data=json.dumps(cuerpo).encode(),
@@ -395,12 +402,21 @@ def sondear(prov, forzar=False):
                     contenido = ((cuerpo_r.get("choices") or [{}])[0].get("message") or {}).get("content") or ""
                     if es_aviso_de_cuota(contenido):
                         vivo = False          # 200 con aviso de cuota = agotado, no vivo
-                        marcar_sin_cupo(prov, "sonda: " + contenido[:90])
+                        if huella:
+                            agotar_clave(prov, huella, "sonda: " + contenido[:90])
+                        else:
+                            marcar_sin_cupo(prov, "sonda: " + contenido[:90])
                 except Exception:
                     pass
     except Exception as e:
         vivo = False
-        _clasificar_fallo_cupo(prov, e)
+        m = str(e or "")
+        if huella and "402" in m:
+            agotar_clave(prov, huella, "sonda: HTTP 402")
+        elif huella and "429" in m and _registrar_429_clave(huella):
+            agotar_clave(prov, huella, "sonda: tres 429 en 10 min")
+        else:
+            _clasificar_fallo_cupo(prov, e)
     registrar_uso(prov, vivo)
     return vivo
 
@@ -449,6 +465,13 @@ def supervisor_proveedores():
                     e.update({"estado": "caido", "t": ahora(), "desde": desde})   # sigue caído: solo se anota la hora del sondeo
                     d[prov] = e
                     visto[prov] = "caido"
+        # (2026-09-07, Ola 271, P9B) Cada ciclo del supervisor deja también el estado de las
+        # CLAVES de cada proveedor (var/medio/huella/agotada_hasta, jamás valores) para el
+        # Mando y para que las demás olas vean qué clave toca sin recontar los archivos.
+        try:
+            d["claves"] = estado_claves()
+        except Exception:
+            pass
         _salud_guardar(d)
         FIN.wait(SONDEO_S)
 
@@ -672,6 +695,18 @@ def estado_claves():
             "sin_cupo_hasta": (d.get(prov) or {}).get("sin_cupo_hasta"),
         }
     return out
+
+
+def _clave_para(prov):
+    """(2026-09-07, Ola 271, P9B) Puente entre la capa de claves y los consumidores
+    antiguos: devuelve `clave_activa(prov)` si la capa conoce claves de este proveedor
+    (entrada en CLAVES_POR_PROVEEDOR) y alguna está viva; en caso contrario None, para
+    que el llamador caiga a la lógica heredada de `ENV.get(...)`. Así llamar_llm, las
+    sondas y los catálogos rotan claves SIN tocar a los proveedores sin capa (pasarelas,
+    llm7 sin token)."""
+    if _prov_claves(prov) not in CLAVES_POR_PROVEEDOR:
+        return None
+    return clave_activa(prov)
 
 
 RACHA_429 = {}        # huella -> deque de momentos de 429; 3 en 10 min = clave agotada
@@ -1065,65 +1100,129 @@ def set_estado(tid, **kw):
 
 # ── revisión cruzada por otro proveedor ─────────────────────────────────────
 def llamar_llm(proveedor, modelo, prompt, timeout=120):
+    """Una llamada de chat con ROTACIÓN DE CLAVE integrada (2026-09-07, Ola 271, P9B):
+
+    la clave sale de la capa por medio (`clave_activa`); ante HTTP 402, contenido que sea
+    aviso de cuota o el tercer 429 de la misma huella en 10 min se agota ESA clave
+    (`agotar_clave`) y se reintenta UNA sola vez con la siguiente; solo cuando no queda
+    ninguna, `agotar_clave` marca el proveedor entero como sin cupo. Los proveedores sin
+    capa de claves (pasarelas, llm7 sin token) siguen el camino heredado de `ENV.get`.
+    Los valores de clave jamás se escriben: solo nombres de variable y medios."""
     CUPOS[proveedor].esperar()
-    if proveedor == "gemini":
-        key = ENV.get("GEMINI_API_KEY") or ENV.get("GOOGLE_API_KEY") or ENV.get("NEXT_PUBLIC_GOOGLE_API_KEY")
-        if not key: raise RuntimeError("sin clave gemini")
-        url = "https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s" % (modelo, key)
-        cuerpo = {"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"temperature": 0.2, "maxOutputTokens": 1200}}
-        req = urllib.request.Request(url, data=json.dumps(cuerpo).encode(), headers={"Content-Type": "application/json"})
+
+    def _peticion(kay):
+        """Hace la petición con la clave `kay` (item de clave_activa o None). Devuelve
+        (texto, agota): `agota` dice si el fallo (o el contenido) manda agotar ESTA clave."""
+        key = (kay or {}).get("valor")
+        if proveedor == "gemini":
+            key = key or ENV.get("GEMINI_API_KEY") or ENV.get("GOOGLE_API_KEY") or ENV.get("NEXT_PUBLIC_GOOGLE_API_KEY")
+            if not key: raise RuntimeError("sin clave gemini")
+            url = "https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s" % (modelo, key)
+            cuerpo = {"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"temperature": 0.2, "maxOutputTokens": 1200}}
+            req = urllib.request.Request(url, data=json.dumps(cuerpo).encode(), headers={"Content-Type": "application/json"})
+            try:
+                d = json.loads(urllib.request.urlopen(req, timeout=timeout).read())
+            except urllib.error.HTTPError as e:
+                # 429/402 de Gemini también alimentan la memoria de cupo; con clave conocida,
+                # la huella decide si toca agotarla (3 × 429 en 10 min) o rotarla (402).
+                m = str(e or "")
+                if kay:
+                    hu = kay["huella"]
+                    if "402" in m:
+                        return "", True
+                    if "429" in m:
+                        if _registrar_429_clave(hu):
+                            return "", True
+                        marcar_429(proveedor)
+                    else:
+                        _clasificar_fallo_cupo(proveedor, e)
+                else:
+                    _clasificar_fallo_cupo(proveedor, e)
+                raise
+            return "".join(p.get("text", "") for p in d["candidates"][0]["content"]["parts"]), False
+        modelo_real = modelo
+        if proveedor == "xkiro":
+            key = key or ENV.get("XKIRO_API_KEY"); url = "https://api.xkiro.com/v1/chat/completions"
+        elif proveedor == "aihubmix":
+            key = key or ENV.get("AIHUBMIX_API_KEY"); url = "https://aihubmix.com/v1/chat/completions"
+        elif proveedor == "tokenrouter":
+            # OJO: la base buena es .com (la .io exige claves `tr_` y rechaza estas).
+            key = key or ENV.get("TOKENROUTER_API_KEY"); url = "https://api.tokenrouter.com/v1/chat/completions"
+        elif proveedor == "openrouter":
+            key = key or ENV.get("OPENROUTER_API_KEY"); url = "https://openrouter.ai/api/v1/chat/completions"
+        elif proveedor == "llm7":
+            # (2026-09-05, itsfree.ai) LLM7.io: OpenAI-compatible SIN clave, 10 req/min (40 con
+            # token LLM7_API_KEY). Revisor de respaldo; sus nombres «claude/gpt-6» son etiquetas
+            # de reventa: se usan solo modelos honestos (gpt-oss, deepseek-v4-flash, glm-5.3-flash…).
+            key = key or ENV.get("LLM7_API_KEY") or "sin-clave"; url = "https://api.llm7.io/v1/chat/completions"
+            if not key or key == "sin-clave":
+                key = "sin-clave"
+                if modelo_real not in ("gpt-oss", "minimax-m2.7"):
+                    modelo_real = "minimax-m2.7"   # sin token solo sirven estos dos (probado el 2026-09-05)
+        elif proveedor == "freetheai":
+            # (2026-09-05, github.com/Free-The-Ai/free-ai) Pasarela gratuita OpenAI-compatible, 60+
+            # modelos, clave por Discord (/signup + /checkin diario), 10-35 req/min, 250/día.
+            key = key or ENV.get("FREETHEAI_API_KEY"); url = "https://api.freetheai.xyz/v1/chat/completions"
+        elif proveedor in PASARELAS:
+            key = PASARELAS[proveedor]["key"]; url = PASARELAS[proveedor]["url"]
+        else:
+            key = key or ENV.get("NVIDIA_API_KEY") or ENV.get("NVIDIA_SHARED_KEY"); url = "https://integrate.api.nvidia.com/v1/chat/completions"
+        if not key: raise RuntimeError("sin clave " + proveedor)
+        # 2500 y no 1200: los revisores «pensantes» (glm-5.3, qwen3.7) gastan el presupuesto en razonar
+        # y devolvían el contenido vacío (tokenrouter con max_tokens=20 devolvía "" y finish=length).
+        cuerpo = {"model": modelo_real, "messages": [{"role": "user", "content": prompt}], "temperature": 0.2, "max_tokens": 2500}
+        # Sin User-Agent propio, el Cloudflare de xKiro devuelve 403 al urllib de Python.
+        req = urllib.request.Request(url, data=json.dumps(cuerpo).encode(),
+                                     headers={"Content-Type": "application/json", "Authorization": "Bearer " + key,
+                                              "User-Agent": "starseed-enjambre/2 (+starseed-os)"})
         try:
             d = json.loads(urllib.request.urlopen(req, timeout=timeout).read())
-        except urllib.error.HTTPError as e:       # 429/402 de Gemini también alimentan la memoria de cupo
-            _clasificar_fallo_cupo(proveedor, e)
+        except Exception as e:
+            USO_REAL[proveedor] = (time.time(), False)
+            m = str(e or "")
+            if kay:
+                if "402" in m:
+                    return "", True                                   # 402: esta clave no paga más
+                if "429" in m:
+                    if _registrar_429_clave(kay["huella"]):
+                        return "", True                               # 3 × 429 en 10 min: clave ahogada
+                    marcar_429(proveedor)
+                elif any(k in m.lower() for k in ("quota", "cuota", "daily limit", "rate limit exceeded for today")):
+                    return "", True                                   # límite diario explícito en el error
+                else:
+                    _clasificar_fallo_cupo(proveedor, e)
+            else:
+                _clasificar_fallo_cupo(proveedor, e)   # 402/cuota → 24 h sin intentarlo; 429 → 10 min de enfriamiento
             raise
-        return "".join(p.get("text", "") for p in d["candidates"][0]["content"]["parts"])
-    if proveedor == "xkiro":
-        key = ENV.get("XKIRO_API_KEY"); url = "https://api.xkiro.com/v1/chat/completions"
-    elif proveedor == "aihubmix":
-        key = ENV.get("AIHUBMIX_API_KEY"); url = "https://aihubmix.com/v1/chat/completions"
-    elif proveedor == "tokenrouter":
-        # OJO: la base buena es .com (la .io exige claves `tr_` y rechaza estas).
-        key = ENV.get("TOKENROUTER_API_KEY"); url = "https://api.tokenrouter.com/v1/chat/completions"
-    elif proveedor == "openrouter":
-        key = ENV.get("OPENROUTER_API_KEY"); url = "https://openrouter.ai/api/v1/chat/completions"
-    elif proveedor == "llm7":
-        # (2026-09-05, itsfree.ai) LLM7.io: OpenAI-compatible SIN clave, 10 req/min (40 con
-        # token LLM7_API_KEY). Revisor de respaldo; sus nombres «claude/gpt-6» son etiquetas
-        # de reventa: se usan solo modelos honestos (gpt-oss, deepseek-v4-flash, glm-5.3-flash…).
-        key = ENV.get("LLM7_API_KEY") or "sin-clave"; url = "https://api.llm7.io/v1/chat/completions"
-        if not ENV.get("LLM7_API_KEY") and modelo not in ("gpt-oss", "minimax-m2.7"):
-            modelo = "minimax-m2.7"      # sin token solo sirven estos dos (probado el 2026-09-05)
-    elif proveedor == "freetheai":
-        # (2026-09-05, github.com/Free-The-Ai/free-ai) Pasarela gratuita OpenAI-compatible, 60+
-        # modelos, clave por Discord (/signup + /checkin diario), 10-35 req/min, 250/día.
-        key = ENV.get("FREETHEAI_API_KEY"); url = "https://api.freetheai.xyz/v1/chat/completions"
-    elif proveedor in PASARELAS:
-        key = PASARELAS[proveedor]["key"]; url = PASARELAS[proveedor]["url"]
-    else:
-        key = ENV.get("NVIDIA_API_KEY") or ENV.get("NVIDIA_SHARED_KEY"); url = "https://integrate.api.nvidia.com/v1/chat/completions"
-    if not key: raise RuntimeError("sin clave " + proveedor)
-    # 2500 y no 1200: los revisores «pensantes» (glm-5.3, qwen3.7) gastan el presupuesto en razonar
-    # y devolvían el contenido vacío (tokenrouter con max_tokens=20 devolvía "" y finish=length).
-    cuerpo = {"model": modelo, "messages": [{"role": "user", "content": prompt}], "temperature": 0.2, "max_tokens": 2500}
-    # Sin User-Agent propio, el Cloudflare de xKiro devuelve 403 al urllib de Python.
-    req = urllib.request.Request(url, data=json.dumps(cuerpo).encode(),
-                                 headers={"Content-Type": "application/json", "Authorization": "Bearer " + key,
-                                          "User-Agent": "starseed-enjambre/2 (+starseed-os)"})
-    try:
-        d = json.loads(urllib.request.urlopen(req, timeout=timeout).read())
-    except Exception as e:
-        USO_REAL[proveedor] = (time.time(), False)
-        _clasificar_fallo_cupo(proveedor, e)   # 402/cuota → 24 h sin intentarlo; 429 → 10 min de enfriamiento
-        raise
-    txt = d["choices"][0]["message"]["content"] or ""
-    txt = re.sub(r"<think>.*?</think>", "", txt, flags=re.S).strip()
+        txt = d["choices"][0]["message"]["content"] or ""
+        txt = re.sub(r"<think>.*?</think>", "", txt, flags=re.S).strip()
+        return txt, False
+
+    kay = _clave_para(proveedor)
+    txt, agota = _peticion(kay)
+    if agota and kay:
+        agotar_clave(proveedor, kay["huella"], "llamada: límite de la clave")
+        kay2 = clave_activa(proveedor)
+        if kay2:
+            # Reintento ÚNICO con la siguiente clave del mismo proveedor (nunca el valor, solo var/medio).
+            evento("reenrutado", "", "clave %s (%s) agotada → %s (%s)" % (kay["var"], kay["medio"], kay2["var"], kay2["medio"]))
+            txt, _ = _peticion(kay2)
     # Algunos proveedores devuelven 200 con un AVISO DE CUOTA como si fuera la respuesta (aihubmix
     # el 2026-09-04: «accounts that have not been recharged can only try 10 times»). Seis commits
     # se integraron con esa frase archivada como «revisión ok». Eso es un fallo del proveedor.
     if es_aviso_de_cuota(txt):
         USO_REAL[proveedor] = (time.time(), False)
-        marcar_sin_cupo(proveedor, txt[:160])   # aviso de cuota en el contenido: 24 h sin intentarlo
+        if kay:
+            agotar_clave(proveedor, kay["huella"], "contenido: " + txt[:80])  # agota la clave; sin más claves, marca sin cupo ella misma
+            kay2 = clave_activa(proveedor)
+            if kay2:
+                evento("reenrutado", "", "clave %s (%s) agotada → %s (%s)" % (kay["var"], kay["medio"], kay2["var"], kay2["medio"]))
+                txt, _ = _peticion(kay2)
+                if not es_aviso_de_cuota(txt):
+                    USO_REAL[proveedor] = (time.time(), True)
+                    return txt
+        else:
+            marcar_sin_cupo(proveedor, txt[:160])   # aviso de cuota en el contenido: 24 h sin intentarlo
         raise RuntimeError("cuota agotada en %s: %s" % (proveedor, txt[:90]))
     USO_REAL[proveedor] = (time.time(), True)
     return txt
@@ -1285,7 +1384,10 @@ def opencode(prompt, modelo, cwd, log, timeout=1500, tid=None):
             f.write("\n$ opencode run --model %s · %s\n" % (modelo, ahora()))
             f.flush()
             p = subprocess.Popen([OPENCODE, "run", prompt, "--model", modelo, "--dir", cwd],
-                                 cwd=cwd, stdout=f, stderr=subprocess.STDOUT, env=entorno_hijo())
+                                 cwd=cwd, stdout=f, stderr=subprocess.STDOUT,
+                                 # (2026-09-07, Ola 271, P9B) la clave ACTIVA del proveedor se
+                                 # pasa al hijo y, si cambió, actualiza «{env:VAR}» de opencode.
+                                 env=entorno_hijo(_sync_opencode_clave(modelo)))
         if tid:
             with PROCESOS_LOCK: PROCESOS[tid] = p
         try:

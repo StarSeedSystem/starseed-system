@@ -17,9 +17,12 @@ con importlib porque el nombre del archivo lleva guiones (igual que test_alcance
 import es seguro porque el arranque vive bajo `if __name__ == "__main__"`.
 """
 import importlib.util
+import io
 import json
 import os
 import sys
+import threading
+import urllib.error
 
 import pytest
 
@@ -103,3 +106,117 @@ def test_estado_claves_jamas_escribe_valores(medios):
     assert all(set(c) == {"var", "medio", "huella", "agotada_hasta"} for c in info["claves"])
     assert [c["huella"] for c in info["claves"]] == [primera["huella"], info["claves"][1]["huella"]]
     assert info["sin_cupo_hasta"] is None                   # queda una clave: no es sin cupo
+
+
+# ── P9B: llamar_llm y las sondas cableados a la capa de claves ───────────────
+# Tarea 4 (2026-09-07, Ola 271): un 402 agota la primera clave y el reintento sale con la
+# segunda (cabecera Authorization de la segunda llamada); tres 429 de la misma huella en
+# 10 min la agotan; con una sola clave agotada sí se marca sin_cupo; y tras un ciclo del
+# supervisor el JSON de salud lleva la sección «claves». Sin red real: se parchea
+# `urllib.request.urlopen` y `evento` (que, con clave ANON, enviaría al bus de Supabase).
+
+PROV_HTTP = "xkiro"      # proveedor real de la flota con rama OpenAI-compatible en llamar_llm
+
+
+@pytest.fixture()
+def flota(medios, monkeypatch):
+    """Fixture del P9B: los dos medios falsos de `medios` pasan a ser las claves de
+    `xkiro` (en vez de las del proveedor ficticio), los contadores de 429 arrancan limpios
+    y los eventos se graban en memoria en vez de viajar al bus."""
+    monkeypatch.setitem(enjambre.CLAVES_POR_PROVEEDOR, "xkiro", [BASE])
+    enjambre.RACHA_429.clear()
+    eventos = []
+    monkeypatch.setattr(enjambre, "evento", lambda tipo, tarea, texto, datos=None: eventos.append(texto))
+    monkeypatch.setattr(enjambre, "ANON", "")       # jamás se habla con Supabase en tests
+    return eventos
+
+
+def _respuesta_ok(_texto="ok"):
+    datos = json.dumps({"choices": [{"message": {"content": _texto}}]}).encode()
+    return io.BytesIO(datos)
+
+
+def _autorizacion(req):
+    return req.get_header("Authorization")
+
+
+def test_llamar_llm_402_rota_a_la_siguiente_clave(flota, monkeypatch):
+    autorizaciones = []
+
+    def urlopen_falso(req, timeout=None):
+        autorizaciones.append(_autorizacion(req))
+        if len(autorizaciones) == 1:
+            raise urllib.error.HTTPError(req.full_url, 402, "Payment Required", {}, None)
+        return _respuesta_ok()
+
+    monkeypatch.setattr(enjambre.urllib.request, "urlopen", urlopen_falso)
+    primera = enjambre.clave_activa("xkiro")
+    assert primera["valor"] == VALOR_1
+    assert enjambre.llamar_llm("xkiro", "modelo-x", "hola") == "ok"
+    assert len(autorizaciones) == 2                                  # exactamente un reintento
+    assert autorizaciones[0] == "Bearer " + VALOR_1                  # la original
+    assert autorizaciones[1] == "Bearer " + VALOR_2                  # la rotada
+    assert not enjambre.sin_cupo("xkiro")                            # ¿aún queda la segunda? sí
+    salud = json.load(open(enjambre.SALUD_JSON, encoding="utf-8"))
+    assert list(salud["xkiro"]["claves_agotadas"]) == [primera["huella"]]
+    assert any("→" in e for e in flota)                              # evento de reenrutado
+
+
+def test_llamar_llm_tres_429_agotan_la_huella(flota, monkeypatch):
+    autorizaciones = []
+
+    def urlopen_falso(req, timeout=None):
+        autorizaciones.append(_autorizacion(req))
+        raise urllib.error.HTTPError(req.full_url, 429, "Too Many Requests", {}, None)
+
+    monkeypatch.setattr(enjambre.urllib.request, "urlopen", urlopen_falso)
+    primera = enjambre.clave_activa("xkiro")
+    with pytest.raises(urllib.error.HTTPError):
+        enjambre.llamar_llm("xkiro", "modelo-x", "hola")
+    # Tres intentos con la primera (3×429 en 10 min) y solo entonces salta a la segunda.
+    assert autorizaciones == ["Bearer " + VALOR_1] * 3 + ["Bearer " + VALOR_2]
+    salud = json.load(open(enjambre.SALUD_JSON, encoding="utf-8"))
+    assert primera["huella"] in salud["xkiro"]["claves_agotadas"]
+
+
+def test_llamar_llm_clave_unica_agotada_marca_sin_cupo(flota, monkeypatch):
+    # Solo la primera clave visible (se captura ANTES de parchear para no recursar):
+    # al quedarse sin relevo, EL PROVEEDOR entero queda marcado sin cupo.
+    primera = enjambre.clave_activa("xkiro")
+    monkeypatch.setattr(enjambre, "_claves_crudas", lambda prov: [primera])
+    monkeypatch.setattr(enjambre.urllib.request, "urlopen",
+                        lambda req, timeout=None: _raise_402(req))
+    with pytest.raises(urllib.error.HTTPError):
+        enjambre.llamar_llm("xkiro", "modelo-x", "hola")
+    assert enjambre.sin_cupo("xkiro")                                # no quedaba otra clave
+    assert enjambre.clave_activa("xkiro") is None
+
+
+def _raise_402(req):
+    raise urllib.error.HTTPError(req.full_url, 402, "Payment Required", {}, None)
+
+
+def test_supervisor_escribe_estado_claves_en_salud(flota, monkeypatch):
+    # Una sola vuelta del supervisor: sondas que responden «vivo» y FIN que corta al final.
+    monkeypatch.setattr(enjambre, "sondear", lambda prov, forzar=False: True)
+    fin = threading.Event()
+    monkeypatch.setattr(fin, "wait", lambda _s: True)
+
+    def corta():
+        return False
+
+    # FIN.is_set() debe ser falso al entrar y verdadero tras la primera vuelta.
+    llamadas = {"n": 0}
+
+    def is_set():
+        llamadas["n"] += 1
+        return llamadas["n"] > len(enjambre.SONDAS) + 1
+
+    monkeypatch.setattr(fin, "is_set", is_set)
+    monkeypatch.setattr(enjambre, "FIN", fin)
+    enjambre.supervisor_proveedores()
+    salud = json.load(open(enjambre.SALUD_JSON, encoding="utf-8"))
+    assert "claves" in salud
+    assert salud["claves"]["xkiro"]["activa"] == BASE                # la primera, aún viva
+    volcado = json.dumps(salud, ensure_ascii=False)
+    assert VALOR_1 not in volcado and VALOR_2 not in volcado         # jamás valores
