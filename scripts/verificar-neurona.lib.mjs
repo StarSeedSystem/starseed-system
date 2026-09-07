@@ -22,6 +22,13 @@ export const ESTADO_AVISO = "aviso";
 export const ESTADO_FALLO = "fallo";
 
 /**
+ * Una medida que el endpoint no trajo (null, undefined o NaN) no es un fallo:
+ * la neurona puede no reportar un campo en un momento dado. Se anota como
+ * «omitido» y NO cuenta en la puntuación (Ola 276 · Q1E).
+ */
+export const ESTADO_OMITIDO = "omitido";
+
+/**
  * Evalúa las medidas contra los umbrales y devuelve una lista de resultados.
  *
  * @param {Record<string, unknown>} medidas — mapa clave → valor medido
@@ -31,7 +38,7 @@ export const ESTADO_FALLO = "fallo";
  *   umbral puede ser un número (comparación «mayor o igual»/«menor o igual»
  *   según la regla de la clave) o un objeto `{ aviso, fallo }` para rangos
  *   de dos pasos.
- * @returns {Array<{ clave: string; valor: unknown; estado: "ok"|"aviso"|"fallo"; motivo: string }>}
+ * @returns {Array<{ clave: string; valor: unknown; estado: "ok"|"aviso"|"fallo"|"omitido"; motivo: string }>}
  */
 export function evaluarUmbrales(medidas, umbrales) {
   const resultados = [];
@@ -72,6 +79,14 @@ export function evaluarUmbrales(medidas, umbrales) {
     // Sin umbral para esta clave no se puede clasificar: se salta.
     if (umbral === undefined) continue;
 
+    // Una medida ausente no se puntúa ni se castiga: el endpoint no la reportó
+    // en ese momento (p. ej. `swapUsadoMb` null). Se anota como omitida para
+    // no bajar la puntuación injustamente (Ola 276 · Q1E).
+    if (esOmitida(valorMedido)) {
+      resultados.push({ clave, valor: valorMedido, estado: ESTADO_OMITIDO, motivo: "sin medida" });
+      continue;
+    }
+
     const resultado = clasificar(clave, valorMedido, umbral, regla);
     resultados.push(resultado);
   }
@@ -102,14 +117,24 @@ function clasificar(clave, valor, umbral, regla) {
 }
 
 /**
+ * ¿Una medida está ausente y por tanto no se puede clasificar? Cualquier valor
+ * null, undefined o número NaN entra en esta categoría (Ola 276 · Q1E). El
+ * runner aplane los JSON con `numero()`, que ya devuelve null para lo que no
+ * es finito; aquí además se cubre el NaN directo por robustez.
+ */
+function esOmitida(v) {
+  if (v === null || v === undefined) return true;
+  return typeof v === "number" && !Number.isFinite(v);
+}
+
+/**
  * ¿El valor cruza la frontera en el sentido que marca la regla?
  *  · alto  → cruza cuando valor < umbral (queremos alto, está bajo).
  *  · bajo  → cruza cuando valor > umbral (queremos bajo, está alto).
  *  · igual → cruza cuando valor !== umbral.
- * Los `null`/`undefined` cuentan como cruce (no se pudo medir = fallo).
+ * A esta función ya solo llegan valores presentes (`esOmitida` filtra antes).
  */
 function supera(valor, umbral, tipo) {
-  if (valor === null || valor === undefined) return true;
   if (tipo === "igual") return valor !== umbral;
   const n = typeof valor === "number" ? valor : Number(valor);
   if (!Number.isFinite(n)) return true;
@@ -280,7 +305,7 @@ export function resumenMarkdown(informe) {
   lineas.push("|---|---|---|");
 
   const checks = Array.isArray(informe.checks) ? informe.checks : [];
-  const icono = { ok: "✅", aviso: "⚠️", fallo: "❌" };
+  const icono = { ok: "✅", aviso: "⚠️", fallo: "❌", omitido: "⏭" };
   for (const c of checks) {
     const valor = typeof c.valor === "boolean" ? (c.valor ? "sí" : "no") : (c.valor ?? "—");
     lineas.push(`| ${separa(c.clave)} | ${separa(String(valor))} | ${icono[c.estado] ?? ""} ${c.estado} |`);
@@ -290,7 +315,7 @@ export function resumenMarkdown(informe) {
     lineas.push("");
     const r = informe.resumen;
     lineas.push(`- **Puntuación:** ${r.puntuacion ?? "—"}/100`);
-    if (r.fallos !== undefined) lineas.push(`- **Fallos:** ${r.fallos} · **Avisos:** ${r.avisos} · **Ok:** ${r.ok}`);
+    if (r.fallos !== undefined) lineas.push(`- **Fallos:** ${r.fallos} · **Avisos:** ${r.avisos} · **Ok:** ${r.ok} · **Omitidos:** ${r.omitidos ?? 0}`);
     if (Array.isArray(r.regresiones) && r.regresiones.length) {
       lineas.push(`- **Regresiones:** ${r.regresiones.length}`);
       for (const reg of r.regresiones) lineas.push(`  - ${separa(reg.motivo ?? reg.clave ?? "")}`);
@@ -303,18 +328,22 @@ export function resumenMarkdown(informe) {
 /**
  * Puntuación 0-100 del informe: cada check vale 1 (ok), 0,5 (aviso) o 0
  * (fallo), ponderado por igual; las regresiones restan 5 puntos cada una
- * (sin bajar de 0).
+ * (sin bajar de 0). Los checks «omitido» (medida ausente) no cuentan en el
+ * denominador: no puntúan ni castigan (Ola 276 · Q1E).
  */
 export function puntuacion(informe) {
   const checks = Array.isArray(informe.checks) ? informe.checks : [];
-  if (checks.length === 0) return { total: 0, ok: 0, aviso: 0, fallo: 0, valor: 0 };
+  if (checks.length === 0) return { total: 0, ok: 0, aviso: 0, fallo: 0, omitido: 0, valor: 0 };
 
   let ok = 0;
   let aviso = 0;
   let fallo = 0;
+  let omitido = 0;
   let suma = 0;
   for (const c of checks) {
-    if (c.estado === ESTADO_OK) {
+    if (c.estado === ESTADO_OMITIDO) {
+      omitido += 1;
+    } else if (c.estado === ESTADO_OK) {
       ok += 1;
       suma += 1;
     } else if (c.estado === ESTADO_AVISO) {
@@ -325,7 +354,9 @@ export function puntuacion(informe) {
     }
   }
 
-  let valor = Math.round((suma / checks.length) * 100);
+  // Solo los checks medidos (no omitidos) forman el denominador.
+  const base = checks.length - omitido;
+  let valor = base > 0 ? Math.round((suma / base) * 100) : 0;
 
   // Cada regresión detectada resta 5 puntos (piso en 0).
   const regresiones = informe?.resumen?.regresiones ?? informe?.regresiones;
@@ -333,5 +364,5 @@ export function puntuacion(informe) {
     valor = Math.max(0, valor - regresiones.length * 5);
   }
 
-  return { total: checks.length, ok, aviso, fallo, valor };
+  return { total: checks.length, ok, aviso, fallo, omitido, valor };
 }

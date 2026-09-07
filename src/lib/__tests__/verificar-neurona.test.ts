@@ -11,9 +11,11 @@ import {
     ESTADO_AVISO,
     ESTADO_FALLO,
     ESTADO_OK,
+    ESTADO_OMITIDO,
     compararConAnterior,
     evaluarUmbrales,
     puntuacion,
+    resumenMarkdown,
     similitudNormalizada,
 } from "../../../scripts/verificar-neurona.lib.mjs";
 
@@ -41,9 +43,18 @@ describe("evaluarUmbrales (Ola 260 · memoria y RTF)", () => {
         expect(evaluarUmbrales({ rtfVoz: 18 }, umbralesRtf).find((r) => r.clave === "rtfVoz")?.estado).toBe(ESTADO_AVISO);
         expect(evaluarUmbrales({ rtfVoz: 40 }, umbralesRtf).find((r) => r.clave === "rtfVoz")?.estado).toBe(ESTADO_FALLO);
     });
-    it("un valor null (sin medir) cuenta como fallo", () => {
+    it("un valor null (sin medir) se anota como omitido, no como fallo", () => {
         const r = evaluarUmbrales({ memoriaLibreMb: null }, UMBRALES);
-        expect(r.find((x) => x.clave === "memoriaLibreMb")?.estado).toBe(ESTADO_FALLO);
+        expect(r.find((x) => x.clave === "memoriaLibreMb")?.estado).toBe(ESTADO_OMITIDO);
+        expect(r.find((x) => x.clave === "memoriaLibreMb")?.motivo).toBe("sin medida");
+    });
+    it("un NaN (medida no finita) también se anota como omitido", () => {
+        const r = evaluarUmbrales({ memoriaLibreMb: Number.NaN }, UMBRALES);
+        expect(r.find((x) => x.clave === "memoriaLibreMb")?.estado).toBe(ESTADO_OMITIDO);
+    });
+    it("una clave ausente directamente no aparece en el resultado", () => {
+        const r = evaluarUmbrales({}, UMBRALES);
+        expect(r.length).toBe(0);
     });
 });
 

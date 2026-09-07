@@ -52,10 +52,12 @@ function parsearArgs(argv) {
     oido: null,
     esperado: null,
     bitnet: false,
+    ayuda: false,
   };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
-    if (a === "--base") opciones.base = argv[++i] ?? opciones.base;
+    if (a === "--help" || a === "-h") opciones.ayuda = true;
+    else if (a === "--base") opciones.base = argv[++i] ?? opciones.base;
     else if (a === "--astraura") opciones.astraura = argv[++i] ?? opciones.astraura;
     else if (a === "--json") opciones.json = true;
     else if (a === "--voz") opciones.voz = true;
@@ -460,7 +462,10 @@ function extraerMedidas(neurona, anterior, latenciaRaizMs) {
   const crashesDelta = crashes24h !== null && antes !== null ? Math.max(0, crashes24h - antes) : 0;
   return {
     memoriaLibreMb,
-    swapUsadoMb: numero(memoria.swapMb),
+    // La neurona reporta `swapUsadoMb`; se admite `swapMb` como respaldo de
+    // formas viejas de la API. Si ninguna llega, `numero` devuelve null y la
+    // medida se anota como omitida (no falla) en la lib (Ola 276 · Q1E).
+    swapUsadoMb: numero(memoria.swapUsadoMb ?? memoria.swapMb),
     crashes24h,
     crashesDelta,
     duracionMs: numero(latenciaRaizMs),
@@ -482,8 +487,40 @@ function checkBitnet(neurona, router) {
   return check("bitnet", ESTADO_FALLO, estadoBitnet ?? "desconocido", "BitNet debería estar vivo y no lo está");
 }
 
+/** Texto de ayuda: opciones y ejemplos, todo en español (Ola 276 · Q1E). */
+function ayuda() {
+  return `verificar-neurona — batería analítica de verificación de la neurona
+Uso: node scripts/verificar-neurona.mjs [opciones]
+
+Opciones:
+  --base <url>        Raíz del OS (defecto: http://localhost:9002)
+  --astraura <url>    Backend Astraura (defecto: http://127.0.0.1:8000)
+  --umbral k=v        Fija un umbral numérico (repetible)
+  --voz               Prueba real de síntesis (RTF y segundos de audio)
+  --oido <wav>        Prueba de transcripción con el WAV indicado
+  --esperado <texto>  Texto esperado para medir la similitud del oído
+  --bitnet            Aterriza un subagente en Astraura (latencia y crashes)
+  --json              Imprime el informe como JSON en vez de Markdown
+  -h, --help          Muestra esta ayuda y sale sin tocar la red
+
+Ejemplos:
+  node scripts/verificar-neurona.mjs
+  node scripts/verificar-neurona.mjs --voz --bitnet
+  node scripts/verificar-neurona.mjs --oido /tmp/prueba.wav --esperado "hola aurora"
+  node scripts/verificar-neurona.mjs --umbral memoriaLibreMb=1000 --json
+`;
+}
+
 async function main() {
   const opciones = parsearArgs(process.argv.slice(2));
+
+  // La ayuda no toca la red ni escribe informes: se imprime y se sale con 0
+  // antes de cualquier I/O (Ola 276 · Q1E). Antes era un fallo de la batería.
+  if (opciones.ayuda) {
+    process.stdout.write(ayuda());
+    return;
+  }
+
   const base = opciones.base.replace(/\/+$/, "");
   const astraura = opciones.astraura.replace(/\/+$/, "");
   const ahora = new Date();
@@ -586,7 +623,7 @@ async function main() {
     fecha: informe.t,
     base,
     checks,
-    resumen: { puntuacion: puntos.valor, fallos: puntos.fallo, avisos: puntos.aviso, ok: puntos.ok, regresiones },
+    resumen: { puntuacion: puntos.valor, fallos: puntos.fallo, avisos: puntos.aviso, ok: puntos.ok, omitidos: puntos.omitido, regresiones },
   });
   await writeFile(path.join(carpeta, `${sello}.json`), JSON.stringify(informe, null, 2), "utf8");
   await writeFile(path.join(carpeta, "ultimo.json"), JSON.stringify(informe, null, 2), "utf8");
