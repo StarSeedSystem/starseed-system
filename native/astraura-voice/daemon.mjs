@@ -41,6 +41,13 @@
  *   POST /identity→ NO-OP honesto (compat): el servidor no clona referencias
  *   POST /warm    → asegura (lanza si hace falta) el servidor del idioma
  *                   primario (Spanish)
+ *   POST /clonar  → (Ola 266, Forja fase 4) multipart { audio, texto, timbre,
+ *                   lang?, consentimiento="si" } → guarda refs/<timbre>.<lang>.wav/.txt
+ *                   y genera .rvq en segundo plano si hay omnivoice-codec
+ *   GET  /clones  → lista las referencias guardadas
+ *   DELETE /clonar→ ?timbre=&lang= borra la referencia
+ *   POST /tts con { clon: true } → sintetiza por CLI clonando esa referencia
+ *                   (cede el pool TTS antes: el CLI recarga ~900 MB de modelo)
  *   OPTIONS *     → preflight CORS
  *
  * SEGURIDAD: allowlist CORS ESTRICTA (lib.isAllowedOrigin). Un Origin presente y
@@ -63,7 +70,7 @@ import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
-import { spawn, spawnSync } from "node:child_process";
+import { spawn, spawnSync, execFile } from "node:child_process";
 import {
   PATHS,
   BIN,
@@ -143,6 +150,22 @@ const SERVER_SYNTH_TIMEOUT_MS = 150 * 1000; // presupuesto por síntesis del SER
 const MAX_BODY_BYTES = 512 * 1024; // límite del cuerpo POST
 const MAX_TEXT_CHARS = 8000; // límite de texto por locución
 const MAX_QUEUE = 8; // síntesis en cola antes de responder 503
+
+// ── Clonación de voz con poco audio (Ola 266 · Forja fase 4 · 2026-09-07) ────
+// El servidor residente NO clona (solo vocabulario + seed, ver §/identity), pero
+// el CLI `omnivoice-tts` SÍ: --ref-wav + --ref-text, o --ref-rvq con códigos
+// pre-codificados por `omnivoice-codec` (ahorro: se calcula uNa vez en segundo
+// plano, no en cada locución). Aquí van los límites de la referencia.
+const CLON_MAX_BODY_BYTES = 30 * 1024 * 1024; // multipart con audio ≤ 30 MB
+const CLON_MIN_S = 3; // duración mínima del audio de referencia
+const CLON_MAX_S = 20; // duración máxima (poco audio basta: es la filosofía de la Forja)
+const CLON_TEXTO_MIN = 20; // transcripción exacta, en caracteres
+const CLON_TEXTO_MAX = 400;
+const CLON_TIMBRE_RE = /^[a-z0-9-]{2,40}$/; // id seguro para nombres de fichero
+const CLON_CODEC_TIMEOUT_MS = 120 * 1000; // presupuesto de la codificación .rvq
+// 24 kHz mono: la frecuencia NATIVA de la salida del motor (sampleRate 24000),
+// para que la referencia suene en el mismo formato que sintetiza el modelo.
+const CLON_SAMPLE_RATE = 24000;
 
 // ── Parámetros del OÍDO LOCAL (ASR ternario VibeASR.cpp, Adenda 249) ─────────
 // Reconstrucción del motor de voces v2: VibeVoice-ASR-BitNet (ternario 1.58-bit)
@@ -892,6 +915,10 @@ function resolvePaths(cfg) {
     // ver cabecera del fichero. `paths.ttsServer` queda disponible para una
     // futura config.json explícita, igual que `tts`/`codec`.
     ttsServer: cfg?.paths?.ttsServer || path.join(buildDir, BIN.ttsServer),
+    // omnivoice-codec (Ola 266): hermano del CLI que pre-codifica el audio de
+    // referencia a códigos .rvq (--ref-rvq). La config ya la escribe como
+    // `paths.codec` (install.mjs): junto a omnivoice-tts, mismo directorio.
+    codec: cfg?.paths?.codec || path.join(buildDir, BIN.codec),
     repoDir: cfg?.repoDir || PATHS.repoDir,
     modelFile: cfg?.modelFile || "",
     codecFile: cfg?.codecFile || "",
@@ -1257,7 +1284,7 @@ async function synthViaServer(entry, { text, instructions, seed }) {
  * Clonación opcional con --ref-wav / --ref-text. Devuelve { ok, buffer|error }.
  * NUNCA lanza (los errores viajan en el objeto de retorno).
  */
-function runTts({ ttsBin, repoDir, modelFile, codecFile, langName, text, refWav, refTextFile, instruct, seed }) {
+function runTts({ ttsBin, repoDir, modelFile, codecFile, langName, text, refWav, refTextFile, refRvq, instruct, seed }) {
   return new Promise((resolve) => {
     const outWav = path.join(PATHS.tmpDir, `astraura-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.wav`);
     const args = ["--model", modelFile, "--codec", codecFile, "--lang", langName, "-o", outWav];
@@ -1267,9 +1294,16 @@ function runTts({ ttsBin, repoDir, modelFile, codecFile, langName, text, refWav,
     if (instruct) args.push("--instruct", String(instruct).slice(0, 300));
     if (Number.isFinite(seed)) args.push("--seed", String(Math.trunc(seed)));
     // CLONACIÓN: el ejemplo del CLI usa `--ref-wav ref.wav --ref-text ref.txt`
-    // (ref-text es un FICHERO con la transcripción, no la cadena).
-    if (refWav) args.push("--ref-wav", refWav);
-    if (refTextFile) args.push("--ref-text", refTextFile);
+    // (ref-text es un FICHERO con la transcripción, no la cadena). (Ola 266)
+    // Si hay códigos pre-codificados por omnivoice-codec, `--ref-rvq` los
+    // SUSTITUYE a ambos: es la misma referencia pero sin decodificar el WAV
+    // en cada síntesis (~ahorra gran parte del preámbulo del CLI).
+    if (refRvq) {
+      args.push("--ref-rvq", refRvq);
+    } else {
+      if (refWav) args.push("--ref-wav", refWav);
+      if (refTextFile) args.push("--ref-text", refTextFile);
+    }
 
     let stderr = "";
     let done = false;
@@ -1444,6 +1478,42 @@ async function handleTts(req, res, cors) {
     } catch { /* sin identidad guardada para este idioma: sigue sin clonar */ }
   }
 
+  // CLONACIÓN EXPLÍCITA (Ola 266 · Forja fase 4): con `clon: true` (y
+  // `personality`/`timbre` informado) se fuerza el camino del CLI con la
+  // referencia guardada por POST /clonar: --ref-rvq si existe el .rvq, si no
+  // --ref-wav + --ref-text. El servidor residente NO clona, así que este
+  // camino lo salta por completo. Antes de sintetizar se CEDE el pool (el CLI
+  // recarga ~900 MB de modelo), pero sólo si no hay otra síntesis en vuelo
+  // (matar un servidor a media síntesis rompería la locución del vecino).
+  let clonRvq = "";
+  let clonMtime = 0;
+  let clonId = "";
+  if (body.clon === true) {
+    clonId =
+      personality ||
+      (typeof body.timbre === "string" ? body.timbre.trim().toLowerCase().replace(/[^a-z0-9-]/g, "").slice(0, 40) : "");
+    if (!clonId) {
+      return sendJson(res, 400, cors, { ok: false, error: "con 'clon: true' indica personality (o timbre) del que clonar" });
+    }
+    const base = path.join(PATHS.refsDir, `${clonId}.${langBase}`);
+    if (!fileOk(`${base}.wav`)) {
+      return sendJson(res, 404, cors, {
+        ok: false,
+        error: `no hay referencia de clonación de '${clonId}' para el idioma '${langBase}'`,
+        crearla: "POST /clonar (multipart: audio, texto, timbre, consentimiento)",
+      });
+    }
+    refWav = `${base}.wav`;
+    refTextFile = fileOk(`${base}.txt`) ? `${base}.txt` : "";
+    if (fileOk(`${base}.rvq`)) clonRvq = `${base}.rvq`;
+    try {
+      clonMtime = fs.statSync(refWav).mtimeMs;
+    } catch { clonMtime = 0; }
+    if (inFlight === 0 && serverPool.size > 0) {
+      cederMemoria(`clonación por CLI de '${clonId}' (el CLI recarga el modelo entero)`);
+    }
+  }
+
   // Campos aceptados por compatibilidad pero sin flag en el CLI/servidor.
   const ignored = [];
   for (const k of ["voice_design", "normalize", "allow_non_verbal"]) {
@@ -1481,12 +1551,17 @@ async function handleTts(req, res, cors) {
   const variantTag = cfg?.variant?.quant || "";
   // (Ola 265) Los efectos entran en la clave con su JSON canónico ordenado:
   // «cálida+reverb 0.25» NO es el mismo WAV que la voz al natural.
-  const key = sha256([text, langName, langBase, refWav, refTextFile, speed, variantTag, instruct, String(seed), String(pitch), claveEfectos(efectos)].join("|"));
+  // (Ola 266) La CLONACIÓN entra con el id y la fecha de la referencia: si el
+  // usuario vuelve a clonar el mismo timbre (nuevo WAV), la caché antigua no
+  // sirve audio de la grabación vieja.
+  const clonTag = clonId ? `clon:${clonId}:${clonMtime}:${clonRvq ? "rvq" : "wav"}` : "";
+  const key = sha256([text, langName, langBase, refWav, refTextFile, clonRvq, clonTag, speed, variantTag, instruct, String(seed), String(pitch), claveEfectos(efectos)].join("|"));
 
   const extraHeaders = {
     "X-Astraura-Engine": "omnivoice.cpp",
     "X-Astraura-SampleRate": "24000",
   };
+  if (clonId) extraHeaders["X-Astraura-Motor"] = "cli-clon";
   if (ignored.length) extraHeaders["X-Astraura-Ignored"] = ignored.join(",");
 
   // 1) Caché en RAM (instantánea).
@@ -1891,6 +1966,271 @@ async function handleIdentity(req, res, cors) {
   });
 }
 
+// ── Clonación con poco audio (Ola 266 · Forja fase 4 · 2026-09-07) ───────────
+// El editor de voces puede clonar un timbre con una referencia de 3-20 s. El
+// servidor residente NO clona (ver §/identity): la referencia la usa el CLI
+// (--ref-wav + --ref-text, o --ref-rvq si omnivoice-codec la pre-codificó).
+// ANTES de sintetizar se pide el CONSENTIMIENTO explícito de la persona: la
+// voz es identidad soberana, y sin consentimiento no hay clonación (400).
+
+/**
+ * Ejecuta un binario con presupuesto (execFile, sin shell). Devuelve
+ * { ok, salida } — ok = salió con código 0 en tiempo. Nunca lanza.
+ */
+function ejecutarConPresupuesto(cmd, args, ms) {
+  return new Promise((resolve) => {
+    try {
+      execFile(cmd, args, { timeout: ms, maxBuffer: 1024 * 1024 }, (error, stdout, stderr) => {
+        resolve({ ok: !error, salida: `${stdout || ""}\n${stderr || ""}`.slice(0, 8192) });
+      });
+    } catch (e) {
+      resolve({ ok: false, salida: String(e?.message || e) });
+    }
+  });
+}
+
+/**
+ * Sintaxis de `omnivoice-codec` según su `--help` (cacheada por ruta de
+ * binario): el ejecutable existe pero su interfaz no está escrita en piedra,
+ * así que la INTUIMOS: si el help menciona --encode usamos flags
+ * (`--encode <wav> <--output|-o> <rvq>`); si sólo muestra un subcomando
+ * `encode`, posiciones (`encode <wav> <rvq>`). Si además menciona --codec, se
+ * le pasa el GGUF códec del modelo. Si no reconocemos el help → null y el
+ * llamador se salta el .rvq (la clonación sigue funcionando con --ref-wav).
+ */
+const _sintaxisCodec = new Map();
+async function sintaxisCodec(codecBin) {
+  if (_sintaxisCodec.has(codecBin)) return _sintaxisCodec.get(codecBin);
+  let s = null;
+  if (fileOk(codecBin)) {
+    const r = await ejecutarConPresupuesto(codecBin, ["--help"], 5000);
+    const ayuda = r.salida.toLowerCase();
+    const conCodec = /--codec\b/.test(ayuda);
+    const flagSalida = /--output\b/.test(ayuda) ? "--output" : /(^|[\s,])-o\b/.test(ayuda) ? "-o" : "";
+    if (/--encode\b/.test(ayuda) && flagSalida) s = { modo: "flags", flagSalida, conCodec };
+    else if (/\bencode\b/.test(ayuda)) s = { modo: "posicional", flagSalida: "", conCodec };
+  }
+  _sintaxisCodec.set(codecBin, s);
+  return s;
+}
+
+/** Construye los argumentos del codec según la sintaxis detectada. */
+function argsCodec(s, wav, rvq, codecFile) {
+  const a = [];
+  if (s.conCodec && codecFile) a.push("--codec", codecFile);
+  if (s.modo === "flags") a.push("--encode", wav, s.flagSalida, rvq);
+  else a.push("encode", wav, rvq);
+  return a;
+}
+
+/**
+ * Genera en segundo plano `refs/<timbre>.<lang>.rvq` con omnivoice-codec.
+ * No bloquea la respuesta de /clonar: si falla, la clonación cae a
+ * --ref-wav/--ref-text sin pena. Devuelve true si el codec EXISTE (la
+ * generación sí se intentó), false si no hay binario.
+ */
+function generarRvqEnSegundoPlano(state, wav, rvq) {
+  const codecBin = state.paths.codec;
+  if (!fileOk(codecBin)) return false;
+  (async () => {
+    const s = await sintaxisCodec(codecBin);
+    if (!s) {
+      log("daemon", `clonación: no reconozco la sintaxis de omnivoice-codec (${codecBin}); se omite el .rvq`);
+      return;
+    }
+    const r = await ejecutarConPresupuesto(codecBin, argsCodec(s, wav, rvq, state.paths.codecFile), CLON_CODEC_TIMEOUT_MS);
+    if (!r.ok || !fileOk(rvq)) {
+      try { fs.unlinkSync(rvq); } catch { /* no quedó fichero */ }
+      log("daemon", `clonación: omnivoice-codec falló (${path.basename(rvq)}): ${ultimasLineas(r.salida, 6) || "sin salida"}`);
+      return;
+    }
+    log("daemon", `clonación: códigos .rvq listos en ${path.basename(rvq)}`);
+  })().catch(() => { /* blindaje */ });
+  return true;
+}
+
+/** Lista las referencias de clonación guardadas (refs/<timbre>.<lang>.wav). */
+function listarClones() {
+  const out = [];
+  let files;
+  try {
+    files = fs.readdirSync(PATHS.refsDir);
+  } catch {
+    return out; // carpeta aún no creada: cero clones
+  }
+  for (const f of files) {
+    const m = /^([a-z0-9-]{2,40})\.([a-z]{2})\.wav$/.exec(f);
+    if (!m) continue;
+    const wav = path.join(PATHS.refsDir, f);
+    let st;
+    try {
+      st = fs.statSync(wav);
+    } catch {
+      continue;
+    }
+    let duracionS = null;
+    try {
+      const d = duracionWavSegundos(fs.readFileSync(wav));
+      if (d !== null) duracionS = Math.round(d * 100) / 100;
+    } catch { /* no imprescindible */ }
+    out.push({
+      timbre: m[1],
+      lang: m[2],
+      duracionS,
+      rvq: fileOk(path.join(PATHS.refsDir, `${m[1]}.${m[2]}.rvq`)),
+      creadaEn: new Date(st.mtimeMs).toISOString(),
+    });
+  }
+  out.sort((a, b) => b.creadaEn.localeCompare(a.creadaEn));
+  return out;
+}
+
+/**
+ * Multipart multiplemente útil: a diferencia de `parsearMultipartAudio` (un
+ * solo campo binario, para el oído), aquí extraemos TODOS los campos de un
+ * multipart/form-data: textos (UTF-8, con acentos) en `campos` y ficheros en
+ * `archivos` ({ buf, mime, nombre }). Binario-seguro (se trocea por Buffer).
+ */
+function parsearMultipart(body, contentType) {
+  const m = /boundary=(?:"([^"]+)"|([^;]+))/i.exec(contentType || "");
+  const boundary = m ? (m[1] || m[2]).trim() : "";
+  if (!boundary) return null;
+  const delim = Buffer.from(`--${boundary}`, "latin1");
+  const campos = {};
+  const archivos = {};
+  let desde = body.indexOf(delim);
+  while (desde !== -1) {
+    const siguiente = body.indexOf(delim, desde + delim.length);
+    if (siguiente === -1) break;
+    let parte = body.subarray(desde + delim.length, siguiente);
+    desde = siguiente;
+    if (parte.length >= 2 && parte[0] === 0x0d && parte[1] === 0x0a) parte = parte.subarray(2);
+    if (parte.length >= 2 && parte[0] === 0x2d && parte[1] === 0x2d) continue; // delimitador final
+    const finCab4 = parte.indexOf("\r\n\r\n");
+    const finCab2 = parte.indexOf("\n\n");
+    let sep = -1; let ancho = 4;
+    if (finCab4 !== -1 && (finCab2 === -1 || finCab4 <= finCab2)) sep = finCab4;
+    else if (finCab2 !== -1) { sep = finCab2; ancho = 2; }
+    if (sep === -1) continue;
+    const cab = parte.subarray(0, sep).toString("latin1");
+    let cuerpo = parte.subarray(sep + ancho);
+    if (cuerpo.length >= 2 && cuerpo[cuerpo.length - 2] === 0x0d && cuerpo[cuerpo.length - 1] === 0x0a) cuerpo = cuerpo.subarray(0, cuerpo.length - 2);
+    else if (cuerpo.length >= 1 && cuerpo[cuerpo.length - 1] === 0x0a) cuerpo = cuerpo.subarray(0, cuerpo.length - 1);
+    const cd = /content-disposition:[^\r\n]*name="([^"]+)"/i.exec(cab);
+    if (!cd) continue;
+    const nombre = cd[1].toLowerCase();
+    const fic = /filename\*?=(?:utf-8''|\")?([^";\r\n]+?)"?(?:[\r\n;]|$)/i.exec(cab);
+    const ct = /content-type:\s*([^\r\n;]+)/i.exec(cab);
+    if (fic) archivos[nombre] = { buf: Buffer.from(cuerpo), mime: ct ? ct[1].trim() : "application/octet-stream", nombre: fic[1] };
+    else campos[nombre] = cuerpo.toString("utf8").trim();
+  }
+  return { campos, archivos };
+}
+
+/**
+ * POST /clonar: multipart con `audio` (WAV/webm/mp3), `texto` (transcripción
+ * exacta), `timbre` (id), `lang` (opcional) y `consentimiento` = "si"/"sí"
+ * (obligatorio: la voz es identidad soberana de la persona). Normaliza a WAV
+ * 24 kHz mono con ffmpeg, valida la duración (3-20 s) y guarda
+ * refs/<timbre>.<langBase>.wav/.txt; dispara el .rvq en segundo plano.
+ */
+async function handleClonar(req, res, cors) {
+  const state = readiness();
+  if (!state.ready) return sendJson(res, 503, cors, { ok: false, ready: false, error: "motor no listo", reasons: state.reasons });
+  const contentType = String(req.headers["content-type"] || "");
+  if (!contentType.includes("multipart/form-data")) {
+    return sendJson(res, 415, cors, { ok: false, error: "se esperaba multipart/form-data" });
+  }
+  const raw = await readRawBody(req, CLON_MAX_BODY_BYTES);
+  if (raw === null) return sendJson(res, 413, cors, { ok: false, error: "audio demasiado grande (máx. 30 MB)" });
+  const mp = parsearMultipart(raw, contentType);
+  if (!mp) return sendJson(res, 400, cors, { ok: false, error: "multipart no reconocido (sin boundary)" });
+  const { campos, archivos } = mp;
+
+  const consent = String(campos.consentimiento || "").trim().toLowerCase();
+  if (consent !== "si" && consent !== "sí") {
+    return sendJson(res, 400, cors, { ok: false, error: "hace falta el consentimiento explícito de la persona cuya voz se clona" });
+  }
+  const timbre = String(campos.timbre || "").trim().toLowerCase();
+  if (!CLON_TIMBRE_RE.test(timbre)) {
+    return sendJson(res, 400, cors, { ok: false, error: "'timbre' debe ser un id [a-z0-9-] de 2 a 40 caracteres" });
+  }
+  const texto = String(campos.texto || "").trim();
+  if (texto.length < CLON_TEXTO_MIN || texto.length > CLON_TEXTO_MAX) {
+    return sendJson(res, 400, cors, { ok: false, error: `'texto' (transcripción exacta) debe tener entre ${CLON_TEXTO_MIN} y ${CLON_TEXTO_MAX} caracteres` });
+  }
+  const langBase = langBaseOf(campos.lang, "es");
+  const entrada = archivos.audio;
+  if (!entrada || !entrada.buf || entrada.buf.length === 0) {
+    return sendJson(res, 400, cors, { ok: false, error: "falta el campo 'audio'" });
+  }
+
+  const tmp = path.join(PATHS.tmpDir, `clon-${Date.now()}-${Math.random().toString(36).slice(2, 8)}${extDeAudio(entrada.mime)}`);
+  const limpiarTmp = () => { try { fs.unlinkSync(tmp); } catch { /* */ } };
+  let destino = "";
+  try {
+    fs.writeFileSync(tmp, entrada.buf);
+    fs.mkdirSync(PATHS.refsDir, { recursive: true });
+    destino = path.join(PATHS.refsDir, `${timbre}.${langBase}.wav`);
+    // Normalización: WAV 24 kHz mono. Con ffmpeg SIEMPRE (frecuencia nativa del
+    // motor); sin ffmpeg sólo se acepta un WAV ya hecho (tal cual).
+    let okNormalizado = false;
+    if (hayFfmpeg()) okNormalizado = (await convertirAWav(tmp, destino, CLON_SAMPLE_RATE)).ok;
+    if (!okNormalizado) {
+      if (!isWav(entrada.buf)) {
+        return sendJson(res, 415, cors, { ok: false, error: "sin ffmpeg instalado solo se acepta un WAV de referencia" });
+      }
+      fs.writeFileSync(destino, entrada.buf);
+    }
+    const d = duracionWavSegundos(fs.readFileSync(destino));
+    if (d === null) return sendJson(res, 400, cors, { ok: false, error: "el audio no produce un WAV legible" });
+    if (d < CLON_MIN_S || d > CLON_MAX_S) {
+      try { fs.unlinkSync(destino); } catch { /* */ }
+      return sendJson(res, 400, cors, { ok: false, error: `la referencia debe durar entre ${CLON_MIN_S} y ${CLON_MAX_S} s (llegó ${d.toFixed(1)} s)` });
+    }
+    fs.writeFileSync(path.join(PATHS.refsDir, `${timbre}.${langBase}.txt`), `${texto}\n`);
+    const rvq = generarRvqEnSegundoPlano(state, destino, path.join(PATHS.refsDir, `${timbre}.${langBase}.rvq`));
+    const duracionS = Math.round(d * 100) / 100;
+    log("daemon", `clonación guardada: ${timbre}.${langBase} (${duracionS} s, rvq en camino: ${rvq ? "sí" : "no"})`);
+    return sendJson(res, 200, cors, { ok: true, timbre, lang: langBase, duracionS, rvq });
+  } catch (e) {
+    return sendJson(res, 500, cors, { ok: false, error: `no se pudo guardar la referencia: ${e?.message || e}` });
+  } finally {
+    limpiarTmp();
+  }
+}
+
+/** GET /clones: todas las referencias guardadas, más reciente primero. */
+function handleListarClones(res, cors) {
+  return sendJson(res, 200, cors, { ok: true, clones: listarClones() });
+}
+
+/** DELETE /clonar?timbre=&lang=: borra la referencia (wav + txt + rvq). */
+function handleBorrarClon(req, res, cors) {
+  let u;
+  try {
+    u = new URL(req.url || "/", "http://127.0.0.1");
+  } catch {
+    return sendJson(res, 400, cors, { ok: false, error: "URL inválida" });
+  }
+  const timbre = String(u.searchParams.get("timbre") || "").trim().toLowerCase();
+  if (!CLON_TIMBRE_RE.test(timbre)) {
+    return sendJson(res, 400, cors, { ok: false, error: "falta 'timbre' ([a-z0-9-]{2,40})" });
+  }
+  const langBase = langBaseOf(u.searchParams.get("lang") || "");
+  const base = path.join(PATHS.refsDir, `${timbre}.${langBase}`);
+  let borrados = 0;
+  for (const ext of ["wav", "txt", "rvq"]) {
+    try {
+      fs.unlinkSync(`${base}.${ext}`);
+      borrados += 1;
+    } catch { /* ese trozo no existía */ }
+  }
+  if (!borrados) return sendJson(res, 404, cors, { ok: false, error: `no existe la referencia ${timbre}.${langBase}` });
+  log("daemon", `clonación borrada: ${timbre}.${langBase} (${borrados} ficheros)`);
+  return sendJson(res, 200, cors, { ok: true, borrados });
+}
+
 // ── /warm — asegura el SERVIDOR del idioma primario (Adenda 89) ─────────────
 //
 // ANTES (CLI one-shot) "precalentar" era lanzar una síntesis mínima descartable
@@ -2013,13 +2353,16 @@ function hayFfmpeg() {
   return _ffmpeg;
 }
 
-/** Convierte un audio a WAV 16 kHz mono con ffmpeg. Devuelve {ok, error}. */
-function convertirAWav(entrada, salida) {
+/**
+ * Convierte un audio a WAV mono con ffmpeg (16 kHz por defecto: el oído
+ * VibeASR; la clonación pide 24 kHz, la frecuencia nativa del motor, ver
+ * CLON_SAMPLE_RATE). Devuelve {ok, error}. */
+function convertirAWav(entrada, salida, rate = 16000) {
   return new Promise((resolve) => {
     let child;
     try {
       // (Ola 263) Ruta absoluta (launchd no hereda el PATH del usuario).
-      child = spawn(rutaFfmpeg(), ["-y", "-i", entrada, "-ac", "1", "-ar", "16000", "-f", "wav", salida], { stdio: ["ignore", "ignore", "pipe"] });
+      child = spawn(rutaFfmpeg(), ["-y", "-i", entrada, "-ac", "1", "-ar", String(rate), "-f", "wav", salida], { stdio: ["ignore", "ignore", "pipe"] });
     } catch (e) {
       return resolve({ ok: false, error: `no se pudo lanzar ffmpeg: ${e.message}` });
     }
