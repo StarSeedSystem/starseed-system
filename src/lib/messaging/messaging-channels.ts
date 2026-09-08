@@ -46,7 +46,13 @@ export type ExternalProvider =
   | "telegram"
   | "google_chat"
   | "whatsapp"
-  | "custom";
+  | "custom"
+  // Ola 281 · E4 (2026-09-07): puentes a servidores de chat externos
+  // (Hermes, terminal local, Telegram, WhatsApp, SMS y webhook).
+  | "hermes"
+  | "terminal"
+  | "sms"
+  | "webhook";
 
 /** Un canal de chat para Aurora/Astraura. */
 export interface MessagingChannel {
@@ -340,4 +346,127 @@ export async function getTelegramLink(): Promise<TelegramLink | null> {
   } catch {
     return null;
   }
+}
+
+// ── Puentes a servidores de chat externos (Ola 281 · E4) ─────────────────────
+
+/** Un campo del formulario de un puente (generado desde el catálogo). */
+export interface CampoPuente {
+  /** Clave del campo dentro de `config` del canal external. */
+  clave: string;
+  /** Etiqueta legible en español para la UI. */
+  etiqueta: string;
+  /** Tipo de campo: afecta al input y a si se muestra con máscara. */
+  tipo: "texto" | "secreto" | "url" | "numero";
+  /** Ayuda corta mostrada bajo el input. */
+  ayuda: string;
+}
+
+/** Descripción de un puente a un servidor de chat externo. */
+export interface ProveedorPuente {
+  id: ExternalProvider;
+  nombre: string;
+  descripcion: string;
+  /** Campos del formulario de configuración (los `secreto` van enmascarados). */
+  campos: CampoPuente[];
+  /** Enlace a la documentación del proveedor (se abre en otra pestaña). */
+  docs: string;
+}
+
+/**
+ * Catálogo de puentes disponibles. Es la fuente de verdad de la UI: cada
+ * puente define sus propios campos de configuración. Los valores que se
+ * escriben aquí se guardan en `config` del canal external (servidor); los de
+ * tipo `secreto` nunca se reenvían completos al cliente (ver `enmascarar`).
+ */
+export const PROVEEDORES_PUENTE: ProveedorPuente[] = [
+  {
+    id: "hermes",
+    nombre: "Hermes",
+    descripcion:
+      "Conecta este chat con un servidor Hermes mediante un vínculo `ssk_…` y su URL.",
+    campos: [
+      { clave: "url", etiqueta: "URL del servidor Hermes", tipo: "url", ayuda: "Ej: https://hermes.local:8080" },
+      { clave: "vinculo", etiqueta: "Vínculo de acceso (ssk_…)", tipo: "secreto", ayuda: "Token de acceso generado en Externos." },
+    ],
+    docs: "https://github.com/anomalyco/opencode",
+  },
+  {
+    id: "terminal",
+    nombre: "Terminal local",
+    descripcion:
+      "Puente al chat local del dispositivo: comando o puerto del daemon que sirve la conversación.",
+    campos: [
+      { clave: "comando", etiqueta: "Comando", tipo: "texto", ayuda: "Ej: hermes chat" },
+      { clave: "puerto", etiqueta: "Puerto local", tipo: "numero", ayuda: "Ej: 4500" },
+    ],
+    docs: "https://opencode.ai",
+  },
+  {
+    id: "telegram",
+    nombre: "Telegram",
+    descripcion:
+      "Un bot de Telegram que reenvía los mensajes de este chat (o usa el bot oficial de StarSeed).",
+    campos: [
+      { clave: "bot_token", etiqueta: "Token del bot", tipo: "secreto", ayuda: "O deja en blanco para usar el bot oficial de StarSeed." },
+      { clave: "chat_id", etiqueta: "Chat ID", tipo: "texto", ayuda: "ID del chat/grupo destino (o tu ID personal)." },
+    ],
+    docs: "https://t.me/starseed_nexus_bot",
+  },
+  {
+    id: "whatsapp",
+    nombre: "WhatsApp",
+    descripcion:
+      "Puente a WhatsApp vía proveedor (Twilio o Meta Cloud API): número emisor + token.",
+    campos: [
+      { clave: "proveedor", etiqueta: "Proveedor", tipo: "texto", ayuda: "twilio | meta" },
+      { clave: "numero", etiqueta: "Número de WhatsApp", tipo: "texto", ayuda: "Formato internacional, ej: +34600000000" },
+      { clave: "token", etiqueta: "Token de acceso", tipo: "secreto", ayuda: "Credencial del proveedor." },
+    ],
+    docs: "https://developers.facebook.com/docs/whatsapp/cloud-api",
+  },
+  {
+    id: "sms",
+    nombre: "SMS",
+    descripcion:
+      "Envía y recibe mensajes SMS a través de Twilio (SID + token + número).",
+    campos: [
+      { clave: "twilio_sid", etiqueta: "Account SID (Twilio)", tipo: "secreto", ayuda: "Comienza por AC…" },
+      { clave: "twilio_token", etiqueta: "Auth Token (Twilio)", tipo: "secreto", ayuda: "Secreto del proyecto Twilio." },
+      { clave: "numero", etiqueta: "Número Twilio", tipo: "texto", ayuda: "Ej: +34600000000" },
+    ],
+    docs: "https://www.twilio.com/docs/sms",
+  },
+  {
+    id: "webhook",
+    nombre: "Webhook",
+    descripcion:
+      "Recibe los mensajes de este chat en un endpoint HTTP propio, firmado con HMAC.",
+    campos: [
+      { clave: "url", etiqueta: "URL del webhook", tipo: "url", ayuda: "Endpoint que recibirá los POST." },
+      { clave: "secreto", etiqueta: "Secreto HMAC", tipo: "secreto", ayuda: "Clave compartida para firmar el cuerpo." },
+    ],
+    docs: "https://opencode.ai",
+  },
+];
+
+/**
+ * Devuelve una representación ENMASCARADA de la config de un canal external,
+ * para mostrarla en el cliente sin exponer los secretos. Los valores de
+ * longitud suficiente se muestran como `••••` + últimos 4 caracteres; los
+ * booleanos/números se dejan tal cual; null/undefined como cadena vacía.
+ */
+export function enmascarar(config: Record<string, unknown>): Record<string, string> {
+  const salida: Record<string, string> = {};
+  for (const [clave, valor] of Object.entries(config)) {
+    if (typeof valor === "string") {
+      // Nunca revelamos el valor completo: solo el final, como indicador.
+      salida[clave] = valor.length > 4 ? `••••${valor.slice(-4)}` : "••••";
+    } else if (valor === null || valor === undefined) {
+      salida[clave] = "";
+    } else {
+      salida[clave] = String(valor);
+    }
+  }
+  return salida;
 }

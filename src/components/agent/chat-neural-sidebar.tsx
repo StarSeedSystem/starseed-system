@@ -26,10 +26,15 @@ import {
   Bot,
   Folder,
   Sparkles,
+  Plug,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { TelegramChatsFolder } from "@/components/exocortex/telegram-chats-folder";
 import { useAiConversations, pinnedThenRecent, type AiConversation } from "@/lib/aurora/conversations";
+// Ola 281 · E4 (2026-09-07): los chats de Telegram se mudan al Hub de Conexiones
+// (E7); aquí la carpeta de Telegram se sustituye por la sección «Externos» con
+// vínculos (`PanelExternos`) y puentes a servidores de chat (`PuentesChat`).
+import { PanelExternos } from "@/components/externos/panel-externos";
+import { PuentesChat } from "@/components/externos/puentes-chat";
 import { useChatFolders } from "@/lib/aurora/chat-folders-store";
 import { ChatFolders } from "@/components/aurora/chat-folders";
 import { groupConversationsByPersonality } from "@/lib/aurora/chat-grouping";
@@ -79,6 +84,14 @@ export function ChatNeuralSidebar({
   const [open, setOpen] = useState<Record<string, boolean>>({});
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
+  // (Ola 281 · E4) Estado de la sección «Externos»: plegada por defecto y, dentro
+  // de Vínculos, si se muestra además el ámbito de toda la cuenta o solo el chat.
+  const [externosOpen, setExternosOpen] = useState(false);
+  const [verCuenta, setVerCuenta] = useState(false);
+  // Nombre e id del chat activo para vincularlo (o nada si no hay chat abierto).
+  const chatActivo = conversations.find((c) => c.id === activeId);
+  const chatActivoId = activeId || undefined;
+  const chatActivoNombre = chatActivo?.title;
   // (Agente B1) Eje de agrupación: por Folders (carpeta) o por Personalidad.
   const [groupBy, setGroupBy] = useState<"folder" | "personality">("folder");
 
@@ -297,7 +310,64 @@ export function ChatNeuralSidebar({
         })}
 
         <div className="mt-2 border-t border-cyan-500/10 pt-2">
-          <TelegramChatsFolder defaultOpen={false} />
+          {/* Sección «Externos» (Ola 281 · E4): sustituye a la antigua carpeta de
+              Telegram. Dos subsecciones: Vínculos (tokens de acceso por ámbito) y
+              Puentes (servidores de chat externos: Hermes, terminal, WhatsApp…). */}
+          <button
+            onClick={() => setExternosOpen((o) => !o)}
+            className="flex w-full cursor-pointer items-center px-2 py-1.5 text-xs font-semibold text-cyan-300/80 transition-colors duration-150 hover:text-cyan-200"
+            title="Vínculos y puentes a servicios externos"
+          >
+            {externosOpen ? (
+              <ChevronDown className="w-3 h-3 mr-1" />
+            ) : (
+              <ChevronRight className="w-3 h-3 mr-1" />
+            )}
+            <Plug className="w-3 h-3 mr-2 text-cyan-400/70" />
+            <span className="min-w-0 flex-1 truncate text-left">Externos</span>
+          </button>
+
+          {externosOpen && (
+            <div className="ml-2 space-y-2 border-l border-cyan-500/10 pl-2">
+              {/* Vínculos: panel del chat activo + enlace para ver toda la cuenta. */}
+              <div>
+                <p className="mb-1 px-1 text-[10px] font-semibold uppercase tracking-wide text-cyan-100/40">
+                  Vínculos
+                </p>
+                <PanelExternos
+                  compacto
+                  ambito={{
+                    tipo: "chat",
+                    id: chatActivoId ?? "chat",
+                    nombre: chatActivoNombre,
+                  }}
+                />
+                <button
+                  onClick={() => setVerCuenta((v) => !v)}
+                  className="mt-1 cursor-pointer rounded px-1.5 py-0.5 text-[10px] text-cyan-200/70 transition-colors duration-150 hover:bg-white/5 hover:text-cyan-100"
+                  title="Ver los vínculos de toda la cuenta"
+                >
+                  {verCuenta ? "Ocultar " : ""}de toda la cuenta
+                </button>
+                {verCuenta && (
+                  <div className="mt-1">
+                    <PanelExternos
+                      compacto
+                      ambito={{ tipo: "cuenta", id: "cuenta", nombre: "toda la cuenta" }}
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Puentes: servidores de chat externos vinculables a este chat. */}
+              <div>
+                <p className="mb-1 px-1 text-[10px] font-semibold uppercase tracking-wide text-cyan-100/40">
+                  Puentes
+                </p>
+                <PuentesChat chatId={chatActivoId} chatNombre={chatActivoNombre} />
+              </div>
+            </div>
+          )}
         </div>
       </div>
       {ctxMenu}
