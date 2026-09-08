@@ -56,10 +56,17 @@ class ContextoTareaTest(unittest.TestCase):
         self.assertIn("funciones puras", contexto)
         self.assertIn("vi.mock", contexto)
 
-    def test_con_python_no_incluye_vi_mock(self):
+    def test_con_python_no_incluye_la_regla_de_tests_ts(self):
+        # (2026-09-08, Claude, arreglo de supervisión) El test original buscaba la
+        # ausencia de la cadena «vi.mock» en TODO el contexto, y eso es frágil: el
+        # bloque «ÚLTIMA REVISIÓN DE ESTOS ARCHIVOS» que añade `contexto_inteligente`
+        # cita mensajes de commit anteriores, y el propio commit de O1 contiene esa
+        # palabra — con lo que el test se ponía rojo por su propia historia. Lo que
+        # importa comprobar es que la REGLA de tests de TypeScript no se inyecta en
+        # una tarea de Python: se busca la regla, no una palabra suelta.
         contexto = enjambre.contexto_tarea(
             {"id": "X", "prompt": "p", "archivos": ["a.py"], "titulo": "t"})
-        self.assertNotIn("vi.mock", contexto)
+        self.assertNotIn(enjambre.REGLA_TESTS, contexto)
 
 
 if __name__ == "__main__":
