@@ -10,8 +10,11 @@
 
 import { useEffect, useState } from "react";
 import { Check, Copy, KeyRound, TriangleAlert } from "lucide-react";
-import type { PermisosVinculo } from "@/lib/externos/vinculos";
-import { PERMISOS_DEFECTO } from "@/lib/externos/vinculos";
+// (2026-09-08) Desde `tipos.ts`, no desde `vinculos.ts`: aquel importa
+// `node:crypto` y traerlo a un componente de cliente rompía el build de
+// producción («UnhandledSchemeError: Reading from "node:crypto"»).
+import type { PermisosVinculo } from "@/lib/externos/tipos";
+import { PERMISOS_DEFECTO } from "@/lib/externos/tipos";
 import {
   crearVinculoCliente,
   ejemploCurl,

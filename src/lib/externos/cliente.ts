@@ -8,7 +8,7 @@ import type {
   AmbitoTipo,
   PermisosVinculo,
   Vinculo,
-} from "@/lib/externos/vinculos";
+} from "@/lib/externos/tipos";
 
 /** Ámbito sobre el que actúa el panel (tipo + id + nombre opcional). */
 export interface AmbitoExterno {

@@ -16,7 +16,7 @@ import {
   Clock,
   KeyRound,
 } from "lucide-react";
-import type { Vinculo } from "@/lib/externos/vinculos";
+import type { Vinculo } from "@/lib/externos/tipos";
 import {
   listarVinculos,
   revocarVinculo,
