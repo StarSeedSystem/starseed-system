@@ -16,7 +16,8 @@
 
 import type { CanalStarSeed, HistorialCanal } from "./canales";
 import { leerCanales, leerHistorial, registrarPublicacion } from "./canales";
-import { llamarModelo, listarModelos, type ModeloDisponible } from "@/lib/mando/modelos-disponibles";
+import { llamarModelo, saludCruda } from "@/lib/mando/modelos-disponibles";
+import { proveedoresDisponibles } from "@/lib/mando/proveedores-catalogo";
 
 /** Una publicación prevista para un canal en el plan del día. */
 export interface PlanPublicacion {
@@ -190,21 +191,92 @@ export function seleccionarMemorias(memorias: string[], tema: string, max = 3): 
 }
 
 /**
- * Elige un modelo gratis de la flota para generar contenido (preferencia escritor
- * que esté vivo; si ninguno hay, cae a llm7 sin clave, que siempre responde).
- * No expone claves: solo devuelve el id `proveedor/modelo`.
+ * Modelos rápidos por proveedor, en el orden en que el telecomunicador releva.
+ * Solo un modelo por proveedor: si uno de la flota responde, ya no hace falta
+ * intentar otra vez el mismo proveedor (evita quemar su cupo).
  */
-async function elegirModelo(): Promise<string> {
-    try {
-        const modelos = await listarModelos();
-        const escritor = modelos.find((m: ModeloDisponible) => m.gratis && m.escritor && m.salud !== "caido" && m.salud !== "sin-clave");
-        if (escritor) return escritor.id;
-        const cualquiera = modelos.find((m: ModeloDisponible) => m.gratis && m.salud !== "caido" && m.salud !== "sin-clave");
-        if (cualquiera) return cualquiera.id;
-    } catch {
-        // cae al respaldo sin clave
+const MODELOS_RAPIDOS: Array<{ proveedor: string; modelo: string }> = [
+    { proveedor: "groq", modelo: "openai/gpt-oss-120b" },
+    { proveedor: "nim", modelo: "deepseek-ai/deepseek-v4-flash-0731" },
+    { proveedor: "xkiro", modelo: "qwen/qwen3-coder-plus:free" },
+    { proveedor: "llm7", modelo: "minimax-m2.7" },
+];
+
+/**
+ * Candidatos de modelo para escribir una publicación (PURA, Ola 287 · T3). A
+ * partir de la foto de proveedores que ya arma `proveedoresDisponibles(...)`
+ * (que a su vez lee `saludCruda()`), devuelve hasta 4 identificadores
+ * «proveedor/modelo»: primero el `preferido` si su proveedor está activo y
+ * luego un modelo rápido por cada proveedor ACTIVO, en el orden de
+ * `MODELOS_RAPIDOS`. Salta proveedores caídos o sin cupo y nunca repite
+ * proveedor. No expone claves: solo ids.
+ */
+export function candidatosDeModelo(salud: unknown, preferido?: string): string[] {
+    // Un proveedor solo entra si el cruce con su salud lo deja «activo».
+    const activos = new Set(
+        proveedoresDisponibles(salud)
+            .filter((p) => p.estado === "activo")
+            .map((p) => p.id),
+    );
+    const salida: string[] = [];
+    const vistos = new Set<string>();
+    if (preferido) {
+        const proveedor = preferido.slice(0, preferido.indexOf("/"));
+        if (activos.has(proveedor)) {
+            salida.push(preferido);
+            vistos.add(proveedor);
+        }
     }
-    return "llm7/minimax-m2.7";
+    for (const { proveedor, modelo } of MODELOS_RAPIDOS) {
+        if (vistos.has(proveedor)) continue;
+        if (!activos.has(proveedor)) continue;
+        salida.push(`${proveedor}/${modelo}`);
+        vistos.add(proveedor);
+        if (salida.length >= 4) break;
+    }
+    return salida;
+}
+
+/**
+ * Dice si un error vino del proveedor (429, 402, cuota o 5xx) y no de la
+ * configuración local. Solo esos motivos justifican saltar al siguiente
+ * candidato: un error de «sin clave» es un problema de la máquina que conviene
+ * propagar, no disimular con otro modelo.
+ */
+function esErrorDeProveedor(e: unknown): boolean {
+    const mensaje = e instanceof Error ? e.message : String(e);
+    if (/(^|\s)(402|429|4\d{2}|5\d{2})(\s|\.|$)/.test(mensaje)) return true;
+    return /cuota|quota|abuse|recharg|insufficient balance|too many requests|rate limit|prevent abuse/i.test(mensaje);
+}
+
+/**
+ * Genera un texto probando los candidatos de la flota en cadena: si un proveedor
+ * responde, devuelve su texto y el modelo que escribió de verdad; si da 429/cuota
+ * pasa al siguiente sin gastar tiempo, y solo falla cuando se acaban todos.
+ */
+async function generarConRelevo(
+    mensajes: { system: string; user: string },
+    opciones: { maxTokens: number; temperatura: number; timeoutMs: number },
+): Promise<{ ok: boolean; texto?: string; modelo?: string; error?: string }> {
+    const candidatos = candidatosDeModelo(await saludCruda());
+    if (candidatos.length === 0) {
+        return { ok: false, error: "ningún proveedor de la flota pudo escribir: no hay candidatos activos." };
+    }
+    const motivos: string[] = [];
+    for (const id of candidatos) {
+        try {
+            const r = await llamarModelo(id, [
+                { rol: "system", texto: mensajes.system },
+                { rol: "user", texto: mensajes.user },
+            ], opciones);
+            return { ok: true, texto: r.texto, modelo: `${r.proveedor}/${r.modelo}` };
+        } catch (e) {
+            if (!esErrorDeProveedor(e)) throw e;
+            const motivo = e instanceof Error ? e.message : String(e);
+            motivos.push(`${id}: ${motivo}`);
+        }
+    }
+    return { ok: false, error: `ningún proveedor de la flota pudo escribir: ${motivos.join(" · ")}` };
 }
 
 /** Lee las memorias de un cerebro (best-effort; sin sesión devuelve []). */
@@ -282,16 +354,12 @@ export async function generarPublicacion(
             ultimos: historial.slice(0, 5).map((h) => h.texto.slice(0, 80)),
         });
 
-        const resp = await llamarModelo(
-            await elegirModelo(),
-            [
-                { rol: "system", texto: system },
-                { rol: "user", texto: user },
-            ],
+        const resp = await generarConRelevo(
+            { system, user },
             { maxTokens: 900, temperatura: 0.7, timeoutMs: 120_000 },
         );
-
-        return { ok: true, texto: resp.texto, modelo: `${resp.proveedor}/${resp.modelo}` };
+        if (!resp.ok) return resp;
+        return { ok: true, texto: resp.texto, modelo: resp.modelo };
     } catch (e) {
         return { ok: false, error: e instanceof Error ? e.message : String(e) };
     }
