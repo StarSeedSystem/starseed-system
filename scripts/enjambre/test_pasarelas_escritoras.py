@@ -173,5 +173,76 @@ class SyncOpencodeClaveTest(unittest.TestCase):
         self.assertEqual(enjambre._sync_opencode_clave("groq/openai/gpt-oss-120b"), {})
 
 
+class FormatoPasarelaTest(unittest.TestCase):
+    """Una pasarela que rechaza el FORMATO de opencode pasa a «solo revisor» (2026-09-08,
+    Ola 286 · G3): `error_de_formato` distingue el rechazo de formato (que marca la
+    pasarela) del de cuota/ritmo (que no), y `escritores_de_pasarelas` deja de devolver
+    los modelos de una pasarela en PASARELAS_SOLO_REVISOR sin tocar sus revisores."""
+
+    @pytest.fixture(autouse=True)
+    def _env(self, monkeypatch):
+        monkeypatch.setattr(enjambre, "PASARELAS", dict(GROQ))
+
+    def test_error_de_formato_reasoning_content(self):
+        self.assertTrue(enjambre.error_de_formato("property 'reasoning_content' is unsupported"))
+
+    def test_error_de_formato_too_many_requests_es_falso(self):
+        self.assertFalse(enjambre.error_de_formato("Too Many Requests"))
+
+    def test_error_de_formato_invalid_request_error(self):
+        self.assertTrue(enjambre.error_de_formato("invalid_request_error: unsupported_value"))
+
+    def test_error_de_formato_vacio_es_falso(self):
+        self.assertFalse(enjambre.error_de_formato(""))
+
+    def test_pasarela_solo_revisor_no_devuelve_escritores(self):
+        # Se añade groq a PASARELAS_SOLO_REVISOR (y se quita al terminar) para comprobar
+        # que sus modelos dejan de salir como escritores; el conjunto queda limpio luego.
+        enjambre.PASARELAS_SOLO_REVISOR.add("groq")
+        try:
+            escritores = enjambre.escritores_de_pasarelas()
+            self.assertFalse(any(x.startswith("groq/") for x in escritores))
+        finally:
+            enjambre.PASARELAS_SOLO_REVISOR.discard("groq")
+
+
+class SoloRevisorTest(unittest.TestCase):
+    """Una pasarela que rechaza el FORMATO de opencode deja de ser ESCRITORA pero sigue de
+    REVISORA durante el resto de la ejecución (2026-09-08, Ola 286 · G3). Caso real: Groq y
+    su `reasoning_content`. `error_de_formato` es pura y no depende de red."""
+
+    @pytest.fixture(autouse=True)
+    def _env(self, monkeypatch, sin_freetheai):
+        monkeypatch.setattr(enjambre, "PASARELAS", dict(GROQ))
+
+    def test_detecta_formato_unsupported(self):
+        self.assertTrue(enjambre.error_de_formato("property 'reasoning_content' is unsupported"))
+
+    def test_detecta_must_be_satisfied(self):
+        self.assertTrue(enjambre.error_de_formato("must be satisfied"))
+
+    def test_detecta_invalid_request_error(self):
+        self.assertTrue(enjambre.error_de_formato("invalid_request_error: unsupported_value"))
+
+    def test_saturacion_no_es_formato(self):
+        self.assertFalse(enjambre.error_de_formato("Too Many Requests"))
+        self.assertFalse(enjambre.error_de_formato("rate limit"))
+
+    def test_vacio_no_es_formato(self):
+        self.assertFalse(enjambre.error_de_formato(""))
+
+    def test_pasarela_solo_revisor_deja_de_escribir(self):
+        self.assertIn("groq/", enjambre.escritores_de_pasarelas()[0])
+        enjambre.PASARELAS_SOLO_REVISOR.add("groq")
+        try:
+            self.assertEqual(
+                [m for m in enjambre.escritores_de_pasarelas() if m.startswith("groq/")],
+                [],
+            )
+        finally:
+            enjambre.PASARELAS_SOLO_REVISOR.discard("groq")
+        self.assertTrue(any(m.startswith("groq/") for m in enjambre.escritores_de_pasarelas()))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -619,13 +619,36 @@ def supervisor_proveedores():
         FIN.wait(SONDEO_S)
 
 
+# (2026-09-08, Ola 286 · G3) Pasarelas cuyo adaptador de opencode rechaza el FORMATO que
+# envía el cliente (caso real: Groq y su `reasoning_content`). Fallan al instante en CUANTO
+# se les asigna una tarea de escritura, pero SÍ funcionan como REVISORES (llamada directa a
+# `/chat/completions`). Mientras una pasarela esté aquí, sus modelos no se devuelven como
+# ESCRITORES (así no se reintenta en balde), pero siguen intactos como revisores.
+PASARELAS_SOLO_REVISOR = set()
+
+
+def error_de_formato(texto):
+    """¿Este texto es un rechazo por FORMATO de la petición (no por cuota ni por ritmo)?
+    (2026-09-08, Ola 286 · G3) Pura: True si `texto` contiene (sin distinguir mayúsculas)
+    `is unsupported`, `must be satisfied`, `invalid_request_error` o `unsupported_value`;
+    False en cualquier otro caso —en particular `Too Many Requests` y `rate limit`, que son
+    de cupo y NO deben marcar la pasarela como incompatible con el formato de opencode."""
+    b = (texto or "").lower()
+    return any(p in b for p in ("is unsupported", "must be satisfied",
+                                "invalid_request_error", "unsupported_value"))
+
+
 def escritores_de_pasarelas():
     """Escritores extra que NO están en la lista fija: los modelos de las pasarelas declaradas
     por entorno (`STARSEED_PASARELA_<NOMBRE>_MODELOS`) y, SOLO con FREETHEAI_API_KEY, los
     escritores gratuitos de FreeTheAi. Devuelve `"<prov>/<modelo>"`; van al FINAL de la
-    rotación para no tocar el orden probado de los de siempre (2026-09-08, Ola 286 · G1)."""
+    rotación para no tocar el orden probado de los de siempre (2026-09-08, Ola 286 · G1).
+    (G3) Una pasarela en `PASARELAS_SOLO_REVISOR` NO aporta escritores: rechaza el formato
+    de opencode y sus modelos solo se reintentarían en balde; deja intactos los revisores."""
     out = []
     for prov, p in PASARELAS.items():
+        if prov in PASARELAS_SOLO_REVISOR:
+            continue
         for mo in (p.get("modelos") or []):
             out.append("%s/%s" % (prov, mo))
     if _freetheai_activo():
@@ -2556,6 +2579,15 @@ def ejecutar(t, intento=1):
             evento("reenrutado", tid, "%s se colgó y fue cortado → siguiente modelo, sin gastar intento" % modelo)
             continue
         pista = fallo_de_proveedor(out)
+        # (2026-09-08, Ola 286 · G3) Rechazo por FORMATO de opencode: el proveedor acepta la
+        # llamada como revisor (HTTP directo) pero su adaptador reenvía un campo que rechaza
+        # (Groq y `reasoning_content`). Se marca la pasarela como «solo revisor» y se salta al
+        # siguiente PROVEEDOR sin gastar intento: reintentar el mismo modelo sería en balde.
+        if error_de_formato(out) and proveedor_de(modelo) in PASARELAS:
+            prov = proveedor_de(modelo)
+            PASARELAS_SOLO_REVISOR.add(prov)
+            evento("aviso", tid, "%s rechaza el formato de opencode: pasa a solo revisor en esta ejecución" % prov)
+            continue
         if pista:
             # El proveedor falló: esto NO es «el modelo no vio nada que hacer», así que
             # no gasta intento. Si el modelo está retirado, fuera de la rotación entera.
@@ -2581,6 +2613,14 @@ def ejecutar(t, intento=1):
                 FIN.wait(espera)
                 pendientes.insert(0, modelo)
             else:
+                # (2026-09-08, Ola 286 · G3) Si el proveedor es una pasarela y rechaza el FORMATO
+                # de opencode, deja de gastar intentos como ESCRITOR pero sigue de revisor: se
+                # marca aquí y los modelos que le quedan se saltan sin reintentarlo.
+                prov = proveedor_de(modelo)
+                if error_de_formato(pista) and prov in PASARELAS:
+                    if prov not in PASARELAS_SOLO_REVISOR:
+                        PASARELAS_SOLO_REVISOR.add(prov)
+                        evento("aviso", tid, "%s rechaza el formato de opencode: pasa a solo revisor en esta ejecución" % prov)
                 evento("proveedor", tid, "%s falló por el proveedor (%s) → siguiente modelo" % (modelo, pista))
             continue
         intentos_reales += 1
@@ -2632,6 +2672,13 @@ def ejecutar(t, intento=1):
                 evento("reenrutado", tid, "%s se colgó y fue cortado → siguiente modelo, sin gastar intento" % modelo)
                 continue
             pista = fallo_de_proveedor(out)
+            if error_de_formato(out) and proveedor_de(modelo) in PASARELAS:
+                # (2026-09-08, Ola 286 · G3) Igual que en la primera pasada: pasarela que
+                # rechaza el formato de opencode → solo revisor, sin gastar intento.
+                prov = proveedor_de(modelo)
+                PASARELAS_SOLO_REVISOR.add(prov)
+                evento("aviso", tid, "%s rechaza el formato de opencode: pasa a solo revisor en esta ejecución" % prov)
+                continue
             if pista:
                 ultimo_fallo = pista
                 if any(x in pista for x in PISTAS_DEFUNCION):
@@ -2648,6 +2695,13 @@ def ejecutar(t, intento=1):
                     FIN.wait(8 if "database is locked" in pista else ESPERA_429_S); pendientes.insert(0, modelo)
                 else:
                     apartados.append(modelo)
+                # (2026-09-08, Ola 286 · G3) Mismo trato que en la primera pasada: si la
+                # pasarela rechaza el formato de opencode, solo revisor para lo que resta.
+                prov = proveedor_de(modelo)
+                if error_de_formato(pista) and prov in PASARELAS:
+                    if prov not in PASARELAS_SOLO_REVISOR:
+                        PASARELAS_SOLO_REVISOR.add(prov)
+                        evento("aviso", tid, "%s rechaza el formato de opencode: pasa a solo revisor en esta ejecución" % prov)
                 evento("proveedor", tid, "%s falló por el proveedor (%s)" % (modelo, pista))
                 continue
             intentos_reales += 1
