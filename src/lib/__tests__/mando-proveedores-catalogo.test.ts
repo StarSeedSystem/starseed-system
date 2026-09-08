@@ -248,3 +248,43 @@ describe("clavesPresentes (Ola 271 · M9B)", () => {
         }
     });
 });
+
+// ── Ola 294 · AR5: OpenAI entra como proveedor DE PAGO, fuera de la rotación ──
+
+describe("Proveedor de pago OpenAI (Ola 294 · AR5)", () => {
+    it("openai es de pago, tiene papel director y sus dos variables", () => {
+        const openai = PROVEEDORES_CATALOGO.find((p) => p.id === "openai");
+        expect(openai).toBeDefined();
+        expect(openai?.dePago).toBe(true);
+        expect(openai?.papel).toBe("director");
+        expect(openai?.variables).toEqual(["OPENAI_API_KEY", "STARSEED_PASARELA_OPENAI_KEY"]);
+    });
+
+    it("ningún proveedor tiene una base que no empiece por https://", () => {
+        for (const info of PROVEEDORES_CATALOGO) {
+            expect(info.base.startsWith("https://")).toBe(true);
+        }
+    });
+
+    it("ningún valor de clave real aparece en el catálogo (sk-, gsk_, nvapi-)", () => {
+        for (const info of PROVEEDORES_CATALOGO) {
+            const texto = textoDe(info);
+            expect(texto).not.toMatch(/\bsk-[A-Za-z0-9_-]{12,}/);
+            expect(texto).not.toMatch(/\bgsk_[A-Za-z0-9_-]{12,}/);
+            expect(texto).not.toMatch(/\bnvapi-[A-Za-z0-9_-]{12,}/);
+        }
+    });
+
+    it("los proveedores de pago quedan aparte de los gratuitos (papel distinguible)", () => {
+        // `dePago: true` es la marca que aparta al proveedor de la rotación de
+        // escritores: nadie gratis debe llevarla y el de pago sí debe distinguirse.
+        const dePago = PROVEEDORES_CATALOGO.filter((p) => p.dePago === true);
+        const gratuitos = PROVEEDORES_CATALOGO.filter((p) => !p.dePago);
+        expect(dePago.map((p) => p.id)).toEqual(["openai"]);
+        expect(dePago.every((p) => p.papel === "director")).toBe(true);
+        // Ningún gratuito declara papel director (reservado al único de pago).
+        expect(gratuitos.every((p) => p.papel !== "director")).toBe(true);
+        // Los de pago permanecen aparte: no se mezclan en los gratuitos.
+        expect(gratuitos.some((p) => p.dePago === true)).toBe(false);
+    });
+});

@@ -112,6 +112,19 @@ export interface ProveedorInfo {
     sinClaveOk?: boolean;
     /** Variables de entorno conocidas para este proveedor. */
     variables: string[];
+    /**
+     * True si el proveedor es DE PAGO (se cobra por token). Un proveedor con
+     * `dePago: true` JAMÁS entra en la rotación de escritores del enjambre:
+     * solo se usa a mano, para papeles de confianza como el director. Los
+     * proveedores sin esta marca (o `false`) son los gratuitos de la flota.
+     */
+    dePago?: boolean;
+    /**
+     * Papel al que está destinado el proveedor en la cadena de relevo. Los
+     * proveedores de pago se reservan para «director»; gratuitos y escriben y
+     * revisan. Es orientativo y actualmente solo distingue al de pago en la UI.
+     */
+    papel?: "escritor" | "revisor" | "director";
 }
 
 /** Catálogo fijo de proveedores (los verificados en `memory/orquestacion-economica.md` §5). */
@@ -265,6 +278,23 @@ export const PROVEEDORES_CATALOGO: ProveedorInfo[] = [
         gratis: "por confirmar",
         requiereCuenta: true,
         variables: [],
+    },
+    {
+        // Ola 294 · AR5: el PRIMER proveedor de pago de la flota. No tiene cupo
+        // gratuito real (responde 429 insufficient_quota sin saldo) y se reserva
+        // para el papel de director (Astra). Con `dePago: true` queda FUERA de
+        // la rotación de escritores del enjambre por diseño; solo se usa a mano.
+        id: "openai",
+        nombre: "OpenAI · Astra (de pago)",
+        base: "https://api.openai.com/v1",
+        panelClaves: "https://platform.openai.com/api-keys",
+        docs: "https://platform.openai.com/docs/api-reference",
+        gratis:
+            "Ninguno: se paga por token. Verificado el 2026-09-08 — la cuenta ve `gpt-6-astra`, `gpt-5.5-pro` y `gpt-5.4`, y responde 429 `insufficient_quota` hasta cargar saldo.",
+        requiereCuenta: true,
+        dePago: true,
+        papel: "director",
+        variables: ["OPENAI_API_KEY", "STARSEED_PASARELA_OPENAI_KEY"],
     },
 ];
 
