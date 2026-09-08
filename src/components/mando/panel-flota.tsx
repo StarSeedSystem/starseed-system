@@ -15,6 +15,11 @@ import {
     AlertTriangle,
     Cloud,
     Cpu,
+    ExternalLink,
+    Eye,
+    EyeOff,
+    KeyRound,
+    Loader2,
     PenTool,
     RefreshCw,
     Search,
@@ -25,7 +30,6 @@ import type { EstadoMando } from "@/lib/mando/tipos";
 import { flotaConocida, type ModeloFlota, type ProveedorFlota } from "@/lib/mando/flota";
 import type { ModeloDisponible, SaludProveedor } from "@/lib/mando/modelos-disponibles";
 import { proveedoresDisponibles, type ProveedorDisponible } from "@/lib/mando/proveedores-catalogo";
-import { ExternalLink } from "lucide-react";
 
 /** Colores de estado (semaforización de la flota). */
 const COLOR_ESTADO: Record<ProveedorFlota["estado"], string> = {
@@ -360,6 +364,259 @@ function ChipDatoAntiguo({ proveedor }: { proveedor: ProveedorDisponible }) {
     );
 }
 
+/** Resultado de una acción sobre una clave (prueba o guardado). */
+interface ResultadoClave {
+    tipo: "ok" | "error";
+    texto: string;
+    /** Huella devuelta por el guardado (`gsk_xx…(44)`), nunca el valor. */
+    huella?: string;
+}
+
+/**
+ * Botón «Añadir mi clave» y su diálogo en línea para probar/guardar/olvidar la
+ * clave de un proveedor (Ola 286 · 2026-09-08 · F2). Habla con `POST
+ * /api/mando/claves`, que SOLO escribe en `~/.starseed/env` (chmod 600) y nunca
+ * devuelve el valor. El valor aquí solo vive en el estado de React mientras se
+ * escribe; al guardar se limpia y jamás se mete en la URL ni en un atributo
+ * visible. Se reutiliza en las tres secciones (agotados, listos, por conseguir).
+ */
+function ControlesClave({ proveedor, onCambio }: { proveedor: ProveedorDisponible; onCambio: () => void }) {
+    const [abierto, setAbierto] = useState(false);
+    const [variable, setVariable] = useState(proveedor.variables[0] ?? "");
+    const [valor, setValor] = useState("");
+    const [visible, setVisible] = useState(false);
+    const [ocupado, setOcupado] = useState(false);
+    const [resultado, setResultado] = useState<ResultadoClave | null>(null);
+    const [ofrecerForzar, setOfrecerForzar] = useState(false);
+    const [confirmaOlvidar, setConfirmaOlvidar] = useState(false);
+
+    const variableDefinida = proveedor.variables.length > 0;
+    // Para olvidar se usa la clave activa del proveedor, o la primera que tenga.
+    const varOlvidar = proveedor.activa ?? proveedor.claves[0]?.var ?? "";
+
+    /** Limpia el estado sensible: la clave sale de la memoria de React al guardar. */
+    const limpiar = () => {
+        setValor("");
+        setVisible(false);
+        setResultado(null);
+        setOfrecerForzar(false);
+        setConfirmaOlvidar(false);
+    };
+
+    const cerrar = () => {
+        limpiar();
+        setAbierto(false);
+    };
+
+    const probar = async () => {
+        if (!valor) return;
+        setOcupado(true);
+        setResultado(null);
+        setOfrecerForzar(false);
+        try {
+            const r = await fetch("/api/mando/claves", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ accion: "probar", proveedor: proveedor.id, valor }),
+            });
+            const d = (await r.json()) as { ok?: boolean; modelos?: number; error?: string };
+            if (d.ok) setResultado({ tipo: "ok", texto: `✓ ${d.modelos ?? 0} modelos disponibles` });
+            else setResultado({ tipo: "error", texto: d.error ?? "La clave no fue aceptada." });
+        } catch {
+            setResultado({ tipo: "error", texto: "No se pudo contactar con el mando." });
+        } finally {
+            setOcupado(false);
+        }
+    };
+
+    const guardar = async (forzar: boolean) => {
+        if (!valor) return;
+        setOcupado(true);
+        setResultado(null);
+        setOfrecerForzar(false);
+        try {
+            const r = await fetch("/api/mando/claves", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ accion: "guardar", proveedor: proveedor.id, variable, valor, forzar }),
+            });
+            const d = (await r.json()) as {
+                ok?: boolean;
+                error?: string;
+                huella?: string;
+                prueba?: { ok?: boolean; error?: string };
+            };
+            if (!d.ok) {
+                // Si la prueba falló y no la forzamos, ofrecemos «Guardar de todas formas».
+                if (!forzar && d.prueba && d.prueba.ok === false) {
+                    setOfrecerForzar(true);
+                    setResultado({ tipo: "error", texto: d.error ?? d.prueba.error ?? "La clave falló la prueba." });
+                } else {
+                    setResultado({ tipo: "error", texto: d.error ?? "No se pudo guardar." });
+                }
+                return;
+            }
+            // Éxito: enseñamos la huella, sacamos el valor de la memoria y cerramos.
+            setResultado({ tipo: "ok", texto: "Clave guardada.", huella: d.huella });
+            setValor("");
+            setTimeout(cerrar, 1200);
+        } catch {
+            setResultado({ tipo: "error", texto: "No se pudo contactar con el mando." });
+        } finally {
+            setOcupado(false);
+        }
+    };
+
+    const olvidar = async () => {
+        setOcupado(true);
+        try {
+            await fetch("/api/mando/claves", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ accion: "olvidar", variable: varOlvidar }),
+            });
+        } catch {
+            // Silencioso: se recarga igual y el panel refleja lo que quede en disco.
+        } finally {
+            setOcupado(false);
+            cerrar();
+            onCambio();
+        }
+    };
+
+    return (
+        <div className="flex flex-wrap items-center gap-2">
+            <button
+                type="button"
+                onClick={() => {
+                    setConfirmaOlvidar(false);
+                    setAbierto((v) => !v);
+                }}
+                disabled={!variableDefinida}
+                title={variableDefinida ? "Añadir mi clave" : "Este proveedor aún no define una variable."}
+                className="inline-flex cursor-pointer items-center gap-1 rounded-md border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs text-white/80 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+                <KeyRound className="h-3.5 w-3.5" />
+                Añadir mi clave
+            </button>
+
+            {proveedor.claves.length > 0 && (
+                <button
+                    type="button"
+                    onClick={() => (confirmaOlvidar ? void olvidar() : setConfirmaOlvidar(true))}
+                    disabled={ocupado}
+                    className="inline-flex cursor-pointer items-center gap-1 rounded-md border border-red-400/20 bg-red-500/10 px-2.5 py-1.5 text-xs text-red-200 hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                    title={`Olvidar la clave ${varOlvidar || ""}`.trim()}
+                >
+                    {confirmaOlvidar ? "¿Seguro? Olvidar" : "Olvidar clave"}
+                </button>
+            )}
+
+            {abierto && variableDefinida && (
+                <div className="mt-1 w-full rounded-xl border border-white/10 bg-black/30 p-4 backdrop-blur">
+                    <p className="text-xs text-white/60">Variable de entorno</p>
+                    {proveedor.variables.length > 1 ? (
+                        <select
+                            value={variable}
+                            onChange={(e) => setVariable(e.target.value)}
+                            className="mt-1 w-full cursor-pointer rounded-md border border-white/10 bg-black/40 px-2 py-1.5 text-xs text-white"
+                        >
+                            {proveedor.variables.map((v) => (
+                                <option key={v} value={v} className="bg-black">
+                                    {v}
+                                </option>
+                            ))}
+                        </select>
+                    ) : (
+                        <p className="mt-1 font-mono text-xs text-white">{variable}</p>
+                    )}
+                    <p className="mt-2 text-[11px] leading-relaxed text-white/50">
+                        Se guarda solo en ~/.starseed/env de esta neurona, con permisos 600; nunca en
+                        el repositorio ni en la nube.
+                    </p>
+
+                    <div className="relative mt-2">
+                        <input
+                            type={visible ? "text" : "password"}
+                            autoComplete="off"
+                            spellCheck={false}
+                            value={valor}
+                            onChange={(e) => {
+                                setValor(e.target.value);
+                                setResultado(null);
+                                setOfrecerForzar(false);
+                            }}
+                            placeholder="Pega tu clave aquí"
+                            className="w-full rounded-md border border-white/10 bg-black/40 px-2 py-1.5 pr-9 text-xs text-white placeholder:text-white/30"
+                        />
+                        <button
+                            type="button"
+                            onClick={() => setVisible((v) => !v)}
+                            aria-label={visible ? "Ocultar clave" : "Mostrar clave"}
+                            className="absolute inset-y-0 right-0 flex cursor-pointer items-center px-2 text-white/50 hover:text-white/80"
+                        >
+                            {visible ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                        </button>
+                    </div>
+
+                    {resultado && (
+                        <p
+                            role="status"
+                            className={`mt-2 rounded-md border px-2 py-1.5 text-[11px] ${
+                                resultado.tipo === "ok"
+                                    ? "border-emerald-400/30 bg-emerald-500/10 text-emerald-200"
+                                    : "border-amber-400/30 bg-amber-500/10 text-amber-200"
+                            }`}
+                        >
+                            {resultado.texto}
+                            {resultado.huella && (
+                                <span className="mt-0.5 block font-mono text-white/60">{resultado.huella}</span>
+                            )}
+                        </p>
+                    )}
+
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                        <button
+                            type="button"
+                            onClick={() => void probar()}
+                            disabled={ocupado || !valor}
+                            className="inline-flex cursor-pointer items-center gap-1 rounded-md border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs text-white/80 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                            Probar
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => void guardar(false)}
+                            disabled={ocupado || !valor}
+                            className="inline-flex cursor-pointer items-center gap-1 rounded-md border border-emerald-400/30 bg-emerald-500/10 px-2.5 py-1.5 text-xs text-emerald-200 hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                            Guardar
+                        </button>
+                        {ofrecerForzar && (
+                            <button
+                                type="button"
+                                onClick={() => void guardar(true)}
+                                disabled={ocupado}
+                                className="inline-flex cursor-pointer items-center gap-1 rounded-md border border-amber-400/40 bg-amber-500/10 px-2.5 py-1.5 text-xs text-amber-200 hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                                Guardar de todas formas
+                            </button>
+                        )}
+                        <button
+                            type="button"
+                            onClick={cerrar}
+                            className="inline-flex cursor-pointer items-center gap-1 rounded-md border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs text-white/80 hover:bg-white/10"
+                        >
+                            Cerrar
+                        </button>
+                        {ocupado && <Loader2 className="h-3.5 w-3.5 animate-spin text-white/50" />}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
+
 /**
  * Proveedores del catálogo con su estado vivo y enlaces (Ola 271): agotados o
  * enfriándose con hasta cuándo y sus claves por medio; disponibles ahora con su
@@ -367,7 +624,7 @@ function ChipDatoAntiguo({ proveedor }: { proveedor: ProveedorDisponible }) {
  * servidor con las claves REALES de la máquina (M9B); el cálculo sobre el catálogo
  * del cliente solo queda como respaldo si el endpoint viejo no trajo `proveedores`.
  */
-function SeccionProveedores({ catalogo, proveedores }: { catalogo: ModeloDisponible[]; proveedores: ProveedorDisponible[] | null }) {
+function SeccionProveedores({ catalogo, proveedores, onCambio }: { catalogo: ModeloDisponible[]; proveedores: ProveedorDisponible[] | null; onCambio: () => void }) {
     const disponibles = useMemo(() => {
         if (proveedores) return proveedores;
         // Respaldo: sin `proveedores` en la respuesta, se reconstruye la salud cruda a
@@ -430,6 +687,7 @@ function SeccionProveedores({ catalogo, proveedores }: { catalogo: ModeloDisponi
                                     <EnlaceExterno href={p.panelClaves} etiqueta="Conseguir clave" />
                                     <EnlaceExterno href={p.base} etiqueta="API" />
                                     <EnlaceExterno href={p.docs} etiqueta="Docs" />
+                                    <ControlesClave proveedor={p} onCambio={onCambio} />
                                 </div>
                             </article>
                         ))
@@ -452,6 +710,10 @@ function SeccionProveedores({ catalogo, proveedores }: { catalogo: ModeloDisponi
                                 <p className="mt-1 font-mono text-[11px] text-white/50">{p.base}</p>
                                 <p className="mt-1 text-[11px] text-white/60">{p.gratis}</p>
                                 <ListaClaves proveedor={p} />
+                                <div className="mt-2 flex flex-wrap items-center gap-3">
+                                    <EnlaceExterno href={p.panelClaves} etiqueta="Conseguir clave" />
+                                    <ControlesClave proveedor={p} onCambio={onCambio} />
+                                </div>
                             </article>
                         ))
                     )}
@@ -471,6 +733,7 @@ function SeccionProveedores({ catalogo, proveedores }: { catalogo: ModeloDisponi
                                 <EnlaceExterno href={p.panelClaves} etiqueta="Conseguir clave" />
                                 <EnlaceExterno href={p.base} etiqueta="API" />
                                 <EnlaceExterno href={p.docs} etiqueta="Docs" />
+                                <ControlesClave proveedor={p} onCambio={onCambio} />
                             </li>
                         ))}
                     </ul>
@@ -563,7 +826,7 @@ export function PanelFlota() {
             <AvisoSaludRevisores catalogo={catalogo} />
 
             {/* Los proveedores clasificados llegan del endpoint (`clavesPresentes` + bus). */}
-            <SeccionProveedores catalogo={catalogo} proveedores={proveedores} />
+            <SeccionProveedores catalogo={catalogo} proveedores={proveedores} onCambio={cargar} />
 
             {agotados.length > 0 && (
                 <p className="flex items-center gap-2 rounded-lg border border-red-400/30 bg-red-500/10 px-3 py-2 text-xs text-red-200">
