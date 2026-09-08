@@ -87,6 +87,28 @@ export function validarPermisos(bruto: unknown): PermisosVinculo {
   return base;
 }
 
+/**
+ * Resuelve el vínculo a partir del token EN CLARO (el que llega en la cabecera
+ * Authorization). Se hashea igual que al crear y se busca por `token_hash`: el
+ * token completo jamás vive en la base. Devuelve null si el token es desconocido
+ * o ya no está vigente (revocado o caducado) — nunca lanza.
+ */
+export async function resolverToken(
+  supabase: SupabaseClient,
+  token: string,
+): Promise<{ vinculo: Vinculo; owner: string } | null> {
+  const hash = createHash("sha256").update(token).digest("hex");
+  const { data, error } = await supabase
+    .from("os_vinculos_externos")
+    .select("*")
+    .eq("token_hash", hash)
+    .maybeSingle();
+  if (error || !data) return null;
+  const fila = data as FilaVinculo;
+  if (!estaVigente(fila)) return null;
+  return { vinculo: aVinculo(fila), owner: fila.owner };
+}
+
 /** Vigente = no revocado y sin caducidad vencida (null = sin caducidad). */
 export function estaVigente(
   v: Pick<Vinculo, "revocado_en" | "expira_en">,
