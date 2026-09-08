@@ -17,6 +17,7 @@ import { homedir } from "node:os";
 import path from "node:path";
 
 import { raizDelProyecto } from "@/lib/mando/raiz";
+import { PROVEEDORES_CATALOGO } from "@/lib/mando/proveedores-catalogo";
 
 export interface ModeloDisponible {
     /** `proveedor/modelo`, tal como se pide a `llamarModelo`. */
@@ -170,6 +171,44 @@ function variablesConSufijos(base: string[]): string[] {
     return salida;
 }
 
+/** Una pasarela OpenAI-compatible declarada por entorno (Ola 286 · F4). */
+export interface PasarelaDeclarada {
+    /** Nombre corto en minúsculas (de `STARSEED_PASARELA_<NOMBRE>_URL`). */
+    id: string;
+    /** Variable de su clave: `STARSEED_PASARELA_<NOMBRE>_KEY`. */
+    variable: string;
+    /** Base `/v1` ya normalizada (sin la barra final). */
+    url: string;
+    /** Modelos de `_MODELOS` (separados por comas), o [] si no se declaró. */
+    modelos: string[];
+    /** Límite de peticiones por minuto: `_RPM` o 15 por defecto. */
+    rpm: number;
+}
+
+/**
+ * Detecta las pasarelas declaradas por entorno (`STARSEED_PASARELA_<NOMBRE>_URL`) y
+ * devuelve una entrada por pasarela. Pura: solo lee la fuente dada y nunca expone el
+ * valor de la clave (solo el nombre de la variable en `variable`). Ola 286 · F4.
+ */
+export function pasarelasDeclaradas(fuente: Record<string, string | undefined>): PasarelaDeclarada[] {
+    const salida: PasarelaDeclarada[] = [];
+    for (const [k, v] of Object.entries(fuente)) {
+        const m = /^STARSEED_PASARELA_([A-Z0-9]+)_URL$/.exec(k);
+        if (!m || !v) continue;
+        const pref = `STARSEED_PASARELA_${m[1]}`;
+        const rpmTexto = (fuente[`${pref}_RPM`] ?? "").trim();
+        const rpm = Number(rpmTexto);
+        salida.push({
+            id: m[1].toLowerCase(),
+            variable: `${pref}_KEY`,
+            url: v.trim().replace(/\/+$/, ""),
+            modelos: (fuente[`${pref}_MODELOS`] ?? "").split(",").map((x) => x.trim()).filter(Boolean),
+            rpm: Number.isFinite(rpm) && rpm > 0 ? rpm : 15,
+        });
+    }
+    return salida;
+}
+
 /**
  * Claves que esta máquina tiene DE VERDAD por proveedor y por medio (Ola 271 · M9B):
  * para cada proveedor del catálogo vivo recorre por separado el entorno del proceso,
@@ -203,21 +242,64 @@ export async function clavesPresentes(): Promise<Record<string, ClavePresente[]>
         }
         salida[proveedor] = halladas;
     }
+    // Pasarelas declaradas por entorno: entran como proveedor con clave presente si su
+    // variable `STARSEED_PASARELA_<NOMBRE>_KEY` tiene valor en algún medio (Ola 286 · F4).
+    const fuenteGlobal: Record<string, string | undefined> = {};
+    for (const { fuente } of medios) {
+        for (const [k, v] of Object.entries(fuente)) {
+            if (typeof v === "string" && v.trim()) fuenteGlobal[k] = v.trim();
+        }
+    }
+    for (const pasarela of pasarelasDeclaradas(fuenteGlobal)) {
+        const halladas: ClavePresente[] = [];
+        for (const { medio, fuente } of medios) {
+            const valor = fuente[pasarela.variable];
+            if (typeof valor !== "string" || !valor.trim()) continue;
+            halladas.push({
+                var: pasarela.variable,
+                medio,
+                huella: createHash("sha256").update(valor.trim(), "utf-8").digest("hex").slice(0, 8),
+            });
+        }
+        if (halladas.length > 0) salida[pasarela.id] = halladas;
+    }
     return salida;
 }
 
-const CLAVES: Record<string, string[]> = {
-    xkiro: ["XKIRO_API_KEY"],
-    nim: ["NVIDIA_API_KEY", "NVIDIA_SHARED_KEY"],
-    aihubmix: ["AIHUBMIX_API_KEY"],
-    tokenrouter: ["TOKENROUTER_API_KEY"],
-    openrouter: ["OPENROUTER_API_KEY", "OPENROUTER_SHARED_KEY"],
-    gemini: ["GEMINI_API_KEY", "GOOGLE_API_KEY", "NEXT_PUBLIC_GOOGLE_API_KEY"],
-    // LLM7.io (itsfree.ai): sin clave sirve gpt-oss y minimax-m2.7 a 10 req/min; con LLM7_API_KEY, 44 modelos.
-    llm7: ["LLM7_API_KEY"],
-    // FreeTheAi (pasarela comunitaria): clave por su Discord (/signup + /checkin diario), 250 llamadas/día.
-    freetheai: ["FREETHEAI_API_KEY"],
+/**
+ * Variables extra que el catálogo no declara pero esta máquina conoce (compartidas,
+ * sufijos alternativos o variantes públicas). Se fusionan con las del catálogo en
+ * `variablesDeProveedor` (el catálogo primero, sin duplicados). Ola 286 · F4.
+ */
+const ALIAS: Record<string, string[]> = {
+    // Compartida con el servidor (clave comunitaria, no la personal).
+    nim: ["NVIDIA_SHARED_KEY"],
+    openrouter: ["OPENROUTER_SHARED_KEY"],
+    // La pública expone el proveedor en el cliente; se revisa igual que las privadas.
+    gemini: ["GOOGLE_API_KEY", "NEXT_PUBLIC_GOOGLE_API_KEY"],
 };
+
+/**
+ * Unión sin duplicados de las variables de un proveedor: primero las del catálogo,
+ * luego los alias que el catálogo no tenga. Pura: solo junta nombres, jamás valores.
+ */
+export function variablesDeProveedor(id: string, delCatalogo: string[]): string[] {
+    const salida: string[] = [];
+    for (const nombre of [...delCatalogo, ...(ALIAS[id] ?? [])]) {
+        if (!salida.includes(nombre)) salida.push(nombre);
+    }
+    return salida;
+}
+
+/**
+ * Diccionario vivo de variables por proveedor, construido a partir de
+ * `PROVEEDORES_CATALOGO` (que ya trae `variables` por proveedor, p. ej. groq →
+ * `["GROQ_API_KEY"]`) más los alias de arriba. Así el Mando reconoce las claves de
+ * TODOS los proveedores del catálogo, no solo los 8 que estaban a mano (Ola 286 · F4).
+ */
+const CLAVES: Record<string, string[]> = Object.fromEntries(
+    PROVEEDORES_CATALOGO.map((p) => [p.id, variablesDeProveedor(p.id, p.variables)]),
+);
 
 /** Proveedores que responden sin clave (a cupo reducido): el catálogo no los marca «sin-clave». */
 const SIN_CLAVE_OK = new Set(["llm7"]);
