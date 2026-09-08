@@ -264,6 +264,19 @@ export function firmarLanzamiento(cola: string, t: string): string | null {
 }
 
 /**
+ * Cuántos agentes caben ahora mismo, con honestidad (2026-09-08, Ola 286 · F3).
+ * Máximo 8; un agente por cada ~1200 MB libres (mínimo 1); nunca más de
+ * `proveedoresVivos * 2`, y se descuentan los que ya están `enCurso`. El motivo
+ * explica en una frase cuál de los tres límites mandó.
+ *
+ * Vive en `trabajadores.ts` (módulo cliente-seguro) para que el Diseñador de olas
+ * pueda importarlo sin arrastrar los built-ins de Node de este archivo; aquí solo
+ * se re-exporta para quien quiera usarlo desde servidor.
+ */
+export { trabajadoresRecomendados } from "@/lib/mando/trabajadores";
+export type { EntradaRecomendacion, RecomendacionTrabajadores } from "@/lib/mando/trabajadores";
+
+/**
  * Lanza una cola en esta máquina: `starseed-enjambre.py <cola> --workers N`, desacoplado,
  * con su salida en `olas/logs/lanzamiento-<cola>.log`. Devuelve el pid.
  */
@@ -283,7 +296,10 @@ export async function lanzarAqui(nombre: string, workers: number, extra: string[
     const logs = path.join(OLAS, "logs");
     await mkdir(logs, { recursive: true });
     const registro = openSync(path.join(logs, `lanzamiento-${nombre}.log`), "a");
-    const n = Math.min(4, Math.max(1, Math.round(workers)));
+    // Techo de trabajadores: pasó de 4 a 8 (2026-09-08, Ola 286 · F3). Con más
+    // proveedores vivos caben más agentes en paralelo; el cuello real es la
+    // memoria de la máquina y el cupo de los proveedores, no el orquestador.
+    const n = Math.min(8, Math.max(1, Math.round(workers)));
     const permitidos = extra.filter((x) => ["--sin-revision", "--reanudar", "--aprobacion"].includes(x));
     const hijo = spawn("python3", [orquestador, path.join("starseed_memory_root", "olas", archivo), "--workers", String(n), ...permitidos], {
         cwd: RAÍZ,

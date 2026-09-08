@@ -16,6 +16,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Play, Plus, Save, Trash2, Wand2 } from "lucide-react";
 
+import { trabajadoresRecomendados } from "@/lib/mando/trabajadores";
 import type { ColaCompleta, TareaCola } from "@/lib/mando/colas";
 import type { RamaOla, RamaTarea } from "@/lib/mando/ramificacion";
 import { ArbolOla } from "@/components/mando/ramificacion-agentes";
@@ -110,6 +111,30 @@ export function DisenadorOla({ onCerrar }: { onCerrar: () => void }) {
     const [guardada, setGuardada] = useState(false);
     const [ocupado, setOcupado] = useState(false);
     const [importar, setImportar] = useState("");
+    // Consejo honesto de cuántos agentes caben ahora mismo (2026-09-08, Ola 286 · F3).
+    const [consejo, setConsejo] = useState<{ texto: string; estimado: boolean } | null>(null);
+
+    useEffect(() => {
+        void (async () => {
+            try {
+                // El estado trae cuántas tareas hay en curso; ni memoria libre ni
+                // proveedores vivos viajan en /api/mando/estado, así que para esos
+                // dos se estima y se dice que es una estimación.
+                const r = await fetch("/api/mando/estado", { cache: "no-store" });
+                let enCurso = 0;
+                if (r.ok) {
+                    const d = (await r.json()) as { cuentas?: { enCurso?: number } };
+                    enCurso = d.cuentas?.enCurso ?? 0;
+                }
+                const rec = trabajadoresRecomendados({ memoriaLibreMb: 4096, proveedoresVivos: 3, enCurso });
+                // Memoria y proveedores no viajan en /api/mando/estado, así que el
+                // consejo es siempre una estimación para esos dos (enCurso sí es real).
+                setConsejo({ texto: `Ahora mismo caben ${rec.recomendado} agentes: ${rec.motivo}`, estimado: true });
+            } catch {
+                setConsejo(null);
+            }
+        })();
+    }, []);
 
     useEffect(() => {
         void (async () => {
@@ -368,8 +393,14 @@ export function DisenadorOla({ onCerrar }: { onCerrar: () => void }) {
                 </label>
                 <label className="grid gap-1 text-white/60">
                     Trabajadores
-                    <input type="number" min={1} max={4} value={workers} onChange={(e) => setWorkers(Number(e.target.value) || 1)} className="w-20 rounded-md border border-white/10 bg-black/40 px-2 py-1 text-white" />
+                    <input type="number" min={1} max={8} value={workers} onChange={(e) => setWorkers(Number(e.target.value) || 1)} className="w-20 rounded-md border border-white/10 bg-black/40 px-2 py-1 text-white" />
                 </label>
+                {consejo ? (
+                    <p className="basis-full text-[11px] text-white/55">
+                        <span className="text-emerald-200">{consejo.texto}</span>
+                        {consejo.estimado ? " (estimación: el mando local no reportó memoria ni proveedores)" : ""}
+                    </p>
+                ) : null}
                 <label className="grid gap-1 text-white/60">
                     Dónde
                     <select value={donde} onChange={(e) => setDonde(e.target.value === "mac" ? "mac" : "nube")} className="cursor-pointer rounded-md border border-white/10 bg-black/40 px-2 py-1 text-white">
