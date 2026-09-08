@@ -16,6 +16,7 @@ import { homedir } from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 
+import { limpiarRegenerables, medirDisco, medirRegenerables } from "@/lib/mando/almacenamiento";
 import { raizDelProyecto } from "@/lib/mando/raiz";
 
 export type RepoPublicable = "os" | "astraura";
@@ -605,6 +606,42 @@ export type TrabajoReconstruccion = {
 
 export type RespuestaReconstruccion = { ok: boolean; id?: string; error?: string };
 
+/** Umbral (MB) por debajo del cual se limpian los regenerables antes de compilar. */
+const UMBRAL_LIMPIEZA_MB = 6144;
+
+/** Umbral (MB) por debajo del cual, además, se compila con `--limpiar`. */
+const UMBRAL_CONSTRUIR_LIMPIO_MB = 3072;
+
+/**
+ * Función pura que decide si toca limpiar lo regenerable antes de reconstruir
+ * (2026-09-08 · Ola 288 · M2). El build del modo ligero crece `.next` hasta ~2,7 GB
+ * y, si nadie mira el disco, aborta con ENOSPC: por debajo de 6144 MB libres se
+ * limpian los regenerables; por debajo de 3072 MB se compila además con `--limpiar`
+ * (que ya borra la caché de build). `motivo` es una frase en español con las cifras.
+ */
+export function decidirLimpieza(libreMb: number, regenerablesMb: number): { limpiar: boolean; construirLimpio: boolean; motivo: string } {
+    const gb = (mb: number): string => `${(mb / 1024).toFixed(1).replace(/\.0$/, "")} GB`;
+    if (libreMb > UMBRAL_LIMPIEZA_MB) {
+        return {
+            limpiar: false,
+            construirLimpio: false,
+            motivo: `quedan ${gb(libreMb)} libres: no hace falta limpiar antes de compilar`,
+        };
+    }
+    if (libreMb <= UMBRAL_CONSTRUIR_LIMPIO_MB) {
+        return {
+            limpiar: true,
+            construirLimpio: true,
+            motivo: `quedan ${gb(libreMb)} libres y los regenerables suman ${gb(regenerablesMb)}: se limpian y se compila con --limpiar`,
+        };
+    }
+    return {
+        limpiar: true,
+        construirLimpio: false,
+        motivo: `quedan ${gb(libreMb)} libres y los regenerables suman ${gb(regenerablesMb)}: se limpian antes de compilar`,
+    };
+}
+
 /**
  * Estado de la vista previa local: qué commit sirve el build de :9002, si está
  * al día respecto de HEAD y si el servidor responde. `buildCommit`/`buildT`
@@ -730,13 +767,45 @@ export function interpretarLogReconstruccion(
  * log es independiente del proceso que lo lanzó, la propia cadena escribe en él su
  * marcador `STARSEED_RECONSTRUCCION_FIN` y el estado se lee después desde disco.
  */
-function ejecutarReconstruccion(trabajo: TrabajoReconstruccion, carpetaAbs: string): void {
+async function ejecutarReconstruccion(trabajo: TrabajoReconstruccion, carpetaAbs: string): Promise<void> {
     const logRuta = path.join(carpetaAbs, `${trabajo.id}.log`);
     // fd abierto en modo «añadir»: survive a la muerte del Next que lo lanzó.
     const fd = fsOpen(logRuta, "a");
+    const escribirLog = async (texto: string) => {
+        try {
+            // Se escribe por la ruta (appendFile) ANTES de arrancar la cadena: el fd
+            // se hereda luego por el hijo, pero aquí aún no hay riesgo de SIGPIPE.
+            await appendFile(logRuta, `${texto}\n`, "utf8");
+        } catch {
+            // Si no se puede escribir el log, no bloqueamos la reconstrucción.
+        }
+    };
+
+    // 2026-09-08 · Ola 288 · M2: antes de compilar se mide el disco; si queda poco,
+    // se limpian los regenerables (y se compila con --limpiar) para no morir por ENOSPC.
+    let construirLimpio = false;
+    try {
+        const disco = await medirDisco();
+        const regenerables = await medirRegenerables(raizDelProyecto());
+        if (disco) {
+            const regenerablesMb = regenerables.reduce((suma, r) => suma + r.mb, 0);
+            const decision = decidirLimpieza(disco.libreMb, regenerablesMb);
+            construirLimpio = decision.construirLimpio;
+            await escribirLog(`[limpieza] ${decision.motivo}`);
+            if (decision.limpiar) {
+                const ids = regenerables.filter((r) => r.seguro).map((r) => r.id);
+                const resultado = await limpiarRegenerables(ids).catch(() => ({ ok: false, limpiados: [] as string[], detalle: "no se pudo limpiar" }));
+                await escribirLog(`[limpieza] ${resultado.detalle}`);
+            }
+        }
+    } catch {
+        // Medir falló (p. ej. `df` sin permisos): no bloqueamos la reconstrucción.
+        await escribirLog("[limpieza] no se pudo medir el disco: se compila igual");
+    }
+
     const orden =
         "bash scripts/starseed-ligero.sh parar && " +
-        "bash scripts/starseed-ligero.sh construir && " +
+        `bash scripts/starseed-ligero.sh construir${construirLimpio ? " --limpiar" : ""} && ` +
         "bash scripts/starseed-ligero.sh arrancar; " +
         'codigo=$?; echo "STARSEED_RECONSTRUCCION_FIN codigo=$codigo $(date -u +%Y-%m-%dT%H:%M:%SZ)"; ' +
         "exit $codigo";

@@ -16,7 +16,7 @@ vi.mock("node:child_process", () => ({
     execFile: mockExecFile,
 }));
 
-import { argumentosPublicacion, interpretarLog, interpretarLogReconstruccion, interpretarVistaPrevia, publicar } from "@/lib/mando/publicaciones";
+import { argumentosPublicacion, decidirLimpieza, interpretarLog, interpretarLogReconstruccion, interpretarVistaPrevia, publicar } from "@/lib/mando/publicaciones";
 
 const LOG_EJEMPLO = [
     "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2\ta1b2c3d\t2026-09-07T10:00:00+00:00\tAlex\tOla 265 · Forja fase 3: efectos y tomas · H1: Cadena de efectos",
@@ -188,5 +188,37 @@ describe("interpretarVistaPrevia", () => {
 
     it("sin build ni head → atrasado", () => {
         expect(interpretarVistaPrevia({ buildCommit: null, head: null })).toBe(true);
+    });
+});
+
+describe("decidirLimpieza (2026-09-08 · Ola 288 · M2)", () => {
+    it("por encima de 6144 MB no limpia ni compila con --limpiar", () => {
+        const r = decidirLimpieza(8000, 2000);
+        expect(r).toEqual({ limpiar: false, construirLimpio: false, motivo: expect.any(String) });
+    });
+
+    it("entre 3072 y 6144 MB limpia sin --limpiar", () => {
+        const r = decidirLimpieza(5000, 3000);
+        expect(r.limpiar).toBe(true);
+        expect(r.construirLimpio).toBe(false);
+    });
+
+    it("por debajo de 3072 MB limpia y compila con --limpiar", () => {
+        const r = decidirLimpieza(2000, 4000);
+        expect(r.limpiar).toBe(true);
+        expect(r.construirLimpio).toBe(true);
+    });
+
+    it("0 libres pide limpiar y construir limpio con motivo no vacío", () => {
+        const r = decidirLimpieza(0, 0);
+        expect(r.limpiar).toBe(true);
+        expect(r.construirLimpio).toBe(true);
+        expect(r.motivo.length).toBeGreaterThan(0);
+    });
+
+    it("el motivo menciona las cifras en GB", () => {
+        const r = decidirLimpieza(5000, 3000);
+        expect(r.motivo).toContain("4.9");
+        expect(r.motivo).toContain("2.9");
     });
 });
