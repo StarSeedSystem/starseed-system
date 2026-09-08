@@ -116,14 +116,92 @@ function aLaDisponibilidad(ping: { lista: boolean; motivo?: string }): { ready: 
   return { ready: ping.lista, reason: ping.motivo };
 }
 
-async function probeAstraura158Local(endpoint: string): Promise<{ ready: boolean; reason?: string }> {
-  const ping = await probeJson(`${endpoint}/api/ping`, 8000);
-  if (ping.kind === "ok") return aLaDisponibilidad(interpretarPing(ping.data));
-  if (ping.kind === "http" && ping.status === 404) {
-    const estado = await probeJson(`${endpoint}/api/bitnet/estado`, 8000);
-    if (estado.kind === "ok") return aLaDisponibilidad(interpretarPing(estado.data));
+// (Ola 278 · OS3 · 2026-09-08) CAUSA RAÍZ: desde el navegador, `fetch` a
+// `http://127.0.0.1:8000` LANZA `TypeError: Failed to fetch` porque el origen
+// del OS (p.ej. `http://localhost:9002`) no puede abrir red privada. Resultado:
+// la sonda marcaba la neurona «no lista» aunque el backend estuviera perfecto.
+// La solución: distinguir ese bloqueo (fetch que LANZA o tarda > 1,5 s) de un
+// fallo real del backend, y en ese caso REINTENTAR por el proxy del propio OS
+// (`/api/ai/astraura-158`), que sí alcanza la neurona desde el servidor.
+
+/** Umbral: si un ping de la neurona tarda más, lo trata como bloqueo/lentitud. */
+const PROBE_LOCAL_SLOW_MS = 1500;
+
+/**
+ * Sonda cruda de un endpoint: mide si el `fetch` LANZÓ (bloqueo de red privada),
+ * si tardó más de `slowMs` o si respondió con HTTP. Almacena en `probeCache`
+ * para respetar el TTL compartido (Ola 278 · `PROBE_TTL_OK_MS`/`PROBE_TTL_FAIL_MS`).
+ * Nunca lanza.
+ */
+async function probeCruda(url: string, slowMs = PROBE_LOCAL_SLOW_MS): Promise<{
+  ok: boolean;
+  data?: unknown;
+  status?: number;
+  threw: boolean;
+  slow: boolean;
+}> {
+  const t0 = Date.now();
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), Math.max(slowMs, 4000));
+  try {
+    const res = await fetch(url, { signal: ctrl.signal, cache: "no-store" });
+    clearTimeout(t);
+    const slow = Date.now() - t0 > slowMs;
+    if (!res.ok) {
+      probeCache.set(url, { at: Date.now(), outcome: { kind: "http", status: res.status } });
+      return { ok: false, status: res.status, threw: false, slow };
+    }
+    let data: unknown = null;
+    try {
+      data = await res.json();
+    } catch {
+      data = { ok: true };
+    }
+    probeCache.set(url, { at: Date.now(), outcome: { kind: "ok", data } });
+    return { ok: true, data, threw: false, slow };
+  } catch {
+    clearTimeout(t);
+    probeCache.set(url, { at: Date.now(), outcome: { kind: "network" } });
+    return { ok: false, threw: true, slow: Date.now() - t0 > slowMs };
   }
-  return { ready: false };
+}
+
+/**
+ * Ping de la neurona sobre una base (directa o proxy): `/api/ping` (< 5 ms) y,
+ * si el backend es anterior (404), `/api/bitnet/estado` (3 ms) como respaldo.
+ */
+async function pingNeurona(base: string): Promise<{ ok: boolean; data?: unknown; threw: boolean; slow: boolean }> {
+  const p = await probeCruda(`${base}/api/ping`);
+  if (p.ok) return { ok: true, data: p.data, threw: false, slow: false };
+  if (p.status === 404) {
+    const e = await probeCruda(`${base}/api/bitnet/estado`);
+    if (e.ok) return { ok: true, data: e.data, threw: false, slow: false };
+    return { ok: false, threw: e.threw, slow: e.slow };
+  }
+  return { ok: false, threw: p.threw, slow: p.slow };
+}
+
+/**
+ * (Ola 278 · OS3) Sonda LOCAL de Astraura 1.58 con RELEVO por el proxy del OS:
+ *   · base directa primero; si responde → lista (via "directo");
+ *   · si el fetch LANZA o tarda > 1,5 s (bloqueo de red privada del navegador)
+ *     → reintenta por `/api/ai/astraura-158` (mismo origen, sin bloqueo);
+ *   · solo si AMBOS fallan → no lista, distinguiendo el motivo.
+ */
+async function probeAstraura158Local(endpoint: string): Promise<{ ready: boolean; reason?: string; via?: "directo" | "proxy" }> {
+  const local = await pingNeurona(endpoint);
+  if (local.ok) return { ...aLaDisponibilidad(interpretarPing(local.data)), via: "directo" };
+  if (local.threw || local.slow) {
+    const prox = await pingNeurona("/api/ai/astraura-158");
+    if (prox.ok) return { ...aLaDisponibilidad(interpretarPing(prox.data)), via: "proxy" };
+    return {
+      ready: false,
+      via: "proxy",
+      reason: "El navegador bloquea 127.0.0.1 (red privada) y el servidor del OS tampoco alcanza la neurona.",
+    };
+  }
+  // No lanzó ni fue lento: el backend respondió un error HTTP de verdad.
+  return { ready: false, reason: "La neurona no responde." };
 }
 
 function norm(u: string): string {
@@ -257,6 +335,14 @@ export async function detectAvailability(fast = false): Promise<SourceAvailabili
         const r = await probeAstraura158Local(endpoint);
         ready = r.ready;
         reason = r.reason;
+        // (Ola 278 · OS3) Si la sonda llegó a la neurona a través del proxy del
+        // OS (el navegador bloquea 127.0.0.1), se anota para que el Mando y el
+        // chat lo enseñen y no parezca un fallo del backend.
+        if (r.via === "proxy") {
+          reason = ["Astraura 1.58 responde vía el servidor del OS (el navegador bloquea 127.0.0.1).", reason]
+            .filter(Boolean)
+            .join(" · ");
+        }
         // Guarda la última disponibilidad conocida (memoria de módulo) para que
         // `detectAvailabilitySafe` la conserve si el tope global salta.
         lastLocalAstrauraKnown = { at: Date.now(), ready, reason };

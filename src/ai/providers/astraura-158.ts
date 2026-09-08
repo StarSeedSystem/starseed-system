@@ -274,6 +274,41 @@ export function normalizeAstraura158Base(baseUrl: string | undefined | null): st
   return b || ASTRAURA_158_DEFAULT_BASE;
 }
 
+/* ───────────────────── Red privada ↔ proxy del OS (Ola 278 · OS3 · 2026-09-08) ───────────────────── */
+// CAUSA RAÍZ: el navegador bloquea el acceso a red privada desde un origen
+// público/localhost («Failed to fetch» a 127.0.0.1:8000) y el chat marcaba la
+// neurona como muerta. Estas dos funciones PUERAS redirigen la base de bucle
+// local hacia el proxy del propio OS (mismo origen → sin bloqueo de red
+// privada) SOLO cuando el código corre en el navegador; en servidor no tocan
+// nada (el backend sí alcanza 127.0.0.1). Detalle en
+// `architecture/astraura-158-sistema-primario.md`.
+
+/** ¿La base apunta a un bucle local (127.0.0.1 · localhost · [::1], con cualquier puerto)? Pura. */
+export function esBaseLocal(base: string): boolean {
+  const b = String(base ?? "").trim();
+  // Sin esquema no hay host que mirar (ruta relativa, ya el proxy, etc.).
+  if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(b)) return false;
+  try {
+    const host = new URL(b).hostname.replace(/^\[|\]$/g, "").toLowerCase();
+    return host === "localhost" || host === "::1" || host === "127.0.0.1" || /^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(host);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * En el navegador, enruta una base de bucle local por el proxy del OS
+ * (`/api/ai/astraura-158` + el resto de la ruta). En cualquier otro caso
+ * devuelve la base tal cual. Pura (idempotente: una base ya relativa no se
+ * toca). El servidor del OS habla con la neurona sin bloqueo de red privada.
+ */
+export function baseParaNavegador(base: string): string {
+  if (typeof window === "undefined") return base;
+  if (!esBaseLocal(base)) return base;
+  const resto = base.replace(/^[a-z][a-z0-9+.-]*:\/\/[^/]+/i, "").replace(/\/+$/, "");
+  return `/api/ai/astraura-158${resto}`;
+}
+
 /* ───────────────────── Trazas del enjambre (plan · agentes · herramientas) ───────────────────── */
 
 /** Traza de un agente/rama del ciclo paralelo (`agent_traces.traces[]`). */
@@ -788,7 +823,9 @@ async function chat(
   messages: ChatMessage[],
   options: ChatOptions,
 ): Promise<ChatResponse> {
-  const base = normalizeAstraura158Base(config.baseUrl || info.defaultBaseUrl);
+  // (Ola 278 · OS3) En el navegador, la base de bucle local se enruta por el
+  // proxy del OS (el navegador bloquea 127.0.0.1). En servidor no cambia nada.
+  const base = baseParaNavegador(normalizeAstraura158Base(config.baseUrl || info.defaultBaseUrl));
   const modelPersona = modelToPersona158(options.model) ?? "astraura_prime";
   // Menciones @persona SOLO del turno actual (el historial no re-selecciona).
   // El `prompt` viaja con el texto crudo (las menciones no se recortan).
@@ -870,7 +907,7 @@ async function chat(
 }
 
 async function listModels(config: DecryptedProviderConfig): Promise<string[]> {
-  const base = normalizeAstraura158Base(config.baseUrl || info.defaultBaseUrl);
+  const base = baseParaNavegador(normalizeAstraura158Base(config.baseUrl || info.defaultBaseUrl));
   try {
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), 3000);
