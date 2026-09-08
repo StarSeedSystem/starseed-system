@@ -13,7 +13,7 @@ import {
   Network, BrainCircuit, Settings, Compass, PenLine, ShieldCheck, LayoutGrid,
   Server, Vote, Lightbulb, Cpu, Brain, ShoppingBag, Award, AppWindow,
   CalendarClock, GitBranch, Sparkles, Zap, Wrench, Plug, Eye, HardDrive, Boxes,
-  Camera, Images, RadioTower, Antenna, Radio, AudioLines, Gauge,
+  Camera, Images, RadioTower, Antenna, Radio, Rss, AudioLines, Gauge,
   Smile, FlaskConical,
 } from 'lucide-react';
 // Garantía de botones predeterminados con la VERSIÓN DENTRO DEL PAYLOAD
@@ -64,6 +64,8 @@ export type DockIconKey =
   | 'RadioTower' | 'Antenna'
   // ── Feed de red ──
   | 'Radio'
+  // ── Canales StarSeed (Ola 285 · K6) ──
+  | 'Rss'
   // ── Voces (Ola 228) ──
   | 'AudioLines'
   // ── Mando (Ola 231) ──
@@ -84,7 +86,7 @@ export const DOCK_ICON_MAP: Record<DockIconKey, React.ComponentType<{ className?
   Network, BrainCircuit, Settings, Compass, PenLine, ShieldCheck, LayoutGrid,
   Server, Vote, Lightbulb, Cpu, Brain, ShoppingBag, Award, AppWindow,
   CalendarClock, GitBranch, Sparkles, Zap, Wrench, Plug, Eye, HardDrive, Boxes,
-  Camera, Images, RadioTower, Antenna, Radio, AudioLines, Gauge, Smile,
+  Camera, Images, RadioTower, Antenna, Radio, Rss, AudioLines, Gauge, Smile,
   FlaskConical,
 };
 
@@ -248,6 +250,9 @@ export const DOCK_PRESETS: DockItemConfig[] = [
   { id: 'red-mesh',      label: 'Red Mesh',            iconKey: 'Antenna',         path: '/red-mesh',              color: 'emerald', enabled: false, origin: 'preset' },
   { id: 'senales',       label: 'Señales',             iconKey: 'RadioTower',      path: '/senales',               color: 'cyan',    enabled: true,  origin: 'preset' },
   { id: 'red-feed',      label: 'Feed de red',         iconKey: 'Radio',           path: '/red-feed',              color: 'purple',  enabled: true,  origin: 'preset' },
+  // Ola 285 · K6: Canales StarSeed — directorio público de canales de la red.
+  // Se muestra por defecto (versión 20 lo enciende para todas las cuentas).
+  { id: 'canales',       label: 'Canales',             iconKey: 'Rss',             path: '/canales',               color: 'emerald', enabled: true,  origin: 'preset' },
   // Ola 228: página Voces — estudio de voces y emisión de voz del OS.
   { id: 'voces',         label: 'Voces',               iconKey: 'AudioLines',      path: '/voces',                 color: 'purple',  enabled: true,  origin: 'preset' },
   // Ola 231: Puente de Mando — consola de producción y desarrollo (solo local).

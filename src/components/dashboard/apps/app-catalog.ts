@@ -13,6 +13,8 @@ import {
     RadioTower, Antenna, Binary, AudioLines, Gauge, Smile, FlaskConical,
     // Ola 6 · Adenda 158.
     Sparkles, Users,
+    // Ola 285 · K6: Canales StarSeed.
+    Rss,
 } from "lucide-react";
 import type { StarseedApp, LauncherCollection } from "./launcher-types";
 
@@ -129,6 +131,24 @@ export const APP_CATALOG: StarseedApp[] = [
             primary: "route",
             allowed: ["route", "window", "tab"],
             route: "/red-feed",
+        },
+    },
+    {
+        // Ola 285 · K6: Canales StarSeed — el directorio abierto de canales de
+        // la red. Cualquiera publica el suyo y aparece al instante (lectura
+        // pública en RLS). Es un módulo nativo del OS.
+        id: "canales",
+        name: "Canales StarSeed",
+        short: "Canales",
+        description: "El directorio abierto de canales de la red: cualquiera publica el suyo y aparece al instante.",
+        icon: Rss,
+        accent: "#34D399",
+        category: "starseed",
+        status: "native",
+        open: {
+            primary: "route",
+            allowed: ["route", "window", "tab"],
+            route: "/canales",
         },
     },
     {
@@ -367,7 +387,7 @@ export function getApp(id: string): StarseedApp | undefined {
 /** Colecciones predeterminadas (presets de origen de un folder). */
 export const APP_COLLECTIONS: Record<LauncherCollection, string[]> = {
     // 'starseed' = folder de inicio por defecto (marca + módulos clave)
-    starseed: ["nexus", "cafe", "audiomorphic", "omnifrecuencias", "red-mesh", "senales", "red-feed", "messages", "network", "musica", "clima", "imaginacion"],
+    starseed: ["nexus", "cafe", "audiomorphic", "omnifrecuencias", "red-mesh", "senales", "red-feed", "canales", "messages", "network", "musica", "clima", "imaginacion"],
     sistema: ["messages", "network", "library", "agent", "astraura-158", "imaginacion", "enjambre", "red-mesh", "senales", "red-feed", "voces", "mando", "mundo-avatares", "laboratorio"],
     media: ["musica", "radio", "omnifrecuencias", "audiomorphic", "immersive", "camara", "galeria"],
     custom: [],

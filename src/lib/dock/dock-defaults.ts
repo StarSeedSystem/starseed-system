@@ -65,7 +65,7 @@ export const DOCK_STORAGE_KEY = 'starseed.dock.items.v2';
  * banderas one-shot por navegador (`starseed.dock.items.migrated.vN`), que era
  * justo lo que no llegaba a las cuentas viejas.
  */
-export const DOCK_DEFAULTS_VERSION = 19;
+export const DOCK_DEFAULTS_VERSION = 20;
 
 /**
  * Ids que el OS garantiza presentes y encendidos hasta DOCK_DEFAULTS_VERSION.
@@ -81,8 +81,12 @@ export const DOCK_DEFAULTS_VERSION = 19;
  * v19 (Ola 237) añade `laboratorio`: el Laboratorio de Astraura (genoma de
  * nueve capas fásicas) es nuevo y sin esta garantía no aparecería en el dock
  * de las cuentas ya existentes.
+ * v20 (Ola 285 · K6) añade `canales`: la página Canales StarSeed (directorio
+ * público de canales de la red) es nueva; subir la versión la enciende para
+ * todas las neuronas y perfiles existentes — solo la versión, que viaja dentro
+ * del payload sincronizado, llega a las cuentas viejas.
  */
-export const DOCK_DEFAULT_ON_IDS = ['senales', 'red-feed', 'imaginacion', 'voces', 'mando', 'mundo-avatares', 'laboratorio'] as const;
+export const DOCK_DEFAULT_ON_IDS = ['senales', 'red-feed', 'imaginacion', 'voces', 'mando', 'mundo-avatares', 'laboratorio', 'canales'] as const;
 
 /**
  * Forma mínima de un item del dock para ESTE módulo. Deliberadamente laxa
@@ -142,6 +146,11 @@ const FALLBACK_SEEDS: Record<string, DockItemLike> = {
   laboratorio: {
     id: 'laboratorio', label: 'Laboratorio de Astraura', iconKey: 'FlaskConical',
     path: '/laboratorio', color: 'purple', enabled: true, origin: 'preset',
+  },
+  // Ola 285 · K6: Canales StarSeed (espejo de su entrada en DOCK_PRESETS).
+  canales: {
+    id: 'canales', label: 'Canales', iconKey: 'Rss', path: '/canales',
+    color: 'emerald', enabled: true, origin: 'preset',
   },
 };
 
