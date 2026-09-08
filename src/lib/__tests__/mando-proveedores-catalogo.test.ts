@@ -77,7 +77,12 @@ describe("Catálogo de proveedores (Ola 271)", () => {
             },
         };
 
-        const salida = proveedoresDisponibles(salud, catalogo);
+        // «Ahora» fijo (antes del sin_cupo_hasta) para que la clasificación sea
+        // determinista y no dependa del reloj de la máquina que corre el test.
+        const salida = proveedoresDisponibles(
+            { salud, ahora: Date.parse("2026-09-07T00:00:00Z") },
+            catalogo,
+        );
         const porId = new Map(salida.map((p) => [p.id, p]));
 
         // nim: con clave y sin_cupo_hasta futuro → sinCupo.
