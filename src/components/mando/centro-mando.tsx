@@ -50,6 +50,17 @@ const OficinaMando = dynamic(
 // del Mando, y la Voz del Mando (provider + control en la cabecera) se cablea aquí
 // UNA sola vez para que los anuncios hablados no se dupliquen.
 import { PanelVoces } from "@/components/mando/panel-voces";
+// Ola 285 · K3 (2026-09-08): la pestaña «Canales StarSeed» entra con carga
+// diferida (`next/dynamic`, sin SSR) y SOLO se monta al abrirla, igual que la
+// oficina y las voces: el panel pesa (editor, sembrado, listados) pero no
+// debe costar nada al resto del Mando hasta que el usuario lo pide.
+const PanelCanales = dynamic(
+    () => import("@/components/mando/panel-canales").then((m) => m.PanelCanales),
+    {
+        ssr: false,
+        loading: () => <p className="text-sm text-white/50">Cargando los canales…</p>,
+    },
+);
 import {
     ControlVozDelMando,
     VozMandoProvider,
@@ -72,6 +83,7 @@ const PESTANAS = [
     { id: "oficina", etiqueta: "Oficina 3D" },
     { id: "olas", etiqueta: "Olas e informes" },
     { id: "commits", etiqueta: "Commits pendientes" },
+    { id: "canales", etiqueta: "Canales StarSeed" },
     { id: "flota", etiqueta: "Flota" },
     { id: "neurona", etiqueta: "Neurona" },
     { id: "voces", etiqueta: "Voces" },
@@ -570,6 +582,12 @@ export function CentroMando() {
                 </TabsContent>
                 <TabsContent value="commits">
                     <PanelPublicaciones />
+                </TabsContent>
+                <TabsContent value="canales">
+                    {/* Ola 285 · K3: el panel de canales solo se monta al abrir
+                        la pestaña (chunk diferido + render condicional); Radix lo
+                        desmonta al salir, como con las voces y la oficina. */}
+                    {pestana === "canales" ? <PanelCanales /> : null}
                 </TabsContent>
                 <TabsContent value="flota">
                     <PanelFlota />
