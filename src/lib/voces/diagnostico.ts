@@ -16,7 +16,7 @@
 import type { Timbre } from "@/lib/aurora/timbres";
 import { hablarStarSeed } from "@/lib/aurora/voz-starseed/motor";
 import type { NivelVoz } from "@/lib/aurora/voz-starseed/niveles";
-import { saludDaemon } from "@/lib/aurora/voz-starseed/daemon";
+import { saludDaemon, type SaludDaemon } from "@/lib/aurora/voz-starseed/daemon";
 
 /** Un paso del diagnóstico: qué se probó, cómo salió y cuánto tardó. */
 export interface PasoDiagnostico {
@@ -76,18 +76,51 @@ async function probarVoz(
     }
 }
 
-/** Paso 1 · Salud del demonio local de voz (`/health` en el bucle local). */
+/**
+ * Última vía por la que se conoció la salud del demonio, para que el detalle
+ * del paso diga si se supo «por el servidor del OS» o «directo al demonio».
+ * Es estado del módulo de diagnóstico, no tiene por qué persistir.
+ */
+let ultimaVia: "servidor" | "directo" = "servidor";
+
+/**
+ * Salud del demonio preguntando PRIMERO al servidor del OS (`/api/voz/salud`),
+ * nunca a `127.0.0.1` desde el navegador: desde el navegador integrado o desde
+ * otro dispositivo esa llamada directa falla («Failed to fetch», bloqueo de red
+ * privada) aunque el demonio esté vivo. Si la ruta no existe (Vercel, 404/401)
+ * o falla la red, se cae a la sonda directa al demonio local (útil cuando el OS
+ * corre en la nube y el demonio está en la máquina del navegador). Nunca lanza.
+ */
+export async function saludPorServidor(timeoutMs = 2500): Promise<SaludDaemon> {
+    const control = new AbortController();
+    const temporizador = setTimeout(() => control.abort(), timeoutMs);
+    try {
+        const resp = await fetch("/api/voz/salud", { signal: control.signal, cache: "no-store" });
+        if (resp.status === 404 || resp.status === 401) throw new Error(`Sin ruta local (HTTP ${resp.status})`);
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        ultimaVia = "servidor";
+        return (await resp.json()) as SaludDaemon;
+    } catch {
+        ultimaVia = "directo";
+        return saludDaemon(timeoutMs);
+    } finally {
+        clearTimeout(temporizador);
+    }
+}
+
+/** Paso 1 · Salud del demonio local de voz, por el servidor del OS (no directo al bucle local). */
 async function pasoSalud(): Promise<PasoDiagnostico> {
     const inicio = performance.now();
-    const salud = await saludDaemon();
+    const salud = await saludPorServidor();
     const ms = Math.round(performance.now() - inicio);
+    const via = ultimaVia === "servidor" ? "por el servidor del OS" : "directo al demonio";
     if (!salud.vivo) {
-        return { clave: "salud", etiqueta: "Salud del demonio", estado: "fallo", ms, detalle: "El demonio no responde.", error: "El demonio local de voz está apagado o inalcanzable." };
+        return { clave: "salud", etiqueta: "Salud del demonio", estado: "fallo", ms, detalle: `El demonio no responde (${via}).`, error: "El demonio local de voz está apagado o inalcanzable." };
     }
     if (salud.estado === "despertando") {
-        return { clave: "salud", etiqueta: "Salud del demonio", estado: "fallo", ms, detalle: "El demonio está despertando (cargando el modelo).", error: "El demonio aún está despertando: el modelo tarda en cargar." };
+        return { clave: "salud", etiqueta: "Salud del demonio", estado: "fallo", ms, detalle: `El demonio está despertando (cargando el modelo, ${via}).`, error: "El demonio aún está despertando: el modelo tarda en cargar." };
     }
-    return { clave: "salud", etiqueta: "Salud del demonio", estado: "ok", ms, detalle: `Demonio vivo (${salud.modelo ?? "modelo sin informar"}).` };
+    return { clave: "salud", etiqueta: "Salud del demonio", estado: "ok", ms, detalle: `Demonio vivo (${salud.modelo ?? "modelo sin informar"}), ${via}.` };
 }
 
 /** Paso 2 · Permiso de audio del navegador: un `AudioContext` en «suspended» delata el autoplay bloqueado. */

@@ -22,7 +22,7 @@ import path from "node:path";
 import { promisify } from "node:util";
 
 import { NIVELES, type InfoNivel } from "@/lib/aurora/voz-starseed/niveles";
-import { PUERTO_DEMONIO_ASTRAURA, PUERTO_VOZ, saludDaemon } from "@/lib/aurora/voz-starseed/daemon";
+import { PUERTO_DEMONIO_ASTRAURA, PUERTO_VOZ, saludDaemon, type SaludDaemon } from "@/lib/aurora/voz-starseed/daemon";
 
 /** Tamaños de modelo OmniVoice que el OS sabe arrancar. */
 export type TamanoModelo = "Q4_K_M" | "Q8_0";
@@ -79,6 +79,32 @@ const REGISTRO_TTS = path.join(BASE_VOZ, "logs", "tts-server.out");
 const PATRON_MODELO = /^omnivoice-base-([A-Za-z0-9_]+)\.gguf$/;
 
 const execFileAsync = promisify(execFile);
+
+/**
+ * Salud del demonio preguntando PRIMERO al servidor del OS (`/api/voz/salud`),
+ * que ya sondea al demonio local desde el servidor. Es el mismo criterio que el
+ * diagnóstico de voz (`diagnostico.ts`): el catálogo de motores no debe sondeear
+ * `127.0.0.1` desde el navegador (bloqueo de red privada). Aquí se duplica en vez
+ * de importar desde `diagnostico.ts` porque ese módulo es «use client» y este es
+ * SOLO SERVIDOR: importarlo rompería el límite cliente/servidor de Next.js.
+ * Si la ruta no existe (Vercel, 404/401) o falla la red, se cae a la sonda
+ * directa al demonio local (el demonio sí está en la máquina de este servidor).
+ * Nunca lanza.
+ */
+async function saludPorServidor(timeoutMs = 2500): Promise<SaludDaemon> {
+    const control = new AbortController();
+    const temporizador = setTimeout(() => control.abort(), timeoutMs);
+    try {
+        const resp = await fetch("/api/voz/salud", { signal: control.signal, cache: "no-store" });
+        if (resp.status === 404 || resp.status === 401) throw new Error(`Sin ruta local (HTTP ${resp.status})`);
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        return (await resp.json()) as SaludDaemon;
+    } catch {
+        return saludDaemon(timeoutMs);
+    } finally {
+        clearTimeout(temporizador);
+    }
+}
 
 /** Clasifica un nombre de archivo de modelo en su tamaño conocido. */
 function clasificar(nombre: string): ClaseModelo {
@@ -153,7 +179,7 @@ async function modeloDeclaradoEnConfig(): Promise<string | null> {
  */
 export async function leerMotores(): Promise<EstadoMotores> {
     const [salud, modelos, modeloConfig] = await Promise.all([
-        saludDaemon(),
+        saludPorServidor(),
         listarModelos(),
         modeloDeclaradoEnConfig(),
     ]);
@@ -254,7 +280,7 @@ export async function reiniciarConModelo(
         let vivo = false;
         while (Date.now() - inicio < esperaMs) {
             await new Promise((r) => setTimeout(r, 2000));
-            const salud = await saludDaemon(1500);
+            const salud = await saludPorServidor(1500);
             if (salud.vivo) { vivo = true; break; }
         }
         return { ok: vivo, modelo, segundos: Math.round((Date.now() - inicio) / 1000), via: "demonio" };
@@ -282,7 +308,7 @@ export async function reiniciarConModelo(
     let vivo = false;
     while (Date.now() - inicio < esperaMs) {
         await new Promise((r) => setTimeout(r, 1000));
-        const salud = await saludDaemon(1500);
+        const salud = await saludPorServidor(1500);
         if (salud.vivo) { vivo = true; break; }
     }
     return { ok: vivo, modelo, segundos: Math.round((Date.now() - inicio) / 1000), via: "directo" };
