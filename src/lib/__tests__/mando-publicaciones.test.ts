@@ -16,7 +16,7 @@ vi.mock("node:child_process", () => ({
     execFile: mockExecFile,
 }));
 
-import { argumentosPublicacion, interpretarLog, publicar } from "@/lib/mando/publicaciones";
+import { argumentosPublicacion, interpretarLog, interpretarLogReconstruccion, interpretarVistaPrevia, publicar } from "@/lib/mando/publicaciones";
 
 const LOG_EJEMPLO = [
     "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2\ta1b2c3d\t2026-09-07T10:00:00+00:00\tAlex\tOla 265 · Forja fase 3: efectos y tomas · H1: Cadena de efectos",
@@ -124,5 +124,69 @@ describe("publicar (puertas)", () => {
         const r = await publicar({ repo: "os", modo: "produccion", hasta: "abc123", confirmacion: "PUBLICAR", quien: "test" });
         expect(r.ok).toBe(false);
         expect(r.error).toContain("40 caracteres");
+    });
+});
+
+describe("interpretarLogReconstruccion", () => {
+    const AHORA = Date.UTC(2026, 8, 8, 12, 0, 0);
+
+    it("termina en codigo=0 → publicado con «fin»", () => {
+        const log = [
+            "🔨 Compilando…",
+            "Compilado correctamente",
+            "STARSEED_RECONSTRUCCION_FIN codigo=0 2026-09-08T11:30:00Z",
+        ].join("\n");
+        const r = interpretarLogReconstruccion(log, AHORA - 60_000, AHORA);
+        expect(r.estado).toBe("publicado");
+        expect(r.fin).toBe("2026-09-08T11:30:00.000Z");
+    });
+
+    it("termina en codigo=1 → fallo con «fin»", () => {
+        const log = [
+            "🔨 Compilando…",
+            "Error de compilación",
+            "STARSEED_RECONSTRUCCION_FIN codigo=1 2026-09-08T11:30:00Z",
+        ].join("\n");
+        const r = interpretarLogReconstruccion(log, AHORA - 60_000, AHORA);
+        expect(r.estado).toBe("fallo");
+        expect(r.fin).toBe("2026-09-08T11:30:00.000Z");
+    });
+
+    it("sin marcador y mtime hace 2 min → en_curso", () => {
+        const log = "🔨 Compilando…\n";
+        const r = interpretarLogReconstruccion(log, AHORA - 2 * 60_000, AHORA);
+        expect(r.estado).toBe("en_curso");
+        expect(r.fin).toBeNull();
+    });
+
+    it("sin marcador y mtime hace 45 min → fallo con motivo", () => {
+        const log = "🔨 Compilando…\n";
+        const r = interpretarLogReconstruccion(log, AHORA - 45 * 60_000, AHORA);
+        expect(r.estado).toBe("fallo");
+        expect(r.fin).toBeNull();
+        expect(r.salida).toContain("sin señales de vida");
+    });
+
+    it("trunca salida a las últimas 40 líneas", () => {
+        const lineas = Array.from({ length: 100 }, (_, i) => `línea ${i}`);
+        lineas.push("STARSEED_RECONSTRUCCION_FIN codigo=0 2026-09-08T11:30:00Z");
+        const r = interpretarLogReconstruccion(lineas.join("\n"), AHORA - 60_000, AHORA);
+        const contadas = r.salida.split("\n");
+        expect(contadas.length).toBeLessThanOrEqual(40);
+        expect(contadas[contadas.length - 1]).toContain("STARSEED_RECONSTRUCCION_FIN");
+    });
+});
+
+describe("interpretarVistaPrevia", () => {
+    it("buildCommit == head → no atrasado", () => {
+        expect(interpretarVistaPrevia({ buildCommit: "abc", head: "abc" })).toBe(false);
+    });
+
+    it("buildCommit != head → atrasado", () => {
+        expect(interpretarVistaPrevia({ buildCommit: "abc", head: "def" })).toBe(true);
+    });
+
+    it("sin build ni head → atrasado", () => {
+        expect(interpretarVistaPrevia({ buildCommit: null, head: null })).toBe(true);
     });
 });

@@ -10,7 +10,8 @@
  */
 
 import { execFile, spawn } from "node:child_process";
-import { mkdir, readdir, readFile, appendFile, writeFile } from "node:fs/promises";
+import { closeSync as fsClose, openSync as fsOpen } from "node:fs";
+import { mkdir, readdir, readFile, appendFile, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -691,47 +692,79 @@ export async function reconstruirLocal({ quien }: { quien: string }): Promise<Re
 }
 
 /**
- * Lanza `parar && construir && arrancar` desacoplado y va escribiendo el progreso
- * al JSON del trabajo cada 5 s (últimas 40 líneas). Al terminar fija el estado
- * final: «publicado» aquí significa «reconstruido y sirviendo» (código 0).
+ * Función pura que interpreta el log de una reconstrucción (2026-09-08 · Ola 274 · C6).
+ * La cadena `parar && construir && arrancar` deja —en su propio log, sin depender de que
+ * el servidor Next siga vivo— un marcador final `STARSEED_RECONSTRUCCION_FIN codigo=N fecha`.
+ * De ese marcador se deriva el estado: `N=0` → publicado; `N≠0` → fallo, con `fin` = fecha.
+ * Sin marcador y con el log parado más de 30 min (diferencia entre el `mtime` y `ahoraMs`)
+ * es un fallo con el motivo «sin señales de vida»; si aún no han pasado esos 30 min,
+ * sigue en curso. `salida` son siempre las últimas 40 líneas del log.
  */
-function ejecutarReconstruccion(trabajo: TrabajoReconstruccion, carpetaAbs: string): void {
-    const orden = "bash scripts/starseed-ligero.sh parar && bash scripts/starseed-ligero.sh construir && bash scripts/starseed-ligero.sh arrancar";
-    const hijo = spawn("bash", ["-lc", orden], { cwd: raizDelProyecto(), detached: true, stdio: ["ignore", "pipe", "pipe"] });
-    let salida = "";
-    const escribir = () => {
-        trabajo.salida = salida.split("\n").slice(-40).join("\n");
-        void writeFile(path.join(carpetaAbs, `${trabajo.id}.json`), JSON.stringify(trabajo, null, 2), "utf8").catch(() => undefined);
-    };
-    hijo.stdout?.on("data", (d) => {
-        salida += String(d);
-    });
-    hijo.stderr?.on("data", (d) => {
-        salida += String(d);
-    });
-    const cada = setInterval(escribir, 5000);
-    hijo.on("error", (e) => {
-        salida += `\n${e.message ?? "error de lanzamiento"}`;
-        trabajo.estado = "fallo";
-        trabajo.fin = new Date().toISOString();
-        clearInterval(cada);
-        escribir();
-    });
-    hijo.on("close", (codigo) => {
-        clearInterval(cada);
-        trabajo.estado = codigo === 0 ? "publicado" : "fallo";
-        trabajo.fin = new Date().toISOString();
-        escribir();
-    });
-    hijo.unref();
+export function interpretarLogReconstruccion(
+    log: string,
+    mtimeMs: number,
+    ahoraMs: number,
+): { estado: "en_curso" | "publicado" | "fallo"; fin: string | null; salida: string } {
+    const salida = log.split("\n").slice(-40).join("\n");
+    const marcador = /STARSEED_RECONSTRUCCION_FIN codigo=(\d+)\s+(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z)/.exec(log);
+    if (marcador) {
+        const codigo = Number.parseInt(marcador[1] ?? "-1", 10);
+        const fin = new Date(marcador[2] ?? "").toISOString();
+        return codigo === 0 ? { estado: "publicado", fin, salida } : { estado: "fallo", fin, salida };
+    }
+    const sinCambioMs = ahoraMs - mtimeMs;
+    if (sinCambioMs > 30 * 60 * 1000) {
+        // Más de 30 min sin que el log cambie y sin marcador final: el proceso murió
+        // a la mitad (p. ej. lo mató el propio «parar») y nadie escribió el cierre.
+        return { estado: "fallo", fin: null, salida: `${salida}\n[sin señales de vida]`.trim() };
+    }
+    return { estado: "en_curso", fin: null, salida };
 }
 
-/** Lee el estado de una reconstrucción local por su id (contra suplantación de ruta). */
+/**
+ * Lanza la cadena `parar && construir && arrancar` desacoplada, escribiendo su salida
+ * a `<carpeta>/<id>.log` (fichero abierto en el padre y heredado por el hijo). La clave
+ * (2026-09-08 · Ola 274 · C6): ANTES el progreso viajaba por tuberías que este mismo
+ * proceso Next leía cada 5 s, pero `parar` mata exactamente a ese Next, las tuberías se
+ * cierran y `arrancar` moría por SIGPIPE sin dejar estado final. Ahora el fichero del
+ * log es independiente del proceso que lo lanzó, la propia cadena escribe en él su
+ * marcador `STARSEED_RECONSTRUCCION_FIN` y el estado se lee después desde disco.
+ */
+function ejecutarReconstruccion(trabajo: TrabajoReconstruccion, carpetaAbs: string): void {
+    const logRuta = path.join(carpetaAbs, `${trabajo.id}.log`);
+    // fd abierto en modo «añadir»: survive a la muerte del Next que lo lanzó.
+    const fd = fsOpen(logRuta, "a");
+    const orden =
+        "bash scripts/starseed-ligero.sh parar && " +
+        "bash scripts/starseed-ligero.sh construir && " +
+        "bash scripts/starseed-ligero.sh arrancar; " +
+        'codigo=$?; echo "STARSEED_RECONSTRUCCION_FIN codigo=$codigo $(date -u +%Y-%m-%dT%H:%M:%SZ)"; ' +
+        "exit $codigo";
+    const hijo = spawn("bash", ["-lc", orden], { cwd: raizDelProyecto(), detached: true, stdio: ["ignore", fd, fd] });
+    hijo.unref();
+    fsClose(fd);
+}
+
+/** Lee el estado de una reconstrucción local por su id (contra suplantación de ruta).
+ *  El JSON inicial solo guarda los metadatos (id, inicio, commit, quien); el estado real
+ *  (estado/fin/salida) se deriva del log en disco con `interpretarLogReconstruccion`. */
 export async function leerReconstruccion(id: string): Promise<TrabajoReconstruccion | null> {
     if (!/^rebuild-\d{8}-\d{6}$/.test(id)) return null;
     try {
         const bruto = await readFile(path.join(raizDelProyecto(), CARPETA, `${id}.json`), "utf8");
-        return JSON.parse(bruto) as TrabajoReconstruccion;
+        const meta = JSON.parse(bruto) as TrabajoReconstruccion;
+        const logRuta = path.join(raizDelProyecto(), CARPETA, `${id}.log`);
+        let log = "";
+        let mtimeMs = Date.now();
+        try {
+            const [contenido, info] = await Promise.all([readFile(logRuta, "utf8"), stat(logRuta)]);
+            log = contenido;
+            mtimeMs = info.mtimeMs;
+        } catch {
+            // Sin log todavía: se interpreta como recién arrancado (mtime «ahora»).
+        }
+        const derivado = interpretarLogReconstruccion(log, mtimeMs, Date.now());
+        return { ...meta, estado: derivado.estado, fin: derivado.fin, salida: derivado.salida };
     } catch {
         return null;
     }
