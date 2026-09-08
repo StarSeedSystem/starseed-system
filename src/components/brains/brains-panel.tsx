@@ -129,6 +129,9 @@ import { useRealtime } from "@/lib/realtime/realtime";
 import { OssLibraryBrowser } from "@/components/settings/ai/oss-library-browser";
 import MemoryMergePanel from "@/components/brains/memory-merge-panel";
 import AutoUpdatePanel from "@/components/brains/auto-update-panel";
+// Panel de vínculos externos por ámbito (Ola 281 · E5): monta el panel de APIs
+// con token `ssk_…` para ESTE cerebro en su ficha de edición.
+import { PanelExternos } from "@/components/externos/panel-externos";
 import IntegrationsPanel from "@/components/integrations/integrations-panel";
 // Terminal integrada + dispositivos como servidores: antes eran una página/botón
 // suelto (/terminal). Ahora viven DENTRO de Cerebros como una sección propia.
@@ -1575,6 +1578,11 @@ function BrainEditor(props: {
       {/* Bibliotecas (acceso + sync + administrar) por cerebro */}
       <BrainLibrariesSection brainId={draft.id} isNew={isNew} />
 
+      {/* Externos (vínculos de acceso con token) por cerebro — Ola 281 · E5.
+          Solo cuando el cerebro ya existe (tiene id real); un cerebro nuevo aún
+          no puede tener vínculos porque no hay id persistido que referenciar. */}
+      {!isNew && draft.id ? <BrainExternosSection brain={draft} /> : null}
+
       {/* Auto-actualización + Recomendaciones (skill por defecto del cerebro) */}
       <AutoUpdatePanel brainId={draft.id} isNew={isNew} />
 
@@ -2361,6 +2369,45 @@ function BrainIntegrationsSection({ brainId, isNew }: { brainId: string; isNew: 
           )}
           <IntegrationsPanel brainId={brainId} />
         </div>
+      )}
+    </div>
+  );
+}
+
+/* ====================================================================== */
+/* Externos por cerebro (vínculos de acceso con token) — Ola 281 · E5      */
+/* ====================================================================== */
+
+/**
+ * Sección plegable «Externos» dentro de la ficha de edición de un cerebro:
+ * monta `<PanelExternos compacto>` con el id real del cerebro para que el
+ * usuario cree/revise sus vínculos de acceso externo (APIs) de ese ámbito.
+ * Mismo estilo de tarjeta plegable que BrainIntegrationsSection.
+ */
+function BrainExternosSection({ brain }: { brain: Brain }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="space-y-3 rounded-lg border border-cyan-500/20 bg-cyan-950/10 p-3">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        className="flex w-full cursor-pointer items-center gap-2 text-left text-[11px] uppercase tracking-widest text-cyan-300/60"
+      >
+        <Link2 className="h-3.5 w-3.5" /> Externos (vínculos de acceso)
+        <span className="ml-auto text-cyan-300/50">
+          {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+        </span>
+      </button>
+
+      {!open ? (
+        <p className="text-[10px] text-white/40">
+          Conecta Hermes, scripts, Telegram u otras apps a este cerebro mediante un token de acceso
+          con permisos y caducidad. Sin token, nada entra.
+        </p>
+      ) : (
+        <PanelExternos compacto ambito={{ tipo: "cerebro", id: brain.id, nombre: brain.name }} />
       )}
     </div>
   );

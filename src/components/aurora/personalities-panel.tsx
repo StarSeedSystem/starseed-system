@@ -129,6 +129,9 @@ import { openAstrauraConfig } from "@/lib/astraura/config-ui";
 // cuántos de los 5 sistemas están ajustados a mano EN ESTA neurona.
 import { getRawOverrides, subscribeNeuronPersona } from "@/lib/astraura/neuron-persona-systems";
 import { thisDeviceId } from "@/lib/neurons/neurons";
+// Panel de vínculos externos por ámbito (Ola 281 · E5): monta el panel de APIs
+// con token `ssk_…` para la personalidad editada en su ficha de configuración.
+import { PanelExternos } from "@/components/externos/panel-externos";
 
 /* ── Opciones curadas para los selects (el valor actual se añade si falta) ── */
 

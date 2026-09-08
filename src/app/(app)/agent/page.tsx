@@ -240,6 +240,9 @@ const WorkspacesSection = nextDynamic(
 );
 import { MemoryHub } from "@/components/exocortex/memory-hub";
 import { AgentRuntimePanel } from "@/components/agent/agent-runtime-panel";
+// Panel de vínculos externos por ámbito (Ola 281 · E5): monta el panel de APIs
+// con token `ssk_…` para el agente seleccionado en su ficha de configuración.
+import { PanelExternos } from "@/components/externos/panel-externos";
 import { VaultsPanel } from "@/components/exocortex/vaults-panel";
 import { BatchJobsPanel } from "@/components/hermes/batch-jobs-panel";
 import { ServerRegistryPanel } from "@/components/hermes/server-registry-panel";
@@ -1566,6 +1569,9 @@ function AgentPageInner() {
                 </div>
                 <Slider value={[activeAgent.temperature]} onValueChange={(val) => setAgents(prev => prev.map(a => a.id === selectedAgentId ? { ...a, temperature: val[0] } : a))} max={2} step={0.1} className="w-full" />
               </div>
+
+              {/* Ola 281 · E5: vínculos de acceso externo (APIs) del agente seleccionado. */}
+              <PanelExternos compacto ambito={{ tipo: "agente", id: activeAgent.id, nombre: activeAgent.name }} />
 
               <div className="flex justify-end gap-3 pt-4 border-t border-white/5">
                 <Button variant="destructive" size="sm" className="gap-2"><Trash2 className="w-4 h-4" /> Eliminar</Button>
