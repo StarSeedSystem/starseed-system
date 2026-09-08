@@ -137,5 +137,41 @@ class FreeTheAiTest(unittest.TestCase):
             enjambre.ENV = {}
 
 
+class SyncOpencodeClaveTest(unittest.TestCase):
+    """La clave de una pasarela llega al proceso hijo (2026-09-08, Ola 286 · G2):
+    `_sync_opencode_clave` exporta STARSEED_PASARELA_<NOMBRE>_KEY (y FREETHEAI_API_KEY)
+    al entorno de opencode, que hasta aquí recibía «Invalid API Key» porque `clave_activa`
+    no cubre las pasarelas. Sin red: se parchean PASARELAS y ENV; el valor de prueba
+    NUNCA aparece impreso ni comparado como clave real."""
+
+    @pytest.fixture(autouse=True)
+    def _env(self, monkeypatch):
+        monkeypatch.setattr(enjambre, "PASARELAS", dict(GROQ))
+        monkeypatch.setattr(enjambre, "ENV", {"STARSEED_PASARELA_GROQ_KEY": "clave-de-prueba"})
+
+    def test_variable_de_pasarela_groq(self):
+        self.assertEqual(enjambre.variable_de_pasarela("groq"), "STARSEED_PASARELA_GROQ_KEY")
+
+    def test_variable_de_pasarela_freetheai(self):
+        self.assertEqual(enjambre.variable_de_pasarela("freetheai"), "FREETHEAI_API_KEY")
+
+    def test_variable_de_pasarela_inventada_vacia(self):
+        self.assertEqual(enjambre.variable_de_pasarela("inventado"), "")
+
+    def test_sync_opencode_clave_pasarela_exporta_la_variable(self):
+        os.environ["STARSEED_PASARELA_GROQ_KEY"] = "clave-de-prueba"
+        try:
+            extra = enjambre._sync_opencode_clave("groq/openai/gpt-oss-120b")
+            self.assertEqual(extra, {"STARSEED_PASARELA_GROQ_KEY": "clave-de-prueba"})
+        finally:
+            os.environ.pop("STARSEED_PASARELA_GROQ_KEY", None)
+
+    def test_sync_opencode_clave_pasarela_sin_clave_vacio(self):
+        sin = dict(GROQ)
+        sin["groq"] = dict(GROQ["groq"], key="sin-clave")
+        enjambre.PASARELAS = sin
+        self.assertEqual(enjambre._sync_opencode_clave("groq/openai/gpt-oss-120b"), {})
+
+
 if __name__ == "__main__":
     unittest.main()

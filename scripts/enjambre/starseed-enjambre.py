@@ -940,12 +940,36 @@ def _registrar_429_clave(huella):
     return len(q) >= 3
 
 
+def variable_de_pasarela(prov):
+    """(2026-09-08, Ola 286 · G2) Nombre de la variable de entorno que guarda la clave
+    de una pasarela declarada por entorno (groq, freellmapi…) o de FreeTheAi, para
+    exportarla al proceso hijo y para el `{env:…}` del bloque de opencode. Pasarela →
+    su campo `var` (STARSEED_PASARELA_<NOMBRE>_KEY); freetheai → FREETHEAI_API_KEY.
+    Devuelve "" si el proveedor no es una pasarela ni FreeTheAi. Jamás el VALOR."""
+    if prov in PASARELAS:
+        return PASARELAS[prov].get("var") or "STARSEED_PASARELA_%s_KEY" % prov.upper()
+    if prov == "freetheai":
+        return "FREETHEAI_API_KEY"
+    return ""
+
+
 def _sync_opencode_clave(modelo):
     """(Tarea 2, escritores) opencode lee sus claves de «{env:VAR}» en
     ~/.config/opencode/opencode.json: si la clave ACTIVA del proveedor ya no es esa,
     se reescribe solo el nombre de la variable (nunca el valor) y se exporta en el
     entorno del proceso hijo. Devuelve el dict extra de entorno para entorno_hijo."""
     prov = modelo.split("/", 1)[0]
+    # (2026-09-08, Ola 286 · G2) Las pasarelas por entorno (groq…) y FreeTheAi NO pasan por
+    # la capa CLAVES_POR_PROVEEDOR: su clave vive en la variable que su propio bloque de
+    # opencode lee con {env:…}. Hasta aquí `clave_activa` devolvía None, el hijo recibía un
+    # entorno vacío y opencode fallaba con «Invalid API Key». Se exporta esa variable con su
+    # valor desde ENV/os.environ; el JSON conserva {env:VAR}, jamás el valor.
+    var = variable_de_pasarela(prov)
+    if var:
+        if prov in PASARELAS and PASARELAS[prov].get("key") == "sin-clave":
+            return {}            # pasarela declarada «sin-clave»: nada que exportar
+        valor = ENV.get(var) or os.environ.get(var)
+        return {var: valor} if valor else {}
     kay = clave_activa(prov)
     if not kay:
         return {}
