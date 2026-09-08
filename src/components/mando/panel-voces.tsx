@@ -25,6 +25,9 @@ import { FASES_FORJA, progresoFase, progresoForja } from "@/lib/voces/forja/mani
 import { asignarVozAutomatica, type VozDeAgente } from "@/lib/mando/voz-mando";
 import { usarControl, TarjetaVozDelMando } from "@/components/mando/voz-del-mando";
 import { EstudioVoces } from "@/components/voces/estudio-voces";
+// (Ola 279 · V7B) Diagnóstico de voz visible, montado en la tarjeta «Demonio
+// de voz» para responder al «la voz no funciona» sin depurar a ciegas.
+import { DiagnosticoVoz } from "@/components/voces/diagnostico-voz";
 
 /** Forma del `demonio` que devuelve `GET /api/mando/voces` (null sin daemon). */
 interface EstadoDemonio {
@@ -86,12 +89,20 @@ function Tarjeta({ titulo, icono, nino }: { titulo: string; icono: React.ReactNo
  * El daemon llega como `null` si no responde; cada campo presente pinta un chip.
  */
 function TarjetaDemonio({ demonio }: { demonio: EstadoDemonio | null }) {
+    // (Ola 279 · V7B) El diagnóstico siempre está disponible en esta tarjeta,
+    // use el demonio el estado que use: TIMBRES[0] (Aurora) es un timbre válido.
+    const diagnostico = <DiagnosticoVoz timbre={TIMBRES[0]} />;
     if (!demonio) {
         return (
             <Tarjeta
                 titulo="Demonio de voz"
                 icono={<Mic className="h-4 w-4 text-white/70" aria-hidden />}
-                nino={<p className="text-xs text-white/60">El demonio de voz no responde en 127.0.0.1:4444.</p>}
+                nino={
+                    <div className="space-y-2">
+                        <p className="text-xs text-white/60">El demonio de voz no responde en 127.0.0.1:4444.</p>
+                        {diagnostico}
+                    </div>
+                }
             />
         );
     }
@@ -120,6 +131,7 @@ function TarjetaDemonio({ demonio }: { demonio: EstadoDemonio | null }) {
                             Cesiones del oído: {demonio.asr.cesiones}
                         </p>
                     )}
+                    {diagnostico}
                 </div>
             }
         />

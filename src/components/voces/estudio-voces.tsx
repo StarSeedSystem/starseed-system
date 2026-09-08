@@ -87,6 +87,9 @@ import { FusionVoz } from "@/components/voces/fusion-voz";
 import { PanelMotores } from "@/components/voces/panel-motores";
 import { VincularVoz } from "@/components/voces/vincular-voz";
 import { ClonarVoz } from "@/components/voces/clonar-voz";
+// (Ola 279 · V7B) Diagnóstico de voz visible: se monta junto a «Probar» para
+// responder al «la voz no funciona» sin depurar a ciegas.
+import { DiagnosticoVoz } from "@/components/voces/diagnostico-voz";
 
 type FiltroGenero = "todas" | VozEditable["genero"];
 
@@ -1245,6 +1248,10 @@ export function EstudioVoces() {
                                         >
                                             <Tag className="mr-1.5 h-4 w-4" /> Probar con etiqueta
                                         </Button>
+                                        {/* (Ola 279 · V7B) Diagnóstico junto a «Probar»: usa el
+                                            timbre del BORRADOR completo (igual que «Probar») para
+                                            reproducir exactamente lo que se está ajustando. */}
+                                        {timbreBorrador && <DiagnosticoVoz timbre={timbreBorrador} />}
                                         <Button type="button" variant="secondary" onClick={guardar} className="cursor-pointer">
                                             <Save className="mr-1.5 h-4 w-4" /> Guardar
                                         </Button>
