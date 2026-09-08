@@ -25,6 +25,7 @@ import {
   Cable,
   ExternalLink,
   Globe,
+  MessageSquare,
   Radar,
   RadioTower,
   Router,
@@ -39,6 +40,7 @@ import { InternetRadarWidget } from "@/components/dashboard/widgets/internet-rad
 import { RedMeshCenter } from "@/components/mesh/red-mesh-center";
 import { SignalsCenter } from "@/components/mesh/signals-center";
 import { ConnectivityConfigPanel } from "@/components/connectivity/connectivity-config-panel";
+import { CanalesTelegram } from "@/components/connectivity/canales-telegram";
 import {
   bluetoothLink,
   connectMesh,
@@ -63,11 +65,15 @@ const ROUTE_OPTIONS: Array<{ id: PreferredRoute; label: string; hint: string }> 
 ];
 
 /** Pestañas del hub de conexiones (menú superior, centrado y responsive). */
-type HubTab = "conexiones" | "senales" | "internet";
+type HubTab = "conexiones" | "senales" | "internet" | "canales";
 const HUB_TABS: Array<{ id: HubTab; label: string; icon: typeof RadioTower }> = [
   { id: "conexiones", label: "Conexiones", icon: RadioTower },
   { id: "senales", label: "Señales", icon: Antenna },
   { id: "internet", label: "Internet", icon: Radar },
+  // Adenda 281 · E7: canales y grupos de Telegram de la cuenta, con sus enlaces
+  // t.me y últimos mensajes. El icono lucide MessageSquare (no emoji) sigue el
+  // criterio de CLAUDE.md §8 (iconos Lucide, cursor-pointer, 150-300ms).
+  { id: "canales", label: "Canales", icon: MessageSquare },
 ];
 
 function Dot({ state }: { state: "ok" | "warn" | "off" }) {
@@ -293,10 +299,35 @@ export function ConnectionsCenter({ compact = false }: { compact?: boolean }) {
   // UNIFICADO (Adenda 101): una sola sección de «Señales» con sus propias
   // pestañas (Antenas y señales · Red Mesh). Antes había 3 pestañas
   // (Conexiones/Señales/Internet) que duplicaban el radar y los ajustes de la
-  // neurona; ahora todo vive en SignalsCenter, sin duplicación.
+  // neurona; ahora todo vive en SignalsCenter, sin duplicación. La pestaña
+  // «Canales» (Adenda 281 · E7) es la única superficie propia de este hub.
   return (
     <div className={cn(compact ? "text-[12px]" : "text-sm")}>
-      <SignalsCenter embedded compact={compact} />
+      <div className="mb-2 flex flex-wrap items-center gap-1.5">
+        {HUB_TABS.map(({ id, label, icon: Ic }) => (
+          <button
+            key={id}
+            type="button"
+            role="tab"
+            aria-selected={tab === id}
+            onClick={() => setTab(id)}
+            className={cn(
+              "inline-flex cursor-pointer items-center gap-1.5 rounded-xl border px-3 py-1.5 text-[12px] font-medium transition-colors duration-200",
+              tab === id
+                ? "border-sky-400/40 bg-sky-500/15 text-sky-100"
+                : "border-white/10 bg-white/[0.03] text-white/60 hover:border-white/25 hover:text-white/85",
+            )}
+          >
+            <Ic className="h-3.5 w-3.5" /> {label}
+          </button>
+        ))}
+      </div>
+
+      {tab === "canales" ? (
+        <CanalesTelegram compact={compact} />
+      ) : (
+        <SignalsCenter embedded compact={compact} />
+      )}
     </div>
   );
 }
