@@ -16,7 +16,7 @@
 
 import { execFile, spawn } from "node:child_process";
 import { promisify } from "node:util";
-import { mkdir, open, readdir, readFile, stat, writeFile } from "node:fs/promises";
+import { lstat, mkdir, open, readdir, readFile, realpath, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
@@ -37,6 +37,23 @@ export interface Regenerable {
     seguro: boolean;
 }
 
+/** Cuota de Google Drive (DriveFS) leída con `df -kP` sobre la unidad. */
+export interface CuotaDrive {
+    totalGb: number;
+    usadoGb: number;
+    libreGb: number;
+}
+
+/** Carpeta fría medida: candidata a «Mover a Drive» (o ya es enlace a Drive). */
+export interface CarpetaFria {
+    id: string;
+    ruta: string;
+    descripcion: string;
+    mb: number;
+    /** Ya es un enlace simbólico al Drive (se movió antes): «Traer de vuelta». */
+    enDrive: boolean;
+}
+
 /** Estado completo que devuelve `GET /api/mando/almacenamiento`. */
 export interface EstadoAlmacenamiento {
     /** Marca de tiempo de la medición (ISO). */
@@ -48,6 +65,9 @@ export interface EstadoAlmacenamiento {
         ruta: string | null;
         espejo: { ruta: string; ultimoEspejo: string | null; mb: number | null } | null;
     };
+    driveCuota: CuotaDrive | null;
+    frias: CarpetaFria[];
+    espejoAutomatico: { activo: boolean; proximo: string | null };
     swap: { usadoMb: number; totalMb: number; explicacion: string };
     acciones: Array<{ id: string; etiqueta: string; disponible: boolean; motivo?: string }>;
 }
@@ -206,6 +226,119 @@ export async function detectarDrive(): Promise<EstadoAlmacenamiento["drive"]> {
 }
 
 /**
+ * Base absoluta del Google Drive de DriveFS (`~/Library/CloudStorage/GoogleDrive-*`),
+ * o `null` si no hay ninguno. Comparte la detección con `detectarDrive`.
+ */
+async function rutaDriveBase(): Promise<string | null> {
+    try {
+        const base = path.join(os.homedir(), "Library", "CloudStorage");
+        const entradas = await readdir(base);
+        const unidad = entradas.find((e) => e.startsWith("GoogleDrive-"));
+        return unidad ? path.join(base, unidad) : null;
+    } catch {
+        return null;
+    }
+}
+
+/** Mes «AAAA-MM» actual (para no mover el corpus del mes en curso). */
+function mesActual(): string {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+/**
+ * Lista blanca de carpetas frías candidatas a «Mover a Drive». `ruta` es relativa
+ * a la raíz del repo o empieza por `~/` (casa). `soloMesesAnteriores` marca las que
+ * se parten por mes y solo mueven los meses ANTERIORES al actual (corpus de
+ * aprendizaje: el mes en curso sigue en caliente).
+ */
+const CARPETAS_FRIAS: Array<{ id: string; ruta: string; descripcion: string; soloMesesAnteriores?: boolean }> = [
+    { id: "transfer", ruta: ".transfer", descripcion: "Paquetes git ya integrados" },
+    { id: "respaldos", ruta: "starseed_memory_root/respaldos", descripcion: "Respaldos del memory root" },
+    { id: "exports", ruta: "starseed_memory_root/exports", descripcion: "Exportaciones del memory root" },
+    { id: "verificaciones", ruta: "starseed_memory_root/verificaciones", descripcion: "Informes de verificación de la neurona" },
+    { id: "aprendizaje-export", ruta: "~/Documents/IA 1.58 bit/data/aprendizaje/export", descripcion: "Exportaciones del aprendizaje de Astraura 1.58" },
+    { id: "aprendizaje-corpus", ruta: "~/Documents/IA 1.58 bit/data/aprendizaje/corpus", descripcion: "Corpus de aprendizaje por mes", soloMesesAnteriores: true },
+    { id: "opencode-logs", ruta: "~/.starseed/opencode-logs", descripcion: "Registros de las sesiones de opencode" },
+];
+
+/** Resuelve una `ruta` relativa del config de carpetas frías a absoluta. */
+function resolverRutaFria(ruta: string, raiz: string): string {
+    return ruta.startsWith("~/") ? path.join(os.homedir(), ruta.slice(2)) : path.join(raiz, ruta);
+}
+
+/** Jamás movemos secretos ni el índice git: rechaza esas rutas antes de rsync. */
+function esProtegida(ruta: string): boolean {
+    const nombre = path.basename(ruta);
+    return nombre.startsWith(".env") || nombre === ".git" || nombre.endsWith(".gguf");
+}
+
+/** Un id frío es válido solo si está en la lista blanca (o es un mes de corpus). */
+function resolverFria(id: string, raiz: string): string | null {
+    for (const c of CARPETAS_FRIAS) {
+        if (c.id === id) {
+            const p = resolverRutaFria(c.ruta, raiz);
+            return esProtegida(p) ? null : p;
+        }
+        if (c.soloMesesAnteriores && id.startsWith(`${c.id}-`)) {
+            const mes = id.slice(c.id.length + 1);
+            if (!/^\d{4}-\d{2}$/.test(mes)) return null;
+            const p = path.join(resolverRutaFria(c.ruta, raiz), mes);
+            return esProtegida(p) ? null : p;
+        }
+    }
+    return null;
+}
+
+/** ¿La ruta ya es un enlace simbólico que apunta dentro del Drive? */
+async function esEnlaceADrive(ruta: string): Promise<boolean> {
+    try {
+        const st = await lstat(ruta);
+        if (!st.isSymbolicLink()) return false;
+        const destino = await realpath(ruta);
+        return destino.includes("Library/CloudStorage/GoogleDrive-");
+    } catch {
+        return false;
+    }
+}
+
+/**
+ * Medición de las carpetas frías de la lista blanca: solo las que existen, con
+ * su MB y si ya son un enlace a Drive. El corpus se parte por mes y deja fuera
+ * el mes actual (sigue en caliente para el aprendizaje).
+ */
+export async function medirCarpetasFrias(raiz: string): Promise<CarpetaFria[]> {
+    const salida: CarpetaFria[] = [];
+    for (const c of CARPETAS_FRIAS) {
+        if (c.soloMesesAnteriores) {
+            const dir = resolverRutaFria(c.ruta, raiz);
+            const meses = await readdir(dir).catch(() => [] as string[]);
+            for (const mes of meses.filter((m) => /^\d{4}-\d{2}$/.test(m) && m < mesActual())) {
+                const p = path.join(dir, mes);
+                const mb = (await mbDe(p)) ?? 0;
+                salida.push({
+                    id: `${c.id}-${mes}`,
+                    ruta: rutaVisible(p),
+                    descripcion: `${c.descripcion} (mes ${mes})`,
+                    mb,
+                    enDrive: await esEnlaceADrive(p),
+                });
+            }
+            continue;
+        }
+        const p = resolverRutaFria(c.ruta, raiz);
+        try {
+            await stat(p);
+        } catch {
+            continue; // No existe: no se lista.
+        }
+        const mb = (await mbDe(p)) ?? 0;
+        salida.push({ id: c.id, ruta: rutaVisible(p), descripcion: c.descripcion, mb, enDrive: await esEnlaceADrive(p) });
+    }
+    return salida;
+}
+
+/**
  * Explica (función pura) por qué el swap está alto SIN vender humo: el swap
  * es RAM comprimida a disco por macOS, y montar Google Drive descarga DISCO,
  * no RAM — así que no baja el swap. Lo que sí baja el swap es dormir el
@@ -291,6 +424,219 @@ export async function espejar(): Promise<{ ok: boolean; pid: number | null; deta
     );
     await registro.close();
     return { ok: true, pid: hijo.pid ?? null, detalle: `Espejo lanzado hacia ${rutaVisible(espejo)} (${origenes.length} carpetas).` };
+}
+
+/**
+ * Cuota de Google Drive (DriveFS): `df -kP` sobre la unidad del Drive expone la
+ * cuota real del plan (1 TB o más) y lo ya usado, en GB. `null` si no está montado.
+ */
+export async function cuotaDrive(): Promise<CuotaDrive | null> {
+    try {
+        const driveBase = await rutaDriveBase();
+        if (!driveBase) return null;
+        const { stdout } = await execFileAsync("df", ["-kP", driveBase], { timeout: 4000 });
+        const interpretado = interpretarDf(stdout);
+        if (!interpretado) return null;
+        return {
+            totalGb: interpretado.totalMb / 1024,
+            usadoGb: (interpretado.totalMb - interpretado.libreMb) / 1024,
+            libreGb: interpretado.libreMb / 1024,
+        };
+    } catch {
+        return null;
+    }
+}
+
+/** Cuenta de archivos regulares de una ruta (`find -type f | wc -l`). Tolerante. */
+async function contarArchivos(ruta: string): Promise<number> {
+    try {
+        const { stdout } = await execFileAsync("find", [ruta, "-type", "f"], { timeout: 60000 });
+        return stdout.trim().split("\n").filter((l) => l.length > 0).length;
+    } catch {
+        return -1;
+    }
+}
+
+/**
+ * Verifica que el contenido copiado es idéntico al origen: mismo número de
+ * archivos y un `rsync -an` (simulación) que no encuentre nada que re-sincronizar
+ * (mismos tamaños, nombres y contenidos). Más fiable que comparar bloques de `du`,
+ * que difieren entre APFS y DriveFS.
+ */
+async function verificarCopia(origen: string, destino: string): Promise<boolean> {
+    try {
+        const nOrigen = await contarArchivos(origen);
+        const nDestino = await contarArchivos(destino);
+        if (nOrigen !== nDestino || nOrigen < 0) return false;
+        const { stdout } = await execFileAsync("rsync", ["-an", "--no-perms", `${origen}/`, `${destino}/`], { timeout: 90000 });
+        return stdout.trim().length === 0;
+    } catch {
+        return false;
+    }
+}
+
+/** Un directorio frío contiene algún `.env*` en su raíz: jamás se mueve. */
+async function contieneSecretos(origen: string): Promise<boolean> {
+    const nombres = await readdir(origen).catch(() => [] as string[]);
+    return nombres.some((n) => n.startsWith(".env"));
+}
+
+/**
+ * Mueve una carpeta fría de la lista blanca a `<Drive>/StarSeed_Memory_Root/
+ * neurona-<host>/frio/<id>/`: rsync sin permisos, verifica conteo y bytes, y SOLO
+ * entonces deja el enlace simbólico en su sitio y borra la copia local temporal.
+ * Si la verificación falla, deshace (borra el destino) y no borra nada del origen.
+ */
+export async function moverADrive(id: string): Promise<{ ok: boolean; detalle: string }> {
+    const raiz = raizDelProyecto();
+    const origen = resolverFria(id, raiz);
+    if (!origen) return { ok: false, detalle: "Carpeta no está en la lista blanca de frías." };
+    if (await contieneSecretos(origen)) return { ok: false, detalle: "La carpeta contiene secretos (.env*): no se mueve." };
+    const driveBase = await rutaDriveBase();
+    if (!driveBase) return { ok: false, detalle: "Google Drive no está montado (DriveFS)." };
+    const destino = path.join(driveBase, "My Drive", "StarSeed_Memory_Root", `neurona-${os.hostname()}`, "frio", id);
+    try {
+        await mkdir(destino, { recursive: true });
+        await execFileAsync("rsync", ["-a", "--no-perms", `${origen}/`, `${destino}/`], { timeout: 120000 });
+        if (!(await verificarCopia(origen, destino))) {
+            // La copia no coincide: deshacemos y no tocamos el origen.
+            await execFileAsync("rm", ["-rf", destino], { timeout: 30000 });
+            return { ok: false, detalle: "Verificación de la copia fallida: no se borró nada del origen." };
+        }
+        const fecha = new Date().toISOString().slice(0, 10);
+        const renombrado = `${origen}.local-${fecha}`;
+        // Cambiamos de nombre (conserva los datos) antes de enlazar: si algo falla
+        // a mitad, el `.local-*` sigue en disco y no se pierde nada.
+        await execFileAsync("mv", [origen, renombrado], { timeout: 15000 });
+        await execFileAsync("ln", ["-s", destino, origen], { timeout: 5000 });
+        await execFileAsync("rm", ["-rf", renombrado], { timeout: 60000 });
+        return { ok: true, detalle: `Movido a Drive (queda un enlace en ${rutaVisible(origen)}).` };
+    } catch (e) {
+        return { ok: false, detalle: e instanceof Error ? e.message : "Fallo al mover a Drive." };
+    }
+}
+
+/**
+ * Trae de vuelta una carpeta fría: copia de `<Drive>/…/frio/<id>` a su sitio,
+ * verifica y quita el enlace simbólico. Copia primero a un temporal y solo al
+ * verificar intercambia el nombre, para no romper el enlace si algo falla.
+ */
+export async function traerDeDrive(id: string): Promise<{ ok: boolean; detalle: string }> {
+    const raiz = raizDelProyecto();
+    const origen = resolverFria(id, raiz);
+    if (!origen) return { ok: false, detalle: "Carpeta no está en la lista blanca de frías." };
+    const driveBase = await rutaDriveBase();
+    if (!driveBase) return { ok: false, detalle: "Google Drive no está montado (DriveFS)." };
+    const destino = path.join(driveBase, "My Drive", "StarSeed_Memory_Root", `neurona-${os.hostname()}`, "frio", id);
+    if (!(await esEnlaceADrive(origen))) return { ok: false, detalle: "No es un enlace a Drive: no hay nada que traer." };
+    try {
+        const fecha = new Date().toISOString().slice(0, 10);
+        const temporal = `${origen}.traer-${fecha}`;
+        await mkdir(temporal, { recursive: true });
+        await execFileAsync("rsync", ["-a", "--no-perms", `${destino}/`, `${temporal}/`], { timeout: 120000 });
+        if (!(await verificarCopia(destino, temporal))) {
+            await execFileAsync("rm", ["-rf", temporal], { timeout: 30000 });
+            return { ok: false, detalle: "Verificación de la copia fallida: se conserva el enlace a Drive." };
+        }
+        // Intercambiamos: fuera el enlace, dentro la carpeta local recién copiada.
+        await execFileAsync("unlink", [origen], { timeout: 5000 });
+        await execFileAsync("mv", [temporal, origen], { timeout: 15000 });
+        return { ok: true, detalle: `Traído de vuelta: ${rutaVisible(origen)} es local otra vez.` };
+    } catch (e) {
+        return { ok: false, detalle: e instanceof Error ? e.message : "Fallo al traer de vuelta." };
+    }
+}
+
+/** Próxima ejecución de un job diario a una hora (fecha ISO o `null`). */
+function proximaEjecucion(hora: number, minuto: number): string {
+    const ahora = new Date();
+    const proximo = new Date(ahora);
+    proximo.setHours(hora, minuto, 0, 0);
+    if (proximo.getTime() <= ahora.getTime()) proximo.setDate(proximo.getDate() + 1);
+    return proximo.toISOString();
+}
+
+/**
+ * Instala o quita el launchd `com.starseed.espejo-drive` (`~/Library/LaunchAgents/`)
+ * que espeja el memory root a Drive cada día a las 04:00 con el mismo comando que
+ * `espejar()` (rsync sin `--delete`, sin `.env*`, sin `*.wav`). Devuelve el estado
+ * y la próxima ejecución.
+ */
+export async function espejoAutomatico(activar: boolean): Promise<{ ok: boolean; activo: boolean; proximo: string | null; detalle: string }> {
+    const plist = path.join(os.homedir(), "Library", "LaunchAgents", "com.starseed.espejo-drive.plist");
+    if (!activar) {
+        try {
+            await execFileAsync("launchctl", ["unload", plist], { timeout: 5000 });
+        } catch {
+            // No estaba cargado: ignoramos.
+        }
+        try {
+            await execFileAsync("rm", ["-f", plist], { timeout: 5000 });
+        } catch {
+            // Sin plist: ya está desactivado.
+        }
+        return { ok: true, activo: false, proximo: null, detalle: "Espejo automático diario desactivado." };
+    }
+
+    const drive = await detectarDrive();
+    if (!drive.montado || !drive.espejo) return { ok: false, activo: false, proximo: null, detalle: "Google Drive no está montado o sin espejo." };
+    const raiz = raizDelProyecto();
+    const espejo = drive.espejo.ruta.startsWith("~") ? path.join(os.homedir(), drive.espejo.ruta.slice(1)) : drive.espejo.ruta;
+
+    // Mismos orígenes que `espejar()`: solo las carpetas del memory root que existan.
+    const origenes: string[] = [];
+    for (const carpeta of CARPETAS_ESPEJO) {
+        const origen = path.join(raiz, "starseed_memory_root", carpeta);
+        try {
+            await stat(origen);
+            origenes.push(`'${origen}/'`);
+        } catch {
+            // No existe: se omite.
+        }
+    }
+    if (origenes.length === 0) return { ok: false, activo: false, proximo: null, detalle: "No hay carpetas del memory root que espejar." };
+
+    await mkdir(path.join(os.homedir(), ".starseed"), { recursive: true });
+    const registro = path.join(os.homedir(), ".starseed", "espejo-drive-automatico.log");
+    const comando = `rsync -a --no-perms --exclude '*.wav' --exclude '.env*' ${origenes.join(" ")} '${espejo}/' >> '${registro}' 2>&1`;
+    const plistXml = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key><string>com.starseed.espejo-drive</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>-lc</string>
+        <string>${comando}</string>
+    </array>
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key><integer>4</integer>
+        <key>Minute</key><integer>0</integer>
+    </dict>
+    <key>RunAtLoad</key><false/>
+</dict>
+</plist>
+`;
+    await writeFile(plist, plistXml, { encoding: "utf8" });
+    try {
+        await execFileAsync("launchctl", ["load", plist], { timeout: 5000 });
+    } catch {
+        // launchctl falla si ya está cargado: el plist ya existe, da igual.
+    }
+    return { ok: true, activo: true, proximo: proximaEjecucion(4, 0), detalle: "Espejo automático diario activado (04:00)." };
+}
+
+/** Estado del espejo automático: si el plist existe y, en tal caso, la próxima corrida. */
+async function estadoEspejoAutomatico(): Promise<{ activo: boolean; proximo: string | null }> {
+    const plist = path.join(os.homedir(), "Library", "LaunchAgents", "com.starseed.espejo-drive.plist");
+    try {
+        await stat(plist);
+        return { activo: true, proximo: proximaEjecucion(4, 0) };
+    } catch {
+        return { activo: false, proximo: null };
+    }
 }
 
 /**
@@ -476,11 +822,14 @@ export async function aliviarMemoria(): Promise<{
  */
 export async function leerAlmacenamiento(): Promise<EstadoAlmacenamiento> {
     const raiz = raizDelProyecto();
-    const [disco, regenerables, drive, swap] = await Promise.all([
+    const [disco, regenerables, drive, swap, driveCuota, frias, espejoAutomatico] = await Promise.all([
         medirDisco(),
         medirRegenerables(raiz),
         detectarDrive(),
         medirSwap(),
+        cuotaDrive(),
+        medirCarpetasFrias(raiz),
+        estadoEspejoAutomatico(),
     ]);
     const haySeguros = regenerables.some((r) => r.seguro);
     return {
@@ -488,6 +837,9 @@ export async function leerAlmacenamiento(): Promise<EstadoAlmacenamiento> {
         disco,
         regenerables,
         drive,
+        driveCuota,
+        frias,
+        espejoAutomatico,
         swap: { usadoMb: swap.usadoMb, totalMb: swap.totalMb, explicacion: explicarSwap(swap.usadoMb, swap.totalMb) },
         acciones: [
             {
