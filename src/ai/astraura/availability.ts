@@ -21,6 +21,10 @@ import { FREE_CATALOG, type CatalogSource } from "./free-catalog";
 import { getUnifiedCatalog } from "./unified-intelligence";
 import { chromeAiAvailable, webgpuAvailable } from "./builtin-engines";
 import { isDownloadableSource, isModelInstalled } from "./installed-models";
+// (Ola 278 · OS6) URL del puente del OS hacia la neurona LOCAL con
+// `?destino=local` explícito. Antes la sonda construía `/api/ai/astraura-158`
+// a mano (sin el parámetro), y en despliegue local caía al 503 de «no hay nube».
+import { urlPuenteLocal } from "@/ai/providers/astraura-158";
 // (Adenda 153) Endpoint Astraura 1.58 declarado por ESTA neurona. `neurons.ts`
 // solo importa supabase/entity-state (sin ciclo con el router ni con este módulo).
 import { settingsFor, thisDeviceId } from "@/lib/neurons/neurons";
@@ -192,7 +196,10 @@ async function probeAstraura158Local(endpoint: string): Promise<{ ready: boolean
   const local = await pingNeurona(endpoint);
   if (local.ok) return { ...aLaDisponibilidad(interpretarPing(local.data)), via: "directo" };
   if (local.threw || local.slow) {
-    const prox = await pingNeurona("/api/ai/astraura-158");
+    // (Ola 278 · OS6) Reintento por el puente del OS con `?destino=local`
+    // explícito (`urlPuenteLocal`), para que el proxy sepa que el destino es la
+    // neurona de ESTA máquina y no caiga al 503 de «no hay nube» en local.
+    const prox = await pingNeuronaPuente();
     if (prox.ok) return { ...aLaDisponibilidad(interpretarPing(prox.data)), via: "proxy" };
     return {
       ready: false,
@@ -202,6 +209,23 @@ async function probeAstraura158Local(endpoint: string): Promise<{ ready: boolean
   }
   // No lanzó ni fue lento: el backend respondió un error HTTP de verdad.
   return { ready: false, reason: "La neurona no responde." };
+}
+
+/**
+ * (Ola 278 · OS6) Igual que `pingNeurona` pero a través del puente del OS
+ * (`/api/ai/astraura-158`), con `?destino=local` en el endpoint para que el
+ * proxy enrute a la neurona local. Mantiene el respaldo a `/api/bitnet/estado`
+ * (404) y el mismo tratamiento de lanzado/lento que la sonda directa.
+ */
+async function pingNeuronaPuente(): Promise<{ ok: boolean; data?: unknown; threw: boolean; slow: boolean }> {
+  const p = await probeCruda(urlPuenteLocal("/api/ping"));
+  if (p.ok) return { ok: true, data: p.data, threw: false, slow: false };
+  if (p.status === 404) {
+    const e = await probeCruda(urlPuenteLocal("/api/bitnet/estado"));
+    if (e.ok) return { ok: true, data: e.data, threw: false, slow: false };
+    return { ok: false, threw: e.threw, slow: e.slow };
+  }
+  return { ok: false, threw: p.threw, slow: p.slow };
 }
 
 function norm(u: string): string {
