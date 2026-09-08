@@ -58,10 +58,10 @@ describe("Catálogo de proveedores (Ola 271)", () => {
                 estado: "vivo",
                 claves: {
                     claves: [
-                        { var: "NVIDIA_API_KEY", medio: "~/.hermes/.env", huella: "nvapi-…", agotada_hasta: "2026-09-07 23:59:00" },
+                        { var: "NVIDIA_API_KEY", medio: "~/.hermes/.env", huella: "nvapi-…", agotada_hasta: "2030-09-07 23:59:00" },
                     ],
                     activa: "NVIDIA_API_KEY",
-                    sin_cupo_hasta: "2026-09-07 23:59:00",
+                    sin_cupo_hasta: "2030-09-07 23:59:00",
                 },
             },
             xkiro: {
@@ -83,7 +83,7 @@ describe("Catálogo de proveedores (Ola 271)", () => {
         // nim: con clave y sin_cupo_hasta futuro → sinCupo.
         const nim = porId.get("nim");
         expect(nim?.estado).toBe("sinCupo");
-        expect(nim?.sinCupoHasta).toBe("2026-09-07 23:59:00");
+        expect(nim?.sinCupoHasta).toBe("2030-09-07 23:59:00");
         expect(nim?.activa).toBe("NVIDIA_API_KEY");
         expect(nim?.claves).toHaveLength(1);
 

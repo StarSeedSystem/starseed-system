@@ -18,7 +18,9 @@ import {
     Eye,
     GitBranch,
     GitCommitHorizontal,
+    MonitorPlay,
     Package,
+    RefreshCw,
     Rocket,
     Send,
 } from "lucide-react";
@@ -28,6 +30,8 @@ import type {
     LineaBitacora,
     ModoPublicacion,
     TrabajoPublicacion,
+    TrabajoReconstruccion,
+    VistaPreviaLocal,
 } from "@/lib/mando/publicaciones";
 import { ConfirmarPublicacion } from "@/components/mando/confirmar-publicacion";
 
@@ -36,14 +40,27 @@ type Resumen = {
     t: string;
     repos: EstadoRepoPublicable[];
     bitacora: LineaBitacora[];
+    vistaPrevia: VistaPreviaLocal;
 };
 
 /** Modos con su icono y etiqueta para las acciones por repo. */
 const ACCIONES: Array<{ modo: ModoPublicacion; icono: typeof Send; etiqueta: string }> = [
     { modo: "produccion", icono: Rocket, etiqueta: "Publicar todo" },
-    { modo: "vista-previa", icono: Eye, etiqueta: "Vista previa" },
     { modo: "paquete", icono: Package, etiqueta: "Paquete" },
 ];
+
+/** Texto corto del estado de un trabajo de reconstrucción local. */
+const TEXTO_ESTADO_RECONSTRUCCION: Record<TrabajoReconstruccion["estado"], string> = {
+    en_curso: "Reconstruyendo",
+    publicado: "Reconstruido",
+    fallo: "Falló",
+};
+
+/** Estado legible de la vista previa local: «build X · hace Y · al día / por detrás». */
+function estadoVistaPrevia(vp: VistaPreviaLocal): string {
+    if (!vp.buildCommit) return "sin build local registrado";
+    return `build ${vp.buildCommit.slice(0, 7)} · ${hace(vp.buildT)} · ${vp.atrasado ? "por detrás de HEAD" : "al día"}`;
+}
 
 /** Texto corto del estado de un trabajo de publicación. */
 const TEXTO_ESTADO_TRABAJO: Record<TrabajoPublicacion["estado"], string> = {
@@ -221,6 +238,92 @@ function CopiarRuta({ ruta }: { ruta: string }) {
     );
 }
 
+/** Estado de una reconstrucción local en curso, en texto legible. */
+function estadoReconstruccion(r: TrabajoReconstruccion): string {
+    return `${TEXTO_ESTADO_RECONSTRUCCION[r.estado]} · ${hace(r.inicio)}`;
+}
+
+/**
+ * Vista previa local (modo ligero en :9002): qué commit sirve el build, si está
+ * al día y botones para abrirla o reconstruirla (con confirmación ligera).
+ */
+function VistaPreviaSeccion({
+    vistaPrevia,
+    reconstruccion,
+    confirmando,
+    alAbrir,
+    alReconstruir,
+    alConfirmarReconstruir,
+    alCancelarReconstruir,
+}: {
+    vistaPrevia: VistaPreviaLocal;
+    reconstruccion: TrabajoReconstruccion | null;
+    confirmando: boolean;
+    alAbrir: () => void;
+    alReconstruir: () => void;
+    alConfirmarReconstruir: () => void;
+    alCancelarReconstruir: () => void;
+}) {
+    return (
+        <div className="rounded-xl border border-white/10 bg-black/20 p-4">
+            <div className="flex flex-wrap items-center gap-2">
+                <Eye className="h-4 w-4 shrink-0 text-trinity-azure" aria-hidden />
+                <h3 className="text-sm font-semibold text-white">Vista previa local</h3>
+                <span className="rounded bg-white/10 px-1.5 py-0.5 text-[10px] text-white/60">
+                    {estadoVistaPrevia(vistaPrevia)}
+                </span>
+            </div>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+                <button
+                    type="button"
+                    onClick={alAbrir}
+                    disabled={!vistaPrevia.sirviendo}
+                    className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs text-white/80 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                    <ExternalLink className="h-3.5 w-3.5" aria-hidden />
+                    Abrir :9002
+                </button>
+                {!confirmando ? (
+                    <button
+                        type="button"
+                        onClick={alReconstruir}
+                        className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs text-white/80 hover:bg-white/10"
+                    >
+                        <MonitorPlay className="h-3.5 w-3.5" aria-hidden />
+                        Reconstruir y abrir
+                    </button>
+                ) : (
+                    <span className="inline-flex items-center gap-2 text-xs text-amber-200">
+                        ¿Reconstruir? Tarda 8-10 min y para el OS.
+                        <button
+                            type="button"
+                            onClick={alConfirmarReconstruir}
+                            className="cursor-pointer rounded-md border border-amber-400/30 bg-amber-500/10 px-2 py-1 text-amber-200 hover:bg-amber-500/20"
+                        >
+                            Sí
+                        </button>
+                        <button
+                            type="button"
+                            onClick={alCancelarReconstruir}
+                            className="cursor-pointer rounded-md border border-white/10 bg-white/5 px-2 py-1 text-white/70 hover:bg-white/10"
+                        >
+                            No
+                        </button>
+                    </span>
+                )}
+                {reconstruccion ? (
+                    <span className="inline-flex items-center gap-1.5 rounded bg-white/5 px-1.5 py-0.5 text-[10px] text-white/60">
+                        {reconstruccion.estado === "en_curso" ? (
+                            <CircleDashed className="h-3 w-3 animate-spin" aria-hidden />
+                        ) : null}
+                        {estadoReconstruccion(reconstruccion)}
+                    </span>
+                ) : null}
+            </div>
+        </div>
+    );
+}
+
 /** Panel principal: sondeo 30 s, tarjetas por repo, trabajo en curso y bitácora. */
 export function PanelPublicaciones() {
     const [resumen, setResumen] = useState<Resumen | null>(null);
@@ -230,6 +333,11 @@ export function PanelPublicaciones() {
     const [peticion, setPeticion] = useState<{ repo: EstadoRepoPublicable; modo: ModoPublicacion; hasta?: string; verificacionNeurona: number | null } | null>(null);
     // Trabajo activo (se sondea junto al resumen mientras esté en curso).
     const [trabajo, setTrabajo] = useState<TrabajoPublicacion | null>(null);
+    // Reconstrucción local en curso (vista previa en :9002): se sondea igual que un
+    // trabajo de publicación; al terminar con éxito se abre la URL local.
+    const [reconstruccion, setReconstruccion] = useState<TrabajoReconstruccion | null>(null);
+    // «Reconstruir y abrir» en estado de confirmación ligera (tarda 8-10 min y para el OS).
+    const [confirmandoReconstruir, setConfirmandoReconstruir] = useState(false);
     // Última puntuación de la verificación de la Neurona, leída UNA vez al montar
     // (para el punto «última verificación ≥ 70» del diálogo). Se pide aparte y un
     // fallo silencioso la deja en null: el punto no bloquea sin verificación.
@@ -332,6 +440,55 @@ export function PanelPublicaciones() {
         [alAccion],
     );
 
+    // Abre la vista previa local (modo ligero en :9002) en una pestaña nueva.
+    const alAbrirVistaPrevia = useCallback(() => {
+        const vp = resumen?.vistaPrevia;
+        if (!vp) return;
+        window.open(vp.url, "_blank", "noopener");
+    }, [resumen]);
+
+    const cargarReconstruccion = useCallback(
+        async (id: string) => {
+            try {
+                const respuesta = await fetch(`/api/mando/publicaciones?reconstruccion=${id}`, { cache: "no-store" });
+                if (!respuesta.ok) return;
+                const r = (await respuesta.json()) as TrabajoReconstruccion;
+                setReconstruccion(r);
+                if (r.estado === "en_curso") {
+                    window.setTimeout(() => void cargarReconstruccion(id), 5000);
+                } else {
+                    // Terminó: refresca el resumen (build-local.json ya dice el commit nuevo)
+                    // y, si salió bien, abre la vista previa local como se pidió al lanzarla.
+                    void cargar();
+                    if (r.estado === "publicado") window.open("http://localhost:9002", "_blank", "noopener");
+                }
+            } catch {
+                // Sin red durante la reconstrucción: se reintenta en el siguiente sondeo.
+            }
+        },
+        [cargar],
+    );
+
+    const lanzarReconstruccion = useCallback(async () => {
+        setConfirmandoReconstruir(false);
+        try {
+            const respuesta = await fetch("/api/mando/publicaciones", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ accion: "reconstruir", quien: "alex" }),
+            });
+            const cuerpo = (await respuesta.json()) as { ok: boolean; id?: string; error?: string };
+            if (cuerpo.ok && cuerpo.id) {
+                setReconstruccion(null);
+                void cargarReconstruccion(cuerpo.id);
+            } else {
+                setError(cuerpo.error ?? "No se pudo lanzar la reconstrucción.");
+            }
+        } catch {
+            setError("No se pudo lanzar la reconstrucción.");
+        }
+    }, [cargarReconstruccion]);
+
     return (
         <section data-testid="panel-publicaciones" className="space-y-4">
             {cargando && !resumen ? (
@@ -346,6 +503,18 @@ export function PanelPublicaciones() {
             ) : null}
 
             {trabajo ? <TrabajoEnCurso trabajo={trabajo} /> : null}
+
+            {resumen ? (
+                <VistaPreviaSeccion
+                    vistaPrevia={resumen.vistaPrevia}
+                    reconstruccion={reconstruccion}
+                    confirmando={confirmandoReconstruir}
+                    alAbrir={alAbrirVistaPrevia}
+                    alReconstruir={() => setConfirmandoReconstruir(true)}
+                    alConfirmarReconstruir={lanzarReconstruccion}
+                    alCancelarReconstruir={() => setConfirmandoReconstruir(false)}
+                />
+            ) : null}
 
             {resumen && resumen.repos.length === 0 ? (
                 <p className="text-sm text-white/60">No hay repositorios publicables en esta máquina.</p>

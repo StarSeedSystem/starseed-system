@@ -13,7 +13,7 @@
  */
 
 import { guardianMando } from "@/lib/mando/guardian";
-import { leerTodo, leerTrabajo, publicar } from "@/lib/mando/publicaciones";
+import { leerTodo, leerTrabajo, publicar, reconstruirLocal, leerReconstruccion } from "@/lib/mando/publicaciones";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -29,6 +29,13 @@ export async function GET(peticion: Request): Promise<Response> {
         if (!t) return Response.json({ error: "Trabajo no encontrado." }, { status: 404 });
         return Response.json(t, { headers: { "Cache-Control": "no-store" } });
     }
+    // Estado de una reconstrucción local (vista previa en :9002).
+    const reconstruccion = url.searchParams.get("reconstruccion");
+    if (reconstruccion) {
+        const r = await leerReconstruccion(reconstruccion);
+        if (!r) return Response.json({ error: "Reconstrucción no encontrada." }, { status: 404 });
+        return Response.json(r, { headers: { "Cache-Control": "no-store" } });
+    }
     const todo = await leerTodo();
     return Response.json(todo, { headers: { "Cache-Control": "no-store" } });
 }
@@ -42,6 +49,17 @@ export async function POST(peticion: Request): Promise<Response> {
         cuerpo = typeof crudo === "object" && crudo !== null ? (crudo as Record<string, unknown>) : {};
     } catch {
         return Response.json({ error: "Cuerpo JSON inválido." }, { status: 400 });
+    }
+    if (cuerpo.accion === "reconstruir") {
+        // Vista previa local: reconstruye el build de :9002 (solo Mac, sin firma
+        // escrita: el humano ya confirmó en el panel y no dispara Vercel).
+        if (process.env.STARSEED_LOCAL !== "1") {
+            return Response.json({ error: "Reconstruir solo se permite desde la Mac de Alex (modo ligero)." }, { status: 403 });
+        }
+        const resultado = await reconstruirLocal({
+            quien: typeof cuerpo.quien === "string" && cuerpo.quien ? cuerpo.quien.slice(0, 60) : "alex",
+        });
+        return Response.json(resultado, { status: resultado.ok ? 200 : 400, headers: { "Cache-Control": "no-store" } });
     }
     if (cuerpo.accion !== "publicar") return Response.json({ error: "Acción desconocida." }, { status: 400 });
     const repo = cuerpo.repo === "os" || cuerpo.repo === "astraura" ? cuerpo.repo : null;

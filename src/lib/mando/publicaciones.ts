@@ -9,8 +9,8 @@
  * que solo lo firma el humano. Jamás se hace `fetch`, `pull`, `reset` ni `rebase`.
  */
 
-import { execFile } from "node:child_process";
-import { mkdir, readFile, appendFile, writeFile } from "node:fs/promises";
+import { execFile, spawn } from "node:child_process";
+import { mkdir, readdir, readFile, appendFile, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -364,21 +364,41 @@ async function leerBitacora(): Promise<LineaBitacora[]> {
     }
 }
 
+/** Vista previa local del OS (modo ligero en :9002). buildCommit/buildT salen
+ *  de `starseed_memory_root/publicaciones/build-local.json`, escrito en cada
+ *  reconstrucción; `head` es HEAD del repo OS; `sirviendo` comprueba el HTTP. */
+export type VistaPreviaLocal = {
+    url: string;
+    buildCommit: string | null;
+    buildT: string | null;
+    head: string | null;
+    atrasado: boolean;
+    sirviendo: boolean;
+};
+
 export type ResumenPublicaciones = {
     t: string;
     repos: EstadoRepoPublicable[];
     bitacora: LineaBitacora[];
+    vistaPrevia: VistaPreviaLocal;
 };
 
-/** Todo de golpe: los dos repos en paralelo y la bitácora; un repo ausente no tumba al otro. */
+/** Todo de golpe: los dos repos en paralelo, la bitácora y la vista previa local
+ *  (un repo ausente no tumba a los demás; la vista previa tampoco). */
 export async function leerTodo(): Promise<ResumenPublicaciones> {
-    const [os, astraura, bitacora] = await Promise.all([
+    const [os, astraura, bitacora, vistaPrevia] = await Promise.all([
         leerPendientes("os").catch(() => null),
         leerPendientes("astraura").catch(() => null),
         leerBitacora(),
+        leerVistaPrevia().catch(() => null),
     ]);
     const repos = [os, astraura].filter((r): r is EstadoRepoPublicable => r !== null);
-    return { t: new Date().toISOString(), repos, bitacora };
+    return {
+        t: new Date().toISOString(),
+        repos,
+        bitacora,
+        vistaPrevia: vistaPrevia ?? { url: "http://localhost:9002", buildCommit: null, buildT: null, head: null, atrasado: true, sirviendo: false },
+    };
 }
 
 /** Aviso en el bus (`relevo_eventos`) de la publicación: datos, nunca salidas largas. */
@@ -554,6 +574,164 @@ export async function leerTrabajo(id: string): Promise<TrabajoPublicacion | null
     try {
         const bruto = await readFile(path.join(raizDelProyecto(), CARPETA, `${id}.json`), "utf8");
         return JSON.parse(bruto) as TrabajoPublicacion;
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * Función pura de la vista previa local (2026-09-07 · Ola 280 · C4): si no hay
+ * build registrado o no se pudo leer HEAD, el OS va por detrás (atrasado). El
+ * caso `null → atrasado true` es intencional: sin commit del build no se puede
+ * afirmar que esté al día, y lo seguro es ofrecer reconstruir.
+ */
+export function interpretarVistaPrevia({ buildCommit, head }: { buildCommit: string | null; head: string | null }): boolean {
+    if (buildCommit === null || head === null) return true;
+    return buildCommit !== head;
+}
+
+/** Trabajo de reconstrucción local (vista previa en :9002). Espejo de un trabajo
+ *  de publicación: se responde al instante y el build madura solo en segundo plano. */
+export type TrabajoReconstruccion = {
+    id: string;
+    estado: "en_curso" | "publicado" | "fallo";
+    inicio: string;
+    fin: string | null;
+    salida: string; // últimas 40 líneas del build
+    commit: string | null;
+    quien: string;
+};
+
+export type RespuestaReconstruccion = { ok: boolean; id?: string; error?: string };
+
+/**
+ * Estado de la vista previa local: qué commit sirve el build de :9002, si está
+ * al día respecto de HEAD y si el servidor responde. `buildCommit`/`buildT`
+ * vienen de `build-local.json` (escrito al reconstruir), `head` de `git rev-parse`.
+ * Es pura lectura: nunca toca el build ni el servidor.
+ */
+export async function leerVistaPrevia(): Promise<VistaPreviaLocal> {
+    const url = "http://localhost:9002";
+    const carpetaAbs = path.join(raizDelProyecto(), CARPETA);
+    let buildCommit: string | null = null;
+    let buildT: string | null = null;
+    try {
+        const bruto = await readFile(path.join(carpetaAbs, "build-local.json"), "utf8");
+        const datos = JSON.parse(bruto) as { commit?: unknown; t?: unknown };
+        buildCommit = typeof datos.commit === "string" && datos.commit ? datos.commit : null;
+        buildT = typeof datos.t === "string" && datos.t ? datos.t : null;
+    } catch {
+        // Sin build registrado: aún no se ha reconstruido nunca (atrasado).
+    }
+    let head: string | null = null;
+    try {
+        head = (await git(raizDelProyecto(), ["rev-parse", "HEAD"])).trim() || null;
+    } catch {
+        // Repo no legible en esta máquina: atrasado.
+    }
+    let sirviendo = false;
+    try {
+        const control = new AbortController();
+        const t = setTimeout(() => control.abort(), 3000);
+        try {
+            const r = await fetch(`${url}/`, { signal: control.signal });
+            sirviendo = r.ok || r.status === 307;
+        } finally {
+            clearTimeout(t);
+        }
+    } catch {
+        // Sin servidor ligero en :9002: no se sirve nada.
+    }
+    return { url, buildCommit, buildT, head, atrasado: interpretarVistaPrevia({ buildCommit, head }), sirviendo };
+}
+
+/**
+ * Reconstruye y sirve el OS local (vista previa): `parar && construir && arrancar`.
+ * Solo en la Mac (modo ligero). Rechaza si ya hay una reconstrucción en curso o
+ * un `next build` vivo; antes de lanzar escribe `build-local.json` con el HEAD
+ * que va a servir, para que la vista previa no quede «sin build» mientras compila.
+ */
+export async function reconstruirLocal({ quien }: { quien: string }): Promise<RespuestaReconstruccion> {
+    if (process.env.STARSEED_LOCAL !== "1") {
+        return { ok: false, error: "Reconstruir solo se permite desde la Mac de Alex (modo ligero)." };
+    }
+    // No arrancar una segunda reconstrucción a la vez que otra: la compilación
+    // pica la CPU/RAM al completo y dos builds a la par se pisan la caché.
+    try {
+        await execFileAsync("pgrep", ["-f", "next build"], { timeout: 3000 });
+        return { ok: false, error: "Ya hay una compilación de Next en marcha: espera a que termine." };
+    } catch {
+        // pgrep no encontró nada (código 1): se puede reconstruir.
+    }
+    const carpetaAbs = path.join(raizDelProyecto(), CARPETA);
+    try {
+        const entradas = await readdir(carpetaAbs);
+        for (const nombre of entradas) {
+            if (!/^rebuild-\d{8}-\d{6}\.json$/.test(nombre)) continue;
+            const bruto = await readFile(path.join(carpetaAbs, nombre), "utf8");
+            const d = JSON.parse(bruto) as { estado?: string };
+            if (d.estado === "en_curso") return { ok: false, error: "Ya hay una reconstrucción local en curso." };
+        }
+    } catch {
+        // Carpeta vacía o sin crear: nada que comprobar.
+    }
+
+    await mkdir(carpetaAbs, { recursive: true });
+    const ahora = new Date();
+    const sello = ahora.toISOString().replace(/[-:]/g, "").replace(/\..+$/, "").replace("T", "-");
+    const id = `rebuild-${sello}`;
+    const commit = await git(raizDelProyecto(), ["rev-parse", "HEAD"]).then((s) => s.trim()).catch(() => null);
+    // build-local.json se escribe ANTES de compilar: la vista previa sabe a qué
+    // commit va a servir el build aunque este aún no haya terminado.
+    await writeFile(path.join(carpetaAbs, "build-local.json"), JSON.stringify({ commit, t: ahora.toISOString() }, null, 2), "utf8");
+    const trabajo: TrabajoReconstruccion = { id, estado: "en_curso", inicio: ahora.toISOString(), fin: null, salida: "", commit, quien };
+    await writeFile(path.join(carpetaAbs, `${id}.json`), JSON.stringify(trabajo, null, 2), "utf8");
+    void ejecutarReconstruccion(trabajo, carpetaAbs);
+    return { ok: true, id };
+}
+
+/**
+ * Lanza `parar && construir && arrancar` desacoplado y va escribiendo el progreso
+ * al JSON del trabajo cada 5 s (últimas 40 líneas). Al terminar fija el estado
+ * final: «publicado» aquí significa «reconstruido y sirviendo» (código 0).
+ */
+function ejecutarReconstruccion(trabajo: TrabajoReconstruccion, carpetaAbs: string): void {
+    const orden = "bash scripts/starseed-ligero.sh parar && bash scripts/starseed-ligero.sh construir && bash scripts/starseed-ligero.sh arrancar";
+    const hijo = spawn("bash", ["-lc", orden], { cwd: raizDelProyecto(), detached: true, stdio: ["ignore", "pipe", "pipe"] });
+    let salida = "";
+    const escribir = () => {
+        trabajo.salida = salida.split("\n").slice(-40).join("\n");
+        void writeFile(path.join(carpetaAbs, `${trabajo.id}.json`), JSON.stringify(trabajo, null, 2), "utf8").catch(() => undefined);
+    };
+    hijo.stdout?.on("data", (d) => {
+        salida += String(d);
+    });
+    hijo.stderr?.on("data", (d) => {
+        salida += String(d);
+    });
+    const cada = setInterval(escribir, 5000);
+    hijo.on("error", (e) => {
+        salida += `\n${e.message ?? "error de lanzamiento"}`;
+        trabajo.estado = "fallo";
+        trabajo.fin = new Date().toISOString();
+        clearInterval(cada);
+        escribir();
+    });
+    hijo.on("close", (codigo) => {
+        clearInterval(cada);
+        trabajo.estado = codigo === 0 ? "publicado" : "fallo";
+        trabajo.fin = new Date().toISOString();
+        escribir();
+    });
+    hijo.unref();
+}
+
+/** Lee el estado de una reconstrucción local por su id (contra suplantación de ruta). */
+export async function leerReconstruccion(id: string): Promise<TrabajoReconstruccion | null> {
+    if (!/^rebuild-\d{8}-\d{6}$/.test(id)) return null;
+    try {
+        const bruto = await readFile(path.join(raizDelProyecto(), CARPETA, `${id}.json`), "utf8");
+        return JSON.parse(bruto) as TrabajoReconstruccion;
     } catch {
         return null;
     }
