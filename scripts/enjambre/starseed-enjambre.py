@@ -619,10 +619,26 @@ def supervisor_proveedores():
         FIN.wait(SONDEO_S)
 
 
+def escritores_de_pasarelas():
+    """Escritores extra que NO están en la lista fija: los modelos de las pasarelas declaradas
+    por entorno (`STARSEED_PASARELA_<NOMBRE>_MODELOS`) y, SOLO con FREETHEAI_API_KEY, los
+    escritores gratuitos de FreeTheAi. Devuelve `"<prov>/<modelo>"`; van al FINAL de la
+    rotación para no tocar el orden probado de los de siempre (2026-09-08, Ola 286 · G1)."""
+    out = []
+    for prov, p in PASARELAS.items():
+        for mo in (p.get("modelos") or []):
+            out.append("%s/%s" % (prov, mo))
+    if _freetheai_activo():
+        for mo in FREETHEAI_MODELOS["escritores"]:
+            out.append("freetheai/%s" % mo)
+    return out
+
+
 def modelos_para(tid):
-    """Rota la lista según el id de la tarea: reparte la carga entre proveedores."""
+    """Rota la lista según el id de la tarea: reparte la carga entre proveedores. Los
+    escritores de pasarelas (y FreeTheAi si hay clave) van siempre al final."""
     i = sum(ord(c) for c in tid) % len(MODELOS)
-    return MODELOS[i:] + MODELOS[:i]
+    return MODELOS[i:] + MODELOS[:i] + escritores_de_pasarelas()
 
 def apto_para_tarea(modelo, t):
     """¿Puede este modelo escribir ESTA tarea? (2026-09-06, Ola 261)
@@ -660,7 +676,19 @@ def dependencias_ok(t):
     return (not malas, malas)
 
 
-# revisores: (proveedor, modelo) — cada uno con su cupo; se prueba en orden
+# (2026-09-08, Ola 286 · G1) FreeTheAi (github.com/Free-The-Ai/free-ai) publica 80 modelos en
+# https://api.freetheai.xyz/v1 con la clave FREETHEAI_API_KEY (solo la saca Alex: alta por Discord
+# + check-in diario). Los mejores gratuitos verificados en su catálogo. Entran en la flota SOLO si
+# la clave está presente: sin ella, ni sus escritores ni sus revisores aparecen (ver _cargar_freetheai).
+FREETHEAI_MODELOS = {
+    "escritores": ["opc/deepseek-v4-flash-free", "min/minimax-m3", "glm/glm-5.2",
+                   "glm/glm-5-turbo", "opc/north-mini-code-free"],
+    "revisores": ["kai/nemotron-3-ultra-free", "bbl/gemini-3.5-flash", "glm/glm-4.6"],
+}
+
+# revisores: (proveedor, modelo) — cada uno con su cupo; se prueba en orden.
+# FreeTheAi se añade dinámicamente al final (solo con FREETHEAI_API_KEY); la entrada estática
+# vieja `("freetheai", "gpt-oss-120b")` se retiró: su modelo era inventado y era incondicional.
 REVISORES = [
     ("xkiro", "qwen/qwen3.7-plus:free"),
     ("xkiro", "minimax/minimax-m2.7-highspeed:free"),  # se prueban en orden; los gratuitos de terceros primero, NIM se reserva para escribir
@@ -671,7 +699,6 @@ REVISORES = [
     ("nim", "moonshotai/kimi-k3"),
     ("openrouter", "nvidia/nemotron-3-super-120b-a12b:free"),
     ("gemini", "gemini-2.5-flash-lite"),
-    ("freetheai", "gpt-oss-120b"),                     # solo con FREETHEAI_API_KEY (Discord)
 ]
 CUPOS_RPM = {"nim": 30, "openrouter": 15, "gemini": 12, "aihubmix": 20, "tokenrouter": 15, "xkiro": 25, "llm7": 8, "freetheai": 8}
 CONCURRENCIA_OPENCODE = int(os.environ.get("STARSEED_CONCURRENCIA", "8"))  # techo; el freno real es la memoria
@@ -689,6 +716,31 @@ def leer_env(*rutas):
         except Exception: pass
     return env
 ENV = leer_env(os.path.join(ROOT, ".env.local"), "~/.hermes/.env", "~/.starseed/env")
+
+# ── FreeTheAi: solo entra si Alex trae la clave (2026-09-08, Ola 286 · G1) ─────
+# La API de freetheai.xyz responde «missing api key» hasta que exista FREETHEAI_API_KEY
+# (alta por Discord + check-in diario, solo Alex la saca). Mientras no esté, ni sus
+# escritores ni sus revisores deben aparecer en las listas ni romper la rotación.
+def _freetheai_activo():
+    """¿Hay clave de FreeTheAi en este medio (entorno del proceso o archivos de env)?"""
+    return bool(ENV.get("FREETHEAI_API_KEY") or os.environ.get("FREETHEAI_API_KEY"))
+
+
+def freetheai_revisores():
+    """Revisores de FreeTheAi activos ahora: la lista de modelos SOLO con la clave puesta."""
+    return [("freetheai", mo) for mo in FREETHEAI_MODELOS["revisores"]] if _freetheai_activo() else []
+
+
+def _cargar_freetheai():
+    """Mete los revisores y el cupo de FreeTheAi en la flota SOLO con la clave. Idempotente:
+    no duplica entradas si se vuelve a llamar."""
+    if not _freetheai_activo():
+        return
+    for mo in FREETHEAI_MODELOS["revisores"]:
+        if ("freetheai", mo) not in REVISORES:
+            REVISORES.append(("freetheai", mo))
+    CUPOS_RPM["freetheai"] = 8
+_cargar_freetheai()
 
 # ── capa de claves por medio (2026-09-07, Ola 271, P9) ────────────────────
 # Pedido de Alex: «si se terminan los recursos de una API debes conseguir una del mismo
@@ -934,15 +986,25 @@ def _cargar_pasarelas():
         nombre, pref = m.group(1).lower(), "STARSEED_PASARELA_" + m.group(1)
         g = lambda s, d=None: fuentes.get(pref + s) or d
         modelos = [x.strip() for x in (g("_MODELOS", "") or "").split(",") if x.strip()]
-        try: rpm = int(g("_RPM", "10"))
-        except ValueError: rpm = 10
-        PASARELAS[nombre] = {"url": v.rstrip("/") + "/chat/completions", "key": g("_KEY") or "sin-clave", "modelos": modelos, "rpm": rpm}
+        try: rpm = int(g("_RPM", "15"))          # (2026-09-08, Ola 286 · G1) 15 si falta el cupo
+        except ValueError: rpm = 15
+        # `base` (para opencode) y `var` (nombre de la variable de la clave, jamás su valor)
+        # se guardan para que `plantilla_opencode` construya el bloque del escritor sin claves.
+        PASARELAS[nombre] = {"url": v.rstrip("/") + "/chat/completions", "base": v.rstrip("/"),
+                             "key": g("_KEY") or "sin-clave", "var": pref + "_KEY",
+                             "modelos": modelos, "rpm": rpm}
+        CUPOS_RPM[nombre] = rpm
         if modelos:
             SONDAS[nombre] = (modelos[0], (pref + "_URL",))
+            # (2026-09-08, Ola 286 · G1) Groq entra como ESCRITOR además de revisor: su
+            # gpt-oss-120b (el más rápido de la flota) va en SEGUNDA posición de revisores,
+            # tras xkiro, SOLO si la pasarela está declarada con ese modelo. Sin clave no hay
+            # pasarela, así que no se rompe nada.
+            if nombre == "groq" and "openai/gpt-oss-120b" in modelos and ("groq", "openai/gpt-oss-120b") not in REVISORES:
+                REVISORES.insert(1, ("groq", "openai/gpt-oss-120b"))
             for mo in modelos:
                 if (nombre, mo) not in REVISORES:
                     REVISORES.append((nombre, mo))
-        CUPOS_RPM[nombre] = rpm
 _cargar_pasarelas()
 RUTAS_BIN = [os.path.expanduser(x) for x in ("~/.npm-global/bin", "~/.opencode/bin", "/opt/homebrew/bin", "~/.local/bin", "/usr/local/bin", "~/.bun/bin", "~/.hermes/bin")]
 def _bin(nombre):
@@ -1338,6 +1400,8 @@ def llamar_llm(proveedor, modelo, prompt, timeout=120):
         if not key: raise RuntimeError("sin clave " + proveedor)
         # 2500 y no 1200: los revisores «pensantes» (glm-5.3, qwen3.7) gastan el presupuesto en razonar
         # y devolvían el contenido vacío (tokenrouter con max_tokens=20 devolvía "" y finish=length).
+        # (2026-09-08, Ola 286 · G1) openai/gpt-oss-120b de groq también es de razonamiento: el mismo
+        # techo de 2500 (≥ 512) le basta para no devolver contenido recortado.
         cuerpo = {"model": modelo_real, "messages": [{"role": "user", "content": prompt}], "temperature": 0.2, "max_tokens": 2500}
         # Sin User-Agent propio, el Cloudflare de xKiro devuelve 403 al urllib de Python.
         req = urllib.request.Request(url, data=json.dumps(cuerpo).encode(),
@@ -2042,7 +2106,33 @@ PROVEEDOR_OPENCODE_MINIMO = {
                     "options": {"baseURL": "https://api.tokenrouter.com/v1",
                                 "apiKey": "{env:TOKENROUTER_API_KEY}"},
                     "models": {}},
+    # (2026-09-08, Ola 286 · G1) FreeTheAi: misma forma que una pasarela; la clave SIEMPRE
+    # como {env:FREETHEAI_API_KEY}, jamás su valor. Solo se usa si el escritor llega a la
+    # rotación (es decir, con la clave puesta).
+    "freetheai": {"npm": "@ai-sdk/openai-compatible", "name": "FreeTheAi",
+                  "options": {"baseURL": "https://api.freetheai.xyz/v1",
+                              "apiKey": "{env:FREETHEAI_API_KEY}"},
+                  "models": {}},
 }
+
+
+def plantilla_opencode(prov):
+    """Bloque `provider` de opencode para un escritor, o None si el proveedor no es usable
+    como escritor. Devuelve la plantilla FIJA si existe (llm7/tokenrouter/freetheai) o, si
+    no, CONSTRUYE una para las pasarelas declaradas por entorno (PASARELAS[prov]). La clave
+    JAMÁS se escribe: siempre la sintaxis literal `{env:VARIABLE}` de opencode (2026-09-08,
+    Ola 286 · G1)."""
+    if prov in PROVEEDOR_OPENCODE_MINIMO:
+        return json.loads(json.dumps(PROVEEDOR_OPENCODE_MINIMO[prov]))  # copia: no mutar
+    p = PASARELAS.get(prov)
+    if not p:
+        return None
+    base = p.get("base") or p["url"].rstrip("/chat/completions")
+    var = p.get("var") or "STARSEED_PASARELA_%s_KEY" % prov.upper()
+    # Sin _KEY o «sin-clave» → literal «sin-clave»; con clave → {env:VARIABLE}, nunca el valor.
+    api = "{env:%s}" % var if (p.get("key") and p["key"] != "sin-clave") else "sin-clave"
+    return {"npm": "@ai-sdk/openai-compatible", "name": "%s (pasarela)" % prov,
+            "options": {"baseURL": base, "apiKey": api}, "models": {}}
 
 
 def asegurar_modelo_opencode(modelo):
@@ -2058,11 +2148,12 @@ def asegurar_modelo_opencode(modelo):
         return prov in ("openrouter", "google")   # proveedores nativos de opencode
     provs = cfg.get("provider") or {}
     if prov not in provs:
-        if prov in PROVEEDOR_OPENCODE_MINIMO:
+        plantilla = plantilla_opencode(prov)
+        if plantilla is not None:
             # Bloque nuevo del proveedor (2026-09-06, Ola 261): la Mac no tenía declarado llm7
             # y cualquier modelo suyo moría en silencio. Las claves jamás se escriben aquí:
             # siempre con la sintaxis {env:VARIABLE} de opencode, literal.
-            provs[prov] = json.loads(json.dumps(PROVEEDOR_OPENCODE_MINIMO[prov]))  # copia: no mutar la plantilla
+            provs[prov] = plantilla
             cfg["provider"] = provs
         else:
             return prov in ("openrouter", "google")
