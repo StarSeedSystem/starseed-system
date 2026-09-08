@@ -638,6 +638,74 @@ function candidateTimeoutMs(c: RouteCandidate): number {
   return 40_000;
 }
 
+/**
+ * (Ola 278 · OS2 · 2026-09-08) ¿Debemos saltar esta fuente en esta petición?
+ * Devuelve `true` si esa fuente YA agotó su tiempo una vez aquí: su backend no
+ * responde en plazo y reintentarlo —p.ej. el nativo 1.58 local con sus 11
+ * modelos a 200 s cada uno— retrasaría el chat más de media hora. Una vez que
+ * el nativo cede por timeout, se pasa de una vez al siguiente candidato sin
+ * volver a sondearlo. Función pura y exportada para poder probarla sin red.
+ */
+export function debeSaltarTrasTimeout(
+  sourceId: string,
+  fallos: Map<string, number> | Record<string, number>,
+): boolean {
+  const veces = fallos instanceof Map ? (fallos.get(sourceId) ?? 0) : (fallos[sourceId] ?? 0);
+  return veces >= 1;
+}
+
+/**
+ * (Ola 278 · OS2) Timeout con «gracia de primer token». Igual que `withTimeout`,
+ * pero si `haEmitidoPrimerToken()` se vuelve verdadero (la fuente YA empezó a
+ * responder) y hay `graceMs`, el corte total se extiende a `baseMs + graceMs`
+ * (solo una vez: no extiende en bucle). Pensado para el nativo 1.58 local, que
+ * tarda mucho en el primer token pero sí responde a ~2 tok/s después.
+ */
+function withTimeoutGrace<T>(
+  p: Promise<T>,
+  baseMs: number,
+  graceMs: number,
+  haEmitidoPrimerToken: () => boolean,
+  label: string,
+): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    let deadline = Date.now() + baseMs;
+    let extendido = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let settled = false;
+    const armar = (): void => {
+      const restante = deadline - Date.now();
+      timer = setTimeout(() => {
+        if (settled) return;
+        // Gracia de primer token: si ya empezó a emitir, le damos `graceMs`
+        // más (una sola vez) en vez de cortarlo justo cuando responde.
+        if (!extendido && graceMs > 0 && haEmitidoPrimerToken()) {
+          extendido = true;
+          deadline = Date.now() + graceMs;
+          armar();
+          return;
+        }
+        reject(new Error(`timeout ${label} (${Math.round(baseMs / 1000)}s${extendido ? " + gracia" : ""})`));
+      }, Math.max(1, restante));
+    };
+    p.then(
+      (v) => {
+        if (settled) return;
+        settled = true;
+        if (timer) clearTimeout(timer);
+        resolve(v);
+      },
+      (e) => {
+        if (settled) return;
+        settled = true;
+        if (timer) clearTimeout(timer);
+        reject(e);
+      },
+    );
+    armar();
+  });
+}
+
 /** Sentido de Aurora al que corresponde una clase de tarea (para el pin de personalidad). */
 export function senseForTask(kind: TaskKind): AuroraSense {
   switch (kind) {
@@ -1167,6 +1235,13 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
   // de la fuente lo da, lo darán todos — así que no se reintenta ni una vez más.
   const deadSources = new Set<string>();
 
+  // (Ola 278 · OS2) Fuentes que ya agotaron su tiempo EN ESTA petición
+  // (sourceId → nº de timeouts). El nativo 1.58 local tarda ~200 s por modelo;
+  // si cede por timeout una vez, sus demás modelos (11 personalidades) se
+  // saltan de una vez y el chat pasa al siguiente candidato (LLM7, etc.) sin
+  // martillear el backend ni retrasar la respuesta.
+  const timeoutsThisRequest = new Map<string, number>();
+
   // (Ola 223) Caché de respuestas repetidas: solo aplica si la petición es
   // determinista (temperature explícita ≤ 0.3) Y no hay streaming — ahí la
   // misma clave representa la misma respuesta y reutilizarla ahorra cuota.
@@ -1182,6 +1257,10 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
 
   for (const c of chain) {
     if (deadSources.has(c.source.id)) continue; // clave rota: ni lo intentamos
+    // (Ola 278 · OS2) Si el nativo ya agotó su tiempo una vez en esta petición,
+    // saltamos sus demás modelos de una vez: reintentarlos 200 s × 11 modelos
+    // retrasaría el chat a LLM7 más de media hora sin ningún beneficio.
+    if (debeSaltarTrasTimeout(c.source.id, timeoutsThisRequest)) continue;
     // (Ola 223) Antes de llamar al proveedor: si esta petición exacta ya se
     // respondió hace menos de 10 min, la devolvemos sin gastar cuota.
     // (Ola 223 · I4) La clave usa `messages` (local, siempre definida en este
@@ -1222,13 +1301,33 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
     const t0 = Date.now();
     try {
       req.onStatus?.(`Usando ${c.source.label} · ${c.model.label}…`);
+      // (Ola 278 · OS2) Gracia de primer token del nativo: envuelvo `onChunk`
+      // con un flag `primerToken`. Si el backend 1.58 local ya empezó a emitir,
+      // el corte total se extiende `firstTokenGraceMs` más (no lo mato justo
+      // cuando responde). Sin `firstTokenGraceMs` (la mayoría de fuentes) se
+      // usa la copia original y el comportamiento es el clásico.
+      let primerToken = false;
+      const graceMs = c.source.firstTokenGraceMs ?? 0;
+      let reqCand = reqX;
+      if (graceMs > 0) {
+        const originalOnChunk = reqX.onChunk;
+        reqCand = {
+          ...reqX,
+          onChunk: (delta: string) => {
+            if (!primerToken && delta) primerToken = true;
+            if (originalOnChunk) originalOnChunk(delta);
+          },
+        };
+      }
       // REGLA DURA DEL PROYECTO: `Promise.resolve().then(step)`. Si `runCandidate`
       // lanzara de forma SÍNCRONA (antes del primer await — p.ej. `getProvider()`
       // con un id desconocido), el throw escaparía del `try` y ROMPERÍA todo el
       // failover en vez de pasar a la siguiente fuente.
-      const res = await withTimeout(
-        Promise.resolve().then(() => runCandidate(c, reqX)),
+      const res = await withTimeoutGrace(
+        Promise.resolve().then(() => runCandidate(c, reqCand)),
         candidateTimeoutMs(c),
+        graceMs,
+        () => primerToken,
         c.source.label,
       );
       // Respuesta vacía = fallo real: NO la mostramos, pasamos a la siguiente IA.
@@ -1345,6 +1444,22 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
       if (/\b401\b|\b403\b|unauthorized|forbidden|clave no válida|invalid.{0,12}key|api.?key/i.test(msg)) {
         deadSources.add(c.source.id);
         try { markCooldown(c.source.id, 30); } catch { /* */ }
+      }
+      // (Ola 278 · OS2) TIMEOUT del NATIVO 1.58 local: cuenta como «cedido por
+      // esta vez». Lo anoto en `timeoutsThisRequest` (para que sus demás
+      // modelos se salten en esta misma petición) y lo enfrío con el cooldown
+      // CORTO del catálogo (2 min): dentro de la petición no se vuelve a sondear,
+      // pero el próximo turno lo vuelve a probar sin martillear. No cuento los
+      // abortos del usuario (AbortError) como timeout: esos no son del nativo.
+      if (
+        c.source.id === ASTRAURA_158_LOCAL_SOURCE_ID &&
+        /\btimeout\b/i.test(msg)
+      ) {
+        timeoutsThisRequest.set(
+          c.source.id,
+          (timeoutsThisRequest.get(c.source.id) ?? 0) + 1,
+        );
+        try { markCooldown(c.source.id); } catch { /* */ }
       }
       failovers.push({ sourceId: c.source.id, error: msg.slice(0, 200) });
     }

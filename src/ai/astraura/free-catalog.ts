@@ -169,6 +169,16 @@ export interface CatalogSource {
    * 30 s convertía respuestas válidas en "fallos" y vaciaba la cadena.
    */
   timeoutMs?: number;
+  /**
+   * (Ola 278 · OS2 · 2026-09-08) «Gracia de primer token» (ms). Si la fuente
+   * empieza a emitir (llega su primer token vía `onChunk`), el router NO la
+   * corta por el total: extiende el corte a `timeoutMs + firstTokenGraceMs`.
+   * Pensado para el nativo 1.58-bit local, que tarda ~95 s en sacar el primer
+   * token y luego va a ~2 tok/s: matarlo justo cuando empieza a responder
+   * tiraría una respuesta válida y cedería el turno sin motivo. 0/ausente =
+   * comportamiento clásico (corte fijo en `timeoutMs`).
+   */
+  firstTokenGraceMs?: number;
 }
 
 /* ───────────────────────── Catálogo ───────────────────────── */
@@ -293,8 +303,15 @@ export const FREE_CATALOG: CatalogSource[] = [
     why: "Sistema primario de StarSeed OS: inteligencia propia, personalidades, agentes, habilidades y cerebros; nada sale de tu neurona.",
     privacy: "local",
     weight: 1.3,
-    // El motor local (BitNet CPU / Ollama) puede tardar en arrancar el modelo.
-    timeoutMs: 95_000,
+    // (Ola 278 · OS2 · 2026-09-08) El motor local (BitNet CPU / Ollama) puede
+    // tardar en arrancar el modelo. Medido HOY en la Mac: una respuesta real por
+    // POST /api/chat/stream tardó 156 s (≈95 s hasta el primer token + 120
+    // tokens a ~2 tok/s en un M1 de 8 GB con `-ub 24`). Antes con 95 s el
+    // nativo perdía siempre y el chat caía a LLM7: le damos el tiempo real que
+    // necesita (200 s). Además `firstTokenGraceMs` extiende el corte si ya
+    // empezó a emitir.
+    timeoutMs: 200_000,
+    firstTokenGraceMs: 120_000,
     cooldownMinutes: 2,
     models: ASTRAURA_158_MODELS,
   },
