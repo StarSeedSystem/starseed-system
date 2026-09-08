@@ -36,7 +36,11 @@ import { createClient } from "@/utils/supabase/server";
 import { rateLimit } from "@/lib/security/rate-limit";
 // (Ola 228 · N1) El upstream ya no es fijo de una sola máquina: se resuelve
 // por orden (env → túnel/publicado) con sonda de salud y caché de 60 s.
-import { destinoNube } from "@/lib/astraura/destino-nube";
+import { destinoNube, type DestinoNube } from "@/lib/astraura/destino-nube";
+// (Ola 278 · OS4) Detección de despliegue local (igual que /api/voz/*) y de
+// destino de neurona local para la puerta de sesión sin cookie en localhost.
+import { esDespliegueLocal } from "@/lib/aurora/voz-starseed/puerta-local";
+import { destinoEsLocal } from "@/lib/astraura/destino-local";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -182,7 +186,19 @@ function allowed(path: string, list: RegExp[]): boolean {
   return list.some((rx) => rx.test(path));
 }
 
-async function requireUser(): Promise<{ userId: string } | Response> {
+/**
+ * Puerta de sesión del proxy.
+ *
+ * `modoLocal` (Ola 278 · OS4) abre la puerta cuando el despliegue es local Y el
+ * destino resuelto es la neurona local: el navegador bloquea `127.0.0.1` desde
+ * la página (contenido mixto), así que el único camino a la neurona es el
+ * servidor del propio OS, que ya corre EN esa neurona — exigir ahí una cookie
+ * de producción no protege nada (la fuente local es de por sí accesible) y solo
+ * rompe el chat local. Devuelve un identificador sintético `"local"` para que
+ * el rate-limit siga funcionando por clave `ai-astraura158-*:local`.
+ */
+async function requireUser(modoLocal: boolean): Promise<{ userId: string } | Response> {
+  if (modoLocal) return { userId: "local" };
   try {
     const supabase = await createClient();
     const { data, error } = await supabase.auth.getUser();
@@ -205,10 +221,7 @@ function upstreamHeaders(extra?: Record<string, string>): Record<string, string>
   return h;
 }
 
-async function forward(method: "GET" | "POST" | "DELETE", path: string, search: string, body?: string): Promise<Response> {
-  // (Ola 228 · N1) Destino resistente: env → túnel/publicado, con sonda previa.
-  const destino = await destinoNube();
-  if (!destino) return sinDestino();
+async function forward(method: "GET" | "POST" | "DELETE", path: string, search: string, body: string | undefined, destino: DestinoNube): Promise<Response> {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), method === "POST" ? CHAT_TIMEOUT_MS : GET_TIMEOUT_MS);
   try {
@@ -269,7 +282,11 @@ async function forward(method: "GET" | "POST" | "DELETE", path: string, search: 
 type Ctx = { params: Promise<{ path?: string[] }> };
 
 export async function GET(req: NextRequest, ctx: Ctx): Promise<Response> {
-  const auth = await requireUser();
+  // (Ola 278 · OS4) Destino resuelto aquí para saber si es la neurona local
+  // antes de decidir si se exige sesión; se reutiliza en `forward`.
+  const destino = await destinoNube();
+  if (!destino) return sinDestino();
+  const auth = await requireUser(esDespliegueLocal(req) && destinoEsLocal(destino.base));
   if (auth instanceof Response) return auth;
   const rl = rateLimit(`ai-astraura158-get:${auth.userId}`, 120, 10 * 60 * 1000);
   if (!rl.allowed) {
@@ -278,11 +295,13 @@ export async function GET(req: NextRequest, ctx: Ctx): Promise<Response> {
   const { path } = await ctx.params;
   const p = joinPath(path);
   if (!allowed(p, GET_ALLOW)) return Response.json({ error: "Ruta no permitida por el proxy de Astraura 1.58." }, { status: 403 });
-  return forward("GET", p, req.nextUrl.search);
+  return forward("GET", p, req.nextUrl.search, undefined, destino);
 }
 
 export async function POST(req: NextRequest, ctx: Ctx): Promise<Response> {
-  const auth = await requireUser();
+  const destino = await destinoNube();
+  if (!destino) return sinDestino();
+  const auth = await requireUser(esDespliegueLocal(req) && destinoEsLocal(destino.base));
   if (auth instanceof Response) return auth;
   const rl = rateLimit(`ai-astraura158-post:${auth.userId}`, 60, 10 * 60 * 1000);
   if (!rl.allowed) {
@@ -296,11 +315,13 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<Response> {
   if (raw) {
     try { JSON.parse(raw); } catch { return Response.json({ error: "JSON inválido." }, { status: 400 }); }
   }
-  return forward("POST", p, "", raw || "{}");
+  return forward("POST", p, "", raw || "{}", destino);
 }
 
 export async function DELETE(_req: NextRequest, ctx: Ctx): Promise<Response> {
-  const auth = await requireUser();
+  const destino = await destinoNube();
+  if (!destino) return sinDestino();
+  const auth = await requireUser(esDespliegueLocal(_req) && destinoEsLocal(destino.base));
   if (auth instanceof Response) return auth;
   const rl = rateLimit(`ai-astraura158-post:${auth.userId}`, 60, 10 * 60 * 1000);
   if (!rl.allowed) {
@@ -309,5 +330,5 @@ export async function DELETE(_req: NextRequest, ctx: Ctx): Promise<Response> {
   const { path } = await ctx.params;
   const p = joinPath(path);
   if (!allowed(p, DELETE_ALLOW)) return Response.json({ error: "Ruta no permitida por el proxy de Astraura 1.58." }, { status: 403 });
-  return forward("DELETE", p, "");
+  return forward("DELETE", p, "", undefined, destino);
 }
