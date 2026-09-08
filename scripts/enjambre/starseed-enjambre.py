@@ -2064,6 +2064,37 @@ def contexto_inteligente(t):
     return "\n\n".join(x for x in L if x)
 
 
+# Por qué (2026-09-08, Ola 288 · O1): las cinco tareas cuyo trabajo se perdió fallaban por
+# el mismo motivo — el agente escribía un test que hacía `vi.mock` de un módulo de Node o que
+# importaba un `route.ts` del App Router. En este repo vitest corre con `globals: false` y esos
+# dos patrones fallan siempre. La regla se lleva SIEMPRE en el prompt (antes se escribía a mano
+# en cada uno y se olvidaba una de cada tres veces), y solo cuando la tarea puede tener tests TS.
+REGLA_TESTS = (
+    "REGLAS DE TESTS (TypeScript): los tests deben cubrir SOLO funciones puras exportadas "
+    "(entrada → salida, sin red, sin disco, sin procesos lanzados). Está PROHIBIDO usar "
+    "`vi.mock`/`vi.doMock` de módulos de Node (`node:fs`, `node:fs/promises`, `node:child_process`, "
+    "`node:os`, `node:path`) y PROHIBIDO importar un `route.ts` de `src/app/api/**` desde un test "
+    "(en este repo vitest corre con `globals: false` y esos dos patrones fallan siempre). Si la "
+    "lógica que hay que probar está pegada a disco, red o a una ruta, EXTRÁELA a un módulo puro en "
+    "`src/lib/**` y prueba ese módulo — eso es parte de la tarea, no una excusa para no probar. "
+    "Recuerda importar `{ describe, it, expect }` de \"vitest\" porque `globals` está en false."
+)
+
+
+def toca_tests_ts(archivos):
+    """True si al menos un archivo de la lista puede llevar tests de TypeScript.
+
+    Por qué (2026-09-08, Ola 288 · O1): la regla de tests solo se añade cuando la tarea puede
+    tener tests de TS; si TODOS los archivos son `.py`, `.sh`, `.md` o `.json`, se omite (para las
+    tareas de Python ya vale la regla de pytest que llevan sus propios prompts). Función pura.
+    """
+    sufijos_ts = (".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs")
+    for a in archivos:
+        if a.lower().endswith(sufijos_ts):
+            return True
+    return False
+
+
 def _guardar_contexto(t, contexto):
     """Deja constancia de QUÉ contexto recibió cada agente (área, documentos, reglas,
     habilidades, fuentes, conexiones, relevo, revisión previa) en olas/contextos/<id>.json,
@@ -2090,6 +2121,10 @@ def _guardar_contexto(t, contexto):
 def contexto_tarea(t):
     inteligente = contexto_inteligente(t)
     _guardar_contexto(t, inteligente)
+    # La regla de tests se intercala entre «ESCRITURA POR TROZOS» y el contexto inteligente, y
+    # solo cuando la tarea puede tener tests de TS (2026-09-08, Ola 288 · O1). Se concatena como
+    # bloque separado para no tocar el orden ni el contenido del resto de los %s.
+    regla_tests = ("\n\n" + REGLA_TESTS + "\n") if toca_tests_ts(t.get("archivos", [])) else "\n"
     return ("Trabajas en el repositorio StarSeed OS (Next.js 15 + React 19 + TypeScript estricto + Tailwind/shadcn + Supabase). "
             "Lee primero CLAUDE.md (secciones 8, 11 y 💠) y los archivos implicados. Reglas: sin `any`; cursor-pointer en lo clicable; "
             "español en textos de UI y comentarios (con acentos); no toques archivos ajenos a la tarea; no ejecutes git; deja los cambios "
@@ -2106,7 +2141,9 @@ def contexto_tarea(t):
             # trozos, cada tramo cierra rápido y el avance queda visible.
             "ESCRITURA POR TROZOS: crea cada archivo nuevo primero con su esqueleto (imports, tipos, firmas y `export`s, ≤ 60 líneas) "
             "y complétalo con ediciones sucesivas de ≤ 80 líneas cada una; nunca una sola escritura de más de 120 líneas; "
-            "entre trozos no hace falta explicar nada.\n\n%s\n\nTAREA %s (%s) · %s\nArchivos implicados: %s\n\n%s") % (
+            "entre trozos no hace falta explicar nada.\n\n"
+            + regla_tests +
+            "%s\n\nTAREA %s (%s) · %s\nArchivos implicados: %s\n\n%s") % (
             inteligente, t["id"], t.get("ola", ""), t.get("titulo", ""),
             ", ".join(t.get("archivos", [])), t["prompt"])
 
