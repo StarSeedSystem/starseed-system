@@ -19,12 +19,28 @@ import {
     Check,
     Cloud,
     CircleDashed,
+    Download,
     HardDrive,
     Trash2,
+    Upload,
     X,
 } from "lucide-react";
 
 import type { EstadoAlmacenamiento, Regenerable } from "@/lib/mando/almacenamiento";
+
+/** Resultado del POST «mover»/«traer» (carpetas frías a/desde Drive). */
+interface ResultadoFria {
+    ok: boolean;
+    detalle?: string;
+}
+
+/** Resultado del POST «espejo-automatico» (launchd diario a las 04:00). */
+interface ResultadoEspejoAutomatico {
+    ok: boolean;
+    activo?: boolean;
+    proximo?: string | null;
+    detalle?: string;
+}
 
 /** Resultado del POST «espejar» («en segundo plano, sin borrar nada»). */
 interface ResultadoEspejar {
@@ -53,6 +69,13 @@ function formatoMb(mb: number | null | undefined): string {
     if (mb === null || mb === undefined || !Number.isFinite(mb)) return "—";
     if (mb >= 1024) return `${(mb / 1024).toFixed(1)} GB`;
     return `${Math.round(mb)} MB`;
+}
+
+/** Formatea GB a «1,9 TB» (cambia a TB al pasar de 1000 GB) o «932 GB». */
+function formatoGb(gb: number | null | undefined): string {
+    if (gb === null || gb === undefined || !Number.isFinite(gb)) return "—";
+    if (gb >= 1000) return `${(gb / 1024).toFixed(1)} TB`.replace(".", ",");
+    return `${Math.round(gb)} GB`;
 }
 
 /** «hace 2 min» desde un timestamp en ms. */

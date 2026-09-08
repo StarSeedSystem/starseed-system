@@ -5,12 +5,22 @@
  * Google Drive (DriveFS), swap con explicación honesta y acciones disponibles.
  * POST {accion}: "espejar" (rsync desacoplado, sin --delete ni .env*) ·
  * "limpiar" (lista blanca de ids regenerables) · "aliviar" (BitNet a dormir +
- * cesión del pool de voz). La puerta es el guardián común de `/api/mando/*`:
- * 404 fuera de local. Jamás devuelve claves ni rutas absolutas de la casa.
+ * cesión del pool de voz) · "mover"/"traer" (carpetas frías a/desde Drive, por
+ * id) · "espejo-automatico" (launchd diario a las 04:00). La puerta es el
+ * guardián común de `/api/mando/*`: 404 fuera de local. Jamás devuelve claves
+ * ni rutas absolutas de la casa.
  */
 
 import { guardianMando } from "@/lib/mando/guardian";
-import { aliviarMemoria, espejar, leerAlmacenamiento, limpiarRegenerables } from "@/lib/mando/almacenamiento";
+import {
+    aliviarMemoria,
+    espejar,
+    espejoAutomatico,
+    leerAlmacenamiento,
+    limpiarRegenerables,
+    moverADrive,
+    traerDeDrive,
+} from "@/lib/mando/almacenamiento";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -25,6 +35,8 @@ export async function GET(request: Request): Promise<Response> {
 interface PeticionAccion {
     accion?: unknown;
     ids?: unknown;
+    id?: unknown;
+    activar?: unknown;
 }
 
 export async function POST(request: Request): Promise<Response> {
@@ -48,7 +60,29 @@ export async function POST(request: Request): Promise<Response> {
         }
         case "aliviar":
             return Response.json(await aliviarMemoria(), { headers: { "Cache-Control": "no-store" } });
+        case "mover": {
+            // Exige un id válido (string): el cliente manda ids, nunca rutas.
+            if (typeof cuerpo.id !== "string" || cuerpo.id.length === 0) {
+                return Response.json({ error: "Falta el id de la carpeta fría a mover." }, { status: 400 });
+            }
+            return Response.json(await moverADrive(cuerpo.id), { headers: { "Cache-Control": "no-store" } });
+        }
+        case "traer": {
+            if (typeof cuerpo.id !== "string" || cuerpo.id.length === 0) {
+                return Response.json({ error: "Falta el id de la carpeta fría a traer de vuelta." }, { status: 400 });
+            }
+            return Response.json(await traerDeDrive(cuerpo.id), { headers: { "Cache-Control": "no-store" } });
+        }
+        case "espejo-automatico": {
+            if (typeof cuerpo.activar !== "boolean") {
+                return Response.json({ error: "Falta el booleano «activar» para el espejo automático." }, { status: 400 });
+            }
+            return Response.json(await espejoAutomatico(cuerpo.activar), { headers: { "Cache-Control": "no-store" } });
+        }
         default:
-            return Response.json({ error: "Acción desconocida: usa espejar, limpiar o aliviar." }, { status: 400 });
+            return Response.json(
+                { error: "Acción desconocida: usa espejar, limpiar, aliviar, mover, traer o espejo-automatico." },
+                { status: 400 },
+            );
     }
 }
