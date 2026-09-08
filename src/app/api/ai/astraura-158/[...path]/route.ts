@@ -36,7 +36,7 @@ import { createClient } from "@/utils/supabase/server";
 import { rateLimit } from "@/lib/security/rate-limit";
 // (Ola 228 · N1) El upstream ya no es fijo de una sola máquina: se resuelve
 // por orden (env → túnel/publicado) con sonda de salud y caché de 60 s.
-import { destinoNube, type DestinoNube } from "@/lib/astraura/destino-nube";
+import { destinoNube } from "@/lib/astraura/destino-nube";
 // (Ola 278 · OS4) Detección de despliegue local (igual que /api/voz/*) y de
 // destino de neurona local para la puerta de sesión sin cookie en localhost.
 import { esDespliegueLocal } from "@/lib/aurora/voz-starseed/puerta-local";
@@ -59,6 +59,10 @@ const GET_ALLOW: RegExp[] = [
   /^\/api\/cerebros\/context_metrics$/,
   /^\/api\/status$/,
   /^\/api\/bitnet\/status$/,
+  // (Ola 278 · OS5) Latido ligero de la neurona y estado del BitNet: lecturas
+  // sin datos sensibles, necesarias para el puente local.
+  /^\/api\/ping$/,
+  /^\/api\/bitnet\/estado$/,
   /^\/api\/starseed\/(manifest|health)$/,
   /^\/api\/personalities$/,
   /^\/api\/agents$/,
@@ -165,6 +169,53 @@ const DELETE_ALLOW: RegExp[] = [
   /^\/api\/storage\/rules\/[\w.-]+$/,
 ];
 
+/**
+ * Destino resuelto del proxy: la nube (`env`/`tunel`) o la neurona local de la
+ * propia máquina (`local`). `DestinoNube` (nube) es asignable a este tipo.
+ */
+type DestinoProxy = { base: string; via: "env" | "tunel" | "local" };
+
+/**
+ * (Ola 278 · OS5) De dónde quiere la respuesta el cliente: «local» si el
+ * parámetro de consulta `destino` o la cabecera `X-Starseed-Destino` valen
+ * `local`, y «nube» en cualquier otro caso. El cliente marca la llamada así
+ * cuando usa el puente para llegar a la neurona local de la propia máquina.
+ */
+function destinoPedido(req: Request): "local" | "nube" {
+  const query = new URL(req.url).searchParams.get("destino") ?? "";
+  const cabecera = req.headers.get("x-starseed-destino") ?? "";
+  if (query.trim().toLowerCase() === "local" || cabecera.trim().toLowerCase() === "local") return "local";
+  return "nube";
+}
+
+/**
+ * (Ola 278 · OS5) Quita el parámetro `destino` del search: es una orden para
+ * el PROXY (elegir origen), no algo que deba reenviarse al backend.
+ */
+function buscarSinDestino(u: URL): string {
+  const params = new URLSearchParams(u.search);
+  params.delete("destino");
+  const s = params.toString();
+  return s ? `?${s}` : "";
+}
+
+/**
+ * (Ola 278 · OS5) Resuelve el destino del proxy. Si el cliente pide la neurona
+ * local (`destinoPedido`) y el despliegue es local, se construye el destino SIN
+ * sondear la nube (base `ASTRAURA_LOCAL_URL` o `127.0.0.1:8000`). En cualquier
+ * otro caso se usa la nube (`destinoNube()`, con su sonda de salud y caché);
+ * si no hay nube sana devuelve `null`.
+ */
+async function resolverDestino(req: NextRequest): Promise<{ destino: DestinoProxy; via: "local" | "nube" } | null> {
+  if (destinoPedido(req) === "local" && esDespliegueLocal(req)) {
+    const base = String(process.env.ASTRAURA_LOCAL_URL ?? "").trim().replace(/\/+$/, "") || "http://127.0.0.1:8000";
+    return { destino: { base, via: "local" }, via: "local" };
+  }
+  const nube = await destinoNube();
+  if (!nube) return null;
+  return { destino: nube, via: "nube" };
+}
+
 /** Sin destino sano: respuesta clara y NUNCA cuelga (el router cliente releva solo). */
 function sinDestino(): Response {
   return Response.json(
@@ -221,7 +272,7 @@ function upstreamHeaders(extra?: Record<string, string>): Record<string, string>
   return h;
 }
 
-async function forward(method: "GET" | "POST" | "DELETE", path: string, search: string, body: string | undefined, destino: DestinoNube): Promise<Response> {
+async function forward(method: "GET" | "POST" | "DELETE", path: string, search: string, body: string | undefined, destino: DestinoProxy): Promise<Response> {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), method === "POST" ? CHAT_TIMEOUT_MS : GET_TIMEOUT_MS);
   try {
@@ -282,10 +333,11 @@ async function forward(method: "GET" | "POST" | "DELETE", path: string, search: 
 type Ctx = { params: Promise<{ path?: string[] }> };
 
 export async function GET(req: NextRequest, ctx: Ctx): Promise<Response> {
-  // (Ola 278 · OS4) Destino resuelto aquí para saber si es la neurona local
+  // (Ola 278 · OS4/OS5) Destino resuelto aquí para saber si es la neurona local
   // antes de decidir si se exige sesión; se reutiliza en `forward`.
-  const destino = await destinoNube();
-  if (!destino) return sinDestino();
+  const resuelto = await resolverDestino(req);
+  if (!resuelto) return sinDestino();
+  const destino = resuelto.destino;
   const auth = await requireUser(esDespliegueLocal(req) && destinoEsLocal(destino.base));
   if (auth instanceof Response) return auth;
   const rl = rateLimit(`ai-astraura158-get:${auth.userId}`, 120, 10 * 60 * 1000);
@@ -295,12 +347,13 @@ export async function GET(req: NextRequest, ctx: Ctx): Promise<Response> {
   const { path } = await ctx.params;
   const p = joinPath(path);
   if (!allowed(p, GET_ALLOW)) return Response.json({ error: "Ruta no permitida por el proxy de Astraura 1.58." }, { status: 403 });
-  return forward("GET", p, req.nextUrl.search, undefined, destino);
+  return forward("GET", p, buscarSinDestino(req.nextUrl), undefined, destino);
 }
 
 export async function POST(req: NextRequest, ctx: Ctx): Promise<Response> {
-  const destino = await destinoNube();
-  if (!destino) return sinDestino();
+  const resuelto = await resolverDestino(req);
+  if (!resuelto) return sinDestino();
+  const destino = resuelto.destino;
   const auth = await requireUser(esDespliegueLocal(req) && destinoEsLocal(destino.base));
   if (auth instanceof Response) return auth;
   const rl = rateLimit(`ai-astraura158-post:${auth.userId}`, 60, 10 * 60 * 1000);
@@ -319,8 +372,9 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<Response> {
 }
 
 export async function DELETE(_req: NextRequest, ctx: Ctx): Promise<Response> {
-  const destino = await destinoNube();
-  if (!destino) return sinDestino();
+  const resuelto = await resolverDestino(_req);
+  if (!resuelto) return sinDestino();
+  const destino = resuelto.destino;
   const auth = await requireUser(esDespliegueLocal(_req) && destinoEsLocal(destino.base));
   if (auth instanceof Response) return auth;
   const rl = rateLimit(`ai-astraura158-post:${auth.userId}`, 60, 10 * 60 * 1000);

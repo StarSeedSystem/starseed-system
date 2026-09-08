@@ -309,6 +309,21 @@ export function baseParaNavegador(base: string): string {
   return `/api/ai/astraura-158${resto}`;
 }
 
+/**
+ * (Ola 278 · OS5) URL del puente del OS (`/api/ai/astraura-158`) hacia la
+ * neurona LOCAL. El proxy decide el destino por `?destino=local`; añadirlo aquí
+ * (respetando una `busqueda` previa) es lo que hace que una llamada del
+ * navegador reescrita por `baseParaNavegador` termine en la neurona de la
+ * propia máquina y no en la nube. Pura (idempotente: `destino` se sobrescribe).
+ */
+export function urlPuenteLocal(ruta: string, busqueda?: string): string {
+  const camino = ruta.startsWith("/") ? ruta : `/${ruta}`;
+  const params = new URLSearchParams(busqueda ?? "");
+  params.set("destino", "local");
+  const qs = params.toString();
+  return `/api/ai/astraura-158${camino}${qs ? `?${qs}` : ""}`;
+}
+
 /* ───────────────────── Trazas del enjambre (plan · agentes · herramientas) ───────────────────── */
 
 /** Traza de un agente/rama del ciclo paralelo (`agent_traces.traces[]`). */
@@ -825,7 +840,15 @@ async function chat(
 ): Promise<ChatResponse> {
   // (Ola 278 · OS3) En el navegador, la base de bucle local se enruta por el
   // proxy del OS (el navegador bloquea 127.0.0.1). En servidor no cambia nada.
-  const base = baseParaNavegador(normalizeAstraura158Base(config.baseUrl || info.defaultBaseUrl));
+  const baseOriginal = normalizeAstraura158Base(config.baseUrl || info.defaultBaseUrl);
+  const base = baseParaNavegador(baseOriginal);
+  // (Ola 278 · OS5) Si `baseParaNavegador` reescribió la base al proxy, las
+  // llamadas HTTP deben decirle al proxy que el destino es la neurona local
+  // (`?destino=local`); si no, se habla directo con la base (nube o, en el
+  // servidor, la propia neurona). El WS compartido se queda con la base tal
+  // cual: su URL no admite un `?` intercalado antes de `/ws/chat`.
+  const porProxy = base !== baseOriginal;
+  const endpoint = (ruta: string): string => (porProxy ? urlPuenteLocal(ruta) : `${base}${ruta}`);
   const modelPersona = modelToPersona158(options.model) ?? "astraura_prime";
   // Menciones @persona SOLO del turno actual (el historial no re-selecciona).
   // El `prompt` viaja con el texto crudo (las menciones no se recortan).
@@ -853,7 +876,7 @@ async function chat(
   // 1) Puente nuevo (mensajes estructurados; el backend transcribe). 404/405 ⇒ backend antiguo.
   let res: Response | null = null;
   try {
-    res = await postJson(`${base}/api/starseed/chat`, {
+    res = await postJson(endpoint("/api/starseed/chat"), {
       messages,
       persona_id: persona,
       preferences,
@@ -867,7 +890,7 @@ async function chat(
   }
   // 2) Backend clásico: /api/chat/stream (prompt + system_prompt + preferences).
   if (!res) {
-    res = await postJson(`${base}/api/chat/stream`, {
+    res = await postJson(endpoint("/api/chat/stream"), {
       prompt: built.prompt,
       system_prompt: systemPrompt,
       preferences,
@@ -907,11 +930,16 @@ async function chat(
 }
 
 async function listModels(config: DecryptedProviderConfig): Promise<string[]> {
-  const base = baseParaNavegador(normalizeAstraura158Base(config.baseUrl || info.defaultBaseUrl));
+  const baseOriginal = normalizeAstraura158Base(config.baseUrl || info.defaultBaseUrl);
+  const base = baseParaNavegador(baseOriginal);
+  // (Ola 278 · OS5) Igual que en `chat`: si la base se reescribió al proxy,
+  // marcamos el destino local para que el catálogo salga de la neurona.
+  const porProxy = base !== baseOriginal;
+  const endpoint = porProxy ? urlPuenteLocal("/api/personalities") : `${base}/api/personalities`;
   try {
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), 3000);
-    const res = await fetch(`${base}/api/personalities`, { signal: ctrl.signal });
+    const res = await fetch(endpoint, { signal: ctrl.signal });
     clearTimeout(t);
     if (!res.ok) throw new Error(`Astraura 1.58 list models failed (${res.status})`);
     const json = (await res.json()) as { personalities?: { id?: string }[] };
