@@ -12,11 +12,12 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
-import { CircleDashed, Edit3, ExternalLink, Plus, RefreshCw, Send, Trash2 } from "lucide-react";
+import { CheckCheck, CircleDashed, Clock, Edit3, ExternalLink, Plus, RefreshCw, Send, Trash2, Wand2 } from "lucide-react";
 
 import type { Brain } from "@/lib/brains/brains";
 import { listBrains } from "@/lib/brains/brains";
 import type { CanalStarSeed, HistorialCanal, PlataformaCanal, PlataformaInfo } from "@/lib/canales/canales";
+import type { PlanPublicacion } from "@/lib/canales/telecomunicadores";
 import { loadTelegramUserConfig, sendTelegram } from "@/lib/channels/telegram";
 import type { PersonalityProfile } from "@/lib/aurora/personalities";
 import { listPersonalityProfiles } from "@/lib/aurora/personalities";
@@ -26,6 +27,20 @@ interface RespuestaCanales {
     plataformas: PlataformaInfo[];
     canales: CanalStarSeed[];
     historial: HistorialCanal[];
+}
+
+// Respuesta de GET /api/mando/telecomunicadores: plan del día por canal activo
+// con telecomunicador (personalidad + cerebro) y total de pendientes de hoy.
+interface RespuestaTelecomunicadores {
+    t: string;
+    planes: { canal: CanalStarSeed; plan: PlanPublicacion[] }[];
+    pendientes: number;
+}
+
+// Un borrador ya generado para un hueco concreto (texto editable + modelo que lo escribió).
+interface BorradorGenerado {
+    texto: string;
+    modelo: string;
 }
 
 interface Borrador {
@@ -100,6 +115,16 @@ export function PanelCanales() {
     const [ocupado, setOcupado] = useState<string | null>(null);
     // Campo de categorías del editor (se limpia al añadir cada chip).
     const [campoCategoria, setCampoCategoria] = useState("");
+    // Telecomunicadores: plan del día, borradores generados y estados de cada hueco.
+    const [telecom, setTelecom] = useState<RespuestaTelecomunicadores | null>(null);
+    const [cargandoTelecom, setCargandoTelecom] = useState(true);
+    const [errorTelecom, setErrorTelecom] = useState<string | null>(null);
+    const [resultadoTelecom, setResultadoTelecom] = useState<string | null>(null);
+    // Clave de hueco → borrador generado (texto editable + modelo autor).
+    const [borradores, setBorradores] = useState<Record<string, BorradorGenerado>>({});
+    // Hueco en el que se está generando/publicando («canalId@HH:MM»).
+    const [generandoHueco, setGenerandoHueco] = useState<string | null>(null);
+    const [publicandoHueco, setPublicandoHueco] = useState<string | null>(null);
 
     const cargar = useCallback(async () => {
         try {
@@ -156,6 +181,28 @@ export function PanelCanales() {
             vivo = false;
         };
     }, []);
+
+    // Plan del día de los telecomunicadores (sondeo junto al de canales, 30 s).
+    const cargarTelecom = useCallback(async () => {
+        try {
+            const respuesta = await fetch("/api/mando/telecomunicadores", { cache: "no-store" });
+            if (!respuesta.ok) {
+                setErrorTelecom(`No se pudo leer el plan de los telecomunicadores (HTTP ${respuesta.status}).`);
+                return;
+            }
+            setTelecom((await respuesta.json()) as RespuestaTelecomunicadores);
+            setErrorTelecom(null);
+        } catch {
+            setErrorTelecom("No se pudo leer el plan de los telecomunicadores.");
+        } finally {
+            setCargandoTelecom(false);
+        }
+    }, []);
+
+    // El plan se refresca junto al catálogo de canales para mantener ambos vivos.
+    useEffect(() => {
+        void cargarTelecom();
+    }, [cargarTelecom]);
 
     const post = useCallback(async (cuerpo: Record<string, unknown>): Promise<{ ok: boolean; error?: string }> => {
         try {
@@ -245,6 +292,89 @@ export function PanelCanales() {
         setOcupado(null);
         void cargar();
     }, [post, cargar]);
+
+    // POST a /api/mando/telecomunicadores (generar/aprobar) con el cuerpo indicado.
+    const postTelecom = useCallback(async (cuerpo: Record<string, unknown>): Promise<{ ok: boolean; error?: string; datos?: { texto?: string; modelo?: string } }> => {
+        try {
+            const respuesta = await fetch("/api/mando/telecomunicadores", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(cuerpo),
+            });
+            const datosRespuesta = (await respuesta.json().catch(() => null)) as { ok?: boolean; error?: string; texto?: string; modelo?: string } | null;
+            if (!respuesta.ok) return { ok: false, error: datosRespuesta?.error ?? `HTTP ${respuesta.status}` };
+            return { ok: datosRespuesta?.ok !== false, datos: { texto: datosRespuesta?.texto, modelo: datosRespuesta?.modelo } };
+        } catch {
+            return { ok: false, error: "Sin conexión con la ruta de telecomunicadores." };
+        }
+    }, []);
+
+    // Clave estable de un hueco del plan («canalId@HH:MM») para colgar borradores.
+    const claveHueco = useCallback((canalId: string, hora: string) => `${canalId}@${hora}`, []);
+
+    // Genera el texto de un hueco con el telecomunicador del canal y lo deja
+    // editable junto con el modelo que lo escribió (NO publica todavía).
+    const generarBorrador = useCallback(async (canal: CanalStarSeed, plan: PlanPublicacion) => {
+        const hueco = claveHueco(canal.id, plan.hora);
+        setGenerandoHueco(hueco);
+        setResultadoTelecom(null);
+        const res = await postTelecom({ accion: "generar", canalId: canal.id, plan });
+        setGenerandoHueco(null);
+        if (!res.ok || !res.datos?.texto) {
+            return void setResultadoTelecom(res.error ?? "No se pudo generar el borrador.");
+        }
+        setBorradores((prev) => ({ ...prev, [hueco]: { texto: res.datos?.texto ?? "", modelo: res.datos?.modelo ?? "desconocido" } }));
+    }, [postTelecom, claveHueco]);
+
+    // Publica ahora un borrador: envía con el bot del usuario si es Telegram y hay
+    // token; si no, avisa SIN fallar (como la prueba de la Ola 285) y registra.
+    const publicarAhora = useCallback(async (canal: CanalStarSeed, plan: PlanPublicacion) => {
+        const hueco = claveHueco(canal.id, plan.hora);
+        const borrador = borradores[hueco];
+        if (!borrador) return;
+        setPublicandoHueco(hueco);
+        setResultadoTelecom(null);
+        const texto = borrador.texto;
+        let ok = true;
+        let detalle = "Marcada como publicada sin envío real (plataforma no conectada).";
+        if (canal.plataforma === "telegram") {
+            const cfg = loadTelegramUserConfig();
+            if (!cfg.botToken.trim() || !cfg.chatId.trim()) {
+                ok = false;
+                detalle = "Configura tu bot en Conexiones para enviar; guardado como listo igualmente.";
+            } else {
+                const enviado = await sendTelegram({ botToken: cfg.botToken, chatId: canal.identificador.trim() || cfg.chatId, text: texto });
+                ok = enviado.ok;
+                detalle = enviado.ok ? "Publicado con el bot del usuario." : (enviado.error ?? "Fallo al enviar.");
+            }
+        }
+        // Registra el resultado en el historial (publicado o guardado como listo).
+        await post({ accion: "registrar", canalId: canal.id, texto, formato: plan.formato, ok, detalle });
+        setPublicandoHueco(null);
+        setResultadoTelecom(`${detalle} (${ok ? "publicado" : "sin envío"})`);
+        // Aprobar para quitarlo del plan de pendientes de hoy.
+        await postTelecom({ accion: "aprobar", canalId: canal.id, texto, formato: plan.formato });
+        delete borradores[hueco];
+        void cargar();
+        void cargarTelecom();
+    }, [postTelecom, post, borradores, claveHueco, cargar, cargarTelecom]);
+
+    // Guarda el borrador como «listo para publicar» (acción aprobar): solo registra
+    // en el historial; el envío real lo decide el usuario después.
+    const guardarListo = useCallback(async (canal: CanalStarSeed, plan: PlanPublicacion) => {
+        const hueco = claveHueco(canal.id, plan.hora);
+        const borrador = borradores[hueco];
+        if (!borrador) return;
+        setPublicandoHueco(hueco);
+        setResultadoTelecom(null);
+        const res = await postTelecom({ accion: "aprobar", canalId: canal.id, texto: borrador.texto, formato: plan.formato });
+        setPublicandoHueco(null);
+        if (!res.ok) return void setResultadoTelecom(res.error ?? "No se pudo guardar como listo.");
+        setResultadoTelecom("Guardado como listo para publicar.");
+        delete borradores[hueco];
+        void cargar();
+        void cargarTelecom();
+    }, [postTelecom, borradores, claveHueco, cargar, cargarTelecom]);
 
     const plataformas = datos?.plataformas ?? [];
     const infoDe = (id: PlataformaCanal): PlataformaInfo | undefined => plataformas.find((p) => p.id === id);
@@ -510,6 +640,127 @@ export function PanelCanales() {
                     </ul>
                 ) : (
                     <p className="mt-2 text-xs text-white/40">Sin publicaciones registradas.</p>
+                )}
+            </div>
+
+            {/* Telecomunicadores (Ola 287 · T2 · 2026-09-08): plan del día por
+                canal activo con personalidad, generación con el cerebro, revisión
+                editable y publicación con el bot del usuario o guardado como listo. */}
+            <div className="rounded-xl border border-white/10 bg-black/20 p-4">
+                <div className="flex flex-wrap items-center gap-2">
+                    <div>
+                        <h3 className="text-sm font-semibold text-white">Telecomunicadores</h3>
+                        <p className="text-[11px] text-white/40">
+                            {telecom?.pendientes ?? 0} pendientes de publicar hoy
+                        </p>
+                    </div>
+                    <button type="button" onClick={() => void cargarTelecom()} className={`ml-auto ${CLS_BTN}`}>
+                        <RefreshCw className={`h-3.5 w-3.5 ${cargandoTelecom ? "animate-spin" : ""}`} aria-hidden /> Actualizar
+                    </button>
+                </div>
+
+                {errorTelecom ? (
+                    <p role="status" className="mt-2 rounded-lg border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">{errorTelecom}</p>
+                ) : null}
+                {resultadoTelecom ? (
+                    <p role="status" className="mt-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/70">{resultadoTelecom}</p>
+                ) : null}
+
+                {cargandoTelecom && !telecom ? (
+                    <p className="mt-3 text-xs text-white/40">Leyendo el plan del día…</p>
+                ) : (
+                    <div className="mt-3 space-y-3">
+                        {/* Canales activos con telecomunicador: su plan del día. */}
+                        {(telecom?.planes ?? []).map(({ canal, plan }) => (
+                            <div key={canal.id} className="rounded-lg border border-white/10 bg-black/30 p-3">
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <h4 className="text-xs font-semibold text-white">{canal.nombre}</h4>
+                                    <span className={`${CLS_CHIP} border-white/10 bg-white/5 text-white/50`}>
+                                        {nombrePers(personalidades, canal.personalidadId)}
+                                        {canal.cerebroId ? ` · cerebro ${cerebros.find((b) => b.id === canal.cerebroId)?.name ?? canal.cerebroId}` : ""}
+                                    </span>
+                                </div>
+                                {plan.length === 0 ? (
+                                    <p className="mt-2 text-[11px] text-white/40">Sin huecos pendientes para hoy.</p>
+                                ) : (
+                                    <ul className="mt-2 space-y-2">
+                                        {plan.map((hueco) => {
+                                            const clave = claveHueco(canal.id, hueco.hora);
+                                            const borrador = borradores[clave];
+                                            return (
+                                                <li key={clave} className="rounded-md border border-white/5 bg-white/[0.02] p-2">
+                                                    <div className="flex flex-wrap items-center gap-2 text-[11px] text-white/60">
+                                                        <span className="inline-flex items-center gap-1 font-mono text-white/50"><Clock className="h-3 w-3" aria-hidden />{hueco.hora}</span>
+                                                        <span className="rounded bg-white/10 px-1 py-px text-[10px] text-white/50">{hueco.formato}</span>
+                                                        <span className="truncate text-white/40">tema: {hueco.tema}</span>
+                                                        <span className="ml-auto inline-flex items-center gap-1.5">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => void generarBorrador(canal, hueco)}
+                                                                disabled={generandoHueco === clave}
+                                                                className="inline-flex cursor-pointer items-center gap-1 rounded-md border border-trinity-azure/30 bg-trinity-azure/10 px-2 py-1 text-[11px] text-trinity-azure hover:bg-trinity-azure/20 disabled:cursor-not-allowed disabled:opacity-50"
+                                                            >
+                                                                {generandoHueco === clave ? <CircleDashed className="h-3 w-3 animate-spin" aria-hidden /> : <Wand2 className="h-3 w-3" aria-hidden />}
+                                                                Generar
+                                                            </button>
+                                                        </span>
+                                                    </div>
+                                                    {borrador ? (
+                                                        <div className="mt-2 space-y-2">
+                                                            <p className="text-[10px] text-white/35">Escrito por: {borrador.modelo}</p>
+                                                            <textarea
+                                                                rows={4}
+                                                                value={borrador.texto}
+                                                                onChange={(e) => setBorradores((prev) => ({ ...prev, [clave]: { ...borrador, texto: e.target.value } }))}
+                                                                className={CLS_INPUT}
+                                                            />
+                                                            <div className="flex flex-wrap items-center gap-2">
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => void publicarAhora(canal, hueco)}
+                                                                    disabled={publicandoHueco === clave}
+                                                                    className="inline-flex cursor-pointer items-center gap-1 rounded-md border border-emerald-400/30 bg-emerald-500/10 px-2.5 py-1 text-[11px] text-emerald-200 hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                                                                >
+                                                                    {publicandoHueco === clave ? <CircleDashed className="h-3 w-3 animate-spin" aria-hidden /> : <Send className="h-3 w-3" aria-hidden />}
+                                                                    Publicar ahora
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => void guardarListo(canal, hueco)}
+                                                                    disabled={publicandoHueco === clave}
+                                                                    className="inline-flex cursor-pointer items-center gap-1 rounded-md border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] text-white/70 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+                                                                >
+                                                                    <CheckCheck className="h-3 w-3" aria-hidden /> Guardar como listo
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    ) : null}
+                                                </li>
+                                            );
+                                        })}
+                                    </ul>
+                                )}
+                            </div>
+                        ))}
+
+                        {/* Canales activos sin telecomunicador: aviso con enlace a Editar. */}
+                        {(datos?.canales ?? [])
+                            .filter((c) => c.activo && !c.personalidadId)
+                            .map((canal) => (
+                                <div key={canal.id} className="rounded-lg border border-amber-400/20 bg-amber-500/5 p-3">
+                                    <p className="text-[11px] text-amber-100/80">
+                                        «{canal.nombre}» está activo pero no tiene telecomunicador.
+                                    </p>
+                                    <button type="button" onClick={() => setEditor(deCanal(canal))} className={`mt-1.5 ${CLS_BTN}`}>
+                                        <Edit3 className="h-3 w-3" aria-hidden /> Editar
+                                    </button>
+                                </div>
+                            ))}
+
+                        {(telecom?.planes.length ?? 0) === 0 && (datos?.canales ?? []).every((c) => !c.activo || c.personalidadId) ? (
+                            <p className="text-[11px] text-white/40">Ningún canal activo tiene telecomunicador asignado.</p>
+                        ) : null}
+                    </div>
                 )}
             </div>
         </section>
