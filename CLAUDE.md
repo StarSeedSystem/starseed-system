@@ -296,6 +296,29 @@ Hermes tiene `providers.nvidia` (`NVIDIA_API_KEY` en `~/.hermes/.env`). Claves: 
 ni en memorias — solo nombres de variables. **Cada respuesta termina con un informe de uso**
 (modelos/APIs/tokens/créditos usados, cuánto queda y opciones de enrutamiento).
 
+## 🚦 Publicar: `next build` es la ÚNICA puerta que ve los errores de empaquetado (2026-09-08)
+
+`tsc` y `vitest` **no detectan** que un módulo de servidor se cuele en el paquete del
+navegador. El primer despliegue de los 176 commits murió con `Failed to compile · node:crypto ·
+UnhandledSchemeError` porque un componente de cliente (`nuevo-vinculo.tsx`) importaba el VALOR
+`PERMISOS_DEFECTO` de `src/lib/externos/vinculos.ts`, que abre con `import { createHash,
+randomBytes } from "node:crypto"`. Las dos puertas del enjambre estaban en verde.
+
+Reglas del área:
+- **Antes de publicar, `next build` completo** (en la nube: `NODE_ENV=production
+  NODE_OPTIONS=--max-old-space-size=5120 npx next build`). Ninguna otra comprobación lo sustituye.
+- Un módulo que importe `node:*` (`node:crypto`, `node:fs`, `node:child_process`) es **solo de
+  servidor**: sus tipos y constantes puras van en un archivo aparte (`tipos.ts`) que el cliente
+  importa, y el módulo de servidor los reexporta. `import type` no contamina; **un import de valor
+  sí**. Hoy son solo de servidor: `externos/vinculos.ts`, `mando/modelos-disponibles.ts`,
+  `mando/claves-servidor.ts`, `mando/colas.ts`, `security/rate-limit.ts`.
+- **El push va desde la Mac**, no desde el contenedor: el proxy de la nube deniega el
+  `git push` («not in this session's authorized repository set»). Flujo: `git bundle create` en la
+  nube → SendUserFile → `device_commit_files` a `.transfer/` → en la Mac `git fetch -q
+  .transfer/<bundle> +main:nubeN && git merge --ff-only nubeN && git push origin main`.
+- Verificar el despliegue con `npx vercel ls starseed-os --scope starseeds-projects` hasta «Ready»
+  y, si sale «Error», `npx vercel inspect <url> --logs --scope starseeds-projects`.
+
 ## 📚 Fuentes externas de APIs, herramientas y patrones (regla permanente · 2026-09-04)
 
 Antes de inventar un endpoint, un conector o un patrón de agente, **se mira si ya existe**. Seis
