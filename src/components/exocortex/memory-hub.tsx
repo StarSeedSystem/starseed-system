@@ -48,6 +48,9 @@ import {
   type DuplicateCluster,
 } from "@/lib/cerebro/ai-organize";
 import { Sparkles as SparklesIcon, Copy, Tag, Layers } from "lucide-react";
+// Ola 281 · E6B (2026-09-08): panel «Externos» de la memoria ABIERTA (vínculos
+// con caducidad y permisos del ámbito memoria; el id es el id real de la fila).
+import { PanelExternos } from "@/components/externos/panel-externos";
 
 // El PAT ya NO se guarda en config: vive cifrado en la bóveda (api/vault).
 type GithubConfig = { repo?: string; branch?: string; path?: string };
@@ -801,6 +804,18 @@ export function MemoryHub({
                         <span>Obsidian: apunta un repo de GitHub a tu bóveda Obsidian (usa el almacenamiento GitHub) o usa Exportar .md.</span>
                       </div>
                     )}
+
+                    {/* Externos (Ola 281 · E6B): vínculos de esta memoria concreta,
+                        plegado por defecto. No hay selector de carpeta con id estable
+                        en este Hub — solo el ámbito «memoria» de la fila abierta. */}
+                    <details className="group rounded-lg border border-white/10 bg-black/20">
+                      <summary className="flex cursor-pointer items-center gap-1.5 p-3 text-[11px] text-white/60 hover:text-white/85 select-none">
+                        <Link2 className="w-3.5 h-3.5" /> Externos · vínculos de esta memoria
+                      </summary>
+                      <div className="px-3 pb-3">
+                        <PanelExternos compacto ambito={{ tipo: "memoria", id: m.id, nombre: m.name }} />
+                      </div>
+                    </details>
 
                     {status && (
                       <div className={cn("text-[11px] rounded px-2 py-1.5 break-words", status.kind === "ok" ? "bg-emerald-900/30 text-emerald-200 border border-emerald-500/30" : "bg-red-900/30 text-red-200 border border-red-500/30")}>{status.msg}</div>

@@ -40,6 +40,9 @@ import { useProfileDisplay, normalizeHandleKey } from "@/components/profile/prof
 import { useProfileRealCounts } from "@/components/profile/use-profile-real-counts";
 import { useEntityLayout } from "@/lib/entity-layout";
 import { FreeSectionsBlock } from "@/components/social/free-sections-block";
+// Ola 281 · E6B (2026-09-08): panel «Externos» del perfil PROPIO (vínculos con
+// caducidad y permisos del ámbito «perfil»; solo cuando el perfil es del usuario actual).
+import { PanelExternos } from "@/components/externos/panel-externos";
 import { EntityGalleryBlock } from "@/components/social/entity-gallery-block";
 import { MessageRenderer } from "@/components/aurora/message-renderer";
 // Menú unificado del OS: carril con scroll-x real, máscara de fundido y snap.
@@ -410,6 +413,13 @@ export default function ProfilePage() {
             <div className="min-w-0 lg:col-span-2">
                 <ConnectionsWidget isOwner={isOwner} name={profileData.name} counts={{ comunidades: counts.comunidades, grupos: counts.grupos }} />
             </div>
+            {/* Externos (Ola 281 · E6B): vínculos del perfil, SOLO si es el perfil
+                del usuario actual — es información de acceso, nunca pública. */}
+            {isOwner && (
+                <div className="min-w-0 lg:col-span-2">
+                    <PanelExternos compacto ambito={{ tipo: "perfil", id: pageHandle, nombre: profileData.name }} />
+                </div>
+            )}
         </div>
     );
     const postsNode = (
