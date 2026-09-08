@@ -1,125 +1,126 @@
 /**
- * Pruebas de almacenamiento de la neurona (Ola 273 · 2026-09-07).
- * Se prueban las funciones puras (`interpretarDf`, `explicarSwap`) y la regla
- * de seguridad de `limpiarRegenerables` (un id fuera de la lista blanca se
- * rechaza sin ejecutar nada), con `execFile` simulado para no tocar el disco.
+ * Pruebas de «Drive como almacén grande» (Ola 280 · 2026-09-08 · A6).
+ * `execFile` se simula por binario (espía vía `vi.hoisted`); el filesystem se
+ * aísla en un tmpdir que suplanta a `os.homedir()` para que la detección de
+ * DriveFS viva solo aquí. Comentarios en español por qué del test.
  */
 
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
+import os, { tmpdir } from "node:os";
+import path from "node:path";
 
-// Simulamos execFile ANTES de importar el módulo (el módulo lo convierte con
-// promisify, así que el simulacro debe seguir la firma de callback).
-const llamadas: Array<{ binario: string; args: string[] }> = [];
+interface Llamada { binario: string; args: string[] }
+type Respuesta = { stdout: string; stderr?: string } | { lanzar: Error };
+
+const ctx = vi.hoisted(() => ({
+    espia: [] as Llamada[],
+    respuestas: new Map<string, (args: string[]) => Respuesta>(),
+    pgrepSinNada: true,
+}));
+
 vi.mock("node:child_process", () => ({
-    execFile: (binario: string, args: string[], _opts: unknown, cb: (e: Error | null, r: { stdout: string; stderr: string }) => void) => {
-        llamadas.push({ binario, args });
-        // pgrep SIN encontrar «next build» (código 1 = no hay build en marcha).
-        if (binario === "pgrep") cb(new Error("exit 1"), { stdout: "", stderr: "" });
-        else cb(null, { stdout: "", stderr: "" });
+    execFile: (bin: string, args: string[], _o: unknown, cb: (e: Error | null, r: { stdout: string; stderr: string }) => void) => {
+        ctx.espia.push({ binario: bin, args });
+        const r = ctx.respuestas.get(bin)?.(args);
+        if (r && "lanzar" in r) return cb(r.lanzar, { stdout: "", stderr: "" });
+        if (r && "stdout" in r) return cb(null, { stdout: r.stdout, stderr: r.stderr ?? "" });
+        if (bin === "pgrep" && ctx.pgrepSinNada) return cb(new Error("exit 1"), { stdout: "", stderr: "" });
+        cb(null, { stdout: "", stderr: "" });
     },
     spawn: () => ({ unref: () => undefined, pid: 123 }),
 }));
 
-import { mkdtemp, rm, writeFile, utimes } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import path from "node:path";
+import { cuotaDrive, moverADrive } from "../mando/almacenamiento";
+import { interpretarVistaPrevia } from "../mando/publicaciones";
 
-import { interpretarDf, explicarSwap, limpiarRegenerables, aliviarMemoria, UMBRAL_SWAP_MB } from "../mando/almacenamiento";
+let homeFalso = "";
+beforeEach(async () => {
+    ctx.espia.length = 0;
+    ctx.respuestas.clear();
+    ctx.pgrepSinNada = true;
+    homeFalso = await mkdtemp(path.join(tmpdir(), "starseed-drive-"));
+    vi.spyOn(os, "homedir").mockReturnValue(homeFalso);
+});
+afterEach(async () => {
+    vi.spyOn(os, "homedir").mockRestore();
+    await rm(homeFalso, { recursive: true, force: true });
+});
+/** Crea `Library/CloudStorage/GoogleDrive-cuenta/` dentro del `homeFalso`. */
+async function montarDrive(): Promise<string> {
+    const base = path.join(homeFalso, "Library", "CloudStorage", "GoogleDrive-cuenta@dominio.com");
+    await mkdir(base, { recursive: true });
+    return base;
+}
 
-describe("interpretarDf (Ola 273 · disco)", () => {
-    it("lee una salida real de macOS y convierte bloques de 1 KB a MB", () => {
-        const salida = [
-            "Filesystem       1024-blocks      Used Available Capacity Mounted on",
-            "/dev/disk3s1s1    488245288 149682344 10760940    94%    /",
-        ].join("\n");
-        const r = interpretarDf(salida);
+describe("cuotaDrive (Ola 280 · A6)", () => {
+    it("interpreta `df -kP`: 1 GB total, 50 % usado → 1 / 0,5 / 0,5 GB", async () => {
+        const base = await montarDrive();
+        ctx.respuestas.set("df", () => ({
+            stdout: ["Filesystem       1024-blocks      Used Available Capacity Mounted on", `${base}     1048576 524288 524288   50%    /test`].join("\n"),
+        }));
+        const r = await cuotaDrive();
         expect(r).not.toBeNull();
-        expect(r?.totalMb).toBe(Math.round(488245288 / 1024));
-        expect(r?.libreMb).toBe(Math.round(10760940 / 1024));
-        expect(r?.usadoPct).toBe(Math.round((149682344 / 488245288) * 100));
+        expect(r!.totalGb).toBeCloseTo(1, 2);
+        expect(r!.usadoGb).toBeCloseTo(0.5, 2);
+        expect(r!.libreGb).toBeCloseTo(0.5, 2);
     });
-    it("devuelve null si la salida no tiene dos líneas", () => {
-        expect(interpretarDf("Filesystem 1024-blocks Used Available Capacity Mounted on")).toBeNull();
-        expect(interpretarDf("")).toBeNull();
-    });
-});
-
-describe("explicarSwap (Ola 273 · honestidad del swap)", () => {
-    it("con swap alto menciona que es memoria comprimida y NO promete que Drive lo baje", () => {
-        const texto = explicarSwap(4000, 6144);
-        expect(texto).toContain("comprimida");
-        expect(texto).toContain("no RAM");
-        expect(texto.toLowerCase()).toContain("no baja el swap");
-    });
-    it("bajo el umbral no alarma", () => {
-        const texto = explicarSwap(UMBRAL_SWAP_MB, 6144);
-        expect(texto).toContain("normal");
+    it("devuelve null si DriveFS no está montado", async () => {
+        expect(await cuotaDrive()).toBeNull();
+        expect(ctx.espia.filter((l) => l.binario === "df")).toEqual([]);
     });
 });
-
-describe("aliviarMemoria (Ola 273 · A3)", () => {
-    it("si dormir expira, confirma por /estado y cede el pool del demonio", async () => {
-        const pedidas: string[] = [];
-        vi.stubGlobal("fetch", async (url: string) => {
-            pedidas.push(url);
-            if (url.includes("/api/bitnet/dormir")) {
-                // Más lento que la ventana de 20 s: la petición aborta.
-                throw new Error("The operation was aborted due to timeout");
-            }
-            if (url.includes("/api/bitnet/estado")) {
-                return new Response(JSON.stringify({ dormido: true }), { status: 200 });
-            }
-            if (url.endsWith("/ceder")) {
-                return new Response(JSON.stringify({ ok: true, cedidos: 2, memoriaLibreMb: 1200 }), { status: 200 });
-            }
-            return new Response("no", { status: 404 });
-        });
-        try {
-            const r = await aliviarMemoria();
-            const bitnet = r.pasos.find((p) => p.que.includes("BitNet"));
-            const voz = r.pasos.find((p) => p.que.includes("voz"));
-            expect(bitnet?.ok).toBe(true);
-            expect(bitnet?.detalle).toContain("confirmado por /estado");
-            expect(pedidas.filter((u) => u.includes("/api/bitnet/estado")).length).toBeGreaterThanOrEqual(1);
-            expect(voz?.ok).toBe(true);
-            expect(voz?.detalle).toContain("Cedidos 2");
-            expect(r.liberadoMb).toBeGreaterThanOrEqual(0);
-        } finally {
-            vi.unstubAllGlobals();
-        }
-    }, 30000);
-});
-
-describe("limpiarRegenerables (Ola 273 · lista blanca)", () => {
-    beforeEach(() => {
-        llamadas.length = 0;
-    });
-    it("rechaza un id que no está en la lista sin ejecutar nada", async () => {
-        const r = await limpiarRegenerables(["../../etc", "starseed_memory_root"]);
+describe("moverADrive (Ola 280 · A6)", () => {
+    it("rechaza un id fuera de la lista blanca sin tocar nada", async () => {
+        const r = await moverADrive("id-inexistente");
         expect(r.ok).toBe(false);
-        expect(r.limpiados).toEqual([]);
-        // Solo el pgrep: jamás un rm con una ruta que no vino de medirRegenerables.
-        expect(llamadas.filter((l) => l.binario === "rm")).toEqual([]);
+        const tocados = ctx.espia.map((l) => l.binario);
+        expect(tocados).not.toContain("rsync");
+        expect(tocados).not.toContain("ln");
+        expect(tocados).not.toContain("mv");
     });
-    it("olas-logs está en la lista blanca y solo borra los de más de 7 días (Ola 273 · A3)", async () => {
-        const dir = await mkdtemp(path.join(tmpdir(), "olas-"));
-        process.env.STARSEED_OLAS_LOG_DIR = dir;
+    it("con verificación fallida: deshace el destino, no enlaza ni borra el origen", async () => {
+        const raiz = await mkdtemp(path.join(tmpdir(), "starseed-orig-"));
+        const origen = path.join(raiz, ".transfer");
+        await mkdir(origen, { recursive: true });
+        await writeFile(path.join(origen, "a.txt"), "uno");
+        await writeFile(path.join(origen, "b.txt"), "dos");
+        // `raizDelProyecto()` lee `STARSEED_ROOT`; lo apuntamos a nuestra raíz.
+        process.env.STARSEED_ROOT = raiz;
         try {
-            const antiguo = path.join(dir, "ola-antigua.log");
-            const reciente = path.join(dir, "ola-reciente.log");
-            await writeFile(antiguo, "viejo");
-            await writeFile(reciente, "nuevo");
-            const hace8dias = new Date(Date.now() - 8 * 24 * 3600 * 1000);
-            await utimes(antiguo, hace8dias, hace8dias);
-            const r = await limpiarRegenerables(["olas-logs"]);
-            expect(r.ok).toBe(true);
-            expect(r.limpiados).toEqual(["olas-logs"]);
-            const rms = llamadas.filter((l) => l.binario === "rm").map((l) => l.args.join(" "));
-            // Un rm por archivo viejo, ruta exacta (nunca un glob), y el reciente intacto.
-            expect(rms).toEqual([`-f ${antiguo}`]);
+            await montarDrive();
+            // `find` del origen: 2 archivos; del destino: 3 → conteo distinto → verificarCopia cae.
+            let n = 0;
+            ctx.respuestas.set("find", () => {
+                n += 1;
+                return { stdout: n % 2 === 1 ? "a.txt\nb.txt" : "a.txt\nb.txt\nextra.txt" };
+            });
+            const r = await moverADrive("transfer");
+            expect(r.ok).toBe(false);
+            expect(r.detalle.toLowerCase()).toContain("verificación");
+            // Un único `rm`, con el destino (no el renombrado ni el origen).
+            const rms = ctx.espia.filter((l) => l.binario === "rm");
+            expect(rms.length).toBe(1);
+            expect(rms[0]!.args).toEqual(["-rf", expect.stringContaining("frio/transfer") as unknown as string]);
+            // No se llamó `ln` ni `mv`: el origen queda intacto.
+            expect(ctx.espia.filter((l) => l.binario === "ln")).toEqual([]);
+            expect(ctx.espia.filter((l) => l.binario === "mv")).toEqual([]);
+            expect((await readdir(origen)).sort()).toEqual(["a.txt", "b.txt"]);
         } finally {
-            delete process.env.STARSEED_OLAS_LOG_DIR;
-            await rm(dir, { recursive: true, force: true });
+            delete process.env.STARSEED_ROOT;
+            await rm(raiz, { recursive: true, force: true });
         }
+    });
+});
+describe("interpretarVistaPrevia (Ola 280 · A6 · C4, pura)", () => {
+    it("mismo commit → al día", () => {
+        expect(interpretarVistaPrevia({ buildCommit: "abc", head: "abc" })).toBe(false);
+    });
+    it("commits distintos → atrasado", () => {
+        expect(interpretarVistaPrevia({ buildCommit: "abc", head: "xyz" })).toBe(true);
+    });
+    it("sin build o sin HEAD → atrasado (no se puede afirmar al día)", () => {
+        expect(interpretarVistaPrevia({ buildCommit: null, head: "abc" })).toBe(true);
+        expect(interpretarVistaPrevia({ buildCommit: "abc", head: null })).toBe(true);
     });
 });
