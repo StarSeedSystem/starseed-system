@@ -296,6 +296,36 @@ Hermes tiene `providers.nvidia` (`NVIDIA_API_KEY` en `~/.hermes/.env`). Claves: 
 ni en memorias — solo nombres de variables. **Cada respuesta termina con un informe de uso**
 (modelos/APIs/tokens/créditos usados, cuánto queda y opciones de enrutamiento).
 
+## 🌐 Navegador de los agentes: extensiones de Claude y de ChatGPT en el Chrome de la fundación (2026-09-08)
+
+En el Chrome de la Mac, con la sesión de **fundacionstarseed@gmail.com**, están instaladas y
+**verificadas en vivo** las extensiones de **Claude** y de **ChatGPT**. Los agentes las usan para
+lo que necesiten: leer documentación, entrar a paneles que no tienen API (NotebookLM, Google AI
+Studio, los paneles de claves de los proveedores), comprobar el OS desplegado y rellenar
+formularios con el visto bueno de Alex.
+
+Dos caminos, y no son el mismo:
+
+| Camino | Herramientas | Quién puede usarlo |
+|---|---|---|
+| **Claude en Chrome** (extensión) | `mcp__claude-in-chrome__*` | Sesiones de Claude. Comprobado: 1 navegador conectado (`Browser 1`, macOS) |
+| **Control Chrome** (MCP local de la Mac) | `mcp__remote-devices__Control_Chrome__*` | Cualquier agente que corra EN la Mac: Hermes, Codex, opencode local. Comprobado: `list_tabs` responde |
+| **Navegador del backend 1.58** | `backend/app/tools/browser_tool.py` | Los agentes de Astraura, por `/api/ai/astraura-158/*` |
+
+⚠️ **El navegador es una capacidad de la MAC, no de la nube.** Los agentes del enjambre que
+corren en el contenedor de Cowork **no** llegan al Chrome de Alex: si una tarea necesita el
+navegador, se lanza en la Mac (`STARSEED_MEDIO=mac`) o se reasigna a ese servidor desde el Mando.
+Escribirlo en el prompt de una tarea de la nube es pedirle algo que no puede hacer.
+
+Reglas de uso, que valen para todos: nunca introducir contraseñas ni datos de pago; nunca aceptar
+términos, publicar, enviar formularios ni comprar sin la palabra explícita de Alex; en avisos de
+cookies, elegir siempre la opción más restrictiva; y **jamás sacar claves ni tokens de la máquina
+dentro de un contexto de navegación**.
+
+En el **Taller del agente** (`src/lib/agentes/taller.ts`, Ola 291) estas tres vías aparecen como
+recursos de tipo `herramienta`/`mcp` con origen `os` y `astraura`, para que cada agente las tenga
+declaradas junto a sus habilidades, conexiones, prompts y plugins.
+
 ## 🚦 Publicar: `next build` es la ÚNICA puerta que ve los errores de empaquetado (2026-09-08)
 
 `tsc` y `vitest` **no detectan** que un módulo de servidor se cuele en el paquete del
