@@ -37,12 +37,26 @@ export interface Regenerable {
     seguro: boolean;
 }
 
-/** Cuota de Google Drive (DriveFS) leída con `df -kP` sobre la unidad. */
+/**
+ * Cuota de Google Drive (DriveFS) leída con `df -kP` sobre la unidad.
+ * `fuente` indica que la cifra vino del sistema de archivos (solo cuando el
+ * volumen del Drive es DISTINTO del local: Linux con rclone o gdfuse). En macOS
+ * `df` miente sobre DriveFS y `cuotaDrive()` devuelve `null` en su lugar.
+ */
 export interface CuotaDrive {
     totalGb: number;
     usadoGb: number;
     libreGb: number;
+    fuente: "drivefs";
 }
+
+/**
+ * Motivo (texto exacto que enseña la interfaz) cuando DriveFS no expone la cuota
+ * real: en macOS `df` de la carpeta de DriveFS informa del disco LOCAL, no de
+ * Google Drive. La cuota real se consulta a la API de Google desde el navegador.
+ */
+export const MOTIVO_CUOTA_DRIVE_LOCAL =
+    "DriveFS no expone la cuota de Google Drive en macOS (df informa del disco local): la cuota real se consulta a la API de Google desde el navegador";
 
 /** Carpeta fría medida: candidata a «Mover a Drive» (o ya es enlace a Drive). */
 export interface CarpetaFria {
@@ -66,6 +80,8 @@ export interface EstadoAlmacenamiento {
         espejo: { ruta: string; ultimoEspejo: string | null; mb: number | null } | null;
     };
     driveCuota: CuotaDrive | null;
+    /** Por qué `driveCuota` es null (DriveFS miente en macOS); null si sí hay cuota. */
+    driveCuotaMotivo: string | null;
     frias: CarpetaFria[];
     espejoAutomatico: { activo: boolean; proximo: string | null };
     swap: { usadoMb: number; totalMb: number; explicacion: string };
@@ -91,6 +107,30 @@ export function interpretarDf(stdout: string): { totalMb: number; libreMb: numbe
         libreMb: Math.round(libreKb / 1024),
         usadoPct: Math.round((usadoKb / totalKb) * 100),
     };
+}
+
+/**
+ * ¿El `df -kP` del Drive es el MISMO volumen que el de la raíz `/`? (función pura).
+ * Compara la SEGUNDA línea de cada salida: si coincide el Filesystem (primera
+ * columna) o el punto de montaje (última columna) son el mismo disco físico. En
+ * macOS la carpeta de DriveFS vive en el volumen local, así que coincide → la
+ * «cuota» que devolvería `df` sería la del disco, no la de Google Drive. Tolerante
+ * a espacios múltiples y devuelve `false` si falta alguna de las dos líneas.
+ */
+export function esMismoVolumen(dfDrive: string, dfRaiz: string): boolean {
+    const lineas = (salida: string): string[] =>
+        salida.trim().split("\n").filter((l) => l.trim().length > 0);
+    const drive = lineas(dfDrive);
+    const raiz = lineas(dfRaiz);
+    if (drive.length < 2 || raiz.length < 2) return false;
+    const partesDrive = drive[1]!.trim().split(/\s+/);
+    const partesRaiz = raiz[1]!.trim().split(/\s+/);
+    const fsDrive = partesDrive[0];
+    const fsRaiz = partesRaiz[0];
+    const montajeDrive = partesDrive[partesDrive.length - 1];
+    const montajeRaiz = partesRaiz[partesRaiz.length - 1];
+    if (!fsDrive || !fsRaiz) return false;
+    return fsDrive === fsRaiz || (montajeDrive === montajeRaiz && montajeDrive.length > 0);
 }
 
 /** Mide el disco donde vive la raíz del repo con `df -kP`. Tolerante. */
@@ -428,19 +468,29 @@ export async function espejar(): Promise<{ ok: boolean; pid: number | null; deta
 
 /**
  * Cuota de Google Drive (DriveFS): `df -kP` sobre la unidad del Drive expone la
- * cuota real del plan (1 TB o más) y lo ya usado, en GB. `null` si no está montado.
+ * cuota real del plan (1 TB o más) y lo ya usado, en GB. En macOS DriveFS es un
+ * File Provider y `df` de esa carpeta informa del disco LOCAL (228 GB), no de
+ * Google Drive: comparamos con `df -kP /` y, si son el mismo volumen, devolvemos
+ * `null` (la interfaz muestra `MOTIVO_CUOTA_DRIVE_LOCAL`). En Linux con rclone o
+ * gdfuse el volumen es distinto y sí se devuelve la cuota con `fuente: "drivefs"`.
  */
 export async function cuotaDrive(): Promise<CuotaDrive | null> {
     try {
         const driveBase = await rutaDriveBase();
         if (!driveBase) return null;
-        const { stdout } = await execFileAsync("df", ["-kP", driveBase], { timeout: 4000 });
-        const interpretado = interpretarDf(stdout);
+        const [stdoutDrive, stdoutRaiz] = await Promise.all([
+            execFileAsync("df", ["-kP", driveBase], { timeout: 4000 }),
+            execFileAsync("df", ["-kP", "/"], { timeout: 4000 }),
+        ]);
+        // Mismo volumen físico: lo que informa `df` es el disco local, no Drive.
+        if (esMismoVolumen(stdoutDrive.stdout, stdoutRaiz.stdout)) return null;
+        const interpretado = interpretarDf(stdoutDrive.stdout);
         if (!interpretado) return null;
         return {
             totalGb: interpretado.totalMb / 1024,
             usadoGb: (interpretado.totalMb - interpretado.libreMb) / 1024,
             libreGb: interpretado.libreMb / 1024,
+            fuente: "drivefs",
         };
     } catch {
         return null;
@@ -832,12 +882,16 @@ export async function leerAlmacenamiento(): Promise<EstadoAlmacenamiento> {
         estadoEspejoAutomatico(),
     ]);
     const haySeguros = regenerables.some((r) => r.seguro);
+    // Sin cuota y con Drive montado: DriveFS miente (df informa del disco local);
+    // con Drive desmontado no hay nada que aclarar, así que el motivo es null.
+    const driveCuotaMotivo = driveCuota ? null : drive.montado ? MOTIVO_CUOTA_DRIVE_LOCAL : null;
     return {
         t: new Date().toISOString(),
         disco,
         regenerables,
         drive,
         driveCuota,
+        driveCuotaMotivo,
         frias,
         espejoAutomatico,
         swap: { usadoMb: swap.usadoMb, totalMb: swap.totalMb, explicacion: explicarSwap(swap.usadoMb, swap.totalMb) },

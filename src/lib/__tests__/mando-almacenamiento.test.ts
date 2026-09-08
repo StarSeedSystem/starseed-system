@@ -56,9 +56,17 @@ async function montarDrive(): Promise<string> {
 describe("cuotaDrive (Ola 280 · A6)", () => {
     it("interpreta `df -kP`: 1 GB total, 50 % usado → 1 / 0,5 / 0,5 GB", async () => {
         const base = await montarDrive();
-        ctx.respuestas.set("df", () => ({
-            stdout: ["Filesystem       1024-blocks      Used Available Capacity Mounted on", `${base}     1048576 524288 524288   50%    /test`].join("\n"),
-        }));
+        // Ola 280 · A7B: `cuotaDrive()` ejecuta también `df -kP /` y descarta si
+        // es el mismo volumen (DriveFS miente en macOS). Para que la cuota del
+        // Drive se devuelva, la raíz debe ser un volumen DISTINTO del de la unidad.
+        ctx.respuestas.set("df", (args) => {
+            const esRaiz = args[1] === "/";
+            return {
+                stdout: esRaiz
+                    ? ["Filesystem       1024-blocks      Used Available Capacity Mounted on", "/dev/disk3s1s1   2097152 1048576 1048576   50%    /"].join("\n")
+                    : ["Filesystem       1024-blocks      Used Available Capacity Mounted on", `${base}     1048576 524288 524288   50%    /test`].join("\n"),
+            };
+        });
         const r = await cuotaDrive();
         expect(r).not.toBeNull();
         expect(r!.totalGb).toBeCloseTo(1, 2);
