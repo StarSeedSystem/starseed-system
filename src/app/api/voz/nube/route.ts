@@ -8,13 +8,15 @@
  * Recibe `{ texto (≤ 600), genero?, velocidad? }` y devuelve audio. Orden:
  *   (a) Gemini TTS (`GEMINI_API_KEY` / `GOOGLE_API_KEY`): PCM 16 bit 24 kHz
  *       mono, envuelto en WAV por el servidor. Voces Kore/Puck/Aoede según
- *       el género.
- *   (b) Pollinations `openai-audio` (sin clave): `audio/mpeg` tal cual.
- *       Voces nova/echo/alloy según el género.
+ *       el género. La clave se lee como en el Mando: `process.env` y, en la
+ *       neurona local (`STARSEED_LOCAL`/`STARSEED_MANDO`), también los
+ *       archivos `~/.starseed/env` y `~/.hermes/.env`.
+ *   (b) Google Translate TTS (sin clave): el texto se parte en trozos de
+ *       ≤ 200 caracteres y los MP3 se concatenan (`audio/mpeg`).
  *   (c) Si ambos fallan → 503 `{ error, intentos: [{ motor, motivo }] }`.
  *
  * Cabeceras: `X-Astraura-Motor` (qué motor sonó) y `Cache-Control: no-store`.
- * La clave de Gemini NUNCA se registra: solo vive en `process.env`.
+ * La clave de Gemini NUNCA se registra ni se devuelve al cliente.
  *
  * Reglas: misma puerta de sesión y rate-limit que `/api/voz/hablar`.
  */
@@ -22,6 +24,8 @@
 import { createClient } from "@/utils/supabase/server";
 import { rateLimit } from "@/lib/security/rate-limit";
 import { esDespliegueLocal, exigirSesionSalvoLocal } from "@/lib/aurora/voz-starseed/puerta-local";
+import { claveDe } from "@/lib/mando/modelos-disponibles";
+import { trocearTexto } from "@/lib/voces/trocear";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -29,10 +33,12 @@ export const maxDuration = 30;
 
 /** Longitud máxima del texto a sintetizar (caracteres). */
 const MAX_TEXTO = 600;
-/** Tiempo máximo de espera a Gemini TTS antes de relevar a Pollinations. */
+/** Tiempo máximo de espera a Gemini TTS antes de relevar a Google Translate. */
 const TIMEOUT_GEMINI_MS = 15_000;
-/** Tiempo máximo de espera a Pollinations. */
-const TIMEOUT_POLLINATIONS_MS = 20_000;
+/** Tiempo máximo de espera a Google Translate TTS. */
+const TIMEOUT_TRADUCTOR_MS = 20_000;
+/** Longitud máxima por trozo en Google Translate TTS (caracteres). */
+const MAX_TROZO = 200;
 
 /** Voces de Gemini TTS (prebuilt) por género. */
 const VOCES_GEMINI: Record<string, string> = {
@@ -41,12 +47,19 @@ const VOCES_GEMINI: Record<string, string> = {
     neutra: "Aoede",
 };
 
-/** Voces de Pollinations openai-audio por género. */
-const VOCES_POLLINATIONS: Record<string, string> = {
-    femenina: "nova",
-    masculina: "echo",
-    neutra: "alloy",
-};
+/**
+ * Clave de Gemini para la síntesis: `process.env` primero y, SOLO si esta es
+ * una neurona local (`STARSEED_LOCAL=1` o `STARSEED_MANDO=1`), se consultan
+ * también los archivos de entorno de la máquina (`~/.starseed/env`,
+ * `~/.hermes/.env`) a través de `claveDe`. En Vercel jamás se toca el disco.
+ * Devuelve `null` (nunca lanza) y no expone el valor.
+ */
+async function claveGemini(): Promise<string | null> {
+    if (process.env.STARSEED_LOCAL === "1" || process.env.STARSEED_MANDO === "1") {
+        return claveDe("GEMINI_API_KEY", "GOOGLE_API_KEY");
+    }
+    return process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || null;
+}
 
 /** Tipo de género que acepta la ruta; el timbre lo da como `VoiceGender`. */
 type GeneroNube = "femenina" | "masculina" | "neutra";
@@ -84,8 +97,8 @@ async function sintetizarConGemini(
     texto: string,
     genero: GeneroNube,
 ): Promise<{ audio: Uint8Array; tipo: string } | { error: string }> {
-    const clave = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
-    if (!clave) return { error: "Sin GEMINI_API_KEY en esta neurona." };
+    const clave = await claveGemini();
+    if (!clave) return { error: "Sin GEMINI_API_KEY ni GOOGLE_API_KEY (proceso ni archivos de entorno de esta neurona)." };
     const modelo = process.env.STARSEED_TTS_GEMINI_MODEL || "gemini-2.5-flash-preview-tts";
     const voz = VOCES_GEMINI[genero];
     try {
@@ -131,31 +144,56 @@ async function sintetizarConGemini(
 }
 
 /**
- * Sintetiza con Pollinations `openai-audio` (sin clave). Devuelve el blob
- * `audio/mpeg` tal cual, o un motivo de fallo.
+ * Relevo sin clave: Google Translate TTS. Como su endpoint limita la longitud
+ * de cada petición, el texto se parte en trozos de ≤ 200 caracteres (por
+ * frases, comas o espacios) y cada MP3 se pide en serie con `User-Agent` y
+ * `Referer` de navegador (el endpoint los exige). Los MP3 se concatenan tal
+ * cual: los reproductores encadenan tramas MPEG sin problema.
  */
-async function sintetizarConPollinations(
+async function sintetizarConGoogleTranslate(
     texto: string,
-    genero: GeneroNube,
 ): Promise<{ audio: ArrayBuffer; tipo: string } | { error: string }> {
-    const voz = VOCES_POLLINATIONS[genero];
-    const url = `https://text.pollinations.ai/${encodeURIComponent(texto)}?model=openai-audio&voice=${voz}`;
-    try {
-        const control = new AbortController();
-        const t = setTimeout(() => control.abort(), TIMEOUT_POLLINATIONS_MS);
-        let resp: Response;
+    const trozos = trocearTexto(texto, MAX_TROZO);
+    const partes: ArrayBuffer[] = [];
+    for (let n = 0; n < trozos.length; n++) {
+        const url = `https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=es&q=${encodeURIComponent(trozos[n])}`;
         try {
-            resp = await fetch(url, { signal: control.signal, cache: "no-store" });
-        } finally {
-            clearTimeout(t);
+            const control = new AbortController();
+            const t = setTimeout(() => control.abort(), TIMEOUT_TRADUCTOR_MS);
+            let resp: Response;
+            try {
+                resp = await fetch(url, {
+                    headers: {
+                        "User-Agent": "Mozilla/5.0",
+                        "Referer": "https://translate.google.com/",
+                    },
+                    signal: control.signal,
+                    cache: "no-store",
+                });
+            } finally {
+                clearTimeout(t);
+            }
+            if (!resp.ok) return { error: `Google Translate TTS respondió ${resp.status} en el trozo ${n + 1}.` };
+            const parte = await resp.arrayBuffer();
+            if (!parte.byteLength) return { error: `Google Translate TTS devolvió audio vacío en el trozo ${n + 1}.` };
+            partes.push(parte);
+        } catch (e) {
+            return {
+                error:
+                    e instanceof Error && e.name === "AbortError"
+                        ? `Timeout de Google Translate TTS en el trozo ${n + 1}.`
+                        : `Error de red con Google Translate TTS en el trozo ${n + 1}.`,
+            };
         }
-        if (!resp.ok) return { error: `Pollinations respondió ${resp.status}.` };
-        const audio = await resp.arrayBuffer();
-        if (!audio.byteLength) return { error: "Pollinations devolvió audio vacío." };
-        return { audio, tipo: "audio/mpeg" };
-    } catch (e) {
-        return { error: e instanceof Error && e.name === "AbortError" ? "Timeout de Pollinations." : "Error de red con Pollinations." };
     }
+    const total = partes.reduce((acc, p) => acc + p.byteLength, 0);
+    const mp3 = new Uint8Array(total);
+    let offset = 0;
+    for (const p of partes) {
+        mp3.set(new Uint8Array(p), offset);
+        offset += p.byteLength;
+    }
+    return { audio: mp3.buffer, tipo: "audio/mpeg" };
 }
 
 /** Construye la respuesta de éxito con el motor que sonó. */
@@ -212,15 +250,15 @@ export async function POST(req: Request): Promise<Response> {
     // `velocidad` viaja en el cuerpo (lo manda el motor); cada fuente nube la
     // expresa a su manera, así que aquí no se aplica directamente.
 
-    // (a) Gemini TTS si hay clave; (b) Pollinations sin clave; (c) 503 con motivo.
+    // (a) Gemini TTS si hay clave; (b) Google Translate TTS sin clave; (c) 503 con motivo.
     const intentos: Array<{ motor: string; motivo: string }> = [];
     const gemini = await sintetizarConGemini(texto, genero);
     if ("audio" in gemini) return responderAudio(gemini.audio, gemini.tipo, "gemini-tts");
     intentos.push({ motor: "gemini-tts", motivo: gemini.error });
 
-    const pollinations = await sintetizarConPollinations(texto, genero);
-    if ("audio" in pollinations) return responderAudio(pollinations.audio, pollinations.tipo, "pollinations");
-    intentos.push({ motor: "pollinations", motivo: pollinations.error });
+    const traductor = await sintetizarConGoogleTranslate(texto);
+    if ("audio" in traductor) return responderAudio(traductor.audio, traductor.tipo, "google-translate-tts");
+    intentos.push({ motor: "google-translate-tts", motivo: traductor.error });
 
     return Response.json({ error: "Ninguna fuente de voz en la nube respondió.", intentos }, { status: 503 });
 }
