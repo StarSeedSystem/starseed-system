@@ -14,6 +14,7 @@ import { Download, ExternalLink, Sparkles } from "lucide-react";
 import { GlassCard } from "@/components/ui/glass-card";
 import { Badge } from "@/components/ui/badge";
 import { InstallButton } from "@/components/welcome/install-button";
+import { OS_VERSION, OS_FECHA, formatearFechaBuild } from "@/lib/version/os-release";
 
 /** URL oficial de despliegue de StarSeed OS (fuente: CLAUDE.md / config). */
 const OS_DOWNLOAD_URL = "https://starseed-os.vercel.app";
@@ -23,7 +24,7 @@ export interface OsDownloadCardProps {
   version?: string;
 }
 
-export function OsDownloadCard({ version = "1.0.0-alpha" }: OsDownloadCardProps) {
+export function OsDownloadCard({ version = OS_VERSION }: OsDownloadCardProps) {
   return (
     <GlassCard
       variant="hover"
@@ -46,7 +47,8 @@ export function OsDownloadCard({ version = "1.0.0-alpha" }: OsDownloadCardProps)
                 variant="outline"
                 className="gap-1 border-emerald-400/40 text-emerald-300 text-[10px]"
               >
-                <Sparkles className="h-3 w-3" /> Última versión · {version}
+                <Sparkles className="h-3 w-3" /> Última versión · {version} ·{" "}
+                {formatearFechaBuild(OS_FECHA)}
               </Badge>
             </div>
             <p className="mt-1 max-w-xl text-sm text-muted-foreground">

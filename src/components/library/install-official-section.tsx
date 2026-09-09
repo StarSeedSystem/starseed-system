@@ -26,6 +26,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
+import { etiquetaBuild } from "@/lib/version/os-release";
 import {
   Rocket, DownloadCloud, MonitorSmartphone, Terminal, ShieldCheck, Cpu, Package,
   ExternalLink, CheckCircle2, Clock, Download, Loader2, Github, KeyRound, Share,
@@ -420,7 +421,12 @@ export function InstallOfficialSection() {
           <Rocket className="h-5 w-5 text-emerald-300" />
         </div>
         <div>
-          <h2 className="text-[clamp(1.25rem,2.5vw,1.75rem)] font-bold font-headline text-emerald-100">Instalar StarSeed</h2>
+          <div className="flex items-center gap-2 flex-wrap">
+            <h2 className="text-[clamp(1.25rem,2.5vw,1.75rem)] font-bold font-headline text-emerald-100">Instalar StarSeed</h2>
+            <Badge variant="outline" className="gap-1 border-emerald-400/30 bg-emerald-500/10 text-[10px] text-emerald-200">
+              {etiquetaBuild()}
+            </Badge>
+          </div>
           <p className="text-xs text-muted-foreground max-w-2xl">
             Instalación oficial del sistema: el OS en tu dispositivo, el control total de Aurora y los modelos
             de IA locales. Todo con honestidad sobre qué puede y qué no puede hacer el navegador.

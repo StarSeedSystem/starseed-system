@@ -10,6 +10,7 @@
 // media, enlaces) que consume la ficha `AppFilePage` — tolerantes a
 // faltantes: toda ficha funciona sin ellos.
 // ════════════════════════════════════════════════════════════════
+import { OS_VERSION, OS_FECHA, OS_NOTAS } from "@/lib/version/os-release";
 
 /** Elemento multimedia de una ficha (galería). */
 export interface ListingMediaItem {
@@ -77,7 +78,7 @@ export const STARSEED_APP_LISTINGS: StarSeedAppListing[] = [
         author: "StarSeedSystem",
         web: "https://starseed-os.vercel.app",
         repo: "https://github.com/StarSeedSystem/starseed-system",
-        build: "2026.08.23",
+        build: OS_VERSION,
         pwa: true,
         tags: ["os", "pwa", "soberanía", "código abierto", "ia 1.58-bit"],
         links: [
@@ -86,6 +87,12 @@ export const STARSEED_APP_LISTINGS: StarSeedAppListing[] = [
             { label: "Releases", url: "https://github.com/StarSeedSystem/starseed-system/releases" },
         ],
         versions: [
+            {
+                version: OS_VERSION,
+                date: OS_FECHA,
+                notes: OS_NOTAS,
+                url: "https://starseed-os.vercel.app",
+            },
             {
                 version: "2026.08.23",
                 date: "2026-08-23",
