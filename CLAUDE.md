@@ -764,3 +764,31 @@ adelante:
 
 Regla corta para quien retome: **editable sí, ejecutable no; compartible sí, sin revisar no;
 conectado a todo sí, con la memoria personal quieta.**
+
+## 🖥️ Un commit en la nube NO cambia el Puente de Mando de Alex (regla permanente · 2026-09-09)
+
+Lo dijo él después de que se lo enseñara tres veces como «arreglado»:
+
+> «no ha cambiado nada, el puente de mando sigue diciendo *Tareas en curso 0 · 128 pendientes*; es
+> importante que recuerdes **fundamentalmente verificar los resultados y la orquestación en el
+> Puente de Mando en localhost**.»
+
+Tenía razón, y el error era de método, no de código. Entre un commit en el contenedor de la nube y
+lo que Alex ve en `localhost:9002` hay **tres puertas**, y saltarse cualquiera significa anunciar
+como hecho algo que él no puede ver:
+
+1. **Transferir** — el push no sale de la nube. `git bundle create` → `SendUserFile` →
+   `device_commit_files` a `.transfer/` → en la Mac `git fetch` + `merge --ff-only`.
+2. **Reconstruir** — `next start` sirve lo COMPILADO. Un archivo nuevo en el disco de la Mac no
+   cambia nada hasta `bash scripts/starseed-ligero.sh construir` (heap 4096) y reiniciar el
+   servidor ligero.
+3. **Verificar EN localhost** — abrir `/mando`, mirar el medidor concreto, y solo entonces decirlo.
+
+Y una cuarta, distinta y fácil de confundir con las anteriores: **el Mando lee la carpeta
+`starseed_memory_root/olas/` de la máquina donde corre**. El enjambre trabaja en la nube y esa
+carpeta **no se versiona**, así que el Mando de la Mac puede enseñar «0 en curso» con seis agentes
+escribiendo a toda máquina. Copiar el estado a mano es un parche que caduca en minutos; el arreglo
+de verdad es el latido remoto por Supabase (tarea `zM1`).
+
+**Regla corta: nada está hecho hasta que se ve en el Mando de la Mac.** «tsc en verde», «tests en
+verde» y «commit integrado» son pasos intermedios, no el resultado.
