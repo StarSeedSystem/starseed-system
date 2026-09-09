@@ -512,10 +512,25 @@ export function CentroMando() {
             ) : pulso ? (
                 <ul className="flex flex-wrap gap-2" aria-label="Pulso del trabajo">
                     <DatoPulso titulo="Ola activa" valor={pulso.olaActiva} />
+                    {/* (2026-09-09) Alex: «separa los de pendientes de las tareas en curso».
+                        Estaban en un solo chip («3 · 128 pendientes») y se leía como un dato
+                        raro; son dos cosas distintas y ahora se ven como tales:
+                          · EN CURSO   = agentes latiendo AHORA (latidos del vigilante).
+                          · PENDIENTES = todo lo que queda por hacer sumando TODAS las olas,
+                            no solo la activa — por eso es un número mucho mayor, y el
+                            detalle lo dice para que nadie tenga que adivinarlo. */}
                     <DatoPulso
                         titulo="Tareas en curso"
-                        valor={`${pulso.tareasEnCurso}${pulso.pendientes ? ` · ${pulso.pendientes} pendientes` : ""}`}
+                        valor={String(pulso.tareasEnCurso)}
                         tono={pulso.tareasEnCurso > 0 ? "aviso" : "normal"}
+                        detalle={pulso.tareasEnCurso > 0 ? "agentes escribiendo ahora" : "ningún agente activo"}
+                    />
+                    <DatoPulso
+                        titulo="Pendientes"
+                        valor={String(pulso.pendientes)}
+                        tono={pulso.pendientes > 0 && pulso.tareasEnCurso === 0 ? "peligro" : "normal"}
+                        detalle="en todas las olas"
+                        alClic={() => alCambiarPestana("procesos")}
                     />
                     <DatoPulso
                         titulo="Sin publicar"
