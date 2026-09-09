@@ -169,6 +169,7 @@ describe("clasificarProveedor (Ola 271 · M9B)", () => {
 describe("clavesPresentes (Ola 271 · M9B)", () => {
     let hogar = "";
     let homeOriginal: string | undefined;
+    let rootOriginal: string | undefined;
     // Variables reales de la máquina que ensuciarían la prueba: se apartan.
     const variablesConocidas = [
         "XKIRO_API_KEY",
@@ -192,6 +193,11 @@ describe("clavesPresentes (Ola 271 · M9B)", () => {
         hogar = await mkdtemp(path.join(tmpdir(), "m9b-claves-"));
         homeOriginal = process.env.HOME;
         process.env.HOME = hogar;
+        // `clavesPresentes()` también lee `.env.local` de la raíz del repo (un medio
+        // real con `NVIDIA_SHARED_KEY` u otras claves). Apuntamos la raíz al `hogar`
+        // vacío para que ese medio no aporte nada y la prueba solo vea lo que ella crea.
+        rootOriginal = process.env.STARSEED_ROOT;
+        process.env.STARSEED_ROOT = hogar;
         for (const nombre of variablesConocidas) {
             guardadas.set(nombre, process.env[nombre]);
             delete process.env[nombre];
@@ -201,6 +207,8 @@ describe("clavesPresentes (Ola 271 · M9B)", () => {
     afterEach(async () => {
         if (homeOriginal === undefined) delete process.env.HOME;
         else process.env.HOME = homeOriginal;
+        if (rootOriginal === undefined) delete process.env.STARSEED_ROOT;
+        else process.env.STARSEED_ROOT = rootOriginal;
         for (const [nombre, valor] of guardadas) {
             if (valor === undefined) delete process.env[nombre];
             else process.env[nombre] = valor;

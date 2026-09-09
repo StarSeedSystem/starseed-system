@@ -54,6 +54,17 @@ async function montarDrive(): Promise<string> {
 }
 
 describe("cuotaDrive (Ola 280 · A6)", () => {
+    // En darwin `cuotaDrive()` devuelve null por diseño (DriveFS es un File Provider
+    // y `df` informa del disco local; 2026-09-09). Para ejercitar la lectura real de
+    // `df` con varios volúmenes, el test se congela como si corriera en Linux con
+    // rclone/gdfuse (donde el Drive sí es un volumen propio y distinto de la raíz).
+    const plataforma = process.platform;
+    beforeEach(() => {
+        Object.defineProperty(process, "platform", { value: "linux", configurable: true });
+    });
+    afterEach(() => {
+        Object.defineProperty(process, "platform", { value: plataforma, configurable: true });
+    });
     it("interpreta `df -kP`: 1 GB total, 50 % usado → 1 / 0,5 / 0,5 GB", async () => {
         const base = await montarDrive();
         // Ola 280 · A7B: `cuotaDrive()` ejecuta también `df -kP /` y descarta si

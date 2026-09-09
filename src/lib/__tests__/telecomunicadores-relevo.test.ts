@@ -9,11 +9,9 @@
 import { describe, it, expect } from "vitest";
 import { candidatosDeModelo } from "../canales/telecomunicadores";
 
-/** Marca de tiempo reciente (hace 1 minuto) en el formato del supervisor. */
+/** Marca de tiempo reciente (hace 1 minuto) del supervisor, en UTC (lo que espera el módulo). */
 function tReciente(): string {
-    const f = new Date(Date.now() - 60_000);
-    const dos = (n: number): string => String(n).padStart(2, "0");
-    return `${f.getFullYear()}-${dos(f.getMonth() + 1)}-${dos(f.getDate())} ${dos(f.getHours())}:${dos(f.getMinutes())}:${dos(f.getSeconds())}`;
+    return new Date(Date.now() - 60_000).toISOString().slice(0, 19).replace("T", " ");
 }
 
 /** Entrada de salud de un proveedor con clave presente (para que quede «activo»). */
