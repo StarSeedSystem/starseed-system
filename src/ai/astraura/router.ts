@@ -872,14 +872,34 @@ function buildHonestFallback(
     .filter(Boolean);
   const uniqueTried = Array.from(new Set(triedLabels));
   const offline = typeof navigator !== "undefined" && navigator.onLine === false;
-  const lines: string[] = [
-    uniqueTried.length
-      ? `No conseguí respuesta de ninguna fuente de inteligencia ahora mismo (probé ${uniqueTried.length}: ${uniqueTried.join(", ")}).`
-      : "No conseguí respuesta de ninguna fuente de inteligencia ahora mismo (no encontré ninguna disponible).",
+  
+  const lines: string[] = [];
+  
+  if (uniqueTried.length) {
+    lines.push(`No conseguí respuesta de ninguna fuente de inteligencia ahora mismo (probé ${uniqueTried.length}: ${uniqueTried.join(", ")}).`);
+  } else {
+    lines.push("No conseguí respuesta de ninguna fuente de inteligencia ahora mismo (no encontré ninguna disponible).");
+  }
+
+  // Usar la función resumirFallos para obtener las causas reales de los fallos
+  const resumenFallos = resumirFallos(failovers);
+  
+  // Si todos los fallos son de tipo red/timeout, mostrar el mensaje original
+  const todosSonRedTimeout = resumenFallos.every(descripcion => 
+    descripcion.toLowerCase().includes('timeout') || 
+    descripcion.toLowerCase().includes('no respondió') ||
     offline
-      ? "Tu dispositivo está SIN CONEXIÓN: ninguna fuente de red puede responder. En cuanto vuelva internet, Aurora funciona sola."
-      : "Fallaron incluso las fuentes gratuitas que no necesitan clave, así que lo más probable es un corte de red o un cortafuegos — no es que no quiera ayudarte; te lo digo con honestidad en vez de fingir una respuesta.",
-  ];
+  );
+  
+  if (offline) {
+    lines.push("Tu dispositivo está SIN CONEXIÓN: ninguna fuente de red puede responder. En cuanto vuelva internet, Aurora funciona sola.");
+  } else if (todosSonRedTimeout && resumenFallos.length > 0) {
+    lines.push("Fallaron incluso las fuentes gratuitas que no necesitan clave, así que lo más probable es un corte de red o un cortafuegos — no es que no quiera ayudarte; te lo digo con honestidad en vez de fingir una respuesta.");
+  } else if (resumenFallos.length > 0) {
+    // Mostrar las causas reales de los fallos
+    lines.push("Errores detectados:");
+    lines.push(...resumenFallos.map(fallo => `- ${fallo}`));
+  }
 
   const actions: string[] = [];
   const missingFreeKey = avail
@@ -909,6 +929,41 @@ function buildHonestFallback(
   }
   lines.push(`Petición detectada: ${TASK_LABELS[profile.kind]}. El detalle completo queda en Ajustes → Inteligencia (registro de rutas) y en "Ver proceso" de este mensaje.`);
   return lines.join("\n\n");
+}
+
+/**
+ * Resume los fallos de las fuentes de inteligencia clasificando los errores
+ * @param failovers Lista de errores de fuentes
+ * @returns Array con descripciones claras de los problemas encontrados
+ */
+export function resumirFallos(failovers: { sourceId: string; error: string }[]): string[] {
+  const mensajes: string[] = [];
+  const vistas = new Set<string>();
+  
+  for (const { sourceId, error } of failovers) {
+    if (vistas.has(sourceId)) continue;
+    vistas.add(sourceId);
+    
+    let descripcion: string;
+    const errorLower = error.toLowerCase();
+    
+    if (errorLower.includes('401') || errorLower.includes('sesión') || errorLower.includes('session')) {
+      descripcion = 'necesita sesión iniciada';
+    } else if (errorLower.includes('429') || errorLower.includes('quota') || errorLower.includes('cuota')) {
+      descripcion = 'sin cupo ahora mismo';
+    } else if ((errorLower.includes('400') || errorLower.includes('bad request')) && errorLower.includes('model')) {
+      descripcion = 'el modelo ya no existe en el catálogo';
+    } else if (errorLower.includes('timeout') || errorLower.includes('abort') || errorLower.includes('no respondió')) {
+      descripcion = 'no contestó a tiempo';
+    } else {
+      // Recortar el error a 120 caracteres si es demasiado largo
+      descripcion = error.length > 120 ? error.substring(0, 120) + '...' : error;
+    }
+    
+    mensajes.push(`${sourceId}: ${descripcion}`);
+  }
+  
+  return mensajes;
 }
 
 /** RouteRecord que acompaña a `buildHonestFallback` (mismo contrato que uno real, marcado `local:true`). */
