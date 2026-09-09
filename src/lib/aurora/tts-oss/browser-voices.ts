@@ -104,31 +104,114 @@ function normalizar(s: string | undefined | null): string {
     .replace(/ç/g, "c");
 }
 
-/** Nombres (ya normalizados) que delatan una voz FEMENINA en español/inglés. */
-const GENERO_NOMBRES_FEMENINOS = [
-  "monica", "paulina", "marisol", "esperanza", "angelica", "isabela",
-  "sabina", "helena", "carmit", "laura", "elvira", "dalia", "paloma",
-  // Voz femenina por defecto en Chrome/Android en español:
-  "google espanol", "google espanol de espana",
-  // Sufijos/códigos que el SO cuelga del nombre:
-  "female", "femenina",
+/**
+ * CATÁLOGO DE NOMBRES PROPIOS de voces reales (pRJ3 — puerta roja del 09/09).
+ * ---------------------------------------------------------------------------
+ * Las voces del sistema NO se llaman «female» ni «mujer»: se llaman Samantha,
+ * Mónica, Paulina, Jorge o Álvaro. Buscar la palabra suelta «female» dentro del
+ * NOMBRE dejaba a casi todas en «neutra» y, al no descartarse nada, acababa
+ * ganando una voz masculina — la queja original («Astraura responde con voz
+ * masculina»). Por eso este catálogo se consulta ANTES que la palabra suelta:
+ * EL NOMBRE PROPIO MANDA.
+ *
+ * Todo se compara NORMALIZADO (minúsculas y sin acentos) y por PALABRA
+ * COMPLETA, así que «Mónica» y «Monica» son el mismo nombre.
+ */
+const VOCES_FEMENINAS_CONOCIDAS: readonly string[] = [
+  // macOS — español
+  "monica", "paulina", "marisol", "angelica", "isabela", "esperanza",
+  "soledad", "ximena",
+  // macOS — inglés
+  "samantha", "victoria", "allison", "ava", "susan", "zoe", "nicky", "karen",
+  "moira", "tessa", "fiona", "serena", "kate", "martha",
+  // macOS — otras lenguas que vienen de fábrica en equipos españoles
+  "carmit", "amelie", "alice", "anna", "milena", "luciana", "joana", "ellen",
+  // Windows (Microsoft, clásicas y neurales) — español
+  "helena", "laura", "elvira", "dalia", "sabina", "abril", "beatriz", "candela",
+  "carlota", "estrella", "irene", "jimena", "larissa", "marina", "nuria",
+  "paloma", "renata", "salome", "triana", "vera", "camila", "paola", "tania",
+  // Windows (Microsoft) — inglés
+  "zira", "hazel", "eva", "aria", "jenny", "michelle", "ana", "sara", "nancy",
+  "amber", "ashley", "cora", "elizabeth", "jane", "libby", "sonia", "natasha",
+  "clara", "molly", "emily",
+  // Android / Chrome (no llevan nombre propio: la frase entera identifica la voz)
+  "google espanol", "google espanol de estados unidos",
+  "google uk english female",
 ];
-/** Nombres (ya normalizados) que delatan una voz MASCULINA en español/inglés. */
-const GENERO_NOMBRES_MASCULINOS = [
-  "jorge", "diego", "juan", "carlos", "pablo", "raul", "alvaro",
-  "male", "masculino",
+/** Nombres PROPIOS de voces MASCULINAS conocidas (mismos sistemas). */
+const VOCES_MASCULINAS_CONOCIDAS: readonly string[] = [
+  // macOS — español
+  "jorge", "juan", "diego", "carlos",
+  // macOS — inglés
+  "alex", "fred", "daniel", "tom", "aaron", "arthur", "gordon", "oliver",
+  "rishi", "ralph", "bruce", "junior", "albert", "lee",
+  // macOS — otras lenguas que vienen de fábrica
+  "xander", "yannick", "maged",
+  // Windows (Microsoft, clásicas y neurales) — español
+  "raul", "alvaro", "arnau", "dario", "elias", "nil", "saul", "teo", "yago",
+  "cecilio", "gerardo", "liberto", "luciano", "pelayo", "sebastian", "pablo",
+  "enrique", "miguel", "andres", "javier", "gonzalo", "mateo",
+  // Windows (Microsoft) — inglés
+  "david", "mark", "guy", "christopher", "eric", "roger", "steffan", "ryan",
+  "thomas", "brian", "andrew", "liam", "william", "connor", "george", "james",
+  "matthew",
+  // Android / Chrome
+  "google uk english male",
 ];
+
+/** Palabras SUELTAS que declaran el género (segundo recurso, tras el nombre). */
+const PALABRAS_GENERO_FEMENINO: readonly string[] = [
+  "female", "femenina", "femenino", "mujer",
+];
+const PALABRAS_GENERO_MASCULINO: readonly string[] = [
+  "male", "masculina", "masculino", "hombre", "varon",
+];
+
+/**
+ * Texto normalizado y troceado en palabras, con un espacio de guarda a cada
+ * lado: «Microsoft Mónica Natural» → « microsoft monica natural ». Devuelve ""
+ * si no queda nada. Sirve para buscar por PALABRA (o frase) COMPLETA.
+ */
+function palabrasDe(texto: string | undefined | null): string {
+  const limpio = normalizar(texto).replace(/[^a-z0-9]+/g, " ").trim();
+  return limpio ? ` ${limpio} ` : "";
+}
+
+/**
+ * ¿Aparece `termino` (una palabra o una frase entera) como PALABRA COMPLETA en
+ * el texto ya troceado por `palabrasDe`? Jamás casa fragmentos internos: es la
+ * salvaguarda contra la trampa que ya mordió a este proyecto — «male» vive
+ * dentro de «female», así que un `includes` suelto marcaría como masculina a
+ * cualquier voz que se anuncie como femenina.
+ */
+function contienePalabra(textoTroceado: string, termino: string): boolean {
+  const buscado = palabrasDe(termino);
+  return buscado !== "" && textoTroceado.includes(buscado);
+}
 
 /**
  * (Ola 302) Identifica el género de una voz del navegador SOLO por su nombre,
  * sin red ni heurística de idioma. Es puro y defensivo: lo que no se reconoce
  * devuelve «neutra» (y por tanto NUNCA se descarta ni se exige). Compara sin
  * distinguir mayúsculas ni acentos («Monica» == «Mónica»).
+ *
+ * (pRJ3) Orden de decisión, de más fiable a menos:
+ *   1) NOMBRE PROPIO del catálogo de voces reales — Samantha, Mónica, Jorge…
+ *      El nombre propio MANDA sobre cualquier palabra suelta.
+ *   2) Palabra suelta de género («female», «mujer», «male»…), comparada
+ *      siempre por PALABRA COMPLETA: «male» vive dentro de «female».
+ *   3) Lo desconocido: «neutra».
  */
 export function generoDeVozDelNavegador(nombre: string): GeneroVoz {
-  const n = normalizar(nombre);
-  if (GENERO_NOMBRES_FEMENINOS.some((c) => n.includes(c))) return "femenina";
-  if (GENERO_NOMBRES_MASCULINOS.some((c) => n.includes(c))) return "masculina";
+  const palabras = palabrasDe(nombre);
+  if (palabras === "") return "neutra";
+  // 1) El nombre propio conocido manda.
+  if (VOCES_FEMENINAS_CONOCIDAS.some((c) => contienePalabra(palabras, c))) return "femenina";
+  if (VOCES_MASCULINAS_CONOCIDAS.some((c) => contienePalabra(palabras, c))) return "masculina";
+  // 2) Segundo recurso: la palabra suelta que declara el género.
+  if (PALABRAS_GENERO_FEMENINO.some((p) => contienePalabra(palabras, p))) return "femenina";
+  if (PALABRAS_GENERO_MASCULINO.some((p) => contienePalabra(palabras, p))) return "masculina";
+  // 3) Nombre desconocido: neutra (ni se descarta ni se exige).
   return "neutra";
 }
 
