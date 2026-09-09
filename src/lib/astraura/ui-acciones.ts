@@ -90,6 +90,12 @@ function esRutaPermitida(ruta: string, exactas: Set<string>, prefijos: Set<strin
 
 function puedeDescender(ruta: string, exactas: Set<string>, prefijos: Set<string>): boolean {
   if (exactas.has(ruta)) return true;
+  // Una rama intermedia («typography») no aparece como tal en la lista: solo
+  // aparecen sus hojas («typography.scale»). Hay que poder bajar por ella o
+  // los tipos sin comodín `.*` se quedarían sin NINGUNA ruta viva.
+  for (const e of exactas) {
+    if (e.startsWith(ruta + ".")) return true;
+  }
   for (const p of prefijos) {
     if (p === ruta || p.startsWith(ruta + ".")) return true;
   }
@@ -193,10 +199,20 @@ function nombreActor(actor: string): string {
   return nombre.charAt(0).toUpperCase() + nombre.slice(1);
 }
 
+/**
+ * Encaja el `motivo` en la frase sin tartamudear: muchos motivos ya vienen
+ * redactados con su propio «porque…», así que solo se antepone la conjunción
+ * cuando falta.
+ */
+function fraseMotivo(motivo: string): string {
+  const limpio = motivo.trim();
+  return /^porque\s/i.test(limpio) ? limpio : `porque ${limpio}`;
+}
+
 /** Frase humana para el diálogo de confirmación, p. ej.:
  *  «Aurora quiere cambiar el fondo de tu perfil — porque estás leyendo de noche». */
 export function describirAccion(a: AccionUi): string {
-  return `${nombreActor(a.actor)} quiere ${VERBOS[a.tipo]} ${AMBITO_FRASE[a.ambito]} — porque ${a.motivo}`;
+  return `${nombreActor(a.actor)} quiere ${VERBOS[a.tipo]} ${AMBITO_FRASE[a.ambito]} — ${fraseMotivo(a.motivo)}`;
 }
 
 /**
