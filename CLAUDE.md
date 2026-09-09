@@ -792,3 +792,45 @@ de verdad es el latido remoto por Supabase (tarea `zM1`).
 
 **Regla corta: nada está hecho hasta que se ve en el Mando de la Mac.** «tsc en verde», «tests en
 verde» y «commit integrado» son pasos intermedios, no el resultado.
+
+---
+
+## 💠 Tres trampas del entorno que parecen fallos del código (2026-09-09)
+
+Las tres costaron horas y ninguna estaba en el código que se estaba escribiendo. Antes de culpar a
+una tarea, a un modelo o a un agente, descarta estas:
+
+### 1. `npm config omit=dev` deja la máquina sin herramientas de prueba
+
+En la Mac, `npm config get omit` devolvía **`dev`**. Con esa configuración, `npm install` instala
+las dependencias de producción y **borra en silencio las de desarrollo**. Los síntomas no se
+parecen en nada a la causa:
+
+- `npx tsc --noEmit` → 26 errores del tipo «Property 'toHaveAttribute' does not exist on type
+  'Assertion<any>'», todos en un solo archivo de test (faltaba `@testing-library/jest-dom`).
+- `npx vitest run` → «Cannot find package 'jsdom'», aunque `jsdom` **sí** está en `package.json`.
+- `next build` → `ENOENT: … node_modules/typescript/package.json` al copiar el `standalone`.
+
+Tres puertas rojas, una sola causa. El arreglo es `npm install --include=dev`. **Comprueba
+`npm config get omit` antes de dar por rota una prueba que ayer pasaba.**
+
+### 2. Un `id` de tarea solo puede vivir en UNA cola
+
+El Mando empareja cada latido con su tarea por la clave `cola|id`. Si el mismo `id` aparece en dos
+archivos `cola-*.json`, el árbol se queda con **una** de las dos colas y, si elige la que no está
+corriendo, el latido no casa: la tarea se pinta pendiente y la cabecera enseña **0 en curso con los
+agentes escribiendo**. Medido hoy con `pRJ1`-`pRJ3` duplicadas en `cola-309` y `cola-310`.
+
+**Regla: al combinar colas, la cola vieja sale de `starseed_memory_root/olas/`** (muévela a
+`starseed_memory_root/colas-fuente/`, no la borres). Los `id` siguen siendo únicos en todo el
+histórico; lo nuevo es que además han de ser únicos *entre los archivos vivos*.
+
+### 3. Una ola viva nunca puede quedar fuera del recuento
+
+`construirRamificacion(cuantas)` recortaba a las últimas `cuantas` olas **por número**. Una cola
+relanzada mezcla tareas de olas antiguas, así que ese recorte escondía agentes que estaban
+escribiendo en ese momento: 5 vivos, la cabecera enseñaba 3. Ahora se eligen las últimas por número
+**y además, sin excepción, toda ola con al menos un latido fresco**.
+
+**Regla: cualquier recorte del Mando (por número, por fecha, por página) se aplica después de
+garantizar que lo vivo está dentro.** Lo vivo es justo lo que hay que ver.

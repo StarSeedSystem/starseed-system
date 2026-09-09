@@ -475,7 +475,18 @@ export async function construirRamificacion(cuantas = 4, horasBus = 24 * 30): Pr
     for (const e of delBus.enjambres) dondeCola.set(e.cola.replace(/^cola-/, ""), e.donde);
     for (const l of latidosMac) dondeCola.set(l.cola.replace(/^cola-/, ""), "mac");
     const etiquetas = [...porOla.keys()].sort((a, b) => numeroOla(a) - numeroOla(b) || a.localeCompare(b));
-    const elegidas = etiquetas.slice(-Math.max(1, cuantas));
+    // UNA OLA VIVA NUNCA SE QUEDA FUERA (2026-09-09). `cuantas` recorta a las últimas olas por
+    // número, y eso escondía agentes que estaban escribiendo ahora mismo: una cola relanzada
+    // mezcla tareas de olas antiguas, así que el recorte por número dejaba fuera justo a los que
+    // había que ver. Medido hoy: 5 agentes vivos, la cabecera enseñaba 3. Primero se eligen las
+    // últimas por número; después se añade, sin excepción, toda ola con al menos un latido fresco.
+    const conLatido = new Set<string>();
+    for (const [etiqueta, lista] of porOla) {
+        if (lista.some((t) => latidoDe(t) !== null)) conLatido.add(etiqueta);
+    }
+    const recientes = etiquetas.slice(-Math.max(1, cuantas));
+    const elegidas = [...new Set([...recientes, ...conLatido])]
+        .sort((a, b) => numeroOla(a) - numeroOla(b) || a.localeCompare(b));
 
     const olas: RamaOla[] = [];
     for (const etiqueta of elegidas) {
