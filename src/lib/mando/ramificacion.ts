@@ -410,11 +410,21 @@ export async function construirRamificacion(cuantas = 4, horasBus = 24 * 30): Pr
     const vivoPor = new Map<string, LatidoTarea>();
     for (const l of latidos) vivoPor.set(claveLatido(l.cola, l.tarea), l);
     /**
-     * Latido de una tarea: primero por su cola conocida; solo si la tarea no tiene cola
-     * (aún no se sabe de dónde salió) se busca por id a secas, aceptando la ambigüedad.
+     * Latido de una tarea: primero por su cola conocida; si esa clave no casa —o la tarea no
+     * tiene cola— se busca por id a secas, aceptando la ambigüedad.
+     *
+     * EL RESPALDO POR ID NO ES UN LUJO (2026-09-09). Una cola relanzada copia tareas de colas
+     * anteriores, así que el MISMO id vive en dos archivos `cola-*.json`. El árbol se queda con
+     * una de las dos colas y, si elige la que no está corriendo, la clave `cola|id` no casa: la
+     * tarea se pinta pendiente y la cabecera enseña «0 en curso» con los agentes escribiendo.
+     * Es la queja que Alex ha repetido seis veces. Un latido fresco de la tarea X significa que
+     * X está viva, esté en el archivo de cola que esté.
      */
     const latidoDe = (t: { id: string; cola?: string }): LatidoTarea | null => {
-        if (t.cola) return vivoPor.get(claveLatido(t.cola, t.id)) ?? null;
+        if (t.cola) {
+            const exacto = vivoPor.get(claveLatido(t.cola, t.id));
+            if (exacto) return exacto;
+        }
         return latidos.find((l) => l.tarea === t.id) ?? null;
     };
 
