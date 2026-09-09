@@ -35,6 +35,23 @@ export interface RankedVoice {
   reasons: string[];
 }
 
+/**
+ * Género que el USUARIO pide para la voz de Aurora (la identidad de Aurora es
+ * femenina por defecto). «neutra» = da igual el género, gana la mejor calidad.
+ */
+export type GeneroVoz = "femenina" | "masculina" | "neutra";
+
+/**
+ * Resultado de elegir LA voz respetando un género pedido: la voz ganadora y
+ * una marca honesta (`generoIncumplido`) para que la interfaz pueda decirle a
+ * la persona que, aunque se pidió un género, no había ninguna con ese género
+ * y se usó la mejor disponible (nunca se deja al usuario sin voz en silencio).
+ */
+export interface VozElegidaPorGenero {
+  voice: SpeechSynthesisVoice | null;
+  generoIncumplido: boolean;
+}
+
 /** Nombres (minúsculas) que delatan una voz NEURAL/premium de sistema. */
 const NEURAL_HINTS = ["natural", "neural", "premium", "enhanced", "siri"];
 /** Proveedores de voz de buena calidad reconocibles por nombre. */
@@ -73,6 +90,46 @@ const LOW_QUALITY_HINTS = [
 
 function lower(s: string | undefined | null): string {
   return (s || "").toLowerCase();
+}
+
+/** Minúsculas SIN ACENTOS (para comparar nombres de voz con tolerancia). */
+function normalizar(s: string | undefined | null): string {
+  return lower(s)
+    .replace(/[áàäâã]/g, "a")
+    .replace(/[éèëê]/g, "e")
+    .replace(/[íìïî]/g, "i")
+    .replace(/[óòöôõ]/g, "o")
+    .replace(/[úùüû]/g, "u")
+    .replace(/ñ/g, "n")
+    .replace(/ç/g, "c");
+}
+
+/** Nombres (ya normalizados) que delatan una voz FEMENINA en español/inglés. */
+const GENERO_NOMBRES_FEMENINOS = [
+  "monica", "paulina", "marisol", "esperanza", "angelica", "isabela",
+  "sabina", "helena", "carmit", "laura", "elvira", "dalia", "paloma",
+  // Voz femenina por defecto en Chrome/Android en español:
+  "google espanol", "google espanol de espana",
+  // Sufijos/códigos que el SO cuelga del nombre:
+  "female", "femenina",
+];
+/** Nombres (ya normalizados) que delatan una voz MASCULINA en español/inglés. */
+const GENERO_NOMBRES_MASCULINOS = [
+  "jorge", "diego", "juan", "carlos", "pablo", "raul", "alvaro",
+  "male", "masculino",
+];
+
+/**
+ * (Ola 302) Identifica el género de una voz del navegador SOLO por su nombre,
+ * sin red ni heurística de idioma. Es puro y defensivo: lo que no se reconoce
+ * devuelve «neutra» (y por tanto NUNCA se descarta ni se exige). Compara sin
+ * distinguir mayúsculas ni acentos («Monica» == «Mónica»).
+ */
+export function generoDeVozDelNavegador(nombre: string): GeneroVoz {
+  const n = normalizar(nombre);
+  if (GENERO_NOMBRES_FEMENINOS.some((c) => n.includes(c))) return "femenina";
+  if (GENERO_NOMBRES_MASCULINOS.some((c) => n.includes(c))) return "masculina";
+  return "neutra";
 }
 
 /**
@@ -185,13 +242,21 @@ export function rankBrowserVoices(
 /**
  * LA voz natural por defecto: la mejor rankeada para el idioma dado.
  * `null` si no hay ninguna (el llamador deja que el navegador elija).
+ *
+ * (Ola 302) Acepta un `genero` preferido OPCIONAL (por defecto «femenina», la
+ * identidad de Aurora) y DESCARTARÁ las voces del género contrario. Los
+ * llamantes que no pasan el nuevo parámetro siguen funcionando exactamente
+ * igual (el parámetro es opcional y la firma antigua sigue devolviendo una
+ * `SpeechSynthesisVoice | null`); la diferencia es que una voz femenina vence
+ * a una masculina aunque esta puntúe más, y si no hay ninguna del género
+ * pedido se cae a la mejor de siempre (jamás deja al usuario sin voz).
  */
 export function getBestBrowserVoice(
   voices?: SpeechSynthesisVoice[],
   preferLang: string = "es",
+  genero: GeneroVoz = "femenina",
 ): SpeechSynthesisVoice | null {
-  const ranked = rankBrowserVoices(voices, preferLang);
-  return ranked.length ? ranked[0].voice : null;
+  return elegirVozRespetandoGenero(genero, voices, preferLang).voice;
 }
 
 /* (Adenda 194) Puente en `window` para que la UI del rito pregunte si existe
@@ -240,6 +305,49 @@ export function elegirVozPorGenero(
     return ranked[0]?.v ?? null;
   } catch {
     return null;
+  }
+}
+
+/**
+ * (Ola 302) Elige LA voz del navegador RESPETANDO el género pedido, y de forma
+ * HONESTA. A diferencia de `elegirVozPorGenero` (preferencia suave, no filtra),
+ * aquí se DESCARTAN las voces cuyo género detectado es el CONTRARIO al pedido:
+ * con «femenina» no puede ganar nunca una Jorge/Diego — que era exactamente el
+ * bug de que Aurora sonara masculina. Los nombres desconocidos («neutra») se
+ * conservan y sirven para cualquier género.
+ *
+ * Reglas del contrato:
+ *   · `genero` por defecto «femenina» (la identidad de Aurora).
+ *   · «neutra»: no se descarta nada, gana la mejor calidad. Nunca incumple.
+ *   · Si tras descartar no queda NINGUNA voz, se usa la mejor de siempre para
+ *     no dejar al usuario sin voz, pero se marca `generoIncumplido: true` y la
+ *     interfaz puede decir la verdad («no hay voz femenina, uso la mejor»).
+ *   · Devuelve `voice: null` solo si no hay voces en absoluto.
+ * Nunca lanza.
+ */
+export function elegirVozRespetandoGenero(
+  genero: GeneroVoz = "femenina",
+  voices?: SpeechSynthesisVoice[],
+  preferLang: string = "es",
+): VozElegidaPorGenero {
+  try {
+    const list = voices ?? listBrowserVoices();
+    if (!list.length) return { voice: null, generoIncumplido: false };
+    const rankeadas = list
+      .map((v) => ({ v, s: scoreVoice(v, preferLang, genero).score }))
+      .sort((a, b) => b.s - a.s);
+    if (genero === "neutra") return { voice: rankeadas[0]?.v ?? null, generoIncumplido: false };
+
+    // Descarta el género CONTRARIO; lo desconocido (`neutra`) se conserva.
+    const aceptadas = rankeadas.filter((r) => {
+      const g = generoDeVozDelNavegador(r.v.name);
+      return g === genero || g === "neutra";
+    });
+    if (aceptadas.length) return { voice: aceptadas[0].v, generoIncumplido: false };
+    // No queda ninguna del género pedido: mejor de siempre + aviso honesto.
+    return { voice: rankeadas[0]?.v ?? null, generoIncumplido: true };
+  } catch {
+    return { voice: null, generoIncumplido: false };
   }
 }
 
