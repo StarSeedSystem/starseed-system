@@ -716,3 +716,51 @@ Reglas del área, permanentes:
 - **Cada neurona decide cómo se actualiza** (`src/lib/neurons/actualizaciones.ts`): `manual` por
   defecto —nadie se lleva una recarga por sorpresa a mitad de trabajo— o `automatica` si el usuario
   la enciende.
+
+## 🌍 El OS universal, libre y seguro: editable por la IA, compartible, con núcleo intocable (rumbo permanente · 2026-09-09)
+
+Alex fijó el norte con estas palabras, y valen para toda decisión de arquitectura de aquí en
+adelante:
+
+> Cada usuario debe poder **editar su sistema con facilidad**, manteniendo conexiones seguras y
+> coherentes con la red StarSeed y con todos los demás usuarios, incluida la **red mesh P2P** y todo
+> tipo de telecomunicaciones, medios y dispositivos. Debe integrarse con **cerebros y agentes con
+> memoria** y acceso a toda la red e internet. **Todo el UI y UX debe ser editable desde el código en
+> tiempo real por la misma IA**, con cualquier agente y personalidad, y **compartible manteniendo las
+> funciones y opciones principales y fundamentales de StarSeed OS por seguridad**, facilidad y
+> estética intuitiva útil. También debe permitir **salas virtuales 2D y 3D en AR y VR**, con
+> pizarras, escritorios, dashboards y widgets **sincronizables para modificar en grupo**, en
+> servidores públicos o privados, para cualquier propósito. La IA también debe poder **crear agentes
+> privados y públicos para grupos** de cualquier tipo.
+
+### Cómo se implementa esto sin abrir un agujero (decisión de arquitectura, Ola 307)
+
+- **La interfaz es un DATO, no código suelto.** `src/lib/nucleo/ui-spec.ts` define `UiSpec`: un
+  árbol declarativo de bloques con **vocabulario cerrado** y `PROPS_PERMITIDAS`. La IA lo reescribe
+  entero en tiempo real —eso es «editar el UI desde el código en vivo»— y el OS lo renderiza. No hay
+  bloque `script`, ni HTML crudo, ni manejadores con código: **nadie ejecuta código de nadie**. Si
+  esto se hiciera con `eval`, el primer paquete compartido malicioso acabaría con la confianza en la
+  red entera.
+- **El núcleo intocable.** `src/lib/nucleo/invariantes.ts` lista lo que ninguna edición, paquete ni
+  instalación puede quitar: salida siempre (Ajustes y restaurar), identidad soberana, permisos
+  visibles, navegación fundamental, integridad del voto, datos honestos y deshacer.
+  `validarContraInvariantes` devuelve **todas** las violaciones con *cómo arreglarlo* — un validador
+  que solo dice «no» enseña a saltárselo.
+- **Compartir se revisa antes de entrar.** `paquete-sistema.ts`: el paquete lleva su `UiSpec`, su
+  apariencia y sus agentes; `revisar()` lo pasa por los invariantes, rastrea `CLAVES_PROHIBIDAS`
+  (`sk-`, `gsk_`, `Bearer`, rutas del disco) y produce un resumen legible en diez segundos. **Nada se
+  instala sin que el usuario lo lea.**
+- **Salas con un solo contrato** (`src/lib/salas/sala.ts`): pizarra · escritorio · dashboard ·
+  escena3d · xr, sobre `os_spaces`, con roles (dueño/editor/comentarista/observador) y
+  `elegirTransporte()`, que prefiere **servidor privado o malla antes que público para una sala
+  privada, aunque haya internet**. La fusión de cambios concurrentes (`sincronia-sala.ts`) es
+  **determinista en ambos sentidos** — si no, dos neuronas acaban en realidades distintas — y usa
+  lápidas, nunca borrado físico.
+- **Agentes de grupo que no filtran.** `agentes-grupo.ts`: `sanearParaGrupo()` quita memoria
+  personal, claves y bindings privados; los límites de fábrica son restrictivos (sin escribir, sin
+  salir a internet) porque a un agente público del grupo lo invoca mucha gente.
+- **Alcance de memoria** (`alcance-memoria.ts`): personal › perfil › grupo › pública, y nunca al
+  revés. Un agente público no lee la memoria personal de su creador ni escribe en ella.
+
+Regla corta para quien retome: **editable sí, ejecutable no; compartible sí, sin revisar no;
+conectado a todo sí, con la memoria personal quieta.**
