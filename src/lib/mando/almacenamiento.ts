@@ -478,12 +478,25 @@ export async function cuotaDrive(): Promise<CuotaDrive | null> {
     try {
         const driveBase = await rutaDriveBase();
         if (!driveBase) return null;
-        const [stdoutDrive, stdoutRaiz] = await Promise.all([
+        // (2026-09-09) En macOS, la carpeta de DriveFS es un **File Provider**: `df`
+        // de esa ruta NUNCA informa de la cuota de Drive, informa del disco local.
+        // Comparábamos con `df /`, pero en macOS moderno `/` es el volumen de sistema
+        // sellado (`/dev/disk3s1s1`) y los datos viven en `/System/Volumes/Data`
+        // (`/dev/disk3s5`): son dispositivos DISTINTOS del MISMO disco, así que
+        // `esMismoVolumen` decía «no» y enseñábamos 228 GB —el disco de la Mac— como
+        // si fuera un Drive de 2 TB. Alex lo vio: «dice que tenemos 6 GB cuando
+        // tenemos casi 2 TB». Ahora se compara también con el volumen de $HOME y,
+        // en darwin, se descarta `df` de plano: la cuota real la da la API de Google.
+        if (process.platform === "darwin") return null;
+        const casa = process.env.HOME || "/";
+        const [stdoutDrive, stdoutRaiz, stdoutCasa] = await Promise.all([
             execFileAsync("df", ["-kP", driveBase], { timeout: 4000 }),
             execFileAsync("df", ["-kP", "/"], { timeout: 4000 }),
+            execFileAsync("df", ["-kP", casa], { timeout: 4000 }),
         ]);
-        // Mismo volumen físico: lo que informa `df` es el disco local, no Drive.
+        // Mismo volumen físico que la raíz o que el hogar: es el disco local, no Drive.
         if (esMismoVolumen(stdoutDrive.stdout, stdoutRaiz.stdout)) return null;
+        if (esMismoVolumen(stdoutDrive.stdout, stdoutCasa.stdout)) return null;
         const interpretado = interpretarDf(stdoutDrive.stdout);
         if (!interpretado) return null;
         return {

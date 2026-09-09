@@ -340,6 +340,50 @@ export function CentroMando() {
         };
     }, []);
 
+    // (2026-09-09) La cuota REAL de Google Drive. `df` de la carpeta de DriveFS en
+    // macOS informa del disco LOCAL, no de Drive: por eso el Mando llegó a decir
+    // «6 GB libres de 228» con un Drive de 2 TB. El servidor ya devuelve null en ese
+    // caso; aquí se pregunta a la API de Google con el token de «carpetas remotas»,
+    // que vive SOLO en el navegador y nunca sale de él.
+    const [cuotaGoogle, setCuotaGoogle] = useState<{ totalGb: number | null; libreGb: number | null; motivo: string } | null>(null);
+    useEffect(() => {
+        if (!almacenamiento?.drive?.montado) return;
+        if (almacenamiento.driveCuota) return;          // DriveFS sí la sabía (Linux)
+        let vivo = true;
+        void (async () => {
+            try {
+                const { tokenVigente } = await import("@/lib/storage/carpetas-remotas");
+                const token = await tokenVigente("google-drive");
+                if (!token) {
+                    if (vivo) setCuotaGoogle({ totalGb: null, libreGb: null, motivo: "conecta tu cuenta de Google en Almacenamiento → carpetas remotas" });
+                    return;
+                }
+                const r = await fetch("https://www.googleapis.com/drive/v3/about?fields=storageQuota", {
+                    headers: { Authorization: `Bearer ${token}` },
+                    cache: "no-store",
+                });
+                if (!r.ok) {
+                    if (vivo) setCuotaGoogle({ totalGb: null, libreGb: null, motivo: `la API de Google respondió ${r.status}` });
+                    return;
+                }
+                const j = (await r.json()) as { storageQuota?: { limit?: string; usage?: string } };
+                const aGb = (v?: string): number | null => (v ? Number(v) / 1024 ** 3 : null);
+                const total = aGb(j.storageQuota?.limit);
+                const usado = aGb(j.storageQuota?.usage);
+                if (vivo) {
+                    setCuotaGoogle({
+                        totalGb: total,
+                        libreGb: total != null && usado != null ? total - usado : null,
+                        motivo: total == null ? "almacenamiento sin límite" : "",
+                    });
+                }
+            } catch {
+                if (vivo) setCuotaGoogle({ totalGb: null, libreGb: null, motivo: "no se pudo consultar la cuota" });
+            }
+        })();
+        return () => { vivo = false; };
+    }, [almacenamiento?.drive?.montado, almacenamiento?.driveCuota]);
+
     /** Pulso de la cabecera: ola activa, tareas en curso, sin push, flota agotada. */
     const pulso = useMemo(() => {
         if (!estado) return null;
@@ -535,15 +579,21 @@ export function CentroMando() {
                         <DatoPulso
                             titulo="Google Drive"
                             valor={
-                                almacenamiento.driveCuota && almacenamiento.driveCuota.libreGb != null
-                                    ? `${almacenamiento.driveCuota.libreGb.toFixed(0)} GB libres`
-                                    : "montado"
+                                cuotaGoogle?.libreGb != null
+                                    ? cuotaGoogle.libreGb >= 1024
+                                        ? `${(cuotaGoogle.libreGb / 1024).toFixed(2)} TB libres`
+                                        : `${cuotaGoogle.libreGb.toFixed(0)} GB libres`
+                                    : almacenamiento.driveCuota && almacenamiento.driveCuota.libreGb != null
+                                      ? `${almacenamiento.driveCuota.libreGb.toFixed(0)} GB libres`
+                                      : "montado"
                             }
                             tono="ok"
                             detalle={
-                                almacenamiento.drive.espejo?.ultimoEspejo
-                                    ? `espejo del memory root · último: ${almacenamiento.drive.espejo.ultimoEspejo}`
-                                    : (almacenamiento.driveCuotaMotivo ?? "abre la carpeta de StarSeed en Drive")
+                                cuotaGoogle?.totalGb != null
+                                    ? `de ${(cuotaGoogle.totalGb / 1024).toFixed(2)} TB (API de Google)${almacenamiento.drive.espejo?.ultimoEspejo ? ` · espejo: ${almacenamiento.drive.espejo.ultimoEspejo}` : ""}`
+                                    : (cuotaGoogle?.motivo ||
+                                       almacenamiento.driveCuotaMotivo ||
+                                       "abre la carpeta de StarSeed en Drive")
                             }
                             alClic={() =>
                                 window.open(
