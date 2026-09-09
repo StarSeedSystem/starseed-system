@@ -140,8 +140,43 @@ export const WIDGET_MANIFEST: Partial<Record<WidgetType, WidgetManifestEntry>> =
     AURORA_LAST: { label: "Aurora", category: "ia", w: 3, h: 4, minW: 2, minH: 3, relevance: 80 },
     BADGES: { label: "Insignias", category: "perfil", w: 3, h: 4, minW: 2, minH: 3, relevance: 62 },
     NETWORK_FEED_MINI: { label: "Feed de la Red", category: "social", w: 4, h: 5, minW: 2, minH: 3, data: ["common.feed"], relevance: 79 },
-};
 
+    // ── Ola 305: los 21 huérfanos entran en el manifiesto ─────────
+    // Ningún WidgetType puede quedarse sin entrada: hasta ahora caían al
+    // DEFAULT_MANIFEST {minW:2,minH:2} y el usuario podía encogerlos hasta
+    // romperles la maquetación. Categorías y relevancia según sus vecinos.
+    MY_PAGES: { label: "Mis Páginas", category: "perfil", w: 4, h: 5, minW: 3, minH: 4, relevance: 83 },
+    ACTIVITY_SUMMARY: { label: "Resumen de Actividad", category: "perfil", w: 4, h: 5, minW: 3, minH: 4, relevance: 78 },
+    QUICK_ACCESS: { label: "Accesos Rápidos", category: "aplicaciones", w: 4, h: 4, minW: 3, minH: 3, relevance: 89 },
+    NEXUS_QUICK_ACCESS: { label: "Nexus IA", category: "aplicaciones", w: 3, h: 4, minW: 3, minH: 3, data: ["ai.astraura"], relevance: 84 },
+    RELEVANT_POSTS: { label: "Publicaciones Relevantes", category: "social", w: 4, h: 5, minW: 3, minH: 4, data: ["social.posts"], relevance: 81 },
+    ACTIVE_PROJECTS: { label: "Proyectos Activos", category: "productividad", w: 4, h: 4, minW: 3, minH: 3, data: ["productivity.projects"], relevance: 79 },
+    COLLAB_PROJECTS: { label: "Proyectos Colaborativos", category: "productividad", w: 4, h: 5, minW: 3, minH: 4, data: ["productivity.projects"], relevance: 80 },
+
+    // ── Familia clima terrestre (módulo weather, feed propio por
+    //    ubicación — no consume claves de WidgetDataKey) ──
+    WEATHER_BASIC: { label: "Clima", category: "clima", w: 4, h: 4, minW: 3, minH: 3, relevance: 87 },
+    // Los medidores de UNA SOLA CIFRA sí funcionan en 2×2: son la excepción
+    // documentada a MIN_SEGURO (3×3) porque solo dibujan cifra + icono.
+    WEATHER_TEMPERATURE: { label: "Temperatura", category: "clima", w: 2, h: 2, minW: 2, minH: 2, relevance: 72 },
+    WEATHER_UV: { label: "Índice UV", category: "clima", w: 2, h: 2, minW: 2, minH: 2, relevance: 64 },
+    WEATHER_WIND: { label: "Corrientes de Viento", category: "clima", w: 2, h: 2, minW: 2, minH: 2, relevance: 63 },
+    WEATHER_HUMIDITY: { label: "Humedad Relativa", category: "clima", w: 2, h: 2, minW: 2, minH: 2, relevance: 62 },
+    WEATHER_AIR_QUALITY: { label: "Calidad del Aire", category: "clima", w: 4, h: 4, minW: 3, minH: 3, relevance: 76 },
+
+    // ── Familia clima espacial (NOAA SWPC, feed propio del módulo
+    //    weather — no consume claves de WidgetDataKey) ──
+    // WEATHER_SPACE_KP es medidor de una sola cifra: excepción 2×2 a
+    // MIN_SEGURO, como sus vecinos terrestres de arriba.
+    WEATHER_SPACE_SOLAR: { label: "Viento Solar", category: "astronomia", w: 4, h: 4, minW: 3, minH: 3, relevance: 74 },
+    WEATHER_SPACE_SCHUMANN: { label: "Resonancia Schumann", category: "astronomia", w: 4, h: 4, minW: 3, minH: 3, relevance: 68 },
+    WEATHER_SPACE_KP: { label: "Índice Kp", category: "astronomia", w: 2, h: 2, minW: 2, minH: 2, relevance: 70 },
+    WEATHER_SPACE_MAGNETOMETER: { label: "Magnetómetro", category: "astronomia", w: 4, h: 4, minW: 3, minH: 3, relevance: 67 },
+    WEATHER_SPACE_FLARE: { label: "Llamaradas Solares", category: "astronomia", w: 4, h: 4, minW: 3, minH: 3, relevance: 73 },
+    WEATHER_SPACE: { label: "Viento Solar (heredado)", category: "astronomia", w: 4, h: 4, minW: 3, minH: 3, relevance: 60 },
+    WEATHER_ASTRONOMY: { label: "Astronomía", category: "astronomia", w: 4, h: 4, minW: 3, minH: 3, relevance: 75 },
+    WEATHER_HOLISTIC: { label: "Clima Holístico 3D", category: "astronomia", w: 4, h: 5, minW: 3, minH: 4, relevance: 78 },
+};
 // NOTA: el sistema de tamaños amigables S/M/L/XL vive en `dashboard-size.ts`
 // (dimsForSize / sizeFromWH / nextSize / WidgetSize) — es la fuente única de
 // verdad para "tamaño" en todo el dashboard (selector, panel de config y el
