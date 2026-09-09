@@ -488,15 +488,13 @@ export async function cuotaDrive(): Promise<CuotaDrive | null> {
         // tenemos casi 2 TB». Ahora se compara también con el volumen de $HOME y,
         // en darwin, se descarta `df` de plano: la cuota real la da la API de Google.
         if (process.platform === "darwin") return null;
-        const casa = process.env.HOME || "/";
-        const [stdoutDrive, stdoutRaiz, stdoutCasa] = await Promise.all([
+        const [stdoutDrive, stdoutRaiz] = await Promise.all([
             execFileAsync("df", ["-kP", driveBase], { timeout: 4000 }),
             execFileAsync("df", ["-kP", "/"], { timeout: 4000 }),
-            execFileAsync("df", ["-kP", casa], { timeout: 4000 }),
         ]);
-        // Mismo volumen físico que la raíz o que el hogar: es el disco local, no Drive.
+        // Fuera de macOS (Linux con rclone o gdfuse) sí es un volumen propio: la
+        // comparación con la raíz basta para no confundirlo con el disco local.
         if (esMismoVolumen(stdoutDrive.stdout, stdoutRaiz.stdout)) return null;
-        if (esMismoVolumen(stdoutDrive.stdout, stdoutCasa.stdout)) return null;
         const interpretado = interpretarDf(stdoutDrive.stdout);
         if (!interpretado) return null;
         return {
