@@ -1164,6 +1164,70 @@ export function cooldownMinutesFor(sourceId: string, fallback: number): number {
   return typeof m === "number" && m > 0 ? m : fallback;
 }
 
+/* ───────────────── Modelos muertos (memoria honesta · Ola 302) ─────────────────
+ * Aurora no debe gastar un intento (ni una espera) en un modelo que el proveedor
+ * ya retiró. Esta memoria es PURA y sin red: nada más que la detección del mensaje
+ * y el olvido a las 24 h. El router la consulta ANTES de intentar el modelo. */
+
+/** Un modelo que el proveedor declara muerto (retirado / no disponible). */
+export interface ModeloMuerto {
+  /** Id de la fuente del catálogo (p.ej. "llm7-free"). */
+  fuente: string;
+  /** Id EXACTO del modelo que el proveedor dejó de servir. */
+  modelo: string;
+  /** Marca de tiempo (ms) en la que se detectó la muerte. */
+  desde: number;
+  /** Texto real del proveedor al retirarlo (para diagnóstico). */
+  motivo: string;
+}
+
+/**
+ * ¿El mensaje del proveedor dice que el modelo está MUERTO (no existe / fue
+ * retirado)? true SOLO para "model_unavailable", "model not found", "unknown
+ * model", "decommissioned", "no longer available". Devuelve FALSE para cuotas,
+ * 429, 401 y errores de red: **un modelo sin cupo NO está muerto** — puede que
+ * vuelva, y marcarlo como muerto lo sacaría de la rotación para siempre.
+ */
+export function esModeloMuerto(msg: string): boolean {
+  const texto = String(msg ?? "").toLowerCase();
+  return (
+    texto.includes("model_unavailable") ||
+    texto.includes("model not found") ||
+    texto.includes("unknown model") ||
+    texto.includes("decommissioned") ||
+    texto.includes("no longer available") ||
+    texto.includes("is currently unavailable") ||
+    texto.includes("does not exist")
+  );
+}
+
+/**
+ * Cuánto se recuerda un modelo muerto. Pasadas estas 24 h, el modelo puede
+ * volver a la rotación (los proveedores reviven/renombran modelos): se olvida.
+ */
+export const OLVIDO_MODELO_MUERTO_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Filtra los candidatos quitando los que están marcados como muertos hace
+ * menos de un día y dejando pasar al resto. Un modelo muerto en el pasado
+ * distante (olvidado) vuelve a circular: puede haber regresado.
+ */
+export function filtrarModelosVivos<T extends { fuente: string; modelo: string }>(
+  candidatos: T[],
+  muertos: ModeloMuerto[],
+  ahora: number
+): T[] {
+  return candidatos.filter((cand) => {
+    const cuierto = muertos.find(
+      (m) =>
+        m.fuente === cand.fuente &&
+        m.modelo === cand.modelo &&
+        ahora - m.desde < OLVIDO_MODELO_MUERTO_MS
+    );
+    return !cuierto;
+  });
+}
+
 /* ───────────────────── Naming estilo LiteLLM (etiquetas/telemetría) ───────────────────── */
 
 /**
