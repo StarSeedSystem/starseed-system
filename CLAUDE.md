@@ -683,3 +683,36 @@ en la Mac y aprobó**. Fuente de verdad: `docs/adendas/adenda-228-mando-ampliado
 - **Verificación de la neurona**: `scripts/verificar-neurona.mjs` (checks HTTP, umbrales, `--voz/--oido/--bitnet`,
   `--help`, `starseed_memory_root/verificaciones/ultimo.json`); primera corrida real 92/100.
 - **Cuidado**: `pgrep -f` mata la propia shell si el patrón aparece en la orden → usar `patr[o]n`.
+
+## 📦 Versión del OS: UNA sola verdad y un checkpoint que la sella (Ola 303 · 2026-09-09)
+
+Alex lo vio antes que nadie: la Librería anunciaba «última versión: 1 de julio de 2026» cuando el
+OS iba por agosto. La causa era que **cada medio guardaba su propia versión**:
+
+| Medio | Lo que decía |
+|---|---|
+| `src/app/(app)/library/page.tsx:1342` | `NEXT_PUBLIC_BUILD_DATE \|\| "2026.07.01"` — y esa variable no existe en ninguna parte |
+| `src/components/library/os-download-card.tsx` | `version = "1.0.0-alpha"` |
+| `src/data/starseed-apps-listings.ts` | `build: "2026.08.23"`, con el historial ordenado «por costumbre» |
+| `package.json` | `0.1.3` |
+
+Reglas del área, permanentes:
+
+- **`src/lib/version/os-release.ts` es la ÚNICA fuente**: `OS_VERSION` (AAAA.MM.DD), `OS_FECHA`,
+  `OS_CANAL`, `OS_NOTAS`, `formatearFechaBuild`, `versionMasReciente` (ordena por FECHA, nunca por
+  posición en el array) y `etiquetaBuild()`. Es un módulo **puro**: lo importan componentes de
+  cliente, así que jamás puede tocar `node:*` (ver §«Publicar: next build»).
+- **Ningún medio escribe una fecha ni una versión a mano.** El test
+  `src/lib/__tests__/medios-version-coherentes.test.ts` se pone rojo si alguien lo intenta; el
+  historial `versions[]` del listado es la única excepción (ahí sí viven las versiones viejas).
+- **Checkpoint al cerrar una ola:** `node scripts/checkpoint-version.mjs [--version AAAA.MM.DD]
+  [--notas "…"] [--seco]` sella la versión en todos los medios a la vez y falla en alto si alguno
+  no encaja. Se ejecuta **al completar una tarea u ola**, antes de publicar — es lo que hace que
+  todos los usuarios vean la misma versión.
+- **El instalador se decide por dispositivo**: `detectOS()` + `nativePackages()` en
+  `src/lib/install/device-install.ts` y `mejorDescargaPara()` en `src/lib/install/mejor-descarga.ts`.
+  Un formato que todavía no existe se enseña como `soon` con su motivo honesto: **nunca se ofrece
+  un binario que no está firmado**.
+- **Cada neurona decide cómo se actualiza** (`src/lib/neurons/actualizaciones.ts`): `manual` por
+  defecto —nadie se lleva una recarga por sorpresa a mitad de trabajo— o `automatica` si el usuario
+  la enciende.
