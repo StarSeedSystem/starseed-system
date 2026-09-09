@@ -109,6 +109,7 @@ import { LibraryUpdatesPanel } from "@/components/library/library-updates-panel"
 import { InstallButton } from "@/components/welcome/install-button";
 import { AppFilePage, type LibraryDetailItem } from "@/components/library/app-file-page";
 import { LibraryCatalog, starseedAppToDetail } from "@/components/library/library-catalog";
+import { FranjaDescargaOs } from "@/components/library/franja-descarga-os";
 import { InstalledServicesPanel } from "@/components/library/installed-services-panel";
 // ── Tienda viva de paquetes (estilo Cydia) — motor en lib/library/packages ──
 import { PackageStore, type StoreSection } from "@/components/library/package-store";
