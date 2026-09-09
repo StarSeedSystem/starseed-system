@@ -280,10 +280,11 @@ export const PROVEEDORES_CATALOGO: ProveedorInfo[] = [
         variables: [],
     },
     {
-        // Ola 294 · AR5: el PRIMER proveedor de pago de la flota. No tiene cupo
-        // gratuito real (responde 429 insufficient_quota sin saldo) y se reserva
-        // para el papel de director (Astra). Con `dePago: true` queda FUERA de
-        // la rotación de escritores del enjambre por diseño; solo se usa a mano.
+        // (2026-09-08, Ola 294 · AR5) El PRIMER proveedor de pago de la flota. No
+        // tiene cupo gratuito real (responde 429 insufficient_quota sin saldo) y se
+        // reserva para el papel de director (Astra). Con `dePago: true` queda FUERA
+        // de la rotación de escritores del enjambre por diseño; solo se usa a mano
+        // y sabiendo que cada token cuesta dinero real.
         id: "openai",
         nombre: "OpenAI · Astra (de pago)",
         base: "https://api.openai.com/v1",

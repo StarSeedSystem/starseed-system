@@ -292,4 +292,13 @@ describe("Proveedor de pago OpenAI (Ola 294 · AR5)", () => {
         // Los de pago permanecen aparte: no se mezclan en los gratuitos.
         expect(gratuitos.some((p) => p.dePago === true)).toBe(false);
     });
+
+    it("el número de proveedores gratuitos no cambia al entrar los de pago", () => {
+        // (2026-09-08, Ola 294 · AR5) Los gratuitos de la flota son los 16 que ya
+        // había ANTES de que OpenAI (y luego Claude) entraran marcados `dePago`:
+        // añadir proveedores de pago jamás puede cambiar ese recuento, porque
+        // significaría que alguien coló un de pago sin marcar (o lo quitó).
+        const gratuitos = PROVEEDORES_CATALOGO.filter((p) => !p.dePago);
+        expect(gratuitos.length).toBe(16);
+    });
 });
