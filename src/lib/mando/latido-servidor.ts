@@ -14,12 +14,13 @@
  */
 
 import { execFile } from "node:child_process";
-import { mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, readFile, readdir, rename, stat, writeFile } from "node:fs/promises";
 import { promisify } from "node:util";
 import path from "node:path";
 
 import { lanzarAqui } from "@/lib/mando/colas";
 import { saludDeLasColas, type SaludCola } from "@/lib/mando/latido-orquestador";
+import { leerColas, leerProgreso } from "@/lib/mando/lector-local";
 import { raizDelProyecto } from "@/lib/mando/raiz";
 
 const execFileAsync = promisify(execFile);
@@ -70,10 +71,6 @@ const ARCHIVO_REGISTRO = path.join(CARPETA_MANDO, "autocuracion-registro.jsonl")
 /** Mínimo de intentos por pasada de autocuración para no saturar la máquina. */
 const MAXIMO_POR_PASADA = 2;
 
-function texto(v: unknown): string {
-    return typeof v === "string" ? v : "";
-}
-
 /**
  * ¿Está esa cola de verdad huérfana? Busca entre las saludes reales del disco:
  * si está «viva» no se lanza nada (dos orquestadores sobre la misma cola se pisan).
@@ -84,17 +81,41 @@ async function saludDe(cola: string): Promise<SaludCola | null> {
 }
 
 /**
- * Worktrees limpios que no tocan nada de la cola: los que existen en `WT_BASE` pero
- * cuya tarea no figura entre los «pendientes» de la cola. Devuelve la lista de ids.
+ * Worktrees limpios que no tocan nada de la cola: los que existen en `WT_BASE`
+ * pero (a) su tarea no figura entre los «pendientes» de NINGUNA cola viva del
+ * enjambre —son restos de tareas ya cerradas o de colas antiguas— y (b) no
+ * tienen commits propios ni cambios sin confirmar (porcelain vacío). Poda solo
+ * lo que es seguro perder; devuelve la lista de ids.
  */
-async function worktreesLimpiables(cola: string, idsPendientes: Set<string>): Promise<string[]> {
+async function worktreesLimpiables(idsPendientes: Set<string>): Promise<string[]> {
     let entradas: string[] = [];
     try {
         entradas = await readdir(WT_BASE);
     } catch {
         return []; // sin carpeta de worktrees no hay nada que limpiar
     }
-    return entradas.filter((nombre) => !idsPendientes.has(nombre));
+    const limpiables: string[] = [];
+    for (const nombre of entradas) {
+        // Un worktree de una tarea con trabajo en marcha (de esta u otra cola
+        // viva) no se toca, aunque parezca abandonado: lo suyo es esperar.
+        if (idsPendientes.has(nombre)) continue;
+        if (!(await worktreeSinCommitsPropios(nombre))) continue;
+        if (await worktreeConCambios(nombre)) continue;
+        limpiables.push(nombre);
+    }
+    return limpiables;
+}
+
+/** ¿Tiene la rama `ola/<id>` commits propios (no alcanzados por main)? */
+async function worktreeSinCommitsPropios(id: string): Promise<boolean> {
+    const wt = path.join(WT_BASE, id);
+    try {
+        const { stdout } = await execFileAsync("git", ["log", "--oneline", "main..ola/" + id], { cwd: wt, timeout: 30_000, windowsHide: true });
+        return stdout.trim().length === 0;
+    } catch {
+        // sin rama o sin git: conservador, no se considera podable
+        return false;
+    }
 }
 
 /** Poda un worktree y su rama `ola/<id>` cuando no tiene commits propios. */
@@ -121,6 +142,9 @@ async function worktreeConCambios(id: string): Promise<boolean> {
     }
 }
 
+/** Nombres de cola válidos, como los valida el Diseñador (p. ej. `298-mando`). */
+const PATRON_NOMBRE = /^[0-9]{2,4}(-[a-z0-9]+){0,6}$/;
+
 /**
  * Revive una cola huérfana: lanza otra vez su orquestador. Antes comprueba con
  * `saludDeLasColas()` que está de verdad huérfana (si está «viva» devuelve el motivo
@@ -129,8 +153,10 @@ async function worktreeConCambios(id: string): Promise<boolean> {
  * cambios, relanza con `--reanudar` para no perder el trabajo ya escrito.
  */
 export async function revivir(cola: string, trabajadores?: number): Promise<ResultadoRevivir> {
-    const nombre = cola.trim();
-    if (!nombre) return { ok: false, lanzada: false, pid: null, detalle: "Falta el nombre de la cola." };
+    const nombre = cola.trim().toLowerCase();
+    if (!PATRON_NOMBRE.test(nombre)) {
+        return { ok: false, lanzada: false, pid: null, detalle: "Nombre de cola no válido: usa «298-lo-que-sea» (número y palabras en minúscula)." };
+    }
 
     // 1) ¿De verdad está huérfana? Nunca lanzar sobre una cola viva.
     const salud = await saludDe(nombre);
@@ -142,40 +168,45 @@ export async function revivir(cola: string, trabajadores?: number): Promise<Resu
         return { ok: false, lanzada: false, pid: null, detalle: `Cola ${nombre} terminada: no hay nada que revivir.` };
     }
 
-    // 2) Identifica las tareas pendientes de la cola (como las ve `interpretarSalud`).
-    const tareas = await leerTareasPendientes(nombre);
-    const idsPendientes = new Set(tareas);
+    // 2) Ids pendientes de la cola que se revivifica…
+    const idsPendientes = new Set(await leerTareasPendientes(nombre));
     if (idsPendientes.size === 0) {
         return { ok: false, lanzada: false, pid: null, detalle: `Cola ${nombre} sin tareas pendientes: no hay nada que revivir.` };
     }
+    // …y de TODAS las colas vivas del enjambre: sus worktrees están en uso y
+    // no deben podarse aunque pertenezcan a otra cola.
+    const pendientesDeVivas = new Set<string>();
+    for (const s of await saludDeLasColas()) {
+        if (s.estado !== "viva") continue;
+        for (const id of await leerTareasPendientes(s.cola)) pendientesDeVivas.add(id);
+    }
 
-    // 3) Poda los worktrees limpios (de otras tareas ya cerradas o colas viejas).
-    for (const id of await worktreesLimpiables(nombre, idsPendientes)) await podarWorktree(id);
+    // 3) Poda los worktrees limpios: restos de tareas ya cerradas, sin commits
+    //    propios y sin cambios, que no pertenezcan a ninguna cola viva.
+    const podables = await worktreesLimpiables(pendientesDeVivas);
+    for (const id of podables) await podarWorktree(id);
+    const podados = podables.length;
 
-    // 4) ¿Algún worktree pendiente conserva cambios? → `--reanudar` para no repetir lo escrito.
-    const extra: string[] = [];
+    // 4) ¿Algún worktree de ESTA cola conserva cambios? → `--reanudar` para no
+    //    repetir lo ya escrito (el flag es global a la cola: basta con uno).
     let reanudadas = 0;
     for (const id of idsPendientes) {
-        if (await worktreeConCambios(id)) {
-            extra.push("--reanudar");
-            reanudadas += 1;
-            break; // basta uno: el flag es global a la cola
-        }
+        if (await worktreeConCambios(id)) reanudadas += 1;
     }
+    const extra = reanudadas > 0 ? ["--reanudar"] : [];
 
     const n = typeof trabajadores === "number" && Number.isFinite(trabajadores) ? trabajadores : 2;
     const resultado = await lanzarAqui(nombre, n, extra);
     if (!resultado.ok) return { ok: false, lanzada: false, pid: null, detalle: resultado.error ?? "No se pudo lanzar." };
 
     const detalle = reanudadas > 0
-        ? `Cola ${nombre} relanzada (${reanudadas} worktree con cambios → --reanudar) con ${Math.max(1, Math.round(n))} trabajadores.`
-        : `Cola ${nombre} relanzada con ${Math.max(1, Math.round(n))} trabajadores.`;
+        ? `Cola ${nombre} relanzada con ${Math.max(1, Math.round(n))} trabajadores y --reanudar (${reanudadas} worktree con cambios${podados > 0 ? `; ${podados} limpios podados` : ""}).`
+        : `Cola ${nombre} relanzada con ${Math.max(1, Math.round(n))} trabajadores${podados > 0 ? ` y ${podados} worktree(s) limpio(s) podado(s)` : ""}.`;
     return { ok: true, lanzada: true, pid: resultado.pid ?? null, detalle };
 }
 
 /** Ids de las tareas de una cola que siguen pendientes (no cerradas), leyendo disco. */
 async function leerTareasPendientes(cola: string): Promise<string[]> {
-    const { leerColas, leerProgreso } = await import("@/lib/mando/lector-local");
     const TERMINADAS = new Set(["commit", "bloqueante", "sin_cambios", "sustituida", "reasignada", "rechazada"]);
     const tareas = await leerColas();
     const progreso = await leerProgreso();
@@ -183,8 +214,9 @@ async function leerTareasPendientes(cola: string): Promise<string[]> {
         .filter((t) => (t.cola || t.ola) === cola)
         .map((t) => t.id)
         .filter((id) => {
-            const estado = typeof (progreso[id] as { estado?: unknown } | undefined)?.estado === "string"
-                ? ((progreso[id] as { estado: string }).estado)
+            const bruto = progreso[id];
+            const estado = typeof bruto === "object" && bruto !== null && "estado" in bruto && typeof (bruto as { estado: unknown }).estado === "string"
+                ? (bruto as { estado: string }).estado
                 : "";
             return !TERMINADAS.has(estado);
         });
@@ -209,17 +241,18 @@ export async function estadoAutocuracion(): Promise<EstadoAutocuracion> {
 export async function guardarAutocuracion(activa: boolean): Promise<EstadoAutocuracion> {
     await mkdir(CARPETA_MANDO, { recursive: true });
     const temporal = `${ARCHIVO_AUTOCURACION}.tmp`;
-    const contenido = JSON.stringify({ activa, actualizado: new Date().toISOString() }, null, 2) + "\n";
+    const actualizado = new Date().toISOString();
+    const contenido = JSON.stringify({ activa, actualizado }, null, 2) + "\n";
     await writeFile(temporal, contenido, "utf-8");
-    await import("node:fs/promises").then(({ rename }) => rename(temporal, ARCHIVO_AUTOCURACION));
-    return { activa, actualizado: new Date().toISOString() };
+    await rename(temporal, ARCHIVO_AUTOCURACION);
+    return { activa, actualizado };
 }
 
 /** Añade una línea al registro de autocuración (rastro de quién resucitó qué). */
 async function anotarRevivida(cola: string, motivo: string): Promise<void> {
     await mkdir(CARPETA_MANDO, { recursive: true });
     const linea: RegistroAutocuracion = { fecha: new Date().toISOString(), cola, motivo };
-    await import("node:fs/promises").then(({ appendFile }) => appendFile(ARCHIVO_REGISTRO, JSON.stringify(linea) + "\n", "utf-8"));
+    await appendFile(ARCHIVO_REGISTRO, JSON.stringify(linea) + "\n", "utf-8");
 }
 
 /**
