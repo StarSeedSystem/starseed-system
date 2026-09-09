@@ -296,6 +296,45 @@ export const PROVEEDORES_CATALOGO: ProveedorInfo[] = [
         papel: "director",
         variables: ["OPENAI_API_KEY", "STARSEED_PASARELA_OPENAI_KEY"],
     },
+    {
+        // (2026-09-09) Codex con la SUSCRIPCIÓN de ChatGPT, no con créditos de API.
+        // Verificado en la Mac: `~/.codex/auth.json` con `auth_mode: chatgpt` (tokens,
+        // sin OPENAI_API_KEY) y `codex exec -m gpt-5.6-sol "Responde: OK"` respondió en
+        // 3.058 tokens; `gpt-5.5` también. Los modelos `*-codex` (5.1/5.2/5.3/5.4) dan
+        // 400 «not supported when using Codex with a ChatGPT account». Coste cero para
+        // la orquestación: es la palanca que multiplica la capacidad de la flota.
+        id: "codex-suscripcion",
+        nombre: "Codex · suscripción ChatGPT",
+        base: "https://chatgpt.com/codex",
+        panelClaves: "https://chatgpt.com",
+        docs: "https://developers.openai.com/codex/cli",
+        gratis:
+            "Incluido en la suscripción Pro: `codex exec` no gasta créditos de la API. Modelos permitidos con cuenta de ChatGPT: `gpt-5.6-sol` y `gpt-5.5` (verificado 2026-09-08). Solo desde la Mac, donde vive la sesión.",
+        requiereCuenta: true,
+        papel: "escritor",
+        variables: [],
+    },
+    {
+        // (2026-09-09) Claude entra en el catálogo porque es quien DIRIGE: diseña las
+        // olas, supervisa el enjambre, verifica en localhost y aprueba. No escribe el
+        // código del producto por regla permanente de Alex (economía de créditos): eso
+        // es trabajo de la flota gratuita. Aparece aquí para que el Mando enseñe la
+        // cadena completa de quién hace qué, no solo los escritores.
+        id: "claude",
+        nombre: "Claude · dirección y verificación",
+        base: "https://api.anthropic.com/v1",
+        panelClaves: "https://console.anthropic.com/settings/keys",
+        docs: "https://docs.claude.com/en/api",
+        gratis:
+            "Sesión de Claude Code / Cowork con la suscripción de Alex. Papel: diseñar olas, supervisar la orquestación, verificar en localhost y aprobar — nunca escribir el código del producto a granel.",
+        requiereCuenta: true,
+        // `dePago: true` no significa «caro»: significa NUNCA en la rotación de
+        // escritores gratuitos del enjambre. Claude dirige y verifica; el código del
+        // producto lo escribe la flota gratuita, por la regla de economía de Alex.
+        dePago: true,
+        papel: "director",
+        variables: ["ANTHROPIC_API_KEY"],
+    },
 ];
 
 /** Normaliza a texto no vacío, o null. */

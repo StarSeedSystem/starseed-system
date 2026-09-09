@@ -54,6 +54,10 @@ import { PanelVoces } from "@/components/mando/panel-voces";
 // diferida (`next/dynamic`, sin SSR) y SOLO se monta al abrirla, igual que la
 // oficina y las voces: el panel pesa (editor, sembrado, listados) pero no
 // debe costar nada al resto del Mando hasta que el usuario lo pide.
+const PanelTaller = dynamic(
+    () => import("@/components/mando/panel-taller").then((m) => m.PanelTaller),
+    { ssr: false, loading: () => <p className="text-xs text-white/40">Cargando el taller…</p> },
+);
 const PanelCanales = dynamic(
     () => import("@/components/mando/panel-canales").then((m) => m.PanelCanales),
     {
@@ -84,6 +88,7 @@ const PESTANAS = [
     { id: "olas", etiqueta: "Olas e informes" },
     { id: "commits", etiqueta: "Commits pendientes" },
     { id: "canales", etiqueta: "Canales StarSeed" },
+    { id: "taller", etiqueta: "Taller del agente" },
     { id: "flota", etiqueta: "Flota" },
     { id: "neurona", etiqueta: "Neurona" },
     { id: "voces", etiqueta: "Voces" },
@@ -521,12 +526,45 @@ export function CentroMando() {
                             alClic={() => alCambiarPestana("neurona")}
                         />
                     ) : null}
+                    {/* (2026-09-09, a petición de Alex) Drive como almacén grande, en la cabecera.
+                        Al pulsar abre la carpeta del proyecto en Google Drive, para llegar a los
+                        archivos sin buscarlos. La cuota real la da la API de Google, no `df`: en
+                        macOS DriveFS es un File Provider y `df` de esa carpeta devuelve el disco
+                        LOCAL — por eso, sin cuota, se enseña el motivo en vez de un número falso. */}
+                    {almacenamiento?.drive?.montado ? (
+                        <DatoPulso
+                            titulo="Google Drive"
+                            valor={
+                                almacenamiento.driveCuota && almacenamiento.driveCuota.libreGb != null
+                                    ? `${almacenamiento.driveCuota.libreGb.toFixed(0)} GB libres`
+                                    : "montado"
+                            }
+                            tono="ok"
+                            detalle={
+                                almacenamiento.drive.espejo?.ultimoEspejo
+                                    ? `espejo del memory root · último: ${almacenamiento.drive.espejo.ultimoEspejo}`
+                                    : (almacenamiento.driveCuotaMotivo ?? "abre la carpeta de StarSeed en Drive")
+                            }
+                            alClic={() =>
+                                window.open(
+                                    "https://drive.google.com/drive/search?q=StarSeed_Memory_Root",
+                                    "_blank",
+                                    "noopener,noreferrer",
+                                )
+                            }
+                        />
+                    ) : null}
                     {estado?.cuentas ? (
                         <>
                             <DatoPulso titulo="Integradas" valor={String(estado.cuentas.integradas)} tono="ok" detalle={`${estado.cuentas.ola} · últimas ${estado.cuentas.ultimas.olas} olas: ${estado.cuentas.ultimas.integradas}`} />
-                            <DatoPulso titulo="En curso" valor={String(estado.cuentas.enCurso)} tono={estado.cuentas.enCurso > 0 ? "aviso" : "normal"} detalle={`últimas olas: ${estado.cuentas.ultimas.enCurso}`} />
+                            {/* (2026-09-09, a petición de Alex) Fuera «En curso» y «Sin cambios».
+                                «En curso» contaba las tareas con estado `en_curso` en progreso.json, y ese
+                                estado NO se cierra cuando el contenedor mata al orquestador: llegó a mostrar
+                                19 tareas «en curso» de olas de hace días, ninguna viva. El dato honesto es
+                                «Tareas en curso» del pulso de arriba, que cuenta agentes latiendo AHORA.
+                                «Sin cambios» no aportaba: lo que importa de una tarea que no escribió nada
+                                ya sale en «Fallidas» y en el detalle de la ola. */}
                             <DatoPulso titulo="Fallidas" valor={String(estado.cuentas.fallidas)} tono={estado.cuentas.fallidas > 0 ? "peligro" : "normal"} detalle={`últimas olas: ${estado.cuentas.ultimas.fallidas}`} />
-                            <DatoPulso titulo="Sin cambios" valor={String(estado.cuentas.sinCambios)} tono="normal" detalle={`últimas olas: ${estado.cuentas.ultimas.sinCambios}`} />
                             <DatoPulso titulo="Pendientes" valor={String(estado.cuentas.pendientes)} tono="normal" detalle={`últimas olas: ${estado.cuentas.ultimas.pendientes}`} />
                             {(estado.cuentas.ultimas.esperandoAprobacion ?? 0) > 0 ? (
                                 <DatoPulso titulo="Tu visto bueno" valor={String(estado.cuentas.ultimas.esperandoAprobacion)} tono="aviso" detalle="ramas listas que esperan tu decisión (Procesos)" />
@@ -588,6 +626,9 @@ export function CentroMando() {
                         la pestaña (chunk diferido + render condicional); Radix lo
                         desmonta al salir, como con las voces y la oficina. */}
                     {pestana === "canales" ? <PanelCanales /> : null}
+                </TabsContent>
+                <TabsContent value="taller">
+                    {pestana === "taller" ? <PanelTaller /> : null}
                 </TabsContent>
                 <TabsContent value="flota">
                     <PanelFlota />

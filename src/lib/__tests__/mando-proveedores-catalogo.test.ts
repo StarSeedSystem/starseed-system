@@ -280,7 +280,12 @@ describe("Proveedor de pago OpenAI (Ola 294 · AR5)", () => {
         // escritores: nadie gratis debe llevarla y el de pago sí debe distinguirse.
         const dePago = PROVEEDORES_CATALOGO.filter((p) => p.dePago === true);
         const gratuitos = PROVEEDORES_CATALOGO.filter((p) => !p.dePago);
-        expect(dePago.map((p) => p.id)).toEqual(["openai"]);
+        // (2026-09-09) Antes esto fijaba la lista exacta `["openai"]`, y al entrar
+        // Claude como segundo director el test se rompía por crecer, no por romperse.
+        // Lo que hay que garantizar es el INVARIANTE, no la foto: todo proveedor de
+        // pago está declarado, tiene papel y no se cuela entre los escritores gratis.
+        expect(dePago.map((p) => p.id)).toContain("openai");
+        expect(dePago.length).toBeGreaterThan(0);
         expect(dePago.every((p) => p.papel === "director")).toBe(true);
         // Ningún gratuito declara papel director (reservado al único de pago).
         expect(gratuitos.every((p) => p.papel !== "director")).toBe(true);
