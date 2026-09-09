@@ -30,6 +30,13 @@ import {
 import type { FotoEnjambre, LatidoTarea, TareaOla } from "@/lib/mando/tipos";
 import { raizDelProyecto } from "@/lib/mando/raiz";
 
+/**
+ * Segundos sin avance a partir de los cuales un latido deja de contar como «en curso».
+ * Cinco minutos: el orquestador refresca cada ~2 min, así que dos refrescos perdidos ya
+ * significan que ese agente no está vivo.
+ */
+export const LATIDO_FRESCO_S = 300;
+
 /** Un paso registrado de una tarea (escritura, tsc, tests, revision, integracion). */
 export interface PasoRama {
     t: string;
@@ -387,10 +394,18 @@ export async function construirRamificacion(cuantas = 4, horasBus = 24 * 30): Pr
 
     // Latidos: lo local manda sobre el bus para la misma tarea; la nube se añade.
     const idsMac = new Set(latidosMac.map((l) => claveLatido(l.cola, l.tarea)));
-    const latidos = [
+    const todosLosLatidos = [
         ...latidosMac,
         ...delBus.latidos.filter((l) => l.donde !== "mac" || !idsMac.has(claveLatido(l.cola, l.tarea))),
     ];
+    // FRESCURA (2026-09-09). Un latido lo escribe el orquestador mientras vive; cuando el
+    // contenedor de la nube se recicla —cada ~35 minutos— el archivo se queda ahí, congelado,
+    // y el Mando seguía contando esos agentes muertos como «en curso». Medido hoy: 12 latidos
+    // en pantalla con 6 agentes reales, la mitad de una corrida que había muerto media hora
+    // antes. `quietoSegundos` es lo que el propio orquestador anota como tiempo sin avance:
+    // por encima del umbral, ese agente ya no está trabajando y no se cuenta.
+    // Es la misma honestidad que el resto del Mando: mejor decir 6 que inflar a 12.
+    const latidos = todosLosLatidos.filter((l) => (l.quietoSegundos ?? 0) <= LATIDO_FRESCO_S);
     // Indexado por `cola|tarea`: un id solo no basta, porque se repite entre olas.
     const vivoPor = new Map<string, LatidoTarea>();
     for (const l of latidos) vivoPor.set(claveLatido(l.cola, l.tarea), l);
