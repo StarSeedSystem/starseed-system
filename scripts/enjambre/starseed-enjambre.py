@@ -55,6 +55,10 @@ ENV_TSC = {"NODE_ENV": "development", "NODE_OPTIONS": "--max-old-space-size=2560
 # 2026-09-03) y qwen3-coder-480b ya no existe en el catálogo. Si un modelo desaparece, opencode
 # falla y la tarea se marca «sin cambios» sin motivo aparente: revalida esta lista antes de una ola.
 MODELOS = [
+    # (2026-09-09, latido :52) llm7 es el UNICO proveedor que escribe SIN NINGUNA CLAVE.
+    # Va primero: sin el arriba, una tarea gasta sus DOS intentos en pasarelas que sin
+    # clave rechazan la generacion en ~4 s. Con claves, modelos_para rota como siempre.
+    "llm7/minimax-m2.7",
     # xKiro primero: 40 modelos gratis con tool-calling y 5M tokens/día, y opencode SÍ edita
     # archivos con ellos (probado en vivo el 2026-09-04 con qwen3-coder-plus y minimax-m3;
     # aihubmix y tokenrouter fallaban justo aquí). Alterna proveedor para repartir la carga.
@@ -657,11 +661,38 @@ def escritores_de_pasarelas():
     return out
 
 
+PROVEEDORES_SIN_CLAVE = ("llm7",)   # unicos que generan con apiKey «sin-clave» literal
+
+
+def hay_alguna_clave():
+    """¿Tiene esta maquina la clave de ALGUN proveedor de pago/cupo? (2026-09-09)
+
+    El marcador LLM7_SIN_CLAVE no cuenta: es un nombre de variable ficticio para que llm7
+    encaje en la tabla de SONDAS, no una credencial."""
+    try:
+        for _, (_, variables) in SONDAS.items():
+            for v in variables:
+                if v == "LLM7_SIN_CLAVE":
+                    continue
+                if os.environ.get(v):
+                    return True
+    except Exception:
+        pass
+    return bool(escritores_de_pasarelas())
+
+
 def modelos_para(tid):
     """Rota la lista según el id de la tarea: reparte la carga entre proveedores. Los
     escritores de pasarelas (y FreeTheAi si hay clave) van siempre al final."""
     i = sum(ord(c) for c in tid) % len(MODELOS)
-    return MODELOS[i:] + MODELOS[:i] + escritores_de_pasarelas()
+    rotados = MODELOS[i:] + MODELOS[:i] + escritores_de_pasarelas()
+    if not hay_alguna_clave():
+        # En orden de MODELOS, no en el rotado: llm7/gpt-oss solo sirve para Markdown,
+        # asi que minimax-m2.7 debe ir SIEMPRE delante de el.
+        libres = [m for m in MODELOS if m in rotados and proveedor_de(m) in PROVEEDORES_SIN_CLAVE]
+        if libres:
+            rotados = libres + [m for m in rotados if m not in libres]
+    return rotados
 
 def apto_para_tarea(modelo, t):
     """¿Puede este modelo escribir ESTA tarea? (2026-09-06, Ola 261)
@@ -2118,14 +2149,24 @@ def _guardar_contexto(t, contexto):
         pass
 
 
-def contexto_tarea(t):
+def contexto_tarea(t, raiz=None):
     inteligente = contexto_inteligente(t)
     _guardar_contexto(t, inteligente)
     # La regla de tests se intercala entre «ESCRITURA POR TROZOS» y el contexto inteligente, y
     # solo cuando la tarea puede tener tests de TS (2026-09-08, Ola 288 · O1). Se concatena como
     # bloque separado para no tocar el orden ni el contenido del resto de los %s.
     regla_tests = ("\n\n" + REGLA_TESTS + "\n") if toca_tests_ts(t.get("archivos", [])) else "\n"
-    return ("Trabajas en el repositorio StarSeed OS (Next.js 15 + React 19 + TypeScript estricto + Tailwind/shadcn + Supabase). "
+    # (2026-09-09) Con el bloque provider ya escrito el modelo CONECTA y entonces se
+    # INVENTA la raiz: «permission requested: external_directory (/workspace/...);
+    # auto-rejecting» y la tarea muere «sin cambios» sin leer un solo archivo.
+    raiz = raiz or ROOT
+    regla_raiz = (
+        "RAIZ DEL REPOSITORIO: `%s`. Es la unica carpeta que puedes leer y escribir.\n"
+        "Usa SIEMPRE rutas RELATIVAS a esa raiz (`CLAUDE.md`, `src/lib/...`), nunca rutas absolutas "
+        "y nunca rutas inventadas como `/workspace/...`: cualquier ruta fuera de la raiz se rechaza "
+        "automaticamente y pierdes el intento.\n\n") % raiz
+    return (regla_raiz +
+            "Trabajas en el repositorio StarSeed OS (Next.js 15 + React 19 + TypeScript estricto + Tailwind/shadcn + Supabase). "
             "Lee primero CLAUDE.md (secciones 8, 11 y 💠) y los archivos implicados. Reglas: sin `any`; cursor-pointer en lo clicable; "
             "español en textos de UI y comentarios (con acentos); no toques archivos ajenos a la tarea; no ejecutes git; deja los cambios "
             "escritos en disco sin pedir confirmación.\n\n"
@@ -2226,10 +2267,20 @@ def asegurar_modelo_opencode(modelo):
     prov, _, nombre = modelo.partition("/")
     if not prov or not nombre:
         return False
+    # (2026-09-09) CAUSA RAIZ de «la nube no escribe nada»: npm install -g opencode-ai deja
+    # SOLO un opencode.jsonc de 50 bytes y NUNCA un opencode.json. Al no existir el archivo
+    # esta funcion salia por el except y jamas escribia el bloque provider; sin el, opencode
+    # responde «Unexpected server error» en ~3 s y el orquestador lo anota «sin cambios».
     try:
         cfg = json.load(open(RUTA_OPENCODE_CFG, encoding="utf-8"))
+        if not isinstance(cfg, dict):
+            cfg = {}
     except Exception:
-        return prov in ("openrouter", "google")   # proveedores nativos de opencode
+        cfg = {}
+        try:
+            os.makedirs(os.path.dirname(RUTA_OPENCODE_CFG), exist_ok=True)
+        except Exception:
+            return prov in ("openrouter", "google")   # proveedores nativos de opencode
     provs = cfg.get("provider") or {}
     if prov not in provs:
         plantilla = plantilla_opencode(prov)
@@ -2587,7 +2638,7 @@ def ejecutar(t, intento=1):
             evento("reenrutado", tid, "%s está caído ahora mismo → lo aparto y sigo con otro proveedor" % proveedor_de(modelo))
             continue
         latir(tid, "escribiendo", modelo=modelo, intento=intento)
-        rc, out = opencode(contexto_tarea(t), modelo, wt, log, timeout=ESCRITURA_S, tid=tid)
+        rc, out = opencode(contexto_tarea(t, wt), modelo, wt, log, timeout=ESCRITURA_S, tid=tid)
         if tid in SOLTADAS:
             limpiar_worktree(tid); return
         if tid in CORTADOS and tid in REASIGNADOS:
@@ -2688,7 +2739,7 @@ def ejecutar(t, intento=1):
             if not proveedor_vivo(proveedor_de(modelo)):
                 apartados.append(modelo); continue
             latir(tid, "escribiendo", modelo=modelo, intento=intento)
-            rc, out = opencode(contexto_tarea(t), modelo, wt, log, timeout=ESCRITURA_S, tid=tid)
+            rc, out = opencode(contexto_tarea(t, wt), modelo, wt, log, timeout=ESCRITURA_S, tid=tid)
             if tid in SOLTADAS:
                 limpiar_worktree(tid); return
             if tid in CORTADOS and tid in REASIGNADOS:
