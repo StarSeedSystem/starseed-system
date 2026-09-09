@@ -20,6 +20,7 @@
 import { NextRequest } from "next/server";
 import { createClient } from "@/utils/supabase/server";
 import { rateLimit } from "@/lib/security/rate-limit";
+import { esDespliegueLocal } from "@/lib/aurora/voz-starseed/puerta-local";
 import { findSource } from "@/ai/astraura/free-catalog";
 
 export const runtime = "nodejs";
@@ -41,7 +42,17 @@ function sharedKeys(): string[] {
 
 let keyCursor = 0;
 
-async function requireUser(): Promise<string | null> {
+/**
+ * Identificador para la clave comunitaria y el rate-limit.
+ *
+ * (Ola 302 · 2026-09-09) En el modo ligero local no hay sesión de Supabase: esta
+ * puerta devolvía 401 en 20 ms (MEDIDO en la Mac de Alex) y dejaba a Aurora sin
+ * la fuente NVIDIA en su propia neurona. Misma excepción que la voz: en
+ * 127.0.0.1 la máquina es del usuario; en Vercel la sesión sigue siendo
+ * obligatoria (lo decide `esDespliegueLocal`, que jamás abre con `VERCEL=1`).
+ */
+async function requireUser(req?: Request): Promise<string | null> {
+  if (req && esDespliegueLocal(req)) return "local";
   try {
     const supabase = await createClient();
     const { data, error } = await supabase.auth.getUser();
@@ -52,8 +63,8 @@ async function requireUser(): Promise<string | null> {
   }
 }
 
-export async function GET(): Promise<Response> {
-  const userId = await requireUser();
+export async function GET(req: NextRequest): Promise<Response> {
+  const userId = await requireUser(req);
   if (!userId) return Response.json({ error: "Necesitas iniciar sesión." }, { status: 401 });
   const key = sharedKeys()[0];
   if (!key) return Response.json({ error: "NVIDIA comunitario no configurado (NVIDIA_SHARED_KEY)." }, { status: 503 });
@@ -67,7 +78,7 @@ export async function GET(): Promise<Response> {
 }
 
 export async function POST(req: NextRequest): Promise<Response> {
-  const userId = await requireUser();
+  const userId = await requireUser(req);
   if (!userId) {
     return Response.json(
       { error: "Necesitas iniciar sesión para usar el acceso comunitario a NVIDIA." },

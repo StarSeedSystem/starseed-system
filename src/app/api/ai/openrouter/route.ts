@@ -24,6 +24,7 @@
 import { NextRequest } from "next/server";
 import { createClient } from "@/utils/supabase/server";
 import { rateLimit } from "@/lib/security/rate-limit";
+import { esDespliegueLocal } from "@/lib/aurora/voz-starseed/puerta-local";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -55,22 +56,33 @@ function sharedKeys(): string[] {
 let keyCursor = 0;
 
 export async function POST(req: NextRequest): Promise<Response> {
-  // ── SEGURIDAD (Adenda 131) ──────────────────────────────────────────────────
+  // ── SEGURIDAD (Adenda 131 · abierta en LOCAL en la Ola 302, 2026-09-09) ─────
   // Exige sesión ANTES de usar la clave compartida de OpenRouter. Aunque solo
   // permite modelos :free, el relé es abusable por anónimos (drenaje de cupo).
+  //
+  // EXCEPCIÓN, la misma que ya tenía la voz (`exigirSesionSalvoLocal`, Ola 253):
+  // en el modo ligero local NO hay sesión de Supabase, así que esta puerta
+  // devolvía 401 en 28 ms (MEDIDO el 2026-09-09 en la Mac) y dejaba a Aurora sin
+  // DOS de sus ocho fuentes en la propia neurona de Alex. En 127.0.0.1 la clave
+  // comunitaria es del dueño de la máquina; en Vercel (`VERCEL=1`) la sesión
+  // sigue siendo obligatoria — lo decide `esDespliegueLocal`, no esta ruta.
   let userId: string;
-  try {
-    const supabase = await createClient();
-    const { data, error } = await supabase.auth.getUser();
-    if (error || !data.user) {
-      return Response.json(
-        { error: "Necesitas iniciar sesión para usar el acceso comunitario a OpenRouter." },
-        { status: 401 },
-      );
+  if (esDespliegueLocal(req)) {
+    userId = "local";
+  } else {
+    try {
+      const supabase = await createClient();
+      const { data, error } = await supabase.auth.getUser();
+      if (error || !data.user) {
+        return Response.json(
+          { error: "Necesitas iniciar sesión para usar el acceso comunitario a OpenRouter." },
+          { status: 401 },
+        );
+      }
+      userId = data.user.id;
+    } catch {
+      return Response.json({ error: "No se pudo verificar la sesión." }, { status: 401 });
     }
-    userId = data.user.id;
-  } catch {
-    return Response.json({ error: "No se pudo verificar la sesión." }, { status: 401 });
   }
   // Rate-limit por usuario (clave=userId; sin IP, falsificable vía XFF): 40 / 10 min.
   const rl = rateLimit(`ai-openrouter:${userId}`, 40, 10 * 60 * 1000);
