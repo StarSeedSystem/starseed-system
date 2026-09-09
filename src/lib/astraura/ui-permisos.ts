@@ -97,9 +97,15 @@ function nombreActor(actor: string): string {
 /**
  * Resuelve a qué nivel puede actuar un actor sobre una acción de interfaz.
  * Sin permiso (o fuera de tipos/ámbitos cubiertos) → `NIVEL_POR_DEFECTO`
- * (`proponer`). Un permiso con nivel `nada` bloquea. Con `aplicar`: la
- * salvaguarda del exocórtex lo baja a `proponer` si la acción es destructiva
- * o si pisa el ámbito `cuenta` — el usuario siempre decide al final.
+ * (`proponer`). Un permiso con nivel `nada` bloquea. La salvaguarda del
+ * exocórtex baja a `proponer` si la acción es destructiva o si pisa el ámbito
+ * `cuenta` — el usuario siempre decide al final.
+ *
+ * El ORDEN de las comprobaciones es parte del contrato, porque decide el
+ * motivo que ve el usuario: bloqueo → ámbito «cuenta» → acción destructiva →
+ * rebaja genérica por falta de permiso. Una acción destructiva sin permiso
+ * registrado se queda igualmente en `proponer`, pero se le explica que el
+ * cambio es destructivo, que es la información con la que puede decidir.
  */
 export function decidirUi(
   permisos: PermisoUi[],
@@ -109,15 +115,9 @@ export function decidirUi(
   const permiso = permisoPara(permisos, accion.actor, accion.tipo, accion.ambito, ahora);
   const quién = nombreActor(accion.actor);
 
-  if (!permiso) {
-    return {
-      permitido: true,
-      nivel: NIVEL_POR_DEFECTO,
-      motivo: `${quién} puede proponer, no aplicar: enciéndelo en el perfil si quieres que lo haga sola.`,
-    };
-  }
-
-  if (permiso.nivel === "nada") {
+  // 1) Un «nada» explícito bloquea antes que ninguna otra consideración: es la
+  //    única respuesta que no admite matices ni explicaciones de riesgo.
+  if (permiso?.nivel === "nada") {
     return {
       permitido: false,
       nivel: "nada",
@@ -125,7 +125,9 @@ export function decidirUi(
     };
   }
 
-  if (accion.ambito === "cuenta" && permiso.nivel === "aplicar") {
+  // 2) Ámbito «cuenta» con permiso concedido: el motivo más útil es que el
+  //    cambio alcanza a TODOS los perfiles, no solo que sea destructivo.
+  if (permiso?.nivel === "aplicar" && accion.ambito === "cuenta") {
     return {
       permitido: true,
       nivel: "proponer",
@@ -133,11 +135,25 @@ export function decidirUi(
     };
   }
 
-  if (permiso.nivel === "aplicar" && esAccionDestructiva(accion)) {
+  // 3) Salvaguarda de acción destructiva ANTES que la rebaja genérica por falta
+  //    de permiso: cuando coinciden, el nivel resultante es el mismo
+  //    (`proponer`), pero el motivo no da igual. Al usuario le sirve saber que
+  //    el cambio es destructivo —eso es lo que necesita para decidir—; que el
+  //    permiso no esté encendido en el perfil no le dice nada del riesgo.
+  if (esAccionDestructiva(accion)) {
     return {
       permitido: true,
       nivel: "proponer",
       motivo: `Es un cambio destructivo: ${quién} puede proponerlo, pero la decisión final es tuya.`,
+    };
+  }
+
+  // 4) Sin permiso registrado manda el reparto de fábrica: propone y tú decides.
+  if (!permiso) {
+    return {
+      permitido: true,
+      nivel: NIVEL_POR_DEFECTO,
+      motivo: `${quién} puede proponer, no aplicar: enciéndelo en el perfil si quieres que lo haga sola.`,
     };
   }
 
