@@ -52,6 +52,7 @@ MANDO = os.environ.get("STARSEED_MANDO_URL") or "http://localhost:9002"
 MURMURIO_MAX = 300          # segundos quietos con bytes parados → API colgada
 SECUENCIA_REPITO = 3        # avisos del mismo tipo seguidos antes de enviar otro
 SIN_CREDITO_TIEMPO = 600    # segundos que algo estuvo sin cuota antes de notificar
+CERROJO = "/tmp/starseed-telegram-puente.lock"
 
 
 def _token():
@@ -66,6 +67,100 @@ def _autorizado(quien, impuestos=None):
     """Devuelve True solo si el chat id de Telegram coincide con el dueño."""
     cfg = impuestos if impuestos is not None else _chat_id()
     return bool(quien and cfg and str(quien) == str(cfg))
+
+
+def debe_reenviar_linea(linea):
+    """Evita que una entrada originada en Telegram regrese al mismo chat."""
+    if not isinstance(linea, dict):
+        return False
+    return not str(linea.get("quien") or "").startswith("telegram-")
+
+
+def _etiqueta_ola(etiqueta, prefijo="Ola"):
+    """Añade el prefijo únicamente cuando el Mando no lo incluyó ya."""
+    nombre = str(etiqueta or "—").strip()
+    if nombre.casefold() == "ola" or nombre.casefold().startswith("ola "):
+        return nombre
+    return "%s %s" % (prefijo, nombre)
+
+
+def _pid_vivo(pid):
+    """Comprueba la existencia de un proceso sin enviarle ninguna señal real."""
+    if not isinstance(pid, int) or pid <= 0:
+        return False
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    except OSError:
+        return False
+    return True
+
+
+def adquirir_cerrojo(ruta=CERROJO, pid=None, proceso_vivo=None):
+    """Toma con O_EXCL el cerrojo PID o recupera uno huérfano."""
+    pid = os.getpid() if pid is None else pid
+    proceso_vivo = _pid_vivo if proceso_vivo is None else proceso_vivo
+    for _ in range(5):
+        try:
+            descriptor = os.open(ruta, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        except FileExistsError:
+            try:
+                with open(ruta, encoding="utf-8") as archivo:
+                    anterior = os.fstat(archivo.fileno())
+                    contenido = archivo.read().strip()
+            except FileNotFoundError:
+                continue
+            except OSError as error:
+                return False, "No se pudo inspeccionar el cerrojo de Telegram: %s" % error
+            try:
+                pid_anterior = int(contenido)
+            except (TypeError, ValueError):
+                pid_anterior = 0
+            if pid_anterior and proceso_vivo(pid_anterior):
+                return False, (
+                    "Telegram-Puente no arranca: ya hay una instancia viva (PID %s)."
+                    % pid_anterior
+                )
+            try:
+                actual = os.stat(ruta)
+                if (actual.st_dev, actual.st_ino) == (anterior.st_dev, anterior.st_ino):
+                    os.unlink(ruta)
+            except FileNotFoundError:
+                pass
+            except OSError as error:
+                return False, "No se pudo recuperar el cerrojo huérfano: %s" % error
+            continue
+        except OSError as error:
+            return False, "No se pudo crear el cerrojo de Telegram: %s" % error
+
+        try:
+            try:
+                os.write(descriptor, ("%s\n" % pid).encode("ascii"))
+            except OSError as error:
+                try:
+                    os.unlink(ruta)
+                except OSError:
+                    pass
+                return False, "No se pudo escribir el cerrojo de Telegram: %s" % error
+        finally:
+            os.close(descriptor)
+        return True, "Cerrojo de Telegram tomado por PID %s." % pid
+    return False, "No se pudo tomar el cerrojo de Telegram por contención."
+
+
+def liberar_cerrojo(ruta=CERROJO, pid=None):
+    """Libera solo el cerrojo que pertenece al proceso llamador."""
+    pid = os.getpid() if pid is None else pid
+    try:
+        with open(ruta, encoding="utf-8") as archivo:
+            propietario = int(archivo.read().strip())
+        if propietario == pid:
+            os.unlink(ruta)
+    except (FileNotFoundError, OSError, TypeError, ValueError):
+        pass
 
 
 def _api_mando(ruta, espera=8):
@@ -129,9 +224,13 @@ def parsear_orden(texto):
     if orden == "puertas":
         return ("puertas", [], None)
     if orden == "decir":
-        if not args:
+        argumento = partes[1].strip() if len(partes) > 1 else ""
+        if (len(argumento) >= 2 and argumento[0] == argumento[-1]
+                and argumento[0] in ("'", '"')):
+            argumento = argumento[1:-1]
+        if not argumento:
             return ("error", [], "decir <texto>")
-        return ("decir", [" ".join(args)], None)
+        return ("decir", [argumento], None)
     if orden == "a" and args:
         quien = args[0]
         resto = " ".join(args[1:])
@@ -151,51 +250,57 @@ def parsear_orden(texto):
 
 def es_repetido(linea, ultimo, umbral_secuencias=SECUENCIA_REPITO,
                 umbral_murmurio=MURMURIO_MAX, umbral_sincredito=SIN_CREDITO_TIEMPO):
-    """¿Vale la pena reenviar este evento ahora o es ruido redundante?
+    """Responde «¿me callo?» para un evento candidato.
 
-    Aplica tres filtros:
-    · Mensajes idénticos al último que se envió (→ se salta, salvo los tipos
-      estructurales que hay que mantener informados).
-    · El latido (tipo=murmurio) se repite cada 20 s; nunca se reenvía.
-    · Un aviso de «cuenta X caída» repetido poco después se agrupa.
+    Un evento válido sin último mensaje nunca se calla: devuelve False. Los
+    murmullos y entradas inválidas no son eventos publicables y se descartan.
+    Con historial, solo se calla el mismo tipo y el mismo asunto. Los avisos
+    recurrentes caducan: cuota usa ``umbral_sincredito`` y API colgada usa
+    ``umbral_murmurio``; dentro del plazo devuelve True y al vencer, False.
+    Los demás mensajes idénticos consecutivos se consideran repetidos.
 
-    Devuelve True cuando el mensaje debe descartarse. Es función pura: no toca
-    red, no lee el disco, no depende del estado del bot.
+    ``umbral_secuencias`` se conserva por compatibilidad con los llamadores;
+    comparar una sola línea anterior no permite contar una secuencia.
     """
-    if not linea or not isinstance(linea, dict):
+    if not isinstance(linea, dict) or not linea:
         return True
-    if linea.get("tipo") != "murmurio":
-        if not ultimo or not isinstance(ultimo, dict):
-            return False
-    else:
+    if linea.get("tipo") == "murmurio":
         return True
+    if not isinstance(ultimo, dict) or not ultimo:
+        return False
 
-    # igual texto y mismo tipo → repetido, salvo cuando quién lo dice cambia
-    # o la tarea asociada es distinta (p.e. varios colaboradores confirmando).
     linea_tipo = linea.get("tipo", "")
-    linea_texto = linea.get("texto", "")
-    ultimo_tipo = ultimo.get("tipo") if isinstance(ultimo, dict) else None
-    if linea_tipo == ultimo_tipo and linea_texto == ultimo.get("texto", ""):
-        mismo_quien = linea.get("quien") == ultimo.get("quien")
-        misma_tarea = (linea.get("tarea") or "") == (ultimo.get("tarea") or "")
-        if mismo_quien and misma_tarea:
-            return True
+    linea_texto = str(linea.get("texto") or "")
+    ultimo_tipo = ultimo.get("tipo", "")
+    ultimo_texto = str(ultimo.get("texto") or "")
+    mismo_tipo = linea_tipo == ultimo_tipo
+    misma_tarea = (linea.get("tarea") or "") == (ultimo.get("tarea") or "")
+    mismo_texto = linea_texto == ultimo_texto
 
-    # línea sin mensaje anterior nunca es repetida — hay que enviarla.
-    if linea_tipo == "aviso" and "cuota" in linea_texto.lower():
+    # En cuota el texto incluye el proveedor, así que identifica el asunto.
+    es_cuota = "cuota" in linea_texto.lower() and "cuota" in ultimo_texto.lower()
+    if mismo_tipo and linea_tipo == "aviso" and es_cuota and mismo_texto:
         ultimo_epoch = ultimo.get("epoch")
         linea_epoch = linea.get("epoch")
         if isinstance(ultimo_epoch, (int, float)) and isinstance(linea_epoch, (int, float)):
-            if linea_epoch >= ultimo_epoch and (linea_epoch - ultimo_epoch) < umbral_sincredito:
-                return True
+            lapso = linea_epoch - ultimo_epoch
+            return 0 <= lapso < umbral_sincredito
+        return False
 
-    # agrupación de API colgada: si el último aviso fue «API colgada» de la misma
-    # tarea y lleva menos de umbral_murmurio, no vuelvo a gritar.
-    if linea_tipo == "aviso" and "colgada" in linea_texto.lower():
-        antiguo = ultimo.get("texto", "")
-        misma_tarea = (linea.get("tarea") or "") == (ultimo.get("tarea") or "")
-        if misma_tarea and "colgada" in antiguo.lower():
-            return True
+    # En API colgada la tarea identifica el asunto; los segundos del texto cambian.
+    es_colgada = "colgada" in linea_texto.lower() and "colgada" in ultimo_texto.lower()
+    if mismo_tipo and linea_tipo == "aviso" and es_colgada and misma_tarea:
+        ultimo_epoch = ultimo.get("epoch")
+        linea_epoch = linea.get("epoch")
+        if isinstance(ultimo_epoch, (int, float)) and isinstance(linea_epoch, (int, float)):
+            lapso = linea_epoch - ultimo_epoch
+            return 0 <= lapso < umbral_murmurio
+        return False
+
+    # Para el resto, solo el duplicado consecutivo completo se silencia.
+    mismo_quien = linea.get("quien") == ultimo.get("quien")
+    if mismo_tipo and mismo_texto and misma_tarea and mismo_quien:
+        return True
 
     return False
 
@@ -342,8 +447,8 @@ def _mensajes_resumen(estado):
         frases.append({
             "tipo": "hecho",
             "quien": "telegram",
-            "texto": "Ola %s integrada · %s tareas cruzadas a main"
-                      % (ola, integradas),
+            "texto": "%s integrada · %s tareas cruzadas a main"
+                      % (_etiqueta_ola(ola), integradas),
         })
 
     # puertas rojas: si hay tareas esperando aprobación, avisa.
@@ -415,8 +520,8 @@ def _formatear_orden_completa(accion, args, extra=None):
         return base
     if accion == "personal":
         if len(args) >= 2:
-            return "/a %s %s" % (args[0], args[1])
-        return "/a %s" % args[0]
+            return "/a %s %s" % (args[0], " ".join(args[1:]))
+        return "/a %s" % args[0] if args else "/a"
     if accion == "desconocida":
         return "%s: orden no reconocida" % args[0]
     if accion == "error":
@@ -424,14 +529,15 @@ def _formatear_orden_completa(accion, args, extra=None):
     return "/%s" % accion
 
 
-def arranque_completo():
+def arranque_completo(entorno=None):
     """Devuelve el texto de arranque que el bot escribe por consola y, si
     puede, al chat de Telegram.
 
     Se usa al iniciar: detecta si faltan las claves y corta sin tocar nada.
     """
-    token = _token()
-    chat = _chat_id()
+    entorno = os.environ if entorno is None else entorno
+    token = entorno.get("TELEGRAM_BOT_TOKEN")
+    chat = entorno.get("TELEGRAM_CHAT_ID")
     faltan = []
     if not token:
         faltan.append("TELEGRAM_BOT_TOKEN")
@@ -448,7 +554,7 @@ def arranque_completo():
     }
 
 
-def main():
+def _ejecutar_puente():
     print(__doc__[:600])
     print("\n--- arranque ---")
     conf = arranque_completo()
@@ -534,8 +640,8 @@ def main():
                         txt = "Mando apagado: no hay qué snapshotear."
                     else:
                         c = e.get("cuentas") or {}
-                        txt = "OLA %s · integradas %s · en curso %s · aprobación %s · pendientes %s" % (
-                            c.get("ola", "—"),
+                        txt = "%s · integradas %s · en curso %s · aprobación %s · pendientes %s" % (
+                            _etiqueta_ola(c.get("ola", "—"), "OLA"),
                             c.get("integradas", 0),
                             c.get("enCurso", 0),
                             c.get("esperandoAprobacion", 0),
@@ -623,6 +729,9 @@ def main():
             # 2. Vacía el canal común hacia Telegram.
             nuevas = mensajes_canal_desde(canal, desde_epoch=desde)
             for linea in nuevas:
+                desde = max(desde, linea.get("epoch", 0) or 0)
+                if not debe_reenviar_linea(linea):
+                    continue
                 if es_repetido(linea, ultimo_enviado):
                     continue
                 txt = _pinta_json(linea)
@@ -633,7 +742,6 @@ def main():
                 ultimo_enviado = {"tipo": linea.get("tipo"), "texto": linea.get("texto"),
                                   "quien": linea.get("quien"), "tarea": linea.get("tarea"),
                                   "epoch": linea.get("epoch")}
-                desde = max(desde, linea.get("epoch", 0) or 0)
                 with open(state_path, "w", encoding="utf-8") as f:
                     json.dump(ultimo_enviado, f)
 
@@ -643,6 +751,7 @@ def main():
             for c in candidatos:
                 # ajustar el candidato para que es_repetido lo juzgue con el
                 # último enviado.
+                c["epoch"] = time.time()
                 if es_repetido(c, ultimo_enviado):
                     continue
                 txt = _pinta_json(c)
@@ -657,7 +766,7 @@ def main():
                 ultimo_enviado = {"tipo": c.get("tipo"), "texto": c.get("texto"),
                                   "quien": c.get("quien"),
                                   "tarea": c.get("tarea"),
-                                  "epoch": time.time()}
+                                  "epoch": c.get("epoch")}
                 with open(state_path, "w", encoding="utf-8") as f:
                     json.dump(ultimo_enviado, f)
         except KeyboardInterrupt:
@@ -667,6 +776,20 @@ def main():
             print("Error de ciclo: %s: %s" % (type(e).__name__, e))
         time.sleep(1)
     return 0
+
+
+def main():
+    conf = arranque_completo()
+    if not conf["ok"]:
+        return _ejecutar_puente()
+    adquirido, motivo = adquirir_cerrojo()
+    if not adquirido:
+        print(motivo)
+        return 1
+    try:
+        return _ejecutar_puente()
+    finally:
+        liberar_cerrojo()
 
 
 if __name__ == "__main__":

@@ -1,180 +1,157 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Lógica pura de telegram-puente, extraída para tests sin importar el módulo entero.
-
-Las funciones aquí son copia exacta de las que usa el puente, pero sin el
-ciclo ni las lecturas de red. Se comparan contra el módulo real desde los
-tests; cualquier divergencia deja de pasar y se corrige en la fuente.
-"""
-import json, os, time
-
-# ── constantes que también usa el puente ──────────────────────────────────
-MURMURIO_MAX = 300
-SECUENCIA_REPITO = 3
-SIN_CREDITO_TIEMPO = 600
+"""Pruebas sin red para la lógica pura de telegram-puente."""
+import importlib.util
+import os
+import pathlib
+import sys
+import tempfile
 
 
-def _autorizado(quien, impuestos=None):
-    """Devuelve True solo si el chat id coincide con el dueño."""
-    cfg = impuestos if impuestos is not None else None
-    if cfg is None:
-        return False
-    return bool(quien and cfg and str(quien) == str(cfg))
+RUTA = pathlib.Path(__file__).with_name("telegram-puente.py")
+SPEC = importlib.util.spec_from_file_location("telegram_puente", RUTA)
+if SPEC is None or SPEC.loader is None:
+    raise RuntimeError("No se pudo cargar telegram-puente.py")
+PUENTE = importlib.util.module_from_spec(SPEC)
+SPEC.loader.exec_module(PUENTE)
+
+FALLAS = []
+PRUEBAS = 0
 
 
-def parsear_orden(texto):
-    """Devuelve (tipo, args, extra) o None."""
-    if not isinstance(texto, str):
-        return None
-    s = texto.strip()
-    if not s:
-        return None
-    primer = s.split()[0] if s.split() else s
-    if not primer.startswith("/"):
-        return ("mensaje", [s], None)
-    partes = s.split(maxsplit=1)
-    orden = partes[0][1:]
-    args = partes[1].split() if len(partes) > 1 else []
-    if orden == "ayuda":
-        return ("ayuda", [], None)
-    if orden == "estado":
-        return ("estado", [], None)
-    if orden == "agentes":
-        return ("agentes", [], None)
-    if orden == "olas":
-        n = args[0] if args else None
-        return ("olas", [n] if n else [], None)
-    if orden == "cola":
-        return ("cola", [], None)
-    if orden == "puertas":
-        return ("puertas", [], None)
-    if orden == "decir":
-        if not args:
-            return ("error", [], "decir <texto>")
-        return ("decir", [" ".join(args)], None)
-    if orden == "a" and args:
-        quien = args[0]
-        resto = " ".join(args[1:])
-        if resto:
-            return ("personal", [quien, resto], None)
-        return ("error", [], "a <agente> <texto>")
-    if orden in ("aprobar", "rechazar", "soltar"):
-        if not args:
-            return ("error", [], "%s <id...>" % orden)
-        return (orden, args, None)
-    if orden == "reasignar" and len(args) >= 2:
-        return ("reasignar", [args[0], args[1]], None)
-    if orden == "reasignar":
-        return ("error", [], "reasignar <id> <modelo>")
-    return ("desconocida", [s], orden)
+def comprobar(nombre, obtenido, esperado):
+    """Acumula fallas para ejecutar todos los casos en una sola pasada."""
+    global PRUEBAS
+    PRUEBAS += 1
+    if obtenido != esperado:
+        FALLAS.append(
+            "FALLA %s: esperado %r, obtenido %r" % (nombre, esperado, obtenido)
+        )
 
 
-def es_repetido(linea, ultimo):
-    """¿Vale la pena reenviar este evento o es ruido redundante?
+# Las comillas solo delimitan el argumento completo; no forman parte del mensaje.
+comprobar(
+    "parsear /decir con comillas",
+    PUENTE.parsear_orden('/decir "zN4 en verde"'),
+    ("decir", ["zN4 en verde"], None),
+)
+comprobar(
+    "parsear mensaje suelto",
+    PUENTE.parsear_orden("avisa cuando termine"),
+    ("mensaje", ["avisa cuando termine"], None),
+)
+comprobar(
+    "parsear orden personal",
+    PUENTE.parsear_orden("/a Claude revisa la puerta"),
+    ("personal", ["Claude", "revisa la puerta"], None),
+)
 
-    Filtra:
-    · latidos (tipo=murmurio) → siempre True.
-    · mensaje sin texto anterior → False (hay que enviarlo).
-    · igual texto y mismo tipo y misma tarea y mismo quien → True.
-    · aviso de cuota repetido dentro de SIN_CREDITO_TIEMPO → True.
-    · aviso de API colgada repetido de la misma tarea → True.
-    """
-    if not isinstance(linea, dict) or linea is None:
-        return True
-    if linea.get("tipo") != "murmurio":
-        if not ultimo or not isinstance(ultimo, dict):
-            return False
-    else:
-        return True
+mensaje = {"tipo": "mensaje", "texto": "listo", "quien": "codex"}
+comprobar("es_repetido sin último → enviar", PUENTE.es_repetido(mensaje, None), False)
+comprobar(
+    "es_repetido murmullo → callar",
+    PUENTE.es_repetido({"tipo": "murmurio"}, mensaje),
+    True,
+)
+comprobar("es_repetido idéntico", PUENTE.es_repetido(mensaje, dict(mensaje)), True)
 
-    linea_tipo = linea.get("tipo", "")
-    linea_texto = linea.get("texto", "")
-    ultimo_tipo = ultimo.get("tipo") if isinstance(ultimo, dict) else None
+cuota_anterior = {
+    "tipo": "aviso", "texto": "Proveedor sin cuota: motor-a", "epoch": 1000,
+}
+cuota_nueva = {
+    "tipo": "aviso", "texto": "Proveedor sin cuota: motor-a",
+    "epoch": 1000 + PUENTE.SIN_CREDITO_TIEMPO - 1,
+}
+# El aviso conserva utilidad temporal: dentro del plazo se calla; después renace.
+comprobar(
+    "es_repetido aviso cuota dentro del plazo",
+    PUENTE.es_repetido(cuota_nueva, cuota_anterior),
+    True,
+)
+cuota_nueva["epoch"] = 1000 + PUENTE.SIN_CREDITO_TIEMPO
+comprobar(
+    "es_repetido aviso cuota al vencer",
+    PUENTE.es_repetido(cuota_nueva, cuota_anterior),
+    False,
+)
+otro_asunto = dict(cuota_nueva, texto="Proveedor sin cuota: motor-b", epoch=1001)
+comprobar(
+    "es_repetido cuota de otro asunto",
+    PUENTE.es_repetido(otro_asunto, cuota_anterior),
+    False,
+)
 
-    if linea_tipo == ultimo_tipo and linea_texto == ultimo.get("texto", ""):
-        mismo_quien = linea.get("quien") == ultimo.get("quien")
-        misma_tarea = (linea.get("tarea") or "") == (ultimo.get("tarea") or "")
-        if mismo_quien and misma_tarea:
-            return True
+comprobar("pinta None", PUENTE._pinta_json(None), "")
 
-    # agrupación de cuota.
-    if linea_tipo == "aviso" and "cuota" in linea_texto.lower():
-        ultimo_epoch = ultimo.get("epoch")
-        linea_epoch = linea.get("epoch")
-        if isinstance(ultimo_epoch, (int, float)) and isinstance(linea_epoch, (int, float)):
-            if linea_epoch >= ultimo_epoch and (linea_epoch - ultimo_epoch) < SIN_CREDITO_TIEMPO:
-                return True
+# Un mensaje que nació en Telegram ya llegó a su destino y no debe volver.
+comprobar(
+    "no reenviar al autor de Telegram",
+    PUENTE.debe_reenviar_linea({"quien": "telegram-usuario", "texto": "Hola"}),
+    False,
+)
 
-    # agrupación de API colgada.
-    if linea_tipo == "aviso" and "colgada" in linea_texto.lower():
-        antiguo = ultimo.get("texto", "")
-        misma_tarea = (linea.get("tarea") or "") == (ultimo.get("tarea") or "")
-        if misma_tarea and "colgada" in antiguo.lower():
-            return True
+# La etiqueta de la ola puede venir ya completa desde el Mando.
+resumen_ola = PUENTE._mensajes_resumen({
+    "cuentas": {"ola": "Ola 305", "integradas": 1},
+})
+comprobar(
+    "no duplicar prefijo de ola",
+    (
+        PUENTE._etiqueta_ola("Ola 305"),
+        PUENTE._etiqueta_ola("305", "OLA"),
+        resumen_ola[0]["texto"],
+    ),
+    ("Ola 305", "OLA 305", "Ola 305 integrada · 1 tareas cruzadas a main"),
+)
 
-    return False
+# El primer proceso toma el cerrojo y el segundo reconoce que sigue vivo.
+with tempfile.TemporaryDirectory() as temporal:
+    cerrojo = os.path.join(temporal, "telegram.lock")
+    primero, _ = PUENTE.adquirir_cerrojo(cerrojo, pid=os.getpid())
+    segundo, motivo = PUENTE.adquirir_cerrojo(cerrojo, pid=os.getpid())
+    comprobar(
+        "cerrojo impide dos puentes vivos",
+        (primero, segundo, "PID %s" % os.getpid() in motivo),
+        (True, False, True),
+    )
+    PUENTE.liberar_cerrojo(cerrojo, pid=os.getpid())
+    descriptor = os.open(cerrojo, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    os.write(descriptor, b"999999\n")
+    os.close(descriptor)
+    recuperado, _ = PUENTE.adquirir_cerrojo(
+        cerrojo, pid=os.getpid(), proceso_vivo=lambda _: False
+    )
+    comprobar("cerrojo huérfano se recupera", recuperado, True)
+    PUENTE.liberar_cerrojo(cerrojo, pid=os.getpid())
 
+comprobar(
+    "formatear concatena argumentos",
+    (
+        PUENTE._formatear_orden_completa("decir", ["zN4", "en", "verde"]),
+        PUENTE._formatear_orden_completa("personal", ["Claude", "revisa", "esto"]),
+    ),
+    ("/decir zN4 en verde", "/a Claude revisa esto"),
+)
 
-def _pinta_json(linea):
-    """Formatea un objeto del canal para Telegram (plain, Markdown)."""
-    if not isinstance(linea, dict):
-        return ""
-    marca = {"error": "✗", "aviso": "!", "hecho": "✓", "mensaje": "·"}.get(
-        linea.get("tipo", ""), "·")
-    quien = linea.get("quien") or "?"
-    tarea = (" [%s]" % linea["tarea"]) if linea.get("tarea") else ""
-    momento = linea.get("t")
-    msj = linea.get("texto") or ""
-    if momento and len(momento) > 11:
-        ts = momento[11:]
-    else:
-        ts = momento or ""
-    return "%s *%s* _%s_%s %s" % (marca, quien, ts, tarea, msj)
+# `texto` es parte del contrato: main lo imprime para explicar por qué no arranca.
+comprobar(
+    "arranque sin variables",
+    PUENTE.arranque_completo({}),
+    {
+        "ok": False,
+        "token": False,
+        "chat": False,
+        "faltan": ["TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID"],
+        "texto": (
+            "Telegram-Puente parado: hacen falta TELEGRAM_BOT_TOKEN, "
+            "TELEGRAM_CHAT_ID como variables de entorno."
+        ),
+    },
+)
 
+if FALLAS:
+    print("\n".join(FALLAS))
+    print("%d/%d pruebas en verde; %d fallaron." % (PRUEBAS - len(FALLAS), PRUEBAS, len(FALLAS)))
+    sys.exit(1)
 
-def _formatear_orden_completa(accion, args, extra=None):
-    """Convierte parsear_orden → texto para el canal común."""
-    if accion == "mensaje":
-        return args[0] if args else ""
-    if accion == "decir":
-        return "/decir %s" % (" ".join(args) if args else "")
-    if accion in ("aprobar", "rechazar", "soltar", "reasignar"):
-        base = "/%s %s" % (accion, " ".join(args))
-        if extra:
-            kvs = " ".join("%s=%s" % kv for kv in extra.items())
-            return "%s %s" % (base, kvs)
-        return base
-    if accion == "personal":
-        if len(args) >= 2:
-            return "/a %s %s" % (args[0], args[1])
-        return "/a %s" % args[0]
-    if accion == "desconocida":
-        return "%s: orden no reconocida" % args[0]
-    if accion == "error":
-        return args[0] or "orden incompleta"
-    return "/%s" % accion
-
-
-def arranque_completo(entorno=None):
-    """Devuelve dict con ok, faltan, texto.
-
-    Si `entorno` es un dict, se usa como sustituto de os.environ para el test.
-    """
-    if entorno is None:
-        entorno = os.environ
-    token = entorno.get("TELEGRAM_BOT_TOKEN")
-    chat = entorno.get("TELEGRAM_CHAT_ID")
-    faltan = []
-    if not token:
-        faltan.append("TELEGRAM_BOT_TOKEN")
-    if not chat:
-        faltan.append("TELEGRAM_CHAT_ID")
-    return {
-        "ok": not faltan,
-        "token": bool(token),
-        "chat": bool(chat),
-        "faltan": list(faltan),
-        "texto": ("Telegram-Puente listo para el chat %s." % chat) if not faltan
-                 else ("Telegram-Puente parado: hacen falta %s como variables de entorno."
-                       % ", ".join(faltan)),
-    }
+print("%d/%d pruebas en verde." % (PRUEBAS, PRUEBAS))
