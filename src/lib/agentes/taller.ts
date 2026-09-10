@@ -33,33 +33,67 @@ export interface RecursoAgente {
   docs?: string;
 }
 
+export interface ComprobacionRecurso {
+  /** Operación inocua que permite observar si el recurso responde ahora. */
+  accion: string;
+  /** Evidencia mínima que convierte la comprobación en positiva. */
+  disponibleSi: string;
+}
+
+/** Contrato más estricto para una vía de navegador del Taller. */
+export interface RecursoNavegador extends RecursoAgente {
+  capacidades: string[];
+  limites: string[];
+  comprobacion: ComprobacionRecurso;
+}
+
 /* ── Navegador: verificado en vivo el 2026-09-08 ────────────────────────────
    En el Chrome de la Mac, con la sesión de fundacionstarseed@gmail.com, están
    instaladas las extensiones de Claude y de ChatGPT. `list_connected_browsers`
    devolvió 1 navegador y `Control_Chrome.list_tabs` respondió con las pestañas.
    El navegador es una capacidad de la MAC: los agentes del enjambre que corren
    en el contenedor de la nube NO llegan a ese Chrome.                        */
-export const RECURSOS_NAVEGADOR: RecursoAgente[] = [
+export const RECURSOS_NAVEGADOR: RecursoNavegador[] = [
   {
     id: "os:claude-en-chrome", tipo: "herramienta", origen: "os", maquina: "mac",
     nombre: "Claude en Chrome",
-    descripcion: "Extensión de Claude en el Chrome de la fundación: navegar, leer páginas, capturar y rellenar formularios. Nunca contraseñas ni pagos, y nada de publicar o aceptar términos sin la palabra de Alex.",
+    descripcion: "Extensión de Claude en el Chrome de la fundación; solo está viva cuando la extensión expone una conexión comprobada.",
     etiquetas: ["navegador", "web", "pestañas", "formularios", "captura"],
-    requiere: [], docs: "https://claude.com/chrome",
+    requiere: ["CLAUDE_EN_CHROME_CONECTADO"],
+    capacidades: ["Navegar y leer páginas", "Capturar la vista", "Rellenar formularios"],
+    limites: ["Solo funciona en la Mac con la extensión conectada", "No introduce contraseñas ni datos de pago", "No publica, envía ni acepta términos sin autorización explícita"],
+    comprobacion: {
+      accion: "Consultar los navegadores conectados con list_connected_browsers.",
+      disponibleSi: "La respuesta incluye un Chrome conectado mediante la extensión de Claude.",
+    },
+    docs: "https://claude.com/chrome",
   },
   {
     id: "os:control-chrome", tipo: "mcp", origen: "os", maquina: "mac",
     nombre: "Control Chrome (MCP local)",
-    descripcion: "Servidor MCP local de la Mac: abrir URL, listar y cambiar pestañas, leer el contenido y ejecutar JavaScript. Lo puede usar cualquier agente que corra en la Mac (Hermes, Codex, opencode local).",
+    descripcion: "Servidor MCP local para conducir el Chrome de la Mac; estar instalado no significa que esté conectado en este turno.",
     etiquetas: ["navegador", "mcp", "pestañas", "javascript"],
-    requiere: [],
+    requiere: ["CONTROL_CHROME_CONECTADO"],
+    capacidades: ["Abrir URL", "Listar y cambiar pestañas", "Leer contenido", "Ejecutar JavaScript en una pestaña"],
+    limites: ["Solo lo alcanzan agentes que corren en la Mac", "Depende de que Chrome y el MCP local respondan", "No convierte una sesión abierta en permiso para acciones externas"],
+    comprobacion: {
+      accion: "Invocar Control_Chrome.list_tabs sin modificar ninguna pestaña.",
+      disponibleSi: "La llamada responde correctamente con la lista de pestañas, aunque esté vacía.",
+    },
   },
   {
     id: "astraura:browser-tool", tipo: "herramienta", origen: "astraura", maquina: "cualquiera",
     nombre: "Navegador autónomo 1.58",
-    descripcion: "El navegador del backend de Astraura, alcanzable por /api/ai/astraura-158/*. Para lo que no tiene API: NotebookLM y su Studio, Google AI Studio, paneles de claves.",
-    etiquetas: ["navegador", "autónomo", "astraura", "sin-api"],
-    requiere: [], ruta: "backend/app/tools/browser_tool.py",
+    descripcion: "browser_tool del backend Astraura 1.58, accesible por el proxy del OS cuando el backend y la herramienta responden.",
+    etiquetas: ["navegador", "autónomo", "astraura", "sin-api", "paneles", "documentación"],
+    requiere: ["ASTRAURA_158_BROWSER_TOOL_SANO"],
+    capacidades: ["Buscar en la web", "Navegar a una URL", "Ejecutar acciones admitidas", "Indexar contenido en memoria"],
+    limites: ["No hereda las sesiones del Chrome de la Mac", "Solo ejecuta las acciones que admita el backend desplegado", "Un backend accesible no prueba por sí solo que browser_tool esté sano"],
+    comprobacion: {
+      accion: "Ejecutar una búsqueda inocua mediante /api/ai/astraura-158/api/browser/search.",
+      disponibleSi: "El proxy y browser_tool responden con éxito; no basta con tener ASTRAURA_158_URL configurada.",
+    },
+    ruta: "backend/app/tools/browser_tool.py",
   },
 ];
 
@@ -105,6 +139,17 @@ export const RECURSOS_MEMORIA: RecursoAgente[] = [
     docs: "https://notebook.google.com/" },
 ];
 
+/* 2026-09-08 · Ola 297 · NV1: las reglas se declaran ANTES de `PROMPTS_BASE`
+   porque el prompt de navegación las reutiliza; al revés habría zona muerta
+   (TDZ) al evaluar el módulo. */
+/** Reglas que acompañan a cualquier recurso de navegación. */
+export const REGLAS_NAVEGADOR: string[] = [
+  "Nunca introducir contraseñas ni datos de pago.",
+  "Nunca aceptar términos, publicar, enviar formularios ni comprar sin la palabra explícita de Alex.",
+  "En los avisos de cookies, siempre la opción más restrictiva.",
+  "Jamás sacar claves ni tokens de la máquina dentro de un contexto de navegación.",
+];
+
 /** Plantillas de prompt útiles de verdad para un agente de StarSeed. */
 export const PROMPTS_BASE: RecursoAgente[] = [
   { id: "prompt:investigar", tipo: "prompt", origen: "os", nombre: "Investigar y citar fuentes",
@@ -122,14 +167,12 @@ export const PROMPTS_BASE: RecursoAgente[] = [
   { id: "prompt:ola", tipo: "prompt", origen: "os", nombre: "Planificar una ola",
     descripcion: "Parte el trabajo en tareas de ≤3 archivos con enunciado medido, archivos, dependencias y tests de funciones puras.",
     etiquetas: ["olas", "planificación", "enjambre"], requiere: [] },
-];
-
-/** Reglas que acompañan a cualquier recurso de navegación. */
-export const REGLAS_NAVEGADOR: string[] = [
-  "Nunca introducir contraseñas ni datos de pago.",
-  "Nunca aceptar términos, publicar, enviar formularios ni comprar sin la palabra explícita de Alex.",
-  "En los avisos de cookies, siempre la opción más restrictiva.",
-  "Jamás sacar claves ni tokens de la máquina dentro de un contexto de navegación.",
+  // 2026-09-08 · Ola 297 · NV1: quien conduce un navegador actúa en nombre de la
+  // fundación con sus sesiones ya iniciadas; las cuatro reglas viajan con el
+  // prompt para que ningún agente tenga que acordarse de ellas.
+  { id: "prompt:navegador", tipo: "prompt", origen: "os", nombre: "Conducir un navegador con cuidado",
+    descripcion: REGLAS_NAVEGADOR.join(" "),
+    etiquetas: ["navegador", "seguridad", "reglas", "consentimiento"], requiere: [] },
 ];
 
 function sinTildes(s: string): string {
@@ -184,6 +227,59 @@ export function recomendarPara(
 /** Qué variables de entorno le faltan a este recurso para poder usarse. */
 export function faltanRequisitos(r: RecursoAgente, variablesPresentes: string[]): string[] {
   return r.requiere.filter((v) => !variablesPresentes.includes(v));
+}
+
+/** Señales observadas por el adaptador del entorno; este módulo no las inventa. */
+export interface EstadoActualNavegador {
+  maquina: "mac" | "nube";
+  comprobacionesSuperadas: string[];
+}
+
+export interface DiagnosticoViaNavegador {
+  recurso: RecursoNavegador;
+  disponible: boolean;
+  maquinaCompatible: boolean;
+  requisitosFaltantes: string[];
+}
+
+export interface ConsultaNavegador {
+  vias: DiagnosticoViaNavegador[];
+  disponibles: RecursoNavegador[];
+  viaPreferida: RecursoNavegador | null;
+  respuesta: string;
+}
+
+/**
+ * Responde qué vías están vivas a partir de comprobaciones ya realizadas.
+ * La ausencia de evidencia siempre significa «no comprobada», nunca disponible.
+ */
+export function consultarViasNavegador(
+  estado: EstadoActualNavegador,
+): ConsultaNavegador {
+  const vias = RECURSOS_NAVEGADOR.map((recurso): DiagnosticoViaNavegador => {
+    const maquinaCompatible = disponibleEn(recurso, estado.maquina);
+    const requisitosFaltantes = faltanRequisitos(
+      recurso,
+      estado.comprobacionesSuperadas,
+    );
+    return {
+      recurso,
+      maquinaCompatible,
+      requisitosFaltantes,
+      disponible: maquinaCompatible && requisitosFaltantes.length === 0,
+    };
+  });
+  const disponibles = vias.filter((via) => via.disponible).map((via) => via.recurso);
+  const respuesta = disponibles.length === 0
+    ? "No hay ninguna vía de navegador comprobada como disponible ahora."
+    : `Vías de navegador comprobadas ahora: ${disponibles.map((r) => r.nombre).join(", ")}.`;
+
+  return {
+    vias,
+    disponibles,
+    viaPreferida: disponibles[0] ?? null,
+    respuesta,
+  };
 }
 
 /** Todo lo declarado en este módulo, en un solo catálogo. */
