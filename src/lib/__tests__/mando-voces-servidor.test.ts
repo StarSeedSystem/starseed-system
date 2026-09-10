@@ -24,7 +24,7 @@ interface ImportValor {
 }
 
 /**
- * Deuda heredada (2026-09-07): tres parejas previas a la regla que NO rompen
+ * Deuda heredada (2026-09-07): dos parejas previas a la regla que NO rompen
  * el build porque solo usan lo importado en TIEMPO DE PETICIÓN (la ruta se
  * evalúa al llegar el request, cuando ya hay contexto de servidor) y no en la
  * inicialización del módulo, que es donde el bundle de servidor revienta.
@@ -35,7 +35,6 @@ interface ImportValor {
  * que la lista no esconda deuda nueva.
  */
 const DEUDA_HEREDADA = new Set([
-    "src/app/api/ai/nvidia/route.ts -> src/ai/astraura/free-catalog.ts",
     "src/app/api/neurons/hermayone/bridge/route.ts -> src/lib/aurora/hermayone-bridge.ts",
     "src/app/api/neurons/hermione/bridge/route.ts -> src/lib/aurora/hermione-bridge.ts",
 ]);
@@ -195,7 +194,7 @@ describe("rutas de servidor: ninguna importa un módulo «use client» (Ola 275 
         ).toEqual([]);
     });
 
-    it("la deuda heredada son exactamente las tres parejas documentadas", () => {
+    it("la deuda heredada son exactamente las dos parejas documentadas", () => {
         const encontradas = parejasCliente();
         expect([...encontradas].sort()).toEqual([...DEUDA_HEREDADA].sort());
     });
@@ -215,5 +214,4 @@ describe("timbres-catalogo.ts: módulo de servidor puro (Ola 275 · V5A)", () =>
         expect(/export const TIMBRES/.test(codigo), "falta `export const TIMBRES` en timbres-catalogo.ts").toBe(true);
     });
 });
-
 
