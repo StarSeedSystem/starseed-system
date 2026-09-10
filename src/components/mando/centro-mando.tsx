@@ -78,6 +78,7 @@ import type { SaludNeurona } from "@/lib/mando/neurona";
 // (que no dependen de `node:*`) cruzan al cliente; las sondas quedan en servidor.
 import type { EstadoAlmacenamiento } from "@/lib/mando/almacenamiento";
 import { discoLibreTexto, tonoDiscoLibre } from "@/components/mando/tarjetas-almacenamiento";
+import { contarTrabajoReal } from "@/lib/mando/conteo-operativo";
 
 const CLAVE_PESTANA = "starseed.mando.pestana";
 
@@ -407,8 +408,9 @@ export function CentroMando() {
         // hubiera ninguna ola en marcha: por eso este número no se movía.
         // «En curso» = agentes latiendo AHORA. Lo pendiente se muestra aparte (antes salía «60»
         // con cero agentes porque sumaba todo lo no hecho de todas las olas).
-        const tareasEnCurso = latidos.length;
-        const pendientes = estado.olas.reduce((acc, o) => acc + o.restantes, 0);
+        const trabajo = contarTrabajoReal(estado.fila ?? [], latidos);
+        const tareasEnCurso = trabajo.enCurso;
+        const pendientes = trabajo.pendientes;
         const flota = flotaConocida(usoPorMotor(estado.uso));
         // Agotados según el uso diario + caídos según el supervisor de cada enjambre (bus):
         // xkiro sin cuota diaria es «caído» para el supervisor aunque el contador local no lo sepa.
@@ -424,6 +426,9 @@ export function CentroMando() {
             olaActiva: olaActiva ? (/^ola\s/i.test(olaActiva.id) ? olaActiva.id : `Ola ${olaActiva.id}`) : "Sin olas activas",
             tareasEnCurso,
             pendientes,
+            listas: trabajo.listas,
+            bloqueadas: trabajo.bloqueadas,
+            copiasOmitidas: trabajo.copiasOmitidas,
             sinPush: estado.repo?.sinPush ?? null,
             agotados,
             disponibles,
@@ -516,9 +521,8 @@ export function CentroMando() {
                         Estaban en un solo chip («3 · 128 pendientes») y se leía como un dato
                         raro; son dos cosas distintas y ahora se ven como tales:
                           · EN CURSO   = agentes latiendo AHORA (latidos del vigilante).
-                          · PENDIENTES = todo lo que queda por hacer sumando TODAS las olas,
-                            no solo la activa — por eso es un número mucho mayor, y el
-                            detalle lo dice para que nadie tenga que adivinarlo. */}
+                          · PENDIENTES = IDs únicos que aún requieren trabajo; las copias de
+                            colas históricas se omiten y el detalle separa listos/bloqueados. */}
                     <DatoPulso
                         titulo="Tareas en curso"
                         valor={String(pulso.tareasEnCurso)}
@@ -529,7 +533,7 @@ export function CentroMando() {
                         titulo="Pendientes"
                         valor={String(pulso.pendientes)}
                         tono={pulso.pendientes > 0 && pulso.tareasEnCurso === 0 ? "peligro" : "normal"}
-                        detalle="en todas las olas"
+                        detalle={`${pulso.listas} listas · ${pulso.bloqueadas} bloqueadas${pulso.copiasOmitidas > 0 ? ` · ${pulso.copiasOmitidas} copias omitidas` : ""}`}
                         alClic={() => alCambiarPestana("procesos")}
                     />
                     <DatoPulso
