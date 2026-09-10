@@ -17,7 +17,14 @@ import {
  */
 function configBase(): AppearanceConfig {
   return {
-    typography: { fontFamily: "Inter", scale: 1, customFonts: [] },
+    typography: {
+      fontFamily: "Inter",
+      scale: 1,
+      customFonts: [
+        { name: "Space Grotesk", url: "https://fuentes.starseed/sg.woff2", family: "Space Grotesk" },
+        { name: "Syne", url: "https://fuentes.starseed/syne.woff2", family: "Syne" },
+      ],
+    },
     layout: {
       menuPosition: "left",
       menuStyle: "sidebar",
@@ -124,17 +131,31 @@ describe("aplicarAccion + deshacer · ningún cambio es irreversible", () => {
   });
 
   it("los arrays se reemplazan enteros, nunca se concatenan", () => {
+    // Se prueba sobre `typography.customFonts`, un array de rama REQUERIDA,
+    // porque `DeepPartial` no desciende a los objetos OPCIONALES: para
+    // `background.living?` el condicional `T[P] extends object` falla (el tipo
+    // incluye `undefined`) y exige el objeto entero, así que un parche parcial
+    // de `living` no se puede escribir como literal tipado sin forzar el tipo.
+    // La fusión es la misma para todos los arrays, así que aquí se ve igual.
     const a = accion({
-      tipo: "movimiento",
-      parche: { background: { living: { colors: ["#ffffff"] } } },
+      tipo: "tipografia",
+      parche: {
+        typography: {
+          customFonts: [
+            { name: "Orbitron", url: "https://fuentes.starseed/orbitron.woff2", family: "Orbitron" },
+          ],
+        },
+      },
     });
     const { siguiente, entrada } = aplicarAccion(configBase(), a, { ahora: 6000, id: "b6" });
-    expect(siguiente.background.living?.colors).toEqual(["#ffffff"]);
-    // El resto de `living` se conserva: la fusión es profunda, no un reemplazo.
-    expect(siguiente.background.living?.variant).toBe("nebula");
-    expect(deshacer(siguiente, entrada).background.living?.colors).toEqual([
-      "#00ffee",
-      "#ff00aa",
+    expect(siguiente.typography.customFonts).toHaveLength(1);
+    expect(siguiente.typography.customFonts[0].name).toBe("Orbitron");
+    // El resto de `typography` se conserva: la fusión es profunda, no un reemplazo.
+    expect(siguiente.typography.fontFamily).toBe("Inter");
+    expect(siguiente.typography.scale).toBe(1);
+    expect(deshacer(siguiente, entrada).typography.customFonts.map((f) => f.name)).toEqual([
+      "Space Grotesk",
+      "Syne",
     ]);
   });
 });
