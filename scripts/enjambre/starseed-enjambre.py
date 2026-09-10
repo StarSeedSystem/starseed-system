@@ -18,15 +18,21 @@ Qué hace (todo gratis: opencode → NVIDIA NIM para escribir; OpenRouter/NIM/Ge
     (`debe_retirar`): las pistas «does not exist» de la salida de las herramientas no cuentan.
 Estado: olas/progreso.json + progreso.md (mismo formato de siempre) + logs/<id>.log + revisiones.md
 
-Tiempos configurables (2026-09-06, Ola 261):
-  · STARSEED_ESCRITURA_S  — tope de una llamada de escritura de opencode (defecto 1500 s).
-  · STARSEED_ESTANCADO_S  — sin avance en el log se considera colgado (defecto max(900, ESCRITURA_S//2));
-    una escritura legítima por trozos puede tardar ESCRITURA_S, así que el vigilante nunca debe
-    ser más impaciente que la mitad de ese margen.
+Tiempos configurables:
+  · STARSEED_ESCRITURA_S — tope de una llamada de escritura de cualquiera de los motores.
+  · STARSEED_LATIDO_MEDIO_MAX_S / STARSEED_ARRIENDO_S — salud del medio y lease de la tarea.
+  · STARSEED_COLGADO_S — sin crecer en bytes reales del worktree se considera colgado (300 s).
 """
 import hashlib, json, os, re, subprocess, sys, threading, time, urllib.request, urllib.error, shutil, collections
 import signal
 import contextlib, fcntl
+
+# La decisión de salud, vencimiento y reparto vive fuera para poder probarla sin lanzar una ola.
+DIRECTORIO_ENJAMBRE = os.path.dirname(os.path.abspath(__file__))
+if DIRECTORIO_ENJAMBRE not in sys.path:
+    sys.path.insert(0, DIRECTORIO_ENJAMBRE)
+from medios import (area_de_tarea, normalizar_medios, registrar_resultado,
+                    renovar_arriendo, repartir, vencer_arriendos)
 
 # El MISMO archivo corre en la Mac de Alex y en el contenedor de Cowork: sin variables de
 # entorno, adivina el repositorio por dónde exista (Mac: ~/Documents/starseed-os-main;
@@ -77,6 +83,35 @@ MODELOS = [
     # rotación de una tarea si TODOS sus archivos son Markdown (ver apto_para_tarea).
     "llm7/gpt-oss",
 ]
+
+# (2026-09-08, Ola 296 · CX2) ESCRITORES DE COSTE CERO: Codex CLI escribe contra la suscripción
+# Pro de ChatGPT de Alex (`~/.codex/auth.json` con `auth_mode: chatgpt`), NO contra créditos de la
+# API (esa cuenta está a cero: 429 `insufficient_quota`). Por eso van los PRIMEROS de la rotación
+# cuando la máquina los tiene: son gratis y de calidad alta.
+# Verificado en la Mac el 2026-09-09 con `codex exec -m …`: `gpt-5.6-sol` responde. Los modelos
+# `gpt-5.2-codex` y `gpt-5.1-codex` NO se ponen aquí a propósito: con cuenta de ChatGPT devuelven
+# «400 · not supported when using Codex with a ChatGPT account» y solo quemarían intentos.
+MODELOS_CODEX = ["codex/gpt-5.6-sol"]
+RUTA_CODEX_AUTH = os.path.expanduser("~/.codex/auth.json")
+
+
+def codex_disponible() -> bool:
+    """¿Puede ESTA máquina escribir con Codex? (2026-09-08, Ola 296 · CX2)
+
+    Dos condiciones a la vez: que el binario `codex` exista (solo está en la Mac) y que la sesión
+    guardada sea la de ChatGPT, que es la que va contra la suscripción. Del archivo de sesión se
+    mira ÚNICAMENTE `auth_mode`: los `tokens` no se copian a ninguna variable, ni se registran en
+    eventos ni en logs. Cualquier problema al leerlo (no existe, JSON roto, permisos) = no
+    disponible, nunca una excepción que tumbe el arranque."""
+    if not ruta_codex():
+        return False
+    try:
+        with open(RUTA_CODEX_AUTH, encoding="utf-8") as f:
+            datos = json.load(f)
+        return isinstance(datos, dict) and datos.get("auth_mode") == "chatgpt"
+    except Exception:
+        return False
+
 
 MUERTOS = set()          # modelos que el proveedor ha rechazado en esta corrida
 PROCESOS = {}            # tarea -> Popen de opencode en marcha (para poder cortarlo)
@@ -172,9 +207,17 @@ def validar_modelos():
         MUERTOS.add(m); MODELOS.remove(m)
     if fuera:
         evento("aviso", "", "modelos retirados del catálogo, fuera de la rotación: " + ", ".join(fuera))
+    # (2026-09-08, Ola 296 · CX2) Codex al FRENTE de la rotación, y solo donde existe: escribe con
+    # la suscripción Pro de Alex (coste cero, calidad alta), así que debe intentarse antes de gastar
+    # cupo de los proveedores gratuitos. En la nube `codex_disponible()` es False y ni aparecen.
+    codex_dentro = []
+    if codex_disponible():
+        codex_dentro = [m for m in MODELOS_CODEX if m not in MODELOS]
+        MODELOS[:0] = codex_dentro
     if not MODELOS:
         evento("fallo", "", "ningún modelo escritor sigue vivo — no arranco"); sys.exit(3)
-    evento("arranque", "", "escritores verificados vivos: " + ", ".join(m.split("/", 1)[1] for m in MODELOS))
+    evento("arranque", "", "escritores verificados vivos: %s · escritores de Codex (suscripción, coste cero): %d"
+           % (", ".join(m.split("/", 1)[1] for m in MODELOS), len(codex_dentro)))
 
 SALUD_JSON = os.path.expanduser("~/.starseed/salud-proveedores.json")
 SONDEO_S = int(os.environ.get("STARSEED_SONDEO_S", "60"))
@@ -661,7 +704,11 @@ def escritores_de_pasarelas():
     return out
 
 
-PROVEEDORES_SIN_CLAVE = ("llm7",)   # unicos que generan con apiKey «sin-clave» literal
+# (2026-09-08, Ola 296 · CX2) «codex» se suma aquí porque tampoco necesita clave de API: su
+# sesión vive en ~/.codex/auth.json. Así, en una máquina SIN ninguna clave, `modelos_para`
+# pone delante los escritores que de verdad pueden escribir — y codex antes que llm7, porque
+# `libres` respeta el orden de MODELOS y validar_modelos() lo deja en cabeza.
+PROVEEDORES_SIN_CLAVE = ("codex", "llm7")   # generan sin clave de API de pago
 
 
 def hay_alguna_clave():
@@ -1730,6 +1777,136 @@ def opencode(prompt, modelo, cwd, log, timeout=1500, tid=None):
             salida = ""
         return rc, salida
 
+
+# ── MOTOR DE ESCRITURA ALTERNATIVO: Codex CLI (2026-09-08, Ola 296 · CX1) ────
+# opencode era el único motor de escritura. Codex CLI escribe igual de bien y, con la sesión de
+# ChatGPT de Alex, sin gastar créditos de API. Entra como SEGUNDO motor, no como sustituto: los
+# modelos con prefijo `codex/` se escriben con `codex exec` y todos los demás siguen por opencode.
+def es_modelo_codex(modelo: str) -> bool:
+    """PURA: ¿este escritor se atiende con Codex CLI? El prefijo `codex/` es la única marca."""
+    return str(modelo or "").startswith("codex/")
+
+
+def ruta_codex() -> str:
+    """Ruta del binario `codex`, o None si esta máquina no lo tiene (la nube no lo tiene).
+
+    Se busca con `shutil.which` —lo que parchean los tests— pero sobre el MISMO PATH que recibe
+    el hijo (`RUTAS_BIN` + PATH): lanzado desde launchd o cron el PATH heredado puede no traer
+    `~/.local/bin`, que es justo donde vive `codex` en la Mac."""
+    try:
+        return shutil.which("codex", path=":".join(RUTAS_BIN) + ":" + os.environ.get("PATH", ""))
+    except TypeError:
+        return shutil.which("codex")
+
+
+def comando_codex(modelo: str, cwd: str) -> list:
+    """PURA: argumentos de `codex exec` para escribir `modelo` dentro de `cwd`.
+
+    El prompt NO viaja aquí: los enunciados del enjambre pasan de 6.000 caracteres y no caben en
+    una línea de orden (E2BIG), así que se le pasa por stdin. `-s workspace-write` limita la
+    escritura al worktree, `--approve-for-me` evita esperas invisibles y `-C` fija la raíz.
+    `-m` va SIEMPRE porque la configuración local puede apuntar a un modelo no admitido por
+    la sesión de ChatGPT."""
+    nombre = str(modelo or "")
+    if nombre.startswith("codex/"):
+        nombre = nombre.split("/", 1)[1]
+    return ["codex", "exec", "-m", nombre, "-s", "workspace-write", "--approve-for-me",
+            "--skip-git-repo-check", "-C", cwd]
+
+
+# Salida sintética cuando `codex` no está en la máquina. Lleva «AI_APICallError» a propósito:
+# `fallo_de_proveedor` la reconoce como avería del PROVEEDOR (no del modelo), de modo que la
+# rotación pasa al siguiente escritor SIN gastar uno de los dos intentos de la tarea.
+SALIDA_CODEX_NO_DISPONIBLE = (
+    "AI_APICallError: codex no está instalado en esta máquina (no hay binario `codex` en el PATH).\n"
+    "Los escritores `codex/` solo existen en la Mac de Alex; aquí se salta y sigue la rotación.")
+
+# Coletilla que se añade al final del prompt: `codex exec` termina con un resumen hablado y sin
+# esto algunos modelos «explican» el cambio en vez de escribirlo, y la tarea acaba «sin cambios».
+CIERRE_CODEX = "Cuando termines, no expliques nada: deja los cambios escritos en disco."
+
+
+def escribir_con_codex(prompt, modelo, cwd, log, timeout=1500, tid=None):
+    """Mismo contrato que `opencode(...)`: devuelve (rc, salida) y respeta el mismo cerrojo de
+    concurrencia (SEM_OPENCODE), la espera de memoria, el escalonado de arranques, el volcado del
+    log AL VUELO y el registro en PROCESOS para que el vigilante pueda cortarlo.
+
+    Lo único distinto es el proceso: `codex exec` con el prompt por stdin (ver `comando_codex`)."""
+    if not ruta_codex():
+        # (CX1·5) codex solo está en la Mac: en la nube esto no es un fallo de la tarea, es un
+        # escritor que aquí no existe. Se devuelve lo mismo que un proveedor caído.
+        evento("aviso", tid or "", "codex no está en esta máquina: se salta")
+        return 127, SALIDA_CODEX_NO_DISPONIBLE
+    with SEM_OPENCODE:
+        esperar_memoria(tid or os.path.basename(cwd))
+        # Igual que en opencode: al salir de la espera hay que volver a marcar la fase real.
+        if tid:
+            try: latir(tid, "escribiendo", modelo=modelo)
+            except Exception: pass
+        desde = os.path.getsize(log) if os.path.exists(log) else 0
+        # Mismo escalonado de 4 s que opencode: dos agentes arrancando en el mismo segundo se
+        # pelean por los SQLite de `~/.codex` («database is locked»).
+        global _ULTIMO_ARRANQUE_OPENCODE
+        with _LOCK_ARRANQUE_OPENCODE:
+            hueco = 4 - (time.time() - _ULTIMO_ARRANQUE_OPENCODE)
+            if hueco > 0:
+                time.sleep(hueco)
+            _ULTIMO_ARRANQUE_OPENCODE = time.time()
+        cmd = comando_codex(modelo, cwd)
+        texto = (prompt or "").rstrip() + "\n\n" + CIERRE_CODEX + "\n"
+        with open(log, "a", encoding="utf-8") as f:
+            # El prompt NO se vuelca al log (son miles de líneas): solo la orden y su tamaño.
+            f.write("\n$ %s · %s · prompt por stdin (%d caracteres)\n"
+                    % (" ".join(cmd), ahora(), len(texto)))
+            f.flush()
+            p = subprocess.Popen(cmd, cwd=cwd, stdin=subprocess.PIPE, stdout=f,
+                                 stderr=subprocess.STDOUT, env=entorno_hijo())
+        try:
+            p.stdin.write(texto.encode("utf-8"))
+            p.stdin.flush()
+        except Exception:
+            pass
+        finally:
+            # Cerrar stdin es OBLIGATORIO: `codex exec` lee hasta EOF y sin esto se queda esperando.
+            try: p.stdin.close()
+            except Exception: pass
+        if tid:
+            with PROCESOS_LOCK: PROCESOS[tid] = p
+        try:
+            rc = p.wait(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            try: p.kill()
+            except Exception: pass
+            rc = 124
+        finally:
+            if tid:
+                with PROCESOS_LOCK: PROCESOS.pop(tid, None)
+        try:
+            with open(log, encoding="utf-8", errors="replace") as f:
+                f.seek(desde); salida = f.read()
+        except Exception:
+            salida = ""
+        return rc, salida
+
+
+def escribir(prompt, modelo, cwd, log, timeout=1500, tid=None):
+    """ÚNICA puerta de escritura del enjambre (2026-09-08, Ola 296 · CX1): elige motor por el
+    prefijo del modelo y deja el resto del flujo (tsc → tests → revisión → integración) intacto.
+    Todo lo que antes llamaba a `opencode(...)` para ESCRIBIR llama ahora aquí."""
+    if tid:
+        # El lease sigue al motor real: si Codex cae y la rotación pasa a Opencode, la tarea no
+        # queda falsamente ocupando al medio desconectado y otro director puede recuperarla.
+        if not mover_arriendo_al_modelo(tid, modelo):
+            raise ArriendoPerdido("el arriendo de %s ya pertenece a otro medio" % tid)
+    if es_modelo_codex(modelo):
+        resultado = escribir_con_codex(prompt, modelo, cwd, log, timeout=timeout, tid=tid)
+    else:
+        resultado = opencode(prompt, modelo, cwd, log, timeout=timeout, tid=tid)
+    if tid and not arriendo_es_local(tid):
+        raise ArriendoPerdido("otro medio recuperó %s durante la escritura" % tid)
+    return resultado
+
+
 def repo_es_python(cwd):
     """Puertas por tipo de repo (2026-09-06): el orquestador también trabaja sobre repos
     Python (astraura, backend 1.58). Sin `tsconfig.json` no hay tsc/vitest que valgan."""
@@ -2267,6 +2444,12 @@ def asegurar_modelo_opencode(modelo):
     prov, _, nombre = modelo.partition("/")
     if not prov or not nombre:
         return False
+    # (2026-09-08, Ola 296 · CX1) Los escritores `codex/` NO pasan por opencode: los escribe
+    # `codex exec` con la sesión de ChatGPT, así que no hay bloque `provider` que asegurar ni
+    # razón para tocar opencode.json. Se dan por listos (True) para que el Mando pueda
+    # reasignar una tarea a Codex igual que a cualquier otro modelo.
+    if es_modelo_codex(modelo):
+        return codex_disponible()
     # (2026-09-09) CAUSA RAIZ de «la nube no escribe nada»: npm install -g opencode-ai deja
     # SOLO un opencode.jsonc de 50 bytes y NUNCA un opencode.json. Al no existir el archivo
     # esta funcion salia por el except y jamas escribia el bloque provider; sin el, opencode
@@ -2306,9 +2489,27 @@ def asegurar_modelo_opencode(modelo):
 def atender_control():
     """Aplica las órdenes externas. Lo llama el vigilante cada 20 s."""
     for tid, orden in consumir_control().items():
-        if not isinstance(orden, dict) or tid not in MIAS:
+        if not isinstance(orden, dict):
             continue
         accion = str(orden.get("accion") or "reasignar")
+        # Nube y agentes de IDE se anuncian por el mismo canal que ya sincroniza el Mando.
+        # Su capacidad y bytes son datos operativos; nunca se aceptan ni guardan credenciales.
+        if accion == "latido_medio":
+            medio_id = re.sub(r"[^a-zA-Z0-9_.:-]", "-", str(orden.get("medio") or tid))[:100]
+            tipo = str(orden.get("tipo") or "ide")[:24]
+            if medio_id:
+                anunciar_medio(medio_id, tipo, min(64, max(0, int(orden.get("capacidad") or 0))),
+                               tareas=list(orden.get("tareas") or [])[:64],
+                               firmas=dict(orden.get("firmas") or {}),
+                               activo=bool(orden.get("activo", True)),
+                               areas=list(orden.get("areas") or ["*"])[:24],
+                               origen=str(orden.get("origen") or "mando")[:32],
+                               entorno=str(orden.get("entorno") or "externo")[:24],
+                               cola=str(orden.get("cola") or _nombre_cola())[:160],
+                               prioridad=float(orden.get("prioridad") or 0))
+            continue
+        if tid not in MIAS:
+            continue
         with PROCESOS_LOCK: p = PROCESOS.get(tid)
         with LOCK_ESTADO: fase = (LATIDOS.get(tid) or {}).get("fase")
         if accion in ("aprobar", "rechazar"):
@@ -2341,11 +2542,8 @@ def atender_control():
             evento("reasignado", tid, "empezará con %s (pedido desde el Mando)" % modelo, datos={"modelo": modelo})
         else:
             evento("reasignado", tid, "anotado %s: se usará en la próxima escritura (ahora está en %s)" % (modelo, fase), datos={"modelo": modelo})
-# Dos umbrales muy distintos, y la diferencia importa:
-#  · ARRANQUE_S: si no ha escrito NI UNA línea, no arrancó (proveedor caído, modelo colgado).
-#  · ESTANCADO_S: ya escribió, así que está trabajando. Un agente que acaba de leer un archivo
-#    de 1300 líneas tarda minutos en su siguiente turno: cortarlo a los 7 min era MI error, y
-#    dejaba tareas grandes en un bucle eterno de cortes y reintentos (LMAPA, LCOMPA, L8).
+# Se conservan los dos nombres históricos para no romper entornos antiguos; la decisión nueva
+# y honesta usa STARSEED_COLGADO_S y mide cambios del worktree, no conversación en el log.
 ARRANQUE_S = int(os.environ.get("STARSEED_ARRANQUE_S", "120"))
 ESPERA_429_S = int(os.environ.get("STARSEED_ESPERA_429_S", "75"))        # 429: esperar y reintentar el mismo modelo
 ESPERA_PROVEEDOR_S = int(os.environ.get("STARSEED_ESPERA_PROVEEDOR_S", "2700"))  # todo caído: esperar hasta 45 min
@@ -2355,6 +2553,272 @@ ESPERA_PROVEEDOR_S = int(os.environ.get("STARSEED_ESPERA_PROVEEDOR_S", "2700")) 
 ESCRITURA_S = int(os.environ.get("STARSEED_ESCRITURA_S", "1500"))
 ESTANCADO_S = int(os.environ.get("STARSEED_ESTANCADO_S", str(max(900, ESCRITURA_S // 2))))   # sin escribir nada = parada; nunca menos que media escritura
 LATIDO_S = int(os.environ.get("STARSEED_LATIDO_S", "120"))         # cada cuánto se publica al bus
+
+# ── Registro compartido de medios y arriendos (2026-09-09) ─────────────────
+# Cada motor publica SU latido. Un segundo orquestador puede ver morir al primero, vencer sus
+# arriendos y retomar la tarea en el mismo worktree; el JSON no contiene claves ni sus valores.
+MEDIOS_JSON = os.path.join(OLAS, "medios.json")
+LATIDO_MEDIO_MAX_S = int(os.environ.get("STARSEED_LATIDO_MEDIO_MAX_S", "90"))
+ARRIENDO_S = int(os.environ.get("STARSEED_ARRIENDO_S", "120"))
+COLGADO_S = int(os.environ.get(
+    "STARSEED_COLGADO_S", os.environ.get("STARSEED_ESTANCADO_S", "300")))
+_INSTANCIA = re.sub(r"[^a-zA-Z0-9_.:-]", "-", "%s:%s:%s" % (
+    os.environ.get("STARSEED_DONDE", "nube"), MEDIO, os.getpid()))
+MEDIOS_LOCALES = {
+    "opencode": "opencode:" + _INSTANCIA,
+    "codex": "codex:" + _INSTANCIA,
+}
+MEDIO_POR_TAREA = {}
+REANUDAR_AUTO = set()
+ARRENDADAS_EXTERNAS = set()
+TAREAS_POR_ID = {}
+CAPACIDADES_MEDIOS = {"opencode": 0, "codex": 0}
+
+
+class ArriendoPerdido(RuntimeError):
+    """La tarea ya pertenece a otro medio; este trabajador debe soltarla sin limpiar."""
+
+
+def _nombre_cola():
+    nombre = os.path.basename(sys.argv[1]) if len(sys.argv) > 1 else "cola"
+    return os.path.splitext(nombre)[0]
+
+
+def _leer_medios():
+    try:
+        datos = json.load(open(MEDIOS_JSON, encoding="utf-8"))
+        return datos if isinstance(datos, dict) else {}
+    except Exception:
+        return {}
+
+
+def _cambiar_medios(cambio):
+    """Actualiza el registro bajo cerrojo y reemplazo atómico: ninguna ola pisa a otra."""
+    os.makedirs(OLAS, exist_ok=True)
+    with cerrojo("registro-medios", espera_aviso=9999):
+        datos = _leer_medios()
+        datos.setdefault("version", 1)
+        datos.setdefault("medios", {})
+        datos.setdefault("arriendos", {})
+        datos.setdefault("historial", {})
+        resultado = cambio(datos)
+        datos["actualizado"] = time.time()
+        temporal = "%s.%d.tmp" % (MEDIOS_JSON, os.getpid())
+        with open(temporal, "w", encoding="utf-8") as f:
+            json.dump(datos, f, ensure_ascii=False, indent=1)
+        os.replace(temporal, MEDIOS_JSON)
+        return resultado, datos
+
+
+def _firma_trabajo(tid):
+    """Firma y bytes de archivos realmente cambiados; la charla del modelo no cuenta."""
+    wt = os.path.join(WT_BASE, tid)
+    if not os.path.isdir(wt):
+        return "", 0
+    rc, salida = sh(["git", "status", "--porcelain", "-z"], cwd=wt, timeout=20)
+    if rc != 0:
+        return "", 0
+    rutas = []
+    partes = salida.split("\0")
+    i = 0
+    while i < len(partes):
+        entrada = partes[i]
+        i += 1
+        if not entrada:
+            continue
+        estado = entrada[:2]
+        ruta = entrada[3:] if len(entrada) > 3 else ""
+        if "R" in estado or "C" in estado:
+            if i < len(partes):
+                ruta = partes[i] or ruta
+                i += 1
+        if ruta:
+            rutas.append(ruta)
+    detalles = []
+    total = 0
+    for relativa in sorted(set(rutas)):
+        absoluta = os.path.join(wt, relativa)
+        if os.path.isdir(absoluta):
+            for base, carpetas, archivos in os.walk(absoluta):
+                carpetas[:] = [c for c in carpetas if c not in (".git", "node_modules")]
+                for nombre in archivos:
+                    hija = os.path.join(base, nombre)
+                    try:
+                        stat = os.stat(hija)
+                        relativa_hija = os.path.relpath(hija, wt)
+                        total += stat.st_size
+                        detalles.append((relativa_hija, stat.st_size, stat.st_mtime_ns))
+                    except OSError:
+                        pass
+            continue
+        try:
+            stat = os.stat(absoluta)
+            total += stat.st_size
+            detalles.append((relativa, stat.st_size, stat.st_mtime_ns))
+        except OSError:
+            detalles.append((relativa, -1, 0))
+    firma = hashlib.sha256(repr(detalles).encode("utf-8")).hexdigest()
+    return firma, total
+
+
+def _datos_tareas_del_medio(medio_id):
+    tareas = sorted(tid for tid, dueño in MEDIO_POR_TAREA.items()
+                    if dueño == medio_id and (LATIDOS.get(tid) or {}).get("fase") not in (None, "hecho"))
+    firmas = {}
+    for tid in tareas:
+        firmas[tid] = int((LATIDOS.get(tid) or {}).get("bytes_trabajo", 0) or 0)
+    return tareas, firmas
+
+
+def anunciar_medio(medio_id, tipo, capacidad, tareas=None, firmas=None, activo=True,
+                   areas=None, origen=None, entorno=None, cola=None, prioridad=0, ahora_s=None):
+    """Publica un latido propio y renueva solo los arriendos que este medio trabaja."""
+    instante = time.time() if ahora_s is None else ahora_s
+    tareas = list(tareas or [])
+    firmas_limpias = {}
+    for tid, valor in dict(firmas or {}).items():
+        try:
+            firmas_limpias[str(tid)] = max(0, int(valor))
+        except (TypeError, ValueError):
+            continue
+    firmas = firmas_limpias
+
+    def cambio(datos):
+        previo = datos["medios"].get(medio_id) or {}
+        anteriores = previo.get("firmas") or {}
+        avanzo = set(anteriores) != set(firmas) or any(
+            valor > int(anteriores.get(tid, -1)) for tid, valor in firmas.items())
+        avance = instante if avanzo or not tareas else float(previo.get("avance", instante))
+        datos["medios"][medio_id] = {
+            "id": medio_id, "tipo": tipo, "motor": tipo, "origen": origen or MEDIO,
+            "entorno": entorno or os.environ.get("STARSEED_DONDE", "nube"), "activo": bool(activo),
+            "perfil": "%s:%s:%s" % (tipo, entorno or os.environ.get("STARSEED_DONDE", "nube"),
+                                      origen or MEDIO),
+            "cola": cola if cola is not None else _nombre_cola(),
+            "prioridad": float(prioridad),
+            "capacidad": max(0, int(capacidad)), "carga": len(tareas), "tareas": tareas,
+            "firmas": firmas, "bytes": sum(firmas.values()), "latido": instante,
+            "avance": avance, "areas": list(areas or ["*"]),
+        }
+        for tid in tareas:
+            arriendo = datos["arriendos"].get(tid)
+            if arriendo and arriendo.get("medio") == medio_id:
+                datos["arriendos"][tid] = renovar_arriendo(
+                    arriendo, instante, ARRIENDO_S, os.path.join(WT_BASE, tid))
+        return datos["medios"][medio_id]
+
+    return _cambiar_medios(cambio)[0]
+
+
+def anunciar_medios_locales():
+    """Da un latido separado a Opencode y Codex, aunque compartan el director."""
+    for tipo, medio_id in MEDIOS_LOCALES.items():
+        tareas, firmas = _datos_tareas_del_medio(medio_id)
+        disponible = tipo != "codex" or codex_disponible()
+        anunciar_medio(medio_id, tipo, CAPACIDADES_MEDIOS[tipo], tareas, firmas,
+                       activo=disponible, origen=MEDIO, prioridad=15 if tipo == "codex" else 0)
+
+
+def desconectar_medios_locales():
+    """Un cierre limpio no obliga a los demás directores a esperar el plazo del latido."""
+    for tipo, medio_id in MEDIOS_LOCALES.items():
+        anunciar_medio(medio_id, tipo, CAPACIDADES_MEDIOS[tipo], activo=False,
+                       origen=MEDIO, prioridad=15 if tipo == "codex" else 0)
+
+
+def reservar_tarea(tarea):
+    """Toma atómicamente una tarea o respeta el arriendo sano de otra instancia."""
+    instante = time.time()
+    tarea_id = tarea["id"]
+    cola_actual = _nombre_cola()
+
+    def cambio(datos):
+        anteriores = dict(datos["arriendos"])
+        vigentes, vencidos = vencer_arriendos(
+            anteriores, datos["medios"], instante, LATIDO_MEDIO_MAX_S, COLGADO_S)
+        datos["arriendos"] = vigentes
+        if tarea_id in vigentes:
+            return vigentes[tarea_id]
+        aptos = {medio_id: medio for medio_id, medio in datos["medios"].items()
+                 if (medio.get("cola") or cola_actual) == cola_actual}
+        para_plan = dict(tarea)
+        previo = anteriores.get(tarea_id) or {}
+        wt_previo = str(previo.get("worktree") or "")
+        para_plan["worktree"] = wt_previo if os.path.isdir(wt_previo) else os.path.join(WT_BASE, tarea_id)
+        para_plan["reanudar"] = tarea_id in vencidos
+        plan = repartir([para_plan], aptos, vigentes, datos["historial"], instante,
+                        ARRIENDO_S, LATIDO_MEDIO_MAX_S, COLGADO_S)
+        datos["arriendos"] = plan["arriendos"]
+        return datos["arriendos"].get(tarea_id)
+
+    arriendo = _cambiar_medios(cambio)[0]
+    if not arriendo or arriendo.get("medio") not in MEDIOS_LOCALES.values():
+        if arriendo:
+            ARRENDADAS_EXTERNAS.add(tarea_id)
+        return None
+    ARRENDADAS_EXTERNAS.discard(tarea_id)
+    MEDIO_POR_TAREA[tarea_id] = arriendo["medio"]
+    if arriendo.get("reanudar"):
+        REANUDAR_AUTO.add(tarea_id)
+    return arriendo
+
+
+def mover_arriendo_al_modelo(tid, modelo):
+    """Sincroniza el lease con el motor real cuando una escritura cambia de proveedor."""
+    tipo = "codex" if es_modelo_codex(modelo) else "opencode"
+    medio_id = MEDIOS_LOCALES[tipo]
+    instante = time.time()
+
+    def cambio(datos):
+        actual = datos["arriendos"].get(tid) or {"tarea": tid, "desde": instante}
+        dueño = actual.get("medio")
+        if dueño and dueño not in MEDIOS_LOCALES.values():
+            return False
+        actual.update({"medio": medio_id, "area": area_de_tarea(TAREAS_POR_ID.get(tid, {})),
+                       "worktree": os.path.join(WT_BASE, tid)})
+        datos["arriendos"][tid] = renovar_arriendo(actual, instante, ARRIENDO_S)
+        # Un intento nuevo dispone de sus propios 300 s; no hereda la quietud del modelo caído.
+        if medio_id in datos["medios"]:
+            datos["medios"][medio_id]["avance"] = instante
+        return True
+
+    movido = _cambiar_medios(cambio)[0]
+    if not movido:
+        return False
+    MEDIO_POR_TAREA[tid] = medio_id
+    return True
+
+
+def cerrar_arriendo(tid, exito, segundos):
+    """Libera capacidad y aprende del resultado solo si el lease aún era nuestro."""
+    medio_id = MEDIO_POR_TAREA.pop(tid, None)
+    REANUDAR_AUTO.discard(tid)
+    if not medio_id:
+        return
+
+    def cambio(datos):
+        arriendo = datos["arriendos"].get(tid) or {}
+        if arriendo.get("medio") == medio_id:
+            datos["arriendos"].pop(tid, None)
+            perfil = (datos["medios"].get(medio_id) or {}).get("perfil") or medio_id
+            datos["historial"] = registrar_resultado(
+                datos["historial"], perfil, arriendo.get("area") or "general", exito, segundos)
+
+    _cambiar_medios(cambio)
+
+
+def arriendo_es_local(tid):
+    """Comprueba propiedad, no solo plazo: otro medio pudo recuperar la tarea colgada."""
+    arriendo = (_leer_medios().get("arriendos") or {}).get(tid) or {}
+    return arriendo.get("medio") in MEDIOS_LOCALES.values()
+
+
+def priorizar_modelos_del_arriendo(tid, modelos):
+    """El reparto elige el motor; dentro de él se conserva la rotación de proveedores."""
+    medio_id = MEDIO_POR_TAREA.get(tid, "")
+    quiere_codex = medio_id.startswith("codex:")
+    preferidos = [m for m in modelos if es_modelo_codex(m) == quiere_codex]
+    return preferidos + [m for m in modelos if m not in preferidos]
 
 def _volcar_latidos():
     try:
@@ -2372,9 +2836,11 @@ def latir(tid, fase, **kw):
         if d.get("fase") != fase:
             try: base = os.path.getsize(os.path.join(LOGS, tid + ".log"))
             except Exception: base = 0
+            firma_trabajo, _ = _firma_trabajo(tid)
             # `base` es el tamaño al empezar la fase: sin él no se distingue «escribió algo»
             # de «el log ya venía lleno de una ola anterior».
             d["desde"] = time.time(); d["avance"] = time.time(); d["bytes"] = base; d["base"] = base
+            d["firma_trabajo"] = firma_trabajo; d["bytes_trabajo"] = 0
         d["fase"] = fase; d["t"] = ahora(); d.update(kw)
     _volcar_latidos()
 
@@ -2440,9 +2906,13 @@ def foto_enjambre(vivas_txt):
             "ventana": CONTEXTO_DE.get(modelo.split("/", 1)[1] if "/" in modelo else modelo),
             "minutos": int((ahora_s - d.get("desde", ahora_s)) / 60),
             "quietoS": int(ahora_s - d.get("avance", ahora_s)), "bytesLog": bytes_log,
+            "bytesTrabajo": int(d.get("bytes_trabajo", 0) or 0),
             "tokens": tk, "intento": d.get("intento", 1), "medio": MEDIO,
         })
     salud = _salud()
+    registro = _leer_medios()
+    medios_vivos = normalizar_medios(registro.get("medios") or {}, ahora_s,
+                                     LATIDO_MEDIO_MAX_S, COLGADO_S)
     return {
         "cola": os.path.basename(sys.argv[1]) if len(sys.argv) > 1 else "",
         "donde": os.environ.get("STARSEED_DONDE", "nube"),
@@ -2452,6 +2922,8 @@ def foto_enjambre(vivas_txt):
         "agentesActivos": len([t for t in tareas if t["fase"] in ("escribiendo", "completando")]),
         "proveedores": {p: {"estado": (salud.get(p) or {}).get("estado", "vivo"),
                             "llamadasMin": len(CUPOS[p].ts), "rpm": CUPOS[p].rpm} for p in CUPOS},
+        "medios": list(medios_vivos.values()),
+        "arriendos": list((registro.get("arriendos") or {}).values()),
         "memoriaMb": memoria_libre_mb(),
         "integradas": sum(1 for v in PROG.values() if v.get("estado") == "commit"),
         "resumen": vivas_txt,
@@ -2496,8 +2968,8 @@ def _barrer_tsc_huerfanos():
 
 def vigilante():
     """Comprueba CADA 20 s que las tareas activas avanzan de verdad, en vez de descubrir
-    al final que una nunca arrancó. Si una lleva ESTANCADO_S sin escribir una sola línea,
-    corta ese opencode y el bucle de la tarea pasa solo al siguiente modelo."""
+    al final que una nunca arrancó. Solo cuentan bytes escritos en el worktree: si pasan
+    COLGADO_S sin cambios, corta el motor y el bucle pasa al siguiente medio."""
     ultimo_bus = 0.0
     ultimo_barrido = 0.0
     while not FIN.is_set():
@@ -2509,6 +2981,8 @@ def vigilante():
             except Exception: pass
         try: atender_control()
         except Exception: pass
+        try: anunciar_medios_locales()
+        except Exception: pass
         t = time.time(); vivas = []
         for tid, d in list(LATIDOS.items()):
             fase = d.get("fase")
@@ -2516,30 +2990,24 @@ def vigilante():
             try: bytes_log = os.path.getsize(os.path.join(LOGS, tid + ".log"))
             except Exception: bytes_log = 0
             if bytes_log > d.get("bytes", 0):
-                d["bytes"] = bytes_log; d["avance"] = t
+                d["bytes"] = bytes_log
+            firma_trabajo, bytes_trabajo = _firma_trabajo(tid)
+            if firma_trabajo and firma_trabajo != d.get("firma_trabajo"):
+                d["firma_trabajo"] = firma_trabajo
+                d["bytes_trabajo"] = int(d.get("bytes_trabajo", 0)) + max(1, bytes_trabajo)
+                d["avance"] = t
             quieto = int(t - d.get("avance", t))
             vivas.append("%s %s%s %dm" % (tid, fase,
                          "/" + (d.get("modelo") or "").split("/")[-1] if d.get("modelo") else "",
                          int((t - d.get("desde", t)) / 60)))
-            escrito = bytes_log - d.get("base", 0)
             # «completando» (puerta de alcance, Ola 259) es escritura: mismo trato por si se
             # cuelga y misma pintura en el Mando (cuenta como agente escribiendo).
-            if fase in ("escribiendo", "completando") and escrito <= 0 and (t - d.get("desde", t)) > ARRANQUE_S:
-                with PROCESOS_LOCK: p = PROCESOS.get(tid)
-                d["desde"] = t; d["avance"] = t
-                if p and p.poll() is None:
-                    evento("estancado", tid, "%s no ha escrito ni una línea en %d s → lo corto y reenruto a otro proveedor"
-                           % (d.get("modelo", "?"), ARRANQUE_S))
-                    CORTADOS.add(tid)
-                    try: p.kill()
-                    except Exception: pass
-                continue
-            if fase in ("escribiendo", "completando") and quieto > ESTANCADO_S:
+            if fase in ("escribiendo", "completando") and quieto > COLGADO_S:
                 with PROCESOS_LOCK: p = PROCESOS.get(tid)
                 d["avance"] = t
                 if p and p.poll() is None:
-                    evento("estancado", tid, "%d min sin una sola línea con %s → lo corto y pruebo el siguiente modelo"
-                           % (quieto // 60, d.get("modelo", "?")))
+                    evento("estancado", tid, "%d s sin crecer en bytes con %s: medio COLGADO → vence su arriendo y reorganizo"
+                           % (quieto, d.get("modelo", "?")))
                     CORTADOS.add(tid)
                     try: p.kill()
                     except Exception: pass
@@ -2586,11 +3054,11 @@ def ejecutar(t, intento=1):
     os.makedirs(LOGS, exist_ok=True); log = os.path.join(LOGS, tid + ".log")
     set_estado(tid, estado="en_curso", modelo="", segundos=0, nota="intento %d" % intento)
     evento("inicio", tid, t.get("titulo", ""))
-    # --reanudar: si el orquestador murió con la tarea ya escrita (worktree con cambios), no se
-    # vuelve a escribir desde cero —se pierden 20 minutos de trabajo—: se salta a las puertas.
+    # Un lease recuperado equivale a --reanudar: si el medio murió con cambios, se conservan y
+    # se continúa por las puertas. Sin cambios reales se crea un worktree limpio como siempre.
     reanudada = False
     wt_prev = os.path.join(WT_BASE, tid)
-    if "--reanudar" in sys.argv and os.path.isdir(wt_prev):
+    if ("--reanudar" in sys.argv or tid in REANUDAR_AUTO) and os.path.isdir(wt_prev):
         _, st_prev = sh(["git", "status", "--porcelain"], cwd=wt_prev, timeout=30)
         if st_prev.strip():
             wt = wt_prev; reanudada = True
@@ -2602,6 +3070,7 @@ def ejecutar(t, intento=1):
             set_estado(tid, estado="fallo", nota=str(e)[:200]); evento("fallo", tid, "worktree: " + str(e)[:200]); return
     fallidos = list(PROG.get(tid, {}).get("modelos_fallidos") or [])
     base = [m for m in modelos_para(tid) if m not in MUERTOS and proveedor_vivo(proveedor_de(m)) and apto_para_tarea(m, t)]
+    base = priorizar_modelos_del_arriendo(tid, base)
     if fallidos:
         # Los que ya se colgaron o no tocaron nada en esta tarea, al final de la cola.
         base = [m for m in base if m not in fallidos] + [m for m in base if m in fallidos]
@@ -2638,7 +3107,7 @@ def ejecutar(t, intento=1):
             evento("reenrutado", tid, "%s está caído ahora mismo → lo aparto y sigo con otro proveedor" % proveedor_de(modelo))
             continue
         latir(tid, "escribiendo", modelo=modelo, intento=intento)
-        rc, out = opencode(contexto_tarea(t, wt), modelo, wt, log, timeout=ESCRITURA_S, tid=tid)
+        rc, out = escribir(contexto_tarea(t, wt), modelo, wt, log, timeout=ESCRITURA_S, tid=tid)
         if tid in SOLTADAS:
             limpiar_worktree(tid); return
         if tid in CORTADOS and tid in REASIGNADOS:
@@ -2739,7 +3208,7 @@ def ejecutar(t, intento=1):
             if not proveedor_vivo(proveedor_de(modelo)):
                 apartados.append(modelo); continue
             latir(tid, "escribiendo", modelo=modelo, intento=intento)
-            rc, out = opencode(contexto_tarea(t, wt), modelo, wt, log, timeout=ESCRITURA_S, tid=tid)
+            rc, out = escribir(contexto_tarea(t, wt), modelo, wt, log, timeout=ESCRITURA_S, tid=tid)
             if tid in SOLTADAS:
                 limpiar_worktree(tid); return
             if tid in CORTADOS and tid in REASIGNADOS:
@@ -2816,7 +3285,9 @@ def ejecutar(t, intento=1):
         if medida["faltan"]:
             hubo_pasada = True
             latir(tid, "completando", modelo=modelo_ok)
-            opencode("Tu tarea pedía tocar estos archivos y no los has tocado: %s.\n"
+            # (2026-09-08, Ola 296 · CX1) La pasada de compleción usa el MISMO motor que escribió
+            # (`escribir` enruta por el prefijo del modelo): si escribió Codex, completa Codex.
+            escribir("Tu tarea pedía tocar estos archivos y no los has tocado: %s.\n"
                      "Complétalos ahora siguiendo el enunciado original (te lo repito abajo). "
                      "Si de verdad alguno no hace falta tocarlo, escribe en tu respuesta una línea "
                      "`SIN TOCAR <ruta>: <motivo>` por cada uno.\n\nEnunciado original:\n%s"
@@ -2836,7 +3307,7 @@ def ejecutar(t, intento=1):
     if errs:
         evento("aviso", tid, "%d errores tsc → reparación" % len(errs))
         latir(tid, "escribiendo", modelo=modelo_ok)
-        opencode("Corrige SOLO estos errores de TypeScript sin cambiar el comportamiento ni tocar otros archivos:\n" + "\n".join(errs[:40]), modelo_ok, wt, log, timeout=900, tid=tid)
+        escribir("Corrige SOLO estos errores de TypeScript sin cambiar el comportamiento ni tocar otros archivos:\n" + "\n".join(errs[:40]), modelo_ok, wt, log, timeout=900, tid=tid)
         rc, errs = tsc(wt, log)
     paso(tid, "tsc", errores_antes=errores_antes, errores_despues=len(errs), reparado=bool(errores_antes and not errs))
     if errs:
@@ -2849,7 +3320,7 @@ def ejecutar(t, intento=1):
     if rc != 0:
         evento("aviso", tid, "vitest falló → reparación")
         latir(tid, "escribiendo", modelo=modelo_ok)
-        opencode("Estos tests de vitest fallan tras tus cambios; corrige el código (o el test si el cambio de comportamiento es el pedido):\n" + vout[-4000:], modelo_ok, wt, log, timeout=900, tid=tid)
+        escribir("Estos tests de vitest fallan tras tus cambios; corrige el código (o el test si el cambio de comportamiento es el pedido):\n" + vout[-4000:], modelo_ok, wt, log, timeout=900, tid=tid)
         rc, vout = vitest(wt, log)
         paso(tid, "tests", resultado="ok" if rc == 0 else "falla", reparacion=True)
         if rc != 0:
@@ -2981,14 +3452,25 @@ def ejecutar(t, intento=1):
 
 def ejecutar_seguro(t):
     """Un trabajador nunca muere en silencio: excepción → fallo + evento + limpieza."""
+    inicio = time.time()
+    perdido = False
     try:
         ejecutar(t)
+    except ArriendoPerdido as e:
+        perdido = True
+        evento("reasignada", t["id"], str(e) + "; conservo su worktree para que continúe allí")
     except Exception as e:
         set_estado(t["id"], estado="fallo", nota=("excepción: " + str(e))[:200])
         evento("fallo", t["id"], "excepción: " + str(e)[:300])
         try: limpiar_worktree(t["id"], borrar_rama=False)
         except Exception: pass
     finally:
+        estado_final = PROG.get(t["id"], {}).get("estado")
+        if not perdido:
+            try: cerrar_arriendo(t["id"], estado_final == "commit", time.time() - inicio)
+            except Exception: pass
+        else:
+            MEDIO_POR_TAREA.pop(t["id"], None)
         latir(t["id"], "hecho")
 
 # ── director ────────────────────────────────────────────────────────────────
@@ -3004,12 +3486,16 @@ def main():
         print("working tree de main con cambios sin commit: %d archivos — no arranco" % len(sucio.splitlines())); sys.exit(2)
     os.makedirs(OLAS, exist_ok=True); os.makedirs(LOGS, exist_ok=True)
     validar_modelos()
+    TAREAS_POR_ID.update({t["id"]: t for t in tareas})
+    CAPACIDADES_MEDIOS["opencode"] = min(workers, max(1, int(os.environ.get("STARSEED_CAPACIDAD_OPENCODE", str(workers)))))
+    CAPACIDADES_MEDIOS["codex"] = min(workers, max(1, int(os.environ.get("STARSEED_CAPACIDAD_CODEX", str(workers)))))
+    anunciar_medios_locales()
     threading.Thread(target=vigilante, daemon=True).start()
     threading.Thread(target=supervisor_proveedores, daemon=True).start()
     # La cola entera viaja en el bus: el Puente de Mando de la OTRA máquina no tiene este
     # archivo (starseed_memory_root/ no se versiona) y sin esto la ola de la nube no aparecía.
-    evento("arranque", "", "%d tareas · %d trabajadores · vigilante cada 20s (corte a los %d min sin avance) · %s · lanzado desde %s"
-           % (len(tareas), workers, ESTANCADO_S // 60, os.path.basename(sys.argv[1]), MEDIO),
+    evento("arranque", "", "%d tareas · %d trabajadores · medios sincronizados (lease %ds, colgado %ds) · %s · lanzado desde %s"
+           % (len(tareas), workers, ARRIENDO_S, COLGADO_S, os.path.basename(sys.argv[1]), MEDIO),
            datos={"cola": os.path.basename(sys.argv[1]).replace(".json", ""), "workers": workers,
                   "tareas": [{"id": t["id"], "ola": t.get("ola", ""), "titulo": t.get("titulo", "")[:200],
                               "depende": list(t.get("depende") or t.get("dependencias") or []),
@@ -3046,6 +3532,16 @@ def main():
                                 if PROG.get(d, {}).get("estado") not in (None, "commit")]
             if opcionales_malas:
                 evento("aviso", tid, "dependencia opcional no integrada (sigo igual): " + ", ".join(opcionales_malas))
+            arriendo = reservar_tarea(t)
+            if not arriendo:
+                if tid in ARRENDADAS_EXTERNAS and terminado(tid):
+                    pendientes.pop(tid); hechas.add(tid)
+                continue
+            evento("reasignado", tid, "arriendo tomado por %s hasta +%ds%s" % (
+                arriendo["medio"], ARRIENDO_S,
+                " · reanudo el worktree existente" if arriendo.get("reanudar") else ""),
+                datos={"medio": arriendo["medio"], "vence": arriendo.get("vence"),
+                       "area": arriendo.get("area"), "reanudar": bool(arriendo.get("reanudar"))})
             th = threading.Thread(target=ejecutar_seguro, args=(t,), daemon=True); th.start()
             activos[tid] = th; pendientes.pop(tid)
         time.sleep(3)
@@ -3085,6 +3581,8 @@ def main():
         subprocess.run([os.path.expanduser("~/.local/bin/starseed-informe-ola"), sys.argv[1]], timeout=180)
     except Exception:
         pass
+    try: desconectar_medios_locales()
+    except Exception: pass
     relevo_nota("enjambre v2 terminó %s: HEAD %s · %s" % (os.path.basename(sys.argv[1]), head.strip(), resumen))
 
 if __name__ == "__main__":
