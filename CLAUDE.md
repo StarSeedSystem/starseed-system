@@ -795,10 +795,10 @@ verde» y «commit integrado» son pasos intermedios, no el resultado.
 
 ---
 
-## 💠 Tres trampas del entorno que parecen fallos del código (2026-09-09)
+## 💠 Cuatro trampas del entorno que parecen fallos del código (2026-09-09)
 
-Las tres costaron horas y ninguna estaba en el código que se estaba escribiendo. Antes de culpar a
-una tarea, a un modelo o a un agente, descarta estas:
+Las cuatro costaron horas y ninguna estaba en el código que se estaba escribiendo. Antes de culpar
+a una tarea, a un modelo o a un agente, descarta estas:
 
 ### 1. `npm config omit=dev` deja la máquina sin herramientas de prueba
 
@@ -834,3 +834,31 @@ escribiendo en ese momento: 5 vivos, la cabecera enseñaba 3. Ahora se eligen la
 
 **Regla: cualquier recorte del Mando (por número, por fecha, por página) se aplica después de
 garantizar que lo vivo está dentro.** Lo vivo es justo lo que hay que ver.
+
+### 4. El permiso de disco de macOS se concede POR BINARIO, no por carpeta (2026-09-10)
+
+`com.starseed.mando` moría con **exit 127** y esta línea en el log:
+
+```
+/bin/zsh: can't open input file: …/scripts/puente/arrancar-mando.sh
+```
+
+El archivo existía, era `-rwxr-xr-x`, y otros servicios de launchd leían **esa misma carpeta** sin
+problema. La causa no es la carpeta: es TCC, y se aplica al **programa** que abre el archivo. En
+esta Mac `/opt/homebrew/bin/python3` tiene «Acceso total al disco» y `/bin/zsh` y `/bin/bash` no.
+Medido con una sonda de launchd, y el detalle importa porque despista:
+
+| desde launchd                | `ls` del archivo | leer su contenido            |
+| ---------------------------- | ---------------- | ---------------------------- |
+| `/bin/zsh`                   | ✅ funciona       | ❌ `Operation not permitted` |
+| `/opt/homebrew/bin/python3`  | ✅                | ✅                            |
+| `/bin/zsh` **hijo** de ese python3 | ✅          | ✅                            |
+
+Es decir: **el hijo hereda el permiso del padre**. Por eso el servicio de Telegram sí vivía (su zsh
+solo hace `source` de `~/.hermes/.env`, que está fuera de `~/Documents`, y luego `exec python3`).
+
+**Regla: ningún servicio de launchd puede tener un shell como `ProgramArguments[0]` si va a leer
+algo de `~/Documents`.** Se envuelve en `scripts/puente/lanzador-tcc.py`, que lo corre como hijo de
+python3. Mover los guiones fuera de `~/Documents` **no** arregla nada: lo que hacen es trabajar ahí
+dentro. Y recuerda la trampa hermana: **launchd no usa el PATH para el ejecutable** — ruta absoluta
+siempre, o sale exit 2. Ambas viven documentadas en `scripts/puente/instalar-servicios.py`.
