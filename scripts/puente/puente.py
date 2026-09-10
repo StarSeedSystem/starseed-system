@@ -16,6 +16,9 @@ el chat de Antigravity o esta sesión de Claude— ve y dirige exactamente lo mi
   starseed-puente reasignar <id> <modelo>
   starseed-puente cola                   # qué cola corre y qué queda
   starseed-puente puertas                # tsc · vitest · build · sin publicar
+  starseed-puente decir "<texto>"        # habla en el canal comun de los 4 entornos
+  starseed-puente mensajes [n]           # las ultimas n cosas dichas
+  starseed-puente escuchar               # sigue el canal EN VIVO (chat principal)
   starseed-puente briefing               # el texto para pegar en un chat nuevo
 """
 import json, os, subprocess, sys, time, urllib.request
@@ -60,6 +63,65 @@ def git(*args):
                               text=True, timeout=20).stdout.strip()
     except Exception:
         return ""
+
+
+# ── canal compartido: un solo hilo de mensajes para los cuatro entornos ──────
+# Todo lo que se dice —resultados, avances, avisos, comentarios— va aquí, y aquí
+# lo lee el chat principal de cada IDE. No hay un feed por entorno: hay UNO.
+CANAL = os.path.join(RAIZ, "starseed_memory_root", "mando", "canal.jsonl")
+
+
+def _quien():
+    return os.environ.get("STARSEED_QUIEN") or os.environ.get("STARSEED_IDE") or "puente"
+
+
+def decir(texto, quien=None, tipo="mensaje", tarea=None):
+    """Escribe una línea en el canal. Append puro: nadie pisa a nadie."""
+    os.makedirs(os.path.dirname(CANAL), exist_ok=True)
+    fila = {"t": time.strftime("%Y-%m-%d %H:%M:%S"), "epoch": time.time(),
+            "quien": quien or _quien(), "tipo": tipo, "texto": texto}
+    if tarea:
+        fila["tarea"] = tarea
+    with open(CANAL, "a", encoding="utf-8") as f:
+        f.write(json.dumps(fila, ensure_ascii=False) + "\n")
+    return fila
+
+
+def _pinta(f):
+    marca = {"error": "✗", "aviso": "!", "hecho": "✓", "mensaje": "·"}.get(f.get("tipo"), "·")
+    tarea = (" [%s]" % f["tarea"]) if f.get("tarea") else ""
+    return "%s %s %-16s%s %s" % (f.get("t", "")[11:], marca, f.get("quien", "?"), tarea, f.get("texto", ""))
+
+
+def cmd_mensajes(n=30):
+    try:
+        lineas = open(CANAL, encoding="utf-8").read().splitlines()
+    except Exception:
+        print("Canal vacío. Escribe el primero:  starseed-puente decir \"hola\""); return
+    for l in lineas[-int(n):]:
+        try:
+            print(_pinta(json.loads(l)))
+        except Exception:
+            pass
+
+
+def cmd_escuchar():
+    """Sigue el canal en vivo. Es lo que deja el chat principal de cada IDE
+    sincronizado en tiempo real con lo que dicen los demás."""
+    os.makedirs(os.path.dirname(CANAL), exist_ok=True)
+    open(CANAL, "a", encoding="utf-8").close()
+    print("Escuchando el canal (Ctrl-C para salir) — %s\n" % CANAL)
+    with open(CANAL, encoding="utf-8") as f:
+        for l in f.read().splitlines()[-15:]:
+            try: print(_pinta(json.loads(l)))
+            except Exception: pass
+        f.seek(0, os.SEEK_END)
+        while True:
+            l = f.readline()
+            if not l:
+                time.sleep(1); continue
+            try: print(_pinta(json.loads(l)), flush=True)
+            except Exception: pass
 
 
 def cmd_estado():
@@ -127,7 +189,10 @@ def orden(accion, ids, extra=None):
         if extra:
             d[i].update(extra)
     json.dump(d, open(ruta, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
-    print("Orden «%s» escrita para %s en %s.\nEl vigilante la recoge en menos de 20 s."
+    aviso = "orden «%s» → %s" % (accion, ", ".join(ids))
+    if extra: aviso += " (%s)" % ", ".join("%s=%s" % kv for kv in extra.items())
+    decir(aviso, quien, "aviso")
+    print("Orden «%s» escrita para %s en %s.\nEl vigilante la recoge en menos de 20 s.\nAnunciada en el canal: la ven los cuatro entornos."
           % (accion, ", ".join(ids), os.path.basename(ruta)))
     return 0
 
@@ -164,6 +229,15 @@ def main():
     elif c == "reasignar":
         if len(a) < 3: print("uso: reasignar <id> <modelo>"); return 1
         return orden("reasignar", [a[1]], {"modelo": a[2]})
+    elif c == "decir":
+        if len(a) < 2: print('uso: decir "<texto>" [--de <quien>] [--tipo aviso|hecho|error] [--tarea <id>]'); return 1
+        texto = a[1]
+        de = a[a.index("--de") + 1] if "--de" in a else None
+        tipo = a[a.index("--tipo") + 1] if "--tipo" in a else "mensaje"
+        tarea = a[a.index("--tarea") + 1] if "--tarea" in a else None
+        print(_pinta(decir(texto, de, tipo, tarea)))
+    elif c == "mensajes": cmd_mensajes(a[1] if len(a) > 1 else 30)
+    elif c == "escuchar": cmd_escuchar()
     elif c == "puertas": cmd_puertas()
     elif c == "briefing": cmd_briefing()
     else:

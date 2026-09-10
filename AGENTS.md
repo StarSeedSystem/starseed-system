@@ -44,6 +44,24 @@ starseed-puente reasignar <id> <modelo>
 starseed-puente puertas                 # tsc · vitest · build · commits sin publicar
 ```
 
+## Habla en el canal común: es el chat principal de los cuatro
+
+Todo lo que digas —un resultado, un avance, un aviso, una duda, un comentario— va al **mismo
+canal**, y de ahí lo lee el chat principal de Claude, Codex, Hermes y Antigravity en vivo. No
+hay un hilo por entorno: hay uno. Si algo solo lo sabe tu terminal, para los demás no ha pasado.
+
+```bash
+starseed-puente decir "zN4 en verde: 14 tests, salas.ts listo" --de astra --tipo hecho --tarea zN4
+starseed-puente decir "xkiro colgado 10 min con 0 bytes, suelto RT1" --de astra --tipo aviso
+starseed-puente mensajes 30      # lo último que se ha dicho
+starseed-puente escuchar         # seguirlo EN VIVO (esto es el chat principal)
+```
+
+Tipos: `mensaje` (por defecto), `aviso`, `hecho`, `error`. Di algo **al empezar una tarea, al
+terminarla y cuando algo se tuerza** — no cada dos minutos, y nunca para repetir lo que ya está
+en el canal. El avance del enjambre entra solo: `scripts/puente/eco-enjambre.py` vuelca los
+eventos del orquestador al mismo sitio.
+
 ## Reglas duras
 
 - **Un solo orquestador** (`scripts/enjambre/starseed-enjambre.py`) con N trabajadores. Tres
