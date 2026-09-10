@@ -44,6 +44,26 @@ starseed-puente reasignar <id> <modelo>
 starseed-puente puertas                 # tsc · vitest · build · commits sin publicar
 ```
 
+## Cuál es el chat principal, y cómo no perderlo entre los de tarea
+
+Al abrir un IDE salen muchos hilos y no se distingue el puesto de mando. Por eso hay **un solo
+nombre, igual en todos**:
+
+> **`PUENTE DE MANDO · StarSeed OS`**
+
+Ese es el chat principal, el permanente, donde se dirige. Todo lo demás es un hilo de tarea y
+lleva el prefijo **`ola/`** — `ola/TG1 · puente Telegram`, `ola/zN4 · contrato de salas` — así que
+con mirar el nombre ya se sabe cuál es cuál. Un hilo de tarea se cierra cuando su tarea se integra;
+el principal no se cierra nunca.
+
+```bash
+starseed-puente chats            # cuál es el principal de cada entorno y cómo volver a él
+starseed-puente chat codex       # lo abre o lo retoma
+```
+
+El registro vive en `starseed_memory_root/mando/chats.json`. Si creas un hilo nuevo, **ponle el
+prefijo** y no lo apuntes ahí: el registro es solo para los principales, uno por entorno.
+
 ## Habla en el canal común: es el chat principal de los cuatro
 
 Todo lo que digas —un resultado, un avance, un aviso, una duda, un comentario— va al **mismo

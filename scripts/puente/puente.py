@@ -16,6 +16,8 @@ el chat de Antigravity o esta sesión de Claude— ve y dirige exactamente lo mi
   starseed-puente reasignar <id> <modelo>
   starseed-puente cola                   # qué cola corre y qué queda
   starseed-puente puertas                # tsc · vitest · build · sin publicar
+  starseed-puente chats                  # cual es el chat PRINCIPAL de cada entorno
+  starseed-puente chat <entorno>         # abre/retoma ese chat principal
   starseed-puente decir "<texto>"        # habla en el canal comun de los 4 entornos
   starseed-puente mensajes [n]           # las ultimas n cosas dichas
   starseed-puente escuchar               # sigue el canal EN VIVO (chat principal)
@@ -122,6 +124,49 @@ def cmd_escuchar():
                 time.sleep(1); continue
             try: print(_pinta(json.loads(l)), flush=True)
             except Exception: pass
+
+
+# ── el chat PRINCIPAL de cada entorno ───────────────────────────────────────
+# Al abrir un IDE aparecen muchos hilos de tarea y no se distingue cuál es el
+# puesto de mando. Aquí está apuntado, con nombre fijo y con la orden exacta
+# para volver a él. Los hilos de tarea se llaman «ola/<id> · …» y no se apuntan:
+# el prefijo ya los separa.
+CHATS = os.path.join(RAIZ, "starseed_memory_root", "mando", "chats.json")
+
+
+def _chats():
+    try:
+        return json.load(open(CHATS, encoding="utf-8"))
+    except Exception:
+        return {}
+
+
+def cmd_chats():
+    d = _chats()
+    if not d:
+        print("No hay registro de chats en %s" % CHATS); return
+    print("CHAT PRINCIPAL en cada entorno · se llama siempre «%s»" % d.get("nombre_canonico", ""))
+    print("Los hilos de tarea llevan el prefijo «%s» y no se confunden con él.\n" % d.get("prefijo_tareas", "ola/"))
+    for clave, e in (d.get("entornos") or {}).items():
+        print("%-12s %s" % (clave, e.get("producto", "")))
+        print("             proyecto: %s" % e.get("proyecto", "—"))
+        print("             volver:   %s" % e.get("como_volver", "—"))
+        if e.get("nota"):
+            print("             nota:     %s" % e["nota"])
+        print()
+
+
+def cmd_chat(cual):
+    e = (_chats().get("entornos") or {}).get(cual)
+    if not e:
+        print("No conozco «%s». Los que hay: %s" % (cual, ", ".join((_chats().get("entornos") or {}))))
+        return 1
+    orden = e.get("como_volver") or ""
+    print("%s · %s" % (cual, e.get("producto", "")))
+    if not orden or orden.startswith("Abre ") or orden.startswith("El bot"):
+        print(orden or "sin orden registrada"); return 0
+    print("→ %s\n" % orden)
+    return subprocess.call(orden, shell=True)
 
 
 def cmd_estado():
@@ -238,6 +283,10 @@ def main():
         print(_pinta(decir(texto, de, tipo, tarea)))
     elif c == "mensajes": cmd_mensajes(a[1] if len(a) > 1 else 30)
     elif c == "escuchar": cmd_escuchar()
+    elif c == "chats": cmd_chats()
+    elif c == "chat":
+        if len(a) < 2: cmd_chats(); return 0
+        return cmd_chat(a[1])
     elif c == "puertas": cmd_puertas()
     elif c == "briefing": cmd_briefing()
     else:
