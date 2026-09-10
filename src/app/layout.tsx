@@ -78,6 +78,10 @@ import { RealtimeSyncProvider } from "@/components/system/realtime-sync-provider
 import { OmniAppHost } from "@/components/dashboard/apps/omnifrecuencias/omni-app-host";
 import { AudiomorphicConfigHost } from "@/components/ui/backgrounds/audiomorphic-config-window";
 import { RegisterSW } from "@/components/pwa/register-sw";
+// Núcleo intocable (Ola 307): registra `validarUiSpec` + `validarContraInvariantes`
+// en `@/lib/nucleo/paquete-sistema`. Sin este cableado, `revisar` falla CERRADO
+// («nucleo-configurado») y ningún paquete compartido sería instalable.
+import { ArranqueNucleo } from "@/components/system/arranque-nucleo";
 import { A11yBoot } from "@/components/a11y/a11y-boot";
 // Foco + anuncio aria-live al cambiar de ruta (SPA), para teclado/lector.
 import { RouteFocus } from "@/components/a11y/route-focus";
@@ -208,6 +212,10 @@ export default function RootLayout({
         {/* Registro del Service Worker (PWA): instalable + shell offline.
             Defensivo y sin UI; se omite en dev salvo NEXT_PUBLIC_ENABLE_SW=1. */}
         <RegisterSW />
+        {/* Núcleo intocable cableado en el ARRANQUE: deja registrados los dos
+            guardianes (UiSpec + invariantes) que revisan cualquier paquete
+            compartido antes de instalarlo. Sin UI, idempotente, SSR-safe. */}
+        <ArranqueNucleo />
         {/* Accesibilidad aplicada en el ARRANQUE (no solo al abrir el panel):
             contraste, movimiento reducido, texto grande, daltonismo, diana. */}
         <A11yBoot />
