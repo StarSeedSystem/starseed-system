@@ -1,6 +1,6 @@
 # Puente de Mando · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-09 19:41:41 desde el Mando vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-09 20:10:45 desde el Mando vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -12,26 +12,23 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | | |
 |---|---|
 | Mando | **encendido** en http://localhost:9002/mando |
-| Ola arriba | Ola 309 · Escritor ligero: multiplicar agentes sin multiplicar memoria |
-| Agentes escribiendo | **0** |
-| En esta ola | integradas 0 · en curso 0 · esperando aprobación 0 · pendientes 1 |
-| Últimas 4 olas | en curso 0 · pendientes 1 · integradas 9 |
-| HEAD | `a80cb367 Ola 304 · zU3: el test del aplicador tipa sin debilitar el módulo` |
+| Ola arriba | Ola 301 · Revisores continuos por área y enrutamiento visible |
+| Agentes escribiendo | **5** |
+| En esta ola | integradas 0 · en curso 1 · esperando aprobación 0 · pendientes 0 |
+| Últimas 7 olas | en curso 3 · pendientes 1 · integradas 9 |
+| HEAD | `e3a0b5eb Puente · demonio propio y lanzador del enjambre con guardia que no se auto-engaña` |
 | Sin publicar | 0 commits |
-| Árbol | 2 archivos sin commitear |
+| Árbol | 1 archivos sin commitear |
 
-## Quién escribe ahora (latido de `cola-310-puertas-y-pendientes.json`, hace 3828s)
+## Quién escribe ahora (latido de `cola-310-puertas-y-pendientes.json`, hace 6s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `NV1` | escribiendo | xkiro/qwen/qwen3-coder-plus:free | 85 min | 4133 s | 75354 |
-| `CX1` | escribiendo | xkiro/qwen/qwen3-coder-plus:free | 69 min | 4154 s | 528422 |
-| `RV1` | escribiendo | nvidia/moonshotai/kimi-k3 | 101 min | 4194 s | 7987 |
-| `zW5` | escribiendo | xkiro/mistralai/devstral-medium | 70 min | 4219 s | 12468 |
-| `zW4` | escribiendo | xkiro/deepseek/deepseek-v4-pro | 75 min | 4503 s | 4448 |
-| `zU3` | hecho | xkiro/mistralai/devstral-medium | 75 min | 4524 s | 1893 |
-| `RT1` | hecho | xkiro/deepseek/deepseek-v4-pro | 75 min | 4526 s | 128852 |
-| `NV2` | hecho |  | 101 min | 6083 s | 306085 |
+| `CX1` | escribiendo | xkiro/qwen/qwen3-coder-plus:free | 0 min | 7 s | 758775 |
+| `NV1` | escribiendo | xkiro/qwen/qwen3-coder-plus:free | 0 min | 9 s | 85864 |
+| `RV1` | escribiendo | xkiro/minimax/minimax-m3:free | 20 min | 33 s | 12245 |
+| `NV2` | escribiendo | xkiro/deepseek/deepseek-v4-pro | 13 min | 793 s | 546578 |
+| `RT1` | escribiendo | xkiro/qwen/qwen3.8-max:free | 20 min | 815 s | 135965 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
