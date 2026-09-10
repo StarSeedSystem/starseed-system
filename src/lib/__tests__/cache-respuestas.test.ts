@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import {
   claveCache,
+  esCacheElegible,
   leerCache,
   guardarCache,
   CACHE_MAX_ENTRADAS,
@@ -85,5 +86,35 @@ describe("cache-respuestas (Ola 223)", () => {
     expect(leerCache(claveA)).toBe("A");
     guardarCache(claveCache([{ role: "user", content: "LRU-final" }], "m", 0.1), "z");
     expect(leerCache(claveA)).toBe("A");
+  });
+
+  describe("esCacheElegible (Ola 223 · I4F)", () => {
+    const base = { temperature: 0.2, scope: "chat-1" };
+
+    it("acepta la petición determinista, sin streaming y con ámbito", () => {
+      expect(esCacheElegible(base)).toBe(true);
+      expect(esCacheElegible({ ...base, temperature: 0 })).toBe(true);
+      expect(esCacheElegible({ ...base, temperature: 0.3 })).toBe(true);
+    });
+
+    it("rechaza temperature alta o ausente (no determinista)", () => {
+      expect(esCacheElegible({ ...base, temperature: 0.5 })).toBe(false);
+      expect(esCacheElegible({ ...base, temperature: undefined })).toBe(false);
+      expect(esCacheElegible({ ...base, temperature: Number.NaN })).toBe(false);
+    });
+
+    it("rechaza streaming aunque el resto sea válido", () => {
+      expect(esCacheElegible({ ...base, streaming: true })).toBe(false);
+    });
+
+    it("rechaza el modo multi-agente (el hit saltaría el contraste)", () => {
+      expect(esCacheElegible({ ...base, multiAgent: true })).toBe(false);
+    });
+
+    it("rechaza sin ámbito de sesión (evita fuga entre usuarios)", () => {
+      expect(esCacheElegible({ ...base, scope: "" })).toBe(false);
+      expect(esCacheElegible({ ...base, scope: "   " })).toBe(false);
+      expect(esCacheElegible({ ...base, scope: undefined })).toBe(false);
+    });
   });
 });

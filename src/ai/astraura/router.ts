@@ -84,7 +84,7 @@ import { accessBias, llmSourceAccessClass } from "@/lib/astraura/model-preferenc
 // un `import type` de `ai/astraura/mesh` (erased, sin runtime).
 import { thisDeviceId } from "@/lib/neurons/neurons";
 // (Ola 223) Caché LRU de respuestas repetidas (cuota-cero para prompts idénticos).
-import { claveCache, leerCache, guardarCache } from "./cache-respuestas";
+import { claveCache, esCacheElegible, leerCache, guardarCache } from "./cache-respuestas";
 
 /* ───────────────────── Ajustes de Inteligencia ───────────────────── */
 
@@ -1302,13 +1302,20 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
   // misma clave representa la misma respuesta y reutilizarla ahorra cuota.
   // (Ola 223 · I4F) Revisión: la condición anterior cacheaba con temperature
   // alta solo por no tener onChunk (no determinista) — ahora se exige SIEMPRE
-  // temperature ≤ 0.3 y ausencia de streaming.
-  const cacheElegible =
-    typeof req.temperature === "number" && req.temperature <= 0.3 && !req.onChunk;
+  // temperature ≤ 0.3 y ausencia de streaming. Además se exige un ámbito de
+  // sesión (chatId/agentId) para no mezclar respuestas entre usuarios en la
+  // caché global del proceso, y se desactiva con el modo multi-agente para
+  // que el hit no se salte el contraste de subagentes.
   // (Ola 223 · I4F) Ámbito de sesión en la clave: la caché es global en
   // memoria del proceso, así que sin esto dos usuarios/chats con el mismo
   // prompt compartirían respuesta (riesgo de privacidad).
   const cacheScope = req.chatId ?? req.agentId ?? "";
+  const cacheElegible = esCacheElegible({
+    temperature: req.temperature,
+    streaming: !!req.onChunk,
+    multiAgent: !!prefs.multiAgent,
+    scope: cacheScope,
+  });
 
   for (const c of chain) {
     if (deadSources.has(c.source.id)) continue; // clave rota: ni lo intentamos

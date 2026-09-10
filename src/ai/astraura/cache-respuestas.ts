@@ -44,6 +44,29 @@ export function claveCache(
   }
 }
 
+/**
+ * (Ola 223 · I4F) Decisión pura de elegibilidad de caché, extraída del router
+ * para probarla. Una petición solo se cachea si cumple TODO:
+ * - temperature explícita ≤ 0.3 (determinista; la alta no se reutiliza);
+ * - sin streaming (`onChunk`): una respuesta cacheada no puede re-emitir chunks;
+ * - sin modo multi-agente: el hit devolvería texto plano y saltaría el contraste;
+ * - con ámbito de sesión/usuario (`scope`): sin él, la caché global del proceso
+ *   mezclaría respuestas entre usuarios distintos (riesgo de privacidad).
+ */
+export function esCacheElegible(opciones: {
+  temperature?: number;
+  streaming?: boolean;
+  multiAgent?: boolean;
+  scope?: string;
+}): boolean {
+  const { temperature, streaming, multiAgent, scope } = opciones;
+  if (typeof temperature !== "number" || Number.isNaN(temperature) || temperature > 0.3) {
+    return false;
+  }
+  if (streaming || multiAgent) return false;
+  return typeof scope === "string" && scope.trim().length > 0;
+}
+
 /** Lee una respuesta cacheada (null si no existe o expiró; NUNCA errores ni vacías). */
 export function leerCache(clave: string): string | null {
   if (!clave) return null;
