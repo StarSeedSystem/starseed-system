@@ -1,3 +1,10 @@
+> **Antigravity / Gemini: empieza por el Puente de Mando.**
+> Lee `AGENTS.md` y `PUENTE-DE-MANDO.md` de la raíz antes de tocar nada: ahí está el estado
+> vivo del enjambre, regenerado desde `localhost:9002`. Para ver y dirigir los agentes desde
+> la terminal de este IDE: `starseed-puente estado` · `starseed-puente agentes` ·
+> `starseed-puente aprobar <id>`. Refrescar el contexto:
+> `python3 scripts/puente/sincronizar-ides.py`.
+
 # 🌌 Project Constitution (gemini.md)
 
 This document is the single source of truth for the **StarSeed Network** project. It defines the Data Schemas, Behavioral Rules, and Architectural Invariants.
