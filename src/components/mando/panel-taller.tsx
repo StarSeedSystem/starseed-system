@@ -15,8 +15,18 @@
  * se inventa aquí: se adapta lo que hay.
  */
 
-import { useMemo, useState } from "react";
-import { Link2, Search } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Link2, Search, Shuffle } from "lucide-react";
+
+// 2026-09-09 · Ola 301 · RT2: aquí se administran los recursos de los agentes,
+// así que aquí también tiene que verse qué modelo los atiende ahora mismo.
+import type { ModeloDisponible } from "@/lib/mando/modelos-disponibles";
+import {
+    resumenDeFlota,
+    saludDesdeCatalogo,
+    TEXTO_PAPEL_RUTA,
+    type ResumenFlota,
+} from "@/lib/mando/enrutamiento";
 
 import {
     catalogoDeclarado,
@@ -62,6 +72,78 @@ const ORIGENES: Array<{ id: OrigenRecurso; etiqueta: string }> = [
 const TARJETA = "rounded-xl border border-white/10 bg-black/30 p-4 backdrop-blur";
 const CHIP = "rounded-full border px-2 py-0.5 text-[11px]";
 
+/** Lo que devuelve `/api/mando/modelos` y este panel necesita (nunca claves). */
+interface RespuestaModelos {
+    modelos?: ModeloDisponible[];
+    /** Proveedores con sus claves: solo nombres de variable y huellas. */
+    proveedores?: Array<{ id: string; claves: Array<{ var: string }> }>;
+}
+
+/**
+ * Quién atiende a los agentes ahora mismo (2026-09-09 · Ola 301 · RT2). El
+ * Taller reparte habilidades, conexiones y memorias, pero hasta hoy no decía
+ * QUIÉN las ejecuta: aquí van el resumen de la flota y, por papel, el activo y
+ * el que entra si se agota. Si el mando no responde (producción), no se pinta.
+ */
+function TarjetaFlotaDelTaller() {
+    const [resumen, setResumen] = useState<ResumenFlota | null>(null);
+
+    useEffect(() => {
+        let vigente = true;
+        void (async () => {
+            try {
+                const r = await fetch("/api/mando/modelos", { cache: "no-store" });
+                if (!r.ok) return;
+                const datos = (await r.json()) as RespuestaModelos;
+                const modelos = datos.modelos ?? [];
+                if (!vigente || modelos.length === 0) return;
+                // Claves presentes de verdad en la máquina: solo el nombre del proveedor.
+                const claves = (datos.proveedores ?? [])
+                    .filter((p) => p.claves.length > 0)
+                    .map((p) => p.id);
+                setResumen(resumenDeFlota(modelos, saludDesdeCatalogo(modelos), claves));
+            } catch {
+                // El Taller sigue siendo útil sin la flota: no se avisa de nada.
+            }
+        })();
+        return () => {
+            vigente = false;
+        };
+    }, []);
+
+    if (!resumen) return null;
+
+    return (
+        <div data-testid="flota-del-taller" className={TARJETA}>
+            <h2 className="flex items-center gap-2 text-sm font-semibold text-white">
+                <Shuffle className="h-4 w-4" aria-hidden /> Quién atiende a estos agentes
+            </h2>
+            <p className="mt-1 text-xs text-white/70">
+                Ahora mismo <span className="text-emerald-300">{resumen.frase}</span>. Estos son el
+                activo y el relevo de cada papel de la cadena.
+            </p>
+            <ul className="mt-3 grid gap-2 md:grid-cols-3">
+                {resumen.planes.map((plan) => (
+                    <li key={plan.papel} className="rounded-lg border border-white/10 bg-black/20 p-3">
+                        <h3 className="text-xs font-medium uppercase tracking-wide text-white/50">
+                            {TEXTO_PAPEL_RUTA[plan.papel]}
+                        </h3>
+                        <p className="mt-1 font-mono text-[11px] text-emerald-300">
+                            {plan.activo ? plan.activo.id : "nadie vivo"}
+                        </p>
+                        <p className="mt-1 font-mono text-[11px] text-white/40">
+                            {plan.siguiente ? plan.siguiente.id : "sin relevo detrás"}
+                        </p>
+                        <span className={`${CHIP} mt-1 inline-block border-sky-400/30 text-sky-200/80`}>
+                            {plan.siguiente ? "entra si el activo se agota" : "sin relevo"}
+                        </span>
+                    </li>
+                ))}
+            </ul>
+        </div>
+    );
+}
+
 export function PanelTaller() {
     const [texto, setTexto] = useState("");
     const [tipo, setTipo] = useState<TipoRecurso | null>(null);
@@ -80,6 +162,9 @@ export function PanelTaller() {
 
     return (
         <section data-testid="panel-taller" className="space-y-4">
+            {/* Al principio: quién ejecuta todo esto (Ola 301 · RT2). */}
+            <TarjetaFlotaDelTaller />
+
             <div className={TARJETA}>
                 <h2 className="flex items-center gap-2 text-sm font-semibold text-white">
                     <Link2 className="h-4 w-4" aria-hidden /> Taller del agente

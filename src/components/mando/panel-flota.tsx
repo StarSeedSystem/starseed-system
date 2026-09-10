@@ -30,6 +30,18 @@ import type { EstadoMando } from "@/lib/mando/tipos";
 import { flotaConocida, type ModeloFlota, type ProveedorFlota } from "@/lib/mando/flota";
 import type { ModeloDisponible, SaludProveedor } from "@/lib/mando/modelos-disponibles";
 import { proveedoresDisponibles, type ProveedorDisponible } from "@/lib/mando/proveedores-catalogo";
+// 2026-09-09 · Ola 301 · RT2: el enrutamiento se ve donde se habla de agentes.
+import {
+    AVISO_MUDO,
+    etiquetaPosicion,
+    resumenDeFlota,
+    saludDesdeCatalogo,
+    TEXTO_ESTADO_RUTA,
+    TEXTO_PAPEL_RUTA,
+    type EslabonRuta,
+    type EstadoRuta,
+    type PlanRuta,
+} from "@/lib/mando/enrutamiento";
 
 /** Colores de estado (semaforización de la flota). */
 const COLOR_ESTADO: Record<ProveedorFlota["estado"], string> = {
@@ -178,8 +190,142 @@ function usoPorMotor(estado: EstadoMando | null): Record<string, number> {
     return uso;
 }
 
+/**
+ * Colores del estado de un eslabón (2026-09-09 · Ola 301 · RT2): el activo va
+ * en verde, «sin cupo» en ámbar porque vuelve solo, y «mudo» en rojo porque
+ * responder vacío engaña más que caerse.
+ */
+const CLASE_ESTADO_RUTA: Record<EstadoRuta, string> = {
+    vivo: "border-emerald-400/40 bg-emerald-500/10 text-emerald-300",
+    sin_cupo: "border-amber-400/40 bg-amber-500/10 text-amber-200",
+    mudo: "border-red-400/50 bg-red-500/10 text-red-200",
+    caido: "border-red-400/30 bg-red-500/5 text-red-200/80",
+    sin_clave: "border-amber-400/30 bg-amber-500/5 text-amber-200/90",
+    desconocido: "border-white/15 bg-white/5 text-white/50",
+};
+
+/** Clases comunes de los chips del Mando. */
+const CHIP_RUTA = "rounded-full border px-2 py-0.5 text-[11px]";
+
+/**
+ * La flota nombra a los proveedores con sus ids editoriales y el catálogo vivo
+ * con los del motor: aquí se traducen para poder decir en qué sitio de la
+ * cadena va cada tarjeta. Lo que no está en el mapa se busca por su propio id.
+ */
+const PROVEEDOR_EN_CATALOGO: Record<string, string> = {
+    nvidia: "nim",
+    "astraura-local": "ollama",
+    "astraura-nube": "ollama",
+};
+
+/** Un eslabón de la cadena: sitio, modelo y por qué está o no está. */
+function EslabonCadena({ eslabon }: { eslabon: EslabonRuta }) {
+    return (
+        <li className="flex flex-wrap items-center gap-1.5">
+            <span className="w-4 shrink-0 text-right font-mono text-[11px] text-white/30">
+                {eslabon.posicion}
+            </span>
+            <span
+                title={eslabon.motivo ?? undefined}
+                className={`font-mono text-[11px] ${
+                    eslabon.activo ? "font-semibold text-emerald-300" : "text-white/40"
+                }`}
+            >
+                {eslabon.id}
+            </span>
+            {eslabon.activo && (
+                <span className={`${CHIP_RUTA} border-emerald-400/40 bg-emerald-500/10 text-emerald-300`}>
+                    activo
+                </span>
+            )}
+            {eslabon.siguiente && (
+                <span className={`${CHIP_RUTA} border-sky-400/40 bg-sky-500/10 text-sky-200`}>
+                    entra si el activo se agota
+                </span>
+            )}
+            {!eslabon.activo && (
+                <span
+                    title={eslabon.estado === "mudo" ? AVISO_MUDO : (eslabon.motivo ?? undefined)}
+                    className={`${CHIP_RUTA} ${CLASE_ESTADO_RUTA[eslabon.estado]}`}
+                >
+                    {TEXTO_ESTADO_RUTA[eslabon.estado]}
+                    {eslabon.estado === "mudo" ? ` · ${AVISO_MUDO}` : ""}
+                </span>
+            )}
+            {eslabon.estado === "sin_clave" && (
+                <a
+                    href="#proveedores"
+                    className="cursor-pointer text-[11px] text-sky-300 underline decoration-sky-300/40 underline-offset-2 hover:text-sky-200"
+                >
+                    Añadir mi clave
+                </a>
+            )}
+        </li>
+    );
+}
+
+/** Una columna del enrutamiento: la cadena de un papel y su frase de «por qué». */
+function ColumnaRuta({ plan }: { plan: PlanRuta }) {
+    return (
+        <div className="space-y-2">
+            <h4 className="text-xs font-medium uppercase tracking-wide text-white/50">
+                {TEXTO_PAPEL_RUTA[plan.papel]}
+            </h4>
+            {plan.cadena.length === 0 ? (
+                <p className="text-[11px] text-white/40">Sin modelos declarados para este papel.</p>
+            ) : (
+                <ol className="space-y-1">
+                    {plan.cadena.map((eslabon) => (
+                        <EslabonCadena key={eslabon.id} eslabon={eslabon} />
+                    ))}
+                </ol>
+            )}
+            {/* La frase del módulo, tal cual: el porqué no se reescribe en la vista. */}
+            <p className="text-[11px] leading-relaxed text-white/50">{plan.porque}</p>
+        </div>
+    );
+}
+
+/**
+ * «Enrutamiento planeado» (2026-09-09 · Ola 301 · RT2): la cadena de relevo a la
+ * vista —quién escribe ahora, quién entra cuando el activo se agote y por qué—
+ * en las tres columnas del enjambre: escritores, revisores y directores.
+ */
+function TarjetaEnrutamiento({ planes }: { planes: PlanRuta[] }) {
+    return (
+        <section
+            data-testid="enrutamiento-planeado"
+            className="rounded-xl border border-white/10 bg-black/30 p-4 backdrop-blur"
+        >
+            <h3 className="flex items-center gap-2 text-sm font-semibold text-white">
+                <Shuffle className="h-4 w-4" aria-hidden />
+                Enrutamiento planeado
+            </h3>
+            <p className="mt-1 text-xs text-white/60">
+                La cadena de relevo tal y como está ahora: en verde quien trabaja, detrás quien
+                entra si se agota, y en gris quien no puede entrar y por qué.
+            </p>
+            <div className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-3">
+                {planes.map((plan) => (
+                    <ColumnaRuta key={plan.papel} plan={plan} />
+                ))}
+            </div>
+        </section>
+    );
+}
+
 /** Tarjeta de un proveedor de la flota. */
-function TarjetaProveedor({ proveedor, catalogo }: { proveedor: ProveedorFlota; catalogo: ModeloDisponible[] }) {
+function TarjetaProveedor({
+    proveedor,
+    catalogo,
+    // 2026-09-09 · Ola 301 · RT2: su sitio en la cadena («escritor 1.º»), para
+    // ver de un vistazo quién va antes que quién sin abrir el enrutamiento.
+    posicion,
+}: {
+    proveedor: ProveedorFlota;
+    catalogo: ModeloDisponible[];
+    posicion: string | null;
+}) {
     const porcentaje =
         proveedor.limiteDia !== undefined && proveedor.limiteDia > 0
             ? Math.min(100, Math.round(((proveedor.usoHoy ?? 0) / proveedor.limiteDia) * 100))
@@ -195,9 +341,19 @@ function TarjetaProveedor({ proveedor, catalogo }: { proveedor: ProveedorFlota; 
                     />
                     <h3 className="text-sm font-semibold text-white">{proveedor.nombre}</h3>
                 </div>
-                <span className="flex items-center gap-1 rounded-full border border-white/10 px-2 py-0.5 text-[11px] text-white/70">
-                    <IconoPapel papel={proveedor.papel} />
-                    {TEXTO_PAPEL[proveedor.papel]}
+                <span className="flex flex-wrap items-center justify-end gap-1">
+                    {posicion !== null && (
+                        <span
+                            title="Sitio de este proveedor en la cadena de relevo."
+                            className={`${CHIP_RUTA} border-sky-400/30 bg-sky-500/10 text-sky-200`}
+                        >
+                            {posicion}
+                        </span>
+                    )}
+                    <span className="flex items-center gap-1 rounded-full border border-white/10 px-2 py-0.5 text-[11px] text-white/70">
+                        <IconoPapel papel={proveedor.papel} />
+                        {TEXTO_PAPEL[proveedor.papel]}
+                    </span>
                 </span>
             </header>
 
@@ -655,7 +811,8 @@ function SeccionProveedores({ catalogo, proveedores, onCambio }: { catalogo: Mod
     const porConseguir = disponibles.filter((p) => p.estado === "porConseguir");
 
     return (
-        <section data-testid="proveedores-enlaces" className="space-y-4 rounded-xl border border-white/10 bg-black/30 p-4">
+        // `id` para que «sin clave» del enrutamiento pueda traer aquí (Ola 301 · RT2).
+        <section id="proveedores" data-testid="proveedores-enlaces" className="space-y-4 rounded-xl border border-white/10 bg-black/30 p-4">
             <h3 className="flex items-center gap-2 text-sm font-semibold text-white">
                 <Cloud className="h-4 w-4" />
                 Proveedores
@@ -794,6 +951,19 @@ export function PanelFlota() {
     const flota = useMemo(() => flotaConocida(usoPorMotor(estado)), [estado]);
     const agotados = flota.filter((p) => p.estado === "agotado");
 
+    // 2026-09-09 · Ola 301 · RT2: quién tiene clave de verdad en esta máquina.
+    // Solo el nombre del proveedor: los valores no salen nunca del servidor.
+    const clavesPresentes = useMemo(
+        () => (proveedores ?? []).filter((p) => p.claves.length > 0).map((p) => p.id),
+        [proveedores],
+    );
+    // El plan lo calcula el módulo puro, no la vista: aquí solo se pinta.
+    const planes = useMemo(
+        () => resumenDeFlota(catalogo, saludDesdeCatalogo(catalogo), clavesPresentes).planes,
+        [catalogo, clavesPresentes],
+    );
+    const hayCadena = planes.some((p) => p.cadena.length > 0);
+
     if (error) {
         return (
             <section className="rounded-xl border border-white/10 bg-black/30 p-4 text-sm text-white/70">
@@ -823,6 +993,9 @@ export function PanelFlota() {
                 </button>
             </header>
 
+            {/* Arriba del todo: la cadena de relevo, antes que ningún detalle. */}
+            {hayCadena && <TarjetaEnrutamiento planes={planes} />}
+
             <AvisoSaludRevisores catalogo={catalogo} />
 
             {/* Los proveedores clasificados llegan del endpoint (`clavesPresentes` + bus). */}
@@ -838,7 +1011,15 @@ export function PanelFlota() {
 
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
                 {flota.map((proveedor) => (
-                    <TarjetaProveedor key={proveedor.id} proveedor={proveedor} catalogo={catalogo} />
+                    <TarjetaProveedor
+                        key={proveedor.id}
+                        proveedor={proveedor}
+                        catalogo={catalogo}
+                        posicion={etiquetaPosicion(
+                            planes,
+                            PROVEEDOR_EN_CATALOGO[proveedor.id] ?? proveedor.id,
+                        )}
+                    />
                 ))}
             </div>
 
