@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { motion, useReducedMotion } from "framer-motion";
 import {
@@ -11,14 +11,13 @@ import {
     RadarChart, PolarGrid, PolarAngleAxis, Radar, ResponsiveContainer,
 } from "recharts";
 import { WidgetShell, MiniList, Chip, timeUntil } from "../kit";
+import { MarcoWidget } from "@/components/dashboard/kit/marco-widget";
+import { estadoDe } from "@/components/dashboard/calidad-widget";
 import { useAppearance } from "@/context/appearance-context";
-import { useWidgetData } from "@/lib/widget-data";
 import type { SocialEvent } from "@/lib/widget-data";
-import { createClient } from "@/utils/supabase/client";
 import { eventHref, slugify } from "@/lib/entity-links";
 import { useOsEvents } from "@/hooks/use-os-entities";
 import type { OsEvent } from "@/lib/os-social";
-import { listFederativeEntities } from "@/data/sample-governance";
 
 // Conteos localizados con separador de millares (es-ES).
 const NUM_ES = new Intl.NumberFormat("es-ES", { maximumFractionDigits: 0 });
@@ -27,7 +26,12 @@ const NUM_ES = new Intl.NumberFormat("es-ES", { maximumFractionDigits: 0 });
 // SocialRadarWidget — eventos próximos de la red (asambleas, talleres,
 // rituales, obras, mercados). Radar visual con recharts, segmentos por
 // tipo, urgencia data-driven (eventos inminentes → pulso ámbar/verde),
-// countdown pill, entidades activas y live-pulse. Adaptativo + theme.
+// countdown pill y live-pulse. Adaptativo + theme.
+//
+// Fuente única: los eventos reales del OS (`useOsEvents`). Cuando el hook
+// avisa de que está sirviendo su relleno de ejemplo (`usingFallback`), el
+// widget prefiere el vacío honesto del marco común antes que enseñar
+// asambleas y talleres inventados como si fueran reales (Ola 305 · zW4).
 // ════════════════════════════════════════════════════════════════
 const KIND_META: Record<SocialEvent["kind"], { icon: LucideIcon; color: string; label: string }> = {
     asamblea: { icon: Landmark, color: "#f59e0b", label: "Asamblea" },
@@ -41,8 +45,10 @@ const KIND_ORDER: SocialEvent["kind"][] = ["asamblea", "taller", "ritual", "obra
 
 type RadarFilter = "todos" | SocialEvent["kind"];
 
-interface LocationRow { id: string; name: string | null; city: string | null }
 type RadarEvent = SocialEvent & { slug?: string };
+
+/** Lista estable para el caso «todavía no hay eventos reales». */
+const SIN_EVENTOS: RadarEvent[] = [];
 
 function radarKind(kind: string): SocialEvent["kind"] {
     const k = kind.toLowerCase();
@@ -123,57 +129,18 @@ export function SocialRadarWidget() {
     const prefersReduced = useReducedMotion();
     const animate = config.animations.enabled && !prefersReduced;
 
-    const { data: mockData, loading: mockLoading } = useWidgetData("social.events", { refreshMs: 20000 });
-    const { data: osEvents, loading: osLoading } = useOsEvents();
-    const supabase = useMemo(() => createClient(), []);
-    const [realPlaces, setRealPlaces] = useState<string[] | null>(null);
-    const [branchActivity, setBranchActivity] = useState<Record<string, number> | null>(null);
+    const { data: osEvents, loading, error: errorFuente, usingFallback, refetch } = useOsEvents();
     const [filter, setFilter] = useState<RadarFilter>("todos");
 
-    useEffect(() => {
-        let active = true;
-        (async () => {
-            try {
-                const [locRes, postsRes] = await Promise.all([
-                    supabase.from("locations").select("id, name, city"),
-                    supabase.from("cafe_posts").select("branch"),
-                ]);
-                if (locRes.error) throw locRes.error;
-                if (!active) return;
-                const places = ((locRes.data ?? []) as LocationRow[])
-                    .map(l => l.name || l.city)
-                    .filter((p): p is string => !!p);
-                setRealPlaces(places.length ? places : null);
-                if (!postsRes.error && postsRes.data) {
-                    const counts: Record<string, number> = {};
-                    for (const row of postsRes.data as { branch: string | null }[]) {
-                        if (row.branch) counts[row.branch] = (counts[row.branch] ?? 0) + 1;
-                    }
-                    setBranchActivity(Object.keys(counts).length ? counts : null);
-                }
-            } catch {
-                if (active) { setRealPlaces(null); setBranchActivity(null); }
-            }
-        })();
-        return () => { active = false; };
-    }, [supabase]);
+    // Solo eventos reales del OS: si el hook está sirviendo su relleno de
+    // ejemplo, el widget se queda vacío en vez de inventar la agenda de la red.
+    const data: RadarEvent[] = useMemo(
+        () => (usingFallback ? SIN_EVENTOS : osEvents.map(osEventToRadar)),
+        [osEvents, usingFallback],
+    );
 
-    const loading = osLoading && (mockLoading && !mockData);
-
-    const data: RadarEvent[] | null = useMemo(() => {
-        if (osEvents && osEvents.length > 0) {
-            return osEvents.map(osEventToRadar);
-        }
-        if (!mockData) return mockData;
-        if (!realPlaces && !branchActivity) return mockData;
-        return mockData.map((e, i) => {
-            const place = realPlaces && realPlaces.length
-                ? realPlaces[i % realPlaces.length]
-                : e.place;
-            const realPosts = branchActivity?.[place] ?? 0;
-            return { ...e, place, attendees: e.attendees + realPosts * 12 };
-        });
-    }, [osEvents, mockData, realPlaces, branchActivity]);
+    // Estado honesto del widget (error > cargando > vacío > listo).
+    const estado = estadoDe({ cargando: loading, error: errorFuente, datos: data });
 
     // Conteos por tipo para el radar y los segmentos.
     const kindCounts = useMemo(() => {
@@ -201,14 +168,29 @@ export function SocialRadarWidget() {
     // Cuántos eventos son inminentes (<24h): señal de urgencia data-driven.
     const soonCount = useMemo(() => (data ?? []).filter(e => eventUrgency(e.startTs) !== "scheduled").length, [data]);
 
-    // E.F. activas (top 3 para mostrar chips)
-    const activeEFs = useMemo(() => listFederativeEntities().slice(0, 3), []);
-
     // Segmentos de tipo presentes (solo los que tienen eventos).
     const segments = useMemo<RadarFilter[]>(() => {
         const present = KIND_ORDER.filter(k => (kindCounts[k] ?? 0) > 0);
         return ["todos", ...present];
     }, [kindCounts]);
+
+    // Cargando, vacío y error salen del marco común (un único marco: no se
+    // duplica la cabecera del WidgetShell). El vacío usa `mensajeVacio`.
+    if (estado !== "listo") {
+        return (
+            <MarcoWidget
+                titulo="Radar Social"
+                categoria="descubrimientos"
+                icono={<CalendarDays />}
+                cargando={estado === "cargando"}
+                error={errorFuente}
+                vacio={estado === "vacio"}
+                onReintentar={refetch}
+            >
+                {null}
+            </MarcoWidget>
+        );
+    }
 
     return (
         <WidgetShell
@@ -249,7 +231,6 @@ export function SocialRadarWidget() {
             }
         >
             {(size) => {
-                if (loading || !data) return <div className="h-full rounded-2xl bg-muted/15 animate-pulse" />;
                 const micro = size.tier === "micro" || size.vTier === "micro";
                 const sorted = filtered;
                 const max = micro ? 3 : size.vTier === "expanded" ? 5 : 3;
@@ -415,22 +396,9 @@ export function SocialRadarWidget() {
                             />
                         </div>
 
-                        {/* ── Entidades activas (chips, no micro) ── */}
-                        {size.vTier !== "micro" && activeEFs.length > 0 && (
-                            <div className="shrink-0">
-                                <p className="text-[8px] font-bold uppercase tracking-wider text-muted-foreground/50 mb-1">Entidades activas</p>
-                                <div className="flex flex-wrap gap-1">
-                                    {activeEFs.map((ef) => (
-                                        <Link key={ef.slug} href={`/entidad/${ef.slug}`}
-                                            className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[9px] font-bold transition-colors cursor-pointer hover:bg-white/[0.06]"
-                                            style={{ borderColor: `${ef.accent}40`, color: ef.accent }}>
-                                            <span className="size-1.5 rounded-full shrink-0" style={{ background: ef.accent }} />
-                                            {ef.name}
-                                        </Link>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
+                        {/* Sin fuente real de entidades activas todavía: antes se
+                            pintaban las de ejemplo de `sample-governance` como si
+                            estuvieran activas y se han quitado (Ola 305 · zW4). */}
                     </div>
                 );
             }}

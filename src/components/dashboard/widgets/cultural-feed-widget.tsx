@@ -5,21 +5,24 @@ import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { Palette, ChevronRight, Sparkles, Heart, Bookmark, ChevronLeft, Filter } from "lucide-react";
 import { WidgetShell, MiniList, Chip, ProgressBar, timeAgo } from "../kit";
-import { useWidgetData } from "@/lib/widget-data";
+import { MarcoWidget } from "@/components/dashboard/kit/marco-widget";
+import { estadoDe } from "@/components/dashboard/calidad-widget";
 import type { FeedItem } from "@/lib/widget-data";
 import { createClient } from "@/utils/supabase/client";
 import { cn } from "@/lib/utils";
 import { slugify } from "@/lib/entity-links";
-import { postsBySystem, picsumCover, diceBearAvatar } from "@/data/sample-entities";
+// Identicón determinista derivado del nombre real de la autoría: no aporta
+// contenido inventado, solo la imagen del avatar.
+import { diceBearAvatar } from "@/data/sample-entities";
 
 // ════════════════════════════════════════════════════════════════
 // CulturalFeedWidget — corriente cultural de la red (obras, eventos,
 // manifiestos). Lee creaciones reales de la comunidad (`cafe_posts`
 // del proyecto unificado) como corriente cultural viva, con conteo
 // total. Realtime: suscripción a `cafe_posts` (postgres_changes). Si
-// no hay datos o falla, cae con elegancia a "common.feed" simulado
-// o a postsBySystem('cultural') como último recurso.
-// Animaciones stagger con framer-motion + avatares + thumbnails.
+// `cafe_posts` no devuelve nada, enseña el vacío honesto del marco
+// común: ni obras de ejemplo ni portadas de relleno (Ola 305 · zW4).
+// Animaciones stagger con framer-motion + avatares.
 // ════════════════════════════════════════════════════════════════
 const KIND_COLOR: Record<string, string> = {
     obra: "#ec4899", propuesta: "#f59e0b", debate: "#a855f7",
@@ -58,17 +61,8 @@ function mapCafeFeed(rows: CafePostRow[]): FeedItem[] {
     }));
 }
 
-/** Fallback: convierte SamplePost al shape de FeedItem */
-function mapSamplePosts(): FeedItem[] {
-    return postsBySystem("cultural").map((p, i) => ({
-        id: p.id,
-        title: p.title ?? p.body.slice(0, 60),
-        author: p.authorName,
-        kind: p.kind ?? "obra",
-        ts: Date.now() - i * 7_200_000,
-        resonance: derivedResonance(p.id, null),
-    }));
-}
+/** Lista estable para el caso «todavía no hay obras reales». */
+const SIN_OBRAS: FeedItem[] = [];
 
 const INT_ES = new Intl.NumberFormat("es-ES", { maximumFractionDigits: 0 });
 
@@ -83,12 +77,14 @@ const itemVariants = {
 };
 
 export function CulturalFeedWidget() {
-    const { data: mockData, loading } = useWidgetData("common.feed", { refreshMs: 7000 });
     const supabase = useMemo(() => createClient(), []);
     const [realData, setRealData] = useState<FeedItem[] | null>(null);
     const [total, setTotal] = useState<number | null>(null);
+    const [cargando, setCargando] = useState(true);
+    const [errorFuente, setErrorFuente] = useState<unknown>(null);
 
     const reload = useCallback(async () => {
+        setCargando(true);
         try {
             const [rowsRes, countRes] = await Promise.all([
                 supabase.from("cafe_posts")
@@ -98,10 +94,15 @@ export function CulturalFeedWidget() {
             ]);
             if (rowsRes.error) throw rowsRes.error;
             const mapped = mapCafeFeed((rowsRes.data ?? []) as CafePostRow[]);
-            setRealData(mapped.length ? mapped : null);
+            // Una lista vacía es una respuesta válida: significa vacío, no error.
+            setRealData(mapped);
+            setErrorFuente(null);
             if (!countRes.error && typeof countRes.count === "number") setTotal(countRes.count);
-        } catch {
+        } catch (e) {
             setRealData(null);
+            setErrorFuente(e);
+        } finally {
+            setCargando(false);
         }
     }, [supabase]);
 
@@ -115,9 +116,10 @@ export function CulturalFeedWidget() {
         return () => { active = false; supabase.removeChannel(ch); };
     }, [supabase, reload]);
 
-    const hasReal = realData !== null;
-    // Tres niveles de fallback: real → mock → sample
-    const data = realData ?? mockData ?? mapSamplePosts();
+    // Única fuente: `cafe_posts`. Sin ella no hay nada que enseñar.
+    const data = realData ?? SIN_OBRAS;
+    // Estado honesto del widget (error > cargando > vacío > listo).
+    const estado = estadoDe({ cargando, error: errorFuente, datos: realData });
 
     const [likes, setLikes] = useState<Record<string, boolean>>({});
     const [saves, setSaves] = useState<Record<string, boolean>>({});
@@ -127,12 +129,28 @@ export function CulturalFeedWidget() {
     const kinds = useMemo(() => Array.from(new Set((data ?? []).map((i) => i.kind))), [data]);
     const openItem = openId ? (data ?? []).find((i) => i.id === openId) ?? null : null;
 
+    // Cargando, vacío y error salen del marco común (un único marco: no se
+    // duplica la cabecera del WidgetShell). El vacío usa `mensajeVacio`.
+    if (estado !== "listo") {
+        return (
+            <MarcoWidget
+                titulo="Corriente Cultural"
+                categoria="cultura"
+                icono={<Palette />}
+                cargando={estado === "cargando"}
+                error={errorFuente}
+                vacio={estado === "vacio"}
+                onReintentar={() => { void reload(); }}
+            >
+                {null}
+            </MarcoWidget>
+        );
+    }
+
     return (
         <WidgetShell
             title="Corriente Cultural"
-            subtitle={hasReal
-                ? (total !== null ? `${INT_ES.format(total)} obras · en vivo` : "Creaciones · en vivo")
-                : "Obras · eventos · manifiestos"}
+            subtitle={total !== null ? `${INT_ES.format(total)} obras · en vivo` : "Creaciones · en vivo"}
             icon={Palette}
             accent="#ec4899"
             expandHref="/network/culture"
@@ -145,12 +163,11 @@ export function CulturalFeedWidget() {
             }
             footer={
                 <p className="text-[9px] uppercase tracking-[0.16em] font-bold text-muted-foreground/50 text-center">
-                    {hasReal ? "Corriente del Café · datos en vivo" : "Corriente cultural · modo simulado"}
+                    Corriente del Café · datos en vivo
                 </p>
             }
         >
             {(size) => {
-                if (loading || !data) return <div className="h-full rounded-2xl bg-muted/15 animate-pulse" />;
                 const micro = size.tier === "micro" || size.vTier === "micro";
 
                 // ── Vista ampliada de una obra ──
@@ -243,7 +260,8 @@ export function CulturalFeedWidget() {
                                         const liked = !!likes[item.id];
                                         const saved = !!saves[item.id];
                                         const isTop = !micro && item.id === topId;
-                                        const thumbUrl = picsumCover(item.id);
+                                        // Sin portada real todavía: no se pinta una foto de
+                                        // relleno haciéndola pasar por la imagen de la obra.
                                         const avatarUrl = size.vTier === "expanded" ? diceBearAvatar(item.author, "glass") : null;
                                         return (
                                             <motion.div
@@ -296,13 +314,6 @@ export function CulturalFeedWidget() {
                                                                 </div>
                                                             )}
                                                         </div>
-                                                        {/* Thumbnail (no micro) */}
-                                                        {!micro && (
-                                                            // eslint-disable-next-line @next/next/no-img-element
-                                                            <img src={thumbUrl} alt="" aria-hidden width={60} height={40}
-                                                                className="shrink-0 rounded-lg object-cover border border-border/30"
-                                                                style={{ width: 60, height: 40 }} />
-                                                        )}
                                                     </div>
                                                 </button>
                                                 {!micro && (

@@ -5,19 +5,23 @@ import Link from "next/link";
 import { motion, useReducedMotion } from "framer-motion";
 import { Layers, Heart, MessageSquare, Repeat2, ChevronRight, Flame, Globe, MapPin, Home } from "lucide-react";
 import { WidgetShell, Chip, timeAgo } from "../kit";
+import { MarcoWidget } from "@/components/dashboard/kit/marco-widget";
+import { estadoDe } from "@/components/dashboard/calidad-widget";
 import { useAppearance } from "@/context/appearance-context";
-import { useWidgetData } from "@/lib/widget-data";
 import type { Post } from "@/lib/widget-data";
 import { createClient } from "@/utils/supabase/client";
-import { samplePosts, diceBearAvatar } from "@/data/sample-entities";
+// Identicón determinista derivado del handle real: no aporta contenido
+// inventado, solo la imagen del avatar de una persona que sí existe.
+import { diceBearAvatar } from "@/data/sample-entities";
 
 // ════════════════════════════════════════════════════════════════
 // RelevantPostsWidget — publicaciones más resonantes para ti.
 // Lee publicaciones reales de la comunidad (`cafe_posts` en la base del OS,
 // Supabase `nxstilnyidvkqeosofuh` -- NO `dzkjapinnewkxzjltadv`, que es la de
 // Nexus/Cafe y NO comparte cuentas; corregido 2026-07-12) con conteo total. Realtime:
-// suscripción a `cafe_posts` (postgres_changes). Si no hay datos o
-// falla, cae con elegancia a la corriente simulada "social.posts".
+// suscripción a `cafe_posts` (postgres_changes). Si `cafe_posts` no devuelve
+// nada, el widget enseña el vacío honesto del marco común: nunca publicaciones
+// de ejemplo disfrazadas de reales (Ola 305 · zW4).
 // Diseño data-driven: la resonancia define el estado (viral/resonando/
 // emergente) y tiñe acentos. Filtro por alcance. Adaptativo + theme.
 // ════════════════════════════════════════════════════════════════
@@ -101,21 +105,8 @@ function mapCafePosts(rows: CafePostRow[]): Post[] {
     });
 }
 
-/** Convierte SamplePost al shape Post usado por el widget. */
-function samplePostsAsFallback(): Post[] {
-    return samplePosts.map((sp, i) => ({
-        id: sp.id,
-        author: sp.authorName,
-        handle: (sp.authorHandle ?? "").replace("@", ""),
-        content: [sp.title, sp.body].filter(Boolean).join(" — ") || sp.body || "",
-        ts: new Date(sp.createdAt).getTime(),
-        resonance: 0.55 + (i / samplePosts.length) * 0.4,
-        comments: sp.commentsCount,
-        boosts: Math.floor(sp.likes / 10),
-        tags: [sp.kind].filter(Boolean),
-        scope: sp.system === "politico" ? "global" : sp.system === "educativo" ? "biorregional" : "vecinal",
-    }));
-}
+/** Lista estable para el caso «todavía no hay publicaciones reales». */
+const SIN_PUBLICACIONES: Post[] = [];
 
 const INT_ES = new Intl.NumberFormat("es-ES", { maximumFractionDigits: 0 });
 
@@ -126,14 +117,16 @@ export function RelevantPostsWidget() {
     const prefersReduced = useReducedMotion();
     const animate = config.animations.enabled && !prefersReduced;
 
-    const { data: mockData, loading } = useWidgetData("social.posts", { refreshMs: 8000 });
     const supabase = useMemo(() => createClient(), []);
     const [realData, setRealData] = useState<Post[] | null>(null);
     const [total, setTotal] = useState<number | null>(null);
+    const [cargando, setCargando] = useState(true);
+    const [errorFuente, setErrorFuente] = useState<unknown>(null);
     const [scope, setScope] = useState<ScopeFilter>("todos");
     const [liked, setLiked] = useState<Set<string>>(() => new Set());
 
     const reload = useCallback(async () => {
+        setCargando(true);
         try {
             const [rowsRes, countRes] = await Promise.all([
                 supabase.from("cafe_posts")
@@ -143,10 +136,15 @@ export function RelevantPostsWidget() {
             ]);
             if (rowsRes.error) throw rowsRes.error;
             const mapped = mapCafePosts((rowsRes.data ?? []) as CafePostRow[]);
-            setRealData(mapped.length ? mapped : null);
+            // Una lista vacía es una respuesta válida: significa vacío, no error.
+            setRealData(mapped);
+            setErrorFuente(null);
             if (!countRes.error && typeof countRes.count === "number") setTotal(countRes.count);
-        } catch {
+        } catch (e) {
             setRealData(null);
+            setErrorFuente(e);
+        } finally {
+            setCargando(false);
         }
     }, [supabase]);
 
@@ -160,9 +158,10 @@ export function RelevantPostsWidget() {
         return () => { active = false; supabase.removeChannel(ch); };
     }, [supabase, reload]);
 
-    const hasReal = realData !== null;
-    // Cascada de datos: real → mockData → samplePosts enriquecidos
-    const data = realData ?? mockData ?? samplePostsAsFallback();
+    // Única fuente: `cafe_posts`. Sin ella no hay nada que enseñar.
+    const data = realData ?? SIN_PUBLICACIONES;
+    // Estado honesto del widget (error > cargando > vacío > listo).
+    const estado = estadoDe({ cargando, error: errorFuente, datos: realData });
 
     const sortedAll = useMemo(() => [...data].sort((a, b) => b.resonance - a.resonance), [data]);
     const filtered = useMemo(
@@ -189,12 +188,28 @@ export function RelevantPostsWidget() {
         setLiked(prev => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s; });
     }
 
+    // Cargando, vacío y error salen del marco común (un único marco: no se
+    // duplica la cabecera del WidgetShell). El vacío usa `mensajeVacio`.
+    if (estado !== "listo") {
+        return (
+            <MarcoWidget
+                titulo="Publicaciones Relevantes"
+                categoria="social"
+                icono={<Layers />}
+                cargando={estado === "cargando"}
+                error={errorFuente}
+                vacio={estado === "vacio"}
+                onReintentar={() => { void reload(); }}
+            >
+                {null}
+            </MarcoWidget>
+        );
+    }
+
     return (
         <WidgetShell
             title="Publicaciones Relevantes"
-            subtitle={hasReal
-                ? (total !== null ? `${INT_ES.format(total)} publicaciones · en vivo` : "Comunidad · en vivo")
-                : "Lo que más resuena contigo"}
+            subtitle={total !== null ? `${INT_ES.format(total)} publicaciones · en vivo` : "Comunidad · en vivo"}
             icon={Layers}
             accent="#a855f7"
             live
@@ -207,19 +222,20 @@ export function RelevantPostsWidget() {
             }
             footer={
                 <p className="text-[9px] uppercase tracking-[0.16em] font-bold text-muted-foreground/50 text-center">
-                    {hasReal ? "Publicaciones del Café · datos en vivo" : "Corriente social · modo simulado"}
+                    Publicaciones del Café · datos en vivo
                 </p>
             }
         >
             {(size) => {
-                if (loading || !data) return <div className="h-full rounded-2xl bg-muted/15 animate-pulse" />;
                 const micro = size.tier === "micro" || size.vTier === "micro";
                 const isExpanded = size.vTier === "expanded";
 
                 // ── Micro: top post resonante compacto ─────────────
                 if (micro) {
                     const top = sortedAll[0];
-                    if (!top) return <div className="h-full grid place-items-center text-xs text-muted-foreground/50 italic">Sin publicaciones</div>;
+                    // En «listo» siempre hay al menos una publicación real; el
+                    // vacío lo pinta el marco común, no un texto suelto aquí.
+                    if (!top) return null;
                     const st = resonanceState(top.resonance);
                     const sc = SCOPE_META[top.scope];
                     return (
