@@ -96,6 +96,60 @@ describe("validarAccionUi · desconfía del modelo", () => {
   });
 });
 
+describe("recorte por comodín · las ramas `.*` sobreviven enteras", () => {
+  it("«apariencia» conserva las hojas de styling.*", () => {
+    const r = validarAccionUi({
+      ...base(),
+      tipo: "apariencia",
+      parche: { styling: { radius: 1.2, glassIntensity: 18 }, layout: { menuPosition: "top" } },
+    });
+    expect(r).not.toBeNull();
+    expect(r?.parche).toEqual({ styling: { radius: 1.2, glassIntensity: 18 } });
+  });
+
+  it("«distribucion» conserva las hojas de layout.*", () => {
+    const r = validarAccionUi({
+      ...base(),
+      tipo: "distribucion",
+      parche: { layout: { menuPosition: "right", menuStyle: "dock" }, styling: { radius: 9 } },
+    });
+    expect(r).not.toBeNull();
+    expect(r?.parche).toEqual({ layout: { menuPosition: "right", menuStyle: "dock" } });
+  });
+
+  it("«movimiento» conserva las hojas de background.living.*, arrays incluidos", () => {
+    const r = validarAccionUi({
+      ...base(),
+      tipo: "movimiento",
+      parche: {
+        background: {
+          animation: "pulse",
+          living: { variant: "aurora", speed: 0.6, colors: ["#7cf", "#a5f"] },
+        },
+        animations: { enabled: true },
+      },
+    });
+    expect(r).not.toBeNull();
+    expect(r?.parche).toEqual({
+      background: {
+        animation: "pulse",
+        living: { variant: "aurora", speed: 0.6, colors: ["#7cf", "#a5f"] },
+      },
+      animations: { enabled: true },
+    });
+  });
+
+  it("«movimiento» sigue SIN poder tocar background.value", () => {
+    const r = validarAccionUi({
+      ...base(),
+      tipo: "movimiento",
+      parche: { background: { value: "hack", living: { speed: 1.4 } } },
+    });
+    expect(r).not.toBeNull();
+    expect(r?.parche).toEqual({ background: { living: { speed: 1.4 } } });
+  });
+});
+
 describe("describirAccion", () => {
   it("describe los siete tipos con frase legible", () => {
     const frases: Record<string, RegExp> = {
