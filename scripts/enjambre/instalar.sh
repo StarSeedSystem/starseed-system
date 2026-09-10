@@ -1,10 +1,9 @@
 #!/usr/bin/env bash
 # instalar.sh · instala/comprueba/sincroniza el orquestador del enjambre versionado (Ola 259, 2026-09-06)
 #
-# El orquestador starseed-enjambre.py y el lanzador de la nube lanzador.py viven aquí, en el repo,
-# y deben ser idénticos byte a byte a las copias en ejecución:
-#   · Mac de Alex (Darwin): ~/.local/bin/starseed-enjambre.py          (solo el orquestador)
-#   · Nube (Linux):         ~/bin/starseed-enjambre.py + ~/starseed-vigia/lanzador.py
+# El orquestador, sus decisiones puras (`medios.py`) y el lanzador viven aquí, en el repo,
+# y deben ser idénticos byte a byte a las copias instaladas. El módulo se copia junto al
+# orquestador tanto en la Mac como en la nube para que la importación sea autosuficiente.
 #
 # Uso:
 #   ./instalar.sh             → instala (copia repo → máquina, cp -p + chmod +x, sin sudo)
@@ -36,6 +35,7 @@ case "$OS" in
     exit 2
     ;;
 esac
+DEST_MEDIOS="$(dirname "$DEST_ENJAMBRE")/medios.py"
 
 # md5 portable: macOS trae `md5 -q`, Linux `md5sum`.
 if command -v md5 >/dev/null 2>&1; then
@@ -85,6 +85,7 @@ compara_par() {
 }
 
 SRC_ENJAMBRE="$ORIGEN_DIR/starseed-enjambre.py"
+SRC_MEDIOS="$ORIGEN_DIR/medios.py"
 SRC_LANZADOR="$ORIGEN_DIR/lanzador.py"
 
 case "${1:-}" in
@@ -92,6 +93,7 @@ case "${1:-}" in
     echo "Comparando md5 (repo vs instalado)…"
     ok=0
     compara_par "orquestador" "$SRC_ENJAMBRE" "$DEST_ENJAMBRE" || ok=1
+    compara_par "decisiones de medios" "$SRC_MEDIOS" "$DEST_MEDIOS" || ok=1
     if [ -n "$DEST_LANZADOR" ]; then
       compara_par "lanzador" "$SRC_LANZADOR" "$DEST_LANZADOR" || ok=1
     fi
@@ -100,6 +102,11 @@ case "${1:-}" in
   --traer)
     echo "Trayendo las copias instaladas al repo…"
     copia_de "$DEST_ENJAMBRE" "$SRC_ENJAMBRE"
+    if [ -f "$DEST_MEDIOS" ]; then
+      copia_de "$DEST_MEDIOS" "$SRC_MEDIOS"
+    else
+      echo "  medios.py aún no está instalado; conservo la fuente del repo"
+    fi
     if [ -n "$DEST_LANZADOR" ]; then
       copia_de "$DEST_LANZADOR" "$SRC_LANZADOR"
     fi
@@ -112,6 +119,8 @@ case "${1:-}" in
     echo "Instalando en ${OS}…"
     echo "  origen orquestador [md5 $(md5_de "$SRC_ENJAMBRE")]"
     copia_de "$SRC_ENJAMBRE" "$DEST_ENJAMBRE"
+    echo "  origen medios      [md5 $(md5_de "$SRC_MEDIOS")]"
+    copia_de "$SRC_MEDIOS" "$DEST_MEDIOS"
     if [ -n "$DEST_LANZADOR" ]; then
       echo "  origen lanzador    [md5 $(md5_de "$SRC_LANZADOR")]"
       copia_de "$SRC_LANZADOR" "$DEST_LANZADOR"
