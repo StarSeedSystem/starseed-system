@@ -20,10 +20,10 @@
     "hermes": {
       "producto": "Hermes Agent",
       "proyecto": "starseed-os",
-      "como_volver": "hermes --continue 20260909_210504_867626",
+      "como_volver": "hermes --resume 20260909_210504_867626   (interactivo, sin -z)",
       "id": "20260909_210504_867626",
       "fijado": true,
-      "nota": "Fijado con `hermes sessions pin`: no lo barre el archivado automatico y sale siempre arriba en la barra lateral."
+      "nota": "Fijado con `hermes sessions pin`: sale siempre arriba en la barra lateral y el archivado automatico no lo toca. OJO: el modo de una sola orden (`hermes -z`) SIEMPRE abre una sesion nueva, aunque le pases --resume o --continue; para volver de verdad al principal hay que abrirlo interactivamente (`hermes --resume 20260909_210504_867626` sin -z, o pinchandolo en la barra lateral)."
     },
     "antigravity": {
       "producto": "Antigravity IDE",
