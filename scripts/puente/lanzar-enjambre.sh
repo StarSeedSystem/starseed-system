@@ -2,7 +2,7 @@
 # Arranca EL orquestador (uno solo, nunca dos) con las claves cargadas del entorno.
 #   bash scripts/puente/lanzar-enjambre.sh [cola.json] [trabajadores]
 RAIZ="${STARSEED_ROOT:-/Users/alex/Documents/starseed-os-main}"
-COLA="${1:-starseed_memory_root/olas/cola-310-puertas-y-pendientes.json}"
+COLA="${1:-starseed_memory_root/olas/cola-310-puertas-y-pendientes.json}"   # el vigilante le pasa la suya
 N="${2:-5}"
 cd "$RAIZ" || exit 1
 # Cuenta SOLO procesos cuya orden EMPIEZA por un python: el texto del prompt que se le
