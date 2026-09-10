@@ -202,6 +202,15 @@ describe("clavesPresentes (Ola 271 · M9B)", () => {
             guardadas.set(nombre, process.env[nombre]);
             delete process.env[nombre];
         }
+        // Cualquier otra variable del proceso que parezca una clave de proveedor
+        // (`*_API_KEY`, `*_KEY`, pasarelas `STARSEED_PASARELA_*`): también aporta
+        // claves «de proceso» y ensucia la prueba si la máquina la tiene puesta.
+        for (const nombre of Object.keys(process.env)) {
+            if (!/(_API_KEY|_KEY|_TOKEN)(_\d+)?$/.test(nombre) && !/^STARSEED_PASARELA_/.test(nombre)) continue;
+            if (guardadas.has(nombre)) continue;
+            guardadas.set(nombre, process.env[nombre]);
+            delete process.env[nombre];
+        }
     });
 
     afterEach(async () => {

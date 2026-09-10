@@ -143,11 +143,8 @@ export function PostFeed({
         return () => {
             offGlobal();
             offChannel();
-            // (Ola 224) Limpia el temporizador pendiente de deduplicación al desmontar.
-            if (dedupeTimer.current) {
-                clearTimeout(dedupeTimer.current);
-                dedupeTimer.current = null;
-            }
+            // La limpieza del timer de deduplicación vive en el useEffect de
+            // desmontaje dedicado (arriba), no aquí.
         };
     }, [refetchDedupe, channelKey]);
 
