@@ -1436,9 +1436,9 @@ def guardar_prog(prog):
         try:
             with open(PROG_JSON, encoding="utf-8") as f:
                 disco = json.load(f)
-            for k, v in disco.items():
-                if k not in prog or (MIAS and k not in MIAS):
-                    prog[k] = v
+            fundido = fusionar_progreso(prog, disco, MIAS)
+            prog.clear()
+            prog.update(fundido)
         except Exception:
             pass
         json.dump(prog, open(PROG_JSON, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
@@ -1447,6 +1447,23 @@ def guardar_prog(prog):
             lines.append("- **%s** · %s · %s · %ss · %s" % (tid, t.get("estado"), t.get("modelo", ""), t.get("segundos", 0), t.get("nota", "")))
         open(PROG_MD, "w", encoding="utf-8").write("\n".join(lines) + "\n")
 PROG = cargar_prog()
+
+# Estados que nunca puede deshacer una corrida vieja. Si el Mando o un IDE ya
+# registró una integración/rechazo mientras este proceso conservaba una copia
+# anterior en memoria, la verdad persistida manda (2026-09-10 · Puente).
+PROGRESO_IRREVERSIBLE = {"commit", "bloqueante", "sustituida", "rechazada"}
+
+
+def fusionar_progreso(memoria, disco, propias):
+    """Funde dos fotos sin permitir que una tarea cerrada vuelva a `en_curso`."""
+    salida = dict(memoria)
+    for tid, valor in disco.items():
+        estado = valor.get("estado") if isinstance(valor, dict) else ""
+        if tid not in salida or (propias and tid not in propias) or estado in PROGRESO_IRREVERSIBLE:
+            salida[tid] = valor
+    return salida
+
+
 def set_estado(tid, **kw):
     PROG.setdefault(tid, {}).update(kw); guardar_prog(PROG)
 
