@@ -131,14 +131,20 @@ def cmd_escuchar():
 # puesto de mando. Aquí está apuntado, con nombre fijo y con la orden exacta
 # para volver a él. Los hilos de tarea se llaman «ola/<id> · …» y no se apuntan:
 # el prefijo ya los separa.
-CHATS = os.path.join(RAIZ, "starseed_memory_root", "mando", "chats.json")
+# Vive en el REPOSITORIO, no en starseed_memory_root: esa carpeta no se versiona y muere
+# con la maquina, y este registro tiene que viajar con el proyecto a cualquier entorno.
+CHATS = os.path.join(RAIZ, "scripts", "puente", "chats.json")
+_CHATS_LOCAL = os.path.join(RAIZ, "starseed_memory_root", "mando", "chats.json")
 
 
 def _chats():
-    try:
-        return json.load(open(CHATS, encoding="utf-8"))
-    except Exception:
-        return {}
+    """El del repositorio manda; el local solo si alguien lo puso a mano."""
+    for ruta in (CHATS, _CHATS_LOCAL):
+        try:
+            return json.load(open(ruta, encoding="utf-8"))
+        except Exception:
+            continue
+    return {}
 
 
 def cmd_chats():

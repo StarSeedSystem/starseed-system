@@ -1,0 +1,48 @@
+{
+  "_lee_esto_primero": "Registro de los chats PRINCIPALES del Puente de Mando. Uno por entorno, con nombre fijo. Los chats de tarea se llaman «ola/<id> · <titulo>» y NO se apuntan aqui: se distinguen solos por el prefijo. Abre el principal con: starseed-puente chat <entorno>",
+  "nombre_canonico": "PUENTE DE MANDO · StarSeed OS",
+  "prefijo_tareas": "ola/",
+  "proyecto": "starseed-os",
+  "entornos": {
+    "claude": {
+      "producto": "Claude (Cowork)",
+      "proyecto": "StarSeed",
+      "como_volver": "Abre el proyecto StarSeed en la app de Claude; el chat principal es esta conversacion, la del Puente de Mando.",
+      "id": "session_018RMahTwV5WCPD9iPaXmDC3"
+    },
+    "codex": {
+      "producto": "Codex CLI (Astra)",
+      "proyecto": "starseed-os-main",
+      "como_volver": "codex resume 01a08946-ee93-7ef3-a41e-51d6c45e1752",
+      "id": "01a08946-ee93-7ef3-a41e-51d6c45e1752",
+      "modelo": "gpt-5.6-sol"
+    },
+    "hermes": {
+      "producto": "Hermes Agent",
+      "proyecto": "starseed-os",
+      "como_volver": "hermes --continue 20260909_210504_867626",
+      "id": "20260909_210504_867626",
+      "fijado": true,
+      "nota": "Fijado con `hermes sessions pin`: no lo barre el archivado automatico y sale siempre arriba en la barra lateral."
+    },
+    "antigravity": {
+      "producto": "Antigravity IDE",
+      "proyecto": "starseed-os-main",
+      "como_volver": "open -a 'Antigravity IDE' /Users/alex/Documents/starseed-os-main",
+      "id": null,
+      "nota": "El chat vive en el espacio de trabajo del repositorio; lee gemini.md y AGENTS.md al abrirse."
+    },
+    "telegram": {
+      "producto": "Telegram (puente movil)",
+      "proyecto": "starseed-os",
+      "como_volver": "El bot escribe y escucha en el chat de TELEGRAM_CHAT_ID; /ayuda lista las ordenes.",
+      "id": null,
+      "temas": {
+        "PUENTE DE MANDO": "el hilo principal: ordenes y estado",
+        "olas": "avance de cada tarea, un mensaje por hito",
+        "avisos": "proveedor sin cuota, tarea colgada, puerta de aprobacion, puertas en rojo"
+      },
+      "nota": "Necesita TELEGRAM_BOT_TOKEN y TELEGRAM_CHAT_ID en el entorno. Los temas solo se usan si el chat es un grupo con temas activados."
+    }
+  }
+}
