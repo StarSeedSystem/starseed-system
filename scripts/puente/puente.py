@@ -247,7 +247,11 @@ def orden(accion, ids, extra=None):
     cola, _, _ = cola_viva()
     if not cola:
         print("No hay cola viva: no hay a quién dar la orden."); return 1
-    ruta = os.path.join(OLAS, "control-%s.json" % cola)
+    # El orquestador construye el nombre con splitext(): «cola-310-…» SIN extension.
+    # `cola_viva()` la devuelve CON ella, asi que hay que quitarsela o sale
+    # «control-cola-310-….json.json», un archivo que nadie lee nunca. Estuvo asi desde el
+    # primer dia: ninguna orden de aprobar, soltar o reasignar llego al vigilante.
+    ruta = os.path.join(OLAS, "control-%s.json" % (cola[:-5] if cola.endswith(".json") else cola))
     try:
         d = json.load(open(ruta, encoding="utf-8"))
     except Exception:
