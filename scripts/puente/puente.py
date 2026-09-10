@@ -23,19 +23,32 @@ el chat de Antigravity o esta sesión de Claude— ve y dirige exactamente lo mi
   starseed-puente escuchar               # sigue el canal EN VIVO (chat principal)
   starseed-puente briefing               # el texto para pegar en un chat nuevo
 """
-import json, os, subprocess, sys, time, urllib.request
+import json, os, socket, subprocess, sys, time, urllib.request
 
 RAIZ = os.environ.get("STARSEED_ROOT") or "/Users/alex/Documents/starseed-os-main"
 MANDO = os.environ.get("STARSEED_MANDO_URL") or "http://localhost:9002"
 OLAS = os.path.join(RAIZ, "starseed_memory_root", "olas")
 
 
-def api(ruta, espera=8):
-    try:
-        with urllib.request.urlopen("%s/api/mando/%s" % (MANDO, ruta), timeout=espera) as r:
-            return json.load(r)
-    except Exception as e:
-        return {"_error": "%s: %s" % (type(e).__name__, e)}
+def api(ruta, espera=25, intentos=3):
+    """Pregunta al Mando, con paciencia y sin mentir.
+
+    Esta Mac trabaja con el enjambre encima y a veces con `load` por encima de 13: una
+    consulta que normalmente tarda 20 ms puede tardar segundos. Con un solo intento y 8 s
+    de plazo, el CLI declaraba «Mando APAGADO» con el Mando perfectamente vivo, y eso es
+    justo lo que los cuatro chats repetían. Ahora reintenta y distingue las dos cosas:
+    no responder a tiempo NO es estar apagado."""
+    ultimo = None
+    for i in range(intentos):
+        try:
+            with urllib.request.urlopen("%s/api/mando/%s" % (MANDO, ruta), timeout=espera) as r:
+                return json.load(r)
+        except Exception as e:
+            ultimo = e
+            if i + 1 < intentos:
+                time.sleep(1.5)
+    lento = isinstance(ultimo, (TimeoutError, socket.timeout)) or "timed out" in str(ultimo)
+    return {"_error": "%s: %s" % (type(ultimo).__name__, ultimo), "_lento": lento}
 
 
 def cola_viva():
@@ -178,7 +191,12 @@ def cmd_chat(cual):
 def cmd_estado():
     e = api("estado")
     if "_error" in e:
-        print("Mando APAGADO (%s).\nLevántalo:  bash scripts/puente/arrancar-mando.sh" % e["_error"])
+        if e.get("_lento"):
+            print("Mando VIVO pero lento: no contestó en 25 s tras 3 intentos.")
+            print("No está apagado; la máquina está saturada. Mira quién come CPU:")
+            print("  ps -eo pid,%cpu,rss,comm -r | head -5")
+        else:
+            print("Mando APAGADO (%s).\nLevántalo:  bash scripts/puente/arrancar-mando.sh" % e["_error"])
     else:
         c = e.get("cuentas") or {}
         u = c.get("ultimas") or {}
