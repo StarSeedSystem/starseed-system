@@ -89,15 +89,21 @@ function esRutaPermitida(ruta: string, exactas: Set<string>, prefijos: Set<strin
 }
 
 function puedeDescender(ruta: string, exactas: Set<string>, prefijos: Set<string>): boolean {
-  if (exactas.has(ruta)) return true;
+  // La propia ruta ya está permitida — sea por nombre exacto o porque cuelga
+  // de un comodín `.*` («background.living.colors» bajo «background.living.*»).
+  // Sin esta comprobación NINGUNA hoja de una rama con comodín sobrevivía y
+  // los tipos `apariencia`, `distribucion` y `movimiento` se vaciaban enteros.
+  if (esRutaPermitida(ruta, exactas, prefijos)) return true;
   // Una rama intermedia («typography») no aparece como tal en la lista: solo
   // aparecen sus hojas («typography.scale»). Hay que poder bajar por ella o
   // los tipos sin comodín `.*` se quedarían sin NINGUNA ruta viva.
   for (const e of exactas) {
     if (e.startsWith(ruta + ".")) return true;
   }
+  // Lo mismo para las ramas que solo llevan a un comodín más abajo
+  // («background» es camino hacia «background.living.*»).
   for (const p of prefijos) {
-    if (p === ruta || p.startsWith(ruta + ".")) return true;
+    if (p.startsWith(ruta + ".")) return true;
   }
   return false;
 }
