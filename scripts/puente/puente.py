@@ -16,6 +16,7 @@ el chat de Antigravity o esta sesión de Claude— ve y dirige exactamente lo mi
   starseed-puente reasignar <id> <modelo>
   starseed-puente cola                   # qué cola corre y qué queda
   starseed-puente puertas                # tsc · vitest · build · sin publicar
+  starseed-puente integrada <id> [...]   # avisa: esa tarea YA esta en main
   starseed-puente chats                  # cual es el chat PRINCIPAL de cada entorno
   starseed-puente chat <entorno>         # abre/retoma ese chat principal
   starseed-puente decir "<texto>"        # habla en el canal comun de los 4 entornos
@@ -188,6 +189,30 @@ def cmd_chat(cual):
     return subprocess.call(orden, shell=True)
 
 
+def cmd_integrada(ids, sha=""):
+    """Avisa al orquestador de que una tarea YA esta en main.
+
+    Cuando un agente de un IDE escribe una tarea y la integramos por fuera, el
+    orquestador no se entera: la vuelve a intentar, encuentra el codigo ya puesto,
+    la anota «sin cambios» y con eso BLOQUEA a todas las que dependian de ella.
+    Paso de verdad: 15 de 16 tareas de una cola ya estaban en main y el enjambre
+    se quedo sin trabajo real creyendo que habia fallado.
+    Regla: integrar por fuera y no decirlo aqui es dejar el enjambre a ciegas."""
+    ruta = os.path.join(OLAS, "progreso.json")
+    try:
+        d = json.load(open(ruta, encoding="utf-8"))
+    except Exception:
+        d = {}
+    for i in ids:
+        d[i] = {"estado": "commit", "sha": sha or "integrada-fuera-del-orquestador",
+                "modelo": _quien(), "nota": "integrada en main desde un IDE",
+                "t": time.strftime("%Y-%m-%d %H:%M:%S")}
+    json.dump(d, open(ruta, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+    decir("integradas en main: %s" % ", ".join(ids), None, "hecho")
+    print("Marcadas como integradas: %s\nEl enjambre ya no las reintenta ni bloquea a sus dependientes."
+          % ", ".join(ids))
+
+
 def cmd_estado():
     e = api("estado")
     if "_error" in e:
@@ -311,6 +336,11 @@ def main():
         print(_pinta(decir(texto, de, tipo, tarea)))
     elif c == "mensajes": cmd_mensajes(a[1] if len(a) > 1 else 30)
     elif c == "escuchar": cmd_escuchar()
+    elif c == "integrada":
+        if len(a) < 2: print("uso: integrada <id> [<id>...] [--sha <sha>]"); return 1
+        sha = a[a.index("--sha") + 1] if "--sha" in a else ""
+        ids = [x for x in a[1:] if not x.startswith("--") and x != sha]
+        cmd_integrada(ids, sha)
     elif c == "chats": cmd_chats()
     elif c == "chat":
         if len(a) < 2: cmd_chats(); return 0

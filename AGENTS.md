@@ -64,6 +64,16 @@ starseed-puente chat codex       # lo abre o lo retoma
 El registro vive en `starseed_memory_root/mando/chats.json`. Si creas un hilo nuevo, **ponle el
 prefijo** y no lo apuntes ahí: el registro es solo para los principales, uno por entorno.
 
+### Si integras una tarea desde tu IDE, dilo
+
+```bash
+starseed-puente integrada <id> [<id>...] [--sha <sha>]
+```
+
+El orquestador no ve lo que integras por fuera. Si no se lo dices, la reintenta, se encuentra el
+código ya puesto, la anota «sin cambios» y **bloquea a todas las que dependían de ella**. Pasó de
+verdad: una cola de 16 terminó con 9 «sin cambios» y 5 «bloqueadas» cuando 15 ya estaban en `main`.
+
 ## Habla en el canal común: es el chat principal de los cuatro
 
 Todo lo que digas —un resultado, un avance, un aviso, una duda, un comentario— va al **mismo
