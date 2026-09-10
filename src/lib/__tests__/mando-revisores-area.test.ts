@@ -28,12 +28,24 @@ function sugerencia(parcial: Partial<SugerenciaAstra> & { id: string; titulo: st
 
 describe("Revisores continuos por área", () => {
   describe("AREAS_REVISADAS", () => {
-    it("tiene al menos 8 áreas con id únicos, rutas y cadencia > 0", () => {
-      expect(AREAS_REVISADAS.length).toBeGreaterThanOrEqual(8);
+    it("cataloga las nueve áreas con ids estables y criterios completos", () => {
+      expect(AREAS_REVISADAS.map((a) => a.id)).toEqual([
+        "interfaz-diseno",
+        "accesibilidad",
+        "arquitectura",
+        "codigo-muerto",
+        "rendimiento",
+        "enjambre-economia",
+        "canales-contenido",
+        "memorias-privacidad",
+        "descubribilidad",
+      ]);
       const ids = AREAS_REVISADAS.map((a) => a.id);
       expect(new Set(ids).size).toBe(ids.length);
       for (const a of AREAS_REVISADAS) {
         expect(a.rutas.length).toBeGreaterThan(0);
+        expect(a.busca.length).toBeGreaterThanOrEqual(3);
+        expect(Number.isFinite(a.cadenciaHoras)).toBe(true);
         expect(a.cadenciaHoras).toBeGreaterThan(0);
       }
     });
@@ -61,9 +73,25 @@ describe("Revisores continuos por área", () => {
       expect(r.toca).toBe(true);
     });
 
+    it("toca justo al cumplir la cadencia", () => {
+      expect(tocaRevisar(area, "2026-09-09T06:00:00Z", ahora).toca).toBe(true);
+    });
+
     it("sin revisión previa → siempre toca", () => {
       expect(tocaRevisar(area, "", ahora).toca).toBe(true);
       expect(tocaRevisar(area, "basura-inválida", ahora).toca).toBe(true);
+    });
+
+    it("no entra en bucle con un reloj futuro o una hora actual inválida", () => {
+      expect(tocaRevisar(area, "2026-09-10T12:00:00Z", ahora).toca).toBe(false);
+      const invalida = tocaRevisar(area, "", new Date("fecha-inválida"));
+      expect(invalida.toca).toBe(false);
+      expect(invalida.motivo).toContain("no es válida");
+    });
+
+    it("usa una cadencia segura ante valores no finitos", () => {
+      const corrupta = { ...area, cadenciaHoras: Number.POSITIVE_INFINITY };
+      expect(tocaRevisar(corrupta, "2026-09-08T11:00:00Z", ahora).toca).toBe(true);
     });
   });
 
@@ -78,6 +106,19 @@ describe("Revisores continuos por área", () => {
       // a: 9 h atrás (3 h de atraso), b: 7 h atrás (1 h de atraso).
       const r = siguienteArea(areas, { a: "2026-09-09T03:00:00Z", b: "2026-09-09T05:00:00Z" }, ahora);
       expect(r?.id).toBe("a");
+    });
+
+    it("compara el atraso relativo a la cadencia de cada área", () => {
+      const distintas: AreaRevisada[] = [
+        { ...areas[0], cadenciaHoras: 2 },
+        { ...areas[1], cadenciaHoras: 10 },
+      ];
+      const r = siguienteArea(distintas, { a: "2026-09-09T08:00:00Z", b: "2026-09-08T21:00:00Z" }, ahora);
+      expect(r?.id).toBe("a");
+    });
+
+    it("prioriza en orden de catálogo las áreas nunca revisadas", () => {
+      expect(siguienteArea(areas, {}, ahora)?.id).toBe("a");
     });
 
     it("devuelve null si ninguna toca", () => {
@@ -96,32 +137,47 @@ describe("Revisores continuos por área", () => {
       papel: "disenador",
     };
 
-    it("menciona el área, la palabra JSON y la palabra archivo", () => {
+    it("delimita el área, exige JSON y explica la escala de puntuación", () => {
       const { system, user } = promptRevisorArea(area, "contexto de prueba");
       const todo = `${system}\n${user}`;
       expect(todo).toContain("Diseño");
       expect(todo).toMatch(/JSON/);
       expect(todo).toMatch(/archivo/);
+      expect(todo).toContain("CÓMO PUNTÚAS");
+      expect(todo).toContain("impacto × 2 − esfuerzo − riesgo");
+      expect(todo).toContain('ambito (exactamente "diseno")');
     });
 
-    it("no filtra claves por accidente", () => {
-      const { system, user } = promptRevisorArea(area, "sk-clave-secreta-1234567890");
-      expect(`${system}\n${user}`).not.toMatch(/sk-[A-Za-z0-9]{8,}/);
+    it("incorpora sin alterar el contexto ya preparado por el servidor", () => {
+      const contexto = "archivo.ts:12\n[SECRETO REDACTADO]";
+      const { user } = promptRevisorArea(area, contexto);
+      expect(user).toContain(contexto);
     });
   });
 
   describe("fusionarSugerencias", () => {
-    it("no duplica el mismo título normalizado y sí añade una nueva", () => {
+    it("actualiza el contenido duplicado sin cambiar su id persistido", () => {
       const previa = sugerencia({ id: "p1", titulo: "Mejorar la jerarquía visual" });
-      const duplicada = sugerencia({ id: "n1", titulo: "mejorar la jerarquia   VISUAL!" });
+      const duplicada = sugerencia({
+        id: "n1",
+        titulo: "mejorar la jerarquia   VISUAL!",
+        porque: "Ahora hay evidencia más precisa.",
+      });
       const nueva = sugerencia({ id: "n2", titulo: "Optimizar imágenes" });
 
       const out = fusionarSugerencias([previa], [duplicada, nueva]);
       expect(out).toHaveLength(2);
       expect(out.some((s) => s.id === "n2")).toBe(true);
-      // La más reciente pisa a la anterior en choque: la entrada con id n1 sustituye a p1.
-      expect(out.some((s) => s.id === "n1")).toBe(true);
-      expect(out.some((s) => s.id === "p1")).toBe(false);
+      expect(out[0].id).toBe("p1");
+      expect(out[0].porque).toBe("Ahora hay evidencia más precisa.");
+      expect(out.some((s) => s.id === "n1")).toBe(false);
+    });
+
+    it("considera los archivos y el ámbito al deduplicar", () => {
+      const base = sugerencia({ id: "a", titulo: "Mismo título", archivos: ["uno.ts"] });
+      const otroArchivo = sugerencia({ id: "b", titulo: "Mismo título", archivos: ["dos.ts"] });
+      const otroAmbito = sugerencia({ id: "c", titulo: "Mismo título", ambito: "arquitectura", archivos: ["uno.ts"] });
+      expect(fusionarSugerencias([base], [otroArchivo, otroAmbito])).toHaveLength(3);
     });
   });
 
@@ -138,8 +194,39 @@ describe("Revisores continuos por área", () => {
       expect(t.archivos).toHaveLength(3);
       expect(t.prompt).toContain("src/components/x.tsx:12");
       expect(t.prompt).toContain("3 archivos");
+      expect(t.prompt).toContain("120 líneas");
       expect(t.ola).toBe("ola-301");
       expect(t.titulo).toBe("Quitar componente huérfano");
+      expect(t.modelo.length).toBeGreaterThan(0);
+    });
+
+    it("prioriza la propuesta, deduplica y rechaza rutas que escapan del repositorio", () => {
+      const s = sugerencia({
+        id: "rutas-1",
+        titulo: "Título del hallazgo",
+        archivos: ["src/a.ts", "src/b.ts", "src/c.ts", "src/d.ts"],
+        propuestaDeTarea: {
+          titulo: "Título listo para ejecutar",
+          archivos: ["./src/a.ts", "../fuera.ts", "/tmp/fuera.ts", "C:\\fuera.ts", "https://fuera.test/x.ts"],
+          prompt: "Haz el cambio concreto y conserva la API.",
+        },
+      });
+
+      const t = aTareaDeCola(s, "ola-rutas");
+      expect(t.titulo).toBe("Título listo para ejecutar");
+      expect(t.archivos).toEqual(["src/a.ts", "src/b.ts", "src/c.ts"]);
+      expect(t.prompt).toContain("Haz el cambio concreto y conserva la API.");
+      expect(t.prompt).not.toContain("../fuera.ts");
+      expect(t.prompt).not.toContain("/tmp/fuera.ts");
+    });
+
+    it("genera ids estables y distingue ids que normalizan igual", () => {
+      const conBarra = aTareaDeCola(sugerencia({ id: "uno/dos", titulo: "A" }), "ola");
+      const conEspacio = aTareaDeCola(sugerencia({ id: "uno dos", titulo: "A" }), "ola");
+      const repetida = aTareaDeCola(sugerencia({ id: "uno/dos", titulo: "A" }), "otra-ola");
+      expect(conBarra.id).toBe(repetida.id);
+      expect(conBarra.id).not.toBe(conEspacio.id);
+      expect(conBarra.id).toMatch(/^rev-uno-dos-/);
     });
   });
 });
