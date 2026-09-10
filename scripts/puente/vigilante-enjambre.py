@@ -23,18 +23,21 @@ Telegram se enteran de por qué arrancó o por qué está callado.
 """
 import importlib.util, json, os, subprocess, sys, time
 
+DIRECTORIO = os.path.dirname(os.path.abspath(__file__))
+if DIRECTORIO not in sys.path:
+    sys.path.insert(0, DIRECTORIO)
+from vigilante_logica import es_cola_fuente, seleccionar_pendientes
+
 RAIZ = os.environ.get("STARSEED_ROOT") or "/Users/alex/Documents/starseed-os-main"
 OLAS = os.path.join(RAIZ, "starseed_memory_root", "olas")
 INTERVALO_S = int(os.environ.get("STARSEED_VIGILANTE_S", "90"))
 TRABAJADORES = os.environ.get("STARSEED_TRABAJADORES", "5")
-# Estados de los que no hay que volver a ocuparse.
-TERMINAL = {"commit", "bloqueante", "sustituida", "rechazada"}
 # Un tope por tanda: una cola de noventa tareas es inmanejable y el orquestador
 # se pasa la vida releyendo el progreso en vez de escribir.
 TOPE = int(os.environ.get("STARSEED_TOPE_COLA", "20"))
 
 _spec = importlib.util.spec_from_file_location(
-    "puente", os.path.join(os.path.dirname(os.path.abspath(__file__)), "puente.py"))
+    "puente", os.path.join(DIRECTORIO, "puente.py"))
 _p = importlib.util.module_from_spec(_spec); _spec.loader.exec_module(_p)
 
 
@@ -54,32 +57,32 @@ def orquestador_vivo():
 
 
 def pendientes():
-    """Todo lo que queda por hacer, sin duplicar y sin lo que ya está en main."""
+    """Trabajo real: sin copias `auto-*`, duplicados ni commits ya integrados."""
     try:
         prog = json.load(open(os.path.join(OLAS, "progreso.json"), encoding="utf-8"))
     except Exception:
         prog = {}
-    vistas, cola = set(), []
+    try:
+        asuntos = subprocess.run(
+            ["git", "log", "main", "--format=%s"], cwd=RAIZ,
+            capture_output=True, text=True, timeout=30,
+        ).stdout.splitlines()
+    except Exception:
+        asuntos = []
+    colas = []
     for f in sorted(os.listdir(OLAS), reverse=True):     # las colas nuevas primero
-        if not (f.startswith("cola-") and f.endswith(".json")):
+        if not es_cola_fuente(f):
             continue
         try:
             d = json.load(open(os.path.join(OLAS, f), encoding="utf-8"))
         except Exception:
             continue
-        for t in (d if isinstance(d, list) else d.get("tareas", [])):
-            if not isinstance(t, dict) or "id" not in t or t["id"] in vistas:
-                continue
-            e = prog.get(t["id"])
-            if isinstance(e, dict) and e.get("estado") in TERMINAL:
-                continue
-            vistas.add(t["id"])
-            cola.append(t)
-    return cola
+        colas.append((f, d if isinstance(d, list) else d.get("tareas", [])))
+    return seleccionar_pendientes(colas, prog, asuntos)
 
 
 def lanzar(tareas):
-    nombre = "cola-auto-%s.json" % time.strftime("%m%d-%H%M")
+    nombre = "cola-auto-%s.json" % time.strftime("%m%d-%H%M%S")
     ruta = os.path.join(OLAS, nombre)
     json.dump(tareas, open(ruta, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
     guion = os.path.join(RAIZ, "scripts", "puente", "lanzar-enjambre.sh")
