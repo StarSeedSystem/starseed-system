@@ -17,7 +17,7 @@
 
 import { marcarRitoActivo } from "@/lib/ui/rito-activo";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { CircleDashed, ShieldAlert } from "lucide-react";
+import { CircleDashed, RefreshCw, ShieldAlert } from "lucide-react";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { EstadoMando, ProveedorUso } from "@/lib/mando/tipos";
@@ -34,6 +34,7 @@ import { PanelAjustes } from "@/components/mando/panel-ajustes";
 import { PanelNeurona } from "@/components/mando/panel-neurona";
 import { PanelAprendizaje } from "@/components/mando/panel-aprendizaje";
 import { PanelPublicaciones } from "@/components/mando/panel-publicaciones";
+import { DirectorAgentes } from "@/components/mando/director-agentes";
 // Ola 272 · O3B (2026-09-07): la pestaña «Oficina 3D». El componente carga
 // Three.js, así que entra con `next/dynamic` sin SSR y SOLO se monta al abrir
 // la pestaña (dos barreras: el chunk no baja y el render no se ejecuta hasta que
@@ -85,6 +86,7 @@ const CLAVE_PESTANA = "starseed.mando.pestana";
 /** Pestañas del Centro de Mando, en orden. */
 const PESTANAS = [
     { id: "procesos", etiqueta: "Procesos" },
+    { id: "director", etiqueta: "Director" },
     { id: "oficina", etiqueta: "Oficina 3D" },
     { id: "olas", etiqueta: "Olas e informes" },
     { id: "commits", etiqueta: "Commits pendientes" },
@@ -515,7 +517,20 @@ export function CentroMando() {
                     </div>
                 </div>
             ) : pulso ? (
-                <ul className="flex flex-wrap gap-2" aria-label="Pulso del trabajo">
+                <div className="flex flex-col gap-3">
+                    {/* Botón Actualizar y verificar */}
+                    <div className="flex items-center justify-between gap-3">
+                        <h2 className="text-sm font-semibold text-white/70">Pulso del trabajo</h2>
+                        <button
+                            type="button"
+                            onClick={() => alCambiarPestana("director")}
+                            className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-emerald-400/30 bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-300 transition-colors hover:bg-emerald-500/20"
+                        >
+                            <RefreshCw className="h-3 w-3" />
+                            Actualizar y verificar
+                        </button>
+                    </div>
+                    <ul className="flex flex-wrap gap-2" aria-label="Pulso del trabajo">
                     <DatoPulso titulo="Ola activa" valor={pulso.olaActiva} />
                     {/* (2026-09-09) Alex: «separa los de pendientes de las tareas en curso».
                         Estaban en un solo chip («3 · 128 pendientes») y se leía como un dato
@@ -648,7 +663,8 @@ export function CentroMando() {
                             ) : null}
                         </>
                     ) : null}
-                </ul>
+                    </ul>
+                </div>
             ) : null}
 
             {neurona && neurona.avisos.length > 0 ? (
@@ -675,6 +691,9 @@ export function CentroMando() {
 
                 <TabsContent value="procesos">
                     <PanelProcesos />
+                </TabsContent>
+                <TabsContent value="director">
+                    <DirectorAgentes />
                 </TabsContent>
                 <TabsContent value="oficina">
                     {/* Ola 272 · O3B: Three.js solo se carga al abrir la pestaña.
