@@ -518,7 +518,7 @@ export function CentroMando() {
                 </div>
             ) : pulso ? (
                 <div className="flex flex-col gap-3">
-                    {/* Botón Actualizar y verificar */}
+                    {/* Acceso al director; la navegación no constituye una verificación. */}
                     <div className="flex items-center justify-between gap-3">
                         <h2 className="text-sm font-semibold text-white/70">Pulso del trabajo</h2>
                         <button
@@ -527,7 +527,7 @@ export function CentroMando() {
                             className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-emerald-400/30 bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-300 transition-colors hover:bg-emerald-500/20"
                         >
                             <RefreshCw className="h-3 w-3" />
-                            Actualizar y verificar
+                            Abrir director
                         </button>
                     </div>
                     <ul className="flex flex-wrap gap-2" aria-label="Pulso del trabajo">

@@ -16,15 +16,6 @@ import {
     CircleDashed,
     GitBranch,
     RefreshCw,
-    Zap,
-    Play,
-    Wifi,
-    Plug,
-    CheckCircle,
-    Bot,
-    Settings,
-    ExternalLink,
-    Code2,
 } from "lucide-react";
 
 import type { EstadoMando } from "@/lib/mando/tipos";
@@ -416,111 +407,18 @@ export function PanelProcesos() {
                 )}
             </section>
             
-            {/* Control de Directores de Orquestación */}
-            <section className="rounded-xl border border-white/10 bg-black/30 p-4 backdrop-blur">
-                <header className="mb-3 flex items-center justify-between gap-2">
-                    <h3 className="flex items-center gap-2 text-sm font-semibold text-white">
-                        <Zap className="h-4 w-4 text-emerald-400" aria-hidden />
-                        Control de Directores de Orquestación
-                    </h3>
-                    <div className="flex items-center gap-2">
-                        <button
-                            type="button"
-                            className="inline-flex cursor-pointer items-center gap-1 rounded-md border border-emerald-400/30 px-2 py-1 text-[11px] text-emerald-300 hover:bg-emerald-400/10"
-                        >
-                            <Play className="h-3 w-3" aria-hidden />
-                            Lanzar agentes
-                        </button>
-                        <button
-                            type="button"
-                            className="inline-flex cursor-pointer items-center gap-1 rounded-md border border-white/10 px-2 py-1 text-[11px] text-white/60 hover:bg-white/5"
-                        >
-                            <RefreshCw className="h-3 w-3" aria-hidden />
-                            Actualizar
-                        </button>
-                    </div>
-                </header>
-                
-                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                    <div className="rounded-lg border border-white/5 bg-white/[0.02] p-3">
-                        <div className="flex items-center gap-2 text-[10px] text-white/50">
-                            <Wifi className="h-3 w-3 text-emerald-400" />
-                            Agentes vivos
-                        </div>
-                        <p className="mt-1 text-xl font-bold text-white">2</p>
-                        <p className="text-[10px] text-white/40">Apinex + NVIDIA</p>
-                    </div>
-                    <div className="rounded-lg border border-white/5 bg-white/[0.02] p-3">
-                        <div className="flex items-center gap-2 text-[10px] text-white/50">
-                            <Zap className="h-3 w-3 text-amber-400" />
-                            Tareas ejecutables
-                        </div>
-                        <p className="mt-1 text-xl font-bold text-white">593</p>
-                        <p className="text-[10px] text-white/40">en 47 colas</p>
-                    </div>
-                    <div className="rounded-lg border border-white/5 bg-white/[0.02] p-3">
-                        <div className="flex items-center gap-2 text-[10px] text-white/50">
-                            <Plug className="h-3 w-3 text-violet-400" />
-                            Proveedores vivos
-                        </div>
-                        <p className="mt-1 text-xl font-bold text-white">6</p>
-                        <p className="text-[10px] text-white/40">Apinex, llm7, xkiro...</p>
-                    </div>
-                    <div className="rounded-lg border border-white/5 bg-white/[0.02] p-3">
-                        <div className="flex items-center gap-2 text-[10px] text-white/50">
-                            <CheckCircle className="h-3 w-3 text-emerald-400" />
-                            Tareas hechas
-                        </div>
-                        <p className="mt-1 text-xl font-bold text-emerald-400">10</p>
-                        <p className="text-[10px] text-white/40">últimas olas</p>
-                    </div>
-                </div>
-                
-                {/* Agentes activos */}
-                <div className="mt-4 space-y-2">
-                    <div className="flex items-center justify-between rounded-lg border border-white/5 bg-white/[0.02] px-3 py-2">
-                        <div className="flex items-center gap-2">
-                            <Bot className="h-4 w-4 text-emerald-400" />
-                            <div>
-                                <span className="font-mono text-xs text-white/90">p311A</span>
-                                <span className="ml-2 text-[11px] text-orange-400">esperando-memoria</span>
-                            </div>
-                        </div>
-                        <div className="flex items-center gap-3 text-[11px] text-white/50">
-                            <span>apinex/free/gemini-3.1-pro</span>
-                            <span>41.9 KB</span>
-                        </div>
-                    </div>
-                    <div className="flex items-center justify-between rounded-lg border border-white/5 bg-white/[0.02] px-3 py-2">
-                        <div className="flex items-center gap-2">
-                            <Bot className="h-4 w-4 text-emerald-400" />
-                            <div>
-                                <span className="font-mono text-xs text-white/90">p311B</span>
-                                <span className="ml-2 text-[11px] text-orange-400">esperando-memoria</span>
-                            </div>
-                        </div>
-                        <div className="flex items-center gap-3 text-[11px] text-white/50">
-                            <span>nvidia/moonshotai/kimi-k3</span>
-                            <span>37.7 KB</span>
-                        </div>
-                    </div>
-                </div>
-                
-                {/* Acciones de dirección */}
-                <div className="mt-4 flex flex-wrap gap-2">
-                    <button type="button" className="cursor-pointer rounded-md border border-emerald-400/30 px-3 py-1.5 text-[11px] text-emerald-300 hover:bg-emerald-400/10">
-                        <Zap className="mr-1 inline h-3 w-3" /> Lanzar más agentes
-                    </button>
-                    <button type="button" className="cursor-pointer rounded-md border border-sky-400/30 px-3 py-1.5 text-[11px] text-sky-300 hover:bg-sky-400/10">
-                        <Settings className="mr-1 inline h-3 w-3" /> Configurar proveedores
-                    </button>
-                    <button type="button" className="cursor-pointer rounded-md border border-amber-400/30 px-3 py-1.5 text-[11px] text-amber-300 hover:bg-amber-400/10">
-                        <ExternalLink className="mr-1 inline h-3 w-3" /> Ver MCPs y plugins
-                    </button>
-                    <button type="button" className="cursor-pointer rounded-md border border-violet-400/30 px-3 py-1.5 text-[11px] text-violet-300 hover:bg-violet-400/10">
-                        <Code2 className="mr-1 inline h-3 w-3" /> Procesos programados
-                    </button>
-                </div>
+            <section className="rounded-xl border border-white/10 bg-black/30 p-4">
+                <h3 className="text-sm font-semibold text-white">Dirección de orquestación</h3>
+                <p className="mt-2 text-sm text-white/60">
+                    Los agentes y sus fases se muestran arriba desde los latidos observados.
+                    Las cuotas, conexiones y verificaciones de los directores aún requieren
+                    una fuente comprobable; no se presentan como datos medidos.
+                </p>
+                <button type="button" onClick={() => void recargar()}
+                    className="mt-3 inline-flex cursor-pointer items-center gap-2 rounded-md border border-white/10 px-3 py-2 text-xs text-white/70">
+                    <RefreshCw className="h-3 w-3" aria-hidden />
+                    Actualizar procesos observados
+                </button>
             </section>
         </div>
     );
