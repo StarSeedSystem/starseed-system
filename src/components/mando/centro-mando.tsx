@@ -34,6 +34,7 @@ import { PanelAjustes } from "@/components/mando/panel-ajustes";
 import { PanelNeurona } from "@/components/mando/panel-neurona";
 import { PanelAprendizaje } from "@/components/mando/panel-aprendizaje";
 import { PanelPublicaciones } from "@/components/mando/panel-publicaciones";
+import { PanelPublicacion } from "@/components/mando/panel-publicacion";
 import { DirectorAgentes } from "@/components/mando/director-agentes";
 import { AjustesDirector } from "@/components/mando/ajustes-director";
 // Ola 272 · O3B (2026-09-07): la pestaña «Oficina 3D». El componente carga
@@ -91,6 +92,7 @@ const PESTANAS = [
     { id: "oficina", etiqueta: "Oficina 3D" },
     { id: "olas", etiqueta: "Olas e informes" },
     { id: "commits", etiqueta: "Commits pendientes" },
+    { id: "publicar", etiqueta: "Publicar" },
     { id: "canales", etiqueta: "Canales StarSeed" },
     { id: "taller", etiqueta: "Taller del agente" },
     { id: "flota", etiqueta: "Flota" },
@@ -710,6 +712,9 @@ export function CentroMando() {
                 </TabsContent>
                 <TabsContent value="commits">
                     <PanelPublicaciones />
+                </TabsContent>
+                <TabsContent value="publicar">
+                    <PanelPublicacion />
                 </TabsContent>
                 <TabsContent value="canales">
                     {/* Ola 285 · K3: el panel de canales solo se monta al abrir
