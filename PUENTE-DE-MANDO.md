@@ -1,6 +1,6 @@
 # Puente de Mando · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-11 00:39:18 desde el Mando vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-11 13:03:42 desde el Mando vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -11,21 +11,21 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 
 | | |
 |---|---|
-| Mando | **encendido** en http://localhost:9002/mando |
+| Mando | **encendido** en http://127.0.0.1:9003/mando |
 | Ola arriba | Ola 315 · Supervisión sin inferencia |
 | Agentes escribiendo | **0** |
-| En esta ola | integradas 0 · en curso 0 · esperando aprobación 0 · pendientes 1 |
-| Últimas 4 olas | en curso 0 · pendientes 7 · integradas 0 |
-| HEAD | `03eb4637 Puente · no renueva cuotas al consultar catálogos y protege la ruta del director` |
-| Sin publicar | 2 commits |
-| Árbol | limpio |
+| En esta ola | integradas 0 · en curso 0 · esperando aprobación 0 · pendientes 0 |
+| Últimas 4 olas | en curso 0 · pendientes 0 · integradas 1 |
+| HEAD | `2f963cbb Ola 239 · mando completo (nube) · MD8: Pestaña «Publicar»: lo que espera tu visto` |
+| Sin publicar | 3 commits |
+| Árbol | 6 archivos sin commitear |
 
-## Quién escribe ahora (latido de `cola-311-puente-verificable.json`, hace 1248s)
+## Quién escribe ahora (latido de `cola-auto-0911-033948.json`, hace 32198s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `p311A` | tsc | nvidia/moonshotai/kimi-k3 | 27 min | 1633 s | 90963 |
-| `p311B` | hecho | apinex/free/deepseek-v4-pro-0813 | 36 min | 2160 s | 92793 |
+| `MD8` | hecho | nvidia/deepseek-ai/deepseek-v4-pro | 537 min | 32217 s | 40882 |
+| `zD1` | hecho | nvidia/deepseek-ai/deepseek-v4-pro | 560 min | 33583 s | 58729 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
@@ -66,6 +66,6 @@ vigilante del orquestador lee **cada 20 s**. Da igual quién la escriba: es el m
 | Rumbo y reglas permanentes | `CLAUDE.md` (Claude) · `AGENTS.md` (Codex, Antigravity) · `gemini.md` |
 | Estado del enjambre | `starseed_memory_root/olas/` — **no se versiona**, muere con la máquina |
 | Orquestador | `scripts/enjambre/starseed-enjambre.py`, instalado en `~/.local/bin/` |
-| Mando | `http://localhost:9002/mando` — local, `/api/mando/*` devuelve 404 en producción |
+| Mando | `http://127.0.0.1:9003/mando` — local, `/api/mando/*` devuelve 404 en producción |
 | Publicado | https://starseed-os.vercel.app |
 

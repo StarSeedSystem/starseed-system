@@ -7,8 +7,8 @@ import { guardianMando } from "@/lib/mando/guardian";
 const ROOT = process.env.STARSEED_ROOT || path.join(process.env.HOME || "/Users/alex", "Documents", "starseed-os-main");
 const OLAS_DIR = path.join(ROOT, "starseed_memory_root", "olas");
 
-export async function GET() {
-    const veto = await guardianMando();
+export async function GET(peticion: Request) {
+    const veto = await guardianMando(peticion);
     if (veto) return veto;
 
     try {

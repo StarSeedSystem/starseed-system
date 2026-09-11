@@ -13,7 +13,7 @@ estado, sin que nadie tenga que resumirle nada a nadie.
 import json, os, subprocess, sys, time, urllib.request
 
 RAIZ = os.environ.get("STARSEED_ROOT") or "/Users/alex/Documents/starseed-os-main"
-MANDO = os.environ.get("STARSEED_MANDO_URL") or "http://localhost:9002"
+MANDO = os.environ.get("STARSEED_MANDO_URL") or "http://127.0.0.1:9003"
 OLAS = os.path.join(RAIZ, "starseed_memory_root", "olas")
 DOC = os.path.join(RAIZ, "PUENTE-DE-MANDO.md")
 

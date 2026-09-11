@@ -1,5 +1,12 @@
 # 🌌 CLAUDE.md — Memoria de Trabajo del Proyecto StarSeed OS
 
+## Acceso al Puente completo · 2026-09-11
+
+[Abrir el Puente de Mando de StarSeed OS](http://127.0.0.1:9003/mando).
+Esta es la aplicación Next.js del repositorio, no la interfaz provisional Python de 9002.
+Servicio local `com.starseed.mando`, enlazado solo a 127.0.0.1; temporalmente en modo desarrollo.
+No confundir HTTP 200 con tareas verificadas. Enjambre único, modelos económicos, y no build con agentes vivos.
+
 > **Propósito de este archivo:** Contexto rápido que cualquier sesión de Claude (o cualquier agente IA) debe leer al iniciar trabajo en este repositorio. Es la "memoria de trabajo" — un mapa para encontrar el resto.
 >
 > **Para profundizar:** Lee los archivos en `memory/` y los documentos fundacionales referenciados al final.
