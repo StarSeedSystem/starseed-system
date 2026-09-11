@@ -61,6 +61,16 @@ ENV_TSC = {"NODE_ENV": "development", "NODE_OPTIONS": "--max-old-space-size=2560
 # 2026-09-03) y qwen3-coder-480b ya no existe en el catálogo. Si un modelo desaparece, opencode
 # falla y la tarea se marca «sin cambios» sin motivo aparente: revalida esta lista antes de una ola.
 MODELOS = [
+    # (2026-09-11, latido :03) Apinex: 22 modelos, 8 gratuitos y 14 de pago ($0.05-$0.50/M tokens).
+    # 5M tokens/día gratuitos. Se integra como proveedor multiagentico prioritario.
+    "apinex/free/gemini-3.8-flash",
+    "apinex/free/muse-spark-1.3",
+    "apinex/free/glm-5.3-flash",
+    "apinex/free/deepseek-v4-flash-0731",
+    "apinex/free/deepseek-v4-pro-0813",
+    "apinex/free/qwen-3.8-max",
+    "apinex/free/gpt-5.6-luna",
+    "apinex/free/gemini-3.1-pro",
     # (2026-09-09, latido :52) llm7 es el UNICO proveedor que escribe SIN NINGUNA CLAVE.
     # Va primero: sin el arriba, una tarea gasta sus DOS intentos en pasarelas que sin
     # clave rechazan la generacion en ~4 s. Con claves, modelos_para rota como siempre.
@@ -133,8 +143,9 @@ def fallo_de_proveedor(salida):
     return next((x for x in PISTAS_PROVEEDOR if x in b), None)
 
 CATALOGOS = {
-    "nvidia": ("https://integrate.api.nvidia.com/v1/models", ("NVIDIA_API_KEY", "NVIDIA_SHARED_KEY")),
-    "xkiro":  ("https://api.xkiro.com/v1/models", ("XKIRO_API_KEY",)),
+    "nvidia":  ("https://integrate.api.nvidia.com/v1/models", ("NVIDIA_API_KEY", "NVIDIA_SHARED_KEY")),
+    "xkiro":   ("https://api.xkiro.com/v1/models", ("XKIRO_API_KEY",)),
+    "apinex":  ("https://apinex.bond/v1/models", ("STARSEED_PASARELA_APINEX_KEY",)),
 }
 
 _CATALOGOS_CACHE = {}  # proveedor -> (epoch, set de ids o None si falló la consulta)
@@ -234,6 +245,7 @@ SONDAS = {
     "openrouter":  ("nvidia/nemotron-3-super-120b-a12b:free", ("OPENROUTER_API_KEY",)),
     "llm7":        ("gpt-oss", ("LLM7_SIN_CLAVE",)),      # sin clave: la variable es un marcador
     "freetheai":   ("gpt-oss-120b", ("FREETHEAI_API_KEY",)),
+    "apinex":      ("free/gemini-3.8-flash", ("STARSEED_PASARELA_APINEX_KEY",)),
 }
 USO_REAL = {}            # proveedor -> (momento, salió bien) del último trabajo de verdad
 FRESCO_S = 120           # si hay noticia real más nueva que esto, no hace falta sondear
@@ -252,6 +264,7 @@ MODELS_URLS = {
     "openrouter":  "https://openrouter.ai/api/v1/models",
     "llm7":        "https://api.llm7.io/v1/models",
     "freetheai":   "https://api.freetheai.xyz/v1/models",
+    "apinex":      "https://apinex.bond/v1/models",
 }
 # (2026-09-07, Ola 271, P9D) Una racha de 429 (límite por minuto o cupo diario) agota la clave
 # 1 hora y la sonda la vuelve a probar; solo un 402 o un aviso de cupo explícito la agotan 24 h.

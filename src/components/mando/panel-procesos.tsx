@@ -1,7 +1,6 @@
 "use client";
 
-/**
- * Panel de procesos del Centro de Mando (Ola 231)
+/** Panel de procesos del Centro de Mando (Ola 231)
  * ─────────────────────────────────────────────────────────────────────────────
  * Qué está corriendo AHORA MISMO en la máquina y en el repositorio: si el
  * enjambre libre está activo, el estado del repositorio (rama, HEAD, commits
@@ -11,7 +10,6 @@
  * Lee `GET /api/mando/estado` (solo local; 404 en producción; sin claves ni
  * rutas absolutas del disco) y complementa con `/api/mando/estado` → `relevo`.
  */
-
 import { useCallback, useEffect, useState } from "react";
 import {
     BotMessageSquare,
@@ -49,11 +47,25 @@ function tonoFase(fase: string): string {
     if (fase === "tsc" || fase === "tests") return "text-sky-300";
     if (fase === "revision" || fase === "integrando") return "text-amber-300";
     if (fase.startsWith("esperando")) return "text-white/50";
+    if (fase === "bloqueado" || fase === "colgado") return "text-red-400";
     return "text-white/70";
 }
 
-/**
- * Agentes en vivo: una fila por agente, venga de esta Mac o del contenedor de la nube.
+/** Detecta si un agente lleva demasiado tiempo quieto (API colgada). */
+function esAgenteColgado(latido: any): boolean {
+    return Number(latido?.quietoSegundos ?? 0) > 300 && Number(latido?.bytesLog ?? 0) < 100;
+}
+
+/** Etiqueta de advertencia para agentes colgados. */
+function avisoColgado(latido: any): string | null {
+    if (esAgenteColgado(latido)) {
+        const min = Math.round(latido.quietoSegundos / 60);
+        return `⚠️ API colgada ${min} min · reasignar`;
+    }
+    return null;
+}
+
+/** Agentes en vivo: una fila por agente, venga de esta Mac o del contenedor de la nube.
  * Todo sale del latido que cada orquestador publica en el bus cada 2 min: tarea, fase,
  * modelo y proveedor, ventana de contexto, tokens REALES gastados (de la base de opencode),
  * tiempo, y si lleva rato mudo.
@@ -88,9 +100,9 @@ function AgentesEnVivo({ estado }: { estado: EstadoMando }) {
                         >
                             <span className={e.donde === "nube" ? "text-sky-300" : "text-amber-300"}>
                                 {e.donde === "nube" ? "nube" : "mac"}
-                            </span>{" "}
-                            {e.medio ? <span className="text-violet-200"> · desde {e.medio}</span> : null}
-                            {" "}· {e.cola.replace(/^cola-/, "").replace(/\.json$/, "")} · {e.agentesActivos} escribiendo
+                            </span>
+                            {" · "}
+                            {e.cola.replace(/^cola-/, "").replace(/\.json$/, "").replace(/_/g, " ")} · {e.agentesActivos} escribiendo
                             {typeof e.memoriaMb === "number" ? ` · ${miles(e.memoriaMb)} MB libres` : ""}
                             {" · "}
                             {Object.values(e.proveedores ?? {}).filter((v) => v.estado === "caido").length} prov. caídos
@@ -112,32 +124,49 @@ function AgentesEnVivo({ estado }: { estado: EstadoMando }) {
                             <th className="py-1 pr-3">Llamadas</th>
                             <th className="py-1 pr-3">Tiempo</th>
                             <th className="py-1 pr-3">Registro</th>
-                            <th className="py-1 pr-3" title="Cambiar servidor, API o modelo de este agente">Reasignar</th>
+                            <th className="py-1 pr-3" title="Cambiar servidor, API o modelo de este agente">
+                                Reasignar
+                            </th>
                         </tr>
                     </thead>
                     <tbody className="text-white/80">
                         {latidos.map((l, i) => (
-                            <tr key={`${l.donde}-${l.cola}-${l.tarea}-${i}`} className="border-t border-white/5">
+                            <tr
+                                key={`${l.donde}-${l.cola}-${l.tarea}-${i}`}
+                                className="border-t border-white/5"
+                            >
                                 <td className={`py-1.5 pr-3 font-medium ${l.donde === "nube" ? "text-sky-300" : "text-amber-300"}`}>
                                     {l.donde}
                                 </td>
-                                <td className="py-1.5 pr-3 text-violet-200" title="Desde dónde se usan las APIs: quién lanzó el orquestador">{l.medio ?? "—"}</td>
+                                <td className="py-1.5 pr-3 text-violet-200"
+                                    title="Desde dónde se usan las APIs: quién lanzó el orquestador">
+                                    {l.medio ?? "—"}
+                                </td>
                                 <td className="py-1.5 pr-3 font-mono">{l.tarea}</td>
                                 <td className={`py-1.5 pr-3 ${tonoFase(l.fase)}`}>
                                     {l.fase}
                                     {l.quietoSegundos > 180 ? ` · mudo ${Math.round(l.quietoSegundos / 60)} min` : ""}
+                                    {avisoColgado(l)}
                                 </td>
                                 <td className="py-1.5 pr-3">
                                     {(l.modelo || "—").split("/").slice(-1)[0]}
                                     {l.proveedor ? <span className="text-white/40"> · {l.proveedor}</span> : null}
                                 </td>
-                                <td className="py-1.5 pr-3 text-white/60">{l.ventana ? `${Math.round(l.ventana / 1024)}k` : "—"}</td>
-                                <td className="py-1.5 pr-3 font-mono">
-                                    {l.tokens ? `${miles(l.tokens.entrada)} / ${miles(l.tokens.salida)}` : "—"}
+                                <td className="py-1.5 pr-3 text-white/60">
+                                    {l.ventana ? `${Math.round(l.ventana / 1024)}k` : "—"}
                                 </td>
-                                <td className="py-1.5 pr-3 text-white/60">{l.tokens ? l.tokens.llamadas : "—"}</td>
-                                <td className="py-1.5 pr-3 text-white/60">{l.minutos} min{l.intento && l.intento > 1 ? ` · intento ${l.intento}` : ""}</td>
-                                <td className="py-1.5 pr-3 text-white/60">{l.bytesLog ? `${Math.round(l.bytesLog / 1024)} KB` : "—"}</td>
+                                <td className="py-1.5 pr-3 font-mono">
+                                    {l.tokens ? `${miles(l.tokens?.entrada)} / ${miles(l.tokens?.salida)}` : "—"}
+                                </td>
+                                <td className="py-1.5 pr-3 text-white/60">
+                                    {l.tokens ? l.tokens.llamadas : "—"}
+                                </td>
+                                <td className="py-1.5 pr-3 text-white/60">
+                                    {l.minutos} min{l.intento && l.intento > 1 ? ` · intento ${l.intento}` : ""}
+                                </td>
+                                <td className="py-1.5 pr-3 text-white/60">
+                                    {l.bytesLog ? `${Math.round(l.bytesLog / 1024)} KB` : "—"}
+                                </td>
                                 <td className="py-1.5 pr-3">
                                     <button
                                         type="button"
@@ -155,8 +184,8 @@ function AgentesEnVivo({ estado }: { estado: EstadoMando }) {
             </div>
             <p className="mt-2 text-[11px] text-white/40">
                 Tokens = suma real de entrada/salida de cada llamada del agente (base de opencode), no una estimación.
-                La ventana es la del modelo; el consumo de contexto crece con cada archivo que lee. «Medio» = desde dónde
-                se usan las APIs: quién lanzó ese orquestador (hermes, claude, terminal, mando, cron…).
+                La ventana es la del modelo; el consumo de contexto crece con cada archivo que lee.
+                "Medio" = desde dónde se usan las APIs: quién lanzó ese orquestador (hermes, claude, terminal, mando, cron…).
             </p>
         </section>
     );
@@ -208,8 +237,6 @@ export function PanelProcesos() {
         try {
             const respuesta = await fetch("/api/mando/estado", { cache: "no-store" });
             if (!respuesta.ok) {
-                // Un mensaje que no distingue el motivo hace perder el tiempo: 404 es que la
-                // consola está apagada en esta instancia; 401 es que falta la sesión.
                 setError(
                     respuesta.status === 404
                         ? "La consola está apagada en esta instancia (solo funciona en local o con STARSEED_MANDO=1)."
@@ -329,7 +356,10 @@ export function PanelProcesos() {
                     </h3>
                     <ul className="mt-2 space-y-1 font-mono text-xs text-white/70">
                         {repo.log.slice(0, 8).map((linea, índice) => (
-                            <li key={`log-${índice}-${linea.slice(0, 12)}`} className="truncate">
+                            <li
+                                key={`log-${índice}-${linea.slice(0, 12)}`}
+                                className="truncate"
+                            >
                                 {linea}
                             </li>
                         ))}
