@@ -103,6 +103,8 @@ def codex_disponible() -> bool:
     mira ÚNICAMENTE `auth_mode`: los `tokens` no se copian a ninguna variable, ni se registran en
     eventos ni en logs. Cualquier problema al leerlo (no existe, JSON roto, permisos) = no
     disponible, nunca una excepción que tumbe el arranque."""
+    if os.environ.get("STARSEED_CODEX_ESCRITOR") != "1":
+        return False
     if not ruta_codex():
         return False
     try:
@@ -216,7 +218,7 @@ def validar_modelos():
         MODELOS[:0] = codex_dentro
     if not MODELOS:
         evento("fallo", "", "ningún modelo escritor sigue vivo — no arranco"); sys.exit(3)
-    evento("arranque", "", "escritores verificados vivos: %s · escritores de Codex (suscripción, coste cero): %d"
+    evento("arranque", "", "escritores del catálogo: %s · Codex autorizado para escritura (cupo limitado): %d"
            % (", ".join(m.split("/", 1)[1] for m in MODELOS), len(codex_dentro)))
 
 SALUD_JSON = os.path.expanduser("~/.starseed/salud-proveedores.json")
@@ -1849,6 +1851,8 @@ def escribir_con_codex(prompt, modelo, cwd, log, timeout=1500, tid=None):
     log AL VUELO y el registro en PROCESOS para que el vigilante pueda cortarlo.
 
     Lo único distinto es el proceso: `codex exec` con el prompt por stdin (ver `comando_codex`)."""
+    if os.environ.get("STARSEED_CODEX_ESCRITOR") != "1":
+        return 126, "Codex reservado para dirección: escritura automática no autorizada"
     if not ruta_codex():
         # (CX1·5) codex solo está en la Mac: en la nube esto no es un fallo de la tarea, es un
         # escritor que aquí no existe. Se devuelve lo mismo que un proveedor caído.
