@@ -3,7 +3,9 @@
 #   bash scripts/puente/lanzar-enjambre.sh [cola.json] [trabajadores]
 RAIZ="${STARSEED_ROOT:-/Users/alex/Documents/starseed-os-main}"
 COLA="${1:-starseed_memory_root/olas/cola-310-puertas-y-pendientes.json}"   # el vigilante le pasa la suya
-N="${2:-5}"
+N="${2:-2}"
+PYTHON="${STARSEED_PYTHON:-/opt/homebrew/bin/python3}"
+[ -x "$PYTHON" ] || PYTHON="$(command -v python3)"
 cd "$RAIZ" || exit 1
 # Cuenta SOLO procesos cuya orden EMPIEZA por un python: el texto del prompt que se le
 # pasa a un agente contiene la ruta del orquestador, y un grep suelto se cree que es uno.
@@ -11,9 +13,7 @@ VIVOS=$(ps -eo args | grep -cE '^[^ ]*[Pp]ython[0-9.]* +-u +.*starseed-enjambre\
 if [ "$VIVOS" -gt 0 ]; then
   echo "Ya hay $VIVOS orquestador(es) vivo(s). Uno solo: no lances otro."; exit 0
 fi
-set -a
-[ -f "$HOME/.hermes/.env" ] && source "$HOME/.hermes/.env"
-[ -f "$HOME/.starseed/env" ] && source "$HOME/.starseed/env"
-set +a
+# El orquestador ya lee los archivos de entorno como datos. No ejecutarlos como
+# shell: las rutas con espacios fallan y los valores no son instrucciones.
 export STARSEED_MEDIO=mac STARSEED_DONDE=mac STARSEED_ROOT="$RAIZ"
-exec python3 -u "$HOME/.local/bin/starseed-enjambre.py" "$COLA" --workers "$N" --reanudar
+exec "$PYTHON" -u "$HOME/.local/bin/starseed-enjambre.py" "$COLA" --workers "$N" --reanudar
