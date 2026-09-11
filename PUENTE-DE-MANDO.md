@@ -1,6 +1,6 @@
 # Puente de Mando · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-10 14:43:36 desde el Mando vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-11 00:39:18 desde el Mando vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -12,24 +12,20 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | | |
 |---|---|
 | Mando | **encendido** en http://localhost:9002/mando |
-| Ola arriba | Ola 308 · El Puente de Mando ve la nube: latidos del enjambre por Supabase, no por una carpeta que no viaja |
+| Ola arriba | Ola 315 · Supervisión sin inferencia |
 | Agentes escribiendo | **0** |
-| En esta ola | integradas 1 · en curso 0 · esperando aprobación 0 · pendientes 0 |
-| Últimas 4 olas | en curso 0 · pendientes 0 · integradas 24 |
-| HEAD | `5e3822b9 Puente · retira la deuda saldada del guardián de servidor` |
-| Sin publicar | 12 commits |
+| En esta ola | integradas 0 · en curso 0 · esperando aprobación 0 · pendientes 1 |
+| Últimas 4 olas | en curso 0 · pendientes 7 · integradas 0 |
+| HEAD | `03eb4637 Puente · no renueva cuotas al consultar catálogos y protege la ruta del director` |
+| Sin publicar | 2 commits |
 | Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-auto-0910-1403.json`, hace 1696s)
+## Quién escribe ahora (latido de `cola-311-puente-verificable.json`, hace 1248s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `L3F` | hecho |  | 28 min | 1701 s | 23647 |
-| `R2F` | hecho | nvidia/moonshotai/kimi-k3 | 29 min | 1718 s | 36557 |
-| `zW7` | esperando-memoria | xkiro/deepseek/deepseek-v4-pro | 29 min | 1719 s | 180744 |
-| `R1F` | escribiendo | tokenrouter/z-ai/glm-5.3-free | 40 min | 1807 s | 32977 |
-| `V2` | escribiendo | xkiro/qwen/qwen3.8-max:free | 40 min | 1807 s | 29743 |
-| `R9A` | escribiendo | xkiro/minimax/minimax-m3:free | 40 min | 1807 s | 27046 |
+| `p311A` | tsc | nvidia/moonshotai/kimi-k3 | 27 min | 1633 s | 90963 |
+| `p311B` | hecho | apinex/free/deepseek-v4-pro-0813 | 36 min | 2160 s | 92793 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
