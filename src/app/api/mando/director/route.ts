@@ -2,10 +2,15 @@ import { NextResponse } from "next/server";
 import { promises as fs } from "fs";
 import path from "path";
 
+import { guardianMando } from "@/lib/mando/guardian";
+
 const ROOT = process.env.STARSEED_ROOT || path.join(process.env.HOME || "/Users/alex", "Documents", "starseed-os-main");
 const OLAS_DIR = path.join(ROOT, "starseed_memory_root", "olas");
 
 export async function GET() {
+    const veto = await guardianMando();
+    if (veto) return veto;
+
     try {
         const archivos = await fs.readdir(OLAS_DIR);
         const agentes: any[] = [];
