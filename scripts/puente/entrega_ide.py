@@ -9,7 +9,8 @@ from typing import Any
 
 ESTADOS = ("encolado", "recibido", "leido", "error", "timeout", "no_verificado")
 RETRASOS = (5, 15, 45, 120, 300)  # segundos para los intentos 1..5
-MAX_INTENTOS = 5
+# Derivado de RETRASOS para que no puedan desfasarse al editar uno solo.
+MAX_INTENTOS = len(RETRASOS)
 # codex y astra son el mismo emisor: no se notifica a sí mismo.
 ALIASES_ORIGEN = {"astra": "codex"}
 
@@ -56,10 +57,8 @@ def destinos_pendientes(evento: dict, destinos: list[str], acuses: dict) -> list
     """
     origen = _canon(str((evento or {}).get("quien", "")))
     vistos: set[str] = set()
-    try:
-        claves_acuse = {_canon(str(k)): v for k, v in (acuses or {}).items()}
-    except Exception:
-        claves_acuse = {}
+    fuente_acuses = acuses if isinstance(acuses, dict) else {}
+    claves_acuse = {_canon(str(k)): v for k, v in fuente_acuses.items()}
     pendientes: list[str] = []
     for destino in destinos or []:
         clave = _canon(str(destino))
@@ -70,5 +69,7 @@ def destinos_pendientes(evento: dict, destinos: list[str], acuses: dict) -> list
         estado = str(acuse.get("estado", "") if isinstance(acuse, dict) else "").lower()
         if estado in ("encolado", "recibido", "leido"):
             continue
-        pendientes.append(str(destino))
+        pendientes.append(
+            clave
+        )  # siempre el nombre canónico, sin espacios ni mayúsculas
     return pendientes

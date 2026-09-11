@@ -102,6 +102,17 @@ class DestinosPendientesTest(unittest.TestCase):
             destinos_pendientes({"quien": "codex"}, ["hermes"], {}), ["hermes"]
         )
 
+    def test_devuelve_nombres_canonicos(self):
+        self.assertEqual(
+            destinos_pendientes({"quien": "codex"}, [" Hermes "], {}), ["hermes"]
+        )
+
+    def test_acuses_no_dict_no_rompe(self):
+        self.assertEqual(
+            destinos_pendientes({"quien": "codex"}, ["hermes"], "ruido"),
+            ["hermes"],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

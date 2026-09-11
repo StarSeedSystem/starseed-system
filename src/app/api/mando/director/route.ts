@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { promises as fs } from "fs";
 import path from "path";
+import { guardianMando } from "@/lib/mando/guardian";
 
 /**
  * GET /api/mando/director
@@ -60,7 +61,9 @@ async function leerLatidos(nombreCola: string) {
     }
 }
 
-export async function GET() {
+export async function GET(peticion: Request) {
+    const veto = await guardianMando(peticion);
+    if (veto) return veto;
     try {
         const colas = await leerColas();
         const agentes: AgenteDirector[] = [];
