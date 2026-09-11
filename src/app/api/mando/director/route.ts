@@ -1,14 +1,11 @@
 import { NextResponse } from "next/server";
 import { promises as fs } from "fs";
 import path from "path";
-import { guardianMando } from "@/lib/mando/guardian";
 
 const ROOT = process.env.STARSEED_ROOT || path.join(process.env.HOME || "/Users/alex", "Documents", "starseed-os-main");
 const OLAS_DIR = path.join(ROOT, "starseed_memory_root", "olas");
 
-export async function GET(peticion: Request) {
-    const veto = await guardianMando(peticion);
-    if (veto) return veto;
+export async function GET() {
     try {
         const archivos = await fs.readdir(OLAS_DIR);
         const agentes: any[] = [];
@@ -26,7 +23,15 @@ export async function GET(peticion: Request) {
             const contenido = await fs.readFile(ruta, "utf-8");
             const datos = JSON.parse(contenido);
             
-            const latido = await leerLatidos(path.join(OLAS_DIR, `latidos-${archivo.replace(".json", "")}`));
+            // Leer latido correspondiente
+            const nombreCola = archivo.replace(".json", "");
+            const latidoPath = path.join(OLAS_DIR, `latidos-${nombreCola}.json`);
+            let latido = null;
+            try {
+                const latidoContent = await fs.readFile(latidoPath, "utf-8");
+                latido = JSON.parse(latidoContent);
+            } catch { /* sin latido */ }
+
             const idsHechas = new Set<string>();
             
             for (const tarea of datos) {
@@ -51,35 +56,34 @@ export async function GET(peticion: Request) {
                 }
                 
                 olasActivas.add(ola);
-            }
-            
-            if (latido && latido.tareas) {
-                const ahora = Date.now() / 1000;
-                for (const [tareaId, info] of Object.entries<any>(latido.tareas)) {
-                    const modelo = info.modelo || "—";
+
+                // Agregar agente si está en el latido
+                if (latido && latido.tareas && latido.tareas[tarea.id]) {
+                    const info = latido.tareas[tarea.id];
+                    const modelo = info.modelo || tarea.modelo || "—";
                     const proveedor = modelo.split("/")[0] || "—";
                     proveedoresVivos.add(proveedor);
                     
                     if (proveedor === "apinex") {
                         apinexDisponible = true;
                     }
-                    
-                    const tareaInfo = datos.find((t: any) => t.id === tareaId);
-                    const fase = info.fase || "desconocido";
+
+                    const fase = info.fase || estado || "desconocido";
                     const bytes = info.bytes || 0;
                     const desde = info.desde || 0;
+                    const ahora = Date.now() / 1000;
                     const minutos = Math.max(0, Math.round((ahora - desde) / 60));
                     const avance = info.avance || desde;
                     const quietoSegundos = Math.round(ahora - avance);
                     
                     agentes.push({
-                        id: tareaId,
-                        nombre: tareaInfo?.titulo?.slice(0, 40) || tareaId,
+                        id: tarea.id,
+                        nombre: tarea.titulo?.slice(0, 40) || tarea.id,
                         fase,
                         modelo,
                         proveedor,
-                        ola: latido.cola || "—",
-                        tarea: tareaInfo?.titulo || "—",
+                        ola: latido.cola || ola,
+                        tarea: tarea.titulo || "—",
                         bytes,
                         minutos,
                         intento: info.intento || 1,
@@ -95,6 +99,7 @@ export async function GET(peticion: Request) {
             }
         }
         
+        // Ordenar: vivos primero, luego por bytes
         agentes.sort((a, b) => {
             if (a.vivo !== b.vivo) return a.vivo ? -1 : 1;
             return b.bytes - a.bytes;
@@ -113,17 +118,8 @@ export async function GET(peticion: Request) {
         });
     } catch (error) {
         return NextResponse.json(
-            { error: "Error leyendo el director" },
+            { error: "Error leyendo el director", message: String(error) },
             { status: 500 }
         );
-    }
-}
-
-async function leerLatidos(ruta: string) {
-    try {
-        const contenido = await fs.readFile(ruta, "utf-8");
-        return JSON.parse(contenido);
-    } catch {
-        return null;
     }
 }
