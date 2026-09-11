@@ -1,72 +1,14 @@
 import { NextResponse } from "next/server";
 import { promises as fs } from "fs";
 import path from "path";
-import { guardianMando } from "@/lib/mando/guardian";
-
-/**
- * GET /api/mando/director
- * 
- * API que alimenta el panel de Director de Agentes.
- * Escanea todas las colas vivas y latidos para construir
- * un estado completo de agentes, tareas y proveedores.
- */
 
 const ROOT = process.env.STARSEED_ROOT || path.join(process.env.HOME || "/Users/alex", "Documents", "starseed-os-main");
 const OLAS_DIR = path.join(ROOT, "starseed_memory_root", "olas");
 
-interface AgenteDirector {
-    id: string;
-    nombre: string;
-    fase: string;
-    modelo: string;
-    proveedor: string;
-    ola: string;
-    tarea: string;
-    bytes: number;
-    minutos: number;
-    intento: number;
-    quietoSegundos: number;
-    rpm: number;
-    vivo: boolean;
-    commits: number;
-    verificaciones: number;
-    mcpConectados: number;
-    pluginsActivos: number;
-}
-
-async function leerColas() {
-    const colas: any[] = [];
+export async function GET() {
     try {
         const archivos = await fs.readdir(OLAS_DIR);
-        for (const archivo of archivos) {
-            if (!archivo.startsWith("cola-") || !archivo.endsWith(".json")) continue;
-            const ruta = path.join(OLAS_DIR, archivo);
-            const contenido = await fs.readFile(ruta, "utf-8");
-            const datos = JSON.parse(contenido);
-            colas.push({ archivo, datos });
-        }
-    } catch (e) {
-        // Directorio no existe
-    }
-    return colas;
-}
-
-async function leerLatidos(nombreCola: string) {
-    const latidoPath = path.join(OLAS_DIR, `latidos-${nombreCola}`);
-    try {
-        const contenido = await fs.readFile(latidoPath, "utf-8");
-        return JSON.parse(contenido);
-    } catch {
-        return null;
-    }
-}
-
-export async function GET(peticion: Request) {
-    const veto = await guardianMando(peticion);
-    if (veto) return veto;
-    try {
-        const colas = await leerColas();
-        const agentes: AgenteDirector[] = [];
+        const agentes: any[] = [];
         const olasActivas = new Set<string>();
         let totalEjecutables = 0;
         let totalHechas = 0;
@@ -75,8 +17,13 @@ export async function GET(peticion: Request) {
         const proveedoresVivos = new Set<string>();
         let apinexDisponible = false;
 
-        for (const { archivo, datos } of colas) {
-            const latido = await leerLatidos(archivo.replace(".json", ""));
+        for (const archivo of archivos) {
+            if (!archivo.startsWith("cola-") || !archivo.endsWith(".json")) continue;
+            const ruta = path.join(OLAS_DIR, archivo);
+            const contenido = await fs.readFile(ruta, "utf-8");
+            const datos = JSON.parse(contenido);
+            
+            const latido = await leerLatidos(path.join(OLAS_DIR, `latidos-${archivo.replace(".json", "")}`));
             const idsHechas = new Set<string>();
             
             for (const tarea of datos) {
@@ -103,7 +50,6 @@ export async function GET(peticion: Request) {
                 olasActivas.add(ola);
             }
             
-            // Procesar latidos para info de agentes
             if (latido && latido.tareas) {
                 const ahora = Date.now() / 1000;
                 for (const [tareaId, info] of Object.entries<any>(latido.tareas)) {
@@ -146,7 +92,6 @@ export async function GET(peticion: Request) {
             }
         }
         
-        // Ordenar agentes: vivos primero, luego por bytes descendente
         agentes.sort((a, b) => {
             if (a.vivo !== b.vivo) return a.vivo ? -1 : 1;
             return b.bytes - a.bytes;
@@ -154,7 +99,7 @@ export async function GET(peticion: Request) {
         
         return NextResponse.json({
             agentes,
-            totalColas: colas.length,
+            totalColas: archivos.filter(f => f.startsWith("cola-") && f.endsWith(".json")).length,
             tareasEjecutables: totalEjecutables,
             tareasHechas: totalHechas,
             tareasPendientes: totalPendientes,
@@ -168,5 +113,14 @@ export async function GET(peticion: Request) {
             { error: "Error leyendo el director", message: String(error) },
             { status: 500 }
         );
+    }
+}
+
+async function leerLatidos(ruta: string) {
+    try {
+        const contenido = await fs.readFile(ruta, "utf-8");
+        return JSON.parse(contenido);
+    } catch {
+        return null;
     }
 }

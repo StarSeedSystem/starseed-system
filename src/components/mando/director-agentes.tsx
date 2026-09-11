@@ -214,19 +214,81 @@ export function DirectorAgentes() {
     const [estado, setEstado] = useState<EstadoDirector | null>(null);
     const [cargando, setCargando] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [verificacion, setVerificacion] = useState<{ ok: boolean; mensaje: string } | null>(null);
     
     const recargar = useCallback(async () => {
         setCargando(true);
+        setVerificacion(null);
         try {
             const res = await fetch("/api/mando/director", { cache: "no-store" });
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const data = await res.json() as EstadoDirector;
             setEstado(data);
+            setError(null);
         } catch (e) {
             setError(e instanceof Error ? e.message : "Error desconocido");
         } finally {
             setCargando(false);
         }
+    }, []);
+
+    const actualizarYVerificar = useCallback(async () => {
+        setCargando(true);
+        setVerificacion(null);
+        const resultados: string[] = [];
+        let todoOk = true;
+
+        // 1. Verificar API director
+        try {
+            const resDirector = await fetch("/api/mando/director", { cache: "no-store" });
+            if (!resDirector.ok) {
+                resultados.push(`❌ API director: HTTP ${resDirector.status}`);
+                todoOk = false;
+            } else {
+                const data = await resDirector.json() as EstadoDirector;
+                setEstado(data);
+                resultados.push(`✅ API director: ${data.agentes?.length ?? 0} agentes, ${data.tareasEjecutables} ejecutables`);
+            }
+        } catch (e) {
+            resultados.push(`❌ API director: ${e instanceof Error ? e.message : "error"}`);
+            todoOk = false;
+        }
+
+        // 2. Verificar API estado
+        try {
+            const resEstado = await fetch("/api/mando/estado", { cache: "no-store" });
+            if (!resEstado.ok) {
+                resultados.push(`❌ API estado: HTTP ${resEstado.status}`);
+                todoOk = false;
+            } else {
+                const data = await resEstado.json();
+                resultados.push(`✅ API estado: mando ${data.mandoActivo ? "activo" : "inactivo"}`);
+            }
+        } catch (e) {
+            resultados.push(`❌ API estado: ${e instanceof Error ? e.message : "error"}`);
+            todoOk = false;
+        }
+
+        // 3. Verificar Next.js respondiendo
+        try {
+            const resRaiz = await fetch("/mando", { cache: "no-store" });
+            if (!resRaiz.ok) {
+                resultados.push(`❌ Página /mando: HTTP ${resRaiz.status}`);
+                todoOk = false;
+            } else {
+                resultados.push(`✅ Página /mando: HTTP ${resRaiz.status}`);
+            }
+        } catch (e) {
+            resultados.push(`❌ Página /mando: ${e instanceof Error ? e.message : "error"}`);
+            todoOk = false;
+        }
+
+        setError(null);
+        setVerificacion({
+            ok: todoOk,
+            mensaje: resultados.join(" · "),
+        });
+        setCargando(false);
     }, []);
     
     useEffect(() => {

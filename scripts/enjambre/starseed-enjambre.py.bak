@@ -1709,7 +1709,7 @@ def revisar(tid, titulo, diff, impacto="", alcance=""):
 # ── trabajador ──────────────────────────────────────────────────────────────
 
 # ── paralelismo elástico: tantos agentes como quepan en memoria ─────────────
-MEMORIA_MINIMA_MB = int(os.environ.get("STARSEED_MEM_MIN_MB", "200"))
+MEMORIA_MINIMA_MB = int(os.environ.get("STARSEED_MEM_MIN_MB", "1400"))
 
 
 def memoria_libre_mb():
