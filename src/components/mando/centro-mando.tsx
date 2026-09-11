@@ -35,6 +35,7 @@ import { PanelNeurona } from "@/components/mando/panel-neurona";
 import { PanelAprendizaje } from "@/components/mando/panel-aprendizaje";
 import { PanelPublicaciones } from "@/components/mando/panel-publicaciones";
 import { DirectorAgentes } from "@/components/mando/director-agentes";
+import { AjustesDirector } from "@/components/mando/ajustes-director";
 // Ola 272 · O3B (2026-09-07): la pestaña «Oficina 3D». El componente carga
 // Three.js, así que entra con `next/dynamic` sin SSR y SOLO se monta al abrir
 // la pestaña (dos barreras: el chunk no baja y el render no se ejecuta hasta que
@@ -99,6 +100,7 @@ const PESTANAS = [
     { id: "chat", etiqueta: "Chat" },
     { id: "areas", etiqueta: "Áreas" },
     { id: "entornos", etiqueta: "Entornos" },
+    { id: "ajustes_director", etiqueta: "Ajustes Director" },
     { id: "ajustes", etiqueta: "Ajustes" },
 ] as const;
 
@@ -740,6 +742,9 @@ export function CentroMando() {
                 </TabsContent>
                 <TabsContent value="entornos">
                     <PanelEntornos />
+                </TabsContent>
+                <TabsContent value="ajustes_director">
+                    <AjustesDirector />
                 </TabsContent>
                 <TabsContent value="ajustes">
                     <PanelAjustes />
