@@ -2,6 +2,13 @@
 
 ## Política de ejecución
 
+Contención autorizada el 2026-09-11: la limpieza automática conserva todos los
+worktrees y ramas, incluso al fallar pruebas. La preparación reutiliza únicamente
+un worktree Git válido del mismo repositorio y de la rama de tarea esperada;
+directorios huérfanos, enlaces y errores Git se detienen sin borrar nada.
+La reanudación exige un status Git exitoso; texto de error no cuenta como cambios.
+La recolección de worktrees integrados queda pendiente de una política aparte.
+
 Un solo orquestador, trabajadores aislados y dos escritores inicialmente en esta Mac.
 Los modelos con suscripción o créditos limitados se reservan para dirección y verificación;
 una suscripción no equivale a uso ilimitado ni gratuito. Codex queda fuera de la escritura

@@ -2055,29 +2055,46 @@ def alcance_tarea(t, wt):
 
 
 def worktree(tid):
-    """Prepara el árbol de trabajo de la tarea. Una ola anterior que quedó en conflicto deja
-    la carpeta atrás y `git worktree add` falla con «already exists»: por eso se poda el
-    registro y, si hace falta, se borra la carpeta a mano antes de rendirse."""
-    wt = os.path.join(WT_BASE, tid)
+    """Reutiliza trabajo válido; nunca destruye cambios para preparar una tarea."""
+    if not isinstance(tid, str) or not re.fullmatch(r"[A-Za-z0-9_-]+", tid):
+        raise RuntimeError("identificador de tarea inválido")
+    wt = os.path.join(os.path.realpath(WT_BASE), tid)
+    if os.path.islink(wt):
+        raise RuntimeError("worktree enlazado: se conserva sin usarlo")
     os.makedirs(WT_BASE, exist_ok=True)
-    sh(["git", "worktree", "remove", "--force", wt], timeout=60)
-    sh(["git", "worktree", "prune"], timeout=30)
-    sh(["git", "branch", "-D", "ola/" + tid], timeout=30)
-    if os.path.isdir(wt):
-        try: shutil.rmtree(wt)
-        except Exception as e: raise RuntimeError("no pude limpiar %s: %s" % (wt, e))
-    rc, out = sh(["git", "worktree", "add", "-b", "ola/" + tid, wt, "HEAD"], timeout=120)
-    if rc != 0: raise RuntimeError("worktree: " + out[-300:])
+    rama = "ola/" + tid
+    if os.path.lexists(wt):
+        if not os.path.isfile(os.path.join(wt, ".git")):
+            raise RuntimeError("directorio sin worktree Git: conservado para recuperación")
+        rc, cima = sh(["git", "rev-parse", "--show-toplevel"], cwd=wt, timeout=30)
+        if rc or os.path.realpath(cima.strip()) != wt:
+            raise RuntimeError("raíz Git no verificada: worktree conservado")
+        comunes = []
+        for base in (ROOT, wt):
+            rc, comun = sh(["git", "rev-parse", "--git-common-dir"], cwd=base, timeout=30)
+            if rc or not comun.strip():
+                raise RuntimeError("repositorio común no verificado: worktree conservado")
+            comunes.append(os.path.realpath(os.path.join(base, comun.strip())))
+        rc, actual = sh(["git", "symbolic-ref", "--short", "HEAD"], cwd=wt, timeout=30)
+        if comunes[0] != comunes[1] or rc or actual.strip() != rama:
+            raise RuntimeError("repositorio o rama ajenos: worktree conservado")
+    else:
+        rc, _ = sh(["git", "show-ref", "--verify", "--quiet", "refs/heads/" + rama], cwd=ROOT, timeout=30)
+        if rc not in (0, 1):
+            raise RuntimeError("no se pudo verificar la rama: no se crea worktree")
+        orden = (["git", "worktree", "add", wt, rama] if rc == 0 else
+                 ["git", "worktree", "add", "-b", rama, wt, "HEAD"])
+        rc, out = sh(orden, cwd=ROOT, timeout=120)
+        if rc != 0:
+            raise RuntimeError("no se pudo preparar worktree; rama y archivos conservados")
     for enlace in ("node_modules", ".env.local"):
         src, dst = os.path.join(ROOT, enlace), os.path.join(wt, enlace)
-        if os.path.exists(src) and not os.path.exists(dst): os.symlink(src, dst)
+        if os.path.exists(src) and not os.path.lexists(dst): os.symlink(src, dst)
     return wt
 
 def limpiar_worktree(tid, borrar_rama=True):
-    wt = os.path.join(WT_BASE, tid)
-    sh(["git", "worktree", "remove", "--force", wt], timeout=120)
-    sh(["git", "worktree", "prune"], timeout=60)
-    if borrar_rama: sh(["git", "branch", "-D", "ola/" + tid], timeout=30)
+    """Contención temporal: ni un fallo ni un cierre eliminan trabajo del agente."""
+    evento("aviso", tid, "worktree y rama conservados; limpieza automática deshabilitada")
 
 
 # ── contexto inteligente por tarea ──────────────────────────────────────────
@@ -3090,17 +3107,19 @@ def ejecutar(t, intento=1):
     # Un lease recuperado equivale a --reanudar: si el medio murió con cambios, se conservan y
     # se continúa por las puertas. Sin cambios reales se crea un worktree limpio como siempre.
     reanudada = False
-    wt_prev = os.path.join(WT_BASE, tid)
-    if ("--reanudar" in sys.argv or tid in REANUDAR_AUTO) and os.path.isdir(wt_prev):
-        _, st_prev = sh(["git", "status", "--porcelain"], cwd=wt_prev, timeout=30)
+    try:
+        wt = worktree(tid)
+    except Exception as e:
+        set_estado(tid, estado="fallo", nota=str(e)[:200]); evento("fallo", tid, "worktree: " + str(e)[:200]); return
+    if "--reanudar" in sys.argv or tid in REANUDAR_AUTO:
+        rc_prev, st_prev = sh(["git", "status", "--porcelain"], cwd=wt, timeout=30)
+        if rc_prev:
+            set_estado(tid, estado="fallo", nota="status Git falló; worktree conservado")
+            evento("fallo", tid, "no se puede verificar el trabajo previo; no se ejecutan puertas")
+            return
         if st_prev.strip():
-            wt = wt_prev; reanudada = True
+            reanudada = True
             evento("aviso", tid, "reanudada: el worktree ya tenía %d archivos cambiados; salto a tsc" % len(st_prev.splitlines()))
-    if not reanudada:
-        try:
-            wt = worktree(tid)
-        except Exception as e:
-            set_estado(tid, estado="fallo", nota=str(e)[:200]); evento("fallo", tid, "worktree: " + str(e)[:200]); return
     fallidos = list(PROG.get(tid, {}).get("modelos_fallidos") or [])
     base = [m for m in modelos_para(tid) if m not in MUERTOS and proveedor_vivo(proveedor_de(m)) and apto_para_tarea(m, t)]
     base = priorizar_modelos_del_arriendo(tid, base)
