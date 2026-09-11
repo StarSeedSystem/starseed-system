@@ -20,6 +20,9 @@
 import type {
   ChatMessage, ChatOptions, ChatResponse, DecryptedProviderConfig, Provider, ProviderInfo,
 } from "./types";
+import {
+  applySseChunk, createTelemetryState, parseSseLine, telemetryToResponse,
+} from "../../lib/ai/stream-telemetry";
 
 const info: ProviderInfo = {
   id: "nvidia",
@@ -106,8 +109,8 @@ async function chat(
   if (stream && res.body) {
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
-    let buffer = "", full = "";
-    let inputTokens: number | undefined, outputTokens: number | undefined; // (Ola 223)
+    let buffer = "";
+    const state = createTelemetryState();
     for (;;) {
       const { done, value } = await reader.read();
       if (done) break;
@@ -115,25 +118,13 @@ async function chat(
       const lines = buffer.split("\n");
       buffer = lines.pop() ?? "";
       for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed || trimmed.startsWith(":") || !trimmed.startsWith("data:")) continue;
-        const payload = trimmed.slice(5).trim();
-        if (payload === "[DONE]") continue;
-        try {
-          const obj = JSON.parse(payload);
-          const delta = obj?.choices?.[0]?.delta?.content ?? "";
-          if (delta) { full += delta; options.onChunk!(delta); }
-          // (Ola 223) El último chunk con usage (include_usage) marca el total.
-          if (obj?.usage != null) {
-            inputTokens = obj.usage.prompt_tokens ?? inputTokens;
-            outputTokens = obj.usage.completion_tokens ?? outputTokens;
-          }
-        } catch { /* fragmento parcial */ }
+        const result = parseSseLine(line, { ignoreComments: true });
+        if (!result || result.done) continue;
+        applySseChunk(state, result);
+        if (result.delta) options.onChunk!(result.delta);
       }
     }
-    return inputTokens != null || outputTokens != null
-      ? { text: full, usage: { inputTokens, outputTokens } }
-      : { text: full };
+    return telemetryToResponse(state);
   }
 
   const json = await res.json();

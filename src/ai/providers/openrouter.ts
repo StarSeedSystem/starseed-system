@@ -31,6 +31,9 @@ import type {
   Provider,
   ProviderInfo,
 } from "./types";
+import {
+  applySseChunk, createTelemetryState, parseSseLine, telemetryToResponse,
+} from "../../lib/ai/stream-telemetry";
 
 const info: ProviderInfo = {
   id: "openrouter",
@@ -161,8 +164,7 @@ async function chat(
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
     let buffer = "";
-    let full = "";
-    let inputTokens: number | undefined, outputTokens: number | undefined; // (Ola 223)
+    const state = createTelemetryState();
     for (;;) {
       const { done, value } = await reader.read();
       if (done) break;
@@ -170,36 +172,14 @@ async function chat(
       const lines = buffer.split("\n");
       buffer = lines.pop() ?? "";
       for (const line of lines) {
-        const trimmed = line.trim();
-        // OpenRouter envía comentarios SSE (": OPENROUTER PROCESSING") como
-        // keep-alive mientras espera al proveedor: hay que IGNORARLOS, no
-        // tratarlos como datos (rompían el parseo en adaptadores ingenuos).
-        if (!trimmed || trimmed.startsWith(":") || !trimmed.startsWith("data:")) continue;
-        const payload = trimmed.slice(5).trim();
-        if (payload === "[DONE]") continue;
-        try {
-          const obj = JSON.parse(payload);
-          const err = obj?.error?.message;
-          if (err) throw new Error(`OpenRouter: ${err}`);
-          const delta = obj?.choices?.[0]?.delta?.content ?? "";
-          if (delta) {
-            full += delta;
-            options.onChunk!(delta);
-          }
-          // (Ola 223) Captura el usage total del último chunk que lo incluya.
-          if (obj?.usage != null) {
-            inputTokens = obj.usage.prompt_tokens ?? inputTokens;
-            outputTokens = obj.usage.completion_tokens ?? outputTokens;
-          }
-        } catch (e) {
-          // Un chunk ilegible no debe tumbar la respuesta; un error explícito sí.
-          if (e instanceof Error && e.message.startsWith("OpenRouter:")) throw e;
-        }
+        const result = parseSseLine(line, { ignoreComments: true, errorPrefix: "OpenRouter" });
+        if (!result) continue;
+        if (result.done) continue;
+        applySseChunk(state, result);
+        if (result.delta) options.onChunk!(result.delta);
       }
     }
-    return inputTokens != null || outputTokens != null
-      ? { text: full, usage: { inputTokens, outputTokens } }
-      : { text: full };
+    return telemetryToResponse(state);
   }
 
   const json = await res.json();
