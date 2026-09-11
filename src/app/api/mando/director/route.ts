@@ -23,57 +23,76 @@ export async function GET() {
             const contenido = await fs.readFile(ruta, "utf-8");
             const datos = JSON.parse(contenido);
             
-            // Leer latido correspondiente
             const nombreCola = archivo.replace(".json", "");
             const latidoPath = path.join(OLAS_DIR, `latidos-${nombreCola}.json`);
-            let latido = null;
+            let latido: any = null;
             try {
                 const latidoContent = await fs.readFile(latidoPath, "utf-8");
                 latido = JSON.parse(latidoContent);
             } catch { /* sin latido */ }
 
-            const idsHechas = new Set<string>();
-            
             for (const tarea of datos) {
-                const estado = tarea.estado || "pendiente";
                 const ola = tarea.ola || "Sin ola";
+                olasActivas.add(ola);
                 
-                if (estado === "hecho" || estado === "integrado") {
-                    idsHechas.add(tarea.id);
+                // Estado: usar latido si existe, si no usar el campo de la cola
+                let estadoReal = tarea.estado || "pendiente";
+                let faseReal = "";
+                let infoLatido: any = null;
+                
+                if (latido && latido.tareas && latido.tareas[tarea.id]) {
+                    infoLatido = latido.tareas[tarea.id];
+                    faseReal = infoLatido.fase || "";
+                    
+                    // Traducir fases del latido
+                    if (faseReal === "hecho" || faseReal === "integrado" || faseReal === "cancelado") {
+                        estadoReal = "hecho";
+                    } else if (faseReal === "fallido") {
+                        estadoReal = "fallido";
+                    } else if (faseReal === "esperando-aprobacion" || faseReal === "esperando aprobación") {
+                        estadoReal = "pendiente";
+                    } else if (faseReal) {
+                        estadoReal = "ejecutando";
+                    }
+                }
+                
+                // Contar por estado
+                if (estadoReal === "hecho" || estadoReal === "integrado") {
                     totalHechas++;
-                } else if (tarea.aprobacion) {
+                } else if (estadoReal === "fallido") {
+                    // No contar en ninguna categoría
+                } else if (tarea.aprobacion && estadoReal === "pendiente") {
                     totalPendientes++;
                 } else {
                     const deps = tarea.depende || [];
                     const depsPendientes = deps.filter((d: string) => 
-                        !idsHechas.has(d) && datos.some((t: any) => t.id === d)
+                        datos.some((t: any) => t.id === d && (t.estado !== "hecho" && t.estado !== "integrado" && t.estado !== "fallido"))
                     );
                     if (depsPendientes.length > 0) {
                         totalBloqueadas++;
-                    } else {
+                    } else if (estadoReal === "pendiente" || estadoReal === "ejecutando") {
                         totalEjecutables++;
                     }
                 }
-                
-                olasActivas.add(ola);
 
-                // Agregar agente si está en el latido
-                if (latido && latido.tareas && latido.tareas[tarea.id]) {
-                    const info = latido.tareas[tarea.id];
-                    const modelo = info.modelo || tarea.modelo || "—";
-                    const proveedor = modelo.split("/")[0] || "—";
+                // Agregar al agente
+                const modelo = infoLatido?.modelo || tarea.modelo || "—";
+                const proveedor = modelo.split("/")[0] || "—";
+                
+                // Solo agregar si tiene información relevante
+                if (infoLatido || (!latido && tarea.estado === "pendiente")) {
                     proveedoresVivos.add(proveedor);
                     
                     if (proveedor === "apinex") {
                         apinexDisponible = true;
                     }
 
-                    const fase = info.fase || estado || "desconocido";
-                    const bytes = info.bytes || 0;
-                    const desde = info.desde || 0;
+                    const fase = infoLatido?.fase || tarea.estado || "desconocido";
+                    const bytes = infoLatido?.bytes || 0;
+                    const desde = infoLatido?.desde || 0;
                     const ahora = Date.now() / 1000;
                     const minutos = Math.max(0, Math.round((ahora - desde) / 60));
-                    const avance = info.avance || desde;
+                    const avance = infoLatido?.avance || desde;
                     const quietoSegundos = Math.round(ahora - avance);
                     
                     agentes.push({
@@ -82,14 +101,14 @@ export async function GET() {
                         fase,
                         modelo,
                         proveedor,
-                        ola: latido.cola || ola,
+                        ola: latido?.cola || ola,
                         tarea: tarea.titulo || "—",
                         bytes,
                         minutos,
-                        intento: info.intento || 1,
+                        intento: infoLatido?.intento || 1,
                         quietoSegundos,
                         rpm: 0,
-                        vivo: fase !== "hecho" && fase !== "fallido",
+                        vivo: !["hecho", "fallido", "integrado", "cancelado"].includes(fase),
                         commits: 0,
                         verificaciones: 0,
                         mcpConectados: 0,
@@ -99,7 +118,7 @@ export async function GET() {
             }
         }
         
-        // Ordenar: vivos primero, luego por bytes
+        // Ordenar: vivos primero, luego por bytes descendente
         agentes.sort((a, b) => {
             if (a.vivo !== b.vivo) return a.vivo ? -1 : 1;
             return b.bytes - a.bytes;
