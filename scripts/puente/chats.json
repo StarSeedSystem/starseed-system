@@ -11,11 +11,10 @@
       "id": "session_018RMahTwV5WCPD9iPaXmDC3"
     },
     "codex": {
-      "producto": "Codex CLI (Astra)",
+      "producto": "Codex (app de escritorio)",
       "proyecto": "starseed-os-main",
-      "como_volver": "codex resume 01a08946-ee93-7ef3-a41e-51d6c45e1752",
-      "id": "01a08946-ee93-7ef3-a41e-51d6c45e1752",
-      "modelo": "gpt-5.6-sol"
+      "como_volver": "Abre PUENTE DE MANDO · StarSeed OS en Codex; CLI: codex resume 01a08a31-a97c-7332-973a-32ebc5606504",
+      "id": "01a08a31-a97c-7332-973a-32ebc5606504"
     },
     "hermes": {
       "producto": "Hermes Agent",
