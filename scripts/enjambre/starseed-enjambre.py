@@ -516,7 +516,7 @@ def _liberar_429(prov):
 
 def _sonda_ligera(prov, claves, kay):
     """GET a `/models` con la clave activa (2026-09-07, Ola 271, P9D, Tarea 4): no consume cupo de
-    generación. 200 → vivo (y libera las agotadas por 429); 401/403 → clave inválida (agotar 24 h,
+    generación. 200 → catálogo accesible, sin renovar cupos; 401/403 → clave inválida (agotar 24 h,
     «clave rechazada»); 402 → agotar 24 h; resto (5xx/timeout/red) → caído."""
     url = MODELS_URLS.get(prov) or (PASARELAS[prov]["url"].rstrip("/chat/completions") + "/models" if prov in PASARELAS else None)
     if not url:
@@ -530,7 +530,6 @@ def _sonda_ligera(prov, claves, kay):
     huella = (kay or {}).get("huella")
     try:
         with urllib.request.urlopen(req, timeout=40) as r:
-            _liberar_429(prov)
             return True
     except urllib.error.HTTPError as e:
         if e.code in (401, 403):

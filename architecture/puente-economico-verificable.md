@@ -7,6 +7,9 @@ Los modelos con suscripción o créditos limitados se reservan para dirección y
 una suscripción no equivale a uso ilimitado ni gratuito. Codex queda fuera de la escritura
 automática salvo autorización explícita mediante `STARSEED_CODEX_ESCRITOR=1`.
 El cambio debe aplicarse a la selección, al anuncio de capacidad y a la ejecución directa.
+Un GET al catálogo de modelos nunca renueva cuota de generación ni cancela un 429.
+Los créditos adicionales y las ventanas de suscripción son presupuestos distintos.
+Un dato de cuota ausente o caducado se etiqueta desconocido, no ilimitado.
 
 ## Entrega y datos honestos
 
