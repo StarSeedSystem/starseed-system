@@ -27,7 +27,7 @@ el chat de Antigravity o esta sesión de Claude— ve y dirige exactamente lo mi
 import json, os, socket, subprocess, sys, time, urllib.request
 
 RAIZ = os.environ.get("STARSEED_ROOT") or "/Users/alex/Documents/starseed-os-main"
-MANDO = os.environ.get("STARSEED_MANDO_URL") or "http://127.0.0.1:9003"
+MANDO = os.environ.get("STARSEED_MANDO_URL") or "http://127.0.0.1:9002"
 OLAS = os.path.join(RAIZ, "starseed_memory_root", "olas")
 
 
