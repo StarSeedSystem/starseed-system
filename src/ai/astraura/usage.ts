@@ -33,7 +33,7 @@ export const FREE_DAILY_LIMITS: Record<string, { reqPerDay?: number; note?: stri
   "openrouter-free": { reqPerDay: 50, note: "1.000/día con recarga única de $10" },
   "gemini-free": { reqPerDay: 250, note: "flash-lite ~1.000/día" },
   "mistral-free": { note: "~1B tokens/mes" },
-  "nvidia-nim-free": { reqPerDay: 1000 },
+  "nvidia-nim": { reqPerDay: 1000 },
   "github-models-free": { reqPerDay: 150 },
   "pollinations-text": { note: "sin clave · puede haber colas · nunca se desactiva" },
   // Adenda 67 · nuevas fuentes gratis-sin-clave y free-key verificadas.
