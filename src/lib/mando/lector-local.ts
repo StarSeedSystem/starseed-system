@@ -508,6 +508,7 @@ export async function leerLatidos(): Promise<LatidoTarea[]> {
                 quietoSegundos: avance > 0 ? Math.max(0, Math.round((ahora - avance) / 1000)) : 0,
                 donde: "mac",
                 medio: medioArchivo,
+                bytesLog: número(d.bytes, 0),
             });
         }
     }

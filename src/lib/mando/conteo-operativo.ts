@@ -38,9 +38,14 @@ export function contarTrabajoReal(
     let enCurso = 0;
     let listas = 0;
     let bloqueadas = 0;
+    // Agentes activos pero que no están en `fila` (ej. venidos de otras fuentes) también son «en curso»
+    for (const id of activas) {
+        if (!porId.has(id)) enCurso += 1;
+    }
+
     for (const [id, grupo] of porId) {
         if (activas.has(id)) {
-            enCurso += 1;
+            // Ya contado arriba como «en curso»
             continue;
         }
         const abiertas = grupo.filter((tarea) => !CERRADAS.has(tarea.estado));
