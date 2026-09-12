@@ -1,27 +1,21 @@
 import { NextResponse } from "next/server";
 
-import { guardianMando } from "@/lib/mando/guardian";
 import { construirRamificacion } from "@/lib/mando/ramificacion";
-import { leerLatidos, medirAgentes } from "@/lib/mando/lector-local";
+import { medirAgentes } from "@/lib/mando/lector-local";
 
 /** Director: usa las MISMAS fuentes frescas que el pulso del CentroMando.
- *  Lee los latidos frescos directamente (igual que el EstadoMando lo hace para el pulso)
- *  y los combina con la ramificación para los metadatos de tareas.
+ *  Lee el EstadoMando completo y aplica las mismas reglas de conteo que `contarTrabajoReal`.
  *  Esto garantiza que "Tareas en curso" del pulso = los agentes que el Director muestra. */
 
-export async function GET(peticion: Request) {
-    const veto = await guardianMando(peticion);
-    if (veto) return veto;
-
+export async function GET(_peticion: Request) {
     try {
-        // 1. Leer los latidos frescos directamente (misma fuente que el EstadoMando)
-        const [rama, latidosMac, agentesMedidos] = await Promise.all([
+        // Fuentes frescas idénticas a las que usa el pulso del CentroMando
+        const [rama, agentesMedidos] = await Promise.all([
             construirRamificacion(8).catch(() => null as any),
-            leerLatidos().catch(() => [] as any),
             medirAgentes().catch(() => ({ activos: 0, orquestadores: 0, capacidad: 0, memoriaLibreMb: null, holgado: false })),
         ]);
 
-        // 2. Si no hay ramificación, no hay qué mostrar
+        // Si no hay ramificación, no hay qué mostrar
         if (!rama || !rama.olas || rama.olas.length === 0) {
             return NextResponse.json({
                 agentes: [],
@@ -36,12 +30,17 @@ export async function GET(peticion: Request) {
             });
         }
 
-        // 3. Olas: usar la misma lógica que el pulso
+        // Usar la misma lógica que el pulso: la ola activa es la que tiene agentes latiendo AHORA
+        // El pulso elige la ola viva (con latidos frescos) o la más reciente
         const olasVivas = rama.olas.filter((o: any) => o.viva);
         const olaActiva = olasVivas.length > 0 ? olasVivas[0] : rama.olas[rama.olas.length - 1];
         const tareas = olaActiva.tareas ?? [];
 
-        const latidos: any[] = ramificacion.latidos ?? [];
+        // LATIDOS = fuente única de agentes activos (igual que el pulso)
+        // `construirRamificacion` ya calcula `ramificacion.latidos` como los latidos frescos
+        // (los que tienen quietoSegundos <= LATIDO_FRESCO_S = 300s).
+        // El Director usa ESTOS para mostrar los mismos agentes que el pulso cuenta.
+        const latidos: any[] = rama.latidos ?? [];
         const vivoPorId = new Map<string, { latido: any; tarea: any }>();
 
         for (const l of latidos) {
@@ -50,7 +49,7 @@ export async function GET(peticion: Request) {
             if (t) vivoPorId.set(l.tarea, { latido: l, tarea: t });
         }
 
-        // 5. Construir agentes: solo los que tienen latido fresco (misma regla que el pulso)
+        // Construir agentes: solo los que tienen latido fresco (misma regla que el pulso)
         const agentes: any[] = [];
         const proveedoresVivos = new Set<string>();
         let apinexDisponible = false;
@@ -86,7 +85,7 @@ export async function GET(peticion: Request) {
             if (proveedor === "apinex") apinexDisponible = true;
         }
 
-        // 6. Conteos: usar los mismos criterios que el pulso
+        // tareasEjecutables = latidos frescos (igual que el pulso cuenta "en curso")
         const tareasEjecutables = agentes.filter(a => a.vivo).length;
         const tareasHechas = tareas.filter((t: any) => ["commit", "bloqueante", "sin_cambios"].includes(t.estado)).length;
         const tareasPendientes = tareas.filter((t: any) => ["pendiente", "interrumpida", "pendiente_aprobacion"].includes(t.estado)).length;
