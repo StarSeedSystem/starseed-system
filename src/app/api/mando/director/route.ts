@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { guardianMando } from "@/lib/mando/guardian";
 import { leerLatidosCompletos } from "@/lib/mando/lector-local";
 
 export const runtime = "nodejs";
@@ -10,7 +11,9 @@ const QUIETO_MAX_SEGUNDOS = 7200; // 2 horas
  * GET /api/mando/director — mismo origen de datos que el Puente de Mando.
  * Lee TODOS los latidos activos y filtra por actividad reciente.
  */
-export async function GET() {
+export async function GET(peticion: Request) {
+    const veto = await guardianMando(peticion);
+    if (veto) return veto;
     try {
         const todos = await leerLatidosCompletos();
 

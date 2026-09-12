@@ -45,7 +45,8 @@ export function contarTrabajoReal(
 
     for (const [id, grupo] of porId) {
         if (activas.has(id)) {
-            // Ya contado arriba como «en curso»
+            // Tarea con latido vivo: está en curso, no lista ni bloqueada.
+            enCurso += 1;
             continue;
         }
         const abiertas = grupo.filter((tarea) => !CERRADAS.has(tarea.estado));
