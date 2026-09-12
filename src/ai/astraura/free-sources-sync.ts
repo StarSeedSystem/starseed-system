@@ -363,7 +363,7 @@ export function parseCheahjsReadme(markdown: string): ParsedFreeLlmProvider[] {
 const KNOWN_ALIASES: Record<string, string> = {
   openrouter: "openrouter-free",
   "google ai studio": "gemini-free",
-  "nvidia nim": "nvidia-nim-free",
+  "nvidia nim": "nvidia-nim",
   "mistral la plateforme": "mistral-free",
   "mistral codestral": "mistral-free",
   "huggingface inference providers": "huggingface-router",
