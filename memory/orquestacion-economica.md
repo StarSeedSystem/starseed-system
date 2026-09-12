@@ -49,6 +49,23 @@ CANDIDATO, no un archivo.* Codex CLI como motor escribió su respuesta de chat d
 la puerta de sintaxis en `lanzar-enjambre.sh`, y `archivos_degenerados()` + vitest obligatorio en
 `director-final.py`. **Un archivo que encoge más de la mitad en un «fix» no se integra.**
 
+**RAM, disco y dónde corren los agentes (2026-09-12, tras un kernel panic a las 14:04):**
+- La Mac tiene **8 GB**. No caben a la vez: `next build` (≥2,5 GB) + voz (`tts-server`, ~0,9 GB) +
+  BitNet (`llama-server`, ~0,5 GB) + `next dev` + el enjambre. Regla: **el build se hace con el
+  enjambre parado y voz/BitNet descargados** (`launchctl unload` de `com.starseed.astraura-voice` y
+  `com.starseed.astraura`, y se recargan al terminar), con `NODE_OPTIONS=--max-old-space-size=2560`.
+  El guardia congela BitNet (y, cuando entre la tarea p316F, también la voz) mientras el enjambre escribe.
+  **Nunca un `next dev` permanente**: el Mando es `next start` sobre el build.
+- Disco: nunca por debajo de **5 GB libres** (con 1 GB SQLite se corrompió y Hermes perdió sus chats).
+  Lo regenerable (cachés de apps, `node_modules` de worktrees, builds viejos, `npm cache`) se borra sin
+  preguntar; lo pesado que haya que conservar (modelos, exportes, vídeos) va al **Google Drive
+  vinculado**, nunca a `~/Documents`. Datos de proyecto y de cuentas: jamás, y con copia antes de tocar.
+- **Más agentes sin más RAM: la máquina virtual de Claude en la nube** (la tarea horaria y las sesiones
+  de Cowork) corre su propio orquestador con `STARSEED_MEDIO=nube` y 6 trabajadores sobre un clon de
+  `origin/main`; `medios.py` reparte las tareas entre Mac y nube por lease y se reorganiza si uno cae.
+  Lo que la nube integra llega a la Mac por `origin/main` (o por parche en el proyecto si el proxy da 403).
+  Cuando la Mac vaya justa, **la ola va a la nube, no a más procesos en la Mac.**
+
 **Recursos de API — solo nombres de variable, nunca valores** (los valores viven en
 `~/.starseed/env` y `~/.hermes/.env`, chmod 600): `GROQ_API_KEY`, `NVIDIA_API_KEY`, `OPENROUTER_API_KEY`,
 `GEMINI_API_KEY`, `GOOGLE_API_KEY`, `DEEPSEEK_API_KEY`, `HF_TOKEN`, `TOKENROUTER_API_KEY`, `AIHUBMIX_API_KEY`,
