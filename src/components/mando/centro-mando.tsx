@@ -29,6 +29,7 @@ import { ChatOrquestacion } from "@/components/mando/chat-orquestacion";
 import { OrbeAsistente } from "@/components/mando/orbe-asistente";
 import { escuchar as escucharAsistente } from "@/lib/mando/asistente-cliente";
 import { PanelAreas } from "@/components/mando/panel-areas";
+import { PanelContextos } from "@/components/mando/panel-contextos";
 import { PanelEntornos } from "@/components/mando/panel-entornos";
 import { PanelAjustes } from "@/components/mando/panel-ajustes";
 import { PanelNeurona } from "@/components/mando/panel-neurona";
@@ -101,6 +102,7 @@ const PESTANAS = [
     { id: "aprendizaje", etiqueta: "Aprendizaje" },
     { id: "chat", etiqueta: "Chat" },
     { id: "areas", etiqueta: "Áreas" },
+    { id: "contextos", etiqueta: "Contextos" },
     { id: "entornos", etiqueta: "Entornos" },
     { id: "ajustes_director", etiqueta: "Ajustes Director" },
     { id: "ajustes", etiqueta: "Ajustes" },
@@ -744,6 +746,9 @@ export function CentroMando() {
                 </TabsContent>
                 <TabsContent value="areas">
                     <PanelAreas />
+                </TabsContent>
+                <TabsContent value="contextos">
+                    <PanelContextos />
                 </TabsContent>
                 <TabsContent value="entornos">
                     <PanelEntornos />
