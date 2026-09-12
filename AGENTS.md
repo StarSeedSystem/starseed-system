@@ -105,6 +105,11 @@ eventos del orquestador al mismo sitio.
 - **Un solo orquestador** (`scripts/enjambre/starseed-enjambre.py`) con N trabajadores. Tres
   procesos a la vez son tres `tsc` simultáneos y tumban la máquina. Los **agentes** sí se
   multiplican: cuantos más en paralelo, mejor, cada uno en su worktree.
+  **No escribas otro** (2026-09-12: `director-final.py` e `integrador-selectivo.py`, un segundo
+  orquestador con Ollama 7B y su propio merge, integró en main tres archivos convertidos en prosa
+  de chat, y el modelo de 4,7 GB no cabe junto al enjambre en 8 GB; se retiraron). Un motor de
+  escritura nuevo entra como **proveedor** en `MODELOS`; una puerta nueva entra en el orquestador
+  que ya existe. Mergear a main lo hace el orquestador tras sus puertas, o una persona.
 - **Nunca `next build` con el enjambre vivo.** La Mac es de 8 GB; un agente `opencode` cuesta
   ~600 MB de runtime Node.
 - Tres puertas antes de publicar: `npx tsc --noEmit`, `npx vitest run`, `npx next build` completo.

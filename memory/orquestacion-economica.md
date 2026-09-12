@@ -47,7 +47,10 @@ CANDIDATO, no un archivo.* Codex CLI como motor escribió su respuesta de chat d
 `starseed-enjambre.py`, `router.ts` y `free-catalog.ts` (3.641 → 141 líneas; 1.694 → 5) y un
 «director final» los integró en main sin pasar las puertas. Por eso ahora: `test_guiones_parsean.py`,
 la puerta de sintaxis en `lanzar-enjambre.sh`, y `archivos_degenerados()` + vitest obligatorio en
-`director-final.py`. **Un archivo que encoge más de la mitad en un «fix» no se integra.**
+el orquestador (tarea p316G). **Un archivo que encoge más de la mitad en un «fix» no se integra.**
+`director-final.py` e `integrador-selectivo.py` **se retiraron** el mismo día: eran un segundo
+orquestador (regla rota) con Ollama 7B (no cabe en 8 GB junto al enjambre); lo que valía de ellos
+—la puerta de archivos degenerados— pasa al orquestador único.
 
 **RAM, disco y dónde corren los agentes (2026-09-12, tras un kernel panic a las 14:04):**
 - La Mac tiene **8 GB**. No caben a la vez: `next build` (≥2,5 GB) + voz (`tts-server`, ~0,9 GB) +
