@@ -1620,6 +1620,7 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
             paidSuggestions: [],
             ...(failovers.length ? { failovers } : {}),
             attempts: failovers.length + 1,
+            ...(res?.usage ? { usage: res.usage } : {}), // (Ola 223) tokens reales del reintento
           };
           pushRouteRecord(rec);
           req.onStatus?.("");
