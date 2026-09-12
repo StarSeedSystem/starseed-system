@@ -516,6 +516,52 @@ export async function leerLatidos(): Promise<LatidoTarea[]> {
     return latidos.sort((a, b) => a.tarea.localeCompare(b.tarea));
 }
 
+/**
+ * Lee TODOS los latidos de todas las colas locales SIN filtrar por mtime.
+ * El Director la usa para mostrar los mismos agentes que el Puente de Mando,
+ * que lee el archivo de colas directamente sin descartar por inactividad.
+ */
+export async function leerLatidosCompletos(): Promise<LatidoTarea[]> {
+    const dirOlas = "starseed_memory_root/olas";
+    const ahora = Date.now();
+    const latidos: LatidoTarea[] = [];
+    let nombres: string[] = [];
+    try {
+        nombres = (await readdir(path.join(RAÍZ, dirOlas))).filter((n) => n.startsWith("latidos-") && n.endsWith(".json"));
+    } catch {
+        return [];
+    }
+    for (const nombre of nombres) {
+        try {
+            const datos = objeto(await leerJson(`${dirOlas}/${nombre}`));
+            const cola = (texto(datos.cola) || nombre.replace(/^latidos-/, "")).replace(/\.json$/, "");
+            const medioArchivo = texto(datos.medio) || undefined;
+            const porTarea = objeto(datos.tareas);
+            for (const [tarea, bruto] of Object.entries(porTarea)) {
+                const d = objeto(bruto);
+                const fase = texto(d.fase);
+                if (!tieneTexto(fase) || fase === "hecho") continue;
+                const desde = número(d.desde, 0) * 1000;
+                const avance = número(d.avance, 0) * 1000;
+                latidos.push({
+                    tarea,
+                    cola,
+                    fase,
+                    modelo: texto(d.modelo),
+                    minutos: desde > 0 ? Math.max(0, Math.round((ahora - desde) / 60000)) : 0,
+                    quietoSegundos: avance > 0 ? Math.max(0, Math.round((ahora - avance) / 1000)) : 0,
+                    donde: "mac",
+                    medio: medioArchivo,
+                    bytesLog: número(d.bytes, 0),
+                });
+            }
+        } catch {
+            continue;
+        }
+    }
+    return latidos.sort((a, b) => a.tarea.localeCompare(b.tarea));
+}
+
 const execFileAsync = promisify(execFile);
 
 /**
