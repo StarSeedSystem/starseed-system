@@ -1,62 +1,79 @@
 import { NextResponse } from "next/server";
 
 import { guardianMando } from "@/lib/mando/guardian";
-import { leerLatidos } from "@/lib/mando/lector-local";
-import type { LatidoTarea } from "@/lib/mando/tipos";
+import { construirRamificacion } from "@/lib/mando/ramificacion";
+import { leerLatidos, medirAgentes } from "@/lib/mando/lector-local";
 
-/** Director: usa las MISMAS fuentes frescas y locales que el pulso del CentroMando.
- *  NO usa `construirRamificacion` (que toca Supabase y puede fallar). Lee directamente
- *  los latidos frescos del disco (hasta 300 s de quieto) + las colas locales.
- *  Los conteos son los mismos que el pulso calcula con `contarTrabajoReal`. */
+/** Director: usa las MISMAS fuentes frescas que el pulso del CentroMando.
+ *  Lee los latidos frescos directamente (igual que el EstadoMando lo hace para el pulso)
+ *  y los combina con la ramificación para los metadatos de tareas.
+ *  Esto garantiza que "Tareas en curso" del pulso = los agentes que el Director muestra. */
 
 export async function GET(peticion: Request) {
     const veto = await guardianMando(peticion);
     if (veto) return veto;
 
     try {
-        // Latidos frescos del orquestador (hasta 300 s sin avance = fresco)
-        const latidos = await leerLatidos();
+        // 1. Leer los latidos frescos directamente (misma fuente que el EstadoMando)
+        const [rama, latidosMac, agentesMedidos] = await Promise.all([
+            construirRamificacion(8).catch(() => null as any),
+            leerLatidos().catch(() => [] as any),
+            medirAgentes().catch(() => ({ activos: 0, orquestadores: 0, capacidad: 0, memoriaLibreMb: null, holgado: false })),
+        ]);
 
-        // Tareas vivas = aquellas con latido fresco (lo mismo que el pulso)
-        const vivas = latidos.filter(l =>
-            l.tarea && l.fase && !["hecho", "cancelado", "integrado", "fallido"].includes(l.fase)
-        );
+        // 2. Si no hay ramificación, no hay qué mostrar
+        if (!rama || !rama.olas || rama.olas.length === 0) {
+            return NextResponse.json({
+                agentes: [],
+                totalColas: 0,
+                tareasEjecutables: 0,
+                tareasHechas: 0,
+                tareasPendientes: 0,
+                tareasBloqueadas: 0,
+                olasActivas: [],
+                proveedoresVivos: 0,
+                apinexDisponible: false,
+            });
+        }
 
-        // Construir lista de agentes para el Director, con modelo/bytes reales desde el latido
+        // 3. Olas: usar la misma lógica que el pulso
+        const olasVivas = rama.olas.filter((o: any) => o.viva);
+        const olaActiva = olasVivas.length > 0 ? olasVivas[0] : rama.olas[rama.olas.length - 1];
+        const tareas = olaActiva.tareas ?? [];
+
+        const latidos: any[] = ramificacion.latidos ?? [];
+        const vivoPorId = new Map<string, { latido: any; tarea: any }>();
+
+        for (const l of latidos) {
+            if (!l.tarea) continue;
+            const t = tareas.find((tt: any) => tt.id === l.tarea) ?? null;
+            if (t) vivoPorId.set(l.tarea, { latido: l, tarea: t });
+        }
+
+        // 5. Construir agentes: solo los que tienen latido fresco (misma regla que el pulso)
         const agentes: any[] = [];
-        const olasVivas = new Set<string>();
         const proveedoresVivos = new Set<string>();
         let apinexDisponible = false;
 
-        for (const l of vivas) {
-            const id = l.tarea!;
-            const modelo = l.modelo ?? "—";
-            const proveedor = modelo.split("/")[0] ?? "—";
-            const bytes = l.bytesLog ?? 0;
-            const minutos = l.minutos ?? 0;
-            const intento = l.intento ?? 1;
-            const quietoSegundos = l.quietoSegundos ?? 0;
-
-            // La ola viene del nombre de la cola del latido, normalizada
-            const colaNormalizada = (l.cola ?? "").replace(/^cola-/, "").replace(/^latidos-/, "");
-            const ola = `Ola ${colaNormalizada}`;
-
-            if (proveedor === "apinex") apinexDisponible = true;
-            proveedoresVivos.add(proveedor);
-            olasVivas.add(ola);
+        for (const [id, entry] of vivoPorId) {
+            const { latido, tarea } = entry;
+            const proveedor = (latido.modelo || "").split("/")[0] || "—";
+            const fase = ["hecho", "cancelado", "integrado"].includes(latido.fase || "")
+                ? latido.fase
+                : (latido.fase || tarea.estado || "escribiendo");
 
             agentes.push({
-                id,
-                nombre: id,
-                fase: l.fase ?? "escribiendo",
-                modelo,
-                proveedor,
-                ola,
-                tarea: id,
-                bytes,
-                minutos,
-                intento,
-                quietoSegundos,
+                id: tarea.id,
+                nombre: (tarea.titulo || "").trim().slice(0, 40) || tarea.id,
+                fase,
+                modelo: latido.modelo || tarea.modelo || "—",
+                proveedor: proveedor,
+                ola: olaActiva.id,
+                tarea: (tarea.titulo || "").trim() || "—",
+                bytes: latido.bytesLog ?? 0,
+                minutos: latido.minutos ?? 0,
+                intento: latido.intento ?? 1,
+                quietoSegundos: latido.quietoSegundos ?? 0,
                 rpm: 0,
                 vivo: true,
                 commits: 0,
@@ -64,19 +81,25 @@ export async function GET(peticion: Request) {
                 mcpConectados: 0,
                 pluginsActivos: 0,
             });
+
+            proveedoresVivos.add(proveedor);
+            if (proveedor === "apinex") apinexDisponible = true;
         }
 
-        // Ordenar por bytes descendente (mismo criterio que el pulso)
-        agentes.sort((a, b) => b.bytes - a.bytes);
+        // 6. Conteos: usar los mismos criterios que el pulso
+        const tareasEjecutables = agentes.filter(a => a.vivo).length;
+        const tareasHechas = tareas.filter((t: any) => ["commit", "bloqueante", "sin_cambios"].includes(t.estado)).length;
+        const tareasPendientes = tareas.filter((t: any) => ["pendiente", "interrumpida", "pendiente_aprobacion"].includes(t.estado)).length;
+        const tareasBloqueadas = tareas.filter((t: any) => t.estado === "bloqueada").length;
 
         return NextResponse.json({
             agentes,
-            totalColas: 0,  // no escaneamos colas manualmente (consistente con lo que el pulso muestra)
-            tareasEjecutables: agentes.length,  // = agentes con latido fresco = lo mismo que el pulso
-            tareasHechas: 0,                    // las hechas no tienen latido fresco
-            tareasPendientes: 0,                // las pendientes no tienen latido fresco
-            tareasBloqueadas: 0,
-            olasActivas: Array.from(olasVivas).slice(0, 10),
+            totalColas: 0,
+            tareasEjecutables,
+            tareasHechas,
+            tareasPendientes,
+            tareasBloqueadas,
+            olasActivas: rama.olas.slice(0, 10).map((o: any) => o.id),
             proveedoresVivos: proveedoresVivos.size,
             apinexDisponible,
         });
