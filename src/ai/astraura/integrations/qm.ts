@@ -55,8 +55,10 @@ export async function healthCheck(config: QmConfig): Promise<IntegrationResult> 
     // En server/Node podemos intentar require dinámico
     if (typeof require !== "undefined") {
       try {
-        require("sqlite3");
-        require("sqlite-vec");
+        // Usar eval para que webpack no resuelva estáticamente
+        const req = eval('require');
+        req("sqlite3");
+        req("sqlite-vec");
         return { ok: true, data: { status: "healthy", sqlite: true, vec: true } };
       } catch {
         return { ok: false, error: "sqlite3 o sqlite-vec no instalados (npm i sqlite3 sqlite-vec)" };
