@@ -1,6 +1,6 @@
 # Puente de Mando · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-11 13:03:42 desde el Mando vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-12 14:10:34 desde el Mando vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -11,21 +11,24 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 
 | | |
 |---|---|
-| Mando | **encendido** en http://127.0.0.1:9003/mando |
-| Ola arriba | Ola 315 · Supervisión sin inferencia |
-| Agentes escribiendo | **0** |
-| En esta ola | integradas 0 · en curso 0 · esperando aprobación 0 · pendientes 0 |
-| Últimas 4 olas | en curso 0 · pendientes 0 · integradas 1 |
-| HEAD | `2f963cbb Ola 239 · mando completo (nube) · MD8: Pestaña «Publicar»: lo que espera tu visto` |
-| Sin publicar | 3 commits |
-| Árbol | 6 archivos sin commitear |
+| Mando | **encendido** en http://127.0.0.1:9002/mando |
+| Ola arriba | Ola 316 · Salud del Puente: agentes que vigilan cada medidor |
+| Agentes escribiendo | **5** |
+| En esta ola | integradas 0 · en curso 1 · esperando aprobación 0 · pendientes 5 |
+| Últimas 7 olas | en curso 5 · pendientes 5 · integradas 10 |
+| HEAD | `b0e46839 Puente · el Mando vuelve a 9002 con next start sobre el build compilado` |
+| Sin publicar | 0 commits |
+| Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-auto-0911-033948.json`, hace 32198s)
+## Quién escribe ahora (latido de `cola-auto-0912-141019.json`, hace 0s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `MD8` | hecho | nvidia/deepseek-ai/deepseek-v4-pro | 537 min | 32217 s | 40882 |
-| `zD1` | hecho | nvidia/deepseek-ai/deepseek-v4-pro | 560 min | 33583 s | 58729 |
+| `p316A` | escribiendo | nvidia/moonshotai/kimi-k3 | 0 min | 9 s | 234 |
+| `zAR3` | escribiendo | xkiro/qwen/qwen3-coder-plus:free | 0 min | 10 s | 323 |
+| `LT3` | escribiendo | xkiro/qwen/qwen3-coder-plus:free | 0 min | 10 s | 767 |
+| `MD7` | escribiendo | nvidia/deepseek-ai/deepseek-v4-pro | 0 min | 10 s | 4485 |
+| `MD3` | escribiendo | nvidia/moonshotai/kimi-k3 | 0 min | 10 s | 464 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
@@ -66,6 +69,6 @@ vigilante del orquestador lee **cada 20 s**. Da igual quién la escriba: es el m
 | Rumbo y reglas permanentes | `CLAUDE.md` (Claude) · `AGENTS.md` (Codex, Antigravity) · `gemini.md` |
 | Estado del enjambre | `starseed_memory_root/olas/` — **no se versiona**, muere con la máquina |
 | Orquestador | `scripts/enjambre/starseed-enjambre.py`, instalado en `~/.local/bin/` |
-| Mando | `http://127.0.0.1:9003/mando` — local, `/api/mando/*` devuelve 404 en producción |
+| Mando | `http://127.0.0.1:9002/mando` — local, `/api/mando/*` devuelve 404 en producción |
 | Publicado | https://starseed-os.vercel.app |
 
