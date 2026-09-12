@@ -7,6 +7,55 @@
 > a modelos capaces), el progreso se **autoenruta** a otros modelos y sesiones para que la
 > tarea continúe sola, y cada ola termina con su **punto de relevo** escrito.
 
+## 0. Cómo se opera el Puente de Mando — vinculado a cada sesión (regla permanente · 2026-09-12)
+
+**Enlace:** el Mando vive en **http://localhost:9002/mando** en la Mac (servicio launchd
+`com.starseed.mando`; si no responde: `bash scripts/puente/instalar-servicios.sh`). Desde la
+terminal: `starseed-puente estado | agentes | olas | cola | puertas | briefing | mensajes`.
+Desde Telegram: el bot `@starseed_puente_bot` con `/estado /agentes /olas /cola /puertas`.
+Todo lo que dice cualquier agente o modelo va al canal común `starseed_memory_root/mando/canal.jsonl`
+(`starseed-puente decir "…"`), que es el chat principal de los cuatro IDE y de Telegram.
+
+**Quién vigila qué, y con qué modelo — la pirámide de coste:**
+
+| capa | quién | modelo / coste | cada | qué hace |
+| --- | --- | --- | --- | --- |
+| 0 · trabajo | el enjambre (N agentes, UN orquestador) | flota gratuita (§5): llm7, NIM, Groq, OpenRouter, Apinex… | continuo | escribe las olas, ≤3 archivos / ≤120 líneas por tarea |
+| 1 · directores 24/7 | `vigilante` · `director` · `guardia` · `eco` · `ecoides` · `telegram` (launchd) | **cero créditos**: Python puro | 90 s / 180 s | relanza el enjambre si hay trabajo real, **reconcilia `progreso.json` con git**, aprueba lo revisado, congela BitNet, replica el canal a los IDE |
+| 2 · dirección | Astra (Codex/ChatGPT) como director principal | cupo de ChatGPT | cuando hace falta | diseña olas, decide dependencias, verifica en localhost |
+| 3 · revisión de precisión | **Claude Fable / Opus** (Cowork o Claude Code) | créditos de Claude, los caros | **una vez por hora** (tarea programada) y cuando algo se rompe | audita a los directores (¿reconciliaron? ¿aprobaron bien?), la salud completa del Mando medidor a medidor, y **arregla lo que la capa 1 no sabe arreglar** |
+
+**Regla de cuotas:** la cuota de Claude se renueva por **ventana de 5 horas** y por **semana**; la
+de ChatGPT/Codex por ventana de horas y semana también; las gratuitas por día o por minuto (§5).
+Nunca se gasta la ventana entera de un proveedor caro: si Claude va por encima del 80 % de la
+semana, la capa 3 pasa a **solo lectura** (auditar y proponer) y lo que haya que escribir se
+ramifica al enjambre o a Astra. **Lo largo y pesado va siempre a la capa 0**, aunque tarde más.
+
+**Lo que la capa 3 comprueba cada hora (y anuncia en el canal como `SALUD · …`):**
+1. Orquestador: ¿hay latido fresco? Si no y hay pendientes reales, ¿por qué no relanzó el vigilante?
+2. Directores: ¿los seis servicios `com.starseed.*` con pid y exit 0? (`bash scripts/puente/instalar-servicios.sh estado`)
+3. `progreso.json` honesto: cero `en_curso` sin latido, cero `bloqueada` cuya dependencia ya está en main
+   (`python3 scripts/puente/reconciliar_progreso.py` sin `--aplicar` lo lista).
+4. Proveedores: cuáles agotados, cuándo renuevan, a quién se está enrutando.
+5. Cada medidor del Mando contra la realidad (cabecera, olas, agentes, puertas, disco).
+6. Punta de git: `main` local vs `origin/main`, árbol limpio, y **que ningún archivo haya encogido**
+   (ver regla de abajo). Publicar solo con las tres puertas en verde.
+7. Sugerencias: qué mejorar del Puente, escritas como tareas para el enjambre, no hechas a mano.
+
+**Regla nueva (2026-09-12), aprendida a golpes:** *la salida de un motor de escritura es un
+CANDIDATO, no un archivo.* Codex CLI como motor escribió su respuesta de chat dentro de
+`starseed-enjambre.py`, `router.ts` y `free-catalog.ts` (3.641 → 141 líneas; 1.694 → 5) y un
+«director final» los integró en main sin pasar las puertas. Por eso ahora: `test_guiones_parsean.py`,
+la puerta de sintaxis en `lanzar-enjambre.sh`, y `archivos_degenerados()` + vitest obligatorio en
+`director-final.py`. **Un archivo que encoge más de la mitad en un «fix» no se integra.**
+
+**Recursos de API — solo nombres de variable, nunca valores** (los valores viven en
+`~/.starseed/env` y `~/.hermes/.env`, chmod 600): `GROQ_API_KEY`, `NVIDIA_API_KEY`, `OPENROUTER_API_KEY`,
+`GEMINI_API_KEY`, `GOOGLE_API_KEY`, `DEEPSEEK_API_KEY`, `HF_TOKEN`, `TOKENROUTER_API_KEY`, `AIHUBMIX_API_KEY`,
+`XKIRO_API_KEY`, `ANTHROPIC_API_KEY`, `STARSEED_PASARELA_GROQ_*`, `STARSEED_PASARELA_APINEX_*`,
+`TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`. El catálogo vivo de modelos gratuitos está en
+`src/ai/astraura/free-catalog.ts`; el orquestador rota claves solo (`clave_activa`/`agotar_clave`).
+
 ## 1. Regla de conducta del modelo (léela como instrucción)
 
 1. Antes de empezar una ola, estima su coste. Si tu presupuesto de sesión no la cubre,

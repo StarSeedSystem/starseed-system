@@ -117,11 +117,38 @@ def verificar_tsc(wt_path):
             env={**os.environ, "NODE_OPTIONS": "--max-old-space-size=2048"}
         )
         errores = [l for l in result.stdout.split('\n') if 'error' in l.lower()]
-        return len(errores) == 0, errores[:3]
+        # 2026-09-12: tsc se cayó por memoria (node fatal en stderr, stdout vacío) y esto
+        # devolvía «OK». Así entró un router.ts de 5 líneas con `res is not defined`.
+        # Un tsc que no termina con 0 NO es un tsc en verde, diga lo que diga stdout.
+        if result.returncode != 0 and not errores:
+            errores = ["tsc terminó con %d sin salida: %s" % (result.returncode, result.stderr[-160:].strip())]
+        return result.returncode == 0 and len(errores) == 0, errores[:3]
     except subprocess.TimeoutExpired:
         return False, ["timeout"]
     except Exception as e:
         return False, [str(e)]
+
+def archivos_degenerados(wt_path, archivos):
+    """Un archivo que encoge más de la mitad o trae una valla markdown no es código: es la
+    respuesta de chat de un motor de escritura. 2026-09-12: así murieron router.ts,
+    free-catalog.ts y starseed-enjambre.py, y este director los integró sin verlo."""
+    malos = []
+    for a in archivos:
+        ruta = Path(wt_path) / a
+        if not ruta.exists():
+            continue
+        try:
+            nuevo = ruta.read_text(encoding="utf-8", errors="replace")
+            antes = subprocess.run(["git", "show", "HEAD:%s" % a], cwd=wt_path,
+                                   capture_output=True, text=True, timeout=10).stdout
+        except Exception:
+            continue
+        n_nuevo, n_antes = nuevo.count("\n"), antes.count("\n")
+        if any(l.startswith("```") for l in nuevo.splitlines()):
+            malos.append("%s: valla markdown" % a)
+        elif n_antes >= 40 and n_nuevo < n_antes * 0.5:
+            malos.append("%s: encogió de %d a %d líneas" % (a, n_antes, n_nuevo))
+    return malos
 
 def verificar_tests(wt_path):
     """Verifica vitest"""
@@ -213,6 +240,17 @@ Responde SOLO con el contenido completo del archivo modificado. Sin explicacione
         log(f"❌ {tid}: tsc falló - {errores_tsc[:2]}")
         return False
     log(f"  ✅ tsc OK")
+
+    # 2b. Ningún archivo degenerado (2026-09-12) y tests en verde: las tres puertas o nada.
+    degenerados = archivos_degenerados(wt_path, archivos)
+    if degenerados:
+        log(f"❌ {tid}: archivo degenerado, no se integra - {degenerados[:2]}")
+        return False
+    tests_ok, salida_tests = verificar_tests(wt_path)
+    if not tests_ok:
+        log(f"❌ {tid}: tests fallaron - {salida_tests[-120:]}")
+        return False
+    log(f"  ✅ tests OK")
     
     # 3. Commit en rama
     subprocess.run(["git", "add", "."], cwd=wt_path, capture_output=True, timeout=10)

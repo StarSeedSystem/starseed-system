@@ -107,9 +107,33 @@ def pendientes_totales():
     return n
 
 
+def reconciliar_estados():
+    """Cierra en_curso rancios, marca commit lo que ya está en main y desbloquea a sus
+    dependientes. Ver reconciliar_progreso.py: sin esto el Mando cuenta mentiras."""
+    try:
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        from reconciliar_progreso import reconciliar
+        ruta = os.path.join(OLAS, "progreso.json")
+        asuntos = subprocess.run(["git", "log", "main", "--format=%s"], cwd=RAIZ,
+                                 capture_output=True, text=True, timeout=30).stdout.splitlines()
+        nuevo, cambios = reconciliar(progreso(), asuntos, orquestador_vivo())
+        if cambios:
+            json.dump(nuevo, open(ruta, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+            _p.decir("reconciliado progreso.json (%d): %s%s" % (
+                len(cambios), " · ".join(cambios[:8]), " …" if len(cambios) > 8 else ""),
+                "director", "hecho")
+        return cambios
+    except Exception as e:
+        print("director/reconciliar: %s: %s" % (type(e).__name__, e), flush=True)
+        return []
+
+
 def revisar():
     """Una pasada. Devuelve la lista de cosas hechas, para el parte."""
-    hecho, ahora, p = [], time.time(), progreso()
+    hecho, ahora = [], time.time()
+    if reconciliar_estados():
+        hecho.append("reconciliado")
+    p = progreso()
 
     esperando = [(k, v) for k, v in p.items()
                  if isinstance(v, dict) and v.get("estado") == "esperando_aprobacion"]

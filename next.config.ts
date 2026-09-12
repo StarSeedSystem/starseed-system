@@ -202,7 +202,12 @@ const nextConfig: NextConfig = {
       { source: '/version.json', headers: noCache },
     ];
   },
-  webpack: (config) => {
+  // sqlite3 y sqlite-vec son módulos nativos: se cargan fuera del bundle en el servidor
+  // (2026-09-12; antes vivían en un next.config.js paralelo que SOMBREABA este archivo entero
+  // — Next prefiere .js sobre .ts — y con él se perdían las cabeceras, el alias de Spline y
+  // el `standalone`. Un solo config, y es este).
+  serverExternalPackages: ['sqlite3', 'sqlite-vec'],
+  webpack: (config, { isServer }) => {
     // Fix for @splinetool/react-spline ESM-only package (no CJS "require" in exports)
     config.resolve.alias = {
       ...config.resolve.alias,
@@ -211,6 +216,12 @@ const nextConfig: NextConfig = {
         'node_modules/@splinetool/react-spline/dist/react-spline.js'
       ),
     };
+    if (isServer) {
+      config.externals = [...(config.externals ?? []), 'sqlite3', 'sqlite-vec'];
+    } else {
+      config.resolve.alias = { ...config.resolve.alias, sqlite3: false, 'sqlite-vec': false };
+    }
+    config.resolve.fallback = { ...(config.resolve.fallback ?? {}), 'node:process': false };
     return config;
   },
 };

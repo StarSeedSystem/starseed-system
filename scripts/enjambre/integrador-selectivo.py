@@ -50,7 +50,7 @@ def verificar_tsc(wt_path):
     """Verifica tsc --noEmit. Retorna (ok, errores)"""
     try:
         result = subprocess.run(
-            ["npx", "tsc", "src"],
+            ["npx", "tsc", "--noEmit"],   # 2026-09-12: `tsc src` no compila el proyecto
             cwd=wt_path,
             capture_output=True,
             text=True,
@@ -58,7 +58,9 @@ def verificar_tsc(wt_path):
             env={**os.environ, "NODE_OPTIONS": "--max-old-space-size=2048"}
         )
         errores = [l for l in result.stdout.split('\n') if 'error' in l.lower()]
-        return len(errores) == 0, errores[:5]
+        if result.returncode != 0 and not errores:     # tsc caído por memoria no es verde
+            errores = ["tsc terminó con %d: %s" % (result.returncode, result.stderr[-160:].strip())]
+        return result.returncode == 0 and len(errores) == 0, errores[:5]
     except subprocess.TimeoutExpired:
         return False, ["timeout"]
     except Exception as e:

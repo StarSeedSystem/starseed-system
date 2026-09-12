@@ -1,11 +1,21 @@
 # 🌌 CLAUDE.md — Memoria de Trabajo del Proyecto StarSeed OS
 
-## Acceso al Puente completo · 2026-09-11
+## Acceso al Puente de Mando · léelo antes de tocar nada (2026-09-12)
 
-[Abrir el Puente de Mando de StarSeed OS](http://127.0.0.1:9003/mando).
-Esta es la aplicación Next.js del repositorio, no la interfaz provisional Python de 9002.
-Servicio local `com.starseed.mando`, enlazado solo a 127.0.0.1; temporalmente en modo desarrollo.
-No confundir HTTP 200 con tareas verificadas. Enjambre único, modelos económicos, y no build con agentes vivos.
+**[Abrir el Puente de Mando](http://localhost:9002/mando)** — la aplicación Next.js del repo, servida
+por launchd (`com.starseed.mando`, `next start` sobre el build compilado). Si no responde:
+`bash scripts/puente/instalar-servicios.sh` y luego `estado`. *(El 9003 fue un `next dev` provisional
+de Astra del 09-11; no es el Mando y no está supervisado.)*
+
+**Cómo se opera, quién vigila qué y con qué modelo, cuotas, recursos de API y la revisión horaria
+de Fable/Opus: `memory/orquestacion-economica.md` §0.** Es la regla permanente; va vinculada a
+cada sesión que abra el Puente desde cualquier IDE. Resumen de una línea: el enjambre escribe con
+modelos gratuitos, seis directores en Python (cero créditos) lo mantienen vivo y honesto, Astra dirige,
+y un modelo caro solo audita una vez por hora y arregla lo que los demás no saben.
+
+No confundir HTTP 200 con tareas verificadas. **UN** orquestador, N agentes; tres puertas
+(`tsc`, `vitest`, `next build`) o nada; nunca `next build` con el enjambre vivo; **la salida de un
+motor de escritura es un candidato, no un archivo** (un archivo que encoge más de la mitad no se integra).
 
 > **Propósito de este archivo:** Contexto rápido que cualquier sesión de Claude (o cualquier agente IA) debe leer al iniciar trabajo en este repositorio. Es la "memoria de trabajo" — un mapa para encontrar el resto.
 >

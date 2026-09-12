@@ -1,14 +1,18 @@
 # AGENTS.md · StarSeed OS
 
-Acceso actual al Mando completo: [abrir en esta Mac](http://127.0.0.1:9003/mando).
-Desde el 2026-09-11 el servicio local usa 9003; la interfaz Python provisional de 9002
-se retiró. Las menciones históricas a 9002 no deben restaurar aquella interfaz.
+Acceso al Mando completo: [abrir en esta Mac](http://localhost:9002/mando) — la app Next.js del
+repo bajo launchd (`com.starseed.mando`, `next start`). *(Corrección 2026-09-12: 9002 nunca fue una
+«interfaz Python provisional»; el 9003 fue un `next dev` suelto del 09-11, sin supervisar.)*
 
 Lo lee **Codex** y **Antigravity IDE**. Claude usa `CLAUDE.md`, que manda sobre este archivo
 cuando se contradigan; Hermes lee ambos. Los cuatro entornos trabajan sobre el MISMO repo, el
 MISMO enjambre y el MISMO Puente de Mando.
 
 ## Empieza aquí, siempre
+
+**Puente de Mando: http://localhost:9002/mando.** Cómo se opera, la pirámide de coste (enjambre
+gratuito → directores Python → Astra → Fable/Opus una vez por hora), cuotas y recursos de API:
+`memory/orquestacion-economica.md` §0. Léelo una vez; es la regla permanente.
 
 ```bash
 export PATH="$HOME/.local/bin:$PATH"
