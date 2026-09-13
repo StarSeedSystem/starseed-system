@@ -1450,11 +1450,16 @@ def _cargar_pasarelas():
             rpm = 15
         # `base` (para opencode) y `var` (nombre de la variable de la clave, jamás su valor)
         # se guardan para que `plantilla_opencode` construya el bloque del escritor sin claves.
+        # Si STARSEED_PASARELA_<NOMBRE>_VAR existe, toma el nombre de OTRA variable de entorno
+        # donde vive la clave (p. ej. ANTHROPIC_API_KEY). Así una pasarela reutiliza una clave
+        # ya presente sin duplicarla: el VALOR jamás se escribe en los archivos.
+        var_name = g("_VAR") or pref + "_KEY"
+        key_value = fuentes.get(var_name) if g("_VAR") else (g("_KEY") or "sin-clave")
         PASARELAS[nombre] = {
             "url": v.rstrip("/") + "/chat/completions",
             "base": v.rstrip("/"),
-            "key": g("_KEY") or "sin-clave",
-            "var": pref + "_KEY",
+            "key": key_value,
+            "var": var_name,
             "modelos": modelos,
             "rpm": rpm,
         }

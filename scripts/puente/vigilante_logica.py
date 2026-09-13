@@ -62,6 +62,7 @@ def id_en_asuntos(tid, asuntos):
 def seleccionar_pendientes(colas, progreso, asuntos_git):
     """Deduplica por id y excluye cierres, copias automáticas e integradas en git.
 
+    Si progreso[tid] tiene `modelo_siguiente`, devuelve una COPIA de la tarea con ese modelo.
     `colas` llega ordenada de más nueva a más antigua como pares
     `(nombre, tareas)`, de modo que ante deuda histórica gana la definición nueva.
     """
@@ -80,7 +81,13 @@ def seleccionar_pendientes(colas, progreso, asuntos_git):
             actual = estado.get("estado") if isinstance(estado, dict) else ""
             if actual in ESTADOS_NO_AUTOMATICOS or id_en_asuntos(tid, asuntos_git):
                 continue
-            salida.append(tarea)
+            # Si el progreso indica un modelo_siguiente, devolver copia con ese modelo
+            seleccionada = tarea
+            modelo_siguiente = estado.get("modelo_siguiente") if isinstance(estado, dict) else None
+            if modelo_siguiente:
+                seleccionada = dict(tarea)
+                seleccionada["modelo"] = modelo_siguiente
+            salida.append(seleccionada)
     return salida
 
 

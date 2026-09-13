@@ -74,6 +74,22 @@ class VigilanteLogicaTest(unittest.TestCase):
         self.assertTrue(id_en_asuntos("V2", ["Ola 228 · V2: voces"]))
         self.assertFalse(id_en_asuntos("R1", ["Ola 228 · R10: otra tarea"]))
 
+    def test_modelo_siguiente_reemplaza_modelo_de_la_cola(self):
+        tareas = [{"id": "M1", "modelo": "nvidia/x"}]
+        progreso = {"M1": {"estado": "en_curso", "modelo_siguiente": "anthropic/claude-haiku-4-5"}}
+        salida = seleccionar_pendientes([("cola-311.json", tareas)], progreso, [])
+        self.assertEqual(len(salida), 1)
+        self.assertEqual(salida[0]["modelo"], "anthropic/claude-haiku-4-5")
+        # Verificar que la lista original no se mutó
+        self.assertEqual(tareas[0]["modelo"], "nvidia/x")
+
+    def test_sin_modelo_siguiente_conserva_el_de_la_cola(self):
+        tareas = [{"id": "M2", "modelo": "xkiro/qwen"}]
+        progreso = {"M2": {"estado": "en_curso"}}
+        salida = seleccionar_pendientes([("cola-311.json", tareas)], progreso, [])
+        self.assertEqual(len(salida), 1)
+        self.assertEqual(salida[0]["modelo"], "xkiro/qwen")
+
 
 if __name__ == "__main__":
     unittest.main()
