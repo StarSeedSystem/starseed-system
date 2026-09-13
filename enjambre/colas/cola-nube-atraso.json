@@ -1,0 +1,258 @@
+[
+ {
+  "id": "R7",
+  "ola": "Ola 227",
+  "titulo": "Estudio de Voces (/voces): editar, probar, clonar y guardar cada voz predeterminada de las personalidades, con ficha técnica y acceso al código",
+  "archivos": [
+   "src/lib/aurora/voces-catalogo.ts",
+   "src/app/(app)/voces/page.tsx",
+   "src/components/voces/estudio-voces.tsx",
+   "src/components/voces/ficha-voz.tsx",
+   "src/components/layout/dock-config.ts",
+   "src/lib/dock/dock-defaults.ts",
+   "src/components/dashboard/apps/app-catalog.ts",
+   "src/lib/library/packages.ts",
+   "src/lib/__tests__/voces-catalogo.test.ts"
+  ],
+  "prompt": "Alex quiere «una app simple pero completa en cuanto a configuraciones, información y detalles técnicos para editar cada voz a detalle de las opciones predeterminadas de StarSeed OS, con la información completa de cómo funciona cada una y su acceso a su código, para perfeccionarlas y subirlas a cada una de las voces de las personalidades predeterminadas, configurables y clonables por los usuarios y por el sistema de voz autónoma».\n\nHaz EXACTAMENTE esto:\n1) src/lib/aurora/voces-catalogo.ts: `export interface VozCatalogo { id: string; nombre: string; personalidad: string; motor: string; modelo: string; parametros: { pitch: number; rate: number; speed: number; energia: number; emocion: string; idioma: string }; descripcion: string; archivoCodigo: string; comoFunciona: string; clonable: boolean; origen: \"defecto\" | \"usuario\" }`. Construye `VOCES_DEFECTO: VozCatalogo[]` LEYENDO el código real: las personalidades y timbres por defecto de Aurora/Astraura (busca en src/lib/aurora: voice-identity.ts, voice-style.ts, voice-catalog.ts, xai-persona-voices.ts, timbres/`timbreEfectivo` en voz-rito.ts, selector-timbres.tsx, y el registro de motores tts-oss/engine-registry.ts + motor-voz.ts) — una entrada por personalidad predeterminada, con el motor y los parámetros que realmente usa y la ruta del archivo donde se define. Exporta `cargarVoces(): VozCatalogo[]` (defecto + overrides/clones del usuario desde localStorage `starseed.voces.v1`), `guardarVoz(v)`, `clonarVoz(id, nombre)`, `restablecerVoz(id)`, `exportarVoces(): string`, `importarVoces(json: string)`. Si existe un helper de sincronización con user_settings.prefs, espeja ahí también (si no, solo localStorage).\n2) src/components/voces/estudio-voces.tsx: lista izquierda (buscador + filtro por motor y por personalidad) y panel derecho con: botón «Probar» (habla una frase de muestra por el enrutador de voz existente con esa voz y esos parámetros), sliders pitch/rate/speed/energía con vista previa, selector de emoción e idioma, «Guardar como predeterminada de <personalidad>», «Clonar», «Restablecer», «Exportar JSON»/«Importar JSON». Pestaña «Ficha técnica» (src/components/voces/ficha-voz.tsx): motor, modelo, local/nube, latencia y calidad, ruta del código (con botón copiar), cómo funciona (texto), límites, y qué hace el sistema de voz autónoma con esa voz (contexto rito/conversación/aviso/lectura). Pestaña «Motores»: MOTORES_VOZ_INFO (si existe en motor-voz.ts; si no, defínelo en el catálogo) con estado disponible/listo.\n3) Página src/app/(app)/voces/page.tsx que monta EstudioVoces con cabecera «Estudio de Voces». Registro en los TRES medios (CLAUDE.md §11): dock-config.ts (id \"voces\", label \"Voces\", iconKey nuevo con AudioLines de lucide añadido a DockIconKey y DOCK_ICON_MAP, path \"/voces\", color trinity), dock-defaults.ts (sube DOCK_DEFAULTS_VERSION y añade \"voces\" a DOCK_DEFAULT_ON_IDS), app-catalog.ts (StarseedApp con open route \"/voces\" en APP_COLLECTIONS.sistema) y packages.ts (kind app, payload route \"/voces\").\n4) Test puro src/lib/__tests__/voces-catalogo.test.ts (vitest, sin DOM salvo un mock mínimo de localStorage): ids únicos, todas las entradas con motor y archivoCodigo, clonarVoz crea un id nuevo con origen usuario, exportar→importar conserva las voces.\n5) Accesible (labels, teclado), cursor-pointer, español con acentos, sin any. tsc limpio.",
+  "depende": [],
+  "modelo": "llm7/minimax-m2.7",
+  "aprobacion": false,
+  "estado": "pendiente"
+ },
+ {
+  "id": "L8",
+  "ola": "Ola 230",
+  "titulo": "La app del Laboratorio: página, montaje y registro en los medios del OS",
+  "archivos": [
+   "src/app/(app)/laboratorio/page.tsx",
+   "src/components/laboratorio/laboratorio-astraura.tsx",
+   "src/components/layout/dock-config.ts",
+   "src/lib/dock/dock-defaults.ts",
+   "src/components/dashboard/apps/app-catalog.ts"
+  ],
+  "prompt": "Monta la app «Laboratorio de Astraura» con las piezas de esta ola.\n1) `laboratorio-astraura.tsx`: `export function LaboratorioAstraura()` con cuatro pestañas — **Mapa** (`MapaGenoma3D` a la izquierda + `InspectorNodo` a la derecha, sincronizados por el nodo seleccionado), **Pruebas** (elegir versión y lanzar el lote del banco de pruebas, con resultados y métricas), **Comparar** (`ComparadorVersiones`) y **Hardware** (el plan de `planPorHardware` con la estimación de memoria y el selector de precisión por medio). Barra superior con el genoma activo, selector de versión, «Nueva versión», «Ramificar» y «Guardar». Estado en el componente; nada se escribe en el OS salvo por el botón explícito de promover.\n2) `page.tsx`: página cliente con cabecera «Laboratorio de Astraura» y una línea que explique qué es (banco de pruebas de la IA sin tocar el sistema en marcha).\n3) Regístralo en los tres medios (CLAUDE.md §11): `dock-config.ts` (id \"laboratorio\", label \"Laboratorio\", iconKey nueva con un icono de lucide adecuado en `DockIconKey` y `DOCK_ICON_MAP`, path \"/laboratorio\"), `dock-defaults.ts` (sube `DOCK_DEFAULTS_VERSION`, añade el id a `DOCK_DEFAULT_ON_IDS`) y `app-catalog.ts` (StarseedApp con la ruta, en `APP_COLLECTIONS.sistema`).\ntsc limpio.",
+  "depende": [
+   "L3",
+   "L4",
+   "L6",
+   "L7"
+  ],
+  "modelo": "llm7/minimax-m2.7",
+  "aprobacion": false,
+  "estado": "pendiente"
+ },
+ {
+  "id": "LT3",
+  "ola": "Ola 298 · El Mando se cura solo: nunca más «0 en curso» con tareas pendientes",
+  "titulo": "La cabecera del Mando deja de mentir: si hay tareas pendientes sin nadie trabajando lo dice en rojo con el botón «Revivir», el interruptor de autocuración, y la página se refresca sola cada 20 s también cuando la pestaña vuelve del fondo",
+  "archivos": [
+   "src/components/mando/centro-mando.tsx"
+  ],
+  "prompt": "Contexto: LT2 (ya integrada) dejó `GET /api/mando/latido` → `{saludes: SaludCola[], resumen: {vivas, huerfanas, pendientesHuerfanas, frase}, autocuracion: {activa}}` y `POST` con las acciones `revivir` (cola, trabajadores?), `autocuracion` (activa) y `barrido`. Los tipos están en `src/lib/mando/latido-orquestador.ts`: LÉELO. LEE ENTERO `src/components/mando/centro-mando.tsx`: ya tiene el pulso de la cabecera con `DatoPulso` (ola activa, en curso, integradas, disco, proveedores…), la relectura cada 20 s y `alCambiarPestana`. PROBLEMA A RESOLVER, dicho por Alex tres veces hoy: la cabecera enseña «0 en curso» junto a «18 pendientes» cuando el orquestador ha muerto, y se queda así indefinidamente sin avisar de nada. TAREA (1) añade un `DatoPulso` **«Orquestador»** justo antes de «Integradas»: valor `vivas` en verde cuando no hay huérfanas; cuando `resumen.huerfanas > 0`, tono **peligro**, valor «PARADO» y detalle con `resumen.frase`; al pulsarlo, lleva a la pestaña `procesos`. (2) cuando haya huérfanas, una barra de aviso bajo el pulso con la frase, un botón **«Revivir»** por cola huérfana (POST `revivir`, deshabilitado mientras corre, mostrando el `detalle` que devuelve) y un interruptor **«Autocuración»** (POST `autocuracion`) con una línea que explique qué hace: «relanza sola cualquier cola que se quede sin orquestador; el contenedor de la nube se recicla y se los lleva por delante». (3) con la autocuración encendida, el mismo bucle de 20 s llama a `POST {accion:\"barrido\"}` como mucho **una vez por minuto** (guarda la marca de tiempo) y refresca. (4) el refresco periódico debe seguir vivo al volver de segundo plano: añade un `visibilitychange` que relea al instante cuando la pestaña vuelve a verse, y asegúrate de limpiar el intervalo al desmontar. No toques ningún otro medidor ni el orden de los que ya hay. Clases del Mando: chips `rounded-full border px-2 py-0.5 text-[11px]`, avisos en rojo suave `border-red-500/30 bg-red-500/10`, todo clicable con `cursor-pointer`. Reglas: TypeScript estricto sin `any`; escribe por trozos (≤ 80 líneas por edición); comentarios en español con el porqué (2026-09-08, Ola 298 · LT3); no toques archivos fuera de tu lista; no ejecutes `npx tsc` suelto (usa `bash scripts/enjambre/tsc-turno.sh`); tests: `npx vitest run src/lib/__tests__/mando-latido-orquestador.test.ts`.",
+  "depende": [
+   "LT2"
+  ],
+  "modelo": "llm7/minimax-m2.7",
+  "aprobacion": false,
+  "estado": "pendiente"
+ },
+ {
+  "id": "zD1",
+  "ola": "Ola 291b · Google Drive como almacén grande, visible en los medidores del Mando",
+  "titulo": "Carpetas especiales sincronizadas con el Drive de Alex: un registro de carpetas del OS con destino en Drive, su tamaño, su estado (local, espejada, movida) y la orden de sincronizar cada una; funciones puras con tests",
+  "archivos": [
+   "src/lib/mando/drive-carpetas.ts",
+   "src/lib/__tests__/mando-drive-carpetas.test.ts"
+  ],
+  "prompt": "PEDIDO DE ALEX (2026-09-08): «si falta almacenamiento se puede sincronizar mi Google Drive de alexbordongarrigos@gmail.com en carpetas especiales, y lo debes mostrar en los medidores de la parte superior del Puente de Mando». HECHOS: `src/lib/mando/almacenamiento.ts` (LÉELO ENTERO, NO lo toques en esta tarea) ya exporta `detectarDrive()`, `cuotaDrive()` → `CuotaDrive {totalGb, usadoGb, libreGb, fuente, motivo?}`, `medirCarpetasFrias(raiz)` → `CarpetaFria {id, ruta, descripcion, mb, enDrive}`, `moverADrive(id)`, `traerDeDrive(id)`, `espejar()` y `espejoAutomatico(activar)`; el espejo va a `My Drive/StarSeed_Memory_Root/neurona-<host>` con `rsync` SIN `--delete`. ÚNICA TAREA: `src/lib/mando/drive-carpetas.ts`, la capa de «carpetas especiales» (qué carpeta del OS va a qué carpeta de Drive y en qué modo), con funciones PURAS EXPORTADAS: (1) `type ModoCarpeta = \"solo-local\" | \"espejo\" | \"movida\"` y `CarpetaEspecial { id, ruta, etiqueta, descripcion, destinoDrive, modo, mb, ultimaSync: string | null }`. (2) `CARPETAS_ESPECIALES_BASE: Omit<CarpetaEspecial,\"mb\"|\"ultimaSync\"|\"modo\">[]` — LISTA BLANCA de rutas del proyecto que es SEGURO llevar a Drive, cada una con su carpeta destino bajo `StarSeed_Memory_Root/`: la memoria (`starseed_memory_root/`), los medios y creaciones grandes, los modelos y adaptadores de aprendizaje, los respaldos y las verificaciones. NUNCA incluyas `.git`, `node_modules`, `.next`, `venv`, `.env*` ni nada que pueda contener claves: escribe el porqué en un comentario y añade `esRutaSegura(ruta: string): boolean` que rechace esas rutas aunque alguien las pida. (3) `planDeSincronizacion(carpetas: CarpetaEspecial[], libreMb: number, umbralMb = 6144): { id: string; accion: \"mover\" | \"espejar\" | \"nada\"; motivo: string }[]` — con disco de sobra, todo `espejar` o `nada` según el modo; por debajo del umbral, propone `mover` las carpetas en modo `espejo` empezando por la más grande hasta recuperar el hueco que falta, y explica cada decisión en español con las cifras. (4) `resumenDrive(cuota, carpetas): { titulo: string; valor: string; detalle: string; tono: \"ok\" | \"aviso\" | \"peligro\" | \"normal\" }` — el dato listo para la cabecera del Mando: valor tipo «1,9 TB libres», detalle «de 2 TB · 3 carpetas espejadas · última sync hace 2 h»; si la cuota es null, valor «—» y detalle con el `motivo` que ya trae `CuotaDrive`. (5) ASÍNCRONAS `leerCarpetasEspeciales()` y `guardarCarpetaEspecial(id, modo)` sobre `starseed_memory_root/mando/drive-carpetas.json` (escritura atómica; si no existe, deriva de `CARPETAS_ESPECIALES_BASE` con `modo: \"solo-local\"`; nunca lanza). NO ejecutes `rsync` aquí: mover y espejar siguen siendo `moverADrive`/`espejar` de `almacenamiento.ts`. TEST `src/lib/__tests__/mando-drive-carpetas.test.ts` (el repo usa `globals: false`: importa `{ describe, it, expect }` de \"vitest\"; PROHIBIDO `vi.mock` de módulos de Node e importar rutas de `src/app/api/**`; SOLO funciones puras): `esRutaSegura` rechaza `.git`, `node_modules`, `.next`, `venv` y `.env.local` y acepta `starseed_memory_root`; todas las rutas de `CARPETAS_ESPECIALES_BASE` pasan `esRutaSegura`; `planDeSincronizacion` con 20 GB libres no propone mover nada, con 2 GB libres propone mover primero la carpeta más grande y el motivo cita las cifras; `resumenDrive(null, [])` → valor «—» y detalle con el motivo; `resumenDrive({totalGb:2048, usadoGb:114, libreGb:1934, fuente:\"api\"}, [dos carpetas espejadas])` → valor con «TB» y detalle con «2 carpetas». Reglas: TypeScript estricto sin `any`; escribe por trozos (≤ 80 líneas por edición); comentarios en español con el porqué (2026-09-08, Ola 291b · D1); no toques archivos fuera de tu lista; no ejecutes `npx tsc` suelto (usa `bash scripts/enjambre/tsc-turno.sh`); tests: `npx vitest run src/lib/__tests__/mando-drive-carpetas.test.ts`.",
+  "depende": [],
+  "modelo": "llm7/minimax-m2.7",
+  "aprobacion": false,
+  "estado": "pendiente"
+ },
+ {
+  "id": "zE6A",
+  "ola": "Ola 281 · Externos: vínculos con caducidad y permisos, puentes a servicios externos y canales en el Hub",
+  "titulo": "Externos en cada sección del OS (2/2·a): vista global de la cuenta — TODOS los vínculos agrupados por ámbito, filtros, avisos de caducidad < 24 h, revocar en bloque y nuevo vínculo de cuenta; montada en /cuenta",
+  "archivos": [
+   "src/components/externos/externos-cuenta.tsx",
+   "src/app/(app)/cuenta/page.tsx"
+  ],
+  "prompt": "Contexto: E3 (ya en main) dejó `<PanelExternos ambito compacto />` en `src/components/externos/panel-externos.tsx` y `src/lib/externos/cliente.ts` (`listarVinculos(ambito?)` — sin ámbito devuelve TODOS los de la cuenta; `revocarVinculo(id)`; tipos en `src/lib/externos/vinculos.ts`: `AmbitoTipo` = cuenta|chat|personalidad|agente|cerebro|carpeta|memoria|perfil). LEE esos tres archivos antes de escribir: usa sus funciones y tipos tal cual, no inventes firmas. TAREA (1) `src/components/externos/externos-cuenta.tsx` (nuevo, componente cliente `ExternosCuenta()`): vista global de la cuenta — tarjetas por ámbito con el número de vínculos activos; lista completa con filtro por ámbito y por estado (activo/caducado/revocado); aviso destacado «caduca en menos de 24 h»; selección múltiple con «Revocar seleccionados» (confirmación previa que diga cuántos); panel «Nuevo vínculo de toda la cuenta» reutilizando `<PanelExternos ambito={{tipo:'cuenta', id:'cuenta', nombre:'Toda la cuenta'}} />`; y un bloque de ejemplos `curl` con la URL de la API v1 (`/api/externos/v1/<prefijo>/…`) SIN mostrar nunca un token completo (solo el prefijo y `••••`). Clases del OS: tarjetas `rounded-xl border border-white/10 bg-black/30 p-4 backdrop-blur`, texto `text-white/70`, chips `rounded-full border px-2 py-0.5 text-[11px]`. TAREA (2) `src/app/(app)/cuenta/page.tsx`: lee el archivo ENTERO y añade con el cambio MÍNIMO (≤ 40 líneas) una pestaña o sección plegable «Externos y APIs» (icono lucide `Link2`) que monte `<ExternosCuenta/>`; no reordenes nada de lo que ya hay. Reglas: TypeScript estricto sin `any`; escribe por trozos (≤ 80 líneas por edición); comentarios en español con el porqué (2026-09-08, Ola 281 · E6A); nunca valores de claves/tokens en logs, repo ni cliente (solo prefijos y huellas); no toques archivos fuera de tu lista; no ejecutes `npx tsc` suelto (usa `bash scripts/enjambre/tsc-turno.sh`); tests: `npx vitest run src/lib/__tests__/externos-vinculos.test.ts`.",
+  "depende": [],
+  "modelo": "llm7/minimax-m2.7",
+  "aprobacion": false,
+  "estado": "pendiente"
+ },
+ {
+  "id": "zF5",
+  "ola": "Ola 288c · La flota deja de mentir: sonda de generación, contenido vacío y techo de concurrencia",
+  "titulo": "«Vivo» pasa a significar «puede generar»: además de la sonda de listado, una sonda de generación de 10 tokens cuando un modelo lleva minutos sin producir, y el `content` vacío cuenta como fallo del MODELO, no como «no quiso escribir»; tests",
+  "archivos": [
+   "scripts/enjambre/starseed-enjambre.py",
+   "scripts/enjambre/test_sonda_generacion.py"
+  ],
+  "prompt": "MEDIDO EN LA NUBE (2026-09-08, 19:15-21:20 UTC, Claude, con llamadas DIRECTAS a las APIs, no por el orquestador): los cinco proveedores figuraban «vivo» en `~/.starseed/salud-proveedores.json` mientras NINGUNO podía escribir. xKiro devolvía 429 en todos sus modelos (cupo diario), NIM `moonshotai/kimi-k3` 429, NIM `deepseek-ai/deepseek-v4-flash-0731` respondía en 24 s con `choices[0].message.content` **vacío** (todo el texto se iba a `reasoning_content`), aihubmix sin cupo y Groq 403 al generar. Consecuencia: cinco tareas estuvieron **más de una hora cada una en fase «escribiendo» sin tocar un solo archivo** (V2: 60 min; G3: 90 min repartidos entre 5 modelos), con los worktrees vacíos, y el vigilante cortando y reenrutando sin fin. CAUSA: `supervisor_proveedores` sondea con un `GET /models` (listado) — eso solo prueba que el proveedor CONTESTA, no que pueda GENERAR; y un modelo que devuelve 200 con contenido vacío pasa por «el modelo no escribió nada» en vez de por «este modelo está roto ahora mismo». TAREA en `scripts/enjambre/starseed-enjambre.py` (LEE antes `supervisor_proveedores`, `sin_cupo`, `enfriandose`, `apto_para_tarea` y `llamar_llm`): (1) `def respuesta_vacia(datos: dict) -> bool` PURA: True si la respuesta OpenAI-compatible trae `choices[0].message.content` ausente, None o solo espacios (aunque `reasoning_content` venga lleno); False si hay contenido. (2) `def sonda_generacion(prov: str, modelo: str, timeout: float = 25.0) -> tuple`: un `POST /chat/completions` con `max_tokens: 10` y el mensaje «Responde solo: OK`; devuelve `(ok: bool, motivo: str, ms: int)`; `ok` es False si hay excepción, si el status no es 2xx o si `respuesta_vacia`; nunca lanza. (3) Marca el MODELO (no el proveedor entero) como no apto durante 30 minutos en un diccionario de módulo `MODELOS_MUDOS = {}` cuando `sonda_generacion` falle con respuesta vacía o cuando una escritura acabe sin tocar archivos y la sonda lo confirme; `apto_para_tarea` consulta `MODELOS_MUDOS`. (4) En el vigilante: cuando una tarea lleve `STARSEED_ESTANCADO_S` en «escribiendo» sin que crezca el log, ANTES de cortar y reenrutar lanza `sonda_generacion` del modelo en curso y anota el resultado en el evento (`«el modelo responde en 1,1 s»` vs `«el modelo no genera: 429»`), para que el registro diga la verdad. (5) TESTS en `scripts/enjambre/test_sonda_generacion.py` (pytest, SIN red: parchea `urllib.request.urlopen`; importa el orquestador como hacen los demás tests de esa carpeta): `respuesta_vacia` con `content` vacío, con `content: None`, con solo `reasoning_content` → True; con contenido → False; `sonda_generacion` con un 200 vacío → `ok False` y motivo que mencione «vacía»; con un 429 simulado → `ok False`; con un 200 correcto → `ok True` y ms > 0; y un modelo en `MODELOS_MUDOS` con marca reciente hace que `apto_para_tarea` devuelva False y, con la marca caducada, True. Reglas: Python 3.9+; comentarios en español con el porqué (2026-09-08, Ola 288c · F5); jamás claves en logs; no toques archivos fuera de tu lista. Antes de terminar: `python3 -m py_compile scripts/enjambre/starseed-enjambre.py` y `python3 -m pytest -q scripts/enjambre/` en verde.",
+  "depende": [],
+  "modelo": "llm7/minimax-m2.7",
+  "aprobacion": false,
+  "estado": "pendiente"
+ },
+ {
+  "id": "zF7",
+  "ola": "Ola 288c · La flota deja de mentir: sonda de generación, contenido vacío y techo de concurrencia",
+  "titulo": "La pestaña Flota del Mando dice la verdad: por modelo, si LISTA y si GENERA, con los milisegundos de la última sonda de generación, el motivo cuando no genera y los modelos «mudos» apartados",
+  "archivos": [
+   "src/lib/mando/flota.ts",
+   "src/components/mando/panel-flota.tsx"
+  ],
+  "prompt": "MEDIDO (2026-09-08, Claude): el Mando enseñaba los cinco proveedores en verde («vivo») mientras ninguno podía escribir, porque la salud se decide con un `GET /models`. LEE ANTES `src/lib/mando/flota.ts` ENTERO (cómo clasifica hoy: `clavesPresentes`, «dato antiguo», la foto del bus, «Por conseguir») y `src/components/mando/panel-flota.tsx` (la Ola 286 · F1-F3 le añadió el botón «Añadir mi clave» en los 21 proveedores: respétalo). TAREA (1) en `flota.ts`: el estado de cada proveedor gana `generacion: { probada: boolean; ok: boolean; ms: number | null; motivo: string; cuando: string | null }`, leído de `~/.starseed/salud-proveedores.json` (el orquestador lo escribirá en la ola 288c · F5; mientras no exista el campo, `probada: false` y la interfaz debe aguantarlo sin romperse) y `modelosMudos: string[]`. Añade la función PURA EXPORTADA `tonoDeProveedor(estado): \"ok\" | \"aviso\" | \"peligro\" | \"normal\"`: verde solo si lista **y** genera; ámbar si lista pero no se ha probado a generar o hay modelos mudos; rojo si no genera o está sin cupo. NO cambies las firmas que ya usa la interfaz. (2) en `panel-flota.tsx`: cada proveedor muestra dos chips en vez de uno —«lista» y «genera»— con el tiempo de la última sonda de generación y, cuando no genera, el motivo tal cual («429», «respuesta vacía», «403»); debajo, si hay `modelosMudos`, una línea «apartados ahora: <modelos>» explicando que vuelven solos en 30 minutos. Cambio contenido (≤ 110 líneas), sin romper ni reordenar lo que hay. Clases del Mando: tarjetas `rounded-xl border border-white/10 bg-black/30 p-4 backdrop-blur`, chips `rounded-full border px-2 py-0.5 text-[11px]`. Reglas: TypeScript estricto sin `any`; escribe por trozos (≤ 80 líneas por edición); comentarios en español con el porqué (2026-09-08, Ola 288c · F7); jamás claves ni huellas completas en el cliente; no toques archivos fuera de tu lista; no ejecutes `npx tsc` suelto (usa `bash scripts/enjambre/tsc-turno.sh`); tests: `npx vitest run src/lib/__tests__/mando-flota.test.ts` si existe (si no, `npx vitest run src/lib/__tests__/mando-guardian-puertas.test.ts`).",
+  "depende": [],
+  "modelo": "llm7/minimax-m2.7",
+  "aprobacion": false,
+  "estado": "pendiente"
+ },
+ {
+  "id": "zT4",
+  "ola": "Ola 290 · Telecomunicadores vivos",
+  "titulo": "Planificador por cadencia: cada canal activo con telecomunicador sabe cuándo le toca la próxima publicación (franjas del día, cadencia y lo ya publicado) y un barrido devuelve qué hay que generar AHORA sin repetir ni amontonar; funciones puras con tests",
+  "archivos": [
+   "src/lib/canales/planificador.ts",
+   "src/lib/__tests__/canales-planificador.test.ts"
+  ],
+  "prompt": "PEDIDO DE ALEX (2026-09-08): «los canales deben incluir más funciones en sus medios, no solo una vez al día, más bien como canales activos». HECHO HOY: `src/lib/canales/telecomunicadores.ts` ya calcula `planDelDia(canal, ahora, historial): PlanPublicacion[]` (LÉELO ENTERO junto con `src/lib/canales/canales.ts` para los tipos `CanalStarSeed` —`cadenciaDia`, `formatos`, `activo`, `personalidadId`, `cerebroId`— y `HistorialCanal`), pero el plan solo se genera cuando alguien pulsa «Generar» en el Mando: nadie despierta a los telecomunicadores. ÚNICA TAREA: `src/lib/canales/planificador.ts` con funciones PURAS EXPORTADAS (sin disco, sin red, sin `Date.now()` implícito: la hora entra SIEMPRE por argumento): (1) `franjasDelDia(cadenciaDia: number): number[]` → las horas locales repartidas entre las 08:00 y las 22:00 de forma pareja (1 → [10]; 2 → [10, 18]; 3 → [9, 14, 19]; 4 → [9, 13, 17, 21]; 6 → cada ~2,5 h; máximo 8; cadencia 0 o negativa → []); documenta por qué esas horas (nadie publica de madrugada). (2) `franjaPendiente(canal, ahora: Date, historial: HistorialCanal[], toleranciaMin = 90): number | null` → la franja de HOY que ya ha llegado (`hora <= ahora`), que no tiene ninguna publicación del historial dentro de ±`toleranciaMin` minutos, y la MÁS RECIENTE de las que cumplan eso (no acumula el día entero si el planificador estuvo parado); `null` si no toca. (3) `debeDespertar(canal, ahora, historial): { despertar: boolean; motivo: string; franja: number | null }` → false con motivo explicado si el canal no está `activo`, si le falta `personalidadId` o `cerebroId`, si `cadenciaDia` es 0, o si no hay franja pendiente; true con la franja y un motivo en español. (4) `barrido(canales: CanalStarSeed[], ahora: Date, historialPorCanal: Record<string, HistorialCanal[]>, maxPorPasada = 2): { canalId: string; franja: number; motivo: string }[]` → los canales que toca despertar, como mucho `maxPorPasada` por pasada (para no saturar el router de IA), priorizando al que lleva más tiempo sin publicar. (5) `proximaFranja(canal, ahora): Date | null` → cuándo le toca la siguiente (hoy o mañana), para enseñarlo en el Mando. TEST `src/lib/__tests__/canales-planificador.test.ts` (el repo usa `globals: false`: importa `{ describe, it, expect }` de \"vitest\"; PROHIBIDO `vi.mock` de módulos de Node e importar rutas de `src/app/api/**`; usa fechas FIJAS, nunca `new Date()` sin argumentos): `franjasDelDia` para 0, 1, 2, 3, 4 y 12 (tope 8, siempre creciente, todas entre 8 y 22); `franjaPendiente` con historial vacío a las 19:00 y cadencia 2 devuelve 18, y con una publicación a las 18:10 devuelve null; un canal inactivo o sin cerebro nunca despierta (comprueba el `motivo`); `barrido` con 5 canales que tocan devuelve 2 y son los que llevan más tiempo sin publicar; `proximaFranja` a las 23:00 devuelve una hora del día siguiente. Reglas: TypeScript estricto sin `any`; escribe por trozos (≤ 80 líneas por edición); comentarios en español con el porqué (2026-09-08, Ola 290 · T4); no toques archivos fuera de tu lista; no ejecutes `npx tsc` suelto (usa `bash scripts/enjambre/tsc-turno.sh`); tests: `npx vitest run src/lib/__tests__/canales-planificador.test.ts`.",
+  "depende": [],
+  "modelo": "llm7/minimax-m2.7",
+  "aprobacion": false,
+  "estado": "pendiente"
+ },
+ {
+  "id": "p312C",
+  "ola": "Ola 312 · Controles verificables del Mando",
+  "titulo": "Consola Director con ajustes, APIs, tareas y conexiones ya conectados",
+  "archivos": [
+   "src/components/mando/director-consola.tsx",
+   "src/components/mando/__tests__/director-consola.test.tsx"
+  ],
+  "prompt": "Lee AGENTS.md y architecture/puente-economico-verificable.md. Alex confirma que DirectorAgentes tiene datos incorrectos y botones sin handlers. Crear vista NUEVA DirectorConsola con composición, NO duplicar lectores/APIs/formularios existentes. Usar Tabs shadcn existentes con secciones: Automatización y límites (PanelAjustes de panel-ajustes), APIs y modelos (PanelFlota de panel-flota), Tareas y olas (PanelOlas de panel-olas), Conexiones IDE (PanelEntornos de panel-entornos), Verificaciones y commits (PanelPublicaciones de panel-publicaciones). Solo montar panel seleccionado para no multiplicar sondeos. Leer cada componente y sus props antes de componer. Texto claro: guardar configuración no prueba aplicación; distinguir ajustes para próxima ola de acciones actuales; sin afirmar presupuesto preventivo integrado. Sin métricas fijas, sin controles decorativos, sin secretos. Menú accesible, responsive, estados de carga usando dynamic si necesario, no autoactivar agentes ni desactivar revisión. Máximo120líneas por archivo. Test de navegación keyboard/selección/montaje exclusivo; vi.mock de componentes React permitido, NO módulos Node ni importar route.ts. No cablear CentroMando todavía, no build ni dependencias.",
+  "depende": [],
+  "modelo": "llm7/minimax-m2.7",
+  "aprobacion": true,
+  "estado": "pendiente"
+ },
+ {
+  "id": "p314A",
+  "ola": "Ola 314 · Reservas y enrutamiento verificable",
+  "titulo": "Presupuesto multiventana con reserva, ritmo y cuotas desconocidas explícitas",
+  "archivos": [
+   "scripts/enjambre/presupuesto.py",
+   "scripts/enjambre/test_presupuesto.py"
+  ],
+  "prompt": "Única tarea: módulo Python PURO NUEVO presupuesto.py y unittest test_presupuesto.py, ≤120 líneas cadauno, sin IO ni libs externas. API decidir_presupuesto(ventanas, costes, ahora, reserva=0.2, antiguedad_max=900, rafaga=0.05)->dict {permitido:bool,motivos:list[str],reintentar_en:float|None}. ventanas lista dict: unidad(str), limite(float), usado(float), reservado(float, default0), inicio(epoch), reinicio(epoch), observado(epoch). costes dict por unidad con estimación NO negativa; falta de coste o ventanas => no_verificado, deniega. Solo admite finitos, no bool, limite>0, inicio<=observado<=ahora<reinicio, usado/reservado>=0; foto caducada o ventana vencida deniega y requiere nueva lectura (no supone reset). Reserva: usado+reservado+coste <= limite*(1-reserva). Ritmo: usado+reservado+coste <= limite*(1-reserva)*min(1, (ahora-inicio)/(reinicio-inicio)+rafaga), distribuye consumo a lo largo de cada ventana, breve ráfaga configurable. Todas las ventanas deben permitir; unidades distintas tienen costes distintos. Si denegación solo ritmo, calcula instante exacto en que puede intentarse; reserva agotada => reinicio; datos inválidos => None. No mutar entrada. Pruebas dos ventanas (horaria permite semanal bloquea), crédito adicional0 no ilimitado, costeausente, datosviejos/NaN/Infinity/futuros, reserva y reservas en vuelo, ráfaga inicial, hora calculada, limitesexactos. No guardar credenciales ni inventar precios ni saldo. NO cablear, no editar otros archivos, NO build ni deps; correr unittest propio. Leer architecture/puente-economico-verificable.md. Otro modelo de dirección revisa y cablea.",
+  "depende": [],
+  "modelo": "llm7/minimax-m2.7",
+  "aprobacion": false,
+  "estado": "pendiente"
+ },
+ {
+  "id": "p314B",
+  "ola": "Ola 314 · Reservas y enrutamiento verificable",
+  "titulo": "Clasificación de fallos y relevo acotado, sin reciclar cuotas ni perder avances",
+  "archivos": [
+   "scripts/enjambre/relevo_seguro.py",
+   "scripts/enjambre/test_relevo_seguro.py"
+  ],
+  "prompt": "Crear módulo PURO Python relevo_seguro.py y unittest test_relevo_seguro.py (≤120 líneascadauno), sin IO. API decidir_relevo(estado, ahora)->dict {accion:str,motivo:str,reintentar_en:float|None,conservar_trabajo:bool}. Estado dict con codigo_http int|None, timeout bool, intento int>=1, max_intentos int>=1(default3), ultimo_avance epoch|None, proceso_vivo bool|None, fase str, cuota_hasta epoch|None, retry_after_s float|None, revision_aprobada bool(defaultfalse). Reglas prioridad: fase commit/hecho=terminada; faseaprobaciónespera=esperar_aprobacion sin autoaprobar por tiempo; errorespruebas/revisión=corregir no cambiar proveedor sin reparar; 401/403=credenciales_requeridas no repetir claves; 402/cuota_hasta futuro=esperar_cuota;429 espera Retry-After validomax86400 o60s, NO tratado comoAPIdefunta; timeout/5xx/procesomuerto=reenrutar mientras intento<max, despuésesperar_revision; proceso None=dato_desconocido; con proceso vivo y últimoavance<=300s no declararcolgado; solo faseescribiendo y sin avance>300s reenrutar. Nunca aplica umbral de escritura a tsc/tests/revision. En todas las ramas conservar_trabajo True. Testpuro casos incluyendo None, límiteintentos, fasespuertasvivasviejas, noaprobar, 429noreintentarantes, timeout máximo; sin mocksdeNode. NO cablear todavía ni editarotroarchivo ni build ni deps. Lee architecture/puente-economico-verificable.md.",
+  "depende": [],
+  "modelo": "llm7/minimax-m2.7",
+  "aprobacion": false,
+  "estado": "pendiente"
+ },
+ {
+  "id": "p315A",
+  "ola": "Ola 315 · Supervisión sin inferencia",
+  "titulo": "Lector de cuotas Codex por app-server sin crear hilos ni gastar tokens de modelo",
+  "archivos": [
+   "scripts/puente/cuotas_codex.py",
+   "scripts/puente/test_cuotas_codex.py"
+  ],
+  "prompt": "Crear lector Python stdlib nuevo cuotas_codex.py (≤120 líneas) y unittestpropio, no modificarotrosarchivos. Protocolo OFICIAL leído y verificado en esta Mac https://learn.chatgpt.com/docs/app-server: subprocess ['codex','app-server','--listen','stdio://']; stdin/stdout JSONL. Enviar {id:0,method:'initialize',params:{clientInfo:{name:'starseed_cuotas',version:'0.1.0'}}}, esperar respuestaid0 result, emitir {method:'initialized'}, luego {id:1,method:'account/rateLimits/read'}. Resultado devuelve rateLimitsByLimitId o rateLimits con primary/secondary {usedPercent,windowDurationMins,resetsAt}, credits {hasCredits,unlimited,balance}, planType. YA se probó con éxito aquí sin ninguna inferencia. Nunca thread/start, turn/start, queue, consumirreset, leer auth.json ni usarclaves. API leer_cuotas(timeout_s=20)->dict; selectors+os.read para evitar blocking readline; fin monotónico; siempre cerrar proceso/grupo propio en finally, con timeout de espera y limpieza. stdout deerrores/credenciales no se registra. salida sanitizada whitelista: observadoEn epochtime, estado verificado/error, ventanas con límite100/unidadporcentaje, usado usedPercent, inicio resetsAt-windowDurationMins*60, reinicio, observado; balanceadicional separado (puede ser0 oNone, nunca inferir de suscripción). Mantener limitId+nombreventana para distinguir múltiplesbudgets. No accountId ni tokens ni metadata personal. normalizar_cuotas(respuesta,ahora) pura exportada para pruebas; datosnull/NaN/malos no se inventan. CLI main imprime JSONsanitizado una vez. Tests toda normalización confixture sintético, comunicación simularsolo transporte stdlib si posible; no llamadas reales desdeunittest. No crear daemon ni loop ni archivosdeestado aún, cableado aparte. No build/node/testsfull; solo unittest.",
+  "depende": [],
+  "modelo": "llm7/minimax-m2.7",
+  "aprobacion": true,
+  "estado": "pendiente"
+ },
+ {
+  "id": "c313_QW1",
+  "ola": "Ola 313 · Consolidación de pendientes",
+  "titulo": "Tokens reales en el registro de rutas de Astraura",
+  "archivos": [
+   "src/ai/astraura/router.ts"
+  ],
+  "prompt": "Procesa la tarea: Tokens reales en el registro de rutas de Astraura. Archivos: ['src/ai/astraura/router.ts']. Escribe código limpio, sin any, en español con acentos. tsc limpio.",
+  "depende": [],
+  "modelo": "llm7/minimax-m2.7",
+  "aprobacion": false
+ },
+ {
+  "id": "c313_QW2",
+  "ola": "Ola 313 · Consolidación de pendientes",
+  "titulo": "Timbres sin rutas absolutas de un usuario",
+  "archivos": [
+   "src/lib/aurora/timbres.ts",
+   "src/lib/aurora/motor-local.ts"
+  ],
+  "prompt": "Procesa la tarea: Timbres sin rutas absolutas de un usuario. Archivos: ['src/lib/aurora/timbres.ts', 'src/lib/aurora/motor-local.ts']. Escribe código limpio, sin any, en español con acentos. tsc limpio.",
+  "depende": [],
+  "modelo": "llm7/minimax-m2.7",
+  "aprobacion": false
+ },
+ {
+  "id": "c313_QW4",
+  "ola": "Ola 313 · Consolidación de pendientes",
+  "titulo": ".env.example con todas las variables de entorno",
+  "archivos": [
+   ".env.example"
+  ],
+  "prompt": "Procesa la tarea: .env.example con todas las variables de entorno. Archivos: ['.env.example']. Escribe código limpio, sin any, en español con acentos. tsc limpio.",
+  "depende": [],
+  "modelo": "llm7/minimax-m2.7",
+  "aprobacion": false
+ },
+ {
+  "id": "c313_QW5",
+  "ola": "Ola 313 · Consolidación de pendientes",
+  "titulo": "Caché de un año para archivos inmutables",
+  "archivos": [
+   "src/lib/files/os-files.ts",
+   "src/lib/os-social.ts"
+  ],
+  "prompt": "Procesa la tarea: Caché de un año para archivos inmutables. Archivos: ['src/lib/files/os-files.ts', 'src/lib/os-social.ts']. Escribe código limpio, sin any, en español con acentos. tsc limpio.",
+  "depende": [],
+  "modelo": "llm7/minimax-m2.7",
+  "aprobacion": false
+ },
+ {
+  "id": "c313_QW6",
+  "ola": "Ola 313 · Consolidación de pendientes",
+  "titulo": "Nombre accesible del botón Compartir de la tarjeta",
+  "archivos": [
+   "src/components/social/PostCard.tsx"
+  ],
+  "prompt": "Procesa la tarea: Nombre accesible del botón Compartir de la tarjeta. Archivos: ['src/components/social/PostCard.tsx']. Escribe código limpio, sin any, en español con acentos. tsc limpio.",
+  "depende": [],
+  "modelo": "llm7/minimax-m2.7",
+  "aprobacion": false
+ },
+ {
+  "id": "DEDUPE",
+  "ola": "Ola 237 · piezas que faltaban",
+  "archivos": [
+   "src/lib/files/os-files.ts"
+  ],
+  "titulo": "No subir dos veces el mismo archivo (dedupe por checksum)",
+  "prompt": "NO explores el repositorio entero: abre SOLO los archivos que se nombran. Si ya está hecho, no toques nada y dilo. tsc limpio, sin `any`.\n\nAVISO: en el intento anterior un modelo se salió de su encargo y duplicó una función en `src/lib/files/os-files.ts`, que NO forma parte de esta tarea; tsc lo paró. Toca únicamente los archivos listados arriba.\n\nEn src/lib/files/os-files.ts, uploadFile siempre genera un path único aunque el archivo ya exista. Existe `quickChecksum` (grep en src/lib/files, usado en versions.ts). Antes de subir, calcula el checksum del File y consulta en la tabla de archivos del usuario una fila con el mismo owner, mismo tamaño y mismo checksum (solo si el normalizador/tabla tiene columna de checksum; si NO existe una columna, guarda el checksum en el campo de metadata JSON que ya exista, o si no hay ninguno, escribe en el RESUMEN que no es posible sin migración y no cambies nada). Si existe, devuelve el registro existente sin subir (`{ ok: true, file: existente, deduplicado: true }`). Tipos estrictos.",
+  "modelo": "llm7/minimax-m2.7"
+ }
+]
