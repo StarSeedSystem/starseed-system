@@ -8,8 +8,9 @@ verdad, esos ajustes viven ahora en `starseed_memory_root/mando/director-config.
 y este módulo PURO los carga fusionando sobre unos valores por defecto y rechazando
 lo que no sea válido (tipo o rango).
 
-  · cargar(ruta) -> dict: fusiona el JSON sobre DEFAULTS, validando tipos y rangos
-    (enteros >= 0, listas de str) e ignorando claves desconocidas.
+  · cargar(ruta) -> (dict, list[str]): fusiona el JSON sobre DEFAULTS, validando
+    tipos y rangos (enteros >= 0, listas de str) e ignorando claves desconocidas;
+    la lista de avisos explica cada valor descartado.
   · validar(d) -> list[str]: los errores de un dict ya leído.
 """
 
@@ -66,6 +67,8 @@ def validar(d):
             errores.append("'%s' debe ser una lista de str" % k)
         elif k in CLAVES_BOOL and not isinstance(v, bool):
             errores.append("'%s' debe ser un booleano" % k)
+        elif k == "escalada":
+            errores.extend(_validar_escalada(v))
     return errores
 
 
@@ -86,15 +89,18 @@ def cargar(ruta=None):
 
     Ignora claves que DEFAULTS no conoce y deja fuera los valores inválidos: el
     resultado siempre es un dict con las claves de DEFAULTS y valores sanos.
+    Devuelve (cfg, avisos): avisos explica cada valor descartado.
     """
     ruta = ruta or RUTA_CONFIG
     cfg = json.loads(json.dumps(DEFAULTS))
+    avisos = []
     try:
-        con = json.load(open(ruta, encoding="utf-8"))
+        with open(ruta, encoding="utf-8") as fh:
+            con = json.load(fh)
     except Exception:
-        return cfg
+        return cfg, avisos
     if not isinstance(con, dict):
-        return cfg
+        return cfg, avisos
     for k in CLAVES_ENTERO:
         if k in con and _es_entero_no_negativo(con[k]):
             cfg[k] = con[k]
@@ -108,7 +114,12 @@ def cargar(ruta=None):
         esc = dict(DEFAULTS["escalada"])
         e = con["escalada"]
         for k, v in e.items():
-            if k in esc and isinstance(v, type(esc[k])):
+            if k in ("tope_haiku_dia", "tope_sonnet_dia"):
+                if _es_entero_no_negativo(v):
+                    esc[k] = v
+                else:
+                    avisos.append("'escalada.%s' inválido, se usa %s" % (k, esc[k]))
+            elif k == "activa" and isinstance(v, bool):
                 esc[k] = v
         cfg["escalada"] = esc
-    return cfg
+    return cfg, avisos

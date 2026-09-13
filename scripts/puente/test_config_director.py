@@ -12,33 +12,40 @@ def _tmp(contenido=None, nombre="director-config.json"):
     tmp = tempfile.mkdtemp()
     ruta = os.path.join(tmp, nombre)
     if contenido is not None:
-        json.dump(contenido, open(ruta, "w", encoding="utf-8"))
+        with open(ruta, "w", encoding="utf-8") as fh:
+            json.dump(contenido, fh)
     return ruta
 
 
 class CargarDirector(unittest.TestCase):
     def test_falta_el_archivo_usa_defaults(self):
-        cfg = cargar(_tmp())
+        cfg, avisos = cargar(_tmp())
         self.assertEqual(cfg, DEFAULTS)
+        self.assertEqual(avisos, [])
 
     def test_json_roto_usa_defaults(self):
         tmp = tempfile.mkdtemp()
         ruta = os.path.join(tmp, "director-config.json")
-        open(ruta, "w", encoding="utf-8").write("{ esto no es json")
-        self.assertEqual(cargar(ruta), DEFAULTS)
+        with open(ruta, "w", encoding="utf-8") as fh:
+            fh.write("{ esto no es json")
+        cfg, avisos = cargar(ruta)
+        self.assertEqual(cfg, DEFAULTS)
+        self.assertEqual(avisos, [])
 
     def test_valor_fuera_de_rango_se_descarta(self):
-        cfg = cargar(_tmp({"espera_aprobacion_min": -5, "proveedores_apartados": 7}))
+        cfg, avisos = cargar(
+            _tmp({"espera_aprobacion_min": -5, "proveedores_apartados": 7})
+        )
         self.assertEqual(cfg["espera_aprobacion_min"], 10)
         self.assertEqual(cfg["proveedores_apartados"], [])
 
     def test_clave_desconocida_se_ignora(self):
-        cfg = cargar(_tmp({"no_existe": 42}))
+        cfg, _ = cargar(_tmp({"no_existe": 42}))
         self.assertNotIn("no_existe", cfg)
         self.assertEqual(cfg, DEFAULTS)
 
     def test_fusion_parcial(self):
-        cfg = cargar(
+        cfg, _ = cargar(
             _tmp(
                 {
                     "espera_aprobacion_min": 25,
@@ -54,6 +61,11 @@ class CargarDirector(unittest.TestCase):
         self.assertEqual(cfg["escalada"]["tope_haiku_dia"], 15)
         self.assertEqual(cfg["escalada"]["tope_sonnet_dia"], 5)  # el resto intacto
         self.assertEqual(cfg["intervalo_s"], 180)
+
+    def test_tope_negativo_queda_default_con_aviso(self):
+        cfg, avisos = cargar(_tmp({"escalada": {"tope_haiku_dia": -5}}))
+        self.assertEqual(cfg["escalada"]["tope_haiku_dia"], 20)
+        self.assertTrue(any("tope_haiku_dia" in a for a in avisos))
 
 
 class ValidarDirector(unittest.TestCase):
