@@ -252,7 +252,7 @@ def continuar_estancadas():
             tocadas.append(tid)
 
             # Clasificar para el reporte
-            nivel = paso["motivo"].split()[1].rstrip("/") if "gratuito" in paso["motivo"] else paso.get("cuenta") or "bloqueante"
+            nivel = paso.get("cuenta") or ("bloqueante" if paso["estado"] == "bloqueante" else "libre")
             if paso["estado"] == "bloqueante":
                 bloqueantes_motivos[tid] = paso["motivo"]
             else:
