@@ -58,6 +58,8 @@ import { NtfyPanel } from "@/components/notifications/ntfy-panel";
 import { VoiceOssPanel } from "@/components/settings/aurora/voice-oss-panel";
 import { XaiVoicePanel } from "@/components/settings/aurora/xai-voice-panel";
 import { VisionPanel } from "@/components/settings/aurora/vision-panel";
+// Vista global de vínculos externos de la cuenta (Ola 281 · E6A · 2026-09-08).
+import { ExternosCuenta } from "@/components/externos/externos-cuenta";
 
 // ── Recolectores de datos reales (para las tarjetas-resumen; sin duplicar lógica) ──
 import { listThreads } from "@/lib/messages/dm";
@@ -110,6 +112,7 @@ import {
   Eye,
   EyeOff,
   Clock,
+  Link2,
   LayoutGrid,
   Compass,
   Radio,
@@ -1131,7 +1134,35 @@ function CuentaContent() {
         </div>
         <VisionPanel />
       </section>
+
+      {/* ═══════════════════════ 10) EXTERNOS Y APIS ═══════════════════════ */}
+      <SeccionExternos />
     </div>
+  );
+}
+
+/** Sección plegable «Externos y APIs» (Ola 281 · E6A). */
+function SeccionExternos() {
+  const [abierta, setAbierta] = useState(false);
+  return (
+    <section id="externos" className="scroll-mt-6 pt-2 space-y-3">
+      <button
+        type="button"
+        onClick={() => setAbierta((v) => !v)}
+        className="flex w-full cursor-pointer items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 transition-colors hover:bg-white/[0.06]"
+      >
+        <span className="flex items-center gap-2">
+          <Link2 className="h-4 w-4 text-primary" />
+          <span className="text-base font-semibold">Externos y APIs</span>
+        </span>
+        <span className="text-[11px] text-muted-foreground">{abierta ? "↑ ocultar" : "↓ mostrar"}</span>
+      </button>
+      {abierta ? (
+        <div className="pt-1">
+          <ExternosCuenta />
+        </div>
+      ) : null}
+    </section>
   );
 }
 
