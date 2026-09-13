@@ -42,6 +42,8 @@ _spec = importlib.util.spec_from_file_location(
 _p = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_p)
 
+_SIN_HORA_AVISADOS = set()  # ids de tareas cuya falta de hora ya anunciamos
+
 
 def progreso():
     try:
@@ -65,10 +67,16 @@ def revision_ok(entrada):
     return "revisión ok" in nota or "revision ok" in nota
 
 
-def minutos_quieta(entrada, ahora):
+def minutos_quieta(entrada, ahora, latido=None):
     try:
-        t = time.mktime(time.strptime(entrada.get("t", ""), "%Y-%m-%d %H:%M:%S"))
-        return (ahora - t) / 60
+        t_str = entrada.get("t")
+        if t_str:
+            t = time.mktime(time.strptime(t_str, "%Y-%m-%d %H:%M:%S"))
+            return (ahora - t) / 60
+        if latido and isinstance(latido, dict) and "desde" in latido:
+            desde = latido["desde"]
+            return (ahora - desde) / 60
+        return 0
     except Exception:
         return 0
 
@@ -207,6 +215,9 @@ def revisar():
         hecho.append("reintentados")
     p = progreso()
 
+    _, latidos_dict, _ = cola_viva()
+    latidos_tareas = (latidos_dict or {}).get("tareas", {})
+
     esperando = [
         (k, v)
         for k, v in p.items()
@@ -215,9 +226,23 @@ def revisar():
     maduras = [
         k
         for k, v in esperando
-        if revision_ok(v) and minutos_quieta(v, ahora) >= ESPERA_MIN
+        if revision_ok(v) and minutos_quieta(v, ahora, latido=latidos_tareas.get(k)) >= ESPERA_MIN
     ]
     sin_revision = [k for k, v in esperando if not revision_ok(v)]
+
+    sin_hora = [
+        k
+        for k, v in esperando
+        if k not in _SIN_HORA_AVISADOS and not v.get("t") and k not in latidos_tareas
+    ]
+    for tid in sin_hora:
+        _SIN_HORA_AVISADOS.add(tid)
+        _p.decir(
+            "sin hora para %s: no puedo medir su espera" % tid,
+            "director",
+            "aviso",
+        )
+
     if maduras:
         aprobar(maduras)
         _p.decir(

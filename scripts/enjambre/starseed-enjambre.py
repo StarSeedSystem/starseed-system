@@ -2005,6 +2005,8 @@ def fusionar_progreso(memoria, disco, propias):
 
 
 def set_estado(tid, **kw):
+    if "t" not in kw:
+        kw["t"] = time.strftime("%Y-%m-%d %H:%M:%S")
     PROG.setdefault(tid, {}).update(kw)
     guardar_prog(PROG)
 
