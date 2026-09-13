@@ -23,6 +23,7 @@ Tiempos configurables:
   · STARSEED_LATIDO_MEDIO_MAX_S / STARSEED_ARRIENDO_S — salud del medio y lease de la tarea.
   · STARSEED_COLGADO_S — sin crecer en bytes reales del worktree se considera colgado (300 s).
 """
+
 import hashlib, json, os, re, subprocess, sys, threading, time, urllib.request, urllib.error, shutil, collections
 import signal
 import contextlib, fcntl
@@ -31,22 +32,39 @@ import contextlib, fcntl
 DIRECTORIO_ENJAMBRE = os.path.dirname(os.path.abspath(__file__))
 if DIRECTORIO_ENJAMBRE not in sys.path:
     sys.path.insert(0, DIRECTORIO_ENJAMBRE)
-from medios import (area_de_tarea, normalizar_medios, registrar_resultado,
-                    renovar_arriendo, repartir, vencer_arriendos)
+from medios import (
+    area_de_tarea,
+    normalizar_medios,
+    registrar_resultado,
+    renovar_arriendo,
+    repartir,
+    vencer_arriendos,
+)
+
 
 # El MISMO archivo corre en la Mac de Alex y en el contenedor de Cowork: sin variables de
 # entorno, adivina el repositorio por dónde exista (Mac: ~/Documents/starseed-os-main;
 # nube: ~/starseed-system) y coloca los worktrees al lado.
 def _raiz_por_defecto():
-    for c in ("~/Documents/starseed-os-main", "~/starseed-system", "/home/claude/starseed-system"):
+    for c in (
+        "~/Documents/starseed-os-main",
+        "~/starseed-system",
+        "/home/claude/starseed-system",
+    ):
         if os.path.isdir(os.path.expanduser(c)):
             return os.path.expanduser(c)
     return os.path.expanduser("~/starseed-system")
+
+
 ROOT = os.environ.get("STARSEED_ROOT") or _raiz_por_defecto()
 MEM = os.path.join(ROOT, "starseed_memory_root")
 OLAS = os.path.join(MEM, "olas")
 LOGS = os.path.join(OLAS, "logs")
-WT_BASE = os.environ.get("STARSEED_WT") or (os.path.expanduser("~/Documents/starseed-wt") if "/Documents/" in ROOT else os.path.join(os.path.dirname(ROOT), "starseed-wt"))
+WT_BASE = os.environ.get("STARSEED_WT") or (
+    os.path.expanduser("~/Documents/starseed-wt")
+    if "/Documents/" in ROOT
+    else os.path.join(os.path.dirname(ROOT), "starseed-wt")
+)
 PROG_JSON = os.path.join(OLAS, "progreso.json")
 PROG_MD = os.path.join(OLAS, "progreso.md")
 REVIS = os.path.join(OLAS, "revisiones.md")
@@ -125,30 +143,53 @@ def codex_disponible() -> bool:
         return False
 
 
-MUERTOS = set()          # modelos que el proveedor ha rechazado en esta corrida
-PROCESOS = {}            # tarea -> Popen de opencode en marcha (para poder cortarlo)
-CORTADOS = set()         # tareas cuyo opencode ha matado el vigilante: no cuentan como intento
+MUERTOS = set()  # modelos que el proveedor ha rechazado en esta corrida
+PROCESOS = {}  # tarea -> Popen de opencode en marcha (para poder cortarlo)
+CORTADOS = set()  # tareas cuyo opencode ha matado el vigilante: no cuentan como intento
 PROCESOS_LOCK = threading.Lock()
 FIN = threading.Event()  # lo levanta main() al terminar, para parar al vigilante
 
 # Pistas de que ha fallado el PROVEEDOR, no el modelo: un «sin cambios» por esto es falso.
-PISTAS_PROVEEDOR = ("end of life", "no longer available", "\"status\":410", "gone:", "unauthorized",
-                    "too many requests", "rate limit", "model not found", "does not exist",
-                    "ai_apicallerror", "econnrefused", "fetch failed", "internal server error",
-                    "database is locked")   # SQLite de opencode ocupada por otro agente: no es culpa del modelo
-PISTAS_DEFUNCION = ("end of life", "no longer available", "model not found", "does not exist")
+PISTAS_PROVEEDOR = (
+    "end of life",
+    "no longer available",
+    '"status":410',
+    "gone:",
+    "unauthorized",
+    "too many requests",
+    "rate limit",
+    "model not found",
+    "does not exist",
+    "ai_apicallerror",
+    "econnrefused",
+    "fetch failed",
+    "internal server error",
+    "database is locked",
+)  # SQLite de opencode ocupada por otro agente: no es culpa del modelo
+PISTAS_DEFUNCION = (
+    "end of life",
+    "no longer available",
+    "model not found",
+    "does not exist",
+)
+
 
 def fallo_de_proveedor(salida):
     b = (salida or "").lower()
     return next((x for x in PISTAS_PROVEEDOR if x in b), None)
 
+
 CATALOGOS = {
-    "nvidia":  ("https://integrate.api.nvidia.com/v1/models", ("NVIDIA_API_KEY", "NVIDIA_SHARED_KEY")),
-    "xkiro":   ("https://api.xkiro.com/v1/models", ("XKIRO_API_KEY",)),
-    "apinex":  ("https://apinex.bond/v1/models", ("STARSEED_PASARELA_APINEX_KEY",)),
+    "nvidia": (
+        "https://integrate.api.nvidia.com/v1/models",
+        ("NVIDIA_API_KEY", "NVIDIA_SHARED_KEY"),
+    ),
+    "xkiro": ("https://api.xkiro.com/v1/models", ("XKIRO_API_KEY",)),
+    "apinex": ("https://apinex.bond/v1/models", ("STARSEED_PASARELA_APINEX_KEY",)),
 }
 
 _CATALOGOS_CACHE = {}  # proveedor -> (epoch, set de ids o None si falló la consulta)
+
 
 def catalogo_proveedor(prov):
     """Catálogo vivo del proveedor (conjunto de ids de modelo), cacheado 10 minutos
@@ -161,13 +202,30 @@ def catalogo_proveedor(prov):
     if time.time() - ts < 600:
         return datos
     url, claves = CATALOGOS[prov]
-    key = next((ENV.get(k) or os.environ.get(k) for k in claves if ENV.get(k) or os.environ.get(k)), None)
+    key = next(
+        (
+            ENV.get(k) or os.environ.get(k)
+            for k in claves
+            if ENV.get(k) or os.environ.get(k)
+        ),
+        None,
+    )
     datos = None
     if key:
         try:
-            req = urllib.request.Request(url, headers={"Authorization": "Bearer " + key,
-                                                       "User-Agent": "starseed-enjambre/2 (+starseed-os)"})
-            datos = {m["id"] for m in json.loads(urllib.request.urlopen(req, timeout=30).read()).get("data", [])}
+            req = urllib.request.Request(
+                url,
+                headers={
+                    "Authorization": "Bearer " + key,
+                    "User-Agent": "starseed-enjambre/2 (+starseed-os)",
+                },
+            )
+            datos = {
+                m["id"]
+                for m in json.loads(urllib.request.urlopen(req, timeout=30).read()).get(
+                    "data", []
+                )
+            }
         except Exception:
             datos = None
     _CATALOGOS_CACHE[prov] = (time.time(), datos)
@@ -193,13 +251,23 @@ def debe_retirar(modelo, salida, catalogo=None):
     if catalogo is not None:
         if modelo.split("/", 1)[1] in catalogo:
             return False, "%s sigue en el catálogo de %s" % (modelo, prov)
-        return True, "%s ya no está en el catálogo de %s (pista: %s)" % (modelo, prov, pista)
+        return True, "%s ya no está en el catálogo de %s (pista: %s)" % (
+            modelo,
+            prov,
+            pista,
+        )
     # Sin catálogo de referencia: solo valen las líneas de error reales de la API.
     for linea in (salida or "").splitlines():
         l = linea.strip()
-        if pista in l.lower() and (l.startswith(("Error", "AI_APICallError", '{"error"')) or "HTTP Error" in l):
+        if pista in l.lower() and (
+            l.startswith(("Error", "AI_APICallError", '{"error"')) or "HTTP Error" in l
+        ):
             return True, "línea de error de la API: " + l[:120]
-    return False, "la pista «%s» no salió de una línea de error de la API (salida de una herramienta)" % pista
+    return (
+        False,
+        "la pista «%s» no salió de una línea de error de la API (salida de una herramienta)"
+        % pista,
+    )
 
 
 def validar_modelos():
@@ -211,15 +279,31 @@ def validar_modelos():
         # Sin clave del proveedor no hay consulta posible: se salta en silencio, como siempre.
         if not any(ENV.get(k) or os.environ.get(k) for k in claves):
             continue
-        vivos = catalogo_proveedor(proveedor)   # misma consulta cacheada que usa debe_retirar()
+        vivos = catalogo_proveedor(
+            proveedor
+        )  # misma consulta cacheada que usa debe_retirar()
         if vivos is None:
-            evento("aviso", "", "no pude validar el catálogo de %s: sigo con su lista tal cual" % proveedor)
+            evento(
+                "aviso",
+                "",
+                "no pude validar el catálogo de %s: sigo con su lista tal cual"
+                % proveedor,
+            )
             continue
-        fuera += [m for m in MODELOS if m.startswith(proveedor + "/") and m.split("/", 1)[1] not in vivos]
+        fuera += [
+            m
+            for m in MODELOS
+            if m.startswith(proveedor + "/") and m.split("/", 1)[1] not in vivos
+        ]
     for m in fuera:
-        MUERTOS.add(m); MODELOS.remove(m)
+        MUERTOS.add(m)
+        MODELOS.remove(m)
     if fuera:
-        evento("aviso", "", "modelos retirados del catálogo, fuera de la rotación: " + ", ".join(fuera))
+        evento(
+            "aviso",
+            "",
+            "modelos retirados del catálogo, fuera de la rotación: " + ", ".join(fuera),
+        )
     # (2026-09-08, Ola 296 · CX2) Codex al FRENTE de la rotación, y solo donde existe: escribe con
     # la suscripción Pro de Alex (coste cero, calidad alta), así que debe intentarse antes de gastar
     # cupo de los proveedores gratuitos. En la nube `codex_disponible()` es False y ni aparecen.
@@ -228,9 +312,15 @@ def validar_modelos():
         codex_dentro = [m for m in MODELOS_CODEX if m not in MODELOS]
         MODELOS[:0] = codex_dentro
     if not MODELOS:
-        evento("fallo", "", "ningún modelo escritor sigue vivo — no arranco"); sys.exit(3)
-    evento("arranque", "", "escritores del catálogo: %s · Codex autorizado para escritura (cupo limitado): %d"
-           % (", ".join(m.split("/", 1)[1] for m in MODELOS), len(codex_dentro)))
+        evento("fallo", "", "ningún modelo escritor sigue vivo — no arranco")
+        sys.exit(3)
+    evento(
+        "arranque",
+        "",
+        "escritores del catálogo: %s · Codex autorizado para escritura (cupo limitado): %d"
+        % (", ".join(m.split("/", 1)[1] for m in MODELOS), len(codex_dentro)),
+    )
+
 
 SALUD_JSON = os.path.expanduser("~/.starseed/salud-proveedores.json")
 SONDEO_S = int(os.environ.get("STARSEED_SONDEO_S", "60"))
@@ -238,17 +328,17 @@ SONDEO_S = int(os.environ.get("STARSEED_SONDEO_S", "60"))
 # responde: el 2026-09-04 xKiro servía /models en 0,5 s mientras devolvía 429 en todas las
 # generaciones, y el panel lo daba por vivo mientras tres tareas se colgaban.
 SONDAS = {
-    "xkiro":       ("minimax/minimax-m2.7-highspeed:free", ("XKIRO_API_KEY",)),
-    "nim":         ("moonshotai/kimi-k3", ("NVIDIA_API_KEY", "NVIDIA_SHARED_KEY")),
-    "aihubmix":    ("coding-glm-5.3-free", ("AIHUBMIX_API_KEY",)),
+    "xkiro": ("minimax/minimax-m2.7-highspeed:free", ("XKIRO_API_KEY",)),
+    "nim": ("moonshotai/kimi-k3", ("NVIDIA_API_KEY", "NVIDIA_SHARED_KEY")),
+    "aihubmix": ("coding-glm-5.3-free", ("AIHUBMIX_API_KEY",)),
     "tokenrouter": ("z-ai/glm-5.3-free", ("TOKENROUTER_API_KEY",)),
-    "openrouter":  ("nvidia/nemotron-3-super-120b-a12b:free", ("OPENROUTER_API_KEY",)),
-    "llm7":        ("gpt-oss", ("LLM7_SIN_CLAVE",)),      # sin clave: la variable es un marcador
-    "freetheai":   ("gpt-oss-120b", ("FREETHEAI_API_KEY",)),
-    "apinex":      ("free/gemini-3.8-flash", ("STARSEED_PASARELA_APINEX_KEY",)),
+    "openrouter": ("nvidia/nemotron-3-super-120b-a12b:free", ("OPENROUTER_API_KEY",)),
+    "llm7": ("gpt-oss", ("LLM7_SIN_CLAVE",)),  # sin clave: la variable es un marcador
+    "freetheai": ("gpt-oss-120b", ("FREETHEAI_API_KEY",)),
+    "apinex": ("free/gemini-3.8-flash", ("STARSEED_PASARELA_APINEX_KEY",)),
 }
-USO_REAL = {}            # proveedor -> (momento, salió bien) del último trabajo de verdad
-FRESCO_S = 120           # si hay noticia real más nueva que esto, no hace falta sondear
+USO_REAL = {}  # proveedor -> (momento, salió bien) del último trabajo de verdad
+FRESCO_S = 120  # si hay noticia real más nueva que esto, no hace falta sondear
 # (2026-09-07, Ola 271, P9D) La sonda de CADA ciclo pasa a ser un GET a `/models` (SONDA LIGERA):
 # la generación real de prueba quemaba el cupo diario de los proveedores gratis (OpenRouter :free
 # ≈ 50/día, aihubmix 10 sin recarga) sin aportar nada que el catálogo no diga. La generación real
@@ -257,14 +347,14 @@ SONDA_GENERACION_S = int(os.environ.get("SONDA_GENERACION_S", str(30 * 60)))
 _ULTIMA_GENERACION = {}  # proveedor -> momento de la última generación real de prueba
 # URL del catálogo `/models` de cada proveedor para la sonda ligera (un GET no consume cupo).
 MODELS_URLS = {
-    "xkiro":       "https://api.xkiro.com/v1/models",
-    "nim":         "https://integrate.api.nvidia.com/v1/models",
-    "aihubmix":    "https://aihubmix.com/v1/models",
+    "xkiro": "https://api.xkiro.com/v1/models",
+    "nim": "https://integrate.api.nvidia.com/v1/models",
+    "aihubmix": "https://aihubmix.com/v1/models",
     "tokenrouter": "https://api.tokenrouter.com/v1/models",
-    "openrouter":  "https://openrouter.ai/api/v1/models",
-    "llm7":        "https://api.llm7.io/v1/models",
-    "freetheai":   "https://api.freetheai.xyz/v1/models",
-    "apinex":      "https://apinex.bond/v1/models",
+    "openrouter": "https://openrouter.ai/api/v1/models",
+    "llm7": "https://api.llm7.io/v1/models",
+    "freetheai": "https://api.freetheai.xyz/v1/models",
+    "apinex": "https://apinex.bond/v1/models",
 }
 # (2026-09-07, Ola 271, P9D) Una racha de 429 (límite por minuto o cupo diario) agota la clave
 # 1 hora y la sonda la vuelve a probar; solo un 402 o un aviso de cupo explícito la agotan 24 h.
@@ -297,7 +387,9 @@ def registrar_uso(prov, ok):
     """El tráfico real es el mejor sondeo: cada llamada que funciona o falla cuenta como
     señal de salud, y así el supervisor no gasta cuota preguntando lo que ya sabe."""
     USO_REAL[prov] = (time.time(), ok)
-PREFIJO_PROVEEDOR = {"nvidia": "nim"}   # los modelos de NIM se escriben nvidia/…
+
+
+PREFIJO_PROVEEDOR = {"nvidia": "nim"}  # los modelos de NIM se escriben nvidia/…
 
 
 def proveedor_de(modelo):
@@ -316,7 +408,9 @@ def _salud_guardar(d):
     os.makedirs(os.path.dirname(SALUD_JSON), exist_ok=True)
     try:
         with cerrojo("salud", espera_aviso=9999):
-            json.dump(d, open(SALUD_JSON, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+            json.dump(
+                d, open(SALUD_JSON, "w", encoding="utf-8"), ensure_ascii=False, indent=1
+            )
     except Exception:
         pass
 
@@ -334,7 +428,7 @@ def proveedor_vivo(prov):
 # a un revisor que respondiera. Desde esta ola el archivo de salud también recuerda quién se
 # quedó sin cuota (24 h) y quiénn recibió 429 hace poco (enfriamiento de 10 min), y esos
 # proveedores se saltan sin intentarlos.
-REVISOR_ULTIMO_OK = ""   # «proveedor/modelo» del último revisor que sí respondió: va primero la próxima vez
+REVISOR_ULTIMO_OK = ""  # «proveedor/modelo» del último revisor que sí respondió: va primero la próxima vez
 
 
 def marcar_sin_cupo(prov, motivo, horas=24):
@@ -342,7 +436,9 @@ def marcar_sin_cupo(prov, motivo, horas=24):
     Respeta el resto de campos (estado, desde, ultimo_429…): solo toca los suyos."""
     d = _salud()
     e = d.get(prov) or {}
-    e["sin_cupo_hasta"] = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(time.time() + horas * 3600))
+    e["sin_cupo_hasta"] = time.strftime(
+        "%Y-%m-%d %H:%M:%S", time.localtime(time.time() + horas * 3600)
+    )
     e["motivo"] = str(motivo or "")[:200]
     d[prov] = e
     _salud_guardar(d)
@@ -363,7 +459,7 @@ def quitar_sin_cupo(prov):
 
 def sin_cupo(prov) -> bool:
     """True si la cuota del proveedor consta agotada aún (fecha futura)."""
-    hasta = ( _salud().get(prov) or {}).get("sin_cupo_hasta") or ""
+    hasta = (_salud().get(prov) or {}).get("sin_cupo_hasta") or ""
     if not hasta:
         return False
     try:
@@ -387,7 +483,9 @@ def enfriandose(prov) -> bool:
     if not ultimo:
         return False
     try:
-        return time.time() - time.mktime(time.strptime(ultimo, "%Y-%m-%d %H:%M:%S")) < 600
+        return (
+            time.time() - time.mktime(time.strptime(ultimo, "%Y-%m-%d %H:%M:%S")) < 600
+        )
     except Exception:
         return False
 
@@ -401,7 +499,10 @@ def _clasificar_fallo_cupo(prov, exc):
     ml = m.lower()
     if "429" in m:
         marcar_429(prov)
-    elif "402" in m or any(k in ml for k in ("quota", "cuota", "daily limit", "rate limit exceeded for today")):
+    elif "402" in m or any(
+        k in ml
+        for k in ("quota", "cuota", "daily limit", "rate limit exceeded for today")
+    ):
         marcar_sin_cupo(prov, ml)
 
 
@@ -411,18 +512,22 @@ def _revisor_ultimo_ok():
     if REVISOR_ULTIMO_OK:
         return REVISOR_ULTIMO_OK
     d = _salud()
-    return d.get("ultimo_revisor_ok") if isinstance(d.get("ultimo_revisor_ok"), str) else ""
+    return (
+        d.get("ultimo_revisor_ok")
+        if isinstance(d.get("ultimo_revisor_ok"), str)
+        else ""
+    )
 
 
 def candidatos_revision():
     """Orden de provisión: los de REVISORES vivos, con cupo y no enfriándose, y el último
     que respondió SIEMPRE primero. Devuelve (candidatos, saltados_humanos); si todos están
     excluidos, devuelve la lista completa — nunca nos quedamos sin revisor."""
-    orden = list(REVISORES)                     # NO se cambia el orden base, solo el arranque
+    orden = list(REVISORES)  # NO se cambia el orden base, solo el arranque
     ultimo = _revisor_ultimo_ok()
     i = next((j for j, r in enumerate(orden) if "%s/%s" % r == ultimo), None)
     if i is not None:
-        orden = [orden[i]] + orden[:i] + orden[i + 1:]
+        orden = [orden[i]] + orden[:i] + orden[i + 1 :]
     d = _salud()
     candidatos, saltados = [], []
     for prov, modelo in orden:
@@ -430,16 +535,26 @@ def candidatos_revision():
         if not proveedor_vivo(prov):
             saltados.append("%s (caído)" % prov)
         elif sin_cupo(prov):
-            saltados.append("%s (sin cupo hasta %s)" % (prov, e.get("sin_cupo_hasta") or "¿?"))
+            saltados.append(
+                "%s (sin cupo hasta %s)" % (prov, e.get("sin_cupo_hasta") or "¿?")
+            )
         elif enfriandose(prov):
             try:
-                minutos = int((time.time() - time.mktime(time.strptime(e.get("ultimo_429", ""), "%Y-%m-%d %H:%M:%S"))) / 60)
+                minutos = int(
+                    (
+                        time.time()
+                        - time.mktime(
+                            time.strptime(e.get("ultimo_429", ""), "%Y-%m-%d %H:%M:%S")
+                        )
+                    )
+                    / 60
+                )
             except Exception:
                 minutos = 0
             saltados.append("%s (429 hace %d min)" % (prov, minutos))
         else:
             candidatos.append((prov, modelo))
-    return (candidatos or orden), saltados   # sin candidatos limpios: todos, como antes
+    return (candidatos or orden), saltados  # sin candidatos limpios: todos, como antes
 
 
 def _revisor_respondio(prov, modelo):
@@ -460,18 +575,22 @@ def revalidar_proveedor(prov):
     el dato es viejo (>10 min: el supervisor de esta máquina llevaba tiempo sin mirar), se
     sondea ahora mismo en vez de reenrutar a ciegas. El 2026-09-05 P2 pidió minimax por
     xkiro y se fue a NIM porque el archivo de salud de la Mac decía «caído» de otro día."""
-    d = _salud(); e = d.get(prov)
+    d = _salud()
+    e = d.get(prov)
     if not e or e.get("estado") != "caido":
         return True
     try:
-        edad = time.time() - time.mktime(time.strptime(e.get("t", ""), "%Y-%m-%d %H:%M:%S"))
+        edad = time.time() - time.mktime(
+            time.strptime(e.get("t", ""), "%Y-%m-%d %H:%M:%S")
+        )
     except Exception:
         edad = 1e9
     if edad < 600:
         return False
     vivo = sondear(prov, forzar=True) if prov in SONDAS else None
     if vivo:
-        d[prov] = {"estado": "vivo", "t": ahora(), "desde": ahora()}; _salud_guardar(d)
+        d[prov] = {"estado": "vivo", "t": ahora(), "desde": ahora()}
+        _salud_guardar(d)
         return True
     return False
 
@@ -489,7 +608,7 @@ def _clave_sonda(prov):
         return None
     futuras = _claves_agotadas_futuras(prov)
     if any((f.get("tipo") or "cuota") != "429" for f in futuras.values()):
-        return None                          # 402/cuota vigente: no sondear hasta su hasta
+        return None  # 402/cuota vigente: no sondear hasta su hasta
     crudas = _claves_crudas(prov)
     return crudas[0] if crudas else None
 
@@ -501,7 +620,9 @@ def _liberar_429(prov):
     d = _salud()
     e = d.get(prov) or {}
     agotadas = e.get("claves_agotadas") or {}
-    limpiadas = [h for h, ent in agotadas.items() if (ent.get("tipo") or "cuota") == "429"]
+    limpiadas = [
+        h for h, ent in agotadas.items() if (ent.get("tipo") or "cuota") == "429"
+    ]
     if not limpiadas:
         return False
     for h in limpiadas:
@@ -510,7 +631,11 @@ def _liberar_429(prov):
     d[prov] = e
     _salud_guardar(d)
     quitar_sin_cupo(prov)
-    evento("proveedor_recuperado", "", "%s responde sin cuota: claves agotadas por 429 liberadas" % prov)
+    evento(
+        "proveedor_recuperado",
+        "",
+        "%s responde sin cuota: claves agotadas por 429 liberadas" % prov,
+    )
     return True
 
 
@@ -518,15 +643,38 @@ def _sonda_ligera(prov, claves, kay):
     """GET a `/models` con la clave activa (2026-09-07, Ola 271, P9D, Tarea 4): no consume cupo de
     generación. 200 → catálogo accesible, sin renovar cupos; 401/403 → clave inválida (agotar 24 h,
     «clave rechazada»); 402 → agotar 24 h; resto (5xx/timeout/red) → caído."""
-    url = MODELS_URLS.get(prov) or (PASARELAS[prov]["url"].rstrip("/chat/completions") + "/models" if prov in PASARELAS else None)
+    url = MODELS_URLS.get(prov) or (
+        PASARELAS[prov]["url"].rstrip("/chat/completions") + "/models"
+        if prov in PASARELAS
+        else None
+    )
     if not url:
-        return _sonda_generacion(prov, claves, kay)  # sin catálogo: caer a generación real
-    key = (PASARELAS[prov]["key"] if prov in PASARELAS else
-           ((kay or {}).get("valor") or
-            next((ENV.get(k) or os.environ.get(k) for k in claves if ENV.get(k) or os.environ.get(k)), None) or
-            (ENV.get("LLM7_API_KEY") or "sin-clave" if prov == "llm7" else None)))
-    req = urllib.request.Request(url, headers={"Authorization": "Bearer " + key,
-                                              "User-Agent": "starseed-enjambre/2 (+starseed-os)"})
+        return _sonda_generacion(
+            prov, claves, kay
+        )  # sin catálogo: caer a generación real
+    key = (
+        PASARELAS[prov]["key"]
+        if prov in PASARELAS
+        else (
+            (kay or {}).get("valor")
+            or next(
+                (
+                    ENV.get(k) or os.environ.get(k)
+                    for k in claves
+                    if ENV.get(k) or os.environ.get(k)
+                ),
+                None,
+            )
+            or (ENV.get("LLM7_API_KEY") or "sin-clave" if prov == "llm7" else None)
+        )
+    )
+    req = urllib.request.Request(
+        url,
+        headers={
+            "Authorization": "Bearer " + key,
+            "User-Agent": "starseed-enjambre/2 (+starseed-os)",
+        },
+    )
     huella = (kay or {}).get("huella")
     try:
         with urllib.request.urlopen(req, timeout=40) as r:
@@ -534,7 +682,9 @@ def _sonda_ligera(prov, claves, kay):
     except urllib.error.HTTPError as e:
         if e.code in (401, 403):
             if huella:
-                agotar_clave(prov, huella, "sonda: clave rechazada (%d)" % e.code, tipo="cuota")
+                agotar_clave(
+                    prov, huella, "sonda: clave rechazada (%d)" % e.code, tipo="cuota"
+                )
             else:
                 marcar_sin_cupo(prov, "sonda: clave rechazada (%d)" % e.code, 24)
         elif e.code == 402:
@@ -549,7 +699,10 @@ def _sonda_ligera(prov, claves, kay):
         # el motivo real (sin la clave) en el log y en la memoria de uso, para que el proveedor
         # conste caído con causa y la sonda no devuelva «muerto» sin explicación.
         USO_REAL[prov] = (time.time(), False)
-        print("sonda ligera %s: %s: %s" % (prov, type(e).__name__, str(e)[:200]), flush=True)
+        print(
+            "sonda ligera %s: %s: %s" % (prov, type(e).__name__, str(e)[:200]),
+            flush=True,
+        )
     return False
 
 
@@ -558,35 +711,62 @@ def _sonda_generacion(prov, claves, kay):
     una vez cada SONDA_GENERACION_S por proveedor. Comprueba que el proveedor ACEPTA y CONTESTA
     una generación; distingue el motivo del fallo (402/cuota/429) para agotar con las horas justas."""
     modelo = SONDAS[prov][0]
-    url = {"xkiro": "https://api.xkiro.com/v1/chat/completions",
-           "nim": "https://integrate.api.nvidia.com/v1/chat/completions",
-           "aihubmix": "https://aihubmix.com/v1/chat/completions",
-           "tokenrouter": "https://api.tokenrouter.com/v1/chat/completions",
-           "openrouter": "https://openrouter.ai/api/v1/chat/completions",
-           "llm7": "https://api.llm7.io/v1/chat/completions",
-           "freetheai": "https://api.freetheai.xyz/v1/chat/completions",
-           **{n: p["url"] for n, p in PASARELAS.items()}}[prov]
-    key = (PASARELAS[prov]["key"] if prov in PASARELAS else
-           ((kay or {}).get("valor") or
-            next((ENV.get(k) or os.environ.get(k) for k in claves if ENV.get(k) or os.environ.get(k)), None) or
-            (ENV.get("LLM7_API_KEY") or "sin-clave" if prov == "llm7" else None)))
+    url = {
+        "xkiro": "https://api.xkiro.com/v1/chat/completions",
+        "nim": "https://integrate.api.nvidia.com/v1/chat/completions",
+        "aihubmix": "https://aihubmix.com/v1/chat/completions",
+        "tokenrouter": "https://api.tokenrouter.com/v1/chat/completions",
+        "openrouter": "https://openrouter.ai/api/v1/chat/completions",
+        "llm7": "https://api.llm7.io/v1/chat/completions",
+        "freetheai": "https://api.freetheai.xyz/v1/chat/completions",
+        **{n: p["url"] for n, p in PASARELAS.items()},
+    }[prov]
+    key = (
+        PASARELAS[prov]["key"]
+        if prov in PASARELAS
+        else (
+            (kay or {}).get("valor")
+            or next(
+                (
+                    ENV.get(k) or os.environ.get(k)
+                    for k in claves
+                    if ENV.get(k) or os.environ.get(k)
+                ),
+                None,
+            )
+            or (ENV.get("LLM7_API_KEY") or "sin-clave" if prov == "llm7" else None)
+        )
+    )
     huella = (kay or {}).get("huella")
-    cuerpo = {"model": modelo, "messages": [{"role": "user", "content": "ok"}], "max_tokens": 4}
+    cuerpo = {
+        "model": modelo,
+        "messages": [{"role": "user", "content": "ok"}],
+        "max_tokens": 4,
+    }
     try:
-        req = urllib.request.Request(url, data=json.dumps(cuerpo).encode(),
-                                     headers={"Content-Type": "application/json",
-                                              "Authorization": "Bearer " + key,
-                                              "User-Agent": "starseed-enjambre/2 (+starseed-os)"})
+        req = urllib.request.Request(
+            url,
+            data=json.dumps(cuerpo).encode(),
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": "Bearer " + key,
+                "User-Agent": "starseed-enjambre/2 (+starseed-os)",
+            },
+        )
         with urllib.request.urlopen(req, timeout=40) as r:
             vivo = 200 <= r.status < 300
             if vivo:
                 try:
                     cuerpo_r = json.loads(r.read().decode("utf-8", "ignore"))
-                    contenido = ((cuerpo_r.get("choices") or [{}])[0].get("message") or {}).get("content") or ""
+                    contenido = (
+                        (cuerpo_r.get("choices") or [{}])[0].get("message") or {}
+                    ).get("content") or ""
                     if es_aviso_de_cuota(contenido):
-                        vivo = False          # 200 con aviso de cuota = agotado, no vivo
+                        vivo = False  # 200 con aviso de cuota = agotado, no vivo
                         if huella:
-                            agotar_clave(prov, huella, "sonda: " + contenido[:90], tipo="cuota")
+                            agotar_clave(
+                                prov, huella, "sonda: " + contenido[:90], tipo="cuota"
+                            )
                         else:
                             marcar_sin_cupo(prov, "sonda: " + contenido[:90], 24)
                 except Exception:
@@ -605,12 +785,16 @@ def _sonda_generacion(prov, claves, kay):
 
 def sondear(prov, forzar=False):
     modelo, claves = SONDAS[prov]
-    if prov != "llm7" and prov not in PASARELAS and not any(ENV.get(k) or os.environ.get(k) for k in claves):
-        return None                      # sin clave: ni vivo ni caído, simplemente no se usa
+    if (
+        prov != "llm7"
+        and prov not in PASARELAS
+        and not any(ENV.get(k) or os.environ.get(k) for k in claves)
+    ):
+        return None  # sin clave: ni vivo ni caído, simplemente no se usa
     if not forzar:
         visto = USO_REAL.get(prov)
         if visto and time.time() - visto[0] < FRESCO_S:
-            return visto[1]              # acaba de trabajar de verdad: esa es la respuesta
+            return visto[1]  # acaba de trabajar de verdad: esa es la respuesta
     kay = _clave_sonda(prov)
     if kay is None and prov not in PASARELAS:
         # (2026-09-07, Ola 271, P9D, Tarea 2) claves TODAS agotadas por 402/cuota: no sondear
@@ -644,15 +828,26 @@ def supervisor_proveedores():
             ok = sondear(prov, forzar=(antes == "caido" or en_disco == "caido"))
             if ok is None:
                 continue
-            desde = (d.get(prov) or {}).get("desde") or (d.get(prov) or {}).get("t") or ahora()
+            desde = (
+                (d.get(prov) or {}).get("desde")
+                or (d.get(prov) or {}).get("t")
+                or ahora()
+            )
             if ok:
                 fallos[prov] = 0
                 if antes == "caido":
-                    evento("proveedor_recuperado", "", "%s vuelve a responder → sus modelos regresan a la rotación" % prov)
+                    evento(
+                        "proveedor_recuperado",
+                        "",
+                        "%s vuelve a responder → sus modelos regresan a la rotación"
+                        % prov,
+                    )
                     desde = ahora()
                 elif en_disco == "caido":
                     desde = ahora()
-                e = d.get(prov) or {}   # se fusiona, no se pisa: conserva sin_cupo_hasta / ultimo_429 (Ola 261)
+                e = (
+                    d.get(prov) or {}
+                )  # se fusiona, no se pisa: conserva sin_cupo_hasta / ultimo_429 (Ola 261)
                 e.update({"estado": "vivo", "t": ahora(), "desde": desde})
                 d[prov] = e
                 visto[prov] = "vivo"
@@ -663,10 +858,17 @@ def supervisor_proveedores():
                     e.update({"estado": "caido", "t": ahora(), "desde": ahora()})
                     d[prov] = e
                     visto[prov] = "caido"
-                    evento("proveedor_caido", "", "%s no responde a TRES sondeos seguidos → fuera de la rotación en TODAS las olas" % prov)
+                    evento(
+                        "proveedor_caido",
+                        "",
+                        "%s no responde a TRES sondeos seguidos → fuera de la rotación en TODAS las olas"
+                        % prov,
+                    )
                 elif antes == "caido" or en_disco == "caido":
                     e = d.get(prov) or {}
-                    e.update({"estado": "caido", "t": ahora(), "desde": desde})   # sigue caído: solo se anota la hora del sondeo
+                    e.update(
+                        {"estado": "caido", "t": ahora(), "desde": desde}
+                    )  # sigue caído: solo se anota la hora del sondeo
                     d[prov] = e
                     visto[prov] = "caido"
         # (2026-09-07, Ola 271, P9B) Cada ciclo del supervisor deja también el estado de las
@@ -695,8 +897,15 @@ def error_de_formato(texto):
     False en cualquier otro caso —en particular `Too Many Requests` y `rate limit`, que son
     de cupo y NO deben marcar la pasarela como incompatible con el formato de opencode."""
     b = (texto or "").lower()
-    return any(p in b for p in ("is unsupported", "must be satisfied",
-                                "invalid_request_error", "unsupported_value"))
+    return any(
+        p in b
+        for p in (
+            "is unsupported",
+            "must be satisfied",
+            "invalid_request_error",
+            "unsupported_value",
+        )
+    )
 
 
 def escritores_de_pasarelas():
@@ -710,7 +919,7 @@ def escritores_de_pasarelas():
     for prov, p in PASARELAS.items():
         if prov in PASARELAS_SOLO_REVISOR:
             continue
-        for mo in (p.get("modelos") or []):
+        for mo in p.get("modelos") or []:
             out.append("%s/%s" % (prov, mo))
     if _freetheai_activo():
         for mo in FREETHEAI_MODELOS["escritores"]:
@@ -722,7 +931,7 @@ def escritores_de_pasarelas():
 # sesión vive en ~/.codex/auth.json. Así, en una máquina SIN ninguna clave, `modelos_para`
 # pone delante los escritores que de verdad pueden escribir — y codex antes que llm7, porque
 # `libres` respeta el orden de MODELOS y validar_modelos() lo deja en cabeza.
-PROVEEDORES_SIN_CLAVE = ("codex", "llm7")   # generan sin clave de API de pago
+PROVEEDORES_SIN_CLAVE = ("codex", "llm7")  # generan sin clave de API de pago
 
 
 def hay_alguna_clave():
@@ -750,10 +959,15 @@ def modelos_para(tid):
     if not hay_alguna_clave():
         # En orden de MODELOS, no en el rotado: llm7/gpt-oss solo sirve para Markdown,
         # asi que minimax-m2.7 debe ir SIEMPRE delante de el.
-        libres = [m for m in MODELOS if m in rotados and proveedor_de(m) in PROVEEDORES_SIN_CLAVE]
+        libres = [
+            m
+            for m in MODELOS
+            if m in rotados and proveedor_de(m) in PROVEEDORES_SIN_CLAVE
+        ]
         if libres:
             rotados = libres + [m for m in rotados if m not in libres]
     return rotados
+
 
 def apto_para_tarea(modelo, t):
     """¿Puede este modelo escribir ESTA tarea? (2026-09-06, Ola 261)
@@ -774,6 +988,7 @@ def apto_para_tarea(modelo, t):
         return False
     return True
 
+
 def dependencias_ok(t):
     """¿Están INTEGRADAS las dependencias duras de esta tarea? (2026-09-07, Ola 261)
 
@@ -784,7 +999,7 @@ def dependencias_ok(t):
     Las dependencias que aún no tienen estado (no han terminado) aquí no bloquean: eso lo
     decide el planificador esperando; y las de `depende_opcional` nunca bloquean."""
     malas = []
-    for d in (t.get("depende") or []):
+    for d in t.get("depende") or []:
         est = PROG.get(d, {}).get("estado")
         if est is not None and est != "commit":
             malas.append("%s (%s)" % (d, est))
@@ -796,8 +1011,13 @@ def dependencias_ok(t):
 # + check-in diario). Los mejores gratuitos verificados en su catálogo. Entran en la flota SOLO si
 # la clave está presente: sin ella, ni sus escritores ni sus revisores aparecen (ver _cargar_freetheai).
 FREETHEAI_MODELOS = {
-    "escritores": ["opc/deepseek-v4-flash-free", "min/minimax-m3", "glm/glm-5.2",
-                   "glm/glm-5-turbo", "opc/north-mini-code-free"],
+    "escritores": [
+        "opc/deepseek-v4-flash-free",
+        "min/minimax-m3",
+        "glm/glm-5.2",
+        "glm/glm-5-turbo",
+        "opc/north-mini-code-free",
+    ],
     "revisores": ["kai/nemotron-3-ultra-free", "bbl/gemini-3.5-flash", "glm/glm-4.6"],
 }
 
@@ -806,8 +1026,14 @@ FREETHEAI_MODELOS = {
 # vieja `("freetheai", "gpt-oss-120b")` se retiró: su modelo era inventado y era incondicional.
 REVISORES = [
     ("xkiro", "qwen/qwen3.7-plus:free"),
-    ("xkiro", "minimax/minimax-m2.7-highspeed:free"),  # se prueban en orden; los gratuitos de terceros primero, NIM se reserva para escribir
-    ("llm7", "minimax-m2.7"),                          # sin clave, 10 req/min (itsfree.ai, 2026-09-05); con LLM7_API_KEY: deepseek-v4-flash, glm-5.3-flash…
+    (
+        "xkiro",
+        "minimax/minimax-m2.7-highspeed:free",
+    ),  # se prueban en orden; los gratuitos de terceros primero, NIM se reserva para escribir
+    (
+        "llm7",
+        "minimax-m2.7",
+    ),  # sin clave, 10 req/min (itsfree.ai, 2026-09-05); con LLM7_API_KEY: deepseek-v4-flash, glm-5.3-flash…
     ("aihubmix", "coding-glm-5.3-free"),
     ("tokenrouter", "z-ai/glm-5.3-free"),
     ("aihubmix", "gemini-3.7-flash-free"),
@@ -815,11 +1041,26 @@ REVISORES = [
     ("openrouter", "nvidia/nemotron-3-super-120b-a12b:free"),
     ("gemini", "gemini-2.5-flash-lite"),
 ]
-CUPOS_RPM = {"nim": 30, "openrouter": 15, "gemini": 12, "aihubmix": 20, "tokenrouter": 15, "xkiro": 25, "llm7": 8, "freetheai": 8}
-CONCURRENCIA_OPENCODE = int(os.environ.get("STARSEED_CONCURRENCIA", "8"))  # techo; el freno real es la memoria
+CUPOS_RPM = {
+    "nim": 30,
+    "openrouter": 15,
+    "gemini": 12,
+    "aihubmix": 20,
+    "tokenrouter": 15,
+    "xkiro": 25,
+    "llm7": 8,
+    "freetheai": 8,
+}
+CONCURRENCIA_OPENCODE = int(
+    os.environ.get("STARSEED_CONCURRENCIA", "8")
+)  # techo; el freno real es la memoria
+
 
 # ── utilidades ──────────────────────────────────────────────────────────────
-def ahora(): return time.strftime("%Y-%m-%d %H:%M:%S")
+def ahora():
+    return time.strftime("%Y-%m-%d %H:%M:%S")
+
+
 def leer_env(*rutas):
     env = {}
     for r in rutas:
@@ -827,10 +1068,15 @@ def leer_env(*rutas):
             for l in open(os.path.expanduser(r), encoding="utf-8"):
                 l = l.strip()
                 if l and not l.startswith("#") and "=" in l:
-                    k, _, v = l.partition("="); env[k.strip()] = v.strip().strip('"').strip("'")
-        except Exception: pass
+                    k, _, v = l.partition("=")
+                    env[k.strip()] = v.strip().strip('"').strip("'")
+        except Exception:
+            pass
     return env
+
+
 ENV = leer_env(os.path.join(ROOT, ".env.local"), "~/.hermes/.env", "~/.starseed/env")
+
 
 # ── FreeTheAi: solo entra si Alex trae la clave (2026-09-08, Ola 286 · G1) ─────
 # La API de freetheai.xyz responde «missing api key» hasta que exista FREETHEAI_API_KEY
@@ -843,7 +1089,11 @@ def _freetheai_activo():
 
 def freetheai_revisores():
     """Revisores de FreeTheAi activos ahora: la lista de modelos SOLO con la clave puesta."""
-    return [("freetheai", mo) for mo in FREETHEAI_MODELOS["revisores"]] if _freetheai_activo() else []
+    return (
+        [("freetheai", mo) for mo in FREETHEAI_MODELOS["revisores"]]
+        if _freetheai_activo()
+        else []
+    )
 
 
 def _cargar_freetheai():
@@ -855,6 +1105,8 @@ def _cargar_freetheai():
         if ("freetheai", mo) not in REVISORES:
             REVISORES.append(("freetheai", mo))
     CUPOS_RPM["freetheai"] = 8
+
+
 _cargar_freetheai()
 
 # ── capa de claves por medio (2026-09-07, Ola 271, P9) ────────────────────
@@ -867,14 +1119,14 @@ _cargar_freetheai()
 # Los valores JAMÁS se escriben en logs, eventos ni JSON: solo el nombre de la variable,
 # el medio (nombre corto del archivo) y una huella sha256 corta para distinguirlas.
 CLAVES_POR_PROVEEDOR = {
-    "nvidia":     ["NVIDIA_API_KEY", "NVIDIA_SHARED_KEY"],
-    "xkiro":      ["XKIRO_API_KEY"],
-    "aihubmix":   ["AIHUBMIX_API_KEY"],
-    "tokenrouter":["TOKENROUTER_API_KEY"],
+    "nvidia": ["NVIDIA_API_KEY", "NVIDIA_SHARED_KEY"],
+    "xkiro": ["XKIRO_API_KEY"],
+    "aihubmix": ["AIHUBMIX_API_KEY"],
+    "tokenrouter": ["TOKENROUTER_API_KEY"],
     "openrouter": ["OPENROUTER_API_KEY", "OPENROUTER_SHARED_KEY"],
-    "gemini":     ["GEMINI_API_KEY", "GOOGLE_API_KEY", "NEXT_PUBLIC_GOOGLE_API_KEY"],
-    "llm7":       ["LLM7_API_KEY"],
-    "freetheai":  ["FREETHEAI_API_KEY"],
+    "gemini": ["GEMINI_API_KEY", "GOOGLE_API_KEY", "NEXT_PUBLIC_GOOGLE_API_KEY"],
+    "llm7": ["LLM7_API_KEY"],
+    "freetheai": ["FREETHEAI_API_KEY"],
 }
 # En la flota el proveedor de NVIDIA se llama «nim», pero sus variables son NVIDIA_*.
 _ALIAS_CLAVES = {"nim": "nvidia"}
@@ -882,10 +1134,10 @@ _ALIAS_CLAVES = {"nim": "nvidia"}
 # cada medio conserva sus propias claves). Solo nombres de ruta; los valores nunca
 # salen de estos archivos (viven con permisos 600).
 RUTAS_ENV_CLAVES = [
-    ("env.local-os",   os.path.join(ROOT, ".env.local")),
-    ("hermes",         "~/.hermes/.env"),
-    ("starseed",       "~/.starseed/env"),
-    ("env.local-mac",  "~/Documents/starseed-os-main/.env.local"),
+    ("env.local-os", os.path.join(ROOT, ".env.local")),
+    ("hermes", "~/.hermes/.env"),
+    ("starseed", "~/.starseed/env"),
+    ("env.local-mac", "~/Documents/starseed-os-main/.env.local"),
     ("env.local-nube", "~/starseed-system/.env.local"),
 ]
 
@@ -925,12 +1177,26 @@ def _claves_crudas(prov):
             v = _leer_env_ruta(ruta).get(nombre)
             if v and v not in vistas:
                 vistas.add(v)
-                out.append({"var": nombre, "medio": medio, "valor": v, "huella": _huella_clave(v)})
-    for nombre in _nombres_clave(prov):                      # el proceso también es un medio
+                out.append(
+                    {
+                        "var": nombre,
+                        "medio": medio,
+                        "valor": v,
+                        "huella": _huella_clave(v),
+                    }
+                )
+    for nombre in _nombres_clave(prov):  # el proceso también es un medio
         v = os.environ.get(nombre)
         if v and v not in vistas:
             vistas.add(v)
-            out.append({"var": nombre, "medio": "proceso", "valor": v, "huella": _huella_clave(v)})
+            out.append(
+                {
+                    "var": nombre,
+                    "medio": "proceso",
+                    "valor": v,
+                    "huella": _huella_clave(v),
+                }
+            )
     return out
 
 
@@ -940,8 +1206,12 @@ def _clave_agotada_hasta(prov, huella):
     hasta = (ent or {}).get("hasta") or ""
     if not hasta:
         return None
-    try:                                                    # agotamiento viejo ya no cuenta
-        return hasta if time.strptime(hasta, "%Y-%m-%d %H:%M:%S") > time.localtime() else None
+    try:  # agotamiento viejo ya no cuenta
+        return (
+            hasta
+            if time.strptime(hasta, "%Y-%m-%d %H:%M:%S") > time.localtime()
+            else None
+        )
     except Exception:
         return None
 
@@ -976,16 +1246,20 @@ def agotar_clave(prov, huella, motivo, tipo="cuota"):
     (402/cuota sobre 429, cuyo plazo es mayor) alarga la fecha y avisa una vez más."""
     horas = HORAS_AGOTAR.get(tipo, 24)
     claves = _claves_crudas(prov)
-    cual = next((c for c in claves if c["huella"] == huella),
-                {"var": "¿?", "medio": "¿?", "huella": huella})
+    cual = next(
+        (c for c in claves if c["huella"] == huella),
+        {"var": "¿?", "medio": "¿?", "huella": huella},
+    )
     d = _salud()
     e = d.get(prov) or {}
     agotadas = e.get("claves_agotadas") or {}
     hasta_epoch = time.time() + horas * 3600
     hasta_txt = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(hasta_epoch))
     prev = agotadas.get(huella) or {}
-    try:                                            # plazo ya vigente igual o más lejano: no repetir
-        prev_epoch = time.mktime(time.strptime(prev.get("hasta") or "", "%Y-%m-%d %H:%M:%S"))
+    try:  # plazo ya vigente igual o más lejano: no repetir
+        prev_epoch = time.mktime(
+            time.strptime(prev.get("hasta") or "", "%Y-%m-%d %H:%M:%S")
+        )
     except Exception:
         prev_epoch = 0
     # (2026-09-07, Ola 271, P9E, Tarea 3) La deduplicación NO se decide por los segundos del
@@ -993,22 +1267,47 @@ def agotar_clave(prov, huella, motivo, tipo="cuota"):
     # daba un `hasta_epoch` un poco mayor → se reescribía y avisaba de nuevo). Se decide por la
     # GRAVEDAD del motivo: una huella ya agotada sigue vigente y solo se re-anuncia cuando el
     # nuevo tipo es más grave (402/cuota sobre 429). Un 429 repetido no mueve nada.
-    if prev_epoch >= time.time() and _gravedad_tipo(tipo) <= _gravedad_tipo(prev.get("tipo") or "cuota"):
+    if prev_epoch >= time.time() and _gravedad_tipo(tipo) <= _gravedad_tipo(
+        prev.get("tipo") or "cuota"
+    ):
         return
-    agotadas[huella] = {"hasta": hasta_txt, "motivo": str(motivo or "")[:140],
-                        "var": cual["var"], "medio": cual["medio"], "tipo": tipo}
+    agotadas[huella] = {
+        "hasta": hasta_txt,
+        "motivo": str(motivo or "")[:140],
+        "var": cual["var"],
+        "medio": cual["medio"],
+        "tipo": tipo,
+    }
     e["claves_agotadas"] = agotadas
     d[prov] = e
     _salud_guardar(d)
     siguiente = clave_activa(prov)
-    hasta_hhmm = hasta_txt[11:16]                    # «HH:MM» local para el aviso y el Mando
+    hasta_hhmm = hasta_txt[11:16]  # «HH:MM» local para el aviso y el Mando
     if siguiente:
-        evento("aviso", "", "clave %s (%s) de %s agotada: %s → paso a %s (%s), hasta %s" % (
-            cual["var"], cual["medio"], prov, str(motivo)[:80], siguiente["var"], siguiente["medio"], hasta_hhmm))
+        evento(
+            "aviso",
+            "",
+            "clave %s (%s) de %s agotada: %s → paso a %s (%s), hasta %s"
+            % (
+                cual["var"],
+                cual["medio"],
+                prov,
+                str(motivo)[:80],
+                siguiente["var"],
+                siguiente["medio"],
+                hasta_hhmm,
+            ),
+        )
     else:
-        evento("aviso", "", "clave %s (%s) de %s agotada: %s → paso a ninguna; sin claves de este proveedor, hasta %s" % (
-            cual["var"], cual["medio"], prov, str(motivo)[:80], hasta_hhmm))
-        marcar_sin_cupo(prov, motivo, horas)      # todas agotadas: ahora sí, proveedor sin cupo
+        evento(
+            "aviso",
+            "",
+            "clave %s (%s) de %s agotada: %s → paso a ninguna; sin claves de este proveedor, hasta %s"
+            % (cual["var"], cual["medio"], prov, str(motivo)[:80], hasta_hhmm),
+        )
+        marcar_sin_cupo(
+            prov, motivo, horas
+        )  # todas agotadas: ahora sí, proveedor sin cupo
 
 
 def estado_claves():
@@ -1020,9 +1319,15 @@ def estado_claves():
     for prov in CLAVES_POR_PROVEEDOR:
         activa = clave_activa(prov)
         out[prov] = {
-            "claves": [{"var": c["var"], "medio": c["medio"], "huella": c["huella"],
-                        "agotada_hasta": _clave_agotada_hasta(prov, c["huella"])}
-                       for c in _claves_crudas(prov)],
+            "claves": [
+                {
+                    "var": c["var"],
+                    "medio": c["medio"],
+                    "huella": c["huella"],
+                    "agotada_hasta": _clave_agotada_hasta(prov, c["huella"]),
+                }
+                for c in _claves_crudas(prov)
+            ],
             "activa": (activa or {}).get("var"),
             "sin_cupo_hasta": (d.get(prov) or {}).get("sin_cupo_hasta"),
         }
@@ -1041,7 +1346,7 @@ def _clave_para(prov):
     return clave_activa(prov)
 
 
-RACHA_429 = {}        # huella -> deque de momentos de 429; 3 en 10 min = clave agotada
+RACHA_429 = {}  # huella -> deque de momentos de 429; 3 en 10 min = clave agotada
 
 
 def _registrar_429_clave(huella):
@@ -1082,28 +1387,39 @@ def _sync_opencode_clave(modelo):
     var = variable_de_pasarela(prov)
     if var:
         if prov in PASARELAS and PASARELAS[prov].get("key") == "sin-clave":
-            return {}            # pasarela declarada «sin-clave»: nada que exportar
+            return {}  # pasarela declarada «sin-clave»: nada que exportar
         valor = ENV.get(var) or os.environ.get(var)
         return {var: valor} if valor else {}
     kay = clave_activa(prov)
     if not kay:
         return {}
-    extra = {kay["var"]: kay["valor"]}                 # el hijo la necesita en su entorno
+    extra = {kay["var"]: kay["valor"]}  # el hijo la necesita en su entorno
     try:
         cfg = json.load(open(RUTA_OPENCODE_CFG, encoding="utf-8"))
         bloque = (cfg.get("provider") or {}).get(prov)
         api = ((bloque or {}).get("options") or {}).get("apiKey") or ""
         m = re.fullmatch(r"\{env:([A-Z0-9_]+)\}", api.strip())
         if m and m.group(1) != kay["var"]:
-            bloque["options"]["apiKey"] = "{env:%s}" % kay["var"]   # solo el NOMBRE cambia
+            bloque["options"]["apiKey"] = (
+                "{env:%s}" % kay["var"]
+            )  # solo el NOMBRE cambia
             with cerrojo("opencode-cfg", espera_aviso=9999):
-                json.dump(cfg, open(RUTA_OPENCODE_CFG, "w", encoding="utf-8"),
-                          ensure_ascii=False, indent=2)
-            evento("aviso", "", "opencode pasa a usar %s (%s) para %s: la anterior estaba agotada" % (
-                kay["var"], kay["medio"], prov))
+                json.dump(
+                    cfg,
+                    open(RUTA_OPENCODE_CFG, "w", encoding="utf-8"),
+                    ensure_ascii=False,
+                    indent=2,
+                )
+            evento(
+                "aviso",
+                "",
+                "opencode pasa a usar %s (%s) para %s: la anterior estaba agotada"
+                % (kay["var"], kay["medio"], prov),
+            )
     except Exception:
-        pass              # sin config o proveedor nativo: el entorno extra ya basta
+        pass  # sin config o proveedor nativo: el entorno extra ya basta
     return extra
+
 
 # ── pasarelas OpenAI-compatibles declaradas por entorno (2026-09-05) ───────────
 # Cualquier enrutador gratuito entra en la flota SIN tocar código —freellmapi en local
@@ -1116,8 +1432,11 @@ def _sync_opencode_clave(modelo):
 # El proveedor se llama <nombre> en minúsculas (p. ej. freellmapi/auto:fast). Entra como REVISOR
 # (los escritores siguen siendo los que opencode sabe usar) y el supervisor lo sondea como a los demás.
 PASARELAS = {}
+
+
 def _cargar_pasarelas():
-    fuentes = dict(os.environ); fuentes.update(ENV)
+    fuentes = dict(os.environ)
+    fuentes.update(ENV)
     for k, v in list(fuentes.items()):
         m = re.match(r"^STARSEED_PASARELA_([A-Z0-9]+)_URL$", k)
         if not m or not v:
@@ -1125,13 +1444,20 @@ def _cargar_pasarelas():
         nombre, pref = m.group(1).lower(), "STARSEED_PASARELA_" + m.group(1)
         g = lambda s, d=None: fuentes.get(pref + s) or d
         modelos = [x.strip() for x in (g("_MODELOS", "") or "").split(",") if x.strip()]
-        try: rpm = int(g("_RPM", "15"))          # (2026-09-08, Ola 286 · G1) 15 si falta el cupo
-        except ValueError: rpm = 15
+        try:
+            rpm = int(g("_RPM", "15"))  # (2026-09-08, Ola 286 · G1) 15 si falta el cupo
+        except ValueError:
+            rpm = 15
         # `base` (para opencode) y `var` (nombre de la variable de la clave, jamás su valor)
         # se guardan para que `plantilla_opencode` construya el bloque del escritor sin claves.
-        PASARELAS[nombre] = {"url": v.rstrip("/") + "/chat/completions", "base": v.rstrip("/"),
-                             "key": g("_KEY") or "sin-clave", "var": pref + "_KEY",
-                             "modelos": modelos, "rpm": rpm}
+        PASARELAS[nombre] = {
+            "url": v.rstrip("/") + "/chat/completions",
+            "base": v.rstrip("/"),
+            "key": g("_KEY") or "sin-clave",
+            "var": pref + "_KEY",
+            "modelos": modelos,
+            "rpm": rpm,
+        }
         CUPOS_RPM[nombre] = rpm
         if modelos:
             SONDAS[nombre] = (modelos[0], (pref + "_URL",))
@@ -1139,63 +1465,124 @@ def _cargar_pasarelas():
             # gpt-oss-120b (el más rápido de la flota) va en SEGUNDA posición de revisores,
             # tras xkiro, SOLO si la pasarela está declarada con ese modelo. Sin clave no hay
             # pasarela, así que no se rompe nada.
-            if nombre == "groq" and "openai/gpt-oss-120b" in modelos and ("groq", "openai/gpt-oss-120b") not in REVISORES:
+            if (
+                nombre == "groq"
+                and "openai/gpt-oss-120b" in modelos
+                and ("groq", "openai/gpt-oss-120b") not in REVISORES
+            ):
                 REVISORES.insert(1, ("groq", "openai/gpt-oss-120b"))
             for mo in modelos:
                 if (nombre, mo) not in REVISORES:
                     REVISORES.append((nombre, mo))
+
+
 _cargar_pasarelas()
-RUTAS_BIN = [os.path.expanduser(x) for x in ("~/.npm-global/bin", "~/.opencode/bin", "/opt/homebrew/bin", "~/.local/bin", "/usr/local/bin", "~/.bun/bin", "~/.hermes/bin")]
+RUTAS_BIN = [
+    os.path.expanduser(x)
+    for x in (
+        "~/.npm-global/bin",
+        "~/.opencode/bin",
+        "/opt/homebrew/bin",
+        "~/.local/bin",
+        "/usr/local/bin",
+        "~/.bun/bin",
+        "~/.hermes/bin",
+    )
+]
+
+
 def _bin(nombre):
     for d in RUTAS_BIN:
         c = os.path.join(d, nombre)
-        if os.path.exists(c): return c
+        if os.path.exists(c):
+            return c
     return shutil.which(nombre) or nombre
-OPENCODE = _bin("opencode"); HERMES = _bin("hermes")
+
+
+OPENCODE = _bin("opencode")
+HERMES = _bin("hermes")
 ANON = ENV.get("NEXT_PUBLIC_SUPABASE_ANON_KEY", "")
+
 
 def entorno_hijo(extra=None):
     """Entorno para CUALQUIER proceso hijo: PATH con los binarios y las claves.
     Vive aparte de sh() porque opencode se lanza con Popen y también las necesita
     (saltárselo fue justo lo que provocó los «Unauthorized» de la ola 232)."""
-    e = dict(os.environ); e.update(extra or {})
+    e = dict(os.environ)
+    e.update(extra or {})
     e["PATH"] = ":".join(RUTAS_BIN) + ":" + e.get("PATH", "")
     # Claves para opencode ({env:NVIDIA_API_KEY} en ~/.config/opencode) y revisores: salen de
     # .env.local / ~/.hermes/.env, nunca del repo ni de los logs.
-    for k, alt in (("NVIDIA_API_KEY", "NVIDIA_SHARED_KEY"), ("OPENROUTER_API_KEY", "OPENROUTER_SHARED_KEY"), ("GEMINI_API_KEY", "GOOGLE_API_KEY"), ("AIHUBMIX_API_KEY", "AIHUBMIX_API_KEY"), ("TOKENROUTER_API_KEY", "TOKENROUTER_API_KEY"),
-                   ("XKIRO_API_KEY", "XKIRO_API_KEY")):
+    for k, alt in (
+        ("NVIDIA_API_KEY", "NVIDIA_SHARED_KEY"),
+        ("OPENROUTER_API_KEY", "OPENROUTER_SHARED_KEY"),
+        ("GEMINI_API_KEY", "GOOGLE_API_KEY"),
+        ("AIHUBMIX_API_KEY", "AIHUBMIX_API_KEY"),
+        ("TOKENROUTER_API_KEY", "TOKENROUTER_API_KEY"),
+        ("XKIRO_API_KEY", "XKIRO_API_KEY"),
+    ):
         v = ENV.get(k) or ENV.get(alt)
-        if v and not e.get(k): e[k] = v
+        if v and not e.get(k):
+            e[k] = v
     return e
 
 
 def sh(cmd, cwd=ROOT, timeout=120, env=None, log=None):
     e = entorno_hijo(env)
     try:
-        p = subprocess.run(cmd, cwd=cwd, shell=isinstance(cmd, str), capture_output=True, text=True, timeout=timeout, env=e)
+        p = subprocess.run(
+            cmd,
+            cwd=cwd,
+            shell=isinstance(cmd, str),
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            env=e,
+        )
         out = (p.stdout or "") + (p.stderr or "")
     except subprocess.TimeoutExpired as ex:
-        p = None; out = "TIMEOUT %ss\n%s" % (timeout, (ex.stdout or b"")[-2000:] if isinstance(ex.stdout, bytes) else (ex.stdout or ""))
+        p = None
+        out = "TIMEOUT %ss\n%s" % (
+            timeout,
+            (ex.stdout or b"")[-2000:]
+            if isinstance(ex.stdout, bytes)
+            else (ex.stdout or ""),
+        )
     if log:
-        with open(log, "a", encoding="utf-8") as f: f.write("\n$ %s\n%s\n" % (cmd if isinstance(cmd, str) else " ".join(cmd), out[-20000:]))
+        with open(log, "a", encoding="utf-8") as f:
+            f.write(
+                "\n$ %s\n%s\n"
+                % (cmd if isinstance(cmd, str) else " ".join(cmd), out[-20000:])
+            )
     return (p.returncode if p else 124), out
+
 
 class Cupo:
     """Limitador req/min por proveedor (ventana deslizante)."""
-    def __init__(self, rpm): self.rpm = rpm; self.ts = collections.deque(); self.lock = threading.Lock()
+
+    def __init__(self, rpm):
+        self.rpm = rpm
+        self.ts = collections.deque()
+        self.lock = threading.Lock()
+
     def esperar(self):
         while True:
             with self.lock:
                 t = time.time()
-                while self.ts and t - self.ts[0] > 60: self.ts.popleft()
-                if len(self.ts) < self.rpm: self.ts.append(t); return
+                while self.ts and t - self.ts[0] > 60:
+                    self.ts.popleft()
+                if len(self.ts) < self.rpm:
+                    self.ts.append(t)
+                    return
                 espera = 60 - (t - self.ts[0]) + 0.2
             time.sleep(max(0.2, espera))
+
+
 FACTOR_CUPO = float(os.environ.get("STARSEED_CUPO_FACTOR", "1"))
 CUPOS = {k: Cupo(max(2, int(v * FACTOR_CUPO))) for k, v in CUPOS_RPM.items()}
 SEM_OPENCODE = threading.Semaphore(CONCURRENCIA_OPENCODE)
-SEM_PESADO = threading.Semaphore(1)     # tsc / vitest: uno a la vez (RAM)
-LOCK_INTEGRAR = threading.Lock()        # integración en main serializada
+SEM_PESADO = threading.Semaphore(1)  # tsc / vitest: uno a la vez (RAM)
+LOCK_INTEGRAR = threading.Lock()  # integración en main serializada
 LOCK_ESTADO = threading.Lock()
 
 
@@ -1204,8 +1591,8 @@ CERROJOS = os.path.expanduser("~/.starseed/cerrojos")
 os.makedirs(CERROJOS, exist_ok=True)
 
 
-PESADO_MAX_EDAD_S = 30 * 60    # cerrojo pesado más viejo que esto = huérfano
-PESADO_ESPERA_S = 20 * 60      # espera máxima por el turno de tsc
+PESADO_MAX_EDAD_S = 30 * 60  # cerrojo pesado más viejo que esto = huérfano
+PESADO_ESPERA_S = 20 * 60  # espera máxima por el turno de tsc
 PESADO_REINTENTO_S = 2
 
 
@@ -1264,8 +1651,10 @@ def cerrojo_pesado():
     si el dueño sigue siendo este proceso (2026-09-07, Ola 261, P6b)."""
     ruta = os.path.join(CERROJOS, "pesado.lock")
     if os.path.isfile(ruta):
-        try: os.remove(ruta)     # formato antiguo (flock sobre archivo): fuera
-        except Exception: pass
+        try:
+            os.remove(ruta)  # formato antiguo (flock sobre archivo): fuera
+        except Exception:
+            pass
     t0 = time.time()
     while True:
         _limpiar_pesado_huerfano(ruta)
@@ -1279,8 +1668,10 @@ def cerrojo_pesado():
         if time.time() - t0 > PESADO_ESPERA_S:
             # Espera agotada (el dueño no soltó): fuerza el turno, igual que el script.
             shutil.rmtree(ruta, ignore_errors=True)
-            try: os.mkdir(ruta)
-            except Exception: pass
+            try:
+                os.mkdir(ruta)
+            except Exception:
+                pass
             break
         time.sleep(PESADO_REINTENTO_S)
     with open(os.path.join(ruta, "dueno"), "w", encoding="utf-8") as f:
@@ -1328,19 +1719,39 @@ def cerrojo(nombre, espera_aviso=60):
         with _cerrojo_flock(nombre, espera_aviso=espera_aviso):
             yield
 
+
 # ── eventos (supervisor) ────────────────────────────────────────────────────
 # Cada evento lleva una CATEGORÍA gruesa además de su tipo fino, para que el Puente de
 # Mando pueda agruparlos: escritura, verificación, revisión, integración, supervisión,
 # proveedor, ola. Lo pidió Alex: «cada proceso debe ser etiquetado por tipo».
 CATEGORIA_DE = {
-    "inicio": "escritura", "aviso": "escritura", "sin_cambios": "escritura", "reenrutado": "escritura",
-    "estancado": "supervision", "latido": "supervision",
-    "proveedor": "proveedor", "proveedor_caido": "proveedor", "proveedor_recuperado": "proveedor",
-    "verificando": "verificacion", "verificado": "verificacion", "verificacion_fallida": "verificacion",
+    "inicio": "escritura",
+    "aviso": "escritura",
+    "sin_cambios": "escritura",
+    "reenrutado": "escritura",
+    "estancado": "supervision",
+    "latido": "supervision",
+    "proveedor": "proveedor",
+    "proveedor_caido": "proveedor",
+    "proveedor_recuperado": "proveedor",
+    "verificando": "verificacion",
+    "verificado": "verificacion",
+    "verificacion_fallida": "verificacion",
     "bloqueante": "revision",
-    "commit": "integracion", "conflicto": "integracion", "reintento": "integracion", "fallo": "integracion",
-    "arranque": "ola", "cola_terminada": "ola", "informe": "ola", "paso": "paso", "reasignado": "supervision", "reasignada": "supervision",
-    "esperando_aprobacion": "aprobacion", "aprobacion": "aprobacion", "rechazada": "aprobacion", "pendiente_aprobacion": "aprobacion",
+    "commit": "integracion",
+    "conflicto": "integracion",
+    "reintento": "integracion",
+    "fallo": "integracion",
+    "arranque": "ola",
+    "cola_terminada": "ola",
+    "informe": "ola",
+    "paso": "paso",
+    "reasignado": "supervision",
+    "reasignada": "supervision",
+    "esperando_aprobacion": "aprobacion",
+    "aprobacion": "aprobacion",
+    "rechazada": "aprobacion",
+    "pendiente_aprobacion": "aprobacion",
 }
 PASOS_DIR = os.path.join(OLAS, "pasos")
 
@@ -1356,7 +1767,13 @@ def paso(tid, nombre, **datos):
             f.write(json.dumps(fila, ensure_ascii=False) + "\n")
     except Exception:
         pass
-    evento("paso", tid, "%s · %s" % (nombre, ", ".join("%s=%s" % (k, str(v)[:40]) for k, v in datos.items())), datos)
+    evento(
+        "paso",
+        tid,
+        "%s · %s"
+        % (nombre, ", ".join("%s=%s" % (k, str(v)[:40]) for k, v in datos.items())),
+        datos,
+    )
 
 
 def _cadena_padres():
@@ -1367,7 +1784,12 @@ def _cadena_padres():
         if pid <= 1:
             break
         try:
-            r = subprocess.run(["ps", "-o", "ppid=,command=", "-p", str(pid)], capture_output=True, text=True, timeout=3)
+            r = subprocess.run(
+                ["ps", "-o", "ppid=,command=", "-p", str(pid)],
+                capture_output=True,
+                text=True,
+                timeout=3,
+            )
             linea = r.stdout.strip()
             if not linea:
                 break
@@ -1392,56 +1814,138 @@ def medio_de_lanzamiento():
     # Solo el EJECUTABLE de cada padre (primera palabra), no la línea entera: una orden de
     # Claude que mencione «hermes» en su texto no convierte el lanzamiento en «hermes».
     ejecutables = [c.split()[0].lower() if c.split() else "" for c in _cadena_padres()]
-    if any("hermes" in e or e.endswith("/hermes") for e in ejecutables) or any("hermes_cli" in c or "hermes-agent" in c for c in _cadena_padres()):
+    if any("hermes" in e or e.endswith("/hermes") for e in ejecutables) or any(
+        "hermes_cli" in c or "hermes-agent" in c for c in _cadena_padres()
+    ):
         return "hermes"
     if any(e.endswith("/claude") or e == "claude" for e in ejecutables):
         return "claude"
     if any("opencode" in e for e in ejecutables):
         return "opencode"
     if os.environ.get("STARSEED_DONDE", "") == "nube":
-        return "claude"          # el contenedor de Cowork solo lo pilota Claude
-    if any(e.endswith("/cron") or e == "cron" or e == "launchd" or e.endswith("/launchd") for e in ejecutables):
+        return "claude"  # el contenedor de Cowork solo lo pilota Claude
+    if any(
+        e.endswith("/cron") or e == "cron" or e == "launchd" or e.endswith("/launchd")
+        for e in ejecutables
+    ):
         return "cron"
-    if os.environ.get("TERM_PROGRAM") or os.environ.get("SSH_TTY") or sys.stdin.isatty():
+    if (
+        os.environ.get("TERM_PROGRAM")
+        or os.environ.get("SSH_TTY")
+        or sys.stdin.isatty()
+    ):
         return "terminal"
     return "desconocido"
 
 
 MEDIO = medio_de_lanzamiento()
 
-IMPORTANTES = {"fallo", "conflicto", "bloqueante", "verificado", "verificacion_fallida", "cola_terminada", "esperando_aprobacion",
-               "arranque", "reintento", "proveedor_caido", "proveedor_recuperado", "estancado"}
+IMPORTANTES = {
+    "fallo",
+    "conflicto",
+    "bloqueante",
+    "verificado",
+    "verificacion_fallida",
+    "cola_terminada",
+    "esperando_aprobacion",
+    "arranque",
+    "reintento",
+    "proveedor_caido",
+    "proveedor_recuperado",
+    "estancado",
+}
+
+
 def evento(tipo, tarea, texto, datos=None):
-    fila = {"t": ahora(), "quien": "enjambre", "tipo": tipo, "tarea": tarea, "texto": texto[:1500],
-            "categoria": CATEGORIA_DE.get(tipo, "otro"), "donde": os.environ.get("STARSEED_DONDE", "nube")}
+    fila = {
+        "t": ahora(),
+        "quien": "enjambre",
+        "tipo": tipo,
+        "tarea": tarea,
+        "texto": texto[:1500],
+        "categoria": CATEGORIA_DE.get(tipo, "otro"),
+        "donde": os.environ.get("STARSEED_DONDE", "nube"),
+    }
     try:
-        with open(EVENTOS, "a", encoding="utf-8") as f: f.write(json.dumps(fila, ensure_ascii=False) + "\n")
-    except Exception: pass
-    print("[%s] %s %s · %s" % (fila["t"][11:], tipo, tarea or "-", texto[:160]), flush=True)
+        with open(EVENTOS, "a", encoding="utf-8") as f:
+            f.write(json.dumps(fila, ensure_ascii=False) + "\n")
+    except Exception:
+        pass
+    print(
+        "[%s] %s %s · %s" % (fila["t"][11:], tipo, tarea or "-", texto[:160]),
+        flush=True,
+    )
     if ANON:
         try:
             # La tabla no tiene columna de categoría: va dentro de `datos` para no migrar nada.
-            cuerpo = json.dumps({"t": fila["t"], "quien": fila["quien"], "tipo": tipo, "tarea": tarea,
-                                 "texto": fila["texto"],
-                                 "datos": {**(datos or {}), "categoria": fila["categoria"], "donde": fila["donde"], "medio": MEDIO}},
-                                ensure_ascii=False).encode()
-            req = urllib.request.Request(SUPABASE_URL + "/rest/v1/relevo_eventos", data=cuerpo, method="POST",
-                headers={"apikey": ANON, "Authorization": "Bearer " + ANON, "Content-Type": "application/json", "Prefer": "return=minimal"})
+            cuerpo = json.dumps(
+                {
+                    "t": fila["t"],
+                    "quien": fila["quien"],
+                    "tipo": tipo,
+                    "tarea": tarea,
+                    "texto": fila["texto"],
+                    "datos": {
+                        **(datos or {}),
+                        "categoria": fila["categoria"],
+                        "donde": fila["donde"],
+                        "medio": MEDIO,
+                    },
+                },
+                ensure_ascii=False,
+            ).encode()
+            req = urllib.request.Request(
+                SUPABASE_URL + "/rest/v1/relevo_eventos",
+                data=cuerpo,
+                method="POST",
+                headers={
+                    "apikey": ANON,
+                    "Authorization": "Bearer " + ANON,
+                    "Content-Type": "application/json",
+                    "Prefer": "return=minimal",
+                },
+            )
             urllib.request.urlopen(req, timeout=10).read()
-        except Exception: pass
+        except Exception:
+            pass
     if tipo in IMPORTANTES:
-        try: subprocess.run([HERMES, "send", "-q", "StarSeed enjambre · %s %s: %s" % (tipo, tarea or "", texto[:300])], timeout=40, capture_output=True)
-        except Exception: pass
+        try:
+            subprocess.run(
+                [
+                    HERMES,
+                    "send",
+                    "-q",
+                    "StarSeed enjambre · %s %s: %s" % (tipo, tarea or "", texto[:300]),
+                ],
+                timeout=40,
+                capture_output=True,
+            )
+        except Exception:
+            pass
+
 
 def relevo_nota(texto):
-    try: subprocess.run([RELEVO, "nota", "--de", "enjambre", texto[:900]], timeout=30, capture_output=True)
-    except Exception: pass
+    try:
+        subprocess.run(
+            [RELEVO, "nota", "--de", "enjambre", texto[:900]],
+            timeout=30,
+            capture_output=True,
+        )
+    except Exception:
+        pass
+
 
 # ── estado / progreso ───────────────────────────────────────────────────────
 def cargar_prog():
-    try: return json.load(open(PROG_JSON, encoding="utf-8"))
-    except Exception: return {}
-MIAS = set()             # tareas que ESTE orquestador gobierna (las de su cola/--solo)
+    try:
+        return json.load(open(PROG_JSON, encoding="utf-8"))
+    except Exception:
+        return {}
+
+
+MIAS = set()  # tareas que ESTE orquestador gobierna (las de su cola/--solo)
+
+
 def guardar_prog(prog):
     with LOCK_ESTADO, cerrojo("progreso"):
         # Otra ola puede haber escrito mientras tanto: se funde en vez de pisar. Y de las tareas
@@ -1455,11 +1959,29 @@ def guardar_prog(prog):
             prog.update(fundido)
         except Exception:
             pass
-        json.dump(prog, open(PROG_JSON, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
-        lines = ["# Progreso de las olas (enjambre gratuito)", "", "Actualizado: " + ahora()[:16], ""]
+        json.dump(
+            prog, open(PROG_JSON, "w", encoding="utf-8"), ensure_ascii=False, indent=1
+        )
+        lines = [
+            "# Progreso de las olas (enjambre gratuito)",
+            "",
+            "Actualizado: " + ahora()[:16],
+            "",
+        ]
         for tid, t in prog.items():
-            lines.append("- **%s** · %s · %s · %ss · %s" % (tid, t.get("estado"), t.get("modelo", ""), t.get("segundos", 0), t.get("nota", "")))
+            lines.append(
+                "- **%s** · %s · %s · %ss · %s"
+                % (
+                    tid,
+                    t.get("estado"),
+                    t.get("modelo", ""),
+                    t.get("segundos", 0),
+                    t.get("nota", ""),
+                )
+            )
         open(PROG_MD, "w", encoding="utf-8").write("\n".join(lines) + "\n")
+
+
 PROG = cargar_prog()
 
 # Estados que nunca puede deshacer una corrida vieja. Si el Mando o un IDE ya
@@ -1473,13 +1995,19 @@ def fusionar_progreso(memoria, disco, propias):
     salida = dict(memoria)
     for tid, valor in disco.items():
         estado = valor.get("estado") if isinstance(valor, dict) else ""
-        if tid not in salida or (propias and tid not in propias) or estado in PROGRESO_IRREVERSIBLE:
+        if (
+            tid not in salida
+            or (propias and tid not in propias)
+            or estado in PROGRESO_IRREVERSIBLE
+        ):
             salida[tid] = valor
     return salida
 
 
 def set_estado(tid, **kw):
-    PROG.setdefault(tid, {}).update(kw); guardar_prog(PROG)
+    PROG.setdefault(tid, {}).update(kw)
+    guardar_prog(PROG)
+
 
 # ── revisión cruzada por otro proveedor ─────────────────────────────────────
 def llamar_llm(proveedor, modelo, prompt, timeout=120):
@@ -1501,11 +2029,27 @@ def llamar_llm(proveedor, modelo, prompt, timeout=120):
         429 → 1 h; 402 y aviso de cuota → 24 h."""
         key = (kay or {}).get("valor")
         if proveedor == "gemini":
-            key = key or ENV.get("GEMINI_API_KEY") or ENV.get("GOOGLE_API_KEY") or ENV.get("NEXT_PUBLIC_GOOGLE_API_KEY")
-            if not key: raise RuntimeError("sin clave gemini")
-            url = "https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s" % (modelo, key)
-            cuerpo = {"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"temperature": 0.2, "maxOutputTokens": 1200}}
-            req = urllib.request.Request(url, data=json.dumps(cuerpo).encode(), headers={"Content-Type": "application/json"})
+            key = (
+                key
+                or ENV.get("GEMINI_API_KEY")
+                or ENV.get("GOOGLE_API_KEY")
+                or ENV.get("NEXT_PUBLIC_GOOGLE_API_KEY")
+            )
+            if not key:
+                raise RuntimeError("sin clave gemini")
+            url = (
+                "https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s"
+                % (modelo, key)
+            )
+            cuerpo = {
+                "contents": [{"parts": [{"text": prompt}]}],
+                "generationConfig": {"temperature": 0.2, "maxOutputTokens": 1200},
+            }
+            req = urllib.request.Request(
+                url,
+                data=json.dumps(cuerpo).encode(),
+                headers={"Content-Type": "application/json"},
+            )
             try:
                 d = json.loads(urllib.request.urlopen(req, timeout=timeout).read())
             except urllib.error.HTTPError as e:
@@ -1525,44 +2069,70 @@ def llamar_llm(proveedor, modelo, prompt, timeout=120):
                 else:
                     _clasificar_fallo_cupo(proveedor, e)
                 raise
-            return "".join(p.get("text", "") for p in d["candidates"][0]["content"]["parts"]), False, ""
+            return (
+                "".join(
+                    p.get("text", "") for p in d["candidates"][0]["content"]["parts"]
+                ),
+                False,
+                "",
+            )
         modelo_real = modelo
         if proveedor == "xkiro":
-            key = key or ENV.get("XKIRO_API_KEY"); url = "https://api.xkiro.com/v1/chat/completions"
+            key = key or ENV.get("XKIRO_API_KEY")
+            url = "https://api.xkiro.com/v1/chat/completions"
         elif proveedor == "aihubmix":
-            key = key or ENV.get("AIHUBMIX_API_KEY"); url = "https://aihubmix.com/v1/chat/completions"
+            key = key or ENV.get("AIHUBMIX_API_KEY")
+            url = "https://aihubmix.com/v1/chat/completions"
         elif proveedor == "tokenrouter":
             # OJO: la base buena es .com (la .io exige claves `tr_` y rechaza estas).
-            key = key or ENV.get("TOKENROUTER_API_KEY"); url = "https://api.tokenrouter.com/v1/chat/completions"
+            key = key or ENV.get("TOKENROUTER_API_KEY")
+            url = "https://api.tokenrouter.com/v1/chat/completions"
         elif proveedor == "openrouter":
-            key = key or ENV.get("OPENROUTER_API_KEY"); url = "https://openrouter.ai/api/v1/chat/completions"
+            key = key or ENV.get("OPENROUTER_API_KEY")
+            url = "https://openrouter.ai/api/v1/chat/completions"
         elif proveedor == "llm7":
             # (2026-09-05, itsfree.ai) LLM7.io: OpenAI-compatible SIN clave, 10 req/min (40 con
             # token LLM7_API_KEY). Revisor de respaldo; sus nombres «claude/gpt-6» son etiquetas
             # de reventa: se usan solo modelos honestos (gpt-oss, deepseek-v4-flash, glm-5.3-flash…).
-            key = key or ENV.get("LLM7_API_KEY") or "sin-clave"; url = "https://api.llm7.io/v1/chat/completions"
+            key = key or ENV.get("LLM7_API_KEY") or "sin-clave"
+            url = "https://api.llm7.io/v1/chat/completions"
             if not key or key == "sin-clave":
                 key = "sin-clave"
                 if modelo_real not in ("gpt-oss", "minimax-m2.7"):
-                    modelo_real = "minimax-m2.7"   # sin token solo sirven estos dos (probado el 2026-09-05)
+                    modelo_real = "minimax-m2.7"  # sin token solo sirven estos dos (probado el 2026-09-05)
         elif proveedor == "freetheai":
             # (2026-09-05, github.com/Free-The-Ai/free-ai) Pasarela gratuita OpenAI-compatible, 60+
             # modelos, clave por Discord (/signup + /checkin diario), 10-35 req/min, 250/día.
-            key = key or ENV.get("FREETHEAI_API_KEY"); url = "https://api.freetheai.xyz/v1/chat/completions"
+            key = key or ENV.get("FREETHEAI_API_KEY")
+            url = "https://api.freetheai.xyz/v1/chat/completions"
         elif proveedor in PASARELAS:
-            key = PASARELAS[proveedor]["key"]; url = PASARELAS[proveedor]["url"]
+            key = PASARELAS[proveedor]["key"]
+            url = PASARELAS[proveedor]["url"]
         else:
-            key = key or ENV.get("NVIDIA_API_KEY") or ENV.get("NVIDIA_SHARED_KEY"); url = "https://integrate.api.nvidia.com/v1/chat/completions"
-        if not key: raise RuntimeError("sin clave " + proveedor)
+            key = key or ENV.get("NVIDIA_API_KEY") or ENV.get("NVIDIA_SHARED_KEY")
+            url = "https://integrate.api.nvidia.com/v1/chat/completions"
+        if not key:
+            raise RuntimeError("sin clave " + proveedor)
         # 2500 y no 1200: los revisores «pensantes» (glm-5.3, qwen3.7) gastan el presupuesto en razonar
         # y devolvían el contenido vacío (tokenrouter con max_tokens=20 devolvía "" y finish=length).
         # (2026-09-08, Ola 286 · G1) openai/gpt-oss-120b de groq también es de razonamiento: el mismo
         # techo de 2500 (≥ 512) le basta para no devolver contenido recortado.
-        cuerpo = {"model": modelo_real, "messages": [{"role": "user", "content": prompt}], "temperature": 0.2, "max_tokens": 2500}
+        cuerpo = {
+            "model": modelo_real,
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0.2,
+            "max_tokens": 2500,
+        }
         # Sin User-Agent propio, el Cloudflare de xKiro devuelve 403 al urllib de Python.
-        req = urllib.request.Request(url, data=json.dumps(cuerpo).encode(),
-                                     headers={"Content-Type": "application/json", "Authorization": "Bearer " + key,
-                                              "User-Agent": "starseed-enjambre/2 (+starseed-os)"})
+        req = urllib.request.Request(
+            url,
+            data=json.dumps(cuerpo).encode(),
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": "Bearer " + key,
+                "User-Agent": "starseed-enjambre/2 (+starseed-os)",
+            },
+        )
         try:
             d = json.loads(urllib.request.urlopen(req, timeout=timeout).read())
         except Exception as e:
@@ -1570,17 +2140,27 @@ def llamar_llm(proveedor, modelo, prompt, timeout=120):
             m = str(e or "")
             if kay:
                 if "402" in m:
-                    return "", True, "402"                           # 402: esta clave no paga más
+                    return "", True, "402"  # 402: esta clave no paga más
                 if "429" in m:
                     if _registrar_429_clave(kay["huella"]):
-                        return "", True, "429"                       # 3 × 429 en 10 min: clave ahogada
+                        return "", True, "429"  # 3 × 429 en 10 min: clave ahogada
                     marcar_429(proveedor)
-                elif any(k in m.lower() for k in ("quota", "cuota", "daily limit", "rate limit exceeded for today")):
-                    return "", True, "cuota"                         # límite diario explícito en el error
+                elif any(
+                    k in m.lower()
+                    for k in (
+                        "quota",
+                        "cuota",
+                        "daily limit",
+                        "rate limit exceeded for today",
+                    )
+                ):
+                    return "", True, "cuota"  # límite diario explícito en el error
                 else:
                     _clasificar_fallo_cupo(proveedor, e)
             else:
-                _clasificar_fallo_cupo(proveedor, e)   # 402/cuota → 24 h sin intentarlo; 429 → 10 min de enfriamiento
+                _clasificar_fallo_cupo(
+                    proveedor, e
+                )  # 402/cuota → 24 h sin intentarlo; 429 → 10 min de enfriamiento
             raise
         txt = d["choices"][0]["message"]["content"] or ""
         txt = re.sub(r" thinking.*? response", "", txt, flags=re.S).strip()
@@ -1589,50 +2169,89 @@ def llamar_llm(proveedor, modelo, prompt, timeout=120):
     kay = _clave_para(proveedor)
     txt, agota, motivo = _peticion(kay)
     if agota and kay:
-        agotar_clave(proveedor, kay["huella"], "llamada: límite de la clave", tipo=(motivo or "cuota"))
+        agotar_clave(
+            proveedor,
+            kay["huella"],
+            "llamada: límite de la clave",
+            tipo=(motivo or "cuota"),
+        )
         kay2 = clave_activa(proveedor)
         if kay2:
             # Reintento ÚNICO con la siguiente clave del mismo proveedor (nunca el valor, solo var/medio).
-            evento("reenrutado", "", "clave %s (%s) agotada → %s (%s)" % (kay["var"], kay["medio"], kay2["var"], kay2["medio"]))
+            evento(
+                "reenrutado",
+                "",
+                "clave %s (%s) agotada → %s (%s)"
+                % (kay["var"], kay["medio"], kay2["var"], kay2["medio"]),
+            )
             txt, agota2, motivo2 = _peticion(kay2)
             if agota2:
                 # La clave de relevo también pide cuota en su misma primera llamada: se
                 # agota también y se aborta. Devolver "" aquí cuenta como respuesta válida
                 # y el revisor archivaría basura (2026-09-07, Ola 271, P9C).
-                agotar_clave(proveedor, kay2["huella"], "relevo también agotado", tipo=(motivo2 or "cuota"))
+                agotar_clave(
+                    proveedor,
+                    kay2["huella"],
+                    "relevo también agotado",
+                    tipo=(motivo2 or "cuota"),
+                )
                 USO_REAL[proveedor] = (time.time(), False)
-                raise RuntimeError("sin claves útiles en %s: límite de la clave de relevo (%s)" % (proveedor, kay2["var"]))
+                raise RuntimeError(
+                    "sin claves útiles en %s: límite de la clave de relevo (%s)"
+                    % (proveedor, kay2["var"])
+                )
         else:
             # (2026-09-07, Ola 271, P9C) BUG corregido: agotar_clave ya marcó sin_cupo al
             # agotar la última clave; seguir con txt="" y devolverlo como respuesta válida
             # hacía pasar un fracaso del proveedor por éxito. Ahora se lanza, con el nombre
             # de la variable (jamás el valor) para que quede constancia en el log.
             USO_REAL[proveedor] = (time.time(), False)
-            raise RuntimeError("sin claves útiles en %s tras agotar %s (límite de la clave)" % (proveedor, kay["var"]))
+            raise RuntimeError(
+                "sin claves útiles en %s tras agotar %s (límite de la clave)"
+                % (proveedor, kay["var"])
+            )
     # Algunos proveedores devuelven 200 con un AVISO DE CUOTA como si fuera la respuesta (aihubmix
     # el 2026-09-04: «accounts that have not been recharged can only try 10 times»). Seis commits
     # se integraron con esa frase archivada como «revisión ok». Eso es un fallo del proveedor.
     if es_aviso_de_cuota(txt):
         USO_REAL[proveedor] = (time.time(), False)
         if kay:
-            agotar_clave(proveedor, kay["huella"], "contenido: " + txt[:80])  # agota la clave; sin más claves, marca sin cupo ella misma
+            agotar_clave(
+                proveedor, kay["huella"], "contenido: " + txt[:80]
+            )  # agota la clave; sin más claves, marca sin cupo ella misma
             kay2 = clave_activa(proveedor)
             if kay2:
-                evento("reenrutado", "", "clave %s (%s) agotada → %s (%s)" % (kay["var"], kay["medio"], kay2["var"], kay2["medio"]))
+                evento(
+                    "reenrutado",
+                    "",
+                    "clave %s (%s) agotada → %s (%s)"
+                    % (kay["var"], kay["medio"], kay2["var"], kay2["medio"]),
+                )
                 txt, _, _ = _peticion(kay2)
                 if not es_aviso_de_cuota(txt):
                     USO_REAL[proveedor] = (time.time(), True)
                     return txt
         else:
-            marcar_sin_cupo(proveedor, txt[:160])   # aviso de cuota en el contenido: 24 h sin intentarlo
+            marcar_sin_cupo(
+                proveedor, txt[:160]
+            )  # aviso de cuota en el contenido: 24 h sin intentarlo
         raise RuntimeError("cuota agotada en %s: %s" % (proveedor, txt[:90]))
     USO_REAL[proveedor] = (time.time(), True)
     return txt
 
 
-AVISOS_CUOTA = ("prevent abuse of free resources", "have not been recharged", "free quota",
-                "reached today's free-model token quota", "insufficient balance", "insufficient_quota",
-                "quota exceeded", "exceeded your current quota", "rate limit exceeded", "credits exhausted")
+AVISOS_CUOTA = (
+    "prevent abuse of free resources",
+    "have not been recharged",
+    "free quota",
+    "reached today's free-model token quota",
+    "insufficient balance",
+    "insufficient_quota",
+    "quota exceeded",
+    "exceeded your current quota",
+    "rate limit exceeded",
+    "credits exhausted",
+)
 
 
 def es_aviso_de_cuota(texto):
@@ -1640,19 +2259,24 @@ def es_aviso_de_cuota(texto):
     t = (texto or "")[:400].lower()
     return len(t) < 400 and any(a in t for a in AVISOS_CUOTA)
 
+
 def confirmar_bloqueo(tid, titulo, motivo, diff):
     """Tres de tres bloqueos de la Ola 233-234 eran falsos: el revisor no veía un archivo
     hermano, o inventaba una colisión de claves que el índice ya impedía. Antes de parar una
     tarea que YA pasó tsc y vitest, se pide una segunda opinión a OTRO proveedor, centrada en
     el defecto concreto. Si el segundo no lo ve, el bloqueo se degrada a aviso."""
-    prompt = ("Un primer revisor ha marcado como BLOQUEANTE este cambio de StarSeed OS («%s») por este motivo:\n\n%s\n\n"
-              "El commit YA pasó `tsc --noEmit` y `vitest` en la máquina, y el diff que ves es de UN commit: "
-              "los archivos que importa y no aparecen aquí ya existen en main, creados por otra tarea de la misma ola.\n\n"
-              "Pregunta única: ¿ese defecto concreto existe DE VERDAD en el código mostrado?\n"
-              "Responde en la PRIMERA línea solo con SI o NO, y debajo una frase de justificación. "
-              "Responde NO si el motivo es no poder ver un archivo, no poder verificar algo, el diff truncado "
-              "o una suposición sobre código que no se muestra.\n\n%s") % (titulo, motivo[:600], diff[:12000])
-    candidatos, saltados = candidatos_revision()   # sin caídos, sin cupo agotado ni enfriándose (Ola 261)
+    prompt = (
+        "Un primer revisor ha marcado como BLOQUEANTE este cambio de StarSeed OS («%s») por este motivo:\n\n%s\n\n"
+        "El commit YA pasó `tsc --noEmit` y `vitest` en la máquina, y el diff que ves es de UN commit: "
+        "los archivos que importa y no aparecen aquí ya existen en main, creados por otra tarea de la misma ola.\n\n"
+        "Pregunta única: ¿ese defecto concreto existe DE VERDAD en el código mostrado?\n"
+        "Responde en la PRIMERA línea solo con SI o NO, y debajo una frase de justificación. "
+        "Responde NO si el motivo es no poder ver un archivo, no poder verificar algo, el diff truncado "
+        "o una suposición sobre código que no se muestra.\n\n%s"
+    ) % (titulo, motivo[:600], diff[:12000])
+    candidatos, saltados = (
+        candidatos_revision()
+    )  # sin caídos, sin cupo agotado ni enfriándose (Ola 261)
     if saltados:
         evento("aviso", tid, "revisores saltados: %s" % ", ".join(saltados))
     for prov, modelo in candidatos:
@@ -1662,28 +2286,47 @@ def confirmar_bloqueo(tid, titulo, motivo, diff):
                 continue
             _revisor_respondio(prov, modelo)
             primera = r.splitlines()[0].strip().lower()
-            return ("%s/%s" % (prov, modelo)), r, primera.startswith(("si", "sí", "yes"))
+            return (
+                ("%s/%s" % (prov, modelo)),
+                r,
+                primera.startswith(("si", "sí", "yes")),
+            )
         except Exception:
             continue
-    return "", "", True      # si nadie contesta, se respeta el bloqueo
+    return "", "", True  # si nadie contesta, se respeta el bloqueo
 
 
 def revisar(tid, titulo, diff, impacto="", alcance=""):
-    prompt = ("Eres revisor senior de StarSeed OS (Next.js 15, React 19, TypeScript estricto, Supabase). Revisa este diff de la tarea «%s». "
-              "Responde en español, máximo 220 palabras, con: **Riesgos reales** (numerados, solo los que de verdad rompan algo o abran un agujero), "
-              "**Probar a mano en localhost** (3-4 pasos concretos) y **Seguimiento:** «no» si se puede fusionar tal cual, o «sí, bloqueante — <qué>» "
-              "si NO debe fusionarse sin corregir. Sé exigente pero justo: estilo o nombres no son bloqueantes.\n\n"
-              "IMPORTANTE sobre el formato: el diff puede llegar TRUNCADO, ves UN SOLO commit y no el "
-              "repositorio entero. Los archivos que este commit importa y no aparecen aquí YA EXISTEN en "
-              "main: los creó otra tarea de la misma ola, y el commit no habría llegado a ti sin compilar. "
-              "NO marques «bloqueante» por falta de contexto, por no poder confirmar que compila o por pedir el diff completo: "
-              "el commit ya pasó tsc y vitest antes de llegarte. Marca «bloqueante» SOLO por un defecto que veas en el código mostrado "
-              "y que rompa el comportamiento, la seguridad o los datos. Si tu duda es de contexto, dila como riesgo y pon «Seguimiento: no».\n\n"
-              + ("RADIO DE IMPACTO según el grafo del código (GitNexus): %s\nMira con más cuidado los flujos listados: son los que este diff toca.\n\n" % impacto if impacto else "")
-              # Puerta de alcance (Ola 259, E2): si la pasada de compleción no bastó, el
-              # revisor lo sabe y decide si el enunciado exigía de verdad esos archivos.
-              + ("ALCANCE: %s. Si el enunciado exigía esos cambios, marca BLOQUEANTE y di qué falta.\n\n" % alcance if alcance else "")
-              + "```diff\n%s\n```") % (titulo, diff[:22000])
+    prompt = (
+        (
+            "Eres revisor senior de StarSeed OS (Next.js 15, React 19, TypeScript estricto, Supabase). Revisa este diff de la tarea «%s». "
+            "Responde en español, máximo 220 palabras, con: **Riesgos reales** (numerados, solo los que de verdad rompan algo o abran un agujero), "
+            "**Probar a mano en localhost** (3-4 pasos concretos) y **Seguimiento:** «no» si se puede fusionar tal cual, o «sí, bloqueante — <qué>» "
+            "si NO debe fusionarse sin corregir. Sé exigente pero justo: estilo o nombres no son bloqueantes.\n\n"
+            "IMPORTANTE sobre el formato: el diff puede llegar TRUNCADO, ves UN SOLO commit y no el "
+            "repositorio entero. Los archivos que este commit importa y no aparecen aquí YA EXISTEN en "
+            "main: los creó otra tarea de la misma ola, y el commit no habría llegado a ti sin compilar. "
+            "NO marques «bloqueante» por falta de contexto, por no poder confirmar que compila o por pedir el diff completo: "
+            "el commit ya pasó tsc y vitest antes de llegarte. Marca «bloqueante» SOLO por un defecto que veas en el código mostrado "
+            "y que rompa el comportamiento, la seguridad o los datos. Si tu duda es de contexto, dila como riesgo y pon «Seguimiento: no».\n\n"
+            + (
+                "RADIO DE IMPACTO según el grafo del código (GitNexus): %s\nMira con más cuidado los flujos listados: son los que este diff toca.\n\n"
+                % impacto
+                if impacto
+                else ""
+            )
+            # Puerta de alcance (Ola 259, E2): si la pasada de compleción no bastó, el
+            # revisor lo sabe y decide si el enunciado exigía de verdad esos archivos.
+            + (
+                "ALCANCE: %s. Si el enunciado exigía esos cambios, marca BLOQUEANTE y di qué falta.\n\n"
+                % alcance
+                if alcance
+                else ""
+            )
+            + "```diff\n%s\n```"
+        )
+        % (titulo, diff[:22000])
+    )
     # Solo se intentan revisores vivos, con cupo y atemperados; el último que respondió va
     # primero. El 2026-09-06 xkiro (429) y aihubmix (cuota) se intentaban en cada revisión
     # y cada tarea perdía 5-12 minutos antes de llegar a un revisor que respondiera.
@@ -1700,10 +2343,15 @@ def revisar(tid, titulo, diff, impacto="", alcance=""):
             txt = llamar_llm(prov, modelo, prompt, timeout=240)
             if txt.strip():
                 _revisor_respondio(prov, modelo)
-                return prov + "/" + modelo, txt.strip(), {"segundos": int(time.time() - t_llamada), "intentos": intentos}
+                return (
+                    prov + "/" + modelo,
+                    txt.strip(),
+                    {"segundos": int(time.time() - t_llamada), "intentos": intentos},
+                )
         except Exception as e:
             evento("aviso", tid, "revisor %s no disponible: %s" % (prov, str(e)[:120]))
     return "", "", {"segundos": 0, "intentos": intentos}
+
 
 # ── trabajador ──────────────────────────────────────────────────────────────
 
@@ -1722,7 +2370,9 @@ def memoria_libre_mb():
     except Exception:
         pass
     try:
-        salida = subprocess.run(["vm_stat"], capture_output=True, text=True, timeout=10).stdout
+        salida = subprocess.run(
+            ["vm_stat"], capture_output=True, text=True, timeout=10
+        ).stdout
         pagina, libres, inactivas = 4096, 0, 0
         for linea in salida.splitlines():
             if "page size of" in linea:
@@ -1751,16 +2401,24 @@ def esperar_memoria(tid, maximo_s=None):
         if libre >= MEMORIA_MINIMA_MB:
             return True
         if not avisado:
-            evento("aviso", tid, "esperando memoria (%d MB libres, umbral %d MB)" % (libre, MEMORIA_MINIMA_MB))
+            evento(
+                "aviso",
+                tid,
+                "esperando memoria (%d MB libres, umbral %d MB)"
+                % (libre, MEMORIA_MINIMA_MB),
+            )
             avisado = True
-        try: latir(tid, "esperando-memoria", libre_mb=libre)
-        except Exception: pass
+        try:
+            latir(tid, "esperando-memoria", libre_mb=libre)
+        except Exception:
+            pass
         time.sleep(20)
     return True  # tras la espera máxima, se arranca igualmente
 
 
 _ULTIMO_ARRANQUE_OPENCODE = 0.0
 _LOCK_ARRANQUE_OPENCODE = threading.Lock()
+
 
 def opencode(prompt, modelo, cwd, log, timeout=1500, tid=None):
     """Vuelca la salida AL VUELO en el log (con capture_output el archivo solo crecía al
@@ -1771,8 +2429,10 @@ def opencode(prompt, modelo, cwd, log, timeout=1500, tid=None):
         # Al salir de la espera hay que volver a marcar la fase real: si no, el latido
         # se queda diciendo «esperando-memoria» mientras el modelo ya está escribiendo.
         if tid:
-            try: latir(tid, "escribiendo", modelo=modelo)
-            except Exception: pass
+            try:
+                latir(tid, "escribiendo", modelo=modelo)
+            except Exception:
+                pass
         desde = os.path.getsize(log) if os.path.exists(log) else 0
         # Dos opencode arrancando en el mismo segundo se pelean por su SQLite («database is
         # locked», 05-09 X1): se escalonan los arranques al menos 4 s.
@@ -1785,25 +2445,34 @@ def opencode(prompt, modelo, cwd, log, timeout=1500, tid=None):
         with open(log, "a", encoding="utf-8") as f:
             f.write("\n$ opencode run --model %s · %s\n" % (modelo, ahora()))
             f.flush()
-            p = subprocess.Popen([OPENCODE, "run", prompt, "--model", modelo, "--dir", cwd],
-                                 cwd=cwd, stdout=f, stderr=subprocess.STDOUT,
-                                 # (2026-09-07, Ola 271, P9B) la clave ACTIVA del proveedor se
-                                 # pasa al hijo y, si cambió, actualiza «{env:VAR}» de opencode.
-                                 env=entorno_hijo(_sync_opencode_clave(modelo)))
+            p = subprocess.Popen(
+                [OPENCODE, "run", prompt, "--model", modelo, "--dir", cwd],
+                cwd=cwd,
+                stdout=f,
+                stderr=subprocess.STDOUT,
+                # (2026-09-07, Ola 271, P9B) la clave ACTIVA del proveedor se
+                # pasa al hijo y, si cambió, actualiza «{env:VAR}» de opencode.
+                env=entorno_hijo(_sync_opencode_clave(modelo)),
+            )
         if tid:
-            with PROCESOS_LOCK: PROCESOS[tid] = p
+            with PROCESOS_LOCK:
+                PROCESOS[tid] = p
         try:
             rc = p.wait(timeout=timeout)
         except subprocess.TimeoutExpired:
-            try: p.kill()
-            except Exception: pass
+            try:
+                p.kill()
+            except Exception:
+                pass
             rc = 124
         finally:
             if tid:
-                with PROCESOS_LOCK: PROCESOS.pop(tid, None)
+                with PROCESOS_LOCK:
+                    PROCESOS.pop(tid, None)
         try:
             with open(log, encoding="utf-8", errors="replace") as f:
-                f.seek(desde); salida = f.read()
+                f.seek(desde)
+                salida = f.read()
         except Exception:
             salida = ""
         return rc, salida
@@ -1825,7 +2494,9 @@ def ruta_codex() -> str:
     el hijo (`RUTAS_BIN` + PATH): lanzado desde launchd o cron el PATH heredado puede no traer
     `~/.local/bin`, que es justo donde vive `codex` en la Mac."""
     try:
-        return shutil.which("codex", path=":".join(RUTAS_BIN) + ":" + os.environ.get("PATH", ""))
+        return shutil.which(
+            "codex", path=":".join(RUTAS_BIN) + ":" + os.environ.get("PATH", "")
+        )
     except TypeError:
         return shutil.which("codex")
 
@@ -1841,8 +2512,18 @@ def comando_codex(modelo: str, cwd: str) -> list:
     nombre = str(modelo or "")
     if nombre.startswith("codex/"):
         nombre = nombre.split("/", 1)[1]
-    return ["codex", "exec", "-m", nombre, "-s", "workspace-write", "--approve-for-me",
-            "--skip-git-repo-check", "-C", cwd]
+    return [
+        "codex",
+        "exec",
+        "-m",
+        nombre,
+        "-s",
+        "workspace-write",
+        "--approve-for-me",
+        "--skip-git-repo-check",
+        "-C",
+        cwd,
+    ]
 
 
 # Salida sintética cuando `codex` no está en la máquina. Lleva «AI_APICallError» a propósito:
@@ -1850,7 +2531,8 @@ def comando_codex(modelo: str, cwd: str) -> list:
 # rotación pasa al siguiente escritor SIN gastar uno de los dos intentos de la tarea.
 SALIDA_CODEX_NO_DISPONIBLE = (
     "AI_APICallError: codex no está instalado en esta máquina (no hay binario `codex` en el PATH).\n"
-    "Los escritores `codex/` solo existen en la Mac de Alex; aquí se salta y sigue la rotación.")
+    "Los escritores `codex/` solo existen en la Mac de Alex; aquí se salta y sigue la rotación."
+)
 
 # Coletilla que se añade al final del prompt: `codex exec` termina con un resumen hablado y sin
 # esto algunos modelos «explican» el cambio en vez de escribirlo, y la tarea acaba «sin cambios».
@@ -1874,8 +2556,10 @@ def escribir_con_codex(prompt, modelo, cwd, log, timeout=1500, tid=None):
         esperar_memoria(tid or os.path.basename(cwd))
         # Igual que en opencode: al salir de la espera hay que volver a marcar la fase real.
         if tid:
-            try: latir(tid, "escribiendo", modelo=modelo)
-            except Exception: pass
+            try:
+                latir(tid, "escribiendo", modelo=modelo)
+            except Exception:
+                pass
         desde = os.path.getsize(log) if os.path.exists(log) else 0
         # Mismo escalonado de 4 s que opencode: dos agentes arrancando en el mismo segundo se
         # pelean por los SQLite de `~/.codex` («database is locked»).
@@ -1889,11 +2573,19 @@ def escribir_con_codex(prompt, modelo, cwd, log, timeout=1500, tid=None):
         texto = (prompt or "").rstrip() + "\n\n" + CIERRE_CODEX + "\n"
         with open(log, "a", encoding="utf-8") as f:
             # El prompt NO se vuelca al log (son miles de líneas): solo la orden y su tamaño.
-            f.write("\n$ %s · %s · prompt por stdin (%d caracteres)\n"
-                    % (" ".join(cmd), ahora(), len(texto)))
+            f.write(
+                "\n$ %s · %s · prompt por stdin (%d caracteres)\n"
+                % (" ".join(cmd), ahora(), len(texto))
+            )
             f.flush()
-            p = subprocess.Popen(cmd, cwd=cwd, stdin=subprocess.PIPE, stdout=f,
-                                 stderr=subprocess.STDOUT, env=entorno_hijo())
+            p = subprocess.Popen(
+                cmd,
+                cwd=cwd,
+                stdin=subprocess.PIPE,
+                stdout=f,
+                stderr=subprocess.STDOUT,
+                env=entorno_hijo(),
+            )
         try:
             p.stdin.write(texto.encode("utf-8"))
             p.stdin.flush()
@@ -1901,22 +2593,29 @@ def escribir_con_codex(prompt, modelo, cwd, log, timeout=1500, tid=None):
             pass
         finally:
             # Cerrar stdin es OBLIGATORIO: `codex exec` lee hasta EOF y sin esto se queda esperando.
-            try: p.stdin.close()
-            except Exception: pass
+            try:
+                p.stdin.close()
+            except Exception:
+                pass
         if tid:
-            with PROCESOS_LOCK: PROCESOS[tid] = p
+            with PROCESOS_LOCK:
+                PROCESOS[tid] = p
         try:
             rc = p.wait(timeout=timeout)
         except subprocess.TimeoutExpired:
-            try: p.kill()
-            except Exception: pass
+            try:
+                p.kill()
+            except Exception:
+                pass
             rc = 124
         finally:
             if tid:
-                with PROCESOS_LOCK: PROCESOS.pop(tid, None)
+                with PROCESOS_LOCK:
+                    PROCESOS.pop(tid, None)
         try:
             with open(log, encoding="utf-8", errors="replace") as f:
-                f.seek(desde); salida = f.read()
+                f.seek(desde)
+                salida = f.read()
         except Exception:
             salida = ""
         return rc, salida
@@ -1932,7 +2631,9 @@ def escribir(prompt, modelo, cwd, log, timeout=1500, tid=None):
         if not mover_arriendo_al_modelo(tid, modelo):
             raise ArriendoPerdido("el arriendo de %s ya pertenece a otro medio" % tid)
     if es_modelo_codex(modelo):
-        resultado = escribir_con_codex(prompt, modelo, cwd, log, timeout=timeout, tid=tid)
+        resultado = escribir_con_codex(
+            prompt, modelo, cwd, log, timeout=timeout, tid=tid
+        )
     else:
         resultado = opencode(prompt, modelo, cwd, log, timeout=timeout, tid=tid)
     if tid and not arriendo_es_local(tid):
@@ -1945,47 +2646,94 @@ def repo_es_python(cwd):
     Python (astraura, backend 1.58). Sin `tsconfig.json` no hay tsc/vitest que valgan."""
     return not os.path.exists(os.path.join(cwd, "tsconfig.json"))
 
+
 def tsc(cwd, log):
     if repo_es_python(cwd):
         # Compilación de los .py cambiados respecto a main (o todos los del diff sin commit).
-        rc0, cambiados = sh("git diff --name-only main...HEAD; git diff --name-only", cwd=cwd, timeout=60)
-        pys = sorted({l.strip() for l in cambiados.splitlines() if l.strip().endswith(".py") and os.path.exists(os.path.join(cwd, l.strip()))})
+        rc0, cambiados = sh(
+            "git diff --name-only main...HEAD; git diff --name-only",
+            cwd=cwd,
+            timeout=60,
+        )
+        pys = sorted(
+            {
+                l.strip()
+                for l in cambiados.splitlines()
+                if l.strip().endswith(".py")
+                and os.path.exists(os.path.join(cwd, l.strip()))
+            }
+        )
         if not pys:
             return 0, []
         with SEM_PESADO, cerrojo("pesado"):
-            rc, out = sh(["python3", "-m", "py_compile"] + pys, cwd=cwd, timeout=300, log=log)
+            rc, out = sh(
+                ["python3", "-m", "py_compile"] + pys, cwd=cwd, timeout=300, log=log
+            )
         errores = [l for l in out.splitlines() if l.strip()] if rc != 0 else []
         return rc, errores
     with SEM_PESADO, cerrojo("pesado"):
-        rc, out = sh("npx tsc --noEmit --skipLibCheck", cwd=cwd, timeout=900, env=ENV_TSC, log=log)
+        rc, out = sh(
+            "npx tsc --noEmit --skipLibCheck",
+            cwd=cwd,
+            timeout=900,
+            env=ENV_TSC,
+            log=log,
+        )
     errores = [l for l in out.splitlines() if "error TS" in l]
     return rc, errores
+
 
 def vitest(cwd, log):
     if repo_es_python(cwd):
         # pytest solo si el repo trae carpeta de tests propia (no las de terceros en BitNet/).
-        candidatos = [d for d in ("tests", "backend/tests", "backend/app/tests") if os.path.isdir(os.path.join(cwd, d))]
+        candidatos = [
+            d
+            for d in ("tests", "backend/tests", "backend/app/tests")
+            if os.path.isdir(os.path.join(cwd, d))
+        ]
         if not candidatos or not shutil.which("pytest"):
             return 0, "sin tests de pytest en este repo"
         with SEM_PESADO, cerrojo("pesado"):
-            rc, out = sh(["python3", "-m", "pytest", "-q", "-x"] + candidatos, cwd=cwd, timeout=600, log=log)
+            rc, out = sh(
+                ["python3", "-m", "pytest", "-q", "-x"] + candidatos,
+                cwd=cwd,
+                timeout=600,
+                log=log,
+            )
         return rc, out
     with SEM_PESADO, cerrojo("pesado"):
-        rc, out = sh("npx vitest run src/lib/__tests__", cwd=cwd, timeout=600, env=ENV_TSC, log=log)
+        rc, out = sh(
+            "npx vitest run src/lib/__tests__",
+            cwd=cwd,
+            timeout=600,
+            env=ENV_TSC,
+            log=log,
+        )
         # (2026-09-07, Ola 271, P9C) Si la ola tocó scripts del enjambre, sus tests de
         # pytest también son puerta: P9B se integró (77f7bca) con dos fallos vivos en
         # scripts/enjambre porque aquí solo corría vitest. Se suma el rc: cualquier fallo
         # (vitest o pytest) tumba la puerta.
         _, archivos = sh("git diff --name-only main...HEAD", cwd=cwd, log=log)
-        toca_enjambre = any((l or "").strip().startswith("scripts/enjambre/")
-                            for l in (archivos or "").splitlines())
+        toca_enjambre = any(
+            (l or "").strip().startswith("scripts/enjambre/")
+            for l in (archivos or "").splitlines()
+        )
         if not toca_enjambre:
             return rc, out
         if not shutil.which("pytest"):
-            return rc, out + "\n[puerta enjambre] sin pytest instalado: no se pudieron correr los tests del enjambre"
-        rc2, out2 = sh(["python3", "-m", "pytest", "-q", "scripts/enjambre/"],
-                       cwd=cwd, timeout=600, log=log)
+            return (
+                rc,
+                out
+                + "\n[puerta enjambre] sin pytest instalado: no se pudieron correr los tests del enjambre",
+            )
+        rc2, out2 = sh(
+            ["python3", "-m", "pytest", "-q", "scripts/enjambre/"],
+            cwd=cwd,
+            timeout=600,
+            log=log,
+        )
         return rc or rc2, (out or "") + "\n[puerta enjambre]\n" + (out2 or "")
+
 
 def _norma_ruta(ruta):
     """Normaliza una ruta para comparar (2026-09-07, Ola 261, P8): quita espacios y comillas
@@ -1996,6 +2744,7 @@ def _norma_ruta(ruta):
     if not ruta:
         return ""
     return os.path.normpath(ruta)
+
 
 def alcance_tarea(t, wt):
     """Puerta de alcance (2026-09-06, Ola 259, E2): compara los archivos que la tarea pedía
@@ -2010,7 +2759,7 @@ def alcance_tarea(t, wt):
     faltantes aunque existieran (falso positivo que frenó a AP1 pidiendo visto bueno);
     además un pedido terminado en «/» es una carpeta: se cumple si se tocó algo dentro."""
     pedidos, carpetas, orden = [], [], []
-    for crudo in (t.get("archivos") or []):
+    for crudo in t.get("archivos") or []:
         texto = str(crudo).strip()
         es_carpeta = texto.endswith("/")
         norma = _norma_ruta(texto)
@@ -2021,9 +2770,13 @@ def alcance_tarea(t, wt):
         # cumple con cualquier archivo dentro; un archivo, tocándolo (o cayendo en la carpeta).
         (carpetas if es_carpeta else pedidos).append(norma)
     tocados = []
+
     def _git(*args):
-        p = subprocess.run(["git"] + list(args), cwd=wt, capture_output=True, text=True, timeout=60)
-        return (p.stdout or "")
+        p = subprocess.run(
+            ["git"] + list(args), cwd=wt, capture_output=True, text=True, timeout=60
+        )
+        return p.stdout or ""
+
     for l in _git("diff", "--name-only", "main...HEAD").splitlines():
         r = _norma_ruta(l)
         if r:
@@ -2045,12 +2798,12 @@ def alcance_tarea(t, wt):
     # Un pedido de archivo falta si no está tocado ni cae dentro de una carpeta pedida.
     faltan = [p for p in pedidos if p not in tocados and not _en_carpeta_pedida(p)]
     # Una carpeta pedida falta si ningún tocado vive dentro de ella.
-    faltan += [c for c in carpetas
-               if not any(t == c or t.startswith(c + "/") for t in tocados)]
+    faltan += [
+        c for c in carpetas if not any(t == c or t.startswith(c + "/") for t in tocados)
+    ]
     # extra: tocados fuera de todo lo pedido (archivo o carpeta), en orden determinista.
     pedidos_todos = set(pedidos) | set(carpetas)
-    extra = [t for t in tocados
-             if t not in pedidos_todos and not _en_carpeta_pedida(t)]
+    extra = [t for t in tocados if t not in pedidos_todos and not _en_carpeta_pedida(t)]
     return {"pedidos": orden, "tocados": tocados, "faltan": faltan, "extra": extra}
 
 
@@ -2065,36 +2818,55 @@ def worktree(tid):
     rama = "ola/" + tid
     if os.path.lexists(wt):
         if not os.path.isfile(os.path.join(wt, ".git")):
-            raise RuntimeError("directorio sin worktree Git: conservado para recuperación")
+            raise RuntimeError(
+                "directorio sin worktree Git: conservado para recuperación"
+            )
         rc, cima = sh(["git", "rev-parse", "--show-toplevel"], cwd=wt, timeout=30)
         if rc or os.path.realpath(cima.strip()) != wt:
             raise RuntimeError("raíz Git no verificada: worktree conservado")
         comunes = []
         for base in (ROOT, wt):
-            rc, comun = sh(["git", "rev-parse", "--git-common-dir"], cwd=base, timeout=30)
+            rc, comun = sh(
+                ["git", "rev-parse", "--git-common-dir"], cwd=base, timeout=30
+            )
             if rc or not comun.strip():
-                raise RuntimeError("repositorio común no verificado: worktree conservado")
+                raise RuntimeError(
+                    "repositorio común no verificado: worktree conservado"
+                )
             comunes.append(os.path.realpath(os.path.join(base, comun.strip())))
         rc, actual = sh(["git", "symbolic-ref", "--short", "HEAD"], cwd=wt, timeout=30)
         if comunes[0] != comunes[1] or rc or actual.strip() != rama:
             raise RuntimeError("repositorio o rama ajenos: worktree conservado")
     else:
-        rc, _ = sh(["git", "show-ref", "--verify", "--quiet", "refs/heads/" + rama], cwd=ROOT, timeout=30)
+        rc, _ = sh(
+            ["git", "show-ref", "--verify", "--quiet", "refs/heads/" + rama],
+            cwd=ROOT,
+            timeout=30,
+        )
         if rc not in (0, 1):
             raise RuntimeError("no se pudo verificar la rama: no se crea worktree")
-        orden = (["git", "worktree", "add", wt, rama] if rc == 0 else
-                 ["git", "worktree", "add", "-b", rama, wt, "HEAD"])
+        orden = (
+            ["git", "worktree", "add", wt, rama]
+            if rc == 0
+            else ["git", "worktree", "add", "-b", rama, wt, "HEAD"]
+        )
         rc, out = sh(orden, cwd=ROOT, timeout=120)
         if rc != 0:
-            raise RuntimeError("no se pudo preparar worktree; rama y archivos conservados")
+            raise RuntimeError(
+                "no se pudo preparar worktree; rama y archivos conservados"
+            )
     for enlace in ("node_modules", ".env.local"):
         src, dst = os.path.join(ROOT, enlace), os.path.join(wt, enlace)
-        if os.path.exists(src) and not os.path.lexists(dst): os.symlink(src, dst)
+        if os.path.exists(src) and not os.path.lexists(dst):
+            os.symlink(src, dst)
     return wt
+
 
 def limpiar_worktree(tid, borrar_rama=True):
     """Contención temporal: ni un fallo ni un cierre eliminan trabajo del agente."""
-    evento("aviso", tid, "worktree y rama conservados; limpieza automática deshabilitada")
+    evento(
+        "aviso", tid, "worktree y rama conservados; limpieza automática deshabilitada"
+    )
 
 
 # ── contexto inteligente por tarea ──────────────────────────────────────────
@@ -2102,38 +2874,68 @@ def limpiar_worktree(tid, borrar_rama=True):
 # documentos de memoria mandan en esa zona, qué habilidades y conexiones hay
 # disponibles y qué se dijo la última vez que se tocaron esos archivos.
 AREAS_CONTEXTO = [
-    (("voz", "timbre", "tts", "hablar", "aurora/voz", "voz-starseed", "omnivoice"),
-     "voz",
-     ["memory/voces-catalogo.md", "src/lib/aurora/timbres.ts", "src/lib/aurora/voz-starseed/niveles.ts"],
-     "Motor único «Voz StarSeed» con cuatro niveles (estudio/alta/ligera/mínima). Daemon local OmniVoice en 127.0.0.1:4500."),
-    (("avatar", "movimiento", "kimodo", "gesto", "mundo"),
-     "avatares",
-     ["memory/avatares-movimiento.md", "src/lib/avatares/movimiento/niveles.ts", "src/lib/aurora/persona-avatar.ts"],
-     "Movimiento con Kimodo (texto→movimiento, C++/GGML) por niveles; misma identidad de gesto en todos los equipos."),
-    (("onboarding", "bienvenida", "rito", "perfil-inicial", "guia"),
-     "rito",
-     ["src/lib/onboarding/onboarding.ts", "src/components/onboarding/onboarding-wizard.tsx"],
-     "El rito guarda su estado en la tabla onboarding_state (columnas skipped/skipped_at). Nunca dejar al usuario en bucle."),
-    (("laboratorio", "genoma", "cuantiz"),
-     "laboratorio",
-     ["memory/laboratorio-astraura.md", "src/lib/laboratorio/genoma.ts"],
-     "Genoma de nueve capas fásicas, del núcleo (ternaria 1,58 bits) al contexto. Nada del laboratorio escribe en el OS sin confirmación."),
-    (("mando", "orquesta", "enjambre", "flota"),
-     "mando",
-     ["memory/orquestacion-economica.md", "memory/centro-mando.md"],
-     "Las rutas /api/mando/* son SOLO locales (404 en producción) y jamás devuelven claves ni rutas del disco."),
-    (("router", "astraura", "ai/", "provider", "nube"),
-     "inteligencia",
-     ["architecture/astraura-158-sistema-primario.md", "memory/orquestacion-economica.md"],
-     "Gratis primero, relevo automático ante 429/402 y ningún proveedor debe agotarse. Nube: ASTRAURA_CLOUD_URL → túnel → fuentes libres."),
-    (("social", "post", "feed", "profile", "pagina", "grupo", "entity"),
-     "social",
-     ["src/lib/social-posts.ts", "src/lib/os-social.ts"],
-     "Contenido = entidad única: al compartir se referencia, no se duplica."),
-    (("dock", "app-catalog", "packages", "layout"),
-     "navegacion",
-     ["CLAUDE.md"],
-     "Regla dorada §11: una ruta nueva NO es accesible hasta registrarla en dock-config, app-catalog y packages."),
+    (
+        ("voz", "timbre", "tts", "hablar", "aurora/voz", "voz-starseed", "omnivoice"),
+        "voz",
+        [
+            "memory/voces-catalogo.md",
+            "src/lib/aurora/timbres.ts",
+            "src/lib/aurora/voz-starseed/niveles.ts",
+        ],
+        "Motor único «Voz StarSeed» con cuatro niveles (estudio/alta/ligera/mínima). Daemon local OmniVoice en 127.0.0.1:4500.",
+    ),
+    (
+        ("avatar", "movimiento", "kimodo", "gesto", "mundo"),
+        "avatares",
+        [
+            "memory/avatares-movimiento.md",
+            "src/lib/avatares/movimiento/niveles.ts",
+            "src/lib/aurora/persona-avatar.ts",
+        ],
+        "Movimiento con Kimodo (texto→movimiento, C++/GGML) por niveles; misma identidad de gesto en todos los equipos.",
+    ),
+    (
+        ("onboarding", "bienvenida", "rito", "perfil-inicial", "guia"),
+        "rito",
+        [
+            "src/lib/onboarding/onboarding.ts",
+            "src/components/onboarding/onboarding-wizard.tsx",
+        ],
+        "El rito guarda su estado en la tabla onboarding_state (columnas skipped/skipped_at). Nunca dejar al usuario en bucle.",
+    ),
+    (
+        ("laboratorio", "genoma", "cuantiz"),
+        "laboratorio",
+        ["memory/laboratorio-astraura.md", "src/lib/laboratorio/genoma.ts"],
+        "Genoma de nueve capas fásicas, del núcleo (ternaria 1,58 bits) al contexto. Nada del laboratorio escribe en el OS sin confirmación.",
+    ),
+    (
+        ("mando", "orquesta", "enjambre", "flota"),
+        "mando",
+        ["memory/orquestacion-economica.md", "memory/centro-mando.md"],
+        "Las rutas /api/mando/* son SOLO locales (404 en producción) y jamás devuelven claves ni rutas del disco.",
+    ),
+    (
+        ("router", "astraura", "ai/", "provider", "nube"),
+        "inteligencia",
+        [
+            "architecture/astraura-158-sistema-primario.md",
+            "memory/orquestacion-economica.md",
+        ],
+        "Gratis primero, relevo automático ante 429/402 y ningún proveedor debe agotarse. Nube: ASTRAURA_CLOUD_URL → túnel → fuentes libres.",
+    ),
+    (
+        ("social", "post", "feed", "profile", "pagina", "grupo", "entity"),
+        "social",
+        ["src/lib/social-posts.ts", "src/lib/os-social.ts"],
+        "Contenido = entidad única: al compartir se referencia, no se duplica.",
+    ),
+    (
+        ("dock", "app-catalog", "packages", "layout"),
+        "navegacion",
+        ["CLAUDE.md"],
+        "Regla dorada §11: una ruta nueva NO es accesible hasta registrarla en dock-config, app-catalog y packages.",
+    ),
 ]
 
 
@@ -2148,7 +2950,10 @@ def _leer(ruta, limite=1200):
 def _habilidades():
     """Habilidades y conexiones realmente disponibles en esta máquina."""
     hs = []
-    for base in (os.path.join(ROOT, ".agent", "skills"), os.path.expanduser("~/.hermes/skills")):
+    for base in (
+        os.path.join(ROOT, ".agent", "skills"),
+        os.path.expanduser("~/.hermes/skills"),
+    ):
         try:
             hs += [d for d in sorted(os.listdir(base)) if not d.startswith(".")]
         except Exception:
@@ -2174,30 +2979,53 @@ FUENTES_DIR = os.path.join(MEM, "fuentes")
 # Palabras de la tarea → qué catálogo externo le sirve. Se le da al agente el PUNTERO y el
 # comando de búsqueda, nunca el catálogo entero: son 1737 APIs y 3477 servidores MCP.
 FUENTES_PISTAS = (
-    (("api", "endpoint", "servicio", "datos", "clima", "mapa", "noticias", "traduc"),
-     "apis-publicas.json (1737 APIs públicas gratuitas, catálogo public-apis, MIT)"),
-    (("mcp", "conector", "connector", "herramienta", "plugin", "integra"),
-     "mcp-servers.json (3477 servidores MCP, catálogo awesome-mcp-servers, MIT)"),
-    (("agente", "agent", "rag", "memoria", "multiagent", "enjambre", "orquest"),
-     "patrones de awesome-llm-apps (Apache-2.0): agentes siempre activos, equipos multiagente, "
-     "voz, UI generativa, MCP y memoria — mira el patrón antes de inventarlo"),
-    (("diseno", "diseño", "grafic", "cartel", "presentacion", "portada", "identidad", "figma"),
-     "OpenDesign de nexu-io (Apache-2.0): prototipos, presentaciones, paneles, imágenes, documentos "
-     "y motion MP4 desde el código; importa de Figma"),
-    (("flujo", "workflow", "ola", "mando", "orquest"),
-     "Langflow (MIT): flujos de agente visuales desplegables como API o servidor MCP"),
+    (
+        ("api", "endpoint", "servicio", "datos", "clima", "mapa", "noticias", "traduc"),
+        "apis-publicas.json (1737 APIs públicas gratuitas, catálogo public-apis, MIT)",
+    ),
+    (
+        ("mcp", "conector", "connector", "herramienta", "plugin", "integra"),
+        "mcp-servers.json (3477 servidores MCP, catálogo awesome-mcp-servers, MIT)",
+    ),
+    (
+        ("agente", "agent", "rag", "memoria", "multiagent", "enjambre", "orquest"),
+        "patrones de awesome-llm-apps (Apache-2.0): agentes siempre activos, equipos multiagente, "
+        "voz, UI generativa, MCP y memoria — mira el patrón antes de inventarlo",
+    ),
+    (
+        (
+            "diseno",
+            "diseño",
+            "grafic",
+            "cartel",
+            "presentacion",
+            "portada",
+            "identidad",
+            "figma",
+        ),
+        "OpenDesign de nexu-io (Apache-2.0): prototipos, presentaciones, paneles, imágenes, documentos "
+        "y motion MP4 desde el código; importa de Figma",
+    ),
+    (
+        ("flujo", "workflow", "ola", "mando", "orquest"),
+        "Langflow (MIT): flujos de agente visuales desplegables como API o servidor MCP",
+    ),
 )
 
 
 def _fuentes_externas(firma):
     """Cada agente debe saber qué catálogos externos tiene a mano para SU tarea."""
-    utiles = [texto for claves, texto in FUENTES_PISTAS if any(c in firma for c in claves)]
+    utiles = [
+        texto for claves, texto in FUENTES_PISTAS if any(c in firma for c in claves)
+    ]
     if not utiles or not os.path.isdir(FUENTES_DIR):
         return ""
-    return ("FUENTES EXTERNAS para esta tarea (en starseed_memory_root/fuentes/, "
-            "búscalas con `starseed-fuentes buscar <texto>` —acepta español—; "
-            "antes de inventar un endpoint, un conector o un patrón, mira si ya existe):\n- "
-            + "\n- ".join(utiles))
+    return (
+        "FUENTES EXTERNAS para esta tarea (en starseed_memory_root/fuentes/, "
+        "búscalas con `starseed-fuentes buscar <texto>` —acepta español—; "
+        "antes de inventar un endpoint, un conector o un patrón, mira si ya existe):\n- "
+        + "\n- ".join(utiles)
+    )
 
 
 # ── GitNexus: grafo del código del repositorio (2026-09-05) ────────────────────
@@ -2222,8 +3050,14 @@ def _gitnexus_listo():
 
 def _gitnexus(args, timeout=30):
     try:
-        r = subprocess.run([GITNEXUS] + args, cwd=ROOT, capture_output=True, text=True, timeout=timeout,
-                           env=dict(os.environ, NODE_OPTIONS="--max-old-space-size=1024"))
+        r = subprocess.run(
+            [GITNEXUS] + args,
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            env=dict(os.environ, NODE_OPTIONS="--max-old-space-size=1024"),
+        )
         return r.stdout or ""
     except Exception:
         return ""
@@ -2233,28 +3067,42 @@ def mapa_codigo(t):
     """Símbolos y flujos que el grafo liga a la tarea (≤ 12 líneas), para el prompt del agente."""
     if not _gitnexus_listo():
         return ""
-    consulta = (t.get("titulo", "") + " " + " ".join(os.path.basename(a) for a in t.get("archivos", [])))[:200].strip()
+    consulta = (
+        t.get("titulo", "")
+        + " "
+        + " ".join(os.path.basename(a) for a in t.get("archivos", []))
+    )[:200].strip()
     if not consulta:
         return ""
     out = _gitnexus(["query", consulta, "-l", "3"], timeout=30)
     try:
-        j = json.loads(out[out.index("{"):])
+        j = json.loads(out[out.index("{") :])
     except Exception:
         return ""
     L = []
     for d in (j.get("definitions") or [])[:8]:
         if d.get("filePath") and d.get("startLine") is not None:
-            L.append("- %s · %s:%s-%s" % (d.get("name"), d.get("filePath"), d.get("startLine"), d.get("endLine")))
+            L.append(
+                "- %s · %s:%s-%s"
+                % (
+                    d.get("name"),
+                    d.get("filePath"),
+                    d.get("startLine"),
+                    d.get("endLine"),
+                )
+            )
         elif d.get("filePath"):
             L.append("- archivo · %s" % d.get("filePath"))
     for p in (j.get("processes") or [])[:3]:
         L.append("- flujo: %s (%s pasos)" % (p.get("summary"), p.get("step_count")))
     if not L:
         return ""
-    return ("MAPA DEL CÓDIGO (grafo GitNexus del repositorio, úsalo antes de grep): símbolos y flujos ligados a esta tarea:\n"
-            + "\n".join(L)
-            + "\nComandos: `gitnexus context <símbolo>` (quién lo llama y a quién llama) · `gitnexus impact <símbolo>` "
-              "(qué se rompe si lo cambias) · `gitnexus query \"<concepto>\"` · `gitnexus detect-changes` (qué flujos tocaste, antes de terminar).")
+    return (
+        "MAPA DEL CÓDIGO (grafo GitNexus del repositorio, úsalo antes de grep): símbolos y flujos ligados a esta tarea:\n"
+        + "\n".join(L)
+        + "\nComandos: `gitnexus context <símbolo>` (quién lo llama y a quién llama) · `gitnexus impact <símbolo>` "
+        '(qué se rompe si lo cambias) · `gitnexus query "<concepto>"` · `gitnexus detect-changes` (qué flujos tocaste, antes de terminar).'
+    )
 
 
 def impacto_cambios(base=None, limite=6):
@@ -2262,21 +3110,33 @@ def impacto_cambios(base=None, limite=6):
     Sin `base` mira el working tree de ROOT; con `base` (rama ola/<id>) compara contra ella."""
     if not _gitnexus_listo():
         return None
-    args = ["detect-changes", "-l", str(limite)] + (["-s", "compare", "-b", base] if base else [])
+    args = ["detect-changes", "-l", str(limite)] + (
+        ["-s", "compare", "-b", base] if base else []
+    )
     out = _gitnexus(args, timeout=45)
     m = re.search(r"Changes: (\d+) files?, (\d+) symbols?", out)
     if not m:
         return None
     k = re.search(r"Affected processes: (\d+)", out)
     r = re.search(r"Risk level: (\w+)", out)
-    return {"archivos": int(m.group(1)), "simbolos": int(m.group(2)), "flujos": int(k.group(1)) if k else 0,
-            "riesgo": (r.group(1) if r else "?").lower(), "detalle": re.findall(r"^\s+• (.+)$", out, re.M)[:limite]}
+    return {
+        "archivos": int(m.group(1)),
+        "simbolos": int(m.group(2)),
+        "flujos": int(k.group(1)) if k else 0,
+        "riesgo": (r.group(1) if r else "?").lower(),
+        "detalle": re.findall(r"^\s+• (.+)$", out, re.M)[:limite],
+    }
 
 
 def impacto_texto(imp):
     if not imp:
         return ""
-    s = "%s archivos · %s símbolos · %s flujos afectados · riesgo %s" % (imp["archivos"], imp["simbolos"], imp["flujos"], imp["riesgo"])
+    s = "%s archivos · %s símbolos · %s flujos afectados · riesgo %s" % (
+        imp["archivos"],
+        imp["simbolos"],
+        imp["flujos"],
+        imp["riesgo"],
+    )
     if imp["detalle"]:
         s += "\n- " + "\n- ".join(imp["detalle"])
     return s
@@ -2284,7 +3144,13 @@ def impacto_texto(imp):
 
 def contexto_inteligente(t):
     """Memorias, habilidades, conexiones y avisos que ESA tarea necesita."""
-    firma = (" ".join(t.get("archivos", [])) + " " + t.get("titulo", "") + " " + t.get("prompt", "")[:400]).lower()
+    firma = (
+        " ".join(t.get("archivos", []))
+        + " "
+        + t.get("titulo", "")
+        + " "
+        + t.get("prompt", "")[:400]
+    ).lower()
     docs, avisos, areas = [], [], []
     for claves, area, documentos, aviso in AREAS_CONTEXTO:
         if any(c in firma for c in claves):
@@ -2297,20 +3163,27 @@ def contexto_inteligente(t):
     if areas:
         L.append("ÁREA: " + ", ".join(dict.fromkeys(areas)))
     if docs:
-        L.append("LEE ANTES estos documentos del repositorio (mandan sobre tu criterio): " + ", ".join(docs))
+        L.append(
+            "LEE ANTES estos documentos del repositorio (mandan sobre tu criterio): "
+            + ", ".join(docs)
+        )
     for a in dict.fromkeys(avisos):
         L.append("REGLA DEL ÁREA: " + a)
 
     hs = _habilidades()
     if hs:
-        L.append("HABILIDADES disponibles en la máquina (carpetas .agent/skills y ~/.hermes/skills): " + ", ".join(hs[:18]))
+        L.append(
+            "HABILIDADES disponibles en la máquina (carpetas .agent/skills y ~/.hermes/skills): "
+            + ", ".join(hs[:18])
+        )
     L.append(_fuentes_externas(firma))
     L.append(mapa_codigo(t))
     L.append(
         "CONEXIONES vivas: Supabase del OS `pqzdpmedcsgcedkvndzl` (cliente singleton en src/utils/supabase/client.ts) · "
         "OS publicado https://starseed-os.vercel.app · nube ligera https://astraura-nube.vercel.app · "
         "backend Astraura https://astraura-nube-334237619848.us-central1.run.app · daemon de voz 127.0.0.1:4500 · "
-        "bus de eventos: tabla `relevo_eventos`. Nunca escribas claves: solo nombres de variables de entorno.")
+        "bus de eventos: tabla `relevo_eventos`. Nunca escribas claves: solo nombres de variables de entorno."
+    )
     nota = _leer("starseed_memory_root/relevo/relevo.md", 700)
     if nota:
         trozo = nota.split("## Proyecto")[0].strip()
@@ -2318,7 +3191,10 @@ def contexto_inteligente(t):
             L.append("DÓNDE VAMOS (relevo):\n" + trozo[:600])
     rev = _revision_previa(t.get("archivos", []))
     if rev:
-        L.append("ÚLTIMA REVISIÓN DE ESTOS ARCHIVOS (no repitas lo que ya se señaló):\n" + rev)
+        L.append(
+            "ÚLTIMA REVISIÓN DE ESTOS ARCHIVOS (no repitas lo que ya se señaló):\n"
+            + rev
+        )
     return "\n\n".join(x for x in L if x)
 
 
@@ -2335,7 +3211,7 @@ REGLA_TESTS = (
     "(en este repo vitest corre con `globals: false` y esos dos patrones fallan siempre). Si la "
     "lógica que hay que probar está pegada a disco, red o a una ruta, EXTRÁELA a un módulo puro en "
     "`src/lib/**` y prueba ese módulo — eso es parte de la tarea, no una excusa para no probar. "
-    "Recuerda importar `{ describe, it, expect }` de \"vitest\" porque `globals` está en false."
+    'Recuerda importar `{ describe, it, expect }` de "vitest" porque `globals` está en false.'
 )
 
 
@@ -2367,11 +3243,20 @@ def _guardar_contexto(t, contexto):
             cabeza = re.split(r"[:(]", bloque, 1)[0].strip()[:60]
             if cabeza:
                 secciones[cabeza] = bloque.split(":", 1)[-1].strip()[:1200]
-        json.dump({"tarea": t["id"], "ola": t.get("ola", ""), "titulo": t.get("titulo", ""),
-                   "archivos": t.get("archivos", []), "t": ahora(), "secciones": secciones,
-                   "caracteres": len(contexto)},
-                  open(os.path.join(carpeta, t["id"] + ".json"), "w", encoding="utf-8"),
-                  ensure_ascii=False, indent=1)
+        json.dump(
+            {
+                "tarea": t["id"],
+                "ola": t.get("ola", ""),
+                "titulo": t.get("titulo", ""),
+                "archivos": t.get("archivos", []),
+                "t": ahora(),
+                "secciones": secciones,
+                "caracteres": len(contexto),
+            },
+            open(os.path.join(carpeta, t["id"] + ".json"), "w", encoding="utf-8"),
+            ensure_ascii=False,
+            indent=1,
+        )
     except Exception:
         pass
 
@@ -2382,7 +3267,9 @@ def contexto_tarea(t, raiz=None):
     # La regla de tests se intercala entre «ESCRITURA POR TROZOS» y el contexto inteligente, y
     # solo cuando la tarea puede tener tests de TS (2026-09-08, Ola 288 · O1). Se concatena como
     # bloque separado para no tocar el orden ni el contenido del resto de los %s.
-    regla_tests = ("\n\n" + REGLA_TESTS + "\n") if toca_tests_ts(t.get("archivos", [])) else "\n"
+    regla_tests = (
+        ("\n\n" + REGLA_TESTS + "\n") if toca_tests_ts(t.get("archivos", [])) else "\n"
+    )
     # (2026-09-09) Con el bloque provider ya escrito el modelo CONECTA y entonces se
     # INVENTA la raiz: «permission requested: external_directory (/workspace/...);
     # auto-rejecting» y la tarea muere «sin cambios» sin leer un solo archivo.
@@ -2391,45 +3278,71 @@ def contexto_tarea(t, raiz=None):
         "RAIZ DEL REPOSITORIO: `%s`. Es la unica carpeta que puedes leer y escribir.\n"
         "Usa SIEMPRE rutas RELATIVAS a esa raiz (`CLAUDE.md`, `src/lib/...`), nunca rutas absolutas "
         "y nunca rutas inventadas como `/workspace/...`: cualquier ruta fuera de la raiz se rechaza "
-        "automaticamente y pierdes el intento.\n\n") % raiz
-    return (regla_raiz +
-            "Trabajas en el repositorio StarSeed OS (Next.js 15 + React 19 + TypeScript estricto + Tailwind/shadcn + Supabase). "
-            "Lee primero CLAUDE.md (secciones 8, 11 y 💠) y los archivos implicados. Reglas: sin `any`; cursor-pointer en lo clicable; "
-            "español en textos de UI y comentarios (con acentos); no toques archivos ajenos a la tarea; no ejecutes git; deja los cambios "
-            "escritos en disco sin pedir confirmación.\n\n"
-            # Por qué (2026-09-07, Ola 261, P6b): 3 tsc simultáneos tumbaron el contenedor
-            # (6,4 GB, load 21). El turno «pesado» lo comparten el orquestador y este script.
-            "IMPORTANTE: NO ejecutes `npx tsc` directamente: usa `bash scripts/enjambre/tsc-turno.sh` "
-            "(un solo tsc a la vez en la máquina, con caché por repo); tests: `npx vitest run <archivo o carpeta concreta>`, "
-            "nunca la suite entera.\n\n"
-            # Por qué se pide esto (2026-09-06, Ola 261): el log del orquestador solo crece cuando
-            # TERMINA una llamada de herramienta; una única escritura de 300 líneas con un proveedor
-            # lento (NIM, 5-10 tok/s) tarda 8-20 min sin dejar rastro y el vigilante la cortaba por
-            # estancamiento — de ahí los «sin cambios» masivos de las tareas Q/J. Escrita por
-            # trozos, cada tramo cierra rápido y el avance queda visible.
-            "ESCRITURA POR TROZOS: crea cada archivo nuevo primero con su esqueleto (imports, tipos, firmas y `export`s, ≤ 60 líneas) "
-            "y complétalo con ediciones sucesivas de ≤ 80 líneas cada una; nunca una sola escritura de más de 120 líneas; "
-            "entre trozos no hace falta explicar nada.\n\n"
-            + regla_tests +
-            "%s\n\nTAREA %s (%s) · %s\nArchivos implicados: %s\n\n%s") % (
-            inteligente, t["id"], t.get("ola", ""), t.get("titulo", ""),
-            ", ".join(t.get("archivos", [])), t["prompt"])
+        "automaticamente y pierdes el intento.\n\n"
+    ) % raiz
+    return (
+        regla_raiz
+        + "Trabajas en el repositorio StarSeed OS (Next.js 15 + React 19 + TypeScript estricto + Tailwind/shadcn + Supabase). "
+        "Lee primero CLAUDE.md (secciones 8, 11 y 💠) y los archivos implicados. Reglas: sin `any`; cursor-pointer en lo clicable; "
+        "español en textos de UI y comentarios (con acentos); no toques archivos ajenos a la tarea; no ejecutes git; deja los cambios "
+        "escritos en disco sin pedir confirmación.\n\n"
+        # Por qué (2026-09-07, Ola 261, P6b): 3 tsc simultáneos tumbaron el contenedor
+        # (6,4 GB, load 21). El turno «pesado» lo comparten el orquestador y este script.
+        "IMPORTANTE: NO ejecutes `npx tsc` directamente: usa `bash scripts/enjambre/tsc-turno.sh` "
+        "(un solo tsc a la vez en la máquina, con caché por repo); tests: `npx vitest run <archivo o carpeta concreta>`, "
+        "nunca la suite entera.\n\n"
+        # Por qué se pide esto (2026-09-06, Ola 261): el log del orquestador solo crece cuando
+        # TERMINA una llamada de herramienta; una única escritura de 300 líneas con un proveedor
+        # lento (NIM, 5-10 tok/s) tarda 8-20 min sin dejar rastro y el vigilante la cortaba por
+        # estancamiento — de ahí los «sin cambios» masivos de las tareas Q/J. Escrita por
+        # trozos, cada tramo cierra rápido y el avance queda visible.
+        "ESCRITURA POR TROZOS: crea cada archivo nuevo primero con su esqueleto (imports, tipos, firmas y `export`s, ≤ 60 líneas) "
+        "y complétalo con ediciones sucesivas de ≤ 80 líneas cada una; nunca una sola escritura de más de 120 líneas; "
+        "entre trozos no hace falta explicar nada.\n\n"
+        + regla_tests
+        + "%s\n\nTAREA %s (%s) · %s\nArchivos implicados: %s\n\n%s"
+    ) % (
+        inteligente,
+        t["id"],
+        t.get("ola", ""),
+        t.get("titulo", ""),
+        ", ".join(t.get("archivos", [])),
+        t["prompt"],
+    )
+
 
 # ── latidos: qué está haciendo AHORA cada tarea ─────────────────────────────
 LATIDOS = {}
-LAT_JSON = os.path.join(OLAS, "latidos-%s.json" % (os.path.splitext(os.path.basename(sys.argv[1]))[0] if len(sys.argv) > 1 else "cola"))
+LAT_JSON = os.path.join(
+    OLAS,
+    "latidos-%s.json"
+    % (
+        os.path.splitext(os.path.basename(sys.argv[1]))[0]
+        if len(sys.argv) > 1
+        else "cola"
+    ),
+)
 # Órdenes por tarea que llegan DESDE FUERA mientras la ola corre (Puente de Mando → archivo
 # `control-<cola>.json`; en la nube lo escribe el lanzador con la orden firmada del bus):
 #   {"P2": {"accion": "reasignar", "modelo": "xkiro/…", "t": "…", "quien": "mando"},
 #    "P3": {"accion": "soltar", "donde": "nube", …}}
 # reasignar = cambia modelo/API conservando el flujo (escritura → tsc → tests → revisión →
 # integración); soltar = la tarea se va a otro servidor: aquí se corta y no se vuelve a tocar.
-CONTROL_JSON = os.path.join(OLAS, "control-%s.json" % (os.path.splitext(os.path.basename(sys.argv[1]))[0] if len(sys.argv) > 1 else "cola"))
-REASIGNADOS = {}         # tarea -> modelo pedido desde fuera (se aplica en la próxima escritura)
-SOLTADAS = set()         # tareas que se han ido a otro servidor: aquí ya no se ejecutan
-APROBACIONES = {}        # tarea -> "aprobar" | "rechazar" (nodos de aprobación humana)
+CONTROL_JSON = os.path.join(
+    OLAS,
+    "control-%s.json"
+    % (
+        os.path.splitext(os.path.basename(sys.argv[1]))[0]
+        if len(sys.argv) > 1
+        else "cola"
+    ),
+)
+REASIGNADOS = {}  # tarea -> modelo pedido desde fuera (se aplica en la próxima escritura)
+SOLTADAS = set()  # tareas que se han ido a otro servidor: aquí ya no se ejecutan
+APROBACIONES = {}  # tarea -> "aprobar" | "rechazar" (nodos de aprobación humana)
 ESPERA_APROBACION_S = int(os.environ.get("STARSEED_ESPERA_APROBACION_S", str(6 * 3600)))
 RUTA_OPENCODE_CFG = os.path.expanduser("~/.config/opencode/opencode.json")
+
 
 def consumir_control():
     """Lee y VACÍA el archivo de control (una orden se atiende una sola vez)."""
@@ -2441,30 +3354,46 @@ def consumir_control():
                 ordenes = json.load(open(CONTROL_JSON, encoding="utf-8"))
             except Exception:
                 ordenes = {}
-            try: os.remove(CONTROL_JSON)
-            except Exception: pass
+            try:
+                os.remove(CONTROL_JSON)
+            except Exception:
+                pass
         return ordenes if isinstance(ordenes, dict) else {}
     except Exception:
         return {}
+
 
 # Plantilla mínima del bloque `provider` de opencode para escritores nuevos (Ola 261).
 # NUNCA claves aquí: «sin-clave» literal para llm7 y «{env:TOKENROUTER_API_KEY}» para
 # tokenrouter — opencode expande {env:…} en tiempo de ejecución.
 PROVEEDOR_OPENCODE_MINIMO = {
-    "llm7": {"npm": "@ai-sdk/openai-compatible", "name": "LLM7 (sin clave)",
-             "options": {"baseURL": "https://api.llm7.io/v1", "apiKey": "sin-clave"},
-             "models": {}},
-    "tokenrouter": {"npm": "@ai-sdk/openai-compatible", "name": "TokenRouter",
-                    "options": {"baseURL": "https://api.tokenrouter.com/v1",
-                                "apiKey": "{env:TOKENROUTER_API_KEY}"},
-                    "models": {}},
+    "llm7": {
+        "npm": "@ai-sdk/openai-compatible",
+        "name": "LLM7 (sin clave)",
+        "options": {"baseURL": "https://api.llm7.io/v1", "apiKey": "sin-clave"},
+        "models": {},
+    },
+    "tokenrouter": {
+        "npm": "@ai-sdk/openai-compatible",
+        "name": "TokenRouter",
+        "options": {
+            "baseURL": "https://api.tokenrouter.com/v1",
+            "apiKey": "{env:TOKENROUTER_API_KEY}",
+        },
+        "models": {},
+    },
     # (2026-09-08, Ola 286 · G1) FreeTheAi: misma forma que una pasarela; la clave SIEMPRE
     # como {env:FREETHEAI_API_KEY}, jamás su valor. Solo se usa si el escritor llega a la
     # rotación (es decir, con la clave puesta).
-    "freetheai": {"npm": "@ai-sdk/openai-compatible", "name": "FreeTheAi",
-                  "options": {"baseURL": "https://api.freetheai.xyz/v1",
-                              "apiKey": "{env:FREETHEAI_API_KEY}"},
-                  "models": {}},
+    "freetheai": {
+        "npm": "@ai-sdk/openai-compatible",
+        "name": "FreeTheAi",
+        "options": {
+            "baseURL": "https://api.freetheai.xyz/v1",
+            "apiKey": "{env:FREETHEAI_API_KEY}",
+        },
+        "models": {},
+    },
 }
 
 
@@ -2475,16 +3404,46 @@ def plantilla_opencode(prov):
     JAMÁS se escribe: siempre la sintaxis literal `{env:VARIABLE}` de opencode (2026-09-08,
     Ola 286 · G1)."""
     if prov in PROVEEDOR_OPENCODE_MINIMO:
-        return json.loads(json.dumps(PROVEEDOR_OPENCODE_MINIMO[prov]))  # copia: no mutar
+        return json.loads(
+            json.dumps(PROVEEDOR_OPENCODE_MINIMO[prov])
+        )  # copia: no mutar
     p = PASARELAS.get(prov)
     if not p:
         return None
-    base = p.get("base") or p["url"].rstrip("/chat/completions")
+    base = p.get("base") or re.sub(r"/chat/completions/?$", "", p["url"])
     var = p.get("var") or "STARSEED_PASARELA_%s_KEY" % prov.upper()
     # Sin _KEY o «sin-clave» → literal «sin-clave»; con clave → {env:VARIABLE}, nunca el valor.
-    api = "{env:%s}" % var if (p.get("key") and p["key"] != "sin-clave") else "sin-clave"
-    return {"npm": "@ai-sdk/openai-compatible", "name": "%s (pasarela)" % prov,
-            "options": {"baseURL": base, "apiKey": api}, "models": {}}
+    api = (
+        "{env:%s}" % var if (p.get("key") and p["key"] != "sin-clave") else "sin-clave"
+    )
+    return {
+        "npm": "@ai-sdk/openai-compatible",
+        "name": "%s (pasarela)" % prov,
+        "options": {"baseURL": base, "apiKey": api},
+        "models": {},
+    }
+
+
+def refrescar_bloque_opencode(cfg, prov):
+    """Si `prov` YA está en cfg["provider"], compara options.baseURL/apiKey con lo que
+    devuelve `plantilla_opencode(prov)` y, si difieren, devuelve una COPIA del cfg con los
+    valores nuevos (sin tocar el dict recibido). Devuelve (cfg_nuevo, cambiado). Causa raíz
+    (2026-09-13, Ola 316 · p316O): la pasarela apinex cambió a /v1 en ~/.starseed/env pero
+    opencode.json conservaba el baseURL viejo → 405 en 1-3 s y «sin cambios» en serie."""
+    plantilla = plantilla_opencode(prov)
+    if not plantilla:
+        return cfg, False
+    bloque = (cfg.get("provider") or {}).get(prov)
+    if not bloque:
+        return cfg, False
+    opciones = bloque.get("options") or {}
+    nuevas = plantilla.get("options") or {}
+    cambios = {k: v for k, v in nuevas.items() if opciones.get(k) != v}
+    if not cambios:
+        return cfg, False
+    nuevo = json.loads(json.dumps(cfg))  # copia profunda: el dict recibido no se muta
+    nuevo["provider"][prov].setdefault("options", {}).update(cambios)
+    return nuevo, True
 
 
 def asegurar_modelo_opencode(modelo):
@@ -2513,9 +3472,15 @@ def asegurar_modelo_opencode(modelo):
         try:
             os.makedirs(os.path.dirname(RUTA_OPENCODE_CFG), exist_ok=True)
         except Exception:
-            return prov in ("openrouter", "google")   # proveedores nativos de opencode
+            return prov in ("openrouter", "google")  # proveedores nativos de opencode
     provs = cfg.get("provider") or {}
-    if prov not in provs:
+    refrescado = False
+    if prov in provs:
+        cfg, refrescado = refrescar_bloque_opencode(cfg, prov)
+        if refrescado:
+            provs = cfg["provider"]
+            evento("config", prov, "opencode.json: %s baseURL actualizado" % prov)
+    else:
         plantilla = plantilla_opencode(prov)
         if plantilla is not None:
             # Bloque nuevo del proveedor (2026-09-06, Ola 261): la Mac no tenía declarado llm7
@@ -2526,15 +3491,23 @@ def asegurar_modelo_opencode(modelo):
         else:
             return prov in ("openrouter", "google")
     modelos = provs[prov].setdefault("models", {})
-    if nombre in modelos:
+    if nombre in modelos and not refrescado:
         return True
     modelos[nombre] = {"name": nombre.split("/")[-1]}
     try:
         with cerrojo("opencode-cfg", espera_aviso=9999):
-            json.dump(cfg, open(RUTA_OPENCODE_CFG, "w", encoding="utf-8"), ensure_ascii=False, indent=2)
+            temporal = "%s.%d.tmp" % (RUTA_OPENCODE_CFG, os.getpid())
+            json.dump(
+                cfg,
+                open(temporal, "w", encoding="utf-8"),
+                ensure_ascii=False,
+                indent=2,
+            )
+            os.replace(temporal, RUTA_OPENCODE_CFG)
         return True
     except Exception:
         return False
+
 
 def atender_control():
     """Aplica las órdenes externas. Lo llama el vigilante cada 20 s."""
@@ -2545,64 +3518,123 @@ def atender_control():
         # Nube y agentes de IDE se anuncian por el mismo canal que ya sincroniza el Mando.
         # Su capacidad y bytes son datos operativos; nunca se aceptan ni guardan credenciales.
         if accion == "latido_medio":
-            medio_id = re.sub(r"[^a-zA-Z0-9_.:-]", "-", str(orden.get("medio") or tid))[:100]
+            medio_id = re.sub(r"[^a-zA-Z0-9_.:-]", "-", str(orden.get("medio") or tid))[
+                :100
+            ]
             tipo = str(orden.get("tipo") or "ide")[:24]
             if medio_id:
-                anunciar_medio(medio_id, tipo, min(64, max(0, int(orden.get("capacidad") or 0))),
-                               tareas=list(orden.get("tareas") or [])[:64],
-                               firmas=dict(orden.get("firmas") or {}),
-                               activo=bool(orden.get("activo", True)),
-                               areas=list(orden.get("areas") or ["*"])[:24],
-                               origen=str(orden.get("origen") or "mando")[:32],
-                               entorno=str(orden.get("entorno") or "externo")[:24],
-                               cola=str(orden.get("cola") or _nombre_cola())[:160],
-                               prioridad=float(orden.get("prioridad") or 0))
+                anunciar_medio(
+                    medio_id,
+                    tipo,
+                    min(64, max(0, int(orden.get("capacidad") or 0))),
+                    tareas=list(orden.get("tareas") or [])[:64],
+                    firmas=dict(orden.get("firmas") or {}),
+                    activo=bool(orden.get("activo", True)),
+                    areas=list(orden.get("areas") or ["*"])[:24],
+                    origen=str(orden.get("origen") or "mando")[:32],
+                    entorno=str(orden.get("entorno") or "externo")[:24],
+                    cola=str(orden.get("cola") or _nombre_cola())[:160],
+                    prioridad=float(orden.get("prioridad") or 0),
+                )
             continue
         if tid not in MIAS:
             continue
-        with PROCESOS_LOCK: p = PROCESOS.get(tid)
-        with LOCK_ESTADO: fase = (LATIDOS.get(tid) or {}).get("fase")
+        with PROCESOS_LOCK:
+            p = PROCESOS.get(tid)
+        with LOCK_ESTADO:
+            fase = (LATIDOS.get(tid) or {}).get("fase")
         if accion in ("aprobar", "rechazar"):
             APROBACIONES[tid] = accion
-            evento("aprobacion", tid, "%s desde el Mando (%s)" % ("aprobada" if accion == "aprobar" else "rechazada", str(orden.get("quien") or "mando")), datos={"decision": accion})
+            evento(
+                "aprobacion",
+                tid,
+                "%s desde el Mando (%s)"
+                % (
+                    "aprobada" if accion == "aprobar" else "rechazada",
+                    str(orden.get("quien") or "mando"),
+                ),
+                datos={"decision": accion},
+            )
             continue
         if accion == "soltar":
             SOLTADAS.add(tid)
             donde = str(orden.get("donde") or "otro servidor")
             if p and p.poll() is None:
                 CORTADOS.add(tid)
-                try: p.kill()
-                except Exception: pass
-            set_estado(tid, estado="reasignada", nota="movida a %s desde el Mando" % donde)
-            evento("reasignada", tid, "se va a %s: aquí se corta y no se vuelve a ejecutar" % donde, datos={"donde_nuevo": donde})
+                try:
+                    p.kill()
+                except Exception:
+                    pass
+            set_estado(
+                tid, estado="reasignada", nota="movida a %s desde el Mando" % donde
+            )
+            evento(
+                "reasignada",
+                tid,
+                "se va a %s: aquí se corta y no se vuelve a ejecutar" % donde,
+                datos={"donde_nuevo": donde},
+            )
             continue
         modelo = str(orden.get("modelo") or "").strip()
         if not modelo or "/" not in modelo:
             continue
         if not asegurar_modelo_opencode(modelo):
-            evento("aviso", tid, "no puedo usar %s aquí (proveedor sin configurar en opencode)" % modelo)
+            evento(
+                "aviso",
+                tid,
+                "no puedo usar %s aquí (proveedor sin configurar en opencode)" % modelo,
+            )
             continue
         REASIGNADOS[tid] = modelo
         if fase == "escribiendo" and p and p.poll() is None:
             CORTADOS.add(tid)
-            try: p.kill()
-            except Exception: pass
-            evento("reasignado", tid, "cambio a %s pedido desde el Mando → corto la escritura actual y sigo el mismo flujo con él" % modelo, datos={"modelo": modelo})
+            try:
+                p.kill()
+            except Exception:
+                pass
+            evento(
+                "reasignado",
+                tid,
+                "cambio a %s pedido desde el Mando → corto la escritura actual y sigo el mismo flujo con él"
+                % modelo,
+                datos={"modelo": modelo},
+            )
         elif fase in (None, "hecho"):
-            evento("reasignado", tid, "empezará con %s (pedido desde el Mando)" % modelo, datos={"modelo": modelo})
+            evento(
+                "reasignado",
+                tid,
+                "empezará con %s (pedido desde el Mando)" % modelo,
+                datos={"modelo": modelo},
+            )
         else:
-            evento("reasignado", tid, "anotado %s: se usará en la próxima escritura (ahora está en %s)" % (modelo, fase), datos={"modelo": modelo})
+            evento(
+                "reasignado",
+                tid,
+                "anotado %s: se usará en la próxima escritura (ahora está en %s)"
+                % (modelo, fase),
+                datos={"modelo": modelo},
+            )
+
+
 # Se conservan los dos nombres históricos para no romper entornos antiguos; la decisión nueva
 # y honesta usa STARSEED_COLGADO_S y mide cambios del worktree, no conversación en el log.
 ARRANQUE_S = int(os.environ.get("STARSEED_ARRANQUE_S", "120"))
-ESPERA_429_S = int(os.environ.get("STARSEED_ESPERA_429_S", "75"))        # 429: esperar y reintentar el mismo modelo
-ESPERA_PROVEEDOR_S = int(os.environ.get("STARSEED_ESPERA_PROVEEDOR_S", "2700"))  # todo caído: esperar hasta 45 min
+ESPERA_429_S = int(
+    os.environ.get("STARSEED_ESPERA_429_S", "75")
+)  # 429: esperar y reintentar el mismo modelo
+ESPERA_PROVEEDOR_S = int(
+    os.environ.get("STARSEED_ESPERA_PROVEEDOR_S", "2700")
+)  # todo caído: esperar hasta 45 min
 # Tope de UNA llamada de escritura de opencode (2026-09-06, Ola 261): NIM iba a 5-10 tok/s y
 # un archivo de 300 líneas tardaba 8-20 min; el corte fijo de 1500 s mataba escrituras largas
 # legítimas. Ahora se configura y también sirve de base al umbral de estancamiento.
 ESCRITURA_S = int(os.environ.get("STARSEED_ESCRITURA_S", "1500"))
-ESTANCADO_S = int(os.environ.get("STARSEED_ESTANCADO_S", str(max(900, ESCRITURA_S // 2))))   # sin escribir nada = parada; nunca menos que media escritura
-LATIDO_S = int(os.environ.get("STARSEED_LATIDO_S", "120"))         # cada cuánto se publica al bus
+ESTANCADO_S = int(
+    os.environ.get("STARSEED_ESTANCADO_S", str(max(900, ESCRITURA_S // 2)))
+)  # sin escribir nada = parada; nunca menos que media escritura
+LATIDO_S = int(
+    os.environ.get("STARSEED_LATIDO_S", "120")
+)  # cada cuánto se publica al bus
 
 # ── Registro compartido de medios y arriendos (2026-09-09) ─────────────────
 # Cada motor publica SU latido. Un segundo orquestador puede ver morir al primero, vencer sus
@@ -2610,10 +3642,14 @@ LATIDO_S = int(os.environ.get("STARSEED_LATIDO_S", "120"))         # cada cuánt
 MEDIOS_JSON = os.path.join(OLAS, "medios.json")
 LATIDO_MEDIO_MAX_S = int(os.environ.get("STARSEED_LATIDO_MEDIO_MAX_S", "90"))
 ARRIENDO_S = int(os.environ.get("STARSEED_ARRIENDO_S", "120"))
-COLGADO_S = int(os.environ.get(
-    "STARSEED_COLGADO_S", os.environ.get("STARSEED_ESTANCADO_S", "300")))
-_INSTANCIA = re.sub(r"[^a-zA-Z0-9_.:-]", "-", "%s:%s:%s" % (
-    os.environ.get("STARSEED_DONDE", "nube"), MEDIO, os.getpid()))
+COLGADO_S = int(
+    os.environ.get("STARSEED_COLGADO_S", os.environ.get("STARSEED_ESTANCADO_S", "300"))
+)
+_INSTANCIA = re.sub(
+    r"[^a-zA-Z0-9_.:-]",
+    "-",
+    "%s:%s:%s" % (os.environ.get("STARSEED_DONDE", "nube"), MEDIO, os.getpid()),
+)
 MEDIOS_LOCALES = {
     "opencode": "opencode:" + _INSTANCIA,
     "codex": "codex:" + _INSTANCIA,
@@ -2712,16 +3748,32 @@ def _firma_trabajo(tid):
 
 
 def _datos_tareas_del_medio(medio_id):
-    tareas = sorted(tid for tid, dueño in MEDIO_POR_TAREA.items()
-                    if dueño == medio_id and (LATIDOS.get(tid) or {}).get("fase") not in (None, "hecho"))
+    tareas = sorted(
+        tid
+        for tid, dueño in MEDIO_POR_TAREA.items()
+        if dueño == medio_id
+        and (LATIDOS.get(tid) or {}).get("fase") not in (None, "hecho")
+    )
     firmas = {}
     for tid in tareas:
         firmas[tid] = int((LATIDOS.get(tid) or {}).get("bytes_trabajo", 0) or 0)
     return tareas, firmas
 
 
-def anunciar_medio(medio_id, tipo, capacidad, tareas=None, firmas=None, activo=True,
-                   areas=None, origen=None, entorno=None, cola=None, prioridad=0, ahora_s=None):
+def anunciar_medio(
+    medio_id,
+    tipo,
+    capacidad,
+    tareas=None,
+    firmas=None,
+    activo=True,
+    areas=None,
+    origen=None,
+    entorno=None,
+    cola=None,
+    prioridad=0,
+    ahora_s=None,
+):
     """Publica un latido propio y renueva solo los arriendos que este medio trabaja."""
     instante = time.time() if ahora_s is None else ahora_s
     tareas = list(tareas or [])
@@ -2737,24 +3789,41 @@ def anunciar_medio(medio_id, tipo, capacidad, tareas=None, firmas=None, activo=T
         previo = datos["medios"].get(medio_id) or {}
         anteriores = previo.get("firmas") or {}
         avanzo = set(anteriores) != set(firmas) or any(
-            valor > int(anteriores.get(tid, -1)) for tid, valor in firmas.items())
-        avance = instante if avanzo or not tareas else float(previo.get("avance", instante))
+            valor > int(anteriores.get(tid, -1)) for tid, valor in firmas.items()
+        )
+        avance = (
+            instante if avanzo or not tareas else float(previo.get("avance", instante))
+        )
         datos["medios"][medio_id] = {
-            "id": medio_id, "tipo": tipo, "motor": tipo, "origen": origen or MEDIO,
-            "entorno": entorno or os.environ.get("STARSEED_DONDE", "nube"), "activo": bool(activo),
-            "perfil": "%s:%s:%s" % (tipo, entorno or os.environ.get("STARSEED_DONDE", "nube"),
-                                      origen or MEDIO),
+            "id": medio_id,
+            "tipo": tipo,
+            "motor": tipo,
+            "origen": origen or MEDIO,
+            "entorno": entorno or os.environ.get("STARSEED_DONDE", "nube"),
+            "activo": bool(activo),
+            "perfil": "%s:%s:%s"
+            % (
+                tipo,
+                entorno or os.environ.get("STARSEED_DONDE", "nube"),
+                origen or MEDIO,
+            ),
             "cola": cola if cola is not None else _nombre_cola(),
             "prioridad": float(prioridad),
-            "capacidad": max(0, int(capacidad)), "carga": len(tareas), "tareas": tareas,
-            "firmas": firmas, "bytes": sum(firmas.values()), "latido": instante,
-            "avance": avance, "areas": list(areas or ["*"]),
+            "capacidad": max(0, int(capacidad)),
+            "carga": len(tareas),
+            "tareas": tareas,
+            "firmas": firmas,
+            "bytes": sum(firmas.values()),
+            "latido": instante,
+            "avance": avance,
+            "areas": list(areas or ["*"]),
         }
         for tid in tareas:
             arriendo = datos["arriendos"].get(tid)
             if arriendo and arriendo.get("medio") == medio_id:
                 datos["arriendos"][tid] = renovar_arriendo(
-                    arriendo, instante, ARRIENDO_S, os.path.join(WT_BASE, tid))
+                    arriendo, instante, ARRIENDO_S, os.path.join(WT_BASE, tid)
+                )
         return datos["medios"][medio_id]
 
     return _cambiar_medios(cambio)[0]
@@ -2765,15 +3834,29 @@ def anunciar_medios_locales():
     for tipo, medio_id in MEDIOS_LOCALES.items():
         tareas, firmas = _datos_tareas_del_medio(medio_id)
         disponible = tipo != "codex" or codex_disponible()
-        anunciar_medio(medio_id, tipo, CAPACIDADES_MEDIOS[tipo], tareas, firmas,
-                       activo=disponible, origen=MEDIO, prioridad=15 if tipo == "codex" else 0)
+        anunciar_medio(
+            medio_id,
+            tipo,
+            CAPACIDADES_MEDIOS[tipo],
+            tareas,
+            firmas,
+            activo=disponible,
+            origen=MEDIO,
+            prioridad=15 if tipo == "codex" else 0,
+        )
 
 
 def desconectar_medios_locales():
     """Un cierre limpio no obliga a los demás directores a esperar el plazo del latido."""
     for tipo, medio_id in MEDIOS_LOCALES.items():
-        anunciar_medio(medio_id, tipo, CAPACIDADES_MEDIOS[tipo], activo=False,
-                       origen=MEDIO, prioridad=15 if tipo == "codex" else 0)
+        anunciar_medio(
+            medio_id,
+            tipo,
+            CAPACIDADES_MEDIOS[tipo],
+            activo=False,
+            origen=MEDIO,
+            prioridad=15 if tipo == "codex" else 0,
+        )
 
 
 def reservar_tarea(tarea):
@@ -2785,19 +3868,33 @@ def reservar_tarea(tarea):
     def cambio(datos):
         anteriores = dict(datos["arriendos"])
         vigentes, vencidos = vencer_arriendos(
-            anteriores, datos["medios"], instante, LATIDO_MEDIO_MAX_S, COLGADO_S)
+            anteriores, datos["medios"], instante, LATIDO_MEDIO_MAX_S, COLGADO_S
+        )
         datos["arriendos"] = vigentes
         if tarea_id in vigentes:
             return vigentes[tarea_id]
-        aptos = {medio_id: medio for medio_id, medio in datos["medios"].items()
-                 if (medio.get("cola") or cola_actual) == cola_actual}
+        aptos = {
+            medio_id: medio
+            for medio_id, medio in datos["medios"].items()
+            if (medio.get("cola") or cola_actual) == cola_actual
+        }
         para_plan = dict(tarea)
         previo = anteriores.get(tarea_id) or {}
         wt_previo = str(previo.get("worktree") or "")
-        para_plan["worktree"] = wt_previo if os.path.isdir(wt_previo) else os.path.join(WT_BASE, tarea_id)
+        para_plan["worktree"] = (
+            wt_previo if os.path.isdir(wt_previo) else os.path.join(WT_BASE, tarea_id)
+        )
         para_plan["reanudar"] = tarea_id in vencidos
-        plan = repartir([para_plan], aptos, vigentes, datos["historial"], instante,
-                        ARRIENDO_S, LATIDO_MEDIO_MAX_S, COLGADO_S)
+        plan = repartir(
+            [para_plan],
+            aptos,
+            vigentes,
+            datos["historial"],
+            instante,
+            ARRIENDO_S,
+            LATIDO_MEDIO_MAX_S,
+            COLGADO_S,
+        )
         datos["arriendos"] = plan["arriendos"]
         return datos["arriendos"].get(tarea_id)
 
@@ -2824,8 +3921,13 @@ def mover_arriendo_al_modelo(tid, modelo):
         dueño = actual.get("medio")
         if dueño and dueño not in MEDIOS_LOCALES.values():
             return False
-        actual.update({"medio": medio_id, "area": area_de_tarea(TAREAS_POR_ID.get(tid, {})),
-                       "worktree": os.path.join(WT_BASE, tid)})
+        actual.update(
+            {
+                "medio": medio_id,
+                "area": area_de_tarea(TAREAS_POR_ID.get(tid, {})),
+                "worktree": os.path.join(WT_BASE, tid),
+            }
+        )
         datos["arriendos"][tid] = renovar_arriendo(actual, instante, ARRIENDO_S)
         # Un intento nuevo dispone de sus propios 300 s; no hereda la quietud del modelo caído.
         if medio_id in datos["medios"]:
@@ -2852,7 +3954,12 @@ def cerrar_arriendo(tid, exito, segundos):
             datos["arriendos"].pop(tid, None)
             perfil = (datos["medios"].get(medio_id) or {}).get("perfil") or medio_id
             datos["historial"] = registrar_resultado(
-                datos["historial"], perfil, arriendo.get("area") or "general", exito, segundos)
+                datos["historial"],
+                perfil,
+                arriendo.get("area") or "general",
+                exito,
+                segundos,
+            )
 
     _cambiar_medios(cambio)
 
@@ -2870,36 +3977,60 @@ def priorizar_modelos_del_arriendo(tid, modelos):
     preferidos = [m for m in modelos if es_modelo_codex(m) == quiere_codex]
     return preferidos + [m for m in modelos if m not in preferidos]
 
+
 def _volcar_latidos():
     try:
         with cerrojo("latidos-" + os.path.basename(LAT_JSON), espera_aviso=9999):
-            json.dump({"t": ahora(), "cola": os.path.basename(sys.argv[1]) if len(sys.argv) > 1 else "",
-                       "medio": MEDIO, "donde": os.environ.get("STARSEED_DONDE", "nube"),
-                       "tareas": LATIDOS}, open(LAT_JSON, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+            json.dump(
+                {
+                    "t": ahora(),
+                    "cola": os.path.basename(sys.argv[1]) if len(sys.argv) > 1 else "",
+                    "medio": MEDIO,
+                    "donde": os.environ.get("STARSEED_DONDE", "nube"),
+                    "tareas": LATIDOS,
+                },
+                open(LAT_JSON, "w", encoding="utf-8"),
+                ensure_ascii=False,
+                indent=1,
+            )
     except Exception:
         pass
+
 
 def latir(tid, fase, **kw):
     """Marca en qué fase está una tarea. Cambiar de fase reinicia el reloj de estancamiento."""
     with LOCK_ESTADO:
         d = LATIDOS.setdefault(tid, {})
         if d.get("fase") != fase:
-            try: base = os.path.getsize(os.path.join(LOGS, tid + ".log"))
-            except Exception: base = 0
+            try:
+                base = os.path.getsize(os.path.join(LOGS, tid + ".log"))
+            except Exception:
+                base = 0
             firma_trabajo, _ = _firma_trabajo(tid)
             # `base` es el tamaño al empezar la fase: sin él no se distingue «escribió algo»
             # de «el log ya venía lleno de una ola anterior».
-            d["desde"] = time.time(); d["avance"] = time.time(); d["bytes"] = base; d["base"] = base
-            d["firma_trabajo"] = firma_trabajo; d["bytes_trabajo"] = 0
-        d["fase"] = fase; d["t"] = ahora(); d.update(kw)
+            d["desde"] = time.time()
+            d["avance"] = time.time()
+            d["bytes"] = base
+            d["base"] = base
+            d["firma_trabajo"] = firma_trabajo
+            d["bytes_trabajo"] = 0
+        d["fase"] = fase
+        d["t"] = ahora()
+        d.update(kw)
     _volcar_latidos()
+
 
 # Ventana de contexto por modelo (del catálogo de cada proveedor, 2026-09-04). Aproximada.
 CONTEXTO_DE = {
-    "moonshotai/kimi-k3": 262144, "deepseek-ai/deepseek-v4-flash-0731": 131072,
-    "deepseek-ai/deepseek-v4-pro-0813": 131072, "qwen/qwen3-coder-plus:free": 1048576,
-    "minimax/minimax-m3:free": 1000000, "qwen/qwen3.8-max:free": 1000000,
-    "deepseek/deepseek-v4-pro": 1048576, "mistralai/devstral-medium": 256000,
+    "moonshotai/kimi-k3": 262144,
+    "deepseek-ai/deepseek-v4-flash-0731": 131072,
+    "deepseek-ai/deepseek-v4-pro-0813": 131072,
+    "qwen/qwen3-coder-plus:free": 1048576,
+    "minimax/minimax-m3:free": 1000000,
+    "qwen/qwen3.8-max:free": 1000000,
+    "deepseek/deepseek-v4-pro": 1048576,
+    "mistralai/devstral-medium": 256000,
 }
 RUTA_OPENCODE_DB = os.path.expanduser("~/.local/share/opencode/opencode.db")
 
@@ -2911,8 +4042,11 @@ def tokens_por_tarea():
     fuera = {}
     try:
         import sqlite3
+
         c = sqlite3.connect("file:%s?mode=ro" % RUTA_OPENCODE_DB, uri=True, timeout=2)
-        dirs = {sid: (d or "") for sid, d in c.execute("select id, directory from session")}
+        dirs = {
+            sid: (d or "") for sid, d in c.execute("select id, directory from session")
+        }
         for sid, data in c.execute("select session_id, data from message"):
             wt = dirs.get(sid, "")
             if WT_BASE not in wt:
@@ -2925,13 +4059,28 @@ def tokens_por_tarea():
             if d.get("role") != "assistant":
                 continue
             tk = d.get("tokens") or {}
-            e = fuera.setdefault(tid, {"entrada": 0, "salida": 0, "razonamiento": 0, "cacheLeida": 0, "llamadas": 0, "modelos": {}})
-            e["entrada"] += int(tk.get("input") or 0); e["salida"] += int(tk.get("output") or 0)
+            e = fuera.setdefault(
+                tid,
+                {
+                    "entrada": 0,
+                    "salida": 0,
+                    "razonamiento": 0,
+                    "cacheLeida": 0,
+                    "llamadas": 0,
+                    "modelos": {},
+                },
+            )
+            e["entrada"] += int(tk.get("input") or 0)
+            e["salida"] += int(tk.get("output") or 0)
             e["razonamiento"] += int(tk.get("reasoning") or 0)
             e["cacheLeida"] += int((tk.get("cache") or {}).get("read") or 0)
             e["llamadas"] += 1
             m = "%s/%s" % (d.get("providerID", "?"), d.get("modelID", "?"))
-            e["modelos"][m] = e["modelos"].get(m, 0) + int(tk.get("input") or 0) + int(tk.get("output") or 0)
+            e["modelos"][m] = (
+                e["modelos"].get(m, 0)
+                + int(tk.get("input") or 0)
+                + int(tk.get("output") or 0)
+            )
         c.close()
     except Exception:
         pass
@@ -2948,30 +4097,51 @@ def foto_enjambre(vivas_txt):
         if d.get("fase") in (None, "hecho"):
             continue
         modelo = d.get("modelo") or ""
-        try: bytes_log = os.path.getsize(os.path.join(LOGS, tid + ".log"))
-        except Exception: bytes_log = 0
+        try:
+            bytes_log = os.path.getsize(os.path.join(LOGS, tid + ".log"))
+        except Exception:
+            bytes_log = 0
         tk = tokens.get(tid, {})
-        tareas.append({
-            "id": tid, "fase": d.get("fase"), "modelo": modelo, "proveedor": proveedor_de(modelo) if modelo else "",
-            "ventana": CONTEXTO_DE.get(modelo.split("/", 1)[1] if "/" in modelo else modelo),
-            "minutos": int((ahora_s - d.get("desde", ahora_s)) / 60),
-            "quietoS": int(ahora_s - d.get("avance", ahora_s)), "bytesLog": bytes_log,
-            "bytesTrabajo": int(d.get("bytes_trabajo", 0) or 0),
-            "tokens": tk, "intento": d.get("intento", 1), "medio": MEDIO,
-        })
+        tareas.append(
+            {
+                "id": tid,
+                "fase": d.get("fase"),
+                "modelo": modelo,
+                "proveedor": proveedor_de(modelo) if modelo else "",
+                "ventana": CONTEXTO_DE.get(
+                    modelo.split("/", 1)[1] if "/" in modelo else modelo
+                ),
+                "minutos": int((ahora_s - d.get("desde", ahora_s)) / 60),
+                "quietoS": int(ahora_s - d.get("avance", ahora_s)),
+                "bytesLog": bytes_log,
+                "bytesTrabajo": int(d.get("bytes_trabajo", 0) or 0),
+                "tokens": tk,
+                "intento": d.get("intento", 1),
+                "medio": MEDIO,
+            }
+        )
     salud = _salud()
     registro = _leer_medios()
-    medios_vivos = normalizar_medios(registro.get("medios") or {}, ahora_s,
-                                     LATIDO_MEDIO_MAX_S, COLGADO_S)
+    medios_vivos = normalizar_medios(
+        registro.get("medios") or {}, ahora_s, LATIDO_MEDIO_MAX_S, COLGADO_S
+    )
     return {
         "cola": os.path.basename(sys.argv[1]) if len(sys.argv) > 1 else "",
         "donde": os.environ.get("STARSEED_DONDE", "nube"),
         "medio": MEDIO,
         "tareas": tareas,
         # «completando» pinta como «escribiendo» en el Mando: es una escritura de alcance.
-        "agentesActivos": len([t for t in tareas if t["fase"] in ("escribiendo", "completando")]),
-        "proveedores": {p: {"estado": (salud.get(p) or {}).get("estado", "vivo"),
-                            "llamadasMin": len(CUPOS[p].ts), "rpm": CUPOS[p].rpm} for p in CUPOS},
+        "agentesActivos": len(
+            [t for t in tareas if t["fase"] in ("escribiendo", "completando")]
+        ),
+        "proveedores": {
+            p: {
+                "estado": (salud.get(p) or {}).get("estado", "vivo"),
+                "llamadasMin": len(CUPOS[p].ts),
+                "rpm": CUPOS[p].rpm,
+            }
+            for p in CUPOS
+        },
         "medios": list(medios_vivos.values()),
         "arriendos": list((registro.get("arriendos") or {}).values()),
         "memoriaMb": memoria_libre_mb(),
@@ -2986,8 +4156,12 @@ def _barrer_tsc_huerfanos():
     cortado por el vigilante puede dejar su `npx tsc` colgado comiendo 3-5 GB y
     bloqueando el turno del resto de la máquina."""
     try:
-        p = subprocess.run(["ps", "-eo", "pid,ppid,etimes,args"],
-                           capture_output=True, text=True, timeout=15)
+        p = subprocess.run(
+            ["ps", "-eo", "pid,ppid,etimes,args"],
+            capture_output=True,
+            text=True,
+            timeout=15,
+        )
         ahora_pid = os.getpid()
         for linea in (p.stdout or "").splitlines():
             if "bin/tsc" not in linea and not linea.strip().endswith(" tsc"):
@@ -3003,7 +4177,11 @@ def _barrer_tsc_huerfanos():
                 continue
             if not _pid_vivo(ppid) or etimes > 20 * 60:
                 try:
-                    evento("aviso", "", "tsc huérfano eliminado (pid %d, %d min)" % (pid, etimes // 60))
+                    evento(
+                        "aviso",
+                        "",
+                        "tsc huérfano eliminado (pid %d, %d min)" % (pid, etimes // 60),
+                    )
                     os.kill(pid, signal.SIGKILL)
                 except Exception:
                     pass
@@ -3027,49 +4205,82 @@ def vigilante():
         t_ciclo = time.time()
         if t_ciclo - ultimo_barrido >= 60:
             ultimo_barrido = t_ciclo
-            try: _barrer_tsc_huerfanos()
-            except Exception: pass
-        try: atender_control()
-        except Exception: pass
-        try: anunciar_medios_locales()
-        except Exception: pass
-        t = time.time(); vivas = []
+            try:
+                _barrer_tsc_huerfanos()
+            except Exception:
+                pass
+        try:
+            atender_control()
+        except Exception:
+            pass
+        try:
+            anunciar_medios_locales()
+        except Exception:
+            pass
+        t = time.time()
+        vivas = []
         for tid, d in list(LATIDOS.items()):
             fase = d.get("fase")
-            if fase in (None, "hecho"): continue
-            try: bytes_log = os.path.getsize(os.path.join(LOGS, tid + ".log"))
-            except Exception: bytes_log = 0
+            if fase in (None, "hecho"):
+                continue
+            try:
+                bytes_log = os.path.getsize(os.path.join(LOGS, tid + ".log"))
+            except Exception:
+                bytes_log = 0
             if bytes_log > d.get("bytes", 0):
                 d["bytes"] = bytes_log
             firma_trabajo, bytes_trabajo = _firma_trabajo(tid)
             if firma_trabajo and firma_trabajo != d.get("firma_trabajo"):
                 d["firma_trabajo"] = firma_trabajo
-                d["bytes_trabajo"] = int(d.get("bytes_trabajo", 0)) + max(1, bytes_trabajo)
+                d["bytes_trabajo"] = int(d.get("bytes_trabajo", 0)) + max(
+                    1, bytes_trabajo
+                )
                 d["avance"] = t
             quieto = int(t - d.get("avance", t))
-            vivas.append("%s %s%s %dm" % (tid, fase,
-                         "/" + (d.get("modelo") or "").split("/")[-1] if d.get("modelo") else "",
-                         int((t - d.get("desde", t)) / 60)))
+            vivas.append(
+                "%s %s%s %dm"
+                % (
+                    tid,
+                    fase,
+                    "/" + (d.get("modelo") or "").split("/")[-1]
+                    if d.get("modelo")
+                    else "",
+                    int((t - d.get("desde", t)) / 60),
+                )
+            )
             # «completando» (puerta de alcance, Ola 259) es escritura: mismo trato por si se
             # cuelga y misma pintura en el Mando (cuenta como agente escribiendo).
             if fase in ("escribiendo", "completando") and quieto > COLGADO_S:
-                with PROCESOS_LOCK: p = PROCESOS.get(tid)
+                with PROCESOS_LOCK:
+                    p = PROCESOS.get(tid)
                 d["avance"] = t
                 if p and p.poll() is None:
-                    evento("estancado", tid, "%d s sin crecer en bytes con %s: medio COLGADO → vence su arriendo y reorganizo"
-                           % (quieto, d.get("modelo", "?")))
+                    evento(
+                        "estancado",
+                        tid,
+                        "%d s sin crecer en bytes con %s: medio COLGADO → vence su arriendo y reorganizo"
+                        % (quieto, d.get("modelo", "?")),
+                    )
                     CORTADOS.add(tid)
-                    try: p.kill()
-                    except Exception: pass
+                    try:
+                        p.kill()
+                    except Exception:
+                        pass
         _volcar_latidos()
         if t - ultimo_bus >= LATIDO_S:
             ultimo_bus = t
             hechas = sum(1 for v in PROG.values() if v.get("estado") == "commit")
-            texto_latido = "%s · %d integradas" % (" | ".join(vivas) or "sin tareas activas", hechas)
+            texto_latido = "%s · %d integradas" % (
+                " | ".join(vivas) or "sin tareas activas",
+                hechas,
+            )
             try:
-                evento("latido", "", texto_latido, datos=foto_enjambre(" | ".join(vivas)))
+                evento(
+                    "latido", "", texto_latido, datos=foto_enjambre(" | ".join(vivas))
+                )
             except Exception:
                 evento("latido", "", texto_latido)
+
 
 def _anotar_fallido(tid, modelo):
     """Deja constancia en progreso.json de qué modelo NO funcionó en esta tarea, para que un
@@ -3095,14 +4306,21 @@ def debe_pedir_visto_bueno(bloqueante, faltan, aprobacion_pedida, argv):
     if faltan:
         return True, "alcance incompleto: faltan %s" % ", ".join(list(faltan)[:8])
     if aprobacion_pedida:
-        return True, "pedido por la cola (--aprobacion / STARSEED_APROBACION / aprobacion en la tarea)"
+        return (
+            True,
+            "pedido por la cola (--aprobacion / STARSEED_APROBACION / aprobacion en la tarea)",
+        )
     return False, ""
 
 
 def ejecutar(t, intento=1):
-    tid = t["id"]; t0 = time.time()
-    os.makedirs(LOGS, exist_ok=True); log = os.path.join(LOGS, tid + ".log")
-    set_estado(tid, estado="en_curso", modelo="", segundos=0, nota="intento %d" % intento)
+    tid = t["id"]
+    t0 = time.time()
+    os.makedirs(LOGS, exist_ok=True)
+    log = os.path.join(LOGS, tid + ".log")
+    set_estado(
+        tid, estado="en_curso", modelo="", segundos=0, nota="intento %d" % intento
+    )
     evento("inicio", tid, t.get("titulo", ""))
     # Un lease recuperado equivale a --reanudar: si el medio murió con cambios, se conservan y
     # se continúa por las puertas. Sin cambios reales se crea un worktree limpio como siempre.
@@ -3110,29 +4328,62 @@ def ejecutar(t, intento=1):
     try:
         wt = worktree(tid)
     except Exception as e:
-        set_estado(tid, estado="fallo", nota=str(e)[:200]); evento("fallo", tid, "worktree: " + str(e)[:200]); return
+        set_estado(tid, estado="fallo", nota=str(e)[:200])
+        evento("fallo", tid, "worktree: " + str(e)[:200])
+        return
     if "--reanudar" in sys.argv or tid in REANUDAR_AUTO:
         rc_prev, st_prev = sh(["git", "status", "--porcelain"], cwd=wt, timeout=30)
         if rc_prev:
-            set_estado(tid, estado="fallo", nota="status Git falló; worktree conservado")
-            evento("fallo", tid, "no se puede verificar el trabajo previo; no se ejecutan puertas")
+            set_estado(
+                tid, estado="fallo", nota="status Git falló; worktree conservado"
+            )
+            evento(
+                "fallo",
+                tid,
+                "no se puede verificar el trabajo previo; no se ejecutan puertas",
+            )
             return
         if st_prev.strip():
             reanudada = True
-            evento("aviso", tid, "reanudada: el worktree ya tenía %d archivos cambiados; salto a tsc" % len(st_prev.splitlines()))
+            evento(
+                "aviso",
+                tid,
+                "reanudada: el worktree ya tenía %d archivos cambiados; salto a tsc"
+                % len(st_prev.splitlines()),
+            )
     fallidos = list(PROG.get(tid, {}).get("modelos_fallidos") or [])
-    base = [m for m in modelos_para(tid) if m not in MUERTOS and proveedor_vivo(proveedor_de(m)) and apto_para_tarea(m, t)]
+    base = [
+        m
+        for m in modelos_para(tid)
+        if m not in MUERTOS
+        and proveedor_vivo(proveedor_de(m))
+        and apto_para_tarea(m, t)
+    ]
     base = priorizar_modelos_del_arriendo(tid, base)
     if fallidos:
         # Los que ya se colgaron o no tocaron nada en esta tarea, al final de la cola.
-        base = [m for m in base if m not in fallidos] + [m for m in base if m in fallidos]
-        evento("aviso", tid, "empiezo por otro modelo: %s ya falló aquí antes" % ", ".join(x.split("/")[-1] for x in fallidos[:3]))
+        base = [m for m in base if m not in fallidos] + [
+            m for m in base if m in fallidos
+        ]
+        evento(
+            "aviso",
+            tid,
+            "empiezo por otro modelo: %s ya falló aquí antes"
+            % ", ".join(x.split("/")[-1] for x in fallidos[:3]),
+        )
     # Los modelos de proveedores caídos NO se descartan: se apartan y se espera a que vuelvan.
     # (El 2026-09-04, VZ2: xkiro sin cuota diaria y nim con «too many requests» → la tarea se
     # dio por fallida en 2 segundos sin que ningún modelo llegara a intentarlo.)
-    apartados = [m for m in modelos_para(tid) if m not in MUERTOS and apto_para_tarea(m, t) and not proveedor_vivo(proveedor_de(m))]
+    apartados = [
+        m
+        for m in modelos_para(tid)
+        if m not in MUERTOS
+        and apto_para_tarea(m, t)
+        and not proveedor_vivo(proveedor_de(m))
+    ]
     if tid in REASIGNADOS:
-        t = dict(t); t["modelo"] = REASIGNADOS.pop(tid)
+        t = dict(t)
+        t["modelo"] = REASIGNADOS.pop(tid)
     if t.get("modelo"):
         # Modelo pedido expresamente: que conste en el latido y que su proveedor se revalide
         # antes de apartarlo por un dato de salud viejo.
@@ -3141,14 +4392,20 @@ def ejecutar(t, intento=1):
             apartados = [m for m in apartados if m != t["modelo"]]
         elif t["modelo"] not in apartados:
             apartados.append(t["modelo"])
-    modelos = ([t["modelo"]] + [m for m in base if m != t.get("modelo")]) if t.get("modelo") else base
+    modelos = (
+        ([t["modelo"]] + [m for m in base if m != t.get("modelo")])
+        if t.get("modelo")
+        else base
+    )
     # Los escritores de la rotación también deben EXISTIR en opencode.json (Ola 261: llm7 no
     # estaba declarado en la Mac y sus modelos morían en silencio dentro de la rotación).
     for m in modelos:
         asegurar_modelo_opencode(m)
-    cambios = reanudada; modelo_ok = (PROG.get(tid, {}).get("modelo") or modelos[0]) if reanudada else ""
-    intentos_reales = 0; ultimo_fallo = ""
-    saturados = {}     # modelo -> veces que el proveedor contestó 429 (se reintenta tras esperar)
+    cambios = reanudada
+    modelo_ok = (PROG.get(tid, {}).get("modelo") or modelos[0]) if reanudada else ""
+    intentos_reales = 0
+    ultimo_fallo = ""
+    saturados = {}  # modelo -> veces que el proveedor contestó 429 (se reintenta tras esperar)
     ronda = 0
     pendientes = [] if reanudada else list(modelos)
     while pendientes and not cambios and intentos_reales < 2:
@@ -3156,12 +4413,20 @@ def ejecutar(t, intento=1):
         if not proveedor_vivo(proveedor_de(modelo)):
             if modelo not in apartados:
                 apartados.append(modelo)
-            evento("reenrutado", tid, "%s está caído ahora mismo → lo aparto y sigo con otro proveedor" % proveedor_de(modelo))
+            evento(
+                "reenrutado",
+                tid,
+                "%s está caído ahora mismo → lo aparto y sigo con otro proveedor"
+                % proveedor_de(modelo),
+            )
             continue
         latir(tid, "escribiendo", modelo=modelo, intento=intento)
-        rc, out = escribir(contexto_tarea(t, wt), modelo, wt, log, timeout=ESCRITURA_S, tid=tid)
+        rc, out = escribir(
+            contexto_tarea(t, wt), modelo, wt, log, timeout=ESCRITURA_S, tid=tid
+        )
         if tid in SOLTADAS:
-            limpiar_worktree(tid); return
+            limpiar_worktree(tid)
+            return
         if tid in CORTADOS and tid in REASIGNADOS:
             # Lo cortó el Mando para cambiar de modelo/API: lo que dejó a medias el modelo
             # anterior se descarta (estaba escribiendo cuando se le cortó), el nuevo va
@@ -3175,17 +4440,32 @@ def ejecutar(t, intento=1):
             continue
         _, st = sh(["git", "status", "--porcelain"], cwd=wt, timeout=30)
         if st.strip():
-            cambios = True; modelo_ok = modelo
-            try: escrito_kb = int(os.path.getsize(log) / 1024)
-            except Exception: escrito_kb = 0
-            paso(tid, "escritura", modelo=modelo, segundos=int(time.time() - t0), archivos_cambiados=len(st.strip().splitlines()), log_kb=escrito_kb)
+            cambios = True
+            modelo_ok = modelo
+            try:
+                escrito_kb = int(os.path.getsize(log) / 1024)
+            except Exception:
+                escrito_kb = 0
+            paso(
+                tid,
+                "escritura",
+                modelo=modelo,
+                segundos=int(time.time() - t0),
+                archivos_cambiados=len(st.strip().splitlines()),
+                log_kb=escrito_kb,
+            )
             break
         if tid in CORTADOS:
             # Lo cortó el vigilante por no escribir: el modelo no ha decidido «no hay nada que
             # hacer», se ha colgado. Eso NO puede gastar uno de los dos intentos de la tarea.
             CORTADOS.discard(tid)
             _anotar_fallido(tid, modelo)
-            evento("reenrutado", tid, "%s se colgó y fue cortado → siguiente modelo, sin gastar intento" % modelo)
+            evento(
+                "reenrutado",
+                tid,
+                "%s se colgó y fue cortado → siguiente modelo, sin gastar intento"
+                % modelo,
+            )
             continue
         pista = fallo_de_proveedor(out)
         # (2026-09-08, Ola 286 · G3) Rechazo por FORMATO de opencode: el proveedor acepta la
@@ -3195,7 +4475,12 @@ def ejecutar(t, intento=1):
         if error_de_formato(out) and proveedor_de(modelo) in PASARELAS:
             prov = proveedor_de(modelo)
             PASARELAS_SOLO_REVISOR.add(prov)
-            evento("aviso", tid, "%s rechaza el formato de opencode: pasa a solo revisor en esta ejecución" % prov)
+            evento(
+                "aviso",
+                tid,
+                "%s rechaza el formato de opencode: pasa a solo revisor en esta ejecución"
+                % prov,
+            )
             continue
         if pista:
             # El proveedor falló: esto NO es «el modelo no vio nada que hacer», así que
@@ -3205,20 +4490,47 @@ def ejecutar(t, intento=1):
                 # Una pista de defunción ya NO retira por sí sola: la pudo soltar la salida
                 # de una herramienta del agente (Ola 264: «git show main:… does not exist»).
                 # debe_retirar() lo confirma contra el catálogo del proveedor.
-                retirar, motivo = debe_retirar(modelo, out, catalogo_proveedor(proveedor_de(modelo)))
+                retirar, motivo = debe_retirar(
+                    modelo, out, catalogo_proveedor(proveedor_de(modelo))
+                )
                 if retirar:
                     MUERTOS.add(modelo)
-                    evento("proveedor", tid, "%s retirado (%s) → fuera de la rotación" % (modelo, motivo))
+                    evento(
+                        "proveedor",
+                        tid,
+                        "%s retirado (%s) → fuera de la rotación" % (modelo, motivo),
+                    )
                 else:
-                    evento("aviso", tid, "pista de defunción falsa (venía de la salida de una herramienta): %s" % motivo)
-            elif any(x in pista for x in ("too many requests", "rate limit", "database is locked")) and saturados.get(modelo, 0) < 2:
+                    evento(
+                        "aviso",
+                        tid,
+                        "pista de defunción falsa (venía de la salida de una herramienta): %s"
+                        % motivo,
+                    )
+            elif (
+                any(
+                    x in pista
+                    for x in ("too many requests", "rate limit", "database is locked")
+                )
+                and saturados.get(modelo, 0) < 2
+            ):
                 # Saturación pasajera (429, o la base de opencode ocupada por otro agente): no es
                 # motivo para quemar la lista entera en segundos. Se espera y se vuelve a intentar
                 # el MISMO modelo; a la tercera, siguiente.
                 saturados[modelo] = saturados.get(modelo, 0) + 1
                 espera = 8 if "database is locked" in pista else ESPERA_429_S
                 latir(tid, "esperando cupo", modelo=modelo, intento=intento)
-                evento("aviso", tid, "%s: %s → espero %ds y lo reintento (%d/2)" % (modelo, "base de opencode ocupada" if espera == 8 else "saturado (429)", espera, saturados[modelo]))
+                evento(
+                    "aviso",
+                    tid,
+                    "%s: %s → espero %ds y lo reintento (%d/2)"
+                    % (
+                        modelo,
+                        "base de opencode ocupada" if espera == 8 else "saturado (429)",
+                        espera,
+                        saturados[modelo],
+                    ),
+                )
                 FIN.wait(espera)
                 pendientes.insert(0, modelo)
             else:
@@ -3229,20 +4541,45 @@ def ejecutar(t, intento=1):
                 if error_de_formato(pista) and prov in PASARELAS:
                     if prov not in PASARELAS_SOLO_REVISOR:
                         PASARELAS_SOLO_REVISOR.add(prov)
-                        evento("aviso", tid, "%s rechaza el formato de opencode: pasa a solo revisor en esta ejecución" % prov)
-                evento("proveedor", tid, "%s falló por el proveedor (%s) → siguiente modelo" % (modelo, pista))
+                        evento(
+                            "aviso",
+                            tid,
+                            "%s rechaza el formato de opencode: pasa a solo revisor en esta ejecución"
+                            % prov,
+                        )
+                evento(
+                    "proveedor",
+                    tid,
+                    "%s falló por el proveedor (%s) → siguiente modelo"
+                    % (modelo, pista),
+                )
             continue
         intentos_reales += 1
         _anotar_fallido(tid, modelo)
         evento("aviso", tid, "sin cambios con %s" % modelo)
     # Sin cambios y SIN ningún intento real porque todo estaba caído/saturado: esperar a que
     # vuelva algún proveedor (hasta ESPERA_PROVEEDOR_S) en vez de dar la tarea por perdida.
-    while (not cambios and intentos_reales == 0 and apartados and ronda < 3 and not FIN.is_set()):
+    while (
+        not cambios
+        and intentos_reales == 0
+        and apartados
+        and ronda < 3
+        and not FIN.is_set()
+    ):
         ronda += 1
         latir(tid, "esperando proveedor", modelo="-", intento=intento)
-        evento("aviso", tid, "todos los proveedores útiles están caídos (%s) → espero hasta %d min a que vuelva alguno (ronda %d/3)"
-               % (", ".join(sorted({proveedor_de(m) for m in apartados})), ESPERA_PROVEEDOR_S // 60, ronda))
-        t_esp = time.time(); vueltos = []
+        evento(
+            "aviso",
+            tid,
+            "todos los proveedores útiles están caídos (%s) → espero hasta %d min a que vuelva alguno (ronda %d/3)"
+            % (
+                ", ".join(sorted({proveedor_de(m) for m in apartados})),
+                ESPERA_PROVEEDOR_S // 60,
+                ronda,
+            ),
+        )
+        t_esp = time.time()
+        vueltos = []
         while time.time() - t_esp < ESPERA_PROVEEDOR_S and not FIN.is_set():
             vueltos = [m for m in apartados if proveedor_vivo(proveedor_de(m))]
             if vueltos:
@@ -3250,7 +4587,12 @@ def ejecutar(t, intento=1):
             FIN.wait(30)
         if not vueltos:
             break
-        evento("reenrutado", tid, "%s ha vuelto → retomo la tarea con %s" % (proveedor_de(vueltos[0]), vueltos[0]))
+        evento(
+            "reenrutado",
+            tid,
+            "%s ha vuelto → retomo la tarea con %s"
+            % (proveedor_de(vueltos[0]), vueltos[0]),
+        )
         apartados = [m for m in apartados if m not in vueltos]
         pendientes = vueltos
         saturados = {}
@@ -3258,27 +4600,49 @@ def ejecutar(t, intento=1):
         while pendientes and not cambios and intentos_reales < 2:
             modelo = pendientes.pop(0)
             if not proveedor_vivo(proveedor_de(modelo)):
-                apartados.append(modelo); continue
+                apartados.append(modelo)
+                continue
             latir(tid, "escribiendo", modelo=modelo, intento=intento)
-            rc, out = escribir(contexto_tarea(t, wt), modelo, wt, log, timeout=ESCRITURA_S, tid=tid)
+            rc, out = escribir(
+                contexto_tarea(t, wt), modelo, wt, log, timeout=ESCRITURA_S, tid=tid
+            )
             if tid in SOLTADAS:
-                limpiar_worktree(tid); return
+                limpiar_worktree(tid)
+                return
             if tid in CORTADOS and tid in REASIGNADOS:
-                CORTADOS.discard(tid); nuevo = REASIGNADOS.pop(tid)
+                CORTADOS.discard(tid)
+                nuevo = REASIGNADOS.pop(tid)
                 sh("git checkout -q -- . && git clean -fdq .", cwd=wt, timeout=60)
                 revalidar_proveedor(proveedor_de(nuevo))
                 pendientes = [nuevo] + [m for m in pendientes if m != nuevo]
-                latir(tid, "escribiendo", modelo=nuevo, intento=intento); continue
+                latir(tid, "escribiendo", modelo=nuevo, intento=intento)
+                continue
             _, st = sh(["git", "status", "--porcelain"], cwd=wt, timeout=30)
             if st.strip():
-                cambios = True; modelo_ok = modelo
-                try: escrito_kb = int(os.path.getsize(log) / 1024)
-                except Exception: escrito_kb = 0
-                paso(tid, "escritura", modelo=modelo, segundos=int(time.time() - t0), archivos_cambiados=len(st.strip().splitlines()), log_kb=escrito_kb)
+                cambios = True
+                modelo_ok = modelo
+                try:
+                    escrito_kb = int(os.path.getsize(log) / 1024)
+                except Exception:
+                    escrito_kb = 0
+                paso(
+                    tid,
+                    "escritura",
+                    modelo=modelo,
+                    segundos=int(time.time() - t0),
+                    archivos_cambiados=len(st.strip().splitlines()),
+                    log_kb=escrito_kb,
+                )
                 break
             if tid in CORTADOS:
-                CORTADOS.discard(tid); _anotar_fallido(tid, modelo)
-                evento("reenrutado", tid, "%s se colgó y fue cortado → siguiente modelo, sin gastar intento" % modelo)
+                CORTADOS.discard(tid)
+                _anotar_fallido(tid, modelo)
+                evento(
+                    "reenrutado",
+                    tid,
+                    "%s se colgó y fue cortado → siguiente modelo, sin gastar intento"
+                    % modelo,
+                )
                 continue
             pista = fallo_de_proveedor(out)
             if error_de_formato(out) and proveedor_de(modelo) in PASARELAS:
@@ -3286,22 +4650,45 @@ def ejecutar(t, intento=1):
                 # rechaza el formato de opencode → solo revisor, sin gastar intento.
                 prov = proveedor_de(modelo)
                 PASARELAS_SOLO_REVISOR.add(prov)
-                evento("aviso", tid, "%s rechaza el formato de opencode: pasa a solo revisor en esta ejecución" % prov)
+                evento(
+                    "aviso",
+                    tid,
+                    "%s rechaza el formato de opencode: pasa a solo revisor en esta ejecución"
+                    % prov,
+                )
                 continue
             if pista:
                 ultimo_fallo = pista
                 if any(x in pista for x in PISTAS_DEFUNCION):
                     # Misma confirmación que en la primera pasada: no retirar por una pista
                     # que venía de la salida de una herramienta.
-                    retirar, motivo = debe_retirar(modelo, out, catalogo_proveedor(proveedor_de(modelo)))
+                    retirar, motivo = debe_retirar(
+                        modelo, out, catalogo_proveedor(proveedor_de(modelo))
+                    )
                     if retirar:
                         MUERTOS.add(modelo)
                     else:
-                        evento("aviso", tid, "pista de defunción falsa (venía de la salida de una herramienta): %s" % motivo)
-                elif any(x in pista for x in ("too many requests", "rate limit", "database is locked")) and saturados.get(modelo, 0) < 2:
+                        evento(
+                            "aviso",
+                            tid,
+                            "pista de defunción falsa (venía de la salida de una herramienta): %s"
+                            % motivo,
+                        )
+                elif (
+                    any(
+                        x in pista
+                        for x in (
+                            "too many requests",
+                            "rate limit",
+                            "database is locked",
+                        )
+                    )
+                    and saturados.get(modelo, 0) < 2
+                ):
                     saturados[modelo] = saturados.get(modelo, 0) + 1
                     latir(tid, "esperando cupo", modelo=modelo, intento=intento)
-                    FIN.wait(8 if "database is locked" in pista else ESPERA_429_S); pendientes.insert(0, modelo)
+                    FIN.wait(8 if "database is locked" in pista else ESPERA_429_S)
+                    pendientes.insert(0, modelo)
                 else:
                     apartados.append(modelo)
                 # (2026-09-08, Ola 286 · G3) Mismo trato que en la primera pasada: si la
@@ -3310,22 +4697,50 @@ def ejecutar(t, intento=1):
                 if error_de_formato(pista) and prov in PASARELAS:
                     if prov not in PASARELAS_SOLO_REVISOR:
                         PASARELAS_SOLO_REVISOR.add(prov)
-                        evento("aviso", tid, "%s rechaza el formato de opencode: pasa a solo revisor en esta ejecución" % prov)
-                evento("proveedor", tid, "%s falló por el proveedor (%s)" % (modelo, pista))
+                        evento(
+                            "aviso",
+                            tid,
+                            "%s rechaza el formato de opencode: pasa a solo revisor en esta ejecución"
+                            % prov,
+                        )
+                evento(
+                    "proveedor", tid, "%s falló por el proveedor (%s)" % (modelo, pista)
+                )
                 continue
             intentos_reales += 1
             _anotar_fallido(tid, modelo)
             evento("aviso", tid, "sin cambios con %s" % modelo)
     if not cambios and intentos_reales == 0 and (ultimo_fallo or apartados):
-        set_estado(tid, estado="fallo", modelo="-", segundos=int(time.time() - t0),
-                   nota="ningún proveedor respondió (%s)" % (ultimo_fallo or "todos caídos")[:60])
-        evento("fallo", tid, "ningún proveedor llegó a intentarlo (%s) — la tarea sigue SIN hacer; relánzala con --solo %s" % ((ultimo_fallo or "todos caídos")[:80], tid))
-        limpiar_worktree(tid); return
+        set_estado(
+            tid,
+            estado="fallo",
+            modelo="-",
+            segundos=int(time.time() - t0),
+            nota="ningún proveedor respondió (%s)"
+            % (ultimo_fallo or "todos caídos")[:60],
+        )
+        evento(
+            "fallo",
+            tid,
+            "ningún proveedor llegó a intentarlo (%s) — la tarea sigue SIN hacer; relánzala con --solo %s"
+            % ((ultimo_fallo or "todos caídos")[:80], tid),
+        )
+        limpiar_worktree(tid)
+        return
     if tid in SOLTADAS:
-        limpiar_worktree(tid, borrar_rama=False); return
+        limpiar_worktree(tid, borrar_rama=False)
+        return
     if not cambios:
-        set_estado(tid, estado="sin_cambios", modelo="-", segundos=int(time.time() - t0), nota="")
-        evento("sin_cambios", tid, "ningún modelo tocó archivos"); limpiar_worktree(tid); return
+        set_estado(
+            tid,
+            estado="sin_cambios",
+            modelo="-",
+            segundos=int(time.time() - t0),
+            nota="",
+        )
+        evento("sin_cambios", tid, "ningún modelo tocó archivos")
+        limpiar_worktree(tid)
+        return
     # ── puerta de alcance (2026-09-06, Ola 259, E2): la escritura no vale si deja archivos ─
     # pedidos sin tocar. Si faltan, UNA pasada de compleción con el mismo modelo; si aun así
     # siguen faltando, aviso «TAREA INCOMPLETA» y el revisor lo recibe explicado (`alcance_txt`).
@@ -3339,19 +4754,37 @@ def ejecutar(t, intento=1):
             latir(tid, "completando", modelo=modelo_ok)
             # (2026-09-08, Ola 296 · CX1) La pasada de compleción usa el MISMO motor que escribió
             # (`escribir` enruta por el prefijo del modelo): si escribió Codex, completa Codex.
-            escribir("Tu tarea pedía tocar estos archivos y no los has tocado: %s.\n"
-                     "Complétalos ahora siguiendo el enunciado original (te lo repito abajo). "
-                     "Si de verdad alguno no hace falta tocarlo, escribe en tu respuesta una línea "
-                     "`SIN TOCAR <ruta>: <motivo>` por cada uno.\n\nEnunciado original:\n%s"
-                     % (", ".join(medida["faltan"]), t.get("prompt", "")),
-                     modelo_ok, wt, log, timeout=ESCRITURA_S, tid=tid)
+            escribir(
+                "Tu tarea pedía tocar estos archivos y no los has tocado: %s.\n"
+                "Complétalos ahora siguiendo el enunciado original (te lo repito abajo). "
+                "Si de verdad alguno no hace falta tocarlo, escribe en tu respuesta una línea "
+                "`SIN TOCAR <ruta>: <motivo>` por cada uno.\n\nEnunciado original:\n%s"
+                % (", ".join(medida["faltan"]), t.get("prompt", "")),
+                modelo_ok,
+                wt,
+                log,
+                timeout=ESCRITURA_S,
+                tid=tid,
+            )
             medida = alcance_tarea(t, wt)
-        paso(tid, "alcance", pedidos=len(medida["pedidos"]), tocados=len(medida["tocados"]),
-             faltan=",".join(medida["faltan"])[:300], completado=bool(hubo_pasada))
+        paso(
+            tid,
+            "alcance",
+            pedidos=len(medida["pedidos"]),
+            tocados=len(medida["tocados"]),
+            faltan=",".join(medida["faltan"])[:300],
+            completado=bool(hubo_pasada),
+        )
         if medida["faltan"]:
-            alcance_txt = ("la tarea pedía tocar %d archivos y el diff no toca: %s"
-                           % (len(medida["pedidos"]), ", ".join(medida["faltan"])))
-            evento("aviso", tid, "TAREA INCOMPLETA: faltan %s" % ", ".join(medida["faltan"]))
+            alcance_txt = "la tarea pedía tocar %d archivos y el diff no toca: %s" % (
+                len(medida["pedidos"]),
+                ", ".join(medida["faltan"]),
+            )
+            evento(
+                "aviso",
+                tid,
+                "TAREA INCOMPLETA: faltan %s" % ", ".join(medida["faltan"]),
+            )
     # puerta tsc + reparación
     latir(tid, "tsc", modelo=modelo_ok)
     rc, errs = tsc(wt, log)
@@ -3359,12 +4792,38 @@ def ejecutar(t, intento=1):
     if errs:
         evento("aviso", tid, "%d errores tsc → reparación" % len(errs))
         latir(tid, "escribiendo", modelo=modelo_ok)
-        escribir("Corrige SOLO estos errores de TypeScript sin cambiar el comportamiento ni tocar otros archivos:\n" + "\n".join(errs[:40]), modelo_ok, wt, log, timeout=900, tid=tid)
+        escribir(
+            "Corrige SOLO estos errores de TypeScript sin cambiar el comportamiento ni tocar otros archivos:\n"
+            + "\n".join(errs[:40]),
+            modelo_ok,
+            wt,
+            log,
+            timeout=900,
+            tid=tid,
+        )
         rc, errs = tsc(wt, log)
-    paso(tid, "tsc", errores_antes=errores_antes, errores_despues=len(errs), reparado=bool(errores_antes and not errs))
+    paso(
+        tid,
+        "tsc",
+        errores_antes=errores_antes,
+        errores_despues=len(errs),
+        reparado=bool(errores_antes and not errs),
+    )
     if errs:
-        set_estado(tid, estado="fallo_tsc", modelo=modelo_ok, segundos=int(time.time() - t0), nota="%d errores tsc (rama ola/%s conservada)" % (len(errs), tid))
-        evento("fallo", tid, "tsc sigue con %d errores; rama ola/%s conservada" % (len(errs), tid)); limpiar_worktree(tid, borrar_rama=False); return
+        set_estado(
+            tid,
+            estado="fallo_tsc",
+            modelo=modelo_ok,
+            segundos=int(time.time() - t0),
+            nota="%d errores tsc (rama ola/%s conservada)" % (len(errs), tid),
+        )
+        evento(
+            "fallo",
+            tid,
+            "tsc sigue con %d errores; rama ola/%s conservada" % (len(errs), tid),
+        )
+        limpiar_worktree(tid, borrar_rama=False)
+        return
     latir(tid, "tests", modelo=modelo_ok)
     rc, vout = vitest(wt, log)
     if rc == 0:
@@ -3372,56 +4831,169 @@ def ejecutar(t, intento=1):
     if rc != 0:
         evento("aviso", tid, "vitest falló → reparación")
         latir(tid, "escribiendo", modelo=modelo_ok)
-        escribir("Estos tests de vitest fallan tras tus cambios; corrige el código (o el test si el cambio de comportamiento es el pedido):\n" + vout[-4000:], modelo_ok, wt, log, timeout=900, tid=tid)
+        escribir(
+            "Estos tests de vitest fallan tras tus cambios; corrige el código (o el test si el cambio de comportamiento es el pedido):\n"
+            + vout[-4000:],
+            modelo_ok,
+            wt,
+            log,
+            timeout=900,
+            tid=tid,
+        )
         rc, vout = vitest(wt, log)
         paso(tid, "tests", resultado="ok" if rc == 0 else "falla", reparacion=True)
         if rc != 0:
-            set_estado(tid, estado="fallo_tests", modelo=modelo_ok, segundos=int(time.time() - t0), nota="vitest falla (rama conservada)")
-            evento("fallo", tid, "vitest sigue fallando; rama ola/%s conservada" % tid); limpiar_worktree(tid, borrar_rama=False); return
+            set_estado(
+                tid,
+                estado="fallo_tests",
+                modelo=modelo_ok,
+                segundos=int(time.time() - t0),
+                nota="vitest falla (rama conservada)",
+            )
+            evento("fallo", tid, "vitest sigue fallando; rama ola/%s conservada" % tid)
+            limpiar_worktree(tid, borrar_rama=False)
+            return
     # commit en la rama
-    sh("git add -A . && git reset -q -- starseed_memory_root 2>/dev/null; true", cwd=wt, timeout=60)
-    msg = "%s · %s: %s\n\nEnjambre libre v2 (opencode · %s). Archivos: %s\n\nCo-Authored-By: Enjambre StarSeed <enjambre@starseed.local>" % (
-        t.get("ola", "Ola"), tid, t.get("titulo", ""), modelo_ok, ", ".join(t.get("archivos", []))[:300])
+    sh(
+        "git add -A . && git reset -q -- starseed_memory_root 2>/dev/null; true",
+        cwd=wt,
+        timeout=60,
+    )
+    msg = (
+        "%s · %s: %s\n\nEnjambre libre v2 (opencode · %s). Archivos: %s\n\nCo-Authored-By: Enjambre StarSeed <enjambre@starseed.local>"
+        % (
+            t.get("ola", "Ola"),
+            tid,
+            t.get("titulo", ""),
+            modelo_ok,
+            ", ".join(t.get("archivos", []))[:300],
+        )
+    )
     open("/tmp/enj-msg-%s.txt" % tid, "w", encoding="utf-8").write(msg)
-    rc, out = sh("git -c core.hooksPath=/dev/null commit -q -F /tmp/enj-msg-%s.txt" % tid, cwd=wt, timeout=120)
+    rc, out = sh(
+        "git -c core.hooksPath=/dev/null commit -q -F /tmp/enj-msg-%s.txt" % tid,
+        cwd=wt,
+        timeout=120,
+    )
     if rc != 0:
-        set_estado(tid, estado="fallo", modelo=modelo_ok, segundos=int(time.time() - t0), nota="commit: " + out[-120:])
-        evento("fallo", tid, "commit falló: " + out[-200:]); limpiar_worktree(tid, borrar_rama=False); return
+        set_estado(
+            tid,
+            estado="fallo",
+            modelo=modelo_ok,
+            segundos=int(time.time() - t0),
+            nota="commit: " + out[-120:],
+        )
+        evento("fallo", tid, "commit falló: " + out[-200:])
+        limpiar_worktree(tid, borrar_rama=False)
+        return
     # revisión cruzada
     latir(tid, "revision", modelo=modelo_ok)
     _, diff = sh(["git", "diff", "HEAD~1", "--stat", "-p"], cwd=wt, timeout=60)
-    impacto = impacto_cambios("ola/" + tid)          # grafo GitNexus: qué flujos toca la rama (None si no hay índice)
+    impacto = impacto_cambios(
+        "ola/" + tid
+    )  # grafo GitNexus: qué flujos toca la rama (None si no hay índice)
     if impacto:
-        paso(tid, "impacto", **{k: v for k, v in impacto.items() if k != "detalle"}, detalle=" | ".join(impacto["detalle"]))
-    revisor, rev, meta_rev = ("", "", {}) if "--sin-revision" in sys.argv else revisar(tid, t.get("titulo", ""), diff, impacto_texto(impacto), alcance=alcance_txt)
-    bloqueante = bool(re.search(r"seguimiento:?\**\s*s[ií]\b.*bloqueante", rev, re.I | re.S)) or ("bloqueante" in rev.lower() and "no bloqueante" not in rev.lower())
+        paso(
+            tid,
+            "impacto",
+            **{k: v for k, v in impacto.items() if k != "detalle"},
+            detalle=" | ".join(impacto["detalle"]),
+        )
+    revisor, rev, meta_rev = (
+        ("", "", {})
+        if "--sin-revision" in sys.argv
+        else revisar(
+            tid, t.get("titulo", ""), diff, impacto_texto(impacto), alcance=alcance_txt
+        )
+    )
+    bloqueante = bool(
+        re.search(r"seguimiento:?\**\s*s[ií]\b.*bloqueante", rev, re.I | re.S)
+    ) or ("bloqueante" in rev.lower() and "no bloqueante" not in rev.lower())
     # Al revisor se le pide expresamente que NO bloquee por no ver el diff entero, y aun así lo
     # hace (Ola 233, C7: «el diff está truncado» sobre un commit que había pasado tsc y vitest).
     # Si el MOTIVO del bloqueo es solo eso, se degrada a aviso: el corte del diff es nuestro.
     if bloqueante:
         motivo = rev.lower().rsplit("seguimiento", 1)[-1][:400]
-        excusas = ("truncad", "cortad", "incompleto", "no puedo verificar", "falta de contexto",
-                   "no veo el", "no se muestra", "diff parcial")
-        defectos = ("null", "undefined", "fuga", "inyec", "xss", "clave", "token", "borra",
-                    "pérdida de datos", "perdida de datos", "bucle infinito", "condición de carrera")
+        excusas = (
+            "truncad",
+            "cortad",
+            "incompleto",
+            "no puedo verificar",
+            "falta de contexto",
+            "no veo el",
+            "no se muestra",
+            "diff parcial",
+        )
+        defectos = (
+            "null",
+            "undefined",
+            "fuga",
+            "inyec",
+            "xss",
+            "clave",
+            "token",
+            "borra",
+            "pérdida de datos",
+            "perdida de datos",
+            "bucle infinito",
+            "condición de carrera",
+        )
         if any(x in motivo for x in excusas) and not any(x in motivo for x in defectos):
             bloqueante = False
-            evento("aviso", tid, "revisión marcada bloqueante SOLO por no ver el diff entero → degradada a aviso "
-                                 "(el commit ya pasó tsc y vitest)")
+            evento(
+                "aviso",
+                tid,
+                "revisión marcada bloqueante SOLO por no ver el diff entero → degradada a aviso "
+                "(el commit ya pasó tsc y vitest)",
+            )
         else:
-            segundo, dictamen, confirma = confirmar_bloqueo(tid, t.get("titulo", ""), motivo, diff)
+            segundo, dictamen, confirma = confirmar_bloqueo(
+                tid, t.get("titulo", ""), motivo, diff
+            )
             if segundo and not confirma:
                 bloqueante = False
-                evento("aviso", tid, "bloqueo NO confirmado por %s → degradado a aviso: %s" % (segundo, dictamen[:160]))
-                rev += "\n\n**Segunda opinión (%s): el bloqueo no se sostiene.** %s" % (segundo, dictamen[:400])
+                evento(
+                    "aviso",
+                    tid,
+                    "bloqueo NO confirmado por %s → degradado a aviso: %s"
+                    % (segundo, dictamen[:160]),
+                )
+                rev += "\n\n**Segunda opinión (%s): el bloqueo no se sostiene.** %s" % (
+                    segundo,
+                    dictamen[:400],
+                )
             elif segundo:
-                evento("aviso", tid, "bloqueo CONFIRMADO por %s: %s" % (segundo, dictamen[:160]))
-                rev += "\n\n**Segunda opinión (%s): el bloqueo se confirma.** %s" % (segundo, dictamen[:400])
-    paso(tid, "revision", revisor=revisor or "ninguno", bloqueante=bloqueante, caracteres=len(rev or ""),
-         segundos=meta_rev.get("segundos", 0), intentos=meta_rev.get("intentos", 0))    # Ola 261: quién respondió, cuánto tardó y cuántos se probaron
+                evento(
+                    "aviso",
+                    tid,
+                    "bloqueo CONFIRMADO por %s: %s" % (segundo, dictamen[:160]),
+                )
+                rev += "\n\n**Segunda opinión (%s): el bloqueo se confirma.** %s" % (
+                    segundo,
+                    dictamen[:400],
+                )
+    paso(
+        tid,
+        "revision",
+        revisor=revisor or "ninguno",
+        bloqueante=bloqueante,
+        caracteres=len(rev or ""),
+        segundos=meta_rev.get("segundos", 0),
+        intentos=meta_rev.get("intentos", 0),
+    )  # Ola 261: quién respondió, cuánto tardó y cuántos se probaron
     if rev:
         with cerrojo("revisiones"), open(REVIS, "a", encoding="utf-8") as f:
-            f.write("\n## %s · %s · %s: %s\n**Revisión (%s)**\n\n%s\n" % (ahora()[:16], t.get("ola", ""), tid, t.get("titulo", ""), revisor, rev))
+            f.write(
+                "\n## %s · %s · %s: %s\n**Revisión (%s)**\n\n%s\n"
+                % (
+                    ahora()[:16],
+                    t.get("ola", ""),
+                    tid,
+                    t.get("titulo", ""),
+                    revisor,
+                    rev,
+                )
+            )
     # ── Nodo de aprobación humana (patrón Flowise «human in the loop») ─────────────────
     # Con `--aprobacion`, `STARSEED_APROBACION=1` o `"aprobacion": true` en la tarea, NADA se
     # integra en main sin el visto bueno de Alex: la rama queda lista, el Mando la enseña con su
@@ -3431,37 +5003,97 @@ def ejecutar(t, intento=1):
     # (2026-09-06, Ola 261, P4) Y desde la Ola 261 tampoco se integra un bloqueo confirmado ni
     # un alcance incompleto aunque la cola no pidiera aprobación: pasan por el mismo visto
     # bueno. `--integrar-bloqueantes` recupera el comportamiento antiguo si se fuerza a mano.
-    aprobacion_pedida = ("--aprobacion" in sys.argv or os.environ.get("STARSEED_APROBACION") == "1"
-                         or bool(t.get("aprobacion")))
-    pedir_vb, motivo_vb = debe_pedir_visto_bueno(bloqueante, medida.get("faltan", []), aprobacion_pedida, sys.argv)
+    aprobacion_pedida = (
+        "--aprobacion" in sys.argv
+        or os.environ.get("STARSEED_APROBACION") == "1"
+        or bool(t.get("aprobacion"))
+    )
+    pedir_vb, motivo_vb = debe_pedir_visto_bueno(
+        bloqueante, medida.get("faltan", []), aprobacion_pedida, sys.argv
+    )
     if pedir_vb:
         _, sha_rama = sh(["git", "rev-parse", "--short", "HEAD"], cwd=wt, timeout=30)
         _, stat = sh(["git", "diff", "HEAD~1", "--stat"], cwd=wt, timeout=60)
         resumen_rev = (rev or "").strip().replace("\n", " ")[:400]
-        set_estado(tid, estado="esperando_aprobacion", modelo=modelo_ok, segundos=int(time.time() - t0),
-                   nota="rama ola/%s (%s) lista · revisión %s" % (tid, sha_rama.strip(), "bloqueante" if bloqueante else ("ok" if rev else "sin revisor")))
+        set_estado(
+            tid,
+            estado="esperando_aprobacion",
+            modelo=modelo_ok,
+            segundos=int(time.time() - t0),
+            nota="rama ola/%s (%s) lista · revisión %s"
+            % (
+                tid,
+                sha_rama.strip(),
+                "bloqueante" if bloqueante else ("ok" if rev else "sin revisor"),
+            ),
+        )
         latir(tid, "esperando aprobación", modelo=modelo_ok)
         # `motivo` (Ola 261, P4): por qué pide visto bueno — cola, bloqueo confirmado o alcance
         # incompleto. El Mando lo enseña junto al resto de campos (rama, sha, diffstat, revisión,
         # bloqueante, modelo, impacto), que se mantienen idénticos al flujo ya existente.
-        evento("esperando_aprobacion", tid, "rama ola/%s lista (%s): tsc 0 · tests ok · revisión %s. Espera tu visto bueno en el Mando. Motivo: %s."
-               % (tid, sha_rama.strip(), "bloqueante" if bloqueante else ("ok" if rev else "sin revisor"), motivo_vb),
-               datos={"rama": "ola/" + tid, "sha": sha_rama.strip(), "diffstat": stat[-1500:], "revision": resumen_rev, "bloqueante": bloqueante, "modelo": modelo_ok,
-                      "impacto": impacto, "motivo": motivo_vb})
-        t_esp = time.time(); decision = None
+        evento(
+            "esperando_aprobacion",
+            tid,
+            "rama ola/%s lista (%s): tsc 0 · tests ok · revisión %s. Espera tu visto bueno en el Mando. Motivo: %s."
+            % (
+                tid,
+                sha_rama.strip(),
+                "bloqueante" if bloqueante else ("ok" if rev else "sin revisor"),
+                motivo_vb,
+            ),
+            datos={
+                "rama": "ola/" + tid,
+                "sha": sha_rama.strip(),
+                "diffstat": stat[-1500:],
+                "revision": resumen_rev,
+                "bloqueante": bloqueante,
+                "modelo": modelo_ok,
+                "impacto": impacto,
+                "motivo": motivo_vb,
+            },
+        )
+        t_esp = time.time()
+        decision = None
         while time.time() - t_esp < ESPERA_APROBACION_S and not FIN.is_set():
             decision = APROBACIONES.pop(tid, None)
             if decision or tid in SOLTADAS:
                 break
             FIN.wait(10)
         if tid in SOLTADAS:
-            limpiar_worktree(tid, borrar_rama=False); return
+            limpiar_worktree(tid, borrar_rama=False)
+            return
         if decision == "rechazar":
-            set_estado(tid, estado="rechazada", modelo=modelo_ok, segundos=int(time.time() - t0), nota="rechazada desde el Mando; rama ola/%s conservada" % tid)
-            evento("rechazada", tid, "rechazada desde el Mando; rama ola/%s conservada" % tid); limpiar_worktree(tid, borrar_rama=False); return
+            set_estado(
+                tid,
+                estado="rechazada",
+                modelo=modelo_ok,
+                segundos=int(time.time() - t0),
+                nota="rechazada desde el Mando; rama ola/%s conservada" % tid,
+            )
+            evento(
+                "rechazada",
+                tid,
+                "rechazada desde el Mando; rama ola/%s conservada" % tid,
+            )
+            limpiar_worktree(tid, borrar_rama=False)
+            return
         if decision != "aprobar":
-            set_estado(tid, estado="pendiente_aprobacion", modelo=modelo_ok, segundos=int(time.time() - t0), nota="sin decisión en %d h; rama ola/%s conservada" % (ESPERA_APROBACION_S // 3600, tid))
-            evento("pendiente_aprobacion", tid, "nadie decidió en %d h: rama ola/%s conservada, sin integrar" % (ESPERA_APROBACION_S // 3600, tid)); limpiar_worktree(tid, borrar_rama=False); return
+            set_estado(
+                tid,
+                estado="pendiente_aprobacion",
+                modelo=modelo_ok,
+                segundos=int(time.time() - t0),
+                nota="sin decisión en %d h; rama ola/%s conservada"
+                % (ESPERA_APROBACION_S // 3600, tid),
+            )
+            evento(
+                "pendiente_aprobacion",
+                tid,
+                "nadie decidió en %d h: rama ola/%s conservada, sin integrar"
+                % (ESPERA_APROBACION_S // 3600, tid),
+            )
+            limpiar_worktree(tid, borrar_rama=False)
+            return
     # integración en main (serializada): rebase sobre main y ff
     latir(tid, "integrando", modelo=modelo_ok)
     # ⚠️ El reintento tras un conflicto se lanza FUERA del cerrojo: la Ola 240 (VZ6, 00:13) se
@@ -3474,33 +5106,81 @@ def ejecutar(t, intento=1):
             sh(["git", "rebase", "--abort"], cwd=wt, timeout=60)
             limpiar_worktree(tid, borrar_rama=False)
             if intento == 1:
-                set_estado(tid, estado="conflicto", modelo=modelo_ok, segundos=int(time.time() - t0), nota="reintento sobre main nuevo")
-                evento("reintento", tid, "conflicto al integrar → se repite la tarea sobre el main actual")
+                set_estado(
+                    tid,
+                    estado="conflicto",
+                    modelo=modelo_ok,
+                    segundos=int(time.time() - t0),
+                    nota="reintento sobre main nuevo",
+                )
+                evento(
+                    "reintento",
+                    tid,
+                    "conflicto al integrar → se repite la tarea sobre el main actual",
+                )
                 reintentar = True
             else:
-                set_estado(tid, estado="conflicto", modelo=modelo_ok, segundos=int(time.time() - t0), nota="rama ola/%s conservada" % tid)
-                evento("conflicto", tid, "conflicto persistente; rama ola/%s conservada" % tid); return
+                set_estado(
+                    tid,
+                    estado="conflicto",
+                    modelo=modelo_ok,
+                    segundos=int(time.time() - t0),
+                    nota="rama ola/%s conservada" % tid,
+                )
+                evento(
+                    "conflicto",
+                    tid,
+                    "conflicto persistente; rama ola/%s conservada" % tid,
+                )
+                return
         else:
             _, sha = sh(["git", "rev-parse", "--short", "HEAD"], cwd=wt, timeout=30)
-            rc, out = sh(["git", "merge", "--ff-only", "ola/" + tid], cwd=ROOT, timeout=120)
+            rc, out = sh(
+                ["git", "merge", "--ff-only", "ola/" + tid], cwd=ROOT, timeout=120
+            )
             if rc != 0:
-                set_estado(tid, estado="conflicto", modelo=modelo_ok, segundos=int(time.time() - t0), nota="ff falló: " + out[-100:])
-                evento("conflicto", tid, "merge ff falló: " + out[-200:]); limpiar_worktree(tid, borrar_rama=False); return
+                set_estado(
+                    tid,
+                    estado="conflicto",
+                    modelo=modelo_ok,
+                    segundos=int(time.time() - t0),
+                    nota="ff falló: " + out[-100:],
+                )
+                evento("conflicto", tid, "merge ff falló: " + out[-200:])
+                limpiar_worktree(tid, borrar_rama=False)
+                return
     if reintentar:
         return ejecutar(t, intento=2)
     limpiar_worktree(tid)
-    paso(tid, "integracion", sha=sha.strip(), resultado="ff", intento=intento, segundos_total=int(time.time() - t0))
+    paso(
+        tid,
+        "integracion",
+        sha=sha.strip(),
+        resultado="ff",
+        intento=intento,
+        segundos_total=int(time.time() - t0),
+    )
     # (2026-09-06, Ola 261, P4) Si llega aquí con bloqueante=True es porque alguien aprobó en el
     # Mando o porque se forzó con `--integrar-bloqueantes`: el evento es `commit` (se integró) y
     # la nota lo dice, en vez de publicar «bloqueante» sobre un commit ya dentro de main.
     if bloqueante:
-        detalle = ("integrado con --integrar-bloqueantes" if "--integrar-bloqueantes" in sys.argv
-                   else "bloqueo revisado y aprobado en el Mando")
+        detalle = (
+            "integrado con --integrar-bloqueantes"
+            if "--integrar-bloqueantes" in sys.argv
+            else "bloqueo revisado y aprobado en el Mando"
+        )
         nota = "%s · revisión bloqueante (%s)" % (sha.strip(), detalle)
     else:
         nota = "%s · revisión %s" % (sha.strip(), "ok" if rev else "sin revisor")
-    set_estado(tid, estado="commit", modelo=modelo_ok, segundos=int(time.time() - t0), nota=nota)
+    set_estado(
+        tid,
+        estado="commit",
+        modelo=modelo_ok,
+        segundos=int(time.time() - t0),
+        nota=nota,
+    )
     evento("commit", tid, "%s integrado en main (%s)" % (sha.strip(), nota))
+
 
 def ejecutar_seguro(t):
     """Un trabajador nunca muere en silencio: excepción → fallo + evento + limpieza."""
@@ -3510,65 +5190,141 @@ def ejecutar_seguro(t):
         ejecutar(t)
     except ArriendoPerdido as e:
         perdido = True
-        evento("reasignada", t["id"], str(e) + "; conservo su worktree para que continúe allí")
+        evento(
+            "reasignada",
+            t["id"],
+            str(e) + "; conservo su worktree para que continúe allí",
+        )
     except Exception as e:
         set_estado(t["id"], estado="fallo", nota=("excepción: " + str(e))[:200])
         evento("fallo", t["id"], "excepción: " + str(e)[:300])
-        try: limpiar_worktree(t["id"], borrar_rama=False)
-        except Exception: pass
+        try:
+            limpiar_worktree(t["id"], borrar_rama=False)
+        except Exception:
+            pass
     finally:
         estado_final = PROG.get(t["id"], {}).get("estado")
         if not perdido:
-            try: cerrar_arriendo(t["id"], estado_final == "commit", time.time() - inicio)
-            except Exception: pass
+            try:
+                cerrar_arriendo(t["id"], estado_final == "commit", time.time() - inicio)
+            except Exception:
+                pass
         else:
             MEDIO_POR_TAREA.pop(t["id"], None)
         latir(t["id"], "hecho")
 
+
 # ── director ────────────────────────────────────────────────────────────────
 def main():
-    if len(sys.argv) < 2: print(__doc__); sys.exit(1)
+    if len(sys.argv) < 2:
+        print(__doc__)
+        sys.exit(1)
     cola = json.load(open(sys.argv[1], encoding="utf-8"))
     cola = cola if isinstance(cola, list) else cola.get("tareas") or []
-    workers = int(sys.argv[sys.argv.index("--workers") + 1]) if "--workers" in sys.argv else int(os.environ.get("STARSEED_WORKERS", "5"))
-    solo = set(sys.argv[sys.argv.index("--solo") + 1].split(",")) if "--solo" in sys.argv else None
+    workers = (
+        int(sys.argv[sys.argv.index("--workers") + 1])
+        if "--workers" in sys.argv
+        else int(os.environ.get("STARSEED_WORKERS", "5"))
+    )
+    solo = (
+        set(sys.argv[sys.argv.index("--solo") + 1].split(","))
+        if "--solo" in sys.argv
+        else None
+    )
     tareas = [t for t in cola if (not solo or t["id"] in solo)]
     _, sucio = sh(["git", "status", "--porcelain"], timeout=30)
     if sucio.strip():
-        print("working tree de main con cambios sin commit: %d archivos — no arranco" % len(sucio.splitlines())); sys.exit(2)
-    os.makedirs(OLAS, exist_ok=True); os.makedirs(LOGS, exist_ok=True)
+        print(
+            "working tree de main con cambios sin commit: %d archivos — no arranco"
+            % len(sucio.splitlines())
+        )
+        sys.exit(2)
+    os.makedirs(OLAS, exist_ok=True)
+    os.makedirs(LOGS, exist_ok=True)
     validar_modelos()
     TAREAS_POR_ID.update({t["id"]: t for t in tareas})
-    CAPACIDADES_MEDIOS["opencode"] = min(workers, max(1, int(os.environ.get("STARSEED_CAPACIDAD_OPENCODE", str(workers)))))
-    CAPACIDADES_MEDIOS["codex"] = min(workers, max(1, int(os.environ.get("STARSEED_CAPACIDAD_CODEX", str(workers)))))
+    CAPACIDADES_MEDIOS["opencode"] = min(
+        workers,
+        max(1, int(os.environ.get("STARSEED_CAPACIDAD_OPENCODE", str(workers)))),
+    )
+    CAPACIDADES_MEDIOS["codex"] = min(
+        workers, max(1, int(os.environ.get("STARSEED_CAPACIDAD_CODEX", str(workers))))
+    )
     anunciar_medios_locales()
     threading.Thread(target=vigilante, daemon=True).start()
     threading.Thread(target=supervisor_proveedores, daemon=True).start()
     # La cola entera viaja en el bus: el Puente de Mando de la OTRA máquina no tiene este
     # archivo (starseed_memory_root/ no se versiona) y sin esto la ola de la nube no aparecía.
-    evento("arranque", "", "%d tareas · %d trabajadores · medios sincronizados (lease %ds, colgado %ds) · %s · lanzado desde %s"
-           % (len(tareas), workers, ARRIENDO_S, COLGADO_S, os.path.basename(sys.argv[1]), MEDIO),
-           datos={"cola": os.path.basename(sys.argv[1]).replace(".json", ""), "workers": workers,
-                  "tareas": [{"id": t["id"], "ola": t.get("ola", ""), "titulo": t.get("titulo", "")[:200],
-                              "depende": list(t.get("depende") or t.get("dependencias") or []),
-                              "archivos": list(t.get("archivos") or [])[:12],
-                              # El prompt también viaja: así la OTRA máquina puede relanzar o corregir la
-                              # cola desde su Diseñador de olas sin tener el archivo.
-                              "prompt": (t.get("prompt") or "")[:6000],
-                              **({"modelo": t["modelo"]} if t.get("modelo") else {})} for t in cola]})
-    relevo_nota("enjambre v2 arranca: %d tareas, %d trabajadores (%s)" % (len(tareas), workers, os.path.basename(sys.argv[1])))
+    evento(
+        "arranque",
+        "",
+        "%d tareas · %d trabajadores · medios sincronizados (lease %ds, colgado %ds) · %s · lanzado desde %s"
+        % (
+            len(tareas),
+            workers,
+            ARRIENDO_S,
+            COLGADO_S,
+            os.path.basename(sys.argv[1]),
+            MEDIO,
+        ),
+        datos={
+            "cola": os.path.basename(sys.argv[1]).replace(".json", ""),
+            "workers": workers,
+            "tareas": [
+                {
+                    "id": t["id"],
+                    "ola": t.get("ola", ""),
+                    "titulo": t.get("titulo", "")[:200],
+                    "depende": list(t.get("depende") or t.get("dependencias") or []),
+                    "archivos": list(t.get("archivos") or [])[:12],
+                    # El prompt también viaja: así la OTRA máquina puede relanzar o corregir la
+                    # cola desde su Diseñador de olas sin tener el archivo.
+                    "prompt": (t.get("prompt") or "")[:6000],
+                    **({"modelo": t["modelo"]} if t.get("modelo") else {}),
+                }
+                for t in cola
+            ],
+        },
+    )
+    relevo_nota(
+        "enjambre v2 arranca: %d tareas, %d trabajadores (%s)"
+        % (len(tareas), workers, os.path.basename(sys.argv[1]))
+    )
     MIAS.update(t["id"] for t in tareas)
-    pendientes = {t["id"]: t for t in tareas}; hechas = set(); activos = {}
-    def terminado(tid): return PROG.get(tid, {}).get("estado") in ("commit", "sin_cambios", "fallo", "fallo_tsc", "fallo_tests", "conflicto", "reasignada", "rechazada", "pendiente_aprobacion", "bloqueada")
+    pendientes = {t["id"]: t for t in tareas}
+    hechas = set()
+    activos = {}
+
+    def terminado(tid):
+        return PROG.get(tid, {}).get("estado") in (
+            "commit",
+            "sin_cambios",
+            "fallo",
+            "fallo_tsc",
+            "fallo_tests",
+            "conflicto",
+            "reasignada",
+            "rechazada",
+            "pendiente_aprobacion",
+            "bloqueada",
+        )
+
     while pendientes or activos:
         for tid in list(activos):
-            if not activos[tid].is_alive(): activos.pop(tid); hechas.add(tid)
+            if not activos[tid].is_alive():
+                activos.pop(tid)
+                hechas.add(tid)
         for tid, t in list(pendientes.items()):
             if tid in SOLTADAS:
-                pendientes.pop(tid); hechas.add(tid); continue
-            if len(activos) >= workers: break
+                pendientes.pop(tid)
+                hechas.add(tid)
+                continue
+            if len(activos) >= workers:
+                break
             deps = list(t.get("depende") or []) + list(t.get("depende_opcional") or [])
-            if not all(d in hechas or (d not in pendientes and d not in activos) for d in deps):
+            if not all(
+                d in hechas or (d not in pendientes and d not in activos) for d in deps
+            ):
                 continue
             # Terminadas no basta: tienen que estar INTEGRADAS (Ola 264: G3 corrió con J1
             # «sin_cambios» y buscó un archivo que nunca llegó a main). Solo se bloquea por
@@ -3578,64 +5334,120 @@ def main():
                 nota = "dependencia no integrada: " + ", ".join(malas)
                 set_estado(tid, estado="bloqueada", modelo="-", segundos=0, nota=nota)
                 evento("bloqueada", tid, nota)
-                pendientes.pop(tid); hechas.add(tid); continue
-            opcionales_malas = ["%s (%s)" % (d, PROG.get(d, {}).get("estado"))
-                                for d in (t.get("depende_opcional") or [])
-                                if PROG.get(d, {}).get("estado") not in (None, "commit")]
+                pendientes.pop(tid)
+                hechas.add(tid)
+                continue
+            opcionales_malas = [
+                "%s (%s)" % (d, PROG.get(d, {}).get("estado"))
+                for d in (t.get("depende_opcional") or [])
+                if PROG.get(d, {}).get("estado") not in (None, "commit")
+            ]
             if opcionales_malas:
-                evento("aviso", tid, "dependencia opcional no integrada (sigo igual): " + ", ".join(opcionales_malas))
+                evento(
+                    "aviso",
+                    tid,
+                    "dependencia opcional no integrada (sigo igual): "
+                    + ", ".join(opcionales_malas),
+                )
             arriendo = reservar_tarea(t)
             if not arriendo:
                 if tid in ARRENDADAS_EXTERNAS and terminado(tid):
-                    pendientes.pop(tid); hechas.add(tid)
+                    pendientes.pop(tid)
+                    hechas.add(tid)
                 continue
-            evento("reasignado", tid, "arriendo tomado por %s hasta +%ds%s" % (
-                arriendo["medio"], ARRIENDO_S,
-                " · reanudo el worktree existente" if arriendo.get("reanudar") else ""),
-                datos={"medio": arriendo["medio"], "vence": arriendo.get("vence"),
-                       "area": arriendo.get("area"), "reanudar": bool(arriendo.get("reanudar"))})
-            th = threading.Thread(target=ejecutar_seguro, args=(t,), daemon=True); th.start()
-            activos[tid] = th; pendientes.pop(tid)
+            evento(
+                "reasignado",
+                tid,
+                "arriendo tomado por %s hasta +%ds%s"
+                % (
+                    arriendo["medio"],
+                    ARRIENDO_S,
+                    " · reanudo el worktree existente"
+                    if arriendo.get("reanudar")
+                    else "",
+                ),
+                datos={
+                    "medio": arriendo["medio"],
+                    "vence": arriendo.get("vence"),
+                    "area": arriendo.get("area"),
+                    "reanudar": bool(arriendo.get("reanudar")),
+                },
+            )
+            th = threading.Thread(target=ejecutar_seguro, args=(t,), daemon=True)
+            th.start()
+            activos[tid] = th
+            pendientes.pop(tid)
         time.sleep(3)
     FIN.set()
     # verificación final en main
     evento("verificando", "", "tsc + vitest sobre main")
     log = os.path.join(LOGS, "verificacion-final.log")
-    rc, errs = tsc(ROOT, log); rcv, vout = vitest(ROOT, log)
+    rc, errs = tsc(ROOT, log)
+    rcv, vout = vitest(ROOT, log)
     est = {tid: PROG.get(tid, {}).get("estado") for tid in [t["id"] for t in tareas]}
     resumen = " · ".join("%s=%s" % (k, v) for k, v in est.items())
-    bloqueadas = {k: PROG.get(k, {}).get("nota", "") for k, v in est.items() if v == "bloqueada"}
+    bloqueadas = {
+        k: PROG.get(k, {}).get("nota", "") for k, v in est.items() if v == "bloqueada"
+    }
     if bloqueadas:
         # Las bloqueadas se listan APARTE del resumen: no fallaron, nunca se ejecutaron
         # porque su dependencia no llegó a integrarse (2026-09-07, Ola 261).
         resumen += " · BLOQUEADAS(no ejecutadas): " + " | ".join(
-            "%s (%s)" % (k, v)[:150] for k, v in bloqueadas.items())
+            "%s (%s)" % (k, v)[:150] for k, v in bloqueadas.items()
+        )
     if not errs and rcv == 0:
-        evento("verificado", "", "main en verde: tsc 0 errores · vitest ok · " + resumen)
+        evento(
+            "verificado", "", "main en verde: tsc 0 errores · vitest ok · " + resumen
+        )
     else:
-        evento("verificacion_fallida", "", "tsc %d errores · vitest rc %s · %s" % (len(errs), rcv, resumen))
+        evento(
+            "verificacion_fallida",
+            "",
+            "tsc %d errores · vitest rc %s · %s" % (len(errs), rcv, resumen),
+        )
     _, head = sh(["git", "rev-parse", "--short", "HEAD"], timeout=30)
-    nombre_cola = (os.path.basename(sys.argv[1]) if len(sys.argv) > 1 else "").replace(".json", "")
-    evento("cola_terminada", "", "HEAD %s · %s" % (head.strip(), resumen), datos={"cola": nombre_cola})
+    nombre_cola = (os.path.basename(sys.argv[1]) if len(sys.argv) > 1 else "").replace(
+        ".json", ""
+    )
+    evento(
+        "cola_terminada",
+        "",
+        "HEAD %s · %s" % (head.strip(), resumen),
+        datos={"cola": nombre_cola},
+    )
     # Último latido, ya sin tareas vivas: si no, el Mando de la otra máquina seguía viendo
     # «P2 escribiendo» hasta 4 min después de terminar (el latido anterior seguía en ventana).
     for d in LATIDOS.values():
         d["fase"] = "hecho"
     _volcar_latidos()
     try:
-        evento("latido", "", "cola terminada · sin tareas activas · %d integradas"
-               % sum(1 for v in PROG.values() if v.get("estado") == "commit"), datos=foto_enjambre(""))
+        evento(
+            "latido",
+            "",
+            "cola terminada · sin tareas activas · %d integradas"
+            % sum(1 for v in PROG.values() if v.get("estado") == "commit"),
+            datos=foto_enjambre(""),
+        )
     except Exception:
         pass
     # UN mismo informe de cierre para todos: archivo del relevo + bus + Hermes.
     # Claude usa ese texto tal cual en su respuesta, así Alex lee lo mismo aquí y allá.
     try:
-        subprocess.run([os.path.expanduser("~/.local/bin/starseed-informe-ola"), sys.argv[1]], timeout=180)
+        subprocess.run(
+            [os.path.expanduser("~/.local/bin/starseed-informe-ola"), sys.argv[1]],
+            timeout=180,
+        )
     except Exception:
         pass
-    try: desconectar_medios_locales()
-    except Exception: pass
-    relevo_nota("enjambre v2 terminó %s: HEAD %s · %s" % (os.path.basename(sys.argv[1]), head.strip(), resumen))
+    try:
+        desconectar_medios_locales()
+    except Exception:
+        pass
+    relevo_nota(
+        "enjambre v2 terminó %s: HEAD %s · %s"
+        % (os.path.basename(sys.argv[1]), head.strip(), resumen)
+    )
+
 
 if __name__ == "__main__":
     main()
