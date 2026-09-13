@@ -29,6 +29,13 @@ desde el Telegram.
 import importlib.util, json, os, re, subprocess, sys, time
 from pathlib import Path
 
+DIRECTORIO = os.path.dirname(os.path.abspath(__file__))
+if DIRECTORIO not in sys.path:
+    sys.path.insert(0, DIRECTORIO)
+# La decisión de abrir sola una puerta de visto bueno vive en un módulo PURO, para que su
+# puerta la pueda medir sin efectos (mismo patrón que `vigilante_logica.py`).
+from aprobacion_logica import porque_no_verde as _verde
+
 RAIZ = os.environ.get("STARSEED_ROOT") or "/Users/alex/Documents/starseed-os-main"
 OLAS = os.path.join(RAIZ, "starseed_memory_root", "olas")
 INTERVALO_S = int(os.environ.get("STARSEED_DIRECTOR_S", "180"))
@@ -64,8 +71,13 @@ def aprobar(ids):
 
 
 def revision_ok(entrada):
-    nota = (entrada.get("nota") or "").lower()
-    return "revisión ok" in nota or "revision ok" in nota
+    """Verde = no queda ninguna razón para no aprobarla sola (módulo puro)."""
+    return _verde(entrada) == ""
+
+
+def porque_no_verde(entrada):
+    """La razón corta de por qué NO se aprueba sola, o "" si sí."""
+    return _verde(entrada)
 
 
 def minutos_quieta(entrada, ahora, latido=None):
@@ -244,7 +256,7 @@ def revisar():
         for k, v in esperando
         if revision_ok(v) and minutos_quieta(v, ahora, latido=latidos_tareas.get(k)) >= ESPERA_MIN
     ]
-    sin_revision = [k for k, v in esperando if not revision_ok(v)]
+    sin_revision = [(k, porque_no_verde(v)) for k, v in esperando if not revision_ok(v)]
 
     sin_hora = [
         k
@@ -269,9 +281,11 @@ def revisar():
         )
         hecho.append("aprobadas %d" % len(maduras))
     if sin_revision:
+        # Cada una con SU razón: un aviso que solo dice «no las apruebo» no le sirve a nadie
+        # para decidir, y además enseña a saltarse la puerta.
         _p.decir(
-            "en la puerta SIN revisión en verde, no las apruebo: %s"
-            % ", ".join(sin_revision),
+            "en la puerta y NO las apruebo — %s"
+            % "; ".join("%s: %s" % (k, r) for k, r in sin_revision),
             "director",
             "aviso",
         )

@@ -52,7 +52,11 @@ def libres_mb():
             return int(m.group(1)) * pagina if m else 0
         return (n("Pages free") + n("Pages inactive")) // (1024 * 1024)
     except Exception:
-        return 99999          # ante la duda, no tocar nada
+        # None, no un número gordo. Un centinela alto solo es prudente en UN sentido: no
+        # congela, pero cumple `libres > REANUDAR_SOBRE_MB` y por tanto REANUDABA el motor
+        # cuando `vm_stat` fallaba. «Ante la duda, no tocar nada» tiene que valer en los dos
+        # sentidos, y un solo número no puede hacerlo. (2026-09-12)
+        return None
 
 
 def procesos():
@@ -79,6 +83,33 @@ def procesos():
     return motor, orq
 
 
+def pid_marcado():
+    """El pid que ESTE guardia congeló, o None.
+
+    La marca guarda IDENTIDAD, no un sí/no. Con `os.path.exists` bastaba que el archivo
+    existiera para creer «este lo congelamos nosotros», y el pid cambia: BitNet se reinicia
+    (segfalla en `dequantize_row_i2_s`) y la marca vieja se queda en /tmp. Con esa marca
+    sobrante, un motor que el dueño hubiera parado él mismo se reanudaba solo — justo lo que
+    la cabecera de este módulo promete que no pasa jamás. (2026-09-12)
+    """
+    try:
+        return int(open(MARCA, encoding="utf-8").read().strip())
+    except Exception:
+        return None
+
+
+def marcar(pid):
+    with open(MARCA, "w", encoding="utf-8") as f:
+        f.write(str(pid))
+
+
+def desmarcar():
+    try:
+        os.remove(MARCA)
+    except Exception:
+        pass
+
+
 def main():
     print("Guardia de memoria · congela bajo %d MB con el enjambre vivo, "
           "reanuda sobre %d MB" % (CONGELAR_BAJO_MB, REANUDAR_SOBRE_MB))
@@ -91,17 +122,30 @@ def main():
                 pid, estado = motor
                 congelado = "T" in estado
                 libres = libres_mb()
-                nuestro = os.path.exists(MARCA)
-                if orq and not congelado and libres < CONGELAR_BAJO_MB:
-                    os.kill(pid, signal.SIGSTOP)
-                    open(MARCA, "w").write(str(pid))
+                marcado = pid_marcado()
+                nuestro = marcado is not None and marcado == pid
+                # Marca de otro motor ya muerto: se retira en cuanto se ve un motor vivo y
+                # suelto, para que no autorice a reanudar al siguiente que alguien pare.
+                if marcado is not None and not nuestro and not congelado:
+                    desmarcar()
+                if libres is None:
+                    pass          # sin medida de memoria no se congela NI se reanuda
+                elif orq and not congelado and libres < CONGELAR_BAJO_MB:
+                    # La marca se escribe ANTES de la señal: si el guardia muere entre las dos,
+                    # lo peor que queda es una marca sobrante (que no casará ningún pid), no un
+                    # motor congelado que nadie volverá a reanudar nunca.
+                    marcar(pid)
+                    try:
+                        os.kill(pid, signal.SIGSTOP)
+                    except Exception:
+                        desmarcar()
+                        raise
                     _p.decir("BitNet congelado (pid %d): %d MB libres con el enjambre "
                              "trabajando. Vuelve solo cuando pare." % (pid, libres),
                              "guardia", "aviso")
                 elif congelado and nuestro and (not orq) and libres > REANUDAR_SOBRE_MB:
                     os.kill(pid, signal.SIGCONT)
-                    try: os.remove(MARCA)
-                    except Exception: pass
+                    desmarcar()
                     _p.decir("BitNet reanudado (pid %d): el enjambre paró y hay %d MB "
                              "libres. Astraura recupera su motor local." % (pid, libres),
                              "guardia", "hecho")

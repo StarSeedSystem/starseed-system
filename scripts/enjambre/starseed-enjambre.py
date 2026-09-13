@@ -5017,11 +5017,21 @@ def ejecutar(t, intento=1):
         _, sha_rama = sh(["git", "rev-parse", "--short", "HEAD"], cwd=wt, timeout=30)
         _, stat = sh(["git", "diff", "HEAD~1", "--stat"], cwd=wt, timeout=60)
         resumen_rev = (rev or "").strip().replace("\n", " ")[:400]
+        # El veredicto y el MOTIVO van en campos propios, no solo en la prosa de `nota`
+        # (2026-09-12). `nota` decía «revisión ok» con solo que el revisor hubiese contestado
+        # algo, y el director de orquestación decidía aprobar sola la rama buscando esa
+        # subcadena: una puerta levantada por ALCANCE INCOMPLETO se abría igual a los 10
+        # minutos. `revisor` dice qué pasó con el revisor —"respondio" no es "aprobó"— y
+        # `motivo_vb` conserva POR QUÉ se pidió el visto bueno, que es lo que hay que respetar.
+        revisor_dice = "bloqueante" if bloqueante else ("respondio" if rev else "sin_revisor")
         set_estado(
             tid,
             estado="esperando_aprobacion",
             modelo=modelo_ok,
             segundos=int(time.time() - t0),
+            revisor=revisor_dice,
+            motivo_vb=motivo_vb,
+            faltan=[str(x) for x in list(medida.get("faltan", []))[:8]],
             nota="rama ola/%s (%s) lista · revisión %s"
             % (
                 tid,
