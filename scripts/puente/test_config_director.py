@@ -5,6 +5,7 @@
 import json, os, sys, tempfile, unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import config_director
 from config_director import DEFAULTS, cargar, validar
 
 
@@ -85,6 +86,38 @@ class ValidarDirector(unittest.TestCase):
         self.assertTrue(any("proveedores_apartados" in m for m in e))
         self.assertTrue(any("aviso_checkin" in m for m in e))
         self.assertTrue(any("tope_haiku_dia" in m for m in e))
+
+
+class TestEscaleraConfigurable(unittest.TestCase):
+    """La escalera de niveles se puede fijar desde el fichero de ajustes."""
+
+    def _cargar(self, contenido):
+        import json, tempfile, os
+        fd, ruta = tempfile.mkstemp(suffix=".json")
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            json.dump(contenido, fh)
+        try:
+            return config_director.cargar(ruta)
+        finally:
+            os.unlink(ruta)
+
+    def test_niveles_validos_se_guardan(self):
+        cfg, avisos = self._cargar({"escalada": {"niveles": ["libre"] * 8}})
+        self.assertEqual(cfg["escalada"]["niveles"], ["libre"] * 8)
+        self.assertEqual(avisos, [])
+
+    def test_niveles_invalidos_se_descartan_con_aviso(self):
+        cfg, avisos = self._cargar({"escalada": {"niveles": ["opus"]}})
+        self.assertNotIn("niveles", cfg["escalada"])
+        self.assertTrue(any("niveles" in a for a in avisos))
+
+    def test_niveles_vacios_se_descartan(self):
+        cfg, _ = self._cargar({"escalada": {"niveles": []}})
+        self.assertNotIn("niveles", cfg["escalada"])
+
+    def test_validar_avisa_de_niveles_malos(self):
+        e = config_director.validar({"escalada": {"niveles": "libre"}})
+        self.assertTrue(any("niveles" in m for m in e))
 
 
 if __name__ == "__main__":

@@ -59,6 +59,18 @@ def _es_lista_str(v):
     return isinstance(v, list) and all(isinstance(x, str) for x in v)
 
 
+NIVELES_VALIDOS = ("libre", "haiku", "sonnet")
+
+
+def _es_lista_niveles(v):
+    """Escalera válida: lista no vacía de niveles conocidos."""
+    return (
+        isinstance(v, list)
+        and len(v) > 0
+        and all(isinstance(x, str) and x in NIVELES_VALIDOS for x in v)
+    )
+
+
 def validar(d):
     errores = []
     for k, v in d.items():
@@ -82,6 +94,11 @@ def _validar_escalada(escalada):
             errores.append("'escalada.%s' debe ser un entero >= 0" % k)
         elif k == "activa" and not isinstance(v, bool):
             errores.append("'escalada.activa' debe ser un booleano")
+        elif k == "niveles" and not _es_lista_niveles(v):
+            errores.append(
+                "'escalada.niveles' debe ser una lista no vacía de %s"
+                % ", ".join(NIVELES_VALIDOS)
+            )
     return errores
 
 
@@ -122,5 +139,12 @@ def cargar(ruta=None):
                     avisos.append("'escalada.%s' inválido, se usa %s" % (k, esc[k]))
             elif k == "activa" and isinstance(v, bool):
                 esc[k] = v
+            elif k == "niveles":
+                if _es_lista_niveles(v):
+                    esc[k] = list(v)
+                else:
+                    avisos.append(
+                        "'escalada.niveles' inválido, se usa la escalera por defecto"
+                    )
         cfg["escalada"] = esc
     return cfg, avisos
