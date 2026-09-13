@@ -30,7 +30,10 @@ SERVICIOS = {
     "director":  ([PY3, P("director-orquestacion.py")], "/tmp/starseed-director.log", True),
     "guardia":   ([PY3, P("guardia-memoria.py")], "/tmp/starseed-guardia.log", True),
     "eco":       ([PY3, P("eco-enjambre.py"), "/tmp/enjambre.log"], "/tmp/starseed-eco.log", True),
-    "ecoides":   ([PY3, P("eco-a-ides.py")], "/tmp/starseed-ecoides.log", True),
+    # ecoides (eco-a-ides.py) RETIRADO el 2026-09-13 por orden de Alex: empujaba un
+    # resumen del canal a la sesión de Codex cada 120 s con `codex queue`, y eso
+    # agotaba los créditos de ChatGPT. El canal se lee cuando se quiere
+    # (`starseed-puente escuchar`); nadie lo empuja solo a un chat de pago.
     # El de Telegram ya funcionaba así: el shell sólo carga las claves de ~/.hermes/.env
     # (fuera de ~/Documents, sin TCC de por medio) y se convierte en python3 con exec.
     "telegram":  (["/bin/zsh", "-c",
