@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """Puertas de repartir_nube: qué se va a la nube y qué se queda en la Mac."""
 
-import os, sys, unittest
+import datetime, json, os, shutil, sys, tempfile, unittest
 
 sys.path.insert(0, os.path.dirname(__file__))
 from repartir_nube import elegir, marcar, MODELO_NUBE
@@ -29,11 +29,16 @@ class Elegir(unittest.TestCase):
         self.assertEqual(r[0]["modelo"], MODELO_NUBE)
 
     def test_ola_actual_nunca_se_reparte(self):
-        r = elegir(COLAS, {"B1": {}}, [], ola_actual="317")
+        prog = {"A1": {"estado": "integrada"}, "A2": {"estado": "en_curso"}, "B1": {}}
+        r = elegir(COLAS, prog, [], ola_actual="317")
         self.assertEqual(r, [])
 
     def test_estados_vivos_o_cerrados_no_se_reparten(self):
-        prog = {"A1": {"estado": "pendiente"}, "B1": {"estado": "en_curso"}}
+        prog = {
+            "A1": {"estado": "pendiente"},
+            "A2": {"estado": "integrada"},
+            "B1": {"estado": "en_curso"},
+        }
         r = elegir(COLAS, prog, [], ola_actual="999")
         self.assertEqual(r, [])
 
@@ -49,6 +54,69 @@ class Marcar(unittest.TestCase):
         self.assertEqual(p["A1"]["medio"], "nube")
         self.assertIn("2026-09-13", p["A1"]["nota"])
         self.assertEqual(PROG["A1"]["estado"], "fallo_tests")
+
+
+class OlaExacta(unittest.TestCase):
+    def test_ola_se_compara_por_numero_exacto_no_prefijo(self):
+        colas = [
+            ("cola-3179.json", [{"id": "C1", "ola": "Ola 3179"}]),
+            ("cola-317.json", [{"id": "C2", "ola": "317"}]),
+        ]
+        r = elegir(colas, {}, [], ola_actual="317")
+        self.assertEqual([t["id"] for t in r], ["C1"])
+
+
+class RepartoScript(unittest.TestCase):
+    def setUp(self):
+        import importlib.util
+
+        ruta = os.path.join(os.path.dirname(__file__), "repartir-a-nube.py")
+        esp = importlib.util.spec_from_file_location("repartir_a_nube_cli", ruta)
+        self.mod = importlib.util.module_from_spec(esp)
+        esp.loader.exec_module(self.mod)
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+
+    def test_nombre_lleva_fecha_hora_y_nunca_sobrescribe(self):
+        ahora = datetime.datetime(2026, 9, 13, 2, 30)
+        n1 = self.mod.nombre_destino(ahora, self.tmp)
+        open(os.path.join(self.tmp, n1), "w").close()
+        n2 = self.mod.nombre_destino(ahora, self.tmp)
+        self.assertEqual(n1, "cola-nube-20260913-0230.json")
+        self.assertEqual(n2, "cola-nube-20260913-0230-2.json")
+
+    def test_carpeta_destino_se_crea_si_falta(self):
+        raiz = self.tmp
+        os.makedirs(os.path.join(raiz, "enjambre"))
+        olas = os.path.join(raiz, "starseed_memory_root", "olas")
+        os.makedirs(olas)
+        json.dump(
+            {"tareas": [{"id": "Z1", "ola": "111"}]},
+            open(os.path.join(olas, "cola-999.json"), "w"),
+        )
+        m = self.mod
+        m.RAIZ, m.OLAS = raiz, olas
+        m.PROGRESO = os.path.join(olas, "progreso.json")
+        m.DESTINO_DIR = os.path.join(raiz, "enjambre", "colas")
+        m.asuntos_main = lambda r: []
+        m.validar_raiz = lambda r: None
+        m.puente.decir = lambda *a, **k: None
+        sys.argv = ["repartir-a-nube.py"]
+        m.main()
+        salidas = os.listdir(m.DESTINO_DIR)
+        self.assertEqual(len(salidas), 1)
+        datos = json.load(open(os.path.join(m.DESTINO_DIR, salidas[0])))
+        self.assertEqual([t["id"] for t in datos["tareas"]], ["Z1"])
+
+    def test_git_log_que_falla_aborta_con_error_claro(self):
+        with self.assertRaises(SystemExit) as ctx:
+            self.mod.asuntos_main(self.tmp)
+        self.assertIn("git log", str(ctx.exception))
+
+    def test_raiz_sin_repo_ni_colas_aborta(self):
+        with self.assertRaises(SystemExit) as ctx:
+            self.mod.validar_raiz(self.tmp)
+        self.assertIn("STARSEED_ROOT", str(ctx.exception))
 
 
 if __name__ == "__main__":

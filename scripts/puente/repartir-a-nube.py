@@ -26,6 +26,38 @@ PROGRESO = os.path.join(OLAS, "progreso.json")
 DESTINO_DIR = os.path.join(RAIZ, "enjambre", "colas")
 
 
+def validar_raiz(raiz):
+    """STARSEED_ROOT debe ser un repo con carpeta de colas; si no, se aborta."""
+    if not os.path.isdir(os.path.join(raiz, ".git")) or not os.path.isdir(
+        os.path.join(raiz, "enjambre", "colas")
+    ):
+        raise SystemExit(
+            "reparto: STARSEED_ROOT inválido (%s): falta .git o enjambre/colas" % raiz
+        )
+
+
+def nombre_destino(ahora, destino_dir):
+    """cola-nube-<AAAAMMDD-HHMM>.json; si ya existe, sufijo -2, -3... Nunca sobrescribe."""
+    base = "cola-nube-%s" % ahora.strftime("%Y%m%d-%H%M")
+    nombre, i = base + ".json", 1
+    while os.path.exists(os.path.join(destino_dir, nombre)):
+        i += 1
+        nombre = "%s-%d.json" % (base, i)
+    return nombre
+
+
+def asuntos_main(raiz):
+    """Asuntos de main; si git falla se aborta (nunca lista vacía silenciosa)."""
+    r = subprocess.run(
+        ["git", "log", "main", "--format=%s"], cwd=raiz, capture_output=True, text=True
+    )
+    if r.returncode != 0:
+        raise SystemExit(
+            "reparto: git log falló (%s): %s" % (r.returncode, r.stderr.strip())
+        )
+    return r.stdout.splitlines()
+
+
 def colas_fuente():
     vivos = [
         n
@@ -61,16 +93,15 @@ def main():
     ap.add_argument("--publicar", action="store_true")
     args = ap.parse_args()
 
+    validar_raiz(RAIZ)
     colas = colas_fuente()
     progreso = (
         json.load(open(PROGRESO, encoding="utf-8")) if os.path.exists(PROGRESO) else {}
     )
-    asuntos = subprocess.run(
-        ["git", "log", "main", "--format=%s"], cwd=RAIZ, capture_output=True, text=True
-    ).stdout.splitlines()
+    asuntos = asuntos_main(RAIZ)
     elegidas = elegir(colas, progreso, asuntos, ola_actual(colas), tope=args.tope)
-    fecha = datetime.date.today().strftime("%Y%m%d")
-    nombre = "cola-nube-%s.json" % fecha
+    ahora = datetime.datetime.now()
+    fecha = ahora.strftime("%Y%m%d")
     mensaje = "Reparto a la nube %s: %d tareas (%s)" % (
         fecha,
         len(elegidas),
@@ -80,6 +111,8 @@ def main():
     if args.simular or not elegidas:
         print("[reparto] %s (simulación)" % mensaje)
         return
+    os.makedirs(DESTINO_DIR, exist_ok=True)
+    nombre = nombre_destino(ahora, DESTINO_DIR)
     ruta = os.path.join(DESTINO_DIR, nombre)
     json.dump(
         {"ola": "nube-%s" % fecha, "tareas": elegidas},

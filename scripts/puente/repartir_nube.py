@@ -9,15 +9,24 @@ el estado ya declaró agotado (`fallo*`) o innecesario (`sin_cambios`) y lo que
 nunca se tocó: eso es justo lo que la nube puede hacer gratis con LLM7.
 """
 
+import re
+
 from vigilante_logica import id_en_asuntos
 
 MODELO_NUBE = "llm7/minimax-m2.7"
 ESTADOS_REPARTIBLES = {None, "sin_cambios", "fallo", "fallo_tests", "fallo_tsc"}
 
 
+def numero_ola(texto):
+    """Número de ola: `Ola 317` o guarismo suelto; None si no hay."""
+    m = re.search(r"Ola (\d+)", texto, re.IGNORECASE) or re.search(r"(\d+)", texto)
+    return int(m.group(1)) if m else None
+
+
 def elegir(colas, progreso, asuntos_main, ola_actual, tope=20):
     """Devuelve hasta `tope` candidatas, deduplicadas por id, con modelo nube."""
     salida, vistas = [], set()
+    n_actual = numero_ola(str(ola_actual)) if ola_actual else None
     for nombre, tareas in colas:
         for tarea in tareas:
             if not isinstance(tarea, dict) or not tarea.get("id"):
@@ -26,7 +35,8 @@ def elegir(colas, progreso, asuntos_main, ola_actual, tope=20):
             if tid in vistas:
                 continue
             ola = str(tarea.get("ola") or "")
-            if ola_actual and ola.startswith(ola_actual):
+            n_ola = numero_ola(ola)
+            if n_actual is not None and n_ola is not None and n_ola == n_actual:
                 continue
             entrada = progreso.get(tid)
             estado = entrada.get("estado") if isinstance(entrada, dict) else None
