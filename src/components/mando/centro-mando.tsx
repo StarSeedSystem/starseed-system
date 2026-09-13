@@ -70,6 +70,15 @@ const PanelCanales = dynamic(
         loading: () => <p className="text-sm text-white/50">Cargando los canales…</p>,
     },
 );
+// Ola 294 · AR4 (2026-09-08): la pestaña «Astra» (director de orquestación que
+// audita y propone) también carga diferida y SOLO se monta al abrirla.
+const PanelAstra = dynamic(
+    () => import("@/components/mando/panel-astra").then((m) => m.PanelAstra),
+    {
+        ssr: false,
+        loading: () => <p className="text-sm text-white/50">Cargando a Astra…</p>,
+    },
+);
 import {
     ControlVozDelMando,
     VozMandoProvider,
@@ -97,6 +106,7 @@ const PESTANAS = [
     { id: "commits", etiqueta: "Commits pendientes" },
     { id: "publicar", etiqueta: "Publicar" },
     { id: "canales", etiqueta: "Canales StarSeed" },
+    { id: "astra", etiqueta: "Astra" },
     { id: "taller", etiqueta: "Taller del agente" },
     { id: "flota", etiqueta: "Flota" },
     { id: "neurona", etiqueta: "Neurona" },
@@ -730,6 +740,11 @@ export function CentroMando() {
                         la pestaña (chunk diferido + render condicional); Radix lo
                         desmonta al salir, como con las voces y la oficina. */}
                     {pestana === "canales" ? <PanelCanales /> : null}
+                </TabsContent>
+                <TabsContent value="astra">
+                    {/* Ola 294 · AR4: mismo patrón que Canales — chunk diferido y
+                        montaje condicional: el panel no cuesta nada hasta pedirlo. */}
+                    {pestana === "astra" ? <PanelAstra /> : null}
                 </TabsContent>
                 <TabsContent value="taller">
                     {pestana === "taller" ? <PanelTaller /> : null}
