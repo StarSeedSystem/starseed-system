@@ -23,6 +23,19 @@ ESTADOS_RECUPERABLES = {"sin_cambios", "fallo", "fallo_tsc", "fallo_tests", "con
 NIVELES = ("libre", "libre", "haiku", "haiku", "sonnet")
 
 
+def niveles_de(config):
+    """Escalera efectiva. Manda config['escalada']['niveles']; si no, NIVELES.
+
+    Regla del area (memoria): el trabajo lo hace la flota gratuita. Los
+    niveles de pago solo se pisan si la persona los pone en la configuracion,
+    y ademas requieren escalada.activa.
+    """
+    niveles = (config or {}).get("escalada", {}).get("niveles")
+    if isinstance(niveles, (list, tuple)) and niveles:
+        return tuple(str(x) for x in niveles)
+    return NIVELES
+
+
 def siguiente_paso(entrada, gasto, config, hoy, modelos_anthropic, ahora=None):
     """Calcula el siguiente paso para reintentar una tarea estancada.
 
@@ -44,16 +57,18 @@ def siguiente_paso(entrada, gasto, config, hoy, modelos_anthropic, ahora=None):
     if not isinstance(entrada, dict) or entrada.get("estado") not in ESTADOS_RECUPERABLES:
         return None
 
+    niveles = niveles_de(config)
     n = entrada.get("intentos_auto", 0)
-    if n >= len(NIVELES):
+    if n >= len(niveles):
+        resumen = ", ".join("%s×%d" % (x, niveles.count(x)) for x in sorted(set(niveles), key=niveles.index))
         return {
             "estado": "bloqueante",
             "modelo": None,
             "cuenta": None,
-            "motivo": "escalada agotada tras %d intentos (libre×2, haiku×2, sonnet×1): requiere una persona" % n,
+            "motivo": "escalada agotada tras %d intentos (%s): requiere una persona" % (n, resumen),
         }
 
-    nivel = NIVELES[n]
+    nivel = niveles[n]
 
     # Nivel "libre": reintentar con el modelo original (None significa que lo elige el orquestador)
     if nivel == "libre":
@@ -61,7 +76,7 @@ def siguiente_paso(entrada, gasto, config, hoy, modelos_anthropic, ahora=None):
             "estado": "pendiente",
             "modelo": None,
             "cuenta": None,
-            "motivo": "reintento gratuito %d/2" % (n + 1),
+            "motivo": "reintento gratuito %d/%d" % (n + 1, niveles.count("libre")),
         }
 
     # Nivel "haiku" o "sonnet": escalada a pago

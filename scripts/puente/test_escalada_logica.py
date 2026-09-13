@@ -3,6 +3,7 @@
 """Tests de la escalada de reintentos. Módulo puro sin I/O."""
 
 import unittest
+import escalada_logica
 from datetime import datetime
 from escalada_logica import (
     siguiente_paso,
@@ -365,3 +366,31 @@ class TestEscaladaLogica(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestNivelesConfigurables(unittest.TestCase):
+    """La escalera la manda la configuración: por defecto, trabajo gratuito."""
+
+    def test_sin_config_usa_los_niveles_por_defecto(self):
+        self.assertEqual(escalada_logica.niveles_de({}), escalada_logica.NIVELES)
+        self.assertEqual(escalada_logica.niveles_de(None), escalada_logica.NIVELES)
+
+    def test_config_manda_sobre_los_niveles_por_defecto(self):
+        cfg = {"escalada": {"niveles": ["libre"] * 8}}
+        self.assertEqual(escalada_logica.niveles_de(cfg), ("libre",) * 8)
+
+    def test_escalera_solo_gratis_reintenta_ocho_veces_y_luego_bloquea(self):
+        cfg = {"escalada": {"activa": False, "niveles": ["libre"] * 8}}
+        for n in range(8):
+            paso = escalada_logica.siguiente_paso(
+                {"estado": "sin_cambios", "intentos_auto": n}, {}, cfg, "2026-09-13", [], "2026-09-13 21:00:00"
+            )
+            self.assertEqual(paso["estado"], "pendiente")
+            self.assertIsNone(paso["modelo"])
+            self.assertIsNone(paso["cuenta"])
+            self.assertIn("%d/8" % (n + 1), paso["motivo"])
+        paso = escalada_logica.siguiente_paso(
+            {"estado": "sin_cambios", "intentos_auto": 8}, {}, cfg, "2026-09-13", [], "2026-09-13 21:00:00"
+        )
+        self.assertEqual(paso["estado"], "bloqueante")
+        self.assertIn("libre×8", paso["motivo"])
