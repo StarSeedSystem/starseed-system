@@ -37,7 +37,7 @@ import { PanelNeurona } from "@/components/mando/panel-neurona";
 import { PanelAprendizaje } from "@/components/mando/panel-aprendizaje";
 import { PanelPublicaciones } from "@/components/mando/panel-publicaciones";
 import { PanelPublicacion } from "@/components/mando/panel-publicacion";
-import { DirectorAgentes } from "@/components/mando/director-agentes";
+import { ControlDirectores } from "@/components/mando/control-directores";
 import { AjustesDirector } from "@/components/mando/ajustes-director";
 // Ola 272 · O3B (2026-09-07): la pestaña «Oficina 3D». El componente carga
 // Three.js, así que entra con `next/dynamic` sin SSR y SOLO se monta al abrir
@@ -716,7 +716,7 @@ export function CentroMando() {
                     <PanelGrafo />
                 </TabsContent>
                 <TabsContent value="director">
-                    <DirectorAgentes />
+                    <ControlDirectores />
                 </TabsContent>
                 <TabsContent value="oficina">
                     {/* Ola 272 · O3B: Three.js solo se carga al abrir la pestaña.

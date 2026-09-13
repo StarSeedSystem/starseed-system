@@ -81,4 +81,49 @@ describe("director-fuentes", () => {
         const canal = await leerCanal(path.join(raiz, "no-existe"));
         expect(canal).toEqual([]);
     });
+
+    it("leerLatidos descarta archivos más antiguos que 15 minutos e incluye solo los vivos", async () => {
+        const olasTmp = mkdtempSync(path.join(tmpdir(), "latidos-vivos-"));
+        const olas = path.join(olasTmp, "starseed_memory_root", "olas");
+        mkdirSync(olas, { recursive: true });
+
+        const ahora = Math.floor(Date.now() / 1000);
+        const hace2Dias = new Date((ahora - 172800) * 1000);
+        const ahoraDate = new Date(ahora * 1000);
+
+        const formatoLocal = (d: Date): string => {
+            const año = d.getFullYear();
+            const mes = String(d.getMonth() + 1).padStart(2, "0");
+            const dia = String(d.getDate()).padStart(2, "0");
+            const horas = String(d.getHours()).padStart(2, "0");
+            const mins = String(d.getMinutes()).padStart(2, "0");
+            const segs = String(d.getSeconds()).padStart(2, "0");
+            return `${año}-${mes}-${dia} ${horas}:${mins}:${segs}`;
+        };
+
+        writeFileSync(
+            path.join(olas, "latidos-viejo.json"),
+            JSON.stringify({
+                t: formatoLocal(hace2Dias),
+                tareas: { tarea1: { fase: "escribiendo", avance: 1000, bytes: 50, modelo: "nim/test", intento: 1 } },
+            }),
+        );
+
+        writeFileSync(
+            path.join(olas, "latidos-vivo.json"),
+            JSON.stringify({
+                t: formatoLocal(ahoraDate),
+                tareas: { tarea2: { fase: "revisando", avance: 2000, bytes: 100, modelo: "xkiro/test", intento: 2 } },
+            }),
+        );
+
+        const latidos = await leerLatidos(olasTmp, ahora);
+        expect(latidos).toHaveLength(1);
+        expect(latidos[0].tareas?.tarea1).toBeUndefined();
+        expect(latidos[0].tareas?.tarea2).toEqual({
+            fase: "revisando", avance: 2000, bytes: 100, modelo: "xkiro/test", intento: 2,
+        });
+
+        rmSync(olasTmp, { recursive: true, force: true });
+    });
 });

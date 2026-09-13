@@ -29,13 +29,22 @@ function tareaLatidoDe(v: unknown): TareaLatido | null {
     if (fase === undefined || avance === undefined) return null;
     return { fase, avance, bytes: num(d.bytes), modelo: texto(d.modelo), intento: num(d.intento) };
 }
-export async function leerLatidos(raiz: string): Promise<LatidoEntrada[]> { // olas/latidos-*.json: fase y avance de cada tarea
+function parsearFechaLocal(s: unknown): number | undefined {
+    if (typeof s === "number" && Number.isFinite(s)) return s;
+    if (typeof s !== "string" || !s.trim()) return undefined;
+    const ms = new Date(s.replace(" ", "T")).getTime();
+    return Number.isFinite(ms) ? Math.floor(ms / 1000) : undefined;
+}
+export async function leerLatidos(raiz: string, ahora = Date.now() / 1000): Promise<LatidoEntrada[]> {
     const dir = path.join(raiz, "starseed_memory_root", "olas"), latidos: LatidoEntrada[] = [];
     for (const nombre of await listar(dir, "latidos-")) {
-        const crudo = objeto(await leerJsonOpcional(path.join(dir, nombre))), tareas: Record<string, TareaLatido> = {};
+        const crudo = objeto(await leerJsonOpcional(path.join(dir, nombre)));
+        const t = parsearFechaLocal(crudo.t);
+        if (!t || ahora - t > 900) continue; // descarta más antiguos que 15 minutos (900 s)
+        const tareas: Record<string, TareaLatido> = {};
         for (const [id, v] of Object.entries(objeto(crudo.tareas))) {
-            const t = tareaLatidoDe(v);
-            if (t) tareas[id] = t;
+            const tarea = tareaLatidoDe(v);
+            if (tarea) tareas[id] = tarea;
         }
         latidos.push({ tareas });
     }
