@@ -25,6 +25,24 @@ Todo lo que dice cualquier agente o modelo va al canal común `starseed_memory_r
 | 2 · dirección | Astra (Codex/ChatGPT) como director principal | cupo de ChatGPT | cuando hace falta | diseña olas, decide dependencias, verifica en localhost |
 | 3 · revisión de precisión | **Claude Fable / Opus** (Cowork o Claude Code) | créditos de Claude, los caros | **una vez por hora** (tarea programada) y cuando algo se rompe | audita a los directores (¿reconciliaron? ¿aprobaron bien?), la salud completa del Mando medidor a medidor, y **arregla lo que la capa 1 no sabe arreglar** |
 
+**Escalera de escalado (regla de Alex, 2026-09-12) — «0 en curso con pendientes» es una alarma, no un
+estado.** Cuando hay tareas pendientes y nadie escribe, o una tarea falla, **los directores lo resuelven
+solos, sin esperar a nadie**: el vigilante relanza; el director reconcilia `progreso.json`, reintenta
+UNA vez con otro proveedor lo que quedó `sin_cambios` (p316H) y, si sigue sin salir, **sube de
+peldaño** (p316J + p316K):
+
+| peldaño | quién escribe | cuándo | tope |
+| --- | --- | --- | --- |
+| 0 | flota gratuita (§5), 2 intentos con proveedores distintos | siempre primero | — |
+| 1 | **Claude más barato** (el `haiku` más reciente del catálogo vivo de Anthropic) | tras 2 intentos gratis fallidos | 20 tareas/día |
+| 2 | **Claude medio** (`sonnet` más reciente) | solo si la tarea es compleja (≥3 archivos, `dificultad: alta`, o revisión bloqueante de diseño) y haiku falló | 5 tareas/día |
+| 3 | Claude caro (`opus`/`fable`) | **nunca solo**: lo pide una persona | — |
+
+Cuando se agota un tope o una tarea falla en el peldaño 2, el director **para y avisa a Alex** en el canal
+(y por Telegram) con la tarea, lo probado y la decisión que hace falta. Los modelos de pago **no entran
+en la rotación gratuita**: solo se usan cuando la tarea trae `modelo: anthropic/...` explícito, y el
+gasto del día queda en `starseed_memory_root/olas/escalada-gasto.json`.
+
 **Regla de cuotas:** la cuota de Claude se renueva por **ventana de 5 horas** y por **semana**; la
 de ChatGPT/Codex por ventana de horas y semana también; las gratuitas por día o por minuto (§5).
 Nunca se gasta la ventana entera de un proveedor caro: si Claude va por encima del 80 % de la

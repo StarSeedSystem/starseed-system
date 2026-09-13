@@ -22,6 +22,11 @@ const nextConfig: NextConfig = {
   transpilePackages: ['@splinetool/react-spline'],
   experimental: {
     optimizePackageImports: ['lucide-react', 'date-fns', 'recharts', '@radix-ui/react-icons'],
+    // 2026-09-12: en la Mac de 8 GB un build en frío (sin .next/cache) murió con «JavaScript heap
+    // out of memory» a 2,5 GB de heap. Estas dos opciones bajan el pico de memoria de webpack a
+    // cambio de un build algo más lento; en Vercel no cambian nada que importe.
+    webpackMemoryOptimizations: true,
+    cpus: 1,
   },
   // Chequeo de tipos REACTIVADO (Adenda 130): `tsc --noEmit` pasa limpio hoy, así que
   // activar el gate tiene coste 0 y evita que una regresión de tipos se despliegue en
