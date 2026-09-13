@@ -1,56 +1,64 @@
+/**
+ * GET /api/mando/director — el modelo real del Director del Puente de Mando:
+ * agentes vivos/colgados por latido, tareas pendientes de las colas fuente,
+ * salud de proveedores contra el catálogo de modelos, servicios launchd y el
+ * canal común (Ola 318 · p318B). Nunca devuelve claves ni rutas del disco.
+ */
 import { NextResponse } from "next/server";
+import path from "node:path";
+import os from "node:os";
 import { guardianMando } from "@/lib/mando/guardian";
-import { leerLatidosCompletos } from "@/lib/mando/lector-local";
+import { raizDelProyecto } from "@/lib/mando/raiz";
+import {
+    leerLatidos, leerProgreso, leerColasFuente, leerSalud, leerModelos,
+    leerServicios, leerCanal, leerAsuntosMain, leerJsonOpcional,
+} from "@/lib/mando/director-fuentes";
+import { resumenAgentes, resumenPendientes, resumenProveedores, resumenDirectores } from "@/lib/mando/director-datos";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const QUIETO_MAX_SEGUNDOS = 7200; // 2 horas
+function numeroDe(v: unknown): number {
+    return typeof v === "object" && v !== null && !Array.isArray(v)
+        ? Number((v as Record<string, unknown>).gastoHoy) || 0
+        : 0;
+}
+function objetoDe(v: unknown): Record<string, unknown> {
+    return v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
+}
 
-/**
- * GET /api/mando/director — mismo origen de datos que el Puente de Mando.
- * Lee TODOS los latidos activos y filtra por actividad reciente.
- */
-export async function GET(peticion: Request) {
+export async function GET(peticion: Request): Promise<Response> {
     const veto = await guardianMando(peticion);
     if (veto) return veto;
-    try {
-        const todos = await leerLatidosCompletos();
 
-        const agentes = todos
-            .filter((l) => (l.quietoSegundos ?? 0) <= QUIETO_MAX_SEGUNDOS)
-            .map((l) => {
-                const proveedor = (l.modelo || "").split("/")[0] || "—";
-                return {
-                    id: l.tarea,
-                    nombre: l.tarea,
-                    fase: l.fase || "escribiendo",
-                    modelo: l.modelo || "—",
-                    proveedor,
-                    ola: l.cola || "—",
-                    bytes: l.bytesLog ?? 0,
-                    minutos: l.minutos ?? 0,
-                    quietoSegundos: l.quietoSegundos ?? 0,
-                    vivo: (l.quietoSegundos ?? 0) <= 600 || (l.fase || "") === "escribiendo",
-                    donde: l.donde || "mac",
-                };
-            });
+    const raiz = raizDelProyecto();
+    const home = os.homedir();
+    const ahora = Math.floor(Date.now() / 1000);
 
-        const proveedores = new Set(agentes.map((a) => a.proveedor));
-        const apinexOk = proveedores.has("apinex");
+    const [latidos, progreso, colasFuente, salud, modelos, servicios, canal, asuntosMain, escaladaCruda, configCruda] =
+        await Promise.all([
+            leerLatidos(raiz), leerProgreso(raiz), leerColasFuente(raiz), leerSalud(home), leerModelos(raiz),
+            leerServicios(), leerCanal(raiz), leerAsuntosMain(raiz),
+            leerJsonOpcional(path.join(raiz, "starseed_memory_root", "olas", "escalada-gasto.json")),
+            leerJsonOpcional(path.join(raiz, "starseed_memory_root", "mando", "director-config.json")),
+        ]);
 
-        return NextResponse.json({
-            agentes,
-            totalColas: new Set(agentes.map((a) => a.ola)).size,
-            tareasEjecutables: agentes.filter((a) => a.vivo).length,
-            tareasHechas: 0,
-            tareasPendientes: 0,
-            tareasBloqueadas: 0,
-            olasActivas: [...new Set(agentes.map((a) => a.ola))],
-            proveedoresVivos: proveedores.size,
-            apinexDisponible: apinexOk,
-        }, { headers: { "Cache-Control": "no-store" } });
-    } catch (error) {
-        return NextResponse.json({ error: "Error leyendo director", message: String(error) }, { status: 500 });
-    }
+    // `resumenDirectores` (director-datos.ts) espera el texto crudo de `launchctl list`;
+    // se reconstruye desde los servicios ya parseados por `leerServicios`.
+    const textoServicios = servicios
+        .map((s) => `${s.pid ?? "-"}\t${s.ultimaSalida ?? "-"}\tcom.starseed.${s.etiqueta}`)
+        .join("\n");
+
+    return NextResponse.json(
+        {
+            agentes: resumenAgentes(latidos, ahora),
+            pendientes: resumenPendientes(colasFuente, progreso, asuntosMain),
+            proveedores: resumenProveedores(salud, modelos),
+            directores: resumenDirectores(textoServicios, canal, ahora),
+            escalada: { gastoHoy: numeroDe(escaladaCruda) },
+            config: objetoDe(configCruda),
+            generadoEn: new Date().toISOString(),
+        },
+        { headers: { "Cache-Control": "no-store" } },
+    );
 }
