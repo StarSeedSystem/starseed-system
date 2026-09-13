@@ -22,7 +22,7 @@ export interface ProgresoEntrada {
 export interface ResumenPendientes {
   listas: number; bloqueadas: Array<{ id: string; dependeDe: string[] }>;
   sinCambios: number; fallos: number; esperandoAprobacion: number;
-  integradasHoy: number;
+  integradasHoy: number; fallosDetalle: Array<{ id: string; estado: string; nota: string }>;
 }
 export interface SaludProveedor {
   estado?: string; sin_cupo_hasta?: number; motivo?: string;
@@ -106,7 +106,7 @@ export function resumenPendientes(
   progreso: Record<string, ProgresoEntrada>,
   asuntosMain: string[],
 ): ResumenPendientes {
-  const r: ResumenPendientes = { listas: 0, bloqueadas: [], sinCambios: 0, fallos: 0, esperandoAprobacion: 0, integradasHoy: 0 };
+  const r: ResumenPendientes = { listas: 0, bloqueadas: [], sinCambios: 0, fallos: 0, esperandoAprobacion: 0, integradasHoy: 0, fallosDetalle: [] };
   const vistas = new Set<string>();
   for (const cola of colasFuente) {
     if (!cola.nombre.startsWith("cola-") || cola.nombre.startsWith("cola-auto-")) continue;
@@ -117,7 +117,11 @@ export function resumenPendientes(
       const est = progreso[id]?.estado ?? "pendiente";
       if (est === "bloqueada") r.bloqueadas.push({ id, dependeDe: progreso[id]?.depende_de ?? [] });
       else if (est === "sin_cambios") r.sinCambios += 1;
-      else if (ESTADOS_FALLO.has(est)) r.fallos += 1;
+      else if (ESTADOS_FALLO.has(est)) {
+        r.fallos += 1;
+        const nota = progreso[id]?.nota ?? "";
+        r.fallosDetalle.push({ id, estado: est, nota: nota.slice(0, 160) });
+      }
       else if (est === "esperando_aprobacion" || est === "pendiente_aprobacion") r.esperandoAprobacion += 1;
       else if (idEnAsuntos(id, asuntosMain)) r.integradasHoy += 1;
       else if (est === "pendiente" || est === "commit") r.listas += 1;
