@@ -25,6 +25,7 @@ desde el Telegram.
 
   python3 scripts/puente/director-orquestacion.py
 """
+
 import importlib.util, json, os, re, subprocess, sys, time
 
 RAIZ = os.environ.get("STARSEED_ROOT") or "/Users/alex/Documents/starseed-os-main"
@@ -36,8 +37,10 @@ DISCO_MIN_GB = 5
 PATRON_ORQ = re.compile(r"^[^ ]*[Pp]ython[0-9.]* +-u +.*starseed-enjambre\.py")
 
 _spec = importlib.util.spec_from_file_location(
-    "puente", os.path.join(os.path.dirname(os.path.abspath(__file__)), "puente.py"))
-_p = importlib.util.module_from_spec(_spec); _spec.loader.exec_module(_p)
+    "puente", os.path.join(os.path.dirname(os.path.abspath(__file__)), "puente.py")
+)
+_p = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(_p)
 
 
 def progreso():
@@ -72,8 +75,12 @@ def minutos_quieta(entrada, ahora):
 
 def disco_gb():
     try:
-        s = subprocess.run(["df", "-g", "/System/Volumes/Data"],
-                           capture_output=True, text=True, timeout=20).stdout
+        s = subprocess.run(
+            ["df", "-g", "/System/Volumes/Data"],
+            capture_output=True,
+            text=True,
+            timeout=20,
+        ).stdout
         return int(s.splitlines()[1].split()[3])
     except Exception:
         return 999
@@ -81,7 +88,9 @@ def disco_gb():
 
 def orquestador_vivo():
     try:
-        s = subprocess.run(["ps", "-eo", "args="], capture_output=True, text=True, timeout=20).stdout
+        s = subprocess.run(
+            ["ps", "-eo", "args="], capture_output=True, text=True, timeout=20
+        ).stdout
         return any(PATRON_ORQ.match(l) for l in s.splitlines())
     except Exception:
         return True
@@ -95,7 +104,7 @@ def pendientes_totales():
             if not (f.startswith("cola-") and f.endswith(".json")):
                 continue
             d = json.load(open(os.path.join(OLAS, f), encoding="utf-8"))
-            for t in (d if isinstance(d, list) else d.get("tareas", [])):
+            for t in d if isinstance(d, list) else d.get("tareas", []):
                 if not isinstance(t, dict) or t.get("id") in vistas:
                     continue
                 vistas.add(t["id"])
@@ -113,18 +122,76 @@ def reconciliar_estados():
     try:
         sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
         from reconciliar_progreso import reconciliar
+
         ruta = os.path.join(OLAS, "progreso.json")
-        asuntos = subprocess.run(["git", "log", "main", "--format=%s"], cwd=RAIZ,
-                                 capture_output=True, text=True, timeout=30).stdout.splitlines()
+        asuntos = subprocess.run(
+            ["git", "log", "main", "--format=%s"],
+            cwd=RAIZ,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        ).stdout.splitlines()
         nuevo, cambios = reconciliar(progreso(), asuntos, orquestador_vivo())
         if cambios:
-            json.dump(nuevo, open(ruta, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
-            _p.decir("reconciliado progreso.json (%d): %s%s" % (
-                len(cambios), " · ".join(cambios[:8]), " …" if len(cambios) > 8 else ""),
-                "director", "hecho")
+            json.dump(
+                nuevo, open(ruta, "w", encoding="utf-8"), ensure_ascii=False, indent=1
+            )
+            _p.decir(
+                "reconciliado progreso.json (%d): %s%s"
+                % (
+                    len(cambios),
+                    " · ".join(cambios[:8]),
+                    " …" if len(cambios) > 8 else "",
+                ),
+                "director",
+                "hecho",
+            )
         return cambios
     except Exception as e:
         print("director/reconciliar: %s: %s" % (type(e).__name__, e), flush=True)
+        return []
+
+
+REINTENTOS_POR_PASADA = 3
+
+
+def reintentar_sin_cambios():
+    """Reencola las sin_cambios que no llegaron a main con otro proveedor.
+
+    2026-09-12: cuatro tareas nuevas (p316E, MD7, zAR3, LT3) quedaron sin_cambios por
+    un modelo que devolvió 1,5 KB y cero diff, y ninguna maquinaria las volvía a tocar.
+    Máximo REINTENTOS_POR_PASADA por pasada para no reventar la cola de golpe."""
+    try:
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        from reintento_sin_cambios import candidatas, marcar, modelos_enjambre
+
+        ruta_modelos = os.path.join(RAIZ, "scripts", "enjambre", "starseed-enjambre.py")
+        modelos = modelos_enjambre(ruta_modelos)
+        asuntos = subprocess.run(
+            ["git", "log", "main", "--format=%s"],
+            cwd=RAIZ,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        ).stdout.splitlines()
+        p = progreso()
+        elegidas = candidatas(p, asuntos, modelos)[:REINTENTOS_POR_PASADA]
+        for tid, modelo in elegidas:
+            p = marcar(p, tid, modelo)
+        if elegidas:
+            ruta = os.path.join(OLAS, "progreso.json")
+            json.dump(
+                p, open(ruta, "w", encoding="utf-8"), ensure_ascii=False, indent=1
+            )
+            _p.decir(
+                "reintento de sin_cambios con otro proveedor: %s"
+                % ", ".join("%s→%s" % (t, m) for t, m in elegidas),
+                "director",
+                "hecho",
+            )
+        return elegidas
+    except Exception as e:
+        print("director/reintento: %s: %s" % (type(e).__name__, e), flush=True)
         return []
 
 
@@ -133,37 +200,62 @@ def revisar():
     hecho, ahora = [], time.time()
     if reconciliar_estados():
         hecho.append("reconciliado")
+    if reintentar_sin_cambios():
+        hecho.append("reintentados")
     p = progreso()
 
-    esperando = [(k, v) for k, v in p.items()
-                 if isinstance(v, dict) and v.get("estado") == "esperando_aprobacion"]
-    maduras = [k for k, v in esperando
-               if revision_ok(v) and minutos_quieta(v, ahora) >= ESPERA_MIN]
+    esperando = [
+        (k, v)
+        for k, v in p.items()
+        if isinstance(v, dict) and v.get("estado") == "esperando_aprobacion"
+    ]
+    maduras = [
+        k
+        for k, v in esperando
+        if revision_ok(v) and minutos_quieta(v, ahora) >= ESPERA_MIN
+    ]
     sin_revision = [k for k, v in esperando if not revision_ok(v)]
     if maduras:
         aprobar(maduras)
-        _p.decir("aprobadas solas tras %d min con la revisión en verde: %s"
-                 % (ESPERA_MIN, ", ".join(maduras)), "director", "hecho")
+        _p.decir(
+            "aprobadas solas tras %d min con la revisión en verde: %s"
+            % (ESPERA_MIN, ", ".join(maduras)),
+            "director",
+            "hecho",
+        )
         hecho.append("aprobadas %d" % len(maduras))
     if sin_revision:
-        _p.decir("en la puerta SIN revisión en verde, no las apruebo: %s"
-                 % ", ".join(sin_revision), "director", "aviso")
+        _p.decir(
+            "en la puerta SIN revisión en verde, no las apruebo: %s"
+            % ", ".join(sin_revision),
+            "director",
+            "aviso",
+        )
 
     gb = disco_gb()
     if gb < DISCO_MIN_GB:
-        _p.decir("DISCO al límite: quedan %d GB. Con el disco lleno SQLite se corrompe y los "
-                 "procesos mueren; ya pasó una vez y se llevó por delante la base de Hermes."
-                 % gb, "director", "error")
+        _p.decir(
+            "DISCO al límite: quedan %d GB. Con el disco lleno SQLite se corrompe y los "
+            "procesos mueren; ya pasó una vez y se llevó por delante la base de Hermes."
+            % gb,
+            "director",
+            "error",
+        )
         hecho.append("aviso de disco")
     return hecho
 
 
 def main():
-    print("Director de orquestación · revisa cada %ds · aprueba tras %d min · parte cada %d min"
-          % (INTERVALO_S, ESPERA_MIN, PARTE_CADA_S // 60))
-    _p.decir("Director de orquestación en marcha: apruebo lo que ya pasó su revisión, desatasco "
-             "lo que lleva demasiado parado y doy parte cada hora, haya novedades o no.",
-             "director", "hecho")
+    print(
+        "Director de orquestación · revisa cada %ds · aprueba tras %d min · parte cada %d min"
+        % (INTERVALO_S, ESPERA_MIN, PARTE_CADA_S // 60)
+    )
+    _p.decir(
+        "Director de orquestación en marcha: apruebo lo que ya pasó su revisión, desatasco "
+        "lo que lleva demasiado parado y doy parte cada hora, haya novedades o no.",
+        "director",
+        "hecho",
+    )
     ultimo_parte = 0
     while True:
         try:
@@ -172,10 +264,18 @@ def main():
                 ultimo_parte = time.time()
                 cola, lat, _ = cola_viva()
                 vivos = len((lat or {}).get("tareas", {}))
-                _p.decir("PARTE · orquestador %s · %d tareas en el latido · %d pendientes en total "
-                         "· disco %d GB" % ("vivo" if orquestador_vivo() else "PARADO",
-                                            vivos, pendientes_totales(), disco_gb()),
-                         "director", "mensaje")
+                _p.decir(
+                    "PARTE · orquestador %s · %d tareas en el latido · %d pendientes en total "
+                    "· disco %d GB"
+                    % (
+                        "vivo" if orquestador_vivo() else "PARADO",
+                        vivos,
+                        pendientes_totales(),
+                        disco_gb(),
+                    ),
+                    "director",
+                    "mensaje",
+                )
         except Exception as e:
             print("director: %s: %s" % (type(e).__name__, e), flush=True)
         time.sleep(INTERVALO_S)
