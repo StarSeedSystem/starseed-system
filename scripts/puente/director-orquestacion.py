@@ -152,21 +152,24 @@ def reconciliar_estados():
         return []
 
 
-REINTENTOS_POR_PASADA = 3
-
-
-def reintentar_sin_cambios():
+def reintentar_sin_cambios(apartados=None, tope=3):
     """Reencola las sin_cambios que no llegaron a main con otro proveedor.
 
     2026-09-12: cuatro tareas nuevas (p316E, MD7, zAR3, LT3) quedaron sin_cambios por
     un modelo que devolvió 1,5 KB y cero diff, y ninguna maquinaria las volvía a tocar.
-    Máximo REINTENTOS_POR_PASADA por pasada para no reventar la cola de golpe."""
+    Máximo `tope` por pasada para no reventar la cola de golpe. `apartados` son los
+    proveedores que el config manda no usar."""
+    apartados = apartados or []
     try:
         sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
         from reintento_sin_cambios import candidatas, marcar, modelos_enjambre
 
         ruta_modelos = os.path.join(RAIZ, "scripts", "enjambre", "starseed-enjambre.py")
-        modelos = modelos_enjambre(ruta_modelos)
+        modelos = [
+            m
+            for m in modelos_enjambre(ruta_modelos)
+            if m.split("/", 1)[0] not in apartados
+        ]
         asuntos = subprocess.run(
             ["git", "log", "main", "--format=%s"],
             cwd=RAIZ,
@@ -175,7 +178,7 @@ def reintentar_sin_cambios():
             timeout=30,
         ).stdout.splitlines()
         p = progreso()
-        elegidas = candidatas(p, asuntos, modelos)[:REINTENTOS_POR_PASADA]
+        elegidas = candidatas(p, asuntos, modelos)[:tope]
         for tid, modelo in elegidas:
             p = marcar(p, tid, modelo)
         if elegidas:
