@@ -81,6 +81,17 @@ orquestador (regla rota) con Ollama 7B (no cabe en 8 GB junto al enjambre); lo q
   Lo regenerable (cachés de apps, `node_modules` de worktrees, builds viejos, `npm cache`) se borra sin
   preguntar; lo pesado que haya que conservar (modelos, exportes, vídeos) va al **Google Drive
   vinculado**, nunca a `~/Documents`. Datos de proyecto y de cuentas: jamás, y con copia antes de tocar.
+- **La nube trabaja sola (2026-09-13):** tres latidos programados (`:12`, `:32`, `:52`) nacen en un
+  contenedor limpio, clonan `origin/main`, leen las colas **versionadas** en `enjambre/colas/*.json`
+  (lo único que sobrevive al contenedor es git: `starseed_memory_root/` no existe allí), seleccionan lo
+  pendiente contra `git log main` (una tarea está hecha si su id figura en un asunto), lanzan UN
+  orquestador con 6 trabajadores 25 min, pasan las tres puertas (allí sí cabe `next build`) y publican.
+  Un comando lo hace todo cuando exista: `bash scripts/enjambre/nube-arrancar.sh` (p317A); la Mac
+  reparte el atraso con `scripts/puente/repartir-a-nube.py` (p317B) y marca `reasignada · nube`.
+  **Lo que solo puede hacer Alex:** añadir `StarSeedSystem/starseed-system` a las **fuentes de la
+  sesión** en la app — sin eso el push desde la nube da 403 y todo vuelve como parches en el proyecto.
+  La flota de la nube no tiene claves (por diseño): llm7 y lo que no exija clave; si se quiere NIM allí,
+  la clave va en las variables de entorno de la tarea programada, nunca en el repo ni en un chat.
 - **Más agentes sin más RAM: la máquina virtual de Claude en la nube** (la tarea horaria y las sesiones
   de Cowork) corre su propio orquestador con `STARSEED_MEDIO=nube` y 6 trabajadores sobre un clon de
   `origin/main`; `medios.py` reparte las tareas entre Mac y nube por lease y se reorganiza si uno cae.
