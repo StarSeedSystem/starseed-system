@@ -1,22 +1,56 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """Selección pura de trabajo real para el vigilante del enjambre."""
+
 import re
 
 
 # Estos estados necesitan una decisión humana o ya cerraron la tarea. Repetirlos
 # automáticamente cada 90 s solo gasta proveedores y multiplica el historial.
 ESTADOS_NO_AUTOMATICOS = {
-    "commit", "bloqueante", "sustituida", "rechazada", "sin_cambios",
-    "fallo", "fallo_tsc", "fallo_tests", "conflicto", "reasignada",
-    "pendiente_aprobacion", "esperando_aprobacion", "bloqueada",
+    "commit",
+    "bloqueante",
+    "sustituida",
+    "rechazada",
+    "sin_cambios",
+    "fallo",
+    "fallo_tsc",
+    "fallo_tests",
+    "conflicto",
+    "reasignada",
+    "pendiente_aprobacion",
+    "esperando_aprobacion",
+    "bloqueada",
 }
 
 
 def es_cola_fuente(nombre):
     """Las colas `auto-*` son copias de ejecución, nunca demanda nueva."""
-    return (nombre.startswith("cola-") and nombre.endswith(".json")
-            and not nombre.startswith("cola-auto-"))
+    return (
+        nombre.startswith("cola-")
+        and nombre.endswith(".json")
+        and not nombre.startswith("cola-auto-")
+    )
+
+
+def ultima_salida(lineas, tope=200):
+    """Del registro del orquestador saca (codigo_exit, motivo) de la ÚLTIMA línea
+    `__EXIT__=N`. El motivo es la última línea no vacía anterior. Si no hay
+    marca `__EXIT__`, devuelve (None, "")."""
+    codigo, motivo = None, ""
+    anterior = ""
+    for linea in lineas:
+        limpia = linea.rstrip()
+        if limpia.startswith("__EXIT__="):
+            try:
+                codigo = int(limpia.split("=", 1)[1].strip())
+            except ValueError:
+                codigo, motivo = None, ""
+            else:
+                motivo = anterior[:tope]
+        elif limpia:
+            anterior = limpia
+    return codigo, motivo
 
 
 def id_en_asuntos(tid, asuntos):

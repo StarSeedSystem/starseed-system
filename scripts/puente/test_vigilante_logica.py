@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Pruebas sin disco, procesos ni red de la selección económica de tareas."""
+
 import os
 import sys
 import unittest
@@ -9,7 +10,30 @@ DIRECTORIO = os.path.dirname(os.path.abspath(__file__))
 if DIRECTORIO not in sys.path:
     sys.path.insert(0, DIRECTORIO)
 
-from vigilante_logica import id_en_asuntos, seleccionar_pendientes  # noqa: E402
+from vigilante_logica import id_en_asuntos, seleccionar_pendientes, ultima_salida  # noqa: E402
+
+
+class UltimaSalidaTest(unittest.TestCase):
+    def test_recoge_codigo_y_motivo_de_la_ultima_linea_no_vacia(self):
+        lineas = [
+            "arrancando orquestador con 3 tareas",
+            "working tree de main con cambios sin commit: 1 archivos — no arranco",
+            "",
+            "__EXIT__=2",
+        ]
+        self.assertEqual(
+            ultima_salida(lineas),
+            (2, "working tree de main con cambios sin commit: 1 archivos — no arranco"),
+        )
+
+    def test_sin_marca_exit_no_hay_cierre(self):
+        self.assertEqual(ultima_salida(["todo bien", ""]), (None, ""))
+
+    def test_gana_la_ultima_marca_y_el_motivo_se_recorta(self):
+        lineas = ["primera causa", "__EXIT__=1", "x" * 300, "__EXIT__=0"]
+        codigo, motivo = ultima_salida(lineas)
+        self.assertEqual(codigo, 0)
+        self.assertEqual(motivo, "x" * 200)
 
 
 class VigilanteLogicaTest(unittest.TestCase):
@@ -33,7 +57,9 @@ class VigilanteLogicaTest(unittest.TestCase):
             "A3": {"estado": "bloqueada"},
             "A4": {"estado": "rechazada"},
         }
-        self.assertEqual(seleccionar_pendientes([("cola-311.json", tareas)], progreso, []), [])
+        self.assertEqual(
+            seleccionar_pendientes([("cola-311.json", tareas)], progreso, []), []
+        )
 
     def test_git_manda_sobre_un_en_curso_obsoleto(self):
         tareas = [{"id": "R1F"}, {"id": "R10"}]

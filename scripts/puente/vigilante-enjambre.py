@@ -21,12 +21,13 @@ Telegram se enteran de por qué arrancó o por qué está callado.
 
   python3 scripts/puente/vigilante-enjambre.py
 """
+
 import importlib.util, json, os, subprocess, sys, time
 
 DIRECTORIO = os.path.dirname(os.path.abspath(__file__))
 if DIRECTORIO not in sys.path:
     sys.path.insert(0, DIRECTORIO)
-from vigilante_logica import es_cola_fuente, seleccionar_pendientes
+from vigilante_logica import es_cola_fuente, seleccionar_pendientes, ultima_salida
 
 RAIZ = os.environ.get("STARSEED_ROOT") or "/Users/alex/Documents/starseed-os-main"
 OLAS = os.path.join(RAIZ, "starseed_memory_root", "olas")
@@ -35,10 +36,15 @@ TRABAJADORES = os.environ.get("STARSEED_TRABAJADORES", "5")
 # Un tope por tanda: una cola de noventa tareas es inmanejable y el orquestador
 # se pasa la vida releyendo el progreso en vez de escribir.
 TOPE = int(os.environ.get("STARSEED_TOPE_COLA", "20"))
+REGISTRO = "/tmp/enjambre.log"
+ESPERA_ARRANQUE_S = int(os.environ.get("STARSEED_ESPERA_ARRANQUE_S", "45"))
+PAUSA_TRAS_FALLO_S = int(os.environ.get("STARSEED_PAUSA_FALLO_S", "600"))
 
 _spec = importlib.util.spec_from_file_location(
-    "puente", os.path.join(DIRECTORIO, "puente.py"))
-_p = importlib.util.module_from_spec(_spec); _spec.loader.exec_module(_p)
+    "puente", os.path.join(DIRECTORIO, "puente.py")
+)
+_p = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(_p)
 
 
 def orquestador_vivo():
@@ -48,10 +54,13 @@ def orquestador_vivo():
     porque ahí dentro aparece la ruta del script. Esa trampa ya nos hizo matar
     nuestro propio shell y ver orquestadores fantasma tres veces en un día."""
     try:
-        salida = subprocess.run(["ps", "-eo", "args"], capture_output=True, text=True, timeout=20).stdout
+        salida = subprocess.run(
+            ["ps", "-eo", "args"], capture_output=True, text=True, timeout=20
+        ).stdout
     except Exception:
-        return True          # ante la duda, no lanzar: dos orquestadores es peor
+        return True  # ante la duda, no lanzar: dos orquestadores es peor
     import re
+
     patron = re.compile(r"^[^ ]*[Pp]ython[0-9.]* +-u +.*starseed-enjambre\.py")
     return any(patron.match(l) for l in salida.splitlines())
 
@@ -64,13 +73,16 @@ def pendientes():
         prog = {}
     try:
         asuntos = subprocess.run(
-            ["git", "log", "main", "--format=%s"], cwd=RAIZ,
-            capture_output=True, text=True, timeout=30,
+            ["git", "log", "main", "--format=%s"],
+            cwd=RAIZ,
+            capture_output=True,
+            text=True,
+            timeout=30,
         ).stdout.splitlines()
     except Exception:
         asuntos = []
     colas = []
-    for f in sorted(os.listdir(OLAS), reverse=True):     # las colas nuevas primero
+    for f in sorted(os.listdir(OLAS), reverse=True):  # las colas nuevas primero
         if not es_cola_fuente(f):
             continue
         try:
@@ -87,16 +99,69 @@ def lanzar(tareas):
     json.dump(tareas, open(ruta, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
     guion = os.path.join(RAIZ, "scripts", "puente", "lanzar-enjambre.sh")
     demonio = os.path.join(RAIZ, "scripts", "puente", "demonio.py")
-    subprocess.run(["python3", demonio, "/tmp/enjambre.log", RAIZ,
-                    "/bin/zsh", guion, os.path.join("starseed_memory_root", "olas", nombre),
-                    TRABAJADORES], timeout=60)
+    subprocess.run(
+        [
+            "python3",
+            demonio,
+            REGISTRO,
+            RAIZ,
+            "/bin/zsh",
+            guion,
+            os.path.join("starseed_memory_root", "olas", nombre),
+            TRABAJADORES,
+        ],
+        timeout=60,
+    )
     return nombre
 
 
+def comprobar_arranque():
+    """Tras `lanzar` espera hasta ESPERA_ARRANQUE_S. Si el orquestador NO sigue
+    vivo y el registro cerró con `__EXIT__=N` distinto de 0, devuelve el motivo;
+    en cualquier otro caso, None (arrancó bien o aún no sabemos)."""
+    limite = time.time() + ESPERA_ARRANQUE_S
+    while time.time() < limite:
+        if orquestador_vivo():
+            return None
+        time.sleep(3)
+    try:
+        with open(REGISTRO, encoding="utf-8", errors="replace") as f:
+            lineas = f.read().splitlines()
+    except OSError:
+        return None
+    codigo, motivo = ultima_salida(lineas)
+    if codigo or orquestador_vivo():
+        return motivo or "salió con código %s sin dejar motivo" % codigo
+    return None
+
+
+def detalle_cambios_sin_commit():
+    """Primeras filas del `git status --porcelain` para que el aviso diga qué
+    ensucia `main` sin obligar a nadie a abrir una terminal."""
+    try:
+        salida = subprocess.run(
+            ["git", "status", "--porcelain"],
+            cwd=RAIZ,
+            capture_output=True,
+            text=True,
+            timeout=15,
+        ).stdout.splitlines()
+    except Exception:
+        return ""
+    return "\n".join(salida[:5])[:300]
+
+
 def main():
-    print("Vigilante del enjambre · cada %ss · tope %d tareas por tanda" % (INTERVALO_S, TOPE))
-    _p.decir("Vigilante del enjambre en marcha: si el orquestador termina o muere y queda "
-             "trabajo, lo relanzo solo.", "vigilante", "hecho")
+    print(
+        "Vigilante del enjambre · cada %ss · tope %d tareas por tanda"
+        % (INTERVALO_S, TOPE)
+    )
+    _p.decir(
+        "Vigilante del enjambre en marcha: si el orquestador termina o muere y queda "
+        "trabajo, lo relanzo solo.",
+        "vigilante",
+        "hecho",
+    )
     callado_desde = None
     while True:
         try:
@@ -107,12 +172,32 @@ def main():
                 if cola:
                     tanda = cola[:TOPE]
                     nombre = lanzar(tanda)
-                    _p.decir("orquestador parado con %d pendientes → relanzo con %d en %s"
-                             % (len(cola), len(tanda), nombre), "vigilante", "aviso")
+                    _p.decir(
+                        "orquestador parado con %d pendientes → relanzo con %d en %s"
+                        % (len(cola), len(tanda), nombre),
+                        "vigilante",
+                        "aviso",
+                    )
+                    motivo = comprobar_arranque()
+                    if motivo is not None:
+                        aviso = (
+                            "el orquestador se negó a arrancar y salió con "
+                            "error: %s — NO lo reintento en 90s; espero %d min"
+                            % (motivo, PAUSA_TRAS_FALLO_S // 60)
+                        )
+                        if "cambios sin commit" in motivo:
+                            detalle = detalle_cambios_sin_commit()
+                            if detalle:
+                                aviso += "\nworking tree:\n" + detalle
+                        _p.decir(aviso, "vigilante", "fallo")
+                        time.sleep(PAUSA_TRAS_FALLO_S)
                 elif callado_desde is None:
                     callado_desde = time.time()
-                    _p.decir("orquestador parado y NO queda trabajo pendiente: espero sin inventar tareas.",
-                             "vigilante", "mensaje")
+                    _p.decir(
+                        "orquestador parado y NO queda trabajo pendiente: espero sin inventar tareas.",
+                        "vigilante",
+                        "mensaje",
+                    )
         except Exception as e:
             print("vigilante: %s: %s" % (type(e).__name__, e), flush=True)
         time.sleep(INTERVALO_S)
