@@ -27,6 +27,7 @@ desde el Telegram.
 """
 
 import importlib.util, json, os, re, subprocess, sys, time
+from pathlib import Path
 
 RAIZ = os.environ.get("STARSEED_ROOT") or "/Users/alex/Documents/starseed-os-main"
 OLAS = os.path.join(RAIZ, "starseed_memory_root", "olas")
@@ -166,7 +167,9 @@ def reintentar_sin_cambios(apartados=None, tope=3):
     2026-09-12: cuatro tareas nuevas (p316E, MD7, zAR3, LT3) quedaron sin_cambios por
     un modelo que devolvió 1,5 KB y cero diff, y ninguna maquinaria las volvía a tocar.
     Máximo `tope` por pasada para no reventar la cola de golpe. `apartados` son los
-    proveedores que el config manda no usar."""
+    proveedores que el config manda no usar.
+
+    2026-09-13: verifica la salud de proveedores: excluye a los caídos o sin cupo."""
     apartados = apartados or []
     try:
         sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -178,6 +181,19 @@ def reintentar_sin_cambios(apartados=None, tope=3):
             for m in modelos_enjambre(ruta_modelos)
             if m.split("/", 1)[0] not in apartados
         ]
+
+        # Leer salud de proveedores (vacío si falta el archivo)
+        salud = {}
+        try:
+            ruta_salud = os.path.expanduser("~/.starseed/salud-proveedores.json")
+            if Path(ruta_salud).exists():
+                salud = json.load(open(ruta_salud, encoding="utf-8"))
+        except Exception:
+            pass
+
+        # Hora actual en formato del orquestador
+        ahora = time.strftime('%Y-%m-%d %H:%M:%S')
+
         asuntos = subprocess.run(
             ["git", "log", "main", "--format=%s"],
             cwd=RAIZ,
@@ -186,7 +202,7 @@ def reintentar_sin_cambios(apartados=None, tope=3):
             timeout=30,
         ).stdout.splitlines()
         p = progreso()
-        elegidas = candidatas(p, asuntos, modelos)[:tope]
+        elegidas = candidatas(p, asuntos, modelos, salud=salud, ahora=ahora)[:tope]
         for tid, modelo in elegidas:
             p = marcar(p, tid, modelo)
         if elegidas:
