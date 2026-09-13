@@ -23,6 +23,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { EstadoMando, ProveedorUso } from "@/lib/mando/tipos";
 import { flotaConocida } from "@/lib/mando/flota";
 import { PanelProcesos } from "@/components/mando/panel-procesos";
+import { PanelGrafo } from "@/components/mando/panel-grafo";
 import { PanelOlas } from "@/components/mando/panel-olas";
 import { PanelFlota } from "@/components/mando/panel-flota";
 import { ChatOrquestacion } from "@/components/mando/chat-orquestacion";
@@ -89,6 +90,7 @@ const CLAVE_PESTANA = "starseed.mando.pestana";
 /** Pestañas del Centro de Mando, en orden. */
 const PESTANAS = [
     { id: "procesos", etiqueta: "Procesos" },
+    { id: "ramificacion", etiqueta: "Ramificación" },
     { id: "director", etiqueta: "Director" },
     { id: "oficina", etiqueta: "Oficina 3D" },
     { id: "olas", etiqueta: "Olas e informes" },
@@ -697,6 +699,11 @@ export function CentroMando() {
 
                 <TabsContent value="procesos">
                     <PanelProcesos />
+                </TabsContent>
+                {/* Ola 239 · MD7: el grafo de orquestación dibujado en SVG puro,
+                    sin librerías pesadas (nada de d3, cytoscape ni three). */}
+                <TabsContent value="ramificacion">
+                    <PanelGrafo />
                 </TabsContent>
                 <TabsContent value="director">
                     <DirectorAgentes />
