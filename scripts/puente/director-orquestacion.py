@@ -35,6 +35,9 @@ if DIRECTORIO not in sys.path:
 # La decisión de abrir sola una puerta de visto bueno vive en un módulo PURO, para que su
 # puerta la pueda medir sin efectos (mismo patrón que `vigilante_logica.py`).
 from aprobacion_logica import porque_no_verde as _verde
+from escalada_logica import siguiente_paso, aplicar, contar_gasto, en_asuntos, ESTADOS_RECUPERABLES
+from vigilante_logica import id_en_asuntos
+from config_director import cargar as cargar_config
 
 RAIZ = os.environ.get("STARSEED_ROOT") or "/Users/alex/Documents/starseed-os-main"
 OLAS = os.path.join(RAIZ, "starseed_memory_root", "olas")
@@ -173,7 +176,127 @@ def reconciliar_estados():
         return []
 
 
+def continuar_estancadas():
+    """Continúa sola lo atascado con escalera de reintentos: libre×2 → haiku×2 → sonnet.
+
+    Solo actúa si no hay orquestador vivo. Lee progreso, asuntos de main,
+    config, gasto y modelos anthropic; aplica siguiente_paso/aplicar/contar_gasto;
+    escribe progreso y gasto atomicamente.
+
+    Devuelve la lista de ids tocados para el parte.
+    """
+    if orquestador_vivo():
+        return []
+
+    try:
+        # Leer estado
+        p = progreso()
+        asuntos = subprocess.run(
+            ["git", "log", "main", "--format=%s"],
+            cwd=RAIZ,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        ).stdout.splitlines()
+        cfg, avisos = cargar_config()
+        hoy = time.strftime('%Y-%m-%d')
+        ahora = time.strftime('%Y-%m-%d %H:%M:%S')
+
+        # Leer modelos anthropic de env
+        modelos_anthropic = []
+        for env_file in [os.path.expanduser("~/.starseed/env"), os.path.expanduser("~/.hermes/.env")]:
+            if os.path.exists(env_file):
+                try:
+                    with open(env_file, encoding="utf-8") as f:
+                        for linea in f:
+                            if linea.strip().startswith("STARSEED_PASARELA_ANTHROPIC_MODELOS="):
+                                valor = linea.split("=", 1)[1].strip()
+                                modelos_anthropic = [m.strip() for m in valor.split(",")]
+                                break
+                except Exception:
+                    pass
+
+        # Leer gasto
+        ruta_gasto = os.path.join(OLAS, "escalada-gasto.json")
+        gasto = {"fecha": hoy, "haiku": 0, "sonnet": 0}
+        try:
+            if os.path.exists(ruta_gasto):
+                gasto = json.load(open(ruta_gasto, encoding="utf-8"))
+        except Exception:
+            pass
+
+        # Procesar tareas recuperables
+        p_nuevo = dict(p)
+        gasto_nuevo = dict(gasto)
+        tocadas = []
+        bloqueantes_motivos = {}
+        cuenta_por_tipo = {"libre": [], "haiku": [], "sonnet": [], "bloqueante": []}
+
+        for tid, entrada in p.items():
+            if not isinstance(entrada, dict):
+                continue
+            if entrada.get("estado") not in ESTADOS_RECUPERABLES:
+                continue
+            if id_en_asuntos(tid, asuntos):
+                continue
+            if len(tocadas) >= 20:  # Tope de 20 por pasada
+                break
+
+            paso = siguiente_paso(entrada, gasto_nuevo, cfg, hoy, modelos_anthropic, ahora)
+            if paso is None:
+                continue
+
+            # Aplicar cambios
+            p_nuevo = aplicar(p_nuevo, tid, paso, ahora)
+            gasto_nuevo = contar_gasto(gasto_nuevo, paso, hoy)
+            tocadas.append(tid)
+
+            # Clasificar para el reporte
+            nivel = paso["motivo"].split()[1].rstrip("/") if "gratuito" in paso["motivo"] else paso.get("cuenta") or "bloqueante"
+            if paso["estado"] == "bloqueante":
+                bloqueantes_motivos[tid] = paso["motivo"]
+            else:
+                cuenta_por_tipo[nivel].append(tid)
+
+        # Escribir atomicamente
+        if tocadas:
+            # Progreso
+            ruta_prog = os.path.join(OLAS, "progreso.json")
+            tmp_prog = ruta_prog + ".tmp"
+            json.dump(p_nuevo, open(tmp_prog, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+            os.replace(tmp_prog, ruta_prog)
+
+            # Gasto
+            tmp_gasto = ruta_gasto + ".tmp"
+            json.dump(gasto_nuevo, open(tmp_gasto, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+            os.replace(tmp_gasto, ruta_gasto)
+
+            # Anuncio
+            partes = []
+            if cuenta_por_tipo["libre"]:
+                partes.append("libre: %s" % ", ".join(cuenta_por_tipo["libre"][:3]))
+            if cuenta_por_tipo["haiku"]:
+                partes.append("haiku: %s" % ", ".join(cuenta_por_tipo["haiku"][:3]))
+            if cuenta_por_tipo["sonnet"]:
+                partes.append("sonnet: %s" % ", ".join(cuenta_por_tipo["sonnet"][:3]))
+
+            tipo_aviso = "aviso" if bloqueantes_motivos else "hecho"
+            mensaje = "continúo solo: %d a la cola (%s)" % (len(tocadas), "; ".join(partes))
+
+            if bloqueantes_motivos:
+                motivo_bloq = list(bloqueantes_motivos.values())[0]
+                mensaje += " · bloqueantes: %d (%s)" % (len(bloqueantes_motivos), motivo_bloq[:60])
+
+            _p.decir(mensaje, "director", tipo_aviso)
+
+        return tocadas
+    except Exception as e:
+        print("director/continuar_estancadas: %s: %s" % (type(e).__name__, e), flush=True)
+        return []
+
+
 def reintentar_sin_cambios(apartados=None, tope=3):
+    # SUSTITUIDA por p319A (continuar_estancadas). Dejada por compatibilidad histórica.
     """Reencola las sin_cambios que no llegaron a main con otro proveedor.
 
     2026-09-12: cuatro tareas nuevas (p316E, MD7, zAR3, LT3) quedaron sin_cambios por
@@ -239,8 +362,9 @@ def revisar():
     hecho, ahora = [], time.time()
     if reconciliar_estados():
         hecho.append("reconciliado")
-    if reintentar_sin_cambios():
-        hecho.append("reintentados")
+    continuadas = continuar_estancadas()
+    if continuadas:
+        hecho.append("continuadas %d" % len(continuadas))
     p = progreso()
 
     _, latidos_dict, _ = cola_viva()
