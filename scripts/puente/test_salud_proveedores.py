@@ -47,6 +47,14 @@ class EstadoProveedores(unittest.TestCase):
         self.assertEqual(llm7["renueva_en_min"], 720)
         self.assertEqual(llm7["motivo"], "cuota")
 
+    def test_402_diario_fuera_de_enero_no_rompe(self):
+        # marcado el 2026-02-15T06:00Z → renueva el 2026-02-16T00:00Z (18 h = 1080 min)
+        desde = 1771135200.0  # 2026-02-15 06:00:00 UTC
+        agotados = {"groq": {"desde": desde, "motivo": "402"}}
+        estados = estado_proveedores(agotados, desde, CATALOGO)
+        groq = next(e for e in estados if e["proveedor"] == "groq")
+        self.assertEqual(groq["renueva_en_min"], 1080)
+
     def test_alternativa_primer_catalogo_no_agotado(self):
         agotados = {
             "groq": {"desde": 0.0, "motivo": "429"},

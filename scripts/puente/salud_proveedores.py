@@ -9,7 +9,6 @@ Convenciones del estado de agotamiento:
   * «diaria»  (motivo 402 o cuota): renueva a las 00:00 UTC SIGUIENTES al marcado.
 """
 
-import calendar
 import time
 
 CUPO_HORARIO_MIN = 300
@@ -18,15 +17,14 @@ _MOTIVOS_DIARIOS = {"402", "cuota"}
 
 
 def _renueva_en_min(motivo, desde, ahora):
-    """Minutos que faltan para que un proveedor agotado renueve, o 0 si ya venció."""
+    """Minutos que faltan para que un proveedor agotado renueve, o 0 si ya venció.
+
+    La renovación diaria cae en la medianoche UTC (00:00) SIGUIENTE al marcado: se
+    trunca `desde` al día en curso y se suma un día completo, sin jugar con días
+    julianos ni bisiestos (que rompían para cualquier fecha fuera de enero).
+    """
     if motivo in _MOTIVOS_DIARIOS:
-        base = time.gmtime(desde)
-        dia = base.tm_yday + 1
-        anio = base.tm_year
-        # días/años bisiestos: ajusta por desborde del día juliano
-        if dia > 365 + (1 if calendar.isleap(anio) else 0):
-            dia, anio = 1, anio + 1
-        renueva = calendar.timegm((anio, 1, dia, 0, 0, 0, 0, 0, 0))
+        renueva = (int(desde) // 86400 + 1) * 86400
     else:
         renueva = desde + CUPO_HORARIO_MIN * 60
     return max(0, int((renueva - ahora) / 60))
