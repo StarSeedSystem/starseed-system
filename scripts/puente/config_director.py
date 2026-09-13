@@ -35,6 +35,7 @@ DEFAULTS = {
     },
     "proveedores_apartados": [],
     "aviso_checkin": True,
+    "pausado": False,
     "disco_min_gb": 5,
 }
 
@@ -47,7 +48,7 @@ CLAVES_ENTERO = {
     "disco_min_gb",
 }
 CLAVES_LISTA_STR = {"proveedores_apartados"}
-CLAVES_BOOL = {"aviso_checkin"}
+CLAVES_BOOL = {"aviso_checkin", "pausado"}
 
 
 def _es_entero_no_negativo(v):

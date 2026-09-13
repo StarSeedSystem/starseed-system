@@ -27,7 +27,13 @@ import importlib.util, json, os, subprocess, sys, time
 DIRECTORIO = os.path.dirname(os.path.abspath(__file__))
 if DIRECTORIO not in sys.path:
     sys.path.insert(0, DIRECTORIO)
-from vigilante_logica import es_cola_fuente, seleccionar_pendientes, ultima_salida
+from vigilante_logica import (
+    decidir_relanzamiento,
+    es_cola_fuente,
+    seleccionar_pendientes,
+    ultima_salida,
+)
+import config_director
 
 RAIZ = os.environ.get("STARSEED_ROOT") or "/Users/alex/Documents/starseed-os-main"
 OLAS = os.path.join(RAIZ, "starseed_memory_root", "olas")
@@ -93,7 +99,8 @@ def pendientes():
     return seleccionar_pendientes(colas, prog, asuntos)
 
 
-def lanzar(tareas):
+def lanzar(tareas, trabajadores=None):
+    trabajadores = trabajadores or TRABAJADORES
     nombre = "cola-auto-%s.json" % time.strftime("%m%d-%H%M%S")
     ruta = os.path.join(OLAS, nombre)
     json.dump(tareas, open(ruta, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
@@ -108,7 +115,7 @@ def lanzar(tareas):
             "/bin/zsh",
             guion,
             os.path.join("starseed_memory_root", "olas", nombre),
-            TRABAJADORES,
+            str(trabajadores),
         ],
         timeout=60,
     )
@@ -163,41 +170,53 @@ def main():
         "hecho",
     )
     callado_desde = None
+    pausa_avisada = 0.0
     while True:
         try:
-            if orquestador_vivo():
+            hay = orquestador_vivo()
+            cola = [] if hay else pendientes()
+            cfg, _avisos = config_director.cargar()
+            relanzar, trabajadores, tope = decidir_relanzamiento(cfg, hay, len(cola))
+            if relanzar:
                 callado_desde = None
-            else:
-                cola = pendientes()
-                if cola:
-                    tanda = cola[:TOPE]
-                    nombre = lanzar(tanda)
+                tanda = cola[:tope]
+                nombre = lanzar(tanda, trabajadores)
+                _p.decir(
+                    "orquestador parado con %d pendientes → relanzo con %d en %s"
+                    % (len(cola), len(tanda), nombre),
+                    "vigilante",
+                    "aviso",
+                )
+                motivo = comprobar_arranque()
+                if motivo is not None:
+                    aviso = (
+                        "el orquestador se negó a arrancar y salió con "
+                        "error: %s — NO lo reintento en 90s; espero %d min"
+                        % (motivo, PAUSA_TRAS_FALLO_S // 60)
+                    )
+                    if "cambios sin commit" in motivo:
+                        detalle = detalle_cambios_sin_commit()
+                        if detalle:
+                            aviso += "\nworking tree:\n" + detalle
+                    _p.decir(aviso, "vigilante", "fallo")
+                    time.sleep(PAUSA_TRAS_FALLO_S)
+            elif cfg.get("pausado"):
+                callado_desde = None
+                ahora = time.time()
+                if ahora - pausa_avisada >= 3600:
+                    pausa_avisada = ahora
                     _p.decir(
-                        "orquestador parado con %d pendientes → relanzo con %d en %s"
-                        % (len(cola), len(tanda), nombre),
+                        "vigilante en pausa por ajuste del Mando",
                         "vigilante",
                         "aviso",
                     )
-                    motivo = comprobar_arranque()
-                    if motivo is not None:
-                        aviso = (
-                            "el orquestador se negó a arrancar y salió con "
-                            "error: %s — NO lo reintento en 90s; espero %d min"
-                            % (motivo, PAUSA_TRAS_FALLO_S // 60)
-                        )
-                        if "cambios sin commit" in motivo:
-                            detalle = detalle_cambios_sin_commit()
-                            if detalle:
-                                aviso += "\nworking tree:\n" + detalle
-                        _p.decir(aviso, "vigilante", "fallo")
-                        time.sleep(PAUSA_TRAS_FALLO_S)
-                elif callado_desde is None:
-                    callado_desde = time.time()
-                    _p.decir(
-                        "orquestador parado y NO queda trabajo pendiente: espero sin inventar tareas.",
-                        "vigilante",
-                        "mensaje",
-                    )
+            elif callado_desde is None:
+                callado_desde = time.time()
+                _p.decir(
+                    "orquestador parado y NO queda trabajo pendiente: espero sin inventar tareas.",
+                    "vigilante",
+                    "mensaje",
+                )
         except Exception as e:
             print("vigilante: %s: %s" % (type(e).__name__, e), flush=True)
         time.sleep(INTERVALO_S)

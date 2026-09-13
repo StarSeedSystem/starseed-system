@@ -82,3 +82,16 @@ def seleccionar_pendientes(colas, progreso, asuntos_git):
                 continue
             salida.append(tarea)
     return salida
+
+
+def decidir_relanzamiento(cfg, hay_orquestador, n_pendientes):
+    """Decisión pura de relanzar sin tocar disco ni procesos.
+
+    Devuelve (relanzar, trabajadores, tope). No relanza si el orquestador ya
+    vive, si no queda trabajo o si el Mando puso `pausado` para ajustar.
+    """
+    trabajadores = int(cfg.get("trabajadores", 5))
+    tope = int(cfg.get("tope_por_relanzamiento", 20))
+    if hay_orquestador or n_pendientes <= 0 or cfg.get("pausado"):
+        return (False, trabajadores, tope)
+    return (True, trabajadores, tope)
