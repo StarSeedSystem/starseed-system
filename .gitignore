@@ -105,3 +105,7 @@ public/version.json
 
 # Grafo del código (GitNexus): 650 MB, se indexa en la nube y se copia
 .gitnexus/
+
+# Carpeta que crea la app de Claude (Cowork) al entregar archivos en la carpeta vinculada.
+# Sin esta línea el orquestador ve «cambios sin commit» y se niega a arrancar (13-09-2026).
+Claude outputs/
