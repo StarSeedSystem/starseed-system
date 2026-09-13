@@ -65,6 +65,35 @@ export function resumenAgentes(latidos: LatidoEntrada[], ahora: number): Resumen
   return r;
 }
 
+export interface AgenteVivo {
+  id: string; estado: EstadoAgente; fase: string; modelo?: string;
+  proveedor: string; kb: number; minutos: number; intento?: number;
+}
+
+function pesoOrdenAgente(e: EstadoAgente): number {
+  return e === "colgado" ? 0 : e === "esperando_aprobacion" ? 1 : 2;
+}
+
+/** Un agente por tarea viva (sin `hecho`), colgados primero y luego esperando aprobación. */
+export function listaAgentes(latidos: LatidoEntrada[], ahora: number): AgenteVivo[] {
+  const lista: AgenteVivo[] = [];
+  for (const latido of latidos) {
+    for (const [id, t] of Object.entries(latido.tareas ?? {})) {
+      const estado = clasificarAgente(t, ahora);
+      if (estado === "hecho") continue;
+      lista.push({
+        id, estado, fase: t.fase,
+        ...(t.modelo ? { modelo: t.modelo } : {}),
+        proveedor: t.modelo ? proveedorDeModelo(t.modelo) : "desconocido",
+        kb: Math.round((t.bytes ?? 0) / 1024),
+        minutos: Math.round((ahora - t.avance) / 60),
+        ...(t.intento !== undefined ? { intento: t.intento } : {}),
+      });
+    }
+  }
+  return lista.sort((a, b) => pesoOrdenAgente(a.estado) - pesoOrdenAgente(b.estado));
+}
+
 export function idEnAsuntos(tid: string, asuntos: string[]): boolean {
   const esc = tid.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   return asuntos.some((a) => new RegExp(`(?<![A-Za-z0-9])${esc}(?![A-Za-z0-9])`).test(a));

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   clasificarAgente,
   idEnAsuntos,
+  listaAgentes,
   proveedorDeModelo,
   resumenAgentes,
   resumenDirectores,
@@ -153,6 +154,48 @@ describe("proveedorDeModelo", () => {
   it("prefijo nvidia/ es nim", () => {
     expect(proveedorDeModelo("nvidia/meta/llama")).toBe("nim");
     expect(proveedorDeModelo("groq/llama")).toBe("groq");
+  });
+});
+
+describe("listaAgentes", () => {
+  it("ordena colgados primero, luego esperando aprobación, luego vivos; descarta hecho", () => {
+    const latidos = [
+      {
+        tareas: {
+          escr: { fase: "escribiendo", avance: AHORA - 10, modelo: "xkiro/qwen3-coder-plus", bytes: 2048, intento: 1 },
+          cuelga: { fase: "escribiendo", avance: AHORA - 400 },
+          espera: { fase: "esperando aprobación", avance: AHORA - 120 },
+          fin: { fase: "hecho", avance: AHORA - 999 },
+        },
+      },
+    ];
+    const r = listaAgentes(latidos, AHORA);
+    expect(r.map((a) => a.id)).toEqual(["cuelga", "espera", "escr"]);
+    expect(r.map((a) => a.estado)).toEqual(["colgado", "esperando_aprobacion", "escribiendo"]);
+    expect(r.find((a) => a.id === "fin")).toBeUndefined();
+  });
+
+  it("proveedor sale de la primera parte del modelo (nvidia/ ⇒ nim) y kb/minutos se redondean", () => {
+    const latidos = [{ tareas: { a: { fase: "tsc", avance: AHORA - 90, modelo: "nvidia/moonshotai/kimi-k3", bytes: 1536 } } }];
+    const [a] = listaAgentes(latidos, AHORA);
+    expect(a.proveedor).toBe("nim");
+    expect(a.modelo).toBe("nvidia/moonshotai/kimi-k3");
+    expect(a.kb).toBe(2);
+    expect(a.minutos).toBe(2);
+    expect(a.fase).toBe("tsc");
+  });
+
+  it("sin modelo, el proveedor queda honesto («desconocido») y bytes ausentes dan 0 KB", () => {
+    const latidos = [{ tareas: { a: { fase: "escribiendo", avance: AHORA } } }];
+    const [a] = listaAgentes(latidos, AHORA);
+    expect(a.proveedor).toBe("desconocido");
+    expect(a.modelo).toBeUndefined();
+    expect(a.kb).toBe(0);
+    expect(a.intento).toBeUndefined();
+  });
+
+  it("ignora latidos sin tareas y devuelve lista vacía", () => {
+    expect(listaAgentes([{}], AHORA)).toEqual([]);
   });
 });
 

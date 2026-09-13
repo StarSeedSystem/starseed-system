@@ -13,7 +13,7 @@ import {
     leerLatidos, leerProgreso, leerColasFuente, leerSalud, leerModelos,
     leerServicios, leerCanal, leerAsuntosMain, leerJsonOpcional,
 } from "@/lib/mando/director-fuentes";
-import { resumenAgentes, resumenPendientes, resumenProveedores, resumenDirectores } from "@/lib/mando/director-datos";
+import { resumenAgentes, resumenPendientes, resumenProveedores, resumenDirectores, listaAgentes } from "@/lib/mando/director-datos";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -51,7 +51,7 @@ export async function GET(peticion: Request): Promise<Response> {
 
     return NextResponse.json(
         {
-            agentes: resumenAgentes(latidos, ahora),
+            agentes: { ...resumenAgentes(latidos, ahora), lista: listaAgentes(latidos, ahora) },
             pendientes: resumenPendientes(colasFuente, progreso, asuntosMain),
             proveedores: resumenProveedores(salud, modelos),
             directores: resumenDirectores(textoServicios, canal, ahora),
