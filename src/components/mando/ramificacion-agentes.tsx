@@ -1017,7 +1017,12 @@ function FilasDeProcesos({ olas, olaSel, latidos, enjambres, onVer }: {
 export function RamificacionAgentes() {
     const [datos, setDatos] = useState<Ramificacion | null>(null);
     const [error, setError] = useState<string | null>(null);
-    const [cuantas, setCuantas] = useState(4);
+    // Antes había tres botones («4 olas · 8 olas · todas») que solo decían CUÁNTAS
+    // traer: una pregunta de fontanería, no de trabajo. Ahora se traen todas y se
+    // filtra por lo que de verdad se quiere mirar — lo que está pasando ahora
+    // (Activas) o lo que queda por hacer (Pendientes).
+    const [cuantas] = useState(30);
+    const [filtro, setFiltro] = useState<"activas" | "pendientes">("activas");
     const [olaSel, setOlaSel] = useState<string | null>(null);
     const [tareaSel, setTareaSel] = useState<string | null>(null);
     const [pausado, setPausado] = useState(false);
@@ -1072,7 +1077,23 @@ export function RamificacionAgentes() {
         });
     }, [datos]);
 
-    const olas = datos?.olas ?? [];
+    const todasLasOlas = useMemo(() => datos?.olas ?? [], [datos]);
+    // Activa = hay alguien escribiendo en ella ahora mismo.
+    // Pendiente = queda trabajo abierto, aunque nadie lo esté tocando: pendientes,
+    // bloqueadas por dependencia, esperando tu visto bueno o caídas con fallo.
+    const cuentaActivas = todasLasOlas.filter((o) => o.viva || o.enCurso > 0).length;
+    const cuentaPendientes = todasLasOlas.filter(
+        (o) => o.pendientes > 0 || o.bloqueadas > 0 || o.esperandoAprobacion > 0 || o.fallidas > 0,
+    ).length;
+    const olas = useMemo(
+        () =>
+            filtro === "activas"
+                ? todasLasOlas.filter((o) => o.viva || o.enCurso > 0)
+                : todasLasOlas.filter(
+                      (o) => o.pendientes > 0 || o.bloqueadas > 0 || o.esperandoAprobacion > 0 || o.fallidas > 0,
+                  ),
+        [todasLasOlas, filtro],
+    );
     const ola = useMemo(() => {
         if (olas.length === 0) return null;
         return olas.find((o) => o.id === olaSel) ?? olas[0];
@@ -1092,16 +1113,30 @@ export function RamificacionAgentes() {
                     </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
-                    {[4, 8, 30].map((n) => (
+                    {([
+                        { clave: "activas", texto: "Activas", cuenta: cuentaActivas },
+                        { clave: "pendientes", texto: "Pendientes", cuenta: cuentaPendientes },
+                    ] as const).map((f) => (
                         <button
-                            key={`cuantas-${n}`}
+                            key={`filtro-${f.clave}`}
                             type="button"
-                            onClick={() => setCuantas(n)}
+                            onClick={() => {
+                                setFiltro(f.clave);
+                                setOlaSel(null);
+                                setTareaSel(null);
+                            }}
+                            aria-pressed={filtro === f.clave}
                             className={`cursor-pointer rounded-md border px-2 py-1 ${
-                                cuantas === n ? "border-white/30 bg-white/10 text-white" : "border-white/10 text-white/60 hover:bg-white/5"
+                                filtro === f.clave ? "border-white/30 bg-white/10 text-white" : "border-white/10 text-white/60 hover:bg-white/5"
                             }`}
+                            title={
+                                f.clave === "activas"
+                                    ? "Olas con alguien escribiendo ahora mismo"
+                                    : "Olas con trabajo abierto: pendientes, bloqueadas, esperando tu visto bueno o caídas"
+                            }
                         >
-                            {n === 30 ? "todas" : `${n} olas`}
+                            {f.texto}
+                            <span className="ml-1 text-white/40">{f.cuenta}</span>
                         </button>
                     ))}
                     <button
@@ -1172,7 +1207,13 @@ export function RamificacionAgentes() {
                     })}
                 </div>
             ) : datos ? (
-                <p className="mt-3 text-sm text-white/50">No hay colas de olas en disco.</p>
+                <p className="mt-3 text-sm text-white/50">
+                    {todasLasOlas.length === 0
+                        ? "No hay colas de olas en disco."
+                        : filtro === "activas"
+                          ? `Ninguna ola activa ahora mismo${cuentaPendientes > 0 ? ` — hay ${cuentaPendientes} con trabajo abierto en «Pendientes».` : "."}`
+                          : "Ninguna ola con trabajo abierto: todo lo definido está integrado."}
+                </p>
             ) : (
                 <p className="mt-3 text-sm text-white/50">Leyendo la ramificación…</p>
             )}
