@@ -100,9 +100,22 @@ class LineaOrden(Base):
         self.assertIn("corta", linea)
 
     def test_sin_pendientes_no_hay_linea(self):
+        # «Sin pendientes» es que no quede NADA que hacer, y eso se consigue vaciando la
+        # COLA. Vaciar progreso.json hacía lo contrario: una tarea de la cola sin estado
+        # es pendiente —nunca se intentó—, así que el director sí debía dar el orden.
+        with open(os.path.join(self.olas, "cola-prueba.json"), "w", encoding="utf-8") as f:
+            json.dump({"tareas": []}, f)
         with open(os.path.join(self.olas, "progreso.json"), "w", encoding="utf-8") as f:
             json.dump({}, f)
         self.assertEqual(director.linea_orden(), "")
+
+    def test_tarea_sin_estado_cuenta_como_pendiente(self):
+        """Lo que la prueba anterior afirmaba al revés, fijado a propósito."""
+        with open(os.path.join(self.olas, "progreso.json"), "w", encoding="utf-8") as f:
+            json.dump({}, f)
+        linea = director.linea_orden()
+        self.assertIn("ORDEN", linea)
+        self.assertIn("1º", linea)
 
 
 class OrdenJson(Base):
