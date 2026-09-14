@@ -4,6 +4,17 @@
 
 import re
 
+# El latido de la nube corre sobre un clon que puede ir por detrás: si
+# `prioridad_logica` aún no existe allí, la ordenación se salta y se devuelve
+# el orden del archivo, que es lo que ese latido espera hoy.
+try:
+    import prioridad_logica
+except ImportError:  # pragma: no cover
+    try:
+        from scripts.puente import prioridad_logica  # type: ignore
+    except ImportError:
+        prioridad_logica = None
+
 
 # Estos estados necesitan una decisión humana o ya cerraron la tarea. Repetirlos
 # automáticamente cada 90 s solo gasta proveedores y multiplica el historial.
@@ -59,12 +70,17 @@ def id_en_asuntos(tid, asuntos):
     return any(patron.search(asunto) for asunto in asuntos)
 
 
-def seleccionar_pendientes(colas, progreso, asuntos_git):
+def seleccionar_pendientes(colas, progreso, asuntos_git, ahora=None):
     """Deduplica por id y excluye cierres, copias automáticas e integradas en git.
 
     Si progreso[tid] tiene `modelo_siguiente`, devuelve una COPIA de la tarea con ese modelo.
     `colas` llega ordenada de más nueva a más antigua como pares
     `(nombre, tareas)`, de modo que ante deuda histórica gana la definición nueva.
+
+    Con `ahora` (datetime) la salida se reordena con `prioridad_logica.ordenar`:
+    primero lo que desbloquea más trabajo, y fuera lo bloqueado por dependencias
+    abiertas (no es ejecutable, así que no se ofrece). Sin `ahora` el orden es
+    exactamente el del archivo, para no moverle el suelo a quien ya llama.
     """
     vistas, salida = set(), []
     for nombre, tareas in colas:
@@ -83,11 +99,16 @@ def seleccionar_pendientes(colas, progreso, asuntos_git):
                 continue
             # Si el progreso indica un modelo_siguiente, devolver copia con ese modelo
             seleccionada = tarea
-            modelo_siguiente = estado.get("modelo_siguiente") if isinstance(estado, dict) else None
+            modelo_siguiente = (
+                estado.get("modelo_siguiente") if isinstance(estado, dict) else None
+            )
             if modelo_siguiente:
                 seleccionada = dict(tarea)
                 seleccionada["modelo"] = modelo_siguiente
             salida.append(seleccionada)
+    if ahora is not None and prioridad_logica is not None:
+        listas, _bloqueadas = prioridad_logica.ordenar(salida, progreso, ahora)
+        return [tarea for tarea, _puntos, _razones in listas]
     return salida
 
 

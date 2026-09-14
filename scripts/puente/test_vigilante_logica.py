@@ -4,6 +4,7 @@
 import os
 import sys
 import unittest
+from datetime import datetime
 
 
 DIRECTORIO = os.path.dirname(os.path.abspath(__file__))
@@ -76,7 +77,12 @@ class VigilanteLogicaTest(unittest.TestCase):
 
     def test_modelo_siguiente_reemplaza_modelo_de_la_cola(self):
         tareas = [{"id": "M1", "modelo": "nvidia/x"}]
-        progreso = {"M1": {"estado": "en_curso", "modelo_siguiente": "anthropic/claude-haiku-4-5"}}
+        progreso = {
+            "M1": {
+                "estado": "en_curso",
+                "modelo_siguiente": "anthropic/claude-haiku-4-5",
+            }
+        }
         salida = seleccionar_pendientes([("cola-311.json", tareas)], progreso, [])
         self.assertEqual(len(salida), 1)
         self.assertEqual(salida[0]["modelo"], "anthropic/claude-haiku-4-5")
@@ -89,6 +95,55 @@ class VigilanteLogicaTest(unittest.TestCase):
         salida = seleccionar_pendientes([("cola-311.json", tareas)], progreso, [])
         self.assertEqual(len(salida), 1)
         self.assertEqual(salida[0]["modelo"], "xkiro/qwen")
+
+
+class OrdenPorPrioridadTest(unittest.TestCase):
+    """Con `ahora` la cola se reordena por prioridad; sin él, nada cambia."""
+
+    AHORA = datetime(2026, 9, 14, 12, 0, 0)
+
+    def test_sin_ahora_el_orden_es_el_del_archivo(self):
+        tareas = [{"id": "B1"}, {"id": "A1", "depende": ["B1"]}]
+        salida = seleccionar_pendientes([("cola-311.json", tareas)], {}, [])
+        self.assertEqual([t["id"] for t in salida], ["B1", "A1"])
+
+    def test_con_ahora_quien_desbloquea_mas_va_primero(self):
+        tareas = [
+            {"id": "Z1"},
+            {"id": "B1"},
+            {"id": "A1", "depende": ["B1"]},
+            {"id": "A2", "depende": ["B1"]},
+        ]
+        salida = seleccionar_pendientes(
+            [("cola-311.json", tareas)], {}, [], ahora=self.AHORA
+        )
+        self.assertEqual(salida[0]["id"], "B1")
+
+    def test_con_ahora_lo_bloqueado_no_sale(self):
+        tareas = [{"id": "B1"}, {"id": "A1", "depende": ["B1"]}]
+        salida = seleccionar_pendientes(
+            [("cola-311.json", tareas)], {}, [], ahora=self.AHORA
+        )
+        self.assertEqual([t["id"] for t in salida], ["B1"])
+        progreso = {"B1": {"estado": "commit"}}
+        salida2 = seleccionar_pendientes(
+            [("cola-311.json", tareas)], progreso, [], ahora=self.AHORA
+        )
+        self.assertEqual([t["id"] for t in salida2], ["A1"])
+
+    def test_sin_modulo_prioridad_se_devuelve_el_orden_del_archivo(self):
+        tareas = [{"id": "Z1"}, {"id": "B1"}, {"id": "A1", "depende": ["B1"]}]
+        import vigilante_logica
+
+        original = vigilante_logica.prioridad_logica
+        try:
+            vigilante_logica.prioridad_logica = None
+            salida = seleccionar_pendientes(
+                [("cola-311.json", tareas)], {}, [], ahora=self.AHORA
+            )
+        finally:
+            vigilante_logica.prioridad_logica = original
+        self.assertEqual([t["id"] for t in salida], ["Z1", "B1", "A1"])
 
 
 if __name__ == "__main__":
