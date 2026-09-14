@@ -6,7 +6,7 @@ import json, os, sys, tempfile, unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import config_director
-from config_director import DEFAULTS, cargar, validar
+from config_director import DEFAULTS, PESOS, cargar, validar
 
 
 def _tmp(contenido=None, nombre="director-config.json"):
@@ -93,6 +93,7 @@ class TestEscaleraConfigurable(unittest.TestCase):
 
     def _cargar(self, contenido):
         import json, tempfile, os
+
         fd, ruta = tempfile.mkstemp(suffix=".json")
         with os.fdopen(fd, "w", encoding="utf-8") as fh:
             json.dump(contenido, fh)
@@ -118,6 +119,44 @@ class TestEscaleraConfigurable(unittest.TestCase):
     def test_validar_avisa_de_niveles_malos(self):
         e = config_director.validar({"escalada": {"niveles": "libre"}})
         self.assertTrue(any("niveles" in m for m in e))
+
+
+class PrioridadConfigurable(unittest.TestCase):
+    """Los pesos de la prioridad se ajustan desde el JSON del Mando."""
+
+    def _alguna_clave(self):
+        return next(iter(PESOS))
+
+    def test_pesos_validos_se_conservan(self):
+        k = self._alguna_clave()
+        cfg, avisos = cargar(_tmp({"prioridad": {k: -3.5}}))
+        self.assertEqual(cfg["prioridad"][k], -3.5)
+        self.assertEqual(avisos, [])
+
+    def test_clave_desconocida_se_descarta_y_el_resto_queda(self):
+        k = self._alguna_clave()
+        cfg, avisos = cargar(_tmp({"prioridad": {"inventada": 9, k: 7}}))
+        self.assertNotIn("inventada", cfg["prioridad"])
+        self.assertEqual(cfg["prioridad"][k], 7)
+        self.assertTrue(any("inventada" in a for a in avisos))
+
+    def test_valor_de_texto_se_descarta_con_aviso(self):
+        k = self._alguna_clave()
+        cfg, avisos = cargar(_tmp({"prioridad": {k: "mucho"}}))
+        self.assertEqual(cfg["prioridad"][k], PESOS[k])
+        self.assertTrue(any(k in a for a in avisos))
+
+    def test_sin_bloque_prioridad_quedan_los_defectos(self):
+        cfg, avisos = cargar(_tmp({"disco_min_gb": 9}))
+        self.assertEqual(cfg["prioridad"], PESOS)
+        self.assertEqual(avisos, [])
+
+    def test_validar_avisa_de_bloque_no_objeto(self):
+        e = validar({"prioridad": [1, 2]})
+        self.assertTrue(any("prioridad" in m for m in e))
+
+    def test_defaults_son_validos(self):
+        self.assertEqual(validar(DEFAULTS), [])
 
 
 if __name__ == "__main__":

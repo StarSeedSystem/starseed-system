@@ -17,6 +17,30 @@ lo que no sea válido (tipo o rango).
 import json
 import os
 
+# Los pesos por defecto viven en prioridad_logica; si ese módulo no está (o
+# cambia de nombre), este módulo debe seguir cargando, así que va con respaldo.
+try:
+    from prioridad_logica import PESOS as PESOS_DEFECTO
+except ImportError:
+    PESOS_DEFECTO = {
+        "desbloqueo_por_tarea": 10.0,
+        "desbloqueo_tope": 5,
+        "continuidad": 15.0,
+        "antiguedad_por_hora": 1.0,
+        "antiguedad_tope": 24.0,
+        "castigo_intento": 8.0,
+        "castigo_riesgo": 10.0,
+    }
+
+
+# Solo las claves con valor numérico se pueden ajustar desde el Mando; las que
+# son estructuras (p. ej. "corta", una tabla por niveles) no entran en el panel.
+def _es_valor_numerico(v):
+    return isinstance(v, (int, float)) and not isinstance(v, bool)
+
+
+PESOS = {k: v for k, v in PESOS_DEFECTO.items() if _es_valor_numerico(v)}
+
 RAIZ = os.environ.get("STARSEED_ROOT") or "/Users/alex/Documents/starseed-os-main"
 RUTA_CONFIG = os.path.join(
     RAIZ, "starseed_memory_root", "mando", "director-config.json"
@@ -37,6 +61,7 @@ DEFAULTS = {
     "aviso_checkin": True,
     "pausado": False,
     "disco_min_gb": 5,
+    "prioridad": dict(PESOS),
 }
 
 CLAVES_ENTERO = {
@@ -62,6 +87,23 @@ def _es_lista_str(v):
 NIVELES_VALIDOS = ("libre", "haiku", "sonnet")
 
 
+def _es_numero(v):
+    # Los pesos admiten int o float (positivos o negativos), nunca bool.
+    return _es_valor_numerico(v)
+
+
+def _validar_prioridad(prioridad):
+    if not isinstance(prioridad, dict):
+        return ["'prioridad' debe ser un objeto"]
+    errores = []
+    for k, v in prioridad.items():
+        if k not in PESOS:
+            errores.append("'prioridad.%s' no es un peso conocido" % k)
+        elif not _es_numero(v):
+            errores.append("'prioridad.%s' debe ser un número" % k)
+    return errores
+
+
 def _es_lista_niveles(v):
     """Escalera válida: lista no vacía de niveles conocidos."""
     return (
@@ -82,6 +124,8 @@ def validar(d):
             errores.append("'%s' debe ser un booleano" % k)
         elif k == "escalada":
             errores.extend(_validar_escalada(v))
+        elif k == "prioridad":
+            errores.extend(_validar_prioridad(v))
     return errores
 
 
@@ -147,4 +191,14 @@ def cargar(ruta=None):
                         "'escalada.niveles' inválido, se usa la escalera por defecto"
                     )
         cfg["escalada"] = esc
+    if isinstance(con.get("prioridad"), dict):
+        pri = dict(cfg["prioridad"])
+        for k, v in con["prioridad"].items():
+            if k not in PESOS:
+                avisos.append("'prioridad.%s' no es un peso conocido, se descarta" % k)
+            elif _es_numero(v):
+                pri[k] = v
+            else:
+                avisos.append("'prioridad.%s' no es un número, se usa %s" % (k, pri[k]))
+        cfg["prioridad"] = pri
     return cfg, avisos
