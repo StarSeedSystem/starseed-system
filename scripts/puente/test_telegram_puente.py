@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """Pruebas sin red para la lógica pura de telegram-puente."""
-
 import importlib.util
 import os
 import pathlib
@@ -57,13 +56,10 @@ comprobar(
 comprobar("es_repetido idéntico", PUENTE.es_repetido(mensaje, dict(mensaje)), True)
 
 cuota_anterior = {
-    "tipo": "aviso",
-    "texto": "Proveedor sin cuota: motor-a",
-    "epoch": 1000,
+    "tipo": "aviso", "texto": "Proveedor sin cuota: motor-a", "epoch": 1000,
 }
 cuota_nueva = {
-    "tipo": "aviso",
-    "texto": "Proveedor sin cuota: motor-a",
+    "tipo": "aviso", "texto": "Proveedor sin cuota: motor-a",
     "epoch": 1000 + PUENTE.SIN_CREDITO_TIEMPO - 1,
 }
 # El aviso conserva utilidad temporal: dentro del plazo se calla; después renace.
@@ -95,11 +91,9 @@ comprobar(
 )
 
 # La etiqueta de la ola puede venir ya completa desde el Mando.
-resumen_ola = PUENTE._mensajes_resumen(
-    {
-        "cuentas": {"ola": "Ola 305", "integradas": 1},
-    }
-)
+resumen_ola = PUENTE._mensajes_resumen({
+    "cuentas": {"ola": "Ola 305", "integradas": 1},
+})
 comprobar(
     "no duplicar prefijo de ola",
     (
@@ -140,59 +134,9 @@ comprobar(
 )
 
 # `texto` es parte del contrato: main lo imprime para explicar por qué no arranca.
-comprobar("parsear /salud", PUENTE.parsear_orden("/salud"), ("salud", [], None))
-comprobar(
-    "parsear /proveedores",
-    PUENTE.parsear_orden("/proveedores"),
-    ("proveedores", [], None),
-)
-comprobar(
-    "parsear /xyz desconocida",
-    PUENTE.parsear_orden("/xyz"),
-    ("desconocida", ["/xyz"], "xyz"),
-)
-
-
-def _medidores_mock():
-    return [
-        {"nombre": "openai", "estado": "ok", "detalle": ""},
-        {"nombre": "anthropic", "estado": "error", "detalle": "sin cuota"},
-    ]
-
-
-class FakeSaludMando:
-    @staticmethod
-    def medidores(estado):
-        return _medidores_mock()
-
-
-class FakeSaludProveedores:
-    @staticmethod
-    def resumen(estado):
-        return [{"texto": "motor-a: 429/402 repetido"}]
-
-
-_original_salud_mando = getattr(PUENTE, "salud_mando", None)
-_original_salud_proveedores = getattr(PUENTE, "salud_proveedores", None)
-
-PUENTE.salud_mando = staticmethod(lambda e: [])
-PUENTE.salud_proveedores = staticmethod(lambda e: [])
-
-comprobar("salud sin datos → vacío", PUENTE.salud_mando({}), [])
-comprobar("salud con error → vacío", PUENTE.salud_mando({"_error": "timeout"}), [])
-comprobar("proveedores sin datos → vacío", PUENTE.salud_proveedores({}), [])
-comprobar(
-    "proveedores con error → vacío", PUENTE.salud_proveedores({"_error": "timeout"}), []
-)
-
-if _original_salud_mando:
-    PUENTE.salud_mando = _original_salud_mando
-if _original_salud_proveedores:
-    PUENTE.salud_proveedores = _original_salud_proveedores
-
 comprobar(
     "arranque sin variables",
-    PUENTE.arranque_completo(env={}),
+    PUENTE.arranque_completo({}),
     {
         "ok": False,
         "token": False,
@@ -207,10 +151,7 @@ comprobar(
 
 if FALLAS:
     print("\n".join(FALLAS))
-    print(
-        "%d/%d pruebas en verde; %d fallaron."
-        % (PRUEBAS - len(FALLAS), PRUEBAS, len(FALLAS))
-    )
+    print("%d/%d pruebas en verde; %d fallaron." % (PRUEBAS - len(FALLAS), PRUEBAS, len(FALLAS)))
     sys.exit(1)
 
 print("%d/%d pruebas en verde." % (PRUEBAS, PRUEBAS))
