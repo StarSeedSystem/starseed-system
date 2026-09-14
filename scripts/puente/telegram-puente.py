@@ -42,6 +42,7 @@ Tests: los casos que se pueden probar sin red van en funciones puras
 (parsear una orden, decidir si un aviso es repetido, formatear un mensaje) y
 están cubiertos por test_telegram_puente.py. Los tests NO tocan Telegram.
 """
+
 import json, os, sys, time, urllib.error, urllib.parse, urllib.request
 
 # ── no dependencias nuevas: solo biblioteca estándar ───────────────────────
@@ -49,9 +50,9 @@ import json, os, sys, time, urllib.error, urllib.parse, urllib.request
 MANDO = os.environ.get("STARSEED_MANDO_URL") or "http://localhost:9002"
 
 # Constantes visibles para los tests puramente lógicos.
-MURMURIO_MAX = 300          # segundos quietos con bytes parados → API colgada
-SECUENCIA_REPITO = 3        # avisos del mismo tipo seguidos antes de enviar otro
-SIN_CREDITO_TIEMPO = 600    # segundos que algo estuvo sin cuota antes de notificar
+MURMURIO_MAX = 300  # segundos quietos con bytes parados → API colgada
+SECUENCIA_REPITO = 3  # avisos del mismo tipo seguidos antes de enviar otro
+SIN_CREDITO_TIEMPO = 600  # segundos que algo estuvo sin cuota antes de notificar
 CERROJO = "/tmp/starseed-telegram-puente.lock"
 
 
@@ -114,7 +115,10 @@ def adquirir_cerrojo(ruta=CERROJO, pid=None, proceso_vivo=None):
             except FileNotFoundError:
                 continue
             except OSError as error:
-                return False, "No se pudo inspeccionar el cerrojo de Telegram: %s" % error
+                return (
+                    False,
+                    "No se pudo inspeccionar el cerrojo de Telegram: %s" % error,
+                )
             try:
                 pid_anterior = int(contenido)
             except (TypeError, ValueError):
@@ -175,8 +179,9 @@ def _api_mando(ruta, espera=8):
 
 def _status():
     try:
-        req = urllib.request.Request("%s/api/mando/estado" % MANDO,
-                                      headers={"Accept": "application/json"})
+        req = urllib.request.Request(
+            "%s/api/mando/estado" % MANDO, headers={"Accept": "application/json"}
+        )
         with urllib.request.urlopen(req, timeout=8) as r:
             return json.load(r)
     except Exception:
@@ -223,10 +228,17 @@ def parsear_orden(texto):
         return ("cola", [], None)
     if orden == "puertas":
         return ("puertas", [], None)
+    if orden == "salud":
+        return ("salud", [], None)
+    if orden == "proveedores":
+        return ("proveedores", [], None)
     if orden == "decir":
         argumento = partes[1].strip() if len(partes) > 1 else ""
-        if (len(argumento) >= 2 and argumento[0] == argumento[-1]
-                and argumento[0] in ("'", '"')):
+        if (
+            len(argumento) >= 2
+            and argumento[0] == argumento[-1]
+            and argumento[0] in ("'", '"')
+        ):
             argumento = argumento[1:-1]
         if not argumento:
             return ("error", [], "decir <texto>")
@@ -248,8 +260,13 @@ def parsear_orden(texto):
     return ("desconocida", [s], orden)
 
 
-def es_repetido(linea, ultimo, umbral_secuencias=SECUENCIA_REPITO,
-                umbral_murmurio=MURMURIO_MAX, umbral_sincredito=SIN_CREDITO_TIEMPO):
+def es_repetido(
+    linea,
+    ultimo,
+    umbral_secuencias=SECUENCIA_REPITO,
+    umbral_murmurio=MURMURIO_MAX,
+    umbral_sincredito=SIN_CREDITO_TIEMPO,
+):
     """Responde «¿me callo?» para un evento candidato.
 
     Un evento válido sin último mensaje nunca se calla: devuelve False. Los
@@ -282,7 +299,9 @@ def es_repetido(linea, ultimo, umbral_secuencias=SECUENCIA_REPITO,
     if mismo_tipo and linea_tipo == "aviso" and es_cuota and mismo_texto:
         ultimo_epoch = ultimo.get("epoch")
         linea_epoch = linea.get("epoch")
-        if isinstance(ultimo_epoch, (int, float)) and isinstance(linea_epoch, (int, float)):
+        if isinstance(ultimo_epoch, (int, float)) and isinstance(
+            linea_epoch, (int, float)
+        ):
             lapso = linea_epoch - ultimo_epoch
             return 0 <= lapso < umbral_sincredito
         return False
@@ -292,7 +311,9 @@ def es_repetido(linea, ultimo, umbral_secuencias=SECUENCIA_REPITO,
     if mismo_tipo and linea_tipo == "aviso" and es_colgada and misma_tarea:
         ultimo_epoch = ultimo.get("epoch")
         linea_epoch = linea.get("epoch")
-        if isinstance(ultimo_epoch, (int, float)) and isinstance(linea_epoch, (int, float)):
+        if isinstance(ultimo_epoch, (int, float)) and isinstance(
+            linea_epoch, (int, float)
+        ):
             lapso = linea_epoch - ultimo_epoch
             return 0 <= lapso < umbral_murmurio
         return False
@@ -314,13 +335,14 @@ def _pinta_json(linea):
     if not isinstance(linea, dict):
         return ""
     marca = {"error": "✗", "aviso": "!", "hecho": "✓", "mensaje": "·"}.get(
-        linea.get("tipo", ""), "·")
+        linea.get("tipo", ""), "·"
+    )
     quien = linea.get("quien") or "?"
     tarea = (" [%s]" % linea["tarea"]) if linea.get("tarea") else ""
     momento = linea.get("t")
     msj = linea.get("texto") or ""
     if momento and len(momento) > 11:
-        ts = momento[11:]   # HH:MM:SS
+        ts = momento[11:]  # HH:MM:SS
     else:
         ts = momento or ""
     return "%s *%s* _%s_%s %s" % (marca, quien, ts, tarea, msj)
@@ -335,7 +357,10 @@ def mensajes_canal_desde(nombre_archivo=None, desde_epoch=None, max_lineas=2000)
     if nombre_archivo is None:
         nombre_archivo = os.path.join(
             os.environ.get("STARSEED_ROOT") or "/Users/alex/Documents/starseed-os-main",
-            "starseed_memory_root", "mando", "canal.jsonl")
+            "starseed_memory_root",
+            "mando",
+            "canal.jsonl",
+        )
     try:
         lineas = open(nombre_archivo, encoding="utf-8").read().splitlines()
     except Exception:
@@ -358,16 +383,20 @@ def _telegram_get(token, offset=None, timeout=20, limite=100):
     Devuelve (lista_de_updates, nuevo_offset). Es la única función que habla
     con Telegram salvo enviar mensajes; los tests la evitan.
     """
-    params = urllib.parse.urlencode({
-        "timeout": timeout,
-        "limit": limite,
-        "allowed_updates": json.dumps(["message", "edited_message"]),
-    })
+    params = urllib.parse.urlencode(
+        {
+            "timeout": timeout,
+            "limit": limite,
+            "allowed_updates": json.dumps(["message", "edited_message"]),
+        }
+    )
     url = "https://api.telegram.org/bot%s/getUpdates?%s" % (token, params)
     if offset is not None:
         url += "&offset=%d" % (offset + 1)
     try:
-        req = urllib.request.Request(url, headers={"User-Agent": "starseed-telegram-puente/1.0"})
+        req = urllib.request.Request(
+            url, headers={"User-Agent": "starseed-telegram-puente/1.0"}
+        )
         with urllib.request.urlopen(req, timeout=timeout + 10) as r:
             datos = json.load(r)
     except Exception:
@@ -382,7 +411,9 @@ def _telegram_get(token, offset=None, timeout=20, limite=100):
     return respuestas, nuevo_offset
 
 
-def _telegram_send(token, chat_id, texto, reply_markup=None, disable_notification=False):
+def _telegram_send(
+    token, chat_id, texto, reply_markup=None, disable_notification=False
+):
     """POST /bot<token>/sendMessage.
 
     El único efecto externo de escribir una orden; los tests NO lo llaman.
@@ -402,7 +433,9 @@ def _telegram_send(token, chat_id, texto, reply_markup=None, disable_notificatio
         datos = json.dumps(payload).encode("utf-8")
         req = urllib.request.Request(
             "https://api.telegram.org/bot%s/sendMessage" % token,
-            data=datos, headers={"Content-Type": "application/json"})
+            data=datos,
+            headers={"Content-Type": "application/json"},
+        )
         with urllib.request.urlopen(req, timeout=15) as r:
             return json.load(r)
     except urllib.error.HTTPError as e:
@@ -415,20 +448,56 @@ def _marcos_aprobacion(ids):
     """Keyboard de Telegram con un botón por tarea para aprobar / rechazar."""
     filas = []
     for i in ids:
-        filas.append([
-            {"text": "Aprobar %s" % i, "callback_data": "telegram-aprobar-%s" % i},
-            {"text": "Rechazar %s" % i, "callback_data": "telegram-rechazar-%s" % i},
-        ])
+        filas.append(
+            [
+                {"text": "Aprobar %s" % i, "callback_data": "telegram-aprobar-%s" % i},
+                {
+                    "text": "Rechazar %s" % i,
+                    "callback_data": "telegram-rechazar-%s" % i,
+                },
+            ]
+        )
     return {"inline_keyboard": filas}
 
 
-def _mensajes_resumen(estado):
-    """Construye los fragmentos de texto que saca el bot por su cuenta, sin
-    que nadie pregunte. Recibe lo que devolvió _status() (puede ser None o el
-    dict del Mando) y devuelve una lista de objetos canal listos para reenviar.
+def salud_proveedores(estado):
+    """Devuelve un resumen de la salud de los proveedores.
 
-    Es puramente descriptiva: no decide qué reenviar, solo prepara textos
-    candidatos. El filtro de repetición está en es_repetido().
+    Args:
+        estado: El estado del Mando.
+
+    Returns:
+        dict: Un diccionario con el resumen de la salud de los proveedores.
+    """
+    if not estado or estado.get("_error"):
+        return []
+
+    cuentas = estado.get("cuentas") or {}
+    frases = []
+
+    # proveedores sin cuota: el Mando lista cuentas críticas.
+    cuentas_criticas = cuentas.get("cuentasCriticas") or []
+    for c in cuentas_criticas:
+        frases.append(
+            {
+                "tipo": "aviso",
+                "quien": "telegram",
+                "texto": "Proveedor sin cuota o 429/402 repetido: %s"
+                % (c.get("nombre") or c.get("motor", "desconocido")),
+            }
+        )
+
+    return frases
+
+
+def salud_mando(estado):
+    """Devuelve un resumen de la salud del Mando.
+
+    Args:
+        estado: El estado del Mando.
+
+    Returns:
+        dict: Un diccionario con el resumen de la salud del Mando.
     """
     if not estado or estado.get("_error"):
         return []
@@ -444,44 +513,41 @@ def _mensajes_resumen(estado):
     # El bot compara con su propio último estado guardado; aquí solo devuelve el
     # fragmento que el ciclo de arriba decide si es repetido.
     if integradas:
-        frases.append({
-            "tipo": "hecho",
-            "quien": "telegram",
-            "texto": "%s integrada · %s tareas cruzadas a main"
-                      % (_etiqueta_ola(ola), integradas),
-        })
+        frases.append(
+            {
+                "tipo": "hecho",
+                "quien": "telegram",
+                "texto": "%s integrada · %s tareas cruzadas a main"
+                % (_etiqueta_ola(ola), integradas),
+            }
+        )
 
     # puertas rojas: si hay tareas esperando aprobación, avisa.
     if aprobacion:
         ids = []
-        for t in (estado.get("tareas") or []):
-            if (t.get("fase") or "").lower() in ("esperando-aprobacion", "espera-aprobacion",
-                                                  "aprobacion"):
+        for t in estado.get("tareas") or []:
+            if (t.get("fase") or "").lower() in (
+                "esperando-aprobacion",
+                "espera-aprobacion",
+                "aprobacion",
+            ):
                 ids.append(t.get("id") or t.get("tarea") or "?")
         if ids:
-            frases.append({
-                "tipo": "aviso",
-                "quien": "telegram",
-                "tarea": ids[0],
-                "texto": "Puerta de aprobación humana: %s tarea(s) — /aprobar las libera"
-                          % aprobacion,
-                "ids_referencia": ids,
-            })
-
-    # proveedores sin cuota: el Mando lista cuentas críticas.
-    cuentas_criticas = cuentas.get("cuentasCriticas") or []
-    for c in cuentas_criticas:
-        frases.append({
-            "tipo": "aviso",
-            "quien": "telegram",
-            "texto": "Proveedor sin cuota o 429/402 repetido: %s"
-                      % (c.get("nombre") or c.get("motor", "desconocido")),
-        })
+            frases.append(
+                {
+                    "tipo": "aviso",
+                    "quien": "telegram",
+                    "tarea": ids[0],
+                    "texto": "Puerta de aprobación humana: %s tarea(s) — /aprobar las libera"
+                    % aprobacion,
+                    "ids_referencia": ids,
+                }
+            )
 
     # tareas colgadas: quieto > MURMURIO_MAX con bytes parados.
     ahora = time.time()
     colgadas = []
-    for t in (estado.get("tareas") or []):
+    for t in estado.get("tareas") or []:
         avance = t.get("avance") or ahora
         quieto = ahora - avance
         bytes_ = t.get("bytes", 0)
@@ -490,16 +556,21 @@ def _mensajes_resumen(estado):
         elif quieto > MURMURIO_MAX and bytes_ < (t.get("bytesMax", 1) or 1) * 0.01:
             colgadas.append(t)
     if colgadas:
-        frases.append({
-            "tipo": "aviso",
-            "quien": "telegram",
-            "tarea": colgadas[0].get("id") or colgadas[0].get("tarea") or "?",
-            "texto": "API colgada, no modelo lento: %s lleva %d s sin bytes"
-                      % ((colgadas[0].get("id") or colgadas[0].get("tarea") or "?"),
-                         int(ahora - (colgadas[0].get("avance") or ahora))),
-        })
+        frases.append(
+            {
+                "tipo": "aviso",
+                "quien": "telegram",
+                "tarea": colgadas[0].get("id") or colgadas[0].get("tarea") or "?",
+                "texto": "API colgada, no modelo lento: %s lleva %d s sin bytes"
+                % (
+                    (colgadas[0].get("id") or colgadas[0].get("tarea") or "?"),
+                    int(ahora - (colgadas[0].get("avance") or ahora)),
+                ),
+            }
+        )
 
-    return frases
+
+return frases
 
 
 def _formatear_orden_completa(accion, args, extra=None):
@@ -548,9 +619,12 @@ def arranque_completo(entorno=None):
         "token": bool(token),
         "chat": bool(chat),
         "faltan": faltan,
-        "texto": ("Telegram-Puente listo para el chat %s." % chat) if not faltan
-                 else ("Telegram-Puente parado: hacen falta %s como variables de entorno."
-                       % ", ".join(faltan)),
+        "texto": ("Telegram-Puente listo para el chat %s." % chat)
+        if not faltan
+        else (
+            "Telegram-Puente parado: hacen falta %s como variables de entorno."
+            % ", ".join(faltan)
+        ),
     }
 
 
@@ -566,7 +640,10 @@ def _ejecutar_puente():
     chat_id = _chat_id()
     canal = os.path.join(
         os.environ.get("STARSEED_ROOT") or "/Users/alex/Documents/starseed-os-main",
-        "starseed_memory_root", "mando", "canal.jsonl")
+        "starseed_memory_root",
+        "mando",
+        "canal.jsonl",
+    )
 
     # Persistencia mínima del último offset y del último estado known para
     # filtrar repetidos. Se guarda en /tmp para no versionar nada.
@@ -620,17 +697,25 @@ def _ejecutar_puente():
                 # Ordenes que cambian algo: solo el dueño.
                 if accion in ("aprobar", "rechazar", "soltar", "reasignar"):
                     if not _autorizado(quien):
-                        print("Ignorada orden %s->%s de chat no autorizado %s"
-                              % (accion, args, quien))
+                        print(
+                            "Ignorada orden %s->%s de chat no autorizado %s"
+                            % (accion, args, quien)
+                        )
                         continue
                 if accion == "mensaje":
                     texto_canal = args[0]
                     if texto_canal:
                         import importlib.util as _imp
+
                         _spec = _imp.spec_from_file_location(
-                            "puente", os.path.join(os.path.dirname(__file__), "puente.py"))
-                        _p = _imp.module_from_spec(_spec); _spec.loader.exec_module(_p)
-                        _p.decir(texto_canal, quien="telegram-%s" % quien, tipo="mensaje")
+                            "puente",
+                            os.path.join(os.path.dirname(__file__), "puente.py"),
+                        )
+                        _p = _imp.module_from_spec(_spec)
+                        _spec.loader.exec_module(_p)
+                        _p.decir(
+                            texto_canal, quien="telegram-%s" % quien, tipo="mensaje"
+                        )
                         print("→ canal: %s" % texto_canal[:80])
                     continue
                 # enviar respuesta al chat:
@@ -640,87 +725,203 @@ def _ejecutar_puente():
                         txt = "Mando apagado: no hay qué snapshotear."
                     else:
                         c = e.get("cuentas") or {}
-                        txt = "%s · integradas %s · en curso %s · aprobación %s · pendientes %s" % (
-                            _etiqueta_ola(c.get("ola", "—"), "OLA"),
-                            c.get("integradas", 0),
-                            c.get("enCurso", 0),
-                            c.get("esperandoAprobacion", 0),
-                            c.get("pendientes", 0))
+                        txt = (
+                            "%s · integradas %s · en curso %s · aprobación %s · pendientes %s"
+                            % (
+                                _etiqueta_ola(c.get("ola", "—"), "OLA"),
+                                c.get("integradas", 0),
+                                c.get("enCurso", 0),
+                                c.get("esperandoAprobacion", 0),
+                                c.get("pendientes", 0),
+                            )
+                        )
                     res = _telegram_send(token, msg.get("chat", {}).get("id"), txt)
                     print("estado → %s" % (res.get("ok") if res else "?"))
                 elif accion == "agentes":
                     txt = "Consulta el Mando: /agentes"
                     _telegram_send(token, msg.get("chat", {}).get("id"), txt)
                 elif accion == "puertas":
-                    _telegram_send(token, msg.get("chat", {}).get("id"),
-                                   "Tres puertas: tsc · vitest · next build (nunca con el enjambre vivo).")
+                    _telegram_send(
+                        token,
+                        msg.get("chat", {}).get("id"),
+                        "Tres puertas: tsc · vitest · next build (nunca con el enjambre vivo).",
+                    )
                 elif accion == "cola":
-                    _telegram_send(token, msg.get("chat", {}).get("id"),
-                                   "La cola viva la muestra el Mando; /estado lo trae.")
+                    _telegram_send(
+                        token,
+                        msg.get("chat", {}).get("id"),
+                        "La cola viva la muestra el Mando; /estado lo trae.",
+                    )
                 elif accion == "ayuda":
-                    txt = ("Órdenes Telegram → Puente:\n"
-                           "/estado /agentes /olas /cola /puertas /ayuda\n"
-                           "/aprobar <id...>   /rechazar <id...>   /soltar <id...>\n"
-                           "/reasignar <id> <modelo>\n"
-                           '/decir <texto>        → canal común (lo ven los cuatro IDE)\n'
-                           '/a <agente> <texto>  → canal dirigiéndose a un agente concreto\n'
-                           "Cualquier texto suelto también va al canal.")
+                    txt = (
+                        "Órdenes Telegram → Puente:\n"
+                        "/estado /agentes /olas /cola /puertas /ayuda\n"
+                        "/aprobar <id...>   /rechazar <id...>   /soltar <id...>\n"
+                        "/reasignar <id> <modelo>\n"
+                        "/decir <texto>        → canal común (lo ven los cuatro IDE)\n"
+                        "/a <agente> <texto>  → canal dirigiéndose a un agente concreto\n"
+                        "/salud → resumen de la salud del Mando\n"
+                        "/proveedores → resumen de la salud de los proveedores\n"
+                        "Cualquier texto suelto también va al canal."
+                    )
                     _telegram_send(token, msg.get("chat", {}).get("id"), txt)
                 elif accion in ("aprobar", "rechazar", "soltar"):
                     import importlib.util as _imp2
+
                     _spec2 = _imp2.spec_from_file_location(
-                        "puente", os.path.join(os.path.dirname(__file__), "puente.py"))
-                    _p2 = _imp2.module_from_spec(_spec2); _spec2.loader.exec_module(_p2)
+                        "puente", os.path.join(os.path.dirname(__file__), "puente.py")
+                    )
+                    _p2 = _imp2.module_from_spec(_spec2)
+                    _spec2.loader.exec_module(_p2)
                     ids = args
                     accion_orden = accion
                     extra_orden = {}
                     if accion == "soltar":
                         extra_orden["donde"] = "agentes-ia"
                     _p2.orden(accion_orden, ids, extra_orden)
-                    _telegram_send(token, msg.get("chat", {}).get("id"),
-                                   "Orden «%s» para %s" % (accion, ", ".join(ids)))
+                    _telegram_send(
+                        token,
+                        msg.get("chat", {}).get("id"),
+                        "Orden «%s» para %s" % (accion, ", ".join(ids)),
+                    )
                 elif accion == "reasignar":
                     import importlib.util as _imp3
+
                     _spec3 = _imp3.spec_from_file_location(
-                        "puente", os.path.join(os.path.dirname(__file__), "puente.py"))
-                    _p3 = _imp3.module_from_spec(_spec3); _spec3.loader.exec_module(_p3)
+                        "puente", os.path.join(os.path.dirname(__file__), "puente.py")
+                    )
+                    _p3 = _imp3.module_from_spec(_spec3)
+                    _spec3.loader.exec_module(_p3)
                     _p3.orden("reasignar", [args[0]], {"modelo": args[1]})
-                    _telegram_send(token, msg.get("chat", {}).get("id"),
-                                   "Reasignado %s → %s" % (args[0], args[1]))
+                    _telegram_send(
+                        token,
+                        msg.get("chat", {}).get("id"),
+                        "Reasignado %s → %s" % (args[0], args[1]),
+                    )
                 elif accion == "decir":
                     import importlib.util as _imp4
+
                     _spec4 = _imp4.spec_from_file_location(
-                        "puente", os.path.join(os.path.dirname(__file__), "puente.py"))
-                    _p4 = _imp4.module_from_spec(_spec4); _spec4.loader.exec_module(_p4)
+                        "puente", os.path.join(os.path.dirname(__file__), "puente.py")
+                    )
+                    _p4 = _imp4.module_from_spec(_spec4)
+                    _spec4.loader.exec_module(_p4)
                     msg_chat = msg.get("chat", {}).get("id")
                     _p4.decir(args[0], quien="telegram-%s" % msg_chat, tipo="mensaje")
                     _telegram_send(token, msg_chat, "Dicho en el canal común.")
                 elif accion == "personal":
                     import importlib.util as _imp5
+
                     _spec5 = _imp5.spec_from_file_location(
-                        "puente", os.path.join(os.path.dirname(__file__), "puente.py"))
-                    _p5 = _imp5.module_from_spec(_spec5); _spec5.loader.exec_module(_p5)
-                    _p5.decir(args[1], quien="telegram-%s|%s" % (quien, args[0]),
-                              tipo="mensaje", tarea=None)
-                    _telegram_send(token, msg.get("chat", {}).get("id"),
-                                   "Dicho a %s en el canal." % args[0])
+                        "puente", os.path.join(os.path.dirname(__file__), "puente.py")
+                    )
+                    _p5 = _imp5.module_from_spec(_spec5)
+                    _spec5.loader.exec_module(_p5)
+                    _p5.decir(
+                        args[1],
+                        quien="telegram-%s|%s" % (quien, args[0]),
+                        tipo="mensaje",
+                        tarea=None,
+                    )
+                    _telegram_send(
+                        token,
+                        msg.get("chat", {}).get("id"),
+                        "Dicho a %s en el canal." % args[0],
+                    )
                 elif accion == "olas":
                     n = int(args[0]) if args and args[0] else 5
                     e = _status()
                     if e and not e.get("_error"):
                         olas = e.get("olas") or []
-                        txt = "\n".join("· %s" % (o.get("id") or "?") for o in olas[-n:])
-                        _telegram_send(token, msg.get("chat", {}).get("id"), txt or "Sin olas recientes.")
+                        txt = "\n".join(
+                            "· %s" % (o.get("id") or "?") for o in olas[-n:]
+                        )
+                        _telegram_send(
+                            token,
+                            msg.get("chat", {}).get("id"),
+                            txt or "Sin olas recientes.",
+                        )
                     else:
-                        _telegram_send(token, msg.get("chat", {}).get("id"), "Mando apagado.")
+                        _telegram_send(
+                            token, msg.get("chat", {}).get("id"), "Mando apagado."
+                        )
+                elif accion == "salud":
+                    estado = _status()
+                    if not estado or estado.get("_error"):
+                        _telegram_send(
+                            token, msg.get("chat", {}).get("id"), "Mando apagado."
+                        )
+                    else:
+                        frases = salud_mando(estado)
+                        if not frases:
+                            _telegram_send(
+                                token,
+                                msg.get("chat", {}).get("id"),
+                                "Todo OK. Sin novedad en el Mando.",
+                            )
+                        else:
+                            lineas = []
+                            for f in frases:
+                                tipo = f.get("tipo", "")
+                                emoji = {
+                                    "aviso": "❌",
+                                    "hecho": "✅",
+                                    "error": "✗",
+                                }.get(tipo, "·")
+                                txt = f.get("texto", "")
+                                tarea = f.get("tarea")
+                                remed = ""
+                                if tipo == "aviso" and "colgada" in txt.lower():
+                                    remed = (
+                                        " → Reinicia la tarea o cambia de proveedor."
+                                    )
+                                elif tipo == "aviso" and "cuota" in txt.lower():
+                                    remed = " → Cambia de proveedor o espera cuota."
+                                lineas.append("%s %s%s" % (emoji, txt, remed))
+                            _telegram_send(
+                                token,
+                                msg.get("chat", {}).get("id"),
+                                "Salud del Mando:\n" + "\n".join(lineas),
+                            )
+                elif accion == "proveedores":
+                    estado = _status()
+                    if not estado or estado.get("_error"):
+                        _telegram_send(
+                            token, msg.get("chat", {}).get("id"), "Mando apagado."
+                        )
+                    else:
+                        resumen = salud_proveedores(estado)
+                        if not resumen:
+                            _telegram_send(
+                                token,
+                                msg.get("chat", {}).get("id"),
+                                "Proveedores OK. Sin avisos.",
+                            )
+                        else:
+                            lineas = []
+                            for r in resumen:
+                                lineas.append("❌ %s" % r.get("texto", ""))
+                            _telegram_send(
+                                token,
+                                msg.get("chat", {}).get("id"),
+                                "Salud de proveedores:\n" + "\n".join(lineas),
+                            )
                 elif accion == "desconocida":
-                    _telegram_send(token, msg.get("chat", {}).get("id"),
-                                   "Orden «%s» no reconocida. Escribe /ayuda." % extra)
+                    _telegram_send(
+                        token,
+                        msg.get("chat", {}).get("id"),
+                        "Orden «%s» no reconocida. Escribe /ayuda." % extra,
+                    )
                 elif accion == "error":
-                    _telegram_send(token, msg.get("chat", {}).get("id"), args[0] or "¿?")
+                    _telegram_send(
+                        token, msg.get("chat", {}).get("id"), args[0] or "¿?"
+                    )
                 else:
-                    _telegram_send(token, msg.get("chat", {}).get("id"),
-                                   "Instrucción no implementada en Telegram: /%s" % accion)
+                    _telegram_send(
+                        token,
+                        msg.get("chat", {}).get("id"),
+                        "Instrucción no implementada en Telegram: /%s" % accion,
+                    )
             if updates:
                 offset = nuevo_offset
                 with open(offset_path, "w", encoding="utf-8") as f:
@@ -738,10 +939,17 @@ def _ejecutar_puente():
                 if not txt:
                     continue
                 res = _telegram_send(token, chat_id, txt, disable_notification=True)
-                print("canal → %s: %s" % (("OK" if res and res.get("ok") else "NO"), txt[:60]))
-                ultimo_enviado = {"tipo": linea.get("tipo"), "texto": linea.get("texto"),
-                                  "quien": linea.get("quien"), "tarea": linea.get("tarea"),
-                                  "epoch": linea.get("epoch")}
+                print(
+                    "canal → %s: %s"
+                    % (("OK" if res and res.get("ok") else "NO"), txt[:60])
+                )
+                ultimo_enviado = {
+                    "tipo": linea.get("tipo"),
+                    "texto": linea.get("texto"),
+                    "quien": linea.get("quien"),
+                    "tarea": linea.get("tarea"),
+                    "epoch": linea.get("epoch"),
+                }
                 with open(state_path, "w", encoding="utf-8") as f:
                     json.dump(ultimo_enviado, f)
 
@@ -762,11 +970,17 @@ def _ejecutar_puente():
                 if ids:
                     reply = _marcos_aprobacion(ids)
                 res = _telegram_send(token, chat_id, txt, reply_markup=reply)
-                print("vigilancia → %s: %s" % (("OK" if res and res.get("ok") else "NO"), txt[:60]))
-                ultimo_enviado = {"tipo": c.get("tipo"), "texto": c.get("texto"),
-                                  "quien": c.get("quien"),
-                                  "tarea": c.get("tarea"),
-                                  "epoch": c.get("epoch")}
+                print(
+                    "vigilancia → %s: %s"
+                    % (("OK" if res and res.get("ok") else "NO"), txt[:60])
+                )
+                ultimo_enviado = {
+                    "tipo": c.get("tipo"),
+                    "texto": c.get("texto"),
+                    "quien": c.get("quien"),
+                    "tarea": c.get("tarea"),
+                    "epoch": c.get("epoch"),
+                }
                 with open(state_path, "w", encoding="utf-8") as f:
                     json.dump(ultimo_enviado, f)
         except KeyboardInterrupt:
