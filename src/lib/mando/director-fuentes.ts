@@ -151,3 +151,19 @@ export async function leerAsuntosMain(raiz: string, n = 800): Promise<string[]> 
     const stdout = await intentar(async () => (await execFileAsync("git", cmd, opts)).stdout, "");
     return stdout.split("\n").filter((l) => l.trim());
 }
+
+/**
+ * Asuntos de los commits de HOY en main (hora local), para que «integradas hoy»
+ * signifique hoy. Antes se contaba contra TODO el historial y la cifra salía
+ * 183 a las 00:14 de la madrugada: un número que nadie puede creerse y que hace
+ * dudar del resto de la cabecera.
+ */
+export async function leerAsuntosDeHoy(raiz: string): Promise<string[]> {
+    const f = new Date();
+    const dd = (x: number) => String(x).padStart(2, "0");
+    const desde = `${f.getFullYear()}-${dd(f.getMonth() + 1)}-${dd(f.getDate())} 00:00:00`;
+    const cmd = ["log", "main", "--format=%s", `--since=${desde}`], opts = { cwd: raiz, timeout: 8000, maxBuffer: 4 * 1024 * 1024 };
+    const stdout = await intentar(async () => (await execFileAsync("git", cmd, opts)).stdout, "");
+    return stdout.split("\n").filter((l) => l.trim());
+}
+

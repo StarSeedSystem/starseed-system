@@ -114,6 +114,7 @@ export function resumenPendientes(
   colasFuente: Array<{ nombre: string; tareas: Array<{ id?: string }> }>,
   progreso: Record<string, ProgresoEntrada>,
   asuntosMain: string[],
+  asuntosHoy: string[] = asuntosMain,
 ): ResumenPendientes {
   const r: ResumenPendientes = { listas: 0, bloqueadas: [], sinCambios: 0, fallos: 0, esperandoAprobacion: 0, integradasHoy: 0, fallosDetalle: [] };
   const vistas = new Set<string>();
@@ -132,7 +133,9 @@ export function resumenPendientes(
         r.fallosDetalle.push({ id, estado: est, nota: nota.slice(0, 160) });
       }
       else if (est === "esperando_aprobacion" || est === "pendiente_aprobacion") r.esperandoAprobacion += 1;
-      else if (idEnAsuntos(id, asuntosMain)) r.integradasHoy += 1;
+      // «hoy» tiene que significar hoy: se cuenta contra los commits de hoy,
+      // no contra todo el historial (daba 183 a las 00:14 de la madrugada).
+      else if (idEnAsuntos(id, asuntosHoy)) r.integradasHoy += 1;
       else if (est === "pendiente" || est === "commit") r.listas += 1;
     }
   }

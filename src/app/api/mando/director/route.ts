@@ -11,7 +11,7 @@ import { guardianMando } from "@/lib/mando/guardian";
 import { raizDelProyecto } from "@/lib/mando/raiz";
 import {
     leerLatidos, leerProgreso, leerColasFuente, leerSalud, leerModelos,
-    leerServicios, leerCanal, leerAsuntosMain, leerJsonOpcional,
+    leerServicios, leerCanal, leerAsuntosMain, leerAsuntosDeHoy, leerJsonOpcional,
 } from "@/lib/mando/director-fuentes";
 import { resumenAgentes, resumenPendientes, resumenProveedores, resumenDirectores, listaAgentes } from "@/lib/mando/director-datos";
 
@@ -35,10 +35,10 @@ export async function GET(peticion: Request): Promise<Response> {
     const home = os.homedir();
     const ahora = Math.floor(Date.now() / 1000);
 
-    const [latidos, progreso, colasFuente, salud, modelos, servicios, canal, asuntosMain, escaladaCruda, configCruda] =
+    const [latidos, progreso, colasFuente, salud, modelos, servicios, canal, asuntosMain, asuntosHoy, escaladaCruda, configCruda] =
         await Promise.all([
             leerLatidos(raiz), leerProgreso(raiz), leerColasFuente(raiz), leerSalud(home), leerModelos(raiz),
-            leerServicios(), leerCanal(raiz), leerAsuntosMain(raiz),
+            leerServicios(), leerCanal(raiz), leerAsuntosMain(raiz), leerAsuntosDeHoy(raiz),
             leerJsonOpcional(path.join(raiz, "starseed_memory_root", "olas", "escalada-gasto.json")),
             leerJsonOpcional(path.join(raiz, "starseed_memory_root", "mando", "director-config.json")),
         ]);
@@ -52,7 +52,7 @@ export async function GET(peticion: Request): Promise<Response> {
     return NextResponse.json(
         {
             agentes: { ...resumenAgentes(latidos, ahora), lista: listaAgentes(latidos, ahora) },
-            pendientes: resumenPendientes(colasFuente, progreso, asuntosMain),
+            pendientes: resumenPendientes(colasFuente, progreso, asuntosMain, asuntosHoy),
             proveedores: resumenProveedores(salud, modelos),
             directores: resumenDirectores(textoServicios, canal, ahora),
             escalada: { gastoHoy: numeroDe(escaladaCruda) },
