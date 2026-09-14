@@ -41,6 +41,10 @@ from medios import (
     vencer_arriendos,
 )
 
+# Qué pasarelas caben para un prompt de este tamaño. Fuera del archivo para poder probar la
+# aritmética sin lanzar una ola; ver el porqué en limite_proveedor.py.
+import limite_proveedor as _limite_proveedor
+
 
 # El MISMO archivo corre en la Mac de Alex y en el contenedor de Cowork: sin variables de
 # entorno, adivina el repositorio por dónde exista (Mac: ~/Documents/starseed-os-main;
@@ -2311,6 +2315,13 @@ AVISOS_CUOTA = (
     "exceeded your current quota",
     "rate limit exceeded",
     "credits exhausted",
+    # (2026-09-14, ola 323) Apinex condiciona su tramo gratuito a un fichaje DIARIO en su web:
+    # «Daily check-in required to use free models. Please visit .../airdrop?tab=quests». No es
+    # un fallo del modelo ni del prompt: mientras Alex no fiche, TODOS los modelos de apinex
+    # contestan lo mismo. Sin reconocerlo como aviso de cuota, la rotación se gastaba tres de
+    # sus seis intentos llamando uno por uno a modelos que ya sabíamos que dirían que no.
+    "daily check-in required",
+    "check in to use free models",
 )
 
 
@@ -3217,7 +3228,13 @@ def contexto_inteligente(t):
             areas.append(area)
             docs += documentos
             avisos.append(aviso)
-    docs = list(dict.fromkeys(docs))[:6]
+    # Solo se nombran documentos que EXISTEN (2026-09-14). `memory/centro-mando.md` llevaba
+    # tiempo en AREAS_CONTEXTO sin existir en el repositorio: cada tarea del área «mando»
+    # mandaba al agente a leerlo, el agente gastaba una llamada de herramienta y recibía
+    # «File not found», y el log de la tarea se llenaba de un error que no era un error.
+    # Pedirle a un modelo que lea algo que no está es la forma más barata de perder su
+    # atención justo al principio, que es cuando más cara es.
+    docs = [d for d in dict.fromkeys(docs) if os.path.exists(os.path.join(ROOT, d))][:6]
 
     L = []
     if areas:
@@ -4486,6 +4503,24 @@ def ejecutar(t, intento=1):
     por_proveedor = {}  # proveedor -> intentos ya gastados en él (para cruzar pasarelas)
     ronda = 0
     pendientes = [] if reanudada else list(modelos)
+    # No gastar intentos donde el intento no puede salir bien (2026-09-14, ola 323). Dos de
+    # los seis modelos de p323A, p323E y p323G se fueron en Groq, que en su tramo gratuito
+    # admite 7-8 mil tokens de entrada cuando el prompt de una tarea de esta casa ronda los
+    # veinte mil: «Request too large ... Limit 8000, Requested 19596». Eso no es un fallo
+    # transitorio que merezca reintento, es una imposibilidad que se conoce ANTES de llamar.
+    if pendientes:
+        try:
+            _tokens = _limite_proveedor.estimar_tokens(contexto_tarea(t))
+            pendientes, _apartados_tam = _limite_proveedor.filtrar_por_tamano(
+                pendientes, _tokens
+            )
+            for _m, _motivo in _apartados_tam:
+                if _m not in apartados:
+                    apartados.append(_m)
+                evento("reenrutado", tid, "no intento %s: %s" % (_m, _motivo))
+        except Exception as _e:
+            # Medir no puede impedir trabajar: si algo falla aquí, se intenta con todos.
+            print("limite_proveedor: %s: %s" % (type(_e).__name__, _e), flush=True)
     while pendientes and not cambios and intentos_reales < TOPE_INTENTOS_ESCRITURA:
         modelo = _siguiente_cruzando_proveedor(pendientes, por_proveedor)
         if not proveedor_vivo(proveedor_de(modelo)):
