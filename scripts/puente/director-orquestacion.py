@@ -122,7 +122,15 @@ def orquestador_vivo():
 
 
 def pendientes_totales():
-    TERMINAL = {"commit", "bloqueante", "sustituida", "rechazada"}
+    """Lo EJECUTABLE ahora, no todo lo que no ha terminado.
+
+    (2026-09-14) El PARTE decía «76 pendientes» mientras el Mando decía 33 y
+    progreso.json 10: esto contaba toda tarea no terminal de TODAS las colas,
+    incluidas las cerradas y las bloqueadas por dependencia. Tres cifras
+    distintas para la misma pregunta hacen que no te puedas fiar de ninguna.
+    """
+    TERMINAL = {"commit", "hecho", "bloqueante", "sustituida", "rechazada",
+                "bloqueada", "reasignada", "en_curso", "esperando_aprobacion"}
     p, vistas, n = progreso(), set(), 0
     try:
         for f in os.listdir(OLAS):

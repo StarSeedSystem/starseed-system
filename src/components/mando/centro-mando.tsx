@@ -562,11 +562,28 @@ export function CentroMando() {
                         tono={pulso.tareasEnCurso > 0 ? "aviso" : "normal"}
                         detalle={pulso.tareasEnCurso > 0 ? "agentes escribiendo ahora" : "ningún agente activo"}
                     />
+                    {/* (2026-09-14) Alex: «33 pendientes y no avanza». Eran 10 listas + 23
+                        BLOQUEADAS sumadas en un solo número: 23 de ellas no se pueden trabajar,
+                        esperan a que se integre su dependencia. Mezclarlas hacía parecer que
+                        faltaban agentes cuando lo que faltaba era desatascar una raíz — y dejaba
+                        el chip en rojo permanente, con lo que el rojo dejó de significar nada.
+                        Ahora la cifra grande es lo EJECUTABLE y lo bloqueado va aparte. */}
                     <DatoPulso
-                        titulo="Pendientes"
-                        valor={String(pulso.pendientes)}
-                        tono={pulso.pendientes > 0 && pulso.tareasEnCurso === 0 ? "peligro" : "normal"}
-                        detalle={`${pulso.listas} listas · ${pulso.bloqueadas} bloqueadas${pulso.copiasOmitidas > 0 ? ` · ${pulso.copiasOmitidas} copias omitidas` : ""}`}
+                        titulo="Listas para trabajar"
+                        valor={String(pulso.listas)}
+                        tono={pulso.listas > 0 && pulso.tareasEnCurso === 0 ? "peligro" : "normal"}
+                        detalle={
+                            pulso.listas > 0 && pulso.tareasEnCurso === 0
+                                ? "hay trabajo y ningún agente: algo está atascado"
+                                : `${pulso.pendientes} en total con las bloqueadas${pulso.copiasOmitidas > 0 ? ` · ${pulso.copiasOmitidas} copias omitidas` : ""}`
+                        }
+                        alClic={() => alCambiarPestana("procesos")}
+                    />
+                    <DatoPulso
+                        titulo="Bloqueadas"
+                        valor={String(pulso.bloqueadas)}
+                        tono={pulso.bloqueadas > 0 ? "aviso" : "normal"}
+                        detalle={pulso.bloqueadas > 0 ? "esperan a que se integre su dependencia" : "ninguna esperando dependencia"}
                         alClic={() => alCambiarPestana("procesos")}
                     />
                     <DatoPulso
