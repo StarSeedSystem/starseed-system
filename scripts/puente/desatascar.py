@@ -56,8 +56,14 @@ def clasificar_sucio(lineas):
     return estorbo, trabajo
 
 
-def puertas_a_rechazar(progreso, ahora, tope_min=20):
+def puertas_a_rechazar(progreso, ahora, tope_min=6):
     """Puertas cuyo veredicto ya está dado y solo falta ejecutarlo.
+
+    El tope es corto (6 min) a propósito: una revisión bloqueante o un alcance
+    incompleto son veredictos YA dados, y esperar no añade información — solo
+    congela el enjambre entero. Con 20 min cada atasco costaba media hora de
+    agentes parados (medido el 2026-09-14). Una puerta en VERDE no la toca
+    nadie: esa sí espera a una persona, el tiempo que haga falta.
 
     Devuelve [(id, motivo)]. Solo entran las que llevan más de `tope_min` en la
     puerta Y tienen revisión bloqueante o alcance incompleto. Una puerta en
@@ -77,7 +83,7 @@ def puertas_a_rechazar(progreso, ahora, tope_min=20):
     return fuera
 
 
-def orquestador_atascado(vivo, n_agentes, minutos_sin_avance, tope_min=25):
+def orquestador_atascado(vivo, n_agentes, minutos_sin_avance, tope_min=8):
     """Vivo, sin trabajadores y sin avanzar = atascado, aunque parezca normal."""
     if not vivo or n_agentes > 0:
         return False, ""
