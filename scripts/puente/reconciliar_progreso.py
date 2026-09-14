@@ -33,8 +33,51 @@ def en_main(tid, asuntos):
     return any(p.search(a) for a in asuntos)
 
 
-def reconciliar(progreso, asuntos, orquestador_vivo, ahora=None):
-    """Devuelve (progreso_nuevo, cambios). No toca el original."""
+def ids_de_colas_fuente(carpeta_olas):
+    """Todos los ids definidos por alguna cola FUENTE (no `cola-auto-*`).
+
+    Es lo único que sabe qué tareas existen de verdad: `progreso.json` guarda estados,
+    no definiciones. Devuelve `None` si la carpeta no se puede leer — y `None` significa
+    «no sé», que en `reconciliar` desactiva el cierre de huérfanas. Nunca devolver un
+    conjunto vacío por error: eso marcaría TODO el progreso como huérfano.
+    """
+    try:
+        import vigilante_logica as _v
+
+        es_fuente = _v.es_cola_fuente
+    except Exception:
+        def es_fuente(nombre):
+            return not nombre.startswith("cola-auto-")
+
+    ids = set()
+    try:
+        nombres = os.listdir(carpeta_olas)
+    except OSError:
+        return None
+    for f in nombres:
+        if not (f.startswith("cola-") and f.endswith(".json")) or not es_fuente(f):
+            continue
+        try:
+            d = json.load(open(os.path.join(carpeta_olas, f), encoding="utf-8"))
+        except Exception:
+            continue
+        for t in d if isinstance(d, list) else d.get("tareas", []):
+            if isinstance(t, dict) and t.get("id"):
+                ids.add(str(t["id"]))
+    return ids or None
+
+
+def reconciliar(progreso, asuntos, orquestador_vivo, ahora=None, ids_en_colas=None):
+    """Devuelve (progreso_nuevo, cambios). No toca el original.
+
+    `ids_en_colas` (opcional) es el conjunto de ids que alguna cola fuente define hoy.
+    Con él se cierran las HUÉRFANAS: entradas que siguen vivas en `progreso.json` pero
+    cuya ola ya no existe (archivada, renombrada o borrada). El 2026-09-14 había 8 así
+    —Q1b, J1, A7, E6A, O4, AR1, zX1, p321I— contadas como «pendientes» en el medidor del
+    Mando mientras `seleccionar_pendientes` devolvía 0 ejecutables, porque el vigilante
+    recorre COLAS y el medidor recorría ESTADOS. Nadie las podía ejecutar ni cerrar.
+    Sin este argumento (o con `None`) el comportamiento es el de siempre.
+    """
     ahora = ahora or time.strftime("%Y-%m-%d %H:%M")
     p = {k: dict(v) if isinstance(v, dict) else v for k, v in progreso.items()}
     cambios = []
@@ -67,6 +110,24 @@ def reconciliar(progreso, asuntos, orquestador_vivo, ahora=None):
         if de in INTEGRADA or en_main(dep, asuntos):
             v.update(estado="pendiente", nota="desbloqueada: %s ya está integrada" % dep, reconciliado=ahora)
             cambios.append("%s bloqueada→pendiente (%s)" % (tid, dep))
+
+    # Tercera pasada: huérfanas. Solo si sabemos qué define hoy alguna cola fuente.
+    # Se marcan `sustituida` —terminal en todos los contadores, del vigilante al Mando—
+    # con la razón escrita, en vez de inventar un estado nuevo que 18 sitios no conocen.
+    if ids_en_colas:
+        for tid, v in p.items():
+            if not isinstance(v, dict):
+                continue
+            e = v.get("estado")
+            if e in CERRADAS or e == "en_curso" or tid in ids_en_colas:
+                continue
+            if en_main(tid, asuntos):
+                continue
+            v.update(estado="sustituida",
+                     nota="huérfana: ninguna cola fuente la define ya (estaba %s)" % e,
+                     reconciliado=ahora)
+            cambios.append("%s %s→sustituida (huérfana)" % (tid, e))
+
     return p, cambios
 
 
@@ -77,7 +138,9 @@ if __name__ == "__main__":                         # uso: reconciliar_progreso.p
                              capture_output=True, text=True).stdout.splitlines()
     vivo = any(re.match(r"^[^ ]*[Pp]ython[0-9.]* +-u +.*starseed-enjambre\.py", l)
                for l in subprocess.run(["ps", "-eo", "args"], capture_output=True, text=True).stdout.splitlines())
-    nuevo, cambios = reconciliar(json.load(open(ruta, encoding="utf-8")), asuntos, vivo)
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    nuevo, cambios = reconciliar(json.load(open(ruta, encoding="utf-8")), asuntos, vivo,
+                                 ids_en_colas=ids_de_colas_fuente(os.path.dirname(ruta)))
     print("\n".join(cambios) or "nada que reconciliar")
     if "--aplicar" in sys.argv and cambios:
         json.dump(nuevo, open(ruta, "w", encoding="utf-8"), ensure_ascii=False, indent=1)

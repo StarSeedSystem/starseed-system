@@ -57,5 +57,48 @@ class ReconciliarAmplio(unittest.TestCase):
         self.assertEqual(p["QW3"]["estado"], "rechazada"); self.assertEqual(c, [])
 
 
+class Huerfanas(unittest.TestCase):
+    """2026-09-14: 8 «pendientes» que ninguna cola definía ya. El medidor las contaba
+    y el vigilante no podía ejecutarlas: dos verdades distintas sobre la misma tarea."""
+
+    def test_pendiente_sin_cola_se_cierra_como_sustituida(self):
+        p, c = reconciliar({"A7": {"estado": "pendiente"}}, MAIN, False, ids_en_colas={"OTRA"})
+        self.assertEqual(p["A7"]["estado"], "sustituida")
+        self.assertIn("huérfana", p["A7"]["nota"])
+        self.assertEqual(c, ["A7 pendiente→sustituida (huérfana)"])
+
+    def test_pendiente_que_si_tiene_cola_no_se_toca(self):
+        p, c = reconciliar({"A7": {"estado": "pendiente"}}, MAIN, False, ids_en_colas={"A7"})
+        self.assertEqual(p["A7"]["estado"], "pendiente"); self.assertEqual(c, [])
+
+    def test_sin_ids_en_colas_no_cierra_nada(self):
+        """`None` es «no sé», y ante la duda no se cierra trabajo de nadie."""
+        p, c = reconciliar({"A7": {"estado": "pendiente"}}, MAIN, False)
+        self.assertEqual(p["A7"]["estado"], "pendiente"); self.assertEqual(c, [])
+
+    def test_conjunto_vacio_tampoco_cierra_nada(self):
+        p, c = reconciliar({"A7": {"estado": "pendiente"}}, MAIN, False, ids_en_colas=set())
+        self.assertEqual(p["A7"]["estado"], "pendiente"); self.assertEqual(c, [])
+
+    def test_bloqueada_huerfana_tambien_se_cierra(self):
+        p, _ = reconciliar({"O4": {"estado": "bloqueada"}}, MAIN, False, ids_en_colas={"X"})
+        self.assertEqual(p["O4"]["estado"], "sustituida")
+
+    def test_en_curso_huerfana_la_decide_la_primera_pasada_no_esta(self):
+        """Un `en_curso` es del orquestador: lo cierra la pasada de rancios, no esta."""
+        p, _ = reconciliar({"A7": {"estado": "en_curso"}}, MAIN, True, ids_en_colas={"X"})
+        self.assertEqual(p["A7"]["estado"], "en_curso")
+
+    def test_bloqueante_huerfana_se_respeta(self):
+        """Espera a una persona: que su ola se archivara no borra esa espera."""
+        p, c = reconciliar({"zD1": {"estado": "bloqueante"}}, MAIN, False, ids_en_colas={"X"})
+        self.assertEqual(p["zD1"]["estado"], "bloqueante"); self.assertEqual(c, [])
+
+    def test_huerfana_que_ya_esta_en_main_se_cierra_como_commit_no_como_huerfana(self):
+        p, c = reconciliar({"QW3": {"estado": "pendiente"}}, MAIN, False, ids_en_colas={"X"})
+        self.assertEqual(p["QW3"]["estado"], "commit")
+        self.assertEqual(c, ["QW3 pendiente→commit"])
+
+
 if __name__ == "__main__":
     unittest.main()
