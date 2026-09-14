@@ -125,6 +125,16 @@ export function resumenPendientes(
       if (!id || vistas.has(id)) continue;
       vistas.add(id);
       const est = progreso[id]?.estado ?? "pendiente";
+      // Lo ya integrado se aparta PRIMERO y no cuenta como trabajo. Antes esto
+      // vivía al final de una cadena de `else if` y `listas` sumaba `commit`:
+      // una tarea terminada se contaba como lista para trabajar. Solo no se
+      // notaba porque la rama de arriba se tragaba todo lo que estuviera en
+      // main; al acotar «hoy» a los commits de hoy, saltaron 198 falsas listas.
+      if (est === "commit" || est === "hecho" || idEnAsuntos(id, asuntosMain)) {
+        // «hoy» significa hoy: solo suma si su commit es de hoy.
+        if (idEnAsuntos(id, asuntosHoy)) r.integradasHoy += 1;
+        continue;
+      }
       if (est === "bloqueada") r.bloqueadas.push({ id, dependeDe: progreso[id]?.depende_de ?? [] });
       else if (est === "sin_cambios") r.sinCambios += 1;
       else if (ESTADOS_FALLO.has(est)) {
@@ -133,10 +143,7 @@ export function resumenPendientes(
         r.fallosDetalle.push({ id, estado: est, nota: nota.slice(0, 160) });
       }
       else if (est === "esperando_aprobacion" || est === "pendiente_aprobacion") r.esperandoAprobacion += 1;
-      // «hoy» tiene que significar hoy: se cuenta contra los commits de hoy,
-      // no contra todo el historial (daba 183 a las 00:14 de la madrugada).
-      else if (idEnAsuntos(id, asuntosHoy)) r.integradasHoy += 1;
-      else if (est === "pendiente" || est === "commit") r.listas += 1;
+      else if (est === "pendiente") r.listas += 1;
     }
   }
   return r;

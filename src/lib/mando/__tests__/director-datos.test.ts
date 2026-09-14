@@ -245,3 +245,30 @@ describe("resumenDirectores", () => {
     expect(r[0].ultimoMensaje).toBeUndefined();
   });
 });
+
+describe("resumenPendientes: lo integrado no es trabajo pendiente (2026-09-14)", () => {
+    const cola = (ids: string[]) => [{ nombre: "cola-320-x.json", tareas: ids.map((id) => ({ id })) }];
+
+    it("una tarea en commit no cuenta como lista para trabajar", () => {
+        const r = resumenPendientes(cola(["A"]), { A: { estado: "commit" } }, [], []);
+        expect(r.listas).toBe(0);
+    });
+
+    it("integrada ayer no suma en «hoy»; integrada hoy sí", () => {
+        const ayer = resumenPendientes(cola(["A"]), { A: { estado: "commit" } }, ["Ola · A: algo"], []);
+        expect(ayer.integradasHoy).toBe(0);
+        const hoy = resumenPendientes(cola(["A"]), { A: { estado: "commit" } }, ["Ola · A: algo"], ["Ola · A: algo"]);
+        expect(hoy.integradasHoy).toBe(1);
+    });
+
+    it("solo lo pendiente de verdad es «lista»", () => {
+        const r = resumenPendientes(
+            cola(["A", "B", "C", "D"]),
+            { A: { estado: "pendiente" }, B: { estado: "bloqueada" }, C: { estado: "sin_cambios" }, D: { estado: "commit" } },
+            [], [],
+        );
+        expect(r.listas).toBe(1);
+        expect(r.bloqueadas.length).toBe(1);
+        expect(r.sinCambios).toBe(1);
+    });
+});
