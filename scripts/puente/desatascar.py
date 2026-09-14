@@ -274,14 +274,16 @@ def desatascar(raiz, vivo, n_agentes, progreso, ahora=None, ruta_estado=None):
             frases.append("despierto al vigilante: la causa ya no está")
         return frases
 
-    atascado, razon = orquestador_atascado(vivo, len(procesos), quieto)
-    if not atascado:
-        return frases
-
+    # Las puertas con veredicto dado se ejecutan SIEMPRE, no solo cuando el
+    # orquestador ya lleva rato congelado: esperar a que se note el atasco es
+    # regalar minutos de enjambre parado. (2026-09-14: R7 llevaba 11 min en la
+    # puerta con alcance incompleto y el desatascador no la miraba porque el
+    # reloj del atasco se había reiniciado con un commit mío.)
     puertas = puertas_a_rechazar(progreso, ahora)
     if puertas:
-        frases.append("orquestador %s → ejecuto los veredictos pendientes" % razon)
         frases += rechazar_puertas(puertas)
-    else:
+
+    atascado, razon = orquestador_atascado(vivo, len(procesos), quieto)
+    if atascado and not puertas:
         frases.append("ATASCO: orquestador %s y no hay nada que yo pueda resolver solo" % razon)
     return frases
