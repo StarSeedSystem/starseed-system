@@ -58,7 +58,7 @@ echo "Cola $COLA: $NTAREAS tareas pendientes."
 
 LOG="/tmp/ola-nube-$FECHA.log"
 ANTES=$(git rev-parse HEAD)
-STARSEED_MEDIO=nube setsid -f python3 -u "$ORQ" "$COLA" \
+STARSEED_ROOT="$RAIZ" STARSEED_MEDIO=nube setsid -f python3 -u "$ORQ" "$COLA" \
   --workers "$TRABAJADORES" --reanudar > "$LOG" 2>&1 < /dev/null
 
 LIMITE=$((MINUTOS * 60 / 30))
