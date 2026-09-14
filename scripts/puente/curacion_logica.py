@@ -22,11 +22,15 @@ def colgados_a_matar(
     for proceso in procesos:
         if proceso.get("propio", False):
             continue
+        pid = proceso.get("pid")
+        # Pids ausentes o ≤ 1 (kernel/init) jamás se matan: sería tumbar el sistema
+        if not isinstance(pid, int) or pid <= 1:
+            continue
         ultimo_byte = proceso.get("ultimo_byte", 0)
         inicio = proceso.get("inicio", 0)
         tiempo_sin_escribir = ahora - (ultimo_byte if ultimo_byte else inicio)
         if tiempo_sin_escribir > tope_s:
-            pids_a_matar.append(proceso["pid"])
+            pids_a_matar.append(pid)
     return sorted(pids_a_matar)
 
 

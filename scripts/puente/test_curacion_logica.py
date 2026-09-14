@@ -9,27 +9,44 @@ class TestCuracionLogica(unittest.TestCase):
         ahora = time.time()
         procesos = [
             {
-                "pid": 1,
-                "tarea": "tarea1",
+                # Justo en el borde: 1800 s no SUPERA el tope, no se mata
+                "pid": 5,
+                "tarea": "tarea_borde",
                 "inicio": ahora - 3600,
                 "ultimo_byte": ahora - 1800,
             },
             {
+                # Propio: nunca se mata aunque esté colgado
                 "pid": 2,
                 "tarea": "tarea2",
                 "inicio": ahora - 3600,
-                "ultimo_byte": ahora - 1800,
+                "ultimo_byte": ahora - 1801,
                 "propio": True,
             },
+            # ultimo_byte a 0: se cae a inicio (3600 s > 1800 s)
             {"pid": 3, "tarea": "tarea3", "inicio": ahora - 3600, "ultimo_byte": 0},
+            # Claramente colgado: 1801 s superan el tope
             {
                 "pid": 4,
                 "tarea": "tarea4",
                 "inicio": ahora - 3600,
-                "ultimo_byte": ahora - 1800,
+                "ultimo_byte": ahora - 1801,
             },
+            # Sin la clave ultimo_byte: también se cae a inicio
+            {"pid": 6, "tarea": "tarea6", "inicio": ahora - 3600},
         ]
-        self.assertEqual(colgados_a_matar(procesos, ahora, 1800), [3, 4])
+        self.assertEqual(colgados_a_matar(procesos, ahora, 1800), [3, 4, 6])
+
+    def test_colgados_a_matar_nunca_pid_sistema(self):
+        # Los pids 0 y 1 pertenecen al sistema: jamás se devuelven aunque
+        # parezcan colgados, porque matarlos tumbaría la máquina
+        ahora = time.time()
+        procesos = [
+            {"pid": 0, "tarea": "kernel", "inicio": ahora - 7200, "ultimo_byte": 0},
+            {"pid": 1, "tarea": "init", "inicio": ahora - 7200, "ultimo_byte": 0},
+            {"pid": 7, "tarea": "trabajador", "inicio": ahora - 7200, "ultimo_byte": 0},
+        ]
+        self.assertEqual(colgados_a_matar(procesos, ahora, 1800), [7])
 
     def test_clasificar_arbol_sucio(self):
         lineas_porcelain = [
