@@ -71,7 +71,50 @@ REVIS = os.path.join(OLAS, "revisiones.md")
 EVENTOS = os.path.join(OLAS, "eventos.jsonl")
 RELEVO = os.path.expanduser("~/.local/bin/starseed-relevo")
 SUPABASE_URL = "https://pqzdpmedcsgcedkvndzl.supabase.co"
+
+
+def _node_del_repo():
+    """PATH con el Node que pide el repo delante, o None si no hay ninguno instalado.
+
+    POR QUÉ (2026-09-14). `package.json` declara `engines: 22.x` y `.nvmrc` dice 22, pero el
+    primer `node` del PATH de la Mac es v20.17. Los shells NO interactivos no cargan nvm, así
+    que las puertas corrían con 20.17 — y jsdom y su cadena de CSS exigen >= 20.19. Resultado:
+    `vitest` resumía «1734 passed» y salía con código 1, y NUEVE archivos de pruebas de
+    componentes no llegaban ni a cargarse. Cinco días con 65 pruebas sin ejecutar y la puerta
+    de publicación en rojo por algo que no era el código.
+
+    No se clava una versión aquí: se lee `.nvmrc` y se coge la más alta instalada de esa serie.
+    Si no hay ninguna, se devuelve None y todo sigue como antes — esto nunca puede impedir que
+    el enjambre arranque en una máquina sin nvm.
+    """
+    try:
+        serie = open(os.path.join(ROOT, ".nvmrc"), encoding="utf-8").read().strip()
+    except Exception:
+        serie = "22"
+    mayor = serie.lstrip("v").split(".")[0]
+    base = os.path.expanduser("~/.nvm/versions/node")
+    try:
+        candidatas = [d for d in os.listdir(base) if d.startswith("v%s." % mayor)]
+    except OSError:
+        return None
+
+    def clave(v):
+        try:
+            return tuple(int(x) for x in v.lstrip("v").split("."))
+        except ValueError:
+            return (0,)
+
+    for v in sorted(candidatas, key=clave, reverse=True):
+        binario = os.path.join(base, v, "bin")
+        if os.path.exists(os.path.join(binario, "node")):
+            return binario + os.pathsep + os.environ.get("PATH", "")
+    return None
+
+
 ENV_TSC = {"NODE_ENV": "development", "NODE_OPTIONS": "--max-old-space-size=2560"}
+_PATH_NODE = _node_del_repo()
+if _PATH_NODE:
+    ENV_TSC["PATH"] = _PATH_NODE
 
 # ESCRITORES: solo NIM (opencode con aihubmix/tokenrouter devuelve «sin cambios» en segundos, sin
 # editar archivos; esos dos se quedan de REVISORES, donde sí funcionan por HTTP directo).

@@ -23,6 +23,21 @@ MAX_ESPERA_S=1200      # 20 min esperando el turno
 MAX_EDAD_CERROJO_S=1800 # 30 min: un cerrojo más viejo cuenta como huérfano
 RC=0
 
+# Node que pide el repo (2026-09-14). `engines` dice 22.x y `.nvmrc` dice 22, pero el primer
+# `node` del PATH de esta Mac es v20.17 y los shells no interactivos no cargan nvm. jsdom y su
+# cadena de CSS exigen >= 20.19: con 20.17 el entorno de pruebas muere al montarse y `vitest`
+# resume «passed» saliendo con código 1. No se clava versión: se coge la más alta instalada de
+# la serie de .nvmrc, y si no hay ninguna se sigue con el PATH de siempre.
+_raiz_repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+_serie="$(cat "$_raiz_repo/.nvmrc" 2>/dev/null | tr -d 'v \n' | cut -d. -f1)"
+[ -n "$_serie" ] || _serie=22
+for _v in $(ls -1 "$HOME/.nvm/versions/node" 2>/dev/null | grep "^v$_serie\." | sort -t. -k1,1V -k2,2n -k3,3n -r); do
+    if [ -x "$HOME/.nvm/versions/node/$_v/bin/node" ]; then
+        export PATH="$HOME/.nvm/versions/node/$_v/bin:$PATH"
+        break
+    fi
+done
+
 mkdir -p "$CERROJOS"
 
 # md5sum solo existe en Linux; en macOS hay `md5 -q` con el mismo resultado.
