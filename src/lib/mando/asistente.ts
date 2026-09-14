@@ -26,11 +26,17 @@ import { promisify } from "node:util";
 
 import { construirRamificacion } from "@/lib/mando/ramificacion";
 import { leerEstadoRelevo, leerEventosDelBus, leerProgreso, colaInteligente, leerColas } from "@/lib/mando/lector-local";
-import { llamarModelo, type MensajeModelo } from "@/lib/mando/modelos-disponibles";
+import { listarModelos, llamarModelo, type MensajeModelo } from "@/lib/mando/modelos-disponibles";
+import { cadenaDeRespaldo, motivoLegible } from "@/lib/mando/respaldo-chat";
 import { raizDelProyecto } from "@/lib/mando/raiz";
 
 const RAÍZ = raizDelProyecto();
 const CARPETA_CHATS = path.join(RAÍZ, "starseed_memory_root", "mando", "chats");
+
+/** Tiempo que se le concede al modelo que eligió la persona antes de pasar al respaldo. */
+const TOPE_ELEGIDO_MS = 120_000;
+/** Y a cada respaldo: corto, porque lo que importa ya es contestar, no ese modelo. */
+const TOPE_RESPALDO_MS = 45_000;
 
 /** Archivos que el asistente puede leer (rutas relativas al repositorio, sin `..`). */
 const LECTURA_PERMITIDA = [
@@ -360,8 +366,29 @@ export async function responder(
         rol: m.rol === "asistente" ? "assistant" : "user",
         texto: m.rol === "herramienta" ? `[archivo leído]\n${m.texto}` : m.texto,
     }));
-    const r = await llamarModelo(modelo, [{ rol: "system", texto: sistema }, ...historial]);
-    const respuesta: MensajeChat = { rol: "asistente", texto: r.texto || "(sin respuesta)", t: ahora(), modelo, tokens: r.tokens, latenciaMs: r.latenciaMs };
+    // Cadena de respaldo (Ola 323): si el modelo elegido tarda o está retirado, se sigue
+    // con otro CRUZANDO PROVEEDOR en vez de devolver «This operation was aborted».
+    const catalogo = await listarModelos().catch(() => []);
+    const cadena = cadenaDeRespaldo(modelo, catalogo, 4);
+    const fallos: string[] = [];
+    let r: Awaited<ReturnType<typeof llamarModelo>> | null = null;
+    let usado = modelo;
+    for (const [i, candidato] of cadena.entries()) {
+        // Al modelo que eligió la persona se le da su tiempo entero (Kimi K3 tarda 89 s
+        // midiéndolo aquí); a los respaldos, poco, para que el relevo sea rápido.
+        const tope = i === 0 ? TOPE_ELEGIDO_MS : TOPE_RESPALDO_MS;
+        try {
+            r = await llamarModelo(candidato, [{ rol: "system", texto: sistema }, ...historial], { timeoutMs: tope });
+            usado = candidato;
+            break;
+        } catch (e) {
+            fallos.push(motivoLegible(e, candidato, tope));
+        }
+    }
+    if (!r) throw new Error(`Ningún modelo respondió. ${fallos.join(" · ")}`);
+
+    const aviso = fallos.length ? `_(${fallos.join(" · ")}; respondió ${usado.split("/").slice(-1)[0]})_\n\n` : "";
+    const respuesta: MensajeChat = { rol: "asistente", texto: `${aviso}${r.texto || "(sin respuesta)"}`, t: ahora(), modelo: usado, tokens: r.tokens, latenciaMs: r.latenciaMs };
     chat.mensajes.push(respuesta);
     await guardarChat(chat);
     return { chat, respuesta, acciones: extraerAcciones(r.texto) };
