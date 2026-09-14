@@ -35,10 +35,17 @@ if DIRECTORIO not in sys.path:
 # La decisión de abrir sola una puerta de visto bueno vive en un módulo PURO, para que su
 # puerta la pueda medir sin efectos (mismo patrón que `vigilante_logica.py`).
 from aprobacion_logica import porque_no_verde as _verde
-from escalada_logica import siguiente_paso, aplicar, contar_gasto, en_asuntos, ESTADOS_RECUPERABLES
+from escalada_logica import (
+    siguiente_paso,
+    aplicar,
+    contar_gasto,
+    en_asuntos,
+    ESTADOS_RECUPERABLES,
+)
 from vigilante_logica import id_en_asuntos
 import desatascar as _desatascar
 from config_director import cargar as cargar_config
+import prioridad_logica
 
 RAIZ = os.environ.get("STARSEED_ROOT") or "/Users/alex/Documents/starseed-os-main"
 OLAS = os.path.join(RAIZ, "starseed_memory_root", "olas")
@@ -121,6 +128,89 @@ def orquestador_vivo():
         return True
 
 
+def _tareas_de_colas():
+    """Las tareas tal y como están escritas en los archivos de cola (id → tarea).
+
+    continuar_estancadas solo veía progreso.json, y progreso no sabe ni los archivos
+    que toca una tarea ni de quién depende: sin eso no se puede ordenar con criterio.
+    """
+    tareas = {}
+    try:
+        for f in os.listdir(OLAS):
+            if not (f.startswith("cola-") and f.endswith(".json")):
+                continue
+            d = json.load(open(os.path.join(OLAS, f), encoding="utf-8"))
+            for t in d if isinstance(d, list) else d.get("tareas", []):
+                if isinstance(t, dict) and t.get("id") and t["id"] not in tareas:
+                    tareas[t["id"]] = t
+    except Exception:
+        pass
+    return tareas
+
+
+def calcular_orden():
+    """(listas, bloqueadas) de lo pendiente, según prioridad_logica.
+
+    Pendiente aquí significa lo mismo que en pendientes_totales: no terminal y no
+    ya en manos de alguien. El orden es determinista y explicable (ver razones).
+    """
+    from datetime import datetime
+
+    TERMINAL = {
+        "commit",
+        "hecho",
+        "bloqueante",
+        "sustituida",
+        "rechazada",
+        "bloqueada",
+        "reasignada",
+        "en_curso",
+        "esperando_aprobacion",
+    }
+    p = progreso()
+    por_id = _tareas_de_colas()
+    pend = [
+        t
+        for tid, t in por_id.items()
+        if not (isinstance(p.get(tid), dict) and p[tid].get("estado") in TERMINAL)
+    ]
+    return prioridad_logica.ordenar(pend, p, datetime.now())
+
+
+def escribir_orden(listas, bloqueadas):
+    """Vuelca el orden calculado a mando/orden-tareas.json, atómico y a prueba de
+    disco lleno: si falla la escritura el director sigue vivo (la auditoría no es
+    más importante que la pasada)."""
+    try:
+        falta = re.compile(r"«([^»]+)»")
+        datos = {
+            "t": time.strftime("%Y-%m-%dT%H:%M:%S"),
+            "listas": [
+                {"id": t.get("id"), "puntos": round(puntos, 1), "razones": razones}
+                for t, puntos, razones in listas
+            ],
+            "bloqueadas": [
+                {
+                    "id": t.get("id"),
+                    "falta": (
+                        falta.search(motivo).group(1)
+                        if falta.search(motivo or "")
+                        else motivo
+                    ),
+                }
+                for t, motivo in bloqueadas
+            ],
+        }
+        carpeta = os.path.join(RAIZ, "starseed_memory_root", "mando")
+        os.makedirs(carpeta, exist_ok=True)
+        ruta = os.path.join(carpeta, "orden-tareas.json")
+        tmp = ruta + ".tmp"
+        json.dump(datos, open(tmp, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+        os.replace(tmp, ruta)
+    except Exception as e:
+        print("director/orden-tareas: %s: %s" % (type(e).__name__, e), flush=True)
+
+
 def pendientes_totales():
     """Lo EJECUTABLE ahora, no todo lo que no ha terminado.
 
@@ -129,8 +219,17 @@ def pendientes_totales():
     incluidas las cerradas y las bloqueadas por dependencia. Tres cifras
     distintas para la misma pregunta hacen que no te puedas fiar de ninguna.
     """
-    TERMINAL = {"commit", "hecho", "bloqueante", "sustituida", "rechazada",
-                "bloqueada", "reasignada", "en_curso", "esperando_aprobacion"}
+    TERMINAL = {
+        "commit",
+        "hecho",
+        "bloqueante",
+        "sustituida",
+        "rechazada",
+        "bloqueada",
+        "reasignada",
+        "en_curso",
+        "esperando_aprobacion",
+    }
     p, vistas, n = progreso(), set(), 0
     try:
         for f in os.listdir(OLAS):
@@ -185,7 +284,7 @@ def reconciliar_estados():
         return []
 
 
-def continuar_estancadas():
+def continuar_estancadas(tope=20):
     """Continúa sola lo atascado con escalera de reintentos: libre×2 → haiku×2 → sonnet.
 
     Solo actúa si no hay orquestador vivo. Lee progreso, asuntos de main,
@@ -208,19 +307,26 @@ def continuar_estancadas():
             timeout=30,
         ).stdout.splitlines()
         cfg, avisos = cargar_config()
-        hoy = time.strftime('%Y-%m-%d')
-        ahora = time.strftime('%Y-%m-%d %H:%M:%S')
+        hoy = time.strftime("%Y-%m-%d")
+        ahora = time.strftime("%Y-%m-%d %H:%M:%S")
 
         # Leer modelos anthropic de env
         modelos_anthropic = []
-        for env_file in [os.path.expanduser("~/.starseed/env"), os.path.expanduser("~/.hermes/.env")]:
+        for env_file in [
+            os.path.expanduser("~/.starseed/env"),
+            os.path.expanduser("~/.hermes/.env"),
+        ]:
             if os.path.exists(env_file):
                 try:
                     with open(env_file, encoding="utf-8") as f:
                         for linea in f:
-                            if linea.strip().startswith("STARSEED_PASARELA_ANTHROPIC_MODELOS="):
+                            if linea.strip().startswith(
+                                "STARSEED_PASARELA_ANTHROPIC_MODELOS="
+                            ):
                                 valor = linea.split("=", 1)[1].strip()
-                                modelos_anthropic = [m.strip() for m in valor.split(",")]
+                                modelos_anthropic = [
+                                    m.strip() for m in valor.split(",")
+                                ]
                                 break
                 except Exception:
                     pass
@@ -234,24 +340,40 @@ def continuar_estancadas():
         except Exception:
             pass
 
-        # Procesar tareas recuperables
+        # Procesar tareas recuperables, de MÁS a menos prioridad: reencolar las 20
+        # primeras que aparecen en progreso dejaba al final justo a la que
+        # desbloquea a otras cinco. El orden lo da prioridad_logica.ordenar, que
+        # es determinista y deja razones en español (auditable sin ejecutar nada).
+        from datetime import datetime
+
+        por_id = _tareas_de_colas()
+        candidatas = [
+            tid
+            for tid, entrada in p.items()
+            if isinstance(entrada, dict)
+            and entrada.get("estado") in ESTADOS_RECUPERABLES
+            and not id_en_asuntos(tid, asuntos)
+        ]
+        tareas_cand = [por_id.get(tid) or {"id": tid} for tid in candidatas]
+        listas, _bloq = prioridad_logica.ordenar(tareas_cand, p, datetime.now())
+        ordenadas = [t.get("id") for t, _puntos, _razones in listas]
+
         p_nuevo = dict(p)
         gasto_nuevo = dict(gasto)
         tocadas = []
         bloqueantes_motivos = {}
         cuenta_por_tipo = {"libre": [], "haiku": [], "sonnet": [], "bloqueante": []}
 
-        for tid, entrada in p.items():
+        for tid in ordenadas:
+            entrada = p.get(tid)
             if not isinstance(entrada, dict):
                 continue
-            if entrada.get("estado") not in ESTADOS_RECUPERABLES:
-                continue
-            if id_en_asuntos(tid, asuntos):
-                continue
-            if len(tocadas) >= 20:  # Tope de 20 por pasada
+            if len(tocadas) >= tope:  # Tope por pasada: no reventar la cola de golpe
                 break
 
-            paso = siguiente_paso(entrada, gasto_nuevo, cfg, hoy, modelos_anthropic, ahora)
+            paso = siguiente_paso(
+                entrada, gasto_nuevo, cfg, hoy, modelos_anthropic, ahora
+            )
             if paso is None:
                 continue
 
@@ -261,7 +383,9 @@ def continuar_estancadas():
             tocadas.append(tid)
 
             # Clasificar para el reporte
-            nivel = paso.get("cuenta") or ("bloqueante" if paso["estado"] == "bloqueante" else "libre")
+            nivel = paso.get("cuenta") or (
+                "bloqueante" if paso["estado"] == "bloqueante" else "libre"
+            )
             if paso["estado"] == "bloqueante":
                 bloqueantes_motivos[tid] = paso["motivo"]
             else:
@@ -272,12 +396,22 @@ def continuar_estancadas():
             # Progreso
             ruta_prog = os.path.join(OLAS, "progreso.json")
             tmp_prog = ruta_prog + ".tmp"
-            json.dump(p_nuevo, open(tmp_prog, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+            json.dump(
+                p_nuevo,
+                open(tmp_prog, "w", encoding="utf-8"),
+                ensure_ascii=False,
+                indent=1,
+            )
             os.replace(tmp_prog, ruta_prog)
 
             # Gasto
             tmp_gasto = ruta_gasto + ".tmp"
-            json.dump(gasto_nuevo, open(tmp_gasto, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+            json.dump(
+                gasto_nuevo,
+                open(tmp_gasto, "w", encoding="utf-8"),
+                ensure_ascii=False,
+                indent=1,
+            )
             os.replace(tmp_gasto, ruta_gasto)
 
             # Anuncio
@@ -290,17 +424,25 @@ def continuar_estancadas():
                 partes.append("sonnet: %s" % ", ".join(cuenta_por_tipo["sonnet"][:3]))
 
             tipo_aviso = "aviso" if bloqueantes_motivos else "hecho"
-            mensaje = "continúo solo: %d a la cola (%s)" % (len(tocadas), "; ".join(partes))
+            mensaje = "continúo solo: %d a la cola (%s)" % (
+                len(tocadas),
+                "; ".join(partes),
+            )
 
             if bloqueantes_motivos:
                 motivo_bloq = list(bloqueantes_motivos.values())[0]
-                mensaje += " · bloqueantes: %d (%s)" % (len(bloqueantes_motivos), motivo_bloq[:60])
+                mensaje += " · bloqueantes: %d (%s)" % (
+                    len(bloqueantes_motivos),
+                    motivo_bloq[:60],
+                )
 
             _p.decir(mensaje, "director", tipo_aviso)
 
         return tocadas
     except Exception as e:
-        print("director/continuar_estancadas: %s: %s" % (type(e).__name__, e), flush=True)
+        print(
+            "director/continuar_estancadas: %s: %s" % (type(e).__name__, e), flush=True
+        )
         return []
 
 
@@ -336,7 +478,7 @@ def reintentar_sin_cambios(apartados=None, tope=3):
             pass
 
         # Hora actual en formato del orquestador
-        ahora = time.strftime('%Y-%m-%d %H:%M:%S')
+        ahora = time.strftime("%Y-%m-%d %H:%M:%S")
 
         asuntos = subprocess.run(
             ["git", "log", "main", "--format=%s"],
@@ -366,6 +508,26 @@ def reintentar_sin_cambios(apartados=None, tope=3):
         return []
 
 
+def linea_orden():
+    """«ORDEN · 1º x (porqué) · 2º y (porqué) · 3º z (porqué)», o "" sin pendientes.
+
+    El parte ya dice cuántas quedan; sin esta línea no dice CUÁLES ni por qué en ese
+    orden, que es justo lo que hay que mirar para discutirle la decisión al director.
+    """
+    try:
+        listas, _bloq = calcular_orden()
+        if not listas:
+            return ""
+        ordinal = ["1º", "2º", "3º"]
+        trozos = []
+        for i, (t, _puntos, razones) in enumerate(listas[:3]):
+            porque = "; ".join(razones[:2]) if razones else "sin razón especial"
+            trozos.append("%s %s (%s)" % (ordinal[i], t.get("id"), porque))
+        return "ORDEN · " + " · ".join(trozos)
+    except Exception:
+        return ""
+
+
 def revisar():
     """Una pasada. Devuelve la lista de cosas hechas, para el parte."""
     hecho, ahora = [], time.time()
@@ -374,6 +536,13 @@ def revisar():
     continuadas = continuar_estancadas()
     if continuadas:
         hecho.append("continuadas %d" % len(continuadas))
+    # El orden calculado queda en disco cada pasada, para auditarlo sin ejecutar
+    # nada. Si el disco falla, se traga el error y la pasada sigue.
+    try:
+        listas, bloqueadas = calcular_orden()
+        escribir_orden(listas, bloqueadas)
+    except Exception as e:
+        print("director/orden: %s: %s" % (type(e).__name__, e), flush=True)
     p = progreso()
 
     # (2026-09-13) Desatascar lo que paraba el enjambre y nadie recogía: árbol
@@ -382,7 +551,9 @@ def revisar():
     # que ya estaba dado. Ver scripts/puente/desatascar.py.
     try:
         for frase in _desatascar.desatascar(RAIZ, orquestador_vivo(), 0, p):
-            _p.decir(frase, "director", "error" if frase.startswith("ATASCO") else "hecho")
+            _p.decir(
+                frase, "director", "error" if frase.startswith("ATASCO") else "hecho"
+            )
             hecho.append("desatasco")
     except Exception as e:
         print("desatascar: %s: %s" % (type(e).__name__, e), flush=True)
@@ -398,7 +569,8 @@ def revisar():
     maduras = [
         k
         for k, v in esperando
-        if revision_ok(v) and minutos_quieta(v, ahora, latido=latidos_tareas.get(k)) >= ESPERA_MIN
+        if revision_ok(v)
+        and minutos_quieta(v, ahora, latido=latidos_tareas.get(k)) >= ESPERA_MIN
     ]
     sin_revision = [(k, porque_no_verde(v)) for k, v in esperando if not revision_ok(v)]
 
@@ -466,14 +638,17 @@ def main():
                 ultimo_parte = time.time()
                 cola, lat, _ = cola_viva()
                 vivos = len((lat or {}).get("tareas", {}))
+                orden = linea_orden()
                 _p.decir(
                     "PARTE · orquestador %s · %d tareas en el latido · %d pendientes en total "
-                    "· disco %d GB"
+                    "· disco %d GB%s"
                     % (
                         "vivo" if orquestador_vivo() else "PARADO",
                         vivos,
                         pendientes_totales(),
                         disco_gb(),
+                        # Sin pendientes no hay línea ORDEN: el canal no se llena de ruido.
+                        "\n" + orden if orden else "",
                     ),
                     "director",
                     "mensaje",
