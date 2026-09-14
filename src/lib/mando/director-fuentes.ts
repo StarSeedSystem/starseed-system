@@ -35,9 +35,31 @@ function parsearFechaLocal(s: unknown): number | undefined {
     const ms = new Date(s.replace(" ", "T")).getTime();
     return Number.isFinite(ms) ? Math.floor(ms / 1000) : undefined;
 }
+// Nombre del fichero de latido: `latidos-<cola>.json`. De cada tanda (relanzamiento del
+// vigilante) queda un fichero con `t` fresca; durante los ~15 min posteriores conviven el
+// nuevo y el anterior con los MISMOS ids. Para no duplicar filas, agrupamos por `<cola>` y
+// nos quedamos solo con el fichero más reciente de cada cola.
+function colaDeNombreLatido(nombre: string): string | null {
+    const sinPref = nombre.slice("latidos-".length);
+    const base = sinPref.replace(/\.json$/, "");
+    return base || null;
+}
+
 export async function leerLatidos(raiz: string, ahora = Date.now() / 1000): Promise<LatidoEntrada[]> {
-    const dir = path.join(raiz, "starseed_memory_root", "olas"), latidos: LatidoEntrada[] = [];
+    const dir = path.join(raiz, "starseed_memory_root", "olas");
+    // Por cada cola conservamos el nombre del fichero con mayor `t` (aún sin leer su contenido).
+    const masRecientePorCola = new Map<string, { nombre: string; t: number }>();
     for (const nombre of await listar(dir, "latidos-")) {
+        const crudo = objeto(await leerJsonOpcional(path.join(dir, nombre)));
+        const t = parsearFechaLocal(crudo.t);
+        if (!t) continue;
+        const cola = colaDeNombreLatido(nombre);
+        if (!cola) continue;
+        const vigente = masRecientePorCola.get(cola);
+        if (!vigente || t > vigente.t) masRecientePorCola.set(cola, { nombre, t });
+    }
+    const latidos: LatidoEntrada[] = [];
+    for (const { nombre } of masRecientePorCola.values()) {
         const crudo = objeto(await leerJsonOpcional(path.join(dir, nombre)));
         const t = parsearFechaLocal(crudo.t);
         if (!t || ahora - t > 900) continue; // descarta más antiguos que 15 minutos (900 s)

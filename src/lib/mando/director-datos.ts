@@ -51,16 +51,27 @@ export function clasificarAgente(t: TareaLatido, ahora: number): EstadoAgente {
   return "escribiendo";
 }
 
+/** Deduplica por id, conservando la entrada con `avance` más reciente (la que de verdad
+ *  está viva). Devuelve pares `[id, tarea]` en orden de aparición de la primera entrada. */
+function tareasUnicas(latidos: LatidoEntrada[]): Array<[string, TareaLatido]> {
+  const porId = new Map<string, TareaLatido>();
+  for (const latido of latidos) {
+    for (const [id, tarea] of Object.entries(latido.tareas ?? {})) {
+      const vigente = porId.get(id);
+      if (!vigente || tarea.avance > vigente.avance) porId.set(id, tarea);
+    }
+  }
+  return [...porId.entries()];
+}
+
 export function resumenAgentes(latidos: LatidoEntrada[], ahora: number): ResumenAgentes {
   const r: ResumenAgentes = { vivos: 0, colgados: 0, esperandoAprobacion: 0, porFase: {} };
-  for (const latido of latidos) {
-    for (const tarea of Object.values(latido.tareas ?? {})) {
-      const e = clasificarAgente(tarea, ahora);
-      r.porFase[e] = (r.porFase[e] ?? 0) + 1;
-      if (e === "colgado") r.colgados += 1;
-      else if (e === "esperando_aprobacion") r.esperandoAprobacion += 1;
-      else if (e !== "hecho") r.vivos += 1;
-    }
+  for (const [, tarea] of tareasUnicas(latidos)) {
+    const e = clasificarAgente(tarea, ahora);
+    r.porFase[e] = (r.porFase[e] ?? 0) + 1;
+    if (e === "colgado") r.colgados += 1;
+    else if (e === "esperando_aprobacion") r.esperandoAprobacion += 1;
+    else if (e !== "hecho") r.vivos += 1;
   }
   return r;
 }
@@ -77,19 +88,17 @@ function pesoOrdenAgente(e: EstadoAgente): number {
 /** Un agente por tarea viva (sin `hecho`), colgados primero y luego esperando aprobación. */
 export function listaAgentes(latidos: LatidoEntrada[], ahora: number): AgenteVivo[] {
   const lista: AgenteVivo[] = [];
-  for (const latido of latidos) {
-    for (const [id, t] of Object.entries(latido.tareas ?? {})) {
-      const estado = clasificarAgente(t, ahora);
-      if (estado === "hecho") continue;
-      lista.push({
-        id, estado, fase: t.fase,
-        ...(t.modelo ? { modelo: t.modelo } : {}),
-        proveedor: t.modelo ? proveedorDeModelo(t.modelo) : "desconocido",
-        kb: Math.round((t.bytes ?? 0) / 1024),
-        minutos: Math.round((ahora - t.avance) / 60),
-        ...(t.intento !== undefined ? { intento: t.intento } : {}),
-      });
-    }
+  for (const [id, t] of tareasUnicas(latidos)) {
+    const estado = clasificarAgente(t, ahora);
+    if (estado === "hecho") continue;
+    lista.push({
+      id, estado, fase: t.fase,
+      ...(t.modelo ? { modelo: t.modelo } : {}),
+      proveedor: t.modelo ? proveedorDeModelo(t.modelo) : "desconocido",
+      kb: Math.round((t.bytes ?? 0) / 1024),
+      minutos: Math.round((ahora - t.avance) / 60),
+      ...(t.intento !== undefined ? { intento: t.intento } : {}),
+    });
   }
   return lista.sort((a, b) => pesoOrdenAgente(a.estado) - pesoOrdenAgente(b.estado));
 }
