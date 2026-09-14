@@ -218,3 +218,23 @@ def registrar_resultado(historial, medio_id, area, exito, segundos):
     dato["segundos_promedio"] = round(
         (anterior * (muestras - 1) + max(0, _numero(segundos))) / muestras, 3)
     return nuevo
+
+
+def tope_de_silencio(bytes_trabajo, colgado_s=300, orientacion_s=900):
+    """Cuántos segundos sin tocar el worktree se le consienten a un agente.
+
+    POR QUÉ (2026-09-14, medido en el log de p324A). El vigilante mataba a cualquier agente
+    que pasara 300 s sin cambiar un byte del worktree. Kimi K3 empezó a las 16:35:45, leyó
+    CLAUDE.md, listó `src/lib/mando`, contó líneas de tres archivos y buscó sesenta y cinco
+    coincidencias en centro-mando.tsx — y a las 16:41:02 lo cortaron. Cinco minutos y
+    diecisiete segundos: exactamente el tope, por el delito de orientarse.
+
+    Y orientarse es lo que le PEDIMOS: el propio prompt empieza con «lee AGENTS.md y
+    memory/orquestacion-economica.md antes de tocar nada». Un modelo gratuito a 5-10 tok/s
+    no hace eso en cinco minutos. De ahí la epidemia de `sin_cambios` de las olas 323 y 324:
+    no es que los modelos no supieran programar, es que no llegaban a escribir.
+
+    Un agente que YA escribió algo y lleva cinco minutos parado sí es sospechoso: ahí el tope
+    corto sigue siendo el bueno. La diferencia está en si ha tocado el worktree alguna vez.
+    """
+    return orientacion_s if _entero_no_negativo(bytes_trabajo) == 0 else colgado_s

@@ -34,6 +34,7 @@ if DIRECTORIO_ENJAMBRE not in sys.path:
     sys.path.insert(0, DIRECTORIO_ENJAMBRE)
 from medios import (
     area_de_tarea,
+    tope_de_silencio,
     normalizar_medios,
     registrar_resultado,
     renovar_arriendo,
@@ -3722,6 +3723,10 @@ ARRIENDO_S = int(os.environ.get("STARSEED_ARRIENDO_S", "120"))
 COLGADO_S = int(
     os.environ.get("STARSEED_COLGADO_S", os.environ.get("STARSEED_ESTANCADO_S", "300"))
 )
+# Silencio que se consiente ANTES de la primera escritura, mientras el agente se orienta
+# (leer AGENTS.md, mirar el árbol, buscar dónde encaja lo que se le pide). Ver el porqué
+# medido en `tope_de_silencio` de medios.py.
+ORIENTACION_S = int(os.environ.get("STARSEED_ORIENTACION_S", "900"))
 _INSTANCIA = re.sub(
     r"[^a-zA-Z0-9_.:-]",
     "-",
@@ -4327,7 +4332,16 @@ def vigilante():
             )
             # «completando» (puerta de alcance, Ola 259) es escritura: mismo trato por si se
             # cuelga y misma pintura en el Mando (cuenta como agente escribiendo).
-            if fase in ("escribiendo", "completando") and quieto > COLGADO_S:
+            # Antes de la PRIMERA escritura se consiente más silencio: el agente está
+            # leyendo AGENTS.md y mirando el repositorio porque es lo que le pedimos, y a
+            # 5-10 tok/s eso no cabe en cinco minutos. Ver `tope_de_silencio` en medios.py
+            # para el caso medido que motivó esto (Kimi K3 cortado a los 5 min 17 s
+            # habiendo hecho solo lecturas). Una vez ha tocado el worktree, el tope corto
+            # vuelve a ser el bueno: ahí sí, cinco minutos parado es estar colgado.
+            tope_silencio = tope_de_silencio(
+                d.get("bytes_trabajo", 0), COLGADO_S, ORIENTACION_S
+            )
+            if fase in ("escribiendo", "completando") and quieto > tope_silencio:
                 with PROCESOS_LOCK:
                     p = PROCESOS.get(tid)
                 d["avance"] = t
@@ -4335,8 +4349,15 @@ def vigilante():
                     evento(
                         "estancado",
                         tid,
-                        "%d s sin crecer en bytes con %s: medio COLGADO → vence su arriendo y reorganizo"
-                        % (quieto, d.get("modelo", "?")),
+                        "%d s sin crecer en bytes con %s (tope %d s, %s): medio COLGADO → vence su arriendo y reorganizo"
+                        % (
+                            quieto,
+                            d.get("modelo", "?"),
+                            tope_silencio,
+                            "aún no había escrito nada"
+                            if not d.get("bytes_trabajo")
+                            else "ya había escrito",
+                        ),
                     )
                     CORTADOS.add(tid)
                     try:
@@ -4515,8 +4536,10 @@ def ejecutar(t, intento=1):
                 pendientes, _tokens
             )
             for _m, _motivo in _apartados_tam:
-                if _m not in apartados:
-                    apartados.append(_m)
+                # OJO: NO van a `apartados`. Esa lista es para modelos que esperan a que su
+                # proveedor vuelva, y el segundo bucle los reintenta en cuanto revive. Un
+                # modelo que no cabe por tamaño no «vuelve» nunca: reintentarlo sería gastar
+                # otra vez el intento que acabamos de ahorrar.
                 evento("reenrutado", tid, "no intento %s: %s" % (_m, _motivo))
         except Exception as _e:
             # Medir no puede impedir trabajar: si algo falla aquí, se intenta con todos.

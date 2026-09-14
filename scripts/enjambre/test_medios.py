@@ -11,6 +11,7 @@ if DIRECTORIO not in sys.path:
 
 from medios import (  # noqa: E402
     area_de_tarea,
+    tope_de_silencio,
     estado_medio,
     registrar_resultado,
     repartir,
@@ -129,3 +130,32 @@ class ReorganizacionTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TopeDeSilencioTest(unittest.TestCase):
+    """El corte de 300 s mataba agentes que solo estaban leyendo. Caso medido: Kimi K3 en
+    p324A, 16:35:45 → 16:41:02, cinco minutos y diecisiete segundos de lecturas y fuera."""
+
+    def test_sin_haber_escrito_nada_se_consiente_la_orientacion(self):
+        self.assertEqual(tope_de_silencio(0), 900)
+
+    def test_en_cuanto_ha_escrito_algo_vuelve_el_tope_corto(self):
+        self.assertEqual(tope_de_silencio(1), 300)
+        self.assertEqual(tope_de_silencio(50000), 300)
+
+    def test_el_caso_de_kimi_ya_no_se_corta(self):
+        """317 s leyendo, sin una sola escritura: antes moría, ahora sigue."""
+        self.assertGreater(tope_de_silencio(0), 317)
+
+    def test_pero_un_agente_que_escribio_y_se_colgo_si_se_corta(self):
+        self.assertLess(tope_de_silencio(2048), 317)
+
+    def test_los_topes_son_configurables(self):
+        self.assertEqual(tope_de_silencio(0, colgado_s=60, orientacion_s=120), 120)
+        self.assertEqual(tope_de_silencio(9, colgado_s=60, orientacion_s=120), 60)
+
+    def test_valores_raros_cuentan_como_que_no_ha_escrito(self):
+        """Ante la duda, paciencia: matar a un agente que trabajaba cuesta una tarea entera."""
+        self.assertEqual(tope_de_silencio(None), 900)
+        self.assertEqual(tope_de_silencio("x"), 900)
+        self.assertEqual(tope_de_silencio(-5), 900)
