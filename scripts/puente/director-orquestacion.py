@@ -37,6 +37,7 @@ if DIRECTORIO not in sys.path:
 from aprobacion_logica import porque_no_verde as _verde
 from escalada_logica import siguiente_paso, aplicar, contar_gasto, en_asuntos, ESTADOS_RECUPERABLES
 from vigilante_logica import id_en_asuntos
+import desatascar as _desatascar
 from config_director import cargar as cargar_config
 
 RAIZ = os.environ.get("STARSEED_ROOT") or "/Users/alex/Documents/starseed-os-main"
@@ -366,6 +367,17 @@ def revisar():
     if continuadas:
         hecho.append("continuadas %d" % len(continuadas))
     p = progreso()
+
+    # (2026-09-13) Desatascar lo que paraba el enjambre y nadie recogía: árbol
+    # sucio con estorbos, orquestador vivo pero sin avanzar, trabajadores
+    # colgados. Aquí NUNCA se aprueba una puerta: solo se ejecuta un veredicto
+    # que ya estaba dado. Ver scripts/puente/desatascar.py.
+    try:
+        for frase in _desatascar.desatascar(RAIZ, orquestador_vivo(), 0, p):
+            _p.decir(frase, "director", "error" if frase.startswith("ATASCO") else "hecho")
+            hecho.append("desatasco")
+    except Exception as e:
+        print("desatascar: %s: %s" % (type(e).__name__, e), flush=True)
 
     _, latidos_dict, _ = cola_viva()
     latidos_tareas = (latidos_dict or {}).get("tareas", {})
