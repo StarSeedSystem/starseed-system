@@ -40,9 +40,13 @@ function parsearFechaLocal(s: unknown): number | undefined {
 // nuevo y el anterior con los MISMOS ids. Para no duplicar filas, agrupamos por `<cola>` y
 // nos quedamos solo con el fichero más reciente de cada cola.
 function colaDeNombreLatido(nombre: string): string | null {
-    const sinPref = nombre.slice("latidos-".length);
-    const base = sinPref.replace(/\.json$/, "");
-    return base || null;
+    const base = nombre.slice("latidos-".length).replace(/\.json$/, "");
+    if (!base) return null;
+    // El vigilante crea una cola nueva por relanzamiento (`cola-auto-0913-193908`,
+    // `cola-auto-0913-183200`…). Son tandas sucesivas de la MISMA cola rodante: solo
+    // la última está viva. Si se agrupan por su nombre literal, cada tanda cuenta
+    // aparte y las mismas tareas salen repetidas durante los 15 min de solape.
+    return /^cola-auto-/.test(base) ? "auto" : base;
 }
 
 export async function leerLatidos(raiz: string, ahora = Date.now() / 1000): Promise<LatidoEntrada[]> {
