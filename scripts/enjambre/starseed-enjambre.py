@@ -1051,6 +1051,16 @@ CUPOS_RPM = {
     "llm7": 8,
     "freetheai": 8,
 }
+# (2026-09-14) Cuántos modelos llega a PROBAR una tarea antes de rendirse.
+# Estaba clavado en 2. Con 6 proveedores vivos y ~15 escritores en la rotación, una
+# tarea gastaba dos intentos en el mismo sitio, salía «sin cambios» y esperaba a la
+# siguiente tanda —media hora— para probar otros dos. Ocho tareas llevaban así todo
+# el día. Alex: «incluso si falla algún modelo para el enrutamiento» el sistema tiene
+# que seguir solo. Ahora sigue rotando, y además CRUZA proveedores: no gasta más de
+# TOPE_POR_PROVEEDOR intentos seguidos en la misma pasarela.
+TOPE_INTENTOS_ESCRITURA = int(os.environ.get("STARSEED_INTENTOS_ESCRITURA", "5"))
+TOPE_POR_PROVEEDOR = int(os.environ.get("STARSEED_INTENTOS_POR_PROVEEDOR", "2"))
+
 CONCURRENCIA_OPENCODE = int(
     os.environ.get("STARSEED_CONCURRENCIA", "8")
 )  # techo; el freno real es la memoria
@@ -4289,6 +4299,23 @@ def vigilante():
                 evento("latido", "", texto_latido)
 
 
+
+def _siguiente_cruzando_proveedor(pendientes, por_proveedor):
+    """Saca el siguiente modelo prefiriendo un proveedor poco usado en esta tarea.
+
+    Sin esto, la rotación gastaba los intentos en la misma pasarela (dos groq
+    seguidos el 2026-09-14) y la tarea moría sin haber tocado las otras cinco que
+    estaban vivas. Si todos los candidatos ya pasaron del tope, se coge el primero:
+    más vale intentarlo otra vez que rendirse.
+    """
+    if not pendientes:
+        return None
+    for i, m in enumerate(pendientes):
+        if por_proveedor.get(proveedor_de(m), 0) < TOPE_POR_PROVEEDOR:
+            return pendientes.pop(i)
+    return pendientes.pop(0)
+
+
 def _anotar_fallido(tid, modelo):
     """Deja constancia en progreso.json de qué modelo NO funcionó en esta tarea, para que un
     reintento —en esta ola o en otra— no vuelva a empezar por él."""
@@ -4413,10 +4440,11 @@ def ejecutar(t, intento=1):
     intentos_reales = 0
     ultimo_fallo = ""
     saturados = {}  # modelo -> veces que el proveedor contestó 429 (se reintenta tras esperar)
+    por_proveedor = {}  # proveedor -> intentos ya gastados en él (para cruzar pasarelas)
     ronda = 0
     pendientes = [] if reanudada else list(modelos)
-    while pendientes and not cambios and intentos_reales < 2:
-        modelo = pendientes.pop(0)
+    while pendientes and not cambios and intentos_reales < TOPE_INTENTOS_ESCRITURA:
+        modelo = _siguiente_cruzando_proveedor(pendientes, por_proveedor)
         if not proveedor_vivo(proveedor_de(modelo)):
             if modelo not in apartados:
                 apartados.append(modelo)
@@ -4562,8 +4590,10 @@ def ejecutar(t, intento=1):
                 )
             continue
         intentos_reales += 1
+        por_proveedor[proveedor_de(modelo)] = por_proveedor.get(proveedor_de(modelo), 0) + 1
         _anotar_fallido(tid, modelo)
-        evento("aviso", tid, "sin cambios con %s" % modelo)
+        evento("aviso", tid, "sin cambios con %s (%d/%d) → sigo con otro proveedor"
+               % (modelo, intentos_reales, TOPE_INTENTOS_ESCRITURA))
     # Sin cambios y SIN ningún intento real porque todo estaba caído/saturado: esperar a que
     # vuelva algún proveedor (hasta ESPERA_PROVEEDOR_S) en vez de dar la tarea por perdida.
     while (
@@ -4604,8 +4634,8 @@ def ejecutar(t, intento=1):
         pendientes = vueltos
         saturados = {}
         # misma lógica de escritura, segunda vuelta
-        while pendientes and not cambios and intentos_reales < 2:
-            modelo = pendientes.pop(0)
+        while pendientes and not cambios and intentos_reales < TOPE_INTENTOS_ESCRITURA:
+            modelo = _siguiente_cruzando_proveedor(pendientes, por_proveedor)
             if not proveedor_vivo(proveedor_de(modelo)):
                 apartados.append(modelo)
                 continue
@@ -4715,8 +4745,9 @@ def ejecutar(t, intento=1):
                 )
                 continue
             intentos_reales += 1
+            por_proveedor[proveedor_de(modelo)] = por_proveedor.get(proveedor_de(modelo), 0) + 1
             _anotar_fallido(tid, modelo)
-            evento("aviso", tid, "sin cambios con %s" % modelo)
+            evento("aviso", tid, "sin cambios con %s (%d/%d) → sigo con otro proveedor" % (modelo, intentos_reales, TOPE_INTENTOS_ESCRITURA))
     if not cambios and intentos_reales == 0 and (ultimo_fallo or apartados):
         set_estado(
             tid,
