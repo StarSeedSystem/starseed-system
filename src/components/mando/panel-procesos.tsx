@@ -293,60 +293,48 @@ export function PanelProcesos() {
 
     return (
         <div className="space-y-4">
-            <RamificacionAgentes />
-            {/* Ola 270 (2026-09-07): la rama viva del backend 1.58 de esta neurona,
-                debajo de la ramificación de olas. */}
-            <section className="space-y-1">
-                <h3 className="text-sm font-semibold text-white">
-                    Ramificación 1.58 · personalidades y agentes locales
-                </h3>
-                <p className="text-[11px] text-white/50">
-                    Trabajan de forma continua con el BitNet local y respetan el turno de memoria.
-                </p>
-                <Ramificacion158 />
+            {/* (2026-09-15) Alex: «traslada y fusiona eso con la ventana de ramificación y
+                también la de Ramificación 1.58». Había TRES ventanas seguidas hablando de lo
+                mismo —quién trabaja ahora— cada una con su propio marco y su propio título:
+                la ramificación de olas, la del backend 1.58 y «Agentes en vivo». Tres bloques
+                para una sola pregunta. Ahora es UNA ventana; lo local y los latidos entran
+                plegados, porque se consultan de vez en cuando y no todo el rato. */}
+            <section className="mc-cristal space-y-3 p-4">
+                <RamificacionAgentes />
+
+                <details className="group rounded-lg border border-white/10 bg-black/20">
+                    <summary className="mc-alzar cursor-pointer list-none px-3 py-2 text-[11px] text-white/65">
+                        <span className="font-medium text-white/80">Personalidades y agentes locales (1.58)</span>
+                        <span className="ml-2 text-white/40">
+                            trabajan con el BitNet local y respetan el turno de memoria
+                        </span>
+                    </summary>
+                    <div className="border-t border-white/10 p-3">
+                        <Ramificacion158 />
+                    </div>
+                </details>
+
+                <details className="group rounded-lg border border-white/10 bg-black/20">
+                    <summary className="mc-alzar cursor-pointer list-none px-3 py-2 text-[11px] text-white/65">
+                        <span className="font-medium text-white/80">Latidos en vivo</span>
+                        <span className="ml-2 text-white/40">el pulso crudo de cada agente, tal cual llega al bus</span>
+                    </summary>
+                    <div className="border-t border-white/10 p-3">
+                        <AgentesEnVivo estado={estado} />
+                    </div>
+                </details>
             </section>
-            <AgentesEnVivo estado={estado} />
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                <Indicador
-                    titulo="Enjambre libre"
-                    valor={estado.enjambreEnMarcha || (estado.enjambres ?? []).length > 0 ? "Activo" : "Detenido"}
-                    detalle={
-                        estado.enjambreEnMarcha && (estado.enjambres ?? []).some((e) => e.donde === "nube")
-                            ? "Olas en esta Mac y en la nube."
-                            : estado.enjambreEnMarcha
-                              ? "Olas ejecutándose en esta Mac."
-                              : (estado.enjambres ?? []).length > 0
-                                ? `${(estado.enjambres ?? []).length} ola(s) en la nube, ninguna aquí.`
-                                : "Ninguna ola automática en marcha."
-                    }
-                    activo={Boolean(estado.enjambreEnMarcha) || (estado.enjambres ?? []).length > 0}
-                />
-                <Indicador
-                    titulo="Rama"
-                    valor={repo?.rama ?? "—"}
-                    detalle={repo?.head ? `HEAD ${repo.head}` : "Repositorio no localizado"}
-                />
-                <Indicador
-                    titulo="Commits sin publicar"
-                    valor={
-                        repo?.sinPush === undefined || repo?.sinPush === null
-                            ? "—"
-                            : String(repo.sinPush)
-                    }
-                    detalle="Respeto al remoto (`@{upstream}..HEAD`)."
-                    activo={repo?.sinPush ? repo.sinPush > 0 : false}
-                />
-                <Indicador
-                    titulo="Cambios sin commit"
-                    valor={
-                        repo?.sinCommit === undefined || repo?.sinCommit === null
-                            ? "—"
-                            : String(repo.sinCommit)
-                    }
-                    detalle="Árbol de trabajo pendiente de comitear."
-                    activo={repo?.sinCommit ? repo.sinCommit > 0 : false}
-                />
-            </div>
+            {/* (2026-09-15) Aquí había cuatro indicadores —Enjambre libre, Rama, Commits sin
+                publicar y Cambios sin commit— que repetían, palabra por palabra, medidores que
+                ya están en la cabecera y que ahora además se abren con su detalle. Dos sitios
+                distintos diciendo el mismo número es la forma más fácil de que un día digan
+                números distintos. Se quedan solo en la cabecera. Lo único que no estaba arriba
+                —la rama y su HEAD— entra en una línea, sin marco propio. */}
+            <p className="text-[11px] text-white/45">
+                Rama <span className="font-mono text-white/70">{repo?.rama ?? "—"}</span>
+                {repo?.head ? <> · HEAD <span className="font-mono text-white/70">{repo.head}</span></> : null}
+                {repo?.sinCommit ? <> · {repo.sinCommit} archivos sin commitear</> : null}
+            </p>
 
             {repo?.log && repo.log.length > 0 && (
                 <section className="rounded-xl border border-white/10 bg-black/30 p-4 backdrop-blur">

@@ -16,7 +16,7 @@
  */
 
 import { marcarRitoActivo } from "@/lib/ui/rito-activo";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { CircleDashed, RefreshCw, ShieldAlert } from "lucide-react";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -100,28 +100,41 @@ import { contarTrabajoReal } from "@/lib/mando/conteo-operativo";
 
 const CLAVE_PESTANA = "starseed.mando.pestana";
 
-/** Pestañas del Centro de Mando, en orden. */
+/**
+ * Pestañas del Centro de Mando, AGRUPADAS por lo que vas a hacer (2026-09-15).
+ *
+ * Eran veinte en una fila corrida, ordenadas por cuándo se fueron añadiendo. Para
+ * encontrar «Contextos» había que leerlas todas. Ahora van por familias y la barra
+ * las separa visualmente: no se ha quitado ninguna, solo se han puesto donde se
+ * buscan. `grupo` es únicamente para pintar la separación.
+ */
 const PESTANAS = [
-    { id: "procesos", etiqueta: "Procesos" },
-    { id: "ramificacion", etiqueta: "Ramificación" },
-    { id: "director", etiqueta: "Director" },
-    { id: "oficina", etiqueta: "Oficina 3D" },
-    { id: "olas", etiqueta: "Olas e informes" },
-    { id: "commits", etiqueta: "Commits pendientes" },
-    { id: "publicar", etiqueta: "Publicar" },
-    { id: "canales", etiqueta: "Canales StarSeed" },
-    { id: "astra", etiqueta: "Astra" },
-    { id: "taller", etiqueta: "Taller del agente" },
-    { id: "flota", etiqueta: "Flota" },
-    { id: "neurona", etiqueta: "Neurona" },
-    { id: "voces", etiqueta: "Voces" },
-    { id: "aprendizaje", etiqueta: "Aprendizaje" },
-    { id: "chat", etiqueta: "Chat" },
-    { id: "areas", etiqueta: "Áreas" },
-    { id: "contextos", etiqueta: "Contextos" },
-    { id: "entornos", etiqueta: "Entornos" },
-    { id: "ajustes_director", etiqueta: "Ajustes Director" },
-    { id: "ajustes", etiqueta: "Ajustes" },
+    // Lo que está pasando ahora con el trabajo.
+    { id: "procesos", etiqueta: "Procesos", grupo: "Trabajo" },
+    { id: "ramificacion", etiqueta: "Ramificación", grupo: "Trabajo" },
+    { id: "director", etiqueta: "Director", grupo: "Trabajo" },
+    { id: "olas", etiqueta: "Olas e informes", grupo: "Trabajo" },
+    // Lo que sale de aquí hacia el repositorio.
+    { id: "commits", etiqueta: "Commits pendientes", grupo: "Salida" },
+    { id: "publicar", etiqueta: "Publicar", grupo: "Salida" },
+    // Con qué se trabaja: modelos, memoria, voz, aprendizaje.
+    { id: "flota", etiqueta: "Flota", grupo: "Infraestructura" },
+    { id: "neurona", etiqueta: "Neurona", grupo: "Infraestructura" },
+    { id: "voces", etiqueta: "Voces", grupo: "Infraestructura" },
+    { id: "aprendizaje", etiqueta: "Aprendizaje", grupo: "Infraestructura" },
+    // Cómo piensan y qué saben los agentes.
+    { id: "astra", etiqueta: "Astra", grupo: "Agentes" },
+    { id: "taller", etiqueta: "Taller del agente", grupo: "Agentes" },
+    { id: "areas", etiqueta: "Áreas", grupo: "Agentes" },
+    { id: "contextos", etiqueta: "Contextos", grupo: "Agentes" },
+    { id: "entornos", etiqueta: "Entornos", grupo: "Agentes" },
+    { id: "chat", etiqueta: "Chat", grupo: "Agentes" },
+    // Hacia fuera.
+    { id: "canales", etiqueta: "Canales StarSeed", grupo: "Fuera" },
+    { id: "oficina", etiqueta: "Oficina 3D", grupo: "Fuera" },
+    // Configuración.
+    { id: "ajustes_director", etiqueta: "Ajustes Director", grupo: "Ajustes" },
+    { id: "ajustes", etiqueta: "Ajustes", grupo: "Ajustes" },
 ] as const;
 
 type IdPestana = (typeof PESTANAS)[number]["id"];
@@ -772,11 +785,21 @@ export function CentroMando() {
             ) : null}
 
             <Tabs value={pestana} onValueChange={alCambiarPestana}>
-                <TabsList aria-label="Pestañas del Centro de Mando" className="flex-wrap">
-                    {PESTANAS.map((p) => (
-                        <TabsTrigger key={p.id} value={p.id} className="cursor-pointer">
-                            {p.etiqueta}
-                        </TabsTrigger>
+                <TabsList aria-label="Pestañas del Centro de Mando" className="mc-cristal flex-wrap gap-y-1">
+                    {PESTANAS.map((p, i) => (
+                        <Fragment key={p.id}>
+                            {i > 0 && PESTANAS[i - 1].grupo !== p.grupo ? (
+                                <span
+                                    aria-hidden
+                                    className="mx-1.5 self-center text-[9px] uppercase tracking-widest text-white/25"
+                                >
+                                    {p.grupo}
+                                </span>
+                            ) : null}
+                            <TabsTrigger value={p.id} className="mc-alzar cursor-pointer">
+                                {p.etiqueta}
+                            </TabsTrigger>
+                        </Fragment>
                     ))}
                 </TabsList>
 
