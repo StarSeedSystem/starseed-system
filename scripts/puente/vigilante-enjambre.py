@@ -33,6 +33,7 @@ from vigilante_logica import (
     seleccionar_pendientes,
     ultima_salida,
 )
+import cerrojos_git
 import config_director
 
 RAIZ = os.environ.get("STARSEED_ROOT") or "/Users/alex/Documents/starseed-os-main"
@@ -69,6 +70,34 @@ def orquestador_vivo():
 
     patron = re.compile(r"^[^ ]*[Pp]ython[0-9.]* +-u +.*starseed-enjambre\.py")
     return any(patron.match(l) for l in salida.splitlines())
+
+
+def barrer_cerrojos():
+    """Quita los `index.lock` que dejó atrás un git muerto.
+
+    Sin esto, un agente que muere a media escritura condena su tarea: cada
+    intento posterior choca con el cerrojo y se gasta un reintento gratuito sin
+    haber podido escribir una línea. Se avisa solo cuando se quita alguno; un
+    barrido silencioso cada 90 s no es noticia.
+    """
+    try:
+        salida = subprocess.run(
+            ["ps", "-eo", "args"], capture_output=True, text=True, timeout=20
+        ).stdout.splitlines()
+    except Exception:
+        return  # sin poder mirar los procesos no se toca ningún cerrojo
+    rutas = cerrojos_git.cerrojos_huerfanos(
+        os.path.join(RAIZ, ".git", "worktrees"), salida
+    )
+    quitados = cerrojos_git.quitar(rutas)
+    if quitados:
+        tareas = ", ".join(os.path.basename(os.path.dirname(r)) for r in quitados)
+        _p.decir(
+            "cerrojos de git huérfanos quitados en %s: sus tareas volvían a fallar "
+            "en cada intento sin poder escribir nada" % tareas,
+            "vigilante",
+            "aviso",
+        )
 
 
 def pendientes():
@@ -174,6 +203,7 @@ def main():
     while True:
         try:
             hay = orquestador_vivo()
+            barrer_cerrojos()
             cola = [] if hay else pendientes()
             cfg, _avisos = config_director.cargar()
             relanzar, trabajadores, tope = decidir_relanzamiento(cfg, hay, len(cola))
