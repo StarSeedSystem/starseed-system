@@ -123,6 +123,10 @@ export interface DatosMedidores {
     ejecutables: { id: string; titulo: string; ola?: string }[];
     proveedores: { id: string; estado: string; motivo?: string }[];
     olaActiva?: string;
+    /** ¿Hay orquestador vivo? ¿Está el enjambre en pausa? Sin esto, «13 listas y 0 agentes»
+     *  no se puede explicar, y un número sin explicación parece una avería aunque no lo sea. */
+    enjambreVivo?: boolean;
+    enjambrePausado?: boolean;
     disco?: { libreGb: number; usadoPct: number };
     memoria?: { libreMb: number; swapMb: number };
 }
@@ -231,17 +235,28 @@ export function detalleDeMedidor(clave: ClaveMedidor, datos: Partial<DatosMedido
         }
 
         case "listas": {
+            // Por qué NO las está cogiendo nadie, que es la pregunta de verdad cuando ves
+            // «13 listas · 0 agentes». Son tres situaciones distintas y hasta ahora las tres
+            // se veían igual: un número en rojo.
+            const porQueNadieLasCoge = d.enjambrePausado
+                ? "el enjambre está EN PAUSA: nadie las va a coger hasta que se reanude"
+                : d.enjambreVivo
+                  ? "el enjambre está vivo y las va cogiendo por tandas, según los trabajadores libres"
+                  : "no hay orquestador vivo; el vigilante lo relanza solo en menos de 90 s";
             const filas: FilaMedidor[] = d.ejecutables.map((t) => ({
                 id: t.id,
                 titulo: t.titulo,
                 estado: "lista",
-                porque: t.ola ? `de la ola ${t.ola}` : undefined,
+                porque: t.ola ? `de la ola ${t.ola} · ${porQueNadieLasCoge}` : porQueNadieLasCoge,
                 acciones: accionesDeTarea("pendiente"),
             }));
             return {
                 clave,
                 titulo: "Listas para trabajar",
-                resumen: filas.length === 0 ? "sin trabajo ejecutable" : `${filas.length} se pueden coger ya`,
+                resumen:
+                    filas.length === 0
+                        ? "sin trabajo ejecutable"
+                        : `${filas.length} se pueden coger ya · ${porQueNadieLasCoge}`,
                 filas,
                 acciones: [IR_A("Ver procesos", "procesos")],
                 vacio: "No queda trabajo ejecutable: todo lo definido está integrado, bloqueado o esperándote.",

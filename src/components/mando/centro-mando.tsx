@@ -23,7 +23,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { EstadoMando, ProveedorUso } from "@/lib/mando/tipos";
 import { flotaConocida } from "@/lib/mando/flota";
 import "@/components/mando/mando-cristal.css";
-import { MedidorAbrible, type TonoMedidor } from "@/components/mando/medidor-abrible";
+import { PanelMedidor, PastillaMedidor, type TonoMedidor } from "@/components/mando/medidor-abrible";
 import { VerificarProcesos } from "@/components/mando/verificar-procesos";
 import type { AccionMedidor, ClaveMedidor, FilaMedidor } from "@/lib/mando/medidores";
 import { PanelProcesos } from "@/components/mando/panel-procesos";
@@ -111,7 +111,6 @@ const CLAVE_PESTANA = "starseed.mando.pestana";
 const PESTANAS = [
     // Lo que está pasando ahora con el trabajo.
     { id: "procesos", etiqueta: "Procesos", grupo: "Trabajo" },
-    { id: "ramificacion", etiqueta: "Ramificación", grupo: "Trabajo" },
     { id: "director", etiqueta: "Director", grupo: "Trabajo" },
     { id: "olas", etiqueta: "Olas e informes", grupo: "Trabajo" },
     // Lo que sale de aquí hacia el repositorio.
@@ -250,6 +249,9 @@ export function CentroMando() {
             if (aviso.tipo === "tarea") setPestana("procesos");
         });
     }, []);
+
+    // Un solo medidor abierto a la vez: el panel es uno y vive debajo de la rejilla.
+    const [medidorAbierto, setMedidorAbierto] = useState<ClaveMedidor | null>(null);
 
     const alCambiarPestana = useCallback((id: string) => {
         const segura = (PESTANAS.some((p) => p.id === id) ? id : "procesos") as IdPestana;
@@ -587,187 +589,169 @@ export function CentroMando() {
                         <h2 className="text-sm font-semibold text-white/70">Pulso del trabajo</h2>
                         <VerificarProcesos />
                     </div>
-                    <ul className="flex flex-wrap gap-2" aria-label="Pulso del trabajo">
-                    <MedidorAbrible clave="ola-activa" titulo="Ola activa" valor={pulso.olaActiva} alAccionar={accionarMedidor} alIrA={alCambiarPestana} />
-                    {/* (2026-09-09) Alex: «separa los de pendientes de las tareas en curso».
-                        Estaban en un solo chip («3 · 128 pendientes») y se leía como un dato
-                        raro; son dos cosas distintas y ahora se ven como tales:
-                          · EN CURSO   = agentes latiendo AHORA (latidos del vigilante).
-                          · PENDIENTES = IDs únicos que aún requieren trabajo; las copias de
-                            colas históricas se omiten y el detalle separa listos/bloqueados. */}
-                    <MedidorAbrible
-                        clave="en-curso"
-                        titulo="Tareas en curso"
-                        valor={String(pulso.tareasEnCurso)}
-                        tono={pulso.tareasEnCurso > 0 ? "aviso" : "normal"}
-                        detalle={pulso.tareasEnCurso > 0 ? "agentes escribiendo ahora" : "ningún agente activo"}
-                        alAccionar={accionarMedidor}
-                        alIrA={alCambiarPestana}
-                    />
-                    {/* (2026-09-15) Alex: «a un lado del medidor de tareas en curso agrega un
-                        medidor de agentes que muestre cuáles agentes están trabajando en cada
-                        tarea». El dato ya existía en los latidos del bus y no llegaba a la
-                        cabecera: se veía «3 en curso» sin saber quién, con qué modelo, ni si
-                        una llevaba tres horas parada. */}
-                    <MedidorAbrible
-                        clave="agentes"
-                        titulo="Agentes"
-                        valor={String(pulso.tareasEnCurso)}
-                        tono={pulso.tareasEnCurso > 0 ? "ok" : "normal"}
-                        detalle="quién escribe cada tarea"
-                        alAccionar={accionarMedidor}
-                        alIrA={alCambiarPestana}
-                    />
-                    {/* (2026-09-14) Alex: «33 pendientes y no avanza». Eran 10 listas + 23
-                        BLOQUEADAS sumadas en un solo número: 23 de ellas no se pueden trabajar,
-                        esperan a que se integre su dependencia. Mezclarlas hacía parecer que
-                        faltaban agentes cuando lo que faltaba era desatascar una raíz — y dejaba
-                        el chip en rojo permanente, con lo que el rojo dejó de significar nada.
-                        Ahora la cifra grande es lo EJECUTABLE y lo bloqueado va aparte. */}
-                    <MedidorAbrible
-                        clave="listas"
-                        titulo="Listas para trabajar"
-                        valor={String(pulso.listas)}
-                        tono={pulso.listas > 0 && pulso.tareasEnCurso === 0 ? "peligro" : "normal"}
-                        detalle={
-                            pulso.listas > 0 && pulso.tareasEnCurso === 0
-                                ? "hay trabajo y ningún agente: algo está atascado"
-                                : `${pulso.pendientes} en total con las bloqueadas${pulso.copiasOmitidas > 0 ? ` · ${pulso.copiasOmitidas} copias omitidas` : ""}`
-                        }
-                        alAccionar={accionarMedidor}
-                        alIrA={alCambiarPestana}
-                    />
-                    <MedidorAbrible
-                        clave="bloqueadas"
-                        titulo="Bloqueadas"
-                        valor={String(pulso.bloqueadas)}
-                        tono={pulso.bloqueadas > 0 ? "aviso" : "normal"}
-                        detalle={pulso.bloqueadas > 0 ? "esperan a que se integre su dependencia" : "ninguna esperando dependencia"}
-                        alAccionar={accionarMedidor}
-                        alIrA={alCambiarPestana}
-                    />
-                    <MedidorAbrible
-                        clave="sin-publicar"
-                        titulo="Sin publicar"
-                        valor={
-                            sinPublicar
-                                ? String(sinPublicar.total)
-                                : pulso.sinPush === null
-                                  ? "—"
-                                  : String(pulso.sinPush)
-                        }
-                        tono={
-                            (sinPublicar ? sinPublicar.total : pulso.sinPush ?? 0) > 0
-                                ? "aviso"
-                                : "normal"
-                        }
-                        detalle={
-                            sinPublicar
-                                ? `OS ${sinPublicar.os} · Astraura ${sinPublicar.astraura}`
-                                : "solo OS"
-                        }
-                        alAccionar={accionarMedidor}
-                        alIrA={alCambiarPestana}
-                    />
-                    <MedidorAbrible
-                        clave="proveedores"
-                        titulo="Proveedores agotados"
-                        valor={String(pulso.agotados)}
-                        tono={pulso.agotados > 0 ? "peligro" : "normal"}
-                        detalle={`${pulso.disponibles} disponibles`}
-                        alAccionar={accionarMedidor}
-                        alIrA={alCambiarPestana}
-                    />
-                    {pulsoNeurona ? (
-                        <>
-                            <MedidorAbrible
-                                clave="memoria"
-                                titulo="Memoria"
-                                valor={pulsoNeurona.memoriaValor}
-                                tono={pulsoNeurona.memoriaTono as TonoMedidor}
-                                detalle={pulsoNeurona.memoriaDetalle}
-                                alAccionar={accionarMedidor}
-                                alIrA={alCambiarPestana}
-                            />
-                            <DatoPulso
-                                titulo="BitNet 1.58"
-                                valor={pulsoNeurona.bitnetValor}
-                                tono={pulsoNeurona.bitnetTono}
-                                detalle={pulsoNeurona.bitnetDetalle}
-                            />
-                        </>
-                    ) : null}
-                    {almacenamiento?.disco ? (
-                        <MedidorAbrible
-                            clave="disco"
-                            titulo="Disco libre"
-                            valor={discoLibreTexto(almacenamiento.disco.libreMb)}
-                            tono={tonoDiscoLibre(almacenamiento.disco.libreMb) as TonoMedidor}
-                            detalle={`${almacenamiento.disco.usadoPct} % usado`}
+                    {/* (2026-09-15) La cabecera era una fila que se envuelve, y el panel de detalle
+                        colgaba DENTRO de la pastilla: al abrir uno, esa tarjeta pasaba de 8 rem a 30 y
+                        reorganizaba toda la cabecera —huecos enormes, medidores saltando de sitio—.
+                        Ahora las pastillas viven en una REJILLA de celdas iguales y el panel se pinta
+                        una sola vez, debajo de todas y a lo ancho. Abrir ya no mueve nada. */}
+                    <ul
+                        className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6"
+                        aria-label="Pulso del trabajo"
+                    >
+                        {[
+                            { clave: "ola-activa" as const, titulo: "Ola activa", valor: pulso.olaActiva },
+                            {
+                                clave: "en-curso" as const,
+                                titulo: "Tareas en curso",
+                                valor: String(pulso.tareasEnCurso),
+                                tono: (pulso.tareasEnCurso > 0 ? "aviso" : "normal") as TonoMedidor,
+                                detalle: pulso.tareasEnCurso > 0 ? "agentes escribiendo ahora" : "ningún agente activo",
+                            },
+                            {
+                                clave: "agentes" as const,
+                                titulo: "Agentes",
+                                valor: String(pulso.tareasEnCurso),
+                                tono: (pulso.tareasEnCurso > 0 ? "ok" : "normal") as TonoMedidor,
+                                detalle: "quién escribe cada tarea",
+                            },
+                            {
+                                clave: "listas" as const,
+                                titulo: "Listas para trabajar",
+                                valor: String(pulso.listas),
+                                // Rojo SOLO cuando hay trabajo y nadie lo coge: si el rojo sale
+                                // siempre, deja de significar nada.
+                                tono: (pulso.listas > 0 && pulso.tareasEnCurso === 0 ? "peligro" : "normal") as TonoMedidor,
+                                detalle:
+                                    pulso.listas > 0 && pulso.tareasEnCurso === 0
+                                        ? "hay trabajo y ningún agente: algo está atascado"
+                                        : "el enjambre las coge solo",
+                            },
+                            {
+                                clave: "bloqueadas" as const,
+                                titulo: "Bloqueadas",
+                                valor: String(pulso.bloqueadas),
+                                tono: (pulso.bloqueadas > 0 ? "aviso" : "normal") as TonoMedidor,
+                                detalle: pulso.bloqueadas > 0 ? "ábrelo para ver por qué" : "ninguna esperando",
+                            },
+                            {
+                                clave: "sin-publicar" as const,
+                                titulo: "Sin publicar",
+                                valor: sinPublicar
+                                    ? String(sinPublicar.total)
+                                    : pulso.sinPush === null
+                                      ? "—"
+                                      : String(pulso.sinPush),
+                                tono: ((sinPublicar ? sinPublicar.total : pulso.sinPush ?? 0) > 0 ? "aviso" : "normal") as TonoMedidor,
+                                detalle: sinPublicar ? `OS ${sinPublicar.os} · Astraura ${sinPublicar.astraura}` : "solo OS",
+                            },
+                            {
+                                clave: "proveedores" as const,
+                                titulo: "Proveedores agotados",
+                                valor: String(pulso.agotados),
+                                tono: (pulso.agotados > 0 ? "peligro" : "normal") as TonoMedidor,
+                                detalle: `${pulso.disponibles} disponibles`,
+                            },
+                            ...(pulsoNeurona
+                                ? [
+                                      {
+                                          clave: "memoria" as const,
+                                          titulo: "Memoria",
+                                          valor: pulsoNeurona.memoriaValor,
+                                          tono: pulsoNeurona.memoriaTono as TonoMedidor,
+                                          detalle: pulsoNeurona.memoriaDetalle,
+                                      },
+                                      {
+                                          titulo: "BitNet 1.58",
+                                          valor: pulsoNeurona.bitnetValor,
+                                          tono: pulsoNeurona.bitnetTono as TonoMedidor,
+                                          detalle: pulsoNeurona.bitnetDetalle,
+                                      },
+                                  ]
+                                : []),
+                            ...(almacenamiento?.disco
+                                ? [
+                                      {
+                                          clave: "disco" as const,
+                                          titulo: "Disco libre",
+                                          valor: discoLibreTexto(almacenamiento.disco.libreMb),
+                                          tono: tonoDiscoLibre(almacenamiento.disco.libreMb) as TonoMedidor,
+                                          detalle: `${almacenamiento.disco.usadoPct} % usado`,
+                                      },
+                                  ]
+                                : []),
+                            ...(almacenamiento?.drive?.montado
+                                ? [
+                                      {
+                                          titulo: "Google Drive",
+                                          valor:
+                                              cuotaGoogle?.libreGb != null
+                                                  ? cuotaGoogle.libreGb >= 1024
+                                                      ? `${(cuotaGoogle.libreGb / 1024).toFixed(2)} TB libres`
+                                                      : `${cuotaGoogle.libreGb.toFixed(0)} GB libres`
+                                                  : "montado",
+                                          tono: "ok" as TonoMedidor,
+                                          detalle:
+                                              cuotaGoogle?.totalGb != null
+                                                  ? `de ${(cuotaGoogle.totalGb / 1024).toFixed(2)} TB`
+                                                  : cuotaGoogle?.motivo || "abre la carpeta de StarSeed en Drive",
+                                          alClic: () =>
+                                              window.open(
+                                                  "https://drive.google.com/drive/search?q=StarSeed_Memory_Root",
+                                                  "_blank",
+                                                  "noopener,noreferrer",
+                                              ),
+                                      },
+                                  ]
+                                : []),
+                            ...(estado?.cuentas
+                                ? [
+                                      {
+                                          titulo: "Integradas",
+                                          valor: String(estado.cuentas.integradas),
+                                          tono: "ok" as TonoMedidor,
+                                          detalle: `últimas ${estado.cuentas.ultimas.olas} olas: ${estado.cuentas.ultimas.integradas}`,
+                                      },
+                                      {
+                                          titulo: "Fallidas",
+                                          valor: String(estado.cuentas.fallidas),
+                                          tono: (estado.cuentas.fallidas > 0 ? "peligro" : "normal") as TonoMedidor,
+                                          detalle: `últimas olas: ${estado.cuentas.ultimas.fallidas}`,
+                                      },
+                                  ]
+                                : []),
+                            ...((estado?.cuentas?.ultimas.esperandoAprobacion ?? 0) > 0
+                                ? [
+                                      {
+                                          titulo: "Tu visto bueno",
+                                          valor: String(estado?.cuentas?.ultimas.esperandoAprobacion ?? 0),
+                                          tono: "aviso" as TonoMedidor,
+                                          detalle: "ramas listas que esperan tu decisión",
+                                      },
+                                  ]
+                                : []),
+                        ].map((m) => (
+                            <li key={m.titulo}>
+                                <PastillaMedidor
+                                    clave={"clave" in m ? m.clave : undefined}
+                                    titulo={m.titulo}
+                                    valor={m.valor}
+                                    detalle={"detalle" in m ? m.detalle : undefined}
+                                    tono={"tono" in m ? m.tono : undefined}
+                                    abierto={"clave" in m && medidorAbierto === m.clave}
+                                    alPulsar={(c) => setMedidorAbierto((a) => (a === c ? null : c))}
+                                    alClic={"alClic" in m ? m.alClic : undefined}
+                                />
+                            </li>
+                        ))}
+                    </ul>
+                    {medidorAbierto ? (
+                        <PanelMedidor
+                            clave={medidorAbierto}
                             alAccionar={accionarMedidor}
                             alIrA={alCambiarPestana}
+                            alCerrar={() => setMedidorAbierto(null)}
                         />
                     ) : null}
-                    {/* (2026-09-09, a petición de Alex) Drive como almacén grande, en la cabecera.
-                        Al pulsar abre la carpeta del proyecto en Google Drive, para llegar a los
-                        archivos sin buscarlos. La cuota real la da la API de Google, no `df`: en
-                        macOS DriveFS es un File Provider y `df` de esa carpeta devuelve el disco
-                        LOCAL — por eso, sin cuota, se enseña el motivo en vez de un número falso. */}
-                    {almacenamiento?.drive?.montado ? (
-                        <DatoPulso
-                            titulo="Google Drive"
-                            valor={
-                                cuotaGoogle?.libreGb != null
-                                    ? cuotaGoogle.libreGb >= 1024
-                                        ? `${(cuotaGoogle.libreGb / 1024).toFixed(2)} TB libres`
-                                        : `${cuotaGoogle.libreGb.toFixed(0)} GB libres`
-                                    : almacenamiento.driveCuota && almacenamiento.driveCuota.libreGb != null
-                                      ? `${almacenamiento.driveCuota.libreGb.toFixed(0)} GB libres`
-                                      : "montado"
-                            }
-                            tono="ok"
-                            detalle={
-                                cuotaGoogle?.totalGb != null
-                                    ? `de ${(cuotaGoogle.totalGb / 1024).toFixed(2)} TB (API de Google)${almacenamiento.drive.espejo?.ultimoEspejo ? ` · espejo: ${almacenamiento.drive.espejo.ultimoEspejo}` : ""}`
-                                    : (cuotaGoogle?.motivo ||
-                                       almacenamiento.driveCuotaMotivo ||
-                                       "abre la carpeta de StarSeed en Drive")
-                            }
-                            alClic={() =>
-                                window.open(
-                                    "https://drive.google.com/drive/search?q=StarSeed_Memory_Root",
-                                    "_blank",
-                                    "noopener,noreferrer",
-                                )
-                            }
-                        />
-                    ) : null}
-                    {estado?.cuentas ? (
-                        <>
-                            <DatoPulso titulo="Integradas" valor={String(estado.cuentas.integradas)} tono="ok" detalle={`${estado.cuentas.ola} · últimas ${estado.cuentas.ultimas.olas} olas: ${estado.cuentas.ultimas.integradas}`} />
-                            {/* (2026-09-09, a petición de Alex) Fuera «En curso» y «Sin cambios».
-                                «En curso» contaba las tareas con estado `en_curso` en progreso.json, y ese
-                                estado NO se cierra cuando el contenedor mata al orquestador: llegó a mostrar
-                                19 tareas «en curso» de olas de hace días, ninguna viva. El dato honesto es
-                                «Tareas en curso» del pulso de arriba, que cuenta agentes latiendo AHORA.
-                                «Sin cambios» no aportaba: lo que importa de una tarea que no escribió nada
-                                ya sale en «Fallidas» y en el detalle de la ola. */}
-                            <DatoPulso titulo="Fallidas" valor={String(estado.cuentas.fallidas)} tono={estado.cuentas.fallidas > 0 ? "peligro" : "normal"} detalle={`últimas olas: ${estado.cuentas.ultimas.fallidas}`} />
-                            <DatoPulso titulo="Pendientes" valor={String(estado.cuentas.pendientes)} tono="normal" detalle={`últimas olas: ${estado.cuentas.ultimas.pendientes}`} />
-                            {(estado.cuentas.ultimas.esperandoAprobacion ?? 0) > 0 ? (
-                                <DatoPulso titulo="Tu visto bueno" valor={String(estado.cuentas.ultimas.esperandoAprobacion)} tono="aviso" detalle="ramas listas que esperan tu decisión (Procesos)" />
-                            ) : null}
-                            {(estado.ordenesSinAtender?.length ?? 0) > 0 ? (
-                                <DatoPulso
-                                    titulo="Nube sin lanzador"
-                                    valor={String(estado.ordenesSinAtender?.length ?? 0)}
-                                    tono="peligro"
-                                    detalle={`orden «${estado.ordenesSinAtender?.[0]?.tipo ?? ""}» sin recoger desde hace ${Math.round((Date.now() - Date.parse(estado.ordenesSinAtender?.[0]?.t ?? "")) / 60000)} min: relanza ~/starseed-vigia/lanzador.py en el contenedor`}
-                                />
-                            ) : null}
-                        </>
-                    ) : null}
-                    </ul>
                 </div>
             ) : null}
 
@@ -805,11 +789,6 @@ export function CentroMando() {
 
                 <TabsContent value="procesos">
                     <PanelProcesos />
-                </TabsContent>
-                {/* Ola 239 · MD7: el grafo de orquestación dibujado en SVG puro,
-                    sin librerías pesadas (nada de d3, cytoscape ni three). */}
-                <TabsContent value="ramificacion">
-                    <PanelGrafo />
                 </TabsContent>
                 <TabsContent value="director">
                     <ControlDirectores />

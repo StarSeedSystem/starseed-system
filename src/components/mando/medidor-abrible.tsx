@@ -121,31 +121,88 @@ function BotonAccion({
     );
 }
 
-export function MedidorAbrible({
+/**
+ * LA PASTILLA. Solo la tarjeta: ni abre nada por su cuenta ni contiene el panel.
+ *
+ * (2026-09-15) Antes el panel colgaba DENTRO de la pastilla, y la pastilla vivía en
+ * una fila que se envuelve. Al abrir uno, la tarjeta pasaba de 8 rem a 30 y
+ * reorganizaba toda la cabecera: huecos enormes, medidores saltando de sitio. El
+ * panel ahora se pinta UNA vez, debajo de la rejilla entera, y a lo ancho.
+ */
+export function PastillaMedidor({
     clave,
     titulo,
     valor,
     detalle,
     tono = "normal",
-    alAccionar,
-    alIrA,
+    abierto = false,
+    alPulsar,
+    alClic,
 }: {
-    clave: ClaveMedidor;
+    /** Sin `clave` la pastilla NO se abre: es informativa y se nota (no lleva chevrón). */
+    clave?: ClaveMedidor;
     titulo: string;
     valor: string;
-    /** Texto pequeño bajo el valor. */
     detalle?: string;
     tono?: TonoMedidor;
-    /** Ejecuta una acción; devuelve un mensaje para enseñar bajo el panel. */
+    abierto?: boolean;
+    alPulsar?: (clave: ClaveMedidor) => void;
+    /** Acción propia para las pastillas que no abren panel (p. ej. abrir Drive). */
+    alClic?: () => void;
+}) {
+    const pulsable = Boolean(clave || alClic);
+    const contenido = (
+        <>
+            <span className="text-[10px] uppercase tracking-wider text-white/45">{titulo}</span>
+            <span className={`text-lg font-semibold leading-tight ${TEXTO[tono]}`}>{valor}</span>
+            {detalle ? (
+                <span className="line-clamp-2 text-[10px] leading-snug text-white/45">{detalle}</span>
+            ) : null}
+            {clave ? (
+                <ChevronDown
+                    aria-hidden
+                    className={`h-3 w-3 shrink-0 text-white/30 transition-transform duration-200 ${abierto ? "rotate-180" : ""}`}
+                />
+            ) : null}
+        </>
+    );
+    const clases = `mc-cristal mc-centrado flex h-full min-h-[4.75rem] w-full flex-col items-center justify-center gap-0.5 px-3 py-2 ${
+        pulsable ? "mc-alzar cursor-pointer" : ""
+    } ${abierto ? "ring-1 ring-cyan-300/40" : ""} ${NEON[tono]}`;
+
+    if (!pulsable) return <div className={clases}>{contenido}</div>;
+
+    return (
+        <button
+            type="button"
+            {...(clave ? { "aria-expanded": abierto, "aria-controls": "panel-medidor" } : {})}
+            onClick={() => (clave ? alPulsar?.(clave) : alClic?.())}
+            className={clases}
+        >
+            {contenido}
+        </button>
+    );
+}
+
+/**
+ * EL PANEL. Uno solo, debajo de la rejilla y a todo el ancho. Pide su detalle al
+ * abrirse (nunca al montar: ocho peticiones que nadie ha pedido son lo contrario
+ * de «que no ocupe muchos recursos»).
+ */
+export function PanelMedidor({
+    clave,
+    alAccionar,
+    alIrA,
+    alCerrar,
+}: {
+    clave: ClaveMedidor;
     alAccionar?: (clave: ClaveMedidor, a: AccionMedidor, f: FilaMedidor | undefined, texto: string) => Promise<string>;
     alIrA?: (destino: string) => void;
+    alCerrar: () => void;
 }) {
-    const [abierto, setAbierto] = useState(false);
     const [datos, setDatos] = useState<DetalleMedidor | null>(null);
     const [cargando, setCargando] = useState(false);
     const [aviso, setAviso] = useState<string | null>(null);
-    const boton = useRef<HTMLButtonElement | null>(null);
-    const idPanel = `medidor-${clave}`;
 
     const cargar = useCallback(async () => {
         setCargando(true);
@@ -161,22 +218,18 @@ export function MedidorAbrible({
     }, [clave]);
 
     useEffect(() => {
-        if (abierto && !datos) void cargar();
-    }, [abierto, datos, cargar]);
+        setDatos(null);
+        setAviso(null);
+        void cargar();
+    }, [cargar]);
 
-    // Escape cierra y devuelve el foco a la pastilla: si no, el foco se queda
-    // perdido en el panel y con el teclado no hay forma de volver.
     useEffect(() => {
-        if (!abierto) return;
         const alPulsar = (e: KeyboardEvent) => {
-            if (e.key === "Escape") {
-                setAbierto(false);
-                boton.current?.focus();
-            }
+            if (e.key === "Escape") alCerrar();
         };
         window.addEventListener("keydown", alPulsar);
         return () => window.removeEventListener("keydown", alPulsar);
-    }, [abierto]);
+    }, [alCerrar]);
 
     const ejecutar = useCallback(
         async (a: AccionMedidor, f: FilaMedidor | undefined, texto: string) => {
@@ -185,108 +238,93 @@ export function MedidorAbrible({
                 return;
             }
             if (!alAccionar) return;
-            const mensaje = await alAccionar(clave, a, f, texto);
-            setAviso(mensaje);
-            setDatos(null); // que se relea: el estado acaba de cambiar
+            setAviso(await alAccionar(clave, a, f, texto));
             void cargar();
         },
         [alAccionar, alIrA, clave, cargar],
     );
 
     return (
-        <li className="min-w-32">
-            <button
-                ref={boton}
-                type="button"
-                aria-expanded={abierto}
-                aria-controls={idPanel}
-                onClick={() => setAbierto((a) => !a)}
-                className={`mc-cristal mc-alzar mc-centrado flex w-full cursor-pointer flex-col gap-0.5 px-3 py-2 ${NEON[tono]}`}
-            >
-                <span className="text-[10px] uppercase tracking-wider text-white/45">{titulo}</span>
-                <span className={`text-lg font-semibold leading-tight ${TEXTO[tono]}`}>{valor}</span>
-                {detalle ? <span className="text-[10px] leading-snug text-white/45">{detalle}</span> : null}
-                <ChevronDown
-                    aria-hidden
-                    className={`h-3 w-3 text-white/35 transition-transform duration-200 ${abierto ? "rotate-180" : ""}`}
-                />
-            </button>
-
-            {abierto ? (
-                <div
-                    id={idPanel}
-                    role="region"
-                    aria-label={`Detalle de ${titulo}`}
-                    className="mc-cristal mc-desplegar mt-1.5 w-[min(30rem,86vw)] p-3 text-left"
+        <section
+            id="panel-medidor"
+            role="region"
+            aria-label={`Detalle de ${datos?.titulo ?? clave}`}
+            className="mc-cristal mc-desplegar mt-2 w-full p-3"
+        >
+            <header className="mc-centrado flex flex-wrap items-baseline justify-center gap-2">
+                <h3 className="text-[11px] font-semibold uppercase tracking-wider text-white/70">
+                    {datos?.titulo ?? "…"}
+                </h3>
+                <span className="text-[11px] text-white/45">{datos?.resumen ?? ""}</span>
+                <button
+                    type="button"
+                    onClick={alCerrar}
+                    className="ml-2 cursor-pointer rounded-md border border-white/10 px-2 py-0.5 text-[10px] text-white/50"
                 >
-                    {cargando && !datos ? (
-                        <p className="flex items-center gap-2 text-[11px] text-white/50">
-                            <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
-                            Leyendo…
-                        </p>
-                    ) : null}
+                    Cerrar
+                </button>
+            </header>
 
-                    {datos ? (
-                        <>
-                            <p className="mc-centrado text-[11px] text-white/60">{datos.resumen}</p>
-
-                            {datos.filas.length === 0 ? (
-                                <p className="mt-2 text-[11px] leading-relaxed text-white/45">{datos.vacio}</p>
-                            ) : (
-                                <ul className="mt-2 space-y-1.5">
-                                    {datos.filas.map((f) => (
-                                        <li key={f.id} className="rounded-lg border border-white/10 bg-black/25 p-2">
-                                            <p className="flex flex-wrap items-baseline gap-1.5">
-                                                <span className="font-mono text-[11px] text-cyan-200/90">{f.id}</span>
-                                                <span className="text-[11px] text-white/80">{f.titulo}</span>
-                                                {f.estado ? (
-                                                    <span className="rounded-full border border-white/10 px-1.5 text-[10px] text-white/45">
-                                                        {f.estado}
-                                                    </span>
-                                                ) : null}
-                                            </p>
-                                            {f.porque ? (
-                                                <p className="mt-0.5 text-[10px] leading-relaxed text-white/50">{f.porque}</p>
-                                            ) : null}
-                                            {f.quien || f.desde ? (
-                                                <p className="mt-0.5 text-[10px] text-white/35">
-                                                    {[f.quien, f.desde].filter(Boolean).join(" · ")}
-                                                </p>
-                                            ) : null}
-                                            {f.acciones.length ? (
-                                                <p className="mt-1.5 flex flex-wrap gap-1.5">
-                                                    {f.acciones.map((a) => (
-                                                        <BotonAccion
-                                                            key={`${f.id}-${a.clase}`}
-                                                            accion={a}
-                                                            fila={f}
-                                                            alAccionar={ejecutar}
-                                                        />
-                                                    ))}
-                                                </p>
-                                            ) : null}
-                                        </li>
-                                    ))}
-                                </ul>
-                            )}
-
-                            {datos.acciones.length ? (
-                                <p className="mc-centrado mt-2.5 flex flex-wrap justify-center gap-1.5 border-t border-white/10 pt-2.5">
-                                    {datos.acciones.map((a) => (
-                                        <BotonAccion key={a.clase} accion={a} alAccionar={ejecutar} />
-                                    ))}
-                                </p>
-                            ) : null}
-                        </>
-                    ) : null}
-
-                    {aviso ? (
-                        <p className="mt-2 rounded-md border border-cyan-300/25 bg-cyan-400/10 px-2 py-1 text-[10px] text-cyan-100">
-                            {aviso}
-                        </p>
-                    ) : null}
-                </div>
+            {cargando && !datos ? (
+                <p className="mt-2 flex items-center justify-center gap-2 text-[11px] text-white/50">
+                    <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
+                    Leyendo…
+                </p>
             ) : null}
-        </li>
+
+            {datos ? (
+                datos.filas.length === 0 ? (
+                    <p className="mc-centrado mt-2 text-[11px] leading-relaxed text-white/45">{datos.vacio}</p>
+                ) : (
+                    /* Rejilla: con cuarenta filas, una columna deja la página infinita.
+                       El texto de cada ficha va a la IZQUIERDA a propósito: son datos que
+                       se leen en columna y centrarlos los vuelve ilegibles. */
+                    <ul className="mt-2 grid gap-1.5 md:grid-cols-2 xl:grid-cols-3">
+                        {datos.filas.map((f) => (
+                            <li key={f.id} className="rounded-lg border border-white/10 bg-black/25 p-2 text-left">
+                                <p className="flex flex-wrap items-baseline gap-1.5">
+                                    <span className="font-mono text-[11px] text-cyan-200/90">{f.id}</span>
+                                    {f.estado ? (
+                                        <span className="rounded-full border border-white/10 px-1.5 text-[10px] text-white/45">
+                                            {f.estado}
+                                        </span>
+                                    ) : null}
+                                </p>
+                                <p className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-white/80">{f.titulo}</p>
+                                {f.porque ? (
+                                    <p className="mt-0.5 text-[10px] leading-relaxed text-amber-200/70">{f.porque}</p>
+                                ) : null}
+                                {f.quien || f.desde ? (
+                                    <p className="mt-0.5 text-[10px] text-white/35">
+                                        {[f.quien, f.desde].filter(Boolean).join(" · ")}
+                                    </p>
+                                ) : null}
+                                {f.acciones.length ? (
+                                    <p className="mt-1.5 flex flex-wrap gap-1.5">
+                                        {f.acciones.map((a) => (
+                                            <BotonAccion key={`${f.id}-${a.clase}`} accion={a} fila={f} alAccionar={ejecutar} />
+                                        ))}
+                                    </p>
+                                ) : null}
+                            </li>
+                        ))}
+                    </ul>
+                )
+            ) : null}
+
+            {datos?.acciones.length ? (
+                <p className="mc-centrado mt-2.5 flex flex-wrap justify-center gap-1.5 border-t border-white/10 pt-2.5">
+                    {datos.acciones.map((a) => (
+                        <BotonAccion key={a.clase} accion={a} alAccionar={ejecutar} />
+                    ))}
+                </p>
+            ) : null}
+
+            {aviso ? (
+                <p className="mc-centrado mt-2 rounded-md border border-cyan-300/25 bg-cyan-400/10 px-2 py-1 text-[10px] text-cyan-100">
+                    {aviso}
+                </p>
+            ) : null}
+        </section>
     );
 }

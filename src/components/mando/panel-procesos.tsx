@@ -21,6 +21,8 @@ import {
 import type { EstadoMando } from "@/lib/mando/tipos";
 import { RamificacionAgentes } from "@/components/mando/ramificacion-agentes";
 import { Ramificacion158 } from "@/components/mando/ramificacion-158";
+import { ProgresoAgentes } from "@/components/mando/progreso-agentes";
+import { PanelGrafo } from "@/components/mando/panel-grafo";
 import { pedirVerTarea } from "@/lib/mando/asistente-cliente";
 
 /** Formatea una fecha ISO a hora local corta. */
@@ -301,6 +303,37 @@ export function PanelProcesos() {
                 plegados, porque se consultan de vez en cuando y no todo el rato. */}
             <section className="mc-cristal space-y-3 p-4">
                 <RamificacionAgentes />
+
+                {/* (2026-09-15) La barra de fases por agente, que Alex pidió dos veces. El
+                    Mando decía «3 tareas en curso» y ahí se acababa: ni en qué punto va cada
+                    una, ni cuánto le queda, ni si lleva media hora en la misma fase. Va aquí
+                    dentro y no en una ventana aparte, porque responde a la misma pregunta que
+                    la ramificación —quién trabaja y en qué— y ya teníamos tres ventanas para
+                    eso. */}
+                <div className="rounded-lg border border-white/10 bg-black/20 p-3">
+                    <h4 className="text-[11px] font-medium text-white/75">Progreso de cada agente</h4>
+                    <p className="mb-2 text-[10px] text-white/40">
+                        Seis etapas: escribiendo → verificando → probando → revisando → visto bueno → integrada.
+                    </p>
+                    <ProgresoAgentes
+                        latidos={estado.latidos ?? []}
+                        progreso={Object.fromEntries(
+                            (estado.latidos ?? []).map((l) => [l.tarea, undefined as string | undefined]),
+                        )}
+                    />
+                </div>
+
+                <details className="group rounded-lg border border-white/10 bg-black/20">
+                    <summary className="mc-alzar cursor-pointer list-none px-3 py-2 text-[11px] text-white/65">
+                        <span className="font-medium text-white/80">Grafo de dependencias</span>
+                        <span className="ml-2 text-white/40">
+                            el mismo trabajo dibujado: qué desbloquea qué, en SVG puro
+                        </span>
+                    </summary>
+                    <div className="border-t border-white/10 p-3">
+                        <PanelGrafo />
+                    </div>
+                </details>
 
                 <details className="group rounded-lg border border-white/10 bg-black/20">
                     <summary className="mc-alzar cursor-pointer list-none px-3 py-2 text-[11px] text-white/65">

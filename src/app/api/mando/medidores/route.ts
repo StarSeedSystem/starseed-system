@@ -18,7 +18,7 @@ import path from "node:path";
 import { promisify } from "node:util";
 
 import { guardianMando } from "@/lib/mando/guardian";
-import { leerColas, leerLatidosDelBus, leerProgreso } from "@/lib/mando/lector-local";
+import { enjambreEnMarcha, leerColas, leerLatidosDelBus, leerProgreso } from "@/lib/mando/lector-local";
 import {
     TERMINALES,
     detalleDeMedidor,
@@ -55,11 +55,22 @@ async function leerEntradas(): Promise<Record<string, Entrada>> {
 }
 
 async function reunir(): Promise<Partial<DatosMedidores>> {
-    const [progreso, colas, bus] = await Promise.all([
+    const [progreso, colas, bus, vivo] = await Promise.all([
         leerEntradas(),
         leerColas().catch(() => []),
         leerLatidosDelBus().catch(() => ({ latidos: [], enjambres: [] })),
+        enjambreEnMarcha().catch(() => false),
     ]);
+    // La pausa del Mando vive fuera de git, en la config del director.
+    let pausado = false;
+    try {
+        const cfg = JSON.parse(
+            await readFile(path.join(RAÍZ, "starseed_memory_root", "mando", "director-config.json"), "utf8"),
+        ) as { pausado?: boolean };
+        pausado = Boolean(cfg.pausado);
+    } catch {
+        pausado = false;
+    }
 
     const titulos: Record<string, string> = {};
     for (const t of colas) titulos[t.id] = t.titulo;
@@ -93,6 +104,8 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
         })),
         commitsSinPublicar,
         ejecutables,
+        enjambreVivo: vivo,
+        enjambrePausado: pausado,
     };
 }
 

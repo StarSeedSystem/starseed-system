@@ -646,21 +646,41 @@ export async function leerInformes(): Promise<InformeOla[]> {
     const directorios = ["relevo", "starseed_memory_root/relevo"];
     const informes: InformeOla[] = [];
 
+    // El más nuevo primero, por la FECHA REAL del archivo (2026-09-15).
+    //
+    // Antes se ordenaba por nombre con `localeCompare` y se daba la vuelta. Los nombres
+    // mezclan dos formas —`informe-cola-auto-0914-180046.md` y `informe-Ola-227-…md`— y
+    // `localeCompare` ignora mayúsculas, así que «Ola» ganaba a «cola» siempre: el Mando
+    // enseñaba como «informe más reciente» uno del 3 de septiembre teniendo 54 informes,
+    // el último de hace un rato. Ordenar por mtime no se puede confundir con nada.
+    const conFecha: { informe: InformeOla; ms: number }[] = [];
     for (const dir of directorios) {
         const nombres = await listarArchivos(dir, "informe-");
         for (const nombre of nombres) {
-            const markdown = await leerMarkdown(path.join(dir, nombre));
+            const rutaRelativa = path.join(dir, nombre);
+            const markdown = await leerMarkdown(rutaRelativa);
             if (!markdown.trim()) continue;
-            informes.push({
-                nombre,
-                titulo: extraerTitulo(markdown, nombre),
-                markdown: recortar(markdown, 12000),
-                fecha: nombre.replace(/^informe-/, "").replace(/\.md$/, ""),
+            let ms = 0;
+            try {
+                ms = (await stat(path.join(RAÍZ, rutaRelativa))).mtimeMs;
+            } catch {
+                ms = 0;
+            }
+            conFecha.push({
+                ms,
+                informe: {
+                    nombre,
+                    titulo: extraerTitulo(markdown, nombre),
+                    markdown: recortar(markdown, 12000),
+                    fecha: new Date(ms || Date.now()).toISOString().slice(0, 16).replace("T", " "),
+                },
             });
         }
     }
 
-    return informes.sort((a, b) => a.nombre.localeCompare(b.nombre)).reverse();
+    conFecha.sort((a, b) => b.ms - a.ms);
+    informes.push(...conFecha.map((c) => c.informe));
+    return informes;
 }
 
 /** Lee un archivo de texto devolviendo cadena vacía si no existe. */
