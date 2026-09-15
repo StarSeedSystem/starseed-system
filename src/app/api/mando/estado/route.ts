@@ -32,6 +32,7 @@ import {
     leerRevisiones,
     leerUsoDiario,
     resumirOlas,
+    leerAsuntosDeMain,
     leerCommitsDeOlas,
 } from "@/lib/mando/lector-local";
 
@@ -98,7 +99,7 @@ export async function GET(request: Request): Promise<Response> {
     const veto = await guardianMando(request);
     if (veto) return veto;
 
-    const [relevo, tareas, informes, uso, revisiones, repo, progreso, latidosMac, enMarcha, agentes, bus, eventosBus, rama, commitsGit] =
+    const [relevo, tareas, informes, uso, revisiones, repo, progreso, latidosMac, enMarcha, agentes, bus, eventosBus, rama, commitsGit, asuntosDeMain] =
         await Promise.all([
             leerEstadoRelevo(),
             leerColas(),
@@ -114,6 +115,7 @@ export async function GET(request: Request): Promise<Response> {
             leerEventosDelBus(20),
             construirRamificacion(4).catch(() => null),
             leerCommitsDeOlas(),
+            leerAsuntosDeMain(),
         ]);
     // Recuento de tareas para la cabecera: la ola activa (la viva o la más reciente) y las últimas olas.
     let cuentas: CuentasTareas | undefined;
@@ -151,13 +153,13 @@ export async function GET(request: Request): Promise<Response> {
         generadoEn: new Date().toISOString(),
         mandoActivo: true,
         relevo,
-        olas: resumirOlas(tareas, progreso, commitsGit),
+        olas: resumirOlas(tareas, progreso, commitsGit, asuntosDeMain),
         tareas,
         latidos,
         enjambreEnMarcha: enMarcha,
         agentes,
         enjambres: bus.enjambres,
-        fila: colaInteligente(tareas, progreso, latidos, commitsGit),
+        fila: colaInteligente(tareas, progreso, latidos, commitsGit, asuntosDeMain),
         informes,
         uso,
         revisiones,

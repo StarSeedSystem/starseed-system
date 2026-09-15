@@ -22,6 +22,7 @@ import { enjambreEnMarcha, leerColas, leerLatidosDelBus, leerProgreso } from "@/
 import {
     TERMINALES,
     detalleDeMedidor,
+    ejecutablesDeColas,
     type ClaveMedidor,
     type DatosMedidores,
 } from "@/lib/mando/medidores";
@@ -85,11 +86,10 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
             return { sha: sha ?? "", asunto: asunto ?? "", fecha: fecha ?? "" };
         });
 
-    // Ejecutables ahora: definidas por una cola y sin estado que lo impida.
-    const ABIERTOS = new Set(["pendiente", ""]);
-    const ejecutables = colas
-        .filter((t) => ABIERTOS.has(progreso[t.id]?.estado ?? ""))
-        .map((t) => ({ id: t.id, titulo: t.titulo, ola: t.ola }));
+    // Ejecutables ahora: la regla vive en `medidores.ts` y es la MISMA que usa el
+    // vigilante. Aquí solo se le da lo que hay en disco y los asuntos de `main`.
+    const asuntosDeMain = await git(["log", "main", "--format=%s", "-n", "1200"]);
+    const ejecutables = ejecutablesDeColas(colas, progreso, asuntosDeMain);
 
     return {
         progreso,

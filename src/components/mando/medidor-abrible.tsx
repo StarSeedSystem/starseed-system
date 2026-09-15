@@ -256,6 +256,25 @@ export function PanelMedidor({
                     {datos?.titulo ?? "…"}
                 </h3>
                 <span className="text-[11px] text-white/45">{datos?.resumen ?? ""}</span>
+                {/* El avance del conjunto, para no tener que sumar las filas a ojo. */}
+                {typeof datos?.porcentajeMedio === "number" ? (
+                    <span className="inline-flex items-center gap-1.5">
+                        <span
+                            className="mc-barra h-1 w-20 overflow-hidden rounded-full bg-white/10"
+                            role="progressbar"
+                            aria-valuenow={datos.porcentajeMedio}
+                            aria-valuemin={0}
+                            aria-valuemax={100}
+                            aria-label="Avance medio"
+                        >
+                            <i
+                                className="block h-full rounded-full bg-cyan-400/80"
+                                style={{ transform: `scaleX(${Math.max(0.02, datos.porcentajeMedio / 100)})` }}
+                            />
+                        </span>
+                        <span className="text-[10px] tabular-nums text-white/55">{datos.porcentajeMedio} % medio</span>
+                    </span>
+                ) : null}
                 <button
                     type="button"
                     onClick={alCerrar}
@@ -291,6 +310,37 @@ export function PanelMedidor({
                                     ) : null}
                                 </p>
                                 <p className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-white/80">{f.titulo}</p>
+
+                                {/* El avance de ESA tarea por el camino de seis etapas. Se pinta
+                                    con `scaleX`, no con `width`: ancho anima el layout y da tirones.
+                                    Solo aparece donde significa algo (en curso, agentes, listas);
+                                    en «bloqueadas» un porcentaje sería inventado. */}
+                                {typeof f.porcentaje === "number" ? (
+                                    <p className="mt-1 flex items-center gap-1.5">
+                                        <span
+                                            className="mc-barra h-1 flex-1 overflow-hidden rounded-full bg-white/10"
+                                            role="progressbar"
+                                            aria-valuenow={f.porcentaje}
+                                            aria-valuemin={0}
+                                            aria-valuemax={100}
+                                            aria-label={`Avance de ${f.id}`}
+                                        >
+                                            <i
+                                                className={`block h-full rounded-full ${
+                                                    f.porcentaje === 0 ? "bg-white/25" : "bg-cyan-400/80"
+                                                }`}
+                                                style={{ transform: `scaleX(${Math.max(0.02, f.porcentaje / 100)})` }}
+                                            />
+                                        </span>
+                                        <span className="w-14 shrink-0 text-right text-[10px] tabular-nums text-white/55">
+                                            {f.porcentaje} %
+                                        </span>
+                                        {f.etapa ? (
+                                            <span className="shrink-0 text-[10px] text-cyan-200/70">{f.etapa}</span>
+                                        ) : null}
+                                    </p>
+                                ) : null}
+
                                 {f.porque ? (
                                     <p className="mt-0.5 text-[10px] leading-relaxed text-amber-200/70">{f.porque}</p>
                                 ) : null}

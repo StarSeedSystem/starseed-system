@@ -21,12 +21,14 @@ import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 
 import {
+    leerAsuntosDeMain,
     leerColas,
     leerLatidos,
     leerCommitsDeOlas,
     leerLatidosDelBus,
     leerProgreso,
 } from "@/lib/mando/lector-local";
+import { idEnAsuntos } from "@/lib/mando/medidores";
 import type { FotoEnjambre, LatidoTarea, TareaOla } from "@/lib/mando/tipos";
 import { raizDelProyecto } from "@/lib/mando/raiz";
 
@@ -382,7 +384,7 @@ function niveles(tareas: TareaOla[]): Map<string, number> {
  * bus y latidos. `horasBus` acota cuánto historial del bus se cruza (por defecto 72 h).
  */
 export async function construirRamificacion(cuantas = 4, horasBus = 24 * 30): Promise<Ramificacion> {
-    const [tareas, progreso, pasosLocales, bus, latidosMac, delBus, commitsGit] = await Promise.all([
+    const [tareas, progreso, pasosLocales, bus, latidosMac, delBus, commitsGit, asuntosDeMain] = await Promise.all([
         leerColas(),
         leerProgreso(),
         leerPasosLocales(),
@@ -390,6 +392,7 @@ export async function construirRamificacion(cuantas = 4, horasBus = 24 * 30): Pr
         leerLatidos(),
         leerLatidosDelBus(),
         leerCommitsDeOlas(),
+        leerAsuntosDeMain(),
     ]);
 
     // Latidos: lo local manda sobre el bus para la misma tarea; la nube se añade.
@@ -598,6 +601,13 @@ export async function construirRamificacion(cuantas = 4, horasBus = 24 * 30): Pr
                     sha = sha || enGit.sha;
                     donde = donde ?? "mac";
                     if (!nota) nota = `${enGit.sha} · integrada (según git)`;
+                } else if (idEnAsuntos(t.id, asuntosDeMain)) {
+                    // Los asuntos modernos («Ola · p323E: …») no caben en el índice de arriba,
+                    // que exige número de ola e id en mayúsculas. Sin esto, todo lo integrado
+                    // desde la ola 320 seguía figurando como pendiente.
+                    estado = "commit";
+                    donde = donde ?? "mac";
+                    if (!nota) nota = "integrada (según git)";
                 }
             }
             // Un commit cuya revisión fue bloqueante se marca así (lo dice la nota o el evento).

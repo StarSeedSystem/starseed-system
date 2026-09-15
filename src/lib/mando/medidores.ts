@@ -11,6 +11,8 @@
 // si mañana cambia qué se puede descartar, se cambia en un sitio y no en cinco.
 // -----------------------------------------------------------------------------
 
+import { ETAPAS, etapaDeFase } from "@/lib/mando/etapas";
+
 export type ClaveMedidor =
     | "en-curso"
     | "agentes"
@@ -39,6 +41,12 @@ export interface FilaMedidor {
     id: string;
     titulo: string;
     estado?: string;
+    /** Avance 0-100 de ESA tarea por el camino de seis etapas. Solo donde significa algo:
+     *  en curso, agentes y listas. En «bloqueadas» o «sin publicar» no se pone, porque un
+     *  porcentaje ahí sería inventado. */
+    porcentaje?: number;
+    /** En qué etapa del camino va, con el nombre que usa `etapas.ts`. */
+    etapa?: string;
     /** En castellano y en una frase: por qué esta fila está donde está. */
     porque?: string;
     desde?: string;
@@ -52,12 +60,36 @@ export interface DetalleMedidor {
     resumen: string;
     filas: FilaMedidor[];
     acciones: AccionMedidor[];
+    /** Media del avance de las filas que lo tienen, para la cabecera del panel. */
+    porcentajeMedio?: number;
     /** Qué decir cuando no hay filas. Nunca una lista en blanco y muda. */
     vacio?: string;
 }
 
 /** Estados que ya terminaron: nada de lo que hay aquí se descarta ni se reintenta. */
 export const TERMINALES = new Set(["commit", "hecho"]);
+
+/**
+ * Avance 0-100 de una tarea por el camino de seis etapas de `etapas.ts`.
+ *
+ * Se reutiliza ese camino a propósito: es el mismo que dibuja la barra de fases en
+ * Procesos. Con dos escalas distintas, el mismo agente diría 50 % en un sitio y 33 %
+ * en otro, y volveríamos a tener dos verdades sobre el mismo hecho.
+ */
+export function avanceDe(fase: string | undefined, estado: string | undefined): { porcentaje: number; etapa?: string } {
+    const etapa = etapaDeFase(fase ?? "", estado ?? null);
+    // Sin fase reconocible el trabajo aún no ha empezado: 0 %, no «desconocido».
+    if (!etapa) return { porcentaje: 0 };
+    const indice = ETAPAS.indexOf(etapa);
+    return { porcentaje: Math.round(((indice + 1) / ETAPAS.length) * 100), etapa };
+}
+
+/** Media redondeada del avance de las filas que lo traen; 0 si ninguna lo trae. */
+export function mediaDeAvance(filas: FilaMedidor[]): number {
+    const conAvance = filas.filter((f) => typeof f.porcentaje === "number");
+    if (conAvance.length === 0) return 0;
+    return Math.round(conAvance.reduce((t, f) => t + (f.porcentaje ?? 0), 0) / conAvance.length);
+}
 
 const IR_A = (texto: string, destino: string): AccionMedidor => ({
     clase: "ir-a",
@@ -113,6 +145,48 @@ export function porqueBloqueada(
         return `${deps.join(", ")} ya está integrada: esto puede desbloquearse`;
     }
     return `espera a ${abiertas.join(", ")}`;
+}
+
+/** El id como palabra entera dentro de los asuntos de commit de `main`. */
+export function idEnAsuntos(id: string, asuntos: string): boolean {
+    if (!id) return false;
+    const escapado = id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return new RegExp(`(^|[^A-Za-z0-9])${escapado}([^A-Za-z0-9]|$)`, "m").test(asuntos);
+}
+
+/** Estados con los que el vigilante NO relanza nada solo: aquí tampoco cuentan como listas. */
+const ABIERTOS = new Set(["pendiente", ""]);
+
+/**
+ * Las que el enjambre cogería AHORA si se le suelta. Es la misma regla que
+ * `scripts/puente/vigilante_logica.seleccionar_pendientes`, y tiene que serlo: si
+ * aquí se usara otra, el medidor diría 78 listas mientras el vigilante coge 4, y
+ * no habría forma de saber cuál de los dos miente.
+ *
+ * Tres filtros, los tres del vigilante:
+ *   1. solo colas FUENTE — `cola-auto-*` son copias de ejecución que el propio
+ *      enjambre genera al relanzar, no demanda nueva;
+ *   2. sin estado que lo impida (bloqueada, rechazada, commit… no se relanzan);
+ *   3. fuera lo que ya figura en un commit de `main`, aunque nadie actualizara su
+ *      estado. Eso es lo que inflaba la cuenta: 74 tareas de olas viejas, hechas y
+ *      publicadas hace semanas, sin entrada en progreso.json.
+ */
+export function ejecutablesDeColas(
+    colas: { id: string; titulo?: string; ola?: string; cola?: string }[],
+    progreso: Record<string, { estado?: string } | undefined>,
+    asuntosDeMain: string,
+): { id: string; titulo: string; ola?: string }[] {
+    const vistos = new Set<string>();
+    const salida: { id: string; titulo: string; ola?: string }[] = [];
+    for (const t of colas) {
+        if (!t.id || vistos.has(t.id)) continue;
+        if ((t.cola ?? "").startsWith("auto-")) continue;
+        vistos.add(t.id);
+        if (!ABIERTOS.has(progreso[t.id]?.estado ?? "")) continue;
+        if (idEnAsuntos(t.id, asuntosDeMain)) continue;
+        salida.push({ id: t.id, titulo: t.titulo ?? "", ola: t.ola });
+    }
+    return salida;
 }
 
 export interface DatosMedidores {
@@ -201,15 +275,20 @@ export function detalleDeMedidor(clave: ClaveMedidor, datos: Partial<DatosMedido
 
         case "en-curso":
         case "agentes": {
-            const filas: FilaMedidor[] = d.latidos.map((l) => ({
-                id: l.tarea,
-                titulo: titulo(l.tarea),
-                estado: l.fase,
-                quien: `${l.proveedor ?? l.modelo.split("/")[0]} · ${l.modelo.split("/").slice(-1)[0]} en ${l.donde}`,
-                desde: `${l.minutos} min`,
-                porque: l.minutos > 45 ? "lleva mucho sin cambiar de fase" : undefined,
-                acciones: [],
-            }));
+            const filas: FilaMedidor[] = d.latidos.map((l) => {
+                const avance = avanceDe(l.fase, estadoDe(l.tarea));
+                return {
+                    id: l.tarea,
+                    titulo: titulo(l.tarea),
+                    estado: l.fase,
+                    porcentaje: avance.porcentaje,
+                    etapa: avance.etapa,
+                    quien: `${l.proveedor ?? l.modelo.split("/")[0]} · ${l.modelo.split("/").slice(-1)[0]} en ${l.donde}`,
+                    desde: `${l.minutos} min`,
+                    porque: l.minutos > 45 ? "lleva mucho sin cambiar de fase" : undefined,
+                    acciones: [],
+                };
+            });
             // Un `en_curso` sin latido es un estado rancio, y verlo es media reparación.
             const rancias = Object.entries(d.progreso)
                 .filter(([id, v]) => v?.estado === "en_curso" && !d.latidos.some((l) => l.tarea === id))
@@ -217,19 +296,24 @@ export function detalleDeMedidor(clave: ClaveMedidor, datos: Partial<DatosMedido
                     id,
                     titulo: titulo(id),
                     estado: "en_curso sin agente",
+                    // 0 % y no «a medias»: si nadie late por ella, no está avanzando nada.
+                    porcentaje: 0,
                     porque: "figura en curso pero ningún agente late por ella: estado rancio",
                     desde: v.t,
                     acciones: accionesDeTarea(v.estado),
                 }));
+            const todas = [...rancias, ...filas];
+            const medio = mediaDeAvance(todas);
             return {
                 clave,
                 titulo: clave === "agentes" ? "Agentes trabajando" : "Tareas en curso",
                 resumen:
                     filas.length === 0
                         ? "ningún agente escribiendo"
-                        : `${filas.length} escribiendo${rancias.length ? ` · ${rancias.length} rancias` : ""}`,
-                filas: [...rancias, ...filas],
-                acciones: [IR_A("Ver la ramificación", "ramificacion")],
+                        : `${filas.length} escribiendo · ${medio} % de avance medio${rancias.length ? ` · ${rancias.length} rancias` : ""}`,
+                filas: todas,
+                porcentajeMedio: medio,
+                acciones: [IR_A("Ver la ramificación", "procesos")],
                 vacio: "Ningún agente está escribiendo ahora mismo.",
             };
         }
@@ -247,6 +331,9 @@ export function detalleDeMedidor(clave: ClaveMedidor, datos: Partial<DatosMedido
                 id: t.id,
                 titulo: t.titulo,
                 estado: "lista",
+                // 0 % de seis etapas: definida y sin empezar. Con la barra al lado se ve
+                // de un vistazo lo que queda por delante de cada una.
+                porcentaje: 0,
                 porque: t.ola ? `de la ola ${t.ola} · ${porQueNadieLasCoge}` : porQueNadieLasCoge,
                 acciones: accionesDeTarea("pendiente"),
             }));
@@ -256,8 +343,9 @@ export function detalleDeMedidor(clave: ClaveMedidor, datos: Partial<DatosMedido
                 resumen:
                     filas.length === 0
                         ? "sin trabajo ejecutable"
-                        : `${filas.length} se pueden coger ya · ${porQueNadieLasCoge}`,
+                        : `${filas.length} se pueden coger ya · 0 % avanzadas · ${porQueNadieLasCoge}`,
                 filas,
+                porcentajeMedio: 0,
                 acciones: [IR_A("Ver procesos", "procesos")],
                 vacio: "No queda trabajo ejecutable: todo lo definido está integrado, bloqueado o esperándote.",
             };

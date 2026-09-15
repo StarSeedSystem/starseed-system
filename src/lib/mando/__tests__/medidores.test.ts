@@ -3,9 +3,13 @@ import { describe, expect, it } from "vitest";
 import {
     accionesDeTarea,
     aplicarConfiguracion,
+    avanceDe,
+    mediaDeAvance,
     configuracionPorDefecto,
     dependenciaDeNota,
     detalleDeMedidor,
+    ejecutablesDeColas,
+    idEnAsuntos,
     medidoresVisibles,
     porqueBloqueada,
     type ClaveMedidor,
@@ -168,5 +172,130 @@ describe("configuración", () => {
     it("lo oculto no vuelve por la puerta de atrás", () => {
         const cfg = { ...configuracionPorDefecto(), ocultos: ["disco"] as ClaveMedidor[] };
         expect(medidoresVisibles(cfg)).not.toContain("disco");
+    });
+});
+
+describe("porcentajes de avance", () => {
+    it("el avance sale del MISMO camino de seis etapas que la barra de Procesos", () => {
+        // Si aquí se inventara otra escala, el mismo agente diría 50 % en un sitio y 33 %
+        // en otro: justo el tipo de doble verdad que llevamos días quitando.
+        expect(avanceDe("escribiendo", undefined).porcentaje).toBe(17);
+        expect(avanceDe("tsc", undefined).porcentaje).toBe(33);
+        expect(avanceDe("revision", undefined).porcentaje).toBe(67);
+        expect(avanceDe("", "commit").porcentaje).toBe(100);
+    });
+
+    it("una fase que no se reconoce es 0 %, no «desconocido»", () => {
+        expect(avanceDe("haciendo cosas", undefined)).toEqual({ porcentaje: 0 });
+        expect(avanceDe(undefined, undefined).porcentaje).toBe(0);
+    });
+
+    it("cada tarea en curso trae su porcentaje y su etapa", () => {
+        const d = detalleDeMedidor("en-curso", {
+            latidos: [
+                { tarea: "T1", fase: "escribiendo", modelo: "nim/kimi", minutos: 3, donde: "mac" },
+                { tarea: "T2", fase: "tsc", modelo: "nim/kimi", minutos: 3, donde: "mac" },
+            ],
+        });
+        expect(d.filas.map((f) => f.porcentaje)).toEqual([17, 33]);
+        expect(d.filas[0].etapa).toBe("escribiendo");
+    });
+
+    it("el panel dice el avance medio y el resumen lo repite en palabras", () => {
+        const d = detalleDeMedidor("agentes", {
+            latidos: [
+                { tarea: "T1", fase: "escribiendo", modelo: "n/m", minutos: 1, donde: "mac" },
+                { tarea: "T2", fase: "revision", modelo: "n/m", minutos: 1, donde: "mac" },
+            ],
+        });
+        expect(d.porcentajeMedio).toBe(42);
+        expect(d.resumen).toContain("42 %");
+    });
+
+    it("una tarea en curso SIN agente cuenta como 0 %: no está avanzando nada", () => {
+        const d = detalleDeMedidor("en-curso", { progreso: { E1: { estado: "en_curso" } }, latidos: [] });
+        expect(d.filas[0].porcentaje).toBe(0);
+        expect(d.porcentajeMedio).toBe(0);
+    });
+
+    it("las listas van a 0 %: definidas y sin empezar", () => {
+        const d = detalleDeMedidor("listas", { ejecutables: [{ id: "L1", titulo: "x", ola: "324" }] });
+        expect(d.filas[0].porcentaje).toBe(0);
+        expect(d.resumen).toContain("0 % avanzadas");
+    });
+
+    it("bloqueadas y sin publicar NO llevan porcentaje: ahí sería inventado", () => {
+        const b = detalleDeMedidor("bloqueadas", { progreso });
+        expect(b.filas.every((f) => f.porcentaje === undefined)).toBe(true);
+        expect(b.porcentajeMedio).toBeUndefined();
+        const c = detalleDeMedidor("sin-publicar", { commitsSinPublicar: [{ sha: "abc1234567", asunto: "x" }] });
+        expect(c.filas[0].porcentaje).toBeUndefined();
+    });
+
+    it("la media ignora las filas sin avance en vez de contarlas como cero", () => {
+        expect(mediaDeAvance([{ id: "a", titulo: "", porcentaje: 100, acciones: [] }, { id: "b", titulo: "", acciones: [] }])).toBe(100);
+        expect(mediaDeAvance([{ id: "a", titulo: "", acciones: [] }])).toBe(0);
+    });
+});
+
+describe("qué cuenta de verdad como «lista para trabajar»", () => {
+    // El caso real del 2026-09-15: el medidor decía 78 y el vigilante cogía 4.
+    // Las otras 74 eran tareas de olas viejas, hechas y publicadas hace semanas,
+    // que nadie cerró en progreso.json.
+    const asuntos = [
+        "Ola · p323E: capturar-prueba.py: captura de la ruta local que tocó cada tarea",
+        "Ola 320 · p320A y p320K rehechas a mano: desbloquean las 8 tareas del Mando",
+        "fix(mando): la cabecera deja de descuadrarse",
+    ].join("\n");
+
+    it("reconoce el id como palabra entera, con o sin número de ola y en minúscula", () => {
+        expect(idEnAsuntos("p323E", asuntos)).toBe(true);
+        expect(idEnAsuntos("p320K", asuntos)).toBe(true);
+        // `p323` no está: es un prefijo de `p323E`, no la misma tarea.
+        expect(idEnAsuntos("p323", asuntos)).toBe(false);
+        expect(idEnAsuntos("p324B", asuntos)).toBe(false);
+        expect(idEnAsuntos("", asuntos)).toBe(false);
+    });
+
+    it("deja fuera lo que ya está en main aunque su estado siga vacío", () => {
+        const colas = [
+            { id: "p323E", titulo: "capturar prueba", ola: "323", cola: "323-reportes" },
+            { id: "p324B", titulo: "pendiente de verdad", ola: "324", cola: "324-os" },
+        ];
+        expect(ejecutablesDeColas(colas, {}, asuntos).map((t) => t.id)).toEqual(["p324B"]);
+    });
+
+    it("ignora las copias `cola-auto-*`: son relanzamientos, no demanda nueva", () => {
+        const colas = [
+            { id: "p324B", titulo: "copia", ola: "324", cola: "auto-0915-101010" },
+            { id: "p324F", titulo: "fuente", ola: "324", cola: "324-os" },
+        ];
+        expect(ejecutablesDeColas(colas, {}, "").map((t) => t.id)).toEqual(["p324F"]);
+    });
+
+    it("solo cuenta lo que el vigilante relanzaría: ni bloqueada, ni rechazada, ni commit", () => {
+        const colas = [
+            { id: "A", titulo: "", cola: "c" },
+            { id: "B", titulo: "", cola: "c" },
+            { id: "C", titulo: "", cola: "c" },
+            { id: "D", titulo: "", cola: "c" },
+        ];
+        const progreso = {
+            A: { estado: "pendiente" },
+            B: { estado: "bloqueada" },
+            C: { estado: "rechazada" },
+            D: { estado: "commit" },
+        };
+        expect(ejecutablesDeColas(colas, progreso, "").map((t) => t.id)).toEqual(["A"]);
+    });
+
+    it("un id repetido en varias colas cuenta una sola vez", () => {
+        const colas = [
+            { id: "A", titulo: "nueva", cola: "324" },
+            { id: "A", titulo: "vieja", cola: "300" },
+        ];
+        const salida = ejecutablesDeColas(colas, {}, "");
+        expect(salida).toHaveLength(1);
+        expect(salida[0].titulo).toBe("nueva");
     });
 });

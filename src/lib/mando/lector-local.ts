@@ -30,6 +30,7 @@ import type {
     RevisionRef,
     TareaOla,
 } from "@/lib/mando/tipos";
+import { idEnAsuntos } from "@/lib/mando/medidores";
 import { raizDelProyecto } from "@/lib/mando/raiz";
 
 /** Raíz del repositorio (en Next.js `process.cwd()` apunta al proyecto). */
@@ -286,13 +287,17 @@ export function colaInteligente(
     progreso: Record<string, unknown>,
     latidos: LatidoTarea[],
     commitsGit: Map<string, { sha: string; titulo: string }> = new Map(),
+    asuntosDeMain = "",
 ): TareaEnFila[] {
     const olaDe = new Map(tareas.map((t) => [t.id, (/(\d{2,4})/.exec(t.ola) ?? [])[1] ?? ""]));
     const tituloDe = new Map(tareas.map((t) => [t.id, t.titulo.trim()]));
     const estadoDe = (id: string): string => {
         const local = texto(objeto(progreso[id]).estado);
         if (["commit", "sin_cambios", "sustituida", "reasignada", "rechazada"].includes(local)) return local;
-        const enGit = commitsGit.has(`${olaDe.get(id) ?? ""}|${id}`) || commitsGit.has(`${id}|${tituloDe.get(id) ?? ""}`);
+        const enGit =
+            commitsGit.has(`${olaDe.get(id) ?? ""}|${id}`) ||
+            commitsGit.has(`${id}|${tituloDe.get(id) ?? ""}`) ||
+            idEnAsuntos(id, asuntosDeMain);
         return enGit ? "commit" : local;
     };
     const terminada = (id: string): boolean =>
@@ -592,7 +597,29 @@ export async function leerCommitsDeOlas(): Promise<Map<string, { sha: string; ti
     return salida;
 }
 
-export function resumirOlas(tareas: TareaOla[], progreso: Record<string, unknown> = {}, commitsGit: Map<string, { sha: string; titulo: string }> = new Map()): OlaResumen[] {
+/**
+ * Los asuntos de los commits de `main`, en crudo, para preguntar «¿este id ya está dentro?»
+ * como lo pregunta el vigilante: como palabra entera, sin exigir un formato de asunto.
+ *
+ * `leerCommitsDeOlas` indexa por `«Ola 226 · X4F2: …»`, y desde la ola 320 los asuntos se
+ * escriben `«Ola · p323E: …»` —sin número y con el id en minúscula—, así que ese índice ya
+ * no reconocía NADA moderno: 74 tareas hechas y publicadas seguían contando como listas.
+ */
+export async function leerAsuntosDeMain(): Promise<string> {
+    try {
+        const { stdout } = await execFileAsync("git", ["log", "main", "--format=%s", "-n", "1500"], {
+            cwd: RAÍZ,
+            timeout: 8000,
+            windowsHide: true,
+            maxBuffer: 4 * 1024 * 1024,
+        });
+        return stdout;
+    } catch {
+        return "";
+    }
+}
+
+export function resumirOlas(tareas: TareaOla[], progreso: Record<string, unknown> = {}, commitsGit: Map<string, { sha: string; titulo: string }> = new Map(), asuntosDeMain = ""): OlaResumen[] {
     const porOla = new Map<string, TareaOla[]>();
     for (const tarea of tareas) {
         const clave = tarea.ola || tarea.id;
@@ -608,7 +635,10 @@ export function resumirOlas(tareas: TareaOla[], progreso: Record<string, unknown
     const estadoDe = (id: string, ola: string): string => {
         const local = texto(objeto(progreso[id]).estado);
         if (["commit", "sin_cambios", "sustituida", "reasignada", "rechazada"].includes(local)) return local;
-        const enGit = commitsGit.has(`${numero(ola)}|${id}`) || commitsGit.has(`${id}|${tituloDe.get(id + "|" + ola) ?? ""}`);
+        const enGit =
+            commitsGit.has(`${numero(ola)}|${id}`) ||
+            commitsGit.has(`${id}|${tituloDe.get(id + "|" + ola) ?? ""}`) ||
+            idEnAsuntos(id, asuntosDeMain);
         return enGit ? "commit" : local;
     };
 
