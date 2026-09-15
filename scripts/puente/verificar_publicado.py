@@ -7,6 +7,7 @@ Esta separación es a propósito: así la regla se puede probar sin un repo dela
 """
 
 import os
+import re
 import subprocess
 
 import verificacion_cambios as VC
@@ -65,23 +66,28 @@ def importadores_de(raiz, ruta):
     return salida
 
 
+#: El `if __name__` de verdad va al principio de una línea y sin sangrar. Buscar
+#: la cadena suelta daba positivos absurdos: los dos módulos que EXPLICAN en su
+#: comentario qué es un ejecutable salían marcados como ejecutables, y el informe
+#: decía «se lanza por su nombre» de un módulo que solo se importa. Un informe
+#: con motivos falsos no se vuelve a leer.
+_ARRANQUE = re.compile(r'^if\s+__name__\s*==\s*[\"\']__main__[\"\']', re.M)
+
+
 def es_ejecutable(raiz, ruta):
-    """¿Se lanza por su nombre? Shebang o `if __name__ == "__main__"`.
+    """¿Se lanza por su nombre? Shebang o un `if __name__` de nivel superior.
 
     Sin esto, todo script de línea de comandos sale como «escrito y huérfano»:
     nadie lo importa porque no se importa, se ejecuta.
     """
-    if not ruta.endswith(".py") and not ruta.endswith(".sh") and not ruta.endswith(".mjs"):
+    if not ruta.endswith((".py", ".sh", ".mjs")):
         return False
     try:
         with open(os.path.join(raiz, ruta), "r", encoding="utf-8", errors="ignore") as f:
-            cabeza = f.read(400)
-            if cabeza.startswith("#!"):
-                return True
-            f.seek(0)
-            return '__name__ == "__main__"' in f.read()
+            texto = f.read()
     except OSError:
         return False
+    return texto.startswith("#!") or bool(_ARRANQUE.search(texto))
 
 
 def _archivos_del_commit(raiz, sha):
