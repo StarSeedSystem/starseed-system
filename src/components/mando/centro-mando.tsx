@@ -22,6 +22,10 @@ import { CircleDashed, RefreshCw, ShieldAlert } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { EstadoMando, ProveedorUso } from "@/lib/mando/tipos";
 import { flotaConocida } from "@/lib/mando/flota";
+import "@/components/mando/mando-cristal.css";
+import { MedidorAbrible, type TonoMedidor } from "@/components/mando/medidor-abrible";
+import { VerificarProcesos } from "@/components/mando/verificar-procesos";
+import type { AccionMedidor, ClaveMedidor, FilaMedidor } from "@/lib/mando/medidores";
 import { PanelProcesos } from "@/components/mando/panel-procesos";
 import { PanelGrafo } from "@/components/mando/panel-grafo";
 import { PanelOlas } from "@/components/mando/panel-olas";
@@ -130,6 +134,8 @@ function pestanaInicial(): IdPestana {
     const deLaUrl = new URLSearchParams(window.location.search).get("pestana");
     if (deLaUrl && PESTANAS.some((p) => p.id === deLaUrl)) return deLaUrl as IdPestana;
     const guardada = window.localStorage.getItem(CLAVE_PESTANA);
+
+
     return (PESTANAS.some((p) => p.id === guardada) ? guardada : "procesos") as IdPestana;
 }
 
@@ -241,6 +247,30 @@ export function CentroMando() {
             // Sin almacenamiento: la consola sigue funcionando.
         }
     }, []);
+
+    // Ejecuta una acción de un medidor y devuelve la frase que se enseña bajo el panel.
+    // Toda la decisión de QUÉ es legal vive en @/lib/mando/medidores y en la ruta; aquí
+    // solo se habla con ella y se traduce el resultado a castellano.
+    const accionarMedidor = useCallback(
+        async (clave: ClaveMedidor, accion: AccionMedidor, fila: FilaMedidor | undefined, texto: string) => {
+            try {
+                const r = await fetch("/api/mando/medidores", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ clave, accion: accion.clase, id: fila?.id, texto }),
+                });
+                const d = (await r.json()) as { ok?: boolean; tareas?: string[]; error?: string };
+                if (!r.ok || d.error) return d.error ?? `No se pudo (HTTP ${r.status}).`;
+                const n = d.tareas?.length ?? 0;
+                return accion.clase === "reintentar"
+                    ? `${d.tareas?.join(", ")} vuelve a la cola con tu cambio anotado.`
+                    : `${n} tarea${n === 1 ? "" : "s"} descartada${n === 1 ? "" : "s"}: ${d.tareas?.join(", ")}`;
+            } catch {
+                return "No se pudo hablar con la consola.";
+            }
+        },
+        [],
+    );
 
     // La cabecera se relee cada 20 s (como la ramificación) y al volver a la pestaña: antes se
     // leía UNA vez al montar y «Tareas en curso» se quedaba en 0 con agentes trabajando.
@@ -536,31 +566,44 @@ export function CentroMando() {
                 </div>
             ) : pulso ? (
                 <div className="flex flex-col gap-3">
-                    {/* Acceso al director; la navegación no constituye una verificación. */}
-                    <div className="flex items-center justify-between gap-3">
+                    {/* (2026-09-15) Aquí había un botón de «Abrir director» y, al lado, este
+                        comentario: «la navegación no constituye una verificación». Tenía razón:
+                        cambiar de pestaña no comprueba nada. Ahora el botón verifica los
+                        procesos de verdad y deja el reporte escrito. */}
+                    <div className="flex flex-wrap items-start justify-between gap-3">
                         <h2 className="text-sm font-semibold text-white/70">Pulso del trabajo</h2>
-                        <button
-                            type="button"
-                            onClick={() => alCambiarPestana("director")}
-                            className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-emerald-400/30 bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-300 transition-colors hover:bg-emerald-500/20"
-                        >
-                            <RefreshCw className="h-3 w-3" />
-                            Abrir director
-                        </button>
+                        <VerificarProcesos />
                     </div>
                     <ul className="flex flex-wrap gap-2" aria-label="Pulso del trabajo">
-                    <DatoPulso titulo="Ola activa" valor={pulso.olaActiva} />
+                    <MedidorAbrible clave="ola-activa" titulo="Ola activa" valor={pulso.olaActiva} alAccionar={accionarMedidor} alIrA={alCambiarPestana} />
                     {/* (2026-09-09) Alex: «separa los de pendientes de las tareas en curso».
                         Estaban en un solo chip («3 · 128 pendientes») y se leía como un dato
                         raro; son dos cosas distintas y ahora se ven como tales:
                           · EN CURSO   = agentes latiendo AHORA (latidos del vigilante).
                           · PENDIENTES = IDs únicos que aún requieren trabajo; las copias de
                             colas históricas se omiten y el detalle separa listos/bloqueados. */}
-                    <DatoPulso
+                    <MedidorAbrible
+                        clave="en-curso"
                         titulo="Tareas en curso"
                         valor={String(pulso.tareasEnCurso)}
                         tono={pulso.tareasEnCurso > 0 ? "aviso" : "normal"}
                         detalle={pulso.tareasEnCurso > 0 ? "agentes escribiendo ahora" : "ningún agente activo"}
+                        alAccionar={accionarMedidor}
+                        alIrA={alCambiarPestana}
+                    />
+                    {/* (2026-09-15) Alex: «a un lado del medidor de tareas en curso agrega un
+                        medidor de agentes que muestre cuáles agentes están trabajando en cada
+                        tarea». El dato ya existía en los latidos del bus y no llegaba a la
+                        cabecera: se veía «3 en curso» sin saber quién, con qué modelo, ni si
+                        una llevaba tres horas parada. */}
+                    <MedidorAbrible
+                        clave="agentes"
+                        titulo="Agentes"
+                        valor={String(pulso.tareasEnCurso)}
+                        tono={pulso.tareasEnCurso > 0 ? "ok" : "normal"}
+                        detalle="quién escribe cada tarea"
+                        alAccionar={accionarMedidor}
+                        alIrA={alCambiarPestana}
                     />
                     {/* (2026-09-14) Alex: «33 pendientes y no avanza». Eran 10 listas + 23
                         BLOQUEADAS sumadas en un solo número: 23 de ellas no se pueden trabajar,
@@ -568,7 +611,8 @@ export function CentroMando() {
                         faltaban agentes cuando lo que faltaba era desatascar una raíz — y dejaba
                         el chip en rojo permanente, con lo que el rojo dejó de significar nada.
                         Ahora la cifra grande es lo EJECUTABLE y lo bloqueado va aparte. */}
-                    <DatoPulso
+                    <MedidorAbrible
+                        clave="listas"
                         titulo="Listas para trabajar"
                         valor={String(pulso.listas)}
                         tono={pulso.listas > 0 && pulso.tareasEnCurso === 0 ? "peligro" : "normal"}
@@ -577,16 +621,20 @@ export function CentroMando() {
                                 ? "hay trabajo y ningún agente: algo está atascado"
                                 : `${pulso.pendientes} en total con las bloqueadas${pulso.copiasOmitidas > 0 ? ` · ${pulso.copiasOmitidas} copias omitidas` : ""}`
                         }
-                        alClic={() => alCambiarPestana("procesos")}
+                        alAccionar={accionarMedidor}
+                        alIrA={alCambiarPestana}
                     />
-                    <DatoPulso
+                    <MedidorAbrible
+                        clave="bloqueadas"
                         titulo="Bloqueadas"
                         valor={String(pulso.bloqueadas)}
                         tono={pulso.bloqueadas > 0 ? "aviso" : "normal"}
                         detalle={pulso.bloqueadas > 0 ? "esperan a que se integre su dependencia" : "ninguna esperando dependencia"}
-                        alClic={() => alCambiarPestana("procesos")}
+                        alAccionar={accionarMedidor}
+                        alIrA={alCambiarPestana}
                     />
-                    <DatoPulso
+                    <MedidorAbrible
+                        clave="sin-publicar"
                         titulo="Sin publicar"
                         valor={
                             sinPublicar
@@ -605,22 +653,28 @@ export function CentroMando() {
                                 ? `OS ${sinPublicar.os} · Astraura ${sinPublicar.astraura}`
                                 : "solo OS"
                         }
-                        alClic={() => alCambiarPestana("commits")}
+                        alAccionar={accionarMedidor}
+                        alIrA={alCambiarPestana}
                     />
-                    <DatoPulso
+                    <MedidorAbrible
+                        clave="proveedores"
                         titulo="Proveedores agotados"
                         valor={String(pulso.agotados)}
                         tono={pulso.agotados > 0 ? "peligro" : "normal"}
                         detalle={`${pulso.disponibles} disponibles`}
-                        alClic={() => alCambiarPestana("flota")}
+                        alAccionar={accionarMedidor}
+                        alIrA={alCambiarPestana}
                     />
                     {pulsoNeurona ? (
                         <>
-                            <DatoPulso
+                            <MedidorAbrible
+                                clave="memoria"
                                 titulo="Memoria"
                                 valor={pulsoNeurona.memoriaValor}
-                                tono={pulsoNeurona.memoriaTono}
+                                tono={pulsoNeurona.memoriaTono as TonoMedidor}
                                 detalle={pulsoNeurona.memoriaDetalle}
+                                alAccionar={accionarMedidor}
+                                alIrA={alCambiarPestana}
                             />
                             <DatoPulso
                                 titulo="BitNet 1.58"
@@ -631,12 +685,14 @@ export function CentroMando() {
                         </>
                     ) : null}
                     {almacenamiento?.disco ? (
-                        <DatoPulso
+                        <MedidorAbrible
+                            clave="disco"
                             titulo="Disco libre"
                             valor={discoLibreTexto(almacenamiento.disco.libreMb)}
-                            tono={tonoDiscoLibre(almacenamiento.disco.libreMb)}
+                            tono={tonoDiscoLibre(almacenamiento.disco.libreMb) as TonoMedidor}
                             detalle={`${almacenamiento.disco.usadoPct} % usado`}
-                            alClic={() => alCambiarPestana("neurona")}
+                            alAccionar={accionarMedidor}
+                            alIrA={alCambiarPestana}
                         />
                     ) : null}
                     {/* (2026-09-09, a petición de Alex) Drive como almacén grande, en la cabecera.

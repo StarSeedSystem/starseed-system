@@ -1,0 +1,176 @@
+/* mando-cristal.css — la capa visual del Puente de Mando (2026-09-15)
+ *
+ * Alex pidió «3D cristal líquido neón pero simple, que no ocupe mucha capacidad
+ * de recursos». Las dos cosas a la vez se consiguen con una idea: la sensación de
+ * relieve la da LA LUZ, no la geometría. Nada de WebGL, nada de `perspective`,
+ * nada de librerías. Sombras, gradientes y dos propiedades animables.
+ *
+ * PRESUPUESTO (esto es un requisito, no un consejo — el Mando corre en una Mac de
+ * 8 GB con un enjambre de agentes escribiendo al lado):
+ *   · Solo se animan `transform` y `opacity`. Jamás width/height/top/left/margin:
+ *     eso recalcula el layout en cada fotograma y da tirones.
+ *   · `backdrop-filter` es caro: SOLO en `.mc-cristal`, que son superficies
+ *     grandes y pocas. Por eso las pastillas sueltas no lo llevan.
+ *   · UNA sola animación infinita en todo el archivo: `.mc-latido`.
+ *   · `prefers-reduced-motion` deja todo quieto, al final del archivo.
+ *
+ * Hay una prueba (mando-cristal.test.ts) que lee este archivo y falla si alguien
+ * rompe cualquiera de esas cuatro reglas. Parece raro hasta que alguien mete una
+ * transición de `height` y la cabecera empieza a dar saltos.
+ */
+
+:root {
+    --mc-neon-cian: 34 211 238;
+    --mc-neon-violeta: 167 139 250;
+    --mc-neon-ambar: 251 191 36;
+    --mc-neon-rosa: 244 63 94;
+    --mc-neon-verde: 52 211 153;
+
+    --mc-cristal-fondo: rgba(255, 255, 255, 0.045);
+    --mc-cristal-borde: rgba(255, 255, 255, 0.11);
+    --mc-cristal-canto: rgba(255, 255, 255, 0.16);
+    --mc-radio: 0.85rem;
+
+    --mc-rapido: 140ms;
+    --mc-normal: 240ms;
+    --mc-curva: cubic-bezier(0.22, 0.9, 0.3, 1);
+}
+
+/* La superficie de cristal: gradiente muy leve, borde claro y un canto interior
+ * que simula el grosor del vidrio. El desenfoque de fondo va solo aquí. */
+.mc-cristal {
+    background-image: linear-gradient(
+        160deg,
+        rgba(255, 255, 255, 0.07) 0%,
+        rgba(255, 255, 255, 0.02) 45%,
+        rgba(255, 255, 255, 0.05) 100%
+    );
+    background-color: var(--mc-cristal-fondo);
+    border: 1px solid var(--mc-cristal-borde);
+    border-radius: var(--mc-radio);
+    box-shadow:
+        inset 0 1px 0 var(--mc-cristal-canto),
+        inset 0 -1px 0 rgba(0, 0, 0, 0.25);
+    backdrop-filter: blur(10px);
+}
+
+/* Neón: DOS capas de sombra. Con cinco se ve igual y cuesta el triple. */
+.mc-neon {
+    box-shadow:
+        inset 0 1px 0 var(--mc-cristal-canto),
+        0 0 0 1px rgba(var(--mc-neon-cian), 0.22),
+        0 0 18px -6px rgba(var(--mc-neon-cian), 0.55);
+}
+.mc-neon--aviso {
+    box-shadow:
+        inset 0 1px 0 var(--mc-cristal-canto),
+        0 0 0 1px rgba(var(--mc-neon-ambar), 0.26),
+        0 0 18px -6px rgba(var(--mc-neon-ambar), 0.6);
+}
+.mc-neon--peligro {
+    box-shadow:
+        inset 0 1px 0 var(--mc-cristal-canto),
+        0 0 0 1px rgba(var(--mc-neon-rosa), 0.3),
+        0 0 20px -6px rgba(var(--mc-neon-rosa), 0.65);
+}
+.mc-neon--ok {
+    box-shadow:
+        inset 0 1px 0 var(--mc-cristal-canto),
+        0 0 0 1px rgba(var(--mc-neon-verde), 0.26),
+        0 0 18px -6px rgba(var(--mc-neon-verde), 0.55);
+}
+
+/* Relieve al pasar el ratón o al enfocar. Dos propiedades, cero layout. */
+.mc-alzar {
+    transition:
+        transform var(--mc-rapido) var(--mc-curva),
+        opacity var(--mc-rapido) var(--mc-curva),
+        box-shadow var(--mc-normal) var(--mc-curva);
+}
+.mc-alzar:hover,
+.mc-alzar:focus-visible {
+    transform: translateY(-2px) scale(1.012);
+}
+.mc-alzar:active {
+    transform: translateY(0) scale(0.995);
+}
+
+/* El centrado que pidió Alex: pastillas, botones y cabeceras. */
+.mc-centrado {
+    text-align: center;
+    align-items: center;
+    justify-items: center;
+}
+
+/* Aparición, una sola vez, sin bucle. */
+.mc-entrar {
+    animation: mc-entrar var(--mc-normal) var(--mc-curva) both;
+}
+@keyframes mc-entrar {
+    from {
+        opacity: 0;
+        transform: translateY(4px);
+    }
+    to {
+        opacity: 1;
+        transform: none;
+    }
+}
+
+/* El panel que se despliega bajo un medidor. `will-change` SOLO aquí. */
+.mc-desplegar {
+    animation: mc-desplegar var(--mc-normal) var(--mc-curva) both;
+    will-change: transform, opacity;
+    transform-origin: top center;
+}
+@keyframes mc-desplegar {
+    from {
+        opacity: 0;
+        transform: translateY(-6px) scaleY(0.985);
+    }
+    to {
+        opacity: 1;
+        transform: none;
+    }
+}
+
+/* LA ÚNICA animación infinita del archivo: el punto de actividad. Si algún día
+ * hace falta otra, que sea a cambio de quitar esta. */
+.mc-latido {
+    animation: mc-latido 1.8s ease-in-out infinite;
+}
+@keyframes mc-latido {
+    0%,
+    100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 0.45;
+        transform: scale(0.82);
+    }
+}
+
+/* Barra de progreso del medidor: se pinta con scaleX, no con width. */
+.mc-barra > i {
+    display: block;
+    height: 100%;
+    transform-origin: left center;
+    transition: transform var(--mc-normal) var(--mc-curva);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .mc-alzar,
+    .mc-entrar,
+    .mc-desplegar,
+    .mc-latido,
+    .mc-barra > i {
+        animation: none;
+        transition: none;
+    }
+    .mc-alzar:hover,
+    .mc-alzar:focus-visible,
+    .mc-alzar:active {
+        transform: none;
+    }
+}
