@@ -2934,6 +2934,47 @@ def worktree(tid):
     return wt
 
 
+def quitar_cerrojo_huerfano(wt):
+    """Quita el `index.lock` de ESTE worktree si lo dejó atrás un git muerto.
+
+    Cuando el guardia de memoria mata un git a media faena —y con la Mac en swap
+    pasa— queda un `index.lock` de cero bytes. A partir de ahí todos los intentos
+    de esa tarea mueren en el commit, aunque el trabajo esté escrito y las
+    pruebas pasen. El 2026-09-14 pasó tres veces en una tarde.
+
+    Dos cautelas antes de tocarlo: que no quede ningún git VIVO (se mira el
+    ejecutable, no la línea entera: el prompt de un agente lleva «git» dentro) y
+    que el cerrojo lleve un rato largo ahí. Un commit del enjambre tarda
+    segundos; cinco minutos ya solo puede ser un muerto. Ante la duda se
+    conserva: una tarea atascada se arregla, un índice corrupto se paga en horas.
+    """
+    rc, dir_git = sh(["git", "rev-parse", "--git-dir"], cwd=wt, timeout=30)
+    if rc or not dir_git.strip():
+        return False
+    ruta = os.path.join(os.path.realpath(os.path.join(wt, dir_git.strip())), "index.lock")
+    try:
+        edad = time.time() - os.path.getmtime(ruta)
+    except OSError:
+        return False
+    if edad < 300:
+        return False
+    try:
+        salida = subprocess.run(
+            ["ps", "-eo", "args"], capture_output=True, text=True, timeout=20
+        ).stdout.splitlines()
+    except Exception:
+        return False  # sin poder mirar los procesos no se toca ningún cerrojo
+    for linea in salida:
+        orden = linea.strip()
+        if orden and re.search(r"(^|/)git(\s|$)", orden.split()[0]):
+            return False
+    try:
+        os.remove(ruta)
+    except OSError:
+        return False
+    return True
+
+
 def limpiar_worktree(tid, borrar_rama=True):
     """Contención temporal: ni un fallo ni un cierre eliminan trabajo del agente."""
     evento(
@@ -4993,6 +5034,7 @@ def ejecutar(t, intento=1):
             limpiar_worktree(tid, borrar_rama=False)
             return
     # commit en la rama
+    quitar_cerrojo_huerfano(wt)
     sh(
         "git add -A . && git reset -q -- starseed_memory_root 2>/dev/null; true",
         cwd=wt,
@@ -5014,6 +5056,18 @@ def ejecutar(t, intento=1):
         cwd=wt,
         timeout=120,
     )
+    # Si lo que falló fue el cerrojo, el trabajo está bien y sería absurdo tirarlo:
+    # se quita el cerrojo huérfano y se reintenta UNA vez. Sin esto, la tarea se
+    # marca «fallo», el vigilante no relanza los «fallo», y quince minutos de
+    # escritura, tsc y pruebas se pierden por un archivo de cero bytes.
+    if rc != 0 and "index.lock" in (out or ""):
+        if quitar_cerrojo_huerfano(wt):
+            evento("aviso", tid, "cerrojo de git huérfano quitado; reintento el commit")
+            rc, out = sh(
+                "git -c core.hooksPath=/dev/null commit -q -F /tmp/enj-msg-%s.txt" % tid,
+                cwd=wt,
+                timeout=120,
+            )
     if rc != 0:
         set_estado(
             tid,

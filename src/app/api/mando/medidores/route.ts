@@ -18,7 +18,7 @@ import path from "node:path";
 import { promisify } from "node:util";
 
 import { guardianMando } from "@/lib/mando/guardian";
-import { enjambreEnMarcha, leerColas, leerLatidosDelBus, leerProgreso } from "@/lib/mando/lector-local";
+import { enjambreEnMarcha, leerColas, leerLatidos, leerLatidosDelBus, leerProgreso } from "@/lib/mando/lector-local";
 import {
     TERMINALES,
     detalleDeMedidor,
@@ -56,10 +56,11 @@ async function leerEntradas(): Promise<Record<string, Entrada>> {
 }
 
 async function reunir(): Promise<Partial<DatosMedidores>> {
-    const [progreso, colas, bus, vivo] = await Promise.all([
+    const [progreso, colas, bus, latidosMac, vivo] = await Promise.all([
         leerEntradas(),
         leerColas().catch(() => []),
         leerLatidosDelBus().catch(() => ({ latidos: [], enjambres: [] })),
+        leerLatidos().catch(() => []),
         enjambreEnMarcha().catch(() => false),
     ]);
     // La pausa del Mando vive fuera de git, en la config del director.
@@ -91,17 +92,37 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
     const asuntosDeMain = await git(["log", "main", "--format=%s", "-n", "1200"]);
     const ejecutables = ejecutablesDeColas(colas, progreso, asuntosDeMain);
 
-    return {
-        progreso,
-        titulos,
-        latidos: bus.latidos.map((l) => ({
+    // Latidos: los de ESTA Mac mandan sobre los del bus para la misma tarea, y los de la
+    // nube se añaden. Mirar solo el bus era lo que hacía que la cabecera dijera «1 agente»
+    // y el panel, justo debajo, «ningún agente escribiendo» sobre la misma tarea: el
+    // orquestador local escribe `olas/latidos-*.json` cada 20 s y solo publica en el bus
+    // de vez en cuando, así que el bus siempre va por detrás o directamente vacío.
+    const deAqui = new Set(latidosMac.map((l) => l.tarea));
+    const latidosDeAqui = [
+        ...latidosMac.map((l) => ({
             tarea: l.tarea,
             fase: l.fase,
             modelo: l.modelo,
             minutos: l.minutos,
-            donde: l.donde,
-            proveedor: l.proveedor,
+            donde: "mac",
+            proveedor: undefined as string | undefined,
         })),
+        ...bus.latidos
+            .filter((l) => !deAqui.has(l.tarea))
+            .map((l) => ({
+                tarea: l.tarea,
+                fase: l.fase,
+                modelo: l.modelo,
+                minutos: l.minutos,
+                donde: l.donde,
+                proveedor: l.proveedor,
+            })),
+    ];
+
+    return {
+        progreso,
+        titulos,
+        latidos: latidosDeAqui,
         commitsSinPublicar,
         ejecutables,
         enjambreVivo: vivo,

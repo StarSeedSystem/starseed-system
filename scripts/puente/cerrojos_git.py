@@ -12,8 +12,9 @@ de casi dos horas, y las tres tareas llevaban desde entonces fallando en bucle.
 
 EL CUIDADO QUE HAY QUE TENER. Un cerrojo también puede ser legítimo: hay un git
 trabajando AHORA mismo. Quitarlo entonces corrompe el índice. Por eso aquí no se
-mira solo el archivo: se exige que sea VIEJO (nadie tarda media hora en un
-commit de tres archivos) y que no quede ningún proceso git vivo. Ante la duda se
+mira solo el archivo: se exige que no quede ningún proceso git vivo Y que el
+cerrojo lleve un rato largo ahí (nadie tarda cinco minutos en un commit de tres
+archivos). Ante la duda se
 conserva: una tarea atascada se arregla; un índice corrupto se paga en horas.
 """
 
@@ -21,8 +22,13 @@ import os
 import re
 import time
 
-#: Un commit del enjambre tarda segundos. Media hora solo puede ser un muerto.
-VIEJO_S = 1800
+#: Un commit del enjambre tarda segundos. Cinco minutos, con la comprobación de
+#: «no queda ningún git vivo» ya hecha, solo puede ser un muerto. Empezó en media
+#: hora y era demasiado prudente: p324F volvió a morir con un cerrojo de 16
+#: minutos que el barrido no tocaba, después de quince minutos de escritura, tsc
+#: y pruebas en verde. Lo que hace segura esta cifra no es su tamaño, es el
+#: guardia de «ningún git vivo» que la acompaña.
+VIEJO_S = 300
 
 _GIT_VIVO = re.compile(r"(^|/)git(\s|$)")
 
