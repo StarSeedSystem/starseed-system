@@ -104,6 +104,11 @@ export function PublicarAhora({ diario, alCambiar }: { diario: DiarioPublicacion
             }
             setNota("");
             alCambiar();
+            // El proceso tarda un instante en escribir su primera línea del
+            // diario. Sin este segundo vistazo, pulsabas el botón y la pantalla
+            // se quedaba igual hasta el siguiente sondeo de 30 s: parecía que no
+            // había pasado nada y daban ganas de volver a pulsar.
+            window.setTimeout(alCambiar, 1_200);
         } catch {
             setError("No se pudo lanzar la publicación.");
         } finally {

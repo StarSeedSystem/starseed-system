@@ -46,14 +46,39 @@ def bin_node():
     return os.path.join(base, versiones[-1], "bin") if versiones else None
 
 
-def entorno():
-    env = dict(os.environ)
-    b = bin_node()
-    if b:
-        env["PATH"] = b + os.pathsep + env.get("PATH", "")
-    # `NODE_ENV=production` en su shell hace que `npm` pode las devDependencies.
-    env["NODE_ENV"] = "development"
+#: Variables que CAMBIAN EL COMPORTAMIENTO de la app y que este proceso hereda
+#: del servidor del Mando, porque el botón lo lanza ese servidor. Si no se
+#: quitan, las puertas no juzgan el código: juzgan la máquina donde corren. La
+#: primera vez que se pulsó el botón, `STARSEED_LOCAL=1` (que el Mando necesita
+#: para servirse a sí mismo) hizo que `esDespliegueLocal` devolviera cierto para
+#: un dominio de Vercel y dos pruebas se pusieron en rojo sin que nadie hubiera
+#: tocado ese código. Un rojo falso es peor que ninguna puerta: enseña a
+#: ignorarla.
+VARIABLES_QUE_ENSUCIAN = (
+    "STARSEED_LOCAL",
+    "STARSEED_MANDO",
+    "VERCEL",
+    "VERCEL_ENV",
+    "CI",
+    # `NODE_ENV=production` en su shell hace que `npm` pode las devDependencies;
+    # forzarlo a «development» tampoco vale, porque hay código que mira este
+    # valor. Se quita y cada herramienta pone el suyo (vitest pone «test»).
+    "NODE_ENV",
+)
+
+
+def entorno_de_puertas(base, bin_extra=None):
+    """El entorno limpio con el que se corren las puertas. Puro y probado."""
+    env = dict(base)
+    for clave in VARIABLES_QUE_ENSUCIAN:
+        env.pop(clave, None)
+    if bin_extra:
+        env["PATH"] = bin_extra + os.pathsep + env.get("PATH", "")
     return env
+
+
+def entorno():
+    return entorno_de_puertas(os.environ, bin_node())
 
 
 def correr(orden, timeout=1800, env=None):
