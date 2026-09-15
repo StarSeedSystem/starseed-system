@@ -41,6 +41,11 @@ import { PanelNeurona } from "@/components/mando/panel-neurona";
 import { PanelAprendizaje } from "@/components/mando/panel-aprendizaje";
 import { PanelPublicaciones } from "@/components/mando/panel-publicaciones";
 import { PanelPublicacion } from "@/components/mando/panel-publicacion";
+// Ola p323 · p323D: la pestaña «Reportes» monta la bandeja curada. La insignia
+// de la pestaña consulta la misma API y compara contra el último «visto» en
+// localStorage para avisar de críticos/altos sin abrirla.
+import { PanelReportes } from "@/components/mando/panel-reportes";
+import type { Reporte } from "@/lib/mando/reportes";
 import { ControlDirectores } from "@/components/mando/control-directores";
 import { AjustesDirector } from "@/components/mando/ajustes-director";
 // Ola 272 · O3B (2026-09-07): la pestaña «Oficina 3D». El componente carga
@@ -99,6 +104,59 @@ import { discoLibreTexto, tonoDiscoLibre } from "@/components/mando/tarjetas-alm
 import { contarTrabajoReal } from "@/lib/mando/conteo-operativo";
 
 const CLAVE_PESTANA = "starseed.mando.pestana";
+const CLAVE_REPORTES_VISTOS = "starseed.mando.reportes.visto";
+
+/**
+ * Insignia de la pestaña Reportes (p323D): cuenta los críticos/altos con fecha
+ * posterior al último «visto». Marcar como visto ocurre al ABRIR la pestaña
+ * (que es cuando la bandeja de verdad se mira), no al cargar el Mando.
+ */
+function InsigniaReportes({ activa }: { activa: boolean }) {
+    const [sinVer, setSinVer] = useState(0);
+
+    useEffect(() => {
+        if (!activa) return;
+        localStorage.setItem(CLAVE_REPORTES_VISTOS, new Date().toISOString());
+        setSinVer(0);
+    }, [activa]);
+
+    useEffect(() => {
+        let vivo = true;
+        const contar = async () => {
+            try {
+                const res = await fetch("/api/mando/reportes", { cache: "no-store" });
+                if (!res.ok) return;
+                const datos: unknown = await res.json();
+                const lista: Reporte[] = Array.isArray(datos)
+                    ? (datos as Reporte[])
+                    : ((datos as { reportes?: Reporte[] }).reportes ?? []);
+                const visto = localStorage.getItem(CLAVE_REPORTES_VISTOS) ?? "";
+                const n = lista.filter(
+                    (r) => (r.importancia === "critica" || r.importancia === "alta") && r.t > visto,
+                ).length;
+                if (vivo) setSinVer(n);
+            } catch {
+                // Sin insignia si la API local no responde: no es motivo de ruido.
+            }
+        };
+        void contar();
+        const id = setInterval(() => void contar(), 60_000);
+        return () => {
+            vivo = false;
+            clearInterval(id);
+        };
+    }, []);
+
+    if (sinVer <= 0) return null;
+    return (
+        <span
+            aria-label={`${sinVer} reportes de alta importancia sin ver`}
+            className="ml-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full border border-rose-400/50 bg-rose-500/20 px-1 text-[10px] font-semibold text-rose-200"
+        >
+            {sinVer}
+        </span>
+    );
+}
 
 /**
  * Pestañas del Centro de Mando, AGRUPADAS por lo que vas a hacer (2026-09-15).
@@ -127,6 +185,7 @@ const PESTANAS = [
     { id: "areas", etiqueta: "Áreas", grupo: "Agentes" },
     { id: "contextos", etiqueta: "Contextos", grupo: "Agentes" },
     { id: "entornos", etiqueta: "Entornos", grupo: "Agentes" },
+    { id: "reportes", etiqueta: "Reportes", grupo: "Agentes" },
     { id: "chat", etiqueta: "Chat", grupo: "Agentes" },
     // Hacia fuera.
     { id: "canales", etiqueta: "Canales StarSeed", grupo: "Fuera" },
@@ -782,6 +841,7 @@ export function CentroMando() {
                             ) : null}
                             <TabsTrigger value={p.id} className="mc-alzar cursor-pointer">
                                 {p.etiqueta}
+                                {p.id === "reportes" ? <InsigniaReportes activa={pestana === "reportes"} /> : null}
                             </TabsTrigger>
                         </Fragment>
                     ))}
@@ -837,6 +897,11 @@ export function CentroMando() {
                 </TabsContent>
                 <TabsContent value="aprendizaje">
                     <PanelAprendizaje />
+                </TabsContent>
+                <TabsContent value="reportes">
+                    {/* p323D: la bandeja curada se monta al abrirla; el conteo
+                        de la insignia es ligero y va aparte, en la pestaña misma. */}
+                    {pestana === "reportes" ? <PanelReportes /> : null}
                 </TabsContent>
                 <TabsContent value="chat">
                     <ChatOrquestacion />
