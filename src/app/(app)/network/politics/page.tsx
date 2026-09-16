@@ -114,13 +114,29 @@ function LegislativeFeed() {
 function GovernanceLauncher() {
     const efs = listFederativeEntities();
     const partidos = listPartidos();
+    // El resumen dice QUÉ esconde el desplegable: si no, nadie lo abre. Un
+    // <details> nativo ya es accesible (Tab, Enter/Espacio, sin JS) y no
+    // anima ancho/alto, así que respeta prefers-reduced-motion sin extras.
+    const summary = `Mapa de Gobernanza · ${efs.length} entidades federativas y ${partidos.length} partidos`;
     return (
-        <Card className="mb-6 liquid-glass-panel">
-            <CardHeader className="pb-3">
-                <CardTitle className="font-headline text-lg">Mapa de Gobernanza</CardTitle>
-                <CardDescription>Entra a las Entidades Federativas y Partidos de la red.</CardDescription>
-            </CardHeader>
-            <CardContent className="grid gap-4 md:grid-cols-2">
+        <details className="group mb-6 rounded-xl border border-white/10 bg-white/[0.02] open:bg-white/[0.04] motion-reduce:transition-none">
+            <summary className="cursor-pointer list-none rounded-xl px-4 py-3 font-headline text-lg transition-colors hover:bg-white/[0.04] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 [&::-webkit-details-marker]:hidden">
+                <span className="flex items-center justify-between gap-2">
+                    <span>{summary}</span>
+                    <span
+                        aria-hidden
+                        className="text-xs text-muted-foreground transition-transform duration-200 group-open:rotate-180 motion-reduce:transition-none"
+                    >
+                        ▾
+                    </span>
+                </span>
+                <span className="mt-0.5 block text-xs font-normal text-muted-foreground">
+                    Entra a las Entidades Federativas y Partidos de la red.
+                </span>
+            </summary>
+            <div className="px-4 pb-4 pt-2">
+                <Card className="liquid-glass-panel border-0 bg-transparent shadow-none">
+                    <CardContent className="grid gap-4 p-0 md:grid-cols-2">
                 <div>
                     <p className="mb-2 flex items-center gap-1.5 text-xs uppercase tracking-wide text-muted-foreground">
                         <Landmark className="h-3.5 w-3.5" /> Entidades Federativas
@@ -167,8 +183,10 @@ function GovernanceLauncher() {
                         ))}
                     </div>
                 </div>
-            </CardContent>
-        </Card>
+                    </CardContent>
+                </Card>
+            </div>
+        </details>
     );
 }
 
