@@ -19,7 +19,7 @@ import {
     Sparkles, Send, TrendingUp, BarChart3, Library, Terminal,
     Users2, AlertCircle, ChevronDown, Check, PlusCircle, Calendar,
     Scale, HelpCircle, ArrowUpRight, Play, CheckSquare, Network,
-    Map as MapIcon
+    Map as MapIcon, Compass
 } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
@@ -33,17 +33,21 @@ import { UniversalSearchBox } from "@/components/hub/universal-search-box";
 import EgoContextOption from "@/components/aurora/ego-context-option";
 import { createEgoForContext } from "@/lib/aurora/ego";
 import { HubRedSection } from "./red-section";
+import { PanoramaSociocultural } from "@/components/hub/panorama-sociocultural";
 import { HubDiscoverSection } from "./discover-section";
 import { UserDirectoryResults, GroupDirectoryResults, UserRecommendationsStrip } from "@/components/hub/user-directory-results";
 
 // Pestañas válidas del Hub (para deep-linking `?tab=` desde el dock / enlaces).
-const HUB_TABS = ["buscador", "contributions", "red", "my-pages", "groups", "calendar", "parties", "vote-management"] as const;
+const HUB_TABS = ["buscador", "contributions", "red", "panorama", "my-pages", "groups", "calendar", "parties", "vote-management"] as const;
 
 // Menú unificado del Hub (Adenda 66 §10): mismo componente `SectionTabs` en todo
 // el OS. «Red» va primero por ser la sección principal (Adenda 66 §8). El Mapa
 // vive en su propia ruta a pantalla completa (item de navegación por `href`).
 const HUB_TAB_ITEMS: SectionTabItem[] = [
     { value: "red", label: "Red", icon: Network },
+    // Continuación natural de «Red»: la misma página de /network montada
+    // como pestaña, para no tener que salir del Hub con «Abrir Panorama».
+    { value: "panorama", label: "Panorama Sociocultural", icon: Compass },
     { value: "buscador", label: "Buscador", icon: Search },
     { value: "contributions", label: "Aportaciones", icon: Briefcase },
     { value: "my-pages", label: "Mis Páginas", icon: Globe },
@@ -1679,9 +1683,15 @@ export default function HubPage() {
         </TabsContent>
 
                 {/* ── RED · NODOS (fusión del apartado "Nodos" dentro del Hub) ── */}
-                <TabsContent value="red" className="mt-6 animate-in fade-in-50 duration-500">
-                    <HubRedSection />
+                 <TabsContent value="red" className="mt-6 animate-in fade-in-50 duration-500">
+                     <HubRedSection />
+                 </TabsContent>
+
+                {/* ── PANORAMA SOCIOCULTURAL ── */}
+                <TabsContent value="panorama" className="mt-6 animate-in fade-in-50 duration-500">
+                    <PanoramaSociocultural />
                 </TabsContent>
+
 
                 {/* ── MIS PÁGINAS ── */}
                 <TabsContent value="my-pages" className="mt-6 animate-in fade-in-50 duration-500">
