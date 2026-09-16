@@ -5252,7 +5252,9 @@ def ejecutar(t, intento=1):
         # subcadena: una puerta levantada por ALCANCE INCOMPLETO se abría igual a los 10
         # minutos. `revisor` dice qué pasó con el revisor —"respondio" no es "aprobó"— y
         # `motivo_vb` conserva POR QUÉ se pidió el visto bueno, que es lo que hay que respetar.
-        revisor_dice = "bloqueante" if bloqueante else ("respondio" if rev else "sin_revisor")
+        revisor_dice = (
+            "bloqueante" if bloqueante else ("respondio" if rev else "sin_revisor")
+        )
         set_estado(
             tid,
             estado="esperando_aprobacion",
@@ -5455,6 +5457,73 @@ def ejecutar_seguro(t):
         latir(t["id"], "hecho")
 
 
+# ── orden de la cola vigente (tarea p321G) ──────────────────────────────────
+# LÍMITES INNEGOCIABLES (regla de Alex):
+#   · NO se toca ninguna tarea ya en marcha. Nada de matar ni reiniciar
+#     trabajadores por prioridad: tirar trabajo hecho sale más caro que esperar.
+#   · Sigue habiendo UN orquestador: esto no añade procesos ni hilos.
+#   · Si al releer la cola una tarea ya no está, simplemente no se coge; si
+#     aparece una nueva, entra por su sitio en el orden.
+# El punto: cuando un trabajador queda libre, la siguiente tarea se elige por el
+# orden de la cola VIGENTE, no por la foto del arranque.
+
+
+def releer_cola_si_cambio(ruta, estado):
+    """Relee el archivo de cola solo si su mtime cambió.
+
+    `estado` es un dict mutable {"mtime": float|None, "tareas": {id: tarea},
+    "orden": [ids]} que esta función actualiza en el sitio. Devuelve (estado,
+    releida): `releida` es True solo cuando el archivo se abrió de verdad
+    (mtime distinto). Si el archivo no existe o no parsea, NO se toca nada:
+    una cola ilegible un instante no debe vaciar la tanda en marcha.
+    """
+    try:
+        mtime = os.path.getmtime(ruta)
+    except OSError:
+        return estado, False
+    if mtime == estado.get("mtime"):
+        return estado, False
+    try:
+        with open(ruta, encoding="utf-8") as f:
+            cruda = json.load(f)
+        lista = cruda if isinstance(cruda, list) else cruda.get("tareas") or []
+        tareas = [t for t in lista if isinstance(t, dict) and t.get("id")]
+    except (OSError, ValueError, AttributeError):
+        return estado, False
+    estado["mtime"] = mtime
+    estado["tareas"] = {t["id"]: t for t in tareas}
+    estado["orden"] = [t["id"] for t in tareas]
+    return estado, True
+
+
+def fusionar_cola(pendientes, estado_cola, ocupadas):
+    """Fusiona `pendientes` con la cola vigente, respetando su orden.
+
+    Pura (sin disco, red ni procesos): toda la entrada llega por parámetros.
+    - `pendientes`: dict {id: tarea} aún no arrancado; se modifica en el sitio.
+    - `estado_cola`: salida de `releer_cola_si_cambio` (tareas + orden vigentes).
+    - `ocupadas`: ids en marcha o terminados — NUNCA vuelven a pendientes.
+
+    Devuelve los ids NUEVOS que entran a la tanda (para registrarlos en
+    TAREAS_POR_ID y MIAS en main()). Las que ya no están en la cola simplemente
+    se retiran; las nuevas se insertan en su posición del orden vigente.
+    """
+    vigente = estado_cola.get("tareas", {})
+    retiradas_nuevas = []
+    nuevas = {}
+    for tid, tarea in vigente.items():
+        if tid in pendientes:
+            nuevas[tid] = pendientes[tid]
+        elif tid not in ocupadas:
+            nuevas[tid] = tarea
+            retiradas_nuevas.append(tid)
+    orden = {tid: i for i, tid in enumerate(estado_cola.get("orden", []))}
+    pendientes.clear()
+    for tid in sorted(nuevas, key=lambda x: (orden.get(x, len(orden)), x)):
+        pendientes[tid] = nuevas[tid]
+    return retiradas_nuevas
+
+
 # ── director ────────────────────────────────────────────────────────────────
 def main():
     if len(sys.argv) < 2:
@@ -5535,6 +5604,18 @@ def main():
     pendientes = {t["id"]: t for t in tareas}
     hechas = set()
     activos = {}
+    # Foto inicial de la cola vigente: a partir de aquí, cada vez que quede un
+    # trabajador libre se compara el mtime del archivo y, solo si cambió, se
+    # relee y se reordena `pendientes`. Con `--solo` la tanda es manual y no se
+    # relee: sería confuso que entraran tareas que Alex no pidió.
+    estado_cola = None
+    if solo is None:
+        estado_cola = {
+            "mtime": None,
+            "tareas": {},
+            "orden": [],
+        }
+        releer_cola_si_cambio(sys.argv[1], estado_cola)
 
     def terminado(tid):
         return PROG.get(tid, {}).get("estado") in (
@@ -5555,6 +5636,24 @@ def main():
             if not activos[tid].is_alive():
                 activos.pop(tid)
                 hechas.add(tid)
+        # Solo se consulta la cola cuando hay un trabajador libre y toca elegir.
+        # Si cambió, se fusiona sin tocar lo que ya corre; si no, ni se abre.
+        if estado_cola is not None and len(activos) < workers:
+            estado_cola, releida = releer_cola_si_cambio(sys.argv[1], estado_cola)
+            if releida:
+                ocupadas = set(activos) | hechas
+                nuevas = fusionar_cola(pendientes, estado_cola, ocupadas)
+                for tid in nuevas:
+                    # Registro mínimo para que el resto del bucle y el Mando la
+                    # reconozcan igual que a las del arranque.
+                    TAREAS_POR_ID[tid] = estado_cola["tareas"][tid]
+                    MIAS.add(tid)
+                    evento(
+                        "aviso",
+                        tid,
+                        "entró a la tanda al releer la cola (ocupa su sitio "
+                        "en el orden vigente; nada en marcha se interrumpe)",
+                    )
         for tid, t in list(pendientes.items()):
             if tid in SOLTADAS:
                 pendientes.pop(tid)
