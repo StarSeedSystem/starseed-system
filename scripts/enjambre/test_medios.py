@@ -159,3 +159,26 @@ class TopeDeSilencioTest(unittest.TestCase):
         self.assertEqual(tope_de_silencio(None), 900)
         self.assertEqual(tope_de_silencio("x"), 900)
         self.assertEqual(tope_de_silencio(-5), 900)
+
+class PruebaSilencioConRegistroVivo(unittest.TestCase):
+    """PS1 y PS7 de la ola 325: archivo ya escrito, registro creciendo, cortados igual.
+
+    Después de escribir, un agente se pasa minutos con `tsc`, releyendo lo suyo y
+    pensando el archivo siguiente. Nada de eso cambia un byte del worktree. Con el
+    reloj corto los matábamos a los ~320 s y tenían que empezar de cero."""
+
+    def test_si_el_registro_crece_se_le_da_el_tope_largo(self):
+        self.assertEqual(tope_de_silencio(5000, 300, 900, log_creciendo=True), 900)
+
+    def test_si_no_crece_nada_sigue_siendo_el_tope_corto(self):
+        self.assertEqual(tope_de_silencio(5000, 300, 900, log_creciendo=False), 300)
+
+    def test_antes_de_escribir_manda_la_orientacion_hable_o_no(self):
+        self.assertEqual(tope_de_silencio(0, 300, 900, log_creciendo=False), 900)
+        self.assertEqual(tope_de_silencio(0, 300, 900, log_creciendo=True), 900)
+
+    def test_por_defecto_no_cambia_nada_de_lo_de_antes(self):
+        # Sin el parámetro nuevo, el comportamiento es exactamente el anterior.
+        self.assertEqual(tope_de_silencio(0), 900)
+        self.assertEqual(tope_de_silencio(1200), 300)
+

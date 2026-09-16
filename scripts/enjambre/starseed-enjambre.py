@@ -4352,6 +4352,10 @@ def vigilante():
                 bytes_log = 0
             if bytes_log > d.get("bytes", 0):
                 d["bytes"] = bytes_log
+                # El registro creciendo significa que el agente sigue hablando: está
+                # verificando, leyendo o pensando el archivo siguiente. No es lo mismo que
+                # escribir, pero desde luego no es estar colgado.
+                d["avance_log"] = t
             firma_trabajo, bytes_trabajo = _firma_trabajo(tid)
             if firma_trabajo and firma_trabajo != d.get("firma_trabajo"):
                 d["firma_trabajo"] = firma_trabajo
@@ -4379,8 +4383,11 @@ def vigilante():
             # para el caso medido que motivó esto (Kimi K3 cortado a los 5 min 17 s
             # habiendo hecho solo lecturas). Una vez ha tocado el worktree, el tope corto
             # vuelve a ser el bueno: ahí sí, cinco minutos parado es estar colgado.
+            # ¿Ha dicho algo hace poco, aunque no haya escrito? Medio tope corto de
+            # margen basta para distinguir «verificando» de «colgado».
+            log_fresco = (t - d.get("avance_log", 0)) < max(60, COLGADO_S / 2)
             tope_silencio = tope_de_silencio(
-                d.get("bytes_trabajo", 0), COLGADO_S, ORIENTACION_S
+                d.get("bytes_trabajo", 0), COLGADO_S, ORIENTACION_S, log_fresco
             )
             if fase in ("escribiendo", "completando") and quieto > tope_silencio:
                 with PROCESOS_LOCK:

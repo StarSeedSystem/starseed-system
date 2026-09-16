@@ -220,7 +220,7 @@ def registrar_resultado(historial, medio_id, area, exito, segundos):
     return nuevo
 
 
-def tope_de_silencio(bytes_trabajo, colgado_s=300, orientacion_s=900):
+def tope_de_silencio(bytes_trabajo, colgado_s=300, orientacion_s=900, log_creciendo=False):
     """Cuántos segundos sin tocar el worktree se le consienten a un agente.
 
     POR QUÉ (2026-09-14, medido en el log de p324A). El vigilante mataba a cualquier agente
@@ -236,5 +236,18 @@ def tope_de_silencio(bytes_trabajo, colgado_s=300, orientacion_s=900):
 
     Un agente que YA escribió algo y lleva cinco minutos parado sí es sospechoso: ahí el tope
     corto sigue siendo el bueno. La diferencia está en si ha tocado el worktree alguna vez.
+
+    LA SEGUNDA MITAD DEL MISMO ERROR (2026-09-16, medido en PS1 y PS7 de la ola 325). Después
+    de escribir su archivo, un agente se pasa minutos corriendo `tsc`, leyendo lo que acaba de
+    hacer y pensando el segundo archivo. Nada de eso cambia un byte del worktree, así que el
+    reloj corto lo mataba otra vez: PS7 a los 341 s y PS1 a los 322 s, los dos con su archivo
+    ya escrito y su registro creciendo. Los dos tuvieron que empezar de cero.
+
+    `log_creciendo` es la señal que faltaba: si el REGISTRO del agente sigue creciendo, está
+    vivo y hablando aunque no escriba. Entonces se le da el tope largo. Solo cuando no crece
+    ni el worktree ni el registro está colgado de verdad. El tope largo sigue siendo un tope:
+    un agente en bucle también habla, y a los quince minutos se corta igual.
     """
-    return orientacion_s if _entero_no_negativo(bytes_trabajo) == 0 else colgado_s
+    if _entero_no_negativo(bytes_trabajo) == 0:
+        return orientacion_s
+    return orientacion_s if log_creciendo else colgado_s
