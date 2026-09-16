@@ -187,8 +187,96 @@ def _guardar_estado(ruta, datos):
         pass
 
 
-def rechazar_puertas(puertas, binario="starseed-puente"):
-    """Ejecuta el veredicto que ya estaba dado. NUNCA aprueba."""
+def clave_de_lineas(lineas, nombre):
+    """El valor de `nombre` en un archivo tipo `.env`, o None.
+
+    PURA a propósito: el archivo de claves se lee fuera y aquí solo se interpreta,
+    para poder probarlo sin tener secretos delante. Acepta `export NOMBRE=valor`,
+    comillas alrededor del valor y comentarios.
+    """
+    for linea in lineas or []:
+        linea = (linea or "").strip()
+        if not linea or linea.startswith("#") or "=" not in linea:
+            continue
+        izquierda, _, valor = linea.partition("=")
+        izquierda = izquierda.strip()
+        if izquierda.startswith("export "):
+            izquierda = izquierda[len("export "):].strip()
+        if izquierda != nombre:
+            continue
+        valor = valor.strip()
+        if len(valor) >= 2 and valor[0] == valor[-1] and valor[0] in "\"'":
+            valor = valor[1:-1]
+        return valor or None
+    return None
+
+
+def aviso_de_rechazo(tid, motivo, ok=True):
+    """El texto que le llega a Alex cuando el desatascador ejecuta un veredicto.
+
+    PURA. Lleva las tres cosas que pidió: qué tarea, por qué, y dónde está el
+    trabajo para rescatarlo. La rama se conserva SIEMPRE, y decirlo importa: el
+    aviso no es «se ha perdido esto», es «esto te espera si no estás de acuerdo».
+    """
+    cabeza = "Rechazo automático" if ok else "No pude rechazar"
+    return (
+        "*%s · %s*\n%s\n\nRama conservada: `ola/%s`\n"
+        "Si no estás de acuerdo, ahí sigue el trabajo." % (cabeza, tid, motivo, tid)
+    )
+
+
+def _clave(nombre, ruta=None):
+    """Lee una clave del entorno o de `~/.hermes/.env`. Nunca la imprime.
+
+    El director corre bajo launchd sin cargar el archivo de claves (solo el
+    servicio de Telegram lo hace), así que aquí hay que leerlo a mano.
+    """
+    valor = os.environ.get(nombre)
+    if valor:
+        return valor.strip()
+    ruta = ruta or os.path.expanduser("~/.hermes/.env")
+    try:
+        with open(ruta, encoding="utf-8", errors="replace") as f:
+            return clave_de_lineas(f.readlines(), nombre)
+    except Exception:
+        return None
+
+
+def avisar_por_telegram(texto):
+    """Manda el aviso. Devuelve True/False y NUNCA lanza: avisar es un extra.
+
+    Tampoco registra el token ni el chat, ni siquiera al fallar.
+    """
+    token = _clave("TELEGRAM_BOT_TOKEN")
+    chat = _clave("TELEGRAM_CHAT_ID")
+    if not token or not chat:
+        return False
+    try:
+        import json as _json
+        import urllib.request as _url
+
+        datos = _json.dumps(
+            {"chat_id": str(chat), "text": texto, "parse_mode": "Markdown"}
+        ).encode("utf-8")
+        peticion = _url.Request(
+            "https://api.telegram.org/bot%s/sendMessage" % token,
+            data=datos,
+            headers={"Content-Type": "application/json"},
+        )
+        with _url.urlopen(peticion, timeout=20) as r:
+            return r.status == 200
+    except Exception:
+        return False
+
+
+def rechazar_puertas(puertas, binario="starseed-puente", avisar=avisar_por_telegram):
+    """Ejecuta el veredicto que ya estaba dado. NUNCA aprueba.
+
+    (2026-09-16, decisión de Alex) Y avisa: el rechazo sigue siendo firme, pero
+    le llega por Telegram con el motivo y el nombre de la rama, para que pueda
+    rescatarla si no está de acuerdo. Si el aviso falla, el rechazo se mantiene;
+    lo que no puede pasar es que un fallo de red deshaga un veredicto.
+    """
     frases = []
     for tid, motivo in puertas:
         try:
@@ -199,6 +287,11 @@ def rechazar_puertas(puertas, binario="starseed-puente"):
             ok = False
         frases.append("rechazo %s solo (%s)" % (tid, motivo) if ok
                       else "no pude rechazar %s (%s)" % (tid, motivo))
+        try:
+            if avisar and not avisar(aviso_de_rechazo(tid, motivo, ok)):
+                frases.append("(a %s no pude avisarte por Telegram)" % tid)
+        except Exception:
+            frases.append("(a %s no pude avisarte por Telegram)" % tid)
     return frases
 
 
