@@ -145,3 +145,12 @@
 
 **Lo que quedó fuera, una por una:**
 - `PR1` — pruebas en rojo: vitest falla (rama conservada)
+
+## 2026-09-16 17:31 · auto-0916-172820
+
+**Lo que se pidió.** trabajando
+
+**Resultado.** 0 de 1 integradas. 1 tarea se quedaron fuera.
+
+**Lo que quedó fuera, una por una:**
+- `PR1` — pruebas en rojo: vitest falla (rama conservada)
