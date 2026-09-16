@@ -27,7 +27,13 @@ import {
 } from "lucide-react";
 
 import type { EstadoMando } from "@/lib/mando/tipos";
-import { flotaConocida, type ModeloFlota, type ProveedorFlota } from "@/lib/mando/flota";
+import {
+    flotaConocida,
+    tonoDeProveedor,
+    type ModeloFlota,
+    type ProveedorFlota,
+    type TonoProveedor,
+} from "@/lib/mando/flota";
 import type { ModeloDisponible, SaludProveedor } from "@/lib/mando/modelos-disponibles";
 import { proveedoresDisponibles, type ProveedorDisponible } from "@/lib/mando/proveedores-catalogo";
 // 2026-09-09 · Ola 301 · RT2: el enrutamiento se ve donde se habla de agentes.
@@ -43,19 +49,26 @@ import {
     type PlanRuta,
 } from "@/lib/mando/enrutamiento";
 
-/** Colores de estado (semaforización de la flota). */
-const COLOR_ESTADO: Record<ProveedorFlota["estado"], string> = {
-    listo: "bg-emerald-400",
-    agotado: "bg-red-400",
-    "sin-clave": "bg-amber-400",
-    desconocido: "bg-zinc-500",
-};
-
 const TEXTO_ESTADO: Record<ProveedorFlota["estado"], string> = {
     listo: "Listo",
     agotado: "Agotado",
     "sin-clave": "Sin clave",
     desconocido: "Desconocido",
+};
+
+/** 2026-09-08 · Ola 288c · F7: el punto resume catálogo + generación, no solo `/models`. */
+const COLOR_TONO: Record<TonoProveedor, string> = {
+    ok: "bg-emerald-400",
+    aviso: "bg-amber-400",
+    peligro: "bg-red-400",
+    normal: "bg-zinc-500",
+};
+
+const CLASE_LISTA: Record<ProveedorFlota["estado"], string> = {
+    listo: "border-emerald-400/40 bg-emerald-500/10 text-emerald-300",
+    agotado: "border-red-400/40 bg-red-500/10 text-red-300",
+    "sin-clave": "border-amber-400/40 bg-amber-500/10 text-amber-200",
+    desconocido: "border-white/15 bg-white/5 text-white/50",
 };
 
 /** Icono según el papel del proveedor en la cadena de relevo. */
@@ -330,14 +343,23 @@ function TarjetaProveedor({
         proveedor.limiteDia !== undefined && proveedor.limiteDia > 0
             ? Math.min(100, Math.round(((proveedor.usoHoy ?? 0) / proveedor.limiteDia) * 100))
             : null;
+    const tono = tonoDeProveedor(proveedor);
+    const claseGeneracion = !proveedor.generacion.probada
+        ? "border-amber-400/40 bg-amber-500/10 text-amber-200"
+        : proveedor.generacion.ok
+            ? "border-emerald-400/40 bg-emerald-500/10 text-emerald-300"
+            : "border-red-400/40 bg-red-500/10 text-red-300";
+    const tituloSonda = proveedor.generacion.cuando
+        ? `Última sonda de generación: ${proveedor.generacion.cuando}`
+        : "Todavía no hay una sonda de generación registrada.";
 
     return (
         <article className="rounded-xl border border-white/10 bg-black/30 p-4 backdrop-blur">
             <header className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
                     <span
-                        className={`h-2.5 w-2.5 rounded-full ${COLOR_ESTADO[proveedor.estado]}`}
-                        title={TEXTO_ESTADO[proveedor.estado]}
+                        className={`h-2.5 w-2.5 rounded-full ${COLOR_TONO[tono]}`}
+                        title={`Lista: ${TEXTO_ESTADO[proveedor.estado]}. ${tituloSonda}`}
                     />
                     <h3 className="text-sm font-semibold text-white">{proveedor.nombre}</h3>
                 </div>
@@ -414,6 +436,27 @@ function TarjetaProveedor({
                     );
                 })}
             </ul>
+
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+                <span className={`${CHIP_RUTA} ${CLASE_LISTA[proveedor.estado]}`}>
+                    {proveedor.estado === "listo" ? "lista" : `no lista · ${TEXTO_ESTADO[proveedor.estado].toLowerCase()}`}
+                </span>
+                <span title={tituloSonda} className={`${CHIP_RUTA} ${claseGeneracion}`}>
+                    {!proveedor.generacion.probada
+                        ? "genera · sin probar"
+                        : proveedor.generacion.ok ? "genera" : "no genera"}
+                    {proveedor.generacion.ms !== null && ` · ${proveedor.generacion.ms} ms`}
+                    {proveedor.generacion.probada && !proveedor.generacion.ok && proveedor.generacion.motivo
+                        ? ` · ${proveedor.generacion.motivo}`
+                        : ""}
+                </span>
+            </div>
+
+            {proveedor.modelosMudos.length > 0 && (
+                <p className="mt-2 text-[11px] text-white/60">
+                    apartados ahora: {proveedor.modelosMudos.join(", ")} · vuelven solos en 30 minutos.
+                </p>
+            )}
 
             <p className="mt-3 text-[11px] leading-relaxed text-white/50">{proveedor.nota}</p>
         </article>
@@ -905,6 +948,7 @@ export function PanelFlota() {
     const [estado, setEstado] = useState<EstadoMando | null>(null);
     const [catalogo, setCatalogo] = useState<ModeloDisponible[]>([]);
     const [proveedores, setProveedores] = useState<ProveedorDisponible[] | null>(null);
+    const [saludFlota, setSaludFlota] = useState<unknown>(null);
     const [error, setError] = useState<string | null>(null);
     const [cargando, setCargando] = useState(true);
 
@@ -930,12 +974,22 @@ export function PanelFlota() {
                 const datos = (await respModelos.json()) as {
                     modelos: ModeloDisponible[];
                     proveedores?: ProveedorDisponible[];
+                    /** Foto ya saneada del archivo local; nunca contiene valores de claves. */
+                    saludFlota?: unknown;
+                    salud?: unknown;
                 };
                 setCatalogo(datos.modelos ?? []);
                 setProveedores(datos.proveedores ?? null);
+                // F7 acepta tanto la foto explícita como proveedores enriquecidos por F5.
+                setSaludFlota(
+                    datos.saludFlota ?? datos.salud ?? Object.fromEntries(
+                        (datos.proveedores ?? []).map((proveedor) => [proveedor.id, proveedor]),
+                    ),
+                );
             } else {
                 setCatalogo([]);
                 setProveedores(null);
+                setSaludFlota(null);
             }
         } catch {
             setError("No se pudo leer el estado del mando.");
@@ -948,7 +1002,10 @@ export function PanelFlota() {
         void cargar();
     }, [cargar]);
 
-    const flota = useMemo(() => flotaConocida(usoPorMotor(estado)), [estado]);
+    const flota = useMemo(
+        () => flotaConocida(usoPorMotor(estado), saludFlota),
+        [estado, saludFlota],
+    );
     const agotados = flota.filter((p) => p.estado === "agotado");
 
     // 2026-09-09 · Ola 301 · RT2: quién tiene clave de verdad en esta máquina.
