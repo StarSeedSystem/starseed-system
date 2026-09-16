@@ -58,3 +58,13 @@
 - `zO2` — no escribió nada
 - `p320M` — no escribió nada
 - `zD1` — no escribió nada
+
+## 2026-09-16 16:50 · auto-0916-162318
+
+**Lo que se pidió.** trabajando
+
+**Resultado.** 1 de 3 integradas. 2 tareas se quedaron fuera.
+
+**Lo que quedó fuera, una por una:**
+- `PR1` — pruebas en rojo: vitest falla (rama conservada)
+- `zO2` — no escribió nada
