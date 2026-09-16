@@ -127,6 +127,21 @@ if _PATH_NODE:
 # 2026-09-03) y qwen3-coder-480b ya no existe en el catálogo. Si un modelo desaparece, opencode
 # falla y la tarea se marca «sin cambios» sin motivo aparente: revalida esta lista antes de una ola.
 MODELOS = [
+    # (2026-09-16) PRIMERO lo que está VERIFICADO escribiendo hoy. El 16/09 el enjambre
+    # pasó un día entero rotando entre pasarelas mudas mientras OpenRouter —con clave
+    # válida en ~/.hermes/.env y 18 modelos gratuitos con herramientas— NI SIQUIERA
+    # ESTABA EN ESTA LISTA, y Groq —con clave válida en ~/.starseed/env— tampoco.
+    # Toda la escritura acabó cayendo en la suscripción de ChatGPT hasta agotarla.
+    # `north-mini-code` es el que se probó escribiendo de verdad (creó un archivo con
+    # una llamada de herramienta), no solo contestando a un chat: son cosas distintas.
+    "openrouter/cohere/north-mini-code:free",
+    "openrouter/nvidia/nemotron-3-super-120b-a12b:free",
+    "openrouter/google/gemma-4-31b-it:free",
+    "openrouter/thinkingmachines/inkling:free",
+    "openrouter/nex-agi/nex-n2.5-pro:free",
+    "groq/openai/gpt-oss-120b",
+    "groq/qwen/qwen3.8-27b",
+    "groq/openai/gpt-oss-20b",
     # (2026-09-11, latido :03) Apinex: 22 modelos, 8 gratuitos y 14 de pago ($0.05-$0.50/M tokens).
     # 5M tokens/día gratuitos. Se integra como proveedor multiagentico prioritario.
     "apinex/free/gemini-3.8-flash",
@@ -1587,20 +1602,62 @@ def entorno_hijo(extra=None):
     e = dict(os.environ)
     e.update(extra or {})
     e["PATH"] = ":".join(RUTAS_BIN) + ":" + e.get("PATH", "")
-    # Claves para opencode ({env:NVIDIA_API_KEY} en ~/.config/opencode) y revisores: salen de
-    # .env.local / ~/.hermes/.env, nunca del repo ni de los logs.
+    # Claves para opencode y revisores: salen de .env.local / ~/.hermes/.env /
+    # ~/.starseed/env, nunca del repo ni de los logs.
+    #
+    # (2026-09-16) Esta lista ESTABA ESCRITA A MANO y se olvidaba de GROQ_API_KEY y de
+    # STARSEED_PASARELA_APINEX_KEY: por muy bien configurado que estuviera Groq y por muy
+    # válida que fuese su clave, NUNCA llegaba a opencode, y sus modelos fallaban en
+    # silencio. Añadir un proveedor exigía acordarse de tocar además esta lista, y nadie
+    # se acuerda. Ahora se DEDUCE de la propia configuración de opencode: si un proveedor
+    # pide `{env:LO_QUE_SEA}`, esa variable viaja al hijo. Las de abajo son las que no
+    # viven en esa configuración (revisores por HTTP directo) y los alias históricos.
+    for k in _claves_que_viajan():
+        v = ENV.get(k)
+        if v and not e.get(k):
+            e[k] = v
     for k, alt in (
         ("NVIDIA_API_KEY", "NVIDIA_SHARED_KEY"),
         ("OPENROUTER_API_KEY", "OPENROUTER_SHARED_KEY"),
         ("GEMINI_API_KEY", "GOOGLE_API_KEY"),
-        ("AIHUBMIX_API_KEY", "AIHUBMIX_API_KEY"),
-        ("TOKENROUTER_API_KEY", "TOKENROUTER_API_KEY"),
-        ("XKIRO_API_KEY", "XKIRO_API_KEY"),
     ):
         v = ENV.get(k) or ENV.get(alt)
         if v and not e.get(k):
             e[k] = v
     return e
+
+
+_CLAVES_EXTRA = (
+    # No viven en opencode.json: revisores por HTTP directo, avisos y alias históricos.
+    "GROQ_API_KEY", "STARSEED_PASARELA_GROQ_KEY", "STARSEED_PASARELA_APINEX_KEY",
+    "GEMINI_API_KEY", "GOOGLE_API_KEY", "DEEPSEEK_API_KEY", "DEEPSEEK_BASE_URL",
+    "XAI_API_KEY", "HF_TOKEN", "TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID",
+)
+_CLAVES_CACHE = None
+
+
+def _claves_que_viajan():
+    """Nombres de variable que hay que pasarle a los hijos. Se calcula una vez."""
+    global _CLAVES_CACHE
+    if _CLAVES_CACHE is not None:
+        return _CLAVES_CACHE
+    nombres = list(_CLAVES_EXTRA)
+    try:
+        ruta_puente = os.path.join(ROOT, "scripts", "puente")
+        if ruta_puente not in sys.path:
+            sys.path.insert(0, ruta_puente)
+        import claves_de_opencode
+
+        for cfg in (os.path.expanduser("~/.config/opencode/opencode.json"),
+                    os.path.join(ROOT, "opencode.json")):
+            if not os.path.isfile(cfg):
+                continue
+            with open(cfg, encoding="utf-8") as f:
+                nombres = claves_de_opencode.variables_necesarias(json.load(f), nombres)
+    except Exception:
+        pass
+    _CLAVES_CACHE = nombres
+    return nombres
 
 
 def sh(cmd, cwd=ROOT, timeout=120, env=None, log=None):
@@ -5600,6 +5657,38 @@ def fusionar_cola(pendientes, estado_cola, ocupadas):
     return retiradas_nuevas
 
 
+def _hay_con_quien_escribir():
+    """¿Alguna pasarela devuelve tokens ahora mismo?
+
+    Usa el renovador (`scripts/puente/renovador-pasarelas.py`), que prueba cada una
+    con dieciséis tokens. Se le da un margen corto: esto es una puerta de arranque,
+    no un diagnóstico. Si no se puede ejecutar, se deja pasar — un fallo de la puerta
+    no debe impedir trabajar; lo que no puede pasar es arrancar SABIENDO que no hay
+    nadie escribiendo.
+
+    Se puede saltar con STARSEED_SIN_PUERTA_PASARELAS=1 (para pruebas).
+    """
+    if os.environ.get("STARSEED_SIN_PUERTA_PASARELAS", "").strip() in ("1", "si", "true"):
+        return True
+    guion = os.path.join(ROOT, "scripts", "puente", "renovador-pasarelas.py")
+    if not os.path.isfile(guion):
+        return True
+    try:
+        r = subprocess.run([sys.executable, guion, "--segundos", "20"],
+                           cwd=ROOT, capture_output=True, text=True, timeout=240)
+    except Exception:
+        return True
+    salida = (r.stdout or "") + (r.stderr or "")
+    for linea in salida.splitlines():
+        if linea.startswith("OK "):
+            print("puerta de pasarelas: %s" % linea.strip()[:120])
+    # El renovador sale 0 cuando al menos una escribe, 1 cuando ninguna.
+    if r.returncode == 1:
+        print(salida.strip()[:1500])
+        return False
+    return True
+
+
 def _reparto_del_arbol(sucio):
     """(propias, ajenas) del `git status --porcelain` que acabo de leer.
 
@@ -5690,6 +5779,15 @@ def main():
                 % ", ".join(mias)
             )
             sys.exit(2)
+    # (2026-09-16) PUERTA DE PASARELAS. El 16/09 el enjambre arrancó y estuvo un día
+    # «trabajando» sin escribir una línea: las claves no se cargaban y las pasarelas
+    # devolvían silencio, que se parece a un agente pensando. Arrancar sin una sola
+    # pasarela que escriba no es trabajar: es gastar tiempo y empujar todo hacia el
+    # proveedor de pago. Dieciséis tokens por pasarela bastan para saberlo.
+    if not _hay_con_quien_escribir():
+        print("ninguna pasarela escribe ahora mismo — no arranco. "
+              "Mira: python3 scripts/puente/renovador-pasarelas.py")
+        sys.exit(3)
     os.makedirs(OLAS, exist_ok=True)
     os.makedirs(LOGS, exist_ok=True)
     validar_modelos()

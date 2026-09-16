@@ -23,5 +23,9 @@ if ! "$PYTHON" -c "import ast,sys; ast.parse(open(sys.argv[1]).read())" "$ORQ" 2
 fi
 # El orquestador ya lee los archivos de entorno como datos. No ejecutarlos como
 # shell: las rutas con espacios fallan y los valores no son instrucciones.
+# (2026-09-16) Codex APAGADO como escritor: la suscripción de ChatGPT de Alex se
+# agotó el 16/09 porque, con las pasarelas gratuitas mudas, acabó escribiéndolo
+# TODO. Se reactiva poniendo STARSEED_CODEX_ESCRITOR=1 aquí o en el entorno.
+: "${STARSEED_CODEX_ESCRITOR:=0}"; export STARSEED_CODEX_ESCRITOR
 export STARSEED_MEDIO=mac STARSEED_DONDE=mac STARSEED_ROOT="$RAIZ"
 exec "$PYTHON" -u "$HOME/.local/bin/starseed-enjambre.py" "$COLA" --workers "$N" --reanudar
