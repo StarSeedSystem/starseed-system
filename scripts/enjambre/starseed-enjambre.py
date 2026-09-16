@@ -3490,6 +3490,15 @@ CONTROL_JSON = os.path.join(
 REASIGNADOS = {}  # tarea -> modelo pedido desde fuera (se aplica en la próxima escritura)
 SOLTADAS = set()  # tareas que se han ido a otro servidor: aquí ya no se ejecutan
 APROBACIONES = {}  # tarea -> "aprobar" | "rechazar" (nodos de aprobación humana)
+# Y QUIÉN lo decidió. Va aparte para no cambiar la forma de APROBACIONES, pero es
+# obligatorio: sin esto, una tarea rechazada por un director automático quedaba escrita
+# en progreso.json como «rechazada desde el Mando», es decir, como si la hubiera mirado
+# una persona. El 2026-09-16 pasó con p316I y p317C: las dos habían pasado tsc y las
+# pruebas, el mensaje decía «espera tu visto bueno en el Mando», y nueve minutos después
+# el desatascador las rechazó solo. En el registro quedó «(ide)»; en el estado, nada.
+# Un sistema que no distingue «lo revisó Alex» de «lo mató un temporizador» no se puede
+# auditar, y esa diferencia es justo la que hay que poder mirar.
+QUIEN_DECIDIO = {}  # tarea -> quién mandó la orden ("mando", "ide", "desatascador"…)
 ESPERA_APROBACION_S = int(os.environ.get("STARSEED_ESPERA_APROBACION_S", str(6 * 3600)))
 RUTA_OPENCODE_CFG = os.path.expanduser("~/.config/opencode/opencode.json")
 
@@ -3694,15 +3703,14 @@ def atender_control():
         with LOCK_ESTADO:
             fase = (LATIDOS.get(tid) or {}).get("fase")
         if accion in ("aprobar", "rechazar"):
+            quien = str(orden.get("quien") or "mando")[:32]
             APROBACIONES[tid] = accion
+            QUIEN_DECIDIO[tid] = quien
             evento(
                 "aprobacion",
                 tid,
-                "%s desde el Mando (%s)"
-                % (
-                    "aprobada" if accion == "aprobar" else "rechazada",
-                    str(orden.get("quien") or "mando"),
-                ),
+                "%s por %s"
+                % ("aprobada" if accion == "aprobar" else "rechazada", quien),
                 datos={"decision": accion},
             )
             continue
@@ -5306,18 +5314,24 @@ def ejecutar(t, intento=1):
             limpiar_worktree(tid, borrar_rama=False)
             return
         if decision == "rechazar":
+            quien = QUIEN_DECIDIO.pop(tid, "mando")
+            # «desde el Mando» solo si vino del Mando. Si lo decidió un director
+            # automático, se dice su nombre: el que lea esto mañana tiene que poder
+            # distinguir una decisión de Alex de un temporizador.
+            de_quien = (
+                "rechazada desde el Mando"
+                if quien == "mando"
+                else "rechazada automáticamente por %s (sin revisión humana)" % quien
+            )
             set_estado(
                 tid,
                 estado="rechazada",
                 modelo=modelo_ok,
                 segundos=int(time.time() - t0),
-                nota="rechazada desde el Mando; rama ola/%s conservada" % tid,
+                quien_decidio=quien,
+                nota="%s; rama ola/%s conservada" % (de_quien, tid),
             )
-            evento(
-                "rechazada",
-                tid,
-                "rechazada desde el Mando; rama ola/%s conservada" % tid,
-            )
+            evento("rechazada", tid, "%s; rama ola/%s conservada" % (de_quien, tid))
             limpiar_worktree(tid, borrar_rama=False)
             return
         if decision != "aprobar":
