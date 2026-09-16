@@ -84,6 +84,66 @@ export function avanceDe(fase: string | undefined, estado: string | undefined): 
     return { porcentaje: Math.round(((indice + 1) / ETAPAS.length) * 100), etapa };
 }
 
+// -----------------------------------------------------------------------------
+// Avance que SÍ se mueve dentro de la etapa (p324A · 2026-09-16)
+// -----------------------------------------------------------------------------
+
+const ETAPAS_CAMINO = ["escribiendo", "verificando", "probando", "revisando", "visto bueno", "integrada"] as const;
+
+/** Segundos típicos por etapa (de los topes de atasco en etapas.ts). */
+const TIEMPO_TIPICO_SEG: Record<string, number> = {
+    escribiendo: 25 * 60,
+    verificando: 20 * 60,
+    probando: 20 * 60,
+    revisando: 15 * 60,
+    "visto bueno": 20 * 60,
+    integrada: 0,
+};
+
+export interface DatosAvance {
+    etapa: string;
+    segundosEnEtapa: number;
+    porcentajePrevio?: number;
+    /** El «ahora» entra como parámetro: la función nunca mira el reloj del sistema. */
+    ahora?: number;
+}
+
+/**
+ * Porcentaje combinado: base de etapa + fracción dentro de la etapa según
+ * segundos transcurridos frente a un tiempo típico. Puro: sin fechas del
+ * sistema, sin disco, sin red.
+ */
+export function avanceCombinado(datos: DatosAvance): number {
+    const indice = ETAPAS_CAMINO.indexOf(datos.etapa as (typeof ETAPAS_CAMINO)[number]);
+    if (indice === -1) return datos.porcentajePrevio ?? 0;
+    if (datos.etapa === "integrada") return 100;
+
+    const base = Math.round(((indice + 1) / ETAPAS_CAMINO.length) * 100);
+    const siguienteBase = Math.round(((indice + 2) / ETAPAS_CAMINO.length) * 100);
+
+    const tipico = TIEMPO_TIPICO_SEG[datos.etapa] ?? 0;
+    let fraccion = 0;
+    if (tipico > 0 && datos.segundosEnEtapa > 0) {
+        fraccion = Math.min(datos.segundosEnEtapa / tipico, 1);
+    }
+
+    // Nunca más allá del inicio de la etapa siguiente: la fracción no supera 1.
+    let rango = siguienteBase - base;
+    // La última etapa antes de integrada nunca llega al 100 % antes de tiempo.
+    if (datos.etapa === "visto bueno") rango = rango * 0.99;
+
+    let porcentaje = base + Math.round(fraccion * rango);
+
+    // Nunca retroceder.
+    if (datos.porcentajePrevio !== undefined && porcentaje < datos.porcentajePrevio) {
+        porcentaje = datos.porcentajePrevio;
+    }
+    // Nunca llegar al 100 % antes de estar integrada.
+    if (datos.etapa !== "integrada" && porcentaje >= 100) porcentaje = 99;
+
+    return porcentaje;
+}
+
 /** Media redondeada del avance de las filas que lo traen; 0 si ninguna lo trae. */
 export function mediaDeAvance(filas: FilaMedidor[]): number {
     const conAvance = filas.filter((f) => typeof f.porcentaje === "number");
