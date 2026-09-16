@@ -2786,6 +2786,27 @@ def tsc(cwd, log):
     return rc, errores
 
 
+def _orden_de_vitest(cwd, tocados):
+    """El comando de la puerta de pruebas para esta tarea.
+
+    La decisión vive en `scripts/puente/alcance_pruebas.py` (puro y con pruebas).
+    Si no se puede importar, se cae al comando de siempre: peor cobertura, nunca
+    un falso rojo.
+    """
+    try:
+        ruta_puente = os.path.join(ROOT, "scripts", "puente")
+        if ruta_puente not in sys.path:
+            sys.path.insert(0, ruta_puente)
+        import alcance_pruebas
+
+        extras = alcance_pruebas.pruebas_a_sumar(
+            tocados, lambda r: os.path.isfile(os.path.join(cwd, r))
+        )
+        return alcance_pruebas.orden_vitest(extras)
+    except Exception:
+        return "npx vitest run src/lib/__tests__"
+
+
 def vitest(cwd, log):
     if repo_es_python(cwd):
         # pytest solo si el repo trae carpeta de tests propia (no las de terceros en BitNet/).
@@ -2804,9 +2825,15 @@ def vitest(cwd, log):
                 log=log,
             )
         return rc, out
+    # (2026-09-16) La puerta corría SOLO `src/lib/__tests__`: 87 archivos de 164.
+    # PS8 integró `src/lib/network/culture-discovery.test.ts` en rojo y esa prueba
+    # bloqueó quince horas de publicaciones sin que ninguna puerta lo dijera. Ahora
+    # una tarea pasa también por las pruebas que ella misma toca.
+    _, tocados = sh("git diff --name-only main...HEAD", cwd=cwd, log=log)
+    orden = _orden_de_vitest(cwd, (tocados or "").splitlines())
     with SEM_PESADO, cerrojo("pesado"):
         rc, out = sh(
-            "npx vitest run src/lib/__tests__",
+            orden,
             cwd=cwd,
             timeout=600,
             env=ENV_TSC,
@@ -3441,6 +3468,14 @@ def contexto_tarea(t, raiz=None):
         "IMPORTANTE: NO ejecutes `npx tsc` directamente: usa `bash scripts/enjambre/tsc-turno.sh` "
         "(un solo tsc a la vez en la máquina, con caché por repo); tests: `npx vitest run <archivo o carpeta concreta>`, "
         "nunca la suite entera.\n\n"
+        # Por qué (2026-09-16, PS8): el agente corrió `npx vitest run <su prueba> | tail -30`,
+        # la salida llegó VACÍA, lo tomó por aprobado y esa prueba entró en rojo en main y
+        # bloqueó quince horas de publicaciones.
+        "El silencio NO es aprobación: cada `vitest` que lances tiene que terminar imprimiendo su resumen "
+        "(«Test Files … passed», «Tests … passed»). Si no ves ese resumen —salida vacía, cortada por un `| tail`, "
+        "o el proceso muerto— NO has comprobado nada: repite el comando sin tuberías y léelo entero. "
+        "Y antes de darte por terminado, corre la prueba de CADA archivo que hayas tocado, aunque viva fuera de "
+        "`src/lib/__tests__`.\n\n"
         # Por qué se pide esto (2026-09-06, Ola 261): el log del orquestador solo crece cuando
         # TERMINA una llamada de herramienta; una única escritura de 300 líneas con un proveedor
         # lento (NIM, 5-10 tok/s) tarda 8-20 min sin dejar rastro y el vigilante la cortaba por
