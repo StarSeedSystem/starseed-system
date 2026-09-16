@@ -5642,6 +5642,22 @@ def main():
         )
     except Exception:
         pass
+    # Y el aprendizaje, que es otra cosa: el informe dice CÓMO fue esta ola y se
+    # lee una vez; esto dice QUÉ APRENDIMOS y se escribe en `memory/`, que es lo
+    # que cada agente carga al empezar la siguiente. Sin este paso, la misma
+    # causa nos tumbaba media ola cinco días seguidos sin que nadie lo notara.
+    try:
+        subprocess.run(
+            [
+                sys.executable,
+                os.path.join(ROOT, "scripts", "puente", "director_aprendizaje.py"),
+                sys.argv[1],
+            ],
+            cwd=ROOT,
+            timeout=120,
+        )
+    except Exception:
+        pass
     try:
         desconectar_medios_locales()
     except Exception:

@@ -14,6 +14,12 @@ MISMO enjambre y el MISMO Puente de Mando.
 gratuito → directores Python → Astra → Fable/Opus una vez por hora), cuotas y recursos de API:
 `memory/orquestacion-economica.md` §0. Léelo una vez; es la regla permanente.
 
+**Y antes de empezar tu tarea, lee `memory/aprendizaje-olas.md`.** Lo escribe solo el director
+de aprendizaje al cerrar cada ola, y son hechos con su número: qué se fue por qué causa, qué
+modelo integró y cuál no. Si una causa aparece ahí tres olas seguidas, no es mala suerte: es algo
+del sistema, y probablemente te va a tumbar a ti también. Sin esa lectura, la misma piedra nos
+costó media ola cinco días seguidos sin que nadie lo notara.
+
 ```bash
 export PATH="$HOME/.local/bin:$PATH"
 starseed-puente estado      # qué hay vivo ahora mismo
