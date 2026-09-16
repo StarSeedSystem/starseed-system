@@ -27,7 +27,19 @@ import { raizDelProyecto } from "@/lib/mando/raiz";
 
 const RAÍZ = raizDelProyecto();
 const OLAS = path.join(RAÍZ, "starseed_memory_root", "olas");
-const PATRON_ID = /^[A-Z][A-Z0-9]{0,7}[0-9]?$/;
+/**
+ * Id de tarea. Acepta MAYÚSCULAS Y MINÚSCULAS (2026-09-16) porque así son los ids que el
+ * enjambre lleva escribiendo desde la ola 300: `p316I`, `p320M`, `zW7`, `zO2`, `p323A`,
+ * `p316L2`. El patrón anterior exigía empezar por mayúscula, así que el Mando RECHAZABA las
+ * colas que el propio enjambre genera — «Nombre de cola no válido» al intentar aprobar,
+ * rechazar, soltar o reencolar cualquiera de ellas. La consola no podía administrar el
+ * trabajo de su propio enjambre, que es justo para lo que existe.
+ *
+ * Es el fallo que la tarea p320M lleva días intentando arreglar y que se comió sus ocho
+ * intentos gratuitos. Se arregla aquí porque bloqueaba, hoy y por segunda vez en una tarde,
+ * reencolar las tareas atascadas desde el Mando.
+ */
+const PATRON_ID = /^[A-Za-z][A-Za-z0-9]{0,8}$/;
 const PATRON_NOMBRE = /^[0-9]{2,4}(-[a-z0-9]+){0,6}$/;
 /** La rotación del orquestador (lo que el Diseñador ofrece por defecto). */
 const ROTACION = [
