@@ -2786,6 +2786,34 @@ def tsc(cwd, log):
     return rc, errores
 
 
+def _tocados_por_la_tarea(cwd, log=None):
+    """Qué archivos ha tocado esta tarea, estén commiteados o no.
+
+    OJO (2026-09-16): `git diff --name-only main...HEAD` por sí solo devuelve
+    VACÍO en la puerta, porque en ese momento el agente aún no ha commiteado
+    nada — el commit va después de tsc y de los tests. Por eso hay que mirar
+    también el árbol de trabajo y lo que no está bajo seguimiento. La puerta de
+    pytest del enjambre llevaba desde el 07/09 preguntándolo así y por eso casi
+    nunca se disparaba.
+    """
+    vistos = []
+    for orden in (
+        "git diff --name-only main...HEAD",
+        "git diff --name-only main",
+        "git ls-files --others --exclude-standard",
+    ):
+        try:
+            _, salida = sh(orden, cwd=cwd, log=log)
+        except Exception:
+            continue
+        vistos += [(l or "").strip() for l in (salida or "").splitlines()]
+    fuera = []
+    for ruta in vistos:
+        if ruta and ruta not in fuera:
+            fuera.append(ruta)
+    return fuera
+
+
 def _orden_de_vitest(cwd, tocados):
     """El comando de la puerta de pruebas para esta tarea.
 
@@ -2829,8 +2857,8 @@ def vitest(cwd, log):
     # PS8 integró `src/lib/network/culture-discovery.test.ts` en rojo y esa prueba
     # bloqueó quince horas de publicaciones sin que ninguna puerta lo dijera. Ahora
     # una tarea pasa también por las pruebas que ella misma toca.
-    _, tocados = sh("git diff --name-only main...HEAD", cwd=cwd, log=log)
-    orden = _orden_de_vitest(cwd, (tocados or "").splitlines())
+    tocados = _tocados_por_la_tarea(cwd, log)
+    orden = _orden_de_vitest(cwd, tocados)
     with SEM_PESADO, cerrojo("pesado"):
         rc, out = sh(
             orden,
@@ -2843,11 +2871,10 @@ def vitest(cwd, log):
         # pytest también son puerta: P9B se integró (77f7bca) con dos fallos vivos en
         # scripts/enjambre porque aquí solo corría vitest. Se suma el rc: cualquier fallo
         # (vitest o pytest) tumba la puerta.
-        _, archivos = sh("git diff --name-only main...HEAD", cwd=cwd, log=log)
-        toca_enjambre = any(
-            (l or "").strip().startswith("scripts/enjambre/")
-            for l in (archivos or "").splitlines()
-        )
+        # Misma lista que la de arriba: preguntarlo con `main...HEAD` a secas daba
+        # vacío aquí (el commit va después de las puertas), así que esta puerta
+        # casi nunca llegaba a dispararse.
+        toca_enjambre = any(r.startswith("scripts/enjambre/") for r in tocados)
         if not toca_enjambre:
             return rc, out
         if not shutil.which("pytest"):
