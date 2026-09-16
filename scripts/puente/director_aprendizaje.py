@@ -21,6 +21,7 @@ Nunca reescribe: AÑADE al final. La historia de las olas anteriores no se toca.
 
 import json
 import os
+import subprocess
 import sys
 import time
 
@@ -70,6 +71,51 @@ def pedido_de(tareas):
     return ""
 
 
+def commitear_memoria(nombre):
+    """Deja el árbol LIMPIO. No es cosmética: es lo que deja arrancar al enjambre.
+
+    El orquestador se niega a arrancar si `main` tiene cambios sin commitear —un
+    guardia correcto, porque no quiero agentes trabajando sobre un árbol sucio—. Y el
+    vigilante, al ver el árbol sucio, tampoco relanza:
+
+        working tree de main con cambios sin commit: 1 archivos — no arranco
+
+    El 2026-09-16 ese «1 archivo» era ESTE: `memory/aprendizaje-olas.md`, recién escrito
+    al cerrar la ola 326 y sin commitear. Resultado: cero orquestadores, cuatro tareas
+    pendientes y nadie trabajando durante media hora. El director de aprendizaje, que
+    existe para que el sistema no tropiece dos veces con la misma piedra, había puesto
+    una piedra nueva.
+
+    Se commitea SOLO este archivo, con ruta explícita, para no arrastrar nada de nadie.
+    Y nunca se lanza: si algo falla aquí, el cierre de la ola sigue su camino y como
+    mucho queda un archivo suelto — molesto, pero no peor que antes.
+    """
+    for marca in ("rebase-merge", "rebase-apply", "MERGE_HEAD", "CHERRY_PICK_HEAD"):
+        if os.path.exists(os.path.join(ROOT, ".git", marca)):
+            return  # algo a medias: ni tocar el índice
+    rel = os.path.relpath(MEMORIA, ROOT)
+    try:
+        subprocess.run(["git", "add", "--", rel], cwd=ROOT, timeout=60, capture_output=True)
+        subprocess.run(
+            [
+                "git",
+                "-c",
+                "core.hooksPath=/dev/null",
+                "commit",
+                "-q",
+                "-m",
+                "chore(memoria): aprendizaje de la ola %s" % nombre,
+                "--",
+                rel,
+            ],
+            cwd=ROOT,
+            timeout=120,
+            capture_output=True,
+        )
+    except Exception:
+        pass
+
+
 def main():
     if len(sys.argv) < 2:
         print("uso: director_aprendizaje.py <cola.json> [nota]", file=sys.stderr)
@@ -100,6 +146,8 @@ def main():
         if nuevo:
             f.write(CABECERA)
         f.write("\n" + texto)
+
+    commitear_memoria(nombre)
 
     print("aprendizaje de %s → memory/aprendizaje-olas.md" % nombre)
     for o in A.observaciones(resumen):
