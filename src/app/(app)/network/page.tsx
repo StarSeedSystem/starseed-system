@@ -35,6 +35,7 @@ import { getCurrentUserId } from "@/lib/os-social";
 import { uploadFile } from "@/lib/files/os-files";
 import MentionInput from "@/components/mentions/mention-input";
 import { createClient } from "@/utils/supabase/client";
+import { contadoresDe, contarConceptos, resumenDeContadores } from "@/lib/hub/contadores-red";
 
 export default function NetworkPage() {
     const [rawPosts, setRawPosts] = useState<FeedPost[]>([]);
@@ -88,13 +89,22 @@ export default function NetworkPage() {
         })();
     }, []);
 
-    // Conceptos distintos en circulación (etiquetas únicas del feed) — dato REAL,
-    // sustituye al antiguo "Seeds en Flujo" que no tenía fuente de datos.
-    const conceptCount = useMemo(() => {
-        const s = new Set<string>();
-        for (const p of rawPosts) for (const t of p.tags) s.add(t);
-        return s.size;
-    }, [rawPosts]);
+    // Conceptos y contadores del panel «Red en Vivo» salen del módulo común
+    // `@/lib/hub/contadores-red`: el Hub mostrará los mismos cuatro números,
+    // así que NO puede haber un criterio local distinto aquí (dos cálculos
+    // distintos enseñarían 6 conceptos en un sitio y 7 en otro).
+    const conceptos = useMemo(() => contarConceptos(rawPosts), [rawPosts]);
+    const contadores = useMemo(
+        () =>
+            contadoresDe({
+                posts: rawPosts,
+                conexiones: connectionIds.size,
+                propuestasAbiertas: activeProposals ?? 0,
+                conceptos,
+            }),
+        [rawPosts, connectionIds, activeProposals, conceptos],
+    );
+    const resumenRed = resumenDeContadores(contadores);
 
     const loadFeed = async () => {
         try {
@@ -404,13 +414,16 @@ export default function NetworkPage() {
                     {/* Live Network Stats */}
                     <TiltCard intensity={8}>
                         <div className="p-5 rounded-2xl liquid-glass-panel border-white/10 dark:border-white/5 shadow-lg">
-                            <h3 className="section-label mb-4">Red en Vivo</h3>
+                            <h3 className="section-label mb-1">Red en Vivo</h3>
+                            {/* Cabecera textual generada por el mismo módulo: el
+                                resumen y las tarjetas nunca pueden discrepar. */}
+                            <p className="text-[10px] text-muted-foreground mb-4">{resumenRed}</p>
                             <div className="grid grid-cols-2 gap-3">
                                 {[
-                                    { label: "Publicaciones", value: rawPosts.length > 0 ? String(rawPosts.length) : "—", color: "text-cyan-500 dark:text-cyan-400", bg: "bg-cyan-500/10" },
-                                    { label: "Conexiones", value: connectionIds.size > 0 ? String(connectionIds.size) : "—", color: "text-purple-500 dark:text-purple-400", bg: "bg-purple-500/10" },
-                                    { label: "Propuestas Activas", value: activeProposals != null ? String(activeProposals) : "—", color: "text-amber-500 dark:text-amber-400", bg: "bg-amber-500/10" },
-                                    { label: "Conceptos", value: conceptCount > 0 ? String(conceptCount) : "—", color: "text-emerald-500 dark:text-emerald-400", bg: "bg-emerald-500/10" },
+                                    { label: "Publicaciones", value: contadores.publicaciones > 0 ? String(contadores.publicaciones) : "—", color: "text-cyan-500 dark:text-cyan-400", bg: "bg-cyan-500/10" },
+                                    { label: "Conexiones", value: contadores.conexiones > 0 ? String(contadores.conexiones) : "—", color: "text-purple-500 dark:text-purple-400", bg: "bg-purple-500/10" },
+                                    { label: "Propuestas Activas", value: activeProposals != null ? String(contadores.propuestas) : "—", color: "text-amber-500 dark:text-amber-400", bg: "bg-amber-500/10" },
+                                    { label: "Conceptos", value: contadores.conceptos > 0 ? String(contadores.conceptos) : "—", color: "text-emerald-500 dark:text-emerald-400", bg: "bg-emerald-500/10" },
                                 ].map(stat => (
                                     <div key={stat.label} className={`rounded-xl p-3 text-center ${stat.bg} border border-border/5`}>
                                         <div className={`text-xl font-bold font-headline ${stat.color}`}>{stat.value}</div>
