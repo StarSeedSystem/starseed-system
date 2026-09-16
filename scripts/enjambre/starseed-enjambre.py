@@ -5538,6 +5538,55 @@ def fusionar_cola(pendientes, estado_cola, ocupadas):
     return retiradas_nuevas
 
 
+def _reparto_del_arbol(sucio):
+    """(propias, ajenas) del `git status --porcelain` que acabo de leer.
+
+    La decisión vive en `scripts/puente/arbol_de_trabajo.py` (puro y con
+    pruebas). Si no puedo importarlo, todo cuenta como ajeno: el guardia vuelve
+    a ser el de antes, que es el lado seguro del error.
+    """
+    try:
+        ruta_puente = os.path.join(ROOT, "scripts", "puente")
+        if ruta_puente not in sys.path:
+            sys.path.insert(0, ruta_puente)
+        import arbol_de_trabajo
+
+        return arbol_de_trabajo.repartir(sucio)
+    except Exception:
+        return [], [l[3:].strip() for l in sucio.splitlines() if l.strip()]
+
+
+def _recoger_lo_nuestro(rutas):
+    """Commitea las rutas del propio enjambre. True solo si el árbol queda limpio.
+
+    Con rutas explícitas y sin hooks, como hace el director de aprendizaje: aquí
+    no se arrastra nada de nadie. Reintenta una vez porque el fallo del 16/09 fue
+    un choque de índice con el commit de la ola, no un error de verdad.
+    """
+    if not rutas:
+        return False
+    for marca in ("rebase-merge", "rebase-apply", "MERGE_HEAD", "CHERRY_PICK_HEAD"):
+        if os.path.exists(os.path.join(ROOT, ".git", marca)):
+            return False
+    mensaje = "chore(memoria): recojo la contabilidad del enjambre antes de arrancar"
+    for intento in range(2):
+        try:
+            sh(["git", "add", "--"] + list(rutas), timeout=60)
+            sh(
+                ["git", "-c", "core.hooksPath=/dev/null", "commit", "-q", "-m", mensaje, "--"]
+                + list(rutas),
+                timeout=120,
+            )
+        except Exception:
+            pass
+        _, queda = sh(["git", "status", "--porcelain"], timeout=30)
+        if not queda.strip():
+            return True
+        if intento == 0:
+            time.sleep(3)
+    return False
+
+
 # ── director ────────────────────────────────────────────────────────────────
 def main():
     if len(sys.argv) < 2:
@@ -5558,11 +5607,27 @@ def main():
     tareas = [t for t in cola if (not solo or t["id"] in solo)]
     _, sucio = sh(["git", "status", "--porcelain"], timeout=30)
     if sucio.strip():
-        print(
-            "working tree de main con cambios sin commit: %d archivos — no arranco"
-            % len(sucio.splitlines())
-        )
-        sys.exit(2)
+        mias, ajenas = _reparto_del_arbol(sucio)
+        if ajenas:
+            print(
+                "working tree de main con cambios sin commit: %d archivos — no arranco"
+                % len(ajenas)
+            )
+            for ruta in ajenas[:10]:
+                print("  ajeno: %s" % ruta)
+            sys.exit(2)
+        # Solo está sucio por lo que escribe el propio enjambre (la memoria de
+        # aprendizaje que deja el director al cerrar la ola). El 16/09 eso paró
+        # el enjambre diez horas. Lo recojo y sigo: el guardia protege el trabajo
+        # ajeno, no la contabilidad propia.
+        if _recoger_lo_nuestro(mias):
+            print("recogí mi propia contabilidad y sigo: %s" % ", ".join(mias))
+        else:
+            print(
+                "no pude commitear mi propia contabilidad (%s) — no arranco"
+                % ", ".join(mias)
+            )
+            sys.exit(2)
     os.makedirs(OLAS, exist_ok=True)
     os.makedirs(LOGS, exist_ok=True)
     validar_modelos()

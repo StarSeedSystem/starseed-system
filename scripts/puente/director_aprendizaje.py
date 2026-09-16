@@ -94,26 +94,41 @@ def commitear_memoria(nombre):
         if os.path.exists(os.path.join(ROOT, ".git", marca)):
             return  # algo a medias: ni tocar el índice
     rel = os.path.relpath(MEMORIA, ROOT)
-    try:
-        subprocess.run(["git", "add", "--", rel], cwd=ROOT, timeout=60, capture_output=True)
-        subprocess.run(
-            [
-                "git",
-                "-c",
-                "core.hooksPath=/dev/null",
-                "commit",
-                "-q",
-                "-m",
-                "chore(memoria): aprendizaje de la ola %s" % nombre,
-                "--",
-                rel,
-            ],
-            cwd=ROOT,
-            timeout=120,
-            capture_output=True,
-        )
-    except Exception:
-        pass
+    # Dos intentos, y compruebo el resultado. El 16/09 el `commit` chocó con el de
+    # la ola (índice ocupado), el archivo se quedó AÑADIDO pero sin commitear, y
+    # el guardia del orquestador —que se niega a arrancar con el árbol sucio—
+    # tuvo el enjambre parado diez horas por esta contabilidad.
+    for intento in range(2):
+        try:
+            subprocess.run(["git", "add", "--", rel], cwd=ROOT, timeout=60, capture_output=True)
+            subprocess.run(
+                [
+                    "git",
+                    "-c",
+                    "core.hooksPath=/dev/null",
+                    "commit",
+                    "-q",
+                    "-m",
+                    "chore(memoria): aprendizaje de la ola %s" % nombre,
+                    "--",
+                    rel,
+                ],
+                cwd=ROOT,
+                timeout=120,
+                capture_output=True,
+            )
+            queda = subprocess.run(
+                ["git", "status", "--porcelain", "--", rel],
+                cwd=ROOT,
+                timeout=30,
+                capture_output=True,
+            )
+            if not queda.stdout.strip():
+                return
+        except Exception:
+            pass
+        if intento == 0:
+            time.sleep(3)
 
 
 def main():
