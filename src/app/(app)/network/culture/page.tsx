@@ -1,8 +1,8 @@
 // src/app/(app)/network/culture/page.tsx
 'use client';
 import Link from "next/link";
-import { useMemo } from "react";
-import { Map, Calendar as CalendarIcon, Palette, CalendarDays, Orbit, ArrowUpRight, Megaphone } from "lucide-react";
+import { useState } from "react";
+import { Map, Calendar as CalendarIcon, Palette, CalendarDays, Orbit, ArrowUpRight, Megaphone, CalendarCheck } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import dynamic from 'next/dynamic';
@@ -18,39 +18,39 @@ import { SystemShowcase } from '@/components/showcase/SystemShowcase';
 import { SectionHeader } from '@/components/network/section-header';
 import { SectionPostsFeed } from '@/components/network/section-posts-feed';
 import { useOsEvents } from '@/hooks/use-os-entities';
-import { realEventsOnly } from '@/lib/os-social';
+import { fechaRelativaEs, proximoEvento } from '@/lib/network/culture-discovery';
 
-const EVENT_DATE_FMT = new Intl.DateTimeFormat('es-ES', {
-  day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
-});
-
-/** Próximos eventos REALES de la red (os_events) + acceso al Multiverso. */
-function CultureDiscoveryRow() {
+/**
+ * Destacado de descubrimiento: el PRÓXIMO evento real con su fecha relativa en
+ * español y su día exacto, más un atajo a la Agenda. La Agenda de esta misma
+ * página (UnifiedCalendar) ya enseña todos los eventos, así que aquí NO se
+ * repite la lista: se da lo más inmediato y se delega el resto a la pestaña.
+ */
+function CultureDiscoveryRow({ onGoToAgenda }: { onGoToAgenda: () => void }) {
   const { data: events, loading } = useOsEvents();
-  const upcoming = useMemo(() => {
-    const now = Date.now();
-    return realEventsOnly(events)
-      .filter((e) => e.startsAt && new Date(e.startsAt).getTime() >= now)
-      .sort((a, b) => new Date(a.startsAt!).getTime() - new Date(b.startsAt!).getTime())
-      .slice(0, 4);
-  }, [events]);
+  const ahora = Date.now();
+  const evento = proximoEvento(events, ahora);
+
+  const EVENTO_EXACTO_FMT = new Intl.DateTimeFormat('es-ES', {
+    day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
+  });
 
   return (
     <div className="grid gap-4 lg:grid-cols-3">
-      {/* Eventos próximos (os_events reales) */}
+      {/* Próximo evento real + atajo a la Agenda (os_events reales) */}
       <Card className="liquid-glass-panel lg:col-span-2">
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 font-headline text-lg">
-            <CalendarDays className="h-4 w-4 text-fuchsia-300" /> Eventos próximos
+            <CalendarDays className="h-4 w-4 text-fuchsia-300" /> Próximo encuentro
           </CardTitle>
-          <CardDescription>Encuentros reales de la red con fecha por venir.</CardDescription>
+          <CardDescription>Lo más inmediato real de la red, sin repetir la Agenda.</CardDescription>
         </CardHeader>
         <CardContent>
           {loading ? (
             <div className="h-20 w-full animate-pulse rounded-xl bg-muted/30" />
-          ) : upcoming.length === 0 ? (
+          ) : !evento ? (
             <div className="rounded-xl border border-dashed border-white/12 p-5 text-center text-sm text-muted-foreground">
-              <p>Aún no hay eventos próximos en la red.</p>
+              <p>No hay eventos anunciados todavía.</p>
               <Link
                 href="/crear?area=publicar&dest=cultura"
                 className="mt-2 inline-flex cursor-pointer items-center gap-1.5 text-fuchsia-300 hover:underline"
@@ -59,23 +59,22 @@ function CultureDiscoveryRow() {
               </Link>
             </div>
           ) : (
-            <div className="flex flex-col gap-1.5">
-              {upcoming.map((e) => (
-                <Link
-                  key={e.slug}
-                  href={`/evento/${e.slug}`}
-                  className="group flex cursor-pointer items-center justify-between gap-3 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 transition-all hover:border-white/25"
-                >
-                  <span className="min-w-0">
-                    <span className="block truncate text-sm font-medium">{e.title}</span>
-                    <span className="block truncate text-xs text-muted-foreground">
-                      {e.startsAt ? EVENT_DATE_FMT.format(new Date(e.startsAt)) : 'Sin fecha'}
-                      {e.location ? ` · ${e.location}` : ''}
-                    </span>
-                  </span>
-                  <ArrowUpRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
-                </Link>
-              ))}
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0">
+                <p className="truncate text-base font-medium">{evento.title}</p>
+                <p className="mt-0.5 truncate text-sm text-muted-foreground">
+                  <span className="text-fuchsia-300">{fechaRelativaEs(ahora, new Date(evento.startsAt!).getTime())}</span>
+                  {' · '}{EVENTO_EXACTO_FMT.format(new Date(evento.startsAt!))}
+                  {evento.location ? ` · ${evento.location}` : ''}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={onGoToAgenda}
+                className="inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm font-medium text-fuchsia-200 transition-all hover:border-white/25 hover:bg-white/[0.07]"
+              >
+                <CalendarCheck className="h-4 w-4" /> Ver en la Agenda
+              </button>
             </div>
           )}
         </CardContent>
@@ -103,6 +102,10 @@ function CultureDiscoveryRow() {
 }
 
 export default function CulturePage() {
+  // Estado REAL de la pestaña: lo comparte la fila de descubrimiento para que
+  // su botón «Ver en la Agenda» salte a esa pestaña sin cambiar la ruta.
+  const [tab, setTab] = useState("para-ti");
+
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
       {/* ── Cabecera consistente de sección + acciones rápidas (Adenda 63 §8) ── */}
@@ -119,10 +122,10 @@ export default function CulturePage() {
       {/* Indicador en vivo (realtime sobre la tabla `posts`), visible en cualquier sub-pestaña */}
       <CulturalFeedLive />
 
-      {/* Eventos próximos (os_events reales) + Multiverso */}
-      <CultureDiscoveryRow />
+      {/* Próximo evento real (os_events) con atajo a la Agenda + Multiverso */}
+      <CultureDiscoveryRow onGoToAgenda={() => setTab("calendar")} />
 
-      <Tabs defaultValue="para-ti" className="w-full">
+      <Tabs value={tab} onValueChange={setTab} className="w-full">
         <TabsList className="mb-6 flex h-auto w-full items-center gap-1.5 overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible">
           {CULTURE_SOCIAL_TABS.map((t) => {
             const TabIcon = t.icon;
