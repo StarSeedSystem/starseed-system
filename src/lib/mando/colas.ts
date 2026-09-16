@@ -39,8 +39,20 @@ const ROTACION = [
  * APIs desde las que el orquestador puede ESCRIBIR (opencode las tiene configuradas: xkiro,
  * nvidia=NIM, aihubmix, tokenrouter; openrouter es nativa de opencode). Gemini y Ollama
  * quedan para el asistente y los revisores: opencode no los tiene cableados aquí.
+ *
+ * `codex` entra el 2026-09-16 y es el tercer candado que tenía la misma puerta. El
+ * orquestador SÍ sabe escribir con Codex desde la ola 296 (`es_modelo_codex`,
+ * `escribir_con_codex`, `comando_codex`), pero esta lista blanca no lo incluía, así que
+ * una tarea con `modelo: "codex/gpt-5.6-sol"` la rechazaba el Mando antes de guardarla:
+ * «no es de una API con la que el orquestador pueda escribir». Los otros dos candados eran
+ * el interruptor `STARSEED_CODEX_ESCRITOR`, que nadie encendía, y una orden de `codex exec`
+ * ilegal que moría en el análisis de argumentos. Tres sitios distintos apagando lo mismo, y
+ * ninguno de los tres se enteraba de los otros dos.
+ *
+ * Codex va contra la SUSCRIPCIÓN de ChatGPT, no contra créditos de API: es capacidad de
+ * escritura a coste cero y con un modelo bastante más capaz que la flota libre.
  */
-export const APIS_ESCRITORAS = ["xkiro", "nim", "aihubmix", "tokenrouter", "openrouter"] as const;
+export const APIS_ESCRITORAS = ["xkiro", "nim", "aihubmix", "tokenrouter", "openrouter", "codex"] as const;
 const PATRON_MODELO = /^[a-z0-9-]+\/[A-Za-z0-9][A-Za-z0-9._:\/-]{1,120}$/;
 
 /** Id de modelo tal y como lo entiende el orquestador/opencode (`nim/…` → `nvidia/…`). */
