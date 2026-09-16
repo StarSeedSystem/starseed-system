@@ -43,3 +43,18 @@
 - `zO2` — no escribió nada
 - `p320M` — no escribió nada
 - `zD1` — no escribió nada
+
+## 2026-09-16 06:11 · auto-0916-030442
+
+**Lo que se pidió.** falló
+
+**Resultado.** 1 de 4 integradas. 3 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 3 tareas se fueron por lo mismo — no escribió nada (zO2, p320M, zD1). Es 75 % de la ola.
+- sin modelo anotado no integró ninguna de sus 3 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `zO2` — no escribió nada
+- `p320M` — no escribió nada
+- `zD1` — no escribió nada
