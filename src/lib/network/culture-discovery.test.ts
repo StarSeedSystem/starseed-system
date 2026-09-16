@@ -27,10 +27,18 @@ describe("fechaRelativaEs", () => {
   it("devuelve «hoy» para el mismo día", () => {
     expect(fechaRelativaEs(AHORA, AHORA)).toBe("hoy");
     expect(fechaRelativaEs(AHORA, AHORA + 3 * 60 * 60 * 1000)).toBe("hoy");
+
+    const inicio = new Date(2024, 0, 15, 0, 30).getTime();
+    const final = new Date(2024, 0, 15, 23, 30).getTime();
+    expect(fechaRelativaEs(inicio, final)).toBe("hoy");
   });
 
   it("devuelve «mañana» para el día siguiente", () => {
     expect(fechaRelativaEs(AHORA, AHORA + DIA_MS)).toBe("mañana");
+
+    const antesDeMedianoche = new Date(2024, 0, 15, 23, 30).getTime();
+    const despuesDeMedianoche = new Date(2024, 0, 16, 0, 30).getTime();
+    expect(fechaRelativaEs(antesDeMedianoche, despuesDeMedianoche)).toBe("mañana");
   });
 
   it("devuelve «pasado mañana» para dentro de dos días", () => {

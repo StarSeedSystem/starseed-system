@@ -9,14 +9,15 @@ const DIA_MS = 24 * 60 * 60 * 1000;
 
 /**
  * Fecha relativa en español entre el momento `ahoraMs` y el evento `eventoMs`
- * (ambos en milisegundos desde época). Compara por "día natural" sobre el
- * epoch ms, así un evento dentro de esta misma franja devuelve "hoy" aunque
- * queden pocas horas. Sin librerías: solo aritmética de fechas.
+ * (ambos en milisegundos desde época). Compara días naturales en la zona
+ * horaria local del usuario y redondea para absorber cambios de horario.
  */
 export function fechaRelativaEs(ahoraMs: number, eventoMs: number): string {
-  const diaAhora = Math.floor(ahoraMs / DIA_MS);
-  const diaEvento = Math.floor(eventoMs / DIA_MS);
-  const dif = diaEvento - diaAhora;
+  const ahora = new Date(ahoraMs);
+  const evento = new Date(eventoMs);
+  const inicioAhora = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate());
+  const inicioEvento = new Date(evento.getFullYear(), evento.getMonth(), evento.getDate());
+  const dif = Math.round((inicioEvento.getTime() - inicioAhora.getTime()) / DIA_MS);
 
   switch (dif) {
     case 0:
