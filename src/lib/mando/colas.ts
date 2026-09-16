@@ -301,7 +301,15 @@ export async function lanzarAqui(nombre: string, workers: number, extra: string[
     // memoria de la máquina y el cupo de los proveedores, no el orquestador.
     const n = Math.min(8, Math.max(1, Math.round(workers)));
     const permitidos = extra.filter((x) => ["--sin-revision", "--reanudar", "--aprobacion"].includes(x));
-    const hijo = spawn("python3", [orquestador, path.join("starseed_memory_root", "olas", archivo), "--workers", String(n), ...permitidos], {
+    // `-u` NO es cosmético: `orquestador_vivo()` del vigilante solo reconoce como
+    // orquestador un proceso cuya orden EMPIEZA por un python seguido de `-u`
+    // (scripts/puente/vigilante_logica.py). Sin esa bandera, lo que lanza el Mando es
+    // INVISIBLE para el vigilante, que a los noventa segundos lanza un segundo
+    // orquestador sobre la misma cola. Eso pasó en la ola 325: el Mando lanzó a las
+    // 19:34:59 y el vigilante lanzó otro a las 19:35:47, y los dos se pelearon por los
+    // arriendos («el arriendo de PS8 ya pertenece a otro medio»), con el doble de
+    // memoria en una Mac de 8 GB. La regla de oro es UN orquestador con N trabajadores.
+    const hijo = spawn("python3", ["-u", orquestador, path.join("starseed_memory_root", "olas", archivo), "--workers", String(n), ...permitidos], {
         cwd: RAÍZ,
         detached: true,
         stdio: ["ignore", registro, registro],
