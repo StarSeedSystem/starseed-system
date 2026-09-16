@@ -157,3 +157,39 @@ def para_abrir(resultados):
         if enlace and enlace not in fuera:
             fuera.append(enlace)
     return fuera
+
+
+# ── qué modelos tiene sentido intentar ahora mismo ───────────────────────────
+# (2026-09-16) La rotación repartía entre proveedores para no machacar a ninguno, y eso
+# está bien… salvo cuando acabamos de MEDIR que un proveedor no escribe. Entonces
+# repartir es regalarle cinco minutos a cada tarea. Alex lo vio así: agentes «escribiendo»
+# durante veinte minutos con pasarelas que esa misma mañana habían devuelto 429.
+SIEMPRE = ("llm7", "codex")  # sin clave o suscripción: no salen en el informe
+
+
+def pasarela_de(modelo):
+    """El proveedor de un id de modelo: `openrouter/cohere/x:free` → `openrouter`."""
+    return (modelo or "").split("/", 1)[0]
+
+
+def modelos_utiles(modelos, informe, siempre=SIEMPRE):
+    """Deja fuera los modelos de pasarelas que el informe dice que NO escriben.
+
+    Devuelve (utiles, apartados). Si el informe está vacío o no dice nada de una
+    pasarela, sus modelos SE QUEDAN: ante la duda, intentarlo. Y si el filtro dejara
+    la lista vacía, se devuelve la original — es mejor intentarlo con todos que no
+    tener a nadie.
+    """
+    estados = {}
+    for fila in (informe or {}).get("pasarelas", []) or []:
+        estados[fila.get("clave")] = fila.get("estado")
+    utiles, apartados = [], []
+    for m in modelos or []:
+        p = pasarela_de(m)
+        if p in siempre or p not in estados or estados[p] == ESCRIBE:
+            utiles.append(m)
+        else:
+            apartados.append((m, estados[p]))
+    if not utiles:
+        return list(modelos or []), []
+    return utiles, apartados

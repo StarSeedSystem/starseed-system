@@ -387,6 +387,27 @@ def validar_modelos():
     if codex_disponible():
         codex_dentro = [m for m in MODELOS_CODEX if m not in MODELOS]
         MODELOS[:0] = codex_dentro
+    # (2026-09-16) Fuera los modelos de pasarelas que la puerta ACABA de medir como
+    # mudas. La rotación reparte entre proveedores para no machacar a ninguno, y eso
+    # está bien salvo cuando ya sabemos que uno no escribe: entonces repartir es
+    # regalarle cinco minutos a cada tarea. Alex vio agentes «escribiendo» veinte
+    # minutos con pasarelas que esa misma mañana habían devuelto 429.
+    try:
+        ruta_puente = os.path.join(ROOT, "scripts", "puente")
+        if ruta_puente not in sys.path:
+            sys.path.insert(0, ruta_puente)
+        import pasarelas as _pasarelas
+
+        with open(os.path.expanduser("~/.starseed/pasarelas-informe.json"),
+                  encoding="utf-8") as f:
+            _informe = json.load(f)
+        _utiles, _apartados = _pasarelas.modelos_utiles(MODELOS, _informe)
+        if _apartados:
+            MODELOS[:] = _utiles
+            evento("aviso", "", "aparto por estado de la pasarela: " + ", ".join(
+                "%s (%s)" % (m.split("/", 1)[1], e) for m, e in _apartados)[:400])
+    except Exception:
+        pass
     if not MODELOS:
         evento("fallo", "", "ningún modelo escritor sigue vivo — no arranco")
         sys.exit(3)
