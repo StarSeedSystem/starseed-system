@@ -247,7 +247,19 @@ def tope_de_silencio(bytes_trabajo, colgado_s=300, orientacion_s=900, log_crecie
     vivo y hablando aunque no escriba. Entonces se le da el tope largo. Solo cuando no crece
     ni el worktree ni el registro está colgado de verdad. El tope largo sigue siendo un tope:
     un agente en bucle también habla, y a los quince minutos se corta igual.
+
+    LA TERCERA MITAD (2026-09-16, medido en zD1 y zO2). Faltaba aplicar esa misma señal al
+    caso de arriba: quien no había escrito nada se llevaba el tope largo SIEMPRE, incluso con
+    el registro parado. Y eso es justo lo que hace un modelo gratuito que acepta la conexión
+    y no emite un solo token: registro plano en el banner del modelo, cero bytes, quince
+    minutos regalados. Con cinco modelos en la rotación son setenta y cinco minutos por
+    tarea sin una línea escrita — el enjambre pareciendo ocupado sin estarlo. El registro
+    del propio enjambre lo decía con todas las letras: «911 s sin crecer en bytes con
+    kimi-k3 (tope 900 s, AÚN NO HABÍA ESCRITO NADA)».
+
+    Orientarse deja rastro: cada lectura, cada listado, cada búsqueda escribe en el registro.
+    Un registro plano no es un agente orientándose, es un modelo que no ha contestado. Así
+    que la regla queda en una sola línea, y es la misma para todos: manda el registro.
     """
-    if _entero_no_negativo(bytes_trabajo) == 0:
-        return orientacion_s
+    _entero_no_negativo(bytes_trabajo)  # valida la entrada aunque ya no ramifique por ella
     return orientacion_s if log_creciendo else colgado_s

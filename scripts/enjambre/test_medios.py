@@ -136,29 +136,36 @@ class TopeDeSilencioTest(unittest.TestCase):
     """El corte de 300 s mataba agentes que solo estaban leyendo. Caso medido: Kimi K3 en
     p324A, 16:35:45 → 16:41:02, cinco minutos y diecisiete segundos de lecturas y fuera."""
 
-    def test_sin_haber_escrito_nada_se_consiente_la_orientacion(self):
-        self.assertEqual(tope_de_silencio(0), 900)
+    def test_orientarse_se_consiente_porque_deja_rastro(self):
+        """Leer, listar y buscar hace crecer el registro: eso es orientarse, y se respeta."""
+        self.assertEqual(tope_de_silencio(0, log_creciendo=True), 900)
 
-    def test_en_cuanto_ha_escrito_algo_vuelve_el_tope_corto(self):
+    def test_en_cuanto_ha_escrito_algo_y_se_calla_vuelve_el_tope_corto(self):
         self.assertEqual(tope_de_silencio(1), 300)
         self.assertEqual(tope_de_silencio(50000), 300)
 
     def test_el_caso_de_kimi_ya_no_se_corta(self):
-        """317 s leyendo, sin una sola escritura: antes moría, ahora sigue."""
-        self.assertGreater(tope_de_silencio(0), 317)
+        """317 s leyendo, sin una sola escritura: antes moría, ahora sigue (hablaba)."""
+        self.assertGreater(tope_de_silencio(0, log_creciendo=True), 317)
 
     def test_pero_un_agente_que_escribio_y_se_colgo_si_se_corta(self):
         self.assertLess(tope_de_silencio(2048), 317)
 
+    def test_el_modelo_que_no_contesta_se_corta_pronto(self):
+        """zD1 y zO2 (16/09): cero bytes y registro plano. Antes: 900 s por cada modelo."""
+        self.assertEqual(tope_de_silencio(0, log_creciendo=False), 300)
+
     def test_los_topes_son_configurables(self):
-        self.assertEqual(tope_de_silencio(0, colgado_s=60, orientacion_s=120), 120)
+        self.assertEqual(
+            tope_de_silencio(0, colgado_s=60, orientacion_s=120, log_creciendo=True), 120
+        )
         self.assertEqual(tope_de_silencio(9, colgado_s=60, orientacion_s=120), 60)
 
-    def test_valores_raros_cuentan_como_que_no_ha_escrito(self):
-        """Ante la duda, paciencia: matar a un agente que trabajaba cuesta una tarea entera."""
-        self.assertEqual(tope_de_silencio(None), 900)
-        self.assertEqual(tope_de_silencio("x"), 900)
-        self.assertEqual(tope_de_silencio(-5), 900)
+    def test_valores_raros_no_revientan(self):
+        """La entrada rara ya no decide nada: manda el registro."""
+        self.assertEqual(tope_de_silencio(None, log_creciendo=True), 900)
+        self.assertEqual(tope_de_silencio("x", log_creciendo=True), 900)
+        self.assertEqual(tope_de_silencio(-5, log_creciendo=False), 300)
 
 class PruebaSilencioConRegistroVivo(unittest.TestCase):
     """PS1 y PS7 de la ola 325: archivo ya escrito, registro creciendo, cortados igual.
@@ -173,12 +180,13 @@ class PruebaSilencioConRegistroVivo(unittest.TestCase):
     def test_si_no_crece_nada_sigue_siendo_el_tope_corto(self):
         self.assertEqual(tope_de_silencio(5000, 300, 900, log_creciendo=False), 300)
 
-    def test_antes_de_escribir_manda_la_orientacion_hable_o_no(self):
-        self.assertEqual(tope_de_silencio(0, 300, 900, log_creciendo=False), 900)
+    def test_antes_de_escribir_tambien_manda_el_registro(self):
+        # (16/09) Antes ambos daban 900: no haber escrito bastaba para el tope largo, y
+        # un modelo que no contesta se llevaba quince minutos por cada intento.
+        self.assertEqual(tope_de_silencio(0, 300, 900, log_creciendo=False), 300)
         self.assertEqual(tope_de_silencio(0, 300, 900, log_creciendo=True), 900)
 
-    def test_por_defecto_no_cambia_nada_de_lo_de_antes(self):
-        # Sin el parámetro nuevo, el comportamiento es exactamente el anterior.
-        self.assertEqual(tope_de_silencio(0), 900)
+    def test_sin_el_parametro_se_asume_registro_parado(self):
+        self.assertEqual(tope_de_silencio(0), 300)
         self.assertEqual(tope_de_silencio(1200), 300)
 
