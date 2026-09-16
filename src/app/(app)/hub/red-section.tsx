@@ -159,6 +159,10 @@ function relativeTime(iso: string): string {
 }
 
 // ── Nodos temáticos de la Red (cada uno enlaza a su ruta real ya existente) ──
+// NOTA (PS5): estos enlaces a `/network`, `/network/politics`, `/network/education`
+// y `/network/culture` SIGUEN siendo enlaces de ruta a propósito: abren la vista
+// completa de cada pilar, que es una intención distinta de "quedarme en el Hub"
+// (para eso está la pestaña Panorama Sociocultural del Hub).
 interface RedNode {
     id: string;
     label: string;
@@ -252,7 +256,7 @@ const RED_SHORTCUTS: { label: string; href: string; icon: React.ReactNode; hint:
     { label: 'Servidores de Apps', href: '/servidores-apps', icon: <Server className="w-4 h-4" />, hint: 'Apps en vivo compartidas' },
 ];
 
-export function HubRedSection() {
+export function HubRedSection({ alIrAPanorama }: { alIrAPanorama?: () => void }) {
     const stats = useRedLiveStats();
     const { posts: pulse, loading: pulseLoading } = useRedPulse();
 
@@ -290,11 +294,37 @@ export function HubRedSection() {
                             </p>
                         </div>
                     </div>
-                    <Button asChild variant="outline" className="btn-pill border-cyan-500/40 text-cyan-300 hover:bg-cyan-500/10 shrink-0">
-                        <Link href="/network">
+                    {/*
+                        PS5 · Si el Hub monta el Panorama Sociocultural como pestaña propia,
+                        "Abrir Panorama" cambia de pestaña SIN sacar al usuario del Hub
+                        (prop `alIrAPanorama`). Si la prop no llega, se mantiene el
+                        comportamiento anterior (navegar a `/network`).
+                    */}
+                    {alIrAPanorama ? (
+                        <Button
+                            type="button"
+                            variant="outline"
+                            onClick={alIrAPanorama}
+                            className="btn-pill border-cyan-500/40 text-cyan-300 hover:bg-cyan-500/10 shrink-0 cursor-pointer"
+                        >
                             Abrir Panorama <ArrowUpRight className="w-4 h-4 ml-1.5" />
-                        </Link>
-                    </Button>
+                        </Button>
+                    ) : (
+                        <Button asChild variant="outline" className="btn-pill border-cyan-500/40 text-cyan-300 hover:bg-cyan-500/10 shrink-0">
+                            <Link href="/network">
+                                Abrir Panorama <ArrowUpRight className="w-4 h-4 ml-1.5" />
+                            </Link>
+                        </Button>
+                    )}
+                    {/* `/network` sigue siendo una ruta viva (dock, widgets del
+                        escritorio, catálogo de apps…): se deja un acceso discreto a la
+                        vista a pantalla completa. */}
+                    <Link
+                        href="/network"
+                        className="self-center text-[11px] text-muted-foreground/80 hover:text-cyan-300 hover:underline shrink-0"
+                    >
+                        verlo a pantalla completa
+                    </Link>
                 </div>
             </div>
 
