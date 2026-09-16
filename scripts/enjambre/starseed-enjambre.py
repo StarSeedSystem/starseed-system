@@ -178,8 +178,21 @@ def codex_disponible() -> bool:
     guardada sea la de ChatGPT, que es la que va contra la suscripción. Del archivo de sesión se
     mira ÚNICAMENTE `auth_mode`: los `tokens` no se copian a ninguna variable, ni se registran en
     eventos ni en logs. Cualquier problema al leerlo (no existe, JSON roto, permisos) = no
-    disponible, nunca una excepción que tumbe el arranque."""
-    if os.environ.get("STARSEED_CODEX_ESCRITOR") != "1":
+    disponible, nunca una excepción que tumbe el arranque.
+
+    (2026-09-16) El interruptor pasa de OPT-IN a OPT-OUT, y no es un capricho. La condición
+    era `STARSEED_CODEX_ESCRITOR == "1"`, y esa variable NO estaba puesta en ningún sitio
+    permanente: ni en los plist de launchd, ni en `~/.starseed/env`, ni en el lanzamiento
+    del Mando. Solo aparecía en estas dos comprobaciones y en una prueba que la simula. Es
+    decir: desde la ola 296, que construyó esto y lo dejó verificado, TODOS los
+    orquestadores han arrancado con Codex apagado. La capacidad de escritura de coste cero
+    que da la suscripción de ChatGPT llevaba ahí, viva, sin que nadie la usara — comprobado
+    hoy: `codex exec -m gpt-5.6-sol` responde en 6.235 tokens y no toca créditos de API.
+
+    Las condiciones de verdad ya estaban debajo y son las buenas: que el binario exista y
+    que la sesión guardada sea la de ChatGPT. Si esas dos se cumplen, Codex puede escribir.
+    `STARSEED_CODEX_ESCRITOR=0` lo apaga a mano cuando haga falta."""
+    if os.environ.get("STARSEED_CODEX_ESCRITOR", "1").strip().lower() in ("0", "no", "false"):
         return False
     if not ruta_codex():
         return False
@@ -2617,8 +2630,14 @@ def escribir_con_codex(prompt, modelo, cwd, log, timeout=1500, tid=None):
     log AL VUELO y el registro en PROCESOS para que el vigilante pueda cortarlo.
 
     Lo único distinto es el proceso: `codex exec` con el prompt por stdin (ver `comando_codex`)."""
-    if os.environ.get("STARSEED_CODEX_ESCRITOR") != "1":
-        return 126, "Codex reservado para dirección: escritura automática no autorizada"
+    # La misma puerta que `codex_disponible()`, y por el mismo motivo: opt-out, no opt-in.
+    # Tenerla duplicada aquí con otra condición es lo que permitía que las dos se
+    # desincronizaran sin que nadie lo notara.
+    if not codex_disponible():
+        return 126, (
+            "Codex no escribe aquí: apagado a mano (STARSEED_CODEX_ESCRITOR=0), "
+            "sin binario o sin sesión de ChatGPT"
+        )
     if not ruta_codex():
         # (CX1·5) codex solo está en la Mac: en la nube esto no es un fallo de la tarea, es un
         # escritor que aquí no existe. Se devuelve lo mismo que un proveedor caído.
