@@ -2591,9 +2591,22 @@ def comando_codex(modelo: str, cwd: str) -> list:
 
     El prompt NO viaja aquí: los enunciados del enjambre pasan de 6.000 caracteres y no caben en
     una línea de orden (E2BIG), así que se le pasa por stdin. `-s workspace-write` limita la
-    escritura al worktree, `--approve-for-me` evita esperas invisibles y `-C` fija la raíz.
-    `-m` va SIEMPRE porque la configuración local puede apuntar a un modelo no admitido por
-    la sesión de ChatGPT."""
+    escritura al worktree y `-C` fija la raíz. `-m` va SIEMPRE porque la configuración local
+    puede apuntar a un modelo no admitido por la sesión de ChatGPT.
+
+    SIN `--approve-for-me` (2026-09-16). Estaba, y era incompatible con `-s`:
+
+        error: the argument '--sandbox <SANDBOX_MODE>' cannot be used with '--approve-for-me'
+
+    La orden ni siquiera llegaba a arrancar: moría en el análisis de argumentos. Es el error
+    que quedó en el registro de zW8 el 09-09 y que no volvió a verse porque justo después el
+    interruptor `STARSEED_CODEX_ESCRITOR` dejó a Codex apagado del todo. Dos averías tapando
+    la misma capacidad: la primera lo rompía, la segunda lo escondía.
+
+    No hace falta ninguna de las dos banderas juntas: `codex exec` ya arranca con
+    `approval: never` por defecto, comprobado en esta máquina con codex-cli 0.154.0. Se queda
+    `-s workspace-write` porque dice explícitamente hasta dónde puede escribir, y eso sí
+    queremos declararlo."""
     nombre = str(modelo or "")
     if nombre.startswith("codex/"):
         nombre = nombre.split("/", 1)[1]
@@ -2604,7 +2617,6 @@ def comando_codex(modelo: str, cwd: str) -> list:
         nombre,
         "-s",
         "workspace-write",
-        "--approve-for-me",
         "--skip-git-repo-check",
         "-C",
         cwd,
