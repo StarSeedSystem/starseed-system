@@ -85,3 +85,20 @@
 - `zO2` — no escribió nada
 - `p320M` — pruebas en rojo: vitest falla (rama conservada)
 - `zD1` — no escribió nada
+
+## 2026-09-16 17:00 · auto-0916-165759
+
+**Lo que se pidió.** trabajando
+
+**Resultado.** 0 de 4 integradas. 4 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 2 tareas se fueron por lo mismo — pruebas en rojo (PR1, p320M). Es 50 % de la ola.
+- 2 tareas se fueron por lo mismo — no escribió nada (zO2, zD1). Es 50 % de la ola.
+- sin modelo anotado no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `PR1` — pruebas en rojo: vitest falla (rama conservada)
+- `zO2` — no escribió nada
+- `p320M` — pruebas en rojo: vitest falla (rama conservada)
+- `zD1` — no escribió nada
