@@ -204,23 +204,64 @@ export function PanelMedidor({
     const [cargando, setCargando] = useState(false);
     const [aviso, setAviso] = useState<string | null>(null);
 
-    const cargar = useCallback(async () => {
-        setCargando(true);
+    // `primera` distingue la carga inicial de los refrescos: en un refresco NO se pinta el
+    // esqueleto, o la lista parpadearía cada cinco segundos y sería ilegible.
+    const cargar = useCallback(async (primera = false) => {
+        if (primera) setCargando(true);
         try {
             const r = await fetch(`/api/mando/medidores?clave=${encodeURIComponent(clave)}`, { cache: "no-store" });
             const d = (await r.json()) as { detalle?: DetalleMedidor };
             setDatos(d.detalle ?? null);
+            setAviso(null);
         } catch {
             setAviso("No se pudo leer el detalle.");
         } finally {
-            setCargando(false);
+            if (primera) setCargando(false);
         }
     }, [clave]);
 
     useEffect(() => {
         setDatos(null);
         setAviso(null);
-        void cargar();
+        void cargar(true);
+    }, [cargar]);
+
+    /**
+     * El panel se REFRESCA mientras está abierto.
+     *
+     * Hasta ahora pedía los datos una sola vez, al abrirse, y nunca volvía a preguntar: las
+     * barras de avance se congelaban en el instante en que lo abrías. Alex lo dijo mirando la
+     * pantalla —«sigue sin actualizarse las líneas de progreso»— mientras los agentes sí
+     * avanzaban por detrás. Una barra de progreso que no se mueve es peor que no tenerla:
+     * hace creer que el trabajo está parado.
+     *
+     * Cinco segundos es el ritmo del latido del orquestador (~20 s de escritura, fases de
+     * minutos); más rápido no aporta nada y solo gasta. Y se PARA cuando la pestaña no se ve:
+     * en una Mac de 8 GB con el enjambre escribiendo, una pestaña olvidada en segundo plano
+     * no tiene por qué pedir nada.
+     */
+    useEffect(() => {
+        let id: number | null = null;
+        const arrancar = () => {
+            if (id === null && !document.hidden) id = window.setInterval(() => void cargar(), 5_000);
+        };
+        const parar = () => {
+            if (id !== null) window.clearInterval(id);
+            id = null;
+        };
+        const alCambiarVisibilidad = () => {
+            if (document.hidden) parar();
+            else {
+                void cargar(); // al volver, lo primero es ponerse al día
+                arrancar();
+            }
+        };
+        arrancar();
+        document.addEventListener("visibilitychange", alCambiarVisibilidad);
+        return () => {
+            parar();
+            document.removeEventListener("visibilitychange", alCambiarVisibilidad);
+        };
     }, [cargar]);
 
     useEffect(() => {
