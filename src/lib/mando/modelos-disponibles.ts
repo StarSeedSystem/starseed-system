@@ -545,9 +545,13 @@ async function estadosSonda(): Promise<Record<string, string>> {
         );
         const json = objeto(JSON.parse(crudo));
         const t = texto(json.t);
-        const ms = t ? Date.parse(t.replace(" ", "T") + (t.length <= 19 ? "Z" : "")) : NaN;
+        // OJO: el renovador escribe la hora LOCAL de la máquina. Ponerle una «Z» la
+        // convierte en UTC y en España o México eso son horas de diferencia — el informe
+        // recién hecho parecía de hace seis horas y se descartaba entero. Es exactamente
+        // el mismo error de zona horaria que hoy hubo que revertir en la fecha de Cultura.
+        const ms = t ? Date.parse(t.replace(" ", "T")) : NaN;
         // Un informe de hace horas no dice nada del ahora: mejor no opinar que mentir.
-        if (!Number.isFinite(ms) || Date.now() - ms > 30 * 60 * 1000) return {};
+        if (!Number.isFinite(ms) || Math.abs(Date.now() - ms) > 30 * 60 * 1000) return {};
         const salida: Record<string, string> = {};
         for (const fila of Array.isArray(json.pasarelas) ? json.pasarelas : []) {
             const f = objeto(fila);
@@ -555,11 +559,17 @@ async function estadosSonda(): Promise<Record<string, string>> {
             const estado = texto(f.estado);
             if (!clave || !estado) continue;
             // El vocabulario de la sonda traducido al que ya entiende la flota.
-            salida[clave] =
+            const valor =
                 estado === "escribe" ? "vivo"
                 : estado === "sin_cupo" ? "sinCupo"
                 : estado === "lenta" ? "desconocido"
                 : "caido";
+            salida[clave] = valor;
+            // La sonda y el catálogo de la flota llaman distinto a lo mismo: `nvidia` es
+            // `nim` aquí, y la neurona local es `ollama`. Sin esto el informe existe, es
+            // fresco y no se aplica a nadie — que es como no tenerlo.
+            if (clave === "nvidia") salida.nim = valor;
+            if (clave === "neurona") salida.ollama = valor;
         }
         return salida;
     } catch {

@@ -42,8 +42,16 @@ SERVICIOS = {
                   "/tmp/starseed-telegram.log", True),
     # El Mando lo supervisa launchd en primer plano: nada de doble fork. Así hay un pid
     # de verdad, KeepAlive lo revive solo, y no queda huérfano si se reinicia el MCP.
-    "mando":     (LANZ + ["--cwd", RAIZ, "--env", "STARSEED_MANDO=1", "--env", "STARSEED_LOCAL=1",
-                          "--", "/opt/homebrew/bin/npx", "next", "start", "-p", "9002"],
+    # (2026-09-16) El servidor del Mando corría SIN NINGUNA clave de proveedor en su
+    # entorno: `listarModelos()` daba «sin clave» para todo y el asistente técnico no
+    # tenía a quién preguntar. Se cargan como en el servicio de Telegram: el shell lee
+    # ~/.hermes/.env y ~/.starseed/env y se convierte en el lanzador con exec.
+    "mando":     (["/bin/zsh", "-c",
+                   'set -a; [ -f "$HOME/.hermes/.env" ] && source "$HOME/.hermes/.env"; '
+                   '[ -f "$HOME/.starseed/env" ] && source "$HOME/.starseed/env"; set +a; '
+                   'exec %s --cwd %s --env STARSEED_MANDO=1 --env STARSEED_LOCAL=1 '
+                   '-- /opt/homebrew/bin/npx next start -p 9002'
+                   % (" ".join(LANZ), RAIZ)],
                   "/tmp/starseed-mando.log", True),
 }
 
