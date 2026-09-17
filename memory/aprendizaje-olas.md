@@ -295,3 +295,25 @@
 - `NE1` — no escribió nada
 - `NE2` — no escribió nada: dependencia no integrada: NE1 (sin_cambios)
 - `NE3` — no escribió nada: dependencia no integrada: NE1 (sin_cambios)
+
+## 2026-09-16 20:58 · auto-0916-200258
+
+**Lo que se pidió.** riesgos
+
+**Resultado.** 2 de 11 integradas. 9 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 5 tareas se fueron por lo mismo — no escribió nada (DR1, DR3, AS2, AS3, NE1). Es 45 % de la ola.
+- 4 tareas se fueron por lo mismo — pruebas en rojo (ID1, CU1, SA1, SA2). Es 36 % de la ola.
+- sin modelo anotado no integró ninguna de sus 5 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `DR1` — no escribió nada
+- `DR3` — no escribió nada
+- `AS2` — no escribió nada
+- `AS3` — no escribió nada: dependencia no integrada: AS2 (sin_cambios)
+- `ID1` — pruebas en rojo: vitest falla (rama conservada)
+- `CU1` — pruebas en rojo: vitest falla (rama conservada)
+- `NE1` — no escribió nada
+- `SA1` — pruebas en rojo: vitest falla (rama conservada)
+- `SA2` — pruebas en rojo: vitest falla (rama conservada)
