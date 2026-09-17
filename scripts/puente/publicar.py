@@ -200,6 +200,39 @@ def resumen_salida(clave, salida):
 
 
 # ── el proceso ──────────────────────────────────────────────────────────────
+def _reiniciar_mando(diario=None):
+    """Tras una build, REINICIAR el Mando. No es un detalle: es obligatorio.
+
+    (2026-09-16, medido) `next build` reemplaza `.next` entero. El servidor que ya estaba
+    corriendo sigue sirviendo el HTML de su build anterior, con referencias a unos chunks
+    que acaban de desaparecer del disco:
+
+        GET /_next/static/chunks/webpack-8c7b75d0218cd13e.js → 400
+        ls .next/static/chunks/webpack-8c7b75d0218cd13e.js   → no existe
+
+    El HTML llega con un 200 impecable y la página no carga nunca. Desde fuera parece que
+    el Mando está bien: responde. Por eso hay que reiniciarlo aquí y no fiarse del 200.
+    """
+    try:
+        uid = os.getuid()
+        r = subprocess.run(
+            ["launchctl", "kickstart", "-k", "gui/%d/com.starseed.mando" % uid],
+            capture_output=True, text=True, timeout=60,
+        )
+        ok = r.returncode == 0
+    except Exception:
+        ok = False
+    if diario is not None and not ok:
+        # Solo se dice cuando FALLA: un Mando sin reiniciar tras la build responde 200 y
+        # no carga, y eso hay que verlo en el diario de la publicación.
+        try:
+            diario.marcar("build", "ok",
+                          "AVISO: no pude reiniciar el Mando — reinícialo o servirá chunks muertos")
+        except Exception:
+            pass
+    return ok
+
+
 def necesita_build(base="origin/main"):
     """¿Cambió algo que la build sirva? Si solo se tocó Python o documentación,
     reconstruir son doce minutos tirados: `next build` no mira `scripts/`."""
@@ -299,6 +332,7 @@ def main():
             diario.cerrar("fallo", "no se publicó: la build falló")
             return 1
         diario.marcar("build", "ok", resumen_salida("build", salida), time.time() - t0)
+        _reiniciar_mando(diario)
 
     # 7 · push. Solo aquí, y solo con las cuatro en verde.
     _, pendientes = git(["log", "--format=%H", "origin/main..HEAD"])
