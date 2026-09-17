@@ -2864,6 +2864,51 @@ def tsc(cwd, log):
     return rc, errores
 
 
+def _puerta_cableado(tid, t, wt, log, modelo_ok):
+    """Lo que la tarea exporta nuevo, ¿lo llama alguien?
+
+    (2026-09-16) PR2 añadió `avanceCombinado()` a medidores.ts con sus pruebas en verde,
+    pasó tsc, pasó la revisión y se integró en main… y nadie la llamaba. El medidor siguió
+    mintiendo y a Alex se le dijo que estaba arreglado. Integrado no es aplicado, y las
+    otras puertas no pueden verlo: alcance cuenta archivos tocados, tsc compila y las
+    pruebas prueban la función suelta. Las tres pasan perfectamente.
+
+    Si aparecen huérfanos se le da UNA pasada de compleción al mismo motor que escribió,
+    igual que hace la puerta de alcance. No tumba la tarea: avisa y deja constancia.
+    """
+    try:
+        ruta_puente = os.path.join(ROOT, "scripts", "puente")
+        if ruta_puente not in sys.path:
+            sys.path.insert(0, ruta_puente)
+        import cableado_ts
+
+        _, diff = sh("git diff main", cwd=wt, timeout=60, log=log)
+        nombres = cableado_ts.exportados_nuevos(diff)
+        if not nombres:
+            return
+        usos = {}
+        for n in nombres:
+            _, salida = sh(["grep", "-rl", "--include=*.ts", "--include=*.tsx", n, "src"],
+                           cwd=wt, timeout=60, log=log)
+            usos[n] = [l.strip() for l in (salida or "").splitlines() if l.strip()]
+        propias = [r for r in (t.get("archivos") or [])]
+        huerfanos = cableado_ts.sin_cablear(nombres, usos, propias)
+        paso(tid, "cableado", exporta=len(nombres), sin_usar=",".join(huerfanos)[:200])
+        if not huerfanos:
+            return
+        evento("aviso", tid, "INTEGRADO PERO NO APLICADO: " + cableado_ts.aviso(huerfanos))
+        latir(tid, "completando", modelo=modelo_ok)
+        escribir(
+            cableado_ts.aviso(huerfanos)
+            + "\n\nNo escribas nada nuevo: solo conecta lo que ya existe en el sitio donde "
+            "debía usarse, según el enunciado original.\n\nEnunciado original:\n%s"
+            % t.get("prompt", ""),
+            modelo_ok, wt, log, timeout=ESCRITURA_S, tid=tid,
+        )
+    except Exception as e:
+        evento("aviso", tid, "no pude comprobar el cableado: %s" % type(e).__name__)
+
+
 def _tocados_por_la_tarea(cwd, log=None):
     """Qué archivos ha tocado esta tarea, estén commiteados o no.
 
@@ -5151,6 +5196,8 @@ def ejecutar(t, intento=1):
                 tid,
                 "TAREA INCOMPLETA: faltan %s" % ", ".join(medida["faltan"]),
             )
+    # puerta de cableado (2026-09-16): integrado no es aplicado
+    _puerta_cableado(tid, t, wt, log, modelo_ok)
     # puerta tsc + reparación
     latir(tid, "tsc", modelo=modelo_ok)
     rc, errs = tsc(wt, log)
