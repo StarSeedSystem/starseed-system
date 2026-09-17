@@ -1156,6 +1156,26 @@ def apto_para_tarea(modelo, t):
     return True
 
 
+#: Nota de espera ya anunciada por tarea, para no repetir el aviso cada 20 s.
+ESPERANDO = {}
+
+try:
+    _rp = os.path.join(ROOT, "scripts", "puente")
+    if _rp not in sys.path:
+        sys.path.insert(0, _rp)
+    import espera_de_dependencias as _espera_dep
+except Exception:  # sin el módulo, se comporta como antes: bloquear siempre
+    class _espera_dep(object):          # noqa: N801
+        @staticmethod
+        def veredicto(estados, hay_alguien_trabajando=True):
+            return "sigue" if all(e in ("commit",) for e in estados) else "bloqueo"
+
+        @staticmethod
+        def motivo(ids, estados, v):
+            return "dependencia no integrada: " + ", ".join(
+                "%s (%s)" % (i, e) for i, e in zip(ids, estados) if e != "commit")
+
+
 def dependencias_ok(t):
     """¿Están INTEGRADAS las dependencias duras de esta tarea? (2026-09-07, Ola 261)
 
@@ -6050,14 +6070,37 @@ def main():
             # Terminadas no basta: tienen que estar INTEGRADAS (Ola 264: G3 corrió con J1
             # «sin_cambios» y buscó un archivo que nunca llegó a main). Solo se bloquea por
             # las dependencias duras; las opcionales (`depende_opcional`) solo avisan.
-            ok, malas = dependencias_ok(t)
-            if not ok:
-                nota = "dependencia no integrada: " + ", ".join(malas)
+            # (2026-09-16, 22:45) ESPERAR NO ES RENDIRSE. Aquí antes había un
+            # `pendientes.pop(tid)` + `hechas.add(tid)`: la tarea se daba por
+            # TERMINADA por tener una dependencia que aún no estaba integrada, y
+            # `hechas` es el conjunto de las que ya no se vuelven a mirar. Bastaba
+            # que una dependencia fuera un minuto más lenta para matar a la que la
+            # esperaba, aunque se integrara justo después. Medido esta noche: SA3,
+            # ID2, CU2 y CU3 seguían «bloqueadas» con SA1, SA2, ID1 y CU1 ya en
+            # `commit` — cuatro tareas listas y nadie que las cogiera, mientras el
+            # enjambre se quedaba sin trabajo TENIENDO trabajo.
+            # Ahora se distingue: si la dependencia sigue viva es una espera y la
+            # tarea se queda en la cola; si está muerta (rechazada, bloqueante) o
+            # ya no trabaja nadie, entonces sí es bloqueo. Ver
+            # scripts/puente/espera_de_dependencias.py.
+            _ids_dep = list(t.get("depende") or [])
+            _est_dep = [PROG.get(d, {}).get("estado") for d in _ids_dep]
+            _v = _espera_dep.veredicto(_est_dep, hay_alguien_trabajando=bool(activos))
+            if _v == "espera":
+                nota = _espera_dep.motivo(_ids_dep, _est_dep, _v)
+                if ESPERANDO.get(tid) != nota:      # se avisa al cambiar, no cada vuelta
+                    ESPERANDO[tid] = nota
+                    set_estado(tid, estado="bloqueada", modelo="-", segundos=0, nota=nota)
+                    evento("bloqueada", tid, nota)
+                continue                            # SE QUEDA en pendientes
+            if _v == "bloqueo":
+                nota = _espera_dep.motivo(_ids_dep, _est_dep, _v)
                 set_estado(tid, estado="bloqueada", modelo="-", segundos=0, nota=nota)
                 evento("bloqueada", tid, nota)
                 pendientes.pop(tid)
                 hechas.add(tid)
                 continue
+            ESPERANDO.pop(tid, None)
             opcionales_malas = [
                 "%s (%s)" % (d, PROG.get(d, {}).get("estado"))
                 for d in (t.get("depende_opcional") or [])
