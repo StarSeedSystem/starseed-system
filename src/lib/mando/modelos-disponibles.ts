@@ -525,6 +525,48 @@ export async function saludCruda(): Promise<unknown> {
     return leerSaludJson();
 }
 
+/**
+ * Lo que la SONDA real dice de cada pasarela, que no es lo mismo que «tiene clave».
+ *
+ * (2026-09-16) El asistente técnico le contestó a Alex «Ningún modelo respondió» tras
+ * gastar 120 s en cuatro pasarelas muertas —aihubmix sin cuota, tokenrouter 503,
+ * nemotron 429, kimi-k3 mudo— mientras Groq, la neurona local y Grok estaban vivas y
+ * sin usar. La causa: aquí solo se miraba `salud-proveedores.json`, que dice «vivo»
+ * porque el proveedor CONTESTA AL PING. Contestar y devolver tokens son cosas distintas.
+ *
+ * `~/.starseed/pasarelas-informe.json` lo escribe `scripts/puente/renovador-pasarelas.py`
+ * probando cada pasarela con dieciséis tokens de verdad. Eso sí sabe quién escribe.
+ */
+async function estadosSonda(): Promise<Record<string, string>> {
+    try {
+        const crudo = await readFile(
+            path.join(homedir(), ".starseed", "pasarelas-informe.json"),
+            "utf-8",
+        );
+        const json = objeto(JSON.parse(crudo));
+        const t = texto(json.t);
+        const ms = t ? Date.parse(t.replace(" ", "T") + (t.length <= 19 ? "Z" : "")) : NaN;
+        // Un informe de hace horas no dice nada del ahora: mejor no opinar que mentir.
+        if (!Number.isFinite(ms) || Date.now() - ms > 30 * 60 * 1000) return {};
+        const salida: Record<string, string> = {};
+        for (const fila of Array.isArray(json.pasarelas) ? json.pasarelas : []) {
+            const f = objeto(fila);
+            const clave = texto(f.clave);
+            const estado = texto(f.estado);
+            if (!clave || !estado) continue;
+            // El vocabulario de la sonda traducido al que ya entiende la flota.
+            salida[clave] =
+                estado === "escribe" ? "vivo"
+                : estado === "sin_cupo" ? "sinCupo"
+                : estado === "lenta" ? "desconocido"
+                : "caido";
+        }
+        return salida;
+    } catch {
+        return {};
+    }
+}
+
 /** Estado textual por proveedor a partir del JSON ya leído (degrada lo viejo a «desconocido»). */
 function estadosSalud(json: unknown): Record<string, string> {
     const salida: Record<string, string> = {};
@@ -543,8 +585,13 @@ function estadosSalud(json: unknown): Record<string, string> {
 
 /** Todos los modelos usables ahora, con salud y si hay clave. */
 export async function listarModelos(): Promise<ModeloDisponible[]> {
-    const [xk, ol, pa, saludJson] = await Promise.all([modelosXkiro(), modelosOllama(), modelosPasarelas(), leerSaludJson()]);
-    const salud = estadosSalud(saludJson);
+    const [xk, ol, pa, saludJson, sonda] = await Promise.all([
+        modelosXkiro(), modelosOllama(), modelosPasarelas(), leerSaludJson(), estadosSonda(),
+    ]);
+    // La sonda MANDA sobre el ping: si probamos la pasarela con dieciséis tokens hace un
+    // rato, eso vale más que lo que diga el supervisor por alcanzabilidad. Donde la sonda
+    // no opina, se queda lo de antes.
+    const salud = { ...estadosSalud(saludJson), ...sonda };
     const detalles = interpretarSalud(saludJson);
     const conClave: Record<string, boolean> = {};
     for (const p of Object.keys(CLAVES)) conClave[p] = SIN_CLAVE_OK.has(p) || Boolean(await claveDe(...CLAVES[p]));
