@@ -1,6 +1,6 @@
 # Puente de Mando · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-16 18:59:09 desde el Mando vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-16 19:40:58 desde el Mando vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -12,22 +12,21 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | | |
 |---|---|
 | Mando | **encendido** en http://127.0.0.1:9002/mando |
-| Ola arriba | Ola 330 · Salud y verificación a la vista |
-| Agentes escribiendo | **1** |
-| En esta ola | integradas 0 · en curso 1 · esperando aprobación 0 · pendientes 0 |
-| Últimas 5 olas | en curso 1 · pendientes 0 · integradas 5 |
-| HEAD | `3a5882ef feat(puente): guardar-clave.sh — Alex pega la clave, nadie más la ve` |
-| Sin publicar | 1 commits |
-| Árbol | 2 archivos sin commitear |
+| Ola arriba | Ola Dream 2026-09-15 · lo que el análisis nocturno encontró |
+| Agentes escribiendo | **0** |
+| En esta ola | integradas 0 · en curso 0 · esperando aprobación 0 · pendientes 3 |
+| Últimas 4 olas | en curso 0 · pendientes 3 · integradas 3 |
+| HEAD | `0f9e29ce chore(memoria): aprendizaje de la ola auto-0916-190818` |
+| Sin publicar | 7 commits |
+| Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-auto-0916-181047.json`, hace 22s)
+## Quién escribe ahora (latido de `cola-auto-0916-190818.json`, hace 3s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `CD1` | escribiendo | openrouter/google/gemma-4-31b-it:f | 12 min | 85 s | 15030 |
-| `SA1` | hecho | openrouter/thinkingmachines/inklin | 22 min | 1318 s | 59736 |
-| `SA0` | hecho | openrouter/nvidia/nemotron-3-super | 25 min | 1475 s | 37551 |
-| `SA2` | hecho | openrouter/thinkingmachines/inklin | 27 min | 1615 s | 67507 |
+| `NE1` | hecho | groq/openai/gpt-oss-20b | 1 min | 33 s | 3354 |
+| `CU1` | hecho | groq/qwen/qwen3.8-27b | 3 min | 197 s | 2861 |
+| `ID1` | hecho | groq/qwen/qwen3.8-27b | 6 min | 339 s | 2861 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.

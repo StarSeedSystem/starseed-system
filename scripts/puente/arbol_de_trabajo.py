@@ -21,7 +21,18 @@ Módulo PURO: entra el texto de `git status --porcelain`, salen dos listas.
 # de su funcionamiento normal. Solo esto se considera «propio»: la lista se
 # amplía a mano y con motivo, nunca con comodines, para que un fallo de un agente
 # no se cuele por aquí disfrazado de contabilidad.
-PROPIAS = ("memory/aprendizaje-olas.md",)
+PROPIAS = (
+    "memory/aprendizaje-olas.md",
+    # (2026-09-16, otra vez) El relevo del workflow a los IDE regenera estos cuatro al
+    # cerrar cada ola. Añadí el relevo por la tarde y volví a dejar el enjambre parado por
+    # lo mismo que por la mañana: «no arranco · ajeno: PUENTE-DE-MANDO.md». La lección no
+    # era «commitea la memoria de aprendizaje», era **todo lo que el enjambre escribe solo
+    # va en esta lista el mismo día que se escribe**.
+    "PUENTE-DE-MANDO.md",
+    ".github/copilot-instructions.md",
+    ".cursor/rules/puente-de-mando.mdc",
+    "memory/workflow-actual.md",
+)
 
 
 def ruta_de(linea):

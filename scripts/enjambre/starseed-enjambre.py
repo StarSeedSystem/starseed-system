@@ -134,6 +134,11 @@ MODELOS = [
     # Toda la escritura acabó cayendo en la suscripción de ChatGPT hasta agotarla.
     # `north-mini-code` es el que se probó escribiendo de verdad (creó un archivo con
     # una llamada de herramienta), no solo contestando a un chat: son cosas distintas.
+    # (2026-09-16, 19:45) Grok entra con clave propia de Alex y VERIFICADO escribiendo:
+    # el renovador lo sondeó con dieciséis tokens y respondió. Es de pago, así que va
+    # detrás de lo gratuito que funcione, pero delante de lo que está mudo.
+    "xai/grok-4.6",
+    "xai/grok-build-0.1",
     "openrouter/cohere/north-mini-code:free",
     "openrouter/nvidia/nemotron-3-super-120b-a12b:free",
     "openrouter/google/gemma-4-31b-it:free",

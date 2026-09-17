@@ -52,8 +52,8 @@ SONDAS = [
     ("tokenrouter", "https://api.tokenrouter.com/v1", "TOKENROUTER_API_KEY", "z-ai/glm-5.3-free"),
     ("aihubmix", "https://aihubmix.com/v1", "AIHUBMIX_API_KEY", "gpt-4o-mini"),
     ("apinex", "https://apinex.bond/v1", "STARSEED_PASARELA_APINEX_KEY", "gpt-4o-mini"),
-    ("deepseek", "https://api.deepseek.com/v1", "DEEPSEEK_API_KEY", "deepseek-chat"),
-    ("xai", "https://api.x.ai/v1", "XAI_API_KEY", "grok-4-fast"),
+    ("deepseek", "https://api.deepseek.com/v1", "DEEPSEEK_API_KEY", "deepseek-v4-pro"),
+    ("xai", "https://api.x.ai/v1", "XAI_API_KEY", "grok-4.6"),
 ]
 
 ARCHIVOS_DE_CLAVES = ("~/.hermes/.env", "~/.starseed/env")
