@@ -28,6 +28,7 @@ import { construirRamificacion } from "@/lib/mando/ramificacion";
 import { leerEstadoRelevo, leerEventosDelBus, leerProgreso, colaInteligente, leerColas } from "@/lib/mando/lector-local";
 import { listarModelos, llamarModelo, type MensajeModelo } from "@/lib/mando/modelos-disponibles";
 import { cadenaDeRespaldo, motivoLegible } from "@/lib/mando/respaldo-chat";
+import { ordenarCandidatos, informeVigente, type InformePasarela } from "@/lib/mando/asistente-rutas";
 import { raizDelProyecto } from "@/lib/mando/raiz";
 
 const RAÍZ = raizDelProyecto();
@@ -368,8 +369,19 @@ export async function responder(
     }));
     // Cadena de respaldo (Ola 323): si el modelo elegido tarda o está retirado, se sigue
     // con otro CRUZANDO PROVEEDOR en vez de devolver «This operation was aborted».
+    // Usa informe de pasarelas (escribe/sin_cupo/...) para priorizar vivas (Ola 336).
     const catalogo = await listarModelos().catch(() => []);
-    const cadena = cadenaDeRespaldo(modelo, catalogo, 4);
+    let candidatos = catalogo;
+    try {
+        const crudo = await readFile(path.join(homedir(), ".starseed", "pasarelas-informe.json"), "utf-8");
+        const inf = JSON.parse(crudo) as InformePasarela;
+        if (informeVigente(inf, Date.now())) {
+            candidatos = ordenarCandidatos(catalogo, inf, Date.now());
+        }
+    } catch {
+        // sin informe o viejo: se intenta con el catálogo tal cual
+    }
+    const cadena = cadenaDeRespaldo(modelo, candidatos, 4);
     const fallos: string[] = [];
     let r: Awaited<ReturnType<typeof llamarModelo>> | null = null;
     let usado = modelo;
