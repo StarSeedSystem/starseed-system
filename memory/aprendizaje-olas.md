@@ -317,3 +317,30 @@
 - `NE1` — no escribió nada
 - `SA1` — pruebas en rojo: vitest falla (rama conservada)
 - `SA2` — pruebas en rojo: vitest falla (rama conservada)
+
+## 2026-09-17 00:14 · auto-0916-222258
+
+**Lo que se pidió.** requiere una persona
+
+**Resultado.** 5 de 17 integradas. 12 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 3 tareas se fueron por lo mismo — la revisión lo rechazó (RS1, RS3, RS1b). Es 18 % de la ola.
+- 3 tareas se fueron por lo mismo — otra cosa (RS5, ID2, CU3). Es 18 % de la ola.
+- 3 tareas se fueron por lo mismo — no escribió nada (AS2, AS3, RA2). Es 18 % de la ola.
+- 3 tareas se fueron por lo mismo — conflicto al integrar (NE1, NE2, NE3). Es 18 % de la ola.
+- sin modelo anotado no integró ninguna de sus 8 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `RS1` — la revisión lo rechazó: rechazada automáticamente por ide (sin revisión humana); rama ola/RS1 conservada
+- `RS3` — la revisión lo rechazó: rechazada automáticamente por ide (sin revisión humana); rama ola/RS3 conservada
+- `RS5` — otra cosa: intento 1
+- `AS2` — no escribió nada
+- `AS3` — no escribió nada: dependencia no integrada: AS2 (sin_cambios)
+- `ID2` — otra cosa: intento 1
+- `CU3` — otra cosa: intento 1
+- `NE1` — conflicto al integrar: rama ola/NE1 conservada
+- `NE2` — conflicto al integrar: dependencia no integrada: NE1 (conflicto)
+- `NE3` — conflicto al integrar: dependencia no integrada: NE1 (conflicto)
+- `RA2` — no escribió nada
+- `RS1b` — la revisión lo rechazó: rechazada automáticamente por ide (sin revisión humana); rama ola/RS1b conservada
