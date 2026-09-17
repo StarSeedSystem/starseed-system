@@ -1,6 +1,6 @@
 # Puente de Mando · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-17 14:36:50 desde el Mando vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-17 15:36:53 desde el Mando vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -16,20 +16,20 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | Agentes escribiendo | **0** |
 | En esta ola | integradas 2 · en curso 0 · esperando aprobación 0 · pendientes 0 |
 | Últimas 4 olas | en curso 0 · pendientes 0 · integradas 2 |
-| HEAD | `9f97f326 chore(memoria): aprendizaje de la ola auto-0917-141853` |
-| Sin publicar | 5 commits |
+| HEAD | `970a886b chore(memoria): aprendizaje de la ola auto-0917-143956` |
+| Sin publicar | 7 commits |
 | Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-auto-0917-141853.json`, hace 4s)
+## Quién escribe ahora (latido de `cola-auto-0917-143956.json`, hace 4s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `CU3b` | hecho | codex/gpt-5.6-sol | 0 min | 27 s | 38973 |
-| `RS1p` | hecho | codex/gpt-5.6-sol | 14 min | 850 s | 25013 |
-| `RS3b` | hecho | codex/gpt-5.6-sol | 15 min | 898 s | 21496 |
-| `NE1b` | hecho | codex/gpt-5.6-sol | 15 min | 907 s | 27752 |
-| `DR0917-1` | hecho | codex/gpt-5.6-sol | 16 min | 960 s | 21097 |
-| `DR0917-2` | hecho | codex/gpt-5.6-sol | 16 min | 965 s | 17794 |
+| `RS1p` | hecho | groq/qwen/qwen3.8-27b | 0 min | 24 s | 52309 |
+| `RS3b` | hecho | codex/gpt-5.6-sol | 1 min | 54 s | 47530 |
+| `CU3b` | hecho | codex/gpt-5.6-sol | 24 min | 1451 s | 82231 |
+| `NE1b` | hecho | codex/gpt-5.6-sol | 26 min | 1530 s | 69441 |
+| `DR0917-2` | hecho | codex/gpt-5.6-sol | 32 min | 1902 s | 31375 |
+| `DR0917-1` | hecho | groq/openai/gpt-oss-120b | 41 min | 2442 s | 36410 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
