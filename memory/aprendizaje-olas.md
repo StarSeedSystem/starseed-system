@@ -275,3 +275,23 @@
 - `SA1` — pruebas en rojo: vitest falla (rama conservada)
 - `SA2` — pruebas en rojo: vitest falla (rama conservada)
 - `SA3` — pruebas en rojo: dependencia no integrada: SA1 (fallo_tests), SA2 (fallo_tests)
+
+## 2026-09-16 19:40 · auto-0916-190818
+
+**Lo que se pidió.** al día
+
+**Resultado.** 0 de 8 integradas. 8 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 8 tareas se fueron por lo mismo — no escribió nada (ID1, ID2, CU1, CU2, CU3, NE1). Es 100 % de la ola.
+- sin modelo anotado no integró ninguna de sus 8 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `ID1` — no escribió nada
+- `ID2` — no escribió nada: dependencia no integrada: ID1 (sin_cambios)
+- `CU1` — no escribió nada
+- `CU2` — no escribió nada: dependencia no integrada: CU1 (sin_cambios)
+- `CU3` — no escribió nada: dependencia no integrada: CU1 (sin_cambios)
+- `NE1` — no escribió nada
+- `NE2` — no escribió nada: dependencia no integrada: NE1 (sin_cambios)
+- `NE3` — no escribió nada: dependencia no integrada: NE1 (sin_cambios)
