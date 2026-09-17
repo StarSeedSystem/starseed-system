@@ -404,6 +404,14 @@ def _telegram_send(token, chat_id, texto, reply_markup=None, disable_notificatio
     """
     if not chat_id:
         return {"ok": False, "description": "sin chat_id"}
+    # (2026-09-17) Todo mensaje sale con su hora al final. Pedido por Alex: la
+    # hora del cliente se pierde al releer, reenviar o cambiar de zona, y en este
+    # proyecto el «cuándo» es la mitad del dato.
+    try:
+        import hora_en_mensajes as _hora
+        texto = _hora.con_hora(texto)
+    except Exception:
+        pass
     payload = {
         "chat_id": str(chat_id),
         "text": texto,

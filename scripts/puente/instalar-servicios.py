@@ -102,5 +102,15 @@ if os.path.exists(TUNEL):
     instalar("com.starseed.astraura.tunnel", LANZ + ["--", "/bin/bash", TUNEL],
              "/tmp/astraura_tunnel.log", True)
 
+# (2026-09-17) El túnel del Puente de Mando: mismo mecanismo que el de Astraura,
+# hacia :9002. Pedido por Alex para abrir y vincular el Mando desde cualquier
+# navegador. Su guion vuelve enseguida si ya hay túnel vivo; launchd lo relanza
+# cada 5 min como vigilante, y si la URL cambia, tunel-mando.sh la guarda en
+# ~/.starseed/tunel-mando.json (nunca en el repo).
+TUNEL_MANDO = P("tunel-mando.sh")
+if os.path.exists(TUNEL_MANDO):
+    instalar("com.starseed.mando.tunel", LANZ + ["--", "/bin/bash", TUNEL_MANDO],
+             os.path.expanduser("~/.starseed/tunel-mando.log"), True)
+
 print("\nlaunchd los mantiene vivos aunque se reinicie el MCP, se cierre la terminal o se")
 print("apague la Mac. Vuelve a ejecutar esto cada vez que toques un guion del puente.")
