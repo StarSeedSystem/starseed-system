@@ -1,6 +1,6 @@
 # Puente de Mando · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-17 16:31:13 desde el Mando vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-17 17:39:02 desde el Mando vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -15,21 +15,20 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | Ola arriba | Ola Dream 2026-09-15 · lo que el análisis nocturno encontró |
 | Agentes escribiendo | **0** |
 | En esta ola | integradas 2 · en curso 0 · esperando aprobación 0 · pendientes 0 |
-| Últimas 4 olas | en curso 0 · pendientes 8 · integradas 3 |
-| HEAD | `a9c4dac2 chore(memoria): aprendizaje de la ola auto-0917-154009` |
-| Sin publicar | 10 commits |
-| Árbol | 5 archivos sin commitear |
+| Últimas 4 olas | en curso 0 · pendientes 2 · integradas 4 |
+| HEAD | `ed7f6823 chore(memoria): aprendizaje de la ola auto-0917-164038` |
+| Sin publicar | 2 commits |
+| Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-auto-0917-154009.json`, hace 291s)
+## Quién escribe ahora (latido de `cola-auto-0917-164038.json`, hace 7s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `RS3b` | hecho | codex/gpt-5.6-sol | 5 min | 316 s | 60061 |
-| `NE1b` | hecho | nvidia/deepseek-ai/deepseek-v4-fla | 8 min | 508 s | 133773 |
-| `RS1p` | hecho | codex/gpt-5.6-sol | 19 min | 1152 s | 61698 |
-| `DR0917-2` | hecho | codex/gpt-5.6-sol | 20 min | 1188 s | 62265 |
-| `CU3b` | hecho | codex/gpt-5.6-sol | 34 min | 2016 s | 95742 |
-| `DR0917-1` | hecho | codex/gpt-5.6-sol | 49 min | 2958 s | 43931 |
+| `RS1p` | hecho | nvidia/moonshotai/kimi-k3 | 1 min | 30 s | 107086 |
+| `CU3b` | hecho | nvidia/deepseek-ai/deepseek-v4-fla | 18 min | 1059 s | 164650 |
+| `RS3b` | hecho | nvidia/moonshotai/kimi-k3 | 27 min | 1599 s | 65652 |
+| `DR0917-2` | hecho | codex/gpt-5.6-sol | 27 min | 1640 s | 146476 |
+| `DR0917-1` | hecho | groq/openai/gpt-oss-120b | 42 min | 2524 s | 79002 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
