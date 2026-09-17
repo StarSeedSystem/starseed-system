@@ -85,7 +85,14 @@ def tarea_de(p, fecha, i):
     enteras.
     """
     return {
-        "id": "DR%d" % (i + 1),
+        # (2026-09-17) EL ID LLEVA LA FECHA. Antes era «DR1», «DR2»… y eso hacía que
+        # el mecanismo entero sirviera UNA sola vez: el segundo informe reusaba los
+        # ids del primero, el orquestador los veía en progreso.json como ya hechos o
+        # bloqueados, y no los cogía nunca. Lo pilló el informe de hoy, cuyo «DR1»
+        # choca con el «DR1» del día 15 que está en «bloqueante». Alex pidió que los
+        # Dream se procesaran CADA VEZ que ocurren; con ids repetidos solo se
+        # procesaba el primero.
+        "id": "DR%s-%d" % (str(fecha).replace("-", "")[4:], i + 1),
         "ola": "Ola Dream %s · lo que el análisis nocturno encontró" % fecha,
         "titulo": p["titulo"],
         "archivos": [],
