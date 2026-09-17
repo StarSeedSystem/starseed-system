@@ -291,6 +291,18 @@ def _abre_200(_req, timeout=None):
     return io.BytesIO(b"{}")
 
 
+class _Genera200(io.BytesIO):
+    """Como `_abre_200`, pero con `.status`: la sonda de GENERACIÓN mira `r.status`
+    y un BytesIO pelado revienta con AttributeError, que se traga el `except` y
+    sale como «no vivo». Con esto la respuesta parece una generación de verdad."""
+
+    status = 200
+
+
+def _genera_ok(_req, timeout=None):
+    return _Genera200(b'{"choices": [{"message": {"content": "ok"}}]}')
+
+
 def _registra_url(urls):
     def _urlopen(req, timeout=None):
         urls.append(req.full_url)
@@ -327,17 +339,32 @@ def test_sonda_ligera_401_agota_clave_rechazada(medios, monkeypatch):
     assert "rechazada" in ent["motivo"]
 
 
-def test_sonda_200_tras_429_limpia_y_recupera(medios, monkeypatch):
-    # (2026-09-07, Ola 271, P9D, Tarea 2) Tras agotar la única clave por 429 (1 h), la sonda
-    # ligera con 200 libera ESA entrada y emite `proveedor_recuperado`; las 402/cuota aguantan.
+def test_una_generacion_real_tras_429_limpia_y_recupera(medios, monkeypatch):
+    # (2026-09-07, Ola 271, P9D, Tarea 2 · corregida el 2026-09-16)
+    # Tras agotar la única clave por 429 (1 h), lo que la libera es una GENERACIÓN
+    # que sale bien, no un 200 del catálogo: listar modelos demuestra que la clave
+    # es válida, no que quede cupo. OpenRouter contesta 200 en `/models` todo el día
+    # mientras rechaza cada generación con 429; liberar con eso sería devolverla a
+    # la rotación para que vuelva a fallar.
+    # Esta prueba pedía lo contrario y llevaba días en rojo en main, tumbando la
+    # puerta de pruebas de cada tarea que tocara el enjambre. Las 402/cuota aguantan.
     monkeypatch.setitem(enjambre.CLAVES_POR_PROVEEDOR, "xkiro", [BASE])
     eventos = []
     monkeypatch.setattr(enjambre, "evento", lambda tipo, tarea, texto, datos=None: eventos.append((tipo, texto)))
     primera = enjambre.clave_activa("xkiro")
     enjambre.agotar_clave("xkiro", primera["huella"], "tres 429", tipo="429")
-    assert primera["huella"] in (json.load(open(enjambre.SALUD_JSON, encoding="utf-8"))["xkiro"] or {}).get("claves_agotadas", {})
+    agotadas = (json.load(open(enjambre.SALUD_JSON, encoding="utf-8"))["xkiro"] or {}).get("claves_agotadas", {})
+    assert primera["huella"] in agotadas
+
+    # El catálogo NO basta: responde 200 y la marca sigue puesta.
     monkeypatch.setattr(enjambre.urllib.request, "urlopen", _abre_200)
     assert enjambre._sonda_ligera("xkiro", ("XKIRO_API_KEY",), primera) is True
+    salud = json.load(open(enjambre.SALUD_JSON, encoding="utf-8"))
+    assert primera["huella"] in (salud["xkiro"].get("claves_agotadas") or {})
+
+    # Una generación real que escribe sí la libera y avisa.
+    monkeypatch.setattr(enjambre.urllib.request, "urlopen", _genera_ok)
+    assert enjambre._sonda_generacion("xkiro", ("XKIRO_API_KEY",), primera) is True
     salud = json.load(open(enjambre.SALUD_JSON, encoding="utf-8"))
     assert primera["huella"] not in (salud["xkiro"].get("claves_agotadas") or {})
     assert not enjambre.sin_cupo("xkiro")                 # la marca de sin cupo se liberó

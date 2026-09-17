@@ -743,7 +743,7 @@ def _liberar_429(prov):
 
 def _sonda_ligera(prov, claves, kay):
     """GET a `/models` con la clave activa (2026-09-07, Ola 271, P9D, Tarea 4): no consume cupo de
-    generación. 200 → catálogo accesible, sin renovar cupos; 401/403 → clave inválida (agotar 24 h,
+    generación. 200 → catálogo accesible (NO libera cupos: listar no es generar); 401/403 → clave inválida (agotar 24 h,
     «clave rechazada»); 402 → agotar 24 h; resto (5xx/timeout/red) → caído."""
     url = MODELS_URLS.get(prov) or (
         PASARELAS[prov]["url"].rstrip("/chat/completions") + "/models"
@@ -780,6 +780,10 @@ def _sonda_ligera(prov, claves, kay):
     huella = (kay or {}).get("huella")
     try:
         with urllib.request.urlopen(req, timeout=40) as r:
+            # NO se libera aquí ningún 429: listar el catálogo demuestra que la
+            # clave es VÁLIDA, no que quede cupo para generar. OpenRouter contesta
+            # 200 en `/models` todo el día mientras rechaza cada generación con 429.
+            # La liberación vive en `_sonda_generacion`, que es la única prueba real.
             return True
     except urllib.error.HTTPError as e:
         if e.code in (401, 403):
@@ -882,6 +886,15 @@ def _sonda_generacion(prov, claves, kay):
             agotar_clave(prov, huella, "sonda: tres 429 en 10 min", tipo="429")
         else:
             _clasificar_fallo_cupo(prov, e)
+    # (2026-09-16) Una GENERACIÓN que sale bien es la única prueba de que hay cupo,
+    # y hasta hoy no servía de nada: `_liberar_429` existía, tenía su prueba desde la
+    # Ola 271… y no lo llamaba NADIE. Era código muerto. Resultado: una pasarela que
+    # daba un 429 y se reponía a los cinco minutos seguía apartada la hora entera,
+    # aunque el enjambre acabara de escribir con ella. Capacidad gratis tirada, y
+    # ningún «proveedor_recuperado» en el Mando en todo ese tiempo.
+    # Las 402/cuota NO se tocan: esas aguantan sus 24 h.
+    if vivo:
+        _liberar_429(prov)
     return vivo
 
 

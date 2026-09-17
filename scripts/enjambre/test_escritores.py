@@ -109,10 +109,20 @@ class AsegurarModeloTest(unittest.TestCase):
 
 class CodexCliTest(unittest.TestCase):
     def test_comando_usa_el_modelo_y_el_sandbox_verificados(self):
+        # SIN `--approve-for-me`. Se quitó el 16/09 porque la CLI de codex lo
+        # rechaza junto a `-s`:
+        #     error: the argument '--sandbox <SANDBOX_MODE>' cannot be used
+        #            with '--approve-for-me'
+        # …y la orden muere antes de arrancar. Esta prueba se quedó pidiendo la
+        # bandera vieja y estuvo en rojo en main, tumbando la puerta de pruebas
+        # de CADA tarea que tocara el enjambre: SA2 y CU1 se dieron por
+        # «fallo_tests» por esto, sin tener nada que ver. Es la tercera vez este
+        # mes que una prueba desactualizada cuesta una ola entera.
+        # `test_comando_codex.py` cubre el porqué; aquí se fija la forma exacta.
         self.assertEqual(
             enjambre.comando_codex("codex/gpt-5.6-sol", "/tmp/tarea"),
             ["codex", "exec", "-m", "gpt-5.6-sol", "-s", "workspace-write",
-             "--approve-for-me", "--skip-git-repo-check", "-C", "/tmp/tarea"],
+             "--skip-git-repo-check", "-C", "/tmp/tarea"],
         )
 
     def test_flota_codex_no_incluye_modelos_rechazados_por_chatgpt(self):
