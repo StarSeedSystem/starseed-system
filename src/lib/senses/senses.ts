@@ -26,6 +26,12 @@ import {
   Bell,
   HeartPulse,
 } from "lucide-react";
+import {
+  estadoPermiso,
+  entornoPermisos,
+  requestDevicePermission,
+  type PermisoDispositivo,
+} from "@/lib/aurora/senses/request-permission";
 
 // ── Tipos ──────────────────────────────────────────────────────────────────
 
@@ -61,18 +67,20 @@ export interface SensesConfig {
   astraura: SenseFlags;
 }
 
-/** (Adenda 182) ¿Este navegador es un VISOR EMBEBIDO que bloquea los permisos de
- * dispositivo a nivel navegador (sin mostrar diálogos)? Verificado en vivo: el
- * visor integrado de Claude (UA `Claude/x.y`) pre-deniega micrófono/cámara/
- * ubicación/notificaciones/portapapeles — no es un fallo del OS. La UI debe
- * decirlo con su motivo en vez de pintar «Denegado» como si fuera culpa tuya. */
+/** Visor embebido que suprime diálogos: una sola fuente (`entornoPermisos`). */
 export function visorBloqueaPermisos(): { bloqueado: boolean; visor: string } {
-  if (typeof navigator === "undefined") return { bloqueado: false, visor: "" };
-  const ua = navigator.userAgent;
-  if (/ Claude\//.test(ua)) return { bloqueado: true, visor: "el visor integrado de Claude" };
-  if (/ Electron\//.test(ua)) return { bloqueado: true, visor: "esta app embebida" };
-  return { bloqueado: false, visor: "" };
+  const visor = entornoPermisos().visor;
+  return visor ? { bloqueado: true, visor } : { bloqueado: false, visor: "" };
 }
+
+/** Sentidos cuyo permiso web vive en `request-permission` (motor único). */
+export const SENTIDO_A_PERMISO: Partial<Record<SensePermission, PermisoDispositivo>> = {
+  "getUserMedia-audio": "microfono",
+  "getUserMedia-video": "camara",
+  geolocation: "ubicacion",
+  notifications: "notificaciones",
+  files: "archivos",
+};
 
 export interface SenseTestResult {
   ok: boolean;
@@ -322,53 +330,29 @@ function findSense(senseId: string): Sense | undefined {
   return SENSES.find((s) => s.id === senseId);
 }
 
+function resultadoASentido(r: {
+  soportado: boolean;
+  concedido: boolean;
+  motivo?: string;
+}): SenseTestResult {
+  if (r.concedido) return { ok: true, state: "granted" };
+  if (!r.soportado) return { ok: false, state: "unsupported", error: r.motivo };
+  const denied = /denied|denegado|bloque/i.test(r.motivo ?? "");
+  return { ok: false, state: denied ? "denied" : "prompt", error: r.motivo };
+}
+
 /**
- * Consulta el estado del permiso vía navigator.permissions.query donde exista.
- * Devuelve "unsupported" si no se puede consultar (no implica denegado).
+ * Consulta el estado del permiso. Los sentidos con API web común delegan en
+ * `estadoPermiso`; pantalla y portapapeles no son consultables.
  */
 export async function permissionState(
   senseId: string,
 ): Promise<SenseTestResult["state"]> {
-  if (typeof navigator === "undefined") return "unsupported";
   const sense = findSense(senseId);
   if (!sense) return "unsupported";
-  const nav = navigator as Navigator & {
-    permissions?: {
-      query: (d: { name: PermissionName }) => Promise<PermissionStatus>;
-    };
-  };
-  if (!nav.permissions?.query) return "unsupported";
-
-  // Mapear el sentido a un nombre de permiso consultable.
-  let name: string | null = null;
-  switch (sense.permission) {
-    case "getUserMedia-audio":
-      name = "microphone";
-      break;
-    case "getUserMedia-video":
-      name = "camera";
-      break;
-    case "geolocation":
-      name = "geolocation";
-      break;
-    case "clipboard":
-      name = "clipboard-read";
-      break;
-    case "notifications":
-      name = "notifications";
-      break;
-    // getDisplayMedia y files no son consultables.
-    default:
-      name = null;
-  }
-  if (!name) return "unsupported";
-
-  try {
-    const status = await nav.permissions.query({ name: name as PermissionName });
-    return (status.state as SenseTestResult["state"]) ?? "prompt";
-  } catch {
-    return "unsupported";
-  }
+  const permiso = SENTIDO_A_PERMISO[sense.permission];
+  if (!permiso) return "unsupported";
+  return estadoPermiso(permiso);
 }
 
 function stopStream(stream: MediaStream | null | undefined) {
@@ -380,10 +364,9 @@ function stopStream(stream: MediaStream | null | undefined) {
 }
 
 /**
- * Invoca de verdad la API del navegador correspondiente para comprobar el
- * permiso. Detiene de inmediato cualquier MediaStream obtenido (sólo estamos
- * verificando el permiso; no capturamos nada). SSR-safe: úsalo sólo desde
- * manejadores de eventos.
+ * Invoca de verdad la API del navegador. Mic/cámara/geo/avisos/archivos van
+ * por `requestDevicePermission` (motor único). Pantalla y portapapeles no
+ * tienen permiso web reutilizable: se piden al usar.
  */
 export async function requestSense(senseId: string): Promise<SenseTestResult> {
   if (typeof window === "undefined" || typeof navigator === "undefined") {
@@ -392,84 +375,41 @@ export async function requestSense(senseId: string): Promise<SenseTestResult> {
   const sense = findSense(senseId);
   if (!sense) return { ok: false, state: "error", error: "Sentido desconocido" };
 
-  try {
-    switch (sense.permission) {
-      case "getUserMedia-audio": {
-        if (!navigator.mediaDevices?.getUserMedia)
-          return { ok: false, state: "unsupported", error: "getUserMedia no disponible" };
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        stopStream(stream);
-        return { ok: true, state: "granted" };
-      }
-      case "getUserMedia-video": {
-        if (!navigator.mediaDevices?.getUserMedia)
-          return { ok: false, state: "unsupported", error: "getUserMedia no disponible" };
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-        stopStream(stream);
-        return { ok: true, state: "granted" };
-      }
-      case "getDisplayMedia": {
-        const md = navigator.mediaDevices as MediaDevices & {
-          getDisplayMedia?: (c?: unknown) => Promise<MediaStream>;
-        };
-        if (!md?.getDisplayMedia)
-          return { ok: false, state: "unsupported", error: "getDisplayMedia no disponible" };
-        const stream = await md.getDisplayMedia({ video: true });
-        stopStream(stream);
-        return { ok: true, state: "granted" };
-      }
-      case "geolocation": {
-        if (!navigator.geolocation)
-          return { ok: false, state: "unsupported", error: "geolocation no disponible" };
-        return await new Promise<SenseTestResult>((resolve) => {
-          navigator.geolocation.getCurrentPosition(
-            () => resolve({ ok: true, state: "granted" }),
-            (err) =>
-              resolve({
-                ok: false,
-                state: err.code === err.PERMISSION_DENIED ? "denied" : "error",
-                error: err.message,
-              }),
-            { timeout: 10000 },
-          );
-        });
-      }
-      case "clipboard": {
-        const clip = navigator.clipboard as Clipboard & {
-          readText?: () => Promise<string>;
-        };
-        if (!clip?.readText)
-          return { ok: false, state: "unsupported", error: "clipboard.readText no disponible" };
-        await clip.readText();
-        return { ok: true, state: "granted" };
-      }
-      case "notifications": {
-        if (typeof Notification === "undefined")
-          return { ok: false, state: "unsupported", error: "Notification no disponible" };
-        const perm = await Notification.requestPermission();
-        return {
-          ok: perm === "granted",
-          state:
-            perm === "granted" ? "granted" : perm === "denied" ? "denied" : "prompt",
-        };
-      }
-      case "files": {
-        // (Adenda 181) Antes era un STUB que no hacía nada — por eso «archivos»
-        // parecía roto en la Bienvenida. Ahora abre el flujo REAL: elegir carpeta
-        // (File System Access, con respaldo universal por subida en Safari/Firefox),
-        // DETECTAR configs de cerebros/cuentas StarSeed dentro, y disparar la
-        // auto-detección/escaneo del backend de la neurona.
-        const m = await import("@/lib/aurora/senses/folder-detect");
-        const res = await m.conectarCarpetaYDetectar();
-        if (!res) return { ok: false, state: "prompt", error: "cancelado (no se eligió carpeta)" };
-        try {
-          window.dispatchEvent(new CustomEvent("starseed:carpeta-detectada", { detail: res }));
-        } catch { /* el resumen es cortesía; el permiso ya quedó concedido */ }
-        return { ok: true, state: "granted" };
-      }
-      default:
-        return { ok: false, state: "unsupported" };
+  const permiso = SENTIDO_A_PERMISO[sense.permission];
+  if (permiso) {
+    if (permiso === "archivos") {
+      const m = await import("@/lib/aurora/senses/folder-detect");
+      const res = await m.conectarCarpetaYDetectar();
+      if (!res) return { ok: false, state: "prompt", error: "cancelado (no se eligió carpeta)" };
+      try {
+        window.dispatchEvent(new CustomEvent("starseed:carpeta-detectada", { detail: res }));
+      } catch { /* el resumen es cortesía; el permiso ya quedó concedido */ }
+      return { ok: true, state: "granted" };
     }
+    return resultadoASentido(await requestDevicePermission(permiso));
+  }
+
+  try {
+    if (sense.permission === "getDisplayMedia") {
+      const md = navigator.mediaDevices as MediaDevices & {
+        getDisplayMedia?: (c?: unknown) => Promise<MediaStream>;
+      };
+      if (!md?.getDisplayMedia)
+        return { ok: false, state: "unsupported", error: "getDisplayMedia no disponible" };
+      const stream = await md.getDisplayMedia({ video: true });
+      stopStream(stream);
+      return { ok: true, state: "granted" };
+    }
+    if (sense.permission === "clipboard") {
+      const clip = navigator.clipboard as Clipboard & {
+        readText?: () => Promise<string>;
+      };
+      if (!clip?.readText)
+        return { ok: false, state: "unsupported", error: "clipboard.readText no disponible" };
+      await clip.readText();
+      return { ok: true, state: "granted" };
+    }
+    return { ok: false, state: "unsupported" };
   } catch (e) {
     const err = e as DOMException;
     const denied =
