@@ -305,6 +305,20 @@ def es_repetido(linea, ultimo, umbral_secuencias=SECUENCIA_REPITO,
     return False
 
 
+def _importa(linea):
+    """¿Esta línea del canal merece sonar en el móvil?
+
+    La decisión vive en `importancia.py` (puro y con pruebas). Si no se puede importar,
+    se reenvía todo: es el comportamiento de antes, ruidoso pero sin perder nada.
+    """
+    try:
+        import importancia
+
+        return importancia.suena(linea)
+    except Exception:
+        return True
+
+
 def _pinta_json(linea):
     """Formatea un objeto del canal para que se lea bien en Telegram (plain).
 
@@ -600,6 +614,9 @@ def _ejecutar_puente():
         desde = 0
 
     print("Escuchando Telegram y canal común (%s)…" % canal)
+    # (2026-09-16) Contador de lo que se calla, para decirlo de vez en cuando en una frase.
+    _callados_vistos = 0
+    _ultimo_resumen = time.time()
     while True:
         try:
             # 1. Revisar Telegram.
@@ -728,8 +745,16 @@ def _ejecutar_puente():
 
             # 2. Vacía el canal común hacia Telegram.
             nuevas = mensajes_canal_desde(canal, desde_epoch=desde)
+            # (2026-09-16) Alex: «reduce las notificaciones, que son demasiadas, y que solo
+            # envíe las más importantes». El canal es la contabilidad interna del enjambre:
+            # en una hora normal son decenas de latidos y rotaciones de modelo. Suena lo que
+            # exige una decisión o cambia el rumbo; el resto se cuenta en una frase cada
+            # tanto. Nada se pierde: todo sigue en el canal.
+            _callados_vistos += len([l for l in nuevas if not _importa(l)])
             for linea in nuevas:
                 desde = max(desde, linea.get("epoch", 0) or 0)
+                if not _importa(linea):
+                    continue
                 if not debe_reenviar_linea(linea):
                     continue
                 if es_repetido(linea, ultimo_enviado):
@@ -744,6 +769,16 @@ def _ejecutar_puente():
                                   "epoch": linea.get("epoch")}
                 with open(state_path, "w", encoding="utf-8") as f:
                     json.dump(ultimo_enviado, f)
+
+            # 2b. Lo callado no se pierde: una frase cada media hora, y solo si hubo mucho.
+            if _callados_vistos >= 25 and (time.time() - _ultimo_resumen) > 1800:
+                _telegram_send(token, chat_id,
+                               "En silencio desde el último resumen: %d avisos de rutina del "
+                               "enjambre (latidos, rotaciones de modelo, cerrojos). Están "
+                               "todos en el canal." % _callados_vistos,
+                               disable_notification=True)
+                _callados_vistos = 0
+                _ultimo_resumen = time.time()
 
             # 3. Vigilia propia: ¿qué pasa ahora que merezca un aviso?
             estado = _status()
