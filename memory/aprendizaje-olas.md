@@ -456,3 +456,20 @@
 **Lo que quedó fuera, una por una:**
 - `DR1` — no escribió nada
 - `AS2` — no escribió nada
+
+## 2026-09-17 13:45 · auto-0917-130634
+
+**Lo que se pidió.** antes, `variableSegura` solo publicaba cadenas con formato de nombre de variable de entorno (`^[A-Z][A-Z0-9_]{0,63}$`). Ahora se publica CUALQUIER string que el agente mande en `p.variable`. Si un agente mal configurado envía el valor de la clave en el campo `variable` —confusión clásica—, ese secreto acaba en la fila «nube
+
+**Resultado.** 0 de 5 integradas. 5 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 5 tareas se fueron por lo mismo — no escribió nada (NE1b, CU3b, RS3b, RS1p, RS1c). Es 100 % de la ola.
+- sin modelo anotado no integró ninguna de sus 5 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `NE1b` — no escribió nada
+- `CU3b` — no escribió nada
+- `RS3b` — no escribió nada
+- `RS1p` — no escribió nada
+- `RS1c` — no escribió nada: dependencia no integrada: RS1p (sin_cambios)
