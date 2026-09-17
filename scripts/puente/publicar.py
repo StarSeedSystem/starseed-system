@@ -30,6 +30,7 @@ if DIRECTORIO not in sys.path:
 
 import atexit
 
+import reventon as RV
 import turno_pesado as TP
 import verificacion_cambios as VC
 import verificar_publicado as VP
@@ -213,17 +214,57 @@ class Diario(object):
         os.replace(tmp, ESTADO)
 
 
-def puerta(diario, clave, orden, timeout=1800):
-    """Corre una puerta cronometrada. Devuelve True si pasó."""
-    t0 = time.time()
-    diario.marcar(clave, "corriendo")
-    rc, salida = correr(orden, timeout=timeout)
-    tardo = time.time() - t0
-    if rc == 0:
-        diario.marcar(clave, "ok", resumen_salida(clave, salida), tardo)
-        return True
-    diario.marcar(clave, "falla", salida, tardo)
+#: Techo de memoria para las puertas de node. La build ya lo tenía; tsc y vitest
+#: no, y arrancaban con el techo por defecto — que en una Mac con el swap lleno
+#: no alcanza ni para el arranque de node.
+HEAP_PUERTAS = "--max-old-space-size=4096"
+#: Lo que se espera antes de reintentar una puerta que reventó. No es magia: es
+#: el tiempo que tarda el sistema en soltar lo que el proceso muerto tenía.
+RESPIRO_S = 45
+
+
+def puerta(diario, clave, orden, timeout=1800, intentos=2):
+    """Corre una puerta cronometrada. Devuelve True si pasó.
+
+    Si el proceso REVIENTA (se queda sin memoria, lo matan) en vez de dar un
+    veredicto, espera y lo intenta una segunda vez, y lo cuenta como lo que es.
+    Hoy el Mando dijo «los tipos no compilan» cuando lo que había pasado es que
+    node murió antes de arrancar: media hora buscando un error inexistente.
+    Un fallo DE VERDAD no se reintenta nunca — eso sería taparlo.
+    """
+    env = entorno()
+    previo = env.get("NODE_OPTIONS", "")
+    if "max-old-space-size" not in previo:
+        env["NODE_OPTIONS"] = (previo + " " + HEAP_PUERTAS).strip()
+
+    for intento in range(1, intentos + 1):
+        t0 = time.time()
+        diario.marcar(clave, "corriendo", "" if intento == 1 else "segundo intento tras quedarse sin memoria")
+        rc, salida = correr(orden, timeout=timeout, env=env)
+        tardo = time.time() - t0
+        if rc == 0:
+            diario.marcar(clave, "ok", resumen_salida(clave, salida), tardo)
+            return True
+        if RV.hay_que_reintentar(rc, salida, intento=intento, tope=intentos):
+            diario.marcar(clave, "corriendo",
+                          "el proceso murió sin memoria; esperando %d s y repitiendo" % RESPIRO_S,
+                          tardo)
+            time.sleep(RESPIRO_S)
+            continue
+        _ULTIMO[clave] = (rc, salida)
+        diario.marcar(clave, "falla", salida, tardo)
+        return False
     return False
+
+
+#: Lo último que devolvió cada puerta, para poder explicar el fallo con verdad.
+_ULTIMO = {}
+
+
+def motivo_de(clave):
+    """«No se publicó porque…», dicho con lo que de verdad pasó."""
+    rc, salida = _ULTIMO.get(clave, (1, ""))
+    return "no se publicó: " + RV.motivo(clave, rc, salida)
 
 
 def resumen_salida(clave, salida):
@@ -346,10 +387,10 @@ def main():
     # empieza hasta que la máquina esté libre: ver `tomar_turno`.
     tomar_turno(diario)
     if not puerta(diario, "tsc", ["npx", "tsc", "--noEmit"], timeout=1800):
-        diario.cerrar("fallo", "no se publicó: los tipos no compilan")
+        diario.cerrar("fallo", motivo_de("tsc"))
         return 1
     if not puerta(diario, "vitest", ["npx", "vitest", "run"], timeout=2400):
-        diario.cerrar("fallo", "no se publicó: hay pruebas del OS en rojo")
+        diario.cerrar("fallo", motivo_de("vitest"))
         return 1
     if not puerta(
         diario,
@@ -357,7 +398,7 @@ def main():
         [sys.executable, "-m", "unittest", "discover", "-s", "scripts/puente", "-p", "test_*.py"],
         timeout=900,
     ):
-        diario.cerrar("fallo", "no se publicó: hay pruebas del puente en rojo")
+        diario.cerrar("fallo", motivo_de("python"))
         return 1
 
     hace_falta, porque = necesita_build()
