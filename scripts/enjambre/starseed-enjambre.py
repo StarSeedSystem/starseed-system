@@ -6113,6 +6113,18 @@ def main():
         )
     except Exception:
         pass
+    # (2026-09-16) Y se lee el Dream. Hermes lleva desde el 6 de septiembre escribiendo
+    # un informe cada mañana y NADIE los había abierto: nueve informes. El primero que se
+    # leyó traía un token de GitHub incrustado en el remoto de un repo — un riesgo real
+    # escrito y sin ver durante días. Lo accionable se encola; el resto queda en el canal.
+    try:
+        subprocess.run(
+            [sys.executable, os.path.join(ROOT, "scripts", "puente", "director_dream.py"),
+             "--tope", "2"],
+            cwd=ROOT, timeout=120, capture_output=True,
+        )
+    except Exception:
+        pass
     try:
         desconectar_medios_locales()
     except Exception:
