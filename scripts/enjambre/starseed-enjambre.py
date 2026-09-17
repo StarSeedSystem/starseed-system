@@ -6102,6 +6102,17 @@ def main():
         )
     except Exception:
         pass
+    # (2026-09-16) Y se releva el workflow a TODOS los entornos: Claude, Hermes, Codex,
+    # Cursor, VS Code, Antigravity. El documento llevaba cinco días sin regenerarse y cada
+    # IDE trabajaba con un estado de hace una semana y sin el método — así es como uno
+    # «arregló» una prueba moviéndola y otro integró una función que nadie llamaba.
+    try:
+        subprocess.run(
+            [sys.executable, os.path.join(ROOT, "scripts", "puente", "sincronizar-ides.py")],
+            cwd=ROOT, timeout=120, capture_output=True,
+        )
+    except Exception:
+        pass
     try:
         desconectar_medios_locales()
     except Exception:

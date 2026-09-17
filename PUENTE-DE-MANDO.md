@@ -1,6 +1,6 @@
 # Puente de Mando · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-12 14:10:34 desde el Mando vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-16 18:59:09 desde el Mando vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -12,23 +12,22 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | | |
 |---|---|
 | Mando | **encendido** en http://127.0.0.1:9002/mando |
-| Ola arriba | Ola 316 · Salud del Puente: agentes que vigilan cada medidor |
-| Agentes escribiendo | **5** |
-| En esta ola | integradas 0 · en curso 1 · esperando aprobación 0 · pendientes 5 |
-| Últimas 7 olas | en curso 5 · pendientes 5 · integradas 10 |
-| HEAD | `b0e46839 Puente · el Mando vuelve a 9002 con next start sobre el build compilado` |
-| Sin publicar | 0 commits |
-| Árbol | limpio |
+| Ola arriba | Ola 330 · Salud y verificación a la vista |
+| Agentes escribiendo | **1** |
+| En esta ola | integradas 0 · en curso 1 · esperando aprobación 0 · pendientes 0 |
+| Últimas 5 olas | en curso 1 · pendientes 0 · integradas 5 |
+| HEAD | `3a5882ef feat(puente): guardar-clave.sh — Alex pega la clave, nadie más la ve` |
+| Sin publicar | 1 commits |
+| Árbol | 2 archivos sin commitear |
 
-## Quién escribe ahora (latido de `cola-auto-0912-141019.json`, hace 0s)
+## Quién escribe ahora (latido de `cola-auto-0916-181047.json`, hace 22s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `p316A` | escribiendo | nvidia/moonshotai/kimi-k3 | 0 min | 9 s | 234 |
-| `zAR3` | escribiendo | xkiro/qwen/qwen3-coder-plus:free | 0 min | 10 s | 323 |
-| `LT3` | escribiendo | xkiro/qwen/qwen3-coder-plus:free | 0 min | 10 s | 767 |
-| `MD7` | escribiendo | nvidia/deepseek-ai/deepseek-v4-pro | 0 min | 10 s | 4485 |
-| `MD3` | escribiendo | nvidia/moonshotai/kimi-k3 | 0 min | 10 s | 464 |
+| `CD1` | escribiendo | openrouter/google/gemma-4-31b-it:f | 12 min | 85 s | 15030 |
+| `SA1` | hecho | openrouter/thinkingmachines/inklin | 22 min | 1318 s | 59736 |
+| `SA0` | hecho | openrouter/nvidia/nemotron-3-super | 25 min | 1475 s | 37551 |
+| `SA2` | hecho | openrouter/thinkingmachines/inklin | 27 min | 1615 s | 67507 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
@@ -72,3 +71,68 @@ vigilante del orquestador lee **cada 20 s**. Da igual quién la escriba: es el m
 | Mando | `http://127.0.0.1:9002/mando` — local, `/api/mando/*` devuelve 404 en producción |
 | Publicado | https://starseed-os.vercel.app |
 
+## Cómo se trabaja aquí
+
+Esto es el MÉTODO, no el estado. Vale igual en Claude, Hermes, Codex, Cursor, VS Code o
+Antigravity: quien abra un chat sobre este repo trabaja así. Lo escribe el Puente de Mando y
+se regenera solo — no lo edites a mano; el original es `memory/workflow-actual.md`.
+
+### Quién escribe qué
+
+El **enjambre escribe el código de producto**. Los asistentes (Claude, Hermes, Codex…)
+dirigen, verifican y publican: diseñan olas, las lanzan, miran el Mando, comprueban en
+`localhost` y aprueban. No se escribe código de producto a mano salvo para DESHACER una
+regresión. Esto lo pidió Alex expresamente y no es negociable.
+
+**Acceso de edición total del programa: `maggasukha@star.seed`.** Hoy es la única cuenta con
+acceso de desarrollador. Nuevos desarrolladores solo por votación de los que ya lo son.
+
+### Las puertas de una tarea, en orden
+
+alcance → **cableado** → tsc (+reparación) → vitest con el alcance de la tarea (+reparación) →
+revisión de segunda opinión → integración.
+
+Antes de arrancar el orquestador: **puerta de pasarelas** (no arranca si ninguna escribe) y
+guardia de árbol limpio (no arranca con `main` sucio, pero ya no tropieza con su propia
+contabilidad).
+
+Antes de publicar, las cuatro: `npx tsc --noEmit` · `npx vitest run` · `python3 -m unittest
+discover -s scripts/puente -p 'test_*.py'` · `npx next build`. Con el node del repo
+(`~/.nvm/versions/node/v22.14.0/bin` primero en el PATH) y `NODE_OPTIONS=--max-old-space-size=4096`.
+
+### Las cinco reglas que costaron un día entero cada una
+
+1. **El silencio no es aprobación.** Un `vitest` que no imprime su resumen no ha comprobado
+   nada. Repítelo sin tuberías y léelo entero.
+2. **Integrado no es aplicado.** Exportar una función que nadie llama es código muerto con
+   aspecto de trabajo terminado. Antes de darte por terminado, `grep` que se usa fuera de su
+   prueba.
+3. **Si una prueba falla, se arregla el CÓDIGO, no la prueba.** Mover la referencia de un test
+   hasta que le dé la razón al fallo no es arreglar: es esconderlo. (Pasó de verdad con la
+   fecha de Cultura, dos veces.)
+4. **Una pasarela está viva cuando devuelve tokens**, no cuando contesta a un ping. Sin clave,
+   las pasarelas no dan error: dan silencio, y el silencio se parece a un agente pensando.
+5. **Las claves no se teclean en un chat.** Se guardan con
+   `bash scripts/puente/guardar-clave.sh NOMBRE_VARIABLE`, que entrecomilla, hace copia y
+   comprueba que el archivo sigue cargándose entero. Nunca en el repo, ni en logs, ni en
+   eventos, ni en memorias: solo el nombre de la variable y su huella.
+
+### Proveedores
+
+`python3 scripts/puente/renovador-pasarelas.py [--telegram] [--abrir]` dice el estado de cada
+pasarela, qué renovar y con qué enlace. **Codex está APAGADO como escritor**
+(`STARSEED_CODEX_ESCRITOR=0`): la suscripción de ChatGPT de Alex se agotó cargando con el
+100 % de la escritura. La **neurona local** (Ollama en `127.0.0.1:11434`) es la única pasarela
+que no puede quedarse sin cupo.
+
+### Publicar
+
+`python3 scripts/puente/publicar.py "nota"` — rama, commit, las cuatro puertas, push y
+verificación cambio a cambio (integrado **y** aplicado). Nunca `git push` a mano. Nunca
+`amend`, `rebase` ni `force-push`: la autoría no se toca.
+
+### Al terminar
+
+Toda respuesta a Alex acaba con un informe de uso: qué modelos y APIs se usaron, qué queda, y
+qué opciones de enrutamiento hay. Y nunca se le dice que algo está arreglado sin haberlo visto
+funcionando en `localhost`.

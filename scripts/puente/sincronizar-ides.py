@@ -143,7 +143,25 @@ def documento():
     A("| Mando | `%s/mando` — local, `/api/mando/*` devuelve 404 en producción |" % MANDO)
     A("| Publicado | https://starseed-os.vercel.app |")
     A("")
+    # (2026-09-16) Hasta hoy este documento contaba el ESTADO pero no el MÉTODO, así que
+    # cada IDE se inventaba el suyo: uno «arreglaba» una prueba moviéndola hasta que le
+    # diera la razón al fallo, otro integraba una función que nadie llamaba. El relevo
+    # lleva las reglas aprendidas, y por eso viaja aquí entero.
+    A(_relevo())
     return "\n".join(L) + "\n"
+
+
+RELEVO = os.path.join(RAIZ, "memory", "workflow-actual.md")
+
+
+def _relevo():
+    """El método de trabajo vigente, tal cual. Si falta, se dice; no se inventa."""
+    try:
+        with open(RELEVO, encoding="utf-8") as f:
+            return f.read().strip()
+    except Exception:
+        return ("## Workflow\n\nFalta `memory/workflow-actual.md`. Sin él, este documento "
+                "solo cuenta el estado y cada entorno se inventa el método. Escríbelo.")
 
 
 def repartir(texto):
@@ -159,9 +177,16 @@ def repartir(texto):
                "    starseed-puente estado\n"
                "    starseed-puente agentes\n"
                "    starseed-puente aprobar <id>\n" % (DOC, RAIZ))
+    # (2026-09-16) Alex pidió que TODOS los IDE lleven el mismo workflow, no solo estos
+    # tres: Cursor y VS Code/Copilot leen sus propios archivos, y si no se los dejamos
+    # aquí trabajan a ciegas sobre el mismo repo. El puntero es el mismo para todos:
+    # una sola verdad, y cada IDE sabe dónde está.
     for ruta in (os.path.expanduser("~/.codex/AGENTS.md"),
                  os.path.expanduser("~/.hermes/PUENTE-DE-MANDO.md"),
-                 os.path.expanduser("~/.gemini/antigravity/PUENTE-DE-MANDO.md")):
+                 os.path.expanduser("~/.gemini/antigravity/PUENTE-DE-MANDO.md"),
+                 os.path.expanduser("~/.cursor/rules/puente-de-mando.mdc"),
+                 os.path.join(RAIZ, ".github", "copilot-instructions.md"),
+                 os.path.join(RAIZ, ".cursor", "rules", "puente-de-mando.mdc")):
         try:
             os.makedirs(os.path.dirname(ruta), exist_ok=True)
             open(ruta, "w", encoding="utf-8").write(puntero)
