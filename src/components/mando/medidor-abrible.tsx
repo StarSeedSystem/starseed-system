@@ -26,6 +26,28 @@ import type { AccionMedidor, ClaveMedidor, DetalleMedidor, FilaMedidor } from "@
 
 export type TonoMedidor = "normal" | "aviso" | "peligro" | "ok";
 
+/** Salud de una fila, cuando el servidor la trae: nota de 1 a 10 más el porqué. */
+type SaludFila = {
+    salud?: number;
+    senal?: "bien" | "vigilar" | "mal";
+    motivo?: string;
+};
+
+const PUNTO_SENAL: Record<NonNullable<SaludFila["senal"]>, string> = {
+    bien: "bg-emerald-400",
+    vigilar: "bg-amber-400",
+    mal: "bg-rose-400",
+};
+
+/** «hace 3 min» a partir de una fecha ISO; «—» si no es hora válida. */
+function haceMinutos(iso: string | null | undefined): string | null {
+    if (!iso) return null;
+    const ms = Date.parse(iso);
+    if (Number.isNaN(ms)) return null;
+    const min = Math.max(0, Math.round((Date.now() - ms) / 60_000));
+    return min < 1 ? "hace menos de 1 min" : `hace ${min} min`;
+}
+
 const NEON: Record<TonoMedidor, string> = {
     normal: "mc-neon",
     aviso: "mc-neon--aviso",
@@ -203,6 +225,20 @@ export function PanelMedidor({
     const [datos, setDatos] = useState<DetalleMedidor | null>(null);
     const [cargando, setCargando] = useState(false);
     const [aviso, setAviso] = useState<string | null>(null);
+    /** Última comprobación de directores (GET /api/mando/comprobar). */
+    const [ultimaComprobacion, setUltimaComprobacion] = useState<string | null>(null);
+    const [comprobando, setComprobando] = useState(false);
+
+    /** Cuándo se comprobó por última vez; nunca se esconde: «nunca» también se dice. */
+    const cargarComprobacion = useCallback(async () => {
+        try {
+            const r = await fetch(`/api/mando/comprobar?medidor=${encodeURIComponent(clave)}`, { cache: "no-store" });
+            const d = (await r.json()) as { comprobacion?: { terminado?: string | null; empezado?: string } | null };
+            setUltimaComprobacion(d.comprobacion?.terminado ?? d.comprobacion?.empezado ?? null);
+        } catch {
+            setUltimaComprobacion(null);
+        }
+    }, [clave]);
 
     // `primera` distingue la carga inicial de los refrescos: en un refresco NO se pinta el
     // esqueleto, o la lista parpadearía cada cinco segundos y sería ilegible.
@@ -220,11 +256,28 @@ export function PanelMedidor({
         }
     }, [clave]);
 
+    /** POST /api/mando/comprobar y luego recarga panel y fecha de comprobación. */
+    const comprobarAhora = useCallback(async () => {
+        setComprobando(true);
+        try {
+            await fetch("/api/mando/comprobar", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ medidor: clave }),
+            });
+        } finally {
+            await cargarComprobacion();
+            await cargar();
+            setComprobando(false);
+        }
+    }, [clave, cargar, cargarComprobacion]);
+
     useEffect(() => {
         setDatos(null);
         setAviso(null);
         void cargar(true);
-    }, [cargar]);
+        void cargarComprobacion();
+    }, [cargar, cargarComprobacion]);
 
     /**
      * El panel se REFRESCA mientras está abierto.
@@ -318,12 +371,25 @@ export function PanelMedidor({
                 ) : null}
                 <button
                     type="button"
+                    disabled={comprobando}
+                    onClick={() => void comprobarAhora()}
+                    className="ml-2 inline-flex cursor-pointer items-center gap-1 rounded-md border border-cyan-300/40 bg-cyan-400/10 px-2 py-0.5 text-[10px] text-cyan-100 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                    {comprobando ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : null}
+                    Comprobar ahora
+                </button>
+                <button
+                    type="button"
                     onClick={alCerrar}
                     className="ml-2 cursor-pointer rounded-md border border-white/10 px-2 py-0.5 text-[10px] text-white/50"
                 >
                     Cerrar
                 </button>
             </header>
+
+            <p className="mc-centrado mt-1 text-[10px] text-white/40">
+                última comprobación: {ultimaComprobacion ? (haceMinutos(ultimaComprobacion) ?? "desconocida") : "nunca se ha comprobado"}
+            </p>
 
             {cargando && !datos ? (
                 <p className="mt-2 flex items-center justify-center gap-2 text-[11px] text-white/50">
@@ -382,6 +448,19 @@ export function PanelMedidor({
                                     </p>
                                 ) : null}
 
+                                {(() => {
+                                    const s = f as FilaMedidor & SaludFila;
+                                    return typeof s.salud === "number" ? (
+                                        <p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[10px] text-white/60">
+                                            <span
+                                                aria-hidden
+                                                className={`inline-block h-1.5 w-1.5 rounded-full ${PUNTO_SENAL[s.senal ?? "vigilar"]}`}
+                                            />
+                                            <span className="tabular-nums">salud {s.salud}/10</span>
+                                            {s.motivo ? <span className="text-white/40">· {s.motivo}</span> : null}
+                                        </p>
+                                    ) : null;
+                                })()}
                                 {f.porque ? (
                                     <p className="mt-0.5 text-[10px] leading-relaxed text-amber-200/70">{f.porque}</p>
                                 ) : null}
