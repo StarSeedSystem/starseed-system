@@ -181,3 +181,76 @@ class TestFichajeDiario(unittest.TestCase):
         utiles, apartados = P.modelos_utiles(modelos, inf)
         self.assertEqual(utiles, ["groq/openai/gpt-oss-20b"])
         self.assertEqual(apartados, [("apinex/free/glm-5.3-flash", P.FICHAJE)])
+
+
+class TestSaldoNoEsClave(unittest.TestCase):
+    """Un 403 por créditos gastados NO es una clave inválida.
+
+    (2026-09-16, 22:10) xAI devolvió esto con una clave perfectamente válida,
+    recién puesta esa misma tarde. El informe dijo «la clave no vale:
+    renuévala» y el enlace llevaba a crear claves. Mandar a Alex a fabricar una
+    clave nueva que iba a fallar igual es peor que callarse: pierde el tiempo y
+    sale creyendo que el sistema miente. El saldo se recarga, no se renueva.
+    """
+
+    CUERPO = ('{"code":"permission-denied","error":"Your team 57448b5a has either '
+              'used all available credits or reached its monthly spending limit. '
+              'To continue making API requests, please purchase more credits."}')
+
+    def test_creditos_gastados_es_sin_cupo_no_sin_clave(self):
+        self.assertEqual(P.clasificar(403, self.CUERPO), P.SIN_CUPO)
+        self.assertNotEqual(P.clasificar(403, self.CUERPO), P.SIN_CLAVE)
+
+    def test_un_403_sin_pistas_sigue_siendo_clave_mala(self):
+        # La regla general no se toca: sin texto que lo explique, un 403 es clave.
+        self.assertEqual(P.clasificar(403, "Forbidden"), P.SIN_CLAVE)
+
+    def test_tope_de_gasto_mensual(self):
+        self.assertEqual(P.clasificar(429, "monthly spending limit reached"), P.SIN_CUPO)
+
+    def test_saldo_agotado_en_otras_palabras(self):
+        for cuerpo in ("You are out of credits.", "Your credit balance is too low."):
+            self.assertEqual(P.clasificar(402, cuerpo), P.SIN_CUPO)
+
+    def test_no_manda_a_una_persona_a_arreglar_lo_que_no_se_arregla_asi(self):
+        a = P.accion_de("xai", P.SIN_CUPO)
+        self.assertFalse(a["humano"])          # no hay que renovar nada
+        self.assertNotIn("clave", a["texto"])
+
+    def test_el_enlace_de_xai_lleva_al_saldo(self):
+        self.assertIn("billing", P.CATALOGO["xai"]["enlace"])
+
+
+class TestLentaNoExpulsa(unittest.TestCase):
+    """Una sonda de 16 tokens y 20 s no decide si un gratuito escribe.
+
+    apinex dio «escribe» y, cinco minutos después, «acepta y no emite», con el
+    mismo modelo. Expulsarlo por esa segunda muestra sería repetir el error que
+    hoy nos costó ocho modelos: una sonda que mide poco y decide mucho.
+    """
+
+    MODELOS = ["apinex/free/glm-5.3-flash", "groq/openai/gpt-oss-20b",
+               "xai/grok-4.6", "openrouter/x:free"]
+
+    def _informe(self, apinex):
+        return {"pasarelas": [
+            {"clave": "apinex", "estado": apinex},
+            {"clave": "groq", "estado": P.ESCRIBE},
+            {"clave": "xai", "estado": P.SIN_CUPO},
+            {"clave": "openrouter", "estado": P.CAIDA},
+        ]}
+
+    def test_lenta_se_queda(self):
+        utiles, apartados = P.modelos_utiles(self.MODELOS, self._informe(P.LENTA))
+        self.assertIn("apinex/free/glm-5.3-flash", utiles)
+        self.assertEqual([m for m, _ in apartados],
+                         ["xai/grok-4.6", "openrouter/x:free"])
+
+    def test_sin_cupo_sigue_fuera(self):
+        utiles, _ = P.modelos_utiles(self.MODELOS, self._informe(P.SIN_CUPO))
+        self.assertNotIn("apinex/free/glm-5.3-flash", utiles)
+
+    def test_fichaje_sigue_fuera(self):
+        # Un fichaje pendiente no se arregla esperando: ahí sí hay que apartarlo.
+        utiles, _ = P.modelos_utiles(self.MODELOS, self._informe(P.FICHAJE))
+        self.assertNotIn("apinex/free/glm-5.3-flash", utiles)

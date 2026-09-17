@@ -45,8 +45,8 @@ CATALOGO = {
                    "humano": True, "nota": "Sus ocho modelos gratis exigen UN FICHAJE DIARIO en /airdrop?tab=quests. Sin él, cada tarea que caiga ahí vuelve sin cambios."},
     "deepseek":   {"nombre": "DeepSeek", "enlace": "https://platform.deepseek.com/api_keys",
                    "humano": True, "nota": "Clave de pago con saldo; 401 significa clave caducada o revocada."},
-    "xai":        {"nombre": "xAI (Grok)", "enlace": "https://console.x.ai/",
-                   "humano": True, "nota": "No hay clave configurada todavía. La crea Alex; yo no abro cuentas."},
+    "xai":        {"nombre": "xAI (Grok)", "enlace": "https://console.x.ai/team/billing",
+                   "humano": True, "nota": "DE PAGO, y se gasta rápido: los agentes escribieron con grok-4.6 y grok-build-0.1 toda la tarde del 16/09 y se acabó el saldo del equipo. Un 403 suyo suele ser saldo, no clave."},
     "neurona":    {"nombre": "Neurona local (Ollama)", "enlace": "https://ollama.com/library",
                    "humano": True, "nota": "Local: sin clave, sin cupo y sin red. Solo necesita que haya un modelo descargado que sepa programar."},
     "huggingface": {"nombre": "Hugging Face", "enlace": "https://huggingface.co/settings/tokens",
@@ -68,6 +68,20 @@ _PISTAS = (
     ("does not exist", MODELO_FUERA),
     ("unavailable for free", MODELO_FUERA),
     ("free-model token quota", SIN_CUPO),
+    # CRÉDITOS GASTADOS ≠ CLAVE MALA (2026-09-16, 22:10). xAI contesta 403 a una
+    # clave PERFECTAMENTE VÁLIDA cuando el equipo se queda sin saldo:
+    #     {"code":"permission-denied","error":"Your team ... has either used all
+    #      available credits or reached its monthly spending limit."}
+    # Como ninguna pista encajaba, caía en la regla `403 → SIN_CLAVE` y el informe
+    # decía «la clave no vale: renuévala». Mandar a Alex a crear una clave nueva
+    # que va a fallar igual es peor que no decirle nada: pierde el tiempo y sale
+    # creyendo que el sistema miente. El saldo se recarga, no se renueva.
+    ("used all available credits", SIN_CUPO),
+    ("monthly spending limit", SIN_CUPO),
+    ("spending limit", SIN_CUPO),
+    ("purchase more credits", SIN_CUPO),
+    ("credit balance", SIN_CUPO),
+    ("out of credits", SIN_CUPO),
     ("quota", SIN_CUPO),
     ("insufficient", SIN_CUPO),
     ("recharge", SIN_CUPO),
@@ -188,6 +202,18 @@ def para_abrir(resultados):
 # durante veinte minutos con pasarelas que esa misma mañana habían devuelto 429.
 SIEMPRE = ("llm7", "codex")  # sin clave o suscripción: no salen en el informe
 
+#: Estados con los que un modelo SIGUE mereciendo un turno.
+#: «Lenta» va dentro a propósito (2026-09-16, 22:15). La sonda pide 16 tokens y
+#: espera 20 segundos; un gratuito con cola falla eso y escribe de sobra en una
+#: tarea real de diez minutos. apinex lo hizo dos veces seguidas esta noche: en
+#: una pasada «escribe» y en la siguiente «acepta y no emite», con el mismo
+#: modelo y cinco minutos de diferencia. Expulsarlo por esa muestra sería
+#: repetir el error de siempre: una sonda que mide poco y decide mucho —
+#: justo lo que hoy nos costó ocho modelos y media tarde.
+#: Lo que SÍ expulsa es una medida que no cambia por esperar: sin cupo, sin
+#: clave, sin canal, modelo retirado, caída.
+UTILIZABLES = (ESCRIBE, LENTA)
+
 
 def pasarela_de(modelo):
     """El proveedor de un id de modelo: `openrouter/cohere/x:free` → `openrouter`."""
@@ -195,7 +221,10 @@ def pasarela_de(modelo):
 
 
 def modelos_utiles(modelos, informe, siempre=SIEMPRE):
-    """Deja fuera los modelos de pasarelas que el informe dice que NO escriben.
+    """Deja fuera los modelos de pasarelas que el informe dice que no pueden escribir.
+
+    «No pueden» es una medida que no cambia por esperar (sin cupo, sin clave, sin
+    canal, modelo retirado, caída). Una pasarela LENTA se queda: ver `UTILIZABLES`.
 
     Devuelve (utiles, apartados). Si el informe está vacío o no dice nada de una
     pasarela, sus modelos SE QUEDAN: ante la duda, intentarlo. Y si el filtro dejara
@@ -208,7 +237,7 @@ def modelos_utiles(modelos, informe, siempre=SIEMPRE):
     utiles, apartados = [], []
     for m in modelos or []:
         p = pasarela_de(m)
-        if p in siempre or p not in estados or estados[p] == ESCRIBE:
+        if p in siempre or p not in estados or estados[p] in UTILIZABLES:
             utiles.append(m)
         else:
             apartados.append((m, estados[p]))
