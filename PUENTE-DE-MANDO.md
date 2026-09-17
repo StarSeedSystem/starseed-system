@@ -1,6 +1,6 @@
 # Puente de Mando · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-16 20:58:43 desde el Mando vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-17 00:14:19 desde el Mando vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -15,25 +15,29 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | Ola arriba | Ola Dream 2026-09-15 · lo que el análisis nocturno encontró |
 | Agentes escribiendo | **0** |
 | En esta ola | integradas 1 · en curso 0 · esperando aprobación 0 · pendientes 0 |
-| Últimas 4 olas | en curso 0 · pendientes 0 · integradas 4 |
-| HEAD | `2162cf55 chore(memoria): aprendizaje de la ola auto-0916-200258` |
-| Sin publicar | 1 commits |
+| Últimas 4 olas | en curso 0 · pendientes 2 · integradas 7 |
+| HEAD | `f9fde02a chore(memoria): aprendizaje de la ola auto-0916-222258` |
+| Sin publicar | 4 commits |
 | Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-auto-0916-200258.json`, hace 4s)
+## Quién escribe ahora (latido de `cola-auto-0916-222258.json`, hace 4s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `CU1` | hecho | xai/grok-4.6 | 9 min | 544 s | 74385 |
-| `SA2` | hecho | groq/openai/gpt-oss-120b | 9 min | 559 s | 106951 |
-| `SA1` | hecho | xai/grok-build-0.1 | 10 min | 573 s | 100888 |
-| `NE1` | hecho | groq/openai/gpt-oss-120b | 12 min | 706 s | 5184 |
-| `ID1` | hecho | xai/grok-build-0.1 | 13 min | 756 s | 69799 |
-| `AS2` | hecho | apinex/free/gemini-3.8-flash | 13 min | 760 s | 4898 |
-| `AS1` | hecho | xai/grok-build-0.1 | 19 min | 1126 s | 33157 |
-| `DR2` | hecho | xai/grok-4.6 | 19 min | 1155 s | 38519 |
-| `DR3` | hecho | apinex/free/glm-5.3-flash | 41 min | 2482 s | 22060 |
-| `DR1` | hecho | apinex/free/glm-5.3-flash | 50 min | 2998 s | 17839 |
+| `RS1b` | hecho | nvidia/moonshotai/kimi-k3 | 2 min | 137 s | 108119 |
+| `RA2` | hecho | groq/qwen/qwen3.8-27b | 24 min | 1431 s | 25432 |
+| `RA1` | hecho | nvidia/moonshotai/kimi-k3 | 40 min | 2425 s | 34350 |
+| `SA3` | hecho | nvidia/moonshotai/kimi-k3 | 43 min | 2566 s | 44990 |
+| `NE1` | hecho | nvidia/moonshotai/kimi-k3 | 55 min | 3277 s | 1864595 |
+| `ID2` | hecho | nvidia/moonshotai/kimi-k3 | 60 min | 3573 s | 14864 |
+| `CU3` | hecho | nvidia/moonshotai/kimi-k3 | 71 min | 4236 s | 14156 |
+| `CU2` | hecho | nvidia/moonshotai/kimi-k3 | 77 min | 4599 s | 28719 |
+| `RS5` | hecho | nvidia/moonshotai/kimi-k3 | 86 min | 5153 s | 7020 |
+| `AS2` | hecho | groq/openai/gpt-oss-20b | 88 min | 5272 s | 1544748 |
+| `RS3` | hecho | codex/gpt-5.6-sol | 89 min | 5366 s | 486607 |
+| `RS1` | hecho | codex/gpt-5.6-sol | 89 min | 5366 s | 232890 |
+| `RS4` | hecho | codex/gpt-5.6-sol | 98 min | 5882 s | 406124 |
+| `RS2` | hecho | codex/gpt-5.6-sol | 98 min | 5884 s | 439427 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
