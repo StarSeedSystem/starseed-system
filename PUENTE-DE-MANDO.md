@@ -1,6 +1,6 @@
 # Puente de Mando · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-17 01:51:54 desde el Mando vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-17 02:12:26 desde el Mando vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -16,16 +16,17 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | Agentes escribiendo | **0** |
 | En esta ola | integradas 1 · en curso 0 · esperando aprobación 0 · pendientes 0 |
 | Últimas 4 olas | en curso 0 · pendientes 0 · integradas 5 |
-| HEAD | `cbd92afb chore(memoria): aprendizaje de la ola auto-0917-013836` |
-| Sin publicar | 13 commits |
+| HEAD | `9baf58c6 chore(memoria): aprendizaje de la ola auto-0917-015511` |
+| Sin publicar | 15 commits |
 | Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-auto-0917-013836.json`, hace 3s)
+## Quién escribe ahora (latido de `cola-auto-0917-015511.json`, hace 3s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `CU3` | hecho | nvidia/moonshotai/kimi-k3 | 0 min | 26 s | 72527 |
-| `RA2` | hecho | apinex/free/qwen-3.8-max | 10 min | 627 s | 93563 |
+| `AS2` | hecho | groq/openai/gpt-oss-120b | 0 min | 24 s | 1582761 |
+| `DR1` | hecho | groq/openai/gpt-oss-20b | 7 min | 408 s | 306828 |
+| `NE1` | hecho | nvidia/moonshotai/kimi-k3 | 8 min | 474 s | 1883875 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
