@@ -418,3 +418,13 @@
 - `DR1` — no escribió nada
 - `AS2` — no escribió nada
 - `NE1` — la revisión lo rechazó: rechazada automáticamente por ide (sin revisión humana); rama ola/NE1 conservada
+
+## 2026-09-17 03:47 · auto-0917-025828
+
+**Lo que se pidió.** ideas nuevas
+
+**Resultado.** 1 de 3 integradas. 2 tareas se quedaron fuera.
+
+**Lo que quedó fuera, una por una:**
+- `DR1` — no escribió nada
+- `AS2` — conflicto al integrar: rama ola/AS2 conservada
