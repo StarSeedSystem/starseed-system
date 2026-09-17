@@ -6,6 +6,7 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+import pasarelas as P
 from pasarelas import (CAIDA, CATALOGO, ESCRIBE, LENTA, MODELO_FUERA, SIN_CANAL,
                        SIN_CLAVE, SIN_CUPO, accion_de, clasificar, hay_que_renovar,
                        informe, para_abrir)
@@ -121,3 +122,62 @@ class TestCatalogo(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestFichajeDiario(unittest.TestCase):
+    """apinex regala ocho modelos a cambio de UN botón al día.
+
+    Hoy (2026-09-16) esos ocho estuvieron en la rotación todo el día sin escribir
+    una línea: se sondeaban con `gpt-4o-mini`, que apinex no sirve, así que
+    respondía 404 y quedaba archivado como «ese modelo ya no existe» en vez de
+    «esta pasarela entera espera tu fichaje». DR1 y DR3 quemaron su turno entero
+    contra ella y volvieron sin cambios.
+    """
+
+    CUERPO = ("Daily check-in required to use free models. "
+              "Please visit https://apinex.bond/airdrop?tab=quests to check in.")
+
+    def test_se_reconoce_el_fichaje(self):
+        self.assertEqual(P.clasificar(403, self.CUERPO), P.FICHAJE)
+
+    def test_gana_al_cupo_aunque_el_cuerpo_diga_free(self):
+        # El orden de _PISTAS importa: «free»/«quota» aparecen en el mismo texto.
+        cuerpo = self.CUERPO + " Your free-model token quota resets daily."
+        self.assertEqual(P.clasificar(429, cuerpo), P.FICHAJE)
+
+    def test_escribir_manda_sobre_el_aviso(self):
+        # Si devolvió tokens, está viva, diga lo que diga el cuerpo.
+        self.assertEqual(P.clasificar(200, self.CUERPO, hubo_tokens=True), P.ESCRIBE)
+
+    def test_pide_persona(self):
+        self.assertTrue(P.hay_que_renovar(P.FICHAJE))
+
+    def test_la_accion_lleva_el_enlace_del_fichaje(self):
+        a = P.accion_de("apinex", P.FICHAJE)
+        self.assertTrue(a["humano"])
+        self.assertIn("airdrop", a["enlace"])
+        self.assertIn("fichaje", a["texto"])
+
+    def test_para_abrir_incluye_apinex(self):
+        enlaces = P.para_abrir([{"clave": "apinex", "modelo": "free/glm-5.3-flash",
+                                 "estado": P.FICHAJE}])
+        self.assertEqual(len(enlaces), 1)
+        self.assertIn("airdrop", enlaces[0])
+
+    def test_sale_arriba_en_el_informe(self):
+        texto = P.informe([
+            {"clave": "apinex", "modelo": "free/glm-5.3-flash", "estado": P.FICHAJE},
+            {"clave": "groq", "modelo": "openai/gpt-oss-20b", "estado": P.ESCRIBE},
+            {"clave": "deepseek", "modelo": "deepseek-v4-pro", "estado": P.CAIDA},
+        ])
+        lineas = [l for l in texto.splitlines() if "*" in l]
+        self.assertIn("Groq", lineas[1])      # la viva, primero
+        self.assertIn("apinex", lineas[2])    # el fichaje, justo detrás
+
+    def test_sus_modelos_salen_de_la_rotacion(self):
+        modelos = ["apinex/free/glm-5.3-flash", "groq/openai/gpt-oss-20b"]
+        inf = {"pasarelas": [{"clave": "apinex", "estado": P.FICHAJE},
+                             {"clave": "groq", "estado": P.ESCRIBE}]}
+        utiles, apartados = P.modelos_utiles(modelos, inf)
+        self.assertEqual(utiles, ["groq/openai/gpt-oss-20b"])
+        self.assertEqual(apartados, [("apinex/free/glm-5.3-flash", P.FICHAJE)])

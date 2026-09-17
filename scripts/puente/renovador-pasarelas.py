@@ -51,7 +51,11 @@ SONDAS = [
     ("xkiro", "https://api.xkiro.com/v1", "XKIRO_API_KEY", "qwen/qwen3-coder-plus:free"),
     ("tokenrouter", "https://api.tokenrouter.com/v1", "TOKENROUTER_API_KEY", "z-ai/glm-5.3-free"),
     ("aihubmix", "https://aihubmix.com/v1", "AIHUBMIX_API_KEY", "gpt-4o-mini"),
-    ("apinex", "https://apinex.bond/v1", "STARSEED_PASARELA_APINEX_KEY", "gpt-4o-mini"),
+    # OJO: se sonda con un modelo que apinex SÍ sirve. Con `gpt-4o-mini` devolvía
+    # 404 y lo clasificábamos «modelo_fuera» — es decir, «el modelo ya no existe»,
+    # cuando la verdad era «la pasarela entera está esperando tu fichaje diario».
+    # Con el modelo correcto sale el mensaje real y el informe te da el enlace.
+    ("apinex", "https://apinex.bond/v1", "STARSEED_PASARELA_APINEX_KEY", "free/glm-5.3-flash"),
     ("deepseek", "https://api.deepseek.com/v1", "DEEPSEEK_API_KEY", "deepseek-v4-pro"),
     ("xai", "https://api.x.ai/v1", "XAI_API_KEY", "grok-4.6"),
 ]

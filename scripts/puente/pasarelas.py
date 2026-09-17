@@ -23,6 +23,7 @@ SIN_CANAL = "sin_canal"             # la pasarela no tiene proveedor para ese mo
 MODELO_FUERA = "modelo_fuera"       # el modelo ya no existe en el catálogo
 LENTA = "lenta"                     # acepta y no emite: cola o congestión
 CAIDA = "caida"                     # no responde de ninguna forma
+FICHAJE = "fichaje"                 # exige un fichaje diario en su web para lo gratis
 
 # Catálogo: dónde se renueva cada una y si hace falta que lo haga una persona.
 # `humano=True` significa que hay que iniciar sesión, resolver un captcha o aceptar
@@ -40,8 +41,8 @@ CATALOGO = {
                    "humano": True, "nota": "«No available channel» es del lado de ellos: el modelo no tiene proveedor detrás."},
     "aihubmix":   {"nombre": "AIHubMix", "enlace": "https://aihubmix.com/token",
                    "humano": True, "nota": "Pide recarga para seguir usando los recursos gratuitos."},
-    "apinex":     {"nombre": "apinex", "enlace": "https://apinex.bond/",
-                   "humano": True, "nota": "Ha dado 402 y 405 otras veces; mirar el panel antes de fiarse."},
+    "apinex":     {"nombre": "apinex", "enlace": "https://apinex.bond/airdrop?tab=quests",
+                   "humano": True, "nota": "Sus ocho modelos gratis exigen UN FICHAJE DIARIO en /airdrop?tab=quests. Sin él, cada tarea que caiga ahí vuelve sin cambios."},
     "deepseek":   {"nombre": "DeepSeek", "enlace": "https://platform.deepseek.com/api_keys",
                    "humano": True, "nota": "Clave de pago con saldo; 401 significa clave caducada o revocada."},
     "xai":        {"nombre": "xAI (Grok)", "enlace": "https://console.x.ai/",
@@ -54,6 +55,14 @@ CATALOGO = {
 
 _PISTAS = (
     # (subcadena en el cuerpo, estado)
+    # EL FICHAJE VA PRIMERO. apinex contesta a la vez «daily check-in required» y
+    # palabras como «free»/«quota», así que si se mira después queda clasificado
+    # como «sin cupo» y el informe dice «se repone sola» — y no se repone: hay que
+    # entrar a su web y pulsar un botón. Hoy costó dos tareas (DR1 y DR3) que
+    # volvieron sin cambios tras quemar su turno entero.
+    ("daily check-in required", FICHAJE),
+    ("check-in required", FICHAJE),
+    ("checkin required", FICHAJE),
     ("no available channel", SIN_CANAL),
     ("model_not_found", MODELO_FUERA),
     ("does not exist", MODELO_FUERA),
@@ -102,9 +111,13 @@ def clasificar(http, cuerpo="", hubo_tokens=False):
 def hay_que_renovar(estado):
     """¿Necesita que una persona entre en la web? Solo la clave lo exige de verdad.
 
+    Dos cosas piden una persona: una clave que ya no vale, y un fichaje diario
+    (apinex regala ocho modelos a cambio de un botón al día, y ese botón lo
+    pulsa Alex; yo no entro en cuentas suyas).
+
     El resto se repone solo (cupo), se arregla cambiando el modelo, o es cosa de ellos.
     """
-    return estado in (SIN_CLAVE,)
+    return estado in (SIN_CLAVE, FICHAJE)
 
 
 def accion_de(clave, estado):
@@ -115,6 +128,9 @@ def accion_de(clave, estado):
     if estado == SIN_CUPO:
         return {"texto": "sin cupo hoy: se repone sola, apártala hasta mañana",
                 "enlace": ficha["enlace"], "humano": False}
+    if estado == FICHAJE:
+        return {"texto": "pide el fichaje diario: entra, pulsa el botón y vuelve a escribir hoy mismo",
+                "enlace": ficha["enlace"], "humano": True}
     if estado == SIN_CLAVE:
         return {"texto": "la clave no vale: renuévala y pégala en ~/.hermes/.env",
                 "enlace": ficha["enlace"], "humano": True}
@@ -135,7 +151,11 @@ def informe(resultados):
     """Texto corto para el chat/Telegram. `resultados`: [{clave, modelo, estado}]."""
     vivas = [r for r in resultados if r.get("estado") == ESCRIBE]
     lineas = ["*Pasarelas* · %d de %d escriben" % (len(vivas), len(resultados))]
-    orden = {ESCRIBE: 0, LENTA: 1, SIN_CUPO: 2, SIN_CANAL: 3, MODELO_FUERA: 4, SIN_CLAVE: 5, CAIDA: 6}
+    # El fichaje va justo detrás de las vivas: es la única línea del informe que
+    # Alex puede convertir en ocho modelos con un clic. Enterrarla abajo es
+    # desperdiciarla.
+    orden = {ESCRIBE: 0, FICHAJE: 1, LENTA: 2, SIN_CUPO: 3, SIN_CANAL: 4,
+             MODELO_FUERA: 5, SIN_CLAVE: 6, CAIDA: 7}
     for r in sorted(resultados, key=lambda x: orden.get(x.get("estado"), 9)):
         ficha = CATALOGO.get(r.get("clave"), {})
         a = accion_de(r.get("clave"), r.get("estado"))
