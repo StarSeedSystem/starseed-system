@@ -556,3 +556,12 @@
 - `DR0917-2` — no escribió nada
 - `CU3b` — la revisión lo rechazó: rechazada automáticamente por ide (sin revisión humana); rama ola/CU3b conservada
 - `RS3b` — otra cosa: intento 1
+
+## 2026-09-17 17:56 · auto-0917-173913
+
+**Lo que se pidió.** en `reasignarTarea`, `nombreNuevo = auto-0913-193908-t1` no cumple `PATRON_NOMBRE` (la rama `auto-` solo admite dígitos), así que mover una tarea de una cola auto a otro servidor siempre devuelve «No puedo derivar un nombre de cola válido
+
+**Resultado.** 0 de 1 integradas. 1 tarea se quedaron fuera.
+
+**Lo que quedó fuera, una por una:**
+- `RS3b` — no escribió nada
