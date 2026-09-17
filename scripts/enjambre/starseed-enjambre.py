@@ -401,6 +401,59 @@ def refrescar_rotacion():
         return [], []
 
 
+def barrer_agentes_huerfanos():
+    """Mata a los agentes que escriben para un orquestador que ya no existe.
+
+    (2026-09-16, 23:00) Cada reinicio del orquestador —y el vigilante lo
+    relanza solo si se cae— dejaba procesos `codex exec` adoptados por init,
+    escribiendo tan tranquilos. Medido tras el tercer reinicio de la noche:
+
+        pid=45192  ppid=1  20:03  codex exec -m gpt-5.6-sol …
+        pid=75186  ppid=1  01:31  codex exec -m gpt-5.6-sol …
+
+    Veinte minutos de la suscripción de ChatGPT para NADIE: su orquestador
+    estaba muerto, así que su trabajo no lo iba a recoger, commitear ni pasar
+    por las puertas nadie. No era un descuido puntual, era una fuga abierta.
+
+    Solo se tocan los que no cuelgan de un orquestador VIVO; los del de al lado,
+    si alguna vez lo hubiera, se respetan.
+    """
+    try:
+        ruta_puente = os.path.join(ROOT, "scripts", "puente")
+        if ruta_puente not in sys.path:
+            sys.path.insert(0, ruta_puente)
+        import agentes_huerfanos as _huerf
+
+        salida = subprocess.run(
+            ["ps", "-eo", "pid,ppid,args"], capture_output=True, text=True, timeout=20
+        ).stdout
+        filas = []
+        for linea in salida.splitlines()[1:]:
+            partes = linea.split(None, 2)
+            if len(partes) == 3:
+                filas.append((partes[0], partes[1], partes[2]))
+        vivos = [
+            int(pid) for pid, _, args in filas
+            if "starseed-enjambre.py" in args and " -u " in args
+        ]
+        perdidos = _huerf.huerfanos(filas, vivos)
+        if not perdidos:
+            return
+        for pid in perdidos:
+            try:
+                os.kill(pid, signal.SIGTERM)
+            except OSError:
+                pass
+        evento(
+            "aviso",
+            "",
+            "agentes huérfanos de un orquestador muerto, apagados: "
+            + _huerf.resumen(filas, perdidos),
+        )
+    except Exception:
+        pass
+
+
 def validar_modelos():
     """Antes de empezar, comprueba qué modelos existen de verdad en el catálogo de NIM.
     Un modelo retirado hace que opencode falle y la tarea se marque «sin cambios» sin
@@ -5952,6 +6005,7 @@ def main():
         sys.exit(3)
     os.makedirs(OLAS, exist_ok=True)
     os.makedirs(LOGS, exist_ok=True)
+    barrer_agentes_huerfanos()
     validar_modelos()
     TAREAS_POR_ID.update({t["id"]: t for t in tareas})
     CAPACIDADES_MEDIOS["opencode"] = min(
