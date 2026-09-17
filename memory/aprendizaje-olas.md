@@ -258,3 +258,20 @@
 - `c313_QW5` — otra cosa: excepción: [Errno 2] No such file or directory: 'opencode'
 - `c313_QW6` — otra cosa: excepción: [Errno 2] No such file or directory: 'opencode'
 - `DEDUPE` — otra cosa: excepción: [Errno 2] No such file or directory: 'opencode'
+
+## 2026-09-16 19:07 · auto-0916-181047
+
+**Lo que se pidió.** Arreglar tests de fecha relativa: usar UTC consistente
+
+**Resultado.** 0 de 5 integradas. 5 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 5 tareas se fueron por lo mismo — pruebas en rojo (CD1, SA0, SA1, SA2, SA3). Es 100 % de la ola.
+- openrouter/thinkingmachines/inkling:free no integró ninguna de sus 3 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `CD1` — pruebas en rojo: vitest falla (rama conservada)
+- `SA0` — pruebas en rojo: vitest falla (rama conservada)
+- `SA1` — pruebas en rojo: vitest falla (rama conservada)
+- `SA2` — pruebas en rojo: vitest falla (rama conservada)
+- `SA3` — pruebas en rojo: dependencia no integrada: SA1 (fallo_tests), SA2 (fallo_tests)
