@@ -15,8 +15,8 @@ const DIA_MS = 24 * 60 * 60 * 1000;
 export function fechaRelativaEs(ahoraMs: number, eventoMs: number): string {
   const ahora = new Date(ahoraMs);
   const evento = new Date(eventoMs);
-  const inicioAhora = new Date(Date.UTC(ahora.getUTCFullYear(), ahora.getUTCMonth(), ahora.getUTCDate()));
-  const inicioEvento = new Date(Date.UTC(evento.getUTCFullYear(), evento.getUTCMonth(), evento.getUTCDate()));
+  const inicioAhora = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate());
+  const inicioEvento = new Date(evento.getFullYear(), evento.getMonth(), evento.getDate());
   const dif = Math.round((inicioEvento.getTime() - inicioAhora.getTime()) / DIA_MS);
 
   switch (dif) {

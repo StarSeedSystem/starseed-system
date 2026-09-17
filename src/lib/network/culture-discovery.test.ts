@@ -3,7 +3,7 @@ import { describe, it, expect } from "vitest";
 import { fechaRelativaEs, proximoEvento } from "@/lib/network/culture-discovery";
 import type { OsEvent } from "@/lib/os-social";
 
-const AHORA = 1_700_000_000_000 - 12 * 60 * 60 * 1000; // fecha de referencia fija para los tests (10:13 UTC)
+const AHORA = 1_700_000_000_000; // fecha de referencia fija para los tests
 const DIA_MS = 24 * 60 * 60 * 1000;
 
 /** Construye un evento REAL mínimo con la fecha dada en ms. */
