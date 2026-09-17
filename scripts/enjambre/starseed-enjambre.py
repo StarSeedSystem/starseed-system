@@ -2602,6 +2602,55 @@ def confirmar_bloqueo(tid, titulo, motivo, diff):
     return "", "", True  # si nadie contesta, se respeta el bloqueo
 
 
+try:
+    _rp2 = os.path.join(ROOT, "scripts", "puente")
+    if _rp2 not in sys.path:
+        sys.path.insert(0, _rp2)
+    import analisis_aprobacion as _analisis
+    import resolucion_automatica as _resol
+except Exception:
+    _analisis = None
+    _resol = None
+
+
+def _ajustes_del_mando():
+    """Los ajustes que Alex toca desde el Mando (~/.starseed/enjambre.json)."""
+    try:
+        with open(os.path.expanduser("~/.starseed/enjambre.json"), encoding="utf-8") as f:
+            d = json.load(f)
+        return d if isinstance(d, dict) else {}
+    except Exception:
+        return {}      # sin archivo, valores por defecto: la resolución va encendida
+
+
+def _resolver_sola(tid, ficha, wt):
+    """¿Aprueban el director y los verificadores esta rama sin molestar a Alex?
+
+    Devuelve True solo si SÍ. Cualquier fallo —módulo ausente, modelo mudo,
+    veredicto ilegible— devuelve False, que es «que lo mire Alex»: el camino
+    seguro es siempre el de siempre.
+    """
+    if _resol is None or _analisis is None:
+        return False
+    ajustes = _ajustes_del_mando()
+    if not _resol.encendida(ajustes):
+        return False
+    if not _resol.verificadores_conformes(ficha):
+        accion, motivo = _resol.decidir(ajustes, ficha, None, _analisis.puede_aprobar_solo)
+        evento("aprobacion", tid, _resol.nota(accion, motivo))
+        return False
+    try:
+        _, diff = sh(["git", "diff", "HEAD~1"], cwd=wt, timeout=90)
+        salida = revisar(tid, "ANÁLISIS DE APROBACIÓN · " + str(ficha.get("titulo") or tid),
+                         _analisis.construir_prompt(ficha, diff or "", ""))
+        veredicto = _analisis.leer_veredicto(salida or "")
+    except Exception:
+        return False
+    accion, motivo = _resol.decidir(ajustes, ficha, veredicto, _analisis.puede_aprobar_solo)
+    evento("aprobacion", tid, _resol.nota(accion, motivo))
+    return accion == "aprobar"
+
+
 def revisar(tid, titulo, diff, impacto="", alcance=""):
     prompt = (
         (
@@ -5637,6 +5686,26 @@ def ejecutar(t, intento=1):
                 "motivo": motivo_vb,
             },
         )
+        # RESOLUCIÓN AUTOMÁTICA (2026-09-16, pedida por Alex). Antes de ponerse a
+        # esperar seis horas, el director mira el diff y los verificadores dicen
+        # si tenían pegas. Solo se aprueba sola una rama LIMPIA: revisión no
+        # bloqueante, alcance completo y veredicto «aprobar» con confianza alta.
+        # Cualquier duda, espera a Alex. Rechazar sola no está contemplado:
+        # tirar trabajo es decisión suya, no de un automatismo.
+        # El interruptor vive en ~/.starseed/enjambre.json y viene encendido.
+        _auto = _resolver_sola(
+            tid,
+            ficha={"bloqueante": bloqueante, "revisor": revisor_dice,
+                   "faltan": list(medida.get("faltan", [])), "id": tid,
+                   "titulo": t.get("titulo", ""), "rama": "ola/" + tid,
+                   "sha": sha_rama.strip(), "modelo": modelo_ok,
+                   "motivo_vb": motivo_vb},
+            wt=wt,
+        )
+        if _auto:
+            APROBACIONES[tid] = "aprobar"
+            QUIEN_DECIDIO[tid] = _resol.QUIEN
+
         t_esp = time.time()
         decision = None
         while time.time() - t_esp < ESPERA_APROBACION_S and not FIN.is_set():
