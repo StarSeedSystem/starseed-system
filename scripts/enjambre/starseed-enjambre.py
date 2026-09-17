@@ -187,6 +187,26 @@ MODELOS = [
 # Verificado en la Mac el 2026-09-09 con `codex exec -m …`: `gpt-5.6-sol` responde. Los modelos
 # `gpt-5.2-codex` y `gpt-5.1-codex` NO se ponen aquí a propósito: con cuenta de ChatGPT devuelven
 # «400 · not supported when using Codex with a ChatGPT account» y solo quemarían intentos.
+try:
+    _rp3 = os.path.join(ROOT, "scripts", "puente")
+    if _rp3 not in sys.path:
+        sys.path.insert(0, _rp3)
+    import cupo_codex as _cupo_codex
+except Exception:                       # sin el módulo, se comporta como antes
+    class _cupo_codex(object):          # noqa: N801
+        @staticmethod
+        def puede_escribir():
+            return True
+
+        @staticmethod
+        def agotado_en(salida):
+            return False
+
+        @staticmethod
+        def anotar(motivo=""):
+            return 0
+
+
 MODELOS_CODEX = ["codex/gpt-5.6-sol"]
 RUTA_CODEX_AUTH = os.path.expanduser("~/.codex/auth.json")
 
@@ -212,6 +232,17 @@ def codex_disponible() -> bool:
     Las condiciones de verdad ya estaban debajo y son las buenas: que el binario exista y
     que la sesión guardada sea la de ChatGPT. Si esas dos se cumplen, Codex puede escribir.
     `STARSEED_CODEX_ESCRITOR=0` lo apaga a mano cuando haga falta."""
+    # (2026-09-17) Y ADEMÁS: si la suscripción se agotó hace poco, no se intenta.
+    # Esta tarde cinco tareas seguidas volvieron `sin_cambios` con «You've hit your
+    # usage limit» en el log — CU3b, RS3b, RS1p y las dos del Dream. El dato se sabía
+    # desde la primera; lo que faltaba era guardárselo. Codex vive en
+    # `pasarelas.SIEMPRE`, así que el filtro que aparta a las pasarelas medidas como
+    # mudas no lo mira nunca, y cada tarea volvía a elegirlo.
+    try:
+        if not _cupo_codex.puede_escribir():
+            return False
+    except Exception:
+        pass
     if os.environ.get("STARSEED_CODEX_ESCRITOR", "1").strip().lower() in ("0", "no", "false"):
         return False
     if not ruta_codex():
@@ -5071,6 +5102,19 @@ def ejecutar(t, intento=1):
                 % modelo,
             )
             continue
+        # Agotamiento de la suscripción de ChatGPT: se anota para que las tareas
+        # siguientes no repitan la espera, y Codex sale de la rotación de esta ola.
+        if modelo in MODELOS_CODEX and _cupo_codex.agotado_en(out):
+            try:
+                minutos = _cupo_codex.anotar("escritura: cuota de ChatGPT agotada")
+            except Exception:
+                minutos = 0
+            for _m in list(MODELOS_CODEX):
+                if _m in MODELOS:
+                    MODELOS.remove(_m)
+            evento("proveedor_caido", tid,
+                   "Codex sin cuota de ChatGPT: fuera de la rotación %d min "
+                   "(las demás tareas ya no lo intentan)" % minutos)
         pista = fallo_de_proveedor(out)
         # (2026-09-08, Ola 286 · G3) Rechazo por FORMATO de opencode: el proveedor acepta la
         # llamada como revisor (HTTP directo) pero su adaptador reenvía un campo que rechaza
