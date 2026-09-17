@@ -16,6 +16,7 @@
  *  • cuposRpm por proveedor entre 1 y 120
  *  • modelos y revisores: solo cadenas de la lista blanca PROVEEDORES_PERMITIDOS
  *  • revisionActiva es un interruptor booleano
+ *  • resolucionAutomatica es un interruptor booleano
  *  • Sin rutas, sin comandos, sin claves.
  */
 
@@ -40,6 +41,7 @@ export interface ConfigEnjambre {
     revisores: Array<[string, string]>;
     cuposRpm: Record<string, number>;
     revisionActiva: boolean;
+    resolucionAutomatica: boolean;
 }
 
 /** Límites máximos y mínimos de la configuración. */
@@ -115,6 +117,7 @@ export const AJUSTES_POR_DEFECTO: ConfigEnjambre = {
         xkiro: 60,
     },
     revisionActiva: true,
+    resolucionAutomatica: true,
 };
 
 /** Texto seguro. */
@@ -229,5 +232,9 @@ export function validarConfig(bruto: unknown): ConfigEnjambre {
             typeof obj.revisionActiva === "boolean"
                 ? obj.revisionActiva
                 : AJUSTES_POR_DEFECTO.revisionActiva,
+        resolucionAutomatica:
+            typeof obj.resolucionAutomatica === "boolean"
+                ? obj.resolucionAutomatica
+                : AJUSTES_POR_DEFECTO.resolucionAutomatica,
     };
 }

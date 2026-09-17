@@ -70,6 +70,7 @@ interface ConfigEnjambre {
     revisores: Array<[string, string]>;
     cuposRpm: Record<string, number>;
     revisionActiva: boolean;
+    resolucionAutomatica: boolean;
 }
 
 const PROVEEDORES_TODOS = [
@@ -442,6 +443,14 @@ export function PanelAjustes() {
         [],
     );
 
+    const alCambiarResolucion = useCallback(
+        (v: boolean) =>
+            setRespuesta((r) =>
+                r ? { ...r, config: { ...r.config, resolucionAutomatica: v } } : r,
+            ),
+        [],
+    );
+
     const alMoverModelo = useCallback(
         (índice: number, dirección: -1 | 1) =>
             setRespuesta((r) => {
@@ -713,6 +722,25 @@ export function PanelAjustes() {
                             onCheckedChange={alCambiarRevision}
                         />
                     </div>
+                </article>
+
+                <article className="rounded-xl border border-white/10 bg-black/30 p-4">
+                    <h3 className="text-sm font-semibold text-white">Resolución automática</h3>
+                    <div className="mt-4 flex items-center justify-between gap-3">
+                        <Label htmlFor="switch-resolucion" className="text-xs text-white/80">
+                            Resolución automática
+                        </Label>
+                        <Switch
+                            id="switch-resolucion"
+                            checked={cfg.resolucionAutomatica}
+                            onCheckedChange={alCambiarResolucion}
+                        />
+                    </div>
+                    <p className="mt-2 text-[11px] text-white/50">
+                        {cfg.resolucionAutomatica
+                            ? "El director analiza el diff y los verificadores dan su conformidad. Solo se resuelve sola una rama limpia: revisión no bloqueante, alcance completo y confianza alta. Cualquier duda te espera a ti."
+                            : "Toda rama espera tu visto bueno."}
+                    </p>
                 </article>
             </section>
 
