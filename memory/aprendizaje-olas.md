@@ -379,3 +379,12 @@
 - `AS2` — no escribió nada
 - `CU3` — otra cosa: intento 1
 - `NE1` — no escribió nada
+
+## 2026-09-17 01:51 · auto-0917-013836
+
+**Lo que se pidió.** Esperando tu visto bueno
+
+**Resultado.** 1 de 2 integradas. 1 tarea se quedaron fuera.
+
+**Lo que quedó fuera, una por una:**
+- `CU3` — la revisión lo rechazó: rechazada automáticamente por ide (sin revisión humana); rama ola/CU3 conservada
