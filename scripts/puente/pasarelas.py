@@ -244,3 +244,25 @@ def modelos_utiles(modelos, informe, siempre=SIEMPRE):
     if not utiles:
         return list(modelos or []), []
     return utiles, apartados
+
+
+def sello(informe):
+    """La marca de tiempo del informe, para saber si hay uno nuevo que leer."""
+    return ((informe or {}).get("t") or "").strip()
+
+
+def cambio_de_rotacion(antes, despues):
+    """(entran, salen) al pasar de una rotación a otra, en el orden de `despues`.
+
+    (2026-09-16, 22:30) Existe porque el filtro era DESTRUCTIVO: se hacía
+    `MODELOS[:] = utiles` una sola vez al arrancar, y los apartados desaparecían
+    de la lista. Cuando Alex fichó en apinex y sus ocho modelos revivieron, no
+    había forma de recuperarlos sin reiniciar el orquestador — y reiniciarlo
+    significa tirar el trabajo en curso. Mientras tanto el enjambre seguía
+    gastando la suscripción de ChatGPT teniendo ocho modelos gratis esperando.
+
+    Con esto la lista completa se conserva y la rotación se RECALCULA: entrar es
+    tan barato como salir.
+    """
+    a, d = list(antes or []), list(despues or [])
+    return ([m for m in d if m not in a], [m for m in a if m not in d])

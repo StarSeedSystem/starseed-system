@@ -351,6 +351,56 @@ def debe_retirar(modelo, salida, catalogo=None):
     )
 
 
+#: La lista COMPLETA de escritores, antes de apartar por estado de pasarela.
+#: Existe porque el filtro era destructivo: `MODELOS[:] = utiles` borraba los
+#: apartados y ya no había manera de que volvieran sin reiniciar el orquestador.
+MODELOS_TODOS = []
+#: Sello del último informe de pasarelas aplicado a la rotación.
+ROTACION = {"sello": ""}
+
+
+def refrescar_rotacion():
+    """Relee el informe de pasarelas y RECALCULA la rotación si hay uno nuevo.
+
+    (2026-09-16, 22:30) Alex fichó en apinex y sus ocho modelos gratis
+    revivieron… y el enjambre siguió gastando la suscripción de ChatGPT, porque
+    la rotación solo se calculaba al arrancar y el orquestador llevaba una hora
+    en marcha. Reiniciarlo para que se enterara habría tirado el trabajo en
+    curso. Ahora entra tan barato como sale, cada minuto, sin tocar a nadie.
+
+    Devuelve (entran, salen) para que quien llame pueda anunciarlo."""
+    if not MODELOS_TODOS:
+        return [], []
+    try:
+        ruta_puente = os.path.join(ROOT, "scripts", "puente")
+        if ruta_puente not in sys.path:
+            sys.path.insert(0, ruta_puente)
+        import pasarelas as _pasarelas
+
+        with open(os.path.expanduser("~/.starseed/pasarelas-informe.json"),
+                  encoding="utf-8") as f:
+            informe = json.load(f)
+        sello = _pasarelas.sello(informe)
+        if not sello or sello == ROTACION.get("sello"):
+            return [], []
+        utiles, _ = _pasarelas.modelos_utiles(MODELOS_TODOS, informe)
+        if not utiles:
+            return [], []   # nunca dejar la rotación vacía por un informe raro
+        entran, salen = _pasarelas.cambio_de_rotacion(MODELOS, utiles)
+        ROTACION["sello"] = sello
+        if entran or salen:
+            MODELOS[:] = utiles
+            partes = []
+            if entran:
+                partes.append("vuelven " + ", ".join(m.split("/", 1)[1] for m in entran))
+            if salen:
+                partes.append("salen " + ", ".join(m.split("/", 1)[1] for m in salen))
+            evento("aviso", "", "rotación al día (%s): %s" % (sello[11:16], " · ".join(partes))[:400])
+        return entran, salen
+    except Exception:
+        return [], []
+
+
 def validar_modelos():
     """Antes de empezar, comprueba qué modelos existen de verdad en el catálogo de NIM.
     Un modelo retirado hace que opencode falle y la tarea se marque «sin cambios» sin
@@ -406,7 +456,9 @@ def validar_modelos():
         with open(os.path.expanduser("~/.starseed/pasarelas-informe.json"),
                   encoding="utf-8") as f:
             _informe = json.load(f)
-        _utiles, _apartados = _pasarelas.modelos_utiles(MODELOS, _informe)
+        MODELOS_TODOS[:] = list(MODELOS)   # la lista completa NO se pierde nunca
+        _utiles, _apartados = _pasarelas.modelos_utiles(MODELOS_TODOS, _informe)
+        ROTACION["sello"] = _pasarelas.sello(_informe)
         if _apartados:
             MODELOS[:] = _utiles
             evento("aviso", "", "aparto por estado de la pasarela: " + ", ".join(
@@ -4572,6 +4624,10 @@ def vigilante():
             ultimo_barrido = t_ciclo
             try:
                 _barrer_tsc_huerfanos()
+            except Exception:
+                pass
+            try:
+                refrescar_rotacion()   # una pasarela que revive vuelve sola
             except Exception:
                 pass
         try:

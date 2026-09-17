@@ -254,3 +254,33 @@ class TestLentaNoExpulsa(unittest.TestCase):
         # Un fichaje pendiente no se arregla esperando: ahí sí hay que apartarlo.
         utiles, _ = P.modelos_utiles(self.MODELOS, self._informe(P.FICHAJE))
         self.assertNotIn("apinex/free/glm-5.3-flash", utiles)
+
+
+class TestRotacionQueSeRecalcula(unittest.TestCase):
+    """Entrar a la rotación debe ser tan barato como salir.
+
+    El filtro era destructivo y solo corría al arrancar: cuando apinex revivió
+    tras el fichaje, sus ocho modelos no podían volver sin reiniciar el
+    orquestador — y reiniciarlo tira el trabajo en curso. Mientras tanto se
+    gastaba la suscripción de ChatGPT con ocho modelos gratis esperando.
+    """
+
+    def test_sello_distingue_informes(self):
+        self.assertEqual(P.sello({"t": "2026-09-16 21:24:00"}), "2026-09-16 21:24:00")
+        self.assertEqual(P.sello({}), "")
+        self.assertEqual(P.sello(None), "")
+
+    def test_lo_que_entra_y_lo_que_sale(self):
+        entran, salen = P.cambio_de_rotacion(
+            ["groq/a", "xai/b"],
+            ["groq/a", "apinex/c", "apinex/d"],
+        )
+        self.assertEqual(entran, ["apinex/c", "apinex/d"])
+        self.assertEqual(salen, ["xai/b"])
+
+    def test_sin_cambios_no_hay_nada_que_anunciar(self):
+        self.assertEqual(P.cambio_de_rotacion(["a", "b"], ["a", "b"]), ([], []))
+
+    def test_desde_vacio_entra_todo(self):
+        entran, salen = P.cambio_de_rotacion([], ["a"])
+        self.assertEqual((entran, salen), (["a"], []))
