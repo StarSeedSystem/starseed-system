@@ -344,3 +344,20 @@
 - `NE3` — conflicto al integrar: dependencia no integrada: NE1 (conflicto)
 - `RA2` — no escribió nada
 - `RS1b` — la revisión lo rechazó: rechazada automáticamente por ide (sin revisión humana); rama ola/RS1b conservada
+
+## 2026-09-17 01:09 · auto-0917-001545
+
+**Lo que se pidió.** ideas nuevas
+
+**Resultado.** 2 de 7 integradas. 5 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 5 tareas se fueron por lo mismo — no escribió nada (DR1, RA2, AS2, CU3, NE1). Es 71 % de la ola.
+- sin modelo anotado no integró ninguna de sus 5 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `DR1` — no escribió nada
+- `RA2` — no escribió nada
+- `AS2` — no escribió nada
+- `CU3` — no escribió nada
+- `NE1` — no escribió nada
