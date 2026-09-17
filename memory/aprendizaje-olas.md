@@ -172,3 +172,89 @@
 
 **Lo que quedó fuera, una por una:**
 - `PR1` — pruebas en rojo: vitest falla (rama conservada)
+## 2026-09-16 21:17 · nube-auto-20260916-211339
+
+**Lo que se pidió.** una app simple pero completa en cuanto a configuraciones, información y detalles técnicos para editar cada voz a detalle de las opciones predeterminadas de StarSeed OS, con la información completa de cómo funciona cada una y su acceso a su código, para perfeccionarlas y subirlas a cada una de las voces de las personalidades predeterminadas, configurables y clonables por los usuarios y por el sistema de voz autónoma
+
+**Resultado.** 0 de 17 integradas. 17 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 17 tareas se fueron por lo mismo — otra cosa (R7, L8, LT3, zD1, zE6A, zF5). Es 100 % de la ola.
+- sin modelo anotado no integró ninguna de sus 17 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `R7` — otra cosa: excepción: [Errno 2] No such file or directory: 'opencode'
+- `L8` — otra cosa: excepción: [Errno 2] No such file or directory: 'opencode'
+- `LT3` — otra cosa: excepción: [Errno 2] No such file or directory: 'opencode'
+- `zD1` — otra cosa: excepción: [Errno 2] No such file or directory: 'opencode'
+- `zE6A` — otra cosa: excepción: [Errno 2] No such file or directory: 'opencode'
+- `zF5` — otra cosa: excepción: [Errno 2] No such file or directory: 'opencode'
+- `zT4` — otra cosa: excepción: [Errno 2] No such file or directory: 'opencode'
+- `p312C` — otra cosa: excepción: [Errno 2] No such file or directory: 'opencode'
+- `p314A` — otra cosa: excepción: [Errno 2] No such file or directory: 'opencode'
+- `p314B` — otra cosa: excepción: [Errno 2] No such file or directory: 'opencode'
+- `p315A` — otra cosa: excepción: [Errno 2] No such file or directory: 'opencode'
+- `c313_QW1` — otra cosa: excepción: [Errno 2] No such file or directory: 'opencode'
+- `c313_QW2` — otra cosa: excepción: [Errno 2] No such file or directory: 'opencode'
+- `c313_QW4` — otra cosa: excepción: [Errno 2] No such file or directory: 'opencode'
+- `c313_QW5` — otra cosa: excepción: [Errno 2] No such file or directory: 'opencode'
+- `c313_QW6` — otra cosa: excepción: [Errno 2] No such file or directory: 'opencode'
+- `DEDUPE` — otra cosa: excepción: [Errno 2] No such file or directory: 'opencode'
+
+## 2026-09-16 22:18 · nube-auto-20260916-221359
+
+**Lo que se pidió.** una app simple pero completa en cuanto a configuraciones, información y detalles técnicos para editar cada voz a detalle de las opciones predeterminadas de StarSeed OS, con la información completa de cómo funciona cada una y su acceso a su código, para perfeccionarlas y subirlas a cada una de las voces de las personalidades predeterminadas, configurables y clonables por los usuarios y por el sistema de voz autónoma
+
+**Resultado.** 0 de 17 integradas. 17 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 17 tareas se fueron por lo mismo — otra cosa (R7, L8, LT3, zD1, zE6A, zF5). Es 100 % de la ola.
+- sin modelo anotado no integró ninguna de sus 17 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `R7` — otra cosa: excepción: [Errno 2] No such file or directory: 'opencode'
+- `L8` — otra cosa: excepción: [Errno 2] No such file or directory: 'opencode'
+- `LT3` — otra cosa: excepción: [Errno 2] No such file or directory: 'opencode'
+- `zD1` — otra cosa: excepción: [Errno 2] No such file or directory: 'opencode'
+- `zE6A` — otra cosa: excepción: [Errno 2] No such file or directory: 'opencode'
+- `zF5` — otra cosa: excepción: [Errno 2] No such file or directory: 'opencode'
+- `zT4` — otra cosa: excepción: [Errno 2] No such file or directory: 'opencode'
+- `p312C` — otra cosa: excepción: [Errno 2] No such file or directory: 'opencode'
+- `p314A` — otra cosa: excepción: [Errno 2] No such file or directory: 'opencode'
+- `p314B` — otra cosa: excepción: [Errno 2] No such file or directory: 'opencode'
+- `p315A` — otra cosa: excepción: [Errno 2] No such file or directory: 'opencode'
+- `c313_QW1` — otra cosa: excepción: [Errno 2] No such file or directory: 'opencode'
+- `c313_QW2` — otra cosa: excepción: [Errno 2] No such file or directory: 'opencode'
+- `c313_QW4` — otra cosa: excepción: [Errno 2] No such file or directory: 'opencode'
+- `c313_QW5` — otra cosa: excepción: [Errno 2] No such file or directory: 'opencode'
+- `c313_QW6` — otra cosa: excepción: [Errno 2] No such file or directory: 'opencode'
+- `DEDUPE` — otra cosa: excepción: [Errno 2] No such file or directory: 'opencode'
+
+## 2026-09-17 00:17 · nube-auto-20260917-001404
+
+**Lo que se pidió.** una app simple pero completa en cuanto a configuraciones, información y detalles técnicos para editar cada voz a detalle de las opciones predeterminadas de StarSeed OS, con la información completa de cómo funciona cada una y su acceso a su código, para perfeccionarlas y subirlas a cada una de las voces de las personalidades predeterminadas, configurables y clonables por los usuarios y por el sistema de voz autónoma
+
+**Resultado.** 0 de 17 integradas. 17 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 17 tareas se fueron por lo mismo — otra cosa (R7, L8, LT3, zD1, zE6A, zF5). Es 100 % de la ola.
+- sin modelo anotado no integró ninguna de sus 17 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `R7` — otra cosa: excepción: [Errno 2] No such file or directory: 'opencode'
+- `L8` — otra cosa: excepción: [Errno 2] No such file or directory: 'opencode'
+- `LT3` — otra cosa: excepción: [Errno 2] No such file or directory: 'opencode'
+- `zD1` — otra cosa: excepción: [Errno 2] No such file or directory: 'opencode'
+- `zE6A` — otra cosa: excepción: [Errno 2] No such file or directory: 'opencode'
+- `zF5` — otra cosa: excepción: [Errno 2] No such file or directory: 'opencode'
+- `zT4` — otra cosa: excepción: [Errno 2] No such file or directory: 'opencode'
+- `p312C` — otra cosa: excepción: [Errno 2] No such file or directory: 'opencode'
+- `p314A` — otra cosa: excepción: [Errno 2] No such file or directory: 'opencode'
+- `p314B` — otra cosa: excepción: [Errno 2] No such file or directory: 'opencode'
+- `p315A` — otra cosa: excepción: [Errno 2] No such file or directory: 'opencode'
+- `c313_QW1` — otra cosa: excepción: [Errno 2] No such file or directory: 'opencode'
+- `c313_QW2` — otra cosa: excepción: [Errno 2] No such file or directory: 'opencode'
+- `c313_QW4` — otra cosa: excepción: [Errno 2] No such file or directory: 'opencode'
+- `c313_QW5` — otra cosa: excepción: [Errno 2] No such file or directory: 'opencode'
+- `c313_QW6` — otra cosa: excepción: [Errno 2] No such file or directory: 'opencode'
+- `DEDUPE` — otra cosa: excepción: [Errno 2] No such file or directory: 'opencode'
