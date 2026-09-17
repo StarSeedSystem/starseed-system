@@ -19,7 +19,9 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { Ban, Bot, ChevronRight, FileWarning, GitCommit, ListOrdered, Pause, Play, Radar, RefreshCw, ScanSearch, ShieldCheck, Wand2 } from "lucide-react";
 
 import { DisenadorOla } from "@/components/mando/disenador-ola";
+import { Switch } from "@/components/ui/switch";
 import { escuchar as escucharAsistente, tomarTareaPendiente } from "@/lib/mando/asistente-cliente";
+import type { ConfigEnjambre } from "@/lib/mando/ajustes-tipos";
 
 import type { FotoEnjambre, LatidoTarea } from "@/lib/mando/tipos";
 import type { AlcanceRama, ImpactoRama, RamaOla, RamaTarea, Ramificacion } from "@/lib/mando/ramificacion";
@@ -847,15 +849,107 @@ function ImpactoDiff({ impacto, detalle = false }: { impacto: ImpactoRama | null
     );
 }
 
-function EsperandoVistoBueno({ olas, onVer, onHecho }: { olas: RamaOla[]; onVer: (id: string) => void; onHecho: () => void }) {
+/**
+ * Switch de «Resolución automática» en la cabecera de «Esperando tu visto bueno»:
+ * refleja y cambia el MISMO ajuste que el panel de Ajustes (`GET/PUT /api/mando/ajustes`),
+ * sin estado paralelo ni localStorage. Mientras el PUT está en vuelo se deshabilita; si
+ * falla, vuelve al valor anterior y lo dice en una línea.
+ */
+function SwitchResolucion() {
+    const [config, setConfig] = useState<ConfigEnjambre | null>(null);
+    const [enviando, setEnviando] = useState(false);
+    const [aviso, setAviso] = useState<string | null>(null);
+
+    useEffect(() => {
+        let vivo = true;
+        void (async () => {
+            try {
+                const r = await fetch("/api/mando/ajustes", { cache: "no-store" });
+                if (!r.ok) return;
+                const datos = (await r.json()) as { config?: ConfigEnjambre };
+                if (vivo && datos.config) setConfig(datos.config);
+            } catch {
+                // Sin acceso al Mando local, el switch no se ofrece.
+            }
+        })();
+        return () => {
+            vivo = false;
+        };
+    }, []);
+
+    const cambiar = useCallback(
+        async (nuevo: boolean) => {
+            if (!config || enviando) return;
+            const anterior = config;
+            setAviso(null);
+            setEnviando(true);
+            setConfig({ ...config, resolucionAutomatica: nuevo });
+            try {
+                const r = await fetch("/api/mando/ajustes", {
+                    method: "PUT",
+                    headers: { "content-type": "application/json" },
+                    body: JSON.stringify({ ...config, resolucionAutomatica: nuevo }),
+                });
+                const datos = (await r.json().catch(() => null)) as {
+                    ok?: boolean;
+                    error?: string;
+                    config?: ConfigEnjambre;
+                } | null;
+                if (!r.ok || !datos?.ok) {
+                    setConfig(anterior);
+                    setAviso(datos?.error ?? `No se pudo guardar (HTTP ${r.status}).`);
+                } else if (datos.config) {
+                    setConfig(datos.config);
+                }
+            } catch {
+                setConfig(anterior);
+                setAviso("No se pudo guardar: sin conexión con el Mando.");
+            } finally {
+                setEnviando(false);
+            }
+        },
+        [config, enviando],
+    );
+
+    if (!config) return null;
+    return (
+        <div className="flex flex-col items-end gap-0.5" data-testid="switch-resolucion">
+            <span className="flex items-center gap-2 text-[11px] normal-case tracking-normal text-fuchsia-100/90">
+                Resolución automática
+                <Switch
+                    aria-label="Resolución automática"
+                    checked={config.resolucionAutomatica}
+                    disabled={enviando}
+                    onCheckedChange={(v) => void cambiar(v)}
+                    className="h-4 w-7 data-[state=checked]:bg-fuchsia-400 data-[state=unchecked]:bg-white/20 [&>span]:h-3 [&>span]:w-3 [&>span[data-state=checked]]:translate-x-3"
+                />
+            </span>
+            <p className="text-[11px] text-fuchsia-100/60">
+                {config.resolucionAutomatica
+                    ? "El director y los verificadores resuelven solos lo que esté limpio."
+                    : "Todo espera tu visto bueno."}
+            </p>
+            {aviso ? (
+                <p role="alert" className="text-[11px] text-rose-300">
+                    {aviso}
+                </p>
+            ) : null}
+        </div>
+    );
+}
+
+export function EsperandoVistoBueno({ olas, onVer, onHecho }: { olas: RamaOla[]; onVer: (id: string) => void; onHecho: () => void }) {
     const esperan = olas.flatMap((o) => o.tareas.filter((t) => t.estado === "esperando_aprobacion" || t.estado === "pendiente_aprobacion"));
     if (esperan.length === 0) return null;
     return (
         <section className="rounded-xl border border-fuchsia-400/40 bg-fuchsia-500/[0.06] p-3" data-testid="esperando-visto-bueno">
-            <h4 className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-wide text-fuchsia-200">
-                <span className="h-2 w-2 animate-pulse rounded-full bg-fuchsia-400" aria-hidden />
-                Esperando tu visto bueno · {esperan.length}
-            </h4>
+            <div className="flex flex-wrap items-start justify-between gap-2">
+                <h4 className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-wide text-fuchsia-200">
+                    <span className="h-2 w-2 animate-pulse rounded-full bg-fuchsia-400" aria-hidden />
+                    Esperando tu visto bueno · {esperan.length}
+                </h4>
+                <SwitchResolucion />
+            </div>
             <ul className="mt-2 space-y-2">
                 {esperan.map((t) => (
                     <li key={`${t.cola}-${t.id}`} className="rounded-lg border border-white/10 bg-black/30 p-2 text-xs">
