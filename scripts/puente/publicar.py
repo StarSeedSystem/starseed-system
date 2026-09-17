@@ -28,8 +28,48 @@ DIRECTORIO = os.path.dirname(os.path.abspath(__file__))
 if DIRECTORIO not in sys.path:
     sys.path.insert(0, DIRECTORIO)
 
+import atexit
+
+import turno_pesado as TP
 import verificacion_cambios as VC
 import verificar_publicado as VP
+
+#: EL TURNO DE LA MÁQUINA (2026-09-16).
+#: Las cuatro puertas y la build piden entre 1,5 y 4 GB cada una, y la Mac
+#: tiene 8. El enjambre ya hacía cola consigo mismo; publicar NO. Resultado
+#: medido hoy: swap al 93 %, memoria libre al 25 % y un `tsc` de 54 segundos
+#: tardando 26 MINUTOS por paginar. Ahora publicar pide el mismo turno que los
+#: agentes, así que o compila el enjambre o compila la publicación, nunca los
+#: dos. Se espera; esperar cinco minutos es infinitamente más barato que
+#: pelearse por la RAM durante una hora.
+_TURNO = {"cm": None}
+
+
+def tomar_turno(diario):
+    """Hace cola por la máquina antes de las puertas. Avisa cada minuto."""
+
+    def avisar(segundos):
+        diario.marcar(
+            "tsc", "corriendo",
+            "esperando turno de máquina (%d s): el enjambre está compilando" % segundos,
+        )
+
+    cm = TP.turno(avisar=avisar)
+    cm.__enter__()
+    _TURNO["cm"] = cm
+    atexit.register(soltar_turno)
+
+
+def soltar_turno():
+    """Suelta el turno una sola vez, venga de donde venga la salida."""
+    cm = _TURNO.get("cm")
+    if cm is None:
+        return
+    _TURNO["cm"] = None
+    try:
+        cm.__exit__(None, None, None)
+    except Exception:
+        pass
 
 RAIZ = os.environ.get("STARSEED_ROOT") or os.path.dirname(os.path.dirname(DIRECTORIO))
 ESTADO = os.path.join(RAIZ, "starseed_memory_root", "mando", "publicacion-estado.json")
@@ -302,7 +342,9 @@ def main():
             return 1
         diario.marcar("commit", "ok", "%d archivo(s) commiteado(s)" % len(sueltos))
 
-    # 3-6 · las cuatro puertas. Ninguna se salta por ir con prisa.
+    # 3-6 · las cuatro puertas. Ninguna se salta por ir con prisa, y ninguna
+    # empieza hasta que la máquina esté libre: ver `tomar_turno`.
+    tomar_turno(diario)
     if not puerta(diario, "tsc", ["npx", "tsc", "--noEmit"], timeout=1800):
         diario.cerrar("fallo", "no se publicó: los tipos no compilan")
         return 1
@@ -333,6 +375,11 @@ def main():
             return 1
         diario.marcar("build", "ok", resumen_salida("build", salida), time.time() - t0)
         _reiniciar_mando(diario)
+
+    # Las puertas terminaron: el enjambre puede volver a compilar mientras
+    # nosotros hablamos con la red. El `atexit` lo soltaría igual, pero esperar
+    # al final del script le regalaría al enjambre un push entero de parón.
+    soltar_turno()
 
     # 7 · push. Solo aquí, y solo con las cuatro en verde.
     _, pendientes = git(["log", "--format=%H", "origin/main..HEAD"])
