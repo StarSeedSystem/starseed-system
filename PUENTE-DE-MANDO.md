@@ -1,6 +1,6 @@
 # Puente de Mando · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-17 13:45:34 desde el Mando vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-17 14:15:49 desde el Mando vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -15,19 +15,17 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | Ola arriba | Ola Dream 2026-09-15 · lo que el análisis nocturno encontró |
 | Agentes escribiendo | **0** |
 | En esta ola | integradas 2 · en curso 0 · esperando aprobación 0 · pendientes 0 |
-| Últimas 4 olas | en curso 0 · pendientes 2 · integradas 3 |
-| HEAD | `4a315a26 chore(memoria): aprendizaje de la ola auto-0917-130634` |
-| Sin publicar | 1 commits |
+| Últimas 4 olas | en curso 0 · pendientes 0 · integradas 3 |
+| HEAD | `9e084164 chore(memoria): aprendizaje de la ola auto-0917-134544` |
+| Sin publicar | 3 commits |
 | Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-auto-0917-130634.json`, hace 4s)
+## Quién escribe ahora (latido de `cola-auto-0917-134544.json`, hace 5s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `RS1p` | hecho | codex/gpt-5.6-sol | 0 min | 27 s | 15628 |
-| `CU3b` | hecho | codex/gpt-5.6-sol | 14 min | 864 s | 24102 |
-| `RS3b` | hecho | codex/gpt-5.6-sol | 16 min | 954 s | 12868 |
-| `NE1b` | hecho | groq/qwen/qwen3.8-27b | 16 min | 960 s | 17312 |
+| `DR0917-1` | hecho | groq/qwen/qwen3.8-27b | 0 min | 26 s | 13577 |
+| `DR0917-2` | hecho | codex/gpt-5.6-sol | 4 min | 229 s | 10430 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
