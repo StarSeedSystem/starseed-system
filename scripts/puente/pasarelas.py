@@ -46,6 +46,8 @@ CATALOGO = {
                    "humano": True, "nota": "Clave de pago con saldo; 401 significa clave caducada o revocada."},
     "xai":        {"nombre": "xAI (Grok)", "enlace": "https://console.x.ai/",
                    "humano": True, "nota": "No hay clave configurada todavía. La crea Alex; yo no abro cuentas."},
+    "neurona":    {"nombre": "Neurona local (Ollama)", "enlace": "https://ollama.com/library",
+                   "humano": True, "nota": "Local: sin clave, sin cupo y sin red. Solo necesita que haya un modelo descargado que sepa programar."},
     "huggingface": {"nombre": "Hugging Face", "enlace": "https://huggingface.co/settings/tokens",
                    "humano": True, "nota": "Inference API con cuota mensual gratuita."},
 }

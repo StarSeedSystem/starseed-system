@@ -42,6 +42,9 @@ INFORME = os.path.expanduser("~/.starseed/pasarelas-informe.json")
 # Una pasarela, un modelo barato con el que probarla y la variable donde vive su clave.
 # NUNCA el valor: solo el NOMBRE de la variable.
 SONDAS = [
+    # La neurona local (Ollama) es una pasarela más: OpenAI-compatible, sin clave,
+    # sin cupo y sin red. Va primera porque nada puede dejarla sin créditos.
+    ("neurona", "http://127.0.0.1:11434/v1", None, "qwen2.5:0.5b"),
     ("openrouter", "https://openrouter.ai/api/v1", "OPENROUTER_API_KEY", "nex-agi/nex-n2.5-pro:free"),
     ("nvidia", "https://integrate.api.nvidia.com/v1", "NVIDIA_API_KEY", "moonshotai/kimi-k3"),
     ("groq", "https://api.groq.com/openai/v1", "GROQ_API_KEY", "openai/gpt-oss-20b"),
@@ -89,7 +92,7 @@ def entorno_con_claves():
 
 def sondear(url, clave, modelo, segundos=25):
     """Ocho tokens. Devuelve (http, cuerpo_recortado, hubo_tokens)."""
-    if not clave:
+    if not clave and not url.startswith("http://127.0.0.1"):
         # Sin llave no es «lenta»: es exactamente el caso que hay que renovar.
         return 401, "no hay clave en el entorno para esta pasarela", False
     cuerpo = json.dumps({
@@ -102,7 +105,7 @@ def sondear(url, clave, modelo, segundos=25):
     # caducadas cuando estaban perfectas. Un agente que miente así es peor que ninguno.
     peticion = urllib.request.Request(
         url.rstrip("/") + "/chat/completions", data=cuerpo,
-        headers={"Authorization": "Bearer %s" % clave,
+        headers={"Authorization": "Bearer %s" % (clave or "local"),
                  "Content-Type": "application/json",
                  "Accept": "application/json",
                  "User-Agent": "starseed-renovador/1.0"})
