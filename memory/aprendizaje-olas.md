@@ -361,3 +361,21 @@
 - `AS2` — no escribió nada
 - `CU3` — no escribió nada
 - `NE1` — no escribió nada
+
+## 2026-09-17 01:38 · auto-0917-011258
+
+**Lo que se pidió.** ideas nuevas
+
+**Resultado.** 0 de 5 integradas. 5 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 3 tareas se fueron por lo mismo — no escribió nada (DR1, AS2, NE1). Es 60 % de la ola.
+- 2 tareas se fueron por lo mismo — otra cosa (RA2, CU3). Es 40 % de la ola.
+- sin modelo anotado no integró ninguna de sus 5 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `DR1` — no escribió nada
+- `RA2` — otra cosa: intento 1
+- `AS2` — no escribió nada
+- `CU3` — otra cosa: intento 1
+- `NE1` — no escribió nada
