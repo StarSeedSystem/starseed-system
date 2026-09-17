@@ -27,6 +27,45 @@ import {
 } from "lucide-react";
 
 import type { EstadoAlmacenamiento, Regenerable } from "@/lib/mando/almacenamiento";
+import type { CarpetaEspecial, ModoCarpeta } from "@/lib/mando/drive-carpetas";
+
+/**
+ * D2 dejó `driveCarpetas` en el JSON de GET /api/mando/almacenamiento; el tipo
+ * `EstadoAlmacenamiento` aún no lo declara, así que aquí lo leemos como campo
+ * opcional (si llega vacío o ausente, la sección enseña una frase honesta).
+ * `CarpetaEspecial` se importa SOLO como tipo: el módulo toca disco y una
+ * importación de valor metería `node:fs` en el bundle del cliente.
+ */
+type EstadoConCarpetas = EstadoAlmacenamiento & { driveCarpetas?: CarpetaEspecial[] };
+
+/** Umbral del plan de sincronización: 6 GB libres (6144 MB), el mismo del servidor. */
+const UMBRAL_PLAN_MB = 6_144;
+
+/** Paso del plan con etiqueta y tamaño (para redactarlo y para ejecutarlo). */
+interface PasoPlan {
+    id: string;
+    etiqueta: string;
+    mb: number;
+}
+
+/**
+ * Espejo local de `planDeSincronizacion` (solo lo que enseña esta tarjeta):
+ * cuando el disco baja del umbral, se proponen las carpetas en modo «espejo»,
+ * de mayor a menor, hasta cubrir los MB que faltan. No se importa la función
+ * del servidor porque arrastraría `node:fs` al cliente.
+ */
+function pasosDelPlan(carpetas: CarpetaEspecial[], libreMb: number): PasoPlan[] {
+    const faltan = UMBRAL_PLAN_MB - libreMb;
+    const pasos: PasoPlan[] = [];
+    let recuperados = 0;
+    for (const carpeta of [...carpetas].sort((a, b) => b.mb - a.mb)) {
+        if (recuperados >= faltan) break;
+        if (carpeta.modo !== "espejo") continue;
+        pasos.push({ id: carpeta.id, etiqueta: carpeta.etiqueta, mb: carpeta.mb });
+        recuperados += carpeta.mb;
+    }
+    return pasos;
+}
 
 /** Resultado del POST «mover»/«traer» (carpetas frías a/desde Drive). */
 interface ResultadoFria {
