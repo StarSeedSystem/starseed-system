@@ -1,6 +1,6 @@
 # Puente de Mando · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-16 19:40:58 desde el Mando vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-16 20:58:43 desde el Mando vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -14,19 +14,26 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | Mando | **encendido** en http://127.0.0.1:9002/mando |
 | Ola arriba | Ola Dream 2026-09-15 · lo que el análisis nocturno encontró |
 | Agentes escribiendo | **0** |
-| En esta ola | integradas 0 · en curso 0 · esperando aprobación 0 · pendientes 3 |
-| Últimas 4 olas | en curso 0 · pendientes 3 · integradas 3 |
-| HEAD | `0f9e29ce chore(memoria): aprendizaje de la ola auto-0916-190818` |
-| Sin publicar | 7 commits |
+| En esta ola | integradas 1 · en curso 0 · esperando aprobación 0 · pendientes 0 |
+| Últimas 4 olas | en curso 0 · pendientes 0 · integradas 4 |
+| HEAD | `2162cf55 chore(memoria): aprendizaje de la ola auto-0916-200258` |
+| Sin publicar | 1 commits |
 | Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-auto-0916-190818.json`, hace 3s)
+## Quién escribe ahora (latido de `cola-auto-0916-200258.json`, hace 4s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `NE1` | hecho | groq/openai/gpt-oss-20b | 1 min | 33 s | 3354 |
-| `CU1` | hecho | groq/qwen/qwen3.8-27b | 3 min | 197 s | 2861 |
-| `ID1` | hecho | groq/qwen/qwen3.8-27b | 6 min | 339 s | 2861 |
+| `CU1` | hecho | xai/grok-4.6 | 9 min | 544 s | 74385 |
+| `SA2` | hecho | groq/openai/gpt-oss-120b | 9 min | 559 s | 106951 |
+| `SA1` | hecho | xai/grok-build-0.1 | 10 min | 573 s | 100888 |
+| `NE1` | hecho | groq/openai/gpt-oss-120b | 12 min | 706 s | 5184 |
+| `ID1` | hecho | xai/grok-build-0.1 | 13 min | 756 s | 69799 |
+| `AS2` | hecho | apinex/free/gemini-3.8-flash | 13 min | 760 s | 4898 |
+| `AS1` | hecho | xai/grok-build-0.1 | 19 min | 1126 s | 33157 |
+| `DR2` | hecho | xai/grok-4.6 | 19 min | 1155 s | 38519 |
+| `DR3` | hecho | apinex/free/glm-5.3-flash | 41 min | 2482 s | 22060 |
+| `DR1` | hecho | apinex/free/glm-5.3-flash | 50 min | 2998 s | 17839 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
