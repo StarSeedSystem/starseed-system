@@ -581,3 +581,18 @@
 - `DR0917-2` — no escribió nada
 - `RS3b` — no escribió nada
 - `RS1c` — no escribió nada
+
+## 2026-09-17 20:04 · auto-0917-192009
+
+**Lo que se pidió.** top 3 accionables
+
+**Resultado.** 1 de 4 integradas. 3 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 2 tareas se fueron por lo mismo — no escribió nada (DR0917-1, RS3b). Es 50 % de la ola.
+- sin modelo anotado no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `DR0917-1` — no escribió nada
+- `DR0917-2` — la revisión lo rechazó: rechazada automáticamente por ide (sin revisión humana); rama ola/DR0917-2 conservada
+- `RS3b` — no escribió nada
