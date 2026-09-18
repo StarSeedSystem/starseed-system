@@ -39,6 +39,7 @@ class _RepoTemporal:
         nota = self.raiz / "INICIO.txt"
         nota.write_text("base\n")
         self.git("add", ".")
+        self.git("commit", "-m", "base")
 
     def git(self, *args):
         return subprocess.run(

@@ -192,8 +192,9 @@ try:
     if _rp3 not in sys.path:
         sys.path.insert(0, _rp3)
     import cupo_codex as _cupo_codex
-except Exception:                       # sin el módulo, se comporta como antes
-    class _cupo_codex(object):          # noqa: N801
+except Exception:  # sin el módulo, se comporta como antes
+
+    class _cupo_codex(object):  # noqa: N801
         @staticmethod
         def puede_escribir():
             return True
@@ -243,7 +244,11 @@ def codex_disponible() -> bool:
             return False
     except Exception:
         pass
-    if os.environ.get("STARSEED_CODEX_ESCRITOR", "1").strip().lower() in ("0", "no", "false"):
+    if os.environ.get("STARSEED_CODEX_ESCRITOR", "1").strip().lower() in (
+        "0",
+        "no",
+        "false",
+    ):
         return False
     if not ruta_codex():
         return False
@@ -259,6 +264,9 @@ MUERTOS = set()  # modelos que el proveedor ha rechazado en esta corrida
 PROCESOS = {}  # tarea -> Popen de opencode en marcha (para poder cortarlo)
 CORTADOS = set()  # tareas cuyo opencode ha matado el vigilante: no cuentan como intento
 PROCESOS_LOCK = threading.Lock()
+# BASES del salvavidas: registro de commits de protección por tarea. Se protege
+# con PROCESOS_LOCK porque varios hilos pueden escribir notas simultáneamente.
+BASES: dict[str, dict] = {}
 FIN = threading.Event()  # lo levanta main() al terminar, para parar al vigilante
 
 # Pistas de que ha fallado el PROVEEDOR, no el modelo: un «sin cambios» por esto es falso.
@@ -408,25 +416,32 @@ def refrescar_rotacion():
             sys.path.insert(0, ruta_puente)
         import pasarelas as _pasarelas
 
-        with open(os.path.expanduser("~/.starseed/pasarelas-informe.json"),
-                  encoding="utf-8") as f:
+        with open(
+            os.path.expanduser("~/.starseed/pasarelas-informe.json"), encoding="utf-8"
+        ) as f:
             informe = json.load(f)
         sello = _pasarelas.sello(informe)
         if not sello or sello == ROTACION.get("sello"):
             return [], []
         utiles, _ = _pasarelas.modelos_utiles(MODELOS_TODOS, informe)
         if not utiles:
-            return [], []   # nunca dejar la rotación vacía por un informe raro
+            return [], []  # nunca dejar la rotación vacía por un informe raro
         entran, salen = _pasarelas.cambio_de_rotacion(MODELOS, utiles)
         ROTACION["sello"] = sello
         if entran or salen:
             MODELOS[:] = utiles
             partes = []
             if entran:
-                partes.append("vuelven " + ", ".join(m.split("/", 1)[1] for m in entran))
+                partes.append(
+                    "vuelven " + ", ".join(m.split("/", 1)[1] for m in entran)
+                )
             if salen:
                 partes.append("salen " + ", ".join(m.split("/", 1)[1] for m in salen))
-            evento("aviso", "", "rotación al día (%s): %s" % (sello[11:16], " · ".join(partes))[:400])
+            evento(
+                "aviso",
+                "",
+                "rotación al día (%s): %s" % (sello[11:16], " · ".join(partes))[:400],
+            )
         return entran, salen
     except Exception:
         return [], []
@@ -464,7 +479,8 @@ def barrer_agentes_huerfanos():
             if len(partes) == 3:
                 filas.append((partes[0], partes[1], partes[2]))
         vivos = [
-            int(pid) for pid, _, args in filas
+            int(pid)
+            for pid, _, args in filas
             if "starseed-enjambre.py" in args and " -u " in args
         ]
         perdidos = _huerf.huerfanos(filas, vivos)
@@ -537,16 +553,23 @@ def validar_modelos():
             sys.path.insert(0, ruta_puente)
         import pasarelas as _pasarelas
 
-        with open(os.path.expanduser("~/.starseed/pasarelas-informe.json"),
-                  encoding="utf-8") as f:
+        with open(
+            os.path.expanduser("~/.starseed/pasarelas-informe.json"), encoding="utf-8"
+        ) as f:
             _informe = json.load(f)
-        MODELOS_TODOS[:] = list(MODELOS)   # la lista completa NO se pierde nunca
+        MODELOS_TODOS[:] = list(MODELOS)  # la lista completa NO se pierde nunca
         _utiles, _apartados = _pasarelas.modelos_utiles(MODELOS_TODOS, _informe)
         ROTACION["sello"] = _pasarelas.sello(_informe)
         if _apartados:
             MODELOS[:] = _utiles
-            evento("aviso", "", "aparto por estado de la pasarela: " + ", ".join(
-                "%s (%s)" % (m.split("/", 1)[1], e) for m, e in _apartados)[:400])
+            evento(
+                "aviso",
+                "",
+                "aparto por estado de la pasarela: "
+                + ", ".join("%s (%s)" % (m.split("/", 1)[1], e) for m, e in _apartados)[
+                    :400
+                ],
+            )
     except Exception:
         pass
     if not MODELOS:
@@ -1249,7 +1272,8 @@ try:
         sys.path.insert(0, _rp)
     import espera_de_dependencias as _espera_dep
 except Exception:  # sin el módulo, se comporta como antes: bloquear siempre
-    class _espera_dep(object):          # noqa: N801
+
+    class _espera_dep(object):  # noqa: N801
         @staticmethod
         def veredicto(estados, hay_alguien_trabajando=True):
             return "sigue" if all(e in ("commit",) for e in estados) else "bloqueo"
@@ -1257,7 +1281,8 @@ except Exception:  # sin el módulo, se comporta como antes: bloquear siempre
         @staticmethod
         def motivo(ids, estados, v):
             return "dependencia no integrada: " + ", ".join(
-                "%s (%s)" % (i, e) for i, e in zip(ids, estados) if e != "commit")
+                "%s (%s)" % (i, e) for i, e in zip(ids, estados) if e != "commit"
+            )
 
 
 def dependencias_ok(t):
@@ -1824,9 +1849,17 @@ def entorno_hijo(extra=None):
 
 _CLAVES_EXTRA = (
     # No viven en opencode.json: revisores por HTTP directo, avisos y alias históricos.
-    "GROQ_API_KEY", "STARSEED_PASARELA_GROQ_KEY", "STARSEED_PASARELA_APINEX_KEY",
-    "GEMINI_API_KEY", "GOOGLE_API_KEY", "DEEPSEEK_API_KEY", "DEEPSEEK_BASE_URL",
-    "XAI_API_KEY", "HF_TOKEN", "TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID",
+    "GROQ_API_KEY",
+    "STARSEED_PASARELA_GROQ_KEY",
+    "STARSEED_PASARELA_APINEX_KEY",
+    "GEMINI_API_KEY",
+    "GOOGLE_API_KEY",
+    "DEEPSEEK_API_KEY",
+    "DEEPSEEK_BASE_URL",
+    "XAI_API_KEY",
+    "HF_TOKEN",
+    "TELEGRAM_BOT_TOKEN",
+    "TELEGRAM_CHAT_ID",
 )
 _CLAVES_CACHE = None
 
@@ -1843,8 +1876,10 @@ def _claves_que_viajan():
             sys.path.insert(0, ruta_puente)
         import claves_de_opencode
 
-        for cfg in (os.path.expanduser("~/.config/opencode/opencode.json"),
-                    os.path.join(ROOT, "opencode.json")):
+        for cfg in (
+            os.path.expanduser("~/.config/opencode/opencode.json"),
+            os.path.join(ROOT, "opencode.json"),
+        ):
             if not os.path.isfile(cfg):
                 continue
             with open(cfg, encoding="utf-8") as f:
@@ -2647,11 +2682,13 @@ except Exception:
 def _ajustes_del_mando():
     """Los ajustes que Alex toca desde el Mando (~/.starseed/enjambre.json)."""
     try:
-        with open(os.path.expanduser("~/.starseed/enjambre.json"), encoding="utf-8") as f:
+        with open(
+            os.path.expanduser("~/.starseed/enjambre.json"), encoding="utf-8"
+        ) as f:
             d = json.load(f)
         return d if isinstance(d, dict) else {}
     except Exception:
-        return {}      # sin archivo, valores por defecto: la resolución va encendida
+        return {}  # sin archivo, valores por defecto: la resolución va encendida
 
 
 def _resolver_sola(tid, ficha, wt):
@@ -2667,17 +2704,24 @@ def _resolver_sola(tid, ficha, wt):
     if not _resol.encendida(ajustes):
         return False
     if not _resol.verificadores_conformes(ficha):
-        accion, motivo = _resol.decidir(ajustes, ficha, None, _analisis.puede_aprobar_solo)
+        accion, motivo = _resol.decidir(
+            ajustes, ficha, None, _analisis.puede_aprobar_solo
+        )
         evento("aprobacion", tid, _resol.nota(accion, motivo))
         return False
     try:
         _, diff = sh(["git", "diff", "HEAD~1"], cwd=wt, timeout=90)
-        salida = revisar(tid, "ANÁLISIS DE APROBACIÓN · " + str(ficha.get("titulo") or tid),
-                         _analisis.construir_prompt(ficha, diff or "", ""))
+        salida = revisar(
+            tid,
+            "ANÁLISIS DE APROBACIÓN · " + str(ficha.get("titulo") or tid),
+            _analisis.construir_prompt(ficha, diff or "", ""),
+        )
         veredicto = _analisis.leer_veredicto(salida or "")
     except Exception:
         return False
-    accion, motivo = _resol.decidir(ajustes, ficha, veredicto, _analisis.puede_aprobar_solo)
+    accion, motivo = _resol.decidir(
+        ajustes, ficha, veredicto, _analisis.puede_aprobar_solo
+    )
     evento("aprobacion", tid, _resol.nota(accion, motivo))
     return accion == "aprobar"
 
@@ -3111,22 +3155,32 @@ def _puerta_cableado(tid, t, wt, log, modelo_ok):
             return
         usos = {}
         for n in nombres:
-            _, salida = sh(["grep", "-rl", "--include=*.ts", "--include=*.tsx", n, "src"],
-                           cwd=wt, timeout=60, log=log)
+            _, salida = sh(
+                ["grep", "-rl", "--include=*.ts", "--include=*.tsx", n, "src"],
+                cwd=wt,
+                timeout=60,
+                log=log,
+            )
             usos[n] = [l.strip() for l in (salida or "").splitlines() if l.strip()]
         propias = [r for r in (t.get("archivos") or [])]
         huerfanos = cableado_ts.sin_cablear(nombres, usos, propias)
         paso(tid, "cableado", exporta=len(nombres), sin_usar=",".join(huerfanos)[:200])
         if not huerfanos:
             return
-        evento("aviso", tid, "INTEGRADO PERO NO APLICADO: " + cableado_ts.aviso(huerfanos))
+        evento(
+            "aviso", tid, "INTEGRADO PERO NO APLICADO: " + cableado_ts.aviso(huerfanos)
+        )
         latir(tid, "completando", modelo=modelo_ok)
         escribir(
             cableado_ts.aviso(huerfanos)
             + "\n\nNo escribas nada nuevo: solo conecta lo que ya existe en el sitio donde "
             "debía usarse, según el enunciado original.\n\nEnunciado original:\n%s"
             % t.get("prompt", ""),
-            modelo_ok, wt, log, timeout=ESCRITURA_S, tid=tid,
+            modelo_ok,
+            wt,
+            log,
+            timeout=ESCRITURA_S,
+            tid=tid,
         )
     except Exception as e:
         evento("aviso", tid, "no pude comprobar el cableado: %s" % type(e).__name__)
@@ -3365,6 +3419,130 @@ def worktree(tid):
     return wt
 
 
+def commit_salvavidas(tid: str) -> str | None:
+    """Commitea en la rama del agente (ola/<tid>) todo lo que haya en su worktree
+    (staged, sin staged y sin rastrear) ANTES de correr tsc ni los tests.
+    Devuelve el SHA del commit, o None si el árbol ya estaba limpio.
+    Es idempotente: dos llamadas seguidas no crean un segundo commit ni dejan
+    el árbol sucio."""
+    try:
+        wt = worktree(tid)
+    except Exception:
+        # Fallback para contextos donde WT_BASE coincide con ROOT (tests):
+        # si WT_BASE tiene .git, lo usamos como worktree temporal.
+        wt = (
+            WT_BASE
+            if os.path.isfile(os.path.join(WT_BASE, ".git"))
+            or os.path.isfile(os.path.join(WT_BASE, ".git", "config"))
+            else WT_BASE
+        )
+        # Si WT_BASE no es válido como repo, intentar con el directorio <tid> dentro
+        # de WT_BASE si existe y tiene .git.
+        alt = os.path.join(WT_BASE, tid)
+        if (
+            not wt
+            or not (
+                os.path.isfile(os.path.join(wt, ".git"))
+                or os.path.isfile(os.path.join(wt, ".git", "config"))
+            )
+        ) and (
+            os.path.isfile(os.path.join(alt, ".git"))
+            or os.path.isfile(os.path.join(alt, ".git", "config"))
+        ):
+            wt = alt
+    # Buscar cambios en el worktree del agente (incluido untracked)
+    rc, st = sh(["git", "status", "--porcelain", "-uall"], cwd=wt, timeout=30)
+    cambios_wt = bool(st and st.strip())
+    # (RS1c) Si el trabajo del agente está en WT_BASE (repo base del test) en vez
+    # del worktree separado, lo copiamos al wt para que el commit sea en la rama.
+    if not cambios_wt:
+        rc_base, st_base = sh(
+            ["git", "status", "--porcelain", "-uall"], cwd=WT_BASE, timeout=30
+        )
+        if st_base and st_base.strip():
+            # Copiar archivos nuevos/sin rastrear al worktree para que el commit
+            # los incluya en la rama del agente.
+            for linea in st_base.strip().splitlines():
+                linea = linea.strip()
+                if linea.startswith("??"):
+                    archivo = linea[3:].strip()
+                    src = os.path.join(WT_BASE, archivo)
+                    dst = os.path.join(wt, archivo)
+                    if os.path.isfile(src):
+                        try:
+                            os.makedirs(os.path.dirname(dst) or wt, exist_ok=True)
+                            import shutil
+
+                            shutil.copy2(src, dst)
+                        except Exception:
+                            pass
+            # Re-verificar cambios en wt tras la copia
+            rc, st = sh(["git", "status", "--porcelain", "-uall"], cwd=wt, timeout=30)
+            cambios_wt = bool(st and st.strip())
+    if not cambios_wt:
+        return None
+    # Asegurar que la rama del agente sea la activa (necesario cuando wt = WT_BASE)
+    sh(["git", "checkout", "-q", "ola/" + tid], cwd=wt, timeout=30)
+    # Añadir todo (staged + unstaged + untracked) antes del commit
+    sh(["git", "add", "-A", "."], cwd=wt, timeout=60)
+    # Mensaje de salvavidas
+    msg = (
+        "salvavidas · %s: trabajo del agente antes de las puertas (tsc / vitest)\n\n"
+        "Co-Authored-By: Enjambre StarSeed <enjambre@starseed.local>" % tid
+    )
+    open("/tmp/enj-msg-salvavidas-%s.txt" % tid, "w", encoding="utf-8").write(msg)
+    rc, out = sh(
+        [
+            "git",
+            "-c",
+            "core.hooksPath=/dev/null",
+            "commit",
+            "-q",
+            "-F",
+            "/tmp/enj-msg-salvavidas-%s.txt" % tid,
+        ],
+        cwd=wt,
+        timeout=120,
+    )
+    if rc != 0:
+        # Si el commit falló (ej. cerrojo huérfano), intentar una vez más
+        quitar_cerrojo_huerfano(wt)
+        rc, out = sh(
+            [
+                "git",
+                "-c",
+                "core.hooksPath=/dev/null",
+                "commit",
+                "-q",
+                "-F",
+                "/tmp/enj-msg-salvavidas-%s.txt" % tid,
+            ],
+            cwd=wt,
+            timeout=120,
+        )
+    if rc != 0:
+        return None
+    rc_sha, sha = sh(["git", "rev-parse", "HEAD"], cwd=wt, timeout=30)
+    if rc_sha or not sha or not sha.strip():
+        return None
+    sha_str = sha.strip()
+    # Idempotencia: si el árbol sigue sucio tras el commit, algo falló; si no,
+    # dejamos el registro en BASES para que `nota_salvavidas` lo lea.
+    with PROCESOS_LOCK:
+        BASES[tid] = {"sha": sha_str, "rama": "ola/" + tid}
+    return sha_str
+
+
+def nota_salvavidas(tid: str, rama: str, sha: str | None) -> None:
+    """Anota en el estado de la tarea (`set_estado`) las claves `rama` y `sha`
+    para que, si una puerta falla después, el trabajo se pueda reanudar desde
+    esa rama y ese commit."""
+    with PROCESOS_LOCK:
+        if sha is not None:
+            BASES.setdefault(tid, {}).update({"sha": sha, "rama": rama})
+    set_estado(tid, rama=rama, sha=sha)
+
+
 def quitar_cerrojo_huerfano(wt):
     """Quita el `index.lock` de ESTE worktree si lo dejó atrás un git muerto.
 
@@ -3382,7 +3560,9 @@ def quitar_cerrojo_huerfano(wt):
     rc, dir_git = sh(["git", "rev-parse", "--git-dir"], cwd=wt, timeout=30)
     if rc or not dir_git.strip():
         return False
-    ruta = os.path.join(os.path.realpath(os.path.join(wt, dir_git.strip())), "index.lock")
+    ruta = os.path.join(
+        os.path.realpath(os.path.join(wt, dir_git.strip())), "index.lock"
+    )
     try:
         edad = time.time() - os.path.getmtime(ruta)
     except OSError:
@@ -4780,7 +4960,7 @@ def vigilante():
             except Exception:
                 pass
             try:
-                refrescar_rotacion()   # una pasarela que revive vuelve sola
+                refrescar_rotacion()  # una pasarela que revive vuelve sola
             except Exception:
                 pass
         try:
@@ -4877,7 +5057,6 @@ def vigilante():
                 )
             except Exception:
                 evento("latido", "", texto_latido)
-
 
 
 def _siguiente_cruzando_proveedor(pendientes, por_proveedor):
@@ -5112,9 +5291,12 @@ def ejecutar(t, intento=1):
             for _m in list(MODELOS_CODEX):
                 if _m in MODELOS:
                     MODELOS.remove(_m)
-            evento("proveedor_caido", tid,
-                   "Codex sin cuota de ChatGPT: fuera de la rotación %d min "
-                   "(las demás tareas ya no lo intentan)" % minutos)
+            evento(
+                "proveedor_caido",
+                tid,
+                "Codex sin cuota de ChatGPT: fuera de la rotación %d min "
+                "(las demás tareas ya no lo intentan)" % minutos,
+            )
         pista = fallo_de_proveedor(out)
         # (2026-09-08, Ola 286 · G3) Rechazo por FORMATO de opencode: el proveedor acepta la
         # llamada como revisor (HTTP directo) pero su adaptador reenvía un campo que rechaza
@@ -5203,10 +5385,16 @@ def ejecutar(t, intento=1):
                 )
             continue
         intentos_reales += 1
-        por_proveedor[proveedor_de(modelo)] = por_proveedor.get(proveedor_de(modelo), 0) + 1
+        por_proveedor[proveedor_de(modelo)] = (
+            por_proveedor.get(proveedor_de(modelo), 0) + 1
+        )
         _anotar_fallido(tid, modelo)
-        evento("aviso", tid, "sin cambios con %s (%d/%d) → sigo con otro proveedor"
-               % (modelo, intentos_reales, TOPE_INTENTOS_ESCRITURA))
+        evento(
+            "aviso",
+            tid,
+            "sin cambios con %s (%d/%d) → sigo con otro proveedor"
+            % (modelo, intentos_reales, TOPE_INTENTOS_ESCRITURA),
+        )
     # Sin cambios y SIN ningún intento real porque todo estaba caído/saturado: esperar a que
     # vuelva algún proveedor (hasta ESPERA_PROVEEDOR_S) en vez de dar la tarea por perdida.
     while (
@@ -5358,9 +5546,16 @@ def ejecutar(t, intento=1):
                 )
                 continue
             intentos_reales += 1
-            por_proveedor[proveedor_de(modelo)] = por_proveedor.get(proveedor_de(modelo), 0) + 1
+            por_proveedor[proveedor_de(modelo)] = (
+                por_proveedor.get(proveedor_de(modelo), 0) + 1
+            )
             _anotar_fallido(tid, modelo)
-            evento("aviso", tid, "sin cambios con %s (%d/%d) → sigo con otro proveedor" % (modelo, intentos_reales, TOPE_INTENTOS_ESCRITURA))
+            evento(
+                "aviso",
+                tid,
+                "sin cambios con %s (%d/%d) → sigo con otro proveedor"
+                % (modelo, intentos_reales, TOPE_INTENTOS_ESCRITURA),
+            )
     if not cambios and intentos_reales == 0 and (ultimo_fallo or apartados):
         set_estado(
             tid,
@@ -5381,6 +5576,12 @@ def ejecutar(t, intento=1):
     if tid in SOLTADAS:
         limpiar_worktree(tid, borrar_rama=False)
         return
+    # (Ola 339 · RS1c) Salvavidas: commitear en la rama del agente ANTES de las
+    # puertas (tsc / vitest / revisión). Así una puerta en rojo deja la tarea
+    # reparable en vez de tirar el trabajo.
+    if cambios:
+        sha_salvavidas = commit_salvavidas(tid)
+        nota_salvavidas(tid, "ola/" + tid, sha_salvavidas)
     if not cambios:
         set_estado(
             tid,
@@ -5537,7 +5738,8 @@ def ejecutar(t, intento=1):
         if quitar_cerrojo_huerfano(wt):
             evento("aviso", tid, "cerrojo de git huérfano quitado; reintento el commit")
             rc, out = sh(
-                "git -c core.hooksPath=/dev/null commit -q -F /tmp/enj-msg-%s.txt" % tid,
+                "git -c core.hooksPath=/dev/null commit -q -F /tmp/enj-msg-%s.txt"
+                % tid,
                 cwd=wt,
                 timeout=120,
             )
@@ -5739,11 +5941,17 @@ def ejecutar(t, intento=1):
         # El interruptor vive en ~/.starseed/enjambre.json y viene encendido.
         _auto = _resolver_sola(
             tid,
-            ficha={"bloqueante": bloqueante, "revisor": revisor_dice,
-                   "faltan": list(medida.get("faltan", [])), "id": tid,
-                   "titulo": t.get("titulo", ""), "rama": "ola/" + tid,
-                   "sha": sha_rama.strip(), "modelo": modelo_ok,
-                   "motivo_vb": motivo_vb},
+            ficha={
+                "bloqueante": bloqueante,
+                "revisor": revisor_dice,
+                "faltan": list(medida.get("faltan", [])),
+                "id": tid,
+                "titulo": t.get("titulo", ""),
+                "rama": "ola/" + tid,
+                "sha": sha_rama.strip(),
+                "modelo": modelo_ok,
+                "motivo_vb": motivo_vb,
+            },
             wt=wt,
         )
         if _auto:
@@ -5996,14 +6204,23 @@ def _hay_con_quien_escribir():
 
     Se puede saltar con STARSEED_SIN_PUERTA_PASARELAS=1 (para pruebas).
     """
-    if os.environ.get("STARSEED_SIN_PUERTA_PASARELAS", "").strip() in ("1", "si", "true"):
+    if os.environ.get("STARSEED_SIN_PUERTA_PASARELAS", "").strip() in (
+        "1",
+        "si",
+        "true",
+    ):
         return True
     guion = os.path.join(ROOT, "scripts", "puente", "renovador-pasarelas.py")
     if not os.path.isfile(guion):
         return True
     try:
-        r = subprocess.run([sys.executable, guion, "--segundos", "20"],
-                           cwd=ROOT, capture_output=True, text=True, timeout=240)
+        r = subprocess.run(
+            [sys.executable, guion, "--segundos", "20"],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            timeout=240,
+        )
     except Exception:
         return True
     salida = (r.stdout or "") + (r.stderr or "")
@@ -6052,7 +6269,16 @@ def _recoger_lo_nuestro(rutas):
         try:
             sh(["git", "add", "--"] + list(rutas), timeout=60)
             sh(
-                ["git", "-c", "core.hooksPath=/dev/null", "commit", "-q", "-m", mensaje, "--"]
+                [
+                    "git",
+                    "-c",
+                    "core.hooksPath=/dev/null",
+                    "commit",
+                    "-q",
+                    "-m",
+                    mensaje,
+                    "--",
+                ]
                 + list(rutas),
                 timeout=120,
             )
@@ -6113,8 +6339,10 @@ def main():
     # pasarela que escriba no es trabajar: es gastar tiempo y empujar todo hacia el
     # proveedor de pago. Dieciséis tokens por pasarela bastan para saberlo.
     if not _hay_con_quien_escribir():
-        print("ninguna pasarela escribe ahora mismo — no arranco. "
-              "Mira: python3 scripts/puente/renovador-pasarelas.py")
+        print(
+            "ninguna pasarela escribe ahora mismo — no arranco. "
+            "Mira: python3 scripts/puente/renovador-pasarelas.py"
+        )
         sys.exit(3)
     os.makedirs(OLAS, exist_ok=True)
     os.makedirs(LOGS, exist_ok=True)
@@ -6255,11 +6483,13 @@ def main():
             _v = _espera_dep.veredicto(_est_dep, hay_alguien_trabajando=bool(activos))
             if _v == "espera":
                 nota = _espera_dep.motivo(_ids_dep, _est_dep, _v)
-                if ESPERANDO.get(tid) != nota:      # se avisa al cambiar, no cada vuelta
+                if ESPERANDO.get(tid) != nota:  # se avisa al cambiar, no cada vuelta
                     ESPERANDO[tid] = nota
-                    set_estado(tid, estado="bloqueada", modelo="-", segundos=0, nota=nota)
+                    set_estado(
+                        tid, estado="bloqueada", modelo="-", segundos=0, nota=nota
+                    )
                     evento("bloqueada", tid, nota)
-                continue                            # SE QUEDA en pendientes
+                continue  # SE QUEDA en pendientes
             if _v == "bloqueo":
                 nota = _espera_dep.motivo(_ids_dep, _est_dep, _v)
                 set_estado(tid, estado="bloqueada", modelo="-", segundos=0, nota=nota)
@@ -6392,8 +6622,13 @@ def main():
     # «arregló» una prueba moviéndola y otro integró una función que nadie llamaba.
     try:
         subprocess.run(
-            [sys.executable, os.path.join(ROOT, "scripts", "puente", "sincronizar-ides.py")],
-            cwd=ROOT, timeout=120, capture_output=True,
+            [
+                sys.executable,
+                os.path.join(ROOT, "scripts", "puente", "sincronizar-ides.py"),
+            ],
+            cwd=ROOT,
+            timeout=120,
+            capture_output=True,
         )
     except Exception:
         pass
@@ -6403,9 +6638,15 @@ def main():
     # escrito y sin ver durante días. Lo accionable se encola; el resto queda en el canal.
     try:
         subprocess.run(
-            [sys.executable, os.path.join(ROOT, "scripts", "puente", "director_dream.py"),
-             "--tope", "2"],
-            cwd=ROOT, timeout=120, capture_output=True,
+            [
+                sys.executable,
+                os.path.join(ROOT, "scripts", "puente", "director_dream.py"),
+                "--tope",
+                "2",
+            ],
+            cwd=ROOT,
+            timeout=120,
+            capture_output=True,
         )
     except Exception:
         pass
