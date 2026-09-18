@@ -6650,6 +6650,19 @@ def main():
         )
     except Exception:
         pass
+    # (2026-09-18) Drive como servidor de almacenamiento principal: al cerrar cada
+    # ola se espeja la memoria real de esta neurona (starseed_memory_root, memory,
+    # contextos) a ~/Library/CloudStorage/GoogleDrive-*/My Drive/StarSeed_Memory_Root/neurona-<host>/
+    # con INDICE.md, para que otro ordenador/móvil/IDE se ponga al día sin esta máquina delante.
+    try:
+        subprocess.run(
+            [sys.executable, os.path.join(ROOT, "scripts", "puente", "espejo-drive.py")],
+            cwd=ROOT,
+            timeout=300,
+            capture_output=True,
+        )
+    except Exception:
+        pass
     try:
         desconectar_medios_locales()
     except Exception:
