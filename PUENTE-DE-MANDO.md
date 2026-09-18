@@ -1,6 +1,6 @@
 # Puente de Mando · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-17 17:56:43 desde el Mando vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-17 19:18:24 desde el Mando vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -15,16 +15,19 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | Ola arriba | Ola Dream 2026-09-15 · lo que el análisis nocturno encontró |
 | Agentes escribiendo | **0** |
 | En esta ola | integradas 2 · en curso 0 · esperando aprobación 0 · pendientes 0 |
-| Últimas 4 olas | en curso 0 · pendientes 0 · integradas 3 |
-| HEAD | `bf6977fc chore(memoria): aprendizaje de la ola auto-0917-173913` |
-| Sin publicar | 4 commits |
+| Últimas 4 olas | en curso 0 · pendientes 0 · integradas 2 |
+| HEAD | `bf073600 chore(memoria): aprendizaje de la ola auto-0917-175719` |
+| Sin publicar | 6 commits |
 | Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-auto-0917-173913.json`, hace 3s)
+## Quién escribe ahora (latido de `cola-auto-0917-175719.json`, hace 4s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `RS3b` | hecho | apinex/free/deepseek-v4-pro-0813 | 0 min | 29 s | 73335 |
+| `RS1c` | hecho | apinex/free/gemini-3.8-flash | 0 min | 28 s | 10033 |
+| `DR0917-2` | hecho | apinex/free/deepseek-v4-flash-0731 | 50 min | 2999 s | 176205 |
+| `DR0917-1` | hecho | apinex/free/deepseek-v4-pro-0813 | 52 min | 3145 s | 97880 |
+| `RS3b` | hecho | apinex/free/qwen-3.8-max | 53 min | 3168 s | 77899 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
