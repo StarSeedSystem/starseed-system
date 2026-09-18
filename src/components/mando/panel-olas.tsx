@@ -159,14 +159,17 @@ async function enviarReintento({
 }
 
 /** Detalle de la ola seleccionada: tareas, commits, veredictos e informe. */
-function DetalleOla({ ola, estado }: { ola: OlaResumen; estado: EstadoMando }) {
+function DetalleOla({ ola, estado, onCambio }: { ola: OlaResumen; estado: EstadoMando; onCambio: () => void }) {
     const tareas = estado.tareas.filter((t) => t.ola === ola.id || t.ola === "");
     const commits = commitsDeOla(ola, estado.repo?.log ?? []);
     const revisiones = revisionesDeOla(ola, estado.revisiones);
     const informes = estado.informes.filter((i) => mencionaOla(i.nombre, ola.id));
     // Volver a cargar tras un reintento (el Mando se refresca en cada acción).
     const [recarga, setRecarga] = useState(0);
-    useEffect(() => { setRecarga(0); }, [ola.id]);
+    useEffect(() => {
+        if (recarga > 0) { const t = window.setTimeout(() => setRecarga(0), 300); return () => window.clearTimeout(t); }
+        return undefined;
+    }, [recarga]);
 
     // Tareas SIN commit propio ni revisión = nunca se terminaron: candidatas a reintento.
     const tareaIntegrada = (id: string) => (estado.repo?.log ?? []).some((l) => mencionaOla(l, id));
@@ -192,14 +195,34 @@ function DetalleOla({ ola, estado }: { ola: OlaResumen; estado: EstadoMando }) {
                 : r.detalle,
         });
         setReintentando(null);
+        if (r.ok) onCambio();
     };
 
     return (
         <div className="space-y-4">
             <section className="rounded-xl border border-white/10 bg-black/30 p-4">
-                <h3 className="mb-3 text-sm font-semibold text-white">
-                    Tareas de la ola {ola.id}
-                </h3>
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                    <h3 className="text-sm font-semibold text-white">
+                        Tareas de la ola {ola.id}
+                    </h3>
+                    {reintentables.length > 0 && colaReintento && (
+                        <button
+                            type="button"
+                            onClick={() => { void reintentar(reintentables.map((t) => t.id).slice(0, 40)); }}
+                            disabled={reintentando !== null}
+                            aria-label="Reintentar las tareas útiles y descartar las duplicadas o que no apliquen"
+                            className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-amber-400/30 bg-amber-500/10 px-2.5 py-1 text-[11px] font-semibold text-amber-200 transition-colors hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                            <RotateCcw className={`h-3 w-3 ${reintentando !== null ? "animate-spin" : ""}`} aria-hidden />
+                            {reintentando !== null ? "Reintentando…" : `Reintentar útiles (${reintentables.length})`}
+                        </button>
+                    )}
+                </div>
+                {resumen && (
+                    <p className={`mb-2 text-[11px] ${resumen.ok ? "text-emerald-300/90" : "text-rose-300/90"}`}>
+                        {resumen.text}
+                    </p>
+                )}
                 {tareas.length === 0 ? (
                     <p className="text-xs text-white/50">
                         No hay tareas registradas para esta ola en las colas.
@@ -213,6 +236,7 @@ function DetalleOla({ ola, estado }: { ola: OlaResumen; estado: EstadoMando }) {
                             const commit = (estado.repo?.log ?? []).find((l) =>
                                 mencionaOla(l, tarea.id),
                             );
+                            const integrado = Boolean(commit);
                             return (
                                 <li
                                     key={tarea.id}
@@ -230,14 +254,29 @@ function DetalleOla({ ola, estado }: { ola: OlaResumen; estado: EstadoMando }) {
                                             </span>
                                             <span className="truncate">{tarea.titulo}</span>
                                         </span>
-                                        <span
-                                            className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] ${
-                                                revisión
-                                                    ? "border-emerald-400/30 bg-emerald-500/10 text-emerald-200"
-                                                    : "border-white/10 bg-white/5 text-white/50"
-                                            }`}
-                                        >
-                                            {revisión ? "Revisada" : "Sin revisión"}
+                                        <span className="flex shrink-0 items-center gap-1.5">
+                                            <span
+                                                className={`rounded-full border px-2 py-0.5 text-[10px] ${
+                                                    revisión
+                                                        ? "border-emerald-400/30 bg-emerald-500/10 text-emerald-200"
+                                                        : "border-white/10 bg-white/5 text-white/50"
+                                                }`}
+                                            >
+                                                {revisión ? "Revisada" : "Sin revisión"}
+                                            </span>
+                                            {!integrado && colaReintento && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => { void reintentar([tarea.id]); }}
+                                                    disabled={reintentando !== null}
+                                                    aria-label={`Reintentar la tarea ${tarea.id}`}
+                                                    title="Reintentar (descartar si es duplicada o no aplica)"
+                                                    className="inline-flex cursor-pointer items-center gap-1 rounded-full border border-amber-400/30 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold text-amber-200 transition-colors hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                                                >
+                                                    <RotateCcw className="h-2.5 w-2.5" aria-hidden />
+                                                    Reintentar
+                                                </button>
+                                            )}
                                         </span>
                                     </div>
                                     {commit && (
@@ -413,7 +452,7 @@ export function PanelOlas() {
                     </div>
                     <div>
                         {olaActiva && estado ? (
-                            <DetalleOla ola={olaActiva} estado={estado} />
+                            <DetalleOla ola={olaActiva} estado={estado} onCambio={() => void cargar()} />
                         ) : (
                             <p className="flex items-center gap-2 text-xs text-white/50">
                                 <ChevronRight className="h-3.5 w-3.5" />
