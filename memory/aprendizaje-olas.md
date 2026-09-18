@@ -610,3 +610,17 @@
 **Lo que quedó fuera, una por una:**
 - `DR0917-1` — no escribió nada
 - `RS3b` — no escribió nada
+
+## 2026-09-17 20:50 · auto-0917-202626
+
+**Lo que se pidió.** top 3 accionables
+
+**Resultado.** 0 de 2 integradas. 2 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 2 tareas se fueron por lo mismo — no escribió nada (DR0917-1, RS3b). Es 100 % de la ola.
+- sin modelo anotado no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `DR0917-1` — no escribió nada
+- `RS3b` — no escribió nada
