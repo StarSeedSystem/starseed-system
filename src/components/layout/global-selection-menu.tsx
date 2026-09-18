@@ -30,6 +30,27 @@ export function GlobalSelectionMenu() {
 
   useEffect(() => {
     const handleSelection = () => {
+      // iOS/Android disparan un `selectionchange` global al hacer long-press aun
+      // cuando el toque va sobre un elemento con `user-select: none`. Si la
+      // selección nace DENTRO de una superficie de control Trinity (orbe,
+      // pétalos, cortinas, menús del OS), NO abrimos el menú de texto: ahí la
+      // pulsación larga ejecuta su propia acción sintáctil.
+      const selNode = () => {
+        try {
+          const sel = window.getSelection();
+          if (!sel || sel.isCollapsed) return null;
+          const node = sel.anchorNode as Node | null;
+          return node && node.nodeType === 3 ? node.parentElement : (node as Element | null);
+        } catch { return null; }
+      };
+      const el = selNode();
+      if (el && el.closest(
+        '[data-trinity-fab], [data-trinity-petal], [data-trinity-curtain], [data-trinity-edge], [data-ss-no-selection], .trinity-fab, .ss-no-selection'
+      )) {
+        setSelection(null);
+        return;
+      }
+
       const sel = window.getSelection();
       if (!sel || sel.isCollapsed || !sel.toString().trim()) {
         setSelection(null);

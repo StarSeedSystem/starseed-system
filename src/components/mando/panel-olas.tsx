@@ -23,6 +23,7 @@ import {
     CircleDashed,
     Layers,
     RefreshCw,
+    RotateCcw,
 } from "lucide-react";
 
 import type { EstadoMando, InformeOla, OlaResumen, RevisionRef } from "@/lib/mando/tipos";
@@ -129,12 +130,69 @@ function TarjetaOla({
     );
 }
 
+/** Reintento inteligente de una o varias tareas (descarta duplicadas/inútiles y relanza las útiles con el motivo del fallo añadido al prompt). */
+async function enviarReintento({
+    nombre,
+    tareas,
+    existentes,
+}: {
+    nombre: string;
+    tareas: Array<{ id: string; titulo: string }>;
+    existentes: string[];
+}): Promise<{ ok: boolean; relanzadas: string[]; descartadas: string[]; detalle: string }> {
+    try {
+        const r = await fetch("/api/mando/colas", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ accion: "reintentar", nombre, tareas: tareas.map((t) => t.id), existentes }),
+        });
+        const cuerpo = (await r.json()) as { ok?: boolean; relanzadas?: string[]; descartadas?: string[]; detalle?: string; error?: string };
+        return {
+            ok: Boolean(cuerpo.ok),
+            relanzadas: cuerpo.relanzadas ?? [],
+            descartadas: cuerpo.descartadas ?? [],
+            detalle: cuerpo.detalle ?? cuerpo.error ?? `HTTP ${r.status}`,
+        };
+    } catch {
+        return { ok: false, relanzadas: [], descartadas: [], detalle: "No se pudo hablar con el Mando." };
+    }
+}
+
 /** Detalle de la ola seleccionada: tareas, commits, veredictos e informe. */
 function DetalleOla({ ola, estado }: { ola: OlaResumen; estado: EstadoMando }) {
     const tareas = estado.tareas.filter((t) => t.ola === ola.id || t.ola === "");
     const commits = commitsDeOla(ola, estado.repo?.log ?? []);
     const revisiones = revisionesDeOla(ola, estado.revisiones);
     const informes = estado.informes.filter((i) => mencionaOla(i.nombre, ola.id));
+    // Volver a cargar tras un reintento (el Mando se refresca en cada acción).
+    const [recarga, setRecarga] = useState(0);
+    useEffect(() => { setRecarga(0); }, [ola.id]);
+
+    // Tareas SIN commit propio ni revisión = nunca se terminaron: candidatas a reintento.
+    const tareaIntegrada = (id: string) => (estado.repo?.log ?? []).some((l) => mencionaOla(l, id));
+    const reintentables = tareas.filter((t) => !tareaIntegrada(t.id));
+    const colaReintento = tareas.find((t) => t.cola)?.cola ?? "";
+
+    const [reintentando, setReintentando] = useState<string | null>(null);
+    const [resumen, setResumen] = useState<{ ok: boolean; text: string } | null>(null);
+
+    const reintentar = async (ids: string[]) => {
+        setReintentando(ids.join(","));
+        setResumen(null);
+        const lista = reintentables.filter((t) => ids.includes(t.id));
+        const r = await enviarReintento({
+            nombre: colaReintento,
+            tareas: lista,
+            existentes: tareas.map((t) => t.titulo),
+        });
+        setResumen({
+            ok: r.ok,
+            text: r.ok
+                ? `Reintentadas: ${r.relanzadas.join(", ") || "—"}. Descartadas: ${r.descartadas.join(", ") || "—"}.`
+                : r.detalle,
+        });
+        setReintentando(null);
+    };
 
     return (
         <div className="space-y-4">

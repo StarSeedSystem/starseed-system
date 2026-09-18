@@ -32,6 +32,7 @@ import {
     reasignarTarea,
     decidirTarea,
     validarCola,
+    reintentarTarea,
 } from "@/lib/mando/colas";
 
 export const runtime = "nodejs";
@@ -121,6 +122,27 @@ export async function POST(peticion: Request): Promise<Response> {
             donde: cuerpo.donde === "nube" ? "nube" : cuerpo.donde === "mac" ? "mac" : undefined,
             modelo: typeof cuerpo.modelo === "string" ? cuerpo.modelo : undefined,
             estados,
+        });
+        return Response.json(r, { status: r.ok ? 200 : 400, headers: { "Cache-Control": "no-store" } });
+    }
+
+    if (accion === "reintentar") {
+        // Reintento inteligente: descarta duplicadas/inútiles y relanza las útiles
+        // con el motivo del fallo añadido al prompt (enjambre no repite el error).
+        const tareasBrutas = Array.isArray(cuerpo.tareas) ? (cuerpo.tareas as unknown[]).filter((x): x is string => typeof x === "string") : [];
+        if (tareasBrutas.length === 0) {
+            return Response.json({ ok: false, error: "Faltan las tareas a reintentar." }, { status: 400, headers: { "Cache-Control": "no-store" } });
+        }
+        const estadosBrutos = typeof cuerpo.estados === "object" && cuerpo.estados !== null ? (cuerpo.estados as Record<string, unknown>) : {};
+        const estados: Record<string, string> = {};
+        for (const [k, v] of Object.entries(estadosBrutos)) if (typeof v === "string") estados[k] = v;
+        const existentes = Array.isArray(cuerpo.existentes) ? (cuerpo.existentes as unknown[]).filter((x): x is string => typeof x === "string") : [];
+        const r = await reintentarTarea({
+            nombre,
+            tareas: tareasBrutas,
+            estados,
+            existentes,
+            motivo: typeof cuerpo.motivo === "string" ? cuerpo.motivo : undefined,
         });
         return Response.json(r, { status: r.ok ? 200 : 400, headers: { "Cache-Control": "no-store" } });
     }

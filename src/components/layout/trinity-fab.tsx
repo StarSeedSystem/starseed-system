@@ -96,6 +96,19 @@ const NODES: Array<{
         { edge: "horizon", label: "Horizon · Lienzo de creación", color: "#39FF14", Icon: Layout, petalClass: "petalW" },
     ];
 
+/** Según el ángulo del dedo respecto al centro del orbe, devuelve el pétalo
+ * cardinal más cercano (selección radial por pulsación larga). En coordenadas
+ * de pantalla atan2: 0°=Este · 90°=Sur · 180°=Oeste · 270°(-90°)=Norte.
+ *   Este→logic · Sur→anchor · Oeste→horizon · Norte→zenith. Son los cuadrantes
+ * exactos del `conic-gradient` del núcleo y de los `--tx/--ty` de los pétalos. */
+function nearestPetal(angleDeg: number): Exclude<PerimeterEdge, null> {
+    const a = ((angleDeg % 360) + 360) % 360;
+    if (a <= 45 || a > 315) return "logic";    // Este (logic)
+    if (a <= 135) return "anchor";             // Sur (anchor)
+    if (a <= 225) return "horizon";            // Oeste (horizon)
+    return "zenith";                            // Norte (zenith)
+}
+
 export function TrinityFab() {
     const { activeEdge, setActiveEdge } = usePerimeter();
 
@@ -106,13 +119,25 @@ export function TrinityFab() {
     const [dragOffset, setDragOffset] = useState<{ dx: number; dy: number } | null>(null);
 
     const rootRef = useRef<HTMLDivElement | null>(null);
+    const coreRef = useRef<HTMLButtonElement | null>(null);
+    const activeRef = useRef(activeEdge);
+    useEffect(() => { activeRef.current = activeEdge; }, [activeEdge]);
     const gestureRef = useRef<{
         pointerId: number;
         startX: number;
         startY: number;
         moved: boolean;
         fromCore: boolean;
+        held: boolean;       // superó la pulsación larga → modo selección radial
+        hoverPetal: Exclude<PerimeterEdge, null> | null;
     } | null>(null);
+    const longPressTimer = useRef<number | null>(null);
+    const [selecting, setSelecting] = useState(false);
+    const [hoverPetal, setHoverPetal] = useState<Exclude<PerimeterEdge, null> | null>(null);
+    // Evita el doble disparo tras la selección radial: al soltar sobre un pétalo,
+    // `finish` ya abre el menú. Este flag suprime el `click` del pétalo que le
+    // seguiría y lo cerraría solo.
+    const justSelectedRef = useRef(false);
 
     // ── visibilidad (solo preferencia explícita, reactiva) ──────────
     useEffect(() => {
@@ -136,25 +161,78 @@ export function TrinityFab() {
         };
     }, []);
 
-    // ── drag del FAB (anclaje al borde más cercano) ─────────────────
+    // ── drag + selección radial por pulsación larga ─────────────────
+    // El orbe soporta DOS gestos en el núcleo:
+    //   · TAP corto (sin mover, liberar rápido) → abre/cierra los pétalos.
+    //   · MANTENER PULSADO (~260 ms) → entra en modo selección radial:
+    //     los pétalos se abren y el dedo puede DESLIZAR por el ángulo hasta
+    //     la opción que quiera (resaltada en vivo); al soltar se abre ese
+    //     menú. En móvil (iOS/Android) esto reemplaza la selección de texto
+    //     nativa del long-press.
+    const LONG_PRESS_MS = 260;
+
     const onPointerDown = useCallback((e: React.PointerEvent) => {
         if (gestureRef.current) return;
         const target = e.target as HTMLElement;
+        const el = rootRef.current;
+        const core = coreRef.current;
         gestureRef.current = {
             pointerId: e.pointerId,
             startX: e.clientX,
             startY: e.clientY,
             moved: false,
             fromCore: !target.closest(`.${styles.petal}`),
+            held: false,
+            hoverPetal: null,
         };
+
+        // Pulsación larga SÓLO si empieza en el núcleo (no en un pétalo).
+        if (core && el && !target.closest(`.${styles.petal}`)) {
+            if (longPressTimer.current) window.clearTimeout(longPressTimer.current);
+            longPressTimer.current = window.setTimeout(() => {
+                const g = gestureRef.current;
+                if (!g || g.moved) return;
+                // entrada en modo selección radial: abrimos pétalos y seguimos al dedo
+                gestureRef.current = { ...g, held: true };
+                setOpen(true);
+                setSelecting(true);
+                // primer hover según la posición inicial del dedo sobre el anillo
+                const r = el.getBoundingClientRect();
+                const cx = r.left + r.width / 2;
+                const cy = r.top + r.height / 2;
+                const ang = (Math.round((Math.atan2(g.startY - cy, g.startX - cx) * 180) / Math.PI) + 360) % 360;
+                const petal = nearestPetal(ang);
+                gestureRef.current = { ...gestureRef.current, hoverPetal: petal };
+                setHoverPetal(petal);
+            }, LONG_PRESS_MS);
+        }
 
         const onMove = (ev: PointerEvent) => {
             const g = gestureRef.current;
             if (!g || ev.pointerId !== g.pointerId) return;
             const dx = ev.clientX - g.startX;
             const dy = ev.clientY - g.startY;
-            if (!g.moved && Math.hypot(dx, dy) > TAP_SLOP_PX) g.moved = true;
-            if (g.moved) setDragOffset({ dx, dy });
+            if (!g.moved && Math.hypot(dx, dy) > TAP_SLOP_PX) {
+                g.moved = true;
+                // si aún no había entrado el long-press, cancelamos el timer (es un drag)
+                if (longPressTimer.current) { window.clearTimeout(longPressTimer.current); longPressTimer.current = null; }
+            }
+            if (g.moved && !g.held) {
+                setDragOffset({ dx, dy });
+                return;
+            }
+            // Modo selección radial: el dedo marca el pétalo por ángulo.
+            if (g.held && el) {
+                const r = el.getBoundingClientRect();
+                const cx = r.left + r.width / 2;
+                const cy = r.top + r.height / 2;
+                const ang = (Math.round((Math.atan2(ev.clientY - cy, ev.clientX - cx) * 180) / Math.PI) + 360) % 360;
+                const petal = nearestPetal(ang);
+                if (petal !== g.hoverPetal) {
+                    g.hoverPetal = petal;
+                    setHoverPetal(petal);
+                }
+            }
         };
 
         const finish = (ev: PointerEvent) => {
@@ -163,8 +241,24 @@ export function TrinityFab() {
             window.removeEventListener("pointermove", onMove);
             window.removeEventListener("pointerup", finish);
             window.removeEventListener("pointercancel", finish);
+            if (longPressTimer.current) { window.clearTimeout(longPressTimer.current); longPressTimer.current = null; }
             gestureRef.current = null;
 
+            if (g.held) {
+                // Pulsación larga → abrimos el pétalo sobre el que estaba el dedo.
+                setSelecting(false);
+                setHoverPetal(null);
+                if (g.hoverPetal) {
+                    // El `click` del pétalo que viene detrás NO debe re-hacer el
+                    // toggle (lo cerraría). Se suprime con un flag transitorio.
+                    justSelectedRef.current = true;
+                    setActiveEdge(activeRef.current === g.hoverPetal ? null : g.hoverPetal);
+                    setOpen(false);
+                    window.setTimeout(() => { justSelectedRef.current = false; }, 120);
+                }
+                // si soltó sobre el núcleo sin tocar ningún pétalo, mantenemos la flor abierta
+                return;
+            }
             if (g.moved) {
                 // ancla al borde más cercano y persiste
                 setDragOffset(null);
@@ -193,6 +287,9 @@ export function TrinityFab() {
 
     // ── toggle de cada nodo: MISMA API que sensores de borde/atajos ─
     const toggleEdge = useCallback((edge: Exclude<PerimeterEdge, null>) => {
+        // Tras una selección radial recién aceptada, el click del pétalo es un
+        // eco del pointerup que YA abrió el menú: no debe volver a hacer toggle.
+        if (justSelectedRef.current) return;
         setActiveEdge(activeEdge === edge ? null : edge);
         setOpen(false);
     }, [activeEdge, setActiveEdge]);
@@ -227,6 +324,20 @@ export function TrinityFab() {
                 transform,
             }}
             onPointerDown={onPointerDown}
+            onContextMenu={(e) => {
+                // iOS/Android: el long-press sobre el orbe es la selección radial
+                // de Trinity, NO el menú contextual del navegador ni el callout
+                // de selección de texto. Lo bloqueamos por completo.
+                e.preventDefault();
+                e.stopPropagation();
+            }}
+            onTouchMove={(e) => {
+                // iOS: durante la pulsación larga el navegador hace scroll o
+                // intenta la "selección de texto". Como el orbe ya usa
+                // `touch-action: none` + pointer events, solo blindamos el
+                // evento nativo para que un long-press NO abra la lupa.
+                if (selecting) e.preventDefault();
+            }}
         >
             {open && (
                 <button
@@ -244,7 +355,14 @@ export function TrinityFab() {
                     title={label}
                     aria-label={label}
                     data-trinity-petal={edge}
-                    className={cn(styles.petal, styles[petalClass], activeEdge === edge && styles.petalActive)}
+                    className={cn(
+                        styles.petal,
+                        styles[petalClass],
+                        activeEdge === edge && styles.petalActive,
+                        // Selección radial: resalta en vivo el pétalo sobre el que
+                        // pasa el dedo mientras mantiene pulsado el orbe.
+                        selecting && hoverPetal === edge && styles.petalHover
+                    )}
                     style={{ "--pc": color } as React.CSSProperties}
                     onClick={() => toggleEdge(edge)}
                 >
@@ -254,6 +372,7 @@ export function TrinityFab() {
 
             <button
                 type="button"
+                ref={coreRef}
                 // Material StarSeed: halo neón 4-colores respirando suave (4s,
                 // solo opacidad — ver src/styles/starseed-materials.css)
                 className={cn(styles.core, "ss-neon-breathe", "ss-neon-breathe--trinity")}

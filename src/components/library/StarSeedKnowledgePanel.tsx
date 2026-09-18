@@ -197,8 +197,17 @@ function ItemCard({
 
 /* -------- Panel principal (acordeón de folders) -------- */
 export function StarSeedKnowledgePanel() {
-  const [openFolders, setOpenFolders] = useState<Record<string, boolean>>({
-    constituciones: true,
+  // Por defecto mostramos TODA la estructura del Drive StarSeed desplegada
+  // (las áreas viven en KNOWLEDGE_FOLDERS como "Área · …"), de modo que al
+  // abrir la sección Drive no se vea "solo un archivo": se ve el mapa
+  // completo de carpetas (Fundación, OS/Red, Café, Estudio, Sociedad) con
+  // sus documentos. "Constituciones" también queda abierta.
+  const [openFolders, setOpenFolders] = useState<Record<string, boolean>>(() => {
+    const initial: Record<string, boolean> = { constituciones: true };
+    for (const folder of KNOWLEDGE_FOLDERS) {
+      if (folder.id.startsWith("area-")) initial[folder.id] = true;
+    }
+    return initial;
   });
   const [viewer, setViewer] = useState<KnowledgeItem | null>(null);
 

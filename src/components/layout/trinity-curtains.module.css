@@ -76,6 +76,15 @@
 }
 
 /* ── Tirador de swipe (grabber) — invita a deslizar hacia el borde ───── */
+/* iOS: durante el swipe de cierre evitamos la selección de texto nativa y
+   el callout; el gesto es exclusivamente para mover la cortina. */
+.grabberTop,
+.grabberSideLeft,
+.grabberSideRight {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+}
 /* Barra superior (Zenith): horizontal, centrada arriba. */
 .grabberTop {
     position: absolute;

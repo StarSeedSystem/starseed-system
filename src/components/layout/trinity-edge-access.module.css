@@ -14,6 +14,11 @@
     cursor: pointer;
     touch-action: none;
     -webkit-tap-highlight-color: transparent;
+    /* iOS: el deslizamiento desde la orilla NO debe abrir el callout de
+       selección de texto ni la lupa; es un gesto de control de Trinity. */
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
     appearance: none;
     display: grid;
     place-items: center;

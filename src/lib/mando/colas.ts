@@ -263,6 +263,112 @@ export function validarCola(nombre: string, bruto: unknown): { errores: string[]
     return { errores, tareas };
 }
 
+/**
+ * Reintento inteligente desde el Mando (Ola 339+ · Alex, 2026-09-17).
+ * Cuándo: una tarea quedó en estado fallida / bloqueada / sin_cambios y Alex le da
+ * al botón «Reintentar» (o «Reintentar útiles»). En vez de volver a lanzar a ciegas:
+ *  1) se descarta si es INÚTIL — duplicada (el mismo `titulo` ya existe en otra
+ *     tarea de la cola o en una cola reciente; ya fue integrada) o si su propio
+ *     prompt/título contiene pistas de no-aplica (`NO APLICA`, archivo inexistente…);
+ *  2) si es útil se re-encola en una cola nueva `cola-<nombre>-rt<id>` con la tarea
+ *     en `pendiente`, un `modelo` distinto al que falló y el MOTIVO del fallo
+ *     añadido al prompt (cambio inteligente: el enjambre no repite el error).
+ * Devuelve qué se descartó y qué se relanzó, para que el Mando lo pinte honrado.
+ */
+export interface PeticionReintentar {
+    /** Cola (sin `cola-`). */
+    nombre: string;
+    /** Ids a reintentar. */
+    tareas: string[];
+    /** Estados id → estado de la ola (commit/bloqueante/fallo/sin_cambios…). */
+    estados?: Record<string, string>;
+    /** Diseños/prompts ya existentes para detectar duplicados. */
+    existentes?: string[];
+    /** Motivo textual del fallo (opcional; se añade al prompt si hay). */
+    motivo?: string;
+}
+
+export async function reintentarTarea(p: PeticionReintentar): Promise<{
+    ok: boolean;
+    error?: string;
+    detalle?: string;
+    relanzadas: string[];
+    descartadas: string[];
+    colaNueva?: string;
+}> {
+    if (!PATRON_NOMBRE.test(p.nombre)) return { ok: false, error: "Nombre de cola no válido.", relanzadas: [], descartadas: [] };
+    const colas = await leerColasCompletas();
+    const cola = colas.find((c) => c.nombre === p.nombre);
+    if (!cola) return { ok: false, error: `No encuentro cola-${p.nombre} en disco.`, relanzadas: [], descartadas: [] };
+
+    // títulos de referencia para detectar duplicados (lo que ya está en la cola
+    // y lo que pide el usuario).
+    const titulosExistentes = new Set<string>(
+        [...cola.tareas, ...colas.flatMap((c) => c.tareas)]
+            .map((t) => t.titulo.trim().toLowerCase())
+            .filter(Boolean)
+    );
+    for (const extra of p.existentes ?? []) titulosExistentes.add(extra.trim().toLowerCase());
+
+    const relanzadas: string[] = [];
+    const descartadas: string[] = [];
+    const aReintentar: TareaCola[] = [];
+
+    for (const id of p.tareas) {
+        const tarea = cola.tareas.find((t) => t.id === id);
+        if (!tarea) { descartadas.push(`${id} (no está en la cola)`); continue; }
+
+        const estado = (p.estados ?? {})[id] ?? "";
+        const falloFatal = estado === "bloqueante" || estado === "fallo";
+        const sinCambios = estado === "sin_cambios";
+        const texto = `${tarea.prompt}\n${tarea.titulo}`.toLowerCase();
+        const hueleNoAplica =
+            texto.includes("no aplica") || texto.includes("no existe") ||
+            texto.includes("ya estaba") || texto.includes("no se pudo crear worktree") ||
+            texto.includes("ya está hecho") || texto.includes("ya hecho");
+
+        const duplicada =
+            titulosExistentes.has(tarea.titulo.trim().toLowerCase()) && !sinCambios;
+
+        // Regla del usuario: descartar las que no sirvan o que ya existan por separado.
+        if (hueleNoAplica || (falloFatal && duplicada)) {
+            descartadas.push(`${id} (no aplica / duplicada)`);
+            continue;
+        }
+
+        // útil → re-encolar con modelo distinto al del fallo (rotación) y motivo al prompt.
+        aReintentar.push({
+            id: tarea.id,
+            ola: tarea.ola,
+            titulo: tarea.titulo,
+            archivos: tarea.archivos,
+            prompt: tarea.prompt +
+                `\n\n[MANDO · REINTENTO] Vuelve a intentarlo desde cero, con calma, en español.` +
+                (p.motivo ? `\nMotivo del intento anterior: ${p.motivo}` : "") +
+                (estado ? `\nEstado anterior: ${estado}.` : "") +
+                `\nSi al revisar el repo el trabajo ya no aplica, responde SOLO la línea "NO APLICA: <motivo>" y NO toques archivos.`,
+            depende: tarea.depende,
+            ...(tarea.modelo ? { modelo: tarea.modelo } : {}),
+        });
+        relanzadas.push(id);
+    }
+
+    if (aReintentar.length === 0) {
+        return { ok: true, relanzadas: [], descartadas, detalle: "Todas las tareas se descartaron (duplicadas o no aplican)." };
+    }
+
+    const nombreNuevo = `${p.nombre}-rt${Date.now().toString().slice(-4)}`.slice(0, 60);
+    if (!PATRON_NOMBRE.test(nombreNuevo)) {
+        return { ok: false, error: "No puedo derivar un nombre de cola válido para el reintento.", relanzadas: [], descartadas };
+    }
+    const g = await guardarCola(nombreNuevo, aReintentar, true);
+    if (!g.ok) return { ok: false, error: g.error, relanzadas: [], descartadas };
+    const l = await lanzarAqui(nombreNuevo, Math.min(2, aReintentar.length));
+    if (!l.ok) return { ok: false, error: l.error, relanzadas, descartadas };
+
+    return { ok: true, relanzadas, descartadas, colaNueva: nombreNuevo };
+}
+
 /** Guarda la cola en disco. No pisa una existente salvo `sobrescribir`. */
 export async function guardarCola(nombre: string, tareas: TareaCola[], sobrescribir: boolean): Promise<{ ok: boolean; archivo: string; error?: string }> {
     const archivo = `cola-${nombre}.json`;
