@@ -6680,10 +6680,17 @@ def recovery_despues_de_error():
     except Exception:
         salud = {}
 
-    # Revisar cada proveedor que falló (3 sondeos caídos → estado "caido" en salud)
-    for prov in list(SALUD_JSON and json.load(open(SALUD_JSON)).keys()) or []:
-        e = salud.get(prov)
-        fallos_recientes = e.get("fallos_seguidos", 0) if e else 0
+    # Revisar cada proveedor que falló (3 sondeos caídos → estado "caido" en salud).
+    # Salud mezcla claves de proveedor (dict con 'estado') con metadatos/claves, así
+    # que solo iteramos entradas que sean dict y tengan campo 'estado'.
+    try:
+        datos_salud = json.load(open(SALUD_JSON, encoding="utf-8"))
+    except Exception:
+        datos_salud = {}
+    for prov, e in (datos_salud.items() if isinstance(datos_salud, dict) else []):
+        if not isinstance(e, dict) or "estado" not in e:
+            continue
+        fallos_recientes = e.get("fallos_seguidos", 0)
         if fallos_recientes >= 3 and e.get("estado") == "caido":
             # Forzar sondeo inmediato para ver si ya reaccionó el supervisor
             vivo = sondear(prov, forzar=True)
