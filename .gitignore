@@ -81,6 +81,7 @@ queue/
 tsc-*.tmp.json
 starseed_memory_root/
 _to_delete/
+dream/
 Icon
 # macOS custom folder icon files (rompen checkout en Windows)
 
