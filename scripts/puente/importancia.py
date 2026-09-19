@@ -15,18 +15,25 @@ Módulo PURO: entra una línea del canal, sale un veredicto.
 
 # Suena siempre: o pide algo de Alex, o es un hecho que cambia el estado del mundo.
 SIEMPRE = (
-    "ninguna pasarela escribe",      # el enjambre no puede trabajar
-    "no arranco",                    # el orquestador se plantó
-    "rechazo automático",            # el desatascador ejecutó un veredicto
-    "integrado en main",             # una tarea entró de verdad
-    "publicado",                     # salió a origin
-    "espera tu visto bueno",         # le toca a él
-    "sin cupo hasta",                # un proveedor se cayó por cuota
-    "integrado pero no aplicado",    # trabajo que parece hecho y no lo está
+    # (2026-09-19) Alex: «solo mensajes importantes y funcionales: avisos de
+    # nuevas olas, procesos que requieran aprobación o sugerencias relevantes,
+    # siempre con el contexto actualizado». Esto es esa lista, y nada más.
+    "trabajadores · medios sincronizados",   # arranca una ola nueva
+    "espera tu visto bueno",                 # le toca decidir a él
+    "resuelta automáticamente por",          # el director decidió por él: que lo sepa
+    "rechazo automático",                    # el desatascador ejecutó un veredicto
+    "publicado",                             # salió a origin
+    "dream",                                 # sugerencias del análisis nocturno
+    "sugerencia",
+    "ninguna pasarela escribe",              # el enjambre no puede trabajar
+    "no arranco",                            # el orquestador se plantó
+    "integrado pero no aplicado",            # trabajo que parece hecho y no lo está
 )
 
 # No suena nunca: contabilidad del enjambre. Sigue en el canal.
 NUNCA = (
+    "integrado en main",             # una tarea más: va al resumen de media hora
+    "sin cupo hasta",                # el enjambre ya lo aparta solo; no hace falta avisar
     "latido",
     "sin cambios con",
     "reenrutado",

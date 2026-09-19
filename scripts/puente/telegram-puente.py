@@ -625,10 +625,21 @@ def _ejecutar_puente():
     # (2026-09-16) Contador de lo que se calla, para decirlo de vez en cuando en una frase.
     _callados_vistos = 0
     _ultimo_resumen = time.time()
+    # (2026-09-19) SOLO ENVÍO por defecto. Hermes y este puente usaban el MISMO bot y
+    # los dos hacían getUpdates: Telegram solo permite un lector, y el log de Hermes
+    # registró 22 «polling conflict» en una hora — mensajes perdidos a ambos lados.
+    # Alex quiere el chat de Hermes como chat del proyecto, así que Hermes escucha y
+    # este puente solo avisa (con el filtro de importancia y la hora al final).
+    # STARSEED_TELEGRAM_ESCUCHA=1 recupera la escucha si algún día se usa otro bot.
+    solo_envio = os.environ.get("STARSEED_TELEGRAM_ESCUCHA", "0").strip() not in ("1", "si", "true")
+    if solo_envio:
+        print("modo SOLO ENVÍO: la escucha de Telegram la lleva Hermes (mismo bot)")
     while True:
         try:
-            # 1. Revisar Telegram.
-            updates, nuevo_offset = _telegram_get(token, offset, timeout=20)
+            # 1. Revisar Telegram — solo si este proceso es el lector del bot.
+            updates, nuevo_offset = ([], offset) if solo_envio else _telegram_get(token, offset, timeout=20)
+            if solo_envio:
+                time.sleep(5)
             for u in updates:
                 msg = u.get("message") or u.get("edited_message")
                 if not msg:

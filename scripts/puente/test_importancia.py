@@ -23,8 +23,13 @@ class TestSuena(unittest.TestCase):
         self.assertTrue(suena(l("ninguna pasarela escribe ahora mismo — no arranco")))
 
     def test_los_hechos_que_cambian_el_mundo(self):
-        self.assertTrue(suena(l("commit PS9 · 11b13719 integrado en main", tipo="commit")))
+        # (2026-09-19) «integrado en main» ya NO suena: Alex pidió solo olas nuevas,
+        # aprobaciones y sugerencias. Una tarea más va al resumen de media hora.
+        self.assertFalse(suena(l("commit PS9 · 11b13719 integrado en main", tipo="commit")))
         self.assertTrue(suena(l("INTEGRADO PERO NO APLICADO: exportas avanceCombinado")))
+        self.assertTrue(suena(l("18 tareas · 3 trabajadores · medios sincronizados (lease 300s)")))
+        self.assertTrue(suena(l("Dream 2026-09-19 · 3 sugerencias accionables")))
+        self.assertTrue(suena(l("10 cambios publicados, verificados uno a uno")))
 
     def test_la_contabilidad_del_enjambre_se_calla(self):
         for t in ("latido - · zO2 escribiendo/kimi-k3 8m · 277 integradas",
@@ -40,8 +45,10 @@ class TestSuena(unittest.TestCase):
             self.assertFalse(suena(l(t)), t)
 
     def test_siempre_gana_sobre_nunca(self):
-        # Lleva las dos: es una rotación, pero anuncia una cuota caída.
-        self.assertTrue(suena(l("reenrutado: apinex sin cupo hasta 2026-09-16 19:31:08")))
+        # Lleva las dos: es una rotación (nunca) y un visto bueno (siempre). Gana siempre.
+        self.assertTrue(suena(l("reenrutado y ahora espera tu visto bueno en el Mando")))
+        # Una cuota caída ya no suena: el enjambre la aparta solo.
+        self.assertFalse(suena(l("reenrutado: apinex sin cupo hasta 2026-09-16 19:31:08")))
 
     def test_un_error_suena_aunque_no_diga_nada_conocido(self):
         self.assertTrue(suena(l("el revisor devolvió una cosa rarísima", tipo="error")))
@@ -64,19 +71,20 @@ class TestResumen(unittest.TestCase):
         self.assertIn("2 × latido", t)
 
     def test_sin_nada_callado_no_hay_resumen(self):
-        self.assertEqual(resumir_callados([l("integrado en main", tipo="commit")]), "")
+        self.assertEqual(resumir_callados([l("rama ola/x lista: espera tu visto bueno")]), "")
         self.assertEqual(resumir_callados([]), "")
 
 
 class TestFiltrar(unittest.TestCase):
     def test_separa_las_dos_cosas(self):
         lineas = [l("latido - · x"),
-                  l("commit zW7 · integrado en main", tipo="commit"),
-                  l("sin cambios con kimi (1/5) → sigo")]
+                  l("rama ola/zW7 lista: espera tu visto bueno en el Mando"),
+                  l("sin cambios con kimi (1/5) → sigo"),
+                  l("commit zW7 · integrado en main", tipo="commit")]
         fuertes, resumen = filtrar(lineas)
         self.assertEqual(len(fuertes), 1)
-        self.assertIn("integrado en main", fuertes[0]["texto"])
-        self.assertIn("2 avisos de rutina", resumen)
+        self.assertIn("visto bueno", fuertes[0]["texto"])
+        self.assertIn("3 avisos de rutina", resumen)
 
     def test_una_hora_normal_del_enjambre_casi_no_suena(self):
         # 20 latidos y 6 rotaciones: exactamente lo que inundaba el móvil.
