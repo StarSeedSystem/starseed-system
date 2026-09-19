@@ -6667,10 +6667,81 @@ def main():
         desconectar_medios_locales()
     except Exception:
         pass
-    relevo_nota(
-        "enjambre v2 terminó %s: HEAD %s · %s"
-        % (os.path.basename(sys.argv[1]), head.strip(), resumen)
-    )
+
+# ── recovery automático de proveedores (2026-09-18) ──────────────────────
+# Si algún proveedor falló durante la ola (3 sondeos seguidos → caído, o agotamiento
+# de cuota/429 que aún no se liberó), se invoca el fallover de Hermes para que la
+# siguiente ola empiece con un proveedor vivo y no se quede callado. Usa la misma
+# lógica del supervisor_proveedores() pero orientada a la ola actual.
+def recovery_despues_de_error():
+    """Revisa la salud de proveedores tras la ola y fuerza fallback si hace falta."""
+    try:
+        salud = _salud()  # ya lee SALUD_JSON y devuelve dict o {}
+    except Exception:
+        salud = {}
+
+    # Revisar cada proveedor que falló (3 sondeos caídos → estado "caido" en salud)
+    for prov in list(SALUD_JSON and json.load(open(SALUD_JSON)).keys()) or []:
+        e = salud.get(prov)
+        fallos_recientes = e.get("fallos_seguidos", 0) if e else 0
+        if fallos_recientes >= 3 and e.get("estado") == "caido":
+            # Forzar sondeo inmediato para ver si ya reaccionó el supervisor
+            vivo = sondear(prov, forzar=True)
+            if vivo:
+                # Proveedor recuperado: anotar y continuar
+                e["estado"] = "vivo"
+                e["t"] = ahora()
+                e["desde"] = ahora()
+                salud[prov] = e
+                _salud_guardar(salud)
+                evento(
+                    "proveedor_recuperado",
+                    "",
+                    "%s volvió a responder tras fallo de ola → reincorporado a la rotación" % prov,
+                )
+            else:
+                # Sigue caído: emitir aviso y el siguiente ciclo del supervisor
+                # se encargará de rotar modelos; pero para esta ola forzamos el salto
+                # al siguiente proveedor en la lista MODELOS.
+                evento(
+                    "proveedor_caido",
+                    "",
+                    "%s aún caído después del fallo de ola → se activará fallback Hermes"
+                    % prov,
+                )
+                # Marcar para que el próximo modelo de la rotación sea distinto
+                if prov in MODELOS:
+                    MODELOS.remove(prov)
+                    evento(
+                        "aviso",
+                        "",
+                        "Forzando rotación de modelo tras error: %s quitado de la lista actual (%d restantes)"
+                        % (prov, len(MODELOS)),
+                    )
+
+    # Si hay un modelo marcado como MUERTOS, también lo quitamos de la rotación actual
+    for m in list(MUERTOS):
+        if m in MODELOS:
+            MODELOS.remove(m)
+            evento(
+                "aviso",
+                "",
+                "Modelo retirado de la rotación por defunción: %s (%d restantes)" % (m, len(MODELOS)),
+            )
+
+    # Reporte resumido al Puente de Mando para que el Mando sepa el estado actual
+        # Usando la infraestructura ya existente: el JSON de salud y los eventos arriba emitidos.
+        # El Mando (localhost:9002/mando) lee ~/.starseed/salud-proveedores.json y el archivo
+        # de eventos olas/eventos.jsonl para mostrar el estado en tiempo real.
+        # No lanzamos subprocess externos que no existen; los eventos ya están en el sistema.
+        pass  # Los eventos proveedor_recuperado / proveedor_caido arriba bastan
+
+# Llamar al recovery antes de escribir el relevo
+recovery_despues_de_error()
+relevo_nota(
+    "enjambre v2 terminó %s: HEAD %s · %s"
+    % (os.path.basename(sys.argv[1]), head.strip(), resumen)
+)
 
 
 if __name__ == "__main__":
