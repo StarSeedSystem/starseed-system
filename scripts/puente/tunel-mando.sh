@@ -42,7 +42,15 @@ for i in $(seq 1 30); do
   [ -n "$URL" ] && break
 done
 if [ -z "$URL" ]; then
-  echo "[$(date)] ERROR: cloudflared no dio URL" >> "$LOG"; exit 1
+  # (2026-09-19, 17:42) Cloudflare contestó «429 Too Many Requests · error 1015»:
+  # cada relanzamiento de launchd pedía OTRO túnel rápido y el bucle de un
+  # minuto nos dejó limitados por IP (los túneles rápidos son gratis pero
+  # con cupo). Si no hay URL, se mata el cloudflared mudo y se ESPERA 20 min
+  # antes de salir, para que launchd no vuelva a pedir uno enseguida.
+  motivo=$(grep -oE "429 Too Many Requests|error code: 1015|[A-Za-z ]*lookup[^\"]*" "$SALIDA" 2>/dev/null | head -1)
+  echo "[$(date)] ERROR: cloudflared no dio URL (${motivo:-sin motivo}); espero 20 min" >> "$LOG"
+  pkill -f "cloudflared tunnel --url http://127.0.0.1:$PUERTO" 2>/dev/null
+  sleep 1200; exit 1
 fi
 
 python3 - "$URL" "$ESTADO" <<'PY'
