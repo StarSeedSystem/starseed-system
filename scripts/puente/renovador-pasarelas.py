@@ -58,6 +58,10 @@ SONDAS = [
     ("apinex", "https://apinex.bond/v1", "STARSEED_PASARELA_APINEX_KEY", "free/glm-5.3-flash"),
     ("deepseek", "https://api.deepseek.com/v1", "DEEPSEEK_API_KEY", "deepseek-v4-pro"),
     ("xai", "https://api.x.ai/v1", "XAI_API_KEY", "grok-4.6"),
+    # (2026-09-19) Hugging Face tenía clave (HF_TOKEN) y no estaba en la rotación.
+    ("huggingface", "https://router.huggingface.co/v1", "HF_TOKEN", "Qwen/Qwen2.5-72B-Instruct"),
+    # FreeLLMAPI local: reparte entre todo lo gratuito; su clave la crea Alex en :3001.
+    ("freellmapi", "http://127.0.0.1:3001/v1", "FREELLMAPI_KEY", "auto"),
 ]
 
 ARCHIVOS_DE_CLAVES = ("~/.hermes/.env", "~/.starseed/env")

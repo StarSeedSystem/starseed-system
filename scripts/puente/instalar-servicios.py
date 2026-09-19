@@ -112,5 +112,14 @@ if os.path.exists(TUNEL_MANDO):
     instalar("com.starseed.mando.tunel", LANZ + ["--", "/bin/bash", TUNEL_MANDO],
              os.path.expanduser("~/.starseed/tunel-mando.log"), True)
 
+# (2026-09-19) FreeLLMAPI: pasarela unificada OpenAI-compatible en :3001 que
+# reparte entre los proveedores gratuitos con las claves que ya tenemos. Pedida
+# por Alex para «todos los IDE y el Puente de Mando». Las claves se le pasan en
+# memoria al arrancar (freellmapi-lanzar.sh), nunca en un archivo nuevo.
+FREELLMAPI = os.path.expanduser("~/.starseed/herramientas/freellmapi-lanzar.sh")
+if os.path.exists(FREELLMAPI):
+    instalar("com.starseed.freellmapi", LANZ + ["--", "/bin/bash", FREELLMAPI],
+             os.path.expanduser("~/.starseed/freellmapi.log"), True)
+
 print("\nlaunchd los mantiene vivos aunque se reinicie el MCP, se cierre la terminal o se")
 print("apague la Mac. Vuelve a ejecutar esto cada vez que toques un guion del puente.")

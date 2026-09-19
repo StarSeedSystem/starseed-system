@@ -51,6 +51,8 @@ CATALOGO = {
                    "humano": True, "nota": "Local: sin clave, sin cupo y sin red. Solo necesita que haya un modelo descargado que sepa programar."},
     "huggingface": {"nombre": "Hugging Face", "enlace": "https://huggingface.co/settings/tokens",
                    "humano": True, "nota": "Inference API con cuota mensual gratuita."},
+    "freellmapi": {"nombre": "FreeLLMAPI (local :3001)", "enlace": "https://github.com/tashfeenahmed/freellmapi",
+                   "humano": True, "nota": "Pasarela unificada local; la clave freellmapi-… se crea en su panel y se guarda como FREELLMAPI_KEY."},
 }
 
 _PISTAS = (
