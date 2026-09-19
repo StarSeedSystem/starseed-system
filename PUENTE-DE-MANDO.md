@@ -1,6 +1,6 @@
 # Puente de Mando · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-18 14:02:14 desde el Mando vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-19 04:04:50 desde el Mando vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -16,16 +16,16 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | Agentes escribiendo | **0** |
 | En esta ola | integradas 2 · en curso 0 · esperando aprobación 0 · pendientes 0 |
 | Últimas 4 olas | en curso 0 · pendientes 0 · integradas 5 |
-| HEAD | `7bd3b299 chore(memoria): regenero y reparto el contexto compartido tras el push` |
+| HEAD | `0d678435 fix(enjambre): recovery robusto cuando el JSON de salud mezcla metadatos` |
 | Sin publicar | 0 commits |
-| Árbol | 1 archivos sin commitear |
+| Árbol | 3 archivos sin commitear |
 
-## Quién escribe ahora (latido de `cola-auto-0917-202626.json`, hace 61889s)
+## Quién escribe ahora (latido de `cola-auto-0917-202626.json`, hace 112444s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `RS3b` | hecho | apinex/free/qwen-3.8-max | 1032 min | 61915 s | 99722 |
-| `DR0917-1` | hecho | apinex/free/qwen-3.8-max | 1043 min | 62575 s | 117095 |
+| `RS3b` | hecho | apinex/free/qwen-3.8-max | 1875 min | 112470 s | 99722 |
+| `DR0917-1` | hecho | apinex/free/qwen-3.8-max | 1886 min | 113130 s | 117095 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
