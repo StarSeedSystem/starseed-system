@@ -624,3 +624,19 @@
 **Lo que quedó fuera, una por una:**
 - `DR0917-1` — no escribió nada
 - `RS3b` — no escribió nada
+
+## 2026-09-19 16:38 · auto-0919-161909
+
+**Lo que se pidió.** al mantener presionado el botón de la orbe flotante se selecciona como si fuera texto y no ocurre la función; en Android funciona
+
+**Resultado.** 0 de 4 integradas. 4 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 4 tareas se fueron por lo mismo — no escribió nada (TM1, TM2, TM3, TM4). Es 100 % de la ola.
+- sin modelo anotado no integró ninguna de sus 4 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `TM1` — no escribió nada
+- `TM2` — no escribió nada: dependencia no integrada: TM1 (sin_cambios)
+- `TM3` — no escribió nada
+- `TM4` — no escribió nada: dependencia no integrada: TM3 (sin_cambios)
