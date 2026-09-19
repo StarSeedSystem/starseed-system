@@ -1,6 +1,6 @@
 # Puente de Mando · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-19 16:38:37 desde el Mando vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-19 17:18:06 desde el Mando vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -15,17 +15,19 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | Ola arriba | Ola Dream 2026-09-15 · lo que el análisis nocturno encontró |
 | Agentes escribiendo | **0** |
 | En esta ola | integradas 2 · en curso 0 · esperando aprobación 0 · pendientes 0 |
-| Últimas 4 olas | en curso 0 · pendientes 0 · integradas 4 |
-| HEAD | `f6f52233 chore(memoria): aprendizaje de la ola auto-0919-161909` |
-| Sin publicar | 1 commits |
+| Últimas 4 olas | en curso 0 · pendientes 0 · integradas 3 |
+| HEAD | `4812eb55 chore(memoria): aprendizaje de la ola auto-0919-163942` |
+| Sin publicar | 3 commits |
 | Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-auto-0919-161909.json`, hace 4s)
+## Quién escribe ahora (latido de `cola-auto-0919-163942.json`, hace 7s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `TM1` | hecho | apinex/free/glm-5.3-flash | 0 min | 26 s | 10082 |
-| `TM3` | hecho | codex/gpt-5.6-sol | 5 min | 317 s | 9078 |
+| `DV1` | hecho | groq/openai/gpt-oss-20b | 1 min | 33 s | 14110 |
+| `DR0919-2` | hecho | groq/openai/gpt-oss-120b | 6 min | 342 s | 28277 |
+| `RI1` | hecho | groq/openai/gpt-oss-120b | 17 min | 1003 s | 13085 |
+| `DR0919-1` | hecho | apinex/free/glm-5.3-flash | 24 min | 1462 s | 3442 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
