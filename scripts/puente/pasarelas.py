@@ -49,6 +49,8 @@ CATALOGO = {
                    "humano": True, "nota": "DE PAGO, y se gasta rápido: los agentes escribieron con grok-4.6 y grok-build-0.1 toda la tarde del 16/09 y se acabó el saldo del equipo. Un 403 suyo suele ser saldo, no clave."},
     "neurona":    {"nombre": "Neurona local (Ollama)", "enlace": "https://ollama.com/library",
                    "humano": True, "nota": "Local: sin clave, sin cupo y sin red. Solo necesita que haya un modelo descargado que sepa programar."},
+    "google":     {"nombre": "Google AI Studio (Gemini)", "enlace": "https://aistudio.google.com/apikey",
+                   "humano": True, "nota": "Gemini gratis con cupo diario (GEMINI_API_KEY). Escribe con herramientas y 1M de contexto."},
     "huggingface": {"nombre": "Hugging Face", "enlace": "https://huggingface.co/settings/tokens",
                    "humano": True, "nota": "Inference API con cuota mensual gratuita."},
     "freellmapi": {"nombre": "FreeLLMAPI (local :3001)", "enlace": "https://github.com/tashfeenahmed/freellmapi",

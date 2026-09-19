@@ -56,7 +56,27 @@ CONFIG = os.path.expanduser("~/.hermes/config.yaml")
 INFORME = os.path.expanduser("~/.starseed/pasarelas-informe.json")
 
 #: Nombre de pasarela en el informe → nombre de proveedor en Hermes.
-ALIAS = {"nvidia": "nvidia", "nim": "nvidia", "neurona": "ollama"}
+ALIAS = {"nvidia": "nvidia", "nim": "nvidia", "neurona": "ollama", "google": "gemini"}
+
+#: Proveedores que Hermes trae DE SERIE (no van bajo `providers:` en su config;
+#: la clave la lee él del entorno) y los modelos con los que nos sirven.
+#: (2026-09-19, 17:28) `hermes chat --provider gemini -m gemini-3.6-flash` contestó
+#: «ok» en la Mac con GEMINI_API_KEY de ~/.hermes/.env. Es el único gratuito de
+#: hoy con 1M de contexto y herramientas: la sesión del Mando pesa ~100k tokens
+#: y con 128k de ventana la compresión se quedaba colgada 120 s en cada turno.
+NATIVOS = {"gemini": ["gemini-3.6-flash"]}
+
+#: Lo que Hermes debe pedir a un proveedor AUNQUE la sonda del renovador haya
+#: contestado con otro modelo: la sonda de google es `gemini-3.5-flash-lite`
+#: porque los modelos con razonamiento devuelven vacío a 16 tokens (medido
+#: 2026-09-19: gemini-3.6-flash → sin contenido, flash-lite → «ok» en 0,9 s),
+#: pero para dirigir el Mando hace falta el grande.
+HERMES_PREFIERE = {"gemini": "gemini-3.6-flash"}
+
+#: Desempate entre proveedores en el MISMO estado: contexto grande y herramientas
+#: primero. freellmapi/auto reparte entre gratuitos pero eligió Qwen3-235B por HF
+#: y devolvió basura («0.14.02 0.14.02…») a un prompt de 10k tokens.
+AFINIDAD = {"gemini": 0, "nvidia": 1, "freellmapi": 2, "apinex": 3}
 
 #: Qué modelo pedirle a cada proveedor, por orden de preferencia. Solo se usan
 #: los que estén declarados en el config de Hermes; si ninguno, el primero que
@@ -126,6 +146,8 @@ def modelo_para(prov, declarados):
     # (2026-09-19) Primero el modelo que contestó a la sonda del renovador: es la
     # única prueba de que ese id existe y esa clave puede usarlo. xkiro daba 403
     # a `qwen3.7-plus` (de pago) mientras `qwen3-coder-plus:free` escribía.
+    if prov in HERMES_PREFIERE and HERMES_PREFIERE[prov] in declarados:
+        return HERMES_PREFIERE[prov]
     if prov in SONDADOS:
         return SONDADOS[prov]
     for m in PREFERIDOS.get(prov, []):
@@ -146,9 +168,17 @@ def cadena(provs_hermes, estados):
         if TPM_GRATUITO.get(prov, 10**9) < TOKENS_QUE_PIDE_HERMES:
             orden += 10                      # vivo, pero no le cabe una charla
             est = est + " (tpm %d < %d)" % (TPM_GRATUITO[prov], TOKENS_QUE_PIDE_HERMES)
-        filas.append((orden, prov, m, est))
-    filas.sort(key=lambda x: (x[0], x[1]))
-    return [(p, m, e) for _, p, m, e in filas]
+        filas.append((orden, AFINIDAD.get(prov, 5), prov, m, est))
+    filas.sort(key=lambda x: (x[0], x[1], x[2]))
+    return [(p, m, e) for _, _, p, m, e in filas]
+
+
+def con_nativos(provs):
+    """Los proveedores de serie de Hermes entran aunque no estén en `providers:`."""
+    fuera = dict(provs)
+    for prov, modelos in NATIVOS.items():
+        fuera.setdefault(prov, list(modelos))
+    return fuera
 
 
 def con_prefijo(prov, mod):
@@ -187,7 +217,7 @@ def main():
     ap.add_argument("--seco", action="store_true")
     args = ap.parse_args()
     texto = open(CONFIG, encoding="utf-8").read()
-    provs = proveedores_de_hermes(texto)
+    provs = con_nativos(proveedores_de_hermes(texto))
     estados = estados_del_informe()
     cad = cadena(provs, estados)
     if not cad:

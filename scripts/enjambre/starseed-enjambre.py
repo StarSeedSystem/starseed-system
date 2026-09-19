@@ -134,6 +134,19 @@ MODELOS = [
     # Toda la escritura acabó cayendo en la suscripción de ChatGPT hasta agotarla.
     # `north-mini-code` es el que se probó escribiendo de verdad (creó un archivo con
     # una llamada de herramienta), no solo contestando a un chat: son cosas distintas.
+    # (2026-09-19, 17:30) Gemini DIRECTO (Google AI Studio, GEMINI_API_KEY): opencode
+    # CREÓ hola.txt con `google/gemini-3.6-flash` en 15 s (/tmp/prueba-escritor2). Es
+    # el único gratuito de hoy que escribe con herramientas y 1M de contexto, así que
+    # va el primero. opencode lee la clave de GOOGLE_GENERATIVE_AI_API_KEY (alias de
+    # GEMINI_API_KEY en ~/.starseed/env). Tiene cupo diario: al 429 el renovador lo
+    # aparta («google» en el informe) y la rotación sigue sola.
+    "google/gemini-3.6-flash",
+    # NIM medido hoy con 16 tokens: nemotron-3-super 0,7 s · nemotron-3.5-lightning
+    # 0,9 s · glm-5.3 10,8 s. kimi-k3 y deepseek-v4-flash-0731 NO contestaron en 40 s:
+    # son los «estancado 731 s… COLGADO» del log de hoy, y cada colgado cuesta 12 min.
+    # Los vivos delante; los colgados, al final de la lista.
+    "nvidia/nemotron-3-super-120b-a12b",
+    "nvidia/z-ai/glm-5.3",
     # (2026-09-16, 19:45) Grok entra con clave propia de Alex y VERIFICADO escribiendo:
     # el renovador lo sondeó con dieciséis tokens y respondió. Es de pago, así que va
     # detrás de lo gratuito que funcione, pero delante de lo que está mudo.
@@ -165,9 +178,7 @@ MODELOS = [
     # archivos con ellos (probado en vivo el 2026-09-04 con qwen3-coder-plus y minimax-m3;
     # aihubmix y tokenrouter fallaban justo aquí). Alterna proveedor para repartir la carga.
     "xkiro/qwen/qwen3-coder-plus:free",
-    "nvidia/moonshotai/kimi-k3",
     "xkiro/minimax/minimax-m3:free",
-    "nvidia/deepseek-ai/deepseek-v4-flash-0731",
     # Verificado el 2026-09-06 (Ola 261) en /tmp/prueba-escritor: opencode SÍ crea archivos con
     # tokenrouter glm-5.3-free, y rápido (era uno de los revisores; ahora también escribe).
     "tokenrouter/z-ai/glm-5.3-free",
@@ -178,6 +189,10 @@ MODELOS = [
     # llm7/gpt-oss también escribió en la prueba, pero con calidad baja: solo entra en la
     # rotación de una tarea si TODOS sus archivos son Markdown (ver apto_para_tarea).
     "llm7/gpt-oss",
+    # (2026-09-19) Los dos de NIM que hoy se cuelgan sin emitir nada. Siguen aquí por
+    # si NIM los recupera, pero al final: que un colgado no se coma el primer intento.
+    "nvidia/moonshotai/kimi-k3",
+    "nvidia/deepseek-ai/deepseek-v4-flash-0731",
 ]
 
 # (2026-09-08, Ola 296 · CX2) ESCRITORES DE COSTE CERO: Codex CLI escribe contra la suscripción

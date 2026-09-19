@@ -46,7 +46,13 @@ SONDAS = [
     # sin cupo y sin red. Va primera porque nada puede dejarla sin créditos.
     ("neurona", "http://127.0.0.1:11434/v1", None, "qwen2.5:0.5b"),
     ("openrouter", "https://openrouter.ai/api/v1", "OPENROUTER_API_KEY", "nex-agi/nex-n2.5-pro:free"),
-    ("nvidia", "https://integrate.api.nvidia.com/v1", "NVIDIA_API_KEY", "moonshotai/kimi-k3"),
+    # (2026-09-19) kimi-k3 y deepseek-v4-flash-0731 se cuelgan en NIM sin emitir (40 s
+    # sin respuesta); nemotron-3-super contestó en 0,7 s. La sonda mide lo que escribe.
+    ("nvidia", "https://integrate.api.nvidia.com/v1", "NVIDIA_API_KEY", "nvidia/nemotron-3-super-120b-a12b"),
+    # Gemini directo por su endpoint OpenAI-compatible. Se sonda con flash-lite a
+    # propósito: los modelos con razonamiento (3.6-flash) devuelven contenido VACÍO a
+    # 16 tokens y saldrían «mudos» sin estarlo. Hermes y opencode usan gemini-3.6-flash.
+    ("google", "https://generativelanguage.googleapis.com/v1beta/openai", "GEMINI_API_KEY", "gemini-3.5-flash-lite"),
     ("groq", "https://api.groq.com/openai/v1", "GROQ_API_KEY", "openai/gpt-oss-20b"),
     ("xkiro", "https://api.xkiro.com/v1", "XKIRO_API_KEY", "qwen/qwen3-coder-plus:free"),
     ("tokenrouter", "https://api.tokenrouter.com/v1", "TOKENROUTER_API_KEY", "z-ai/glm-5.3-free"),
