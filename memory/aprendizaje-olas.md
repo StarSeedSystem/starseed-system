@@ -640,3 +640,20 @@
 - `TM2` — no escribió nada: dependencia no integrada: TM1 (sin_cambios)
 - `TM3` — no escribió nada
 - `TM4` — no escribió nada: dependencia no integrada: TM3 (sin_cambios)
+
+## 2026-09-19 17:18 · auto-0919-163942
+
+**Lo que se pidió.** top 3 accionables
+
+**Resultado.** 0 de 5 integradas. 5 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 5 tareas se fueron por lo mismo — no escribió nada (DR0919-1, DR0919-2, RI1, RI2, DV1). Es 100 % de la ola.
+- sin modelo anotado no integró ninguna de sus 5 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `DR0919-1` — no escribió nada
+- `DR0919-2` — no escribió nada
+- `RI1` — no escribió nada
+- `RI2` — no escribió nada: dependencia no integrada: RI1 (sin_cambios)
+- `DV1` — no escribió nada
