@@ -6348,6 +6348,7 @@ def main():
     os.makedirs(LOGS, exist_ok=True)
     barrer_agentes_huerfanos()
     validar_modelos()
+    recovery_despues_de_error()
     TAREAS_POR_ID.update({t["id"]: t for t in tareas})
     CAPACIDADES_MEDIOS["opencode"] = min(
         workers,
@@ -6734,21 +6735,7 @@ def recovery_despues_de_error():
                 "aviso",
                 "",
                 "Modelo retirado de la rotación por defunción: %s (%d restantes)" % (m, len(MODELOS)),
-            )
-
-    # Reporte resumido al Puente de Mando para que el Mando sepa el estado actual
-        # Usando la infraestructura ya existente: el JSON de salud y los eventos arriba emitidos.
-        # El Mando (localhost:9002/mando) lee ~/.starseed/salud-proveedores.json y el archivo
-        # de eventos olas/eventos.jsonl para mostrar el estado en tiempo real.
-        # No lanzamos subprocess externos que no existen; los eventos ya están en el sistema.
-        pass  # Los eventos proveedor_recuperado / proveedor_caido arriba bastan
-
-# Llamar al recovery antes de escribir el relevo
-recovery_despues_de_error()
-relevo_nota(
-    "enjambre v2 terminó %s: HEAD %s · %s"
-    % (os.path.basename(sys.argv[1]), head.strip(), resumen)
-)
+                    )
 
 
 if __name__ == "__main__":
