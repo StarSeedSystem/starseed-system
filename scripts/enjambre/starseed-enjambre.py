@@ -2733,7 +2733,7 @@ def _resolver_sola(tid, ficha, wt):
         evento("aprobacion", tid, _resol.nota(accion, motivo))
         return False
     try:
-        _, diff = sh(["git", "diff", "HEAD~1"], cwd=wt, timeout=90)
+        _, diff = sh(["git", "diff", "main...HEAD"], cwd=wt, timeout=90)
         salida = revisar(
             tid,
             "ANÁLISIS DE APROBACIÓN · " + str(ficha.get("titulo") or tid),
@@ -5849,9 +5849,11 @@ def ejecutar(t, intento=1):
         evento("fallo", tid, "commit falló: " + out[-200:])
         limpiar_worktree(tid, borrar_rama=False)
         return
-    # revisión cruzada
+    # revisión cruzada. El diff es el de TODA la rama (main...HEAD): con el salvavidas
+    # el trabajo puede ir en commits anteriores y el último ser el vacío con título;
+    # `HEAD~1` dejó al revisor sin diff y bloqueó HW-2 (2026-09-20, 05:55).
     latir(tid, "revision", modelo=modelo_ok)
-    _, diff = sh(["git", "diff", "HEAD~1", "--stat", "-p"], cwd=wt, timeout=60)
+    _, diff = sh(["git", "diff", "main...HEAD", "--stat", "-p"], cwd=wt, timeout=60)
     impacto = impacto_cambios(
         "ola/" + tid
     )  # grafo GitNexus: qué flujos toca la rama (None si no hay índice)
@@ -5976,7 +5978,7 @@ def ejecutar(t, intento=1):
     )
     if pedir_vb:
         _, sha_rama = sh(["git", "rev-parse", "--short", "HEAD"], cwd=wt, timeout=30)
-        _, stat = sh(["git", "diff", "HEAD~1", "--stat"], cwd=wt, timeout=60)
+        _, stat = sh(["git", "diff", "main...HEAD", "--stat"], cwd=wt, timeout=60)
         resumen_rev = (rev or "").strip().replace("\n", " ")[:400]
         # El veredicto y el MOTIVO van en campos propios, no solo en la prosa de `nota`
         # (2026-09-12). `nota` decía «revisión ok» con solo que el revisor hubiese contestado
