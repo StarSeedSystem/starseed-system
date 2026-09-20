@@ -1,6 +1,6 @@
 # Puente de Mando · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-20 06:29:53 desde el Mando vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-20 07:36:24 desde el Mando vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -12,30 +12,24 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | | |
 |---|---|
 | Mando | **encendido** en http://127.0.0.1:9002/mando |
-| Ola arriba | nube-20260919-2244 |
+| Ola arriba | Ola Dream 2026-09-15 · lo que el análisis nocturno encontró |
 | Agentes escribiendo | **0** |
-| En esta ola | integradas 6 · en curso 0 · esperando aprobación 0 · pendientes 0 |
-| Últimas 4 olas | en curso 0 · pendientes 0 · integradas 8 |
-| HEAD | `6170da5d chore(memoria): aprendizaje de la ola auto-0920-051745` |
-| Sin publicar | 59 commits |
+| En esta ola | integradas 2 · en curso 0 · esperando aprobación 0 · pendientes 0 |
+| Últimas 4 olas | en curso 0 · pendientes 0 · integradas 4 |
+| HEAD | `8cd531e9 chore(memoria): aprendizaje de la ola auto-0920-062958` |
+| Sin publicar | 73 commits |
 | Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-auto-0920-051745.json`, hace 5s)
+## Quién escribe ahora (latido de `cola-auto-0920-062958.json`, hace 5s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `RS3c` | hecho | openrouter/nvidia/nemotron-3-super | 3 min | 185 s | 588462 |
-| `MD1` | hecho | openrouter/nvidia/nemotron-3-ultra | 12 min | 705 s | 135028 |
-| `NE3-4` | hecho | nvidia/moonshotai/kimi-k3 | 13 min | 785 s | 110313 |
-| `JV4` | hecho | google/gemini-3.6-flash | 24 min | 1436 s | 147043 |
-| `JV3` | hecho | google/gemini-3.6-flash | 28 min | 1682 s | 72256 |
-| `HW-2` | hecho | nvidia/moonshotai/kimi-k3 | 30 min | 1779 s | 99917 |
-| `AS-2` | hecho | nvidia/moonshotai/kimi-k3 | 35 min | 2112 s | 200024 |
-| `NE3-3` | hecho | groq/qwen/qwen3.8-27b | 43 min | 2553 s | 99259 |
-| `CC3` | hecho | google/gemini-3.6-flash | 54 min | 3243 s | 133491 |
-| `AG-3` | hecho | nvidia/moonshotai/kimi-k3 | 61 min | 3631 s | 102223 |
-| `DV1` | hecho | nvidia/moonshotai/kimi-k3 | 61 min | 3672 s | 250054 |
-| `DR0919-1` | hecho | nvidia/moonshotai/kimi-k3 | 62 min | 3706 s | 93990 |
+| `AGR1` | hecho | openrouter/poolside/laguna-xs-2.1: | 3 min | 170 s | 28944 |
+| `NE3-3` | hecho | openrouter/nvidia/nemotron-3-ultra | 9 min | 511 s | 232030 |
+| `JV3` | hecho | openrouter/dots-studio/dots-3-note | 32 min | 1949 s | 165202 |
+| `MD2b` | hecho | openrouter/thinkingmachines/inklin | 36 min | 2168 s | 106923 |
+| `HW-3` | hecho | google/gemini-3.6-flash | 47 min | 2845 s | 64526 |
+| `AG-3` | hecho | apinex/free/deepseek-v4-flash-0731 | 56 min | 3331 s | 124024 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
