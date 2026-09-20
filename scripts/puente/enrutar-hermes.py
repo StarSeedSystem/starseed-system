@@ -64,7 +64,13 @@ ALIAS = {"nvidia": "nvidia", "nim": "nvidia", "neurona": "ollama", "google": "ge
 #: «ok» en la Mac con GEMINI_API_KEY de ~/.hermes/.env. Es el único gratuito de
 #: hoy con 1M de contexto y herramientas: la sesión del Mando pesa ~100k tokens
 #: y con 128k de ventana la compresión se quedaba colgada 120 s en cada turno.
-NATIVOS = {"gemini": ["gemini-3.6-flash"]}
+NATIVOS = {
+    "gemini": ["gemini-3.6-flash"],
+    # (2026-09-20) OpenRouter también es nativo en Hermes (OPENROUTER_API_KEY). Con los 10 $
+    # de crédito sus gratuitos vuelven a escribir; el modelo real lo pone EXTRA/SONDADOS
+    # del informe, este es solo el respaldo si el informe no dice nada. Siempre `:free`.
+    "openrouter": ["deepseek/deepseek-v4-flash-0731:free"],
+}
 
 #: Lo que Hermes debe pedir a un proveedor AUNQUE la sonda del renovador haya
 #: contestado con otro modelo: la sonda de google es `gemini-3.5-flash-lite`
