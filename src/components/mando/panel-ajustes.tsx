@@ -23,6 +23,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { PanelBitnetAjustes } from "@/components/mando/panel-bitnet-ajustes";
 import {
     AlertTriangle,
     ArrowDown,
@@ -874,6 +875,8 @@ export function PanelAjustes() {
                     })}
                 </ul>
             </article>
+
+            <PanelBitnetAjustes />
 
             <TarjetasInformativas />
         </div>

@@ -8,7 +8,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { guardianMando } from "@/lib/mando/guardian";
-import { AJUSTES_BITNET_DEFECTO, validar, type AjustesBitnet } from "@/lib/mando/bitnet-ajustes";
+import { AJUSTES_BITNET_DEFECTO, aEntorno, desdeEntorno, validar, type AjustesBitnet } from "@/lib/mando/bitnet-ajustes";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -24,7 +24,7 @@ async function leerAjustesAstraura(): Promise<AjustesBitnet> {
         const contenido = await readFile(rutaArchivo(), "utf-8");
         return validar(JSON.parse(contenido));
     } catch {
-        return validar(AJUSTES_BITNET_DEFECTO);
+        return desdeEntorno(process.env);
     }
 }
 
@@ -38,6 +38,7 @@ export async function GET(req: Request): Promise<Response> {
             archivo: ETIQUETA_ARCHIVO,
             porDefecto: AJUSTES_BITNET_DEFECTO,
             config,
+            entorno: aEntorno(config),
             actualizadoEn: new Date().toISOString(),
         },
         { headers: { "Cache-Control": "no-store" } },
@@ -69,6 +70,7 @@ export async function PUT(req: Request): Promise<Response> {
         {
             ok: true,
             config: saneada,
+            entorno: aEntorno(saneada),
             actualizadoEn: new Date().toISOString(),
             mensaje: "El backend de Astraura toma los ajustes al reiniciar (launchctl kickstart -k gui/$UID/com.starseed.astraura).",
         },
