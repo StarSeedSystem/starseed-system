@@ -303,6 +303,10 @@ por coste (lo mecánico a subagentes gratis: `starseed-sub <rol> "prompt"`; lo d
 capaz), releva al siguiente proveedor ante 429/402 sin insistir, y **deja el punto de relevo**
 (commit + adenda + `starseed_memory_root/state.md`) antes de acercarse a su límite para que otro
 modelo continúe solo. Capas y dónde se editan: `memory/orquestacion-economica.md` (léelo).
+**Núcleo de IA de Astraura** (2026-09-20, `memory/astraura-nucleo-158-needle3.md`): BitNet 1.58
+genera, **Needle 3** decide con herramientas en local (0,12 s, 22–127 MB, `POST /api/needle/decidir`
+en el backend de Astraura, renovación automática cada 6 h) y Jev decide con mundo; primero Needle,
+luego Jev, luego LLM. Needle 2 queda para el ESP32.
 **Jev** (2026-09-20, `memory/orquestacion-economica.md` §9): decisiones tipadas con probabilidad
 por $0,00002 (`scripts/puente/jev.py`) para veredictos de bloqueadas, Telegram, errores de pasarela
 y el veto de la aprobación sola; consejero con umbral, nunca oráculo; techo 0,05 $/día; en
