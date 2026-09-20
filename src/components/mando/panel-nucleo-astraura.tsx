@@ -8,11 +8,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Check, Copy, RefreshCw, Sparkles } from "lucide-react";
 import {
-    avisoVersionMayor,
-    resumenNucleo,
-    type BitnetStatus,
-    type EstadoRenovacion,
-    type NeedleStatus,
+    avisoVersionMayor, leerEstadoRenovacion, resumenNucleo,
+    type BitnetStatus, type EstadoRenovacion, type NeedleStatus,
 } from "@/lib/mando/nucleo-astraura";
 
 const COMANDO = "bash scripts/renovar-needle.sh";
@@ -24,13 +21,10 @@ export function PanelNucleoAstraura() {
     const [cargando, setCargando] = useState(false);
     const [copiado, setCopiado] = useState(false);
     const [mensaje, setMensaje] = useState<string | null>(null);
-
     const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
     useEffect(() => {
-        return () => {
-            if (timeoutRef.current) clearTimeout(timeoutRef.current);
-        };
+        return () => { if (timeoutRef.current) clearTimeout(timeoutRef.current); };
     }, []);
 
     const cargar = useCallback(async () => {
@@ -40,7 +34,10 @@ export function PanelNucleoAstraura() {
                 fetch("/api/ai/astraura-158/api/needle/status").then((r) => (r.ok ? r.json() : null)).catch(() => null),
                 fetch("/api/ai/astraura-158/api/bitnet/status").then((r) => (r.ok ? r.json() : null)).catch(() => null),
             ]);
-            if (rN) setNeedle(rN as NeedleStatus);
+            if (rN) {
+                setNeedle(rN as NeedleStatus);
+                setRenovacion(leerEstadoRenovacion((rN as Record<string, unknown>).renovacion ?? rN));
+            }
             if (rB) setBitnet(rB as BitnetStatus);
         } catch {
             setMensaje("No se pudieron cargar todos los estados.");
@@ -59,16 +56,11 @@ export function PanelNucleoAstraura() {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ medidor: "needle" }),
             });
-            if (r.ok) {
-                const datos = (await r.json().catch(() => null)) as { error?: string } | null;
-                if (datos?.error) {
-                    setMensaje(`No se pudo renovar Needle: ${datos.error}. Usa el comando de abajo.`);
-                } else {
-                    setMensaje("Renovación de Needle iniciada.");
-                    void cargar();
-                }
+            const datos = (await r.json().catch(() => null)) as { error?: string } | null;
+            if (r.ok && !datos?.error) {
+                setMensaje("Renovación de Needle iniciada.");
+                void cargar();
             } else {
-                const datos = (await r.json().catch(() => null)) as { error?: string } | null;
                 const detalle = datos?.error ?? `HTTP ${r.status}`;
                 setMensaje(`Error en la renovación de Needle (${detalle}). Usa el comando de abajo.`);
             }
@@ -98,9 +90,7 @@ export function PanelNucleoAstraura() {
                     <RefreshCw className={`h-3.5 w-3.5 ${cargando ? "animate-spin" : ""}`} /> Actualizar
                 </button>
             </div>
-            {avisoMayor ? (
-                <div className="rounded-xl border border-amber-400/30 bg-amber-500/10 p-3 text-xs font-semibold text-amber-200">{avisoMayor}</div>
-            ) : null}
+            {avisoMayor ? <div className="rounded-xl border border-amber-400/30 bg-amber-500/10 p-3 text-xs font-semibold text-amber-200">{avisoMayor}</div> : null}
             {mensaje ? <p className="rounded-lg border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/70">{mensaje}</p> : null}
             <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
                 {tarjetas.map((t) => (

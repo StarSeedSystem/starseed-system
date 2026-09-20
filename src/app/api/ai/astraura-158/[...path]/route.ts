@@ -63,6 +63,7 @@ const GET_ALLOW: RegExp[] = [
   /^\/api\/cerebros\/context_metrics$/,
   /^\/api\/status$/,
   /^\/api\/bitnet\/status$/,
+  /^\/api\/needle\/status$/,
   // (Ola 278 · OS5) Latido ligero de la neurona y estado del BitNet: lecturas
   // sin datos sensibles, necesarias para el puente local.
   /^\/api\/ping$/,
