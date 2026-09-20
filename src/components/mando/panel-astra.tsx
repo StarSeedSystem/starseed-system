@@ -16,6 +16,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { CircleDashed, Eye, RefreshCw, Sparkles, Trash2, Wand2 } from "lucide-react";
 
 import { AMBITOS_ASTRA, priorizar, type SugerenciaAstra } from "@/lib/mando/astra";
+import { PanelAstrauraActualizaciones } from "@/components/mando/panel-astraura-actualizaciones";
 
 interface AuditoriaGuardada {
     t?: string;
@@ -286,6 +287,8 @@ export function PanelAstra() {
                     </li>
                 ))}
             </ul>
+
+            <PanelAstrauraActualizaciones />
 
             <div className="rounded-xl border border-white/10 bg-black/20 p-4">
                 <h3 className="text-sm font-semibold text-white">Últimas auditorías</h3>
