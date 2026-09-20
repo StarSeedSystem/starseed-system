@@ -32,6 +32,10 @@ ESTADOS_NO_AUTOMATICOS = {
     "pendiente_aprobacion",
     "esperando_aprobacion",
     "bloqueada",
+    # (2026-09-20) Decisión humana explícita: no se relanza sola (DR0919-1, recompilar BitNet,
+    # es de Alex). Se reabre poniéndola en `pendiente`.
+    "descartada",
+    "integrada",
 }
 
 
@@ -125,3 +129,28 @@ def decidir_relanzamiento(cfg, hay_orquestador, n_pendientes):
     if hay_orquestador or n_pendientes <= 0 or cfg.get("pausado"):
         return (False, trabajadores, tope)
     return (True, trabajadores, tope)
+
+
+CAMPOS_CORRECCION = ("estado", "nota", "medio", "modelo_siguiente")
+
+
+def aplicar_correcciones(progreso, correcciones):
+    """Funde `correcciones` ({tid: {estado, nota, medio, modelo_siguiente}}) en una COPIA
+    de `progreso`. Solo esos campos; el resto de la entrada se conserva. Devuelve
+    (progreso_nuevo, aplicadas). Se llama con el orquestador PARADO: con él vivo, su
+    copia en memoria pisaría el cambio (2026-09-20)."""
+    if not isinstance(correcciones, dict) or not correcciones:
+        return progreso, []
+    salida = {k: (dict(v) if isinstance(v, dict) else v) for k, v in (progreso or {}).items()}
+    aplicadas = []
+    for tid, c in correcciones.items():
+        if not isinstance(c, dict) or not str(c.get("estado") or "").strip():
+            continue
+        e = salida.get(tid) if isinstance(salida.get(tid), dict) else {}
+        for campo in CAMPOS_CORRECCION:
+            if campo in c:
+                e[campo] = c[campo]
+        e["corregido"] = str(c.get("t") or "director")
+        salida[str(tid)] = e
+        aplicadas.append(str(tid))
+    return salida, aplicadas

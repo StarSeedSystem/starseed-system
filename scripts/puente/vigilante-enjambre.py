@@ -29,6 +29,7 @@ if DIRECTORIO not in sys.path:
     sys.path.insert(0, DIRECTORIO)
 from vigilante_logica import (
     decidir_relanzamiento,
+    aplicar_correcciones,
     es_cola_fuente,
     seleccionar_pendientes,
     ultima_salida,
@@ -100,8 +101,39 @@ def barrer_cerrojos():
         )
 
 
+CORRECCIONES = os.path.join(OLAS, "progreso-correcciones.json")
+
+
+def aplicar_correcciones_pendientes():
+    """Con el orquestador parado, funde `progreso-correcciones.json` (lo deja el director:
+    reencolar, descartar, cambiar medio) en progreso.json y retira el archivo. Con el
+    orquestador vivo NO se toca: su copia en memoria pisaría el cambio (2026-09-20)."""
+    if not os.path.exists(CORRECCIONES):
+        return []
+    try:
+        correcciones = json.load(open(CORRECCIONES, encoding="utf-8"))
+        ruta = os.path.join(OLAS, "progreso.json")
+        try:
+            prog = json.load(open(ruta, encoding="utf-8"))
+        except Exception:
+            prog = {}
+        nuevo, aplicadas = aplicar_correcciones(prog, correcciones)
+        if aplicadas:
+            tmp = ruta + ".tmp"
+            json.dump(nuevo, open(tmp, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+            os.replace(tmp, ruta)
+        os.replace(CORRECCIONES, CORRECCIONES + ".aplicado")
+        if aplicadas:
+            print("correcciones aplicadas a progreso.json:", ", ".join(aplicadas), flush=True)
+        return aplicadas
+    except Exception as e:  # noqa: BLE001
+        print("correcciones: %s: %s" % (type(e).__name__, e), flush=True)
+        return []
+
+
 def pendientes():
     """Trabajo real: sin copias `auto-*`, duplicados ni commits ya integrados."""
+    aplicar_correcciones_pendientes()
     try:
         prog = json.load(open(os.path.join(OLAS, "progreso.json"), encoding="utf-8"))
     except Exception:

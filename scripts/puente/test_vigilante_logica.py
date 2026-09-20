@@ -148,5 +148,30 @@ class OrdenPorPrioridadTest(unittest.TestCase):
         self.assertEqual([t["id"] for t in salida], ["Z1", "B1", "A1"])
 
 
+
+class Correcciones(unittest.TestCase):
+    def test_aplica_solo_campos_permitidos_y_no_muta(self):
+        from vigilante_logica import aplicar_correcciones
+        prog = {"A": {"estado": "commit", "sha": "abc", "nota": "vieja"}, "B": {"estado": "sin_cambios"}}
+        nuevo, aplicadas = aplicar_correcciones(prog, {
+            "A": {"estado": "pendiente", "nota": "reintento", "sha": "NO", "t": "2026-09-20 06:30"},
+            "C": {"estado": "pendiente", "medio": "mac"},
+            "D": {"nota": "sin estado: se ignora"},
+        })
+        self.assertEqual(sorted(aplicadas), ["A", "C"])
+        self.assertEqual(nuevo["A"]["estado"], "pendiente")
+        self.assertEqual(nuevo["A"]["sha"], "abc")
+        self.assertEqual(nuevo["A"]["corregido"], "2026-09-20 06:30")
+        self.assertEqual(nuevo["C"], {"estado": "pendiente", "medio": "mac", "corregido": "director"})
+        self.assertNotIn("D", nuevo)
+        self.assertEqual(prog["A"]["estado"], "commit")
+
+    def test_vacio_devuelve_lo_mismo(self):
+        from vigilante_logica import aplicar_correcciones
+        prog = {"A": {"estado": "commit"}}
+        self.assertEqual(aplicar_correcciones(prog, {}), (prog, []))
+        self.assertEqual(aplicar_correcciones(prog, None), (prog, []))
+
+
 if __name__ == "__main__":
     unittest.main()
