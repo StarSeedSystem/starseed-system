@@ -5689,6 +5689,30 @@ def ejecutar(t, intento=1):
         sha_salvavidas = commit_salvavidas(tid)
         nota_salvavidas(tid, "ola/" + tid, sha_salvavidas)
     if not cambios:
+        # (2026-09-20, 06:50) Ningún modelo tocó archivos, pero la rama ya puede llevar el
+        # trabajo de un intento anterior commiteado por el salvavidas (AG-3: 3 archivos,
+        # +217, con prueba). Los modelos lo ven hecho y no cambian nada: eso NO es «sin
+        # cambios», es «ya está»: va a las puertas como cualquier escritura.
+        rc_ad, adelante = sh(["git", "rev-list", "--count", "main..HEAD"], cwd=wt, timeout=30)
+        rc_df, difstat = sh(["git", "diff", "--stat", "main...HEAD"], cwd=wt, timeout=60)
+        if (
+            rc_ad == 0
+            and (adelante or "").strip().isdigit()
+            and int(adelante.strip()) > 0
+            and rc_df == 0
+            and (difstat or "").strip()
+        ):
+            cambios = True
+            if not modelo_ok:
+                modelo_ok = PROG.get(tid, {}).get("modelo") or (modelos[0] if modelos else "-")
+            evento(
+                "aviso",
+                tid,
+                "ningún modelo tocó archivos, pero la rama ya lleva %s commit(s) con trabajo "
+                "previo (%s): salto a las puertas con ese trabajo"
+                % (adelante.strip(), (difstat.strip().splitlines() or ["?"])[-1].strip()[:80]),
+            )
+    if not cambios:
         set_estado(
             tid,
             estado="sin_cambios",
