@@ -23,6 +23,7 @@ import type { EstadoMando, LatidoTarea } from "@/lib/mando/tipos";
 import { RamificacionAgentes } from "@/components/mando/ramificacion-agentes";
 import { Ramificacion158 } from "@/components/mando/ramificacion-158";
 import { PanelGrafo } from "@/components/mando/panel-grafo";
+import { BotonMedios } from "@/components/mando/medios-computo";
 import { pedirVerTarea } from "@/lib/mando/asistente-cliente";
 import { ETAPAS } from "@/lib/mando/etapas";
 import { filaDeLatido } from "@/lib/mando/fila-agente";
@@ -153,7 +154,10 @@ function AgentesEnVivo({ estado }: { estado: EstadoMando }) {
     if (latidos.length === 0 && enjambres.length === 0) {
         return (
             <section className="rounded-xl border border-white/10 bg-black/30 p-4 backdrop-blur">
-                <h3 className="text-sm font-semibold text-white">Agentes trabajando</h3>
+                <div className="flex items-center justify-between gap-2">
+                    <h3 className="text-sm font-semibold text-white">Agentes trabajando</h3>
+                    <BotonMedios />
+                </div>
                 <p className="mt-2 text-sm text-white/50">
                     Ningún orquestador ha latido en los últimos minutos, ni aquí ni en la nube.
                 </p>
@@ -163,9 +167,12 @@ function AgentesEnVivo({ estado }: { estado: EstadoMando }) {
     return (
         <section className="rounded-xl border border-white/10 bg-black/30 p-4 backdrop-blur">
             <header className="flex flex-wrap items-center justify-between gap-2">
-                <h3 className="text-sm font-semibold text-white">
-                    Agentes trabajando · {latidos.length}
-                </h3>
+                <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-semibold text-white">
+                        Agentes trabajando · {latidos.length}
+                    </h3>
+                    <BotonMedios />
+                </div>
                 <div className="flex flex-wrap gap-2 text-[11px] text-white/60">
                     {enjambres.map((e) => (
                         <span
