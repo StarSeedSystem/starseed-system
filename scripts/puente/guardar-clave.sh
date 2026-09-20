@@ -20,9 +20,19 @@ ENV_FILE="$HOME/.hermes/.env"
 NOMBRE="${1:-}"
 
 if [ -z "$NOMBRE" ]; then
-  echo "Uso: bash scripts/puente/guardar-clave.sh NOMBRE_DE_LA_VARIABLE" >&2
+  echo "Uso: bash scripts/puente/guardar-clave.sh NOMBRE_DE_LA_VARIABLE [--ambos]" >&2
   echo "Ejemplo: bash scripts/puente/guardar-clave.sh XAI_API_KEY" >&2
+  echo "  --ambos: también en ~/.starseed/env (el enjambre, el renovador y Jev leen ahí)." >&2
+  echo "  Sin --ambos, ~/.starseed/env solo se toca si ya tenía esa variable." >&2
   exit 2
+fi
+# (2026-09-20) Una clave suele vivir en DOS medios: ~/.hermes/.env (Hermes, FreeLLMAPI) y
+# ~/.starseed/env (enjambre, renovador, Jev). Cambiarla en uno y no en el otro dejaba dos
+# claves distintas con el mismo nombre — justo lo que pasó con apinex el 19/09 (401 en Hermes).
+ARCHIVOS=("$ENV_FILE")
+SEGUNDO="$HOME/.starseed/env"
+if [ -f "$SEGUNDO" ] && { [ "${2:-}" = "--ambos" ] || grep -q -E "^(export )?$NOMBRE=" "$SEGUNDO"; }; then
+  ARCHIVOS+=("$SEGUNDO")
 fi
 case "$NOMBRE" in
   [A-Z_]*[A-Z0-9_]) : ;;
@@ -41,7 +51,9 @@ cp -p "$ENV_FILE" "$ENV_FILE.bak-$(date +%Y%m%d-%H%M%S)"
 # Reemplaza la línea si ya existe; si no, la añade al final. Siempre entre comillas.
 # El valor viaja por el entorno del proceso, NO por la línea de órdenes: así no queda en
 # el historial del shell ni se ve en `ps`.
-__VALOR__="$VALOR" python3 - "$ENV_FILE" "$NOMBRE" <<'PY'
+for ARCHIVO in "${ARCHIVOS[@]}"; do
+  cp "$ARCHIVO" "$ARCHIVO.bak-$(date +%Y%m%d-%H%M%S)" && chmod 600 "$ARCHIVO".bak-* 2>/dev/null
+  __VALOR__="$VALOR" python3 - "$ARCHIVO" "$NOMBRE" <<'PY'
 import io, os, sys
 ruta, nombre = sys.argv[1], sys.argv[2]
 valor = os.environ["__VALOR__"]
@@ -59,20 +71,21 @@ if not puesto:
         lineas.append("")
     lineas[-1:] = [nueva, ""]
 io.open(ruta, "w", encoding="utf-8").write("\n".join(lineas))
-print("  %s: %s" % (nombre, "reemplazada" if puesto else "añadida"))
+print("  %s en %s: %s" % (nombre, ruta.replace(os.path.expanduser("~"), "~"), "reemplazada" if puesto else "añadida"))
 PY
-
-chmod 600 "$ENV_FILE"
+  chmod 600 "$ARCHIVO"
+  # Comprobación que de verdad importa: ¿sigue cargándose el archivo ENTERO?
+  ERRORES=$( { set -a; source "$ARCHIVO"; set +a; } 2>&1 | head -3 )
+  if [ -n "$ERRORES" ]; then
+    echo "AVISO: $ARCHIVO da errores al cargarse — alguna línea está mal escrita:" >&2
+    echo "$ERRORES" >&2
+    echo "(hay copia de seguridad al lado, con su fecha)" >&2
+    unset VALOR
+    exit 1
+  fi
+done
 unset VALOR
-
-# Comprobación que de verdad importa: ¿sigue cargándose el archivo ENTERO?
-ERRORES=$( { set -a; source "$ENV_FILE"; set +a; } 2>&1 | head -3 )
-if [ -n "$ERRORES" ]; then
-  echo "AVISO: el archivo da errores al cargarse — alguna línea está mal escrita:" >&2
-  echo "$ERRORES" >&2
-  echo "(hay copia de seguridad al lado, con su fecha)" >&2
-  exit 1
-fi
-echo "Guardada. El archivo se carga entero, sin errores."
+echo "Guardada. Los archivos se cargan enteros, sin errores."
+echo "Huella (para distinguirla, nunca el valor): $(grep -E "^(export )?$NOMBRE=" "$ENV_FILE" | head -1 | sed -E 's/^(export )?[A-Z0-9_]+=//; s/^"//; s/"$//' | shasum -a 256 | cut -c1-8)"
 echo "Comprueba si la pasarela responde con:"
 echo "  python3 scripts/puente/renovador-pasarelas.py"
