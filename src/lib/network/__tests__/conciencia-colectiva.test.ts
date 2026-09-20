@@ -4,8 +4,12 @@ import {
   loteDeExperiencias,
   recibidasSinDuplicar,
   fusionarManifiestos,
+  crearTransporteMesh,
   type ManifiestoAdaptador,
+  type MensajeConciencia,
 } from "../conciencia-colectiva";
+import { setupConcienciaSync } from "../lan-sync";
+import type { MeshHandle } from "@/lib/network/webrtc-mesh";
 import type { Experiencia } from "@/lib/astraura/experiencias";
 
 describe("conciencia-colectiva - funciones puras", () => {
@@ -153,5 +157,122 @@ describe("conciencia-colectiva - funciones puras", () => {
     const fEmpate = fusionarManifiestos(base, empateMayorSha);
     expect(fEmpate.sha).toBe("sha2");
     expect(fEmpate.pendienteDescarga).toBe(true);
+  });
+
+  it("crearTransporteMesh y setupConcienciaSync publican y reciben mensajes de los 3 temas", () => {
+    let broadcastMsg = "";
+    let messageHandler: ((deviceId: string, data: string) => void) | null = null;
+
+    const mockMesh: MeshHandle = {
+      myDeviceId: "nodo-1",
+      userId: "u1",
+      supported: true,
+      signalingTransport: "realtime",
+      connectToDevice: async () => ({ deviceId: "nodo-2", state: "connected", channelOpen: true, lastUpdate: Date.now() }),
+      onPeer: (events) => {
+        messageHandler = events.onMessage ?? null;
+        return () => {
+          messageHandler = null;
+        };
+      },
+      sendToPeer: () => true,
+      broadcast: (data: string) => {
+        broadcastMsg = data;
+        return 1;
+      },
+      getPeers: () => [],
+      closeMesh: () => {},
+    };
+
+    let capRecibida = false;
+    let expRecibida = false;
+    let manifiestoRecibido = false;
+
+    const sync = setupConcienciaSync(mockMesh, {
+      onCapacidades: () => {
+        capRecibida = true;
+      },
+      onNuevasExperiencias: (exps) => {
+        if (exps.length > 0) expRecibida = true;
+      },
+      onNuevoManifiesto: () => {
+        manifiestoRecibido = true;
+      },
+    });
+
+    // Publicar capacidades
+    sync.publicarCapacidades({
+      nodoId: "nodo-1",
+      medio: "mac",
+      needle: { version: "3.0.0" },
+      bitnet: null,
+      jev: true,
+      ramLibreMb: 1024,
+      cpu: 10,
+      t: Date.now(),
+    });
+    expect(broadcastMsg).toContain("astraura/capacidades");
+
+    // Simular recepción
+    if (messageHandler) {
+      const msgCap: MensajeConciencia = {
+        tema: "astraura/capacidades",
+        origen: "nodo-2",
+        payload: {
+          nodoId: "nodo-2",
+          medio: "nube",
+          needle: null,
+          bitnet: null,
+          jev: false,
+          ramLibreMb: 2048,
+          cpu: 5,
+          t: Date.now(),
+        },
+        t: Date.now(),
+      };
+      (messageHandler as (id: string, d: string) => void)("nodo-2", JSON.stringify(msgCap));
+      expect(capRecibida).toBe(true);
+
+      const msgExp: MensajeConciencia = {
+        tema: "astraura/experiencias",
+        origen: "nodo-2",
+        payload: [
+          {
+            id: "exp-2",
+            t: "t",
+            medio: "mac",
+            capa: "needle",
+            tipo: "intencion",
+            dominio: "general",
+            entrada: "e",
+            salida: "s",
+            confianza: 0.9,
+            ms: 10,
+            resultado: true,
+          },
+        ],
+        t: Date.now(),
+      };
+      (messageHandler as (id: string, d: string) => void)("nodo-2", JSON.stringify(msgExp));
+      expect(expRecibida).toBe(true);
+
+      const msgMan: MensajeConciencia = {
+        tema: "astraura/adaptador",
+        origen: "nodo-2",
+        payload: {
+          actual: "v2",
+          sha: "sha2",
+          t: 200,
+          experiencias: 20,
+          exactitud_dorado: 0.95,
+          base: "needle3",
+        },
+        t: Date.now(),
+      };
+      (messageHandler as (id: string, d: string) => void)("nodo-2", JSON.stringify(msgMan));
+      expect(manifiestoRecibido).toBe(true);
+    }
+
+    sync.unsubscribe();
   });
 });

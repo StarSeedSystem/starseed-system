@@ -47,6 +47,18 @@ import {
   type MensajeCapacidades,
   type ResumenRed,
 } from "@/lib/network/capacidades-nodo";
+import {
+  crearTransporteMesh,
+  loteDeExperiencias,
+  recibidasSinDuplicar,
+  fusionarManifiestos,
+  anonimizar,
+  type ManifiestoAdaptador,
+  type MensajeConciencia,
+  type TemaConciencia,
+  type TransporteConciencia,
+} from "@/lib/network/conciencia-colectiva";
+import type { Experiencia } from "@/lib/astraura/experiencias";
 
 /* ------------------------------------------------------------------ */
 /* Tipos del contrato (compatibles con la versión previa)            */
@@ -364,4 +376,96 @@ export function getNetworkCapacidadesSummary(nodos: CapacidadesNodo[]): ResumenR
 /** Genera mensaje de anuncio de capacidades para el bus mesh. */
 export function announceCapacidades(cap: CapacidadesNodo): MensajeCapacidades {
   return anunciar(cap);
+}
+
+/* ------------------------------------------------------------------ */
+/* Conciencia colectiva (transporte mesh + lotes + manifiestos)       */
+/* ------------------------------------------------------------------ */
+
+export {
+  crearTransporteMesh,
+  loteDeExperiencias,
+  recibidasSinDuplicar,
+  fusionarManifiestos,
+  anonimizar,
+  type ManifiestoAdaptador,
+  type MensajeConciencia,
+  type TemaConciencia,
+  type TransporteConciencia,
+};
+
+/**
+ * Conecta el transporte de conciencia colectiva sobre un MeshHandle.
+ * Escucha los 3 temas ('astraura/capacidades', 'astraura/experiencias', 'astraura/adaptador')
+ * y aplica las funciones puras `recibidasSinDuplicar` y `fusionarManifiestos`.
+ */
+export function setupConcienciaSync(
+  mesh: MeshHandle,
+  opts?: {
+    getExperienciasLocales?: () => Experiencia[];
+    onNuevasExperiencias?: (exps: Experiencia[]) => void;
+    getManifiestoLocal?: () => ManifiestoAdaptador | null;
+    onNuevoManifiesto?: (m: ManifiestoAdaptador) => void;
+    onCapacidades?: (cap: CapacidadesNodo) => void;
+  }
+) {
+  const transporte = crearTransporteMesh(mesh);
+
+  const unsubscribe = transporte.suscribir((msg: MensajeConciencia) => {
+    if (msg.tema === "astraura/capacidades") {
+      opts?.onCapacidades?.(msg.payload as CapacidadesNodo);
+    } else if (msg.tema === "astraura/experiencias") {
+      const ajenas = msg.payload as Experiencia[];
+      const mias = opts?.getExperienciasLocales?.() ?? [];
+      const nuevas = recibidasSinDuplicar(mias, ajenas);
+      if (nuevas.length > 0) {
+        opts?.onNuevasExperiencias?.(nuevas);
+      }
+    } else if (msg.tema === "astraura/adaptador") {
+      const ajeno = msg.payload as ManifiestoAdaptador;
+      const mio = opts?.getManifiestoLocal?.() ?? null;
+      const resultado = fusionarManifiestos(mio, ajeno);
+      if (resultado.pendienteDescarga) {
+        opts?.onNuevoManifiesto?.(resultado);
+      }
+    }
+  });
+
+  const publicarExperiencias = (exps: Experiencia[]) => {
+    const lote = loteDeExperiencias(exps);
+    if (lote.length > 0) {
+      transporte.publicar({
+        tema: "astraura/experiencias",
+        origen: mesh.myDeviceId,
+        payload: lote,
+        t: Date.now(),
+      });
+    }
+  };
+
+  const publicarManifiesto = (m: ManifiestoAdaptador) => {
+    transporte.publicar({
+      tema: "astraura/adaptador",
+      origen: mesh.myDeviceId,
+      payload: m,
+      t: Date.now(),
+    });
+  };
+
+  const publicarCapacidades = (cap: CapacidadesNodo) => {
+    transporte.publicar({
+      tema: "astraura/capacidades",
+      origen: mesh.myDeviceId,
+      payload: cap,
+      t: Date.now(),
+    });
+  };
+
+  return {
+    transporte,
+    unsubscribe,
+    publicarExperiencias,
+    publicarManifiesto,
+    publicarCapacidades,
+  };
 }

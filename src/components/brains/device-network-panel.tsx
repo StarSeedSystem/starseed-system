@@ -53,6 +53,7 @@ import {
   ensureMesh,
   getSharedMesh,
   teardownMesh,
+  setupConcienciaSync,
   type LanSyncResult,
 } from "@/lib/network/lan-sync";
 import type { PeerSnapshot, PeerState } from "@/lib/network/webrtc-mesh";
@@ -292,7 +293,7 @@ export default function DeviceNetworkPanel() {
     // Evita doble suscripción.
     if (peerUnsubRef.current) return;
 
-    const unsub = mesh.onPeer({
+    const unsubPeer = mesh.onPeer({
       onState: (snap: PeerSnapshot) => {
         setPeers((prev) => ({
           ...prev,
@@ -319,7 +320,23 @@ export default function DeviceNetworkPanel() {
         }
       },
     });
-    peerUnsubRef.current = unsub;
+
+    const concienciaSync = setupConcienciaSync(mesh, {
+      onCapacidades: (cap) => {
+        setPingLog((l) => [`← capacidades de ${cap.nodoId.slice(0, 8)}: ${cap.medio}`, ...l].slice(0, 6));
+      },
+      onNuevasExperiencias: (exps) => {
+        setPingLog((l) => [`← ${exps.length} nuevas experiencias recibidas por mesh`, ...l].slice(0, 6));
+      },
+      onNuevoManifiesto: (m) => {
+        setPingLog((l) => [`← manifiesto adaptador nuevo: ${m.sha.slice(0, 8)} (descarga pendiente)`, ...l].slice(0, 6));
+      },
+    });
+
+    peerUnsubRef.current = () => {
+      unsubPeer();
+      concienciaSync.unsubscribe();
+    };
   }, []);
 
   // Limpieza global al desmontar el panel: soltar listener y cerrar mesh.
