@@ -657,3 +657,18 @@
 - `RI1` — no escribió nada
 - `RI2` — no escribió nada: dependencia no integrada: RI1 (sin_cambios)
 - `DV1` — no escribió nada
+
+## 2026-09-19 18:32 · auto-0919-174423
+
+**Lo que se pidió.** top 3 accionables
+
+**Resultado.** 1 de 5 integradas. 4 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 3 tareas se fueron por lo mismo — pruebas en rojo (DV1, TM1, TM3). Es 60 % de la ola.
+
+**Lo que quedó fuera, una por una:**
+- `DR0919-1` — no escribió nada
+- `DV1` — pruebas en rojo: vitest falla (rama conservada)
+- `TM1` — pruebas en rojo: vitest falla (rama conservada)
+- `TM3` — pruebas en rojo: vitest falla (rama conservada)
