@@ -24,7 +24,7 @@ class ReintentoSinCambios(unittest.TestCase):
         self.assertEqual(c, [("p316E", "apinex/free/gemini-3.8-flash")])
 
     def test_en_main_no_se_reintenta(self):
-        c = candidatas(prog("p316E"), ["p316E integra el módulo"], MODELOS, ahora="2026-09-13 12:00:00")
+        c = candidatas(prog("p316E"), ["Ola 316 · p316E: integra el módulo"], MODELOS, ahora="2026-09-13 12:00:00")
         self.assertEqual(c, [])
 
     def test_ya_reintentada_no_se_reintenta(self):

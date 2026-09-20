@@ -28,8 +28,13 @@ CERRADAS = {"commit", "bloqueante", "sustituida", "rechazada", "hecho",
 
 
 def en_main(tid, asuntos):
-    """El id como token entero en algún asunto de commit de main."""
-    p = re.compile(r"(?<![A-Za-z0-9])%s(?![A-Za-z0-9])" % re.escape(tid))
+    """El id INTEGRADO en main: solo cuenta el asunto de un commit de integración
+    («Ola 226 · QW3: …», «345 · NE3-1: …», «salvavidas · NE3-1: …»), es decir, el id
+    justo antes de los dos puntos. Una MENCIÓN («reparto a la nube (CC2, MD1, …)»,
+    «Corrección de I4») no es una integración: el 2026-09-21 cinco tareas de la nube
+    (CC2, NE3-3, MD1, JV3, JV4) se dieron por hechas sin haberse escrito nunca por
+    un commit que solo las nombraba."""
+    p = re.compile(r"(?:^|·\s*)%s\s*:" % re.escape(tid))
     return any(p.search(a) for a in asuntos)
 
 

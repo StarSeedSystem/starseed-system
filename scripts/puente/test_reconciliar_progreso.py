@@ -35,7 +35,9 @@ class Reconciliar(unittest.TestCase):
         self.assertEqual(p["O3"]["estado"], "bloqueada"); self.assertEqual(c, [])
 
     def test_el_id_debe_ser_token_entero(self):
-        self.assertTrue(en_main("I4F", MAIN)); self.assertTrue(en_main("I4", MAIN))
+        self.assertTrue(en_main("I4F", MAIN)); self.assertFalse(en_main("I4", MAIN))  # una mención no integra
+        self.assertFalse(en_main("MD1", MAIN + ["enjambre: reparto a la nube (CC2, MD1, JV3)"]))
+        self.assertTrue(en_main("NE3-1", MAIN + ["345 · NE3-1: Cliente tipado", "salvavidas · NE3-1: antes de las puertas"]))
         self.assertFalse(en_main("I", MAIN)); self.assertFalse(en_main("4F", MAIN))
 
     def test_no_muta_el_original_ni_pierde_campos(self):
@@ -46,7 +48,9 @@ class Reconciliar(unittest.TestCase):
 class ReconciliarAmplio(unittest.TestCase):
     def test_pendiente_o_fallo_cuyo_id_ya_esta_en_main_se_cierra(self):
         p, c = reconciliar({"QW3": {"estado": "pendiente"}, "I4": {"estado": "fallo_tests"}}, MAIN, False)
-        self.assertEqual(p["QW3"]["estado"], "commit"); self.assertEqual(p["I4"]["estado"], "commit")
+        self.assertEqual(p["QW3"]["estado"], "commit")
+        # I4 solo se MENCIONA en «Corrección de I4»: no está integrada, no se cierra (2026-09-21)
+        self.assertEqual(p["I4"]["estado"], "fallo_tests")
 
     def test_la_puerta_de_aprobacion_no_se_toca_aunque_este_en_main(self):
         p, c = reconciliar({"QW3": {"estado": "esperando_aprobacion"}}, MAIN, False)
