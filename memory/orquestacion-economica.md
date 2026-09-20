@@ -377,3 +377,15 @@ Sus commits no pueden hacer `push` (el proxy lo deniega): Claude los saca con
 las cuatro puertas (`publicar.py`). Las tareas repartidas quedan `reasignada · nube` en
 `progreso.json` para que la Mac no las duplique; si la nube muere sin entregarlas, se devuelven a
 `pendiente` y la Mac las retoma.
+
+**Medios gratuitos medidos (2026-09-21, 01:40).** Hugging Face Spaces ya NO sirve: hospedar un
+Space Docker/Gradio en CPU gratuita exige suscripción PRO (HTTP 402 al crearlo; el paquete queda
+en `deploy/hf-space/` por si algún día hay PRO). El contenedor de Cowork se reinicia cada 1–2 h y
+mata todos los procesos: refuerzo, nunca base. **El medio bueno es GitHub Actions**: este repo es
+público, así que los runners son gratuitos y sin tope de minutos (4 vCPU / 16 GB, hasta 6 h por
+job, varios jobs a la vez). `.github/workflows/enjambre-nube.yml` + `scripts/puente/nube-gh.py`
+(`secretos` lo corre Alex: copia las claves de `~/.starseed/env` a los secretos del repo con `gh`;
+`lanzar --tope N` reparte una cola-nube, la publica y dispara el workflow; `estado`; `traer` funde
+las ramas `nube/<run>` en main y luego `publicar.py`). Cada job = 3 agentes de código; el tope real
+pasa a ser el RPM de las pasarelas gratuitas, no el hierro. Hermes (`delegate_task`, 4 hijos) suma
+razonamiento, no código con puertas.

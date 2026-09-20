@@ -36,7 +36,8 @@ relevo operativo: `~/.hermes/RELEVO-STARSEED.md` (léelo antes de dirigir).
   la mayor cantidad posible»; solo con < 150 MB libres quita uno). La nube se suma con
   `scripts/puente/repartir-a-nube.py` (cola-nube versionada) y el orquestador del contenedor.
   Cuando informes «agentes escribiendo: N» añade «máximo aquí: M»; si Alex pide más, propón el
-  siguiente medio (Oracle Free Tier ARM → 3 permanentes; VPS 16 GB → 5) con la receta de
+  siguiente medio — el primero es GitHub Actions (`scripts/puente/nube-gh.py lanzar --tope N`,
+  gratis en este repo público, 3 agentes por job y varios jobs) — con la receta de
   `memory/orquestacion-economica.md` §10; nunca subas `--workers` por encima de `maximo_hardware`.
   Tus hijos (`delegate_task`, 4 a la vez) son agentes de razonamiento, no de código.
 
