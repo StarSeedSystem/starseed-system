@@ -96,12 +96,28 @@ _PISTAS = (
 )
 
 
-def clasificar(http, cuerpo="", hubo_tokens=False):
+#: Lo que el consejero (Jev) puede contestar cuando ninguna pista conoce el cuerpo.
+OPCIONES_CONSEJERO = {
+    SIN_CUPO: "cuota diaria o mensual agotada, límite de peticiones o de tokens: se repone sola",
+    SIN_CLAVE: "la clave falta, caducó o no vale: hay que renovarla",
+    FICHAJE: "pide un fichaje, check-in o acción manual diaria del usuario en su web",
+    MODELO_FUERA: "ese modelo concreto no existe o fue retirado; otros de la pasarela sí",
+    SIN_CANAL: "la pasarela no tiene ningún proveedor detrás de ese modelo",
+    CAIDA: "error interno, mantenimiento o la pasarela no funciona",
+}
+
+
+def clasificar(http, cuerpo="", hubo_tokens=False, consejero=None):
     """Estado de una pasarela a partir de UNA llamada de ocho tokens.
 
     `hubo_tokens` manda sobre todo lo demás: si escribió, está viva, se diga lo que
     se diga en el cuerpo. `http=0` es el caso que nos costó el día: conexión aceptada
     y ni un byte de vuelta.
+
+    `consejero` (2026-09-20): función (http, cuerpo, opciones) → (estado, confianza) o
+    None (Jev, ver `jev.py`). Entra SOLO cuando hay un cuerpo de error que ninguna
+    pista conoce —el caso que hoy acababa en CAIDA por defecto— y se le cree si su
+    confianza pasa de 0,6; si no, manda el código HTTP como siempre.
     """
     if hubo_tokens:
         return ESCRIBE
@@ -113,6 +129,13 @@ def clasificar(http, cuerpo="", hubo_tokens=False):
     for pista, estado in _PISTAS:
         if pista in texto:
             return estado
+    if consejero is not None and texto.strip():
+        try:
+            consejo = consejero(http, cuerpo[:1500], OPCIONES_CONSEJERO)
+        except Exception:
+            consejo = None
+        if consejo and consejo[0] in OPCIONES_CONSEJERO and float(consejo[1] or 0) > 0.6:
+            return consejo[0]
     if http == 0:
         return LENTA
     if http in (401, 403):

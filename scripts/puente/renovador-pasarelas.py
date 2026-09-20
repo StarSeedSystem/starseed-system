@@ -158,10 +158,27 @@ def pasada(segundos=25):
             "variable": var,                       # el NOMBRE, nunca el valor
             "tiene_clave": bool(entorno.get(var)),
             "http": http,
-            "estado": P.clasificar(http, cuerpo, tokens),
+            "estado": P.clasificar(http, cuerpo, tokens, _consejero_jev()),
             "segundos": round(time.time() - t0, 1),
         })
     return fuera
+
+
+def _consejero_jev():
+    """(2026-09-20) Jev clasifica el error que ninguna pista conoce; sin clave, None."""
+    try:
+        import jev
+
+        if not jev.activo():
+            return None
+
+        def consejo(http, cuerpo, opciones):
+            r = jev.elegir({"http": http, "cuerpo_de_error": cuerpo},
+                           "¿Qué le pasa a esta pasarela de modelos según su respuesta de error?", opciones)
+            return (r[0], r[2]) if r else None
+        return consejo
+    except Exception:
+        return None
 
 
 def guardar(resultados):

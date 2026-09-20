@@ -47,10 +47,13 @@ y junta sus resultados en una tabla `vínculo · estado · dato medido`:
 - **Lote paralelo** para sondas y lecturas: hasta 4 hijos, cada uno con su `goal` autocontenido
   y el `context` repetido (rutas, comandos, qué devolver). Pide `output_schema` sencillo:
   `{vinculo, estado, dato, comando}`.
-- **Un hijo por bloqueada** cuando analices `progreso.json`: le das la ficha de la tarea, el
-  motivo del bloqueo y la objeción del revisor de `starseed_memory_root/olas/revisiones.md`;
-  devuelve `{id, reintentar: bool, cambio: "…", motivo}`. Tú decides: las útiles se reencolan con
-  el cambio (nueva cola `cola-<n>-…json` con id `<ID>b`), las inútiles se descartan con motivo.
+- **Bloqueadas: primero `python3 scripts/puente/veredictos.py`** (2026-09-20). Aplica las reglas
+  deterministas y pregunta a Jev (decisión tipada, $0,00002, medio segundo) lo que queda;
+  escribe `starseed_memory_root/olas/veredictos.json` con `veredicto`, `cambio`, `confianza` y
+  `fuente` por tarea. **Solo lanzas un hijo** para las filas con `fuente: jev` y `confianza < 0.7`
+  (le das la ficha, el motivo y la objeción de `revisiones.md`; devuelve `{id, veredicto, cambio,
+  motivo}`). Las útiles se reencolan con el cambio (nueva cola `cola-<n>-…json`, id `<ID>b`/`c`),
+  las inútiles se descartan con motivo. Nunca pidas a un hijo lo que el archivo ya dice.
 - **Nunca** un hijo que escriba en `src/`: si hace falta código, se encola una tarea para el
   enjambre y se relanza con `launchctl kickstart -k gui/$(id -u)/com.starseed.vigilante`
   (solo si `starseed-puente estado` dice «sin tareas activas»; si hay trabajo vivo, espera).

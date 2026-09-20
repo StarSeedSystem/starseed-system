@@ -2735,10 +2735,32 @@ def _resolver_sola(tid, ficha, wt):
     except Exception:
         return False
     accion, motivo = _resol.decidir(
-        ajustes, ficha, veredicto, _analisis.puede_aprobar_solo
+        ajustes, ficha, veredicto, _analisis.puede_aprobar_solo, _consejero_jev_aprobacion()
     )
     evento("aprobacion", tid, _resol.nota(accion, motivo))
     return accion == "aprobar"
+
+
+def _consejero_jev_aprobacion():
+    """(2026-09-20) Jev solo VETA la aprobación sola (ver resolucion_automatica.decidir).
+
+    Una decisión tipada de $0,00002 y medio segundo, con la ficha y el veredicto del
+    director como estado. Sin clave, sin red o apagado (STARSEED_JEV=0): None, y la
+    regla de siempre decide sola."""
+    try:
+        import jev as _jev
+
+        if not _jev.activo():
+            return None
+
+        def consejo(ficha, veredicto):
+            estado = {"tarea": {k: ficha.get(k) for k in ("id", "titulo", "archivos", "faltan", "revisor") if ficha.get(k) is not None},
+                      "veredicto_del_director": veredicto}
+            return _jev.si_no(estado, "¿Puede integrarse esta tarea en main sin que la revise una persona, "
+                                      "dado el veredicto del director y la conformidad de los verificadores?")
+        return consejo
+    except Exception:
+        return None
 
 
 def revisar(tid, titulo, diff, impacto="", alcance=""):

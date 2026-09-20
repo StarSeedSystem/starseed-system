@@ -57,12 +57,22 @@ def _texto(linea):
     return str((linea or {}).get("texto") or "").lower()
 
 
-def suena(linea):
+#: Umbral para que el consejero (Jev) haga sonar una línea que las listas no conocen.
+UMBRAL_CONSEJERO = 0.8
+PREGUNTA_CONSEJERO = ("¿Este aviso del sistema de agentes merece interrumpir al dueño del proyecto "
+                      "en el móvil (pide una decisión suya, anuncia algo terminado o algo roto que solo él puede arreglar)?")
+
+
+def suena(linea, consejero=None):
     """¿Esta línea del canal merece una notificación en el móvil?
 
     El orden importa: SIEMPRE gana sobre NUNCA, porque una frase puede llevar las dos
     («sin cupo hasta…» dentro de un aviso de rotación) y en la duda manda lo que pide
     una decisión.
+
+    `consejero` (2026-09-20): función texto → P(importante) o None (Jev, ver `jev.py`).
+    Solo entra en la ZONA DE DUDA —ni SIEMPRE ni NUNCA ni tipo fuerte—, que antes era
+    un «no» a ciegas. Las listas de Alex mandan; Jev afina lo que no conocen.
     """
     t = _texto(linea)
     if not t:
@@ -73,7 +83,16 @@ def suena(linea):
     for clave in NUNCA:
         if clave in t:
             return False
-    return str((linea or {}).get("tipo") or "").lower() in TIPOS_FUERTES
+    if str((linea or {}).get("tipo") or "").lower() in TIPOS_FUERTES:
+        return True
+    if consejero is not None:
+        try:
+            p = consejero(t)
+        except Exception:
+            p = None
+        if p is not None and p >= UMBRAL_CONSEJERO:
+            return True
+    return False
 
 
 def resumir_callados(lineas):
@@ -98,7 +117,7 @@ def resumir_callados(lineas):
     return "En silencio: %d avisos de rutina (%s)." % (total, ", ".join(partes))
 
 
-def filtrar(lineas):
+def filtrar(lineas, consejero=None):
     """(las_que_suenan, resumen_de_las_calladas)."""
-    fuertes = [l for l in (lineas or []) if suena(l)]
+    fuertes = [l for l in (lineas or []) if suena(l, consejero)]
     return fuertes, resumir_callados(lineas)

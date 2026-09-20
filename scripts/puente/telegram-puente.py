@@ -314,9 +314,22 @@ def _importa(linea):
     try:
         import importancia
 
-        return importancia.suena(linea)
+        return importancia.suena(linea, _consejero_jev())
     except Exception:
         return True
+
+
+def _consejero_jev():
+    """(2026-09-20) Jev decide solo en la zona de duda de `importancia`; sin clave, nada."""
+    try:
+        import importancia
+        import jev
+
+        if not jev.activo():
+            return None
+        return lambda texto: jev.si_no({"aviso": texto[:1500]}, importancia.PREGUNTA_CONSEJERO)
+    except Exception:
+        return None
 
 
 def _pinta_json(linea):

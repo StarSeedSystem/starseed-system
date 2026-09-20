@@ -83,12 +83,21 @@ def verificadores_conformes(ficha):
     return True
 
 
-def decidir(ajustes, ficha, veredicto, puede_aprobar_solo):
+#: Por debajo de esta P(integrar sin visto bueno) el consejero VETA la aprobación sola.
+UMBRAL_VETO = 0.3
+
+
+def decidir(ajustes, ficha, veredicto, puede_aprobar_solo, consejero=None):
     """(accion, motivo) — «aprobar» o «esperar», y por qué, en una frase.
 
     `puede_aprobar_solo` es la función de `analisis_aprobacion`, que se pasa
     como argumento para que esto siga siendo puro y comprobable sin importar
     nada. Ahí vive la regla del director: aprobar + confianza alta + ficha verde.
+
+    `consejero` (2026-09-20): función (ficha, veredicto) → P(puede integrarse sin
+    visto bueno) o None (Jev, ver `jev.py`). Solo puede VETAR: si el director y los
+    verificadores ya dijeron que sí pero Jev lo ve improbable (< UMBRAL_VETO), la
+    tarea espera a Alex. Nunca aprueba por su cuenta.
     """
     if not encendida(ajustes):
         return "esperar", "resolución automática apagada en Ajustes: decide Alex"
@@ -105,6 +114,13 @@ def decidir(ajustes, ficha, veredicto, puede_aprobar_solo):
         return "esperar", "el director no devolvió un veredicto legible"
 
     if puede_aprobar_solo(veredicto, True):
+        if consejero is not None:
+            try:
+                p = consejero(ficha, veredicto)
+            except Exception:
+                p = None
+            if p is not None and p < UMBRAL_VETO:
+                return "esperar", "el consejero (Jev) lo ve improbable de integrar sin visto bueno (p=%.2f): la mira Alex" % p
         razones = [str(r) for r in (veredicto.get("razones") or [])][:2]
         cola = (": " + "; ".join(razones)) if razones else ""
         return "aprobar", "director y verificadores conformes, confianza alta" + cola
