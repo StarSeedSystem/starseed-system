@@ -7,6 +7,7 @@ Sin red: `SALUD_JSON` y `RUTA_OPENCODE_CFG` se parchean a archivos temporales y 
 el nombre del archivo lleva guiones (igual que en test_alcance.py); el import es seguro porque
 el arranque vive bajo `if __name__ == "__main__"`.
 """
+
 import importlib.util
 import json
 import os
@@ -34,7 +35,10 @@ def _leer_json(ruta):
 
 def _futuro(horas):
     import time
-    return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(time.time() + horas * 3600))
+
+    return time.strftime(
+        "%Y-%m-%d %H:%M:%S", time.localtime(time.time() + horas * 3600)
+    )
 
 
 class AptoParaTareaTest(unittest.TestCase):
@@ -51,8 +55,12 @@ class AptoParaTareaTest(unittest.TestCase):
 
     def test_gpt_oss_solo_markdown(self):
         # llm7/gpt-oss escribe documentación, no código: solo apto si TODOS son .md.
-        self.assertTrue(enjambre.apto_para_tarea("llm7/gpt-oss", {"archivos": ["a.md"]}))
-        self.assertFalse(enjambre.apto_para_tarea("llm7/gpt-oss", {"archivos": ["a.md", "b.ts"]}))
+        self.assertTrue(
+            enjambre.apto_para_tarea("llm7/gpt-oss", {"archivos": ["a.md"]})
+        )
+        self.assertFalse(
+            enjambre.apto_para_tarea("llm7/gpt-oss", {"archivos": ["a.md", "b.ts"]})
+        )
 
     def test_gpt_oss_sin_archivos_no_es_apto(self):
         # Sin archivos pedidos no hay garantía de que sea Markdown: se excluye.
@@ -60,13 +68,17 @@ class AptoParaTareaTest(unittest.TestCase):
 
     def test_otro_modelo_markdown_o_codigo(self):
         # Solo la regla de gpt-oss limita por archivos; el resto es apto.
-        self.assertTrue(enjambre.apto_para_tarea("xkiro/qwen3-coder-plus", {"archivos": ["a.ts"]}))
+        self.assertTrue(
+            enjambre.apto_para_tarea("xkiro/qwen3-coder-plus", {"archivos": ["a.ts"]})
+        )
 
     def test_proveedor_sin_cupo_futuro_no_apto(self):
         prov = enjambre.proveedor_de("llm7/gpt-oss")
         datos = {prov: {"sin_cupo_hasta": _futuro(24), "motivo": "cuota diaria"}}
         _guardar_json(enjambre.SALUD_JSON, datos)
-        self.assertFalse(enjambre.apto_para_tarea("llm7/gpt-oss", {"archivos": ["a.md"]}))
+        self.assertFalse(
+            enjambre.apto_para_tarea("llm7/gpt-oss", {"archivos": ["a.md"]})
+        )
 
 
 class AsegurarModeloTest(unittest.TestCase):
@@ -75,7 +87,9 @@ class AsegurarModeloTest(unittest.TestCase):
         ruta = os.path.join(self.temporal.name, "opencode.json")
         _guardar_json(ruta, {"provider": {"nim": {"name": "NIM"}}})
         self.parche = mock.patch.object(enjambre, "RUTA_OPENCODE_CFG", ruta)
-        self.parche_cerrojos = mock.patch.object(enjambre, "CERROJOS", self.temporal.name)
+        self.parche_cerrojos = mock.patch.object(
+            enjambre, "CERROJOS", self.temporal.name
+        )
         self.parche.start()
         self.parche_cerrojos.start()
 
@@ -88,17 +102,19 @@ class AsegurarModeloTest(unittest.TestCase):
         self.assertTrue(enjambre.asegurar_modelo_opencode("llm7/gpt-oss"))
         cfg = _leer_json(enjambre.RUTA_OPENCODE_CFG)
         provs = cfg["provider"]
-        self.assertIn("nim", provs)                                   # no toca los existentes
-        self.assertEqual(provs["llm7"]["name"], "LLM7 (sin clave)")   # bloque nuevo completo
+        self.assertIn("nim", provs)  # no toca los existentes
+        self.assertEqual(
+            provs["llm7"]["name"], "LLM7 (sin clave)"
+        )  # bloque nuevo completo
         self.assertEqual(provs["llm7"]["options"]["baseURL"], "https://api.llm7.io/v1")
         self.assertEqual(provs["llm7"]["options"]["apiKey"], "sin-clave")
-        self.assertIn("gpt-oss", provs["llm7"]["models"])             # añade el modelo pedido
+        self.assertIn("gpt-oss", provs["llm7"]["models"])  # añade el modelo pedido
 
     def test_modelo_ya_declarado_no_reescribe(self):
         enjambre.asegurar_modelo_opencode("llm7/gpt-oss")
         self.assertTrue(enjambre.asegurar_modelo_opencode("llm7/gpt-oss"))
         cfg = _leer_json(enjambre.RUTA_OPENCODE_CFG)
-        self.assertEqual(len(cfg["provider"]), 2)   # no duplica ni nim ni llm7
+        self.assertEqual(len(cfg["provider"]), 2)  # no duplica ni nim ni llm7
 
     def test_sin_modelo_no_asegura(self):
         # Sin parte de modelo no hay nada que añadir: devuelve False y no escribe.
@@ -121,8 +137,17 @@ class CodexCliTest(unittest.TestCase):
         # `test_comando_codex.py` cubre el porqué; aquí se fija la forma exacta.
         self.assertEqual(
             enjambre.comando_codex("codex/gpt-5.6-sol", "/tmp/tarea"),
-            ["codex", "exec", "-m", "gpt-5.6-sol", "-s", "workspace-write",
-             "--skip-git-repo-check", "-C", "/tmp/tarea"],
+            [
+                "codex",
+                "exec",
+                "-m",
+                "gpt-5.6-sol",
+                "-s",
+                "workspace-write",
+                "--skip-git-repo-check",
+                "-C",
+                "/tmp/tarea",
+            ],
         )
 
     def test_flota_codex_no_incluye_modelos_rechazados_por_chatgpt(self):
@@ -133,10 +158,16 @@ class CodexCliTest(unittest.TestCase):
     def test_auth_chatgpt_habilita_codex_sin_leer_tokens(self):
         with tempfile.TemporaryDirectory() as temporal:
             sesion = os.path.join(temporal, "auth.json")
-            _guardar_json(sesion, {"auth_mode": "chatgpt",
-                                   "tokens": {"secreto": "no se usa"}})
-            with mock.patch.object(enjambre, "RUTA_CODEX_AUTH", sesion), \
-                    mock.patch.object(enjambre, "ruta_codex", return_value="/ruta/codex"):
+            _guardar_json(
+                sesion, {"auth_mode": "chatgpt", "tokens": {"secreto": "no se usa"}}
+            )
+            with (
+                mock.patch.object(enjambre, "RUTA_CODEX_AUTH", sesion),
+                mock.patch.object(enjambre, "ruta_codex", return_value="/ruta/codex"),
+                mock.patch.object(
+                    enjambre._cupo_codex, "puede_escribir", return_value=True
+                ),
+            ):
                 self.assertTrue(enjambre.codex_disponible())
 
 
@@ -145,13 +176,15 @@ class UmbralesEntornoTest(unittest.TestCase):
         # Recargamos el módulo con la variable puesta; hay que restaurar el entorno al final.
         os.environ["STARSEED_ESCRITURA_S"] = "600"
         try:
-            ESPEC.loader.exec_module(enjambre)   # re-ejecuta con la variable puesta
+            ESPEC.loader.exec_module(enjambre)  # re-ejecuta con la variable puesta
             self.assertEqual(enjambre.ESCRITURA_S, 600)
             self.assertEqual(enjambre.ESTANCADO_S, 900)
             self.assertEqual(enjambre.COLGADO_S, 300)
         finally:
             del os.environ["STARSEED_ESCRITURA_S"]
-            ESPEC.loader.exec_module(enjambre)   # vuelve a los defectos (1500 / max(900, 1500//2))
+            ESPEC.loader.exec_module(
+                enjambre
+            )  # vuelve a los defectos (1500 / max(900, 1500//2))
 
 
 if __name__ == "__main__":

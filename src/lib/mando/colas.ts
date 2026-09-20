@@ -24,6 +24,22 @@ import { mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
 import { raizDelProyecto } from "@/lib/mando/raiz";
+import {
+    clasificar,
+    reencolar,
+    objecionDe,
+    extraerIdsProgreso,
+    obtenerBaseId,
+    type TareaAnalizar,
+} from "@/lib/mando/reintento-inteligente";
+
+export {
+    clasificar,
+    reencolar,
+    objecionDe,
+    extraerIdsProgreso,
+    obtenerBaseId,
+};
 
 const RAÍZ = raizDelProyecto();
 const OLAS = path.join(RAÍZ, "starseed_memory_root", "olas");
@@ -301,14 +317,29 @@ export async function reintentarTarea(p: PeticionReintentar): Promise<{
     const cola = colas.find((c) => c.nombre === p.nombre);
     if (!cola) return { ok: false, error: `No encuentro cola-${p.nombre} en disco.`, relanzadas: [], descartadas: [] };
 
-    // títulos de referencia para detectar duplicados (lo que ya está en la cola
-    // y lo que pide el usuario).
-    const titulosExistentes = new Set<string>(
-        [...cola.tareas, ...colas.flatMap((c) => c.tareas)]
-            .map((t) => t.titulo.trim().toLowerCase())
-            .filter(Boolean)
-    );
-    for (const extra of p.existentes ?? []) titulosExistentes.add(extra.trim().toLowerCase());
+    // Leer progreso.json y revisiones.md para la clasificación e inteligibilidad del reintento
+    let progresoRaw = "";
+    try {
+        progresoRaw = await readFile(path.join(OLAS, "progreso.json"), "utf-8");
+    } catch {
+        try {
+            progresoRaw = await readFile(path.join(RAÍZ, "olas", "progreso.json"), "utf-8");
+        } catch {}
+    }
+
+    let revisionesMd = "";
+    try {
+        revisionesMd = await readFile(path.join(OLAS, "revisiones.md"), "utf-8");
+    } catch {
+        try {
+            revisionesMd = await readFile(path.join(RAÍZ, "olas", "revisiones.md"), "utf-8");
+        } catch {}
+    }
+
+    let progreso: unknown = {};
+    try {
+        progreso = JSON.parse(progresoRaw);
+    } catch {}
 
     const relanzadas: string[] = [];
     const descartadas: string[] = [];
@@ -318,39 +349,52 @@ export async function reintentarTarea(p: PeticionReintentar): Promise<{
         const tarea = cola.tareas.find((t) => t.id === id);
         if (!tarea) { descartadas.push(`${id} (no está en la cola)`); continue; }
 
-        const estado = (p.estados ?? {})[id] ?? "";
-        const falloFatal = estado === "bloqueante" || estado === "fallo";
-        const sinCambios = estado === "sin_cambios";
-        const texto = `${tarea.prompt}\n${tarea.titulo}`.toLowerCase();
-        const hueleNoAplica =
-            texto.includes("no aplica") || texto.includes("no existe") ||
-            texto.includes("ya estaba") || texto.includes("no se pudo crear worktree") ||
-            texto.includes("ya está hecho") || texto.includes("ya hecho");
+        const estadoP = (p.estados ?? {})[id] ?? "";
+        const estadoProgreso = (progreso as Record<string, { estado?: string }>)?.[id]?.estado ?? "";
+        const estadoFinal = estadoP || estadoProgreso || "rechazada";
 
-        const duplicada =
-            titulosExistentes.has(tarea.titulo.trim().toLowerCase()) && !sinCambios;
+        const notaProgreso = (progreso as Record<string, { nota?: string }>)?.[id]?.nota ?? "";
+        const notaFinal = p.motivo || notaProgreso || "";
 
-        // Regla del usuario: descartar las que no sirvan o que ya existan por separado.
-        if (hueleNoAplica || (falloFatal && duplicada)) {
-            descartadas.push(`${id} (no aplica / duplicada)`);
-            continue;
-        }
-
-        // útil → re-encolar con modelo distinto al del fallo (rotación) y motivo al prompt.
-        aReintentar.push({
+        const tareaAnalizar: TareaAnalizar = {
             id: tarea.id,
             ola: tarea.ola,
             titulo: tarea.titulo,
             archivos: tarea.archivos,
-            prompt: tarea.prompt +
-                `\n\n[MANDO · REINTENTO] Vuelve a intentarlo desde cero, con calma, en español.` +
-                (p.motivo ? `\nMotivo del intento anterior: ${p.motivo}` : "") +
-                (estado ? `\nEstado anterior: ${estado}.` : "") +
-                `\nSi al revisar el repo el trabajo ya no aplica, responde SOLO la línea "NO APLICA: <motivo>" y NO toques archivos.`,
+            prompt: tarea.prompt,
             depende: tarea.depende,
-            ...(tarea.modelo ? { modelo: tarea.modelo } : {}),
-        });
-        relanzadas.push(id);
+            modelo: tarea.modelo,
+            estado: estadoFinal,
+            nota: notaFinal,
+            motivo: p.motivo || notaFinal,
+        };
+
+        const clasificacion = clasificar(tareaAnalizar, progreso, revisionesMd);
+
+        if (clasificacion.accion === "reintentar") {
+            const baseId = obtenerBaseId(tarea.id);
+            const objecion =
+                objecionDe(revisionesMd, tarea.id) ??
+                objecionDe(revisionesMd, baseId) ??
+                clasificacion.motivo ??
+                p.motivo ??
+                "Reintento inteligente pedido desde el Mando";
+
+            const tareaNueva = reencolar(tareaAnalizar, objecion, progreso);
+
+            aReintentar.push({
+                id: tareaNueva.id,
+                ola: tareaNueva.ola ?? tarea.ola,
+                titulo: tareaNueva.titulo ?? tarea.titulo,
+                archivos: tareaNueva.archivos ?? tarea.archivos,
+                prompt: tareaNueva.prompt,
+                depende: tareaNueva.depende ?? tarea.depende,
+                ...(tarea.modelo ? { modelo: tarea.modelo } : {}),
+            });
+            relanzadas.push(tareaNueva.id);
+        } else {
+            descartadas.push(`${id} (${clasificacion.motivo})`);
+        }
     }
 
     if (aReintentar.length === 0) {
