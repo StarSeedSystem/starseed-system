@@ -98,12 +98,14 @@ export function umbral(p: number, alto = 0.9, bajo = 0.6): Veredicto {
 }
 
 export interface PublicacionModerable {
-    texto: string;
+    texto?: string;
+    titulo?: string;
+    body?: string;
     autor?: string;
 }
 
 /** Las tres preguntas estándar de moderación del OS para una publicación. */
-export function decisionesDeModeracion(p: PublicacionModerable): Record<string, Pregunta> {
+export function decisionesDeModeracion(_publicacion?: PublicacionModerable): Record<string, Pregunta> {
     const criteriaEtiquetas: Record<string, string> = {};
     for (const c of PROFILE_CATEGORIES) criteriaEtiquetas[c.id] = c.label;
     return {

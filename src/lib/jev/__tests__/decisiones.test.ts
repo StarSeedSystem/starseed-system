@@ -90,18 +90,20 @@ describe("umbral", () => {
 });
 
 describe("decisionesDeModeracion", () => {
-    it("devuelve las tres preguntas estándar con formas válidas", () => {
-        const q = decisionesDeModeracion({ texto: "Hola mundo" });
-        expect(Object.keys(q)).toEqual(["permitida", "etiquetas", "prioridad_feed"]);
-        expect(q.permitida.type).toBe("noul");
-        expect(q.etiquetas.type).toBe("choice");
-        if (q.etiquetas.type === "choice") {
-            expect(Object.keys(q.etiquetas.criteria)).toContain("ciencia");
-            expect(Object.keys(q.etiquetas.criteria).length).toBeGreaterThan(5);
+    it("devuelve las tres preguntas estándar con formas válidas sin o con parámetro", () => {
+        const q1 = decisionesDeModeracion();
+        const q2 = decisionesDeModeracion({ texto: "Hola mundo" });
+        expect(Object.keys(q1)).toEqual(["permitida", "etiquetas", "prioridad_feed"]);
+        expect(Object.keys(q2)).toEqual(["permitida", "etiquetas", "prioridad_feed"]);
+        expect(q2.permitida.type).toBe("noul");
+        expect(q2.etiquetas.type).toBe("choice");
+        if (q2.etiquetas.type === "choice") {
+            expect(Object.keys(q2.etiquetas.criteria)).toContain("ciencia");
+            expect(Object.keys(q2.etiquetas.criteria).length).toBeGreaterThan(5);
         }
-        if (q.prioridad_feed.type === "score") {
-            expect(q.prioridad_feed.criteria).toEqual(["baja", "media", "alta"]);
+        if (q2.prioridad_feed.type === "score") {
+            expect(q2.prioridad_feed.criteria).toEqual(["baja", "media", "alta"]);
         }
-        expect(() => construirPeticion({ texto: "Hola mundis" }, q)).not.toThrow();
+        expect(() => construirPeticion({ texto: "Hola mundis" }, q2)).not.toThrow();
     });
 });
