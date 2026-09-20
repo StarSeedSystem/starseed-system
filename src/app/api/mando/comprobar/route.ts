@@ -66,8 +66,12 @@ export async function POST(peticion: Request): Promise<Response> {
             resumen: "Comprobación lanzada",
         };
         await writeFile(rutaEstado(medidor), JSON.stringify(inicio, null, 2), "utf8");
-        const guion = path.join(RAÍZ, "scripts", "puente", "renovador-pasarelas.py");
-        const hijo = spawn("python3", [guion], {
+        const esNeedle = medidor === "needle";
+        const ejecutable = esNeedle ? "bash" : "python3";
+        const guion = esNeedle
+            ? path.join(RAÍZ, "scripts", "renovar-needle.sh")
+            : path.join(RAÍZ, "scripts", "puente", "renovador-pasarelas.py");
+        const hijo = spawn(ejecutable, [guion], {
             cwd: RAÍZ,
             detached: true,
             stdio: ["ignore", "ignore", "ignore"],

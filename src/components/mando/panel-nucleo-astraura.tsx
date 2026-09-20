@@ -5,7 +5,7 @@
  * Muestra el estado de BitNet 1.58, Needle 3 y Needle 2/ESP32.
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Check, Copy, RefreshCw, Sparkles } from "lucide-react";
 import {
     avisoVersionMayor,
@@ -24,6 +24,14 @@ export function PanelNucleoAstraura() {
     const [cargando, setCargando] = useState(false);
     const [copiado, setCopiado] = useState(false);
     const [mensaje, setMensaje] = useState<string | null>(null);
+
+    const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+    useEffect(() => {
+        return () => {
+            if (timeoutRef.current) clearTimeout(timeoutRef.current);
+        };
+    }, []);
 
     const cargar = useCallback(async () => {
         setCargando(true);
@@ -52,22 +60,28 @@ export function PanelNucleoAstraura() {
                 body: JSON.stringify({ medidor: "needle" }),
             });
             if (r.ok) {
-                setMensaje("Renovación de Needle iniciada.");
-                void cargar();
+                const datos = (await r.json().catch(() => null)) as { error?: string } | null;
+                if (datos?.error) {
+                    setMensaje(`No se pudo renovar Needle: ${datos.error}. Usa el comando de abajo.`);
+                } else {
+                    setMensaje("Renovación de Needle iniciada.");
+                    void cargar();
+                }
             } else {
-                const txt = await r.text().catch(() => "");
-                setMensaje(`La ruta no acepta «needle» (HTTP ${r.status}). Usa el comando de abajo.`);
-                console.debug("comprobar needle falló:", txt);
+                const datos = (await r.json().catch(() => null)) as { error?: string } | null;
+                const detalle = datos?.error ?? `HTTP ${r.status}`;
+                setMensaje(`Error en la renovación de Needle (${detalle}). Usa el comando de abajo.`);
             }
-        } catch {
-            setMensaje("Error de red. Usa el comando de abajo.");
+        } catch (e) {
+            setMensaje(`Error de red al intentar renovar Needle (${String(e)}). Usa el comando de abajo.`);
         }
     };
 
     const copiarComando = async () => {
+        if (timeoutRef.current) clearTimeout(timeoutRef.current);
         await navigator.clipboard.writeText(COMANDO);
         setCopiado(true);
-        setTimeout(() => setCopiado(false), 2000);
+        timeoutRef.current = setTimeout(() => setCopiado(false), 2000);
     };
 
     const tarjetas = resumenNucleo({ bitnet, needle, renovacion });
