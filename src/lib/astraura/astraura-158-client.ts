@@ -2111,7 +2111,8 @@ export async function nodoParaBitnet(preferencia: PreferenciaNodo): Promise<Cand
   if (typeof window === "undefined" || preferencia === "ninguno") return null;
   const ahora = Date.now();
   if (!cacheNodos || ahora - cacheNodos.ts > 60_000) {
-    const [estadoLocal, mesh] = await Promise.allSettled([
+    const [estadoLocal, estadoNube, mesh] = await Promise.allSettled([
+      call<BitnetEstado>("local", "/api/bitnet/estado", { timeoutMs: 1500 }),
       call<BitnetEstado>("nube", "/api/bitnet/estado", { timeoutMs: 1500 }),
       call<{ nodes?: MeshNodo[] } | MeshNodo[]>("nube", "/api/mesh/nodes", { timeoutMs: 1500 }),
     ]);
@@ -2119,7 +2120,15 @@ export async function nodoParaBitnet(preferencia: PreferenciaNodo): Promise<Cand
     if (estadoLocal.status === "fulfilled" && estadoLocal.value.ok) {
       const d = estadoLocal.value.data;
       candidatos.push({
-        id: "local", tipo: "local", url: astraura158Endpoint("nube"), vivo: true,
+        id: "local", tipo: "local", url: astraura158Endpoint("local"), vivo: true,
+        tokS: d.speed_tps ?? d.tokens_per_second ?? null,
+        ramLibreMb: d.ram_free_mb ?? null, latenciaMs: null,
+      });
+    }
+    if (estadoNube.status === "fulfilled" && estadoNube.value.ok) {
+      const d = estadoNube.value.data;
+      candidatos.push({
+        id: "nube", tipo: "nube", url: astraura158Endpoint("nube"), vivo: true,
         tokS: d.speed_tps ?? d.tokens_per_second ?? null,
         ramLibreMb: d.ram_free_mb ?? null, latenciaMs: null,
       });
