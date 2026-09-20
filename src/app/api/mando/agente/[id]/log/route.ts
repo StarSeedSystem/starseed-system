@@ -34,7 +34,7 @@ export async function GET(peticion: Request, { params }: { params: Promise<{ id:
 
     const recorte = recortarDesde(contenido, desdeBytes);
     const textoRespuesta = recorte.nuevo.length > 4000 ? ultimasLineas(recorte.nuevo, 200) : recorte.nuevo;
-    const bytes = Buffer.byteLength(contenido, "utf8");
+    const bytes = Buffer.byteLength(textoRespuesta, "utf8");
 
     // Terminado: la tarea ya no está en_curso ni escribiendo en progreso.json
     let terminado = false;
