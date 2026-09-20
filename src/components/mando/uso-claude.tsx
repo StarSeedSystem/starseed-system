@@ -32,11 +32,12 @@ interface ResumenUsoClaude {
     sesiones: SesionUso[];
 }
 
-/** 12 345 678 → «12,3M», 9 876 → «9,9k», 42 → «42». */
+/** 12 345 678 → «12,3 M», 9 876 → «9,9 k», 42 → «42» (es-ES, sin decimales < 1000). */
 function compacto(n: number): string {
-    if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1).replace(".0", "")}M`;
-    if (n >= 1000) return `${(n / 1000).toFixed(1).replace(".0", "")}k`;
-    return String(n);
+    const corto = (v: number) => v.toLocaleString("es-ES", { maximumFractionDigits: 1 });
+    if (n >= 1_000_000) return `${corto(n / 1_000_000)} M`;
+    if (n >= 1000) return `${corto(n / 1000)} k`;
+    return String(Math.round(n));
 }
 
 /** Tono del % de relectura: verde ≥70, ámbar 40-70, rojo <40. */

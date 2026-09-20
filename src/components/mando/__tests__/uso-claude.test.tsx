@@ -61,8 +61,8 @@ describe("TarjetaSesionesClaude", () => {
         expect(pastilla).toHaveTextContent("95.5 %");
         expect(pastilla.className).toContain("text-emerald-300");
         expect(screen.getByText("Sesiones de Claude en esta Mac")).toBeInTheDocument();
-        // 2 000 500 → «2M»
-        expect(screen.getByText("2M")).toBeInTheDocument();
+        // 2 000 500 → «2 M» (regex por si cambia el espacio)
+        expect(screen.getByText(/2\s?M\b/)).toBeInTheDocument();
         // Sesión: turnos y tono verde del %
         expect(screen.getByText("20 turnos")).toBeInTheDocument();
         expect(screen.getByText("95.05 %").className).toContain("text-emerald-300");
