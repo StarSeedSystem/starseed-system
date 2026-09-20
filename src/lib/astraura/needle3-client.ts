@@ -1,6 +1,14 @@
 import { astraura158Endpoint, type Astraura158Target } from "./astraura-158-client";
 import { CAMPOS_PERMITIDOS, type TipoAccionUi } from "./ui-acciones";
 import { decidirEnDispositivo } from "./needle-wasm";
+console.log("Imported decidirEnDispositivo from needle-wasm");
+
+let ultimaFalloDispositivo: number | null = null;
+const TIEMPO_RECUPERACION_MS = 10 * 60 * 1000; // 10 minutes
+
+export function reiniciarNeedleDispositivo() {
+  ultimaFalloDispositivo = null;
+}
 
 export interface LlamadaNeedle {
   nombre: string;
@@ -29,6 +37,7 @@ export interface DecisionNeedle {
   decode_tps?: number;
   ram_pico_mb?: number;
   error?: string;
+  origen?: 'dispositivo' | 'servidor';
 }
 
 export type ZonaConfianza = "ejecutar" | "confirmar" | "escalar";
@@ -37,6 +46,8 @@ export interface OpcionesNeedle {
   sistema?: string;
   max_pasos?: number;
   transporte?: typeof fetch;
+  enDispositivo?: boolean;
+  timeoutDispositivoMs?: number;
 }
 
 export const UMBRAL_EJECUTAR = 0.6;
@@ -56,6 +67,40 @@ export async function decidirConNeedle(
   herramientas: HerramientaNeedle[],
   opciones?: OpcionesNeedle
 ): Promise<DecisionNeedle> {
+  // If we are in the browser and device is not disabled, try device first
+  const enDispositivo = opciones?.enDispositivo !== false;
+  const usarDispositivo =
+    typeof window !== "undefined" &&
+    enDispositivo &&
+    ultimaFalloDispositivo === null; // No recent failure
+
+  if (usarDispositivo) {
+    const timeoutMs = opciones?.timeoutDispositivoMs ?? 2500;
+    try {
+      const dispositivoPromise = decidirEnDispositivo(
+        consulta,
+        herramientas,
+        { sistema: opciones?.sistema }
+      );
+      const timeoutPromise = new Promise<DecisionNeedle>((_, reject) =>
+        setTimeout(() => reject(new Error("Timeout")), timeoutMs)
+      );
+      const resultado = await Promise.race([dispositivoPromise, timeoutPromise]);
+      
+      // Check if the device decision is valid (not escalar and has calls or confidence)
+      const zona = zonaDeConfianza(resultado);
+      if ((resultado.llamadas && resultado.llamadas.length > 0) || zona !== "escalar") {
+        // Mark as device decision
+        return { ...resultado, origen: "dispositivo" };
+      }
+      // If not valid, fall through to server
+    } catch (err) {
+      // Device failed: record failure and fall through to server
+      ultimaFalloDispositivo = Date.now();
+    }
+  }
+
+  // Server fallback (original logic)
   const fetchFn = opciones?.transporte ?? fetch;
   const endpoint = astraura158Endpoint(target);
   const controller = new AbortController();
@@ -79,7 +124,8 @@ export async function decidirConNeedle(
       // la respuesta HTTP no-ok se devuelve tal cual.
       return { ok: false, confianza: null, error: `HTTP ${res.status}` };
     }
-    return (await res.json()) as DecisionNeedle;
+    const resultado = (await res.json()) as DecisionNeedle;
+    return { ...resultado, origen: "servidor" };
   } catch (err: unknown) {
     clearTimeout(timer);
     const msg = err instanceof Error ? err.message : String(err);
