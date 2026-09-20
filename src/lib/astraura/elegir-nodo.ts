@@ -38,6 +38,14 @@ export interface Candidato {
   latenciaMs: number | null;
 }
 
+/** Relevo automático tras falla de red/5xx: devuelve una lista NUEVA
+ * con el candidato `vivo: false`. Úsase en `resolverEndpointBitnet` del
+ * cliente para marcar un nodo caído y pasar al siguiente.
+ */
+export function bitnetTrasCaida(candidatos: Candidato[], id: string, preferencia: PreferenciaNodo): Candidato[] {
+  return candidatos.map((c) => (c.id === id && c.vivo ? { ...c, vivo: false } : c));
+}
+
 /** Comparación de métricas: null (sin medir) siempre va DESPUÉS. */
 function mejor(a: number | null, b: number | null, sentido: "desc" | "asc"): number {
   if (a === null && b === null) return 0;

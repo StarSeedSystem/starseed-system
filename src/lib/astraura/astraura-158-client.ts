@@ -22,6 +22,7 @@
 
 import { settingsFor, thisDeviceId, astraura158EndpointOf } from "@/lib/neurons/neurons";
 import { ASTRAURA_158_PROXY_BASE } from "@/ai/astraura/free-catalog";
+import { bitnetTrasCaida as bitnetTrasCaidaModule } from "./elegir-nodo";
 
 export type Astraura158Target = "local" | "nube";
 
@@ -1325,6 +1326,14 @@ export interface Astraura158BitnetStatus {
 
 export function fetchAstraura158BitnetStatus(target: Astraura158Target) {
   return call<Astraura158BitnetStatus>(target, "/api/bitnet/status", { timeoutMs: target === "nube" ? 15_000 : 6_000 });
+}
+
+export async function resolverEndpointBitnet(target: Astraura158Target): Promise<string> {
+  try {
+    return await import("./destino-bitnet").then(m => m.resolverEndpointBitnet(target));
+  } catch {
+    return astraura158Endpoint(target);
+  }
 }
 
 /**
