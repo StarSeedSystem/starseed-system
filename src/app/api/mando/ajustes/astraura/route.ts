@@ -13,8 +13,6 @@ import { AJUSTES_BITNET_DEFECTO, aEntorno, desdeEntorno, validar, type AjustesBi
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const ETIQUETA_ARCHIVO = "~/.starseed/astraura-ajustes.json";
-
 function rutaArchivo(): string {
     return path.join(os.homedir(), ".starseed", "astraura-ajustes.json");
 }
@@ -24,8 +22,18 @@ async function leerAjustesAstraura(): Promise<AjustesBitnet> {
         const contenido = await readFile(rutaArchivo(), "utf-8");
         return validar(JSON.parse(contenido));
     } catch {
-        return desdeEntorno(process.env);
+        // Si no hay archivo o está roto, derivamos del entorno y siempre validamos.
+        return validar(desdeEntorno(process.env));
     }
+}
+
+function vistaPublica(config: AjustesBitnet) {
+    const entorno = aEntorno(config);
+    return {
+        config,
+        variables: Object.keys(entorno),
+        actualizadoEn: new Date().toISOString(),
+    };
 }
 
 export async function GET(req: Request): Promise<Response> {
@@ -34,14 +42,8 @@ export async function GET(req: Request): Promise<Response> {
 
     const config = await leerAjustesAstraura();
     return Response.json(
-        {
-            archivo: ETIQUETA_ARCHIVO,
-            porDefecto: AJUSTES_BITNET_DEFECTO,
-            config,
-            entorno: aEntorno(config),
-            actualizadoEn: new Date().toISOString(),
-        },
-        { headers: { "Cache-Control": "no-store" } },
+        { porDefecto: AJUSTES_BITNET_DEFECTO, ...vistaPublica(config) },
+        { headers: { "Cache-Control": "no-store", "X-Robots-Tag": "noindex" } },
     );
 }
 
@@ -69,11 +71,9 @@ export async function PUT(req: Request): Promise<Response> {
     return Response.json(
         {
             ok: true,
-            config: saneada,
-            entorno: aEntorno(saneada),
-            actualizadoEn: new Date().toISOString(),
+            ...vistaPublica(saneada),
             mensaje: "El backend de Astraura toma los ajustes al reiniciar (launchctl kickstart -k gui/$UID/com.starseed.astraura).",
         },
-        { headers: { "Cache-Control": "no-store" } },
+        { headers: { "Cache-Control": "no-store", "X-Robots-Tag": "noindex" } },
     );
 }
