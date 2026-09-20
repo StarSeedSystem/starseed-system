@@ -5829,6 +5829,13 @@ def ejecutar(t, intento=1):
     if rc != 0 and ("nothing to commit" in (out or "") or "working tree clean" in (out or "")):
         rc_ad, adelante = sh(["git", "rev-list", "--count", "main..HEAD"], cwd=wt, timeout=30)
         if rc_ad == 0 and (adelante or "0").strip().isdigit() and int(adelante.strip()) > 0:
+            # Un commit vacío con el título de la tarea: así main y el Mando ven
+            # «345 · NE3-1: …» y no solo «salvavidas · …» (2026-09-21, 01:55).
+            rc, out = sh(
+                "git -c core.hooksPath=/dev/null commit -q --allow-empty -F /tmp/enj-msg-%s.txt" % tid,
+                cwd=wt,
+                timeout=120,
+            )
             evento("aviso", tid, "commit final sin cambios: el salvavidas ya guardó el trabajo (%s commit(s) por delante de main); sigo a revisión" % adelante.strip())
             rc = 0
     if rc != 0:
