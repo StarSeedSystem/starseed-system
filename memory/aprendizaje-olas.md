@@ -776,3 +776,15 @@
 - `RI2` — no escribió nada
 - `DV1` — no escribió nada
 - `TM3` — no escribió nada
+
+## 2026-09-20 03:41 · auto-0920-030158
+
+**Lo que se pidió.** al mantener presionado el botón de la orbe flotante, la selección tiene que ser donde esté el dedo: desde cualquier zona donde se abre, deslizar hasta la opción que se desee y SOLTAR el dedo para abrir esa opción
+
+**Resultado.** 2 de 3 integradas. 1 tarea se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- nvidia/moonshotai/kimi-k3 integró 2 tareas sin fallar una.
+
+**Lo que quedó fuera, una por una:**
+- `HW-2` — la revisión lo rechazó: rechazada automáticamente por ide (sin revisión humana); rama ola/HW-2 conservada
