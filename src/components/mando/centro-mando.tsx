@@ -24,7 +24,7 @@ import type { EstadoMando, ProveedorUso } from "@/lib/mando/tipos";
 import { flotaConocida } from "@/lib/mando/flota";
 import "@/components/mando/mando-cristal.css";
 import { PanelMedidor, PastillaMedidor, type TonoMedidor } from "@/components/mando/medidor-abrible";
-import { PastillaIdes } from "@/components/mando/medidor-ides";
+import { PanelIdes, PastillaIdes } from "@/components/mando/medidor-ides";
 import { VerificarProcesos } from "@/components/mando/verificar-procesos";
 import type { AccionMedidor, ClaveMedidor, FilaMedidor } from "@/lib/mando/medidores";
 import { PanelProcesos } from "@/components/mando/panel-procesos";
@@ -312,6 +312,7 @@ export function CentroMando() {
 
     // Un solo medidor abierto a la vez: el panel es uno y vive debajo de la rejilla.
     const [medidorAbierto, setMedidorAbierto] = useState<ClaveMedidor | null>(null);
+    const [idesAbierto, setIdesAbierto] = useState(false);
 
     const alCambiarPestana = useCallback((id: string) => {
         const segura = (PESTANAS.some((p) => p.id === id) ? id : "procesos") as IdPestana;
@@ -658,7 +659,15 @@ export function CentroMando() {
                         className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6"
                         aria-label="Pulso del trabajo"
                     >
-                        <PastillaIdes />
+                        <li>
+                            <PastillaIdes
+                                abierto={idesAbierto}
+                                alPulsar={() => {
+                                    setMedidorAbierto(null);
+                                    setIdesAbierto((a) => !a);
+                                }}
+                            />
+                        </li>
                         {[
                             { clave: "ola-activa" as const, titulo: "Ola activa", valor: pulso.olaActiva },
                             {
@@ -799,13 +808,18 @@ export function CentroMando() {
                                     detalle={"detalle" in m ? m.detalle : undefined}
                                     tono={"tono" in m ? m.tono : undefined}
                                     abierto={"clave" in m && medidorAbierto === m.clave}
-                                    alPulsar={(c) => setMedidorAbierto((a) => (a === c ? null : c))}
+                                    alPulsar={(c) => {
+                                        setIdesAbierto(false);
+                                        setMedidorAbierto((a) => (a === c ? null : c));
+                                    }}
                                     alClic={"alClic" in m ? m.alClic : undefined}
                                 />
                             </li>
                         ))}
                     </ul>
-                    {medidorAbierto ? (
+                    {idesAbierto ? (
+                        <PanelIdes alCerrar={() => setIdesAbierto(false)} />
+                    ) : medidorAbierto ? (
                         <PanelMedidor
                             clave={medidorAbierto}
                             alAccionar={accionarMedidor}

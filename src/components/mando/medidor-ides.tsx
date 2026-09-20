@@ -182,18 +182,14 @@ export function MedidorIdes() {
     );
 }
 
-export function PastillaIdes() {
-    const { datos, cargando, aviso, sincronizando, sincronizar } = useDetalleIdes();
-    const [abierto, setAbierto] = useState(false);
-
-    useEffect(() => {
-        if (!abierto) return;
-        const alPulsar = (e: KeyboardEvent) => {
-            if (e.key === "Escape") setAbierto(false);
-        };
-        window.addEventListener("keydown", alPulsar);
-        return () => window.removeEventListener("keydown", alPulsar);
-    }, [abierto]);
+export function PastillaIdes({
+    abierto = false,
+    alPulsar,
+}: {
+    abierto?: boolean;
+    alPulsar?: () => void;
+}) {
+    const { datos, cargando } = useDetalleIdes();
 
     const total = datos?.filas.length ?? 0;
     const alDia = datos?.filas.filter((f) => f.estado === "al día").length ?? 0;
@@ -224,31 +220,48 @@ export function PastillaIdes() {
     }
 
     return (
-        <li className={abierto ? "col-span-full" : ""}>
-            <button
-                type="button"
-                aria-expanded={abierto}
-                aria-controls="panel-ides"
-                onClick={() => setAbierto((a) => !a)}
-                className={`mc-cristal mc-centrado flex h-full min-h-[4.75rem] w-full flex-col items-center justify-center gap-0.5 px-3 py-2 mc-alzar cursor-pointer ${
-                    abierto ? "ring-1 ring-cyan-300/40 " : ""
-                }${NEON[tono]}`}
-            >
-                <span className="text-[10px] uppercase tracking-wider text-white/45">IDEs</span>
-                <span className={`text-lg font-semibold leading-tight ${TEXTO[tono]}`}>{valor}</span>
-                {datos?.resumen ? (
-                    <span className="line-clamp-2 text-[10px] leading-snug text-white/45">{datos.resumen}</span>
-                ) : null}
-                <ChevronDown
-                    aria-hidden
-                    className={`h-3 w-3 shrink-0 text-white/30 transition-transform duration-200 ${
-                        abierto ? "rotate-180" : ""
-                    }`}
-                />
-            </button>
+        <button
+            type="button"
+            aria-expanded={abierto}
+            aria-controls="panel-ides"
+            onClick={alPulsar}
+            className={`mc-cristal mc-centrado flex h-full min-h-[4.75rem] w-full flex-col items-center justify-center gap-0.5 px-3 py-2 mc-alzar cursor-pointer ${
+                abierto ? "ring-1 ring-cyan-300/40 " : ""
+            }${NEON[tono]}`}
+        >
+            <span className="text-[10px] uppercase tracking-wider text-white/45">IDEs</span>
+            <span className={`text-lg font-semibold leading-tight ${TEXTO[tono]}`}>{valor}</span>
+            {datos?.resumen ? (
+                <span className="line-clamp-2 text-[10px] leading-snug text-white/45">{datos.resumen}</span>
+            ) : null}
+            <ChevronDown
+                aria-hidden
+                className={`h-3 w-3 shrink-0 text-white/30 transition-transform duration-200 ${
+                    abierto ? "rotate-180" : ""
+                }`}
+            />
+        </button>
+    );
+}
 
-            {abierto ? (
-                <section id="panel-ides" aria-label="IDEs vinculados" className="mc-cristal mc-desplegar mt-2 w-full p-3">
+export function PanelIdes({ alCerrar }: { alCerrar: () => void }) {
+    const { datos, cargando, aviso, sincronizando, sincronizar } = useDetalleIdes();
+
+    useEffect(() => {
+        const alPulsar = (e: KeyboardEvent) => {
+            if (e.key === "Escape") alCerrar();
+        };
+        window.addEventListener("keydown", alPulsar);
+        return () => window.removeEventListener("keydown", alPulsar);
+    }, [alCerrar]);
+
+    return (
+        <section
+            id="panel-ides"
+            role="region"
+            aria-label="IDEs vinculados"
+            className="mc-cristal mc-desplegar mt-2 w-full p-3"
+        >
                     <header className="mc-centrado flex flex-wrap items-baseline justify-center gap-2">
                         <h3 className="text-[11px] font-semibold uppercase tracking-wider text-white/70">
                             {datos?.titulo ?? "IDEs vinculados"}
@@ -269,7 +282,7 @@ export function PastillaIdes() {
                         </button>
                         <button
                             type="button"
-                            onClick={() => setAbierto(false)}
+                            onClick={alCerrar}
                             aria-label="Cerrar"
                             className="ml-2 cursor-pointer rounded-md border border-white/10 px-2 py-0.5 text-[10px] text-white/50"
                         >
@@ -311,7 +324,5 @@ export function PastillaIdes() {
                         </p>
                     ) : null}
                 </section>
-            ) : null}
-        </li>
     );
 }
