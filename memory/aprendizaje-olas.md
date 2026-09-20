@@ -933,3 +933,12 @@
 
 **Lo que quedó fuera, una por una:**
 - `MD1b` — conflicto al integrar: rama ola/MD1b conservada
+
+## 2026-09-20 10:47 · auto-0920-103824
+
+**Lo que se pidió.** en la información de los agentes trabajando y tareas en curso, los datos del servidor de IDE desde donde trabaja cada agente y si está en línea; sus IDE y servidores vinculados por si cae alguno y continúe con otro automáticamente; y los enlaces a sus procesos en tiempo real
+
+**Resultado.** 0 de 1 integradas. 1 tarea se quedaron fuera.
+
+**Lo que quedó fuera, una por una:**
+- `MD1b` — conflicto al integrar: rama ola/MD1b conservada
