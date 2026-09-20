@@ -6,62 +6,34 @@ import {
   resumenRed,
   type CapacidadesNodo,
 } from "../capacidades-nodo";
+import { selectDeliberatorNode, selectReflejoNode } from "../lan-sync";
+import { resolveNetworkCapacities } from "@/ai/astraura/router";
 
 const AHORA = 1000000;
 
 const nodoNavegador: CapacidadesNodo = {
-  nodoId: "nodo-nav",
-  medio: "navegador",
-  needle: { version: "3.0.0", adaptador: "sha-256-a1" },
-  bitnet: null,
-  jev: false,
-  ramLibreMb: 512,
-  cpu: 20,
-  t: AHORA,
+  nodoId: "nodo-nav", medio: "navegador", needle: { version: "3.0.0", adaptador: "sha-256-a1" },
+  bitnet: null, jev: false, ramLibreMb: 512, cpu: 20, t: AHORA,
 };
 
 const nodoMac: CapacidadesNodo = {
-  nodoId: "nodo-mac",
-  medio: "mac",
-  needle: { version: "3.0.0", adaptador: "sha-256-a2" },
-  bitnet: { tokPorS: 9.5, ctx: 2048, ocupado: true },
-  jev: true,
-  ramLibreMb: 4096,
-  cpu: 85,
-  t: AHORA,
+  nodoId: "nodo-mac", medio: "mac", needle: { version: "3.0.0", adaptador: "sha-256-a2" },
+  bitnet: { tokPorS: 9.5, ctx: 2048, ocupado: true }, jev: true, ramLibreMb: 4096, cpu: 85, t: AHORA,
 };
 
 const nodoNube: CapacidadesNodo = {
-  nodoId: "nodo-nube",
-  medio: "nube",
-  needle: { version: "3.1.0", adaptador: "sha-256-a3" },
-  bitnet: { tokPorS: 25.0, ctx: 4096, ocupado: false },
-  jev: true,
-  ramLibreMb: 8192,
-  cpu: 15,
-  t: AHORA,
+  nodoId: "nodo-nube", medio: "nube", needle: { version: "3.1.0", adaptador: "sha-256-a3" },
+  bitnet: { tokPorS: 25.0, ctx: 4096, ocupado: false }, jev: true, ramLibreMb: 8192, cpu: 15, t: AHORA,
 };
 
 const nodoViejo: CapacidadesNodo = {
-  nodoId: "nodo-viejo",
-  medio: "linux",
-  needle: { version: "2.0.0" },
-  bitnet: { tokPorS: 30.0, ctx: 4096, ocupado: false },
-  jev: false,
-  ramLibreMb: 2048,
-  cpu: 10,
-  t: AHORA - 70000,
+  nodoId: "nodo-viejo", medio: "linux", needle: { version: "2.0.0" },
+  bitnet: { tokPorS: 30.0, ctx: 4096, ocupado: false }, jev: false, ramLibreMb: 2048, cpu: 10, t: AHORA - 70000,
 };
 
 const nodoAndroid: CapacidadesNodo = {
-  nodoId: "nodo-android",
-  medio: "android",
-  needle: null,
-  bitnet: null,
-  jev: false,
-  ramLibreMb: 256,
-  cpu: 50,
-  t: AHORA,
+  nodoId: "nodo-android", medio: "android", needle: null, bitnet: null, jev: false,
+  ramLibreMb: 256, cpu: 50, t: AHORA,
 };
 
 const fixtureCincoNodos: CapacidadesNodo[] = [
@@ -111,5 +83,13 @@ describe("capacidades-nodo", () => {
     expect(resumen.conBitnet).toBe(3);
     expect(resumen.conJev).toBe(2);
     expect(resumen.adaptadorMasNuevo).toBe("sha-256-a3");
+  });
+
+  it("conecta con lan-sync y router para resolver deliberador y reflejo", () => {
+    expect(selectDeliberatorNode(fixtureCincoNodos, AHORA)?.nodoId).toBe("nodo-nube");
+    expect(selectReflejoNode(fixtureCincoNodos, "nodo-nav")?.nodoId).toBe("nodo-nav");
+
+    const res = resolveNetworkCapacities({ kind: "reasoning", needsVision: false, chars: 10, difficulty: 0.5 }, fixtureCincoNodos, AHORA);
+    expect(res.deliberador?.nodoId).toBe("nodo-nube");
   });
 });

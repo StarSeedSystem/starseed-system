@@ -85,6 +85,13 @@ import { accessBias, llmSourceAccessClass } from "@/lib/astraura/model-preferenc
 import { thisDeviceId } from "@/lib/neurons/neurons";
 // (Ola 223) Caché LRU de respuestas repetidas (cuota-cero para prompts idénticos).
 import { claveCache, esCacheElegible, leerCache, guardarCache } from "./cache-respuestas";
+// Capacidades de red (Trinidad de razonamiento: reflejo con Needle · deliberación con BitNet)
+import {
+  elegirDeliberador,
+  elegirReflejo,
+  resumenRed,
+  type CapacidadesNodo,
+} from "@/lib/network/capacidades-nodo";
 
 /* ───────────────────── Ajustes de Inteligencia ───────────────────── */
 
@@ -267,6 +274,22 @@ export function classifyTask(messages: ChatMessage[], hint?: TaskKind): TaskProf
   if (chars > 60_000) kind = "long";
   else if (user.length <= 80 && kind === "chat") kind = "fast";
   return { kind, needsVision: VISION_RX.test(user), chars, difficulty };
+}
+
+/**
+ * Resuelve el nodo de la red mesh adecuado para deliberación (BitNet)
+ * o reflejo (Needle) según la clase de tarea y las capacidades anunciadas.
+ */
+export function resolveNetworkCapacities(
+  profile: TaskProfile,
+  nodos: CapacidadesNodo[],
+  ahora = Date.now(),
+  miNodoId?: string
+): { deliberador: CapacidadesNodo | null; reflejo: CapacidadesNodo | null } {
+  return {
+    deliberador: elegirDeliberador(nodos, ahora),
+    reflejo: elegirReflejo(nodos, miNodoId),
+  };
 }
 
 /* ───────────────────── Estimación de dificultad (patrón RouteLLM) ───────────────────── */

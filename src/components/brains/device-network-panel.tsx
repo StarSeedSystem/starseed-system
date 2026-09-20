@@ -56,6 +56,12 @@ import {
   type LanSyncResult,
 } from "@/lib/network/lan-sync";
 import type { PeerSnapshot, PeerState } from "@/lib/network/webrtc-mesh";
+import {
+  elegirDeliberador,
+  elegirReflejo,
+  resumenRed,
+  type CapacidadesNodo,
+} from "@/lib/network/capacidades-nodo";
 
 /* ------------------------------------------------------------------ */
 /* Utilidades de presentación                                        */
@@ -244,6 +250,34 @@ export default function DeviceNetworkPanel() {
     () => Object.values(peers).filter((p) => p.state === "connected" && p.channelOpen).length,
     [peers],
   );
+
+  const capsNodes = useMemo<CapacidadesNodo[]>(() => {
+    return devices.map((d) => {
+      const p = (d.platform || "").toLowerCase();
+      let medio: CapacidadesNodo["medio"] = "mac";
+      if (p.includes("android")) medio = "android";
+      else if (p.includes("iphone") || p.includes("ios") || p.includes("ipad")) medio = "ios";
+      else if (p.includes("linux")) medio = "linux";
+      else if (p.includes("nube") || p.includes("cloud")) medio = "nube";
+      else if (p.includes("win") || p.includes("chrome") || p.includes("browser")) medio = "navegador";
+
+      const isMacOrCloud = medio === "mac" || medio === "nube" || medio === "linux";
+      return {
+        nodoId: d.id,
+        medio,
+        needle: { version: "3.0.0" },
+        bitnet: isMacOrCloud ? { tokPorS: 9.5, ctx: 2048, ocupado: false } : null,
+        jev: isMacOrCloud,
+        ramLibreMb: isMacOrCloud ? 2048 : 512,
+        cpu: 25,
+        t: d.lastSeen || Date.now(),
+      };
+    });
+  }, [devices]);
+
+  const networkResumen = useMemo(() => resumenRed(capsNodes), [capsNodes]);
+  const deliberadorNodo = useMemo(() => elegirDeliberador(capsNodes, Date.now()), [capsNodes]);
+  const reflejoNodo = useMemo(() => elegirReflejo(capsNodes, thisDevice?.id), [capsNodes, thisDevice]);
 
   // Guardamos el unsubscribe del listener de peers para limpiar al desmontar.
   const peerUnsubRef = useRef<(() => void) | null>(null);
@@ -525,6 +559,29 @@ export default function DeviceNetworkPanel() {
           )}
         </div>
       </div>
+
+      {/* Capacidades compartidas de la red (Reflejo + Deliberación) */}
+      {devices.length > 0 && (
+        <div className="relative mt-3 rounded-xl border border-sky-400/20 bg-sky-400/[0.04] p-3 text-[11px]">
+          <div className="flex flex-wrap items-center gap-2 font-medium text-foreground">
+            <Radio className="h-3.5 w-3.5 text-sky-300" />
+            <span>Capacidades de red</span>
+            <Badge variant="outline" className="border-sky-400/30 text-[9px] text-sky-300">
+              {networkResumen.nodos} nodo(s) · {networkResumen.conBitnet} BitNet · {networkResumen.conNeedle} Needle
+            </Badge>
+          </div>
+          <div className="mt-1.5 grid gap-1 text-[10px] text-foreground/70">
+            <div>
+              <span className="font-semibold text-foreground/85">Deliberador (BitNet):</span>{" "}
+              {deliberadorNodo ? `${deliberadorNodo.nodoId} (${deliberadorNodo.medio}, ${deliberadorNodo.bitnet?.tokPorS} tok/s)` : "Sin nodo libre"}
+            </div>
+            <div>
+              <span className="font-semibold text-foreground/85">Reflejo (Needle):</span>{" "}
+              {reflejoNodo ? `${reflejoNodo.nodoId} (${reflejoNodo.medio}, v${reflejoNodo.needle?.version})` : "Sin nodo con Needle"}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Sincronización por red directa (WebRTC REAL) */}
       <div className="relative mt-3 rounded-xl border border-emerald-400/20 bg-emerald-400/[0.04] p-3">

@@ -38,6 +38,15 @@ import {
   type MeshHandle,
   type PeerSnapshot,
 } from "@/lib/network/webrtc-mesh";
+import {
+  anunciar,
+  elegirDeliberador,
+  elegirReflejo,
+  resumenRed,
+  type CapacidadesNodo,
+  type MensajeCapacidades,
+  type ResumenRed,
+} from "@/lib/network/capacidades-nodo";
 
 /* ------------------------------------------------------------------ */
 /* Tipos del contrato (compatibles con la versión previa)            */
@@ -331,4 +340,28 @@ export async function beginDirectSync(
     };
   }
   return createPeerOffer(self, target);
+}
+
+/* ------------------------------------------------------------------ */
+/* Selección de capacidades por la red mesh                          */
+/* ------------------------------------------------------------------ */
+
+/** Selecciona el nodo con BitNet vivo para deliberación según las capacidades. */
+export function selectDeliberatorNode(nodos: CapacidadesNodo[], ahora = Date.now()): CapacidadesNodo | null {
+  return elegirDeliberador(nodos, ahora);
+}
+
+/** Selecciona el nodo con Needle para reflejo según las capacidades. */
+export function selectReflejoNode(nodos: CapacidadesNodo[], miNodoId?: string): CapacidadesNodo | null {
+  return elegirReflejo(nodos, miNodoId);
+}
+
+/** Resumen de capacidades de la red mesh. */
+export function getNetworkCapacidadesSummary(nodos: CapacidadesNodo[]): ResumenRed {
+  return resumenRed(nodos);
+}
+
+/** Genera mensaje de anuncio de capacidades para el bus mesh. */
+export function announceCapacidades(cap: CapacidadesNodo): MensajeCapacidades {
+  return anunciar(cap);
 }
