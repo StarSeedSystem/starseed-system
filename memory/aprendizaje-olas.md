@@ -893,3 +893,16 @@
 - `CB2` — pruebas en rojo: vitest falla (rama conservada)
 - `NE3-3` — la revisión lo rechazó: rechazada automáticamente por ide (sin revisión humana); rama ola/NE3-3 conservada
 - `AGR1` — la revisión lo rechazó: rechazada automáticamente por ide (sin revisión humana); rama ola/AGR1 conservada
+
+## 2026-09-20 10:00 · auto-0920-094358
+
+**Lo que se pidió.** decidir en el dispositivo del usuario, sin servidor
+
+**Resultado.** 0 de 2 integradas. 2 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- google/gemini-3.6-flash no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `CB2` — la revisión lo rechazó: rechazada automáticamente por ide (sin revisión humana); rama ola/CB2 conservada
+- `MD1b` — conflicto al integrar: rama ola/MD1b conservada
