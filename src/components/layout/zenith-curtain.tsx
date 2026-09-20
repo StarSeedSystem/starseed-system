@@ -121,11 +121,20 @@ function useSwipeToClose(dir: SwipeDir, onClose: () => void, containerRef: RefOb
         progress.current = 0;
     }, [axis, dir, signed, onClose, reduceMotion, containerRef]);
 
-    const cancel = useCallback(() => {
+    const cancel = useCallback((e?: React.PointerEvent) => {
         if (!dragging.current) return;
         dragging.current = false;
         start.current = null;
         progress.current = 0;
+        if (e && e.currentTarget) {
+            try {
+                if ((e.currentTarget as Element).hasPointerCapture(e.pointerId)) {
+                    (e.currentTarget as Element).releasePointerCapture(e.pointerId);
+                }
+            } catch {
+                /* noop */
+            }
+        }
         if (reduceMotion) {
             signed.set(0);
         } else {
@@ -165,7 +174,7 @@ function CurtainCloseButton({
             aria-label="Cerrar"
             title="Cerrar"
             onClick={onClose}
-            className={cn(curtain.closeBtn, curtain.closeTopRight, className)}
+            className={cn(curtain.closeBtn, curtain.zenithCloseTopRight, className)}
             style={{ ...style, ["--cc" as string]: accent }}
         >
             <X className={curtain.closeIcon} />
@@ -203,9 +212,9 @@ export function ZenithCurtain() {
                     role="region"
                     aria-label="Cortina Zenith Exocortex"
                     data-testid="zenith-curtain-container"
-                    initial={{ y: "-100%", x: "-50%", opacity: 0, scale: 0.96 }}
-                    animate={{ y: 0, x: "-50%", opacity: 1, scale: 1 }}
-                    exit={{ y: "-100%", x: "-50%", opacity: 0, scale: 0.96 }}
+                    initial={{ y: "-100%", x: "-50%", opacity: 0 }}
+                    animate={{ y: 0, x: "-50%", opacity: 1 }}
+                    exit={{ y: "-100%", x: "-50%", opacity: 0 }}
                     transition={{ type: "spring", damping: 30, stiffness: 200 }}
                     className={cn(
                         curtain.curtainContainer,
@@ -236,7 +245,7 @@ export function ZenithCurtain() {
 
                         {/* Tirador de swipe (Zenith cierra hacia ARRIBA) + botón de cierre */}
                         <div
-                            className={curtain.grabberTop}
+                            className={curtain.zenithGrabberTop}
                             style={{ ["--cc" as string]: "#22d3ee" }}
                             {...swipe.handlers}
                             role="presentation"

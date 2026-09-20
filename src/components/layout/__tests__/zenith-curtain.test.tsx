@@ -29,11 +29,14 @@ describe("ZenithCurtain", () => {
 
   const renderComponent = () => render(<ZenithCurtain />);
 
-  it("renders the close button with correct aria-label", () => {
+  it("renders the close button with correct aria-label and closes on click", () => {
     renderComponent();
     const closeButton = screen.getByRole("button", { name: /cerrar/i });
     expect(closeButton).toBeDefined();
     expect(closeButton.getAttribute("aria-label")).toBe("Cerrar");
+
+    fireEvent.click(closeButton);
+    expect(mockSetActiveEdge).toHaveBeenCalledWith(null);
   });
 
   it("closes when dragged more than 30% of height", () => {

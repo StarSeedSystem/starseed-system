@@ -49,6 +49,12 @@
     right: max(0.75rem, env(safe-area-inset-right, 0px));
 }
 
+/* Posición relativa al marco de la cortina Zenith (que ya incluye inset superior) */
+.zenithCloseTopRight {
+    top: 0.75rem;
+    right: max(0.75rem, env(safe-area-inset-right, 0px));
+}
+
 .closeBtn:hover {
     transform: scale(1.06);
     background:
@@ -102,6 +108,29 @@
     touch-action: none;
 }
 .grabberTop::before {
+    content: "";
+    position: absolute;
+    inset: -16px -40px;
+}
+
+.zenithGrabberTop {
+    position: absolute;
+    z-index: 55;
+    top: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 44px;
+    height: 5px;
+    border-radius: 9999px;
+    background: color-mix(in srgb, var(--cc, #fff) 55%, transparent);
+    box-shadow: 0 0 10px color-mix(in srgb, var(--cc, #fff) 40%, transparent);
+    cursor: grab;
+    touch-action: none;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+}
+.zenithGrabberTop::before {
     content: "";
     position: absolute;
     inset: -16px -40px;
