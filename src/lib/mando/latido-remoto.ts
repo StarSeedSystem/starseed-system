@@ -16,12 +16,24 @@
  * porque un latido jamás debe delatar el árbol de archivos de nadie.
  */
 
+import {
+    type IdeInfo,
+    type AlternativaIde,
+    type ProcesoInfo,
+    sanearIde,
+    sanearAlternativas,
+    sanearProceso,
+} from "./ide-agente";
+
 /** Una tarea que el enjambre tiene entre manos ahora mismo, resumida a lo mínimo. */
 export interface TareaLatida {
     id: string;
     fase: string;
     modelo: string;
     minutos: number;
+    ide?: IdeInfo;
+    alternativas?: AlternativaIde[];
+    proceso?: ProcesoInfo;
 }
 
 /**
@@ -190,6 +202,9 @@ export function sanearLatido(bruto: unknown): LatidoRemoto | null {
             fase: limpiarTexto(texto(t.fase)),
             modelo: limpiarTexto(texto(t.modelo)),
             minutos: Math.max(0, numero(t.minutos)),
+            ide: sanearIde(t.ide),
+            alternativas: sanearAlternativas(t.alternativas),
+            proceso: sanearProceso(t.proceso),
         })).filter((t) => t.id.length > 0),
         cuentas: {
             integradas: Math.max(0, Math.round(numero(cuentasBruto.integradas))),
