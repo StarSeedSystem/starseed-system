@@ -326,3 +326,44 @@ y sin modelo (decisión del 13/09): Jev opina, no ordena.
 - Jev es consejero con umbral explícito, **nunca oráculo**: en RS3b contestó «descartar» 0,65 con
   confianza 0,47 — dividido — y la regla humana era reintentar. Decide con lo que le cuentas.
 - Endpoint en *alpha*: si cambia el formato, `jev.py` devuelve None y nada se rompe.
+
+## 10. Cuántos agentes a la vez y cómo añadir más (regla permanente · 2026-09-20)
+
+Alex: «los directores deben vincular la mayor cantidad de agentes simultáneos». La respuesta
+honesta tiene dos partes, y las dos están medidas.
+
+**1. Por máquina, el tope lo pone la memoria, no el modelo.** Cada agente de código
+(opencode/codex + su `git worktree` + las puertas `tsc`/`vitest`) cuesta ~1,5 GB en punta y las
+puertas van detrás de UN cerrojo compartido: con 5 en la Mac de 8 GB hubo 10 GB de swap y cada
+puerta tardó 10× (ola 325). Por eso el **gobernador de recursos**
+(`scripts/puente/gobernador-recursos.py`, launchd `com.starseed.gobernador`, cada minuto) calcula
+`maximo_por_hardware(RAM, núcleos)` = ≤ 8,5 GB → 3 · ≤ 16,5 GB → 5 · ≤ 32,5 GB → 8 · más → 12,
+nunca más de (núcleos − 1), y lo escribe en `~/.starseed/gobernador.json` junto con el **tope
+vivo**: 1 trabajador si Alex está usando la máquina (teclado/ratón hace < 5 min) o la memoria
+está en rojo (swap > 10 GB o < 300 MB libres), 2 con swap en ámbar (> 6 GB), el máximo con la
+máquina libre. El orquestador (`tope_gobernador()` en `starseed-enjambre.py`) lo relee cada 20 s y
+solo decide cuántos LANZA: nada en marcha se interrumpe; si el gobernador muere, vale `--workers`.
+`director-config.json.trabajadores` es el máximo deseado; el gobernador solo puede bajarlo.
+
+**2. Para tener MÁS agentes se añaden MEDIOS, no procesos.** El enjambre ya es multi-medio
+(`medios.json`, arriendos de 120 s, failover automático): cada medio corre su propio orquestador
+contra la misma cola y se reparten las tareas por arriendo. Receta para sumar un medio (Linux o
+macOS, arm64 o x86_64):
+  1. `git clone` del repo del OS + `bash scripts/enjambre/instalar.sh` (copia el orquestador a
+     `~/.local/bin`) + Node 22 + las claves en `~/.starseed/env` (las guarda Alex con
+     `scripts/puente/guardar-clave.sh --ambos`; nunca se copian por chat).
+  2. `python3 scripts/puente/gobernador-recursos.py` → dice cuántos caben en ESA máquina.
+  3. `starseed-enjambre.py starseed_memory_root/olas/<cola>.json --workers <maximo_hardware>` con
+     la cola sincronizada (git o Drive) y el vigilante (`com.starseed.vigilante` / systemd) para
+     relanzar solo.
+  4. El medio tiene que poder **publicar**: `git push` autorizado (el contenedor de Cowork NO puede:
+     el proxy deniega `StarSeedSystem/starseed-system` salvo que Alex lo añada a las fuentes de la
+     sesión; hasta entonces sus commits viajan por `git bundle` en el bus).
+Medios que caben hoy: Mac M1 8 GB → 3; contenedor de Cowork 2 vCPU/8 GB → 1 (y muere con la
+sesión); **Oracle Free Tier ARM (4 OCPU/24 GB, gratis) → 3 permanentes**; un VPS de 16 GB/8
+núcleos → 5. Hermes suma **agentes de razonamiento** aparte (delegate_task, 4 hijos a la vez, sin
+RAM local: el límite es el RPM gratuito de Gemini), pero esos no pasan puertas ni integran código.
+
+**Los directores recuerdan esto así:** al reportar «agentes escribiendo ahora: N», decir también
+«máximo en esta máquina: M (gobernador)» y, si Alex pide más, proponer el medio siguiente de la
+lista, nunca subir `--workers` por encima de `maximo_hardware`.

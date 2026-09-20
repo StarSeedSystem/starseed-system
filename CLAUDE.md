@@ -315,6 +315,13 @@ un ciclo nocturno que entrena el adaptador colectivo de Needle con lo acertado. 
 por $0,00002 (`scripts/puente/jev.py`) para veredictos de bloqueadas, Telegram, errores de pasarela
 y el veto de la aprobación sola; consejero con umbral, nunca oráculo; techo 0,05 $/día; en
 OpenRouter solo ids `:free` (hay 10 $ de crédito que nadie debe gastar sin querer).
+**Gobernador de recursos** (2026-09-20, §10): `scripts/puente/gobernador-recursos.py` escribe
+cada minuto `~/.starseed/gobernador.json` con el tope VIVO de trabajadores (1 si Alex usa la Mac
+o la memoria está en rojo; `maximo_hardware` = 3 en 8 GB con la máquina libre) y el orquestador
+lo relee (`tope_gobernador`). **Más agentes a la vez = más medios**, nunca más procesos en una
+máquina que no cabe: la receta para sumar un medio (Oracle Free Tier, VPS) está en §10. BitNet
+vive en cualquier medio con `scripts/nodo-bitnet.sh` (repo de Astraura), que mide RAM/núcleos y
+elige hilos/contexto/slots solo.
 En esta flota, **AIHubMix** (`AIHUBMIX_API_KEY`, 412 modelos con 54 gratuitos) es el **revisor
 principal**, y **UTIM** (`@emend-ai/utim` v2.3.19) actúa como **segundo agente de código** para
 multiplicar agentes en paralelo; la tabla completa de proveedores y cupos está en

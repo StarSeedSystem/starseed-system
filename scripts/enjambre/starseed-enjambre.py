@@ -6196,6 +6196,45 @@ def ejecutar_seguro(t):
 # orden de la cola VIGENTE, no por la foto del arranque.
 
 
+RUTA_GOBERNADOR = os.path.expanduser("~/.starseed/gobernador.json")
+_GOBERNADOR = {"mtime": 0.0, "tope": None, "leido": 0.0, "avisado": None}
+
+
+def tope_gobernador(workers, ruta=RUTA_GOBERNADOR, ahora=None, frescura_s=900):
+    """Tope VIVO de trabajadores que fija el gobernador de recursos
+    (`scripts/puente/gobernador-recursos.py`, launchd cada minuto).
+
+    Alex (2026-09-20): «bajar el enjambre a 1 trabajador cuando lo use
+    interactivo, dinámica y automáticamente». `--workers` sigue siendo el
+    máximo; el archivo `~/.starseed/gobernador.json` {"trabajadores": N}
+    solo puede BAJARLO. Se relee como mucho cada 20 s y por mtime; si el
+    archivo falta, está roto o lleva más de `frescura_s` sin escribirse
+    (gobernador muerto), vale `workers`: un gobernador caído nunca frena la
+    ola. Nada en marcha se interrumpe: el tope solo decide si se LANZA otro.
+    """
+    ahora = time.time() if ahora is None else ahora
+    if ahora - _GOBERNADOR["leido"] < 20 and _GOBERNADOR["tope"] is not None:
+        return min(workers, _GOBERNADOR["tope"])
+    _GOBERNADOR["leido"] = ahora
+    try:
+        st = os.stat(ruta)
+        if ahora - st.st_mtime > frescura_s:
+            _GOBERNADOR["tope"] = workers
+            return workers
+        if st.st_mtime != _GOBERNADOR["mtime"]:
+            with open(ruta, encoding="utf-8") as f:
+                n = int(json.load(f).get("trabajadores") or workers)
+            _GOBERNADOR["mtime"] = st.st_mtime
+            _GOBERNADOR["tope"] = max(1, n)
+    except (OSError, ValueError, TypeError, AttributeError):
+        _GOBERNADOR["tope"] = workers
+    tope = min(workers, _GOBERNADOR["tope"])
+    if tope != _GOBERNADOR["avisado"]:
+        _GOBERNADOR["avisado"] = tope
+        print("[gobernador] tope vivo de trabajadores: %d (máximo %d)" % (tope, workers), flush=True)
+    return tope
+
+
 def releer_cola_si_cambio(ruta, estado):
     """Relee el archivo de cola solo si su mtime cambió.
 
@@ -6492,9 +6531,12 @@ def main():
             if not activos[tid].is_alive():
                 activos.pop(tid)
                 hechas.add(tid)
+        # Tope vivo del gobernador de recursos (Alex 2026-09-20): con la Mac en
+        # uso interactivo o ahogada de RAM, solo baja cuántos se LANZAN.
+        tope = tope_gobernador(workers)
         # Solo se consulta la cola cuando hay un trabajador libre y toca elegir.
         # Si cambió, se fusiona sin tocar lo que ya corre; si no, ni se abre.
-        if estado_cola is not None and len(activos) < workers:
+        if estado_cola is not None and len(activos) < tope:
             estado_cola, releida = releer_cola_si_cambio(sys.argv[1], estado_cola)
             if releida:
                 ocupadas = set(activos) | hechas
@@ -6515,7 +6557,7 @@ def main():
                 pendientes.pop(tid)
                 hechas.add(tid)
                 continue
-            if len(activos) >= workers:
+            if len(activos) >= tope:
                 break
             deps = list(t.get("depende") or []) + list(t.get("depende_opcional") or [])
             if not all(

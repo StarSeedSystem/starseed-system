@@ -30,6 +30,13 @@ relevo operativo: `~/.hermes/RELEVO-STARSEED.md` (léelo antes de dirigir).
   saldo; inclúyelo en tu informe de gasto). En OpenRouter usa **solo ids `:free`**, tú y los
   hijos: un id de pago gastaría ese crédito sin que nadie lo pidiera. Regla completa:
   `memory/orquestacion-economica.md` §9.
+- **Máximos agentes a la vez = máximos MEDIOS, no más procesos en la Mac** (2026-09-20). El
+  gobernador de recursos (`~/.starseed/gobernador.json`, cada minuto) dice `maximo_hardware`
+  (Mac 8 GB → 3) y el `trabajadores` vivo (1 si Alex usa la Mac o la memoria está en rojo).
+  Cuando informes «agentes escribiendo: N» añade «máximo aquí: M»; si Alex pide más, propón el
+  siguiente medio (Oracle Free Tier ARM → 3 permanentes; VPS 16 GB → 5) con la receta de
+  `memory/orquestacion-economica.md` §10; nunca subas `--workers` por encima de `maximo_hardware`.
+  Tus hijos (`delegate_task`, 4 a la vez) son agentes de razonamiento, no de código.
 
 ## Comprobación de vínculos (lo que Alex llama «sincronización y vinculación»)
 Reparte estas sondas en **subagentes en paralelo** (una tarea por línea, `group: "vinculos"`)
