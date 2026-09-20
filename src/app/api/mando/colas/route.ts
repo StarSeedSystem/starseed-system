@@ -33,6 +33,7 @@ import {
     decidirTarea,
     validarCola,
     reintentarTarea,
+    PATRON_NOMBRE,
 } from "@/lib/mando/colas";
 
 export const runtime = "nodejs";
@@ -83,7 +84,7 @@ export async function POST(peticion: Request): Promise<Response> {
         const donde = cuerpo.donde === "nube" ? "nube" : "mac";
         const workers = typeof cuerpo.workers === "number" ? cuerpo.workers : 2;
         const aprobacion = cuerpo.aprobacion === true;
-        if (!/^[0-9]{2,4}(-[a-z0-9]+){0,6}$/.test(nombre)) {
+        if (!PATRON_NOMBRE.test(nombre)) {
             return Response.json({ ok: false, error: "Nombre de cola no válido." }, { status: 400 });
         }
         if (donde === "mac") {
@@ -103,7 +104,7 @@ export async function POST(peticion: Request): Promise<Response> {
     }
 
     if (accion === "detener") {
-        if (!/^[0-9]{2,4}(-[a-z0-9]+){0,6}$/.test(nombre)) {
+        if (!PATRON_NOMBRE.test(nombre)) {
             return Response.json({ ok: false, error: "Nombre de cola no válido." }, { status: 400 });
         }
         const r = cuerpo.donde === "mac" ? await detenerAqui(nombre) : await detenerEnNube(nombre);

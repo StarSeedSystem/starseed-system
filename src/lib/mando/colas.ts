@@ -56,7 +56,7 @@ const OLAS = path.join(RAÍZ, "starseed_memory_root", "olas");
  * reencolar las tareas atascadas desde el Mando.
  */
 const PATRON_ID = /^[A-Za-z][A-Za-z0-9]{0,8}$/;
-const PATRON_NOMBRE = /^[0-9]{2,4}(-[a-z0-9]+){0,6}$/;
+export const PATRON_NOMBRE = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 /** La rotación del orquestador (lo que el Diseñador ofrece por defecto). */
 const ROTACION = [
     "xkiro/qwen/qwen3-coder-plus:free", "nvidia/moonshotai/kimi-k3", "xkiro/minimax/minimax-m3:free",
@@ -177,7 +177,7 @@ export async function leerColasCompletas(): Promise<ColaCompleta[]> {
     for (const c of await colasDelBus()) {
         if (!enDisco.has(c.nombre)) salida.push(c);
     }
-    return salida.sort((a, b) => b.nombre.localeCompare(a.nombre, undefined, { numeric: true }));
+    return salida.sort((a, b) => b.modificada.localeCompare(a.modificada) || b.nombre.localeCompare(a.nombre, undefined, { numeric: true }));
 }
 
 /** Colas publicadas por los orquestadores en sus eventos «arranque» (últimos 30 días). */
@@ -189,7 +189,7 @@ async function colasDelBus(): Promise<ColaCompleta[]> {
         const desde = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString();
         const r = await fetch(
             `${url}/rest/v1/relevo_eventos?select=t,datos&tipo=eq.arranque&t=gte.${encodeURIComponent(desde)}&order=id.desc&limit=200`,
-            { headers: { apikey: clave, Authorization: `Bearer ${clave}` }, cache: "no-store" },
+            { headers: { apikey: clave, Authorization: `Bearer ${clave}` }, cache: "no-store", signal: AbortSignal.timeout(800) },
         );
         if (!r.ok) return [];
         const filas = (await r.json()) as Array<{ t: string; datos: unknown }>;
@@ -279,6 +279,169 @@ export function validarCola(nombre: string, bruto: unknown): { errores: string[]
     return { errores, tareas };
 }
 
+export interface InfoLatidoTarea {
+    tarea: string;
+    cola: string;
+    mtimeMs: number;
+}
+
+/**
+ * Busca latidos de una tarea en disco local y en el bus, filtrados por frescura (umbralMs).
+ */
+export async function buscarLatidosFrescosTarea(
+    tareaId: string,
+    umbralMs: number,
+    ahoraMs = Date.now()
+): Promise<InfoLatidoTarea[]> {
+    const latidos: InfoLatidoTarea[] = [];
+    const vistas = new Set<string>();
+
+    try {
+        const archivos = (await readdir(OLAS)).filter((n) => n.startsWith("latidos-") && n.endsWith(".json"));
+        for (const archivo of archivos) {
+            try {
+                const ruta = path.join(OLAS, archivo);
+                const info = await stat(ruta);
+                const edadMs = ahoraMs - info.mtimeMs;
+                if (edadMs > umbralMs) continue;
+
+                const crudo = JSON.parse(await readFile(ruta, "utf-8")) as Record<string, unknown>;
+                const nombreCola = (
+                    typeof crudo.cola === "string" && crudo.cola
+                        ? crudo.cola
+                        : archivo.replace(/^latidos-/, "")
+                ).replace(/\.json$/, "").replace(/^cola-/, "");
+
+                const tareasObj =
+                    typeof crudo.tareas === "object" && crudo.tareas !== null
+                        ? (crudo.tareas as Record<string, unknown>)
+                        : {};
+
+                if (tareasObj[tareaId]) {
+                    const clave = `${nombreCola}|${tareaId}`;
+                    if (!vistas.has(clave)) {
+                        vistas.add(clave);
+                        latidos.push({ tarea: tareaId, cola: nombreCola, mtimeMs: info.mtimeMs });
+                    }
+                }
+            } catch {
+                // ignorar errores de lectura individual
+            }
+        }
+    } catch {
+        // ignorar error de lectura del directorio
+    }
+
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const clave = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    if (url && clave) {
+        try {
+            const desde = new Date(ahoraMs - umbralMs).toISOString();
+            const r = await fetch(
+                `${url}/rest/v1/relevo_eventos?select=t,datos&tipo=eq.latido&t=gte.${encodeURIComponent(desde)}&order=id.desc&limit=100`,
+                { headers: { apikey: clave, Authorization: `Bearer ${clave}` }, cache: "no-store", signal: AbortSignal.timeout(800) }
+            );
+            if (r.ok) {
+                const filas = (await r.json()) as Array<{ t: string; datos: unknown }>;
+                for (const f of filas) {
+                    const tMs = new Date(f.t).getTime();
+                    if (ahoraMs - tMs > umbralMs) continue;
+                    const d = typeof f.datos === "object" && f.datos !== null ? (f.datos as Record<string, unknown>) : {};
+                    const nombreCola = typeof d.cola === "string" ? d.cola.replace(/^cola-/, "").replace(/\.json$/, "") : "";
+                    const tareasObj = typeof d.tareas === "object" && d.tareas !== null ? (d.tareas as Record<string, unknown>) : {};
+                    if (nombreCola && tareasObj[tareaId]) {
+                        const key = `${nombreCola}|${tareaId}`;
+                        if (!vistas.has(key)) {
+                            vistas.add(key);
+                            latidos.push({ tarea: tareaId, cola: nombreCola, mtimeMs: tMs });
+                        }
+                    }
+                }
+            }
+        } catch {
+            // ignorar error de red en el bus
+        }
+    }
+
+    return latidos;
+}
+
+export interface OpcionesResolverNombre {
+    nombre?: string;
+    tarea?: string;
+    /** Umbral máximo de antigüedad para el latido en ms (por defecto: 5 minutos = 300,000 ms). */
+    umbralMs?: number;
+}
+
+/**
+ * Resuelve unívocamente el nombre de la cola para una acción (Aprobar/Rechazar/Soltar/Reasignar).
+ * Si `nombre` viene especificado, lo valida contra PATRON_NOMBRE y `leerColasCompletas()`.
+ * Si `nombre` está vacío, busca latidos FRESCOS de la `tarea`. Si no hay latidos frescos o el
+ * latido expiró, NO adivina ni usa latidos rancios.
+ */
+export async function resolverNombreColaActual(
+    opts: OpcionesResolverNombre
+): Promise<{ ok: boolean; nombre?: string; error?: string }> {
+    const umbralMs = opts.umbralMs ?? 5 * 60 * 1000;
+    const colas = await leerColasCompletas();
+    const nombresExistentes = new Set(colas.map((c) => c.nombre));
+
+    if (opts.nombre && opts.nombre.trim()) {
+        const n = opts.nombre.trim().toLowerCase().replace(/^cola-/, "").replace(/\.json$/, "");
+        if (!PATRON_NOMBRE.test(n)) {
+            return { ok: false, error: "Nombre de cola no válido." };
+        }
+        if (!nombresExistentes.has(n)) {
+            return { ok: false, error: `No encuentro cola-${n} en disco ni en el bus.` };
+        }
+        return { ok: true, nombre: n };
+    }
+
+    if (!opts.tarea || !opts.tarea.trim()) {
+        return { ok: false, error: "Falta el nombre de la cola o la tarea." };
+    }
+    const tareaId = opts.tarea.trim();
+
+    const latidosFrescos = await buscarLatidosFrescosTarea(tareaId, umbralMs);
+    const latidosValidos = latidosFrescos.filter((l) => nombresExistentes.has(l.cola));
+    const colasUnicasFrescas = Array.from(new Set(latidosValidos.map((l) => l.cola)));
+
+    if (colasUnicasFrescas.length === 1) {
+        return { ok: true, nombre: colasUnicasFrescas[0] };
+    }
+
+    if (colasUnicasFrescas.length > 1) {
+        return {
+            ok: false,
+            error: `Hay varios latidos activos para la tarea ${tareaId} en diferentes colas (${colasUnicasFrescas.join(", ")}). Especifica el nombre de la cola.`,
+        };
+    }
+
+    // No hay latidos frescos: comprobar si existen latidos expirados (más viejos que el umbral)
+    const latidosHistoricos = await buscarLatidosFrescosTarea(tareaId, 30 * 24 * 3600 * 1000);
+    const latidosHistoricosValidos = latidosHistoricos.filter((l) => nombresExistentes.has(l.cola));
+    if (latidosHistoricosValidos.length > 0) {
+        return {
+            ok: false,
+            error: `El latido de la tarea ${tareaId} ha expirado (más viejo que el umbral de ${Math.round(umbralMs / 1000)} s). Especifica el nombre de la cola.`,
+        };
+    }
+
+    const candidatas = colas.filter((c) => c.tareas.some((t) => t.id === tareaId));
+    if (candidatas.length === 1) {
+        return { ok: true, nombre: candidatas[0].nombre };
+    }
+
+    if (candidatas.length > 1) {
+        return {
+            ok: false,
+            error: `La tarea ${tareaId} figura en varias colas (${candidatas.map((c) => c.nombre).join(", ")}) y no hay latidos activos. Especifica el nombre de la cola.`,
+        };
+    }
+
+    return { ok: false, error: `No encuentro la tarea ${tareaId} en ninguna cola.` };
+}
+
 /**
  * Reintento inteligente desde el Mando (Ola 339+ · Alex, 2026-09-17).
  * Cuándo: una tarea quedó en estado fallida / bloqueada / sin_cambios y Alex le da
@@ -292,8 +455,8 @@ export function validarCola(nombre: string, bruto: unknown): { errores: string[]
  * Devuelve qué se descartó y qué se relanzó, para que el Mando lo pinte honrado.
  */
 export interface PeticionReintentar {
-    /** Cola (sin `cola-`). */
-    nombre: string;
+    /** Cola (sin `cola-`). Opcional: si no se especifica, se resuelve automáticamente. */
+    nombre?: string;
     /** Ids a reintentar. */
     tareas: string[];
     /** Estados id → estado de la ola (commit/bloqueante/fallo/sin_cambios…). */
@@ -312,10 +475,14 @@ export async function reintentarTarea(p: PeticionReintentar): Promise<{
     descartadas: string[];
     colaNueva?: string;
 }> {
-    if (!PATRON_NOMBRE.test(p.nombre)) return { ok: false, error: "Nombre de cola no válido.", relanzadas: [], descartadas: [] };
+    const resNombre = await resolverNombreColaActual({ nombre: p.nombre, tarea: p.tareas[0] });
+    if (!resNombre.ok || !resNombre.nombre) {
+        return { ok: false, error: resNombre.error ?? "No se pudo resolver la cola.", relanzadas: [], descartadas: [] };
+    }
+    const nombreCola = resNombre.nombre;
     const colas = await leerColasCompletas();
-    const cola = colas.find((c) => c.nombre === p.nombre);
-    if (!cola) return { ok: false, error: `No encuentro cola-${p.nombre} en disco.`, relanzadas: [], descartadas: [] };
+    const cola = colas.find((c) => c.nombre === nombreCola);
+    if (!cola) return { ok: false, error: `No encuentro cola-${nombreCola} en disco.`, relanzadas: [], descartadas: [] };
 
     // Leer progreso.json y revisiones.md para la clasificación e inteligibilidad del reintento
     let progresoRaw = "";
@@ -401,7 +568,7 @@ export async function reintentarTarea(p: PeticionReintentar): Promise<{
         return { ok: true, relanzadas: [], descartadas, detalle: "Todas las tareas se descartaron (duplicadas o no aplican)." };
     }
 
-    const nombreNuevo = `${p.nombre}-rt${Date.now().toString().slice(-4)}`.slice(0, 60);
+    const nombreNuevo = `${nombreCola}-rt${Date.now().toString().slice(-4)}`.slice(0, 60).replace(/-+$/, "");
     if (!PATRON_NOMBRE.test(nombreNuevo)) {
         return { ok: false, error: "No puedo derivar un nombre de cola válido para el reintento.", relanzadas: [], descartadas };
     }
@@ -512,6 +679,7 @@ export async function lanzarEnNube(nombre: string, tareas: TareaCola[], workers:
                 texto: `lanzar cola-${nombre} en la nube · ${tareas.length} tareas · ${workers} trabajadores${aprobacion ? " · con visto bueno antes de integrar" : ""}`,
                 datos: { donde: "nube", cola: `cola-${nombre}`, workers, t, firma, tareas, aprobacion, categoria: "ola" },
             }),
+            signal: AbortSignal.timeout(3000),
         });
         if (!r.ok) return { ok: false, error: `El bus rechazó la orden (HTTP ${r.status}).` };
         return { ok: true };
@@ -553,6 +721,7 @@ export async function detenerEnNube(nombre: string): Promise<{ ok: boolean; erro
             method: "POST",
             headers: { apikey: clave, Authorization: `Bearer ${clave}`, "Content-Type": "application/json", Prefer: "return=minimal" },
             body: JSON.stringify({ quien: "mando", tipo: "detener", tarea: "", texto: `detener cola-${nombre} en la nube`, datos: { donde: "nube", cola: `cola-${nombre}`, t, firma, categoria: "ola" } }),
+            signal: AbortSignal.timeout(3000),
         });
         return r.ok ? { ok: true } : { ok: false, error: `El bus rechazó la orden (HTTP ${r.status}).` };
     } catch {
@@ -614,6 +783,7 @@ async function controlEnNube(nombre: string, tarea: string, orden: OrdenControl)
                 texto: `${orden.accion} ${tarea} de cola-${nombre} en la nube${orden.modelo ? ` → ${orden.modelo}` : ""}${orden.dondeNuevo ? ` → ${orden.dondeNuevo}` : ""}`,
                 datos: { donde: "nube", cola: `cola-${nombre}`, tarea, accion: orden.accion, modelo: orden.modelo ?? "", donde_nuevo: orden.dondeNuevo ?? "", t, firma, categoria: "ola" },
             }),
+            signal: AbortSignal.timeout(3000),
         });
         return r.ok ? { ok: true } : { ok: false, error: `El bus rechazó la orden (HTTP ${r.status}).` };
     } catch {
@@ -631,8 +801,8 @@ async function orquestadorAqui(nombre: string): Promise<boolean> {
 }
 
 export interface PeticionReasignar {
-    /** Cola (sin `cola-`). */
-    nombre: string;
+    /** Cola (sin `cola-`). Opcional: si no se especifica, se resuelve automáticamente. */
+    nombre?: string;
     tarea: string;
     /** Dónde corre ahora la tarea (mac · nube); si no se sabe, mac. */
     dondeActual: "mac" | "nube";
@@ -654,7 +824,9 @@ export interface PeticionReasignar {
  *     que la cadena de dependencias siga entera.
  */
 export async function reasignarTarea(p: PeticionReasignar): Promise<{ ok: boolean; error?: string; detalle?: string; colaNueva?: string }> {
-    if (!PATRON_NOMBRE.test(p.nombre)) return { ok: false, error: "Nombre de cola no válido." };
+    const resNombre = await resolverNombreColaActual({ nombre: p.nombre, tarea: p.tarea });
+    if (!resNombre.ok || !resNombre.nombre) return { ok: false, error: resNombre.error ?? "No se pudo resolver la cola." };
+    const nombre = resNombre.nombre;
     if (!PATRON_ID.test(p.tarea)) return { ok: false, error: "Id de tarea no válido." };
     const modelo = p.modelo ? modeloParaOrquestador(p.modelo.trim()) : "";
     if (modelo && !modeloEscritorValido(modelo)) return { ok: false, error: `Con «${modelo}» el orquestador no puede escribir: elige una API de ${APIS_ESCRITORAS.join(", ")}.` };
@@ -663,15 +835,15 @@ export async function reasignarTarea(p: PeticionReasignar): Promise<{ ok: boolea
     if (destino === p.dondeActual) {
         if (!modelo) return { ok: false, error: "Elige un modelo o un servidor distinto: no hay nada que cambiar." };
         const orden: OrdenControl = { accion: "reasignar", modelo };
-        const r = p.dondeActual === "nube" ? await controlEnNube(p.nombre, p.tarea, orden) : await controlAqui(p.nombre, p.tarea, orden);
+        const r = p.dondeActual === "nube" ? await controlEnNube(nombre, p.tarea, orden) : await controlAqui(nombre, p.tarea, orden);
         return r.ok ? { ok: true, detalle: `${p.tarea} seguirá con ${modelo} en ${p.dondeActual}; el flujo (tsc → tests → revisión → integración) no cambia.` } : r;
     }
 
     // Mover de servidor: la tarea y sus dependientes no terminados viajan juntos.
-    const cola = (await leerColasCompletas()).find((c) => c.nombre === p.nombre);
+    const cola = (await leerColasCompletas()).find((c) => c.nombre === nombre);
     if (!cola) return { ok: false, error: "No encuentro esa cola ni en disco ni en el bus." };
     const porId = new Map(cola.tareas.map((t) => [t.id, t]));
-    if (!porId.has(p.tarea)) return { ok: false, error: `La tarea ${p.tarea} no está en cola-${p.nombre}.` };
+    if (!porId.has(p.tarea)) return { ok: false, error: `La tarea ${p.tarea} no está en cola-${nombre}.` };
     const terminal = (id: string): boolean => {
         const e = p.estados?.[id] ?? "";
         return e === "commit" || e === "bloqueante" || e === "sin_cambios" || e === "sustituida";
@@ -693,14 +865,14 @@ export async function reasignarTarea(p: PeticionReasignar): Promise<{ ok: boolea
             depende: t.depende.filter((d) => mover.has(d)),
             ...(t.id === p.tarea && modelo ? { modelo } : {}),
         }));
-    const nombreNuevo = `${p.nombre}-${p.tarea.toLowerCase()}`.slice(0, 60);
+    const nombreNuevo = `${nombre}-${p.tarea.toLowerCase()}`.slice(0, 60).replace(/-+$/, "");
     if (!PATRON_NOMBRE.test(nombreNuevo)) return { ok: false, error: "No puedo derivar un nombre de cola válido para el traslado." };
 
     // 1) Soltar aquí/allí (si hay orquestador; si no, no pasa nada).
     const soltadas: string[] = [];
     for (const id of mover) {
         const orden: OrdenControl = { accion: "soltar", dondeNuevo: destino };
-        const r = p.dondeActual === "nube" ? await controlEnNube(p.nombre, id, orden) : await controlAqui(p.nombre, id, orden);
+        const r = p.dondeActual === "nube" ? await controlEnNube(nombre, id, orden) : await controlAqui(nombre, id, orden);
         if (r.ok) soltadas.push(id);
     }
     // 2) Lanzar en el destino como cola nueva.
@@ -721,11 +893,13 @@ export async function reasignarTarea(p: PeticionReasignar): Promise<{ ok: boolea
 }
 
 /** Visto bueno humano: aprueba (integra) o rechaza (conserva la rama) una tarea que espera. */
-export async function decidirTarea(p: { nombre: string; tarea: string; dondeActual: "mac" | "nube"; decision: "aprobar" | "rechazar" }): Promise<{ ok: boolean; error?: string; detalle?: string }> {
-    if (!PATRON_NOMBRE.test(p.nombre)) return { ok: false, error: "Nombre de cola no válido." };
+export async function decidirTarea(p: { nombre?: string; tarea: string; dondeActual: "mac" | "nube"; decision: "aprobar" | "rechazar" }): Promise<{ ok: boolean; error?: string; detalle?: string }> {
+    const resNombre = await resolverNombreColaActual({ nombre: p.nombre, tarea: p.tarea });
+    if (!resNombre.ok || !resNombre.nombre) return { ok: false, error: resNombre.error ?? "No se pudo resolver la cola." };
+    const nombre = resNombre.nombre;
     if (!PATRON_ID.test(p.tarea)) return { ok: false, error: "Id de tarea no válido." };
     const orden: OrdenControl = { accion: p.decision };
-    const r = p.dondeActual === "nube" ? await controlEnNube(p.nombre, p.tarea, orden) : await controlAqui(p.nombre, p.tarea, orden);
+    const r = p.dondeActual === "nube" ? await controlEnNube(nombre, p.tarea, orden) : await controlAqui(nombre, p.tarea, orden);
     return r.ok
         ? { ok: true, detalle: p.decision === "aprobar" ? `${p.tarea}: el orquestador de ${p.dondeActual} la integra en main en su próxima vuelta (≤ 20 s).` : `${p.tarea}: rechazada; la rama ola/${p.tarea} se conserva en ${p.dondeActual}.` }
         : r;
