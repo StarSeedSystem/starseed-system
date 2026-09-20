@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useCallback } from "react";
+import React, { useRef, useCallback, RefObject } from "react";
 import { useRouter } from "next/navigation";
 import {
     motion, AnimatePresence, useReducedMotion, useMotionValue, animate,
@@ -26,46 +26,79 @@ import {
 import { cn } from "@/lib/utils";
 import { useRitoActivo } from "@/lib/ui/rito-activo";
 import { Button } from "@/components/ui/button";
+import { calculateSwipeOutcome, type SwipeDirection } from "@/lib/layout/swipe-utils";
 
 // ── Swipe-to-close (centro de control) ──────────────────────────────
-// Gesto de arrastre que sigue al dedo y cierra la cortina al superar el
-// umbral hacia su borde de origen (Horizon→izquierda, Logic→derecha).
-const SWIPE_THRESHOLD = 80; // px para confirmar el cierre
-type SwipeDir = "up" | "left" | "right";
+type SwipeDir = SwipeDirection;
 
-function useSwipeToClose(dir: SwipeDir, onClose: () => void) {
+function useSwipeToClose(dir: SwipeDir, onClose: () => void, containerRef: RefObject<HTMLElement | null>) {
     const reduceMotion = useReducedMotion();
-    // `signed`: desplazamiento VISUAL con signo (va directo al style).
     const signed = useMotionValue(0);
     const axis: "x" | "y" = dir === "up" ? "y" : "x";
-    // Signo hacia el borde de cierre: arriba(-y), izquierda(-x), derecha(+x).
-    const sign = dir === "right" ? 1 : -1;
 
-    const start = useRef<{ x: number; y: number } | null>(null);
+    const start = useRef<{ x: number; y: number; time: number } | null>(null);
     const dragging = useRef(false);
-    const progress = useRef(0); // magnitud (>=0) hacia el borde, para el umbral
+    const progress = useRef(0);
 
     const onPointerDown = useCallback((e: React.PointerEvent) => {
-        start.current = { x: e.clientX, y: e.clientY };
+        if (e.button !== undefined && e.button !== 0) return;
+        start.current = { x: e.clientX, y: e.clientY, time: performance.now() };
         dragging.current = true;
         progress.current = 0;
-        try { (e.currentTarget as Element).setPointerCapture(e.pointerId); } catch { /* noop */ }
+        try {
+            (e.currentTarget as Element).setPointerCapture(e.pointerId);
+        } catch {
+            /* noop */
+        }
     }, []);
 
     const onPointerMove = useCallback((e: React.PointerEvent) => {
-        if (!dragging.current || !start.current) return;
-        const delta = axis === "y" ? e.clientY - start.current.y : e.clientX - start.current.x;
-        const toward = Math.max(0, delta * sign); // solo hacia el borde de cierre
-        const mag = reduceMotion ? toward : toward * (toward > 120 ? 0.85 : 1);
-        progress.current = mag;
-        signed.set(mag * sign);
-    }, [axis, sign, signed, reduceMotion]);
+        if (!dragging.current || !start.current || !containerRef.current) return;
 
-    const finish = useCallback(() => {
-        if (!dragging.current) return;
+        const containerSize = axis === "y" 
+            ? containerRef.current.clientHeight 
+            : containerRef.current.clientWidth;
+
+        const currentPos = { x: e.clientX, y: e.clientY, time: performance.now() };
+        const outcome = calculateSwipeOutcome({
+            direction: dir,
+            startPos: start.current,
+            currentPos,
+            containerSize,
+        });
+
+        progress.current = outcome.toward;
+        const mag = reduceMotion ? outcome.toward : outcome.toward * (outcome.toward > 120 ? 0.85 : 1);
+        
+        if (dir === "up" || dir === "left") {
+            signed.set(-mag);
+        } else {
+            signed.set(mag);
+        }
+    }, [axis, dir, signed, reduceMotion, containerRef]);
+
+    const finish = useCallback((e?: React.PointerEvent) => {
+        if (!dragging.current || !start.current || !containerRef.current) return;
         dragging.current = false;
+
+        const containerSize = axis === "y" 
+            ? containerRef.current.clientHeight 
+            : containerRef.current.clientWidth;
+
+        const currentPos = e 
+            ? { x: e.clientX, y: e.clientY, time: performance.now() }
+            : { x: start.current.x, y: start.current.y, time: performance.now() };
+
+        const outcome = calculateSwipeOutcome({
+            direction: dir,
+            startPos: start.current,
+            currentPos,
+            containerSize,
+        });
+
         start.current = null;
-        if (progress.current >= SWIPE_THRESHOLD) {
+
+        if (outcome.shouldClose) {
             onClose();
             signed.set(0);
         } else if (reduceMotion) {
@@ -74,7 +107,28 @@ function useSwipeToClose(dir: SwipeDir, onClose: () => void) {
             animate(signed, 0, { type: "spring", stiffness: 500, damping: 40 });
         }
         progress.current = 0;
-    }, [signed, onClose, reduceMotion]);
+    }, [axis, dir, signed, onClose, reduceMotion, containerRef]);
+
+    const cancel = useCallback((e?: React.PointerEvent) => {
+        if (!dragging.current) return;
+        dragging.current = false;
+        start.current = null;
+        progress.current = 0;
+        if (e && e.currentTarget) {
+            try {
+                if ((e.currentTarget as Element).hasPointerCapture(e.pointerId)) {
+                    (e.currentTarget as Element).releasePointerCapture(e.pointerId);
+                }
+            } catch {
+                /* noop */
+            }
+        }
+        if (reduceMotion) {
+            signed.set(0);
+        } else {
+            animate(signed, 0, { type: "spring", stiffness: 500, damping: 40 });
+        }
+    }, [signed, reduceMotion]);
 
     const style: { x?: MotionValue<number>; y?: MotionValue<number> } =
         axis === "y" ? { y: signed } : { x: signed };
@@ -85,21 +139,31 @@ function useSwipeToClose(dir: SwipeDir, onClose: () => void) {
             onPointerDown,
             onPointerMove,
             onPointerUp: finish,
-            onPointerCancel: finish,
+            onPointerCancel: cancel,
         },
     };
 }
 
 // Botón de cierre cristalino reutilizable (X, área táctil >= 44px).
-function CurtainCloseButton({ onClose, accent }: { onClose: () => void; accent: string }) {
+function CurtainCloseButton({
+    onClose,
+    accent,
+    className,
+    style,
+}: {
+    onClose: () => void;
+    accent: string;
+    className?: string;
+    style?: React.CSSProperties;
+}) {
     return (
         <button
             type="button"
             aria-label="Cerrar"
             title="Cerrar"
             onClick={onClose}
-            className={cn(curtain.closeBtn, curtain.closeTopRight)}
-            style={{ ["--cc" as string]: accent }}
+            className={cn("min-w-[44px] min-h-[44px] flex items-center justify-center rounded-full cursor-pointer z-50", curtain.closeBtn, curtain.closeTopRight, className)}
+            style={{ ...style, ["--cc" as string]: accent }}
         >
             <X className={curtain.closeIcon} />
         </button>
@@ -116,8 +180,12 @@ export function SideCurtains() {
         router.push(href);
     }, [router, setActiveEdge]);
     const closeCurtain = useCallback(() => setActiveEdge(null), [setActiveEdge]);
-    const horizonSwipe = useSwipeToClose("left", closeCurtain);
-    const logicSwipe = useSwipeToClose("right", closeCurtain);
+
+    const horizonRef = useRef<HTMLDivElement | null>(null);
+    const logicRef = useRef<HTMLDivElement | null>(null);
+
+    const horizonSwipe = useSwipeToClose("left", closeCurtain, horizonRef);
+    const logicSwipe = useSwipeToClose("right", closeCurtain, logicRef);
 
     // Control Panel State Integration
     const [activeTab, setActiveTab] = React.useState("ai");
@@ -175,7 +243,9 @@ export function SideCurtains() {
             {/* Horizon (Left) - Creation / Green */}
             {activeEdge === "horizon" && (
                 <motion.div
+                    ref={horizonRef}
                     data-trinity-curtain="horizon"
+                    data-testid="horizon-curtain-container"
                     initial={{ x: "-100%", opacity: 0 }}
                     animate={{ x: 0, opacity: 1 }}
                     exit={{ x: "-100%", opacity: 0 }}
@@ -187,14 +257,19 @@ export function SideCurtains() {
                         // evitando la trampa del containing block (ver SOP Trinity Móvil · Bloque 3).
                         "fixed z-[90] pointer-events-auto overflow-hidden shadow-2xl border border-emerald-500/30 box-border",
                         // Móvil: ocupa casi todo el ancho, anclado a la izquierda dentro del viewport.
-                        "top-0 bottom-0 left-0 h-[100dvh] w-full rounded-none",
+                        "top-0 bottom-0 left-0 h-[100dvh] w-full max-w-[100vw] rounded-none",
                         // Tablet/desktop: panel lateral cómodo, centrado por my-auto, SIEMPRE dentro del viewport.
                         "md:h-[min(46rem,92dvh)] md:my-auto md:rounded-[2rem]",
                         "md:left-[max(1rem,env(safe-area-inset-left))] md:w-[clamp(22rem,42vw,32rem)] md:max-w-[calc(100vw-2rem)]"
                     )}
                 >
                   {/* Capa de arrastre: sigue al dedo (swipe hacia la izquierda cierra). */}
-                  <motion.div className="relative w-full h-full flex flex-col" style={horizonSwipe.motionStyle}>
+                  <motion.div
+                    data-testid="horizon-curtain-swipe-layer"
+                    className="relative w-full h-full flex flex-col"
+                    style={horizonSwipe.motionStyle}
+                    {...horizonSwipe.handlers}
+                  >
                     {/* Glass/Color Background - Contained */}
                     <div className="absolute inset-0 bg-black/80 backdrop-blur-xl" />
 
@@ -224,7 +299,7 @@ export function SideCurtains() {
                                 <Button
                                     size="sm"
                                     variant="ghost"
-                                    className="mt-2 h-8 rounded-full gap-2 text-xs text-emerald-300/80 hover:bg-emerald-500/10 hover:text-emerald-200"
+                                    className="mt-2 h-11 min-h-[44px] rounded-full gap-2 text-xs text-emerald-300/80 hover:bg-emerald-500/10 hover:text-emerald-200 cursor-pointer"
                                     onClick={() => go("/crear")}
                                 >
                                     <Maximize2 className="h-3.5 w-3.5" /> Abrir página completa
@@ -235,7 +310,7 @@ export function SideCurtains() {
                         {/* Universal Creation Canvas Access */}
                         <div className="mb-6 flex-shrink-0 px-2">
                             <Button
-                                className="w-full h-auto py-6 rounded-3xl flex flex-col items-center gap-3 bg-gradient-to-br from-emerald-500/20 to-teal-600/20 border border-emerald-500/30 hover:border-emerald-400/60 hover:from-emerald-500/30 hover:to-teal-600/30 transition-all group shadow-lg"
+                                className="w-full h-auto min-h-[44px] py-6 rounded-3xl flex flex-col items-center gap-3 bg-gradient-to-br from-emerald-500/20 to-teal-600/20 border border-emerald-500/30 hover:border-emerald-400/60 hover:from-emerald-500/30 hover:to-teal-600/30 transition-all group shadow-lg cursor-pointer"
                                 onClick={() => go("/crear?area=lienzo")}
                             >
                                 <div className="p-3 rounded-full bg-emerald-400/20 group-hover:scale-110 transition-transform shadow-[0_0_15px_rgba(16,185,129,0.3)]">
@@ -243,24 +318,17 @@ export function SideCurtains() {
                                 </div>
                                 <div className="text-center">
                                     <span className="block text-xl font-light tracking-wider text-emerald-100 mb-1">Lienzo Universal</span>
-                                    <span className="text-sm text-emerald-200/60 font-light px-4 whitespace-normal">Creador de publicaciones específicas: bloques, archivos y widgets para cualquier sección de la red.</span>
+                                    <span className="text-sm text-emerald-200/60 font-light px-4 whitespace-normal break-words">Creador de publicaciones específicas: bloques, archivos y widgets para cualquier sección de la red.</span>
                                 </div>
                             </Button>
                         </div>
 
-                        {/* Editor Universal — puerta única para editar cualquier
-                            sección del OS (diseño, disposición, funcionamiento, IA,
-                            biblioteca). Se movió aquí desde la cabecera del Exocórtex
-                            (Adenda 71-ter · I3): dispara el evento global
-                            'starseed:open-editor', que el GlobalEditorHost del layout
-                            raíz atiende — así abre aunque la ventana Exocórtex esté
-                            cerrada. Entre «Lienzo Universal» y «Fragua de Widgets». */}
+                        {/* Editor Universal */}
                         <div className="mb-6 flex-shrink-0 px-2">
                             <Button
-                                className="w-full h-auto py-5 rounded-3xl flex items-center gap-4 bg-gradient-to-r from-violet-600/20 via-fuchsia-600/15 to-emerald-600/15 border border-violet-500/30 hover:border-violet-400/50 hover:from-violet-600/30 hover:via-fuchsia-600/25 hover:to-emerald-600/25 transition-all group shadow-lg min-h-[44px]"
+                                className="w-full h-auto min-h-[44px] py-5 rounded-3xl flex items-center gap-4 bg-gradient-to-r from-violet-600/20 via-fuchsia-600/15 to-emerald-600/15 border border-violet-500/30 hover:border-violet-400/50 hover:from-violet-600/30 hover:via-fuchsia-600/25 hover:to-emerald-600/25 transition-all group shadow-lg cursor-pointer"
                                 onClick={() => {
                                     setActiveEdge(null);
-                                    // Abrir el Editor Universal desde cualquier ruta.
                                     window.dispatchEvent(new CustomEvent('starseed:open-editor'));
                                 }}
                             >
@@ -270,26 +338,6 @@ export function SideCurtains() {
                                 <div className="text-left">
                                     <span className="block text-lg font-light tracking-wider text-violet-100">Editor Universal</span>
                                     <span className="text-xs text-violet-300/50 font-mono uppercase tracking-wider">Diseño · Código · IA · Biblioteca</span>
-                                </div>
-                            </Button>
-                        </div>
-
-                        {/* Widget Forge - AI Widget Generator */}
-                        <div className="mb-10 flex-shrink-0 px-2">
-                            <Button
-                                className="w-full h-auto py-5 rounded-3xl flex items-center gap-4 bg-gradient-to-r from-indigo-600/20 via-purple-600/20 to-emerald-600/20 border border-indigo-500/30 hover:border-indigo-400/50 hover:from-indigo-600/30 hover:via-purple-600/30 hover:to-emerald-600/30 transition-all group shadow-lg"
-                                onClick={() => {
-                                    setActiveEdge(null);
-                                    // Dispatch custom event to open forge from anywhere
-                                    window.dispatchEvent(new CustomEvent('starseed:open-forge'));
-                                }}
-                            >
-                                <div className="p-3 rounded-full bg-indigo-500/20 group-hover:scale-110 transition-transform shadow-[0_0_15px_rgba(99,102,241,0.3)]">
-                                    <Cpu className="w-7 h-7 text-indigo-300" />
-                                </div>
-                                <div className="text-left">
-                                    <span className="block text-lg font-light tracking-wider text-indigo-100">Fragua de Widgets</span>
-                                    <span className="text-xs text-indigo-300/50 font-mono uppercase tracking-wider">Motor Gemini AI // Forge</span>
                                 </div>
                             </Button>
                         </div>
@@ -399,57 +447,34 @@ export function SideCurtains() {
             )}
 
             {/* Logic (Right) - System / Amber - NOW INTEGRATED CONTROL PANEL */}
-            {/*
-                Nota (Trinity Móvil · Bloque 3 + responsive fix): el wrapper anima
-                SOLO en `x` y va SIEMPRE anclado a `right:0` con ancho acotado por
-                clamp + max-w-[100vw] + safe-area, de modo que NUNCA quede fuera de
-                pantalla al abrirse. El desplazamiento del swipe vive en una capa
-                interna (`logicSwipe.motionStyle`) para no pelear con la animación
-                de entrada/salida en `x`. Centrado vertical por top/bottom-0 + flex,
-                sin transform residual (evita la trampa del containing block).
-
-                ── C2 · Adenda 66 §14 (regla Adenda 63 §15) ─────────────────────────
-                El alto NO se declara: se DERIVA de anclar `inset-y-0` (top+bottom).
-                Antes convivían `top-0 bottom-0` + `h-[100dvh]` (redundante) y, en el
-                caso del board, un `md:h-[90vh] md:my-auto` que competía con ellos.
-                Anclando ambos bordes, el wrapper mide SIEMPRE el viewport real —
-                también cuando la barra de URL móvil aparece/desaparece, donde `vh`
-                miente — y las safe-areas (notch arriba, barra de gestos abajo) se
-                RESERVAN con padding, de modo que ningún hijo puede nacer por encima
-                del borde superior. El gutter `md:py-4` sustituye al viejo 90vh y
-                mantiene el aire alrededor del panel en tablet/escritorio.
-            */}
             {activeEdge === "logic" && (
                 <motion.div
+                    ref={logicRef}
                     data-trinity-curtain="logic"
+                    data-testid="logic-curtain-container"
                     initial={{ x: "110%", opacity: 0 }}
                     animate={{ x: 0, opacity: 1 }}
                     exit={{ x: "110%", opacity: 0 }}
                     transition={{ type: "spring", damping: 30, stiffness: 200 }}
                     className={cn(
-                        "fixed z-[90] inset-y-0 right-0 flex items-center justify-end box-border pointer-events-none",
-                        // Tablet/escritorio: gutter de 1rem que además NUNCA baja de la
-                        // safe-area (iPad en PWA con barra de gestos). En móvil el panel
-                        // va a sangre y reserva el notch con su propio padding interno
-                        // (cabecera y barra de estado del ControlCenter).
+                        "fixed z-[90] inset-y-0 right-0 flex items-center justify-end box-border pointer-events-none max-w-[100vw]",
                         "md:pt-[max(1rem,env(safe-area-inset-top,0px))] md:pb-[max(1rem,env(safe-area-inset-bottom,0px))]",
                         activeBoardId
-                            // Board viewer: casi pantalla completa, pero acotado dentro del viewport.
                             ? "w-full md:right-[max(1rem,env(safe-area-inset-right))] md:w-[min(85vw,72rem)] md:max-w-[calc(100vw-2rem)]"
-                            // Control Center: móvil casi todo el ancho; tablet/desktop panel lateral cómodo.
-                            // min 28rem para alojar holgado el ControlCenter (md:w-[420px]) sin recortes.
                             : "w-full sm:w-[min(30rem,100vw)] md:right-[max(1rem,env(safe-area-inset-right))] md:w-[clamp(28rem,40vw,34rem)] md:max-w-[calc(100vw-2rem)]"
                     )}
                 >
                   {/* Capa de arrastre: sigue al dedo (swipe hacia la DERECHA cierra). */}
                   <motion.div
+                    data-testid="logic-curtain-swipe-layer"
                     className={cn(
-                        "relative w-full h-full flex items-center justify-center",
+                        "relative w-full h-full flex items-center justify-center pointer-events-auto",
                         activeBoardId
-                            ? "bg-black/80 backdrop-blur-xl border border-amber-500/30 rounded-none md:rounded-3xl overflow-hidden pointer-events-auto"
-                            : "pointer-events-none"
+                            ? "bg-black/80 backdrop-blur-xl border border-amber-500/30 rounded-none md:rounded-3xl overflow-hidden"
+                            : ""
                     )}
                     style={logicSwipe.motionStyle}
+                    {...logicSwipe.handlers}
                   >
                     {/* Tirador de swipe (Logic cierra hacia la DERECHA) — sobre el panel */}
                     <div
@@ -464,11 +489,11 @@ export function SideCurtains() {
                         {activeBoardId && activeBoardData ? (
                             <div className="h-full w-full relative pointer-events-auto">
                                 {/* Close/Back Button for Board Viewer */}
-                                <div className="absolute top-4 left-4 z-50">
-                                    <Button variant="secondary" size="lg" onClick={handleCloseBoard} className="gap-2 backdrop-blur-md bg-background/50 rounded-full">
+                                <div className="absolute top-4 left-4 z-50 flex items-center">
+                                    <Button variant="secondary" size="lg" onClick={handleCloseBoard} className="gap-2 backdrop-blur-md bg-background/50 rounded-full h-11 min-h-[44px] cursor-pointer">
                                         <ArrowLeft className="w-4 h-4 mr-1" /> Volver
                                     </Button>
-                                    <Button variant="ghost" size="icon" onClick={handleClose} className="ml-2 hover:bg-destructive/20 hover:text-destructive rounded-full w-10 h-10">
+                                    <Button variant="ghost" size="icon" aria-label="Cerrar" onClick={handleClose} className="ml-2 hover:bg-destructive/20 hover:text-destructive rounded-full w-11 h-11 min-w-[44px] min-h-[44px] cursor-pointer">
                                         <X className="w-5 h-5" />
                                     </Button>
                                 </div>
@@ -476,16 +501,12 @@ export function SideCurtains() {
                             </div>
                         ) : (
                             <>
-                                {/* Control Center — móvil: rellena el wrapper; md+: tamaño propio centrado.
-                                    pointer-events-none aquí: solo el panel (con pointer-events-auto) captura clics.
-                                    El botón de cierre cristalino vive dentro del ControlCenter/aquí abajo. */}
-                                <div className="pointer-events-none w-full h-full flex items-center justify-center">
+                                {/* Control Center — móvil: rellena el wrapper; md+: tamaño propio centrado. */}
+                                <div className="pointer-events-none w-full h-full flex items-center justify-center relative">
                                     <ControlCenter />
                                 </div>
-                                {/* Botón de cierre cristalino. En móvil el ControlCenter ya trae su
-                                    propia X (md:hidden); aquí la mostramos solo en md+ para no duplicar
-                                    y garantizar una X clara también en tablet/desktop (área táctil >= 44px). */}
-                                <div className="pointer-events-auto hidden md:block">
+                                {/* Botón de cierre cristalino reutilizable (X, área táctil >= 44px, aria-label="Cerrar") */}
+                                <div className="pointer-events-auto absolute top-4 right-4 z-50">
                                     <CurtainCloseButton onClose={handleClose} accent="#f59e0b" />
                                 </div>
                             </>

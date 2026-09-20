@@ -29,6 +29,7 @@ import { usePerimeter, PerimeterEdge } from "@/context/perimeter-context";
 import { useAppearance } from "@/context/appearance-context";
 import { cn } from "@/lib/utils";
 import { useRitoActivo } from "@/lib/ui/rito-activo";
+import { detectEdgeGesture } from "@/lib/layout/edge-utils";
 import styles from "./trinity-edge-access.module.css";
 
 type Edge = Exclude<PerimeterEdge, null>;
@@ -119,11 +120,19 @@ export function TrinityEdgeAccess() {
         const detectEdge = (x: number, y: number): Edge | null => {
             const w = window.innerWidth, h = window.innerHeight;
             const c = cfgRef.current;
-            if (y <= EDGE_HOTZONE_PX && c.edges.zenith.swipe) return "zenith";
-            if (h - y <= EDGE_HOTZONE_PX && c.edges.anchor.swipe) return "anchor";
-            if (x <= EDGE_HOTZONE_PX && c.edges.horizon.swipe) return "horizon";
-            if (w - x <= EDGE_HOTZONE_PX && c.edges.logic.swipe) return "logic";
-            return null;
+            return detectEdgeGesture({
+                x,
+                y,
+                width: w,
+                height: h,
+                hotZonePx: EDGE_HOTZONE_PX,
+                enabledEdges: {
+                    zenith: c.edges.zenith.swipe,
+                    anchor: c.edges.anchor.swipe,
+                    horizon: c.edges.horizon.swipe,
+                    logic: c.edges.logic.swipe,
+                },
+            });
         };
 
         const onStart = (e: TouchEvent) => {
@@ -208,9 +217,16 @@ export function TrinityEdgeAccess() {
                         title={EDGE_META[edge].label}
                         data-trinity-edge={edge}
                         data-trinity-edge-handle={edge}
-                        className={cn(styles.handle, activeEdge === edge && styles.handleActive)}
+                        className={cn(styles.handle, activeEdge === edge && styles.handleActive, "cursor-pointer")}
                         style={handleStyle(edge)}
                         onClick={() => toggle(edge)}
+                        onPointerDown={(e) => {
+                            try {
+                                (e.currentTarget as Element).setPointerCapture(e.pointerId);
+                            } catch {
+                                /* noop */
+                            }
+                        }}
                     >
                         <span className={styles.pill} aria-hidden />
                     </button>
