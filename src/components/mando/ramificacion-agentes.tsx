@@ -22,6 +22,7 @@ import { DisenadorOla } from "@/components/mando/disenador-ola";
 import { Switch } from "@/components/ui/switch";
 import { escuchar as escucharAsistente, tomarTareaPendiente } from "@/lib/mando/asistente-cliente";
 import type { ConfigEnjambre } from "@/lib/mando/ajustes-tipos";
+import { clasificar, resumenVeredictos, type TareaAnalizar } from "@/lib/mando/reintento-inteligente";
 
 import type { FotoEnjambre, LatidoTarea } from "@/lib/mando/tipos";
 import type { AlcanceRama, ImpactoRama, RamaOla, RamaTarea, Ramificacion } from "@/lib/mando/ramificacion";
@@ -566,6 +567,9 @@ function FichaTarea({ tarea, estadosOla, onCerrar, onCambio }: { tarea: RamaTare
                 <div className="flex items-center gap-2">
                     <DecidirTarea tarea={tarea} onHecho={onCambio} />
                     <ReasignarTarea tarea={tarea} estadosOla={estadosOla} onHecho={onCambio} />
+                    {["bloqueada", "rechazada", "bloqueante", "fallo_tests", "sin_cambios", "interrumpida"].includes(tarea.estado) || tarea.estado.startsWith("fallo") || tarea.bloqueadaPor ? (
+                        <BotonReintentoIndividual tarea={tarea} onHecho={onCambio} />
+                    ) : null}
                     <button
                         type="button"
                         onClick={onCerrar}
@@ -938,6 +942,251 @@ function SwitchResolucion() {
     );
 }
 
+function aTareaAnalizar(t: RamaTarea): TareaAnalizar {
+    return {
+        id: t.id,
+        ola: t.ola,
+        titulo: t.titulo,
+        estado: t.estado,
+        nota: t.nota,
+        motivo: t.motivoAprobacion ?? t.nota ?? "",
+        depende: t.dependencias,
+        archivos: [],
+        modelo: t.modelo,
+    };
+}
+
+export function BotonReintentoIndividual({
+    tarea,
+    onHecho,
+}: {
+    tarea: RamaTarea;
+    onHecho: () => void;
+}) {
+    const [enviando, setEnviando] = useState(false);
+    const [resultado, setResultado] = useState<{ ok: boolean; texto: string } | null>(null);
+
+    const clasificación = useMemo(() => {
+        return clasificar(aTareaAnalizar(tarea), {}, "");
+    }, [tarea]);
+
+    const ejecutar = useCallback(async () => {
+        setEnviando(true);
+        setResultado(null);
+        try {
+            const r = await fetch("/api/mando/reintentar", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ ids: [tarea.id] }),
+            });
+            const cuerpo = (await r.json().catch(() => null)) as {
+                reintentadas?: string[];
+                descartadas?: Array<{ id: string; motivo: string }>;
+                esperando?: Array<{ id: string; motivo: string }>;
+                error?: string;
+            } | null;
+
+            if (!r.ok) {
+                setResultado({ ok: false, texto: cuerpo?.error ?? `HTTP ${r.status}` });
+            } else {
+                const reint = cuerpo?.reintentadas?.length ?? 0;
+                const desc = cuerpo?.descartadas?.length ?? 0;
+                const esp = cuerpo?.esperando?.length ?? 0;
+                if (reint > 0) {
+                    setResultado({ ok: true, texto: `Reintentada como ${cuerpo?.reintentadas?.join(", ")}` });
+                } else if (desc > 0) {
+                    setResultado({ ok: false, texto: `Descartada: ${cuerpo?.descartadas?.[0]?.motivo}` });
+                } else if (esp > 0) {
+                    setResultado({ ok: false, texto: `Esperando: ${cuerpo?.esperando?.[0]?.motivo}` });
+                } else {
+                    setResultado({ ok: true, texto: "Procesado." });
+                }
+                onHecho();
+            }
+        } catch {
+            setResultado({ ok: false, texto: "Error al solicitar reintento." });
+        } finally {
+            setEnviando(false);
+        }
+    }, [tarea.id, onHecho]);
+
+    const veredictoTexto = `${clasificación.accion}: ${clasificación.motivo}`;
+
+    return (
+        <div className="mt-2 rounded-lg border border-amber-400/20 bg-amber-500/[0.04] p-2 text-xs" data-testid={`reintento-individual-${tarea.id}`}>
+            <p className="font-mono text-[11px] text-amber-200/90" data-testid="veredicto-individual">
+                veredicto: {veredictoTexto}
+            </p>
+            <div className="mt-1 flex flex-wrap items-center gap-2">
+                <button
+                    type="button"
+                    disabled={enviando}
+                    onClick={() => void ejecutar()}
+                    className="cursor-pointer rounded-md border border-amber-400/40 bg-amber-500/15 px-2.5 py-1 text-xs font-medium text-amber-100 hover:bg-amber-500/25 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                    {enviando ? "Reintentando…" : "Reintentar con cambio inteligente"}
+                </button>
+                {resultado ? (
+                    <span className={`text-[11px] ${resultado.ok ? "text-emerald-300" : "text-rose-300"}`}>
+                        {resultado.texto}
+                    </span>
+                ) : null}
+            </div>
+        </div>
+    );
+}
+
+export function SeccionBloqueadasReintentos({
+    olas,
+    onVer,
+    onHecho,
+}: {
+    olas: RamaOla[];
+    onVer: (id: string) => void;
+    onHecho: () => void;
+}) {
+    const [confirmando, setConfirmando] = useState(false);
+    const [enviando, setEnviando] = useState(false);
+    const [resultado, setResultado] = useState<{ ok: boolean; texto: string } | null>(null);
+
+    const elegibles = useMemo(() => {
+        const todas = olas.flatMap((o) => o.tareas);
+        const estados = new Set([
+            "bloqueada",
+            "rechazada",
+            "bloqueante",
+            "fallo_tests",
+            "sin_cambios",
+            "interrumpida",
+        ]);
+        return todas.filter(
+            (t) => estados.has(t.estado) || t.estado.startsWith("fallo") || Boolean(t.bloqueadaPor)
+        );
+    }, [olas]);
+
+    const resumen = useMemo(() => {
+        return resumenVeredictos(elegibles.map(aTareaAnalizar), {}, "");
+    }, [elegibles]);
+
+    const reintentarTodas = useCallback(async () => {
+        setEnviando(true);
+        setResultado(null);
+        try {
+            const r = await fetch("/api/mando/reintentar", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({}),
+            });
+            const cuerpo = (await r.json().catch(() => null)) as {
+                reintentadas?: string[];
+                descartadas?: Array<{ id: string; motivo: string }>;
+                esperando?: Array<{ id: string; motivo: string }>;
+                error?: string;
+            } | null;
+
+            if (!r.ok) {
+                setResultado({ ok: false, texto: cuerpo?.error ?? `HTTP ${r.status}` });
+            } else {
+                const reint = cuerpo?.reintentadas?.length ?? 0;
+                const desc = cuerpo?.descartadas?.length ?? 0;
+                const esp = cuerpo?.esperando?.length ?? 0;
+                setResultado({
+                    ok: true,
+                    texto: `${reint} reintentadas · ${desc} descartadas · ${esp} esperando`,
+                });
+                onHecho();
+            }
+        } catch {
+            setResultado({ ok: false, texto: "Error al ejecutar el reintento global." });
+        } finally {
+            setEnviando(false);
+            setConfirmando(false);
+        }
+    }, [onHecho]);
+
+    if (elegibles.length === 0) return null;
+
+    return (
+        <section
+            className="rounded-xl border border-amber-400/30 bg-amber-500/[0.05] p-3"
+            data-testid="seccion-bloqueadas-reintentos"
+        >
+            <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                    <h4 className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-wide text-amber-200">
+                        <span className="h-2 w-2 rounded-full bg-amber-400" aria-hidden />
+                        Bloqueadas y rechazadas · {elegibles.length}
+                    </h4>
+                    <p className="mt-0.5 text-xs font-mono text-amber-100/80" data-testid="resumen-veredictos">
+                        {resumen.resumenTexto}
+                    </p>
+                </div>
+                <div>
+                    {!confirmando ? (
+                        <button
+                            type="button"
+                            disabled={enviando}
+                            onClick={() => setConfirmando(true)}
+                            className="cursor-pointer rounded-md border border-amber-400/40 bg-amber-500/20 px-3 py-1.5 text-xs font-medium text-amber-100 hover:bg-amber-500/30 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                            Reintentar todas las que sirvan
+                        </button>
+                    ) : (
+                        <span className="flex items-center gap-2 text-xs">
+                            <span className="text-white/80">¿Reintentar todas las que sirvan?</span>
+                            <button
+                                type="button"
+                                disabled={enviando}
+                                onClick={() => void reintentarTodas()}
+                                className="cursor-pointer rounded-md bg-amber-500/40 px-2.5 py-1 font-medium text-white hover:bg-amber-500/60 disabled:opacity-50"
+                            >
+                                {enviando ? "enviando…" : "sí"}
+                            </button>
+                            <button
+                                type="button"
+                                disabled={enviando}
+                                onClick={() => setConfirmando(false)}
+                                className="cursor-pointer rounded-md border border-white/10 px-2 py-1 text-white/70 hover:bg-white/5"
+                            >
+                                no
+                            </button>
+                        </span>
+                    )}
+                </div>
+            </div>
+            {resultado ? (
+                <p
+                    className={`mt-2 text-xs ${resultado.ok ? "text-emerald-300" : "text-rose-300"}`}
+                    data-testid="resultado-reintento-global"
+                >
+                    {resultado.texto}
+                </p>
+            ) : null}
+            <ul className="mt-3 space-y-2">
+                {elegibles.map((t) => (
+                    <li
+                        key={`bloq-${t.cola}-${t.id}`}
+                        className="rounded-lg border border-white/10 bg-black/30 p-2 text-xs"
+                    >
+                        <div className="flex flex-wrap items-center gap-2">
+                            <button
+                                type="button"
+                                onClick={() => onVer(t.id)}
+                                className="cursor-pointer font-mono font-medium text-white hover:underline"
+                            >
+                                {t.id}
+                            </button>
+                            <span className="text-white/70">{t.titulo}</span>
+                            <span className="text-amber-300">{tonoEstado(t.estado).etiqueta}</span>
+                        </div>
+                        <BotonReintentoIndividual tarea={t} onHecho={onHecho} />
+                    </li>
+                ))}
+            </ul>
+        </section>
+    );
+}
+
 export function EsperandoVistoBueno({ olas, onVer, onHecho }: { olas: RamaOla[]; onVer: (id: string) => void; onHecho: () => void }) {
     const esperan = olas.flatMap((o) => o.tareas.filter((t) => t.estado === "esperando_aprobacion" || t.estado === "pendiente_aprobacion"));
     if (esperan.length === 0) return null;
@@ -1006,7 +1255,7 @@ function FilasDeProcesos({ olas, olaSel, latidos, enjambres, onVer }: {
     enjambres: FotoEnjambre[];
     onVer: (id: string) => void;
 }) {
-    const hechas = new Set(olaSel.tareas.filter((t) => ["commit", "bloqueante", "sin_cambios", "sustituida", "reasignada"].includes(t.estado)).map((t) => t.id));
+    const hechas = new Set<string>(olaSel.tareas.filter((t) => ["commit", "bloqueante", "sin_cambios", "sustituida", "reasignada"].includes(t.estado)).map((t) => t.id));
     const filaOla = [...olaSel.tareas].sort((a, b) => pesoFila(a) - pesoFila(b) || a.nivel - b.nivel || a.id.localeCompare(b.id, undefined, { numeric: true }));
 
     // Agentes: cada orquestador vivo (donde · cola · medio) con su fila; y las colas con tareas
@@ -1073,7 +1322,7 @@ function FilasDeProcesos({ olas, olaSel, latidos, enjambres, onVer }: {
                     <p className="mt-2 text-xs text-white/40">Ningún orquestador vivo y ninguna cola con tareas pendientes.</p>
                 ) : null}
                 {agentes.map((a) => {
-                    const hechasCola = new Set(a.tareas.filter((t) => ["commit", "bloqueante", "sin_cambios", "sustituida", "reasignada"].includes(t.estado)).map((t) => t.id));
+                    const hechasCola = new Set<string>(a.tareas.filter((t) => ["commit", "bloqueante", "sin_cambios", "sustituida", "reasignada"].includes(t.estado)).map((t) => t.id));
                     const fila = [...a.tareas]
                         .filter((t) => t.vivo || t.estado === "en_curso" || t.estado === "pendiente" || t.estado === "interrumpida")
                         .sort((x, y) => pesoFila(x) - pesoFila(y) || x.nivel - y.nivel || x.id.localeCompare(y.id, undefined, { numeric: true }));
@@ -1090,7 +1339,7 @@ function FilasDeProcesos({ olas, olaSel, latidos, enjambres, onVer }: {
                     );
                 })}
                 {sinAgente.map((c) => {
-                    const hechasCola = new Set(c.tareas.filter((t) => ["commit", "bloqueante", "sin_cambios", "sustituida", "reasignada"].includes(t.estado)).map((t) => t.id));
+                    const hechasCola = new Set<string>(c.tareas.filter((t) => ["commit", "bloqueante", "sin_cambios", "sustituida", "reasignada"].includes(t.estado)).map((t) => t.id));
                     const fila = c.tareas.filter((t) => t.estado === "pendiente" || t.estado === "en_curso" || t.estado === "interrumpida").sort((x, y) => x.nivel - y.nivel || x.id.localeCompare(y.id, undefined, { numeric: true }));
                     return (
                         <div key={`sin-${c.cola}`} className="mt-2 rounded-lg border border-dashed border-white/10 p-2">
@@ -1315,6 +1564,15 @@ export function RamificacionAgentes() {
             {ola ? (
                 <div className="mt-4 space-y-4">
                     <EsperandoVistoBueno
+                        olas={datos?.olas ?? []}
+                        onVer={(id) => {
+                            const dueña = (datos?.olas ?? []).find((o) => o.tareas.some((t) => t.id === id));
+                            if (dueña) setOlaSel(dueña.id);
+                            setTareaSel(id);
+                        }}
+                        onHecho={() => void recargar()}
+                    />
+                    <SeccionBloqueadasReintentos
                         olas={datos?.olas ?? []}
                         onVer={(id) => {
                             const dueña = (datos?.olas ?? []).find((o) => o.tareas.some((t) => t.id === id));

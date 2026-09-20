@@ -233,3 +233,125 @@ export function reencolar(
         prompt: promptNuevo,
     };
 }
+
+export interface EjecucionReintentoParams {
+    ids?: string[];
+    progreso: unknown;
+    revisionesMd: string;
+    colasTareas?: TareaAnalizar[];
+}
+
+export interface EjecucionReintentoResultado {
+    reintentadas: string[];
+    descartadas: Array<{ id: string; motivo: string }>;
+    esperando: Array<{ id: string; motivo: string }>;
+    reencoladas: TareaReencolada[];
+}
+
+export function obtenerTareaAnalizar(
+    id: string,
+    progreso: unknown,
+    colasTareas?: TareaAnalizar[]
+): TareaAnalizar {
+    const enCola = colasTareas?.find((t) => t.id === id);
+    let enProgreso: Partial<TareaAnalizar> = {};
+    if (progreso && typeof progreso === "object") {
+        if (Array.isArray(progreso)) {
+            const hallada = progreso.find(
+                (item) => item && typeof item === "object" && "id" in item && (item as { id?: string }).id === id
+            );
+            if (hallada) enProgreso = hallada as Partial<TareaAnalizar>;
+        } else {
+            const hallada = (progreso as Record<string, Partial<TareaAnalizar>>)[id];
+            if (hallada && typeof hallada === "object") enProgreso = hallada;
+        }
+    }
+    return {
+        id,
+        ola: (enProgreso.ola as string) ?? enCola?.ola ?? "",
+        titulo: (enProgreso.titulo as string) ?? enCola?.titulo ?? "",
+        archivos: Array.isArray(enProgreso.archivos) ? enProgreso.archivos : enCola?.archivos ?? [],
+        prompt: (enProgreso.prompt as string) ?? enCola?.prompt ?? "",
+        depende: Array.isArray(enProgreso.depende) ? enProgreso.depende : enCola?.depende ?? [],
+        estado: (enProgreso.estado as string) ?? enCola?.estado ?? "",
+        nota: (enProgreso.nota as string) ?? enCola?.nota ?? "",
+        motivo: (enProgreso.motivo as string) ?? enCola?.motivo ?? "",
+        modelo: (enProgreso.modelo as string) ?? enCola?.modelo ?? "",
+    };
+}
+
+export function obtenerIdsElegibles(progreso: unknown, colasTareas?: TareaAnalizar[]): string[] {
+    const idsProgreso = extraerIdsProgreso(progreso);
+    const idsCola = (colasTareas ?? []).map((t) => t.id);
+    const conjunto = new Set([...idsProgreso, ...idsCola]);
+    const estadosCompletados = new Set(["commit", "integrada", "hecha", "aprobada"]);
+
+    const resultado: string[] = [];
+    for (const id of Array.from(conjunto)) {
+        const tarea = obtenerTareaAnalizar(id, progreso, colasTareas);
+        const est = (tarea.estado ?? "").toLowerCase();
+        if (!estadosCompletados.has(est)) {
+            resultado.push(id);
+        }
+    }
+    return resultado;
+}
+
+export function ejecutarReintentoInteligente(
+    params: EjecucionReintentoParams
+): EjecucionReintentoResultado {
+    const { progreso, revisionesMd, colasTareas } = params;
+    const idsAProcesar =
+        params.ids && params.ids.length > 0
+            ? params.ids
+            : obtenerIdsElegibles(progreso, colasTareas);
+
+    const reintentadas: string[] = [];
+    const descartadas: Array<{ id: string; motivo: string }> = [];
+    const esperando: Array<{ id: string; motivo: string }> = [];
+    const reencoladas: TareaReencolada[] = [];
+
+    for (const id of idsAProcesar) {
+        const tarea = obtenerTareaAnalizar(id, progreso, colasTareas);
+        const clas = clasificar(tarea, progreso, revisionesMd);
+
+        if (clas.accion === "reintentar") {
+            const baseId = obtenerBaseId(tarea.id);
+            const objecion =
+                objecionDe(revisionesMd, tarea.id) ??
+                objecionDe(revisionesMd, baseId) ??
+                clas.motivo ??
+                "Reintento inteligente pedido desde el Mando";
+
+            const nuevaTarea = reencolar(tarea, objecion, progreso);
+            reencoladas.push(nuevaTarea);
+            reintentadas.push(nuevaTarea.id);
+        } else if (clas.accion === "esperar") {
+            esperando.push({ id: tarea.id, motivo: clas.motivo });
+        } else {
+            descartadas.push({ id: tarea.id, motivo: clas.motivo });
+        }
+    }
+
+    return { reintentadas, descartadas, esperando, reencoladas };
+}
+
+export function resumenVeredictos(
+    tareas: TareaAnalizar[],
+    progreso: unknown,
+    revisionesMd: string
+): { reintentarCount: number; descartarCount: number; esperarCount: number; resumenTexto: string } {
+    let reintentarCount = 0;
+    let descartarCount = 0;
+    let esperarCount = 0;
+
+    for (const t of tareas) {
+        const clas = clasificar(t, progreso, revisionesMd);
+        if (clas.accion === "reintentar") reintentarCount++;
+        else if (clas.accion === "esperar") esperarCount++;
+        else descartarCount++;
+    }
+
+    const resumenTexto = `${reintentarCount} se reintentan · ${descartarCount} se descartan · ${esperarCount} esperan`;
+    return { reintentarCount, descartarCount, esperarCount, resumenTexto };
+}
