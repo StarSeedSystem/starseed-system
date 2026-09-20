@@ -52,3 +52,29 @@ Needle 3 primero (gratis, local) → si confianza < 0,6 o sin llamada → Jev �
 Umbrales explícitos y visibles en el Mando; ninguna capa ejecuta por sí misma. Las tareas del
 OS están en la cola 345 (NE3-1 cliente, NE3-2 decisión híbrida, NE3-3 panel «Núcleo Astraura»,
 NE3-4 Needle en WASM).
+
+## BitNet en cualquier medio (hecho el 2026-09-20, commit e63bd1a4 del repo IA 1.58 bit)
+
+- **Ficha**: pesos `ggml-model-i2_s.gguf` 1.133 MB (ternario a 2 bits, 2,4 B parámetros); ~1,2 GB de RAM
+  en marcha (mmap + KV q8_0 con ctx 2048); solo CPU; mínimo 2 núcleos y 2 GB libres.
+- **Medido**: Mac M1 8 GB → ~9 tok/s con 2 hilos (hoy paginado por el enjambre); **contenedor de nube
+  de Claude 2 vCPU Xeon AVX-512 → 13,7 tok/s, 1.290 MB RSS, arranque 4 s**, y el backend entero de
+  Astraura corre ahí con BitNet nativo (`/api/chat` responde en español).
+- **`scripts/nodo-bitnet.sh`** (repo IA 1.58 bit): `preparar|perfil|arrancar|probar|parar`; mide RAM,
+  núcleos y arquitectura y elige hilos/ctx/slots (≤ 3 GB mínimo · ≤ 8,5 GB justo: 2 hilos, 2048, 1 ·
+  ≤ 16,5 GB holgado: ≤ 4 hilos, 4096, 2 · más pleno: ≤ 6 hilos, 4096, 3). El backend hace lo mismo
+  (`_hilos_segun_hardware`, `_ctx_segun_ram`, `_parallel_segun_hardware`; `ASTRAURA_BITNET_HILOS` fuerza).
+- **Trampa medida**: el upstream microsoft/BitNet actual (0b341e5) compila y carga los pesos oficiales
+  en x86 pero responde incoherente («la capital de Francia es una ciudad pequeña»); el BitNet
+  VENDORIZADO de Astraura (`backend/BitNet`, con los parches ARM) responde «Paris». Por eso
+  `renovar-bitnet.sh` solo AVISA de commits nuevos y nadie recompila desde upstream sin la prueba de
+  perplejidad/«Paris».
+- **Nodo público** (nube, VPS, Oracle): backend con `ASTRAURA_AUTH_MODE=key` (clave maestra en
+  `~/.astraura/master_key.txt`, nunca se imprime) y los pares le hablan con `ASTRAURA_MESH_KEY`
+  (`mesh_network.cabeceras_malla`). El contenedor de Claude NO se expone público sin esa clave, y la
+  clave la guarda Alex en cada medio con `guardar-clave.sh` (no viaja por chat): hasta entonces el
+  contenedor es un nodo de trabajo de la sesión, no un par permanente de la mesh de la Mac.
+- **Gobernador de recursos** (repo del OS, `scripts/puente/gobernador-recursos.py`): 1 trabajador si
+  Alex usa la Mac o la memoria está en rojo; pide despertar a BitNet cuando Alex está delante y hay RAM.
+- Colas: **347** (AS-1..3: paneles del Mando — motor, ajustes, actualizaciones) y **348** (HW-1..3:
+  perfil de hardware del cliente, elección de nodo local/vecino/nube con relevo, panel de nodos).
