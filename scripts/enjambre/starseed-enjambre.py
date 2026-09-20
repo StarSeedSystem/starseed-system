@@ -160,9 +160,9 @@ MODELOS = [
     "openrouter/google/gemma-4-31b-it:free",
     "openrouter/thinkingmachines/inkling:free",
     "openrouter/nex-agi/nex-n2.5-pro:free",
-    "groq/openai/gpt-oss-120b",
-    "groq/qwen/qwen3.8-27b",
-    "groq/openai/gpt-oss-20b",
+    # (2026-09-20, 06:20) Groq NO escribe: su tramo gratuito limita 8000 TPM (gpt-oss-120b)
+    # y 7000 ITPM (qwen3.8-27b) y nuestros prompts de escritura pesan 19-22k tokens →
+    # «Request too large» a los 0 s en todos. Sigue de REVISOR (prompts cortos).
     # (2026-09-11, latido :03) Apinex: 22 modelos, 8 gratuitos y 14 de pago ($0.05-$0.50/M tokens).
     # 5M tokens/día gratuitos. Se integra como proveedor multiagentico prioritario.
     "apinex/free/gemini-3.8-flash",
@@ -303,6 +303,9 @@ PISTAS_PROVEEDOR = (
     "fetch failed",
     "internal server error",
     "database is locked",
+    # (2026-09-20) Dos fallos a los 0 s que contaban como «sin cambios» del modelo:
+    "has invalid value",  # cabecera rechazada por el fetch de opencode (X-Title no ASCII)
+    "request too large",  # cupo de tokens/minuto del proveedor menor que el prompt (Groq)
 )  # SQLite de opencode ocupada por otro agente: no es culpa del modelo
 PISTAS_DEFUNCION = (
     "end of life",
@@ -3130,7 +3133,12 @@ def escribir(prompt, modelo, cwd, log, timeout=1500, tid=None):
     else:
         resultado = opencode(prompt, modelo, cwd, log, timeout=timeout, tid=tid)
     if tid and not arriendo_es_local(tid):
-        raise ArriendoPerdido("otro medio recuperó %s durante la escritura" % tid)
+        # Un arriendo AUSENTE (venció sin que nadie lo tomara) no es «de otro medio»:
+        # el trabajo está en este worktree y se retoma. Solo se pierde si otro medio
+        # lo tiene de verdad (2026-09-20, 06:10; antes AG-3 y DV1 tiraron su escritura).
+        if arriendo_de_otro(tid) or not mover_arriendo_al_modelo(tid, modelo):
+            raise ArriendoPerdido("otro medio recuperó %s durante la escritura" % tid)
+        evento("aviso", tid, "arriendo vencido sin dueño durante la escritura → retomado por este medio")
     return resultado
 
 
@@ -4687,6 +4695,19 @@ def reservar_tarea(tarea):
         vigentes, vencidos = vencer_arriendos(
             anteriores, datos["medios"], instante, LATIDO_MEDIO_MAX_S, COLGADO_S
         )
+        # (2026-09-20, 06:10) Un medio LOCAL «colgado» (300 s sin bytes nuevos en NINGUNA
+        # de sus tareas: tres tareas rotando modelos que no escribían) hacía vencer los
+        # arriendos de TODAS sus tareas vivas; AG-3 y DV1 perdieron el suyo mientras
+        # escribían y acabaron «reasignada» sin que nadie las recuperara. Las tareas que
+        # ESTE proceso tiene vivas conservan su arriendo: si de verdad están atascadas,
+        # el vigilante de tareas las corta por «estancado», que es su sitio.
+        for tid_vivo in list(vencidos):
+            previo_vivo = anteriores.get(tid_vivo) or {}
+            if previo_vivo.get("medio") in MEDIOS_LOCALES.values() and (
+                LATIDOS.get(tid_vivo) or {}
+            ).get("fase") not in (None, "hecho"):
+                vigentes[tid_vivo] = renovar_arriendo(previo_vivo, instante, ARRIENDO_S)
+                vencidos.remove(tid_vivo)
         datos["arriendos"] = vigentes
         if tarea_id in vigentes:
             return vigentes[tarea_id]
@@ -4785,6 +4806,13 @@ def arriendo_es_local(tid):
     """Comprueba propiedad, no solo plazo: otro medio pudo recuperar la tarea colgada."""
     arriendo = (_leer_medios().get("arriendos") or {}).get(tid) or {}
     return arriendo.get("medio") in MEDIOS_LOCALES.values()
+
+
+def arriendo_de_otro(tid):
+    """True solo si OTRO medio (no local) tiene el arriendo; ausente no es «de otro»."""
+    arriendo = (_leer_medios().get("arriendos") or {}).get(tid) or {}
+    dueño = arriendo.get("medio")
+    return bool(dueño) and dueño not in MEDIOS_LOCALES.values()
 
 
 def priorizar_modelos_del_arriendo(tid, modelos):

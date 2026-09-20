@@ -141,7 +141,7 @@
     "apiKey": "{env:OPENROUTER_API_KEY}",
     "headers": {
      "HTTP-Referer": "https://starseed-os.vercel.app",
-     "X-Title": "StarSeed OS · Puente de Mando"
+     "X-Title": "StarSeed OS - Puente de Mando"
     }
    },
    "models": {
