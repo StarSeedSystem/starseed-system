@@ -24,7 +24,7 @@ import type { EstadoMando, ProveedorUso } from "@/lib/mando/tipos";
 import { flotaConocida } from "@/lib/mando/flota";
 import "@/components/mando/mando-cristal.css";
 import { PanelMedidor, PastillaMedidor, type TonoMedidor } from "@/components/mando/medidor-abrible";
-import { MedidorIdes } from "@/components/mando/medidor-ides";
+import { PastillaIdes } from "@/components/mando/medidor-ides";
 import { VerificarProcesos } from "@/components/mando/verificar-procesos";
 import type { AccionMedidor, ClaveMedidor, FilaMedidor } from "@/lib/mando/medidores";
 import { PanelProcesos } from "@/components/mando/panel-procesos";
@@ -658,6 +658,7 @@ export function CentroMando() {
                         className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6"
                         aria-label="Pulso del trabajo"
                     >
+                        <PastillaIdes />
                         {[
                             { clave: "ola-activa" as const, titulo: "Ola activa", valor: pulso.olaActiva },
                             {
@@ -814,10 +815,6 @@ export function CentroMando() {
                     ) : null}
                 </div>
             ) : null}
-
-            {/* Ola 335 · ID2b: el medidor de IDEs vinculados se monta aquí, junto
-                al pulso, como el resto de medidores de infraestructura. */}
-            <MedidorIdes />
 
             {neurona && neurona.avisos.length > 0 ? (
                 // Primer aviso de la neurona con la misma estética de peligro que
