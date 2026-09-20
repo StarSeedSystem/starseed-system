@@ -672,3 +672,19 @@
 - `DV1` — pruebas en rojo: vitest falla (rama conservada)
 - `TM1` — pruebas en rojo: vitest falla (rama conservada)
 - `TM3` — pruebas en rojo: vitest falla (rama conservada)
+
+## 2026-09-19 20:42 · auto-0919-192455
+
+**Lo que se pidió.** Reintentar con cambio inteligente
+
+**Resultado.** 0 de 4 integradas. 4 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 4 tareas se fueron por lo mismo — otra cosa (JV3, JV4, RS3c, RI2). Es 100 % de la ola.
+- google/gemini-3.6-flash no integró ninguna de sus 3 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `JV3` — otra cosa: commit: On branch ola/JV3 nothing to commit, working tree clean
+- `JV4` — otra cosa: commit: On branch ola/JV4 nothing to commit, working tree clean
+- `RS3c` — otra cosa: commit: On branch ola/RS3c nothing to commit, working tree clean
+- `RI2` — otra cosa: commit: On branch ola/RI2 nothing to commit, working tree clean
