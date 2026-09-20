@@ -1,6 +1,6 @@
 # Puente de Mando · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-20 09:40:12 desde el Mando vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-20 10:01:00 desde el Mando vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -15,19 +15,17 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | Ola arriba | Ola Dream 2026-09-15 · lo que el análisis nocturno encontró |
 | Agentes escribiendo | **0** |
 | En esta ola | integradas 2 · en curso 0 · esperando aprobación 0 · pendientes 0 |
-| Últimas 4 olas | en curso 0 · pendientes 0 · integradas 3 |
-| HEAD | `013ed540 chore(memoria): aprendizaje de la ola auto-0920-085715` |
-| Sin publicar | 86 commits |
+| Últimas 4 olas | en curso 0 · pendientes 0 · integradas 2 |
+| HEAD | `4227e72f chore(memoria): aprendizaje de la ola auto-0920-094358` |
+| Sin publicar | 88 commits |
 | Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-auto-0920-085715.json`, hace 6s)
+## Quién escribe ahora (latido de `cola-auto-0920-094358.json`, hace 6s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `CB2` | hecho | openrouter/nvidia/nemotron-3-super | 3 min | 162 s | 216640 |
-| `CB1` | hecho | openrouter/cohere/north-mini-code: | 7 min | 417 s | 169909 |
-| `AGR1` | hecho | openrouter/poolside/laguna-xs-2.1: | 12 min | 721 s | 61378 |
-| `NE3-3` | hecho | openrouter/nvidia/nemotron-3-ultra | 30 min | 1806 s | 267199 |
+| `CB2` | hecho | google/gemini-3.6-flash | 3 min | 164 s | 340523 |
+| `MD1b` | hecho | google/gemini-3.6-flash | 5 min | 299 s | 249245 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
