@@ -173,9 +173,17 @@ export function TrinityFab() {
 
     const onPointerDown = useCallback((e: React.PointerEvent) => {
         if (gestureRef.current) return;
+        e.preventDefault();
         const target = e.target as HTMLElement;
         const el = rootRef.current;
         const core = coreRef.current;
+
+        if (typeof e.currentTarget?.setPointerCapture === "function") {
+            try {
+                e.currentTarget.setPointerCapture(e.pointerId);
+            } catch {}
+        }
+
         gestureRef.current = {
             pointerId: e.pointerId,
             startX: e.clientX,
@@ -242,6 +250,13 @@ export function TrinityFab() {
             window.removeEventListener("pointerup", finish);
             window.removeEventListener("pointercancel", finish);
             if (longPressTimer.current) { window.clearTimeout(longPressTimer.current); longPressTimer.current = null; }
+
+            if (rootRef.current && typeof rootRef.current.releasePointerCapture === "function") {
+                try {
+                    rootRef.current.releasePointerCapture(ev.pointerId);
+                } catch {}
+            }
+
             gestureRef.current = null;
 
             if (g.held) {

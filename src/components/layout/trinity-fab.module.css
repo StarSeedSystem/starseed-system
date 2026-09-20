@@ -191,6 +191,10 @@
     border: none;
     padding: 0;
     cursor: default;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
