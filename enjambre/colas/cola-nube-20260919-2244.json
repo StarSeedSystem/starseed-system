@@ -1,0 +1,89 @@
+[
+ {
+  "id": "CC2",
+  "ola": 346,
+  "titulo": "Capacidades de cada nodo en la mesh: qué motor tiene cada uno y a quién pedir deliberación",
+  "area": "red",
+  "archivos": [
+   "src/lib/network/capacidades-nodo.ts",
+   "src/lib/network/__tests__/capacidades-nodo.test.ts"
+  ],
+  "depende": [],
+  "prompt": "CONTEXTO (2026-09-20): la red mesh del OS ya existe: `src/lib/network/webrtc-mesh.ts`, `signaling.ts`, `device-registry.ts`, `lan-sync.ts` (léelos antes; no inventes otra red). BitNet 1.58 (2B, ~1,2 GB RAM, ~9 tok/s) NO cabe en todos los dispositivos; Needle 3 (35 MB, 0,1–0,3 s) sí, y en el navegador por WASM. Alex quiere que BitNet corra «en todos los servidores y dispositivos» y que la red comparta capacidades: la forma honesta es que cada nodo ANUNCIE lo que tiene y que un nodo sin BitNet pida la deliberación al vecino que sí lo tiene.\n\nQUÉ HACER (puro):\n1. `capacidades-nodo.ts`: tipo `CapacidadesNodo` {nodoId, medio: 'navegador'|'mac'|'linux'|'android'|'ios'|'nube', needle: {version, adaptador?: sha}|null, bitnet: {tokPorS, ctx, ocupado: boolean}|null, jev: boolean, ramLibreMb, cpu, t}; `anunciar(cap)` que devuelve el mensaje para el bus de la mesh (tema 'astraura/capacidades', mismo formato de mensaje que ya usa `webrtc-mesh.ts`); `elegirDeliberador(nodos, ahora)` → el nodo con BitNet vivo, no ocupado, latido < 60 s, más tok/s y menos carga, o null; `elegirReflejo(nodos)` → prefiere el propio nodo si tiene Needle, si no el más cercano; `resumenRed(nodos)` → {nodos, conNeedle, conBitnet, conJev, adaptadorMasNuevo}.\n2. Pruebas vitest con cinco nodos de fixture (un navegador solo con Needle, una Mac con BitNet ocupado, una nube con BitNet libre, un nodo viejo sin latido, un Android sin nada). Sin `any`. Máximo 120 líneas por archivo. El envío real por la mesh es la tarea CC3.",
+  "medio": "nube",
+  "modelo": "nube"
+ },
+ {
+  "id": "NE3-1",
+  "ola": 345,
+  "titulo": "Cliente tipado de Needle 3 en el OS: decidir con confianza sin ejecutar",
+  "area": "astraura",
+  "archivos": [
+   "src/lib/astraura/needle3-client.ts",
+   "src/lib/astraura/__tests__/needle3-client.test.ts"
+  ],
+  "depende": [],
+  "prompt": "CONTEXTO (2026-09-20): el backend de Astraura (IA 1.58 bit, :8000, proxy del OS en /api/ai/astraura-158/[...path]) tiene desde hoy `POST /api/needle/decidir` con cuerpo {consulta: string, herramientas: [{name, description, parameters: JSON Schema}], sistema?: string, max_pasos?: number} y respuesta {ok, motor: 'needle3', tipo, llamadas: [{nombre, argumentos}], confianza: number|null, razonamiento, ms, prefill_tps, decode_tps, ram_pico_mb, error}. Needle 3 DECIDE (qué herramienta y con qué argumentos, con confianza calibrada 0..1) y NO ejecuta: ejecuta el OS. Medido: 0,12–0,3 s por decisión, tool calling en español. `GET /api/needle/status` trae `needle3: {disponible, paquete, pesos_mb, pesos_fecha}`. Usa `astraura158Endpoint(target)` de `astraura-158-client.ts` para la URL, como el resto del cliente.\n\nQUÉ HACER (puro salvo el fetch):\n1. Tipos `HerramientaNeedle`, `DecisionNeedle`; `decidirConNeedle(target, consulta, herramientas, opciones?)` → Promise<DecisionNeedle> (fetch con timeout 8 s; en error devuelve {ok:false, error}).\n2. `zonaDeConfianza(d)` → 'ejecutar' (confianza ≥ 0,6 y hay llamada), 'confirmar' (0,4–0,6), 'escalar' (< 0,4, sin llamada o error). Umbrales exportados como constantes.\n3. `catalogoDeAccionesOS()`: las acciones de la UI que ya existen en `src/lib/astraura/ui-acciones.ts` convertidas a esquemas JSON (name, description en español, parameters) — léelo y no inventes acciones.\n4. Pruebas vitest de `zonaDeConfianza` y de `catalogoDeAccionesOS` (cada esquema tiene name, description y parameters.type === 'object'); el fetch se prueba con una función `transporte` inyectable, nunca con red. Sin `any`. Máximo 120 líneas por archivo.",
+  "medio": "nube",
+  "modelo": "nube"
+ },
+ {
+  "id": "NE3-3",
+  "ola": 345,
+  "titulo": "Mando · panel «Núcleo Astraura»: BitNet 1.58, Needle 3 y su renovación automática",
+  "area": "mando",
+  "archivos": [
+   "src/lib/mando/nucleo-astraura.ts",
+   "src/lib/mando/__tests__/nucleo-astraura.test.ts",
+   "src/components/mando/panel-nucleo-astraura.tsx"
+  ],
+  "depende": [],
+  "prompt": "CONTEXTO (2026-09-20): Alex quiere ver el núcleo de IA del OS en el Mando y que se actualice solo. Fuentes: `GET /api/needle/status` del backend de Astraura (:8000, vía /api/ai/astraura-158/api/needle/status) con `needle3: {disponible, paquete, pesos_mb, pesos_fecha, error}` y el bloque de Needle 2 (ESP32); `GET /api/bitnet/status` (BitNet b1.58 2B-4T, llama-server :8790); y el archivo `~/.starseed/needle-estado.json` que escribe `scripts/renovar-needle.sh` (cada 6 h) con {paquete: {instalado, pypi, t}, pesos: {sha, hf_modificado, archivo, rechazado?}, siguiente_mayor: {needle4: boolean, hf_modificado}, cambios: []}.\n\nQUÉ HACER:\n1. `nucleo-astraura.ts` (puro): `leerEstadoRenovacion(json)` (sanea el JSON del renovador), `resumenNucleo({bitnet, needle, renovacion})` → tarjetas [{nombre, estado: 'vivo'|'cargando'|'caido'|'sin_datos', detalle, tono}] para BitNet 1.58, Needle 3 y Needle 2/ESP32, y `avisoVersionMayor(renovacion)` → texto si existe needle4 («Hay una versión mayor nueva: la decide Alex») o null; `frescura(t)` → 'hace 2 h'.\n2. `panel-nucleo-astraura.tsx`: tres tarjetas con la identidad del Mando (mismos tokens de color/tipografía que las tarjetas de pasarelas), «paquete 3.0.2 · pesos 35 MB del 19/09 · renovado hace 2 h», el aviso de versión mayor en ámbar, y un botón «Renovar ahora» que llama a la ruta local existente de comprobar (`/api/mando/comprobar`) si admite una orden, o si no muestra la instrucción `bash scripts/renovar-needle.sh` copiable. Se monta en la pestaña de Astraura del Mando (busca dónde están las tarjetas de pasarelas y ponlo al lado).\n3. Pruebas vitest de las funciones puras con un fixture literal del JSON del renovador. Sin `any`. Máximo 120 líneas por archivo.",
+  "medio": "nube",
+  "modelo": "nube"
+ },
+ {
+  "id": "MD1",
+  "ola": 344,
+  "titulo": "El latido trae la ficha de IDE de cada agente: tipos y saneado",
+  "area": "mando",
+  "archivos": [
+   "src/lib/mando/latido-remoto.ts",
+   "src/lib/mando/ide-agente.ts",
+   "src/lib/mando/__tests__/ide-agente.test.ts"
+  ],
+  "depende": [],
+  "prompt": "CONTEXTO (2026-09-20): el orquestador (scripts/enjambre/medios.py → ficha_ide) añade a cada tarea del latido tres campos nuevos:\n  ide: {motor: 'opencode'|'codex'|string, origen: 'mac'|'nube'|string, entorno: string, pid: number|null, servidor: string (hostname), medioId: string, enLinea: boolean, estado: 'disponible'|'ocupado'|'colgado'|'desconectado'|'desconocido', venceEnS: number|null, worktree: string}\n  alternativas: [{id, motor, origen, libres: number, otroServidor: boolean}]  (≤6, primero las de OTRO servidor)\n  proceso: {log: string (ruta relativa al repo), enVivo: '/api/mando/agente/<id>/log', sesion: string, enlaceIde: string ('' si el IDE no tiene enlace; codex → 'codex://threads/…')}\nAlex pidió: «en la información de los agentes trabajando y tareas en curso, los datos del servidor de IDE desde donde trabaja cada agente y si está en línea; sus IDE y servidores vinculados por si cae alguno y continúe con otro automáticamente; y los enlaces a sus procesos en tiempo real».\n\nQUÉ HACER:\n1. `latido-remoto.ts`: amplía `TareaLatida` con `ide?`, `alternativas?`, `proceso?` (tipos arriba) y haz que `sanearLatido` los deje pasar SANEADOS (strings recortados, booleans reales, números o null; alternativas ≤ 6). Sin los campos, todo sigue funcionando igual: son opcionales.\n2. `ide-agente.ts` (puro): `describirIde(t)` → 'opencode · Mac (maggasukha.local)' / 'opencode · nube (hermes)'; `tonoIde(t)` → 'verde' si enLinea, 'ambar' si colgado/desconocido, 'gris' si desconectado o sin ide; `fraseAlternativas(t)` → '2 medios pueden seguirla (1 en otro servidor)' o 'sin relevo disponible'; `enlacesDe(t)` → [{etiqueta:'Log en vivo', href: proceso.enVivo}, {etiqueta:'Abrir en Codex', href: enlaceIde}] solo con los que existan.\n3. Pruebas vitest de las funciones puras con un fixture literal de una tarea con ide completo, otra sin ide y otra con alternativas vacías. Máximo 120 líneas por archivo. Sin `any`.",
+  "medio": "nube",
+  "modelo": "nube"
+ },
+ {
+  "id": "JV3",
+  "ola": 343,
+  "titulo": "El Mando enseña los veredictos de Jev al abrir cada bloqueada y el botón usa su «cambio»",
+  "area": "mando",
+  "archivos": [
+   "src/lib/mando/veredictos.ts",
+   "src/lib/mando/__tests__/veredictos.test.ts",
+   "src/components/mando/bloqueadas-veredicto.tsx"
+  ],
+  "depende": [],
+  "prompt": "CONTEXTO (2026-09-20): `python3 scripts/puente/veredictos.py` escribe `starseed_memory_root/olas/veredictos.json` con la forma {t, veredictos: [{id, estado, veredicto, cambio, motivo, confianza, fuente}]}. `veredicto` ∈ reintentar | reintentar_con_cambio | descartar | esperar; `fuente` ∈ regla | jev | nadie; `confianza` 0..1. Es la fuente de datos del botón «Reintentar con cambio inteligente» que Alex pidió para las bloqueadas (RI1/RI2 siguen siendo el criterio puro sin disco; esto es lo que el Mando ENSEÑA cuando el archivo existe).\n\nQUÉ HACER:\n1. `src/lib/mando/veredictos.ts`: `leerVeredictos(raiz)` (lee el JSON; si no existe devuelve {t: null, veredictos: []}), `veredictoDe(lista, id)`, y `tonoDe(v)` puro: reintentar/reintentar_con_cambio → verde, esperar → ámbar, descartar → gris; con `confianza < 0.7` y `fuente === 'jev'` → añade la etiqueta «dudoso: lo mira el director». Máximo 120 líneas.\n2. `src/components/mando/bloqueadas-veredicto.tsx`: una tarjeta pequeña, coherente con la identidad del Mando (mismos tokens de color y tipografía que las tarjetas de tareas), que muestra veredicto · confianza (barra o porcentaje) · fuente · motivo, y el texto de `cambio` plegado. Se monta al abrir una bloqueada. Si no hay veredicto para ese id, no se renderiza nada.\n3. Pruebas con vitest SOLO de las funciones puras de veredictos.ts (fixture con tres filas: una de regla, una de jev con 0.45 y una descartar).\n\nNO llames a Jev ni a ninguna red desde el navegador ni desde src/: la decisión ya está en el archivo. Nada de claves. Regla dorada §11 si añades ruta (no hace falta: es un componente).",
+  "medio": "nube",
+  "modelo": "nube"
+ },
+ {
+  "id": "JV4",
+  "ola": 343,
+  "titulo": "Cliente puro de decisiones Jev para el servidor del OS (moderación, etiquetas, orden del feed)",
+  "area": "os",
+  "archivos": [
+   "src/lib/jev/decisiones.ts",
+   "src/lib/jev/__tests__/decisiones.test.ts"
+  ],
+  "depende": [],
+  "prompt": "CONTEXTO (2026-09-20): Jev (TypeSafe, por OpenRouter) devuelve decisiones tipadas con probabilidad: `POST https://openrouter.ai/api/alpha/decisions` con {model: '~typesafe/jev-latest', state: <JSON>, questions: {nombre: {type: 'noul'|'choice'|'score', instructions, criteria}}}; `choice.criteria` es un objeto {opcion: significado}, `score.criteria` es un ARRAY ordenado de niveles, `noul` no lleva criteria. Respuesta: {answers: {nombre: {type, noul?: p, choice?, probabilities?, score?, confidence?}}, usage: {input_tokens, output_tokens, cost}}. Medido: 0,56 s, $0,000019 por decisión.\n\nQUÉ HACER (solo funciones puras, sin red, sin disco): `construirPeticion(estado, preguntas)` que valide las formas (array en score, objeto en choice, ≤255 opciones) y devuelva el cuerpo; `leerRespuesta(json)` que normalice a {nombre: {tipo, valor, probabilidades, confianza}}; `umbral(p, alto=0.9, bajo=0.6)` → 'si'|'duda'|'no'; y `decisionesDeModeracion(publicacion)` que construya las tres preguntas estándar del OS: `permitida` (noul: ¿cumple las normas de la comunidad?), `etiquetas` (choice entre las categorías del OS que ya existen en src/lib — búscalas, no inventes) y `prioridad_feed` (score baja/media/alta). La llamada real vivirá en una ruta de servidor futura con OPENROUTER_API_KEY en env: NO la escribas aquí y NO pongas claves. Pruebas con vitest de cada función con fixtures literales de la respuesta medida. Máximo 120 líneas por archivo.",
+  "medio": "nube",
+  "modelo": "nube"
+ }
+]
