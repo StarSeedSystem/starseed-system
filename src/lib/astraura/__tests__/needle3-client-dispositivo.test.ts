@@ -147,4 +147,33 @@ test("after a failure, second call does not retry device until reiniciarNeedleDi
       expect(decidirEnDispositivo).toHaveBeenCalledTimes(2);
       expect(fetchMock).toHaveBeenCalledTimes(2);
     });
+
+  test("with enDispositivo: false and server down -> decidirEnDispositivo is never called", async () => {
+    const fetchMock = vi.fn().mockRejectedValue(new Error("Server connection refused")) as unknown as typeof fetch;
+
+    const resultado = await decidirConNeedle("local", consulta, herramientas, {
+      enDispositivo: false,
+      transporte: fetchMock,
+    });
+
+    expect(decidirEnDispositivo).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(resultado.ok).toBe(false);
+    expect(resultado.error).toBe("Server connection refused");
+  });
+
+  test("with device failing + server failing -> WASM is called exactly once", async () => {
+    (decidirEnDispositivo as Mock).mockRejectedValue(new Error("WASM init crash"));
+    const fetchMock = vi.fn().mockRejectedValue(new Error("Server 503 Service Unavailable")) as unknown as typeof fetch;
+
+    const resultado = await decidirConNeedle("local", consulta, herramientas, {
+      enDispositivo: true,
+      transporte: fetchMock,
+    });
+
+    expect(decidirEnDispositivo).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(resultado.ok).toBe(false);
+    expect(resultado.error).toBe("Server 503 Service Unavailable");
+  });
 });

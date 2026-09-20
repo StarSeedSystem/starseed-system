@@ -130,18 +130,6 @@ clearTimeout(timer);
   } catch (err: unknown) {
     clearTimeout(timer);
     const msg = err instanceof Error ? err.message : String(err);
-    if (target === "local" && !opciones?.transporte) {
-      // La decisión en dispositivo solo se usa cuando el servidor local
-      // está caído (error de red o timeout), nunca ante un error HTTP.
-      // `await` + try interno: si falla, se devuelve ok:false, nunca se rechaza.
-try {
-         const resultado = await decidirEnDispositivo(consulta, herramientas, { sistema: opciones?.sistema });
-         return { ...resultado, origen: "dispositivo" };
-       } catch (errLocal: unknown) {
-         const msgLocal = errLocal instanceof Error ? errLocal.message : String(errLocal);
-         return { ok: false, confianza: null, error: msgLocal };
-       }
-    }
     return { ok: false, confianza: null, error: /abort/i.test(msg) ? "Tiempo de espera agotado (8s)" : msg, origen: "servidor" };
   }
 }

@@ -116,15 +116,16 @@ describe("needle3-client", () => {
       }
     });
 
-    it("recae en decidirEnDispositivo para target local sin transporte si falla la red", async () => {
+    it("devuelve ok: false si falla la red del servidor local y no recae en dispositivo", async () => {
       const originalFetch = globalThis.fetch;
       globalThis.fetch = (async () => {
         throw new Error("Local endpoint no disponible");
       }) as typeof fetch;
       try {
         const res = await decidirConNeedle("local", "consulta", []);
-        expect(res.ok).toBe(true);
-        expect(res.motor).toBe("needle3-wasm");
+        expect(res.ok).toBe(false);
+        expect(res.error).toContain("Local endpoint no disponible");
+        expect(res.origen).toBe("servidor");
       } finally {
         globalThis.fetch = originalFetch;
       }
