@@ -1,5 +1,6 @@
 import { astraura158Endpoint, type Astraura158Target } from "./astraura-158-client";
 import { CAMPOS_PERMITIDOS, type TipoAccionUi } from "./ui-acciones";
+import { decidirEnDispositivo } from "./needle-wasm";
 
 export interface LlamadaNeedle {
   nombre: string;
@@ -42,9 +43,7 @@ export const UMBRAL_EJECUTAR = 0.6;
 export const UMBRAL_CONFIRMAR = 0.4;
 
 export function zonaDeConfianza(d: DecisionNeedle): ZonaConfianza {
-  if (!d.ok || typeof d.confianza !== "number" || d.confianza === null) {
-    return "escalar";
-  }
+  if (!d.ok || typeof d.confianza !== "number" || d.confianza === null) return "escalar";
   if (d.confianza >= UMBRAL_EJECUTAR) {
     return Array.isArray(d.llamadas) && d.llamadas.length > 0 ? "ejecutar" : "escalar";
   }
@@ -76,18 +75,19 @@ export async function decidirConNeedle(
     });
     clearTimeout(timer);
     if (!res.ok) {
+      if (target === "local" && !opciones?.transporte) {
+        return decidirEnDispositivo(consulta, herramientas, { sistema: opciones?.sistema });
+      }
       return { ok: false, confianza: null, error: `HTTP ${res.status}` };
     }
     return (await res.json()) as DecisionNeedle;
   } catch (err: unknown) {
     clearTimeout(timer);
+    if (target === "local" && !opciones?.transporte) {
+      return decidirEnDispositivo(consulta, herramientas, { sistema: opciones?.sistema });
+    }
     const msg = err instanceof Error ? err.message : String(err);
-    const esAbort = /abort/i.test(msg);
-    return {
-      ok: false,
-      confianza: null,
-      error: esAbort ? "Tiempo de espera agotado (8s)" : msg,
-    };
+    return { ok: false, confianza: null, error: /abort/i.test(msg) ? "Tiempo de espera agotado (8s)" : msg };
   }
 }
 

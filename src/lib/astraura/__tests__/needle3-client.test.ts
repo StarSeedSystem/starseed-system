@@ -102,18 +102,18 @@ describe("needle3-client", () => {
       expect(res.error).toContain("HTTP 500");
     });
 
-    it("maneja fallos de red devolviendo ok: false y mensaje de error", async () => {
-      const mockFetch: typeof fetch = async () => {
-        throw new Error("Fallo de red simulado");
-      };
-
-      const res = await decidirConNeedle("nube", "consulta", [], {
-        transporte: mockFetch,
-      });
-
-      expect(res.ok).toBe(false);
-      expect(res.confianza).toBeNull();
-      expect(res.error).toBe("Fallo de red simulado");
+    it("recae en decidirEnDispositivo para target local sin transporte si falla la red", async () => {
+      const originalFetch = globalThis.fetch;
+      globalThis.fetch = (async () => {
+        throw new Error("Local endpoint no disponible");
+      }) as typeof fetch;
+      try {
+        const res = await decidirConNeedle("local", "consulta", []);
+        expect(res.ok).toBe(true);
+        expect(res.motor).toBe("needle3-wasm");
+      } finally {
+        globalThis.fetch = originalFetch;
+      }
     });
   });
 });
