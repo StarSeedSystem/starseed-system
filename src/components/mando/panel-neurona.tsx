@@ -14,7 +14,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
     AlertTriangle,
-    BrainCircuit,
     CircleDashed,
     ClipboardCheck,
     Cpu,
@@ -29,6 +28,7 @@ import {
 import type { SaludNeurona, VerificacionNeurona } from "@/lib/mando/neurona";
 import type { EstadoAlmacenamiento } from "@/lib/mando/almacenamiento";
 import { TarjetaAlmacenamiento, TarjetaDrive, TarjetaSwapHonesta } from "@/components/mando/tarjetas-almacenamiento";
+import { PanelBitnet } from "@/components/mando/panel-bitnet";
 
 /** Máximo de regresiones/mejoras que se muestran antes de «+N más». */
 const MAX_LISTA_VERIFICACION = 5;
@@ -57,20 +57,6 @@ function haceMs(ms: number | null | undefined): string {
     if (minutos < 60) return `hace ${minutos} min`;
     return `hace ${Math.floor(minutos / 60)} h`;
 }
-
-/** Texto legible del estado de BitNet. */
-const TEXTO_BITNET: Record<SaludNeurona["bitnet"]["estado"], string> = {
-    vivo: "Vivo",
-    cargando: "Cargando",
-    apagado: "Apagado",
-};
-
-/** Color del punto de estado de BitNet. */
-const COLOR_BITNET: Record<SaludNeurona["bitnet"]["estado"], string> = {
-    vivo: "bg-emerald-400",
-    cargando: "bg-amber-400",
-    apagado: "bg-zinc-500",
-};
 
 /** Una fila «etiqueta: valor» dentro de una tarjeta. */
 function Fila({ etiqueta, valor }: { etiqueta: string; valor: string }) {
@@ -323,25 +309,6 @@ function TarjetaVoz({ salud }: { salud: SaludNeurona }) {
     );
 }
 
-/** Tarjeta de BitNet 1.58: estado, latencia, crashes y el último. */
-function TarjetaBitNet({ salud }: { salud: SaludNeurona }) {
-    const b = salud.bitnet;
-    return (
-        <Tarjeta titulo="BitNet 1.58" icono={<BrainCircuit className="h-4 w-4 text-white/70" aria-hidden />}>
-            <div className="flex items-center gap-2">
-                <span className={`h-2 w-2 shrink-0 rounded-full ${COLOR_BITNET[b.estado]}`} aria-hidden />
-                <span className="text-xs text-white/70">{TEXTO_BITNET[b.estado]}</span>
-                <span className="text-xs text-white/40">· {formatoLatencia(b.latenciaMs)}</span>
-            </div>
-            <ul className="mt-3 space-y-1">
-                <Fila etiqueta="Puerto" valor={String(b.puerto)} />
-                <Fila etiqueta="Crashes 24 h" valor={b.crashes24h === null ? "—" : String(b.crashes24h)} />
-                <Fila etiqueta="Último crash" valor={b.ultimoCrash ?? "—"} />
-            </ul>
-        </Tarjeta>
-    );
-}
-
 /** Tarjeta de Ollama: vivo y modelos cargados con MB y caducidad. */
 function TarjetaOllama({ salud }: { salud: SaludNeurona }) {
     const o = salud.ollama;
@@ -560,7 +527,7 @@ export function PanelNeurona() {
                 {almacenamiento ? <TarjetaAlmacenamiento estado={almacenamiento} /> : null}
                 {almacenamiento ? <TarjetaDrive estado={almacenamiento} /> : null}
                 <TarjetaVoz salud={salud} />
-                <TarjetaBitNet salud={salud} />
+                <PanelBitnet />
                 <TarjetaOllama salud={salud} />
             </div>
         </section>
