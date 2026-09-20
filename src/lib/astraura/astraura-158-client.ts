@@ -2063,3 +2063,95 @@ export function searchAstraura158MemoryContext(target: Astraura158Target, query:
   const q = new URLSearchParams({ q: query, top_k: String(topK) });
   return call<Astraura158ContextSearch>(target, `/api/memory/search?${q.toString()}`, { timeoutMs: 8000 });
 }
+
+/* ── HW-2 · elegir el nodo de BitNet (local / vecino de la mesh / nube) ────── */
+
+import type { Candidato, PreferenciaNodo } from "./elegir-nodo";
+import { elegir, marcarCaido } from "./elegir-nodo";
+
+export type { Candidato, PreferenciaNodo } from "./elegir-nodo";
+export { elegir, marcarCaido, ordenarCandidatos } from "./elegir-nodo";
+
+interface BitnetEstado { speed_tps?: number; tokens_per_second?: number; ram_free_mb?: number }
+
+interface MeshNodo {
+  node_id?: string; hostname?: string; status?: string;
+  hardware?: { ram_gb?: number; cpu_arch?: string };
+  capabilities?: { modelos_disponibles?: string[] };
+  url_local?: string; url_publica?: string;
+}
+
+/** Ping corto a un nodo: devuelve la latencia en ms o null si no responde. */
+async function pingNodo(url: string): Promise<number | null> {
+  const base = String(url ?? "").trim().replace(/\/+$/, "");
+  if (!base || typeof window === "undefined") return null;
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), 1500);
+  const inicio = Date.now();
+  try {
+    const res = await fetch(`${base}/api/mesh/ping`, { signal: ctrl.signal });
+    clearTimeout(t);
+    return res.ok ? Date.now() - inicio : null;
+  } catch {
+    clearTimeout(t);
+    return null;
+  }
+}
+
+/** Caché de la medición de nodos: 60 s para no sondear la mesh en cada token. */
+let cacheNodos: { ts: number; candidatos: Candidato[] } | null = null;
+
+/**
+ * Construye los candidatos BitNet (local, vecinos de la mesh y nube) midiendo
+ * latencias con ping (`Promise.allSettled`, timeout 1500 ms) y devuelve el que
+ * toca según la preferencia de HW-1 (`dondeRazona(perfil).bitnet`). Cachea 60 s.
+ * Si nadie responde devuelve null: el llamador sigue con el enrutador económico.
+ */
+export async function nodoParaBitnet(preferencia: PreferenciaNodo): Promise<Candidato | null> {
+  if (typeof window === "undefined" || preferencia === "ninguno") return null;
+  const ahora = Date.now();
+  if (!cacheNodos || ahora - cacheNodos.ts > 60_000) {
+    const [estadoLocal, mesh] = await Promise.allSettled([
+      call<BitnetEstado>("nube", "/api/bitnet/estado", { timeoutMs: 1500 }),
+      call<{ nodes?: MeshNodo[] } | MeshNodo[]>("nube", "/api/mesh/nodes", { timeoutMs: 1500 }),
+    ]);
+    const candidatos: Candidato[] = [];
+    if (estadoLocal.status === "fulfilled" && estadoLocal.value.ok) {
+      const d = estadoLocal.value.data;
+      candidatos.push({
+        id: "local", tipo: "local", url: astraura158Endpoint("nube"), vivo: true,
+        tokS: d.speed_tps ?? d.tokens_per_second ?? null,
+        ramLibreMb: d.ram_free_mb ?? null, latenciaMs: null,
+      });
+    }
+    const lista: MeshNodo[] = mesh.status === "fulfilled" && mesh.value.ok
+      ? (Array.isArray(mesh.value.data) ? mesh.value.data : mesh.value.data?.nodes ?? [])
+      : [];
+    for (const n of lista) {
+      if (n.status && n.status !== "online") continue;
+      const url = String(n.url_local || n.url_publica || "").trim().replace(/\/+$/, "");
+      if (!url) continue;
+      candidatos.push({
+        id: String(n.node_id || n.hostname || url), tipo: "vecino", url,
+        vivo: true, tokS: null,
+        ramLibreMb: typeof n.hardware?.ram_gb === "number" ? Math.round(n.hardware.ram_gb * 1024) : null,
+        latenciaMs: null,
+      });
+    }
+    const pings = await Promise.allSettled(candidatos.map((c) => pingNodo(c.url)));
+    const medidos = candidatos.map((c, i) => {
+      const p = pings[i];
+      const latenciaMs = p.status === "fulfilled" ? p.value : null;
+      return latenciaMs === null ? { ...c, vivo: false } : { ...c, latenciaMs };
+    });
+    cacheNodos = { ts: ahora, candidatos: medidos };
+  }
+  return elegir(cacheNodos.candidatos, preferencia);
+}
+
+/** Relevo automático: marca caído un nodo en la caché y retorna el siguiente. */
+export function bitnetTrasCaida(id: string, preferencia: PreferenciaNodo): Candidato | null {
+  if (!cacheNodos) return null;
+  cacheNodos = { ts: cacheNodos.ts, candidatos: marcarCaido(cacheNodos.candidatos, id) };
+  return elegir(cacheNodos.candidatos, preferencia);
+}
