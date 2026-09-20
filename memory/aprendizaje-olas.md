@@ -795,3 +795,19 @@
 
 **Lo que quedó fuera, una por una:**
 - `CC3` — la revisión lo rechazó: rechazada automáticamente por ide (sin revisión humana); rama ola/CC3 conservada
+
+## 2026-09-20 04:28 · auto-0920-040521
+
+**Lo que se pidió.** top 3 accionables
+
+**Resultado.** 3 de 6 integradas. 3 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 3 tareas se fueron por lo mismo — no escribió nada (DR0919-1, AG-3, DV1). Es 50 % de la ola.
+- sin modelo anotado no integró ninguna de sus 3 tareas.
+- google/gemini-3.6-flash integró 3 tareas sin fallar una.
+
+**Lo que quedó fuera, una por una:**
+- `DR0919-1` — no escribió nada
+- `AG-3` — no escribió nada
+- `DV1` — no escribió nada
