@@ -40,6 +40,7 @@ DEST_MEDIOS="$(dirname "$DEST_ENJAMBRE")/medios.py"
 # no lo lleva al lado, NO ARRANCA. Va aquí y no en un requirements para que la instalación
 # siga siendo autosuficiente, que es toda la razón de ser de este script.
 DEST_LIMITE="$(dirname "$DEST_ENJAMBRE")/limite_proveedor.py"
+DEST_MENSAJES="$(dirname "$DEST_ENJAMBRE")/mensajes_agente.py"
 
 # md5 portable: macOS trae `md5 -q`, Linux `md5sum`.
 if command -v md5 >/dev/null 2>&1; then
@@ -91,6 +92,7 @@ compara_par() {
 SRC_ENJAMBRE="$ORIGEN_DIR/starseed-enjambre.py"
 SRC_MEDIOS="$ORIGEN_DIR/medios.py"
 SRC_LIMITE="$ORIGEN_DIR/limite_proveedor.py"
+SRC_MENSAJES="$ORIGEN_DIR/mensajes_agente.py"
 SRC_LANZADOR="$ORIGEN_DIR/lanzador.py"
 
 case "${1:-}" in
@@ -100,6 +102,7 @@ case "${1:-}" in
     compara_par "orquestador" "$SRC_ENJAMBRE" "$DEST_ENJAMBRE" || ok=1
     compara_par "decisiones de medios" "$SRC_MEDIOS" "$DEST_MEDIOS" || ok=1
     compara_par "límites de pasarela" "$SRC_LIMITE" "$DEST_LIMITE" || ok=1
+    compara_par "mensajes al agente" "$SRC_MENSAJES" "$DEST_MENSAJES" || ok=1
     if [ -n "$DEST_LANZADOR" ]; then
       compara_par "lanzador" "$SRC_LANZADOR" "$DEST_LANZADOR" || ok=1
     fi
@@ -134,6 +137,7 @@ case "${1:-}" in
     copia_de "$SRC_MEDIOS" "$DEST_MEDIOS"
     echo "  origen límites     [md5 $(md5_de "$SRC_LIMITE")]"
     copia_de "$SRC_LIMITE" "$DEST_LIMITE"
+    copia_de "$SRC_MENSAJES" "$DEST_MENSAJES"
     if [ -n "$DEST_LANZADOR" ]; then
       echo "  origen lanzador    [md5 $(md5_de "$SRC_LANZADOR")]"
       copia_de "$SRC_LANZADOR" "$DEST_LANZADOR"

@@ -46,6 +46,8 @@ from medios import (
 # Qué pasarelas caben para un prompt de este tamaño. Fuera del archivo para poder probar la
 # aritmética sin lanzar una ola; ver el porqué en limite_proveedor.py.
 import limite_proveedor as _limite_proveedor
+# Mensajes de Alex a un agente en marcha (2026-09-20): ver mensajes_agente.py.
+import mensajes_agente as _mensajes
 
 
 # El MISMO archivo corre en la Mac de Alex y en el contenedor de Cowork: sin variables de
@@ -4081,6 +4083,8 @@ def contexto_tarea(t, raiz=None):
         "y complétalo con ediciones sucesivas de ≤ 80 líneas cada una; nunca una sola escritura de más de 120 líneas; "
         "entre trozos no hace falta explicar nada.\n\n"
         + regla_tests
+        + _mensajes.INSTRUCCION + "\n\n"
+        + _mensajes.para_prompt(OLAS, t["id"])
         + "%s\n\nTAREA %s (%s) · %s\nArchivos implicados: %s\n\n%s"
     ) % (
         inteligente,
@@ -4299,8 +4303,23 @@ def asegurar_modelo_opencode(modelo):
         return False
 
 
+def entregar_mensajes():
+    """Deja MENSAJES-DEL-DIRECTOR.md en el worktree de cada tarea viva que tenga
+    mensajes nuevos (Alex, desde el Mando). No interrumpe nada: el agente lo lee
+    cuando su prompt se lo manda. Nunca lanza."""
+    try:
+        base = os.path.realpath(WT_BASE)
+        for tid in list(LATIDOS.keys()):
+            n = _mensajes.entregar(OLAS, tid, os.path.join(base, tid))
+            if n:
+                evento("aviso", tid, "%d mensaje(s) de Alex entregados al worktree (%s)" % (n, _mensajes.ARCHIVO_WORKTREE))
+    except Exception:
+        pass
+
+
 def atender_control():
     """Aplica las órdenes externas. Lo llama el vigilante cada 20 s."""
+    entregar_mensajes()
     for tid, orden in consumir_control().items():
         if not isinstance(orden, dict):
             continue

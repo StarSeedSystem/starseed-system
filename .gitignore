@@ -111,3 +111,6 @@ public/version.json
 # Sin esta línea el orquestador ve «cambios sin commit» y se niega a arrancar (13-09-2026).
 Claude outputs/
 workspace/
+
+# Notas de Alex al agente en marcha (mensajes_agente.py): viven en el worktree, nunca en main
+MENSAJES-DEL-DIRECTOR.md
