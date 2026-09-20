@@ -139,17 +139,25 @@ _REABIERTAS = set()  # ya se pidió `reabrir` en esta tanda: no repetir la orden
 
 
 def cola_viva():
-    """La cola auto-* cuyos latidos son más recientes (la que corre el orquestador)."""
-    mejor, mejor_t = None, 0.0
-    for f in os.listdir(OLAS):
-        if f.startswith("latidos-cola-auto-") and f.endswith(".json"):
-            t = os.path.getmtime(os.path.join(OLAS, f))
-            if t > mejor_t:
-                mejor, mejor_t = f[len("latidos-"):], t
-    if not mejor or time.time() - mejor_t > 600:
+    """La cola que corre AHORA, leída de los argumentos del orquestador vivo.
+
+    (2026-09-20) Antes se adivinaba por el latido más reciente y eso escribió seis
+    tareas en `cola-auto-0913-193908.json`, una cola de hace una semana que ni
+    siquiera existía ya. Los argumentos del proceso no se equivocan."""
+    try:
+        salida = subprocess.run(
+            ["ps", "-axo", "args="], capture_output=True, text=True, timeout=20
+        ).stdout
+    except Exception:
         return None
-    ruta = os.path.join(OLAS, mejor)
-    return ruta if os.path.exists(ruta) else None
+    for linea in salida.splitlines():
+        if "starseed-enjambre.py" not in linea or "grep" in linea:
+            continue
+        for trozo in linea.split():
+            if trozo.endswith(".json") and os.path.basename(trozo).startswith("cola-"):
+                ruta = trozo if os.path.isabs(trozo) else os.path.join(OLAS, os.path.basename(trozo))
+                return ruta if os.path.exists(ruta) else None
+    return None
 
 
 def alimentar_tanda_viva():
