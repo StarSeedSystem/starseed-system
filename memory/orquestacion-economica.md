@@ -9,6 +9,8 @@
 
 ## 0. Cómo se opera el Puente de Mando — vinculado a cada sesión (regla permanente · 2026-09-12)
 
+**Abrir el Mando (2026-09-20):** doble clic en `~/Desktop/Puente-de-Mando.command` (fuente `scripts/puente/Puente-de-Mando.command`): revive lo caído por launchd, compila si falta el build (con turno) y abre `http://localhost:9002/mando`. El visor viejo de :8899 (`Orquestacion-StarSeed.command`) está retirado en `docs/legado/`.
+
 **Enlace:** el Mando vive en **http://localhost:9002/mando** en la Mac (servicio launchd
 `com.starseed.mando`; si no responde: `bash scripts/puente/instalar-servicios.sh`). Desde la
 terminal: `starseed-puente estado | agentes | olas | cola | puertas | briefing | mensajes`.

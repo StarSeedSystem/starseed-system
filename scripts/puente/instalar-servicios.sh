@@ -36,6 +36,12 @@ case "${1:-instalar}" in
     ;;
   *)
     "$PY3" "$RAIZ/scripts/puente/instalar-servicios.py" "$RAIZ" "$PY3"
+    # Lanzador de doble clic del Mando en el Escritorio (2026-09-20): misma copia que el repo.
+    if [ -d "$HOME/Desktop" ]; then
+      cp "$RAIZ/scripts/puente/Puente-de-Mando.command" "$HOME/Desktop/Puente-de-Mando.command" \
+        && chmod +x "$HOME/Desktop/Puente-de-Mando.command" \
+        && echo "lanzador en el Escritorio: Puente-de-Mando.command"
+    fi
     echo
     echo "Comprueba con: bash $0 estado"
     ;;

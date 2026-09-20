@@ -3,9 +3,15 @@
 ## Acceso al Puente de Mando · léelo antes de tocar nada (2026-09-12)
 
 **[Abrir el Puente de Mando](http://localhost:9002/mando)** — la aplicación Next.js del repo, servida
-por launchd (`com.starseed.mando`, `next start` sobre el build compilado). Si no responde:
+por launchd (`com.starseed.mando`, `next start` sobre el build compilado). **Doble clic en
+`~/Desktop/Puente-de-Mando.command`** (fuente: `scripts/puente/Puente-de-Mando.command`, que
+`instalar-servicios.sh` copia al Escritorio): revive por launchd lo caído (Astraura, gobernador,
+vigilante, director), compila el OS si falta `.next/BUILD_ID` con el turno de la máquina
+(`scripts/puente/con-turno.py`), arranca el servidor ligero y abre el navegador. A mano:
 `bash scripts/puente/instalar-servicios.sh` y luego `estado`. *(El 9003 fue un `next dev` provisional
-de Astra del 09-11; no es el Mando y no está supervisado.)*
+de Astra del 09-11; no es el Mando. `Orquestacion-StarSeed.command` —Adenda 185, visor Python en
+:8899— quedó retirado el 2026-09-20: su copia vive en `docs/legado/` y lo único que aportaba y el
+Mando no tenía, la cuenta de tokens de las sesiones de Claude Code, es la cola 352.)*
 
 **Cómo se opera, quién vigila qué y con qué modelo, cuotas, recursos de API y la revisión horaria
 de Fable/Opus: `memory/orquestacion-economica.md` §0.** Es la regla permanente; va vinculada a
