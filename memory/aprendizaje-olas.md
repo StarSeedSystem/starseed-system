@@ -688,3 +688,21 @@
 - `JV4` — otra cosa: commit: On branch ola/JV4 nothing to commit, working tree clean
 - `RS3c` — otra cosa: commit: On branch ola/RS3c nothing to commit, working tree clean
 - `RI2` — otra cosa: commit: On branch ola/RI2 nothing to commit, working tree clean
+
+## 2026-09-19 22:31 · auto-0919-204309
+
+**Lo que se pidió.** Hay una versión mayor nueva: la decide Alex
+
+**Resultado.** 0 de 5 integradas. 5 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 5 tareas se fueron por lo mismo — otra cosa (NE3-1, NE3-2, NE3-3, NE3-4, MD1). Es 100 % de la ola.
+- google/gemini-3.6-flash no integró ninguna de sus 2 tareas.
+- sin modelo anotado no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `NE3-1` — otra cosa: commit: in. If it still fails, a git process may have crashed in this repository earlier: remove the file manually to continue.
+- `NE3-2` — otra cosa: dependencia no integrada: NE3-1 (fallo)
+- `NE3-3` — otra cosa: commit: On branch ola/NE3-3 nothing to commit, working tree clean
+- `NE3-4` — otra cosa: dependencia no integrada: NE3-1 (fallo)
+- `MD1` — otra cosa: commit: On branch ola/MD1 nothing to commit, working tree clean
