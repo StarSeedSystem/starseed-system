@@ -56,4 +56,42 @@ describe("TrinityFab · gestos y pointer events iOS", () => {
 
         expect(coreButton.getAttribute("aria-expanded")).toBe("true");
     });
+
+    it("pointerdown mantenido entra en modo selección radial sin disparar selectstart", () => {
+        const selectStartSpy = vi.fn();
+        window.addEventListener("selectstart", selectStartSpy);
+
+        render(
+            <PerimeterProvider>
+                <TrinityFab />
+            </PerimeterProvider>
+        );
+        const fabGroup = screen.getByRole("group", { name: /Acceso Trinity/i });
+
+        fireEvent.pointerDown(fabGroup, { pointerId: 1, clientX: 100, clientY: 100 });
+
+        act(() => {
+            vi.advanceTimersByTime(300);
+        });
+
+        const coreButton = screen.getByRole("button", { name: /Cerrar pétalos Trinity/i });
+        expect(coreButton.getAttribute("aria-expanded")).toBe("true");
+        expect(selectStartSpy).not.toHaveBeenCalled();
+
+        window.removeEventListener("selectstart", selectStartSpy);
+    });
+
+    it("pointercancel limpia el gesto y libera pointer capture", () => {
+        render(
+            <PerimeterProvider>
+                <TrinityFab />
+            </PerimeterProvider>
+        );
+        const fabGroup = screen.getByRole("group", { name: /Acceso Trinity/i });
+
+        fireEvent.pointerDown(fabGroup, { pointerId: 5, clientX: 100, clientY: 100 });
+        fireEvent.pointerCancel(fabGroup, { pointerId: 5 });
+
+        expect(fabGroup.releasePointerCapture).toHaveBeenCalledWith(5);
+    });
 });
