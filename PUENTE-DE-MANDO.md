@@ -1,6 +1,6 @@
 # Puente de Mando · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-20 04:02:45 desde el Mando vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-20 04:28:49 desde el Mando vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -16,15 +16,20 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | Agentes escribiendo | **0** |
 | En esta ola | integradas 6 · en curso 0 · esperando aprobación 0 · pendientes 0 |
 | Últimas 4 olas | en curso 0 · pendientes 0 · integradas 8 |
-| HEAD | `f38aa1c0 chore(memoria): aprendizaje de la ola auto-0920-034245` |
-| Sin publicar | 17 commits |
+| HEAD | `e98603f6 chore(memoria): aprendizaje de la ola auto-0920-040521` |
+| Sin publicar | 26 commits |
 | Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-auto-0920-034245.json`, hace 8s)
+## Quién escribe ahora (latido de `cola-auto-0920-040521.json`, hace 6s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `CC3` | hecho | google/gemini-3.6-flash | 1 min | 52 s | 84479 |
+| `TM3` | hecho | google/gemini-3.6-flash | 1 min | 43 s | 342666 |
+| `DR0919-1` | hecho | groq/openai/gpt-oss-20b | 12 min | 720 s | 73357 |
+| `RI2` | hecho | google/gemini-3.6-flash | 13 min | 766 s | 223859 |
+| `DV1` | hecho | nvidia/moonshotai/kimi-k3 | 13 min | 770 s | 221496 |
+| `AG-2` | hecho | google/gemini-3.6-flash | 18 min | 1060 s | 219506 |
+| `AG-3` | hecho | nvidia/moonshotai/kimi-k3 | 19 min | 1155 s | 91607 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
