@@ -91,18 +91,10 @@ describe("medirPerfil", () => {
 
 describe("dondeRazona", () => {
   it("tauri justo: needle y bitnet en local", () => {
-    expect(dondeRazona(medirPerfil(macM1Tauri))).toEqual({
-      needle: "local",
-      jev: "red",
-      bitnet: "local",
-    });
+    expect(dondeRazona(medirPerfil(macM1Tauri))).toEqual({ needle: "local", jev: "red", bitnet: "local" });
   });
   it("web: needle al backend y bitnet a la nube", () => {
-    expect(dondeRazona(medirPerfil(chromeWeb))).toEqual({
-      needle: "backend",
-      jev: "red",
-      bitnet: "nube",
-    });
+    expect(dondeRazona(medirPerfil(chromeWeb))).toEqual({ needle: "backend", jev: "red", bitnet: "nube" });
   });
   it("mínimo: bitnet razona en un vecino de la mesh", () => {
     expect(dondeRazona(medirPerfil(android4)).bitnet).toBe("vecino");
