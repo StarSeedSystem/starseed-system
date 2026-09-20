@@ -4180,7 +4180,8 @@ CONTROL_JSON = os.path.join(
     ),
 )
 REASIGNADOS = {}  # tarea -> modelo pedido desde fuera (se aplica en la próxima escritura)
-SOLTADAS = set()  # tareas que se han ido a otro servidor: aquí ya no se ejecutan
+SOLTADAS = set()
+REABRIR = set()  # ids que el director manda repetir dentro de la MISMA tanda  # tareas que se han ido a otro servidor: aquí ya no se ejecutan
 APROBACIONES = {}  # tarea -> "aprobar" | "rechazar" (nodos de aprobación humana)
 # Y QUIÉN lo decidió. Va aparte para no cambiar la forma de APROBACIONES, pero es
 # obligatorio: sin esto, una tarea rechazada por un director automático quedaba escrita
@@ -4420,6 +4421,19 @@ def atender_control():
                 % ("aprobada" if accion == "aprobar" else "rechazada", quien),
                 datos={"decision": accion},
             )
+            continue
+        if accion == "reabrir":
+            # (2026-09-20) Repetir una tarea sin matar la tanda: el director arregló la
+            # causa (un proveedor mudo, un mensaje suyo mal formado, una objeción ya
+            # respondida) y la tarea vive en esta cola, así que `progreso.json` no basta:
+            # la copia en memoria de este proceso manda. Se reabre aquí.
+            REABRIR.add(tid)
+            set_estado(
+                tid,
+                estado="pendiente",
+                nota=str(orden.get("motivo") or "reabierta por el director")[:160],
+            )
+            evento("aviso", tid, "reabierta por el director: %s" % (orden.get("motivo") or "vuelve a la tanda"))
             continue
         if accion == "soltar":
             SOLTADAS.add(tid)
@@ -6736,6 +6750,20 @@ def main():
                         "entró a la tanda al releer la cola (ocupa su sitio "
                         "en el orden vigente; nada en marcha se interrumpe)",
                     )
+        # Reaperturas pedidas por el director (orden de control `reabrir`).
+        for tid in list(REABRIR):
+            REABRIR.discard(tid)
+            if tid in activos:
+                continue
+            tarea = TAREAS_POR_ID.get(tid) or (estado_cola or {}).get("tareas", {}).get(tid)
+            if not tarea:
+                evento("aviso", tid, "no puedo reabrirla: no está en la cola de esta tanda")
+                continue
+            hechas.discard(tid)
+            pendientes[tid] = tarea
+            MIAS.add(tid)
+            evento("aviso", tid, "vuelve a la tanda (reabierta); se repartirá en cuanto haya un trabajador libre")
+
         for tid, t in list(pendientes.items()):
             if tid in SOLTADAS:
                 pendientes.pop(tid)
@@ -6941,14 +6969,20 @@ def main():
     # contextos) a ~/Library/CloudStorage/GoogleDrive-*/My Drive/StarSeed_Memory_Root/neurona-<host>/
     # con INDICE.md, para que otro ordenador/móvil/IDE se ponga al día sin esta máquina delante.
     try:
-        subprocess.run(
+        # (2026-09-20, DV1) 300 s no alcanzan cuando el espejo copia una memoria entera
+        # recien crecida: se cortaba a la mitad y NADIE se enteraba («except: pass»).
+        # Ahora 900 s y el resultado queda escrito como evento, que es lo que lee el Mando.
+        res_espejo = subprocess.run(
             [sys.executable, os.path.join(ROOT, "scripts", "puente", "espejo-drive.py")],
             cwd=ROOT,
-            timeout=300,
+            timeout=900,
             capture_output=True,
+            text=True,
         )
-    except Exception:
-        pass
+        salida_espejo = " ".join(((res_espejo.stdout or "") + " " + (res_espejo.stderr or "")).split())
+        evento("aviso", "", "espejo en Drive: " + (salida_espejo or "completado")[:300])
+    except Exception as e:  # noqa: BLE001
+        evento("aviso", "", "espejo en Drive: fallo - %s: %s" % (type(e).__name__, str(e)[:120]))
     try:
         desconectar_medios_locales()
     except Exception:

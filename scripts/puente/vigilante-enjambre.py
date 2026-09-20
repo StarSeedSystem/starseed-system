@@ -185,6 +185,35 @@ def alimentar_tanda_viva():
                     print("correcciones aplicadas (fuera de la tanda viva):", ", ".join(aplicadas), flush=True)
         except Exception as e:  # noqa: BLE001
             print("correcciones (vivo): %s: %s" % (type(e).__name__, e), flush=True)
+    # 1b) correcciones de tareas que SÍ están en la cola viva: orden de control `reabrir`
+    #     (su estado en progreso.json no basta: manda la copia en memoria del orquestador).
+    if os.path.exists(CORRECCIONES):
+        try:
+            correcciones = json.load(open(CORRECCIONES, encoding="utf-8"))
+            propias = {k: v for k, v in correcciones.items()
+                       if k in en_cola and str((v or {}).get("estado")) == "pendiente"}
+            if propias:
+                ruta_ctrl = os.path.join(OLAS, "control-" + os.path.basename(ruta))
+                try:
+                    ordenes = json.load(open(ruta_ctrl, encoding="utf-8"))
+                except Exception:
+                    ordenes = {}
+                for tid, v in propias.items():
+                    ordenes[tid] = {"accion": "reabrir", "quien": "director",
+                                    "motivo": str((v or {}).get("nota") or "")[:160],
+                                    "t": time.strftime("%Y-%m-%d %H:%M:%S")}
+                tmp = ruta_ctrl + ".tmp"
+                json.dump(ordenes, open(tmp, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+                os.replace(tmp, ruta_ctrl)
+                restantes = {k: v for k, v in correcciones.items() if k not in propias}
+                if restantes:
+                    json.dump(restantes, open(CORRECCIONES, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+                else:
+                    os.replace(CORRECCIONES, CORRECCIONES + ".aplicado")
+                print("reabrir pedido en la tanda viva:", ", ".join(propias), flush=True)
+        except Exception as e:  # noqa: BLE001
+            print("reabrir (vivo): %s: %s" % (type(e).__name__, e), flush=True)
+
     # 2) pendientes nuevas → a la cola viva
     nuevas = [t for t in _pendientes_sin_correcciones() if str(t.get("id")) not in en_cola]
     if not nuevas:
