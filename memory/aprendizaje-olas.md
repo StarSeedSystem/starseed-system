@@ -879,3 +879,17 @@
 - `AG-3` — la revisión lo rechazó: rechazada automáticamente por ide (sin revisión humana); rama ola/AG-3 conservada
 - `MD1b` — conflicto al integrar: rama ola/MD1b conservada
 - `DV1` — pruebas en rojo: vitest falla (rama conservada)
+
+## 2026-09-20 09:40 · auto-0920-085715
+
+**Lo que se pidió.** decidir en el dispositivo del usuario, sin servidor
+
+**Resultado.** 1 de 4 integradas. 3 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 2 tareas se fueron por lo mismo — la revisión lo rechazó (NE3-3, AGR1). Es 50 % de la ola.
+
+**Lo que quedó fuera, una por una:**
+- `CB2` — pruebas en rojo: vitest falla (rama conservada)
+- `NE3-3` — la revisión lo rechazó: rechazada automáticamente por ide (sin revisión humana); rama ola/NE3-3 conservada
+- `AGR1` — la revisión lo rechazó: rechazada automáticamente por ide (sin revisión humana); rama ola/AGR1 conservada
