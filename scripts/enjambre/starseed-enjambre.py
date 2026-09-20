@@ -2027,6 +2027,41 @@ def _limpiar_pesado_huerfano(ruta):
     return True
 
 
+def es_archivo_basura(ruta):
+    """Lo que nunca es trabajo de una tarea: notas del director y copias/temporales del agente."""
+    r = (ruta or "").strip()
+    if not r:
+        return False
+    return r.endswith((".backup", ".bak", ".tmp", ".orig", ".rej", "~")) or os.path.basename(r) == _mensajes.ARCHIVO_WORKTREE
+
+
+def rebase_saltando_basura(wt, tid, timeout=300):
+    """`git rebase main` que resuelve solo los conflictos en archivos basura (los quita y
+    sigue). Devuelve (rc, salida). Si aparece un conflicto en un archivo real, aborta y
+    devuelve rc != 0: ese sí es de la tarea (2026-09-20: JV3, NE3-3 y RS3c repitieron
+    la tarea entera por MENSAJES-DEL-DIRECTOR.md)."""
+    rc, out = sh(["git", "rebase", "main"], cwd=wt, timeout=timeout)
+    vueltas = 0
+    while rc != 0 and vueltas < 12:
+        vueltas += 1
+        rc_u, en_conflicto = sh(["git", "diff", "--name-only", "--diff-filter=U"], cwd=wt, timeout=30)
+        rutas = [r for r in (en_conflicto or "").splitlines() if r.strip()]
+        if rc_u != 0 or not rutas or not all(es_archivo_basura(r) for r in rutas):
+            sh(["git", "rebase", "--abort"], cwd=wt, timeout=60)
+            return rc, out
+        for r in rutas:
+            sh(["git", "rm", "-q", "-f", "--cached", "--", r], cwd=wt, timeout=30)
+            try:
+                os.remove(os.path.join(wt, r))
+            except OSError:
+                pass
+        evento("aviso", tid, "rebase: conflicto solo en %s → fuera del commit y sigo" % ", ".join(os.path.basename(r) for r in rutas))
+        rc, out = sh("GIT_EDITOR=true git rebase --continue", cwd=wt, timeout=timeout)
+    if rc != 0:
+        sh(["git", "rebase", "--abort"], cwd=wt, timeout=60)
+    return rc, out
+
+
 @contextlib.contextmanager
 def cerrojo_pesado():
     """Cerrojo de tsc ENTRE PROCESOS como DIRECTORIO atómico con `dueno` (pid + epoch):
@@ -3541,19 +3576,13 @@ def commit_salvavidas(tid: str) -> str | None:
     # (2026-09-20) …menos lo que nunca es trabajo: copias y temporales que deja el agente
     # (`colas.ts.backup`, `.tmp`, `.orig`, `.bak`) y las notas del director. ola/RS3c llevaba
     # 1.855 líneas de eso y conflictos que no eran de la tarea.
-    rc_b, basura = sh(
-        ["git", "diff", "--cached", "--name-only", "--diff-filter=A"], cwd=wt, timeout=30
-    )
+    rc_b, basura = sh(["git", "diff", "--cached", "--name-only"], cwd=wt, timeout=30)
     if rc_b == 0 and basura.strip():
-        fuera = [
-            r for r in basura.splitlines()
-            if r.strip() and (
-                r.strip().endswith((".backup", ".bak", ".tmp", ".orig", ".rej", "~"))
-                or os.path.basename(r.strip()) == _mensajes.ARCHIVO_WORKTREE
-            )
-        ]
+        fuera = [r.strip() for r in basura.splitlines() if es_archivo_basura(r)]
         if fuera:
-            sh(["git", "rm", "-q", "--cached", "--"] + fuera, cwd=wt, timeout=30)
+            # `git rm --cached` deja el archivo en disco y fuera del commit; si ya estaba
+            # rastreado, el commit lo BORRA del repo (que es lo que queremos: no es trabajo).
+            sh(["git", "rm", "-q", "-f", "--cached", "--"] + fuera, cwd=wt, timeout=30)
             evento("aviso", tid, "salvavidas: fuera del commit %d archivo(s) que no son trabajo (%s)"
                    % (len(fuera), ", ".join(os.path.basename(x) for x in fuera[:4])))
     # Mensaje de salvavidas
@@ -6180,9 +6209,8 @@ def ejecutar(t, intento=1):
     # `with LOCK_INTEGRAR` y volvía a pedir el mismo cerrojo (no reentrante) → bloqueo eterno.
     reintentar = False
     with LOCK_INTEGRAR, cerrojo("integrar"):
-        rc, out = sh(["git", "rebase", "main"], cwd=wt, timeout=300)
+        rc, out = rebase_saltando_basura(wt, tid)
         if rc != 0:
-            sh(["git", "rebase", "--abort"], cwd=wt, timeout=60)
             limpiar_worktree(tid, borrar_rama=False)
             if intento == 1:
                 set_estado(
