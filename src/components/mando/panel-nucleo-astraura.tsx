@@ -51,10 +51,16 @@ export function PanelNucleoAstraura() {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ medidor: "needle" }),
             });
-            setMensaje(r.ok ? "Renovación de Needle iniciada." : `HTTP ${r.status}`);
-            if (r.ok) void cargar();
+            if (r.ok) {
+                setMensaje("Renovación de Needle iniciada.");
+                void cargar();
+            } else {
+                const txt = await r.text().catch(() => "");
+                setMensaje(`La ruta no acepta «needle» (HTTP ${r.status}). Usa el comando de abajo.`);
+                console.debug("comprobar needle falló:", txt);
+            }
         } catch {
-            setMensaje("Error de red.");
+            setMensaje("Error de red. Usa el comando de abajo.");
         }
     };
 
