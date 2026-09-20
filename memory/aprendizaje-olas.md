@@ -788,3 +788,10 @@
 
 **Lo que quedó fuera, una por una:**
 - `HW-2` — la revisión lo rechazó: rechazada automáticamente por ide (sin revisión humana); rama ola/HW-2 conservada
+
+## 2026-09-20 04:02 · auto-0920-034245
+
+**Resultado.** 0 de 1 integradas. 1 tarea se quedaron fuera.
+
+**Lo que quedó fuera, una por una:**
+- `CC3` — la revisión lo rechazó: rechazada automáticamente por ide (sin revisión humana); rama ola/CC3 conservada
