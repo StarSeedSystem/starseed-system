@@ -28,6 +28,7 @@ import { usePerimeter } from "@/context/perimeter-context";
 import curtain from "@/components/layout/trinity-curtains.module.css";
 import { AURORA_EXOCORTEX_OPEN_EVENT } from "@/lib/aurora/aurora-orb-bus";
 import { ensureAuroraChatLogRecorder } from "@/lib/aurora/aurora-chat-log";
+import { calculateSwipeOutcome, type SwipeDirection } from "@/lib/layout/swipe-utils";
 import { Globe, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AuroraChatSection } from "@/components/exocortex/aurora-chat-section";
@@ -40,79 +41,97 @@ import { ExocortexErrorBoundary } from "@/components/exocortex/exocortex-error-b
 //   dir = 'up' (Zenith) | 'left' (Horizon) | 'right' (right)
 const SWIPE_THRESHOLD_PCT = 0.3; // 30% del alto/anchura para confirmar el cierre
 const MIN_VELOCITY_PX_PER_MS = 0.3; // Umbral de velocidad para cierre rápido
-type SwipeDir = "up" | "left" | "right";
+type SwipeDir = SwipeDirection;
 
 function useSwipeToClose(dir: SwipeDir, onClose: () => void, containerRef: RefObject<HTMLElement | null>) {
     const reduceMotion = useReducedMotion();
-    // `signed` guarda el desplazamiento VISUAL con signo (el que va al style):
-    //   arriba => valores negativos en y · izquierda => negativos en x · derecha => positivos en x.
     const signed = useMotionValue(0);
     const axis: "x" | "y" = dir === "up" ? "y" : "x";
-    // Signo hacia el borde de cierre: arriba(-y), izquierda(-x), derecha(+x).
-    const sign = dir === "right" ? 1 : -1;
 
     const start = useRef<{ x: number; y: number; time: number } | null>(null);
     const dragging = useRef(false);
-    // Magnitud (>=0) del avance hacia el borde de cierre; para el umbral.
     const progress = useRef(0);
 
     const onPointerDown = useCallback((e: React.PointerEvent) => {
+        if (e.button !== undefined && e.button !== 0) return;
         start.current = { x: e.clientX, y: e.clientY, time: performance.now() };
         dragging.current = true;
         progress.current = 0;
-        try { (e.currentTarget as Element).setPointerCapture(e.pointerId); } catch { /* noop */ }
+        try {
+            (e.currentTarget as Element).setPointerCapture(e.pointerId);
+        } catch {
+            /* noop */
+        }
     }, []);
 
     const onPointerMove = useCallback((e: React.PointerEvent) => {
         if (!dragging.current || !start.current || !containerRef.current) return;
-        
-        const delta = axis === "y" ? e.clientY - start.current.y : e.clientX - start.current.x;
-        // Solo permitimos movimiento HACIA el borde de cierre (delta*sign > 0).
-        const toward = Math.max(0, delta * sign);
-        
-        // Calcular porcentaje basado en el tamaño del contenedor
-        const containerSize = axis === "y" ? containerRef.current.clientHeight : containerRef.current.clientWidth;
-        const pct = containerSize > 0 ? toward / containerSize : 0;
-        
-        // Resistencia elástica suave para que se sienta líquido.
-        const mag = reduceMotion ? toward : toward * (toward > 120 ? 0.85 : 1);
-        progress.current = mag;
-        signed.set(mag * sign);
-    }, [axis, sign, signed, reduceMotion, containerRef]);
 
-    const finish = useCallback(() => {
+        const containerSize = axis === "y" 
+            ? containerRef.current.clientHeight 
+            : containerRef.current.clientWidth;
+
+        const currentPos = { x: e.clientX, y: e.clientY, time: performance.now() };
+        const outcome = calculateSwipeOutcome({
+            direction: dir,
+            startPos: start.current,
+            currentPos,
+            containerSize,
+        });
+
+        progress.current = outcome.toward;
+        const mag = reduceMotion ? outcome.toward : outcome.toward * (outcome.toward > 120 ? 0.85 : 1);
+        
+        if (dir === "up" || dir === "left") {
+            signed.set(-mag);
+        } else {
+            signed.set(mag);
+        }
+    }, [axis, dir, signed, reduceMotion, containerRef]);
+
+    const finish = useCallback((e?: React.PointerEvent) => {
         if (!dragging.current || !start.current || !containerRef.current) return;
         dragging.current = false;
-        
-        const endTime = performance.now();
-        const timeElapsed = endTime - start.current.time;
-        // Usar las coordenadas almacenadas en start.current para calcular delta
-        const stored = start.current;
-        if (!stored) return;
-        
-        // Nota: No tenemos acceso a las coordenadas finales aquí, así que usamos una aproximación
-        // En una implementación real, pasaríamos las coordenadas del evento, pero para simplificar
-        // asumimos que si llegamos aquí, el gesto ya terminó
-        const delta = 0; // Se calculará mejor en una versión completa
-        const velocity = timeElapsed > 0 ? Math.abs(delta) / timeElapsed : 0; // px/ms
-        
-        const containerSize = axis === "y" ? containerRef.current.clientHeight : containerRef.current.clientWidth;
-        const pct = containerSize > 0 ? Math.abs(delta) / containerSize : 0;
-        
+
+        const containerSize = axis === "y" 
+            ? containerRef.current.clientHeight 
+            : containerRef.current.clientWidth;
+
+        const currentPos = e 
+            ? { x: e.clientX, y: e.clientY, time: performance.now() }
+            : { x: start.current.x, y: start.current.y, time: performance.now() };
+
+        const outcome = calculateSwipeOutcome({
+            direction: dir,
+            startPos: start.current,
+            currentPos,
+            containerSize,
+        });
+
         start.current = null;
-        
-        // Cerrar si superó el 30% del recorrido O la velocidad supera el umbral
-        // Para simplificar, usamos solo el porcentaje (que se actualiza en onPointerMove)
-        if (progress.current >= containerSize * SWIPE_THRESHOLD_PCT) {
+
+        if (outcome.shouldClose) {
             onClose();
-            signed.set(0); // reset para la próxima apertura
+            signed.set(0);
         } else if (reduceMotion) {
             signed.set(0);
         } else {
             animate(signed, 0, { type: "spring", stiffness: 500, damping: 40 });
         }
         progress.current = 0;
-    }, [axis, signed, onClose, reduceMotion, containerRef]);
+    }, [axis, dir, signed, onClose, reduceMotion, containerRef]);
+
+    const cancel = useCallback(() => {
+        if (!dragging.current) return;
+        dragging.current = false;
+        start.current = null;
+        progress.current = 0;
+        if (reduceMotion) {
+            signed.set(0);
+        } else {
+            animate(signed, 0, { type: "spring", stiffness: 500, damping: 40 });
+        }
+    }, [signed, reduceMotion]);
 
     const style: { x?: MotionValue<number>; y?: MotionValue<number> } =
         axis === "y" ? { y: signed } : { x: signed };
@@ -123,7 +142,7 @@ function useSwipeToClose(dir: SwipeDir, onClose: () => void, containerRef: RefOb
             onPointerDown,
             onPointerMove,
             onPointerUp: finish,
-            onPointerCancel: finish,
+            onPointerCancel: cancel,
         },
     };
 }
@@ -132,11 +151,13 @@ function useSwipeToClose(dir: SwipeDir, onClose: () => void, containerRef: RefOb
 function CurtainCloseButton({ 
   onClose, 
   accent, 
-  style 
+  style,
+  className 
 }: { 
   onClose: () => void; 
   accent: string; 
-  style?: React.CSSProperties 
+  style?: React.CSSProperties;
+  className?: string; 
 }) {
     return (
         <button
@@ -144,8 +165,8 @@ function CurtainCloseButton({
             aria-label="Cerrar"
             title="Cerrar"
             onClick={onClose}
-            className={cn(curtain.closeBtn)}
-            style={style}
+            className={cn(curtain.closeBtn, curtain.closeTopRight, className)}
+            style={{ ...style, ["--cc" as string]: accent }}
         >
             <X className={curtain.closeIcon} />
         </button>
@@ -179,6 +200,9 @@ export function ZenithCurtain() {
             {isActive && (
                 <motion.div
                     ref={containerRef}
+                    role="region"
+                    aria-label="Cortina Zenith Exocortex"
+                    data-testid="zenith-curtain-container"
                     initial={{ y: "-100%", x: "-50%", opacity: 0, scale: 0.96 }}
                     animate={{ y: 0, x: "-50%", opacity: 1, scale: 1 }}
                     exit={{ y: "-100%", x: "-50%", opacity: 0, scale: 0.96 }}
@@ -200,7 +224,12 @@ export function ZenithCurtain() {
                     )}
                 >
                     {/* Capa de arrastre: sigue al dedo (swipe hacia arriba cierra). */}
-                    <motion.div className="absolute inset-0" style={swipe.motionStyle}>
+                    <motion.div 
+                        className="absolute inset-0 touch-pan-x" 
+                        style={swipe.motionStyle}
+                        data-testid="zenith-curtain-swipe-layer"
+                        {...swipe.handlers}
+                    >
                         {/* Background — cristal líquido profundo teñido Zenith */}
                         <div className="absolute inset-0 rounded-3xl bg-black/85 backdrop-blur-2xl ss-crystal ss-crystal--deep ss-tone--zenith" />
                         <div className="absolute inset-0 bg-gradient-to-b from-cyan-950/50 via-transparent to-cyan-950/20 pointer-events-none" />
@@ -211,22 +240,18 @@ export function ZenithCurtain() {
                             style={{ ["--cc" as string]: "#22d3ee" }}
                             {...swipe.handlers}
                             role="presentation"
+                            data-testid="zenith-curtain-grabber"
                         />
                         {/* Botón de cierre posicionado relativo al contenedor con safe area */}
                         <CurtainCloseButton 
                             onClose={closeCurtain} 
                             accent="#22d3ee"
-                            style={{
-                                position: 'absolute',
-                                top: 'max(0.5rem, env(safe-area-inset-top))',
-                                right: 'max(0.5rem, env(safe-area-inset-right))',
-                            }}
                         />
 
                         <div className="relative z-10 w-full h-full flex flex-col text-cyan-50">
 
-                            {/* Header — sólo el título de la ventana (deja hueco arriba para el tirador). */}
-                            <div className="flex items-center gap-3 px-5 md:px-8 pt-8 md:pt-9 pb-3 shrink-0 border-b border-cyan-500/15 bg-black/20 min-w-0">
+                            {/* Header — sólo el título de la ventana (deja hueco arriba para el tirador y a la derecha para el botón de cierre). */}
+                            <div className="flex items-center gap-3 px-5 pr-16 md:px-8 md:pr-16 pt-8 md:pt-9 pb-3 shrink-0 border-b border-cyan-500/15 bg-black/20 min-w-0">
                                 <span className="ss-icon-3d ss-tone--zenith ss-float shrink-0">
                                     <Globe className="w-5 h-5 md:w-6 md:h-6" />
                                 </span>

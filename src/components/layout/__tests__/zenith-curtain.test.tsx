@@ -1,189 +1,131 @@
-import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
-import { fireEvent } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 import { ZenithCurtain } from "../zenith-curtain";
+import { usePerimeter } from "@/context/perimeter-context";
 
-// Mock the perimeter context
 vi.mock("@/context/perimeter-context", () => ({
-  usePerimeter: () => ({
-    activeEdge: null,
-    setActiveEdge: vi.fn(),
-  }),
+  usePerimeter: vi.fn(),
+}));
+
+vi.mock("@/components/exocortex/aurora-chat-section", () => ({
+  AuroraChatSection: () => <div data-testid="aurora-chat-section-mock">Aurora Chat</div>,
 }));
 
 describe("ZenithCurtain", () => {
+  const mockSetActiveEdge = vi.fn();
+
+  beforeEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+    vi.mocked(usePerimeter).mockReturnValue({
+      activeEdge: "zenith",
+      setActiveEdge: mockSetActiveEdge,
+    });
+  });
+
+  afterEach(() => {
+    cleanup();
+  });
+
+  const renderComponent = () => render(<ZenithCurtain />);
+
   it("renders the close button with correct aria-label", () => {
-    render(<ZenithCurtain />);
+    renderComponent();
     const closeButton = screen.getByRole("button", { name: /cerrar/i });
-    expect(closeButton).toHaveAttribute("aria-label", "Cerrar");
+    expect(closeButton).toBeDefined();
+    expect(closeButton.getAttribute("aria-label")).toBe("Cerrar");
   });
 
-  it("closes when dragged more than 30% of height", async () => {
-    const setActiveEdge = vi.fn();
-    vi.mocked(require("@/context/perimeter-context").usePerimeter).mockReturnValue({
-      activeEdge: "zenith",
-      setActiveEdge,
+  it("closes when dragged more than 30% of height", () => {
+    renderComponent();
+    const curtainContainer = screen.getByTestId("zenith-curtain-container");
+    const swipeLayer = screen.getByTestId("zenith-curtain-swipe-layer");
+    Object.defineProperty(curtainContainer, "clientHeight", { value: 500, configurable: true });
+    Object.defineProperty(swipeLayer, "clientHeight", { value: 500, configurable: true });
+
+    fireEvent.pointerDown(swipeLayer, {
+      pointerId: 1,
+      clientX: 100,
+      clientY: 400,
+      bubbles: true,
     });
 
-    render(<ZenithCurtain />);
-    
-    // Get the curtain container
-    const curtainContainer = screen.getByRole("region"); // Adjust based on actual role
-    
-    // Simulate a drag gesture using pointer events
-    const height = curtainContainer.getBoundingClientRect().height;
-    const startPoint = {
-      x: curtainContainer.getBoundingClientRect().left + 10,
-      y: curtainContainer.getBoundingClientRect().bottom - 10
-    };
-    
-    // Drag upward more than 30% of height
-    const dragDistance = height * 0.4; // 40% > 30%
-    const endPoint = {
-      x: startPoint.x,
-      y: startPoint.y - dragDistance
-    };
-    
-    // Simulate pointer down
-    fireEvent.pointerDown(curtainContainer, {
+    fireEvent.pointerMove(swipeLayer, {
       pointerId: 1,
-      clientX: startPoint.x,
-      clientY: startPoint.y,
+      clientX: 100,
+      clientY: 200,
       bubbles: true,
-      cancelable: true
     });
-    
-    // Simulate pointer move
-    fireEvent.pointerMove(curtainContainer, {
+
+    fireEvent.pointerUp(swipeLayer, {
       pointerId: 1,
-      clientX: endPoint.x,
-      clientY: endPoint.y,
+      clientX: 100,
+      clientY: 200,
       bubbles: true,
-      cancelable: true
     });
-    
-    // Simulate pointer up
-    fireEvent.pointerUp(curtainContainer, {
-      pointerId: 1,
-      clientX: endPoint.x,
-      clientY: endPoint.y,
-      bubbles: true,
-      cancelable: true
-    });
-    
-    // Should have closed the curtain
-    expect(setActiveEdge).toHaveBeenCalledWith(null);
+
+    expect(mockSetActiveEdge).toHaveBeenCalledWith(null);
   });
 
-  it("returns when dragged less than 10% of height", async () => {
-    const setActiveEdge = vi.fn();
-    vi.mocked(require("@/context/perimeter-context").usePerimeter).mockReturnValue({
-      activeEdge: "zenith",
-      setActiveEdge,
+  it("returns when dragged less than 10% of height", () => {
+    renderComponent();
+    const curtainContainer = screen.getByTestId("zenith-curtain-container");
+    const swipeLayer = screen.getByTestId("zenith-curtain-swipe-layer");
+    Object.defineProperty(curtainContainer, "clientHeight", { value: 500, configurable: true });
+    Object.defineProperty(swipeLayer, "clientHeight", { value: 500, configurable: true });
+
+    fireEvent.pointerDown(swipeLayer, {
+      pointerId: 1,
+      clientX: 100,
+      clientY: 400,
+      bubbles: true,
     });
 
-    render(<ZenithCurtain />);
-    
-    // Get the curtain container
-    const curtainContainer = screen.getByRole("region"); // Adjust based on actual role
-    
-    // Simulate a drag gesture
-    const height = curtainContainer.getBoundingClientRect().height;
-    const startPoint = {
-      x: curtainContainer.getBoundingClientRect().left + 10,
-      y: curtainContainer.getBoundingClientRect().bottom - 10
-    };
-    
-    // Drag upward less than 10% of height
-    const dragDistance = height * 0.05; // 5% < 10%
-    const endPoint = {
-      x: startPoint.x,
-      y: startPoint.y - dragDistance
-    };
-    
-    // Simulate pointer down
-    fireEvent.pointerDown(curtainContainer, {
+    fireEvent.pointerMove(swipeLayer, {
       pointerId: 1,
-      clientX: startPoint.x,
-      clientY: startPoint.y,
+      clientX: 100,
+      clientY: 375,
       bubbles: true,
-      cancelable: true
     });
-    
-    // Simulate pointer move
-    fireEvent.pointerMove(curtainContainer, {
+
+    fireEvent.pointerUp(swipeLayer, {
       pointerId: 1,
-      clientX: endPoint.x,
-      clientY: endPoint.y,
+      clientX: 100,
+      clientY: 375,
       bubbles: true,
-      cancelable: true
     });
-    
-    // Simulate pointer up
-    fireEvent.pointerUp(curtainContainer, {
-      pointerId: 1,
-      clientX: endPoint.x,
-      clientY: endPoint.y,
-      bubbles: true,
-      cancelable: true
-    });
-    
-    // Should NOT have closed the curtain (should return to open state)
-    expect(setActiveEdge).not.toHaveBeenCalled();
+
+    expect(mockSetActiveEdge).not.toHaveBeenCalled();
   });
 
-  it("returns on pointercancel", async () => {
-    const setActiveEdge = vi.fn();
-    vi.mocked(require("@/context/perimeter-context").usePerimeter).mockReturnValue({
-      activeEdge: "zenith",
-      setActiveEdge,
+  it("returns on pointercancel", () => {
+    renderComponent();
+    const curtainContainer = screen.getByTestId("zenith-curtain-container");
+    const swipeLayer = screen.getByTestId("zenith-curtain-swipe-layer");
+    Object.defineProperty(curtainContainer, "clientHeight", { value: 500, configurable: true });
+    Object.defineProperty(swipeLayer, "clientHeight", { value: 500, configurable: true });
+
+    fireEvent.pointerDown(swipeLayer, {
+      pointerId: 1,
+      clientX: 100,
+      clientY: 400,
+      bubbles: true,
     });
 
-    render(<ZenithCurtain />);
-    
-    // Get the curtain container
-    const curtainContainer = screen.getByRole("region"); // Adjust based on actual role
-    
-    // Simulate a drag gesture that gets cancelled
-    const startPoint = {
-      x: curtainContainer.getBoundingClientRect().left + 10,
-      y: curtainContainer.getBoundingClientRect().bottom - 10
-    };
-    
-    // Start dragging upward
-    const midPoint = {
-      x: startPoint.x,
-      y: startPoint.y - 50
-    };
-    
-    // Simulate pointer down
-    fireEvent.pointerDown(curtainContainer, {
+    fireEvent.pointerMove(swipeLayer, {
       pointerId: 1,
-      clientX: startPoint.x,
-      clientY: startPoint.y,
+      clientX: 100,
+      clientY: 200,
       bubbles: true,
-      cancelable: true
     });
-    
-    // Simulate pointer move
-    fireEvent.pointerMove(curtainContainer, {
+
+    fireEvent.pointerCancel(swipeLayer, {
       pointerId: 1,
-      clientX: midPoint.x,
-      clientY: midPoint.y,
+      clientX: 100,
+      clientY: 200,
       bubbles: true,
-      cancelable: true
     });
-    
-    // Simulate pointer cancel
-    fireEvent.pointerCancel(curtainContainer, {
-      pointerId: 1,
-      clientX: midPoint.x,
-      clientY: midPoint.y,
-      bubbles: true,
-      cancelable: true
-    });
-    
-    // Should NOT have closed the curtain
-    expect(setActiveEdge).not.toHaveBeenCalled();
+
+    expect(mockSetActiveEdge).not.toHaveBeenCalled();
   });
 });
