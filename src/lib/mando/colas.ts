@@ -288,7 +288,7 @@ export interface InfoLatidoTarea {
 /**
  * Busca latidos de una tarea en disco local y en el bus, filtrados por frescura (umbralMs).
  */
-export async function buscarLatidosFrescosTarea(
+async function buscarLatidosFrescosTarea(
     tareaId: string,
     umbralMs: number,
     ahoraMs = Date.now()
@@ -296,73 +296,45 @@ export async function buscarLatidosFrescosTarea(
     const latidos: InfoLatidoTarea[] = [];
     const vistas = new Set<string>();
 
+    const agregar = (cola: string, mtimeMs: number) => {
+        const k = `${cola}|${tareaId}`;
+        if (!vistas.has(k)) { vistas.add(k); latidos.push({ tarea: tareaId, cola, mtimeMs }); }
+    };
+
     try {
-        const archivos = (await readdir(OLAS)).filter((n) => n.startsWith("latidos-") && n.endsWith(".json"));
-        for (const archivo of archivos) {
+        for (const archivo of (await readdir(OLAS)).filter((n) => n.startsWith("latidos-") && n.endsWith(".json"))) {
             try {
                 const ruta = path.join(OLAS, archivo);
                 const info = await stat(ruta);
-                const edadMs = ahoraMs - info.mtimeMs;
-                if (edadMs > umbralMs) continue;
-
+                if (ahoraMs - info.mtimeMs > umbralMs) continue;
                 const crudo = JSON.parse(await readFile(ruta, "utf-8")) as Record<string, unknown>;
-                const nombreCola = (
-                    typeof crudo.cola === "string" && crudo.cola
-                        ? crudo.cola
-                        : archivo.replace(/^latidos-/, "")
-                ).replace(/\.json$/, "").replace(/^cola-/, "");
-
-                const tareasObj =
-                    typeof crudo.tareas === "object" && crudo.tareas !== null
-                        ? (crudo.tareas as Record<string, unknown>)
-                        : {};
-
-                if (tareasObj[tareaId]) {
-                    const clave = `${nombreCola}|${tareaId}`;
-                    if (!vistas.has(clave)) {
-                        vistas.add(clave);
-                        latidos.push({ tarea: tareaId, cola: nombreCola, mtimeMs: info.mtimeMs });
-                    }
-                }
-            } catch {
-                // ignorar errores de lectura individual
-            }
+                const nombreCola = (typeof crudo.cola === "string" && crudo.cola ? crudo.cola : archivo.replace(/^latidos-/, "")).replace(/\.json$/, "").replace(/^cola-/, "");
+                const tareasObj = typeof crudo.tareas === "object" && crudo.tareas !== null ? (crudo.tareas as Record<string, unknown>) : {};
+                if (tareasObj[tareaId]) agregar(nombreCola, info.mtimeMs);
+            } catch { /* ignorar individual */ }
         }
-    } catch {
-        // ignorar error de lectura del directorio
-    }
+    } catch { /* ignorar directorio */ }
 
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const clave = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
     if (url && clave) {
         try {
-            const desde = new Date(ahoraMs - umbralMs).toISOString();
             const r = await fetch(
-                `${url}/rest/v1/relevo_eventos?select=t,datos&tipo=eq.latido&t=gte.${encodeURIComponent(desde)}&order=id.desc&limit=100`,
+                `${url}/rest/v1/relevo_eventos?select=t,datos&tipo=eq.latido&t=gte.${encodeURIComponent(new Date(ahoraMs - umbralMs).toISOString())}&order=id.desc&limit=100`,
                 { headers: { apikey: clave, Authorization: `Bearer ${clave}` }, cache: "no-store", signal: AbortSignal.timeout(800) }
             );
             if (r.ok) {
-                const filas = (await r.json()) as Array<{ t: string; datos: unknown }>;
-                for (const f of filas) {
+                for (const f of (await r.json()) as Array<{ t: string; datos: unknown }>) {
                     const tMs = new Date(f.t).getTime();
                     if (ahoraMs - tMs > umbralMs) continue;
                     const d = typeof f.datos === "object" && f.datos !== null ? (f.datos as Record<string, unknown>) : {};
                     const nombreCola = typeof d.cola === "string" ? d.cola.replace(/^cola-/, "").replace(/\.json$/, "") : "";
                     const tareasObj = typeof d.tareas === "object" && d.tareas !== null ? (d.tareas as Record<string, unknown>) : {};
-                    if (nombreCola && tareasObj[tareaId]) {
-                        const key = `${nombreCola}|${tareaId}`;
-                        if (!vistas.has(key)) {
-                            vistas.add(key);
-                            latidos.push({ tarea: tareaId, cola: nombreCola, mtimeMs: tMs });
-                        }
-                    }
+                    if (nombreCola && tareasObj[tareaId]) agregar(nombreCola, tMs);
                 }
             }
-        } catch {
-            // ignorar error de red en el bus
-        }
+        } catch { /* ignorar red */ }
     }
-
     return latidos;
 }
 
