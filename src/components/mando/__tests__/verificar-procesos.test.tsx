@@ -53,10 +53,22 @@ describe("VerificarProcesos · panel flotante del reporte", () => {
         expect(fetch).toHaveBeenCalledTimes(1);
     });
 
-    it("Esc también cierra el panel", async () => {
-        render(<VerificarProcesos />);
+    it("Esc y clic fuera cierran el panel", async () => {
+        render(
+            <div>
+                <div data-testid="fuera">Fuera</div>
+                <VerificarProcesos />
+            </div>
+        );
         fireEvent.click(screen.getByRole("button", { name: /verificar procesos/i }));
         await screen.findByRole("dialog");
+
+        fireEvent.mouseDown(screen.getByTestId("fuera"));
+        expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole("button", { name: /ver último reporte/i }));
+        await screen.findByRole("dialog");
+
         fireEvent.keyDown(document, { key: "Escape" });
         expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     });
