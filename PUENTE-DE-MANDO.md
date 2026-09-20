@@ -1,6 +1,6 @@
 # Puente de Mando · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-20 03:41:44 desde el Mando vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-20 04:02:45 desde el Mando vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -16,17 +16,15 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | Agentes escribiendo | **0** |
 | En esta ola | integradas 6 · en curso 0 · esperando aprobación 0 · pendientes 0 |
 | Últimas 4 olas | en curso 0 · pendientes 0 · integradas 8 |
-| HEAD | `7b449729 chore(memoria): aprendizaje de la ola auto-0920-030158` |
-| Sin publicar | 15 commits |
+| HEAD | `f38aa1c0 chore(memoria): aprendizaje de la ola auto-0920-034245` |
+| Sin publicar | 17 commits |
 | Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-auto-0920-030158.json`, hace 5s)
+## Quién escribe ahora (latido de `cola-auto-0920-034245.json`, hace 8s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `TM2` | hecho | nvidia/moonshotai/kimi-k3 | 1 min | 38 s | 50525 |
-| `CC1` | hecho | nvidia/moonshotai/kimi-k3 | 12 min | 717 s | 180907 |
-| `HW-2` | hecho | openrouter/google/gemma-4-31b-it:f | 28 min | 1691 s | 45249 |
+| `CC3` | hecho | google/gemini-3.6-flash | 1 min | 52 s | 84479 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
