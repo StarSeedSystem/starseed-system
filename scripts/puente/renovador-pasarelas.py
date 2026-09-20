@@ -161,7 +161,53 @@ def pasada(segundos=25):
             "estado": P.clasificar(http, cuerpo, tokens, _consejero_jev()),
             "segundos": round(time.time() - t0, 1),
         })
+        if nombre == "openrouter" and fuera[-1]["estado"] in P.UTILIZABLES:
+            ids = openrouter_gratuitos(_catalogo_openrouter())
+            if ids:
+                fuera[-1]["modelos_extra"] = ids
+                try:
+                    json.dump({"t": time.strftime("%Y-%m-%d %H:%M:%S"), "modelos": ids},
+                              open(GRATUITOS_OPENROUTER, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+                except OSError:
+                    pass
     return fuera
+
+
+CATALOGO_OPENROUTER = "https://openrouter.ai/api/v1/models"
+GRATUITOS_OPENROUTER = os.path.expanduser("~/.starseed/openrouter-gratuitos.json")
+
+
+def openrouter_gratuitos(datos, n=10, contexto_min=32000):
+    """Ids gratuitos (prompt y completion a 0) CON herramientas, los de más contexto primero.
+
+    (2026-09-20) Alex recargó 10 $ en OpenRouter: eso desbloquea 1.000 peticiones diarias a
+    sus modelos gratuitos, que cambian cada semana. Esta lista viaja en el informe como
+    `modelos_extra` de la pasarela y `pasarelas.modelos_utiles` la mete en la rotación.
+    Solo `:free`: un id de pago aquí gastaría el crédito de Alex sin que nadie lo pidiera."""
+    fuera = []
+    for m in (datos or {}).get("data") or []:
+        p = m.get("pricing") or {}
+        try:
+            gratis = float(p.get("prompt") or 1) == 0 and float(p.get("completion") or 1) == 0
+        except (TypeError, ValueError):
+            gratis = False
+        mid = str(m.get("id") or "")
+        if not gratis or not mid.endswith(":free"):
+            continue
+        if "tools" not in (m.get("supported_parameters") or []):
+            continue
+        if int(m.get("context_length") or 0) < contexto_min:
+            continue
+        fuera.append((int(m.get("context_length") or 0), mid))
+    return [mid for _, mid in sorted(fuera, reverse=True)[:n]]
+
+
+def _catalogo_openrouter(segundos=20):
+    try:
+        with urllib.request.urlopen(urllib.request.Request(CATALOGO_OPENROUTER), timeout=segundos) as r:
+            return json.load(r)
+    except Exception:
+        return None
 
 
 def _consejero_jev():

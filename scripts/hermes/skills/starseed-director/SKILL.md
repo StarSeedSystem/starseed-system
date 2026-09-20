@@ -25,6 +25,11 @@ relevo operativo: `~/.hermes/RELEVO-STARSEED.md` (léelo antes de dirigir).
 - Tareas del enjambre: ≤ 3 archivos y ≤ 120 líneas por archivo. Una objeción literal del
   revisor es la instrucción de reparación de la tarea siguiente.
 - Cada mensaje tuyo a Alex termina con la hora (`· HH:MM`) y con lo que gastaste.
+- **Jev decide, no escribe** (2026-09-20). Hay 10 $ de crédito de Alex en OpenRouter: Jev tiene
+  techo de 0,05 $/día en `scripts/puente/jev.py` (`python3 scripts/puente/jev.py` enseña gasto y
+  saldo; inclúyelo en tu informe de gasto). En OpenRouter usa **solo ids `:free`**, tú y los
+  hijos: un id de pago gastaría ese crédito sin que nadie lo pidiera. Regla completa:
+  `memory/orquestacion-economica.md` §9.
 
 ## Comprobación de vínculos (lo que Alex llama «sincronización y vinculación»)
 Reparte estas sondas en **subagentes en paralelo** (una tarea por línea, `group: "vinculos"`)

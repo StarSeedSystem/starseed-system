@@ -30,6 +30,14 @@ ARCHIVOS_DE_CLAVES = ("~/.hermes/.env", "~/.starseed/env")
 TTL_S = 6 * 3600
 TIEMPO_S = 12
 
+#: Techo de gasto (2026-09-20, Alex recargó 10 $ en OpenRouter: «usarlos con cuidado»).
+#: A $0,00002 por decisión, 0,05 $/día son ~2.500 decisiones; 1 $/mes son ~50.000.
+#: Pasado el techo, Jev se calla (None) y mandan las reglas deterministas de siempre.
+PRESUPUESTO_DIA_USD = float(os.environ.get("STARSEED_JEV_DIA_USD", "0.05"))
+PRESUPUESTO_MES_USD = float(os.environ.get("STARSEED_JEV_MES_USD", "1.0"))
+URL_SALDO = "https://openrouter.ai/api/v1/credits"
+SALDO_TTL_S = 3600
+
 #: Transporte real (se sustituye en las pruebas por una función que no toca la red).
 TRANSPORTE = None
 
@@ -81,20 +89,62 @@ def _transporte_real(cuerpo):
     return json.load(urllib.request.urlopen(req, timeout=TIEMPO_S))
 
 
-def _anotar_uso(respuesta, segundos):
+def _anotar_uso(respuesta, segundos, hoy=None):
     uso = _leer(USO, {"llamadas": 0, "tokens": 0, "coste_usd": 0.0})
     u = (respuesta or {}).get("usage") or {}
+    coste = float(u.get("cost") or 0.0)
     uso["llamadas"] = uso.get("llamadas", 0) + 1
     uso["tokens"] = uso.get("tokens", 0) + int(u.get("input_tokens") or 0) + int(u.get("output_tokens") or 0)
-    uso["coste_usd"] = round(uso.get("coste_usd", 0.0) + float(u.get("cost") or 0.0), 8)
+    uso["coste_usd"] = round(uso.get("coste_usd", 0.0) + coste, 8)
+    dia = uso.setdefault("dias", {}).setdefault(hoy or time.strftime("%Y-%m-%d"), {"llamadas": 0, "coste_usd": 0.0})
+    dia["llamadas"] += 1
+    dia["coste_usd"] = round(dia["coste_usd"] + coste, 8)
     uso["ultima"] = {"t": time.strftime("%Y-%m-%d %H:%M:%S"), "segundos": round(segundos, 2), "modelo": respuesta.get("model")}
     _escribir(USO, uso)
 
 
+def gasto(hoy=None):
+    """(hoy_usd, mes_usd) según lo anotado en jev-uso.json."""
+    hoy = hoy or time.strftime("%Y-%m-%d")
+    dias = _leer(USO, {}).get("dias") or {}
+    d = float((dias.get(hoy) or {}).get("coste_usd") or 0.0)
+    m = sum(float((v or {}).get("coste_usd") or 0.0) for k, v in dias.items() if k[:7] == hoy[:7])
+    return d, m
+
+
+def presupuesto_ok(hoy=None):
+    """False cuando el gasto anotado de hoy o del mes ya tocó su techo."""
+    d, m = gasto(hoy)
+    return d < PRESUPUESTO_DIA_USD and m < PRESUPUESTO_MES_USD
+
+
+def saldo(refrescar=False):
+    """{'creditos', 'gastado', 'restante', 't'} de la cuenta de OpenRouter, cacheado 1 h; None sin red."""
+    uso = _leer(USO, {})
+    s = uso.get("saldo") or {}
+    if s and not refrescar and time.time() - float(s.get("epoch") or 0) < SALDO_TTL_S:
+        return s
+    if not clave():
+        return s or None
+    try:
+        req = urllib.request.Request(URL_SALDO, headers={"Authorization": "Bearer " + clave()})
+        d = (json.load(urllib.request.urlopen(req, timeout=TIEMPO_S)) or {}).get("data") or {}
+        s = {"creditos": float(d.get("total_credits") or 0), "gastado": float(d.get("total_usage") or 0),
+             "t": time.strftime("%Y-%m-%d %H:%M:%S"), "epoch": time.time()}
+        s["restante"] = round(s["creditos"] - s["gastado"], 4)
+        uso["saldo"] = s
+        _escribir(USO, uso)
+        return s
+    except Exception:
+        return s or None
+
+
 def decidir(estado, preguntas, usar_cache=True):
-    """{nombre: respuesta} de Jev, o None si no se puede (sin clave, apagado, error, red)."""
+    """{nombre: respuesta} de Jev, o None si no se puede (sin clave, apagado, sin presupuesto, error, red)."""
     transporte = TRANSPORTE or (_transporte_real if activo() else None)
     if transporte is None or not preguntas:
+        return None
+    if transporte is _transporte_real and not presupuesto_ok():
         return None
     h = _huella(estado, preguntas)
     cache = _leer(CACHE, {}) if usar_cache else {}
@@ -164,7 +214,11 @@ def resumen_uso():
     u = _leer(USO, {})
     if not u:
         return "Jev: sin uso"
-    return "Jev: %d decisiones · %d tokens · $%.5f" % (u.get("llamadas", 0), u.get("tokens", 0), u.get("coste_usd", 0.0))
+    d, m = gasto()
+    s = u.get("saldo") or {}
+    cola = (" · OpenRouter restante $%.2f" % s["restante"]) if s.get("restante") is not None else ""
+    return "Jev: %d decisiones · %d tokens · $%.5f (hoy $%.4f de $%.2f · mes $%.4f de $%.2f)%s" % (
+        u.get("llamadas", 0), u.get("tokens", 0), u.get("coste_usd", 0.0), d, PRESUPUESTO_DIA_USD, m, PRESUPUESTO_MES_USD, cola)
 
 
 if __name__ == "__main__":

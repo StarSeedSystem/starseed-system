@@ -258,9 +258,10 @@ def modelos_utiles(modelos, informe, siempre=SIEMPRE):
     la lista vacía, se devuelve la original — es mejor intentarlo con todos que no
     tener a nadie.
     """
-    estados = {}
+    estados, extra = {}, {}
     for fila in (informe or {}).get("pasarelas", []) or []:
         estados[fila.get("clave")] = fila.get("estado")
+        extra[fila.get("clave")] = [str(x) for x in (fila.get("modelos_extra") or []) if x]
     utiles, apartados = [], []
     for m in modelos or []:
         p = pasarela_de(m)
@@ -268,6 +269,16 @@ def modelos_utiles(modelos, informe, siempre=SIEMPRE):
             utiles.append(m)
         else:
             apartados.append((m, estados[p]))
+    # (2026-09-20) Modelos que la pasarela anuncia HOY como gratuitos y con herramientas
+    # (`modelos_extra`, los trae el renovador del catálogo público): entran detrás de los
+    # de la lista fija, solo si la pasarela escribe. Así la rotación se actualiza sola
+    # cuando OpenRouter estrena o retira gratuitos, sin tocar código.
+    for clave, ids in extra.items():
+        if estados.get(clave) in UTILIZABLES:
+            for mid in ids:
+                completo = "%s/%s" % (clave, mid)
+                if completo not in utiles:
+                    utiles.append(completo)
     if not utiles:
         return list(modelos or []), []
     return utiles, apartados

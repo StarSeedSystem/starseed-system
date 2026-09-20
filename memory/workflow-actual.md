@@ -52,6 +52,20 @@ pasarela, qué renovar y con qué enlace. **Codex está APAGADO como escritor**
 100 % de la escritura. La **neurona local** (Ollama en `127.0.0.1:11434`) es la única pasarela
 que no puede quedarse sin cupo.
 
+**Escritores de hoy (2026-09-20)**: `google/gemini-3.6-flash` directo (GEMINI_API_KEY; 1M de
+contexto, escribe con herramientas), NIM `nemotron-3-super-120b` y `z-ai/glm-5.3`, apinex tras el
+fichaje diario, y los gratuitos con herramientas de OpenRouter que el renovador trae del catálogo
+cada 30 min (`modelos_extra`, siempre `:free`). Hermes dirige con `gemini-3.6-flash`.
+
+### Jev: decisiones por $0,00002, no texto
+
+`python3 scripts/puente/veredictos.py` juzga las bloqueadas (reglas deterministas primero, Jev en
+lo que queda; escribe `olas/veredictos.json` con confianza y fuente). Jev también afina Telegram
+(zona de duda), clasifica errores de pasarela desconocidos y puede vetar la aprobación sola.
+Consejero con umbral, nunca oráculo. **Techo 0,05 $/día y 1 $/mes**; `python3 scripts/puente/jev.py`
+enseña gasto y saldo. Hay 10 $ en OpenRouter: **solo ids `:free`** para agentes y para Hermes.
+Regla y detalles: `memory/orquestacion-economica.md` §9.
+
 ### Publicar
 
 `python3 scripts/puente/publicar.py "nota"` — rama, commit, las cuatro puertas, push y

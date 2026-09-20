@@ -303,6 +303,10 @@ por coste (lo mecánico a subagentes gratis: `starseed-sub <rol> "prompt"`; lo d
 capaz), releva al siguiente proveedor ante 429/402 sin insistir, y **deja el punto de relevo**
 (commit + adenda + `starseed_memory_root/state.md`) antes de acercarse a su límite para que otro
 modelo continúe solo. Capas y dónde se editan: `memory/orquestacion-economica.md` (léelo).
+**Jev** (2026-09-20, `memory/orquestacion-economica.md` §9): decisiones tipadas con probabilidad
+por $0,00002 (`scripts/puente/jev.py`) para veredictos de bloqueadas, Telegram, errores de pasarela
+y el veto de la aprobación sola; consejero con umbral, nunca oráculo; techo 0,05 $/día; en
+OpenRouter solo ids `:free` (hay 10 $ de crédito que nadie debe gastar sin querer).
 En esta flota, **AIHubMix** (`AIHUBMIX_API_KEY`, 412 modelos con 54 gratuitos) es el **revisor
 principal**, y **UTIM** (`@emend-ai/utim` v2.3.19) actúa como **segundo agente de código** para
 multiplicar agentes en paralelo; la tabla completa de proveedores y cupos está en

@@ -123,6 +123,11 @@ eventos del orquestador al mismo sitio.
   son pasos intermedios, no el resultado.
 - Cada tarea escribe un **módulo puro NUEVO y pequeño** (≤3 archivos, ≤120 líneas por escritura);
   el cableado va en su propia tarea.
+- **Jev decide, no escribe** (2026-09-20, `memory/orquestacion-economica.md` §9). Las
+  bloqueadas se juzgan con `python3 scripts/puente/veredictos.py` (reglas primero, Jev en lo
+  que queda, $0,00002 por decisión, techo 0,05 $/día); un subagente solo para las de
+  confianza < 0,7. En OpenRouter **solo ids `:free`**: hay 10 $ de crédito de Alex y un id de
+  pago los gastaría sin que nadie lo pidiera. `python3 scripts/puente/jev.py` enseña gasto y saldo.
 - Tests con `import { describe, it, expect } from "vitest"` — en este repo `globals` está en
   `false`. Prohibido `vi.mock` de módulos de Node y prohibido importar un `route.ts` desde un test.
 - Sin `any`. Textos de UI y comentarios en español con acentos. `cursor-pointer` en lo clicable.

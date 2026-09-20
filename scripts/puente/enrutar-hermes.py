@@ -85,7 +85,10 @@ PREFERIDOS = {
     "groq": ["openai/gpt-oss-120b", "qwen/qwen3.8-27b", "openai/gpt-oss-20b"],
     "apinex": ["free/glm-5.3-flash", "free/deepseek-v4-flash-0731", "free/gemini-3.8-flash"],
     "nvidia": ["moonshotai/kimi-k3", "deepseek-ai/deepseek-v4-flash-0731"],
-    "openrouter": ["google/gemini-3.5-flash", "poolside/laguna-xs-2.1:free"],
+    # (2026-09-20) SOLO `:free`: hay 10 $ de crédito en la cuenta y un id de pago aquí
+    # los gastaría sin que nadie lo pidiera. El renovador trae además `modelos_extra`
+    # (gratuitos con herramientas, los de más contexto primero) y esos mandan.
+    "openrouter": ["deepseek/deepseek-v4-flash-0731:free", "nex-agi/nex-n2.5-pro:free", "poolside/laguna-xs-2.1:free"],
     "xkiro": ["qwen/qwen3-coder-plus:free"],
     "tokenrouter": ["z-ai/glm-5.3-free"],
     "aihubmix": ["z-ai/glm-5.3-free"],
@@ -126,6 +129,7 @@ def proveedores_de_hermes(texto):
 
 
 SONDADOS = {}   # proveedor -> modelo que DE VERDAD contestó a la sonda
+EXTRA = {}      # proveedor -> gratuitos con herramientas que anuncia hoy (del renovador)
 
 
 def estados_del_informe():
@@ -139,6 +143,9 @@ def estados_del_informe():
         fuera[clave] = f.get("estado", "caida")
         if f.get("estado") in ("escribe", "lenta") and f.get("modelo"):
             SONDADOS[clave] = f["modelo"]
+        extra = [str(x) for x in (f.get("modelos_extra") or []) if str(x).endswith(":free")]
+        if extra:
+            EXTRA[clave] = extra
     return fuera
 
 
@@ -148,6 +155,8 @@ def modelo_para(prov, declarados):
     # a `qwen3.7-plus` (de pago) mientras `qwen3-coder-plus:free` escribía.
     if prov in HERMES_PREFIERE and HERMES_PREFIERE[prov] in declarados:
         return HERMES_PREFIERE[prov]
+    if EXTRA.get(prov):
+        return EXTRA[prov][0]          # el gratuito con herramientas de más contexto de hoy
     if prov in SONDADOS:
         return SONDADOS[prov]
     for m in PREFERIDOS.get(prov, []):

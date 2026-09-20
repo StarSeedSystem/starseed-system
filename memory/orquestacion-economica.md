@@ -281,3 +281,48 @@ La espera por memoria bajó de 15 a 5 minutos (`STARSEED_ESPERA_MEM_S`): pasado 
 igual y, si de verdad no puede, el vigilante lo corta a los dos minutos.
 
 `starseed-vivo` muestra la salud de los cinco proveedores junto al estado de cada tarea.
+
+
+## 9. Jev de consejero y el crédito de OpenRouter (regla permanente · 2026-09-20)
+
+**Qué es.** Jev (TypeSafe, en OpenRouter) es un modelo de *decisión*, no de texto: recibe el
+estado (JSON ≤ 32k tokens) y preguntas tipadas y devuelve respuestas con probabilidad — `noul`
+(sí/no → `{"noul": p}`), `choice` (una opción entre ≤ 255, con probabilidades y `confidence`),
+`score` (nivel en una escala; su `criteria` es un ARRAY ordenado). Medido: **0,56 s y
+$0,000019 por decisión**; 34 decisiones sobre todo el atasco (79 tareas) costaron $0,00089.
+Endpoint `POST https://openrouter.ai/api/alpha/decisions`, modelo `~typesafe/jev-latest`
+(apunta siempre a la última versión), misma `OPENROUTER_API_KEY`.
+
+**Para qué sirve y para qué no.** Abarata las DECISIONES, no la escritura de código: el enjambre
+sigue escribiendo con Gemini directo, NIM, apinex y los gratuitos de OpenRouter. Jev entra donde
+antes había un turno entero de LLM o una lista de subcadenas.
+
+**Dónde está cableado** (todo puro, el consejero es un argumento opcional; sin clave, sin red,
+sin presupuesto o con `STARSEED_JEV=0` devuelve None y la regla de siempre decide sola):
+
+| Punto | Regla determinista (manda) | Jev (afina) |
+|---|---|---|
+| `scripts/puente/veredictos.py` (bloqueadas) | dependencia → esperar · sin archivos → descartar · objeción del revisor → reintentar con ella · todos los modelos muertos → reintentar tal cual | lo que queda; escribe `olas/veredictos.json` con `confianza` y `fuente` |
+| `importancia.suena` (Telegram) | listas SIEMPRE/NUNCA de Alex, tipos fuertes | zona de duda: suena si P ≥ 0,8 |
+| `pasarelas.clasificar` (errores) | pistas de texto y código HTTP | error desconocido: si confianza > 0,6 |
+| `resolucion_automatica.decidir` (aprobar sola) | director + verificadores conformes | solo VETA si P(integrar sin visto bueno) < 0,3 |
+
+Hermes (director del Mando) ejecuta `veredictos.py` primero y lanza un subagente **solo** para
+las filas con `fuente: jev` y `confianza < 0,7`. El orden de las colas sigue siendo determinista
+y sin modelo (decisión del 13/09): Jev opina, no ordena.
+
+**El crédito (10 $, recargados el 2026-09-20) se cuida así:**
+- Techo en `jev.py`: **0,05 $/día y 1 $/mes** (`STARSEED_JEV_DIA_USD`, `STARSEED_JEV_MES_USD`);
+  pasado, Jev se calla. Caché de 6 h por huella: la misma pregunta no se paga dos veces.
+- Gasto y saldo a la vista: `python3 scripts/puente/jev.py` (anota en `~/.starseed/jev-uso.json`,
+  saldo de OpenRouter cacheado 1 h). Va en cada informe de gasto.
+- En OpenRouter **solo ids `:free`** para agentes y para Hermes: con crédito en la cuenta, un id de
+  pago se cobraría sin que nadie lo pidiera. El renovador trae cada 30 min los gratuitos con
+  herramientas del catálogo público (`modelos_extra`, los de más contexto primero; copia en
+  `~/.starseed/openrouter-gratuitos.json`), `pasarelas.modelos_utiles` los mete en la rotación y
+  `enrutar-hermes` le da a Hermes el de más contexto. Así la flota se actualiza sola cuando
+  OpenRouter estrena o retira gratuitos. Los 10 $ desbloquean además 1.000 peticiones diarias a
+  esos gratuitos.
+- Jev es consejero con umbral explícito, **nunca oráculo**: en RS3b contestó «descartar» 0,65 con
+  confianza 0,47 — dividido — y la regla humana era reintentar. Decide con lo que le cuentas.
+- Endpoint en *alpha*: si cambia el formato, `jev.py` devuelve None y nada se rompe.

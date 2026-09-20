@@ -75,6 +75,34 @@ class Jev(unittest.TestCase):
         self.assertEqual(jev.zona(0.2), "no")
         self.assertEqual(jev.zona(None), "duda")
 
+    def test_gasto_por_dia_y_mes_y_techo(self):
+        jev._anotar_uso({"usage": {"cost": 0.03, "input_tokens": 1, "output_tokens": 1}}, 0.5, hoy="2026-09-20")
+        jev._anotar_uso({"usage": {"cost": 0.03, "input_tokens": 1, "output_tokens": 1}}, 0.5, hoy="2026-09-19")
+        self.assertEqual(jev.gasto("2026-09-20"), (0.03, 0.06))
+        self.assertTrue(jev.presupuesto_ok("2026-09-20"))          # 0,03 < 0,05 y 0,06 < 1
+        jev._anotar_uso({"usage": {"cost": 0.03}}, 0.5, hoy="2026-09-20")
+        self.assertFalse(jev.presupuesto_ok("2026-09-20"))         # 0,06 ≥ 0,05: hoy se calla
+
+    def test_sin_presupuesto_el_transporte_real_no_se_llama(self):
+        llamadas = []
+        real = jev._transporte_real
+        jev._transporte_real = lambda cuerpo: llamadas.append(cuerpo) or {"answers": {"q": {"noul": 0.5}}}
+        try:
+            os.environ["STARSEED_JEV"] = "1"
+            os.environ["OPENROUTER_API_KEY"] = "clave-de-prueba"
+            jev._anotar_uso({"usage": {"cost": 5.0}}, 0.1)          # techo del mes reventado
+            self.assertIsNone(jev.decidir({"x": 1}, {"q": {"type": "noul", "instructions": "?"}}))
+            self.assertEqual(llamadas, [])
+        finally:
+            jev._transporte_real = real
+            os.environ.pop("OPENROUTER_API_KEY", None)
+
+    def test_resumen_incluye_hoy_y_mes(self):
+        jev._anotar_uso({"usage": {"cost": 0.001, "input_tokens": 10, "output_tokens": 2}}, 0.5)
+        r = jev.resumen_uso()
+        self.assertIn("hoy $0.0010", r)
+        self.assertIn("de $%.2f" % jev.PRESUPUESTO_DIA_USD, r)
+
     def test_clave_nunca_sale_en_el_uso(self):
         jev.TRANSPORTE = _falso({"q": {"type": "noul", "noul": 0.5}})
         jev.si_no({"x": 1}, "?")

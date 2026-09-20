@@ -1,6 +1,6 @@
 # Puente de Mando · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-19 18:32:58 desde el Mando vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-19 18:43:35 desde el Mando vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -12,23 +12,21 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | | |
 |---|---|
 | Mando | **encendido** en http://127.0.0.1:9002/mando |
-| Ola arriba | Ola Dream 2026-09-15 · lo que el análisis nocturno encontró |
-| Agentes escribiendo | **0** |
-| En esta ola | integradas 2 · en curso 0 · esperando aprobación 0 · pendientes 0 |
-| Últimas 4 olas | en curso 0 · pendientes 0 · integradas 3 |
-| HEAD | `35d60c03 chore(memoria): aprendizaje de la ola auto-0919-174423` |
-| Sin publicar | 3 commits |
-| Árbol | limpio |
+| Ola arriba | auto-0919-183301 |
+| Agentes escribiendo | **3** |
+| En esta ola | integradas 0 · en curso 1 · esperando aprobación 0 · pendientes 2 |
+| Últimas 5 olas | en curso 2 · pendientes 2 · integradas 2 |
+| HEAD | `509a1a01 chore(memoria): recojo la contabilidad del enjambre antes de arrancar` |
+| Sin publicar | 4 commits |
+| Árbol | 11 archivos sin commitear |
 
-## Quién escribe ahora (latido de `cola-auto-0919-174423.json`, hace 5s)
+## Quién escribe ahora (latido de `cola-auto-0919-183301.json`, hace 9s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `TM3` | hecho | openrouter/nvidia/nemotron-3-super | 1 min | 42 s | 68575 |
-| `RI1` | hecho | google/gemini-3.6-flash | 2 min | 141 s | 220515 |
-| `TM1` | hecho | google/gemini-3.6-flash | 10 min | 616 s | 125024 |
-| `DR0919-1` | hecho | apinex/free/qwen-3.8-max | 26 min | 1581 s | 27502 |
-| `DV1` | hecho | google/gemini-3.6-flash | 30 min | 1822 s | 154975 |
+| `RS3c` | escribiendo | nvidia/deepseek-ai/deepseek-v4-fla | 10 min | 11 s | 13475 |
+| `JV3` | escribiendo | nvidia/moonshotai/kimi-k3 | 10 min | 601 s | 3310 |
+| `JV4` | escribiendo | nvidia/moonshotai/kimi-k3 | 10 min | 601 s | 2761 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
@@ -125,6 +123,20 @@ pasarela, qué renovar y con qué enlace. **Codex está APAGADO como escritor**
 (`STARSEED_CODEX_ESCRITOR=0`): la suscripción de ChatGPT de Alex se agotó cargando con el
 100 % de la escritura. La **neurona local** (Ollama en `127.0.0.1:11434`) es la única pasarela
 que no puede quedarse sin cupo.
+
+**Escritores de hoy (2026-09-20)**: `google/gemini-3.6-flash` directo (GEMINI_API_KEY; 1M de
+contexto, escribe con herramientas), NIM `nemotron-3-super-120b` y `z-ai/glm-5.3`, apinex tras el
+fichaje diario, y los gratuitos con herramientas de OpenRouter que el renovador trae del catálogo
+cada 30 min (`modelos_extra`, siempre `:free`). Hermes dirige con `gemini-3.6-flash`.
+
+### Jev: decisiones por $0,00002, no texto
+
+`python3 scripts/puente/veredictos.py` juzga las bloqueadas (reglas deterministas primero, Jev en
+lo que queda; escribe `olas/veredictos.json` con confianza y fuente). Jev también afina Telegram
+(zona de duda), clasifica errores de pasarela desconocidos y puede vetar la aprobación sola.
+Consejero con umbral, nunca oráculo. **Techo 0,05 $/día y 1 $/mes**; `python3 scripts/puente/jev.py`
+enseña gasto y saldo. Hay 10 $ en OpenRouter: **solo ids `:free`** para agentes y para Hermes.
+Regla y detalles: `memory/orquestacion-economica.md` §9.
 
 ### Publicar
 
