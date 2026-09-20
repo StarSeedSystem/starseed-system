@@ -19,36 +19,33 @@ gob = _cargar("gobernador_recursos", os.path.join(AQUI, "gobernador-recursos.py"
 
 
 class Decidir(unittest.TestCase):
-    def test_interactivo_baja_a_uno_aunque_haya_memoria(self):
+    """Alex (2026-09-20, 22:40): el máximo posible; el uso interactivo no frena."""
+
+    def test_interactivo_ya_no_baja_el_tope(self):
         d = gob.decidir(idle_s=12, ram_libre_mb=4000, swap_mb=0, maximo=3)
-        self.assertEqual(d["trabajadores"], 1)
+        self.assertEqual(d["trabajadores"], 3)
         self.assertTrue(d["interactivo"])
         self.assertEqual(d["bitnet"], "despertar")
 
     def test_interactivo_sin_ram_no_despierta_bitnet(self):
         d = gob.decidir(idle_s=12, ram_libre_mb=200, swap_mb=12800, maximo=3)
-        self.assertEqual(d["trabajadores"], 1)
+        self.assertEqual(d["trabajadores"], 3)
         self.assertEqual(d["bitnet"], "dejar")
 
     def test_maquina_libre_da_el_maximo(self):
         d = gob.decidir(idle_s=1800, ram_libre_mb=3000, swap_mb=1000, maximo=3)
         self.assertEqual(d["trabajadores"], 3)
         self.assertFalse(d["interactivo"])
-        self.assertEqual(d["bitnet"], "dejar")
 
-    def test_swap_ambar_deja_dos(self):
-        d = gob.decidir(idle_s=1800, ram_libre_mb=1000, swap_mb=7000, maximo=4)
-        self.assertEqual(d["trabajadores"], 2)
-        self.assertIn("ámbar", d["motivo"])
+    def test_el_swap_grande_ya_no_frena(self):
+        d = gob.decidir(idle_s=1800, ram_libre_mb=1000, swap_mb=14000, maximo=3)
+        self.assertEqual(d["trabajadores"], 3)
 
-    def test_swap_rojo_deja_uno(self):
-        d = gob.decidir(idle_s=1800, ram_libre_mb=1000, swap_mb=13000, maximo=4)
-        self.assertEqual(d["trabajadores"], 1)
-        self.assertIn("rojo", d["motivo"])
-
-    def test_ram_roja_deja_uno(self):
-        d = gob.decidir(idle_s=1800, ram_libre_mb=90, swap_mb=100, maximo=4)
-        self.assertEqual(d["trabajadores"], 1)
+    def test_ram_al_limite_quita_uno_y_nunca_baja_de_dos(self):
+        self.assertEqual(gob.decidir(1800, 90, 100, 4)["trabajadores"], 3)
+        self.assertEqual(gob.decidir(1800, 90, 100, 3)["trabajadores"], 2)
+        self.assertEqual(gob.decidir(1800, 90, 100, 2)["trabajadores"], 2)
+        self.assertIn("límite", gob.decidir(1800, 90, 100, 3)["motivo"])
 
     def test_sin_medidas_no_frena(self):
         d = gob.decidir(idle_s=None, ram_libre_mb=None, swap_mb=None, maximo=2)

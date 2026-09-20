@@ -16,12 +16,12 @@ trabajadores puede LANZAR (nunca mata nada en marcha):
     (`POST /api/bitnet/despertar`) para que la primera respuesta no tarde un
     minuto; dormir lo hace sola Astraura por inactividad (ASTRAURA_BITNET_SUENO_MIN).
 
-Decisión (función pura `decidir`, probada en test_gobernador_recursos.py):
+Decisión (función pura `decidir`, probada en test_gobernador_recursos.py).
+Alex (2026-09-20, 22:40): «olvida lo de 1 agente, añade la mayor cantidad posible»:
 
-  interactivo (idle < UMBRAL_INTERACTIVO_S)      → 1 trabajador
-  swap > SWAP_ROJO_MB o RAM libre < RAM_ROJA_MB  → 1
-  swap > SWAP_AMBAR_MB                           → min(2, máximo)
-  si no                                          → máximo (director-config)
+  RAM libre < RAM_ROJA_MB (150)  → máximo − 1 (nunca menos de 2)
+  si no                          → máximo = min(director-config, maximo_por_hardware)
+  (el uso interactivo ya no baja nada; solo decide si se despierta a BitNet)
 
 Nada de aquí toca claves ni red pública: solo lee la máquina y habla con
 Astraura en 127.0.0.1:8000.
@@ -46,7 +46,7 @@ ASTRAURA = os.environ.get("STARSEED_ASTRAURA_URL", "http://127.0.0.1:8000")
 UMBRAL_INTERACTIVO_S = float(os.environ.get("STARSEED_GOB_INTERACTIVO_S", 300))
 SWAP_ROJO_MB = float(os.environ.get("STARSEED_GOB_SWAP_ROJO_MB", 10240))
 SWAP_AMBAR_MB = float(os.environ.get("STARSEED_GOB_SWAP_AMBAR_MB", 6144))
-RAM_ROJA_MB = float(os.environ.get("STARSEED_GOB_RAM_ROJA_MB", 300))
+RAM_ROJA_MB = float(os.environ.get("STARSEED_GOB_RAM_ROJA_MB", 150))
 RAM_PARA_BITNET_MB = float(os.environ.get("STARSEED_GOB_RAM_BITNET_MB", 1600))
 
 
@@ -162,15 +162,15 @@ def decidir(idle_s, ram_libre_mb, swap_mb, maximo, *,
     interactivo = idle_s is not None and idle_s < interactivo_s
     ram = ram_libre_mb if ram_libre_mb is not None else float("inf")
     swap = swap_mb if swap_mb is not None else 0.0
-    if interactivo:
-        n, motivo = 1, "uso interactivo (hace %ds)" % int(idle_s)
-    elif swap > swap_rojo or ram < ram_roja:
-        n, motivo = 1, "memoria en rojo (swap %d MB, RAM libre %d MB)" % (swap, ram if ram != float("inf") else -1)
-    elif swap > swap_ambar:
-        n, motivo = min(2, maximo), "memoria en ámbar (swap %d MB)" % swap
+    # Alex (2026-09-20, 22:40): «olvida lo de 1 agente, añade la mayor cantidad
+    # posible». El uso interactivo ya NO baja el tope; solo el colapso de memoria
+    # (RAM libre < ram_roja, no el tamaño del swap: esta Mac vive con 12-14 GB
+    # de swap y aun así integra) quita UN trabajador, nunca deja menos de 2.
+    if ram < ram_roja:
+        n, motivo = max(2 if maximo >= 2 else 1, maximo - 1), "memoria al límite (RAM libre %d MB): un trabajador menos" % ram
     else:
-        n, motivo = maximo, "máquina libre"
-    bitnet = "despertar" if interactivo and ram >= ram_bitnet and swap <= swap_rojo else "dejar"
+        n, motivo = maximo, "máximo (%s)" % ("Alex al teclado" if interactivo else "máquina libre")
+    bitnet = "despertar" if interactivo and ram >= ram_bitnet else "dejar"
     return {"trabajadores": n, "motivo": motivo, "interactivo": interactivo, "bitnet": bitnet}
 
 

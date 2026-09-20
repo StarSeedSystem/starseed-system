@@ -32,7 +32,9 @@ relevo operativo: `~/.hermes/RELEVO-STARSEED.md` (léelo antes de dirigir).
   `memory/orquestacion-economica.md` §9.
 - **Máximos agentes a la vez = máximos MEDIOS, no más procesos en la Mac** (2026-09-20). El
   gobernador de recursos (`~/.starseed/gobernador.json`, cada minuto) dice `maximo_hardware`
-  (Mac 8 GB → 3) y el `trabajadores` vivo (1 si Alex usa la Mac o la memoria está en rojo).
+  (Mac 8 GB → 3) y el `trabajadores` vivo (siempre el máximo — Alex 22:40: «olvida lo de 1 agente,
+  la mayor cantidad posible»; solo con < 150 MB libres quita uno). La nube se suma con
+  `scripts/puente/repartir-a-nube.py` (cola-nube versionada) y el orquestador del contenedor.
   Cuando informes «agentes escribiendo: N» añade «máximo aquí: M»; si Alex pide más, propón el
   siguiente medio (Oracle Free Tier ARM → 3 permanentes; VPS 16 GB → 5) con la receta de
   `memory/orquestacion-economica.md` §10; nunca subas `--workers` por encima de `maximo_hardware`.

@@ -339,9 +339,10 @@ puerta tardó 10× (ola 325). Por eso el **gobernador de recursos**
 (`scripts/puente/gobernador-recursos.py`, launchd `com.starseed.gobernador`, cada minuto) calcula
 `maximo_por_hardware(RAM, núcleos)` = ≤ 8,5 GB → 3 · ≤ 16,5 GB → 5 · ≤ 32,5 GB → 8 · más → 12,
 nunca más de (núcleos − 1), y lo escribe en `~/.starseed/gobernador.json` junto con el **tope
-vivo**: 1 trabajador si Alex está usando la máquina (teclado/ratón hace < 5 min) o la memoria
-está en rojo (swap > 10 GB o < 300 MB libres), 2 con swap en ámbar (> 6 GB), el máximo con la
-máquina libre. El orquestador (`tope_gobernador()` en `starseed-enjambre.py`) lo relee cada 20 s y
+vivo**. Alex (2026-09-20, 22:40): «olvida lo de 1 agente, añade la mayor cantidad posible»: el tope
+vivo es SIEMPRE el máximo; solo si la RAM libre cae por debajo de 150 MB (colapso, no el tamaño
+del swap: esta Mac vive con 12-14 GB de swap e integra igual) se quita UN trabajador, nunca menos
+de 2. El uso interactivo ya no frena nada: solo decide si se despierta a BitNet. El orquestador (`tope_gobernador()` en `starseed-enjambre.py`) lo relee cada 20 s y
 solo decide cuántos LANZA: nada en marcha se interrumpe; si el gobernador muere, vale `--workers`.
 `director-config.json.trabajadores` es el máximo deseado; el gobernador solo puede bajarlo.
 

@@ -316,9 +316,10 @@ por $0,00002 (`scripts/puente/jev.py`) para veredictos de bloqueadas, Telegram, 
 y el veto de la aprobación sola; consejero con umbral, nunca oráculo; techo 0,05 $/día; en
 OpenRouter solo ids `:free` (hay 10 $ de crédito que nadie debe gastar sin querer).
 **Gobernador de recursos** (2026-09-20, §10): `scripts/puente/gobernador-recursos.py` escribe
-cada minuto `~/.starseed/gobernador.json` con el tope VIVO de trabajadores (1 si Alex usa la Mac
-o la memoria está en rojo; `maximo_hardware` = 3 en 8 GB con la máquina libre) y el orquestador
-lo relee (`tope_gobernador`). **Más agentes a la vez = más medios**, nunca más procesos en una
+cada minuto `~/.starseed/gobernador.json` con el tope VIVO de trabajadores = siempre el máximo
+(`maximo_hardware` = 3 en 8 GB; Alex 22:40: «olvida lo de 1 agente, la mayor cantidad posible»);
+solo con < 150 MB de RAM libre quita uno, nunca menos de 2; el orquestador lo relee (`tope_gobernador`).
+Los agentes de la nube se suman con `scripts/puente/repartir-a-nube.py` (cola-nube versionada). **Más agentes a la vez = más medios**, nunca más procesos en una
 máquina que no cabe: la receta para sumar un medio (Oracle Free Tier, VPS) está en §10. BitNet
 vive en cualquier medio con `scripts/nodo-bitnet.sh` (repo de Astraura), que mide RAM/núcleos y
 elige hilos/contexto/slots solo.
