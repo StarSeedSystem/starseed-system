@@ -110,6 +110,8 @@ def aplicar_correcciones_pendientes():
     orquestador vivo NO se toca: su copia en memoria pisaría el cambio (2026-09-20)."""
     if not os.path.exists(CORRECCIONES):
         return []
+    if orquestador_vivo():
+        return []  # con el orquestador vivo su copia en memoria pisaría el cambio: se espera
     try:
         correcciones = json.load(open(CORRECCIONES, encoding="utf-8"))
         ruta = os.path.join(OLAS, "progreso.json")

@@ -3538,6 +3538,24 @@ def commit_salvavidas(tid: str) -> str | None:
     sh(["git", "checkout", "-q", "ola/" + tid], cwd=wt, timeout=30)
     # Añadir todo (staged + unstaged + untracked) antes del commit
     sh(["git", "add", "-A", "."], cwd=wt, timeout=60)
+    # (2026-09-20) …menos lo que nunca es trabajo: copias y temporales que deja el agente
+    # (`colas.ts.backup`, `.tmp`, `.orig`, `.bak`) y las notas del director. ola/RS3c llevaba
+    # 1.855 líneas de eso y conflictos que no eran de la tarea.
+    rc_b, basura = sh(
+        ["git", "diff", "--cached", "--name-only", "--diff-filter=A"], cwd=wt, timeout=30
+    )
+    if rc_b == 0 and basura.strip():
+        fuera = [
+            r for r in basura.splitlines()
+            if r.strip() and (
+                r.strip().endswith((".backup", ".bak", ".tmp", ".orig", ".rej", "~"))
+                or os.path.basename(r.strip()) == _mensajes.ARCHIVO_WORKTREE
+            )
+        ]
+        if fuera:
+            sh(["git", "rm", "-q", "--cached", "--"] + fuera, cwd=wt, timeout=30)
+            evento("aviso", tid, "salvavidas: fuera del commit %d archivo(s) que no son trabajo (%s)"
+                   % (len(fuera), ", ".join(os.path.basename(x) for x in fuera[:4])))
     # Mensaje de salvavidas
     msg = (
         "salvavidas · %s: trabajo del agente antes de las puertas (tsc / vitest)\n\n"
