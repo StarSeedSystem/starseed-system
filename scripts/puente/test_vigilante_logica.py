@@ -173,5 +173,15 @@ class Correcciones(unittest.TestCase):
         self.assertEqual(aplicar_correcciones(prog, None), (prog, []))
 
 
+
+class IdsColisionados(unittest.TestCase):
+    def test_detecta_ids_ya_integrados_por_otra_ola(self):
+        from vigilante_logica import ids_colisionados
+        asuntos = ["Ola 234 · mundo · W1: Simulación", "345 · NE3-1: algo", "reparto a la nube (CC2, W2)"]
+        tareas = [{"id": "W1"}, {"id": "W2"}, {"id": "NE3-1"}, {"id": "CB1"}]
+        self.assertEqual(ids_colisionados(tareas, asuntos, {"NE3-1": {"estado": "commit"}}), ["W1"])
+        self.assertEqual(ids_colisionados(tareas, asuntos, {}), ["W1", "NE3-1"])
+
+
 if __name__ == "__main__":
     unittest.main()

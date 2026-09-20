@@ -154,3 +154,21 @@ def aplicar_correcciones(progreso, correcciones):
         salida[str(tid)] = e
         aplicadas.append(str(tid))
     return salida, aplicadas
+
+
+def ids_colisionados(tareas, asuntos, progreso=None):
+    """Ids de una cola que YA figuran integrados en main (otra ola los usó) y cuya tarea no
+    consta integrada en progreso: el vigilante los saltaría en silencio para siempre.
+    Un id vive en UNA sola cola (2026-09-20: MD1, MD2, AG1, AG2, W1 y W2 repetidos)."""
+    salida = []
+    for t in tareas or []:
+        tid = str((t or {}).get("id") or "")
+        if not tid:
+            continue
+        e = (progreso or {}).get(tid) if isinstance(progreso, dict) else None
+        estado = e.get("estado") if isinstance(e, dict) else None
+        if estado in ("commit", "integrada", "sustituida"):
+            continue
+        if id_en_asuntos(tid, asuntos):
+            salida.append(tid)
+    return salida

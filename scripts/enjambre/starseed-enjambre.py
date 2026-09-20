@@ -5277,26 +5277,50 @@ def ejecutar(t, intento=1):
         set_estado(tid, estado="fallo", nota=str(e)[:200])
         evento("fallo", tid, "worktree: " + str(e)[:200])
         return
-    if "--reanudar" in sys.argv or tid in REANUDAR_AUTO:
-        rc_prev, st_prev = sh(["git", "status", "--porcelain"], cwd=wt, timeout=30)
-        if rc_prev:
-            set_estado(
-                tid, estado="fallo", nota="status Git falló; worktree conservado"
-            )
-            evento(
-                "fallo",
-                tid,
-                "no se puede verificar el trabajo previo; no se ejecutan puertas",
-            )
-            return
-        if st_prev.strip():
-            reanudada = True
-            evento(
-                "aviso",
-                tid,
-                "reanudada: el worktree ya tenía %d archivos cambiados; salto a tsc"
-                % len(st_prev.splitlines()),
-            )
+    # (2026-09-20, 07:55) Trabajo previo, SIEMPRE (no solo con --reanudar): cambios sin
+    # commitear que no sean basura, o commits del salvavidas por delante de main con diff
+    # real. Con trabajo previo y sin mensajes del director sin leer → a las puertas; con
+    # mensajes sin leer → se escribe primero (MD2b se saltó la objeción del revisor porque
+    # el único «cambio» era MENSAJES-DEL-DIRECTOR.md; AG-3 gastó 5 intentos viendo el
+    # trabajo ya hecho).
+    rc_prev, st_prev = sh(["git", "status", "--porcelain"], cwd=wt, timeout=30)
+    if rc_prev and ("--reanudar" in sys.argv or tid in REANUDAR_AUTO):
+        set_estado(tid, estado="fallo", nota="status Git falló; worktree conservado")
+        evento("fallo", tid, "no se puede verificar el trabajo previo; no se ejecutan puertas")
+        return
+    sucios = [
+        l for l in (st_prev or "").splitlines()
+        if l.strip() and not es_archivo_basura(l[3:].strip().split(" -> ")[-1].strip('"'))
+    ] if rc_prev == 0 else []
+    rc_ad, adelante = sh(["git", "rev-list", "--count", "main..HEAD"], cwd=wt, timeout=30)
+    rc_df, difstat_prev = sh(["git", "diff", "--stat", "main...HEAD"], cwd=wt, timeout=60)
+    con_commits = (
+        rc_ad == 0 and (adelante or "").strip().isdigit() and int(adelante.strip()) > 0
+        and rc_df == 0 and bool((difstat_prev or "").strip())
+    )
+    sin_leer = _mensajes.pendientes(_mensajes.leer(OLAS, tid), "leido")
+    if (sucios or con_commits) and sin_leer:
+        evento(
+            "aviso",
+            tid,
+            "trabajo previo en la rama, pero hay %d mensaje(s) del director sin leer: escribo primero"
+            % len(sin_leer),
+        )
+    elif sucios:
+        reanudada = True
+        evento(
+            "aviso",
+            tid,
+            "reanudada: el worktree ya tenía %d archivo(s) cambiado(s); salto a tsc" % len(sucios),
+        )
+    elif con_commits:
+        reanudada = True
+        evento(
+            "aviso",
+            tid,
+            "reanudada: la rama ya lleva %s commit(s) con trabajo previo (%s); salto a tsc"
+            % (adelante.strip(), (difstat_prev.strip().splitlines() or ["?"])[-1].strip()[:80]),
+        )
     fallidos = list(PROG.get(tid, {}).get("modelos_fallidos") or [])
     base = [
         m

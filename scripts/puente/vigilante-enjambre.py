@@ -30,6 +30,7 @@ if DIRECTORIO not in sys.path:
 from vigilante_logica import (
     decidir_relanzamiento,
     aplicar_correcciones,
+    ids_colisionados,
     es_cola_fuente,
     seleccionar_pendientes,
     ultima_salida,
@@ -133,6 +134,9 @@ def aplicar_correcciones_pendientes():
         return []
 
 
+_AVISADAS = set()
+
+
 def pendientes():
     """Trabajo real: sin copias `auto-*`, duplicados ni commits ya integrados."""
     aplicar_correcciones_pendientes()
@@ -159,6 +163,12 @@ def pendientes():
         except Exception:
             continue
         colas.append((f, d if isinstance(d, list) else d.get("tareas", [])))
+    for nombre, tareas in colas:
+        chocan = ids_colisionados(tareas, asuntos, prog)
+        if chocan and not _AVISADAS.issuperset(chocan):
+            _AVISADAS.update(chocan)
+            print("aviso: %s trae ids que otra ola ya integró (se saltan; renómbralos): %s"
+                  % (nombre, ", ".join(chocan)), flush=True)
     return seleccionar_pendientes(colas, prog, asuntos)
 
 
