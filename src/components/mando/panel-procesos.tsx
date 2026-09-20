@@ -56,14 +56,14 @@ function tonoFase(fase: string): string {
 }
 
 /** Detecta si un agente lleva demasiado tiempo quieto (API colgada). */
-function esAgenteColgado(latido: any): boolean {
+function esAgenteColgado(latido: Partial<LatidoTarea>): boolean {
     return Number(latido?.quietoSegundos ?? 0) > 300 && Number(latido?.bytesLog ?? 0) < 100;
 }
 
 /** Etiqueta de advertencia para agentes colgados. */
-function avisoColgado(latido: any): string | null {
+function avisoColgado(latido: Partial<LatidoTarea>): string | null {
     if (esAgenteColgado(latido)) {
-        const min = Math.round(latido.quietoSegundos / 60);
+        const min = Math.round((latido.quietoSegundos ?? 0) / 60);
         return `⚠️ API colgada ${min} min · reasignar`;
     }
     return null;
