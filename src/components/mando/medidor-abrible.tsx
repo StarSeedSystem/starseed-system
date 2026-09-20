@@ -206,6 +206,83 @@ export function PastillaMedidor({
     );
 }
 
+function FichaFila({
+    f,
+    ejecutar,
+}: {
+    f: FilaMedidor;
+    ejecutar: (a: AccionMedidor, f: FilaMedidor | undefined, texto: string) => Promise<void>;
+}) {
+    return (
+        <li className="rounded-lg border border-white/10 bg-black/25 p-2 text-left">
+            <p className="flex flex-wrap items-baseline gap-1.5">
+                <span className="font-mono text-[11px] text-cyan-200/90">{f.id}</span>
+                {f.estado ? (
+                    <span className="rounded-full border border-white/10 px-1.5 text-[10px] text-white/45">
+                        {f.estado}
+                    </span>
+                ) : null}
+            </p>
+            <p className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-white/80">{f.titulo}</p>
+
+            {typeof f.porcentaje === "number" ? (
+                <p className="mt-1 flex items-center gap-1.5">
+                    <span
+                        className="mc-barra h-1 flex-1 overflow-hidden rounded-full bg-white/10"
+                        role="progressbar"
+                        aria-valuenow={f.porcentaje}
+                        aria-valuemin={0}
+                        aria-valuemax={100}
+                        aria-label={`Avance de ${f.id}`}
+                    >
+                        <i
+                            className={`block h-full rounded-full ${
+                                f.porcentaje === 0 ? "bg-white/25" : "bg-cyan-400/80"
+                            }`}
+                            style={{ transform: `scaleX(${Math.max(0.02, f.porcentaje / 100)})` }}
+                        />
+                    </span>
+                    <span className="w-14 shrink-0 text-right text-[10px] tabular-nums text-white/55">
+                        {f.porcentaje} %
+                    </span>
+                    {f.etapa ? (
+                        <span className="shrink-0 text-[10px] text-cyan-200/70">{f.etapa}</span>
+                    ) : null}
+                </p>
+            ) : null}
+
+            {(() => {
+                const s = f as FilaMedidor & SaludFila;
+                return typeof s.salud === "number" ? (
+                    <p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[10px] text-white/60">
+                        <span
+                            aria-hidden
+                            className={`inline-block h-1.5 w-1.5 rounded-full ${PUNTO_SENAL[s.senal ?? "vigilar"]}`}
+                        />
+                        <span className="tabular-nums">salud {s.salud}/10</span>
+                        {s.motivo ? <span className="text-white/40">· {s.motivo}</span> : null}
+                    </p>
+                ) : null;
+            })()}
+            {f.porque ? (
+                <p className="mt-0.5 text-[10px] leading-relaxed text-amber-200/70">{f.porque}</p>
+            ) : null}
+            {f.quien || f.desde ? (
+                <p className="mt-0.5 text-[10px] text-white/35">
+                    {[f.quien, f.desde].filter(Boolean).join(" · ")}
+                </p>
+            ) : null}
+            {f.acciones.length ? (
+                <p className="mt-1.5 flex flex-wrap gap-1.5">
+                    {f.acciones.map((a) => (
+                        <BotonAccion key={`${f.id}-${a.clase}`} accion={a} fila={f} alAccionar={ejecutar} />
+                    ))}
+                </p>
+            ) : null}
+        </li>
+    );
+}
+
 /**
  * EL PANEL. Uno solo, debajo de la rejilla y a todo el ancho. Pide su detalle al
  * abrirse (nunca al montar: ocho peticiones que nadie ha pedido son lo contrario
@@ -398,89 +475,41 @@ export function PanelMedidor({
                 </p>
             ) : null}
 
-            {datos ? (
-                datos.filas.length === 0 ? (
-                    <p className="mc-centrado mt-2 text-[11px] leading-relaxed text-white/45">{datos.vacio}</p>
-                ) : (
-                    /* Rejilla: con cuarenta filas, una columna deja la página infinita.
-                       El texto de cada ficha va a la IZQUIERDA a propósito: son datos que
-                       se leen en columna y centrarlos los vuelve ilegibles. */
-                    <ul className="mt-2 grid gap-1.5 md:grid-cols-2 xl:grid-cols-3">
-                        {datos.filas.map((f) => (
-                            <li key={f.id} className="rounded-lg border border-white/10 bg-black/25 p-2 text-left">
-                                <p className="flex flex-wrap items-baseline gap-1.5">
-                                    <span className="font-mono text-[11px] text-cyan-200/90">{f.id}</span>
-                                    {f.estado ? (
-                                        <span className="rounded-full border border-white/10 px-1.5 text-[10px] text-white/45">
-                                            {f.estado}
-                                        </span>
-                                    ) : null}
-                                </p>
-                                <p className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-white/80">{f.titulo}</p>
+            {datos ? (() => {
+                const operativas = datos.filas.filter((f) => !f.historica);
+                const historicas = datos.filas.filter((f) => f.historica);
 
-                                {/* El avance de ESA tarea por el camino de seis etapas. Se pinta
-                                    con `scaleX`, no con `width`: ancho anima el layout y da tirones.
-                                    Solo aparece donde significa algo (en curso, agentes, listas);
-                                    en «bloqueadas» un porcentaje sería inventado. */}
-                                {typeof f.porcentaje === "number" ? (
-                                    <p className="mt-1 flex items-center gap-1.5">
-                                        <span
-                                            className="mc-barra h-1 flex-1 overflow-hidden rounded-full bg-white/10"
-                                            role="progressbar"
-                                            aria-valuenow={f.porcentaje}
-                                            aria-valuemin={0}
-                                            aria-valuemax={100}
-                                            aria-label={`Avance de ${f.id}`}
-                                        >
-                                            <i
-                                                className={`block h-full rounded-full ${
-                                                    f.porcentaje === 0 ? "bg-white/25" : "bg-cyan-400/80"
-                                                }`}
-                                                style={{ transform: `scaleX(${Math.max(0.02, f.porcentaje / 100)})` }}
-                                            />
-                                        </span>
-                                        <span className="w-14 shrink-0 text-right text-[10px] tabular-nums text-white/55">
-                                            {f.porcentaje} %
-                                        </span>
-                                        {f.etapa ? (
-                                            <span className="shrink-0 text-[10px] text-cyan-200/70">{f.etapa}</span>
-                                        ) : null}
-                                    </p>
-                                ) : null}
+                if (datos.filas.length === 0) {
+                    return <p className="mc-centrado mt-2 text-[11px] leading-relaxed text-white/45">{datos.vacio}</p>;
+                }
 
-                                {(() => {
-                                    const s = f as FilaMedidor & SaludFila;
-                                    return typeof s.salud === "number" ? (
-                                        <p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[10px] text-white/60">
-                                            <span
-                                                aria-hidden
-                                                className={`inline-block h-1.5 w-1.5 rounded-full ${PUNTO_SENAL[s.senal ?? "vigilar"]}`}
-                                            />
-                                            <span className="tabular-nums">salud {s.salud}/10</span>
-                                            {s.motivo ? <span className="text-white/40">· {s.motivo}</span> : null}
-                                        </p>
-                                    ) : null;
-                                })()}
-                                {f.porque ? (
-                                    <p className="mt-0.5 text-[10px] leading-relaxed text-amber-200/70">{f.porque}</p>
-                                ) : null}
-                                {f.quien || f.desde ? (
-                                    <p className="mt-0.5 text-[10px] text-white/35">
-                                        {[f.quien, f.desde].filter(Boolean).join(" · ")}
-                                    </p>
-                                ) : null}
-                                {f.acciones.length ? (
-                                    <p className="mt-1.5 flex flex-wrap gap-1.5">
-                                        {f.acciones.map((a) => (
-                                            <BotonAccion key={`${f.id}-${a.clase}`} accion={a} fila={f} alAccionar={ejecutar} />
-                                        ))}
-                                    </p>
-                                ) : null}
-                            </li>
-                        ))}
-                    </ul>
-                )
-            ) : null}
+                return (
+                    <>
+                        {operativas.length > 0 ? (
+                            <ul className="mt-2 grid gap-1.5 md:grid-cols-2 xl:grid-cols-3">
+                                {operativas.map((f) => (
+                                    <FichaFila key={f.id} f={f} ejecutar={ejecutar} />
+                                ))}
+                            </ul>
+                        ) : (
+                            <p className="mc-centrado mt-2 text-[11px] leading-relaxed text-white/45">{datos.vacio}</p>
+                        )}
+
+                        {historicas.length > 0 ? (
+                            <details className="mt-3 border-t border-white/10 pt-2.5 text-left">
+                                <summary className="cursor-pointer text-[11px] font-medium text-white/50 hover:text-white/80 select-none">
+                                    de olas cerradas ({historicas.length})
+                                </summary>
+                                <ul className="mt-2 grid gap-1.5 md:grid-cols-2 xl:grid-cols-3">
+                                    {historicas.map((f) => (
+                                        <FichaFila key={f.id} f={f} ejecutar={ejecutar} />
+                                    ))}
+                                </ul>
+                            </details>
+                        ) : null}
+                    </>
+                );
+            })() : null}
 
             {datos?.acciones.length ? (
                 <p className="mc-centrado mt-2.5 flex flex-wrap justify-center gap-1.5 border-t border-white/10 pt-2.5">

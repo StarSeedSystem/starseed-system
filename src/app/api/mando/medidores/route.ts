@@ -18,7 +18,15 @@ import path from "node:path";
 import { promisify } from "node:util";
 
 import { guardianMando } from "@/lib/mando/guardian";
-import { enjambreEnMarcha, leerColas, leerLatidos, leerLatidosDelBus, leerProgreso } from "@/lib/mando/lector-local";
+import {
+    colaInteligente,
+    enjambreEnMarcha,
+    leerColas,
+    leerCommitsDeOlas,
+    leerLatidos,
+    leerLatidosDelBus,
+    leerProgreso,
+} from "@/lib/mando/lector-local";
 import {
     TERMINALES,
     detalleDeMedidor,
@@ -56,12 +64,13 @@ async function leerEntradas(): Promise<Record<string, Entrada>> {
 }
 
 async function reunir(): Promise<Partial<DatosMedidores>> {
-    const [progreso, colas, bus, latidosMac, vivo] = await Promise.all([
+    const [progreso, colas, bus, latidosMac, vivo, commitsGit] = await Promise.all([
         leerEntradas(),
         leerColas().catch(() => []),
         leerLatidosDelBus().catch(() => ({ latidos: [], enjambres: [] })),
         leerLatidos().catch(() => []),
         enjambreEnMarcha().catch(() => false),
+        leerCommitsDeOlas().catch(() => new Map()),
     ]);
     // La pausa del Mando vive fuera de git, en la config del director.
     let pausado = false;
@@ -98,6 +107,7 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
     // orquestador local escribe `olas/latidos-*.json` cada 20 s y solo publica en el bus
     // de vez en cuando, así que el bus siempre va por detrás o directamente vacío.
     const deAqui = new Set(latidosMac.map((l) => l.tarea));
+    const latidosCompletos = [...latidosMac, ...bus.latidos.filter((l) => !deAqui.has(l.tarea))];
     const latidosDeAqui = [
         ...latidosMac.map((l) => ({
             tarea: l.tarea,
@@ -119,6 +129,8 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
             })),
     ];
 
+    const fila = colaInteligente(colas, progreso, latidosCompletos, commitsGit, asuntosDeMain);
+
     return {
         progreso,
         titulos,
@@ -127,6 +139,7 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
         ejecutables,
         enjambreVivo: vivo,
         enjambrePausado: pausado,
+        fila,
     };
 }
 
