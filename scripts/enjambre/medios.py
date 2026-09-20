@@ -263,3 +263,61 @@ def tope_de_silencio(bytes_trabajo, colgado_s=300, orientacion_s=900, log_crecie
     """
     _entero_no_negativo(bytes_trabajo)  # valida la entrada aunque ya no ramifique por ella
     return orientacion_s if log_creciendo else colgado_s
+
+
+
+# ── (2026-09-20) La ficha de IDE de cada agente, para el Mando ────────────────
+#: Cómo se abre el proceso de un agente en su IDE, cuando el IDE ofrece un enlace.
+#: opencode no tiene enlace por sesión (se sigue por el log); Codex sí (`codex://threads/…`).
+ENLACES_IDE = {
+    "codex": "codex://threads/{sesion}",
+    "hermes": "hermes chat -r {sesion}",
+    "claude": "claude --resume {sesion}",
+}
+
+
+def partes_de_medio(medio_id):
+    """`opencode:mac:mac:30929` → (motor, origen, entorno, pid). Lo que falte, vacío."""
+    p = str(medio_id or "").split(":") + ["", "", "", ""]
+    try:
+        pid = int(p[3])
+    except (TypeError, ValueError):
+        pid = None
+    return p[0], p[1], p[2], pid
+
+
+def ficha_ide(tid, registro, medios_vivos, ahora, servidor="", sesion=None, ruta_log=""):
+    """Lo que el Mando enseña de un agente: desde dónde trabaja, si está en línea, quién
+    podría seguir su tarea si ese medio cae, y cómo ver su proceso en vivo.
+
+    - `medioId` sale del ARRIENDO de la tarea (el medio que la tiene ahora mismo).
+    - `enLinea`: el estado calculado por `normalizar_medios` es disponible/ocupado.
+    - `alternativas`: los demás medios utilizables con hueco, primero los de otro servidor
+      (si cae el servidor entero, los del mismo caen con él).
+    - El traslado es automático: el arriendo caduca y otro medio vivo la toma.
+    """
+    arriendo = ((registro or {}).get("arriendos") or {}).get(tid) or {}
+    medio_id = str(arriendo.get("medio") or "")
+    motor, origen, entorno, pid = partes_de_medio(medio_id)
+    propio = (medios_vivos or {}).get(medio_id) or {}
+    en_linea = propio.get("estado") in ESTADOS_UTILIZABLES
+    alternativas = []
+    for mid, m in (medios_vivos or {}).items():
+        if mid == medio_id or m.get("estado") not in ESTADOS_UTILIZABLES or int(m.get("libres") or 0) <= 0:
+            continue
+        o_motor, o_origen, _, _ = partes_de_medio(mid)
+        alternativas.append({"id": mid, "motor": o_motor, "origen": o_origen, "libres": int(m.get("libres") or 0),
+                             "otroServidor": o_origen != origen})
+    alternativas.sort(key=lambda a: (not a["otroServidor"], a["motor"], a["id"]))
+    enlace_ide = ENLACES_IDE.get(motor, "").format(sesion=sesion) if sesion else ""
+    try:
+        vence_en = int(float(arriendo.get("vence") or 0) - ahora) if arriendo.get("vence") else None
+    except (TypeError, ValueError):
+        vence_en = None
+    return {
+        "ide": {"motor": motor, "origen": origen, "entorno": entorno, "pid": pid, "servidor": servidor,
+                "medioId": medio_id, "enLinea": bool(en_linea), "estado": propio.get("estado") or "desconocido",
+                "venceEnS": vence_en, "worktree": arriendo.get("worktree") or ""},
+        "alternativas": alternativas[:6],
+        "proceso": {"log": ruta_log, "enVivo": "/api/mando/agente/%s/log" % tid, "sesion": sesion or "", "enlaceIde": enlace_ide},
+    }

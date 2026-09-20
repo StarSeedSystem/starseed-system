@@ -9,6 +9,7 @@ DIRECTORIO = os.path.dirname(os.path.abspath(__file__))
 if DIRECTORIO not in sys.path:
     sys.path.insert(0, DIRECTORIO)
 
+import medios  # noqa: E402
 from medios import (  # noqa: E402
     area_de_tarea,
     tope_de_silencio,
@@ -190,3 +191,47 @@ class PruebaSilencioConRegistroVivo(unittest.TestCase):
         self.assertEqual(tope_de_silencio(0), 300)
         self.assertEqual(tope_de_silencio(1200), 300)
 
+
+
+class FichaIde(unittest.TestCase):
+    """(2026-09-20) Lo que el Mando enseña de cada agente: IDE, servidor, en línea, alternativas, proceso."""
+
+    def _vivos(self):
+        return {
+            "opencode:mac:mac:30929": {"estado": "ocupado", "libres": 1},
+            "codex:mac:mac:30929": {"estado": "disponible", "libres": 2},
+            "opencode:nube:hermes:9013": {"estado": "disponible", "libres": 3},
+            "opencode:mac:mac:1949": {"estado": "desconectado", "libres": 0},
+            "codex:nube:hermes:9013": {"estado": "disponible", "libres": 0},
+        }
+
+    def test_ficha_completa_con_arriendo(self):
+        registro = {"arriendos": {"RI2": {"medio": "opencode:mac:mac:30929", "vence": 1000.0, "worktree": "/wt/RI2"}}}
+        f = medios.ficha_ide("RI2", registro, self._vivos(), 940.0, servidor="maggasukha.local", ruta_log="logs/RI2.log")
+        self.assertEqual(f["ide"]["motor"], "opencode")
+        self.assertEqual(f["ide"]["origen"], "mac")
+        self.assertEqual(f["ide"]["pid"], 30929)
+        self.assertEqual(f["ide"]["servidor"], "maggasukha.local")
+        self.assertTrue(f["ide"]["enLinea"])
+        self.assertEqual(f["ide"]["venceEnS"], 60)
+        self.assertEqual(f["proceso"]["enVivo"], "/api/mando/agente/RI2/log")
+        self.assertEqual(f["proceso"]["log"], "logs/RI2.log")
+        ids = [a["id"] for a in f["alternativas"]]
+        self.assertEqual(ids[0], "opencode:nube:hermes:9013")     # otro servidor primero
+        self.assertIn("codex:mac:mac:30929", ids)
+        self.assertNotIn("opencode:mac:mac:1949", ids)              # desconectado no vale
+        self.assertNotIn("codex:nube:hermes:9013", ids)             # sin hueco no vale
+        self.assertNotIn("opencode:mac:mac:30929", ids)             # el propio no es alternativa
+
+    def test_sin_arriendo_ni_medios(self):
+        f = medios.ficha_ide("X", {}, {}, 0.0)
+        self.assertEqual(f["ide"]["medioId"], "")
+        self.assertFalse(f["ide"]["enLinea"])
+        self.assertEqual(f["alternativas"], [])
+        self.assertEqual(f["proceso"]["enlaceIde"], "")
+
+    def test_enlace_de_ide_solo_con_sesion(self):
+        registro = {"arriendos": {"T": {"medio": "codex:mac:mac:1"}}}
+        f = medios.ficha_ide("T", registro, {}, 0.0, sesion="01a08a31")
+        self.assertEqual(f["proceso"]["enlaceIde"], "codex://threads/01a08a31")
+        self.assertEqual(medios.partes_de_medio("raro"), ("raro", "", "", None))

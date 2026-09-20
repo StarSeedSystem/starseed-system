@@ -34,6 +34,7 @@ if DIRECTORIO_ENJAMBRE not in sys.path:
     sys.path.insert(0, DIRECTORIO_ENJAMBRE)
 from medios import (
     area_de_tarea,
+    ficha_ide,
     tope_de_silencio,
     normalizar_medios,
     registrar_resultado,
@@ -4446,6 +4447,11 @@ MEDIOS_LOCALES = {
     "opencode": "opencode:" + _INSTANCIA,
     "codex": "codex:" + _INSTANCIA,
 }
+try:
+    import socket as _socket
+    _SERVIDOR = _socket.gethostname()
+except Exception:
+    _SERVIDOR = os.environ.get("STARSEED_DONDE", "nube")
 MEDIO_POR_TAREA = {}
 REANUDAR_AUTO = set()
 ARRENDADAS_EXTERNAS = set()
@@ -4917,6 +4923,17 @@ def foto_enjambre(vivas_txt):
     medios_vivos = normalizar_medios(
         registro.get("medios") or {}, ahora_s, LATIDO_MEDIO_MAX_S, COLGADO_S
     )
+    # (2026-09-20) Alex: «en cada agente, los datos del servidor de IDE desde donde trabaja,
+    # si está en línea, sus alternativas por si ese servidor cae, y el enlace a su proceso en
+    # tiempo real». El arriendo de la tarea dice QUÉ medio la tiene (motor:origen:entorno:pid);
+    # el registro de medios dice cuáles más están vivos y podrían seguirla (el arriendo caduca
+    # a los ARRIENDO_S y otro medio vivo la toma: ese es el traslado automático).
+    for t in tareas:
+        try:
+            t.update(ficha_ide(t["id"], registro, medios_vivos, ahora_s, servidor=_SERVIDOR,
+                               ruta_log=os.path.join("starseed_memory_root", "olas", "logs", t["id"] + ".log")))
+        except Exception:
+            pass  # la ficha de IDE nunca tumba el latido
     return {
         "cola": os.path.basename(sys.argv[1]) if len(sys.argv) > 1 else "",
         "donde": os.environ.get("STARSEED_DONDE", "nube"),
