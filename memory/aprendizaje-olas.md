@@ -754,3 +754,25 @@
 - `DV1` — no escribió nada
 - `TM1` — pruebas en rojo: vitest falla (rama conservada)
 - `AG-2` — no escribió nada
+
+## 2026-09-20 03:01 · auto-0920-021046
+
+**Lo que se pidió.** top 3 accionables
+
+**Resultado.** 2 de 10 integradas. 8 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 6 tareas se fueron por lo mismo — no escribió nada (DR0919-1, AG-2, AG-3, RI2, DV1, TM3). Es 60 % de la ola.
+- 2 tareas se fueron por lo mismo — otra cosa (HW-2, CC1). Es 20 % de la ola.
+- sin modelo anotado no integró ninguna de sus 8 tareas.
+- google/gemini-3.6-flash integró 2 tareas sin fallar una.
+
+**Lo que quedó fuera, una por una:**
+- `DR0919-1` — no escribió nada
+- `AG-2` — no escribió nada
+- `AG-3` — no escribió nada
+- `HW-2` — otra cosa: intento 1
+- `CC1` — otra cosa: intento 1
+- `RI2` — no escribió nada
+- `DV1` — no escribió nada
+- `TM3` — no escribió nada
