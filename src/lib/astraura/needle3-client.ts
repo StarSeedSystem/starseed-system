@@ -1,4 +1,5 @@
 import { astraura158Endpoint, type Astraura158Target } from "./astraura-158-client";
+import { CAMPOS_PERMITIDOS, type TipoAccionUi } from "./ui-acciones";
 
 export interface LlamadaNeedle {
   nombre: string;
@@ -90,20 +91,21 @@ export async function decidirConNeedle(
   }
 }
 
-const ACCIONES_UI: Array<{ name: string; desc: string }> = [
-  { name: "apariencia", desc: "Acción de UI para cambiar la apariencia del sistema" },
-  { name: "fondo", desc: "Acción de UI para cambiar el fondo visual" },
-  { name: "tipografia", desc: "Acción de UI para ajustar la tipografía y fuentes" },
-  { name: "distribucion", desc: "Acción de UI para cambiar la distribución del lienzo" },
-  { name: "preset", desc: "Acción de UI para aplicar el preset visual" },
-  { name: "movimiento", desc: "Acción de UI para ajustar animaciones y movimiento" },
-  { name: "restaurar", desc: "Acción de UI para restaurar los valores por defecto" },
-];
+const DESCRIPCIONES_UI: Record<TipoAccionUi, string> = {
+  apariencia: "Acción de UI para cambiar la apariencia del sistema",
+  fondo: "Acción de UI para cambiar el fondo visual",
+  tipografia: "Acción de UI para ajustar la tipografía y fuentes",
+  distribucion: "Acción de UI para cambiar la distribución del lienzo",
+  preset: "Acción de UI para aplicar el preset visual",
+  movimiento: "Acción de UI para ajustar animaciones y movimiento",
+  restaurar: "Acción de UI para restaurar los valores por defecto",
+};
 
 export function catalogoDeAccionesOS(): HerramientaNeedle[] {
-  return ACCIONES_UI.map((a) => ({
-    name: a.name,
-    description: a.desc,
+  const tipos = Object.keys(CAMPOS_PERMITIDOS) as TipoAccionUi[];
+  return tipos.map((t) => ({
+    name: t,
+    description: DESCRIPCIONES_UI[t] ?? `Acción de UI ${t}`,
     parameters: {
       type: "object",
       properties: {
