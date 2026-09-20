@@ -210,17 +210,17 @@ function AgentesEnVivo({ estado }: { estado: EstadoMando }) {
                     <tbody className="text-white/80">
                         {latidos.map((l, i) => {
                             const datosFila = filaDeLatido(l, Date.now());
-                            const esSeleccionado = tareaSeleccionada === l.tarea;
+                            const esSeleccionado = tareaSeleccionada === datosFila.tarea;
                             return (
                                 <tr
-                                    key={`${l.donde}-${l.cola}-${l.tarea}-${i}`}
+                                    key={`${l.donde}-${l.cola}-${datosFila.tarea}-${i}`}
                                     role="button"
                                     tabIndex={0}
-                                    onClick={() => setTareaSeleccionada(esSeleccionado ? null : l.tarea)}
+                                    onClick={() => setTareaSeleccionada(esSeleccionado ? null : datosFila.tarea)}
                                     onKeyDown={(e) => {
                                         if (e.key === "Enter" || e.key === " ") {
                                             e.preventDefault();
-                                            setTareaSeleccionada(esSeleccionado ? null : l.tarea);
+                                            setTareaSeleccionada(esSeleccionado ? null : datosFila.tarea);
                                         }
                                     }}
                                     className={`border-t border-white/5 cursor-pointer hover:bg-white/5 transition-colors ${
@@ -232,11 +232,11 @@ function AgentesEnVivo({ estado }: { estado: EstadoMando }) {
                                     </td>
                                     <td className="py-1.5 pr-3 text-violet-200"
                                         title="Desde dónde se usan las APIs: quién lanzó el orquestador">
-                                        {l.medio ?? "—"}
+                                        {datosFila.medio}
                                     </td>
-                                    <td className="py-1.5 pr-3 font-mono">{l.tarea}</td>
-                                    <td className={`py-1.5 pr-3 ${tonoFase(l.fase)}`}>
-                                        {l.fase}
+                                    <td className="py-1.5 pr-3 font-mono">{datosFila.tarea}</td>
+                                    <td className={`py-1.5 pr-3 ${tonoFase(datosFila.fase)}`}>
+                                        {datosFila.fase}
                                         {l.quietoSegundos > 180 ? ` · mudo ${Math.round(l.quietoSegundos / 60)} min` : ""}
                                         {avisoColgado(l)}
                                     </td>
@@ -255,11 +255,11 @@ function AgentesEnVivo({ estado }: { estado: EstadoMando }) {
                                                             actual
                                                                 ? datosFila.etapa.atascada
                                                                     ? "bg-amber-400 mc-latido"
-                                                                    : l.fase === "escribiendo"
+                                                                    : datosFila.fase === "escribiendo"
                                                                       ? "bg-emerald-400 mc-latido"
-                                                                      : l.fase === "tsc" || l.fase === "tests"
+                                                                      : datosFila.fase === "tsc" || datosFila.fase === "tests"
                                                                         ? "bg-sky-400 mc-latido"
-                                                                        : l.fase === "revision" || l.fase === "integrando"
+                                                                        : datosFila.fase === "revision" || datosFila.fase === "integrando"
                                                                           ? "bg-amber-400 mc-latido"
                                                                           : "bg-cyan-400 mc-latido"
                                                                 : pasada
@@ -272,20 +272,20 @@ function AgentesEnVivo({ estado }: { estado: EstadoMando }) {
                                         </div>
                                     </td>
                                     <td className="py-1.5 pr-3">
-                                        {(l.modelo || "—").split("/").slice(-1)[0]}
-                                        {l.proveedor ? <span className="text-white/40"> · {l.proveedor}</span> : null}
+                                        {(datosFila.modelo || "—").split("/").slice(-1)[0]}
+                                        {datosFila.proveedor ? <span className="text-white/40"> · {datosFila.proveedor}</span> : null}
                                     </td>
                                     <td className="py-1.5 pr-3 text-white/60">
                                         {l.ventana ? `${Math.round(l.ventana / 1024)}k` : "—"}
                                     </td>
                                     <td className="py-1.5 pr-3 font-mono">
-                                        {l.tokens ? `${miles(l.tokens?.entrada)} / ${miles(l.tokens?.salida)}` : "—"}
+                                        {datosFila.tokens ? `${miles(datosFila.tokens.entrada)} / ${miles(datosFila.tokens.salida)}` : "—"}
                                     </td>
                                     <td className="py-1.5 pr-3 text-white/60">
                                         {l.tokens ? l.tokens.llamadas : "—"}
                                     </td>
                                     <td className="py-1.5 pr-3 text-white/60">
-                                        {l.minutos} min{l.intento && l.intento > 1 ? ` · intento ${l.intento}` : ""}
+                                        {datosFila.minutos} min{datosFila.intento && datosFila.intento > 1 ? ` · intento ${datosFila.intento}` : ""}
                                     </td>
                                     <td className="py-1.5 pr-3 text-white/60">
                                         {l.bytesLog ? `${Math.round(l.bytesLog / 1024)} KB` : "—"}
@@ -295,7 +295,7 @@ function AgentesEnVivo({ estado }: { estado: EstadoMando }) {
                                             type="button"
                                             onClick={(e) => {
                                                 e.stopPropagation();
-                                                pedirVerTarea(l.tarea);
+                                                pedirVerTarea(datosFila.tarea);
                                             }}
                                             className="cursor-pointer rounded-md border border-violet-400/30 px-2 py-0.5 text-[11px] text-violet-200 hover:bg-violet-400/10"
                                             title="Abre la ficha de la tarea en la ramificación, donde se cambia servidor, API o modelo"
