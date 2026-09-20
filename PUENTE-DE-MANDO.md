@@ -1,6 +1,6 @@
 # Puente de Mando · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-19 22:31:10 desde el Mando vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-19 22:33:25 desde el Mando vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -15,18 +15,18 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | Ola arriba | Ola Dream 2026-09-15 · lo que el análisis nocturno encontró |
 | Agentes escribiendo | **0** |
 | En esta ola | integradas 2 · en curso 0 · esperando aprobación 0 · pendientes 0 |
-| Últimas 4 olas | en curso 0 · pendientes 0 · integradas 2 |
-| HEAD | `d4485ce2 chore(memoria): aprendizaje de la ola auto-0919-204309` |
-| Sin publicar | 1 commits |
-| Árbol | 2 archivos sin commitear |
+| Últimas 4 olas | en curso 0 · pendientes 10 · integradas 2 |
+| HEAD | `9d9c3746 chore: PUENTE-DE-MANDO.md regenerado por el Mando e ignorar workspace/ (capturas ` |
+| Sin publicar | 2 commits |
+| Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-auto-0919-204309.json`, hace 66s)
+## Quién escribe ahora (latido de `cola-auto-0919-204309.json`, hace 200s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `MD1` | hecho | nvidia/moonshotai/kimi-k3 | 13 min | 805 s | 35109 |
-| `NE3-1` | hecho | google/gemini-3.6-flash | 15 min | 882 s | 54116 |
-| `NE3-3` | hecho | google/gemini-3.6-flash | 19 min | 1119 s | 55054 |
+| `MD1` | hecho | nvidia/moonshotai/kimi-k3 | 16 min | 940 s | 35109 |
+| `NE3-1` | hecho | google/gemini-3.6-flash | 17 min | 1016 s | 54116 |
+| `NE3-3` | hecho | google/gemini-3.6-flash | 21 min | 1253 s | 55054 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
