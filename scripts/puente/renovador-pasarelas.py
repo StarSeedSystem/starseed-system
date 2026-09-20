@@ -117,12 +117,17 @@ def sondear(url, clave, modelo, segundos=25):
     # El User-Agent NO es decorativo: con el de urllib por defecto, groq, xkiro y apinex
     # devolvían 403 a los 0,2 s (Cloudflare) y el informe acusaba a las claves de estar
     # caducadas cuando estaban perfectas. Un agente que miente así es peor que ninguno.
-    peticion = urllib.request.Request(
-        url.rstrip("/") + "/chat/completions", data=cuerpo,
-        headers={"Authorization": "Bearer %s" % (clave or "local"),
+    cabeceras = {"Authorization": "Bearer %s" % (clave or "local"),
                  "Content-Type": "application/json",
                  "Accept": "application/json",
-                 "User-Agent": "starseed-renovador/1.0"})
+                 "User-Agent": "starseed-renovador/1.0"}
+    try:
+        import openrouter as _orr
+        cabeceras = _orr.cabeceras(url, cabeceras)    # (2026-09-20) atribución de app en OpenRouter
+    except Exception:
+        pass
+    peticion = urllib.request.Request(
+        url.rstrip("/") + "/chat/completions", data=cuerpo, headers=cabeceras)
     try:
         with urllib.request.urlopen(peticion, timeout=segundos) as r:
             texto = r.read().decode("utf-8", "replace")

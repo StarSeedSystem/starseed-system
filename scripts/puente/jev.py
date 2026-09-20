@@ -83,9 +83,17 @@ def _escribir(ruta, datos):
         pass
 
 
+def _cabeceras():
+    base = {"Authorization": "Bearer " + clave(), "Content-Type": "application/json"}
+    try:
+        import openrouter as _orr
+        return _orr.cabeceras(URL, base)      # atribución de app (HTTP-Referer, X-Title)
+    except Exception:
+        return base
+
+
 def _transporte_real(cuerpo):
-    req = urllib.request.Request(URL, data=json.dumps(cuerpo).encode("utf-8"),
-                                 headers={"Authorization": "Bearer " + clave(), "Content-Type": "application/json"})
+    req = urllib.request.Request(URL, data=json.dumps(cuerpo).encode("utf-8"), headers=_cabeceras())
     return json.load(urllib.request.urlopen(req, timeout=TIEMPO_S))
 
 

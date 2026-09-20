@@ -2504,15 +2504,20 @@ def llamar_llm(proveedor, modelo, prompt, timeout=120):
             "max_tokens": 2500,
         }
         # Sin User-Agent propio, el Cloudflare de xKiro devuelve 403 al urllib de Python.
-        req = urllib.request.Request(
-            url,
-            data=json.dumps(cuerpo).encode(),
-            headers={
-                "Content-Type": "application/json",
-                "Authorization": "Bearer " + key,
-                "User-Agent": "starseed-enjambre/2 (+starseed-os)",
-            },
-        )
+        cabeceras = {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer " + key,
+            "User-Agent": "starseed-enjambre/2 (+starseed-os)",
+        }
+        # (2026-09-20) En OpenRouter: atribución de app y, para los `:free`, preferencias de
+        # enrutamiento (proveedores con herramientas, el más rápido, respaldo, middle-out).
+        try:
+            import openrouter as _orr
+            cabeceras = _orr.cabeceras(url, cabeceras)
+            cuerpo = _orr.cuerpo(url, cuerpo, con_herramientas=False)   # el revisor no usa tools
+        except Exception:
+            pass
+        req = urllib.request.Request(url, data=json.dumps(cuerpo).encode(), headers=cabeceras)
         try:
             d = json.loads(urllib.request.urlopen(req, timeout=timeout).read())
         except Exception as e:
