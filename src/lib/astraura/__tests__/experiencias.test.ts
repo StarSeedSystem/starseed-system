@@ -1,8 +1,9 @@
 import { describe, it, expect } from "vitest";
 import {
-  nueva, anotar, cerrar, leer, paraNeedle, calibracion, exportar, recortar,
+  nueva, anotar, cerrar, leer, exportar, recortar,
 } from "../experiencias";
 import type { Almacen, Experiencia, CierreExperiencia } from "../experiencias";
+import { paraNeedle, calibracion } from "../experiencias-aprendizaje";
 
 function almacenMemoria(): Almacen {
   const datos: (Experiencia | CierreExperiencia)[] = [];
