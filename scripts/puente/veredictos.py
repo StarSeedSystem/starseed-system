@@ -90,7 +90,14 @@ def preguntar_a_jev(tid, estado, nota, ficha, objecion, log):
         return None
     contexto = {"tarea": tid, "titulo": ficha.get("titulo"), "archivos": ficha.get("archivos"),
                 "estado": estado, "nota": nota[:300], "objecion_del_revisor": objecion[:800], "final_del_log": log[:800]}
-    r = jev.elegir(contexto, "¿Qué debe hacer el director del enjambre con esta tarea atascada?", OPCIONES)
+    # (2026-09-20) Por la puerta de la Trinidad: el juicio es de Jev y queda anotado como
+    # experiencia para la conciencia colectiva (Needle no juzga: medido, copia cadenas).
+    try:
+        import razonador
+        r = razonador.juicio(contexto, "¿Qué debe hacer el director del enjambre con esta tarea atascada?", OPCIONES, dominio="enjambre")
+        r = r[:3] if r else None
+    except Exception:
+        r = jev.elegir(contexto, "¿Qué debe hacer el director del enjambre con esta tarea atascada?", OPCIONES)
     if not r:
         return None
     opcion, probs, conf = r

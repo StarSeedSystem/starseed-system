@@ -307,6 +307,10 @@ modelo continúe solo. Capas y dónde se editan: `memory/orquestacion-economica.
 genera, **Needle 3** decide con herramientas en local (0,12 s, 22–127 MB, `POST /api/needle/decidir`
 en el backend de Astraura, renovación automática cada 6 h) y Jev decide con mundo; primero Needle,
 luego Jev, luego LLM. Needle 2 queda para el ESP32.
+**Trinidad de razonamiento** (2026-09-20, `memory/trinidad-razonamiento-astraura.md`): reflejo (Needle,
+intención → herramienta) → juicio (Jev, elegir/sí-no con probabilidad) → deliberación (BitNet o el enrutador
+económico); una puerta por medio (`scripts/puente/razonador.py`), cada decisión anotada como experiencia y
+un ciclo nocturno que entrena el adaptador colectivo de Needle con lo acertado. Needle no juzga: medido.
 **Jev** (2026-09-20, `memory/orquestacion-economica.md` §9): decisiones tipadas con probabilidad
 por $0,00002 (`scripts/puente/jev.py`) para veredictos de bloqueadas, Telegram, errores de pasarela
 y el veto de la aprobación sola; consejero con umbral, nunca oráculo; techo 0,05 $/día; en
