@@ -850,3 +850,21 @@
 - `AG-3` — otra cosa: intento 1
 - `DV1` — otra cosa: intento 1
 - `RS3c` — conflicto al integrar: rama ola/RS3c conservada
+
+## 2026-09-20 07:36 · auto-0920-062958
+
+**Lo que se pidió.** lo de IDEs vinculados hazlo un medidor pequeño desplegable al presionarlo en la parte superior del pulso de trabajo
+
+**Resultado.** 2 de 8 integradas. 6 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 3 tareas se fueron por lo mismo — la revisión lo rechazó (MD2b, AGR1, AGR2). Es 38 % de la ola.
+- sin modelo anotado no integró ninguna de sus 3 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `AG-3` — no escribió nada
+- `NE3-3` — conflicto al integrar: rama ola/NE3-3 conservada
+- `MD2b` — la revisión lo rechazó: rechazada automáticamente por ide (sin revisión humana); rama ola/MD2b conservada
+- `DV1` — otra cosa: movida a siguiente tanda (orquestador con el arreglo de trabajo previo) desde el Mando
+- `AGR1` — la revisión lo rechazó: rechazada automáticamente por ide (sin revisión humana); rama ola/AGR1 conservada
+- `AGR2` — la revisión lo rechazó: dependencia no integrada: AGR1 (rechazada)
