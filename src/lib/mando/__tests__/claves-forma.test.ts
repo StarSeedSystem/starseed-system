@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { enmascarar, huellaDe, reconocer } from "@/lib/mando/claves-forma";
+import { enmascarar, reconocer } from "@/lib/mando/claves-forma";
+import { huellaDe } from "@/lib/mando/claves-forma-servidor";
 
 describe("reconocer", () => {
     it("reconoce GROQ por prefijo gsk_", () => {
@@ -44,9 +45,7 @@ describe("reconocer", () => {
         expect(r.variable).toBe("API_KEY");
         expect(r.confianza).toBe("ninguna");
     });
-});
 
-describe("reconocer · cadena vacía", () => {
     it("clase una cadena vacía como desconocida", () => {
         const r = reconocer("");
         expect(r.proveedor).toBe("desconocido");

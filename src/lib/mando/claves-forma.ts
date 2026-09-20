@@ -1,5 +1,3 @@
-import { createHash } from "crypto";
-
 // REGLA FUNDAMENTAL: El valor de una clave no se registra, no se manda en un evento,
 // no se guarda en una memoria y no vuelve al navegador jamás. Solo viajan el nombre
 // de la variable, la huella y la máscara.
@@ -10,7 +8,6 @@ export type Reconocida = {
     proveedor: string;
     variable: string;
     confianza: Confianza;
-    huella: string;
 };
 
 const PREFIJOS: Record<string, { proveedor: string; variable: string; confianza: Confianza }> = {
@@ -27,7 +24,6 @@ export function reconocer(clave: string): Reconocida {
                 proveedor: info.proveedor,
                 variable: info.variable,
                 confianza: info.confianza,
-                huella: huellaDe(clave),
             };
         }
     }
@@ -37,7 +33,6 @@ export function reconocer(clave: string): Reconocida {
             proveedor: "otro",
             variable: "API_KEY",
             confianza: "media",
-            huella: huellaDe(clave),
         };
     }
 
@@ -45,13 +40,7 @@ export function reconocer(clave: string): Reconocida {
         proveedor: "desconocido",
         variable: "API_KEY",
         confianza: "ninguna",
-        huella: huellaDe(clave),
     };
-}
-
-export function huellaDe(clave: string): string {
-    const hash = createHash("sha256").update(clave).digest("hex");
-    return hash.slice(0, 12);
 }
 
 export function enmascarar(clave: string): string {
