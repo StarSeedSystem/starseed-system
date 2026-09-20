@@ -5821,6 +5821,16 @@ def ejecutar(t, intento=1):
                 cwd=wt,
                 timeout=120,
             )
+    # (2026-09-21, 00:55) «nothing to commit» NO es un fallo cuando el salvavidas ya
+    # dejó el trabajo commiteado antes de las puertas: si tsc y tests no tocaron nada,
+    # el commit final no tiene qué añadir y la rama YA lleva el trabajo. Siete tareas
+    # (HW-1, CC1, RS3c, DV1, TM1, AG-2, AG-4) se marcaron «fallo» con las puertas en
+    # verde por esto. Se comprueba que la rama vaya por delante de main y se sigue.
+    if rc != 0 and ("nothing to commit" in (out or "") or "working tree clean" in (out or "")):
+        rc_ad, adelante = sh(["git", "rev-list", "--count", "main..HEAD"], cwd=wt, timeout=30)
+        if rc_ad == 0 and (adelante or "0").strip().isdigit() and int(adelante.strip()) > 0:
+            evento("aviso", tid, "commit final sin cambios: el salvavidas ya guardó el trabajo (%s commit(s) por delante de main); sigo a revisión" % adelante.strip())
+            rc = 0
     if rc != 0:
         set_estado(
             tid,
