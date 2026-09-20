@@ -6235,6 +6235,28 @@ def ejecutar(t, intento=1):
     with LOCK_INTEGRAR, cerrojo("integrar"):
         rc, out = rebase_saltando_basura(wt, tid)
         if rc != 0:
+            if intento == 1:
+                # (2026-09-20, 14:10) Repetir «sobre el main actual» de verdad: la rama
+                # con los commits viejos se guarda como ola/<id>-antes y ola/<id> vuelve a
+                # main; el agente recibe el diff de su intento como punto de partida.
+                # Antes la rama se conservaba tal cual y el intento 2 volvía a chocar.
+                sh(["git", "branch", "-f", "ola/%s-antes" % tid, "ola/" + tid], cwd=ROOT, timeout=30)
+                sh(["git", "reset", "-q", "--hard", "main"], cwd=wt, timeout=60)
+                rc_c, en_conf = sh(["git", "diff", "--name-only", "main...ola/%s-antes" % tid], cwd=ROOT, timeout=30)
+                try:
+                    _mensajes.anotar(
+                        OLAS,
+                        tid,
+                        "CONFLICTO CON MAIN al integrar tu intento anterior (%s). Ese intento está en la rama "
+                        "`ola/%s-antes` (`git diff main...ola/%s-antes` lo enseña entero; tocaba: %s). Tu worktree "
+                        "parte AHORA del main actual: vuelve a aplicar ese trabajo A MANO sobre los archivos tal como "
+                        "están hoy en main, conservando lo que otras tareas ya integraron ahí. No hagas merge, "
+                        "cherry-pick ni rebase de esa rama; no reformatees líneas que no sean tuyas."
+                        % (time.strftime("%H:%M"), tid, tid, ", ".join((en_conf or "").split()[:6]) or "?"),
+                        de="orquestador",
+                    )
+                except Exception:
+                    pass
             limpiar_worktree(tid, borrar_rama=False)
             if intento == 1:
                 set_estado(
@@ -6242,7 +6264,7 @@ def ejecutar(t, intento=1):
                     estado="conflicto",
                     modelo=modelo_ok,
                     segundos=int(time.time() - t0),
-                    nota="reintento sobre main nuevo",
+                    nota="reintento sobre main nuevo (intento anterior en ola/%s-antes)" % tid,
                 )
                 evento(
                     "reintento",
