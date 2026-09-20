@@ -3,11 +3,8 @@
 import { useState } from "react";
 import { AlertTriangle, Check, Copy, Moon } from "lucide-react";
 import {
-  filas,
-  avisosPendientes,
-  ultimoCicloNocturno,
-  type EntradaEstados,
-  type SistemaActualizacion,
+  leerEstados, filas, avisosPendientes, ultimoCicloNocturno,
+  type EntradaEstados, type SistemaActualizacion,
 } from "@/lib/mando/astraura-actualizaciones";
 
 const COMANDOS: Record<SistemaActualizacion, string> = {
@@ -22,9 +19,10 @@ export interface PanelAstrauraActualizacionesProps { estados?: EntradaEstados; }
 export function PanelAstrauraActualizaciones({ estados = {} }: PanelAstrauraActualizacionesProps) {
   const [copiado, setCopiado] = useState<string | null>(null);
 
-  const avisos = avisosPendientes(estados);
-  const nocturno = ultimoCicloNocturno(estados.logAprendizaje);
-  const filasData = filas(estados);
+  const saneados = leerEstados(estados);
+  const avisos = avisosPendientes(saneados);
+  const nocturno = ultimoCicloNocturno(saneados.logAprendizaje);
+  const filasData = filas(saneados);
 
   const copiar = (cmd: string) => {
     void navigator.clipboard.writeText(cmd);
