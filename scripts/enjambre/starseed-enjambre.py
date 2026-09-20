@@ -4138,8 +4138,10 @@ def contexto_tarea(t, raiz=None):
         "y complétalo con ediciones sucesivas de ≤ 80 líneas cada una; nunca una sola escritura de más de 120 líneas; "
         "entre trozos no hace falta explicar nada.\n\n"
         + regla_tests
-        + _mensajes.INSTRUCCION + "\n\n"
-        + _mensajes.para_prompt(OLAS, t["id"])
+        + _mensajes.INSTRUCCION.replace("%", "%%") + "\n\n"
+        # Los mensajes del director son texto libre y este bloque se formatea con `%`:
+        # un «50 %» en un mensaje tumbó AGR1 con «unsupported format character» (2026-09-20).
+        + _mensajes.para_prompt(OLAS, t["id"]).replace("%", "%%")
         + "%s\n\nTAREA %s (%s) · %s\nArchivos implicados: %s\n\n%s"
     ) % (
         inteligente,
