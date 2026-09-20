@@ -87,14 +87,14 @@ export function FloatingMenuButton({ isOpen, onToggle, className }: FloatingMenu
         let startX = 0;
         let startY = 0;
 
-        const handleTouchStart = (e: TouchEvent) => {
-            startX = e.touches[0].clientX;
-            startY = e.touches[0].clientY;
+        const handlePointerDown = (e: PointerEvent) => {
+            startX = e.clientX;
+            startY = e.clientY;
         };
 
-        const handleTouchEnd = (e: TouchEvent) => {
-            const endX = e.changedTouches[0].clientX;
-            const endY = e.changedTouches[0].clientY;
+        const handlePointerUp = (e: PointerEvent) => {
+            const endX = e.clientX;
+            const endY = e.clientY;
             const diffX = endX - startX;
             const diffY = Math.abs(endY - startY);
 
@@ -110,12 +110,12 @@ export function FloatingMenuButton({ isOpen, onToggle, className }: FloatingMenu
             }
         };
 
-        window.addEventListener('touchstart', handleTouchStart);
-        window.addEventListener('touchend', handleTouchEnd);
+        window.addEventListener('pointerdown', handlePointerDown);
+        window.addEventListener('pointerup', handlePointerUp);
 
         return () => {
-            window.removeEventListener('touchstart', handleTouchStart);
-            window.removeEventListener('touchend', handleTouchEnd);
+            window.removeEventListener('pointerdown', handlePointerDown);
+            window.removeEventListener('pointerup', handlePointerUp);
         };
     }, [swipeToOpen, gestureThreshold, fabSide, isOpen, onToggle, isMobile]);
 
@@ -322,7 +322,7 @@ export function FloatingMenuButton({ isOpen, onToggle, className }: FloatingMenu
             onContextMenu={handleContextMenu}
             data-selecting={isSelecting ? "true" : undefined}
             className={cn(
-                "fixed z-50 flex items-center justify-center",
+                "fixed z-50 flex items-center justify-center cursor-pointer",
                 "w-14 h-14 rounded-full",
                 "bg-primary/90 text-primary-foreground",
                 "shadow-lg shadow-primary/25",

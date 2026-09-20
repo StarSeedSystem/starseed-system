@@ -77,6 +77,15 @@ describe("FloatingMenuButton · gestos y pointer events iOS", () => {
         window.removeEventListener("selectstart", selectStartSpy);
     });
 
+    it("pointerdown llama a preventDefault para evitar la selección de texto en iOS", () => {
+        const onToggle = vi.fn();
+        render(<FloatingMenuButton isOpen={false} onToggle={onToggle} />);
+        const button = screen.getByRole("button", { name: "Abrir menú" });
+
+        const eventNotCancelled = fireEvent.pointerDown(button, { pointerId: 1, clientX: 100, clientY: 100 });
+        expect(eventNotCancelled).toBe(false);
+    });
+
     it("pointercancel limpia el estado y cancela la selección", () => {
         const onToggle = vi.fn();
         render(<FloatingMenuButton isOpen={false} onToggle={onToggle} />);
@@ -93,5 +102,6 @@ describe("FloatingMenuButton · gestos y pointer events iOS", () => {
         fireEvent.pointerCancel(button, { pointerId: 1 });
 
         expect(button.getAttribute("data-selecting")).toBeNull();
+        expect(button.releasePointerCapture).toHaveBeenCalledWith(1);
     });
 });
