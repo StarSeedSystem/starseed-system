@@ -969,3 +969,17 @@
 
 **Lo que quedó fuera, una por una:**
 - `MD1b` — conflicto al integrar: rama ola/MD1b conservada
+
+## 2026-09-20 16:18 · auto-0920-141644
+
+**Lo que se pidió.** decidir en el dispositivo del usuario, sin servidor
+
+**Resultado.** 7 de 10 integradas. 3 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- google/gemini-3.6-flash integró 4 tareas sin fallar una.
+
+**Lo que quedó fuera, una por una:**
+- `DV1` — la revisión lo rechazó: rechazada automáticamente por claude (sin revisión humana); rama ola/DV1 conservada
+- `AGR1` — otra cosa: excepción: unsupported format character ')' (0x29) at index 3804
+- `MU2` — pruebas en rojo: vitest falla (rama conservada)
