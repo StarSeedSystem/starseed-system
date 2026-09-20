@@ -5,54 +5,23 @@ import "@testing-library/jest-dom/vitest";
 import { BotonMedios } from "@/components/mando/medios-computo";
 import type { ResumenMedios } from "@/lib/mando/medios-computo";
 
-function fixtureMedios(): ResumenMedios {
-    return {
-        generado: "2026-09-20T14:00:00.000Z",
-        medios: [
-            {
-                id: "mac",
-                nombre: "MacBook Pro Alex",
-                estado: "listo",
-                capacidad: "3 agentes · 8 GB",
-                detalle: "Enjambre corriendo localmente",
-                siguiente_paso: "",
-            },
-            {
-                id: "oracle",
-                nombre: "Oracle Free Tier",
-                estado: "usable",
-                capacidad: "3 OCPU · 16 GB",
-                detalle: "Nodo de respaldo en la nube",
-                siguiente_paso: "ssh ubuntu@oracle-vps",
-            },
-            {
-                id: "vps_alex",
-                nombre: "VPS Alex",
-                estado: "requiere_alex",
-                capacidad: "4 vCPU · 16 GB",
-                detalle: "Falta configurar clave SSH",
-                siguiente_paso: "scripts/puente/preparar-vps.sh",
-            },
-            {
-                id: "hf",
-                nombre: "HuggingFace Space",
-                estado: "no_disponible",
-                capacidad: "0 agentes",
-                detalle: "Requiere suscripción PRO",
-                siguiente_paso: "",
-            },
-        ],
-        resumen: { listos: 1, usables: 1, porHacer: 2, agentesAhora: 3 },
-    };
-}
+const fixtureMedios = (): ResumenMedios => ({
+    generado: "2026-09-20T14:00:00.000Z",
+    medios: [
+        { id: "mac", nombre: "MacBook Pro Alex", estado: "listo", capacidad: "3 agentes · 8 GB", detalle: "Local", siguiente_paso: "" },
+        { id: "oracle", nombre: "Oracle Free Tier", estado: "usable", capacidad: "3 OCPU · 16 GB", detalle: "Nube", siguiente_paso: "ssh ubuntu@oracle" },
+        { id: "vps", nombre: "VPS Alex", estado: "requiere_alex", capacidad: "4 vCPU · 16 GB", detalle: "Falta SSH", siguiente_paso: "preparar.sh" },
+        { id: "hf", nombre: "HuggingFace Space", estado: "no_disponible", capacidad: "0 agentes", detalle: "PRO", siguiente_paso: "" },
+    ],
+    resumen: { listos: 1, usables: 1, porHacer: 2, agentesAhora: 3 },
+});
 
 describe("BotonMedios · comprobación de medios de cómputo", () => {
     let mockFetch: ReturnType<typeof vi.fn>;
 
     beforeEach(() => {
         mockFetch = vi.fn(async (input: RequestInfo | URL) => {
-            const urlStr = String(input);
-            if (urlStr.includes("/api/mando/medios")) {
+            if (String(input).includes("/api/mando/medios")) {
                 return new Response(JSON.stringify(fixtureMedios()), { status: 200 });
             }
             return new Response("Not found", { status: 404 });
@@ -102,15 +71,16 @@ describe("BotonMedios · comprobación de medios de cómputo", () => {
     it("un error del servidor o de red se enseña como texto honesto en vez de una lista vacía muda", async () => {
         vi.stubGlobal(
             "fetch",
-            vi.fn(async () =>
-                new Response(
-                    JSON.stringify({
-                        medios: [],
-                        resumen: { listos: 0, usables: 0, porHacer: 0, agentesAhora: 0 },
-                        error: "Fallo crítico al ejecutar medios_disponibles.py",
-                    }),
-                    { status: 500 },
-                ),
+            vi.fn(
+                async () =>
+                    new Response(
+                        JSON.stringify({
+                            medios: [],
+                            resumen: { listos: 0, usables: 0, porHacer: 0, agentesAhora: 0 },
+                            error: "Fallo crítico al ejecutar medios_disponibles.py",
+                        }),
+                        { status: 500 },
+                    ),
             ),
         );
 
@@ -120,7 +90,6 @@ describe("BotonMedios · comprobación de medios de cómputo", () => {
         await screen.findByRole("dialog");
         expect(screen.getByText(/Error al consultar los medios de cómputo \(HTTP 500\)/i)).toBeInTheDocument();
 
-        // Probamos excepción de red directa
         vi.stubGlobal(
             "fetch",
             vi.fn(async () => {
