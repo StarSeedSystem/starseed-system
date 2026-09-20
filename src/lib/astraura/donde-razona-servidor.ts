@@ -3,7 +3,7 @@
  */
 
 import os from "node:os";
-import { medirPerfil, type PerfilHardware, type EntornoMedicion } from "./perfil-hardware";
+import { medirPerfil, dondeRazona, type PerfilHardware, type EntornoMedicion } from "./perfil-hardware";
 
 export type DestinoServidor = "local" | "nube";
 
@@ -28,7 +28,9 @@ export function perfilDeEstaMaquina(): PerfilHardware {
     esTauri: true,
     esPWA: false,
   };
-  return medirPerfil(entorno);
+  const perfil = medirPerfil(entorno);
+  dondeRazona(perfil);
+  return perfil;
 }
 
 export function elegirDestino(
