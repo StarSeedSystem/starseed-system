@@ -1,7 +1,6 @@
 import { astraura158Endpoint, type Astraura158Target } from "./astraura-158-client";
 import { CAMPOS_PERMITIDOS, type TipoAccionUi } from "./ui-acciones";
 import { decidirEnDispositivo } from "./needle-wasm";
-console.log("Imported decidirEnDispositivo from needle-wasm");
 
 let ultimaFalloDispositivo: number | null = null;
 const TIEMPO_RECUPERACION_MS = 10 * 60 * 1000; // 10 minutes
@@ -68,25 +67,26 @@ export async function decidirConNeedle(
   opciones?: OpcionesNeedle
 ): Promise<DecisionNeedle> {
 // If we are in the browser and device is not disabled, try device first
-    const enDispositivo = opciones?.enDispositivo !== false;
+    const enDispositivoOpcion = opciones?.enDispositivo;
     const usarDispositivo =
-      typeof window !== "undefined" &&
-      enDispositivo &&
+      (enDispositivoOpcion === true || (typeof window !== "undefined" && enDispositivoOpcion !== false)) &&
       (ultimaFalloDispositivo === null || Date.now() - ultimaFalloDispositivo > TIEMPO_RECUPERACION_MS);
 
   if (usarDispositivo) {
     const timeoutMs = opciones?.timeoutDispositivoMs ?? 2500;
+    let timerId: ReturnType<typeof setTimeout> | null = null;
     try {
       const dispositivoPromise = decidirEnDispositivo(
         consulta,
         herramientas,
         { sistema: opciones?.sistema }
       );
-      const timeoutPromise = new Promise<DecisionNeedle>((_, reject) =>
-        setTimeout(() => reject(new Error("Timeout")), timeoutMs)
-      );
+      const timeoutPromise = new Promise<DecisionNeedle>((_, reject) => {
+        timerId = setTimeout(() => reject(new Error("Timeout")), timeoutMs);
+      });
       const resultado = await Promise.race([dispositivoPromise, timeoutPromise]);
-      
+      if (timerId) clearTimeout(timerId);
+
       // Check if the device decision is valid (not escalar and has calls or confidence)
       const zona = zonaDeConfianza(resultado);
       if ((resultado.llamadas && resultado.llamadas.length > 0) || zona !== "escalar") {
@@ -95,6 +95,7 @@ export async function decidirConNeedle(
       }
       // If not valid, fall through to server
     } catch (err) {
+      if (timerId) clearTimeout(timerId);
       // Device failed: record failure and fall through to server
       ultimaFalloDispositivo = Date.now();
     }
