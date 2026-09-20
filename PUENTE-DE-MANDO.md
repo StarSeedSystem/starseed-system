@@ -1,6 +1,6 @@
 # Puente de Mando · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-19 23:42:02 desde el Mando vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-20 01:08:19 desde el Mando vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -13,26 +13,38 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 |---|---|
 | Mando | **encendido** en http://127.0.0.1:9002/mando |
 | Ola arriba | nube-20260919-2244 |
-| Agentes escribiendo | **3** |
-| En esta ola | integradas 4 · en curso 2 · esperando aprobación 0 · pendientes 0 |
-| Últimas 7 olas | en curso 8 · pendientes 3 · integradas 13 |
-| HEAD | `cb3a5b6e 347 · AS-3: Mando · Astraura · «Actualizaciones y mejora continua»: versiones, av` |
-| Sin publicar | 6 commits |
+| Agentes escribiendo | **0** |
+| En esta ola | integradas 6 · en curso 0 · esperando aprobación 0 · pendientes 0 |
+| Últimas 4 olas | en curso 0 · pendientes 0 · integradas 8 |
+| HEAD | `ce9462d4 chore(memoria): aprendizaje de la ola auto-0919-223405` |
+| Sin publicar | 1 commits |
 | Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-auto-0919-223405.json`, hace 2s)
+## Quién escribe ahora (latido de `cola-auto-0919-223405.json`, hace 5s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `NE3-1` | tsc | google/gemini-3.6-flash | 3 min | 203 s | 77491 |
-| `NE3-3` | escribiendo | google/gemini-3.6-flash | 5 min | 282 s | 56857 |
-| `CC2` | escribiendo | google/gemini-3.6-flash | 5 min | 304 s | 37121 |
-| `AS-3` | hecho | google/gemini-3.6-flash | 5 min | 313 s | 77818 |
-| `AS-2` | hecho | google/gemini-3.6-flash | 6 min | 371 s | 123046 |
-| `HW-1` | hecho | nvidia/moonshotai/kimi-k3 | 14 min | 833 s | 39951 |
-| `CC1` | hecho | nvidia/moonshotai/kimi-k3 | 22 min | 1295 s | 70147 |
-| `AS-1` | hecho | google/gemini-3.6-flash | 39 min | 2361 s | 73638 |
-| `DR0919-1` | hecho | groq/openai/gpt-oss-20b | 59 min | 3564 s | 29876 |
+| `AG-3` | hecho | google/gemini-3.6-flash | 1 min | 46 s | 81196 |
+| `AG-2` | hecho | google/gemini-3.6-flash | 20 min | 1220 s | 122477 |
+| `AG-4` | hecho | nvidia/moonshotai/kimi-k3 | 23 min | 1409 s | 30310 |
+| `AG-1` | hecho | google/gemini-3.6-flash | 32 min | 1924 s | 115082 |
+| `TM1` | hecho | google/gemini-3.6-flash | 39 min | 2326 s | 165247 |
+| `CC4` | hecho | google/gemini-3.6-flash | 46 min | 2778 s | 156045 |
+| `DV1` | hecho | openrouter/nex-agi/nex-n2.5-pro:fr | 47 min | 2815 s | 185269 |
+| `RI2` | hecho | google/gemini-3.6-flash | 47 min | 2839 s | 147501 |
+| `RS3c` | hecho | google/gemini-3.6-flash | 48 min | 2909 s | 288414 |
+| `MD1` | hecho | google/gemini-3.6-flash | 56 min | 3354 s | 109847 |
+| `JV4` | hecho | groq/openai/gpt-oss-20b | 60 min | 3585 s | 90959 |
+| `CC2` | hecho | google/gemini-3.6-flash | 63 min | 3803 s | 117111 |
+| `JV3` | hecho | groq/qwen/qwen3.8-27b | 66 min | 3938 s | 67943 |
+| `NE3-3` | hecho | google/gemini-3.6-flash | 72 min | 4308 s | 91712 |
+| `NE3-1` | hecho | google/gemini-3.6-flash | 73 min | 4357 s | 85471 |
+| `AS-3` | hecho | google/gemini-3.6-flash | 92 min | 5490 s | 77818 |
+| `AS-2` | hecho | google/gemini-3.6-flash | 92 min | 5548 s | 123046 |
+| `HW-1` | hecho | nvidia/moonshotai/kimi-k3 | 100 min | 6010 s | 39951 |
+| `CC1` | hecho | nvidia/moonshotai/kimi-k3 | 108 min | 6473 s | 70147 |
+| `AS-1` | hecho | google/gemini-3.6-flash | 126 min | 7538 s | 73638 |
+| `DR0919-1` | hecho | groq/openai/gpt-oss-20b | 146 min | 8742 s | 29876 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
