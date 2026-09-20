@@ -1,6 +1,6 @@
 # Puente de Mando · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-20 02:09:48 desde el Mando vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-20 03:01:43 desde el Mando vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -16,24 +16,24 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | Agentes escribiendo | **0** |
 | En esta ola | integradas 6 · en curso 0 · esperando aprobación 0 · pendientes 0 |
 | Últimas 4 olas | en curso 0 · pendientes 0 · integradas 8 |
-| HEAD | `b18fb1d5 chore(memoria): aprendizaje de la ola auto-0920-010845` |
-| Sin publicar | 3 commits |
+| HEAD | `90f1a9ae chore(memoria): aprendizaje de la ola auto-0920-021046` |
+| Sin publicar | 10 commits |
 | Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-auto-0920-010845.json`, hace 5s)
+## Quién escribe ahora (latido de `cola-auto-0920-021046.json`, hace 4s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `AG-2` | hecho | groq/openai/gpt-oss-120b | 1 min | 45 s | 143554 |
-| `AG-4` | hecho | google/gemini-3.6-flash | 4 min | 270 s | 66563 |
-| `RS3c` | hecho | google/gemini-3.6-flash | 21 min | 1236 s | 333583 |
-| `TM1` | hecho | google/gemini-3.6-flash | 21 min | 1272 s | 279877 |
-| `DV1` | hecho | google/gemini-3.6-flash | 25 min | 1528 s | 196466 |
-| `NE3-4` | hecho | google/gemini-3.6-flash | 33 min | 1960 s | 51685 |
-| `HW-1` | hecho | google/gemini-3.6-flash | 41 min | 2445 s | 75082 |
-| `CC1` | hecho | groq/openai/gpt-oss-120b | 41 min | 2452 s | 98483 |
-| `TM3` | hecho | google/gemini-3.6-flash | 46 min | 2762 s | 290038 |
-| `NE3-2` | hecho | openrouter/nvidia/nemotron-3.5-lig | 59 min | 3525 s | 10281 |
+| `TM3` | hecho | nvidia/moonshotai/kimi-k3 | 1 min | 36 s | 296204 |
+| `RI2` | hecho | apinex/free/glm-5.3-flash | 4 min | 230 s | 155384 |
+| `DV1` | hecho | apinex/free/glm-5.3-flash | 10 min | 572 s | 203174 |
+| `TM1` | hecho | google/gemini-3.6-flash | 13 min | 793 s | 420476 |
+| `HW-2` | hecho | nvidia/moonshotai/kimi-k3 | 20 min | 1206 s | 10864 |
+| `CC1` | hecho | nvidia/moonshotai/kimi-k3 | 23 min | 1370 s | 104733 |
+| `NE3-2` | hecho | google/gemini-3.6-flash | 27 min | 1620 s | 84553 |
+| `DR0919-1` | hecho | groq/qwen/qwen3.8-27b | 38 min | 2260 s | 52678 |
+| `AG-2` | hecho | nvidia/moonshotai/kimi-k3 | 40 min | 2403 s | 149634 |
+| `AG-3` | hecho | groq/openai/gpt-oss-20b | 43 min | 2609 s | 87765 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
