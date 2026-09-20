@@ -368,3 +368,12 @@ RAM local: el límite es el RPM gratuito de Gemini), pero esos no pasan puertas 
 **Los directores recuerdan esto así:** al reportar «agentes escribiendo ahora: N», decir también
 «máximo en esta máquina: M (gobernador)» y, si Alex pide más, proponer el medio siguiente de la
 lista, nunca subir `--workers` por encima de `maximo_hardware`.
+
+**Cómo vuelve el trabajo de la nube (2026-09-20, 22:55).** El contenedor de Claude corre
+`starseed-enjambre.py enjambre/colas/cola-nube-<fecha>.json --workers 2` (2 vCPU: 2 agentes, las
+puertas se turnan) con `~/.starseed/env` propio y el mismo `opencode.json` de la Mac (solo `{env:…}`).
+Sus commits no pueden hacer `push` (el proxy lo deniega): Claude los saca con
+`git format-patch origin/main..main` y los aplica en la Mac con `git am`, y la Mac los publica con
+las cuatro puertas (`publicar.py`). Las tareas repartidas quedan `reasignada · nube` en
+`progreso.json` para que la Mac no las duplique; si la nube muere sin entregarlas, se devuelven a
+`pendiente` y la Mac las retoma.
