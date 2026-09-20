@@ -4,14 +4,24 @@ import React, { useState, useRef, useEffect, useCallback } from "react";
 import { Menu, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAppearance } from "@/context/appearance-context";
+import {
+    indicePorDedo,
+    posicionOpcion,
+    RADIO_CORONA,
+    type OpcionRadial,
+} from "@/lib/navegacion/seleccion-radial";
 
 interface FloatingMenuButtonProps {
     isOpen: boolean;
     onToggle: () => void;
     className?: string;
+    /** Opciones de la corona radial (selección por deslizamiento tras mantener pulsado). */
+    opciones?: OpcionRadial[];
+    /** Se dispara al soltar el dedo sobre una opción resaltada de la corona. */
+    onOptionSelect?: (id: string) => void;
 }
 
-export function FloatingMenuButton({ isOpen, onToggle, className }: FloatingMenuButtonProps) {
+export function FloatingMenuButton({ isOpen, onToggle, className, opciones, onOptionSelect }: FloatingMenuButtonProps) {
     const { config, updateSection } = useAppearance();
     const {
         fabPosition,
@@ -39,6 +49,12 @@ export function FloatingMenuButton({ isOpen, onToggle, className }: FloatingMenu
     const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
     const justHandledPointerRef = useRef(false);
     const lastScrollY = useRef(0);
+    // Centro de la corona radial (donde el dedo tocó) en coordenadas de cliente,
+    // y la opción resaltada en este instante (ref para el gesto, estado para pintar).
+    const coronaRef = useRef<{ x: number; y: number } | null>(null);
+    const resaltadaRef = useRef<number | null>(null);
+    const [corona, setCorona] = useState<{ x: number; y: number } | null>(null);
+    const [resaltada, setResaltada] = useState<number | null>(null);
 
     // Update position when config changes
     useEffect(() => {
@@ -172,6 +188,12 @@ export function FloatingMenuButton({ isOpen, onToggle, className }: FloatingMenu
         longPressTimer.current = setTimeout(() => {
             if (!hasMoved.current) {
                 setIsSelecting(true);
+                if (opciones && opciones.length > 0) {
+                    // La corona se abre donde está el dedo, no en una posición fija.
+                    const centro = { x: dragStartPos.current.x, y: dragStartPos.current.y };
+                    coronaRef.current = centro;
+                    setCorona(centro);
+                }
                 triggerHaptic();
             }
         }, LONG_PRESS_MS);
@@ -184,12 +206,22 @@ export function FloatingMenuButton({ isOpen, onToggle, className }: FloatingMenu
         const dy = e.clientY - dragStartPos.current.y;
         const moveDistance = Math.hypot(dx, dy);
 
-        if (moveDistance > TAP_SLOP_PX) {
+        if (!isSelecting && moveDistance > TAP_SLOP_PX) {
             hasMoved.current = true;
             if (longPressTimer.current) {
                 clearTimeout(longPressTimer.current);
                 longPressTimer.current = null;
             }
+        }
+
+        if (isSelecting && coronaRef.current && opciones && opciones.length > 0) {
+            const indice = indicePorDedo(dx, dy, opciones.length);
+            if (indice !== resaltadaRef.current) {
+                resaltadaRef.current = indice;
+                setResaltada(indice);
+                if (indice !== null) triggerHaptic();
+            }
+            return;
         }
 
         if (fabPosition === 'draggable' && hasMoved.current && !isSelecting) {
@@ -217,13 +249,25 @@ export function FloatingMenuButton({ isOpen, onToggle, className }: FloatingMenu
             longPressTimer.current = null;
         }
 
-        if (isDragging && fabPosition === 'draggable') {
+        if (isSelecting) {
+            // Soltar con una opción resaltada la abre; dentro del radio mínimo
+            // (resaltada null) se cierra sin elegir.
+            const elegida = resaltadaRef.current;
+            if (elegida !== null && opciones && opciones[elegida]) {
+                triggerHaptic();
+                onOptionSelect?.(opciones[elegida].id);
+            }
+            coronaRef.current = null;
+            resaltadaRef.current = null;
+            setCorona(null);
+            setResaltada(null);
+        } else if (isDragging && fabPosition === 'draggable') {
             updateSection('mobile', {
                 fabOffsetX: position.x,
                 fabOffsetY: position.y
             });
             triggerHaptic();
-        } else if (!hasMoved.current && !isSelecting) {
+        } else if (!hasMoved.current) {
             justHandledPointerRef.current = true;
             triggerHaptic();
             onToggle();
@@ -253,6 +297,10 @@ export function FloatingMenuButton({ isOpen, onToggle, className }: FloatingMenu
             longPressTimer.current = null;
         }
 
+        coronaRef.current = null;
+        resaltadaRef.current = null;
+        setCorona(null);
+        setResaltada(null);
         setIsDragging(false);
         setIsSelecting(false);
         hasMoved.current = false;
@@ -312,6 +360,44 @@ export function FloatingMenuButton({ isOpen, onToggle, className }: FloatingMenu
     }
 
     return (
+        <>
+        {/* Corona radial: se abre donde está el dedo y la opción resaltada
+            sigue el dedo; soltar sobre una la abre. Animación solo con
+            transform y opacity. */}
+        {isSelecting && corona && opciones && opciones.length > 0 && (
+            <div
+                className="fixed z-50 pointer-events-none"
+                style={{ left: corona.x, top: corona.y }}
+                data-testid="corona-radial"
+            >
+                {opciones.map((opcion, indice) => {
+                    const { x, y } = posicionOpcion(indice, opciones.length, RADIO_CORONA);
+                    const activa = resaltada === indice;
+                    return (
+                        <span
+                            key={opcion.id}
+                            data-testid={`opcion-radial-${opcion.id}`}
+                            data-resaltada={activa ? "true" : undefined}
+                            className={cn(
+                                "absolute flex items-center justify-center",
+                                "min-w-11 h-11 px-3 rounded-full whitespace-nowrap",
+                                "bg-primary/90 text-primary-foreground text-xs font-medium",
+                                "border border-white/20 backdrop-blur-xl",
+                                "shadow-lg shadow-primary/25",
+                                "transition-[transform,box-shadow] duration-150 ease-out",
+                                activa && "shadow-xl shadow-primary/40 ring-2 ring-primary"
+                            )}
+                            style={{
+                                transform: `translate(-50%, -50%) translate(${x}px, ${y}px)${activa ? " scale(1.12)" : ""}`,
+                                opacity: activa ? 1 : 0.85,
+                            }}
+                        >
+                            {opcion.etiqueta}
+                        </span>
+                    );
+                })}
+            </div>
+        )}
         <button
             ref={buttonRef}
             onClick={handleClick}
@@ -371,5 +457,6 @@ export function FloatingMenuButton({ isOpen, onToggle, className }: FloatingMenu
                 )} />
             )}
         </button>
+        </>
     );
 }
