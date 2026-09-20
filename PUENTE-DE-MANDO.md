@@ -1,6 +1,6 @@
 # Puente de Mando · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-20 05:15:30 desde el Mando vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-20 06:29:53 desde el Mando vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -16,17 +16,26 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | Agentes escribiendo | **0** |
 | En esta ola | integradas 6 · en curso 0 · esperando aprobación 0 · pendientes 0 |
 | Últimas 4 olas | en curso 0 · pendientes 0 · integradas 8 |
-| HEAD | `af023fd7 chore(memoria): aprendizaje de la ola auto-0920-044736` |
-| Sin publicar | 31 commits |
+| HEAD | `6170da5d chore(memoria): aprendizaje de la ola auto-0920-051745` |
+| Sin publicar | 59 commits |
 | Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-auto-0920-044736.json`, hace 9s)
+## Quién escribe ahora (latido de `cola-auto-0920-051745.json`, hace 5s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `DV1` | hecho | groq/openai/gpt-oss-20b | 1 min | 82 s | 236894 |
-| `AG-3` | hecho | apinex/free/gemini-3.8-flash | 8 min | 459 s | 96984 |
-| `DR0919-1` | hecho | groq/openai/gpt-oss-120b | 15 min | 908 s | 80861 |
+| `RS3c` | hecho | openrouter/nvidia/nemotron-3-super | 3 min | 185 s | 588462 |
+| `MD1` | hecho | openrouter/nvidia/nemotron-3-ultra | 12 min | 705 s | 135028 |
+| `NE3-4` | hecho | nvidia/moonshotai/kimi-k3 | 13 min | 785 s | 110313 |
+| `JV4` | hecho | google/gemini-3.6-flash | 24 min | 1436 s | 147043 |
+| `JV3` | hecho | google/gemini-3.6-flash | 28 min | 1682 s | 72256 |
+| `HW-2` | hecho | nvidia/moonshotai/kimi-k3 | 30 min | 1779 s | 99917 |
+| `AS-2` | hecho | nvidia/moonshotai/kimi-k3 | 35 min | 2112 s | 200024 |
+| `NE3-3` | hecho | groq/qwen/qwen3.8-27b | 43 min | 2553 s | 99259 |
+| `CC3` | hecho | google/gemini-3.6-flash | 54 min | 3243 s | 133491 |
+| `AG-3` | hecho | nvidia/moonshotai/kimi-k3 | 61 min | 3631 s | 102223 |
+| `DV1` | hecho | nvidia/moonshotai/kimi-k3 | 61 min | 3672 s | 250054 |
+| `DR0919-1` | hecho | nvidia/moonshotai/kimi-k3 | 62 min | 3706 s | 93990 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
