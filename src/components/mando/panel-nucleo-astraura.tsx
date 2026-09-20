@@ -6,7 +6,7 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
-import { Check, Copy, RefreshCw } from "lucide-react";
+import { Check, Copy, RefreshCw, Sparkles } from "lucide-react";
 import {
     avisoVersionMayor,
     resumenNucleo,
