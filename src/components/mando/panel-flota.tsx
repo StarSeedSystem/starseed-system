@@ -48,6 +48,8 @@ import {
     type EstadoRuta,
     type PlanRuta,
 } from "@/lib/mando/enrutamiento";
+// 2026-09-20 · Ola 352 · MU2: gasto de las sesiones de Claude Code de esta Mac.
+import { TarjetaSesionesClaude } from "./uso-claude";
 
 const TEXTO_ESTADO: Record<ProveedorFlota["estado"], string> = {
     listo: "Listo",
@@ -1054,6 +1056,8 @@ export function PanelFlota() {
             {hayCadena && <TarjetaEnrutamiento planes={planes} />}
 
             <AvisoSaludRevisores catalogo={catalogo} />
+
+            <TarjetaSesionesClaude />
 
             {/* Los proveedores clasificados llegan del endpoint (`clavesPresentes` + bus). */}
             <SeccionProveedores catalogo={catalogo} proveedores={proveedores} onCambio={cargar} />
