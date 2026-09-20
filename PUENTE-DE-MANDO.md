@@ -1,6 +1,6 @@
 # Puente de Mando · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-20 07:36:24 desde el Mando vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-20 08:56:23 desde el Mando vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -16,20 +16,19 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | Agentes escribiendo | **0** |
 | En esta ola | integradas 2 · en curso 0 · esperando aprobación 0 · pendientes 0 |
 | Últimas 4 olas | en curso 0 · pendientes 0 · integradas 4 |
-| HEAD | `8cd531e9 chore(memoria): aprendizaje de la ola auto-0920-062958` |
-| Sin publicar | 73 commits |
+| HEAD | `8f0962a1 chore(memoria): aprendizaje de la ola auto-0920-073724` |
+| Sin publicar | 83 commits |
 | Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-auto-0920-062958.json`, hace 5s)
+## Quién escribe ahora (latido de `cola-auto-0920-073724.json`, hace 5s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `AGR1` | hecho | openrouter/poolside/laguna-xs-2.1: | 3 min | 170 s | 28944 |
-| `NE3-3` | hecho | openrouter/nvidia/nemotron-3-ultra | 9 min | 511 s | 232030 |
-| `JV3` | hecho | openrouter/dots-studio/dots-3-note | 32 min | 1949 s | 165202 |
-| `MD2b` | hecho | openrouter/thinkingmachines/inklin | 36 min | 2168 s | 106923 |
-| `HW-3` | hecho | google/gemini-3.6-flash | 47 min | 2845 s | 64526 |
-| `AG-3` | hecho | apinex/free/deepseek-v4-flash-0731 | 56 min | 3331 s | 124024 |
+| `DV1` | hecho | openrouter/thinkingmachines/inklin | 3 min | 173 s | 397229 |
+| `MD1b` | hecho | openrouter/nex-agi/nex-n2.5-pro:fr | 17 min | 1019 s | 114561 |
+| `AG-3` | hecho | openrouter/nvidia/nemotron-3-super | 40 min | 2425 s | 193728 |
+| `MD2b` | hecho | openrouter/thinkingmachines/inklin | 63 min | 3764 s | 166351 |
+| `RS3d` | hecho | openrouter/thinkingmachines/inklin | 68 min | 4079 s | 126990 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
