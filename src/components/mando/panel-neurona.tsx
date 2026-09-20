@@ -29,6 +29,7 @@ import type { SaludNeurona, VerificacionNeurona } from "@/lib/mando/neurona";
 import type { EstadoAlmacenamiento } from "@/lib/mando/almacenamiento";
 import { TarjetaAlmacenamiento, TarjetaDrive, TarjetaSwapHonesta } from "@/components/mando/tarjetas-almacenamiento";
 import { PanelBitnet } from "@/components/mando/panel-bitnet";
+import { PanelNodosBitnet } from "@/components/mando/panel-nodos-bitnet";
 
 /** Máximo de regresiones/mejoras que se muestran antes de «+N más». */
 const MAX_LISTA_VERIFICACION = 5;
@@ -528,6 +529,7 @@ export function PanelNeurona() {
                 {almacenamiento ? <TarjetaDrive estado={almacenamiento} /> : null}
                 <TarjetaVoz salud={salud} />
                 <PanelBitnet />
+                <PanelNodosBitnet />
                 <TarjetaOllama salud={salud} />
             </div>
         </section>

@@ -18,6 +18,7 @@ import { CircleDashed, Eye, RefreshCw, Sparkles, Trash2, Wand2 } from "lucide-re
 import { AMBITOS_ASTRA, priorizar, type SugerenciaAstra } from "@/lib/mando/astra";
 import { PanelAstrauraActualizaciones } from "@/components/mando/panel-astraura-actualizaciones";
 import { PanelConciencia } from "@/components/mando/panel-conciencia";
+import { PanelNodosBitnet } from "@/components/mando/panel-nodos-bitnet";
 
 interface AuditoriaGuardada {
     t?: string;
@@ -289,6 +290,7 @@ export function PanelAstra() {
                 ))}
             </ul>
 
+            <PanelNodosBitnet />
             <PanelConciencia />
             <PanelAstrauraActualizaciones />
 
