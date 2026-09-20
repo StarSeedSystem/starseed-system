@@ -75,18 +75,25 @@ export async function decidirConNeedle(
     });
     clearTimeout(timer);
     if (!res.ok) {
-      if (target === "local" && !opciones?.transporte) {
-        return decidirEnDispositivo(consulta, herramientas, { sistema: opciones?.sistema });
-      }
+      // Un fallo del servidor nunca se enmascara como decisión local:
+      // la respuesta HTTP no-ok se devuelve tal cual.
       return { ok: false, confianza: null, error: `HTTP ${res.status}` };
     }
     return (await res.json()) as DecisionNeedle;
   } catch (err: unknown) {
     clearTimeout(timer);
-    if (target === "local" && !opciones?.transporte) {
-      return decidirEnDispositivo(consulta, herramientas, { sistema: opciones?.sistema });
-    }
     const msg = err instanceof Error ? err.message : String(err);
+    if (target === "local" && !opciones?.transporte) {
+      // La decisión en dispositivo solo se usa cuando el servidor local
+      // está caído (error de red o timeout), nunca ante un error HTTP.
+      // `await` + try interno: si falla, se devuelve ok:false, nunca se rechaza.
+      try {
+        return await decidirEnDispositivo(consulta, herramientas, { sistema: opciones?.sistema });
+      } catch (errLocal: unknown) {
+        const msgLocal = errLocal instanceof Error ? errLocal.message : String(errLocal);
+        return { ok: false, confianza: null, error: msgLocal };
+      }
+    }
     return { ok: false, confianza: null, error: /abort/i.test(msg) ? "Tiempo de espera agotado (8s)" : msg };
   }
 }

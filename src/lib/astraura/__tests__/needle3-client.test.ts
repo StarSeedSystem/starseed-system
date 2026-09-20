@@ -102,6 +102,20 @@ describe("needle3-client", () => {
       expect(res.error).toContain("HTTP 500");
     });
 
+    it("no enmascara errores HTTP del servidor local: devuelve HTTP 500 sin caer al dispositivo", async () => {
+      const originalFetch = globalThis.fetch;
+      globalThis.fetch = (async () => new Response("Fallo interno", { status: 500 })) as typeof fetch;
+      try {
+        const res = await decidirConNeedle("local", "consulta", []);
+        expect(res.ok).toBe(false);
+        expect(res.confianza).toBeNull();
+        expect(res.error).toContain("HTTP 500");
+        expect(res.motor).not.toBe("needle3-wasm");
+      } finally {
+        globalThis.fetch = originalFetch;
+      }
+    });
+
     it("recae en decidirEnDispositivo para target local sin transporte si falla la red", async () => {
       const originalFetch = globalThis.fetch;
       globalThis.fetch = (async () => {
