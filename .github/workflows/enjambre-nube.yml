@@ -1,0 +1,131 @@
+# Medio «nube-gh»: el enjambre económico de StarSeed OS en GitHub Actions (2026-09-21).
+#
+# Alex: «se puede más con más medios… algún servicio gratuito para alojar más agentes».
+# Este repositorio es PÚBLICO, así que los runners hospedados son gratuitos y sin tope
+# de minutos: cada job es una máquina de 4 vCPU / 16 GB durante hasta 6 h, y caben
+# varios jobs a la vez (uno por cola-nube). Hugging Face ya no sirve: hospedar un
+# Space Docker en CPU gratuita exige suscripción PRO (comprobado: HTTP 402).
+#
+# Cómo se usa (desde la Mac): `python3 scripts/puente/nube-gh.py lanzar --tope 6`
+# reparte tareas a `enjambre/colas/cola-nube-<fecha>.json`, la publica y dispara
+# este workflow; `nube-gh.py traer` trae la rama `nube/<run>` a main (ff) y
+# `publicar.py` la publica con las cuatro puertas. La nube NUNCA toca main:
+# solo empuja su rama `nube/<run-id>`.
+#
+# Claves: secretos del repositorio (Settings → Secrets → Actions), que Alex pone
+# con `python3 scripts/puente/nube-gh.py secretos` (lee ~/.starseed/env y usa `gh`;
+# aquí solo aparecen NOMBRES). Un secreto ausente simplemente deja fuera esa pasarela.
+name: enjambre-nube
+
+on:
+  workflow_dispatch:
+    inputs:
+      cola:
+        description: "Ruta de la cola dentro del repo (enjambre/colas/cola-nube-*.json)"
+        required: true
+        type: string
+      trabajadores:
+        description: "Agentes en paralelo (4 vCPU → 3)"
+        required: false
+        default: "3"
+        type: string
+      minutos:
+        description: "Tope de minutos del enjambre (máx. 340: el job muere a las 6 h)"
+        required: false
+        default: "300"
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: enjambre-nube-${{ inputs.cola }}
+  cancel-in-progress: false
+
+jobs:
+  enjambre:
+    runs-on: ubuntu-latest
+    timeout-minutes: 355
+    env:
+      STARSEED_MEDIO: nube-gh
+      STARSEED_ROOT: ${{ github.workspace }}
+      STARSEED_WT: ${{ runner.temp }}/starseed-wt
+      NEEDLE_TELEMETRY: "0"
+      NODE_OPTIONS: --max-old-space-size=6144
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Dependencias y orquestador
+        run: |
+          npm ci --no-audit --no-fund --loglevel=error
+          npm install -g opencode-ai@latest --no-audit --no-fund --loglevel=error
+          mkdir -p ~/.starseed ~/.config/opencode "$STARSEED_WT"
+          cp deploy/nube/opencode.json ~/.config/opencode/opencode.json
+          bash scripts/enjambre/instalar.sh
+          git config user.email "enjambre-nube-gh@starseed.local"
+          git config user.name "Enjambre StarSeed (nube-gh)"
+
+      - name: Claves (solo las presentes; nunca se imprimen)
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GOOGLE_GENERATIVE_AI_API_KEY: ${{ secrets.GOOGLE_GENERATIVE_AI_API_KEY }}
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+          NVIDIA_SHARED_KEY: ${{ secrets.NVIDIA_SHARED_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          XKIRO_API_KEY: ${{ secrets.XKIRO_API_KEY }}
+          AIHUBMIX_API_KEY: ${{ secrets.AIHUBMIX_API_KEY }}
+          TOKENROUTER_API_KEY: ${{ secrets.TOKENROUTER_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          STARSEED_PASARELA_GROQ_KEY: ${{ secrets.STARSEED_PASARELA_GROQ_KEY }}
+          STARSEED_PASARELA_GROQ_URL: ${{ vars.STARSEED_PASARELA_GROQ_URL }}
+          STARSEED_PASARELA_GROQ_MODELOS: ${{ vars.STARSEED_PASARELA_GROQ_MODELOS }}
+          STARSEED_PASARELA_GROQ_RPM: ${{ vars.STARSEED_PASARELA_GROQ_RPM }}
+        run: |
+          : > ~/.starseed/env; chmod 600 ~/.starseed/env
+          n=0
+          for v in GEMINI_API_KEY GOOGLE_GENERATIVE_AI_API_KEY NVIDIA_API_KEY NVIDIA_SHARED_KEY OPENROUTER_API_KEY \
+                   XKIRO_API_KEY AIHUBMIX_API_KEY TOKENROUTER_API_KEY GROQ_API_KEY STARSEED_PASARELA_GROQ_KEY \
+                   STARSEED_PASARELA_GROQ_URL STARSEED_PASARELA_GROQ_MODELOS STARSEED_PASARELA_GROQ_RPM; do
+            if [ -n "${!v:-}" ]; then printf '%s=%q\n' "$v" "${!v}" >> ~/.starseed/env; n=$((n+1)); fi
+          done
+          echo "variables presentes: $n"
+          if [ "$n" = 0 ]; then echo "::error::sin secretos: pon las claves con scripts/puente/nube-gh.py secretos"; exit 1; fi
+
+      - name: Enjambre
+        run: |
+          set -a; . ~/.starseed/env; set +a
+          test -f "${{ inputs.cola }}" || { echo "::error::no existe la cola ${{ inputs.cola }}"; exit 1; }
+          mkdir -p starseed_memory_root/olas
+          timeout "${{ inputs.minutos }}m" python3 -u ~/.local/bin/starseed-enjambre.py "${{ inputs.cola }}" --workers "${{ inputs.trabajadores }}" 2>&1 | tee enjambre-nube-gh.log || true
+          echo "commits por entregar: $(git log --oneline origin/main..HEAD | wc -l)"
+
+      - name: Entregar (rama nube/<run>, nunca main)
+        if: always()
+        run: |
+          n=$(git log --oneline origin/main..HEAD | wc -l)
+          if [ "$n" -gt 0 ]; then
+            git push origin "HEAD:refs/heads/nube/${{ github.run_id }}"
+            echo "rama nube/${{ github.run_id }} con $n commit(s)"
+          else
+            echo "nada que entregar"
+          fi
+
+      - name: Rastro (log, latidos, progreso)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: enjambre-nube-${{ github.run_id }}
+          path: |
+            enjambre-nube-gh.log
+            starseed_memory_root/olas/latidos-*.json
+            starseed_memory_root/olas/progreso.json
+            starseed_memory_root/olas/eventos.jsonl
+          if-no-files-found: ignore
+          retention-days: 7
