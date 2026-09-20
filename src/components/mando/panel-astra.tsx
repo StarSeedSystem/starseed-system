@@ -17,6 +17,7 @@ import { CircleDashed, Eye, RefreshCw, Sparkles, Trash2, Wand2 } from "lucide-re
 
 import { AMBITOS_ASTRA, priorizar, type SugerenciaAstra } from "@/lib/mando/astra";
 import { PanelAstrauraActualizaciones } from "@/components/mando/panel-astraura-actualizaciones";
+import { PanelConciencia } from "@/components/mando/panel-conciencia";
 
 interface AuditoriaGuardada {
     t?: string;
@@ -288,6 +289,7 @@ export function PanelAstra() {
                 ))}
             </ul>
 
+            <PanelConciencia />
             <PanelAstrauraActualizaciones />
 
             <div className="rounded-xl border border-white/10 bg-black/20 p-4">
