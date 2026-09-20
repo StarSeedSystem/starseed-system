@@ -732,3 +732,25 @@
 - `AG-2` — otra cosa: commit: On branch ola/AG-2 nothing to commit, working tree clean
 - `AG-3` — otra cosa: commit: On branch ola/AG-3 nothing to commit, working tree clean
 - `AG-4` — otra cosa: commit: On branch ola/AG-4 nothing to commit, working tree clean
+
+## 2026-09-20 02:09 · auto-0920-010845
+
+**Lo que se pidió.** conciencia colectiva
+
+**Resultado.** 2 de 10 integradas. 8 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 4 tareas se fueron por lo mismo — no escribió nada (NE3-2, CC1, DV1, AG-2). Es 40 % de la ola.
+- 2 tareas se fueron por lo mismo — la revisión lo rechazó (NE3-4, RS3c). Es 20 % de la ola.
+- 2 tareas se fueron por lo mismo — pruebas en rojo (TM3, TM1). Es 20 % de la ola.
+- sin modelo anotado no integró ninguna de sus 4 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `NE3-2` — no escribió nada
+- `NE3-4` — la revisión lo rechazó: rechazada automáticamente por ide (sin revisión humana); rama ola/NE3-4 conservada
+- `TM3` — pruebas en rojo: vitest falla (rama conservada)
+- `CC1` — no escribió nada
+- `RS3c` — la revisión lo rechazó: rechazada automáticamente por ide (sin revisión humana); rama ola/RS3c conservada
+- `DV1` — no escribió nada
+- `TM1` — pruebas en rojo: vitest falla (rama conservada)
+- `AG-2` — no escribió nada
