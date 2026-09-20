@@ -45,6 +45,7 @@ import { destinoEsLocal } from "@/lib/astraura/destino-local";
 // despliegue local sin nube sana, cae a la neurona local (`local-respaldo`) en
 // vez de responder 503. Ver `elegir-destino.ts`.
 import { elegirDestino, type DestinoElegido } from "@/lib/astraura/elegir-destino";
+import { destinoParaPeticion } from "@/lib/astraura/donde-razona-servidor";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -212,22 +213,27 @@ function buscarSinDestino(u: URL): string {
  * null. Solo sondea la nube cuando hace falta: si el cliente pide la neurona
  * local y estamos en la propia máquina, se va directo a la local sin sondear.
  */
-async function resolverDestino(req: NextRequest): Promise<DestinoProxy | null> {
-  const pedido = destinoPedido(req);
+async function resolverDestino(req: NextRequest): Promise<{ proxy: DestinoProxy | null; motivo: string }> {
+  const query = new URL(req.url).searchParams.get("destino") ?? "";
+  const cabecera = req.headers.get("x-starseed-destino") ?? "";
+  const reqDestino = query.trim() || cabecera.trim() || null;
+
+  const decServidor = await destinoParaPeticion({ destinoPedido: reqDestino });
+  const pedido = decServidor.destino;
   const local = esDespliegueLocal(req);
-  // (Ola 278 · OS6) Cuando pedido local + despliegue local, (a) gana sin mirar
-  // la nube: no se dispara la sonda de `destinoNube()` (caché/red) en balde.
   const baseNube = pedido === "local" && local ? null : ((await destinoNube())?.base ?? null);
   const baseLocal = String(process.env.ASTRAURA_LOCAL_URL ?? "").trim().replace(/\/+$/, "") || "http://127.0.0.1:8000";
-  return elegirDestino({ pedido, local, baseNube, baseLocal });
+  const proxy = elegirDestino({ pedido, local, baseNube, baseLocal });
+  return { proxy, motivo: decServidor.motivo };
 }
 
 /** Sin destino sano: respuesta clara y NUNCA cuelga (el router cliente releva solo). */
-function sinDestino(): Response {
+function sinDestino(motivo?: string): Response {
   return Response.json(
     {
       error: "astraura-nube-no-disponible",
       sugerencia: "usa una fuente libre o tu Astraura local",
+      ...(motivo ? { motivo } : {}),
     },
     { status: 503 },
   );
@@ -341,8 +347,8 @@ type Ctx = { params: Promise<{ path?: string[] }> };
 export async function GET(req: NextRequest, ctx: Ctx): Promise<Response> {
   // (Ola 278 · OS4/OS5) Destino resuelto aquí para saber si es la neurona local
   // antes de decidir si se exige sesión; se reutiliza en `forward`.
-  const destino = await resolverDestino(req);
-  if (!destino) return sinDestino();
+  const { proxy: destino, motivo } = await resolverDestino(req);
+  if (!destino) return sinDestino(motivo);
   const auth = await requireUser(esDespliegueLocal(req) && destinoEsLocal(destino.base));
   if (auth instanceof Response) return auth;
   const rl = rateLimit(`ai-astraura158-get:${auth.userId}`, 120, 10 * 60 * 1000);
@@ -356,8 +362,8 @@ export async function GET(req: NextRequest, ctx: Ctx): Promise<Response> {
 }
 
 export async function POST(req: NextRequest, ctx: Ctx): Promise<Response> {
-  const destino = await resolverDestino(req);
-  if (!destino) return sinDestino();
+  const { proxy: destino, motivo } = await resolverDestino(req);
+  if (!destino) return sinDestino(motivo);
   const auth = await requireUser(esDespliegueLocal(req) && destinoEsLocal(destino.base));
   if (auth instanceof Response) return auth;
   const rl = rateLimit(`ai-astraura158-post:${auth.userId}`, 60, 10 * 60 * 1000);
@@ -376,8 +382,8 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<Response> {
 }
 
 export async function DELETE(_req: NextRequest, ctx: Ctx): Promise<Response> {
-  const destino = await resolverDestino(_req);
-  if (!destino) return sinDestino();
+  const { proxy: destino, motivo } = await resolverDestino(_req);
+  if (!destino) return sinDestino(motivo);
   const auth = await requireUser(esDespliegueLocal(_req) && destinoEsLocal(destino.base));
   if (auth instanceof Response) return auth;
   const rl = rateLimit(`ai-astraura158-post:${auth.userId}`, 60, 10 * 60 * 1000);
