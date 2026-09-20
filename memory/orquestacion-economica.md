@@ -389,3 +389,32 @@ job, varios jobs a la vez). `.github/workflows/enjambre-nube.yml` + `scripts/pue
 las ramas `nube/<run>` en main y luego `publicar.py`). Cada job = 3 agentes de código; el tope real
 pasa a ser el RPM de las pasarelas gratuitas, no el hierro. Hermes (`delegate_task`, 4 hijos) suma
 razonamiento, no código con puertas.
+
+## 11. Cinco trampas medidas el 2026-09-20 (06:00–06:40) que dejaban tareas «sin cambios»
+
+Todas costaron tandas enteras y ninguna era culpa del modelo:
+
+1. **OpenRouter mudo en opencode por una cabecera.** La atribución `X-Title` llevaba un punto
+   medio («·», U+00B7); el fetch de Bun la rechaza (`Header 'x-title' has invalid value`) y
+   TODOS los `openrouter/*:free` fallaban a los 0 s. Regla: cabeceras HTTP solo ASCII
+   (`scripts/puente/openrouter.py` → `TITULO`; el `opencode.json` vivo y `deploy/nube`).
+2. **Groq no escribe.** Su tramo gratuito limita 8000 TPM / 7000 ITPM y los prompts de escritura
+   pesan 19–22k tokens («Request too large» a los 0 s). Fuera de `MODELOS` (escritores); sigue de
+   revisor. Ambos errores están ahora en `PISTAS_PROVEEDOR`: no gastan intento.
+3. **Un medio local «colgado» vencía los arriendos de sus tareas vivas.** 300 s sin bytes nuevos
+   en NINGUNA tarea (tres rotando escritores mudos) → `reservar_tarea` daba por vencidos los
+   arriendos de AG-3 y DV1 mientras escribían → «reasignada» sin nadie detrás. Ahora las tareas
+   vivas del proceso conservan su arriendo y un arriendo ausente se retoma (`arriendo_de_otro`).
+4. **El revisor veía `git diff HEAD~1`.** Con el commit final vacío con título (arreglo del
+   salvavidas) el diff era vacío y bloqueaba «no contiene ninguna modificación» (HW-2). Ahora es
+   `main...HEAD` en la revisión, en el análisis de aprobación y en el stat del visto bueno.
+5. **Editar `progreso.json` con el orquestador vivo no sirve** (`guardar_prog` funde con su copia y
+   para SUS tareas gana la memoria salvo `commit/bloqueante/sustituida/rechazada`). El director
+   deja `olas/progreso-correcciones.json` y el vigilante lo aplica cuando el orquestador está
+   parado, justo antes de `pendientes()`. `descartada` ya no se relanza sola.
+
+Y dos reglas de convivencia: **ningún commit en `main` mientras el orquestador integra** (mi
+commit de las 06:05 dejó un `index.lock` y el ff de JV4 falló; se integró a mano tras rebase de
+su rama) y **un id vive en UNA sola cola** (cola-344 `MD2` y cola-334 `AG1/AG2` repetían ids de
+las Olas 239/238: el vigilante y el reconciliador las daban por hechas y nunca corrieron →
+renombradas `MD2b`, `AGR1`, `AGR2`).
