@@ -1,6 +1,6 @@
 # Puente de Mando · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-20 04:44:47 desde el Mando vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-20 05:15:30 desde el Mando vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -9,17 +9,24 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 
 ## Estado ahora mismo
 
-El Mando está **apagado**. Levántalo con `bash scripts/puente/arrancar-mando.sh`
-y vuelve a ejecutar este script; sin él los cuatro entornos van a ciegas.
-| HEAD | `851df194 chore(memoria): aprendizaje de la ola auto-0920-042930` |
-| Sin publicar | 29 commits |
+| | |
+|---|---|
+| Mando | **encendido** en http://127.0.0.1:9002/mando |
+| Ola arriba | nube-20260919-2244 |
+| Agentes escribiendo | **0** |
+| En esta ola | integradas 6 · en curso 0 · esperando aprobación 0 · pendientes 0 |
+| Últimas 4 olas | en curso 0 · pendientes 0 · integradas 8 |
+| HEAD | `af023fd7 chore(memoria): aprendizaje de la ola auto-0920-044736` |
+| Sin publicar | 31 commits |
 | Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-auto-0920-042930.json`, hace 12s)
+## Quién escribe ahora (latido de `cola-auto-0920-044736.json`, hace 9s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `TM4` | hecho | google/gemini-3.6-flash | 1 min | 50 s | 151350 |
+| `DV1` | hecho | groq/openai/gpt-oss-20b | 1 min | 82 s | 236894 |
+| `AG-3` | hecho | apinex/free/gemini-3.8-flash | 8 min | 459 s | 96984 |
+| `DR0919-1` | hecho | groq/openai/gpt-oss-120b | 15 min | 908 s | 80861 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
