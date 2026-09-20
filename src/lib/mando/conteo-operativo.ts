@@ -1,12 +1,12 @@
 /** Recuento honesto del trabajo: IDs únicos, no copias de colas históricas. */
 
-interface FilaContable {
+export interface FilaContable {
     id: string;
     estado: string;
     dependenciasPendientes: string[];
 }
 
-interface LatidoContable {
+export interface LatidoContable {
     tarea: string;
 }
 
@@ -23,6 +23,33 @@ const CERRADAS = new Set([
     "rechazada", "pendiente_aprobacion", "esperando_aprobacion",
 ]);
 
+export function obtenerIdsBloqueados(
+    fila: FilaContable[],
+    latidos: LatidoContable[] = [],
+): Set<string> {
+    const activas = new Set(latidos.map((l) => l.tarea));
+    const porId = new Map<string, FilaContable[]>();
+    for (const tarea of fila) {
+        const grupo = porId.get(tarea.id) ?? [];
+        grupo.push(tarea);
+        porId.set(tarea.id, grupo);
+    }
+
+    const bloqueados = new Set<string>();
+    for (const [id, grupo] of porId) {
+        if (activas.has(id)) continue;
+        const abiertas = grupo.filter((tarea) => !CERRADAS.has(tarea.estado));
+        if (abiertas.length === 0) continue;
+        const todasBloqueadas = abiertas.every(
+            (tarea) => tarea.estado === "bloqueada" || tarea.dependenciasPendientes.length > 0,
+        );
+        if (todasBloqueadas) {
+            bloqueados.add(id);
+        }
+    }
+    return bloqueados;
+}
+
 export function contarTrabajoReal(
     fila: FilaContable[],
     latidos: LatidoContable[],
@@ -37,11 +64,13 @@ export function contarTrabajoReal(
 
     let enCurso = 0;
     let listas = 0;
-    let bloqueadas = 0;
     // Agentes activos pero que no están en `fila` (ej. venidos de otras fuentes) también son «en curso»
     for (const id of activas) {
         if (!porId.has(id)) enCurso += 1;
     }
+
+    const idsBloqueados = obtenerIdsBloqueados(fila, latidos);
+    const bloqueadas = idsBloqueados.size;
 
     for (const [id, grupo] of porId) {
         if (activas.has(id)) {
@@ -51,11 +80,9 @@ export function contarTrabajoReal(
         }
         const abiertas = grupo.filter((tarea) => !CERRADAS.has(tarea.estado));
         if (abiertas.length === 0) continue;
-        const todasBloqueadas = abiertas.every(
-            (tarea) => tarea.estado === "bloqueada" || tarea.dependenciasPendientes.length > 0,
-        );
-        if (todasBloqueadas) bloqueadas += 1;
-        else listas += 1;
+        if (!idsBloqueados.has(id)) {
+            listas += 1;
+        }
     }
 
     return {

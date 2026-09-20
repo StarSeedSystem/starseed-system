@@ -12,6 +12,7 @@
 // -----------------------------------------------------------------------------
 
 import { ETAPAS, etapaDeFase } from "@/lib/mando/etapas";
+import { obtenerIdsBloqueados, type FilaContable } from "@/lib/mando/conteo-operativo";
 
 export type ClaveMedidor =
     | "en-curso"
@@ -52,6 +53,8 @@ export interface FilaMedidor {
     desde?: string;
     quien?: string;
     acciones: AccionMedidor[];
+    /** True si pertenece a una ola cerrada (histórica), false o undefined si es operativa. */
+    historica?: boolean;
 }
 
 export interface DetalleMedidor {
@@ -64,6 +67,8 @@ export interface DetalleMedidor {
     porcentajeMedio?: number;
     /** Qué decir cuando no hay filas. Nunca una lista en blanco y muda. */
     vacio?: string;
+    /** Número de tareas en la sección histórica de olas cerradas. */
+    historicas?: number;
 }
 
 /** Estados que ya terminaron: nada de lo que hay aquí se descarta ni se reintenta. */
@@ -263,6 +268,8 @@ export interface DatosMedidores {
     enjambrePausado?: boolean;
     disco?: { libreGb: number; usadoPct: number };
     memoria?: { libreMb: number; swapMb: number };
+    /** Fila operativa opcional de tareas activas en colas. */
+    fila?: FilaContable[];
 }
 
 const vacios: DatosMedidores = {
@@ -282,30 +289,109 @@ export function detalleDeMedidor(clave: ClaveMedidor, datos: Partial<DatosMedido
 
     switch (clave) {
         case "bloqueadas": {
-            const filas: FilaMedidor[] = Object.entries(d.progreso)
-                .filter(([, v]) => v?.estado === "bloqueada" || v?.estado === "bloqueante")
-                .map(([id, v]) => ({
-                    id,
-                    titulo: titulo(id),
-                    estado: v.estado,
-                    porque:
-                        v.estado === "bloqueante"
-                            ? "agotó los reintentos gratuitos: necesita una persona"
-                            : porqueBloqueada(v.nota, estadoDe),
-                    desde: v.t,
-                    acciones: accionesDeTarea(v.estado),
-                }))
-                .sort((a, b) => a.id.localeCompare(b.id));
-            const listas = filas.filter((f) => f.porque?.includes("puede desbloquearse")).length;
+            const idsBloqueadosOperativos = d.fila
+                ? obtenerIdsBloqueados(d.fila, d.latidos)
+                : null;
+
+            const todasBloqueadasProgreso = Object.entries(d.progreso)
+                .filter(([, v]) => v?.estado === "bloqueada" || v?.estado === "bloqueante");
+
+            const filasOperativas: FilaMedidor[] = [];
+            const filasHistoricas: FilaMedidor[] = [];
+
+            if (idsBloqueadosOperativos !== null && d.fila) {
+                const idsProgresoProcesados = new Set<string>();
+
+                for (const [id, v] of todasBloqueadasProgreso) {
+                    if (idsBloqueadosOperativos.has(id)) {
+                        idsProgresoProcesados.add(id);
+                        filasOperativas.push({
+                            id,
+                            titulo: titulo(id),
+                            estado: v.estado,
+                            porque:
+                                v.estado === "bloqueante"
+                                    ? "agotó los reintentos gratuitos: necesita una persona"
+                                    : porqueBloqueada(v.nota, estadoDe),
+                            desde: v.t,
+                            acciones: accionesDeTarea(v.estado),
+                            historica: false,
+                        });
+                    } else if (!d.fila.some((t) => t.id === id)) {
+                        filasHistoricas.push({
+                            id,
+                            titulo: titulo(id),
+                            estado: `${v.estado} (ola cerrada)`,
+                            porque:
+                                v.estado === "bloqueante"
+                                    ? "de ola cerrada · agotó reintentos"
+                                    : `de ola cerrada · ${porqueBloqueada(v.nota, estadoDe)}`,
+                            desde: v.t,
+                            acciones: accionesDeTarea(v.estado),
+                            historica: true,
+                        });
+                    }
+                }
+
+                for (const id of idsBloqueadosOperativos) {
+                    if (!idsProgresoProcesados.has(id)) {
+                        const tareaFila = d.fila.find((t) => t.id === id);
+                        const estado = "bloqueada";
+                        const porque = tareaFila?.dependenciasPendientes?.length
+                            ? `espera a ${tareaFila.dependenciasPendientes.join(", ")}`
+                            : "bloqueada en cola activa";
+                        filasOperativas.push({
+                            id,
+                            titulo: titulo(id),
+                            estado,
+                            porque,
+                            acciones: accionesDeTarea(estado),
+                            historica: false,
+                        });
+                    }
+                }
+            } else {
+                for (const [id, v] of todasBloqueadasProgreso) {
+                    filasOperativas.push({
+                        id,
+                        titulo: titulo(id),
+                        estado: v.estado,
+                        porque:
+                            v.estado === "bloqueante"
+                                ? "agotó los reintentos gratuitos: necesita una persona"
+                                : porqueBloqueada(v.nota, estadoDe),
+                        desde: v.t,
+                        acciones: accionesDeTarea(v.estado),
+                        historica: false,
+                    });
+                }
+            }
+
+            filasOperativas.sort((a, b) => a.id.localeCompare(b.id));
+            filasHistoricas.sort((a, b) => a.id.localeCompare(b.id));
+
+            const totalOperativas = filasOperativas.length;
+            const totalHistoricas = filasHistoricas.length;
+            const listas = filasOperativas.filter((f) => f.porque?.includes("puede desbloquearse")).length;
+
+            const todasFilas = [...filasOperativas, ...filasHistoricas];
+
+            let resumenText = "";
+            if (totalOperativas === 0) {
+                resumenText = totalHistoricas > 0 ? `0 esperando · ${totalHistoricas} de olas cerradas` : "nada esperando";
+            } else {
+                resumenText = `${totalOperativas} esperando${listas > 0 ? ` · ${listas} ya pueden desbloquearse` : ""}${
+                    totalHistoricas > 0 ? ` · ${totalHistoricas} de olas cerradas` : ""
+                }`;
+            }
+
             return {
                 clave,
                 titulo: "Bloqueadas",
-                resumen:
-                    filas.length === 0
-                        ? "nada esperando"
-                        : `${filas.length} esperando${listas > 0 ? ` · ${listas} ya pueden desbloquearse` : ""}`,
-                filas,
-                acciones: filas.length
+                resumen: resumenText,
+                filas: todasFilas,
+                historicas: totalHistoricas,
+                acciones: todasFilas.length
                     ? [{ clase: "descartar-todas", texto: "Descartar todas", destructiva: true }]
                     : [],
                 vacio: "Ninguna tarea espera a otra: lo que queda o está en marcha o está hecho.",
