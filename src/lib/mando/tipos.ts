@@ -7,6 +7,25 @@
  * repositorio y a resúmenes sin material sensible.
  */
 
+/**
+ * Veredicto de una tarea atascada (Ola 343 · JV3). Lo escribe
+ * `scripts/puente/veredictos.py` en `starseed_memory_root/olas/veredictos.json` y lo lleva
+ * el Mando al estado para que la ficha de la bloqueada muestre el botón
+ * «Reintentar con cambio inteligente»: `veredicto` ∈ reintentar | reintentar_con_cambio
+ * | descartar | esperar, `fuente` ∈ regla | jev | nadie, `confianza` 0..1.
+ */
+export interface VeredictoTarea {
+    id: string;
+    estado: string;
+    veredicto: string;
+    /** Instrucción del reintentar_con_cambio (objeción literal del revisor), o "". */
+    cambio: string;
+    motivo: string;
+    /** 0..1; las reglas deterministas llevan 1.0. */
+    confianza: number;
+    fuente: string;
+}
+
 /** Un evento de la bitácora de relevo (línea de `bitacora.jsonl` o fila de `relevo_eventos`). */
 export interface EventoRelevo {
     id: string;
@@ -224,4 +243,7 @@ export interface EstadoMando {
     uso: ProveedorUso[];
     revisiones: RevisionRef[];
     repo: RepoInfo | null;
+    /** Veredictos de las tareas atascadas (Ola 343): la fuente de datos del botón
+     * «Reintentar con cambio inteligente». Vacío si el archivo no existe. */
+    veredictos: VeredictoTarea[];
 }

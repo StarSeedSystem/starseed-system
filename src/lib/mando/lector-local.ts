@@ -32,9 +32,20 @@ import type {
 } from "@/lib/mando/tipos";
 import { idEnAsuntos } from "@/lib/mando/medidores";
 import { raizDelProyecto } from "@/lib/mando/raiz";
+import { parsearVeredictos, type ListaVeredictos } from "@/lib/mando/veredictos";
 
 /** Raíz del repositorio (en Next.js `process.cwd()` apunta al proyecto). */
 const RAÍZ = raizDelProyecto();
+
+/**
+ * Veredictos de las tareas atascadas (Ola 343 · JV3). Lee
+ * `starseed_memory_root/olas/veredictos.json` con el módulo puro: sin archivo o JSON
+ * corrupto → lista vacía, nunca lanza. Es solo lectura de disco local: no llama a Jev
+ * ni a ninguna red, y jamás devuelve claves ni rutas absolutas.
+ */
+export async function leerVeredictos(): Promise<ListaVeredictos> {
+    return parsearVeredictos(await leerJson("starseed_memory_root/olas/veredictos.json"));
+}
 
 /** Texto vacío por defecto cuando falta el archivo. */
 const VACÍO = "";

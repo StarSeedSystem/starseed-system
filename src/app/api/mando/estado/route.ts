@@ -32,6 +32,7 @@ import {
     leerRevisiones,
     leerUsoDiario,
     resumirOlas,
+    leerVeredictos,
     leerAsuntosDeMain,
     leerCommitsDeOlas,
 } from "@/lib/mando/lector-local";
@@ -99,7 +100,7 @@ export async function GET(request: Request): Promise<Response> {
     const veto = await guardianMando(request);
     if (veto) return veto;
 
-    const [relevo, tareas, informes, uso, revisiones, repo, progreso, latidosMac, enMarcha, agentes, bus, eventosBus, rama, commitsGit, asuntosDeMain] =
+    const [relevo, tareas, informes, uso, revisiones, repo, progreso, latidosMac, enMarcha, agentes, bus, eventosBus, rama, commitsGit, asuntosDeMain, veredictos] =
         await Promise.all([
             leerEstadoRelevo(),
             leerColas(),
@@ -116,6 +117,7 @@ export async function GET(request: Request): Promise<Response> {
             construirRamificacion(4).catch(() => null),
             leerCommitsDeOlas(),
             leerAsuntosDeMain(),
+            leerVeredictos(),
         ]);
     // Recuento de tareas para la cabecera: la ola activa (la viva o la más reciente) y las últimas olas.
     let cuentas: CuentasTareas | undefined;
@@ -164,6 +166,7 @@ export async function GET(request: Request): Promise<Response> {
         uso,
         revisiones,
         repo,
+        veredictos: veredictos.veredictos,
     };
 
     return Response.json(estado, { headers: { "Cache-Control": "no-store" } });
