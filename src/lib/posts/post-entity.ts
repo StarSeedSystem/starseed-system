@@ -533,6 +533,29 @@ export async function addComment(
     const text = (content || "").trim();
     const attachments = extra?.attachments ?? [];
     if (!postId || (!text && attachments.length === 0)) return null;
+
+    if (text) {
+        try {
+            if (typeof window !== "undefined") {
+                const res = await fetch("/api/moderacion", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ texto: text }),
+                });
+                if (res.ok) {
+                    const mod = (await res.json()) as { veredicto?: string } | null;
+                    if (mod?.veredicto === "rechazar") return null;
+                }
+            } else {
+                const { moderarPublicacion } = await import("@/lib/jev/moderacion");
+                const mod = await moderarPublicacion(text);
+                if (mod?.veredicto === "rechazar") return null;
+            }
+        } catch {
+            // Defensivo: no rompe el flujo si la moderación falla
+        }
+    }
+
     const supabase = createClient();
     const by = await currentUserId();
 

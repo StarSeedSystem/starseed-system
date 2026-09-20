@@ -32,11 +32,7 @@ export function decidirVeredicto(
   umbrales?: OpcionesUmbral
 ): ResultadoModeracion {
   if (!respuesta || typeof respuesta !== "object" || !respuesta.permitida) {
-    return {
-      veredicto: "revisar",
-      motivos: ["Respuesta ilegible o incompleta de Jev"],
-      probabilidades: {},
-    };
+    return { veredicto: "revisar", motivos: ["Respuesta ilegible o incompleta de Jev"], probabilidades: {} };
   }
 
   const decisionPermitida = respuesta.permitida;
@@ -48,11 +44,7 @@ export function decidirVeredicto(
   }
 
   if (p < 0 || p > 1 || !Number.isFinite(p)) {
-    return {
-      veredicto: "revisar",
-      motivos: ["Respuesta ilegible de Jev"],
-      probabilidades: {},
-    };
+    return { veredicto: "revisar", motivos: ["Respuesta ilegible de Jev"], probabilidades: {} };
   }
 
   const probs: Record<string, number> = { permitida: p };
@@ -66,56 +58,29 @@ export function decidirVeredicto(
   const bajo = umbrales?.bajo ?? 0.4;
   const v = umbral(p, alto, bajo);
 
-  if (v === "si") {
-    return { veredicto: "publicar", motivos: [], probabilidades: probs };
-  }
-  if (v === "no") {
-    return {
-      veredicto: "rechazar",
-      motivos: ["Alta probabilidad de incumplimiento de normas"],
-      probabilidades: probs,
-    };
-  }
-  return {
-    veredicto: "revisar",
-    motivos: ["Zona intermedia de confianza, requiere revisión"],
-    probabilidades: probs,
-  };
+  if (v === "si") return { veredicto: "publicar", motivos: [], probabilidades: probs };
+  if (v === "no") return { veredicto: "rechazar", motivos: ["Alta probabilidad de incumplimiento de normas"], probabilidades: probs };
+  return { veredicto: "revisar", motivos: ["Zona intermedia de confianza, requiere revisión"], probabilidades: probs };
 }
 
 export async function moderarPublicacion(
   texto: string,
   opciones?: OpcionesModeracion
 ): Promise<ResultadoModeracion> {
-  const fallbackInseguro: ResultadoModeracion = {
-    veredicto: "revisar",
-    motivos: ["Jev no disponible"],
-    probabilidades: {},
-  };
+  const fallbackInseguro: ResultadoModeracion = { veredicto: "revisar", motivos: ["Jev no disponible"], probabilidades: {} };
 
-  if (process.env.JEV_MODERACION === "0" || process.env.STARSEED_JEV === "0") {
-    return fallbackInseguro;
-  }
+  if (process.env.JEV_MODERACION === "0" || process.env.STARSEED_JEV === "0") return fallbackInseguro;
 
   const apiKey = process.env.OPENROUTER_API_KEY || process.env.OPENROUTER_SHARED_KEY;
-  if (!apiKey || !texto || !texto.trim()) {
-    return fallbackInseguro;
-  }
+  if (!apiKey || !texto || !texto.trim()) return fallbackInseguro;
 
   try {
-    const preguntas = decisionesDeModeracion({
-      texto,
-      titulo: opciones?.titulo,
-      autor: opciones?.autor,
-    });
+    const preguntas = decisionesDeModeracion({ texto, titulo: opciones?.titulo, autor: opciones?.autor });
     const cuerpo = construirPeticion({ texto, titulo: opciones?.titulo }, preguntas);
 
     const res = await fetch("https://openrouter.ai/api/alpha/decisions", {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify(cuerpo),
       signal: AbortSignal.timeout(opciones?.timeoutMs ?? 5000),
     });
@@ -126,12 +91,7 @@ export async function moderarPublicacion(
     const gasto = typeof data.usage?.cost === "number" ? data.usage.cost : undefined;
 
     if (gasto !== undefined && gasto > (opciones?.maxGasto ?? 0.01)) {
-      return {
-        veredicto: "revisar",
-        motivos: ["Límite de gasto superado"],
-        probabilidades: {},
-        gasto,
-      };
+      return { veredicto: "revisar", motivos: ["Límite de gasto superado"], probabilidades: {}, gasto };
     }
 
     const respuestas = leerRespuesta(data);

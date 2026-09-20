@@ -920,6 +920,46 @@ export async function publish(input: PublishInput): Promise<PublishResult> {
             ? crypto.randomUUID()
             : `entity_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
 
+    // ── Moderación de contenido con decisiones Jev ──
+    const textoAModerar = contentToText(input.content);
+    let modResult: { veredicto: string; motivos?: string[]; probabilidades?: Record<string, number>; gasto?: number } | null = null;
+    if (textoAModerar && textoAModerar !== "(sin contenido)") {
+        try {
+            if (typeof window !== "undefined") {
+                const res = await fetch("/api/moderacion", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ texto: textoAModerar, titulo: input.content?.title }),
+                });
+                if (res.ok) {
+                    modResult = (await res.json()) as typeof modResult;
+                }
+            } else {
+                const { moderarPublicacion } = await import("@/lib/jev/moderacion");
+                modResult = await moderarPublicacion(textoAModerar, { titulo: input.content?.title });
+            }
+        } catch {
+            // Defensivo: tolera fallos de red imprevistos sin romper
+        }
+    }
+
+    if (modResult?.veredicto === "rechazar") {
+        const errorMsg =
+            "Publicación rechazada por moderación: " +
+            (modResult.motivos?.join(", ") || "contenido no permitido");
+        return {
+            ok: false,
+            results: input.destinations.map((d) => ({
+                kind: d.kind,
+                id: d.id,
+                label: d.label,
+                ok: false,
+                status: "failed",
+                error: errorMsg,
+            })),
+        };
+    }
+
     const baseReferences = {
         destinations: input.destinations,
         type: input.type,
@@ -932,6 +972,7 @@ export async function publish(input: PublishInput): Promise<PublishResult> {
         postKind: input.postKind ?? "principal",
         voting: input.voting ?? null,
         scope: input.scope ?? null,
+        ...(modResult ? { moderation: modResult } : {}),
     };
 
     for (const dest of input.destinations) {
