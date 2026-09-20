@@ -832,3 +832,21 @@
 - `DR0919-1` — no escribió nada
 - `AG-3` — no escribió nada
 - `DV1` — no escribió nada
+
+## 2026-09-20 06:29 · auto-0920-051745
+
+**Lo que se pidió.** top 3 accionables
+
+**Resultado.** 8 de 12 integradas. 4 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 2 tareas se fueron por lo mismo — otra cosa (AG-3, DV1). Es 17 % de la ola.
+- sin modelo anotado no integró ninguna de sus 3 tareas.
+- nvidia/moonshotai/kimi-k3 integró 4 tareas sin fallar una.
+- google/gemini-3.6-flash integró 3 tareas sin fallar una.
+
+**Lo que quedó fuera, una por una:**
+- `DR0919-1` — no escribió nada
+- `AG-3` — otra cosa: intento 1
+- `DV1` — otra cosa: intento 1
+- `RS3c` — conflicto al integrar: rama ola/RS3c conservada
