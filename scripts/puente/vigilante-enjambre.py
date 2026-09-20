@@ -137,9 +137,78 @@ def aplicar_correcciones_pendientes():
 _AVISADAS = set()
 
 
+def cola_viva():
+    """La cola auto-* cuyos latidos son más recientes (la que corre el orquestador)."""
+    mejor, mejor_t = None, 0.0
+    for f in os.listdir(OLAS):
+        if f.startswith("latidos-cola-auto-") and f.endswith(".json"):
+            t = os.path.getmtime(os.path.join(OLAS, f))
+            if t > mejor_t:
+                mejor, mejor_t = f[len("latidos-"):], t
+    if not mejor or time.time() - mejor_t > 600:
+        return None
+    ruta = os.path.join(OLAS, mejor)
+    return ruta if os.path.exists(ruta) else None
+
+
+def alimentar_tanda_viva():
+    """Con el orquestador VIVO: correcciones de tareas ajenas a la cola viva y pendientes
+    nuevas añadidas a esa cola, para que ningún trabajador se quede parado esperando a
+    que muera la tanda (2026-09-20). Devuelve los ids añadidos."""
+    ruta = cola_viva()
+    if not ruta:
+        return []
+    try:
+        d = json.load(open(ruta, encoding="utf-8"))
+    except Exception:
+        return []
+    lista = d if isinstance(d, list) else d.get("tareas") or []
+    en_cola = {str(t.get("id")) for t in lista if isinstance(t, dict)}
+    # 1) correcciones solo de tareas que NO están en la cola viva
+    if os.path.exists(CORRECCIONES):
+        try:
+            correcciones = json.load(open(CORRECCIONES, encoding="utf-8"))
+            ajenas = {k: v for k, v in correcciones.items() if k not in en_cola}
+            if ajenas:
+                ruta_p = os.path.join(OLAS, "progreso.json")
+                prog = json.load(open(ruta_p, encoding="utf-8"))
+                nuevo, aplicadas = aplicar_correcciones(prog, ajenas)
+                if aplicadas:
+                    tmp = ruta_p + ".tmp"
+                    json.dump(nuevo, open(tmp, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+                    os.replace(tmp, ruta_p)
+                    restantes = {k: v for k, v in correcciones.items() if k not in aplicadas}
+                    if restantes:
+                        json.dump(restantes, open(CORRECCIONES, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+                    else:
+                        os.replace(CORRECCIONES, CORRECCIONES + ".aplicado")
+                    print("correcciones aplicadas (fuera de la tanda viva):", ", ".join(aplicadas), flush=True)
+        except Exception as e:  # noqa: BLE001
+            print("correcciones (vivo): %s: %s" % (type(e).__name__, e), flush=True)
+    # 2) pendientes nuevas → a la cola viva
+    nuevas = [t for t in _pendientes_sin_correcciones() if str(t.get("id")) not in en_cola]
+    if not nuevas:
+        return []
+    lista.extend(nuevas)
+    if isinstance(d, list):
+        d = lista
+    else:
+        d["tareas"] = lista
+    tmp = ruta + ".tmp"
+    json.dump(d, open(tmp, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+    os.replace(tmp, ruta)
+    ids = [str(t.get("id")) for t in nuevas]
+    print("tanda viva alimentada (%s): %s" % (os.path.basename(ruta), ", ".join(ids)), flush=True)
+    return ids
+
+
 def pendientes():
     """Trabajo real: sin copias `auto-*`, duplicados ni commits ya integrados."""
     aplicar_correcciones_pendientes()
+    return _pendientes_sin_correcciones()
+
+
+def _pendientes_sin_correcciones():
     try:
         prog = json.load(open(os.path.join(OLAS, "progreso.json"), encoding="utf-8"))
     except Exception:
@@ -248,6 +317,11 @@ def main():
         try:
             hay = orquestador_vivo()
             barrer_cerrojos()
+            if hay:
+                try:
+                    alimentar_tanda_viva()
+                except Exception as e:  # noqa: BLE001
+                    print("alimentar_tanda_viva: %s: %s" % (type(e).__name__, e), flush=True)
             cola = [] if hay else pendientes()
             cfg, _avisos = config_director.cargar()
             relanzar, trabajadores, tope = decidir_relanzamiento(cfg, hay, len(cola))
