@@ -53,6 +53,9 @@ import {
   recibidasSinDuplicar,
   fusionarManifiestos,
   anonimizar,
+  esCapacidadesNodo,
+  esExperiencia,
+  esManifiestoAdaptador,
   type ManifiestoAdaptador,
   type MensajeConciencia,
   type TemaConciencia,
@@ -388,6 +391,9 @@ export {
   recibidasSinDuplicar,
   fusionarManifiestos,
   anonimizar,
+  esCapacidadesNodo,
+  esExperiencia,
+  esManifiestoAdaptador,
   type ManifiestoAdaptador,
   type MensajeConciencia,
   type TemaConciencia,
@@ -412,22 +418,33 @@ export function setupConcienciaSync(
   const transporte = crearTransporteMesh(mesh);
 
   const unsubscribe = transporte.suscribir((msg: MensajeConciencia) => {
-    if (msg.tema === "astraura/capacidades") {
-      opts?.onCapacidades?.(msg.payload as CapacidadesNodo);
-    } else if (msg.tema === "astraura/experiencias") {
-      const ajenas = msg.payload as Experiencia[];
-      const mias = opts?.getExperienciasLocales?.() ?? [];
-      const nuevas = recibidasSinDuplicar(mias, ajenas);
-      if (nuevas.length > 0) {
-        opts?.onNuevasExperiencias?.(nuevas);
+    try {
+      if (!msg || typeof msg !== "object") return;
+
+      if (msg.tema === "astraura/capacidades") {
+        if (esCapacidadesNodo(msg.payload)) {
+          opts?.onCapacidades?.(msg.payload);
+        }
+      } else if (msg.tema === "astraura/experiencias") {
+        if (Array.isArray(msg.payload)) {
+          const ajenas = msg.payload.filter(esExperiencia);
+          const mias = opts?.getExperienciasLocales?.() ?? [];
+          const nuevas = recibidasSinDuplicar(mias, ajenas);
+          if (nuevas.length > 0) {
+            opts?.onNuevasExperiencias?.(nuevas);
+          }
+        }
+      } else if (msg.tema === "astraura/adaptador") {
+        if (esManifiestoAdaptador(msg.payload)) {
+          const mio = opts?.getManifiestoLocal?.() ?? null;
+          const resultado = fusionarManifiestos(mio, msg.payload);
+          if (resultado?.pendienteDescarga) {
+            opts?.onNuevoManifiesto?.(resultado);
+          }
+        }
       }
-    } else if (msg.tema === "astraura/adaptador") {
-      const ajeno = msg.payload as ManifiestoAdaptador;
-      const mio = opts?.getManifiestoLocal?.() ?? null;
-      const resultado = fusionarManifiestos(mio, ajeno);
-      if (resultado.pendienteDescarga) {
-        opts?.onNuevoManifiesto?.(resultado);
-      }
+    } catch {
+      // Ignorar cualquier error al procesar payload corrupto o en callbacks
     }
   });
 

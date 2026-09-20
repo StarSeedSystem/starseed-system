@@ -5,6 +5,9 @@ import {
   recibidasSinDuplicar,
   fusionarManifiestos,
   crearTransporteMesh,
+  esCapacidadesNodo,
+  esExperiencia,
+  esManifiestoAdaptador,
   type ManifiestoAdaptador,
   type MensajeConciencia,
 } from "../conciencia-colectiva";
@@ -271,6 +274,87 @@ describe("conciencia-colectiva - funciones puras", () => {
       };
       (messageHandler as (id: string, d: string) => void)("nodo-2", JSON.stringify(msgMan));
       expect(manifiestoRecibido).toBe(true);
+    }
+
+    sync.unsubscribe();
+  });
+
+  it("validadores de forma aceptan solo payloads correctos y rechazan datos corruptos", () => {
+    expect(esCapacidadesNodo(null)).toBe(false);
+    expect(esCapacidadesNodo("invalido")).toBe(false);
+    expect(esCapacidadesNodo({ nodoId: "n1", medio: "mac", t: 100 })).toBe(true);
+    expect(esCapacidadesNodo({ nodoId: "", medio: "mac", t: 100 })).toBe(false);
+
+    expect(esExperiencia(null)).toBe(false);
+    expect(esExperiencia({})).toBe(false);
+    expect(esExperiencia({ id: "exp-1" })).toBe(true);
+
+    expect(esManifiestoAdaptador(null)).toBe(false);
+    expect(esManifiestoAdaptador({ actual: "a", sha: "s", t: 1, exactitud_dorado: 0.8, base: "b" })).toBe(true);
+    expect(esManifiestoAdaptador({ sha: "s" })).toBe(false);
+  });
+
+  it("recibidasSinDuplicar y fusionarManifiestos toleran payloads nulos o corruptos", () => {
+    // @ts-expect-expected invalid payload tests
+    expect(recibidasSinDuplicar([], null as unknown as Experiencia[])).toEqual([]);
+    expect(recibidasSinDuplicar([], [null, "corrupto", { id: "ok-1" }] as unknown as Experiencia[])).toEqual([{ id: "ok-1" }]);
+
+    const base: ManifiestoAdaptador = {
+      actual: "v1",
+      sha: "sha1",
+      t: 100,
+      experiencias: 10,
+      exactitud_dorado: 0.8,
+      base: "needle3",
+    };
+    expect(fusionarManifiestos(base, null as unknown as ManifiestoAdaptador)).toBe(base);
+  });
+
+  it("setupConcienciaSync ignora payloads corruptos sin lanzar excepciones", () => {
+    let messageHandler: ((deviceId: string, data: string) => void) | null = null;
+    const mockMesh: MeshHandle = {
+      myDeviceId: "nodo-1",
+      userId: "u1",
+      supported: true,
+      signalingTransport: "realtime",
+      connectToDevice: async () => ({ deviceId: "n2", state: "connected", channelOpen: true, lastUpdate: Date.now() }),
+      onPeer: (events) => {
+        messageHandler = events.onMessage ?? null;
+        return () => {
+          messageHandler = null;
+        };
+      },
+      sendToPeer: () => true,
+      broadcast: () => 1,
+      getPeers: () => [],
+      closeMesh: () => {},
+    };
+
+    let llamadas = 0;
+    const sync = setupConcienciaSync(mockMesh, {
+      onCapacidades: () => llamadas++,
+      onNuevasExperiencias: () => llamadas++,
+      onNuevoManifiesto: () => llamadas++,
+    });
+
+    if (messageHandler) {
+      const handler = messageHandler as (id: string, d: string) => void;
+
+      // JSON invalido
+      expect(() => handler("n2", "{bad json")).not.toThrow();
+
+      // Payload null o string en capacidades
+      expect(() => handler("n2", JSON.stringify({ tema: "astraura/capacidades", payload: null }))).not.toThrow();
+      expect(() => handler("n2", JSON.stringify({ tema: "astraura/capacidades", payload: "texto" }))).not.toThrow();
+
+      // Payload corrupto en experiencias
+      expect(() => handler("n2", JSON.stringify({ tema: "astraura/experiencias", payload: null }))).not.toThrow();
+      expect(() => handler("n2", JSON.stringify({ tema: "astraura/experiencias", payload: [null, 123] }))).not.toThrow();
+
+      // Payload corrupto en adaptador
+      expect(() => handler("n2", JSON.stringify({ tema: "astraura/adaptador", payload: { corrupto: true } }))).not.toThrow();
+
+      expect(llamadas).toBe(0);
     }
 
     sync.unsubscribe();
