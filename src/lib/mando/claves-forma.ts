@@ -43,9 +43,14 @@ export function reconocer(clave: string): Reconocida {
     };
 }
 
+// La máscara nunca es más larga que la clave ni revela más de la cuarta parte.
 export function enmascarar(clave: string): string {
-    if (clave.length < 10) {
-        return clave.length > 8 ? clave.slice(0, 4) + "***" + clave.slice(-4) : "****";
+    const largo = clave.length;
+    if (largo < 8) {
+        return "*".repeat(largo);
     }
-    return clave.slice(0, 4) + "*".repeat(clave.length - 8) + clave.slice(-4);
+    if (largo < 20) {
+        return clave.slice(0, 2) + "*".repeat(largo - 4) + clave.slice(-2);
+    }
+    return clave.slice(0, 4) + "*".repeat(largo - 8) + clave.slice(-4);
 }

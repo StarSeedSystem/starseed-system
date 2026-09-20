@@ -76,10 +76,12 @@ describe("huellaDe", () => {
 });
 
 describe("enmascarar", () => {
-    it("muestra los 4 primeros y 4 últimos caracteres", () => {
-        const resultado = enmascarar("abcdefghij123456");
+    it("muestra los 4 primeros y 4 últimos en claves de 20 o más", () => {
+        const clave = "abcdefghij1234567890abcd";
+        const resultado = enmascarar(clave);
         expect(resultado.slice(0, 4)).toBe("abcd");
-        expect(resultado.slice(-4)).toBe("3456");
+        expect(resultado.slice(-4)).toBe("abcd");
+        expect(resultado.length).toBe(clave.length);
         expect(resultado).toContain("*");
     });
 
@@ -87,18 +89,40 @@ describe("enmascarar", () => {
         const clave = "sk-or-mi-clave-super-secreta-1234567890";
         const resultado = enmascarar(clave);
         expect(resultado.startsWith("sk-o")).toBe(true);
-        expect(resultado.endsWith("890")).toBe(true);
-        const puntos = resultado.match(/\*+/g);
-        expect(puntos).toBeTruthy();
+        expect(resultado.endsWith("7890")).toBe(true);
+        expect(resultado.length).toBe(clave.length);
+        expect(resultado).not.toContain("super-secreta");
     });
 
-    it("máscara el centro de la clave sin revelar el contenido", () => {
-        const clave = "gsk-mi-clave-super-secreta-1234567890";
+    it("clave de 3 caracteres: solo asteriscos, misma longitud", () => {
+        const resultado = enmascarar("abc");
+        expect(resultado).toBe("***");
+        expect(resultado.length).toBe(3);
+    });
+
+    it("clave de 9 caracteres: 2 visibles a cada lado, misma longitud", () => {
+        const resultado = enmascarar("abcdefghi");
+        expect(resultado.length).toBe(9);
+        expect(resultado.startsWith("ab")).toBe(true);
+        expect(resultado.endsWith("hi")).toBe(true);
+        expect(resultado.slice(2, -2)).toBe("*****");
+    });
+
+    it("clave de 19 caracteres: 2 visibles a cada lado, misma longitud", () => {
+        const clave = "1234567890123456789";
         const resultado = enmascarar(clave);
-        expect(resultado.startsWith("gsk-")).toBe(true);
-        expect(resultado.endsWith("890")).toBe(true);
-        const puntos = resultado.match(/\*+/g);
-        expect(puntos).toBeTruthy();
-        expect(resultado.length - 8).toBe(puntos![0].length);
+        expect(resultado.length).toBe(19);
+        expect(resultado.startsWith("12")).toBe(true);
+        expect(resultado.endsWith("89")).toBe(true);
+        expect(resultado.slice(2, -2)).toBe("*".repeat(15));
+    });
+
+    it("clave de 40 caracteres: 4 visibles a cada lado, misma longitud", () => {
+        const clave = "sk-or-0123456789abcdef0123456789abcdef12";
+        const resultado = enmascarar(clave);
+        expect(resultado.length).toBe(40);
+        expect(resultado.startsWith("sk-o")).toBe(true);
+        expect(resultado.endsWith("ef12")).toBe(true);
+        expect(resultado.slice(4, -4)).toBe("*".repeat(32));
     });
 });
