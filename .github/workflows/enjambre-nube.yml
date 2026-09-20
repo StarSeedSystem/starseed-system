@@ -38,8 +38,12 @@ on:
 permissions:
   contents: write
 
+# (2026-09-20) `inputs.cola` aquí tumbaba el workflow en el arranque: GitHub valida el
+# archivo en CADA push y el contexto `inputs` no existe fuera de un workflow_dispatch →
+# «This run likely failed because of a workflow file issue» (run 35497365350, 0 s, 0 jobs).
+# `github.event.inputs.*` sí resuelve a vacío en los demás eventos.
 concurrency:
-  group: enjambre-nube-${{ inputs.cola }}
+  group: enjambre-nube-${{ github.event.inputs.cola || github.ref }}
   cancel-in-progress: false
 
 jobs:
