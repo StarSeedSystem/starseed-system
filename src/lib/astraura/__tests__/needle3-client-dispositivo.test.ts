@@ -1,4 +1,6 @@
+/// <reference types="vitest" />
 import { vi, describe, test, expect, afterEach } from 'vitest';
+import type { Mock } from 'vitest';
 
 // Mock the needle-wasm module before importing anything that uses it
 vi.mock("../needle-wasm", () => ({
@@ -34,7 +36,7 @@ describe("needle3-client device decision", () => {
       confianza: 0.9,
       llamadas: [{ nombre: "test", argumentos: {} }],
     };
-    (decidirEnDispositivo as vi.Mock).mockResolvedValue(dispositivoRespuesta);
+    (decidirEnDispositivo as Mock).mockResolvedValue(dispositivoRespuesta);
 
     const resultado = await decidirConNeedle("local", consulta, herramientas, {
       enDispositivo: true,
@@ -46,7 +48,7 @@ describe("needle3-client device decision", () => {
   });
 
   test("device throws -> calls server and origen === 'servidor'", async () => {
-    (decidirEnDispositivo as vi.Mock).mockRejectedValue(new Error("WASM error"));
+    (decidirEnDispositivo as Mock).mockRejectedValue(new Error("WASM error"));
 
     // Mock fetch to return a server decision
     const fetchMock = vi.fn().mockResolvedValue({
@@ -71,7 +73,7 @@ describe("needle3-client device decision", () => {
 
   test("device takes longer than timeoutDispositivoMs -> calls server", async () => {
     // Mock device to take a long time
-    (decidirEnDispositivo as vi.Mock).mockImplementation(() =>
+    (decidirEnDispositivo as Mock).mockImplementation(() =>
       new Promise((resolve) => setTimeout(() => resolve({ ok: true, confianza: 0.9 }), 3000))
     );
 
@@ -97,50 +99,54 @@ describe("needle3-client device decision", () => {
     expect(resultado.confianza).toBe(0.7);
   });
 
-  test("after a failure, second call does not retry device until reiniciarNeedleDispositivo", async () => {
-    // First call: device fails
-    (decidirEnDispositivo as vi.Mock).mockRejectedValueOnce(new Error("WASM error"));
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({
+test("after a failure, second call does not retry device until reiniciarNeedleDispositivo", async () => {
+      // First call: device fails
+      (decidirEnDispositivo as Mock).mockRejectedValueOnce(new Error("WASM error"));
+      const fetchMock = vi.fn().mockResolvedValue({
         ok: true,
-        confianza: 0.6,
-        llamadas: [],
-      } as DecisionNeedle),
-    }) as unknown as typeof fetch;
+        json: async () => ({
+          ok: true,
+          confianza: 0.6,
+          llamadas: [],
+        } as DecisionNeedle),
+      }) as unknown as typeof fetch;
 
-    await decidirConNeedle("local", consulta, herramientas, {
-      enDispositivo: true,
-      transporte: fetchMock,
+      await decidirConNeedle("local", consulta, herramientas, {
+        enDispositivo: true,
+        transporte: fetchMock,
+      });
+
+      // After first call: device called once, server called once
+      expect(decidirEnDispositivo).toHaveBeenCalledTimes(1);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+
+      // Second call: device should not be called because of failure memory
+      await decidirConNeedle("local", consulta, herramientas, {
+        enDispositivo: true,
+        transporte: fetchMock,
+      });
+
+      // After second call: device still called once (not called again), server called twice
+      expect(decidirEnDispositivo).toHaveBeenCalledTimes(1);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+
+      // After reset, device should be tried again
+      reiniciarNeedleDispositivo();
+      (decidirEnDispositivo as Mock).mockResolvedValueOnce({
+        ok: true,
+        confianza: 0.8,
+        llamadas: [{ nombre: "test", argumentos: {} }],
+      });
+
+      await decidirConNeedle("local", consulta, herramientas, {
+        enDispositivo: true,
+        transporte: fetchMock,
+      });
+
+      // After third call: device called twice (first and third), server called twice (first and second)
+      expect(decidirEnDispositivo).toHaveBeenCalledTimes(2);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
     });
-
-    // Second call: device should not be called because of failure memory
-    (decidirEnDispositivo as vi.Mock).mockClear();
-    await decidirConNeedle("local", consulta, herramientas, {
-      enDispositivo: true,
-      transporte: fetchMock,
-    });
-
-    expect(decidirEnDispositivo).toHaveBeenCalledTimes(1); // Only called once (first time)
-    expect(fetchMock).toHaveBeenCalledTimes(2); // Called twice (both times fell back to server)
-
-    // After reset, device should be tried again
-    reiniciarNeedleDispositivo();
-    (decidirEnDispositivo as vi.Mock).mockResolvedValueOnce({
-      ok: true,
-      confianza: 0.8,
-      llamadas: [{ nombre: "test", argumentos: {} }],
-    });
-
-    await decidirConNeedle("local", consulta, herramientas, {
-      enDispositivo: true,
-      transporte: fetchMock,
-    });
-
-    expect(decidirEnDispositivo).toHaveBeenCalledTimes(2); // Now called twice
-    expect(fetchMock).toHaveBeenCalledTimes(2); // Still 2 because the third call used device
-  });
-});
 
   test("device responds with high confidence -> no HTTP call, origen === 'dispositivo'", async () => {
     const dispositivoRespuesta: DecisionNeedle = {
@@ -148,7 +154,7 @@ describe("needle3-client device decision", () => {
       confianza: 0.9,
       llamadas: [{ nombre: "test", argumentos: {} }],
     };
-    (decidirEnDispositivo as vi.Mock).mockResolvedValue(dispositivoRespuesta);
+    (decidirEnDispositivo as Mock).mockResolvedValue(dispositivoRespuesta);
 
     const resultado = await decidirConNeedle("local", consulta, herramientas, {
       enDispositivo: true,
@@ -160,7 +166,7 @@ describe("needle3-client device decision", () => {
   });
 
   test("device throws -> calls server and origen === 'servidor'", async () => {
-    (decidirEnDispositivo as vi.Mock).mockRejectedValue(new Error("WASM error"));
+    (decidirEnDispositivo as Mock).mockRejectedValue(new Error("WASM error"));
 
     // Mock fetch to return a server decision
     const fetchMock = vi.fn().mockResolvedValue({
@@ -185,7 +191,7 @@ describe("needle3-client device decision", () => {
 
   test("device takes longer than timeoutDispositivoMs -> calls server", async () => {
     // Mock device to take a long time
-    (decidirEnDispositivo as vi.Mock).mockImplementation(() =>
+    (decidirEnDispositivo as Mock).mockImplementation(() =>
       new Promise((resolve) => setTimeout(() => resolve({ ok: true, confianza: 0.9 }), 3000))
     );
 
@@ -211,47 +217,52 @@ describe("needle3-client device decision", () => {
     expect(resultado.confianza).toBe(0.7);
   });
 
-  test("after a failure, second call does not retry device until reiniciarNeedleDispositivo", async () => {
-    // First call: device fails
-    (decidirEnDispositivo as vi.Mock).mockRejectedValueOnce(new Error("WASM error"));
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({
+test("after a failure, second call does not retry device until reiniciarNeedleDispositivo", async () => {
+      // First call: device fails
+      (decidirEnDispositivo as Mock).mockRejectedValueOnce(new Error("WASM error"));
+      const fetchMock = vi.fn().mockResolvedValue({
         ok: true,
-        confianza: 0.6,
-        llamadas: [],
-      } as DecisionNeedle),
-    }) as unknown as typeof fetch;
+        json: async () => ({
+          ok: true,
+          confianza: 0.6,
+          llamadas: [],
+        } as DecisionNeedle),
+      }) as unknown as typeof fetch;
 
-    await decidirConNeedle("local", consulta, herramientas, {
-      enDispositivo: true,
-      transporte: fetchMock,
+      await decidirConNeedle("local", consulta, herramientas, {
+        enDispositivo: true,
+        transporte: fetchMock,
+      });
+
+      // After first call: device called once, server called once
+      expect(decidirEnDispositivo).toHaveBeenCalledTimes(1);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+
+      // Second call: device should not be called because of failure memory
+      await decidirConNeedle("local", consulta, herramientas, {
+        enDispositivo: true,
+        transporte: fetchMock,
+      });
+
+      // After second call: device still called once (not called again), server called twice
+      expect(decidirEnDispositivo).toHaveBeenCalledTimes(1);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+
+      // After reset, device should be tried again
+      reiniciarNeedleDispositivo();
+      (decidirEnDispositivo as Mock).mockResolvedValueOnce({
+        ok: true,
+        confianza: 0.8,
+        llamadas: [{ nombre: "test", argumentos: {} }],
+      });
+
+      await decidirConNeedle("local", consulta, herramientas, {
+        enDispositivo: true,
+        transporte: fetchMock,
+      });
+
+      // After third call: device called twice (first and third), server called twice (first and second)
+      expect(decidirEnDispositivo).toHaveBeenCalledTimes(2);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
     });
-
-    // Second call: device should not be called because of failure memory
-    (decidirEnDispositivo as vi.Mock).mockClear();
-    await decidirConNeedle("local", consulta, herramientas, {
-      enDispositivo: true,
-      transporte: fetchMock,
-    });
-
-    expect(decidirEnDispositivo).toHaveBeenCalledTimes(1); // Only called once (first time)
-    expect(fetchMock).toHaveBeenCalledTimes(2); // Called twice (both times fell back to server)
-
-    // After reset, device should be tried again
-    reiniciarNeedleDispositivo();
-    (decidirEnDispositivo as vi.Mock).mockResolvedValueOnce({
-      ok: true,
-      confianza: 0.8,
-      llamadas: [{ nombre: "test", argumentos: {} }],
-    });
-
-    await decidirConNeedle("local", consulta, herramientas, {
-      enDispositivo: true,
-      transporte: fetchMock,
-    });
-
-    expect(decidirEnDispositivo).toHaveBeenCalledTimes(2); // Now called twice
-    expect(fetchMock).toHaveBeenCalledTimes(2); // Still 2 because the third call used device
-  });
 });

@@ -67,12 +67,12 @@ export async function decidirConNeedle(
   herramientas: HerramientaNeedle[],
   opciones?: OpcionesNeedle
 ): Promise<DecisionNeedle> {
-  // If we are in the browser and device is not disabled, try device first
-  const enDispositivo = opciones?.enDispositivo !== false;
-  const usarDispositivo =
-    typeof window !== "undefined" &&
-    enDispositivo &&
-    ultimaFalloDispositivo === null; // No recent failure
+// If we are in the browser and device is not disabled, try device first
+    const enDispositivo = opciones?.enDispositivo !== false;
+    const usarDispositivo =
+      typeof window !== "undefined" &&
+      enDispositivo &&
+      (ultimaFalloDispositivo === null || Date.now() - ultimaFalloDispositivo > TIEMPO_RECUPERACION_MS);
 
   if (usarDispositivo) {
     const timeoutMs = opciones?.timeoutDispositivoMs ?? 2500;
@@ -118,12 +118,12 @@ export async function decidirConNeedle(
       }),
       signal: controller.signal,
     });
-    clearTimeout(timer);
-    if (!res.ok) {
-      // Un fallo del servidor nunca se enmascara como decisión local:
-      // la respuesta HTTP no-ok se devuelve tal cual.
-      return { ok: false, confianza: null, error: `HTTP ${res.status}` };
-    }
+clearTimeout(timer);
+     if (!res.ok) {
+       // Un fallo del servidor nunca se enmascara como decisión local:
+       // la respuesta HTTP no-ok se devuelve tal cual.
+       return { ok: false, confianza: null, error: `HTTP ${res.status}`, origen: "servidor" };
+     }
     const resultado = (await res.json()) as DecisionNeedle;
     return { ...resultado, origen: "servidor" };
   } catch (err: unknown) {
@@ -133,14 +133,15 @@ export async function decidirConNeedle(
       // La decisión en dispositivo solo se usa cuando el servidor local
       // está caído (error de red o timeout), nunca ante un error HTTP.
       // `await` + try interno: si falla, se devuelve ok:false, nunca se rechaza.
-      try {
-        return await decidirEnDispositivo(consulta, herramientas, { sistema: opciones?.sistema });
-      } catch (errLocal: unknown) {
-        const msgLocal = errLocal instanceof Error ? errLocal.message : String(errLocal);
-        return { ok: false, confianza: null, error: msgLocal };
-      }
+try {
+         const resultado = await decidirEnDispositivo(consulta, herramientas, { sistema: opciones?.sistema });
+         return { ...resultado, origen: "dispositivo" };
+       } catch (errLocal: unknown) {
+         const msgLocal = errLocal instanceof Error ? errLocal.message : String(errLocal);
+         return { ok: false, confianza: null, error: msgLocal };
+       }
     }
-    return { ok: false, confianza: null, error: /abort/i.test(msg) ? "Tiempo de espera agotado (8s)" : msg };
+    return { ok: false, confianza: null, error: /abort/i.test(msg) ? "Tiempo de espera agotado (8s)" : msg, origen: "servidor" };
   }
 }
 
