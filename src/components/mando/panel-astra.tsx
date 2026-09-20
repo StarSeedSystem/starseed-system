@@ -19,6 +19,7 @@ import { AMBITOS_ASTRA, priorizar, type SugerenciaAstra } from "@/lib/mando/astr
 import { PanelAstrauraActualizaciones } from "@/components/mando/panel-astraura-actualizaciones";
 import { PanelConciencia } from "@/components/mando/panel-conciencia";
 import { PanelNodosBitnet } from "@/components/mando/panel-nodos-bitnet";
+import { PanelNucleoAstraura } from "@/components/mando/panel-nucleo-astraura";
 
 interface AuditoriaGuardada {
     t?: string;
@@ -166,6 +167,7 @@ export function PanelAstra() {
     if (estado && !estado.hayClave) {
         return (
             <section data-testid="panel-astra" className="space-y-4">
+                <PanelNucleoAstraura />
                 <div className="rounded-xl border border-amber-400/30 bg-amber-500/10 p-4 backdrop-blur">
                     <h3 className="text-sm font-semibold text-amber-100">Astra necesita su clave</h3>
                     <p className="mt-2 text-xs text-amber-100/80">
@@ -184,6 +186,7 @@ export function PanelAstra() {
 
     return (
         <section data-testid="panel-astra" className="space-y-4">
+            <PanelNucleoAstraura />
             <div className="rounded-xl border border-white/10 bg-black/30 p-4 backdrop-blur">
                 <div className="flex flex-wrap items-center gap-3">
                     <div>
