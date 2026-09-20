@@ -65,8 +65,10 @@ def ultima_salida(lineas, tope=200):
 
 
 def id_en_asuntos(tid, asuntos):
-    """Reconoce el id como token completo en asuntos de commits de `main`."""
-    patron = re.compile(r"(?<![A-Za-z0-9])%s(?![A-Za-z0-9])" % re.escape(tid))
+    """Reconoce el id INTEGRADO: el asunto de un commit de integración («Ola 228 · V2: …»,
+    «345 · NE3-1: …», «salvavidas · NE3-1: …»), con el id justo antes de los dos puntos.
+    Una mención en otro asunto («reparto a la nube (CC2, MD1)») no cuenta (2026-09-21)."""
+    patron = re.compile(r"(?:^|·\s*)%s\s*:" % re.escape(tid))
     return any(patron.search(asunto) for asunto in asuntos)
 
 

@@ -74,6 +74,8 @@ class VigilanteLogicaTest(unittest.TestCase):
     def test_el_id_se_reconoce_como_token_completo(self):
         self.assertTrue(id_en_asuntos("V2", ["Ola 228 · V2: voces"]))
         self.assertFalse(id_en_asuntos("R1", ["Ola 228 · R10: otra tarea"]))
+        self.assertFalse(id_en_asuntos("MD1", ["enjambre: reparto a la nube (CC2, MD1, JV3)"]))
+        self.assertTrue(id_en_asuntos("NE3-1", ["345 · NE3-1: Cliente tipado"]))
 
     def test_modelo_siguiente_reemplaza_modelo_de_la_cola(self):
         tareas = [{"id": "M1", "modelo": "nvidia/x"}]
