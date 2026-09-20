@@ -110,3 +110,4 @@ public/version.json
 # Carpeta que crea la app de Claude (Cowork) al entregar archivos en la carpeta vinculada.
 # Sin esta línea el orquestador ve «cambios sin commit» y se niega a arrancar (13-09-2026).
 Claude outputs/
+workspace/
