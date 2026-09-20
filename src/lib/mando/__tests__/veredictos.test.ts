@@ -1,4 +1,7 @@
 import { describe, it, expect } from "vitest";
+import path from "node:path";
+import os from "node:os";
+import { mkdir, writeFile, rm } from "node:fs/promises";
 import {
   parsearVeredictos,
   leerVeredictos,
@@ -69,6 +72,24 @@ describe("leerVeredictos", () => {
   it("sin archivo devuelve lista vacía y no lanza", async () => {
     const r = await leerVeredictos("/no/existe/esta/raiz");
     expect(r).toEqual({ t: null, veredictos: [] });
+  });
+
+  it("lee un archivo real escrito a mano", async () => {
+    const tmp = path.join(os.tmpdir(), `veredictos-${process.pid}-${Date.now()}.json`);
+    const raiz = path.dirname(tmp);
+    const archivo = path.join(raiz, "starseed_memory_root", "olas", "veredictos.json");
+    await mkdir(path.dirname(archivo), { recursive: true });
+    try {
+      await writeFile(archivo, JSON.stringify({
+        t: "2026-09-20T06:30:00Z",
+        veredictos: [{ id: "RI1", estado: "fallida", veredicto: "reintentar", cambio: "", motivo: "red", confianza: 1, fuente: "regla" }],
+      }), "utf-8");
+      const r = await leerVeredictos(raiz);
+      expect(r.t).toBe("2026-09-20T06:30:00Z");
+      expect(veredictoDe(r, "RI1")?.motivo).toBe("red");
+    } finally {
+      await rm(archivo).catch(() => {});
+    }
   });
 });
 

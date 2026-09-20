@@ -40,7 +40,8 @@ export function BloqueadaVeredicto({ fila }: { fila: FilaVeredicto | null }) {
   const [abierto, setAbierto] = useState(false);
   if (!fila) return null;
   const { tono, etiqueta } = tonoDe(fila);
-  const clases = TONOS[tono];
+  // Si un tono nuevo llegara sin estar en TONOS, caemos a gris en vez de romper el render.
+  const clases = TONOS[tono] ?? TONOS.gris;
   const confianza = Math.round(fila.confianza * 100);
   return (
     <div
@@ -49,7 +50,7 @@ export function BloqueadaVeredicto({ fila }: { fila: FilaVeredicto | null }) {
     >
       <div className="flex items-center justify-between gap-2">
         <span className={`font-bold ${clases.texto}`}>{etiqueta}</span>
-        <span className="text-[10px] text-muted-foreground/70">{FUENTES[fila.fuente]}</span>
+        <span className="text-[10px] text-muted-foreground/70">{FUENTES[fila.fuente] ?? "desconocida"}</span>
       </div>
       <div className="flex items-center gap-2">
         <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-black/20">
