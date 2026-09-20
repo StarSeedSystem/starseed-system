@@ -28,12 +28,16 @@ export function FloatingMenuButton({ isOpen, onToggle, className }: FloatingMenu
 
     const buttonRef = useRef<HTMLButtonElement>(null);
     const [isDragging, setIsDragging] = useState(false);
+    const [isSelecting, setIsSelecting] = useState(false);
     const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
     const [position, setPosition] = useState({ x: fabOffsetX, y: fabOffsetY });
     const [isHidden, setIsHidden] = useState(false);
     const [isMobile, setIsMobile] = useState(true);
     const dragStartPos = useRef({ x: 0, y: 0 });
     const hasMoved = useRef(false);
+    const pointerIdRef = useRef<number | null>(null);
+    const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const justHandledPointerRef = useRef(false);
     const lastScrollY = useRef(0);
 
     // Update position when config changes
@@ -115,6 +119,14 @@ export function FloatingMenuButton({ isOpen, onToggle, className }: FloatingMenu
         };
     }, [swipeToOpen, gestureThreshold, fabSide, isOpen, onToggle, isMobile]);
 
+    // Prevent selectstart when selection mode is active
+    useEffect(() => {
+        if (!isSelecting) return;
+        const preventSelect = (e: Event) => e.preventDefault();
+        window.addEventListener("selectstart", preventSelect);
+        return () => window.removeEventListener("selectstart", preventSelect);
+    }, [isSelecting]);
+
     // Haptic feedback helper
     const triggerHaptic = useCallback(() => {
         if (hapticFeedback && 'vibrate' in navigator) {
@@ -122,67 +134,142 @@ export function FloatingMenuButton({ isOpen, onToggle, className }: FloatingMenu
         }
     }, [hapticFeedback]);
 
-    // Touch handlers for draggable mode
-    const handleTouchStart = (e: React.TouchEvent) => {
-        if (fabPosition !== 'draggable') return;
+    const LONG_PRESS_MS = 260;
+    const TAP_SLOP_PX = 10;
 
-        const touch = e.touches[0];
-        dragStartPos.current = { x: touch.clientX, y: touch.clientY };
+    // Pointer handlers supporting tap, drag, long-press selection mode, pointer capture & cancel
+    const handlePointerDown = (e: React.PointerEvent<HTMLButtonElement>) => {
+        // iOS text selection / context callout prevention
+        e.preventDefault();
+
+        const pointerId = e.pointerId;
+        pointerIdRef.current = pointerId;
+
+        // Set pointer capture so move events are received even outside element
+        if (typeof e.currentTarget.setPointerCapture === "function") {
+            try {
+                e.currentTarget.setPointerCapture(pointerId);
+            } catch {
+                // Ignore if pointer capture fails
+            }
+        }
+
+        dragStartPos.current = { x: e.clientX, y: e.clientY };
         hasMoved.current = false;
 
         if (buttonRef.current) {
             const rect = buttonRef.current.getBoundingClientRect();
             setDragOffset({
-                x: touch.clientX - rect.left,
-                y: touch.clientY - rect.top
+                x: e.clientX - rect.left,
+                y: e.clientY - rect.top
             });
         }
-        setIsDragging(true);
-    };
 
-    const handleTouchMove = (e: React.TouchEvent) => {
-        if (!isDragging || fabPosition !== 'draggable') return;
-
-        const touch = e.touches[0];
-        const moveDistance = Math.sqrt(
-            Math.pow(touch.clientX - dragStartPos.current.x, 2) +
-            Math.pow(touch.clientY - dragStartPos.current.y, 2)
-        );
-
-        if (moveDistance > 10) {
-            hasMoved.current = true;
+        if (longPressTimer.current) {
+            clearTimeout(longPressTimer.current);
         }
 
-        const buttonSize = 56;
-        const newX = Math.max(8, Math.min(window.innerWidth - buttonSize - 8, touch.clientX - dragOffset.x));
-        const newY = Math.max(8, Math.min(window.innerHeight - buttonSize - 8, touch.clientY - dragOffset.y));
-
-        setPosition({ x: newX, y: newY });
+        longPressTimer.current = setTimeout(() => {
+            if (!hasMoved.current) {
+                setIsSelecting(true);
+                triggerHaptic();
+            }
+        }, LONG_PRESS_MS);
     };
 
-    const handleTouchEnd = () => {
+    const handlePointerMove = (e: React.PointerEvent<HTMLButtonElement>) => {
+        if (pointerIdRef.current === null || e.pointerId !== pointerIdRef.current) return;
+
+        const dx = e.clientX - dragStartPos.current.x;
+        const dy = e.clientY - dragStartPos.current.y;
+        const moveDistance = Math.hypot(dx, dy);
+
+        if (moveDistance > TAP_SLOP_PX) {
+            hasMoved.current = true;
+            if (longPressTimer.current) {
+                clearTimeout(longPressTimer.current);
+                longPressTimer.current = null;
+            }
+        }
+
+        if (fabPosition === 'draggable' && hasMoved.current && !isSelecting) {
+            setIsDragging(true);
+            const buttonSize = 56;
+            const newX = Math.max(8, Math.min(window.innerWidth - buttonSize - 8, e.clientX - dragOffset.x));
+            const newY = Math.max(8, Math.min(window.innerHeight - buttonSize - 8, e.clientY - dragOffset.y));
+            setPosition({ x: newX, y: newY });
+        }
+    };
+
+    const handlePointerUp = (e: React.PointerEvent<HTMLButtonElement>) => {
+        if (pointerIdRef.current !== null && e.pointerId === pointerIdRef.current) {
+            if (typeof e.currentTarget.releasePointerCapture === "function") {
+                try {
+                    e.currentTarget.releasePointerCapture(e.pointerId);
+                } catch {
+                    // Ignore
+                }
+            }
+        }
+
+        if (longPressTimer.current) {
+            clearTimeout(longPressTimer.current);
+            longPressTimer.current = null;
+        }
+
         if (isDragging && fabPosition === 'draggable') {
-            // Save position to context
             updateSection('mobile', {
                 fabOffsetX: position.x,
                 fabOffsetY: position.y
             });
             triggerHaptic();
-        }
-        setIsDragging(false);
-
-        // If didn't move significantly, toggle menu
-        if (!hasMoved.current) {
-            onToggle();
-        }
-    };
-
-    // Click handler for fixed mode
-    const handleClick = () => {
-        if (fabPosition === 'fixed') {
+        } else if (!hasMoved.current && !isSelecting) {
+            justHandledPointerRef.current = true;
             triggerHaptic();
             onToggle();
+            setTimeout(() => {
+                justHandledPointerRef.current = false;
+            }, 100);
         }
+
+        setIsDragging(false);
+        setIsSelecting(false);
+        pointerIdRef.current = null;
+    };
+
+    const handlePointerCancel = (e: React.PointerEvent<HTMLButtonElement>) => {
+        if (pointerIdRef.current !== null && e.pointerId === pointerIdRef.current) {
+            if (typeof e.currentTarget.releasePointerCapture === "function") {
+                try {
+                    e.currentTarget.releasePointerCapture(e.pointerId);
+                } catch {
+                    // Ignore
+                }
+            }
+        }
+
+        if (longPressTimer.current) {
+            clearTimeout(longPressTimer.current);
+            longPressTimer.current = null;
+        }
+
+        setIsDragging(false);
+        setIsSelecting(false);
+        hasMoved.current = false;
+        pointerIdRef.current = null;
+    };
+
+    const handleClick = () => {
+        if (justHandledPointerRef.current) {
+            return;
+        }
+        triggerHaptic();
+        onToggle();
+    };
+
+    const handleContextMenu = (e: React.MouseEvent<HTMLButtonElement>) => {
+        e.preventDefault();
+        e.stopPropagation();
     };
 
     // Get position styles
@@ -228,9 +315,12 @@ export function FloatingMenuButton({ isOpen, onToggle, className }: FloatingMenu
         <button
             ref={buttonRef}
             onClick={handleClick}
-            onTouchStart={handleTouchStart}
-            onTouchMove={handleTouchMove}
-            onTouchEnd={handleTouchEnd}
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerUp}
+            onPointerCancel={handlePointerCancel}
+            onContextMenu={handleContextMenu}
+            data-selecting={isSelecting ? "true" : undefined}
             className={cn(
                 "fixed z-50 flex items-center justify-center",
                 "w-14 h-14 rounded-full",
@@ -240,13 +330,21 @@ export function FloatingMenuButton({ isOpen, onToggle, className }: FloatingMenu
                 "transition-all duration-300 ease-out",
                 "hover:scale-110 hover:shadow-xl",
                 "active:scale-95",
+                "touch-none select-none",
                 isDragging && "scale-110 shadow-2xl cursor-grabbing",
+                isSelecting && "scale-110 ring-2 ring-primary animate-pulse",
                 fabPosition === 'draggable' && !isDragging && "cursor-grab",
                 isOpen && "rotate-90 bg-destructive/90",
                 isHidden && "translate-y-20 opacity-0 pointer-events-none",
                 className
             )}
-            style={getPositionStyles()}
+            style={{
+                ...getPositionStyles(),
+                touchAction: 'none',
+                userSelect: 'none',
+                WebkitUserSelect: 'none',
+                WebkitTouchCallout: 'none',
+            }}
             aria-label={isOpen ? "Cerrar menú" : "Abrir menú"}
         >
             <div className="relative w-6 h-6">
