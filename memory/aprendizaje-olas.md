@@ -983,3 +983,14 @@
 - `DV1` — la revisión lo rechazó: rechazada automáticamente por claude (sin revisión humana); rama ola/DV1 conservada
 - `AGR1` — otra cosa: excepción: unsupported format character ')' (0x29) at index 3804
 - `MU2` — pruebas en rojo: vitest falla (rama conservada)
+
+## 2026-09-20 16:51 · auto-0920-162311
+
+**Lo que se pidió.** Sesiones de Claude en esta Mac
+
+**Resultado.** 1 de 4 integradas. 3 tareas se quedaron fuera.
+
+**Lo que quedó fuera, una por una:**
+- `MU2` — pruebas en rojo: vitest falla (rama conservada)
+- `DV1` — la revisión lo rechazó: rechazada automáticamente por ide (sin revisión humana); rama ola/DV1 conservada
+- `AGR2` — otra cosa: desbloqueada: AGR1 ya está integrada
