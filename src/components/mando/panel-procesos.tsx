@@ -16,14 +16,16 @@ import {
     CircleDashed,
     GitBranch,
     RefreshCw,
+    X,
 } from "lucide-react";
 
-import type { EstadoMando } from "@/lib/mando/tipos";
+import type { EstadoMando, LatidoTarea } from "@/lib/mando/tipos";
 import { RamificacionAgentes } from "@/components/mando/ramificacion-agentes";
 import { Ramificacion158 } from "@/components/mando/ramificacion-158";
-import { ProgresoAgentes } from "@/components/mando/progreso-agentes";
 import { PanelGrafo } from "@/components/mando/panel-grafo";
 import { pedirVerTarea } from "@/lib/mando/asistente-cliente";
+import { ETAPAS } from "@/lib/mando/etapas";
+import { filaDeLatido } from "@/lib/mando/fila-agente";
 
 /** Formatea una fecha ISO a hora local corta. */
 function horaCorta(fecha: string): string {
@@ -67,7 +69,76 @@ function avisoColgado(latido: any): string | null {
     return null;
 }
 
-/** Agentes en vivo: una fila por agente, venga de esta Mac o del contenedor de la nube.
+/** Ficha desplegable con el detalle completo del latido del agente. */
+function FichaAgente({ latido, onClose }: { latido: LatidoTarea; onClose: () => void }) {
+    const datos = filaDeLatido(latido, Date.now());
+    return (
+        <article className="mt-3 rounded-lg border border-violet-500/30 bg-violet-950/20 p-3 text-xs backdrop-blur">
+            <header className="flex items-center justify-between gap-2 border-b border-white/10 pb-2">
+                <div>
+                    <h4 className="font-semibold text-white">Ficha del agente · {datos.tarea}</h4>
+                    <p className="text-[11px] text-white/50">{datos.titulo}</p>
+                </div>
+                <button
+                    type="button"
+                    onClick={onClose}
+                    className="cursor-pointer rounded p-1 text-white/50 hover:bg-white/10 hover:text-white"
+                    title="Cerrar ficha"
+                >
+                    <X className="h-4 w-4" aria-hidden />
+                </button>
+            </header>
+            <div className="mt-3 grid grid-cols-2 gap-2 text-white/80">
+                <div>
+                    <span className="text-[10px] uppercase text-white/40">Fase / Etapa</span>
+                    <p className="font-medium text-cyan-200">
+                        {datos.fase} · {datos.etapa.nombre} ({datos.etapa.porcentaje}%)
+                        {datos.etapa.atascada ? <span className="ml-1 text-amber-300">⚠️ Atascada</span> : null}
+                    </p>
+                </div>
+                <div>
+                    <span className="text-[10px] uppercase text-white/40">Modelo / Proveedor</span>
+                    <p className="font-mono text-white/90">
+                        {datos.modelo} {datos.proveedor ? `(${datos.proveedor})` : ""}
+                    </p>
+                </div>
+                <div>
+                    <span className="text-[10px] uppercase text-white/40">Medio / IDE</span>
+                    <p className="text-violet-200">
+                        {datos.medio} {datos.ide ? `· IDE: ${datos.ide}` : ""}
+                    </p>
+                </div>
+                <div>
+                    <span className="text-[10px] uppercase text-white/40">Tiempo / Intento</span>
+                    <p className="text-white/80">
+                        {datos.minutos} min {datos.intento && datos.intento > 1 ? `· Intento ${datos.intento}` : ""}
+                    </p>
+                </div>
+                {datos.tokens && (
+                    <div className="col-span-2">
+                        <span className="text-[10px] uppercase text-white/40">Tokens gastados</span>
+                        <p className="font-mono text-white/80">
+                            {miles(datos.tokens.entrada)} entrada / {miles(datos.tokens.salida)} salida
+                        </p>
+                    </div>
+                )}
+            </div>
+            <footer className="mt-3 flex items-center justify-between border-t border-white/10 pt-2">
+                <span className="text-[10px] text-white/40">Acción secundaria</span>
+                <button
+                    type="button"
+                    onClick={() => pedirVerTarea(datos.tarea)}
+                    className="cursor-pointer rounded-md border border-violet-400/40 bg-violet-500/20 px-2.5 py-1 text-[11px] font-medium text-violet-200 hover:bg-violet-500/30"
+                    title="Pregunta a la orbe sobre esta tarea"
+                >
+                    Preguntar a la orbe
+                </button>
+            </footer>
+        </article>
+    );
+}
+
+/** Agentes trabajando: una fila por agente, venga de esta Mac o del contenedor de la nube.
  * Todo sale del latido que cada orquestador publica en el bus cada 2 min: tarea, fase,
  * modelo y proveedor, ventana de contexto, tokens REALES gastados (de la base de opencode),
  * tiempo, y si lleva rato mudo.
@@ -75,10 +146,14 @@ function avisoColgado(latido: any): string | null {
 function AgentesEnVivo({ estado }: { estado: EstadoMando }) {
     const latidos = estado.latidos ?? [];
     const enjambres = estado.enjambres ?? [];
+    const [tareaSeleccionada, setTareaSeleccionada] = useState<string | null>(null);
+
+    const latidoSeleccionado = latidos.find((l) => l.tarea === tareaSeleccionada);
+
     if (latidos.length === 0 && enjambres.length === 0) {
         return (
             <section className="rounded-xl border border-white/10 bg-black/30 p-4 backdrop-blur">
-                <h3 className="text-sm font-semibold text-white">Agentes en vivo</h3>
+                <h3 className="text-sm font-semibold text-white">Agentes trabajando</h3>
                 <p className="mt-2 text-sm text-white/50">
                     Ningún orquestador ha latido en los últimos minutos, ni aquí ni en la nube.
                 </p>
@@ -89,7 +164,7 @@ function AgentesEnVivo({ estado }: { estado: EstadoMando }) {
         <section className="rounded-xl border border-white/10 bg-black/30 p-4 backdrop-blur">
             <header className="flex flex-wrap items-center justify-between gap-2">
                 <h3 className="text-sm font-semibold text-white">
-                    Agentes en vivo · {latidos.length}
+                    Agentes trabajando · {latidos.length}
                 </h3>
                 <div className="flex flex-wrap gap-2 text-[11px] text-white/60">
                     {enjambres.map((e) => (
@@ -120,6 +195,7 @@ function AgentesEnVivo({ estado }: { estado: EstadoMando }) {
                             <th className="py-1 pr-3">Medio</th>
                             <th className="py-1 pr-3">Tarea</th>
                             <th className="py-1 pr-3">Fase</th>
+                            <th className="py-1 pr-3">Etapa</th>
                             <th className="py-1 pr-3">Modelo · proveedor</th>
                             <th className="py-1 pr-3">Ventana</th>
                             <th className="py-1 pr-3">Tokens (in / out)</th>
@@ -132,58 +208,110 @@ function AgentesEnVivo({ estado }: { estado: EstadoMando }) {
                         </tr>
                     </thead>
                     <tbody className="text-white/80">
-                        {latidos.map((l, i) => (
-                            <tr
-                                key={`${l.donde}-${l.cola}-${l.tarea}-${i}`}
-                                className="border-t border-white/5"
-                            >
-                                <td className={`py-1.5 pr-3 font-medium ${l.donde === "nube" ? "text-sky-300" : "text-amber-300"}`}>
-                                    {l.donde}
-                                </td>
-                                <td className="py-1.5 pr-3 text-violet-200"
-                                    title="Desde dónde se usan las APIs: quién lanzó el orquestador">
-                                    {l.medio ?? "—"}
-                                </td>
-                                <td className="py-1.5 pr-3 font-mono">{l.tarea}</td>
-                                <td className={`py-1.5 pr-3 ${tonoFase(l.fase)}`}>
-                                    {l.fase}
-                                    {l.quietoSegundos > 180 ? ` · mudo ${Math.round(l.quietoSegundos / 60)} min` : ""}
-                                    {avisoColgado(l)}
-                                </td>
-                                <td className="py-1.5 pr-3">
-                                    {(l.modelo || "—").split("/").slice(-1)[0]}
-                                    {l.proveedor ? <span className="text-white/40"> · {l.proveedor}</span> : null}
-                                </td>
-                                <td className="py-1.5 pr-3 text-white/60">
-                                    {l.ventana ? `${Math.round(l.ventana / 1024)}k` : "—"}
-                                </td>
-                                <td className="py-1.5 pr-3 font-mono">
-                                    {l.tokens ? `${miles(l.tokens?.entrada)} / ${miles(l.tokens?.salida)}` : "—"}
-                                </td>
-                                <td className="py-1.5 pr-3 text-white/60">
-                                    {l.tokens ? l.tokens.llamadas : "—"}
-                                </td>
-                                <td className="py-1.5 pr-3 text-white/60">
-                                    {l.minutos} min{l.intento && l.intento > 1 ? ` · intento ${l.intento}` : ""}
-                                </td>
-                                <td className="py-1.5 pr-3 text-white/60">
-                                    {l.bytesLog ? `${Math.round(l.bytesLog / 1024)} KB` : "—"}
-                                </td>
-                                <td className="py-1.5 pr-3">
-                                    <button
-                                        type="button"
-                                        onClick={() => pedirVerTarea(l.tarea)}
-                                        className="cursor-pointer rounded-md border border-violet-400/30 px-2 py-0.5 text-[11px] text-violet-200 hover:bg-violet-400/10"
-                                        title="Abre la ficha de la tarea en la ramificación, donde se cambia servidor, API o modelo"
-                                    >
-                                        servidor · API · modelo
-                                    </button>
-                                </td>
-                            </tr>
-                        ))}
+                        {latidos.map((l, i) => {
+                            const datosFila = filaDeLatido(l, Date.now());
+                            const esSeleccionado = tareaSeleccionada === l.tarea;
+                            return (
+                                <tr
+                                    key={`${l.donde}-${l.cola}-${l.tarea}-${i}`}
+                                    role="button"
+                                    tabIndex={0}
+                                    onClick={() => setTareaSeleccionada(esSeleccionado ? null : l.tarea)}
+                                    onKeyDown={(e) => {
+                                        if (e.key === "Enter" || e.key === " ") {
+                                            e.preventDefault();
+                                            setTareaSeleccionada(esSeleccionado ? null : l.tarea);
+                                        }
+                                    }}
+                                    className={`border-t border-white/5 cursor-pointer hover:bg-white/5 transition-colors ${
+                                        esSeleccionado ? "bg-violet-500/15 border-violet-500/30" : ""
+                                    }`}
+                                >
+                                    <td className={`py-1.5 pr-3 font-medium ${l.donde === "nube" ? "text-sky-300" : "text-amber-300"}`}>
+                                        {l.donde}
+                                    </td>
+                                    <td className="py-1.5 pr-3 text-violet-200"
+                                        title="Desde dónde se usan las APIs: quién lanzó el orquestador">
+                                        {l.medio ?? "—"}
+                                    </td>
+                                    <td className="py-1.5 pr-3 font-mono">{l.tarea}</td>
+                                    <td className={`py-1.5 pr-3 ${tonoFase(l.fase)}`}>
+                                        {l.fase}
+                                        {l.quietoSegundos > 180 ? ` · mudo ${Math.round(l.quietoSegundos / 60)} min` : ""}
+                                        {avisoColgado(l)}
+                                    </td>
+                                    <td className="py-1.5 pr-3">
+                                        <div
+                                            className="flex w-20 items-center gap-0.5"
+                                            title={`${datosFila.etapa.nombre} (${datosFila.etapa.porcentaje}%)`}
+                                        >
+                                            {ETAPAS.map((etapaNombre, idx) => {
+                                                const pasada = idx < datosFila.etapa.indice;
+                                                const actual = idx === datosFila.etapa.indice;
+                                                return (
+                                                    <span
+                                                        key={etapaNombre}
+                                                        className={`h-1.5 flex-1 rounded-full ${
+                                                            actual
+                                                                ? datosFila.etapa.atascada
+                                                                    ? "bg-amber-400 mc-latido"
+                                                                    : l.fase === "escribiendo"
+                                                                      ? "bg-emerald-400 mc-latido"
+                                                                      : l.fase === "tsc" || l.fase === "tests"
+                                                                        ? "bg-sky-400 mc-latido"
+                                                                        : l.fase === "revision" || l.fase === "integrando"
+                                                                          ? "bg-amber-400 mc-latido"
+                                                                          : "bg-cyan-400 mc-latido"
+                                                                : pasada
+                                                                  ? "bg-white/30"
+                                                                  : "bg-white/10"
+                                                        }`}
+                                                    />
+                                                );
+                                            })}
+                                        </div>
+                                    </td>
+                                    <td className="py-1.5 pr-3">
+                                        {(l.modelo || "—").split("/").slice(-1)[0]}
+                                        {l.proveedor ? <span className="text-white/40"> · {l.proveedor}</span> : null}
+                                    </td>
+                                    <td className="py-1.5 pr-3 text-white/60">
+                                        {l.ventana ? `${Math.round(l.ventana / 1024)}k` : "—"}
+                                    </td>
+                                    <td className="py-1.5 pr-3 font-mono">
+                                        {l.tokens ? `${miles(l.tokens?.entrada)} / ${miles(l.tokens?.salida)}` : "—"}
+                                    </td>
+                                    <td className="py-1.5 pr-3 text-white/60">
+                                        {l.tokens ? l.tokens.llamadas : "—"}
+                                    </td>
+                                    <td className="py-1.5 pr-3 text-white/60">
+                                        {l.minutos} min{l.intento && l.intento > 1 ? ` · intento ${l.intento}` : ""}
+                                    </td>
+                                    <td className="py-1.5 pr-3 text-white/60">
+                                        {l.bytesLog ? `${Math.round(l.bytesLog / 1024)} KB` : "—"}
+                                    </td>
+                                    <td className="py-1.5 pr-3">
+                                        <button
+                                            type="button"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                pedirVerTarea(l.tarea);
+                                            }}
+                                            className="cursor-pointer rounded-md border border-violet-400/30 px-2 py-0.5 text-[11px] text-violet-200 hover:bg-violet-400/10"
+                                            title="Abre la ficha de la tarea en la ramificación, donde se cambia servidor, API o modelo"
+                                        >
+                                            servidor · API · modelo
+                                        </button>
+                                    </td>
+                                </tr>
+                            );
+                        })}
                     </tbody>
                 </table>
             </div>
+            {latidoSeleccionado && (
+                <FichaAgente latido={latidoSeleccionado} onClose={() => setTareaSeleccionada(null)} />
+            )}
             <p className="mt-2 text-[11px] text-white/40">
                 Tokens = suma real de entrada/salida de cada llamada del agente (base de opencode), no una estimación.
                 La ventana es la del modelo; el consumo de contexto crece con cada archivo que lee.
@@ -303,25 +431,6 @@ export function PanelProcesos() {
                 plegados, porque se consultan de vez en cuando y no todo el rato. */}
             <section className="mc-cristal space-y-3 p-4">
                 <RamificacionAgentes />
-
-                {/* (2026-09-15) La barra de fases por agente, que Alex pidió dos veces. El
-                    Mando decía «3 tareas en curso» y ahí se acababa: ni en qué punto va cada
-                    una, ni cuánto le queda, ni si lleva media hora en la misma fase. Va aquí
-                    dentro y no en una ventana aparte, porque responde a la misma pregunta que
-                    la ramificación —quién trabaja y en qué— y ya teníamos tres ventanas para
-                    eso. */}
-                <div className="rounded-lg border border-white/10 bg-black/20 p-3">
-                    <h4 className="text-[11px] font-medium text-white/75">Progreso de cada agente</h4>
-                    <p className="mb-2 text-[10px] text-white/40">
-                        Seis etapas: escribiendo → verificando → probando → revisando → visto bueno → integrada.
-                    </p>
-                    <ProgresoAgentes
-                        latidos={estado.latidos ?? []}
-                        progreso={Object.fromEntries(
-                            (estado.latidos ?? []).map((l) => [l.tarea, undefined as string | undefined]),
-                        )}
-                    />
-                </div>
 
                 <details className="group rounded-lg border border-white/10 bg-black/20">
                     <summary className="mc-alzar cursor-pointer list-none px-3 py-2 text-[11px] text-white/65">

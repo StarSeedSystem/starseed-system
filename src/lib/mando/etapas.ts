@@ -55,9 +55,10 @@ export function etapaDeFase(fase: string, estado?: string | null): Etapa | null 
   if (e === "commit" || e === "hecho") return "integrada";
   if (f === "escribiendo" || f === "completando") return "escribiendo";
   if (f === "tsc") return "verificando";
+  if (f === "probando" || f === "tests" || f === "testing") return "probando";
   if (f === "revision") return "revisando";
   if (f === "esperando aprobación") return "visto bueno";
-  if (f === "commit" || f === "hecho") return "integrada";
+  if (f === "commit" || f === "hecho" || f === "integrando") return "integrada";
   return null;
 }
 
