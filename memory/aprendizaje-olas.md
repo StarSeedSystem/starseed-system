@@ -817,3 +817,18 @@
 **Lo que se pidió.** atrás
 
 **Resultado.** 1 de 1 integradas.
+
+## 2026-09-20 05:15 · auto-0920-044736
+
+**Lo que se pidió.** top 3 accionables
+
+**Resultado.** 0 de 3 integradas. 3 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 3 tareas se fueron por lo mismo — no escribió nada (DR0919-1, AG-3, DV1). Es 100 % de la ola.
+- sin modelo anotado no integró ninguna de sus 3 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `DR0919-1` — no escribió nada
+- `AG-3` — no escribió nada
+- `DV1` — no escribió nada
