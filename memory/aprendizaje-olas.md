@@ -706,3 +706,29 @@
 - `NE3-3` — otra cosa: commit: On branch ola/NE3-3 nothing to commit, working tree clean
 - `NE3-4` — otra cosa: dependencia no integrada: NE3-1 (fallo)
 - `MD1` — otra cosa: commit: On branch ola/MD1 nothing to commit, working tree clean
+
+## 2026-09-20 01:08 · auto-0919-223405
+
+**Lo que se pidió.** top 3 accionables
+
+**Resultado.** 10 de 24 integradas. 14 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 11 tareas se fueron por lo mismo — otra cosa (HW-1, HW-2, HW-3, CC1, CC3, RS3c). Es 46 % de la ola.
+- 2 tareas se fueron por lo mismo — no escribió nada (DR0919-1, RI2). Es 8 % de la ola.
+
+**Lo que quedó fuera, una por una:**
+- `DR0919-1` — no escribió nada
+- `HW-1` — otra cosa: commit: On branch ola/HW-1 nothing to commit, working tree clean
+- `HW-2` — otra cosa: dependencia no integrada: HW-1 (fallo)
+- `HW-3` — otra cosa: dependencia no integrada: HW-2 (bloqueada)
+- `AS-2` — la revisión lo rechazó: rechazada automáticamente por ide (sin revisión humana); rama ola/AS-2 conservada
+- `CC1` — otra cosa: commit: On branch ola/CC1 nothing to commit, working tree clean
+- `CC3` — otra cosa: dependencia no integrada: CC1 (fallo)
+- `RS3c` — otra cosa: commit: On branch ola/RS3c nothing to commit, working tree clean
+- `RI2` — no escribió nada
+- `DV1` — otra cosa: commit: On branch ola/DV1 nothing to commit, working tree clean
+- `TM1` — otra cosa: commit: On branch ola/TM1 nothing to commit, working tree clean
+- `AG-2` — otra cosa: commit: On branch ola/AG-2 nothing to commit, working tree clean
+- `AG-3` — otra cosa: commit: On branch ola/AG-3 nothing to commit, working tree clean
+- `AG-4` — otra cosa: commit: On branch ola/AG-4 nothing to commit, working tree clean
