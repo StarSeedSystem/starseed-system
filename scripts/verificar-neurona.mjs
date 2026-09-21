@@ -13,7 +13,8 @@
  * Sin dependencias externas, ESM, Node ≥ 18. Jamás escribe claves ni rutas
  * absolutas de la casa del usuario: todo cuelga de `process.cwd()`.
  */
-import { execFile } from "node:child_process";
+import { execFile, execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import {
@@ -473,6 +474,44 @@ function extraerMedidas(neurona, anterior, latenciaRaizMs) {
   };
 }
 
+/**
+ * ¿Hay algún `llama-server` PARADO por el guardia de memoria?
+ *
+ * (2026-09-20) En la Mac de 8 GB, `scripts/puente/guardia-memoria.py` congela BitNet
+ * (SIGSTOP) mientras el enjambre escribe y lo reanuda cuando para: los dos no caben a la
+ * vez. Sin saber eso, esta batería marcaba «bitnet apagado → FALLO» cada vez que el
+ * enjambre trabajaba, y la puntuación caía de 100 a 83 por algo que el sistema hace A
+ * PROPÓSITO. Un medidor que da la alarma por el funcionamiento normal enseña a ignorarlo,
+ * y entonces el día que la alarma es de verdad tampoco se mira.
+ *
+ * La marca `/tmp/starseed-bitnet-congelado-por-el-guardia` lleva los pids que congeló el
+ * guardia, uno por línea. Si el proceso está en estado `T` (parado) y su pid está en la
+ * marca, es nuestro y volverá solo.
+ */
+function congeladoPorElGuardia() {
+  try {
+    const marca = readFileSync("/tmp/starseed-bitnet-congelado-por-el-guardia", "utf8");
+    const pids = new Set(marca.split(/\s+/).filter(Boolean));
+    if (pids.size === 0) return false;
+    const ps = execFileSync("ps", ["-axo", "pid=,state=,comm="], { encoding: "utf8" });
+    for (const linea of ps.split("\n")) {
+      // OJO: el binario vive en «/Users/alex/Documents/IA 1.58 bit/...», con ESPACIOS.
+      // Partir la línea entera por espacios deja el ejecutable en trozos y no casa nunca
+      // — la misma trampa que ya advierte `guardia-memoria.py`. Se sacan pid y estado de
+      // los dos primeros campos y el resto de la línea se trata como una sola ruta.
+      const m = /^\s*(\d+)\s+(\S+)\s+(.*)$/.exec(linea);
+      if (!m) continue;
+      const [, pid, estado, ejecutable] = m;
+      if (!ejecutable.trim().endsWith("llama-server")) continue;
+      if (estado.includes("T") && pids.has(pid)) return true;
+    }
+  } catch {
+    // Sin marca, sin ps o sin permiso: no sabemos, y no saber no es una excusa para
+    // callar un fallo. Se sigue por el camino de siempre.
+  }
+  return false;
+}
+
 /** Estado de BitNet como check: la lib no tiene regla para estados con texto. */
 function checkBitnet(neurona, router) {
   const bruto = neurona?.bitnet;
@@ -480,6 +519,10 @@ function checkBitnet(neurona, router) {
   const dormido = router?.json?.motor_dormido === true;
   if (estadoBitnet === "vivo" || estadoBitnet === "cargando") {
     return check("bitnet", ESTADO_OK, estadoBitnet, `BitNet ${estadoBitnet}`);
+  }
+  if (estadoBitnet !== "vivo" && congeladoPorElGuardia()) {
+    return check("bitnet", ESTADO_OK, "congelado",
+      "BitNet congelado por el guardia mientras el enjambre escribe; vuelve solo al parar");
   }
   if (estadoBitnet === "apagado" && dormido) {
     return check("bitnet", ESTADO_AVISO, estadoBitnet, "BitNet apagado con el motor dormido (esperado en reposo)");
