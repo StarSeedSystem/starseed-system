@@ -33,12 +33,20 @@ MINUTOS = os.environ.get("STARSEED_NUBE_MINUTOS", "300")
 CUENTA = os.path.expanduser("~/.starseed/nube-lanzamientos.json")
 
 
-def decidir_lanzamiento(atraso, runs_en_marcha, lanzados_hoy, tope_dia=TOPE_DIA):
+def decidir_lanzamiento(atraso, runs_en_marcha, lanzados_hoy, tope_dia=TOPE_DIA,
+                        hay_claves=True):
     """Función PURA: (lanzar: bool, motivo: str). Aquí vive toda la política.
 
-    Se lanza solo si hay trabajo que la Mac no está tocando, no hay ya un job vivo y no se
-    ha llegado al tope del día. El orden de las comprobaciones es el orden en que importan.
+    Se lanza solo si el medio PUEDE trabajar (tiene las claves de proveedor en los secretos
+    del repo), hay trabajo que la Mac no está tocando, no hay ya un job vivo y no se ha
+    llegado al tope del día. El orden de las comprobaciones es el orden en que importan.
+
+    Lo de las claves es lo primero por una razón medida (2026-09-20): sin ellas el workflow
+    arranca, instala todo y muere en el paso de claves. Lanzar cada diez minutos un job que
+    ya sabemos que va a morir no es insistir, es ensuciar el historial.
     """
+    if not hay_claves:
+        return False, "sin claves de proveedor en los secretos del repo (las sube Alex: nube-gh.py secretos)"
     if runs_en_marcha > 0:
         return False, "ya hay %d run(s) en marcha" % runs_en_marcha
     if lanzados_hoy >= tope_dia:
@@ -64,6 +72,19 @@ def atraso():
         if trozo.isdigit():
             return int(trozo)
     return 0
+
+
+#: Los nombres que lee el paso de claves del workflow. Solo NOMBRES, jamás un valor.
+CLAVES_DEL_ENJAMBRE = {
+    "GEMINI_API_KEY", "GOOGLE_GENERATIVE_AI_API_KEY", "NVIDIA_API_KEY", "NVIDIA_SHARED_KEY",
+    "OPENROUTER_API_KEY", "XKIRO_API_KEY", "AIHUBMIX_API_KEY", "TOKENROUTER_API_KEY",
+    "GROQ_API_KEY", "STARSEED_PASARELA_GROQ_KEY",
+}
+
+
+def hay_claves():
+    salida = _sh(["gh", "secret", "list", "--json", "name", "--jq", ".[].name"])
+    return any(l.strip() in CLAVES_DEL_ENJAMBRE for l in salida.splitlines())
 
 
 def runs_en_marcha():
@@ -94,7 +115,8 @@ def main():
     while True:
         try:
             _, hoy_n, _ = _cuenta_hoy()
-            lanzar, motivo = decidir_lanzamiento(atraso(), runs_en_marcha(), hoy_n)
+            lanzar, motivo = decidir_lanzamiento(atraso(), runs_en_marcha(), hoy_n,
+                                                 hay_claves=hay_claves())
             print("[%s] %s: %s" % (time.strftime("%H:%M"), "LANZO" if lanzar else "espero", motivo),
                   flush=True)
             if lanzar:

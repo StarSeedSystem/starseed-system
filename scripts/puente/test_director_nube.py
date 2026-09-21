@@ -39,3 +39,17 @@ class PoliticaDeLanzamiento(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SinClavesNoSeInsiste(unittest.TestCase):
+    def test_sin_claves_no_se_lanza_aunque_haya_atraso(self):
+        lanzar, motivo = D.decidir_lanzamiento(atraso=20, runs_en_marcha=0, lanzados_hoy=0,
+                                               hay_claves=False)
+        self.assertFalse(lanzar)
+        self.assertIn("claves", motivo)
+
+    def test_las_claves_se_comprueban_antes_que_nada(self):
+        # Sin claves da igual todo lo demás: el job moriría igual en el paso de claves.
+        lanzar, _ = D.decidir_lanzamiento(atraso=0, runs_en_marcha=5, lanzados_hoy=99,
+                                          hay_claves=False)
+        self.assertFalse(lanzar)
