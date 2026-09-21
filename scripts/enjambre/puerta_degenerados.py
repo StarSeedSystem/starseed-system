@@ -15,10 +15,21 @@ def archivos_degenerados(cambios: list[tuple[str, str, str]]) -> list[str]:
         lines_ant = len(ant.splitlines())
         lines_desp = len(desp.splitlines())
 
-        # (a) valla markdown en archivo que no es .md
-        if not ruta.lower().endswith(".md"):
-            if any(line.startswith("```") for line in desp.splitlines()):
-                razones.append(f"{ruta}: valla markdown en archivo no-.md")
+        # (a) el archivo ENTERO viene envuelto en una valla markdown.
+        # (2026-09-21) Antes bastaba una linea cualquiera que empezara por ```
+        # y eso marcaba como degenerado cualquier .py con un docstring de ejemplo
+        # o cualquier .ts con un template literal: falso positivo garantizado en
+        # este repo, que construye encargos con ejemplos en markdown. La
+        # degeneracion real del LLM es otra: devuelve el archivo envuelto, o sea
+        # la valla es lo PRIMERO o lo ULTIMO del archivo.
+        if not ruta.lower().endswith(".md") and desp.strip():
+            utiles = [l for l in desp.splitlines() if l.strip()]
+            primera = utiles[0] if utiles else ""
+            ultima = utiles[-1] if utiles else ""
+            if primera.lstrip().startswith("```"):
+                razones.append(f"{ruta}: el archivo empieza con una valla markdown")
+            elif ultima.strip() == "```":
+                razones.append(f"{ruta}: el archivo termina con una valla markdown")
 
         # (b) archivo con >= 40 líneas encoge a menos de la mitad
         if lines_ant >= 40 and lines_desp < (lines_ant / 2.0):

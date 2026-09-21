@@ -16,6 +16,34 @@ class TestPuertaDegenerados(unittest.TestCase):
         razones = archivos_degenerados(cambios)
         self.assertTrue(any("valla markdown" in r for r in razones))
 
+    def test_valla_solo_al_final(self):
+        """El LLM cerro la valla sin abrirla: el archivo termina en ```."""
+        cambios = [("src/router.ts", "const a = 1;", "const a = 1;\n```")]
+        razones = archivos_degenerados(cambios)
+        self.assertTrue(any("valla markdown" in r for r in razones))
+
+    def test_negativo_docstring_python_con_valla(self):
+        """Un .py con un ejemplo en markdown DENTRO no es degenerado.
+
+        Es el caso de este repo: los encargos se construyen con ejemplos.
+        """
+        despues = (
+            'ENCARGO = """\n'
+            "Devuelve el archivo asi:\n"
+            "```ts\n"
+            "const a = 1;\n"
+            "```\n"
+            '"""\n'
+        )
+        cambios = [("scripts/puente/encargo.py", "ENCARGO = \"\"\"x\"\"\"\n", despues)]
+        self.assertEqual(archivos_degenerados(cambios), [])
+
+    def test_negativo_template_literal_ts(self):
+        """Un .ts con un template literal que abre valla no es degenerado."""
+        despues = "export const ayuda = `\n```bash\nnpm test\n```\n`;\nexport default ayuda;\n"
+        cambios = [("src/lib/ayuda.ts", "export const ayuda = ``;", despues)]
+        self.assertEqual(archivos_degenerados(cambios), [])
+
     def test_encoge_mas_de_la_mitad(self):
         antes = "\n".join([f"linea_{i} = {i}" for i in range(50)])
         despues = "linea_0 = 0\nlinea_1 = 1"

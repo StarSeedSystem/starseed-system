@@ -6103,12 +6103,22 @@ def ejecutar(t, intento=1):
         timeout=60,
     )
     rc_deg, out_deg = sh(["git", "diff", "--cached", "--name-only"], cwd=wt, timeout=30)
-    if rc_deg == 0 and out_deg.strip():
+    nombres_deg = set(out_deg.splitlines()) if rc_deg == 0 else set()
+    # (2026-09-21) El salvavidas commitea ANTES que esta puerta, asi que el indice
+    # llega vacio casi siempre y la puerta no evaluaba nada: justo el camino donde
+    # aparecen los archivos truncados. Ahora se mira tambien lo que la rama cambia
+    # sobre main, que es donde vive el trabajo rescatado por el salvavidas.
+    rc_br, out_br = sh(["git", "diff", "--name-only", "main...HEAD"], cwd=wt, timeout=30)
+    if rc_br == 0:
+        nombres_deg |= set(out_br.splitlines())
+    nombres_deg = {
+        n.strip()
+        for n in nombres_deg
+        if n.strip() and not n.strip().startswith("starseed_memory_root/")
+    }
+    if nombres_deg:
         cambios_deg = []
-        for r_deg in out_deg.strip().splitlines():
-            r_deg = r_deg.strip()
-            if not r_deg:
-                continue
+        for r_deg in sorted(nombres_deg):
             p_deg = os.path.join(wt, r_deg)
             desp_deg = (
                 open(p_deg, "r", encoding="utf-8", errors="replace").read()
