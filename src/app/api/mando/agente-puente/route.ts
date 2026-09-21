@@ -1,11 +1,10 @@
-import { createClient } from "@/utils/supabase/server";
-import { guardianMando, mandoHabilitado } from "@/lib/mando/guardian";
+import { guardianMando } from "@/lib/mando/guardian";
 import { construirBriefing, contextoPorPalabras, crearChat, guardarChat, leerChat, extraerAcciones, type ChatMando } from "@/lib/mando/asistente";
 import { listarModelos, llamarModelo, type MensajeModelo } from "@/lib/mando/modelos-disponibles";
 import { cadenaDeRespaldo } from "@/lib/mando/respaldo-chat";
 import { ordenarCandidatos, informeVigente, type InformePasarela } from "@/lib/mando/asistente-rutas";
-import { construirMensajeSistema, type FuenteContexto } from "@/lib/mando/agente-puente";
-import { readFile } from "node:fs/promises";
+import { comprobarDueno, construirMensajeSistema, type FuenteContexto } from "@/lib/mando/agente-puente";
+import { readFile, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
 
@@ -13,20 +12,15 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-export async function comprobarDueno(req: Request): Promise<{ ok: true; esDueno: boolean } | { ok: false; error: string; estado: 503 }> {
-  const DUENO = (process.env.STARSEED_DUENO || "maggasukha@star.seed").toLowerCase();
+export { comprobarDueno };
+
+async function statYLeer(filepath: string): Promise<{ contenido: string; mtimeMs: number }> {
   try {
-    const supabase = await createClient();
-    const { data, error } = await supabase.auth.getUser();
-    if (error) {
-      const msg = (error.message || "").toLowerCase();
-      const esSinSesion = msg.includes("session") || msg.includes("token") || msg.includes("jwt") || error.status === 401;
-      if (!esSinSesion) return { ok: false, error: "no se pudo comprobar la identidad", estado: 503 };
-    }
-    if (data?.user?.email) return { ok: true, esDueno: data.user.email.toLowerCase() === DUENO };
-    return { ok: true, esDueno: mandoHabilitado(req) };
+    const st = await stat(filepath);
+    const contenido = await readFile(filepath, "utf-8");
+    return { contenido, mtimeMs: st.mtimeMs };
   } catch {
-    return { ok: false, error: "no se pudo comprobar la identidad", estado: 503 };
+    return { contenido: "", mtimeMs: 0 };
   }
 }
 
@@ -50,8 +44,16 @@ export async function POST(peticion: Request): Promise<Response> {
   if (chatId) { try { chat = await leerChat(chatId); } catch { chat = null; } }
   if (!chat) { try { chat = await crearChat(mensaje.slice(0, 60), modeloReq); } catch { chatError = true; } }
 
-  const [briefing, memorias] = await Promise.all([construirBriefing().catch(() => ""), contextoPorPalabras(mensaje).catch(() => "")]);
+  const [briefing, memorias, puenteMd, workflowMd] = await Promise.all([
+    construirBriefing().catch(() => ""),
+    contextoPorPalabras(mensaje).catch(() => ""),
+    statYLeer(path.join(process.cwd(), "PUENTE-DE-MANDO.md")),
+    statYLeer(path.join(process.cwd(), "memory", "workflow-actual.md")),
+  ]);
+
   const fuentes: FuenteContexto[] = [
+    { nombre: "puente-de-mando", contenido: puenteMd.contenido, fechaMs: puenteMd.mtimeMs, maxEdadMinutos: 180 },
+    { nombre: "workflow-actual", contenido: workflowMd.contenido, fechaMs: workflowMd.mtimeMs, maxEdadMinutos: 1440 },
     { nombre: "briefing-vivo", contenido: briefing, fechaMs: Date.now(), maxEdadMinutos: 30 },
     { nombre: "memorias-relevantes", contenido: memorias, fechaMs: Date.now(), maxEdadMinutos: 120 },
   ];

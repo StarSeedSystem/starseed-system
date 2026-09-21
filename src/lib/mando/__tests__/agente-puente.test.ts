@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  comprobarDueno,
   sanearContexto,
   evaluarFrescura,
   construirMensajeSistema,
@@ -7,6 +8,14 @@ import {
 } from "../agente-puente";
 
 describe("Agente Puente - Módulo Puro", () => {
+  it("comprobarDueno responde sin excepciones no controladas", async () => {
+    const req = new Request("http://localhost:9002/api/mando/agente-puente", {
+      headers: { host: "localhost:9002" },
+    });
+    const res = await comprobarDueno(req);
+    expect(res).toHaveProperty("ok");
+  });
+
   it("sanearContexto oculta claves de API en el contexto", () => {
     const textoConClaves = "Clave openai: sk-proj-1234567890abcdef123 y sbp_1234567890abcdef";
     const limpio = sanearContexto(textoConClaves);

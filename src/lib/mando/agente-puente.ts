@@ -1,7 +1,5 @@
-/**
- * Agente Puente: Módulo puro para construir el mensaje de sistema del agente.
- * Sanitiza claves únicamente en el contexto, no en la pregunta del usuario.
- */
+import { createClient } from "@/utils/supabase/server";
+import { mandoHabilitado } from "@/lib/mando/guardian";
 
 export interface FuenteContexto {
   nombre: string;
@@ -18,6 +16,23 @@ const PATRONES_CLAVES = [
   /key-[a-zA-Z0-9_-]{12,}/g,
   /Bearer\s+[a-zA-Z0-9._-]{16,}/g,
 ];
+
+export async function comprobarDueno(req: Request): Promise<{ ok: true; esDueno: boolean } | { ok: false; error: string; estado: 503 }> {
+  const DUENO = (process.env.STARSEED_DUENO || "maggasukha@star.seed").toLowerCase();
+  try {
+    const supabase = await createClient();
+    const { data, error } = await supabase.auth.getUser();
+    if (error) {
+      const msg = (error.message || "").toLowerCase();
+      const esSinSesion = msg.includes("session") || msg.includes("token") || msg.includes("jwt") || error.status === 401;
+      if (!esSinSesion) return { ok: false, error: "no se pudo comprobar la identidad", estado: 503 };
+    }
+    if (data?.user?.email) return { ok: true, esDueno: data.user.email.toLowerCase() === DUENO };
+    return { ok: true, esDueno: mandoHabilitado(req) };
+  } catch {
+    return { ok: false, error: "no se pudo comprobar la identidad", estado: 503 };
+  }
+}
 
 export function sanearContexto(texto: string): string {
   let resultado = texto;
