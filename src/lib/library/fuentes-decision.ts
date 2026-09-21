@@ -1,7 +1,7 @@
 // ════════════════════════════════════════════════════════════════════════════
 // StarSeed OS — Biblioteca · Fuentes de decisiones tipadas (JV11 · Ola 357)
 // ------------------------------------------------------------------------------
-// Las seis fuentes que entran en la Biblioteca con su ficha honesta.
+// Las fuentes que entran en la Biblioteca con su ficha honesta.
 // ════════════════════════════════════════════════════════════════════════════
 
 import type { LibraryRepo, LibraryPackage } from "./packages";
@@ -131,6 +131,27 @@ export const REPO_DECISIONES: LibraryRepo = {
         requisitos: "Mac con llama-server (BitNet) corriendo en 127.0.0.1:8790",
         corre_aqui: true,
       },
+    },
+    {
+      id: "tinker-cookbook",
+      kind: "repo",
+      name: "tinker-cookbook",
+      description:
+        "Recetas de post-entrenamiento de LLMs para Astraura (destilación en recipes/distillation y prompt_distillation, RL, 20 tutoriales). AVISO SIN ADORNOS: 329 de 374 módulos (88%) importan el SDK tinker y NO funcionan sin cuenta de PAGO en thinkingmachines.ai con TINKER_API_KEY; el entrenamiento corre en su infraestructura. Aprovechable gratis solo como planos.",
+      icon: "BookOpen",
+      tags: ["entrenamiento", "destilacion", "rl", "astraura", "pago-requerido"],
+      version: "1.0.0",
+      author: "samwit",
+      sourceRepoId: "starseed-decisiones",
+      free: false,
+      payload: {
+        upstream: "https://github.com/samwit/tinker-cookbook",
+        licencia: "Apache-2.0",
+        requisitos:
+          "Cuenta de PAGO en thinkingmachines.ai y TINKER_API_KEY (88% de los módulos); las recetas se leen gratis como planos",
+        corre_aqui: false,
+      },
+      comingSoon: true,
     },
   ],
 };

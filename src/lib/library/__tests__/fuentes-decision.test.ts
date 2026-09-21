@@ -19,8 +19,8 @@ describe("fuentes-decision", () => {
     repo.packages.forEach((p) => idsExistentes.add(p.id));
   });
 
-  it("tiene exactamente seis paquetes", () => {
-    expect(REPO_DECISIONES.packages).toHaveLength(6);
+  it("tiene exactamente siete paquetes", () => {
+    expect(REPO_DECISIONES.packages).toHaveLength(7);
   });
 
   it("cada id es unico dentro del repo", () => {
@@ -71,5 +71,17 @@ describe("fuentes-decision", () => {
     const bitnet = REPO_DECISIONES.packages.find((p) => p.id === "bitnet-b1.58");
     expect(bitnet).toBeDefined();
     expect(bitnet!.comingSoon).not.toBe(true);
+  });
+
+  it("tinker-cookbook dice su dependencia de pago sin adornos", () => {
+    const tinker = REPO_DECISIONES.packages.find((p) => p.id === "tinker-cookbook");
+    expect(tinker).toBeDefined();
+    // Quien lea la ficha debe saber antes de invertir un día que el
+    // entrenamiento como viene exige pagar: free=false y dicho en la descripción.
+    expect(tinker!.free).toBe(false);
+    expect(tinker!.description).toContain("PAGO");
+    expect(tinker!.description).toContain("TINKER_API_KEY");
+    expect(tinker!.description).toContain("88%");
+    expect(tinker!.payload?.requisitos).toContain("PAGO");
   });
 });
