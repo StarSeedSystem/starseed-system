@@ -66,7 +66,38 @@ C. **Supertonic como voz de borde on-device.** No necesita GPU → encaja con el
   límite de frecuencia, sin exponer rutas del disco (patrón `/api/voz/salud`).
 
 ## Qué se espera del estudio de voces al cerrar
-`memory/estudio-voces.md` debe documentar la nueva «vía suptónica»: qué hace (voz on-device
-sin GPU), cómo convive con el núcleo 1.58-bit y needle (mismo contrato de `niveles.ts`), qué
-modelos/idiomas cubre, y cómo la mesh la reparte (un nodo sin GPU con suficiente RAM puede
-asumir la voz de la flota). No se duplica nada ya documentado para 1.58.
+
+### Implementado
+
+- [x] **PAIR**: `src/lib/network/inferencia-local.ts` describe nodos
+  OpenAI-compatibles, calcula disponibilidad y elige por modelo, RAM, carga y
+  latencia sin exigir GPU. `src/ai/astraura/availability.ts` resuelve su
+  endpoint y `src/components/mesh/panel-inferencia.tsx` muestra los nodos y
+  comprueba `/v1/models` desde la sección Señales.
+- [x] **Contrato de transporte BWP**:
+  `src/ai/astraura/mesh/transporte-bwp.ts` cataloga Wi-Fi HaLow, Reticulum,
+  Wi-Fi Mesh, WebRTC local y USB serie, ordena preferencias y resume el vínculo.
+  `src/components/mesh/signals-center.tsx` lo presenta sin alterar identidad,
+  cifrado ni señalización de la capa de aplicación.
+- [x] **Vía suptónica**: `src/lib/aurora/voz-starseed/supertonic.ts` aporta el
+  contrato ONNX sin GPU, el selector y 31 idiomas; `niveles.ts`,
+  `capacidades.ts` y `motor.ts` lo incorporan sin duplicar Voz StarSeed.
+  `memory/estudio-voces.md` documenta su convivencia con 1.58-bit y Needle y
+  cómo PAIR permite que un nodo sin GPU, con el modelo y la RAM suficientes,
+  asuma la voz de la flota.
+- [x] **Superficie común**: `src/components/mesh/signals-center.tsx` reúne el
+  estado BWP, los nodos PAIR y la capacidad de voz de borde en `/senales`.
+
+### Pendiente para cerrar la integración operativa
+
+- [ ] Aterrizar los adaptadores Reticulum y Wi-Fi HaLow sobre
+  `src/ai/astraura/mesh/meshtastic-adapter.ts`. El catálogo y la selección de
+  transporte BWP ya existen; falta conectar esos dos vínculos físicos al mismo
+  bus de paquetes que hoy usa Meshtastic.
+- [ ] Ejecutar una prueba **real con dos nodos en la misma red**: descubrimiento,
+  consulta de `/v1/models`, elección PAIR, petición, respuesta y relevo al caer
+  el nodo elegido. Las pruebas unitarias no sustituyen esta comprobación.
+- [ ] Implementar el suscriptor del host del runtime `voz-supertonic`: anunciar
+  el modelo suptónico, recibir la petición que PAIR asigne, sintetizar por ONNX
+  y devolver el audio. Hasta entonces la mesh selecciona y muestra el nodo,
+  pero no despacha síntesis suptónica remota de extremo a extremo.

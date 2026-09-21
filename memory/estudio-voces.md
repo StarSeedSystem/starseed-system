@@ -68,13 +68,34 @@ En `src/lib/voces/vinculos.ts`, idempotente:
 
 ## Vía Suptónica (Supertonic ONNX TTS)
 
-- **Sintesis de borde (edge TTS)**: ONNX sin GPU, 31 idiomas (`IDIOMAS_SUPERTONIC`), runtimes py/web/java/cpp/go/swift/rust.
-- Encaja con el estudio 1.58/needle porque tampoco exige GPU ni demonio local.
-- **Nivel e integración**: no duplica el motor de voz único. Se integra sobre `src/lib/aurora/voz-starseed/` (`supertonic.ts`, `niveles.ts`, `capacidades.ts`, `motor.ts`).
-  - `NivelSuptonico`: `{ vivo, runtime: 'onnx-cpu' | 'wasm' | 'nativo', modelosCargados, idiomas, latenciaMs }`.
-  - `soporteSupertonic(c)`: comprueba si hay WebAssembly SIMD o runtime nativo `voz-supertonic` en PATH (independiente de daemon y GPU).
-  - `nivelParaVoz({ supertonic, mobile, plataforma, daemonLocal })`: prioriza `'suptonica'` cuando el runtime de borde está disponible.
-  - `crearNivelSuptonicoDefecto()`: genera el nivel suptónico por defecto con catálogo de 31 idiomas (`es`, `en`, `fr`, `de`...).
+- **Síntesis en el dispositivo**: Supertonic ejecuta TTS ONNX en CPU o
+  WebAssembly SIMD, sin GPU. `IDIOMAS_SUPERTONIC` declara 31 idiomas: español,
+  inglés, francés, alemán, italiano, portugués, japonés, chino, coreano, ruso,
+  árabe, hindi, neerlandés, polaco, turco, sueco, danés, finés, noruego, checo,
+  griego, húngaro, rumano, ucraniano, vietnamita, tailandés, indonesio, malayo,
+  hebreo, persa y búlgaro.
+- **Un solo contrato, no otro motor**: `src/lib/aurora/voz-starseed/supertonic.ts`
+  define la capacidad y el selector suptónico; `niveles.ts` los reexporta,
+  `capacidades.ts` detecta WebAssembly SIMD o el runtime nativo y `motor.ts`
+  conserva el punto de entrada público. El timbre sigue siendo el mismo y no se
+  duplica la cadena `estudio/alta/ligera/mínima` de Voz StarSeed.
+- **Convivencia con 1.58-bit y Needle**: el núcleo 1.58-bit genera el contenido,
+  Needle decide la acción o el destino y la vía suptónica convierte el texto
+  final en audio. Las tres piezas pueden correr en CPU; no comparten pesos ni
+  trocean un modelo entre nodos.
+- **Contrato implementado**: `NivelSuptonico` registra runtime, modelos,
+  idiomas y latencia; `soporteSupertonic()` comprueba soporte sin exigir daemon
+  OmniVoice ni GPU; `nivelParaVoz()` prioriza `suptonica`; y
+  `crearNivelSuptonicoDefecto()` publica `supertonic-es-v1` con los 31 idiomas.
+- **Reparto por la mesh**: cada neurona anuncia motor, modelos, RAM, carga,
+  latencia y transporte mediante `src/lib/network/inferencia-local.ts`. PAIR
+  puede elegir, con `requiereGpu: false`, el nodo con el modelo `suptonica` y
+  RAM suficiente; empata por menor carga y después menor latencia. Así, una
+  neurona sin GPU puede asumir la voz de la flota. El panel que muestra y
+  comprueba esos nodos vive en `src/components/mesh/panel-inferencia.tsx`.
+- **Límite actual**: están construidos el contrato, la detección, la selección
+  del nodo y la superficie. Falta el suscriptor del host del runtime
+  `voz-supertonic` que reciba la petición elegida y devuelva el audio.
 
 ## Componentes de la ola
 
