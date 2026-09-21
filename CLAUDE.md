@@ -321,6 +321,20 @@ un ciclo nocturno que entrena el adaptador colectivo de Needle con lo acertado. 
 por $0,00002 (`scripts/puente/jev.py`) para veredictos de bloqueadas, Telegram, errores de pasarela
 y el veto de la aprobación sola; consejero con umbral, nunca oráculo; techo 0,05 $/día; en
 OpenRouter solo ids `:free` (hay 10 $ de crédito que nadie debe gastar sin querer).
+**Jev nativo** (2026-09-20, ola 357): Jev pasa de cliente a ENRUTADOR con pirámide — 1) motor
+LOCAL gratis sobre el BitNet b1.58-2B que ya sirve en `127.0.0.1:8790` (`/completion` con
+`n_probs` devuelve las probabilidades por token: es la misma técnica de openjev, decider y
+nimble — no se genera texto, se leen los logits de las opciones); 2) OpenRouter
+`~typesafe/jev-latest` con techo; 3) la regla determinista de quien llama, siempre. Puerta única
+para Astraura, el enjambre y todos los IDE: `POST /api/jev/systemone`, con el contrato de
+openjev, para poder cambiar el motor de debajo sin tocar a nadie. **El motor local está
+congelado mientras el enjambre escribe** (`guardia-memoria.py`, Mac de 8 GB): por eso es una
+pirámide y no un reemplazo.
+**Toda repo o modelo que Alex traiga y se integre entra en la Biblioteca del OS**
+(`src/lib/library/packages.ts`, `kind: "ai-source"` o `"repo"`) con su ficha de información y
+comprobación automática de versión contra el upstream (`/api/library/actualizaciones`). Lo que
+no corre en esta máquina se marca `comingSoon` con el motivo a la vista: una ficha no promete
+lo que no hace. (Regla de Alex, 2026-09-20.)
 **Gobernador de recursos** (2026-09-20, §10): `scripts/puente/gobernador-recursos.py` escribe
 cada minuto `~/.starseed/gobernador.json` con el tope VIVO de trabajadores = siempre el máximo
 (`maximo_hardware` = 3 en 8 GB; Alex 22:40: «olvida lo de 1 agente, la mayor cantidad posible»);
