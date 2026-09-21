@@ -49,6 +49,7 @@ import limite_proveedor as _limite_proveedor
 
 # Mensajes de Alex a un agente en marcha (2026-09-20): ver mensajes_agente.py.
 import mensajes_agente as _mensajes
+from clasificar_fallo_motor import clasificar
 from puerta_degenerados import archivos_degenerados
 
 
@@ -5362,6 +5363,21 @@ def _anotar_fallido(tid, modelo):
         set_estado(tid, modelos_fallidos=(prev + [modelo])[-6:])
 
 
+def reaccionar_al_fallo(tid, modelo, salida, segundos, pendientes):
+    clase = clasificar(salida, segundos); extracto = " ".join((salida or "").split())[:140] or "sin detalle"; prov = proveedor_de(modelo)
+    if clase == "red":
+        set_estado(tid, estado="interrumpida", nota="red caída: " + extracto); evento("aviso", tid, "red caída: " + extracto)
+        FIN.wait(60); limpiar_worktree(tid)
+    elif clase == "pasarela":
+        marcar_sin_cupo(prov, "pasarela: " + extracto, horas=0.25); pendientes[:] = [m for m in pendientes if proveedor_de(m) != prov]
+        evento("reenrutado", tid, "%s apartado 15 min: %s" % (prov, extracto))
+    elif clase == "cuota":
+        kay = _clave_para(prov)
+        agotar_clave(prov, kay["huella"], extracto, tipo=("429" if "429" in extracto else "402" if "402" in extracto else "cuota")) if kay else marcar_sin_cupo(prov, extracto, 1 if "429" in extracto else 24)
+        pendientes[:] = [m for m in pendientes if proveedor_de(m) != prov]; evento("reenrutado", tid, "%s apartado por cuota: %s" % (prov, extracto))
+    return clase
+
+
 def debe_pedir_visto_bueno(bloqueante, faltan, aprobacion_pedida, argv):
     """(2026-09-06, Ola 261, P4) Decide si la rama pide visto bueno humano antes de integrar.
 
@@ -5605,6 +5621,9 @@ def ejecutar(t, intento=1):
                 % modelo,
             )
             continue
+        reaccion = reaccionar_al_fallo(tid, modelo, out, time.time() - t0, pendientes)
+        if reaccion == "red": return
+        if reaccion in ("pasarela", "cuota"): continue
         # Agotamiento de la suscripción de ChatGPT: se anota para que las tareas
         # siguientes no repitan la espera, y Codex sale de la rotación de esta ola.
         if modelo in MODELOS_CODEX and _cupo_codex.agotado_en(out):
@@ -5806,6 +5825,9 @@ def ejecutar(t, intento=1):
                     % modelo,
                 )
                 continue
+            reaccion = reaccionar_al_fallo(tid, modelo, out, time.time() - t0, pendientes)
+            if reaccion == "red": return
+            if reaccion in ("pasarela", "cuota"): continue
             pista = fallo_de_proveedor(out)
             if error_de_formato(out) and proveedor_de(modelo) in PASARELAS:
                 # (2026-09-08, Ola 286 · G3) Igual que en la primera pasada: pasarela que
