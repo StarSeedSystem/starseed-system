@@ -3,6 +3,7 @@ import {
   nodoConBase,
   resumenDisponibles,
   elegirNodo,
+  esNodoListo,
   NODOS_INFERENCIA_LOCAL_STORAGE,
   NodoInferenciaLocal,
 } from '../network/inferencia-local';
@@ -41,6 +42,34 @@ describe('inferencia-local', () => {
         transporte: 'webrtc-local',
       };
       expect(nodoConBase(nodo, '/v1/models')).toBe('http://localhost:11434/v1/models');
+    });
+  });
+
+  describe('esNodoListo', () => {
+    it('verifica si un nodo cumple los criterios de RAM y modelo', () => {
+      const nodoListo: NodoInferenciaLocal = {
+        id: 'nl-1',
+        host: '192.168.1.10',
+        puerto: 8080,
+        baseUrl: '',
+        motores: ['pair'],
+        modelos: ['bitnet-1.58'],
+        ramMB: 1024,
+        ultimoLatido: '2026-09-21T00:00:00Z',
+        transporte: 'wifi-halo',
+      };
+      const nodoSinRam: NodoInferenciaLocal = {
+        ...nodoListo,
+        ramMB: 256,
+      };
+      const nodoSinModelo: NodoInferenciaLocal = {
+        ...nodoListo,
+        modelos: [],
+      };
+
+      expect(esNodoListo(nodoListo)).toBe(true);
+      expect(esNodoListo(nodoSinRam)).toBe(false);
+      expect(esNodoListo(nodoSinModelo)).toBe(false);
     });
   });
 

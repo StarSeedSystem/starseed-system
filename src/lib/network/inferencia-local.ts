@@ -39,6 +39,20 @@ export interface OpcionesElegirNodo {
   minRamMB?: number;
 }
 
+export function esNodoListo(
+  nodo: NodoInferenciaLocal,
+  opciones?: OpcionesResumenInferencia
+): boolean {
+  const minRam = opciones?.minRamMB ?? 512;
+  const modelosEstudio = opciones?.modelosEstudio;
+  const tieneRam = nodo.ramMB >= minRam;
+  const tieneModeloReq =
+    !modelosEstudio || modelosEstudio.length === 0
+      ? nodo.modelos.length > 0
+      : nodo.modelos.some((m) => modelosEstudio.includes(m));
+  return tieneRam && tieneModeloReq;
+}
+
 export function nodoConBase(
   nodo: NodoInferenciaLocal,
   ruta: string = '/v1/chat/completions'
@@ -69,14 +83,7 @@ export function resumenDisponibles(
 
   const conModelo = nodosConModelo.length;
 
-  const nodosListos = nodos.filter((n) => {
-    const tieneRam = n.ramMB >= minRam;
-    const tieneModeloReq =
-      !modelosEstudio || modelosEstudio.length === 0
-        ? n.modelos.length > 0
-        : n.modelos.some((m) => modelosEstudio.includes(m));
-    return tieneRam && tieneModeloReq;
-  });
+  const nodosListos = nodos.filter((n) => esNodoListo(n, opciones));
 
   const listos = nodosListos.length;
 

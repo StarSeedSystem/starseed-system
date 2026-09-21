@@ -23,6 +23,7 @@ import { cn } from "@/lib/utils";
 import { usePrompt } from "@/components/ui/confirm-dialog";
 import { SignalsRadar } from "./signals-radar";
 import { DetectedSignalsPanel } from "./detected-signals-panel";
+import { PanelInferencia } from "./panel-inferencia";
 import { RedMeshCenter } from "./red-mesh-center";
 // Adenda 138 · Router / red por neurona (OpenWISP/NetJSON) como pestaña de Señales.
 import { RouterCenter } from "@/components/network/router-center";
@@ -294,6 +295,9 @@ export function SignalsCenter({ embedded = false, compact = false }: SignalsCent
       {/* Controles maestros: antena de malla local + internet público StarSeed +
           servidor activo + privacidad del radar público. Encendidos por defecto. */}
       <ConnectivityConfigPanel mode="account" compact={compact} title="Estado de señales de esta neurona" />
+
+      {/* Inferencia local PAIR (nodos de la misma red) */}
+      <PanelInferencia compact={compact} />
 
       {/* Estado de la malla web (funciona desde el navegador, sin hardware) */}
       <div className={cn("flex flex-wrap items-center gap-2 rounded-xl border px-3 py-2",
