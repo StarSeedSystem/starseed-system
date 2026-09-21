@@ -17,7 +17,7 @@
 
 import { marcarRitoActivo } from "@/lib/ui/rito-activo";
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
-import { CircleDashed, RefreshCw, ShieldAlert } from "lucide-react";
+import { CircleDashed, RefreshCw, ShieldAlert, Copy, ExternalLink } from "lucide-react";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { EstadoMando, ProveedorUso } from "@/lib/mando/tipos";
@@ -277,6 +277,142 @@ function DatoPulso({
     );
 }
 
+interface AccionAlex {
+    id: string;
+    titulo: string;
+    por_que: string;
+    urgencia: "alta" | "media" | "baja";
+    comando?: string;
+    enlace?: string;
+    por_que_no_lo_hago_yo: string;
+    detalle?: string;
+}
+
+function PanelAccionesAlex({
+    acciones,
+    alCerrar,
+}: {
+    acciones: AccionAlex[];
+    alCerrar: () => void;
+}) {
+    const urgenciaOrden: Record<string, number> = { alta: 0, media: 1, baja: 2 };
+    const ordenadas = [...acciones].sort((a, b) => {
+        const ua = urgenciaOrden[a.urgencia] ?? 9;
+        const ub = urgenciaOrden[b.urgencia] ?? 9;
+        if (ua !== ub) return ua - ub;
+        return a.id.localeCompare(b.id);
+    });
+
+    const copiar = async (texto: string) => {
+        try {
+            await navigator.clipboard.writeText(texto);
+        } catch {
+            const area = document.createElement("textarea");
+            area.value = texto;
+            area.style.position = "fixed";
+            area.style.opacity = "0";
+            document.body.appendChild(area);
+            area.select();
+            document.execCommand("copy");
+            document.body.removeChild(area);
+        }
+    };
+
+    const tonoUrgencia: Record<string, string> = {
+        alta: "text-rose-200",
+        media: "text-amber-200",
+        baja: "text-white/60",
+    };
+
+    return (
+        <section
+            role="region"
+            aria-label="Acciones que esperan a Alex"
+            className="mc-cristal mc-desplegar mt-2 w-full p-3"
+        >
+            <header className="mc-centrado flex flex-wrap items-baseline justify-center gap-2">
+                <h3 className="text-[11px] font-semibold uppercase tracking-wider text-white/70">
+                    Te toca a ti
+                </h3>
+                <span className="text-[11px] text-white/45">
+                    {ordenadas.length} acción{ordenadas.length === 1 ? "" : "es"} pendiente{ordenadas.length === 1 ? "" : "s"}
+                </span>
+                <button
+                    type="button"
+                    onClick={alCerrar}
+                    className="ml-2 cursor-pointer rounded-md border border-white/10 px-2 py-0.5 text-[10px] text-white/50"
+                >
+                    Cerrar
+                </button>
+            </header>
+
+            {ordenadas.length === 0 ? (
+                <p className="mc-centrado mt-2 text-[11px] leading-relaxed text-white/45">
+                    Nada que necesite a Alex ahora mismo. El sistema se arregla solo.
+                </p>
+            ) : (
+                <ul className="mt-2 grid gap-1.5 md:grid-cols-2 xl:grid-cols-3">
+                    {ordenadas.map((a) => (
+                        <li
+                            key={a.id}
+                            className="rounded-lg border border-white/10 bg-black/25 p-2 text-left"
+                        >
+                            <p className="flex flex-wrap items-baseline gap-1.5">
+                                <span className="font-mono text-[11px] text-cyan-200/90">{a.id}</span>
+                                <span
+                                    className={`rounded-full border border-white/10 px-1.5 text-[10px] ${tonoUrgencia[a.urgencia]}`}
+                                >
+                                    {a.urgencia}
+                                </span>
+                            </p>
+                            <p className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-white/80">
+                                {a.titulo}
+                            </p>
+                            <p className="mt-0.5 text-[10px] leading-relaxed text-amber-200/70">
+                                {a.por_que}
+                            </p>
+                            {a.enlace ? (
+                                <p className="mt-1 flex items-center gap-1.5">
+                                    <ExternalLink className="h-3 w-3 shrink-0 text-cyan-300" aria-hidden />
+                                    <a
+                                        href={a.enlace}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="mc-alzar cursor-pointer text-[11px] text-cyan-200 hover:text-cyan-100 underline underline-offset-1 truncate"
+                                    >
+                                        {a.enlace}
+                                    </a>
+                                </p>
+                            ) : null}
+                            {a.comando ? (
+                                <div className="mt-1.5">
+                                    <p className="text-[10px] text-white/45">Comando:</p>
+                                    <div className="mt-0.5 flex items-center gap-1.5">
+                                        <code className="flex-1 min-w-0 rounded-md border border-white/10 bg-black/40 px-2 py-1 text-[10px] text-white/90 truncate font-mono">
+                                            {a.comando}
+                                        </code>
+                                        <button
+                                            type="button"
+                                            onClick={() => void copiar(a.comando!)}
+                                            className="mc-alzar cursor-pointer shrink-0 rounded-md border border-white/15 bg-white/5 px-2 py-1 text-[10px] text-white/70 hover:text-white"
+                                            aria-label="Copiar comando"
+                                        >
+                                            <Copy className="h-3 w-3" aria-hidden />
+                                        </button>
+                                    </div>
+                                </div>
+                            ) : null}
+                            <p className="mt-1.5 text-[10px] text-white/35">
+                                (Yo no: {a.por_que_no_lo_hago_yo})
+                            </p>
+                        </li>
+                    ))}
+                </ul>
+            )}
+        </section>
+    );
+}
+
 export function CentroMando() {
     // La consola ocupa la pantalla entera y no necesita el cromo del OS: al declararse
     // «rito» se apagan dock, cortinas, bordes Trinity y paleta de comandos, que es
@@ -299,6 +435,18 @@ export function CentroMando() {
     // fallo lo deja en null y la pastilla usa `pulso.sinPush` (solo OS) como respaldo.
     const [sinPublicar, setSinPublicar] = useState<{ total: number; os: number; astraura: number } | null>(null);
 
+    // Acciones que esperan a Alex (AX1): se leen de /api/mando/acciones una vez por minuto.
+    const [accionesAlex, setAccionesAlex] = useState<{ generado: string; acciones: Array<{
+        id: string;
+        titulo: string;
+        por_que: string;
+        urgencia: "alta" | "media" | "baja";
+        comando?: string;
+        enlace?: string;
+        por_que_no_lo_hago_yo: string;
+        detalle?: string;
+    }> } | null>(null);
+
     useEffect(() => {
         setPestana(pestanaInicial());
     }, []);
@@ -313,6 +461,8 @@ export function CentroMando() {
     // Un solo medidor abierto a la vez: el panel es uno y vive debajo de la rejilla.
     const [medidorAbierto, setMedidorAbierto] = useState<ClaveMedidor | null>(null);
     const [idesAbierto, setIdesAbierto] = useState(false);
+    // Panel "Te toca a ti" (AX1): separado de los medidores estándar.
+    const [accionesAlexAbierto, setAccionesAlexAbierto] = useState(false);
 
     const alCambiarPestana = useCallback((id: string) => {
         const segura = (PESTANAS.some((p) => p.id === id) ? id : "procesos") as IdPestana;
@@ -450,6 +600,51 @@ export function CentroMando() {
                 setSinPublicar({ total: os + astraura, os, astraura });
             } catch {
                 // Sin la Mac no hay publicaciones: la pastilla usa el respaldo.
+            } finally {
+                enCurso = false;
+            }
+        };
+        void cargar(true);
+        const cada = window.setInterval(() => void cargar(), 60_000);
+        const alVolver = () => {
+            if (document.visibilityState === "visible") void cargar(true);
+        };
+        document.addEventListener("visibilitychange", alVolver);
+        return () => {
+            vivo = false;
+            window.clearInterval(cada);
+            document.removeEventListener("visibilitychange", alVolver);
+        };
+    }, []);
+
+    // Acciones que esperan a Alex (AX1): se leen de /api/mando/acciones una vez por minuto.
+    // El director refresca el JSON; aquí solo lo leemos.
+    useEffect(() => {
+        let vivo = true;
+        let enCurso = false;
+        const cargar = async (forzar = false) => {
+            if (enCurso || (!forzar && document.visibilityState === "hidden")) return;
+            enCurso = true;
+            try {
+                const respuesta = await fetch("/api/mando/acciones", { cache: "no-store" });
+                if (!vivo) return;
+                if (!respuesta.ok) return;
+                const datos = (await respuesta.json()) as {
+                    generado: string;
+                    acciones: Array<{
+                        id: string;
+                        titulo: string;
+                        por_que: string;
+                        urgencia: "alta" | "media" | "baja";
+                        comando?: string;
+                        enlace?: string;
+                        por_que_no_lo_hago_yo: string;
+                        detalle?: string;
+                    }>;
+                };
+                setAccionesAlex(datos);
+            } catch {
+                // Sin la Mac no hay acciones: la pastilla se queda en 0.
             } finally {
                 enCurso = false;
             }
@@ -721,6 +916,21 @@ export function CentroMando() {
                                 tono: (pulso.agotados > 0 ? "peligro" : "normal") as TonoMedidor,
                                 detalle: `${pulso.disponibles} disponibles`,
                             },
+                            {
+                                titulo: "Te toca a ti",
+                                valor: String(accionesAlex?.acciones.length ?? 0),
+                                tono: (accionesAlex && accionesAlex.acciones.length > 0 ? "aviso" : "ok") as TonoMedidor,
+                                detalle: accionesAlex
+                                    ? accionesAlex.acciones.length > 0
+                                        ? `${accionesAlex.acciones.filter((a) => a.urgencia === "alta").length} urgentes`
+                                        : "nada pendiente"
+                                    : "cargando…",
+                                alClic: () => {
+                                    setMedidorAbierto(null);
+                                    setIdesAbierto(false);
+                                    setAccionesAlexAbierto((a) => !a);
+                                },
+                            },
                             ...(pulsoNeurona
                                 ? [
                                       {
@@ -825,6 +1035,11 @@ export function CentroMando() {
                             alAccionar={accionarMedidor}
                             alIrA={alCambiarPestana}
                             alCerrar={() => setMedidorAbierto(null)}
+                        />
+                    ) : accionesAlexAbierto ? (
+                        <PanelAccionesAlex
+                            acciones={accionesAlex?.acciones ?? []}
+                            alCerrar={() => setAccionesAlexAbierto(false)}
                         />
                     ) : null}
                 </div>
