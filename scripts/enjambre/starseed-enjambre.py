@@ -375,9 +375,9 @@ def catalogo_proveedor(prov):
     if key:
         try:
             req = urllib.request.Request(url, headers=_cabeceras_api(prov, key))
-            lista = json.loads(
-                urllib.request.urlopen(req, timeout=30).read()
-            ).get("data", [])
+            lista = json.loads(urllib.request.urlopen(req, timeout=30).read()).get(
+                "data", []
+            )
             if prov == "anthropic":
                 _ANTHROPIC_ORDENADOS = ordenar_por_precio(lista)
             datos = {m["id"] for m in lista}
@@ -1061,8 +1061,7 @@ def _sonda_generacion(prov, claves, kay):
                         "".join(b.get("text", "") for b in cuerpo_r.get("content", []))
                         if prov == "anthropic"
                         else (
-                            (cuerpo_r.get("choices") or [{}])[0].get("message")
-                            or {}
+                            (cuerpo_r.get("choices") or [{}])[0].get("message") or {}
                         ).get("content")
                         or ""
                     )
@@ -3482,6 +3481,82 @@ def vitest(cwd, log):
         return rc or rc_extra, (out or "") + "\n" + "\n".join(salidas)
 
 
+def _primera_linea_error(salida):
+    """Extrae la primera línea relevante de error de la salida de unittest de Python."""
+    if not salida:
+        return "error en tests de python"
+    lineas = [l.strip() for l in (salida or "").splitlines() if l.strip()]
+    if not lineas:
+        return "error en tests de python"
+    for l in lineas:
+        if any(
+            l.startswith(p)
+            for p in (
+                "FAIL:",
+                "ERROR:",
+                "SyntaxError:",
+                "ImportError:",
+                "ModuleNotFoundError:",
+                "AssertionError:",
+                "Traceback",
+            )
+        ):
+            return l[:120]
+    for l in lineas:
+        if "Error:" in l or "FAIL" in l or "FAILED" in l:
+            return l[:120]
+    return lineas[0][:120]
+
+
+def _puerta_python(wt, tid=None, log=None):
+    """Tercera puerta condicional (p321Jb): ejecuta unittest de Python si la tarea tocó algún .py.
+
+    - Si entre los archivos que la tarea cambió hay alguno que acabe en .py, ejecuta:
+      python3 -m unittest discover -s scripts/puente -p 'test_*.py'
+      (y si tocó scripts/enjambre/, también ese directorio).
+    - Se ejecuta sobre el worktree de la tarea (wt).
+    - Si python3 no existe o la suite no se puede lanzar, avisa en el canal y no bloquea.
+    """
+    tocados = _tocados_por_la_tarea(wt, log)
+    py_tocados = [f for f in tocados if f.endswith(".py")]
+    if not py_tocados:
+        return 0, ""
+
+    directorios = ["scripts/puente"]
+    if any(r.startswith("scripts/enjambre/") for r in py_tocados):
+        directorios.append("scripts/enjambre")
+
+    salidas = []
+    rc_total = 0
+    python_bin = shutil.which("python3") or "python3"
+
+    for d in directorios:
+        try:
+            rc, out = sh(
+                [python_bin, "-m", "unittest", "discover", "-s", d, "-p", "test_*.py"],
+                cwd=wt,
+                timeout=60,
+                log=log,
+            )
+            if rc != 0:
+                rc_total = rc_total or rc
+            salidas.append(out or "")
+        except Exception as e:
+            msg = "puerta python no se pudo lanzar en %s: %s" % (d, e)
+            try:
+                evento("aviso", tid or "", msg)
+            except Exception:
+                pass
+            if log:
+                try:
+                    log(msg)
+                except Exception:
+                    pass
+            return 0, msg
+
+    return rc_total, "\n".join(salidas)
+
+
 def _norma_ruta(ruta):
     """Normaliza una ruta para comparar (2026-09-07, Ola 261, P8): quita espacios y comillas
     de git, y deja './a.ts' como 'a.ts' (os.path.normpath). Los pedidos de la cola pueden
@@ -5387,17 +5462,30 @@ def _anotar_fallido(tid, modelo):
 
 
 def reaccionar_al_fallo(tid, modelo, salida, segundos, pendientes):
-    clase = clasificar(salida, segundos); extracto = " ".join((salida or "").split())[:140] or "sin detalle"; prov = proveedor_de(modelo)
+    clase = clasificar(salida, segundos)
+    extracto = " ".join((salida or "").split())[:140] or "sin detalle"
+    prov = proveedor_de(modelo)
     if clase == "red":
-        set_estado(tid, estado="interrumpida", nota="red caída: " + extracto); evento("aviso", tid, "red caída: " + extracto)
-        FIN.wait(60); limpiar_worktree(tid)
+        set_estado(tid, estado="interrumpida", nota="red caída: " + extracto)
+        evento("aviso", tid, "red caída: " + extracto)
+        FIN.wait(60)
+        limpiar_worktree(tid)
     elif clase == "pasarela":
-        marcar_sin_cupo(prov, "pasarela: " + extracto, horas=0.25); pendientes[:] = [m for m in pendientes if proveedor_de(m) != prov]
+        marcar_sin_cupo(prov, "pasarela: " + extracto, horas=0.25)
+        pendientes[:] = [m for m in pendientes if proveedor_de(m) != prov]
         evento("reenrutado", tid, "%s apartado 15 min: %s" % (prov, extracto))
     elif clase == "cuota":
         kay = _clave_para(prov)
-        agotar_clave(prov, kay["huella"], extracto, tipo=("429" if "429" in extracto else "402" if "402" in extracto else "cuota")) if kay else marcar_sin_cupo(prov, extracto, 1 if "429" in extracto else 24)
-        pendientes[:] = [m for m in pendientes if proveedor_de(m) != prov]; evento("reenrutado", tid, "%s apartado por cuota: %s" % (prov, extracto))
+        agotar_clave(
+            prov,
+            kay["huella"],
+            extracto,
+            tipo=(
+                "429" if "429" in extracto else "402" if "402" in extracto else "cuota"
+            ),
+        ) if kay else marcar_sin_cupo(prov, extracto, 1 if "429" in extracto else 24)
+        pendientes[:] = [m for m in pendientes if proveedor_de(m) != prov]
+        evento("reenrutado", tid, "%s apartado por cuota: %s" % (prov, extracto))
     return clase
 
 
@@ -5645,8 +5733,10 @@ def ejecutar(t, intento=1):
             )
             continue
         reaccion = reaccionar_al_fallo(tid, modelo, out, time.time() - t0, pendientes)
-        if reaccion == "red": return
-        if reaccion in ("pasarela", "cuota"): continue
+        if reaccion == "red":
+            return
+        if reaccion in ("pasarela", "cuota"):
+            continue
         # Agotamiento de la suscripción de ChatGPT: se anota para que las tareas
         # siguientes no repitan la espera, y Codex sale de la rotación de esta ola.
         if modelo in MODELOS_CODEX and _cupo_codex.agotado_en(out):
@@ -5848,9 +5938,13 @@ def ejecutar(t, intento=1):
                     % modelo,
                 )
                 continue
-            reaccion = reaccionar_al_fallo(tid, modelo, out, time.time() - t0, pendientes)
-            if reaccion == "red": return
-            if reaccion in ("pasarela", "cuota"): continue
+            reaccion = reaccionar_al_fallo(
+                tid, modelo, out, time.time() - t0, pendientes
+            )
+            if reaccion == "red":
+                return
+            if reaccion in ("pasarela", "cuota"):
+                continue
             pista = fallo_de_proveedor(out)
             if error_de_formato(out) and proveedor_de(modelo) in PASARELAS:
                 # (2026-09-08, Ola 286 · G3) Igual que en la primera pasada: pasarela que
@@ -6109,6 +6203,25 @@ def ejecutar(t, intento=1):
             evento("fallo", tid, "vitest sigue fallando; rama ola/%s conservada" % tid)
             limpiar_worktree(tid, borrar_rama=False)
             return
+
+    # Puerta condicional Python (p321Jb)
+    rc_py, out_py = _puerta_python(wt, tid, log)
+    if rc_py != 0:
+        linea_err = _primera_linea_error(out_py)
+        set_estado(
+            tid,
+            estado="fallo_tests",
+            modelo=modelo_ok,
+            segundos=int(time.time() - t0),
+            nota=linea_err,
+        )
+        evento(
+            "fallo",
+            tid,
+            "tests python fallan: %s; rama ola/%s conservada" % (linea_err, tid),
+        )
+        limpiar_worktree(tid, borrar_rama=False)
+        return
     # ¿Hizo la tarea que se le pidio, o hizo otra? (2026-09-20)
     declarados = t.get("archivos") or []
     faltan = archivos_declarados_sin_tocar(declarados, _tocados_por_la_tarea(wt, log))
@@ -6153,7 +6266,9 @@ def ejecutar(t, intento=1):
     # llega vacio casi siempre y la puerta no evaluaba nada: justo el camino donde
     # aparecen los archivos truncados. Ahora se mira tambien lo que la rama cambia
     # sobre main, que es donde vive el trabajo rescatado por el salvavidas.
-    rc_br, out_br = sh(["git", "diff", "--name-only", "main...HEAD"], cwd=wt, timeout=30)
+    rc_br, out_br = sh(
+        ["git", "diff", "--name-only", "main...HEAD"], cwd=wt, timeout=30
+    )
     if rc_br == 0:
         nombres_deg |= set(out_br.splitlines())
     nombres_deg = {
