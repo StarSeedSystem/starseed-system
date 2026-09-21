@@ -2154,3 +2154,12 @@
 
 **Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
 - google/gemini-3.6-flash integró 2 tareas sin fallar una.
+
+## 2026-09-21 16:47 · auto-0921-160839
+
+**Lo que se pidió.** Listas para trabajar
+
+**Resultado.** 3 de 4 integradas. 1 tarea se quedaron fuera.
+
+**Lo que quedó fuera, una por una:**
+- `MND1` — la revisión lo rechazó: rechazada automáticamente por ide (sin revisión humana); rama ola/MND1 conservada
