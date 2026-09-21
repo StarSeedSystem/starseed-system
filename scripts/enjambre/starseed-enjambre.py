@@ -3363,21 +3363,38 @@ def vitest(cwd, log):
         # vacío aquí (el commit va después de las puertas), así que esta puerta
         # casi nunca llegaba a dispararse.
         toca_enjambre = any(r.startswith("scripts/enjambre/") for r in tocados)
-        if not toca_enjambre:
+        # (2026-09-20) `scripts/puente/` NO estaba aquí, y se notó: AX2 integró tres
+        # errores que no sobreviven a correr las pruebas UNA vez —un `def _cargar nombre)`
+        # que ni siquiera parsea, una llamada sin «.py» y un `datas` por `datos`— y llegó a
+        # main con «revisión ok», porque ninguna puerta ejecutó una sola línea de Python.
+        # Las pruebas del puente son `unittest`, no pytest: así las corre `publicar.py`.
+        toca_puente = any(r.startswith("scripts/puente/") for r in tocados)
+        if not toca_enjambre and not toca_puente:
             return rc, out
-        if not shutil.which("pytest"):
-            return (
-                rc,
-                out
-                + "\n[puerta enjambre] sin pytest instalado: no se pudieron correr los tests del enjambre",
+        salidas, rc_extra = [], 0
+        if toca_puente:
+            rcp, outp = sh(
+                ["python3", "-m", "unittest", "discover", "-s", "scripts/puente",
+                 "-p", "test_*.py", "-q"],
+                cwd=cwd,
+                timeout=600,
+                log=log,
             )
-        rc2, out2 = sh(
-            ["python3", "-m", "pytest", "-q", "scripts/enjambre/"],
-            cwd=cwd,
-            timeout=600,
-            log=log,
-        )
-        return rc or rc2, (out or "") + "\n[puerta enjambre]\n" + (out2 or "")
+            rc_extra = rc_extra or rcp
+            salidas.append("[puerta puente]\n" + (outp or ""))
+        if toca_enjambre:
+            if not shutil.which("pytest"):
+                salidas.append("[puerta enjambre] sin pytest instalado: no se pudieron correr los tests del enjambre")
+            else:
+                rce, oute = sh(
+                    ["python3", "-m", "pytest", "-q", "scripts/enjambre/"],
+                    cwd=cwd,
+                    timeout=600,
+                    log=log,
+                )
+                rc_extra = rc_extra or rce
+                salidas.append("[puerta enjambre]\n" + (oute or ""))
+        return rc or rc_extra, (out or "") + "\n" + "\n".join(salidas)
 
 
 def _norma_ruta(ruta):

@@ -83,7 +83,7 @@ def _anotar(acciones, novedades):
         ),
     }
     tmp = AVISADOS + ".tmp"
-    json.dump(datas, open(tmp, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+    json.dump(datos, open(tmp, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
     os.replace(tmp, AVISADOS)
 
 

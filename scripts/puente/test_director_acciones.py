@@ -162,11 +162,19 @@ class PlistAccionesTest(unittest.TestCase):
         self.assertTrue(con["WorkingDirectory"].endswith("starseed-os-main"))
 
 
-def _cargar nombre_modulo_ruta):
-    """Carga un módulo de scripts/puente por su nombre de archivo, sin ejecutar main."""
-    ruta = os.path.join(DIRECTORIO, nombre_modulo_ruta)
-    spec = importlib.util.spec_from_file_location(
-        nombre_modulo_ruta[:-3], ruta)
+def _cargar(nombre_modulo_ruta):
+    """Carga un módulo de scripts/puente por su nombre de archivo, sin ejecutar main.
+
+    Acepta el nombre con o sin «.py»: quien llamaba pasaba «director-acciones» a secas y
+    `spec_from_file_location` devolvía None en silencio, así que el fallo salía tres líneas
+    más abajo como «'NoneType' object has no attribute 'loader'», que no dice nada de la
+    causa. (2026-09-20)
+    """
+    archivo = nombre_modulo_ruta if nombre_modulo_ruta.endswith(".py") else nombre_modulo_ruta + ".py"
+    ruta = os.path.join(DIRECTORIO, archivo)
+    if not os.path.exists(ruta):
+        raise FileNotFoundError("no existe el módulo a cargar: %s" % ruta)
+    spec = importlib.util.spec_from_file_location(archivo[:-3], ruta)
     m = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(m)
     return m
