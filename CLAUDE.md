@@ -340,7 +340,14 @@ cada minuto `~/.starseed/gobernador.json` con el tope VIVO de trabajadores = sie
 (`maximo_hardware` = 3 en 8 GB; Alex 22:40: «olvida lo de 1 agente, la mayor cantidad posible»);
 solo con < 150 MB de RAM libre quita uno, nunca menos de 2; el orquestador lo relee (`tope_gobernador`).
 Los agentes de la nube se suman con `scripts/puente/repartir-a-nube.py` (cola-nube versionada). **Más agentes a la vez = más medios**, nunca más procesos en una
-máquina que no cabe: la receta para sumar un medio está en §10. **Regla permanente de entrega a Alex** (2026-09-20): para todo lo que requiera una acción suya,
+máquina que no cabe: la receta para sumar un medio está en §10. **Regla permanente de explicación** (2026-09-20): cada paso que se le pida a Alex viene
+explicado — **QUÉ es, POR QUÉ hace falta y CÓMO se hace** — sin dar por sabido ningún término de
+infraestructura. «Secretos del repo», «pasarela», «fichaje», «variable de entorno»: si aparece un
+concepto, se explica ahí mismo, en una frase. Nombrar algo no es explicarlo, y un paso que Alex no
+entiende no lo va a dar. **Los avisos de fichaje diario van al chat de Hermes** con el enlace
+directo (`hermes send -t telegram:Maggasukha -s "<asunto>" "<cuerpo>"`, comprobado el 2026-09-20),
+para que pueda reactivar la pasarela desde el móvil.
+**Regla permanente de entrega a Alex** (2026-09-20): para todo lo que requiera una acción suya,
 dale el **enlace directo y/o el comando exacto de terminal**, listo para copiar y pegar — nunca la
 descripción de lo que tendría que hacer. Y antes de pedírselo, comprobar si se puede hacer desde
 aquí: si se puede, se hace. Varias acciones suyas se reducen a una sola (un guion que las agrupe)
