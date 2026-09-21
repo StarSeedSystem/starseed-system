@@ -12,7 +12,6 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-export { comprobarDueno };
 
 async function statYLeer(filepath: string): Promise<{ contenido: string; mtimeMs: number }> {
   try {

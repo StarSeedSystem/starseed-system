@@ -99,7 +99,29 @@ def lanzar(args: list[str]) -> None:
         _sh(["git", "add", cola])
         _sh(["git", "commit", "-q", "-m", "enjambre: reparto a la nube (GitHub Actions) · %s" % os.path.basename(cola)], check=False)
     # La nube hace checkout de main: la cola tiene que estar publicada.
-    print("publicando la cola en main (solo este commit de cola, sin puertas de código):")
+    # (2026-09-20) Este push decía «solo este commit de cola» y era MENTIRA: empuja HEAD
+    # entero, así que se llevaba por delante cualquier commit de código que aún no hubiera
+    # pasado las cuatro puertas. Paso hoy: una ruta con un `export` de mas llego a
+    # origin/main sin tsc, y la publicacion siguiente fallo con el arbol ya publicado.
+    # Ahora se comprueba antes: si hay codigo sin publicar, no se empuja nada.
+    _sh(["git", "fetch", "-q", "origin", "main"], check=False)
+    pendientes = [
+        l for l in _sh(["git", "log", "--name-only", "--format=%H", "origin/main..HEAD"],
+                       check=False).splitlines() if l.strip()
+    ]
+    codigo = [
+        l for l in pendientes
+        if "/" in l and not l.startswith("enjambre/colas/")
+        and not l.startswith("starseed_memory_root/")
+    ]
+    if codigo:
+        sys.exit(
+            "hay %d archivo(s) de codigo sin publicar (%s...): pasa primero las cuatro "
+            "puertas con `python3 scripts/puente/publicar.py` y vuelve a lanzar.\n"
+            "Este push solo puede llevar la cola, no codigo sin comprobar."
+            % (len(codigo), ", ".join(sorted(set(codigo))[:3]))
+        )
+    print("publicando la cola en main (solo la cola: se comprobo que no hay codigo sin publicar):")
     print(_sh(["git", "push", "origin", "HEAD:main"], check=False)[-200:] or "push ok")
     print(_sh(["gh", "workflow", "run", WORKFLOW, "-f", "cola=%s" % cola, "-f", "trabajadores=%s" % trabajadores, "-f", "minutos=%s" % minutos]))
     print("lanzado:", cola, "· trabajadores", trabajadores, "· minutos", minutos)
