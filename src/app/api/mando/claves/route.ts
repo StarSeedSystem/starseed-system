@@ -10,13 +10,8 @@
  */
 
 import { guardianMando } from "@/lib/mando/guardian";
-import {
-    guardarClave,
-    huellaClave,
-    olvidarClave,
-    probarClave,
-    validarClaveDeProveedor,
-} from "@/lib/mando/claves-servidor";
+import { identificarClaveEntrante, variablePermitida } from "@/lib/mando/claves-agregador";
+import { guardarClave, olvidarClave, probarClave, validarClaveDeProveedor } from "@/lib/mando/claves-servidor";
 import { PROVEEDORES_CATALOGO } from "@/lib/mando/proveedores-catalogo";
 
 export const runtime = "nodejs";
@@ -27,19 +22,15 @@ interface PeticionClave {
     proveedor?: unknown;
     variable?: unknown;
     valor?: unknown;
+    clave?: unknown;
     forzar?: unknown;
 }
 
-/** Base de API de un proveedor del catálogo, o la URL de una pasarela ya declarada. */
 async function baseDe(proveedor: string): Promise<string | null> {
     const info = PROVEEDORES_CATALOGO.find((p) => p.id === proveedor);
     if (info) return info.base;
-    // Pasarelas declaradas por entorno: su id es «STARSEED_PASARELA_<NOMBRE>».
     const m = /^STARSEED_PASARELA_([A-Z0-9]+)$/.exec(proveedor);
-    if (m) {
-        return process.env[`STARSEED_PASARELA_${m[1]}_URL`] ?? null;
-    }
-    return null;
+    return m ? process.env[`STARSEED_PASARELA_${m[1]}_URL`] ?? null : null;
 }
 
 export async function POST(request: Request): Promise<Response> {
@@ -58,10 +49,13 @@ export async function POST(request: Request): Promise<Response> {
     const variable = typeof cuerpo.variable === "string" ? cuerpo.variable : "";
 
     switch (cuerpo.accion) {
+        case "identificar": {
+            const clave = (typeof cuerpo.clave === "string" && cuerpo.clave) || valor;
+            if (!clave) return Response.json({ error: "Falta la clave a identificar." }, { status: 400 });
+            return Response.json({ ok: true, ...identificarClaveEntrante(clave, variable || undefined) });
+        }
         case "probar": {
-            if (!proveedor || !valor) {
-                return Response.json({ error: "Faltan «proveedor» o «valor»." }, { status: 400 });
-            }
+            if (!proveedor || !valor) return Response.json({ error: "Faltan «proveedor» o «valor»." }, { status: 400 });
             const base = await baseDe(proveedor);
             if (!base) return Response.json({ error: `Proveedor desconocido: ${proveedor}.` }, { status: 400 });
             const valido = validarClaveDeProveedor(proveedor, valor);
@@ -69,29 +63,39 @@ export async function POST(request: Request): Promise<Response> {
             return Response.json(await probarClave(base, valor));
         }
         case "guardar": {
-            if (!proveedor || !variable || !valor) {
-                return Response.json({ error: "Faltan «proveedor», «variable» o «valor»." }, { status: 400 });
-            }
+            if (!proveedor || !variable || !valor) return Response.json({ error: "Faltan datos." }, { status: 400 });
+            if (!variablePermitida(variable)) return Response.json({ ok: false, error: "variable no reconocida" }, { status: 400 });
             const valido = validarClaveDeProveedor(proveedor, valor);
             if (!valido.ok) return Response.json({ ok: false, error: valido.error });
-            const forzar = cuerpo.forzar === true;
-            let prueba: { ok: boolean; modelos?: number; error?: string } = { ok: true };
             const base = await baseDe(proveedor);
-            if (base && !forzar) {
-                prueba = await probarClave(base, valor);
-                if (!prueba.ok) {
-                    return Response.json({ ok: false, error: prueba.error, prueba });
-                }
+            if (base && cuerpo.forzar !== true) {
+                const prueba = await probarClave(base, valor);
+                if (!prueba.ok) return Response.json({ ok: false, error: prueba.error, prueba });
             }
-            const guardado = await guardarClave(proveedor, variable, valor);
-            if (!guardado.ok) return Response.json({ ok: false, error: guardado.error });
-            return Response.json({ ok: true, huella: guardado.huella, prueba });
+            const g = await guardarClave(proveedor, variable, valor);
+            return g.ok ? Response.json({ ok: true, huella: g.huella }) : Response.json({ ok: false, error: g.error });
         }
         case "olvidar": {
             if (!variable) return Response.json({ error: "Falta «variable»." }, { status: 400 });
+            if (!variablePermitida(variable)) return Response.json({ ok: false, error: "variable no reconocida" }, { status: 400 });
             return Response.json(await olvidarClave(variable));
         }
         default:
-            return Response.json({ error: "Acción desconocida: usa guardar, probar u olvidar." }, { status: 400 });
+            return Response.json({ error: "Acción desconocida." }, { status: 400 });
     }
+}
+
+export async function DELETE(request: Request): Promise<Response> {
+    const veto = await guardianMando(request);
+    if (veto) return veto;
+    let variable = new URL(request.url).searchParams.get("variable") ?? "";
+    if (!variable) {
+        try {
+            const body = (await request.json()) as { variable?: unknown };
+            if (typeof body.variable === "string") variable = body.variable;
+        } catch {}
+    }
+    if (!variable) return Response.json({ error: "Falta «variable»." }, { status: 400 });
+    if (!variablePermitida(variable)) return Response.json({ ok: false, error: "variable no reconocida" }, { status: 400 });
+    return Response.json(await olvidarClave(variable));
 }
