@@ -1,0 +1,17 @@
+{
+ "ola": "nube-20260921",
+ "tareas": [
+  {
+   "id": "MND1",
+   "ola": "Ola 337 · Mando que no miente",
+   "depende": [],
+   "titulo": "El boton «Comprobar ahora» comprueba de verdad el medidor que dice",
+   "archivos": [
+    "scripts/puente/comprobar_medidor.py",
+    "scripts/puente/test_comprobar_medidor.py"
+   ],
+   "prompt": "DIAGNOSTICO (medido en vivo, 2026-09-21). `src/app/api/mando/comprobar/route.ts` linea 70-78: el POST lanza SIEMPRE `scripts/puente/renovador-pasarelas.py`, sea cual sea el medidor (listas, bloqueadas, agentes, disco...). Ese guion renueva pasarelas y NO tiene nada que ver con el medidor, y sobre todo NUNCA escribe en el archivo de estado que el GET lee. Resultado medido: 50 segundos despues, `terminado` sigue en null, `veredictos` vacio y la interfaz dice «Comprobacion en curso · 0/0 vivos» para siempre. El boton contesta `lanzado: true` habiendo hecho nada util — la misma enfermedad que un job verde que no trabajo.\n\nTU ENCARGO (PURO + su prueba, nada de src/): crea `scripts/puente/comprobar_medidor.py` con una funcion PURA `veredictos_de(medidor, procesos, hechos)` que, dado el nombre del medidor y los hechos ya recogidos, devuelva la lista de {proceso, estado, detalle} y una frase de resumen, y un `main()` que reciba el medidor como argv[1], recoja los hechos, y ESCRIBA el JSON de estado en `starseed_memory_root/mando/comprobaciones/<medidor>.json` con el MISMO formato que ya lee el GET (mira el tipo `Comprobacion` en src/lib/mando/comprobacion-tipos.ts: id, medidor, empezado, terminado, directores, veredictos, resumen). `terminado` SIEMPRE se rellena, incluso si algo falla: una comprobacion que no termina es peor que una que dice que fallo.\n\nQue mira cada medidor: `listas` y `bloqueadas` -> si hay orquestador vivo y si el vigilante responde; `agentes` -> procesos opencode/codex vivos; `disco` -> espacio libre; `memoria` -> memoria libre y swap; `proveedores` -> el informe de pasarelas; `sin-publicar` -> commits por publicar. Pon pruebas unittest de la funcion pura con casos de cada medidor y uno de fallo.\n\nNO explores el repositorio entero: abre SOLO los archivos que se nombran. tsc limpio, sin `any`. Comentarios en ESPANOL que expliquen el PORQUE. Antes de terminar comprueba tu trabajo con `npx tsc --noEmit`.",
+   "modelo": "llm7/minimax-m2.7"
+  }
+ ]
+}
