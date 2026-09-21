@@ -27,7 +27,7 @@ import {
 } from "lucide-react";
 
 import type { EstadoAlmacenamiento, Regenerable } from "@/lib/mando/almacenamiento";
-import { interpretarEstadoEspejo, type CarpetaEspecial, type ModoCarpeta } from "@/lib/mando/drive-carpetas";
+import type { CarpetaEspecial, ModoCarpeta } from "@/lib/mando/drive-carpetas";
 
 /**
  * D2 dejó `driveCarpetas` en el JSON de GET /api/mando/almacenamiento; el tipo
@@ -331,20 +331,9 @@ export function TarjetaDrive({ estado }: { estado: EstadoAlmacenamiento }) {
         }
     }, [espejando]);
 
-    const interpretacion = interpretarEstadoEspejo(drive);
-    const claseTono = interpretacion.tono === "peligro"
-        ? "border-red-500/30 bg-red-500/10 text-red-300"
-        : interpretacion.tono === "aviso"
-            ? "border-amber-500/30 bg-amber-500/10 text-amber-300"
-            : "border-emerald-500/30 bg-emerald-500/10 text-emerald-300";
-
     if (!drive.montado) {
         return (
             <Tarjeta titulo="Google Drive" icono={<Cloud className="h-4 w-4 text-white/70" aria-hidden />} testId="tarjeta-drive">
-                <div className={`mb-2 rounded-lg border px-2.5 py-1.5 text-xs font-medium ${claseTono}`}>
-                    <div className="font-semibold">{interpretacion.titulo}</div>
-                    <div className="mt-0.5 text-[11px] opacity-90">{interpretacion.detalle}</div>
-                </div>
                 <p className="text-xs text-white/60">Instala Google Drive para escritorio para usarlo como espejo.</p>
             </Tarjeta>
         );
@@ -355,14 +344,6 @@ export function TarjetaDrive({ estado }: { estado: EstadoAlmacenamiento }) {
 
     return (
         <Tarjeta titulo="Google Drive" icono={<Cloud className="h-4 w-4 text-white/70" aria-hidden />} testId="tarjeta-drive">
-            <div className={`mb-3 rounded-lg border px-2.5 py-1.5 text-xs ${claseTono}`}>
-                <div className="flex items-center justify-between font-semibold">
-                    <span>{interpretacion.titulo}</span>
-                    <span className="font-mono text-[10px] opacity-80">{interpretacion.cuando}</span>
-                </div>
-                <div className="mt-0.5 text-[11px] opacity-90">{interpretacion.detalle}</div>
-            </div>
-
             <p className="text-xs text-white/70">Montado en <span className="font-mono">{drive.ruta}</span></p>
 
             {espejo ? (
