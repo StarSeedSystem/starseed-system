@@ -1037,3 +1037,19 @@
 - `JV8c` — la revisión lo rechazó: rechazada automáticamente por ide (sin revisión humana); rama ola/JV8c conservada
 - `CU3r` — la revisión lo rechazó: rechazada automáticamente por ide (sin revisión humana); rama ola/CU3r conservada
 - `CU3br` — la revisión lo rechazó: dependencia no integrada: CU3r (rechazada)
+
+## 2026-09-21 06:56 · auto-0921-051514
+
+**Lo que se pidió.** Última salida: 31/12/1969, 18:00:00
+
+**Resultado.** 5 de 8 integradas. 3 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 2 tareas se fueron por lo mismo — otra cosa (p318Jb, JV8). Es 25 % de la ola.
+- sin modelo anotado no integró ninguna de sus 2 tareas.
+- codex/gpt-5.6-sol integró 3 tareas sin fallar una.
+
+**Lo que quedó fuera, una por una:**
+- `p318Jb` — otra cosa: dependencia no integrada: p318I (?)
+- `JV8` — otra cosa: ningún proveedor respondió (does not exist)
+- `JV12` — la revisión lo rechazó: rechazada automáticamente por ide (sin revisión humana); rama ola/JV12 conservada
