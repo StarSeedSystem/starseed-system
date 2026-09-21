@@ -1,6 +1,6 @@
 # Puente de Mando · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-20 16:51:46 desde el Mando vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-20 18:18:23 desde el Mando vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -15,18 +15,22 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | Ola arriba | Ola Dream 2026-09-15 · lo que el análisis nocturno encontró |
 | Agentes escribiendo | **0** |
 | En esta ola | integradas 2 · en curso 0 · esperando aprobación 0 · pendientes 0 |
-| Últimas 4 olas | en curso 0 · pendientes 0 · integradas 2 |
-| HEAD | `a3f8109b chore(memoria): aprendizaje de la ola auto-0920-162311` |
-| Sin publicar | 8 commits |
+| Últimas 4 olas | en curso 0 · pendientes 0 · integradas 8 |
+| HEAD | `0fc790cf chore(memoria): aprendizaje de la ola auto-0920-165233` |
+| Sin publicar | 23 commits |
 | Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-auto-0920-162311.json`, hace 5s)
+## Quién escribe ahora (latido de `cola-auto-0920-165233.json`, hace 9s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `AGR1` | hecho | nvidia/moonshotai/kimi-k3 | 3 min | 163 s | 101182 |
-| `DV1` | hecho | nvidia/deepseek-ai/deepseek-v4-fla | 13 min | 787 s | 501291 |
-| `MU2` | hecho | nvidia/moonshotai/kimi-k3 | 25 min | 1496 s | 127998 |
+| `DV1` | hecho | google/gemini-3.6-flash | 3 min | 162 s | 933476 |
+| `AGR3` | hecho | google/gemini-3.6-flash | 6 min | 366 s | 67577 |
+| `MU2` | hecho | nvidia/moonshotai/kimi-k3 | 22 min | 1319 s | 163938 |
+| `PD1` | hecho | google/gemini-3.6-flash | 27 min | 1593 s | 81169 |
+| `CC5` | hecho | google/gemini-3.6-flash | 40 min | 2394 s | 74049 |
+| `AGR2` | hecho | google/gemini-3.6-flash | 45 min | 2721 s | 77477 |
+| `JV5` | hecho | google/gemini-3.6-flash | 49 min | 2966 s | 57039 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
