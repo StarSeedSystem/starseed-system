@@ -176,7 +176,11 @@ class Jev(unittest.TestCase):
     def test_clave_nunca_sale_en_el_uso(self):
         jev.TRANSPORTE = _falso({"q": {"type": "noul", "noul": 0.5}})
         jev.si_no({"x": 1}, "?")
-        self.assertNotIn("sk-", open(jev.USO).read() if os.path.exists(jev.USO) else "")
+        contenido = ""
+        if os.path.exists(jev.USO):
+            with open(jev.USO, encoding="utf-8") as f:
+                contenido = f.read()
+        self.assertNotIn("sk-", contenido)
 
 
 class Piramide(unittest.TestCase):
@@ -224,7 +228,8 @@ class Piramide(unittest.TestCase):
         _local_falso(respuesta=None)
         jev.TRANSPORTE = _falso({"q": {"type": "noul", "noul": 0.3}})
         jev.decidir({"a": 1}, {"q": {"type": "noul", "instructions": "?"}})
-        uso = json.load(open(jev.USO))
+        with open(jev.USO, encoding="utf-8") as f:
+            uso = json.load(f)
         self.assertEqual(uso.get("local_sin_respuesta"), 1)
 
     def test_local_caido_cae_a_openrouter(self):
@@ -280,7 +285,8 @@ class Piramide(unittest.TestCase):
             {"a": 1}, {"q": {"type": "noul", "instructions": "?"}}, usar_cache=False
         )
         self.assertEqual(r["medio"], "local")
-        uso = json.load(open(jev.USO))
+        with open(jev.USO, encoding="utf-8") as f:
+            uso = json.load(f)
         self.assertGreater(
             uso.get("por_medio", {}).get("local", {}).get("llamadas", 0), 0
         )
@@ -290,9 +296,24 @@ class Piramide(unittest.TestCase):
         jev.TRANSPORTE = _falso({"q": {"type": "noul", "noul": 0.3}})
         jev.decidir({"a": 1}, {"q": {"type": "noul", "instructions": "?"}})
         jev.decidir({"a": 2}, {"q": {"type": "noul", "instructions": "?"}})
-        uso = json.load(open(jev.USO))
+        with open(jev.USO, encoding="utf-8") as f:
+            uso = json.load(f)
         self.assertEqual(uso["por_medio"]["local"]["llamadas"], 2)
         self.assertEqual(uso["por_medio"]["local"]["coste_usd"], 0.0)
+
+    def test_cache_respeta_medio_pedido(self):
+        """Si la caché guarda una entrada de openrouter, forzar medio='local' no la usa."""
+        _local_falso(respuesta={"q": {"type": "noul", "noul": 0.8}})
+        jev.TRANSPORTE = _falso({"q": {"type": "noul", "noul": 0.3}})
+        r1 = jev.decidir(
+            {"a": 1}, {"q": {"type": "noul", "instructions": "?"}}, medio="openrouter"
+        )
+        self.assertEqual(r1["medio"], "openrouter")
+        r2 = jev.decidir(
+            {"a": 1}, {"q": {"type": "noul", "instructions": "?"}}, medio="local"
+        )
+        self.assertEqual(r2["medio"], "local")
+        self.assertAlmostEqual(r2["q"]["noul"], 0.8)
 
 
 if __name__ == "__main__":

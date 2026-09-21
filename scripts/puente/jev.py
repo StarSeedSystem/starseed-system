@@ -262,12 +262,12 @@ def decidir(estado, preguntas, usar_cache=True, medio=None):
     cache = _leer(CACHE, {}) if usar_cache else {}
     entrada = cache.get(h)
     if entrada and time.time() - entrada.get("t", 0) < TTL_S:
-        # Separar metadatos de respuestas para no mezclar en la caché.
-        respuestas = entrada.get("respuestas") or {}
-        res = dict(respuestas)
-        res["medio"] = entrada.get("medio")
-        res["ms"] = entrada.get("ms")
-        return res
+        if medio is None or entrada.get("medio") == medio:
+            respuestas = entrada.get("respuestas") or {}
+            res = dict(respuestas)
+            res["medio"] = entrada.get("medio")
+            res["ms"] = entrada.get("ms")
+            return res
     t0 = time.time()
     jl = _local()
     respuestas = None
