@@ -32,7 +32,12 @@ on:
       minutos:
         description: "Tope de minutos del enjambre (máx. 340: el job muere a las 6 h)"
         required: false
-        default: "300"
+        # (2026-09-20) Estaba en 300. Un job se quedó colgado con UNA sola tarea y tuvimos
+        # que esperar DOS HORAS para poder leer su log, porque los logs de un job en marcha
+        # no se pueden descargar. Un medio nuevo se depura con ciclos cortos: 45 minutos
+        # bastan de sobra para una tanda y convierten un cuelgue de dos horas en uno de
+        # tres cuartos. Quien necesite más, lo pide explícitamente.
+        default: "45"
         type: string
 
 permissions:

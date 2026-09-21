@@ -29,7 +29,9 @@ RAIZ = os.environ.get("STARSEED_ROOT") or "/Users/alex/Documents/starseed-os-mai
 INTERVALO_S = int(os.environ.get("STARSEED_NUBE_S", "600"))
 TOPE_DIA = int(os.environ.get("STARSEED_NUBE_TOPE_DIA", "8"))
 TRABAJADORES = os.environ.get("STARSEED_NUBE_TRABAJADORES", "3")
-MINUTOS = os.environ.get("STARSEED_NUBE_MINUTOS", "300")
+#: 45 y no 300: los logs de un job EN MARCHA no se pueden descargar, asi que el tope
+#: es tambien el tiempo que tardamos en poder diagnosticar un cuelgue. (2026-09-20)
+MINUTOS = os.environ.get("STARSEED_NUBE_MINUTOS", "45")
 CUENTA = os.path.expanduser("~/.starseed/nube-lanzamientos.json")
 
 
