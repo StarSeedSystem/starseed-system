@@ -73,16 +73,18 @@ def _huella(estado, preguntas):
 
 def _leer(ruta, por_defecto):
     try:
-        return json.load(open(ruta, encoding="utf-8"))
+        with open(ruta, encoding="utf-8") as f:
+            return json.load(f)
     except Exception:
         return por_defecto
 
 
 def _escribir(ruta, datos):
     try:
-        os.makedirs(os.path.dirname(ruta), exist_ok=True)
+        os.makedirs(os.path.dirname(ruta) or ".", exist_ok=True)
         tmp = ruta + ".tmp"
-        json.dump(datos, open(tmp, "w", encoding="utf-8"), ensure_ascii=False)
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(datos, f, ensure_ascii=False)
         os.replace(tmp, ruta)
     except OSError:
         pass
@@ -260,23 +262,31 @@ def decidir(estado, preguntas, usar_cache=True, medio=None):
     cache = _leer(CACHE, {}) if usar_cache else {}
     entrada = cache.get(h)
     if entrada and time.time() - entrada.get("t", 0) < TTL_S:
-        return entrada.get("respuestas")
+        # Separar metadatos de respuestas para no mezclar en la caché.
+        respuestas = entrada.get("respuestas") or {}
+        res = dict(respuestas)
+        res["medio"] = entrada.get("medio")
+        res["ms"] = entrada.get("ms")
+        return res
     t0 = time.time()
     jl = _local()
     respuestas = None
     medio_usado = None
-    if medio in (None, "local"):
-        local_ok = False
-        if jl is not None and hasattr(jl, "disponible"):
-            try:
-                local_ok = bool(jl.disponible())
-            except Exception:
-                local_ok = False
-        if local_ok:
-            respuestas = _intenta_local(jl, estado, preguntas)
-            if respuestas is not None:
-                medio_usado = "local"
-    if respuestas is None and medio in (None, "openrouter"):
+    # Pirámide: local primero si corresponde; si falla (None o excepción), escalada.
+    intenta_local = medio in (None, "local")
+    intenta_open = medio in (None, "openrouter")
+    local_disponible = False
+    if intenta_local and jl is not None and hasattr(jl, "disponible"):
+        try:
+            local_disponible = bool(jl.disponible())
+        except Exception:
+            local_disponible = False
+    if intenta_local and local_disponible:
+        respuestas = _intenta_local(jl, estado, preguntas)
+        if respuestas is not None:
+            medio_usado = "local"
+    # Escalada obligatoria: si no hay respuesta y no se forzó solo local.
+    if respuestas is None and intenta_open:
         respuestas, _cruda = _intenta_openrouter(estado, preguntas, t0)
         if respuestas is not None:
             medio_usado = "openrouter"
@@ -289,7 +299,13 @@ def decidir(estado, preguntas, usar_cache=True, medio=None):
     if medio_usado == "local":
         _anotar_uso({}, time.time() - t0, medio="local", ms=ms)
     if usar_cache:
-        cache[h] = {"t": time.time(), "respuestas": res}
+        # Cache separa respuestas de metadatos (evita mezclar 'medio'/'ms' con claves de pregunta).
+        cache[h] = {
+            "t": time.time(),
+            "respuestas": respuestas,
+            "medio": medio_usado,
+            "ms": ms,
+        }
         if len(cache) > 2000:
             cache = dict(
                 sorted(cache.items(), key=lambda kv: kv[1].get("t", 0))[-1000:]

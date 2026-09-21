@@ -272,6 +272,19 @@ class Piramide(unittest.TestCase):
         r = jev.decidir({"a": 1}, {"q": {"type": "noul", "instructions": "?"}})
         self.assertEqual(r["medio"], "openrouter")
 
+    def test_caché_false_todo_funciona_y_anota_uso(self):
+        """Punto 3 del revisor: usar_cache=False no debe impedir anotación ni resultado."""
+        _local_falso(respuesta={"q": {"type": "noul", "noul": 0.7}})
+        jev.TRANSPORTE = _transporte_que_explota
+        r = jev.decidir(
+            {"a": 1}, {"q": {"type": "noul", "instructions": "?"}}, usar_cache=False
+        )
+        self.assertEqual(r["medio"], "local")
+        uso = json.load(open(jev.USO))
+        self.assertGreater(
+            uso.get("por_medio", {}).get("local", {}).get("llamadas", 0), 0
+        )
+
     def test_uso_se_anota_por_medio_y_el_local_cuesta_cero(self):
         _local_falso(respuesta={"q": {"type": "noul", "noul": 0.8}})
         jev.TRANSPORTE = _falso({"q": {"type": "noul", "noul": 0.3}})
