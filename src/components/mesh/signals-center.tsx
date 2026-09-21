@@ -15,7 +15,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
-  RadioTower, Wifi, Signal, Bluetooth, MapPin, Nfc, Usb, Phone,
+  RadioTower, Wifi, Signal, Bluetooth, MapPin, Nfc, Usb, Phone, Volume2,
   ExternalLink, Antenna, Smartphone, Download, Router, UserCog, type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -50,6 +50,17 @@ import {
   type TransporteBwp,
   type VinculoBwp,
 } from "@/ai/astraura/mesh/transporte-bwp";
+// RN5 · Voz de borde (supertonic / 1.58 local) en la misma página Señales:
+// indicador con soporte real de hardware y prueba de síntesis corta.
+import { detectarCapacidades } from "@/lib/aurora/voz-starseed/capacidades";
+import {
+  hablarStarSeed,
+  soporteSupertonic,
+  nivelParaVoz,
+  type SoporteSupertonic,
+  type NivelVozSuptonica,
+} from "@/lib/aurora/voz-starseed/motor";
+import { buscarTimbre, TIMBRE_PREDETERMINADO } from "@/lib/aurora/timbres";
 
 const ICON: Record<SignalKind, LucideIcon> = {
   mesh: RadioTower, wifi: Wifi, cellular: Signal, bluetooth: Bluetooth,
@@ -75,6 +86,14 @@ function summarizeInbound(body: unknown): string {
   if (typeof b.kind === "string") return String(b.kind);
   return "contenido de red";
 }
+
+/** Etiqueta visible del nivel de voz de borde activo en esta neurona. */
+const ETIQUETA_NIVEL_VOZ: Record<NivelVozSuptonica, string> = {
+  suptonica: "Voz suptónica",
+  "158-local": "Voz 1.58 local",
+  nube: "Voz en nube",
+  tronal: "Voz tronal",
+};
 
 export interface SignalsCenterProps {
   embedded?: boolean;
@@ -191,6 +210,37 @@ export function SignalsCenter({ embedded = false, compact = false }: SignalsCent
 
   // Recomendación de app nativa para acceso completo al hardware (según el SO).
   const native = useMemo<NativeRecommendation>(() => recommendNative(detectPlatform()), []);
+
+  // Voz de borde: sondear UNA vez (caché de 5 min) las capacidades de hardware
+  // y de ahí el soporte supertonic y el nivel que hablaría en esta neurona.
+  const [vozBorde, setVozBorde] = useState<{ soporte: SoporteSupertonic; nivel: NivelVozSuptonica } | null>(null);
+  const [hablandoVoz, setHablandoVoz] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    void detectarCapacidades().then((c) => {
+      if (!alive) return;
+      setVozBorde({
+        soporte: soporteSupertonic(c),
+        nivel: nivelParaVoz({ supertonic: c.supertonic, mobile: c.movil, daemonLocal: c.daemonLocal }),
+      });
+    });
+    return () => { alive = false; };
+  }, []);
+
+  // Síntesis corta de prueba por el motor único; sin runtime queda desarmado.
+  const probarVozBorde = async () => {
+    if (hablandoVoz) return;
+    setHablandoVoz(true);
+    try {
+      const timbre = buscarTimbre(TIMBRE_PREDETERMINADO.femenina);
+      const ok = timbre
+        ? await hablarStarSeed("Antenas de esta neurona listas. Voz de borde en marcha.", { timbre, contexto: "aviso" })
+        : false;
+      if (!ok) toast("No se pudo sintetizar la voz en esta neurona");
+    } finally {
+      setHablandoVoz(false);
+    }
+  };
 
   const runAction = async (sig: SignalSource, action: string) => {
     try {
@@ -371,6 +421,46 @@ export function SignalsCenter({ embedded = false, compact = false }: SignalsCent
 
       {/* Inferencia local PAIR (nodos de la misma red) */}
       <PanelInferencia compact={compact} />
+
+      {/* Voz de borde: soporte suptónico/1.58 local según el hardware real y
+          prueba de síntesis corta (desarmada con motivo si no hay runtime). */}
+      <div className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5">
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="flex items-center gap-2 text-[12px] font-semibold text-white/90">
+            <Volume2 className="h-4 w-4 text-sky-300" /> Voz de borde
+          </p>
+          {vozBorde && (
+            <span className={cn(
+              "rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider",
+              vozBorde.soporte.disponible
+                ? "bg-emerald-500/15 text-emerald-200"
+                : "bg-white/[0.06] text-white/45",
+            )}>
+              {ETIQUETA_NIVEL_VOZ[vozBorde.nivel]}
+            </span>
+          )}
+          <button
+            type="button"
+            disabled={!vozBorde?.soporte.disponible || hablandoVoz}
+            onClick={() => void probarVozBorde()}
+            title={vozBorde?.soporte.disponible
+              ? "Sintetiza una frase corta por el motor único Voz StarSeed"
+              : (vozBorde?.soporte.motivo ?? "Midiendo el hardware de voz…")}
+            className={cn(
+              "ml-auto inline-flex cursor-pointer items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold transition-colors",
+              vozBorde?.soporte.disponible
+                ? "border-sky-500/30 bg-sky-500/10 text-sky-200 hover:bg-sky-500/20"
+                : "cursor-not-allowed border-white/10 bg-black/20 text-white/40",
+              hablandoVoz && "opacity-50",
+            )}
+          >
+            {hablandoVoz ? "Sintetizando…" : "Probar voz"}
+          </button>
+        </div>
+        {!vozBorde?.soporte.disponible && vozBorde?.soporte.motivo && (
+          <p className="mt-1 text-[10px] leading-snug text-white/45">{vozBorde.soporte.motivo}</p>
+        )}
+      </div>
 
       {/* Estado de la malla web (funciona desde el navegador, sin hardware) */}
       <div className={cn("flex flex-wrap items-center gap-2 rounded-xl border px-3 py-2",
