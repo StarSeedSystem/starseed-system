@@ -46,8 +46,10 @@ from medios import (
 # Qué pasarelas caben para un prompt de este tamaño. Fuera del archivo para poder probar la
 # aritmética sin lanzar una ola; ver el porqué en limite_proveedor.py.
 import limite_proveedor as _limite_proveedor
+
 # Mensajes de Alex a un agente en marcha (2026-09-20): ver mensajes_agente.py.
 import mensajes_agente as _mensajes
+from puerta_degenerados import archivos_degenerados
 
 
 # El MISMO archivo corre en la Mac de Alex y en el contenedor de Cowork: sin variables de
@@ -2032,7 +2034,10 @@ def es_archivo_basura(ruta):
     r = (ruta or "").strip()
     if not r:
         return False
-    return r.endswith((".backup", ".bak", ".tmp", ".orig", ".rej", "~")) or os.path.basename(r) == _mensajes.ARCHIVO_WORKTREE
+    return (
+        r.endswith((".backup", ".bak", ".tmp", ".orig", ".rej", "~"))
+        or os.path.basename(r) == _mensajes.ARCHIVO_WORKTREE
+    )
 
 
 def rebase_saltando_basura(wt, tid, timeout=300):
@@ -2044,7 +2049,9 @@ def rebase_saltando_basura(wt, tid, timeout=300):
     vueltas = 0
     while rc != 0 and vueltas < 12:
         vueltas += 1
-        rc_u, en_conflicto = sh(["git", "diff", "--name-only", "--diff-filter=U"], cwd=wt, timeout=30)
+        rc_u, en_conflicto = sh(
+            ["git", "diff", "--name-only", "--diff-filter=U"], cwd=wt, timeout=30
+        )
         rutas = [r for r in (en_conflicto or "").splitlines() if r.strip()]
         if rc_u != 0 or not rutas or not all(es_archivo_basura(r) for r in rutas):
             sh(["git", "rebase", "--abort"], cwd=wt, timeout=60)
@@ -2055,7 +2062,12 @@ def rebase_saltando_basura(wt, tid, timeout=300):
                 os.remove(os.path.join(wt, r))
             except OSError:
                 pass
-        evento("aviso", tid, "rebase: conflicto solo en %s → fuera del commit y sigo" % ", ".join(os.path.basename(r) for r in rutas))
+        evento(
+            "aviso",
+            tid,
+            "rebase: conflicto solo en %s → fuera del commit y sigo"
+            % ", ".join(os.path.basename(r) for r in rutas),
+        )
         rc, out = sh("GIT_EDITOR=true git rebase --continue", cwd=wt, timeout=timeout)
     if rc != 0:
         sh(["git", "rebase", "--abort"], cwd=wt, timeout=60)
@@ -2554,11 +2566,16 @@ def llamar_llm(proveedor, modelo, prompt, timeout=120):
         # enrutamiento (proveedores con herramientas, el más rápido, respaldo, middle-out).
         try:
             import openrouter as _orr
+
             cabeceras = _orr.cabeceras(url, cabeceras)
-            cuerpo = _orr.cuerpo(url, cuerpo, con_herramientas=False)   # el revisor no usa tools
+            cuerpo = _orr.cuerpo(
+                url, cuerpo, con_herramientas=False
+            )  # el revisor no usa tools
         except Exception:
             pass
-        req = urllib.request.Request(url, data=json.dumps(cuerpo).encode(), headers=cabeceras)
+        req = urllib.request.Request(
+            url, data=json.dumps(cuerpo).encode(), headers=cabeceras
+        )
         try:
             d = json.loads(urllib.request.urlopen(req, timeout=timeout).read())
         except Exception as e:
@@ -2781,7 +2798,11 @@ def _resolver_sola(tid, ficha, wt):
     except Exception:
         return False
     accion, motivo = _resol.decidir(
-        ajustes, ficha, veredicto, _analisis.puede_aprobar_solo, _consejero_jev_aprobacion()
+        ajustes,
+        ficha,
+        veredicto,
+        _analisis.puede_aprobar_solo,
+        _consejero_jev_aprobacion(),
     )
     evento("aprobacion", tid, _resol.nota(accion, motivo))
     return accion == "aprobar"
@@ -2800,10 +2821,20 @@ def _consejero_jev_aprobacion():
             return None
 
         def consejo(ficha, veredicto):
-            estado = {"tarea": {k: ficha.get(k) for k in ("id", "titulo", "archivos", "faltan", "revisor") if ficha.get(k) is not None},
-                      "veredicto_del_director": veredicto}
-            return _jev.si_no(estado, "¿Puede integrarse esta tarea en main sin que la revise una persona, "
-                                      "dado el veredicto del director y la conformidad de los verificadores?")
+            estado = {
+                "tarea": {
+                    k: ficha.get(k)
+                    for k in ("id", "titulo", "archivos", "faltan", "revisor")
+                    if ficha.get(k) is not None
+                },
+                "veredicto_del_director": veredicto,
+            }
+            return _jev.si_no(
+                estado,
+                "¿Puede integrarse esta tarea en main sin que la revise una persona, "
+                "dado el veredicto del director y la conformidad de los verificadores?",
+            )
+
         return consejo
     except Exception:
         return None
@@ -3173,7 +3204,11 @@ def escribir(prompt, modelo, cwd, log, timeout=1500, tid=None):
         # lo tiene de verdad (2026-09-20, 06:10; antes AG-3 y DV1 tiraron su escritura).
         if arriendo_de_otro(tid) or not mover_arriendo_al_modelo(tid, modelo):
             raise ArriendoPerdido("otro medio recuperó %s durante la escritura" % tid)
-        evento("aviso", tid, "arriendo vencido sin dueño durante la escritura → retomado por este medio")
+        evento(
+            "aviso",
+            tid,
+            "arriendo vencido sin dueño durante la escritura → retomado por este medio",
+        )
     return resultado
 
 
@@ -3288,7 +3323,11 @@ def archivos_declarados_sin_tocar(declarados, tocados):
     if not declarados:
         return []
     limpios = {str(t).strip().lstrip("./") for t in tocados if str(t).strip()}
-    return [d for d in (str(x).strip().lstrip("./") for x in declarados) if d and d not in limpios]
+    return [
+        d
+        for d in (str(x).strip().lstrip("./") for x in declarados)
+        if d and d not in limpios
+    ]
 
 
 def _tocados_por_la_tarea(cwd, log=None):
@@ -3391,8 +3430,17 @@ def vitest(cwd, log):
         salidas, rc_extra = [], 0
         if toca_puente:
             rcp, outp = sh(
-                ["python3", "-m", "unittest", "discover", "-s", "scripts/puente",
-                 "-p", "test_*.py", "-q"],
+                [
+                    "python3",
+                    "-m",
+                    "unittest",
+                    "discover",
+                    "-s",
+                    "scripts/puente",
+                    "-p",
+                    "test_*.py",
+                    "-q",
+                ],
                 cwd=cwd,
                 timeout=600,
                 log=log,
@@ -3401,7 +3449,9 @@ def vitest(cwd, log):
             salidas.append("[puerta puente]\n" + (outp or ""))
         if toca_enjambre:
             if not shutil.which("pytest"):
-                salidas.append("[puerta enjambre] sin pytest instalado: no se pudieron correr los tests del enjambre")
+                salidas.append(
+                    "[puerta enjambre] sin pytest instalado: no se pudieron correr los tests del enjambre"
+                )
             else:
                 rce, oute = sh(
                     ["python3", "-m", "pytest", "-q", "scripts/enjambre/"],
@@ -3617,8 +3667,12 @@ def commit_salvavidas(tid: str) -> str | None:
             # `git rm --cached` deja el archivo en disco y fuera del commit; si ya estaba
             # rastreado, el commit lo BORRA del repo (que es lo que queremos: no es trabajo).
             sh(["git", "rm", "-q", "-f", "--cached", "--"] + fuera, cwd=wt, timeout=30)
-            evento("aviso", tid, "salvavidas: fuera del commit %d archivo(s) que no son trabajo (%s)"
-                   % (len(fuera), ", ".join(os.path.basename(x) for x in fuera[:4])))
+            evento(
+                "aviso",
+                tid,
+                "salvavidas: fuera del commit %d archivo(s) que no son trabajo (%s)"
+                % (len(fuera), ", ".join(os.path.basename(x) for x in fuera[:4])),
+            )
     # Mensaje de salvavidas
     msg = (
         "salvavidas · %s: trabajo del agente antes de las puertas (tsc / vitest)\n\n"
@@ -4172,7 +4226,8 @@ def contexto_tarea(t, raiz=None):
         "y complétalo con ediciones sucesivas de ≤ 80 líneas cada una; nunca una sola escritura de más de 120 líneas; "
         "entre trozos no hace falta explicar nada.\n\n"
         + regla_tests
-        + _mensajes.INSTRUCCION.replace("%", "%%") + "\n\n"
+        + _mensajes.INSTRUCCION.replace("%", "%%")
+        + "\n\n"
         # Los mensajes del director son texto libre y este bloque se formatea con `%`:
         # un «50 %» en un mensaje tumbó AGR1 con «unsupported format character» (2026-09-20).
         + _mensajes.para_prompt(OLAS, t["id"]).replace("%", "%%")
@@ -4404,7 +4459,12 @@ def entregar_mensajes():
         for tid in list(LATIDOS.keys()):
             n = _mensajes.entregar(OLAS, tid, os.path.join(base, tid))
             if n:
-                evento("aviso", tid, "%d mensaje(s) de Alex entregados al worktree (%s)" % (n, _mensajes.ARCHIVO_WORKTREE))
+                evento(
+                    "aviso",
+                    tid,
+                    "%d mensaje(s) de Alex entregados al worktree (%s)"
+                    % (n, _mensajes.ARCHIVO_WORKTREE),
+                )
     except Exception:
         pass
 
@@ -4467,7 +4527,12 @@ def atender_control():
                 estado="pendiente",
                 nota=str(orden.get("motivo") or "reabierta por el director")[:160],
             )
-            evento("aviso", tid, "reabierta por el director: %s" % (orden.get("motivo") or "vuelve a la tanda"))
+            evento(
+                "aviso",
+                tid,
+                "reabierta por el director: %s"
+                % (orden.get("motivo") or "vuelve a la tanda"),
+            )
             continue
         if accion == "soltar":
             SOLTADAS.add(tid)
@@ -4573,6 +4638,7 @@ MEDIOS_LOCALES = {
 }
 try:
     import socket as _socket
+
     _SERVIDOR = _socket.gethostname()
 except Exception:
     _SERVIDOR = os.environ.get("STARSEED_DONDE", "nube")
@@ -5074,8 +5140,18 @@ def foto_enjambre(vivas_txt):
     # a los ARRIENDO_S y otro medio vivo la toma: ese es el traslado automático).
     for t in tareas:
         try:
-            t.update(ficha_ide(t["id"], registro, medios_vivos, ahora_s, servidor=_SERVIDOR,
-                               ruta_log=os.path.join("starseed_memory_root", "olas", "logs", t["id"] + ".log")))
+            t.update(
+                ficha_ide(
+                    t["id"],
+                    registro,
+                    medios_vivos,
+                    ahora_s,
+                    servidor=_SERVIDOR,
+                    ruta_log=os.path.join(
+                        "starseed_memory_root", "olas", "logs", t["id"] + ".log"
+                    ),
+                )
+            )
         except Exception:
             pass  # la ficha de IDE nunca tumba el latido
     return {
@@ -5336,17 +5412,34 @@ def ejecutar(t, intento=1):
     rc_prev, st_prev = sh(["git", "status", "--porcelain"], cwd=wt, timeout=30)
     if rc_prev and ("--reanudar" in sys.argv or tid in REANUDAR_AUTO):
         set_estado(tid, estado="fallo", nota="status Git falló; worktree conservado")
-        evento("fallo", tid, "no se puede verificar el trabajo previo; no se ejecutan puertas")
+        evento(
+            "fallo",
+            tid,
+            "no se puede verificar el trabajo previo; no se ejecutan puertas",
+        )
         return
-    sucios = [
-        l for l in (st_prev or "").splitlines()
-        if l.strip() and not es_archivo_basura(l[3:].strip().split(" -> ")[-1].strip('"'))
-    ] if rc_prev == 0 else []
-    rc_ad, adelante = sh(["git", "rev-list", "--count", "main..HEAD"], cwd=wt, timeout=30)
-    rc_df, difstat_prev = sh(["git", "diff", "--stat", "main...HEAD"], cwd=wt, timeout=60)
+    sucios = (
+        [
+            l
+            for l in (st_prev or "").splitlines()
+            if l.strip()
+            and not es_archivo_basura(l[3:].strip().split(" -> ")[-1].strip('"'))
+        ]
+        if rc_prev == 0
+        else []
+    )
+    rc_ad, adelante = sh(
+        ["git", "rev-list", "--count", "main..HEAD"], cwd=wt, timeout=30
+    )
+    rc_df, difstat_prev = sh(
+        ["git", "diff", "--stat", "main...HEAD"], cwd=wt, timeout=60
+    )
     con_commits = (
-        rc_ad == 0 and (adelante or "").strip().isdigit() and int(adelante.strip()) > 0
-        and rc_df == 0 and bool((difstat_prev or "").strip())
+        rc_ad == 0
+        and (adelante or "").strip().isdigit()
+        and int(adelante.strip()) > 0
+        and rc_df == 0
+        and bool((difstat_prev or "").strip())
     )
     sin_leer = _mensajes.pendientes(_mensajes.leer(OLAS, tid), "leido")
     if (sucios or con_commits) and sin_leer:
@@ -5361,7 +5454,8 @@ def ejecutar(t, intento=1):
         evento(
             "aviso",
             tid,
-            "reanudada: el worktree ya tenía %d archivo(s) cambiado(s); salto a tsc" % len(sucios),
+            "reanudada: el worktree ya tenía %d archivo(s) cambiado(s); salto a tsc"
+            % len(sucios),
         )
     elif con_commits:
         reanudada = True
@@ -5369,7 +5463,10 @@ def ejecutar(t, intento=1):
             "aviso",
             tid,
             "reanudada: la rama ya lleva %s commit(s) con trabajo previo (%s); salto a tsc"
-            % (adelante.strip(), (difstat_prev.strip().splitlines() or ["?"])[-1].strip()[:80]),
+            % (
+                adelante.strip(),
+                (difstat_prev.strip().splitlines() or ["?"])[-1].strip()[:80],
+            ),
         )
     fallidos = list(PROG.get(tid, {}).get("modelos_fallidos") or [])
     base = [
@@ -5814,8 +5911,12 @@ def ejecutar(t, intento=1):
         # trabajo de un intento anterior commiteado por el salvavidas (AG-3: 3 archivos,
         # +217, con prueba). Los modelos lo ven hecho y no cambian nada: eso NO es «sin
         # cambios», es «ya está»: va a las puertas como cualquier escritura.
-        rc_ad, adelante = sh(["git", "rev-list", "--count", "main..HEAD"], cwd=wt, timeout=30)
-        rc_df, difstat = sh(["git", "diff", "--stat", "main...HEAD"], cwd=wt, timeout=60)
+        rc_ad, adelante = sh(
+            ["git", "rev-list", "--count", "main..HEAD"], cwd=wt, timeout=30
+        )
+        rc_df, difstat = sh(
+            ["git", "diff", "--stat", "main...HEAD"], cwd=wt, timeout=60
+        )
         if (
             rc_ad == 0
             and (adelante or "").strip().isdigit()
@@ -5825,13 +5926,18 @@ def ejecutar(t, intento=1):
         ):
             cambios = True
             if not modelo_ok:
-                modelo_ok = PROG.get(tid, {}).get("modelo") or (modelos[0] if modelos else "-")
+                modelo_ok = PROG.get(tid, {}).get("modelo") or (
+                    modelos[0] if modelos else "-"
+                )
             evento(
                 "aviso",
                 tid,
                 "ningún modelo tocó archivos, pero la rama ya lleva %s commit(s) con trabajo "
                 "previo (%s): salto a las puertas con ese trabajo"
-                % (adelante.strip(), (difstat.strip().splitlines() or ["?"])[-1].strip()[:80]),
+                % (
+                    adelante.strip(),
+                    (difstat.strip().splitlines() or ["?"])[-1].strip()[:80],
+                ),
             )
     if not cambios:
         set_estado(
@@ -5996,6 +6102,41 @@ def ejecutar(t, intento=1):
         cwd=wt,
         timeout=60,
     )
+    rc_deg, out_deg = sh(["git", "diff", "--cached", "--name-only"], cwd=wt, timeout=30)
+    if rc_deg == 0 and out_deg.strip():
+        cambios_deg = []
+        for r_deg in out_deg.strip().splitlines():
+            r_deg = r_deg.strip()
+            if not r_deg:
+                continue
+            p_deg = os.path.join(wt, r_deg)
+            desp_deg = (
+                open(p_deg, "r", encoding="utf-8", errors="replace").read()
+                if os.path.isfile(p_deg)
+                else ""
+            )
+            rc_s, out_s = sh(["git", "show", "main:" + r_deg], cwd=wt, timeout=30)
+            if rc_s != 0:
+                rc_s, out_s = sh(["git", "show", "HEAD:" + r_deg], cwd=wt, timeout=30)
+            ant_deg = out_s if rc_s == 0 else ""
+            cambios_deg.append((r_deg, ant_deg, desp_deg))
+        razones_deg = archivos_degenerados(cambios_deg)
+        if razones_deg:
+            nota_deg = ("degenerado: " + "; ".join(razones_deg))[:200]
+            set_estado(
+                tid,
+                estado="fallo",
+                modelo=modelo_ok,
+                segundos=int(time.time() - t0),
+                nota=nota_deg,
+            )
+            evento(
+                "fallo",
+                tid,
+                "archivos degenerados rechazados: " + "; ".join(razones_deg),
+            )
+            limpiar_worktree(tid, borrar_rama=False)
+            return
     msg = (
         "%s · %s: %s\n\nEnjambre libre v2 (opencode · %s). Archivos: %s\n\nCo-Authored-By: Enjambre StarSeed <enjambre@starseed.local>"
         % (
@@ -6030,17 +6171,31 @@ def ejecutar(t, intento=1):
     # el commit final no tiene qué añadir y la rama YA lleva el trabajo. Siete tareas
     # (HW-1, CC1, RS3c, DV1, TM1, AG-2, AG-4) se marcaron «fallo» con las puertas en
     # verde por esto. Se comprueba que la rama vaya por delante de main y se sigue.
-    if rc != 0 and ("nothing to commit" in (out or "") or "working tree clean" in (out or "")):
-        rc_ad, adelante = sh(["git", "rev-list", "--count", "main..HEAD"], cwd=wt, timeout=30)
-        if rc_ad == 0 and (adelante or "0").strip().isdigit() and int(adelante.strip()) > 0:
+    if rc != 0 and (
+        "nothing to commit" in (out or "") or "working tree clean" in (out or "")
+    ):
+        rc_ad, adelante = sh(
+            ["git", "rev-list", "--count", "main..HEAD"], cwd=wt, timeout=30
+        )
+        if (
+            rc_ad == 0
+            and (adelante or "0").strip().isdigit()
+            and int(adelante.strip()) > 0
+        ):
             # Un commit vacío con el título de la tarea: así main y el Mando ven
             # «345 · NE3-1: …» y no solo «salvavidas · …» (2026-09-21, 01:55).
             rc, out = sh(
-                "git -c core.hooksPath=/dev/null commit -q --allow-empty -F /tmp/enj-msg-%s.txt" % tid,
+                "git -c core.hooksPath=/dev/null commit -q --allow-empty -F /tmp/enj-msg-%s.txt"
+                % tid,
                 cwd=wt,
                 timeout=120,
             )
-            evento("aviso", tid, "commit final sin cambios: el salvavidas ya guardó el trabajo (%s commit(s) por delante de main); sigo a revisión" % adelante.strip())
+            evento(
+                "aviso",
+                tid,
+                "commit final sin cambios: el salvavidas ya guardó el trabajo (%s commit(s) por delante de main); sigo a revisión"
+                % adelante.strip(),
+            )
             rc = 0
     if rc != 0:
         set_estado(
@@ -6321,9 +6476,17 @@ def ejecutar(t, intento=1):
                 # con los commits viejos se guarda como ola/<id>-antes y ola/<id> vuelve a
                 # main; el agente recibe el diff de su intento como punto de partida.
                 # Antes la rama se conservaba tal cual y el intento 2 volvía a chocar.
-                sh(["git", "branch", "-f", "ola/%s-antes" % tid, "ola/" + tid], cwd=ROOT, timeout=30)
+                sh(
+                    ["git", "branch", "-f", "ola/%s-antes" % tid, "ola/" + tid],
+                    cwd=ROOT,
+                    timeout=30,
+                )
                 sh(["git", "reset", "-q", "--hard", "main"], cwd=wt, timeout=60)
-                rc_c, en_conf = sh(["git", "diff", "--name-only", "main...ola/%s-antes" % tid], cwd=ROOT, timeout=30)
+                rc_c, en_conf = sh(
+                    ["git", "diff", "--name-only", "main...ola/%s-antes" % tid],
+                    cwd=ROOT,
+                    timeout=30,
+                )
                 try:
                     _mensajes.anotar(
                         OLAS,
@@ -6333,7 +6496,12 @@ def ejecutar(t, intento=1):
                         "parte AHORA del main actual: vuelve a aplicar ese trabajo A MANO sobre los archivos tal como "
                         "están hoy en main, conservando lo que otras tareas ya integraron ahí. No hagas merge, "
                         "cherry-pick ni rebase de esa rama; no reformatees líneas que no sean tuyas."
-                        % (time.strftime("%H:%M"), tid, tid, ", ".join((en_conf or "").split()[:6]) or "?"),
+                        % (
+                            time.strftime("%H:%M"),
+                            tid,
+                            tid,
+                            ", ".join((en_conf or "").split()[:6]) or "?",
+                        ),
                         de="orquestador",
                     )
                 except Exception:
@@ -6345,7 +6513,8 @@ def ejecutar(t, intento=1):
                     estado="conflicto",
                     modelo=modelo_ok,
                     segundos=int(time.time() - t0),
-                    nota="reintento sobre main nuevo (intento anterior en ola/%s-antes)" % tid,
+                    nota="reintento sobre main nuevo (intento anterior en ola/%s-antes)"
+                    % tid,
                 )
                 evento(
                     "reintento",
@@ -6494,7 +6663,10 @@ def tope_gobernador(workers, ruta=RUTA_GOBERNADOR, ahora=None, frescura_s=900):
     tope = min(workers, _GOBERNADOR["tope"])
     if tope != _GOBERNADOR["avisado"]:
         _GOBERNADOR["avisado"] = tope
-        print("[gobernador] tope vivo de trabajadores: %d (máximo %d)" % (tope, workers), flush=True)
+        print(
+            "[gobernador] tope vivo de trabajadores: %d (máximo %d)" % (tope, workers),
+            flush=True,
+        )
     return tope
 
 
@@ -6820,14 +6992,22 @@ def main():
             REABRIR.discard(tid)
             if tid in activos:
                 continue
-            tarea = TAREAS_POR_ID.get(tid) or (estado_cola or {}).get("tareas", {}).get(tid)
+            tarea = TAREAS_POR_ID.get(tid) or (estado_cola or {}).get("tareas", {}).get(
+                tid
+            )
             if not tarea:
-                evento("aviso", tid, "no puedo reabrirla: no está en la cola de esta tanda")
+                evento(
+                    "aviso", tid, "no puedo reabrirla: no está en la cola de esta tanda"
+                )
                 continue
             hechas.discard(tid)
             pendientes[tid] = tarea
             MIAS.add(tid)
-            evento("aviso", tid, "vuelve a la tanda (reabierta); se repartirá en cuanto haya un trabajador libre")
+            evento(
+                "aviso",
+                tid,
+                "vuelve a la tanda (reabierta); se repartirá en cuanto haya un trabajador libre",
+            )
 
         for tid, t in list(pendientes.items()):
             if tid in SOLTADAS:
@@ -7038,20 +7218,30 @@ def main():
         # recien crecida: se cortaba a la mitad y NADIE se enteraba («except: pass»).
         # Ahora 900 s y el resultado queda escrito como evento, que es lo que lee el Mando.
         res_espejo = subprocess.run(
-            [sys.executable, os.path.join(ROOT, "scripts", "puente", "espejo-drive.py")],
+            [
+                sys.executable,
+                os.path.join(ROOT, "scripts", "puente", "espejo-drive.py"),
+            ],
             cwd=ROOT,
             timeout=900,
             capture_output=True,
             text=True,
         )
-        salida_espejo = " ".join(((res_espejo.stdout or "") + " " + (res_espejo.stderr or "")).split())
+        salida_espejo = " ".join(
+            ((res_espejo.stdout or "") + " " + (res_espejo.stderr or "")).split()
+        )
         evento("aviso", "", "espejo en Drive: " + (salida_espejo or "completado")[:300])
     except Exception as e:  # noqa: BLE001
-        evento("aviso", "", "espejo en Drive: fallo - %s: %s" % (type(e).__name__, str(e)[:120]))
+        evento(
+            "aviso",
+            "",
+            "espejo en Drive: fallo - %s: %s" % (type(e).__name__, str(e)[:120]),
+        )
     try:
         desconectar_medios_locales()
     except Exception:
         pass
+
 
 # ── recovery automático de proveedores (2026-09-18) ──────────────────────
 # Si algún proveedor falló durante la ola (3 sondeos seguidos → caído, o agotamiento
@@ -7072,7 +7262,7 @@ def recovery_despues_de_error():
         datos_salud = json.load(open(SALUD_JSON, encoding="utf-8"))
     except Exception:
         datos_salud = {}
-    for prov, e in (datos_salud.items() if isinstance(datos_salud, dict) else []):
+    for prov, e in datos_salud.items() if isinstance(datos_salud, dict) else []:
         if not isinstance(e, dict) or "estado" not in e:
             continue
         fallos_recientes = e.get("fallos_seguidos", 0)
@@ -7089,7 +7279,8 @@ def recovery_despues_de_error():
                 evento(
                     "proveedor_recuperado",
                     "",
-                    "%s volvió a responder tras fallo de ola → reincorporado a la rotación" % prov,
+                    "%s volvió a responder tras fallo de ola → reincorporado a la rotación"
+                    % prov,
                 )
             else:
                 # Sigue caído: emitir aviso y el siguiente ciclo del supervisor
@@ -7118,8 +7309,9 @@ def recovery_despues_de_error():
             evento(
                 "aviso",
                 "",
-                "Modelo retirado de la rotación por defunción: %s (%d restantes)" % (m, len(MODELOS)),
-                    )
+                "Modelo retirado de la rotación por defunción: %s (%d restantes)"
+                % (m, len(MODELOS)),
+            )
 
 
 if __name__ == "__main__":
