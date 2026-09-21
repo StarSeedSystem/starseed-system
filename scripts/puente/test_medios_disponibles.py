@@ -38,8 +38,9 @@ class Clasificar(unittest.TestCase):
         self.assertIn("secretos", sin["siguiente_paso"])
 
     def test_gh_listo_solo_si_hay_ejecucion_en_marcha(self):
-        self.assertEqual(M.clasificar_gh(True, True, ["X"], [{"status": "in_progress"}])["estado"], "listo")
-        d = M.clasificar_gh(True, True, ["X"], [{"status": "completed", "conclusion": "success"}])
+        # "X" ya no basta: el secreto tiene que ser uno de los que lee el workflow.
+        self.assertEqual(M.clasificar_gh(True, True, ["GROQ_API_KEY"], [{"status": "in_progress"}])["estado"], "listo")
+        d = M.clasificar_gh(True, True, ["GROQ_API_KEY"], [{"status": "completed", "conclusion": "success"}])
         self.assertEqual(d["estado"], "usable")
         self.assertIn("lanzar", d["siguiente_paso"])
 
@@ -67,3 +68,21 @@ class Clasificar(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SecretosDelEnjambre(unittest.TestCase):
+    """Un medio se declara usable por lo que el enjambre necesita, no por lo que haya.
+
+    El 2026-09-20 el repo tenía seis secretos —todos de firma de Android y Tauri— y el
+    medio salía «usable»; el workflow moría en el paso de claves con «sin secretos».
+    """
+
+    def test_secretos_de_firma_no_cuentan(self):
+        d = M.clasificar_gh(True, True, ["ANDROID_KEYSTORE_BASE64", "TAURI_SIGNING_PRIVATE_KEY"], [])
+        self.assertEqual("requiere_alex", d["estado"])
+        self.assertIn("firma", d["detalle"])
+
+    def test_una_clave_de_proveedor_basta(self):
+        d = M.clasificar_gh(True, True, ["ANDROID_KEYSTORE_BASE64", "OPENROUTER_API_KEY"], [])
+        self.assertEqual("usable", d["estado"])
+        self.assertIn("1 clave", d["detalle"])

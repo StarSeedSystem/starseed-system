@@ -97,18 +97,31 @@ def clasificar_claude(medios: dict | None, ahora: float) -> dict:
     )
 
 
+#: Los nombres que lee `.github/workflows/enjambre-nube.yml` en su paso de claves. Solo
+#: NOMBRES: ningún valor de clave aparece nunca aquí ni en la salida de este módulo.
+CLAVES_DEL_ENJAMBRE = {
+    "GEMINI_API_KEY", "GOOGLE_GENERATIVE_AI_API_KEY", "NVIDIA_API_KEY", "NVIDIA_SHARED_KEY",
+    "OPENROUTER_API_KEY", "XKIRO_API_KEY", "AIHUBMIX_API_KEY", "TOKENROUTER_API_KEY",
+    "GROQ_API_KEY", "STARSEED_PASARELA_GROQ_KEY",
+}
+
+
 def clasificar_gh(auth_ok: bool, workflow: bool, secretos: list[str], runs: list[dict]) -> dict:
     if not auth_ok:
         return medio("nube-gh", "GitHub Actions", "requiere_alex", "3 agentes/job · 4 vCPU · 16 GB · 6 h", "gh sin sesión", "gh auth login")
     if not workflow:
         return medio("nube-gh", "GitHub Actions", "no_disponible", "", "falta .github/workflows/enjambre-nube.yml", "")
-    if not secretos:
-        return medio("nube-gh", "GitHub Actions", "requiere_alex", "3 agentes/job · 4 vCPU · 16 GB · 6 h · ilimitado (repo público)", "sin secretos de proveedores en el repo", "python3 scripts/puente/nube-gh.py secretos && python3 scripts/puente/nube-gh.py lanzar --tope 6")
+    # (2026-09-20) Antes bastaba con que el repo tuviera CUALQUIER secreto para decir
+    # «usable», y este repo tiene seis de firma de Android y Tauri: el medio salía en verde
+    # mientras el workflow moría en el paso de claves con «sin secretos». Un medio se declara
+    # usable por lo que el enjambre NECESITA, no por lo que haya.
+    if not [n for n in secretos if n in CLAVES_DEL_ENJAMBRE]:
+        return medio("nube-gh", "GitHub Actions", "requiere_alex", "3 agentes/job · 4 vCPU · 16 GB · 6 h · ilimitado (repo público)", "ningún secreto de proveedor en el repo (los que hay son de firma)", "lo corre Alex: python3 scripts/puente/nube-gh.py secretos")
     activos = [r for r in runs if str(r.get("status")) in ("in_progress", "queued")]
     return medio(
         "nube-gh", "GitHub Actions", "listo" if activos else "usable",
         "3 agentes/job · 4 vCPU · 16 GB · 6 h · ilimitado (repo público)",
-        "%d secreto(s) · %d ejecución(es) en marcha · última: %s" % (len(secretos), len(activos), (runs[0].get("conclusion") or runs[0].get("status")) if runs else "ninguna"),
+        "%d clave(s) de proveedor · %d ejecución(es) en marcha · última: %s" % (len([n for n in secretos if n in CLAVES_DEL_ENJAMBRE]), len(activos), (runs[0].get("conclusion") or runs[0].get("status")) if runs else "ninguna"),
         "" if activos else "python3 scripts/puente/nube-gh.py lanzar --tope 6",
     )
 
