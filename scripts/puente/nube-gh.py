@@ -28,28 +28,44 @@ import sys
 
 RAIZ = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 WORKFLOW = "enjambre-nube.yml"
+#: (2026-09-21) NVIDIA_SHARED_KEY estuvo aqui desde el principio y NO EXISTE en ninguna
+#: parte: ni en ~/.starseed/env, ni en ~/.hermes/.env, ni en los secretos del repo. Pedir
+#: una clave que nadie tiene hacia que la lista de «te toca a ti» mostrara para siempre
+#: una tarea imposible para Alex. Fuera: si algun dia aparece, se anade entonces.
 SECRETOS = (
-    "GEMINI_API_KEY", "GOOGLE_GENERATIVE_AI_API_KEY", "NVIDIA_API_KEY", "NVIDIA_SHARED_KEY",
+    "GEMINI_API_KEY", "GOOGLE_GENERATIVE_AI_API_KEY", "NVIDIA_API_KEY",
     "OPENROUTER_API_KEY", "XKIRO_API_KEY", "AIHUBMIX_API_KEY", "TOKENROUTER_API_KEY",
     "GROQ_API_KEY", "STARSEED_PASARELA_GROQ_KEY",
 )
+
+#: Los dos archivos de entorno de esta maquina. Solo se leen NOMBRES y valores para
+#: mandarlos a `gh secret set` por la entrada estandar; nunca se imprime un valor.
+#: (2026-09-21) Antes solo se leia ~/.starseed/env, y por eso AIHUBMIX_API_KEY y
+#: TOKENROUTER_API_KEY salian como «sin valor» habiendo estado siempre en ~/.hermes/.env.
+#: El resultado era un aviso permanente pidiendole a Alex que subiera unas claves que ya
+#: tenia, por un archivo que no miramos. Mismo par de archivos que usa jev.py.
+ARCHIVOS_DE_ENTORNO = ("~/.starseed/env", "~/.hermes/.env")
 VARIABLES = ("STARSEED_PASARELA_GROQ_URL", "STARSEED_PASARELA_GROQ_MODELOS", "STARSEED_PASARELA_GROQ_RPM")
 
 
 def _env() -> dict:
     salida = dict(os.environ)
-    try:
-        for linea in open(os.path.expanduser("~/.starseed/env"), encoding="utf-8"):
-            linea = linea.strip()
-            if not linea or linea.startswith("#") or "=" not in linea:
-                continue
-            k, v = linea.split("=", 1)
-            v = v.strip()
-            if len(v) >= 2 and v[0] == v[-1] and v[0] in "\"'":
-                v = v[1:-1]
-            salida.setdefault(k.strip(), v)
-    except OSError:
-        pass
+    for ruta in ARCHIVOS_DE_ENTORNO:
+        try:
+            for linea in open(os.path.expanduser(ruta), encoding="utf-8"):
+                linea = linea.strip()
+                if not linea or linea.startswith("#") or "=" not in linea:
+                    continue
+                # ~/.hermes/.env escribe `export CLAVE=valor`; ~/.starseed/env no.
+                if linea.startswith("export "):
+                    linea = linea[len("export "):].strip()
+                k, v = linea.split("=", 1)
+                v = v.strip()
+                if len(v) >= 2 and v[0] == v[-1] and v[0] in "\"'":
+                    v = v[1:-1]
+                salida.setdefault(k.strip(), v)
+        except OSError:
+            continue
     return salida
 
 

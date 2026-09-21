@@ -143,9 +143,14 @@ class Jev(unittest.TestCase):
             hoy="2026-09-19",
         )
         self.assertEqual(jev.gasto("2026-09-20"), (0.03, 0.06))
-        self.assertTrue(jev.presupuesto_ok("2026-09-20"))  # 0,03 < 0,05 y 0,06 < 1
-        jev._anotar_uso({"usage": {"cost": 0.03}}, 0.5, hoy="2026-09-20")
-        self.assertFalse(jev.presupuesto_ok("2026-09-20"))  # 0,06 ≥ 0,05: hoy se calla
+        self.assertTrue(jev.presupuesto_ok("2026-09-20"))  # por debajo de los dos techos
+        # (2026-09-21) Esto comparaba contra 0,05 ESCRITO A MANO y se rompió el día que
+        # Alex subió el techo a 0,20. La prueba es del MECANISMO —pasado el techo, Jev se
+        # calla—, no de la cifra: se gasta justo por encima del techo que haya.
+        jev._anotar_uso(
+            {"usage": {"cost": jev.PRESUPUESTO_DIA_USD}}, 0.5, hoy="2026-09-20"
+        )
+        self.assertFalse(jev.presupuesto_ok("2026-09-20"))  # pasado el techo, se calla
 
     def test_sin_presupuesto_el_transporte_real_no_se_llama(self):
         llamadas = []

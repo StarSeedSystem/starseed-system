@@ -35,10 +35,32 @@ _pas = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_pas)
 
 #: Los nombres que el workflow de la nube lee. Solo NOMBRES, jamás un valor.
-CLAVES_DEL_ENJAMBRE = {
-    "GEMINI_API_KEY", "GOOGLE_GENERATIVE_AI_API_KEY", "NVIDIA_API_KEY", "NVIDIA_SHARED_KEY",
-    "OPENROUTER_API_KEY", "XKIRO_API_KEY", "AIHUBMIX_API_KEY", "TOKENROUTER_API_KEY",
-    "GROQ_API_KEY", "STARSEED_PASARELA_GROQ_KEY",
+#:
+#: (2026-09-21) Esta lista estaba ESCRITA DOS VECES —aquí y en `nube-gh.py`— y las dos
+#: se desincronizaron: aquí seguía NVIDIA_SHARED_KEY, que no existe en ninguna máquina,
+#: así que el medidor «Te toca a ti» le pedía a Alex, con urgencia alta y para siempre,
+#: subir una clave que nadie tiene. Ahora la lista es UNA y vive en `nube-gh.py`, que es
+#: quien de verdad las sube. Si la importación falla, se cae a una copia mínima para no
+#: dejar el medidor mudo, pero la fuente buena es siempre la otra.
+try:
+    _spec_nube = importlib.util.spec_from_file_location(
+        "nube_gh", os.path.join(os.path.dirname(os.path.abspath(__file__)), "nube-gh.py"))
+    _nube = importlib.util.module_from_spec(_spec_nube)
+    _spec_nube.loader.exec_module(_nube)
+    CLAVES_DEL_ENJAMBRE = set(_nube.SECRETOS)
+except Exception:
+    CLAVES_DEL_ENJAMBRE = {
+        "GEMINI_API_KEY", "GOOGLE_GENERATIVE_AI_API_KEY", "NVIDIA_API_KEY",
+        "OPENROUTER_API_KEY", "XKIRO_API_KEY", "AIHUBMIX_API_KEY", "TOKENROUTER_API_KEY",
+        "GROQ_API_KEY", "STARSEED_PASARELA_GROQ_KEY",
+    }
+
+#: Las que de verdad hacen escribir al enjambre. Si alguna de estas falta, la nube no
+#: trabaja y el aviso es urgente. Las demás (AIHUBMIX, TOKENROUTER) son pasarelas de
+#: repuesto para cuando las de siempre se quedan sin cupo: útiles, no urgentes.
+ESENCIALES_DEL_ENJAMBRE = {
+    "OPENROUTER_API_KEY", "GEMINI_API_KEY", "GOOGLE_GENERATIVE_AI_API_KEY",
+    "NVIDIA_API_KEY", "GROQ_API_KEY", "STARSEED_PASARELA_GROQ_KEY", "XKIRO_API_KEY",
 }
 
 #: Qué estados de pasarela necesitan a un humano, y con qué urgencia. `sin_cupo` NO está:
@@ -46,6 +68,11 @@ CLAVES_DEL_ENJAMBRE = {
 ESTADOS_HUMANOS = {
     _pas.FICHAJE: ("alta", "exige un fichaje diario en su web; sin él, cada tarea que caiga ahí vuelve sin cambios"),
     _pas.SIN_CLAVE: ("alta", "la clave falta, caducó o fue revocada: hay que renovarla"),
+    # (2026-09-21) `caida` faltaba, y Alex lo notó: «aún falta que me envíe lo de las apps
+    # que hagan falta de renovarse». Una pasarela que no responde DE NINGUNA FORMA no se
+    # arregla sola como un cupo: o cambió su API, o la cuenta necesita algo en su web. Va
+    # con urgencia media, no alta: el enjambre sigue escribiendo con las demás.
+    _pas.CAIDA: ("media", "no responde de ninguna forma: mira su panel por si la cuenta o la API han cambiado"),
 }
 
 
@@ -56,12 +83,27 @@ def construir_acciones(pasarelas, secretos_repo, catalogo=None):
 
     faltan = sorted(CLAVES_DEL_ENJAMBRE - set(secretos_repo or []))
     if faltan:
+        # (2026-09-21) La urgencia era SIEMPRE «alta» y el porqué decía que sin esas claves
+        # la nube «arranca, instala y muere». Eso dejó de ser verdad el día 20, cuando Alex
+        # subió las siete que de verdad escriben: el run 35568545557 trabajó 36 minutos con
+        # ellas. Seguir pidiéndoselo en rojo por dos pasarelas de repuesto es gastarle la
+        # atención, y una lista que pide cosas que no hacen falta deja de leerse.
+        criticas = sorted(ESENCIALES_DEL_ENJAMBRE & set(faltan))
         acciones.append({
             "id": "github-secretos",
-            "titulo": "Subir las claves de proveedor a los secretos del repo",
-            "por_que": ("sin ellas el enjambre de la nube arranca, instala y muere en el paso de claves; "
-                        "con ellas son +3 agentes gratis de 4 vCPU / 16 GB"),
-            "urgencia": "alta",
+            "titulo": (
+                "Subir las claves de proveedor a los secretos del repo"
+                if criticas
+                else "Añadir dos pasarelas de repuesto a los secretos del repo"
+            ),
+            "por_que": (
+                ("sin ellas la nube arranca, instala y muere en el paso de claves: "
+                 "faltan las que de verdad escriben (%s)" % ", ".join(criticas))
+                if criticas
+                else ("la nube YA funciona con las que subiste; estas dos solo añaden "
+                      "pasarelas de repuesto para cuando las de siempre se queden sin cupo")
+            ),
+            "urgencia": "alta" if criticas else "baja",
             "comando": "python3 scripts/puente/nube-gh.py secretos",
             "enlace": "https://github.com/StarSeedSystem/starseed-system/settings/secrets/actions",
             "por_que_no_lo_hago_yo": "mueve valores de claves tuyas a un tercero: esa decisión es tuya",

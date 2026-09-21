@@ -32,10 +32,16 @@ TTL_S = 6 * 3600
 TIEMPO_S = 12
 
 #: Techo de gasto (2026-09-20, Alex recargó 10 $ en OpenRouter: «usarlos con cuidado»).
-#: A $0,00002 por decisión, 0,05 $/día son ~2.500 decisiones; 1 $/mes son ~50.000.
+#: A $0,00002 por decisión, 0,20 $/día son ~10.000 decisiones; 2 $/mes son ~100.000.
 #: Pasado el techo, Jev se calla (None) y mandan las reglas deterministas de siempre.
-PRESUPUESTO_DIA_USD = float(os.environ.get("STARSEED_JEV_DIA_USD", "0.05"))
-PRESUPUESTO_MES_USD = float(os.environ.get("STARSEED_JEV_MES_USD", "1.0"))
+#:
+#: (2026-09-21) Alex sube el techo diario de 0,05 a 0,20: «Jev tiene permitido gastar
+#: más ya que nos ahorra bastante». El gasto real acumulado en tres días es de 0,0139 $
+#: —571 decisiones hoy por 0,0089 $—, asi que 0,20 es holgura de verdad, no un cheque
+#: en blanco: sigue siendo menos de un céntimo por cada cien decisiones. El techo
+#: MENSUAL sube a 2 $ para que el diario quepa diez veces sin chocar con él.
+PRESUPUESTO_DIA_USD = float(os.environ.get("STARSEED_JEV_DIA_USD", "0.20"))
+PRESUPUESTO_MES_USD = float(os.environ.get("STARSEED_JEV_MES_USD", "2.0"))
 URL_SALDO = "https://openrouter.ai/api/v1/credits"
 SALDO_TTL_S = 3600
 
@@ -378,6 +384,53 @@ def zona(p, alto=0.9, bajo=0.6):
     if p is None:
         return "duda"
     return "si" if p >= alto else ("no" if p < bajo else "duda")
+
+
+def reiniciar_limite(dia=True, mes=False):
+    """Pone a cero el gasto contado de hoy (y opcionalmente del mes). Devuelve el nuevo estado.
+
+    (2026-09-21, pedido por Alex) El techo existe para que Jev no se lleve el crédito
+    de OpenRouter por sorpresa, no para dejar al enjambre sin consejero a media tarde.
+    Cuando el techo se agota y el trabajo lo merece, esto lo libera sin tocar ningún
+    archivo de claves ni subir el techo de forma permanente: el techo sigue siendo el
+    mismo, lo que se reinicia es el CONTADOR.
+
+    No se borra el histórico: `llamadas`, `tokens` y `coste_usd` acumulados se
+    conservan, y el día reiniciado queda anotado en `reinicios` con su hora y lo que
+    llevaba gastado. Un botón que borra la contabilidad sin dejar rastro es justo lo
+    que no queremos: el gasto real tiene que poder auditarse después.
+    """
+    u = _leer(USO, {})
+    hoy = time.strftime("%Y-%m-%d")
+    mes_actual = hoy[:7]
+    reinicios = list(u.get("reinicios") or [])
+    dias = dict(u.get("dias") or {})
+    borrado = {}
+    if dia and hoy in dias:
+        borrado["dia"] = dias[hoy].get("coste_usd", 0.0)
+        dias[hoy] = {"llamadas": 0, "coste_usd": 0.0}
+    if mes:
+        for k in list(dias):
+            if k.startswith(mes_actual):
+                borrado["mes"] = borrado.get("mes", 0.0) + dias[k].get("coste_usd", 0.0)
+                dias[k] = {"llamadas": 0, "coste_usd": 0.0}
+    if borrado:
+        reinicios.append(
+            {"t": time.strftime("%Y-%m-%d %H:%M:%S"), "alcance": "mes" if mes else "dia", "gastado": borrado}
+        )
+        u["dias"] = dias
+        u["reinicios"] = reinicios[-50:]
+        _escribir(USO, u)
+    d, m = gasto()
+    return {
+        "reiniciado": bool(borrado),
+        "gastado_antes": borrado,
+        "hoy_usd": d,
+        "mes_usd": m,
+        "tope_dia_usd": PRESUPUESTO_DIA_USD,
+        "tope_mes_usd": PRESUPUESTO_MES_USD,
+        "reinicios": len(reinicios),
+    }
 
 
 def resumen_uso():
