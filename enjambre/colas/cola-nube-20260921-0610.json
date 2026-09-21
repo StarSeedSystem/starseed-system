@@ -1,0 +1,77 @@
+{
+ "ola": "nube-20260921-0610 · una tarea = un archivo",
+ "tareas": [
+  {
+   "id": "AG2",
+   "ola": "Ola 238 · agentes y sesiones",
+   "depende": [
+    "AG1"
+   ],
+   "titulo": "API del mando: /api/mando/agentes",
+   "archivos": [
+    "src/app/api/mando/agentes/route.ts"
+   ],
+   "prompt": "NO explores el repositorio entero: abre SOLO los archivos que se nombran. tsc limpio, sin `any`. Si algo ya está hecho, no lo toques y dilo.\n\nCrea SOLO `src/app/api/mando/agentes/route.ts` copiando EXACTAMENTE el patrón de `src/app/api/mando/estado/route.ts`: mismo candado `mandoHabilitado()` con 404, misma comprobación de sesión solo cuando `process.env.NODE_ENV === \"production\"`, `export const dynamic = \"force-dynamic\"` y `export const runtime = \"nodejs\"` si el de estado los tiene.\nEl GET devuelve `Response.json(await leerAgentes())` desde `@/lib/mando/agentes`.\nNunca devuelvas claves, tokens de API ni rutas absolutas del disco de Alex.\n\nNOTA DEL DIRECTOR (nube, 2026-09-21). Aqui NO HAY NADIE que apruebe: si la rama no pasa sola las cuatro puertas, el trabajo se pierde. Por eso esta tarea tiene UN SOLO ARCHIVO. Tocalo ENTERO y no toques ningun otro: una rama que no toca su archivo declarado se rechaza automaticamente. Antes de terminar comprueba tu propio trabajo con `npx tsc --noEmit` y arregla lo que salga; un solo error de tipos tira la tarea entera.",
+   "medio": "nube"
+  },
+  {
+   "id": "X6",
+   "ola": "Ola 226",
+   "titulo": "No recomendar modelos sin URL en /instalar",
+   "archivos": [
+    "src/app/(app)/instalar/page.tsx"
+   ],
+   "prompt": "config/astraura-models.json tiene modelos con `\"url\": null` y `\"estado\": \"por publicar\"`. Encuentra el componente que los lista en la página /instalar (grep -rl 'astraura-models' src) y haz que los modelos con url null aparezcan como «Próximamente» (badge, sin botón de descarga, opacidad 60 %) en vez de recomendables. No borres nada del JSON. ARCHIVOS PERMITIDOS: el componente real que encuentres y sus tipos.\n\nNOTA DEL DIRECTOR (nube, 2026-09-21). Aqui NO HAY NADIE que apruebe: si la rama no pasa sola las cuatro puertas, el trabajo se pierde. Por eso esta tarea tiene UN SOLO ARCHIVO. Tocalo ENTERO y no toques ningun otro: una rama que no toca su archivo declarado se rechaza automaticamente. Antes de terminar comprueba tu propio trabajo con `npx tsc --noEmit` y arregla lo que salga; un solo error de tipos tira la tarea entera.",
+   "medio": "nube"
+  },
+  {
+   "id": "X3",
+   "ola": "Ola 226",
+   "titulo": "HTML generado por IA aislado en iframe sandbox",
+   "archivos": [
+    "src/components/dashboard/widgets/ai-generated-widget.tsx"
+   ],
+   "prompt": "Busca el archivo ai-generated-widget.tsx (find src -name 'ai-generated-widget.tsx'). Inyecta `customHtml` con dangerouslySetInnerHTML directo (≈líneas 170-172). Sustitúyelo por un <iframe> con `sandbox=\"allow-scripts\"` (SIN allow-same-origin), `srcDoc` construido con la misma función buildSandboxDoc de @/lib/creation/post-blocks que usa src/components/social/post-blocks-renderer.tsx (CodeBlock), `title` descriptivo, altura mínima 160px y `loading=\"lazy\"`. Mantén el resto del widget igual. ARCHIVOS PERMITIDOS: el archivo real que encuentres.\n\nNOTA DEL DIRECTOR (nube, 2026-09-21). Aqui NO HAY NADIE que apruebe: si la rama no pasa sola las cuatro puertas, el trabajo se pierde. Por eso esta tarea tiene UN SOLO ARCHIVO. Tocalo ENTERO y no toques ningun otro: una rama que no toca su archivo declarado se rechaza automaticamente. Antes de terminar comprueba tu propio trabajo con `npx tsc --noEmit` y arregla lo que salga; un solo error de tipos tira la tarea entera.",
+   "medio": "nube"
+  },
+  {
+   "id": "W2",
+   "ola": "Ola 234 · mundo de los avatares",
+   "depende": [
+    "W1"
+   ],
+   "titulo": "Crónica del mundo: qué ha pasado, en texto, sin depender de WebGL",
+   "archivos": [
+    "src/components/avatares/cronica-mundo.tsx"
+   ],
+   "prompt": "NO explores el repositorio entero: abre SOLO los archivos que se nombran aquí. Si algo ya está hecho, no lo toques. tsc limpio, sin `any`.\n\nCrea SOLO `src/components/avatares/cronica-mundo.tsx`: `export function CronicaMundo({ estado, onCentrar }: { estado: EstadoMundo; onCentrar?: (id: string) => void })`, que lee los tipos de `src/lib/avatares/mundo/simulacion.ts`.\nMuestra, con las clases Tailwind y los componentes shadcn que ya usa el proyecto: quién está haciendo qué ahora mismo (ocupación y humor por habitante, con su nombre pulsable si llega `onCentrar`), los encuentros recientes con su tema, y las últimas creaciones con autor y título. Ordenado por tick descendente, con vacíos honestos («todavía no se han encontrado») en vez de listas en blanco.\nEs el componente que se ve TAMBIÉN cuando no hay WebGL o el usuario pide movimiento reducido, así que no puede importar three.js ni @react-three/fiber.\n\nNOTA DEL DIRECTOR (nube, 2026-09-21). Aqui NO HAY NADIE que apruebe: si la rama no pasa sola las cuatro puertas, el trabajo se pierde. Por eso esta tarea tiene UN SOLO ARCHIVO. Tocalo ENTERO y no toques ningun otro: una rama que no toca su archivo declarado se rechaza automaticamente. Antes de terminar comprueba tu propio trabajo con `npx tsc --noEmit` y arregla lo que salga; un solo error de tipos tira la tarea entera.",
+   "medio": "nube"
+  },
+  {
+   "id": "RN6",
+   "ola": "Ola Red Mesh · PAIR · Voz",
+   "titulo": "Registrar Red Mesh / Senales y voz de borde en la biblioteca del OS",
+   "depende": [
+    "RN5"
+   ],
+   "archivos": [
+    "src/lib/oss-library.ts"
+   ],
+   "prompt": "Lo nuevo de red mesh, inferencia local (PAIR), transporte (buildwithparallel) y voz de borde (Supertonic) debe quedar visible en la biblioteca del sistema como app y como capacidad. Abre `src/lib/oss-library.ts` y reutiliza EXACTAMENTE el patron y las claves con las que registra el resto (no inventes un esquema nuevo). Anade: 1) entrada de app Red Mesh a `/red-mesh` si no existe y Senales a `/senales` (iconos + descripcion de una linea). 2) entrada de CAPACIDAD inferencia distribuida local: modelo de texto y voz compartido entre nodos de la flota, sin GPU, sin pago por demanda cuando usa PAIR/supertonic 1.58. Solo catalogo/registro, sin comportamiento. Sin any, tsc limpio.\n\nNOTA DEL DIRECTOR (nube, 2026-09-21). Aqui NO HAY NADIE que apruebe: si la rama no pasa sola las cuatro puertas, el trabajo se pierde. Por eso esta tarea tiene UN SOLO ARCHIVO. Tocalo ENTERO y no toques ningun otro: una rama que no toca su archivo declarado se rechaza automaticamente. Antes de terminar comprueba tu propio trabajo con `npx tsc --noEmit` y arregla lo que salga; un solo error de tipos tira la tarea entera.",
+   "medio": "nube"
+  },
+  {
+   "id": "L9",
+   "ola": "Ola 230",
+   "titulo": "Documentar el Laboratorio en la memoria del proyecto",
+   "depende": [
+    "L8"
+   ],
+   "archivos": [
+    "memory/laboratorio-astraura.md"
+   ],
+   "prompt": "Escribe `memory/laboratorio-astraura.md` leyendo de verdad lo creado en esta ola (`src/lib/laboratorio/**`, `src/components/laboratorio/**`). Estructura: 1) Para qué existe: desarrollar y afinar la IA de Astraura sin probar directamente sobre el OS. 2) El genoma y sus nueve capas fásicas, de lo fundamental a lo cambiante, con la mutabilidad de cada una y por qué el núcleo casi no se toca. 3) Versiones: crear, ramificar, comparar y promover (y por qué promover siempre pide confirmación). 4) El banco de pruebas y su aislamiento (qué NO toca del OS). 5) Cuantización y adaptación por hardware, medio por medio, con la ternaria 1,58 bits como precisión propia del sistema. 6) El mapa 3D: qué significa cada cáscara, cada color y cada enlace, y cómo leerlo. 7) Claves de localStorage usadas. 8) Qué falta: fusionar genomas entre sí, entrenar desde el laboratorio, exportar una versión como modelo cuantizado. Español, preciso, con rutas reales del repo.\n\nNOTA DEL DIRECTOR (nube, 2026-09-21). Aqui NO HAY NADIE que apruebe: si la rama no pasa sola las cuatro puertas, el trabajo se pierde. Por eso esta tarea tiene UN SOLO ARCHIVO. Tocalo ENTERO y no toques ningun otro: una rama que no toca su archivo declarado se rechaza automaticamente. Antes de terminar comprueba tu propio trabajo con `npx tsc --noEmit` y arregla lo que salga; un solo error de tipos tira la tarea entera.",
+   "medio": "nube"
+  }
+ ]
+}
