@@ -25,6 +25,27 @@
 import type { Timbre } from "@/lib/aurora/timbres";
 import { detectarCapacidades, capacidadesEnCache, type Capacidades } from "./capacidades";
 import { nivelPara, siguienteNivel, NIVELES, type NivelVoz } from "./niveles";
+import {
+    soporteSupertonic,
+    nivelParaVoz,
+    crearNivelSuptonicoDefecto,
+    IDIOMAS_SUPERTONIC,
+    type NivelSuptonico,
+    type SoporteSupertonic,
+    type NivelVozSuptonica,
+    type OpcionesNivelVoz,
+} from "./supertonic";
+
+export {
+    soporteSupertonic,
+    nivelParaVoz,
+    crearNivelSuptonicoDefecto,
+    IDIOMAS_SUPERTONIC,
+    type NivelSuptonico,
+    type SoporteSupertonic,
+    type NivelVozSuptonica,
+    type OpcionesNivelVoz,
+};
 import { perfilNeuronal } from "@/lib/voces/perfil-neuronal";
 // (2026-09-06, Ola 264 · G2) Emoción e intensidad: etiquetas `[emocion]` del
 // texto, capa `aplicarEmocion` sobre el perfil neuronal y catálogo `EmocionVoz`.

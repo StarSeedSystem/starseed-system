@@ -66,8 +66,18 @@ En `src/lib/voces/vinculos.ts`, idempotente:
 - `estudio` = Q8_0 (~1000 MB), `alta` = Q4_K_M (~600 MB): misma voz, distinta
   precisión. El cambio lo hace la pestaña Motores con «Cargar este modelo».
 
+## Vía Suptónica (Supertonic ONNX TTS)
+
+- **Sintesis de borde (edge TTS)**: ONNX sin GPU, 31 idiomas (`IDIOMAS_SUPERTONIC`), runtimes py/web/java/cpp/go/swift/rust.
+- Encaja con el estudio 1.58/needle porque tampoco exige GPU ni demonio local.
+- **Nivel e integración**: no duplica el motor de voz único. Se integra sobre `src/lib/aurora/voz-starseed/` (`supertonic.ts`, `niveles.ts`, `capacidades.ts`, `motor.ts`).
+  - `NivelSuptonico`: `{ vivo, runtime: 'onnx-cpu' | 'wasm' | 'nativo', modelosCargados, idiomas, latenciaMs }`.
+  - `soporteSupertonic(c)`: comprueba si hay WebAssembly SIMD o runtime nativo `voz-supertonic` en PATH (independiente de daemon y GPU).
+  - `nivelParaVoz({ supertonic, mobile, plataforma, daemonLocal })`: prioriza `'suptonica'` cuando el runtime de borde está disponible.
+  - `crearNivelSuptonicoDefecto()`: genera el nivel suptónico por defecto con catálogo de 31 idiomas (`es`, `en`, `fr`, `de`...).
+
 ## Componentes de la ola
 
 `src/components/voces/`: `panel-versiones.tsx` (lista CRUD + JSON),
 `banco-pruebas-voz.tsx`, `fusion-voz.tsx`, `panel-motores.tsx`,
-`vincular-voz.tsx`. Tests: `src/lib/__tests__/voces-versiones.test.ts`.
+`vincular-voz.tsx`. Tests: `src/lib/__tests__/voces-versiones.test.ts`, `src/lib/__tests__/voz-supertonic.test.ts`.

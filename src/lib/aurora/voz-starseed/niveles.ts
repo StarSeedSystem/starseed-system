@@ -13,6 +13,18 @@
  */
 
 import type { Capacidades } from "./capacidades";
+import { soporteSupertonic } from "./supertonic";
+
+export {
+    soporteSupertonic,
+    nivelParaVoz,
+    crearNivelSuptonicoDefecto,
+    IDIOMAS_SUPERTONIC,
+    type NivelSuptonico,
+    type SoporteSupertonic,
+    type NivelVozSuptonica,
+    type OpcionesNivelVoz,
+} from "./supertonic";
 
 export type NivelVoz = "estudio" | "alta" | "nube" | "ligera" | "minima";
 

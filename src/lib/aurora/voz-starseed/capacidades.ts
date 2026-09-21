@@ -14,6 +14,8 @@
  *    si no existe, `daemonLocal` es `false`).
  */
 
+import { soporteSupertonic } from "./supertonic";
+
 export interface Capacidades {
     /** GB de memoria RAM aproximados (`navigator.deviceMemory`); `null` si se desconoce. */
     memoriaGB: number | null;
@@ -27,6 +29,10 @@ export interface Capacidades {
     movil: boolean;
     /** El demonio local de voz responde en `/api/voz/salud`. */
     daemonLocal: boolean;
+    /** Presencia del runtime nativo `voz-supertonic` en PATH. */
+    runtimeNativo?: boolean;
+    /** Soporte de síntesis de voz de borde Suptónica (Supertonic ONNX/WASM). */
+    supertonic?: boolean;
 }
 
 /** Valores neutros para el servidor o cuando el sondeo falla. */
@@ -37,6 +43,8 @@ const NEUTRAS: Capacidades = {
     wasmSimd: false,
     movil: false,
     daemonLocal: false,
+    runtimeNativo: false,
+    supertonic: false,
 };
 
 /** Duración de la caché: 5 minutos si el demonio respondió vivo. */
@@ -116,7 +124,9 @@ export async function detectarCapacidades(): Promise<Capacidades> {
         wasmSimd: haySimd(),
         movil: window.matchMedia("(pointer: coarse)").matches,
         daemonLocal: await sondearDaemon(),
+        runtimeNativo: false,
     };
+    datos.supertonic = soporteSupertonic(datos).disponible;
     cache = { datos, en: ahora };
     return datos;
 }
