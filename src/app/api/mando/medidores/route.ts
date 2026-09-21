@@ -140,6 +140,12 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
         enjambreVivo: vivo,
         enjambrePausado: pausado,
         fila,
+        // (2026-09-21) Esto FALTABA y por eso el medidor «listas» ofrecia 24 tareas ya
+        // hechas mientras avisaba «no se pudieron leer los asuntos de Git». Los asuntos se
+        // leen arriba (linea 101) y se usan aqui mismo, pero no viajaban en el objeto, asi
+        // que `construirDetalle` recibia `undefined` y no podia filtrar nada. El filtro
+        // estaba bien escrito; lo que faltaba era darle el dato.
+        asuntosDeMain,
     };
 }
 
