@@ -45,6 +45,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { PersonalitiesPanel } from "@/components/aurora/personalities-panel";
+import { PanelAvatarPersonalidad } from "@/components/settings/aurora/panel-avatar-personalidad";
 import { MeshStatusChip } from "@/components/mesh/mesh-status-chip";
 import {
   listPersonalityProfiles,
@@ -356,6 +357,9 @@ export function PersonalitiesHub() {
           <PersonalitiesPanel />
         </CardContent>
       </Card>
+
+      {/* 2B · Avatar y movimiento por personalidad */}
+      <PanelAvatarPersonalidad />
 
       {/* 3 · Reglas mesh por neurona */}
       <Card className="border-white/10 bg-black/20">

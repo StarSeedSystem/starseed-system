@@ -41,6 +41,7 @@ import { Astraura158WindowHost } from "@/components/astraura/window/astraura-158
 // El Puente de Mando (/mando) no monta nada de esto: ni el sondeo del feed 1.58 (401 antes
 // de iniciar sesión), ni la intro, ni el registro de neuronas. Ahorra memoria para los agentes.
 import { SoloFueraDeConsola } from "@/components/layout/solo-fuera-de-consola";
+import { AcompanantePersonalidad } from "@/components/avatares/acompanante-personalidad";
 
 /** (Ola 3 · Adenda 155) Sondeo del puente de eventos Astraura 1.58 → centro de
  * notificaciones del OS + siembra de personalidades/agentes 1.58. Singleton. */
@@ -72,6 +73,9 @@ export default function AppGlobals() {
           orbe, el Exocórtex y cualquier pestaña abren la MISMA ventana con
           `openAstraura158Window({kind, id})` sin acoplarse entre sí. */}
       <Astraura158WindowHost />
+      {/* Acompañante flotante en pantalla por personalidad (Ola 235 · M4):
+          capa 2,5D que acompaña al usuario al charlar si está activado en ajustes. */}
+      <AcompanantePersonalidad />
     </SoloFueraDeConsola>
   );
 }

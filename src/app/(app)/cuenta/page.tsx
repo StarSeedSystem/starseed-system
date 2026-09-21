@@ -58,6 +58,7 @@ import { NtfyPanel } from "@/components/notifications/ntfy-panel";
 import { VoiceOssPanel } from "@/components/settings/aurora/voice-oss-panel";
 import { XaiVoicePanel } from "@/components/settings/aurora/xai-voice-panel";
 import { VisionPanel } from "@/components/settings/aurora/vision-panel";
+import { PanelAvatarPersonalidad } from "@/components/settings/aurora/panel-avatar-personalidad";
 import { NetworkSection } from "@/components/settings/accordion/network-section";
 // Vista global de vínculos externos de la cuenta (Ola 281 · E6A · 2026-09-08).
 import { ExternosCuenta } from "@/components/externos/externos-cuenta";
@@ -1157,6 +1158,11 @@ function CuentaContent() {
           </p>
         </div>
         <VisionPanel />
+      </section>
+
+      {/* ═══════════════════════ 9B) AVATAR Y ACOMPAÑANTE POR PERSONALIDAD ═══════════════════════ */}
+      <section id="aurora-avatar" className="scroll-mt-6 pt-2 space-y-3">
+        <PanelAvatarPersonalidad />
       </section>
 
       {/* ═══════════════════════ 10) EXTERNOS Y APIS ═══════════════════════ */}
