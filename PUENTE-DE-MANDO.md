@@ -1,6 +1,6 @@
 # Puente de Mando · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-21 08:10:28 desde el Mando vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-21 08:13:35 desde el Mando vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -16,8 +16,8 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | Agentes escribiendo | **0** |
 | En esta ola | integradas 1 · en curso 0 · esperando aprobación 0 · pendientes 0 |
 | Últimas 4 olas | en curso 0 · pendientes 0 · integradas 14 |
-| HEAD | `c0db4c98 chore(memoria): aprendizaje de la ola auto-0921-080743` |
-| Sin publicar | 69 commits |
+| HEAD | `34a7ce82 chore(memoria): aprendizaje de la ola auto-0921-081047` |
+| Sin publicar | 71 commits |
 | Árbol | limpio |
 
 ## Cómo dirige cada IDE (idéntico en los cuatro)
