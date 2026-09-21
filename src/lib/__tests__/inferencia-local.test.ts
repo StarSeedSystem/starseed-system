@@ -5,8 +5,8 @@ import {
   elegirNodo,
   esNodoListo,
   NODOS_INFERENCIA_LOCAL_STORAGE,
-  NodoInferenciaLocal,
 } from '../network/inferencia-local';
+import type { NodoInferenciaLocal } from '../network/inferencia-local';
 
 describe('inferencia-local', () => {
   it('exporta la constante de almacenamiento correcta', () => {
@@ -160,7 +160,10 @@ describe('inferencia-local', () => {
         },
       ];
 
-      const elegido = elegirNodo(nodos, { modelo: 'suptonica' });
+      const elegido = elegirNodo(nodos, {
+        modelo: 'suptonica',
+        requiereGpu: false,
+      });
       expect(elegido?.id).toBe('a-nodo');
     });
 
@@ -194,7 +197,10 @@ describe('inferencia-local', () => {
         },
       ];
 
-      const elegido = elegirNodo(nodos, { modelo: 'suptonica' });
+      const elegido = elegirNodo(nodos, {
+        modelo: 'suptonica',
+        requiereGpu: false,
+      });
       expect(elegido?.id).toBe('nodo-a');
     });
 
@@ -226,28 +232,18 @@ describe('inferencia-local', () => {
         },
       ];
 
-      expect(elegirNodo(nodos, { modelo: 'suptonica', minRamMB: 512 })).toBeNull();
-    });
-
-    it('devuelve null si requiereGpu es true', () => {
-      const nodo: NodoInferenciaLocal = {
-        id: 'nodo-gpu',
-        host: '10.0.0.1',
-        puerto: 8000,
-        baseUrl: '',
-        motores: ['pair'],
-        modelos: ['suptonica'],
-        ramMB: 8192,
-        carga: 0.01,
-        ultimoLatido: '2026-09-21T00:00:00Z',
-        transporte: 'wifi-halo',
-      };
-
-      expect(elegirNodo([nodo], { requiereGpu: true })).toBeNull();
+      expect(elegirNodo(nodos, {
+        modelo: 'suptonica',
+        requiereGpu: false,
+        minRamMB: 512,
+      })).toBeNull();
     });
 
     it('devuelve null si la lista de nodos está vacía', () => {
-      expect(elegirNodo([])).toBeNull();
+      expect(elegirNodo([], {
+        modelo: 'suptonica',
+        requiereGpu: false,
+      })).toBeNull();
     });
   });
 });

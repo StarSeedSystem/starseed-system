@@ -35,7 +35,8 @@ export interface ResumenNodosInferencia {
 
 export interface OpcionesElegirNodo {
   modelo?: string;
-  requiereGpu?: boolean;
+  /** PAIR comparte trabajos completos; no agrega ni reparte GPU. */
+  requiereGpu: false;
   minRamMB?: number;
 }
 
@@ -69,7 +70,6 @@ export function resumenDisponibles(
   nodos: NodoInferenciaLocal[],
   opciones?: OpcionesResumenInferencia
 ): ResumenNodosInferencia {
-  const minRam = opciones?.minRamMB ?? 512;
   const modelosEstudio = opciones?.modelosEstudio;
 
   const totales = nodos.length;
@@ -88,22 +88,16 @@ export function resumenDisponibles(
   const listos = nodosListos.length;
 
   const listosConLatencia = nodosListos.filter(
-    (n) => typeof n.latenciaMs === 'number' && !isNaN(n.latenciaMs)
+    (n) => typeof n.latenciaMs === 'number' && Number.isFinite(n.latenciaMs)
   );
 
-  let latenciaPromedio = 0;
-  if (listosConLatencia.length > 0) {
-    const suma = listosConLatencia.reduce((acc, n) => acc + (n.latenciaMs ?? 0), 0);
-    latenciaPromedio = Math.round(suma / listosConLatencia.length);
-  } else {
-    const todosConLatencia = nodos.filter(
-      (n) => typeof n.latenciaMs === 'number' && !isNaN(n.latenciaMs)
-    );
-    if (todosConLatencia.length > 0) {
-      const suma = todosConLatencia.reduce((acc, n) => acc + (n.latenciaMs ?? 0), 0);
-      latenciaPromedio = Math.round(suma / todosConLatencia.length);
-    }
-  }
+  const sumaLatencias = listosConLatencia.reduce(
+    (total, nodo) => total + (nodo.latenciaMs ?? 0),
+    0
+  );
+  const latenciaPromedio = listosConLatencia.length > 0
+    ? Math.round(sumaLatencias / listosConLatencia.length)
+    : 0;
 
   return {
     totales,
@@ -115,18 +109,14 @@ export function resumenDisponibles(
 
 export function elegirNodo(
   nodos: NodoInferenciaLocal[],
-  opciones?: OpcionesElegirNodo
+  opciones: OpcionesElegirNodo
 ): NodoInferenciaLocal | null {
-  if (!nodos || nodos.length === 0) {
+  if (nodos.length === 0) {
     return null;
   }
 
-  if (opciones?.requiereGpu === true) {
-    return null;
-  }
-
-  const modeloReq = opciones?.modelo;
-  const minRam = opciones?.minRamMB ?? 512;
+  const modeloReq = opciones.modelo;
+  const minRam = opciones.minRamMB ?? 512;
 
   const candidatos = nodos.filter((n) => {
     if (n.ramMB < minRam) {
@@ -143,14 +133,14 @@ export function elegirNodo(
   }
 
   candidatos.sort((a, b) => {
-    const cargaA = a.carga ?? 0;
-    const cargaB = b.carga ?? 0;
+    const cargaA = Number.isFinite(a.carga) ? (a.carga as number) : Infinity;
+    const cargaB = Number.isFinite(b.carga) ? (b.carga as number) : Infinity;
     if (cargaA !== cargaB) {
       return cargaA - cargaB;
     }
 
-    const latA = a.latenciaMs ?? Infinity;
-    const latB = b.latenciaMs ?? Infinity;
+    const latA = Number.isFinite(a.latenciaMs) ? (a.latenciaMs as number) : Infinity;
+    const latB = Number.isFinite(b.latenciaMs) ? (b.latenciaMs as number) : Infinity;
     if (latA !== latB) {
       return latA - latB;
     }
