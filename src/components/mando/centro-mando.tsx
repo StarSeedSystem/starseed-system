@@ -35,7 +35,7 @@ import "@/components/mando/mando-cristal.css";
 import { PanelMedidor, PastillaMedidor, type TonoMedidor } from "@/components/mando/medidor-abrible";
 import { PanelIdes, PastillaIdes } from "@/components/mando/medidor-ides";
 import { VerificarProcesos } from "@/components/mando/verificar-procesos";
-import type { AccionMedidor, ClaveMedidor, FilaMedidor } from "@/lib/mando/medidores";
+import type { AccionMedidor, ClaveMedidor, DetalleMedidor, FilaMedidor } from "@/lib/mando/medidores";
 import { PanelProcesos } from "@/components/mando/panel-procesos";
 import { PanelGrafo } from "@/components/mando/panel-grafo";
 import { PanelOlas } from "@/components/mando/panel-olas";
@@ -593,6 +593,67 @@ export function CentroMando() {
     // Panel "Te toca a ti" (AX1): separado de los medidores estándar.
     const [accionesAlexAbierto, setAccionesAlexAbierto] = useState(false);
 
+    // Un solo origen de verdad para los medidores "listas" y "bloqueadas" (Ola 337 · MND2).
+    // POR QUÉ: La cifra de la pastilla y el detalle al abrirla DEBEN salir del mismo sitio
+    // (/api/mando/medidores). Calcular la pastilla por una vía distinta (p. ej. contarTrabajoReal)
+    // causaba la incoherencia reportada (pastilla «2» y detalle «20»). Si la petición a la API
+    // falla, se muestra un guion honesto («—») en lugar de mostrar un número de otra fuente.
+    const [medidoresResumen, setMedidoresResumen] = useState<{
+        listas: number | null;
+        bloqueadas: number | null;
+    } | null>(null);
+
+    const cargarMedidoresResumen = useCallback(async (forzar = false) => {
+        if (!forzar && document.visibilityState === "hidden") return;
+        try {
+            const [resListas, resBloqueadas] = await Promise.allSettled([
+                fetch("/api/mando/medidores?clave=listas", { cache: "no-store" }),
+                fetch("/api/mando/medidores?clave=bloqueadas", { cache: "no-store" }),
+            ]);
+
+            let listas: number | null = null;
+            let bloqueadas: number | null = null;
+
+            if (resListas.status === "fulfilled" && resListas.value.ok) {
+                const dataListas = (await resListas.value.json()) as { detalle?: DetalleMedidor };
+                if (dataListas.detalle?.filas) {
+                    listas = dataListas.detalle.filas.length;
+                }
+            }
+
+            if (resBloqueadas.status === "fulfilled" && resBloqueadas.value.ok) {
+                const dataBloqueadas = (await resBloqueadas.value.json()) as { detalle?: DetalleMedidor };
+                if (dataBloqueadas.detalle?.filas) {
+                    // Contamos solo las tareas operativas (no históricas) para coincidir con el total del detalle
+                    bloqueadas = dataBloqueadas.detalle.filas.filter((f) => !f.historica).length;
+                }
+            }
+
+            setMedidoresResumen({ listas, bloqueadas });
+        } catch {
+            setMedidoresResumen({ listas: null, bloqueadas: null });
+        }
+    }, []);
+
+    useEffect(() => {
+        let vivo = true;
+        const cargar = async (forzar = false) => {
+            if (!vivo) return;
+            await cargarMedidoresResumen(forzar);
+        };
+        void cargar(true);
+        const cada = window.setInterval(() => void cargar(), 20_000);
+        const alVolver = () => {
+            if (document.visibilityState === "visible") void cargar(true);
+        };
+        document.addEventListener("visibilitychange", alVolver);
+        return () => {
+            vivo = false;
+            window.clearInterval(cada);
+            document.removeEventListener("visibilitychange", alVolver);
+        };
+    }, [cargarMedidoresResumen]);
+
     const alCambiarPestana = useCallback((id: string) => {
         const segura = (PESTANAS.some((p) => p.id === id) ? id : "procesos") as IdPestana;
         setPestana(segura);
@@ -617,6 +678,7 @@ export function CentroMando() {
                 const d = (await r.json()) as { ok?: boolean; tareas?: string[]; error?: string };
                 if (!r.ok || d.error) return d.error ?? `No se pudo (HTTP ${r.status}).`;
                 const n = d.tareas?.length ?? 0;
+                void cargarMedidoresResumen(true);
                 return accion.clase === "reintentar"
                     ? `${d.tareas?.join(", ")} vuelve a la cola con tu cambio anotado.`
                     : `${n} tarea${n === 1 ? "" : "s"} descartada${n === 1 ? "" : "s"}: ${d.tareas?.join(", ")}`;
@@ -624,7 +686,7 @@ export function CentroMando() {
                 return "No se pudo hablar con la consola.";
             }
         },
-        [],
+        [cargarMedidoresResumen],
     );
 
     // La cabecera se relee cada 20 s (como la ramificación) y al volver a la pestaña: antes se
@@ -906,8 +968,6 @@ export function CentroMando() {
             olaActiva: olaActiva ? (/^ola\s/i.test(olaActiva.id) ? olaActiva.id : `Ola ${olaActiva.id}`) : "Sin olas activas",
             tareasEnCurso,
             pendientes,
-            listas: trabajo.listas,
-            bloqueadas: trabajo.bloqueadas,
             copiasOmitidas: trabajo.copiasOmitidas,
             sinPush: estado.repo?.sinPush ?? null,
             agotados,
@@ -1042,21 +1102,48 @@ export function CentroMando() {
                             {
                                 clave: "listas" as const,
                                 titulo: "Listas para trabajar",
-                                valor: String(pulso.listas),
+                                valor:
+                                    medidoresResumen?.listas !== null && medidoresResumen?.listas !== undefined
+                                        ? String(medidoresResumen.listas)
+                                        : "—",
                                 // Rojo SOLO cuando hay trabajo y nadie lo coge: si el rojo sale
                                 // siempre, deja de significar nada.
-                                tono: (pulso.listas > 0 && pulso.tareasEnCurso === 0 ? "peligro" : "normal") as TonoMedidor,
+                                tono: (
+                                    medidoresResumen?.listas !== null &&
+                                    medidoresResumen?.listas !== undefined &&
+                                    medidoresResumen.listas > 0 &&
+                                    pulso.tareasEnCurso === 0
+                                        ? "peligro"
+                                        : "normal"
+                                ) as TonoMedidor,
                                 detalle:
-                                    pulso.listas > 0 && pulso.tareasEnCurso === 0
+                                    medidoresResumen?.listas !== null &&
+                                    medidoresResumen?.listas !== undefined &&
+                                    medidoresResumen.listas > 0 &&
+                                    pulso.tareasEnCurso === 0
                                         ? "hay trabajo y ningún agente: algo está atascado"
                                         : "el enjambre las coge solo",
                             },
                             {
                                 clave: "bloqueadas" as const,
                                 titulo: "Bloqueadas",
-                                valor: String(pulso.bloqueadas),
-                                tono: (pulso.bloqueadas > 0 ? "aviso" : "normal") as TonoMedidor,
-                                detalle: pulso.bloqueadas > 0 ? "ábrelo para ver por qué" : "ninguna esperando",
+                                valor:
+                                    medidoresResumen?.bloqueadas !== null && medidoresResumen?.bloqueadas !== undefined
+                                        ? String(medidoresResumen.bloqueadas)
+                                        : "—",
+                                tono: (
+                                    medidoresResumen?.bloqueadas !== null &&
+                                    medidoresResumen?.bloqueadas !== undefined &&
+                                    medidoresResumen.bloqueadas > 0
+                                        ? "aviso"
+                                        : "normal"
+                                ) as TonoMedidor,
+                                detalle:
+                                    medidoresResumen?.bloqueadas !== null &&
+                                    medidoresResumen?.bloqueadas !== undefined &&
+                                    medidoresResumen.bloqueadas > 0
+                                        ? "ábrelo para ver por qué"
+                                        : "ninguna esperando",
                             },
                             {
                                 clave: "sin-publicar" as const,
