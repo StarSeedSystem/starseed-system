@@ -1,0 +1,41 @@
+{
+ "ola": 358,
+ "nombre": "Nube · Agente Puente y asignacion por neurona (rescate del 16/09)",
+ "tareas": [
+  {
+   "id": "AS2",
+   "ola": 358,
+   "titulo": "El Agente Puente: un solo agente privado, el mismo desde el Mando, la orbe y Telegram",
+   "archivos": [
+    "src/lib/mando/agente-puente.ts",
+    "src/app/api/mando/agente-puente/route.ts",
+    "src/lib/mando/__tests__/agente-puente.test.ts"
+   ],
+   "depende": [],
+   "prompt": "CONTEXTO (Alex, 16/09). Hoy hay DOS asistentes distintos y ninguno completo: el «asistente técnico» del Mando (que falla) y la orbe flotante de Aurora/Astraura (con las funciones del OS pero sin el contexto del Mando). Quiere UNO: el Agente Puente. Astraura especializada para el uso interno del Puente de Mando, **privado**, y el MISMO agente se use desde donde se use — el chat del Mando, la orbe flotante, su cuenta de StarSeed OS o Telegram. Un vínculo al Puente de Mando, no cuatro copias que se contradicen.\n\nLO QUE YA EXISTE y es de donde sale su contexto, NO lo rehagas:\n- `PUENTE-DE-MANDO.md` en la raíz del repo: el estado vivo Y el método, regenerado por `scripts/puente/sincronizar-ides.py` al cerrar cada ola.\n- `memory/workflow-actual.md`: cómo se trabaja aquí.\n- `/api/mando/medidores?clave=X`, `/api/mando/estado`, `~/.starseed/pasarelas-informe.json`: el estado de los procesos y de las pasarelas.\n- `src/lib/mando/asistente.ts` y la orbe de Astraura: sus capacidades ya están escritas.\n\nQUÉ HACER:\n1. `src/lib/mando/agente-puente.ts`: una función PURA que arme el contexto del agente a partir de esas fuentes —estado, método, medidores, pasarelas— y devuelva el mensaje de sistema. Que diga con qué fecha está cada pieza: **un contexto viejo debe declararse viejo, no disimularse.**\n2. `src/app/api/mando/agente-puente/route.ts`: el punto de entrada único. POST con la pregunta, responde usando `ordenarCandidatos` de AS1 para elegir modelo. Server-only.\n3. Pruebas del módulo puro.\n\nSEGURIDAD, y esto manda sobre lo demás: el agente es **PRIVADO**. La ruta comprueba EN EL SERVIDOR que quien pregunta es el dueño del Mando — hoy `maggasukha@star.seed`. A quien no lo sea se le responde sin filtrar qué existe. **Nunca devuelve el valor de una clave de API**, solo nombres de variable. Un permiso comprobado en el navegador no es un permiso.\n\nSin `any`. Español con acentos. Tres archivos, 120 líneas máximo cada uno. Comprueba con `npx vitest run src/lib/mando/__tests__` y LEE la salida entera.\n\nNOTA DE LA NUBE (2026-09-20). Esta tarea se quedo bloqueada el 16-17/09 con «escalada agotada tras 8 intentos». La causa de aquellos ocho intentos esta medida y ARREGLADA: una cabecera x-title con un caracter no ASCII hacia que TODOS los modelos :free de OpenRouter fallaran en 0 s. Se reintenta tal cual, en GitHub Actions (4 vCPU / 16 GB).\nTRAMPA MEDIDA EL 20/09 que aqui importa: `tsc` y vitest NO ven un import de VALOR desde un modulo que toca `node:*` hecho en un componente de CLIENTE; solo lo ve `next build`. De un modulo con `node:fs`/`node:util`, un componente de cliente solo puede importar TIPOS."
+  },
+  {
+   "id": "NE2",
+   "ola": 358,
+   "titulo": "Asignar el proceso de un agente a una neurona concreta desde el Mando",
+   "archivos": [
+    "src/lib/mando/asignacion-neurona.ts",
+    "src/lib/mando/__tests__/asignacion-neurona.test.ts"
+   ],
+   "depende": [],
+   "prompt": "CONTEXTO (Alex, 16/09). Quiere poder decidir desde el Mando en qué neurona corre cada proceso: esta computadora, un contenedor de la nube, o el motor local. Hoy el orquestador reparte solo por «medio» y nadie puede intervenir.\n\nESTE MÓDULO ES PURO y es una DECISIÓN, no una acción: dice a qué neurona debería ir una tarea y por qué. Quien llame se encarga de aplicarlo.\n\nDISEÑO PEDIDO:\n- `export type Asignacion = { neurona: string; motivo: string; forzada: boolean }`\n- `export function asignarTarea(tarea, neuronas, preferencia?): Asignacion` — si hay `preferencia` (la que eligió Alex a mano), manda y `forzada` es true, PERO solo si esa neurona responde; si no responde, se elige otra y el motivo lo dice con todas las letras.\n- Sin preferencia, se elige por: que la neurona responda, que tenga el motor que la tarea necesita, y la que menos procesos lleve. En empate, la más cercana (la máquina local antes que la nube).\n- `export function reparto(tareas, neuronas): Asignacion[]` — reparte una tanda sin amontonar todo en la primera.\n\nREGLAS: comentarios en español explicando POR QUÉ cada criterio pesa lo que pesa. Sin `any`. El «ahora» entra como parámetro, nunca `Date.now()` dentro. Pruebas con vitest (`{ describe, it, expect }` importados; `globals` en false) cubriendo: preferencia respetada, preferencia caída, empate, y una tanda repartida. Comprueba y LEE la salida entera. Dos archivos, 120 líneas máximo.\n\nNOTA DE LA NUBE (2026-09-20). Esta tarea se quedo bloqueada el 16-17/09 con «escalada agotada tras 8 intentos». La causa de aquellos ocho intentos esta medida y ARREGLADA: una cabecera x-title con un caracter no ASCII hacia que TODOS los modelos :free de OpenRouter fallaran en 0 s. Se reintenta tal cual, en GitHub Actions (4 vCPU / 16 GB).\nTRAMPA MEDIDA EL 20/09 que aqui importa: `tsc` y vitest NO ven un import de VALOR desde un modulo que toca `node:*` hecho en un componente de CLIENTE; solo lo ve `next build`. De un modulo con `node:fs`/`node:util`, un componente de cliente solo puede importar TIPOS."
+  },
+  {
+   "id": "AS3",
+   "ola": 358,
+   "titulo": "La orbe flotante y el chat del Mando hablan con el mismo Agente Puente",
+   "archivos": [
+    "src/components/mando/chat-agente-puente.tsx"
+   ],
+   "depende": [
+    "AS2"
+   ],
+   "prompt": "CONTEXTO. Falta que la cara sea una sola. Hoy el chat del Mando y la orbe flotante de Astraura son dos cosas con dos memorias; Alex quiere que sean la misma conversación mirada desde dos sitios.\n\nQUÉ HACER: un componente de chat que hable con `/api/mando/agente-puente` (AS2) y que se pueda montar TANTO en el panel del Mando COMO dentro de la orbe flotante. La misma conversación: si pregunta algo en la orbe y luego abre el Mando, ahí sigue.\n\nDETALLES QUE IMPORTAN:\n- Enseña qué modelo respondió y de qué pasarela. Cuando ninguno responda, di CUÁLES se intentaron y por qué fallaron — ese mensaje de error de hoy era lo único útil de la pantalla.\n- Enseña la fecha del contexto que está usando el agente. Si es viejo, que se vea.\n- Estado de «pensando» honesto: si lleva más de 20 s, dilo con el nombre del modelo, no con puntos suspensivos.\n\nREGLAS DE LA CASA: animaciones solo con `transform` y `opacity`; una barra usa `scaleX`, nunca `width`. `cursor-pointer` en lo clicable. Sin `any`. Español con acentos. Nada de `localStorage` para nada que sea una clave. UN archivo, 120 líneas máximo.\n\nDespués corre `npx vitest run src/components` y LEE la salida entera.\n\nNOTA DE LA NUBE (2026-09-20). Esta tarea se quedo bloqueada el 16-17/09 con «escalada agotada tras 8 intentos». La causa de aquellos ocho intentos esta medida y ARREGLADA: una cabecera x-title con un caracter no ASCII hacia que TODOS los modelos :free de OpenRouter fallaran en 0 s. Se reintenta tal cual, en GitHub Actions (4 vCPU / 16 GB).\nTRAMPA MEDIDA EL 20/09 que aqui importa: `tsc` y vitest NO ven un import de VALOR desde un modulo que toca `node:*` hecho en un componente de CLIENTE; solo lo ve `next build`. De un modulo con `node:fs`/`node:util`, un componente de cliente solo puede importar TIPOS."
+  }
+ ]
+}
