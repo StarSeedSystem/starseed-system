@@ -1976,3 +1976,12 @@
 
 **Lo que quedó fuera, una por una:**
 - `p318Jb` — otra cosa: desbloqueada: p318I ya está integrada
+
+## 2026-09-21 13:35 · auto-0921-133232
+
+**Lo que se pidió.** Última salida: 31/12/1969, 18:00:00
+
+**Resultado.** 0 de 1 integradas. 1 tarea se quedaron fuera.
+
+**Lo que quedó fuera, una por una:**
+- `p318Jb` — otra cosa: desbloqueada: p318I ya está integrada
