@@ -1053,3 +1053,17 @@
 - `p318Jb` — otra cosa: dependencia no integrada: p318I (?)
 - `JV8` — otra cosa: ningún proveedor respondió (does not exist)
 - `JV12` — la revisión lo rechazó: rechazada automáticamente por ide (sin revisión humana); rama ola/JV12 conservada
+
+## 2026-09-21 08:03 · auto-0921-065808
+
+**Lo que se pidió.** Última salida: 31/12/1969, 18:00:00
+
+**Resultado.** 0 de 2 integradas. 2 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 2 tareas se fueron por lo mismo — otra cosa (p318Jb, JV8). Es 100 % de la ola.
+- sin modelo anotado no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `p318Jb` — otra cosa: desbloqueada: p318I ya está integrada
+- `JV8` — otra cosa: ningún proveedor respondió (does not exist)
