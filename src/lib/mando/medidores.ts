@@ -213,11 +213,23 @@ export function porqueBloqueada(
     return `espera a ${abiertas.join(", ")}`;
 }
 
-/** El id como palabra entera dentro de los asuntos de commit de `main`. */
+/** Coincidencia histórica por palabra entera; no basta para afirmar integración. */
 export function idEnAsuntos(id: string, asuntos: string): boolean {
     if (!id) return false;
     const escapado = id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     return new RegExp(`(^|[^A-Za-z0-9])${escapado}([^A-Za-z0-9]|$)`, "m").test(asuntos);
+}
+
+/**
+ * La misma marca de integración que reconoce el vigilante: el id debe ir al
+ * inicio del asunto o después de `·`, y justo antes de `:`. Una mención suelta
+ * en un asunto de reparto no demuestra que la tarea esté integrada.
+ */
+export function idIntegradoEnAsuntos(id: string, asuntos: string): boolean {
+    if (!id) return false;
+    const escapado = id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const patron = new RegExp(`(?:^|·\\s*)${escapado}\\s*:`);
+    return asuntos.split(/\r?\n/).some((asunto) => patron.test(asunto));
 }
 
 /** Estados con los que el vigilante NO relanza nada solo: aquí tampoco cuentan como listas. */
@@ -249,7 +261,7 @@ export function ejecutablesDeColas(
         if ((t.cola ?? "").startsWith("auto-")) continue;
         vistos.add(t.id);
         if (!ABIERTOS.has(progreso[t.id]?.estado ?? "")) continue;
-        if (idEnAsuntos(t.id, asuntosDeMain)) continue;
+        if (idIntegradoEnAsuntos(t.id, asuntosDeMain)) continue;
         salida.push({ id: t.id, titulo: t.titulo ?? "", ola: t.ola });
     }
     return salida;
@@ -261,6 +273,8 @@ export interface DatosMedidores {
     latidos: { tarea: string; fase: string; modelo: string; minutos: number; donde: string; proveedor?: string }[];
     commitsSinPublicar: { sha: string; asunto: string; fecha?: string }[];
     ejecutables: { id: string; titulo: string; ola?: string }[];
+    /** Asuntos recientes de `main`; ausente si Git no pudo leerse. */
+    asuntosDeMain?: string | null;
     proveedores: { id: string; estado: string; motivo?: string }[];
     olaActiva?: string;
     /** ¿Hay orquestador vivo? ¿Está el enjambre en pausa? Sin esto, «13 listas y 0 agentes»
@@ -478,7 +492,17 @@ export function detalleDeMedidor(
                 : d.enjambreVivo
                   ? "el enjambre está vivo y las va cogiendo por tandas, según los trabajadores libres"
                   : "no hay orquestador vivo; el vigilante lo relanza solo en menos de 90 s";
-            const filas: FilaMedidor[] = d.ejecutables.map((t) => ({
+            const asuntosDeMain = d.asuntosDeMain;
+            const asuntosDisponibles = typeof asuntosDeMain === "string";
+            // Sin una lectura fiable no se adivina: ocultar trabajo válido sería
+            // peor que mostrarlo y avisar con claridad de que falta comprobar Git.
+            const ejecutables = asuntosDisponibles
+                ? d.ejecutables.filter((t) => !idIntegradoEnAsuntos(t.id, asuntosDeMain))
+                : d.ejecutables;
+            const avisoGit = asuntosDisponibles
+                ? ""
+                : " · no se pudieron leer los asuntos de Git; no se filtró por commits";
+            const filas: FilaMedidor[] = ejecutables.map((t) => ({
                 id: t.id,
                 titulo: t.titulo,
                 estado: "lista",
@@ -491,10 +515,11 @@ export function detalleDeMedidor(
             return {
                 clave,
                 titulo: "Listas para trabajar",
-                resumen:
+                resumen: (
                     filas.length === 0
                         ? "sin trabajo ejecutable"
-                        : `${filas.length} se pueden coger ya · 0 % avanzadas · ${porQueNadieLasCoge}`,
+                        : `${filas.length} se pueden coger ya · 0 % avanzadas · ${porQueNadieLasCoge}`
+                ) + avisoGit,
                 filas,
                 porcentajeMedio: 0,
                 acciones: [IR_A("Ver procesos", "procesos")],
