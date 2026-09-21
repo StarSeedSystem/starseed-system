@@ -127,29 +127,61 @@ def test_el_director_delega_en_el_modulo_puro():
 
 # ── 3. El guardia: identidad del pid y duda en los DOS sentidos ──────────────────────
 
-def test_el_guardia_compara_el_pid_marcado():
-    src = _leer(GUARDIA)
-    assert "def pid_marcado" in src, "la marca volvió a ser un sí/no en vez de una identidad"
-    assert "marcado == pid" in src, (
-        "reanudar ya no comprueba que el pid marcado sea ESE proceso: con una marca vieja se "
-        "reanuda un motor que paró el dueño")
-    assert "nuestro = os.path.exists(MARCA)" not in src
+def _guardia():
+    """El guardia, importado por ruta porque el archivo lleva guion."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("guardia_memoria_mod", GUARDIA)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
 
 
-def test_el_guardia_marca_antes_de_congelar():
-    """Si muere entre la marca y la señal, sobra una marca; al revés, el motor no vuelve."""
-    src = _leer(GUARDIA)
-    i_marca = src.find("marcar(pid)")
-    i_stop = src.find("signal.SIGSTOP")
-    assert i_marca > 0 and i_stop > 0, "la puerta dejó de ver el bloque de congelado"
-    assert i_marca < i_stop, "se congela antes de marcar: un fallo ahí deja el motor parado para siempre"
+# (2026-09-21) Estas tres miraban el TEXTO del guardia («marcar(pid)», «marcado == pid»,
+# «if libres is None:»). El guardia se reescribio —ahora lleva un CONJUNTO de pids por
+# motor y una funcion pura `decidir`— y las tres se quedaron en rojo sin que nada
+# estuviera mal: solo habian cambiado los nombres. Un test que vigila nombres no vigila
+# nada. Ahora preguntan por la CONDUCTA, que es lo que de verdad no puede romperse.
 
 
 def test_sin_medida_de_memoria_no_se_toca_nada():
+    """Sin `vm_stat` no se congela NI se reanuda: un centinela alto reanudaba solo."""
+    g = _guardia()
+    assert g.decidir(True, None, set(), ["bitnet"]) == []
+    assert g.decidir(False, None, {"bitnet"}, ["bitnet"]) == []
+    assert "return 99999" not in _leer(GUARDIA), (
+        "volvio el centinela alto: cumple el umbral de reanudar y reanuda a ciegas")
+
+
+def test_el_guardia_compara_el_pid_marcado():
+    """Una marca vieja no basta para reanudar: el proceso tiene que estar parado.
+
+    BitNet cambia de pid al reiniciarse. Si «congelado» fuese «existe el archivo de
+    marca», con holgura de memoria se le mandaria SIGCONT a un motor que paro su dueno.
+    Por eso `congelados` son los verificados en «T» este ciclo, y nada mas.
+    """
+    g = _guardia()
+    holgura = g.REANUDAR_SOBRE_MB + 500
+    assert g.decidir(False, holgura, set(), ["bitnet"]) == [], (
+        "reanuda un motor que no consta parado: la marca volvio a ser un si/no")
+    assert g.decidir(False, holgura, {"bitnet"}, ["bitnet"]) == [("bitnet", "descongelar")]
+
+
+def test_el_guardia_marca_antes_de_congelar():
+    """Si muere entre la marca y la senal, sobra una marca; al reves, el motor no vuelve."""
     src = _leer(GUARDIA)
-    assert "return None" in src and "return 99999" not in src, (
-        "un centinela alto solo es prudente para congelar: también cumple el umbral de reanudar")
-    assert "if libres is None:" in src, "falta la guarda: sin medida no se congela NI se reanuda"
+    i_marca = src.find("guardar_marca(motor, leer_marca(motor)")
+    i_stop = src.find("signal.SIGSTOP")
+    assert i_marca > 0 and i_stop > 0, "la puerta dejo de ver el bloque de congelado"
+    assert i_marca < i_stop, "se congela antes de marcar: un fallo ahi deja el motor parado para siempre"
+
+
+def test_la_banda_de_histeresis_no_hace_nada():
+    """Entre los dos umbrales no se toca nada: sin banda el motor iria y volveria."""
+    g = _guardia()
+    medio = (g.CONGELAR_BAJO_MB + g.REANUDAR_SOBRE_MB) // 2
+    assert g.decidir(True, medio, set(), ["bitnet"]) == []
+    assert g.decidir(False, medio, {"bitnet"}, ["bitnet"]) == []
 
 
 # ── 4. Que la puerta no mienta en verde ─────────────────────────────────────────────

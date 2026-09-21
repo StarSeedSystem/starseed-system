@@ -146,7 +146,20 @@ jobs:
           # (opencode) que no siempre se mueren con eso, y el run 35554919550 seguia vivo
           # DIEZ MINUTOS despues de su tope de 120. Con `-k 60` se manda SIGKILL un minuto
           # despues, que es lo unico que no se puede ignorar.
-          timeout -k 60 "${{ inputs.minutos }}m" python3 -u "$ORQ" "${{ inputs.cola }}" --workers "${{ inputs.trabajadores }}" 2>&1 | tee "$LOG" || true
+          timeout -k 60 "${{ inputs.minutos }}m" python3 -u "$ORQ" "${{ inputs.cola }}" --workers "${{ inputs.trabajadores }}" 2>&1 | tee "$LOG"
+          rc=${PIPESTATUS[0]}
+          # (2026-09-21) Aquí había un `|| true` y costó SEIS HORAS de nube. p316Gb añadió
+          # `puerta_degenerados.py` a las 00:05; `instalar.sh` no lo copiaba al lado del
+          # orquestador, así que cada run moría en 0,2 s con ModuleNotFoundError… y
+          # terminaba EN VERDE. Un job verde que no hizo nada es peor que uno rojo: nadie
+          # lo mira. El orquestador gestiona por dentro los fallos de sus tareas y sale 0;
+          # si sale distinto de 0 es que él no pudo trabajar. 124 es el tope de `timeout`,
+          # que es un final legítimo.
+          if [ "$rc" != "0" ] && [ "$rc" != "124" ]; then
+            echo "::error::el orquestador no pudo trabajar (rc=$rc). Últimas líneas:"
+            tail -25 "$LOG" || true
+            exit 1
+          fi
           n=$(git log --oneline origin/main..HEAD | wc -l)
           echo "commits por entregar: $n"
           if [ "$n" = "0" ]; then

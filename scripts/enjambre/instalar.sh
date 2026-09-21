@@ -35,12 +35,26 @@ case "$OS" in
     exit 2
     ;;
 esac
-DEST_MEDIOS="$(dirname "$DEST_ENJAMBRE")/medios.py"
+DEST_DIR="$(dirname "$DEST_ENJAMBRE")"
 # (2026-09-14) El orquestador importa `limite_proveedor` al cargarse: si la copia instalada
 # no lo lleva al lado, NO ARRANCA. Va aquí y no en un requirements para que la instalación
 # siga siendo autosuficiente, que es toda la razón de ser de este script.
-DEST_LIMITE="$(dirname "$DEST_ENJAMBRE")/limite_proveedor.py"
-DEST_MENSAJES="$(dirname "$DEST_ENJAMBRE")/mensajes_agente.py"
+#
+# (2026-09-21) Y esa lista estaba escrita A MANO, así que cada módulo nuevo la dejaba
+# incompleta sin avisar. p316Gb añadió `puerta_degenerados.py` el día 21 a las 00:05 y
+# desde ese minuto TODOS los runs de la nube morían en 0,2 s con
+# «ModuleNotFoundError: No module named 'puerta_degenerados'» — y terminaban EN VERDE,
+# porque la orden acababa en `|| true`. Seis horas de nube regalada. Ahora la lista se
+# DEDUCE del directorio: todo .py que no sea prueba viaja al lado del orquestador. Un
+# módulo nuevo se instala solo, que es la única forma de que esto no vuelva a pasar.
+MODULOS=()
+for _m in "$ORIGEN_DIR"/*.py; do
+  _b="$(basename "$_m")"
+  case "$_b" in
+    starseed-enjambre.py|test_*.py|conftest.py) continue ;;
+  esac
+  MODULOS+=("$_b")
+done
 
 # md5 portable: macOS trae `md5 -q`, Linux `md5sum`.
 if command -v md5 >/dev/null 2>&1; then
@@ -90,9 +104,6 @@ compara_par() {
 }
 
 SRC_ENJAMBRE="$ORIGEN_DIR/starseed-enjambre.py"
-SRC_MEDIOS="$ORIGEN_DIR/medios.py"
-SRC_LIMITE="$ORIGEN_DIR/limite_proveedor.py"
-SRC_MENSAJES="$ORIGEN_DIR/mensajes_agente.py"
 SRC_LANZADOR="$ORIGEN_DIR/lanzador.py"
 
 case "${1:-}" in
@@ -100,9 +111,9 @@ case "${1:-}" in
     echo "Comparando md5 (repo vs instalado)…"
     ok=0
     compara_par "orquestador" "$SRC_ENJAMBRE" "$DEST_ENJAMBRE" || ok=1
-    compara_par "decisiones de medios" "$SRC_MEDIOS" "$DEST_MEDIOS" || ok=1
-    compara_par "límites de pasarela" "$SRC_LIMITE" "$DEST_LIMITE" || ok=1
-    compara_par "mensajes al agente" "$SRC_MENSAJES" "$DEST_MENSAJES" || ok=1
+    for _b in "${MODULOS[@]}"; do
+      compara_par "$_b" "$ORIGEN_DIR/$_b" "$DEST_DIR/$_b" || ok=1
+    done
     if [ -n "$DEST_LANZADOR" ]; then
       compara_par "lanzador" "$SRC_LANZADOR" "$DEST_LANZADOR" || ok=1
     fi
@@ -111,16 +122,13 @@ case "${1:-}" in
   --traer)
     echo "Trayendo las copias instaladas al repo…"
     copia_de "$DEST_ENJAMBRE" "$SRC_ENJAMBRE"
-    if [ -f "$DEST_MEDIOS" ]; then
-      copia_de "$DEST_MEDIOS" "$SRC_MEDIOS"
-    else
-      echo "  medios.py aún no está instalado; conservo la fuente del repo"
-    fi
-    if [ -f "$DEST_LIMITE" ]; then
-      copia_de "$DEST_LIMITE" "$SRC_LIMITE"
-    else
-      echo "  limite_proveedor.py aún no está instalado; conservo la fuente del repo"
-    fi
+    for _b in "${MODULOS[@]}"; do
+      if [ -f "$DEST_DIR/$_b" ]; then
+        copia_de "$DEST_DIR/$_b" "$ORIGEN_DIR/$_b"
+      else
+        echo "  $_b aún no está instalado; conservo la fuente del repo"
+      fi
+    done
     if [ -n "$DEST_LANZADOR" ]; then
       copia_de "$DEST_LANZADOR" "$SRC_LANZADOR"
     fi
@@ -133,11 +141,9 @@ case "${1:-}" in
     echo "Instalando en ${OS}…"
     echo "  origen orquestador [md5 $(md5_de "$SRC_ENJAMBRE")]"
     copia_de "$SRC_ENJAMBRE" "$DEST_ENJAMBRE"
-    echo "  origen medios      [md5 $(md5_de "$SRC_MEDIOS")]"
-    copia_de "$SRC_MEDIOS" "$DEST_MEDIOS"
-    echo "  origen límites     [md5 $(md5_de "$SRC_LIMITE")]"
-    copia_de "$SRC_LIMITE" "$DEST_LIMITE"
-    copia_de "$SRC_MENSAJES" "$DEST_MENSAJES"
+    for _b in "${MODULOS[@]}"; do
+      copia_de "$ORIGEN_DIR/$_b" "$DEST_DIR/$_b"
+    done
     if [ -n "$DEST_LANZADOR" ]; then
       echo "  origen lanzador    [md5 $(md5_de "$SRC_LANZADOR")]"
       copia_de "$SRC_LANZADOR" "$DEST_LANZADOR"
