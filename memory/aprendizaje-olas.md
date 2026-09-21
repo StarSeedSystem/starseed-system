@@ -994,3 +994,16 @@
 - `MU2` — pruebas en rojo: vitest falla (rama conservada)
 - `DV1` — la revisión lo rechazó: rechazada automáticamente por ide (sin revisión humana); rama ola/DV1 conservada
 - `AGR2` — otra cosa: desbloqueada: AGR1 ya está integrada
+
+## 2026-09-20 18:18 · auto-0920-165233
+
+**Lo que se pidió.** integrado pero NO aplicado
+
+**Resultado.** 5 de 7 integradas. 2 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 2 tareas se fueron por lo mismo — la revisión lo rechazó (AGR2, DV1). Es 29 % de la ola.
+
+**Lo que quedó fuera, una por una:**
+- `AGR2` — la revisión lo rechazó: rechazada automáticamente por ide (sin revisión humana); rama ola/AGR2 conservada
+- `DV1` — la revisión lo rechazó: rechazada automáticamente por ide (sin revisión humana); rama ola/DV1 conservada
