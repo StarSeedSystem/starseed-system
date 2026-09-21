@@ -30,6 +30,7 @@ import {
 import {
     TERMINALES,
     detalleDeMedidor,
+    obtenerDetalleMedidor,
     ejecutablesDeColas,
     type ClaveMedidor,
     type DatosMedidores,
@@ -162,7 +163,7 @@ export async function GET(peticion: Request): Promise<Response> {
     // Un fallo leyendo git o el bus no puede tumbar el panel: se devuelve lo que sí haya.
     const datos = await reunir().catch(() => ({}));
     return Response.json(
-        { detalle: detalleDeMedidor(clave, datos), generadoEn: new Date().toISOString() },
+        { detalle: obtenerDetalleMedidor(clave, datos), generadoEn: new Date().toISOString() },
         { headers: { "Cache-Control": "no-store" } },
     );
 }
@@ -214,7 +215,7 @@ export async function POST(peticion: Request): Promise<Response> {
     const ahora = new Date().toISOString().slice(0, 16).replace("T", " ");
     const objetivo =
         accion === "descartar-todas"
-            ? detalleDeMedidor(clave as ClaveMedidor, { progreso: entradas }).filas.map((f) => f.id)
+            ? obtenerDetalleMedidor(clave as ClaveMedidor, { progreso: entradas }).filas.map((f) => f.id)
             : id
               ? [id]
               : [];
