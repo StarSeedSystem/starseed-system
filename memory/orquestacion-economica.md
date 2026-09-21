@@ -525,3 +525,56 @@ quedó en rojo sin que nada estuviera mal, y como esas pruebas son de estilo
 pytest, `unittest discover` no las corría: rojas y mudas a la vez. Reescritas
 contra la **conducta** (`decidir(...)`). Las puertas de Python son dos y
 distintas: `scripts/puente/` con `unittest`, `scripts/enjambre/` con `pytest`.
+
+## 13. La contabilidad del trabajo tiene que ser verdad (regla permanente · 2026-09-21)
+
+Tres formas distintas de que el sistema creyera algo falso sobre su propio
+trabajo. Las tres costaron horas y ninguna daba error.
+
+### 13.1 Una dependencia que no existe no es una dependencia
+
+`p318Jb` declaraba `depende: [p318I]` y **p318I no existe**: ni tarea, ni entrada
+en progreso, ni en ninguna cola. El vigilante llamaba a `seleccionar_pendientes()`
+**sin la hora**, y sin hora esa función no aparta las bloqueadas por dependencias
+abiertas ni aplica el orden por importancia: devolvía la lista cruda con esa tarea
+imposible a la cabeza. Una ola cada tres minutos, 120 olas, 240 commits de ruido y
+**cero trabajo entre las 04:00 y las 14:26**.
+
+- **Regla.** Quien pida tareas al planificador le pasa la hora. Sin ella no hay ni
+  prioridad ni filtro de bloqueadas, y eso no se nota: sale una lista, solo que es
+  la lista equivocada.
+
+### 13.2 Una ruta declarada que no existe condena a la tarea para siempre
+
+Tres tareas (X6, M4, S5) declaraban archivos con rutas que no existen —
+`src/app/(app)/instalar/page.tsx` cuando el archivo es `src/app/instalar/page.tsx`;
+`src/components/messages/message-bubble.tsx` cuando es `.../messages/dm/...`. El
+control de alcance mide contra lo declarado, así que una ruta mal escrita hace que
+una tarea **terminada** parezca incompleta para siempre, y el reintento vuelve a
+fallar igual.
+
+- **Regla.** Antes de dar una tarea por incompleta por «alcance», se comprueba que
+  sus rutas existan. Si la ruta está mal, lo que falta es corregir la tarea, no
+  repetir el trabajo.
+- **Corolario.** «Integrado» no es «aplicado»: `acompanante-personalidad.tsx` tenía
+  176 líneas en main y **nadie lo importaba**. Código muerto cuenta como no hecho.
+
+### 13.3 Un verificador que da falsas alarmas deja de leerse
+
+La publicación de las 20:30 dijo «95 de 98 verificados; 8c3fce00, 19244c9d,
+b1c0fb5e no están aplicados». Los tres eran falsos: RN7 y RN1 **sí** estaban en
+origin/main (se preguntó por la copia local de la rama remota sin refrescarla tras
+el push) y 8c3fce00 **no existe** como objeto en el repositorio.
+
+- **Regla.** Se refresca la referencia remota antes de juzgar si algo llegó.
+- **Regla.** Lo que no se puede juzgar se dice tal cual. Un sha desconocido no es
+  trabajo pendiente; contarlo como tal es la misma enfermedad que el job verde que
+  no hizo nada, del revés.
+
+### 13.4 La nube no puede juzgar dependencias
+
+Run 35568545557: de seis tareas, **cuatro** bloqueadas por dependencias que allí no
+existían (AG2→AG1, W2→W1, RN6→RN5, L9→L8), y RN5 se estaba integrando en la Mac en
+ese mismo momento. La nube hace checkout de `origin/main` y ahí se queda: no ve el
+trabajo vivo. **A la nube solo van tareas sin `depende`**, además de la regla de un
+archivo de §12.3.
