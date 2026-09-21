@@ -36,7 +36,29 @@ PESOS = {
     "antiguedad_tope": 24.0,
     "castigo_intento": 8.0,
     "castigo_riesgo": 10.0,
+    # (2026-09-20, Alex) «activar la mayor cantidad de agentes simultaneos y seleccionar
+    # sus modelos para agilizar y mejorar los procesos debe ser PRIORIDAD». Y tiene razon
+    # aritmetica, no solo de criterio: una tarea que suma un medio o arregla el
+    # enrutamiento de modelos no vale por si misma, vale por todo lo que vendra despues.
+    # Hoy mismo se vio: el medio de la nube llevaba dias apagado por un fallo de tres
+    # lineas, y mientras tanto la Mac iba al limite con tres agentes.
+    "capacidad": 30.0,
 }
+
+#: Los archivos que deciden CUANTOS agentes corren y CON QUE MODELOS. No es una lista de
+#: palabras sueltas en el titulo —eso acierta por casualidad—: son las rutas que gobiernan
+#: la capacidad del sistema, y tocarlas cambia el techo de todo lo demas.
+RUTAS_CAPACIDAD = (
+    "scripts/puente/gobernador",      # cuantos trabajadores caben en cada maquina
+    "scripts/puente/medios",          # que medios hay y cuales estan encendidos
+    "scripts/puente/nube",            # el medio de la nube
+    "scripts/puente/director-nube",   # quien lo enciende solo
+    "scripts/puente/pasarelas",       # que proveedores estan vivos
+    "scripts/puente/renovador",       # que claves siguen valiendo
+    "scripts/puente/modelos",         # que modelo escribe cada tarea
+    "scripts/puente/repartir-a-nube", # como se reparte entre medios
+    ".github/workflows/enjambre-nube",
+)
 
 ESTADOS_EMPEZADOS = ("interrumpida", "fallo_tsc", "fallo_tests")
 ESTADOS_CERRADOS = ("commit", "hecho")
@@ -88,6 +110,24 @@ def dependientes_transitivos(tareas: Iterable[Dict[str, Any]]) -> Dict[str, Set[
         for descendiente in vistos:
             resultado[descendiente].add(origen)
     return resultado
+
+
+def es_de_capacidad(tarea: Dict[str, Any]) -> bool:
+    """¿Esta tarea sube el techo del sistema (mas agentes a la vez o mejores modelos)?
+
+    Se marca a mano con `importancia: "capacidad"`, o se deduce de los archivos: son las
+    rutas que gobiernan cuantos trabajadores caben y con que modelos escriben.
+    """
+    if not isinstance(tarea, dict):
+        return False
+    if str(tarea.get("importancia") or "").strip().lower() == "capacidad":
+        return True
+    archivos = tarea.get("archivos") or []
+    if not isinstance(archivos, (list, tuple)):
+        archivos = [archivos]
+    return any(
+        isinstance(a, str) and any(p in a for p in RUTAS_CAPACIDAD) for a in archivos
+    )
 
 
 def puntuar(
@@ -151,6 +191,15 @@ def puntuar(
         puntos -= w["castigo_intento"] * intentos
         razones.append("ha fallado %d veces: no acapara trabajadores" % intentos)
 
+    # La capacidad va ANTES que el castigo por riesgo: si una tarea sube el techo de
+    # agentes o arregla el enrutamiento de modelos, vale la pena aunque toque a los
+    # directores. El castigo de abajo la frenaria justo cuando mas falta hace.
+    if es_de_capacidad(tarea):
+        puntos += w["capacidad"]
+        razones.append(
+            "sube el techo del sistema (mas agentes o mejores modelos): vale por todo lo que venga despues"
+        )
+
     toca_riesgo = any(
         isinstance(a, str) and any(a.startswith(p) for p in RUTAS_RIESGO)
         for a in (archivos if isinstance(archivos, (list, tuple)) else [])
@@ -210,6 +259,12 @@ def ordenar(
         puntos, razones = puntuar(tarea, entrada, cuenta, ahora, pesos)
         listas.append((tarea, puntos, razones))
 
-    listas.sort(key=lambda x: (-x[1], str(x[0].get("id") or "")))
+    # La capacidad va en su propio TRAMO, delante de todo lo demas. Como peso no bastaba:
+    # el tope de antiguedad (24 puntos) hacia que cualquier tarea de ayer adelantase a la
+    # que sube el techo del sistema. Alex lo dijo como prioridad, y una prioridad que se
+    # puede perder por acumular horas no es una prioridad. (2026-09-20)
+    listas.sort(
+        key=lambda x: (0 if es_de_capacidad(x[0]) else 1, -x[1], str(x[0].get("id") or ""))
+    )
     bloqueadas.sort(key=lambda x: str(x[0].get("id") or ""))
     return listas, bloqueadas

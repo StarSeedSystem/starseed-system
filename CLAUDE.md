@@ -347,6 +347,14 @@ concepto, se explica ahí mismo, en una frase. Nombrar algo no es explicarlo, y 
 entiende no lo va a dar. **Los avisos de fichaje diario van al chat de Hermes** con el enlace
 directo (`hermes send -t telegram:Maggasukha -s "<asunto>" "<cuerpo>"`, comprobado el 2026-09-20),
 para que pueda reactivar la pasarela desde el móvil.
+**Regla permanente de prioridad** (Alex, 2026-09-20): los directores ordenan la lista con
+inteligencia de importancia, y **lo que sube el TECHO del sistema va primero** — activar más
+agentes simultáneos y elegir o arreglar los modelos que usan mandan sobre el resto. En
+`scripts/puente/prioridad_logica.py` es un **tramo propio**, no un peso más: como peso, cualquier
+tarea de ayer la adelantaba solo por antigüedad, y una prioridad que se pierde acumulando horas
+no es una prioridad. Se detecta por las rutas que gobiernan la capacidad (gobernador, medios,
+nube, pasarelas, renovador, modelos, el workflow del enjambre) o marcando `importancia:
+"capacidad"` en la tarea.
 **Regla permanente de entrega a Alex** (2026-09-20): para todo lo que requiera una acción suya,
 dale el **enlace directo y/o el comando exacto de terminal**, listo para copiar y pegar — nunca la
 descripción de lo que tendría que hacer. Y antes de pedírselo, comprobar si se puede hacer desde

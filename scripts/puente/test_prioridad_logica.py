@@ -5,6 +5,7 @@
 import unittest
 from datetime import datetime, timedelta
 
+import prioridad_logica as P
 from prioridad_logica import dependientes_transitivos, ordenar, puntuar
 
 AHORA = datetime(2026, 9, 13, 12, 0, 0)
@@ -150,3 +151,35 @@ class OrdenarTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CapacidadPrimero(unittest.TestCase):
+    """Alex (2026-09-20): «activar la mayor cantidad de agentes simultaneos y seleccionar
+    sus modelos debe ser PRIORIDAD». Una tarea que sube el techo del sistema no vale por
+    si misma: vale por todo lo que vendra despues."""
+
+    def test_una_tarea_de_capacidad_gana_a_una_normal_mas_antigua(self):
+        capacidad = {"id": "CAP", "archivos": ["scripts/puente/gobernador-recursos.py"]}
+        normal = {"id": "NOR", "archivos": ["src/components/x.tsx"],
+                  "t": "2026-09-19T00:00:00+00:00"}
+        ahora = P._a_datetime("2026-09-20T00:00:00+00:00")
+        listas, _ = ordenar([normal, capacidad], {}, ahora)
+        self.assertEqual("CAP", listas[0][0]["id"])
+
+    def test_el_castigo_por_tocar_directores_no_la_hunde(self):
+        # gobernador-recursos.py esta en scripts/puente/: castigo de riesgo -10 y
+        # capacidad +30. Debe quedar en positivo.
+        puntos, razones = puntuar(
+            {"id": "CAP", "archivos": ["scripts/puente/gobernador-recursos.py"]}, {}, 0, None)
+        self.assertGreater(puntos, 0)
+        self.assertTrue(any("techo del sistema" in r for r in razones))
+
+    def test_se_puede_marcar_a_mano_con_importancia(self):
+        puntos, razones = puntuar(
+            {"id": "X", "archivos": ["src/lib/x.ts"], "importancia": "capacidad"}, {}, 0, None)
+        self.assertTrue(any("techo del sistema" in r for r in razones))
+        self.assertGreaterEqual(puntos, P.PESOS["capacidad"])
+
+    def test_una_tarea_normal_no_se_cuela_por_parecerse(self):
+        _, razones = puntuar({"id": "Y", "archivos": ["src/lib/mando/medidores.ts"]}, {}, 0, None)
+        self.assertFalse(any("techo del sistema" in r for r in razones))
