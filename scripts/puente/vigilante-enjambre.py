@@ -22,11 +22,16 @@ Telegram se enteran de por qué arrancó o por qué está callado.
   python3 scripts/puente/vigilante-enjambre.py
 """
 
-import importlib.util, json, os, subprocess, sys, time
+import importlib.util, json, os, shutil, subprocess, sys, time
 
 DIRECTORIO = os.path.dirname(os.path.abspath(__file__))
 if DIRECTORIO not in sys.path:
     sys.path.insert(0, DIRECTORIO)
+from curacion_logica import (
+    colgados_a_matar,
+    clasificar_arbol_sucio,
+    debe_reintentar_ya,
+)
 from vigilante_logica import (
     decidir_relanzamiento,
     aplicar_correcciones,
@@ -48,6 +53,14 @@ TOPE = int(os.environ.get("STARSEED_TOPE_COLA", "20"))
 REGISTRO = "/tmp/enjambre.log"
 ESPERA_ARRANQUE_S = int(os.environ.get("STARSEED_ESPERA_ARRANQUE_S", "45"))
 PAUSA_TRAS_FALLO_S = int(os.environ.get("STARSEED_PAUSA_FALLO_S", "600"))
+# Un trabajador sin escribir NADA en este tiempo se da por colgado. Más largo
+# que el COLGADO_S del orquestador (300 s) a propósito: el vigilante es la
+# última instancia, no la primera, y una escritura larga legítima no debe
+# pagar la duda.
+COLGADO_S = int(os.environ.get("STARSEED_VIGILANTE_COLGADO_S", "1800"))
+# Estorbos sin seguimiento se apartan aquí (NUNCA se borran): si alguien
+# necesitaba uno, ahí sigue, con la fecha en que se movió.
+APARTADO = os.path.join(OLAS, "_apartado")
 
 _spec = importlib.util.spec_from_file_location(
     "puente", os.path.join(DIRECTORIO, "puente.py")
@@ -123,11 +136,17 @@ def aplicar_correcciones_pendientes():
         nuevo, aplicadas = aplicar_correcciones(prog, correcciones)
         if aplicadas:
             tmp = ruta + ".tmp"
-            json.dump(nuevo, open(tmp, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+            json.dump(
+                nuevo, open(tmp, "w", encoding="utf-8"), ensure_ascii=False, indent=1
+            )
             os.replace(tmp, ruta)
         os.replace(CORRECCIONES, CORRECCIONES + ".aplicado")
         if aplicadas:
-            print("correcciones aplicadas a progreso.json:", ", ".join(aplicadas), flush=True)
+            print(
+                "correcciones aplicadas a progreso.json:",
+                ", ".join(aplicadas),
+                flush=True,
+            )
         return aplicadas
     except Exception as e:  # noqa: BLE001
         print("correcciones: %s: %s" % (type(e).__name__, e), flush=True)
@@ -155,7 +174,11 @@ def cola_viva():
             continue
         for trozo in linea.split():
             if trozo.endswith(".json") and os.path.basename(trozo).startswith("cola-"):
-                ruta = trozo if os.path.isabs(trozo) else os.path.join(OLAS, os.path.basename(trozo))
+                ruta = (
+                    trozo
+                    if os.path.isabs(trozo)
+                    else os.path.join(OLAS, os.path.basename(trozo))
+                )
                 return ruta if os.path.exists(ruta) else None
     return None
 
@@ -184,14 +207,30 @@ def alimentar_tanda_viva():
                 nuevo, aplicadas = aplicar_correcciones(prog, ajenas)
                 if aplicadas:
                     tmp = ruta_p + ".tmp"
-                    json.dump(nuevo, open(tmp, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+                    json.dump(
+                        nuevo,
+                        open(tmp, "w", encoding="utf-8"),
+                        ensure_ascii=False,
+                        indent=1,
+                    )
                     os.replace(tmp, ruta_p)
-                    restantes = {k: v for k, v in correcciones.items() if k not in aplicadas}
+                    restantes = {
+                        k: v for k, v in correcciones.items() if k not in aplicadas
+                    }
                     if restantes:
-                        json.dump(restantes, open(CORRECCIONES, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+                        json.dump(
+                            restantes,
+                            open(CORRECCIONES, "w", encoding="utf-8"),
+                            ensure_ascii=False,
+                            indent=1,
+                        )
                     else:
                         os.replace(CORRECCIONES, CORRECCIONES + ".aplicado")
-                    print("correcciones aplicadas (fuera de la tanda viva):", ", ".join(aplicadas), flush=True)
+                    print(
+                        "correcciones aplicadas (fuera de la tanda viva):",
+                        ", ".join(aplicadas),
+                        flush=True,
+                    )
         except Exception as e:  # noqa: BLE001
             print("correcciones (vivo): %s: %s" % (type(e).__name__, e), flush=True)
     # 1b) correcciones de tareas que SÍ están en la cola viva: orden de control `reabrir`
@@ -199,9 +238,13 @@ def alimentar_tanda_viva():
     if os.path.exists(CORRECCIONES):
         try:
             correcciones = json.load(open(CORRECCIONES, encoding="utf-8"))
-            propias = {k: v for k, v in correcciones.items()
-                       if k in en_cola and str((v or {}).get("estado")) == "pendiente"
-                       and k not in _REABIERTAS}
+            propias = {
+                k: v
+                for k, v in correcciones.items()
+                if k in en_cola
+                and str((v or {}).get("estado")) == "pendiente"
+                and k not in _REABIERTAS
+            }
             if propias:
                 ruta_ctrl = os.path.join(OLAS, "control-" + os.path.basename(ruta))
                 try:
@@ -209,22 +252,34 @@ def alimentar_tanda_viva():
                 except Exception:
                     ordenes = {}
                 for tid, v in propias.items():
-                    ordenes[tid] = {"accion": "reabrir", "quien": "director",
-                                    "motivo": str((v or {}).get("nota") or "")[:160],
-                                    "t": time.strftime("%Y-%m-%d %H:%M:%S")}
+                    ordenes[tid] = {
+                        "accion": "reabrir",
+                        "quien": "director",
+                        "motivo": str((v or {}).get("nota") or "")[:160],
+                        "t": time.strftime("%Y-%m-%d %H:%M:%S"),
+                    }
                 tmp = ruta_ctrl + ".tmp"
-                json.dump(ordenes, open(tmp, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+                json.dump(
+                    ordenes,
+                    open(tmp, "w", encoding="utf-8"),
+                    ensure_ascii=False,
+                    indent=1,
+                )
                 os.replace(tmp, ruta_ctrl)
                 # La corrección NO se borra: un orquestador anterior a `reabrir` se traga
                 # la orden sin entenderla, y la tarea se perdería en silencio. Se queda
                 # para aplicarse cuando la tanda muera (2026-09-20).
                 _REABIERTAS.update(propias)
-                print("reabrir pedido en la tanda viva:", ", ".join(propias), flush=True)
+                print(
+                    "reabrir pedido en la tanda viva:", ", ".join(propias), flush=True
+                )
         except Exception as e:  # noqa: BLE001
             print("reabrir (vivo): %s: %s" % (type(e).__name__, e), flush=True)
 
     # 2) pendientes nuevas → a la cola viva
-    nuevas = [t for t in _pendientes_sin_correcciones() if str(t.get("id")) not in en_cola]
+    nuevas = [
+        t for t in _pendientes_sin_correcciones() if str(t.get("id")) not in en_cola
+    ]
     if not nuevas:
         return []
     lista.extend(nuevas)
@@ -236,7 +291,10 @@ def alimentar_tanda_viva():
     json.dump(d, open(tmp, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
     os.replace(tmp, ruta)
     ids = [str(t.get("id")) for t in nuevas]
-    print("tanda viva alimentada (%s): %s" % (os.path.basename(ruta), ", ".join(ids)), flush=True)
+    print(
+        "tanda viva alimentada (%s): %s" % (os.path.basename(ruta), ", ".join(ids)),
+        flush=True,
+    )
     return ids
 
 
@@ -274,8 +332,11 @@ def _pendientes_sin_correcciones():
         chocan = ids_colisionados(tareas, asuntos, prog)
         if chocan and not _AVISADAS.issuperset(chocan):
             _AVISADAS.update(chocan)
-            print("aviso: %s trae ids que otra ola ya integró (se saltan; renómbralos): %s"
-                  % (nombre, ", ".join(chocan)), flush=True)
+            print(
+                "aviso: %s trae ids que otra ola ya integró (se saltan; renómbralos): %s"
+                % (nombre, ", ".join(chocan)),
+                flush=True,
+            )
     return seleccionar_pendientes(colas, prog, asuntos)
 
 
@@ -338,6 +399,198 @@ def detalle_cambios_sin_commit():
     return "\n".join(salida[:5])[:300]
 
 
+def _porcelain_lineas():
+    """`git status --porcelain` en RAIZ, línea a línea y sin recortar."""
+    try:
+        salida = subprocess.run(
+            ["git", "status", "--porcelain"],
+            cwd=RAIZ,
+            capture_output=True,
+            text=True,
+            timeout=15,
+        ).stdout.splitlines()
+    except Exception:
+        return []
+    return [l for l in salida if l.strip()]
+
+
+def _segundos_etime(etexto):
+    """`etime` de ps ([[DD-]HH:]MM:SS) → segundos; 0 si no se entiende."""
+    try:
+        dias, _, resto = etexto.partition("-")
+        if not resto:
+            dias, resto = "0", dias
+        piezas = [int(x) for x in resto.split(":")]
+        piezas = ([0] * (3 - len(piezas))) + piezas
+        return int(dias) * 86400 + piezas[0] * 3600 + piezas[1] * 60 + piezas[2]
+    except (ValueError, IndexError):
+        return 0
+
+
+def _worktree_de_args(args):
+    """La ruta absoluta del worktree dentro de la línea de órdenes, si aparece
+    (el prompt de cada agente empieza nombrando su raíz)."""
+    for token in args.split():
+        ruta = token.strip("`\"'.,:;")
+        if ruta.startswith("/") and os.path.isdir(ruta):
+            return ruta
+    return ""
+
+
+def _ultimo_byte_de(ruta):
+    """La mtime MÁS RECIENTE de todo lo que cuelga de `ruta`, recorrida
+    recursivamente (saltando .git y node_modules), igual que `_firma_trabajo`
+    del orquestador mide el trabajo real. La mtime del DIRECTORIO raíz no sirve:
+    solo cambia al crear o borrar entradas en él, no al escribir dentro de
+    subcarpetas, y fiarse de ella mataba trabajadores sanos que llevaban media
+    hora editando `src/lib/x.ts` (objeción de revisión de 2026-09-14)."""
+    try:
+        if os.path.isfile(ruta):
+            return os.path.getmtime(ruta)
+    except OSError:
+        return 0
+    mas_reciente = 0.0
+    for base, carpetas, archivos in os.walk(ruta):
+        carpetas[:] = [c for c in carpetas if c not in (".git", "node_modules")]
+        for nombre in carpetas + archivos:
+            try:
+                m = os.path.getmtime(os.path.join(base, nombre))
+            except OSError:
+                continue
+            if m > mas_reciente:
+                mas_reciente = m
+    return mas_reciente
+
+
+def listar_trabajadores(ahora=None):
+    """Los `opencode run` vivos, cada uno con pid, tarea (nombre del worktree),
+    instante de arranque y `ultimo_byte` medido de verdad. Jamás con pkill ni
+    grep del prompt: solo se miran líneas de `ps`."""
+    ahora = ahora or time.time()
+    try:
+        salida = subprocess.run(
+            ["ps", "-eo", "pid,etime,args"], capture_output=True, text=True, timeout=20
+        ).stdout
+    except Exception:
+        return []  # sin lista fiable no se mata a nadie
+    procesos = []
+    for linea in salida.splitlines():
+        partes = linea.split(None, 2)
+        if len(partes) < 3 or not partes[0].isdigit():
+            continue
+        pid, args = int(partes[0]), partes[2]
+        if "opencode" not in args or "run" not in args.split():
+            continue
+        trabajo = _worktree_de_args(args)
+        procesos.append(
+            {
+                "pid": pid,
+                "tarea": os.path.basename(trabajo) if trabajo else "?",
+                "inicio": ahora - _segundos_etime(partes[1]),
+                "ultimo_byte": _ultimo_byte_de(trabajo) if trabajo else 0,
+                "propio": pid == os.getpid(),
+            }
+        )
+    return procesos
+
+
+def matar_colgados(decir=None):
+    """Mata SOLO los trabajadores que `colgados_a_matar` marca, con kill por pid.
+
+    `pkill -f` está prohibido aquí y para siempre: el texto del prompt de un
+    agente cita el nombre de otros procesos y el patrón mata lo que no debe;
+    ya nos llevamos por delante el propio vigilante una vez. Cada matanza se
+    anuncia con UNA línea en el canal."""
+    avisar = decir or _p.decir
+    ahora = time.time()
+    procesos = listar_trabajadores(ahora)
+    por_pid = {p["pid"]: p for p in procesos}
+    for pid in colgados_a_matar(procesos, ahora, COLGADO_S):
+        p = por_pid.get(pid) or {}
+        ultimo = p.get("ultimo_byte") or p.get("inicio") or ahora
+        minutos = int((ahora - ultimo) // 60)
+        try:
+            subprocess.run(["kill", "-TERM", str(pid)], capture_output=True, timeout=10)
+            time.sleep(5)
+            try:
+                os.kill(pid, 0)
+            except ProcessLookupError:
+                pass  # el TERM bastó: salió limpio
+            else:
+                subprocess.run(
+                    ["kill", "-9", str(pid)], capture_output=True, timeout=10
+                )
+        except Exception as e:  # noqa: BLE001
+            print("matar %s: %s: %s" % (pid, type(e).__name__, e), flush=True)
+            continue
+        avisar(
+            "mato el trabajador de %s: %d min sin escribir un byte"
+            % (p.get("tarea", "?"), minutos),
+            "vigilante",
+            "aviso",
+        )
+
+
+def curar_arbol_sucio(decir=None):
+    """Clasifica lo que ensucia `main` y aparta el estorbo; el trabajo no se toca.
+
+    Devuelve True si tras la cura el árbol queda limpio: el arranque puede
+    reintentarse en la misma pasada. Devuelve False si queda trabajo real, y
+    entonces se avisa con la lista de archivos, para que nadie vuelva a perder
+    dos horas averiguando QUÉ bloqueaba el arranque."""
+    avisar = decir or _p.decir
+    grupos = clasificar_arbol_sucio(_porcelain_lineas())
+    if grupos["estorbo"]:
+        destino = os.path.join(APARTADO, time.strftime("%Y-%m-%d"))
+        os.makedirs(destino, exist_ok=True)
+        movidos = []
+        for ruta in grupos["estorbo"]:
+            origen = os.path.join(RAIZ, ruta)
+            if not os.path.exists(origen):
+                continue
+            shutil.move(origen, os.path.join(destino, os.path.basename(ruta)))
+            movidos.append(ruta)
+        if movidos:
+            avisar(
+                "estorbo sin seguimiento apartado en _apartado/%s (NO borrado): %s"
+                % (os.path.basename(destino), ", ".join(movidos)),
+                "vigilante",
+                "aviso",
+            )
+    if grupos["trabajo"]:
+        avisar(
+            "cambios sin commit que bloquean el arranque (NO los toco; hay que "
+            "decidir sobre ellos): %s" % ", ".join(grupos["trabajo"]),
+            "vigilante",
+            "fallo",
+        )
+        return False
+    return not _porcelain_lineas()
+
+
+def esperar_reintento(motivo):
+    """Espera tras un fallo de arranque, pero DESPIERTA cada INTERVALO_S.
+
+    Antes dormía PAUSA_TRAS_FALLO_S de una pieza: un árbol que se limpiaba al
+    minuto seguía parado nueve más. Ahora cada despertar recalcula si la causa
+    sigue (`git status` fresco si el motivo fue el árbol sucio) y
+    `debe_reintentar_ya` decide. El techo duro es la pausa entera, así aunque
+    la causa nunca desaparezca el vigilante no se queda dormido para siempre
+    (objeción de revisión de 2026-09-14)."""
+    inicio = time.time()
+    while time.time() - inicio < PAUSA_TRAS_FALLO_S:
+        causa_sigue = (
+            bool(_porcelain_lineas())
+            if "cambios sin commit" in (motivo or "")
+            else True
+        )
+        if debe_reintentar_ya(
+            motivo, causa_sigue, time.time() - inicio, PAUSA_TRAS_FALLO_S
+        ):
+            return
+        time.sleep(INTERVALO_S)
+
+
 def main():
     print(
         "Vigilante del enjambre · cada %ss · tope %d tareas por tanda"
@@ -357,9 +610,16 @@ def main():
             barrer_cerrojos()
             if hay:
                 try:
+                    matar_colgados()
+                except Exception as e:  # noqa: BLE001
+                    print("matar_colgados: %s: %s" % (type(e).__name__, e), flush=True)
+                try:
                     alimentar_tanda_viva()
                 except Exception as e:  # noqa: BLE001
-                    print("alimentar_tanda_viva: %s: %s" % (type(e).__name__, e), flush=True)
+                    print(
+                        "alimentar_tanda_viva: %s: %s" % (type(e).__name__, e),
+                        flush=True,
+                    )
             cola = [] if hay else pendientes()
             cfg, _avisos = config_director.cargar()
             relanzar, trabajadores, tope = decidir_relanzamiento(cfg, hay, len(cola))
@@ -385,7 +645,12 @@ def main():
                         if detalle:
                             aviso += "\nworking tree:\n" + detalle
                     _p.decir(aviso, "vigilante", "fallo")
-                    time.sleep(PAUSA_TRAS_FALLO_S)
+                    if "cambios sin commit" in motivo:
+                        # Si era SOLO estorbo, el árbol queda limpio ya mismo y el
+                        # arranque se reintenta en la próxima pasada, no en 10 min.
+                        if curar_arbol_sucio():
+                            continue
+                    esperar_reintento(motivo)
             elif cfg.get("pausado"):
                 callado_desde = None
                 ahora = time.time()
