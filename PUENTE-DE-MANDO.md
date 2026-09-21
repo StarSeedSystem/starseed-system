@@ -1,6 +1,6 @@
 # Puente de Mando · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-21 06:56:04 desde el Mando vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-21 08:03:17 desde el Mando vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -16,21 +16,15 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | Agentes escribiendo | **0** |
 | En esta ola | integradas 1 · en curso 0 · esperando aprobación 0 · pendientes 0 |
 | Últimas 4 olas | en curso 0 · pendientes 0 · integradas 14 |
-| HEAD | `e7fd8772 chore(memoria): aprendizaje de la ola auto-0921-051514` |
-| Sin publicar | 62 commits |
+| HEAD | `e6b7fa10 chore(memoria): aprendizaje de la ola auto-0921-065808` |
+| Sin publicar | 64 commits |
 | Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-auto-0921-051514.json`, hace 5s)
+## Quién escribe ahora (latido de `cola-auto-0921-065808.json`, hace 5s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `JV12` | hecho | google/gemini-3.6-flash | 2 min | 119 s | 183169 |
-| `JV10` | hecho | codex/gpt-5.6-sol | 19 min | 1119 s | 939589 |
-| `JV8` | hecho | - | 22 min | 1316 s | 769391 |
-| `JV9` | hecho | codex/gpt-5.6-sol | 48 min | 2852 s | 2048504 |
-| `AS2` | hecho | codex/gpt-5.6-sol | 52 min | 3120 s | 6232554 |
-| `JV7` | hecho | google/gemini-3.6-flash | 86 min | 5188 s | 189314 |
-| `AS3` | hecho | google/gemini-3.6-flash | 88 min | 5273 s | 59572 |
+| `JV8` | hecho | - | 2 min | 118 s | 950781 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
