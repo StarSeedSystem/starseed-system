@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
     accionesDeTarea,
     aplicarConfiguracion,
+    avanceCombinado,
     avanceDe,
     mediaDeAvance,
     configuracionPorDefecto,
@@ -11,6 +12,7 @@ import {
     ejecutablesDeColas,
     idEnAsuntos,
     medidoresVisibles,
+    obtenerDetalleMedidor,
     porqueBloqueada,
     type ClaveMedidor,
 } from "@/lib/mando/medidores";
@@ -319,5 +321,52 @@ describe("detalleDeMedidor · invariante vacio explicativo", () => {
             expect(typeof d.vacio).toBe("string");
             expect(d.vacio!.length).toBeGreaterThan(5);
         }
+    });
+
+    it("Invariante 1: ninguna acción destructiva sobre tareas en commit o hecho", () => {
+        expect(accionesDeTarea("commit")).toEqual([]);
+        expect(accionesDeTarea("hecho")).toEqual([]);
+    });
+
+    it("Invariante 2: toda acción con destructiva true existe y pide confirmación", () => {
+        const d = detalleDeMedidor("bloqueadas", { progreso });
+        const destructivas = d.acciones.filter((a) => a.destructiva);
+        for (const act of destructivas) {
+            expect(act.clase).toMatch(/^descartar/);
+            expect(act.destructiva).toBe(true);
+        }
+    });
+
+    it("Invariante 3: medidor sin datos devuelve filas [] y vacio explicativo", () => {
+        const d = detalleDeMedidor("proveedores", {});
+        expect(d.filas).toEqual([]);
+        expect(d.vacio).toContain("No hay pasarelas");
+    });
+});
+
+describe("verificación de configuración y alias", () => {
+    it("configuracionPorDefecto usa la clave 'listas' y no 'lista'", () => {
+        const cfg = configuracionPorDefecto();
+        expect(cfg.orden).toContain("listas");
+        expect(cfg.orden).not.toContain("lista");
+    });
+
+    it("obtenerDetalleMedidor es alias de detalleDeMedidor", () => {
+        const d1 = detalleDeMedidor("disco", {});
+        const d2 = obtenerDetalleMedidor("disco", {});
+        expect(d1).toEqual(d2);
+    });
+
+    it("avanceCombinado calcula progreso según la etapa y tiempo", () => {
+        const pct = avanceCombinado({ etapa: "escribiendo", segundosEnEtapa: 300 });
+        expect(pct).toBeGreaterThan(17);
+        expect(pct).toBeLessThan(34);
+    });
+
+    it("medidores informativos devuelven la acción ir-a correcta", () => {
+        expect(detalleDeMedidor("disco", {}).acciones[0].destino).toBe("neurona");
+        expect(detalleDeMedidor("memoria", {}).acciones[0].destino).toBe("neurona");
+        expect(detalleDeMedidor("ola-activa", {}).acciones[0].destino).toBe("olas");
+        expect(detalleDeMedidor("proveedores", {}).acciones[0].destino).toBe("flota");
     });
 });

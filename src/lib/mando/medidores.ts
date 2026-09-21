@@ -273,6 +273,7 @@ export interface DatosMedidores {
     latidos: { tarea: string; fase: string; modelo: string; minutos: number; donde: string; proveedor?: string }[];
     commitsSinPublicar: { sha: string; asunto: string; fecha?: string }[];
     ejecutables: { id: string; titulo: string; ola?: string }[];
+    colas?: { id: string; titulo?: string; ola?: string; cola?: string }[];
     /** Asuntos recientes de `main`; ausente si Git no pudo leerse. */
     asuntosDeMain?: string | null;
     proveedores: { id: string; estado: string; motivo?: string }[];
@@ -496,9 +497,12 @@ export function detalleDeMedidor(
             const asuntosDisponibles = typeof asuntosDeMain === "string";
             // Sin una lectura fiable no se adivina: ocultar trabajo válido sería
             // peor que mostrarlo y avisar con claridad de que falta comprobar Git.
-            const ejecutables = asuntosDisponibles
-                ? d.ejecutables.filter((t) => !idIntegradoEnAsuntos(t.id, asuntosDeMain))
+            const baseEjecutables = d.colas && d.ejecutables.length === 0
+                ? ejecutablesDeColas(d.colas, d.progreso, asuntosDeMain ?? "")
                 : d.ejecutables;
+            const ejecutables = asuntosDisponibles
+                ? baseEjecutables.filter((t) => !idIntegradoEnAsuntos(t.id, asuntosDeMain))
+                : baseEjecutables;
             const avisoGit = asuntosDisponibles
                 ? ""
                 : " · no se pudieron leer los asuntos de Git; no se filtró por commits";
@@ -618,3 +622,6 @@ export function medidoresVisibles(cfg: ConfiguracionMedidores): ClaveMedidor[] {
     const olvidados = ORDEN_POR_DEFECTO.filter((c) => !cfg.orden.includes(c) && !cfg.ocultos.includes(c));
     return [...pedidos, ...olvidados];
 }
+
+/** Alias para obtenerDetalleMedidor para compatibilidad de interfaz. */
+export const obtenerDetalleMedidor = detalleDeMedidor;
