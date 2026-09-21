@@ -161,8 +161,19 @@ jobs:
             git push origin "HEAD:refs/heads/nube/${{ github.run_id }}"
             echo "rama nube/${{ github.run_id }} con $n commit(s)"
           else
-            echo "nada que entregar"
+            echo "nada que entregar en main"
           fi
+          # (2026-09-20) Las ramas `ola/<id>` de las tareas que NO pasaron sus puertas se
+          # conservan... DENTRO del runner, que se borra. CU3r escribio 998 segundos, fallo
+          # tsc por un error, y todo ese trabajo se iba a la basura: en la Mac esa rama se
+          # conserva y se repara, aqui moria con la maquina. Se empujan tambien, con su
+          # nombre bajo el run, para que la Mac pueda recogerlas y arreglarlas.
+          for rama in $(git for-each-ref --format='%(refname:short)' 'refs/heads/ola/*'); do
+            c=$(git log --oneline "origin/main..$rama" | wc -l)
+            [ "$c" -gt 0 ] || continue
+            git push -q origin "$rama:refs/heads/nube/${{ github.run_id }}/$rama" || continue
+            echo "rama conservada: nube/${{ github.run_id }}/$rama ($c commit(s))"
+          done
 
       - name: Rastro (log, latidos, progreso)
         if: always()
