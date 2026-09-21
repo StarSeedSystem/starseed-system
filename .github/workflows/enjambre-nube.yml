@@ -63,6 +63,14 @@ jobs:
       STARSEED_MEDIO: nube-gh
       STARSEED_ROOT: ${{ github.workspace }}
       NEEDLE_TELEMETRY: "0"
+      # (2026-09-20) EN LA NUBE NO HAY NADIE QUE APRUEBE. El run 35554919550 escribio su
+      # tarea, paso las puertas, levanto la puerta de aprobacion... y se quedo 99 MINUTOS
+      # repitiendo «AX2 esperando aprobación · 0 integradas» hasta que el tope lo mato. En
+      # la Mac esa puerta la resuelve el director en 6-8 min; aqui no hay director ni Alex.
+      # Con 10 minutos, la tarea queda «pendiente_aprobacion» con su rama conservada, el
+      # job termina y la Mac la recoge. Esperar dos horas a un humano que no existe no es
+      # prudencia: es tirar el medio entero.
+      STARSEED_ESPERA_APROBACION_S: "600"
       NODE_OPTIONS: --max-old-space-size=6144
     steps:
       - uses: actions/checkout@v4
@@ -134,7 +142,11 @@ jobs:
           # creaba impedia arrancar el proceso que ese paso iba a lanzar.
           LOG="$RUNNER_TEMP/enjambre-nube-gh.log"
           mkdir -p starseed_memory_root/olas
-          timeout "${{ inputs.minutos }}m" python3 -u "$ORQ" "${{ inputs.cola }}" --workers "${{ inputs.trabajadores }}" 2>&1 | tee "$LOG" || true
+          # `timeout` a secas manda SIGTERM y se queda esperando: el orquestador lanza agentes
+          # (opencode) que no siempre se mueren con eso, y el run 35554919550 seguia vivo
+          # DIEZ MINUTOS despues de su tope de 120. Con `-k 60` se manda SIGKILL un minuto
+          # despues, que es lo unico que no se puede ignorar.
+          timeout -k 60 "${{ inputs.minutos }}m" python3 -u "$ORQ" "${{ inputs.cola }}" --workers "${{ inputs.trabajadores }}" 2>&1 | tee "$LOG" || true
           n=$(git log --oneline origin/main..HEAD | wc -l)
           echo "commits por entregar: $n"
           if [ "$n" = "0" ]; then
