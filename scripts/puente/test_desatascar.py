@@ -39,12 +39,25 @@ class TestPuertas(unittest.TestCase):
         p = {"A": {"estado": "esperando_aprobacion", "revisor": "bloqueante", "t": _hace(60, self.ahora)}}
         self.assertEqual([x[0] for x in d.puertas_a_rechazar(p, self.ahora)], ["A"])
 
-    def test_alcance_incompleto_se_rechaza(self):
+    def test_alcance_incompleto_ya_no_se_rechaza_solo_por_eso(self):
+        """(2026-09-21) Cambio de politica: ver test_alcance_parcial.py.
+
+        Tirar una rama con las cuatro puertas en verde porque falta un archivo
+        costo 2 h 30 min de agentes en una sola noche. Ahora se integra lo hecho
+        y lo que falta sale como tarea de seguimiento.
+        """
         p = {"C": {"estado": "esperando_aprobacion", "revisor": "respondio",
                    "faltan": ["x.py"], "t": _hace(60, self.ahora)}}
-        salida = d.puertas_a_rechazar(p, self.ahora)
-        self.assertEqual(salida[0][0], "C")
-        self.assertIn("x.py", salida[0][1])
+        self.assertEqual(d.puertas_a_rechazar(p, self.ahora), [])
+        _, parciales = d.clasificar_puertas(p, self.ahora, {"C": ["x.py", "y.py"]})
+        self.assertEqual([x[0] for x in parciales], ["C"])
+
+    def test_alcance_vacio_del_todo_si_se_rechaza(self):
+        """No tocar NINGUN archivo declarado es otra cosa: hizo otro trabajo."""
+        p = {"C": {"estado": "esperando_aprobacion", "revisor": "respondio",
+                   "faltan": ["x.py"], "t": _hace(60, self.ahora)}}
+        rech, _ = d.clasificar_puertas(p, self.ahora, {"C": ["x.py"]})
+        self.assertEqual([x[0] for x in rech], ["C"])
 
     def test_puerta_en_verde_no_se_toca(self):
         p = {"B": {"estado": "esperando_aprobacion", "revisor": "respondio",

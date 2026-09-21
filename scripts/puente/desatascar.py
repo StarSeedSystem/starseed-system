@@ -17,15 +17,28 @@ Por qué existe (medido el 2026-09-13, tres veces en un día):
 Las tres decisiones son puras y se prueban; las acciones van aparte y devuelven
 frases para el canal, de modo que el director solo tenga que decirlas.
 
-REGLA QUE NO SE TOCA: aquí NUNCA se aprueba una puerta. Rechazar una revisión
-bloqueante es ejecutar un veredicto que ya existe; aprobar sin mirar es
-exactamente lo que la puerta impide (Ola 261).
+REGLA: aquí no se aprueba nada sin mirar. Rechazar una revisión bloqueante es
+ejecutar un veredicto que ya existe; aprobar a ciegas es exactamente lo que la
+puerta impide (Ola 261).
+
+La única aprobación que sale de aquí (2026-09-21) es la de una rama con las
+CUATRO PUERTAS EN VERDE, revisión sin pegas y un solo defecto: le faltan
+archivos de su alcance. Esa se integra y lo que falta sale como tarea de
+seguimiento. No es relajar el listón —el listón lo puso tsc, vitest, unittest y
+next build, y lo pasó—: es dejar de tirar código verde. Anoche costó 2 h 30 min
+de agentes (NE1c, R6b, R7b). Si la revisión pone una pega, o si el agente no
+tocó ninguno de sus archivos, se sigue rechazando.
 """
 
+import json
 import os
 import shutil
 import subprocess
 import time
+
+RAIZ = os.environ.get("STARSEED_ROOT") or os.path.expanduser(
+    "~/Documents/starseed-os-main"
+)
 
 SUFIJOS_ESTORBO = (".log", ".new", ".tmp", ".orig", ".rej", ".bak", "~")
 NOMBRES_ESTORBO = {".DS_Store"}
@@ -56,31 +69,109 @@ def clasificar_sucio(lineas):
     return estorbo, trabajo
 
 
-def puertas_a_rechazar(progreso, ahora, tope_min=6):
-    """Puertas cuyo veredicto ya está dado y solo falta ejecutarlo.
+def clasificar_puertas(progreso, ahora, declarados_por_id=None, tope_min=6):
+    """Reparte las puertas paradas en (rechazar, aprobar_con_seguimiento).
 
-    El tope es corto (6 min) a propósito: una revisión bloqueante o un alcance
-    incompleto son veredictos YA dados, y esperar no añade información — solo
-    congela el enjambre entero. Con 20 min cada atasco costaba media hora de
-    agentes parados (medido el 2026-09-14). Una puerta en VERDE no la toca
-    nadie: esa sí espera a una persona, el tiempo que haga falta.
+    El tope es corto (6 min) a propósito: una revisión bloqueante es un
+    veredicto YA dado, y esperar no añade información — solo congela el
+    enjambre entero. Con 20 min cada atasco costaba media hora de agentes
+    parados (medido el 2026-09-14). Una puerta en VERDE no la toca nadie: esa
+    sí espera a una persona, el tiempo que haga falta.
 
-    Devuelve [(id, motivo)]. Solo entran las que llevan más de `tope_min` en la
-    puerta Y tienen revisión bloqueante o alcance incompleto. Una puerta en
-    verde no se toca: esa la decide una persona.
+    (2026-09-21) El «alcance incompleto» ya NO es motivo de rechazo por sí
+    solo, y esta es la corrección más cara del mes. Anoche se tiraron NE1c
+    (3672 s de agente, faltaba 1 archivo de 3), R6b (2920 s, faltaban 2 de 6) y
+    R7b (2882 s, faltaban 4 de 9): dos horas y media de trabajo con las cuatro
+    puertas EN VERDE y la revisión sin pegas, a la basura por no haber tocado
+    todos los archivos declarados. Tirar código verde y útil para volver a
+    pedirlo entero es la peor economía posible. Desde hoy:
+
+      · revisión bloqueante           → rechazar (hay un defecto de verdad)
+      · no tocó NINGÚN archivo suyo   → rechazar (hizo otra cosa)
+      · tocó algunos pero no todos    → APROBAR e integrar lo verde, y el resto
+                                        sale como tarea de seguimiento, pequeña
+                                        y con los archivos que faltan escritos
+      · verde y completa              → no se toca: la decide una persona
+
+    `declarados_por_id` es {id: [archivos declarados]}, de la cola viva. Sin él
+    no se puede saber si tocó algo, y entonces se es prudente: se aprueba con
+    seguimiento en vez de tirar el trabajo.
+
+    Devuelve ([(id, motivo)], [(id, motivo, faltan)]).
     """
-    fuera = []
+    declarados_por_id = declarados_por_id or {}
+    a_rechazar, a_aprobar = [], []
     for tid, e in sorted((progreso or {}).items()):
         if not isinstance(e, dict) or e.get("estado") != "esperando_aprobacion":
             continue
         if _minutos(e.get("t"), ahora) < tope_min:
             continue
         if e.get("revisor") == "bloqueante":
-            fuera.append((tid, "revisión bloqueante confirmada"))
-        elif e.get("faltan"):
-            faltan = ", ".join(str(x) for x in list(e["faltan"])[:3])
-            fuera.append((tid, "alcance incompleto: faltan %s" % faltan))
-    return fuera
+            a_rechazar.append((tid, "revisión bloqueante confirmada"))
+            continue
+        faltan = [str(x) for x in (e.get("faltan") or [])]
+        if not faltan:
+            continue
+        declarados = [str(x) for x in (declarados_por_id.get(tid) or [])]
+        tocados = len(declarados) - len(faltan)
+        if declarados and tocados <= 0:
+            a_rechazar.append(
+                (tid, "no tocó ninguno de sus %d archivos" % len(declarados))
+            )
+            continue
+        resumen = ", ".join(faltan[:3])
+        if declarados:
+            motivo = "alcance parcial: %d de %d archivos hechos; falta %s" % (
+                tocados,
+                len(declarados),
+                resumen,
+            )
+        else:
+            motivo = "alcance parcial: falta %s" % resumen
+        a_aprobar.append((tid, motivo, faltan))
+    return a_rechazar, a_aprobar
+
+
+def puertas_a_rechazar(progreso, ahora, tope_min=6):
+    """Solo las que hay que tirar. Ver `clasificar_puertas`."""
+    return clasificar_puertas(progreso, ahora, None, tope_min)[0]
+
+
+def seguimiento_de(tid, entrada, tarea, faltan):
+    """La tarea pequeña que recoge lo que la grande dejó sin tocar.
+
+    Lleva los archivos que faltan y NADA más: el resto ya está integrado. El
+    encargo dice qué se integró y con qué sha, para que el agente no rehaga lo
+    hecho ni dé por supuesto que el archivo está vacío.
+    """
+    faltan = [str(x) for x in (faltan or [])]
+    base = dict(tarea or {})
+    nid = "%ss" % tid
+    sha = str((entrada or {}).get("sha") or "")[:12]
+    titulo = str(base.get("titulo") or tid)
+    encargo = (
+        "SEGUIMIENTO de %s, que ya está integrada%s. Las cuatro puertas pasaron "
+        "en verde y la revisión no puso pegas, pero el agente no llegó a tocar "
+        "estos archivos: %s.\n\n"
+        "Tu encargo es SOLO esos archivos. No rehagas lo que ya está: léelo "
+        "primero y engánchate a lo que hay. Tarea original: %s"
+        % (tid, (" (sha %s)" % sha) if sha else "", ", ".join(faltan), titulo)
+    )
+    if base.get("prompt"):
+        encargo += "\n\n--- encargo original, como contexto ---\n%s" % str(
+            base["prompt"]
+        )[:2000]
+    base.update(
+        {
+            "id": nid,
+            "titulo": "%s · lo que faltó: %s" % (titulo, ", ".join(faltan[:2])),
+            "archivos": faltan,
+            "prompt": encargo,
+            "depende_de": [],
+            "origen": "seguimiento de alcance parcial",
+        }
+    )
+    return base
 
 
 def orquestador_atascado(vivo, n_agentes, minutos_sin_avance, tope_min=8):
@@ -295,6 +386,80 @@ def rechazar_puertas(puertas, binario="starseed-puente", avisar=avisar_por_teleg
     return frases
 
 
+def _tareas_de_las_colas(olas=None):
+    """{id: tarea} de todas las colas. Para saber qué archivos declaró cada una."""
+    olas = olas or os.path.join(RAIZ, "starseed_memory_root", "olas")
+    fuera = {}
+    try:
+        nombres = sorted(os.listdir(olas))
+    except OSError:
+        return fuera
+    for n in nombres:
+        if not (n.startswith("cola-") and n.endswith(".json")):
+            continue
+        try:
+            d = json.load(open(os.path.join(olas, n), encoding="utf-8"))
+        except Exception:
+            continue
+        tareas = d if isinstance(d, list) else (d.get("tareas") or d.get("trabajos"))
+        if not isinstance(tareas, list):
+            continue
+        for t in tareas:
+            if isinstance(t, dict) and t.get("id"):
+                fuera.setdefault(str(t["id"]), t)
+    return fuera
+
+
+def aprobar_con_seguimiento(
+    puertas, progreso=None, tareas=None, binario="starseed-puente", olas=None
+):
+    """Integra lo verde y deja escrito, como tarea, lo que quedó sin tocar.
+
+    Aprobar aquí no es relajar el listón: las cuatro puertas ya pasaron y la
+    revisión no puso pegas. Lo único que faltaba era alcance, y el alcance se
+    recupera con una tarea pequeña — no tirando el trabajo hecho.
+    """
+    olas = olas or os.path.join(RAIZ, "starseed_memory_root", "olas")
+    tareas = tareas if tareas is not None else _tareas_de_las_colas(olas)
+    progreso = progreso or {}
+    frases, seguimientos = [], []
+    for tid, motivo, faltan in puertas:
+        try:
+            r = subprocess.run(
+                [binario, "aprobar", tid], capture_output=True, text=True, timeout=30
+            )
+            ok = r.returncode == 0
+        except Exception:
+            ok = False
+        if not ok:
+            frases.append("no pude aprobar %s (%s)" % (tid, motivo))
+            continue
+        frases.append("integro %s y encolo lo que faltó (%s)" % (tid, motivo))
+        seguimientos.append(
+            seguimiento_de(tid, progreso.get(tid) or {}, tareas.get(tid) or {}, faltan)
+        )
+    if seguimientos:
+        ruta = os.path.join(olas, "cola-seguimientos.json")
+        try:
+            previas = json.load(open(ruta, encoding="utf-8"))
+            if not isinstance(previas, list):
+                previas = []
+        except Exception:
+            previas = []
+        ya = {t.get("id") for t in previas if isinstance(t, dict)}
+        previas += [t for t in seguimientos if t.get("id") not in ya]
+        try:
+            with open(ruta, "w", encoding="utf-8") as f:
+                json.dump(previas, f, ensure_ascii=False, indent=1)
+            frases.append(
+                "seguimientos en cola-seguimientos.json: %s"
+                % ", ".join(t["id"] for t in seguimientos)
+            )
+        except OSError as exc:
+            frases.append("no pude escribir los seguimientos (%s)" % exc)
+    return frases
+
+
 def trabajadores_opencode(ahora):
     """Lista de {pid, tarea, ultimo_byte} de los `opencode run` vivos."""
     try:
@@ -372,11 +537,19 @@ def desatascar(raiz, vivo, n_agentes, progreso, ahora=None, ruta_estado=None):
     # regalar minutos de enjambre parado. (2026-09-14: R7 llevaba 11 min en la
     # puerta con alcance incompleto y el desatascador no la miraba porque el
     # reloj del atasco se había reiniciado con un commit mío.)
-    puertas = puertas_a_rechazar(progreso, ahora)
+    tareas_conocidas = _tareas_de_las_colas()
+    declarados = {
+        i: list(t.get("archivos") or []) for i, t in tareas_conocidas.items()
+    }
+    puertas, parciales = clasificar_puertas(progreso, ahora, declarados)
     if puertas:
         frases += rechazar_puertas(puertas)
+    if parciales:
+        frases += aprobar_con_seguimiento(
+            parciales, progreso=progreso, tareas=tareas_conocidas
+        )
 
     atascado, razon = orquestador_atascado(vivo, len(procesos), quieto)
-    if atascado and not puertas:
+    if atascado and not puertas and not parciales:
         frases.append("ATASCO: orquestador %s y no hay nada que yo pueda resolver solo" % razon)
     return frases
