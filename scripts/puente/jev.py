@@ -129,6 +129,23 @@ def _anotar_uso(respuesta, segundos, hoy=None, medio="openrouter", ms=0.0):
     )
     dia["llamadas"] += 1
     dia["coste_usd"] = round(dia["coste_usd"] + coste, 8)
+    # (2026-09-21) El desglose por medio vivia SOLO al nivel global del archivo, y el
+    # medidor del Puente lo busca dentro de cada dia: por eso enseñaba «local 0 ·
+    # openrouter 0» llevando 892 decisiones. Se anota tambien por dia, que es la pregunta
+    # que de verdad se hace quien mira el medidor: hoy, ¿cuanto fue gratis y cuanto no?
+    pm_dia = dia.setdefault("por_medio", {}).setdefault(
+        medio, {"llamadas": 0, "coste_usd": 0.0, "ms": []}
+    )
+    pm_dia["llamadas"] = pm_dia.get("llamadas", 0) + 1
+    pm_dia["coste_usd"] = round(pm_dia.get("coste_usd", 0.0) + coste, 8)
+    lista_dia = pm_dia.setdefault("ms", [])
+    lista_dia.append(round(float(ms) or 0.0, 1))
+    if len(lista_dia) > 200:
+        del lista_dia[:-200]
+    # Y los techos se escriben AQUI, donde se deciden. El medidor los llevaba escritos a
+    # mano (0,05 y 1) y siguio enseñandolos despues de subirlos a 0,20 y 2: dos sitios
+    # para el mismo numero, otra vez. Quien manda es este archivo.
+    uso["topes"] = {"dia": PRESUPUESTO_DIA_USD, "mes": PRESUPUESTO_MES_USD}
     pm = uso.setdefault("por_medio", {}).setdefault(
         medio, {"llamadas": 0, "coste_usd": 0.0, "ms": []}
     )

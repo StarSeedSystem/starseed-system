@@ -25,6 +25,14 @@ function techo(nombre: "STARSEED_JEV_DIA_USD" | "STARSEED_JEV_MES_USD", respaldo
     return Number.isFinite(valor) && valor >= 0 ? valor : respaldo;
 }
 
+/** Los techos que jev.py dejó escritos en su archivo de uso. Nulos si aún no los escribió. */
+function topesDe(uso: unknown): { dia: number | null; mes: number | null } {
+    const raiz = uso && typeof uso === "object" ? (uso as Record<string, unknown>) : {};
+    const t = raiz.topes && typeof raiz.topes === "object" ? (raiz.topes as Record<string, unknown>) : {};
+    const num = (v: unknown): number | null => (Number.isFinite(Number(v)) && Number(v) >= 0 ? Number(v) : null);
+    return { dia: num(t.dia), mes: num(t.mes) };
+}
+
 function fechaLocal(): string {
     const ahora = new Date();
     const mes = String(ahora.getMonth() + 1).padStart(2, "0");
@@ -60,12 +68,19 @@ export async function GET(peticion: Request): Promise<Response> {
     const veto = await guardianMando(peticion);
     if (veto) return veto;
     const [uso, localVivo] = await Promise.all([leerUso(), motorLocalVivo()]);
+    // (2026-09-21) Los techos estaban ESCRITOS A MANO aquí (0,05 y 1) y el medidor siguió
+    // enseñándolos después de subirlos a 0,20 y 2 en scripts/puente/jev.py: dos sitios para
+    // el mismo número, que es el fallo que hemos pagado todo el día en los demás medidores.
+    // Ahora manda quien los decide: jev.py los escribe en `topes` dentro de su propio
+    // archivo de uso, y aquí solo se leen. La variable de entorno sigue pudiendo forzarlos
+    // —para una prueba—, y los literales quedan como último recurso si el archivo es viejo.
+    const topesDelArchivo = topesDe(uso);
     const respuesta = construirRespuestaJev(
         uso,
         fechaLocal(),
         {
-            dia: techo("STARSEED_JEV_DIA_USD", 0.05),
-            mes: techo("STARSEED_JEV_MES_USD", 1),
+            dia: techo("STARSEED_JEV_DIA_USD", topesDelArchivo.dia ?? 0.05),
+            mes: techo("STARSEED_JEV_MES_USD", topesDelArchivo.mes ?? 1),
         },
         localVivo,
     );

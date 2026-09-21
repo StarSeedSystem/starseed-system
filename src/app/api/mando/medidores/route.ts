@@ -115,6 +115,9 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
     const deAqui = new Set(latidosMac.map((l) => l.tarea));
     const latidosCompletos = [...latidosMac, ...bus.latidos.filter((l) => !deAqui.has(l.tarea))];
     const latidosDeAqui = [
+        // (2026-09-21) Aqui se tiraban `quietoSegundos`, `bytesLog`, `cola` y `medio`, que
+        // `leerLatidos` ya trae. Sin ellos el medidor de agentes no podia decir nada que el
+        // de tareas no dijera, y los dos enseñaban lo mismo.
         ...latidosMac.map((l) => ({
             tarea: l.tarea,
             fase: l.fase,
@@ -122,6 +125,10 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
             minutos: l.minutos,
             donde: "mac",
             proveedor: undefined as string | undefined,
+            quietoSegundos: l.quietoSegundos,
+            bytesLog: l.bytesLog,
+            cola: l.cola,
+            medio: l.medio,
         })),
         ...bus.latidos
             .filter((l) => !deAqui.has(l.tarea))

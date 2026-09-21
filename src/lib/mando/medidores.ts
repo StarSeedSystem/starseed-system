@@ -214,6 +214,15 @@ export function porqueBloqueada(
 }
 
 /** Coincidencia histórica por palabra entera; no basta para afirmar integración. */
+/** Bytes de log escritos, en palabras. Es la prueba de que un agente esta vivo de verdad. */
+export function bytesLegibles(bytes?: number): string | undefined {
+    if (!Number.isFinite(Number(bytes)) || Number(bytes) <= 0) return undefined;
+    const n = Number(bytes);
+    if (n < 1024) return `${n} B escritos`;
+    if (n < 1024 * 1024) return `${Math.round(n / 1024)} KB escritos`;
+    return `${(n / (1024 * 1024)).toFixed(1)} MB escritos`;
+}
+
 export function idEnAsuntos(id: string, asuntos: string): boolean {
     if (!id) return false;
     const escapado = id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -270,7 +279,22 @@ export function ejecutablesDeColas(
 export interface DatosMedidores {
     progreso: Record<string, { estado?: string; nota?: string; t?: string; modelo?: string }>;
     titulos: Record<string, string>;
-    latidos: { tarea: string; fase: string; modelo: string; minutos: number; donde: string; proveedor?: string }[];
+    /** (2026-09-21) `quietoSegundos`, `bytesLog`, `cola` y `medio` los leia ya
+     *  `leerLatidos` y la ruta los tiraba, asi que el medidor de agentes no tenia con que
+     *  distinguirse del de tareas. Sin ellos no se puede decir si un agente escribe o
+     *  lleva rato callado, que es la unica pregunta interesante sobre un agente. */
+    latidos: {
+        tarea: string;
+        fase: string;
+        modelo: string;
+        minutos: number;
+        donde: string;
+        proveedor?: string;
+        quietoSegundos?: number;
+        bytesLog?: number;
+        cola?: string;
+        medio?: string;
+    }[];
     commitsSinPublicar: { sha: string; asunto: string; fecha?: string }[];
     ejecutables: { id: string; titulo: string; ola?: string }[];
     /** Asuntos recientes de `main`; ausente si Git no pudo leerse. */
@@ -438,8 +462,57 @@ export function detalleDeMedidor(
             };
         }
 
-        case "en-curso":
+        // (2026-09-21) Estos DOS medidores compartian rama —`case "en-curso": case "agentes":`—
+        // y por construccion enseñaban exactamente las mismas filas. Alex: «en las ventanas de
+        // tareas en curso y de agentes son los mismos datos». Son dos preguntas distintas y
+        // ahora se responden distinto:
+        //   · Tareas en curso  -> el TRABAJO: que tarea es, en que fase va y cuanto lleva hecho.
+        //   · Agentes trabajando -> el TRABAJADOR: que modelo, en que medio, desde cuando y si
+        //     de verdad esta escribiendo o lleva rato callado.
+        // El mismo latido alimenta las dos, pero cada una enseña su lado.
         case "agentes": {
+            const filas: FilaMedidor[] = d.latidos.map((l) => {
+                const proveedor = l.proveedor ?? l.modelo.split("/")[0];
+                const modelo = l.modelo.split("/").slice(-1)[0];
+                const quieto = l.quietoSegundos ?? null;
+                // «Escribiendo» solo si ha tocado el log hace poco. Un agente que lleva cinco
+                // minutos sin escribir un byte no esta trabajando, esta pensando o colgado, y
+                // llamarle «escribiendo» es justo lo que impide verlo.
+                const callado = quieto !== null && quieto > 180;
+                return {
+                    id: `${proveedor} · ${modelo}`,
+                    titulo: `${proveedor} · ${modelo} en ${l.donde}`,
+                    estado: callado ? "callado" : "escribiendo",
+                    // El avance del agente es el de su tarea: es lo unico que ha avanzado.
+                    porcentaje: avanceDe(l.fase, estadoDe(l.tarea)).porcentaje,
+                    etapa: `trabaja en ${l.tarea}`,
+                    quien: l.cola ? `cola ${l.cola}` : l.medio ?? l.donde,
+                    desde: `${l.minutos} min`,
+                    porque: callado
+                        ? `sin escribir desde hace ${Math.round((quieto ?? 0) / 60)} min`
+                        : bytesLegibles(l.bytesLog),
+                    acciones: [],
+                };
+            });
+            const callados = filas.filter((f) => f.estado === "callado").length;
+            const medioAg = mediaDeAvance(filas);
+            return {
+                clave,
+                titulo: "Agentes trabajando",
+                resumen:
+                    filas.length === 0
+                        ? "ningún agente escribiendo"
+                        : `${filas.length} ${filas.length === 1 ? "agente" : "agentes"}${
+                              callados ? ` · ${callados} sin escribir` : ""
+                          } · ${new Set(d.latidos.map((l) => l.donde)).size} medio(s)`,
+                filas,
+                porcentajeMedio: medioAg,
+                acciones: [IR_A("Ver la ramificación", "procesos")],
+                vacio: "Ningún agente está escribiendo ahora mismo.",
+            };
+        }
+
+        case "en-curso": {
             const filas: FilaMedidor[] = d.latidos.map((l) => {
                 const avance = avanceDe(l.fase, estadoDe(l.tarea));
                 return {
@@ -461,7 +534,6 @@ export function detalleDeMedidor(
                     id,
                     titulo: titulo(id),
                     estado: "en_curso sin agente",
-                    // 0 % y no «a medias»: si nadie late por ella, no está avanzando nada.
                     porcentaje: 0,
                     porque: "figura en curso pero ningún agente late por ella: estado rancio",
                     desde: v.t,
@@ -471,15 +543,15 @@ export function detalleDeMedidor(
             const medio = mediaDeAvance(todas);
             return {
                 clave,
-                titulo: clave === "agentes" ? "Agentes trabajando" : "Tareas en curso",
+                titulo: "Tareas en curso",
                 resumen:
                     filas.length === 0
-                        ? "ningún agente escribiendo"
-                        : `${filas.length} escribiendo · ${medio} % de avance medio${rancias.length ? ` · ${rancias.length} rancias` : ""}`,
+                        ? "ninguna tarea en curso"
+                        : `${filas.length} en marcha · ${medio} % de avance medio${rancias.length ? ` · ${rancias.length} rancias` : ""}`,
                 filas: todas,
                 porcentajeMedio: medio,
                 acciones: [IR_A("Ver la ramificación", "procesos")],
-                vacio: "Ningún agente está escribiendo ahora mismo.",
+                vacio: "Ninguna tarea en curso ahora mismo.",
             };
         }
 

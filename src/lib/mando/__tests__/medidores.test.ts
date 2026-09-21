@@ -126,9 +126,13 @@ describe("detalleDeMedidor · sin publicar", () => {
     });
 });
 
-describe("detalleDeMedidor · agentes", () => {
+// (2026-09-21) Estas tres describian el medidor «agentes» pero preguntaban por el TRABAJO
+// (titulo de la tarea, rancias, «lleva mucho sin cambiar de fase»). Ese comportamiento no
+// ha desaparecido: se ha mudado a «en-curso», que es de quien era. Aqui se comprueba
+// donde vive ahora, y debajo lo que de verdad tiene que decir un medidor de agentes.
+describe("detalleDeMedidor · en-curso (el trabajo)", () => {
     it("dice quién escribe cada tarea", () => {
-        const d = detalleDeMedidor("agentes", {
+        const d = detalleDeMedidor("en-curso", {
             latidos: [{ tarea: "T1", fase: "escribiendo", modelo: "nim/kimi-k3", minutos: 4, donde: "mac", proveedor: "nim" }],
             titulos: { T1: "Hacer algo" },
         });
@@ -137,16 +141,66 @@ describe("detalleDeMedidor · agentes", () => {
     });
 
     it("una tarea en curso SIN latido sale la primera y avisa de que es rancia", () => {
-        const d = detalleDeMedidor("agentes", { progreso, latidos: [] });
+        const d = detalleDeMedidor("en-curso", { progreso, latidos: [] });
         expect(d.filas[0].id).toBe("E1");
         expect(d.filas[0].porque).toContain("rancio");
     });
 
-    it("un agente de más de 45 minutos queda señalado", () => {
-        const d = detalleDeMedidor("agentes", {
+    it("una tarea de más de 45 minutos en la misma fase queda señalada", () => {
+        const d = detalleDeMedidor("en-curso", {
             latidos: [{ tarea: "T1", fase: "escribiendo", modelo: "nim/x", minutos: 60, donde: "mac" }],
         });
         expect(d.filas[0].porque).toBeTruthy();
+    });
+});
+
+describe("detalleDeMedidor · agentes (el trabajador)", () => {
+    const latido = {
+        tarea: "T1",
+        fase: "escribiendo",
+        modelo: "nim/kimi-k3",
+        minutos: 4,
+        donde: "mac",
+        proveedor: "nim",
+        bytesLog: 4096,
+        quietoSegundos: 10,
+        cola: "cola-auto-1",
+    };
+
+    it("el sujeto es el agente, no la tarea", () => {
+        const d = detalleDeMedidor("agentes", { latidos: [latido], titulos: { T1: "Hacer algo" } });
+        expect(d.filas[0].id).toContain("kimi-k3");
+        expect(d.filas[0].titulo).toContain("mac");
+        expect(d.filas[0].titulo).not.toBe("Hacer algo");
+    });
+
+    it("dice en qué tarea trabaja y cuánto lleva escrito", () => {
+        const d = detalleDeMedidor("agentes", { latidos: [latido] });
+        expect(d.filas[0].etapa).toContain("T1");
+        expect(d.filas[0].porque).toContain("KB escritos");
+    });
+
+    it("un agente que lleva rato sin escribir no se llama «escribiendo»", () => {
+        const d = detalleDeMedidor("agentes", {
+            latidos: [{ ...latido, quietoSegundos: 600 }],
+        });
+        expect(d.filas[0].estado).toBe("callado");
+        expect(d.filas[0].porque).toContain("sin escribir");
+        expect(d.resumen).toContain("sin escribir");
+    });
+
+    it("no enseña las tareas rancias: eso es del medidor de tareas", () => {
+        const d = detalleDeMedidor("agentes", { progreso, latidos: [] });
+        expect(d.filas).toHaveLength(0);
+    });
+
+    it("los dos medidores YA NO dicen lo mismo", () => {
+        const datos = { latidos: [latido], titulos: { T1: "Hacer algo" } };
+        const ag = detalleDeMedidor("agentes", datos);
+        const ec = detalleDeMedidor("en-curso", datos);
+        expect(ag.titulo).not.toBe(ec.titulo);
+        expect(ag.resumen).not.toBe(ec.resumen);
+        expect(ag.filas[0].id).not.toBe(ec.filas[0].id);
     });
 });
 
@@ -202,7 +256,7 @@ describe("porcentajes de avance", () => {
     });
 
     it("el panel dice el avance medio y el resumen lo repite en palabras", () => {
-        const d = detalleDeMedidor("agentes", {
+        const d = detalleDeMedidor("en-curso", {
             latidos: [
                 { tarea: "T1", fase: "escribiendo", modelo: "n/m", minutos: 1, donde: "mac" },
                 { tarea: "T2", fase: "revision", modelo: "n/m", minutos: 1, donde: "mac" },
