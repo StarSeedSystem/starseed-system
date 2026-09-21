@@ -1,11 +1,13 @@
-import { createClient } from "@/utils/supabase/server";
-import { mandoHabilitado } from "@/lib/mando/guardian";
-
 export interface FuenteContexto {
   nombre: string;
   contenido: string;
   fechaMs?: number;
   maxEdadMinutos?: number;
+}
+
+export interface MensajeAgentePuente {
+  rol: "system" | "user" | "assistant";
+  texto: string;
 }
 
 const PATRONES_CLAVES = [
@@ -17,36 +19,26 @@ const PATRONES_CLAVES = [
   /Bearer\s+[a-zA-Z0-9._-]{16,}/g,
 ];
 
-export async function comprobarDueno(req: Request): Promise<{ ok: true; esDueno: boolean } | { ok: false; error: string; estado: 503 }> {
-  const DUENO = (process.env.STARSEED_DUENO || "maggasukha@star.seed").toLowerCase();
-  try {
-    const supabase = await createClient();
-    const { data, error } = await supabase.auth.getUser();
-    if (error) {
-      const msg = (error.message || "").toLowerCase();
-      const esSinSesion = msg.includes("session") || msg.includes("token") || msg.includes("jwt") || error.status === 401;
-      if (!esSinSesion) return { ok: false, error: "no se pudo comprobar la identidad", estado: 503 };
-    }
-    if (data?.user?.email) return { ok: true, esDueno: data.user.email.toLowerCase() === DUENO };
-    return { ok: true, esDueno: mandoHabilitado(req) };
-  } catch {
-    return { ok: false, error: "no se pudo comprobar la identidad", estado: 503 };
-  }
-}
-
 export function sanearContexto(texto: string): string {
   let resultado = texto;
   for (const patron of PATRONES_CLAVES) {
     resultado = resultado.replace(patron, "[CLAVE_OCULTA]");
   }
-  return resultado;
+  return resultado
+    .replace(
+      /(\b[A-Z][A-Z0-9_]*(?:KEY|TOKEN|SECRET|PASSWORD)\b\s*[:=]\s*)("[^"]*"|'[^']*'|[^\s,;]+)/gi,
+      "$1[CLAVE_OCULTA]",
+    )
+    .replace(/\/Users\/[^/\s]+\/[^\s"'`]+/g, "[RUTA_LOCAL_OCULTA]")
+    .replace(/\/home\/[^/\s]+\/[^\s"'`]+/g, "[RUTA_LOCAL_OCULTA]")
+    .replace(/\/private\/(?:tmp|var)\/[^\s"'`]+/g, "[RUTA_LOCAL_OCULTA]");
 }
 
 export function evaluarFrescura(
   fuente: FuenteContexto,
   ahoraMs: number
 ): { fresca: boolean; etiqueta: string } {
-  if (typeof fuente.fechaMs !== "number" || !Number.isFinite(fuente.fechaMs)) {
+  if (typeof fuente.fechaMs !== "number" || !Number.isFinite(fuente.fechaMs) || fuente.fechaMs <= 0) {
     return { fresca: false, etiqueta: "sin fecha (posiblemente obsoleto)" };
   }
   const maxMin = fuente.maxEdadMinutos ?? 60;
@@ -60,7 +52,7 @@ export function evaluarFrescura(
   }
   return {
     fresca: true,
-    etiqueta: `vigente (${Math.round(edadMin)} min de antigüedad)`,
+    etiqueta: `vigente (${Math.round(edadMin)} min; fecha: ${new Date(fuente.fechaMs).toISOString()})`,
   };
 }
 
@@ -82,10 +74,24 @@ export function construirMensajeSistema(
     "Tu rol es la administración técnica y consulta del Mando desde el chat, la orbe o Telegram.",
     "REGLAS OBLIGATORIAS:",
     "1. NUNCA devuelvas el valor real de ninguna clave de API ni secreto. Usa siempre nombres de variables.",
-    "2. Si alguna fuente de contexto está obsoleta o vieja, decláralo explícitamente en tu respuesta.",
-    "3. Habla siempre en español directo, técnico y con acentos.",
+    "2. NUNCA reveles rutas locales del disco ni confirmes este agente a personas no autorizadas.",
+    "3. Si alguna fuente está obsoleta o vieja, decláralo explícitamente en tu respuesta.",
+    "4. Habla siempre en español directo, técnico y con acentos.",
     "",
     "--- CONTEXTO DEL PUENTE DE MANDO ---",
     ...bloques,
   ].join("\n\n");
+}
+
+/** La pregunta no se sanea: solo las fuentes internas pueden contener secretos. */
+export function construirTurnoModelo(
+  sistema: string,
+  historial: readonly MensajeAgentePuente[],
+  pregunta: string,
+): MensajeAgentePuente[] {
+  return [
+    { rol: "system", texto: sistema },
+    ...historial.map((mensaje) => ({ ...mensaje })),
+    { rol: "user", texto: pregunta },
+  ];
 }

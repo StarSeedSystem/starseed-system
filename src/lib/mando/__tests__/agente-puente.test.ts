@@ -1,32 +1,31 @@
 import { describe, it, expect } from "vitest";
 import {
-  comprobarDueno,
   sanearContexto,
   evaluarFrescura,
   construirMensajeSistema,
+  construirTurnoModelo,
   type FuenteContexto,
 } from "../agente-puente";
 
 describe("Agente Puente - Módulo Puro", () => {
-  it("comprobarDueno responde sin excepciones no controladas", async () => {
-    const req = new Request("http://localhost:9002/api/mando/agente-puente", {
-      headers: { host: "localhost:9002" },
-    });
-    const res = await comprobarDueno(req);
-    expect(res).toHaveProperty("ok");
-  });
-
-  it("sanearContexto oculta claves de API en el contexto", () => {
-    const textoConClaves = "Clave openai: sk-proj-1234567890abcdef123 y sbp_1234567890abcdef";
+  it("oculta secretos y rutas locales de las fuentes internas", () => {
+    const textoConClaves = [
+      "Clave openai: sk-proj-1234567890abcdef123",
+      "SUPABASE_SERVICE_KEY=valor-no-estandar",
+      "Archivo: /Users/alex/.starseed/env",
+    ].join("\n");
     const limpio = sanearContexto(textoConClaves);
     expect(limpio).not.toContain("sk-proj-1234567890abcdef123");
-    expect(limpio).not.toContain("sbp_1234567890abcdef");
+    expect(limpio).not.toContain("valor-no-estandar");
+    expect(limpio).not.toContain("/Users/alex");
     expect(limpio).toContain("[CLAVE_OCULTA]");
+    expect(limpio).toContain("[RUTA_LOCAL_OCULTA]");
   });
 
-  it("la pregunta del usuario con sk-... no se recorta y se mantiene intacta", () => {
+  it("mantiene intacta la pregunta del usuario al construir el turno", () => {
     const preguntaUsuario = "¿Por qué falla esta clave sk-proj-9876543210zyxwvutsrq en la llamada?";
-    expect(preguntaUsuario).toContain("sk-proj-9876543210zyxwvutsrq");
+    const turno = construirTurnoModelo("sistema", [], preguntaUsuario);
+    expect(turno.at(-1)).toEqual({ rol: "user", texto: preguntaUsuario });
   });
 
   it("evaluarFrescura marca fuentes vigentes vs obsoletas o sin fecha", () => {
@@ -50,6 +49,7 @@ describe("Agente Puente - Módulo Puro", () => {
     const resFresca = evaluarFrescura(fuenteFresca, ahora);
     expect(resFresca.fresca).toBe(true);
     expect(resFresca.etiqueta).toContain("vigente");
+    expect(resFresca.etiqueta).toContain(new Date(fuenteFresca.fechaMs!).toISOString());
 
     const fuenteSinFecha: FuenteContexto = {
       nombre: "desconocida",
@@ -59,25 +59,33 @@ describe("Agente Puente - Módulo Puro", () => {
     expect(resSinFecha.fresca).toBe(false);
   });
 
-  it("construirMensajeSistema combina fuentes limpiando claves y advirtiendo obsolescencia", () => {
+  it("arma estado, método, medidores y pasarelas con fecha y obsolescencia", () => {
     const ahora = 1700000000000;
     const fuentes: FuenteContexto[] = [
       {
-        nombre: "briefing",
+        nombre: "estado",
         contenido: "Todo bien en sk-1234567890abcdef",
         fechaMs: ahora - 5 * 60 * 1000,
       },
       {
-        nombre: "workflow",
+        nombre: "método",
         contenido: "Pasos viejos",
         fechaMs: ahora - 300 * 60 * 1000,
         maxEdadMinutos: 60,
       },
+      { nombre: "medidores", contenido: "2 agentes", fechaMs: ahora },
+      { nombre: "pasarelas", contenido: "NVIDIA_API_KEY=secreto", fechaMs: ahora },
     ];
 
     const sistema = construirMensajeSistema(fuentes, ahora);
     expect(sistema).toContain("Agente Puente");
+    expect(sistema).toContain("FUENTE: estado");
+    expect(sistema).toContain("FUENTE: método");
+    expect(sistema).toContain("FUENTE: medidores");
+    expect(sistema).toContain("FUENTE: pasarelas");
+    expect(sistema).toContain(new Date(ahora).toISOString());
     expect(sistema).not.toContain("sk-1234567890abcdef");
+    expect(sistema).not.toContain("NVIDIA_API_KEY=secreto");
     expect(sistema).toContain("[CLAVE_OCULTA]");
     expect(sistema).toContain("[ADVERTENCIA: Bloque de contexto VIEJO u OBSOLETO");
   });
