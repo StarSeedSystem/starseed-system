@@ -340,7 +340,13 @@ cada minuto `~/.starseed/gobernador.json` con el tope VIVO de trabajadores = sie
 (`maximo_hardware` = 3 en 8 GB; Alex 22:40: «olvida lo de 1 agente, la mayor cantidad posible»);
 solo con < 150 MB de RAM libre quita uno, nunca menos de 2; el orquestador lo relee (`tope_gobernador`).
 Los agentes de la nube se suman con `scripts/puente/repartir-a-nube.py` (cola-nube versionada). **Más agentes a la vez = más medios**, nunca más procesos en una
-máquina que no cabe: la receta para sumar un medio está en §10. **Regla permanente de capacidad**
+máquina que no cabe: la receta para sumar un medio está en §10. **Regla permanente de entrega a Alex** (2026-09-20): para todo lo que requiera una acción suya,
+dale el **enlace directo y/o el comando exacto de terminal**, listo para copiar y pegar — nunca la
+descripción de lo que tendría que hacer. Y antes de pedírselo, comprobar si se puede hacer desde
+aquí: si se puede, se hace. Varias acciones suyas se reducen a una sola (un guion que las agrupe)
+antes que repartirle deberes. Lo único que se le reserva de verdad es lo que mueve CREDENCIALES
+suyas a un tercero o cambia la configuración de sus cuentas.
+**Regla permanente de capacidad**
 (Alex, 2026-09-20): usar siempre la mayor capacidad simultánea disponible — antes de dar por bueno
 un número de agentes hay que SONDEAR todos los medios (`scripts/puente/medios_disponibles.py`) y
 ENCENDER los que estén en `usable`, que son medios apagados, no medios trabajando. Y decir siempre

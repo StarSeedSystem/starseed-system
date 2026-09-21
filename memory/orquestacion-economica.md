@@ -424,7 +424,8 @@ en `gh workflow list` sea su ruta está roto, aunque el YAML sea válido para Py
 | Mac M1 8 GB | listo | **3** | tope del gobernador; es el suelo, no el techo |
 | GitHub Actions (repo público) | usable | **3 por job, varios jobs** | 4 vCPU/16 GB, 6 h, minutos ilimitados; entrega por rama `nube/<run>` |
 | Contenedor de Cowork | refuerzo | 2 | muere con la sesión y no puede `push`; sus commits viajan por parche |
-| Google Cloud | usable | por medir | Cloud Run 180.000 vCPU·s/mes (~25 h de 2 vCPU) + Cloud Shell 60 h/semana |
+| Google Cloud · Cloud Run Jobs | por construir | por medir | 180.000 vCPU·s/mes gratis (~25 h de 2 vCPU); hace falta una imagen en Artifact Registry |
+| Google Cloud · Cloud Shell | **descartado como medio** | 0 | 50 h/semana, pero mata las sesiones NO interactivas a los 40 min y la doc dice «intended for interactive use only»: no sirve para agentes desatendidos |
 | Colab / Kaggle | requiere_alex | 2 / 4 | falta un cuaderno lanzador que clone el repo y arranque el orquestador |
 | Hugging Face | requiere_alex | 0 | Spaces Docker en CPU exige PRO (402 medido) |
 | Oracle Free Tier | descartado | — | Alex no pudo crear la cuenta |
