@@ -121,3 +121,52 @@ class RepartoScript(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestTamanoParaLaNube(unittest.TestCase):
+    """La nube no tiene revisor: solo tareas pequenas, y las de 1 archivo primero.
+
+    Anoche cayeron NE1c (3 archivos), R6b (6) y R7b (9) despues de 40-60 min de
+    agente cada una, las tres por no llegar a tocarlos todos. En la nube eso es
+    trabajo a la basura; en la Mac hay quien lo rescata.
+    """
+
+    def _colas(self, tareas):
+        return [("cola-x.json", tareas)]
+
+    def test_descarta_las_de_mas_de_tres_archivos(self):
+        tareas = [
+            {"id": "GRANDE", "archivos": ["a", "b", "c", "d"]},
+            {"id": "CABE", "archivos": ["a", "b", "c"]},
+        ]
+        salida = elegir(self._colas(tareas), {}, [], None, tope=10)
+        self.assertEqual([t["id"] for t in salida], ["CABE"])
+
+    def test_primero_las_de_un_solo_archivo(self):
+        tareas = [
+            {"id": "TRES", "archivos": ["a", "b", "c"]},
+            {"id": "UNA", "archivos": ["a"]},
+            {"id": "DOS", "archivos": ["a", "b"]},
+        ]
+        salida = elegir(self._colas(tareas), {}, [], None, tope=10)
+        self.assertEqual([t["id"] for t in salida], ["UNA", "DOS", "TRES"])
+
+    def test_el_tope_se_aplica_despues_de_ordenar(self):
+        """Sin esto el tope se llevaba las grandes y dejaba fuera las de un archivo."""
+        tareas = [
+            {"id": "TRES", "archivos": ["a", "b", "c"]},
+            {"id": "UNA", "archivos": ["a"]},
+        ]
+        salida = elegir(self._colas(tareas), {}, [], None, tope=1)
+        self.assertEqual([t["id"] for t in salida], ["UNA"])
+
+    def test_si_no_cabe_ninguna_la_nube_no_recibe_nada(self):
+        tareas = [{"id": "G1", "archivos": list("abcdef")}]
+        self.assertEqual(elegir(self._colas(tareas), {}, [], None, tope=10), [])
+
+    def test_sin_archivos_declarados_sigue_cabiendo(self):
+        tareas = [{"id": "SIN", "archivos": []}]
+        salida = elegir(self._colas(tareas), {}, [], None, tope=10)
+        self.assertEqual([t["id"] for t in salida], ["SIN"])
+
+
