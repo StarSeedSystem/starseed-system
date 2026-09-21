@@ -16,7 +16,7 @@ import { GlassCard } from "@/components/ui/glass-card";
 import { EntityHeader } from "@/components/social/entity-header";
 import { PostCard } from "@/components/social/PostCard";
 import { ShareButton } from "@/components/social/SocialActions";
-import { MemberAvatars } from "@/components/social/MemberAvatars";
+import { GroupRoster } from "@/components/social/group-roster";
 import { GovernanceToolkit, hasToolkit, toolkitMeta } from "@/components/social/toolkits";
 import { EntityLibraryPanel } from "@/components/library/entity-library-panel";
 import { libraryRef } from "@/lib/library/entity-library";
@@ -37,7 +37,7 @@ import { EntityEditorDialog } from "@/components/social/entity-editor-dialog";
 import type { OsPage } from "@/lib/os-social";
 import { UnifiedCalendar } from "@/components/calendar/unified-calendar";
 import { CollectionsGrid } from "@/components/profile/collections/collections-grid";
-import { samplePages, sampleGroups, type SystemKey } from "@/data/sample-entities";
+import { samplePages, sampleGroups } from "@/data/sample-entities";
 import { listPartidos, listFederativeEntities } from "@/data/sample-governance";
 import { useEntityLayout, applyTabLayout, suggestedIntegrations } from "@/lib/entity-layout";
 import { EntityLayoutEditor } from "@/components/social/entity-layout-editor";
@@ -366,7 +366,7 @@ function PaginaPageContent() {
             });
         }
         list.push({ id: "posts", label: "Publicaciones", node: <PageFeed slug={page.slug} accent={accentForTabs} /> });
-        list.push({ id: "members", label: "Miembros", node: <MemberAvatars system="politico" total={page.memberCount ?? 0} accent={accentForTabs} seed={page.slug ?? page.id ?? ""} /> });
+        list.push({ id: "members", label: "Miembros", node: <GroupRoster slug={page.slug} accent={accentForTabs} total={safeMemberCount} /> });
         list.push({
             id: "events",
             label: "Eventos",
@@ -639,7 +639,7 @@ function PaginaPageContent() {
                     <div className="min-w-0 lg:col-span-1 mt-14">
                         <GlassCard className="p-4">
                             <h3 className="font-headline text-lg font-semibold mb-3">Red</h3>
-                            <MemberAvatars system={(page as { system?: SystemKey }).system ?? "politico"} total={safeMemberCount} accent={accent} seed={page.slug ?? page.id ?? ""} />
+                            <GroupRoster slug={page.slug} accent={accent} total={safeMemberCount} />
                         </GlassCard>
                     </div>
                 )}

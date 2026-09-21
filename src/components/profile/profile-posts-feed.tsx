@@ -42,16 +42,28 @@ export function ProfilePostsFeed({
     const cafe = useCafePosts({ profileId: profileId || "__ninguno__", channelKey: `profile-${profileId || "x"}`, limit: 50 });
 
     const posts = useMemo<NormalizedPost[]>(() => {
-        const vistos = new Set<string>();
         // Las os_posts del autor son de ESTE perfil: si la fila no guardó nombre
         // (fallback «Ciudadano StarSeed»), se firma con el nombre real del perfil.
         const firmadas = os.posts.map((p) => (!p.authorName || p.authorName === "Ciudadano StarSeed" ? { ...p, authorName: name } : p));
-        const todos = [...firmadas, ...(profileId ? cafe.posts : [])].filter((p) => {
-            if (vistos.has(p.id)) return false;
-            vistos.add(p.id);
-            return true;
+        const todos: NormalizedPost[] = [];
+        const vistos = new Set<string>();
+        // Fuente "os" primero; "cafe" segundo. Clave compuesta evita colisión
+        // si un `os_post` y un `cafe_post` comparten el mismo UUID.
+        for (const p of [...firmadas, ...(profileId ? cafe.posts : [])]) {
+            const src = firmadas.includes(p) ? "os" : "cafe";
+            const key = `${src}:${p.id}`;
+            if (!vistos.has(key)) {
+                vistos.add(key);
+                todos.push(p);
+            }
+        }
+        // Orden cronológico descendente: defensa ante `createdAt` vacío
+        // (un `""` colocaba la fila al inicio por `localeCompare`).
+        return todos.sort((a, b) => {
+            const at = new Date(a.createdAt || "1970-01-01T00:00:00Z").getTime();
+            const bt = new Date(b.createdAt || "1970-01-01T00:00:00Z").getTime();
+            return bt - at;
         });
-        return todos.sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
     }, [os.posts, cafe.posts, profileId, name]);
 
     const cargando = os.loading || (Boolean(profileId) && cafe.loading);
