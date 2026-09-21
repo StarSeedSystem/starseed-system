@@ -23,8 +23,6 @@
     --mc-neon-cian: 34 211 238;
     --mc-neon-violeta: 167 139 250;
     --mc-neon-ambar: 251 191 36;
-    --mc-neon-rosa: 244 63 94;
-    --mc-neon-verde: 52 211 153;
 
     --mc-cristal-fondo: rgba(255, 255, 255, 0.045);
     --mc-cristal-borde: rgba(255, 255, 255, 0.11);
@@ -58,40 +56,38 @@
 .mc-neon {
     box-shadow:
         inset 0 1px 0 var(--mc-cristal-canto),
-        0 0 0 1px rgba(var(--mc-neon-cian), 0.22),
         0 0 18px -6px rgba(var(--mc-neon-cian), 0.55);
 }
 .mc-neon--aviso {
     box-shadow:
         inset 0 1px 0 var(--mc-cristal-canto),
-        0 0 0 1px rgba(var(--mc-neon-ambar), 0.26),
         0 0 18px -6px rgba(var(--mc-neon-ambar), 0.6);
 }
 .mc-neon--peligro {
     box-shadow:
         inset 0 1px 0 var(--mc-cristal-canto),
-        0 0 0 1px rgba(var(--mc-neon-rosa), 0.3),
-        0 0 20px -6px rgba(var(--mc-neon-rosa), 0.65);
+        0 0 20px -6px rgba(var(--mc-neon-violeta), 0.65);
 }
 .mc-neon--ok {
     box-shadow:
         inset 0 1px 0 var(--mc-cristal-canto),
-        0 0 0 1px rgba(var(--mc-neon-verde), 0.26),
-        0 0 18px -6px rgba(var(--mc-neon-verde), 0.55);
+        0 0 18px -6px rgba(var(--mc-neon-cian), 0.55);
 }
 
 /* Relieve al pasar el ratón o al enfocar. Dos propiedades, cero layout. */
 .mc-alzar {
+    opacity: 0.96;
     transition:
         transform var(--mc-rapido) var(--mc-curva),
-        opacity var(--mc-rapido) var(--mc-curva),
-        box-shadow var(--mc-normal) var(--mc-curva);
+        opacity var(--mc-rapido) var(--mc-curva);
 }
 .mc-alzar:hover,
 .mc-alzar:focus-visible {
+    opacity: 1;
     transform: translateY(-2px) scale(1.012);
 }
 .mc-alzar:active {
+    opacity: 0.92;
     transform: translateY(0) scale(0.995);
 }
 

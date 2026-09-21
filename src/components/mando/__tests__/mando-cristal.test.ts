@@ -24,6 +24,23 @@ describe("presupuesto de rendimiento del Mando", () => {
         }
     });
 
+    it("limita las transiciones a transform y opacity", () => {
+        const transiciones = reglas.match(/transition:[^;]+;/g) ?? [];
+        const propiedades = transiciones.flatMap((transicion) =>
+            transicion
+                .replace(/^transition:\s*/, "")
+                .replace(/;$/, "")
+                .split(",")
+                .map((fragmento) => fragmento.trim().split(/\s+/)[0])
+                .filter((propiedad) => propiedad !== "none"),
+        );
+
+        expect(propiedades.length).toBeGreaterThan(0);
+        for (const propiedad of propiedades) {
+            expect(["transform", "opacity"], `transición fuera del presupuesto: ${propiedad}`).toContain(propiedad);
+        }
+    });
+
     it("dentro de los @keyframes solo se mueven transform y opacity", () => {
         const bloques = reglas.match(/@keyframes[^{]+\{[\s\S]*?\n\}/g) ?? [];
         expect(bloques.length).toBeGreaterThan(0);
@@ -59,6 +76,8 @@ describe("presupuesto de rendimiento del Mando", () => {
 
     it("define los tokens con prefijo propio para no chocar con el resto del OS", () => {
         expect(css).toContain("--mc-neon-cian");
+        expect(css).toContain("--mc-neon-violeta");
+        expect(css).toContain("--mc-neon-ambar");
         expect(css).toContain("--mc-cristal-fondo");
     });
 });
