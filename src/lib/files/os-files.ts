@@ -605,6 +605,7 @@ export async function uploadFile(file: File, options: UploadFileOptions = {}): P
                             Authorization: `Bearer ${token}`,
                             "Content-Type": file.type || "application/octet-stream",
                             "x-upsert": "false",
+                            "cache-control": "31536000", // (Ola 225) ruta inmutable: caché de un año (regla Adenda 186, egress)
                         },
                         options.onProgress,
                     );

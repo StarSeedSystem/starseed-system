@@ -1362,8 +1362,8 @@ export async function uploadEntityMedia(
         const { error } = await supabase.storage
             .from(OS_MEDIA_BUCKET)
             .upload(path, file, {
-                upsert: true,
-                // (Ola 225) ruta inmutable (kind + Date.now): caché de un año (regla Adenda 186, egress)
+                upsert: false,
+                // (Ola 225) ruta inmutable: caché de un año (regla Adenda 186, egress)
                 cacheControl: "31536000",
                 contentType: file.type || undefined,
             });
