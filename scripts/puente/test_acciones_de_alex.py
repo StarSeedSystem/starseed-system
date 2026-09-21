@@ -60,5 +60,50 @@ class QueEntraEnLaLista(unittest.TestCase):
         self.assertTrue(all(x["urgencia"] == "alta" for x in a))
 
 
+
+class TestVerificar(unittest.TestCase):
+    """El boton «verificar» de la ventana de «te toca a ti» (2026-09-21, pedido por Alex).
+
+    Lo importante no es que devuelva algo, sino que vuelva a MEDIR. Un boton que marcara
+    una casilla sin comprobar seria la misma mentira que nos costo el dia: el medidor
+    llevaba 20 horas pidiendo unas claves que ya estaban puestas.
+    """
+
+    def test_si_ya_no_hace_falta_dice_hecha(self):
+        todas = set(A.CLAVES_DEL_ENJAMBRE)
+        r = A.verificar("github-secretos", pasarelas=[], secretos_repo=todas)
+        self.assertTrue(r["hecha"])
+        self.assertEqual(r["quedan"], 0)
+        self.assertIn("comprobado", r["detalle"])
+
+    def test_si_sigue_faltando_dice_que_no_y_por_que(self):
+        faltan = set(A.CLAVES_DEL_ENJAMBRE) - {"OPENROUTER_API_KEY"}
+        r = A.verificar("github-secretos", pasarelas=[], secretos_repo=faltan)
+        self.assertFalse(r["hecha"])
+        self.assertIn("OPENROUTER_API_KEY", r["detalle"])
+
+    def test_mide_de_nuevo_no_lee_lo_guardado(self):
+        """Mismo id, hechos distintos -> veredictos distintos. Eso prueba que remide."""
+        todas = set(A.CLAVES_DEL_ENJAMBRE)
+        a = A.verificar("github-secretos", pasarelas=[], secretos_repo=todas)
+        b = A.verificar("github-secretos", pasarelas=[], secretos_repo=set())
+        self.assertTrue(a["hecha"])
+        self.assertFalse(b["hecha"])
+
+    def test_sin_id_informa_de_todas(self):
+        r = A.verificar(None, pasarelas=[], secretos_repo=set())
+        self.assertIn("acciones", r)
+        self.assertGreaterEqual(r["quedan"], 1)
+
+    def test_las_ordenes_se_pueden_pegar_desde_cualquier_carpeta(self):
+        """El fallo que reporto Alex: «can't open file /Users/alex/scripts/puente/...»."""
+        acciones = A.construir_acciones([], set())
+        for a in acciones:
+            if a.get("comando"):
+                self.assertTrue(
+                    a["comando"].startswith("cd /"),
+                    "la orden %r es relativa: falla si no estas ya en el repo" % a["comando"],
+                )
+
 if __name__ == "__main__":
     unittest.main()

@@ -162,7 +162,61 @@ def _secretos():
         return []
 
 
+def verificar(id_accion=None, pasarelas=None, secretos_repo=None):
+    """¿Sigue haciendo falta esa accion? Vuelve a MEDIR, no consulta un archivo viejo.
+
+    (2026-09-21, pedido por Alex) «en el puente de mando en su ventana debe haber un boton
+    de verificar para cuando sea realizada la tarea». El boton llama aqui.
+
+    La gracia esta en que NO se cree nada de lo guardado: recoge los hechos otra vez
+    —pasarelas vivas y secretos que hay hoy en el repo— y reconstruye la lista. Si la
+    accion ya no sale, es que esta hecha, y se dice con lo que se comprobo. Un boton que
+    solo marcara una casilla no serviria de nada: es justo la forma de mentir que nos ha
+    costado el dia entero.
+
+    Devuelve {id, hecha, titulo, detalle, comprobado, quedan}. Sin `id_accion`, informa de
+    todas.
+    """
+    pasarelas = pasarelas if pasarelas is not None else _pasarelas()
+    secretos_repo = secretos_repo if secretos_repo is not None else _secretos()
+    vivas = construir_acciones(pasarelas, secretos_repo)
+    por_id = {a["id"]: a for a in vivas}
+    momento = __import__("time").strftime("%Y-%m-%d %H:%M:%S")
+    if id_accion is None:
+        return {
+            "comprobado": momento,
+            "quedan": len(vivas),
+            "acciones": [
+                {"id": a["id"], "hecha": False, "titulo": a["titulo"], "detalle": a.get("detalle", "")}
+                for a in vivas
+            ],
+        }
+    viva = por_id.get(id_accion)
+    if viva is None:
+        return {
+            "id": id_accion,
+            "hecha": True,
+            "titulo": "",
+            "detalle": "comprobado de nuevo: ya no hace falta",
+            "comprobado": momento,
+            "quedan": len(vivas),
+        }
+    return {
+        "id": id_accion,
+        "hecha": False,
+        "titulo": viva["titulo"],
+        "detalle": viva.get("detalle", "") or viva.get("por_que", ""),
+        "comprobado": momento,
+        "quedan": len(vivas),
+    }
+
+
 def main():
+    if "--verificar" in sys.argv:
+        i = sys.argv.index("--verificar")
+        cual = sys.argv[i + 1] if len(sys.argv) > i + 1 else None
+        print(json.dumps(verificar(cual), ensure_ascii=False, indent=1))
+        return 0
     acciones = construir_acciones(_pasarelas(), _secretos())
     datos = {"generado": __import__("time").strftime("%Y-%m-%d %H:%M"), "acciones": acciones}
     os.makedirs(os.path.dirname(SALIDA), exist_ok=True)
