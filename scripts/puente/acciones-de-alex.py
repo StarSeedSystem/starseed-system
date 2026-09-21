@@ -55,6 +55,16 @@ except Exception:
         "GROQ_API_KEY", "STARSEED_PASARELA_GROQ_KEY",
     }
 
+#: (2026-09-21) Los comandos de esta lista eran RELATIVOS —«python3 scripts/puente/…»— y Alex
+#: los pega en la terminal desde su carpeta personal, donde no existe esa ruta:
+#:
+#:     can't open file '/Users/alex/scripts/puente/nube-gh.py': No such file or directory
+#:
+#: Una orden que solo funciona si ya estabas en el sitio correcto no es una orden, es un acertijo.
+#: Desde aqui todas llevan el `cd` delante, de una pieza, para pegar y ejecutar donde sea.
+PREFIJO = "cd %s && " % RAIZ
+
+
 #: Las que de verdad hacen escribir al enjambre. Si alguna de estas falta, la nube no
 #: trabaja y el aviso es urgente. Las demás (AIHUBMIX, TOKENROUTER) son pasarelas de
 #: repuesto para cuando las de siempre se quedan sin cupo: útiles, no urgentes.
@@ -104,7 +114,7 @@ def construir_acciones(pasarelas, secretos_repo, catalogo=None):
                       "pasarelas de repuesto para cuando las de siempre se queden sin cupo")
             ),
             "urgencia": "alta" if criticas else "baja",
-            "comando": "python3 scripts/puente/nube-gh.py secretos",
+            "comando": PREFIJO + "python3 scripts/puente/nube-gh.py secretos",
             "enlace": "https://github.com/StarSeedSystem/starseed-system/settings/secrets/actions",
             "por_que_no_lo_hago_yo": "mueve valores de claves tuyas a un tercero: esa decisión es tuya",
             "detalle": "faltan %d: %s" % (len(faltan), ", ".join(faltan)),
@@ -122,7 +132,7 @@ def construir_acciones(pasarelas, secretos_repo, catalogo=None):
             "titulo": "%s: %s" % (info.get("nombre", clave), "fichaje diario" if estado == _pas.FICHAJE else "renovar la clave"),
             "por_que": info.get("nota") or porque,
             "urgencia": urgencia,
-            "comando": ("bash scripts/puente/guardar-clave.sh %s --ambos" % p["variable"]
+            "comando": (PREFIJO + "bash scripts/puente/guardar-clave.sh %s --ambos" % p["variable"]
                         if estado == _pas.SIN_CLAVE and p.get("variable") else ""),
             "enlace": info.get("enlace", ""),
             "por_que_no_lo_hago_yo": ("hay que pulsar un botón en su web con tu sesión"
