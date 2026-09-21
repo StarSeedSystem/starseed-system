@@ -49,13 +49,12 @@ class MatarColgadosTest(unittest.TestCase):
             return mock.Mock(stdout="")
 
         with (
-            mock.patch.object(vig, "listar_trabajadores", return_value=procesos,
-                                        mock.patch.object(vig, "COLGADO_S", 1800),
-                mock.patch.object(vig.subprocess, "run", side_effect=_run_falso),
-                mock.patch.object(vig.os, "kill", side_effect=ProcessLookupError),
-                mock.patch.object(vig.time, "sleep"),
-                mock.patch.object(vig.time, "time", return_value=4000),
-            ),
+            mock.patch.object(vig, "listar_trabajadores", return_value=procesos),
+            mock.patch.object(vig, "COLGADO_S", 1800),
+            mock.patch.object(vig.subprocess, "run", side_effect=_run_falso),
+            mock.patch.object(vig.os, "kill", side_effect=ProcessLookupError),
+            mock.patch.object(vig.time, "sleep"),
+            mock.patch.object(vig.time, "time", return_value=4000),
         ):
             vig.matar_colgados(decir=lambda msg, *a: avisos.append(msg))
 
@@ -68,17 +67,16 @@ class MatarColgadosTest(unittest.TestCase):
         ordenes = []
         procesos = [_trabajador(4321, ultimo_byte=0, inicio=0)]
         with (
-            mock.patch.object(vig, "listar_trabajadores", return_value=procesos,
-                                        mock.patch.object(vig, "COLGADO_S", 1800),
-                mock.patch.object(
-                    vig.subprocess,
-                    "run",
-                    side_effect=lambda o, **k: ordenes.append(list(o)) or mock.Mock(),
-                ),
-                mock.patch.object(vig.os, "kill"),  # sigue vivo: no lanza nada
-                mock.patch.object(vig.time, "sleep"),
-                mock.patch.object(vig.time, "time", return_value=4000),
+            mock.patch.object(vig, "listar_trabajadores", return_value=procesos),
+            mock.patch.object(vig, "COLGADO_S", 1800),
+            mock.patch.object(
+                vig.subprocess,
+                "run",
+                side_effect=lambda o, **k: ordenes.append(list(o)) or mock.Mock(),
             ),
+            mock.patch.object(vig.os, "kill"),  # sigue vivo: no lanza nada
+            mock.patch.object(vig.time, "sleep"),
+            mock.patch.object(vig.time, "time", return_value=4000),
         ):
             vig.matar_colgados(decir=lambda *a: None)
         self.assertIn(["kill", "-9", "4321"], ordenes)
@@ -90,17 +88,16 @@ class MatarColgadosTest(unittest.TestCase):
             _trabajador(7777, ultimo_byte=0, inicio=0),
         ]
         with (
-            mock.patch.object(vig, "listar_trabajadores", return_value=procesos,
-                                        mock.patch.object(vig, "COLGADO_S", 100),
-                mock.patch.object(
-                    vig.subprocess,
-                    "run",
-                    side_effect=lambda o, **k: ordenes.append(list(o)) or mock.Mock(),
-                ),
-                mock.patch.object(vig.os, "kill", side_effect=ProcessLookupError),
-                mock.patch.object(vig.time, "sleep"),
-                mock.patch.object(vig.time, "time", return_value=99999),
+            mock.patch.object(vig, "listar_trabajadores", return_value=procesos),
+            mock.patch.object(vig, "COLGADO_S", 100),
+            mock.patch.object(
+                vig.subprocess,
+                "run",
+                side_effect=lambda o, **k: ordenes.append(list(o)) or mock.Mock(),
             ),
+            mock.patch.object(vig.os, "kill", side_effect=ProcessLookupError),
+            mock.patch.object(vig.time, "sleep"),
+            mock.patch.object(vig.time, "time", return_value=99999),
         ):
             vig.matar_colgados(decir=lambda *a: None)
         aplanado = [pieza for orden in ordenes for pieza in orden]
@@ -169,7 +166,7 @@ class EsperarReintentoTest(unittest.TestCase):
         dormido = []
         with (
             mock.patch.object(vig, "_porcelain_lineas", side_effect=miradas),
-            (mock.patch.object(vig.time, "sleep", side_effect=dormido.append),),
+            mock.patch.object(vig.time, "sleep", side_effect=dormido.append),
         ):
             vig.esperar_reintento("working tree ... cambios sin commit")
         self.assertLessEqual(len(dormido), 2)
@@ -183,10 +180,9 @@ class EsperarReintentoTest(unittest.TestCase):
             reloj[0] += s  # cada siesta AVANZA el reloj, como en la vida real
 
         with (
-            mock.patch.object(vig, "_porcelain_lineas", return_value=[" M src/app.ts"],
-                                        mock.patch.object(vig.time, "sleep", side_effect=_sleep_falso),
-                mock.patch.object(vig.time, "time", side_effect=lambda: reloj[0]),
-            ),
+            mock.patch.object(vig, "_porcelain_lineas", return_value=[" M src/app.ts"]),
+            mock.patch.object(vig.time, "sleep", side_effect=_sleep_falso),
+            mock.patch.object(vig.time, "time", side_effect=lambda: reloj[0]),
         ):
             vig.esperar_reintento("working tree ... cambios sin commit")
         esperado = vig.PAUSA_TRAS_FALLO_S // vig.INTERVALO_S

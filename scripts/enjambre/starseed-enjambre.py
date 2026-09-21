@@ -3498,9 +3498,11 @@ def _primera_linea_error(salida):
                 "ImportError:",
                 "ModuleNotFoundError:",
                 "AssertionError:",
-                "Traceback",
             )
         ):
+            return l[:120]
+    for l in lineas:
+        if l.startswith("Traceback"):
             return l[:120]
     for l in lineas:
         if "Error:" in l or "FAIL" in l or "FAILED" in l:
