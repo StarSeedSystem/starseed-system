@@ -113,9 +113,23 @@ jobs:
         run: |
           set -a; . ~/.starseed/env; set +a
           test -f "${{ inputs.cola }}" || { echo "::error::no existe la cola ${{ inputs.cola }}"; exit 1; }
+          # (2026-09-20) `instalar.sh` pone el orquestador en $HOME/bin en Linux y en
+          # $HOME/.local/bin en macOS. Aquí estaba escrita a mano la ruta de macOS, así que
+          # python3 no encontraba el archivo... y como la orden acababa en `|| true`, el job
+          # terminaba EN VERDE habiendo hecho cero trabajo. Un job verde que no hizo nada es
+          # peor que uno rojo: nadie va a mirarlo. Ahora se resuelve la ruta y, si no está,
+          # el paso FALLA antes de intentar nada.
+          ORQ="$HOME/bin/starseed-enjambre.py"
+          [ -f "$ORQ" ] || ORQ="$HOME/.local/bin/starseed-enjambre.py"
+          test -f "$ORQ" || { echo "::error::no se instaló el orquestador (ni ~/bin ni ~/.local/bin)"; exit 1; }
+          echo "orquestador: $ORQ"
           mkdir -p starseed_memory_root/olas
-          timeout "${{ inputs.minutos }}m" python3 -u ~/.local/bin/starseed-enjambre.py "${{ inputs.cola }}" --workers "${{ inputs.trabajadores }}" 2>&1 | tee enjambre-nube-gh.log || true
-          echo "commits por entregar: $(git log --oneline origin/main..HEAD | wc -l)"
+          timeout "${{ inputs.minutos }}m" python3 -u "$ORQ" "${{ inputs.cola }}" --workers "${{ inputs.trabajadores }}" 2>&1 | tee enjambre-nube-gh.log || true
+          n=$(git log --oneline origin/main..HEAD | wc -l)
+          echo "commits por entregar: $n"
+          if [ "$n" = "0" ]; then
+            echo "::warning::el enjambre no dejó ningún commit; mira enjambre-nube-gh.log en los artefactos"
+          fi
 
       - name: Entregar (rama nube/<run>, nunca main)
         if: always()
