@@ -105,6 +105,24 @@ def reunir_cambios(raiz, shas, rama_remota="origin/main"):
     """Convierte cada sha en el dict de hechos que espera `verificar_cambio`."""
     cambios = []
     for sha in shas:
+        # (2026-09-21) Un sha que ni siquiera existe en el repo NO es «no aplicado»:
+        # es un sha inventado o de otro clon, y decir que falta por publicar hace que
+        # el informe mienta. En la publicación de esta noche salió «8c3fce00 no está
+        # aplicado» y ese objeto no existe en ningún sitio. Se marca aparte.
+        rc_existe, _ = _git(raiz, ["cat-file", "-e", "%s^{commit}" % sha])
+        if rc_existe != 0:
+            cambios.append(
+                {
+                    "sha": sha[:8],
+                    "titulo": "",
+                    "ts": None,
+                    "ts_contenido": None,
+                    "en_origin": False,
+                    "existe": False,
+                    "archivos": [],
+                }
+            )
+            continue
         _, meta = _git(raiz, ["show", "--format=%H%x1f%s%x1f%ct", "--no-patch", sha])
         partes = (meta or "").strip().split("\x1f")
         titulo = partes[1] if len(partes) > 1 else ""
@@ -143,6 +161,7 @@ def reunir_cambios(raiz, shas, rama_remota="origin/main"):
                 "ts": ts,
                 "ts_contenido": max(fechas) if fechas else None,
                 "en_origin": rc == 0,
+                "existe": True,
                 "archivos": archivos,
             }
         )
@@ -150,7 +169,18 @@ def reunir_cambios(raiz, shas, rama_remota="origin/main"):
 
 
 def verificar(raiz, shas, pruebas_verdes=None, rama_remota="origin/main"):
-    """(lista de veredictos, resumen de una línea)."""
+    """(lista de veredictos, resumen de una línea).
+
+    (2026-09-21) Se refresca la referencia remota ANTES de juzgar. `en_origin` se
+    resuelve con `merge-base --is-ancestor <sha> origin/main`, que mira la copia
+    LOCAL de esa rama; si se pregunta justo después del push sin refrescarla, dos
+    commits recién empujados salen como «no aplicados». Pasó esta noche con RN1 y
+    RN7: los dos estaban en origin/main y el informe dijo que no. Un verificador
+    que da falsas alarmas deja de leerse, que es exactamente lo que no queremos.
+    """
+    remoto = (rama_remota or "origin/main").split("/", 1)
+    if len(remoto) == 2:
+        _git(raiz, ["fetch", "-q", remoto[0], remoto[1]], timeout=90)
     build_ts = build_timestamp(raiz)
     cambios = reunir_cambios(raiz, shas, rama_remota)
     for c in cambios:

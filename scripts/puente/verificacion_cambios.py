@@ -106,6 +106,19 @@ def verificar_cambio(cambio, build_ts=None):
     Devuelve un dict con `integrado`, `aplicado`, `porque` y el detalle por
     archivo, para que quien lo lea sepa POR QUÉ, no solo si sí o no.
     """
+    # (2026-09-21) Un sha que no existe en el repo no se puede juzgar, y contarlo
+    # como «no aplicado» convierte el informe en una falsa alarma. Se dice lo que
+    # es —no se reconoce ese commit— y se queda fuera de la cuenta de pendientes.
+    if cambio.get("existe") is False:
+        return {
+            "sha": cambio.get("sha", ""),
+            "titulo": cambio.get("titulo", ""),
+            "integrado": False,
+            "aplicado": False,
+            "desconocido": True,
+            "porque": "no se reconoce ese commit en el repositorio: no es un cambio sin publicar",
+            "archivos": [],
+        }
     archivos = cambio.get("archivos") or []
     detalle, faltan, huerfanos = [], [], []
     for a in archivos:
@@ -195,15 +208,30 @@ def resumen(verificaciones):
     total = len(verificaciones)
     if total == 0:
         return "no había nada que publicar"
+    desconocidos = [v for v in verificaciones if v.get("desconocido")]
+    verificaciones = [v for v in verificaciones if not v.get("desconocido")]
+    total = len(verificaciones)
+    cola = (
+        " (y %d sha%s que este repositorio no reconoce)"
+        % (len(desconocidos), "" if len(desconocidos) == 1 else "s")
+        if desconocidos
+        else ""
+    )
+    if total == 0:
+        return "no había nada que publicar" + cola
     aplicados = [v for v in verificaciones if v["aplicado"]]
     if len(aplicados) == total:
-        return "%d cambio%s publicado%s, verificado%s uno a uno: integrado%s y aplicado%s" % (
-            total,
-            "" if total == 1 else "s",
-            "" if total == 1 else "s",
-            "" if total == 1 else "s",
-            "" if total == 1 else "s",
-            "" if total == 1 else "s",
+        return (
+            "%d cambio%s publicado%s, verificado%s uno a uno: integrado%s y aplicado%s"
+            % (
+                total,
+                "" if total == 1 else "s",
+                "" if total == 1 else "s",
+                "" if total == 1 else "s",
+                "" if total == 1 else "s",
+                "" if total == 1 else "s",
+            )
+            + cola
         )
     pendientes = [v for v in verificaciones if not v["aplicado"]]
     return "%d de %d verificados; %s no está%s aplicado%s todavía: %s" % (

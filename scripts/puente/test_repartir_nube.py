@@ -164,6 +164,25 @@ class TestTamanoParaLaNube(unittest.TestCase):
         tareas = [{"id": "G1", "archivos": list("abcdef")}]
         self.assertEqual(elegir(self._colas(tareas), {}, [], None, tope=10), [])
 
+    def test_descarta_las_que_dependen_de_otra(self):
+        """La nube solo ve origin/main: no puede juzgar una dependencia viva."""
+        tareas = [
+            {"id": "ESPERA", "archivos": ["a"], "depende": ["OTRA"]},
+            {"id": "LIBRE", "archivos": ["a"]},
+        ]
+        salida = elegir(self._colas(tareas), {}, [], None, tope=10)
+        self.assertEqual([t["id"] for t in salida], ["LIBRE"])
+
+    def test_dependencia_como_texto_tambien_cuenta(self):
+        tareas = [{"id": "ESPERA", "archivos": ["a"], "depende": "OTRA"}]
+        self.assertEqual(elegir(self._colas(tareas), {}, [], None, tope=10), [])
+
+    def test_depende_de_vacio_no_estorba(self):
+        """`depende_de: []` es lo que escriben los seguimientos: no es esperar a nadie."""
+        tareas = [{"id": "LIBRE", "archivos": ["a"], "depende_de": []}]
+        salida = elegir(self._colas(tareas), {}, [], None, tope=10)
+        self.assertEqual([t["id"] for t in salida], ["LIBRE"])
+
     def test_sin_archivos_declarados_sigue_cabiendo(self):
         tareas = [{"id": "SIN", "archivos": []}]
         salida = elegir(self._colas(tareas), {}, [], None, tope=10)

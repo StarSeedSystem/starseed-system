@@ -22,7 +22,7 @@ Telegram se enteran de por qué arrancó o por qué está callado.
   python3 scripts/puente/vigilante-enjambre.py
 """
 
-import importlib.util, json, os, shutil, subprocess, sys, time
+import datetime, importlib.util, json, os, shutil, subprocess, sys, time
 
 DIRECTORIO = os.path.dirname(os.path.abspath(__file__))
 if DIRECTORIO not in sys.path:
@@ -337,7 +337,20 @@ def _pendientes_sin_correcciones():
                 % (nombre, ", ".join(chocan)),
                 flush=True,
             )
-    return seleccionar_pendientes(colas, prog, asuntos)
+    # (2026-09-21) Aquí faltaba `ahora`, y costó DIEZ HORAS de Mac parada.
+    # `seleccionar_pendientes` solo aplica el orden por importancia —y solo aparta
+    # las tareas bloqueadas por dependencias abiertas— cuando se le pasa la hora;
+    # sin ella devuelve la lista cruda. p318Jb declara `depende: [p318I]` y p318I
+    # NO EXISTE: ni tarea, ni entrada en progreso, ni en ninguna cola. Así que el
+    # vigilante lanzaba una ola cada tres minutos con esa única tarea imposible,
+    # el orquestador no podía hacer nada y salía dejando dos commits de memoria.
+    # 120 olas, 240 commits de ruido y cero trabajo entre las 04:00 y las 14:26.
+    # Con la hora puesta, esa tarea cae en «bloqueadas», la lista queda vacía y
+    # `decidir_relanzamiento` ya no relanza (n_pendientes <= 0). De paso entra el
+    # orden por importancia que pidió Alex: primero lo que amplía capacidad.
+    return seleccionar_pendientes(
+        colas, prog, asuntos, ahora=datetime.datetime.now()
+    )
 
 
 def lanzar(tareas, trabajadores=None):

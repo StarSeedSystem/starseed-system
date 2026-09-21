@@ -30,6 +30,24 @@ def _n_archivos(tarea):
     return len(tarea.get("archivos") or [])
 
 
+def _tiene_dependencias(tarea):
+    """¿Esta tarea espera a otra?
+
+    (2026-09-21) La nube hace checkout de `origin/main` y ahi se queda: no ve lo
+    que la Mac esta escribiendo AHORA MISMO ni lo que tiene sin publicar. Medido
+    en el run 35568545557: de seis tareas, CUATRO se bloquearon por dependencias
+    que en la nube no existian —AG2 esperaba a AG1, W2 a W1, RN6 a RN5, L9 a L8—
+    y RN5 se estaba integrando en la Mac en ese mismo momento. Treinta y seis
+    minutos de runner para un commit. Una tarea con dependencias solo se puede
+    juzgar donde se ve el trabajo vivo, y eso es la Mac. A la nube van las que no
+    esperan a nadie.
+    """
+    deps = tarea.get("depende") or tarea.get("depende_de") or []
+    if isinstance(deps, str):
+        deps = [deps]
+    return bool(deps)
+
+
 def numero_ola(texto):
     """Número de ola: `Ola 317` o guarismo suelto; None si no hay."""
     m = re.search(r"Ola (\d+)", texto, re.IGNORECASE) or re.search(r"(\d+)", texto)
@@ -39,10 +57,12 @@ def numero_ola(texto):
 def elegir(colas, progreso, asuntos_main, ola_actual, tope=20, max_archivos=MAX_ARCHIVOS_NUBE):
     """Hasta `tope` candidatas, deduplicadas, con modelo nube y ordenadas por tamano.
 
-    Se descartan las de mas de `max_archivos` archivos declarados: esas necesitan un
-    revisor y la nube no lo tiene. Entre las que quedan van primero las de un solo
-    archivo, que son las que de verdad llegan a commit. Si no queda ninguna, la nube
-    no recibe nada ese ciclo — que es lo correcto, no un fallo.
+    Se descartan las de mas de `max_archivos` archivos declarados —esas necesitan un
+    revisor y la nube no lo tiene— y las que DEPENDEN de otra tarea, porque la nube
+    solo ve `origin/main` y no puede saber si la dependencia esta hecha en la Mac.
+    Entre las que quedan van primero las de un solo archivo, que son las que de
+    verdad llegan a commit. Si no queda ninguna, la nube no recibe nada ese ciclo
+    — que es lo correcto, no un fallo.
     """
     salida, vistas = [], set()
     n_actual = numero_ola(str(ola_actual)) if ola_actual else None
@@ -64,6 +84,8 @@ def elegir(colas, progreso, asuntos_main, ola_actual, tope=20, max_archivos=MAX_
             if id_en_asuntos(tid, asuntos_main):
                 continue
             if _n_archivos(tarea) > max_archivos:
+                continue
+            if _tiene_dependencias(tarea):
                 continue
             vistas.add(tid)
             candidata = dict(tarea)
