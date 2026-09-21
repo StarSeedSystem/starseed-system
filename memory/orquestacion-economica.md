@@ -464,3 +464,64 @@ commit de las 06:05 dejó un `index.lock` y el ff de JV4 falló; se integró a m
 su rama) y **un id vive en UNA sola cola** (cola-344 `MD2` y cola-334 `AG1/AG2` repetían ids de
 las Olas 239/238: el vigilante y el reconciliador las daban por hechas y nunca corrieron →
 renombradas `MD2b`, `AGR1`, `AGR2`).
+
+## 12. Verde que no hizo nada, y trabajo verde que se tiraba (regla permanente · 2026-09-21)
+
+Tres fallos medidos esta madrugada. Los tres tenían la misma forma: **el sistema
+decía que todo iba bien y no iba bien**. Por eso van juntos.
+
+### 12.1 Un paso verde que no hizo nada es peor que uno rojo
+
+`p316Gb` añadió `scripts/enjambre/puerta_degenerados.py` a las 00:05. El
+orquestador lo importa en la línea 52. `instalar.sh` copiaba al lado del
+orquestador una lista de módulos **escrita a mano**, así que en la nube no
+llegaba, y cada run moría en 0,2 s con `ModuleNotFoundError`… y terminaba en
+**success**, porque la orden acababa en `|| true`. Seis horas de runners
+gratuitos tirados sin que saltara ninguna alarma.
+
+- **Regla.** Ningún paso automático termina en verde habiendo fallado. Si el
+  proceso que da sentido al paso no pudo trabajar, el paso **falla** y enseña
+  las últimas líneas de su log. Un aviso (`::warning::`) no basta: nadie lee los
+  avisos de un job verde.
+- **Regla.** Las listas de dependencias no se escriben a mano: se **deducen**.
+  `instalar.sh` copia ahora todo `.py` de `scripts/enjambre/` que no sea prueba.
+  Una lista a mano se queda corta el día que alguien añade un módulo, y no avisa.
+
+### 12.2 Alcance parcial: se integra lo verde y lo que falta sale como tarea
+
+El desatascador rechazaba toda rama con «alcance incompleto» a los 6 minutos.
+Coste de una sola noche, con las **cuatro puertas en verde** y la revisión sin
+pegas en los tres casos:
+
+| tarea | trabajo del agente | alcance |
+|---|---|---|
+| NE1c | 3 672 s | faltaba 1 de 3 archivos |
+| R6b  | 2 920 s | faltaban 2 de 6 |
+| R7b  | 2 882 s | faltaban 4 de 9 |
+
+Dos horas y media de trabajo útil a la basura para volver a pedirlo entero — y
+el reintento vuelve a fallar igual, porque el problema no era el agente: era
+pedir 6 o 9 archivos en una tarea. Política nueva (`clasificar_puertas`):
+
+- revisión **bloqueante** → rechazar (hay un defecto de verdad).
+- **no tocó ninguno** de sus archivos → rechazar (hizo otra cosa).
+- **tocó algunos pero no todos** → aprobar, integrar lo verde, y lo que falta
+  sale como tarea `<id>s` con SOLO esos archivos y el sha de lo ya integrado.
+- verde y completa → no se toca: la decide una persona.
+
+### 12.3 Una tarea = un archivo cuando no hay nadie que apruebe
+
+En la nube no hay revisor humano: solo sobrevive lo que pasa las cuatro puertas
+solo. **Las tareas que se reparten a la nube llevan UN archivo.** Las de 3, 6 y
+9 archivos son las que fallan, y fallan tarde, después de 40-60 min de agente.
+El encargo lleva escrito que no hay revisor y que el agente compruebe su propio
+`npx tsc --noEmit` antes de terminar.
+
+### 12.4 Un test que vigila nombres no vigila nada
+
+`test_aprobacion_y_congelado.py` comprobaba el **texto fuente** del guardia
+(`"marcar(pid)" in src`, `"marcado == pid" in src`). Al reescribir el guardia se
+quedó en rojo sin que nada estuviera mal, y como esas pruebas son de estilo
+pytest, `unittest discover` no las corría: rojas y mudas a la vez. Reescritas
+contra la **conducta** (`decidir(...)`). Las puertas de Python son dos y
+distintas: `scripts/puente/` con `unittest`, `scripts/enjambre/` con `pytest`.
