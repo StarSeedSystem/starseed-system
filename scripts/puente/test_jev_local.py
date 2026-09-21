@@ -22,8 +22,11 @@ class JevLocal(unittest.TestCase):
         self.assertAlmostEqual(jev_local._softmax([0, math.log(3)])[0], 0.25)
 
     def test_softmax_cuatro_letras(self):
+        # Con assertEqual esta prueba fallaba por 0.30000000000000004 != 0.3: comparar
+        # flotantes por igualdad exacta no prueba nada util y rompe sola. (2026-09-20)
         valores = [0, math.log(2), math.log(3), math.log(4)]
-        self.assertEqual(jev_local._softmax(valores), [0.1, 0.2, 0.3, 0.4])
+        for salida, esperado in zip(jev_local._softmax(valores), [0.1, 0.2, 0.3, 0.4]):
+            self.assertAlmostEqual(salida, esperado)
 
     def test_prompt_repite_estado_y_termina_en_respuesta(self):
         recibido = []
@@ -110,7 +113,12 @@ class JevLocal(unittest.TestCase):
         respuesta = jev_local.decidir({"x": 1}, {"q": pregunta})["q"]
         self.assertEqual(respuesta["score"], 1.0)
         self.assertEqual(respuesta["probabilities"].keys(), {"0", "1", "2"})
-        self.assertGreater(respuesta["confidence"], 0.7)
+        # La confianza ES la probabilidad de la opcion ganadora, y con estos logprobs
+        # (-2,0 · -0,2 · -1,0) sale 0,619, no «mas de 0,7»: el 0,7 del primer intento era
+        # aritmetica equivocada de la prueba, no un fallo del modulo. Se fija el numero
+        # real y, sobre todo, lo que de verdad importa: que gana la opcion del medio.
+        self.assertAlmostEqual(respuesta["confidence"], 0.6193, places=3)
+        self.assertEqual(respuesta["confidence"], max(respuesta["probabilities"].values()))
         self.assertAlmostEqual(sum(respuesta["probabilities"].values()), 1.0)
 
 

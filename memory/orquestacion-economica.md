@@ -392,6 +392,49 @@ las ramas `nube/<run>` en main y luego `publicar.py`). Cada job = 3 agentes de c
 pasa a ser el RPM de las pasarelas gratuitas, no el hierro. Hermes (`delegate_task`, 4 hijos) suma
 razonamiento, no código con puertas.
 
+**REGLA PERMANENTE DE CAPACIDAD (Alex, 2026-09-20).** «Sincroniza la mayor cantidad posible de
+agentes simultáneos que los directores puedan manejar y que los servicios gratuitos nos ofrezcan;
+recuérdalo en las memorias para todos los procesos y medios del desarrollo y el workflow, para
+ser siempre lo más eficientes usando la mayor capacidad disponible simultánea.» Esto no es un
+objetivo abstracto: es un **procedimiento obligatorio** antes de dar por bueno cualquier número
+de agentes.
+
+  1. **Sondear TODOS los medios**, nunca suponerlos: `python3 -c` sobre
+     `scripts/puente/medios_disponibles.py` → `sondear()` devuelve cada medio con su estado
+     (`listo` · `usable` · `requiere_alex` · `no_disponible`) y su capacidad real.
+  2. **Encender lo que esté apagado** antes de pedir más hierro. Un medio en `usable` es un medio
+     APAGADO, no uno que ya trabaja.
+  3. **Sumar, no sustituir**: la Mac sigue con su máximo del gobernador mientras la nube trabaja.
+  4. Solo entonces informar del número, y decirlo siempre con su desglose por medio.
+
+**Lo que enseñó el 2026-09-20 sobre el paso 2.** El medio de GitHub Actions llevaba apagado
+DESDE QUE SE ESCRIBIÓ y nadie lo notó, porque su fallo era mudo: cada push dejaba un run de 0 s
+con cero jobs, y `gh workflow list` mostraba el workflow con su RUTA en vez de con su nombre —la
+señal de que GitHub no pudo parsear el archivo ni una sola vez—. La causa la dijo `actionlint` en
+una línea: `context "runner" is not allowed here`, por un `${{ runner.temp }}` en el `env:` de un
+job, donde ese contexto no existe. **Por eso el paso 2 es obligatorio y se comprueba con hechos,
+no con la intención de quien lo escribió.** Antes de tocar cualquier workflow:
+`brew install actionlint && actionlint .github/workflows/<archivo>.yml`; un workflow cuyo nombre
+en `gh workflow list` sea su ruta está roto, aunque el YAML sea válido para Python.
+
+**Capacidad simultánea medida (2026-09-20, 19:00).**
+
+| medio | estado | agentes | nota |
+|---|---|---|---|
+| Mac M1 8 GB | listo | **3** | tope del gobernador; es el suelo, no el techo |
+| GitHub Actions (repo público) | usable | **3 por job, varios jobs** | 4 vCPU/16 GB, 6 h, minutos ilimitados; entrega por rama `nube/<run>` |
+| Contenedor de Cowork | refuerzo | 2 | muere con la sesión y no puede `push`; sus commits viajan por parche |
+| Google Cloud | usable | por medir | Cloud Run 180.000 vCPU·s/mes (~25 h de 2 vCPU) + Cloud Shell 60 h/semana |
+| Colab / Kaggle | requiere_alex | 2 / 4 | falta un cuaderno lanzador que clone el repo y arranque el orquestador |
+| Hugging Face | requiere_alex | 0 | Spaces Docker en CPU exige PRO (402 medido) |
+| Oracle Free Tier | descartado | — | Alex no pudo crear la cuenta |
+
+**El cuello de botella real, dicho sin adornos.** Con la nube encendida el hierro deja de mandar y
+el límite pasa a ser (a) el RPM de las pasarelas gratuitas y (b) **cuántas tareas hay en cola**.
+El 2026-09-20 hubo agentes parados no por falta de máquinas sino por falta de trabajo diseñado.
+Un director que informe «3 agentes» sin decir cuántas tareas quedan pendientes está dando media
+verdad: **más agentes que tareas no es capacidad, es ruido.**
+
 ## 11. Cinco trampas medidas el 2026-09-20 (06:00–06:40) que dejaban tareas «sin cambios»
 
 Todas costaron tandas enteras y ninguna era culpa del modelo:

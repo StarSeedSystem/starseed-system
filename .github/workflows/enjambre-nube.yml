@@ -38,7 +38,11 @@ on:
 permissions:
   contents: write
 
-# (2026-09-20) `inputs.cola` aquí tumbaba el workflow en el arranque: GitHub valida el
+# (2026-09-20) DOS cosas tumbaban este archivo en el arranque, y las dos daban el mismo
+# síntoma mudo: un run de 0 s, cero jobs, y el workflow apareciendo en `gh workflow list`
+# con su RUTA en vez de con su nombre (señal de que GitHub no pudo parsearlo nunca).
+# La segunda era `${ runner.temp }` en el `env:` del job — arreglada arriba. La primera:
+# `inputs.cola` aquí tumbaba el workflow en el arranque: GitHub valida el
 # archivo en CADA push y el contexto `inputs` no existe fuera de un workflow_dispatch →
 # «This run likely failed because of a workflow file issue» (run 35497365350, 0 s, 0 jobs).
 # `github.event.inputs.*` sí resuelve a vacío en los demás eventos.
@@ -53,7 +57,6 @@ jobs:
     env:
       STARSEED_MEDIO: nube-gh
       STARSEED_ROOT: ${{ github.workspace }}
-      STARSEED_WT: ${{ runner.temp }}/starseed-wt
       NEEDLE_TELEMETRY: "0"
       NODE_OPTIONS: --max-old-space-size=6144
     steps:
@@ -70,6 +73,10 @@ jobs:
         run: |
           npm ci --no-audit --no-fund --loglevel=error
           npm install -g opencode-ai@latest --no-audit --no-fund --loglevel=error
+          # El contexto `runner` no existe en el `env:` de un job (GitHub tumba el archivo
+          # entero al validarlo: run 35547727552, 0 s, 0 jobs). $RUNNER_TEMP sí existe aquí.
+          export STARSEED_WT="$RUNNER_TEMP/starseed-wt"
+          echo "STARSEED_WT=$STARSEED_WT" >> "$GITHUB_ENV"
           mkdir -p ~/.starseed ~/.config/opencode "$STARSEED_WT"
           cp deploy/nube/opencode.json ~/.config/opencode/opencode.json
           bash scripts/enjambre/instalar.sh

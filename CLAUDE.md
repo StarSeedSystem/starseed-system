@@ -340,7 +340,12 @@ cada minuto `~/.starseed/gobernador.json` con el tope VIVO de trabajadores = sie
 (`maximo_hardware` = 3 en 8 GB; Alex 22:40: «olvida lo de 1 agente, la mayor cantidad posible»);
 solo con < 150 MB de RAM libre quita uno, nunca menos de 2; el orquestador lo relee (`tope_gobernador`).
 Los agentes de la nube se suman con `scripts/puente/repartir-a-nube.py` (cola-nube versionada). **Más agentes a la vez = más medios**, nunca más procesos en una
-máquina que no cabe: la receta para sumar un medio (Oracle Free Tier, VPS) está en §10. BitNet
+máquina que no cabe: la receta para sumar un medio está en §10. **Regla permanente de capacidad**
+(Alex, 2026-09-20): usar siempre la mayor capacidad simultánea disponible — antes de dar por bueno
+un número de agentes hay que SONDEAR todos los medios (`scripts/puente/medios_disponibles.py`) y
+ENCENDER los que estén en `usable`, que son medios apagados, no medios trabajando. Y decir siempre
+el número con su desglose por medio y con cuántas tareas quedan en cola: más agentes que tareas no
+es capacidad, es ruido. BitNet
 vive en cualquier medio con `scripts/nodo-bitnet.sh` (repo de Astraura), que mide RAM/núcleos y
 elige hilos/contexto/slots solo.
 En esta flota, **AIHubMix** (`AIHUBMIX_API_KEY`, 412 modelos con 54 gratuitos) es el **revisor
