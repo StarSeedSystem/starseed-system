@@ -23,6 +23,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { AjustesAccesos } from "@/components/mando/ajustes-accesos";
 import { PanelBitnetAjustes } from "@/components/mando/panel-bitnet-ajustes";
 import {
     AlertTriangle,
@@ -874,6 +875,21 @@ export function PanelAjustes() {
                         );
                     })}
                 </ul>
+            </article>
+
+            <article className="rounded-xl border border-white/10 bg-black/30 p-4">
+                <header>
+                    <h3 className="text-sm font-semibold text-white">
+                        Accesos a este Mando
+                    </h3>
+                    <p className="mt-0.5 text-xs text-white/50">
+                        Quién trabaja con este Mando, quién lo está usando ahora y los
+                        servicios autorizados.
+                    </p>
+                </header>
+                <div className="mt-3">
+                    <AjustesAccesos />
+                </div>
             </article>
 
             <PanelBitnetAjustes />
