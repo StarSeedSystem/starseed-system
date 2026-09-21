@@ -13,7 +13,7 @@
 import { useEffect, useState } from "react";
 import { Bot } from "lucide-react";
 
-import { AsistenteMando } from "@/components/mando/asistente-mando";
+import { ChatAgentePuente } from "@/components/mando/chat-agente-puente";
 import { anunciar, escuchar } from "@/lib/mando/asistente-cliente";
 
 export function OrbeAsistente() {
@@ -53,7 +53,7 @@ export function OrbeAsistente() {
                     role="dialog"
                     aria-label="Asistente técnico del Puente de Mando"
                 >
-                    <AsistenteMando modo="flotante" onCerrar={() => setAbierto(false)} />
+                    <ChatAgentePuente modo="flotante" onCerrar={() => setAbierto(false)} />
                 </div>
             ) : null}
         </>

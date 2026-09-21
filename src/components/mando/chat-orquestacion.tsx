@@ -18,7 +18,7 @@ import { CircleDashed, MessagesSquare, RefreshCw } from "lucide-react";
 
 import { cargarEventos, clasificar } from "@/lib/mando/eventos";
 import type { EventoRelevo } from "@/lib/mando/tipos";
-import { AsistenteMando } from "@/components/mando/asistente-mando";
+import { ChatAgentePuente } from "@/components/mando/chat-agente-puente";
 
 /** Intervalo de sondeo del bus (ms). */
 const SONDA_MS = 15_000;
@@ -96,7 +96,7 @@ export function ChatOrquestacion() {
             <div className="space-y-3">
                 <SelectorSeccion seccion={seccion} onCambio={setSeccion} />
                 <div className="rounded-xl border border-white/10 bg-black/30 p-3 backdrop-blur">
-                    <AsistenteMando modo="panel" />
+                    <ChatAgentePuente modo="panel" />
                 </div>
             </div>
         );
