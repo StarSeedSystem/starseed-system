@@ -1,6 +1,6 @@
 # Puente de Mando · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-20 23:49:11 desde el Mando vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-21 05:14:05 desde el Mando vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -12,37 +12,67 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | | |
 |---|---|
 | Mando | **encendido** en http://127.0.0.1:9002/mando |
-| Ola arriba | Ola 227 |
-| Agentes escribiendo | **3** |
-| En esta ola | integradas 6 · en curso 0 · esperando aprobación 1 · pendientes 0 |
-| Últimas 6 olas | en curso 1 · pendientes 14 · integradas 11 |
-| HEAD | `9615b498 nube-gh: el medio FUNCIONA, y las ramas que fallan dejan de tirarse a la basura` |
-| Sin publicar | 0 commits |
+| Ola arriba | Ola Dream 2026-09-15 · lo que el análisis nocturno encontró |
+| Agentes escribiendo | **0** |
+| En esta ola | integradas 1 · en curso 0 · esperando aprobación 0 · pendientes 0 |
+| Últimas 4 olas | en curso 0 · pendientes 0 · integradas 14 |
+| HEAD | `49cac336 chore(memoria): aprendizaje de la ola auto-0920-182930` |
+| Sin publicar | 48 commits |
 | Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-auto-0920-182930.json`, hace 0s)
+## Quién escribe ahora (latido de `cola-auto-0920-182930.json`, hace 5s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `QW5b` | tests | google/gemini-3.6-flash | 0 min | 1 s | 49827 |
-| `R7b` | esperando aprobación | openrouter/thinkingmachines/inklin | 1 min | 75 s | 110579 |
-| `X5c` | hecho | openrouter/thinkingmachines/inklin | 30 min | 1780 s | 31751 |
-| `R6b` | hecho | openrouter/nvidia/nemotron-3-ultra | 42 min | 2525 s | 66132 |
-| `NE1c` | hecho | openrouter/poolside/laguna-xs-2.1: | 63 min | 3779 s | 86059 |
-| `AS2b` | hecho | google/gemini-3.6-flash | 122 min | 7330 s | 90179 |
-| `JV7b` | hecho | openrouter/thinkingmachines/inklin | 124 min | 7454 s | 242293 |
-| `JV12b` | hecho | nvidia/moonshotai/kimi-k3 | 146 min | 8757 s | 65899 |
-| `JV8b` | hecho | openrouter/thinkingmachines/inklin | 180 min | 10806 s | 205491 |
-| `NE2` | hecho | nvidia/moonshotai/kimi-k3 | 201 min | 12079 s | 38643 |
-| `AX2` | hecho | openrouter/dots-studio/dots-3-note | 205 min | 12328 s | 34841 |
-| `AX1` | hecho | openrouter/nvidia/nemotron-3-ultra | 216 min | 12984 s | 77348 |
-| `JV8` | esperando aprobación | codex/gpt-5.6-sol | 219 min | 13133 s | 493491 |
-| `JV7` | hecho | openrouter/thinkingmachines/inklin | 236 min | 14168 s | 74055 |
-| `JV12` | hecho | openrouter/thinkingmachines/inklin | 236 min | 14169 s | 59600 |
-| `AS2` | hecho | codex/gpt-5.6-sol | 236 min | 14170 s | 4494073 |
-| `JV11` | hecho | openrouter/thinkingmachines/inklin | 273 min | 16376 s | 71604 |
-| `DV2` | hecho | codex/gpt-5.6-sol | 284 min | 17063 s | 639856 |
-| `JV6` | hecho | openrouter/nex-agi/nex-n2.5-pro:fr | 288 min | 17275 s | 62781 |
+| `RN8` | hecho | codex/gpt-5.6-sol | 3 min | 167 s | 449212 |
+| `RN7` | hecho | google/gemini-3.6-flash | 10 min | 575 s | 69147 |
+| `RN6` | hecho | codex/gpt-5.6-sol | 34 min | 2022 s | 451517 |
+| `RN5` | hecho | nvidia/moonshotai/kimi-k3 | 53 min | 3169 s | 42913 |
+| `RN3` | hecho | codex/gpt-5.6-sol | 85 min | 5101 s | 634895 |
+| `RN4` | hecho | google/gemini-3.6-flash | 92 min | 5502 s | 40729 |
+| `RN2` | hecho | google/gemini-3.6-flash | 95 min | 5729 s | 66792 |
+| `CU3r` | hecho | google/gemini-3.6-flash | 101 min | 6083 s | 114624 |
+| `JV12c` | hecho | codex/gpt-5.6-sol | 103 min | 6151 s | 462271 |
+| `RN1` | hecho | google/gemini-3.6-flash | 104 min | 6223 s | 49454 |
+| `CU3c` | hecho | nvidia/moonshotai/kimi-k3 | 117 min | 7039 s | 176352 |
+| `JV7c` | hecho | openrouter/thinkingmachines/inklin | 118 min | 7105 s | 26355 |
+| `JV8c` | hecho | openrouter/thinkingmachines/inklin | 123 min | 7352 s | 28225 |
+| `AGR2b` | hecho | google/gemini-3.6-flash | 126 min | 7546 s | 36188 |
+| `DR0917-2b` | hecho | openrouter/thinkingmachines/inklin | 135 min | 8082 s | 111114 |
+| `AS2c` | hecho | codex/gpt-5.6-sol | 143 min | 8577 s | 1125350 |
+| `p323Bb` | hecho | nvidia/moonshotai/kimi-k3 | 149 min | 8936 s | 91730 |
+| `p324Gb` | hecho | codex/gpt-5.6-sol | 164 min | 9855 s | 306408 |
+| `p324Ab` | hecho | google/gemini-3.6-flash | 174 min | 10414 s | 32956 |
+| `p324Fb` | hecho | google/gemini-3.6-flash | 178 min | 10656 s | 19129 |
+| `JV8` | hecho | codex/gpt-5.6-sol | 184 min | 11018 s | 493491 |
+| `p323Gb` | hecho | google/gemini-3.6-flash | 185 min | 11079 s | 46083 |
+| `p320Fb` | hecho | google/gemini-3.6-flash | 189 min | 11318 s | 110799 |
+| `p321Jb` | hecho | google/gemini-3.6-flash | 196 min | 11763 s | 549579 |
+| `p321Bb` | hecho | nvidia/moonshotai/kimi-k3 | 211 min | 12683 s | 79727 |
+| `p320Bb` | hecho | nvidia/moonshotai/kimi-k3 | 225 min | 13527 s | 50871 |
+| `p316Mb` | hecho | google/gemini-3.6-flash | 261 min | 15655 s | 60487 |
+| `p316Jb` | hecho | codex/gpt-5.6-sol | 261 min | 15677 s | 699171 |
+| `p316Ib` | hecho | codex/gpt-5.6-sol | 289 min | 17368 s | 716154 |
+| `p316Fb` | hecho | nvidia/moonshotai/kimi-k3 | 302 min | 18101 s | 52017 |
+| `p316Gb` | hecho | google/gemini-3.6-flash | 305 min | 18311 s | 115242 |
+| `R7b` | hecho | openrouter/thinkingmachines/inklin | 319 min | 19113 s | 110579 |
+| `QW5b` | hecho | google/gemini-3.6-flash | 323 min | 19357 s | 56154 |
+| `X5c` | hecho | openrouter/thinkingmachines/inklin | 355 min | 21274 s | 31751 |
+| `R6b` | hecho | openrouter/nvidia/nemotron-3-ultra | 367 min | 22019 s | 66132 |
+| `NE1c` | hecho | openrouter/poolside/laguna-xs-2.1: | 388 min | 23272 s | 86059 |
+| `AS2b` | hecho | google/gemini-3.6-flash | 447 min | 26824 s | 90179 |
+| `JV7b` | hecho | openrouter/thinkingmachines/inklin | 449 min | 26948 s | 242293 |
+| `JV12b` | hecho | nvidia/moonshotai/kimi-k3 | 471 min | 28251 s | 65899 |
+| `JV8b` | hecho | openrouter/thinkingmachines/inklin | 505 min | 30300 s | 205491 |
+| `NE2` | hecho | nvidia/moonshotai/kimi-k3 | 526 min | 31573 s | 38643 |
+| `AX2` | hecho | openrouter/dots-studio/dots-3-note | 530 min | 31821 s | 34841 |
+| `AX1` | hecho | openrouter/nvidia/nemotron-3-ultra | 541 min | 32478 s | 77348 |
+| `JV7` | hecho | openrouter/thinkingmachines/inklin | 561 min | 33661 s | 74055 |
+| `JV12` | hecho | openrouter/thinkingmachines/inklin | 561 min | 33662 s | 59600 |
+| `AS2` | hecho | codex/gpt-5.6-sol | 561 min | 33664 s | 4494073 |
+| `JV11` | hecho | openrouter/thinkingmachines/inklin | 598 min | 35870 s | 71604 |
+| `DV2` | hecho | codex/gpt-5.6-sol | 609 min | 36557 s | 639856 |
+| `JV6` | hecho | openrouter/nex-agi/nex-n2.5-pro:fr | 613 min | 36769 s | 62781 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
