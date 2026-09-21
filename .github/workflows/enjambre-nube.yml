@@ -123,8 +123,13 @@ jobs:
           [ -f "$ORQ" ] || ORQ="$HOME/.local/bin/starseed-enjambre.py"
           test -f "$ORQ" || { echo "::error::no se instaló el orquestador (ni ~/bin ni ~/.local/bin)"; exit 1; }
           echo "orquestador: $ORQ"
+          # (2026-09-20) El log NO puede vivir dentro del repo: `tee enjambre-nube-gh.log`
+          # ensuciaba el arbol de trabajo y el orquestador se niega a arrancar con el arbol
+          # sucio — «no arranco · ajeno: enjambre-nube-gh.log». El propio archivo que el paso
+          # creaba impedia arrancar el proceso que ese paso iba a lanzar.
+          LOG="$RUNNER_TEMP/enjambre-nube-gh.log"
           mkdir -p starseed_memory_root/olas
-          timeout "${{ inputs.minutos }}m" python3 -u "$ORQ" "${{ inputs.cola }}" --workers "${{ inputs.trabajadores }}" 2>&1 | tee enjambre-nube-gh.log || true
+          timeout "${{ inputs.minutos }}m" python3 -u "$ORQ" "${{ inputs.cola }}" --workers "${{ inputs.trabajadores }}" 2>&1 | tee "$LOG" || true
           n=$(git log --oneline origin/main..HEAD | wc -l)
           echo "commits por entregar: $n"
           if [ "$n" = "0" ]; then
@@ -148,7 +153,7 @@ jobs:
         with:
           name: enjambre-nube-${{ github.run_id }}
           path: |
-            enjambre-nube-gh.log
+            ${{ runner.temp }}/enjambre-nube-gh.log
             starseed_memory_root/olas/latidos-*.json
             starseed_memory_root/olas/progreso.json
             starseed_memory_root/olas/eventos.jsonl
