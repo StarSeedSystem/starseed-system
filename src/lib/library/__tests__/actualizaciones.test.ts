@@ -5,7 +5,6 @@ import {
     urlDeConsulta,
     leerVersion,
     compararVersiones,
-    resolverInstaladaConocida,
 } from "../actualizaciones";
 
 describe("urlDeConsulta", () => {
@@ -59,6 +58,7 @@ describe("compararVersiones", () => {
 
     it("sha contra el mismo sha → «igual»", () => {
         expect(compararVersiones("a1b2c3d", "a1b2c3d")).toBe("igual");
+        expect(compararVersiones("a1b2c3d4e5f6", "a1b2c3d")).toBe("igual");
     });
 
     it("sha contra otro sha → «hay-actualizacion»", () => {
@@ -68,19 +68,5 @@ describe("compararVersiones", () => {
     it("falta un dato → «desconocida»", () => {
         expect(compararVersiones(undefined, "a1b2c3d")).toBe("desconocida");
         expect(compararVersiones("a1b2c3d", null)).toBe("desconocida");
-    });
-});
-
-describe("resolverInstaladaConocida", () => {
-    it("conserva el sha ya registrado", () => {
-        expect(resolverInstaladaConocida("a1b2c3d", "f9e8d7c")).toBe("a1b2c3d");
-    });
-
-    it("la primera pasada registra el sha remoto", () => {
-        expect(resolverInstaladaConocida(null, "f9e8d7c")).toBe("f9e8d7c");
-    });
-
-    it("sin nada comparable, null", () => {
-        expect(resolverInstaladaConocida("1.0.0", null)).toBeNull();
     });
 });

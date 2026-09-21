@@ -71,11 +71,9 @@ export function leerVersion(upstream: string, json: unknown): VersionLeida | nul
 const RE_SHA = /^[0-9a-f]{7,40}$/i;
 
 /**
- * Compara la versión instalada con la remota.
- * Solo se atreve a decir «hay-actualizacion» cuando AMBAS cosas tienen forma
- * de sha (7-40 hex): si la instalada es una versión escrita a mano («1.0.0»)
- * y la remota es un sha, no son comparables y se dice «desconocida», no
- * alarma. Que no sepamos algo se dice; no se disfraza de aviso.
+ * Compara identificadores del mismo tipo. Los upstream consultados entregan un
+ * sha, por lo que una versión manual como «1.0.0» no demuestra ni igualdad ni
+ * cambio y debe quedar como «desconocida».
  */
 export function compararVersiones(
     instalada: string | null | undefined,
@@ -83,19 +81,9 @@ export function compararVersiones(
 ): EstadoActualizacion {
     if (!instalada || !remota) return "desconocida";
     if (!RE_SHA.test(instalada) || !RE_SHA.test(remota)) return "desconocida";
-    return instalada.toLowerCase() === remota.toLowerCase() ? "igual" : "hay-actualizacion";
-}
-
-/**
- * Regla de persistencia para la ruta: el sha remoto se guarda la PRIMERA vez
- * que se ve por fuente, y a partir de ahí se compara sha contra sha.
- * Devuelve el sha que debe quedar registrado como «instalada conocida».
- */
-export function resolverInstaladaConocida(
-    guardada: string | null | undefined,
-    remota: string | null | undefined,
-): string | null {
-    if (guardada && RE_SHA.test(guardada)) return guardada;
-    if (remota && RE_SHA.test(remota)) return remota;
-    return null;
+    const local = instalada.toLowerCase();
+    const upstream = remota.toLowerCase();
+    return local.startsWith(upstream) || upstream.startsWith(local)
+        ? "igual"
+        : "hay-actualizacion";
 }
