@@ -1007,3 +1007,33 @@
 **Lo que quedó fuera, una por una:**
 - `AGR2` — la revisión lo rechazó: rechazada automáticamente por ide (sin revisión humana); rama ola/AGR2 conservada
 - `DV1` — la revisión lo rechazó: rechazada automáticamente por ide (sin revisión humana); rama ola/DV1 conservada
+
+## 2026-09-21 05:14 · auto-0920-182930
+
+**Lo que se pidió.** Seguimiento: no
+
+**Resultado.** 37 de 54 integradas. 17 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 16 tareas se fueron por lo mismo — la revisión lo rechazó (JV7, JV8, JV9, JV10, JV12, AS2). Es 30 % de la ola.
+- sin modelo anotado no integró ninguna de sus 5 tareas.
+- nvidia/moonshotai/kimi-k3 integró 8 tareas sin fallar una.
+
+**Lo que quedó fuera, una por una:**
+- `JV7` — la revisión lo rechazó: rechazada automáticamente por ide (sin revisión humana); rama ola/JV7 conservada
+- `JV8` — la revisión lo rechazó: rechazada automáticamente por ide (sin revisión humana); rama ola/JV8 conservada
+- `JV9` — la revisión lo rechazó: dependencia no integrada: JV7 (rechazada)
+- `JV10` — la revisión lo rechazó: dependencia no integrada: JV8 (rechazada)
+- `JV12` — la revisión lo rechazó: rechazada automáticamente por ide (sin revisión humana); rama ola/JV12 conservada
+- `AS2` — la revisión lo rechazó: rechazada automáticamente por ide (sin revisión humana); rama ola/AS2 conservada
+- `AS3` — la revisión lo rechazó: dependencia no integrada: AS2 (rechazada)
+- `NE1c` — la revisión lo rechazó: rechazada automáticamente por ide (sin revisión humana); rama ola/NE1c conservada
+- `R6b` — la revisión lo rechazó: rechazada automáticamente por ide (sin revisión humana); rama ola/R6b conservada
+- `X5c` — la revisión lo rechazó: rechazada automáticamente por ide (sin revisión humana); rama ola/X5c conservada
+- `R7b` — la revisión lo rechazó: rechazada automáticamente por ide (sin revisión humana); rama ola/R7b conservada
+- `p316Mb` — la revisión lo rechazó: rechazada automáticamente por ide (sin revisión humana); rama ola/p316Mb conservada
+- `p318Jb` — otra cosa: desbloqueada: p318I ya está integrada
+- `AGR2b` — la revisión lo rechazó: rechazada automáticamente por ide (sin revisión humana); rama ola/AGR2b conservada
+- `JV8c` — la revisión lo rechazó: rechazada automáticamente por ide (sin revisión humana); rama ola/JV8c conservada
+- `CU3r` — la revisión lo rechazó: rechazada automáticamente por ide (sin revisión humana); rama ola/CU3r conservada
+- `CU3br` — la revisión lo rechazó: dependencia no integrada: CU3r (rechazada)
