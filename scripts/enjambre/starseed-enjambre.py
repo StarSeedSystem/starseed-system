@@ -51,6 +51,8 @@ import limite_proveedor as _limite_proveedor
 import mensajes_agente as _mensajes
 from clasificar_fallo_motor import clasificar
 from puerta_degenerados import archivos_degenerados
+from proveedor_anthropic import cabeceras_api as cabeceras_anthropic
+from proveedor_anthropic import escalon as escalon_anthropic, ordenar_por_precio
 
 
 # El MISMO archivo corre en la Mac de Alex y en el contenedor de Cowork: sin variables de
@@ -330,9 +332,23 @@ CATALOGOS = {
     ),
     "xkiro": ("https://api.xkiro.com/v1/models", ("XKIRO_API_KEY",)),
     "apinex": ("https://apinex.bond/v1/models", ("STARSEED_PASARELA_APINEX_KEY",)),
+    "anthropic": ("https://api.anthropic.com/v1/models", ("ANTHROPIC_API_KEY",)),
 }
 
 _CATALOGOS_CACHE = {}  # proveedor -> (epoch, set de ids o None si falló la consulta)
+_ANTHROPIC_ORDENADOS = []
+
+
+def _cabeceras_api(prov, key, contenido=False):
+    if prov == "anthropic":
+        return cabeceras_anthropic(key, contenido)
+    cabeceras = {
+        "Authorization": "Bearer " + key,
+        "User-Agent": "starseed-enjambre/2 (+starseed-os)",
+    }
+    if contenido:
+        cabeceras["Content-Type"] = "application/json"
+    return cabeceras
 
 
 def catalogo_proveedor(prov):
@@ -340,6 +356,7 @@ def catalogo_proveedor(prov):
     (2026-09-07, Ola 261). Lo consultan validar_modelos() y debe_retirar(); el caché evita
     una petición HTTP por cada sospecha de defunción. Devuelve None si el proveedor no
     tiene catálogo conocido (tokenrouter, llm7), si no hay clave o si la consulta falló."""
+    global _ANTHROPIC_ORDENADOS
     if prov not in CATALOGOS:
         return None
     ts, datos = _CATALOGOS_CACHE.get(prov, (0, None))
@@ -357,19 +374,13 @@ def catalogo_proveedor(prov):
     datos = None
     if key:
         try:
-            req = urllib.request.Request(
-                url,
-                headers={
-                    "Authorization": "Bearer " + key,
-                    "User-Agent": "starseed-enjambre/2 (+starseed-os)",
-                },
-            )
-            datos = {
-                m["id"]
-                for m in json.loads(urllib.request.urlopen(req, timeout=30).read()).get(
-                    "data", []
-                )
-            }
+            req = urllib.request.Request(url, headers=_cabeceras_api(prov, key))
+            lista = json.loads(
+                urllib.request.urlopen(req, timeout=30).read()
+            ).get("data", [])
+            if prov == "anthropic":
+                _ANTHROPIC_ORDENADOS = ordenar_por_precio(lista)
+            datos = {m["id"] for m in lista}
         except Exception:
             datos = None
     _CATALOGOS_CACHE[prov] = (time.time(), datos)
@@ -621,6 +632,7 @@ SONDAS = {
     "llm7": ("gpt-oss", ("LLM7_SIN_CLAVE",)),  # sin clave: la variable es un marcador
     "freetheai": ("gpt-oss-120b", ("FREETHEAI_API_KEY",)),
     "apinex": ("free/gemini-3.8-flash", ("STARSEED_PASARELA_APINEX_KEY",)),
+    "anthropic": ("", ("ANTHROPIC_API_KEY",)),
 }
 USO_REAL = {}  # proveedor -> (momento, salió bien) del último trabajo de verdad
 FRESCO_S = 120  # si hay noticia real más nueva que esto, no hace falta sondear
@@ -640,6 +652,7 @@ MODELS_URLS = {
     "llm7": "https://api.llm7.io/v1/models",
     "freetheai": "https://api.freetheai.xyz/v1/models",
     "apinex": "https://apinex.bond/v1/models",
+    "anthropic": "https://api.anthropic.com/v1/models",
 }
 # (2026-09-07, Ola 271, P9D) Una racha de 429 (límite por minuto o cupo diario) agota la clave
 # 1 hora y la sonda la vuelve a probar; solo un 402 o un aviso de cupo explícito la agotan 24 h.
@@ -953,13 +966,7 @@ def _sonda_ligera(prov, claves, kay):
             or (ENV.get("LLM7_API_KEY") or "sin-clave" if prov == "llm7" else None)
         )
     )
-    req = urllib.request.Request(
-        url,
-        headers={
-            "Authorization": "Bearer " + key,
-            "User-Agent": "starseed-enjambre/2 (+starseed-os)",
-        },
-    )
+    req = urllib.request.Request(url, headers=_cabeceras_api(prov, key))
     huella = (kay or {}).get("huella")
     try:
         with urllib.request.urlopen(req, timeout=40) as r:
@@ -999,7 +1006,13 @@ def _sonda_generacion(prov, claves, kay):
     """Generación real de prueba (2026-09-07, Ola 271, P9D): solo con `forzar=True` y como máximo
     una vez cada SONDA_GENERACION_S por proveedor. Comprueba que el proveedor ACEPTA y CONTESTA
     una generación; distingue el motivo del fallo (402/cuota/429) para agotar con las horas justas."""
-    modelo = SONDAS[prov][0]
+    if prov == "anthropic":
+        catalogo_proveedor(prov)
+        modelo = escalon_anthropic(1, _ANTHROPIC_ORDENADOS)
+        if modelo is None:
+            return False
+    else:
+        modelo = SONDAS[prov][0]
     url = {
         "xkiro": "https://api.xkiro.com/v1/chat/completions",
         "nim": "https://integrate.api.nvidia.com/v1/chat/completions",
@@ -1008,6 +1021,7 @@ def _sonda_generacion(prov, claves, kay):
         "openrouter": "https://openrouter.ai/api/v1/chat/completions",
         "llm7": "https://api.llm7.io/v1/chat/completions",
         "freetheai": "https://api.freetheai.xyz/v1/chat/completions",
+        "anthropic": "https://api.anthropic.com/v1/messages",
         **{n: p["url"] for n, p in PASARELAS.items()},
     }[prov]
     key = (
@@ -1036,11 +1050,7 @@ def _sonda_generacion(prov, claves, kay):
         req = urllib.request.Request(
             url,
             data=json.dumps(cuerpo).encode(),
-            headers={
-                "Content-Type": "application/json",
-                "Authorization": "Bearer " + key,
-                "User-Agent": "starseed-enjambre/2 (+starseed-os)",
-            },
+            headers=_cabeceras_api(prov, key, contenido=True),
         )
         with urllib.request.urlopen(req, timeout=40) as r:
             vivo = 200 <= r.status < 300
@@ -1048,8 +1058,14 @@ def _sonda_generacion(prov, claves, kay):
                 try:
                     cuerpo_r = json.loads(r.read().decode("utf-8", "ignore"))
                     contenido = (
-                        (cuerpo_r.get("choices") or [{}])[0].get("message") or {}
-                    ).get("content") or ""
+                        "".join(b.get("text", "") for b in cuerpo_r.get("content", []))
+                        if prov == "anthropic"
+                        else (
+                            (cuerpo_r.get("choices") or [{}])[0].get("message")
+                            or {}
+                        ).get("content")
+                        or ""
+                    )
                     if es_aviso_de_cuota(contenido):
                         vivo = False  # 200 con aviso de cuota = agotado, no vivo
                         if huella:
@@ -1457,6 +1473,7 @@ CLAVES_POR_PROVEEDOR = {
     "gemini": ["GEMINI_API_KEY", "GOOGLE_API_KEY", "NEXT_PUBLIC_GOOGLE_API_KEY"],
     "llm7": ["LLM7_API_KEY"],
     "freetheai": ["FREETHEAI_API_KEY"],
+    "anthropic": ["ANTHROPIC_API_KEY"],
 }
 # En la flota el proveedor de NVIDIA se llama «nim», pero sus variables son NVIDIA_*.
 _ALIAS_CLAVES = {"nim": "nvidia"}
@@ -4309,6 +4326,12 @@ def consumir_control():
 # NUNCA claves aquí: «sin-clave» literal para llm7 y «{env:TOKENROUTER_API_KEY}» para
 # tokenrouter — opencode expande {env:…} en tiempo de ejecución.
 PROVEEDOR_OPENCODE_MINIMO = {
+    "anthropic": {
+        "npm": "@ai-sdk/anthropic",
+        "name": "Anthropic",
+        "options": {"apiKey": "{env:ANTHROPIC_API_KEY}"},
+        "models": {},
+    },
     "llm7": {
         "npm": "@ai-sdk/openai-compatible",
         "name": "LLM7 (sin clave)",
