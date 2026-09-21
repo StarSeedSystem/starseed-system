@@ -1,6 +1,6 @@
 # Puente de Mando · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-20 18:18:23 desde el Mando vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-20 23:49:11 desde el Mando vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -12,25 +12,37 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | | |
 |---|---|
 | Mando | **encendido** en http://127.0.0.1:9002/mando |
-| Ola arriba | Ola Dream 2026-09-15 · lo que el análisis nocturno encontró |
-| Agentes escribiendo | **0** |
-| En esta ola | integradas 2 · en curso 0 · esperando aprobación 0 · pendientes 0 |
-| Últimas 4 olas | en curso 0 · pendientes 0 · integradas 8 |
-| HEAD | `0fc790cf chore(memoria): aprendizaje de la ola auto-0920-165233` |
-| Sin publicar | 23 commits |
+| Ola arriba | Ola 227 |
+| Agentes escribiendo | **3** |
+| En esta ola | integradas 6 · en curso 0 · esperando aprobación 1 · pendientes 0 |
+| Últimas 6 olas | en curso 1 · pendientes 14 · integradas 11 |
+| HEAD | `9615b498 nube-gh: el medio FUNCIONA, y las ramas que fallan dejan de tirarse a la basura` |
+| Sin publicar | 0 commits |
 | Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-auto-0920-165233.json`, hace 9s)
+## Quién escribe ahora (latido de `cola-auto-0920-182930.json`, hace 0s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `DV1` | hecho | google/gemini-3.6-flash | 3 min | 162 s | 933476 |
-| `AGR3` | hecho | google/gemini-3.6-flash | 6 min | 366 s | 67577 |
-| `MU2` | hecho | nvidia/moonshotai/kimi-k3 | 22 min | 1319 s | 163938 |
-| `PD1` | hecho | google/gemini-3.6-flash | 27 min | 1593 s | 81169 |
-| `CC5` | hecho | google/gemini-3.6-flash | 40 min | 2394 s | 74049 |
-| `AGR2` | hecho | google/gemini-3.6-flash | 45 min | 2721 s | 77477 |
-| `JV5` | hecho | google/gemini-3.6-flash | 49 min | 2966 s | 57039 |
+| `QW5b` | tests | google/gemini-3.6-flash | 0 min | 1 s | 49827 |
+| `R7b` | esperando aprobación | openrouter/thinkingmachines/inklin | 1 min | 75 s | 110579 |
+| `X5c` | hecho | openrouter/thinkingmachines/inklin | 30 min | 1780 s | 31751 |
+| `R6b` | hecho | openrouter/nvidia/nemotron-3-ultra | 42 min | 2525 s | 66132 |
+| `NE1c` | hecho | openrouter/poolside/laguna-xs-2.1: | 63 min | 3779 s | 86059 |
+| `AS2b` | hecho | google/gemini-3.6-flash | 122 min | 7330 s | 90179 |
+| `JV7b` | hecho | openrouter/thinkingmachines/inklin | 124 min | 7454 s | 242293 |
+| `JV12b` | hecho | nvidia/moonshotai/kimi-k3 | 146 min | 8757 s | 65899 |
+| `JV8b` | hecho | openrouter/thinkingmachines/inklin | 180 min | 10806 s | 205491 |
+| `NE2` | hecho | nvidia/moonshotai/kimi-k3 | 201 min | 12079 s | 38643 |
+| `AX2` | hecho | openrouter/dots-studio/dots-3-note | 205 min | 12328 s | 34841 |
+| `AX1` | hecho | openrouter/nvidia/nemotron-3-ultra | 216 min | 12984 s | 77348 |
+| `JV8` | esperando aprobación | codex/gpt-5.6-sol | 219 min | 13133 s | 493491 |
+| `JV7` | hecho | openrouter/thinkingmachines/inklin | 236 min | 14168 s | 74055 |
+| `JV12` | hecho | openrouter/thinkingmachines/inklin | 236 min | 14169 s | 59600 |
+| `AS2` | hecho | codex/gpt-5.6-sol | 236 min | 14170 s | 4494073 |
+| `JV11` | hecho | openrouter/thinkingmachines/inklin | 273 min | 16376 s | 71604 |
+| `DV2` | hecho | codex/gpt-5.6-sol | 284 min | 17063 s | 639856 |
+| `JV6` | hecho | openrouter/nex-agi/nex-n2.5-pro:fr | 288 min | 17275 s | 62781 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
