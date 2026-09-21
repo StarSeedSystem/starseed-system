@@ -1,8 +1,6 @@
 // Moderador de publicaciones usando decisiones Jev en el servidor.
+import { PLAZO_DECISION_MS, moderar } from "@/lib/astraura/decisiones";
 import {
-  construirPeticion,
-  decisionesDeModeracion,
-  leerRespuesta,
   umbral,
   type Decision,
 } from "./decisiones";
@@ -71,34 +69,27 @@ export async function moderarPublicacion(
 
   if (process.env.JEV_MODERACION === "0" || process.env.STARSEED_JEV === "0") return fallbackInseguro;
 
-  const apiKey = process.env.OPENROUTER_API_KEY || process.env.OPENROUTER_SHARED_KEY;
-  if (!apiKey || !texto || !texto.trim()) return fallbackInseguro;
+  if (!texto || !texto.trim()) return fallbackInseguro;
+
+  let temporizador: ReturnType<typeof setTimeout> | undefined;
 
   try {
-    const preguntas = decisionesDeModeracion({ texto, titulo: opciones?.titulo, autor: opciones?.autor });
-    const cuerpo = construirPeticion({ texto, titulo: opciones?.titulo }, preguntas);
-
-    const res = await fetch("https://openrouter.ai/api/alpha/decisions", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify(cuerpo),
-      signal: AbortSignal.timeout(opciones?.timeoutMs ?? 5000),
+    const plazo = new Promise<null>((resolver) => {
+      temporizador = setTimeout(
+        () => resolver(null),
+        opciones?.timeoutMs ?? PLAZO_DECISION_MS
+      );
     });
-
-    if (!res.ok) return fallbackInseguro;
-
-    const data = (await res.json()) as { usage?: { cost?: number } };
-    const gasto = typeof data.usage?.cost === "number" ? data.usage.cost : undefined;
-
-    if (gasto !== undefined && gasto > (opciones?.maxGasto ?? 0.01)) {
-      return { veredicto: "revisar", motivos: ["Límite de gasto superado"], probabilidades: {}, gasto };
-    }
-
-    const respuestas = leerRespuesta(data);
-    const resultado = decidirVeredicto(respuestas, opciones?.umbrales);
-    if (gasto !== undefined) resultado.gasto = gasto;
-    return resultado;
+    const decision = await Promise.race([moderar(texto), plazo]);
+    if (!decision?.decidio || !decision.veredicto) return fallbackInseguro;
+    return {
+      veredicto: decision.veredicto,
+      motivos: [],
+      probabilidades: { [decision.veredicto]: decision.confianza },
+    };
   } catch {
     return fallbackInseguro;
+  } finally {
+    if (temporizador !== undefined) clearTimeout(temporizador);
   }
 }
