@@ -98,7 +98,13 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
 
     // Ejecutables ahora: la regla vive en `medidores.ts` y es la MISMA que usa el
     // vigilante. Aquí solo se le da lo que hay en disco y los asuntos de `main`.
-    const asuntosDeMain = await git(["log", "main", "--format=%s", "-n", "1200"]);
+    // (2026-09-21) Aqui habia un `-n 1200` y por eso el medidor seguia ofreciendo tareas
+    // YA HECHAS aun leyendo Git: el repo tiene 2.311 commits y el de X6 esta en la posicion
+    // 1.311, justo fuera de la ventana. Y la ventana se llena rapido de ruido —356 commits
+    // de `chore(memoria)`—, asi que recortarla equivale a olvidar meses de trabajo. Sin
+    // tope: son 2.311 lineas, unos 150 KB, que git entrega en milisegundos. Una ventana
+    // que solo ve lo reciente convierte trabajo terminado en trabajo pendiente.
+    const asuntosDeMain = await git(["log", "main", "--format=%s"]);
     const ejecutables = ejecutablesDeColas(colas, progreso, asuntosDeMain);
 
     // Latidos: los de ESTA Mac mandan sobre los del bus para la misma tarea, y los de la
