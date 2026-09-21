@@ -1,0 +1,87 @@
+{
+ "ola": "nube-20260921",
+ "tareas": [
+  {
+   "id": "RN1",
+   "ola": "Ola Red Mesh · PAIR · Voz",
+   "titulo": "PAIR como cola de inferencia local: proveedor OpenAI-compatible",
+   "depende": [],
+   "archivos": [
+    "src/lib/network/inferencia-local.ts",
+    "src/lib/__tests__/inferencia-local.test.ts"
+   ],
+   "prompt": "NVIDIA PAIR (https://github.com/NVIDIA/Personal-AI-Router) es un router local que reparte inferencia a los nodos de la misma red y expone endpoints Ollama-/OpenAI-compatibles. StarSeed ya tiene la red mesh (`src/ai/astraura/mesh/decision-router.ts`, `src/lib/network/capacidades-nodo.ts` con `anunciar` y `resumenRed`). Crea UN modulo puro que describa a PAIR como nodo de inferencia disponible.\n1) `inferencia-local.ts`: `interface NodoInferenciaLocal { id; host; puerto; baseUrl; motores: string[]; modelos: string[]; ramMB: number; latenciaMs?; carga?; ultimoLatido: string; transporte: 'webrtc-local'|'wifi-halo'|'reticulum'|'tunel' }` y `NODOS_INFERENCIA_LOCAL_STORAGE = 'starseed.mesh.inferencia-local.v1'`. Funciones puras: `nodoConBase(nodo, ruta)` (OpenAI-compatible: `POST {host}:{puerto}/v1/chat/completions`); `resumenDisponibles(nodos)` (totales, listos, conModelo, latenciaPromedio) filtrando los que descargaron los modelos del estudio y respetan un umbral de RAM; `elegirNodo(nodos, {modelo, requiereGpu:false})` el listo con menor carga (determinista: orden por (carga, latenciaMs), desempate por id) o null. `requiereGpu` exactamente false (PAIR no une GPUs ni trocea un modelo; la voz 1.58/suptonica corre sin GPU).\n2) Test vitest puro: `elegirNodo` elige el de menor carga, descarta el sin modelo o sin RAM, devuelve null sin nodos; `resumenDisponibles` cuenta bien.\nNo toques el orquestador ni pasarelas de pago. Sin any. tsc limpio.",
+   "modelo": "llm7/minimax-m2.7"
+  },
+  {
+   "id": "RN2",
+   "ola": "Ola Red Mesh · PAIR · Voz",
+   "titulo": "Estado PAIR y nodos locales en la seccion Senales",
+   "depende": [
+    "RN1"
+   ],
+   "archivos": [
+    "src/components/mesh/panel-inferencia.tsx"
+   ],
+   "prompt": "En la seccion Senales (`src/app/(app)/senales/page.tsx` → `SignalsCenter`, `src/components/mesh/signals-center.tsx` con props `embedded` y `compact`) debe verse el estado de inferencia: que nodos de la misma red sirven PAIR (`src/lib/network/inferencia-local.ts`, RN1) y que modelos del estudio cargo cada uno.\n`export function PanelInferencia({compact=false}:{compact?:boolean})`: lee los `NodoInferenciaLocal` en `starseed.mesh.inferencia-local.v1`, tarjeta por nodo (host:puerto, motores, modelos, RAM, latencia, carga, ultimo latido), marca en verde los listos segun `resumenDisponibles`, y en `compact` una linea `N nodos · M listos`. Boton Comprobar ahora hace `fetch` de salud unicamente a `{host}:{puerto}/v1/models` del nodo que el usuario eligio del registro local, nunca a URLs arbitrarias del cliente. Accesible, `cursor-pointer`, respeta `prefers-reduced-motion`, sin any. tsc limpio.",
+   "modelo": "llm7/minimax-m2.7"
+  },
+  {
+   "id": "RN3",
+   "ola": "Ola Red Mesh · PAIR · Voz",
+   "titulo": "buildwithparallel: adaptadores de transporte mesh Reticulum y Wi-Fi HaLow",
+   "depende": [
+    "RN2"
+   ],
+   "archivos": [
+    "src/ai/astraura/mesh/transporte-bwp.ts",
+    "src/lib/__tests__/transporte-bwp.test.ts"
+   ],
+   "prompt": "buildwithparallel (https://buildwithparallel.com · https://github.com/buildwithparallel) ofrece campo en radios mesh, Wi-Fi HaLow (sub-GHz) y Reticulum sobre red local-first con hardware de commodity. StarSeed ya abstrae senalizacion y transporte en `src/ai/astraura/mesh/` (`signals.ts`, `meshtastic-adapter.ts`, `servers.ts`). Objetivo: abstraer el VINCULO fisico sin tocar la capa de aplicacion (identidad/cifrado/reglas de `mesh-identity.ts`, `recipient-crypto.ts`, `rules.ts` quedan intactos).\n1) `transporte-bwp.ts`: `type TransporteBwp = 'wifi-halo'|'reticulum'|'wifi-mesh'|'webrtc-local'|'usb-serial'`; `TRANSPORTES_BWP: Record<TransporteBwp,{etiqueta;alcanceLectura;latencia;requiereHardware;prioridad:number}>`; `transportesOrdenados(disponibles, preferido?)` mete el preferido el primero si esta, orden estable para el resto; `estadoTransporte(vinculos:Array<{transporte;rssi?;tasaKbps?}>)` da `{online; mejor; totalKbps}`.\n2) Test vitest puro: `transportesOrdenados` pone el preferido primero sin perder ninguno; `estadoTransporte` suma tasas y elige el mejor por prioridad.\nSin any, tsc limpio.",
+   "modelo": "llm7/minimax-m2.7"
+  },
+  {
+   "id": "RN4",
+   "ola": "Ola Red Mesh · PAIR · Voz",
+   "titulo": "Voz de borde con Supertonic: nivel suptonico en el motor Voz StarSeed",
+   "depende": [
+    "RN1"
+   ],
+   "archivos": [
+    "src/lib/aurora/voz-starseed/supertonic.ts",
+    "src/lib/__tests__/voz-supertonic.test.ts"
+   ],
+   "prompt": "Supertonic (https://github.com/supertone-oss-archive/supertonic, archivado: se usa como referencia y se adapta) es TTS on-device en ONNX, sin GPU, 31 idiomas, runtimes py/web/java/cpp/go/swift/rust (PyPI `supertonic`). Encaja con el estudio 1.58/needle porque tampoco exige GPU. NO dupliques el motor de voz: anade un nivel al existente. Abre `src/lib/aurora/voz-starseed/` (`niveles.ts`, `motor.ts`, `capacidades.ts`) y `memory/estudio-voces.md`.\n1) `supertonic.ts`: `interface NivelSuptonico { vivo:boolean; runtime:'onnx-cpu'|'wasm'|'nativo'; modelosCargados:string[]; idiomas:string[]; latenciaMs? }`; `soporteSupertonic(c)` da `{disponible;motivo?}` con disponible = hay WebAssembly SIMD o el runtime nativo `voz-supertonic` en PATH (no requiere el daemon ni GPU); `nivelParaVoz({supertonic;mobile;plataforma})` da `'suptonica'|'158-local'|'nube'|'tronal'` priorizando suptonica (voz de borde, sin GPU ni nube). Reutiliza `capacidades.ts` SOLO como referencia de firma.\n2) Test vitest puro: runtime WASM y sin mobile da `suptonica`; sin runtime da `nube` en movil / `158-local` en escritorio con daemon; `soporteSupertonic` no depende del daemon ni pide GPU.\nSin any, espanol con acentos, tsc limpio.",
+   "modelo": "llm7/minimax-m2.7"
+  },
+  {
+   "id": "RN5",
+   "ola": "Ola Red Mesh · PAIR · Voz",
+   "titulo": "Cableado: Senales unifica transporte, inferencia local y voz (paridad en el hub)",
+   "depende": [
+    "RN2",
+    "RN3",
+    "RN4"
+   ],
+   "archivos": [
+    "src/components/mesh/signals-center.tsx",
+    "src/app/(app)/senales/page.tsx"
+   ],
+   "prompt": "Unifica en la pagina Senales las tres capacidades nuevas sin romper lo existente. Abre `src/app/(app)/senales/page.tsx`, `src/components/mesh/signals-center.tsx` (props `embedded`,`compact`), `src/ai/astraura/mesh/transporte-bwp.ts` (RN3), `src/lib/network/inferencia-local.ts` (RN1) y `src/lib/aurora/voz-starseed/supertonic.ts` (RN4).\n1) En `SignalsCenter` anade: (a) Transporte: resumen de `TRANSPORTES_BWP` con `estadoTransporte` sobre los vinculos activos. (b) Inferencia: `PanelInferencia` (RN2) con su `compact` ligado a la prop homonima. (c) Voz de borde: indicador Voz suptonica/1.58 local con `soporteSupertonic` y `nivelParaVoz` y un boton que dispara una sintesis corta si el runtime esta (si no, en gris con motivo).\n2) PARIDAD: todo debe aparecer tambien en el hub de conexiones con el modo `embedded`, no solo en la pagina. 3) Manten `startMeshSubsystem()` en la pagina; cualquier ajuste persistente bajo claves ya existentes (`starseed.*`) o nuevas v1. Anade sin eliminar nada. tsc limpio.",
+   "modelo": "llm7/minimax-m2.7"
+  },
+  {
+   "id": "RN6",
+   "ola": "Ola Red Mesh · PAIR · Voz",
+   "titulo": "Registrar Red Mesh / Senales y voz de borde en la biblioteca del OS",
+   "depende": [
+    "RN5"
+   ],
+   "archivos": [
+    "src/lib/oss-library.ts"
+   ],
+   "prompt": "Lo nuevo de red mesh, inferencia local (PAIR), transporte (buildwithparallel) y voz de borde (Supertonic) debe quedar visible en la biblioteca del sistema como app y como capacidad. Abre `src/lib/oss-library.ts` y reutiliza EXACTAMENTE el patron y las claves con las que registra el resto (no inventes un esquema nuevo). Anade: 1) entrada de app Red Mesh a `/red-mesh` si no existe y Senales a `/senales` (iconos + descripcion de una linea). 2) entrada de CAPACIDAD inferencia distribuida local: modelo de texto y voz compartido entre nodos de la flota, sin GPU, sin pago por demanda cuando usa PAIR/supertonic 1.58. Solo catalogo/registro, sin comportamiento. Sin any, tsc limpio.",
+   "modelo": "llm7/minimax-m2.7"
+  }
+ ]
+}
