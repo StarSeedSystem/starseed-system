@@ -28,6 +28,13 @@ import { urlPuenteLocal } from "@/ai/providers/astraura-158";
 // (Adenda 153) Endpoint Astraura 1.58 declarado por ESTA neurona. `neurons.ts`
 // solo importa supabase/entity-state (sin ciclo con el router ni con este módulo).
 import { settingsFor, thisDeviceId } from "@/lib/neurons/neurons";
+import {
+  NODOS_INFERENCIA_LOCAL_STORAGE,
+  elegirNodo,
+  nodoConBase,
+  resumenDisponibles,
+  type NodoInferenciaLocal,
+} from "@/lib/network/inferencia-local";
 
 export interface SourceAvailability {
   source: CatalogSource;
@@ -478,4 +485,28 @@ export function summarizeAvailability(list: SourceAvailability[]): string {
   if (ready.length) parts.push(`Listas: ${ready.join(", ")}.`);
   if (missing.length) parts.push(`Gratis con clave (sin conectar): ${missing.join(", ")}.`);
   return parts.join(" ") || "Sin fuentes detectadas todavía.";
+}
+
+/**
+ * Detecta y elige un nodo de inferencia PAIR local almacenado en la red mesh.
+ */
+export function detectarNodoPairLocal(
+  opciones?: { modelo?: string; minRamMB?: number }
+): { nodo: NodoInferenciaLocal | null; endpoint: string | null } {
+  if (typeof window === "undefined") return { nodo: null, endpoint: null };
+  try {
+    const raw = window.localStorage.getItem(NODOS_INFERENCIA_LOCAL_STORAGE);
+    if (!raw) return { nodo: null, endpoint: null };
+    const nodos = JSON.parse(raw);
+    if (!Array.isArray(nodos) || nodos.length === 0) return { nodo: null, endpoint: null };
+    const elegido = elegirNodo(nodos, {
+      modelo: opciones?.modelo,
+      minRamMB: opciones?.minRamMB,
+      requiereGpu: false,
+    });
+    if (!elegido) return { nodo: null, endpoint: null };
+    return { nodo: elegido, endpoint: nodoConBase(elegido) };
+  } catch {
+    return { nodo: null, endpoint: null };
+  }
 }

@@ -220,3 +220,15 @@ export function decideRoute(input: DecideRouteInput): RouteDecision {
   if (wifiScore > 0.05) return make("wifi", "mesh-unhealthy");
   return make("offline-queue", "all-links-down");
 }
+
+export {
+  NODOS_INFERENCIA_LOCAL_STORAGE,
+  nodoConBase,
+  resumenDisponibles,
+  elegirNodo,
+  type NodoInferenciaLocal,
+  type OpcionesElegirNodo,
+  type OpcionesResumenInferencia,
+  type ResumenNodosInferencia,
+  type TransporteInferencia,
+} from "@/lib/network/inferencia-local";

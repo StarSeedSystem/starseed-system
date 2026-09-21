@@ -92,6 +92,18 @@ export function elegirReflejo(nodos: CapacidadesNodo[], miNodoId?: string): Capa
   return conNeedle[0];
 }
 
+export {
+  NODOS_INFERENCIA_LOCAL_STORAGE,
+  nodoConBase,
+  resumenDisponibles,
+  elegirNodo,
+  type NodoInferenciaLocal,
+  type OpcionesElegirNodo,
+  type OpcionesResumenInferencia,
+  type ResumenNodosInferencia,
+  type TransporteInferencia,
+} from "./inferencia-local";
+
 export function resumenRed(nodos: CapacidadesNodo[]): ResumenRed {
   const conNeedle = nodos.filter((n) => n.needle !== null);
   const conBitnet = nodos.filter((n) => n.bitnet !== null);

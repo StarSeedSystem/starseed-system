@@ -381,6 +381,18 @@ export function announceCapacidades(cap: CapacidadesNodo): MensajeCapacidades {
   return anunciar(cap);
 }
 
+export {
+  NODOS_INFERENCIA_LOCAL_STORAGE,
+  nodoConBase,
+  resumenDisponibles,
+  elegirNodo,
+  type NodoInferenciaLocal,
+  type OpcionesElegirNodo,
+  type OpcionesResumenInferencia,
+  type ResumenNodosInferencia,
+  type TransporteInferencia,
+} from "@/lib/network/inferencia-local";
+
 /* ------------------------------------------------------------------ */
 /* Conciencia colectiva (transporte mesh + lotes + manifiestos)       */
 /* ------------------------------------------------------------------ */

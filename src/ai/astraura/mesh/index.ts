@@ -845,3 +845,14 @@ export type {
   MeshPayloadType,
 } from "./types";
 export { estimateChunkAirtimeMs };
+export {
+  NODOS_INFERENCIA_LOCAL_STORAGE,
+  nodoConBase,
+  resumenDisponibles,
+  elegirNodo,
+  type NodoInferenciaLocal,
+  type OpcionesElegirNodo,
+  type OpcionesResumenInferencia,
+  type ResumenNodosInferencia,
+  type TransporteInferencia,
+} from "@/lib/network/inferencia-local";
