@@ -17,7 +17,16 @@
 
 import { marcarRitoActivo } from "@/lib/ui/rito-activo";
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
-import { CircleDashed, RefreshCw, ShieldAlert, Copy, ExternalLink } from "lucide-react";
+import {
+    BrainCircuit,
+    CircleDashed,
+    CircleDollarSign,
+    Clock3,
+    Copy,
+    ExternalLink,
+    RefreshCw,
+    ShieldAlert,
+} from "lucide-react";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { EstadoMando, ProveedorUso } from "@/lib/mando/tipos";
@@ -103,6 +112,7 @@ import type { SaludNeurona } from "@/lib/mando/neurona";
 import type { EstadoAlmacenamiento } from "@/lib/mando/almacenamiento";
 import { discoLibreTexto, tonoDiscoLibre } from "@/components/mando/tarjetas-almacenamiento";
 import { contarTrabajoReal } from "@/lib/mando/conteo-operativo";
+import type { PeriodoJev, RespuestaJev } from "@/lib/mando/jev-medidor";
 
 const CLAVE_PESTANA = "starseed.mando.pestana";
 const CLAVE_REPORTES_VISTOS = "starseed.mando.reportes.visto";
@@ -413,6 +423,123 @@ function PanelAccionesAlex({
     );
 }
 
+function dinero(valor: number): string {
+    return `$${valor.toFixed(valor < 0.01 ? 5 : 2)}`;
+}
+
+function latencia(valor: number): string {
+    return valor > 0 ? `${valor.toLocaleString("es-MX")} ms` : "sin muestras";
+}
+
+function RepartoJev({ titulo, periodo }: { titulo: string; periodo: PeriodoJev }) {
+    return (
+        <article className="rounded-lg border border-white/10 bg-black/25 p-3 text-left">
+            <h4 className="text-[10px] font-semibold uppercase tracking-wider text-white/45">{titulo}</h4>
+            <p className="mt-1 text-xl font-semibold tabular-nums text-cyan-100">
+                {periodo.llamadas} decisiones
+            </p>
+            <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-2 text-[11px]">
+                <div>
+                    <dt className="text-white/40">Local gratis</dt>
+                    <dd className="font-medium tabular-nums text-emerald-200">{periodo.local}</dd>
+                </div>
+                <div>
+                    <dt className="text-white/40">OpenRouter</dt>
+                    <dd className="font-medium tabular-nums text-amber-200">{periodo.openrouter}</dd>
+                </div>
+                <div>
+                    <dt className="text-white/40">p50 local</dt>
+                    <dd className="tabular-nums text-white/75">{latencia(periodo.p50_local_ms)}</dd>
+                </div>
+                <div>
+                    <dt className="text-white/40">p50 OpenRouter</dt>
+                    <dd className="tabular-nums text-white/75">{latencia(periodo.p50_openrouter_ms)}</dd>
+                </div>
+            </dl>
+        </article>
+    );
+}
+
+function PanelMedidorJev({ datos, alCerrar }: { datos: RespuestaJev; alCerrar: () => void }) {
+    const porcentajeDia = datos.techos.dia > 0
+        ? Math.min(100, (datos.hoy.coste_usd / datos.techos.dia) * 100)
+        : 0;
+    const porcentajeMes = datos.techos.mes > 0
+        ? Math.min(100, (datos.mes.coste_usd / datos.techos.mes) * 100)
+        : 0;
+    return (
+        <section
+            id="panel-medidor-jev"
+            role="region"
+            aria-label="Detalle de Jev"
+            className="mc-cristal mc-desplegar mt-2 w-full p-3"
+        >
+            <header className="mc-centrado flex flex-wrap items-center justify-center gap-2">
+                <BrainCircuit className="h-4 w-4 text-cyan-200" aria-hidden />
+                <h3 className="text-[11px] font-semibold uppercase tracking-wider text-white/70">Jev</h3>
+                <span className="text-[11px] text-white/45">consejero de decisiones tipadas</span>
+                <button
+                    type="button"
+                    onClick={alCerrar}
+                    className="ml-2 cursor-pointer rounded-md border border-white/10 px-2 py-0.5 text-[10px] text-white/50"
+                >
+                    Cerrar
+                </button>
+            </header>
+            {!datos.local_vivo ? (
+                <p className="mc-centrado mt-2 flex items-center justify-center gap-1.5 rounded-lg border border-amber-400/25 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-100">
+                    <BrainCircuit className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                    motor local congelado mientras el enjambre escribe; las decisiones van por OpenRouter
+                </p>
+            ) : null}
+            <div className="mt-3 grid gap-2 md:grid-cols-2">
+                <RepartoJev titulo="Hoy" periodo={datos.hoy} />
+                <RepartoJev titulo="Este mes" periodo={datos.mes} />
+            </div>
+            <div className="mt-2 grid gap-2 md:grid-cols-2">
+                {[
+                    {
+                        titulo: "Gasto de hoy",
+                        coste: datos.hoy.coste_usd,
+                        techo: datos.techos.dia,
+                        porcentaje: porcentajeDia,
+                    },
+                    {
+                        titulo: "Gasto del mes",
+                        coste: datos.mes.coste_usd,
+                        techo: datos.techos.mes,
+                        porcentaje: porcentajeMes,
+                    },
+                ].map((gasto) => (
+                    <div key={gasto.titulo} className="rounded-lg border border-white/10 bg-black/25 p-3">
+                        <p className="flex items-center gap-1.5 text-[11px] text-white/55">
+                            <CircleDollarSign className="h-3.5 w-3.5 text-emerald-200" aria-hidden />
+                            {gasto.titulo}: {dinero(gasto.coste)} de {dinero(gasto.techo)}
+                        </p>
+                        <span
+                            className="mc-barra mt-2 block h-1.5 overflow-hidden rounded-full bg-white/10"
+                            role="progressbar"
+                            aria-valuenow={Math.round(gasto.porcentaje)}
+                            aria-valuemin={0}
+                            aria-valuemax={100}
+                            aria-label={gasto.titulo}
+                        >
+                            <i
+                                className="block h-full origin-left rounded-full bg-emerald-400/80"
+                                style={{ transform: `scaleX(${gasto.porcentaje / 100})` }}
+                            />
+                        </span>
+                    </div>
+                ))}
+            </div>
+            <p className="mc-centrado mt-2 flex items-center justify-center gap-1 text-[10px] text-white/35">
+                <Clock3 className="h-3 w-3" aria-hidden />
+                p50: la mitad de las respuestas tarda menos y la otra mitad más
+            </p>
+        </section>
+    );
+}
+
 export function CentroMando() {
     // La consola ocupa la pantalla entera y no necesita el cromo del OS: al declararse
     // «rito» se apagan dock, cortinas, bordes Trinity y paleta de comandos, que es
@@ -428,6 +555,7 @@ export function CentroMando() {
     // la cabecera; si la sonda falla, se queda en null y la cabecera sigue igual.
     const [neurona, setNeurona] = useState<SaludNeurona | null>(null);
     const [almacenamiento, setAlmacenamiento] = useState<EstadoAlmacenamiento | null>(null);
+    const [jev, setJev] = useState<RespuestaJev | null>(null);
     const [soloLocal, setSoloLocal] = useState(false);
     const [cargando, setCargando] = useState(true);
     // «Sin publicar» de la cabecera (Ola 274; un solo dato desde Ola 276 · M10): el
@@ -461,6 +589,7 @@ export function CentroMando() {
     // Un solo medidor abierto a la vez: el panel es uno y vive debajo de la rejilla.
     const [medidorAbierto, setMedidorAbierto] = useState<ClaveMedidor | null>(null);
     const [idesAbierto, setIdesAbierto] = useState(false);
+    const [jevAbierto, setJevAbierto] = useState(false);
     // Panel "Te toca a ti" (AX1): separado de los medidores estándar.
     const [accionesAlexAbierto, setAccionesAlexAbierto] = useState(false);
 
@@ -536,6 +665,36 @@ export function CentroMando() {
         };
         void cargar(true);
         const cada = window.setInterval(() => void cargar(), 20_000);
+        const alVolver = () => {
+            if (document.visibilityState === "visible") void cargar(true);
+        };
+        document.addEventListener("visibilitychange", alVolver);
+        return () => {
+            vivo = false;
+            window.clearInterval(cada);
+            document.removeEventListener("visibilitychange", alVolver);
+        };
+    }, []);
+
+    // Jev se mide aparte: su sonda local puede tardar hasta dos segundos y no debe
+    // retrasar el resto del pulso. Al ocultar la pestaña, deja de preguntar.
+    useEffect(() => {
+        let vivo = true;
+        let enCurso = false;
+        const cargar = async (forzar = false) => {
+            if (enCurso || (!forzar && document.visibilityState === "hidden")) return;
+            enCurso = true;
+            try {
+                const respuesta = await fetch("/api/mando/jev", { cache: "no-store" });
+                if (vivo && respuesta.ok) setJev((await respuesta.json()) as RespuestaJev);
+            } catch {
+                // Si la sonda local no responde, el resto del Mando conserva su pulso.
+            } finally {
+                enCurso = false;
+            }
+        };
+        void cargar(true);
+        const cada = window.setInterval(() => void cargar(), 60_000);
         const alVolver = () => {
             if (document.visibilityState === "visible") void cargar(true);
         };
@@ -859,6 +1018,7 @@ export function CentroMando() {
                                 abierto={idesAbierto}
                                 alPulsar={() => {
                                     setMedidorAbierto(null);
+                                    setJevAbierto(false);
                                     setIdesAbierto((a) => !a);
                                 }}
                             />
@@ -917,6 +1077,21 @@ export function CentroMando() {
                                 detalle: `${pulso.disponibles} disponibles`,
                             },
                             {
+                                titulo: "Jev",
+                                valor: jev ? String(jev.hoy.llamadas) : "—",
+                                tono: (jev?.local_vivo ? "ok" : "aviso") as TonoMedidor,
+                                detalle: jev
+                                    ? `${jev.hoy.local} local · ${jev.hoy.openrouter} de pago`
+                                    : "cargando…",
+                                abierto: jevAbierto,
+                                alClic: () => {
+                                    setMedidorAbierto(null);
+                                    setIdesAbierto(false);
+                                    setAccionesAlexAbierto(false);
+                                    setJevAbierto((abierto) => !abierto);
+                                },
+                            },
+                            {
                                 titulo: "Te toca a ti",
                                 valor: String(accionesAlex?.acciones.length ?? 0),
                                 tono: (accionesAlex && accionesAlex.acciones.length > 0 ? "aviso" : "ok") as TonoMedidor,
@@ -928,6 +1103,7 @@ export function CentroMando() {
                                 alClic: () => {
                                     setMedidorAbierto(null);
                                     setIdesAbierto(false);
+                                    setJevAbierto(false);
                                     setAccionesAlexAbierto((a) => !a);
                                 },
                             },
@@ -1017,9 +1193,10 @@ export function CentroMando() {
                                     valor={m.valor}
                                     detalle={"detalle" in m ? m.detalle : undefined}
                                     tono={"tono" in m ? m.tono : undefined}
-                                    abierto={"clave" in m && medidorAbierto === m.clave}
+                                    abierto={"abierto" in m ? m.abierto : "clave" in m && medidorAbierto === m.clave}
                                     alPulsar={(c) => {
                                         setIdesAbierto(false);
+                                        setJevAbierto(false);
                                         setMedidorAbierto((a) => (a === c ? null : c));
                                     }}
                                     alClic={"alClic" in m ? m.alClic : undefined}
@@ -1029,6 +1206,8 @@ export function CentroMando() {
                     </ul>
                     {idesAbierto ? (
                         <PanelIdes alCerrar={() => setIdesAbierto(false)} />
+                    ) : jevAbierto && jev ? (
+                        <PanelMedidorJev datos={jev} alCerrar={() => setJevAbierto(false)} />
                     ) : medidorAbierto ? (
                         <PanelMedidor
                             clave={medidorAbierto}
