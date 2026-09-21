@@ -15,6 +15,7 @@ Reglas de la casa:
 - Cada decisión se anota (llamadas, tokens, coste) en ~/.starseed/jev-uso.json y se
   cachea 6 h por huella del estado+preguntas: la misma pregunta no se paga dos veces.
 """
+
 import hashlib
 import json
 import os
@@ -59,11 +60,15 @@ def clave():
 
 
 def activo():
-    return os.environ.get("STARSEED_JEV", "1") not in ("0", "no", "false") and bool(clave())
+    return os.environ.get("STARSEED_JEV", "1") not in ("0", "no", "false") and bool(
+        clave()
+    )
 
 
 def _huella(estado, preguntas):
-    return hashlib.sha256(json.dumps([estado, preguntas], sort_keys=True, ensure_ascii=False).encode()).hexdigest()[:20]
+    return hashlib.sha256(
+        json.dumps([estado, preguntas], sort_keys=True, ensure_ascii=False).encode()
+    ).hexdigest()[:20]
 
 
 def _leer(ruta, por_defecto):
@@ -87,28 +92,68 @@ def _cabeceras():
     base = {"Authorization": "Bearer " + clave(), "Content-Type": "application/json"}
     try:
         import openrouter as _orr
-        return _orr.cabeceras(URL, base)      # atribución de app (HTTP-Referer, X-Title)
+
+        return _orr.cabeceras(URL, base)  # atribución de app (HTTP-Referer, X-Title)
     except Exception:
         return base
 
 
 def _transporte_real(cuerpo):
-    req = urllib.request.Request(URL, data=json.dumps(cuerpo).encode("utf-8"), headers=_cabeceras())
+    req = urllib.request.Request(
+        URL, data=json.dumps(cuerpo).encode("utf-8"), headers=_cabeceras()
+    )
     return json.load(urllib.request.urlopen(req, timeout=TIEMPO_S))
 
 
-def _anotar_uso(respuesta, segundos, hoy=None):
+def _anotar_uso(respuesta, segundos, hoy=None, medio="openrouter", ms=0.0):
     uso = _leer(USO, {"llamadas": 0, "tokens": 0, "coste_usd": 0.0})
     u = (respuesta or {}).get("usage") or {}
-    coste = float(u.get("cost") or 0.0)
+    coste = float(u.get("cost") or 0.0) if medio == "openrouter" else 0.0
     uso["llamadas"] = uso.get("llamadas", 0) + 1
-    uso["tokens"] = uso.get("tokens", 0) + int(u.get("input_tokens") or 0) + int(u.get("output_tokens") or 0)
+    uso["tokens"] = (
+        uso.get("tokens", 0)
+        + int(u.get("input_tokens") or 0)
+        + int(u.get("output_tokens") or 0)
+    )
     uso["coste_usd"] = round(uso.get("coste_usd", 0.0) + coste, 8)
-    dia = uso.setdefault("dias", {}).setdefault(hoy or time.strftime("%Y-%m-%d"), {"llamadas": 0, "coste_usd": 0.0})
+    dia = uso.setdefault("dias", {}).setdefault(
+        hoy or time.strftime("%Y-%m-%d"), {"llamadas": 0, "coste_usd": 0.0}
+    )
     dia["llamadas"] += 1
     dia["coste_usd"] = round(dia["coste_usd"] + coste, 8)
-    uso["ultima"] = {"t": time.strftime("%Y-%m-%d %H:%M:%S"), "segundos": round(segundos, 2), "modelo": respuesta.get("model")}
+    pm = uso.setdefault("por_medio", {}).setdefault(
+        medio, {"llamadas": 0, "coste_usd": 0.0, "ms": []}
+    )
+    pm["llamadas"] = pm.get("llamadas", 0) + 1
+    pm["coste_usd"] = round(pm.get("coste_usd", 0.0) + coste, 8)
+    lista = pm.setdefault("ms", [])
+    lista.append(round(float(ms) or 0.0, 1))
+    if len(lista) > 200:
+        del lista[:-200]
+    uso["ultima"] = {
+        "t": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "segundos": round(segundos, 2),
+        "modelo": (respuesta or {}).get("model"),
+        "medio": medio,
+        "ms": round(float(ms) or 0.0, 1),
+    }
     _escribir(USO, uso)
+
+
+def _anotar_local_sin_respuesta():
+    """El local estaba disponible pero no dio decisión: que se vea en el uso."""
+    uso = _leer(USO, {})
+    uso["local_sin_respuesta"] = int(uso.get("local_sin_respuesta") or 0) + 1
+    _escribir(USO, uso)
+
+
+def _p50(lista):
+    """Mediana (p50) de una lista de números; 0.0 si está vacía."""
+    s = sorted(float(x) for x in lista if isinstance(x, (int, float)))
+    n = len(s)
+    if not n:
+        return 0.0
+    return s[n // 2] if n % 2 else (s[n // 2 - 1] + s[n // 2]) / 2
 
 
 def gasto(hoy=None):
@@ -116,7 +161,11 @@ def gasto(hoy=None):
     hoy = hoy or time.strftime("%Y-%m-%d")
     dias = _leer(USO, {}).get("dias") or {}
     d = float((dias.get(hoy) or {}).get("coste_usd") or 0.0)
-    m = sum(float((v or {}).get("coste_usd") or 0.0) for k, v in dias.items() if k[:7] == hoy[:7])
+    m = sum(
+        float((v or {}).get("coste_usd") or 0.0)
+        for k, v in dias.items()
+        if k[:7] == hoy[:7]
+    )
     return d, m
 
 
@@ -135,10 +184,18 @@ def saldo(refrescar=False):
     if not clave():
         return s or None
     try:
-        req = urllib.request.Request(URL_SALDO, headers={"Authorization": "Bearer " + clave()})
-        d = (json.load(urllib.request.urlopen(req, timeout=TIEMPO_S)) or {}).get("data") or {}
-        s = {"creditos": float(d.get("total_credits") or 0), "gastado": float(d.get("total_usage") or 0),
-             "t": time.strftime("%Y-%m-%d %H:%M:%S"), "epoch": time.time()}
+        req = urllib.request.Request(
+            URL_SALDO, headers={"Authorization": "Bearer " + clave()}
+        )
+        d = (json.load(urllib.request.urlopen(req, timeout=TIEMPO_S)) or {}).get(
+            "data"
+        ) or {}
+        s = {
+            "creditos": float(d.get("total_credits") or 0),
+            "gastado": float(d.get("total_usage") or 0),
+            "t": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "epoch": time.time(),
+        }
         s["restante"] = round(s["creditos"] - s["gastado"], 4)
         uso["saldo"] = s
         _escribir(USO, uso)
@@ -147,12 +204,57 @@ def saldo(refrescar=False):
         return s or None
 
 
-def decidir(estado, preguntas, usar_cache=True):
-    """{nombre: respuesta} de Jev, o None si no se puede (sin clave, apagado, sin presupuesto, error, red)."""
-    transporte = TRANSPORTE or (_transporte_real if activo() else None)
-    if transporte is None or not preguntas:
+def _local():
+    """Importación perezosa y tolerante de jev_local; None si el módulo no está."""
+    try:
+        import jev_local
+
+        return jev_local
+    except Exception:
         return None
+
+
+def _intenta_local(jl, estado, preguntas):
+    """Decisión del motor local; None si no responde (y queda anotado)."""
+    try:
+        r = jl.decidir(estado, preguntas)
+    except Exception:
+        r = None
+    if isinstance(r, dict) and r:
+        return r
+    _anotar_local_sin_respuesta()
+    return None
+
+
+def _intenta_openrouter(estado, preguntas, t0):
+    """Decisión de pago vía OpenRouter, con su techo de presupuesto intacto."""
+    transporte = TRANSPORTE or (_transporte_real if activo() else None)
+    if transporte is None:
+        return None, None
     if transporte is _transporte_real and not presupuesto_ok():
+        return None, None
+    try:
+        r = transporte({"model": MODELO, "state": estado, "questions": preguntas})
+    except Exception:
+        return None, None
+    respuestas = (r or {}).get("answers")
+    if not isinstance(respuestas, dict) or not respuestas:
+        return None, None
+    if transporte is _transporte_real:
+        _anotar_uso(
+            r, time.time() - t0, medio="openrouter", ms=(time.time() - t0) * 1000
+        )
+    return respuestas, r
+
+
+def decidir(estado, preguntas, usar_cache=True, medio=None):
+    """{nombre: respuesta, 'medio', 'ms'} de Jev, o None si ningún medio responde.
+
+    Local y OpenRouter son dos intentos en secuencia, no un si/sino: si el local está
+    disponible se intenta; si devuelve None o lanza, se sigue a OpenRouter igual que si
+    no hubiera local. `medio='local'` o `medio='openrouter'` fuerza uno solo.
+    """
+    if not preguntas:
         return None
     h = _huella(estado, preguntas)
     cache = _leer(CACHE, {}) if usar_cache else {}
@@ -160,21 +262,40 @@ def decidir(estado, preguntas, usar_cache=True):
     if entrada and time.time() - entrada.get("t", 0) < TTL_S:
         return entrada.get("respuestas")
     t0 = time.time()
-    try:
-        r = transporte({"model": MODELO, "state": estado, "questions": preguntas})
-    except Exception:
+    jl = _local()
+    respuestas = None
+    medio_usado = None
+    if medio in (None, "local"):
+        local_ok = False
+        if jl is not None and hasattr(jl, "disponible"):
+            try:
+                local_ok = bool(jl.disponible())
+            except Exception:
+                local_ok = False
+        if local_ok:
+            respuestas = _intenta_local(jl, estado, preguntas)
+            if respuestas is not None:
+                medio_usado = "local"
+    if respuestas is None and medio in (None, "openrouter"):
+        respuestas, _cruda = _intenta_openrouter(estado, preguntas, t0)
+        if respuestas is not None:
+            medio_usado = "openrouter"
+    if respuestas is None:
         return None
-    respuestas = (r or {}).get("answers")
-    if not isinstance(respuestas, dict):
-        return None
-    if transporte is _transporte_real:
-        _anotar_uso(r, time.time() - t0)
+    ms = round((time.time() - t0) * 1000, 1)
+    res = dict(respuestas)
+    res["medio"] = medio_usado
+    res["ms"] = ms
+    if medio_usado == "local":
+        _anotar_uso({}, time.time() - t0, medio="local", ms=ms)
     if usar_cache:
-        cache[h] = {"t": time.time(), "respuestas": respuestas}
+        cache[h] = {"t": time.time(), "respuestas": res}
         if len(cache) > 2000:
-            cache = dict(sorted(cache.items(), key=lambda kv: kv[1].get("t", 0))[-1000:])
+            cache = dict(
+                sorted(cache.items(), key=lambda kv: kv[1].get("t", 0))[-1000:]
+            )
         _escribir(CACHE, cache)
-    return respuestas
+    return res
 
 
 # ── atajos tipados ────────────────────────────────────────────────────────────
@@ -192,20 +313,46 @@ def si_no(estado, pregunta, nombre="q"):
 
 def elegir(estado, pregunta, opciones, nombre="q"):
     """(opcion, probabilidades, confianza) o None. `opciones` = {clave: qué significa}."""
-    r = decidir(estado, {nombre: {"type": "choice", "instructions": pregunta, "criteria": dict(opciones)}})
+    r = decidir(
+        estado,
+        {
+            nombre: {
+                "type": "choice",
+                "instructions": pregunta,
+                "criteria": dict(opciones),
+            }
+        },
+    )
     try:
         a = r[nombre]
-        return a["choice"], dict(a.get("probabilities") or {}), float(a.get("confidence") or 0.0)
+        return (
+            a["choice"],
+            dict(a.get("probabilities") or {}),
+            float(a.get("confidence") or 0.0),
+        )
     except (KeyError, TypeError, ValueError):
         return None
 
 
 def puntuar(estado, pregunta, niveles, nombre="q"):
     """(puntuacion, probabilidades, confianza) o None. `niveles` ordenados de menor a mayor."""
-    r = decidir(estado, {nombre: {"type": "score", "instructions": pregunta, "criteria": list(niveles)}})
+    r = decidir(
+        estado,
+        {
+            nombre: {
+                "type": "score",
+                "instructions": pregunta,
+                "criteria": list(niveles),
+            }
+        },
+    )
     try:
         a = r[nombre]
-        return float(a["score"]), dict(a.get("probabilities") or {}), float(a.get("confidence") or 0.0)
+        return (
+            float(a["score"]),
+            dict(a.get("probabilities") or {}),
+            float(a.get("confidence") or 0.0),
+        )
     except (KeyError, TypeError, ValueError):
         return None
 
@@ -224,14 +371,35 @@ def resumen_uso():
         return "Jev: sin uso"
     d, m = gasto()
     s = u.get("saldo") or {}
-    cola = (" · OpenRouter restante $%.2f" % s["restante"]) if s.get("restante") is not None else ""
-    return "Jev: %d decisiones · %d tokens · $%.5f (hoy $%.4f de $%.2f · mes $%.4f de $%.2f)%s" % (
-        u.get("llamadas", 0), u.get("tokens", 0), u.get("coste_usd", 0.0), d, PRESUPUESTO_DIA_USD, m, PRESUPUESTO_MES_USD, cola)
+    cola = (
+        (" · OpenRouter restante $%.2f" % s["restante"])
+        if s.get("restante") is not None
+        else ""
+    )
+    return (
+        "Jev: %d decisiones · %d tokens · $%.5f (hoy $%.4f de $%.2f · mes $%.4f de $%.2f)%s"
+        % (
+            u.get("llamadas", 0),
+            u.get("tokens", 0),
+            u.get("coste_usd", 0.0),
+            d,
+            PRESUPUESTO_DIA_USD,
+            m,
+            PRESUPUESTO_MES_USD,
+            cola,
+        )
+    )
 
 
 if __name__ == "__main__":
     import sys
+
     print("activo" if activo() else "apagado (sin OPENROUTER_API_KEY o STARSEED_JEV=0)")
     print(resumen_uso())
     if "--sonda" in sys.argv:
-        print(si_no({"texto": "publicado 7 commits, verificados uno a uno"}, "¿Es un aviso importante para el dueño del proyecto?"))
+        print(
+            si_no(
+                {"texto": "publicado 7 commits, verificados uno a uno"},
+                "¿Es un aviso importante para el dueño del proyecto?",
+            )
+        )
