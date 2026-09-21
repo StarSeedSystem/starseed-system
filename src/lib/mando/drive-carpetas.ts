@@ -38,6 +38,27 @@ export interface ResumenDrive {
     tono: "ok" | "aviso" | "peligro" | "normal";
 }
 
+export interface EstadoEspejoDriveInput {
+    montado?: boolean;
+    ruta?: string | null;
+    espejo?: {
+        ruta?: string;
+        ultimoEspejo?: string | null;
+        mb?: number | null;
+        error?: string | null;
+    } | null;
+    ultimoEspejo?: string | null;
+    mb?: number | null;
+    error?: string | null;
+}
+
+export interface InterpretacionEspejo {
+    tono: "ok" | "aviso" | "peligro";
+    titulo: string;
+    detalle: string;
+    cuando: string;
+}
+
 type CarpetaBase = Omit<CarpetaEspecial, "mb" | "ultimaSync" | "modo">;
 
 const carpetaBase = (
@@ -176,6 +197,95 @@ export function resumenDrive(
         valor: `${capacidad(cuota.libreGb)} libres`,
         detalle: `de ${capacidad(cuota.totalGb)} · ${cantidad} carpeta${cantidad === 1 ? "" : "s"} espejada${cantidad === 1 ? "" : "s"} · última sync ${tiempoDesde(ultima)}`,
         tono,
+    };
+}
+
+export function interpretarEstadoEspejo(
+    estado?: EstadoEspejoDriveInput | null,
+    ahoraMs: number = Date.now(),
+): InterpretacionEspejo {
+    if (!estado || estado.montado === false) {
+        return {
+            tono: "peligro",
+            titulo: "Drive no montado",
+            detalle: "Google Drive (DriveFS) no está montado en esta neurona",
+            cuando: "sin montar",
+        };
+    }
+
+    const error = estado.error ?? estado.espejo?.error;
+    if (error) {
+        return {
+            tono: "peligro",
+            titulo: "Error en espejo",
+            detalle: `Error al conectar o copiar en Drive: ${error}`,
+            cuando: "error",
+        };
+    }
+
+    const fechaIso = estado.espejo?.ultimoEspejo ?? estado.ultimoEspejo;
+    if (!fechaIso) {
+        return {
+            tono: "aviso",
+            titulo: "Sin espejo",
+            detalle: "Aún no se ha realizado ningún espejo a Google Drive",
+            cuando: "nunca",
+        };
+    }
+
+    const ms = Date.parse(fechaIso);
+    if (!Number.isFinite(ms)) {
+        return {
+            tono: "peligro",
+            titulo: "Fecha inválida",
+            detalle: "Registro de fecha de espejo corrupto o no válido",
+            cuando: "desconocido",
+        };
+    }
+
+    const diffMs = Math.max(0, ahoraMs - ms);
+    const minutos = Math.floor(diffMs / 60_000);
+    const horas = Math.floor(minutos / 60);
+    const dias = Math.floor(horas / 24);
+
+    let cuando = "ahora";
+    if (minutos >= 1 && minutos < 60) {
+        cuando = `hace ${minutos} min`;
+    } else if (horas >= 1 && horas < 48) {
+        cuando = `hace ${horas} h`;
+    } else if (dias >= 2) {
+        cuando = `hace ${dias} días`;
+    }
+
+    const mb = estado.espejo?.mb ?? estado.mb;
+    const mbTexto = typeof mb === "number" && mb > 0
+        ? ` (${mb >= 1024 ? `${(mb / 1024).toFixed(1)} GB` : `${Math.round(mb)} MB`})`
+        : "";
+
+    if (dias >= 1) {
+        const textoAtraso = dias === 1 ? "sin espejo desde ayer" : `sin espejo desde hace ${dias} días`;
+        return {
+            tono: "peligro",
+            titulo: "Espejo atrasado",
+            detalle: `${textoAtraso}${mbTexto}`,
+            cuando: dias === 1 ? "ayer" : `hace ${dias} días`,
+        };
+    }
+
+    if (minutos > 180) {
+        return {
+            tono: "aviso",
+            titulo: "Espejo de hoy",
+            detalle: `Última copia ${cuando}${mbTexto}`,
+            cuando,
+        };
+    }
+
+    return {
+        tono: "ok",
+        titulo: "Espejo al día",
+        detalle: `espejo al día (${cuando})${mbTexto}`,
+        cuando,
     };
 }
 const MODOS: ReadonlySet<string> = new Set(["solo-local", "espejo", "movida"]);
