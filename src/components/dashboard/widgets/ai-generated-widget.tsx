@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { DashboardWidget, AiWidgetSettings } from '../dashboard-types';
-import { Sparkles, Pencil, Wand2, Bot, Layers, Code2, Image as ImageIcon, Music } from 'lucide-react';
+import { Sparkles, Pencil, Wand2, Code2, Image as ImageIcon, Music } from 'lucide-react';
 import { buildSandboxDoc } from '@/lib/creation/post-blocks';
 
 // ════════════════════════════════════════════════════════════════
