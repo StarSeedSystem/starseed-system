@@ -10,6 +10,12 @@ export interface MensajeAgentePuente {
   texto: string;
 }
 
+export interface ResultadoAgentePuente {
+  ok?: boolean;
+  respuesta?: string;
+  error?: string;
+}
+
 const PATRONES_CLAVES = [
   /sk-[a-zA-Z0-9_-]{12,}/g,
   /sbp_[a-zA-Z0-9_-]{12,}/g,
@@ -94,4 +100,19 @@ export function construirTurnoModelo(
     ...historial.map((mensaje) => ({ ...mensaje })),
     { rol: "user", texto: pregunta },
   ];
+}
+
+/** Conserva una respuesta ya pagada aunque falle su persistencia. */
+export function resolverEntregaRespuesta(
+  resultado: ResultadoAgentePuente,
+  estadoHttp: number,
+): { respuesta: string | null; error: string | null } {
+  const respuesta = resultado.respuesta || null;
+  if (respuesta) {
+    return { respuesta, error: resultado.ok === false ? resultado.error ?? null : null };
+  }
+  return {
+    respuesta: null,
+    error: resultado.error ?? `El modelo no respondió (HTTP ${estadoHttp}).`,
+  };
 }

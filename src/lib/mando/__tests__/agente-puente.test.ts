@@ -4,6 +4,7 @@ import {
   evaluarFrescura,
   construirMensajeSistema,
   construirTurnoModelo,
+  resolverEntregaRespuesta,
   type FuenteContexto,
 } from "../agente-puente";
 
@@ -26,6 +27,16 @@ describe("Agente Puente - Módulo Puro", () => {
     const preguntaUsuario = "¿Por qué falla esta clave sk-proj-9876543210zyxwvutsrq en la llamada?";
     const turno = construirTurnoModelo("sistema", [], preguntaUsuario);
     expect(turno.at(-1)).toEqual({ rol: "user", texto: preguntaUsuario });
+  });
+
+  it("entrega la respuesta aunque falle su guardado", () => {
+    const entrega = resolverEntregaRespuesta({
+      ok: false,
+      respuesta: "Respuesta ya generada",
+      error: "La respuesta no pudo guardarse.",
+    }, 200);
+    expect(entrega.respuesta).toBe("Respuesta ya generada");
+    expect(entrega.error).toBe("La respuesta no pudo guardarse.");
   });
 
   it("evaluarFrescura marca fuentes vigentes vs obsoletas o sin fecha", () => {

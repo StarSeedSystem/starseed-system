@@ -42,14 +42,14 @@ export async function POST(peticion: Request): Promise<Response> {
   const veto = await guardianMando(peticion);
   if (veto) return veto;
   const acceso = await comprobarDueno();
-  if (acceso === "error") return Response.json({ ok: false, error: "No se pudo comprobar la identidad." }, { status: 503 });
+  if (acceso === "error") return Response.json({ ok: false, error: "no se pudo comprobar la identidad" }, { status: 503 });
   // El 404 es deliberado: a terceros no se les confirma que el agente privado existe.
   if (acceso === "no") return new Response("Not Found", { status: 404 });
 
   let cuerpo: Record<string, unknown> = {};
   try { cuerpo = (await peticion.json()) as Record<string, unknown>; } catch { return Response.json({ ok: false, error: "Cuerpo JSON inválido." }, { status: 400 }); }
-  const mensaje = typeof cuerpo.mensaje === "string" ? cuerpo.mensaje.trim() : "";
-  if (!mensaje) return Response.json({ ok: false, error: "Falta el mensaje." }, { status: 400 });
+  const mensaje = typeof cuerpo.mensaje === "string" ? cuerpo.mensaje : "";
+  if (!mensaje.trim()) return Response.json({ ok: false, error: "Falta el mensaje." }, { status: 400 });
 
   const chatId = typeof cuerpo.chatId === "string" ? cuerpo.chatId : "";
   const modeloPedido = typeof cuerpo.modelo === "string" && cuerpo.modelo.includes("/") ? cuerpo.modelo : "";
@@ -58,9 +58,9 @@ export async function POST(peticion: Request): Promise<Response> {
   if (chatId) { try { chat = await leerChat(chatId); } catch { chat = null; } }
   if (!chat) {
     try {
-      chat = await crearChat(mensaje.slice(0, 60), modeloPedido || "automático");
+      chat = await crearChat(mensaje.trim().slice(0, 60), modeloPedido || "automático");
     } catch {
-      return Response.json({ ok: false, error: "No se pudo abrir el chat." }, { status: 503 });
+      return Response.json({ ok: false, error: "no se pudo abrir el chat" });
     }
   }
 

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Bot, Send, X } from "lucide-react";
 import { escuchar, fijarChatActual, leerChatActual, leerModeloActual } from "@/lib/mando/asistente-cliente";
+import { resolverEntregaRespuesta } from "@/lib/mando/agente-puente";
 
 export interface MensajePuente { id: string; rol: "user" | "assistant"; texto: string; modelo?: string; fecha?: string; }
 export interface ChatAgentePuenteProps { modo?: "panel" | "flotante"; onCerrar?: () => void; }
@@ -37,8 +38,8 @@ export function ChatAgentePuente({ modo = "panel", onCerrar }: ChatAgentePuenteP
   }, [mensajes, cargando]);
 
   const enviar = async () => {
-    const texto = input.trim();
-    if (!texto || cargando) return;
+    const texto = input;
+    if (!texto.trim() || cargando) return;
     const hora = new Date().toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
     setMensajes((m) => [...m, { id: Date.now().toString(), rol: "user", texto, fecha: hora }]);
     setInput(""); setCargando(true); setErrorCandidatos(null);
@@ -49,12 +50,15 @@ export function ChatAgentePuente({ modo = "panel", onCerrar }: ChatAgentePuenteP
         body: JSON.stringify({ mensaje: texto, chatId, modelo }),
       });
       const data = (await res.json()) as { ok?: boolean; chatId?: string; respuesta?: string; modelo?: string; error?: string };
-      if (res.ok && data.ok && data.respuesta) {
+      const entrega = resolverEntregaRespuesta(data, res.status);
+      const respuesta = entrega.respuesta;
+      if (res.ok && respuesta) {
         if (data.chatId) { setChatId(data.chatId); fijarChatActual(data.chatId); }
         setFechaCtx(hora);
-        setMensajes((m) => [...m, { id: Date.now().toString(), rol: "assistant", texto: data.respuesta!, modelo: data.modelo || modelo, fecha: hora }]);
+        setMensajes((m) => [...m, { id: Date.now().toString(), rol: "assistant", texto: respuesta, modelo: data.modelo || modelo, fecha: hora }]);
+        if (entrega.error) setErrorCandidatos(entrega.error);
       } else {
-        const err = data.error || `Error ${res.status}. Fallaron candidatos de ${modelo}`;
+        const err = entrega.error || `Error ${res.status}. Fallaron candidatos de ${modelo}`;
         setErrorCandidatos(err);
         setMensajes((m) => [...m, { id: Date.now().toString(), rol: "assistant", texto: `⚠️ ${err}`, fecha: hora }]);
       }
