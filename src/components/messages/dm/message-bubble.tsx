@@ -33,12 +33,15 @@ import { UniversalAttachmentView, isInviteLike, isNetworkRefLike } from "@/compo
 import { FilePreview } from "@/components/files/file-preview";
 // Marcos de forma en adjuntos imagen/vídeo (Ola 224 · Adenda 219).
 import { FotoConMarco } from "@/components/profile/foto-con-marco";
-import { normalizarMarco, type Marco } from "@/lib/profile/marco-foto";
+import type { Marco } from "@/lib/profile/marco-foto";
 
-/** (Ola 224) El marco viaja como campo extra JSON del adjunto (sin tocar el tipo en dm.ts). */
-function marcoDeAdjunto(attachment: DmAttachment): Marco | null {
-    const raw = (attachment as DmAttachment & { marco?: unknown }).marco;
-    return raw && typeof raw === "object" ? normalizarMarco(raw) : null;
+/**
+ * Extrae el marco de forma guardado en el adjunto si existe (Adenda 219).
+ * El marco viaja como campo extra opcional en la estructura JSON del adjunto.
+ */
+export function marcoDeAdjunto(attachment: DmAttachment): Marco | null {
+    const m = (attachment as DmAttachment & { marco?: unknown }).marco;
+    return m && typeof m === "object" ? (m as Marco) : null;
 }
 
 function AttachmentView({ attachment }: { attachment: DmAttachment }) {
@@ -60,11 +63,12 @@ function AttachmentView({ attachment }: { attachment: DmAttachment }) {
     }
 
     if (attachment.kind === "image" && attachment.url) {
-        const marco = marcoDeAdjunto(attachment); // (Ola 224)
+        const marco = marcoDeAdjunto(attachment);
         if (marco) {
             return (
-                <div className="flex w-[min(280px,68vw)] justify-center py-1">
-                    <FotoConMarco src={attachment.url} marco={marco} alt={attachment.name || "Imagen"} size={220} />
+                <div className="relative aspect-square w-[min(280px,68vw)] overflow-hidden rounded-xl border border-white/10 bg-white/[0.03]">
+                    {/* Marco de forma aplicado a la imagen adjunta de la burbuja (mismo patrón que entity-gallery-block) */}
+                    <FotoConMarco src={attachment.url} marco={marco} alt={attachment.name || "Imagen"} size="100%" />
                 </div>
             );
         }
