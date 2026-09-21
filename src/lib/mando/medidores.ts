@@ -52,6 +52,7 @@ export interface FilaMedidor {
     porque?: string;
     desde?: string;
     quien?: string;
+    enlace?: string;
     acciones: AccionMedidor[];
     /** True si pertenece a una ola cerrada (histórica), false o undefined si es operativa. */
     historica?: boolean;
@@ -282,7 +283,11 @@ const vacios: DatosMedidores = {
 };
 
 /** El detalle completo de un medidor: filas, porqués y acciones. */
-export function detalleDeMedidor(clave: ClaveMedidor, datos: Partial<DatosMedidores>): DetalleMedidor {
+export function detalleDeMedidor(
+    clave: ClaveMedidor,
+    datos: Partial<DatosMedidores>,
+    ahora?: number,
+): DetalleMedidor {
     const d = { ...vacios, ...datos };
     const estadoDe = (id: string) => d.progreso[id]?.estado;
     const titulo = (id: string) => d.titulos[id] || id;

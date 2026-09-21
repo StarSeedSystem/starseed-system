@@ -299,3 +299,25 @@ describe("qué cuenta de verdad como «lista para trabajar»", () => {
         expect(salida[0].titulo).toBe("nueva");
     });
 });
+
+describe("detalleDeMedidor · invariante vacio explicativo", () => {
+    it("todos los medidores devuelven un mensaje explicativo cuando estan vacios", () => {
+        const claves: ClaveMedidor[] = [
+            "en-curso",
+            "agentes",
+            "listas",
+            "bloqueadas",
+            "sin-publicar",
+            "proveedores",
+            "memoria",
+            "disco",
+            "ola-activa",
+        ];
+        for (const clave of claves) {
+            const d = detalleDeMedidor(clave, {}, Date.now());
+            expect(d.vacio).toBeTruthy();
+            expect(typeof d.vacio).toBe("string");
+            expect(d.vacio!.length).toBeGreaterThan(5);
+        }
+    });
+});
