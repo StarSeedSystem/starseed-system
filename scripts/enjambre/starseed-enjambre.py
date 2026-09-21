@@ -3274,6 +3274,23 @@ def _puerta_cableado(tid, t, wt, log, modelo_ok):
         evento("aviso", tid, "no pude comprobar el cableado: %s" % type(e).__name__)
 
 
+def archivos_declarados_sin_tocar(declarados, tocados):
+    """Los archivos que la tarea PROMETIO tocar y no aparecen en su trabajo.
+
+    (2026-09-20) NE1b decia en su encargo, con todas las letras, «esta tarea NO reescribe
+    el modulo: lo LEE ENTERO y lo CABLEA», y nombraba tres archivos: la ruta nueva, la
+    pastilla del Mando y su prueba. Entrego otra cosa —reescribio el modulo que ya
+    existia— y se integro con «revision ok». La revision no fallo: lee el diff que le dan
+    y no sabe que se habia pedido. Un agente que no toca NI UNO de los archivos que el
+    mismo encargo declara no ha hecho la tarea, y eso se comprueba con `git`, sin
+    preguntarle a ningun modelo y sin gastar un centimo.
+    """
+    if not declarados:
+        return []
+    limpios = {str(t).strip().lstrip("./") for t in tocados if str(t).strip()}
+    return [d for d in (str(x).strip().lstrip("./") for x in declarados) if d and d not in limpios]
+
+
 def _tocados_por_la_tarea(cwd, log=None):
     """Qué archivos ha tocado esta tarea, estén commiteados o no.
 
@@ -5941,6 +5958,37 @@ def ejecutar(t, intento=1):
             evento("fallo", tid, "vitest sigue fallando; rama ola/%s conservada" % tid)
             limpiar_worktree(tid, borrar_rama=False)
             return
+    # ¿Hizo la tarea que se le pidio, o hizo otra? (2026-09-20)
+    declarados = t.get("archivos") or []
+    faltan = archivos_declarados_sin_tocar(declarados, _tocados_por_la_tarea(wt, log))
+    if declarados and len(faltan) == len(declarados):
+        set_estado(
+            tid,
+            estado="rechazada",
+            modelo=modelo_ok,
+            segundos=int(time.time() - t0),
+            nota="no toco NINGUNO de los %d archivos que declaraba (rama ola/%s conservada)"
+            % (len(declarados), tid),
+        )
+        evento(
+            "fallo",
+            tid,
+            "no toco ninguno de los archivos declarados (%s); rama ola/%s conservada"
+            % (", ".join(declarados)[:160], tid),
+        )
+        _mensajes.anotar(
+            OLAS,
+            tid,
+            "Tu trabajo no toco NINGUNO de los archivos que el encargo declara: %s. "
+            "Puede que hayas resuelto otra cosa, o la misma en otro sitio, pero el encargo "
+            "nombra esos archivos por una razon. Vuelve a leerlo entero y hazlo AHI. Si de "
+            "verdad crees que van en otro sitio, dilo en el commit y explica por que."
+            % ", ".join(declarados),
+            de="director",
+        )
+        limpiar_worktree(tid, borrar_rama=False)
+        return
+
     # commit en la rama
     quitar_cerrojo_huerfano(wt)
     sh(
