@@ -42,6 +42,7 @@ import {
     Brain,
     CreditCard,
     Radio,
+    RadioTower,
     SlidersHorizontal,
     type LucideIcon,
 } from "lucide-react";
@@ -170,6 +171,16 @@ export const SETTINGS_SEARCH_INDEX: SettingsSearchEntry[] = [
         icon: Eye,
         category: "Aurora e IA",
         anchor: "aurora-sentidos",
+    },
+    {
+        id: "red-mesh-settings",
+        label: "Red Mesh, Señales y Voz de Borde",
+        keywords: ["red mesh", "malla", "bwp", "transporte", "autodeteccion", "inferencia local", "voz de borde", "supertonic", "antenas", "senales"],
+        tab: "ai",
+        description: "Transporte BWP, autodetección LAN, inferencia local compartida y voz de borde suptónica.",
+        icon: RadioTower,
+        category: "Red y Conectividad",
+        anchor: "red-mesh",
     },
     {
         id: "aurora-canales",

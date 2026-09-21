@@ -58,6 +58,7 @@ import { NtfyPanel } from "@/components/notifications/ntfy-panel";
 import { VoiceOssPanel } from "@/components/settings/aurora/voice-oss-panel";
 import { XaiVoicePanel } from "@/components/settings/aurora/xai-voice-panel";
 import { VisionPanel } from "@/components/settings/aurora/vision-panel";
+import { NetworkSection } from "@/components/settings/accordion/network-section";
 // Vista global de vínculos externos de la cuenta (Ola 281 · E6A · 2026-09-08).
 import { ExternosCuenta } from "@/components/externos/externos-cuenta";
 
@@ -116,6 +117,7 @@ import {
   LayoutGrid,
   Compass,
   Radio,
+  RadioTower,
   Mic,
   Bot,
   Cpu,
@@ -528,6 +530,15 @@ function CuentaContent() {
         accentBg: "bg-[#39FF14]/10 border-[#39FF14]/20",
       },
       {
+        id: "red-mesh",
+        icon: RadioTower,
+        title: "Red Mesh, Señales y Voz de Borde",
+        summary: "Transporte BWP, autodetección LAN, inferencia local para la flota y voz suptónica",
+        keywords: "red mesh señales transporte bwp autodeteccion inferencia local voz de borde supertonic antenas lora p2p",
+        accent: "text-emerald-400",
+        accentBg: "bg-emerald-400/10 border-emerald-400/20",
+      },
+      {
         id: "personalizacion",
         icon: Palette,
         title: "Personalización",
@@ -918,6 +929,19 @@ function CuentaContent() {
           label={`Servidores de cerebros (${serversCount})`}
           description="Registro de servidores propios/StarSeed/VPS enlazados a tus cerebros"
         />
+      </section>
+
+      {/* ═══════════════════════ RED MESH, SEÑALES Y VOZ DE BORDE ═══════════════════════ */}
+      <section id="red-mesh" className="scroll-mt-6 pt-2 space-y-3">
+        <div>
+          <h2 className="text-base font-semibold mb-1 flex items-center gap-2">
+            <RadioTower className="w-4 h-4 text-emerald-400" /> Red Mesh, Señales y Voz de Borde
+          </h2>
+          <p className="text-xs text-muted-foreground">
+            Configuración del transporte soberano en la malla, autodetección LAN, inferencia compartida para la flota y síntesis de voz en borde.
+          </p>
+        </div>
+        <NetworkSection />
       </section>
 
       {/* ═══════════════════════ 5) PERSONALIZACIÓN ═══════════════════════ */}
