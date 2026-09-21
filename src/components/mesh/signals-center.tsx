@@ -43,6 +43,13 @@ import {
   startMeshSubsystem, useNetworkInbox,
   type SignalSource, type SignalKind, type NativeRecommendation,
 } from "@/ai/astraura/mesh";
+import {
+  TRANSPORTES_BWP,
+  estadoTransporte,
+  transportesOrdenados,
+  type TransporteBwp,
+  type VinculoBwp,
+} from "@/ai/astraura/mesh/transporte-bwp";
 
 const ICON: Record<SignalKind, LucideIcon> = {
   mesh: RadioTower, wifi: Wifi, cellular: Signal, bluetooth: Bluetooth,
@@ -127,6 +134,32 @@ export function SignalsCenter({ embedded = false, compact = false }: SignalsCent
   }, [mesh.status, mesh.region, onlineCount]);
 
   const activeCtrl = signals.filter((s) => s.controllable && (s.status === "active" || s.status === "available")).length;
+
+  const vinculosBwp = useMemo<VinculoBwp[]>(() => {
+    const vinculos: VinculoBwp[] = [];
+    const lista = signals.find((signal) => signal.kind === "wifi");
+    const downlink = lista?.meta?.downlink;
+    const tasaKbps = typeof downlink === "number" ? downlink * 1_000 : undefined;
+    const conectado = mesh.status === "ready" || mesh.status === "degraded";
+    const rssi = mesh.nodes.find((node) => !node.isSelf && typeof node.rssi === "number")?.rssi;
+
+    if (conectado && mesh.transport === "serial") {
+      vinculos.push({ transporte: "usb-serial", rssi });
+    }
+    if ((conectado && mesh.transport === "daemon") || lista?.status === "available") {
+      vinculos.push({ transporte: "wifi-mesh", rssi, tasaKbps });
+    }
+    return vinculos;
+  }, [mesh.nodes, mesh.status, mesh.transport, signals]);
+
+  const transporteBwp = useMemo(() => estadoTransporte(vinculosBwp), [vinculosBwp]);
+  const transportesBwp = useMemo(
+    () => transportesOrdenados(
+      Object.keys(TRANSPORTES_BWP) as TransporteBwp[],
+      transporteBwp.mejor ?? undefined,
+    ),
+    [transporteBwp.mejor],
+  );
 
   // Adenda 149 · el botón «Señales por personalidad» era MUDO: no decía si ya
   // hay alguna regla propia guardada. Recorre «Todas las personalidades» (`*`)
@@ -295,6 +328,46 @@ export function SignalsCenter({ embedded = false, compact = false }: SignalsCent
       {/* Controles maestros: antena de malla local + internet público StarSeed +
           servidor activo + privacidad del radar público. Encendidos por defecto. */}
       <ConnectivityConfigPanel mode="account" compact={compact} title="Estado de señales de esta neurona" />
+
+      {/* Vínculos físicos disponibles para el mismo bus de señales. */}
+      <div className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5">
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="text-[12px] font-semibold text-white/90">Transporte mesh · buildwithparallel</p>
+          <span className={cn(
+            "rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider",
+            transporteBwp.online
+              ? "bg-emerald-500/15 text-emerald-200"
+              : "bg-white/[0.06] text-white/45",
+          )}>
+            {transporteBwp.online ? "en línea" : "sin vínculo"}
+          </span>
+          {transporteBwp.totalKbps > 0 && (
+            <span className="ml-auto text-[10px] text-white/50">
+              {transporteBwp.totalKbps.toLocaleString("es-MX")} kbps
+            </span>
+          )}
+        </div>
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {transportesBwp.map((transporte) => {
+            const descripcion = TRANSPORTES_BWP[transporte];
+            const activo = vinculosBwp.some((vinculo) => vinculo.transporte === transporte);
+            return (
+              <span
+                key={transporte}
+                title={`${descripcion.alcanceLectura} · latencia ${descripcion.latencia}${descripcion.requiereHardware ? " · requiere hardware" : ""}`}
+                className={cn(
+                  "rounded-full border px-2 py-0.5 text-[10px]",
+                  activo
+                    ? "border-emerald-400/30 bg-emerald-500/10 text-emerald-200"
+                    : "border-white/10 bg-black/20 text-white/45",
+                )}
+              >
+                {descripcion.etiqueta}
+              </span>
+            );
+          })}
+        </div>
+      </div>
 
       {/* Inferencia local PAIR (nodos de la misma red) */}
       <PanelInferencia compact={compact} />
