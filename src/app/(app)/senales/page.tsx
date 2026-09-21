@@ -8,6 +8,11 @@
  * en tiempo real + el radar de los nodos reales de la malla, con accesos a la
  * Red Mesh y a las configuraciones de cada tipo de conexión. Cuerpo en
  * <SignalsCenter/> para montarse con paridad también dentro del hub.
+ *
+ * RN5: la página hereda en <SignalsCenter/> las tres capacidades nuevas —
+ * transporte BWP (RN3), PanelInferencia (RN1/RN2) y voz de borde
+ * supertonic/1.58 local (RN4) — y mantiene el arranque del subsistema mesh.
+ * Sin ajustes persistentes nuevos: solo claves `starseed.*` ya existentes.
  */
 
 import { useEffect } from "react";
