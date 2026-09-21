@@ -1,0 +1,61 @@
+{
+ "ola": "nube-20260921",
+ "tareas": [
+  {
+   "id": "RN7",
+   "ola": "Ola Red Mesh · PAIR · Voz",
+   "titulo": "Ajustes y configuracion de red mesh en el panel de ajustes (Senales y redes)",
+   "depende": [
+    "RN5",
+    "RN6"
+   ],
+   "archivos": [
+    "src/components/settings/accordion/network-section.tsx",
+    "src/components/settings/accordion/red-mesh-section.tsx"
+   ],
+   "prompt": "El usuario debe poder configurar la red mesh y la voz de borde desde Ajustes, no solo desde la pagina Senales. Abre el panel existente en `src/components/settings/accordion/` (por ejemplo `network-section.tsx` o el equivalente existente) y respeta su estructura y claves.\nCrea/amplia una seccion Red Mesh con: (a) Transporte: selector de transporte preferido entre `TRANSPORTES_BWP` (RN3). (b) Autodeteccion: interruptor ON/OFF ligado a `setAutoDetectPref`/`getAutoDetect` de `src/lib/network/device-registry.ts`. (c) Inferencia local: permitir/denegar que este nodo sirva inferencia a la flota (persiste en `starseed.mesh.inferencia-local.v1`, RN1). (d) Voz de borde: activar/desactivar el nivel suptonico (liga a `nivelParaVoz`, RN4) y elegir idioma preferido. (e) Antenas: constancia de que existe el panel de antenas (no duplicarlo; enlazar).\nTodo con TOGGLES VIVOS (preferencia de Alex: UI operativa). Sin any, espanol con acentos, tsc limpio.",
+   "modelo": "llm7/minimax-m2.7"
+  },
+  {
+   "id": "RN8",
+   "ola": "Ola Red Mesh · PAIR · Voz",
+   "titulo": "Documentar la integracion Red Mesh · PAIR · Voz en la memoria del sistema",
+   "depende": [
+    "RN7"
+   ],
+   "archivos": [
+    "memory/estudio-voces.md",
+    "memory/contrato-red-mesh-senales.md"
+   ],
+   "prompt": "Cierra la ola documentando lo construido (leyendo `src/lib/network/inferencia-local.ts`, `src/ai/astraura/mesh/transporte-bwp.ts`, `src/lib/aurora/voz-starseed/supertonic.ts`, `src/components/mesh/**`). En `memory/estudio-voces.md` anade la via suptonica: sintesis on-device en ONNX sin GPU, como convive con el nucleo 1.58-bit y needle (mismo contrato de `niveles.ts`, sin duplicar), 31 idiomas, y como la mesh la reparte (un nodo sin GPU con RAM suficiente puede asumir la voz de la flota). En `memory/contrato-red-mesh-senales.md` actualiza la seccion Que se espera del estudio de voces al cerrar marcando lo implementado y lo que queda: aterrizaje del adaptador Reticulum/wifi-Halo sobre `meshtastic-adapter.ts` (el transporte BWP ya existe), prueba REAL con dos nodos en la misma red, y el subscriptor del host del runtime `voz-supertonic`. Espanol, preciso, con rutas reales.",
+   "modelo": "llm7/minimax-m2.7"
+  },
+  {
+   "id": "CU3r",
+   "ola": 362,
+   "titulo": "Ajustes del Mando: selector de cuenta y perfil, y quién más está trabajando aquí",
+   "archivos": [
+    "src/app/api/mando/accesos/route.ts",
+    "src/components/mando/ajustes-accesos.tsx"
+   ],
+   "depende": [],
+   "prompt": "RESCATE (2026-09-20). Esta tarea se rechazo el 17/09 «automaticamente por ide, sin revision\nhumana». La causa de aquella racha esta medida y ARREGLADA: una cabecera x-title con un\ncaracter no ASCII hacia que TODOS los modelos :free de OpenRouter fallaran en 0 s, y el\ndesatascador daba por muerta la tarea. No era culpa del encargo.\nCOMPROBADO HOY: ni `src/app/api/mando/accesos/route.ts` ni `src/components/mando/panel-accesos.tsx` existen en main. El trabajo sigue pendiente entero.\nTRAMPA MEDIDA EL 20/09: `tsc` y vitest NO ven un import de VALOR desde un modulo que toca\n`node:*` hecho en un componente de CLIENTE; solo lo ve `next build`. De un modulo con\n`node:fs`/`node:util`, un componente de cliente solo puede importar TIPOS.\n\n=== ENCARGO ORIGINAL ===\nCONTEXTO (Alex, 16/09). En los Ajustes del Puente de Mando quiere un selector de las cuentas y perfiles con los que se está trabajando, y ver quién más está usando ese Mando ahora mismo. Cada Mando es privado por defecto; desde aquí se conceden accesos a otras cuentas y a servicios externos para funciones concretas.\n\nUSA `src/lib/mando/permisos.ts` (de CU1) para TODA decisión. No dupliques reglas de permiso en la interfaz.\n\nQUÉ HACER:\n1. `src/app/api/mando/accesos/route.ts`: GET con las cuentas y perfiles visibles para quien pregunta y quién está conectado ahora; POST para conceder o retirar un acceso. **El permiso se comprueba aquí, en el servidor, contra la sesión real — nunca se confía en lo que diga el cliente.** Cualquier intento sin permiso responde sin filtrar información: no digas qué existe y no puede ver.\n2. `src/components/mando/ajustes-accesos.tsx`: el selector y la lista de accesos, con el botón de conceder y el de retirar. Retirar pide confirmación.\n\nREGLAS DURAS: nunca muestres el VALOR de una clave de API — para los accesos de tipo servicio, solo el nombre de la variable y para qué se usa. Sin `any`. Español con acentos. `cursor-pointer` en lo clicable. Animaciones solo con `transform`/`opacity`. Dos archivos, 120 líneas máximo cada uno. Comprueba con `npx vitest run src/lib/mando/__tests__ src/components` y LEE la salida entera.",
+   "modelo": "llm7/minimax-m2.7"
+  },
+  {
+   "id": "CU3br",
+   "ola": 362,
+   "titulo": "Ajustes del Mando: que conceder o retirar un acceso no deje la pantalla en blanco",
+   "archivos": [
+    "src/app/api/mando/accesos/route.ts",
+    "src/components/mando/panel-accesos.tsx"
+   ],
+   "depende": [
+    "CU3r"
+   ],
+   "prompt": "RESCATE (2026-09-20). Esta tarea se rechazo el 17/09 «automaticamente por ide, sin revision\nhumana». La causa de aquella racha esta medida y ARREGLADA: una cabecera x-title con un\ncaracter no ASCII hacia que TODOS los modelos :free de OpenRouter fallaran en 0 s, y el\ndesatascador daba por muerta la tarea. No era culpa del encargo.\nCOMPROBADO HOY: ni `src/app/api/mando/accesos/route.ts` ni `src/components/mando/panel-accesos.tsx` existen en main. El trabajo sigue pendiente entero.\nTRAMPA MEDIDA EL 20/09: `tsc` y vitest NO ven un import de VALOR desde un modulo que toca\n`node:*` hecho en un componente de CLIENTE; solo lo ve `next build`. De un modulo con\n`node:fs`/`node:util`, un componente de cliente solo puede importar TIPOS.\n\n=== ENCARGO ORIGINAL ===\nCU3 fue RECHAZADA con bloqueo confirmado por dos revisores. El defecto, literal:\n\n«El POST devuelve `{ ok, accion, correo }`, pero `llamar()` lo castea a `DatosAccesos` y `conceder()`/`retirar()` hacen `setDatos(d)`. Tras conceder o retirar, `datos.cuentas` pasa a ser `undefined` y el render (`datos.cuentas.map`, `datos.cuentas.find`) revienta la pantalla. El primer alta de invitado rompe la UI.»\n\nEs decir: el panel funciona hasta que lo usas. La primera vez que concedes un acceso, pantalla en blanco.\n\nARREGLO, y elige UNA de las dos vías (no las dos):\n· que el POST devuelva el MISMO payload completo que el GET, o\n· que el cliente rehaga el GET después del POST.\nLa primera es mejor: una ida y vuelta menos y sin ventana de estado inconsistente.\n\nY pase lo que pase, el render no debe poder reventar por esto: si `datos.cuentas` llega vacío o ausente, la pantalla enseña su estado vacío, no una excepción. Una pantalla que se rompe por una respuesta inesperada es un fallo aparte del contrato.\n\nDos cosas más que el revisor anotó y conviene atender:\n· `leerDatos` → modificar → `guardarDatos` no es atómico entre peticiones: dos POST simultáneos pisan el cambio del otro. El rename atómico protege de corrupción parcial, no de perder una actualización. Si no lo arreglas aquí, DÉJALO ESCRITO en un comentario como deuda conocida, con el porqué.\n· en local, `correoQuePide` devuelve siempre `dueno`. Es deliberado, pero confirma en un comentario que `esDespliegueLocal` no puede dar verdadero en producción por una cabecera forjada.\n\nAñade una prueba del caso que rompía: conceder un acceso y comprobar que después la lista sigue teniendo sus cuentas.",
+   "aprobacion": false,
+   "modelo": "llm7/minimax-m2.7"
+  }
+ ]
+}
