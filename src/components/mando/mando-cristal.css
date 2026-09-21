@@ -84,7 +84,7 @@
 .mc-alzar:hover,
 .mc-alzar:focus-visible {
     opacity: 1;
-    transform: translateY(-2px) scale(1.012);
+    transform: translateY(-2px) scale(1.01);
 }
 .mc-alzar:active {
     opacity: 0.92;

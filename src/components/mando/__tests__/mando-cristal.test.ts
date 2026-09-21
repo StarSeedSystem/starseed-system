@@ -79,5 +79,31 @@ describe("presupuesto de rendimiento del Mando", () => {
         expect(css).toContain("--mc-neon-violeta");
         expect(css).toContain("--mc-neon-ambar");
         expect(css).toContain("--mc-cristal-fondo");
+        expect(css).toContain("--mc-rapido: 140ms");
+        expect(css).toContain("--mc-normal: 240ms");
+    });
+
+    it("define todas las clases requeridas del Mando de cristal", () => {
+        expect(reglas).toContain(".mc-cristal");
+        expect(reglas).toContain(".mc-neon");
+        expect(reglas).toContain(".mc-neon--aviso");
+        expect(reglas).toContain(".mc-neon--peligro");
+        expect(reglas).toContain(".mc-alzar");
+        expect(reglas).toContain(".mc-centrado");
+        expect(reglas).toContain(".mc-entrar");
+        expect(reglas).toContain(".mc-latido");
+    });
+
+    it("la clase .mc-cristal incluye el desenfoque de fondo y borde de cristal", () => {
+        expect(css).toMatch(/\.mc-cristal\s*\{[^}]*backdrop-filter:\s*blur\(10px\)/);
+        expect(css).toMatch(/\.mc-cristal\s*\{[^}]*border:/);
+    });
+
+    it("la clase .mc-centrado aplica la alineación centrada para pastillas y botones", () => {
+        expect(css).toMatch(/\.mc-centrado\s*\{[^}]*text-align:\s*center/);
+    });
+
+    it("la clase .mc-alzar simula profundidad 3D ligera con transform", () => {
+        expect(css).toMatch(/\.mc-alzar:hover[^}]*translateY\(-2px\)\s*scale\(1\.01\)/);
     });
 });
