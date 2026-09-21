@@ -2147,3 +2147,10 @@
 
 **Lo que quedó fuera, una por una:**
 - `p318Jb` — otra cosa: dependencia no integrada: p318I (?)
+
+## 2026-09-21 15:26 · auto-0921-145258
+
+**Resultado.** 2 de 2 integradas.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- google/gemini-3.6-flash integró 2 tareas sin fallar una.
