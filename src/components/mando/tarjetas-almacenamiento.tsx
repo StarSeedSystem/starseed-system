@@ -8,7 +8,7 @@
  * Solo el TIPO viaja al cliente: `almacenamiento.ts` es código de servidor (lanza
  * `df`/`rsync`/sondas) y un import de valor metería `node:child_process` al bundle.
  *
- * `Tarjeta`/`Barra`/`Fila`/`formatoMb`/`haceMs` se replican aquí (no se exportan
+ * `Tarjeta`/`Barra`/`Fila`/`formatoMb` se replican aquí (no se exportan
  * desde `panel-neurona.tsx`): mismo marco, barra y tonos del Mando para que las
  * tarjetas nuevas se vean idénticas a las de memoria/swap.
  */
@@ -28,6 +28,10 @@ import {
 
 import type { EstadoAlmacenamiento, Regenerable } from "@/lib/mando/almacenamiento";
 import type { CarpetaEspecial, ModoCarpeta } from "@/lib/mando/drive-carpetas";
+import {
+    interpretarEstadoEspejo,
+    type NivelEstadoEspejo,
+} from "@/lib/mando/drive-espejo-forma";
 
 /**
  * D2 dejó `driveCarpetas` en el JSON de GET /api/mando/almacenamiento; el tipo
@@ -40,6 +44,13 @@ type EstadoConCarpetas = EstadoAlmacenamiento & { driveCarpetas?: CarpetaEspecia
 
 /** Umbral del plan de sincronización: 6 GB libres (6144 MB), el mismo del servidor. */
 const UMBRAL_PLAN_MB = 6_144;
+
+const TONO_ESTADO_ESPEJO: Record<NivelEstadoEspejo, string> = {
+    ok: "border-emerald-400/30 bg-emerald-500/10 text-emerald-200",
+    atrasado: "border-amber-400/30 bg-amber-500/10 text-amber-200",
+    "sin-espejo": "border-white/15 bg-white/5 text-white/60",
+    invalida: "border-red-400/30 bg-red-500/10 text-red-200",
+};
 
 /** Paso del plan con etiqueta y tamaño (para redactarlo y para ejecutarlo). */
 interface PasoPlan {
@@ -115,17 +126,6 @@ function formatoGb(gb: number | null | undefined): string {
     if (gb === null || gb === undefined || !Number.isFinite(gb)) return "—";
     if (gb >= 1000) return `${(gb / 1024).toFixed(1)} TB`.replace(".", ",");
     return `${Math.round(gb)} GB`;
-}
-
-/** «hace 2 min» desde un timestamp en ms. */
-function haceMs(ms: number | null | undefined): string {
-    if (ms === null || ms === undefined || !Number.isFinite(ms)) return "—";
-    const segundos = Math.round((Date.now() - ms) / 1000);
-    if (segundos < 0) return "ahora";
-    if (segundos < 60) return `hace ${segundos} s`;
-    const minutos = Math.floor(segundos / 60);
-    if (minutos < 60) return `hace ${minutos} min`;
-    return `hace ${Math.floor(minutos / 60)} h`;
 }
 
 /** Barra horizontal de proporción (mismo aspecto que `panel-neurona.tsx`). */
@@ -340,25 +340,37 @@ export function TarjetaDrive({ estado }: { estado: EstadoAlmacenamiento }) {
     }
 
     const espejo = drive.espejo;
-    const ultimoMs = espejo?.ultimoEspejo ? Date.parse(espejo.ultimoEspejo) : null;
+    const estadoEspejo = interpretarEstadoEspejo(espejo?.ultimoEspejo ?? null, Date.now());
 
     return (
         <Tarjeta titulo="Google Drive" icono={<Cloud className="h-4 w-4 text-white/70" aria-hidden />} testId="tarjeta-drive">
             <p className="text-xs text-white/70">Montado en <span className="font-mono">{drive.ruta}</span></p>
 
-            {espejo ? (
-                <div className="mt-2 rounded-lg border border-white/10 bg-white/5 p-2">
-                    <p className="truncate font-mono text-[11px] text-white/60">{espejo.ruta}</p>
-                    <div className="mt-1 flex items-baseline justify-between text-xs">
-                        <span className="text-white/50">Último espejo</span>
-                        <span className="font-mono text-white/80">
-                            {espejo.ultimoEspejo ? `${haceMs(ultimoMs)} (${formatoMb(espejo.mb)})` : `nunca (${formatoMb(espejo.mb)})`}
-                        </span>
-                    </div>
+            <div
+                data-testid={`estado-espejo-${estadoEspejo.nivel}`}
+                className={`mt-2 flex items-start gap-2 rounded-lg border p-2 ${TONO_ESTADO_ESPEJO[estadoEspejo.nivel]}`}
+            >
+                {estadoEspejo.nivel === "ok" ? (
+                    <Check className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+                ) : estadoEspejo.nivel === "atrasado" ? (
+                    <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+                ) : estadoEspejo.nivel === "invalida" ? (
+                    <X className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+                ) : (
+                    <CircleDashed className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+                )}
+                <div className="min-w-0">
+                    <p className="text-xs font-medium">{estadoEspejo.etiqueta}</p>
+                    <p className="text-[11px] opacity-75">Último espejo: {estadoEspejo.cuando}</p>
                 </div>
-            ) : (
-                <p className="mt-2 text-xs text-white/50">Sin espejo todavía: lanza «Espejar ahora».</p>
-            )}
+            </div>
+
+            {espejo ? (
+                <div className="mt-2 rounded-lg border border-white/10 bg-white/5 p-2 text-[11px] text-white/60">
+                    <p className="truncate font-mono text-[11px] text-white/60">{espejo.ruta}</p>
+                    <p className="mt-1">Tamaño: <span className="font-mono text-white/80">{formatoMb(espejo.mb)}</span></p>
+                </div>
+            ) : null}
 
             <button
                 type="button"
