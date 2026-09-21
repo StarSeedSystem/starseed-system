@@ -3,12 +3,17 @@
  * Solo expone contadores agregados; nunca claves ni rutas del disco.
  */
 
+import { execFile } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { promisify } from "node:util";
 
 import { guardianMando } from "@/lib/mando/guardian";
 import { construirRespuestaJev } from "@/lib/mando/jev-medidor";
+import { raizDelProyecto } from "@/lib/mando/raiz";
+
+const correr = promisify(execFile);
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -65,4 +70,48 @@ export async function GET(peticion: Request): Promise<Response> {
         localVivo,
     );
     return Response.json(respuesta, { headers: { "Cache-Control": "no-store" } });
+}
+
+// El guion de una línea importa jev desde scripts/puente y volca el dict en JSON;
+// la contabilidad vive en Python y aquí NO se reimplementa: un solo sitio de verdad.
+function guionReinicio(mes: boolean): string {
+    return [
+        "import json, sys",
+        "sys.path.insert(0, 'scripts/puente')",
+        "import jev",
+        `print(json.dumps(jev.reiniciar_limite(dia=True, mes=${mes ? "True" : "False"})))`,
+    ].join("\n");
+}
+
+export async function POST(peticion: Request): Promise<Response> {
+    const veto = await guardianMando(peticion);
+    if (veto) return veto;
+
+    let cuerpo: { accion?: string; mes?: boolean };
+    try {
+        cuerpo = (await peticion.json()) as typeof cuerpo;
+    } catch {
+        return Response.json({ error: "Cuerpo JSON inválido." }, { status: 400 });
+    }
+    if (cuerpo.accion !== "reiniciar-limite") {
+        return Response.json({ error: `Acción desconocida: ${cuerpo.accion ?? ""}` }, { status: 400 });
+    }
+
+    const raiz = raizDelProyecto();
+    // cwd en la raíz del repo porque el guion referencia 'scripts/puente' de forma relativa.
+    const mes = cuerpo.mes === true;
+    try {
+        const { stdout } = await correr("python3", ["-c", guionReinicio(mes)], {
+            cwd: raiz,
+            timeout: 30_000,
+            maxBuffer: 1_000_000,
+        });
+        const resultado = JSON.parse(stdout.trim()) as unknown;
+        return Response.json(resultado, { headers: { "Cache-Control": "no-store" } });
+    } catch (e) {
+        return Response.json(
+            { error: `No se pudo reiniciar el límite: ${e instanceof Error ? e.message.slice(0, 200) : "error"}` },
+            { status: 500 },
+        );
+    }
 }
