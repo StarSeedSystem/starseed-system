@@ -471,8 +471,59 @@ def servicio_cargado(etiqueta) -> bool:
     return r.returncode == 0
 
 
+#: Un solo reinicio a la vez. `publicar.py` y el reconstructor llaman los dos aquí.
+CERROJO_REINICIO = os.path.expanduser("~/.starseed/cerrojos/reinicio-mando.lock")
+
+
+def _tomar_cerrojo(ruta=CERROJO_REINICIO, espera_s=180, caduca_s=600):
+    """Directorio atómico: o lo creas tú, o ya lo tiene otro. Devuelve si es tuyo.
+
+    (2026-09-22, MEDIDO) El Mando se quedó APAGADO dos veces —ni en `launchctl list`, ni
+    proceso, ni nada en el 9002— y las dos con el mismo patrón: `publicar.py` y el
+    reconstructor reiniciándolo a la vez. Uno hacía `bootout` justo entre el `bootstrap`
+    y la comprobación del otro, así que el segundo veía el servicio cargado, decía «Mando
+    reiniciado» y se iba tan tranquilo mientras el primero lo acababa de tirar.
+
+    Dos procesos parando y arrancando el mismo servicio a la vez no es una carrera rara:
+    es lo normal aquí, y por eso se serializa.
+    """
+    os.makedirs(os.path.dirname(ruta), exist_ok=True)
+    limite = time.time() + espera_s
+    while True:
+        try:
+            os.mkdir(ruta)
+            return True
+        except FileExistsError:
+            # Cuánto se espera y cuándo un cerrojo se da por abandonado son dos cosas
+            # distintas: con un solo número, esperar poco convertía en basura un cerrojo
+            # recién puesto por alguien que estaba trabajando.
+            try:
+                if time.time() - os.stat(ruta).st_mtime > caduca_s:
+                    subprocess.run(["rm", "-rf", ruta], check=False)
+                    continue
+            except OSError:
+                pass
+            if time.time() >= limite:
+                return False
+            time.sleep(2)
+
+
+def _soltar_cerrojo(ruta=CERROJO_REINICIO):
+    subprocess.run(["rm", "-rf", ruta], check=False)
+
+
 def reiniciar_mando() -> None:
     """Para el Mando DE VERDAD, cambia el build de sitio y lo vuelve a arrancar."""
+    if not _tomar_cerrojo():
+        print("otro proceso está reiniciando el Mando; no me meto", flush=True)
+        return
+    try:
+        _reiniciar_mando_sin_cerrojo()
+    finally:
+        _soltar_cerrojo()
+
+
+def _reiniciar_mando_sin_cerrojo() -> None:
     uid = os.getuid()
     etiqueta = "gui/%d/%s" % (uid, SERVICIO)
     plist = os.path.expanduser("~/Library/LaunchAgents/%s.plist" % SERVICIO)
@@ -498,6 +549,14 @@ def reiniciar_mando() -> None:
     else:
         print("NO PUDE ARRANCAR EL MANDO tras 5 intentos: la pantalla se queda apagada",
               flush=True)
+    # Y se vuelve a mirar unos segundos después: «cargado» justo tras `bootstrap` no
+    # significa «sigue vivo». Las dos veces que se apagó, el servicio desapareció DESPUÉS
+    # de que alguien dijera «Mando reiniciado».
+    time.sleep(6)
+    if not servicio_cargado(etiqueta):
+        print("el Mando se cayó después de arrancar: lo levanto otra vez", flush=True)
+        subprocess.run(["launchctl", "bootstrap", "gui/%d" % uid, plist],
+                       capture_output=True, text=True)
     # Y ahora se COMPRUEBA que sirve lo que hay en el disco, en vez de darlo por hecho.
     time.sleep(8)
     if not sirve_lo_que_hay_en_disco(_html_del_mando()):

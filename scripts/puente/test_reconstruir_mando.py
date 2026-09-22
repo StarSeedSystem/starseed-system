@@ -377,3 +377,42 @@ class RecogerLoPropioAntesDeRendirse(unittest.TestCase):
 
     def test_sin_nada_que_tirar_no_dice_que_tiro_algo(self):
         self.assertEqual(R.liberar_lo_propio(self.raiz), [])
+
+
+class UnSoloReinicioALaVez(unittest.TestCase):
+    """(2026-09-22, MEDIDO) El Mando se quedó apagado DOS veces, las dos igual.
+
+    `publicar.py` y el reconstructor reinician los dos por aquí. Uno hacía `bootout` justo
+    entre el `bootstrap` y la comprobación del otro: el segundo veía el servicio cargado,
+    escribía «Mando reiniciado: la pantalla ya sirve el código nuevo» y se iba, mientras el
+    primero lo acababa de tirar. Resultado en pantalla: nada, ni en `launchctl list`, ni
+    proceso, ni nada escuchando en el 9002.
+    """
+
+    def setUp(self):
+        self.raiz = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.raiz, True)
+        self.cerrojo = os.path.join(self.raiz, "reinicio.lock")
+
+    def test_el_primero_se_lo_lleva(self):
+        self.assertTrue(R._tomar_cerrojo(self.cerrojo, espera_s=1))
+
+    def test_el_segundo_no_entra_mientras_el_primero_lo_tenga(self):
+        R._tomar_cerrojo(self.cerrojo, espera_s=1)
+        self.assertFalse(R._tomar_cerrojo(self.cerrojo, espera_s=1))
+
+    def test_al_soltarlo_vuelve_a_estar_libre(self):
+        R._tomar_cerrojo(self.cerrojo, espera_s=1)
+        R._soltar_cerrojo(self.cerrojo)
+        self.assertTrue(R._tomar_cerrojo(self.cerrojo, espera_s=1))
+
+    def test_un_cerrojo_viejo_no_bloquea_para_siempre(self):
+        """Si el dueño murió sin soltarlo, nadie podría reiniciar el Mando nunca más."""
+        os.makedirs(self.cerrojo)
+        os.utime(self.cerrojo, (0, 0))
+        self.assertTrue(R._tomar_cerrojo(self.cerrojo, espera_s=1, caduca_s=5))
+
+    def test_esperar_poco_no_convierte_en_basura_un_cerrojo_reciente(self):
+        """Esperar poco y dar por muerto a otro son dos cosas distintas."""
+        R._tomar_cerrojo(self.cerrojo, espera_s=1)
+        self.assertFalse(R._tomar_cerrojo(self.cerrojo, espera_s=1, caduca_s=600))
