@@ -585,8 +585,8 @@ export async function uploadFile(file: File, options: UploadFileOptions = {}): P
             });
             uploadOk = !error;
             if (error) uploadErrorMsg = error.message || "";
-        } catch (e: any) {
-            uploadErrorMsg = e?.message || "Error de red al subir.";
+        } catch (e) {
+            uploadErrorMsg = (e as Error)?.message || "Error de red al subir.";
         }
 
         if (!uploadOk) {
@@ -717,8 +717,8 @@ export async function uploadFile(file: File, options: UploadFileOptions = {}): P
             replicas,
             ...(replicasWarning ? { warning: replicasWarning } : {}),
         };
-    } catch (e: any) {
-        return { ok: false, error: e?.message || "Error inesperado al subir el archivo." };
+    } catch (e) {
+        return { ok: false, error: (e as Error)?.message || "Error inesperado al subir el archivo." };
     }
 }
 
