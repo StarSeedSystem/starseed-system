@@ -1068,6 +1068,29 @@ export function SeccionBloqueadasReintentos({
         return resumenVeredictos(elegibles.map(aTareaAnalizar), {}, "");
     }, [elegibles]);
 
+    // (2026-09-22, Alex: «aparece diferente numero de tareas bloqueadas del medidor del
+    // pulso a las bloqueadas y rechazadas de la ventana emergente»). Los dos números son
+    // correctos y cuentan cosas distintas: el medidor «Bloqueadas» cuenta SOLO las que
+    // esperan a otra tarea, y esta sección cuenta además las rechazadas, los fallos y las
+    // `sin_cambios`. Un total a secas al lado de otro total a secas parece una
+    // contradicción, así que aquí se enseña DE QUÉ está hecho el número.
+    const desglose = useMemo(() => {
+        const partes: { etiqueta: string; n: number }[] = [];
+        const cuenta = (pred: (e: string) => boolean) =>
+            elegibles.filter((t) => pred(String(t.estado ?? ""))).length;
+        const bloq = cuenta((e) => e === "bloqueada" || e === "bloqueante");
+        const rech = cuenta((e) => e === "rechazada");
+        const fallos = cuenta((e) => e.startsWith("fallo") || e === "interrumpida");
+        const sinCambios = cuenta((e) => e === "sin_cambios");
+        const resto = elegibles.length - bloq - rech - fallos - sinCambios;
+        if (bloq) partes.push({ etiqueta: "esperan a otra tarea", n: bloq });
+        if (rech) partes.push({ etiqueta: "rechazadas", n: rech });
+        if (fallos) partes.push({ etiqueta: "con fallos", n: fallos });
+        if (sinCambios) partes.push({ etiqueta: "sin cambios", n: sinCambios });
+        if (resto > 0) partes.push({ etiqueta: "otras", n: resto });
+        return partes;
+    }, [elegibles]);
+
     const reintentarTodas = useCallback(async () => {
         setEnviando(true);
         setResultado(null);
@@ -1117,6 +1140,12 @@ export function SeccionBloqueadasReintentos({
                         <span className="h-2 w-2 rounded-full bg-amber-400" aria-hidden />
                         Bloqueadas y rechazadas · {elegibles.length}
                     </h4>
+                    {desglose.length ? (
+                        <p className="mt-0.5 text-[10px] text-amber-100/60" data-testid="desglose-bloqueadas">
+                            {desglose.map((p) => `${p.n} ${p.etiqueta}`).join(" · ")}
+                            {" — el medidor «Bloqueadas» del pulso cuenta solo las primeras"}
+                        </p>
+                    ) : null}
                     <p className="mt-0.5 text-xs font-mono text-amber-100/80" data-testid="resumen-veredictos">
                         {resumen.resumenTexto}
                     </p>

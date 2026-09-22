@@ -126,6 +126,58 @@ async function leerHistoriales(ids: string[]): Promise<Record<string, { t: strin
     return salida;
 }
 
+/**
+ * Los agentes que trabajan en la NUBE, para que el medidor los cuente.
+ *
+ * (2026-09-22, Alex: «aún no veo que suba el número de agentes con las capacidades de los
+ * contenedores en la nube»). No era descuido: el bus de medios es un archivo del disco de
+ * la Mac y un runner de GitHub no puede escribir en él, así que la Mac veía 3 agentes
+ * mientras había 3 + 6 trabajando. `scripts/puente/agentes_nube.py` cruza los runs vivos
+ * con los trabajadores que anotó `nube-gh.py` al lanzarlos y deja el resultado en disco;
+ * aquí solo se lee, sin viajes a la red en la petición del panel.
+ */
+async function leerAgentesDeLaNube(): Promise<
+    { tarea: string; fase: string; modelo: string; minutos: number; donde: string; cola?: string }[]
+> {
+    try {
+        const crudo = await readFile(
+            path.join(RAÍZ, "starseed_memory_root", "mando", "agentes-nube.json"),
+            "utf8",
+        );
+        const d = JSON.parse(crudo) as {
+            runs?: { run?: unknown; agentes?: unknown; cola?: unknown; minutos?: unknown }[];
+        };
+        const fuera: {
+            tarea: string;
+            fase: string;
+            modelo: string;
+            minutos: number;
+            donde: string;
+            cola?: string;
+        }[] = [];
+        for (const r of d.runs ?? []) {
+            const n = Number(r.agentes);
+            if (!Number.isFinite(n) || n <= 0) continue;
+            const cola = typeof r.cola === "string" ? r.cola.split("/").pop() : undefined;
+            for (let i = 0; i < Math.min(n, 32); i += 1) {
+                // No sabemos QUÉ tarea lleva cada trabajador de la nube —sus latidos
+                // mueren con el runner— así que se dice el run y no se inventa una tarea.
+                fuera.push({
+                    tarea: `nube/${r.run}`,
+                    fase: "escribiendo",
+                    modelo: "nube-gh/trabajador",
+                    minutos: Number.isFinite(Number(r.minutos)) ? Number(r.minutos) : 0,
+                    donde: "nube-gh",
+                    cola,
+                });
+            }
+        }
+        return fuera;
+    } catch {
+        return [];
+    }
+}
+
 async function leerEntradas(): Promise<Record<string, Entrada>> {
     const crudo = await leerProgreso();
     const salida: Record<string, Entrada> = {};
@@ -237,15 +289,18 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
             declarados[id] = archivos.map((a) => String(a));
         }
     }
-    const [obras, historiales] = await Promise.all([
+    const [obras, historiales, agentesNube] = await Promise.all([
         leerObras(idsVivas).catch(() => ({})),
         leerHistoriales(idsVivas).catch(() => ({})),
+        leerAgentesDeLaNube().catch(() => []),
     ]);
 
     return {
         progreso,
         titulos,
-        latidos: latidosDeAqui,
+        // Los de la nube se SUMAN a los de la Mac: el medidor de agentes tiene que contar
+        // toda la capacidad viva, no solo la de esta máquina.
+        latidos: [...latidosDeAqui, ...agentesNube],
         commitsSinPublicar,
         ejecutables,
         enjambreVivo: vivo,

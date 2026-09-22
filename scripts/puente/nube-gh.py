@@ -141,7 +141,51 @@ def lanzar(args: list[str]) -> None:
     print(_sh(["git", "push", "origin", "HEAD:main"], check=False)[-200:] or "push ok")
     print(_sh(["gh", "workflow", "run", WORKFLOW, "-f", "cola=%s" % cola, "-f", "trabajadores=%s" % trabajadores, "-f", "minutos=%s" % minutos]))
     print("lanzado:", cola, "· trabajadores", trabajadores, "· minutos", minutos)
+    _anotar_lanzamiento(cola, trabajadores, minutos)
     print("sigue con: python3 scripts/puente/nube-gh.py estado")
+
+
+def _anotar_lanzamiento(cola: str, trabajadores: str, minutos: str) -> None:
+    """Deja escrito con cuantos trabajadores sale este run.
+
+    (2026-09-22) El Puente no podia contar los agentes de la nube, y no por descuido: el
+    bus de medios es un archivo del disco de la Mac y un runner de GitHub no puede
+    escribir en el. Preguntar a GitHub tampoco basta, porque los inputs de un
+    `workflow_dispatch` no se pueden leer por la API despues del lanzamiento. El unico
+    que sabe cuantos trabajadores lleva un run es quien lo lanza, o sea esto. Se anota
+    aqui y `agentes_nube.py` lo cruza con los runs vivos.
+    """
+    import time as _t
+
+    ruta = os.path.join(RAIZ, "starseed_memory_root", "mando", "agentes-nube.json")
+    try:
+        # El id del run recien disparado: el mas nuevo del workflow.
+        crudo = _sh(["gh", "run", "list", "--workflow", WORKFLOW, "--limit", "1",
+                     "--json", "databaseId"], check=False)
+        run_id = (json.loads(crudo or "[]") or [{}])[0].get("databaseId")
+    except Exception:
+        run_id = None
+    if not run_id:
+        return
+    try:
+        datos = json.load(open(ruta, encoding="utf-8"))
+    except Exception:
+        datos = {}
+    lanz = [l for l in (datos.get("lanzamientos") or []) if str(l.get("run")) != str(run_id)]
+    lanz.append({
+        "run": run_id,
+        "cola": cola,
+        "trabajadores": trabajadores,
+        "minutos": minutos,
+        "t": _t.strftime("%Y-%m-%d %H:%M:%S"),
+    })
+    datos["lanzamientos"] = lanz[-30:]
+    try:
+        os.makedirs(os.path.dirname(ruta), exist_ok=True)
+        json.dump(datos, open(ruta, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+        print("anotado: run %s con %s trabajadores" % (run_id, trabajadores))
+    except OSError:
+        pass
 
 
 def estado() -> None:

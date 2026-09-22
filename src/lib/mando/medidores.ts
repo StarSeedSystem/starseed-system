@@ -223,6 +223,9 @@ export function dependenciaDeNota(nota: string | undefined): string[] {
  * esperando nada — está esperando a que alguien se dé cuenta. Decirlo cambia lo
  * que haces con ella.
  */
+/** Estados de los que una dependencia ya NO sale por sí sola: esperarla es esperar a nadie. */
+const MUERTAS_DEP = new Set(["rechazada", "bloqueante", "descartada", "sustituida", "cancelada"]);
+
 export function porqueBloqueada(
     nota: string | undefined,
     estadoDe: (id: string) => string | undefined,
@@ -234,6 +237,93 @@ export function porqueBloqueada(
         return `${deps.join(", ")} ya está integrada: esto puede desbloquearse`;
     }
     return `espera a ${abiertas.join(", ")}`;
+}
+
+/**
+ * La ficha de una BLOQUEADA: de qué espera, en qué estado está eso, y si la espera
+ * puede resolverse alguna vez.
+ *
+ * (2026-09-22, Alex: «la informacion de las tareas bloqueadas aun no es coherente ni
+ * esta completa») Antes la fila decía «espera a RM2» y ahí acababa. Eso no basta para
+ * decidir nada: no dice qué es RM2, ni en qué estado está, ni —lo importante— si esa
+ * espera es VIVA o MUERTA. Una dependencia rechazada no se va a integrar sola, y una que
+ * no existe no se va a integrar nunca: las dos son bloqueos permanentes disfrazados de
+ * paciencia. Nos costó diez horas de Mac parada el día 21 con `p318Jb` esperando a
+ * `p318I`, que no existía en ninguna parte.
+ */
+export function fichaDeBloqueada(
+    nota: string | undefined,
+    estadoDe: (id: string) => string | undefined,
+    titulo: (id: string) => string,
+    entrada?: DatosMedidores["progreso"][string],
+): { ficha: DatoDeFicha[]; veredicto: string; muerta: boolean } {
+    const ficha: DatoDeFicha[] = [];
+    const deps = dependenciaDeNota(nota);
+    if (entrada?.estado) ficha.push({ etiqueta: "Estado", valor: entrada.estado });
+    if (entrada?.t) ficha.push({ etiqueta: "Bloqueada desde", valor: entrada.t });
+
+    if (deps.length === 0) {
+        ficha.push({
+            etiqueta: "Espera a",
+            valor: "nada anotado",
+            aviso: true,
+        });
+        return {
+            ficha,
+            veredicto: nota?.trim() || "bloqueada sin motivo anotado: nadie sabe qué espera",
+            muerta: true,
+        };
+    }
+
+    let vivas = 0;
+    let muertas = 0;
+    let fantasmas = 0;
+    for (const dep of deps) {
+        const est = estadoDe(dep);
+        // Sin estado NO significa «va a llegar»: significa que nadie la ha ejecutado nunca.
+        // Si además no figura en ninguna cola, es una dependencia fantasma.
+        const esFantasma = est === undefined || est === "";
+        const esMuerta = !esFantasma && MUERTAS_DEP.has(est);
+        const esViva = !esFantasma && !esMuerta && !TERMINALES.has(est);
+        if (esFantasma) fantasmas += 1;
+        else if (esMuerta) muertas += 1;
+        else if (esViva) vivas += 1;
+        ficha.push({
+            etiqueta: "Espera a",
+            valor: `${dep} — ${titulo(dep) || "sin título"}`,
+        });
+        ficha.push({
+            etiqueta: "↳ su estado",
+            valor: esFantasma
+                ? "NO EXISTE: ninguna ola la ha ejecutado nunca"
+                : esMuerta
+                  ? `${est} — no se va a integrar sola`
+                  : TERMINALES.has(est)
+                    ? `${est} — ya está: esto puede desbloquearse`
+                    : est,
+            aviso: esFantasma || esMuerta,
+        });
+    }
+
+    const listas = deps.length - vivas - muertas - fantasmas;
+    let veredicto: string;
+    if (fantasmas) {
+        veredicto = `espera a ${fantasmas} tarea(s) que NO EXISTEN: este bloqueo no se resuelve nunca`;
+    } else if (muertas) {
+        veredicto = `espera a ${muertas} tarea(s) que no se van a integrar solas: hay que reencolarlas o descartar esta`;
+    } else if (vivas) {
+        veredicto = `espera a ${vivas} tarea(s) que siguen vivas: es una espera normal`;
+    } else if (listas) {
+        veredicto = `${deps.join(", ")} ya está integrada: esto puede desbloquearse`;
+    } else {
+        veredicto = `espera a ${deps.join(", ")}`;
+    }
+    ficha.push({
+        etiqueta: "Veredicto",
+        valor: veredicto,
+        aviso: Boolean(fantasmas || muertas),
+    });
+    return { ficha, veredicto, muerta: Boolean(fantasmas || muertas) };
 }
 
 /** Coincidencia histórica por palabra entera; no basta para afirmar integración. */
@@ -582,15 +672,21 @@ export function detalleDeMedidor(
                 for (const [id, v] of todasBloqueadasProgreso) {
                     if (idsBloqueadosOperativos.has(id)) {
                         idsProgresoProcesados.add(id);
+                        const b =
+                            v.estado === "bloqueante"
+                                ? null
+                                : fichaDeBloqueada(v.nota, estadoDe, titulo, v);
                         filasOperativas.push({
                             id,
                             titulo: titulo(id),
-                            estado: v.estado,
+                            estado: b?.muerta ? "bloqueada sin salida" : v.estado,
                             porque:
                                 v.estado === "bloqueante"
                                     ? "agotó los reintentos gratuitos: necesita una persona"
-                                    : porqueBloqueada(v.nota, estadoDe),
+                                    : (b?.veredicto ?? porqueBloqueada(v.nota, estadoDe)),
                             desde: v.t,
+                            ficha: b?.ficha,
+                            historial: d.historiales?.[id]?.slice(0, 4),
                             acciones: accionesDeTarea(v.estado),
                             historica: false,
                         });
@@ -613,31 +709,47 @@ export function detalleDeMedidor(
                 for (const id of idsBloqueadosOperativos) {
                     if (!idsProgresoProcesados.has(id)) {
                         const tareaFila = d.fila.find((t) => t.id === id);
-                        const estado = "bloqueada";
-                        const porque = tareaFila?.dependenciasPendientes?.length
-                            ? `espera a ${tareaFila.dependenciasPendientes.join(", ")}`
-                            : "bloqueada en cola activa";
+                        const pend = tareaFila?.dependenciasPendientes ?? [];
+                        // Misma ficha que las demás: se construye una nota con la forma que
+                        // `dependenciaDeNota` entiende, para no tener DOS maneras de decir
+                        // lo mismo (que es como llegamos a tres números distintos).
+                        const b = pend.length
+                            ? fichaDeBloqueada(`dependencia no integrada: ${pend.join(", ")}`, estadoDe, titulo, {
+                                  estado: "bloqueada",
+                              })
+                            : null;
                         filasOperativas.push({
                             id,
                             titulo: titulo(id),
-                            estado,
-                            porque,
-                            acciones: accionesDeTarea(estado),
+                            estado: b?.muerta ? "bloqueada sin salida" : "bloqueada",
+                            porque: b?.veredicto ?? "bloqueada en cola activa, sin dependencia anotada",
+                            ficha: b?.ficha,
+                            historial: d.historiales?.[id]?.slice(0, 4),
+                            acciones: accionesDeTarea("bloqueada"),
                             historica: false,
                         });
                     }
                 }
             } else {
+                // Camino de respaldo, sin cola activa que consultar. (2026-09-22) Aquí
+                // faltaba la ficha, y por eso este camino daba MENOS información que el
+                // otro para la misma tarea: una tercera manera de contar lo mismo, que es
+                // exactamente el problema que estamos cerrando. Las dos ramas dicen ya lo
+                // mismo; lo detectaron dos pruebas, no una revisión.
                 for (const [id, v] of todasBloqueadasProgreso) {
+                    const b =
+                        v.estado === "bloqueante" ? null : fichaDeBloqueada(v.nota, estadoDe, titulo, v);
                     filasOperativas.push({
                         id,
                         titulo: titulo(id),
-                        estado: v.estado,
+                        estado: b?.muerta ? "bloqueada sin salida" : v.estado,
                         porque:
                             v.estado === "bloqueante"
                                 ? "agotó los reintentos gratuitos: necesita una persona"
-                                : porqueBloqueada(v.nota, estadoDe),
+                                : (b?.veredicto ?? porqueBloqueada(v.nota, estadoDe)),
                         desde: v.t,
+                        ficha: b?.ficha,
+                        historial: d.historiales?.[id]?.slice(0, 4),
                         acciones: accionesDeTarea(v.estado),
                         historica: false,
                     });
@@ -650,16 +762,28 @@ export function detalleDeMedidor(
             const totalOperativas = filasOperativas.length;
             const totalHistoricas = filasHistoricas.length;
             const listas = filasOperativas.filter((f) => f.porque?.includes("puede desbloquearse")).length;
+            // (2026-09-22) Las que esperan a algo que no va a llegar. Son las que hay que
+            // mirar HOY: las demás se desbloquean solas cuando su dependencia termine.
+            const sinSalida = filasOperativas.filter((f) => f.estado === "bloqueada sin salida").length;
 
             const todasFilas = [...filasOperativas, ...filasHistoricas];
 
+            // (2026-09-22, Alex: «aparece diferente numero de tareas bloqueadas del medidor
+            // a las bloqueadas y rechazadas de la ventana emergente»). Y es cierto, pero no
+            // es el mismo dato: este medidor cuenta SOLO las que esperan a otra tarea
+            // (`bloqueada`/`bloqueante`), y el panel de Ramificación cuenta además las
+            // rechazadas, los fallos y las `sin_cambios`. Dos preguntas distintas con
+            // etiquetas parecidas parecen una contradicción, así que aquí se dice EN VOZ
+            // ALTA qué se está contando y dónde están las otras.
             let resumenText = "";
             if (totalOperativas === 0) {
                 resumenText = totalHistoricas > 0 ? `0 esperando · ${totalHistoricas} de olas cerradas` : "nada esperando";
             } else {
-                resumenText = `${totalOperativas} esperando${listas > 0 ? ` · ${listas} ya pueden desbloquearse` : ""}${
+                resumenText = `${totalOperativas} esperando a otra tarea${
+                    sinSalida > 0 ? ` · ${sinSalida} SIN SALIDA` : ""
+                }${listas > 0 ? ` · ${listas} ya pueden desbloquearse` : ""}${
                     totalHistoricas > 0 ? ` · ${totalHistoricas} de olas cerradas` : ""
-                }`;
+                } · las rechazadas y los fallos van en Ramificación`;
             }
 
             return {
