@@ -1,6 +1,6 @@
 # Puente de Mando · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-22 09:30:21 desde el Mando vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-22 10:25:07 desde el Mando vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -16,19 +16,22 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | Agentes escribiendo | **0** |
 | En esta ola | integradas 0 · en curso 0 · esperando aprobación 0 · pendientes 0 |
 | Últimas 4 olas | en curso 0 · pendientes 0 · integradas 20 |
-| HEAD | `6c20cf64 chore(memoria): aprendizaje de la ola auto-0922-092631` |
-| Sin publicar | 7 commits |
+| HEAD | `053b5fac chore(memoria): aprendizaje de la ola auto-0922-095528` |
+| Sin publicar | 1 commits |
 | Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-auto-0922-092631.json`, hace 5s)
+## Quién escribe ahora (latido de `cola-auto-0922-095528.json`, hace 5s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `p315A` | hecho | nvidia/moonshotai/kimi-k3 | 1 min | 36 s | 1344409 |
-| `p314A` | hecho | nvidia/moonshotai/kimi-k3 | 1 min | 55 s | 1199288 |
-| `p314B` | hecho | xkiro/qwen/qwen3-coder-plus:free | 1 min | 81 s | 1951980 |
-| `c313_QW5` | hecho | apinex/free/gemini-3.8-flash | 2 min | 112 s | 922926 |
-| `p312C` | hecho | nvidia/moonshotai/kimi-k3 | 2 min | 128 s | 1297652 |
+| `TK2c` | hecho | google/gemini-3.6-flash | 0 min | 29 s | 522440 |
+| `DR0922-1` | hecho | apinex/free/deepseek-v4-pro-0813 | 18 min | 1074 s | 6597 |
+| `AGR2c` | hecho | google/gemini-3.6-flash | 20 min | 1170 s | 764648 |
+| `c313_QW6` | hecho | apinex/free/gemini-3.8-flash | 23 min | 1369 s | 273582 |
+| `c313_QW4` | hecho | apinex/free/gemini-3.8-flash | 23 min | 1400 s | 280383 |
+| `RM4` | hecho | google/gemini-3.6-flash | 24 min | 1444 s | 471276 |
+| `RM3` | hecho | google/gemini-3.6-flash | 25 min | 1515 s | 678630 |
+| `TK1c` | hecho | google/gemini-3.6-flash | 26 min | 1561 s | 938000 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
