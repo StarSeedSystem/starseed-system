@@ -2298,3 +2298,12 @@
 
 **Lo que quedó fuera, una por una:**
 - `p316Ic` — otra cosa: red caída: $ opencode run --model google/gemini-3.6-flash · 2026-09-22 07:34:03 [0m > build · gemini-3.6-flash [0m[0m✱ [0mGlob "*MENSAJE
+
+## 2026-09-22 07:59 · auto-0922-073817
+
+**Lo que se pidió.** Unable to connect. Is the computer able to access the url? Failed to fetch models.dev
+
+**Resultado.** 0 de 1 integradas. 1 tarea se quedaron fuera.
+
+**Lo que quedó fuera, una por una:**
+- `p316Ic` — pruebas en rojo: ERROR: test_excluye_agotados_y_enfriandose (test_revisores.CandidatosTest.test_excluye_agotados_y_enfriandose)
