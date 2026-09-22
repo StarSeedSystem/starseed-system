@@ -30,18 +30,43 @@ def _n_archivos(tarea):
     return len(tarea.get("archivos") or [])
 
 
-def _tiene_dependencias(tarea):
-    """¿Esta tarea espera a otra?
+#: Estados en los que una dependencia ya esta hecha y no frena a nadie.
+_HECHAS = ("commit", "hecho")
 
-    (2026-09-21) La nube hace checkout de `origin/main` y ahi se queda: no ve lo
-    que la Mac esta escribiendo AHORA MISMO ni lo que tiene sin publicar. Medido
-    en el run 35568545557: de seis tareas, CUATRO se bloquearon por dependencias
-    que en la nube no existian —AG2 esperaba a AG1, W2 a W1, RN6 a RN5, L9 a L8—
-    y RN5 se estaba integrando en la Mac en ese mismo momento. Treinta y seis
-    minutos de runner para un commit. Una tarea con dependencias solo se puede
-    juzgar donde se ve el trabajo vivo, y eso es la Mac. A la nube van las que no
-    esperan a nadie.
+
+def dependencias_pendientes(tarea, progreso=None, asuntos_main=""):
+    """Las dependencias de esta tarea que AUN NO estan integradas. PURA.
+
+    (2026-09-21) Nacio como «¿tiene dependencias?» y descartaba todas: la nube hacia
+    checkout de `origin/main` y ahi se quedaba, sin ver lo que la Mac tenia sin publicar.
+    Medido en el run 35568545557: de seis tareas, CUATRO se bloquearon por dependencias
+    que en la nube no existian. Treinta y seis minutos de runner para un commit.
+
+    (2026-09-22) Esa razon YA NO VALE, y por eso esto cambia. Desde que el lanzamiento
+    empuja la cola y el codigo a su propia rama y dispara el workflow con esa referencia,
+    el runner ve EXACTAMENTE lo mismo que la Mac, publicado o no. Mantener el descarte
+    costaba la nube entera: con doce huecos libres, casi todo el atraso tiene alguna
+    dependencia y a la nube no iba nunca nada. Ahora solo se descarta lo que espera a algo
+    que de verdad no esta hecho.
     """
+    progreso = progreso or {}
+    fuera = []
+    for dep in tarea.get("depende") or tarea.get("depende_de") or []:
+        tid = str(dep or "").strip()
+        if not tid:
+            continue
+        entrada = progreso.get(tid)
+        estado = entrada.get("estado") if isinstance(entrada, dict) else None
+        if estado in _HECHAS:
+            continue
+        if asuntos_main and id_en_asuntos(tid, asuntos_main):
+            continue
+        fuera.append(tid)
+    return fuera
+
+
+def _tiene_dependencias(tarea):
+    """Compatibilidad: ¿declara alguna dependencia, esté hecha o no?"""
     deps = tarea.get("depende") or tarea.get("depende_de") or []
     if isinstance(deps, str):
         deps = [deps]
@@ -85,7 +110,7 @@ def elegir(colas, progreso, asuntos_main, ola_actual, tope=20, max_archivos=MAX_
                 continue
             if _n_archivos(tarea) > max_archivos:
                 continue
-            if _tiene_dependencias(tarea):
+            if dependencias_pendientes(tarea, progreso, asuntos_main):
                 continue
             vistas.add(tid)
             candidata = dict(tarea)

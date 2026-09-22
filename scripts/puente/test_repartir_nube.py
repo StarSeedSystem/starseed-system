@@ -5,6 +5,7 @@
 import datetime, json, os, shutil, sys, tempfile, unittest
 
 sys.path.insert(0, os.path.dirname(__file__))
+import repartir_nube as R
 from repartir_nube import elegir, marcar, MODELO_NUBE
 
 COLAS = [
@@ -189,3 +190,43 @@ class TestTamanoParaLaNube(unittest.TestCase):
         self.assertEqual([t["id"] for t in salida], ["SIN"])
 
 
+
+
+class DependenciasHechasNoFrenanLaNube(unittest.TestCase):
+    """(2026-09-22) Antes se descartaba TODA tarea con dependencias, estuvieran hechas o
+    no, porque la nube solo veia `origin/main`. Desde que la cola y el codigo viajan en su
+    propia rama, el runner ve lo mismo que la Mac — y mantener el descarte costaba la nube
+    entera: medido, el reparto pasaba de 0 a 4 tareas con solo mirar si la dependencia
+    estaba integrada."""
+
+    def test_dependencia_integrada_no_frena(self):
+        tarea = {"id": "B", "depende": ["A"]}
+        self.assertEqual(R.dependencias_pendientes(tarea, {"A": {"estado": "commit"}}), [])
+
+    def test_dependencia_sin_hacer_si_frena(self):
+        tarea = {"id": "B", "depende": ["A"]}
+        self.assertEqual(R.dependencias_pendientes(tarea, {"A": {"estado": "fallo"}}), ["A"])
+
+    def test_dependencia_que_no_existe_frena(self):
+        # p318Jb espera a un p318I que nunca se creo.
+        self.assertEqual(R.dependencias_pendientes({"id": "X", "depende": ["p318I"]}, {}), ["p318I"])
+
+    def test_dependencia_ya_en_main_no_frena_aunque_el_progreso_no_lo_diga(self):
+        tarea = {"id": "B", "depende": ["A"]}
+        # `id_en_asuntos` recorre una LISTA de asuntos, uno por commit.
+        asuntos = ["Ola 1 · A: lo que hiciera"]
+        self.assertEqual(R.dependencias_pendientes(tarea, {}, asuntos), [])
+
+    def test_sin_dependencias_no_hay_nada_que_esperar(self):
+        self.assertEqual(R.dependencias_pendientes({"id": "A"}, {}), [])
+
+    def test_elegir_deja_pasar_la_que_tiene_su_dependencia_hecha(self):
+        colas = [("cola-1.json", [
+            {"id": "B", "ola": "9", "depende": ["A"], "archivos": ["x.ts"]},
+            {"id": "C", "ola": "9", "depende": ["Z"], "archivos": ["y.ts"]},
+        ])]
+        # Sin entrada en progreso = repartible (ESTADOS_REPARTIBLES incluye None).
+        prog = {"A": {"estado": "commit"}}
+        elegidas = [t["id"] for t in R.elegir(colas, prog, [], "", tope=5)]
+        self.assertIn("B", elegidas)
+        self.assertNotIn("C", elegidas)

@@ -132,8 +132,15 @@ def construir_acciones(pasarelas, secretos_repo, catalogo=None):
             "titulo": "%s: %s" % (info.get("nombre", clave), "fichaje diario" if estado == _pas.FICHAJE else "renovar la clave"),
             "por_que": info.get("nota") or porque,
             "urgencia": urgencia,
+            # (2026-09-22) Alex: «aparecen enlaces para renovar apis pero no viene el botón
+            # para añadir las apis». Tenía razón: el comando solo salía para `sin_clave`.
+            # Una pasarela CAÍDA acaba casi siempre en lo mismo —la clave cambió o la
+            # revocaron— así que llevaba enlace a su web y ningún modo de guardar la nueva.
+            # Ahora, si sabemos el nombre de la variable, va SIEMPRE el guion que la pide
+            # sin que se vea al teclearla. Para el fichaje diario no: ahí no hay clave que
+            # guardar, hay un botón que pulsar en su web.
             "comando": (PREFIJO + "bash scripts/puente/guardar-clave.sh %s --ambos" % p["variable"]
-                        if estado == _pas.SIN_CLAVE and p.get("variable") else ""),
+                        if estado != _pas.FICHAJE and p.get("variable") else ""),
             "enlace": info.get("enlace", ""),
             "por_que_no_lo_hago_yo": ("hay que pulsar un botón en su web con tu sesión"
                                       if estado == _pas.FICHAJE

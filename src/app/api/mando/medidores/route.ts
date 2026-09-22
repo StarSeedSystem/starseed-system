@@ -127,6 +127,43 @@ async function leerHistoriales(ids: string[]): Promise<Record<string, { t: strin
 }
 
 /**
+ * La flota de pasarelas, de `~/.starseed/salud-proveedores.json`.
+ *
+ * (2026-09-22) Este dato NO viajaba y por eso el medidor «Proveedores» abría vacío —
+ * «0 vivos · 0 sin cupo o caídos»— mientras la pastilla de al lado decía «6 disponibles».
+ * Alex lo vio por el otro lado: «Te toca a ti» le pedía renovar una clave de un proveedor
+ * que no aparecía en la lista, así que no tenía forma de saber si el aviso era real.
+ *
+ * El archivo mezcla proveedores con dos claves de servicio (`claves`, `ultimo_revisor_ok`)
+ * que no son pasarelas; se distinguen porque un proveedor trae `estado`.
+ */
+async function leerProveedores(): Promise<{ id: string; estado: string; motivo?: string }[]> {
+    try {
+        const crudo = await readFile(path.join(os.homedir(), ".starseed", "salud-proveedores.json"), "utf8");
+        const d = JSON.parse(crudo) as Record<string, unknown>;
+        const filas: { id: string; estado: string; motivo?: string }[] = [];
+        for (const [id, v] of Object.entries(d)) {
+            if (!v || typeof v !== "object") continue;
+            const entrada = v as { estado?: unknown; motivo?: unknown; sin_cupo_hasta?: unknown };
+            if (typeof entrada.estado !== "string") continue;
+            const sinCupo = typeof entrada.sin_cupo_hasta === "string" ? entrada.sin_cupo_hasta : "";
+            filas.push({
+                id,
+                estado: sinCupo ? "sin cupo" : entrada.estado,
+                motivo: sinCupo
+                    ? `sin cupo hasta ${sinCupo}`
+                    : typeof entrada.motivo === "string"
+                      ? entrada.motivo
+                      : undefined,
+            });
+        }
+        return filas.sort((a, b) => a.id.localeCompare(b.id));
+    } catch {
+        return [];
+    }
+}
+
+/**
  * El inventario de contenedores de nube que escribe `contenedores_nube.py`.
  *
  * Se LEE del archivo y no se sondea aquí: el sondeo tarda ~40 s (habla con GitHub, Hugging
@@ -309,11 +346,12 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
             declarados[id] = archivos.map((a) => String(a));
         }
     }
-    const [obras, historiales, agentesNube, contenedores] = await Promise.all([
+    const [obras, historiales, agentesNube, contenedores, proveedores] = await Promise.all([
         leerObras(idsVivas).catch(() => ({})),
         leerHistoriales(idsVivas).catch(() => ({})),
         leerAgentesDeLaNube().catch(() => []),
         leerContenedores().catch(() => null),
+        leerProveedores().catch(() => []),
     ]);
 
     return {
@@ -323,6 +361,7 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
         // toda la capacidad viva, no solo la de esta máquina.
         latidos: [...latidosDeAqui, ...agentesNube],
         contenedores,
+        proveedores,
         commitsSinPublicar,
         ejecutables,
         enjambreVivo: vivo,
