@@ -465,6 +465,12 @@ def _html_del_mando(url="http://localhost:9002/mando", timeout=20):
         return ""
 
 
+def servicio_cargado(etiqueta) -> bool:
+    """¿launchd tiene ese servicio? Arrancar no es haber arrancado."""
+    r = subprocess.run(["launchctl", "print", etiqueta], capture_output=True, text=True)
+    return r.returncode == 0
+
+
 def reiniciar_mando() -> None:
     """Para el Mando DE VERDAD, cambia el build de sitio y lo vuelve a arrancar."""
     uid = os.getuid()
@@ -476,9 +482,22 @@ def reiniciar_mando() -> None:
     time.sleep(1)
     if intercambiar_build():
         print("build nuevo puesto en su sitio (el anterior queda en .next-anterior)", flush=True)
-    subprocess.run(["launchctl", "bootstrap", "gui/%d" % uid, plist],
-                   capture_output=True, text=True)
-    subprocess.run(["launchctl", "kickstart", etiqueta], capture_output=True, text=True)
+    # (2026-09-22, MEDIDO) `bootstrap` justo después de `bootout` FALLA a veces —launchd
+    # todavía está desmontando el servicio— y entonces el Mando se queda APAGADO: ni en
+    # `launchctl list`, ni proceso, ni nada escuchando en el 9002. Me pasó hoy y lo tuve
+    # que levantar a mano. Parar de verdad era lo correcto; darlo por arrancado sin mirar,
+    # no. Se reintenta y se COMPRUEBA que el servicio existe.
+    for intento in range(5):
+        subprocess.run(["launchctl", "bootstrap", "gui/%d" % uid, plist],
+                       capture_output=True, text=True)
+        subprocess.run(["launchctl", "kickstart", etiqueta], capture_output=True, text=True)
+        if servicio_cargado(etiqueta):
+            break
+        print("el Mando no arrancó al intento %d; reintento" % (intento + 1), flush=True)
+        time.sleep(2)
+    else:
+        print("NO PUDE ARRANCAR EL MANDO tras 5 intentos: la pantalla se queda apagada",
+              flush=True)
     # Y ahora se COMPRUEBA que sirve lo que hay en el disco, en vez de darlo por hecho.
     time.sleep(8)
     if not sirve_lo_que_hay_en_disco(_html_del_mando()):
