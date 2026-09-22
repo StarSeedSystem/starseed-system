@@ -1,6 +1,6 @@
 # Puente de Mando · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-22 08:40:44 desde el Mando vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-22 08:47:06 desde el Mando vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -16,21 +16,21 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | Agentes escribiendo | **0** |
 | En esta ola | integradas 0 · en curso 0 · esperando aprobación 0 · pendientes 0 |
 | Últimas 4 olas | en curso 0 · pendientes 0 · integradas 20 |
-| HEAD | `ba793043 chore(memoria): aprendizaje de la ola auto-0922-083555` |
-| Sin publicar | 42 commits |
+| HEAD | `e21472c4 chore(memoria): aprendizaje de la ola auto-0922-084203` |
+| Sin publicar | 44 commits |
 | Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-auto-0922-083555.json`, hace 5s)
+## Quién escribe ahora (latido de `cola-auto-0922-084203.json`, hace 5s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `p316Ic` | hecho | codex/gpt-5.6-sol | 0 min | 26 s | 1780336 |
-| `JV8` | hecho | google/gemini-3.6-flash | 1 min | 81 s | 1431030 |
-| `p314A` | hecho | nvidia/moonshotai/kimi-k3 | 3 min | 160 s | 468010 |
-| `p315A` | hecho | nvidia/moonshotai/kimi-k3 | 3 min | 176 s | 805529 |
-| `p314B` | hecho | xkiro/qwen/qwen3-coder-plus:free | 3 min | 184 s | 1463038 |
-| `c313_QW5` | hecho | apinex/free/gemini-3.8-flash | 4 min | 212 s | 379003 |
-| `p312C` | hecho | nvidia/moonshotai/kimi-k3 | 4 min | 219 s | 756013 |
+| `p316Ic` | hecho | codex/gpt-5.6-sol | 0 min | 28 s | 1877580 |
+| `JV8` | hecho | google/gemini-3.6-flash | 1 min | 80 s | 1541034 |
+| `p314A` | hecho | nvidia/moonshotai/kimi-k3 | 3 min | 180 s | 589827 |
+| `p315A` | hecho | nvidia/moonshotai/kimi-k3 | 3 min | 188 s | 895254 |
+| `p314B` | hecho | xkiro/qwen/qwen3-coder-plus:free | 3 min | 198 s | 1544498 |
+| `c313_QW5` | hecho | apinex/free/gemini-3.8-flash | 4 min | 225 s | 469623 |
+| `p312C` | hecho | nvidia/moonshotai/kimi-k3 | 4 min | 232 s | 846223 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
