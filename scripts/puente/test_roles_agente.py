@@ -47,6 +47,12 @@ class TestRolesAgente(unittest.TestCase):
         self.assertEqual(division_de([]), "engineering")
         self.assertEqual(division_de(["docs/readme.txt"]), "engineering")
 
+    def test_division_de_rutas_absolutas(self):
+        archivos = ["/Users/alex/project/src/components/Button.tsx"]
+        self.assertEqual(division_de(archivos), "design")
+        archivos_eng = ["/home/user/starseed/scripts/puente/roles_agente.py"]
+        self.assertEqual(division_de(archivos_eng), "engineering")
+
     def test_elegir_rol_catalogo_vacio(self):
         self.assertIsNone(
             elegir_rol("Refactorizar backend", ["scripts/puente/a.py"], [])
@@ -143,6 +149,11 @@ class TestRolesAgente(unittest.TestCase):
         self.assertIn(parrafo1, res)
         self.assertIn(parrafo2, res)
         self.assertNotIn(parrafo3, res)
+
+    def test_recortar_rol_oraciones_y_palabras(self):
+        texto_largo = "Esta es la primera oración completa. Esta es la segunda oración completa de prueba."
+        res = recortar_rol(texto_largo, tope=40)
+        self.assertEqual(res, "Esta es la primera oración completa.")
 
     def test_leer_catalogo_inexistente(self):
         res = leer_catalogo("/ruta/completamente/inexistente/en/el/sistema")

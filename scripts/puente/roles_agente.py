@@ -100,15 +100,21 @@ def division_de(archivos: List[str]) -> str:
 
     # Regla 3: diseño si hay componentes o páginas .tsx en src/components o src/app
     for r in rutas:
-        if (r.startswith("src/components/") or r.startswith("src/app/")) and r.endswith(
-            ".tsx"
-        ):
+        if (
+            "src/components/" in r
+            or "src/app/" in r
+            or r.startswith("src/components/")
+            or r.startswith("src/app/")
+        ) and r.endswith(".tsx"):
             return "design"
 
     # Regla 4: ingeniería si toca backend, apis o scripts de puente/enjambre
     for r in rutas:
         if (
-            r.startswith("scripts/puente/")
+            "scripts/puente/" in r
+            or "scripts/enjambre/" in r
+            or "src/app/api/" in r
+            or r.startswith("scripts/puente/")
             or r.startswith("scripts/enjambre/")
             or r.startswith("src/app/api/")
         ):
