@@ -250,8 +250,11 @@ def reiniciar_mando() -> None:
                     "gui/%d/%s" % (os.getuid(), SERVICIO)],
                    capture_output=True, text=True)
     servido = id_del_build()
-    _guardar(dict(_leer_estado(), build_servido=servido,
-                  visto=time.strftime("%Y-%m-%d %H:%M:%S")))
+    # `estado` se cierra aquí a propósito: solo se reinicia tras un build bueno o para
+    # servir uno ajeno que ya está en el disco, así que en los dos casos la pantalla queda
+    # al día. Si no, un intento interrumpido dejaba «reconstruyendo» puesto para siempre.
+    _guardar(dict(_leer_estado(), build_servido=servido, estado="al-dia", ok=True,
+                  error=None, visto=time.strftime("%Y-%m-%d %H:%M:%S")))
     print("Mando reiniciado: la pantalla ya sirve el código nuevo (%s)" % (servido or "?"),
           flush=True)
 
