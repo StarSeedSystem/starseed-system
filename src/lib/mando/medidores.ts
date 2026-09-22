@@ -22,6 +22,7 @@ export type ClaveMedidor =
     | "sin-publicar"
     | "proveedores"
     | "contenedores"
+    | "tokens"
     | "memoria"
     | "disco"
     | "ola-activa";
@@ -727,6 +728,20 @@ export interface DatosMedidores {
      * del mismo sitio, que es justo lo que antes no pasaba (el director llevaba sus topes
      * escritos a mano).
      */
+    /**
+     * Tokens por segundo del Puente entero. Lo escribe `tokens_por_segundo.py` leyendo
+     * contadores que ya están en disco, sin preguntar a ninguna API.
+     */
+    tokens?: {
+        generado?: string;
+        intervalo_s?: number;
+        ahora?: { fuentes: Record<string, number>; total: number; segundos: number } | null;
+        un_minuto?: { fuentes: Record<string, number>; total: number; segundos: number } | null;
+        diez_minutos?: { fuentes: Record<string, number>; total: number; segundos: number } | null;
+        fuentes?: { id: string; nombre: string }[];
+        sin_contador?: { id: string; nombre: string; porque: string }[];
+        resumen?: string;
+    } | null;
     contenedores?: {
         generado?: string;
         contenedores: {
@@ -1201,6 +1216,72 @@ export function detalleDeMedidor(
                 filas,
                 acciones: [IR_A("Ver la flota", "flota")],
                 vacio: "No hay pasarelas declaradas en esta máquina.",
+            };
+        }
+
+        case "tokens": {
+            // (2026-09-22) Alex: «un medidor de tokens por segundo en total sumando los de
+            // todos los procesos de cada api de todo el puente, en tiempo real».
+            //
+            // Se midió primero quién publica tokens de verdad: solo Jev, que los saca del
+            // `usage` que devuelve la API. Las pasarelas guardan llamadas, coste y
+            // milisegundos; opencode y codex no devuelven `usage` en absoluto — por eso el
+            // medidor de agentes mide bytes. Así que aquí se suma lo que TIENE contador y
+            // lo que no lo tiene se nombra, una fila por proceso, con el porqué. Repartir
+            // un tokens/s a ojo entre motores que no dicen sus tokens sería exactamente la
+            // cifra inventada que llevamos toda la sesión quitando.
+            const tk = d.tokens;
+            const cifra = (v: number) => (v < 100 ? v.toFixed(1) : String(Math.round(v)));
+            const nombreDe = (id: string) =>
+                (tk?.fuentes ?? []).find((f) => f.id === id)?.nombre ?? id;
+
+            const filas: FilaMedidor[] = [];
+            for (const [id, v] of Object.entries(tk?.ahora?.fuentes ?? {})) {
+                const unMin = tk?.un_minuto?.fuentes?.[id];
+                filas.push({
+                    id,
+                    titulo: nombreDe(id),
+                    estado: v > 0 ? "gastando" : "en reposo",
+                    porcentaje: 0,
+                    etapa: `${cifra(v)} tok/s`,
+                    porque:
+                        unMin === undefined
+                            ? "medido entre las dos últimas muestras"
+                            : `${cifra(unMin)} tok/s de media en el último minuto`,
+                    acciones: [],
+                });
+            }
+            for (const f of tk?.sin_contador ?? []) {
+                filas.push({
+                    id: f.id,
+                    titulo: f.nombre,
+                    estado: "no publica tokens",
+                    porcentaje: 0,
+                    etapa: "—",
+                    porque: f.porque,
+                    acciones: [],
+                });
+            }
+
+            const total = tk?.ahora?.total;
+            const media = tk?.un_minuto?.total;
+            const sinContador = (tk?.sin_contador ?? []).length;
+            const resumen = !tk
+                ? "el medidor de tokens no está escribiendo: ¿corre com.starseed.tokens?"
+                : total === undefined || total === null
+                  ? "aún no hay dos muestras: una tasa necesita dos"
+                  : `${cifra(total)} tok/s ahora${
+                        media !== undefined && media !== null ? ` · ${cifra(media)} tok/s de media en 1 min` : ""
+                    }${sinContador ? ` · ${sinContador} proceso(s) no publican tokens` : ""}`;
+
+            return {
+                clave,
+                titulo: "Tokens por segundo",
+                resumen,
+                filas,
+                porcentajeMedio: 0,
+                acciones: [],
+                vacio: "Nadie está gastando tokens ahora mismo.",
             };
         }
 

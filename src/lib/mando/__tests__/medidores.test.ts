@@ -559,3 +559,61 @@ describe("agruparPorTarea", () => {
         expect(agruparPorTarea([])).toEqual([]);
     });
 });
+
+describe("medidor de tokens por segundo", () => {
+    // (2026-09-22) Alex: «tokens por segundo en total sumando los de todos los procesos de
+    // cada api». Se midió antes quién publica tokens: solo Jev (del `usage` de la API).
+    // opencode y codex no devuelven `usage`; las pasarelas guardan llamadas, coste y ms.
+    // El medidor suma lo que tiene contador y NOMBRA lo que no, en vez de estimarlo.
+    const tokens = {
+        ahora: { fuentes: { jev: 42.5 }, total: 42.5, segundos: 5 },
+        un_minuto: { fuentes: { jev: 30 }, total: 30, segundos: 60 },
+        fuentes: [{ id: "jev", nombre: "Jev (consejero)" }],
+        sin_contador: [
+            { id: "opencode", nombre: "agentes opencode", porque: "su motor no devuelve `usage`" },
+        ],
+    };
+
+    it("enseña la tasa de ahora y la media del minuto", () => {
+        const d = detalleDeMedidor("tokens", { tokens });
+        expect(d.resumen).toContain("42.5 tok/s ahora");
+        expect(d.resumen).toContain("30.0 tok/s de media en 1 min");
+    });
+
+    it("dice cuántos procesos no publican tokens", () => {
+        const d = detalleDeMedidor("tokens", { tokens });
+        expect(d.resumen).toContain("1 proceso(s) no publican tokens");
+    });
+
+    it("cada fuente con contador es una fila con su nombre", () => {
+        const d = detalleDeMedidor("tokens", { tokens });
+        const jev = d.filas.find((f) => f.id === "jev");
+        expect(jev?.titulo).toBe("Jev (consejero)");
+        expect(jev?.etapa).toBe("42.5 tok/s");
+        expect(jev?.estado).toBe("gastando");
+    });
+
+    it("los que no publican tokens salen con el porqué, no con un cero", () => {
+        const d = detalleDeMedidor("tokens", { tokens });
+        const oc = d.filas.find((f) => f.id === "opencode");
+        expect(oc?.estado).toBe("no publica tokens");
+        expect(oc?.etapa).toBe("—");
+        expect(oc?.porque).toContain("usage");
+    });
+
+    it("sin dos muestras no se inventa un cero", () => {
+        const d = detalleDeMedidor("tokens", { tokens: { ...tokens, ahora: null, un_minuto: null } });
+        expect(d.resumen).toContain("una tasa necesita dos");
+    });
+
+    it("si el servicio no escribe, lo dice con su nombre", () => {
+        const d = detalleDeMedidor("tokens", {});
+        expect(d.resumen).toContain("com.starseed.tokens");
+    });
+
+    it("una fuente en reposo se distingue de una que gasta", () => {
+        const quieto = { ...tokens, ahora: { fuentes: { jev: 0 }, total: 0, segundos: 5 } };
+        const d = detalleDeMedidor("tokens", { tokens: quieto });
+        expect(d.filas.find((f) => f.id === "jev")?.estado).toBe("en reposo");
+    });
+});

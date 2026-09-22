@@ -692,6 +692,9 @@ export function CentroMando() {
         /** Agentes que CABEN ahora en los contenedores de nube (sitio libre medido). */
         contenedores: number | null;
         contenedoresResumen: string | null;
+        /** Tokens por segundo de todo el Puente, de las fuentes que llevan contador. */
+        tokens: number | null;
+        tokensResumen: string | null;
         /** Pasarelas sin cupo o caídas, según el archivo que el enjambre OBEDECE. */
         agotados: number | null;
         proveedoresResumen: string | null;
@@ -700,7 +703,7 @@ export function CentroMando() {
     const cargarMedidoresResumen = useCallback(async (forzar = false) => {
         if (!forzar && document.visibilityState === "hidden") return;
         try {
-            const [resListas, resBloqueadas, resAgentes, resEnCurso, resContenedores, resProveedores] =
+            const [resListas, resBloqueadas, resAgentes, resEnCurso, resContenedores, resProveedores, resTokens] =
                 await Promise.allSettled([
                     fetch("/api/mando/medidores?clave=listas", { cache: "no-store" }),
                     fetch("/api/mando/medidores?clave=bloqueadas", { cache: "no-store" }),
@@ -708,6 +711,7 @@ export function CentroMando() {
                     fetch("/api/mando/medidores?clave=en-curso", { cache: "no-store" }),
                     fetch("/api/mando/medidores?clave=contenedores", { cache: "no-store" }),
                     fetch("/api/mando/medidores?clave=proveedores", { cache: "no-store" }),
+                    fetch("/api/mando/medidores?clave=tokens", { cache: "no-store" }),
                 ]);
 
             let listas: number | null = null;
@@ -716,6 +720,8 @@ export function CentroMando() {
             let agentesResumen: string | null = null;
             let enCurso: number | null = null;
             let enCursoResumen: string | null = null;
+            let tokens: number | null = null;
+            let tokensResumen: string | null = null;
             let contenedores: number | null = null;
             let contenedoresResumen: string | null = null;
             let agotados: number | null = null;
@@ -787,6 +793,17 @@ export function CentroMando() {
                 }
             }
 
+            if (resTokens.status === "fulfilled" && resTokens.value.ok) {
+                const dataTok = (await resTokens.value.json()) as { detalle?: DetalleMedidor };
+                if (dataTok.detalle) {
+                    // La cifra sale del resumen del propio medidor: pastilla y ventana, un
+                    // solo origen. Si aún no hay dos muestras no hay tasa, y se dice.
+                    const m = /^([\d.]+)\s*tok\/s/.exec(dataTok.detalle.resumen ?? "");
+                    tokens = m ? Number(m[1]) : null;
+                    tokensResumen = dataTok.detalle.resumen ?? null;
+                }
+            }
+
             setMedidoresResumen({
                 listas,
                 bloqueadas,
@@ -796,6 +813,8 @@ export function CentroMando() {
                 enCursoResumen,
                 contenedores,
                 contenedoresResumen,
+                tokens,
+                tokensResumen,
                 agotados,
                 proveedoresResumen,
             });
@@ -809,6 +828,8 @@ export function CentroMando() {
                 enCursoResumen: null,
                 contenedores: null,
                 contenedoresResumen: null,
+                tokens: null,
+                tokensResumen: null,
                 agotados: null,
                 proveedoresResumen: null,
             });
@@ -1328,6 +1349,20 @@ export function CentroMando() {
                                         : "—",
                                 tono: (medidoresResumen?.contenedores ? "ok" : "normal") as TonoMedidor,
                                 detalle: medidoresResumen?.contenedoresResumen ?? "sitio libre para más agentes",
+                            },
+                            {
+                                // (2026-09-22) Alex: «tokens por segundo en total sumando los
+                                // de todos los procesos de cada api, en tiempo real». Suma lo
+                                // que TIENE contador; lo que no lo tiene (opencode, codex, las
+                                // pasarelas) se nombra dentro, no se estima.
+                                clave: "tokens" as const,
+                                titulo: "Tokens por segundo",
+                                valor:
+                                    medidoresResumen?.tokens !== null && medidoresResumen?.tokens !== undefined
+                                        ? String(medidoresResumen.tokens)
+                                        : "—",
+                                tono: (medidoresResumen?.tokens ? "ok" : "normal") as TonoMedidor,
+                                detalle: medidoresResumen?.tokensResumen ?? "de las fuentes que publican tokens",
                             },
                             {
                                 clave: "listas" as const,

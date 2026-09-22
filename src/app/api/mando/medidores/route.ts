@@ -203,6 +203,20 @@ async function leerProveedores(): Promise<{ id: string; estado: string; motivo?:
  * Face y gcloud) y esta ruta la piden los medidores cada pocos segundos. Lo refrescan el
  * director de la nube en cada pasada y el botón «Buscar contenedores ahora».
  */
+async function leerTokens(): Promise<DatosMedidores["tokens"]> {
+    try {
+        const crudo = await readFile(
+            path.join(RAÍZ, "starseed_memory_root", "mando", "tokens-por-segundo.json"),
+            "utf8",
+        );
+        // `muestras` es el anillo del servicio: no viaja al navegador, solo lo resumido.
+        const { muestras: _muestras, ...resto } = JSON.parse(crudo) as Record<string, unknown>;
+        return resto as NonNullable<DatosMedidores["tokens"]>;
+    } catch {
+        return null;
+    }
+}
+
 async function leerContenedores(): Promise<DatosMedidores["contenedores"]> {
     try {
         const crudo = await readFile(
@@ -379,12 +393,13 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
             declarados[id] = archivos.map((a) => String(a));
         }
     }
-    const [obras, historiales, agentesNube, contenedores, proveedores] = await Promise.all([
+    const [obras, historiales, agentesNube, contenedores, proveedores, tokens] = await Promise.all([
         leerObras(idsVivas).catch(() => ({})),
         leerHistoriales(idsVivas).catch(() => ({})),
         leerAgentesDeLaNube().catch(() => []),
         leerContenedores().catch(() => null),
         leerProveedores().catch(() => []),
+        leerTokens().catch(() => null),
     ]);
 
     return {
@@ -395,6 +410,7 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
         latidos: [...latidosDeAqui, ...agentesNube],
         contenedores,
         proveedores,
+        tokens,
         commitsSinPublicar,
         ejecutables,
         enjambreVivo: vivo,
