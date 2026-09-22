@@ -6411,7 +6411,10 @@ def _anotar_fallido(tid, modelo):
 
 
 def reaccionar_al_fallo(tid, modelo, salida, segundos, pendientes):
+    """Reacciona a infraestructura solo tras confirmar que el motor no dejó un diff."""
     clase = clasificar(salida, segundos)
+    if clase == "ok":
+        return clase
     extracto = " ".join((salida or "").split())[:140] or "sin detalle"
     prov = proveedor_de(modelo)
     if clase == "red":

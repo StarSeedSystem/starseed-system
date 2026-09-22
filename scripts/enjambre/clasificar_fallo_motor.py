@@ -8,37 +8,38 @@ from typing import Literal
 
 ClaseFallo = Literal["red", "pasarela", "cuota", "sin_cambios", "ok"]
 
+PISTAS_RED = (
+    "unable to connect",
+    "failed to fetch",
+    "typo in the url",
+    "econnrefused",
+    "enotfound",
+    "etimedout",
+    "getaddrinfo",
+    "connection reset by peer",
+    "network is unreachable",
+    "certificate verify failed",
+    "name or service not known",
+)
+PISTAS_PASARELA = ("405 not allowed", "502", "503", "504")
+PISTAS_CUOTA = ("402", "429", "quota", "check-in required")
+
 
 def clasificar(salida: str | None, segundos: float) -> ClaseFallo:
-    """Distingue fallos de infraestructura de una salida normal sin cambios."""
-    texto = (salida or "").strip().lower()
+    """Clasifica la salida; ``None`` o texto vacío representan una salida válida."""
     _ = segundos  # Se conserva para enriquecer la heurística sin romper el contrato.
+    texto = (salida or "").strip().lower()
     if not texto:
         return "ok"
 
-    red = (
-        "unable to connect",
-        "failed to fetch",
-        "typo in the url",
-        "econnrefused",
-        "enotfound",
-        "etimedout",
-        "getaddrinfo",
-        "connection reset by peer",
-        "network is unreachable",
-        "certificate verify failed",
-        "name or service not known",
-    )
-    if any(pista in texto for pista in red):
+    if any(pista in texto for pista in PISTAS_RED):
         return "red"
 
-    pasarela = ("405 not allowed", "502", "503", "504")
-    if any(pista in texto for pista in pasarela) or (
+    if any(pista in texto for pista in PISTAS_PASARELA) or (
         "nginx" in texto and ("<html" in texto or "<!doctype html" in texto)
     ):
         return "pasarela"
 
-    cuota = ("402", "429", "quota", "check-in required")
-    if any(pista in texto for pista in cuota):
+    if any(pista in texto for pista in PISTAS_CUOTA):
         return "cuota"
     return "sin_cambios"
