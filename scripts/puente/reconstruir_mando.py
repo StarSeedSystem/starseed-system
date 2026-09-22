@@ -88,13 +88,76 @@ def huella_viva(raiz=RAIZ) -> str:
     return huella_de(_entradas(raiz))
 
 
-def decidir(huella_actual, estado, ahora, espera_tras_fallo_s=ESPERA_TRAS_FALLO_S):
+def cuantas_mas_nuevas(mtime_build, entradas) -> int:
+    """PURA: cuántas fuentes son más nuevas que el build que se está sirviendo.
+
+    Esta es la pregunta de verdad —«¿lo que se ve es más viejo que el código?»— y se
+    responde mirando el build, no un cuaderno de huellas. La ventaja es concreta: da igual
+    QUIÉN compiló. `publicar.py` pasa `next build` como puerta antes de empujar, así que un
+    build suyo deja la pantalla al día y este servicio ya no repite otro build de diez
+    minutos detrás. `None` en `mtime_build` (no hay build) cuenta todo como más nuevo.
+    """
+    if mtime_build is None:
+        return sum(1 for _ in entradas)
+    return sum(1 for _, mtime, _tam in entradas if mtime > mtime_build)
+
+
+def mtime_del_build(raiz=RAIZ):
+    """El instante del build que sirve `next start`, o None si no hay build."""
+    for rel in (os.path.join(".next", "BUILD_ID"), os.path.join(".next", "build-manifest.json")):
+        try:
+            return os.stat(os.path.join(raiz, rel)).st_mtime_ns
+        except OSError:
+            continue
+    return None
+
+
+def id_del_build(raiz=RAIZ):
+    """El identificador del build compilado (`.next/BUILD_ID`), o None si no hay."""
+    try:
+        with open(os.path.join(raiz, ".next", "BUILD_ID"), encoding="utf-8") as f:
+            return f.read().strip() or None
+    except OSError:
+        return None
+
+
+def decidir_reinicio(build_id, build_servido):
+    """PURA: (reiniciar: bool, motivo: str). Compilar no es servir.
+
+    (2026-09-22) `next start` lee `.next` AL ARRANCAR. Cuando el build lo hace otro —
+    `publicar.py` lo pasa como puerta antes de empujar— el disco queda al día y el servidor
+    sigue sirviendo el build anterior hasta que alguien lo reinicia. Mirar solo «¿hay
+    fuentes más nuevas que el build?» daría «al día» con la pantalla vieja delante: por eso
+    también se compara el build compilado con el que el Mando tenía cuando arrancó.
+    """
+    if not build_id:
+        return False, "no hay build que servir"
+    if build_id == build_servido:
+        return False, "el Mando ya sirve este build"
+    return True, "hay un build más nuevo que el que sirve el Mando (%s)" % build_id[:12]
+
+
+def decidir(huella_actual, estado, ahora, espera_tras_fallo_s=ESPERA_TRAS_FALLO_S,
+            mas_nuevas=None):
     """PURA: (reconstruir: bool, motivo: str).
 
     `estado` es lo guardado del build anterior: `huella_construida`, `ok`, `t` (epoch).
+    `mas_nuevas` es cuántas fuentes son más nuevas que el build servido; si se pasa, MANDA
+    sobre la huella (mide el disco, no la contabilidad).
     """
     estado = estado if isinstance(estado, dict) else {}
     construida = estado.get("huella_construida")
+    if mas_nuevas is not None:
+        if mas_nuevas == 0:
+            return False, "la pantalla está al día"
+        if estado.get("ok") is False and estado.get("huella_intentada") == huella_actual:
+            try:
+                desde = float(ahora) - float(estado.get("t") or 0)
+            except (TypeError, ValueError):
+                desde = espera_tras_fallo_s + 1
+            if desde < espera_tras_fallo_s:
+                return False, "el build de estas mismas fuentes falló hace %d min: espero" % int(desde / 60)
+        return True, "%d archivo(s) de la pantalla son más nuevos que el build servido" % mas_nuevas
     if not construida:
         return True, "no hay build registrado: la pantalla podría ser de cualquier versión"
     if construida == huella_actual:
@@ -177,25 +240,44 @@ def reconstruir(huella_actual) -> dict:
                                        segundos, "" if ok else ": " + (datos["error"] or "")),
           flush=True)
     if ok:
-        subprocess.run(["launchctl", "kickstart", "-k",
-                        "gui/%d/%s" % (os.getuid(), SERVICIO)],
-                       capture_output=True, text=True)
-        print("Mando reiniciado: la pantalla ya sirve el código nuevo", flush=True)
+        reiniciar_mando()
     return datos
 
 
-def una_pasada() -> bool:
-    actual = huella_viva()
-    estado = _leer_estado()
-    hazlo, motivo = decidir(actual, estado, time.time())
-    print("[%s] %s: %s" % (time.strftime("%H:%M"), "RECONSTRUYO" if hazlo else "espero", motivo),
+def reiniciar_mando() -> None:
+    """Reinicia el servicio del Mando y anota QUÉ build queda servido."""
+    subprocess.run(["launchctl", "kickstart", "-k",
+                    "gui/%d/%s" % (os.getuid(), SERVICIO)],
+                   capture_output=True, text=True)
+    servido = id_del_build()
+    _guardar(dict(_leer_estado(), build_servido=servido,
+                  visto=time.strftime("%Y-%m-%d %H:%M:%S")))
+    print("Mando reiniciado: la pantalla ya sirve el código nuevo (%s)" % (servido or "?"),
           flush=True)
-    if not hazlo:
-        # Se anota igual: así el Puente puede decir «al día» con fecha, no de memoria.
-        _guardar(dict(estado, visto=time.strftime("%Y-%m-%d %H:%M:%S"), huella_vista=actual))
-        return False
-    reconstruir(actual)
-    return True
+
+
+def una_pasada() -> bool:
+    entradas = list(_entradas())
+    actual = huella_de(entradas)
+    estado = _leer_estado()
+    hazlo, motivo = decidir(actual, estado, time.time(),
+                            mas_nuevas=cuantas_mas_nuevas(mtime_del_build(), entradas))
+    if hazlo:
+        print("[%s] RECONSTRUYO: %s" % (time.strftime("%H:%M"), motivo), flush=True)
+        reconstruir(actual)
+        return True
+
+    # Compilar no es servir: si otro compiló (publicar.py), basta con reiniciar.
+    reinicia, porque = decidir_reinicio(id_del_build(), estado.get("build_servido"))
+    if reinicia:
+        print("[%s] REINICIO: %s" % (time.strftime("%H:%M"), porque), flush=True)
+        reiniciar_mando()
+        return True
+
+    print("[%s] espero: %s" % (time.strftime("%H:%M"), motivo), flush=True)
+    # Se anota igual: así el Puente puede decir «al día» con fecha, no de memoria.
+    _guardar(dict(estado, visto=time.strftime("%Y-%m-%d %H:%M:%S"), huella_vista=actual))
+    return False
 
 
 def main() -> int:

@@ -92,3 +92,67 @@ class NoReconstruyePorLoQueNoCompila(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class MirarElBuildEnVezDeUnCuaderno(unittest.TestCase):
+    """La pregunta real: ¿el código es más nuevo que lo que se está sirviendo?
+
+    Con esto da igual quién compiló, y eso importa: `publicar.py` ya pasa `next build`
+    como puerta antes de empujar, así que su build deja la pantalla al día y este
+    servicio no repite otros diez minutos de build detrás. (2026-09-22)
+    """
+
+    def test_sin_build_todo_cuenta_como_mas_nuevo(self):
+        entradas = [("a.ts", 5, 1), ("b.ts", 7, 1)]
+        self.assertEqual(R.cuantas_mas_nuevas(None, entradas), 2)
+
+    def test_solo_cuentan_las_posteriores_al_build(self):
+        entradas = [("viejo.ts", 5, 1), ("nuevo.ts", 50, 1), ("igual.ts", 10, 1)]
+        self.assertEqual(R.cuantas_mas_nuevas(10, entradas), 1)
+
+    def test_build_mas_nuevo_que_todo_es_estar_al_dia(self):
+        entradas = [("a.ts", 5, 1), ("b.ts", 7, 1)]
+        self.assertEqual(R.cuantas_mas_nuevas(100, entradas), 0)
+
+    def test_al_dia_manda_sobre_la_huella_distinta(self):
+        # Huella distinta pero build recién hecho por otro (publicar.py): no se repite.
+        hazlo, motivo = R.decidir("bbb", {"huella_construida": "aaa", "ok": True},
+                                  ahora=1000, mas_nuevas=0)
+        self.assertFalse(hazlo)
+        self.assertIn("al día", motivo)
+
+    def test_con_fuentes_mas_nuevas_se_reconstruye_y_se_dice_cuantas(self):
+        hazlo, motivo = R.decidir("bbb", {"huella_construida": "bbb", "ok": True},
+                                  ahora=1000, mas_nuevas=3)
+        self.assertTrue(hazlo)
+        self.assertIn("3 archivo", motivo)
+
+    def test_el_build_rojo_sigue_sin_repetirse(self):
+        estado = {"huella_construida": "aaa", "ok": False, "huella_intentada": "bbb", "t": 900}
+        hazlo, motivo = R.decidir("bbb", estado, ahora=1000, espera_tras_fallo_s=3600,
+                                  mas_nuevas=2)
+        self.assertFalse(hazlo)
+        self.assertIn("falló", motivo)
+
+
+class CompilarNoEsServir(unittest.TestCase):
+    """`next start` lee `.next` al arrancar: un build nuevo en el disco no se ve solo."""
+
+    def test_un_build_distinto_del_servido_pide_reinicio(self):
+        reinicia, motivo = R.decidir_reinicio("abc123def456", "viejo000")
+        self.assertTrue(reinicia)
+        self.assertIn("más nuevo", motivo)
+
+    def test_el_mismo_build_no_se_reinicia(self):
+        reinicia, motivo = R.decidir_reinicio("abc123", "abc123")
+        self.assertFalse(reinicia)
+        self.assertIn("ya sirve", motivo)
+
+    def test_sin_build_no_hay_nada_que_servir(self):
+        reinicia, _ = R.decidir_reinicio(None, "abc123")
+        self.assertFalse(reinicia)
+
+    def test_build_ajeno_nunca_servido_pide_reinicio(self):
+        # El caso de publicar.py: compiló como puerta y nadie reinició el Mando.
+        reinicia, _ = R.decidir_reinicio("nuevo123", None)
+        self.assertTrue(reinicia)
