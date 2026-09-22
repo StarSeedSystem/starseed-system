@@ -604,8 +604,8 @@ export async function uploadFile(file: File, options: UploadFileOptions = {}): P
 
         options.onProgress?.(0);
 
-        // Subida directa vía SDK (progreso solo si el entorno soporta XHR de storage-js;
-        // si no, degradamos a subida simple sin progreso intermedio pero SIEMPRE funcional).
+        // Subida directa vía SDK: el prefijo único garantiza inmutabilidad (upsert: false).
+        // (Ola 225) Caché de 1 año (31536000s) para maximizar reutilización y reducir egress.
         let uploadOk = false;
         let uploadErrorMsg = "";
         try {
