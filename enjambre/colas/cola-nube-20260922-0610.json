@@ -1,0 +1,110 @@
+{
+ "ola": "nube-20260922",
+ "tareas": [
+  {
+   "id": "TK1c",
+   "ola": "Ola 339 · Destilar a Astraura con lo que ya generamos",
+   "depende": [],
+   "titulo": "La Biblioteca registra las tres repos nuevas, con su coste dicho en claro",
+   "archivos": [
+    "src/lib/library/fuentes-decision.ts"
+   ],
+   "prompt": "SEGUNDO INTENTO. La revision encontro dos cosas y las dos son ciertas:\n  1. La tarea pedia TRES repos y el diff solo anadio DOS (hermes-jev-skills y jev-router). La de tinker-cookbook ya existia y solo se le reescribio la descripcion. Repasa que las tres esten, y que la de tinker-cookbook diga lo que hay que decir (ver abajo).\n  2. En jev-router pusiste `free: false` y a la vez «no anade otro coste»: elige. Lo cierto es que el repo es MIT y gratis; lo que cuesta es la suscripcion de Claude Code, que es un requisito previo, no un coste del repo. Dilo asi.\n  3. No afirmes «comprobado con nuestra OPENROUTER_API_KEY» como si fuera cierto en cualquier maquina: lo comprobamos en ESTA. Si pones `corre_aqui: true`, que sea porque el codigo lo mira, no porque lo diga la ficha.\n\nLO QUE TIENE QUE DECIR CADA FICHA (medido al clonarlas):\n  · samwit/tinker-cookbook (Apache 2.0): 374 modulos Python, 329 (88%) importan el SDK `tinker` y NO funcionan sin cuenta DE PAGO en thinkingmachines.ai. El entrenamiento corre en SU infraestructura. Gratis solo sirven las recetas como planos y los tutoriales.\n  · kerpopule/hermes-jev-skills (MIT): Python 3.9+ sin dependencias, diez skills. Funciona con una clave de OpenRouter, que ya tenemos.\n  · gargpratyush/jev-router (MIT): Node 20.12+. Proxy que enruta Claude Code a Haiku/Sonnet/Opus segun la complejidad que estime Jev.\n\nTU ENCARGO, UN SOLO ARCHIVO: `src/lib/library/fuentes-decision.ts`, con el MISMO patron y las mismas claves que las seis entradas que ya estan. Leelas primero.\n\nNO explores el repositorio entero: abre SOLO los archivos que se nombran. Comentarios en ESPANOL que expliquen el PORQUE. Corre tus pruebas antes de terminar.",
+   "modelo": "llm7/minimax-m2.7"
+  },
+  {
+   "id": "AGR2c",
+   "ola": "Ola 334 · Agregador de APIs del Puente de Mando",
+   "titulo": "La ruta que recibe una clave, la guarda en el archivo de entorno y no la devuelve nunca",
+   "archivos": [
+    "src/app/api/mando/claves/route.ts"
+   ],
+   "prompt": "(Id renombrado de AG2 a AGR2 el 2026-09-20 porque AG2 ya se usó en una ola anterior.)\nCONTEXTO (Alex, 16/09). El agregador necesita un sitio donde dejar la clave. Esta ruta es ese sitio, y es la pieza más delicada de toda la ola.\n\nCÓMO FUNCIONA, y no se cambia:\n- **POST** recibe {clave, variable?}. Reconoce el proveedor con `reconocer()` de AG1, ESCRIBE el valor en el archivo de entorno de la máquina y responde SOLO con {proveedor, variable, huella, guardada: true}. **El valor no se registra en ningún log, no sale en ningún evento y no vuelve en la respuesta.**\n- **GET** devuelve, por cada proveedor configurado: el nombre de la variable, si está presente, su huella, su máscara y su último estado conocido. **Nunca el valor.**\n- **DELETE** retira una clave del archivo. Pide confirmación desde la interfaz.\n\nPARA ESCRIBIR EN EL ARCHIVO, USA LO QUE YA EXISTE: `scripts/puente/guardar-clave.sh` ya resuelve entrecomillar siempre, reemplazar en vez de duplicar, hacer copia de seguridad con fecha, dejar el archivo en 600 y COMPROBAR que sigue cargándose entero después. Lánzalo, no reimplementes su lógica: ese último paso existe porque una línea mal escrita dejó sin cargar 24 variables y paró el enjambre un día entero.\n\nSERVER-ONLY. Esta ruta solo responde a quien tenga permiso sobre ESE Mando (ver `src/lib/mando/permisos.ts` cuando exista; mientras no exista, exige que la petición venga de la máquina local y déjalo dicho con un TODO). A quien no tenga permiso se le responde sin filtrar qué existe.\n\nSin `any`. Textos en español. UN archivo, 120 líneas máximo. Comprueba que arranca con `npx tsc --noEmit` mediante `bash scripts/enjambre/tsc-turno.sh` y LEE la salida.\n\nPOR QUÉ VUELVE: el intento anterior fue rechazado. Objeción literal del revisor:\nSeguimiento: sí, bloqueante — falta sanitización/validación de la variable antes de pasarla al script y de que el proveedor sea uno permitido**. Hasta que se añada una whitelist de proveedores y se escape o se evite la ejecución de un script externo (preferiblemente escribir directamente con `fs`), el merge no debe aceptarse.\n\nRiesgos reales:\n1. **Inyección de comandos vía `variable`** – `ejecutarGuardarClave` lanza `bash guardar-clave.sh <variable> --ambos` y pasa la variable sin saneamiento. Si un atacante envía una cadena con caracteres especiales (p.ej. `\"; rm -rf /\"`), el script podría ejecutarse con argumentos peligrosos o, si el propio script evalúa la variable, provocar ejecución arbitraria.\n2. **Falta de validación del proveedor/variable** – `identificarClaveEntrante` infiere el proveedor a partir del prefijo de la clave, pero no hay control de que el proveedor sea uno de los permitidos ni de que la variable resultante sea una variable de entorno conocida. Esto permite crear/guardar variables arbitrarias en `~/.starseed/env` y `~/.hermes/.env`.\n3. **Exposición de metadatos de claves en `GET`** – el endpoint devuelve para cada variable su *huella* y una máscara que revela la longitud y los primeros/últimos caracteres. Aunque no muestra el valor completo, permite a un atacante inferir la existencia y el formato de claves sensibles.\n4. **`DELETE` permite eliminar cualquier variable** – no se comprueba que la variable pertenezca al catálogo; cualquier nombre recibido en la query‑string o en el cuerpo será borrado del archivo de entorno, lo que podría romper configuraciones o eliminar variables críticas.\nAtiéndela punto por punto; si algún punto no aplica, di por qué en el commit.",
+   "depende": [
+    "AGR1"
+   ],
+   "estado": "rechazada",
+   "nota": "rechazada automáticamente por ide (sin revisión humana); rama ola/AGR2 conservada",
+   "motivo": "",
+   "modelo": "llm7/minimax-m2.7"
+  },
+  {
+   "id": "c313_QW4",
+   "ola": "Ola 313 · Consolidación de pendientes",
+   "titulo": ".env.example con todas las variables de entorno",
+   "archivos": [
+    ".env.example"
+   ],
+   "prompt": "Procesa la tarea: .env.example con todas las variables de entorno. Archivos: ['.env.example']. Escribe código limpio, sin any, en español con acentos. tsc limpio.",
+   "depende": [],
+   "modelo": "llm7/minimax-m2.7",
+   "aprobacion": false
+  },
+  {
+   "id": "c313_QW6",
+   "ola": "Ola 313 · Consolidación de pendientes",
+   "titulo": "Nombre accesible del botón Compartir de la tarjeta",
+   "archivos": [
+    "src/components/social/PostCard.tsx"
+   ],
+   "prompt": "Procesa la tarea: Nombre accesible del botón Compartir de la tarjeta. Archivos: ['src/components/social/PostCard.tsx']. Escribe código limpio, sin any, en español con acentos. tsc limpio.",
+   "depende": [],
+   "modelo": "llm7/minimax-m2.7",
+   "aprobacion": false
+  },
+  {
+   "id": "RM3",
+   "ola": 363,
+   "titulo": "buildwithparallel: adaptadores de transporte mesh Reticulum y Wi-Fi HaLow",
+   "archivos": [
+    "src/ai/astraura/mesh/transporte-bwp.ts",
+    "src/lib/__tests__/transporte-bwp.test.ts"
+   ],
+   "depende": [
+    "RM2"
+   ],
+   "prompt": "buildwithparallel (https://buildwithparallel.com · https://github.com/buildwithparallel) ofrece campo en radios mesh, Wi-Fi HaLow (sub-GHz) y Reticulum sobre red local-first con hardware de commodity. StarSeed ya abstrae senalizacion y transporte en `src/ai/astraura/mesh/` (`signals.ts`, `meshtastic-adapter.ts`, `servers.ts`). Objetivo: abstraer el VÍNCULO fisico sin tocar la capa de aplicacion (identidad/cifrado/reglas de `mesh-identity.ts`, `recipient-crypto.ts`, `rules.ts` quedan intactos).\n1) `transporte-bwp.ts`: `type TransporteBwp = 'wifi-halo'|'reticulum'|'wifi-mesh'|'webrtc-local'|'usb-serial'`; `TRANSPORTES_BWP: Record<TransporteBwp,{etiqueta;alcanceLectura;latencia;requiereHardware;prioridad:number}>; `transportesOrdenados(disponibles, preferido?)` mete el preferido el primero si esta, orden estable para el resto; `estadoTransporte(vinculos:Array<{transporte;rssi?;tasaKbps?}>)` da `{online; mejor; totalKbps}`.\n2) Test vitest puro: `transportesOrdenados` pone el preferido primero sin perder ninguno; `estadoTransporte` suma tasas y elige el mejor por prioridad.\nSin any, tsc limpio.",
+   "modelo": "llm7/minimax-m2.7"
+  },
+  {
+   "id": "RM4",
+   "ola": 363,
+   "titulo": "Voz de borde con Supertonic: nivel suptonico en el motor Voz StarSeed",
+   "archivos": [
+    "src/lib/aurora/voz-starseed/supertonic.ts",
+    "src/lib/__tests__/voz-supertonic.test.ts"
+   ],
+   "depende": [
+    "RM1"
+   ],
+   "prompt": "Supertonic (https://github.com/supertone-oss-archive/supertonic, archivado: se usa como referencia y se adapta) es TTS on-device en ONNX, sin GPU, 31 idiomas, runtimes py/web/java/cpp/go/swift/rust (PyPI `supertonic`). Encaja con el estudio 1.58/needle porque tampoco exige GPU. NO dupliques el motor de voz: anade un nivel al existente. Abre `src/lib/aurora/voz-starseed/` (`niveles.ts`, `motor.ts`, `capacidades.ts`) y `memory/estudio-voces.md`.\n1) `supertonic.ts`: `interface NivelSuptonico { vivo:boolean; runtime:'onnx-cpu'|'wasm'|'nativo'; modelosCargados:string[]; idiomas:string[]; latenciaMs? }`; `soporteSupertonic(c)` da `{disponible;motivo?}` con disponible = hay WebAssembly SIMD o el runtime nativo `voz-supertonic` en PATH (no requiere el daemon ni GPU); `nivelParaVoz({supertonic;mobile;plataforma})` da `'suptonica'|'158-local'|'nube'|'tronal'` priorizando suptonica (voz de borde, sin GPU ni nube). Reutiliza `capacidades.ts` SOLO como referencia de firma.\n2) Test vitest puro: runtime WASM y sin mobile da `suptonica`; sin runtime da `nube` en movil / `158-local` en escritorio con daemon; `soporteSupertonic` no depende del daemon ni pide GPU.\nSin any, espanol con acentos, tsc limpio.",
+   "modelo": "llm7/minimax-m2.7"
+  },
+  {
+   "id": "p314A",
+   "ola": "Ola 314 · Reservas y enrutamiento verificable",
+   "titulo": "Presupuesto multiventana con reserva, ritmo y cuotas desconocidas explícitas",
+   "archivos": [
+    "scripts/enjambre/presupuesto.py",
+    "scripts/enjambre/test_presupuesto.py"
+   ],
+   "depende": [],
+   "modelo": "llm7/minimax-m2.7",
+   "aprobacion": false,
+   "prompt": "Única tarea: módulo Python PURO NUEVO presupuesto.py y unittest test_presupuesto.py, ≤120 líneas cadauno, sin IO ni libs externas. API decidir_presupuesto(ventanas, costes, ahora, reserva=0.2, antiguedad_max=900, rafaga=0.05)->dict {permitido:bool,motivos:list[str],reintentar_en:float|None}. ventanas lista dict: unidad(str), limite(float), usado(float), reservado(float, default0), inicio(epoch), reinicio(epoch), observado(epoch). costes dict por unidad con estimación NO negativa; falta de coste o ventanas => no_verificado, deniega. Solo admite finitos, no bool, limite>0, inicio<=observado<=ahora<reinicio, usado/reservado>=0; foto caducada o ventana vencida deniega y requiere nueva lectura (no supone reset). Reserva: usado+reservado+coste <= limite*(1-reserva). Ritmo: usado+reservado+coste <= limite*(1-reserva)*min(1, (ahora-inicio)/(reinicio-inicio)+rafaga), distribuye consumo a lo largo de cada ventana, breve ráfaga configurable. Todas las ventanas deben permitir; unidades distintas tienen costes distintos. Si denegación solo ritmo, calcula instante exacto en que puede intentarse; reserva agotada => reinicio; datos inválidos => None. No mutar entrada. Pruebas dos ventanas (horaria permite semanal bloquea), crédito adicional0 no ilimitado, costeausente, datosviejos/NaN/Infinity/futuros, reserva y reservas en vuelo, ráfaga inicial, hora calculada, limitesexactos. No guardar credenciales ni inventar precios ni saldo. NO cablear, no editar otros archivos, NO build ni deps; correr unittest propio. Leer architecture/puente-economico-verificable.md. Otro modelo de dirección revisa y cablea."
+  },
+  {
+   "id": "p314B",
+   "ola": "Ola 314 · Reservas y enrutamiento verificable",
+   "titulo": "Clasificación de fallos y relevo acotado, sin reciclar cuotas ni perder avances",
+   "archivos": [
+    "scripts/enjambre/relevo_seguro.py",
+    "scripts/enjambre/test_relevo_seguro.py"
+   ],
+   "depende": [],
+   "modelo": "llm7/minimax-m2.7",
+   "aprobacion": false,
+   "prompt": "Crear módulo PURO Python relevo_seguro.py y unittest test_relevo_seguro.py (≤120 líneascadauno), sin IO. API decidir_relevo(estado, ahora)->dict {accion:str,motivo:str,reintentar_en:float|None,conservar_trabajo:bool}. Estado dict con codigo_http int|None, timeout bool, intento int>=1, max_intentos int>=1(default3), ultimo_avance epoch|None, proceso_vivo bool|None, fase str, cuota_hasta epoch|None, retry_after_s float|None, revision_aprobada bool(defaultfalse). Reglas prioridad: fase commit/hecho=terminada; faseaprobaciónespera=esperar_aprobacion sin autoaprobar por tiempo; errorespruebas/revisión=corregir no cambiar proveedor sin reparar; 401/403=credenciales_requeridas no repetir claves; 402/cuota_hasta futuro=esperar_cuota;429 espera Retry-After validomax86400 o60s, NO tratado comoAPIdefunta; timeout/5xx/procesomuerto=reenrutar mientras intento<max, despuésesperar_revision; proceso None=dato_desconocido; con proceso vivo y últimoavance<=300s no declararcolgado; solo faseescribiendo y sin avance>300s reenrutar. Nunca aplica umbral de escritura a tsc/tests/revision. En todas las ramas conservar_trabajo True. Testpuro casos incluyendo None, límiteintentos, fasespuertasvivasviejas, noaprobar, 429noreintentarantes, timeout máximo; sin mocksdeNode. NO cablear todavía ni editarotroarchivo ni build ni deps. Lee architecture/puente-economico-verificable.md."
+  }
+ ]
+}
