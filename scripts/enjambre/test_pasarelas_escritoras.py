@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Tests de las pasarelas como ESCRITORAS y de FreeTheAi (2026-09-08, Ola 286 · G1).
 
-Sin red: se parchean `PASARELAS` y el entorno (`ENV` / `os.environ`) con pytest y se
+Sin red: se parchean `PASARELAS` y el entorno (`ENV` / `os.environ`) y se
 ejercitan `plantilla_opencode`, `escritores_de_pasarelas` y la condición de FreeTheAi.
 Regla dura del proyecto: en ningún JSON generado puede aparecer el VALOR de una clave,
 solo la sintaxis literal `{env:VARIABLE}`. El módulo se importa con importlib porque el
@@ -14,20 +14,11 @@ import os
 import sys
 import unittest
 
-import pytest
-
 RUTA = os.path.join(os.path.dirname(os.path.abspath(__file__)), "starseed-enjambre.py")
 ESPEC = importlib.util.spec_from_file_location("enjambre", RUTA)
 enjambre = importlib.util.module_from_spec(ESPEC)
 sys.modules["enjambre"] = enjambre
 ESPEC.loader.exec_module(enjambre)
-
-
-@pytest.fixture
-def sin_freetheai(monkeypatch):
-    """Garantiza que no hay clave de FreeTheAi ni en el entorno ni en ENV."""
-    monkeypatch.delenv("FREETHEAI_API_KEY", raising=False)
-    monkeypatch.setattr(enjambre, "ENV", {})
 
 
 GROQ = {
@@ -43,9 +34,12 @@ GROQ = {
 
 
 class PlantillaOpencodeTest(unittest.TestCase):
-    @pytest.fixture(autouse=True)
-    def _env(self, monkeypatch):
-        monkeypatch.setattr(enjambre, "PASARELAS", dict(GROQ))
+    def setUp(self):
+        self._orig_pasarelas = getattr(enjambre, "PASARELAS", {})
+        enjambre.PASARELAS = dict(GROQ)
+
+    def tearDown(self):
+        enjambre.PASARELAS = self._orig_pasarelas
 
     def test_groq_construye_con_base_y_env(self):
         bloque = enjambre.plantilla_opencode("groq")
@@ -80,9 +74,15 @@ class PlantillaOpencodeTest(unittest.TestCase):
 
 
 class EscritoresPasarelasTest(unittest.TestCase):
-    @pytest.fixture(autouse=True)
-    def _env(self, monkeypatch, sin_freetheai):
-        monkeypatch.setattr(enjambre, "PASARELAS", dict(GROQ))
+    def setUp(self):
+        self._orig_pasarelas = getattr(enjambre, "PASARELAS", {})
+        self._orig_env = getattr(enjambre, "ENV", {})
+        enjambre.PASARELAS = dict(GROQ)
+        enjambre.ENV = {}
+
+    def tearDown(self):
+        enjambre.ENV = self._orig_env
+        enjambre.PASARELAS = self._orig_pasarelas
 
     def test_devuelve_los_modelos_de_la_pasarela(self):
         self.assertEqual(
@@ -97,9 +97,12 @@ class EscritoresPasarelasTest(unittest.TestCase):
 
 
 class FreeTheAiTest(unittest.TestCase):
-    @pytest.fixture(autouse=True)
-    def _env(self, monkeypatch):
-        monkeypatch.setattr(enjambre, "PASARELAS", {})
+    def setUp(self):
+        self._orig_pasarelas = getattr(enjambre, "PASARELAS", {})
+        enjambre.PASARELAS = {}
+
+    def tearDown(self):
+        enjambre.PASARELAS = self._orig_pasarelas
 
     def test_sin_clave_no_aparece_en_las_listas(self):
         os.environ.pop("FREETHEAI_API_KEY", None)
@@ -138,16 +141,15 @@ class FreeTheAiTest(unittest.TestCase):
 
 
 class SyncOpencodeClaveTest(unittest.TestCase):
-    """La clave de una pasarela llega al proceso hijo (2026-09-08, Ola 286 · G2):
-    `_sync_opencode_clave` exporta STARSEED_PASARELA_<NOMBRE>_KEY (y FREETHEAI_API_KEY)
-    al entorno de opencode, que hasta aquí recibía «Invalid API Key» porque `clave_activa`
-    no cubre las pasarelas. Sin red: se parchean PASARELAS y ENV; el valor de prueba
-    NUNCA aparece impreso ni comparado como clave real."""
+    def setUp(self):
+        self._orig_pasarelas = getattr(enjambre, "PASARELAS", {})
+        self._orig_env = getattr(enjambre, "ENV", {})
+        enjambre.PASARELAS = dict(GROQ)
+        enjambre.ENV = {"STARSEED_PASARELA_GROQ_KEY": "clave-de-prueba"}
 
-    @pytest.fixture(autouse=True)
-    def _env(self, monkeypatch):
-        monkeypatch.setattr(enjambre, "PASARELAS", dict(GROQ))
-        monkeypatch.setattr(enjambre, "ENV", {"STARSEED_PASARELA_GROQ_KEY": "clave-de-prueba"})
+    def tearDown(self):
+        enjambre.ENV = self._orig_env
+        enjambre.PASARELAS = self._orig_pasarelas
 
     def test_variable_de_pasarela_groq(self):
         self.assertEqual(enjambre.variable_de_pasarela("groq"), "STARSEED_PASARELA_GROQ_KEY")
@@ -174,14 +176,12 @@ class SyncOpencodeClaveTest(unittest.TestCase):
 
 
 class FormatoPasarelaTest(unittest.TestCase):
-    """Una pasarela que rechaza el FORMATO de opencode pasa a «solo revisor» (2026-09-08,
-    Ola 286 · G3): `error_de_formato` distingue el rechazo de formato (que marca la
-    pasarela) del de cuota/ritmo (que no), y `escritores_de_pasarelas` deja de devolver
-    los modelos de una pasarela en PASARELAS_SOLO_REVISOR sin tocar sus revisores."""
+    def setUp(self):
+        self._orig_pasarelas = getattr(enjambre, "PASARELAS", {})
+        enjambre.PASARELAS = dict(GROQ)
 
-    @pytest.fixture(autouse=True)
-    def _env(self, monkeypatch):
-        monkeypatch.setattr(enjambre, "PASARELAS", dict(GROQ))
+    def tearDown(self):
+        enjambre.PASARELAS = self._orig_pasarelas
 
     def test_error_de_formato_reasoning_content(self):
         self.assertTrue(enjambre.error_de_formato("property 'reasoning_content' is unsupported"))
@@ -196,8 +196,6 @@ class FormatoPasarelaTest(unittest.TestCase):
         self.assertFalse(enjambre.error_de_formato(""))
 
     def test_pasarela_solo_revisor_no_devuelve_escritores(self):
-        # Se añade groq a PASARELAS_SOLO_REVISOR (y se quita al terminar) para comprobar
-        # que sus modelos dejan de salir como escritores; el conjunto queda limpio luego.
         enjambre.PASARELAS_SOLO_REVISOR.add("groq")
         try:
             escritores = enjambre.escritores_de_pasarelas()
@@ -207,13 +205,15 @@ class FormatoPasarelaTest(unittest.TestCase):
 
 
 class SoloRevisorTest(unittest.TestCase):
-    """Una pasarela que rechaza el FORMATO de opencode deja de ser ESCRITORA pero sigue de
-    REVISORA durante el resto de la ejecución (2026-09-08, Ola 286 · G3). Caso real: Groq y
-    su `reasoning_content`. `error_de_formato` es pura y no depende de red."""
+    def setUp(self):
+        self._orig_pasarelas = getattr(enjambre, "PASARELAS", {})
+        self._orig_env = getattr(enjambre, "ENV", {})
+        enjambre.PASARELAS = dict(GROQ)
+        enjambre.ENV = {}
 
-    @pytest.fixture(autouse=True)
-    def _env(self, monkeypatch, sin_freetheai):
-        monkeypatch.setattr(enjambre, "PASARELAS", dict(GROQ))
+    def tearDown(self):
+        enjambre.ENV = self._orig_env
+        enjambre.PASARELAS = self._orig_pasarelas
 
     def test_detecta_formato_unsupported(self):
         self.assertTrue(enjambre.error_de_formato("property 'reasoning_content' is unsupported"))

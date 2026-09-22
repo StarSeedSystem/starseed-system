@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Tests de la memoria de cupo de los revisores del orquestador (2026-09-06, Ola 261).
 
-Sin red: `SALUD_JSON` se parchea a un archivo temporal con pytest (`monkeypatch`) y se
+Sin red: `SALUD_JSON` se parchea a un archivo temporal y se
 ejercitan marcar_sin_cupo / sin_cupo / enfriandose / candidatos_revision. El módulo se
 importa con importlib porque el nombre del archivo lleva guiones (igual que en
 test_alcance.py); el import es seguro porque el arranque vive bajo
@@ -15,8 +15,6 @@ import tempfile
 import time
 import unittest
 
-import pytest
-
 RUTA = os.path.join(os.path.dirname(os.path.abspath(__file__)), "starseed-enjambre.py")
 ESPEC = importlib.util.spec_from_file_location("enjambre", RUTA)
 enjambre = importlib.util.module_from_spec(ESPEC)
@@ -28,18 +26,16 @@ def _hace(minutos):
     return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(time.time() - minutos * 60))
 
 
-@pytest.fixture
-def salud(tmp_path, monkeypatch):
-    """Archivo de salud temporal: ningún test toca ~/.starseed de verdad."""
-    f = tmp_path / "salud-proveedores.json"
-    monkeypatch.setattr(enjambre, "SALUD_JSON", str(f))
-    yield f
-
-
 class SinCupoTest(unittest.TestCase):
-    @pytest.fixture(autouse=True)
-    def _salud(self, salud):
-        self.salud = salud
+    def setUp(self):
+        self.tmp_dir = tempfile.TemporaryDirectory()
+        self.salud = os.path.join(self.tmp_dir.name, "salud-proveedores.json")
+        self._orig_salud = getattr(enjambre, "SALUD_JSON", "")
+        enjambre.SALUD_JSON = self.salud
+
+    def tearDown(self):
+        enjambre.SALUD_JSON = self._orig_salud
+        self.tmp_dir.cleanup()
 
     def test_marcar_y_detectar(self):
         enjambre.marcar_sin_cupo("xkiro", "cuota diaria")
@@ -59,9 +55,15 @@ class SinCupoTest(unittest.TestCase):
 
 
 class EnfriandoseTest(unittest.TestCase):
-    @pytest.fixture(autouse=True)
-    def _salud(self, salud):
-        self.salud = salud
+    def setUp(self):
+        self.tmp_dir = tempfile.TemporaryDirectory()
+        self.salud = os.path.join(self.tmp_dir.name, "salud-proveedores.json")
+        self._orig_salud = getattr(enjambre, "SALUD_JSON", "")
+        enjambre.SALUD_JSON = self.salud
+
+    def tearDown(self):
+        enjambre.SALUD_JSON = self._orig_salud
+        self.tmp_dir.cleanup()
 
     def test_429_reciente_enfria(self):
         json.dump({"xkiro": {"ultimo_429": _hace(2)}}, open(self.salud, "w", encoding="utf-8"))
@@ -76,12 +78,18 @@ class EnfriandoseTest(unittest.TestCase):
 
 
 class CandidatosTest(unittest.TestCase):
-    @pytest.fixture(autouse=True)
-    def _salud(self, salud, monkeypatch):
-        self.salud = salud
-        monkeypatch.setattr(enjambre, "REVISOR_ULTIMO_OK", "")
-        yield
-        monkeypatch.setattr(enjambre, "REVISOR_ULTIMO_OK", "")
+    def setUp(self):
+        self.tmp_dir = tempfile.TemporaryDirectory()
+        self.salud = os.path.join(self.tmp_dir.name, "salud-proveedores.json")
+        self._orig_salud = getattr(enjambre, "SALUD_JSON", "")
+        enjambre.SALUD_JSON = self.salud
+        self._orig_revisor = getattr(enjambre, "REVISOR_ULTIMO_OK", "")
+        enjambre.REVISOR_ULTIMO_OK = ""
+
+    def tearDown(self):
+        enjambre.REVISOR_ULTIMO_OK = self._orig_revisor
+        enjambre.SALUD_JSON = self._orig_salud
+        self.tmp_dir.cleanup()
 
     def test_excluye_agotados_y_enfriandose(self):
         json.dump({
@@ -123,3 +131,4 @@ class CandidatosTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

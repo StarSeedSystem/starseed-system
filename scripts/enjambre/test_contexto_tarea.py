@@ -13,8 +13,6 @@ import os
 import sys
 import unittest
 
-import pytest
-
 RUTA = os.path.join(os.path.dirname(os.path.abspath(__file__)), "starseed-enjambre.py")
 ESPEC = importlib.util.spec_from_file_location("enjambre", RUTA)
 enjambre = importlib.util.module_from_spec(ESPEC)
@@ -45,10 +43,14 @@ class TocaTestsTsTest(unittest.TestCase):
 class ContextoTareaTest(unittest.TestCase):
     """La regla solo aparece cuando hay tests TS, y nunca para tareas de Python."""
 
-    @pytest.fixture(autouse=True)
-    def _sin_disco(self, monkeypatch):
+    def setUp(self):
         # `contexto_tarea` llama a `_guardar_contexto`, que escribe en olas/contextos/.
-        monkeypatch.setattr(enjambre, "_guardar_contexto", lambda t, c: None)
+        self._orig_guardar = getattr(enjambre, "_guardar_contexto", None)
+        enjambre._guardar_contexto = lambda t, c: None
+
+    def tearDown(self):
+        if self._orig_guardar is not None:
+            enjambre._guardar_contexto = self._orig_guardar
 
     def test_con_ts_incluye_funciones_puras_y_vi_mock(self):
         contexto = enjambre.contexto_tarea(
