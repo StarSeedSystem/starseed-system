@@ -345,3 +345,35 @@ class ServirLoQueHayEnElDisco(unittest.TestCase):
         """Un HTML del que no se saca nada no puede declarar roto al Mando."""
         self.assertTrue(R.sirve_lo_que_hay_en_disco("", self.raiz))
         self.assertTrue(R.sirve_lo_que_hay_en_disco("<html></html>", self.raiz))
+
+
+class RecogerLoPropioAntesDeRendirse(unittest.TestCase):
+    """(2026-09-22) «no compilo: quedan 4,0 GB» con 532 MB de `.next-anterior` en el disco.
+
+    Negarse a compilar sin sitio es correcto. Negarse sin haber recogido primero lo que la
+    compilación anterior dejó tirado, no.
+    """
+
+    def setUp(self):
+        self.raiz = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.raiz, True)
+
+    def _crear(self, nombre):
+        os.makedirs(os.path.join(self.raiz, nombre), exist_ok=True)
+        with open(os.path.join(self.raiz, nombre, "x"), "w", encoding="utf-8") as f:
+            f.write("x")
+
+    def test_tira_el_build_anterior_y_el_de_trabajo(self):
+        self._crear(".next-anterior")
+        self._crear(R.DIST_BUILD)
+        quitados = R.liberar_lo_propio(self.raiz)
+        self.assertEqual(sorted(quitados), sorted([".next-anterior", R.DIST_BUILD]))
+        self.assertFalse(os.path.exists(os.path.join(self.raiz, ".next-anterior")))
+
+    def test_no_toca_el_build_que_se_esta_sirviendo(self):
+        self._crear(R.DIST_SERVIDO)
+        R.liberar_lo_propio(self.raiz)
+        self.assertTrue(os.path.exists(os.path.join(self.raiz, R.DIST_SERVIDO)))
+
+    def test_sin_nada_que_tirar_no_dice_que_tiro_algo(self):
+        self.assertEqual(R.liberar_lo_propio(self.raiz), [])

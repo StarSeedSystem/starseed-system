@@ -232,7 +232,7 @@ def _secretos():
         return []
 
 
-def verificar(id_accion=None, pasarelas=None, secretos_repo=None):
+def verificar(id_accion=None, pasarelas=None, secretos_repo=None, entorno=None):
     """¿Sigue haciendo falta esa accion? Vuelve a MEDIR, no consulta un archivo viejo.
 
     (2026-09-21, pedido por Alex) «en el puente de mando en su ventana debe haber un boton
@@ -249,7 +249,14 @@ def verificar(id_accion=None, pasarelas=None, secretos_repo=None):
     """
     pasarelas = pasarelas if pasarelas is not None else _pasarelas()
     secretos_repo = secretos_repo if secretos_repo is not None else _secretos()
-    vivas = construir_acciones(pasarelas, secretos_repo)
+    # (2026-09-22) Sin el entorno, `canal-de-avisos-sin-configurar` no se reconstruía y el
+    # botón «Ya lo hice» contestaba «ya no hace falta» para algo que seguía sin arreglar.
+    # Un botón que dice que algo está hecho porque él mismo no sabe mirarlo es justo la
+    # forma de mentir que llevamos toda la sesión quitando.
+    vivas = construir_acciones(
+        pasarelas, secretos_repo,
+        entorno=entorno if entorno is not None else _entorno_con_env(),
+    )
     por_id = {a["id"]: a for a in vivas}
     momento = __import__("time").strftime("%Y-%m-%d %H:%M:%S")
     if id_accion is None:

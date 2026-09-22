@@ -17,16 +17,7 @@
 
 import { marcarRitoActivo } from "@/lib/ui/rito-activo";
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
-import {
-    BrainCircuit,
-    CircleDashed,
-    CircleDollarSign,
-    Clock3,
-    Copy,
-    ExternalLink,
-    RefreshCw,
-    ShieldAlert,
-} from "lucide-react";
+import { BrainCircuit, CircleDashed, CircleDollarSign, Clock3, Copy, ExternalLink, Loader2, RefreshCw, ShieldAlert } from "lucide-react";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { EstadoMando, ProveedorUso } from "@/lib/mando/tipos";
@@ -299,13 +290,74 @@ interface AccionAlex {
     detalle?: string;
 }
 
+/** Lo que contestó «Ya lo hice» para una acción concreta. */
+interface Recomprobacion {
+    hecha: boolean;
+    detalle: string;
+    comprobado: string;
+}
+
 function PanelAccionesAlex({
     acciones,
     alCerrar,
+    alCambiar,
 }: {
     acciones: AccionAlex[];
     alCerrar: () => void;
+    alCambiar?: () => void;
 }) {
+    /**
+     * (2026-09-22) Alex: «en te toca a ti agrega un botón de recomprobar si ya se completó».
+     *
+     * El guion ya sabía hacerlo —`acciones-de-alex.py --verificar <id>` vuelve a MEDIR y
+     * dice si la acción sigue haciendo falta— y la ruta ya lo exponía. Faltaba el botón:
+     * otra pieza terminada que nadie había conectado a nada.
+     */
+    const [comprobando, setComprobando] = useState<string | null>(null);
+    const [resultados, setResultados] = useState<Record<string, Recomprobacion>>({});
+
+    const recomprobar = useCallback(
+        async (id: string) => {
+            setComprobando(id);
+            try {
+                const r = await fetch("/api/mando/acciones", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ accion: "verificar", id }),
+                });
+                const d = (await r.json().catch(() => ({}))) as Partial<Recomprobacion> & { error?: string };
+                if (!r.ok || d.error) {
+                    setResultados((p) => ({
+                        ...p,
+                        [id]: {
+                            hecha: false,
+                            detalle: d.error ?? `no se pudo comprobar (HTTP ${r.status})`,
+                            comprobado: "",
+                        },
+                    }));
+                    return;
+                }
+                setResultados((p) => ({
+                    ...p,
+                    [id]: {
+                        hecha: Boolean(d.hecha),
+                        detalle: d.detalle ?? (d.hecha ? "ya no hace falta" : "sigue pendiente"),
+                        comprobado: d.comprobado ?? "",
+                    },
+                }));
+                // Si ya está hecha, la lista de arriba tiene que enterarse.
+                if (d.hecha) alCambiar?.();
+            } catch {
+                setResultados((p) => ({
+                    ...p,
+                    [id]: { hecha: false, detalle: "no se pudo comprobar", comprobado: "" },
+                }));
+            } finally {
+                setComprobando(null);
+            }
+        },
+        [alCambiar],
+    );
     const urgenciaOrden: Record<string, number> = { alta: 0, media: 1, baja: 2 };
     const ordenadas = [...acciones].sort((a, b) => {
         const ua = urgenciaOrden[a.urgencia] ?? 9;
@@ -413,6 +465,31 @@ function PanelAccionesAlex({
                                     </div>
                                 </div>
                             ) : null}
+                            <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                                <button
+                                    type="button"
+                                    disabled={comprobando === a.id}
+                                    onClick={() => void recomprobar(a.id)}
+                                    data-testid={`recomprobar-${a.id}`}
+                                    className="mc-alzar inline-flex cursor-pointer items-center gap-1 rounded-md border border-cyan-300/40 bg-cyan-400/10 px-2 py-0.5 text-[10px] text-cyan-100 disabled:cursor-not-allowed disabled:opacity-40"
+                                >
+                                    {comprobando === a.id ? (
+                                        <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
+                                    ) : null}
+                                    Ya lo hice · recomprobar
+                                </button>
+                                {resultados[a.id] ? (
+                                    <span
+                                        className={`text-[10px] ${
+                                            resultados[a.id].hecha ? "text-emerald-200" : "text-amber-200/80"
+                                        }`}
+                                    >
+                                        {resultados[a.id].hecha ? "✓ " : "· "}
+                                        {resultados[a.id].detalle}
+                                        {resultados[a.id].comprobado ? ` (${resultados[a.id].comprobado})` : ""}
+                                    </span>
+                                ) : null}
+                            </div>
                             <p className="mt-1.5 text-[10px] text-white/35">
                                 (Yo no: {a.por_que_no_lo_hago_yo})
                             </p>
@@ -1484,6 +1561,16 @@ export function CentroMando() {
                         <PanelAccionesAlex
                             acciones={accionesAlex?.acciones ?? []}
                             alCerrar={() => setAccionesAlexAbierto(false)}
+                            alCambiar={() => {
+                                // Una acción que acaba de darse por hecha tiene que
+                                // desaparecer de la lista sin esperar al minuto del sondeo.
+                                void fetch("/api/mando/acciones", { cache: "no-store" })
+                                    .then((r) => (r.ok ? r.json() : null))
+                                    .then((d) => {
+                                        if (d) setAccionesAlex(d as typeof accionesAlex);
+                                    })
+                                    .catch(() => {});
+                            }}
                         />
                     ) : null}
                 </div>

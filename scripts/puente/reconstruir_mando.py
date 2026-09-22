@@ -148,6 +148,24 @@ def hay_sitio_para_compilar(libre_gb, minimo_gb=MINIMO_LIBRE_GB) -> bool:
     return libre_gb >= minimo_gb
 
 
+def liberar_lo_propio(raiz=RAIZ):
+    """Tira lo que la compilación misma dejó y ya no sirve. Devuelve qué quitó.
+
+    (2026-09-22) La publicación se paró con «quedan 4,0 GB libres y la build necesita 6,0»
+    mientras en el disco había un `.next-anterior` de 532 MB y restos de `.next-build`: el
+    guardia decía que no sin haber recogido primero lo suyo. Negarse es correcto; negarse
+    sin mirar lo que uno mismo dejó tirado, no. La caché de webpack NO se toca aquí: es de
+    quien está sirviendo y borrarla hace la siguiente compilación mucho más lenta.
+    """
+    quitados = []
+    for nombre in (".next-anterior", DIST_BUILD):
+        ruta = os.path.join(raiz, nombre)
+        if os.path.exists(ruta):
+            subprocess.run(["rm", "-rf", ruta], check=False)
+            quitados.append(nombre)
+    return quitados
+
+
 def espacio_libre_gb(raiz=RAIZ):
     """Gigas libres donde vive el repo, o None si no se puede medir."""
     try:
@@ -490,7 +508,15 @@ def una_pasada() -> bool:
         return False
     libre = espacio_libre_gb()
     if hazlo and not hay_sitio_para_compilar(libre):
-        aviso = "no compilo: quedan %.1f GB libres y hacen falta %.1f" % (libre, MINIMO_LIBRE_GB)
+        # Antes de decir que no, se recoge lo que dejó la compilación anterior.
+        quitados = liberar_lo_propio()
+        if quitados:
+            libre = espacio_libre_gb()
+            print("[%s] recojo lo mío antes de rendirme (%s): quedan %.1f GB"
+                  % (time.strftime("%H:%M"), ", ".join(quitados), libre), flush=True)
+    if hazlo and not hay_sitio_para_compilar(libre):
+        aviso = ("no compilo: quedan %.1f GB libres y hacen falta %.1f (ya tiré lo mío; "
+                 "esto es disco del Mac, no del Puente)" % (libre, MINIMO_LIBRE_GB))
         print("[%s] %s" % (time.strftime("%H:%M"), aviso), flush=True)
         _guardar(dict(_leer_estado(), estado="sin-sitio", ok=False, error=aviso,
                       visto=time.strftime("%Y-%m-%d %H:%M:%S")))

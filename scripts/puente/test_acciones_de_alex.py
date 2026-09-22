@@ -71,7 +71,10 @@ class TestVerificar(unittest.TestCase):
 
     def test_si_ya_no_hace_falta_dice_hecha(self):
         todas = set(A.CLAVES_DEL_ENJAMBRE)
-        r = A.verificar("github-secretos", pasarelas=[], secretos_repo=todas)
+        # El entorno se pasa con el canal ya configurado: esta prueba habla de los
+        # secretos del repo, y «no queda nada» solo es cierto si tampoco falta el canal.
+        r = A.verificar("github-secretos", pasarelas=[], secretos_repo=todas,
+                        entorno={"TELEGRAM_BOT_TOKEN": "x", "TELEGRAM_CHAT_ID": "y"})
         self.assertTrue(r["hecha"])
         self.assertEqual(r["quedan"], 0)
         self.assertIn("comprobado", r["detalle"])
@@ -148,3 +151,28 @@ class AvisarAUnArchivoNoEsAvisar(unittest.TestCase):
         acciones = A.construir_acciones([], [], catalogo={},
                                         entorno={"TELEGRAM_BOT_TOKEN": "x", "TELEGRAM_CHAT_ID": "y"})
         self.assertNotIn("canal-de-avisos-sin-configurar", [a["id"] for a in acciones])
+
+
+class RecomprobarDiceLaVerdad(unittest.TestCase):
+    """(2026-09-22) Alex: «agrega un botón de recomprobar si ya se completó».
+
+    El botón vale exactamente lo que valga su respuesta. Con el entorno fuera de la
+    reconstrucción, `--verificar canal-de-avisos-sin-configurar` contestaba «ya no hace
+    falta» para algo que seguía sin arreglarse: el propio verificador no sabía mirarlo.
+    """
+
+    def test_sigue_pendiente_si_de_verdad_lo_esta(self):
+        r = A.verificar("canal-de-avisos-sin-configurar", pasarelas=[], secretos_repo=[], entorno={})
+        self.assertFalse(r["hecha"])
+        self.assertIn("Telegram", r["titulo"])
+
+    def test_se_da_por_hecha_cuando_ya_no_sale(self):
+        r = A.verificar("canal-de-avisos-sin-configurar", pasarelas=[], secretos_repo=[],
+                        entorno={"TELEGRAM_BOT_TOKEN": "x", "TELEGRAM_CHAT_ID": "y"})
+        self.assertTrue(r["hecha"])
+        self.assertIn("ya no hace falta", r["detalle"])
+
+    def test_siempre_dice_cuando_se_comprobo(self):
+        """Sin la hora, «hecha» es una afirmación sin fecha: no se puede contrastar."""
+        r = A.verificar("lo-que-sea", pasarelas=[], secretos_repo=[], entorno={})
+        self.assertTrue(r["comprobado"])
