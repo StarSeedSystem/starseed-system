@@ -63,6 +63,15 @@ async function git(args: string[]): Promise<string> {
     }
 }
 
+/** Aísla cada fuente para conservar las demás cuando una lectura inesperada falla. */
+async function tolerar<T>(lectura: Promise<T>, reserva: T): Promise<T> {
+    try {
+        return await lectura;
+    } catch {
+        return reserva;
+    }
+}
+
 /** Traduce `progreso.json` a lo que la lógica pura entiende. */
 function progresoEntradas(crudo: Record<string, unknown>): ProgresoEntrada[] {
     const salida: ProgresoEntrada[] = [];
@@ -102,9 +111,9 @@ function colaEntradas(tareas: import("@/lib/mando/tipos").TareaOla[]): ColaEntra
 export async function obtenerReportes(o: OpcionesReportes = {}): Promise<RespuestaReportes> {
     const [commits, crudo, tareasCola, eventos, remoto] = await Promise.all([
         leerCommits(),
-        leerProgreso(),
-        leerColas(),
-        leerEventosDelBus(80),
+        tolerar(leerProgreso(), {}),
+        tolerar(leerColas(), []),
+        tolerar(leerEventosDelBus(80), []),
         git(["remote", "get-url", "origin"]).then(normalizarRemoto),
     ]);
     const ahora = Date.now();
@@ -115,7 +124,7 @@ export async function obtenerReportes(o: OpcionesReportes = {}): Promise<Respues
         colas: colaEntradas(tareasCola),
         ahora,
         baseRemota: remoto ?? "",
-        baseLocal: process.env.STARSEED_MANDO_LOCAL ?? "http://localhost:9002",
+        baseLocal: "http://localhost:9002",
     };
     let reportes = construirReportes(datos);
     // Sin remoto no hay enlaces de diff fiables: se quitan, no se inventan.
@@ -171,10 +180,17 @@ export function normalizarRemoto(url: string): string | null {
     if (!limpia) return null;
     const ssh = /^git@([^:]+):(.+)$/.exec(limpia);
     if (ssh) return `https://${ssh[1]}/${ssh[2]}`;
-    const sshPlano = /^ssh:\/\/git@([^/]+)\/(.+)$/.exec(limpia);
-    if (sshPlano) return `https://${sshPlano[1]}/${sshPlano[2]}`;
-    if (/^https?:\/\//.test(limpia)) return limpia;
-    return null;
+    try {
+        const remota = new URL(limpia);
+        if (!["git:", "http:", "https:", "ssh:"].includes(remota.protocol)) return null;
+        const ruta = remota.pathname.replace(/\.git$/, "").replace(/\/+$/, "");
+        if (!remota.hostname || !ruta || ruta === "/") return null;
+        // Reconstruir evita filtrar usuario, contraseña, query o fragmento del remoto.
+        const puerto = remota.port ? `:${remota.port}` : "";
+        return `https://${remota.hostname}${puerto}${ruta}`;
+    } catch {
+        return null;
+    }
 }
 
 /** Lee los últimos commits de main y los archivos que tocó cada uno. */
