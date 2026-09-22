@@ -31,9 +31,11 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import subprocess
 import sys
 import time
+import urllib.request
 
 RAIZ = os.environ.get("STARSEED_ROOT") or os.path.expanduser("~/Documents/starseed-os-main")
 ESTADO = os.path.join(RAIZ, "starseed_memory_root", "mando", "reconstruccion.json")
@@ -405,16 +407,67 @@ def intercambiar_build() -> bool:
     return True
 
 
+def chunk_del_html(html):
+    """PURA: el chunk de arranque que pide una página servida, o None.
+
+    Es la huella de QUÉ build tiene el servidor EN MEMORIA, que no siempre es el que hay
+    en el disco. Ver `sirve_lo_que_hay_en_disco`.
+    """
+    m = re.search(r"webpack-[0-9a-f]+\.js", html or "")
+    return m.group(0) if m else None
+
+
+def sirve_lo_que_hay_en_disco(html, raiz=RAIZ):
+    """PURA-ish: ¿el servidor sirve el build que está en el disco?
+
+    (2026-09-22, MEDIDO) Aquí se coló la misma enfermedad con otro disfraz. El plist del
+    Mando tiene `KeepAlive`, así que `launchctl kill SIGTERM` no para nada: launchd
+    relanza el servidor EN EL ACTO, antes de que dé tiempo a cambiar los directorios de
+    sitio. El Mando volvía a levantar el build VIEJO y, un segundo después, ese build se
+    iba del disco. Resultado en la pantalla de Alex:
+
+        HTML servido pide  webpack-68ad2f16eee5d4c9.js
+        en el disco había  webpack-d2bbf8601d41ad89.js
+        consola → Refused to execute script … MIME type ('text/html') is not executable
+
+    La página se quedaba en «Midiendo el pulso del trabajo…» para siempre, con un 200
+    impecable. Por eso esto no se supone: se comprueba.
+    """
+    chunk = chunk_del_html(html)
+    if not chunk:
+        return True  # sin pista no se acusa a nadie
+    return os.path.exists(os.path.join(raiz, DIST_SERVIDO, "static", "chunks", chunk))
+
+
+def _html_del_mando(url="http://localhost:9002/mando", timeout=20):
+    try:
+        with urllib.request.urlopen(url, timeout=timeout) as r:
+            return r.read().decode("utf-8", "replace")
+    except Exception:
+        return ""
+
+
 def reiniciar_mando() -> None:
-    """Para el Mando, pone el build nuevo en su sitio y lo vuelve a arrancar."""
-    etiqueta = "gui/%d/%s" % (os.getuid(), SERVICIO)
-    # Parar → cambiar → arrancar. `kickstart -k` haría las dos puntas en un solo golpe y
-    # no deja hueco para el cambio, así que aquí se hace en tres pasos.
-    subprocess.run(["launchctl", "kill", "SIGTERM", etiqueta], capture_output=True, text=True)
-    time.sleep(2)
+    """Para el Mando DE VERDAD, cambia el build de sitio y lo vuelve a arrancar."""
+    uid = os.getuid()
+    etiqueta = "gui/%d/%s" % (uid, SERVICIO)
+    plist = os.path.expanduser("~/Library/LaunchAgents/%s.plist" % SERVICIO)
+    # `kill SIGTERM` NO basta: con `KeepAlive` launchd lo relanza antes del cambio y el
+    # Mando levanta el build viejo. `bootout` lo descarga; nadie lo relanza a mitad.
+    subprocess.run(["launchctl", "bootout", etiqueta], capture_output=True, text=True)
+    time.sleep(1)
     if intercambiar_build():
         print("build nuevo puesto en su sitio (el anterior queda en .next-anterior)", flush=True)
+    subprocess.run(["launchctl", "bootstrap", "gui/%d" % uid, plist],
+                   capture_output=True, text=True)
     subprocess.run(["launchctl", "kickstart", etiqueta], capture_output=True, text=True)
+    # Y ahora se COMPRUEBA que sirve lo que hay en el disco, en vez de darlo por hecho.
+    time.sleep(8)
+    if not sirve_lo_que_hay_en_disco(_html_del_mando()):
+        print("el Mando servía un build que ya no está en el disco: lo reinicio otra vez",
+              flush=True)
+        subprocess.run(["launchctl", "kickstart", "-k", etiqueta], capture_output=True, text=True)
+        time.sleep(8)
     servido = id_del_build()
     # `estado` se cierra aquí a propósito: solo se reinicia tras un build bueno o para
     # servir uno ajeno que ya está en el disco, así que en los dos casos la pantalla queda

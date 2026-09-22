@@ -299,3 +299,49 @@ class NoCompilarSinSitio(unittest.TestCase):
     def test_sin_medida_no_se_bloquea_el_trabajo(self):
         """No poder medir el disco no puede ser motivo para dejar la pantalla vieja."""
         self.assertTrue(R.hay_sitio_para_compilar(None))
+
+
+class ServirLoQueHayEnElDisco(unittest.TestCase):
+    """(2026-09-22, MEDIDO) Un 200 impecable sirviendo un build que ya no existe.
+
+    El plist del Mando tiene `KeepAlive`: `launchctl kill SIGTERM` no para nada, launchd
+    relanza el servidor antes del cambio de directorio y levanta el build VIEJO. Un
+    segundo después ese build se va del disco y la pantalla se queda en «Midiendo el pulso
+    del trabajo…» para siempre, con la consola diciendo:
+
+        Refused to execute script … MIME type ('text/html') is not executable
+    """
+
+    def setUp(self):
+        self.raiz = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.raiz, True)
+        self.chunks = os.path.join(self.raiz, R.DIST_SERVIDO, "static", "chunks")
+        os.makedirs(self.chunks, exist_ok=True)
+
+    def _hay(self, nombre):
+        with open(os.path.join(self.chunks, nombre), "w", encoding="utf-8") as f:
+            f.write("//")
+
+    def test_saca_el_chunk_del_html(self):
+        html = '<script src="/_next/static/chunks/webpack-d2bbf8601d41ad89.js" async></script>'
+        self.assertEqual(R.chunk_del_html(html), "webpack-d2bbf8601d41ad89.js")
+
+    def test_sin_chunk_no_hay_pista(self):
+        self.assertIsNone(R.chunk_del_html("<html></html>"))
+        self.assertIsNone(R.chunk_del_html(""))
+        self.assertIsNone(R.chunk_del_html(None))
+
+    def test_el_que_sirve_existe_en_el_disco(self):
+        self._hay("webpack-d2bbf8601d41ad89.js")
+        html = '<script src="/_next/static/chunks/webpack-d2bbf8601d41ad89.js"></script>'
+        self.assertTrue(R.sirve_lo_que_hay_en_disco(html, self.raiz))
+
+    def test_el_caso_real_del_22_de_septiembre(self):
+        self._hay("webpack-d2bbf8601d41ad89.js")          # lo que había en el disco
+        html = '<script src="/_next/static/chunks/webpack-68ad2f16eee5d4c9.js"></script>'
+        self.assertFalse(R.sirve_lo_que_hay_en_disco(html, self.raiz))
+
+    def test_sin_pista_no_se_acusa_a_nadie(self):
+        """Un HTML del que no se saca nada no puede declarar roto al Mando."""
+        self.assertTrue(R.sirve_lo_que_hay_en_disco("", self.raiz))
+        self.assertTrue(R.sirve_lo_que_hay_en_disco("<html></html>", self.raiz))
