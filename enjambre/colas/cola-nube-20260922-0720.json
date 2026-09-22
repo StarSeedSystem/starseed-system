@@ -1,0 +1,97 @@
+{
+ "ola": "nube-20260922",
+ "tareas": [
+  {
+   "id": "RM4",
+   "ola": 363,
+   "titulo": "Voz de borde con Supertonic: nivel suptonico en el motor Voz StarSeed",
+   "archivos": [
+    "src/lib/aurora/voz-starseed/supertonic.ts",
+    "src/lib/__tests__/voz-supertonic.test.ts"
+   ],
+   "depende": [
+    "RM1"
+   ],
+   "prompt": "Supertonic (https://github.com/supertone-oss-archive/supertonic, archivado: se usa como referencia y se adapta) es TTS on-device en ONNX, sin GPU, 31 idiomas, runtimes py/web/java/cpp/go/swift/rust (PyPI `supertonic`). Encaja con el estudio 1.58/needle porque tampoco exige GPU. NO dupliques el motor de voz: anade un nivel al existente. Abre `src/lib/aurora/voz-starseed/` (`niveles.ts`, `motor.ts`, `capacidades.ts`) y `memory/estudio-voces.md`.\n1) `supertonic.ts`: `interface NivelSuptonico { vivo:boolean; runtime:'onnx-cpu'|'wasm'|'nativo'; modelosCargados:string[]; idiomas:string[]; latenciaMs? }`; `soporteSupertonic(c)` da `{disponible;motivo?}` con disponible = hay WebAssembly SIMD o el runtime nativo `voz-supertonic` en PATH (no requiere el daemon ni GPU); `nivelParaVoz({supertonic;mobile;plataforma})` da `'suptonica'|'158-local'|'nube'|'tronal'` priorizando suptonica (voz de borde, sin GPU ni nube). Reutiliza `capacidades.ts` SOLO como referencia de firma.\n2) Test vitest puro: runtime WASM y sin mobile da `suptonica`; sin runtime da `nube` en movil / `158-local` en escritorio con daemon; `soporteSupertonic` no depende del daemon ni pide GPU.\nSin any, espanol con acentos, tsc limpio.",
+   "modelo": "llm7/minimax-m2.7"
+  },
+  {
+   "id": "p314A",
+   "ola": "Ola 314 · Reservas y enrutamiento verificable",
+   "titulo": "Presupuesto multiventana con reserva, ritmo y cuotas desconocidas explícitas",
+   "archivos": [
+    "scripts/enjambre/presupuesto.py",
+    "scripts/enjambre/test_presupuesto.py"
+   ],
+   "depende": [],
+   "modelo": "llm7/minimax-m2.7",
+   "aprobacion": false,
+   "prompt": "Única tarea: módulo Python PURO NUEVO presupuesto.py y unittest test_presupuesto.py, ≤120 líneas cadauno, sin IO ni libs externas. API decidir_presupuesto(ventanas, costes, ahora, reserva=0.2, antiguedad_max=900, rafaga=0.05)->dict {permitido:bool,motivos:list[str],reintentar_en:float|None}. ventanas lista dict: unidad(str), limite(float), usado(float), reservado(float, default0), inicio(epoch), reinicio(epoch), observado(epoch). costes dict por unidad con estimación NO negativa; falta de coste o ventanas => no_verificado, deniega. Solo admite finitos, no bool, limite>0, inicio<=observado<=ahora<reinicio, usado/reservado>=0; foto caducada o ventana vencida deniega y requiere nueva lectura (no supone reset). Reserva: usado+reservado+coste <= limite*(1-reserva). Ritmo: usado+reservado+coste <= limite*(1-reserva)*min(1, (ahora-inicio)/(reinicio-inicio)+rafaga), distribuye consumo a lo largo de cada ventana, breve ráfaga configurable. Todas las ventanas deben permitir; unidades distintas tienen costes distintos. Si denegación solo ritmo, calcula instante exacto en que puede intentarse; reserva agotada => reinicio; datos inválidos => None. No mutar entrada. Pruebas dos ventanas (horaria permite semanal bloquea), crédito adicional0 no ilimitado, costeausente, datosviejos/NaN/Infinity/futuros, reserva y reservas en vuelo, ráfaga inicial, hora calculada, limitesexactos. No guardar credenciales ni inventar precios ni saldo. NO cablear, no editar otros archivos, NO build ni deps; correr unittest propio. Leer architecture/puente-economico-verificable.md. Otro modelo de dirección revisa y cablea."
+  },
+  {
+   "id": "p314B",
+   "ola": "Ola 314 · Reservas y enrutamiento verificable",
+   "titulo": "Clasificación de fallos y relevo acotado, sin reciclar cuotas ni perder avances",
+   "archivos": [
+    "scripts/enjambre/relevo_seguro.py",
+    "scripts/enjambre/test_relevo_seguro.py"
+   ],
+   "depende": [],
+   "modelo": "llm7/minimax-m2.7",
+   "aprobacion": false,
+   "prompt": "Crear módulo PURO Python relevo_seguro.py y unittest test_relevo_seguro.py (≤120 líneascadauno), sin IO. API decidir_relevo(estado, ahora)->dict {accion:str,motivo:str,reintentar_en:float|None,conservar_trabajo:bool}. Estado dict con codigo_http int|None, timeout bool, intento int>=1, max_intentos int>=1(default3), ultimo_avance epoch|None, proceso_vivo bool|None, fase str, cuota_hasta epoch|None, retry_after_s float|None, revision_aprobada bool(defaultfalse). Reglas prioridad: fase commit/hecho=terminada; faseaprobaciónespera=esperar_aprobacion sin autoaprobar por tiempo; errorespruebas/revisión=corregir no cambiar proveedor sin reparar; 401/403=credenciales_requeridas no repetir claves; 402/cuota_hasta futuro=esperar_cuota;429 espera Retry-After validomax86400 o60s, NO tratado comoAPIdefunta; timeout/5xx/procesomuerto=reenrutar mientras intento<max, despuésesperar_revision; proceso None=dato_desconocido; con proceso vivo y últimoavance<=300s no declararcolgado; solo faseescribiendo y sin avance>300s reenrutar. Nunca aplica umbral de escritura a tsc/tests/revision. En todas las ramas conservar_trabajo True. Testpuro casos incluyendo None, límiteintentos, fasespuertasvivasviejas, noaprobar, 429noreintentarantes, timeout máximo; sin mocksdeNode. NO cablear todavía ni editarotroarchivo ni build ni deps. Lee architecture/puente-economico-verificable.md."
+  },
+  {
+   "id": "p312C",
+   "ola": "Ola 312 · Controles verificables del Mando",
+   "titulo": "Consola Director con ajustes, APIs, tareas y conexiones ya conectados",
+   "archivos": [
+    "src/components/mando/director-consola.tsx",
+    "src/components/mando/__tests__/director-consola.test.tsx"
+   ],
+   "depende": [],
+   "modelo": "llm7/minimax-m2.7",
+   "aprobacion": true,
+   "prompt": "Lee AGENTS.md y architecture/puente-economico-verificable.md. Alex confirma que DirectorAgentes tiene datos incorrectos y botones sin handlers. Crear vista NUEVA DirectorConsola con composición, NO duplicar lectores/APIs/formularios existentes. Usar Tabs shadcn existentes con secciones: Automatización y límites (PanelAjustes de panel-ajustes), APIs y modelos (PanelFlota de panel-flota), Tareas y olas (PanelOlas de panel-olas), Conexiones IDE (PanelEntornos de panel-entornos), Verificaciones y commits (PanelPublicaciones de panel-publicaciones). Solo montar panel seleccionado para no multiplicar sondeos. Leer cada componente y sus props antes de componer. Texto claro: guardar configuración no prueba aplicación; distinguir ajustes para próxima ola de acciones actuales; sin afirmar presupuesto preventivo integrado. Sin métricas fijas, sin controles decorativos, sin secretos. Menú accesible, responsive, estados de carga usando dynamic si necesario, no autoactivar agentes ni desactivar revisión. Máximo120líneas por archivo. Test de navegación keyboard/selección/montaje exclusivo; vi.mock de componentes React permitido, NO módulos Node ni importar route.ts. No cablear CentroMando todavía, no build ni dependencias."
+  },
+  {
+   "id": "p315A",
+   "ola": "Ola 315 · Supervisión sin inferencia",
+   "titulo": "Lector de cuotas Codex por app-server sin crear hilos ni gastar tokens de modelo",
+   "archivos": [
+    "scripts/puente/cuotas_codex.py",
+    "scripts/puente/test_cuotas_codex.py"
+   ],
+   "depende": [],
+   "modelo": "llm7/minimax-m2.7",
+   "aprobacion": true,
+   "prompt": "Crear lector Python stdlib nuevo cuotas_codex.py (≤120 líneas) y unittestpropio, no modificarotrosarchivos. Protocolo OFICIAL leído y verificado en esta Mac https://learn.chatgpt.com/docs/app-server: subprocess ['codex','app-server','--listen','stdio://']; stdin/stdout JSONL. Enviar {id:0,method:'initialize',params:{clientInfo:{name:'starseed_cuotas',version:'0.1.0'}}}, esperar respuestaid0 result, emitir {method:'initialized'}, luego {id:1,method:'account/rateLimits/read'}. Resultado devuelve rateLimitsByLimitId o rateLimits con primary/secondary {usedPercent,windowDurationMins,resetsAt}, credits {hasCredits,unlimited,balance}, planType. YA se probó con éxito aquí sin ninguna inferencia. Nunca thread/start, turn/start, queue, consumirreset, leer auth.json ni usarclaves. API leer_cuotas(timeout_s=20)->dict; selectors+os.read para evitar blocking readline; fin monotónico; siempre cerrar proceso/grupo propio en finally, con timeout de espera y limpieza. stdout deerrores/credenciales no se registra. salida sanitizada whitelista: observadoEn epochtime, estado verificado/error, ventanas con límite100/unidadporcentaje, usado usedPercent, inicio resetsAt-windowDurationMins*60, reinicio, observado; balanceadicional separado (puede ser0 oNone, nunca inferir de suscripción). Mantener limitId+nombreventana para distinguir múltiplesbudgets. No accountId ni tokens ni metadata personal. normalizar_cuotas(respuesta,ahora) pura exportada para pruebas; datosnull/NaN/malos no se inventan. CLI main imprime JSONsanitizado una vez. Tests toda normalización confixture sintético, comunicación simularsolo transporte stdlib si posible; no llamadas reales desdeunittest. No crear daemon ni loop ni archivosdeestado aún, cableado aparte. No build/node/testsfull; solo unittest."
+  },
+  {
+   "id": "c313_QW5",
+   "ola": "Ola 313 · Consolidación de pendientes",
+   "titulo": "Caché de un año para archivos inmutables",
+   "archivos": [
+    "src/lib/files/os-files.ts",
+    "src/lib/os-social.ts"
+   ],
+   "prompt": "Procesa la tarea: Caché de un año para archivos inmutables. Archivos: ['src/lib/files/os-files.ts', 'src/lib/os-social.ts']. Escribe código limpio, sin any, en español con acentos. tsc limpio.",
+   "depende": [],
+   "modelo": "llm7/minimax-m2.7",
+   "aprobacion": false
+  },
+  {
+   "id": "JV8",
+   "ola": 357,
+   "titulo": "El contrato de openjev en el OS: una sola puerta de decisiones para Astraura, el enjambre y todos los IDE",
+   "archivos": [
+    "src/app/api/jev/systemone/route.ts",
+    "src/lib/mando/jev-contrato.ts",
+    "src/lib/mando/__tests__/jev-contrato.test.ts"
+   ],
+   "depende": [],
+   "prompt": "CONTEXTO COMUN DE LA OLA 357 (2026-09-20, medido en la Mac de Alex).\nHoy Jev vive en `scripts/puente/jev.py`: decisiones TIPADAS (sin texto generado) contra\n`POST https://openrouter.ai/api/alpha/decisions`, modelo `~typesafe/jev-latest`. Medido:\n0,56 s y $0,000019 por decision, con techo de 0,05 $/dia y 1 $/mes. Funciona, pero se paga\ny se acaba.\n\nAlex trajo cuatro fuentes que hacen LO MISMO sin pagar, y todas coinciden en la misma idea:\n · openjev (razorback16): servidor de decisiones compatible con Jev, `POST /v1/systemone`.\n   Pide GPU NVIDIA de 24 GB: NO cabe aqui. Lo que si nos sirve es SU CONTRATO.\n · decider (Mapika): Qwen3.5-2B, restringe los logits a las letras A..J y hace softmax.\n · nimble (bespokelabs): Qwen3.5-9B+LoRA, con ParallelScorer para Mac: procesa el contexto\n   UNA vez y puntua todos los campos.\n · AlexWortega/openjev (HF): cross-encoder NLI de 4B, MIT.\nLa tecnica es siempre la misma: NO se genera texto; se mira la probabilidad de los tokens\nde las opciones y se normaliza. Eso se puede hacer con el motor que YA tenemos.\n\nLO QUE YA HAY Y SE COMPRUEBA (no hay que descargar ningun modelo nuevo):\n`llama-server` de BitNet b1.58-2B-4T sirve en http://127.0.0.1:8790 (Astraura 1.58 bit).\nComprobado hoy: `POST /completion` con `n_probs` DEVUELVE las probabilidades por token.\nEjemplo real de su respuesta a «A = si / B = no»:\n   {\"token\": \" B\", \"logprob\": -0.788}, {\"token\": \" A\", \"logprob\": -1.527}\nEs decir: el Jev local ya es posible con el motor de 1,58 bits que Alex tiene encendido.\n\nEL LIMITE QUE NO SE PUEDE IGNORAR: la Mac tiene 8 GB y `scripts/puente/guardia-memoria.py`\nCONGELA BitNet (SIGSTOP) mientras el enjambre escribe, y lo reanuda cuando para. O sea: el\nmedio local esta disponible cuando el enjambre NO trabaja. Por eso esto es una PIRAMIDE,\nno un reemplazo:\n   1) local (BitNet 1.58 bit, gratis) si responde en el plazo,\n   2) OpenRouter `~typesafe/jev-latest` (de pago, con techo) si el local no esta,\n   3) la regla determinista de quien llama, SIEMPRE, si no hay ninguno de los dos.\nJev es CONSEJERO, nunca oraculo: sin clave, sin red, congelado o con error, todo devuelve\nNone y quien llama sigue como si Jev no existiera. Esa regla no se toca.\nLa clave vive SOLO en OPENROUTER_API_KEY (~/.hermes/.env o ~/.starseed/env). Jamas se\nimprime, ni en un log, ni en un evento, ni en una respuesta HTTP.\n\nTU TAREA: que cualquiera —Astraura, el enjambre, Hermes, Claude, ChatGPT, opencode o un\nguion de Alex— pida una decision tipada al mismo sitio y con el mismo formato. El formato\nNO lo inventamos: es el de openjev, para que manana se pueda cambiar el motor de debajo\nsin tocar a nadie.\n\nCONTRATO `POST /api/jev/systemone`:\n  entrada  {state: string|object, questions: [{id, type: 'noul'|'choice'|'score',\n            options?: string[], levels?: string[], question: string}], medio?: string}\n  salida   {ok, answers: [{id, answer, probs: {opcion: prob}, confidence}], medio, ms}\n  errores  400 con {ok:false, error} si el cuerpo no cumple; NUNCA 500 con una traza.\n\n1. `jev-contrato.ts` es PURO y es donde vive la validacion y la forma: `validarPeticion`,\n   `normalizarPreguntas`, `formatearRespuesta`. Sin fs, sin red, sin `node:*`: de aqui\n   tienen que poder importar tambien componentes de cliente. (El 2026-09-20 un import de\n   valor desde un modulo con `node:fs` en un componente de cliente tumbo `next build`.)\n2. `route.ts` (runtime nodejs) valida con ese modulo y ejecuta `scripts/puente/jev.py` como\n   proceso hijo pasandole el cuerpo por STDIN — nunca por la linea de ordenes, que queda\n   en el historial. Plazo de 15 s; si vence, {ok:false, error:'sin respuesta'} y 200, para\n   que quien llama aplique su regla determinista.\n3. Esta ruta NO lleva el guardian de /api/mando (que da 404 fuera de local) porque Astraura\n   la necesita desde el OS; pero SI limita a 30 peticiones por minuto y por IP, y NO acepta\n   `state` de mas de 8.000 caracteres.\n4. Jamas se devuelve ni se registra ninguna clave, ni el prompt completo, ni la salida cruda\n   del proceso hijo: solo lo que dice el contrato.\n\nPRUEBAS (vitest) del modulo puro: cuerpo valido, cuerpo sin `questions`, una pregunta con\n`type` desconocido, `state` demasiado largo, y que `formatearRespuesta` normaliza las\nprobabilidades a suma 1.\nVerde obligatorio: `bash scripts/enjambre/tsc-turno.sh` y la prueba nueva.",
+   "modelo": "llm7/minimax-m2.7"
+  }
+ ]
+}
