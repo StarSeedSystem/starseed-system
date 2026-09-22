@@ -22,7 +22,7 @@ import { DisenadorOla } from "@/components/mando/disenador-ola";
 import { Switch } from "@/components/ui/switch";
 import { escuchar as escucharAsistente, tomarTareaPendiente } from "@/lib/mando/asistente-cliente";
 import type { ConfigEnjambre } from "@/lib/mando/ajustes-tipos";
-import { clasificar, resumenVeredictos, type TareaAnalizar } from "@/lib/mando/reintento-inteligente";
+import { contarVeredictos } from "@/lib/mando/reintento-inteligente";
 
 import type { FotoEnjambre, LatidoTarea } from "@/lib/mando/tipos";
 import type { AlcanceRama, ImpactoRama, RamaOla, RamaTarea, Ramificacion } from "@/lib/mando/ramificacion";
@@ -942,19 +942,9 @@ function SwitchResolucion() {
     );
 }
 
-function aTareaAnalizar(t: RamaTarea): TareaAnalizar {
-    return {
-        id: t.id,
-        ola: t.ola,
-        titulo: t.titulo,
-        estado: t.estado,
-        nota: t.nota,
-        motivo: t.motivoAprobacion ?? t.nota ?? "",
-        depende: t.dependencias,
-        archivos: [],
-        modelo: t.modelo,
-    };
-}
+// `aTareaAnalizar` vivía aquí para clasificar en el navegador. Se retiró el 2026-09-22: la
+// clasificación necesita `revisiones.md`, que solo existe en el disco, así que la hace el
+// servidor (`construirRamificacion`) y manda el veredicto con cada tarea.
 
 export function BotonReintentoIndividual({
     tarea,
@@ -966,9 +956,15 @@ export function BotonReintentoIndividual({
     const [enviando, setEnviando] = useState(false);
     const [resultado, setResultado] = useState<{ ok: boolean; texto: string } | null>(null);
 
-    const clasificación = useMemo(() => {
-        return clasificar(aTareaAnalizar(tarea), {}, "");
-    }, [tarea]);
+    // El veredicto lo trae el servidor, que SÍ puede leer `olas/revisiones.md` y
+    // `progreso.json`. Calcularlo aquí con `clasificar(tarea, {}, "")` era la razón de que
+    // toda tarea rechazada dijese «rechazo sin razón escrita» (2026-09-22): el navegador no
+    // tiene la revisión, así que la respuesta estaba decidida antes de mirar. Si el servidor
+    // no manda veredicto, se dice que falta, no se inventa uno.
+    const clasificación = useMemo(
+        () => tarea.veredicto ?? { accion: "sin veredicto", motivo: "el servidor no lo calculó" },
+        [tarea.veredicto],
+    );
 
     const ejecutar = useCallback(async () => {
         setEnviando(true);
@@ -1064,8 +1060,9 @@ export function SeccionBloqueadasReintentos({
         );
     }, [olas]);
 
+    // Los veredictos del SERVIDOR (ver BotonReintentoIndividual): aquí solo se cuentan.
     const resumen = useMemo(() => {
-        return resumenVeredictos(elegibles.map(aTareaAnalizar), {}, "");
+        return contarVeredictos(elegibles.map((t) => t.veredicto));
     }, [elegibles]);
 
     // (2026-09-22, Alex: «aparece diferente numero de tareas bloqueadas del medidor del
@@ -1143,7 +1140,12 @@ export function SeccionBloqueadasReintentos({
                     {desglose.length ? (
                         <p className="mt-0.5 text-[10px] text-amber-100/60" data-testid="desglose-bloqueadas">
                             {desglose.map((p) => `${p.n} ${p.etiqueta}`).join(" · ")}
-                            {" — el medidor «Bloqueadas» del pulso cuenta solo las primeras"}
+                            {/* La frase anterior decía que el pulso «cuenta solo las primeras» y
+                                era falsa: esta lista son las que tienen rama o veredicto AQUÍ, y
+                                el pulso cuenta toda tarea que espera a otra, incluidas las de
+                                colas sin lanzar (que no tienen rama). Por eso los dos números no
+                                coinciden y no tienen por qué: cuentan cosas distintas. (2026-09-22) */}
+                            {" — aquí solo lo que tiene rama o veredicto en esta máquina; el medidor «Bloqueadas» del pulso cuenta toda tarea que espera a otra, incluidas las de colas sin lanzar"}
                         </p>
                     ) : null}
                     <p className="mt-0.5 text-xs font-mono text-amber-100/80" data-testid="resumen-veredictos">

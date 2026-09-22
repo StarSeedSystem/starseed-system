@@ -53,6 +53,12 @@ SERVICIOS = {
                    '-- /opt/homebrew/bin/npx next start -p 9002'
                    % (" ".join(LANZ), RAIZ)],
                   "/tmp/starseed-mando.log", True),
+    # (2026-09-22) El Mando se sirve con `next start`, o sea de un build compilado: editar
+    # `src/` no cambiaba NADA de lo que se ve hasta que alguien corría `next build`. De ahí
+    # los «todo sigue igual» de Alex delante de arreglos que ya estaban en el disco. Esto
+    # compila solo cuando las fuentes de la pantalla cambian, con el turno de la máquina
+    # (para no pelear RAM con los agentes) y reinicia el Mando al acabar.
+    "reconstruir": ([PY3, P("reconstruir_mando.py")], "/tmp/starseed-reconstruir.log", True),
 }
 
 PLANTILLA = """<?xml version="1.0" encoding="UTF-8"?>

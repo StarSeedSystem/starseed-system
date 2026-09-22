@@ -141,18 +141,43 @@ def _inputs_guardados(run_id) -> dict:
     return {}
 
 
-def main() -> int:
-    datos = resumir(_runs_de_github(), time.time())
-    # Los lanzamientos anotados se conservan: son la única forma de saber con cuántos
-    # trabajadores salió cada run.
+def conservar_lanzamientos(datos: dict, previo) -> dict:
+    """PURA: devuelve `datos` con los lanzamientos anotados de `previo` intactos.
+
+    (2026-09-22) Esto es un parche con sangre. El director de la nube escribía este mismo
+    archivo con la salida de `resumir()` a pelo, y `resumir()` no sabe nada de
+    lanzamientos: cada medición borraba la única anotación que dice con cuántos
+    trabajadores salió cada run, así que un run de 4 agentes volvía a contarse como 1.
+    La misma enfermedad de siempre — dos sitios escribiendo el mismo archivo de forma
+    distinta — así que ahora sólo se escribe por aquí.
+    """
+    salida = dict(datos or {})
+    if isinstance(previo, dict):
+        salida["lanzamientos"] = (previo.get("lanzamientos") or [])[-30:]
+    else:
+        salida["lanzamientos"] = []
+    return salida
+
+
+def escribir(datos: dict) -> dict:
+    """El ÚNICO escritor del bus de agentes de la nube."""
     try:
         with open(SALIDA, encoding="utf-8") as f:
-            datos["lanzamientos"] = (json.load(f).get("lanzamientos") or [])[-30:]
+            previo = json.load(f)
     except Exception:
-        datos["lanzamientos"] = []
-    os.makedirs(os.path.dirname(SALIDA), exist_ok=True)
-    with open(SALIDA, "w", encoding="utf-8") as f:
-        json.dump(datos, f, ensure_ascii=False, indent=1)
+        previo = None
+    datos = conservar_lanzamientos(datos, previo)
+    try:
+        os.makedirs(os.path.dirname(SALIDA), exist_ok=True)
+        with open(SALIDA, "w", encoding="utf-8") as f:
+            json.dump(datos, f, ensure_ascii=False, indent=1)
+    except OSError:
+        pass
+    return datos
+
+
+def main() -> int:
+    datos = escribir(resumir(_runs_de_github(), time.time()))
     print("agentes en la nube: %d en %d run(s)" % (datos["agentes"], len(datos["runs"])))
     for r in datos["runs"]:
         print("  run %s · %s agentes · %s" % (r["run"], r["agentes"], r.get("cola") or "?"))

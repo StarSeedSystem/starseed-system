@@ -73,6 +73,7 @@ function ramaDelBorrador(nombre: string, tareas: TareaCola[]): RamaOla {
         revision: null,
         motivoAprobacion: null,
         bloqueadaPor: null,
+        veredicto: null,
         aprobacion: null,
         impacto: null,
     }));

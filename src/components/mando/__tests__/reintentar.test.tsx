@@ -69,7 +69,11 @@ Riesgos reales:
 
 const fetchOriginal = globalThis.fetch;
 
-function crearTareaFake(id: string, estado: string): RamaTarea {
+function crearTareaFake(
+    id: string,
+    estado: string,
+    veredicto: { accion: string; motivo: string } | null = null,
+): RamaTarea {
     return {
         id,
         ola: "340",
@@ -94,6 +98,9 @@ function crearTareaFake(id: string, estado: string): RamaTarea {
         revision: null,
         motivoAprobacion: "revisión rechazada",
         bloqueadaPor: estado === "bloqueada" ? "DEP1" : null,
+        // El veredicto lo calcula el servidor (construirRamificacion): el componente
+        // solo lo muestra, asi que la prueba lo da hecho, como llega por la API.
+        veredicto: veredicto ?? null,
         aprobacion: null,
         impacto: null,
     };

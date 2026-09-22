@@ -598,21 +598,31 @@ export function CentroMando() {
     // (/api/mando/medidores). Calcular la pastilla por una vía distinta (p. ej. contarTrabajoReal)
     // causaba la incoherencia reportada (pastilla «2» y detalle «20»). Si la petición a la API
     // falla, se muestra un guion honesto («—») en lugar de mostrar un número de otra fuente.
+    // `agentes` sale de aquí por la misma razón (Ola 337 · MND7, 2026-09-22): la pastilla
+    // «Agentes» enseñaba `pulso.tareasEnCurso`, o sea el MISMO número que «Tareas en curso»
+    // — lo que Alex vio como «son los mismos datos» — y encima se quedaba en 3 (la Mac)
+    // mientras la nube tenía 4 agentes escribiendo. Ahora cuenta agentes, no tareas, y
+    // cuenta los de todos los medios porque el detalle sale de la misma llamada.
     const [medidoresResumen, setMedidoresResumen] = useState<{
         listas: number | null;
         bloqueadas: number | null;
+        agentes: number | null;
+        agentesResumen: string | null;
     } | null>(null);
 
     const cargarMedidoresResumen = useCallback(async (forzar = false) => {
         if (!forzar && document.visibilityState === "hidden") return;
         try {
-            const [resListas, resBloqueadas] = await Promise.allSettled([
+            const [resListas, resBloqueadas, resAgentes] = await Promise.allSettled([
                 fetch("/api/mando/medidores?clave=listas", { cache: "no-store" }),
                 fetch("/api/mando/medidores?clave=bloqueadas", { cache: "no-store" }),
+                fetch("/api/mando/medidores?clave=agentes", { cache: "no-store" }),
             ]);
 
             let listas: number | null = null;
             let bloqueadas: number | null = null;
+            let agentes: number | null = null;
+            let agentesResumen: string | null = null;
 
             if (resListas.status === "fulfilled" && resListas.value.ok) {
                 const dataListas = (await resListas.value.json()) as { detalle?: DetalleMedidor };
@@ -629,9 +639,17 @@ export function CentroMando() {
                 }
             }
 
-            setMedidoresResumen({ listas, bloqueadas });
+            if (resAgentes.status === "fulfilled" && resAgentes.value.ok) {
+                const dataAgentes = (await resAgentes.value.json()) as { detalle?: DetalleMedidor };
+                if (dataAgentes.detalle?.filas) {
+                    agentes = dataAgentes.detalle.filas.length;
+                    agentesResumen = dataAgentes.detalle.resumen ?? null;
+                }
+            }
+
+            setMedidoresResumen({ listas, bloqueadas, agentes, agentesResumen });
         } catch {
-            setMedidoresResumen({ listas: null, bloqueadas: null });
+            setMedidoresResumen({ listas: null, bloqueadas: null, agentes: null, agentesResumen: null });
         }
     }, []);
 
@@ -1095,9 +1113,21 @@ export function CentroMando() {
                             {
                                 clave: "agentes" as const,
                                 titulo: "Agentes",
-                                valor: String(pulso.tareasEnCurso),
-                                tono: (pulso.tareasEnCurso > 0 ? "ok" : "normal") as TonoMedidor,
-                                detalle: "quién escribe cada tarea",
+                                // Agentes, no tareas: la Mac va a 3 por su RAM, pero cada job de
+                                // la nube trae los suyos y también escriben. El detalle sale de
+                                // la MISMA llamada, así que pastilla y ventana no pueden discrepar.
+                                valor:
+                                    medidoresResumen?.agentes !== null && medidoresResumen?.agentes !== undefined
+                                        ? String(medidoresResumen.agentes)
+                                        : "—",
+                                tono: (
+                                    medidoresResumen?.agentes !== null &&
+                                    medidoresResumen?.agentes !== undefined &&
+                                    medidoresResumen.agentes > 0
+                                        ? "ok"
+                                        : "normal"
+                                ) as TonoMedidor,
+                                detalle: medidoresResumen?.agentesResumen ?? "quién escribe, aquí y en la nube",
                             },
                             {
                                 clave: "listas" as const,

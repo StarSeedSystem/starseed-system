@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { claveTarea, claveLatido } from "../mando/ramificacion";
+import { claveTarea, claveLatido, necesitaVeredicto } from "../mando/ramificacion";
 
 describe("claveTarea (Ola 248 · ids repetidos entre olas)", () => {
   it("un mismo id en dos olas distintas produce claves distintas", () => {
@@ -23,5 +23,24 @@ describe("claveLatido (cola normalizada)", () => {
 
   it("una cola ya normalizada se queda como está", () => {
     expect(claveLatido("247-rito-fluido", "R2")).toBe("247-rito-fluido|R2");
+  });
+});
+
+describe("necesitaVeredicto (2026-09-22 · quién merece un veredicto)", () => {
+  it("las rechazadas, bloqueadas y los fallos sí", () => {
+    for (const e of ["rechazada", "bloqueada", "bloqueante", "fallo_tests", "fallo_tsc", "sin_cambios", "interrumpida"]) {
+      expect(necesitaVeredicto(e, null)).toBe(true);
+    }
+  });
+
+  it("una tarea integrada o en curso no: no hay nada que decidir", () => {
+    for (const e of ["commit", "en_curso", "pendiente", "esperando_aprobacion"]) {
+      expect(necesitaVeredicto(e, null)).toBe(false);
+    }
+  });
+
+  it("si espera una dependencia, sí, aunque su estado no lo diga", () => {
+    // El panel la ofrece por `bloqueadaPor`, así que tiene que traer veredicto o saldría vacío.
+    expect(necesitaVeredicto("pendiente", "dependencia no integrada: J1")).toBe(true);
   });
 });

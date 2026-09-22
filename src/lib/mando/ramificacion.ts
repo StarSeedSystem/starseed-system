@@ -29,6 +29,7 @@ import {
     leerProgreso,
 } from "@/lib/mando/lector-local";
 import { idEnAsuntos } from "@/lib/mando/medidores";
+import { clasificar } from "@/lib/mando/reintento-inteligente";
 import type { FotoEnjambre, LatidoTarea, TareaOla } from "@/lib/mando/tipos";
 import { raizDelProyecto } from "@/lib/mando/raiz";
 
@@ -90,6 +91,18 @@ export interface RamaTarea {
     motivoAprobacion: string | null;
     /** Nota del evento `bloqueada`: «dependencia no integrada: J1 (sin_cambios)» o similar. */
     bloqueadaPor: string | null;
+    /**
+     * Qué hacer con ella según la revisión escrita: `reintentar` con la objeción literal,
+     * `esperar` o `descartar`. Se calcula AQUÍ, en el servidor, porque la objeción vive en
+     * `olas/revisiones.md` y el navegador no puede leer ese archivo.
+     *
+     * (2026-09-22) Antes lo calculaba el componente con `clasificar(tarea, {}, "")` — con el
+     * progreso y las revisiones VACÍOS — así que absolutamente toda tarea rechazada salía
+     * como «descartar: rechazo sin razón escrita», aunque su revisión dijese «sí, bloqueante»
+     * y explicase el arreglo en tres líneas. El panel ofrecía descartar 24 trabajos por falta
+     * de una razón que sí estaba escrita.
+     */
+    veredicto: { accion: string; motivo: string } | null;
     /** Si espera el visto bueno humano: la rama lista, su diff y lo que dijo el revisor. */
     aprobacion: { rama: string; sha: string; diffstat: string; revision: string; bloqueante: boolean; modelo: string; desde: string; impacto: ImpactoRama | null } | null;
     /** Radio de impacto del diff según el grafo del código (GitNexus), si la máquina lo tiene. */
@@ -278,6 +291,34 @@ export function motivoDe(datos: unknown): string | null {
 }
 
 /** Pasos locales: `olas/pasos/<id>.jsonl` (una línea JSON por paso). */
+/**
+ * `olas/revisiones.md`: donde los revisores dejan escrito por qué rechazaron algo.
+ *
+ * Vale "" si no está: el veredicto se degrada a «sin razón escrita», que es lo honesto
+ * cuando de verdad no hay revisión — y ya no lo que se decía de TODAS.
+ */
+async function leerRevisionesMd(): Promise<string> {
+    for (const rel of [path.join("starseed_memory_root", "olas", "revisiones.md"),
+                       path.join("olas", "revisiones.md")]) {
+        try {
+            return await readFile(path.join(RAÍZ, rel), "utf-8");
+        } catch {
+            // Sigue con la siguiente ubicación.
+        }
+    }
+    return "";
+}
+
+/** Los estados en los que un veredicto significa algo: el resto no hay nada que decidir. */
+const ESTADOS_CON_VEREDICTO = new Set([
+    "bloqueada", "rechazada", "bloqueante", "fallo_tests", "sin_cambios", "interrumpida",
+]);
+
+export function necesitaVeredicto(estado: string, bloqueadaPor: string | null): boolean {
+    const e = String(estado || "");
+    return ESTADOS_CON_VEREDICTO.has(e) || e.startsWith("fallo") || Boolean(bloqueadaPor);
+}
+
 async function leerPasosLocales(): Promise<Map<string, PasoRama[]>> {
     const salida = new Map<string, PasoRama[]>();
     for (const dir of ["starseed_memory_root/olas/pasos", "olas/pasos"]) {
@@ -384,7 +425,7 @@ function niveles(tareas: TareaOla[]): Map<string, number> {
  * bus y latidos. `horasBus` acota cuánto historial del bus se cruza (por defecto 72 h).
  */
 export async function construirRamificacion(cuantas = 4, horasBus = 24 * 30): Promise<Ramificacion> {
-    const [tareas, progreso, pasosLocales, bus, latidosMac, delBus, commitsGit, asuntosDeMain] = await Promise.all([
+    const [tareas, progreso, pasosLocales, bus, latidosMac, delBus, commitsGit, asuntosDeMain, revisionesMd] = await Promise.all([
         leerColas(),
         leerProgreso(),
         leerPasosLocales(),
@@ -393,6 +434,7 @@ export async function construirRamificacion(cuantas = 4, horasBus = 24 * 30): Pr
         leerLatidosDelBus(),
         leerCommitsDeOlas(),
         leerAsuntosDeMain(),
+        leerRevisionesMd(),
     ]);
 
     // Latidos: lo local manda sobre el bus para la misma tarea; la nube se añade.
@@ -660,6 +702,23 @@ export async function construirRamificacion(cuantas = 4, horasBus = 24 * 30): Pr
                 revision: revisionResumen,
                 motivoAprobacion,
                 bloqueadaPor,
+                veredicto: necesitaVeredicto(estado, bloqueadaPor)
+                    ? clasificar(
+                          {
+                              id: t.id,
+                              ola: etiqueta,
+                              titulo: t.titulo,
+                              estado,
+                              nota,
+                              motivo: motivoAprobacion ?? nota ?? "",
+                              depende: t.dependencias,
+                              archivos: [],
+                              modelo,
+                          },
+                          progreso,
+                          revisionesMd,
+                      )
+                    : null,
                 impacto,
             });
         }

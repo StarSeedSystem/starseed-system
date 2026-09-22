@@ -341,14 +341,28 @@ export function resumenVeredictos(
     progreso: unknown,
     revisionesMd: string
 ): { reintentarCount: number; descartarCount: number; esperarCount: number; resumenTexto: string } {
+    return contarVeredictos(tareas.map((t) => clasificar(t, progreso, revisionesMd)));
+}
+
+/**
+ * El mismo recuento, pero a partir de veredictos YA calculados.
+ *
+ * (2026-09-22) Existe porque el navegador no puede calcularlos: llamaba a
+ * `resumenVeredictos(tareas, {}, "")` —sin progreso y sin revisiones— y el resumen decía
+ * «0 se reintentan · 24 se descartan» de trabajos cuya objeción estaba escrita palabra por
+ * palabra en `revisiones.md`. Ahora el servidor los calcula una vez y aquí solo se cuentan.
+ */
+export function contarVeredictos(
+    veredictos: Array<{ accion: string } | null | undefined>
+): { reintentarCount: number; descartarCount: number; esperarCount: number; resumenTexto: string } {
     let reintentarCount = 0;
     let descartarCount = 0;
     let esperarCount = 0;
 
-    for (const t of tareas) {
-        const clas = clasificar(t, progreso, revisionesMd);
-        if (clas.accion === "reintentar") reintentarCount++;
-        else if (clas.accion === "esperar") esperarCount++;
+    for (const v of veredictos) {
+        const accion = v?.accion;
+        if (accion === "reintentar") reintentarCount++;
+        else if (accion === "esperar") esperarCount++;
         else descartarCount++;
     }
 

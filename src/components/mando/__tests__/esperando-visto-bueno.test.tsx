@@ -37,6 +37,7 @@ function tareaQueEspera(id = "A1"): RamaTarea {
         revision: null,
         motivoAprobacion: "revisión bloqueante",
         bloqueadaPor: null,
+        veredicto: null,
         aprobacion: null,
         impacto: null,
     };
