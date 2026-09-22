@@ -1,0 +1,25 @@
+{
+ "ola": "nube-20260921",
+ "tareas": [
+  {
+   "id": "tOtra",
+   "ola": "Ola test",
+   "titulo": "tarea distinta",
+   "prompt": "un enunciado suficientemente largo para pasar la validación",
+   "archivos": [],
+   "depende": [],
+   "modelo": "llm7/minimax-m2.7"
+  },
+  {
+   "id": "tReintento",
+   "ola": "Ola test",
+   "titulo": "tarea a reintentar",
+   "prompt": "un enunciado suficientemente largo para pasar la validacion de prompt",
+   "archivos": [
+    "src/lib/test.ts"
+   ],
+   "depende": [],
+   "modelo": "llm7/minimax-m2.7"
+  }
+ ]
+}
