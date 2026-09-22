@@ -66,13 +66,18 @@ class MatarColgadosTest(unittest.TestCase):
     def test_si_sobrevive_al_termina_con_kill_menos_nueve(self):
         ordenes = []
         procesos = [_trabajador(4321, ultimo_byte=0, inicio=0)]
+
+        def _run_mock(o, **k):
+            ordenes.append(list(o))
+            return mock.Mock(stdout="opencode run ...")
+
         with (
             mock.patch.object(vig, "listar_trabajadores", return_value=procesos),
             mock.patch.object(vig, "COLGADO_S", 1800),
             mock.patch.object(
                 vig.subprocess,
                 "run",
-                side_effect=lambda o, **k: ordenes.append(list(o)) or mock.Mock(),
+                side_effect=_run_mock,
             ),
             mock.patch.object(vig.os, "kill"),  # sigue vivo: no lanza nada
             mock.patch.object(vig.time, "sleep"),
@@ -80,6 +85,30 @@ class MatarColgadosTest(unittest.TestCase):
         ):
             vig.matar_colgados(decir=lambda *a: None)
         self.assertIn(["kill", "-9", "4321"], ordenes)
+
+    def test_si_pid_reutilizado_no_manda_kill_menos_nueve(self):
+        ordenes = []
+        procesos = [_trabajador(4321, ultimo_byte=0, inicio=0)]
+
+        def _run_mock(o, **k):
+            ordenes.append(list(o))
+            # Si se consulta el comando del PID 4321, devuelve otro proceso distinto
+            if o[:2] == ["ps", "-p"]:
+                return mock.Mock(stdout="python3 /otro/proceso.py")
+            return mock.Mock(stdout="")
+
+        with (
+            mock.patch.object(vig, "listar_trabajadores", return_value=procesos),
+            mock.patch.object(vig, "COLGADO_S", 1800),
+            mock.patch.object(vig.subprocess, "run", side_effect=_run_mock),
+            mock.patch.object(vig.os, "kill"),  # no lanza excepción, parecería vivo
+            mock.patch.object(vig.time, "sleep"),
+            mock.patch.object(vig.time, "time", return_value=4000),
+        ):
+            vig.matar_colgados(decir=lambda *a: None)
+        # TERM sí se envió, pero -9 NO porque el PID cambió de proceso
+        self.assertIn(["kill", "-TERM", "4321"], ordenes)
+        self.assertNotIn(["kill", "-9", "4321"], ordenes)
 
     def test_jamas_se_construye_una_orden_con_pkill(self):
         ordenes = []
@@ -188,6 +217,33 @@ class EsperarReintentoTest(unittest.TestCase):
         esperado = vig.PAUSA_TRAS_FALLO_S // vig.INTERVALO_S
         self.assertLessEqual(len(dormido), esperado + 1)
         self.assertGreater(len(dormido), 0)  # sí hubo espera por tramos
+
+
+class UltimoByteTest(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+
+    def test_mtime_recursivo_en_subcarpetas(self):
+        # Crear subdirectorio profundo src/lib
+        sub = os.path.join(self.tmp, "src", "lib")
+        os.makedirs(sub, exist_ok=True)
+        f_path = os.path.join(sub, "component.ts")
+
+        # Poner carpetas en el pasado
+        ahora = time.time()
+        os.utime(self.tmp, (ahora - 1000, ahora - 1000))
+        os.utime(os.path.join(self.tmp, "src"), (ahora - 1000, ahora - 1000))
+        os.utime(sub, (ahora - 1000, ahora - 1000))
+
+        # Crear archivo en subcarpeta con tiempo más reciente
+        with open(f_path, "w", encoding="utf-8") as f:
+            f.write("export const A = 1;")
+        os.utime(f_path, (ahora + 5000, ahora + 5000))
+
+        # _ultimo_byte_de debe encontrar la mtime de component.ts (ahora + 5000)
+        u_byte = vig._ultimo_byte_de(self.tmp)
+        self.assertEqual(u_byte, ahora + 5000)
 
 
 if __name__ == "__main__":

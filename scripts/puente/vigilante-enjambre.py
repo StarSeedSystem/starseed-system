@@ -348,9 +348,7 @@ def _pendientes_sin_correcciones():
     # Con la hora puesta, esa tarea cae en «bloqueadas», la lista queda vacía y
     # `decidir_relanzamiento` ya no relanza (n_pendientes <= 0). De paso entra el
     # orden por importancia que pidió Alex: primero lo que amplía capacidad.
-    return seleccionar_pendientes(
-        colas, prog, asuntos, ahora=datetime.datetime.now()
-    )
+    return seleccionar_pendientes(colas, prog, asuntos, ahora=datetime.datetime.now())
 
 
 def lanzar(tareas, trabajadores=None):
@@ -450,7 +448,7 @@ def _worktree_de_args(args):
     return ""
 
 
-def _ultimo_byte_de(ruta):
+def _ultimo_byte_de(ruta, pid=None):
     """La mtime MÁS RECIENTE de todo lo que cuelga de `ruta`, recorrida
     recursivamente (saltando .git y node_modules), igual que `_firma_trabajo`
     del orquestador mide el trabajo real. La mtime del DIRECTORIO raíz no sirve:
@@ -472,6 +470,26 @@ def _ultimo_byte_de(ruta):
                 continue
             if m > mas_reciente:
                 mas_reciente = m
+    # Si tenemos PID, consultar lsof para no perder escrituras a archivos o logs abiertos
+    if pid is not None:
+        try:
+            res = subprocess.run(
+                ["lsof", "-p", str(pid)], capture_output=True, text=True, timeout=5
+            )
+            if res.returncode == 0:
+                for linea in res.stdout.splitlines():
+                    partes = linea.split()
+                    if len(partes) >= 9:
+                        f_path = partes[-1]
+                        if os.path.exists(f_path) and not f_path.startswith("/dev"):
+                            try:
+                                m = os.path.getmtime(f_path)
+                                if m > mas_reciente:
+                                    mas_reciente = m
+                            except OSError:
+                                pass
+        except Exception:
+            pass
     return mas_reciente
 
 
@@ -500,7 +518,7 @@ def listar_trabajadores(ahora=None):
                 "pid": pid,
                 "tarea": os.path.basename(trabajo) if trabajo else "?",
                 "inicio": ahora - _segundos_etime(partes[1]),
-                "ultimo_byte": _ultimo_byte_de(trabajo) if trabajo else 0,
+                "ultimo_byte": _ultimo_byte_de(trabajo, pid=pid) if trabajo else 0,
                 "propio": pid == os.getpid(),
             }
         )
@@ -530,9 +548,21 @@ def matar_colgados(decir=None):
             except ProcessLookupError:
                 pass  # el TERM bastó: salió limpio
             else:
-                subprocess.run(
-                    ["kill", "-9", str(pid)], capture_output=True, timeout=10
-                )
+                # Verificar que el PID sigue siendo el proceso opencode esperado antes de kill -9 (evita reuso de PID)
+                proc_args = ""
+                try:
+                    proc_args = subprocess.run(
+                        ["ps", "-p", str(pid), "-o", "args="],
+                        capture_output=True,
+                        text=True,
+                        timeout=5,
+                    ).stdout
+                except Exception:
+                    pass
+                if "opencode" in proc_args:
+                    subprocess.run(
+                        ["kill", "-9", str(pid)], capture_output=True, timeout=10
+                    )
         except Exception as e:  # noqa: BLE001
             print("matar %s: %s: %s" % (pid, type(e).__name__, e), flush=True)
             continue
