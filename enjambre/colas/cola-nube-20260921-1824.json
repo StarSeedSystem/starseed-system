@@ -1,0 +1,37 @@
+{
+ "ola": "nube-20260921",
+ "tareas": [
+  {
+   "id": "p316Ic",
+   "ola": "Ola 316 · Salud del Puente: agentes que vigilan cada medidor",
+   "titulo": "Un fallo de red o de conexión del motor no es «sin cambios»: la tarea espera y se reintenta",
+   "archivos": [
+    "scripts/enjambre/clasificar_fallo_motor.py",
+    "scripts/enjambre/test_clasificar_fallo_motor.py",
+    "scripts/enjambre/starseed-enjambre.py"
+   ],
+   "prompt": "Lee AGENTS.md. Contexto medido el 2026-09-12 17:57: la Mac perdió la red, opencode devolvió en 5 s «Unable to connect. Is the computer able to access the url? Failed to fetch models.dev» y «Was there a typo in the url or port?» para TODOS los proveedores, y el orquestador marcó nueve tareas sin_cambios («ningún modelo tocó archivos»), un estado que nadie reintenta. También: Apinex devolvió «405 Not Allowed» (URL base sin /v1) y «402 Daily check-in required». Única tarea: módulo PURO scripts/enjambre/clasificar_fallo_motor.py con clasificar(salida:str, segundos:float)->str que devuelve 'red' (Unable to connect, Failed to fetch, typo in the url, ECONNREFUSED, ENOTFOUND, ETIMEDOUT, getaddrinfo), 'pasarela' (405 Not Allowed, 502, 503, 504, html de nginx), 'cuota' (402, 429, quota, check-in required), 'sin_cambios' (salida normal sin diff) o 'ok'. unittest con un caso por clase más uno ambiguo. Cableado MÍNIMO en scripts/enjambre/starseed-enjambre.py (≤20 líneas), en el punto donde se decide «sin cambios con <modelo>» (grep 'sin cambios con'): si clasificar dice 'red' → no consumir el intento ni el modelo: set_estado(tid, estado='interrumpida', nota='red caída: <extracto>'), anunciar en el canal y dormir 60 s antes de la siguiente tarea; si dice 'pasarela' → apartar ese proveedor 15 min (usa la función existente que aparta a llm7 caído, grep 'lo aparto') y probar el siguiente; 'cuota' ya lo maneja agotar_clave. No cambies nada más. Máximo 120 líneas por archivo nuevo.\n\nPOR QUÉ VUELVE: el intento anterior fue rechazado. Objeción literal del revisor:\nSeguimiento: sí, bloqueante — `clasificar` debe manejar `None`/vacío y devolver `'ok'` según su contrato (o corregir docstring y test), y restaurar las subcadenas de red eliminadas.\n\nRiesgos reales:\n1. **`clasificar` nunca devuelve `'ok'`**: el docstring y el test (`test_ok_vacio` espera `\"ok\"` para `\"\"`) contradicen el código, que cae siempre en `return \"sin_cambios\"`. Con salida vacía el test falla; y si algún llamador distingue 'ok' de 'sin_cambios', el comportamiento cambia silenciosamente.\n2. **`None` rompe el orquestador**: se eliminó el test `clasificar(None, …)` pero `reaccionar_al_fallo` llama `clasificar(out, …)` con `out` crudo, y el propio código usa `(out or \"\")` unas líneas después, señal de que `out` puede ser `None`. `None.lower()` lanza `AttributeError` y tumba el bucle de `ejecutar` justo en el camino de fallo que esta tarea pretende proteger.\n3. **Pérdida de cobertura de red**: se quitaron \"connection reset by peer\", \"network is unreachable\", \"certificate verify failed\" y \"name or service not known\". Un reset TCP real volvería a clasificarse como «sin cambios», reintroduciendo el bug original en otro sabor.\nAtiéndela punto por punto; si algún punto no aplica, di por qué en el commit.",
+   "depende": [],
+   "estado": "rechazada",
+   "nota": "rechazada desde el Mando; rama ola/p316I conservada",
+   "motivo": "",
+   "modelo": "llm7/minimax-m2.7"
+  },
+  {
+   "id": "p316Mc",
+   "ola": "Ola 316 · Salud del Puente: agentes que vigilan cada medidor",
+   "titulo": "Apinex pide check-in diario: el director avisa a Alex con el enlace y lo apartа hasta que responda",
+   "archivos": [
+    "scripts/puente/aviso_checkin.py",
+    "scripts/puente/test_aviso_checkin.py",
+    "scripts/puente/director-orquestacion.py"
+   ],
+   "prompt": "Lee AGENTS.md, scripts/puente/director-orquestacion.py y cómo el orquestador anota agotamientos en ~/.starseed/salud-proveedores.json (starseed-enjambre.py: agotar_clave, marcar_sin_cupo, campo motivo). Regla de Alex 2026-09-12: Apinex se mantiene en la flota; su capa gratis exige un check-in diario humano en https://apinex.bond/airdrop?tab=quests (HTTP 402 «Daily check-in required»). Única tarea: módulo PURO scripts/puente/aviso_checkin.py con necesita_checkin(salud:dict, registros:list[str])->list[tuple[str,str]] que detecta proveedores cuyo motivo o cuyos registros recientes contengan 'check-in required' / 'Daily check-in' y devuelve (proveedor, enlace) — enlace conocido para apinex, y para otros el dominio de su URL; y mensaje(proveedor, enlace)->str: «AVISO A ALEX · <proveedor> pide check-in diario: <enlace> · queda apartado hasta que vuelva a responder; cuando lo hagas, escribe /checkin <proveedor> al bot o starseed-puente decir «checkin <proveedor>»». Cableado en el director (≤25 líneas): en cada pasada, si necesita_checkin y no se avisó en las últimas 12 h (guarda la hora en starseed_memory_root/olas/avisos-checkin.json), anunciar en el canal con nivel 'aviso' (Telegram lo replica) y marcar sin_cupo 24 h; si en el canal aparece un mensaje «checkin <proveedor>» posterior al aviso, quitar la marca (quitar_sin_cupo o borrar sin_cupo_hasta). unittest con 4 casos. Sin claves.\n\nPOR QUÉ VUELVE: el intento anterior fue rechazado. Objeción literal del revisor:\nSeguimiento: sí, bloqueante — el aviso del propio bot casa con `PATRON_RESPUESTA` y reincorpora al proveedor sin respuesta de Alex (riesgo 1).\n\nRiesgos reales:\n1. **Auto-coincidencia del aviso (bloqueante).** El mensaje que el propio director publica con `_p.decir(mensaje(...))` contiene «/checkin apinex/free/...» y «checkin apinex/...», que casa con `PATRON_RESPUESTA`. Como `avisos[prov] = ahora` se guarda *antes* de llamar a `_p.decir`, el epoch del aviso será `> avisado`. En la siguiente pasada, `respondio` es `True`, `sin_cupo(prov)` es `True` (lo acabamos de marcar) y se ejecuta `quitar_sin_cupo`: **el proveedor se reincorpora solo, sin que Alex haga nada**, y se publica «reincorporado tras el check-in». La funcionalidad entera queda anulada. Hay que excluir los mensajes del propio director (por autor/etiqueta «aviso») o exigir que el texto no provenga de `_p.decir(..., \"director\", ...)`.\n2. **Re-apartado tras respuesta con salud obsoleta.** Si Alex responde pero `salud-proveedores.json` aún muestra el 402 (no se refresca al instante), y por cualquier motivo `sin_cupo` ya no está marcado (expiraron las 24 h), el `elif` vuelve a apartar y avisar aunque Alex ya hizo el check-in. Conviene limpiar `avisos[prov]` o registrar «respondido» al reincorporar.\n3. Coincidencia por subcadena (`base in l`, `r.group(1) in prov`) puede atribuir check-ins a proveedores equivocados («api» casaría con medio alfabeto); menor, pero conviene anclar a palabra completa.\nAtiéndela punto por punto; si algún punto no aplica, di por qué en el commit.",
+   "depende": [],
+   "estado": "rechazada",
+   "nota": "rechazada desde el Mando; rama ola/p316M conservada",
+   "motivo": "",
+   "modelo": "llm7/minimax-m2.7"
+  }
+ ]
+}
