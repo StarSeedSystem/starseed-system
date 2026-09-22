@@ -297,6 +297,8 @@ const SANGRADAS = new Set(["·", "✓", "↳ no pudo"]);
  * con teclado desde el primer día.
  */
 function FichaDesplegable({ f }: { f: FilaMedidor }) {
+    // Los datos llegan del detalle del medidor; no inventamos nada: si no hay
+    // ficha ni historial, no se pinta nada para que la lista siga limpia.
     const ficha = f.ficha ?? [];
     const historial = f.historial ?? [];
     if (!ficha.length && !historial.length) return null;
@@ -311,10 +313,15 @@ function FichaDesplegable({ f }: { f: FilaMedidor }) {
             </summary>
 
             {ficha.length ? (
+                // Cada par etiqueta/valor se pinta con `<dl>` porque es semánticamente
+                // una lista de definiciones: «etiqueta: valor» sin inventar formato.
                 <dl className="mt-1 grid grid-cols-[auto_1fr] gap-x-2 gap-y-0.5 text-[10px] leading-relaxed">
                     {ficha.map((dato, i) => {
+                        // Las sub-líneas («·», «✓», «↳ no pudo») se sangran con pl-3
+                        // para que se lean como continuaciones de la etiqueta de arriba.
                         const sangrada = SANGRADAS.has(dato.etiqueta);
-                        // El rojo del Mando es el mismo que ya usa `porque`: no se inventa otro.
+                        // El color de aviso es el MISMO token que usa `porque` en las filas
+                        // (text-amber-200/90): no inventamos otro para mantener coherencia.
                         const tono = dato.aviso ? "text-amber-200/90" : "text-white/70";
                         return (
                             <Fragment key={`${f.id}-ficha-${i}-${dato.etiqueta}`}>
@@ -324,6 +331,7 @@ function FichaDesplegable({ f }: { f: FilaMedidor }) {
                                     {dato.etiqueta}
                                 </dt>
                                 <dd className={`${tono} break-words`}>
+                                    {/* Si hay enlace, abrimos en pestaña nueva con rel seguro. */}
                                     {dato.enlace ? (
                                         <a
                                             href={dato.enlace}
@@ -344,6 +352,8 @@ function FichaDesplegable({ f }: { f: FilaMedidor }) {
             ) : null}
 
             {historial.length ? (
+                // El historial va ordenado con lo más reciente primero (viene así
+                // del servicio). Mostramos hora, autor y texto sin acortar.
                 <ul className="mt-1.5 space-y-1 border-t border-white/5 pt-1.5">
                     {historial.map((h, i) => (
                         <li key={`${f.id}-hist-${i}`} className="text-[10px] leading-relaxed">
