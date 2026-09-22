@@ -8,11 +8,14 @@
  */
 
 import { createHash } from "node:crypto";
+import { execFileSync } from "node:child_process";
+import { existsSync } from "node:fs";
 import { chmod, readFile, rename, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
 
 import { PROVEEDORES_CATALOGO, type ProveedorInfo } from "@/lib/mando/proveedores-catalogo";
+import { variablePermitida, proveedorPermitido } from "@/lib/mando/claves-agregador";
 
 /** Prefijos de clave conocidos por id de proveedor (para `validarClaveDeProveedor`). */
 const PREFIJOS_DE_PROVEEDOR: Record<string, string> = {
@@ -65,21 +68,37 @@ function variablesAdmitidas(idProveedor: string, variable: string): boolean {
 }
 
 /**
- * Escribe `variable=valor` en `~/.starseed/env` respetando el resto de líneas.
- * Escritura atómica: borrador `.tmp` + `rename`, chmod 600, crea el archivo y
- * el directorio si faltan. El valor nunca se registra ni devuelve.
+ * Escribe `variable=valor` ejecutando `scripts/puente/guardar-clave.sh` de forma segura.
+ * La variable y el proveedor se validan contra la whitelist antes de llamar al script.
+ * El valor de la clave se pasa por stdin sin pasar por argumentos ni linea de comandos.
  */
 export async function guardarClave(
     idProveedor: string,
     variable: string,
     valor: string,
 ): Promise<{ ok: boolean; huella?: string; error?: string }> {
-    if (!RE_VARIABLE.test(variable)) {
-        return { ok: false, error: "Nombre de variable no válido." };
+    if (!RE_VARIABLE.test(variable) || !variablePermitida(variable)) {
+        return { ok: false, error: "Nombre de variable no válido o no permitido." };
     }
-    if (!variablesAdmitidas(idProveedor, variable)) {
-        return { ok: false, error: `La variable «${variable}» no es de este proveedor.` };
+    if (idProveedor && !proveedorPermitido(idProveedor)) {
+        return { ok: false, error: `Proveedor «${idProveedor}» no permitido.` };
     }
+
+    const scriptPath = path.join(process.cwd(), "scripts", "puente", "guardar-clave.sh");
+    if (existsSync(scriptPath)) {
+        try {
+            execFileSync("bash", [scriptPath, variable, "--ambos"], {
+                input: `${valor}\n`,
+                encoding: "utf-8",
+                timeout: 15000,
+            });
+            return { ok: true, huella: huellaClave(valor) };
+        } catch (e: unknown) {
+            const err = e as Error;
+            return { ok: false, error: `Error guardando la clave: ${err.message}` };
+        }
+    }
+
     const ruta = rutaEnv();
     const lineas: string[] = [];
     let existia = false;
@@ -114,6 +133,9 @@ export async function guardarClave(
 
 /** Borra la línea `variable=…` de `~/.starseed/env` (sin tocar el resto). */
 export async function olvidarClave(variable: string): Promise<{ ok: boolean; error?: string }> {
+    if (!variablePermitida(variable)) {
+        return { ok: false, error: "Variable no permitida." };
+    }
     const ruta = rutaEnv();
     let contenido = "";
     try {

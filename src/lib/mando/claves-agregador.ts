@@ -12,12 +12,30 @@ export type ResultadoIdentificacion = {
     mascara: string;
 };
 
+export interface MetadatoClaveConfigurada {
+    proveedor: string;
+    variable: string;
+    presente: boolean;
+    huella: string | null;
+    mascara: string | null;
+    estado: string;
+}
+
 const VARS_CATALOGO = new Set(PROVEEDORES_CATALOGO.flatMap((p) => p.variables));
+const PROVEEDORES_PERMITIDOS = new Set(
+    PROVEEDORES_CATALOGO.map((p) => p.id).concat(["pasarela", "otro", "desconocido"])
+);
 const RE_PASARELA = /^STARSEED_PASARELA_[A-Z0-9_]+$/;
 
 export function variablePermitida(variable: string): boolean {
     if (!variable || typeof variable !== "string") return false;
     return VARS_CATALOGO.has(variable) || RE_PASARELA.test(variable);
+}
+
+export function proveedorPermitido(proveedor: string): boolean {
+    if (!proveedor || typeof proveedor !== "string") return false;
+    if (PROVEEDORES_PERMITIDOS.has(proveedor)) return true;
+    return RE_PASARELA.test(proveedor);
 }
 
 export function huellaClaveSha256(clave: string): string {
@@ -52,4 +70,28 @@ export function identificarClaveEntrante(
         huella: huellaClaveSha256(clave),
         mascara: enmascarar(clave),
     };
+}
+
+export function obtenerResumenClavesConfiguradas(
+    envVars: Record<string, string | undefined>,
+    proveedores: Array<{ id: string; variables: string[]; estado?: string }>
+): MetadatoClaveConfigurada[] {
+    const resumen: MetadatoClaveConfigurada[] = [];
+    const lista = proveedores.length > 0 ? proveedores : PROVEEDORES_CATALOGO;
+    for (const p of lista) {
+        for (const v of p.variables || []) {
+            if (!variablePermitida(v)) continue;
+            const val = envVars[v];
+            const presente = typeof val === "string" && val.length > 0;
+            resumen.push({
+                proveedor: p.id,
+                variable: v,
+                presente,
+                huella: presente ? huellaClaveSha256(val) : null,
+                mascara: presente ? enmascarar(val) : null,
+                estado: p.estado || "desconocido",
+            });
+        }
+    }
+    return resumen;
 }
