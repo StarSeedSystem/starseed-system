@@ -277,3 +277,25 @@ class CompilarSinTirarLoServido(unittest.TestCase):
     def test_normalizar_dist_no_estropea_nombres_parecidos(self):
         texto = '{"x":".next-buildero/a"}'
         self.assertEqual(R.normalizar_dist(texto), texto)
+
+
+class NoCompilarSinSitio(unittest.TestCase):
+    """(2026-09-22, medido) El disco de Alex al 99 % y la build muerta a mitad:
+
+        [Error: ENOSPC: no space left on device, open '.next-build/diagnostics/…']
+
+    Compilar aparte cuesta un directorio más. Vale más decirlo antes que fallar después.
+    """
+
+    def test_con_sitio_de_sobra_se_compila(self):
+        self.assertTrue(R.hay_sitio_para_compilar(40.0))
+
+    def test_justo_en_el_minimo_se_compila(self):
+        self.assertTrue(R.hay_sitio_para_compilar(R.MINIMO_LIBRE_GB))
+
+    def test_por_debajo_del_minimo_no_se_compila(self):
+        self.assertFalse(R.hay_sitio_para_compilar(3.6))
+
+    def test_sin_medida_no_se_bloquea_el_trabajo(self):
+        """No poder medir el disco no puede ser motivo para dejar la pantalla vieja."""
+        self.assertTrue(R.hay_sitio_para_compilar(None))

@@ -421,6 +421,19 @@ def main():
         env["NODE_OPTIONS"] = "--max-old-space-size=4096"  # con 3072 se queda sin memoria
         # NO SE COMPILA ENCIMA DE LO QUE SE ESTÁ SIRVIENDO. Ver `_reiniciar_mando`.
         env["STARSEED_DIST"] = ".next-build"
+        try:
+            sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+            import reconstruir_mando as _rm
+            libre = _rm.espacio_libre_gb()
+            if not _rm.hay_sitio_para_compilar(libre):
+                aviso = ("no se publicó: quedan %.1f GB libres y la build necesita %.1f"
+                         % (libre, _rm.MINIMO_LIBRE_GB))
+                diario.marcar("build", "falla", aviso)
+                diario.cerrar("fallo", aviso)
+                return 1
+            _rm.preparar_dist_de_build()  # limpia y clona la caché (APFS): build rápida y sin coste
+        except ImportError:
+            pass
         t0 = time.time()
         diario.marcar("build", "corriendo", porque)
         rc, salida = correr(["npx", "next", "build"], timeout=3600, env=env)

@@ -47,6 +47,8 @@ DIST_BUILD = os.environ.get("STARSEED_DIST_BUILD", ".next-build")
 DIST_SERVIDO = ".next"
 #: La escribe quien compiló, y solo si el compilador salió con 0. Ver `build_terminado`.
 MARCA_LISTO = ".listo"
+#: Por debajo de esto no se compila: `next build` muere con ENOSPC a mitad y deja basura.
+MINIMO_LIBRE_GB = 6.0
 #: Lo que de verdad entra en el build. `scripts/` y `starseed_memory_root/` NO están:
 #: cambian cada minuto por el propio enjambre y reconstruirían la pantalla sin motivo.
 FUENTES = ("src", "public")
@@ -130,6 +132,49 @@ def mtime_del_build(raiz=RAIZ):
             except OSError:
                 continue
     return max(tiempos) if tiempos else None
+
+
+def hay_sitio_para_compilar(libre_gb, minimo_gb=MINIMO_LIBRE_GB) -> bool:
+    """PURA. (2026-09-22, medido) El disco de Alex estaba al 99 % y la build murió así:
+
+        [Error: ENOSPC: no space left on device, open '.next-build/diagnostics/…']
+
+    Compilar aparte cuesta un directorio más. Mejor decirlo antes que fallar a mitad.
+    """
+    if libre_gb is None:
+        return True  # si no se puede medir, no se bloquea el trabajo
+    return libre_gb >= minimo_gb
+
+
+def espacio_libre_gb(raiz=RAIZ):
+    """Gigas libres donde vive el repo, o None si no se puede medir."""
+    try:
+        e = os.statvfs(raiz)
+        return (e.f_bavail * e.f_frsize) / (1024 ** 3)
+    except (OSError, AttributeError):
+        return None
+
+
+def preparar_dist_de_build(raiz=RAIZ) -> None:
+    """Deja `.next-build` limpio y con la caché del build servido CLONADA.
+
+    (2026-09-22) La caché de webpack vive dentro del directorio del build (4,4 GB medidos).
+    Compilar aparte sin ella sería empezar en frío cada vez Y escribir otros 4 GB. En APFS
+    `cp -c` clona: comparte los bloques, así que la copia es instantánea y no ocupa disco
+    hasta que algo cambia. Si el clon no se puede hacer, se compila sin caché: más lento,
+    pero nunca es motivo para no compilar.
+    """
+    nuevo = os.path.join(raiz, DIST_BUILD)
+    subprocess.run(["rm", "-rf", nuevo], check=False)
+    cache_servida = os.path.join(raiz, DIST_SERVIDO, "cache")
+    if not os.path.isdir(cache_servida):
+        return
+    try:
+        os.makedirs(nuevo, exist_ok=True)
+        subprocess.run(["cp", "-Rc", cache_servida, os.path.join(nuevo, "cache")],
+                       capture_output=True, timeout=300)
+    except Exception as e:
+        print("sin caché clonada (%s): la build será más lenta" % type(e).__name__, flush=True)
 
 
 def marcar_listo(raiz=RAIZ, dist=DIST_BUILD) -> None:
@@ -289,6 +334,7 @@ def reconstruir(huella_actual) -> dict:
     # (ENOENT: required-server-files.json). Aquí se construye en `.next-build` y el
     # servidor sigue con el `.next` de siempre hasta el cambio. (2026-09-22)
     entorno["STARSEED_DIST"] = DIST_BUILD
+    preparar_dist_de_build()
     try:
         r = subprocess.run(
             [sys.executable, os.path.join(RAIZ, "scripts", "puente", "con-turno.py"),
@@ -343,6 +389,9 @@ def intercambiar_build() -> bool:
     except OSError as e:
         print("no pude cambiar el build de sitio: %s" % e, flush=True)
         return False
+    # El anterior se guarda por si el nuevo sale roto, pero SIN su caché: son 4 GB que no
+    # hacen falta para volver atrás y el disco de Alex no los tiene.
+    subprocess.run(["rm", "-rf", os.path.join(anterior, "cache")], check=False)
     try:
         manifiesto = os.path.join(servido, "required-server-files.json")
         with open(manifiesto, encoding="utf-8") as f:
@@ -385,6 +434,13 @@ def una_pasada() -> bool:
     if hazlo and publicacion_va_a_compilar(_leer_estado(PUBLICACION)):
         print("[%s] espero: %s, pero la publicación en marcha va a compilar: su build sirve"
               % (time.strftime("%H:%M"), motivo), flush=True)
+        return False
+    libre = espacio_libre_gb()
+    if hazlo and not hay_sitio_para_compilar(libre):
+        aviso = "no compilo: quedan %.1f GB libres y hacen falta %.1f" % (libre, MINIMO_LIBRE_GB)
+        print("[%s] %s" % (time.strftime("%H:%M"), aviso), flush=True)
+        _guardar(dict(_leer_estado(), estado="sin-sitio", ok=False, error=aviso,
+                      visto=time.strftime("%Y-%m-%d %H:%M:%S")))
         return False
     if hazlo:
         print("[%s] RECONSTRUYO: %s" % (time.strftime("%H:%M"), motivo), flush=True)
