@@ -343,7 +343,11 @@ function PostCardShell({
                             size="sm"
                             onClick={onShare}
                             className="flex items-center gap-2 cursor-pointer"
-                            aria-label={copied ? "Enlace copiado" : "Compartir"}
+                            aria-label={
+                                copied
+                                    ? `Enlace copiado de la publicación de ${post.authorName}`
+                                    : `Compartir la publicación de ${post.authorName}`
+                            }
                             title={copied ? "Enlace copiado" : "Compartir"}
                         >
                             {copied ? (
