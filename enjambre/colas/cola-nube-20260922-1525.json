@@ -1,0 +1,82 @@
+{
+ "ola": "nube-20260922",
+ "tareas": [
+  {
+   "id": "DR0922-1",
+   "ola": "Ola Dream 2026-09-22 · lo que el análisis nocturno encontró",
+   "titulo": "Reintentar con otro agente las tareas `fallo_tests` de la ola 363 tras arreglar el test",
+   "archivos": [],
+   "depende": [],
+   "prompt": "ORIGEN: esto lo escribió el Dream —el análisis nocturno de Hermes— en `starseed_memory_root/dream/sugerencias-2026-09-22.md`, sección «top 3 accionables». Texto literal del informe:\n\n  Reintentar con otro agente las tareas `fallo_tests` de la ola 363 tras arreglar el test — \n\nANTES DE ESCRIBIR NADA: comprueba que sigue siendo cierto. El Dream lo escriben modelos gratuitos leyendo registros, y a veces proponen algo que YA está hecho o que se entendió mal. Si al mirar el repo resulta que no aplica, no inventes trabajo: escribe en tu respuesta una línea `NO APLICA: <motivo>` y para.\n\nSi aplica: acota el cambio a lo mínimo que resuelva lo que dice el informe, y dilo en el commit. Máximo 3 archivos y 120 líneas por archivo. Las reglas de la casa están en `memory/workflow-actual.md` — léelas: el silencio no es aprobación, integrado no es aplicado, y si una prueba falla se arregla el código, no la prueba.",
+   "modelo": "llm7/minimax-m2.7"
+  },
+  {
+   "id": "AGR2c",
+   "ola": "Ola 334 · Agregador de APIs del Puente de Mando",
+   "titulo": "La ruta que recibe una clave, la guarda en el archivo de entorno y no la devuelve nunca",
+   "archivos": [
+    "src/app/api/mando/claves/route.ts"
+   ],
+   "prompt": "(Id renombrado de AG2 a AGR2 el 2026-09-20 porque AG2 ya se usó en una ola anterior.)\nCONTEXTO (Alex, 16/09). El agregador necesita un sitio donde dejar la clave. Esta ruta es ese sitio, y es la pieza más delicada de toda la ola.\n\nCÓMO FUNCIONA, y no se cambia:\n- **POST** recibe {clave, variable?}. Reconoce el proveedor con `reconocer()` de AG1, ESCRIBE el valor en el archivo de entorno de la máquina y responde SOLO con {proveedor, variable, huella, guardada: true}. **El valor no se registra en ningún log, no sale en ningún evento y no vuelve en la respuesta.**\n- **GET** devuelve, por cada proveedor configurado: el nombre de la variable, si está presente, su huella, su máscara y su último estado conocido. **Nunca el valor.**\n- **DELETE** retira una clave del archivo. Pide confirmación desde la interfaz.\n\nPARA ESCRIBIR EN EL ARCHIVO, USA LO QUE YA EXISTE: `scripts/puente/guardar-clave.sh` ya resuelve entrecomillar siempre, reemplazar en vez de duplicar, hacer copia de seguridad con fecha, dejar el archivo en 600 y COMPROBAR que sigue cargándose entero después. Lánzalo, no reimplementes su lógica: ese último paso existe porque una línea mal escrita dejó sin cargar 24 variables y paró el enjambre un día entero.\n\nSERVER-ONLY. Esta ruta solo responde a quien tenga permiso sobre ESE Mando (ver `src/lib/mando/permisos.ts` cuando exista; mientras no exista, exige que la petición venga de la máquina local y déjalo dicho con un TODO). A quien no tenga permiso se le responde sin filtrar qué existe.\n\nSin `any`. Textos en español. UN archivo, 120 líneas máximo. Comprueba que arranca con `npx tsc --noEmit` mediante `bash scripts/enjambre/tsc-turno.sh` y LEE la salida.\n\nPOR QUÉ VUELVE: el intento anterior fue rechazado. Objeción literal del revisor:\nSeguimiento: sí, bloqueante — falta sanitización/validación de la variable antes de pasarla al script y de que el proveedor sea uno permitido**. Hasta que se añada una whitelist de proveedores y se escape o se evite la ejecución de un script externo (preferiblemente escribir directamente con `fs`), el merge no debe aceptarse.\n\nRiesgos reales:\n1. **Inyección de comandos vía `variable`** – `ejecutarGuardarClave` lanza `bash guardar-clave.sh <variable> --ambos` y pasa la variable sin saneamiento. Si un atacante envía una cadena con caracteres especiales (p.ej. `\"; rm -rf /\"`), el script podría ejecutarse con argumentos peligrosos o, si el propio script evalúa la variable, provocar ejecución arbitraria.\n2. **Falta de validación del proveedor/variable** – `identificarClaveEntrante` infiere el proveedor a partir del prefijo de la clave, pero no hay control de que el proveedor sea uno de los permitidos ni de que la variable resultante sea una variable de entorno conocida. Esto permite crear/guardar variables arbitrarias en `~/.starseed/env` y `~/.hermes/.env`.\n3. **Exposición de metadatos de claves en `GET`** – el endpoint devuelve para cada variable su *huella* y una máscara que revela la longitud y los primeros/últimos caracteres. Aunque no muestra el valor completo, permite a un atacante inferir la existencia y el formato de claves sensibles.\n4. **`DELETE` permite eliminar cualquier variable** – no se comprueba que la variable pertenezca al catálogo; cualquier nombre recibido en la query‑string o en el cuerpo será borrado del archivo de entorno, lo que podría romper configuraciones o eliminar variables críticas.\nAtiéndela punto por punto; si algún punto no aplica, di por qué en el commit.",
+   "depende": [
+    "AGR1"
+   ],
+   "estado": "rechazada",
+   "nota": "rechazada automáticamente por ide (sin revisión humana); rama ola/AGR2 conservada",
+   "motivo": "",
+   "modelo": "llm7/minimax-m2.7"
+  },
+  {
+   "id": "c313_QW4",
+   "ola": "Ola 313 · Consolidación de pendientes",
+   "titulo": ".env.example con todas las variables de entorno",
+   "archivos": [
+    ".env.example"
+   ],
+   "prompt": "Procesa la tarea: .env.example con todas las variables de entorno. Archivos: ['.env.example']. Escribe código limpio, sin any, en español con acentos. tsc limpio.",
+   "depende": [],
+   "modelo": "llm7/minimax-m2.7",
+   "aprobacion": false
+  },
+  {
+   "id": "c313_QW6",
+   "ola": "Ola 313 · Consolidación de pendientes",
+   "titulo": "Nombre accesible del botón Compartir de la tarjeta",
+   "archivos": [
+    "src/components/social/PostCard.tsx"
+   ],
+   "prompt": "Procesa la tarea: Nombre accesible del botón Compartir de la tarjeta. Archivos: ['src/components/social/PostCard.tsx']. Escribe código limpio, sin any, en español con acentos. tsc limpio.",
+   "depende": [],
+   "modelo": "llm7/minimax-m2.7",
+   "aprobacion": false
+  },
+  {
+   "id": "RM3",
+   "ola": 363,
+   "titulo": "buildwithparallel: adaptadores de transporte mesh Reticulum y Wi-Fi HaLow",
+   "archivos": [
+    "src/ai/astraura/mesh/transporte-bwp.ts",
+    "src/lib/__tests__/transporte-bwp.test.ts"
+   ],
+   "depende": [
+    "RM2"
+   ],
+   "prompt": "buildwithparallel (https://buildwithparallel.com · https://github.com/buildwithparallel) ofrece campo en radios mesh, Wi-Fi HaLow (sub-GHz) y Reticulum sobre red local-first con hardware de commodity. StarSeed ya abstrae senalizacion y transporte en `src/ai/astraura/mesh/` (`signals.ts`, `meshtastic-adapter.ts`, `servers.ts`). Objetivo: abstraer el VÍNCULO fisico sin tocar la capa de aplicacion (identidad/cifrado/reglas de `mesh-identity.ts`, `recipient-crypto.ts`, `rules.ts` quedan intactos).\n1) `transporte-bwp.ts`: `type TransporteBwp = 'wifi-halo'|'reticulum'|'wifi-mesh'|'webrtc-local'|'usb-serial'`; `TRANSPORTES_BWP: Record<TransporteBwp,{etiqueta;alcanceLectura;latencia;requiereHardware;prioridad:number}>; `transportesOrdenados(disponibles, preferido?)` mete el preferido el primero si esta, orden estable para el resto; `estadoTransporte(vinculos:Array<{transporte;rssi?;tasaKbps?}>)` da `{online; mejor; totalKbps}`.\n2) Test vitest puro: `transportesOrdenados` pone el preferido primero sin perder ninguno; `estadoTransporte` suma tasas y elige el mejor por prioridad.\nSin any, tsc limpio.",
+   "modelo": "llm7/minimax-m2.7"
+  },
+  {
+   "id": "RM4",
+   "ola": 363,
+   "titulo": "Voz de borde con Supertonic: nivel suptonico en el motor Voz StarSeed",
+   "archivos": [
+    "src/lib/aurora/voz-starseed/supertonic.ts",
+    "src/lib/__tests__/voz-supertonic.test.ts"
+   ],
+   "depende": [
+    "RM1"
+   ],
+   "prompt": "Supertonic (https://github.com/supertone-oss-archive/supertonic, archivado: se usa como referencia y se adapta) es TTS on-device en ONNX, sin GPU, 31 idiomas, runtimes py/web/java/cpp/go/swift/rust (PyPI `supertonic`). Encaja con el estudio 1.58/needle porque tampoco exige GPU. NO dupliques el motor de voz: anade un nivel al existente. Abre `src/lib/aurora/voz-starseed/` (`niveles.ts`, `motor.ts`, `capacidades.ts`) y `memory/estudio-voces.md`.\n1) `supertonic.ts`: `interface NivelSuptonico { vivo:boolean; runtime:'onnx-cpu'|'wasm'|'nativo'; modelosCargados:string[]; idiomas:string[]; latenciaMs? }`; `soporteSupertonic(c)` da `{disponible;motivo?}` con disponible = hay WebAssembly SIMD o el runtime nativo `voz-supertonic` en PATH (no requiere el daemon ni GPU); `nivelParaVoz({supertonic;mobile;plataforma})` da `'suptonica'|'158-local'|'nube'|'tronal'` priorizando suptonica (voz de borde, sin GPU ni nube). Reutiliza `capacidades.ts` SOLO como referencia de firma.\n2) Test vitest puro: runtime WASM y sin mobile da `suptonica`; sin runtime da `nube` en movil / `158-local` en escritorio con daemon; `soporteSupertonic` no depende del daemon ni pide GPU.\nSin any, espanol con acentos, tsc limpio.",
+   "modelo": "llm7/minimax-m2.7"
+  }
+ ]
+}
