@@ -2581,3 +2581,18 @@
 - `DR0922-1` — no escribió nada
 - `AGR2c` — pruebas en rojo: ERROR: test_excluye_agotados_y_enfriandose (test_revisores.CandidatosTest.test_excluye_agotados_y_enfriandose)
 - `TK2c` — pruebas en rojo: ERROR: test_excluye_agotados_y_enfriandose (test_revisores.CandidatosTest.test_excluye_agotados_y_enfriandose)
+
+## 2026-09-22 13:25 · auto-0922-131937
+
+**Lo que se pidió.** no anade otro coste
+
+**Resultado.** 0 de 3 integradas. 3 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 3 tareas se fueron por lo mismo — pruebas en rojo (RM3, RM4, TK1c). Es 100 % de la ola.
+- google/gemini-3.6-flash no integró ninguna de sus 3 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `RM3` — pruebas en rojo: ERROR: test_excluye_agotados_y_enfriandose (test_revisores.CandidatosTest.test_excluye_agotados_y_enfriandose)
+- `RM4` — pruebas en rojo: ERROR: test_excluye_agotados_y_enfriandose (test_revisores.CandidatosTest.test_excluye_agotados_y_enfriandose)
+- `TK1c` — pruebas en rojo: ERROR: test_excluye_agotados_y_enfriandose (test_revisores.CandidatosTest.test_excluye_agotados_y_enfriandose)
