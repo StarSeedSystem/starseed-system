@@ -153,5 +153,47 @@ export const REPO_DECISIONES: LibraryRepo = {
       },
       comingSoon: true,
     },
+    {
+      id: "hermes-jev-skills",
+      kind: "repo",
+      name: "hermes-jev-skills",
+      description:
+        "Diez skills de Jev en Python 3.9+ sin dependencias externas: coste cero de instalación. El repo es MIT y gratis; solo necesita una clave de OpenRouter, de la que ya disponemos en esta máquina.",
+      icon: "Sparkles",
+      tags: ["decisiones", "skills", "python", "openrouter", "ligero"],
+      version: "1.0.0",
+      author: "kerpopule",
+      sourceRepoId: "starseed-decisiones",
+      // El repo es gratis (MIT); lo único que pide ya lo tenemos: la clave.
+      free: true,
+      payload: {
+        upstream: "https://github.com/kerpopule/hermes-jev-skills",
+        licencia: "MIT",
+        requisitos: "Python 3.9+ sin dependencias; OPENROUTER_API_KEY (ya disponible)",
+        corre_aqui: false,
+      },
+      comingSoon: true,
+    },
+    {
+      id: "jev-router",
+      kind: "repo",
+      name: "jev-router",
+      description:
+        "Proxy en Node 20.12+ que enruta Claude Code a Haiku, Sonnet u Opus según la complejidad que estime Jev. El repo es MIT y gratis en sí mismo; lo que cuesta es la suscripción de Claude Code, que es un requisito previo, no un coste de este repo.",
+      icon: "GitBranch",
+      tags: ["decisiones", "router", "node", "claude-code", "proxy"],
+      version: "1.0.0",
+      author: "gargpratyush",
+      sourceRepoId: "starseed-decisiones",
+      // free=true porque el repo no cobra: el gasto es el prerrequisito (Claude Code).
+      free: true,
+      payload: {
+        upstream: "https://github.com/gargpratyush/jev-router",
+        licencia: "MIT",
+        requisitos: "Node 20.12+; suscripción de Claude Code (requisito previo, coste ajeno al repo)",
+        corre_aqui: false,
+      },
+      comingSoon: true,
+    },
   ],
 };
