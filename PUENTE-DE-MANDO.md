@@ -1,6 +1,6 @@
 # Puente de Mando · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-22 13:04:47 desde el Mando vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-22 13:25:52 desde el Mando vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -16,22 +16,17 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | Agentes escribiendo | **0** |
 | En esta ola | integradas 0 · en curso 0 · esperando aprobación 0 · pendientes 0 |
 | Últimas 4 olas | en curso 0 · pendientes 0 · integradas 20 |
-| HEAD | `e4cae568 chore(memoria): aprendizaje de la ola auto-0922-122917` |
-| Sin publicar | 27 commits |
+| HEAD | `ed1e58f1 chore(memoria): aprendizaje de la ola auto-0922-131937` |
+| Sin publicar | 30 commits |
 | Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-auto-0922-122917.json`, hace 6s)
+## Quién escribe ahora (latido de `cola-auto-0922-131937.json`, hace 5s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `DR0922-1` | hecho | apinex/free/deepseek-v4-flash-0731 | 1 min | 33 s | 86105 |
-| `RM4` | hecho | nvidia/z-ai/glm-5.3 | 27 min | 1597 s | 974393 |
-| `TK2c` | hecho | google/gemini-3.6-flash | 29 min | 1733 s | 822556 |
-| `AGR2c` | hecho | google/gemini-3.6-flash | 31 min | 1834 s | 1324359 |
-| `c313_QW6` | hecho | apinex/free/gemini-3.8-flash | 32 min | 1943 s | 722923 |
-| `RM3` | hecho | groq/openai/gpt-oss-120b | 33 min | 1969 s | 1167778 |
-| `c313_QW4` | hecho | apinex/free/gemini-3.8-flash | 33 min | 1983 s | 729413 |
-| `TK1c` | hecho | nvidia/z-ai/glm-5.3 | 34 min | 2014 s | 1311149 |
+| `RM4` | hecho | google/gemini-3.6-flash | 1 min | 31 s | 1101510 |
+| `RM3` | hecho | google/gemini-3.6-flash | 2 min | 103 s | 1293124 |
+| `TK1c` | hecho | google/gemini-3.6-flash | 3 min | 178 s | 1439029 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
