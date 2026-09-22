@@ -2261,3 +2261,31 @@
 - `p315A` — pruebas en rojo: ERROR: test_excluye_agotados_y_enfriandose (test_revisores.CandidatosTest.test_excluye_agotados_y_enfriandose)
 - `JV8` — pruebas en rojo: ERROR: test_excluye_agotados_y_enfriandose (test_revisores.CandidatosTest.test_excluye_agotados_y_enfriandose)
 - `p316Ic` — otra cosa: red caída: $ codex exec -m gpt-5.6-sol -s workspace-write --skip-git-repo-check -C /Users/alex/Documents/starseed-wt/p316Ic · 2026-09-22 06:
+
+## 2026-09-22 07:17 · auto-0922-065234
+
+**Lo que se pidió.** no anade otro coste
+
+**Resultado.** 0 de 14 integradas. 14 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 13 tareas se fueron por lo mismo — pruebas en rojo (RM3, RM4, TK1c, c313_QW4, c313_QW6, c313_QW5). Es 93 % de la ola.
+- google/gemini-3.6-flash no integró ninguna de sus 6 tareas.
+- apinex/free/gemini-3.8-flash no integró ninguna de sus 3 tareas.
+- nvidia/moonshotai/kimi-k3 no integró ninguna de sus 3 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `RM3` — pruebas en rojo: ERROR: test_excluye_agotados_y_enfriandose (test_revisores.CandidatosTest.test_excluye_agotados_y_enfriandose)
+- `RM4` — pruebas en rojo: ERROR: test_excluye_agotados_y_enfriandose (test_revisores.CandidatosTest.test_excluye_agotados_y_enfriandose)
+- `TK1c` — pruebas en rojo: ERROR: test_excluye_agotados_y_enfriandose (test_revisores.CandidatosTest.test_excluye_agotados_y_enfriandose)
+- `c313_QW4` — pruebas en rojo: ERROR: test_excluye_agotados_y_enfriandose (test_revisores.CandidatosTest.test_excluye_agotados_y_enfriandose)
+- `c313_QW6` — pruebas en rojo: ERROR: test_excluye_agotados_y_enfriandose (test_revisores.CandidatosTest.test_excluye_agotados_y_enfriandose)
+- `c313_QW5` — pruebas en rojo: ERROR: test_excluye_agotados_y_enfriandose (test_revisores.CandidatosTest.test_excluye_agotados_y_enfriandose)
+- `p312C` — pruebas en rojo: ERROR: test_excluye_agotados_y_enfriandose (test_revisores.CandidatosTest.test_excluye_agotados_y_enfriandose)
+- `AGR2c` — pruebas en rojo: ERROR: test_excluye_agotados_y_enfriandose (test_revisores.CandidatosTest.test_excluye_agotados_y_enfriandose)
+- `TK2c` — pruebas en rojo: ERROR: test_excluye_agotados_y_enfriandose (test_revisores.CandidatosTest.test_excluye_agotados_y_enfriandose)
+- `p314A` — pruebas en rojo: vitest falla (rama conservada)
+- `p314B` — pruebas en rojo: ERROR: test_excluye_agotados_y_enfriandose (test_revisores.CandidatosTest.test_excluye_agotados_y_enfriandose)
+- `p315A` — pruebas en rojo: ERROR: test_excluye_agotados_y_enfriandose (test_revisores.CandidatosTest.test_excluye_agotados_y_enfriandose)
+- `JV8` — pruebas en rojo: ERROR: test_excluye_agotados_y_enfriandose (test_revisores.CandidatosTest.test_excluye_agotados_y_enfriandose)
+- `p316Ic` — otra cosa: red caída: $ opencode run --model google/gemini-3.6-flash · 2026-09-22 07:13:10 [0m > build · gemini-3.6-flash [0m[0m✱ [0mGlob "*MENSAJE
