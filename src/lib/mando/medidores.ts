@@ -578,20 +578,64 @@ const ABIERTOS = new Set(["pendiente", ""]);
  *      estado. Eso es lo que inflaba la cuenta: 74 tareas de olas viejas, hechas y
  *      publicadas hace semanas, sin entrada en progreso.json.
  */
+/** Estados en los que una dependencia ya está hecha y no frena a nadie. */
+const DEPENDENCIA_CUMPLIDA = new Set(["commit", "hecho"]);
+
+/**
+ * Qué dependencias le faltan a una tarea para poder empezar. PURA.
+ *
+ * Vale [] cuando no depende de nada o cuando todas están integradas. Una dependencia que
+ * no existe en el progreso cuenta como NO cumplida: es justo el caso de `p318Jb`, que
+ * espera a un `p318I` que nunca se creó, y llevaba semanas apareciendo como «lista».
+ */
+export function dependenciasQueFaltan(
+    depende: string[] | undefined,
+    progreso: Record<string, { estado?: string } | undefined>,
+    asuntosDeMain?: string | null,
+): string[] {
+    return (depende ?? []).filter((dep) => {
+        const id = String(dep || "").trim();
+        if (!id) return false;
+        if (DEPENDENCIA_CUMPLIDA.has(progreso[id]?.estado ?? "")) return false;
+        if (typeof asuntosDeMain === "string" && idIntegradoEnAsuntos(id, asuntosDeMain)) return false;
+        return true;
+    });
+}
+
+/**
+ * Las tareas que se pueden coger AHORA.
+ *
+ * (2026-09-22) Aquí faltaba lo más importante y por eso el Puente mentía en la cara:
+ * enseñaba «LISTAS PARA TRABAJAR 7 · 7 se pueden coger ya · el enjambre las va cogiendo
+ * por tandas» mientras RM5, RM6, RM7, RM8, JF2, p318Jb y p318Jc estaban TODAS esperando a
+ * otra tarea (RM5 espera a RM3, que falló, y a RM4, que fue rechazada; p318Jb espera a un
+ * p318I que no existe). Cero de las siete se podían coger. Con un agente trabajando y
+ * siete «listas» en pantalla, lo que se ve es un enjambre averiado; lo que había era una
+ * cadena rota y un medidor que no miraba las dependencias.
+ *
+ * Las bloqueadas salen igual, pero marcadas: esconderlas sería cambiar una mentira por
+ * otra. Quien mira necesita ver que hay trabajo definido Y que no puede arrancar.
+ */
 export function ejecutablesDeColas(
-    colas: { id: string; titulo?: string; ola?: string; cola?: string }[],
+    colas: { id: string; titulo?: string; ola?: string; cola?: string; dependencias?: string[] }[],
     progreso: Record<string, { estado?: string } | undefined>,
     asuntosDeMain: string,
-): { id: string; titulo: string; ola?: string }[] {
+): { id: string; titulo: string; ola?: string; esperaA?: string[] }[] {
     const vistos = new Set<string>();
-    const salida: { id: string; titulo: string; ola?: string }[] = [];
+    const salida: { id: string; titulo: string; ola?: string; esperaA?: string[] }[] = [];
     for (const t of colas) {
         if (!t.id || vistos.has(t.id)) continue;
         if ((t.cola ?? "").startsWith("auto-")) continue;
         vistos.add(t.id);
         if (!ABIERTOS.has(progreso[t.id]?.estado ?? "")) continue;
         if (idIntegradoEnAsuntos(t.id, asuntosDeMain)) continue;
-        salida.push({ id: t.id, titulo: t.titulo ?? "", ola: t.ola });
+        const faltan = dependenciasQueFaltan(t.dependencias, progreso, asuntosDeMain);
+        salida.push({
+            id: t.id,
+            titulo: t.titulo ?? "",
+            ola: t.ola,
+            ...(faltan.length ? { esperaA: faltan } : {}),
+        });
     }
     return salida;
 }
@@ -673,7 +717,8 @@ export interface DatosMedidores {
         };
     } | null;
     commitsSinPublicar: { sha: string; asunto: string; fecha?: string }[];
-    ejecutables: { id: string; titulo: string; ola?: string }[];
+    /** `esperaA`: las dependencias que le faltan. Si viene, la tarea NO se puede coger. */
+    ejecutables: { id: string; titulo: string; ola?: string; esperaA?: string[] }[];
     /** Asuntos recientes de `main`; ausente si Git no pudo leerse. */
     asuntosDeMain?: string | null;
     proveedores: { id: string; estado: string; motivo?: string }[];
@@ -1023,24 +1068,37 @@ export function detalleDeMedidor(
             const avisoGit = asuntosDisponibles
                 ? ""
                 : " · no se pudieron leer los asuntos de Git; no se filtró por commits";
-            const filas: FilaMedidor[] = ejecutables.map((t) => ({
+            // Las que esperan a otra tarea NO se pueden coger, por mucho que estén
+            // definidas: decir lo contrario es lo que hacía parecer averiado al enjambre.
+            const libres = ejecutables.filter((t) => !t.esperaA?.length);
+            const atadas = ejecutables.filter((t) => t.esperaA?.length);
+
+            const filas: FilaMedidor[] = [...libres, ...atadas].map((t) => ({
                 id: t.id,
                 titulo: t.titulo,
-                estado: "lista",
+                estado: t.esperaA?.length ? "espera a otra tarea" : "lista",
                 // 0 % de seis etapas: definida y sin empezar. Con la barra al lado se ve
                 // de un vistazo lo que queda por delante de cada una.
                 porcentaje: 0,
-                porque: t.ola ? `de la ola ${t.ola} · ${porQueNadieLasCoge}` : porQueNadieLasCoge,
+                porque: t.esperaA?.length
+                    ? `no se puede coger: espera a ${t.esperaA.join(", ")}${t.ola ? ` · de la ola ${t.ola}` : ""}`
+                    : t.ola
+                      ? `de la ola ${t.ola} · ${porQueNadieLasCoge}`
+                      : porQueNadieLasCoge,
                 acciones: accionesDeTarea("pendiente"),
             }));
+
+            const resumen =
+                libres.length === 0 && atadas.length === 0
+                    ? "sin trabajo ejecutable"
+                    : libres.length === 0
+                      ? `ninguna se puede coger: ${atadas.length} espera${atadas.length === 1 ? "" : "n"} a otra tarea`
+                      : `${libres.length} se pueden coger ya${atadas.length ? ` · ${atadas.length} esperan a otra tarea` : ""} · ${porQueNadieLasCoge}`;
+
             return {
                 clave,
                 titulo: "Listas para trabajar",
-                resumen: (
-                    filas.length === 0
-                        ? "sin trabajo ejecutable"
-                        : `${filas.length} se pueden coger ya · 0 % avanzadas · ${porQueNadieLasCoge}`
-                ) + avisoGit,
+                resumen: resumen + avisoGit,
                 filas,
                 porcentajeMedio: 0,
                 acciones: [IR_A("Ver procesos", "procesos")],

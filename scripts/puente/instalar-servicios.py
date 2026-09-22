@@ -59,6 +59,12 @@ SERVICIOS = {
     # compila solo cuando las fuentes de la pantalla cambian, con el turno de la máquina
     # (para no pelear RAM con los agentes) y reinicia el Mando al acabar.
     "reconstruir": ([PY3, P("reconstruir_mando.py")], "/tmp/starseed-reconstruir.log", True),
+    # (2026-09-22) Alex: «todos los medidores y todos los procesos activos deben ser
+    # analizados por los directores verificadores en todo el tiempo y solucionar cualquier
+    # situación automáticamente». Los directores que había vigilaban cada uno su parcela;
+    # ninguno miraba el TABLERO. Esa noche el orquestador estuvo 123 minutos parado en una
+    # puerta de aprobación y los medidores lo enseñaban sin que nadie los leyera.
+    "vigia": ([PY3, P("vigia_medidores.py")], "/tmp/starseed-vigia.log", True),
 }
 
 PLANTILLA = """<?xml version="1.0" encoding="UTF-8"?>

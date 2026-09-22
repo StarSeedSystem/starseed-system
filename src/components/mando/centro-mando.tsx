@@ -1239,10 +1239,17 @@ export function CentroMando() {
                             },
                             {
                                 titulo: "Jev",
-                                valor: jev ? String(jev.hoy.llamadas) : "—",
+                                // (2026-09-22) Enseñaba las llamadas de HOY a secas, y a las
+                                // 00:11 eso es un 0 con «0 local · 0 de pago» debajo: idéntico
+                                // a estar roto. El contador del día se reinicia a medianoche y
+                                // la pantalla no lo decía. Ahora, cuando hoy va a cero, la
+                                // pastilla enseña el mes, que es el número que sigue vivo.
+                                valor: jev ? String(jev.hoy.llamadas || jev.mes.llamadas) : "—",
                                 tono: (jev?.local_vivo ? "ok" : "aviso") as TonoMedidor,
                                 detalle: jev
-                                    ? `${jev.hoy.local} local · ${jev.hoy.openrouter} de pago`
+                                    ? jev.hoy.llamadas > 0
+                                        ? `hoy · ${jev.hoy.local} local · ${jev.hoy.openrouter} de pago`
+                                        : `este mes · ${jev.mes.llamadas} decisiones · hoy aún ninguna`
                                     : "cargando…",
                                 abierto: jevAbierto,
                                 alClic: () => {
@@ -1256,10 +1263,20 @@ export function CentroMando() {
                                 titulo: "Te toca a ti",
                                 valor: String(accionesAlex?.acciones.length ?? 0),
                                 tono: (accionesAlex && accionesAlex.acciones.length > 0 ? "aviso" : "ok") as TonoMedidor,
+                                // (2026-09-22) Alex: «lo de te toca a ti no entiendo qué es».
+                                // Decía «0 urgentes» con un 1 al lado, que no explica nada.
+                                // Son las cosas que el enjambre NO puede hacer solo porque
+                                // hacen falta las manos o la cuenta de Alex (renovar una clave,
+                                // un check-in diario, subir un secreto). Aquí se nombra la
+                                // primera: un número sin nombre no le dice a nadie qué hacer.
                                 detalle: accionesAlex
                                     ? accionesAlex.acciones.length > 0
-                                        ? `${accionesAlex.acciones.filter((a) => a.urgencia === "alta").length} urgentes`
-                                        : "nada pendiente"
+                                        ? `${accionesAlex.acciones[0].titulo}${
+                                              accionesAlex.acciones.length > 1
+                                                  ? ` y ${accionesAlex.acciones.length - 1} más`
+                                                  : ""
+                                          }`
+                                        : "nada que necesite tus manos"
                                     : "cargando…",
                                 alClic: () => {
                                     setMedidorAbierto(null);

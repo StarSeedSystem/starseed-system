@@ -275,7 +275,39 @@ describe("porcentajes de avance", () => {
     it("las listas van a 0 %: definidas y sin empezar", () => {
         const d = detalleDeMedidor("listas", { ejecutables: [{ id: "L1", titulo: "x", ola: "324" }] });
         expect(d.filas[0].porcentaje).toBe(0);
-        expect(d.resumen).toContain("0 % avanzadas");
+        // (2026-09-22) El resumen ya no dice «0 % avanzadas», que no informaba de nada:
+        // dice cuántas se pueden coger DE VERDAD y cuántas esperan a otra tarea. Esa
+        // distinción es la que faltaba cuando la pantalla ofrecía 7 listas y ninguna
+        // se podía empezar.
+        expect(d.resumen).toContain("1 se pueden coger ya");
+    });
+
+    it("una tarea que espera a otra NO se cuenta como «se puede coger»", () => {
+        // El caso de Alex: RM5 esperaba a RM3 (fallo) y RM4 (rechazada), y la pantalla
+        // decía «7 se pueden coger ya · el enjambre las va cogiendo por tandas».
+        const d = detalleDeMedidor("listas", {
+            ejecutables: [
+                { id: "RM5", titulo: "cableado", ola: "363", esperaA: ["RM3", "RM4"] },
+                { id: "JF2", titulo: "enruta con Jev", ola: "338", esperaA: ["JF1"] },
+            ],
+        });
+        expect(d.resumen).toContain("ninguna se puede coger");
+        expect(d.resumen).toContain("2 esperan a otra tarea");
+        expect(d.filas[0].estado).toBe("espera a otra tarea");
+        expect(d.filas[0].porque).toContain("espera a RM3, RM4");
+    });
+
+    it("con unas libres y otras atadas, el resumen separa las dos cosas", () => {
+        const d = detalleDeMedidor("listas", {
+            ejecutables: [
+                { id: "A1", titulo: "libre", ola: "1" },
+                { id: "B1", titulo: "atada", ola: "1", esperaA: ["A1"] },
+            ],
+        });
+        expect(d.resumen).toContain("1 se pueden coger ya");
+        expect(d.resumen).toContain("1 esperan a otra tarea");
+        // Las que se pueden coger van PRIMERO: es lo que alguien necesita ver.
+        expect(d.filas[0].id).toBe("A1");
     });
 
     it("bloqueadas y sin publicar NO llevan porcentaje: ahí sería inventado", () => {

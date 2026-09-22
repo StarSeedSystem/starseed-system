@@ -4376,7 +4376,20 @@ APROBACIONES = {}  # tarea -> "aprobar" | "rechazar" (nodos de aprobación human
 # Un sistema que no distingue «lo revisó Alex» de «lo mató un temporizador» no se puede
 # auditar, y esa diferencia es justo la que hay que poder mirar.
 QUIEN_DECIDIO = {}  # tarea -> quién mandó la orden ("mando", "ide", "desatascador"…)
-ESPERA_APROBACION_S = int(os.environ.get("STARSEED_ESPERA_APROBACION_S", str(6 * 3600)))
+#: Cuánto se espera a que un humano dé el visto bueno antes de apartar la tarea y seguir.
+#:
+#: (2026-09-22) Estaba en SEIS HORAS y eso paró el enjambre entero. Medido en el log:
+#: `tReintento` —una tarea que plantó una prueba y que ya ni estaba en la cola— tuvo al
+#: orquestador 123 MINUTOS repitiendo «esperando aprobación» mientras los otros dos
+#: trabajadores de la Mac estaban parados. Alex lo veía como «solo hay 1 agente y no se
+#: autocorrige», y tenía toda la razón: el enjambre estaba rehén de una puerta sin tope.
+#:
+#: El workflow de la nube ya lo había aprendido y lo dice por escrito: «esperar dos horas a
+#: un humano que no existe no es prudencia, es tirar el medio entero». En la Mac Alex SÍ
+#: existe, pero puede estar durmiendo: 20 minutos es tiempo de sobra para que vea el aviso
+#: y, si no lo ve, la tarea queda `pendiente_aprobacion` con su rama intacta —no se pierde
+#: nada— y el agente se va a la siguiente en vez de quedarse mirando.
+ESPERA_APROBACION_S = int(os.environ.get("STARSEED_ESPERA_APROBACION_S", str(20 * 60)))
 RUTA_OPENCODE_CFG = os.path.expanduser("~/.config/opencode/opencode.json")
 
 
