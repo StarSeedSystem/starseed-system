@@ -1,0 +1,68 @@
+{
+ "ola": "nube-20260922",
+ "tareas": [
+  {
+   "id": "TK1c",
+   "ola": "Ola 339 · Destilar a Astraura con lo que ya generamos",
+   "depende": [],
+   "titulo": "La Biblioteca registra las tres repos nuevas, con su coste dicho en claro",
+   "archivos": [
+    "src/lib/library/fuentes-decision.ts"
+   ],
+   "prompt": "SEGUNDO INTENTO. La revision encontro dos cosas y las dos son ciertas:\n  1. La tarea pedia TRES repos y el diff solo anadio DOS (hermes-jev-skills y jev-router). La de tinker-cookbook ya existia y solo se le reescribio la descripcion. Repasa que las tres esten, y que la de tinker-cookbook diga lo que hay que decir (ver abajo).\n  2. En jev-router pusiste `free: false` y a la vez «no anade otro coste»: elige. Lo cierto es que el repo es MIT y gratis; lo que cuesta es la suscripcion de Claude Code, que es un requisito previo, no un coste del repo. Dilo asi.\n  3. No afirmes «comprobado con nuestra OPENROUTER_API_KEY» como si fuera cierto en cualquier maquina: lo comprobamos en ESTA. Si pones `corre_aqui: true`, que sea porque el codigo lo mira, no porque lo diga la ficha.\n\nLO QUE TIENE QUE DECIR CADA FICHA (medido al clonarlas):\n  · samwit/tinker-cookbook (Apache 2.0): 374 modulos Python, 329 (88%) importan el SDK `tinker` y NO funcionan sin cuenta DE PAGO en thinkingmachines.ai. El entrenamiento corre en SU infraestructura. Gratis solo sirven las recetas como planos y los tutoriales.\n  · kerpopule/hermes-jev-skills (MIT): Python 3.9+ sin dependencias, diez skills. Funciona con una clave de OpenRouter, que ya tenemos.\n  · gargpratyush/jev-router (MIT): Node 20.12+. Proxy que enruta Claude Code a Haiku/Sonnet/Opus segun la complejidad que estime Jev.\n\nTU ENCARGO, UN SOLO ARCHIVO: `src/lib/library/fuentes-decision.ts`, con el MISMO patron y las mismas claves que las seis entradas que ya estan. Leelas primero.\n\nNO explores el repositorio entero: abre SOLO los archivos que se nombran. Comentarios en ESPANOL que expliquen el PORQUE. Corre tus pruebas antes de terminar.",
+   "modelo": "llm7/minimax-m2.7"
+  },
+  {
+   "id": "c313_QW4",
+   "ola": "Ola 313 · Consolidación de pendientes",
+   "titulo": ".env.example con todas las variables de entorno",
+   "archivos": [
+    ".env.example"
+   ],
+   "prompt": "Procesa la tarea: .env.example con todas las variables de entorno. Archivos: ['.env.example']. Escribe código limpio, sin any, en español con acentos. tsc limpio.",
+   "depende": [],
+   "modelo": "llm7/minimax-m2.7",
+   "aprobacion": false
+  },
+  {
+   "id": "c313_QW6",
+   "ola": "Ola 313 · Consolidación de pendientes",
+   "titulo": "Nombre accesible del botón Compartir de la tarjeta",
+   "archivos": [
+    "src/components/social/PostCard.tsx"
+   ],
+   "prompt": "Procesa la tarea: Nombre accesible del botón Compartir de la tarjeta. Archivos: ['src/components/social/PostCard.tsx']. Escribe código limpio, sin any, en español con acentos. tsc limpio.",
+   "depende": [],
+   "modelo": "llm7/minimax-m2.7",
+   "aprobacion": false
+  },
+  {
+   "id": "RM3",
+   "ola": 363,
+   "titulo": "buildwithparallel: adaptadores de transporte mesh Reticulum y Wi-Fi HaLow",
+   "archivos": [
+    "src/ai/astraura/mesh/transporte-bwp.ts",
+    "src/lib/__tests__/transporte-bwp.test.ts"
+   ],
+   "depende": [
+    "RM2"
+   ],
+   "prompt": "buildwithparallel (https://buildwithparallel.com · https://github.com/buildwithparallel) ofrece campo en radios mesh, Wi-Fi HaLow (sub-GHz) y Reticulum sobre red local-first con hardware de commodity. StarSeed ya abstrae senalizacion y transporte en `src/ai/astraura/mesh/` (`signals.ts`, `meshtastic-adapter.ts`, `servers.ts`). Objetivo: abstraer el VÍNCULO fisico sin tocar la capa de aplicacion (identidad/cifrado/reglas de `mesh-identity.ts`, `recipient-crypto.ts`, `rules.ts` quedan intactos).\n1) `transporte-bwp.ts`: `type TransporteBwp = 'wifi-halo'|'reticulum'|'wifi-mesh'|'webrtc-local'|'usb-serial'`; `TRANSPORTES_BWP: Record<TransporteBwp,{etiqueta;alcanceLectura;latencia;requiereHardware;prioridad:number}>; `transportesOrdenados(disponibles, preferido?)` mete el preferido el primero si esta, orden estable para el resto; `estadoTransporte(vinculos:Array<{transporte;rssi?;tasaKbps?}>)` da `{online; mejor; totalKbps}`.\n2) Test vitest puro: `transportesOrdenados` pone el preferido primero sin perder ninguno; `estadoTransporte` suma tasas y elige el mejor por prioridad.\nSin any, tsc limpio.",
+   "modelo": "llm7/minimax-m2.7"
+  },
+  {
+   "id": "RM4",
+   "ola": 363,
+   "titulo": "Voz de borde con Supertonic: nivel suptonico en el motor Voz StarSeed",
+   "archivos": [
+    "src/lib/aurora/voz-starseed/supertonic.ts",
+    "src/lib/__tests__/voz-supertonic.test.ts"
+   ],
+   "depende": [
+    "RM1"
+   ],
+   "prompt": "Supertonic (https://github.com/supertone-oss-archive/supertonic, archivado: se usa como referencia y se adapta) es TTS on-device en ONNX, sin GPU, 31 idiomas, runtimes py/web/java/cpp/go/swift/rust (PyPI `supertonic`). Encaja con el estudio 1.58/needle porque tampoco exige GPU. NO dupliques el motor de voz: anade un nivel al existente. Abre `src/lib/aurora/voz-starseed/` (`niveles.ts`, `motor.ts`, `capacidades.ts`) y `memory/estudio-voces.md`.\n1) `supertonic.ts`: `interface NivelSuptonico { vivo:boolean; runtime:'onnx-cpu'|'wasm'|'nativo'; modelosCargados:string[]; idiomas:string[]; latenciaMs? }`; `soporteSupertonic(c)` da `{disponible;motivo?}` con disponible = hay WebAssembly SIMD o el runtime nativo `voz-supertonic` en PATH (no requiere el daemon ni GPU); `nivelParaVoz({supertonic;mobile;plataforma})` da `'suptonica'|'158-local'|'nube'|'tronal'` priorizando suptonica (voz de borde, sin GPU ni nube). Reutiliza `capacidades.ts` SOLO como referencia de firma.\n2) Test vitest puro: runtime WASM y sin mobile da `suptonica`; sin runtime da `nube` en movil / `158-local` en escritorio con daemon; `soporteSupertonic` no depende del daemon ni pide GPU.\nSin any, espanol con acentos, tsc limpio.",
+   "modelo": "llm7/minimax-m2.7"
+  }
+ ]
+}
