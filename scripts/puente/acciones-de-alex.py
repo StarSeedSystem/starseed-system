@@ -90,18 +90,21 @@ def _entorno_con_env():
     """El entorno del proceso MÁS `~/.starseed/env`, que es donde viven de verdad las
     variables del enjambre: el director corre desde launchd y no las hereda."""
     datos = dict(os.environ)
-    ruta = os.path.expanduser("~/.starseed/env")
-    try:
-        with open(ruta, encoding="utf-8") as f:
-            for linea in f:
-                linea = linea.strip()
-                if linea.startswith("export "):
-                    linea = linea[7:]
-                if "=" in linea and not linea.startswith("#"):
-                    k, _, v = linea.partition("=")
-                    datos.setdefault(k.strip(), v.strip().strip('"').strip("'"))
-    except OSError:
-        pass
+    # Los MISMOS sitios de los que tiran los servicios. El de Telegram arranca con
+    # `source ~/.hermes/.env` (ver com.starseed.telegram.plist), así que mirar solo
+    # `~/.starseed/env` daba una falsa alarma: decía que no había canal habiéndolo.
+    for archivo in ("~/.starseed/env", "~/.hermes/.env"):
+        try:
+            with open(os.path.expanduser(archivo), encoding="utf-8") as f:
+                for linea in f:
+                    linea = linea.strip()
+                    if linea.startswith("export "):
+                        linea = linea[7:]
+                    if "=" in linea and not linea.startswith("#"):
+                        k, _, v = linea.partition("=")
+                        datos.setdefault(k.strip(), v.strip().strip('"').strip("'"))
+        except OSError:
+            continue
     return datos
 
 

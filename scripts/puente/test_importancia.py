@@ -97,3 +97,41 @@ class TestFiltrar(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class LoQueSoloPuedeHacerAlexSiempreSuena(unittest.TestCase):
+    """(2026-09-22, MEDIDO) «el te toca a ti no me ha avisado del fichaje de la api ni de nada».
+
+    El token estaba puesto (el servicio hace `source ~/.hermes/.env`), el puente vivo y la
+    línea en el canal desde las 10:04. La tragaba el filtro de ruido:
+
+        suena({quien: "director-acciones",
+               texto: "nueva: NVIDIA Build (NIM): renovar la clave · https://…"}) → False
+
+    Reducir ruido no puede significar callar lo único que está parado esperándole a él.
+    """
+
+    def test_un_aviso_del_director_de_acciones_suena(self):
+        self.assertTrue(suena({
+            "quien": "director-acciones", "tipo": "aviso",
+            "texto": "nueva: NVIDIA Build (NIM): renovar la clave · https://build.nvidia.com/",
+        }))
+
+    def test_tambien_cuando_se_resuelve(self):
+        self.assertTrue(suena({
+            "quien": "director-acciones", "tipo": "aviso",
+            "texto": "resuelta: apinex: renovar la clave",
+        }))
+
+    def test_gana_incluso_a_la_lista_de_NUNCA(self):
+        """«sin cupo hasta» está en NUNCA, pero si lo dice el director de acciones, suena."""
+        self.assertTrue(suena({
+            "quien": "director-acciones", "tipo": "aviso",
+            "texto": "nueva: groq sin cupo hasta mañana: renovar la clave",
+        }))
+
+    def test_el_ruido_de_siempre_sigue_callado(self):
+        self.assertFalse(suena({"quien": "enjambre", "tipo": "mensaje",
+                                            "texto": "latido de X"}))
+        self.assertFalse(suena({"quien": "enjambre", "tipo": "mensaje",
+                                            "texto": "integrado en main"}))

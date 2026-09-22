@@ -77,6 +77,18 @@ def suena(linea, consejero=None):
     t = _texto(linea)
     if not t:
         return False
+    # (2026-09-22, MEDIDO) Lo que SOLO puede hacer Alex suena siempre, antes que ninguna
+    # lista. Sin esta regla, el filtro se tragaba justo los avisos que le esperan a él:
+    #
+    #     suena({quien: "director-acciones",
+    #            texto: "nueva: NVIDIA Build (NIM): renovar la clave · https://…"}) → False
+    #
+    # El token estaba puesto, el puente vivo y la línea en el canal; la tragaba el filtro
+    # de ruido que él mismo pidió («reduce las notificaciones»). Alex: «el te toca a ti no
+    # me ha avisado del fichaje de la api ni de nada». Reducir ruido no puede significar
+    # callar lo único que está bloqueado esperándole.
+    if str((linea or {}).get("quien") or "").lower().startswith("director-acciones"):
+        return True
     for clave in SIEMPRE:
         if clave in t:
             return True
