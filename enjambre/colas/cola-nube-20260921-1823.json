@@ -1,0 +1,39 @@
+{
+ "ola": "nube-20260921",
+ "tareas": [
+  {
+   "id": "TK1c",
+   "ola": "Ola 339 · Destilar a Astraura con lo que ya generamos",
+   "depende": [],
+   "titulo": "La Biblioteca registra las tres repos nuevas, con su coste dicho en claro",
+   "archivos": [
+    "src/lib/library/fuentes-decision.ts"
+   ],
+   "prompt": "SEGUNDO INTENTO. La revision encontro dos cosas y las dos son ciertas:\n  1. La tarea pedia TRES repos y el diff solo anadio DOS (hermes-jev-skills y jev-router). La de tinker-cookbook ya existia y solo se le reescribio la descripcion. Repasa que las tres esten, y que la de tinker-cookbook diga lo que hay que decir (ver abajo).\n  2. En jev-router pusiste `free: false` y a la vez «no anade otro coste»: elige. Lo cierto es que el repo es MIT y gratis; lo que cuesta es la suscripcion de Claude Code, que es un requisito previo, no un coste del repo. Dilo asi.\n  3. No afirmes «comprobado con nuestra OPENROUTER_API_KEY» como si fuera cierto en cualquier maquina: lo comprobamos en ESTA. Si pones `corre_aqui: true`, que sea porque el codigo lo mira, no porque lo diga la ficha.\n\nLO QUE TIENE QUE DECIR CADA FICHA (medido al clonarlas):\n  · samwit/tinker-cookbook (Apache 2.0): 374 modulos Python, 329 (88%) importan el SDK `tinker` y NO funcionan sin cuenta DE PAGO en thinkingmachines.ai. El entrenamiento corre en SU infraestructura. Gratis solo sirven las recetas como planos y los tutoriales.\n  · kerpopule/hermes-jev-skills (MIT): Python 3.9+ sin dependencias, diez skills. Funciona con una clave de OpenRouter, que ya tenemos.\n  · gargpratyush/jev-router (MIT): Node 20.12+. Proxy que enruta Claude Code a Haiku/Sonnet/Opus segun la complejidad que estime Jev.\n\nTU ENCARGO, UN SOLO ARCHIVO: `src/lib/library/fuentes-decision.ts`, con el MISMO patron y las mismas claves que las seis entradas que ya estan. Leelas primero.\n\nNO explores el repositorio entero: abre SOLO los archivos que se nombran. Comentarios en ESPANOL que expliquen el PORQUE. Corre tus pruebas antes de terminar.",
+   "modelo": "llm7/minimax-m2.7"
+  },
+  {
+   "id": "MND5",
+   "ola": "Ola 337 · Mando que no miente",
+   "depende": [],
+   "titulo": "Boton «verificar» en la ventana de «Te toca a ti»",
+   "archivos": [
+    "src/app/api/mando/acciones/route.ts"
+   ],
+   "prompt": "Alex (2026-09-21): «en el puente de mando en su ventana debe haber un boton de verificar para cuando sea realizada la tarea». Y tiene motivo de sobra: ese medidor le estuvo pidiendo 20 horas unas claves que ya estaban puestas.\n\nLA PARTE QUE MIDE YA ESTA HECHA y probada: `scripts/puente/acciones-de-alex.py` tiene `verificar(id_accion)`, que NO lee el archivo guardado sino que vuelve a recoger los hechos (pasarelas vivas y secretos que hay hoy en el repo) y reconstruye la lista. Si la accion ya no sale, esta hecha. Desde la terminal:\n\n    python3 scripts/puente/acciones-de-alex.py --verificar github-secretos\n    -> {\"id\":\"github-secretos\",\"hecha\":true,\"detalle\":\"comprobado de nuevo: ya no hace falta\",\"comprobado\":\"2026-09-21 17:27:17\",\"quedan\":0}\n\nTU ENCARGO, UN SOLO ARCHIVO: `src/app/api/mando/acciones/route.ts`. Anade un POST que acepte `{accion: \"verificar\", id?: string}`, ejecute ese guion con ese argumento y devuelva su JSON tal cual. Copia el patron EXACTO con el que otras rutas del Mando ejecutan guiones de scripts/puente, candado `guardianMando` incluido. NO reimplementes la comprobacion en TypeScript: si hay dos formas de medir lo mismo, se desincronizan — eso es literalmente el fallo que estamos arreglando hoy en los medidores.\n\nEl GET que ya existe no se toca.\n\nNO explores el repositorio entero: abre SOLO el archivo que se nombra. tsc limpio, sin `any`. Comentarios en ESPANOL que expliquen el PORQUE.",
+   "modelo": "llm7/minimax-m2.7"
+  },
+  {
+   "id": "TK2b",
+   "ola": "Ola 339 · Destilar a Astraura con lo que ya generamos",
+   "depende": [],
+   "titulo": "Corpus de destilacion: el enjambre ya es el maestro y estabamos tirando sus respuestas",
+   "archivos": [
+    "scripts/puente/destilacion_corpus.py",
+    "scripts/puente/test_destilacion_corpus.py"
+   ],
+   "prompt": "SEGUNDO INTENTO. El primero se rechazo y la revision encontro un AGUJERO DE SEGURIDAD REAL, no cosmetico. Leelo entero antes de escribir una linea.\n\nEL FALLO: `PATRON_SECRETO` solo capturaba la forma `CLAVE = valor`. En diffs de verdad los secretos aparecen de muchas otras maneras y TODAS pasaban limpias al corpus, que va a alimentar el entrenamiento del modelo alumno:\n    \"apiKey\": \"sk-...\"        (JSON)\n    api_key: valor             (YAML)\n    Authorization: Bearer ...  (cabecera)\n    sk-... / ghp_... sueltos   (el token a pelo, sin nombre delante)\n\nTU ENCARGO es el mismo de antes —`scripts/puente/destilacion_corpus.py` y su prueba— con el filtro hecho en serio:\n  1. Nombres: cualquier clave que contenga KEY, TOKEN, SECRET, PASSWORD, CREDENTIAL o AUTH, en mayusculas o minusculas, con `=` O con `:` detras, con o sin comillas.\n  2. Formas del propio token, aunque no lleven nombre: `sk-`, `ghp_`, `gho_`, `github_pat_`, `xoxb-`, `AIza`, `Bearer <algo largo>`, y cualquier cadena de 32+ caracteres de base64/hex que vaya pegada a una de esas palabras.\n  3. Ante la duda, FUERA la linea. Perder un ejemplo no cuesta nada; filtrar un secreto a un corpus de entrenamiento no tiene vuelta atras.\n\nOTRAS DOS PEGAS de la revision, tambien reales:\n  · El filtro de «bloqueante» miraba una subcadena: «no es bloqueante» descartaba un ejemplo bueno, y «rechazado por seguridad» colaba uno malo. Usa el CAMPO `revisor` de progreso.json (vale exactamente 'bloqueante' o no), no el texto de la nota.\n  · `git show` mete el mensaje de commit y metadatos en lo que llamas «diff». Usa `git show --format= <sha>` o `git diff <sha>^ <sha>` para quedarte solo con el codigo.\n\nPRUEBAS OBLIGATORIAS, una por cada forma de la lista de arriba, comprobando que NO acaba en el corpus. Y una que meta `API_KEY: \"sk-test\"` con dos puntos, que es el caso exacto con el que la revision demostro el agujero.\n\nNO explores el repositorio entero: abre SOLO los archivos que se nombran. Comentarios en ESPANOL que expliquen el PORQUE. Corre tus pruebas antes de terminar.",
+   "modelo": "llm7/minimax-m2.7"
+  }
+ ]
+}
