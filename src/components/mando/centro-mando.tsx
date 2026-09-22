@@ -609,6 +609,9 @@ export function CentroMando() {
         bloqueadas: number | null;
         agentes: number | null;
         agentesResumen: string | null;
+        /** Tareas que alguien está haciendo AHORA, aquí y en la nube. Ver `cargarMedidoresResumen`. */
+        enCurso: number | null;
+        enCursoResumen: string | null;
         /** Agentes que CABEN ahora en los contenedores de nube (sitio libre medido). */
         contenedores: number | null;
         contenedoresResumen: string | null;
@@ -620,18 +623,22 @@ export function CentroMando() {
     const cargarMedidoresResumen = useCallback(async (forzar = false) => {
         if (!forzar && document.visibilityState === "hidden") return;
         try {
-            const [resListas, resBloqueadas, resAgentes, resContenedores, resProveedores] = await Promise.allSettled([
-                fetch("/api/mando/medidores?clave=listas", { cache: "no-store" }),
-                fetch("/api/mando/medidores?clave=bloqueadas", { cache: "no-store" }),
-                fetch("/api/mando/medidores?clave=agentes", { cache: "no-store" }),
-                fetch("/api/mando/medidores?clave=contenedores", { cache: "no-store" }),
-                fetch("/api/mando/medidores?clave=proveedores", { cache: "no-store" }),
-            ]);
+            const [resListas, resBloqueadas, resAgentes, resEnCurso, resContenedores, resProveedores] =
+                await Promise.allSettled([
+                    fetch("/api/mando/medidores?clave=listas", { cache: "no-store" }),
+                    fetch("/api/mando/medidores?clave=bloqueadas", { cache: "no-store" }),
+                    fetch("/api/mando/medidores?clave=agentes", { cache: "no-store" }),
+                    fetch("/api/mando/medidores?clave=en-curso", { cache: "no-store" }),
+                    fetch("/api/mando/medidores?clave=contenedores", { cache: "no-store" }),
+                    fetch("/api/mando/medidores?clave=proveedores", { cache: "no-store" }),
+                ]);
 
             let listas: number | null = null;
             let bloqueadas: number | null = null;
             let agentes: number | null = null;
             let agentesResumen: string | null = null;
+            let enCurso: number | null = null;
+            let enCursoResumen: string | null = null;
             let contenedores: number | null = null;
             let contenedoresResumen: string | null = null;
             let agotados: number | null = null;
@@ -665,6 +672,20 @@ export function CentroMando() {
                 }
             }
 
+            if (resEnCurso.status === "fulfilled" && resEnCurso.value.ok) {
+                const dataEnCurso = (await resEnCurso.value.json()) as { detalle?: DetalleMedidor };
+                if (dataEnCurso.detalle?.filas) {
+                    // (2026-09-22) Alex: «dice que 0 tareas en curso pero 12 agentes, no se
+                    // está actualizando». No era que no se actualizara: la pastilla salía de
+                    // `/api/mando/estado`, que cuenta latidos de la MAC, y los agentes de la
+                    // nube no laten ahí. Medido en ese momento: 15 agentes escribiendo en dos
+                    // medios y la pastilla en 0. Este medidor ya lo sabía —«15 en marcha»—,
+                    // así que la pastilla se lee de él, como ya se hacía con «Agentes».
+                    enCurso = dataEnCurso.detalle.filas.length;
+                    enCursoResumen = dataEnCurso.detalle.resumen ?? null;
+                }
+            }
+
             if (resContenedores.status === "fulfilled" && resContenedores.value.ok) {
                 const dataCont = (await resContenedores.value.json()) as { detalle?: DetalleMedidor };
                 if (dataCont.detalle) {
@@ -694,6 +715,8 @@ export function CentroMando() {
                 bloqueadas,
                 agentes,
                 agentesResumen,
+                enCurso,
+                enCursoResumen,
                 contenedores,
                 contenedoresResumen,
                 agotados,
@@ -705,6 +728,8 @@ export function CentroMando() {
                 bloqueadas: null,
                 agentes: null,
                 agentesResumen: null,
+                enCurso: null,
+                enCursoResumen: null,
                 contenedores: null,
                 contenedoresResumen: null,
                 agotados: null,
@@ -1084,6 +1109,18 @@ export function CentroMando() {
         };
     }, [neurona]);
 
+    /**
+     * Tareas que alguien está haciendo AHORA, del mismo medidor que se abre al pulsar.
+     *
+     * (2026-09-22) Alex: «dice que 0 tareas en curso pero 12 agentes, no se está
+     * actualizando». Se actualizaba: contaba otra cosa. `pulso.tareasEnCurso` sale de
+     * `/api/mando/estado`, que cuenta LATIDOS DE LA MAC, y los agentes de la nube no laten
+     * ahí. El medidor `en-curso` sí los ve —decía «15 en marcha» con la pastilla en 0—.
+     * Si el medidor no responde se cae al conteo viejo antes que enseñar un guion.
+     */
+    const enCursoAhora = medidoresResumen?.enCurso ?? pulso?.tareasEnCurso ?? 0;
+
+
     // Ola 275 · V4: la Voz del Mando se monta UNA vez aquí (no por pestaña), para
     // que los anuncios hablados no se dupliquen al cambiar de vista. Se alimenta
     // de los eventos del relevo y de un resumen mínimo del estado («Léeme el
@@ -1171,9 +1208,15 @@ export function CentroMando() {
                             {
                                 clave: "en-curso" as const,
                                 titulo: "Tareas en curso",
-                                valor: String(pulso.tareasEnCurso),
-                                tono: (pulso.tareasEnCurso > 0 ? "aviso" : "normal") as TonoMedidor,
-                                detalle: pulso.tareasEnCurso > 0 ? "agentes escribiendo ahora" : "ningún agente activo",
+                                // La cifra sale del MISMO medidor que se abre al pulsar, como
+                                // «Agentes». `pulso.tareasEnCurso` cuenta latidos de la Mac y
+                                // los agentes de la nube no laten ahí: por eso decía 0 con
+                                // quince trabajando. Solo se usa si el medidor no responde.
+                                valor: String(enCursoAhora),
+                                tono: (enCursoAhora > 0 ? "aviso" : "normal") as TonoMedidor,
+                                detalle:
+                                    medidoresResumen?.enCursoResumen ??
+                                    (enCursoAhora > 0 ? "agentes escribiendo ahora" : "ningún agente activo"),
                             },
                             {
                                 clave: "agentes" as const,

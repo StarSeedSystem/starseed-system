@@ -481,3 +481,33 @@ describe("una dependencia que no va a llegar nunca no es un candado", () => {
         expect(dependenciasQueFaltan(["A"], { A: { estado: "commit" } })).toEqual([]);
     });
 });
+
+describe("«Tareas en curso» y «Agentes» no pueden discrepar", () => {
+    // (2026-09-22) Alex: «dice que 0 tareas en curso pero 12 agentes, no se está
+    // actualizando». Se actualizaba: la pastilla contaba latidos de la MAC
+    // (`/api/mando/estado`) y los agentes de la nube no laten ahí. Este medidor sí los
+    // ve. Desde hoy la pastilla lo lee de aquí, así que la invariante es: los dos
+    // medidores miran los mismos latidos y cuentan lo mismo.
+    const enDosMedios = [
+        { tarea: "T1", fase: "escribiendo", modelo: "nim/kimi-k3", minutos: 4, donde: "mac", proveedor: "nim" },
+        { tarea: "nube/35740708835", fase: "escribiendo", modelo: "llm7/minimax", minutos: 6, donde: "nube-gh" },
+        { tarea: "nube/35740708835", fase: "escribiendo", modelo: "llm7/minimax", minutos: 6, donde: "nube-gh" },
+    ];
+
+    it("cuenta también a los que trabajan en la nube", () => {
+        const d = detalleDeMedidor("en-curso", { latidos: enDosMedios });
+        expect(d.filas).toHaveLength(3);
+        expect(d.filas.map((f) => f.id)).toContain("nube/35740708835");
+    });
+
+    it("da el mismo número que el medidor de agentes", () => {
+        const enCurso = detalleDeMedidor("en-curso", { latidos: enDosMedios });
+        const agentes = detalleDeMedidor("agentes", { latidos: enDosMedios });
+        expect(enCurso.filas.length).toBe(agentes.filas.length);
+    });
+
+    it("sin nadie trabajando, los dos dicen cero", () => {
+        expect(detalleDeMedidor("en-curso", { latidos: [] }).filas).toHaveLength(0);
+        expect(detalleDeMedidor("agentes", { latidos: [] }).filas).toHaveLength(0);
+    });
+});
