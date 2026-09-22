@@ -54,6 +54,45 @@ class ReglasDelGuardia(unittest.TestCase):
         # El zombi revisado: un marcador viejo sin proceso no descongela a nadie.
         self.assertEqual([], G.decidir(False, SOBRE + 1, {"tts-server"}, []))
 
+    def test_marcador_obsoleto_o_proceso_reanudado_se_limpia(self):
+        # Si un motor congelado muere/se reanuda y entra un nuevo proceso 'S',
+        # obtener_congelados borra el marcador obsoleto y NO lo incluye en congelados.
+        marcas = {"llama-server": {100}}
+        guardadas = {}
+
+        def fake_leer(m):
+            return marcas.get(m, set())
+
+        def fake_guardar(m, pids):
+            guardadas[m] = pids
+
+        # PID 100 no está en ps; el nuevo PID 200 está en estado 'S' (ejecutando)
+        motores_dict = {"llama-server": {200: "S"}}
+        congelados = G.obtener_congelados(motores_dict, fake_leer, fake_guardar)
+
+        self.assertEqual(set(), congelados)
+        self.assertEqual(set(), guardadas.get("llama-server"))
+
+        # Al no estar en congelados, decidir manda congelar al nuevo proceso PID 200
+        acciones = G.decidir(True, BAJO - 1, congelados, ["llama-server"])
+        self.assertEqual([("llama-server", "congelar")], acciones)
+
+    def test_marcador_valido_con_proceso_parado_se_mantiene(self):
+        marcas = {"tts-server": {300}}
+        guardadas = {}
+
+        def fake_leer(m):
+            return marcas.get(m, set())
+
+        def fake_guardar(m, pids):
+            guardadas[m] = pids
+
+        # PID 300 está en estado 'T' (parado/congelado por SIGSTOP)
+        motores_dict = {"tts-server": {300: "T"}}
+        congelados = G.obtener_congelados(motores_dict, fake_leer, fake_guardar)
+
+        self.assertEqual({"tts-server"}, congelados)
+
 
 if __name__ == "__main__":
     unittest.main()

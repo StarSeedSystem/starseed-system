@@ -69,13 +69,13 @@ def libres_mb():
 
 
 def procesos():
-    """({motor: {pid: estado}}, orquestador_vivo), solo de los motores vigilados.
+    """({motor: {pid: estado}}, orquestador_vivo, ps_ok), solo de los motores vigilados.
 
     Antes habia UN solo motor y se miraba el ultimo de la lista de `ps`. El 2026-09-20
     la Mac tenia CINCO `llama-server` y el guardia vigilaba uno que no servia el puerto;
     el motor real quedo congelado cuatro horas. Ahora se guarda por nombre y por pid.
     """
-    motores, orq = {m: {} for m in MOTORES}, False
+    motores, orq, ps_ok = {m: {} for m in MOTORES}, True, False
     try:
         # `comm` es la ruta del ejecutable, sin argumentos: inmune al texto de un prompt.
         s = subprocess.run(
@@ -84,8 +84,9 @@ def procesos():
             text=True,
             timeout=20,
         ).stdout
+        ps_ok = True
     except Exception:
-        return motores, False
+        return motores, True, False
     for l in s.splitlines():
         partes = l.split(None, 2)
         if len(partes) < 3:
@@ -101,7 +102,7 @@ def procesos():
         orq = any(PATRON_ORQ.match(l) for l in a.splitlines())
     except Exception:
         orq = True  # ante la duda, no reanudar nada
-    return motores, orq
+    return motores, orq, ps_ok
 
 
 def ruta_marca(motor):
@@ -126,6 +127,32 @@ def guardar_marca(motor, pids):
         return
     with open(ruta_marca(motor), "w", encoding="utf-8") as f:
         f.write("\n".join(str(p) for p in sorted(pids)))
+
+
+def obtener_congelados(
+    motores_dict, leer_marca_fn=leer_marca, guardar_marca_fn=guardar_marca
+):
+    """Devuelve los motores con al menos un PID en estado «T» en la marca.
+
+    Un marcador solo vale si su pid sigue vivo Y parado («T»). Si el motor
+    murió congelado y arrancó de nuevo, o su dueño lo reanudó a mano, el
+    marcador es basura: dejarlo dejaría al motor nuevo marcado como
+    «congelado» sin estarlo, no se le mandaría SIGCONT por no estar en «T»,
+    y jamás volvería a congelarse. Se borra aquí, en cada ciclo.
+    """
+    congelados = set()
+    for motor in MOTORES:
+        marcados = leer_marca_fn(motor)
+        if not marcados:
+            continue
+        parados = {p for p in marcados if "T" in motores_dict.get(motor, {}).get(p, "")}
+        if parados:
+            congelados.add(motor)
+            if parados != marcados:
+                guardar_marca_fn(motor, parados)
+        else:
+            guardar_marca_fn(motor, set())
+    return congelados
 
 
 def decidir(orquestador_vivo, libre_mb, congelados, motores):
@@ -170,28 +197,10 @@ def main():
     )
     while True:
         try:
-            motores, orq = procesos()
+            motores, orq, ps_ok = procesos()
             vivos = [m for m in MOTORES if motores[m]]
 
-            # Un marcador solo vale si su pid sigue vivo Y parado («T»). Si el motor
-            # murio congelado y arranco de nuevo, o su dueno lo reanudo a mano, el
-            # marcador es basura: dejarlo dejaria al motor nuevo marcado como
-            # «congelado» sin estarlo, no se le mandaria SIGCONT por no estar en «T»,
-            # y jamas volveria a congelarse. Se borra aqui, en cada ciclo.
-            congelados = set()
-            for motor in MOTORES:
-                marcados = leer_marca(motor)
-                if not marcados:
-                    continue
-                parados = {
-                    p for p in marcados if "T" in motores.get(motor, {}).get(p, "")
-                }
-                if parados:
-                    congelados.add(motor)
-                    if parados != marcados:
-                        guardar_marca(motor, parados)
-                else:
-                    guardar_marca(motor, set())
+            congelados = obtener_congelados(motores) if ps_ok else set()
 
             acciones = decidir(orq, libres_mb(), congelados, vivos)
 
