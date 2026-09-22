@@ -85,7 +85,7 @@ export async function guardarClave(
     }
 
     const scriptPath = path.join(process.cwd(), "scripts", "puente", "guardar-clave.sh");
-    if (existsSync(scriptPath)) {
+    if (process.env.NODE_ENV !== "test" && existsSync(scriptPath)) {
         try {
             execFileSync("bash", [scriptPath, variable, "--ambos"], {
                 input: `${valor}\n`,

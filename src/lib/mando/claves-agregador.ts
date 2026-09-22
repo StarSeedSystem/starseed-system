@@ -89,7 +89,7 @@ export function obtenerResumenClavesConfiguradas(
                 presente,
                 huella: presente ? huellaClaveSha256(val) : null,
                 mascara: presente ? enmascarar(val) : null,
-                estado: p.estado || "desconocido",
+                estado: ("estado" in p ? p.estado : undefined) || "desconocido",
             });
         }
     }
