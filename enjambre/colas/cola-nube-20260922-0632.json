@@ -1,0 +1,47 @@
+{
+ "ola": "nube-20260922",
+ "tareas": [
+  {
+   "id": "c313_QW5",
+   "ola": "Ola 313 · Consolidación de pendientes",
+   "titulo": "Caché de un año para archivos inmutables",
+   "archivos": [
+    "src/lib/files/os-files.ts",
+    "src/lib/os-social.ts"
+   ],
+   "prompt": "Procesa la tarea: Caché de un año para archivos inmutables. Archivos: ['src/lib/files/os-files.ts', 'src/lib/os-social.ts']. Escribe código limpio, sin any, en español con acentos. tsc limpio.",
+   "depende": [],
+   "modelo": "llm7/minimax-m2.7",
+   "aprobacion": false
+  },
+  {
+   "id": "p316Ic",
+   "ola": "Ola 316 · Salud del Puente: agentes que vigilan cada medidor",
+   "titulo": "Un fallo de red o de conexión del motor no es «sin cambios»: la tarea espera y se reintenta",
+   "archivos": [
+    "scripts/enjambre/clasificar_fallo_motor.py",
+    "scripts/enjambre/test_clasificar_fallo_motor.py",
+    "scripts/enjambre/starseed-enjambre.py"
+   ],
+   "prompt": "Lee AGENTS.md. Contexto medido el 2026-09-12 17:57: la Mac perdió la red, opencode devolvió en 5 s «Unable to connect. Is the computer able to access the url? Failed to fetch models.dev» y «Was there a typo in the url or port?» para TODOS los proveedores, y el orquestador marcó nueve tareas sin_cambios («ningún modelo tocó archivos»), un estado que nadie reintenta. También: Apinex devolvió «405 Not Allowed» (URL base sin /v1) y «402 Daily check-in required». Única tarea: módulo PURO scripts/enjambre/clasificar_fallo_motor.py con clasificar(salida:str, segundos:float)->str que devuelve 'red' (Unable to connect, Failed to fetch, typo in the url, ECONNREFUSED, ENOTFOUND, ETIMEDOUT, getaddrinfo), 'pasarela' (405 Not Allowed, 502, 503, 504, html de nginx), 'cuota' (402, 429, quota, check-in required), 'sin_cambios' (salida normal sin diff) o 'ok'. unittest con un caso por clase más uno ambiguo. Cableado MÍNIMO en scripts/enjambre/starseed-enjambre.py (≤20 líneas), en el punto donde se decide «sin cambios con <modelo>» (grep 'sin cambios con'): si clasificar dice 'red' → no consumir el intento ni el modelo: set_estado(tid, estado='interrumpida', nota='red caída: <extracto>'), anunciar en el canal y dormir 60 s antes de la siguiente tarea; si dice 'pasarela' → apartar ese proveedor 15 min (usa la función existente que aparta a llm7 caído, grep 'lo aparto') y probar el siguiente; 'cuota' ya lo maneja agotar_clave. No cambies nada más. Máximo 120 líneas por archivo nuevo.\n\nPOR QUÉ VUELVE: el intento anterior fue rechazado. Objeción literal del revisor:\nSeguimiento: sí, bloqueante — `clasificar` debe manejar `None`/vacío y devolver `'ok'` según su contrato (o corregir docstring y test), y restaurar las subcadenas de red eliminadas.\n\nRiesgos reales:\n1. **`clasificar` nunca devuelve `'ok'`**: el docstring y el test (`test_ok_vacio` espera `\"ok\"` para `\"\"`) contradicen el código, que cae siempre en `return \"sin_cambios\"`. Con salida vacía el test falla; y si algún llamador distingue 'ok' de 'sin_cambios', el comportamiento cambia silenciosamente.\n2. **`None` rompe el orquestador**: se eliminó el test `clasificar(None, …)` pero `reaccionar_al_fallo` llama `clasificar(out, …)` con `out` crudo, y el propio código usa `(out or \"\")` unas líneas después, señal de que `out` puede ser `None`. `None.lower()` lanza `AttributeError` y tumba el bucle de `ejecutar` justo en el camino de fallo que esta tarea pretende proteger.\n3. **Pérdida de cobertura de red**: se quitaron \"connection reset by peer\", \"network is unreachable\", \"certificate verify failed\" y \"name or service not known\". Un reset TCP real volvería a clasificarse como «sin cambios», reintroduciendo el bug original en otro sabor.\nAtiéndela punto por punto; si algún punto no aplica, di por qué en el commit.",
+   "depende": [],
+   "estado": "rechazada",
+   "nota": "rechazada desde el Mando; rama ola/p316I conservada",
+   "motivo": "",
+   "modelo": "llm7/minimax-m2.7"
+  },
+  {
+   "id": "JV8",
+   "ola": 357,
+   "titulo": "El contrato de openjev en el OS: una sola puerta de decisiones para Astraura, el enjambre y todos los IDE",
+   "archivos": [
+    "src/app/api/jev/systemone/route.ts",
+    "src/lib/mando/jev-contrato.ts",
+    "src/lib/mando/__tests__/jev-contrato.test.ts"
+   ],
+   "depende": [],
+   "prompt": "CONTEXTO COMUN DE LA OLA 357 (2026-09-20, medido en la Mac de Alex).\nHoy Jev vive en `scripts/puente/jev.py`: decisiones TIPADAS (sin texto generado) contra\n`POST https://openrouter.ai/api/alpha/decisions`, modelo `~typesafe/jev-latest`. Medido:\n0,56 s y $0,000019 por decision, con techo de 0,05 $/dia y 1 $/mes. Funciona, pero se paga\ny se acaba.\n\nAlex trajo cuatro fuentes que hacen LO MISMO sin pagar, y todas coinciden en la misma idea:\n · openjev (razorback16): servidor de decisiones compatible con Jev, `POST /v1/systemone`.\n   Pide GPU NVIDIA de 24 GB: NO cabe aqui. Lo que si nos sirve es SU CONTRATO.\n · decider (Mapika): Qwen3.5-2B, restringe los logits a las letras A..J y hace softmax.\n · nimble (bespokelabs): Qwen3.5-9B+LoRA, con ParallelScorer para Mac: procesa el contexto\n   UNA vez y puntua todos los campos.\n · AlexWortega/openjev (HF): cross-encoder NLI de 4B, MIT.\nLa tecnica es siempre la misma: NO se genera texto; se mira la probabilidad de los tokens\nde las opciones y se normaliza. Eso se puede hacer con el motor que YA tenemos.\n\nLO QUE YA HAY Y SE COMPRUEBA (no hay que descargar ningun modelo nuevo):\n`llama-server` de BitNet b1.58-2B-4T sirve en http://127.0.0.1:8790 (Astraura 1.58 bit).\nComprobado hoy: `POST /completion` con `n_probs` DEVUELVE las probabilidades por token.\nEjemplo real de su respuesta a «A = si / B = no»:\n   {\"token\": \" B\", \"logprob\": -0.788}, {\"token\": \" A\", \"logprob\": -1.527}\nEs decir: el Jev local ya es posible con el motor de 1,58 bits que Alex tiene encendido.\n\nEL LIMITE QUE NO SE PUEDE IGNORAR: la Mac tiene 8 GB y `scripts/puente/guardia-memoria.py`\nCONGELA BitNet (SIGSTOP) mientras el enjambre escribe, y lo reanuda cuando para. O sea: el\nmedio local esta disponible cuando el enjambre NO trabaja. Por eso esto es una PIRAMIDE,\nno un reemplazo:\n   1) local (BitNet 1.58 bit, gratis) si responde en el plazo,\n   2) OpenRouter `~typesafe/jev-latest` (de pago, con techo) si el local no esta,\n   3) la regla determinista de quien llama, SIEMPRE, si no hay ninguno de los dos.\nJev es CONSEJERO, nunca oraculo: sin clave, sin red, congelado o con error, todo devuelve\nNone y quien llama sigue como si Jev no existiera. Esa regla no se toca.\nLa clave vive SOLO en OPENROUTER_API_KEY (~/.hermes/.env o ~/.starseed/env). Jamas se\nimprime, ni en un log, ni en un evento, ni en una respuesta HTTP.\n\nTU TAREA: que cualquiera —Astraura, el enjambre, Hermes, Claude, ChatGPT, opencode o un\nguion de Alex— pida una decision tipada al mismo sitio y con el mismo formato. El formato\nNO lo inventamos: es el de openjev, para que manana se pueda cambiar el motor de debajo\nsin tocar a nadie.\n\nCONTRATO `POST /api/jev/systemone`:\n  entrada  {state: string|object, questions: [{id, type: 'noul'|'choice'|'score',\n            options?: string[], levels?: string[], question: string}], medio?: string}\n  salida   {ok, answers: [{id, answer, probs: {opcion: prob}, confidence}], medio, ms}\n  errores  400 con {ok:false, error} si el cuerpo no cumple; NUNCA 500 con una traza.\n\n1. `jev-contrato.ts` es PURO y es donde vive la validacion y la forma: `validarPeticion`,\n   `normalizarPreguntas`, `formatearRespuesta`. Sin fs, sin red, sin `node:*`: de aqui\n   tienen que poder importar tambien componentes de cliente. (El 2026-09-20 un import de\n   valor desde un modulo con `node:fs` en un componente de cliente tumbo `next build`.)\n2. `route.ts` (runtime nodejs) valida con ese modulo y ejecuta `scripts/puente/jev.py` como\n   proceso hijo pasandole el cuerpo por STDIN — nunca por la linea de ordenes, que queda\n   en el historial. Plazo de 15 s; si vence, {ok:false, error:'sin respuesta'} y 200, para\n   que quien llama aplique su regla determinista.\n3. Esta ruta NO lleva el guardian de /api/mando (que da 404 fuera de local) porque Astraura\n   la necesita desde el OS; pero SI limita a 30 peticiones por minuto y por IP, y NO acepta\n   `state` de mas de 8.000 caracteres.\n4. Jamas se devuelve ni se registra ninguna clave, ni el prompt completo, ni la salida cruda\n   del proceso hijo: solo lo que dice el contrato.\n\nPRUEBAS (vitest) del modulo puro: cuerpo valido, cuerpo sin `questions`, una pregunta con\n`type` desconocido, `state` demasiado largo, y que `formatearRespuesta` normaliza las\nprobabilidades a suma 1.\nVerde obligatorio: `bash scripts/enjambre/tsc-turno.sh` y la prueba nueva.",
+   "modelo": "llm7/minimax-m2.7"
+  }
+ ]
+}
