@@ -114,6 +114,8 @@ def diagnosticar(medidores: dict, callado_min=CALLADO_MIN, aprobacion_min=APROBA
     cont = medidores.get("contenedores") or {}
     resumen_cont = str(cont.get("resumen") or "")
     n_agentes = len(agentes)
+    # `n_agentes` cuenta TODOS los medios (Mac y nube): si hay uno escribiendo, el
+    # enjambre está vivo y no hay nada que arrancar.
     if libres and n_agentes == 0:
         problemas.append({
             "clave": "agentes", "tipo": "trabajo_sin_nadie", "quien": str(len(libres)),
@@ -171,10 +173,25 @@ def aplicar(problema: dict) -> str:
         return "desatascador: %s" % ("ok" if rc == 0 else salida.strip()[-120:] or "falló")
 
     if remedio == "arrancar_enjambre":
-        rc, salida = _sh([sys.executable, os.path.join(RAIZ, "scripts", "puente", "vigilante-enjambre.py"), "--una-vez"])
-        return "vigilante: %s" % ("ok" if rc == 0 else salida.strip()[-120:] or "falló")
+        # NO se llama al vigilante: su pasada bloquea hasta dos minutos y él ya corre solo
+        # cada 90 s (launchd). Lo único que puede impedirle arrancar es un árbol sucio —
+        # pasó esta noche: dos archivos míos sin commitear tuvieron al enjambre sin
+        # arrancar y el log decía «ajeno: src/...». Eso sí se puede mirar y decir.
+        rc, salida = _sh(["git", "status", "--porcelain"], timeout=30)
+        sucios = [l for l in salida.splitlines() if l.strip()]
+        if sucios:
+            return "el árbol tiene %d archivo(s) sin commitear y el enjambre no arranca con eso: %s" % (
+                len(sucios), ", ".join(l[3:] for l in sucios[:3]))
+        return "el vigilante lo relanza solo en menos de 90 s"
 
     if remedio == "desplegar_nube":
+        # Se pregunta ANTES si hay algo que mandar. Sin esto el vigía lanzaba un reparto
+        # cada dos minutos para que contestara «0 tareas (ninguna)»: ruido y máquina
+        # gastada, que es justo lo que este servicio existe para evitar.
+        rc, salida = _sh([sys.executable, os.path.join(RAIZ, "scripts", "puente", "repartir-a-nube.py"),
+                          "--tope", "8", "--simular"], timeout=90)
+        if "0 tareas" in salida:
+            return "no hay atraso que la nube pueda coger: no despliego"
         rc, salida = _sh([sys.executable, os.path.join(RAIZ, "scripts", "puente", "nube-gh.py"),
                           "lanzar", "--tope", "8", "--trabajadores", "4", "--minutos", "45"], timeout=300)
         return "nube: %s" % ("lanzada" if rc == 0 else salida.strip()[-120:] or "no se pudo")
