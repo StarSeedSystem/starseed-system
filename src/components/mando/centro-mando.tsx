@@ -608,21 +608,27 @@ export function CentroMando() {
         bloqueadas: number | null;
         agentes: number | null;
         agentesResumen: string | null;
+        /** Agentes que CABEN ahora en los contenedores de nube (sitio libre medido). */
+        contenedores: number | null;
+        contenedoresResumen: string | null;
     } | null>(null);
 
     const cargarMedidoresResumen = useCallback(async (forzar = false) => {
         if (!forzar && document.visibilityState === "hidden") return;
         try {
-            const [resListas, resBloqueadas, resAgentes] = await Promise.allSettled([
+            const [resListas, resBloqueadas, resAgentes, resContenedores] = await Promise.allSettled([
                 fetch("/api/mando/medidores?clave=listas", { cache: "no-store" }),
                 fetch("/api/mando/medidores?clave=bloqueadas", { cache: "no-store" }),
                 fetch("/api/mando/medidores?clave=agentes", { cache: "no-store" }),
+                fetch("/api/mando/medidores?clave=contenedores", { cache: "no-store" }),
             ]);
 
             let listas: number | null = null;
             let bloqueadas: number | null = null;
             let agentes: number | null = null;
             let agentesResumen: string | null = null;
+            let contenedores: number | null = null;
+            let contenedoresResumen: string | null = null;
 
             if (resListas.status === "fulfilled" && resListas.value.ok) {
                 const dataListas = (await resListas.value.json()) as { detalle?: DetalleMedidor };
@@ -647,9 +653,27 @@ export function CentroMando() {
                 }
             }
 
-            setMedidoresResumen({ listas, bloqueadas, agentes, agentesResumen });
+            if (resContenedores.status === "fulfilled" && resContenedores.value.ok) {
+                const dataCont = (await resContenedores.value.json()) as { detalle?: DetalleMedidor };
+                if (dataCont.detalle) {
+                    // La pastilla enseña el SITIO LIBRE, que es lo que se saca del resumen
+                    // del propio medidor: un solo origen para la cifra y para la ventana.
+                    const m = /(\d+)\s+libre/.exec(dataCont.detalle.resumen ?? "");
+                    contenedores = m ? Number(m[1]) : 0;
+                    contenedoresResumen = dataCont.detalle.resumen ?? null;
+                }
+            }
+
+            setMedidoresResumen({ listas, bloqueadas, agentes, agentesResumen, contenedores, contenedoresResumen });
         } catch {
-            setMedidoresResumen({ listas: null, bloqueadas: null, agentes: null, agentesResumen: null });
+            setMedidoresResumen({
+                listas: null,
+                bloqueadas: null,
+                agentes: null,
+                agentesResumen: null,
+                contenedores: null,
+                contenedoresResumen: null,
+            });
         }
     }, []);
 
@@ -693,10 +717,15 @@ export function CentroMando() {
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ clave, accion: accion.clase, id: fila?.id, texto }),
                 });
-                const d = (await r.json()) as { ok?: boolean; tareas?: string[]; error?: string };
+                const d = (await r.json()) as { ok?: boolean; tareas?: string[]; error?: string; resumen?: string };
                 if (!r.ok || d.error) return d.error ?? `No se pudo (HTTP ${r.status}).`;
                 const n = d.tareas?.length ?? 0;
                 void cargarMedidoresResumen(true);
+                // Los contenedores no devuelven tareas, devuelven lo que midieron o lanzaron:
+                // se enseña esa frase tal cual en vez de «0 tareas descartadas». (2026-09-22)
+                if (accion.clase === "sondear-contenedores" || accion.clase === "desplegar-nube") {
+                    return d.resumen ?? "hecho.";
+                }
                 return accion.clase === "reintentar"
                     ? `${d.tareas?.join(", ")} vuelve a la cola con tu cambio anotado.`
                     : `${n} tarea${n === 1 ? "" : "s"} descartada${n === 1 ? "" : "s"}: ${d.tareas?.join(", ")}`;
@@ -1128,6 +1157,21 @@ export function CentroMando() {
                                         : "normal"
                                 ) as TonoMedidor,
                                 detalle: medidoresResumen?.agentesResumen ?? "quién escribe, aquí y en la nube",
+                            },
+                            {
+                                // (2026-09-22) Alex: «agrega un medidor de contenedores en la
+                                // nube en el pulso de trabajo con su despliegue de información
+                                // como los otros y funcional». La cifra es SITIO LIBRE, no
+                                // número de servicios: lo que se quiere saber de un vistazo es
+                                // cuántos agentes más caben ahora mismo.
+                                clave: "contenedores" as const,
+                                titulo: "Contenedores en la nube",
+                                valor:
+                                    medidoresResumen?.contenedores !== null && medidoresResumen?.contenedores !== undefined
+                                        ? String(medidoresResumen.contenedores)
+                                        : "—",
+                                tono: (medidoresResumen?.contenedores ? "ok" : "normal") as TonoMedidor,
+                                detalle: medidoresResumen?.contenedoresResumen ?? "sitio libre para más agentes",
                             },
                             {
                                 clave: "listas" as const,

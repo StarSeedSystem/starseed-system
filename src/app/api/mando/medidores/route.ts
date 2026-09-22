@@ -12,7 +12,7 @@
  *   3. Se escribe a un `.tmp` y se renombra: el orquestador escribe ese mismo
  *      archivo a la vez y un volcado a medias lo dejaría ilegible.
  */
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { readFile, rename, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -124,6 +124,26 @@ async function leerHistoriales(ids: string[]): Promise<Record<string, { t: strin
         }),
     );
     return salida;
+}
+
+/**
+ * El inventario de contenedores de nube que escribe `contenedores_nube.py`.
+ *
+ * Se LEE del archivo y no se sondea aquí: el sondeo tarda ~40 s (habla con GitHub, Hugging
+ * Face y gcloud) y esta ruta la piden los medidores cada pocos segundos. Lo refrescan el
+ * director de la nube en cada pasada y el botón «Buscar contenedores ahora».
+ */
+async function leerContenedores(): Promise<DatosMedidores["contenedores"]> {
+    try {
+        const crudo = await readFile(
+            path.join(RAÍZ, "starseed_memory_root", "mando", "contenedores.json"),
+            "utf8",
+        );
+        const d = JSON.parse(crudo) as NonNullable<DatosMedidores["contenedores"]>;
+        return Array.isArray(d?.contenedores) ? d : null;
+    } catch {
+        return null;
+    }
 }
 
 /**
@@ -289,10 +309,11 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
             declarados[id] = archivos.map((a) => String(a));
         }
     }
-    const [obras, historiales, agentesNube] = await Promise.all([
+    const [obras, historiales, agentesNube, contenedores] = await Promise.all([
         leerObras(idsVivas).catch(() => ({})),
         leerHistoriales(idsVivas).catch(() => ({})),
         leerAgentesDeLaNube().catch(() => []),
+        leerContenedores().catch(() => null),
     ]);
 
     return {
@@ -301,6 +322,7 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
         // Los de la nube se SUMAN a los de la Mac: el medidor de agentes tiene que contar
         // toda la capacidad viva, no solo la de esta máquina.
         latidos: [...latidosDeAqui, ...agentesNube],
+        contenedores,
         commitsSinPublicar,
         ejecutables,
         enjambreVivo: vivo,
@@ -350,6 +372,76 @@ export async function POST(peticion: Request): Promise<Response> {
         return Response.json({ error: "Cuerpo JSON inválido." }, { status: 400 });
     }
     const { clave = "", accion = "", id = "", texto = "" } = cuerpo;
+
+    // (2026-09-22) Los dos botones de contenedores. Van ANTES de leer progreso.json porque
+    // no tocan tareas: hablan con los servicios de nube.
+    if (accion === "sondear-contenedores") {
+        try {
+            // Sondeo completo: habla con GitHub, Hugging Face y gcloud. Tarda ~40 s, y por
+            // eso se espera aquí en vez de dejarlo suelto: el botón tiene que poder decir
+            // qué encontró, no «ya veremos».
+            const { stdout } = await correr("python3", ["scripts/puente/contenedores_nube.py"], {
+                cwd: RAÍZ,
+                timeout: 180_000,
+                windowsHide: true,
+            });
+            const primera = (stdout || "").trim().split("\n")[0] ?? "";
+            return Response.json({ ok: true, resumen: primera || "sondeo hecho" });
+        } catch (e) {
+            const msj = e instanceof Error ? e.message : String(e);
+            return Response.json({ error: `No pude sondear los contenedores: ${msj}` }, { status: 500 });
+        }
+    }
+
+    if (accion === "desplegar-nube") {
+        const inv = await leerContenedores().catch(() => null);
+        const destino =
+            (id && inv?.contenedores.find((c) => c.id === id)) ||
+            inv?.contenedores.find((c) => c.desplegable && c.agentes_libres > 0);
+        if (!destino) {
+            return Response.json(
+                {
+                    error: inv
+                        ? "Ningún contenedor con sitio libre ahora mismo. Pulsa «Buscar contenedores ahora» para volver a medir."
+                        : "Todavía no hay medida de contenedores: pulsa «Buscar contenedores ahora».",
+                },
+                { status: 409 },
+            );
+        }
+        if (!destino.desplegable || destino.agentes_libres <= 0) {
+            return Response.json(
+                { error: `${destino.servicio} no tiene sitio libre: ${destino.falta || destino.detalle || "sin capacidad"}.` },
+                { status: 409 },
+            );
+        }
+        try {
+            // Suelto y con su log: un lanzamiento tarda hasta un minuto (empuja la rama de
+            // la cola y espera a que GitHub registre el run), más de lo que aguanta una
+            // petición. El resultado se ve en el propio medidor, que cuenta los agentes.
+            const hijo = spawn(
+                "python3",
+                [
+                    "scripts/puente/nube-gh.py",
+                    "lanzar",
+                    "--tope",
+                    String(Math.max(2, destino.agentes_por_job * 2)),
+                    "--trabajadores",
+                    String(destino.agentes_por_job),
+                    "--minutos",
+                    "45",
+                ],
+                { cwd: RAÍZ, detached: true, stdio: "ignore" },
+            );
+            hijo.unref();
+            return Response.json({
+                ok: true,
+                resumen: `desplegando ${destino.agentes_por_job} agente(s) en ${destino.servicio}; el medidor los contará en cuanto GitHub arranque el job`,
+            });
+        } catch (e) {
+            const msj = e instanceof Error ? e.message : String(e);
+            return Response.json({ error: `No pude desplegar en ${destino.servicio}: ${msj}` }, { status: 500 });
+        }
+    }
 
     if (accion === "publicar") {
         return Response.json(

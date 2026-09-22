@@ -101,6 +101,16 @@ def _sh(orden, timeout=120):
         return ""
 
 
+def _sh_rc(orden, timeout=120):
+    """(returncode, stdout+stderr). `_sh` se come stderr y el código de salida, y por eso
+    un lanzamiento abortado se contaba como lanzamiento hecho."""
+    try:
+        r = subprocess.run(orden, cwd=RAIZ, capture_output=True, text=True, timeout=timeout)
+        return r.returncode, (r.stdout or "") + (r.stderr or "")
+    except Exception as e:
+        return 1, "%s: %s" % (type(e).__name__, e)
+
+
 def atraso():
     """Cuántas tareas repartiría el reparto AHORA (simulación, no toca nada)."""
     salida = _sh([sys.executable, os.path.join(RAIZ, "scripts", "puente", "repartir-a-nube.py"),
@@ -144,6 +154,39 @@ def medir_nube():
         return 0, 0
 
 
+def elegir_contenedor(contenedores):
+    """PURA: en qué contenedor desplegar ahora, o None si en ninguno cabe nada.
+
+    (2026-09-22) Alex: «que los directores de los agentes también usen esa información
+    para enrutar procesos a agentes en todos los contenedores y siempre se aproveche la
+    mayor cantidad disponible». Esto es ese enrutado: se elige el contenedor desplegable
+    con más sitio libre. El inventario ya viene ordenado por estado y sitio, así que aquí
+    no se vuelve a ordenar — un solo criterio, en un solo lugar.
+    """
+    for c in contenedores or []:
+        if isinstance(c, dict) and c.get("desplegable") and int(c.get("agentes_libres") or 0) > 0:
+            return c
+    return None
+
+
+def inventario_de_contenedores():
+    """El inventario medido (y escrito) de los contenedores de nube.
+
+    Los topes salen de aquí y no de constantes del director: antes `TOPE_AGENTES = 12` y
+    `TRABAJADORES = 4` eran suposiciones escritas a mano que no tenían por qué coincidir
+    con lo que el Puente enseñaba en pantalla. Ahora la pantalla y la decisión leen el
+    mismo archivo.
+    """
+    try:
+        import contenedores_nube as CN
+
+        return CN.escribir(CN.inventario())
+    except Exception as e:
+        print("director-nube: no pude inventariar contenedores: %s: %s"
+              % (type(e).__name__, e), flush=True)
+        return {"contenedores": [], "resumen": {}}
+
+
 def _cuenta_hoy():
     hoy = time.strftime("%Y-%m-%d")
     try:
@@ -167,19 +210,39 @@ def main():
         try:
             _, hoy_n, _ = _cuenta_hoy()
             runs_vivos, agentes_vivos = medir_nube()
+            # El inventario MIDE la capacidad; el director ya no la supone. Si mañana se
+            # abre Colab o Cloud Run, el tope sube solo y sin tocar este archivo.
+            inv = inventario_de_contenedores()
+            destino = elegir_contenedor(inv.get("contenedores"))
+            res = inv.get("resumen") or {}
+            trabajadores = str(destino["agentes_por_job"]) if destino else TRABAJADORES
             lanzar, motivo = decidir_lanzamiento(
                 atraso(), runs_vivos, hoy_n, hay_claves=hay_claves(),
-                agentes_en_marcha=agentes_vivos)
-            print("[%s] %s: %s" % (time.strftime("%H:%M"), "LANZO" if lanzar else "espero", motivo),
+                agentes_en_marcha=int(res.get("agentes_ahora") or agentes_vivos),
+                trabajadores=trabajadores,
+                tope_agentes=int(res.get("agentes_tope") or TOPE_AGENTES))
+            if lanzar and not destino:
+                lanzar, motivo = False, "ningún contenedor con sitio libre (%d usable(s) de %d)" % (
+                    res.get("usables", 0), res.get("contenedores", 0))
+            print("[%s] %s: %s%s" % (time.strftime("%H:%M"), "LANZO" if lanzar else "espero",
+                                     motivo, (" → %s" % destino["servicio"]) if lanzar and destino else ""),
                   flush=True)
             if lanzar:
-                salida = _sh([sys.executable, os.path.join(RAIZ, "scripts", "puente", "nube-gh.py"),
-                              "lanzar", "--tope", str(2 * int(TRABAJADORES)),
-                              "--trabajadores", TRABAJADORES,
-                              "--minutos", MINUTOS], timeout=300)
-                print(salida.strip()[-400:], flush=True)
-                _anotar()
-                medir_nube()
+                # `_sh` se comía stderr y el código de salida, así que un lanzamiento que
+                # abortaba se contaba como hecho: el 21 a las 22:05, 22:09 y 22:13 dijo
+                # «LANZO» y GitHub no recibió un solo run. Ahora se mira el resultado, se
+                # enseña el motivo y no se anota un lanzamiento que no lanzó nada.
+                rc, salida = _sh_rc(
+                    [sys.executable, os.path.join(RAIZ, "scripts", "puente", "nube-gh.py"),
+                     "lanzar", "--tope", str(2 * int(trabajadores)),
+                     "--trabajadores", trabajadores, "--minutos", MINUTOS], timeout=300)
+                print(salida.strip()[-500:], flush=True)
+                if rc != 0:
+                    print("[%s] el lanzamiento FALLÓ (rc=%d): no lo cuento como lanzado"
+                          % (time.strftime("%H:%M"), rc), flush=True)
+                else:
+                    _anotar()
+                    medir_nube()
         except Exception as e:
             print("director-nube: %s: %s" % (type(e).__name__, e), flush=True)
         time.sleep(INTERVALO_S)

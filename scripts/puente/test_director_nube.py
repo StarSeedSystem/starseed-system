@@ -102,3 +102,39 @@ class TopesPorDefecto(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class EnrutarAlContenedorConMasSitio(unittest.TestCase):
+    """Alex (2026-09-22): «que los directores usen esa información para enrutar procesos a
+    agentes en todos los contenedores y siempre se aproveche la mayor cantidad disponible»."""
+
+    def test_elige_el_desplegable_que_viene_primero(self):
+        # El inventario ya llega ordenado por estado y sitio libre: aquí no se reordena.
+        conts = [
+            {"id": "nube-gh", "servicio": "GitHub Actions", "desplegable": True,
+             "agentes_libres": 8, "agentes_por_job": 4},
+            {"id": "colab", "servicio": "Colab", "desplegable": False, "agentes_libres": 16,
+             "agentes_por_job": 4},
+        ]
+        self.assertEqual(D.elegir_contenedor(conts)["id"], "nube-gh")
+
+    def test_sin_sitio_libre_no_se_elige_aunque_sea_desplegable(self):
+        conts = [{"id": "nube-gh", "desplegable": True, "agentes_libres": 0, "agentes_por_job": 4}]
+        self.assertIsNone(D.elegir_contenedor(conts))
+
+    def test_sin_contenedores_devuelve_nada(self):
+        self.assertIsNone(D.elegir_contenedor([]))
+        self.assertIsNone(D.elegir_contenedor(None))
+
+    def test_una_fila_corrupta_no_rompe_el_enrutado(self):
+        conts = ["esto no es un dict",
+                 {"id": "nube-gh", "desplegable": True, "agentes_libres": 4, "agentes_por_job": 4}]
+        self.assertEqual(D.elegir_contenedor(conts)["id"], "nube-gh")
+
+    def test_el_tope_medido_manda_sobre_la_constante(self):
+        # Con 8 de tope medido y 8 en marcha no cabe nadie, aunque TOPE_AGENTES sea 12.
+        lanzar, motivo = D.decidir_lanzamiento(atraso=50, runs_en_marcha=2, lanzados_hoy=0,
+                                               agentes_en_marcha=8, trabajadores=4,
+                                               tope_agentes=8)
+        self.assertFalse(lanzar)
+        self.assertIn("tope 8", motivo)

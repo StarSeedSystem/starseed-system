@@ -25,6 +25,7 @@ import json
 import os
 import subprocess
 import sys
+import time
 
 RAIZ = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 WORKFLOW = "enjambre-nube.yml"
@@ -114,38 +115,93 @@ def lanzar(args: list[str]) -> None:
         _sh(["git", "add", cola, "starseed_memory_root/olas/progreso.json"], check=False)
         _sh(["git", "add", cola])
         _sh(["git", "commit", "-q", "-m", "enjambre: reparto a la nube (GitHub Actions) · %s" % os.path.basename(cola)], check=False)
-    # La nube hace checkout de main: la cola tiene que estar publicada.
-    # (2026-09-20) Este push decía «solo este commit de cola» y era MENTIRA: empuja HEAD
-    # entero, así que se llevaba por delante cualquier commit de código que aún no hubiera
-    # pasado las cuatro puertas. Paso hoy: una ruta con un `export` de mas llego a
-    # origin/main sin tsc, y la publicacion siguiente fallo con el arbol ya publicado.
-    # Ahora se comprueba antes: si hay codigo sin publicar, no se empuja nada.
-    _sh(["git", "fetch", "-q", "origin", "main"], check=False)
-    pendientes = [
-        l for l in _sh(["git", "log", "--name-only", "--format=%H", "origin/main..HEAD"],
-                       check=False).splitlines() if l.strip()
-    ]
-    codigo = [
-        l for l in pendientes
-        if "/" in l and not l.startswith("enjambre/colas/")
-        and not l.startswith("starseed_memory_root/")
-    ]
-    if codigo:
-        sys.exit(
-            "hay %d archivo(s) de codigo sin publicar (%s...): pasa primero las cuatro "
-            "puertas con `python3 scripts/puente/publicar.py` y vuelve a lanzar.\n"
-            "Este push solo puede llevar la cola, no codigo sin comprobar."
-            % (len(codigo), ", ".join(sorted(set(codigo))[:3]))
-        )
-    print("publicando la cola en main (solo la cola: se comprobo que no hay codigo sin publicar):")
-    print(_sh(["git", "push", "origin", "HEAD:main"], check=False)[-200:] or "push ok")
-    print(_sh(["gh", "workflow", "run", WORKFLOW, "-f", "cola=%s" % cola, "-f", "trabajadores=%s" % trabajadores, "-f", "minutos=%s" % minutos]))
-    print("lanzado:", cola, "· trabajadores", trabajadores, "· minutos", minutos)
-    _anotar_lanzamiento(cola, trabajadores, minutos)
+    # LA COLA VIAJA EN SU PROPIA RAMA, NO EN MAIN (2026-09-22).
+    #
+    # Historia de este trozo, porque explica los dos fallos que arregla:
+    #   · Nació como `git push origin HEAD:main` diciendo «solo este commit de cola», y era
+    #     mentira: empujaba HEAD entero, así que se llevó a main código sin pasar las
+    #     puertas (una ruta con un `export` de más llegó a origin/main sin tsc).
+    #   · El parche fue abortar si había código sin publicar. Correcto en la intención y
+    #     desastroso en el efecto: el enjambre commitea cada pocos minutos, así que CASI
+    #     SIEMPRE hay código sin publicar y la nube quedó apagada de hecho. Medido hoy: el
+    #     director dijo «LANZO» a las 22:05, 22:09 y 22:13 y GitHub no recibió ni un run,
+    #     porque el aborto salía por stderr y nadie lo leía. Tres «LANZO» y cero agentes.
+    #
+    # La nube no necesita main: necesita el código y la cola. Así que se empuja HEAD a una
+    # rama propia e irrepetible y el workflow se dispara CON ESA REFERENCIA. Main no se
+    # toca (sigue siendo lo único con las cuatro puertas pasadas), no hay nada que abortar,
+    # y de paso la nube deja de trabajar con el código viejo de main: trabaja con el mismo
+    # que la Mac. Su resultado sigue saliendo por `nube/<run>` y sigue pasando las puertas
+    # aquí antes de publicarse.
+    rama = "colas/nube-%s" % time.strftime("%Y%m%d-%H%M%S")
+    print("empujando la cola y el código a su propia rama (main NO se toca): %s" % rama)
+    rc_push, salida_push = _sh_rc(["git", "push", "-q", "origin", "HEAD:refs/heads/%s" % rama])
+    if rc_push != 0:
+        sys.exit("no pude empujar la rama de la cola: %s" % (salida_push.strip()[-300:] or "?"))
+    rc_run, salida_run = _sh_rc(["gh", "workflow", "run", WORKFLOW, "--ref", rama,
+                                 "-f", "cola=%s" % cola,
+                                 "-f", "trabajadores=%s" % trabajadores,
+                                 "-f", "minutos=%s" % minutos])
+    if rc_run != 0:
+        sys.exit("gh no pudo disparar el workflow: %s" % (salida_run.strip()[-300:] or "?"))
+    run_id = _esperar_run(rama)
+    if not run_id:
+        sys.exit("el workflow se disparó pero GitHub no registró ningún run en 40 s: "
+                 "mira `gh run list --workflow %s`" % WORKFLOW)
+    print("lanzado:", cola, "· trabajadores", trabajadores, "· minutos", minutos, "· run", run_id)
+    _anotar_lanzamiento(cola, trabajadores, minutos, run_id=run_id)
+    _podar_ramas_de_cola()
     print("sigue con: python3 scripts/puente/nube-gh.py estado")
 
 
-def _anotar_lanzamiento(cola: str, trabajadores: str, minutos: str) -> None:
+def _sh_rc(orden: list[str], timeout: int = 120):
+    """(returncode, stdout+stderr). Existe porque `_sh` se come stderr y el codigo de
+    salida, y por eso un lanzamiento que abortaba se veia como un lanzamiento hecho."""
+    try:
+        r = subprocess.run(orden, cwd=RAIZ, capture_output=True, text=True, timeout=timeout)
+        return r.returncode, (r.stdout or "") + (r.stderr or "")
+    except Exception as e:
+        return 1, "%s: %s" % (type(e).__name__, e)
+
+
+def _esperar_run(rama: str, segundos: int = 40):
+    """El id del run recien disparado para esta rama, o None si GitHub no registro ninguno.
+
+    `gh workflow run` devuelve 0 en cuanto GitHub acepta la peticion, no cuando hay run.
+    Si nadie comprueba que el run existe, un dispatch perdido se cuenta como lanzamiento
+    y el director vuelve a «lanzar» lo mismo cada pocos minutos sin un solo agente vivo.
+    """
+    limite = time.time() + segundos
+    while time.time() < limite:
+        rc, salida = _sh_rc(["gh", "run", "list", "--workflow", WORKFLOW, "--limit", "5",
+                             "--json", "databaseId,headBranch"], timeout=30)
+        if rc == 0 and salida.strip():
+            try:
+                for r in json.loads(salida):
+                    if str(r.get("headBranch")) == rama:
+                        return r.get("databaseId")
+            except ValueError:
+                pass
+        time.sleep(4)
+    return None
+
+
+def _podar_ramas_de_cola(dejar: int = 8) -> None:
+    """Borra las ramas `colas/nube-*` viejas del remoto, dejando las `dejar` ultimas.
+
+    Una rama por lanzamiento y un lanzamiento cada pocos minutos serian cientos de ramas
+    en un dia. Se borran por nombre (llevan la fecha), nunca las mas recientes, y nunca
+    `nube/*` (esas guardan trabajo sin integrar).
+    """
+    rc, salida = _sh_rc(["git", "ls-remote", "--heads", "origin", "colas/nube-*"], timeout=60)
+    if rc != 0:
+        return
+    ramas = sorted(l.split("refs/heads/")[-1].strip() for l in salida.splitlines() if "refs/heads/" in l)
+    for r in ramas[:-dejar] if len(ramas) > dejar else []:
+        _sh_rc(["git", "push", "-q", "origin", "--delete", r], timeout=60)
+
+
+def _anotar_lanzamiento(cola: str, trabajadores: str, minutos: str, run_id=None) -> None:
     """Deja escrito con cuantos trabajadores sale este run.
 
     (2026-09-22) El Puente no podia contar los agentes de la nube, y no por descuido: el
@@ -158,14 +214,10 @@ def _anotar_lanzamiento(cola: str, trabajadores: str, minutos: str) -> None:
     import time as _t
 
     ruta = os.path.join(RAIZ, "starseed_memory_root", "mando", "agentes-nube.json")
-    try:
-        # El id del run recien disparado: el mas nuevo del workflow.
-        crudo = _sh(["gh", "run", "list", "--workflow", WORKFLOW, "--limit", "1",
-                     "--json", "databaseId"], check=False)
-        run_id = (json.loads(crudo or "[]") or [{}])[0].get("databaseId")
-    except Exception:
-        run_id = None
     if not run_id:
+        # Ya no se adivina cogiendo «el run mas nuevo del workflow»: con varios jobs en
+        # paralelo eso atribuia los trabajadores al run equivocado. Quien llama trae el id
+        # que ya comprobo que existe (`_esperar_run`), y sin id no se anota nada.
         return
     try:
         datos = json.load(open(ruta, encoding="utf-8"))

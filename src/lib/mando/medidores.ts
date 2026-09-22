@@ -21,11 +21,21 @@ export type ClaveMedidor =
     | "bloqueadas"
     | "sin-publicar"
     | "proveedores"
+    | "contenedores"
     | "memoria"
     | "disco"
     | "ola-activa";
 
-export type ClaseAccion = "descartar" | "descartar-todas" | "reintentar" | "publicar" | "ir-a";
+export type ClaseAccion =
+    | "descartar"
+    | "descartar-todas"
+    | "reintentar"
+    | "publicar"
+    | "ir-a"
+    // (2026-09-22) Los contenedores de nube: volver a sondear todos los servicios, y
+    // desplegar agentes en uno concreto. Alex los pidió a mano desde la ventana.
+    | "sondear-contenedores"
+    | "desplegar-nube";
 
 export interface AccionMedidor {
     clase: ClaseAccion;
@@ -178,6 +188,17 @@ export function mediaDeAvance(filas: FilaMedidor[]): number {
     const conAvance = filas.filter((f) => typeof f.porcentaje === "number");
     if (conAvance.length === 0) return 0;
     return Math.round(conAvance.reduce((t, f) => t + (f.porcentaje ?? 0), 0) / conAvance.length);
+}
+
+/**
+ * Agentes que caben ahora mismo en los contenedores de nube, según lo MEDIDO.
+ *
+ * PURA. Vale 0 cuando no hay inventario, y eso es a propósito: ofrecer «desplegar más
+ * agentes» sin haber medido sitio sería prometer capacidad que nadie ha comprobado.
+ */
+export function libresDeContenedores(inv: DatosMedidores["contenedores"]): number {
+    const n = inv?.resumen?.agentes_libres;
+    return typeof n === "number" && Number.isFinite(n) && n > 0 ? n : 0;
 }
 
 const IR_A = (texto: string, destino: string): AccionMedidor => ({
@@ -611,6 +632,46 @@ export interface DatosMedidores {
         cola?: string;
         medio?: string;
     }[];
+    /**
+     * Inventario de contenedores en la nube, tal como lo escribe
+     * `scripts/puente/contenedores_nube.py` en `mando/contenedores.json`.
+     *
+     * (2026-09-22) Alex: «debe incluir toda la información de cada servicio y proveedor de
+     * los contenedores en la nube disponibles para que los directores de los agentes
+     * también usen esa información para enrutar procesos». Es el MISMO archivo que lee el
+     * director de la nube para decidir dónde desplegar: la pantalla y la decisión salen
+     * del mismo sitio, que es justo lo que antes no pasaba (el director llevaba sus topes
+     * escritos a mano).
+     */
+    contenedores?: {
+        generado?: string;
+        contenedores: {
+            id: string;
+            servicio: string;
+            proveedor: string;
+            estado: string;
+            maquina: string;
+            jobs_simultaneos: number;
+            agentes_por_job: number;
+            agentes_ahora: number;
+            runs_ahora: number;
+            agentes_libres: number;
+            coste: string;
+            detalle: string;
+            falta: string;
+            siguiente_paso: string;
+            lanza: string;
+            desplegable: boolean;
+        }[];
+        resumen?: {
+            contenedores?: number;
+            usables?: number;
+            agentes_ahora?: number;
+            agentes_libres?: number;
+            agentes_tope?: number;
+            por_hacer?: number;
+        };
+    } | null;
     commitsSinPublicar: { sha: string; asunto: string; fecha?: string }[];
     ejecutables: { id: string; titulo: string; ola?: string }[];
     /** Asuntos recientes de `main`; ausente si Git no pudo leerse. */
@@ -868,7 +929,23 @@ export function detalleDeMedidor(
                           } · ${new Set(d.latidos.map((l) => l.donde)).size} medio(s)`,
                 filas,
                 porcentajeMedio: medioAg,
-                acciones: [IR_A("Ver la ramificación", "procesos")],
+                // (2026-09-22) Alex pidió DOS VECES un botón aquí «para buscar en todos los
+                // medios de contenedores disponibles de agentes en la nube manualmente».
+                // Van en esta ventana y no solo en la de contenedores porque es aquí donde
+                // se mira cuando faltan agentes.
+                acciones: [
+                    { clase: "sondear-contenedores", texto: "Buscar contenedores en la nube", destructiva: false },
+                    ...(libresDeContenedores(d.contenedores) > 0
+                        ? [
+                              {
+                                  clase: "desplegar-nube" as const,
+                                  texto: `Desplegar más agentes en la nube (${libresDeContenedores(d.contenedores)} libres)`,
+                                  destructiva: false,
+                              },
+                          ]
+                        : []),
+                    IR_A("Ver la ramificación", "procesos"),
+                ],
                 vacio: "Ningún agente está escribiendo ahora mismo.",
             };
         }
@@ -990,6 +1067,80 @@ export function detalleDeMedidor(
             };
         }
 
+        case "contenedores": {
+            // (2026-09-22) Ni un número de aquí se calcula en esta función: todos vienen
+            // medidos de `contenedores_nube.py`, el mismo archivo que usa el director de la
+            // nube para elegir dónde desplegar. Si esta ventana y el director dijeran cosas
+            // distintas volveríamos a la enfermedad de siempre.
+            const inv = d.contenedores;
+            const lista = inv?.contenedores ?? [];
+            const r = inv?.resumen ?? {};
+
+            const filas: FilaMedidor[] = lista.map((c) => {
+                const usable = c.estado === "listo" || c.estado === "usable";
+                const ficha: DatoDeFicha[] = [
+                    { etiqueta: "Servicio", valor: c.servicio },
+                    { etiqueta: "Proveedor", valor: c.proveedor || "—" },
+                    { etiqueta: "Máquina", valor: c.maquina || "sin dato" },
+                    {
+                        etiqueta: "Capacidad",
+                        valor: c.jobs_simultaneos
+                            ? `${c.jobs_simultaneos} job(s) simultáneo(s) × ${c.agentes_por_job} agentes = ${c.jobs_simultaneos * c.agentes_por_job}`
+                            : "sin forma de lanzar agentes todavía",
+                    },
+                    { etiqueta: "Agentes ahora", valor: `${c.agentes_ahora} en ${c.runs_ahora} ejecución(es)` },
+                    {
+                        etiqueta: "Sitio libre",
+                        valor: `${c.agentes_libres} agente(s)`,
+                        aviso: usable && c.agentes_libres === 0,
+                    },
+                    { etiqueta: "Coste", valor: c.coste || "—" },
+                ];
+                if (c.detalle) ficha.push({ etiqueta: "Medido", valor: c.detalle });
+                if (c.falta) ficha.push({ etiqueta: "Falta", valor: c.falta, aviso: true });
+                if (c.siguiente_paso) ficha.push({ etiqueta: "Siguiente paso", valor: c.siguiente_paso });
+
+                return {
+                    id: c.id,
+                    titulo: `${c.servicio} · ${c.proveedor || c.id}`,
+                    estado: c.estado,
+                    porque: usable
+                        ? `${c.agentes_libres} de ${c.jobs_simultaneos * c.agentes_por_job} agente(s) libres · ${c.maquina}`
+                        : c.falta || c.detalle || "no está disponible",
+                    quien: c.maquina,
+                    ficha,
+                    acciones: c.desplegable
+                        ? [
+                              {
+                                  clase: "desplegar-nube" as const,
+                                  texto: `Desplegar ${c.agentes_por_job} agentes aquí`,
+                                  destructiva: false,
+                              },
+                          ]
+                        : [],
+                };
+            });
+
+            const libres = r.agentes_libres ?? 0;
+            const tope = r.agentes_tope ?? 0;
+            return {
+                clave,
+                titulo: "Contenedores en la nube",
+                resumen: inv
+                    ? `${r.agentes_ahora ?? 0} agente(s) trabajando · ${libres} libre(s) de ${tope} · ${r.usables ?? 0} de ${r.contenedores ?? 0} servicio(s) usable(s)${inv.generado ? ` · medido ${inv.generado}` : ""}`
+                    : "sin medir todavía: pulsa «Buscar contenedores ahora»",
+                filas,
+                acciones: [
+                    { clase: "sondear-contenedores", texto: "Buscar contenedores ahora", destructiva: false },
+                    ...(libres > 0
+                        ? [{ clase: "desplegar-nube" as const, texto: `Desplegar en el que tenga más sitio (${libres} libres)`, destructiva: false }]
+                        : []),
+                    IR_A("Ver la flota", "flota"),
+                ],
+                vacio: "Ningún contenedor medido aún. «Buscar contenedores ahora» sondea GitHub Actions, Hugging Face, Cloud Run y Colab.",
+            };
+        }
+
         case "disco":
             return {
                 clave,
@@ -1033,6 +1184,9 @@ export const ORDEN_POR_DEFECTO: ClaveMedidor[] = [
     "ola-activa",
     "en-curso",
     "agentes",
+    // Justo detrás de «agentes» porque responde a la pregunta que sigue: si hay pocos
+    // agentes, ¿dónde caben más? (2026-09-22)
+    "contenedores",
     "listas",
     "bloqueadas",
     "sin-publicar",
