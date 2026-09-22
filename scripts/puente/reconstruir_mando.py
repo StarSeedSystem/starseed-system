@@ -37,6 +37,8 @@ import time
 
 RAIZ = os.environ.get("STARSEED_ROOT") or os.path.expanduser("~/Documents/starseed-os-main")
 ESTADO = os.path.join(RAIZ, "starseed_memory_root", "mando", "reconstruccion.json")
+#: Lo que escribe `publicar.py` paso a paso. Se lee para no compilar a la vez que él.
+PUBLICACION = os.path.join(RAIZ, "starseed_memory_root", "mando", "publicacion-estado.json")
 INTERVALO_S = int(os.environ.get("STARSEED_RECONSTRUIR_S", "180"))
 ESPERA_TRAS_FALLO_S = int(os.environ.get("STARSEED_RECONSTRUIR_ESPERA_FALLO_S", "3600"))
 SERVICIO = "com.starseed.mando"
@@ -135,6 +137,25 @@ def decidir_reinicio(build_id, build_servido):
     if build_id == build_servido:
         return False, "el Mando ya sirve este build"
     return True, "hay un build más nuevo que el que sirve el Mando (%s)" % build_id[:12]
+
+
+def publicacion_va_a_compilar(publicacion) -> bool:
+    """PURA: ¿hay una publicación en marcha que todavía tiene que pasar `next build`?
+
+    (2026-09-22) `publicar.py` compila como puerta obligatoria antes de empujar. Si este
+    servicio se pone a compilar a la vez, los dos se turnan la máquina y la Mac se pasa
+    veinte minutos haciendo dos veces el mismo build — medido: con los dos a la vez, un
+    test de tiempos de la suite falló por falta de máquina, no por el código. Así que si la
+    publicación va a compilar, aquí se espera: su build sirve, y después basta un reinicio.
+    """
+    if not isinstance(publicacion, dict):
+        return False
+    if str(publicacion.get("estado")) != "corriendo":
+        return False
+    for paso in publicacion.get("pasos") or []:
+        if isinstance(paso, dict) and paso.get("clave") == "build":
+            return str(paso.get("estado")) in ("pendiente", "corriendo")
+    return False
 
 
 def decidir(huella_actual, estado, ahora, espera_tras_fallo_s=ESPERA_TRAS_FALLO_S,
@@ -265,6 +286,10 @@ def una_pasada() -> bool:
     estado = _leer_estado()
     hazlo, motivo = decidir(actual, estado, time.time(),
                             mas_nuevas=cuantas_mas_nuevas(mtime_del_build(), entradas))
+    if hazlo and publicacion_va_a_compilar(_leer_estado(PUBLICACION)):
+        print("[%s] espero: %s, pero la publicación en marcha va a compilar: su build sirve"
+              % (time.strftime("%H:%M"), motivo), flush=True)
+        return False
     if hazlo:
         print("[%s] RECONSTRUYO: %s" % (time.strftime("%H:%M"), motivo), flush=True)
         reconstruir(actual)

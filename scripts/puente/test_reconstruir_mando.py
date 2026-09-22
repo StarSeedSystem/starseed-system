@@ -156,3 +156,31 @@ class CompilarNoEsServir(unittest.TestCase):
         # El caso de publicar.py: compiló como puerta y nadie reinició el Mando.
         reinicia, _ = R.decidir_reinicio("nuevo123", None)
         self.assertTrue(reinicia)
+
+
+class NoCompilarDosVecesLoMismo(unittest.TestCase):
+    """Si la publicación va a compilar, su build sirve: aquí se espera."""
+
+    def _pub(self, estado, build):
+        return {"estado": estado, "pasos": [{"clave": "tsc", "estado": "ok"},
+                                            {"clave": "build", "estado": build}]}
+
+    def test_publicacion_con_build_pendiente_frena(self):
+        self.assertTrue(R.publicacion_va_a_compilar(self._pub("corriendo", "pendiente")))
+
+    def test_publicacion_compilando_frena(self):
+        self.assertTrue(R.publicacion_va_a_compilar(self._pub("corriendo", "corriendo")))
+
+    def test_publicacion_que_ya_compilo_no_frena(self):
+        # Su build ya está en el disco: si hay cambios posteriores, hay que compilarlos.
+        self.assertFalse(R.publicacion_va_a_compilar(self._pub("corriendo", "ok")))
+
+    def test_publicacion_terminada_no_frena(self):
+        self.assertFalse(R.publicacion_va_a_compilar(self._pub("hecho", "ok")))
+
+    def test_sin_publicacion_no_frena(self):
+        self.assertFalse(R.publicacion_va_a_compilar(None))
+        self.assertFalse(R.publicacion_va_a_compilar({}))
+
+    def test_publicacion_sin_paso_de_build_no_frena(self):
+        self.assertFalse(R.publicacion_va_a_compilar({"estado": "corriendo", "pasos": []}))
