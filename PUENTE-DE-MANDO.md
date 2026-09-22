@@ -1,6 +1,6 @@
 # Puente de Mando · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-22 07:17:25 desde el Mando vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-22 07:36:48 desde el Mando vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -12,32 +12,19 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | | |
 |---|---|
 | Mando | **encendido** en http://127.0.0.1:9002/mando |
-| Ola arriba | Ola Dream 2026-09-17 · lo que el análisis nocturno encontró |
+| Ola arriba | Ola Dream 2026-09-19 · lo que el análisis nocturno encontró |
 | Agentes escribiendo | **0** |
-| En esta ola | integradas 1 · en curso 0 · esperando aprobación 0 · pendientes 0 |
-| Últimas 4 olas | en curso 0 · pendientes 0 · integradas 21 |
-| HEAD | `1d102af4 chore(memoria): aprendizaje de la ola auto-0922-065234` |
-| Sin publicar | 27 commits |
+| En esta ola | integradas 0 · en curso 0 · esperando aprobación 0 · pendientes 0 |
+| Últimas 4 olas | en curso 0 · pendientes 0 · integradas 20 |
+| HEAD | `5e858770 chore(memoria): aprendizaje de la ola auto-0922-071834` |
+| Sin publicar | 31 commits |
 | Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-auto-0922-065234.json`, hace 5s)
+## Quién escribe ahora (latido de `cola-auto-0922-071834.json`, hace 5s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `p316Ic` | hecho | google/gemini-3.6-flash | 0 min | 24 s | 797322 |
-| `p314A` | hecho | nvidia/moonshotai/kimi-k3 | 4 min | 223 s | 224313 |
-| `JV8` | hecho | google/gemini-3.6-flash | 11 min | 683 s | 1210930 |
-| `p315A` | hecho | nvidia/moonshotai/kimi-k3 | 13 min | 776 s | 626064 |
-| `AGR2c` | hecho | google/gemini-3.6-flash | 14 min | 828 s | 662263 |
-| `p314B` | hecho | xkiro/qwen/qwen3-coder-plus:free | 14 min | 836 s | 1299900 |
-| `TK2c` | hecho | google/gemini-3.6-flash | 16 min | 940 s | 349172 |
-| `p312C` | hecho | nvidia/moonshotai/kimi-k3 | 18 min | 1061 s | 575548 |
-| `c313_QW5` | hecho | apinex/free/gemini-3.8-flash | 18 min | 1084 s | 197737 |
-| `c313_QW6` | hecho | apinex/free/gemini-3.8-flash | 19 min | 1134 s | 183527 |
-| `RM4` | hecho | google/gemini-3.6-flash | 19 min | 1143 s | 373860 |
-| `c313_QW4` | hecho | apinex/free/gemini-3.8-flash | 19 min | 1170 s | 190575 |
-| `RM3` | hecho | google/gemini-3.6-flash | 21 min | 1233 s | 582967 |
-| `TK1c` | hecho | google/gemini-3.6-flash | 22 min | 1312 s | 864914 |
+| `p316Ic` | hecho | google/gemini-3.6-flash | 0 min | 25 s | 986442 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
