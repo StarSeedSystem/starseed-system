@@ -95,7 +95,7 @@ describe("PATRON_NOMBRE y resolución de colas", () => {
 
         const contenidoCola = JSON.stringify([
             {
-                id: "tExpirada",
+                id: "tExpiradaPrueba",
                 ola: "Ola test",
                 titulo: "tarea de prueba",
                 prompt: "un enunciado suficientemente largo para pasar la validación",
@@ -106,7 +106,7 @@ describe("PATRON_NOMBRE y resolución de colas", () => {
 
         const contenidoLatido = JSON.stringify({
             cola: "test-expirada",
-            tareas: { tExpirada: { estado: "en_curso" } },
+            tareas: { tExpiradaPrueba: { estado: "en_curso" } },
         });
 
         await writeFile(colaPath, contenidoCola, "utf-8");
@@ -117,7 +117,7 @@ describe("PATRON_NOMBRE y resolución de colas", () => {
         await utimes(latidoPath, haceDiezMinutos, haceDiezMinutos);
 
         try {
-            const res = await resolverNombreColaActual({ tarea: "tExpirada", umbralMs: 5 * 60 * 1000 });
+            const res = await resolverNombreColaActual({ tarea: "tExpiradaPrueba", umbralMs: 5 * 60 * 1000 });
             expect(res.ok).toBe(false);
             if (!res.ok) {
                 expect(res.error).toMatch(/expirado/i);
