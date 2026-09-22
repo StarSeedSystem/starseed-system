@@ -52,7 +52,11 @@ describe("Reintento Inteligente (RI1)", () => {
             const tarea = { id: "CU3", estado: "sin_cambios", nota: "Error 429 usage limit superado" };
             const res = clasificar(tarea, [], FIXTURE_REVISIONES);
             expect(res.accion).toBe("reintentar");
-            expect(res.motivo).toBe("no era la tarea, era el proveedor");
+            // (2026-09-22) El motivo ahora NOMBRA la causa además de decir de quién fue:
+            // «era el proveedor» no dejaba saber si fue un 429, un corte de red o un
+            // modelo retirado, y esas tres se arreglan de formas distintas.
+            expect(res.motivo).toContain("era el medio");
+            expect(res.motivo).toContain("tope de uso del proveedor");
         });
 
         it("Camino 3: bloqueada por dependencia -> esperar", () => {

@@ -141,6 +141,62 @@ export function obtenerBaseId(id: string): string {
     return id;
 }
 
+/**
+ * Estados en los que la tarea no llegó a terminar por sí misma. Un `rechazada` NO está:
+ * ahí alguien miró el trabajo y dijo que no, que es otra cosa.
+ */
+const ESTADOS_DE_FALLO = new Set([
+    "fallo",
+    "fallo_tsc",
+    "fallo_tests",
+    "fallo_motor",
+    "interrumpida",
+    "conflicto",
+    "sin_cambios",
+]);
+
+/**
+ * Huellas de que quien falló fue el MEDIO —la pasarela, el modelo, la red, la máquina— y
+ * no lo que pedía la tarea. Están en minúsculas porque la nota se compara en minúsculas.
+ */
+const HUELLAS_DEL_MEDIO: [string, string][] = [
+    ["ningún proveedor respondió", "ningún proveedor respondió"],
+    ["ningun proveedor respondio", "ningún proveedor respondió"],
+    ["does not exist", "el modelo ya no existe en la pasarela"],
+    ["ningún modelo", "sin modelo disponible"],
+    ["ningun modelo", "sin modelo disponible"],
+    ["red caída", "se cayó la red"],
+    ["red caida", "se cayó la red"],
+    ["network", "problema de red"],
+    ["connection", "problema de conexión"],
+    ["timeout", "se agotó el tiempo de espera"],
+    ["se colgó", "el modelo se colgó"],
+    ["se colgo", "el modelo se colgó"],
+    ["sin respuesta", "el proveedor no contestó"],
+    ["usage limit", "tope de uso del proveedor"],
+    ["sin cupo", "proveedor sin cupo"],
+    ["429", "el proveedor devolvió 429"],
+    ["402", "el proveedor devolvió 402"],
+    ["500", "el proveedor devolvió 500"],
+    ["503", "el proveedor devolvió 503"],
+];
+
+/** PURA: ¿la tarea murió por culpa del medio y no de lo que pedía? */
+export function esFalloDelMedio(estado: string, nota: string): boolean {
+    if (!ESTADOS_DE_FALLO.has(String(estado || "").toLowerCase())) return false;
+    const n = String(nota || "").toLowerCase();
+    return HUELLAS_DEL_MEDIO.some(([huella]) => n.includes(huella));
+}
+
+/** PURA: la causa en castellano, para que el veredicto diga POR QUÉ vuelve a la cola. */
+export function causaDelMedio(nota: string): string {
+    const n = String(nota || "").toLowerCase();
+    for (const [huella, explicacion] of HUELLAS_DEL_MEDIO) {
+        if (n.includes(huella)) return explicacion;
+    }
+    return "falló el medio";
+}
+
 export function clasificar(
     tarea: TareaAnalizar,
     progreso: unknown,
@@ -163,13 +219,20 @@ export function clasificar(
         return { accion: "esperar", motivo: "esperando a que se integre la dependencia" };
     }
 
-    // Regla 2: sin_cambios por fallo de proveedor
-    if (estado === "sin_cambios") {
-        const patronesProveedor = ["usage limit", "sin respuesta", "ningún modelo", "429", "sin cupo"];
-        const esFalloProveedor = patronesProveedor.some((p) => nota.includes(p));
-        if (esFalloProveedor) {
-            return { accion: "reintentar", motivo: "no era la tarea, era el proveedor" };
-        }
+    // Regla 2: la causa fue del MEDIO, no de la tarea.
+    //
+    // (2026-09-22) Esta regla existía solo para `sin_cambios` y con cinco patrones, y por
+    // eso el enjambre «no se autocorregía». Medido en la ola viva: RM3 murió con «ningún
+    // proveedor respondió (does not exist)» —un id de modelo que ya no existe— y el
+    // veredicto fue «descartar: sin acción requerida», porque `fallo` no entraba en
+    // ninguna rama. p316Ic murió con «red caída» y acabó en «tres intentos: necesita una
+    // persona». Ninguna de las dos tenía nada que ver con la tarea: eran el medio.
+    //
+    // Ahora cubre todos los estados de fallo y va ANTES del recuento de intentos, que es
+    // lo que de verdad lo arregla: un corte de red no debe gastar uno de los tres intentos
+    // que separan a una tarea de necesitar a una persona.
+    if (esFalloDelMedio(estado, nota)) {
+        return { accion: "reintentar", motivo: "no era la tarea, era el medio: " + causaDelMedio(nota) };
     }
 
     // Conteo de intentos del mismo id

@@ -11,7 +11,13 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { clasificar, contarVeredictos, resumenVeredictos } from "@/lib/mando/reintento-inteligente";
+import {
+    causaDelMedio,
+    clasificar,
+    contarVeredictos,
+    esFalloDelMedio,
+    resumenVeredictos,
+} from "@/lib/mando/reintento-inteligente";
 
 /** Una sección de revisiones.md como las que escribe el revisor de verdad. */
 const REVISIONES = [
@@ -73,5 +79,51 @@ describe("contarVeredictos cuenta los que ya vienen calculados", () => {
         const viejo = resumenVeredictos(tareas, {}, REVISIONES);
         const nuevo = contarVeredictos(tareas.map((t) => clasificar(t, {}, REVISIONES)));
         expect(nuevo).toEqual(viejo);
+    });
+});
+
+describe("un fallo del MEDIO vuelve a la cola, no al cajón (2026-09-22)", () => {
+    const tarea = (id: string, estado: string, nota: string) => ({
+        id, ola: "363", titulo: "t", estado, nota, motivo: "", depende: [], archivos: [], modelo: "",
+    });
+
+    it("«ningún proveedor respondió» se reintenta, no se descarta", () => {
+        // RM3, medido en la ola viva: el veredicto era «descartar: sin acción requerida».
+        const v = clasificar(tarea("RM3", "fallo", "ningún proveedor respondió (does not exist)"), {}, "");
+        expect(v.accion).toBe("reintentar");
+        expect(v.motivo).toContain("era el medio");
+    });
+
+    it("una red caída no gasta uno de los tres intentos", () => {
+        // p316Ic: con tres ids hermanos en progreso acababa en «necesita una persona».
+        const progreso = { p316I: {}, p316Ib: {}, p316Ic: {} };
+        const v = clasificar(tarea("p316Ic", "interrumpida", "red caída: $ codex exec ..."), progreso, "");
+        expect(v.accion).toBe("reintentar");
+        expect(v.motivo).toContain("red");
+    });
+
+    it("un rechazo humano NO se cuela como fallo del medio", () => {
+        // Aquí alguien miró el trabajo y dijo que no: eso no lo arregla reintentar a ciegas.
+        const v = clasificar(tarea("RM4", "rechazada", "no toco ninguno de los 2 archivos que declaraba"), {}, "");
+        expect(v.accion).toBe("descartar");
+    });
+
+    it("un fallo de la propia tarea sigue contando intentos", () => {
+        const progreso = { R7: {}, R7b: {}, R7c: {} };
+        const v = clasificar(tarea("R7c", "fallo_tsc", "14 errores tsc"), progreso, "");
+        expect(v.accion).toBe("descartar");
+        expect(v.motivo).toContain("tres intentos");
+    });
+
+    it("la causa se nombra en castellano para que se entienda el porqué", () => {
+        expect(causaDelMedio("ningún proveedor respondió (does not exist)")).toContain("proveedor");
+        expect(causaDelMedio("429 too many requests")).toContain("429");
+        expect(causaDelMedio("algo raro")).toBe("falló el medio");
+    });
+
+    it("esFalloDelMedio solo mira estados de fallo", () => {
+        expect(esFalloDelMedio("commit", "timeout")).toBe(false);
+        expect(esFalloDelMedio("fallo", "timeout")).toBe(true);
+        expect(esFalloDelMedio("fallo", "el revisor pidió otra cosa")).toBe(false);
     });
 });
