@@ -387,7 +387,20 @@ export function PanelMedidor({
 }) {
     const [datos, setDatos] = useState<DetalleMedidor | null>(null);
     const [cargando, setCargando] = useState(false);
-    const [aviso, setAviso] = useState<string | null>(null);
+    /**
+     * Lo que contestó la ÚLTIMA acción que pulsaste.
+     *
+     * (2026-09-22) Aquí estaba la razón de «los botones no funcionan». Este panel se
+     * recarga solo cada 5 s, y esa recarga hacía `setAviso(null)`: la respuesta del botón
+     * se borraba antes de que diera tiempo a leerla — y, como `ejecutar` recargaba justo
+     * después de accionar, se borraba EN EL ACTO. Medido hoy: pulsar «Buscar contenedores
+     * en la nube» volvía a medir de verdad (el inventario se reescribió a los 3 s), pero en
+     * pantalla no pasaba absolutamente nada. Un botón que trabaja en silencio es, para
+     * quien lo pulsa, un botón roto. Por eso ahora la respuesta de la acción y el error de
+     * lectura son DOS estados distintos: la recarga solo puede tocar el suyo.
+     */
+    const [respuesta, setRespuesta] = useState<string | null>(null);
+    const [errorLectura, setErrorLectura] = useState<string | null>(null);
     /** Última comprobación de directores (GET /api/mando/comprobar). */
     const [ultimaComprobacion, setUltimaComprobacion] = useState<string | null>(null);
     const [comprobando, setComprobando] = useState(false);
@@ -411,9 +424,9 @@ export function PanelMedidor({
             const r = await fetch(`/api/mando/medidores?clave=${encodeURIComponent(clave)}`, { cache: "no-store" });
             const d = (await r.json()) as { detalle?: DetalleMedidor };
             setDatos(d.detalle ?? null);
-            setAviso(null);
+            setErrorLectura(null);
         } catch {
-            setAviso("No se pudo leer el detalle.");
+            setErrorLectura("No se pudo leer el detalle.");
         } finally {
             if (primera) setCargando(false);
         }
@@ -437,7 +450,8 @@ export function PanelMedidor({
 
     useEffect(() => {
         setDatos(null);
-        setAviso(null);
+        setRespuesta(null);
+        setErrorLectura(null);
         void cargar(true);
         void cargarComprobacion();
     }, [cargar, cargarComprobacion]);
@@ -495,8 +509,12 @@ export function PanelMedidor({
                 return;
             }
             if (!alAccionar) return;
-            setAviso(await alAccionar(clave, a, f, texto));
-            void cargar();
+            // Se recarga ANTES de contestar y la recarga ya no toca la respuesta: así el
+            // panel enseña el estado nuevo Y lo que dijo el botón, en vez de uno sin otro.
+            setRespuesta("…");
+            const dicho = await alAccionar(clave, a, f, texto);
+            await cargar();
+            setRespuesta(dicho);
         },
         [alAccionar, alIrA, clave, cargar],
     );
@@ -605,9 +623,27 @@ export function PanelMedidor({
                 </p>
             ) : null}
 
-            {aviso ? (
-                <p className="mc-centrado mt-2 rounded-md border border-cyan-300/25 bg-cyan-400/10 px-2 py-1 text-[10px] text-cyan-100">
-                    {aviso}
+            {respuesta ? (
+                <p
+                    role="status"
+                    data-testid="respuesta-accion"
+                    className="mc-centrado mt-2 flex items-center justify-center gap-2 rounded-md border border-cyan-300/25 bg-cyan-400/10 px-2 py-1 text-[10px] text-cyan-100"
+                >
+                    <span>{respuesta}</span>
+                    <button
+                        type="button"
+                        onClick={() => setRespuesta(null)}
+                        aria-label="Descartar el mensaje"
+                        className="cursor-pointer rounded px-1 text-cyan-200/70 hover:text-cyan-100"
+                    >
+                        ✕
+                    </button>
+                </p>
+            ) : null}
+
+            {errorLectura ? (
+                <p className="mc-centrado mt-2 rounded-md border border-rose-300/25 bg-rose-400/10 px-2 py-1 text-[10px] text-rose-100">
+                    {errorLectura}
                 </p>
             ) : null}
         </section>

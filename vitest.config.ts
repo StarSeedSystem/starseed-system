@@ -20,6 +20,11 @@ export default defineConfig({
     include: ["src/**/*.{test,spec}.ts", "src/**/__tests__/**/*.ts", "src/**/*.{test,spec}.tsx", "src/**/__tests__/**/*.tsx"],
     exclude: ["node_modules", ".next", "dist"],
     globals: false,
+    // (2026-09-22) Aísla las pruebas del enjambre vivo: apunta STARSEED_ROOT a un
+    // temporal antes de que corra nada. Ver el porqué, con nombres y minutos, en
+    // vitest.setup.ts — una prueba llegó a poner a un agente de verdad a trabajar
+    // 86 minutos en una tarea inventada.
+    setupFiles: ["./vitest.setup.ts"],
     env: {
       NODE_ENV: "test",
     },
