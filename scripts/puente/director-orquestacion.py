@@ -47,6 +47,24 @@ import desatascar as _desatascar
 from config_director import cargar as cargar_config
 import prioridad_logica
 
+# Importar el módulo puente para acceder al canal y funciones de decir
+_spec = importlib.util.spec_from_file_location(
+    "puente", os.path.join(os.path.dirname(os.path.abspath(__file__)), "puente.py")
+)
+_p = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(_p)
+
+# Importar funciones de salud del orquestador
+_spec_enjambre = importlib.util.spec_from_file_location(
+    "starseed_enjambre", os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "enjambre", "starseed-enjambre.py")
+)
+_enjambre = importlib.util.module_from_spec(_spec_enjambre)
+_spec_enjambre.loader.exec_module(_enjambre)
+from starseed_enjambre import marcar_sin_cupo, quitar_sin_cupo, _salud
+
+# Importar nuestro módulo de checkin
+from . import aviso_checkin
+
 RAIZ = os.environ.get("STARSEED_ROOT") or "/Users/alex/Documents/starseed-os-main"
 OLAS = os.path.join(RAIZ, "starseed_memory_root", "olas")
 INTERVALO_S = int(os.environ.get("STARSEED_DIRECTOR_S", "180"))
@@ -621,7 +639,116 @@ def revisar():
             "error",
         )
         hecho.append("aviso de disco")
+    # --- NUEVO: Revisar check-in diario de proveedores ---
+    revisar_checkin()
     return hecho
+
+
+def revisar_checkin():
+    """Comprueba si algún proveedor requiere check-in diario y avisa si es necesario."""
+    # Cargar configuración para ver si el feature está activado
+    cfg, _ = cargar_config()
+    if not cfg.get("aviso_checkin", True):
+        return
+
+    # Obtener el estado de salud de los proveedores
+    salud = _salud()
+    if not salud:
+        return
+
+    # Recopilar registros recientes del canal (últimas 100 líneas)
+    registros = []
+    try:
+        with open(_p.CANAL, "r", encoding="utf-8") as f:
+            lines = f.readlines()
+            # Tomar las últimas 100 líneas
+            for line in lines[-100:]:
+                try:
+                    data = json.loads(line)
+                    texto = data.get("texto", "")
+                    if texto:
+                        registros.append(texto)
+                except Exception:
+                    # Si la línea no es JSON válida, la ignoramos
+                    pass
+    except Exception:
+        # Si no podemos leer el canal, continuamos sin registros
+        pass
+
+    # Determinar qué proveedores necesitan check-in
+    try:
+        necesarios = aviso_checkin.necesita_checkin(salud, registros)
+    except Exception as e:
+        print("director/checkin: Error en necesita_checkin: %s" % e, flush=True)
+        return
+
+    if not necesarios:
+        return
+
+    # Cargar el historial de avisos de check-in
+    avisos_file = os.path.join(OLAS, "avisos-checkin.json")
+    try:
+        with open(avisos_file, "r", encoding="utf-8") as f:
+            avisos = json.load(f)
+    except Exception:
+        avisos = {}
+
+    ahora_epoch = time.time()
+    doce_horas_en_segundos = 12 * 60 * 60
+
+    # Primero, procesar los avisos: avisar y marcar sin_cupo si no se ha avisado recientemente
+    for proveedor, enlace in necesarios:
+        ultimo_aviso = avisos.get(proveedor, 0)
+        if ahora_epoch - ultimo_aviso > doce_horas_en_segundos:
+            # No se ha avisado en las últimas 12 horas, proceder
+            motivo = salud.get(proveedor, {}).get("motivo", "")
+            msg = aviso_checkin.mensaje(proveedor, enlace)
+            _p.decir(msg, "director", "aviso")
+            # Marcar el proveedor como sin cupo por 24 horas
+            marcar_sin_cupo(proveedor, motivo, horas=24)
+            # Actualizar el tiempo de último aviso
+            avisos[proveedor] = ahora_epoch
+
+    # Segundo, comprobar si hay mensajes de check-in en el canal que anulen el aviso
+    try:
+        with open(_p.CANAL, "r", encoding="utf-8") as f:
+            lines = f.readlines()
+    except Exception:
+        lines = []
+
+    for line in lines:
+        try:
+            data = json.loads(line)
+            texto = data.get("texto", "")
+            epoch = data.get("epoch", 0)
+            # Buscar mensajes que contengan "checkin <proveedor>"
+            for proveedor, _ in necesarios:
+                # El mensaje que esperamos es exactamente "checkin <proveedor>" o al menos contiene esa cadena
+                if f"checkin {proveedor}" in texto:
+                    # Solo considerar mensajes posteriores al último aviso que enviamos
+                    if epoch > avisos.get(proveedor, 0):
+                        # Quitar la marca de sin cupo
+                        quitar_sin_cupo(proveedor)
+                        # Eliminar el registro de aviso para que pueda aviso de nuevo en el futuro
+                        if proveedor in avisos:
+                            del avisos[proveedor]
+                        # Anunciar la reincorporación (opcional, pero útil para el seguimiento)
+                        _p.decir(
+                            "proveedor %s reincorporado tras check-in" % proveedor,
+                            "director",
+                            "hecho",
+                        )
+                        break  # Un mensaje por proveedor es suficiente
+        except Exception:
+            # Si la línea no es válida, continuamos
+            pass
+
+    # Guardar el historial actualizado de avisos
+    try:
+        with open(avisos_file, "w", encoding="utf-8") as f:
+            json.dump(avisos, f, ensure_ascii=False, indent=1)
+    except Exception as e:
+        print("director/checkin: No se pudo guardar avisos-checkin.json: %s" % e, flush=True)
 
 
 def main():
