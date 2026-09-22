@@ -1,4 +1,5 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+vi.mock("server-only", () => ({}));
 import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -104,6 +105,11 @@ describe("descripcionDe", () => {
     it("toma las dos primeras frases", () => {
         expect(descripcionDe("Uno. Dos. Tres.")).toBe("Uno. Dos.");
     });
+    it("maneja prompts vacíos o con una sola frase sin punto", () => {
+        expect(descripcionDe("")).toBe("");
+        expect(descripcionDe("   ")).toBe("");
+        expect(descripcionDe("Una sola frase sin punto")).toBe("Una sola frase sin punto");
+    });
     it("recorta a 320 sin partir palabras", () => {
         const largo = `${"palabra ".repeat(40)}fin final`;
         const d = descripcionDe(largo);
@@ -118,6 +124,8 @@ describe("ramaYShaDe", () => {
     it("extrae rama y sha de la nota del orquestador", () => {
         expect(ramaYShaDe("rama ola/p320Bb (abc1234) lista · revisión ok", "p320Bb"))
             .toEqual({ rama: "ola/p320Bb", sha: "abc1234" });
+        expect(ramaYShaDe("rama ola/feature/v1-test (1234567890abcdef1234567890abcdef12345678) lista", "feat"))
+            .toEqual({ rama: "ola/feature/v1-test", sha: "1234567890abcdef1234567890abcdef12345678" });
     });
     it("sin encaje devuelve el respaldo", () => {
         expect(ramaYShaDe(undefined, "zz1")).toEqual({ rama: "ola/zz1", sha: "" });
@@ -132,5 +140,9 @@ describe("parseNumstat", () => {
             { ruta: "src/a.ts", mas: 12, menos: 3 },
             { ruta: "img/logo.png", mas: 0, menos: 0 },
         ]);
+    });
+    it("devuelve array vacío ante salida vacía o malformada", () => {
+        expect(parseNumstat("")).toEqual([]);
+        expect(parseNumstat("sin tabulaciones")).toEqual([]);
     });
 });

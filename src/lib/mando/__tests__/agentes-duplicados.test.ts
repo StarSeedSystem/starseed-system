@@ -1,4 +1,5 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
+vi.mock("server-only", () => ({}));
 import { listaAgentes, resumenAgentes } from "../director-datos";
 import type { LatidoEntrada } from "../director-datos";
 import { leerLatidos } from "../director-fuentes";

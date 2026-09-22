@@ -1,3 +1,4 @@
+import "server-only";
 /** Fuentes reales del panel de aprobaciones (Ola 320 · p320Bc): lee progreso,
  *  colas de disco y `git show` para rellenar las fichas de visto bueno.
  *  Solo servidor (fs + git). */
@@ -5,6 +6,7 @@ import { execFile } from "node:child_process";
 import { readFile, readdir } from "node:fs/promises";
 import { promisify } from "node:util";
 import path from "node:path";
+import { raizDelProyecto } from "@/lib/mando/raiz";
 import { construirFicha, type ArchivoTocado, type FichaAprobacion } from "@/lib/mando/aprobaciones";
 
 const execFileAsync = promisify(execFile);
@@ -100,7 +102,7 @@ async function archivosDeRama(raiz: string, rama: string): Promise<ArchivoTocado
     }, [] as ArchivoTocado[]);
 }
 
-export async function leerAprobaciones(raiz: string, ahora: number): Promise<FichaAprobacion[]> {
+export async function leerAprobaciones(raiz: string = raizDelProyecto(), ahora: number = Date.now()): Promise<FichaAprobacion[]> {
     const progreso = objeto(await leerJsonOpcional(path.join(raiz, "starseed_memory_root", "olas", "progreso.json")));
     const enPuerta: Array<[string, Record<string, unknown>]> = [];
     for (const [id, v] of Object.entries(progreso)) {

@@ -12,6 +12,7 @@ import { raizDelProyecto } from "@/lib/mando/raiz";
 import {
     leerLatidos, leerProgreso, leerColasFuente, leerSalud, leerModelos,
     leerServicios, leerCanal, leerAsuntosMain, leerAsuntosDeHoy, leerJsonOpcional,
+    leerAprobaciones,
 } from "@/lib/mando/director-fuentes";
 import { resumenAgentes, resumenPendientes, resumenProveedores, resumenDirectores, listaAgentes } from "@/lib/mando/director-datos";
 
@@ -35,12 +36,13 @@ export async function GET(peticion: Request): Promise<Response> {
     const home = os.homedir();
     const ahora = Math.floor(Date.now() / 1000);
 
-    const [latidos, progreso, colasFuente, salud, modelos, servicios, canal, asuntosMain, asuntosHoy, escaladaCruda, configCruda] =
+    const [latidos, progreso, colasFuente, salud, modelos, servicios, canal, asuntosMain, asuntosHoy, escaladaCruda, configCruda, aprobaciones] =
         await Promise.all([
             leerLatidos(raiz), leerProgreso(raiz), leerColasFuente(raiz), leerSalud(home), leerModelos(raiz),
             leerServicios(), leerCanal(raiz), leerAsuntosMain(raiz), leerAsuntosDeHoy(raiz),
             leerJsonOpcional(path.join(raiz, "starseed_memory_root", "olas", "escalada-gasto.json")),
             leerJsonOpcional(path.join(raiz, "starseed_memory_root", "mando", "director-config.json")),
+            leerAprobaciones(raiz),
         ]);
 
     // `resumenDirectores` (director-datos.ts) espera el texto crudo de `launchctl list`;
@@ -57,6 +59,7 @@ export async function GET(peticion: Request): Promise<Response> {
             directores: resumenDirectores(textoServicios, canal, ahora),
             escalada: { gastoHoy: numeroDe(escaladaCruda) },
             config: objetoDe(configCruda),
+            aprobaciones,
             generadoEn: new Date().toISOString(),
         },
         { headers: { "Cache-Control": "no-store" } },

@@ -5,6 +5,7 @@ import { readFile, readdir } from "node:fs/promises";
 import { promisify } from "node:util";
 import path from "node:path";
 import type { LatidoEntrada, TareaLatido, ProgresoEntrada, SaludProveedor, MensajeCanal } from "@/lib/mando/director-datos";
+export { leerAprobaciones } from "@/lib/mando/aprobaciones-fuentes";
 const execFileAsync = promisify(execFile);
 async function intentar<T>(f: () => Promise<T>, porDefecto: T): Promise<T> { try { return await f(); } catch { return porDefecto; } }
 function objeto(v: unknown): Record<string, unknown> { return typeof v === "object" && v !== null && !Array.isArray(v) ? (v as Record<string, unknown>) : {}; }
