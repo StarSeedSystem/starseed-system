@@ -138,16 +138,18 @@ async function leerHistoriales(ids: string[]): Promise<Record<string, { t: strin
  * que no son pasarelas; se distinguen porque un proveedor trae `estado`.
  */
 async function leerProveedores(): Promise<{ id: string; estado: string; motivo?: string }[]> {
+    const filas = new Map<string, { id: string; estado: string; motivo?: string }>();
+
+    // 1. Lo que el enjambre OBEDECE cuando se come un 429.
     try {
         const crudo = await readFile(path.join(os.homedir(), ".starseed", "salud-proveedores.json"), "utf8");
         const d = JSON.parse(crudo) as Record<string, unknown>;
-        const filas: { id: string; estado: string; motivo?: string }[] = [];
         for (const [id, v] of Object.entries(d)) {
             if (!v || typeof v !== "object") continue;
             const entrada = v as { estado?: unknown; motivo?: unknown; sin_cupo_hasta?: unknown };
             if (typeof entrada.estado !== "string") continue;
             const sinCupo = typeof entrada.sin_cupo_hasta === "string" ? entrada.sin_cupo_hasta : "";
-            filas.push({
+            filas.set(id, {
                 id,
                 estado: sinCupo ? "sin cupo" : entrada.estado,
                 motivo: sinCupo
@@ -157,10 +159,40 @@ async function leerProveedores(): Promise<{ id: string; estado: string; motivo?:
                       : undefined,
             });
         }
-        return filas.sort((a, b) => a.id.localeCompare(b.id));
     } catch {
-        return [];
+        /* sin archivo de salud: se sigue con el informe del renovador */
     }
+
+    // 2. Y las que sondea el renovador, que son las que alimentan «Te toca a ti».
+    //
+    // (2026-09-22) Alex: «aparece en Te toca a ti lo de renovar la clave de freellmapi
+    // pero no aparece en el medidor de proveedores agotados». Exacto: eran DOS listas de
+    // dos archivos distintos. `salud-proveedores.json` solo tiene las pasarelas que el
+    // orquestador ha usado; `pasarelas-informe.json` tiene todas las que se sondean,
+    // freellmapi incluida. Que el Puente te pida arreglar algo que no figura en ninguna
+    // lista es lo que hace imposible saber si el aviso es real. Ahora salen de las dos, y
+    // el informe manda sobre la salud porque es la medida más reciente.
+    try {
+        const crudo = await readFile(path.join(os.homedir(), ".starseed", "pasarelas-informe.json"), "utf8");
+        const d = JSON.parse(crudo) as { pasarelas?: unknown };
+        for (const p of Array.isArray(d.pasarelas) ? d.pasarelas : []) {
+            if (!p || typeof p !== "object") continue;
+            const e = p as { clave?: unknown; estado?: unknown; http?: unknown; modelo?: unknown };
+            const id = typeof e.clave === "string" ? e.clave : "";
+            if (!id) continue;
+            const estado = typeof e.estado === "string" ? e.estado : "?";
+            filas.set(id, {
+                id,
+                // `escribe` es el estado bueno del renovador; en el pulso se llama «vivo».
+                estado: estado === "escribe" ? "vivo" : estado.replace(/_/g, " "),
+                motivo: `sondeada hace un momento · http ${String(e.http ?? "?")} · modelo ${String(e.modelo ?? "?")}`,
+            });
+        }
+    } catch {
+        /* sin informe: queda lo que dijera la salud */
+    }
+
+    return [...filas.values()].sort((a, b) => a.id.localeCompare(b.id));
 }
 
 /**

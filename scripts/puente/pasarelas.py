@@ -59,6 +59,16 @@ CATALOGO = {
 
 _PISTAS = (
     # (subcadena en el cuerpo, estado)
+    # TARDAR NO ES MORIR (2026-09-22). Cuando la sonda se queda sin tiempo, el cuerpo que
+    # llega aquí no es una respuesta del servidor: es el texto de la excepción de Python
+    # («TimeoutError: timed out», «socket.timeout», «URLError ... timed out»). Ninguna
+    # pista lo reconocía, así que caía en el `return CAIDA` del final y el Puente le pedía
+    # a Alex renovar la clave. Medido esta noche con FreeLLMAPI: el informe decía «caída ·
+    # renovar la clave» mientras la pasarela contestaba HTTP 200 en dos segundos y ofrecía
+    # 234 modelos. Lo que tardaba era su ruta `auto`, porque las pasarelas gratuitas de
+    # debajo estaban sin cupo — un problema de cuota aguas abajo, no una clave caducada.
+    # Mandar a alguien a renovar una clave que funciona es la peor clase de aviso: le hace
+    # perder el tiempo y le enseña a no creerse la lista.
     # EL FICHAJE VA PRIMERO. apinex contesta a la vez «daily check-in required» y
     # palabras como «free»/«quota», así que si se mira después queda clasificado
     # como «sin cupo» y el informe dice «se repone sola» — y no se repone: hay que
@@ -93,6 +103,11 @@ _PISTAS = (
     ("invalid api key", SIN_CLAVE),
     ("unauthorized", SIN_CLAVE),
     ("missing request extension", SIN_CLAVE),
+    ("timed out", LENTA),
+    ("timeouterror", LENTA),
+    ("socket.timeout", LENTA),
+    ("timeout", LENTA),
+    ("read operation timed out", LENTA),
 )
 
 

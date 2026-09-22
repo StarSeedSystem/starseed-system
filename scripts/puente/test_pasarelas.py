@@ -284,3 +284,29 @@ class TestRotacionQueSeRecalcula(unittest.TestCase):
     def test_desde_vacio_entra_todo(self):
         entran, salen = P.cambio_de_rotacion([], ["a"])
         self.assertEqual((entran, salen), (["a"], []))
+
+
+class TardarNoEsMorir(unittest.TestCase):
+    """(2026-09-22) FreeLLMAPI: el informe decia «caida · renovar la clave» mientras la
+    pasarela contestaba HTTP 200 en dos segundos con 234 modelos. Lo que tardaba era su
+    ruta `auto`, porque las gratuitas de debajo estaban sin cupo. El cuerpo que llegaba a
+    `clasificar` era el texto de la excepcion de Python, ninguna pista lo reconocia, y
+    caia en el CAIDA por defecto."""
+
+    def test_un_tiempo_de_espera_es_lenta_no_caida(self):
+        self.assertEqual(P.clasificar(0, "TimeoutError: timed out", False, None), P.LENTA)
+        self.assertEqual(P.clasificar(0, "socket.timeout: The read operation timed out", False, None), P.LENTA)
+
+    def test_lenta_no_molesta_a_nadie(self):
+        # Lo importante: una pasarela lenta NO manda a Alex a renovar nada.
+        self.assertFalse(P.hay_que_renovar(P.LENTA))
+
+    def test_una_pista_especifica_gana_al_tiempo(self):
+        # Un cuerpo que dice las dos cosas es un fichaje, no una lentitud.
+        self.assertEqual(P.clasificar(0, "daily check-in required (timeout)", False, None), P.FICHAJE)
+
+    def test_el_silencio_de_verdad_sigue_siendo_lenta(self):
+        self.assertEqual(P.clasificar(0, "", False, None), P.LENTA)
+
+    def test_una_clave_mala_sigue_siendo_clave_mala(self):
+        self.assertEqual(P.clasificar(401, "invalid api key", False, None), P.SIN_CLAVE)
