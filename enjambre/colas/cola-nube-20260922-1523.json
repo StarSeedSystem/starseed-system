@@ -1,0 +1,43 @@
+{
+ "ola": "nube-20260922",
+ "tareas": [
+  {
+   "id": "c313_QW4",
+   "ola": "Ola 313 · Consolidación de pendientes",
+   "titulo": ".env.example con todas las variables de entorno",
+   "archivos": [
+    ".env.example"
+   ],
+   "prompt": "Procesa la tarea: .env.example con todas las variables de entorno. Archivos: ['.env.example']. Escribe código limpio, sin any, en español con acentos. tsc limpio.",
+   "depende": [],
+   "modelo": "llm7/minimax-m2.7",
+   "aprobacion": false
+  },
+  {
+   "id": "c313_QW6",
+   "ola": "Ola 313 · Consolidación de pendientes",
+   "titulo": "Nombre accesible del botón Compartir de la tarjeta",
+   "archivos": [
+    "src/components/social/PostCard.tsx"
+   ],
+   "prompt": "Procesa la tarea: Nombre accesible del botón Compartir de la tarjeta. Archivos: ['src/components/social/PostCard.tsx']. Escribe código limpio, sin any, en español con acentos. tsc limpio.",
+   "depende": [],
+   "modelo": "llm7/minimax-m2.7",
+   "aprobacion": false
+  },
+  {
+   "id": "RM3",
+   "ola": 363,
+   "titulo": "buildwithparallel: adaptadores de transporte mesh Reticulum y Wi-Fi HaLow",
+   "archivos": [
+    "src/ai/astraura/mesh/transporte-bwp.ts",
+    "src/lib/__tests__/transporte-bwp.test.ts"
+   ],
+   "depende": [
+    "RM2"
+   ],
+   "prompt": "buildwithparallel (https://buildwithparallel.com · https://github.com/buildwithparallel) ofrece campo en radios mesh, Wi-Fi HaLow (sub-GHz) y Reticulum sobre red local-first con hardware de commodity. StarSeed ya abstrae senalizacion y transporte en `src/ai/astraura/mesh/` (`signals.ts`, `meshtastic-adapter.ts`, `servers.ts`). Objetivo: abstraer el VÍNCULO fisico sin tocar la capa de aplicacion (identidad/cifrado/reglas de `mesh-identity.ts`, `recipient-crypto.ts`, `rules.ts` quedan intactos).\n1) `transporte-bwp.ts`: `type TransporteBwp = 'wifi-halo'|'reticulum'|'wifi-mesh'|'webrtc-local'|'usb-serial'`; `TRANSPORTES_BWP: Record<TransporteBwp,{etiqueta;alcanceLectura;latencia;requiereHardware;prioridad:number}>; `transportesOrdenados(disponibles, preferido?)` mete el preferido el primero si esta, orden estable para el resto; `estadoTransporte(vinculos:Array<{transporte;rssi?;tasaKbps?}>)` da `{online; mejor; totalKbps}`.\n2) Test vitest puro: `transportesOrdenados` pone el preferido primero sin perder ninguno; `estadoTransporte` suma tasas y elige el mejor por prioridad.\nSin any, tsc limpio.",
+   "modelo": "llm7/minimax-m2.7"
+  }
+ ]
+}
