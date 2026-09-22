@@ -414,6 +414,31 @@ export async function POST(peticion: Request): Promise<Response> {
                 { status: 409 },
             );
         }
+        // ¿HAY TRABAJO QUE MANDAR? (2026-09-22) Sin esto el botón contestaba «desplegando
+        // 4 agentes» y el lanzamiento moría por su cuenta con «el reparto no creó ninguna
+        // cola (¿no hay atraso?)». Un botón que promete lo que no pasa es exactamente la
+        // avería que llevamos toda la semana quitando, así que se mira ANTES de prometer.
+        try {
+            const { stdout } = await correr(
+                "python3",
+                ["scripts/puente/repartir-a-nube.py", "--tope", String(destino.agentes_por_job * 2), "--simular"],
+                { cwd: RAÍZ, timeout: 60_000, windowsHide: true },
+            );
+            const m = /(\d+)\s+tareas?/.exec(stdout || "");
+            if (m && Number(m[1]) === 0) {
+                return Response.json(
+                    {
+                        error:
+                            "No hay trabajo pendiente que la nube pueda coger: todo lo que queda espera a otra tarea o ya está en main. " +
+                            "Desplegar agentes ahora sería pagar máquinas para que miren.",
+                    },
+                    { status: 409 },
+                );
+            }
+        } catch {
+            // Si la simulación no se puede hacer, se sigue: el lanzamiento dirá la verdad.
+        }
+
         try {
             // Suelto y con su log: un lanzamiento tarda hasta un minuto (empuja la rama de
             // la cola y espera a que GitHub registre el run), más de lo que aguanta una
