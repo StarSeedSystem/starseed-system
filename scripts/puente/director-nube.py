@@ -39,6 +39,9 @@ import subprocess
 import sys
 import time
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import repartir_nube as RN  # noqa: E402  (lógica pura del reparto: elegir, marcar, reclamar)
+
 RAIZ = os.environ.get("STARSEED_ROOT") or "/Users/alex/Documents/starseed-os-main"
 INTERVALO_S = int(os.environ.get("STARSEED_NUBE_S", "240"))
 #: Backstop, no política: con repo público los minutos de Actions son gratis, así que el
@@ -187,6 +190,42 @@ def inventario_de_contenedores():
         return {"contenedores": [], "resumen": {}}
 
 
+def reclamar_varadas_de_la_nube(runs_vivos):
+    """Devuelve a `pendiente` lo que se prestó a la nube y allí ya no lo hace nadie.
+
+    (2026-09-22) Ver `repartir_nube.reclamar_varadas`. Esto es la mitad impura: leer el
+    progreso, aplicar la regla y escribirlo. Se hace en cada pasada del director porque
+    justo esto —una cadena colgando de dos tareas varadas— es lo que Alex ve como «5
+    listas y ningún agente», y arreglarlo a mano cada vez no es un sistema.
+    """
+    ruta = os.path.join(RAIZ, "starseed_memory_root", "olas", "progreso.json")
+    try:
+        with open(ruta, encoding="utf-8") as f:
+            progreso = json.load(f)
+    except (OSError, ValueError):
+        return []
+    tareas = progreso.get("tareas") if isinstance(progreso, dict) and "tareas" in progreso else progreso
+    if not isinstance(tareas, dict):
+        return []
+    ids = RN.reclamar_varadas(tareas, runs_vivos)
+    if not ids:
+        return []
+    nuevas = RN.devolver_a_pendiente(tareas, ids, time.strftime("%Y%m%d"))
+    if isinstance(progreso, dict) and "tareas" in progreso:
+        progreso["tareas"] = nuevas
+        salida = progreso
+    else:
+        salida = nuevas
+    tmp = ruta + ".tmp"
+    try:
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(salida, f, ensure_ascii=False, indent=1)
+        os.replace(tmp, ruta)
+    except OSError:
+        return []
+    return ids
+
+
 def _cuenta_hoy():
     hoy = time.strftime("%Y-%m-%d")
     try:
@@ -210,6 +249,10 @@ def main():
         try:
             _, hoy_n, _ = _cuenta_hoy()
             runs_vivos, agentes_vivos = medir_nube()
+            devueltas = reclamar_varadas_de_la_nube(runs_vivos)
+            if devueltas:
+                print("[%s] devueltas de la nube a pendiente (allí no quedaba nadie): %s"
+                      % (time.strftime("%H:%M"), ", ".join(devueltas)), flush=True)
             # El inventario MIDE la capacidad; el director ya no la supone. Si mañana se
             # abre Colab o Cloud Run, el tope sube solo y sin tocar este archivo.
             inv = inventario_de_contenedores()

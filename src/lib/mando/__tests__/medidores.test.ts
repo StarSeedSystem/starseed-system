@@ -7,6 +7,7 @@ import {
     mediaDeAvance,
     configuracionPorDefecto,
     dependenciaDeNota,
+    dependenciasQueFaltan,
     detalleDeMedidor,
     ejecutablesDeColas,
     idEnAsuntos,
@@ -443,5 +444,40 @@ describe("un agente sin pasarela NO está escribiendo (2026-09-22)", () => {
         });
         expect(d.filas[0].estado).toBe("escribiendo");
         expect(d.resumen).toContain("1 escribiendo");
+    });
+});
+
+describe("una dependencia que no va a llegar nunca no es un candado", () => {
+    // (2026-09-22, medido) JF2 esperaba a JF1, y JF1 estaba así en el progreso:
+    //   {"estado": "sustituida", "nota": "huérfana: ninguna cola fuente la define ya"}
+    // Esperar a algo que nadie va a hacer no es una dependencia, es un candado: JF2 se
+    // quedaba «lista» para siempre sin que ningún agente pudiera cogerla.
+    it("una dependencia sustituida deja de frenar", () => {
+        expect(dependenciasQueFaltan(["JF1"], { JF1: { estado: "sustituida" } })).toEqual([]);
+    });
+
+    it("también si fue descartada o rechazada", () => {
+        expect(
+            dependenciasQueFaltan(["A", "B"], {
+                A: { estado: "descartada" },
+                B: { estado: "rechazada" },
+            }),
+        ).toEqual([]);
+    });
+
+    it("una que sigue viva SÍ frena: todavía puede llegar", () => {
+        expect(dependenciasQueFaltan(["RM3"], { RM3: { estado: "reasignada" } })).toEqual(["RM3"]);
+        expect(dependenciasQueFaltan(["RM3"], { RM3: { estado: "pendiente" } })).toEqual(["RM3"]);
+        expect(dependenciasQueFaltan(["RM3"], { RM3: { estado: "en_curso" } })).toEqual(["RM3"]);
+    });
+
+    it("una que no existe en el progreso sigue frenando", () => {
+        // p318Jb esperaba a un p318I que nunca se creó. Eso no es «imposible por estado»:
+        // es una cola mal escrita, y hay que verlo, no esconderlo.
+        expect(dependenciasQueFaltan(["p318I"], {})).toEqual(["p318I"]);
+    });
+
+    it("una ya integrada no frena, como siempre", () => {
+        expect(dependenciasQueFaltan(["A"], { A: { estado: "commit" } })).toEqual([]);
     });
 });

@@ -36,6 +36,7 @@ import { PanelMedidor, PastillaMedidor, type TonoMedidor } from "@/components/ma
 import { PanelIdes, PastillaIdes } from "@/components/mando/medidor-ides";
 import { VerificarProcesos } from "@/components/mando/verificar-procesos";
 import type { AccionMedidor, ClaveMedidor, DetalleMedidor, FilaMedidor } from "@/lib/mando/medidores";
+import { ESPERA_A_OTRA } from "@/lib/mando/medidores";
 import { PanelProcesos } from "@/components/mando/panel-procesos";
 import { PanelGrafo } from "@/components/mando/panel-grafo";
 import { PanelOlas } from "@/components/mando/panel-olas";
@@ -639,7 +640,12 @@ export function CentroMando() {
             if (resListas.status === "fulfilled" && resListas.value.ok) {
                 const dataListas = (await resListas.value.json()) as { detalle?: DetalleMedidor };
                 if (dataListas.detalle?.filas) {
-                    listas = dataListas.detalle.filas.length;
+                    // (2026-09-22) Contaba TODAS las filas. La baldosa decía «LISTAS PARA
+                    // TRABAJAR 5» mientras el propio medidor, un clic más abajo, decía
+                    // «ninguna se puede coger: 5 esperan a otra tarea». Un número que no
+                    // significa lo que su etiqueta promete es la misma mentira de siempre.
+                    // La baldosa cuenta lo que un agente puede coger AHORA.
+                    listas = dataListas.detalle.filas.filter((f) => f.estado !== ESPERA_A_OTRA).length;
                 }
             }
 

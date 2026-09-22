@@ -582,6 +582,20 @@ const ABIERTOS = new Set(["pendiente", ""]);
 const DEPENDENCIA_CUMPLIDA = new Set(["commit", "hecho"]);
 
 /**
+ * Estados en los que una dependencia NO VA A LLEGAR NUNCA, y por tanto tampoco frena.
+ *
+ * (2026-09-22, medido) JF2 esperaba a JF1, y JF1 estaba así en el progreso:
+ *   {"estado": "sustituida", "nota": "huérfana: ninguna cola fuente la define ya"}
+ * Es decir: JF1 ya no existe. Esperar a algo que nadie va a hacer no es una dependencia,
+ * es un candado. Con la regla vieja, JF2 se quedaba «lista» para siempre sin que nadie
+ * pudiera cogerla, y el Puente lo contaba como trabajo disponible.
+ */
+const DEPENDENCIA_IMPOSIBLE = new Set(["sustituida", "descartada", "rechazada"]);
+
+/** El estado con el que se marca una tarea que no se puede coger porque espera a otra. */
+export const ESPERA_A_OTRA = "espera a otra tarea";
+
+/**
  * Qué dependencias le faltan a una tarea para poder empezar. PURA.
  *
  * Vale [] cuando no depende de nada o cuando todas están integradas. Una dependencia que
@@ -596,7 +610,9 @@ export function dependenciasQueFaltan(
     return (depende ?? []).filter((dep) => {
         const id = String(dep || "").trim();
         if (!id) return false;
-        if (DEPENDENCIA_CUMPLIDA.has(progreso[id]?.estado ?? "")) return false;
+        const estadoDep = progreso[id]?.estado ?? "";
+        if (DEPENDENCIA_CUMPLIDA.has(estadoDep)) return false;
+        if (DEPENDENCIA_IMPOSIBLE.has(estadoDep)) return false;
         if (typeof asuntosDeMain === "string" && idIntegradoEnAsuntos(id, asuntosDeMain)) return false;
         return true;
     });
@@ -1090,7 +1106,7 @@ export function detalleDeMedidor(
             const filas: FilaMedidor[] = [...libres, ...atadas].map((t) => ({
                 id: t.id,
                 titulo: t.titulo,
-                estado: t.esperaA?.length ? "espera a otra tarea" : "lista",
+                estado: t.esperaA?.length ? ESPERA_A_OTRA : "lista",
                 // 0 % de seis etapas: definida y sin empezar. Con la barra al lado se ve
                 // de un vistazo lo que queda por delante de cada una.
                 porcentaje: 0,

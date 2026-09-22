@@ -129,6 +129,42 @@ def elegir(colas, progreso, asuntos_main, ola_actual, tope=20, max_archivos=MAX_
     return salida[:tope]
 
 
+def reclamar_varadas(progreso, runs_en_marcha):
+    """PURA. Las que se mandaron a la nube y allí ya no queda nadie que las haga.
+
+    (2026-09-22, MEDIDO) RM3 y RM4 llevaban horas en «reasignada · nube» con CERO runs en
+    marcha. Detrás de ellas, RM5 esperaba a RM3 y RM4; RM6 a RM5; RM7 a RM5 y RM6; RM8 a
+    RM7. El Puente enseñaba «LISTAS PARA TRABAJAR 5» y ningún agente podía coger ninguna:
+    la cadena entera colgaba de dos tareas que ya no iba a hacer nadie. El vigía lo veía
+    («cadena_rota») y solo sabía avisar —y ni eso: «no pude avisar»—.
+
+    Reasignar a la nube es un préstamo, no un traspaso: si en la nube no queda ningún run
+    en marcha, lo prestado vuelve a `pendiente` y la Mac puede cogerlo. Mientras haya UN
+    run vivo no se toca nada: podría ser el que las está haciendo.
+    """
+    if runs_en_marcha != 0:
+        return []
+    return sorted(
+        tid for tid, v in (progreso or {}).items()
+        if isinstance(v, dict)
+        and v.get("estado") == "reasignada"
+        and (v.get("medio") or "") == "nube"
+    )
+
+
+def devolver_a_pendiente(progreso, ids, fecha):
+    """Copia del progreso con esos ids de vuelta a `pendiente`, sin perder su historia."""
+    salida = dict(progreso or {})
+    for tid in ids:
+        v = dict(salida.get(tid) or {})
+        v.update(
+            estado="pendiente", medio=None,
+            nota="devuelta de la nube %s: no quedaba ningún run en marcha" % fecha,
+        )
+        salida[tid] = v
+    return salida
+
+
 def marcar(progreso, ids, fecha):
     """Copia del progreso con esos ids como `reasignada · nube`."""
     p = {k: dict(v) if isinstance(v, dict) else v for k, v in progreso.items()}

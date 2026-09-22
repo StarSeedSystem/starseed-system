@@ -239,3 +239,54 @@ class DependenciasHechasNoFrenanLaNube(unittest.TestCase):
         elegidas = [t["id"] for t in R.elegir(colas, prog, [], "", tope=5)]
         self.assertIn("B", elegidas)
         self.assertNotIn("C", elegidas)
+
+
+class ReclamarVaradasEnLaNube(unittest.TestCase):
+    """(2026-09-22, MEDIDO) RM3 y RM4 en «reasignada · nube» con CERO runs en marcha.
+
+    Detrás: RM5 esperaba a RM3 y RM4, RM6 a RM5, RM7 a RM5 y RM6, RM8 a RM7. El Puente
+    enseñaba «LISTAS PARA TRABAJAR 5» y ningún agente podía coger ninguna. Prestar a la
+    nube no puede ser perder: si allí no queda nadie, vuelve.
+    """
+
+    def _p(self, **estados):
+        return {tid: dict(v) for tid, v in estados.items()}
+
+    def test_sin_runs_vuelven_las_prestadas_a_la_nube(self):
+        p = self._p(RM3={"estado": "reasignada", "medio": "nube"},
+                    RM4={"estado": "reasignada", "medio": "nube"})
+        self.assertEqual(R.reclamar_varadas(p, 0), ["RM3", "RM4"])
+
+    def test_con_un_run_vivo_no_se_toca_nada(self):
+        """Podría ser justo el que las está haciendo."""
+        p = self._p(RM3={"estado": "reasignada", "medio": "nube"})
+        self.assertEqual(R.reclamar_varadas(p, 1), [])
+
+    def test_una_reasignada_que_no_fue_a_la_nube_no_se_reclama(self):
+        p = self._p(RM3={"estado": "reasignada", "medio": "mac"})
+        self.assertEqual(R.reclamar_varadas(p, 0), [])
+
+    def test_las_que_estan_en_otro_estado_no_se_tocan(self):
+        p = self._p(A={"estado": "commit", "medio": "nube"},
+                    B={"estado": "en_curso", "medio": "nube"},
+                    C={"estado": "pendiente"})
+        self.assertEqual(R.reclamar_varadas(p, 0), [])
+
+    def test_progreso_vacio_o_raro_no_rompe(self):
+        self.assertEqual(R.reclamar_varadas(None, 0), [])
+        self.assertEqual(R.reclamar_varadas({"X": "no soy un dict"}, 0), [])
+
+    def test_devolver_a_pendiente_conserva_la_historia(self):
+        p = self._p(RM3={"estado": "reasignada", "medio": "nube", "ola": 363,
+                         "titulo": "mesh", "intentos": 2})
+        n = R.devolver_a_pendiente(p, ["RM3"], "20260922")
+        self.assertEqual(n["RM3"]["estado"], "pendiente")
+        self.assertIsNone(n["RM3"]["medio"])
+        self.assertEqual(n["RM3"]["ola"], 363)          # no se pierde de qué ola es
+        self.assertEqual(n["RM3"]["intentos"], 2)        # ni cuántas veces se intentó
+        self.assertIn("no quedaba ningún run", n["RM3"]["nota"])
+
+    def test_devolver_no_modifica_el_original(self):
+        p = self._p(RM3={"estado": "reasignada", "medio": "nube"})
+        R.devolver_a_pendiente(p, ["RM3"], "20260922")
+        self.assertEqual(p["RM3"]["estado"], "reasignada")
