@@ -5,7 +5,7 @@ Selección pura de roles expertos de agency-agents para tareas del enjambre.
 
 import os
 import re
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional
 
 # Palabras vacías o sin significado para el filtrado del título
 PALABRAS_VACIAS = {
@@ -118,7 +118,7 @@ def division_de(archivos: List[str]) -> str:
 
 
 def elegir_rol(
-    titulo: str, archivos: List[str], catalogo: List[Dict[str, Any]]
+    titulo: str, archivos: List[str], catalogo: List[Dict[str, str]]
 ) -> Optional[str]:
     """Elige el id del rol más adecuado del catálogo basándose en puntuación y desempate alfabético."""
     if not catalogo:
@@ -210,7 +210,7 @@ def recortar_rol(texto: str, tope: int = 3000) -> str:
 
 def leer_catalogo(
     raiz: str = os.path.expanduser("~/.starseed/repos/agency-agents"),
-) -> List[Dict[str, Any]]:
+) -> List[Dict[str, str]]:
     """Lee y parsea el catálogo de agency-agents desde el disco sin explotar si no existe."""
     try:
         raiz_abs = os.path.expanduser(raiz)
