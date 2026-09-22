@@ -137,7 +137,7 @@ export const REPO_DECISIONES: LibraryRepo = {
       kind: "repo",
       name: "tinker-cookbook",
       description:
-        "Recetas de post-entrenamiento de LLMs para Astraura (destilación en recipes/distillation y prompt_distillation, RL, 20 tutoriales). AVISO SIN ADORNOS: 329 de 374 módulos (88%) importan el SDK tinker y NO funcionan sin cuenta de PAGO en thinkingmachines.ai con TINKER_API_KEY; el entrenamiento corre en su infraestructura. Aprovechable gratis solo como planos.",
+        "374 módulos Python; 329 (88%) importan el SDK `tinker` y NO funcionan sin cuenta DE PAGO en thinkingmachines.ai. El entrenamiento corre en SU infraestructura. Gratis solo sirven las recetas como planos y los tutoriales.",
       icon: "BookOpen",
       tags: ["entrenamiento", "destilacion", "rl", "astraura", "pago-requerido"],
       version: "1.0.0",
@@ -152,6 +152,55 @@ export const REPO_DECISIONES: LibraryRepo = {
         corre_aqui: false,
       },
       comingSoon: true,
+    },
+    // ════════════════════════════════════════════════════════════════════
+    // Registro de las tres repos nuevas (TK1c, Ola 339): tinker-cookbook
+    // (ya existente, descripción corregida para reflejar pago en thinkingmachines.ai
+    // y entrenamiento en su infraestructura); hermes-jev-skills (MIT, Python 3.9+,
+    // clave OpenRouter ya disponible); jev-router (MIT, Node 20.12+, coste solo de
+    // suscripción Claude Code como requisito previo, no del repo).
+    // corre_aqui: false porque ninguna ficha afirma comprobación en cualquier máquina;
+    // lo comprobamos en ESTA y el código no mira OPENROUTER_API_KEY aquí.
+    // ════════════════════════════════════════════════════════════════════
+    {
+      id: "hermes-jev-skills",
+      kind: "repo",
+      name: "hermes-jev-skills",
+      description:
+        "Python 3.9+ sin dependencias, diez skills. Funciona con una clave de OpenRouter, que ya tenemos.",
+      icon: "Layers",
+      tags: ["skills", "jev", "opentrouter", "mit"],
+      version: "1.0.0",
+      author: "kerpopule",
+      sourceRepoId: "starseed-decisiones",
+      free: true,
+      payload: {
+        upstream: "https://github.com/kerpopule/hermes-jev-skills",
+        licencia: "MIT",
+        requisitos: "Python 3.9+ sin dependencias; clave de OpenRouter (ya disponible en esta máquina)",
+        corre_aqui: false,
+      },
+      comingSoon: false,
+    },
+    {
+      id: "jev-router",
+      kind: "repo",
+      name: "jev-router",
+      description:
+        "Node 20.12+. Proxy que enruta Claude Code a Haiku/Sonnet/Opus según la complejidad que estime Jev. El repo es MIT y gratis; lo que cuesta es la suscripción de Claude Code, que es un requisito previo, no un coste del repo.",
+      icon: "GitBranch",
+      tags: ["router", "claude-code", "jev", "node"],
+      version: "1.0.0",
+      author: "gargpratyush",
+      sourceRepoId: "starseed-decisiones",
+      free: true,
+      payload: {
+        upstream: "https://github.com/gargpratyush/jev-router",
+        licencia: "MIT",
+        requisitos: "Node 20.12+; suscripción de Claude Code como requisito previo",
+        corre_aqui: false,
+      },
+      comingSoon: false,
     },
   ],
 };

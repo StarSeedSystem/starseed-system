@@ -19,8 +19,8 @@ describe("fuentes-decision", () => {
     repo.packages.forEach((p) => idsExistentes.add(p.id));
   });
 
-  it("tiene exactamente siete paquetes", () => {
-    expect(REPO_DECISIONES.packages).toHaveLength(7);
+  it("tiene exactamente nueve paquetes (tres repos nuevas en TK1c)", () => {
+    expect(REPO_DECISIONES.packages).toHaveLength(9);
   });
 
   it("cada id es unico dentro del repo", () => {
@@ -51,11 +51,16 @@ describe("fuentes-decision", () => {
     }
   });
 
-  it("los que no corren aqui llevan comingSoon", () => {
+  it("los que no corren aqui llevan comingSoon, excepto repos que funcionan (TK1c)", () => {
     for (const p of REPO_DECISIONES.packages) {
       const corre = p.payload?.corre_aqui === true;
+      const esRepoNuevas = ["hermes-jev-skills", "jev-router"].includes(p.id);
       if (!corre) {
-        expect(p.comingSoon).toBe(true);
+        if (esRepoNuevas) {
+          expect(p.comingSoon).toBe(false); // repos MIT que funcionan con clave/requisito existente
+        } else {
+          expect(p.comingSoon).toBe(true);
+        }
       }
     }
   });
@@ -80,8 +85,43 @@ describe("fuentes-decision", () => {
     // entrenamiento como viene exige pagar: free=false y dicho en la descripción.
     expect(tinker!.free).toBe(false);
     expect(tinker!.description).toContain("PAGO");
-    expect(tinker!.description).toContain("TINKER_API_KEY");
     expect(tinker!.description).toContain("88%");
+    expect(tinker!.description).toContain("SU infraestructura");
     expect(tinker!.payload?.requisitos).toContain("PAGO");
+  });
+
+  // TK1c — las tres repos nuevas registradas con coste honesto (sección 8, 11, 💠)
+  it("hermes-jev-skills: MIT, sin dependencias, clave OpenRouter, free=true, corre_aqui=false", () => {
+    const p = REPO_DECISIONES.packages.find((x) => x.id === "hermes-jev-skills");
+    expect(p).toBeDefined();
+    expect(p!.free).toBe(true);
+    expect(p!.payload?.licencia).toBe("MIT");
+    expect(p!.description).toContain("Python 3.9+");
+    expect(p!.description).toContain("clave de OpenRouter");
+    expect(p!.payload?.corre_aqui).toBe(false);
+    expect(p!.comingSoon).toBe(false);
+  });
+
+  it("jev-router: MIT, Node 20.12+, coste es suscripción Claude Code (previo, no repo), free=true", () => {
+    const p = REPO_DECISIONES.packages.find((x) => x.id === "jev-router");
+    expect(p).toBeDefined();
+    expect(p!.free).toBe(true);
+    expect(p!.payload?.licencia).toBe("MIT");
+    expect(p!.description).toContain("Node 20.12+");
+    expect(p!.description).toContain("suscripción de Claude Code");
+    expect(p!.description).toContain("requisito previo");
+    expect(p!.payload?.corre_aqui).toBe(false);
+    expect(p!.comingSoon).toBe(false);
+  });
+
+  it("tinker-cookbook: Apache 2.0, free=false, 88% requieren cuenta DE PAGO en thinkingmachines.ai", () => {
+    const p = REPO_DECISIONES.packages.find((x) => x.id === "tinker-cookbook");
+    expect(p).toBeDefined();
+    expect(p!.free).toBe(false);
+    expect(p!.payload?.licencia).toBe("Apache-2.0");
+    expect(p!.description).toContain("374 módulos Python");
+    expect(p!.description).toContain("329 (88%)");
+    expect(p!.description).toContain("DE PAGO");
+    expect(p!.description).toContain("SU infraestructura");
   });
 });
