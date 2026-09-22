@@ -1,343 +1,474 @@
 #!/usr/bin/env python3
-"""Comprueba un medidor del Mando usando únicamente hechos observados."""
+"""Comprueba un medidor del Mando midiendo el sistema real sin datos inventados."""
 
 from __future__ import annotations
 
 import json
+import os
 import re
-import shlex
 import shutil
 import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-
+from typing import Any, Dict, List, Optional, Tuple
 
 RUTA_COMPROBACIONES = Path("starseed_memory_root/mando/comprobaciones")
-GUIONES_VIGILADOS = (
-    "scripts/enjambre/starseed-enjambre.py",
-    "scripts/puente/vigilante-enjambre.py",
-    "scripts/puente/director-acciones.py",
-    "scripts/puente/director-nube.py",
-    "scripts/puente/director_aprendizaje.py",
-    "scripts/puente/director_dream.py",
-)
 
 
-def _veredicto(
-    identificador: str, nombre: str, valor: object, esta_vivo: bool, motivo: str
-) -> dict[str, object]:
-    if valor is None:
-        return {
-            "id": identificador,
-            "nombre": nombre,
-            "estado": "desconocido",
-            "motivo": f"No se pudo medir {nombre.lower()}.",
-        }
-    return {
-        "id": identificador,
-        "nombre": nombre,
-        "estado": "vivo" if esta_vivo else "muerto",
-        "motivo": motivo,
-    }
-
-
-def veredictos_de(
-    medidor: str, hechos: dict[str, object]
-) -> tuple[list[dict[str, object]], dict[str, int]]:
-    """Convierte hechos ya medidos en veredictos y su resumen."""
-    clave = medidor.replace("_", "-")
-    veredictos: list[dict[str, object]] = []
-    if clave == "memoria":
-        libre = hechos.get("memoria_libre_mb")
-        swap = hechos.get("swap_libre_mb")
-        veredictos.append(
-            _veredicto(
-                "memoria-libre", "Memoria libre", libre, _numero(libre) >= 150,
-                f"{libre} MB libres.",
-            )
-        )
-        veredictos.append(
-            _veredicto(
-                "swap-libre", "Swap libre", swap, _numero(swap) >= 0,
-                f"{swap} MB libres.",
-            )
-        )
-    elif clave == "disco":
-        libre = hechos.get("disco_libre_gb")
-        veredictos.append(
-            _veredicto(
-                "disco-libre", "Disco libre", libre, _numero(libre) > 0,
-                f"{libre} GB libres.",
-            )
-        )
-    elif clave == "procesos":
-        procesos = hechos.get("procesos")
-        if not isinstance(procesos, dict):
-            procesos = {guion: None for guion in GUIONES_VIGILADOS}
-        for guion, pids in procesos.items():
-            presente = isinstance(pids, list) and bool(pids)
-            motivo = (
-                f"PID observados: {pids}."
-                if presente
-                else "No aparece la ruta del guion en ps."
-            )
-            veredictos.append(
-                _veredicto(str(guion), Path(str(guion)).name, pids, presente, motivo)
-            )
-    elif clave == "proveedores":
-        activos = hechos.get("proveedores_activos")
-        pasarelas = hechos.get("pasarelas_ok")
-        veredictos.append(
-            _veredicto(
-                "proveedores-activos", "Proveedores activos", activos,
-                _numero(activos) > 0, f"{activos} proveedores activos.",
-            )
-        )
-        motivo = (
-            "El informe confirma pasarelas disponibles."
-            if pasarelas is True
-            else "El informe no confirma pasarelas disponibles."
-        )
-        veredictos.append(
-            _veredicto(
-                "pasarelas-ok", "Pasarelas", pasarelas,
-                pasarelas is True, motivo,
-            )
-        )
-    elif clave == "sin-publicar":
-        cantidad = hechos.get("sin_publicar")
-        motivo = (
-            "No hay commits pendientes."
-            if cantidad == 0
-            else f"Hay {cantidad} commits pendientes."
-        )
-        veredictos.append(
-            _veredicto(
-                "sin-publicar", "Commits sin publicar", cantidad,
-                _numero(cantidad) == 0, motivo,
-            )
-        )
-    else:
-        veredictos.append(_veredicto(clave, medidor, None, False, ""))
-
-    resumen = {
-        plural: sum(v["estado"] == singular for v in veredictos)
-        for plural, singular in (
-            ("vivos", "vivo"),
-            ("muertos", "muerto"),
-            ("desconocidos", "desconocido"),
-        )
-    }
-    resumen["total"] = len(veredictos)
-    return veredictos, resumen
-
-
-def _numero(valor: object) -> float:
-    if isinstance(valor, (int, float)) and not isinstance(valor, bool):
-        return float(valor)
-    return float("-inf")
-
-
-def _salida(comando: list[str]) -> str | None:
+def _salida(comando: List[str]) -> Optional[str]:
     try:
-        resultado = subprocess.run(
-            comando, check=True, capture_output=True, text=True, timeout=15
+        res = subprocess.run(
+            comando, capture_output=True, text=True, timeout=10, check=True
         )
-    except (FileNotFoundError, subprocess.SubprocessError, OSError):
+        return res.stdout
+    except Exception:
         return None
-    return resultado.stdout
-
-
-def _memoria_libre_mb() -> float | None:
-    salida = _salida(["vm_stat"])
-    if salida is not None:
-        pagina = re.search(r"page size of (\d+) bytes", salida)
-        libres = re.search(r"Pages free:\s+(\d+)", salida)
-        if pagina and libres:
-            return round(int(pagina.group(1)) * int(libres.group(1)) / 1024**2, 2)
-    try:
-        contenido = Path("/proc/meminfo").read_text(encoding="utf-8")
-    except OSError:
-        return None
-    disponible = re.search(r"^MemAvailable:\s+(\d+) kB", contenido, re.MULTILINE)
-    return round(int(disponible.group(1)) / 1024, 2) if disponible else None
 
 
 def _a_mb(cantidad: str, unidad: str) -> float:
-    factores = {"K": 1 / 1024, "M": 1, "G": 1024, "T": 1024**2}
-    return round(float(cantidad) * factores[unidad.upper()], 2)
+    factores = {
+        "B": 1 / (1024**2),
+        "K": 1 / 1024,
+        "M": 1.0,
+        "G": 1024.0,
+        "T": 1024.0**2,
+    }
+    return round(float(cantidad) * factores.get(unidad.upper(), 1.0), 2)
 
 
-def _swap_libre_mb() -> float | None:
-    salida = _salida(["sysctl", "vm.swapusage"])
-    if salida is not None:
-        libre = re.search(r"free\s*=\s*([\d.]+)([KMGT])", salida, re.IGNORECASE)
-        if libre:
-            return _a_mb(libre.group(1), libre.group(2))
+def medir_memoria() -> Tuple[Optional[float], Optional[float]]:
+    """Mide la memoria RAM y Swap libre real sin inventar valores por defecto."""
+    ram_libre: Optional[float] = None
+    swap_libre: Optional[float] = None
+
+    if sys.platform == "darwin":
+        salida_vm = _salida(["vm_stat"])
+        if salida_vm:
+            tam_pag = 4096
+            m_pag = re.search(r"page size of (\d+) bytes", salida_vm)
+            if m_pag:
+                tam_pag = int(m_pag.group(1))
+            m_free = re.search(r"Pages free:\s+(\d+)", salida_vm)
+            m_spec = re.search(r"Pages speculative:\s+(\d+)", salida_vm)
+            paginas = (int(m_free.group(1)) if m_free else 0) + (
+                int(m_spec.group(1)) if m_spec else 0
+            )
+            if m_free or m_spec:
+                ram_libre = round((paginas * tam_pag) / (1024**2), 2)
+
+        salida_swap = _salida(["sysctl", "vm.swapusage"])
+        if salida_swap:
+            m_swap = re.search(
+                r"free\s*=\s*([\d.]+)([KMGTB])", salida_swap, re.IGNORECASE
+            )
+            if m_swap:
+                swap_libre = _a_mb(m_swap.group(1), m_swap.group(2))
+
+    elif sys.platform.startswith("linux"):
+        p_mem = Path("/proc/meminfo")
+        if p_mem.exists():
+            txt = p_mem.read_text(encoding="utf-8")
+            m_avail = re.search(r"^MemAvailable:\s+(\d+)\s+kB", txt, re.MULTILINE)
+            if m_avail:
+                ram_libre = round(int(m_avail.group(1)) / 1024, 2)
+            m_sfree = re.search(r"^SwapFree:\s+(\d+)\s+kB", txt, re.MULTILINE)
+            if m_sfree:
+                swap_libre = round(int(m_sfree.group(1)) / 1024, 2)
+
+    return ram_libre, swap_libre
+
+
+def medir_disco() -> Optional[float]:
+    """Mide los GB libres en disco real."""
     try:
-        contenido = Path("/proc/meminfo").read_text(encoding="utf-8")
-    except OSError:
+        return round(shutil.disk_usage(".").free / (1024**3), 2)
+    except Exception:
         return None
-    libre = re.search(r"^SwapFree:\s+(\d+) kB", contenido, re.MULTILINE)
-    return round(int(libre.group(1)) / 1024, 2) if libre else None
 
 
-def _procesos() -> dict[str, list[int]] | None:
-    salida = _salida(["ps", "-axo", "pid=,args="])
+def medir_proveedores() -> Tuple[Optional[int], Optional[bool]]:
+    """Lee el informe real de pasarelas de ~/.starseed/pasarelas-informe.json."""
+    ruta = Path.home() / ".starseed" / "pasarelas-informe.json"
+    if not ruta.exists():
+        ruta = Path("starseed_memory_root/mando/pasarelas-informe.json")
+    if not ruta.exists():
+        return None, None
+    try:
+        datos = json.loads(ruta.read_text(encoding="utf-8"))
+        if not isinstance(datos, dict):
+            return None, None
+        activos = datos.get("proveedores_activos")
+        pasarelas_ok = datos.get("pasarelas_ok")
+        if isinstance(activos, int) and not isinstance(activos, bool):
+            act_num = activos
+        else:
+            act_num = None
+        p_ok = pasarelas_ok if isinstance(pasarelas_ok, bool) else None
+        return act_num, p_ok
+    except Exception:
+        return None, None
+
+
+def medir_git_sin_publicar() -> Optional[int]:
+    """Mide commits pendientes con git log origin/main..HEAD."""
+    salida = _salida(["git", "log", "--oneline", "origin/main..HEAD"])
     if salida is None:
         return None
-    objetivos = {
-        guion: {guion, str((Path.cwd() / guion).resolve())}
-        for guion in GUIONES_VIGILADOS
+    lineas = [l for l in salida.splitlines() if l.strip()]
+    return len(lineas)
+
+
+def medir_procesos() -> Dict[str, List[int]]:
+    """Escanea ps para buscar orquestador, vigilante, opencode y codex."""
+    pids: Dict[str, List[int]] = {
+        "orquestador": [],
+        "vigilante": [],
+        "opencode": [],
+        "codex": [],
     }
-    encontrados = {guion: [] for guion in GUIONES_VIGILADOS}
+    salida = _salida(["ps", "-axo", "pid=,args="])
+    if not salida:
+        return pids
+
     for linea in salida.splitlines():
         partes = linea.strip().split(maxsplit=1)
         if len(partes) != 2 or not partes[0].isdigit():
             continue
-        try:
-            argumentos = set(shlex.split(partes[1]))
-        except ValueError:
+        pid = int(partes[0])
+        cmd = partes[1].lower()
+
+        # Evitar falsos positivos como grep, vim, cat, etc.
+        if any(
+            ign in cmd for ign in ["grep", "vim", "nano", "cat", "comprobar_medidor"]
+        ):
             continue
-        for guion, rutas in objetivos.items():
-            if argumentos & rutas:
-                encontrados[guion].append(int(partes[0]))
-    return encontrados
+
+        if "starseed-enjambre.py" in cmd or "starseed_enjambre" in cmd:
+            pids["orquestador"].append(pid)
+        if "vigilante-enjambre.py" in cmd or "vigilante_enjambre" in cmd:
+            pids["vigilante"].append(pid)
+        if "opencode" in cmd and not cmd.startswith("python"):
+            pids["opencode"].append(pid)
+        if "codex" in cmd and not cmd.startswith("python"):
+            pids["codex"].append(pid)
+
+    return pids
 
 
-def _activo(registro: object) -> bool | None:
-    if isinstance(registro, bool):
-        return registro
-    if not isinstance(registro, dict):
-        return None
-    for clave in ("activo", "disponible", "ok", "vivo"):
-        valor = registro.get(clave)
-        if isinstance(valor, bool):
-            return valor
-    estado = registro.get("estado")
-    if isinstance(estado, str):
-        normalizado = estado.lower()
-        if normalizado in {"activo", "disponible", "ok", "vivo", "usable"}:
-            return True
-        if normalizado in {"inactivo", "caido", "caído", "error", "muerto"}:
-            return False
-    return None
-
-
-def _registros(valor: object) -> list[object] | None:
-    if isinstance(valor, list):
-        return valor
-    if isinstance(valor, dict):
-        return list(valor.values())
-    return None
-
-
-def _informe_proveedores() -> tuple[int | None, bool | None]:
-    ruta = Path.home() / ".starseed" / "pasarelas-informe.json"
-    try:
-        datos = json.loads(ruta.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return None, None
-    if not isinstance(datos, dict):
-        return None, None
-
-    activos: int | None = None
-    valor_activos = datos.get("proveedores_activos")
-    if isinstance(valor_activos, int) and not isinstance(valor_activos, bool):
-        activos = valor_activos
-    else:
-        proveedores = _registros(datos.get("proveedores"))
-        estados = (
-            [_activo(item) for item in proveedores]
-            if proveedores is not None
-            else []
-        )
-        conocidos = [estado for estado in estados if estado is not None]
-        if conocidos:
-            activos = sum(estado is True for estado in conocidos)
-
-    pasarelas_ok = datos.get("pasarelas_ok")
-    if not isinstance(pasarelas_ok, bool):
-        pasarelas = _registros(datos.get("pasarelas"))
-        estados = (
-            [_activo(item) for item in pasarelas]
-            if pasarelas is not None
-            else []
-        )
-        conocidos = [estado for estado in estados if estado is not None]
-        pasarelas_ok = any(conocidos) if conocidos else None
-    return activos, pasarelas_ok
-
-
-def medir_hechos(medidor: str) -> dict[str, object]:
-    """Mide los hechos del medidor solicitado sin sustituir fallos por cifras."""
+def medir_hechos(medidor: str) -> Dict[str, Any]:
+    """Recoge hechos observados para el medidor solicitado."""
     clave = medidor.replace("_", "-")
-    if clave == "memoria":
-        return {
-            "memoria_libre_mb": _memoria_libre_mb(),
-            "swap_libre_mb": _swap_libre_mb(),
-        }
-    if clave == "disco":
-        try:
-            libre = round(shutil.disk_usage(".").free / 1024**3, 2)
-        except OSError:
-            libre = None
-        return {"disco_libre_gb": libre}
-    if clave == "procesos":
-        return {"procesos": _procesos()}
-    if clave == "proveedores":
-        activos, pasarelas = _informe_proveedores()
-        return {"proveedores_activos": activos, "pasarelas_ok": pasarelas}
-    if clave == "sin-publicar":
-        salida = _salida(["git", "log", "--oneline", "origin/main..HEAD"])
-        return {"sin_publicar": None if salida is None else len(salida.splitlines())}
-    return {}
+    hechos: Dict[str, Any] = {}
+    if clave in ("listas", "bloqueadas", "agentes", "procesos"):
+        hechos["procesos"] = medir_procesos()
+    if clave in ("memoria", "todos"):
+        ram, swap = medir_memoria()
+        hechos["memoria_libre_mb"] = ram
+        hechos["swap_libre_mb"] = swap
+    if clave in ("disco", "todos"):
+        hechos["disco_libre_gb"] = medir_disco()
+    if clave in ("proveedores", "todos"):
+        activos, p_ok = medir_proveedores()
+        hechos["proveedores_activos"] = activos
+        hechos["pasarelas_ok"] = p_ok
+    if clave in ("sin-publicar", "todos"):
+        hechos["sin_publicar"] = medir_git_sin_publicar()
+    return hechos
 
 
-def crear_comprobacion(medidor: str, hechos: dict[str, object]) -> dict[str, object]:
-    """Crea el documento persistido por el Mando."""
-    empezado = datetime.now(timezone.utc).isoformat()
-    veredictos, resumen = veredictos_de(medidor, hechos)
-    terminado = datetime.now(timezone.utc).isoformat()
+def veredicto_proceso(
+    proceso: str,
+    estado: str,
+    detalle: str,
+) -> Dict[str, str]:
+    """Crea una estructura VeredictoProceso compatible con TypeScript."""
     return {
-        "id": f"{medidor}-{empezado}",
+        "proceso": proceso,
+        "estado": estado,
+        "detalle": detalle,
+    }
+
+
+def veredictos_de(
+    medidor: str,
+    procesos: Any,
+    hechos: Dict[str, Any],
+) -> Tuple[List[Dict[str, str]], str]:
+    """Calcula veredictos y frase de resumen de forma pura desde hechos reales."""
+    clave = medidor.replace("_", "-")
+    veredictos: List[Dict[str, str]] = []
+
+    p_dict = procesos if isinstance(procesos, dict) else hechos.get("procesos", {})
+    if not isinstance(p_dict, dict):
+        p_dict = {}
+
+    if clave in ("listas", "bloqueadas"):
+        orq = p_dict.get("orquestador", [])
+        vig = p_dict.get("vigilante", [])
+        if orq:
+            veredictos.append(
+                veredicto_proceso("Orquestador", "vivo", f"Ejecutándose (PIDs: {orq})")
+            )
+        else:
+            veredictos.append(
+                veredicto_proceso(
+                    "Orquestador", "muerto", "No hay proceso de orquestador activo"
+                )
+            )
+        if vig:
+            veredictos.append(
+                veredicto_proceso("Vigilante", "vivo", f"Ejecutándose (PIDs: {vig})")
+            )
+        else:
+            veredictos.append(
+                veredicto_proceso(
+                    "Vigilante", "muerto", "No hay proceso de vigilante activo"
+                )
+            )
+
+    elif clave == "agentes":
+        op = p_dict.get("opencode", [])
+        cx = p_dict.get("codex", [])
+        if op:
+            veredictos.append(
+                veredicto_proceso(
+                    "Agente opencode", "vivo", f"Ejecutándose (PIDs: {op})"
+                )
+            )
+        else:
+            veredictos.append(
+                veredicto_proceso(
+                    "Agente opencode", "muerto", "Sin procesos de opencode activos"
+                )
+            )
+        if cx:
+            veredictos.append(
+                veredicto_proceso("Agente codex", "vivo", f"Ejecutándose (PIDs: {cx})")
+            )
+        else:
+            veredictos.append(
+                veredicto_proceso(
+                    "Agente codex", "muerto", "Sin procesos de codex activos"
+                )
+            )
+
+    elif clave == "disco":
+        gb = hechos.get("disco_libre_gb")
+        if gb is None:
+            veredictos.append(
+                veredicto_proceso(
+                    "Espacio en disco",
+                    "desconocido",
+                    "No se pudo medir espacio en disco",
+                )
+            )
+        elif gb >= 5.0:
+            veredictos.append(
+                veredicto_proceso(
+                    "Espacio en disco", "vivo", f"{gb:.2f} GB libres en disco"
+                )
+            )
+        elif gb >= 1.0:
+            veredictos.append(
+                veredicto_proceso(
+                    "Espacio en disco", "colgado", f"Disco bajo: {gb:.2f} GB libres"
+                )
+            )
+        else:
+            veredictos.append(
+                veredicto_proceso(
+                    "Espacio en disco", "muerto", f"Disco crítico: {gb:.2f} GB libres"
+                )
+            )
+
+    elif clave == "memoria":
+        ram = hechos.get("memoria_libre_mb")
+        swap = hechos.get("swap_libre_mb")
+        if ram is None:
+            veredictos.append(
+                veredicto_proceso(
+                    "Memoria RAM libre", "desconocido", "No se pudo medir la RAM libre"
+                )
+            )
+        elif ram >= 500.0:
+            veredictos.append(
+                veredicto_proceso(
+                    "Memoria RAM libre", "vivo", f"{ram:.2f} MB libres en RAM"
+                )
+            )
+        elif ram >= 100.0:
+            veredictos.append(
+                veredicto_proceso(
+                    "Memoria RAM libre", "colgado", f"RAM baja: {ram:.2f} MB libres"
+                )
+            )
+        else:
+            veredictos.append(
+                veredicto_proceso(
+                    "Memoria RAM libre", "muerto", f"RAM crítica: {ram:.2f} MB libres"
+                )
+            )
+
+        if swap is None:
+            veredictos.append(
+                veredicto_proceso(
+                    "Memoria Swap libre",
+                    "desconocido",
+                    "No se pudo medir la memoria swap",
+                )
+            )
+        elif swap >= 200.0:
+            veredictos.append(
+                veredicto_proceso(
+                    "Memoria Swap libre", "vivo", f"{swap:.2f} MB libres en swap"
+                )
+            )
+        elif swap > 0.0:
+            veredictos.append(
+                veredicto_proceso(
+                    "Memoria Swap libre", "colgado", f"Swap bajo: {swap:.2f} MB libres"
+                )
+            )
+        else:
+            veredictos.append(
+                veredicto_proceso(
+                    "Memoria Swap libre", "muerto", "Memoria swap agotada (0 MB libres)"
+                )
+            )
+
+    elif clave == "proveedores":
+        act = hechos.get("proveedores_activos")
+        pok = hechos.get("pasarelas_ok")
+        if act is None:
+            veredictos.append(
+                veredicto_proceso(
+                    "Proveedores activos",
+                    "desconocido",
+                    "Sin datos del informe de proveedores",
+                )
+            )
+        elif act > 0:
+            veredictos.append(
+                veredicto_proceso(
+                    "Proveedores activos", "vivo", f"{act} proveedores activos"
+                )
+            )
+        else:
+            veredictos.append(
+                veredicto_proceso(
+                    "Proveedores activos", "muerto", "0 proveedores activos"
+                )
+            )
+
+        if pok is None:
+            veredictos.append(
+                veredicto_proceso(
+                    "Pasarelas disponibilidad",
+                    "desconocido",
+                    "Informe de pasarelas no disponible",
+                )
+            )
+        elif pok is True:
+            veredictos.append(
+                veredicto_proceso(
+                    "Pasarelas disponibilidad", "vivo", "Pasarelas disponibles"
+                )
+            )
+        else:
+            veredictos.append(
+                veredicto_proceso(
+                    "Pasarelas disponibilidad", "muerto", "Sin pasarelas disponibles"
+                )
+            )
+
+    elif clave == "sin-publicar":
+        pending = hechos.get("sin_publicar")
+        if pending is None:
+            veredictos.append(
+                veredicto_proceso(
+                    "Commits por publicar",
+                    "desconocido",
+                    "Error al consultar git log origin/main..HEAD",
+                )
+            )
+        elif pending == 0:
+            veredictos.append(
+                veredicto_proceso(
+                    "Commits por publicar", "vivo", "0 commits pendientes (rama al día)"
+                )
+            )
+        else:
+            veredictos.append(
+                veredicto_proceso(
+                    "Commits por publicar",
+                    "colgado",
+                    f"{pending} commit(s) pendientes por publicar",
+                )
+            )
+
+    if not veredictos:
+        veredictos.append(
+            veredicto_proceso(clave, "desconocido", f"Medidor «{clave}» no reconocido")
+        )
+
+    vivos = sum(1 for v in veredictos if v["estado"] == "vivo")
+    muertos = sum(1 for v in veredictos if v["estado"] == "muerto")
+    colgados = sum(1 for v in veredictos if v["estado"] == "colgado")
+    total = len(veredictos)
+
+    if total == 0:
+        resumen = f"Comprobación de «{clave}» terminada sin procesos"
+    elif muertos == total:
+        resumen = f"Comprobación de «{clave}» terminada: todo muerto ({total})"
+    elif colgados > 0:
+        resumen = f"Comprobación de «{clave}» terminada: {colgados} colgado(s), {vivos} vivo(s)"
+    elif vivos == total:
+        resumen = f"Comprobación de «{clave}» terminada: todos vivos"
+    else:
+        resumen = f"Comprobación de «{clave}» terminada: {vivos}/{total} vivos, {muertos} muerto(s)"
+
+    return veredictos, resumen
+
+
+def main() -> int:
+    """Ejecuta la comprobación del medidor de argv[1] y persiste el JSON."""
+    if len(sys.argv) < 2:
+        print("Uso: comprobar_medidor.py <medidor>", file=sys.stderr)
+        return 2
+
+    medidor = sys.argv[1].replace("_", "-")
+    empezado = datetime.now(timezone.utc).isoformat()
+
+    try:
+        hechos = medir_hechos(medidor)
+    except Exception as err:
+        hechos = {}
+
+    procesos = hechos.get("procesos", {})
+    veredictos, resumen = veredictos_de(medidor, procesos, hechos)
+    terminado = datetime.now(timezone.utc).isoformat()
+
+    comprobacion: Dict[str, Any] = {
+        "id": f"comp-{medidor}-{int(datetime.now(timezone.utc).timestamp() * 1000)}",
         "medidor": medidor,
         "empezado": empezado,
         "terminado": terminado,
-        "directores": [veredicto["id"] for veredicto in veredictos],
+        "directores": [v["proceso"] for v in veredictos],
         "veredictos": veredictos,
         "resumen": resumen,
     }
 
-
-def main() -> int:
-    """Mide el medidor de argv y persiste el resultado, incluso incompleto."""
-    if len(sys.argv) != 2:
-        print("Uso: comprobar_medidor.py <medidor>", file=sys.stderr)
-        return 2
-    medidor = sys.argv[1].replace("_", "-")
-    permitidos = {"memoria", "disco", "procesos", "proveedores", "sin-publicar"}
-    if medidor not in permitidos:
-        print(f"Medidor desconocido: {medidor}", file=sys.stderr)
-        return 2
-
-    empezado = datetime.now(timezone.utc).isoformat()
-    try:
-        hechos = medir_hechos(medidor)
-    # El archivo debe cerrarse aunque una sonda inesperada se rompa.
-    except Exception:
-        hechos = {}
-    comprobacion = crear_comprobacion(medidor, hechos)
-    comprobacion["empezado"] = empezado
-    comprobacion["terminado"] = datetime.now(timezone.utc).isoformat()
-
     RUTA_COMPROBACIONES.mkdir(parents=True, exist_ok=True)
-    destino = RUTA_COMPROBACIONES / f"{medidor}.json"
-    destino.write_text(
-        json.dumps(comprobacion, ensure_ascii=False, indent=2) + "\n",
-        encoding="utf-8",
-    )
+
+    # Escribir en ambas rutas (comprobacion-<medidor>.json y <medidor>.json) para compatibilidad total
+    f_comp = RUTA_COMPROBACIONES / f"comprobacion-{medidor}.json"
+    f_simple = RUTA_COMPROBACIONES / f"{medidor}.json"
+
+    contenido = json.dumps(comprobacion, ensure_ascii=False, indent=2) + "\n"
+    f_comp.write_text(contenido, encoding="utf-8")
+    f_simple.write_text(contenido, encoding="utf-8")
+
     print(json.dumps(comprobacion, ensure_ascii=False))
     return 0
 
