@@ -14,7 +14,14 @@ import re
 from vigilante_logica import id_en_asuntos
 
 MODELO_NUBE = "llm7/minimax-m2.7"
-ESTADOS_REPARTIBLES = {None, "sin_cambios", "fallo", "fallo_tests", "fallo_tsc"}
+#: (2026-09-22) «pendiente» FALTABA, y era el último candado de la nube. Con solo estados
+#: de fallo aquí, a los contenedores solo podía ir lo que YA se había roto en la Mac:
+#: trabajo nuevo, jamás. Medido esta noche, con doce huecos libres: la Mac cogió W1,
+#: LCOMPA y AG1, se quedó 35 minutos en «esperando proveedor» sin escribir una línea, y
+#: la nube no pudo cogerlas —primero por estar «en_curso», y al soltarlas, por estar
+#: «pendiente»—. Alex lo preguntó tres veces: «¿y los de los demás contenedores?».
+#: Una tarea pendiente es exactamente lo que un contenedor libre debería poder coger.
+ESTADOS_REPARTIBLES = {None, "", "pendiente", "sin_cambios", "fallo", "fallo_tests", "fallo_tsc"}
 
 # (2026-09-21) En la nube NO HAY NADIE que apruebe: solo sobrevive lo que pasa las
 # cuatro puertas solo. Lo que falla ahi no falla por poco: falla TARDE, despues de

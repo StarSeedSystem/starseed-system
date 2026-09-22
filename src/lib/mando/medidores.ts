@@ -943,35 +943,49 @@ export function detalleDeMedidor(
                 // minutos sin escribir un byte no esta trabajando, esta pensando o colgado, y
                 // llamarle «escribiendo» es justo lo que impide verlo.
                 const callado = quieto !== null && quieto > 180;
+                // (2026-09-22) Un agente en «esperando proveedor» NO está trabajando: está
+                // parado porque todas las pasarelas útiles están caídas o sin cupo. Esta
+                // noche tres de ellos estuvieron 28, 31 y 35 minutos así, sin modelo y sin
+                // escribir un byte, y el Puente los contaba como «agentes escribiendo
+                // ahora». Alex lo llamó mentira y lo era. Ahora se dicen por su nombre.
+                const esperandoProveedor = /esperando proveedor/i.test(String(l.fase ?? ""));
                 const obra = d.obras?.[l.tarea];
                 return {
                     id: `${proveedor} · ${modelo}`,
-                    titulo: `${proveedor} · ${modelo} en ${l.donde}`,
-                    estado: callado ? "callado" : "escribiendo",
+                    titulo: esperandoProveedor
+                        ? `sin pasarela libre · ${l.tarea} en ${l.donde}`
+                        : `${proveedor} · ${modelo} en ${l.donde}`,
+                    estado: esperandoProveedor ? "esperando pasarela" : callado ? "callado" : "escribiendo",
                     // El avance del agente es el de su tarea: es lo unico que ha avanzado.
                     porcentaje: avanceDe(l.fase, estadoDe(l.tarea)).porcentaje,
                     etapa: `trabaja en ${l.tarea}`,
                     quien: l.cola ? `cola ${l.cola}` : l.medio ?? l.donde,
                     desde: `${l.minutos} min`,
-                    porque: callado
-                        ? `sin escribir desde hace ${Math.round((quieto ?? 0) / 60)} min`
-                        : bytesLegibles(l.bytesLog),
+                    porque: esperandoProveedor
+                        ? `NO está escribiendo: todas las pasarelas útiles están caídas o sin cupo (lleva ${l.minutos} min esperando)`
+                        : callado
+                          ? `sin escribir desde hace ${Math.round((quieto ?? 0) / 60)} min`
+                          : bytesLegibles(l.bytesLog),
                     ficha: fichaDeAgente(l, d.progreso[l.tarea], obra, d.repoGitHub),
                     historial: d.historiales?.[l.tarea]?.slice(0, 6),
                     acciones: [],
                 };
             });
             const callados = filas.filter((f) => f.estado === "callado").length;
+            const esperando = filas.filter((f) => f.estado === "esperando pasarela").length;
+            const escribiendo = filas.filter((f) => f.estado === "escribiendo").length;
             const medioAg = mediaDeAvance(filas);
             return {
                 clave,
                 titulo: "Agentes trabajando",
+                // El primer número es el que importa: cuántos ESCRIBEN. Lo demás se nombra
+                // aparte para que «3 agentes» no se lea como «3 trabajando» cuando no lo están.
                 resumen:
                     filas.length === 0
                         ? "ningún agente escribiendo"
-                        : `${filas.length} ${filas.length === 1 ? "agente" : "agentes"}${
-                              callados ? ` · ${callados} sin escribir` : ""
-                          } · ${new Set(d.latidos.map((l) => l.donde)).size} medio(s)`,
+                        : `${escribiendo} escribiendo${esperando ? ` · ${esperando} sin pasarela libre` : ""}${
+                              callados ? ` · ${callados} callado(s)` : ""
+                          } · ${filas.length} en total · ${new Set(d.latidos.map((l) => l.donde)).size} medio(s)`,
                 filas,
                 porcentajeMedio: medioAg,
                 // (2026-09-22) Alex pidió DOS VECES un botón aquí «para buscar en todos los

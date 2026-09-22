@@ -186,7 +186,10 @@ describe("detalleDeMedidor · agentes (el trabajador)", () => {
         });
         expect(d.filas[0].estado).toBe("callado");
         expect(d.filas[0].porque).toContain("sin escribir");
-        expect(d.resumen).toContain("sin escribir");
+        // (2026-09-22) El resumen ahora empieza por los que ESCRIBEN y llama «callado(s)» a los
+        // que no: «3 agentes · 3 sin escribir» se leía como tres trabajando.
+        expect(d.resumen).toContain("0 escribiendo");
+        expect(d.resumen).toContain("1 callado(s)");
     });
 
     it("no enseña las tareas rancias: eso es del medidor de tareas", () => {
@@ -405,5 +408,40 @@ describe("detalleDeMedidor · invariante vacio explicativo", () => {
             expect(typeof d.vacio).toBe("string");
             expect(d.vacio!.length).toBeGreaterThan(5);
         }
+    });
+});
+
+describe("un agente sin pasarela NO está escribiendo (2026-09-22)", () => {
+    const latido = (tarea: string, fase: string, extra = {}) => ({
+        tarea, fase, modelo: "-", minutos: 35, donde: "mac", ...extra,
+    });
+
+    it("se nombra «esperando pasarela» y dice por qué", () => {
+        const d = detalleDeMedidor("agentes", { latidos: [latido("W1", "esperando proveedor")] });
+        expect(d.filas[0].estado).toBe("esperando pasarela");
+        expect(d.filas[0].porque).toContain("NO está escribiendo");
+        expect(d.filas[0].porque).toContain("sin cupo");
+    });
+
+    it("el resumen cuenta primero los que ESCRIBEN", () => {
+        // Lo que veía Alex: «3 agentes · 3 sin escribir» leído como tres trabajando.
+        const d = detalleDeMedidor("agentes", {
+            latidos: [
+                latido("W1", "esperando proveedor"),
+                latido("LCOMPA", "esperando proveedor"),
+                latido("X1", "escribiendo", { modelo: "nim/kimi-k3", quietoSegundos: 5 }),
+            ],
+        });
+        expect(d.resumen).toContain("1 escribiendo");
+        expect(d.resumen).toContain("2 sin pasarela libre");
+        expect(d.resumen).toContain("3 en total");
+    });
+
+    it("un agente que escribe de verdad sigue contando como tal", () => {
+        const d = detalleDeMedidor("agentes", {
+            latidos: [latido("X1", "escribiendo", { modelo: "nim/kimi-k3", quietoSegundos: 10 })],
+        });
+        expect(d.filas[0].estado).toBe("escribiendo");
+        expect(d.resumen).toContain("1 escribiendo");
     });
 });

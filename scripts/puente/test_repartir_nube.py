@@ -35,13 +35,22 @@ class Elegir(unittest.TestCase):
         self.assertEqual(r, [])
 
     def test_estados_vivos_o_cerrados_no_se_reparten(self):
+        # (2026-09-22) «pendiente» SALIO de esta lista y entro en ESTADOS_REPARTIBLES: era
+        # el ultimo candado de la nube. Con solo estados de fallo, a los contenedores solo
+        # podia ir lo que ya se habia roto en la Mac — trabajo nuevo, jamas — y por eso
+        # doce huecos libres se quedaban vacios toda la noche.
         prog = {
-            "A1": {"estado": "pendiente"},
             "A2": {"estado": "integrada"},
             "B1": {"estado": "en_curso"},
         }
-        r = elegir(COLAS, prog, [], ola_actual="999")
+        r = elegir([("cola-1.json", [{"id": "A2", "ola": "200"}, {"id": "B1", "ola": "200"}])],
+                   prog, [], ola_actual="999")
         self.assertEqual(r, [])
+
+    def test_una_tarea_pendiente_SI_puede_ir_a_un_contenedor_libre(self):
+        r = elegir([("cola-1.json", [{"id": "A1", "ola": "200"}])],
+                   {"A1": {"estado": "pendiente"}}, [], ola_actual="999")
+        self.assertEqual([t["id"] for t in r], ["A1"])
 
     def test_tope_recorta(self):
         colas = [("cola-1.json", [{"id": "T%d" % i, "ola": "1"} for i in range(5)])]

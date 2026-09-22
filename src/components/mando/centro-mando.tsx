@@ -611,16 +611,20 @@ export function CentroMando() {
         /** Agentes que CABEN ahora en los contenedores de nube (sitio libre medido). */
         contenedores: number | null;
         contenedoresResumen: string | null;
+        /** Pasarelas sin cupo o caídas, según el archivo que el enjambre OBEDECE. */
+        agotados: number | null;
+        proveedoresResumen: string | null;
     } | null>(null);
 
     const cargarMedidoresResumen = useCallback(async (forzar = false) => {
         if (!forzar && document.visibilityState === "hidden") return;
         try {
-            const [resListas, resBloqueadas, resAgentes, resContenedores] = await Promise.allSettled([
+            const [resListas, resBloqueadas, resAgentes, resContenedores, resProveedores] = await Promise.allSettled([
                 fetch("/api/mando/medidores?clave=listas", { cache: "no-store" }),
                 fetch("/api/mando/medidores?clave=bloqueadas", { cache: "no-store" }),
                 fetch("/api/mando/medidores?clave=agentes", { cache: "no-store" }),
                 fetch("/api/mando/medidores?clave=contenedores", { cache: "no-store" }),
+                fetch("/api/mando/medidores?clave=proveedores", { cache: "no-store" }),
             ]);
 
             let listas: number | null = null;
@@ -629,6 +633,8 @@ export function CentroMando() {
             let agentesResumen: string | null = null;
             let contenedores: number | null = null;
             let contenedoresResumen: string | null = null;
+            let agotados: number | null = null;
+            let proveedoresResumen: string | null = null;
 
             if (resListas.status === "fulfilled" && resListas.value.ok) {
                 const dataListas = (await resListas.value.json()) as { detalle?: DetalleMedidor };
@@ -664,7 +670,29 @@ export function CentroMando() {
                 }
             }
 
-            setMedidoresResumen({ listas, bloqueadas, agentes, agentesResumen, contenedores, contenedoresResumen });
+            if (resProveedores.status === "fulfilled" && resProveedores.value.ok) {
+                const dataProv = (await resProveedores.value.json()) as { detalle?: DetalleMedidor };
+                if (dataProv.detalle?.filas) {
+                    // (2026-09-22) La pastilla decía «0 agotados · 6 disponibles» con CUATRO
+                    // pasarelas sin cupo y una caída: leía /api/mando/modelos, que tiene su
+                    // propia idea del estado. El archivo que el enjambre obedece cuando se
+                    // come un 429 es `salud-proveedores.json`, y es el que alimenta este
+                    // medidor. Ahora la pastilla y su ventana salen del mismo sitio.
+                    agotados = dataProv.detalle.filas.filter((f) => f.estado !== "vivo").length;
+                    proveedoresResumen = dataProv.detalle.resumen ?? null;
+                }
+            }
+
+            setMedidoresResumen({
+                listas,
+                bloqueadas,
+                agentes,
+                agentesResumen,
+                contenedores,
+                contenedoresResumen,
+                agotados,
+                proveedoresResumen,
+            });
         } catch {
             setMedidoresResumen({
                 listas: null,
@@ -673,6 +701,8 @@ export function CentroMando() {
                 agentesResumen: null,
                 contenedores: null,
                 contenedoresResumen: null,
+                agotados: null,
+                proveedoresResumen: null,
             });
         }
     }, []);
@@ -1233,9 +1263,12 @@ export function CentroMando() {
                             {
                                 clave: "proveedores" as const,
                                 titulo: "Proveedores agotados",
-                                valor: String(pulso.agotados),
-                                tono: (pulso.agotados > 0 ? "peligro" : "normal") as TonoMedidor,
-                                detalle: `${pulso.disponibles} disponibles`,
+                                valor:
+                                    medidoresResumen?.agotados !== null && medidoresResumen?.agotados !== undefined
+                                        ? String(medidoresResumen.agotados)
+                                        : "—",
+                                tono: (medidoresResumen?.agotados ? "peligro" : "normal") as TonoMedidor,
+                                detalle: medidoresResumen?.proveedoresResumen ?? `${pulso.disponibles} disponibles`,
                             },
                             {
                                 titulo: "Jev",
