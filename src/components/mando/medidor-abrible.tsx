@@ -19,7 +19,7 @@
  *     centrarlos los vuelve ilegibles. No lo «arregles».
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { ChevronDown, Loader2 } from "lucide-react";
 
 import type { AccionMedidor, ClaveMedidor, DetalleMedidor, FilaMedidor } from "@/lib/mando/medidores";
@@ -272,6 +272,7 @@ function FichaFila({
                     {[f.quien, f.desde].filter(Boolean).join(" · ")}
                 </p>
             ) : null}
+            <FichaDesplegable f={f} />
             {f.acciones.length ? (
                 <p className="mt-1.5 flex flex-wrap gap-1.5">
                     {f.acciones.map((a) => (
@@ -280,6 +281,80 @@ function FichaFila({
                 </p>
             ) : null}
         </li>
+    );
+}
+
+/** Las sub-líneas de la ficha: sangradas bajo la etiqueta que las encabeza. */
+const SANGRADAS = new Set(["·", "✓", "↳ no pudo"]);
+
+/**
+ * La ficha de una fila, CERRADA por defecto.
+ *
+ * (2026-09-22, pedido por Alex) Cada agente y cada tarea traen ahora una ficha larga:
+ * modelo, entorno, worktree, rama, archivos que toca, enrutado, historial… Son muchas
+ * líneas, y la lista tiene que seguir leyéndose de un vistazo, así que se despliega a
+ * petición con un `<details>` nativo: sin estado en React, sin JavaScript, y accesible
+ * con teclado desde el primer día.
+ */
+function FichaDesplegable({ f }: { f: FilaMedidor }) {
+    const ficha = f.ficha ?? [];
+    const historial = f.historial ?? [];
+    if (!ficha.length && !historial.length) return null;
+    return (
+        <details className="group mt-1">
+            <summary className="cursor-pointer list-none text-[10px] text-cyan-200/60 transition hover:text-cyan-200/90">
+                <span className="inline-block transition group-open:rotate-90" aria-hidden>
+                    ▸
+                </span>{" "}
+                {ficha.length ? `ficha (${ficha.length})` : "historial"}
+                {historial.length ? ` · ${historial.length} en el historial` : ""}
+            </summary>
+
+            {ficha.length ? (
+                <dl className="mt-1 grid grid-cols-[auto_1fr] gap-x-2 gap-y-0.5 text-[10px] leading-relaxed">
+                    {ficha.map((dato, i) => {
+                        const sangrada = SANGRADAS.has(dato.etiqueta);
+                        // El rojo del Mando es el mismo que ya usa `porque`: no se inventa otro.
+                        const tono = dato.aviso ? "text-amber-200/90" : "text-white/70";
+                        return (
+                            <Fragment key={`${f.id}-ficha-${i}-${dato.etiqueta}`}>
+                                <dt
+                                    className={`${sangrada ? "pl-3 text-white/25" : "text-white/40"} whitespace-nowrap`}
+                                >
+                                    {dato.etiqueta}
+                                </dt>
+                                <dd className={`${tono} break-words`}>
+                                    {dato.enlace ? (
+                                        <a
+                                            href={dato.enlace}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="underline decoration-dotted underline-offset-2 hover:text-cyan-200"
+                                        >
+                                            {dato.valor}
+                                        </a>
+                                    ) : (
+                                        dato.valor
+                                    )}
+                                </dd>
+                            </Fragment>
+                        );
+                    })}
+                </dl>
+            ) : null}
+
+            {historial.length ? (
+                <ul className="mt-1.5 space-y-1 border-t border-white/5 pt-1.5">
+                    {historial.map((h, i) => (
+                        <li key={`${f.id}-hist-${i}`} className="text-[10px] leading-relaxed">
+                            <span className="text-white/30">{h.t.replace("T", " ").slice(0, 16)}</span>{" "}
+                            <span className="text-cyan-200/60">{h.de}</span>
+                            <span className="block text-white/55">{h.texto}</span>
+                        </li>
+                    ))}
+                </ul>
+            ) : null}
+        </details>
     );
 }
 
