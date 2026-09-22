@@ -6,18 +6,22 @@ Ejecuta el análisis sobre el diff de una tarea usando exclusivamente
 modelos gratuitos. Devuelve UN objeto JSON por stdout con el veredicto.
 """
 
+import ast
 import glob
-import importlib.util
 import json
 import os
 import re
 import shutil
 import subprocess
 import sys
+import tempfile
+import time
 
 AQUI = os.path.dirname(os.path.abspath(__file__))
 RAIZ = os.path.abspath(os.path.join(AQUI, "..", ".."))
 OLAS = os.path.join(RAIZ, "starseed_memory_root", "olas")
+RUTA_ENJAMBRE = os.path.join(RAIZ, "scripts", "enjambre", "starseed-enjambre.py")
+SALUD_PROVEEDORES = os.path.expanduser("~/.starseed/salud-proveedores.json")
 
 if AQUI not in sys.path:
     sys.path.insert(0, AQUI)
@@ -27,7 +31,7 @@ from analisis_aprobacion import construir_prompt, leer_veredicto  # noqa: E402
 
 def output_json(veredicto_dict):
     """Imprime por stdout el objeto JSON y sale con 0."""
-    print(json.dumps(veredicto_dict, ensure_ascii=False))
+    print(json.dumps(veredicto_dict, ensure_ascii=False, separators=(",", ":")))
     sys.exit(0)
 
 
@@ -70,8 +74,6 @@ def leer_tarea(tid):
     # Buscar información extendida en las colas
     info_cola = {}
     for f_cola in sorted(glob.glob(os.path.join(OLAS, "cola-*.json"))):
-        if "cola-auto-" in os.path.basename(f_cola):
-            continue
         try:
             with open(f_cola, "r", encoding="utf-8") as f:
                 d = json.load(f)
@@ -116,9 +118,25 @@ def leer_tarea(tid):
 
 
 def obtener_diff(sha, rama):
-    """Obtiene el diff usando sha o rama (nunca sintaxis invalida rama^sha)."""
-    ref = str(sha).strip() if sha else str(rama).strip()
-    if not ref:
+    """Obtiene el cambio sin permitir que una referencia se interprete como opción."""
+    sha_limpio = str(sha or "").strip()
+    rama_limpia = str(rama or "").strip()
+    if sha_limpio:
+        if not re.fullmatch(r"[0-9a-fA-F]{7,40}", sha_limpio):
+            return None, "sha git inválido"
+        ref = sha_limpio
+    elif rama_limpia:
+        rama_valida = re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._/-]*", rama_limpia)
+        partes_invalidas = (
+            ".." in rama_limpia
+            or "@{" in rama_limpia
+            or "//" in rama_limpia
+            or rama_limpia.endswith(("/", ".", ".lock"))
+        )
+        if not rama_valida or partes_invalidas:
+            return None, "rama git inválida"
+        ref = rama_limpia
+    else:
         return None, "sin referencia git (sin sha ni rama)"
 
     try:
@@ -129,6 +147,8 @@ def obtener_diff(sha, rama):
             text=True,
             timeout=30,
         )
+        if r_stat.returncode != 0:
+            return None, "git show --stat falló"
         r_diff = subprocess.run(
             ["git", "show", ref],
             cwd=RAIZ,
@@ -137,56 +157,101 @@ def obtener_diff(sha, rama):
             timeout=30,
         )
         if r_diff.returncode != 0:
-            err = r_diff.stderr.strip() or "fallo git show"
-            return None, f"git show fallo para {ref}: {err}"
+            return None, "git show falló"
 
-        stat_str = r_stat.stdout if r_stat.returncode == 0 else ""
-        diff_completo = (stat_str + "\n\n" + r_diff.stdout).strip()
+        diff_completo = ((r_stat.stdout or "") + "\n\n" + (r_diff.stdout or "")).strip()
         return diff_completo, None
     except subprocess.TimeoutExpired:
-        return None, f"timeout de git show para {ref}"
-    except Exception as e:
-        return None, f"error al ejecutar git show para {ref}: {str(e)}"
+        return None, "timeout de git show"
+    except OSError:
+        return None, "no se pudo ejecutar git show"
+
+
+def candidatos_del_enjambre():
+    """Reutiliza REVISORES sin ejecutar el orquestador ni sus efectos laterales."""
+    try:
+        with open(RUTA_ENJAMBRE, "r", encoding="utf-8") as archivo:
+            arbol = ast.parse(archivo.read(), filename=RUTA_ENJAMBRE)
+    except (OSError, SyntaxError):
+        return []
+    for nodo in arbol.body:
+        if not isinstance(nodo, ast.Assign):
+            continue
+        if not any(isinstance(t, ast.Name) and t.id == "REVISORES" for t in nodo.targets):
+            continue
+        try:
+            valor = ast.literal_eval(nodo.value)
+        except (ValueError, TypeError):
+            return []
+        return [
+            (str(item[0]), str(item[1]))
+            for item in valor
+            if isinstance(item, (tuple, list)) and len(item) >= 2
+        ]
+    return []
+
+
+def leer_salud_proveedores():
+    """Lee solo metadatos de salud; nunca expone valores de claves."""
+    try:
+        with open(SALUD_PROVEEDORES, "r", encoding="utf-8") as archivo:
+            salud = json.load(archivo)
+        return salud if isinstance(salud, dict) else {}
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+def _fecha_futura(valor, ahora=None):
+    """Reconoce las fechas locales que escribe el orquestador."""
+    if not isinstance(valor, str) or not valor:
+        return False
+    try:
+        instante = time.mktime(time.strptime(valor, "%Y-%m-%d %H:%M:%S"))
+    except ValueError:
+        return False
+    return instante > (time.time() if ahora is None else ahora)
+
+
+def _proveedor_disponible(proveedor, salud, ahora=None):
+    """Aplica las mismas exclusiones de caída, cuota y enfriamiento del enjambre."""
+    entrada = salud.get(proveedor) or {}
+    if not isinstance(entrada, dict) or entrada.get("estado") == "caido":
+        return False
+    if _fecha_futura(entrada.get("sin_cupo_hasta"), ahora):
+        return False
+    ultimo_429 = entrada.get("ultimo_429")
+    if isinstance(ultimo_429, str) and ultimo_429:
+        try:
+            instante = time.mktime(time.strptime(ultimo_429, "%Y-%m-%d %H:%M:%S"))
+            if (time.time() if ahora is None else ahora) - instante < 600:
+                return False
+        except ValueError:
+            pass
+    return True
+
+
+def _es_modelo_gratis(proveedor, modelo):
+    """Acepta únicamente proveedores cuyo catálogo de revisores es gratuito."""
+    prov = proveedor.strip().lower()
+    mod = modelo.strip().lower()
+    if not prov or not mod or "anthropic" in prov or "anthropic" in mod:
+        return False
+    if prov in {"openrouter", "xkiro"}:
+        return mod.endswith(":free")
+    if prov in {"aihubmix", "tokenrouter"}:
+        return "free" in mod
+    return prov in {"nim", "llm7", "gemini", "freetheai"}
 
 
 def elegir_modelo_gratis():
-    """Elige un modelo gratuito disponible. NUNCA devuelve modelos anthropic o de pago."""
-    candidatos_raw = []
-    try:
-        ruta_enjambre = os.path.join(
-            RAIZ, "scripts", "enjambre", "starseed-enjambre.py"
-        )
-        if os.path.exists(ruta_enjambre):
-            spec = importlib.util.spec_from_file_location("enjambre", ruta_enjambre)
-            enjambre = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(enjambre)
-            if hasattr(enjambre, "candidatos_revision"):
-                cands, _ = enjambre.candidatos_revision()
-                for item in cands:
-                    if isinstance(item, tuple) and len(item) >= 2:
-                        candidatos_raw.append(item)
-            elif hasattr(enjambre, "REVISORES"):
-                for item in enjambre.REVISORES:
-                    if isinstance(item, tuple) and len(item) >= 2:
-                        candidatos_raw.append(item)
-    except Exception:
-        pass
-
-    for prov, mod in candidatos_raw:
-        prov_str = str(prov).strip()
-        mod_str = str(mod).strip()
-        if prov_str and not mod_str.startswith(f"{prov_str}/"):
-            comb = f"{prov_str}/{mod_str}"
-        else:
-            comb = mod_str
-        comb_lower = comb.lower()
-
-        # REGLA INNEGOCIABLE: NUNCA anthropic
-        if "anthropic" in comb_lower:
+    """Elige el primer revisor gratis que no esté apartado por salud."""
+    salud = leer_salud_proveedores()
+    for proveedor, modelo in candidatos_del_enjambre():
+        if not _es_modelo_gratis(proveedor, modelo):
             continue
-
-        return comb
-
+        if not _proveedor_disponible(proveedor, salud):
+            continue
+        return f"{proveedor.strip()}/{modelo.strip()}"
     return None
 
 
@@ -247,17 +312,41 @@ def main():
 
     prompt_analista = construir_prompt(ficha, diff, contexto)
 
-    opencode_bin = (
-        shutil.which("opencode")
-        or os.path.expanduser("~/.opencode/bin/opencode")
-        or "opencode"
-    )
-    cmd = [opencode_bin, "run", prompt_analista, "--model", modelo, "--dir", "/tmp"]
-
+    opencode_bin = shutil.which("opencode") or "opencode"
     try:
-        r_open = subprocess.run(cmd, capture_output=True, text=True, timeout=180)
-        salida = (r_open.stdout or "") + "\n" + (r_open.stderr or "")
-        veredicto = leer_veredicto(salida)
+        with tempfile.TemporaryDirectory(prefix=".analista-", dir=RAIZ) as solo_lectura:
+            os.chmod(solo_lectura, 0o555)
+            cmd = [
+                opencode_bin,
+                "run",
+                prompt_analista,
+                "--model",
+                modelo,
+                "--dir",
+                solo_lectura,
+            ]
+            try:
+                r_open = subprocess.run(
+                    cmd,
+                    cwd=RAIZ,
+                    capture_output=True,
+                    text=True,
+                    timeout=180,
+                )
+            finally:
+                os.chmod(solo_lectura, 0o700)
+        if r_open.returncode != 0:
+            output_json(
+                {
+                    "veredicto": "dudoso",
+                    "confianza": "baja",
+                    "razones": ["opencode run falló"],
+                    "riesgos": [],
+                    "que_revisar": [],
+                }
+            )
+        # stderr puede contener avisos con llaves; solo stdout pertenece al modelo.
+        veredicto = leer_veredicto(r_open.stdout or "")
         output_json(veredicto)
     except subprocess.TimeoutExpired:
         output_json(
@@ -269,12 +358,12 @@ def main():
                 "que_revisar": [],
             }
         )
-    except Exception as e:
+    except OSError:
         output_json(
             {
                 "veredicto": "dudoso",
                 "confianza": "baja",
-                "razones": [f"error al ejecutar opencode run: {str(e)}"],
+                "razones": ["no se pudo ejecutar opencode run"],
                 "riesgos": [],
                 "que_revisar": [],
             }
