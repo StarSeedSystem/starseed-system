@@ -90,9 +90,9 @@ class TestDestilacionCorpus(unittest.TestCase):
         """Verifica que git show use --format= para omitir el mensaje de commit."""
         diff_limpio = D.obtener_diff_limpio("HEAD")
         if diff_limpio:
-            self.assertNotIn("commit ", diff_limpio)
-            self.assertNotIn("Author:", diff_limpio)
-            self.assertNotIn("Date:", diff_limpio)
+            self.assertFalse(diff_limpio.startswith("commit "))
+            self.assertNotRegex(diff_limpio, r"(?m)^Author:")
+            self.assertNotRegex(diff_limpio, r"(?m)^Date:")
 
     def test_generar_corpus_jsonl(self):
         """Verifica la generación del archivo JSONL filtrando elementos no válidos."""
