@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import json
 import os
+import sqlite3
 import sys
 import time
 
@@ -41,17 +42,27 @@ INTERVALO_S = int(os.environ.get("STARSEED_TOKENS_S", "5"))
 MAX_MUESTRAS = 120
 
 #: Quién lleva contador de tokens. Añadir una fuente es añadir una línea aquí.
+#:
+#: (2026-09-22, segunda pasada) La primera versión decía que opencode «no publica tokens»,
+#: y era verdad de su LOG —por eso el medidor de agentes mide bytes— pero no de su base de
+#: datos: `~/.local/share/opencode/opencode.db` tiene `session.tokens_input`,
+#: `tokens_output` y `tokens_reasoning`. Medido: 125.377.185 tokens acumulados en 4.055
+#: sesiones. Ahí está el grueso del gasto del enjambre, así que ahí hay que mirar. Se abre
+#: en modo SOLO LECTURA (`mode=ro`) y con dos segundos de espera máxima: no se le pone la
+#: mano encima a la base de nadie.
 FUENTES = (
-    {"id": "jev", "nombre": "Jev (consejero)",
+    {"id": "jev", "nombre": "Jev (consejero)", "tipo": "json",
      "ruta": os.path.expanduser("~/.starseed/jev-uso.json"), "camino": ("tokens",)},
+    {"id": "opencode", "nombre": "agentes opencode", "tipo": "sqlite",
+     "ruta": os.path.expanduser("~/.local/share/opencode/opencode.db"),
+     "consulta": ("select coalesce(sum(tokens_input),0) + coalesce(sum(tokens_output),0)"
+                  " + coalesce(sum(tokens_reasoning),0) from session")},
 )
 
 #: Procesos que SÍ gastan tokens pero cuyo motor no los publica. Se nombran, no se estiman.
 SIN_CONTADOR = (
-    {"id": "opencode", "nombre": "agentes opencode",
-     "porque": "su motor no devuelve `usage`; se miden por bytes escritos y tiempo"},
     {"id": "codex", "nombre": "agentes codex",
-     "porque": "su motor no devuelve `usage`; se miden por bytes escritos y tiempo"},
+     "porque": "su motor no publica `usage` en ningún sitio que se pueda leer"},
     {"id": "pasarelas", "nombre": "pasarelas del enjambre",
      "porque": "guardan llamadas, coste y milisegundos, pero no tokens"},
 )
@@ -67,10 +78,31 @@ def _hondo(datos, camino):
     return actual if isinstance(actual, (int, float)) else None
 
 
+def _de_sqlite(ruta, consulta):
+    """Una suma de una base sqlite, SOLO LECTURA. None si no se puede leer.
+
+    `mode=ro` y `timeout=2`: si opencode está escribiendo, esto espera dos segundos y se
+    rinde. Nunca bloquea al que trabaja — esa era la condición de Alex: «sin que
+    interrumpa los procesos».
+    """
+    try:
+        con = sqlite3.connect("file:%s?mode=ro" % ruta, uri=True, timeout=2)
+        try:
+            fila = con.execute(consulta).fetchone()
+        finally:
+            con.close()
+        return fila[0] if fila and isinstance(fila[0], (int, float)) else None
+    except Exception:
+        return None
+
+
 def leer_totales(fuentes=FUENTES):
     """Los acumulados de cada fuente AHORA. Una fuente ilegible no es un cero: es None."""
     salida = {}
     for f in fuentes:
+        if f.get("tipo") == "sqlite":
+            salida[f["id"]] = _de_sqlite(f["ruta"], f["consulta"])
+            continue
         try:
             with open(f["ruta"], encoding="utf-8") as fh:
                 salida[f["id"]] = _hondo(json.load(fh), f["camino"])

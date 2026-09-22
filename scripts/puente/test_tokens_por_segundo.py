@@ -100,11 +100,48 @@ class DondeSeLeeCadaFuente(unittest.TestCase):
     def test_jev_esta_entre_las_fuentes(self):
         self.assertIn("jev", [f["id"] for f in T.FUENTES])
 
-    def test_los_agentes_estan_nombrados_como_no_medibles(self):
+    def test_lo_que_no_se_puede_medir_esta_nombrado(self):
+        # (2026-09-22) opencode SALIÓ de esta lista al encontrar sus tokens en su sqlite:
+        # ver `OpencodeSiPublicaTokens`. Lo que sigue sin contador, nombrado.
         ids = [f["id"] for f in T.SIN_CONTADOR]
-        self.assertIn("opencode", ids)
+        self.assertIn("codex", ids)
         self.assertIn("pasarelas", ids)
+        self.assertTrue(all(f.get("porque") for f in T.SIN_CONTADOR),
+                        "cada uno tiene que decir POR QUÉ no se puede medir")
 
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class OpencodeSiPublicaTokens(unittest.TestCase):
+    """(2026-09-22, segunda pasada) Lo di por no medible y estaba medido.
+
+    Su LOG no publica `usage` —por eso el medidor de agentes mide bytes— pero su base de
+    datos sí: `~/.local/share/opencode/opencode.db`, tabla `session`, columnas
+    `tokens_input`, `tokens_output`, `tokens_reasoning`. Medido: 125.377.185 tokens
+    acumulados en 4.055 sesiones. Ahí está el grueso del gasto del enjambre.
+    """
+
+    def test_opencode_es_una_fuente_con_contador(self):
+        f = [x for x in T.FUENTES if x["id"] == "opencode"]
+        self.assertTrue(f, "opencode tiene que estar entre las fuentes medidas")
+        self.assertEqual(f[0]["tipo"], "sqlite")
+
+    def test_ya_no_esta_entre_los_que_no_se_pueden_medir(self):
+        self.assertNotIn("opencode", [x["id"] for x in T.SIN_CONTADOR])
+
+    def test_se_abre_en_solo_lectura(self):
+        """La condición de Alex: «sin que interrumpa los procesos»."""
+        import inspect
+        fuente = inspect.getsource(T._de_sqlite)
+        self.assertIn("mode=ro", fuente)
+        self.assertIn("timeout=2", fuente)
+
+    def test_una_base_que_no_existe_es_none_no_cero(self):
+        self.assertIsNone(T._de_sqlite("/no/existe.db", "select 1"))
+
+    def test_codex_y_pasarelas_siguen_nombrados(self):
+        ids = [x["id"] for x in T.SIN_CONTADOR]
+        self.assertIn("codex", ids)
+        self.assertIn("pasarelas", ids)

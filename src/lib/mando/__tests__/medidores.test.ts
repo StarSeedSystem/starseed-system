@@ -574,10 +574,18 @@ describe("medidor de tokens por segundo", () => {
         ],
     };
 
-    it("enseña la tasa de ahora y la media del minuto", () => {
+    it("manda la media del minuto, y el instantáneo va detrás", () => {
+        // El gasto va a ráfagas: un agente calla un minuto y suelta miles de golpe. Con el
+        // instantáneo de 5 s al frente, la pastilla marcaba 0 casi siempre y parecía rota.
         const d = detalleDeMedidor("tokens", { tokens });
+        expect(d.resumen).toMatch(/^30\.0 tok\/s de media en 1 min/);
+        expect(d.resumen).toContain("42.5 tok/s en los últimos 5 s");
+    });
+
+    it("sin un minuto entero todavía, lo dice en vez de callarlo", () => {
+        const d = detalleDeMedidor("tokens", { tokens: { ...tokens, un_minuto: null } });
         expect(d.resumen).toContain("42.5 tok/s ahora");
-        expect(d.resumen).toContain("30.0 tok/s de media en 1 min");
+        expect(d.resumen).toContain("aún sin minuto entero");
     });
 
     it("dice cuántos procesos no publican tokens", () => {
@@ -604,6 +612,27 @@ describe("medidor de tokens por segundo", () => {
     it("sin dos muestras no se inventa un cero", () => {
         const d = detalleDeMedidor("tokens", { tokens: { ...tokens, ahora: null, un_minuto: null } });
         expect(d.resumen).toContain("una tasa necesita dos");
+    });
+
+    it("opencode ya es una fuente medida, no un «no se puede»", () => {
+        // (2026-09-22) La primera versión lo daba por no medible. Su LOG no publica tokens,
+        // pero su base de datos sí: `session.tokens_input/output/reasoning`. Medido:
+        // 125.377.185 tokens acumulados en 4.055 sesiones.
+        const conOpencode = {
+            ...tokens,
+            ahora: { fuentes: { jev: 2, opencode: 900 }, total: 902, segundos: 5 },
+            un_minuto: { fuentes: { jev: 1, opencode: 500 }, total: 501, segundos: 60 },
+            fuentes: [
+                { id: "jev", nombre: "Jev (consejero)" },
+                { id: "opencode", nombre: "agentes opencode" },
+            ],
+            sin_contador: [{ id: "codex", nombre: "agentes codex", porque: "no lo publica" }],
+        };
+        const d = detalleDeMedidor("tokens", { tokens: conOpencode });
+        const oc = d.filas.find((f) => f.id === "opencode");
+        expect(oc?.estado).toBe("gastando");
+        expect(oc?.etapa).toBe("900 tok/s");
+        expect(d.resumen).toMatch(/^501 tok\/s de media en 1 min/);
     });
 
     it("si el servicio no escribe, lo dice con su nombre", () => {

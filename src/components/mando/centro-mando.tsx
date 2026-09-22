@@ -798,6 +798,8 @@ export function CentroMando() {
                 if (dataTok.detalle) {
                     // La cifra sale del resumen del propio medidor: pastilla y ventana, un
                     // solo origen. Si aún no hay dos muestras no hay tasa, y se dice.
+                    // La primera cifra del resumen es la media del minuto: es la que va
+                    // en la pastilla. Ver el comentario en `case "tokens"` de medidores.ts.
                     const m = /^([\d.]+)\s*tok\/s/.exec(dataTok.detalle.resumen ?? "");
                     tokens = m ? Number(m[1]) : null;
                     tokensResumen = dataTok.detalle.resumen ?? null;
@@ -1362,7 +1364,7 @@ export function CentroMando() {
                                         ? String(medidoresResumen.tokens)
                                         : "—",
                                 tono: (medidoresResumen?.tokens ? "ok" : "normal") as TonoMedidor,
-                                detalle: medidoresResumen?.tokensResumen ?? "de las fuentes que publican tokens",
+                                detalle: medidoresResumen?.tokensResumen ?? "media del último minuto, de las fuentes que publican tokens",
                             },
                             {
                                 clave: "listas" as const,

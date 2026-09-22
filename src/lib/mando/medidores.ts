@@ -1266,12 +1266,22 @@ export function detalleDeMedidor(
             const total = tk?.ahora?.total;
             const media = tk?.un_minuto?.total;
             const sinContador = (tk?.sin_contador ?? []).length;
+            // (2026-09-22) La cifra que manda es la MEDIA DEL ÚLTIMO MINUTO, no la de los
+            // últimos 5 s. El gasto va a ráfagas —un agente calla un minuto y suelta miles
+            // de tokens de golpe—, así que el instantáneo marca 0 casi siempre y parece
+            // roto cuando no lo está. Un minuto es lo bastante corto para llamarse «ahora»
+            // y lo bastante largo para que el número signifique algo. El instantáneo sigue
+            // ahí, detrás, porque para ver un pico también hace falta.
             const resumen = !tk
                 ? "el medidor de tokens no está escribiendo: ¿corre com.starseed.tokens?"
-                : total === undefined || total === null
-                  ? "aún no hay dos muestras: una tasa necesita dos"
-                  : `${cifra(total)} tok/s ahora${
-                        media !== undefined && media !== null ? ` · ${cifra(media)} tok/s de media en 1 min` : ""
+                : media === undefined || media === null
+                  ? total === undefined || total === null
+                      ? "aún no hay dos muestras: una tasa necesita dos"
+                      : `${cifra(total)} tok/s ahora · aún sin minuto entero${
+                            sinContador ? ` · ${sinContador} proceso(s) no publican tokens` : ""
+                        }`
+                  : `${cifra(media)} tok/s de media en 1 min${
+                        total !== undefined && total !== null ? ` · ${cifra(total)} tok/s en los últimos 5 s` : ""
                     }${sinContador ? ` · ${sinContador} proceso(s) no publican tokens` : ""}`;
 
             return {
