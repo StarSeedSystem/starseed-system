@@ -153,15 +153,18 @@ export function parsearLogGit(salida: string): Array<Omit<CommitEntrada, "archiv
     for (const bruto of salida.split("\x1e")) {
         const campos = bruto.split("\x1f");
         if (campos.length < 4) continue;
-        const sha = campos[0].trim();
-        const cuerpo = campos[2].trim();
-        const fecha = campos[3].trim();
+        const sha = campos.shift()?.trim() ?? "";
+        const asunto = campos.shift()?.trim() ?? "";
+        const fecha = campos.pop()?.trim() ?? "";
+        // El cuerpo ocupa todos los campos intermedios para no truncarlo si
+        // contiene el carácter separador además de saltos de línea.
+        const cuerpo = campos.join("\x1f").trim();
         // Fecha no parseable = registro corrupto; se salta antes que mentir.
         if (!/^[0-9a-f]{7,40}$/i.test(sha)) continue;
         if (!Number.isFinite(new Date(fecha).getTime())) continue;
         commits.push({
             sha,
-            asunto: campos[1].trim(),
+            asunto,
             cuerpo: cuerpo || null,
             fecha,
         });

@@ -21,14 +21,28 @@ export const dynamic = "force-dynamic";
 /** Las bandejas de más de 200 entradas no se leen: se cortan aquí. */
 const LIMITE_MAX = 200;
 
+function leerLimite(valor: string | null): number | undefined {
+    // Rechazar sufijos evita que una consulta ambigua como `20basura` cambie
+    // silenciosamente el tamaño de la bandeja.
+    if (!valor || !/^\d+$/.test(valor)) return undefined;
+    const numero = Number(valor);
+    return Number.isSafeInteger(numero) && numero > 0
+        ? Math.min(numero, LIMITE_MAX)
+        : undefined;
+}
+
+function leerDesde(valor: string | null): string | undefined {
+    if (!valor) return undefined;
+    return Number.isFinite(new Date(valor).getTime()) ? valor : undefined;
+}
+
 export async function GET(peticion: Request): Promise<Response> {
     const veto = await guardianMando(peticion);
     if (veto) return veto;
 
     const { searchParams } = new URL(peticion.url);
-    const desde = searchParams.get("desde") ?? undefined;
-    const bruto = Number.parseInt(searchParams.get("limite") ?? "", 10);
-    const limite = Number.isFinite(bruto) && bruto > 0 ? Math.min(bruto, LIMITE_MAX) : undefined;
+    const desde = leerDesde(searchParams.get("desde"));
+    const limite = leerLimite(searchParams.get("limite"));
 
     try {
         const datos = await obtenerReportes({ desde, limite });
