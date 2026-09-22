@@ -16,7 +16,7 @@
  * sigue ahí, con lo que llevaba hecho.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
-import { CheckCircle2, CircleDashed, CircleSlash, Rocket, TriangleAlert, XCircle } from "lucide-react";
+import { CheckCircle2, CircleDashed, CircleSlash, Loader2, Rocket, TriangleAlert, XCircle } from "lucide-react";
 
 import type { CambioVerificado, DiarioPublicacion, EstadoPaso } from "@/lib/mando/publicador-tipos";
 
@@ -69,14 +69,24 @@ export function PublicarAhora({ diario, alCambiar }: { diario: DiarioPublicacion
     const [nota, setNota] = useState("");
     const [error, setError] = useState<string | null>(null);
     const [lanzando, setLanzando] = useState(false);
+    /**
+     * Id del diario que había ANTES de pulsar. Mientras el diario en disco siga siendo ese,
+     * la publicación recién lanzada todavía no ha escrito su primera línea.
+     *
+     * (2026-09-22) Sin esto, pulsabas «Publicar» y la pantalla seguía enseñando la
+     * publicación anterior en verde —«hecho»— durante los veinte o treinta segundos que
+     * tarda la nueva en arrancar sus puertas. Parecía que el botón no hacía nada.
+     */
+    const [esperandoDiario, setEsperandoDiario] = useState<string | null>(null);
     const sondeo = useRef<number | null>(null);
 
     const corriendo = diario?.estado === "corriendo";
+    const arrancando = esperandoDiario !== null && (diario?.id ?? null) === esperandoDiario;
 
     // Mientras publica se mira cada 3 s; parado, no se sondea: una pestaña
     // abierta toda la noche no tiene por qué pedir nada cada tres segundos.
     useEffect(() => {
-        if (!corriendo) {
+        if (!corriendo && !arrancando) {
             if (sondeo.current) window.clearInterval(sondeo.current);
             sondeo.current = null;
             return;
@@ -86,11 +96,12 @@ export function PublicarAhora({ diario, alCambiar }: { diario: DiarioPublicacion
             if (sondeo.current) window.clearInterval(sondeo.current);
             sondeo.current = null;
         };
-    }, [corriendo, alCambiar]);
+    }, [corriendo, arrancando, alCambiar]);
 
     const publicar = useCallback(async () => {
         setLanzando(true);
         setError(null);
+        setEsperandoDiario(diario?.id ?? "");
         try {
             const r = await fetch("/api/mando/publicacion", {
                 method: "POST",
@@ -99,6 +110,7 @@ export function PublicarAhora({ diario, alCambiar }: { diario: DiarioPublicacion
             });
             const cuerpo = (await r.json().catch(() => ({}))) as { error?: string };
             if (!r.ok) {
+                setEsperandoDiario(null);
                 setError(cuerpo.error ?? `No se pudo lanzar la publicación (HTTP ${r.status}).`);
                 return;
             }
@@ -110,11 +122,17 @@ export function PublicarAhora({ diario, alCambiar }: { diario: DiarioPublicacion
             // había pasado nada y daban ganas de volver a pulsar.
             window.setTimeout(alCambiar, 1_200);
         } catch {
+            setEsperandoDiario(null);
             setError("No se pudo lanzar la publicación.");
         } finally {
             setLanzando(false);
         }
-    }, [nota, alCambiar]);
+    }, [nota, alCambiar, diario?.id]);
+
+    // En cuanto el diario cambia de id, la publicación nueva ya está escribiendo.
+    useEffect(() => {
+        if (esperandoDiario !== null && (diario?.id ?? null) !== esperandoDiario) setEsperandoDiario(null);
+    }, [diario?.id, esperandoDiario]);
 
     const tono =
         diario?.estado === "fallo"
@@ -167,6 +185,16 @@ export function PublicarAhora({ diario, alCambiar }: { diario: DiarioPublicacion
             </div>
 
             {error ? <p className="mt-2 text-xs text-rose-200">{error}</p> : null}
+
+            {arrancando ? (
+                <p
+                    data-testid="publicacion-arrancando"
+                    className="mt-2 flex items-center gap-2 text-xs text-cyan-100"
+                >
+                    <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
+                    Publicación lanzada · abriendo las puertas. Lo de abajo es todavía la anterior.
+                </p>
+            ) : null}
 
             {diario ? (
                 <div className="mt-4">

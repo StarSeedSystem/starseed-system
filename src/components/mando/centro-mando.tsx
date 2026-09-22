@@ -1265,15 +1265,20 @@ export function CentroMando() {
                                     medidoresResumen?.listas !== null &&
                                     medidoresResumen?.listas !== undefined &&
                                     medidoresResumen.listas > 0 &&
-                                    pulso.tareasEnCurso === 0
+                                    enCursoAhora === 0
                                         ? "peligro"
                                         : "normal"
                                 ) as TonoMedidor,
+                                // (2026-09-22) Decía «hay trabajo y ningún agente: algo está
+                                // atascado» con OCHO agentes escribiendo al lado, porque miraba
+                                // `pulso.tareasEnCurso` —latidos de la Mac— y toda la tanda
+                                // estaba en la nube. Se mira lo mismo que enseña la pastilla de
+                                // al lado: si hay agentes medidos, no hay nada atascado.
                                 detalle:
                                     medidoresResumen?.listas !== null &&
                                     medidoresResumen?.listas !== undefined &&
                                     medidoresResumen.listas > 0 &&
-                                    pulso.tareasEnCurso === 0
+                                    enCursoAhora === 0
                                         ? "hay trabajo y ningún agente: algo está atascado"
                                         : "el enjambre las coge solo",
                             },

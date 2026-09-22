@@ -7,6 +7,7 @@ import {
     mediaDeAvance,
     configuracionPorDefecto,
     dependenciaDeNota,
+    agruparPorTarea,
     dependenciasQueFaltan,
     detalleDeMedidor,
     ejecutablesDeColas,
@@ -482,32 +483,74 @@ describe("una dependencia que no va a llegar nunca no es un candado", () => {
     });
 });
 
-describe("«Tareas en curso» y «Agentes» no pueden discrepar", () => {
-    // (2026-09-22) Alex: «dice que 0 tareas en curso pero 12 agentes, no se está
-    // actualizando». Se actualizaba: la pastilla contaba latidos de la MAC
-    // (`/api/mando/estado`) y los agentes de la nube no laten ahí. Este medidor sí los
-    // ve. Desde hoy la pastilla lo lee de aquí, así que la invariante es: los dos
-    // medidores miran los mismos latidos y cuentan lo mismo.
+describe("«Tareas en curso» y «Agentes» son dos preguntas distintas", () => {
+    // (2026-09-22) Dos quejas seguidas de Alex, y las dos ciertas.
+    //   1. «dice que 0 tareas en curso pero 12 agentes»: la pastilla contaba latidos de la
+    //      MAC (`/api/mando/estado`) y los de la nube no laten ahí. Ahora sale de aquí.
+    //   2. «aún son los mismos procesos cuando en realidad son conceptos diferentes»: este
+    //      medidor pintaba una fila por LATIDO, o sea por agente, así que los dos números
+    //      eran el mismo por construcción. Ahora una tarea es una fila, lleve los agentes
+    //      que lleve.
     const enDosMedios = [
         { tarea: "T1", fase: "escribiendo", modelo: "nim/kimi-k3", minutos: 4, donde: "mac", proveedor: "nim" },
         { tarea: "nube/35740708835", fase: "escribiendo", modelo: "llm7/minimax", minutos: 6, donde: "nube-gh" },
-        { tarea: "nube/35740708835", fase: "escribiendo", modelo: "llm7/minimax", minutos: 6, donde: "nube-gh" },
+        { tarea: "nube/35740708835", fase: "escribiendo", modelo: "llm7/minimax", minutos: 9, donde: "nube-gh" },
     ];
 
     it("cuenta también a los que trabajan en la nube", () => {
         const d = detalleDeMedidor("en-curso", { latidos: enDosMedios });
-        expect(d.filas).toHaveLength(3);
         expect(d.filas.map((f) => f.id)).toContain("nube/35740708835");
     });
 
-    it("da el mismo número que el medidor de agentes", () => {
+    it("tres agentes sobre dos tareas son DOS tareas y TRES agentes", () => {
         const enCurso = detalleDeMedidor("en-curso", { latidos: enDosMedios });
         const agentes = detalleDeMedidor("agentes", { latidos: enDosMedios });
-        expect(enCurso.filas.length).toBe(agentes.filas.length);
+        expect(enCurso.filas).toHaveLength(2);
+        expect(agentes.filas).toHaveLength(3);
+    });
+
+    it("la tarea compartida dice cuántos agentes lleva", () => {
+        const d = detalleDeMedidor("en-curso", { latidos: enDosMedios });
+        const compartida = d.filas.find((f) => f.id === "nube/35740708835");
+        expect(compartida?.quien).toContain("2 agentes");
+        // Y se queda con el latido que más lleva: es el que cuenta la historia.
+        expect(compartida?.desde).toBe("9 min");
+    });
+
+    it("el resumen dice las dos cosas, sin que haya que restarlas", () => {
+        const d = detalleDeMedidor("en-curso", { latidos: enDosMedios });
+        expect(d.resumen).toContain("2 en marcha");
+        expect(d.resumen).toContain("3 agente(s)");
     });
 
     it("sin nadie trabajando, los dos dicen cero", () => {
         expect(detalleDeMedidor("en-curso", { latidos: [] }).filas).toHaveLength(0);
         expect(detalleDeMedidor("agentes", { latidos: [] }).filas).toHaveLength(0);
+    });
+});
+
+describe("agruparPorTarea", () => {
+    it("un agente por tarea deja todo igual", () => {
+        const g = agruparPorTarea([
+            { tarea: "A", minutos: 1 },
+            { tarea: "B", minutos: 2 },
+        ]);
+        expect(g).toHaveLength(2);
+        expect(g.every((x) => x.agentes === 1)).toBe(true);
+    });
+
+    it("varios agentes sobre una tarea son una fila con la cuenta", () => {
+        const g = agruparPorTarea([
+            { tarea: "A", minutos: 1 },
+            { tarea: "A", minutos: 7 },
+            { tarea: "A", minutos: 3 },
+        ]);
+        expect(g).toHaveLength(1);
+        expect(g[0].agentes).toBe(3);
+        expect(g[0].latido.minutos).toBe(7); // se queda el que más lleva
+    });
+
+    it("sin latidos no hay filas", () => {
+        expect(agruparPorTarea([])).toEqual([]);
     });
 });

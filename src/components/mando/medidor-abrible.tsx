@@ -403,6 +403,14 @@ export function PanelMedidor({
     const [errorLectura, setErrorLectura] = useState<string | null>(null);
     /** Última comprobación de directores (GET /api/mando/comprobar). */
     const [ultimaComprobacion, setUltimaComprobacion] = useState<string | null>(null);
+    /**
+     * Si la última comprobación TERMINÓ. (2026-09-22) Antes se enseñaba
+     * `terminado ?? empezado`, así que una comprobación lanzada y nunca cerrada salía como
+     * «última comprobación: hace 1069 min» —diecisiete horas— cuando en realidad era una
+     * que se quedó colgada la noche anterior. Una cosa es cuándo se miró y otra cuándo se
+     * intentó mirar, y confundirlas es lo que hacía parecer que el botón funcionaba.
+     */
+    const [comprobacionCerrada, setComprobacionCerrada] = useState(true);
     const [comprobando, setComprobando] = useState(false);
 
     /** Cuándo se comprobó por última vez; nunca se esconde: «nunca» también se dice. */
@@ -411,8 +419,10 @@ export function PanelMedidor({
             const r = await fetch(`/api/mando/comprobar?medidor=${encodeURIComponent(clave)}`, { cache: "no-store" });
             const d = (await r.json()) as { comprobacion?: { terminado?: string | null; empezado?: string } | null };
             setUltimaComprobacion(d.comprobacion?.terminado ?? d.comprobacion?.empezado ?? null);
+            setComprobacionCerrada(Boolean(d.comprobacion?.terminado));
         } catch {
             setUltimaComprobacion(null);
+            setComprobacionCerrada(true);
         }
     }, [clave]);
 
@@ -569,7 +579,11 @@ export function PanelMedidor({
             </header>
 
             <p className="mc-centrado mt-1 text-[10px] text-white/40">
-                última comprobación: {ultimaComprobacion ? (haceMinutos(ultimaComprobacion) ?? "desconocida") : "nunca se ha comprobado"}
+                {ultimaComprobacion
+                    ? comprobacionCerrada
+                        ? `última comprobación: ${haceMinutos(ultimaComprobacion) ?? "desconocida"}`
+                        : `lanzada ${haceMinutos(ultimaComprobacion) ?? "hace un momento"} y SIN TERMINAR`
+                    : "nunca se ha comprobado"}
             </p>
 
             {cargando && !datos ? (

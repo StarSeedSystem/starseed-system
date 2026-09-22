@@ -578,6 +578,30 @@ const ABIERTOS = new Set(["pendiente", ""]);
  *      estado. Eso es lo que inflaba la cuenta: 74 tareas de olas viejas, hechas y
  *      publicadas hace semanas, sin entrada en progreso.json.
  */
+/**
+ * Un latido por TAREA, con cuántos agentes hay sobre ella. PURA.
+ *
+ * (2026-09-22) El medidor de tareas en curso pintaba una fila por latido, es decir por
+ * AGENTE: una tarea con cuatro agentes salía cuatro veces y el número de tareas era, por
+ * construcción, el número de agentes. Se queda el latido que más ha avanzado en la fase
+ * (el que más minutos lleva), que es el que cuenta la historia de la tarea.
+ */
+export function agruparPorTarea<T extends { tarea: string; minutos: number }>(
+    latidos: T[],
+): { latido: T; agentes: number }[] {
+    const porTarea = new Map<string, { latido: T; agentes: number }>();
+    for (const l of latidos ?? []) {
+        const previo = porTarea.get(l.tarea);
+        if (!previo) {
+            porTarea.set(l.tarea, { latido: l, agentes: 1 });
+            continue;
+        }
+        previo.agentes += 1;
+        if (l.minutos > previo.latido.minutos) previo.latido = l;
+    }
+    return [...porTarea.values()];
+}
+
 /** Estados en los que una dependencia ya está hecha y no frena a nadie. */
 const DEPENDENCIA_CUMPLIDA = new Set(["commit", "hecho"]);
 
@@ -1026,15 +1050,24 @@ export function detalleDeMedidor(
         }
 
         case "en-curso": {
-            const filas: FilaMedidor[] = d.latidos.map((l) => {
+            // (2026-09-22) Alex: «las tareas en curso y los agentes aún son los mismos
+            // procesos cuando en realidad son conceptos diferentes». Y lo eran: esto hacía
+            // `d.latidos.map(...)`, o sea UNA FILA POR AGENTE. Cuatro agentes sobre la misma
+            // tarea salían como cuatro tareas, y los dos números no podían diferir nunca
+            // —ayer los dos decían 8—. Son dos preguntas distintas:
+            //   · Agentes        → cuántos TRABAJADORES hay vivos.
+            //   · Tareas en curso → cuántas TAREAS DISTINTAS se están haciendo.
+            // Así que aquí se agrupa por tarea y se dice cuántos agentes lleva cada una.
+            const filas: FilaMedidor[] = agruparPorTarea(d.latidos).map(({ latido: l, agentes }) => {
                 const avance = avanceDe(l.fase, estadoDe(l.tarea));
+                const quienEs = `${l.proveedor ?? l.modelo.split("/")[0]} · ${l.modelo.split("/").slice(-1)[0]} en ${l.donde}`;
                 return {
                     id: l.tarea,
                     titulo: titulo(l.tarea),
                     estado: l.fase,
                     porcentaje: avance.porcentaje,
                     etapa: avance.etapa,
-                    quien: `${l.proveedor ?? l.modelo.split("/")[0]} · ${l.modelo.split("/").slice(-1)[0]} en ${l.donde}`,
+                    quien: agentes > 1 ? `${agentes} agentes · ${quienEs}` : quienEs,
                     desde: `${l.minutos} min`,
                     porque: l.minutos > 45 ? "lleva mucho sin cambiar de fase" : undefined,
                     ficha: fichaDeTarea(
@@ -1071,7 +1104,9 @@ export function detalleDeMedidor(
                 resumen:
                     filas.length === 0
                         ? "ninguna tarea en curso"
-                        : `${filas.length} en marcha · ${medio} % de avance medio${rancias.length ? ` · ${rancias.length} rancias` : ""}`,
+                        : `${filas.length} en marcha · ${d.latidos.length} agente(s) sobre ellas · ${medio} % de avance medio${
+                              rancias.length ? ` · ${rancias.length} rancias` : ""
+                          }`,
                 filas: todas,
                 porcentajeMedio: medio,
                 acciones: [IR_A("Ver la ramificación", "procesos")],
@@ -1083,11 +1118,18 @@ export function detalleDeMedidor(
             // Por qué NO las está cogiendo nadie, que es la pregunta de verdad cuando ves
             // «13 listas · 0 agentes». Son tres situaciones distintas y hasta ahora las tres
             // se veían igual: un número en rojo.
+            // (2026-09-22) Decía «no hay orquestador vivo» con OCHO agentes escribiendo en la
+            // nube: `enjambreVivo` mira el orquestador de la MAC, y con toda la tanda fuera
+            // ese orquestador no tiene por qué estar. Un agente midiéndose a sí mismo es
+            // mejor prueba de que el enjambre trabaja que cualquier proceso local.
+            const agentesAhora = (d.latidos ?? []).length;
             const porQueNadieLasCoge = d.enjambrePausado
                 ? "el enjambre está EN PAUSA: nadie las va a coger hasta que se reanude"
                 : d.enjambreVivo
                   ? "el enjambre está vivo y las va cogiendo por tandas, según los trabajadores libres"
-                  : "no hay orquestador vivo; el vigilante lo relanza solo en menos de 90 s";
+                  : agentesAhora > 0
+                    ? `no hay orquestador en la Mac, pero ${agentesAhora} agente(s) están trabajando en otros medios`
+                    : "no hay orquestador vivo; el vigilante lo relanza solo en menos de 90 s";
             const asuntosDeMain = d.asuntosDeMain;
             const asuntosDisponibles = typeof asuntosDeMain === "string";
             // Sin una lectura fiable no se adivina: ocultar trabajo válido sería

@@ -61,22 +61,34 @@ export async function POST(peticion: Request): Promise<Response> {
             medidor: medidor as ClaveMedidorComprobacion,
             empezado: ahora,
             terminado: null,
-            directores: ["vigilante", "director", "guardia"],
+            // (2026-09-22) Estos tres nombres eran una ficción: «vigilante», «director» y
+            // «guardia» se escribían siempre, y a ninguno se le preguntaba nada. Ahora los
+            // pone quien de verdad corre, y los pone AL TERMINAR (ver comprobar_medidor.py).
+            directores: [],
             veredictos: [],
             resumen: "Comprobación lanzada",
         };
         await writeFile(rutaEstado(medidor), JSON.stringify(inicio, null, 2), "utf8");
+        // ANTES: para CUALQUIER medidor se lanzaba `renovador-pasarelas.py` —el renovador
+        // de claves de las pasarelas—, que no vuelve a medir ni las listas, ni los agentes,
+        // ni los contenedores, ni nada de lo que dice la ventana que se está comprobando; y
+        // nadie escribía nunca `terminado`, así que la pantalla enseñaba el `empezado` de
+        // una comprobación de la noche anterior como si fuese la última. Alex: «los botones
+        // de comprobación no funcionan realmente de ningún medidor». No funcionaban.
         const esNeedle = medidor === "needle";
-        const ejecutable = esNeedle ? "bash" : "python3";
-        const guion = esNeedle
-            ? path.join(RAÍZ, "scripts", "renovar-needle.sh")
-            : path.join(RAÍZ, "scripts", "puente", "renovador-pasarelas.py");
-        const hijo = spawn(ejecutable, [guion], {
-            cwd: RAÍZ,
-            detached: true,
-            stdio: ["ignore", "ignore", "ignore"],
-            env: { ...process.env, STARSEED_ROOT: RAÍZ },
-        });
+        const hijo = esNeedle
+            ? spawn("bash", [path.join(RAÍZ, "scripts", "renovar-needle.sh")], {
+                  cwd: RAÍZ,
+                  detached: true,
+                  stdio: ["ignore", "ignore", "ignore"],
+                  env: { ...process.env, STARSEED_ROOT: RAÍZ },
+              })
+            : spawn("python3", [path.join(RAÍZ, "scripts", "puente", "comprobar_medidor.py"), medidor], {
+                  cwd: RAÍZ,
+                  detached: true,
+                  stdio: ["ignore", "ignore", "ignore"],
+                  env: { ...process.env, STARSEED_ROOT: RAÍZ },
+              });
         hijo.unref();
         return Response.json({ id, medidor, lanzado: true, pid: hijo.pid }, { headers: { "Cache-Control": "no-store" } });
     } catch (e) {

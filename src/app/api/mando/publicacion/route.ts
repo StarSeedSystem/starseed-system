@@ -60,8 +60,24 @@ export async function POST(request: Request): Promise<Response> {
         }
         const salida = await lanzarPublicacion(nota.trim());
         if (!salida.ok) return Response.json({ error: salida.error }, { status: 409 });
-        const diario = await leerDiario();
-        return Response.json({ lanzado: true, diario }, { headers: { "Cache-Control": "no-store" } });
+        // (2026-09-22) Aquí se devolvía `leerDiario()` de inmediato, y como la publicación
+        // recién lanzada tarda decenas de segundos en escribir su primer paso, lo que
+        // llegaba a la pantalla era el diario de la publicación ANTERIOR —«hecho», en
+        // verde—. Pulsabas «Publicar» y la pantalla te enseñaba una publicación terminada
+        // que no era la tuya: parecía que el botón no hacía nada. Alex: «los botones de
+        // publicar no funcionan». Ahora se dice lo único que se sabe de verdad en este
+        // instante: que se ha lanzado y con qué pid; el diario lo trae el sondeo cuando
+        // exista de verdad.
+        const anterior = await leerDiario();
+        return Response.json(
+            {
+                lanzado: true,
+                pid: salida.pid ?? null,
+                esperando: "la publicación acaba de arrancar; su diario aparece en unos segundos",
+                diarioAnterior: anterior?.id ?? null,
+            },
+            { headers: { "Cache-Control": "no-store" } },
+        );
     }
 
     try {

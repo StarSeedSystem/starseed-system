@@ -4,7 +4,10 @@
 from __future__ import annotations
 
 import unittest
-from scripts.puente.comprobar_medidor import veredictos_de
+# La descubre `python3 -m unittest discover -s scripts/puente`, que mete ese directorio
+# en el path: importar por `scripts.puente...` hacía que el módulo no se encontrara y la
+# prueba entera se saltaba con un ImportError. (2026-09-22)
+from comprobar_medidor import veredictos_de
 
 
 class TestComprobarMedidor(unittest.TestCase):
