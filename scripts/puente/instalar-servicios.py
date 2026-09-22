@@ -38,7 +38,11 @@ SERVICIOS = {
     # (fuera de ~/Documents, sin TCC de por medio) y se convierte en python3 con exec.
     "telegram":  (["/bin/zsh", "-c",
                    'set -a; [ -f "$HOME/.hermes/.env" ] && source "$HOME/.hermes/.env"; '
-                   'set +a; exec %s %s' % (PY3, P("telegram-puente.py"))],
+                   # (2026-09-22) `-u`: sin él Python bufferea stdout y el log del puente
+                   # se quedaba en 0 bytes durante DÍAS aunque el proceso estuviera vivo.
+                   # Un servicio que no puede contar lo que hace no se puede diagnosticar:
+                   # me costó media hora saber si reenviaba o no.
+                   'set +a; exec %s -u %s' % (PY3, P("telegram-puente.py"))],
                   "/tmp/starseed-telegram.log", True),
     # El Mando lo supervisa launchd en primer plano: nada de doble fork. Así hay un pid
     # de verdad, KeepAlive lo revive solo, y no queda huérfano si se reinicia el MCP.
