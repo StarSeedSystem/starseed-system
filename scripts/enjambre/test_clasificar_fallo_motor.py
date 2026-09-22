@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
 """Pruebas unitarias del clasificador de fallos del motor."""
 
+import os
+import sys
 import unittest
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from clasificar_fallo_motor import clasificar
 
@@ -42,7 +46,9 @@ class ClasificarFalloMotorTest(unittest.TestCase):
                 self.assertEqual(clasificar(salida, 1), "cuota")
 
     def test_sin_cambios(self) -> None:
-        self.assertEqual(clasificar("Completed without modifying files", 31), "sin_cambios")
+        self.assertEqual(
+            clasificar("Completed without modifying files", 31), "sin_cambios"
+        )
 
     def test_ok_vacio_o_none(self) -> None:
         self.assertEqual(clasificar("", 0), "ok")
