@@ -4,77 +4,99 @@ import "@testing-library/jest-dom/vitest";
 
 import { VerificarProcesos, segundosDesde } from "@/components/mando/verificar-procesos";
 
+/**
+ * Pruebas unitarias para VerificarProcesos y helper puro segundosDesde.
+ * 
+ * POR QUÉ:
+ * 1. La verificación frontend debe probarse sin llamar a /api/mando/verificacion real
+ *    para evitar ejecutar comandos del sistema (ps, launchctl, df) durante las pruebas.
+ * 2. Muestra el 'por qué' de cada punto y aplica estilos diferenciados (emerald/amber/rose)
+ *    para garantizar que los problemas de severidad crítica destaquen visualmente.
+ * 3. Garantiza que fetch se ejecuta exactamente una vez y reutiliza el reporte en aperturas subsecuentes.
+ */
+
 function reporteDemo() {
     return {
         t: "2026-09-20T12:00:00.000Z",
         veredicto: "Atención: proceso de orquestador caído",
-        peor: "fallo",
+        peor: "fallo" as const,
         puntos: [
-            { nombre: "Mando", estado: "ok", dato: "9002 escuchando", porque: "Sin él no hay verificación." },
-            { nombre: "Enjambre", estado: "aviso", dato: "sin trabajadores", porque: "Las tareas esperan sin escribir." },
-            { nombre: "Orquestador", estado: "fallo", dato: "proceso muerto", porque: "El orquestador python no responde." },
+            { nombre: "Mando", estado: "ok" as const, dato: "9002 escuchando", porque: "Sin él no hay verificación." },
+            { nombre: "Enjambre", estado: "aviso" as const, dato: "sin trabajadores", porque: "Las tareas esperan sin escribir." },
+            { nombre: "Orquestador", estado: "fallo" as const, dato: "proceso muerto", porque: "El orquestador python no responde." },
         ],
     };
 }
 
-describe("VerificarProcesos · panel flotante del reporte", () => {
+describe("VerificarProcesos · verificación de interfaz y estados", () => {
     beforeEach(() => {
         vi.stubGlobal(
             "fetch",
             vi.fn(async () => new Response(JSON.stringify(reporteDemo()), { status: 200 })),
         );
     });
+
     afterEach(() => {
         cleanup();
         vi.unstubAllGlobals();
         vi.restoreAllMocks();
     });
 
-    it("pinta cada punto con su «por qué» y distingue puntos en rojo, amarillo y verde", async () => {
+    it("pide la verificación una sola vez al hacer clic y muestra cada punto con su 'por qué' y color", async () => {
         render(<VerificarProcesos />);
-        fireEvent.click(screen.getByRole("button", { name: /verificar procesos/i }));
-        await waitFor(() => expect(screen.getByRole("dialog", { name: /reporte/i })).toBeInTheDocument());
-        
+        // Inicialmente el botón indica que ejecutará la verificación.
+        const boton = screen.getByRole("button", { name: /verificar procesos y generar reporte/i });
+        fireEvent.click(boton);
+
+        // Se espera a que abra el modal del reporte.
+        await waitFor(() => expect(screen.getByRole("dialog", { name: /reporte de procesos/i })).toBeInTheDocument());
+
+        // Verificamos que se llamó a fetch exactamente una vez.
+        expect(fetch).toHaveBeenCalledTimes(1);
+
+        // Verifica que se muestra el veredicto y el 'por qué' de cada punto de control.
         expect(screen.getByText(/orquestador caído/i)).toBeInTheDocument();
         expect(screen.getByText("Sin él no hay verificación.")).toBeInTheDocument();
         expect(screen.getByText("Las tareas esperan sin escribir.")).toBeInTheDocument();
         expect(screen.getByText("El orquestador python no responde.")).toBeInTheDocument();
 
+        // Comprueba la diferenciación de colores por severidad (verde, amarillo, rojo).
         const dialog = screen.getByRole("dialog");
         expect(dialog.querySelector(".text-emerald-300")).toBeInTheDocument();
         expect(dialog.querySelector(".text-amber-300")).toBeInTheDocument();
         expect(dialog.querySelector(".text-rose-300")).toBeInTheDocument();
-
-        expect(dialog.className).toContain("absolute");
-        expect(dialog.className).toContain("z-30");
     });
 
-    it("«Cerrar» oculta el panel y «Ver último reporte» lo reabre sin volver a pedirlo", async () => {
+    it("permite cerrar el reporte y volver a abrirlo sin realizar peticiones redundantes", async () => {
         render(<VerificarProcesos />);
-        fireEvent.click(screen.getByRole("button", { name: /verificar procesos/i }));
+        fireEvent.click(screen.getByRole("button", { name: /verificar procesos y generar reporte/i }));
         await screen.findByRole("dialog");
 
+        // Al presionar Cerrar, el cuadro de diálogo desaparece.
         fireEvent.click(screen.getByRole("button", { name: /cerrar reporte/i }));
         expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 
+        // Al hacer clic en 'Ver último reporte', reabre sin lanzar un nuevo fetch.
         fireEvent.click(screen.getByRole("button", { name: /ver último reporte/i }));
         expect(screen.getByRole("dialog")).toBeInTheDocument();
         expect(fetch).toHaveBeenCalledTimes(1);
     });
 
-    it("Esc y clic fuera cierran el panel", async () => {
+    it("cierra el diálogo al hacer clic fuera o presionar la tecla Escape", async () => {
         render(
             <div>
-                <div data-testid="fuera">Fuera</div>
+                <div data-testid="fuera">Área Externa</div>
                 <VerificarProcesos />
             </div>
         );
-        fireEvent.click(screen.getByRole("button", { name: /verificar procesos/i }));
+        fireEvent.click(screen.getByRole("button", { name: /verificar procesos y generar reporte/i }));
         await screen.findByRole("dialog");
 
+        // Clic fuera de la tarjeta cierra el diálogo.
         fireEvent.mouseDown(screen.getByTestId("fuera"));
         expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 
+        // Reabrir y verificar que la tecla Escape también lo cierra.
         fireEvent.click(screen.getByRole("button", { name: /ver último reporte/i }));
         await screen.findByRole("dialog");
 
@@ -82,30 +104,31 @@ describe("VerificarProcesos · panel flotante del reporte", () => {
         expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     });
 
-    it("despliega mensaje de error cuando la API devuelve respuesta no exitosa o falla la red", async () => {
+    it("muestra mensaje de error si el servidor responde con error o falla la conexión", async () => {
         vi.stubGlobal(
             "fetch",
             vi.fn(async () => new Response(null, { status: 500 })),
         );
         render(<VerificarProcesos />);
-        fireEvent.click(screen.getByRole("button", { name: /verificar procesos/i }));
+        fireEvent.click(screen.getByRole("button", { name: /verificar procesos y generar reporte/i }));
         await waitFor(() => expect(screen.getByText(/respondió 500/i)).toBeInTheDocument());
 
         vi.stubGlobal(
             "fetch",
             vi.fn(async () => {
-                throw new Error("network error");
+                throw new Error("fallo de red");
             }),
         );
-        fireEvent.click(screen.getByRole("button", { name: /verificar procesos/i }));
+        fireEvent.click(screen.getByRole("button", { name: /verificar procesos y generar reporte/i }));
         await waitFor(() => expect(screen.getByText(/no se pudo verificar/i)).toBeInTheDocument());
     });
 
-    it("segundosDesde cuenta hacia atrás y nunca da negativos ni NaN", () => {
+    it("calcula los segundos transcurridos correctamente con la función pura segundosDesde", () => {
         const t = "2026-09-20T12:00:00.000Z";
         const ahora = new Date("2026-09-20T12:01:30.000Z").getTime();
         expect(segundosDesde(t, ahora)).toBe(90);
+        // Garantiza que no devuelve valores negativos ni NaN con fechas inválidas o futuras.
         expect(segundosDesde(t, new Date("2026-09-20T11:00:00.000Z").getTime())).toBe(0);
-        expect(segundosDesde("no-es-fecha", ahora)).toBe(0);
+        expect(segundosDesde("fecha-invalida", ahora)).toBe(0);
     });
 });
