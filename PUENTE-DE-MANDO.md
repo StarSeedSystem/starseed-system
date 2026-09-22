@@ -1,6 +1,6 @@
 # Puente de Mando · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-21 16:47:38 desde el Mando vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-22 03:56:09 desde el Mando vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -12,22 +12,19 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | | |
 |---|---|
 | Mando | **encendido** en http://127.0.0.1:9002/mando |
-| Ola arriba | Ola Dream 2026-09-15 · lo que el análisis nocturno encontró |
+| Ola arriba | Ola Dream 2026-09-17 · lo que el análisis nocturno encontró |
 | Agentes escribiendo | **0** |
 | En esta ola | integradas 1 · en curso 0 · esperando aprobación 0 · pendientes 0 |
-| Últimas 4 olas | en curso 0 · pendientes 0 · integradas 14 |
-| HEAD | `a0258711 chore(memoria): aprendizaje de la ola auto-0921-160839` |
-| Sin publicar | 7 commits |
+| Últimas 4 olas | en curso 0 · pendientes 0 · integradas 21 |
+| HEAD | `2945e8de chore(memoria): aprendizaje de la ola auto-0922-032517` |
+| Sin publicar | 1 commits |
 | Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-auto-0921-160839.json`, hace 5s)
+## Quién escribe ahora (latido de `cola-auto-0922-032517.json`, hace 5s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `MND1` | hecho | google/gemini-3.6-flash | 1 min | 37 s | 67856 |
-| `MND2` | hecho | google/gemini-3.6-flash | 10 min | 584 s | 110507 |
-| `MND3` | hecho | codex/gpt-5.6-sol | 15 min | 930 s | 442388 |
-| `MND4` | hecho | nvidia/moonshotai/kimi-k3 | 19 min | 1127 s | 26170 |
+| `R7c` | hecho | nvidia/deepseek-ai/deepseek-v4-pro | 6 min | 363 s | 97279 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
