@@ -14,6 +14,7 @@
  */
 import { execFile } from "node:child_process";
 import { readFile, rename, writeFile } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 
@@ -52,6 +53,77 @@ async function git(args: string[]): Promise<string> {
     } catch {
         return "";
     }
+}
+
+/**
+ * Qué está tocando AHORA cada tarea viva, leído de su worktree.
+ *
+ * (2026-09-22, pedido por Alex) Es el dato que faltaba para que la ficha de un agente diga
+ * algo de verdad: en qué rama trabaja y qué archivos lleva tocados. Vale `git status
+ * --short` en `~/Documents/starseed-wt/<id>`, que es donde el orquestador pone a cada
+ * agente. Si el worktree no existe todavía, no pasa nada: la ficha lo dirá.
+ */
+async function leerObras(ids: string[]): Promise<Record<string, { rama?: string; archivos?: string[]; ruta?: string }>> {
+    const raizWt = process.env.STARSEED_WT || path.join(os.homedir(), "Documents", "starseed-wt");
+    const salida: Record<string, { rama?: string; archivos?: string[]; ruta?: string }> = {};
+    await Promise.all(
+        ids.slice(0, 12).map(async (id) => {
+            const dir = path.join(raizWt, id);
+            try {
+                const [estado, rama] = await Promise.all([
+                    correr("git", ["-C", dir, "status", "--short"], { timeout: 8_000, maxBuffer: 400_000 })
+                        .then((r) => r.stdout)
+                        .catch(() => ""),
+                    correr("git", ["-C", dir, "branch", "--show-current"], { timeout: 8_000 })
+                        .then((r) => r.stdout.trim())
+                        .catch(() => ""),
+                ]);
+                const archivos = estado
+                    .split(/\r?\n/)
+                    .map((l) => l.slice(3).trim().replace(/^"|"$/g, ""))
+                    .filter(Boolean);
+                if (archivos.length || rama) {
+                    // La ruta se enseña con ~ para no publicar el disco de Alex.
+                    salida[id] = { rama: rama || undefined, archivos, ruta: dir.replace(os.homedir(), "~") };
+                }
+            } catch {
+                /* sin worktree: la ficha lo dice, no hace falta avisar aquí */
+            }
+        }),
+    );
+    return salida;
+}
+
+/** El historial de acciones de una tarea: lo que los directores le han ido diciendo. */
+async function leerHistoriales(ids: string[]): Promise<Record<string, { t: string; de: string; texto: string }[]>> {
+    const dir = path.join(RAÍZ, "starseed_memory_root", "olas", "mensajes");
+    const salida: Record<string, { t: string; de: string; texto: string }[]> = {};
+    await Promise.all(
+        ids.slice(0, 12).map(async (id) => {
+            try {
+                const crudo = await readFile(path.join(dir, `${id}.jsonl`), "utf8");
+                const lineas = crudo.split(/\r?\n/).filter(Boolean).slice(-6).reverse();
+                const sucesos = lineas
+                    .map((l) => {
+                        try {
+                            const o = JSON.parse(l) as Record<string, unknown>;
+                            return {
+                                t: String(o.t ?? ""),
+                                de: String(o.de ?? "?"),
+                                texto: String(o.texto ?? "").slice(0, 400),
+                            };
+                        } catch {
+                            return null;
+                        }
+                    })
+                    .filter((x): x is { t: string; de: string; texto: string } => x !== null);
+                if (sucesos.length) salida[id] = sucesos;
+            } catch {
+                /* sin historial todavía */
+            }
+        }),
+    );
+    return salida;
 }
 
 async function leerEntradas(): Promise<Record<string, Entrada>> {
@@ -144,6 +216,32 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
 
     const fila = colaInteligente(colas, progreso, latidosCompletos, commitsGit, asuntosDeMain);
 
+    // (2026-09-22) Los hechos de la ficha ampliada: qué toca cada tarea viva en su
+    // worktree, qué archivos declaró su cola y qué le han ido diciendo los directores.
+    // Solo de las tareas VIVAS y de las rancias: leer el disco de las 400 del historial
+    // costaría segundos por cada refresco del panel y nadie mira eso.
+    const idsVivas = [
+        ...new Set([
+            ...latidosDeAqui.map((l) => l.tarea),
+            ...Object.entries(progreso)
+                .filter(([, v]) => v?.estado === "en_curso")
+                .map(([id]) => id),
+        ]),
+    ];
+    const declarados: Record<string, string[]> = {};
+    // `leerColas()` devuelve una lista plana de tareas, no pares (nombre, tareas).
+    for (const t of colas) {
+        const id = String((t as { id?: unknown }).id ?? "");
+        const archivos = (t as { archivos?: unknown }).archivos;
+        if (id && Array.isArray(archivos) && !declarados[id]) {
+            declarados[id] = archivos.map((a) => String(a));
+        }
+    }
+    const [obras, historiales] = await Promise.all([
+        leerObras(idsVivas).catch(() => ({})),
+        leerHistoriales(idsVivas).catch(() => ({})),
+    ]);
+
     return {
         progreso,
         titulos,
@@ -153,6 +251,11 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
         enjambreVivo: vivo,
         enjambrePausado: pausado,
         fila,
+        obras,
+        historiales,
+        declarados,
+        // El repo publico, para poder enlazar ramas y commits desde la ficha.
+        repoGitHub: "StarSeedSystem/starseed-system",
         // (2026-09-21) Esto FALTABA y por eso el medidor «listas» ofrecia 24 tareas ya
         // hechas mientras avisaba «no se pudieron leer los asuntos de Git». Los asuntos se
         // leen arriba (linea 101) y se usan aqui mismo, pero no viajaban en el objeto, asi

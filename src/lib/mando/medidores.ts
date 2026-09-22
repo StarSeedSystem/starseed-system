@@ -56,6 +56,29 @@ export interface FilaMedidor {
     acciones: AccionMedidor[];
     /** True si pertenece a una ola cerrada (histórica), false o undefined si es operativa. */
     historica?: boolean;
+    /** (2026-09-22) Ficha ampliada de la fila: pares etiqueta/valor con enlace opcional.
+     *  Alex pidió ver, de cada agente, los archivos y el entorno en que trabaja, el modelo,
+     *  su enrutado y su historial; y de cada tarea, lo equivalente para su función. Va como
+     *  lista genérica y no como campos fijos porque cada medidor tiene cosas distintas que
+     *  contar, y porque así una ficha nueva no obliga a tocar el tipo otra vez. */
+    ficha?: DatoDeFicha[];
+    /** Historial de acciones, lo más reciente primero. */
+    historial?: SucesoDeFila[];
+}
+
+export interface DatoDeFicha {
+    etiqueta: string;
+    valor: string;
+    /** Enlace externo (GitHub) o interno del Mando. Opcional: muchos datos no llevan. */
+    enlace?: string;
+    /** Para pintar en rojo lo que merece mirarse. */
+    aviso?: boolean;
+}
+
+export interface SucesoDeFila {
+    t: string;
+    de: string;
+    texto: string;
 }
 
 export interface DetalleMedidor {
@@ -214,6 +237,192 @@ export function porqueBloqueada(
 }
 
 /** Coincidencia histórica por palabra entera; no basta para afirmar integración. */
+/** El enlace a una rama en GitHub, si sabemos de qué repo hablamos. */
+export function enlaceDeRama(repo?: string, rama?: string): string | undefined {
+    if (!repo || !rama) return undefined;
+    return `https://github.com/${repo}/tree/${rama}`;
+}
+
+/** El enlace a un commit en GitHub. */
+export function enlaceDeCommit(repo?: string, sha?: string): string | undefined {
+    if (!repo || !sha) return undefined;
+    return `https://github.com/${repo}/commit/${sha}`;
+}
+
+/**
+ * La ficha de un AGENTE: quién es, dónde trabaja y por dónde ha pasado.
+ *
+ * (2026-09-22, pedido por Alex) «los agentes deben mostrar más información de cada uno
+ * incluyendo los archivos y entornos que está en desarrollo e información de los modelos
+ * usados y sus tokens y los enrutamientos del agente y su historial».
+ *
+ * Todo lo de aquí sale de algo medido. Lo que NO tenemos se dice que no lo tenemos, en vez
+ * de rellenarlo: los agentes corren por `opencode` y `codex`, que no nos devuelven su
+ * cuenta de tokens, así que el gasto del agente se mide hoy en BYTES ESCRITOS y en tiempo.
+ * Inventar un número de tokens sería justo la clase de dato falso que llevamos días
+ * quitando del Puente.
+ */
+export function fichaDeAgente(
+    l: DatosMedidores["latidos"][number],
+    entrada: DatosMedidores["progreso"][string] | undefined,
+    obra: { rama?: string; archivos?: string[]; ruta?: string } | undefined,
+    repo?: string,
+): DatoDeFicha[] {
+    const ficha: DatoDeFicha[] = [];
+    const proveedor = l.proveedor ?? l.modelo.split("/")[0];
+    ficha.push({ etiqueta: "Modelo", valor: l.modelo });
+    ficha.push({ etiqueta: "Proveedor", valor: proveedor });
+    ficha.push({
+        etiqueta: "Entorno",
+        valor: l.donde === "mac" ? "Mac de Alex (local)" : l.donde,
+    });
+    if (l.medio) ficha.push({ etiqueta: "Medio", valor: l.medio });
+    if (l.cola) ficha.push({ etiqueta: "Cola", valor: l.cola });
+    ficha.push({ etiqueta: "Trabaja en", valor: l.tarea });
+    ficha.push({ etiqueta: "Fase", valor: l.fase });
+    if (typeof entrada?.intento === "number" && entrada.intento > 1) {
+        ficha.push({ etiqueta: "Intento", valor: `${entrada.intento}º`, aviso: true });
+    }
+
+    // El entorno de desarrollo real: su worktree y su rama.
+    if (obra?.ruta) ficha.push({ etiqueta: "Worktree", valor: obra.ruta });
+    if (obra?.rama) {
+        ficha.push({ etiqueta: "Rama", valor: obra.rama, enlace: enlaceDeRama(repo, obra.rama) });
+    }
+    const archivos = obra?.archivos ?? [];
+    if (archivos.length) {
+        ficha.push({ etiqueta: "Archivos que toca", valor: `${archivos.length}` });
+        for (const a of archivos.slice(0, 8)) ficha.push({ etiqueta: "·", valor: a });
+        if (archivos.length > 8) {
+            ficha.push({ etiqueta: "·", valor: `y ${archivos.length - 8} más` });
+        }
+    } else {
+        ficha.push({
+            etiqueta: "Archivos que toca",
+            valor: "ninguno todavía",
+            aviso: l.fase === "escribiendo",
+        });
+    }
+
+    // El enrutado: por qué modelos pasó antes de este.
+    const fallidos = entrada?.modelos_fallidos ?? [];
+    if (fallidos.length) {
+        ficha.push({
+            etiqueta: "Enrutado",
+            valor: `${fallidos.length} modelo(s) antes de este`,
+            aviso: fallidos.length >= 3,
+        });
+        for (const m of fallidos.slice(0, 6)) ficha.push({ etiqueta: "↳ no pudo", valor: m });
+    } else {
+        ficha.push({ etiqueta: "Enrutado", valor: "entró al primero" });
+    }
+
+    // Lo que gasta. Tokens NO: quien los sabría es opencode/codex y no nos los devuelve.
+    const escritos = bytesLegibles(l.bytesLog);
+    ficha.push({ etiqueta: "Escrito", valor: escritos ?? "nada aún" });
+    ficha.push({ etiqueta: "Lleva", valor: `${l.minutos} min` });
+    if (typeof l.quietoSegundos === "number") {
+        const min = Math.round(l.quietoSegundos / 60);
+        ficha.push({
+            etiqueta: "Sin escribir desde",
+            valor: min < 1 ? "ahora mismo" : `${min} min`,
+            aviso: l.quietoSegundos > 180,
+        });
+    }
+    ficha.push({
+        etiqueta: "Tokens",
+        valor: "no los publica su motor (opencode/codex); se mide por bytes y tiempo",
+    });
+    return ficha;
+}
+
+/**
+ * La ficha de una TAREA: qué tiene que hacer, con qué, y cómo va.
+ *
+ * Lo mismo que la del agente pero por el otro lado: aquí el sujeto es el trabajo. Lo que
+ * más falta hacía es comparar lo que la tarea DECLARÓ que iba a tocar con lo que está
+ * tocando de verdad: esa diferencia es la que nos ha costado horas toda la semana.
+ */
+export function fichaDeTarea(
+    id: string,
+    entrada: DatosMedidores["progreso"][string] | undefined,
+    declarados: string[] | undefined,
+    obra: { rama?: string; archivos?: string[]; ruta?: string } | undefined,
+    repo?: string,
+    latido?: DatosMedidores["latidos"][number],
+): DatoDeFicha[] {
+    const ficha: DatoDeFicha[] = [];
+    ficha.push({ etiqueta: "Estado", valor: entrada?.estado ?? "sin empezar" });
+    if (latido) {
+        ficha.push({ etiqueta: "Fase", valor: latido.fase });
+        ficha.push({ etiqueta: "La escribe", valor: latido.modelo });
+        ficha.push({
+            etiqueta: "Dónde",
+            valor: latido.donde === "mac" ? "Mac de Alex (local)" : latido.donde,
+        });
+    } else if (entrada?.modelo && entrada.modelo !== "-") {
+        ficha.push({ etiqueta: "Último modelo", valor: entrada.modelo });
+    }
+
+    const dec = declarados ?? [];
+    const tocados = obra?.archivos ?? [];
+    if (dec.length) {
+        ficha.push({ etiqueta: "Archivos declarados", valor: `${dec.length}` });
+        for (const a of dec.slice(0, 8)) {
+            // Lo que se declaró y no se ha tocado se marca: es la causa de rechazo más
+            // frecuente, y verla a tiempo evita perder una hora de agente.
+            const tocado = tocados.some((t) => t === a || t.endsWith(a) || a.endsWith(t));
+            ficha.push({
+                etiqueta: tocado ? "✓" : "·",
+                valor: a,
+                aviso: !tocado && tocados.length > 0,
+            });
+        }
+    }
+    if (tocados.length) {
+        const extra = tocados.filter((t) => !dec.some((a) => a === t || t.endsWith(a)));
+        if (extra.length) {
+            ficha.push({
+                etiqueta: "Toca sin declarar",
+                valor: extra.slice(0, 5).join(", "),
+                aviso: true,
+            });
+        }
+    }
+    if (entrada?.faltan?.length) {
+        ficha.push({ etiqueta: "Alcance", valor: `faltan ${entrada.faltan.join(", ")}`, aviso: true });
+    }
+
+    if (obra?.rama ?? entrada?.rama) {
+        const rama = obra?.rama ?? entrada?.rama;
+        ficha.push({ etiqueta: "Rama", valor: rama!, enlace: enlaceDeRama(repo, rama) });
+    }
+    if (entrada?.sha) {
+        ficha.push({
+            etiqueta: "Commit",
+            valor: entrada.sha.slice(0, 8),
+            enlace: enlaceDeCommit(repo, entrada.sha),
+        });
+    }
+    if (entrada?.revisor) {
+        ficha.push({
+            etiqueta: "Revisión",
+            valor: entrada.revisor,
+            aviso: entrada.revisor === "bloqueante",
+        });
+    }
+    if (entrada?.motivo_vb) ficha.push({ etiqueta: "Motivo", valor: entrada.motivo_vb });
+    if (typeof entrada?.segundos === "number" && entrada.segundos > 0) {
+        ficha.push({ etiqueta: "Tiempo de agente", valor: `${Math.round(entrada.segundos / 60)} min` });
+    }
+    const fallidos = entrada?.modelos_fallidos ?? [];
+    if (fallidos.length) {
+        ficha.push({ etiqueta: "Modelos que no pudieron", valor: fallidos.slice(0, 6).join(", ") });
+    }
+    if (entrada?.nota) ficha.push({ etiqueta: "Nota", valor: entrada.nota });
+    return ficha;
+}
+
 /** Bytes de log escritos, en palabras. Es la prueba de que un agente esta vivo de verdad. */
 export function bytesLegibles(bytes?: number): string | undefined {
     if (!Number.isFinite(Number(bytes)) || Number(bytes) <= 0) return undefined;
@@ -277,7 +486,24 @@ export function ejecutablesDeColas(
 }
 
 export interface DatosMedidores {
-    progreso: Record<string, { estado?: string; nota?: string; t?: string; modelo?: string }>;
+    progreso: Record<
+        string,
+        {
+            estado?: string;
+            nota?: string;
+            t?: string;
+            modelo?: string;
+            /** Los modelos que se probaron ANTES del que trabajó: el rastro del enrutado. */
+            modelos_fallidos?: string[];
+            segundos?: number;
+            rama?: string;
+            sha?: string;
+            revisor?: string;
+            motivo_vb?: string;
+            faltan?: string[];
+            intento?: number;
+        }
+    >;
     titulos: Record<string, string>;
     /** (2026-09-21) `quietoSegundos`, `bytesLog`, `cola` y `medio` los leia ya
      *  `leerLatidos` y la ruta los tiraba, asi que el medidor de agentes no tenia con que
@@ -307,6 +533,14 @@ export interface DatosMedidores {
     enjambrePausado?: boolean;
     disco?: { libreGb: number; usadoPct: number };
     memoria?: { libreMb: number; swapMb: number };
+    /** (2026-09-22) Lo que cada tarea viva está tocando AHORA en su worktree, y su
+     *  historial de mensajes. Lo lee la ruta (toca disco) y aquí solo se pinta. */
+    obras?: Record<string, { rama?: string; archivos?: string[]; ruta?: string }>;
+    historiales?: Record<string, SucesoDeFila[]>;
+    /** Archivos que la cola DECLARÓ para cada tarea, para poder comparar con los tocados. */
+    declarados?: Record<string, string[]>;
+    /** Dueño del repo en GitHub, para poder enlazar ramas y commits. */
+    repoGitHub?: string;
     /** Fila operativa opcional de tareas activas en colas. */
     fila?: FilaContable[];
 }
@@ -479,6 +713,7 @@ export function detalleDeMedidor(
                 // minutos sin escribir un byte no esta trabajando, esta pensando o colgado, y
                 // llamarle «escribiendo» es justo lo que impide verlo.
                 const callado = quieto !== null && quieto > 180;
+                const obra = d.obras?.[l.tarea];
                 return {
                     id: `${proveedor} · ${modelo}`,
                     titulo: `${proveedor} · ${modelo} en ${l.donde}`,
@@ -491,6 +726,8 @@ export function detalleDeMedidor(
                     porque: callado
                         ? `sin escribir desde hace ${Math.round((quieto ?? 0) / 60)} min`
                         : bytesLegibles(l.bytesLog),
+                    ficha: fichaDeAgente(l, d.progreso[l.tarea], obra, d.repoGitHub),
+                    historial: d.historiales?.[l.tarea]?.slice(0, 6),
                     acciones: [],
                 };
             });
@@ -524,6 +761,15 @@ export function detalleDeMedidor(
                     quien: `${l.proveedor ?? l.modelo.split("/")[0]} · ${l.modelo.split("/").slice(-1)[0]} en ${l.donde}`,
                     desde: `${l.minutos} min`,
                     porque: l.minutos > 45 ? "lleva mucho sin cambiar de fase" : undefined,
+                    ficha: fichaDeTarea(
+                        l.tarea,
+                        d.progreso[l.tarea],
+                        d.declarados?.[l.tarea],
+                        d.obras?.[l.tarea],
+                        d.repoGitHub,
+                        l,
+                    ),
+                    historial: d.historiales?.[l.tarea]?.slice(0, 6),
                     acciones: [],
                 };
             });
@@ -537,6 +783,8 @@ export function detalleDeMedidor(
                     porcentaje: 0,
                     porque: "figura en curso pero ningún agente late por ella: estado rancio",
                     desde: v.t,
+                    ficha: fichaDeTarea(id, v, d.declarados?.[id], d.obras?.[id], d.repoGitHub),
+                    historial: d.historiales?.[id]?.slice(0, 6),
                     acciones: accionesDeTarea(v.estado),
                 }));
             const todas = [...rancias, ...filas];
