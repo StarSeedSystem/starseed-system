@@ -1,4 +1,4 @@
-"""Pruebas para la puerta condicional de Python (p321Jb)."""
+"""Pruebas para la puerta condicional de Python (p321Jc)."""
 
 import os
 import sys

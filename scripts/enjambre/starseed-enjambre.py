@@ -3511,7 +3511,7 @@ def _primera_linea_error(salida):
 
 
 def _puerta_python(wt, tid=None, log=None):
-    """Tercera puerta condicional (p321Jb): ejecuta unittest de Python si la tarea tocó algún .py.
+    """Tercera puerta condicional (p321Jc): ejecuta unittest de Python si la tarea tocó algún .py.
 
     - Si entre los archivos que la tarea cambió hay alguno que acabe en .py, ejecuta:
       python3 -m unittest discover -s scripts/puente -p 'test_*.py'
@@ -6206,7 +6206,7 @@ def ejecutar(t, intento=1):
             limpiar_worktree(tid, borrar_rama=False)
             return
 
-    # Puerta condicional Python (p321Jb)
+    # Puerta condicional Python (p321Jc)
     rc_py, out_py = _puerta_python(wt, tid, log)
     if rc_py != 0:
         linea_err = _primera_linea_error(out_py)
