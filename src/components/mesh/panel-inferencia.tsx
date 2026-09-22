@@ -42,16 +42,18 @@ export function PanelInferencia({ compact = false }: PanelInferenciaProps) {
     }
   }, []);
 
-  const comprobarSalud = async (nodoTarget: NodoInferenciaLocal) => {
-    const nodoEnRegistro = nodos.find((n) => n.id === nodoTarget.id);
+  const comprobarSalud = async () => {
+    const nodoEnRegistro = nodos.find((n) => n.id === nodoSeleccionadoId);
     if (!nodoEnRegistro) {
       toast.error("El nodo seleccionado no pertenece al registro local.");
       return;
     }
 
-    setComprobandoId(nodoTarget.id);
+    setComprobandoId(nodoEnRegistro.id);
     const startTime = Date.now();
-    const urlModels = nodoConBase(nodoTarget, "/v1/models");
+    // La URL se deriva exclusivamente del host y puerto del registro local.
+    // baseUrl no participa: podría apuntar a un destino distinto al elegido.
+    const urlModels = nodoConBase({ ...nodoEnRegistro, baseUrl: "" }, "/v1/models");
 
     try {
       const controller = new AbortController();
@@ -67,16 +69,19 @@ export function PanelInferencia({ compact = false }: PanelInferenciaProps) {
       const ms = Date.now() - startTime;
       if (res.ok) {
         const data = (await res.json().catch(() => ({}))) as { data?: Array<{ id: string }> };
-        const modelosCount = Array.isArray(data.data) ? data.data.length : nodoTarget.modelos.length;
+        const modelos = Array.isArray(data.data)
+          ? data.data.map((modelo) => modelo.id).filter(Boolean)
+          : nodoEnRegistro.modelos;
 
         const nodoActualizado: NodoInferenciaLocal = {
-          ...nodoTarget,
+          ...nodoEnRegistro,
+          modelos,
           latenciaMs: ms,
           ultimoLatido: new Date().toISOString(),
         };
 
         setNodos((prev) => {
-          const nuevos = prev.map((n) => (n.id === nodoTarget.id ? nodoActualizado : n));
+          const nuevos = prev.map((n) => (n.id === nodoEnRegistro.id ? nodoActualizado : n));
           try {
             localStorage.setItem(NODOS_INFERENCIA_LOCAL_STORAGE, JSON.stringify(nuevos));
           } catch {
@@ -85,12 +90,12 @@ export function PanelInferencia({ compact = false }: PanelInferenciaProps) {
           return nuevos;
         });
 
-        toast.success(`Salud comprobada en ${nodoTarget.host}:${nodoTarget.puerto}: ${modelosCount} modelo(s) en ${ms} ms.`);
+        toast.success(`Salud comprobada en ${nodoEnRegistro.host}:${nodoEnRegistro.puerto}: ${modelos.length} modelo(s) en ${ms} ms.`);
       } else {
-        toast.error(`Error HTTP ${res.status} al verificar ${nodoTarget.host}:${nodoTarget.puerto}`);
+        toast.error(`Error HTTP ${res.status} al verificar ${nodoEnRegistro.host}:${nodoEnRegistro.puerto}`);
       }
     } catch {
-      toast.error(`Sin conexión con ${nodoTarget.host}:${nodoTarget.puerto}`);
+      toast.error(`Sin conexión con ${nodoEnRegistro.host}:${nodoEnRegistro.puerto}`);
     } finally {
       setComprobandoId(null);
     }
@@ -115,7 +120,7 @@ export function PanelInferencia({ compact = false }: PanelInferenciaProps) {
     );
   }
 
-  const nodoSeleccionado = nodos.find((n) => n.id === nodoSeleccionadoId) ?? nodos[0] ?? null;
+  const nodoSeleccionado = nodos.find((n) => n.id === nodoSeleccionadoId) ?? null;
 
   return (
     <div className="space-y-3 rounded-2xl border border-white/10 bg-black/30 p-4">
@@ -131,7 +136,7 @@ export function PanelInferencia({ compact = false }: PanelInferenciaProps) {
           </p>
         </div>
 
-        {/* Resumen metricas */}
+        {/* Resumen de métricas */}
         <div className="flex items-center gap-2">
           <span className="rounded-full bg-sky-500/15 px-2.5 py-1 text-[11px] font-semibold text-sky-200">
             {resumen.totales} {resumen.totales === 1 ? "nodo" : "nodos"} · {resumen.listos} {resumen.listos === 1 ? "listo" : "listos"}
@@ -139,7 +144,7 @@ export function PanelInferencia({ compact = false }: PanelInferenciaProps) {
         </div>
       </div>
 
-      {/* Selector de nodo + Boton Comprobar ahora */}
+      {/* Selector de nodo + Botón Comprobar ahora */}
       {nodos.length > 0 && (
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/10 bg-white/[0.03] p-2.5">
           <div className="flex items-center gap-2">
@@ -163,13 +168,22 @@ export function PanelInferencia({ compact = false }: PanelInferenciaProps) {
           <button
             type="button"
             disabled={!nodoSeleccionado || comprobandoId === nodoSeleccionado?.id}
-            onClick={() => nodoSeleccionado && void comprobarSalud(nodoSeleccionado)}
+            onClick={() => void comprobarSalud()}
+            aria-label={nodoSeleccionado
+              ? `Comprobar ahora ${nodoSeleccionado.host}:${nodoSeleccionado.puerto}`
+              : "Comprobar ahora el nodo PAIR elegido"}
             className={cn(
               "inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-sky-400/40 bg-sky-500/20 px-3 py-1.5 text-xs font-semibold text-sky-100 transition-colors duration-200 motion-reduce:transition-none hover:bg-sky-500/30 disabled:cursor-not-allowed disabled:opacity-50",
               comprobandoId && "cursor-wait"
             )}
           >
-            <RefreshCw className={cn("h-3.5 w-3.5", comprobandoId === nodoSeleccionado?.id && "animate-spin")} />
+            <RefreshCw
+              aria-hidden="true"
+              className={cn(
+                "h-3.5 w-3.5",
+                comprobandoId === nodoSeleccionado?.id && "animate-spin motion-reduce:animate-none"
+              )}
+            />
             Comprobar ahora
           </button>
         </div>
@@ -188,8 +202,6 @@ export function PanelInferencia({ compact = false }: PanelInferenciaProps) {
         <div className="grid gap-3 sm:grid-cols-2">
           {nodos.map((nodo) => {
             const listo = esNodoListo(nodo);
-            const esComprobando = comprobandoId === nodo.id;
-
             return (
               <div
                 key={nodo.id}
@@ -258,7 +270,7 @@ export function PanelInferencia({ compact = false }: PanelInferenciaProps) {
                   </div>
                 </div>
 
-                {/* Metricas: RAM, Latencia, Carga, Ultimo Latido */}
+                {/* Métricas: RAM, latencia, carga y último latido */}
                 <div className="grid grid-cols-2 gap-1.5 border-t border-white/10 pt-2 text-[10px] text-white/60">
                   <div className="flex items-center gap-1">
                     <Database className="h-3 w-3 text-white/40" />
@@ -275,22 +287,6 @@ export function PanelInferencia({ compact = false }: PanelInferenciaProps) {
                   <div className="flex items-center gap-1 truncate" title={nodo.ultimoLatido}>
                     <span>Latido: <strong className="text-white/90">{new Date(nodo.ultimoLatido).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</strong></span>
                   </div>
-                </div>
-
-                {/* Boton Comprobar individual */}
-                <div className="pt-1 text-right">
-                  <button
-                    type="button"
-                    disabled={esComprobando}
-                    onClick={() => void comprobarSalud(nodo)}
-                    className={cn(
-                      "inline-flex cursor-pointer items-center gap-1 rounded-md border border-white/15 bg-white/5 px-2 py-1 text-[10px] font-semibold text-white/80 transition-colors duration-150 hover:bg-white/15 hover:text-white motion-reduce:transition-none disabled:cursor-not-allowed disabled:opacity-50",
-                      esComprobando && "cursor-wait"
-                    )}
-                  >
-                    <RefreshCw className={cn("h-3 w-3", esComprobando && "animate-spin")} />
-                    Comprobar
-                  </button>
                 </div>
               </div>
             );
