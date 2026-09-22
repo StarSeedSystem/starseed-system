@@ -1,5 +1,25 @@
 import { defineConfig } from "vitest/config";
+import { mkdirSync, mkdtempSync } from "node:fs";
 import path from "node:path";
+
+// AISLAMIENTO DEL ENJAMBRE VIVO (2026-09-22).
+//
+// `colas-decidir.test.ts` escribía sus colas de mentira en `starseed_memory_root/olas/`
+// —la carpeta del enjambre de VERDAD— y el vigilante las recogía: un agente real pasó 86
+// minutos en `tReintento`, una tarea inventada por una prueba, y acabó parado esperando el
+// visto bueno de Alex. Todo lo del Puente resuelve su raíz con `raizDelProyecto()`, que
+// respeta STARSEED_ROOT, así que aquí se apunta a un temporal ANTES de que corra nada.
+//
+// Se hace en la configuración y no en un setupFile porque el entorno jsdom shimea
+// `node:fs` y `node:os`: allí no se puede crear el temporal (`os.tmpdir is not a function`
+// tumbó 28 archivos al montar). Esto corre en Node, una sola vez, y llega a las pruebas
+// como una variable de entorno más.
+const raizDePruebas = mkdtempSync(
+  path.join(process.env.TMPDIR || "/tmp", "starseed-pruebas-"),
+);
+for (const sub of ["starseed_memory_root/olas", "starseed_memory_root/mando", "enjambre/colas"]) {
+  mkdirSync(path.join(raizDePruebas, sub), { recursive: true });
+}
 
 // StarSeed OS — configuración de Vitest.
 //
@@ -24,9 +44,10 @@ export default defineConfig({
     // temporal antes de que corra nada. Ver el porqué, con nombres y minutos, en
     // vitest.setup.ts — una prueba llegó a poner a un agente de verdad a trabajar
     // 86 minutos en una tarea inventada.
-    setupFiles: ["./vitest.setup.ts"],
     env: {
       NODE_ENV: "test",
+      // Ver el comentario de arriba: ninguna prueba puede tocar las colas del enjambre.
+      STARSEED_ROOT: raizDePruebas,
     },
     // ⚠️ VERSIÓN DE NODE (2026-09-14). Esta suite necesita Node ≥ 20.19 — está
     // en `.nvmrc` y en `engines` de package.json. Con el Node v20.17 que había
