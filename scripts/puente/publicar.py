@@ -412,6 +412,14 @@ def main():
     ):
         diario.cerrar("fallo", motivo_de("python"))
         return 1
+    # (2026-09-22) `scripts/enjambre` NO estaba en esta puerta, y sus pruebas son de pytest.
+    # Por eso main podía estar «en verde» aquí mientras la puerta de CADA AGENTE, que sí
+    # miraba ese directorio (y con unittest, que no sabe ejecutarlas), se ponía roja y tiraba
+    # su trabajo. Dos sitios corriendo las mismas pruebas de dos maneras: la enfermedad de
+    # siempre. Ahora main pasa por lo mismo que los agentes, y con el mismo corredor.
+    if not puerta(diario, "python", [sys.executable, "-m", "pytest", "scripts/enjambre", "-q"], timeout=900):
+        diario.cerrar("fallo", motivo_de("python"))
+        return 1
 
     hace_falta, porque = necesita_build()
     if not hace_falta:

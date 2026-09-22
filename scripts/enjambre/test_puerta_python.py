@@ -98,3 +98,34 @@ class TestPuertaPython(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestCadaDirectorioConSuCorredor(unittest.TestCase):
+    """(2026-09-22, MEDIDO) Aquí se tiraba el trabajo de la nube entera.
+
+    La puerta del agente corría `unittest discover` sobre `scripts/enjambre`, donde viven
+    pruebas escritas para PYTEST (`test_revisores.py` usa `@pytest.fixture(autouse=True)`).
+    unittest no ejecuta esas fixtures, así que saltaban siete errores del tipo:
+
+        AttributeError: 'CandidatosTest' object has no attribute 'salud'
+
+    Con pytest, ese mismo archivo: 10 passed. Las cinco tareas de la cola de la nube de las
+    10:03 —TK1c, c313_QW4, c313_QW6, RM3, RM4— murieron con el MISMO `fallo_tests`, por una
+    prueba que en la Mac estaba verde y que no tenía nada que ver con ellas.
+    """
+
+    def test_el_enjambre_se_prueba_con_pytest(self):
+        orden = enjambre.orden_de_pruebas("scripts/enjambre", "python3")
+        self.assertIn("pytest", orden)
+        self.assertNotIn("unittest", orden)
+
+    def test_da_igual_la_barra_final(self):
+        self.assertIn("pytest", enjambre.orden_de_pruebas("scripts/enjambre/", "python3"))
+
+    def test_el_puente_sigue_con_unittest(self):
+        orden = enjambre.orden_de_pruebas("scripts/puente", "python3")
+        self.assertIn("unittest", orden)
+        self.assertNotIn("pytest", orden)
+
+    def test_usa_el_python_que_se_le_pasa(self):
+        self.assertEqual(enjambre.orden_de_pruebas("scripts/puente", "/usr/bin/python3")[0], "/usr/bin/python3")

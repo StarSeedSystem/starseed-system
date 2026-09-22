@@ -3510,12 +3510,35 @@ def _primera_linea_error(salida):
     return lineas[0][:120]
 
 
+def orden_de_pruebas(directorio, python_bin="python3"):
+    """PURA: con qué se prueba cada directorio. Cada uno con SU corredor, no con el de al lado.
+
+    (2026-09-22, MEDIDO) Aquí se iba a la basura el trabajo de la nube entera. Esta puerta
+    corría `unittest discover` sobre `scripts/enjambre`, y ahí viven pruebas escritas para
+    PYTEST —`test_revisores.py` usa `@pytest.fixture(autouse=True)`—. unittest no ejecuta
+    fixtures de pytest, así que `self.salud` no existía y saltaban siete errores:
+
+        AttributeError: 'CandidatosTest' object has no attribute 'salud'
+        ERROR: test_excluye_agotados_y_enfriandose (test_revisores.CandidatosTest…)
+
+    Con pytest ese mismo archivo da 10 passed. Resultado: CUALQUIER tarea que tocara algo
+    de `scripts/enjambre/` moría en su puerta por una prueba que en la Mac estaba verde, sin
+    que tuviera nada que ver con lo que había hecho. Medido el 22-09: las cinco tareas de la
+    cola de la nube de las 10:03 —TK1c, c313_QW4, c313_QW6, RM3, RM4— con el MISMO
+    `fallo_tests`, y ocho runs de la nube «success» de 45 minutos que dejaron dos commits.
+    """
+    if str(directorio).rstrip("/").endswith("scripts/enjambre"):
+        return [python_bin, "-m", "pytest", directorio, "-q"]
+    return [python_bin, "-m", "unittest", "discover", "-s", directorio, "-p", "test_*.py"]
+
+
 def _puerta_python(wt, tid=None, log=None):
     """Tercera puerta condicional (p321Jc): ejecuta unittest de Python si la tarea tocó algún .py.
 
     - Si entre los archivos que la tarea cambió hay alguno que acabe en .py, ejecuta:
       python3 -m unittest discover -s scripts/puente -p 'test_*.py'
-      (y si tocó scripts/enjambre/, también ese directorio).
+      (y si tocó scripts/enjambre/, también ese directorio, pero CON PYTEST: ver
+      `orden_de_pruebas`, que es donde está la razón y el destrozo que causaba).
     - Se ejecuta sobre el worktree de la tarea (wt).
     - Si python3 no existe o la suite no se puede lanzar, avisa en el canal y no bloquea.
     """
@@ -3534,12 +3557,7 @@ def _puerta_python(wt, tid=None, log=None):
 
     for d in directorios:
         try:
-            rc, out = sh(
-                [python_bin, "-m", "unittest", "discover", "-s", d, "-p", "test_*.py"],
-                cwd=wt,
-                timeout=60,
-                log=log,
-            )
+            rc, out = sh(orden_de_pruebas(d, python_bin), cwd=wt, timeout=120, log=log)
             if rc != 0:
                 rc_total = rc_total or rc
             salidas.append(out or "")
