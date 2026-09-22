@@ -2438,3 +2438,18 @@
 - `p314B` — pruebas en rojo: ERROR: test_excluye_agotados_y_enfriandose (test_revisores.CandidatosTest.test_excluye_agotados_y_enfriandose)
 - `p315A` — pruebas en rojo: ERROR: test_excluye_agotados_y_enfriandose (test_revisores.CandidatosTest.test_excluye_agotados_y_enfriandose)
 - `JV8` — pruebas en rojo: ERROR: test_excluye_agotados_y_enfriandose (test_revisores.CandidatosTest.test_excluye_agotados_y_enfriandose)
+
+## 2026-09-22 09:30 · auto-0922-092631
+
+**Resultado.** 0 de 5 integradas. 5 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 5 tareas se fueron por lo mismo — pruebas en rojo (c313_QW5, p312C, p314A, p314B, p315A). Es 100 % de la ola.
+- nvidia/moonshotai/kimi-k3 no integró ninguna de sus 3 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `c313_QW5` — pruebas en rojo: ERROR: test_excluye_agotados_y_enfriandose (test_revisores.CandidatosTest.test_excluye_agotados_y_enfriandose)
+- `p312C` — pruebas en rojo: ERROR: test_excluye_agotados_y_enfriandose (test_revisores.CandidatosTest.test_excluye_agotados_y_enfriandose)
+- `p314A` — pruebas en rojo: vitest falla (rama conservada)
+- `p314B` — pruebas en rojo: ERROR: test_excluye_agotados_y_enfriandose (test_revisores.CandidatosTest.test_excluye_agotados_y_enfriandose)
+- `p315A` — pruebas en rojo: ERROR: test_excluye_agotados_y_enfriandose (test_revisores.CandidatosTest.test_excluye_agotados_y_enfriandose)
