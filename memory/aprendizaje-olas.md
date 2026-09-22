@@ -2617,3 +2617,25 @@
 - `AGR2c` — pruebas en rojo: ERROR: test_excluye_agotados_y_enfriandose (test_revisores.CandidatosTest.test_excluye_agotados_y_enfriandose)
 - `TK1c` — pruebas en rojo: ERROR: test_excluye_agotados_y_enfriandose (test_revisores.CandidatosTest.test_excluye_agotados_y_enfriandose)
 - `TK2c` — pruebas en rojo: ERROR: test_excluye_agotados_y_enfriandose (test_revisores.CandidatosTest.test_excluye_agotados_y_enfriandose)
+
+## 2026-09-22 16:21 · auto-0922-152953
+
+**Lo que se pidió.** top 3 accionables
+
+**Resultado.** 0 de 9 integradas. 9 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 8 tareas se fueron por lo mismo — pruebas en rojo (RM3, RM4, c313_QW4, c313_QW6, AGR2c, TK1c). Es 89 % de la ola.
+- google/gemini-3.6-flash no integró ninguna de sus 5 tareas.
+- apinex/free/gemini-3.8-flash no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `RM3` — pruebas en rojo: ERROR: test_excluye_agotados_y_enfriandose (test_revisores.CandidatosTest.test_excluye_agotados_y_enfriandose)
+- `RM4` — pruebas en rojo: ERROR: test_excluye_agotados_y_enfriandose (test_revisores.CandidatosTest.test_excluye_agotados_y_enfriandose)
+- `c313_QW4` — pruebas en rojo: ERROR: test_excluye_agotados_y_enfriandose (test_revisores.CandidatosTest.test_excluye_agotados_y_enfriandose)
+- `c313_QW6` — pruebas en rojo: ERROR: test_excluye_agotados_y_enfriandose (test_revisores.CandidatosTest.test_excluye_agotados_y_enfriandose)
+- `DR0922-1` — no escribió nada
+- `AGR2c` — pruebas en rojo: ERROR: test_excluye_agotados_y_enfriandose (test_revisores.CandidatosTest.test_excluye_agotados_y_enfriandose)
+- `TK1c` — pruebas en rojo: ERROR: test_excluye_agotados_y_enfriandose (test_revisores.CandidatosTest.test_excluye_agotados_y_enfriandose)
+- `TK2c` — pruebas en rojo: ERROR: test_excluye_agotados_y_enfriandose (test_revisores.CandidatosTest.test_excluye_agotados_y_enfriandose)
+- `p314Ab` — pruebas en rojo: ERROR: test_excluye_agotados_y_enfriandose (test_revisores.CandidatosTest.test_excluye_agotados_y_enfriandose)
