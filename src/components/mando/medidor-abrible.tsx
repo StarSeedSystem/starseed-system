@@ -298,17 +298,18 @@ const SANGRADAS = new Set(["·", "✓", "↳ no pudo"]);
  */
 function FichaDesplegable({ f }: { f: FilaMedidor }) {
     // Los datos llegan del detalle del medidor; no inventamos nada: si no hay
-    // ficha ni historial, no se pinta nada para que la lista siga limpia.
+    // ficha, no se pinta nada aunque llegue historial: la fila debe conservar
+    // exactamente su aspecto anterior cuando no trae el detalle ampliado.
     const ficha = f.ficha ?? [];
     const historial = f.historial ?? [];
-    if (!ficha.length && !historial.length) return null;
+    if (!ficha.length) return null;
     return (
         <details className="group mt-1">
             <summary className="cursor-pointer list-none text-[10px] text-cyan-200/60 transition hover:text-cyan-200/90">
                 <span className="inline-block transition group-open:rotate-90" aria-hidden>
                     ▸
                 </span>{" "}
-                {ficha.length ? `ficha (${ficha.length})` : "historial"}
+                {`ficha (${ficha.length})`}
                 {historial.length ? ` · ${historial.length} en el historial` : ""}
             </summary>
 
@@ -320,15 +321,15 @@ function FichaDesplegable({ f }: { f: FilaMedidor }) {
                         // Las sub-líneas («·», «✓», «↳ no pudo») se sangran con pl-3
                         // para que se lean como continuaciones de la etiqueta de arriba.
                         const sangrada = SANGRADAS.has(dato.etiqueta);
-                        // El color de aviso es el MISMO token que usa `porque` en las filas
-                        // (text-amber-200/90): no inventamos otro para mantener coherencia.
-                        const tono = dato.aviso ? "text-amber-200/90" : "text-white/70";
+                        // Los avisos usan el mismo rojo de peligro que las acciones destructivas
+                        // del Mando, para que su significado visual no cambie dentro de la ficha.
+                        const tono = dato.aviso ? "text-rose-200" : "text-white/70";
                         return (
                             <Fragment key={`${f.id}-ficha-${i}-${dato.etiqueta}`}>
                                 <dt
                                     className={`${sangrada ? "pl-3 text-white/25" : "text-white/40"} whitespace-nowrap`}
                                 >
-                                    {dato.etiqueta}
+                                    {dato.etiqueta}:
                                 </dt>
                                 <dd className={`${tono} break-words`}>
                                     {/* Si hay enlace, abrimos en pestaña nueva con rel seguro. */}
@@ -337,7 +338,7 @@ function FichaDesplegable({ f }: { f: FilaMedidor }) {
                                             href={dato.enlace}
                                             target="_blank"
                                             rel="noopener noreferrer"
-                                            className="underline decoration-dotted underline-offset-2 hover:text-cyan-200"
+                                            className="cursor-pointer underline decoration-dotted underline-offset-2 hover:text-cyan-200"
                                         >
                                             {dato.valor}
                                         </a>
