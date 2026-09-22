@@ -1,5 +1,8 @@
 # -*- coding: utf-8 -*-
 """El reconstructor del Mando: cuándo compilar y, sobre todo, cuándo NO insistir."""
+import os
+import shutil
+import tempfile
 import unittest
 
 import reconstruir_mando as R
@@ -184,3 +187,93 @@ class NoCompilarDosVecesLoMismo(unittest.TestCase):
 
     def test_publicacion_sin_paso_de_build_no_frena(self):
         self.assertFalse(R.publicacion_va_a_compilar({"estado": "corriendo", "pasos": []}))
+
+
+class CompilarSinTirarLoServido(unittest.TestCase):
+    """(2026-09-22) «Internal Server Error» durante toda la compilación.
+
+    `next start` lee `.next` EN CALIENTE. Compilar encima del directorio servido lo borra
+    y lo reescribe, y mientras tanto el Mando contesta:
+
+        ⨯ Error: ENOENT: no such file or directory, open '.next/required-server-files.json'
+
+    Desde hoy se compila en `.next-build` y el cambio se hace con el servidor parado.
+    """
+
+    def setUp(self):
+        self.raiz = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.raiz, True)
+
+    def _build(self, dist, build_id, listo=True, cuando=None):
+        os.makedirs(os.path.join(self.raiz, dist), exist_ok=True)
+        rutas = [os.path.join(self.raiz, dist, "BUILD_ID")]
+        with open(rutas[0], "w", encoding="utf-8") as f:
+            f.write(build_id)
+        if listo:
+            rutas.append(os.path.join(self.raiz, dist, R.MARCA_LISTO))
+            with open(rutas[-1], "w", encoding="utf-8") as f:
+                f.write("ya")
+        if cuando is not None:  # relojes explícitos: el test no depende del disco
+            for r in rutas:
+                os.utime(r, (cuando, cuando))
+
+    # ── la marca ────────────────────────────────────────────────────────────
+    def test_build_a_medias_no_esta_terminado(self):
+        """Un `next build` interrumpido también deja BUILD_ID: no basta con mirar eso."""
+        self._build(R.DIST_BUILD, "aaa", listo=False)
+        self.assertFalse(R.build_terminado(self.raiz))
+
+    def test_build_con_marca_esta_terminado(self):
+        self._build(R.DIST_BUILD, "aaa")
+        self.assertTrue(R.build_terminado(self.raiz))
+
+    def test_sin_directorio_no_esta_terminado(self):
+        self.assertFalse(R.build_terminado(self.raiz))
+
+    def test_marcar_listo_escribe_la_marca(self):
+        self._build(R.DIST_BUILD, "aaa", listo=False)
+        R.marcar_listo(self.raiz)
+        self.assertTrue(R.build_terminado(self.raiz))
+
+    # ── de dónde se lee el identificador ────────────────────────────────────
+    def test_id_lee_el_servido_por_defecto(self):
+        self._build(R.DIST_SERVIDO, "servido")
+        self._build(R.DIST_BUILD, "recien")
+        self.assertEqual(R.id_del_build(self.raiz), "servido")
+
+    def test_id_puede_leer_el_recien_compilado(self):
+        self._build(R.DIST_SERVIDO, "servido")
+        self._build(R.DIST_BUILD, "recien")
+        self.assertEqual(R.id_del_build(self.raiz, dist=R.DIST_BUILD), "recien")
+
+    # ── qué build cuenta como «lo más nuevo que hay» ────────────────────────
+    def test_mtime_cuenta_el_build_que_espera_el_cambio(self):
+        """Si no, se recompilaría una y otra vez lo que ya está hecho esperando turno."""
+        self._build(R.DIST_SERVIDO, "viejo", cuando=1000)
+        viejo = os.stat(os.path.join(self.raiz, R.DIST_SERVIDO, "BUILD_ID")).st_mtime_ns
+        self._build(R.DIST_BUILD, "nuevo", cuando=2000)
+        self.assertGreater(R.mtime_del_build(self.raiz), viejo)
+
+    def test_mtime_ignora_un_build_a_medias(self):
+        self._build(R.DIST_SERVIDO, "viejo", cuando=1000)
+        viejo = os.stat(os.path.join(self.raiz, R.DIST_SERVIDO, "BUILD_ID")).st_mtime_ns
+        self._build(R.DIST_BUILD, "nuevo", listo=False, cuando=2000)
+        self.assertEqual(R.mtime_del_build(self.raiz), viejo)
+
+    def test_mtime_sin_ningun_build_es_none(self):
+        self.assertIsNone(R.mtime_del_build(self.raiz))
+
+    # ── el manifiesto no puede quedar mintiendo ─────────────────────────────
+    def test_normalizar_dist_arregla_el_directorio_del_manifiesto(self):
+        texto = '{"config":{"distDir":".next-build"},"files":[".next-build/routes.json"]}'
+        self.assertEqual(
+            R.normalizar_dist(texto),
+            '{"config":{"distDir":".next"},"files":[".next/routes.json"]}')
+
+    def test_normalizar_dist_no_toca_un_manifiesto_ya_correcto(self):
+        texto = '{"config":{"distDir":".next"},"files":[".next/routes.json"]}'
+        self.assertEqual(R.normalizar_dist(texto), texto)
+
+    def test_normalizar_dist_no_estropea_nombres_parecidos(self):
+        texto = '{"x":".next-buildero/a"}'
+        self.assertEqual(R.normalizar_dist(texto), texto)

@@ -42,6 +42,11 @@ PUBLICACION = os.path.join(RAIZ, "starseed_memory_root", "mando", "publicacion-e
 INTERVALO_S = int(os.environ.get("STARSEED_RECONSTRUIR_S", "180"))
 ESPERA_TRAS_FALLO_S = int(os.environ.get("STARSEED_RECONSTRUIR_ESPERA_FALLO_S", "3600"))
 SERVICIO = "com.starseed.mando"
+#: Dónde compila quien no quiere tirar lo que se está sirviendo. Ver `next.config.ts`.
+DIST_BUILD = os.environ.get("STARSEED_DIST_BUILD", ".next-build")
+DIST_SERVIDO = ".next"
+#: La escribe quien compiló, y solo si el compilador salió con 0. Ver `build_terminado`.
+MARCA_LISTO = ".listo"
 #: Lo que de verdad entra en el build. `scripts/` y `starseed_memory_root/` NO están:
 #: cambian cada minuto por el propio enjambre y reconstruirían la pantalla sin motivo.
 FUENTES = ("src", "public")
@@ -105,22 +110,66 @@ def cuantas_mas_nuevas(mtime_build, entradas) -> int:
 
 
 def mtime_del_build(raiz=RAIZ):
-    """El instante del build que sirve `next start`, o None si no hay build."""
-    for rel in (os.path.join(".next", "BUILD_ID"), os.path.join(".next", "build-manifest.json")):
-        try:
-            return os.stat(os.path.join(raiz, rel)).st_mtime_ns
-        except OSError:
-            continue
-    return None
+    """El instante del build MÁS RECIENTE que hay en disco, servido o recién compilado.
+
+    (2026-09-22) Desde que se compila aparte hay dos sitios: `.next` (lo que la pantalla
+    está sirviendo) y `.next-build` (lo que acaba de salir del compilador y todavía no se
+    ha puesto en su sitio). Mirar solo el servido haría recompilar una y otra vez lo que ya
+    está hecho y esperando el cambio.
+    """
+    tiempos = []
+    candidatos = ((DIST_SERVIDO, ("BUILD_ID", "build-manifest.json")),
+                  # Del que aún no se sirve solo vale la marca: un `next build` a medias
+                  # también tiene BUILD_ID, y contarlo daría «al día» con nada hecho.
+                  (DIST_BUILD, (MARCA_LISTO,)))
+    for dist, nombres in candidatos:
+        for nombre in nombres:
+            try:
+                tiempos.append(os.stat(os.path.join(raiz, dist, nombre)).st_mtime_ns)
+                break
+            except OSError:
+                continue
+    return max(tiempos) if tiempos else None
 
 
-def id_del_build(raiz=RAIZ):
-    """El identificador del build compilado (`.next/BUILD_ID`), o None si no hay."""
+def marcar_listo(raiz=RAIZ, dist=DIST_BUILD) -> None:
+    """Deja constancia de que ese build terminó entero."""
     try:
-        with open(os.path.join(raiz, ".next", "BUILD_ID"), encoding="utf-8") as f:
+        with open(os.path.join(raiz, dist, MARCA_LISTO), "w", encoding="utf-8") as f:
+            f.write(time.strftime("%Y-%m-%d %H:%M:%S"))
+    except OSError:
+        pass
+
+
+def build_terminado(raiz=RAIZ, dist=DIST_BUILD) -> bool:
+    """¿Hay ahí un build ENTERO? Un `next build` a medias también tiene BUILD_ID.
+
+    (2026-09-22) El reconstructor mira cada 180 s y `publicar.py` compila por su cuenta:
+    sin esta marca los dos pueden cruzarse y poner en la pantalla un build a medio
+    escribir —que es la misma enfermedad que veníamos a curar, con otro disfraz.
+    """
+    return (os.path.exists(os.path.join(raiz, dist, MARCA_LISTO))
+            and os.path.exists(os.path.join(raiz, dist, "BUILD_ID")))
+
+
+def id_del_build(raiz=RAIZ, dist=DIST_SERVIDO):
+    """El identificador del build que hay en `dist/BUILD_ID`, o None si no hay."""
+    try:
+        with open(os.path.join(raiz, dist, "BUILD_ID"), encoding="utf-8") as f:
             return f.read().strip() or None
     except OSError:
         return None
+
+
+def normalizar_dist(texto, de=DIST_BUILD, a=DIST_SERVIDO) -> str:
+    """PURA: deja el manifiesto del build hablando del directorio donde acabó.
+
+    `next start` lee su configuración de `next.config.ts`, no del manifiesto, así que esto
+    no cambia cómo se sirve; pero un `required-server-files.json` que sigue diciendo
+    `.next-build` después del cambio es una mentira escrita en disco, y de esas ya hemos
+    tenido bastantes.
+    """
+    return texto.replace('"%s/' % de, '"%s/' % a).replace('"%s"' % de, '"%s"' % a)
 
 
 def decidir_reinicio(build_id, build_servido):
@@ -235,6 +284,11 @@ def reconstruir(huella_actual) -> dict:
     entorno = dict(os.environ)
     # 2 GB por defecto no bastan con el enjambre vivo: el build muere por memoria.
     entorno.setdefault("NODE_OPTIONS", "--max-old-space-size=5120")
+    # SE COMPILA APARTE. `next start` lee de `.next` en caliente, así que compilar encima
+    # del directorio servido daba «Internal Server Error» durante toda la compilación
+    # (ENOENT: required-server-files.json). Aquí se construye en `.next-build` y el
+    # servidor sigue con el `.next` de siempre hasta el cambio. (2026-09-22)
+    entorno["STARSEED_DIST"] = DIST_BUILD
     try:
         r = subprocess.run(
             [sys.executable, os.path.join(RAIZ, "scripts", "puente", "con-turno.py"),
@@ -261,15 +315,57 @@ def reconstruir(huella_actual) -> dict:
                                        segundos, "" if ok else ": " + (datos["error"] or "")),
           flush=True)
     if ok:
+        marcar_listo()
         reiniciar_mando()
     return datos
 
 
+def intercambiar_build() -> bool:
+    """Pone el build recién hecho en el sitio del servido. Solo si hay uno nuevo.
+
+    (2026-09-22) El cambio se hace con el servidor PARADO —entre el `bootout` y el
+    `bootstrap` del reinicio— porque `next start` lee de `.next` en caliente: cambiarlo
+    debajo de un servidor vivo es exactamente el «Internal Server Error» que esto viene a
+    quitar. La carpeta vieja se guarda como `.next-anterior` hasta el siguiente cambio:
+    si el build nuevo estuviera roto, ahí está el que funcionaba.
+    """
+    nuevo = os.path.join(RAIZ, DIST_BUILD)
+    servido = os.path.join(RAIZ, DIST_SERVIDO)
+    anterior = os.path.join(RAIZ, ".next-anterior")
+    if not build_terminado():
+        return False
+    try:
+        if os.path.exists(anterior):
+            subprocess.run(["rm", "-rf", anterior], check=False)
+        if os.path.exists(servido):
+            os.rename(servido, anterior)
+        os.rename(nuevo, servido)
+    except OSError as e:
+        print("no pude cambiar el build de sitio: %s" % e, flush=True)
+        return False
+    try:
+        manifiesto = os.path.join(servido, "required-server-files.json")
+        with open(manifiesto, encoding="utf-8") as f:
+            texto = f.read()
+        arreglado = normalizar_dist(texto)
+        if arreglado != texto:
+            with open(manifiesto, "w", encoding="utf-8") as f:
+                f.write(arreglado)
+    except OSError:
+        pass
+    return True
+
+
 def reiniciar_mando() -> None:
-    """Reinicia el servicio del Mando y anota QUÉ build queda servido."""
-    subprocess.run(["launchctl", "kickstart", "-k",
-                    "gui/%d/%s" % (os.getuid(), SERVICIO)],
-                   capture_output=True, text=True)
+    """Para el Mando, pone el build nuevo en su sitio y lo vuelve a arrancar."""
+    etiqueta = "gui/%d/%s" % (os.getuid(), SERVICIO)
+    # Parar → cambiar → arrancar. `kickstart -k` haría las dos puntas en un solo golpe y
+    # no deja hueco para el cambio, así que aquí se hace en tres pasos.
+    subprocess.run(["launchctl", "kill", "SIGTERM", etiqueta], capture_output=True, text=True)
+    time.sleep(2)
+    if intercambiar_build():
+        print("build nuevo puesto en su sitio (el anterior queda en .next-anterior)", flush=True)
+    subprocess.run(["launchctl", "kickstart", etiqueta], capture_output=True, text=True)
     servido = id_del_build()
     # `estado` se cierra aquí a propósito: solo se reinicia tras un build bueno o para
     # servir uno ajeno que ya está en el disco, así que en los dos casos la pantalla queda
@@ -296,7 +392,9 @@ def una_pasada() -> bool:
         return True
 
     # Compilar no es servir: si otro compiló (publicar.py), basta con reiniciar.
-    reinicia, porque = decidir_reinicio(id_del_build(), estado.get("build_servido"))
+    pendiente = id_del_build(dist=DIST_BUILD) if build_terminado() else None
+    reinicia, porque = decidir_reinicio(pendiente or id_del_build(),
+                                        estado.get("build_servido"))
     if reinicia:
         print("[%s] REINICIO: %s" % (time.strftime("%H:%M"), porque), flush=True)
         reiniciar_mando()

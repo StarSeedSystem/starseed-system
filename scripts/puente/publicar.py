@@ -293,7 +293,19 @@ def _reiniciar_mando(diario=None):
 
     El HTML llega con un 200 impecable y la página no carga nunca. Desde fuera parece que
     el Mando está bien: responde. Por eso hay que reiniciarlo aquí y no fiarse del 200.
+
+    (2026-09-22) Peor todavía: mientras la build corría, el directorio servido no existía
+    y Alex veía «Internal Server Error» durante los cuatro minutos enteros. Desde hoy la
+    puerta compila en `.next-build` (STARSEED_DIST) y es `reconstruir_mando` quien cambia
+    el build de sitio con el servidor parado. El parón pasa de minutos a segundos.
     """
+    try:
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        import reconstruir_mando as _rm
+        _rm.reiniciar_mando()
+        return True
+    except Exception:
+        pass
     try:
         uid = os.getuid()
         r = subprocess.run(
@@ -407,6 +419,8 @@ def main():
     else:
         env = entorno()
         env["NODE_OPTIONS"] = "--max-old-space-size=4096"  # con 3072 se queda sin memoria
+        # NO SE COMPILA ENCIMA DE LO QUE SE ESTÁ SIRVIENDO. Ver `_reiniciar_mando`.
+        env["STARSEED_DIST"] = ".next-build"
         t0 = time.time()
         diario.marcar("build", "corriendo", porque)
         rc, salida = correr(["npx", "next", "build"], timeout=3600, env=env)
@@ -415,6 +429,12 @@ def main():
             diario.cerrar("fallo", "no se publicó: la build falló")
             return 1
         diario.marcar("build", "ok", resumen_salida("build", salida), time.time() - t0)
+        try:
+            sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+            import reconstruir_mando as _rm
+            _rm.marcar_listo()
+        except Exception:
+            pass
         _reiniciar_mando(diario)
 
     # Las puertas terminaron: el enjambre puede volver a compilar mientras

@@ -3,6 +3,19 @@ import path from 'path';
 
 const nextConfig: NextConfig = {
   /* config options here */
+  // COMPILAR SIN TIRAR LO QUE SE ESTÁ SIRVIENDO (2026-09-22).
+  //
+  // El Mando corre con `next start`, que lee de `.next` EN CALIENTE, no solo al arrancar.
+  // Cada `next build` borraba y rehacía ese mismo directorio, así que durante los dos a
+  // cinco minutos de compilación la pantalla devolvía «Internal Server Error»:
+  //     ⨯ Error: ENOENT: no such file or directory, open '.next/required-server-files.json'
+  // Y como el reconstructor compila solo cada vez que cambia `src/`, esa ventana de error
+  // aparecía sin que nadie tocara nada. Alex: «inaceptable este tipo de errores», con razón.
+  //
+  // Con esto, quien compila lo hace en SU directorio (`STARSEED_DIST=.next-build`) y el
+  // servidor sigue sirviendo el `.next` viejo, intacto, hasta que se cambian de sitio con
+  // el servidor parado: cinco segundos de reinicio en vez de cinco minutos de error.
+  distDir: process.env.STARSEED_DIST || '.next',
   output: 'standalone',
   outputFileTracingRoot: path.join(__dirname),
   // Lo que NUNCA debe viajar dentro de una función de Vercel (límite: 250 MB sin comprimir).

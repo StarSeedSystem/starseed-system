@@ -114,3 +114,7 @@ workspace/
 
 # Notas de Alex al agente en marcha (mensajes_agente.py): viven en el worktree, nunca en main
 MENSAJES-DEL-DIRECTOR.md
+
+# Builds de trabajo del reconstructor del Mando (nunca se publican)
+.next-build/
+.next-anterior/
