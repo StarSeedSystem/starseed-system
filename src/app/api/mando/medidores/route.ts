@@ -19,6 +19,7 @@ import path from "node:path";
 import { promisify } from "node:util";
 
 import { guardianMando } from "@/lib/mando/guardian";
+import { lanzarPublicacion } from "@/lib/mando/publicador";
 import {
     colaInteligente,
     enjambreEnMarcha,
@@ -540,13 +541,25 @@ export async function POST(peticion: Request): Promise<Response> {
     }
 
     if (accion === "publicar") {
-        return Response.json(
-            {
-                error:
-                    "Publicar pasa por la pestaña Publicar, que corre tsc, vitest y las pruebas del puente antes de empujar.",
-            },
-            { status: 409 },
+        // (2026-09-22) Este botón existía SOLO para negarse: decía «Publicar en
+        // origin/main», lo pulsabas y el servidor contestaba 409 mandándote a otra
+        // pestaña. Un botón que no hace lo que su texto promete es peor que no tenerlo.
+        // Alex: «el botón de publicar en la ventana de los commits sin publicar no
+        // funciona». Ahora publica de verdad, por el mismo camino que la pestaña: commit,
+        // tsc, vitest, pruebas de Python, build y solo entonces push. Si una puerta se
+        // pone en rojo, para ahí; nunca se empuja para arreglarlo después.
+        const salida = await lanzarPublicacion(
+            texto.trim() || "publicado desde el medidor «commits sin publicar»",
         );
+        if (!salida.ok) {
+            return Response.json({ error: salida.error ?? "No se pudo lanzar la publicación." }, { status: 409 });
+        }
+        return Response.json({
+            hecho: true,
+            mensaje:
+                "Publicación lanzada: commit, tsc, vitest, pruebas de Python y build antes del push. " +
+                "Su marcha se sigue en la pestaña «Publicar».",
+        });
     }
 
     if (accion === "reintentar" && !texto.trim()) {

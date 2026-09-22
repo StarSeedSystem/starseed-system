@@ -86,10 +86,73 @@ ESTADOS_HUMANOS = {
 }
 
 
-def construir_acciones(pasarelas, secretos_repo, catalogo=None):
+def _entorno_con_env():
+    """El entorno del proceso MÁS `~/.starseed/env`, que es donde viven de verdad las
+    variables del enjambre: el director corre desde launchd y no las hereda."""
+    datos = dict(os.environ)
+    ruta = os.path.expanduser("~/.starseed/env")
+    try:
+        with open(ruta, encoding="utf-8") as f:
+            for linea in f:
+                linea = linea.strip()
+                if linea.startswith("export "):
+                    linea = linea[7:]
+                if "=" in linea and not linea.startswith("#"):
+                    k, _, v = linea.partition("=")
+                    datos.setdefault(k.strip(), v.strip().strip('"').strip("'"))
+    except OSError:
+        pass
+    return datos
+
+
+def accion_sin_canal(entorno):
+    """PURA: la acción que aparece cuando NO hay forma de avisar a Alex. O None.
+
+    (2026-09-22) Alex: «el "te toca a ti" no me ha avisado del fichaje de la api ni de
+    nada». Y era cierto, pero no porque no lo detectara: el canal quedó medido así:
+
+        canal.jsonl       → «nueva: NVIDIA Build (NIM): renovar la clave» (10:04 y 10:10)
+                            «nueva: apinex: renovar la clave»             (10:54)
+        ~/.starseed/env   → sin TELEGRAM_BOT_TOKEN ni TELEGRAM_CHAT_ID
+        /tmp/starseed-telegram.log → 0 bytes desde el 20 de septiembre
+
+    O sea: el aviso se escribía en un archivo del disco que nadie lee, el puente de
+    Telegram llevaba dos días vivo sin poder mandar nada, y el director marcaba la acción
+    como «avisada» —así que no la repetía nunca más—. Avisar a un archivo no es avisar.
+
+    Esto no lo puedo arreglar yo: el token y el chat son credenciales suyas y no las toco.
+    Lo que sí puedo es dejar de fingir que le avisé y ponerle el comando delante.
+    """
+    e = entorno or {}
+    faltan = [v for v in ("TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID") if not str(e.get(v) or "").strip()]
+    if not faltan:
+        return None
+    return {
+        "id": "canal-de-avisos-sin-configurar",
+        "titulo": "No hay forma de avisarte: falta el canal de Telegram",
+        "por_que": ("los avisos («renovar la clave», «fichaje diario») se escriben en "
+                    "canal.jsonl y ahí se quedan: falta %s, así que el puente de Telegram "
+                    "no puede mandarte nada" % " y ".join(faltan)),
+        "urgencia": "alta",
+        "comando": PREFIJO + "bash scripts/puente/telegram-alta.sh",
+        "enlace": "https://t.me/BotFather",
+        "por_que_no_lo_hago_yo": "son credenciales tuyas: yo no escribo tokens de terceros",
+        "detalle": "sin esto, todo lo de esta lista te lo tienes que encontrar tú mirando el Puente",
+        "variable": None,
+    }
+
+
+def construir_acciones(pasarelas, secretos_repo, catalogo=None, entorno=None):
     """Función PURA: la lista de acciones, ordenada por urgencia. Sin red, sin disco."""
     catalogo = catalogo if catalogo is not None else _pas.CATALOGO
     acciones = []
+
+    # El canal de avisos es una preocupación aparte de la lista de tareas: solo se mira
+    # cuando quien llama pasa un entorno. Así esta función sigue siendo pura y quien solo
+    # quiere saber «qué pasarelas piden mano de Alex» no se lleva nada de propina.
+    sin_canal = accion_sin_canal(entorno) if entorno is not None else None
+    if sin_canal:
+        acciones.append(sin_canal)
 
     faltan = sorted(CLAVES_DEL_ENJAMBRE - set(secretos_repo or []))
     if faltan:
@@ -224,7 +287,7 @@ def main():
         cual = sys.argv[i + 1] if len(sys.argv) > i + 1 else None
         print(json.dumps(verificar(cual), ensure_ascii=False, indent=1))
         return 0
-    acciones = construir_acciones(_pasarelas(), _secretos())
+    acciones = construir_acciones(_pasarelas(), _secretos(), entorno=_entorno_con_env())
     datos = {"generado": __import__("time").strftime("%Y-%m-%d %H:%M"), "acciones": acciones}
     os.makedirs(os.path.dirname(SALIDA), exist_ok=True)
     json.dump(datos, open(SALIDA, "w"), ensure_ascii=False, indent=1)

@@ -297,9 +297,13 @@ describe("porcentajes de avance", () => {
             ],
         });
         expect(d.resumen).toContain("ninguna se puede coger");
-        expect(d.resumen).toContain("2 esperan a otra tarea");
-        expect(d.filas[0].estado).toBe("espera a otra tarea");
-        expect(d.filas[0].porque).toContain("espera a RM3, RM4");
+        // (2026-09-22) Y ya no se listan aquí. La pastilla decía 1 y debajo salían CINCO
+        // tarjetas, tres de ellas repetidas en «Bloqueadas». Una tarea, un sitio: la
+        // ventana enseña lo que la pastilla cuenta, y las atadas se nombran al pie.
+        expect(d.filas).toHaveLength(0);
+        expect(d.resumen).toContain("2 más esperan a otra tarea");
+        expect(d.resumen).toContain("RM5, JF2");
+        expect(d.resumen).toContain("Bloqueadas");
     });
 
     it("con unas libres y otras atadas, el resumen separa las dos cosas", () => {
@@ -310,8 +314,9 @@ describe("porcentajes de avance", () => {
             ],
         });
         expect(d.resumen).toContain("1 se pueden coger ya");
-        expect(d.resumen).toContain("1 esperan a otra tarea");
-        // Las que se pueden coger van PRIMERO: es lo que alguien necesita ver.
+        expect(d.resumen).toContain("1 más espera a otra tarea");
+        // La ventana enseña SOLO lo que se puede coger: ni una fila de más.
+        expect(d.filas).toHaveLength(1);
         expect(d.filas[0].id).toBe("A1");
     });
 

@@ -1145,27 +1145,34 @@ export function detalleDeMedidor(
             const libres = ejecutables.filter((t) => !t.esperaA?.length);
             const atadas = ejecutables.filter((t) => t.esperaA?.length);
 
-            const filas: FilaMedidor[] = [...libres, ...atadas].map((t) => ({
+            // (2026-09-22) LA VENTANA ENSEÑA LO QUE CUENTA LA PASTILLA, Y NADA MÁS.
+            // Antes se listaban también las atadas, con su etiqueta «espera a otra tarea»:
+            // la pastilla decía 1 y debajo había CINCO tarjetas. Peor aún, RM6, RM7 y RM8
+            // salían a la vez aquí y en «Bloqueadas», que es donde de verdad viven. Una
+            // tarea, un sitio. Las que esperan se nombran en una línea al pie, que dice
+            // cuántas son y dónde mirarlas, sin fingir que son trabajo disponible.
+            const filas: FilaMedidor[] = libres.map((t) => ({
                 id: t.id,
                 titulo: t.titulo,
-                estado: t.esperaA?.length ? ESPERA_A_OTRA : "lista",
+                estado: "lista",
                 // 0 % de seis etapas: definida y sin empezar. Con la barra al lado se ve
                 // de un vistazo lo que queda por delante de cada una.
                 porcentaje: 0,
-                porque: t.esperaA?.length
-                    ? `no se puede coger: espera a ${t.esperaA.join(", ")}${t.ola ? ` · de la ola ${t.ola}` : ""}`
-                    : t.ola
-                      ? `de la ola ${t.ola} · ${porQueNadieLasCoge}`
-                      : porQueNadieLasCoge,
+                porque: t.ola ? `de la ola ${t.ola} · ${porQueNadieLasCoge}` : porQueNadieLasCoge,
                 acciones: accionesDeTarea("pendiente"),
             }));
 
+            const colaDeAtadas = atadas.length
+                ? ` · ${atadas.length} más espera${atadas.length === 1 ? "" : "n"} a otra tarea (${atadas
+                      .map((t) => t.id)
+                      .join(", ")}): están en «Bloqueadas»`
+                : "";
             const resumen =
                 libres.length === 0 && atadas.length === 0
                     ? "sin trabajo ejecutable"
                     : libres.length === 0
-                      ? `ninguna se puede coger: ${atadas.length} espera${atadas.length === 1 ? "" : "n"} a otra tarea`
-                      : `${libres.length} se pueden coger ya${atadas.length ? ` · ${atadas.length} esperan a otra tarea` : ""} · ${porQueNadieLasCoge}`;
+                      ? `ninguna se puede coger${colaDeAtadas}`
+                      : `${libres.length} se pueden coger ya · ${porQueNadieLasCoge}${colaDeAtadas}`;
 
             return {
                 clave,

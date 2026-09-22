@@ -87,6 +87,21 @@ def _anotar(acciones, novedades):
     os.replace(tmp, AVISADOS)
 
 
+def hay_canal_al_dueno(entorno):
+    """PURA: ¿existe de verdad una forma de que un aviso LLEGUE a Alex?
+
+    (2026-09-22) `_anunciar` escribe en `canal.jsonl` y da el aviso por hecho: el id se
+    anota en `avisados` y no se repite nunca más. Pero el puente de Telegram estaba sin
+    `TELEGRAM_BOT_TOKEN` ni `TELEGRAM_CHAT_ID` —su log llevaba dos días con 0 bytes—, así
+    que «NVIDIA Build (NIM): renovar la clave» se anunció a un archivo del disco, se marcó
+    como avisado, y Alex nunca supo nada. Escribir en un archivo no es avisar, y anotar una
+    entrega que no ocurrió es peor que no anotar nada: mata el segundo intento.
+    """
+    e = entorno or {}
+    return bool(str(e.get("TELEGRAM_BOT_TOKEN") or "").strip()
+                and str(e.get("TELEGRAM_CHAT_ID") or "").strip())
+
+
 def _anunciar(accion, como):
     """Manda una línea al canal común con el título, el enlace y la orden."""
     os.environ["STARSEED_QUIEN"] = "director-acciones"
@@ -120,9 +135,16 @@ def main():
             anunciables = _A.para_anunciar(
                 novedades, _leer(AVISADOS, {}).get("avisados")
             )
+            hay_canal = hay_canal_al_dueno(os.environ)
             for accion, como in anunciables:
                 print(_anunciar(accion, como), flush=True)
-            _anotar(ahora, anunciables)
+            # Solo se anota como avisado lo que de verdad pudo salir hacia él. Sin canal,
+            # la novedad sigue siendo novedad: así vuelve a intentarse cuando lo haya.
+            _anotar(ahora, anunciables if hay_canal else [])
+            if anunciables and not hay_canal:
+                print("NO anoto como avisadas: no hay canal a Alex (falta TELEGRAM_BOT_TOKEN "
+                      "o TELEGRAM_CHAT_ID). Aparece en «Te toca a ti» con el comando.",
+                      flush=True)
         except Exception as e:
             print("director-acciones: %s: %s" % (type(e).__name__, e), flush=True)
         time.sleep(INTERVALO_S)

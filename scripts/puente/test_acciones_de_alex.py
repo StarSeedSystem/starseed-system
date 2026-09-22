@@ -107,3 +107,44 @@ class TestVerificar(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+class AvisarAUnArchivoNoEsAvisar(unittest.TestCase):
+    """(2026-09-22) Alex: «el "te toca a ti" no me ha avisado del fichaje de la api ni de nada».
+
+    Medido en ese momento:
+        canal.jsonl                → «nueva: NVIDIA Build (NIM): renovar la clave» (10:04, 10:10)
+        ~/.starseed/env            → sin TELEGRAM_BOT_TOKEN ni TELEGRAM_CHAT_ID
+        /tmp/starseed-telegram.log → 0 bytes desde el 20 de septiembre
+        avisados                   → ["pasarela-apinex-caida", "pasarela-nvidia-caida"]
+
+    O sea: el aviso se escribió en un archivo que nadie lee, se marcó como entregado, y por
+    eso no se repitió jamás. El sistema creía haber avisado.
+    """
+
+    def test_sin_token_ni_chat_sale_la_accion(self):
+        a = A.accion_sin_canal({})
+        self.assertIsNotNone(a)
+        self.assertEqual(a["urgencia"], "alta")
+        self.assertIn("telegram-alta.sh", a["comando"])
+
+    def test_con_solo_el_token_sigue_faltando_canal(self):
+        a = A.accion_sin_canal({"TELEGRAM_BOT_TOKEN": "x"})
+        self.assertIsNotNone(a)
+        self.assertIn("TELEGRAM_CHAT_ID", a["por_que"])
+
+    def test_con_los_dos_no_estorba(self):
+        self.assertIsNone(A.accion_sin_canal({"TELEGRAM_BOT_TOKEN": "x", "TELEGRAM_CHAT_ID": "y"}))
+
+    def test_una_cadena_vacia_no_cuenta_como_configurado(self):
+        self.assertIsNotNone(A.accion_sin_canal({"TELEGRAM_BOT_TOKEN": "  ", "TELEGRAM_CHAT_ID": ""}))
+
+    def test_la_accion_encabeza_la_lista(self):
+        """Si no hay forma de avisar, eso va antes que cualquier clave que renovar."""
+        acciones = A.construir_acciones([], [], catalogo={}, entorno={})
+        self.assertTrue(acciones)
+        self.assertEqual(acciones[0]["id"], "canal-de-avisos-sin-configurar")
+
+    def test_con_canal_configurado_no_aparece(self):
+        acciones = A.construir_acciones([], [], catalogo={},
+                                        entorno={"TELEGRAM_BOT_TOKEN": "x", "TELEGRAM_CHAT_ID": "y"})
+        self.assertNotIn("canal-de-avisos-sin-configurar", [a["id"] for a in acciones])

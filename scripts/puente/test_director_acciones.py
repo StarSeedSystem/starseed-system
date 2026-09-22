@@ -182,3 +182,27 @@ def _cargar(nombre_modulo_ruta):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SoloSeAnotaLoQuePudoSalir(unittest.TestCase):
+    """(2026-09-22) Anotar una entrega que no ocurrió mata el segundo intento."""
+
+    def setUp(self):
+        import importlib.util, os as _os
+        r = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "director-acciones.py")
+        sp = importlib.util.spec_from_file_location("_dir_acc", r)
+        self.mod = importlib.util.module_from_spec(sp)
+        sp.loader.exec_module(self.mod)
+
+    def test_sin_token_ni_chat_no_hay_canal(self):
+        self.assertFalse(self.mod.hay_canal_al_dueno({}))
+
+    def test_con_solo_uno_tampoco(self):
+        self.assertFalse(self.mod.hay_canal_al_dueno({"TELEGRAM_BOT_TOKEN": "x"}))
+        self.assertFalse(self.mod.hay_canal_al_dueno({"TELEGRAM_CHAT_ID": "y"}))
+
+    def test_con_los_dos_si(self):
+        self.assertTrue(self.mod.hay_canal_al_dueno({"TELEGRAM_BOT_TOKEN": "x", "TELEGRAM_CHAT_ID": "y"}))
+
+    def test_en_blanco_no_cuenta(self):
+        self.assertFalse(self.mod.hay_canal_al_dueno({"TELEGRAM_BOT_TOKEN": " ", "TELEGRAM_CHAT_ID": "y"}))
