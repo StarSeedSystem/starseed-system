@@ -1,6 +1,6 @@
 # Puente de Mando · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-23 00:18:21 desde el Mando vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-23 12:25:10 desde el Mando vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -16,19 +16,20 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | Agentes escribiendo | **0** |
 | En esta ola | integradas 0 · en curso 0 · esperando aprobación 0 · pendientes 0 |
 | Últimas 4 olas | en curso 0 · pendientes 0 · integradas 20 |
-| HEAD | `6e5abea5 chore(memoria): aprendizaje de la ola auto-0922-232349` |
-| Sin publicar | 5 commits |
-| Árbol | 4 archivos sin commitear |
+| HEAD | `4cd2ebb4 chore(memoria): aprendizaje de la ola auto-0923-111417` |
+| Sin publicar | 16 commits |
+| Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-auto-0922-232349.json`, hace 9s)
+## Quién escribe ahora (latido de `cola-auto-0923-111417.json`, hace 4s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `DR0922-1` | hecho | codex/gpt-5.6-sol | 1 min | 54 s | 704950 |
-| `TR1` | hecho | nvidia/moonshotai/kimi-k3 | 8 min | 473 s | 189966 |
-| `p314Ab` | hecho | nvidia/moonshotai/kimi-k3 | 10 min | 588 s | 472831 |
-| `LY1` | hecho | codex/gpt-5.6-sol | 14 min | 869 s | 261133 |
-| `VZR1` | hecho | google/gemini-3.6-flash | 41 min | 2472 s | 885088 |
+| `JF2` | hecho | google/gemini-3.6-flash | 0 min | 26 s | 169605 |
+| `LY3` | hecho | codex/gpt-5.6-sol | 40 min | 2405 s | 821625 |
+| `LY2` | hecho | google/gemini-3.6-flash | 44 min | 2614 s | 96217 |
+| `TR1` | hecho | nvidia/moonshotai/kimi-k3 | 59 min | 3522 s | 273313 |
+| `LY1` | hecho | codex/gpt-5.6-sol | 66 min | 3941 s | 436728 |
+| `VZR1` | hecho | google/gemini-3.6-flash | 68 min | 4087 s | 960219 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
