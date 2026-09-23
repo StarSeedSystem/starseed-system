@@ -2744,3 +2744,12 @@
 
 **Lo que quedó fuera, una por una:**
 - `TR1` — pruebas en rojo: vitest falla (rama conservada)
+
+## 2026-09-23 16:33 · auto-0923-161921
+
+**Lo que se pidió.** top 3 accionables
+
+**Resultado.** 3 de 3 integradas.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- nvidia/moonshotai/kimi-k3 integró 3 tareas sin fallar una.
