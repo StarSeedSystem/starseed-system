@@ -66,7 +66,8 @@ _SIN_HORA_AVISADOS = set()  # ids de tareas cuya falta de hora ya anunciamos
 
 def progreso():
     try:
-        return json.load(open(os.path.join(OLAS, "progreso.json"), encoding="utf-8"))
+        with open(os.path.join(OLAS, "progreso.json"), encoding="utf-8") as fh:
+            return json.load(fh)
     except Exception:
         return {}
 
@@ -139,7 +140,8 @@ def _tareas_de_colas():
         for f in os.listdir(OLAS):
             if not (f.startswith("cola-") and f.endswith(".json")):
                 continue
-            d = json.load(open(os.path.join(OLAS, f), encoding="utf-8"))
+            with open(os.path.join(OLAS, f), encoding="utf-8") as fh:
+                d = json.load(fh)
             for t in d if isinstance(d, list) else d.get("tareas", []):
                 if isinstance(t, dict) and t.get("id") and t["id"] not in tareas:
                     tareas[t["id"]] = t
@@ -205,7 +207,8 @@ def escribir_orden(listas, bloqueadas):
         os.makedirs(carpeta, exist_ok=True)
         ruta = os.path.join(carpeta, "orden-tareas.json")
         tmp = ruta + ".tmp"
-        json.dump(datos, open(tmp, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+        with open(tmp, "w", encoding="utf-8") as fh:
+            json.dump(datos, fh, ensure_ascii=False, indent=1)
         os.replace(tmp, ruta)
     except Exception as e:
         print("director/orden-tareas: %s: %s" % (type(e).__name__, e), flush=True)
@@ -235,7 +238,8 @@ def pendientes_totales():
         for f in os.listdir(OLAS):
             if not (f.startswith("cola-") and f.endswith(".json")):
                 continue
-            d = json.load(open(os.path.join(OLAS, f), encoding="utf-8"))
+            with open(os.path.join(OLAS, f), encoding="utf-8") as fh:
+                d = json.load(fh)
             for t in d if isinstance(d, list) else d.get("tareas", []):
                 if not isinstance(t, dict) or t.get("id") in vistas:
                     continue
@@ -341,7 +345,8 @@ def continuar_estancadas(tope=20):
         gasto = {"fecha": hoy, "haiku": 0, "sonnet": 0}
         try:
             if os.path.exists(ruta_gasto):
-                gasto = json.load(open(ruta_gasto, encoding="utf-8"))
+                with open(ruta_gasto, encoding="utf-8") as fh:
+                    gasto = json.load(fh)
         except Exception:
             pass
 
@@ -401,22 +406,14 @@ def continuar_estancadas(tope=20):
             # Progreso
             ruta_prog = os.path.join(OLAS, "progreso.json")
             tmp_prog = ruta_prog + ".tmp"
-            json.dump(
-                p_nuevo,
-                open(tmp_prog, "w", encoding="utf-8"),
-                ensure_ascii=False,
-                indent=1,
-            )
+            with open(tmp_prog, "w", encoding="utf-8") as fh:
+                json.dump(p_nuevo, fh, ensure_ascii=False, indent=1)
             os.replace(tmp_prog, ruta_prog)
 
             # Gasto
             tmp_gasto = ruta_gasto + ".tmp"
-            json.dump(
-                gasto_nuevo,
-                open(tmp_gasto, "w", encoding="utf-8"),
-                ensure_ascii=False,
-                indent=1,
-            )
+            with open(tmp_gasto, "w", encoding="utf-8") as fh:
+                json.dump(gasto_nuevo, fh, ensure_ascii=False, indent=1)
             os.replace(tmp_gasto, ruta_gasto)
 
             # Anuncio
@@ -478,7 +475,8 @@ def reintentar_sin_cambios(apartados=None, tope=3):
         try:
             ruta_salud = os.path.expanduser("~/.starseed/salud-proveedores.json")
             if Path(ruta_salud).exists():
-                salud = json.load(open(ruta_salud, encoding="utf-8"))
+                with open(ruta_salud, encoding="utf-8") as fh:
+                    salud = json.load(fh)
         except Exception:
             pass
 

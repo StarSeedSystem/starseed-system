@@ -85,7 +85,8 @@ class ReencoloPorPrioridad(Base):
 
     def test_las_que_quedan_fuera_no_se_tocan(self):
         director.continuar_estancadas(tope=2)
-        p = json.load(open(os.path.join(self.olas, "progreso.json"), encoding="utf-8"))
+        with open(os.path.join(self.olas, "progreso.json"), encoding="utf-8") as fh:
+            p = json.load(fh)
         for tid in self.LARGAS:
             self.assertEqual(p[tid]["estado"], "fallo_tsc")
 
@@ -103,7 +104,9 @@ class LineaOrden(Base):
         # «Sin pendientes» es que no quede NADA que hacer, y eso se consigue vaciando la
         # COLA. Vaciar progreso.json hacía lo contrario: una tarea de la cola sin estado
         # es pendiente —nunca se intentó—, así que el director sí debía dar el orden.
-        with open(os.path.join(self.olas, "cola-prueba.json"), "w", encoding="utf-8") as f:
+        with open(
+            os.path.join(self.olas, "cola-prueba.json"), "w", encoding="utf-8"
+        ) as f:
             json.dump({"tareas": []}, f)
         with open(os.path.join(self.olas, "progreso.json"), "w", encoding="utf-8") as f:
             json.dump({}, f)
@@ -135,7 +138,8 @@ class OrdenJson(Base):
             self.raiz, "starseed_memory_root", "mando", "orden-tareas.json"
         )
         self.assertTrue(os.path.exists(ruta))
-        datos = json.load(open(ruta, encoding="utf-8"))
+        with open(ruta, encoding="utf-8") as fh:
+            datos = json.load(fh)
         self.assertIn("t", datos)
         self.assertEqual([e["id"] for e in datos["listas"]][:2], list(self.CORTAS))
         self.assertIn("razones", datos["listas"][0])

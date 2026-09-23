@@ -133,7 +133,8 @@ class TestAprobarConSeguimiento(unittest.TestCase):
             )
             self.assertTrue(any("integro A1" in f for f in frases))
             ruta = os.path.join(olas, "cola-seguimientos.json")
-            datos = json.load(open(ruta, encoding="utf-8"))
+            with open(ruta, encoding="utf-8") as fh:
+                datos = json.load(fh)
             self.assertEqual([t["id"] for t in datos], ["A1s"])
             self.assertEqual(datos[0]["archivos"], ["y.ts"])
 
@@ -150,7 +151,8 @@ class TestAprobarConSeguimiento(unittest.TestCase):
             )
             D.aprobar_con_seguimiento([("A1", "m", ["y.ts"])], **args)
             D.aprobar_con_seguimiento([("A1", "m", ["y.ts"])], **args)
-            datos = json.load(open(os.path.join(olas, "cola-seguimientos.json"), encoding="utf-8"))
+            with open(os.path.join(olas, "cola-seguimientos.json"), encoding="utf-8") as fh:
+                datos = json.load(fh)
             self.assertEqual(len(datos), 1)
 
 
