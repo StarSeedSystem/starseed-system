@@ -4,6 +4,7 @@ import {
     accionesDeBloqueada,
     accionesDeTarea,
     cambioAutomatico,
+    dependenciasMuertas,
     aplicarConfiguracion,
     avanceDe,
     mediaDeAvance,
@@ -747,5 +748,24 @@ describe("medidor de tokens con agentes sin contador", () => {
     it("sin frase en el archivo, se sigue calculando", () => {
         const d = detalleDeMedidor("tokens", { tokens: { ...tokens, resumen: undefined } } as never);
         expect(d.resumen).toContain("tok/s de media en 1 min");
+    });
+});
+
+
+describe("dependenciasMuertas", () => {
+    it("solo las que no van a llegar, que son las que el reintento quita de `depende`", () => {
+        expect(
+            dependenciasMuertas({
+                ficha: [
+                    { etiqueta: "Espera a", valor: "CU3r — algo" },
+                    { etiqueta: "↳ su estado", valor: "rechazada — no se va a integrar sola" },
+                    { etiqueta: "Espera a", valor: "B — algo" },
+                    { etiqueta: "↳ su estado", valor: "escribiendo" },
+                    { etiqueta: "Espera a", valor: "Z — sin título" },
+                    { etiqueta: "↳ su estado", valor: "NO EXISTE: ninguna ola la ha ejecutado nunca" },
+                ],
+            }),
+        ).toEqual(["CU3r", "Z"]);
+        expect(dependenciasMuertas({})).toEqual([]);
     });
 });

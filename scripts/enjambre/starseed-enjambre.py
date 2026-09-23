@@ -6896,6 +6896,12 @@ def releer_cola_si_cambio(ruta, estado):
     except (OSError, ValueError, AttributeError):
         return estado, False
     estado["mtime"] = mtime
+    try:
+        from cambio_pedido import aplicar_a_todas as _aplicar_cambios
+
+        tareas = _aplicar_cambios(tareas, PROG)
+    except ImportError:
+        pass
     estado["tareas"] = {t["id"]: t for t in tareas}
     estado["orden"] = [t["id"] for t in tareas]
     return estado, True
@@ -7046,6 +7052,14 @@ def main():
         else None
     )
     tareas = [t for t in cola if (not solo or t["id"] in solo)]
+    # (2026-09-23) El cambio pedido desde el Puente llega al agente (cambio_pedido.py):
+    # sin esto, «Reintentar con un cambio» relanzaba el MISMO prompt.
+    try:
+        from cambio_pedido import aplicar_a_todas as _aplicar_cambios
+
+        tareas = _aplicar_cambios(tareas, PROG)
+    except ImportError:
+        pass
     _, sucio = sh(["git", "status", "--porcelain"], timeout=30)
     if sucio.strip():
         mias, ajenas = _reparto_del_arbol(sucio)

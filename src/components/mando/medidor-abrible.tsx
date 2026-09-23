@@ -412,17 +412,38 @@ export function PanelMedidor({
      */
     const [comprobacionCerrada, setComprobacionCerrada] = useState(true);
     const [comprobando, setComprobando] = useState(false);
+    /**
+     * (2026-09-23) Lo que ENCONTRÓ la comprobación. Alex: «no funciona la autoverificación».
+     * La comprobación sí terminaba —en 17 s—, pero este panel preguntaba UNA vez justo al
+     * lanzarla, veía «sin terminar» y no volvía a preguntar; y aunque hubiera vuelto, solo
+     * enseñaba la hora, nunca el veredicto. Un botón que comprueba y no dice qué encontró
+     * es, para quien lo pulsa, un botón que no hace nada.
+     */
+    const [veredictos, setVeredictos] = useState<{ proceso: string; estado: string; detalle: string }[]>([]);
+    const [resumenComprobacion, setResumenComprobacion] = useState<string | null>(null);
 
     /** Cuándo se comprobó por última vez; nunca se esconde: «nunca» también se dice. */
-    const cargarComprobacion = useCallback(async () => {
+    const cargarComprobacion = useCallback(async (): Promise<boolean> => {
         try {
             const r = await fetch(`/api/mando/comprobar?medidor=${encodeURIComponent(clave)}`, { cache: "no-store" });
-            const d = (await r.json()) as { comprobacion?: { terminado?: string | null; empezado?: string } | null };
+            const d = (await r.json()) as {
+                comprobacion?: {
+                    terminado?: string | null;
+                    empezado?: string;
+                    resumen?: string;
+                    veredictos?: { proceso: string; estado: string; detalle: string }[];
+                } | null;
+            };
+            const terminada = Boolean(d.comprobacion?.terminado);
             setUltimaComprobacion(d.comprobacion?.terminado ?? d.comprobacion?.empezado ?? null);
-            setComprobacionCerrada(Boolean(d.comprobacion?.terminado));
+            setComprobacionCerrada(terminada);
+            setVeredictos(terminada ? (d.comprobacion?.veredictos ?? []) : []);
+            setResumenComprobacion(terminada ? (d.comprobacion?.resumen ?? null) : null);
+            return terminada;
         } catch {
             setUltimaComprobacion(null);
             setComprobacionCerrada(true);
+            return true;
         }
     }, [clave]);
 
@@ -452,7 +473,12 @@ export function PanelMedidor({
                 body: JSON.stringify({ medidor: clave }),
             });
         } finally {
-            await cargarComprobacion();
+            // Se pregunta hasta que termine (tope: 3 min). La comprobación vuelve a medir por
+            // otro camino —GitHub, git, procesos— y eso tarda de 2 a 40 s.
+            const hasta = Date.now() + 180_000;
+            while (!(await cargarComprobacion()) && Date.now() < hasta) {
+                await new Promise((listo) => window.setTimeout(listo, 2_000));
+            }
             await cargar();
             setComprobando(false);
         }
@@ -585,6 +611,31 @@ export function PanelMedidor({
                         : `lanzada ${haceMinutos(ultimaComprobacion) ?? "hace un momento"} y SIN TERMINAR`
                     : "nunca se ha comprobado"}
             </p>
+            {comprobacionCerrada && veredictos.length ? (
+                <div className="mc-centrado mt-1 flex flex-col items-center gap-0.5" data-testid="veredictos-comprobacion">
+                    {resumenComprobacion ? (
+                        <p className="text-[10px] font-semibold text-white/60">{resumenComprobacion}</p>
+                    ) : null}
+                    <ul className="flex flex-col gap-0.5 text-[10px]">
+                        {veredictos.map((v) => (
+                            <li
+                                key={`${v.proceso}-${v.detalle}`}
+                                className={
+                                    v.estado === "vivo"
+                                        ? "text-emerald-300/80"
+                                        : v.estado === "muerto"
+                                          ? "text-rose-300"
+                                          : v.estado === "colgado"
+                                            ? "text-amber-300"
+                                            : "text-white/45"
+                                }
+                            >
+                                ● {v.proceso}: {v.detalle}
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+            ) : null}
 
             {cargando && !datos ? (
                 <p className="mt-2 flex items-center justify-center gap-2 text-[11px] text-white/50">

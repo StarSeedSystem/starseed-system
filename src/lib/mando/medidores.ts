@@ -280,6 +280,24 @@ export function cambioAutomatico(fila: Pick<FilaMedidor, "estado" | "ficha">): s
     );
 }
 
+/**
+ * Las dependencias de la ficha que NO van a llegar: no existen en ninguna ola o no se
+ * integran solas. Son las que el reintento automático quita de `depende`: sin eso, el
+ * orquestador volvía a bloquear la tarea en su primera vuelta por la misma razón. PURA.
+ */
+export function dependenciasMuertas(fila: Pick<FilaMedidor, "ficha">): string[] {
+    const ficha = fila.ficha ?? [];
+    const fuera: string[] = [];
+    for (let i = 0; i < ficha.length; i += 1) {
+        if (ficha[i].etiqueta !== "Espera a") continue;
+        const dep = String(ficha[i].valor).split("—")[0].trim();
+        const sig = ficha[i + 1];
+        const estado = sig && sig.etiqueta === "↳ su estado" ? String(sig.valor) : "";
+        if (dep && dep !== "nada anotado" && /NO EXISTE|no se va a integrar sola/.test(estado)) fuera.push(dep);
+    }
+    return fuera;
+}
+
 /** Las acciones de una bloqueada: las de siempre, más el cambio automático si lo hay. */
 export function accionesDeBloqueada(fila: Pick<FilaMedidor, "estado" | "ficha">): AccionMedidor[] {
     const base = accionesDeTarea(fila.estado ?? "bloqueada");

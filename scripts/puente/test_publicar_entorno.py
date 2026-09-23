@@ -71,3 +71,31 @@ class PruebaCuandoHaceFaltaConstruir(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+
+class NoSeRepiteUnaBuildYaHecha(unittest.TestCase):
+    """(2026-09-23) Si el reconstructor ya compiló esta misma huella y es lo servido, la
+    puerta de build está pasada: repetirla eran doce minutos de swap comiéndose el disco."""
+
+    def setUp(self):
+        import importlib.util, os
+        ruta = os.path.join(os.path.dirname(os.path.abspath(__file__)), "publicar.py")
+        spec = importlib.util.spec_from_file_location("publicar_b", ruta)
+        self.P = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(self.P)
+
+    def test_misma_huella_compilada_y_servida(self):
+        self.assertTrue(self.P.build_ya_hecha({"ok": True, "huella_construida": "abc"}, "abc", True))
+
+    def test_otra_huella_hay_que_compilar(self):
+        self.assertFalse(self.P.build_ya_hecha({"ok": True, "huella_construida": "abc"}, "xyz", True))
+
+    def test_si_la_ultima_fallo_hay_que_compilar(self):
+        self.assertFalse(self.P.build_ya_hecha({"ok": False, "huella_construida": "abc"}, "abc", True))
+
+    def test_si_lo_servido_no_esta_entero_hay_que_compilar(self):
+        self.assertFalse(self.P.build_ya_hecha({"ok": True, "huella_construida": "abc"}, "abc", False))
+
+    def test_sin_datos_hay_que_compilar(self):
+        self.assertFalse(self.P.build_ya_hecha(None, "", True))

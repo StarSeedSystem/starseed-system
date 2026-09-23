@@ -344,6 +344,24 @@ def necesita_build(base="origin/main"):
     return False, "solo se tocó lo que la build no mira (%s)" % ", ".join(sorted({r.split("/")[0] for r in rutas})[:4])
 
 
+def build_ya_hecha(estado_reconstructor, huella_ahora, servido_entero):
+    """PURA: ¿este MISMO código ya está compilado y servido por el reconstructor?
+
+    (2026-09-23) En esta Mac, con 8-11 GB de swap, una build tarda doce minutos y el swap
+    se come el disco: hoy el vigilante de disco tuvo que parar una. Si el reconstructor ya
+    compiló exactamente estos archivos —misma huella— y eso es lo que se está sirviendo,
+    la puerta «next build» ya se pasó para este código; repetirla es gastar doce minutos
+    y arriesgar el disco para saber lo que ya se sabe.
+    """
+    e = estado_reconstructor or {}
+    return bool(
+        huella_ahora
+        and e.get("ok")
+        and e.get("huella_construida") == huella_ahora
+        and servido_entero
+    )
+
+
 def hay_sin_commitear():
     _, salida = git(["status", "--porcelain"])
     return [l for l in (salida or "").splitlines() if l.strip()]
@@ -422,6 +440,17 @@ def main():
         return 1
 
     hace_falta, porque = necesita_build()
+    if hace_falta:
+        try:
+            sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+            import reconstruir_mando as _rmb
+            if build_ya_hecha(_rmb._leer_estado(), _rmb.huella_viva(),
+                              _rmb.build_terminado(dist=_rmb.DIST_SERVIDO)):
+                hace_falta = False
+                porque = ("este mismo código ya lo compiló el reconstructor y es lo que se "
+                          "sirve (huella %s): la puerta de build ya está pasada" % _rmb.huella_viva())
+        except Exception:
+            pass
     if not hace_falta:
         diario.marcar("build", "omitido", porque)
     else:

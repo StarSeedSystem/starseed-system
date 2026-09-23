@@ -2,7 +2,18 @@
 # -*- coding: utf-8 -*-
 """Selección pura de trabajo real para el vigilante del enjambre."""
 
+import os
 import re
+import sys
+
+# (2026-09-23) El cambio pedido desde el Puente tiene que LLEGAR al agente; la regla vive
+# en scripts/enjambre/cambio_pedido.py y es la misma para la Mac y para la nube.
+try:
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "enjambre"))
+    from cambio_pedido import aplicar_cambio_pedido
+except ImportError:  # pragma: no cover
+    def aplicar_cambio_pedido(tarea, entrada):
+        return tarea
 
 # El latido de la nube corre sobre un clon que puede ir por detrás: si
 # `prioridad_logica` aún no existe allí, la ordenación se salta y se devuelve
@@ -111,6 +122,11 @@ def seleccionar_pendientes(colas, progreso, asuntos_git, ahora=None):
             if modelo_siguiente:
                 seleccionada = dict(tarea)
                 seleccionada["modelo"] = modelo_siguiente
+            # (2026-09-23) «Reintentar con un cambio» escribía `cambio_pedido` y nadie lo
+            # leía: la tarea salía con su prompt de siempre. Y una bloqueada por una
+            # dependencia muerta seguía fuera por esa dependencia. Ahora el cambio va en el
+            # prompt y `quitar_dependencias` sale de `depende` ANTES de ordenar.
+            seleccionada = aplicar_cambio_pedido(seleccionada, estado)
             salida.append(seleccionada)
     if ahora is not None and prioridad_logica is not None:
         listas, _bloqueadas = prioridad_logica.ordenar(salida, progreso, ahora)

@@ -33,6 +33,7 @@ import {
 import {
     TERMINALES,
     cambioAutomatico,
+    dependenciasMuertas,
     detalleDeMedidor,
     ejecutablesDeColas,
     olasDeLaMac,
@@ -767,6 +768,7 @@ export async function POST(peticion: Request): Promise<Response> {
     let accionEfectiva = accion;
     let cambio = texto.trim();
     let explicacionAuto = "";
+    let quitarAuto: string[] = [];
     if (accion === "reintentar-auto") {
         if (!id) {
             return Response.json({ error: "Falta la tarea a la que aplicarlo." }, { status: 400 });
@@ -787,6 +789,10 @@ export async function POST(peticion: Request): Promise<Response> {
         accionEfectiva = "reintentar";
         cambio = auto;
         explicacionAuto = auto;
+        // (2026-09-23) Y la dependencia muerta SALE de `depende`: el orquestador, el vigía y
+        // el reparto a la nube lo aplican con `scripts/enjambre/cambio_pedido.py`. Sin esto
+        // la tarea volvía a la cola… y se volvía a bloquear sola en la primera vuelta.
+        quitarAuto = filaAuto ? dependenciasMuertas(filaAuto) : [];
     }
 
     if (accionEfectiva === "reintentar" && !cambio) {
@@ -835,6 +841,7 @@ export async function POST(peticion: Request): Promise<Response> {
             e.estado = "pendiente";
             e.nota = `reintento pedido desde el Mando: ${cambio.slice(0, 400)}`;
             e.cambio_pedido = cambio.slice(0, 2000);
+            if (quitarAuto.length) e.quitar_dependencias = quitarAuto;
             // La rotación empieza de cero: si no, arrastra los modelos que fallaron con el
             // prompt VIEJO, que es justo el que se acaba de cambiar.
             delete e.modelos_fallidos;

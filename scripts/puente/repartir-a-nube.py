@@ -18,6 +18,13 @@ import argparse, datetime, json, os, re, subprocess, sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import puente
 from repartir_nube import elegir, marcar
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "enjambre"))
+try:
+    from cambio_pedido import aplicar_a_todas
+except ImportError:  # pragma: no cover
+    def aplicar_a_todas(tareas, progreso):
+        return list(tareas or [])
 from vigilante_logica import es_cola_fuente
 
 RAIZ = os.environ.get("STARSEED_ROOT", "/Users/alex/Documents/starseed-os-main")
@@ -99,6 +106,9 @@ def main():
         json.load(open(PROGRESO, encoding="utf-8")) if os.path.exists(PROGRESO) else {}
     )
     asuntos = asuntos_main(RAIZ)
+    # (2026-09-23) La nube no ve el progreso de la Mac: el cambio pedido desde el Puente
+    # (prompt y dependencias quitadas) se hornea DENTRO de la cola que se le manda.
+    colas = [(nombre, aplicar_a_todas(tareas, progreso)) for nombre, tareas in colas]
     elegidas = elegir(colas, progreso, asuntos, ola_actual(colas), tope=args.tope)
     ahora = datetime.datetime.now()
     fecha = ahora.strftime("%Y%m%d")
