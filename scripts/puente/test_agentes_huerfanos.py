@@ -72,5 +72,31 @@ class TestResumen(unittest.TestCase):
         self.assertNotIn("gpt-5.6-sol", r)
 
 
+class TrabajadoresDePuertaHuerfanos(unittest.TestCase):
+    """(2026-09-23) Los cinco `node (vitest N)` de 2,2 GB que tumbaron el Mando."""
+
+    FILAS = [
+        (39558, 1, "node (vitest 2)     "),
+        (40176, 1, "node (vitest 1)"),
+        (41000, 40999, "node (vitest 3)"),  # su vitest vive: no se toca
+        (195, 99899, "next-server (v15.5.21)"),
+        (500, 1, "/opt/homebrew/bin/node /repo/node_modules/.bin/vitest run"),  # el principal
+        (501, 1, "grep (vitest 2)"),
+    ]
+
+    def test_solo_los_adoptados_por_init(self):
+        self.assertEqual(A.trabajadores_huerfanos(self.FILAS), [39558, 40176])
+
+    def test_reconoce_el_titulo(self):
+        self.assertTrue(A.es_trabajador_de_puerta("node (vitest 7)"))
+        self.assertTrue(A.es_trabajador_de_puerta("/usr/local/bin/node (vitest)"))
+        self.assertFalse(A.es_trabajador_de_puerta("vitest run"))
+        self.assertFalse(A.es_trabajador_de_puerta(""))
+        self.assertFalse(A.es_trabajador_de_puerta(None))
+
+    def test_filas_rotas(self):
+        self.assertEqual(A.trabajadores_huerfanos([("x", 1, "node (vitest 1)"), None, (1, 2)]), [])
+
+
 if __name__ == "__main__":
     unittest.main()

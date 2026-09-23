@@ -52,6 +52,32 @@ _spec.loader.exec_module(_p)
 # dejaba a BitNet dos días parado reteniendo su puerto.
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import prioridad_conversacion as _conv  # noqa: E402
+import agentes_huerfanos as _huerf  # noqa: E402
+
+
+def barrer_trabajadores_huerfanos():
+    """(2026-09-23) Mata los `node (vitest N)` adoptados por init: su vitest ya murió y
+    nadie leerá sus resultados, pero cada uno retiene ~2,2 GB. Cinco de ellos dejaron la
+    Mac sin RAM y el Puente de Mando sin contestar. Devuelve los pids cortados."""
+    try:
+        s = subprocess.run(
+            ["ps", "-eo", "pid=,ppid=,args="], capture_output=True, text=True, timeout=20
+        ).stdout
+    except Exception:
+        return []
+    filas = []
+    for l in s.splitlines():
+        partes = l.split(None, 2)
+        if len(partes) == 3:
+            filas.append(tuple(partes))
+    cortados = []
+    for pid in _huerf.trabajadores_huerfanos(filas):
+        try:
+            os.kill(pid, signal.SIGKILL)
+            cortados.append(pid)
+        except Exception:
+            pass
+    return cortados
 
 
 def libres_mb():
@@ -207,6 +233,18 @@ def main():
         "hecho",
     )
     while True:
+        try:
+            cortados = barrer_trabajadores_huerfanos()
+            if cortados:
+                print("huérfanos de vitest cortados: %s" % cortados, flush=True)
+                _p.decir(
+                    "Cortados %d trabajadores de pruebas huérfanos (su vitest ya había muerto; "
+                    "retenían ~2 GB cada uno)." % len(cortados),
+                    "guardia",
+                    "aviso",
+                )
+        except Exception as e:
+            print("guardia huérfanos: %s: %s" % (type(e).__name__, e), flush=True)
         try:
             motores, orq, ps_ok = procesos()
             vivos = [m for m in MOTORES if motores[m]]

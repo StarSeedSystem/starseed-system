@@ -74,3 +74,45 @@ def resumen(filas, pids):
         cual = "codex" if "codex exec" in linea else "opencode"
         salida.append("%s (pid %d)" % (cual, int(p)))
     return ", ".join(salida)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# (2026-09-23, 00:15) TRABAJADORES DE PUERTA HUÉRFANOS
+#
+# Alex: «no está cargando, autoreparándose el Puente de Mando». Medido: cinco
+# `node (vitest N)` con ppid 1, 49 minutos vivos, ~2,2 GB cada uno: 11 GB de una
+# Mac de 8. Swap a 13,3 GB, disco a 2,7 GB y el `next-server` del Mando en estado
+# U (esperando página) sin contestar en 20 s. Su vitest principal había muerto
+# (una puerta cortada por tiempo mata solo al hijo directo, no a sus nietos), así
+# que nadie iba a leer sus resultados. Matarlos devolvió el Mando en el acto
+# (307 en 0,27 s) y el swap bajó a 5,4 GB.
+#
+# Regla segura: un trabajador de vitest («node (vitest N)») lo crea SU vitest
+# principal; si su padre es init (ppid 1), ese principal ya no existe y el
+# trabajador no sirve a nadie. No hay falso positivo posible: nadie lanza a mano un
+# proceso con ese título.
+# ─────────────────────────────────────────────────────────────────────────────
+import re as _re
+
+_TRABAJADOR_VITEST = _re.compile(r"^\S*node \(vitest(?: \d+)?\)")
+
+
+def es_trabajador_de_puerta(args):
+    """¿Es un trabajador de vitest (título «node (vitest N)»)?"""
+    return bool(_TRABAJADOR_VITEST.match((args or "").strip()))
+
+
+def trabajadores_huerfanos(filas):
+    """Pids de trabajadores de vitest adoptados por init: su vitest ya murió.
+
+    `filas`: (pid, ppid, args) como da `ps -eo pid=,ppid=,args=`."""
+    fuera = []
+    for fila in filas or ():
+        try:
+            pid, ppid, args = fila
+            pid, ppid = int(pid), int(ppid)
+        except (TypeError, ValueError):
+            continue
+        if ppid == 1 and es_trabajador_de_puerta(args) and pid not in fuera:
+            fuera.append(pid)
+    return fuera

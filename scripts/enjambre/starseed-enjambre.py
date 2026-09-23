@@ -1930,27 +1930,51 @@ def _claves_que_viajan():
     return nombres
 
 
-def sh(cmd, cwd=ROOT, timeout=120, env=None, log=None):
-    e = entorno_hijo(env)
+def matar_grupo(proceso):
+    """Mata el grupo de procesos entero de `proceso` (él y todos sus descendientes que no
+    se hayan ido a otro grupo). Nunca lanza. Si el grupo ya no existe, mata al proceso."""
+    if proceso is None:
+        return
     try:
-        p = subprocess.run(
+        os.killpg(os.getpgid(proceso.pid), signal.SIGKILL)
+    except (ProcessLookupError, PermissionError, OSError):
+        try:
+            proceso.kill()
+        except Exception:
+            pass
+
+
+def sh(cmd, cwd=ROOT, timeout=120, env=None, log=None):
+    """Corre una orden y devuelve (código, salida). Con tiempo agotado → 124.
+
+    (2026-09-23) La orden va en su PROPIO grupo de procesos y, si se agota el tiempo, se
+    mata el grupo entero. Antes `subprocess.run(timeout=…)` mataba solo al hijo directo
+    (`sh`/`npx`): vitest y sus trabajadores quedaban adoptados por init. Cinco
+    `node (vitest N)` de ~2,2 GB cada uno, huérfanos 49 minutos, dejaron la Mac sin RAM
+    y el Puente de Mando sin contestar."""
+    e = entorno_hijo(env)
+    p = None
+    try:
+        p = subprocess.Popen(
             cmd,
             cwd=cwd,
             shell=isinstance(cmd, str),
-            capture_output=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
             text=True,
-            timeout=timeout,
             env=e,
+            start_new_session=True,
         )
-        out = (p.stdout or "") + (p.stderr or "")
-    except subprocess.TimeoutExpired as ex:
+        stdout, stderr = p.communicate(timeout=timeout)
+        out = (stdout or "") + (stderr or "")
+    except subprocess.TimeoutExpired:
+        matar_grupo(p)
+        try:
+            stdout, _ = p.communicate(timeout=10)
+        except Exception:
+            stdout = ""
         p = None
-        out = "TIMEOUT %ss\n%s" % (
-            timeout,
-            (ex.stdout or b"")[-2000:]
-            if isinstance(ex.stdout, bytes)
-            else (ex.stdout or ""),
-        )
+        out = "TIMEOUT %ss\n%s" % (timeout, (stdout or "")[-2000:])
     if log:
         with open(log, "a", encoding="utf-8") as f:
             f.write(
@@ -3014,6 +3038,9 @@ def opencode(prompt, modelo, cwd, log, timeout=1500, tid=None):
                 # (2026-09-07, Ola 271, P9B) la clave ACTIVA del proveedor se
                 # pasa al hijo y, si cambió, actualiza «{env:VAR}» de opencode.
                 env=entorno_hijo(_sync_opencode_clave(modelo)),
+                # (2026-09-23) Grupo propio: al cortarlo se va con sus hijos (tsserver
+                # de ~2 GB incluido) en vez de dejarlos huérfanos. Ver `matar_grupo`.
+                start_new_session=True,
             )
         if tid:
             with PROCESOS_LOCK:
@@ -3022,7 +3049,7 @@ def opencode(prompt, modelo, cwd, log, timeout=1500, tid=None):
             rc = p.wait(timeout=timeout)
         except subprocess.TimeoutExpired:
             try:
-                p.kill()
+                matar_grupo(p)
             except Exception:
                 pass
             rc = 124
@@ -3164,6 +3191,7 @@ def escribir_con_codex(prompt, modelo, cwd, log, timeout=1500, tid=None):
                 stdout=f,
                 stderr=subprocess.STDOUT,
                 env=entorno_hijo(),
+                start_new_session=True,  # (2026-09-23) ver `matar_grupo`
             )
         try:
             p.stdin.write(texto.encode("utf-8"))
@@ -3183,7 +3211,7 @@ def escribir_con_codex(prompt, modelo, cwd, log, timeout=1500, tid=None):
             rc = p.wait(timeout=timeout)
         except subprocess.TimeoutExpired:
             try:
-                p.kill()
+                matar_grupo(p)
             except Exception:
                 pass
             rc = 124
@@ -4672,7 +4700,7 @@ def atender_control():
             if p and p.poll() is None:
                 CORTADOS.add(tid)
                 try:
-                    p.kill()
+                    matar_grupo(p)
                 except Exception:
                     pass
             set_estado(
@@ -4699,7 +4727,7 @@ def atender_control():
         if fase == "escribiendo" and p and p.poll() is None:
             CORTADOS.add(tid)
             try:
-                p.kill()
+                matar_grupo(p)
             except Exception:
                 pass
             evento(
@@ -5451,7 +5479,7 @@ def vigilante():
                     )
                     CORTADOS.add(tid)
                     try:
-                        p.kill()
+                        matar_grupo(p)
                     except Exception:
                         pass
         _volcar_latidos()
