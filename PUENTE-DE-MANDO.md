@@ -1,6 +1,6 @@
 # Puente de Mando · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-22 16:42:44 desde el Mando vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-22 20:47:12 desde el Mando vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -16,19 +16,19 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | Agentes escribiendo | **0** |
 | En esta ola | integradas 0 · en curso 0 · esperando aprobación 0 · pendientes 0 |
 | Últimas 4 olas | en curso 0 · pendientes 0 · integradas 20 |
-| HEAD | `83c12e8a chore(memoria): aprendizaje de la ola auto-0922-162142` |
-| Sin publicar | 3 commits |
+| HEAD | `3571092c chore(memoria): aprendizaje de la ola auto-0922-195034` |
+| Sin publicar | 6 commits |
 | Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-auto-0922-162142.json`, hace 5s)
+## Quién escribe ahora (latido de `cola-auto-0922-195034.json`, hace 8s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `DR0922-1` | hecho | apinex/free/gemini-3.8-flash | 1 min | 32 s | 173643 |
-| `p314Ab` | hecho | nvidia/moonshotai/kimi-k3 | 11 min | 690 s | 187542 |
-| `TK2c` | hecho | google/gemini-3.6-flash | 16 min | 955 s | 1008804 |
-| `c313_QW4` | hecho | apinex/free/gemini-3.8-flash | 18 min | 1066 s | 999347 |
-| `c313_QW6` | hecho | apinex/free/gemini-3.8-flash | 18 min | 1090 s | 992479 |
+| `p314Ab` | hecho | nvidia/moonshotai/kimi-k3 | 1 min | 43 s | 283389 |
+| `DR0922-1` | hecho | apinex/free/deepseek-v4-flash-0731 | 17 min | 994 s | 206241 |
+| `TK2c` | hecho | google/gemini-3.6-flash | 46 min | 2756 s | 1072032 |
+| `c313_QW6` | hecho | apinex/free/gemini-3.8-flash | 50 min | 3020 s | 1082334 |
+| `c313_QW4` | hecho | apinex/free/gemini-3.8-flash | 51 min | 3034 s | 1089158 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
