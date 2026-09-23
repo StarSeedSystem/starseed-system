@@ -153,5 +153,26 @@ export const REPO_DECISIONES: LibraryRepo = {
       },
       comingSoon: true,
     },
+    {
+      id: "laya",
+      kind: "ai-source",
+      name: "laya",
+      description:
+        "Motor de decisiones multilingüe en ONNX fp32 (~1,7 GB, ~140 ms por decisión en Apple Silicon, ~2 GB de RAM) con contrato compatible con Jev systemOne. Pesos Apache-2.0 en Hugging Face (convaiinnovations/laya y receptron/laya-onnx).",
+      icon: "Cpu",
+      tags: ["decisiones", "local", "onnx", "multilingüe", "jev"],
+      version: "1.0.0",
+      author: "receptron",
+      sourceRepoId: "starseed-decisiones",
+      free: true,
+      payload: {
+        upstream: "https://github.com/receptron/laya",
+        licencia: "MIT",
+        requisitos:
+          "ONNX fp32 ~1,7 GB, variante multilingüe, ~140 ms por decisión en Apple Silicon, ~2 GB de RAM, contrato compatible con Jev systemOne; pesos Apache-2.0 en Hugging Face (convaiinnovations/laya y receptron/laya-onnx)",
+        corre_aqui: false,
+      },
+      comingSoon: true,
+    },
   ],
 };

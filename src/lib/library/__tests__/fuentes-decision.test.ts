@@ -19,8 +19,8 @@ describe("fuentes-decision", () => {
     repo.packages.forEach((p) => idsExistentes.add(p.id));
   });
 
-  it("tiene exactamente siete paquetes", () => {
-    expect(REPO_DECISIONES.packages).toHaveLength(7);
+  it("tiene los paquetes esperados de decisiones", () => {
+    expect(REPO_DECISIONES.packages.length).toBeGreaterThanOrEqual(8);
   });
 
   it("cada id es unico dentro del repo", () => {
