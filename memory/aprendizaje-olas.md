@@ -2656,3 +2656,20 @@
 - `c313_QW6` — pruebas en rojo: ERROR: test_excluye_agotados_y_enfriandose (test_revisores.CandidatosTest.test_excluye_agotados_y_enfriandose)
 - `DR0922-1` — no escribió nada
 - `TK2c` — pruebas en rojo: ERROR: test_excluye_agotados_y_enfriandose (test_revisores.CandidatosTest.test_excluye_agotados_y_enfriandose)
+
+## 2026-09-22 20:47 · auto-0922-195034
+
+**Lo que se pidió.** top 3 accionables
+
+**Resultado.** 0 de 5 integradas. 5 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 5 tareas se fueron por lo mismo — otra cosa (p314Ab, c313_QW4, c313_QW6, DR0922-1, TK2c). Es 100 % de la ola.
+- apinex/free/gemini-3.8-flash no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `p314Ab` — otra cosa: reasignada a la nube 20260922
+- `c313_QW4` — otra cosa: reasignada a la nube 20260922
+- `c313_QW6` — otra cosa: reasignada a la nube 20260922
+- `DR0922-1` — otra cosa: reasignada a la nube 20260922
+- `TK2c` — otra cosa: reasignada a la nube 20260922
