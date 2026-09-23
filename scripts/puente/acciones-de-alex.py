@@ -235,7 +235,87 @@ def _secretos():
         return []
 
 
-def verificar(id_accion=None, pasarelas=None, secretos_repo=None, entorno=None):
+def clave_de_accion(id_accion):
+    """PURA: «pasarela-apinex-fichaje» → «apinex». None si la acción no es de una pasarela.
+    El estado va al final y puede llevar guion bajo (`sin_clave`), nunca guion."""
+    texto = str(id_accion or "")
+    if not texto.startswith("pasarela-"):
+        return None
+    resto = texto[len("pasarela-"):]
+    clave, _, estado = resto.rpartition("-")
+    return clave or None
+
+
+def actualizar_pasarela(pasarelas, clave, medida):
+    """PURA: la lista de pasarelas con la entrada de `clave` sustituida por la medida nueva
+    (http, estado, segundos, comprobado). Si no estaba, se añade."""
+    fuera, vista = [], False
+    for p in pasarelas or []:
+        if isinstance(p, dict) and p.get("clave") == clave:
+            nueva = dict(p)
+            nueva.update(medida)
+            fuera.append(nueva)
+            vista = True
+        else:
+            fuera.append(p)
+    if not vista:
+        fuera.append(dict(medida, clave=clave))
+    return fuera
+
+
+def resondear(clave, segundos=20):
+    """Mide AHORA una pasarela con la misma sonda del renovador (ocho tokens) y deja el
+    resultado en el informe, para que el Mando y el enjambre vean lo mismo que el botón.
+
+    (2026-09-23) Alex: «no funciona la comprobación del check-in de apinex: responde error
+    cuando compruebo que ya lo hice». Medido: el informe era de las 15:51, él fichó y pulsó
+    «Ya lo hice» a las 15:53, y `verificar` —que decía «vuelve a MEDIR»— leía ese informe
+    viejo: contestaba «http 402 · modelo free/glm-5.3-flash» con apinex escribiendo ya
+    (HTTP 200 al sondearla a mano). Un botón de comprobar que no comprueba.
+
+    Devuelve la medida {http, estado, segundos, comprobado} o None si no hay sonda para esa
+    clave. Nunca imprime ni guarda el valor de ninguna clave."""
+    import time as _t
+
+    try:
+        spec = importlib.util.spec_from_file_location(
+            "renovador", os.path.join(os.path.dirname(os.path.abspath(__file__)), "renovador-pasarelas.py"))
+        renovador = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(renovador)
+    except Exception:
+        return None
+    sonda = next((s for s in renovador.SONDAS if s[0] == clave), None)
+    if sonda is None:
+        return None
+    _nombre, url, variable, modelo = sonda
+    entorno = renovador.entorno_con_claves()
+    t0 = _t.time()
+    http, cuerpo, tokens = renovador.sondear(url, entorno.get(variable) if variable else None, modelo, segundos)
+    medida = {
+        "modelo": modelo,
+        "variable": variable,
+        "tiene_clave": bool(entorno.get(variable)) if variable else True,
+        "http": http,
+        "estado": _pas.clasificar(http, cuerpo, tokens),
+        "segundos": round(_t.time() - t0, 1),
+        "comprobado": _t.strftime("%Y-%m-%d %H:%M:%S"),
+    }
+    try:
+        informe = json.load(open(INFORME, encoding="utf-8")) or {}
+    except Exception:
+        informe = {}
+    informe["pasarelas"] = actualizar_pasarela(informe.get("pasarelas") or [], clave, medida)
+    try:
+        tmp = INFORME + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(informe, f, ensure_ascii=False, indent=1)
+        os.replace(tmp, INFORME)
+    except OSError:
+        pass
+    return medida
+
+
+def verificar(id_accion=None, pasarelas=None, secretos_repo=None, entorno=None, medir=None):
     """¿Sigue haciendo falta esa accion? Vuelve a MEDIR, no consulta un archivo viejo.
 
     (2026-09-21, pedido por Alex) «en el puente de mando en su ventana debe haber un boton
@@ -250,7 +330,19 @@ def verificar(id_accion=None, pasarelas=None, secretos_repo=None, entorno=None):
     Devuelve {id, hecha, titulo, detalle, comprobado, quedan}. Sin `id_accion`, informa de
     todas.
     """
+    # Solo en una comprobación de verdad (sin datos inyectados) se reescribe la lista que pinta
+    # el Mando: si no, «Ya lo hice» decía «hecho» y la tarjeta seguía ahí hasta la siguiente
+    # vuelta del director (hasta 3 min), que es otra forma de no creerse el botón.
+    real = pasarelas is None and secretos_repo is None
+    # Si la acción es de una pasarela, se MIDE de nuevo esa pasarela antes de nada.
+    # `medir` se inyecta en las pruebas; por defecto es la sonda real.
+    medida = None
+    clave = clave_de_accion(id_accion)
+    if clave and pasarelas is None:
+        medida = (medir or resondear)(clave)
     pasarelas = pasarelas if pasarelas is not None else _pasarelas()
+    if medida:
+        pasarelas = actualizar_pasarela(pasarelas, clave, medida)
     secretos_repo = secretos_repo if secretos_repo is not None else _secretos()
     # (2026-09-22) Sin el entorno, `canal-de-avisos-sin-configurar` no se reconstruía y el
     # botón «Ya lo hice» contestaba «ya no hace falta» para algo que seguía sin arreglar.
@@ -262,6 +354,8 @@ def verificar(id_accion=None, pasarelas=None, secretos_repo=None, entorno=None):
     )
     por_id = {a["id"]: a for a in vivas}
     momento = __import__("time").strftime("%Y-%m-%d %H:%M:%S")
+    if real:
+        guardar_lista(vivas)
     if id_accion is None:
         return {
             "comprobado": momento,
@@ -272,12 +366,16 @@ def verificar(id_accion=None, pasarelas=None, secretos_repo=None, entorno=None):
             ],
         }
     viva = por_id.get(id_accion)
+    medido = ""
+    if medida:
+        medido = "medido ahora: http %s con %s → %s" % (
+            medida.get("http"), medida.get("modelo"), str(medida.get("estado")).replace("_", " "))
     if viva is None:
         return {
             "id": id_accion,
             "hecha": True,
             "titulo": "",
-            "detalle": "comprobado de nuevo: ya no hace falta",
+            "detalle": ("hecho: %s" % medido) if medido else "comprobado de nuevo: ya no hace falta",
             "comprobado": momento,
             "quedan": len(vivas),
         }
@@ -285,10 +383,23 @@ def verificar(id_accion=None, pasarelas=None, secretos_repo=None, entorno=None):
         "id": id_accion,
         "hecha": False,
         "titulo": viva["titulo"],
-        "detalle": viva.get("detalle", "") or viva.get("por_que", ""),
+        "detalle": ("sigue pendiente · %s" % medido) if medido else (viva.get("detalle", "") or viva.get("por_que", "")),
         "comprobado": momento,
         "quedan": len(vivas),
     }
+
+
+def guardar_lista(acciones):
+    """Deja la lista donde la lee el Mando (`/api/mando/acciones`). Nunca lanza."""
+    try:
+        datos = {"generado": __import__("time").strftime("%Y-%m-%d %H:%M"), "acciones": acciones}
+        os.makedirs(os.path.dirname(SALIDA), exist_ok=True)
+        tmp = SALIDA + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(datos, f, ensure_ascii=False, indent=1)
+        os.replace(tmp, SALIDA)
+    except OSError:
+        pass
 
 
 def main():

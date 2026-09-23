@@ -108,6 +108,53 @@ class TestVerificar(unittest.TestCase):
                     "la orden %r es relativa: falla si no estas ya en el repo" % a["comando"],
                 )
 
+class YaLoHiceMideLaPasarelaAhora(unittest.TestCase):
+    """(2026-09-23) Alex fichó en apinex y «Ya lo hice» le seguía diciendo «http 402 · modelo
+    free/glm-5.3-flash»: `verificar` leía el informe de dos minutos antes. Ahora mide ESA
+    pasarela en el momento (la sonda se inyecta aquí para no salir a la red)."""
+
+    ENTORNO = {"TELEGRAM_BOT_TOKEN": "x", "TELEGRAM_CHAT_ID": "y"}
+
+    def setUp(self):
+        import json, tempfile
+        self.dir = tempfile.mkdtemp()
+        self.antes = A.INFORME
+        A.INFORME = os.path.join(self.dir, "pasarelas-informe.json")
+        json.dump({"pasarelas": [{"clave": "apinex", "estado": "fichaje", "http": 402,
+                                  "modelo": "free/glm-5.3-flash",
+                                  "variable": "STARSEED_PASARELA_APINEX_KEY"}]},
+                  open(A.INFORME, "w"))
+
+    def tearDown(self):
+        A.INFORME = self.antes
+
+    def test_clave_de_accion(self):
+        self.assertEqual(A.clave_de_accion("pasarela-apinex-fichaje"), "apinex")
+        self.assertEqual(A.clave_de_accion("pasarela-nvidia-sin_clave"), "nvidia")
+        self.assertIsNone(A.clave_de_accion("github-secretos"))
+
+    def test_si_ya_escribe_esta_hecha_y_lo_dice(self):
+        medir = lambda clave: {"http": 200, "estado": "escribe", "modelo": "free/glm-5.3-flash"}
+        r = A.verificar("pasarela-apinex-fichaje", secretos_repo=set(A.CLAVES_DEL_ENJAMBRE),
+                        entorno=self.ENTORNO, medir=medir)
+        self.assertTrue(r["hecha"])
+        self.assertIn("medido ahora: http 200", r["detalle"])
+
+    def test_si_sigue_pidiendo_el_fichaje_lo_dice_con_la_medida(self):
+        medir = lambda clave: {"http": 402, "estado": "fichaje", "modelo": "free/glm-5.3-flash"}
+        r = A.verificar("pasarela-apinex-fichaje", secretos_repo=set(A.CLAVES_DEL_ENJAMBRE),
+                        entorno=self.ENTORNO, medir=medir)
+        self.assertFalse(r["hecha"])
+        self.assertIn("sigue pendiente · medido ahora: http 402", r["detalle"])
+
+    def test_actualizar_pasarela_es_pura(self):
+        antes = [{"clave": "apinex", "estado": "fichaje", "http": 402}, {"clave": "groq", "estado": "escribe"}]
+        despues = A.actualizar_pasarela(antes, "apinex", {"estado": "escribe", "http": 200})
+        self.assertEqual(despues[0]["estado"], "escribe")
+        self.assertEqual(antes[0]["estado"], "fichaje")
+        self.assertEqual(despues[1], antes[1])
+
+
 if __name__ == "__main__":
     unittest.main()
 
