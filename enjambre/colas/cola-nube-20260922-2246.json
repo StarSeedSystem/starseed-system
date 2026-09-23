@@ -1,0 +1,17 @@
+{
+ "ola": "nube-20260922",
+ "tareas": [
+  {
+   "id": "c313_QW4",
+   "ola": "Ola 313 · Consolidación de pendientes",
+   "titulo": ".env.example con todas las variables de entorno",
+   "archivos": [
+    ".env.example"
+   ],
+   "prompt": "Procesa la tarea: .env.example con todas las variables de entorno. Archivos: ['.env.example']. Escribe código limpio, sin any, en español con acentos. tsc limpio.",
+   "depende": [],
+   "modelo": "llm7/minimax-m2.7",
+   "aprobacion": false
+  }
+ ]
+}
