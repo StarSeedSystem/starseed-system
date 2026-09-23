@@ -2713,3 +2713,16 @@
 - `VZR1` — pruebas en rojo: b'16/16 pruebas en verde.\ndirector/orden-tareas: OSError: disco lleno\n[gobernador] tope vivo de trabajadores: 3 (m\xc3
 - `p314Ab` — pruebas en rojo: b'16/16 pruebas en verde.\ndirector/orden-tareas: OSError: disco lleno\n'
 - `DR0922-1` — pruebas en rojo: FAIL: test_devuelve_los_modelos_de_la_pasarela (test_pasarelas_escritoras.EscritoresPasarelasTest.test_devuelve_los_mode
+
+## 2026-09-23 12:25 · auto-0923-111417
+
+**Lo que se pidió.** Probar
+
+**Resultado.** 4 de 6 integradas. 2 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- codex/gpt-5.6-sol integró 2 tareas sin fallar una.
+
+**Lo que quedó fuera, una por una:**
+- `JF2` — la revisión lo rechazó: rechazada automáticamente por ide (sin revisión humana); rama ola/JF2 conservada
+- `TR1` — pruebas en rojo: vitest falla (rama conservada)
