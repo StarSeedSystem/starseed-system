@@ -51,6 +51,15 @@ DISCO_AVISA_GB = 5.0
 WORKERS_POR_DEFECTO = 5
 SERVICIO_VIGILANTE = "com.starseed.vigilante"
 
+# Una dependencia en estos estados NO VA A LLEGAR NUNCA (la misma regla que
+# `DEPENDENCIA_IMPOSIBLE` del Mando en medidores.ts). Medido hoy: JF2 esperaba a JF1, que
+# está «sustituida» (la partieron en JF1b/JF1c, ya integradas). El Mando la contaba como
+# «se puede coger ya» y el vigilante la daba por bloqueada: dos verdades, y la tarea parada
+# para siempre. Al asignarla se le quita esa dependencia por el camino de siempre
+# (`quitar_dependencias`, lo mismo que «Reintentar con cambio automático»).
+DEP_MUERTA = {"sustituida", "descartada", "rechazada"}
+DEP_CUMPLIDA = {"commit", "hecho", "integrada"}
+
 # Estados que ya no ocupan trabajador ni esperan turno en la tanda.
 CERRADOS = {
     "commit", "hecho", "integrada", "sin_cambios", "fallo", "fallo_tsc", "fallo_tests",
@@ -136,6 +145,32 @@ def porque_no_esta_lista(tid, progreso, tareas_por_id, en_cola_viva):
     return "no entra en la selección automática"
 
 
+def desatascables(tareas_por_id, progreso, asuntos_integrados=frozenset()):
+    """{id: [deps muertas]} de las tareas abiertas que SOLO esperan a dependencias que ya no
+    llegarán (y al menos una). Las que esperan a algo vivo no entran: esperar sí sirve ahí."""
+    fuera = {}
+    for tid, t in (tareas_por_id or {}).items():
+        if _estado(progreso, tid) not in ("", "pendiente") or tid in asuntos_integrados:
+            continue
+        deps = t.get("depende") or []
+        if isinstance(deps, str):
+            deps = [deps]
+        e = progreso.get(tid) if isinstance(progreso, dict) else None
+        ya_quitadas = set((e or {}).get("quitar_dependencias") or []) if isinstance(e, dict) else set()
+        muertas, vivas = [], []
+        for d in deps:
+            d = str(d)
+            if d in ya_quitadas:
+                continue
+            est = _estado(progreso, d)
+            if est in DEP_CUMPLIDA or d in asuntos_integrados:
+                continue
+            (muertas if est in DEP_MUERTA else vivas).append(d)
+        if muertas and not vivas:
+            fuera[tid] = muertas
+    return fuera
+
+
 def decidir(estado, pedida=None):
     """La decisión entera, sin tocar nada. `estado`:
 
@@ -151,6 +186,15 @@ def decidir(estado, pedida=None):
     tanda = estado.get("tanda")
     listas = list(estado.get("listas") or [])
     progreso = estado.get("progreso") or {}
+    # Las que solo esperan a dependencias muertas se pueden coger en cuanto se les quita.
+    muertas = dict(estado.get("desatascables") or {})
+    if pedida and pedida in muertas:
+        muertas = {pedida: muertas[pedida]}
+    elif pedida:
+        muertas = {}
+    for tid in muertas:
+        if tid not in listas:
+            listas.append(tid)
     tareas_por_id = estado.get("tareas_por_id") or {}
     motivos = []
     salida = {
@@ -159,9 +203,18 @@ def decidir(estado, pedida=None):
         "meter": [],
         "adelantar": None,
         "despertar_vigilante": False,
+        "quitar": muertas,
         "resumen": "",
         "motivos": motivos,
     }
+    if muertas:
+        motivos.append(
+            "; ".join(
+                "%s esperaba a %s, que no llegará nunca (%s): se la quito, como «Reintentar con cambio automático»"
+                % (tid, ", ".join(ds), ", ".join(_estado(progreso, d) for d in ds))
+                for tid, ds in muertas.items()
+            )
+        )
 
     disco = estado.get("disco_gb")
     if isinstance(disco, (int, float)) and disco < DISCO_BLOQUEA_GB:
@@ -226,7 +279,7 @@ def decidir(estado, pedida=None):
 
     if not meter and not pedida and total_espera == 0:
         salida["resumen"] = (
-            "No hay nada que asignar: la tanda viva tiene %d/%d trabajadores ocupados y no queda "
+            "No hay nada que asignar: la tanda de la Mac tiene %d/%d trabajadores ocupados y no queda "
             "trabajo que se pueda coger ahora." % (len(ocupados), tope)
         )
         return salida
@@ -234,9 +287,9 @@ def decidir(estado, pedida=None):
     salida["puede"] = True
     partes = []
     if meter:
-        partes.append("meto %s en la tanda viva" % ", ".join(meter[:8]) + (" y %d más" % (len(meter) - 8) if len(meter) > 8 else ""))
+        partes.append("meto %s en la tanda de la Mac" % ", ".join(meter[:8]) + (" y %d más" % (len(meter) - 8) if len(meter) > 8 else ""))
     elif total_espera:
-        partes.append("las %d lista(s) ya están en la cola de la tanda viva" % total_espera)
+        partes.append("las %d lista(s) ya están en la cola de la tanda de la Mac" % total_espera)
     if pedida:
         partes.append("%s pasa la primera de la cola" % pedida)
     if huecos > 0:
@@ -330,9 +383,19 @@ def reunir(ahora=None):
         for t in tareas:
             if isinstance(t, dict) and t.get("id") and str(t["id"]) not in tareas_por_id:
                 tareas_por_id[str(t["id"])] = t
-    seleccion = seleccionar_pendientes(colas, progreso, _asuntos_git(), ahora=datetime.datetime.now())
+    asuntos = _asuntos_git()
+    seleccion = seleccionar_pendientes(colas, progreso, asuntos, ahora=datetime.datetime.now())
     listas_tareas = [t for t in seleccion if _estado(progreso, str(t.get("id"))) != "en_curso"]
     listas = [str(t.get("id")) for t in listas_tareas]
+    try:
+        from vigilante_logica import id_en_asuntos
+
+        integradas = frozenset(
+            tid for tid in tareas_por_id if tid not in listas and id_en_asuntos(tid, asuntos)
+        )
+    except Exception:
+        integradas = frozenset()
+    muertas = desatascables(tareas_por_id, progreso, integradas)
 
     tanda = tanda_de_procesos(_args_de_procesos())
     ocupados = []
@@ -381,6 +444,7 @@ def reunir(ahora=None):
         "motivo_tope": motivo_tope,
         "listas": listas,
         "listas_tareas": listas_tareas,
+        "desatascables": muertas,
         "progreso": progreso,
         "tareas_por_id": tareas_por_id,
         "pausado": pausado,
@@ -432,6 +496,19 @@ def aplicar(estado, decision):
     hechas = []
     if not decision.get("puede"):
         return hechas
+    quitar = decision.get("quitar") or {}
+    if quitar:
+        progreso = _leer_json(PROGRESO, None)
+        if isinstance(progreso, dict):
+            for tid, deps in quitar.items():
+                entrada = progreso.get(tid) if isinstance(progreso.get(tid), dict) else {}
+                previas = [d for d in (entrada.get("quitar_dependencias") or []) if d not in deps]
+                entrada["quitar_dependencias"] = previas + list(deps)
+                entrada.setdefault("estado", "pendiente")
+                entrada["nota"] = "dependencia(s) que no llegarán quitadas desde el Mando: %s" % ", ".join(deps)
+                progreso[tid] = entrada
+            _escribir_json_atomico(PROGRESO, progreso)
+            hechas.append("dependencias muertas quitadas: %s" % ", ".join(quitar))
     if decision.get("adelantar"):
         if marcar_adelantada(decision["adelantar"]):
             hechas.append("%s marcada para ir la primera" % decision["adelantar"])
@@ -441,6 +518,15 @@ def aplicar(estado, decision):
         if d is not None:
             lista = d if isinstance(d, list) else d.get("tareas") or []
             por_id = {str(t.get("id")): t for t in estado.get("listas_tareas") or []}
+            try:
+                from cambio_pedido import aplicar_cambio_pedido
+            except ImportError:
+                sys.path.insert(0, os.path.join(RAIZ, "scripts", "enjambre"))
+                from cambio_pedido import aplicar_cambio_pedido
+            for tid, deps in quitar.items():
+                base = (estado.get("tareas_por_id") or {}).get(tid)
+                if base and tid not in por_id:
+                    por_id[tid] = aplicar_cambio_pedido(base, {"quitar_dependencias": deps})
             meter_tareas = [por_id[i] for i in decision.get("meter") or [] if i in por_id]
             nueva = reordenar_cola(lista, meter_tareas, decision.get("adelantar"))
             if isinstance(d, list):

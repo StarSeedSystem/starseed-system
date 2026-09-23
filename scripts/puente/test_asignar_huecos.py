@@ -139,6 +139,42 @@ class PrioridadAdelantada(unittest.TestCase):
         self.assertIn("Alex la pidió primero desde el Mando", listas[0][2])
 
 
+class DependenciasMuertas(unittest.TestCase):
+    """JF2 esperaba a JF1, «sustituida»: el Mando decía «se puede coger» y el vigilante
+    «bloqueada». Al asignarla se le quita la dependencia que no llegará."""
+
+    TAREAS = {
+        "JF2": {"id": "JF2", "depende": ["JF1"]},
+        "JF3": {"id": "JF3", "depende": ["JF1", "VIVA"]},
+        "JF4": {"id": "JF4", "depende": ["HECHA"]},
+    }
+    PROG = {
+        "JF1": {"estado": "sustituida"},
+        "VIVA": {"estado": "en_curso"},
+        "HECHA": {"estado": "commit"},
+    }
+
+    def test_solo_las_que_esperan_a_muertas(self):
+        self.assertEqual(A.desatascables(self.TAREAS, self.PROG), {"JF2": ["JF1"]})
+
+    def test_ya_quitada_no_se_repite(self):
+        prog = dict(self.PROG, JF2={"estado": "pendiente", "quitar_dependencias": ["JF1"]})
+        self.assertEqual(A.desatascables(self.TAREAS, prog), {})
+
+    def test_asignar_la_pedida_quita_y_mete(self):
+        e = estado(listas=[], desatascables={"JF2": ["JF1"]}, progreso=dict(self.PROG))
+        d = A.decidir(e, pedida="JF2")
+        self.assertTrue(d["puede"])
+        self.assertEqual(d["quitar"], {"JF2": ["JF1"]})
+        self.assertIn("JF2", d["meter"])
+        self.assertTrue(any("no llegará nunca" in m for m in d["motivos"]))
+
+    def test_general_tambien_las_desatasca(self):
+        e = estado(listas=["C"], desatascables={"JF2": ["JF1"]}, progreso=dict(self.PROG))
+        d = A.decidir(e)
+        self.assertEqual(d["meter"], ["C", "JF2"])
+
+
 class Aplicar(unittest.TestCase):
     """Los efectos, sobre archivos temporales: la cola viva y progreso.json."""
 
