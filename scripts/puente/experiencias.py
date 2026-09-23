@@ -10,6 +10,7 @@ y copia en starseed_memory_root/aprendizaje/experiencias/<host>.jsonl para que e
 de Drive y la mesh la repartan. Nunca lleva claves ni texto completo de prompts largos:
 `entrada` se recorta a 400 caracteres.
 """
+
 import hashlib
 import json
 import os
@@ -17,7 +18,9 @@ import socket
 import time
 
 RUTA = os.path.expanduser("~/.starseed/experiencias.jsonl")
-RAIZ = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
+RAIZ = os.path.abspath(
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..")
+)
 COPIA_DIR = os.path.join(RAIZ, "starseed_memory_root", "aprendizaje", "experiencias")
 CAPAS = ("regla", "needle", "jev", "bitnet", "llm", "persona")
 MAX_ENTRADA = 400
@@ -35,16 +38,26 @@ def _recortar(x, n=MAX_ENTRADA):
     return s if len(s) <= n else s[:n] + "…"
 
 
-def nueva(capa, tipo, entrada, salida, confianza=None, ms=None, opciones=None, dominio=""):
+def nueva(
+    capa, tipo, entrada, salida, confianza=None, ms=None, opciones=None, dominio=""
+):
     """Construye una experiencia (dict) sin escribirla. `tipo`: intencion | eleccion | si_no | puntuacion | texto."""
     if capa not in CAPAS:
         raise ValueError("capa desconocida: %s" % capa)
     e = {
-        "id": hashlib.sha256(("%s|%s|%s|%s" % (time.time(), capa, tipo, _recortar(entrada))).encode()).hexdigest()[:12],
-        "t": time.strftime("%Y-%m-%d %H:%M:%S"), "medio": _host(), "capa": capa, "tipo": tipo,
-        "dominio": dominio, "entrada": _recortar(entrada), "salida": salida,
+        "id": hashlib.sha256(
+            ("%s|%s|%s|%s" % (time.time(), capa, tipo, _recortar(entrada))).encode()
+        ).hexdigest()[:12],
+        "t": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "medio": _host(),
+        "capa": capa,
+        "tipo": tipo,
+        "dominio": dominio,
+        "entrada": _recortar(entrada),
+        "salida": salida,
         "confianza": None if confianza is None else round(float(confianza), 4),
-        "ms": None if ms is None else int(ms), "resultado": None,
+        "ms": None if ms is None else int(ms),
+        "resultado": None,
     }
     if opciones:
         e["opciones"] = list(opciones)
@@ -66,13 +79,22 @@ def anotar(e, ruta=None):
 
 def resultado(id_, acierto, nota="", ruta=None):
     """Cierra una experiencia con lo que pasó de verdad (True/False) — una línea de referencia."""
-    return anotar({"ref": id_, "t": time.strftime("%Y-%m-%d %H:%M:%S"), "resultado": bool(acierto), "nota": nota[:200]}, ruta)
+    return anotar(
+        {
+            "ref": id_,
+            "t": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "resultado": bool(acierto),
+            "nota": nota[:200],
+        },
+        ruta,
+    )
 
 
 def leer(ruta=None, ultimas=500):
     """Las últimas experiencias con su resultado aplicado (si llegó)."""
     try:
-        lineas = open(ruta or RUTA, encoding="utf-8").read().splitlines()[-ultimas * 2:]
+        with open(ruta or RUTA, encoding="utf-8") as f:
+            lineas = f.read().splitlines()[-ultimas * 2 :]
     except OSError:
         return []
     por_id, orden = {}, []
@@ -95,7 +117,11 @@ def calibracion(exps, capa="jev"):
     """{tramo: {n, aciertos}} por décimas de confianza, solo con resultado conocido."""
     tramos = {}
     for e in exps:
-        if e.get("capa") != capa or e.get("resultado") is None or e.get("confianza") is None:
+        if (
+            e.get("capa") != capa
+            or e.get("resultado") is None
+            or e.get("confianza") is None
+        ):
             continue
         k = "%.1f" % (int(e["confianza"] * 10) / 10)
         t = tramos.setdefault(k, {"n": 0, "aciertos": 0})
@@ -111,9 +137,21 @@ def para_needle(exps):
         if e.get("tipo") != "intencion" or not e.get("resultado"):
             continue
         s = e.get("salida") or {}
-        if not isinstance(s, dict) or not s.get("herramientas") or not s.get("llamadas"):
+        if (
+            not isinstance(s, dict)
+            or not s.get("herramientas")
+            or not s.get("llamadas")
+        ):
             continue
-        fuera.append({"query": e["entrada"], "tools": s["herramientas"],
-                      "answers": [{"name": c["nombre"], "arguments": c.get("argumentos") or {}} for c in s["llamadas"]],
-                      "reasoning": s.get("razonamiento") or ""})
+        fuera.append(
+            {
+                "query": e["entrada"],
+                "tools": s["herramientas"],
+                "answers": [
+                    {"name": c["nombre"], "arguments": c.get("argumentos") or {}}
+                    for c in s["llamadas"]
+                ],
+                "reasoning": s.get("razonamiento") or "",
+            }
+        )
     return fuera

@@ -119,6 +119,9 @@ def decidir_presupuesto(
                 reintentar_en = float(v["reinicio"])
             continue
 
+        if coste == 0:
+            continue
+
         tramo = v["reinicio"] - v["inicio"]
         fraccion = min(1.0, (ahora - v["inicio"]) / tramo + rafaga)
         if total > techo * fraccion:

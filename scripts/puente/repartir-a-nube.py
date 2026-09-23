@@ -76,7 +76,8 @@ def colas_fuente():
     for nombre in vivos:
         ruta = os.path.join(OLAS, nombre)
         try:
-            datos = json.load(open(ruta, encoding="utf-8"))
+            with open(ruta, encoding="utf-8") as f:
+                datos = json.load(f)
         except (OSError, ValueError):
             continue
         tareas = datos.get("tareas", datos) if isinstance(datos, dict) else datos
@@ -102,9 +103,10 @@ def main():
 
     validar_raiz(RAIZ)
     colas = colas_fuente()
-    progreso = (
-        json.load(open(PROGRESO, encoding="utf-8")) if os.path.exists(PROGRESO) else {}
-    )
+    progreso = {}
+    if os.path.exists(PROGRESO):
+        with open(PROGRESO, encoding="utf-8") as f:
+            progreso = json.load(f)
     asuntos = asuntos_main(RAIZ)
     # (2026-09-23) La nube no ve el progreso de la Mac: el cambio pedido desde el Puente
     # (prompt y dependencias quitadas) se hornea DENTRO de la cola que se le manda.
@@ -124,16 +126,16 @@ def main():
     os.makedirs(DESTINO_DIR, exist_ok=True)
     nombre = nombre_destino(ahora, DESTINO_DIR)
     ruta = os.path.join(DESTINO_DIR, nombre)
-    json.dump(
-        {"ola": "nube-%s" % fecha, "tareas": elegidas},
-        open(ruta, "w", encoding="utf-8"),
-        ensure_ascii=False,
-        indent=1,
-    )
+    with open(ruta, "w", encoding="utf-8") as f:
+        json.dump(
+            {"ola": "nube-%s" % fecha, "tareas": elegidas},
+            f,
+            ensure_ascii=False,
+            indent=1,
+        )
     nuevo = marcar(progreso, [t["id"] for t in elegidas], fecha)
-    json.dump(
-        nuevo, open(PROGRESO, "w", encoding="utf-8"), ensure_ascii=False, indent=1
-    )
+    with open(PROGRESO, "w", encoding="utf-8") as f:
+        json.dump(nuevo, f, ensure_ascii=False, indent=1)
     puente.decir(mensaje, quien="reparto-nube", tipo="hecho")
 
     if args.publicar:
