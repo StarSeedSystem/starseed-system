@@ -374,7 +374,7 @@ async function leerBus(horas: number): Promise<FilaBus[]> {
         const tipos = TIPOS_BUS.join(",");
         const r = await fetch(
             `${url}/rest/v1/relevo_eventos?select=id,t,quien,tipo,tarea,texto,datos&tipo=in.(${tipos})&t=gte.${encodeURIComponent(desde)}&order=id.desc&limit=2000`,
-            { headers: { apikey: clave, Authorization: `Bearer ${clave}` }, cache: "no-store" },
+            { headers: { apikey: clave, Authorization: `Bearer ${clave}` }, cache: "no-store", signal: AbortSignal.timeout(3000) },
         );
         if (!r.ok) return [];
         const filas = (await r.json()) as unknown;

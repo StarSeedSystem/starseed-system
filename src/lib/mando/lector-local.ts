@@ -420,7 +420,7 @@ export async function leerLatidosDelBus(): Promise<{ latidos: LatidoTarea[]; enj
         // publica más latidos, y la ventana de 4 min lo dejaba «en curso» hasta caducar).
         const r = await fetch(
             `${url}/rest/v1/relevo_eventos?select=t,tipo,texto,datos&tipo=in.(latido,cola_terminada,detenida)&t=gte.${encodeURIComponent(desde)}&order=id.desc&limit=60`,
-            { headers: { apikey: clave, Authorization: `Bearer ${clave}` }, cache: "no-store" },
+            { headers: { apikey: clave, Authorization: `Bearer ${clave}` }, cache: "no-store", signal: AbortSignal.timeout(3000) },
         );
         if (!r.ok) return { latidos: [], enjambres: [] };
         filas = (await r.json()) as typeof filas;
@@ -499,7 +499,7 @@ export async function leerEventosDelBus(limite = 20): Promise<EventoRelevo[]> {
         const desde = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
         const r = await fetch(
             `${url}/rest/v1/relevo_eventos?select=id,t,quien,tipo,tarea,texto,datos&tipo=not.in.(latido,tunel,paso)&t=gte.${encodeURIComponent(desde)}&order=id.desc&limit=${Math.max(1, Math.min(100, limite))}`,
-            { headers: { apikey: clave, Authorization: `Bearer ${clave}` }, cache: "no-store" },
+            { headers: { apikey: clave, Authorization: `Bearer ${clave}` }, cache: "no-store", signal: AbortSignal.timeout(3000) },
         );
         if (!r.ok) return [];
         const filas = (await r.json()) as unknown;
