@@ -93,6 +93,33 @@ class NoReconstruyePorLoQueNoCompila(unittest.TestCase):
         self.assertIn("node_modules", R.IGNORADOS)
 
 
+class LoEditadoDuranteLaBuildNoSePierde(unittest.TestCase):
+    """(2026-09-23) Un archivo editado mientras compilaba debe contar como más nuevo."""
+
+    def test_las_marcas_se_fechan_al_empezar(self):
+        import tempfile, time as _t
+        raiz = tempfile.mkdtemp()
+        dist = os.path.join(raiz, R.DIST_BUILD)
+        os.makedirs(dist)
+        for nombre in ("BUILD_ID", "build-manifest.json"):
+            with open(os.path.join(dist, nombre), "w") as f:
+                f.write("x")
+        inicio = _t.time() - 540  # la build empezó hace 9 min
+        R.marcar_listo(raiz=raiz, dist=R.DIST_BUILD, inicio=inicio)
+        for nombre in (R.MARCA_LISTO, "BUILD_ID", "build-manifest.json"):
+            self.assertAlmostEqual(os.stat(os.path.join(dist, nombre)).st_mtime, inicio, delta=1)
+        editado_durante = int((inicio + 240) * 1e9)  # 4 min después de empezar
+        ref = os.stat(os.path.join(dist, R.MARCA_LISTO)).st_mtime_ns
+        self.assertEqual(R.cuantas_mas_nuevas(ref, [("src/lib/aurora/engine.ts", editado_durante, 1)]), 1)
+
+    def test_sin_inicio_se_comporta_como_antes(self):
+        import tempfile
+        raiz = tempfile.mkdtemp()
+        os.makedirs(os.path.join(raiz, R.DIST_BUILD))
+        R.marcar_listo(raiz=raiz, dist=R.DIST_BUILD)
+        self.assertTrue(os.path.exists(os.path.join(raiz, R.DIST_BUILD, R.MARCA_LISTO)))
+
+
 if __name__ == "__main__":
     unittest.main()
 

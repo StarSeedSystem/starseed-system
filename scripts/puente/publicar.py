@@ -488,7 +488,7 @@ def main():
         try:
             sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
             import reconstruir_mando as _rm
-            _rm.marcar_listo()
+            _rm.marcar_listo(inicio=t0)
         except Exception:
             pass
         _reiniciar_mando(diario)

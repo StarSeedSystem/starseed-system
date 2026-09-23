@@ -276,13 +276,28 @@ def preparar_dist_de_build(raiz=RAIZ) -> None:
         print("sin caché movida (%s): la build será más lenta" % type(e).__name__, flush=True)
 
 
-def marcar_listo(raiz=RAIZ, dist=DIST_BUILD) -> None:
-    """Deja constancia de que ese build terminó entero."""
+def marcar_listo(raiz=RAIZ, dist=DIST_BUILD, inicio=None) -> None:
+    """Deja constancia de que ese build terminó entero.
+
+    (2026-09-23) `inicio` = cuándo EMPEZÓ la compilación. Las marcas del build (BUILD_ID,
+    build-manifest.json y `.listo`) se fechan ahí, no al acabar: `next build` lee las
+    fuentes al principio, así que lo que se edite DURANTE los 6-9 minutos de compilación
+    no está dentro. Fechadas al final, esas ediciones quedaban «más viejas que el build» y
+    el reconstructor decía «la pantalla está al día» para siempre (pasó con engine.ts:
+    editado a las 21:53 de una build que empezó a las 21:49).
+    """
     try:
         with open(os.path.join(raiz, dist, MARCA_LISTO), "w", encoding="utf-8") as f:
             f.write(time.strftime("%Y-%m-%d %H:%M:%S"))
     except OSError:
         pass
+    if inicio is None:
+        return
+    for nombre in (MARCA_LISTO, "BUILD_ID", "build-manifest.json"):
+        try:
+            os.utime(os.path.join(raiz, dist, nombre), (inicio, inicio))
+        except OSError:
+            pass
 
 
 def build_terminado(raiz=RAIZ, dist=DIST_BUILD) -> bool:
@@ -461,7 +476,7 @@ def reconstruir(huella_actual) -> dict:
                                        segundos, "" if ok else ": " + (datos["error"] or "")),
           flush=True)
     if ok:
-        marcar_listo()
+        marcar_listo(inicio=empezo)
         reiniciar_mando()
     return datos
 
