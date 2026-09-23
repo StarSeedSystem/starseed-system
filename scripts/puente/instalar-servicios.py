@@ -13,6 +13,7 @@ Dos reglas que costaron caras y por eso están aquí y no en la memoria de nadie
    python3 y así heredan el permiso. Lee la cabecera de ese archivo si dudas.
 
   python3 instalar-servicios.py <raiz-del-repo> <ruta-python3>
+  STARSEED_SOLO=voz-rt python3 instalar-servicios.py   # solo esos (coma), sin tocar el resto
 """
 import os, subprocess, sys
 
@@ -72,6 +73,13 @@ SERVICIOS = {
     # ninguno miraba el TABLERO. Esa noche el orquestador estuvo 123 minutos parado en una
     # puerta de aprobación y los medidores lo enseñaban sin que nadie los leyera.
     "vigia": ([PY3, P("vigia_medidores.py")], "/tmp/starseed-vigia.log", True),
+    # (2026-09-22) Voz en tiempo real de Astraura (Supertonic 3, 127.0.0.1:4460): la voz de
+    # las conversaciones, 4 veces más rápida que el tiempo real en esta Mac, con una voz fija.
+    # Corre en su propio entorno (~/.starseed/astraura-voice/rt-venv) y lleva la concesión de
+    # conversación que da prioridad a la voz y a BitNet sobre el enjambre.
+    "voz-rt": (LANZ + ["--", os.path.join(HOME, ".starseed", "astraura-voice", "rt-venv", "bin", "python"),
+                       "-u", os.path.join(RAIZ, "native", "astraura-voice", "conversacion", "voz_rt.py")],
+               "/tmp/starseed-voz-rt.log", True),
 }
 
 PLANTILLA = """<?xml version="1.0" encoding="UTF-8"?>
@@ -111,8 +119,14 @@ def instalar(etiqueta, orden, log, siempre):
           "cargado" if r.returncode == 0 else (r.stderr.strip()[:50] or "error")))
 
 
+# Reinstalar TODOS reinicia el Mando y los directores; con STARSEED_SOLO se toca solo lo nombrado.
+SOLO = {n.strip() for n in os.environ.get("STARSEED_SOLO", "").split(",") if n.strip()}
 for nombre, (orden, log, siempre) in SERVICIOS.items():
+    if SOLO and nombre not in SOLO:
+        continue
     instalar("com.starseed." + nombre, orden, log, siempre)
+if SOLO:
+    sys.exit(0)
 
 # El túnel de Astraura vive en otra carpeta y con su propio bash: mismo TCC, mismo
 # envoltorio. Sólo se toca si el guion sigue estando donde dice su plist.

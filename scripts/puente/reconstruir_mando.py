@@ -654,12 +654,27 @@ def _reiniciar_mando_sin_cerrojo() -> None:
           flush=True)
 
 
+def conversando(ruta=os.path.expanduser("~/.starseed/conversacion.json")) -> bool:
+    """¿Hay una conversación en curso con Astraura (concesión de `voz_rt.py`)?"""
+    try:
+        with open(ruta, encoding="utf-8") as f:
+            return float(json.load(f).get("hasta") or 0) > time.time()
+    except (OSError, ValueError, TypeError):
+        return False
+
+
 def una_pasada() -> bool:
     entradas = list(_entradas())
     actual = huella_de(entradas)
     estado = _leer_estado()
     hazlo, motivo = decidir(actual, estado, time.time(),
                             mas_nuevas=cuantas_mas_nuevas(mtime_del_build(), entradas))
+    if hazlo and conversando():
+        # (2026-09-22) Una build se come 3-4 GB de RAM en esta Mac: en plena conversación
+        # con Astraura dejaría a la voz y a BitNet sin memoria. Se espera a que acabe.
+        print("[%s] espero: %s, pero Alex está hablando con Astraura" % (time.strftime("%H:%M"), motivo),
+              flush=True)
+        return False
     if hazlo and publicacion_va_a_compilar(_leer_estado(PUBLICACION)):
         print("[%s] espero: %s, pero la publicación en marcha va a compilar: su build sirve"
               % (time.strftime("%H:%M"), motivo), flush=True)

@@ -96,3 +96,18 @@ class ReglasDelGuardia(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ConAlexHablandoLosMotoresNoSeCongelan(unittest.TestCase):
+    """(2026-09-22) El guardia congeló la voz y BitNet en plena conversación con Astraura."""
+
+    def test_con_conversacion_nunca_congela_aunque_falte_memoria(self):
+        self.assertEqual([], G.decidir(True, 10, set(), ["llama-server", "tts-server"], conversando=True))
+
+    def test_con_conversacion_reanuda_los_que_congelo(self):
+        acciones = G.decidir(True, 10, {"llama-server"}, ["llama-server", "tts-server"], conversando=True)
+        self.assertEqual(acciones, [("llama-server", "descongelar")])
+
+    def test_sin_conversacion_la_regla_de_siempre(self):
+        self.assertEqual(G.decidir(True, 10, set(), ["llama-server"], conversando=False),
+                         [("llama-server", "congelar")])

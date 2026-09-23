@@ -122,5 +122,32 @@ class JevLocal(unittest.TestCase):
         self.assertAlmostEqual(sum(respuesta["probabilities"].values()), 1.0)
 
 
+class JevLocalSeApartaEnConversacion(unittest.TestCase):
+    """Con Alex hablando con Astraura, Jev local no ocupa el hueco de BitNet."""
+
+    def setUp(self):
+        import json, tempfile, time
+        self.dir = tempfile.mkdtemp()
+        self.ruta = os.path.join(self.dir, "conversacion.json")
+        with open(self.ruta, "w") as f:
+            json.dump({"desde": time.time(), "hasta": time.time() + 60}, f)
+        self.antes = jev_local.CONCESION
+        jev_local.CONCESION = self.ruta
+        jev_local.TRANSPORTE = None
+
+    def tearDown(self):
+        jev_local.CONCESION = self.antes
+
+    def test_conversando_lee_la_concesion(self):
+        self.assertTrue(jev_local.conversando())
+        self.assertFalse(jev_local.conversando(ahora=10**12))
+        self.assertFalse(jev_local.conversando(ruta=os.path.join(self.dir, "no")))
+
+    def test_decidir_y_disponible_se_apartan(self):
+        preguntas = {"q": {"type": "noul", "instructions": "¿sí?"}}
+        self.assertIsNone(jev_local.decidir({"a": 1}, preguntas))
+        self.assertFalse(jev_local.disponible())
+
+
 if __name__ == "__main__":
     unittest.main()

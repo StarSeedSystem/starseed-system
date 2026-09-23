@@ -9,6 +9,26 @@ import urllib.request
 URL = os.environ.get("STARSEED_JEV_LOCAL_URL", "http://127.0.0.1:8790").rstrip("/")
 TIEMPO_S = 6
 TRANSPORTE = None
+# (Astraura en vivo · 2026-09-23) Mientras Alex conversa con Astraura, el único
+# hueco del llama-server (--parallel 1) es de la conversación: un prompt de
+# Jev de ~650 tokens a 12 tok/s lo ocupaba 50 s y la respuesta hablada caía a
+# la nube. Con la concesión activa, Jev local se aparta (devuelve None y Jev
+# sigue con su siguiente medio).
+CONCESION = os.path.expanduser(
+    os.environ.get("STARSEED_CONVERSACION", "~/.starseed/conversacion.json")
+)
+
+
+def conversando(ruta=None, ahora=None):
+    """True si hay una conversación en vivo con Astraura ahora mismo."""
+    import time
+
+    try:
+        with open(ruta or CONCESION, encoding="utf-8") as f:
+            hasta = float((json.load(f) or {}).get("hasta") or 0)
+    except (OSError, ValueError, TypeError, AttributeError):
+        return False
+    return hasta > (time.time() if ahora is None else ahora)
 
 
 def _transporte_real(cuerpo, timeout=TIEMPO_S):
@@ -154,6 +174,8 @@ def decidir(estado, preguntas, tiempo_s=6):
     """Devuelve respuestas tipadas locales, o None si el medio no contesta."""
     if not isinstance(preguntas, dict) or not preguntas:
         return None
+    if TRANSPORTE is None and conversando():
+        return None
     transporte = TRANSPORTE or (lambda cuerpo: _transporte_real(cuerpo, tiempo_s))
     respuestas = {}
     for nombre, pregunta in preguntas.items():
@@ -171,6 +193,8 @@ def decidir(estado, preguntas, tiempo_s=6):
 
 def disponible():
     """Comprueba /health con un plazo corto, sin esperar una inferencia."""
+    if conversando():
+        return False
     try:
         req = urllib.request.Request(URL + "/health")
         with urllib.request.urlopen(req, timeout=2) as respuesta:

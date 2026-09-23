@@ -46,6 +46,13 @@ _spec = importlib.util.spec_from_file_location(
 _p = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_p)
 
+# (2026-09-22) La conversación con Astraura manda: ver prioridad_conversacion.py. Mientras
+# dura, este guardia NO congela la voz ni BitNet (los reanuda si estaban congelados) y es el
+# enjambre el que cede la RAM. Congelarlos en plena conversación era lo que partía la voz y
+# dejaba a BitNet dos días parado reteniendo su puerto.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import prioridad_conversacion as _conv  # noqa: E402
+
 
 def libres_mb():
     """Memoria realmente disponible: libre + inactiva (el sistema la reclama sola)."""
@@ -155,7 +162,7 @@ def obtener_congelados(
     return congelados
 
 
-def decidir(orquestador_vivo, libre_mb, congelados, motores):
+def decidir(orquestador_vivo, libre_mb, congelados, motores, conversando=False):
     """Que hacer, pura: lista de (motor, 'congelar'|'descongelar').
 
     `congelados` son los motores que el guardia tiene marcados Y verificados como
@@ -172,6 +179,10 @@ def decidir(orquestador_vivo, libre_mb, congelados, motores):
         nuevo con el mismo nombre vuelve a poder congelarse. Ver `main`.
     """
     acciones = []
+    if conversando:
+        # Con Alex hablando, los motores de la conversación no se tocan salvo para
+        # devolverles la vida. Da igual cuánta memoria quede: la cede el enjambre.
+        return [(m, "descongelar") for m in motores if m in congelados]
     if libre_mb is None:
         return acciones
     for motor in motores:  # orden estable = el de la lista viva
@@ -202,7 +213,11 @@ def main():
 
             congelados = obtener_congelados(motores) if ps_ok else set()
 
-            acciones = decidir(orq, libres_mb(), congelados, vivos)
+            conversando = _conv.activa(_conv.leer_concesion())
+            acciones = decidir(orq, libres_mb(), congelados, vivos, conversando)
+            # El enjambre cede la RAM mientras dura la conversación y vuelve al acabar.
+            if conversando or _conv.leer_marca():
+                print("conversación: %s" % _conv.aplicar(), flush=True)
 
             for motor, accion in acciones:
                 if accion == "congelar":
@@ -244,7 +259,13 @@ def main():
                     )
         except Exception as e:
             print("guardia: %s: %s" % (type(e).__name__, e), flush=True)
-        time.sleep(INTERVALO_S)
+        # Se duerme a tramos de 5 s: si una conversación empieza o acaba, se reacciona ya
+        # y no a los 45 s (la voz también avisa al empezar, pero esto es la red de abajo).
+        antes = _conv.activa(_conv.leer_concesion())
+        for _ in range(max(1, INTERVALO_S // 5)):
+            time.sleep(5)
+            if _conv.activa(_conv.leer_concesion()) != antes:
+                break
 
 
 if __name__ == "__main__":

@@ -506,3 +506,16 @@ class LaBuildSeParaAntesDeLlenarElDisco(unittest.TestCase):
     def test_el_umbral_de_entrada_ya_no_es_el_de_la_cache_duplicada(self):
         self.assertLessEqual(R.MINIMO_LIBRE_GB, 5.0)
         self.assertGreater(R.MINIMO_LIBRE_GB, R.MINIMO_DURANTE_GB)
+
+
+class NoSeCompilaEnPlenaConversacion(unittest.TestCase):
+    def test_lee_la_concesion(self):
+        import json, tempfile, time
+        ruta = tempfile.mktemp()
+        with open(ruta, "w") as f:
+            json.dump({"hasta": time.time() + 60}, f)
+        self.assertTrue(R.conversando(ruta))
+        with open(ruta, "w") as f:
+            json.dump({"hasta": time.time() - 1}, f)
+        self.assertFalse(R.conversando(ruta))
+        self.assertFalse(R.conversando(ruta + ".no-existe"))
