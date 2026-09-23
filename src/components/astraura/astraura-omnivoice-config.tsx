@@ -96,6 +96,7 @@ import { AgentesFondoSection } from "@/components/astraura/agentes-fondo-section
 import { InteligenciaSection } from "@/components/astraura/inteligencia-section";
 import { useNarracionVentana } from "@/lib/aurora/narracion-ventana";
 import { PersonaConstellation } from "@/components/astraura/persona-constellation";
+import { SelectorVozRT } from "@/components/aurora/selector-voz-rt";
 
 /** Feedback de carga de una sección perezosa. */
 function SectionLoading() {
@@ -1884,7 +1885,10 @@ export function AstrauraOmniVoiceConfig({
         {currentSection === "inteligencia" && <InteligenciaSection compact={compact} />}
 
         {currentSection === "openvoice" && (
-          <OpenVoiceSection personaId={personaId} deviceId={deviceId} caps={caps} compact={compact} full={variant === "embedded"} />
+          <div className={bodySpace}>
+            <SelectorVozRT />
+            <OpenVoiceSection personaId={personaId} deviceId={deviceId} caps={caps} compact={compact} full={variant === "embedded"} />
+          </div>
         )}
         {currentSection === "cerebro" && (
           <CerebroSection
