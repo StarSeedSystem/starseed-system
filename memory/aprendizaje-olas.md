@@ -2695,3 +2695,21 @@
 - `c313_QW6` — pruebas en rojo: ERROR: test_excluye_agotados_y_enfriandose (test_revisores.CandidatosTest.test_excluye_agotados_y_enfriandose)
 - `DR0922-1` — pruebas en rojo: FAIL: test_devuelve_los_modelos_de_la_pasarela (test_pasarelas_escritoras.EscritoresPasarelasTest.test_devuelve_los_mode
 - `TK2c` — pruebas en rojo: ERROR: test_excluye_agotados_y_enfriandose (test_revisores.CandidatosTest.test_excluye_agotados_y_enfriandose)
+
+## 2026-09-23 00:18 · auto-0922-232349
+
+**Lo que se pidió.** Probar
+
+**Resultado.** 0 de 5 integradas. 5 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 5 tareas se fueron por lo mismo — pruebas en rojo (LY1, TR1, VZR1, p314Ab, DR0922-1). Es 100 % de la ola.
+- codex/gpt-5.6-sol no integró ninguna de sus 2 tareas.
+- nvidia/moonshotai/kimi-k3 no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `LY1` — pruebas en rojo: b'16/16 pruebas en verde.\ndirector/orden-tareas: OSError: disco lleno\n'
+- `TR1` — pruebas en rojo: vitest falla (rama conservada)
+- `VZR1` — pruebas en rojo: b'16/16 pruebas en verde.\ndirector/orden-tareas: OSError: disco lleno\n[gobernador] tope vivo de trabajadores: 3 (m\xc3
+- `p314Ab` — pruebas en rojo: b'16/16 pruebas en verde.\ndirector/orden-tareas: OSError: disco lleno\n'
+- `DR0922-1` — pruebas en rojo: FAIL: test_devuelve_los_modelos_de_la_pasarela (test_pasarelas_escritoras.EscritoresPasarelasTest.test_devuelve_los_mode
