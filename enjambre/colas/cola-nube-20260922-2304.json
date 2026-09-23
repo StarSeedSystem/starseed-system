@@ -1,0 +1,44 @@
+{
+ "ola": "nube-20260922",
+ "tareas": [
+  {
+   "id": "c313_QW4",
+   "ola": "Ola 313 · Consolidación de pendientes",
+   "titulo": ".env.example con todas las variables de entorno",
+   "archivos": [
+    ".env.example"
+   ],
+   "prompt": "Procesa la tarea: .env.example con todas las variables de entorno. Archivos: ['.env.example']. Escribe código limpio, sin any, en español con acentos. tsc limpio.",
+   "depende": [],
+   "modelo": "llm7/minimax-m2.7",
+   "aprobacion": false
+  },
+  {
+   "id": "c313_QW6",
+   "ola": "Ola 313 · Consolidación de pendientes",
+   "titulo": "Nombre accesible del botón Compartir de la tarjeta",
+   "archivos": [
+    "src/components/social/PostCard.tsx"
+   ],
+   "prompt": "Procesa la tarea: Nombre accesible del botón Compartir de la tarjeta. Archivos: ['src/components/social/PostCard.tsx']. Escribe código limpio, sin any, en español con acentos. tsc limpio.",
+   "depende": [],
+   "modelo": "llm7/minimax-m2.7",
+   "aprobacion": false
+  },
+  {
+   "id": "TK2c",
+   "ola": "Ola 339 · Destilar a Astraura con lo que ya generamos",
+   "titulo": "Corpus de destilacion: el enjambre ya es el maestro y estabamos tirando sus respuestas",
+   "archivos": [
+    "scripts/puente/destilacion_corpus.py",
+    "scripts/puente/test_destilacion_corpus.py"
+   ],
+   "prompt": "LA IDEA, sacada de la receta de tinker-cookbook (on-policy distillation) pero SIN su servicio de pago: un modelo maestro supervisa al alumno, y eso rinde mas que entrenar al alumno solo.\n\nNOSOTROS YA TENEMOS EL MAESTRO Y NO LO APROVECHAMOS. Cada tarea del enjambre es una demostracion: un encargo (prompt), un modelo fuerte y gratuito que lo resuelve (gemini-3.6-flash, gpt-5.6-sol, kimi-k3...), un diff que paso CUATRO PUERTAS (tsc, vitest, unittest, build) y una revision. Es un corpus supervisado con etiqueta de calidad objetiva, y lo estamos tirando. El alumno es BitNet b1.58 local, el motor de Astraura.\n\nTU ENCARGO, dos archivos y ninguno fuera: `scripts/puente/destilacion_corpus.py`.\n  1. `ejemplo_de_tarea(tarea, entrada_progreso, diff)` PURA: devuelve un dict {encargo, respuesta, modelo, area, calidad, sha} o None si no sirve como ejemplo. SOLO entran las de calidad demostrada: estado `commit` Y revision no bloqueante. Una tarea rechazada no es un mal ejemplo, es ruido: fuera.\n  2. `recoger(progreso, tareas, leer_diff)` PURA salvo por `leer_diff`, que se le inyecta: recorre el progreso y devuelve la lista de ejemplos, sin duplicados por sha.\n  3. `main()`: escribe `starseed_memory_root/destilacion/corpus.jsonl` en formato JSONL (un ejemplo por linea), anadiendo solo lo nuevo, y deja un resumen con cuantos ejemplos hay por area y por modelo maestro.\n\nCUIDADO CON ESTO, es lo mas importante: el corpus NO puede llevar NINGUNA clave, token ni valor de variable de entorno. Antes de escribir un ejemplo, descarta cualquier linea del diff que case con algo tipo `[A-Z0-9_]*(KEY|TOKEN|SECRET|PASSWORD)[A-Z0-9_]*\\s*=` y deja una marca de que se quito. Una prueba tiene que comprobar exactamente eso.\n\nPruebas: una tarea `commit` con revision limpia entra; una rechazada no; una con revision bloqueante no; no se duplica por sha; y la de las claves.\n\nNO explores el repositorio entero: abre SOLO los archivos que se nombran. Comentarios en ESPANOL que expliquen el PORQUE. Pruebas en el mismo directorio. Corre tus pruebas antes de terminar.\n\nPOR QUÉ VUELVE: el intento anterior fue rechazado. Objeción literal del revisor:\nSeguimiento: sí, bloqueante — ampliar `limpiar_secretos` para cubrir `:` además de `=`, cabeceras `Authorization/Bearer` y patrones de token conocidos (`sk-`, `ghp_`, etc.) antes de generar corpus real.\n\nRiesgos reales:\n1. **Fuga de secretos al corpus (seguridad).** `PATRON_SECRETO` solo captura `CLAVE = valor`. Formatos habituales en diffs reales —`\"apiKey\": \"sk-...\"`, `api_key: valor` (YAML/JSON), `Authorization: Bearer ...`, tokens `sk-...`/`ghp_...` sueltos— pasan limpios y acaban en `corpus.jsonl`, que alimentará el entrenamiento del modelo alumno. Es un agujero real de exfiltración, no cosmético.\n2. **Filtro \"bloqueante\" por subcadena es frágil en ambos sentidos:** una nota como «no es bloqueante» descarta un ejemplo válido (conservador, aceptable), pero una revisión bloqueante redactada con otras palabras («rechazado por seguridad») entra al corpus como ejemplo de calidad. El criterio de calidad demostrada queda poco garantizado.\n3. `git show` incluye mensaje de commit y metadatos; el \"diff\" destilado no es solo código. Menor, pero degrada el corpus.\nAtiéndela punto por punto; si algún punto no aplica, di por qué en el commit.",
+   "depende": [],
+   "estado": "rechazada",
+   "nota": "rechazada automáticamente por ide (sin revisión humana); rama ola/TK2 conservada",
+   "motivo": "",
+   "modelo": "llm7/minimax-m2.7"
+  }
+ ]
+}
