@@ -1,0 +1,63 @@
+{
+ "ola": "nube-20260923",
+ "tareas": [
+  {
+   "id": "DR0922-1",
+   "ola": "Ola Dream 2026-09-22 · lo que el análisis nocturno encontró",
+   "titulo": "Reintentar con otro agente las tareas `fallo_tests` de la ola 363 tras arreglar el test",
+   "archivos": [],
+   "depende": [],
+   "prompt": "ORIGEN: esto lo escribió el Dream —el análisis nocturno de Hermes— en `starseed_memory_root/dream/sugerencias-2026-09-22.md`, sección «top 3 accionables». Texto literal del informe:\n\n  Reintentar con otro agente las tareas `fallo_tests` de la ola 363 tras arreglar el test — \n\nANTES DE ESCRIBIR NADA: comprueba que sigue siendo cierto. El Dream lo escriben modelos gratuitos leyendo registros, y a veces proponen algo que YA está hecho o que se entendió mal. Si al mirar el repo resulta que no aplica, no inventes trabajo: escribe en tu respuesta una línea `NO APLICA: <motivo>` y para.\n\nSi aplica: acota el cambio a lo mínimo que resuelva lo que dice el informe, y dilo en el commit. Máximo 3 archivos y 120 líneas por archivo. Las reglas de la casa están en `memory/workflow-actual.md` — léelas: el silencio no es aprobación, integrado no es aplicado, y si una prueba falla se arregla el código, no la prueba.",
+   "modelo": "llm7/minimax-m2.7"
+  },
+  {
+   "id": "CU3br",
+   "ola": 362,
+   "titulo": "Ajustes del Mando: que conceder o retirar un acceso no deje la pantalla en blanco",
+   "archivos": [
+    "src/app/api/mando/accesos/route.ts",
+    "src/components/mando/panel-accesos.tsx"
+   ],
+   "depende": [],
+   "prompt": "RESCATE (2026-09-20). Esta tarea se rechazo el 17/09 «automaticamente por ide, sin revision\nhumana». La causa de aquella racha esta medida y ARREGLADA: una cabecera x-title con un\ncaracter no ASCII hacia que TODOS los modelos :free de OpenRouter fallaran en 0 s, y el\ndesatascador daba por muerta la tarea. No era culpa del encargo.\nCOMPROBADO HOY: ni `src/app/api/mando/accesos/route.ts` ni `src/components/mando/panel-accesos.tsx` existen en main. El trabajo sigue pendiente entero.\nTRAMPA MEDIDA EL 20/09: `tsc` y vitest NO ven un import de VALOR desde un modulo que toca\n`node:*` hecho en un componente de CLIENTE; solo lo ve `next build`. De un modulo con\n`node:fs`/`node:util`, un componente de cliente solo puede importar TIPOS.\n\n=== ENCARGO ORIGINAL ===\nCU3 fue RECHAZADA con bloqueo confirmado por dos revisores. El defecto, literal:\n\n«El POST devuelve `{ ok, accion, correo }`, pero `llamar()` lo castea a `DatosAccesos` y `conceder()`/`retirar()` hacen `setDatos(d)`. Tras conceder o retirar, `datos.cuentas` pasa a ser `undefined` y el render (`datos.cuentas.map`, `datos.cuentas.find`) revienta la pantalla. El primer alta de invitado rompe la UI.»\n\nEs decir: el panel funciona hasta que lo usas. La primera vez que concedes un acceso, pantalla en blanco.\n\nARREGLO, y elige UNA de las dos vías (no las dos):\n· que el POST devuelva el MISMO payload completo que el GET, o\n· que el cliente rehaga el GET después del POST.\nLa primera es mejor: una ida y vuelta menos y sin ventana de estado inconsistente.\n\nY pase lo que pase, el render no debe poder reventar por esto: si `datos.cuentas` llega vacío o ausente, la pantalla enseña su estado vacío, no una excepción. Una pantalla que se rompe por una respuesta inesperada es un fallo aparte del contrato.\n\nDos cosas más que el revisor anotó y conviene atender:\n· `leerDatos` → modificar → `guardarDatos` no es atómico entre peticiones: dos POST simultáneos pisan el cambio del otro. El rename atómico protege de corrupción parcial, no de perder una actualización. Si no lo arreglas aquí, DÉJALO ESCRITO en un comentario como deuda conocida, con el porqué.\n· en local, `correoQuePide` devuelve siempre `dueno`. Es deliberado, pero confirma en un comentario que `esDespliegueLocal` no puede dar verdadero en producción por una cabecera forjada.\n\nAñade una prueba del caso que rompía: conceder un acceso y comprobar que después la lista sigue teniendo sus cuentas.\n\nCAMBIO PEDIDO DESDE EL PUENTE (este intento es un reintento; lo que falló la vez anterior se corrige así):\nCU3r no va a llegar: o no existe en ninguna ola, o está descartada, sustituida o rechazada. Rehaz esta tarea SIN esa dependencia: implementa dentro de tu alcance lo mínimo que necesites de CU3r, o recorta el alcance a lo que se pueda terminar solo. Di en el commit qué recortaste.",
+   "aprobacion": false,
+   "modelo": "llm7/minimax-m2.7"
+  },
+  {
+   "id": "p318Jc",
+   "ola": "Ola 318 · Director de verdad: la pestaña Director del Mando enseña datos reales y sus ajustes mandan",
+   "titulo": "Fidelidad de datos de la pestaña Director: última salida como código, dependencias con nombre, proveedores sin cupo por fecha en texto, sin claves falsas e integradas de hoy de verdad",
+   "archivos": [
+    "src/lib/mando/director-datos.ts",
+    "src/lib/mando/director-fuentes.ts",
+    "src/lib/mando/__tests__/director-datos.test.ts"
+   ],
+   "prompt": "Lee AGENTS.md. Verificado el 2026-09-13 18:00 UTC en localhost:9002/mando → Director (ya con ControlDirectores montado): cinco mentiras de datos. (1) Cada director enseña «Última salida: 31/12/1969, 18:00:00»: `ultimaSalida` es el CÓDIGO de salida de `launchctl list` (0, -15…), no una fecha → en `resumenDirectores` exponer `ultimaSalida` como número y en el texto de la tarjeta (lo pinta director-servicios.tsx; si hace falta tocarlo cuenta como 4.º archivo, ≤10 líneas) mostrar «salida 0» / «salida −15 (señal)». (2) Todas las bloqueadas dicen «espera dependencia sin nombre»: `ProgresoEntrada.depende_de` no existe en progreso.json; la dependencia está en la `nota` («dependencia no integrada: p318C2 (pendiente)») y en el campo `depende` de la tarea en las colas fuente → `resumenPendientes` debe leer ambas (regex sobre la nota y `depende` de `leerColasFuente`). (3) apinex aparece «vivo» aunque ~/.starseed/salud-proveedores.json dice `estado: 'caido'` y `sin_cupo_hasta: '2026-09-14 04:57:36'`: `SaludProveedor.sin_cupo_hasta` admite string 'YYYY-MM-DD HH:MM:SS' o epoch; `resumenProveedores` parsea ambos y marca `vivo=false` si estado es 'caido' O sin_cupo_hasta es futuro; `sinCupoHasta` se devuelve como epoch. (4) Aparece un proveedor «claves» (clave superior del JSON de salud que no es proveedor): ignorar entradas sin campo `estado`. (5) «integradas hoy: 171» cuenta todos los `commit` de progreso.json: contar solo entradas con `t` de hoy (hora local) o, si falta `t`, no contarlas. Tests puros para los cinco puntos en director-datos.test.ts. Sin `any`; español con acentos. Máximo 120 líneas cambiadas.\n\nPOR QUÉ VUELVE: el intento anterior fue rechazado. Objeción literal del revisor:\nSeguimiento: sí, bloqueante — faltan los cambios en `director-fuentes.ts` y los tests en `director-datos.test.ts` exigidos por la tarea; además hay que unificar el criterio local/UTC entre `aEpoch` y `esHoyLocal`.\n\nRiesgos reales:\n1. **Bloqueante de alcance**: el enunciado exigía tocar `src/lib/mando/director-fuentes.ts` y `src/lib/mando/__tests__/director-datos.test.ts`, y el diff no los toca. Sin la fuente, no hay garantía de que los datos reales (código de salida, `depende`, `sin_cupo_hasta` como texto, `t` de integradas) lleguen con esos campos; y sin tests no hay red para `esHoyLocal`/`aEpoch`/`dependeDeNota`.\n2. `aEpoch` trata cadenas sin `T`/`Z` como UTC (`...Z`), mientras `esHoyLocal` las parsea como hora local. Mismo dato, dos interpretaciones distintas: un `sin_cupo_hasta` en formato \"YYYY-MM-DD HH:MM:SS\" local se desplaza según la zona del servidor, pudiendo marcar un proveedor como sin cupo (o vivo) incorrectamente. Inconsistencia real de datos.\n3. `integradasHoy` ahora exige `estado === \"commit\"` y `t` de hoy; si el progreso guarda integradas con otro estado o sin `t`, el contador cae a 0 silenciosamente. Plausible, pero depende de la fuente no mostrada.\n4. `textoSalida` ya no muestra fecha: si el dato de origen sigue siendo epoch en algunos servicios, se mostrará un número enorme como \"código\". Menor, pero verificable a mano.\nAtiéndela punto por punto; si algún punto no aplica, di por qué en el commit.",
+   "depende": [
+    "p318I"
+   ],
+   "estado": "rechazada",
+   "nota": "rechazada desde el Mando; rama ola/p318J conservada",
+   "motivo": "",
+   "modelo": "llm7/minimax-m2.7"
+  },
+  {
+   "id": "p318Jb",
+   "ola": "Ola 318 · Director de verdad: la pestaña Director del Mando enseña datos reales y sus ajustes mandan",
+   "titulo": "Fidelidad de datos de la pestaña Director: última salida como código, dependencias con nombre, proveedores sin cupo por fecha en texto, sin claves falsas e integradas de hoy de verdad",
+   "archivos": [
+    "src/lib/mando/director-datos.ts",
+    "src/lib/mando/director-fuentes.ts",
+    "src/lib/mando/__tests__/director-datos.test.ts"
+   ],
+   "prompt": "Lee AGENTS.md. Verificado el 2026-09-13 18:00 UTC en localhost:9002/mando → Director (ya con ControlDirectores montado): cinco mentiras de datos. (1) Cada director enseña «Última salida: 31/12/1969, 18:00:00»: `ultimaSalida` es el CÓDIGO de salida de `launchctl list` (0, -15…), no una fecha → en `resumenDirectores` exponer `ultimaSalida` como número y en el texto de la tarjeta (lo pinta director-servicios.tsx; si hace falta tocarlo cuenta como 4.º archivo, ≤10 líneas) mostrar «salida 0» / «salida −15 (señal)». (2) Todas las bloqueadas dicen «espera dependencia sin nombre»: `ProgresoEntrada.depende_de` no existe en progreso.json; la dependencia está en la `nota` («dependencia no integrada: p318C2 (pendiente)») y en el campo `depende` de la tarea en las colas fuente → `resumenPendientes` debe leer ambas (regex sobre la nota y `depende` de `leerColasFuente`). (3) apinex aparece «vivo» aunque ~/.starseed/salud-proveedores.json dice `estado: 'caido'` y `sin_cupo_hasta: '2026-09-14 04:57:36'`: `SaludProveedor.sin_cupo_hasta` admite string 'YYYY-MM-DD HH:MM:SS' o epoch; `resumenProveedores` parsea ambos y marca `vivo=false` si estado es 'caido' O sin_cupo_hasta es futuro; `sinCupoHasta` se devuelve como epoch. (4) Aparece un proveedor «claves» (clave superior del JSON de salud que no es proveedor): ignorar entradas sin campo `estado`. (5) «integradas hoy: 171» cuenta todos los `commit` de progreso.json: contar solo entradas con `t` de hoy (hora local) o, si falta `t`, no contarlas. Tests puros para los cinco puntos en director-datos.test.ts. Sin `any`; español con acentos. Máximo 120 líneas cambiadas.\n\nPOR QUÉ VUELVE: el intento anterior fue rechazado. Objeción literal del revisor:\nSeguimiento: sí, bloqueante — faltan los cambios en `director-fuentes.ts` y los tests en `director-datos.test.ts` exigidos por la tarea; además hay que unificar el criterio local/UTC entre `aEpoch` y `esHoyLocal`.\n\nRiesgos reales:\n1. **Bloqueante de alcance**: el enunciado exigía tocar `src/lib/mando/director-fuentes.ts` y `src/lib/mando/__tests__/director-datos.test.ts`, y el diff no los toca. Sin la fuente, no hay garantía de que los datos reales (código de salida, `depende`, `sin_cupo_hasta` como texto, `t` de integradas) lleguen con esos campos; y sin tests no hay red para `esHoyLocal`/`aEpoch`/`dependeDeNota`.\n2. `aEpoch` trata cadenas sin `T`/`Z` como UTC (`...Z`), mientras `esHoyLocal` las parsea como hora local. Mismo dato, dos interpretaciones distintas: un `sin_cupo_hasta` en formato \"YYYY-MM-DD HH:MM:SS\" local se desplaza según la zona del servidor, pudiendo marcar un proveedor como sin cupo (o vivo) incorrectamente. Inconsistencia real de datos.\n3. `integradasHoy` ahora exige `estado === \"commit\"` y `t` de hoy; si el progreso guarda integradas con otro estado o sin `t`, el contador cae a 0 silenciosamente. Plausible, pero depende de la fuente no mostrada.\n4. `textoSalida` ya no muestra fecha: si el dato de origen sigue siendo epoch en algunos servicios, se mostrará un número enorme como \"código\". Menor, pero verificable a mano.\nAtiéndela punto por punto; si algún punto no aplica, di por qué en el commit.",
+   "depende": [
+    "p318I"
+   ],
+   "estado": "rechazada",
+   "nota": "rechazada desde el Mando; rama ola/p318J conservada",
+   "motivo": "",
+   "modelo": "llm7/minimax-m2.7"
+  }
+ ]
+}
