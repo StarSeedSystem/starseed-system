@@ -1,6 +1,6 @@
 # Puente de Mando · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-23 13:03:02 desde el Mando vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-23 16:33:45 desde el Mando vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -14,18 +14,19 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | Mando | **encendido** en http://127.0.0.1:9002/mando |
 | Ola arriba | Ola Dream 2026-09-22 · lo que el análisis nocturno encontró |
 | Agentes escribiendo | **0** |
-| En esta ola | integradas 0 · en curso 0 · esperando aprobación 0 · pendientes 0 |
-| Últimas 4 olas | en curso 0 · pendientes 0 · integradas 21 |
-| HEAD | `66b5bb15 chore(memoria): aprendizaje de la ola auto-0923-124343` |
-| Sin publicar | 21 commits |
+| En esta ola | integradas 1 · en curso 0 · esperando aprobación 0 · pendientes 0 |
+| Últimas 4 olas | en curso 0 · pendientes 0 · integradas 22 |
+| HEAD | `33272efc chore(memoria): aprendizaje de la ola auto-0923-161921` |
+| Sin publicar | 42 commits |
 | Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-auto-0923-124343.json`, hace 4s)
+## Quién escribe ahora (latido de `cola-auto-0923-161921.json`, hace 4s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `TR1` | hecho | nvidia/moonshotai/kimi-k3 | 0 min | 28 s | 347066 |
-| `DR0923-1` | hecho | nvidia/moonshotai/kimi-k3 | 8 min | 470 s | 251609 |
+| `TR1` | hecho | nvidia/moonshotai/kimi-k3 | 1 min | 32 s | 414511 |
+| `DR0922-1` | hecho | nvidia/moonshotai/kimi-k3 | 11 min | 666 s | 793779 |
+| `p314Ab` | hecho | nvidia/moonshotai/kimi-k3 | 12 min | 720 s | 557434 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
