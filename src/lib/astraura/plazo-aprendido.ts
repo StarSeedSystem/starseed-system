@@ -67,5 +67,14 @@ function percentil80(valores: number[]): number {
  * PLAZO_DEFECTO_MS (2800).
  */
 export function plazoAprendido(medidas: MedidaPlazo[]): number {
-  return PLAZO_DEFECTO_MS;
+  const recientes = medidas.slice(-MAX_MEDIDAS);
+  const valores = recientes
+    .filter(
+      (m): m is MedidaPlazo & { msPrimerToken: number } =>
+        m.local && typeof m.msPrimerToken === "number",
+    )
+    .map((m) => m.msPrimerToken);
+  if (valores.length < MIN_MEDIDAS_APRENDIZAJE) return PLAZO_DEFECTO_MS;
+  const p80 = percentil80(valores);
+  return Math.min(PLAZO_MAX_MS, Math.max(PLAZO_MIN_MS, p80));
 }
