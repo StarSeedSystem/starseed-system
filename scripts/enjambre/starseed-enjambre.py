@@ -101,7 +101,8 @@ def _node_del_repo():
     el enjambre arranque en una máquina sin nvm.
     """
     try:
-        serie = open(os.path.join(ROOT, ".nvmrc"), encoding="utf-8").read().strip()
+        with open(os.path.join(ROOT, ".nvmrc"), encoding="utf-8") as f:
+            serie = f.read().strip()
     except Exception:
         serie = "22"
     mayor = serie.lstrip("v").split(".")[0]
@@ -1410,7 +1411,9 @@ def leer_env(*rutas):
     env = {}
     for r in rutas:
         try:
-            for l in open(os.path.expanduser(r), encoding="utf-8"):
+            with open(os.path.expanduser(r), encoding="utf-8") as fh:
+                lineas = fh.readlines()
+            for l in lineas:
                 l = l.strip()
                 if l and not l.startswith("#") and "=" in l:
                     k, _, v = l.partition("=")
@@ -2410,7 +2413,8 @@ def relevo_nota(texto):
 # ── estado / progreso ───────────────────────────────────────────────────────
 def cargar_prog():
     try:
-        return json.load(open(PROG_JSON, encoding="utf-8"))
+        with open(PROG_JSON, encoding="utf-8") as f:
+            return json.load(f)
     except Exception:
         return {}
 
@@ -3557,7 +3561,16 @@ def orden_de_pruebas(directorio, python_bin="python3"):
     """
     if str(directorio).rstrip("/").endswith("scripts/enjambre"):
         return [python_bin, "-m", "pytest", directorio, "-q"]
-    return [python_bin, "-m", "unittest", "discover", "-s", directorio, "-p", "test_*.py"]
+    return [
+        python_bin,
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        directorio,
+        "-p",
+        "test_*.py",
+    ]
 
 
 def _puerta_python(wt, tid=None, log=None):

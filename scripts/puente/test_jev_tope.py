@@ -16,7 +16,9 @@ DIR = os.path.dirname(os.path.abspath(__file__))
 
 
 def _jev(uso_path):
-    spec = importlib.util.spec_from_file_location("jev_mod", os.path.join(DIR, "jev.py"))
+    spec = importlib.util.spec_from_file_location(
+        "jev_mod", os.path.join(DIR, "jev.py")
+    )
     m = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(m)
     m.USO = uso_path
@@ -45,11 +47,16 @@ class TestReiniciar(unittest.TestCase):
         import time
 
         hoy = time.strftime("%Y-%m-%d")
-        json.dump(
-            {"llamadas": 10, "tokens": 100, "coste_usd": importe,
-             "dias": {hoy: {"llamadas": 10, "coste_usd": importe}}},
-            open(self.uso, "w", encoding="utf-8"),
-        )
+        with open(self.uso, "w", encoding="utf-8") as f:
+            json.dump(
+                {
+                    "llamadas": 10,
+                    "tokens": 100,
+                    "coste_usd": importe,
+                    "dias": {hoy: {"llamadas": 10, "coste_usd": importe}},
+                },
+                f,
+            )
         return hoy
 
     def test_pone_a_cero_el_gasto_de_hoy(self):
@@ -71,7 +78,8 @@ class TestReiniciar(unittest.TestCase):
         m = _jev(self.uso)
         self._con_gasto(m, 0.19)
         m.reiniciar_limite()
-        d = json.load(open(self.uso, encoding="utf-8"))
+        with open(self.uso, encoding="utf-8") as f:
+            d = json.load(f)
         self.assertEqual(d["llamadas"], 10, "el acumulado no se borra")
         self.assertAlmostEqual(d["coste_usd"], 0.19, msg="el coste total no se borra")
         self.assertEqual(len(d["reinicios"]), 1)
@@ -79,7 +87,8 @@ class TestReiniciar(unittest.TestCase):
 
     def test_sin_gasto_no_inventa_un_reinicio(self):
         m = _jev(self.uso)
-        json.dump({"llamadas": 0, "dias": {}}, open(self.uso, "w", encoding="utf-8"))
+        with open(self.uso, "w", encoding="utf-8") as f:
+            json.dump({"llamadas": 0, "dias": {}}, f)
         r = m.reiniciar_limite()
         self.assertFalse(r["reiniciado"])
 
