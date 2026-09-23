@@ -28,11 +28,16 @@ import {
     leerLatidos,
     leerLatidosDelBus,
     leerProgreso,
+    tareasDeCola,
 } from "@/lib/mando/lector-local";
 import {
     TERMINALES,
+    cambioAutomatico,
     detalleDeMedidor,
     ejecutablesDeColas,
+    olasDeLaMac,
+    tituloDeOla,
+    type OlaActiva,
     type ClaveMedidor,
     type DatosMedidores,
 } from "@/lib/mando/medidores";
@@ -282,6 +287,60 @@ async function leerAgentesDeLaNube(): Promise<
     }
 }
 
+/**
+ * (2026-09-23) Las olas que la nube ejecuta ahora: los runs vivos de `agentes-nube.json` y,
+ * de cada uno, la cola que se llevó. Esa cola vive en `enjambre/colas/`, fuera del
+ * directorio que lee `leerColas`, y por eso el Puente no sabía ni el título de lo que
+ * hacían sus cuatro agentes: la fila decía «nube/35799864769» y nada más. Se lee con
+ * `tareasDeCola`, el mismo lector que las colas de la Mac.
+ */
+async function leerOlasDeLaNube(): Promise<OlaActiva[]> {
+    try {
+        const d = JSON.parse(
+            await readFile(path.join(RAÍZ, "starseed_memory_root", "mando", "agentes-nube.json"), "utf8"),
+        ) as {
+            medio?: unknown;
+            runs?: { run?: unknown; agentes?: unknown; cola?: unknown; minutos?: unknown; enlace?: unknown }[];
+        };
+        const fuera: OlaActiva[] = [];
+        for (const r of d.runs ?? []) {
+            const n = Number(r.agentes);
+            if (!Number.isFinite(n) || n <= 0) continue;
+            const ruta = typeof r.cola === "string" ? r.cola : "";
+            let tareas: ReturnType<typeof tareasDeCola> = [];
+            // Solo rutas dentro del repo: nada de `..` ni absolutas en un archivo que
+            // escribe otro proceso.
+            if (ruta && !ruta.includes("..") && !path.isAbsolute(ruta)) {
+                try {
+                    tareas = tareasDeCola(JSON.parse(await readFile(path.join(RAÍZ, ruta), "utf8")), ruta);
+                } catch {
+                    /* la cola ya no está en disco: se enseña el run, sin tareas inventadas */
+                }
+            }
+            const nombreCola = (ruta.split("/").pop() ?? "").replace(/\.json$/, "") || `run ${String(r.run)}`;
+            fuera.push({
+                titulo: tituloDeOla(tareas[0]?.ola ?? nombreCola),
+                cola: nombreCola,
+                medio: typeof d.medio === "string" ? d.medio : "nube-gh",
+                agentes: n,
+                minutos: Number.isFinite(Number(r.minutos)) ? Number(r.minutos) : undefined,
+                run: r.run !== undefined ? String(r.run) : undefined,
+                enlace: typeof r.enlace === "string" ? r.enlace : undefined,
+                asignacionConocida: false,
+                tareas: tareas.map((t) => ({
+                    id: t.id,
+                    titulo: t.titulo,
+                    descripcion: t.descripcion,
+                    archivos: t.archivos,
+                })),
+            });
+        }
+        return fuera;
+    } catch {
+        return [];
+    }
+}
+
 async function leerEntradas(): Promise<Record<string, Entrada>> {
     const crudo = await leerProgreso();
     const salida: Record<string, Entrada> = {};
@@ -386,21 +445,39 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
     ];
     const declarados: Record<string, string[]> = {};
     // `leerColas()` devuelve una lista plana de tareas, no pares (nombre, tareas).
+    // (2026-09-23) Este bucle existía y NUNCA llenaba nada: `leerColas` no traía `archivos`,
+    // así que la ficha «Alcance declarado» salía vacía con el alcance escrito en la cola.
     for (const t of colas) {
-        const id = String((t as { id?: unknown }).id ?? "");
-        const archivos = (t as { archivos?: unknown }).archivos;
-        if (id && Array.isArray(archivos) && !declarados[id]) {
-            declarados[id] = archivos.map((a) => String(a));
-        }
+        if (t.id && t.archivos?.length && !declarados[t.id]) declarados[t.id] = t.archivos;
     }
-    const [obras, historiales, agentesNube, contenedores, proveedores, tokens] = await Promise.all([
+    const [obras, historiales, agentesNube, contenedores, proveedores, tokens, olasNube] = await Promise.all([
         leerObras(idsVivas).catch(() => ({})),
         leerHistoriales(idsVivas).catch(() => ({})),
         leerAgentesDeLaNube().catch(() => []),
         leerContenedores().catch(() => null),
         leerProveedores().catch(() => []),
         leerTokens().catch(() => null),
+        leerOlasDeLaNube().catch(() => []),
     ]);
+
+    // (2026-09-23) Las olas en marcha, de la Mac y de la nube, con sus tareas. Y el encargo
+    // de cada tarea, que hasta hoy no salía de la cola: el Puente sabía el título y nada más.
+    const olasActivas = [...olasDeLaMac(colas, latidosDeAqui), ...olasNube];
+    const descripciones: Record<string, string> = {};
+    for (const t of colas) if (t.descripcion) descripciones[t.id] = t.descripcion;
+    for (const ola of olasNube) {
+        for (const t of ola.tareas) {
+            if (!titulos[t.id] && t.titulo) titulos[t.id] = t.titulo;
+            if (!descripciones[t.id] && t.descripcion) descripciones[t.id] = t.descripcion;
+            if (!declarados[t.id] && t.archivos?.length) declarados[t.id] = t.archivos;
+        }
+        // La fila de la nube en «En curso» y «Agentes» se llama `nube/<run>`: que diga QUÉ
+        // ola es y qué tareas lleva, en vez del número del run a secas.
+        if (ola.run) {
+            titulos[`nube/${ola.run}`] =
+                `${ola.titulo} · ${ola.tareas.length} tarea(s): ${ola.tareas.map((t) => t.id).join(", ") || "cola ilegible"}`;
+        }
+    }
 
     return {
         progreso,
@@ -419,6 +496,8 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
         obras,
         historiales,
         declarados,
+        olasActivas,
+        descripciones,
         // El repo publico, para poder enlazar ramas y commits desde la ficha.
         repoGitHub: "StarSeedSystem/starseed-system",
         // (2026-09-21) Esto FALTABA y por eso el medidor «listas» ofrecia 24 tareas ya
@@ -571,6 +650,7 @@ export async function POST(peticion: Request): Promise<Response> {
             return Response.json({ error: salida.error ?? "No se pudo lanzar la publicación." }, { status: 409 });
         }
         return Response.json({
+            ok: true,
             hecho: true,
             mensaje:
                 "Publicación lanzada: commit, tsc, vitest, pruebas de Python y build antes del push. " +
@@ -578,7 +658,37 @@ export async function POST(peticion: Request): Promise<Response> {
         });
     }
 
-    if (accion === "reintentar" && !texto.trim()) {
+    // (2026-09-23) «Reintentar con cambio automático» (Alex). El cambio NO se improvisa
+    // aquí: se calcula con `cambioAutomatico`, la MISMA función que decide si el botón se
+    // enseña, sobre la MISMA ficha que se ve en pantalla. Así lo que se manda es
+    // exactamente lo que el botón prometía. Si de la ficha no sale nada concreto, esto se
+    // niega y lo dice: reintentar sin cambio da el mismo resultado.
+    let accionEfectiva = accion;
+    let cambio = texto.trim();
+    let explicacionAuto = "";
+    if (accion === "reintentar-auto") {
+        if (!id) {
+            return Response.json({ error: "Falta la tarea a la que aplicarlo." }, { status: 400 });
+        }
+        const datosAuto = await reunir().catch(() => ({}));
+        const filaAuto = detalleDeMedidor(clave as ClaveMedidor, datosAuto).filas.find((f) => f.id === id);
+        const auto = filaAuto ? cambioAutomatico(filaAuto) : null;
+        if (!auto) {
+            return Response.json(
+                {
+                    error:
+                        "No hay cambio que deducir: lo que espera esta tarea sigue vivo, así que reintentar daría " +
+                        "exactamente lo mismo. Espera a que se integre, o usa «Reintentar con un cambio» y di qué cambiar.",
+                },
+                { status: 409 },
+            );
+        }
+        accionEfectiva = "reintentar";
+        cambio = auto;
+        explicacionAuto = auto;
+    }
+
+    if (accionEfectiva === "reintentar" && !cambio) {
         return Response.json(
             { error: "Describe qué hay que cambiar: reintentar sin cambio da exactamente el mismo resultado." },
             { status: 400 },
@@ -617,24 +727,27 @@ export async function POST(peticion: Request): Promise<Response> {
     for (const t of objetivo) {
         const e = entradas[t];
         if (!e) continue;
-        if (accion === "descartar" || accion === "descartar-todas") {
+        if (accionEfectiva === "descartar" || accionEfectiva === "descartar-todas") {
             e.estado = "rechazada";
             e.nota = `descartada desde el medidor «${clave}» el ${ahora}`;
-        } else if (accion === "reintentar") {
+        } else if (accionEfectiva === "reintentar") {
             e.estado = "pendiente";
-            e.nota = `reintento pedido desde el Mando: ${texto.trim().slice(0, 400)}`;
-            e.cambio_pedido = texto.trim().slice(0, 2000);
+            e.nota = `reintento pedido desde el Mando: ${cambio.slice(0, 400)}`;
+            e.cambio_pedido = cambio.slice(0, 2000);
             // La rotación empieza de cero: si no, arrastra los modelos que fallaron con el
             // prompt VIEJO, que es justo el que se acaba de cambiar.
             delete e.modelos_fallidos;
             delete e.escalada;
         } else {
-            return Response.json({ error: `Acción desconocida: ${accion}` }, { status: 400 });
+            return Response.json({ error: `Acción desconocida: ${accionEfectiva}` }, { status: 400 });
         }
         e.reconciliado = ahora;
         hechas.push(t);
     }
 
     await guardar(entradas);
-    return Response.json({ ok: true, tareas: hechas, accion }, { headers: { "Cache-Control": "no-store" } });
+    return Response.json(
+        { ok: true, tareas: hechas, accion: accionEfectiva, cambio: explicacionAuto || undefined },
+        { headers: { "Cache-Control": "no-store" } },
+    );
 }

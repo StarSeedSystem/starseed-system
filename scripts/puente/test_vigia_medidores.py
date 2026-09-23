@@ -120,3 +120,66 @@ class LeerMinutos(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ElMedidorDeTokensTambienSeVigila(unittest.TestCase):
+    """(2026-09-23) Alex: «no funciona la autoverificación, 4 agentes y 0 tokens».
+
+    No funcionaba porque el vigía ni siquiera miraba ese medidor: la contradicción la
+    cazaba un humano mirando la pantalla. Aquí se fija que la cace él.
+    """
+
+    def _med(self, filas_tokens, resumen="algo", n_agentes=4):
+        return {
+            "agentes": {"filas": [agente("A%d" % i) for i in range(n_agentes)]},
+            "listas": {"filas": []},
+            "contenedores": {"resumen": ""},
+            "tokens": {"resumen": resumen, "filas": filas_tokens},
+        }
+
+    def _tipos(self, med):
+        return [p["tipo"] for p in V.diagnosticar(med)]
+
+    def test_agentes_trabajando_y_cero_medido_sin_nadie_nombrado_es_un_problema(self):
+        filas = [{"id": "jev", "estado": "en reposo", "etapa": "0.0 tok/s",
+                  "porque": "0.0 tok/s de media en el último minuto"}]
+        self.assertIn("tokens_ciegos", self._tipos(self._med(filas)))
+
+    def test_si_el_medidor_nombra_a_quien_no_tiene_contador_no_hay_problema(self):
+        filas = [
+            {"id": "jev", "estado": "en reposo", "etapa": "0.0 tok/s",
+             "porque": "0.0 tok/s de media en el último minuto"},
+            {"id": "nube-gh", "estado": "trabajando sin contador", "etapa": "4 agente(s)",
+             "porque": "GitHub no da el log de un job en marcha"},
+        ]
+        self.assertNotIn("tokens_ciegos", self._tipos(self._med(filas)))
+
+    def test_con_gasto_medido_en_el_minuto_no_grita_aunque_el_instantaneo_sea_cero(self):
+        filas = [{"id": "jev", "estado": "gastando", "etapa": "0.0 tok/s",
+                  "porque": "6.5 tok/s de media en el último minuto"}]
+        self.assertNotIn("tokens_ciegos", self._tipos(self._med(filas)))
+
+    def test_sin_agentes_no_hay_nada_que_explicar(self):
+        filas = [{"id": "jev", "estado": "en reposo", "etapa": "0.0 tok/s", "porque": "0.0 tok/s"}]
+        self.assertNotIn("tokens_ciegos", self._tipos(self._med(filas, n_agentes=0)))
+
+    def test_un_medidor_de_tokens_mudo_se_nota(self):
+        self.assertIn("tokens_mudos", self._tipos(self._med([], resumen="")))
+
+    def test_sin_medidor_de_tokens_el_vigia_no_inventa_problemas(self):
+        med = self._med([])
+        med.pop("tokens")
+        self.assertEqual(self._tipos(med), [])
+
+    def test_el_remedio_de_los_tokens_ciegos_existe(self):
+        self.assertNotEqual(V.aplicar({"remedio": "avisar_tokens_ciegos", "quien": "4"}),
+                            "sin remedio conocido")
+
+
+class LaCifraQueCuentaNoEsSoloLaDelInstante(unittest.TestCase):
+    def test_hay_gasto_mira_las_dos_cifras(self):
+        self.assertTrue(V._hay_gasto([{"etapa": "0.0 tok/s", "porque": "6.5 tok/s de media"}]))
+        self.assertTrue(V._hay_gasto([{"etapa": "12 tok/s", "porque": "0.0 tok/s de media"}]))
+        self.assertFalse(V._hay_gasto([{"etapa": "0.0 tok/s", "porque": "0.0 tok/s de media"}]))
+        self.assertFalse(V._hay_gasto([]))
+        self.assertFalse(V._hay_gasto(None))

@@ -154,3 +154,60 @@ class OpencodeSiPublicaTokens(unittest.TestCase):
         ids = [x["id"] for x in T.SIN_CONTADOR]
         self.assertIn("codex", ids)
         self.assertIn("pasarelas", ids)
+
+
+class LosAgentesQueTrabajanDondeNoHayContador(unittest.TestCase):
+    """(2026-09-23) Alex: «no es cierto… 4 agentes y 0 tokens».
+
+    El 0 era verdad y aun asi era una mentira: los cuatro agentes estaban en la nube, donde
+    GitHub no deja leer el log de un job en marcha. Un cero sin el porque al lado no es una
+    medida, es un medidor que parece roto.
+    """
+
+    def test_cuenta_los_agentes_de_los_runs_vivos(self):
+        datos = {"runs": [
+            {"estado": "in_progress", "agentes": 4},
+            {"estado": "queued", "agentes": 2},
+            {"estado": "completed", "agentes": 9},
+        ]}
+        self.assertEqual(T.agentes_de_nube(datos), 6)
+
+    def test_sin_runs_vivos_no_hay_nadie(self):
+        self.assertEqual(T.agentes_de_nube({"runs": [{"estado": "completed", "agentes": 4}]}), 0)
+        self.assertEqual(T.agentes_de_nube({}), 0)
+        self.assertEqual(T.agentes_de_nube(None), 0)
+
+    def test_un_run_con_agentes_ilegibles_no_rompe_la_cuenta(self):
+        self.assertEqual(T.agentes_de_nube({"runs": [{"estado": "in_progress", "agentes": "x"}]}), 0)
+
+    def test_la_nube_entra_en_la_lista_de_sin_contador_con_su_cifra(self):
+        fuera = T.sin_contador_de(4)
+        self.assertEqual(len(fuera), len(T.SIN_CONTADOR) + 1)
+        self.assertEqual(fuera[-1]["id"], "nube-gh")
+        self.assertEqual(fuera[-1]["agentes"], 4)
+        self.assertIn("4 agente(s)", fuera[-1]["nombre"])
+
+    def test_sin_nadie_en_la_nube_la_lista_no_cambia(self):
+        self.assertEqual(len(T.sin_contador_de(0)), len(T.SIN_CONTADOR))
+
+    def test_sin_contador_de_no_muta_la_lista_base(self):
+        T.sin_contador_de(4)[0]["nombre"] = "tocada"
+        self.assertNotEqual(T.SIN_CONTADOR[0]["nombre"], "tocada")
+
+    def test_cero_medido_con_agentes_ciegos_explica_el_cero(self):
+        fuera = T.sin_contador_de(4)
+        frase = T.resumir({"total": 0.0}, fuera, {"total": 0.0})
+        self.assertIn("0 tok/s medidos aqui".replace("aqui", "aquí"), frase)
+        self.assertIn("4 agente(s)", frase)
+        self.assertIn("contador en vivo", frase)
+
+    def test_con_gasto_medido_la_cifra_manda_y_los_ciegos_van_detras(self):
+        fuera = T.sin_contador_de(4)
+        frase = T.resumir({"total": 10.0}, fuera, {"total": 42.0})
+        self.assertTrue(frase.startswith("42.0 tok/s de media en 1 min"), frase)
+        self.assertIn("4 agente(s) trabajan sin contador en vivo", frase)
+
+    def test_sin_agentes_ciegos_la_frase_es_la_de_siempre(self):
+        frase = T.resumir({"total": 0.0}, T.sin_contador_de(0), {"total": 0.0})
+        self.assertTrue(frase.startswith("0.0 tok/s de media en 1 min"), frase)
+        self.assertNotIn("contador en vivo", frase)

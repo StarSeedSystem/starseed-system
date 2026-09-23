@@ -51,7 +51,7 @@ ESTADO = os.path.join(RAIZ, "starseed_memory_root", "mando", "vigia-medidores.js
 INTERVALO_S = int(os.environ.get("STARSEED_VIGIA_S", "120"))
 
 #: Los medidores que se leen enteros en cada pasada. Son los mismos que ve Alex.
-MEDIDORES = ("agentes", "en-curso", "listas", "bloqueadas", "contenedores", "proveedores")
+MEDIDORES = ("agentes", "en-curso", "listas", "bloqueadas", "contenedores", "proveedores", "tokens")
 
 #: Minutos que un agente puede estar sin escribir antes de considerarlo atascado. El
 #: orquestador ya corta a los 5-15 min por bytes; esto es la red de seguridad de después.
@@ -71,6 +71,24 @@ def _min_de(texto) -> int:
         if trozo.isdigit():
             return int(trozo)
     return 0
+
+
+def _hay_gasto(filas) -> bool:
+    """PURA: ¿alguna fuente CON contador mide algo distinto de cero?
+
+    Se miran las dos cifras que trae cada fila —la de los últimos segundos y la media del
+    minuto—, porque el gasto va a ráfagas y el instantáneo es cero casi siempre. Mirar
+    solo el instantáneo hacía que el vigía gritara con 6,5 tok/s de media en pantalla.
+    """
+    for f in filas or ():
+        for campo in (f.get("etapa"), f.get("porque")):
+            for trozo in str(campo or "").replace(",", ".").split():
+                try:
+                    if float(trozo) > 0:
+                        return True
+                except ValueError:
+                    continue
+    return False
 
 
 def diagnosticar(medidores: dict, callado_min=CALLADO_MIN, aprobacion_min=APROBACION_MIN) -> list:
@@ -122,6 +140,32 @@ def diagnosticar(medidores: dict, callado_min=CALLADO_MIN, aprobacion_min=APROBA
             "porque": "hay %d tarea(s) que se pueden coger y ningún agente trabajando" % len(libres),
             "remedio": "arrancar_enjambre",
         })
+    # (2026-09-23) Alex: «no funciona la autoverificación, 4 agentes y 0 tokens». Y era
+    # verdad que no funcionaba: el vigía no miraba el medidor de tokens siquiera, así que
+    # nadie cruzaba «hay agentes escribiendo» con «se miden cero tokens». Esa contradicción
+    # es exactamente lo que el vigía existe para cazar, y la cazaba un humano mirando la
+    # pantalla. Ahora la caza él: si hay agentes trabajando, se mide 0 y el propio medidor
+    # NO nombra a nadie sin contador, es que falta una fuente por medir.
+    tokens = medidores.get("tokens") or {}
+    if tokens:
+        resumen_tok = str(tokens.get("resumen") or "")
+        filas_tok = tokens.get("filas") or []
+        ciegos = [f for f in filas_tok if "sin contador" in str(f.get("estado") or "")]
+        midiendo = _hay_gasto([f for f in filas_tok if f not in ciegos])
+        if n_agentes > 0 and not midiendo and not ciegos:
+            problemas.append({
+                "clave": "tokens", "tipo": "tokens_ciegos", "quien": str(n_agentes),
+                "porque": "hay %d agente(s) escribiendo y el medidor da 0 tok/s sin decir quién"
+                          " no tiene contador: falta una fuente por medir" % n_agentes,
+                "remedio": "avisar_tokens_ciegos",
+            })
+        if not resumen_tok:
+            problemas.append({
+                "clave": "tokens", "tipo": "tokens_mudos", "quien": "com.starseed.tokens",
+                "porque": "el medidor de tokens no escribe su resumen: el servicio puede estar caído",
+                "remedio": "avisar_tokens_ciegos",
+            })
+
     if libres and "libre" in resumen_cont and " 0 libre" not in resumen_cont:
         problemas.append({
             "clave": "contenedores", "tipo": "nube_ociosa", "quien": "nube",
@@ -202,6 +246,15 @@ def aplicar(problema: dict) -> str:
         rc, _ = _sh([sys.executable, os.path.join(RAIZ, "scripts", "puente", "puente-de-mando.py"),
                      "decir", "AVISO · ninguna tarea se puede coger: %s. La cadena está rota en la raíz."
                      % quien])
+        return "avisado en el canal" if rc == 0 else "no pude avisar"
+
+    if remedio == "avisar_tokens_ciegos":
+        # Tampoco tiene arreglo automático: si hay gasto que nadie cuenta, alguien tiene
+        # que añadir la fuente. Lo que no puede pasar es que la pantalla enseñe un 0 y
+        # nadie se entere de que ese 0 es una ceguera, no una medida.
+        rc, _ = _sh([sys.executable, os.path.join(RAIZ, "scripts", "puente", "puente-de-mando.py"),
+                     "decir", "AVISO · el medidor de tokens da 0 con %s agente(s) trabajando: "
+                     "hay una fuente sin contador que no está nombrada." % quien])
         return "avisado en el canal" if rc == 0 else "no pude avisar"
 
     return "sin remedio conocido"

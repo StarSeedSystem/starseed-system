@@ -196,35 +196,68 @@ export async function leerColas(): Promise<TareaOla[]> {
 
     for (const nombre of nombres) {
         const crudo = await leerJson(`${dirOlas}/${nombre}`);
-        // Las colas del enjambre son ARRAYS de tareas ([{id, ola, titulo, archivos, prompt, depende}]).
-        // Leerlas como un objeto suelto es lo que dejaba el Mando en «0 tareas» con 11 colas en disco.
-        const lista: unknown[] = Array.isArray(crudo)
-            ? crudo
-            : Array.isArray((objeto(crudo) as { tareas?: unknown }).tareas)
-              ? ((objeto(crudo) as { tareas: unknown[] }).tareas)
-              : [crudo];
-        const nombreCola = nombre.replace(/^cola-/, "").replace(/\.json$/, "");
-
-        for (const bruto of lista) {
-            const datos = objeto(bruto);
-            const id = texto(datos.id);
-            if (!tieneTexto(id)) continue;
-            const deps = Array.isArray(datos.depende)
-                ? (datos.depende as unknown[])
-                : Array.isArray(datos.dependencias)
-                  ? (datos.dependencias as unknown[])
-                  : [];
-            tareas.push({
-                id,
-                ola: texto(datos.ola) || nombreCola,
-                titulo: texto(datos.titulo ?? datos.título ?? datos.nombre ?? datos.descripcion),
-                dependencias: deps.map((d) => texto(d)).filter((d) => tieneTexto(d)),
-                cola: nombreCola,
-            });
-        }
+        tareas.push(...tareasDeCola(crudo, nombre));
     }
 
     return tareas;
+}
+
+/**
+ * El encargo de una tarea en una o dos frases: el primer párrafo del prompt que dice QUÉ
+ * hacer. Se saltan los preámbulos que cuentan de dónde viene el encargo («ORIGEN: esto lo
+ * escribió el Dream…») o avisos de método («ANTES DE ESCRIBIR NADA…»): son útiles para el
+ * agente, pero como descripción en el Puente no dicen qué se está haciendo. PURA.
+ */
+export function descripcionDePrompt(prompt: unknown, tope = 280): string {
+    const bruto = typeof prompt === "string" ? prompt : "";
+    const parrafos = bruto
+        .split(/\n\s*\n/)
+        .map((p) => p.replace(/\s+/g, " ").trim())
+        .filter(Boolean);
+    const util =
+        parrafos.find((p) => !/^(ORIGEN|ANTES DE|CONTEXTO|NOTA|REGLAS?)\b[^:]*:/i.test(p)) ?? parrafos[0] ?? "";
+    return util.length > tope ? `${util.slice(0, tope - 1).trimEnd()}…` : util;
+}
+
+/**
+ * Las tareas de UNA cola ya leída. Las colas del enjambre son ARRAYS de tareas
+ * ([{id, ola, titulo, archivos, prompt, depende}]) o un objeto `{ola, tareas}`; leerlas como
+ * un objeto suelto es lo que dejaba el Mando en «0 tareas» con 11 colas en disco. Se exporta
+ * porque las colas de la NUBE viven en otro directorio y el medidor de olas las lee sueltas,
+ * con esta misma función: dos lectores de colas acabarían contando distinto. PURA.
+ */
+export function tareasDeCola(crudo: unknown, nombreArchivo: string): TareaOla[] {
+    const lista: unknown[] = Array.isArray(crudo)
+        ? crudo
+        : Array.isArray((objeto(crudo) as { tareas?: unknown }).tareas)
+          ? ((objeto(crudo) as { tareas: unknown[] }).tareas)
+          : [crudo];
+    const nombreCola = nombreArchivo.replace(/^.*\//, "").replace(/^cola-/, "").replace(/\.json$/, "");
+    const olaDeCola = texto((objeto(crudo) as { ola?: unknown }).ola);
+    const fuera: TareaOla[] = [];
+    for (const bruto of lista) {
+        const datos = objeto(bruto);
+        const id = texto(datos.id);
+        if (!tieneTexto(id)) continue;
+        const deps = Array.isArray(datos.depende)
+            ? (datos.depende as unknown[])
+            : Array.isArray(datos.dependencias)
+              ? (datos.dependencias as unknown[])
+              : [];
+        const archivos = Array.isArray(datos.archivos)
+            ? (datos.archivos as unknown[]).map((a) => texto(a)).filter((a) => tieneTexto(a))
+            : [];
+        fuera.push({
+            id,
+            ola: texto(datos.ola) || olaDeCola || nombreCola,
+            titulo: texto(datos.titulo ?? datos.título ?? datos.nombre ?? datos.descripcion),
+            dependencias: deps.map((d) => texto(d)).filter((d) => tieneTexto(d)),
+            cola: nombreCola,
+            archivos,
+            descripcion: descripcionDePrompt(datos.prompt ?? datos.descripcion),
+        });
+    }
+    return fuera;
 }
 
 /**

@@ -68,6 +68,11 @@ export interface TareaOla {
     dependencias: string[];
     /** Nombre de la cola (sin `cola-` ni `.json`) de la que salió, si se sabe. */
     cola?: string;
+    /** (2026-09-23) Los archivos que la tarea declara tocar: su alcance. Antes no viajaban
+     *  y la ficha «Alcance declarado» salía vacía siempre, aunque la cola los tuviera. */
+    archivos?: string[];
+    /** El encargo en una o dos frases: el primer párrafo útil del prompt. */
+    descripcion?: string;
 }
 
 /** Latido de una tarea viva: lo escribe el vigilante del enjambre cada 20 s. */

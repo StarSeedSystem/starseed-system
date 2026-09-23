@@ -68,6 +68,62 @@ SIN_CONTADOR = (
 )
 
 
+# (2026-09-23) Alex: «no es cierto… 4 agentes y 0 tokens». Y el 0 era verdad: los
+# cuatro agentes estaban en la NUBE (GitHub Actions), y de un job en marcha GitHub no
+# deja descargar el log —lo dice el propio workflow, comprobado el 20-09—. Así que sus
+# tokens no se pueden leer hasta que el run acaba. Medir 0 y callarse eso es lo que
+# convierte una medida honesta en una mentira aparente: ahora los agentes ciegos se
+# cuentan, se nombran y salen en la frase.
+AGENTES_NUBE = os.path.join(RAIZ, "starseed_memory_root", "mando", "agentes-nube.json")
+ESTADOS_VIVOS = ("in_progress", "queued", "waiting", "requested", "pending")
+
+
+def agentes_de_nube(datos, vivos=ESTADOS_VIVOS):
+    """PURA: agentes trabajando AHORA en la nube, segun lo que midio `agentes_nube.py`."""
+    n = 0
+    for r in (datos or {}).get("runs") or []:
+        if str(r.get("estado") or "").strip().lower() not in vivos:
+            continue
+        try:
+            n += int(r.get("agentes") or 0)
+        except (TypeError, ValueError):
+            continue
+    return n
+
+
+def sin_contador_de(n_nube, base=SIN_CONTADOR):
+    """PURA: los procesos sin contador, con la nube dentro si hay alguien trabajando alli."""
+    fuera = [dict(p) for p in base]
+    if n_nube > 0:
+        fuera.append({
+            "id": "nube-gh",
+            "nombre": "%d agente(s) en la nube (GitHub Actions)" % n_nube,
+            "porque": "GitHub no deja descargar el log de un job en marcha: sus tokens no se"
+                      " pueden leer hasta que el run termina",
+            "agentes": n_nube,
+        })
+    return fuera
+
+
+def _leer_agentes_nube(ruta=AGENTES_NUBE):
+    try:
+        with open(ruta, encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return {}
+
+
+def _ciegos(sin_contador):
+    """PURA: cuantos agentes trabajan ahora mismo sin contador en vivo."""
+    n = 0
+    for p in sin_contador or ():
+        try:
+            n += int(p.get("agentes") or 0)
+        except (TypeError, ValueError):
+            continue
+    return n
+
+
 def _hondo(datos, camino):
     """El valor al final del camino, o None si no está."""
     actual = datos
@@ -169,13 +225,22 @@ def resumir(ritmo, sin_contador=SIN_CONTADOR, media=None):
     frase principal de nada.
     """
     cuantas = len(sin_contador)
+    ciegos = _ciegos(sin_contador)
     cola = " · %d proceso(s) no publican tokens" % cuantas if cuantas else ""
+    if ciegos:
+        cola = " · %d agente(s) trabajan sin contador en vivo%s" % (ciegos, cola)
     if ritmo is None and media is None:
         return "aún no hay dos muestras: la tasa necesita dos" + cola
     inst = (ritmo or {}).get("total")
     prom = (media or {}).get("total")
     if prom is None:
         return "%s tok/s en los últimos segundos · aún sin minuto entero" % _cifra(inst or 0.0) + cola
+    # (2026-09-23) Un 0 a secas con gente trabajando parece un medidor roto, y no lo
+    # estaba. Cuando TODO lo que trabaja esta donde no hay contador, la frase dice eso
+    # y no un cero pelado.
+    if ciegos and not prom and not inst:
+        return ("0 tok/s medidos aquí · los %d agente(s) que trabajan ahora están donde no"
+                " hay contador en vivo (nube: GitHub no da el log de un job en marcha)" % ciegos)
     detras = " · %s tok/s en los últimos segundos" % _cifra(inst) if inst is not None else ""
     return "%s tok/s de media en 1 min%s" % (_cifra(prom), detras) + cola
 
@@ -194,6 +259,7 @@ def una_pasada():
     muestras.append({"t": time.time(), "totales": leer_totales()})
     muestras = muestras[-MAX_MUESTRAS:]
     ahora = tasa(muestras[-2], muestras[-1]) if len(muestras) >= 2 else None
+    fuera = sin_contador_de(agentes_de_nube(_leer_agentes_nube()))
     datos = {
         "generado": time.strftime("%Y-%m-%d %H:%M:%S"),
         "intervalo_s": INTERVALO_S,
@@ -201,8 +267,8 @@ def una_pasada():
         "un_minuto": promedio(muestras, 60),
         "diez_minutos": promedio(muestras, 600),
         "fuentes": [{"id": f["id"], "nombre": f["nombre"]} for f in FUENTES],
-        "sin_contador": list(SIN_CONTADOR),
-        "resumen": resumir(ahora, media=promedio(muestras, 60)),
+        "sin_contador": fuera,
+        "resumen": resumir(ahora, fuera, promedio(muestras, 60)),
         "muestras": muestras,
     }
     os.makedirs(os.path.dirname(SALIDA), exist_ok=True)

@@ -695,6 +695,12 @@ export function CentroMando() {
         /** Tokens por segundo de todo el Puente, de las fuentes que llevan contador. */
         tokens: number | null;
         tokensResumen: string | null;
+        /** Agentes que trabajan donde no hay contador de tokens (la nube). */
+        tokensCiegos: number | null;
+        /** (2026-09-23) Olas en marcha según el MISMO medidor que se abre al pulsar. */
+        olas: number | null;
+        olaTitulo: string | null;
+        olasResumen: string | null;
         /** Pasarelas sin cupo o caídas, según el archivo que el enjambre OBEDECE. */
         agotados: number | null;
         proveedoresResumen: string | null;
@@ -703,7 +709,7 @@ export function CentroMando() {
     const cargarMedidoresResumen = useCallback(async (forzar = false) => {
         if (!forzar && document.visibilityState === "hidden") return;
         try {
-            const [resListas, resBloqueadas, resAgentes, resEnCurso, resContenedores, resProveedores, resTokens] =
+            const [resListas, resBloqueadas, resAgentes, resEnCurso, resContenedores, resProveedores, resTokens, resOlas] =
                 await Promise.allSettled([
                     fetch("/api/mando/medidores?clave=listas", { cache: "no-store" }),
                     fetch("/api/mando/medidores?clave=bloqueadas", { cache: "no-store" }),
@@ -712,6 +718,7 @@ export function CentroMando() {
                     fetch("/api/mando/medidores?clave=contenedores", { cache: "no-store" }),
                     fetch("/api/mando/medidores?clave=proveedores", { cache: "no-store" }),
                     fetch("/api/mando/medidores?clave=tokens", { cache: "no-store" }),
+                    fetch("/api/mando/medidores?clave=ola-activa", { cache: "no-store" }),
                 ]);
 
             let listas: number | null = null;
@@ -722,6 +729,10 @@ export function CentroMando() {
             let enCursoResumen: string | null = null;
             let tokens: number | null = null;
             let tokensResumen: string | null = null;
+            let tokensCiegos: number | null = null;
+            let olas: number | null = null;
+            let olaTitulo: string | null = null;
+            let olasResumen: string | null = null;
             let contenedores: number | null = null;
             let contenedoresResumen: string | null = null;
             let agotados: number | null = null;
@@ -803,6 +814,22 @@ export function CentroMando() {
                     const m = /^([\d.]+)\s*tok\/s/.exec(dataTok.detalle.resumen ?? "");
                     tokens = m ? Number(m[1]) : null;
                     tokensResumen = dataTok.detalle.resumen ?? null;
+                    // (2026-09-23) «4 agentes y 0 tokens»: los agentes que trabajan donde no
+                    // hay contador vienen contados en las filas; la pastilla los usa para no
+                    // enseñar un 0 tranquilo con gente escribiendo.
+                    tokensCiegos = dataTok.detalle.filas
+                        .filter((f) => f.estado === "trabajando sin contador")
+                        .reduce((n, f) => n + (Number(/^(\d+)/.exec(f.etapa ?? "")?.[1]) || 0), 0);
+                }
+            }
+
+            if (resOlas.status === "fulfilled" && resOlas.value.ok) {
+                const dataOlas = (await resOlas.value.json()) as { detalle?: DetalleMedidor };
+                if (dataOlas.detalle) {
+                    const cabeceras = dataOlas.detalle.filas.filter((f) => f.id.startsWith("ola:"));
+                    olas = cabeceras.length;
+                    olaTitulo = cabeceras[0]?.titulo ?? null;
+                    olasResumen = dataOlas.detalle.resumen ?? null;
                 }
             }
 
@@ -817,6 +844,10 @@ export function CentroMando() {
                 contenedoresResumen,
                 tokens,
                 tokensResumen,
+                tokensCiegos,
+                olas,
+                olaTitulo,
+                olasResumen,
                 agotados,
                 proveedoresResumen,
             });
@@ -832,6 +863,10 @@ export function CentroMando() {
                 contenedoresResumen: null,
                 tokens: null,
                 tokensResumen: null,
+                tokensCiegos: null,
+                olas: null,
+                olaTitulo: null,
+                olasResumen: null,
                 agotados: null,
                 proveedoresResumen: null,
             });
@@ -878,7 +913,14 @@ export function CentroMando() {
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ clave, accion: accion.clase, id: fila?.id, texto }),
                 });
-                const d = (await r.json()) as { ok?: boolean; tareas?: string[]; error?: string; resumen?: string };
+                const d = (await r.json()) as {
+                    ok?: boolean;
+                    tareas?: string[];
+                    error?: string;
+                    resumen?: string;
+                    mensaje?: string;
+                    cambio?: string;
+                };
                 if (!r.ok || d.error) return d.error ?? `No se pudo (HTTP ${r.status}).`;
                 const n = d.tareas?.length ?? 0;
                 void cargarMedidoresResumen(true);
@@ -886,6 +928,18 @@ export function CentroMando() {
                 // se enseña esa frase tal cual en vez de «0 tareas descartadas». (2026-09-22)
                 if (accion.clase === "sondear-contenedores" || accion.clase === "desplegar-nube") {
                     return d.resumen ?? "hecho.";
+                }
+                // (2026-09-23) Alex: «el botón de publicar desde el medidor no funciona,
+                // solo la pestaña completa». El servidor SÍ publicaba —el mismo
+                // `lanzarPublicacion` que la pestaña—, pero aquí abajo la respuesta se leía
+                // como si fuera una de descartar tareas, y lo que salía en pantalla era
+                // «0 tareas descartadas: undefined». Un botón que hace su trabajo y luego
+                // dice eso es, para quien lo pulsa, un botón roto.
+                if (accion.clase === "publicar") {
+                    return d.mensaje ?? "Publicación lanzada; su marcha se sigue en la pestaña «Publicar».";
+                }
+                if (accion.clase === "reintentar-auto") {
+                    return `${d.tareas?.join(", ")} vuelve a la cola con este cambio: ${d.cambio ?? "sin anotar"}`;
                 }
                 return accion.clase === "reintentar"
                     ? `${d.tareas?.join(", ")} vuelve a la cola con tu cambio anotado.`
@@ -1304,7 +1358,24 @@ export function CentroMando() {
                             />
                         </li>
                         {[
-                            { clave: "ola-activa" as const, titulo: "Ola activa", valor: pulso.olaActiva },
+                            {
+                                clave: "ola-activa" as const,
+                                // (2026-09-23) Alex: «tampoco aparecen las olas activas en el
+                                // medidor». La pastilla leía `pulso.olaActiva` (latidos de la
+                                // Mac) y la ventana un campo que nadie rellenaba: dos fuentes y
+                                // ninguna veía la nube. Ahora pastilla y ventana leen el mismo
+                                // medidor; `pulso` solo si el medidor no contesta.
+                                titulo: (medidoresResumen?.olas ?? 0) > 1 ? "Olas activas" : "Ola activa",
+                                valor:
+                                    medidoresResumen?.olas === null || medidoresResumen?.olas === undefined
+                                        ? pulso.olaActiva
+                                        : medidoresResumen.olas === 0
+                                          ? "Sin olas activas"
+                                          : medidoresResumen.olas === 1
+                                            ? (medidoresResumen.olaTitulo ?? "1 ola")
+                                            : `${medidoresResumen.olas} olas`,
+                                detalle: medidoresResumen?.olasResumen ?? undefined,
+                            },
                             {
                                 clave: "en-curso" as const,
                                 titulo: "Tareas en curso",
@@ -1361,9 +1432,15 @@ export function CentroMando() {
                                 titulo: "Tokens por segundo",
                                 valor:
                                     medidoresResumen?.tokens !== null && medidoresResumen?.tokens !== undefined
-                                        ? String(medidoresResumen.tokens)
+                                        ? medidoresResumen.tokens === 0 && medidoresResumen.tokensCiegos
+                                            ? `0 · ${medidoresResumen.tokensCiegos} sin contador`
+                                            : String(medidoresResumen.tokens)
                                         : "—",
-                                tono: (medidoresResumen?.tokens ? "ok" : "normal") as TonoMedidor,
+                                tono: (medidoresResumen?.tokens
+                                    ? "ok"
+                                    : medidoresResumen?.tokensCiegos
+                                      ? "aviso"
+                                      : "normal") as TonoMedidor,
                                 detalle: medidoresResumen?.tokensResumen ?? "media del último minuto, de las fuentes que publican tokens",
                             },
                             {

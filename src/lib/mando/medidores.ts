@@ -31,6 +31,11 @@ export type ClaseAccion =
     | "descartar"
     | "descartar-todas"
     | "reintentar"
+    // (2026-09-23) Alex: «en el medidor de bloqueadas falta la opción de reintentar con
+    // cambios automáticamente». El cambio NO se inventa: sale de la ficha de la tarea
+    // (qué dependencia espera y en qué estado está), y si de ahí no sale una instrucción
+    // concreta el botón no se ofrece.
+    | "reintentar-auto"
     | "publicar"
     | "ir-a"
     // (2026-09-22) Los contenedores de nube: volver a sondear todos los servicios, y
@@ -224,6 +229,63 @@ export function accionesDeTarea(estado: string | undefined): AccionMedidor[] {
             texto: "Reintentar con un cambio",
             destructiva: false,
             pideTexto: "¿Qué hay que cambiar para que salga bien esta vez?",
+        },
+    ];
+}
+
+/**
+ * El cambio que se manda al pulsar «Reintentar con cambio automático» en una bloqueada.
+ *
+ * (2026-09-23) No se inventa nada: se lee la FICHA de la tarea —a quién espera y en qué
+ * estado está cada una— y se escribe la instrucción que se deduce de ahí. Si todas las
+ * dependencias siguen vivas, devuelve `null` y el botón NO aparece: reintentar algo que
+ * solo espera da exactamente el mismo resultado, que es justo por lo que «Reintentar»
+ * pide texto. El botón solo sale donde hay algo real que cambiar.
+ */
+export function cambioAutomatico(fila: Pick<FilaMedidor, "estado" | "ficha">): string | null {
+    const ficha = fila.ficha ?? [];
+    const esperas: { dep: string; estado: string }[] = [];
+    for (let i = 0; i < ficha.length; i += 1) {
+        if (ficha[i].etiqueta !== "Espera a") continue;
+        const dep = String(ficha[i].valor).split("—")[0].trim();
+        if (!dep || dep === "nada anotado") continue;
+        const sig = ficha[i + 1];
+        esperas.push({
+            dep,
+            estado: sig && sig.etiqueta === "↳ su estado" ? String(sig.valor) : "",
+        });
+    }
+    if (esperas.length === 0) return null;
+    const idas = esperas.filter((e) => /NO EXISTE|no se va a integrar sola/.test(e.estado));
+    if (idas.length === 0) return null;
+    const nombres = (xs: { dep: string }[]) => xs.map((x) => x.dep).join(", ");
+    const muertas = nombres(idas);
+    const vivas = nombres(esperas.filter((e) => !idas.includes(e)));
+    if (idas.length === esperas.length) {
+        return (
+            `${muertas} no va a llegar: o no existe en ninguna ola, o está descartada, sustituida o rechazada. ` +
+            `Rehaz esta tarea SIN esa dependencia: implementa dentro de tu alcance lo mínimo que necesites de ` +
+            `${muertas}, o recorta el alcance a lo que se pueda terminar solo. Di en el commit qué recortaste.`
+        );
+    }
+    return (
+        `${muertas} no va a llegar (no existe o no se integra sola) y ${vivas} sigue viva. ` +
+        `Quita la dependencia de ${muertas} —implementa lo mínimo que necesites de ella dentro de tu alcance— ` +
+        `y deja que ${vivas} siga siendo la única espera.`
+    );
+}
+
+/** Las acciones de una bloqueada: las de siempre, más el cambio automático si lo hay. */
+export function accionesDeBloqueada(fila: Pick<FilaMedidor, "estado" | "ficha">): AccionMedidor[] {
+    const base = accionesDeTarea(fila.estado ?? "bloqueada");
+    if (!base.length) return base;
+    if (!cambioAutomatico(fila)) return base;
+    return [
+        ...base,
+        {
+            clase: "reintentar-auto",
+            texto: "Reintentar con cambio automático",
+            destructiva: false,
         },
     ];
 }
@@ -681,6 +743,30 @@ export function ejecutablesDeColas(
     return salida;
 }
 
+/**
+ * Una ola en marcha. (2026-09-23) Alex: «tampoco aparecen las olas activas en el medidor…
+ * cada ola, gente y tarea debe mostrar un título y descripción clara con información de
+ * archivos en proceso y cambios realizados y estado del progreso, verificación y etapa».
+ * El medidor «Ola activa» era un rótulo sin filas que decía «ninguna» con cuatro agentes
+ * trabajando en la nube: el campo que lo alimentaba no lo rellenaba nadie.
+ */
+export interface OlaActiva {
+    /** Título legible: «Ola 363», «Ola Dream 2026-09-22 · …». */
+    titulo: string;
+    /** Archivo de cola, sin ruta. */
+    cola: string;
+    /** Dónde se ejecuta: «mac» o el medio de nube («nube-gh»). */
+    medio: string;
+    /** Agentes trabajando en ella ahora mismo (medidos, no supuestos). */
+    agentes: number;
+    minutos?: number;
+    run?: string;
+    enlace?: string;
+    /** ¿Se sabe qué tarea lleva cada agente? En la nube no: el runner no deja leerse. */
+    asignacionConocida: boolean;
+    tareas: { id: string; titulo: string; descripcion?: string; archivos?: string[] }[];
+}
+
 export interface DatosMedidores {
     progreso: Record<
         string,
@@ -739,7 +825,7 @@ export interface DatosMedidores {
         un_minuto?: { fuentes: Record<string, number>; total: number; segundos: number } | null;
         diez_minutos?: { fuentes: Record<string, number>; total: number; segundos: number } | null;
         fuentes?: { id: string; nombre: string }[];
-        sin_contador?: { id: string; nombre: string; porque: string }[];
+        sin_contador?: { id: string; nombre: string; porque: string; agentes?: number }[];
         resumen?: string;
     } | null;
     contenedores?: {
@@ -778,6 +864,10 @@ export interface DatosMedidores {
     asuntosDeMain?: string | null;
     proveedores: { id: string; estado: string; motivo?: string }[];
     olaActiva?: string;
+    /** (2026-09-23) Las olas que se ejecutan AHORA, en cualquier medio, con sus tareas. */
+    olasActivas?: OlaActiva[];
+    /** El encargo de cada tarea, en una o dos frases (primer párrafo útil del prompt). */
+    descripciones?: Record<string, string>;
     /** ¿Hay orquestador vivo? ¿Está el enjambre en pausa? Sin esto, «13 listas y 0 agentes»
      *  no se puede explicar, y un número sin explicación parece una avería aunque no lo sea. */
     enjambreVivo?: boolean;
@@ -794,6 +884,221 @@ export interface DatosMedidores {
     repoGitHub?: string;
     /** Fila operativa opcional de tareas activas en colas. */
     fila?: FilaContable[];
+}
+
+const FASE_VERIFICANDO: Record<string, string> = {
+    tsc: "pasando tsc ahora mismo",
+    tests: "pasando las pruebas ahora mismo",
+    revision: "en revisión ahora mismo",
+    integrando: "puertas en verde: integrando en main",
+    "esperando-memoria": "aún sin verificar: esperando memoria para compilar",
+    escribiendo: "aún sin verificar: está escribiendo",
+};
+
+/**
+ * En qué punto de la VERIFICACIÓN está una tarea, dicho en castellano. Sale del estado que
+ * dejó el orquestador en progreso.json y, si la tarea está viva, de la fase de su latido.
+ * `aviso` marca lo que merece mirarse (falló, la rechazaron, no llegará). PURA.
+ */
+export function verificacionDe(
+    entrada: DatosMedidores["progreso"][string] | undefined,
+    fase?: string,
+): { texto: string; aviso: boolean } {
+    const estado = (entrada?.estado ?? "").toLowerCase();
+    const sha = entrada?.sha ? ` (${entrada.sha.slice(0, 8)})` : "";
+    const motivo = entrada?.motivo_vb ? `: ${entrada.motivo_vb}` : "";
+    if (TERMINALES.has(estado)) return { texto: `puertas en verde e integrada en main${sha}`, aviso: false };
+    if (estado === "rechazada") return { texto: `rechazada${motivo || " por la revisión"}`, aviso: true };
+    if (estado === "bloqueante") return { texto: `la revisión puso una pega bloqueante${motivo}`, aviso: true };
+    if (estado.startsWith("fallo")) {
+        return { texto: `${estado.replace(/_/g, " ")}: no pasó sus puertas`, aviso: true };
+    }
+    if (estado === "pendiente_aprobacion" || estado === "esperando_aprobacion") {
+        return {
+            texto: `puertas en verde · esperando visto bueno${entrada?.revisor ? ` de ${entrada.revisor}` : ""}`,
+            aviso: false,
+        };
+    }
+    if (estado === "sustituida" || estado === "descartada") {
+        return { texto: `${estado}: no se integrará`, aviso: true };
+    }
+    const f = (fase ?? "").toLowerCase();
+    if (FASE_VERIFICANDO[f]) return { texto: FASE_VERIFICANDO[f], aviso: false };
+    return { texto: "aún sin verificar", aviso: false };
+}
+
+/**
+ * Las filas del medidor «Ola activa»: una por ola —qué es, dónde corre, quién la trabaja y
+ * cuánto lleva— y detrás una por cada una de sus tareas, con su encargo, su alcance, los
+ * archivos que tiene abiertos, los cambios que ya dejó, su verificación y su etapa. Nada se
+ * rellena a ojo: lo que no se puede saber se dice que no se sabe. PURA.
+ */
+export function filasDeOlasActivas(d: DatosMedidores, repo?: string): FilaMedidor[] {
+    const filas: FilaMedidor[] = [];
+    for (const ola of d.olasActivas ?? []) {
+        const hijas: FilaMedidor[] = [];
+        let integradas = 0;
+        let enCurso = 0;
+        let paradas = 0;
+        for (const t of ola.tareas) {
+            const e = d.progreso[t.id];
+            const estado = e?.estado ?? "";
+            const latido = d.latidos.find((l) => l.tarea === t.id);
+            const verif = verificacionDe(e, latido?.fase);
+            if (TERMINALES.has(estado)) integradas += 1;
+            else if (verif.aviso) paradas += 1;
+            else if (latido) enCurso += 1;
+
+            let estadoFila: string;
+            let etapa: string;
+            let porcentaje: number | undefined;
+            if (TERMINALES.has(estado)) {
+                estadoFila = "integrada";
+                etapa = "integrada";
+                porcentaje = 100;
+            } else if (latido) {
+                const a = avanceDe(latido.fase, estado);
+                estadoFila = "en curso";
+                etapa = a.etapa ?? latido.fase;
+                porcentaje = a.porcentaje;
+            } else if (verif.aviso) {
+                estadoFila = estado.replace(/_/g, " ");
+                etapa = "parada";
+            } else if (!ola.asignacionConocida) {
+                estadoFila = "en el run de la nube";
+                etapa = "sin dato en vivo";
+            } else {
+                estadoFila = "por empezar";
+                etapa = "en cola";
+                porcentaje = 0;
+            }
+
+            const descripcion = t.descripcion || d.descripciones?.[t.id] || "";
+            const obra = d.obras?.[t.id];
+            const alcance = t.archivos?.length ? t.archivos : d.declarados?.[t.id] ?? [];
+            const enProceso = obra?.archivos ?? [];
+            const rama = obra?.rama ?? e?.rama;
+            const ficha: DatoDeFicha[] = [
+                { etiqueta: "Ola", valor: ola.titulo },
+                { etiqueta: "Encargo", valor: descripcion || "la cola no trae descripción" },
+                { etiqueta: "Alcance declarado", valor: alcance.length ? alcance.join(", ") : "no declara archivos" },
+                {
+                    etiqueta: "Archivos en proceso",
+                    valor: enProceso.length
+                        ? enProceso.join(", ")
+                        : !ola.asignacionConocida && !TERMINALES.has(estado)
+                          ? "no se ven hasta que el run entrega: GitHub no deja leer un runner en marcha"
+                          : latido
+                            ? "ninguno tocado todavía en su árbol de trabajo"
+                            : "ninguno abierto ahora",
+                },
+                {
+                    etiqueta: "Cambios realizados",
+                    valor: e?.sha
+                        ? `commit ${e.sha.slice(0, 8)}${rama ? ` en ${rama}` : ""}`
+                        : rama
+                          ? `rama ${rama}, sin commit todavía`
+                          : "ninguno todavía",
+                    enlace: e?.sha && repo ? `https://github.com/${repo}/commit/${e.sha}` : undefined,
+                },
+                { etiqueta: "Verificación", valor: verif.texto, aviso: verif.aviso },
+                { etiqueta: "Etapa", valor: etapa },
+            ];
+            const agente = latido?.modelo ?? e?.modelo;
+            if (agente) {
+                ficha.push({ etiqueta: "Agente", valor: `${agente}${latido?.donde ? ` · ${latido.donde}` : ""}` });
+            }
+            if (e?.intento && e.intento > 1) {
+                ficha.push({
+                    etiqueta: "Intento",
+                    valor: `${e.intento}${e.modelos_fallidos?.length ? ` · antes probaron: ${e.modelos_fallidos.join(", ")}` : ""}`,
+                });
+            }
+            hijas.push({
+                id: t.id,
+                titulo: `↳ ${t.id} · ${t.titulo || "sin título"}`,
+                estado: estadoFila,
+                etapa,
+                porcentaje,
+                porque: descripcion || verif.texto,
+                quien: latido ? `${latido.modelo} · ${latido.donde}` : ola.asignacionConocida ? undefined : ola.medio,
+                desde: latido ? `${latido.minutos} min` : undefined,
+                ficha,
+                historial: d.historiales?.[t.id]?.slice(0, 4),
+                acciones: [],
+                historica: false,
+            });
+        }
+        const n = ola.tareas.length;
+        const resto = n - integradas - enCurso - paradas;
+        filas.push({
+            id: `ola:${ola.cola}`,
+            titulo: ola.titulo,
+            estado: "en marcha",
+            etapa: ola.medio === "mac" ? "en la Mac" : `en ${ola.medio}`,
+            porcentaje: n ? Math.round((integradas / n) * 100) : 0,
+            porque:
+                `${n} tarea(s): ${integradas} integrada(s) · ${enCurso} en curso · ${paradas} parada(s) · ` +
+                `${resto} ${ola.asignacionConocida ? "por empezar" : "en el run, sin dato en vivo"}`,
+            quien: `${ola.agentes} agente(s) · ${ola.medio}`,
+            desde: ola.minutos !== undefined ? `${ola.minutos} min` : undefined,
+            enlace: ola.enlace,
+            ficha: [
+                { etiqueta: "Cola", valor: ola.cola },
+                { etiqueta: "Dónde corre", valor: ola.medio === "mac" ? "la Mac" : ola.medio },
+                {
+                    etiqueta: "Agentes",
+                    valor: ola.asignacionConocida
+                        ? `${ola.agentes} trabajando; cada tarea dice quién la lleva`
+                        : `${ola.agentes} trabajando; qué tarea lleva cada uno no se sabe hasta que el run entrega`,
+                },
+                ...(ola.run ? [{ etiqueta: "Run", valor: ola.run, enlace: ola.enlace }] : []),
+                { etiqueta: "Avance", valor: `${integradas} de ${n} integradas en main` },
+            ],
+            acciones: [],
+            historica: false,
+        });
+        filas.push(...hijas);
+    }
+    return filas;
+}
+
+/** «363» → «Ola 363»; un título ya escrito se deja como está. PURA. */
+export function tituloDeOla(ola: string | undefined): string {
+    const limpio = (ola ?? "").trim();
+    if (!limpio) return "ola sin nombre";
+    return /^\d+$/.test(limpio) ? `Ola ${limpio}` : limpio;
+}
+
+/**
+ * Las olas que la Mac ejecuta AHORA: las colas que laten sus agentes, con todas las tareas
+ * de cada cola —también las que aún nadie ha cogido—. Una cola sin latidos no es una ola en
+ * marcha aunque le queden tareas: eso es «Listas». PURA.
+ */
+export function olasDeLaMac(
+    colas: { id: string; ola: string; titulo: string; cola?: string; archivos?: string[]; descripcion?: string }[],
+    latidos: { tarea: string; cola?: string; minutos?: number }[],
+): OlaActiva[] {
+    const norm = (c: string) => c.replace(/^.*\//, "").replace(/^cola-/, "").replace(/\.json$/, "");
+    const porCola = new Map<string, { agentes: number; minutos: number }>();
+    for (const l of latidos) {
+        const c = l.cola ? norm(l.cola) : colas.find((t) => t.id === l.tarea)?.cola;
+        if (!c) continue;
+        const previo = porCola.get(c) ?? { agentes: 0, minutos: 0 };
+        porCola.set(c, { agentes: previo.agentes + 1, minutos: Math.max(previo.minutos, l.minutos ?? 0) });
+    }
+    return [...porCola.entries()].map(([c, v]) => {
+        const tareas = colas.filter((t) => t.cola !== undefined && norm(t.cola) === c);
+        return {
+            titulo: tituloDeOla(tareas[0]?.ola ?? c),
+            cola: c,
+            medio: "mac",
+            agentes: v.agentes,
+            minutos: v.minutos,
+            asignacionConocida: true,
+            tareas: tareas.map((t) => ({ id: t.id, titulo: t.titulo, descripcion: t.descripcion, archivos: t.archivos })),
+        };
+    });
 }
 
 const vacios: DatosMedidores = {
@@ -848,7 +1153,10 @@ export function detalleDeMedidor(
                             desde: v.t,
                             ficha: b?.ficha,
                             historial: d.historiales?.[id]?.slice(0, 4),
-                            acciones: accionesDeTarea(v.estado),
+                            acciones: accionesDeBloqueada({
+                            estado: b?.muerta ? "bloqueada sin salida" : v.estado,
+                            ficha: b?.ficha,
+                        }),
                             historica: false,
                         });
                     } else if (!d.fila.some((t) => t.id === id)) {
@@ -886,7 +1194,10 @@ export function detalleDeMedidor(
                             porque: b?.veredicto ?? "bloqueada en cola activa, sin dependencia anotada",
                             ficha: b?.ficha,
                             historial: d.historiales?.[id]?.slice(0, 4),
-                            acciones: accionesDeTarea("bloqueada"),
+                            acciones: accionesDeBloqueada({
+                                estado: b?.muerta ? "bloqueada sin salida" : "bloqueada",
+                                ficha: b?.ficha,
+                            }),
                             historica: false,
                         });
                     }
@@ -1252,12 +1563,17 @@ export function detalleDeMedidor(
                 });
             }
             for (const f of tk?.sin_contador ?? []) {
+                // (2026-09-23) Un proceso que NO gasta y uno que gasta pero no lo publica
+                // no son lo mismo, y aquí salían iguales. Los cuatro agentes de la nube
+                // estaban escribiendo código mientras esta lista decía «no publica tokens»
+                // en gris, junto a dos motores que ni siquiera estaban encendidos.
+                const cuantos = f.agentes ?? 0;
                 filas.push({
                     id: f.id,
                     titulo: f.nombre,
-                    estado: "no publica tokens",
+                    estado: cuantos > 0 ? "trabajando sin contador" : "no publica tokens",
                     porcentaje: 0,
-                    etapa: "—",
+                    etapa: cuantos > 0 ? `${cuantos} agente(s)` : "—",
                     porque: f.porque,
                     acciones: [],
                 });
@@ -1272,9 +1588,15 @@ export function detalleDeMedidor(
             // roto cuando no lo está. Un minuto es lo bastante corto para llamarse «ahora»
             // y lo bastante largo para que el número signifique algo. El instantáneo sigue
             // ahí, detrás, porque para ver un pico también hace falta.
+            // (2026-09-23) La frase viene TAL CUAL del archivo cuando el archivo la trae.
+            // Ayer esto se calculaba aquí otra vez y el archivo decía «0 tok/s ahora mismo»
+            // mientras la pantalla decía «44,2 de media»: el mismo dato, dos cuentas. Una
+            // cuenta, un sitio. Lo de abajo solo se usa si el archivo es viejo y no la trae.
             const resumen = !tk
                 ? "el medidor de tokens no está escribiendo: ¿corre com.starseed.tokens?"
-                : media === undefined || media === null
+                : tk.resumen
+                  ? tk.resumen
+                  : media === undefined || media === null
                   ? total === undefined || total === null
                       ? "aún no hay dos muestras: una tasa necesita dos"
                       : `${cifra(total)} tok/s ahora · aún sin minuto entero${
@@ -1390,15 +1712,25 @@ export function detalleDeMedidor(
             };
 
         case "ola-activa":
-        default:
+        default: {
+            const filas = filasDeOlasActivas(d, d.repoGitHub);
+            const olas = d.olasActivas ?? [];
+            const agentes = olas.reduce((n, o) => n + o.agentes, 0);
+            const tareas = olas.reduce((n, o) => n + o.tareas.length, 0);
+            const integradas = filas.filter((f) => !f.id.startsWith("ola:") && f.estado === "integrada").length;
             return {
                 clave: "ola-activa",
-                titulo: "Ola activa",
-                resumen: d.olaActiva || "ninguna",
-                filas: [],
+                titulo: olas.length > 1 ? "Olas activas" : "Ola activa",
+                resumen: olas.length
+                    ? `${olas.length} ola(s) en marcha: ${olas.map((o) => o.titulo).join(" · ")} — ` +
+                      `${agentes} agente(s) · ${integradas} de ${tareas} tarea(s) integradas`
+                    : d.olaActiva || "ninguna ola en marcha",
+                filas,
+                porcentajeMedio: tareas ? Math.round((integradas / tareas) * 100) : undefined,
                 acciones: [IR_A("Ver olas e informes", "olas")],
-                vacio: "Ninguna ola en marcha.",
+                vacio: "Ninguna ola en marcha: ni la Mac ni la nube tienen agentes sobre una cola.",
             };
+        }
     }
 }
 

@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import {
+    accionesDeBloqueada,
     accionesDeTarea,
+    cambioAutomatico,
     aplicarConfiguracion,
     avanceDe,
     mediaDeAvance,
@@ -644,5 +646,106 @@ describe("medidor de tokens por segundo", () => {
         const quieto = { ...tokens, ahora: { fuentes: { jev: 0 }, total: 0, segundos: 5 } };
         const d = detalleDeMedidor("tokens", { tokens: quieto });
         expect(d.filas.find((f) => f.id === "jev")?.estado).toBe("en reposo");
+    });
+});
+
+
+// (2026-09-23) Alex: «en el medidor de bloqueadas falta la opción de reintentar con
+// cambios automáticamente». El cambio se deduce de la ficha; si no se puede deducir nada
+// concreto, el botón no se ofrece, porque reintentar sin cambio da el mismo resultado.
+describe("cambioAutomatico", () => {
+    const espera = (dep: string, estado: string) => [
+        { etiqueta: "Espera a", valor: `${dep} — algo` },
+        { etiqueta: "↳ su estado", valor: estado },
+    ];
+
+    it("una dependencia que NO EXISTE da la orden de hacerla sin ella", () => {
+        const c = cambioAutomatico({
+            estado: "bloqueada sin salida",
+            ficha: espera("RM5", "NO EXISTE: ninguna ola la ha ejecutado nunca"),
+        });
+        expect(c).toContain("RM5 no va a llegar");
+        expect(c).toContain("SIN esa dependencia");
+    });
+
+    it("una dependencia descartada también", () => {
+        const c = cambioAutomatico({ ficha: espera("X1", "rechazada — no se va a integrar sola") });
+        expect(c).toContain("X1 no va a llegar");
+    });
+
+    it("con una muerta y una viva, quita solo la muerta", () => {
+        const c = cambioAutomatico({
+            ficha: [...espera("A", "NO EXISTE: ninguna ola la ha ejecutado nunca"), ...espera("B", "escribiendo")],
+        });
+        expect(c).toContain("Quita la dependencia de A");
+        expect(c).toContain("B siga siendo la única espera");
+    });
+
+    it("si todo lo que espera sigue vivo, no hay cambio que mandar", () => {
+        expect(cambioAutomatico({ ficha: espera("B", "escribiendo") })).toBeNull();
+    });
+
+    it("sin ficha o sin nada anotado, tampoco", () => {
+        expect(cambioAutomatico({})).toBeNull();
+        expect(cambioAutomatico({ ficha: [{ etiqueta: "Espera a", valor: "nada anotado" }] })).toBeNull();
+    });
+});
+
+describe("accionesDeBloqueada", () => {
+    it("ofrece el reintento automático solo donde hay algo que cambiar", () => {
+        const muerta = accionesDeBloqueada({
+            estado: "bloqueada sin salida",
+            ficha: [
+                { etiqueta: "Espera a", valor: "RM5 — algo" },
+                { etiqueta: "↳ su estado", valor: "NO EXISTE: ninguna ola la ha ejecutado nunca" },
+            ],
+        });
+        expect(muerta.map((a) => a.clase)).toEqual(["descartar", "reintentar", "reintentar-auto"]);
+        expect(muerta[2].pideTexto).toBeUndefined();
+
+        const viva = accionesDeBloqueada({
+            estado: "bloqueada",
+            ficha: [
+                { etiqueta: "Espera a", valor: "B — algo" },
+                { etiqueta: "↳ su estado", valor: "escribiendo" },
+            ],
+        });
+        expect(viva.map((a) => a.clase)).toEqual(["descartar", "reintentar"]);
+    });
+});
+
+// (2026-09-23) Alex: «4 agentes y 0 tokens». Los cuatro eran de la nube.
+describe("medidor de tokens con agentes sin contador", () => {
+    const tokens = {
+        ahora: { fuentes: { jev: 0, opencode: 0 }, total: 0, segundos: 5 },
+        un_minuto: { fuentes: { jev: 0, opencode: 0 }, total: 0, segundos: 60 },
+        fuentes: [
+            { id: "jev", nombre: "Jev (consejero)" },
+            { id: "opencode", nombre: "agentes opencode" },
+        ],
+        sin_contador: [
+            { id: "codex", nombre: "agentes codex", porque: "no publica" },
+            { id: "nube-gh", nombre: "4 agente(s) en la nube (GitHub Actions)", porque: "GitHub no da el log", agentes: 4 },
+        ],
+        resumen: "0 tok/s medidos aquí · los 4 agente(s) que trabajan ahora están donde no hay contador en vivo",
+    };
+
+    it("la frase sale TAL CUAL del archivo: una cuenta, un sitio", () => {
+        const d = detalleDeMedidor("tokens", { tokens } as never);
+        expect(d.resumen).toBe(tokens.resumen);
+    });
+
+    it("los agentes que trabajan sin contador no salen como un motor apagado", () => {
+        const d = detalleDeMedidor("tokens", { tokens } as never);
+        const nube = d.filas.find((f) => f.id === "nube-gh");
+        expect(nube?.estado).toBe("trabajando sin contador");
+        expect(nube?.etapa).toBe("4 agente(s)");
+        const codex = d.filas.find((f) => f.id === "codex");
+        expect(codex?.estado).toBe("no publica tokens");
+    });
+
+    it("sin frase en el archivo, se sigue calculando", () => {
+        const d = detalleDeMedidor("tokens", { tokens: { ...tokens, resumen: undefined } } as never);
+        expect(d.resumen).toContain("tok/s de media en 1 min");
     });
 });
