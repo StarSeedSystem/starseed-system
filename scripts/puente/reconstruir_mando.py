@@ -442,7 +442,11 @@ def reconstruir(huella_actual) -> dict:
     empezo = time.time()
     entorno = dict(os.environ)
     # 2 GB por defecto no bastan con el enjambre vivo: el build muere por memoria.
-    entorno.setdefault("NODE_OPTIONS", "--max-old-space-size=5120")
+    # (2026-09-23) 5120 → 4096, lo mismo que usa publicar.py (que con 4096 compila bien y con
+    # 3072 no). Con 5 GB el `next build` llegó a 5,7 GB de huella en una Mac de 8: todo lo
+    # demás se fue al swap, el swap se comió el disco y el vigilante de disco paró la build
+    # a los 454 s (1,4 GB libres). Un giga menos de techo es un giga menos de swap.
+    entorno.setdefault("NODE_OPTIONS", "--max-old-space-size=4096")
     # SE COMPILA APARTE. `next start` lee de `.next` en caliente, así que compilar encima
     # del directorio servido daba «Internal Server Error» durante toda la compilación
     # (ENOENT: required-server-files.json). Aquí se construye en `.next-build` y el

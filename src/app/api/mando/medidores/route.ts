@@ -19,7 +19,7 @@ import path from "node:path";
 import { promisify } from "node:util";
 
 import { guardianMando } from "@/lib/mando/guardian";
-import { lanzarPublicacion } from "@/lib/mando/publicador";
+import { lanzarPublicacion, leerDiario } from "@/lib/mando/publicador";
 import {
     colaInteligente,
     enjambreEnMarcha,
@@ -33,6 +33,7 @@ import {
 import {
     TERMINALES,
     cambioAutomatico,
+    veredictoDeAgente,
     dependenciasMuertas,
     detalleDeMedidor,
     ejecutablesDeColas,
@@ -586,6 +587,8 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
         proveedores,
         tokens,
         commitsSinPublicar,
+        // (2026-09-23) Leer un JSON pequeño: el indicador de carga de «Sin publicar».
+        publicacion: await leerDiario().catch(() => null),
         ejecutables,
         enjambreVivo: vivo,
         enjambrePausado: pausado,
@@ -641,6 +644,60 @@ export async function POST(peticion: Request): Promise<Response> {
         return Response.json({ error: "Cuerpo JSON inválido." }, { status: 400 });
     }
     const { clave = "", accion = "", id = "", texto = "" } = cuerpo;
+
+    // (2026-09-23) «¿Cabe más trabajo?» y «Asignar ya». La decisión entera vive en
+    // `scripts/puente/asignar_huecos.py` (pura y probada): aquí solo se llama y se devuelve su
+    // frase. Nunca lanza un orquestador: si no hay tanda, despierta al vigilante.
+    if (accion === "asignar-huecos" || accion === "asignar-tarea" || accion === "comprobar-asignacion") {
+        if (accion === "asignar-tarea" && !id) {
+            return Response.json({ error: "Falta la tarea que asignar." }, { status: 400 });
+        }
+        // Una rancia («en curso» sin ningún agente que lata por ella) vuelve a pendiente antes
+        // de asignarse; una que SÍ tiene agente no se toca: nada en marcha se interrumpe.
+        if (accion === "asignar-tarea") {
+            const datosVivos = await reunir().catch(() => ({}) as Partial<DatosMedidores>);
+            const late = (datosVivos.latidos ?? []).some((l) => l.tarea === id);
+            const entradas = JSON.parse(await readFile(PROGRESO, "utf8").catch(() => "{}")) as Record<string, Entrada>;
+            if (entradas[id]?.estado === "en_curso") {
+                if (late) {
+                    return Response.json({ error: `${id} tiene un agente trabajando ahora: no se reasigna.` }, { status: 409 });
+                }
+                entradas[id].estado = "pendiente";
+                entradas[id].nota = `rancia (en curso sin agente): reasignada desde el Mando el ${new Date()
+                    .toISOString()
+                    .slice(0, 16)
+                    .replace("T", " ")}`;
+                await guardar(entradas);
+            }
+        }
+        const orden = accion === "comprobar-asignacion" ? "comprobar" : "asignar";
+        const args = ["scripts/puente/asignar_huecos.py", orden];
+        if (id && accion !== "asignar-huecos") args.push("--tarea", id);
+        try {
+            const { stdout } = await correr("python3", args, { cwd: RAÍZ, timeout: 90_000, windowsHide: true });
+            const r = JSON.parse((stdout || "").trim().split("\n").pop() || "{}") as {
+                resumen?: string;
+                hechas?: string[];
+                puede?: boolean;
+            };
+            return Response.json({
+                ok: true,
+                resumen: r.resumen || "Comprobado.",
+                puede: Boolean(r.puede),
+                hechas: r.hechas ?? [],
+            });
+        } catch (e) {
+            const msj = e instanceof Error ? e.message : String(e);
+            return Response.json({ error: `No pude comprobar la asignación: ${msj.slice(0, 300)}` }, { status: 500 });
+        }
+    }
+
+    if (accion === "comprobar-agente") {
+        const datosVivos = await reunir().catch(() => ({}) as Partial<DatosMedidores>);
+        const latido = (datosVivos.latidos ?? []).find((l) => l.tarea === id);
+        const libres = (datosVivos.proveedores ?? []).filter((p) => /^(vivo|ok|disponible|activo|libre|listo)$/i.test(p.estado)).length;
+        return Response.json({ ok: true, resumen: veredictoDeAgente(latido, libres) });
+    }
 
     // (2026-09-22) Los dos botones de contenedores. Van ANTES de leer progreso.json porque
     // no tocan tareas: hablan con los servicios de nube.

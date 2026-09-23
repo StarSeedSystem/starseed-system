@@ -263,8 +263,22 @@ def ordenar(
     # el tope de antiguedad (24 puntos) hacia que cualquier tarea de ayer adelantase a la
     # que sube el techo del sistema. Alex lo dijo como prioridad, y una prioridad que se
     # puede perder por acumular horas no es una prioridad. (2026-09-20)
+    # (2026-09-23) «Asignar esta ya» desde el Mando escribe `adelantar` en su progreso: esa va
+    # delante de TODO, capacidad incluida. Es una orden de Alex, no un peso que se negocia.
+    def _adelantada(tarea):
+        entrada = progreso.get(tarea.get("id")) if tarea.get("id") else None
+        return isinstance(entrada, dict) and bool(entrada.get("adelantar"))
+
+    for tarea, _puntos, razones in listas:
+        if _adelantada(tarea):
+            razones.insert(0, "Alex la pidió primero desde el Mando")
     listas.sort(
-        key=lambda x: (0 if es_de_capacidad(x[0]) else 1, -x[1], str(x[0].get("id") or ""))
+        key=lambda x: (
+            0 if _adelantada(x[0]) else 1,
+            0 if es_de_capacidad(x[0]) else 1,
+            -x[1],
+            str(x[0].get("id") or ""),
+        )
     )
     bloqueadas.sort(key=lambda x: str(x[0].get("id") or ""))
     return listas, bloqueadas

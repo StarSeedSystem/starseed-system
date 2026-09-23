@@ -46,7 +46,16 @@ export type ClaseAccion =
     // (2026-09-22) Los contenedores de nube: volver a sondear todos los servicios, y
     // desplegar agentes en uno concreto. Alex los pidió a mano desde la ventana.
     | "sondear-contenedores"
-    | "desplegar-nube";
+    | "desplegar-nube"
+    // (2026-09-23) Alex: «botones para buscar y asignar tareas faltantes … en Tareas en curso,
+    // Agentes y Listas, en cada una y en general, para comprobar si es posible activar o
+    // asignar tareas o agentes automáticamente». Los decide `scripts/puente/asignar_huecos.py`
+    // (huecos = tope vivo − ocupados; nunca se salta el tope del gobernador ni se lanza un
+    // orquestador desde aquí: si no hay tanda, se despierta al vigilante).
+    | "asignar-huecos"
+    | "asignar-tarea"
+    | "comprobar-asignacion"
+    | "comprobar-agente";
 
 export interface AccionMedidor {
     clase: ClaseAccion;
@@ -57,6 +66,9 @@ export interface AccionMedidor {
     destructiva: boolean;
     /** Si está, la acción pide texto antes de poder enviarse. */
     pideTexto?: string;
+    /** (2026-09-23) El id que viaja al servidor si NO es el de la fila. La fila de un agente
+     *  se llama «proveedor · modelo», pero lo que se comprueba es su TAREA. */
+    objetivo?: string;
 }
 
 export interface FilaMedidor {
@@ -114,6 +126,9 @@ export interface DetalleMedidor {
     vacio?: string;
     /** Número de tareas en la sección histórica de olas cerradas. */
     historicas?: number;
+    /** (2026-09-23) Algo se está haciendo AHORA detrás de este medidor (p. ej. una publicación):
+     *  el panel pinta un indicador de carga con este texto y se relee solo hasta que acabe. */
+    cargando?: { texto: string; progreso?: number };
 }
 
 /** Estados que ya terminaron: nada de lo que hay aquí se descarta ni se reintenta. */
@@ -210,6 +225,70 @@ export function mediaDeAvance(filas: FilaMedidor[]): number {
 export function libresDeContenedores(inv: DatosMedidores["contenedores"]): number {
     const n = inv?.resumen?.agentes_libres;
     return typeof n === "number" && Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+/** (2026-09-23) Los dos botones generales de «¿cabe más trabajo?»: uno comprueba sin tocar
+ *  nada y el otro, si cabe, mete las listas en la tanda viva (o despierta al vigilante). */
+export const ACCIONES_ASIGNAR: AccionMedidor[] = [
+    { clase: "asignar-huecos", texto: "Buscar y asignar trabajo ahora", destructiva: false },
+    { clase: "comprobar-asignacion", texto: "Comprobar si cabe más", destructiva: false },
+];
+
+/**
+ * (2026-09-23) Indicador de carga de «Sin publicar»: qué paso de la publicación va y cuánto
+ * lleva, como el «Comprobando…» de los demás medidores. Un diario «corriendo» de hace más de
+ * dos horas no es una publicación viva: es un publicador que murió sin cerrar su diario, y
+ * decir «publicando» para siempre sería mentir. PURA: el reloj entra por parámetro.
+ */
+export function cargaDePublicacion(
+    diario: DatosMedidores["publicacion"] | undefined,
+    ahoraMs: number,
+): { texto: string; progreso?: number } | undefined {
+    if (!diario || diario.estado !== "corriendo") return undefined;
+    const pasos = diario.pasos ?? [];
+    const hechos = pasos.filter((p) => p.estado === "ok" || p.estado === "omitido").length;
+    const actual = pasos.find((p) => p.estado === "corriendo");
+    const empezado = diario.empezado ? Date.parse(diario.empezado.replace(" ", "T")) : NaN;
+    const minutos = Number.isFinite(empezado) ? Math.max(0, Math.round((ahoraMs - empezado) / 60_000)) : null;
+    if (minutos !== null && minutos > 120) {
+        return {
+            texto: `el diario dice «publicando» desde hace ${minutos} min: el publicador parece muerto`,
+            progreso: pasos.length ? Math.round((hechos / pasos.length) * 100) : undefined,
+        };
+    }
+    const paso = actual
+        ? `${actual.titulo}${actual.detalle ? ` · ${actual.detalle.split("\n")[0].slice(0, 80)}` : ""}`
+        : "preparando";
+    return {
+        texto: `Publicando · paso ${Math.min(hechos + 1, pasos.length || 1)} de ${pasos.length || "?"}: ${paso}${
+            minutos !== null ? ` · ${minutos} min` : ""
+        }`,
+        progreso: pasos.length ? Math.round((hechos / pasos.length) * 100) : undefined,
+    };
+}
+
+/**
+ * (2026-09-23) Veredicto de UN agente para «Comprobar este agente»: ¿escribe, espera
+ * pasarela o está callado, y qué pasará solo? Los umbrales son los del orquestador (corta a
+ * los 5 min sin crecer) y del vigilante (30 min sin escribir nada). PURA.
+ */
+export function veredictoDeAgente(
+    latido: DatosMedidores["latidos"][number] | undefined,
+    proveedoresLibres: number,
+): string {
+    if (!latido) return "Ningún agente late por esa tarea ahora mismo: si figura en curso, es un estado rancio.";
+    const quien = `${latido.proveedor ?? latido.modelo.split("/")[0]} · ${latido.modelo.split("/").slice(-1)[0]} en ${latido.donde}`;
+    if (/esperando proveedor/i.test(latido.fase ?? "")) {
+        return proveedoresLibres > 0
+            ? `${quien} espera pasarela desde hace ${latido.minutos} min; hay ${proveedoresLibres} pasarela(s) disponible(s): el orquestador la reintenta sola en su siguiente vuelta.`
+            : `${quien} espera pasarela desde hace ${latido.minutos} min y NO hay ninguna con cupo ahora: seguirá esperando hasta que una se libere.`;
+    }
+    const quieto = latido.quietoSegundos ?? 0;
+    if (quieto > 180) {
+        const min = Math.round(quieto / 60);
+        return `${quien} lleva ${min} min sin escribir (fase ${latido.fase}). El orquestador corta a los 5 min sin crecer y la reasigna a otro modelo; el vigilante, a los 30.`;
+    }
+    return `${quien} trabaja con normalidad: fase ${latido.fase}, ${latido.minutos} min, ${bytesLegibles(latido.bytesLog) ?? "sin medida de bytes"}.`;
 }
 
 const IR_A = (texto: string, destino: string): AccionMedidor => ({
@@ -881,6 +960,12 @@ export interface DatosMedidores {
         };
     } | null;
     commitsSinPublicar: { sha: string; asunto: string; fecha?: string }[];
+    /** (2026-09-23) El diario de la publicación en curso o la última (`publicacion-estado.json`). */
+    publicacion?: {
+        estado: string;
+        empezado?: string;
+        pasos: { titulo: string; estado: string; detalle?: string }[];
+    } | null;
     /** `esperaA`: las dependencias que le faltan. Si viene, la tarea NO se puede coger. */
     ejecutables: { id: string; titulo: string; ola?: string; esperaA?: string[] }[];
     /** Asuntos recientes de `main`; ausente si Git no pudo leerse. */
@@ -1322,14 +1407,23 @@ export function detalleDeMedidor(
                 // Un commit no se tira desde un panel: solo se publica o se deja.
                 acciones: [],
             }));
+            const carga = cargaDePublicacion(d.publicacion, Date.now());
+            const publicando = Boolean(carga && !/parece muerto/.test(carga.texto));
             return {
                 clave,
                 titulo: "Sin publicar",
-                resumen: filas.length === 0 ? "todo publicado" : `${filas.length} commits esperando`,
+                resumen: publicando
+                    ? `publicando ${filas.length} commit(s)…`
+                    : filas.length === 0
+                      ? "todo publicado"
+                      : `${filas.length} commits esperando`,
                 filas,
-                acciones: filas.length
-                    ? [{ clase: "publicar", texto: "Publicar en origin/main", destructiva: false }]
-                    : [],
+                cargando: carga,
+                // Mientras publica no se ofrece otra vez: dos publicadores se pisarían el índice.
+                acciones:
+                    filas.length && !publicando
+                        ? [{ clase: "publicar", texto: "Publicar en origin/main", destructiva: false }]
+                        : [],
                 vacio: "No hay nada sin publicar: la rama está igual que el remoto.",
             };
         }
@@ -1376,7 +1470,9 @@ export function detalleDeMedidor(
                           : bytesLegibles(l.bytesLog),
                     ficha: fichaDeAgente(l, d.progreso[l.tarea], obra, d.repoGitHub),
                     historial: d.historiales?.[l.tarea]?.slice(0, 6),
-                    acciones: [],
+                    acciones: [
+                        { clase: "comprobar-agente", texto: "Comprobar este agente", destructiva: false, objetivo: l.tarea },
+                    ],
                 };
             });
             const callados = filas.filter((f) => f.estado === "callado").length;
@@ -1401,6 +1497,7 @@ export function detalleDeMedidor(
                 // Van en esta ventana y no solo en la de contenedores porque es aquí donde
                 // se mira cuando faltan agentes.
                 acciones: [
+                    ...ACCIONES_ASIGNAR,
                     { clase: "sondear-contenedores", texto: "Buscar contenedores en la nube", destructiva: false },
                     ...(libresDeContenedores(d.contenedores) > 0
                         ? [
@@ -1447,7 +1544,9 @@ export function detalleDeMedidor(
                         l,
                     ),
                     historial: d.historiales?.[l.tarea]?.slice(0, 6),
-                    acciones: [],
+                    acciones: [
+                        { clase: "comprobar-agente", texto: "Comprobar", destructiva: false, objetivo: l.tarea },
+                    ],
                 };
             });
             // Un `en_curso` sin latido es un estado rancio, y verlo es media reparación.
@@ -1462,7 +1561,12 @@ export function detalleDeMedidor(
                     desde: v.t,
                     ficha: fichaDeTarea(id, v, d.declarados?.[id], d.obras?.[id], d.repoGitHub),
                     historial: d.historiales?.[id]?.slice(0, 6),
-                    acciones: accionesDeTarea(v.estado),
+                    // Una rancia no ocupa a nadie: «Reasignar ya» la devuelve a pendiente y la
+                    // pone la primera de la cola viva.
+                    acciones: [
+                        { clase: "asignar-tarea" as const, texto: "Reasignar ya", destructiva: false },
+                        ...accionesDeTarea(v.estado),
+                    ],
                 }));
             const todas = [...rancias, ...filas];
             const medio = mediaDeAvance(todas);
@@ -1477,7 +1581,7 @@ export function detalleDeMedidor(
                           }`,
                 filas: todas,
                 porcentajeMedio: medio,
-                acciones: [IR_A("Ver la ramificación", "procesos")],
+                acciones: [...ACCIONES_ASIGNAR, IR_A("Ver la ramificación", "procesos")],
                 vacio: "Ninguna tarea en curso ahora mismo.",
             };
         }
@@ -1527,7 +1631,11 @@ export function detalleDeMedidor(
                 // de un vistazo lo que queda por delante de cada una.
                 porcentaje: 0,
                 porque: t.ola ? `de la ola ${t.ola} · ${porQueNadieLasCoge}` : porQueNadieLasCoge,
-                acciones: accionesDeTarea("pendiente"),
+                acciones: [
+                    { clase: "asignar-tarea" as const, texto: "Asignar ya", destructiva: false },
+                    { clase: "comprobar-asignacion" as const, texto: "¿Puede entrar?", destructiva: false },
+                    ...accionesDeTarea("pendiente"),
+                ],
             }));
 
             const colaDeAtadas = atadas.length
@@ -1548,7 +1656,7 @@ export function detalleDeMedidor(
                 resumen: resumen + avisoGit,
                 filas,
                 porcentajeMedio: 0,
-                acciones: [IR_A("Ver procesos", "procesos")],
+                acciones: [...ACCIONES_ASIGNAR, IR_A("Ver procesos", "procesos")],
                 vacio: "No queda trabajo ejecutable: todo lo definido está integrado, bloqueado o esperándote.",
             };
         }

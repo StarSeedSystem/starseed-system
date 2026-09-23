@@ -24,6 +24,13 @@ export async function GET(request: Request): Promise<Response> {
     const veto = await guardianMando(request);
     if (veto) return veto;
 
+    // (2026-09-23) `?solo=diario`: lo mínimo para el indicador de carga de la pastilla
+    // «Sin publicar», que pregunta cada pocos segundos mientras se publica. Leer un JSON
+    // pequeño, sin tocar git: preguntar el estado entero cada 5 s sería caro para nada.
+    if (new URL(request.url).searchParams.get("solo") === "diario") {
+        const diario = await leerDiario().catch(() => null);
+        return Response.json({ diario }, { headers: { "Cache-Control": "no-store" } });
+    }
     try {
         const [estado, diario] = await Promise.all([leerPublicacion(), leerDiario()]);
         return Response.json(

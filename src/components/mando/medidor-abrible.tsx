@@ -160,6 +160,7 @@ export function PastillaMedidor({
     abierto = false,
     alPulsar,
     alClic,
+    cargando = false,
 }: {
     /** Sin `clave` la pastilla NO se abre: es informativa y se nota (no lleva chevrón). */
     clave?: ClaveMedidor;
@@ -171,12 +172,17 @@ export function PastillaMedidor({
     alPulsar?: (clave: ClaveMedidor) => void;
     /** Acción propia para las pastillas que no abren panel (p. ej. abrir Drive). */
     alClic?: () => void;
+    /** (2026-09-23) Algo está en marcha detrás (p. ej. publicando): giro junto al valor. */
+    cargando?: boolean;
 }) {
     const pulsable = Boolean(clave || alClic);
     const contenido = (
         <>
             <span className="text-[10px] uppercase tracking-wider text-white/45">{titulo}</span>
-            <span className={`text-lg font-semibold leading-tight ${TEXTO[tono]}`}>{valor}</span>
+            <span className={`inline-flex items-center gap-1.5 text-lg font-semibold leading-tight ${TEXTO[tono]}`}>
+                {cargando ? <Loader2 className="h-3.5 w-3.5 animate-spin text-cyan-200" aria-label="en marcha" /> : null}
+                {valor}
+            </span>
             {detalle ? (
                 <span className="line-clamp-2 text-[10px] leading-snug text-white/45">{detalle}</span>
             ) : null}
@@ -634,6 +640,42 @@ export function PanelMedidor({
                             </li>
                         ))}
                     </ul>
+                </div>
+            ) : null}
+
+            {datos?.cargando ? (
+                // (2026-09-23) Alex: «en el medidor de sin publicar agrega un indicador de
+                // carga al igual que cuando esté cargando las comprobaciones». Mismo giro que
+                // «Comprobar ahora», más el paso en que va y su barra: el panel se relee cada
+                // 5 s, así que avanza solo hasta que la publicación acaba.
+                <div
+                    role="status"
+                    aria-live="polite"
+                    data-testid="indicador-carga-medidor"
+                    className="mc-centrado mt-2 flex flex-col items-center gap-1 rounded-md border border-cyan-300/25 bg-cyan-400/10 px-2 py-1.5"
+                >
+                    <p className="flex items-center gap-2 text-[11px] text-cyan-100">
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+                        {datos.cargando.texto}
+                    </p>
+                    {typeof datos.cargando.progreso === "number" ? (
+                        <span
+                            className="mc-barra h-1 w-40 overflow-hidden rounded-full bg-white/10"
+                            role="progressbar"
+                            aria-valuenow={datos.cargando.progreso}
+                            aria-valuemin={0}
+                            aria-valuemax={100}
+                            aria-label="Avance de la publicación"
+                        >
+                            <i
+                                className="block h-full rounded-full bg-cyan-400/80 transition-transform duration-500"
+                                style={{
+                                    transform: `scaleX(${Math.max(0.03, datos.cargando.progreso / 100)})`,
+                                    transformOrigin: "left",
+                                }}
+                            />
+                        </span>
+                    ) : null}
                 </div>
             ) : null}
 

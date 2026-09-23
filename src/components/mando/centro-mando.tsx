@@ -16,7 +16,7 @@
  */
 
 import { marcarRitoActivo } from "@/lib/ui/rito-activo";
-import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BrainCircuit, CircleDashed, CircleDollarSign, Clock3, Copy, ExternalLink, Loader2, RefreshCw, ShieldAlert } from "lucide-react";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -27,7 +27,7 @@ import { PanelMedidor, PastillaMedidor, type TonoMedidor } from "@/components/ma
 import { PanelIdes, PastillaIdes } from "@/components/mando/medidor-ides";
 import { VerificarProcesos } from "@/components/mando/verificar-procesos";
 import type { AccionMedidor, ClaveMedidor, DetalleMedidor, FilaMedidor } from "@/lib/mando/medidores";
-import { ESPERA_A_OTRA } from "@/lib/mando/medidores";
+import { ESPERA_A_OTRA, cargaDePublicacion } from "@/lib/mando/medidores";
 import { PanelProcesos } from "@/components/mando/panel-procesos";
 import { PanelGrafo } from "@/components/mando/panel-grafo";
 import { PanelOlas } from "@/components/mando/panel-olas";
@@ -640,6 +640,9 @@ export function CentroMando() {
     // desglose por repos leído del endpoint de publicaciones una vez por minuto. Un
     // fallo lo deja en null y la pastilla usa `pulso.sinPush` (solo OS) como respaldo.
     const [sinPublicar, setSinPublicar] = useState<{ total: number; os: number; astraura: number } | null>(null);
+    /** (2026-09-23) Publicación en marcha: la pastilla «Sin publicar» gira y dice el paso. */
+    const [publicando, setPublicando] = useState<{ texto: string; progreso?: number } | null>(null);
+    const releerPublicandoRef = useRef<() => void>(() => undefined);
 
     // Acciones que esperan a Alex (AX1): se leen de /api/mando/acciones una vez por minuto.
     const [accionesAlex, setAccionesAlex] = useState<{ generado: string; acciones: Array<{
@@ -930,7 +933,9 @@ export function CentroMando() {
                 const r = await fetch("/api/mando/medidores", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ clave, accion: accion.clase, id: fila?.id, texto }),
+                    // `objetivo`: la fila de un agente se llama «proveedor · modelo», pero lo que
+                    // se comprueba es su tarea (2026-09-23).
+                    body: JSON.stringify({ clave, accion: accion.clase, id: accion.objetivo ?? fila?.id, texto }),
                 });
                 const d = (await r.json()) as {
                     ok?: boolean;
@@ -945,7 +950,15 @@ export function CentroMando() {
                 void cargarMedidoresResumen(true);
                 // Los contenedores no devuelven tareas, devuelven lo que midieron o lanzaron:
                 // se enseña esa frase tal cual en vez de «0 tareas descartadas». (2026-09-22)
-                if (accion.clase === "sondear-contenedores" || accion.clase === "desplegar-nube") {
+                if (
+                    accion.clase === "sondear-contenedores" ||
+                    accion.clase === "desplegar-nube" ||
+                    // (2026-09-23) Comprobar/asignar trabajo: la frase del servidor dice qué hizo y por qué.
+                    accion.clase === "asignar-huecos" ||
+                    accion.clase === "asignar-tarea" ||
+                    accion.clase === "comprobar-asignacion" ||
+                    accion.clase === "comprobar-agente"
+                ) {
                     return d.resumen ?? "hecho.";
                 }
                 // (2026-09-23) Alex: «el botón de publicar desde el medidor no funciona,
@@ -955,6 +968,7 @@ export function CentroMando() {
                 // «0 tareas descartadas: undefined». Un botón que hace su trabajo y luego
                 // dice eso es, para quien lo pulsa, un botón roto.
                 if (accion.clase === "publicar") {
+                    releerPublicandoRef.current();
                     return d.mensaje ?? "Publicación lanzada; su marcha se sigue en la pestaña «Publicar».";
                 }
                 if (accion.clase === "reintentar-auto") {
@@ -1080,6 +1094,52 @@ export function CentroMando() {
         };
     }, []);
 
+    // (2026-09-23) Alex: «en el medidor de sin publicar agrega un indicador de carga al igual
+    // que cuando esté cargando las comprobaciones». Se pregunta por el DIARIO (un JSON pequeño,
+    // sin git): cada 4 s mientras publica y cada 30 s si no. Al acabar se relee el número de
+    // commits sin publicar, que es lo que la publicación acaba de cambiar.
+    useEffect(() => {
+        let vivo = true;
+        let temporizador: number | null = null;
+        let estabaPublicando = false;
+        const leer = async () => {
+            if (temporizador !== null) window.clearTimeout(temporizador);
+            temporizador = null;
+            let ahora: { texto: string; progreso?: number } | null = null;
+            try {
+                if (document.visibilityState !== "hidden") {
+                    const r = await fetch("/api/mando/publicacion?solo=diario", { cache: "no-store" });
+                    const d = (await r.json()) as {
+                        diario?: {
+                            estado: string;
+                            empezado?: string;
+                            pasos?: { titulo: string; estado: string; detalle?: string }[];
+                        } | null;
+                    };
+                    const c = cargaDePublicacion(
+                        d.diario ? { estado: d.diario.estado, empezado: d.diario.empezado, pasos: d.diario.pasos ?? [] } : null,
+                        Date.now(),
+                    );
+                    ahora = c && !/parece muerto/.test(c.texto) ? c : null;
+                }
+            } catch {
+                ahora = null;
+            }
+            if (!vivo) return;
+            setPublicando(ahora);
+            // Acabó: la cuenta de commits sin publicar acaba de cambiar; que se relea ya.
+            if (estabaPublicando && !ahora) window.dispatchEvent(new Event("mando:publicacion-terminada"));
+            estabaPublicando = Boolean(ahora);
+            temporizador = window.setTimeout(() => void leer(), ahora ? 4_000 : 30_000);
+        };
+        releerPublicandoRef.current = () => void leer();
+        void leer();
+        return () => {
+            vivo = false;
+            if (temporizador !== null) window.clearTimeout(temporizador);
+        };
+    }, []);
+
     // «Sin publicar» de la cabecera (Ola 274; desglose desde Ola 276 · M10): una vez
     // por minuto se lee el `delante` de cada repositorio publicable (OS y Astraura)
     // desde el endpoint de publicaciones. Es la misma fuente que la pestaña «Commits
@@ -1111,11 +1171,14 @@ export function CentroMando() {
         const alVolver = () => {
             if (document.visibilityState === "visible") void cargar(true);
         };
+        const alPublicar = () => void cargar(true);
         document.addEventListener("visibilitychange", alVolver);
+        window.addEventListener("mando:publicacion-terminada", alPublicar);
         return () => {
             vivo = false;
             window.clearInterval(cada);
             document.removeEventListener("visibilitychange", alVolver);
+            window.removeEventListener("mando:publicacion-terminada", alPublicar);
         };
     }, []);
 
@@ -1522,7 +1585,12 @@ export function CentroMando() {
                                       ? "—"
                                       : String(pulso.sinPush),
                                 tono: ((sinPublicar ? sinPublicar.total : pulso.sinPush ?? 0) > 0 ? "aviso" : "normal") as TonoMedidor,
-                                detalle: sinPublicar ? `OS ${sinPublicar.os} · Astraura ${sinPublicar.astraura}` : "solo OS",
+                                detalle: publicando
+                                    ? publicando.texto.replace(/^Publicando · /, "publicando · ")
+                                    : sinPublicar
+                                      ? `OS ${sinPublicar.os} · Astraura ${sinPublicar.astraura}`
+                                      : "solo OS",
+                                cargando: Boolean(publicando),
                             },
                             {
                                 clave: "proveedores" as const,
@@ -1682,6 +1750,7 @@ export function CentroMando() {
                                         setMedidorAbierto((a) => (a === c ? null : c));
                                     }}
                                     alClic={"alClic" in m ? m.alClic : undefined}
+                                    cargando={"cargando" in m ? Boolean(m.cargando) : false}
                                 />
                             </li>
                         ))}
