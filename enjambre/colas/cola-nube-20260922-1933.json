@@ -1,0 +1,18 @@
+{
+ "ola": "nube-20260922",
+ "tareas": [
+  {
+   "id": "CU3br",
+   "ola": 362,
+   "titulo": "Ajustes del Mando: que conceder o retirar un acceso no deje la pantalla en blanco",
+   "archivos": [
+    "src/app/api/mando/accesos/route.ts",
+    "src/components/mando/panel-accesos.tsx"
+   ],
+   "depende": [],
+   "prompt": "RESCATE (2026-09-20). Esta tarea se rechazo el 17/09 «automaticamente por ide, sin revision\nhumana». La causa de aquella racha esta medida y ARREGLADA: una cabecera x-title con un\ncaracter no ASCII hacia que TODOS los modelos :free de OpenRouter fallaran en 0 s, y el\ndesatascador daba por muerta la tarea. No era culpa del encargo.\nCOMPROBADO HOY: ni `src/app/api/mando/accesos/route.ts` ni `src/components/mando/panel-accesos.tsx` existen en main. El trabajo sigue pendiente entero.\nTRAMPA MEDIDA EL 20/09: `tsc` y vitest NO ven un import de VALOR desde un modulo que toca\n`node:*` hecho en un componente de CLIENTE; solo lo ve `next build`. De un modulo con\n`node:fs`/`node:util`, un componente de cliente solo puede importar TIPOS.\n\n=== ENCARGO ORIGINAL ===\nCU3 fue RECHAZADA con bloqueo confirmado por dos revisores. El defecto, literal:\n\n«El POST devuelve `{ ok, accion, correo }`, pero `llamar()` lo castea a `DatosAccesos` y `conceder()`/`retirar()` hacen `setDatos(d)`. Tras conceder o retirar, `datos.cuentas` pasa a ser `undefined` y el render (`datos.cuentas.map`, `datos.cuentas.find`) revienta la pantalla. El primer alta de invitado rompe la UI.»\n\nEs decir: el panel funciona hasta que lo usas. La primera vez que concedes un acceso, pantalla en blanco.\n\nARREGLO, y elige UNA de las dos vías (no las dos):\n· que el POST devuelva el MISMO payload completo que el GET, o\n· que el cliente rehaga el GET después del POST.\nLa primera es mejor: una ida y vuelta menos y sin ventana de estado inconsistente.\n\nY pase lo que pase, el render no debe poder reventar por esto: si `datos.cuentas` llega vacío o ausente, la pantalla enseña su estado vacío, no una excepción. Una pantalla que se rompe por una respuesta inesperada es un fallo aparte del contrato.\n\nDos cosas más que el revisor anotó y conviene atender:\n· `leerDatos` → modificar → `guardarDatos` no es atómico entre peticiones: dos POST simultáneos pisan el cambio del otro. El rename atómico protege de corrupción parcial, no de perder una actualización. Si no lo arreglas aquí, DÉJALO ESCRITO en un comentario como deuda conocida, con el porqué.\n· en local, `correoQuePide` devuelve siempre `dueno`. Es deliberado, pero confirma en un comentario que `esDespliegueLocal` no puede dar verdadero en producción por una cabecera forjada.\n\nAñade una prueba del caso que rompía: conceder un acceso y comprobar que después la lista sigue teniendo sus cuentas.\n\nCAMBIO PEDIDO DESDE EL PUENTE (este intento es un reintento; lo que falló la vez anterior se corrige así):\nCU3r no va a llegar: o no existe en ninguna ola, o está descartada, sustituida o rechazada. Rehaz esta tarea SIN esa dependencia: implementa dentro de tu alcance lo mínimo que necesites de CU3r, o recorta el alcance a lo que se pueda terminar solo. Di en el commit qué recortaste.",
+   "aprobacion": false,
+   "modelo": "llm7/minimax-m2.7"
+  }
+ ]
+}
