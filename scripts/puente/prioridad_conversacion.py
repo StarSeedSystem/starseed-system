@@ -27,6 +27,7 @@ Nada en la nube se toca (no ocupa RAM de la Mac). Nada que el dueño parara a ma
     python3 scripts/puente/prioridad_conversacion.py aplicar   # lo llaman la voz y el guardia
     python3 scripts/puente/prioridad_conversacion.py estado
 """
+
 import json
 import os
 import re
@@ -36,8 +37,12 @@ import sys
 import time
 import urllib.request
 
-CONCESION = os.path.expanduser(os.environ.get("STARSEED_CONCESION", "~/.starseed/conversacion.json"))
-MARCA = os.environ.get("STARSEED_MARCA_CONVERSACION", "/tmp/starseed-congelados-por-la-conversacion")
+CONCESION = os.path.expanduser(
+    os.environ.get("STARSEED_CONCESION", "~/.starseed/conversacion.json")
+)
+MARCA = os.environ.get(
+    "STARSEED_MARCA_CONVERSACION", "/tmp/starseed-congelados-por-la-conversacion"
+)
 MARCA_GUARDIA = "/tmp/starseed-%s-congelado-por-el-guardia"
 ASTRAURA = os.environ.get("STARSEED_ASTRAURA_URL", "http://127.0.0.1:8000")
 
@@ -96,14 +101,25 @@ def decidir(conversando, procesos, marcados):
                 congelar.append(pid)
     else:
         reanudar = sorted(p for p in marcados if p in vivos)
-    return {"congelar": sorted(congelar), "reanudar": reanudar, "motores": sorted(motores)}
+    return {
+        "congelar": sorted(congelar),
+        "reanudar": reanudar,
+        "motores": sorted(motores),
+    }
 
 
 def procesos():
     """[(pid, estado, comm, args)] de los procesos del usuario. Nunca imprime args."""
     try:
-        a = subprocess.run(["ps", "-xo", "pid=,state=,comm="], capture_output=True, text=True, timeout=20).stdout
-        b = subprocess.run(["ps", "-xo", "pid=,args="], capture_output=True, text=True, timeout=20).stdout
+        a = subprocess.run(
+            ["ps", "-xo", "pid=,state=,comm="],
+            capture_output=True,
+            text=True,
+            timeout=20,
+        ).stdout
+        b = subprocess.run(
+            ["ps", "-xo", "pid=,args="], capture_output=True, text=True, timeout=20
+        ).stdout
     except (OSError, subprocess.SubprocessError):
         return []
     args = {}
@@ -123,7 +139,8 @@ def procesos():
 
 def leer_marca(ruta=MARCA):
     try:
-        return {int(t) for t in open(ruta, encoding="utf-8").read().split() if t.isdigit()}
+        with open(ruta, encoding="utf-8") as f:
+            return {int(t) for t in f.read().split() if t.isdigit()}
     except OSError:
         return set()
 
@@ -141,9 +158,14 @@ def guardar_marca(pids, ruta=MARCA):
 
 def despertar_bitnet(timeout=3):
     try:
-        urllib.request.urlopen(urllib.request.Request(ASTRAURA + "/api/bitnet/despertar", data=b"{}",
-                                                      headers={"Content-Type": "application/json"}),
-                               timeout=timeout).read()
+        urllib.request.urlopen(
+            urllib.request.Request(
+                ASTRAURA + "/api/bitnet/despertar",
+                data=b"{}",
+                headers={"Content-Type": "application/json"},
+            ),
+            timeout=timeout,
+        ).read()
         return True
     except Exception:
         return False
@@ -193,7 +215,10 @@ def aplicar():
         # BitNet arranca «al primer turno» y ese primer turno es justo el que no puede
         # esperar: en cuanto empieza la conversación se le pide despertar (idempotente).
         despertar_bitnet()
-    return "%s · %s" % ("conversando" if conversando else "sin conversación", ", ".join(hechos) or "nada que hacer")
+    return "%s · %s" % (
+        "conversando" if conversando else "sin conversación",
+        ", ".join(hechos) or "nada que hacer",
+    )
 
 
 def main():
@@ -202,8 +227,16 @@ def main():
         print(aplicar(), flush=True)
         return 0
     c = leer_concesion()
-    print(json.dumps({"conversando": activa(c), "concesion": c, "congelados": sorted(leer_marca())},
-                     ensure_ascii=False))
+    print(
+        json.dumps(
+            {
+                "conversando": activa(c),
+                "concesion": c,
+                "congelados": sorted(leer_marca()),
+            },
+            ensure_ascii=False,
+        )
+    )
     return 0
 
 

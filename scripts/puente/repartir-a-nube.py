@@ -19,12 +19,17 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import puente
 from repartir_nube import elegir, marcar
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "enjambre"))
+sys.path.insert(
+    0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "enjambre")
+)
 try:
     from cambio_pedido import aplicar_a_todas
 except ImportError:  # pragma: no cover
+
     def aplicar_a_todas(tareas, progreso):
         return list(tareas or [])
+
+
 from vigilante_logica import es_cola_fuente
 
 RAIZ = os.environ.get("STARSEED_ROOT", "/Users/alex/Documents/starseed-os-main")

@@ -43,13 +43,21 @@ class Elegir(unittest.TestCase):
             "A2": {"estado": "integrada"},
             "B1": {"estado": "en_curso"},
         }
-        r = elegir([("cola-1.json", [{"id": "A2", "ola": "200"}, {"id": "B1", "ola": "200"}])],
-                   prog, [], ola_actual="999")
+        r = elegir(
+            [("cola-1.json", [{"id": "A2", "ola": "200"}, {"id": "B1", "ola": "200"}])],
+            prog,
+            [],
+            ola_actual="999",
+        )
         self.assertEqual(r, [])
 
     def test_una_tarea_pendiente_SI_puede_ir_a_un_contenedor_libre(self):
-        r = elegir([("cola-1.json", [{"id": "A1", "ola": "200"}])],
-                   {"A1": {"estado": "pendiente"}}, [], ola_actual="999")
+        r = elegir(
+            [("cola-1.json", [{"id": "A1", "ola": "200"}])],
+            {"A1": {"estado": "pendiente"}},
+            [],
+            ola_actual="999",
+        )
         self.assertEqual([t["id"] for t in r], ["A1"])
 
     def test_tope_recorta(self):
@@ -100,10 +108,8 @@ class RepartoScript(unittest.TestCase):
         os.makedirs(os.path.join(raiz, "enjambre"))
         olas = os.path.join(raiz, "starseed_memory_root", "olas")
         os.makedirs(olas)
-        json.dump(
-            {"tareas": [{"id": "Z1", "ola": "111"}]},
-            open(os.path.join(olas, "cola-999.json"), "w"),
-        )
+        with open(os.path.join(olas, "cola-999.json"), "w") as f:
+            json.dump({"tareas": [{"id": "Z1", "ola": "111"}]}, f)
         m = self.mod
         m.RAIZ, m.OLAS = raiz, olas
         m.PROGRESO = os.path.join(olas, "progreso.json")
@@ -115,7 +121,8 @@ class RepartoScript(unittest.TestCase):
         m.main()
         salidas = os.listdir(m.DESTINO_DIR)
         self.assertEqual(len(salidas), 1)
-        datos = json.load(open(os.path.join(m.DESTINO_DIR, salidas[0])))
+        with open(os.path.join(m.DESTINO_DIR, salidas[0])) as f:
+            datos = json.load(f)
         self.assertEqual([t["id"] for t in datos["tareas"]], ["Z1"])
 
     def test_git_log_que_falla_aborta_con_error_claro(self):
@@ -199,8 +206,6 @@ class TestTamanoParaLaNube(unittest.TestCase):
         self.assertEqual([t["id"] for t in salida], ["SIN"])
 
 
-
-
 class DependenciasHechasNoFrenanLaNube(unittest.TestCase):
     """(2026-09-22) Antes se descartaba TODA tarea con dependencias, estuvieran hechas o
     no, porque la nube solo veia `origin/main`. Desde que la cola y el codigo viajan en su
@@ -210,15 +215,21 @@ class DependenciasHechasNoFrenanLaNube(unittest.TestCase):
 
     def test_dependencia_integrada_no_frena(self):
         tarea = {"id": "B", "depende": ["A"]}
-        self.assertEqual(R.dependencias_pendientes(tarea, {"A": {"estado": "commit"}}), [])
+        self.assertEqual(
+            R.dependencias_pendientes(tarea, {"A": {"estado": "commit"}}), []
+        )
 
     def test_dependencia_sin_hacer_si_frena(self):
         tarea = {"id": "B", "depende": ["A"]}
-        self.assertEqual(R.dependencias_pendientes(tarea, {"A": {"estado": "fallo"}}), ["A"])
+        self.assertEqual(
+            R.dependencias_pendientes(tarea, {"A": {"estado": "fallo"}}), ["A"]
+        )
 
     def test_dependencia_que_no_existe_frena(self):
         # p318Jb espera a un p318I que nunca se creo.
-        self.assertEqual(R.dependencias_pendientes({"id": "X", "depende": ["p318I"]}, {}), ["p318I"])
+        self.assertEqual(
+            R.dependencias_pendientes({"id": "X", "depende": ["p318I"]}, {}), ["p318I"]
+        )
 
     def test_dependencia_ya_en_main_no_frena_aunque_el_progreso_no_lo_diga(self):
         tarea = {"id": "B", "depende": ["A"]}
@@ -230,10 +241,15 @@ class DependenciasHechasNoFrenanLaNube(unittest.TestCase):
         self.assertEqual(R.dependencias_pendientes({"id": "A"}, {}), [])
 
     def test_elegir_deja_pasar_la_que_tiene_su_dependencia_hecha(self):
-        colas = [("cola-1.json", [
-            {"id": "B", "ola": "9", "depende": ["A"], "archivos": ["x.ts"]},
-            {"id": "C", "ola": "9", "depende": ["Z"], "archivos": ["y.ts"]},
-        ])]
+        colas = [
+            (
+                "cola-1.json",
+                [
+                    {"id": "B", "ola": "9", "depende": ["A"], "archivos": ["x.ts"]},
+                    {"id": "C", "ola": "9", "depende": ["Z"], "archivos": ["y.ts"]},
+                ],
+            )
+        ]
         # Sin entrada en progreso = repartible (ESTADOS_REPARTIBLES incluye None).
         prog = {"A": {"estado": "commit"}}
         elegidas = [t["id"] for t in R.elegir(colas, prog, [], "", tope=5)]
@@ -253,8 +269,10 @@ class ReclamarVaradasEnLaNube(unittest.TestCase):
         return {tid: dict(v) for tid, v in estados.items()}
 
     def test_sin_runs_vuelven_las_prestadas_a_la_nube(self):
-        p = self._p(RM3={"estado": "reasignada", "medio": "nube"},
-                    RM4={"estado": "reasignada", "medio": "nube"})
+        p = self._p(
+            RM3={"estado": "reasignada", "medio": "nube"},
+            RM4={"estado": "reasignada", "medio": "nube"},
+        )
         self.assertEqual(R.reclamar_varadas(p, 0), ["RM3", "RM4"])
 
     def test_con_un_run_vivo_no_se_toca_nada(self):
@@ -267,9 +285,11 @@ class ReclamarVaradasEnLaNube(unittest.TestCase):
         self.assertEqual(R.reclamar_varadas(p, 0), [])
 
     def test_las_que_estan_en_otro_estado_no_se_tocan(self):
-        p = self._p(A={"estado": "commit", "medio": "nube"},
-                    B={"estado": "en_curso", "medio": "nube"},
-                    C={"estado": "pendiente"})
+        p = self._p(
+            A={"estado": "commit", "medio": "nube"},
+            B={"estado": "en_curso", "medio": "nube"},
+            C={"estado": "pendiente"},
+        )
         self.assertEqual(R.reclamar_varadas(p, 0), [])
 
     def test_progreso_vacio_o_raro_no_rompe(self):
@@ -277,13 +297,20 @@ class ReclamarVaradasEnLaNube(unittest.TestCase):
         self.assertEqual(R.reclamar_varadas({"X": "no soy un dict"}, 0), [])
 
     def test_devolver_a_pendiente_conserva_la_historia(self):
-        p = self._p(RM3={"estado": "reasignada", "medio": "nube", "ola": 363,
-                         "titulo": "mesh", "intentos": 2})
+        p = self._p(
+            RM3={
+                "estado": "reasignada",
+                "medio": "nube",
+                "ola": 363,
+                "titulo": "mesh",
+                "intentos": 2,
+            }
+        )
         n = R.devolver_a_pendiente(p, ["RM3"], "20260922")
         self.assertEqual(n["RM3"]["estado"], "pendiente")
         self.assertIsNone(n["RM3"]["medio"])
-        self.assertEqual(n["RM3"]["ola"], 363)          # no se pierde de qué ola es
-        self.assertEqual(n["RM3"]["intentos"], 2)        # ni cuántas veces se intentó
+        self.assertEqual(n["RM3"]["ola"], 363)  # no se pierde de qué ola es
+        self.assertEqual(n["RM3"]["intentos"], 2)  # ni cuántas veces se intentó
         self.assertIn("no quedaba ningún run", n["RM3"]["nota"])
 
     def test_devolver_no_modifica_el_original(self):
