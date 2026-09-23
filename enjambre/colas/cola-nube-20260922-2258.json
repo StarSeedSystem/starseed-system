@@ -1,0 +1,29 @@
+{
+ "ola": "nube-20260922",
+ "tareas": [
+  {
+   "id": "c313_QW4",
+   "ola": "Ola 313 · Consolidación de pendientes",
+   "titulo": ".env.example con todas las variables de entorno",
+   "archivos": [
+    ".env.example"
+   ],
+   "prompt": "Procesa la tarea: .env.example con todas las variables de entorno. Archivos: ['.env.example']. Escribe código limpio, sin any, en español con acentos. tsc limpio.",
+   "depende": [],
+   "modelo": "llm7/minimax-m2.7",
+   "aprobacion": false
+  },
+  {
+   "id": "c313_QW6",
+   "ola": "Ola 313 · Consolidación de pendientes",
+   "titulo": "Nombre accesible del botón Compartir de la tarjeta",
+   "archivos": [
+    "src/components/social/PostCard.tsx"
+   ],
+   "prompt": "Procesa la tarea: Nombre accesible del botón Compartir de la tarjeta. Archivos: ['src/components/social/PostCard.tsx']. Escribe código limpio, sin any, en español con acentos. tsc limpio.",
+   "depende": [],
+   "modelo": "llm7/minimax-m2.7",
+   "aprobacion": false
+  }
+ ]
+}
