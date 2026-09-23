@@ -14,6 +14,15 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 RUTA_COMPROBACIONES = Path("starseed_memory_root/mando/comprobaciones")
+MANDO = os.environ.get("STARSEED_MANDO_URL", "http://localhost:9002")
+ESTADOS_VIVOS_NUBE = ("in_progress", "queued", "waiting", "requested", "pending")
+#: (2026-09-23) Alex: «no funciona la autoverificación». No funcionaba para la mitad de los
+#: medidores: «en-curso», «ola-activa», «tokens», «integradas», «contenedores»… caían en
+#: «Medidor no reconocido», y «agentes» solo contaba procesos de la Mac, así que con cuatro
+#: agentes en la nube el botón decía «muerto». Ahora TODOS se comprueban igual: se vuelve a
+#: medir por un camino independiente del medidor y se compara con lo que el medidor dice.
+MEDIDORES_COTEJADOS = ("agentes", "en-curso", "ola-activa", "tokens", "integradas",
+                       "listas", "bloqueadas", "contenedores")
 
 
 def _salida(comando: List[str]) -> Optional[str]:
@@ -174,7 +183,160 @@ def medir_hechos(medidor: str) -> Dict[str, Any]:
         hechos["pasarelas_ok"] = p_ok
     if clave in ("sin-publicar", "todos"):
         hechos["sin_publicar"] = medir_git_sin_publicar()
+    if clave in MEDIDORES_COTEJADOS:
+        hechos.setdefault("procesos", medir_procesos())
+        hechos["detalle"] = leer_detalle(clave)
+        if clave in ("agentes", "en-curso", "ola-activa", "tokens"):
+            hechos["agentes_nube"] = remedir_nube()
+        if clave == "tokens":
+            try:
+                ruta = Path("starseed_memory_root/mando/tokens-por-segundo.json")
+                hechos["tokens_edad_s"] = int(datetime.now().timestamp() - ruta.stat().st_mtime)
+            except OSError:
+                hechos["tokens_edad_s"] = None
+        if clave == "integradas":
+            hechos["integradas_main"] = contar_integradas()
+        try:
+            sys.path.insert(0, str(Path(__file__).parent))
+            import vigia_medidores as _v
+            hechos["vigia"] = _v.diagnosticar(_v.leer_medidores())
+        except Exception:
+            hechos["vigia"] = []
     return hechos
+
+
+def leer_detalle(clave: str) -> Optional[Dict[str, Any]]:
+    """Lo que el medidor dice AHORA, leído de la misma API que pinta la ventana."""
+    import urllib.parse
+    import urllib.request
+    try:
+        url = "%s/api/mando/medidores?clave=%s" % (MANDO, urllib.parse.quote(clave))
+        with urllib.request.urlopen(url, timeout=60) as r:
+            return (json.loads(r.read().decode("utf-8")) or {}).get("detalle") or {}
+    except Exception:
+        return None
+
+
+def agentes_en_la_nube(datos: Any) -> int:
+    """PURA: agentes trabajando ahora en la nube según `agentes-nube.json`."""
+    n = 0
+    for r in (datos or {}).get("runs") or []:
+        if str(r.get("estado") or "").strip().lower() in ESTADOS_VIVOS_NUBE:
+            try:
+                n += int(r.get("agentes") or 0)
+            except (TypeError, ValueError):
+                continue
+    return n
+
+
+def remedir_nube() -> Optional[int]:
+    """Vuelve a preguntar a GitHub (agentes_nube.py) y cuenta. None si no se pudo."""
+    try:
+        subprocess.run([sys.executable, str(Path(__file__).with_name("agentes_nube.py"))],
+                       capture_output=True, timeout=90)
+        with open("starseed_memory_root/mando/agentes-nube.json", encoding="utf-8") as f:
+            return agentes_en_la_nube(json.load(f))
+    except Exception:
+        return None
+
+
+PATRON_TAREA = re.compile(r"^(?:(.*?)\s*·\s*)?([A-Za-z][A-Za-z0-9_-]{0,23})\s*:\s*(.*)$")
+
+
+def integradas_en_main(asuntos: List[str], conocidas: set) -> int:
+    """PURA: tareas distintas con un commit en main (misma regla que `integradas.ts`)."""
+    vistas = set()
+    for a in asuntos:
+        m = PATRON_TAREA.match(a.strip())
+        if m and m.group(2) in conocidas:
+            vistas.add(m.group(2))
+    return len(vistas)
+
+
+def contar_integradas() -> Optional[int]:
+    try:
+        salida = _salida(["git", "log", "main", "-n", "5000", "--format=%s"]) or ""
+        with open("starseed_memory_root/olas/progreso.json", encoding="utf-8") as f:
+            conocidas = set(json.load(f).keys())
+        for cola in Path("starseed_memory_root/olas").glob("cola-*.json"):
+            try:
+                d = json.loads(cola.read_text(encoding="utf-8"))
+            except Exception:
+                continue
+            lista = d if isinstance(d, list) else (d.get("tareas") or []) if isinstance(d, dict) else []
+            conocidas.update(str(t.get("id")) for t in lista if isinstance(t, dict) and t.get("id"))
+        return integradas_en_main(salida.splitlines(), conocidas)
+    except Exception:
+        return None
+
+
+def _numero(patron: str, texto: str) -> Optional[int]:
+    m = re.search(patron, texto or "")
+    return int(m.group(1)) if m else None
+
+
+def agentes_que_dice(clave: str, detalle: Dict[str, Any]) -> Optional[int]:
+    """PURA: cuántos agentes dice el medidor, leído de su propia frase o de sus filas."""
+    resumen = str(detalle.get("resumen") or "")
+    if clave == "agentes":
+        return _numero(r"(\d+) en total", resumen)
+    if clave == "en-curso":
+        return _numero(r"(\d+) agente", resumen)
+    if clave == "ola-activa":
+        filas = [f for f in detalle.get("filas") or [] if str(f.get("id") or "").startswith("ola:")]
+        return sum(_numero(r"(\d+) agente", str(f.get("quien") or "")) or 0 for f in filas)
+    return None
+
+
+def cotejar(clave: str, detalle: Optional[Dict[str, Any]], hechos: Dict[str, Any]) -> List[Dict[str, str]]:
+    """PURA: lo que dice el medidor frente a lo que se acaba de medir por otro camino."""
+    if detalle is None:
+        return [veredicto_proceso("Medidor", "muerto", "la API del Mando no contestó")]
+    fuera = [veredicto_proceso("Medidor", "vivo", "contesta: %s" % str(detalle.get("resumen") or "")[:160])]
+    if clave in ("agentes", "en-curso", "ola-activa"):
+        dice = agentes_que_dice(clave, detalle)
+        mac = len((hechos.get("procesos") or {}).get("opencode", []))
+        nube = hechos.get("agentes_nube")
+        if nube is None:
+            fuera.append(veredicto_proceso("Agentes medidos", "desconocido",
+                                           "no pude volver a preguntar a GitHub por la nube"))
+        else:
+            medidos = mac + nube
+            estado = "vivo" if dice == medidos else "colgado"
+            fuera.append(veredicto_proceso(
+                "Agentes medidos", estado,
+                "el medidor dice %s; medido ahora: %d en la Mac + %d en la nube = %d%s"
+                % (dice if dice is not None else "—", mac, nube, medidos,
+                   "" if estado == "vivo" else " · NO COINCIDEN")))
+    if clave == "tokens":
+        edad = hechos.get("tokens_edad_s")
+        if edad is None:
+            fuera.append(veredicto_proceso("Servicio de tokens", "muerto", "no hay archivo de tokens"))
+        else:
+            fuera.append(veredicto_proceso(
+                "Servicio de tokens", "vivo" if edad < 30 else "colgado",
+                "última muestra hace %d s%s" % (edad, "" if edad < 30 else " · el servicio no escribe")))
+        nube = hechos.get("agentes_nube")
+        ciegos = sum(_numero(r"(\d+)", str(f.get("etapa") or "")) or 0
+                     for f in detalle.get("filas") or [] if "sin contador" in str(f.get("estado") or ""))
+        if nube is not None:
+            fuera.append(veredicto_proceso(
+                "Agentes sin contador", "vivo" if ciegos == nube else "colgado",
+                "el medidor nombra %d; en la nube hay %d%s" % (ciegos, nube,
+                                                             "" if ciegos == nube else " · NO COINCIDEN")))
+    if clave == "integradas":
+        dice = _numero(r"^(\d+) tareas integradas", str(detalle.get("resumen") or ""))
+        medidas = hechos.get("integradas_main")
+        if medidas is None:
+            fuera.append(veredicto_proceso("Integradas en main", "desconocido", "no pude leer git"))
+        else:
+            fuera.append(veredicto_proceso(
+                "Integradas en main", "vivo" if dice == medidas else "colgado",
+                "el medidor dice %s; contadas ahora en git: %d" % (dice, medidas)))
+    for p in hechos.get("vigia") or []:
+        if p.get("clave") == clave:
+            fuera.append(veredicto_proceso("Vigía: %s" % p.get("tipo"), "colgado", str(p.get("porque") or "")))
+    return fuera
 
 
 def veredicto_proceso(
@@ -406,6 +568,11 @@ def veredictos_de(
                     f"{pending} commit(s) pendientes por publicar",
                 )
             )
+
+    if clave in MEDIDORES_COTEJADOS and "detalle" in hechos:
+        # «agentes» y «listas/bloqueadas» conservan sus veredictos de procesos, y además se
+        # cotejan: un proceso vivo no dice nada de si el NÚMERO de la pantalla es verdad.
+        veredictos.extend(cotejar(clave, hechos.get("detalle"), hechos))
 
     if not veredictos:
         veredictos.append(

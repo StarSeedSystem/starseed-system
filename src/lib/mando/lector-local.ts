@@ -214,8 +214,13 @@ export function descripcionDePrompt(prompt: unknown, tope = 280): string {
         .split(/\n\s*\n/)
         .map((p) => p.replace(/\s+/g, " ").trim())
         .filter(Boolean);
-    const util =
-        parrafos.find((p) => !/^(ORIGEN|ANTES DE|CONTEXTO|NOTA|REGLAS?)\b[^:]*:/i.test(p)) ?? parrafos[0] ?? "";
+    // (2026-09-23) Visto en el Puente: la descripción de DEDUPE salía «NO explores el
+    // repositorio entero: abre SOLO…», que es una regla de método para el agente, no el
+    // encargo. Los párrafos de método empiezan por una palabra en MAYÚSCULAS («ORIGEN:»,
+    // «NO explores», «ANTES DE…», «POR QUÉ VUELVE:»); el encargo, no.
+    const esDeMetodo = (p: string) =>
+        /^(?:[A-ZÁÉÍÓÚÑ]{2,}(?:\s+[A-ZÁÉÍÓÚÑ]{2,})*\s*:|[A-ZÁÉÍÓÚÑ]{2,}\s+[A-ZÁÉÍÓÚÑ]{2,}|NO\s)/.test(p);
+    const util = parrafos.find((p) => !esDeMetodo(p)) ?? parrafos[0] ?? "";
     return util.length > tope ? `${util.slice(0, tope - 1).trimEnd()}…` : util;
 }
 

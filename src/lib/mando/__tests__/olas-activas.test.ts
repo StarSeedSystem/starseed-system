@@ -35,6 +35,17 @@ describe("descripcionDePrompt", () => {
         expect(descripcionDePrompt(p)).toBe("Reintentar las tareas fallidas de la ola 363.");
     });
 
+    it("salta las reglas de método en mayúsculas y se queda con el encargo", () => {
+        const p = "NO explores el repositorio entero: abre SOLO los archivos.\n\nPOR QUÉ VUELVE: falló.\n\nHaz que no se suba dos veces.";
+        expect(descripcionDePrompt(p)).toBe("Haz que no se suba dos veces.");
+    });
+
+    it("una sigla al principio de una frase normal no la hace de método", () => {
+        expect(descripcionDePrompt("API decidir_presupuesto con ventanas.\n\nOtro párrafo.")).toBe(
+            "API decidir_presupuesto con ventanas.",
+        );
+    });
+
     it("recorta lo largo con puntos suspensivos", () => {
         const d = descripcionDePrompt("a".repeat(400), 50);
         expect(d.length).toBe(50);
