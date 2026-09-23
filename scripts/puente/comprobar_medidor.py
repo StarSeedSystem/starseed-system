@@ -196,11 +196,17 @@ def medir_hechos(medidor: str) -> Dict[str, Any]:
                 hechos["tokens_edad_s"] = None
         if clave == "integradas":
             hechos["integradas_main"] = contar_integradas()
+        # Lo que el vigía encontró en su última pasada (cada 2 min). Antes se volvía a
+        # diagnosticar aquí leyendo los siete medidores de la API: con la Mac en swap eso
+        # tardaba más de un minuto y el botón se quedaba «sin terminar». El vigía ya lo
+        # hizo; se lee su resultado si es de los últimos 10 minutos.
         try:
-            sys.path.insert(0, str(Path(__file__).parent))
-            import vigia_medidores as _v
-            hechos["vigia"] = _v.diagnosticar(_v.leer_medidores())
-        except Exception:
+            ruta = Path("starseed_memory_root/mando/vigia-medidores.json")
+            if datetime.now().timestamp() - ruta.stat().st_mtime < 600:
+                hechos["vigia"] = json.loads(ruta.read_text(encoding="utf-8")).get("problemas") or []
+            else:
+                hechos["vigia"] = []
+        except (OSError, ValueError):
             hechos["vigia"] = []
     return hechos
 
