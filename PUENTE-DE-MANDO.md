@@ -1,6 +1,6 @@
 # Puente de Mando · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-23 12:25:10 desde el Mando vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-23 12:40:32 desde el Mando vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -12,24 +12,19 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | | |
 |---|---|
 | Mando | **encendido** en http://127.0.0.1:9002/mando |
-| Ola arriba | Ola Dream 2026-09-19 · lo que el análisis nocturno encontró |
+| Ola arriba | Ola Dream 2026-09-22 · lo que el análisis nocturno encontró |
 | Agentes escribiendo | **0** |
 | En esta ola | integradas 0 · en curso 0 · esperando aprobación 0 · pendientes 0 |
 | Últimas 4 olas | en curso 0 · pendientes 0 · integradas 20 |
-| HEAD | `4cd2ebb4 chore(memoria): aprendizaje de la ola auto-0923-111417` |
-| Sin publicar | 16 commits |
+| HEAD | `5ae3bf8c chore(memoria): aprendizaje de la ola auto-0923-122533` |
+| Sin publicar | 18 commits |
 | Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-auto-0923-111417.json`, hace 4s)
+## Quién escribe ahora (latido de `cola-auto-0923-122533.json`, hace 4s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `JF2` | hecho | google/gemini-3.6-flash | 0 min | 26 s | 169605 |
-| `LY3` | hecho | codex/gpt-5.6-sol | 40 min | 2405 s | 821625 |
-| `LY2` | hecho | google/gemini-3.6-flash | 44 min | 2614 s | 96217 |
-| `TR1` | hecho | nvidia/moonshotai/kimi-k3 | 59 min | 3522 s | 273313 |
-| `LY1` | hecho | codex/gpt-5.6-sol | 66 min | 3941 s | 436728 |
-| `VZR1` | hecho | google/gemini-3.6-flash | 68 min | 4087 s | 960219 |
+| `DR0923-1` | hecho | apinex/free/glm-5.3-flash | 1 min | 30 s | 114623 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
