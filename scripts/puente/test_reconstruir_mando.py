@@ -416,3 +416,93 @@ class UnSoloReinicioALaVez(unittest.TestCase):
         """Esperar poco y dar por muerto a otro son dos cosas distintas."""
         R._tomar_cerrojo(self.cerrojo, espera_s=1)
         self.assertFalse(R._tomar_cerrojo(self.cerrojo, espera_s=1, caduca_s=600))
+
+
+
+class LaCacheSeMueveNoSeDuplica(unittest.TestCase):
+    """(2026-09-23) El clon APFS dejó el disco en 124 MB: webpack reescribe casi todos sus
+    paquetes y cada uno reescrito ocupaba dos veces. La caché se mueve, no se copia."""
+
+    def setUp(self):
+        import tempfile
+        self.raiz = tempfile.mkdtemp()
+        os.makedirs(os.path.join(self.raiz, ".next", "cache", "webpack"))
+        os.makedirs(os.path.join(self.raiz, ".next", "cache", "images"))
+        with open(os.path.join(self.raiz, ".next", "cache", "webpack", "0.pack"), "w") as f:
+            f.write("x")
+
+    def tearDown(self):
+        import shutil
+        shutil.rmtree(self.raiz, ignore_errors=True)
+
+    def _hay(self, *partes):
+        return os.path.exists(os.path.join(self.raiz, *partes))
+
+    def test_preparar_mueve_la_cache_de_webpack_y_deja_la_de_imagenes(self):
+        R.preparar_dist_de_build(self.raiz)
+        self.assertTrue(self._hay(".next-build", "cache", "webpack", "0.pack"))
+        self.assertFalse(self._hay(".next", "cache", "webpack"))
+        self.assertTrue(self._hay(".next", "cache", "images"))
+
+    def test_una_build_fallida_devuelve_la_cache_antes_de_limpiar(self):
+        R.preparar_dist_de_build(self.raiz)
+        quitados = R.liberar_lo_propio(self.raiz)
+        self.assertTrue(self._hay(".next", "cache", "webpack", "0.pack"))
+        self.assertFalse(self._hay(".next-build"))
+        self.assertIn(".next-build", quitados)
+
+    def test_preparar_dos_veces_seguidas_no_pierde_la_cache(self):
+        R.preparar_dist_de_build(self.raiz)
+        R.preparar_dist_de_build(self.raiz)
+        self.assertTrue(self._hay(".next-build", "cache", "webpack", "0.pack"))
+
+    def test_devolver_no_pisa_una_cache_servida(self):
+        R.preparar_dist_de_build(self.raiz)
+        os.makedirs(os.path.join(self.raiz, ".next", "cache", "webpack"))
+        self.assertFalse(R.devolver_cache(self.raiz))
+        self.assertTrue(self._hay(".next-build", "cache", "webpack", "0.pack"))
+
+    def test_sin_cache_no_falla(self):
+        import shutil
+        shutil.rmtree(os.path.join(self.raiz, ".next", "cache", "webpack"))
+        R.preparar_dist_de_build(self.raiz)
+        self.assertFalse(self._hay(".next-build", "cache", "webpack"))
+
+
+
+class LaBuildSeParaAntesDeLlenarElDisco(unittest.TestCase):
+    """(2026-09-23) Dos veces hoy hubo que parar la build a mano con 124 MB libres."""
+
+    def test_si_el_disco_baja_del_minimo_se_para_y_lo_dice(self):
+        t0 = __import__("time").time()
+        rc, salida, por_disco = R.compilar_vigilando_disco(
+            ["sleep", "30"], minimo_gb=1.5, cada_s=0.05, medir=lambda: 0.4)
+        self.assertTrue(por_disco)
+        self.assertNotEqual(rc, 0)
+        self.assertIn("PARADA", salida)
+        self.assertLess(__import__("time").time() - t0, 5)
+
+    def test_con_disco_de_sobra_termina_normal(self):
+        rc, salida, por_disco = R.compilar_vigilando_disco(
+            ["sh", "-c", "echo hecho"], minimo_gb=1.5, cada_s=0.05, medir=lambda: 50.0)
+        self.assertEqual((rc, por_disco), (0, False))
+        self.assertIn("hecho", salida)
+
+    def test_mata_al_grupo_entero_no_solo_al_padre(self):
+        import os, tempfile, time
+        marca = tempfile.mktemp()
+        rc, _, por_disco = R.compilar_vigilando_disco(
+            ["sh", "-c", "(sleep 1; touch %s) & wait" % marca],
+            minimo_gb=1.5, cada_s=0.05, medir=lambda: 0.1)
+        time.sleep(1.5)
+        self.assertTrue(por_disco)
+        self.assertFalse(os.path.exists(marca), "el nieto siguió vivo y escribió")
+
+    def test_si_no_se_puede_medir_no_se_para(self):
+        rc, _, por_disco = R.compilar_vigilando_disco(
+            ["true"], minimo_gb=1.5, cada_s=0.05, medir=lambda: None)
+        self.assertEqual((rc, por_disco), (0, False))
+
+    def test_el_umbral_de_entrada_ya_no_es_el_de_la_cache_duplicada(self):
+        self.assertLessEqual(R.MINIMO_LIBRE_GB, 5.0)
+        self.assertGreater(R.MINIMO_LIBRE_GB, R.MINIMO_DURANTE_GB)

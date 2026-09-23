@@ -439,12 +439,18 @@ def main():
                 diario.marcar("build", "falla", aviso)
                 diario.cerrar("fallo", aviso)
                 return 1
-            _rm.preparar_dist_de_build()  # limpia y clona la caché (APFS): build rápida y sin coste
+            _rm.preparar_dist_de_build()  # limpia y MUEVE la caché de webpack: no se duplica
         except ImportError:
-            pass
+            _rm = None
         t0 = time.time()
         diario.marcar("build", "corriendo", porque)
-        rc, salida = correr(["npx", "next", "build"], timeout=3600, env=env)
+        if _rm is not None:
+            # (2026-09-23) Con vigilante de disco: si baja de 1,5 GB, se para la build.
+            rc, salida, por_disco = _rm.compilar_vigilando_disco(["npx", "next", "build"], env=env, timeout=3600)
+            if por_disco:
+                _rm.liberar_lo_propio()
+        else:
+            rc, salida = correr(["npx", "next", "build"], timeout=3600, env=env)
         if rc != 0:
             diario.marcar("build", "falla", salida, time.time() - t0)
             diario.cerrar("fallo", "no se publicó: la build falló")

@@ -41,6 +41,12 @@ import {
     type ClaveMedidor,
     type DatosMedidores,
 } from "@/lib/mando/medidores";
+import {
+    parsearCommits,
+    tareasIntegradasEnMain,
+    ubicarDefiniciones,
+    type Definicion,
+} from "@/lib/mando/integradas";
 import { raizDelProyecto } from "@/lib/mando/raiz";
 
 export const runtime = "nodejs";
@@ -341,6 +347,96 @@ async function leerOlasDeLaNube(): Promise<OlaActiva[]> {
     }
 }
 
+/**
+ * (2026-09-23) Las integradas, desde `main`. Se guarda por HEAD: mientras `main` no se mueva,
+ * abrir el medidor no vuelve a llamar a git.
+ */
+let cacheIntegradas: { head: string; datos: NonNullable<DatosMedidores["integradas"]> } | null = null;
+const MAX_INTEGRADAS = 30;
+
+async function leerIntegradas(conocidas: Set<string>): Promise<DatosMedidores["integradas"]> {
+    const head = (await git(["rev-parse", "HEAD"])).trim();
+    if (!head) return null;
+    if (cacheIntegradas && cacheIntegradas.head === head) return cacheIntegradas.datos;
+    const { stdout: lineas } = await correr("git", ["log", "main", "-n", "5000", "--format=%H%x1f%cI%x1f%s"], {
+        cwd: RAÍZ,
+        timeout: 20_000,
+        maxBuffer: 16_000_000,
+    });
+    const tareas = tareasIntegradasEnMain(lineas, conocidas);
+    const recientes = tareas.slice(0, MAX_INTEGRADAS);
+    const shas = [...new Set(recientes.flatMap((t) => t.commits.map((c) => c.sha)))];
+    let crudo = "";
+    if (shas.length) {
+        crudo = (
+            await correr(
+                "git",
+                [
+                    "show",
+                    "--numstat",
+                    "-U0",
+                    "--no-color",
+                    "--format=%x1e%H%x1f%cI%x1f%s",
+                    ...shas,
+                    "--",
+                    ".",
+                    ":!starseed_memory_root",
+                    ":!enjambre/colas",
+                ],
+                { cwd: RAÍZ, timeout: 30_000, maxBuffer: 64_000_000 },
+            )
+        ).stdout;
+    }
+    const porSha = new Map(parsearCommits(crudo).map((c) => [c.sha, c]));
+
+    // Lo que implementaron, buscado en los archivos TAL Y COMO ESTÁN HOY en el disco (main).
+    const definicionesDe = (t: (typeof recientes)[number]): Definicion[] => {
+        const vistas = new Set<string>();
+        const fuera: Definicion[] = [];
+        for (const c of t.commits) {
+            for (const d of porSha.get(c.sha)?.definiciones ?? []) {
+                const k = `${d.ruta}\u0000${d.nombre}`;
+                if (vistas.has(k)) continue;
+                vistas.add(k);
+                fuera.push(d);
+            }
+        }
+        return fuera;
+    };
+    const rutas = [...new Set(recientes.flatMap((t) => definicionesDe(t).map((d) => d.ruta)))];
+    const contenidos = new Map<string, string | null>();
+    await Promise.all(
+        rutas.map(async (ruta) => {
+            // Solo dentro del repo: la ruta sale de un diff, no se le da permiso para salir.
+            if (ruta.includes("..") || path.isAbsolute(ruta)) return contenidos.set(ruta, null);
+            contenidos.set(ruta, await readFile(path.join(RAÍZ, ruta), "utf8").catch(() => null));
+        }),
+    );
+
+    const datos: NonNullable<DatosMedidores["integradas"]> = {
+        total: tareas.length,
+        lista: recientes.map((t) => ({
+            id: t.id,
+            titulo: t.titulo,
+            ola: t.ola,
+            fecha: t.fecha,
+            commits: t.commits.map((c) => {
+                const x = porSha.get(c.sha);
+                return {
+                    sha: c.sha,
+                    fecha: x?.fecha ?? t.fecha,
+                    asunto: x?.asunto ?? "",
+                    clase: c.salvavidas ? ("trabajo del agente" as const) : ("integración" as const),
+                    archivos: x?.archivos ?? [],
+                };
+            }),
+            ubicaciones: ubicarDefiniciones(definicionesDe(t), (r) => contenidos.get(r) ?? null),
+        })),
+    };
+    cacheIntegradas = { head, datos };
+    return datos;
+}
+
 async function leerEntradas(): Promise<Record<string, Entrada>> {
     const crudo = await leerProgreso();
     const salida: Record<string, Entrada> = {};
@@ -514,7 +610,12 @@ export async function GET(peticion: Request): Promise<Response> {
     if (veto) return veto;
     const clave = (new URL(peticion.url).searchParams.get("clave") ?? "ola-activa") as ClaveMedidor;
     // Un fallo leyendo git o el bus no puede tumbar el panel: se devuelve lo que sí haya.
-    const datos = await reunir().catch(() => ({}));
+    const datos: Partial<DatosMedidores> = await reunir().catch(() => ({}));
+    if (clave === "integradas") {
+        // Los ids que existen de verdad: sin este filtro, «mando: …» contaría como tarea.
+        const conocidas = new Set([...Object.keys(datos.progreso ?? {}), ...Object.keys(datos.titulos ?? {})]);
+        datos.integradas = await leerIntegradas(conocidas).catch(() => null);
+    }
     return Response.json(
         { detalle: detalleDeMedidor(clave, datos), generadoEn: new Date().toISOString() },
         { headers: { "Cache-Control": "no-store" } },

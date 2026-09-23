@@ -12,6 +12,7 @@
 // -----------------------------------------------------------------------------
 
 import { ETAPAS, etapaDeFase } from "@/lib/mando/etapas";
+import { resumenDeCambios, type ArchivoCambiado, type Ubicacion } from "@/lib/mando/integradas";
 import { obtenerIdsBloqueados, type FilaContable } from "@/lib/mando/conteo-operativo";
 
 export type ClaveMedidor =
@@ -23,6 +24,10 @@ export type ClaveMedidor =
     | "proveedores"
     | "contenedores"
     | "tokens"
+    // (2026-09-23) Alex: «las tareas integradas con su información de los cambios y enlaces
+    // a las funciones implementadas en su estado actual». La pastilla era un número sin
+    // ventana.
+    | "integradas"
     | "memoria"
     | "disco"
     | "ola-activa";
@@ -868,6 +873,25 @@ export interface DatosMedidores {
     olasActivas?: OlaActiva[];
     /** El encargo de cada tarea, en una o dos frases (primer párrafo útil del prompt). */
     descripciones?: Record<string, string>;
+    /** (2026-09-23) Las integradas, leídas de `main`: commits, archivos y dónde vive hoy lo
+     *  que implementaron. Solo se calcula cuando se abre ese medidor (cuesta un `git show`). */
+    integradas?: {
+        total: number;
+        lista: {
+            id: string;
+            titulo: string;
+            ola?: string;
+            fecha: string;
+            commits: {
+                sha: string;
+                fecha: string;
+                asunto: string;
+                clase: "integración" | "trabajo del agente";
+                archivos: ArchivoCambiado[];
+            }[];
+            ubicaciones: Ubicacion[];
+        }[];
+    } | null;
     /** ¿Hay orquestador vivo? ¿Está el enjambre en pausa? Sin esto, «13 listas y 0 agentes»
      *  no se puede explicar, y un número sin explicación parece una avería aunque no lo sea. */
     enjambreVivo?: boolean;
@@ -1710,6 +1734,82 @@ export function detalleDeMedidor(
                 acciones: [IR_A("Ver la neurona", "neurona")],
                 vacio: "El swap alto con el enjambre vivo es normal; con el enjambre parado, no.",
             };
+
+        case "integradas": {
+            const ig = d.integradas;
+            const repo = d.repoGitHub;
+            const enMain = (ruta: string, linea?: number | null) =>
+                repo ? `https://github.com/${repo}/blob/main/${ruta}${linea ? `#L${linea}` : ""}` : undefined;
+            const enlaceCommit = (sha: string) => (repo ? `https://github.com/${repo}/commit/${sha}` : undefined);
+            const cuando = (f: string) => f.slice(0, 16).replace("T", " ");
+            const filas: FilaMedidor[] = (ig?.lista ?? []).map((t) => {
+                const archivos = t.commits.flatMap((c) => c.archivos);
+                const unicos = new Map<string, ArchivoCambiado>();
+                for (const a of archivos) {
+                    const p = unicos.get(a.ruta);
+                    unicos.set(a.ruta, p ? { ruta: a.ruta, mas: p.mas + a.mas, menos: p.menos + a.menos } : { ...a });
+                }
+                const principal = t.commits.find((c) => c.clase === "integración") ?? t.commits[0];
+                const desc = d.descripciones?.[t.id];
+                const ficha: DatoDeFicha[] = [];
+                if (t.ola) ficha.push({ etiqueta: "Ola", valor: tituloDeOla(t.ola) });
+                if (desc) ficha.push({ etiqueta: "Encargo", valor: desc });
+                ficha.push({
+                    etiqueta: "Verificación",
+                    valor: TERMINALES.has(d.progreso[t.id]?.estado ?? "")
+                        ? "pasó sus puertas y está en main"
+                        : "está en main (el orquestador no dejó constancia de sus puertas)",
+                });
+                for (const c of t.commits) {
+                    ficha.push({
+                        etiqueta: c.clase === "integración" ? "Commit de integración" : "Commit del agente",
+                        valor: `${c.sha.slice(0, 8)} · ${cuando(c.fecha)} · ${resumenDeCambios(c.archivos)}`,
+                        enlace: enlaceCommit(c.sha),
+                    });
+                }
+                const lista = [...unicos.values()];
+                for (const a of lista.slice(0, 12)) {
+                    ficha.push({ etiqueta: "Archivo", valor: `${a.ruta} · +${a.mas} −${a.menos}`, enlace: enMain(a.ruta) });
+                }
+                if (lista.length > 12) ficha.push({ etiqueta: "Archivo", valor: `y ${lista.length - 12} más` });
+                for (const u of t.ubicaciones.slice(0, 15)) {
+                    ficha.push({
+                        etiqueta: "Implementa",
+                        valor: u.linea
+                            ? `${u.tipo} ${u.nombre} · ${u.ruta}:${u.linea}`
+                            : `${u.tipo} ${u.nombre} · ya no está en ${u.ruta} (se quitó o se renombró después)`,
+                        enlace: u.linea ? enMain(u.ruta, u.linea) : undefined,
+                        aviso: !u.linea,
+                    });
+                }
+                if (!t.ubicaciones.length) {
+                    ficha.push({ etiqueta: "Implementa", valor: "no define funciones ni tipos nuevos: cambia lo que ya había" });
+                }
+                return {
+                    id: t.id,
+                    titulo: `${t.id} · ${t.titulo || d.titulos[t.id] || "sin título"}`,
+                    estado: "integrada",
+                    etapa: resumenDeCambios(archivos),
+                    porque: desc || principal?.asunto || "",
+                    desde: cuando(t.fecha),
+                    quien: d.progreso[t.id]?.modelo,
+                    enlace: principal ? enlaceCommit(principal.sha) : undefined,
+                    ficha,
+                    acciones: [],
+                    historica: false,
+                };
+            });
+            return {
+                clave,
+                titulo: "Tareas integradas",
+                resumen: ig
+                    ? `${ig.total} tareas integradas en main · aquí las ${filas.length} más recientes, con sus cambios y dónde vive hoy lo que implementaron`
+                    : "no se pudo leer main",
+                filas,
+                acciones: [IR_A("Ver olas e informes", "olas")],
+                vacio: "Ninguna tarea del enjambre integrada en main.",
+            };
+        }
 
         case "ola-activa":
         default: {

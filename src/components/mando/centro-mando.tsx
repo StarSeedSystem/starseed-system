@@ -701,6 +701,9 @@ export function CentroMando() {
         olas: number | null;
         olaTitulo: string | null;
         olasResumen: string | null;
+        /** (2026-09-23) Tareas integradas en `main`, del mismo medidor que abre la pastilla. */
+        integradas: number | null;
+        integradasResumen: string | null;
         /** Pasarelas sin cupo o caídas, según el archivo que el enjambre OBEDECE. */
         agotados: number | null;
         proveedoresResumen: string | null;
@@ -709,7 +712,7 @@ export function CentroMando() {
     const cargarMedidoresResumen = useCallback(async (forzar = false) => {
         if (!forzar && document.visibilityState === "hidden") return;
         try {
-            const [resListas, resBloqueadas, resAgentes, resEnCurso, resContenedores, resProveedores, resTokens, resOlas] =
+            const [resListas, resBloqueadas, resAgentes, resEnCurso, resContenedores, resProveedores, resTokens, resOlas, resIntegradas] =
                 await Promise.allSettled([
                     fetch("/api/mando/medidores?clave=listas", { cache: "no-store" }),
                     fetch("/api/mando/medidores?clave=bloqueadas", { cache: "no-store" }),
@@ -719,6 +722,7 @@ export function CentroMando() {
                     fetch("/api/mando/medidores?clave=proveedores", { cache: "no-store" }),
                     fetch("/api/mando/medidores?clave=tokens", { cache: "no-store" }),
                     fetch("/api/mando/medidores?clave=ola-activa", { cache: "no-store" }),
+                    fetch("/api/mando/medidores?clave=integradas", { cache: "no-store" }),
                 ]);
 
             let listas: number | null = null;
@@ -733,6 +737,8 @@ export function CentroMando() {
             let olas: number | null = null;
             let olaTitulo: string | null = null;
             let olasResumen: string | null = null;
+            let integradas: number | null = null;
+            let integradasResumen: string | null = null;
             let contenedores: number | null = null;
             let contenedoresResumen: string | null = null;
             let agotados: number | null = null;
@@ -833,6 +839,15 @@ export function CentroMando() {
                 }
             }
 
+            if (resIntegradas.status === "fulfilled" && resIntegradas.value.ok) {
+                const dataInt = (await resIntegradas.value.json()) as { detalle?: DetalleMedidor };
+                if (dataInt.detalle) {
+                    const m = /^(\d+)\s+tareas integradas/.exec(dataInt.detalle.resumen ?? "");
+                    integradas = m ? Number(m[1]) : null;
+                    integradasResumen = dataInt.detalle.resumen ?? null;
+                }
+            }
+
             setMedidoresResumen({
                 listas,
                 bloqueadas,
@@ -848,6 +863,8 @@ export function CentroMando() {
                 olas,
                 olaTitulo,
                 olasResumen,
+                integradas,
+                integradasResumen,
                 agotados,
                 proveedoresResumen,
             });
@@ -867,6 +884,8 @@ export function CentroMando() {
                 olas: null,
                 olaTitulo: null,
                 olasResumen: null,
+                integradas: null,
+                integradasResumen: null,
                 agotados: null,
                 proveedoresResumen: null,
             });
@@ -1618,10 +1637,17 @@ export function CentroMando() {
                             ...(estado?.cuentas
                                 ? [
                                       {
+                                          // (2026-09-23) Ahora se abre: cada tarea integrada con sus
+                                          // commits, archivos (+/−) y enlaces a lo que implementó,
+                                          // en el sitio donde está HOY en main. La cifra sale del
+                                          // mismo medidor (leído de main), no de progreso.json.
+                                          clave: "integradas" as const,
                                           titulo: "Integradas",
-                                          valor: String(estado.cuentas.integradas),
+                                          valor: String(medidoresResumen?.integradas ?? estado.cuentas.integradas),
                                           tono: "ok" as TonoMedidor,
-                                          detalle: `últimas ${estado.cuentas.ultimas.olas} olas: ${estado.cuentas.ultimas.integradas}`,
+                                          detalle:
+                                              medidoresResumen?.integradasResumen ??
+                                              `últimas ${estado.cuentas.ultimas.olas} olas: ${estado.cuentas.ultimas.integradas}`,
                                       },
                                       {
                                           titulo: "Fallidas",

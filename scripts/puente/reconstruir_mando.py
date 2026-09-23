@@ -50,7 +50,13 @@ DIST_SERVIDO = ".next"
 #: La escribe quien compiló, y solo si el compilador salió con 0. Ver `build_terminado`.
 MARCA_LISTO = ".listo"
 #: Por debajo de esto no se compila: `next build` muere con ENOSPC a mitad y deja basura.
-MINIMO_LIBRE_GB = 6.0
+MINIMO_LIBRE_GB = 4.5
+#: (2026-09-23) Y DURANTE la build: si el disco baja de aquí, se para. Lo servido no se toca
+#: —se compila aparte—, así que parar solo cuesta esa build; seguir podía costar la máquina.
+#: Hoy hubo que pararla a mano DOS veces, con 124 MB libres, y el servicio de tokens ya se
+#: había caído por ENOSPC. Con este vigilante, el umbral de entrada pudo bajar de 6,0 a 4,5:
+#: la caché ya no se duplica (se mueve) y un fallo de cálculo ya no llena el disco.
+MINIMO_DURANTE_GB = float(os.environ.get("STARSEED_MINIMO_DURANTE_GB", "1.5"))
 #: Lo que de verdad entra en el build. `scripts/` y `starseed_memory_root/` NO están:
 #: cambian cada minuto por el propio enjambre y reconstruirían la pantalla sin motivo.
 FUENTES = ("src", "public")
@@ -148,6 +154,48 @@ def hay_sitio_para_compilar(libre_gb, minimo_gb=MINIMO_LIBRE_GB) -> bool:
     return libre_gb >= minimo_gb
 
 
+def compilar_vigilando_disco(orden, env=None, cwd=RAIZ, timeout=3600,
+                             minimo_gb=None, cada_s=3.0, medir=None):
+    """Corre la build y la PARA si el disco baja de `minimo_gb`.
+
+    Devuelve (rc, salida_recortada, parada_por_disco). Se mata el GRUPO entero: `npx` lanza
+    `next build` y este sus trabajadores, y matar solo al primero dejaba vivo al que llena
+    el disco (visto hoy: un `next build` de 4,2 GB sobrevivió al kill de su padre).
+    """
+    import signal
+    import tempfile
+    minimo = MINIMO_DURANTE_GB if minimo_gb is None else minimo_gb
+    medir = medir or (lambda: espacio_libre_gb(cwd))
+    parada = None
+    with tempfile.TemporaryFile(mode="w+", encoding="utf-8") as log:
+        p = subprocess.Popen(orden, cwd=cwd, env=env, stdout=log, stderr=subprocess.STDOUT,
+                             start_new_session=True)
+        empezo = time.time()
+        while p.poll() is None:
+            libre = medir()
+            if libre is not None and libre < minimo:
+                parada = "disco"
+                break
+            if time.time() - empezo > timeout:
+                parada = "tiempo"
+                break
+            time.sleep(cada_s)
+        if parada:
+            try:
+                os.killpg(p.pid, signal.SIGKILL)
+            except (ProcessLookupError, PermissionError, OSError):
+                pass
+            p.wait()
+        log.seek(0)
+        salida = log.read()[-4000:]
+    if parada == "disco":
+        return 1, (salida + "\nPARADA: el disco bajó de %.1f GB libres en plena build; "
+                   "se paró antes de llenarlo y lo que se sirve no se tocó" % minimo), True
+    if parada == "tiempo":
+        return 124, salida + "\nse pasó de %d s sin terminar" % timeout, False
+    return p.returncode, salida, False
+
+
 def liberar_lo_propio(raiz=RAIZ):
     """Tira lo que la compilación misma dejó y ya no sirve. Devuelve qué quitó.
 
@@ -158,6 +206,10 @@ def liberar_lo_propio(raiz=RAIZ):
     quien está sirviendo y borrarla hace la siguiente compilación mucho más lenta.
     """
     quitados = []
+    # (2026-09-23) La caché de webpack ahora viaja DENTRO de `.next-build` mientras se
+    # compila. Si una build se quedó a medias, se devuelve antes de tirar los restos.
+    if devolver_cache(raiz):
+        quitados.append("(caché devuelta a %s)" % DIST_SERVIDO)
     for nombre in (".next-anterior", DIST_BUILD):
         ruta = os.path.join(raiz, nombre)
         if os.path.exists(ruta):
@@ -175,26 +227,53 @@ def espacio_libre_gb(raiz=RAIZ):
         return None
 
 
-def preparar_dist_de_build(raiz=RAIZ) -> None:
-    """Deja `.next-build` limpio y con la caché del build servido CLONADA.
+def _webpack(raiz, dist):
+    return os.path.join(raiz, dist, "cache", "webpack")
 
-    (2026-09-22) La caché de webpack vive dentro del directorio del build (4,4 GB medidos).
-    Compilar aparte sin ella sería empezar en frío cada vez Y escribir otros 4 GB. En APFS
-    `cp -c` clona: comparte los bloques, así que la copia es instantánea y no ocupa disco
-    hasta que algo cambia. Si el clon no se puede hacer, se compila sin caché: más lento,
-    pero nunca es motivo para no compilar.
+
+def devolver_cache(raiz=RAIZ) -> bool:
+    """Si una build a medias se quedó con la caché de webpack, la devuelve al build servido.
+
+    Devuelve True si movió algo. Se llama antes de limpiar `.next-build`: la caché es una
+    sola y no se puede tirar con los restos de una compilación fallida.
     """
+    en_build = _webpack(raiz, DIST_BUILD)
+    servida = _webpack(raiz, DIST_SERVIDO)
+    if not os.path.isdir(en_build) or os.path.isdir(servida):
+        return False
+    try:
+        os.makedirs(os.path.dirname(servida), exist_ok=True)
+        os.rename(en_build, servida)
+        return True
+    except OSError:
+        return False
+
+
+def preparar_dist_de_build(raiz=RAIZ) -> None:
+    """Deja `.next-build` limpio y con la caché de webpack MOVIDA dentro (no copiada).
+
+    (2026-09-23) Antes se CLONABA con `cp -Rc`: en APFS el clon es gratis… hasta que webpack
+    reescribe sus paquetes, y los reescribe casi todos. Medido hoy: `.next-build` llegó a
+    3,7 GB con la caché servida intacta al lado, el disco pasó de 6,6 GB libres a 124 MB en
+    cuatro minutos y hubo que parar la build a mano antes de que el disco lleno tumbara
+    todos los servicios (el de tokens ya se había caído así esta mañana).
+
+    `next start` no lee `cache/webpack`: esa caché solo la usa `next build`. Así que se MUEVE
+    —`rename` en el mismo disco: instantáneo y sin copiar un byte— y webpack, al reescribir
+    un paquete, borra el viejo en vez de dejarlo duplicado. La caché de imágenes
+    (`cache/images`) sí la usa el servidor, y esa no se toca.
+    """
+    devolver_cache(raiz)
     nuevo = os.path.join(raiz, DIST_BUILD)
     subprocess.run(["rm", "-rf", nuevo], check=False)
-    cache_servida = os.path.join(raiz, DIST_SERVIDO, "cache")
-    if not os.path.isdir(cache_servida):
+    servida = _webpack(raiz, DIST_SERVIDO)
+    if not os.path.isdir(servida):
         return
     try:
-        os.makedirs(nuevo, exist_ok=True)
-        subprocess.run(["cp", "-Rc", cache_servida, os.path.join(nuevo, "cache")],
-                       capture_output=True, timeout=300)
-    except Exception as e:
-        print("sin caché clonada (%s): la build será más lenta" % type(e).__name__, flush=True)
+        os.makedirs(os.path.join(nuevo, "cache"), exist_ok=True)
+        os.rename(servida, _webpack(raiz, DIST_BUILD))
+    except OSError as e:
+        print("sin caché movida (%s): la build será más lenta" % type(e).__name__, flush=True)
 
 
 def marcar_listo(raiz=RAIZ, dist=DIST_BUILD) -> None:
@@ -356,13 +435,14 @@ def reconstruir(huella_actual) -> dict:
     entorno["STARSEED_DIST"] = DIST_BUILD
     preparar_dist_de_build()
     try:
-        r = subprocess.run(
+        rc, salida, por_disco = compilar_vigilando_disco(
             [sys.executable, os.path.join(RAIZ, "scripts", "puente", "con-turno.py"),
              "--", "npx", "next", "build"],
-            cwd=RAIZ, capture_output=True, text=True, timeout=60 * 40, env=entorno,
+            env=entorno, timeout=60 * 40,
         )
-        ok = r.returncode == 0
-        salida = (r.stdout or "") + (r.stderr or "")
+        ok = rc == 0
+        if por_disco:
+            liberar_lo_propio()
     except Exception as e:
         ok, salida = False, "%s: %s" % (type(e).__name__, e)
     segundos = int(time.time() - empezo)
