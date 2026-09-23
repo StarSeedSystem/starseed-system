@@ -79,6 +79,7 @@ import {
 // mapa chato chat→catálogo de la Forja (estilo vivo, personalidad).
 import { emocionDesdeTexto, type EmocionVoz } from "@/lib/voces/emociones";
 import { emocionChatAVoz } from "@/lib/aurora/voz-starseed/motor";
+import { decirRT, decirRTYa } from "@/lib/aurora/voz-rt";
 
 type Voice = { name: string; lang: string; voiceURI: string; default?: boolean };
 
@@ -861,6 +862,31 @@ export function useAuroraEngine(): AuroraEngine {
         if (ossWatchdog) { clearTimeout(ossWatchdog); ossWatchdog = null; }
       };
 
+      // (2026-09-23) VOZ EN TIEMPO REAL PRIMERO: la MISMA voz fija de la conversación en
+      // vivo para todo lo que dice Aurora (confirmaciones, alertas, leer la pantalla…), así
+      // no cambia de timbre entre mensajes. Si no está lista (o Alex la desactivó), el motor
+      // configurado de siempre. Los guiones multi-locutor (VibeVoice) siguen su camino.
+      if (!vibeVoiceScript) {
+        try {
+          const hablo = await decirRT(cleanChain || clean, p?.id, {
+            cortar: true,
+            onInicio: () => {
+              handedOff = true;
+              try { if (typeof window.speechSynthesis !== "undefined") window.speechSynthesis.cancel(); } catch { /* */ }
+              setSpeaking(true); setPaused(false); emitAuroraSpeak("start");
+              markTtsSpeaking(true);
+              pausedForTtsRef.current = true;
+              recGenRef.current++;
+              try { recognitionRef.current?.abort?.(); } catch { /* */ }
+              clearBoundary();
+              boundaryTimer = setInterval(() => emitAuroraSpeak("boundary"), 240);
+            },
+            onFin: () => { clearBoundary(); finishTts(); },
+          });
+          if (hablo) return;
+        } catch { /* sigue el motor configurado */ }
+      }
+
       try {
         const { speakWithConfiguredEngine } = await import("@/lib/aurora/tts-oss/speak-router");
         const spoke = await speakWithConfiguredEngine(cleanChain, {
@@ -1126,6 +1152,22 @@ export function useAuroraEngine(): AuroraEngine {
       try { emocionTurno = emocionChatAVoz(getVoiceStyle().emotion); } catch { /* sin estilo */ }
     }
     if (!emocionTurno) emocionTurno = emocionChatAVoz(p?.voiceStyle?.emotion);
+    // (2026-09-23) Voz en tiempo real: cada cláusula a la MISMA voz fija, sin huecos. Solo si
+    // la cola de siempre NO está sonando ya (una respuesta nunca mezcla dos motores).
+    if (!ttsQueueBusyRef.current) {
+      const aRT = decirRTYa(cleanChain || clean, p?.id, {
+        onInicio: () => {
+          try { if (typeof window.speechSynthesis !== "undefined") window.speechSynthesis.cancel(); } catch { /* */ }
+          setSpeaking(true); setPaused(false); emitAuroraSpeak("start");
+          markTtsSpeaking(true);
+          pausedForTtsRef.current = true;
+          recGenRef.current++;
+          try { recognitionRef.current?.abort?.(); } catch { /* */ }
+        },
+        onFin: () => finishTts(),
+      });
+      if (aRT) return;
+    }
     ttsQueueRef.current.push({ clean, cleanChain, p, emocion: emocionTurno, intensidad });
     if (!ttsQueueBusyRef.current) {
       // Nadie está drenando ahora mismo → arranca el relevo con ESTA
@@ -1136,7 +1178,7 @@ export function useAuroraEngine(): AuroraEngine {
       ttsQueueBusyRef.current = true;
       advanceTtsQueue(ttsQueueGenRef.current);
     }
-  }, [advanceTtsQueue]);
+  }, [advanceTtsQueue, finishTts]);
 
   // ── historial de respuestas + conversación ──
   // Registra una respuesta de Aurora en el historial (para el transporte y el chat).
@@ -1190,12 +1232,21 @@ export function useAuroraEngine(): AuroraEngine {
     void import("@/lib/aurora/tts-oss/speak-router")
       .then((m) => m.stopConfiguredEngine())
       .catch(() => { /* */ });
+    // (2026-09-22) Alex: «cuando pauso el audio no se detiene». Pausar solo el
+    // navegador y el mixer dejaba sonando el <audio> del motor local y la voz de
+    // la conversación, y la cola seguía metiendo frases. Ahora se congela TODO en
+    // el acto (misma sílaba) y «Reanudar» sigue desde ahí.
+    void import("@/lib/aurora/voz-rt").then((m) => m.vozRT().pausar()).catch(() => { /* */ });
+    void import("@/lib/aurora/motor-local").then((m) => m.pausarLocal?.()).catch(() => { /* */ });
     setPaused(true);
   }, []);
 
   const resumeSpeech = useCallback(() => {
-    if (typeof window === "undefined" || typeof window.speechSynthesis === "undefined") return;
-    try { window.speechSynthesis.resume(); setPaused(false); } catch { /* */ }
+    if (typeof window === "undefined") return;
+    try { if (typeof window.speechSynthesis !== "undefined") window.speechSynthesis.resume(); } catch { /* */ }
+    void import("@/lib/aurora/voz-rt").then((m) => m.vozRT().reanudar()).catch(() => { /* */ });
+    void import("@/lib/aurora/motor-local").then((m) => m.reanudarLocal?.()).catch(() => { /* */ });
+    setPaused(false);
   }, []);
 
   const interrupt = useCallback(() => {
@@ -1217,6 +1268,7 @@ export function useAuroraEngine(): AuroraEngine {
     void import("@/lib/aurora/motor-local")
       .then((m) => { m.abortarSintesisAnteriores(); m.pararLocal(); })
       .catch(() => { /* */ });
+    void import("@/lib/aurora/voz-rt").then((m) => m.vozRT().detener()).catch(() => { /* */ });
     setSpeaking(false);
     setPaused(false);
     // Cancelar el habla también cierra el turno TTS y reanuda la escucha
@@ -1536,6 +1588,56 @@ export function useAuroraEngine(): AuroraEngine {
         { role: "user", content: text },
       ];
       const temperature = 0.4 + (Number(activeRef.current.params?.creatividad ?? 60) / 100) * 0.6;
+      // ── CONVERSACIÓN EN VIVO (2026-09-22) ─────────────────────────────────
+      // Alex: «que responda inmediatamente con la voz en tiempo real como una
+      // conversación con un humano». El camino de abajo espera la respuesta
+      // ENTERA (hasta 120 s) y después la lee con un motor 4× más lento que el
+      // tiempo real. Si la voz en tiempo real está lista, el turno va por su
+      // carril: BitNet local primero (nube en carrera si tarda), tokens en
+      // streaming, cláusulas a la voz sin huecos, UNA sola voz. Si algo falla
+      // antes de hablar, se sigue por el camino de siempre (nunca se queda mudo).
+      try {
+        const vivo = await import("@/lib/aurora/conversacion-vivo");
+        if (await vivo.conversacionEnVivoDisponible()) {
+          setThinking(true);
+          let boundary: ReturnType<typeof setInterval> | null = null;
+          const p = activeRef.current;
+          const r = await vivo.turnoEnVivo({
+            texto: text,
+            persona: { id: p.id || p.name || "astraura", nombre: p.name || "Astraura" },
+            onInicioVoz: () => {
+              setThinking(false);
+              try { if (typeof window.speechSynthesis !== "undefined") window.speechSynthesis.cancel(); } catch { /* */ }
+              setSpeaking(true); setPaused(false); emitAuroraSpeak("start");
+              // Medio-dúplex: el micrófono no escucha a Aurora mientras habla.
+              markTtsSpeaking(true);
+              pausedForTtsRef.current = true;
+              recGenRef.current++;
+              try { recognitionRef.current?.abort?.(); } catch { /* */ }
+              if (boundary) clearInterval(boundary);
+              boundary = setInterval(() => emitAuroraSpeak("boundary"), 240);
+            },
+          });
+          if (r) {
+            setThinking(false);
+            pushReply(r.texto, {
+              provider: r.local ? "Astraura nativa (BitNet b1.58 local)" : r.motor,
+              model: r.motor,
+              free: true,
+              local: r.local,
+              ms: r.msTotal,
+              reason: `Conversación en vivo · primer token en ${r.msPrimerToken ?? "?"} ms`,
+            });
+            const { vozRT } = await import("@/lib/aurora/voz-rt");
+            await vozRT().esperarFin();
+            if (boundary) clearInterval(boundary);
+            finishTts();
+            return;
+          }
+          if (boundary) clearInterval(boundary);
+          finishTts();
+        }
+      } catch { /* el camino de siempre sigue debajo */ }
       setThinking(true); // ← animación de carga en el orbe mientras espera a la IA
       // Router agéntico gratis-primero (auto) o proveedor clásico (manual).
       // `forceSource` (opcional): "Reintentar" del menú contextual de mensajes

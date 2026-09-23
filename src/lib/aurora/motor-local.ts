@@ -309,6 +309,20 @@ export function anticiparLocal(textos: string[], t: Timbre): void {
 let audioActual: HTMLAudioElement | null = null;
 let urlActual: string | null = null;
 
+/**
+ * (2026-09-22) Pausa de verdad el audio local en curso, sin descartarlo: «Reanudar» sigue
+ * desde el mismo punto. Antes el botón de pausa del orbe no llegaba hasta aquí y la frase
+ * seguía sonando. Idempotente.
+ */
+export function pausarLocal(): void {
+    try { audioActual?.pause(); } catch { /* */ }
+}
+
+/** Reanuda el audio local pausado con `pausarLocal`. Idempotente. */
+export function reanudarLocal(): void {
+    try { if (audioActual && audioActual.paused) void audioActual.play().catch(() => undefined); } catch { /* */ }
+}
+
 /** Corta la reproducción local en curso. Idempotente. */
 export function pararLocal(): void {
     try { audioActual?.pause(); } catch { /* */ }
