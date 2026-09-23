@@ -80,6 +80,9 @@ SERVICIOS = {
     "voz-rt": (LANZ + ["--", os.path.join(HOME, ".starseed", "astraura-voice", "rt-venv", "bin", "python"),
                        "-u", os.path.join(RAIZ, "native", "astraura-voice", "conversacion", "voz_rt.py")],
                "/tmp/starseed-voz-rt.log", True),
+    "laya": (LANZ + ["--", "/opt/homebrew/bin/node",
+                      os.path.join(RAIZ, "native", "laya", "servidor-laya.mjs")],
+             "/tmp/starseed-laya.log", True),
 }
 
 PLANTILLA = """<?xml version="1.0" encoding="UTF-8"?>
