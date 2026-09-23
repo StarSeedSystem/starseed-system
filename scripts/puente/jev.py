@@ -25,6 +25,10 @@ import urllib.request
 
 URL = "https://openrouter.ai/api/alpha/decisions"
 MODELO = "~typesafe/jev-latest"
+LAYA_URL = os.environ.get("STARSEED_LAYA_URL", "http://127.0.0.1:4470/v1/systemone")
+CONCESION = os.path.expanduser(
+    os.environ.get("STARSEED_CONVERSACION", "~/.starseed/conversacion.json")
+)
 CACHE = os.path.expanduser("~/.starseed/jev-cache.json")
 USO = os.path.expanduser("~/.starseed/jev-uso.json")
 ARCHIVOS_DE_CLAVES = ("~/.hermes/.env", "~/.starseed/env")
@@ -229,6 +233,50 @@ def saldo(refrescar=False):
         return s or None
 
 
+def conversando(ruta=None, ahora=None):
+    """True si hay una conversación en vivo con Astraura ahora mismo."""
+    try:
+        with open(ruta or CONCESION, encoding="utf-8") as f:
+            hasta = float((json.load(f) or {}).get("hasta") or 0)
+    except (OSError, ValueError, TypeError, AttributeError):
+        return False
+    return hasta > (time.time() if ahora is None else ahora)
+
+
+def decidir_con_laya(estado, preguntas, timeout=1.5, url=None):
+    """Consulta a Laya local (SystemOne en 127.0.0.1:4470/v1/systemone).
+
+    Devuelve un diccionario con las respuestas y motor: "laya-local",
+    o None si no responde, responde 503/error o hay conversación en curso.
+    """
+    if conversando():
+        return None
+    endpoint = url or os.environ.get("STARSEED_LAYA_URL", LAYA_URL)
+    cuerpo = {"state": estado, "questions": preguntas}
+    try:
+        req = urllib.request.Request(
+            endpoint,
+            data=json.dumps(cuerpo, ensure_ascii=False).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            if resp.status != 200:
+                return None
+            res_data = json.loads(resp.read().decode("utf-8"))
+            if not isinstance(res_data, dict):
+                return None
+            respuestas = dict(
+                res_data.get("answers")
+                if "answers" in res_data and isinstance(res_data["answers"], dict)
+                else res_data
+            )
+            respuestas["motor"] = "laya-local"
+            return respuestas
+    except Exception:
+        return None
+
+
 def _local():
     """Importación perezosa y tolerante de jev_local; None si el módulo no está."""
     try:
@@ -295,8 +343,9 @@ def decidir(estado, preguntas, usar_cache=True, medio=None):
     jl = _local()
     respuestas = None
     medio_usado = None
-    # Pirámide: local primero si corresponde; si falla (None o excepción), escalada.
+    # Pirámide: BitNet local -> Laya local -> OpenRouter remoto.
     intenta_local = medio in (None, "local")
+    intenta_laya = medio in (None, "laya", "laya-local")
     intenta_open = medio in (None, "openrouter")
     local_disponible = False
     if intenta_local and jl is not None and hasattr(jl, "disponible"):
@@ -308,6 +357,12 @@ def decidir(estado, preguntas, usar_cache=True, medio=None):
         respuestas = _intenta_local(jl, estado, preguntas)
         if respuestas is not None:
             medio_usado = "local"
+    # Capa local Laya (SystemOne) antes del Jev remoto
+    if respuestas is None and intenta_laya:
+        resp_laya = decidir_con_laya(estado, preguntas)
+        if resp_laya is not None:
+            respuestas = resp_laya
+            medio_usado = "laya-local"
     # Escalada obligatoria: si no hay respuesta y no se forzó solo local.
     if respuestas is None and intenta_open:
         respuestas, _cruda = _intenta_openrouter(estado, preguntas, t0)
@@ -319,8 +374,8 @@ def decidir(estado, preguntas, usar_cache=True, medio=None):
     res = dict(respuestas)
     res["medio"] = medio_usado
     res["ms"] = ms
-    if medio_usado == "local":
-        _anotar_uso({}, time.time() - t0, medio="local", ms=ms)
+    if medio_usado in ("local", "laya-local"):
+        _anotar_uso({}, time.time() - t0, medio=medio_usado, ms=ms)
     if usar_cache:
         # Cache separa respuestas de metadatos (evita mezclar 'medio'/'ms' con claves de pregunta).
         cache[h] = {
@@ -433,7 +488,11 @@ def reiniciar_limite(dia=True, mes=False):
                 dias[k] = {"llamadas": 0, "coste_usd": 0.0}
     if borrado:
         reinicios.append(
-            {"t": time.strftime("%Y-%m-%d %H:%M:%S"), "alcance": "mes" if mes else "dia", "gastado": borrado}
+            {
+                "t": time.strftime("%Y-%m-%d %H:%M:%S"),
+                "alcance": "mes" if mes else "dia",
+                "gastado": borrado,
+            }
         )
         u["dias"] = dias
         u["reinicios"] = reinicios[-50:]
