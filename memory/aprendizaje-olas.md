@@ -2726,3 +2726,12 @@
 **Lo que quedó fuera, una por una:**
 - `JF2` — la revisión lo rechazó: rechazada automáticamente por ide (sin revisión humana); rama ola/JF2 conservada
 - `TR1` — pruebas en rojo: vitest falla (rama conservada)
+
+## 2026-09-23 12:40 · auto-0923-122533
+
+**Lo que se pidió.** top 3 accionables
+
+**Resultado.** 0 de 1 integradas. 1 tarea se quedaron fuera.
+
+**Lo que quedó fuera, una por una:**
+- `DR0923-1` — no escribió nada
