@@ -1,0 +1,59 @@
+{
+ "ola": "nube-20260922",
+ "tareas": [
+  {
+   "id": "c313_QW4",
+   "ola": "Ola 313 · Consolidación de pendientes",
+   "titulo": ".env.example con todas las variables de entorno",
+   "archivos": [
+    ".env.example"
+   ],
+   "prompt": "Procesa la tarea: .env.example con todas las variables de entorno. Archivos: ['.env.example']. Escribe código limpio, sin any, en español con acentos. tsc limpio.",
+   "depende": [],
+   "modelo": "llm7/minimax-m2.7",
+   "aprobacion": false
+  },
+  {
+   "id": "c313_QW6",
+   "ola": "Ola 313 · Consolidación de pendientes",
+   "titulo": "Nombre accesible del botón Compartir de la tarjeta",
+   "archivos": [
+    "src/components/social/PostCard.tsx"
+   ],
+   "prompt": "Procesa la tarea: Nombre accesible del botón Compartir de la tarjeta. Archivos: ['src/components/social/PostCard.tsx']. Escribe código limpio, sin any, en español con acentos. tsc limpio.",
+   "depende": [],
+   "modelo": "llm7/minimax-m2.7",
+   "aprobacion": false
+  },
+  {
+   "id": "TK2c",
+   "ola": "Ola 339 · Destilar a Astraura con lo que ya generamos",
+   "titulo": "Corpus de destilacion: el enjambre ya es el maestro y estabamos tirando sus respuestas",
+   "archivos": [
+    "scripts/puente/destilacion_corpus.py",
+    "scripts/puente/test_destilacion_corpus.py"
+   ],
+   "prompt": "LA IDEA, sacada de la receta de tinker-cookbook (on-policy distillation) pero SIN su servicio de pago: un modelo maestro supervisa al alumno, y eso rinde mas que entrenar al alumno solo.\n\nNOSOTROS YA TENEMOS EL MAESTRO Y NO LO APROVECHAMOS. Cada tarea del enjambre es una demostracion: un encargo (prompt), un modelo fuerte y gratuito que lo resuelve (gemini-3.6-flash, gpt-5.6-sol, kimi-k3...), un diff que paso CUATRO PUERTAS (tsc, vitest, unittest, build) y una revision. Es un corpus supervisado con etiqueta de calidad objetiva, y lo estamos tirando. El alumno es BitNet b1.58 local, el motor de Astraura.\n\nTU ENCARGO, dos archivos y ninguno fuera: `scripts/puente/destilacion_corpus.py`.\n  1. `ejemplo_de_tarea(tarea, entrada_progreso, diff)` PURA: devuelve un dict {encargo, respuesta, modelo, area, calidad, sha} o None si no sirve como ejemplo. SOLO entran las de calidad demostrada: estado `commit` Y revision no bloqueante. Una tarea rechazada no es un mal ejemplo, es ruido: fuera.\n  2. `recoger(progreso, tareas, leer_diff)` PURA salvo por `leer_diff`, que se le inyecta: recorre el progreso y devuelve la lista de ejemplos, sin duplicados por sha.\n  3. `main()`: escribe `starseed_memory_root/destilacion/corpus.jsonl` en formato JSONL (un ejemplo por linea), anadiendo solo lo nuevo, y deja un resumen con cuantos ejemplos hay por area y por modelo maestro.\n\nCUIDADO CON ESTO, es lo mas importante: el corpus NO puede llevar NINGUNA clave, token ni valor de variable de entorno. Antes de escribir un ejemplo, descarta cualquier linea del diff que case con algo tipo `[A-Z0-9_]*(KEY|TOKEN|SECRET|PASSWORD)[A-Z0-9_]*\\s*=` y deja una marca de que se quito. Una prueba tiene que comprobar exactamente eso.\n\nPruebas: una tarea `commit` con revision limpia entra; una rechazada no; una con revision bloqueante no; no se duplica por sha; y la de las claves.\n\nNO explores el repositorio entero: abre SOLO los archivos que se nombran. Comentarios en ESPANOL que expliquen el PORQUE. Pruebas en el mismo directorio. Corre tus pruebas antes de terminar.\n\nPOR QUÉ VUELVE: el intento anterior fue rechazado. Objeción literal del revisor:\nSeguimiento: sí, bloqueante — ampliar `limpiar_secretos` para cubrir `:` además de `=`, cabeceras `Authorization/Bearer` y patrones de token conocidos (`sk-`, `ghp_`, etc.) antes de generar corpus real.\n\nRiesgos reales:\n1. **Fuga de secretos al corpus (seguridad).** `PATRON_SECRETO` solo captura `CLAVE = valor`. Formatos habituales en diffs reales —`\"apiKey\": \"sk-...\"`, `api_key: valor` (YAML/JSON), `Authorization: Bearer ...`, tokens `sk-...`/`ghp_...` sueltos— pasan limpios y acaban en `corpus.jsonl`, que alimentará el entrenamiento del modelo alumno. Es un agujero real de exfiltración, no cosmético.\n2. **Filtro \"bloqueante\" por subcadena es frágil en ambos sentidos:** una nota como «no es bloqueante» descarta un ejemplo válido (conservador, aceptable), pero una revisión bloqueante redactada con otras palabras («rechazado por seguridad») entra al corpus como ejemplo de calidad. El criterio de calidad demostrada queda poco garantizado.\n3. `git show` incluye mensaje de commit y metadatos; el \"diff\" destilado no es solo código. Menor, pero degrada el corpus.\nAtiéndela punto por punto; si algún punto no aplica, di por qué en el commit.",
+   "depende": [],
+   "estado": "rechazada",
+   "nota": "rechazada automáticamente por ide (sin revisión humana); rama ola/TK2 conservada",
+   "motivo": "",
+   "modelo": "llm7/minimax-m2.7"
+  },
+  {
+   "id": "p314Ab",
+   "ola": "Ola 314 · Reservas y enrutamiento verificable",
+   "titulo": "Presupuesto multiventana con reserva, ritmo y cuotas desconocidas explícitas",
+   "archivos": [
+    "scripts/enjambre/presupuesto.py",
+    "scripts/enjambre/test_presupuesto.py"
+   ],
+   "prompt": "Única tarea: módulo Python PURO NUEVO presupuesto.py y unittest test_presupuesto.py, ≤120 líneas cadauno, sin IO ni libs externas. API decidir_presupuesto(ventanas, costes, ahora, reserva=0.2, antiguedad_max=900, rafaga=0.05)->dict {permitido:bool,motivos:list[str],reintentar_en:float|None}. ventanas lista dict: unidad(str), limite(float), usado(float), reservado(float, default0), inicio(epoch), reinicio(epoch), observado(epoch). costes dict por unidad con estimación NO negativa; falta de coste o ventanas => no_verificado, deniega. Solo admite finitos, no bool, limite>0, inicio<=observado<=ahora<reinicio, usado/reservado>=0; foto caducada o ventana vencida deniega y requiere nueva lectura (no supone reset). Reserva: usado+reservado+coste <= limite*(1-reserva). Ritmo: usado+reservado+coste <= limite*(1-reserva)*min(1, (ahora-inicio)/(reinicio-inicio)+rafaga), distribuye consumo a lo largo de cada ventana, breve ráfaga configurable. Todas las ventanas deben permitir; unidades distintas tienen costes distintos. Si denegación solo ritmo, calcula instante exacto en que puede intentarse; reserva agotada => reinicio; datos inválidos => None. No mutar entrada. Pruebas dos ventanas (horaria permite semanal bloquea), crédito adicional0 no ilimitado, costeausente, datosviejos/NaN/Infinity/futuros, reserva y reservas en vuelo, ráfaga inicial, hora calculada, limitesexactos. No guardar credenciales ni inventar precios ni saldo. NO cablear, no editar otros archivos, NO build ni deps; correr unittest propio. Leer architecture/puente-economico-verificable.md. Otro modelo de dirección revisa y cablea.\n\nPOR QUÉ VUELVE: el intento anterior fue rechazado. Objeción literal del revisor:\nSeguimiento: sí, bloqueante — la función puede lanzar `KeyError` (y potencialmente `ZeroDivisionError`) cuando la ventana no incluye `reservado` o tiene duración 0. Se necesita corregir el acceso a `v[\"reservado\"]` (usar `v.get(\"reservado\", 0.0)`) y validar que `reinicio > inicio`. Después de esos cambios el PR puede fusionarse.\n\nRiesgos reales:\n1. **KeyError por ausencia de `reservado`** – `_validar_ventana` permite que la ventana no tenga la clave `reservado` (usa `v.get(\"reservado\", 0.0)`), pero más abajo `decidir_presupuesto` accede directamente a `v[\"reservado\"]`. Si algún proveedor envía una ventana sin ese campo, la función lanzará una excepción y romperá todo el flujo de autorización.\n2. **Posible división por cero en `tramo = v[\"reinicio\"] - v[\"inicio\"]`** – aunque la validación impide `reinicio <= ahora`, no protege contra `reinicio == inicio` (ventana de duración 0). En ese caso `tramo` sería 0 y el cálculo de `fraccion` provocaría `ZeroDivisionError`.\n3. **`techo` puede ser 0** cuando `limite` es 0 (aunque se marca como dato inválido, la condición `v[\"limite\"] <= 0` devuelve MOTIVO_DATOS_INVALIDOS y se descarta la ventana). Si por error se llegara a procesar una ventana con `limite` 0, `total > techo` provocaría una comparación con `0` y, en el cálculo de `objetivo = total / techo - rafaga`, se produciría `ZeroDivisionError`.\nAtiéndela punto por punto; si algún punto no aplica, di por qué en el commit.",
+   "depende": [],
+   "estado": "bloqueante",
+   "nota": "director: escalada agotada tras 8 intentos (libre×8): requiere una persona",
+   "motivo": "",
+   "modelo": "llm7/minimax-m2.7"
+  }
+ ]
+}
