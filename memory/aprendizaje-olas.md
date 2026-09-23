@@ -2673,3 +2673,25 @@
 - `c313_QW6` — otra cosa: reasignada a la nube 20260922
 - `DR0922-1` — otra cosa: reasignada a la nube 20260922
 - `TK2c` — otra cosa: reasignada a la nube 20260922
+
+## 2026-09-22 23:21 · auto-0922-215927
+
+**Lo que se pidió.** Probar
+
+**Resultado.** 1 de 9 integradas. 8 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 6 tareas se fueron por lo mismo — pruebas en rojo (TR1, p314Ab, c313_QW4, c313_QW6, DR0922-1, TK2c). Es 67 % de la ola.
+- 2 tareas se fueron por lo mismo — otra cosa (LY1, VZR1). Es 22 % de la ola.
+- codex/gpt-5.6-sol no integró ninguna de sus 2 tareas.
+- apinex/free/gemini-3.8-flash no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `LY1` — otra cosa: commit: in. If it still fails, a git process may have crashed in this repository earlier: remove the file manually to continue.
+- `TR1` — pruebas en rojo: vitest falla (rama conservada)
+- `VZR1` — otra cosa: commit: rc/components/astraura/astraura-omnivoice-config.tsx  no changes added to commit (use "git add" and/or "git commit -a")
+- `p314Ab` — pruebas en rojo: ERROR: test_excluye_agotados_y_enfriandose (test_revisores.CandidatosTest.test_excluye_agotados_y_enfriandose)
+- `c313_QW4` — pruebas en rojo: ERROR: test_excluye_agotados_y_enfriandose (test_revisores.CandidatosTest.test_excluye_agotados_y_enfriandose)
+- `c313_QW6` — pruebas en rojo: ERROR: test_excluye_agotados_y_enfriandose (test_revisores.CandidatosTest.test_excluye_agotados_y_enfriandose)
+- `DR0922-1` — pruebas en rojo: FAIL: test_devuelve_los_modelos_de_la_pasarela (test_pasarelas_escritoras.EscritoresPasarelasTest.test_devuelve_los_mode
+- `TK2c` — pruebas en rojo: ERROR: test_excluye_agotados_y_enfriandose (test_revisores.CandidatosTest.test_excluye_agotados_y_enfriandose)
