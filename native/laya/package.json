@@ -1,0 +1,14 @@
+{
+  "name": "laya-servidor",
+  "version": "1.0.0",
+  "description": "Servidor Node local de decisiones tipadas con Laya (ModernBERT)",
+  "type": "module",
+  "private": true,
+  "main": "servidor-laya.mjs",
+  "scripts": {
+    "start": "node servidor-laya.mjs"
+  },
+  "dependencies": {
+    "@receptron/laya": "^0.1.0"
+  }
+}
