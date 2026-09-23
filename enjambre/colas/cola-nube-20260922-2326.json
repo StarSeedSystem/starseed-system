@@ -1,0 +1,29 @@
+{
+ "ola": "nube-20260922",
+ "tareas": [
+  {
+   "id": "DR0922-1",
+   "ola": "Ola Dream 2026-09-22 · lo que el análisis nocturno encontró",
+   "titulo": "Reintentar con otro agente las tareas `fallo_tests` de la ola 363 tras arreglar el test",
+   "archivos": [],
+   "depende": [],
+   "prompt": "ORIGEN: esto lo escribió el Dream —el análisis nocturno de Hermes— en `starseed_memory_root/dream/sugerencias-2026-09-22.md`, sección «top 3 accionables». Texto literal del informe:\n\n  Reintentar con otro agente las tareas `fallo_tests` de la ola 363 tras arreglar el test — \n\nANTES DE ESCRIBIR NADA: comprueba que sigue siendo cierto. El Dream lo escriben modelos gratuitos leyendo registros, y a veces proponen algo que YA está hecho o que se entendió mal. Si al mirar el repo resulta que no aplica, no inventes trabajo: escribe en tu respuesta una línea `NO APLICA: <motivo>` y para.\n\nSi aplica: acota el cambio a lo mínimo que resuelva lo que dice el informe, y dilo en el commit. Máximo 3 archivos y 120 líneas por archivo. Las reglas de la casa están en `memory/workflow-actual.md` — léelas: el silencio no es aprobación, integrado no es aplicado, y si una prueba falla se arregla el código, no la prueba.",
+   "modelo": "llm7/minimax-m2.7"
+  },
+  {
+   "id": "p314Ab",
+   "ola": "Ola 314 · Reservas y enrutamiento verificable",
+   "titulo": "Presupuesto multiventana con reserva, ritmo y cuotas desconocidas explícitas",
+   "archivos": [
+    "scripts/enjambre/presupuesto.py",
+    "scripts/enjambre/test_presupuesto.py"
+   ],
+   "prompt": "Única tarea: módulo Python PURO NUEVO presupuesto.py y unittest test_presupuesto.py, ≤120 líneas cadauno, sin IO ni libs externas. API decidir_presupuesto(ventanas, costes, ahora, reserva=0.2, antiguedad_max=900, rafaga=0.05)->dict {permitido:bool,motivos:list[str],reintentar_en:float|None}. ventanas lista dict: unidad(str), limite(float), usado(float), reservado(float, default0), inicio(epoch), reinicio(epoch), observado(epoch). costes dict por unidad con estimación NO negativa; falta de coste o ventanas => no_verificado, deniega. Solo admite finitos, no bool, limite>0, inicio<=observado<=ahora<reinicio, usado/reservado>=0; foto caducada o ventana vencida deniega y requiere nueva lectura (no supone reset). Reserva: usado+reservado+coste <= limite*(1-reserva). Ritmo: usado+reservado+coste <= limite*(1-reserva)*min(1, (ahora-inicio)/(reinicio-inicio)+rafaga), distribuye consumo a lo largo de cada ventana, breve ráfaga configurable. Todas las ventanas deben permitir; unidades distintas tienen costes distintos. Si denegación solo ritmo, calcula instante exacto en que puede intentarse; reserva agotada => reinicio; datos inválidos => None. No mutar entrada. Pruebas dos ventanas (horaria permite semanal bloquea), crédito adicional0 no ilimitado, costeausente, datosviejos/NaN/Infinity/futuros, reserva y reservas en vuelo, ráfaga inicial, hora calculada, limitesexactos. No guardar credenciales ni inventar precios ni saldo. NO cablear, no editar otros archivos, NO build ni deps; correr unittest propio. Leer architecture/puente-economico-verificable.md. Otro modelo de dirección revisa y cablea.\n\nPOR QUÉ VUELVE: el intento anterior fue rechazado. Objeción literal del revisor:\nSeguimiento: sí, bloqueante — la función puede lanzar `KeyError` (y potencialmente `ZeroDivisionError`) cuando la ventana no incluye `reservado` o tiene duración 0. Se necesita corregir el acceso a `v[\"reservado\"]` (usar `v.get(\"reservado\", 0.0)`) y validar que `reinicio > inicio`. Después de esos cambios el PR puede fusionarse.\n\nRiesgos reales:\n1. **KeyError por ausencia de `reservado`** – `_validar_ventana` permite que la ventana no tenga la clave `reservado` (usa `v.get(\"reservado\", 0.0)`), pero más abajo `decidir_presupuesto` accede directamente a `v[\"reservado\"]`. Si algún proveedor envía una ventana sin ese campo, la función lanzará una excepción y romperá todo el flujo de autorización.\n2. **Posible división por cero en `tramo = v[\"reinicio\"] - v[\"inicio\"]`** – aunque la validación impide `reinicio <= ahora`, no protege contra `reinicio == inicio` (ventana de duración 0). En ese caso `tramo` sería 0 y el cálculo de `fraccion` provocaría `ZeroDivisionError`.\n3. **`techo` puede ser 0** cuando `limite` es 0 (aunque se marca como dato inválido, la condición `v[\"limite\"] <= 0` devuelve MOTIVO_DATOS_INVALIDOS y se descarta la ventana). Si por error se llegara a procesar una ventana con `limite` 0, `total > techo` provocaría una comparación con `0` y, en el cálculo de `objetivo = total / techo - rafaga`, se produciría `ZeroDivisionError`.\nAtiéndela punto por punto; si algún punto no aplica, di por qué en el commit.",
+   "depende": [],
+   "estado": "bloqueante",
+   "nota": "director: escalada agotada tras 8 intentos (libre×8): requiere una persona",
+   "motivo": "",
+   "modelo": "llm7/minimax-m2.7"
+  }
+ ]
+}
