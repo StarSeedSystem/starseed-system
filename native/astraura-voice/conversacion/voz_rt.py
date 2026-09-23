@@ -151,6 +151,19 @@ def renovar(quien, segundos=L.CONCESION_S):
     return nueva
 
 
+class ServidorVoz(ThreadingHTTPServer):
+    """El navegador corta a propósito las frases que ya no hacen falta (pausar, detener,
+    interrumpir): eso no es un error y no debe llenar el log de trazas."""
+
+    daemon_threads = True
+
+    def handle_error(self, request, client_address):
+        tipo = sys.exc_info()[0]
+        if tipo is not None and issubclass(tipo, (BrokenPipeError, ConnectionResetError)):
+            return
+        super().handle_error(request, client_address)
+
+
 class Manejador(BaseHTTPRequestHandler):
     server_version = "StarSeedVozRT/1"
 
@@ -256,7 +269,7 @@ class Manejador(BaseHTTPRequestHandler):
 
 def main():
     threading.Thread(target=cargar, daemon=True).start()
-    servidor = ThreadingHTTPServer(("127.0.0.1", PUERTO), Manejador)
+    servidor = ServidorVoz(("127.0.0.1", PUERTO), Manejador)
     log("Voz en tiempo real escuchando en http://127.0.0.1:%d (cargando Supertonic…)" % PUERTO)
     servidor.serve_forever()
 
