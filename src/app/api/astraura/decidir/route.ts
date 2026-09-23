@@ -4,7 +4,14 @@ import {
   zonaDeConfianza,
   type HerramientaNeedle,
 } from "@/lib/astraura/needle3-client";
-import { planDeDecision, decidirConJev, type RespuestaJev } from "@/lib/astraura/decision-hibrida";
+import {
+  UMBRAL_LAYA_EJECUTAR,
+  decidirConJev,
+  decidirConLaya,
+  planDeDecision,
+  type RespuestaJev,
+  type RespuestaLaya,
+} from "@/lib/astraura/decision-hibrida";
 import { type Astraura158Target } from "@/lib/astraura/astraura-158-client";
 
 export async function POST(req: Request) {
@@ -30,18 +37,27 @@ export async function POST(req: Request) {
     const msNeedle = Date.now() - t0;
 
     const zona = zonaDeConfianza(needleRes);
+    let layaRes: RespuestaLaya | null = null;
+    let msLaya: number | undefined = undefined;
     let jevRes: RespuestaJev | null = null;
     let msJev: number | undefined = undefined;
 
-    // Capa 2: Jev (solo si Needle escaló y hay clave en el servidor)
-    if (zona === "escalar" && apiKey) {
+    // Capa 2: Laya local (solo si Needle escaló)
+    if (zona === "escalar") {
       const t1 = Date.now();
+      layaRes = await decidirConLaya(body.consulta, body.herramientas);
+      msLaya = Date.now() - t1;
+    }
+
+    // Capa 3: Jev (solo si Laya no decidió y hay clave en el servidor)
+    if (zona === "escalar" && (!layaRes || layaRes.confianza < UMBRAL_LAYA_EJECUTAR) && apiKey) {
+      const t2 = Date.now();
       jevRes = await decidirConJev(body.consulta, body.herramientas, apiKey);
-      msJev = Date.now() - t1;
+      msJev = Date.now() - t2;
     }
 
     // Plan híbrido final
-    const plan = planDeDecision(needleRes, jevRes);
+    const plan = planDeDecision(needleRes, layaRes, jevRes);
 
     return NextResponse.json({
       ok: true,
@@ -53,6 +69,11 @@ export async function POST(req: Request) {
           zona,
           ok: needleRes.ok,
         },
+        laya: msLaya !== undefined ? {
+          ms: msLaya,
+          confianza: layaRes?.confianza ?? null,
+          ok: layaRes !== null,
+        } : null,
         jev: msJev !== undefined ? {
           ms: msJev,
           probabilidad: jevRes?.probabilidad ?? null,

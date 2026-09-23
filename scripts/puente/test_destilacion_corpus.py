@@ -10,6 +10,7 @@ import json
 import os
 import tempfile
 import unittest
+from unittest import mock
 
 # Importación dinámica del módulo destilacion_corpus.py
 _ruta = os.path.join(
@@ -66,7 +67,10 @@ class TestDestilacionCorpus(unittest.TestCase):
             "nota": "no es bloqueante de verdad",
             "sha": "HEAD",
         }
-        res_bloqueante = D.procesar_entrada_progreso(entrada_bloqueante)
+        with mock.patch.object(
+            D, "obtener_diff_limpio", return_value="diff --git a/modulo.py b/modulo.py"
+        ):
+            res_bloqueante = D.procesar_entrada_progreso(entrada_bloqueante)
         self.assertIsNone(
             res_bloqueante,
             "No se descartó la entrada con revisor=='bloqueante'",
@@ -79,7 +83,10 @@ class TestDestilacionCorpus(unittest.TestCase):
             "sha": "HEAD",
             "tarea": "Refactorizar modulo sin secretos",
         }
-        res_valida = D.procesar_entrada_progreso(entrada_valida)
+        with mock.patch.object(
+            D, "obtener_diff_limpio", return_value="diff --git a/modulo.py b/modulo.py"
+        ):
+            res_valida = D.procesar_entrada_progreso(entrada_valida)
         self.assertIsNotNone(
             res_valida,
             "Se descartó erróneamente una entrada válida basada en notas de texto",
@@ -123,7 +130,12 @@ class TestDestilacionCorpus(unittest.TestCase):
             with open(progreso_file, "w", encoding="utf-8") as f:
                 json.dump(datos, f)
 
-            exportados = D.generar_corpus(progreso_file, output_file)
+            with mock.patch.object(
+                D,
+                "obtener_diff_limpio",
+                return_value="diff --git a/modulo.py b/modulo.py",
+            ):
+                exportados = D.generar_corpus(progreso_file, output_file)
             self.assertTrue(os.path.exists(output_file))
             with open(output_file, "r", encoding="utf-8") as f:
                 lineas = f.readlines()
@@ -132,6 +144,7 @@ class TestDestilacionCorpus(unittest.TestCase):
             # t2 contiene API_KEY: 'sk-test' en la tarea -> descartada
             # t3 es válida sin secretos -> exportada
             self.assertEqual(1, len(lineas))
+            self.assertEqual(1, exportados)
             parsed = json.loads(lineas[0])
             self.assertEqual("t3", parsed["id"])
 
