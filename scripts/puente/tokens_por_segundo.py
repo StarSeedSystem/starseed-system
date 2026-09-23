@@ -154,16 +154,30 @@ def promedio(muestras, ventana_s):
     return tasa(dentro[0], fin)
 
 
-def resumir(ritmo, sin_contador=SIN_CONTADOR):
-    """PURA: la frase del medidor. Dice lo que mide Y lo que no."""
+def _cifra(v):
+    return ("%.1f" % v) if v < 100 else "%d" % round(v)
+
+
+def resumir(ritmo, sin_contador=SIN_CONTADOR, media=None):
+    """PURA: la frase del medidor. Dice lo que mide Y lo que no.
+
+    (2026-09-22, segunda pasada) Manda la MEDIA DEL MINUTO, igual que en la pantalla. Antes
+    esta frase salía solo del instantáneo y el archivo decía «0 tok/s ahora mismo» mientras
+    el medidor del Puente decía «44,2 tok/s de media en 1 min»: el mismo dato contado de
+    dos maneras en dos sitios, que es la avería que llevamos toda la sesión persiguiendo.
+    El gasto va a ráfagas, así que el instantáneo es cero casi siempre y no puede ser la
+    frase principal de nada.
+    """
     cuantas = len(sin_contador)
     cola = " · %d proceso(s) no publican tokens" % cuantas if cuantas else ""
-    if ritmo is None:
+    if ritmo is None and media is None:
         return "aún no hay dos muestras: la tasa necesita dos" + cola
-    t = ritmo.get("total") or 0.0
-    if t <= 0:
-        return "0 tok/s ahora mismo" + cola
-    return "%s tok/s" % (("%.1f" % t) if t < 100 else "%d" % round(t)) + cola
+    inst = (ritmo or {}).get("total")
+    prom = (media or {}).get("total")
+    if prom is None:
+        return "%s tok/s en los últimos segundos · aún sin minuto entero" % _cifra(inst or 0.0) + cola
+    detras = " · %s tok/s en los últimos segundos" % _cifra(inst) if inst is not None else ""
+    return "%s tok/s de media en 1 min%s" % (_cifra(prom), detras) + cola
 
 
 def _leer_anillo():
@@ -188,7 +202,7 @@ def una_pasada():
         "diez_minutos": promedio(muestras, 600),
         "fuentes": [{"id": f["id"], "nombre": f["nombre"]} for f in FUENTES],
         "sin_contador": list(SIN_CONTADOR),
-        "resumen": resumir(ahora),
+        "resumen": resumir(ahora, media=promedio(muestras, 60)),
         "muestras": muestras,
     }
     os.makedirs(os.path.dirname(SALIDA), exist_ok=True)

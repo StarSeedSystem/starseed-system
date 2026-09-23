@@ -68,22 +68,31 @@ class LaMediaDeUnaVentana(unittest.TestCase):
 
 
 class ElResumenDiceLoQueNoMide(unittest.TestCase):
+    def _r(self, total, segundos=5):
+        return {"total": total, "fuentes": {}, "segundos": segundos}
+
     def test_nombra_cuantos_procesos_no_publican_tokens(self):
-        r = T.resumir({"total": 42.0, "fuentes": {}, "segundos": 5},
-                      sin_contador=[{"id": "a"}, {"id": "b"}])
-        self.assertIn("42.0 tok/s", r)
+        r = T.resumir(self._r(42.0), sin_contador=[{"id": "a"}, {"id": "b"}],
+                      media=self._r(30.0, 60))
         self.assertIn("2 proceso(s) no publican tokens", r)
+
+    def test_manda_la_media_del_minuto(self):
+        """(2026-09-22) El archivo decía «0 tok/s ahora mismo» con 44,2 de media en la
+        pantalla: el mismo dato contado de dos maneras en dos sitios."""
+        r = T.resumir(self._r(0.0), sin_contador=[], media=self._r(44.2, 60))
+        self.assertTrue(r.startswith("44.2 tok/s de media en 1 min"), r)
+        self.assertIn("0.0 tok/s en los últimos segundos", r)
 
     def test_sin_muestras_lo_dice_en_vez_de_enseñar_un_cero(self):
         self.assertIn("necesita dos", T.resumir(None))
 
-    def test_con_todo_medido_no_sobra_la_coletilla(self):
-        self.assertEqual(T.resumir({"total": 0.0, "fuentes": {}, "segundos": 5},
-                                   sin_contador=[]), "0 tok/s ahora mismo")
+    def test_sin_minuto_entero_todavia_lo_dice(self):
+        self.assertIn("aún sin minuto entero", T.resumir(self._r(12.0), sin_contador=[]))
 
     def test_los_numeros_grandes_se_redondean(self):
-        self.assertIn("1234 tok/s", T.resumir({"total": 1234.4, "fuentes": {}, "segundos": 1},
-                                              sin_contador=[]))
+        r = T.resumir(self._r(1234.4), sin_contador=[], media=self._r(1500.6, 60))
+        self.assertIn("1501 tok/s", r)
+        self.assertIn("1234 tok/s", r)
 
 
 class DondeSeLeeCadaFuente(unittest.TestCase):
