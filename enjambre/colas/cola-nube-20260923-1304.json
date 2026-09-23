@@ -1,0 +1,17 @@
+{
+ "ola": "nube-20260923",
+ "tareas": [
+  {
+   "id": "TR1",
+   "ola": "Ola 364 · Astraura en vivo: Laya local, elegir voz y aprender del ritmo",
+   "titulo": "Aprender el plazo local de cada máquina a partir de las conversaciones",
+   "archivos": [
+    "src/lib/astraura/plazo-aprendido.ts",
+    "src/lib/astraura/__tests__/plazo-aprendido.test.ts"
+   ],
+   "depende": [],
+   "prompt": "CONTEXTO (2026-09-22): Astraura ya conversa en vivo. `native/astraura-voice/conversacion/voz_rt.py` (Supertonic 3, 127.0.0.1:4460) da la voz a ~0,3x tiempo real con una voz fija; `/api/astraura/conversacion` responde con BitNet local primero y la nube en carrera; `scripts/puente/prioridad_conversacion.py` congela el enjambre de la Mac mientras dura la concesión `~/.starseed/conversacion.json`. NO toques esos archivos salvo que la tarea los nombre. Tareas de 3 archivos como mucho y 120 líneas por archivo; pruebas incluidas.\n\n`/api/astraura/conversacion` espera `PLAZO_LOCAL_MS` (2800 ms) al primer token de BitNet antes de abrir la carrera con la nube. Ese número debería aprenderse por máquina. Haz el módulo PURO `plazoAprendido(medidas: {local: boolean; msPrimerToken: number | null}[]): number` = percentil 80 de los `msPrimerToken` de los turnos LOCALES de las últimas 40 medidas, acotado a [1200, 6000] ms; con menos de 5 medidas locales devuelve 2800. Y `registrarMedida(lista, medida, max=40)` que añade y recorta. Solo el módulo y sus pruebas: el cableado a la ruta lo hará otra tarea.",
+   "modelo": "llm7/minimax-m2.7"
+  }
+ ]
+}
