@@ -106,6 +106,11 @@ def decidir_presupuesto(
 
         total = v["usado"] + reservado + coste
         techo = v["limite"] * (1.0 - reserva)
+        if techo <= 0:
+            if MOTIVO_DATOS_INVALIDOS not in motivos:
+                motivos.append(MOTIVO_DATOS_INVALIDOS)
+            reintentar_en = None
+            continue
         if total > techo:
             if MOTIVO_RESERVA not in motivos:
                 motivos.append(MOTIVO_RESERVA)
