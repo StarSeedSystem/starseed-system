@@ -23,7 +23,7 @@ function textoHace(segundos?: number): string {
 }
 
 function textoSalida(epoch?: number): string {
-    if (epoch === undefined) return "sin salida registrada";
+    if (!epoch || epoch <= 0) return "sin salida registrada";
     const d = new Date(epoch * 1000);
     return Number.isNaN(d.getTime()) ? "sin salida registrada" : d.toLocaleString("es-ES");
 }
