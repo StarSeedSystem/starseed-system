@@ -11,7 +11,7 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { detalleDeMedidor, fichaDeAgente, fichaDeTarea } from "../medidores";
+import { detalleDeMedidor, fichaDeAgente, fichaDeTarea, olaDeTarea } from "../medidores";
 
 const latido = {
     tarea: "T1",
@@ -140,5 +140,31 @@ describe("los medidores llevan la ficha puesta", () => {
         const ec = detalleDeMedidor("en-curso", datos);
         expect((ec.filas[0].ficha ?? []).length).toBeGreaterThan(4);
         expect(JSON.stringify(ag.filas[0].ficha)).not.toBe(JSON.stringify(ec.filas[0].ficha));
+    });
+});
+
+// (2026-09-24) Alex: «vuelven a entrar 4 más… no sé de qué olas son».
+describe("olaDeTarea: cada tarea en curso dice de qué ola es", () => {
+    const olaActiva = {
+        titulo: "Ola 318 · Director de verdad: la pestaña Director enseña datos reales",
+        cola: "cola-auto-0924-144225.json",
+        medio: "mac",
+        agentes: 2,
+        asignacionConocida: true,
+        tareas: [{ id: "p318Jb", titulo: "Fidelidad" }],
+    };
+    it("la saca de la ola en marcha, en corto", () => {
+        expect(olaDeTarea({ olasActivas: [olaActiva], ejecutables: [] }, "p318Jb")).toBe(
+            "Ola 318 · Director de verdad",
+        );
+    });
+    it("si no está en marcha, la de su cola; y nada si no se sabe", () => {
+        const d = { olasActivas: [], ejecutables: [{ id: "CU3br", titulo: "x", ola: "362" }] };
+        expect(olaDeTarea(d, "CU3br")).toBe("Ola 362");
+        expect(olaDeTarea(d, "ZZ9")).toBeUndefined();
+    });
+    it("la ficha de la tarea la enseña justo después del estado", () => {
+        const f = fichaDeTarea("T1", {}, [], undefined, undefined, undefined, "Ola 318");
+        expect(f[1]).toEqual({ etiqueta: "Ola", valor: "Ola 318" });
     });
 });

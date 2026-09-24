@@ -675,6 +675,23 @@ export function fichaDeAgente(
 }
 
 /**
+ * (2026-09-24) Alex: «vuelven a entrar 4 más… no sé de qué olas son». La ola de una
+ * tarea viva, en corto («Ola 318 · Director de verdad»): primero las olas que se
+ * ejecutan ahora (su título ya viene resuelto), si no la ola que declara su cola.
+ */
+export function olaDeTarea(
+    d: Pick<DatosMedidores, "olasActivas" | "ejecutables">,
+    id: string,
+): string | undefined {
+    const corta = (t: string) => t.split(":")[0].trim();
+    for (const o of d.olasActivas ?? []) {
+        if (o.tareas.some((t) => t.id === id)) return corta(o.titulo);
+    }
+    const ola = (d.ejecutables ?? []).find((t) => t.id === id)?.ola;
+    return ola ? corta(tituloDeOla(ola)) : undefined;
+}
+
+/**
  * La ficha de una TAREA: qué tiene que hacer, con qué, y cómo va.
  *
  * Lo mismo que la del agente pero por el otro lado: aquí el sujeto es el trabajo. Lo que
@@ -688,9 +705,11 @@ export function fichaDeTarea(
     obra: { rama?: string; archivos?: string[]; ruta?: string } | undefined,
     repo?: string,
     latido?: DatosMedidores["latidos"][number],
+    ola?: string,
 ): DatoDeFicha[] {
     const ficha: DatoDeFicha[] = [];
     ficha.push({ etiqueta: "Estado", valor: entrada?.estado ?? "sin empezar" });
+    if (ola) ficha.push({ etiqueta: "Ola", valor: ola });
     if (latido) {
         ficha.push({ etiqueta: "Fase", valor: latido.fase });
         ficha.push({ etiqueta: "La escribe", valor: latido.modelo });
@@ -1598,13 +1617,15 @@ export function detalleDeMedidor(
             const filas: FilaMedidor[] = agruparPorTarea(d.latidos).map(({ latido: l, agentes }) => {
                 const avance = avanceDe(l.fase, estadoDe(l.tarea));
                 const quienEs = `${l.proveedor ?? l.modelo.split("/")[0]} · ${l.modelo.split("/").slice(-1)[0]} en ${l.donde}`;
+                const ola = olaDeTarea(d, l.tarea);
+                const quien = agentes > 1 ? `${agentes} agentes · ${quienEs}` : quienEs;
                 return {
                     id: l.tarea,
                     titulo: titulo(l.tarea),
                     estado: l.fase,
                     porcentaje: avance.porcentaje,
                     etapa: avance.etapa,
-                    quien: agentes > 1 ? `${agentes} agentes · ${quienEs}` : quienEs,
+                    quien: ola ? `${ola} · ${quien}` : quien,
                     desde: `${l.minutos} min`,
                     porque: l.minutos > 45 ? "lleva mucho sin cambiar de fase" : undefined,
                     ficha: fichaDeTarea(
@@ -1614,6 +1635,7 @@ export function detalleDeMedidor(
                         d.obras?.[l.tarea],
                         d.repoGitHub,
                         l,
+                        ola,
                     ),
                     historial: d.historiales?.[l.tarea]?.slice(0, 6),
                     acciones: [
@@ -1631,7 +1653,16 @@ export function detalleDeMedidor(
                     porcentaje: 0,
                     porque: "figura en curso pero ningún agente late por ella: estado rancio",
                     desde: v.t,
-                    ficha: fichaDeTarea(id, v, d.declarados?.[id], d.obras?.[id], d.repoGitHub),
+                    quien: olaDeTarea(d, id),
+                    ficha: fichaDeTarea(
+                        id,
+                        v,
+                        d.declarados?.[id],
+                        d.obras?.[id],
+                        d.repoGitHub,
+                        undefined,
+                        olaDeTarea(d, id),
+                    ),
                     historial: d.historiales?.[id]?.slice(0, 6),
                     // Una rancia no ocupa a nadie: «Reasignar ya» la devuelve a pendiente y la
                     // pone la primera de la cola viva.
