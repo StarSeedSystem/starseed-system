@@ -210,7 +210,11 @@ def reclamar_varadas_de_la_nube(runs_vivos):
     ids = RN.reclamar_varadas(tareas, runs_vivos)
     if not ids:
         return []
-    nuevas = RN.devolver_a_pendiente(tareas, ids, time.strftime("%Y%m%d"))
+    # (2026-09-24) Con cuántas veces se mandó y con lo que dijo la nube: si ya van tres,
+    # a «Bloqueadas» con el motivo, no otra vez a «pendiente» (y otra vez a la nube).
+    envios = RN.envios_por_tarea(RN.leer_colas_nube(os.path.join(RAIZ, "enjambre", "colas"), time.time()))
+    nuevas = RN.devolver_a_pendiente(tareas, ids, time.strftime("%Y%m%d"),
+                                     envios=envios, veredictos=veredictos_del_ultimo_run(ids))
     if isinstance(progreso, dict) and "tareas" in progreso:
         progreso["tareas"] = nuevas
         salida = progreso
@@ -224,6 +228,39 @@ def reclamar_varadas_de_la_nube(runs_vivos):
     except OSError:
         return []
     return ids
+
+
+def veredictos_del_ultimo_run(ids, timeout=90):
+    """{id: (estado, nota)} de lo que dijo la nube sobre esas tareas en su último run
+    terminado, leído del artefacto que sube el workflow (progreso.json). Nunca lanza: si no
+    se puede leer, {} y se devuelven sin motivo, como antes."""
+    import shutil
+    import tempfile
+
+    carpeta = tempfile.mkdtemp(prefix="nube-veredictos-")
+    try:
+        salida = _sh(["gh", "run", "list", "--workflow", "enjambre-nube.yml", "--status", "completed",
+                      "-L", "1", "--json", "databaseId", "--jq", ".[0].databaseId"], timeout=60).strip()
+        if not salida.isdigit():
+            return {}
+        _sh(["gh", "run", "download", salida, "-D", carpeta], timeout=timeout)
+        fuera = {}
+        for raiz, _dirs, archivos in os.walk(carpeta):
+            if "progreso.json" in archivos:
+                try:
+                    with open(os.path.join(raiz, "progreso.json"), encoding="utf-8") as f:
+                        prog = json.load(f)
+                except (OSError, ValueError):
+                    continue
+                for tid in ids:
+                    e = prog.get(tid) if isinstance(prog, dict) else None
+                    if isinstance(e, dict) and e.get("estado"):
+                        fuera[tid] = (str(e.get("estado")), str(e.get("nota") or ""))
+        return fuera
+    except Exception:
+        return {}
+    finally:
+        shutil.rmtree(carpeta, ignore_errors=True)
 
 
 def _cuenta_hoy():

@@ -13,7 +13,7 @@
  *      archivo a la vez y un volcado a medias lo dejaría ilegible.
  */
 import { execFile, spawn } from "node:child_process";
-import { readFile, rename, writeFile } from "node:fs/promises";
+import { readdir, readFile, rename, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -33,6 +33,7 @@ import {
 import {
     TERMINALES,
     cambioAutomatico,
+    tituloDeRunNube,
     veredictoDeAgente,
     dependenciasMuertas,
     detalleDeMedidor,
@@ -448,6 +449,38 @@ async function leerEntradas(): Promise<Record<string, Entrada>> {
     return salida;
 }
 
+/**
+ * (2026-09-24) Cuántas veces se mandó cada tarea a la nube en los dos últimos días, contando
+ * las `enjambre/colas/cola-nube-AAAAMMDD-HHMM*.json`. La misma cuenta que usa el reparto
+ * para dejar de reenviar (`repartir_nube.envios_por_tarea`). Se guarda un minuto: `reunir`
+ * se llama varias veces por segundo al abrir el Puente.
+ */
+let cacheEnvios: { t: number; cuenta: Record<string, number> } | null = null;
+async function enviosALaNube(): Promise<Record<string, number>> {
+    if (cacheEnvios && Date.now() - cacheEnvios.t < 60_000) return cacheEnvios.cuenta;
+    const carpeta = path.join(RAÍZ, "enjambre", "colas");
+    const limite = Date.now() - 2 * 86_400_000;
+    const cuenta: Record<string, number> = {};
+    for (const nombre of await readdir(carpeta).catch(() => [] as string[])) {
+        const m = /^cola-nube-(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2}).*\.json$/.exec(nombre);
+        if (!m) continue;
+        const cuando = new Date(`${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}:00`).getTime();
+        if (!(cuando >= limite)) continue;
+        try {
+            const d = JSON.parse(await readFile(path.join(carpeta, nombre), "utf8")) as unknown;
+            const lista = Array.isArray(d) ? d : ((d as { tareas?: unknown[] })?.tareas ?? []);
+            const ids = new Set(
+                lista.map((t) => (t && typeof t === "object" ? String((t as { id?: unknown }).id ?? "") : "")).filter(Boolean),
+            );
+            for (const id of ids) cuenta[id] = (cuenta[id] ?? 0) + 1;
+        } catch {
+            /* una cola ilegible no cuenta */
+        }
+    }
+    cacheEnvios = { t: Date.now(), cuenta };
+    return cuenta;
+}
+
 async function reunir(): Promise<Partial<DatosMedidores>> {
     const [progreso, colas, bus, latidosMac, vivo, commitsGit] = await Promise.all([
         leerEntradas(),
@@ -548,6 +581,7 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
     for (const t of colas) {
         if (t.id && t.archivos?.length && !declarados[t.id]) declarados[t.id] = t.archivos;
     }
+    const envios = await enviosALaNube().catch(() => ({}) as Record<string, number>);
     const [obras, historiales, agentesNube, contenedores, proveedores, tokens, olasNube] = await Promise.all([
         leerObras(idsVivas).catch(() => ({})),
         leerHistoriales(idsVivas).catch(() => ({})),
@@ -572,8 +606,16 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
         // La fila de la nube en «En curso» y «Agentes» se llama `nube/<run>`: que diga QUÉ
         // ola es y qué tareas lleva, en vez del número del run a secas.
         if (ola.run) {
-            titulos[`nube/${ola.run}`] =
-                `${ola.titulo} · ${ola.tareas.length} tarea(s): ${ola.tareas.map((t) => t.id).join(", ") || "cola ilegible"}`;
+            // (2026-09-24) De qué OLA sale cada tarea (no la fecha del reparto) y cuáles se
+            // están reenviando una y otra vez sin integrarse.
+            const olaDe = new Map(
+                colas.filter((t) => !/^(auto-|nube-)/.test(t.cola ?? "")).map((t) => [t.id, t.ola] as const),
+            );
+            titulos[`nube/${ola.run}`] = tituloDeRunNube(
+                ola.titulo,
+                ola.tareas.map((t) => ({ id: t.id, ola: olaDe.get(t.id) })),
+                envios,
+            );
         }
     }
 

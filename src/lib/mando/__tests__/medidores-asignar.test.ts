@@ -4,6 +4,7 @@ import {
     cargaDePublicacion,
     detalleDeMedidor,
     falloDePublicacion as falloDePublicacionTest,
+    tituloDeRunNube,
     veredictoDeAgente,
 } from "@/lib/mando/medidores";
 
@@ -143,5 +144,27 @@ describe("aviso de publicación fallida en «Sin publicar»", () => {
         });
         expect(d.aviso).toMatch(/no salió/);
         expect(d.acciones[0]?.texto).toBe("Reintentar la publicación");
+    });
+});
+
+describe("título de un run de la nube", () => {
+    it("dice de qué ola sale cada tarea y marca las reenviadas", () => {
+        const t = tituloDeRunNube(
+            "nube-20260924",
+            [
+                { id: "CU3br", ola: "362" },
+                { id: "p318Jc", ola: "Ola 318 · Director de verdad: la pestaña Director" },
+                { id: "p318Jb", ola: "Ola 318 · Director de verdad: la pestaña Director" },
+            ],
+            { CU3br: 82, p318Jc: 87, p318Jb: 87 },
+        );
+        expect(t).toBe(
+            "reparto a la nube · CU3br (ola 362) · p318Jc, p318Jb (Ola 318) · ⚠ reenviadas sin integrarse: CU3br ×82, p318Jc ×87, p318Jb ×87",
+        );
+    });
+
+    it("sin reenvíos no avisa, y sin tareas lo dice", () => {
+        expect(tituloDeRunNube("nube-x", [{ id: "A" }], { A: 1 })).toBe("reparto a la nube · A (ola desconocida)");
+        expect(tituloDeRunNube("nube-x", [])).toBe("nube-x · cola ilegible");
     });
 });

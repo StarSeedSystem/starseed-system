@@ -183,5 +183,23 @@ class IdsColisionados(unittest.TestCase):
         self.assertEqual(ids_colisionados(tareas, asuntos, {}), ["W1", "NE3-1"])
 
 
+class DependenciaYaEnMain(unittest.TestCase):
+    # (2026-09-24) p318I está en main desde el 13 y no tiene entrada en progreso: p318Jb
+    # ya no se queda bloqueada por ella.
+
+    def test_se_quita_la_dependencia_integrada(self):
+        import vigilante_logica as V
+        colas = [("cola-reintentos.json", [{"id": "p318Jb", "depende": ["p318I", "VIVA"]}])]
+        asuntos = ["Ola 318 · Director · p318I: la pestaña Director monta ControlDirectores"]
+        t = V.seleccionar_pendientes(colas, {"VIVA": {"estado": "en_curso"}}, asuntos)[0]
+        self.assertEqual(t["depende"], ["VIVA"])
+        self.assertEqual(t["dependencias_ya_en_main"], ["p318I"])
+
+    def test_sin_asuntos_no_cambia_nada(self):
+        import vigilante_logica as V
+        colas = [("cola-x.json", [{"id": "B", "depende": ["A"]}])]
+        self.assertEqual(V.seleccionar_pendientes(colas, {}, [])[0]["depende"], ["A"])
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -296,6 +296,40 @@ export function falloDePublicacion(
 }
 
 /**
+ * (2026-09-24) Título de un run de la nube en «Tareas en curso» y «Agentes». Alex: «cuando
+ * terminan los agentes vuelven a entrar 4 más pero no dice que haya más listas para trabajar,
+ * no sé de qué olas son». La fila decía «nube-20260924 · 3 tarea(s): CU3br, p318Jc, p318Jb»:
+ * «nube-20260924» no es una ola, es la fecha del reparto. Ahora dice de qué OLA sale cada
+ * tarea y, si la misma tarea ya se mandó a la nube 3 veces o más sin integrarse, lo marca:
+ * esas tres llevaban 82-87 envíos en dos días. PURA.
+ */
+export function tituloDeRunNube(
+    titulo: string,
+    tareas: { id: string; ola?: string }[],
+    envios: Record<string, number> = {},
+): string {
+    if (!tareas.length) return `${titulo} · cola ilegible`;
+    const corta = (ola: string) => {
+        const limpia = ola.replace(/\s+/g, " ").trim();
+        if (/^\d+$/.test(limpia)) return `ola ${limpia}`;
+        const [cabeza] = limpia.split(/[:·]/);
+        return (cabeza || limpia).trim().slice(0, 48);
+    };
+    const grupos = new Map<string, string[]>();
+    for (const t of tareas) {
+        const clave = t.ola ? corta(t.ola) : "ola desconocida";
+        grupos.set(clave, [...(grupos.get(clave) ?? []), t.id]);
+    }
+    const partes = [...grupos].map(([ola, ids]) => `${ids.join(", ")} (${ola})`);
+    const repetidas = tareas
+        .filter((t) => (envios[t.id] ?? 0) >= 3)
+        .map((t) => `${t.id} ×${envios[t.id]}`);
+    return `reparto a la nube · ${partes.join(" · ")}${
+        repetidas.length ? ` · ⚠ reenviadas sin integrarse: ${repetidas.join(", ")}` : ""
+    }`;
+}
+
+/**
  * (2026-09-23) Veredicto de UN agente para «Comprobar este agente»: ¿escribe, espera
  * pasarela o está callado, y qué pasará solo? Los umbrales son los del orquestador (corta a
  * los 5 min sin crecer) y del vigilante (30 min sin escribir nada). PURA.

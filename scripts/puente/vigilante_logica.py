@@ -100,6 +100,20 @@ def seleccionar_pendientes(colas, progreso, asuntos_git, ahora=None):
     exactamente el del archivo, para no moverle el suelo a quien ya llama.
     """
     vistas, salida = set(), []
+    # (2026-09-24) Una dependencia que YA está en main cuenta como hecha aunque el progreso
+    # no la conozca. p318I se integró el 13 («… · p318I: …») y no tiene entrada en
+    # progreso.json: aquí, en el orquestador y en la nube salía «(?)» y p318Jb/p318Jc se
+    # bloqueaban para siempre, mientras el Mando las daba por libres. Se quita de `depende`
+    # en la copia que se reparte: lo mismo que ya hacía el reparto a la nube para decidir.
+    integradas = {}
+
+    def _ya_en_main(dep):
+        if dep not in integradas:
+            e = progreso.get(dep) if isinstance(progreso, dict) else None
+            est = e.get("estado") if isinstance(e, dict) else ""
+            integradas[dep] = est in ("commit", "hecho") or id_en_asuntos(dep, asuntos_git or [])
+        return integradas[dep]
+
     for nombre, tareas in colas:
         if not es_cola_fuente(nombre):
             continue
@@ -127,6 +141,14 @@ def seleccionar_pendientes(colas, progreso, asuntos_git, ahora=None):
             # dependencia muerta seguía fuera por esa dependencia. Ahora el cambio va en el
             # prompt y `quitar_dependencias` sale de `depende` ANTES de ordenar.
             seleccionada = aplicar_cambio_pedido(seleccionada, estado)
+            deps = seleccionada.get("depende") or []
+            if isinstance(deps, str):
+                deps = [deps]
+            ya = [str(d) for d in deps if _ya_en_main(str(d))]
+            if ya:
+                seleccionada = dict(seleccionada)
+                seleccionada["depende"] = [d for d in deps if str(d) not in ya]
+                seleccionada["dependencias_ya_en_main"] = ya
             salida.append(seleccionada)
     if ahora is not None and prioridad_logica is not None:
         listas, _bloqueadas = prioridad_logica.ordenar(salida, progreso, ahora)

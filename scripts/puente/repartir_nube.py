@@ -32,6 +32,61 @@ ESTADOS_REPARTIBLES = {None, "", "pendiente", "sin_cambios", "fallo", "fallo_tes
 # las de un solo archivo.
 MAX_ARCHIVOS_NUBE = 3
 
+#: (2026-09-24, MEDIDO) Alex: «cuando terminan los agentes vuelven a entrar 4 más pero no
+#: dice que haya más listas para trabajar, no sé de qué olas son». Eran SIEMPRE las mismas
+#: tres —CU3br (ola 362, rescate de accesos) y p318Jb/p318Jc (Ola 318, reintentos)—,
+#: mandadas a la nube 22 veces seguidas entre las 04:03 y las 14:07, cuatro agentes cada
+#: vez. En la nube CU3br salía «rechazada» (no tocó los archivos declarados) y las otras
+#: dos «bloqueadas» (p318I «(?)»: está en main desde el 13, pero la nube no lo sabe); el
+#: veredicto no volvía a la Mac, el run acababa, `reclamar_varadas` las devolvía a
+#: «pendiente» y el director las volvía a mandar. Tres envíos sin integrar bastan para
+#: saber que repetir no sirve: a partir de ahí van a «Bloqueadas», donde se ven y se
+#: pueden reintentar con un cambio.
+MAX_ENVIOS_NUBE = 3
+
+
+def leer_colas_nube(carpeta, ahora_ts, dias=2):
+    """[(nombre, ids)] de las `cola-nube-AAAAMMDD-HHMM*.json` de los últimos `dias` días.
+    La única función con disco de este módulo: el resto sigue siendo puro. Nunca lanza."""
+    import datetime as _dt
+    import json as _json
+    import os as _os
+
+    limite = _dt.datetime.fromtimestamp(ahora_ts) - _dt.timedelta(days=dias)
+    salida = []
+    try:
+        nombres = sorted(_os.listdir(carpeta))
+    except OSError:
+        return salida
+    for nombre in nombres:
+        m = re.match(r"cola-nube-(\d{8})-(\d{4})", nombre)
+        if not m or not nombre.endswith(".json"):
+            continue
+        try:
+            cuando = _dt.datetime.strptime(m.group(1) + m.group(2), "%Y%m%d%H%M")
+        except ValueError:
+            continue
+        if cuando < limite:
+            continue
+        try:
+            with open(_os.path.join(carpeta, nombre), encoding="utf-8") as f:
+                d = _json.load(f)
+        except (OSError, ValueError):
+            continue
+        tareas = d.get("tareas", []) if isinstance(d, dict) else d
+        salida.append((nombre, [t.get("id") for t in tareas if isinstance(t, dict) and t.get("id")]))
+    return salida
+
+
+def envios_por_tarea(colas_nube):
+    """PURA: cuántas veces se mandó cada tarea a la nube. `colas_nube`: [(nombre, ids)] de
+    las colas `cola-nube-*` recientes (quien llama decide cuáles cuentan)."""
+    cuenta = {}
+    for _nombre, ids in colas_nube or []:
+        for tid in set(str(i) for i in ids or []):
+            cuenta[tid] = cuenta.get(tid, 0) + 1
+    return cuenta
+
 
 def _n_archivos(tarea):
     return len(tarea.get("archivos") or [])
@@ -86,7 +141,8 @@ def numero_ola(texto):
     return int(m.group(1)) if m else None
 
 
-def elegir(colas, progreso, asuntos_main, ola_actual, tope=20, max_archivos=MAX_ARCHIVOS_NUBE):
+def elegir(colas, progreso, asuntos_main, ola_actual, tope=20, max_archivos=MAX_ARCHIVOS_NUBE,
+           envios=None, max_envios=MAX_ENVIOS_NUBE):
     """Hasta `tope` candidatas, deduplicadas, con modelo nube y ordenadas por tamano.
 
     Se descartan las de mas de `max_archivos` archivos declarados —esas necesitan un
@@ -119,9 +175,20 @@ def elegir(colas, progreso, asuntos_main, ola_actual, tope=20, max_archivos=MAX_
                 continue
             if dependencias_pendientes(tarea, progreso, asuntos_main):
                 continue
+            if (envios or {}).get(tid, 0) >= max_envios:
+                continue
             vistas.add(tid)
             candidata = dict(tarea)
             candidata["modelo"] = MODELO_NUBE
+            # (2026-09-24) Aquí TODAS sus dependencias están ya en main (si no, no se
+            # elegiría), pero la nube arranca sin el progreso de la Mac: p318I está
+            # integrada desde el 13 y allí salía «(?)», y la tarea se bloqueaba en cada run.
+            # Lo que la Mac ya comprobó no se le pide comprobar otra vez.
+            deps = candidata.get("depende") or candidata.get("depende_de") or []
+            if deps:
+                candidata["depende"] = []
+                candidata.pop("depende_de", None)
+                candidata["dependencias_ya_en_main"] = list(deps) if isinstance(deps, list) else [deps]
             salida.append(candidata)
     # Estable: a igual numero de archivos manda el orden de las colas (la prioridad
     # que ya calcularon los directores). Solo se reordena por tamano.
@@ -152,15 +219,33 @@ def reclamar_varadas(progreso, runs_en_marcha):
     )
 
 
-def devolver_a_pendiente(progreso, ids, fecha):
-    """Copia del progreso con esos ids de vuelta a `pendiente`, sin perder su historia."""
+def devolver_a_pendiente(progreso, ids, fecha, envios=None, veredictos=None,
+                         max_envios=MAX_ENVIOS_NUBE):
+    """Copia del progreso con esos ids de vuelta a `pendiente`, sin perder su historia.
+
+    (2026-09-24) Con lo que dijo la nube (`veredictos`: {id: (estado, nota)} del último run)
+    y, si ya se mandó `max_envios` veces sin integrarse, a `bloqueada` en vez de a
+    `pendiente`: devolverla otra vez era mandarla otra vez, y así 22 veces seguidas."""
     salida = dict(progreso or {})
     for tid in ids:
         v = dict(salida.get(tid) or {})
-        v.update(
-            estado="pendiente", medio=None,
-            nota="devuelta de la nube %s: no quedaba ningún run en marcha" % fecha,
-        )
+        n = int((envios or {}).get(tid, 0))
+        dicho = (veredictos or {}).get(tid)
+        motivo = ""
+        if dicho:
+            motivo = " · la nube dijo «%s»%s" % (dicho[0], (": %s" % dicho[1][:200]) if dicho[1] else "")
+        if n >= max_envios:
+            v.update(
+                estado="bloqueada", medio=None,
+                nota=("la nube la intentó %d veces sin integrarla%s. Repetirla igual no sirve: "
+                      "«Reintentar con un cambio» en Bloqueadas" % (n, motivo)),
+            )
+        else:
+            v.update(
+                estado="pendiente", medio=None,
+                nota="devuelta de la nube %s: no quedaba ningún run en marcha (envío %d de %d)%s"
+                % (fecha, n, max_envios, motivo),
+            )
         salida[tid] = v
     return salida
 

@@ -116,7 +116,12 @@ def main():
     # (2026-09-23) La nube no ve el progreso de la Mac: el cambio pedido desde el Puente
     # (prompt y dependencias quitadas) se hornea DENTRO de la cola que se le manda.
     colas = [(nombre, aplicar_a_todas(tareas, progreso)) for nombre, tareas in colas]
-    elegidas = elegir(colas, progreso, asuntos, ola_actual(colas), tope=args.tope)
+    # (2026-09-24) Lo que ya se mandó 3 veces sin integrarse no se vuelve a mandar.
+    from repartir_nube import envios_por_tarea, leer_colas_nube
+    import time as _time
+
+    envios = envios_por_tarea(leer_colas_nube(DESTINO_DIR, _time.time()))
+    elegidas = elegir(colas, progreso, asuntos, ola_actual(colas), tope=args.tope, envios=envios)
     ahora = datetime.datetime.now()
     fecha = ahora.strftime("%Y%m%d")
     mensaje = "Reparto a la nube %s: %d tareas (%s)" % (

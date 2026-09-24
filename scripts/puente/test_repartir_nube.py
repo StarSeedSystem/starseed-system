@@ -136,6 +136,40 @@ class RepartoScript(unittest.TestCase):
         self.assertIn("STARSEED_ROOT", str(ctx.exception))
 
 
+class LasMismasTresVecesYVeces(unittest.TestCase):
+    """(2026-09-24, medido) CU3br, p318Jb y p318Jc, 22 envíos seguidos a la nube."""
+
+    ASUNTOS = ["Ola 318 · Director de verdad · p318I: la pestaña Director monta ControlDirectores"]
+
+    def test_las_dependencias_ya_en_main_no_viajan_a_la_nube(self):
+        colas = [("cola-reintentos.json", [{"id": "p318Jb", "ola": "Ola 318", "depende": ["p318I"], "archivos": ["a.ts"]}])]
+        elegidas = elegir(colas, {}, self.ASUNTOS, "364")
+        self.assertEqual([t["id"] for t in elegidas], ["p318Jb"])
+        self.assertEqual(elegidas[0]["depende"], [])
+        self.assertEqual(elegidas[0]["dependencias_ya_en_main"], ["p318I"])
+
+    def test_tras_tres_envios_no_se_vuelve_a_mandar(self):
+        colas = [("cola-362.json", [{"id": "CU3br", "ola": "362", "archivos": ["a.ts"]}])]
+        self.assertEqual(elegir(colas, {}, [], "364", envios={"CU3br": 3}), [])
+        self.assertEqual(len(elegir(colas, {}, [], "364", envios={"CU3br": 2})), 1)
+
+    def test_contar_envios(self):
+        colas_nube = [("cola-nube-1.json", ["CU3br", "p318Jb"]), ("cola-nube-2.json", ["CU3br", "CU3br"])]
+        self.assertEqual(R.envios_por_tarea(colas_nube), {"CU3br": 2, "p318Jb": 1})
+
+    def test_devolver_bloquea_tras_el_tope_y_dice_lo_que_dijo_la_nube(self):
+        prog = {"CU3br": {"estado": "reasignada", "medio": "nube"}, "X": {"estado": "reasignada", "medio": "nube"}}
+        nuevo = R.devolver_a_pendiente(
+            prog, ["CU3br", "X"], "20260924", envios={"CU3br": 22, "X": 1},
+            veredictos={"CU3br": ("rechazada", "no toco ninguno de los archivos declarados")},
+        )
+        self.assertEqual(nuevo["CU3br"]["estado"], "bloqueada")
+        self.assertIn("22 veces", nuevo["CU3br"]["nota"])
+        self.assertIn("no toco ninguno", nuevo["CU3br"]["nota"])
+        self.assertEqual(nuevo["X"]["estado"], "pendiente")
+        self.assertIn("envío 1 de 3", nuevo["X"]["nota"])
+
+
 if __name__ == "__main__":
     unittest.main()
 
