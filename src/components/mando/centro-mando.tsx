@@ -27,7 +27,7 @@ import { PanelMedidor, PastillaMedidor, type TonoMedidor } from "@/components/ma
 import { PanelIdes, PastillaIdes } from "@/components/mando/medidor-ides";
 import { VerificarProcesos } from "@/components/mando/verificar-procesos";
 import type { AccionMedidor, ClaveMedidor, DetalleMedidor, FilaMedidor } from "@/lib/mando/medidores";
-import { ESPERA_A_OTRA, cargaDePublicacion } from "@/lib/mando/medidores";
+import { ESPERA_A_OTRA, cargaDePublicacion, falloDePublicacion } from "@/lib/mando/medidores";
 import { PanelProcesos } from "@/components/mando/panel-procesos";
 import { PanelGrafo } from "@/components/mando/panel-grafo";
 import { PanelOlas } from "@/components/mando/panel-olas";
@@ -642,6 +642,8 @@ export function CentroMando() {
     const [sinPublicar, setSinPublicar] = useState<{ total: number; os: number; astraura: number } | null>(null);
     /** (2026-09-23) Publicación en marcha: la pastilla «Sin publicar» gira y dice el paso. */
     const [publicando, setPublicando] = useState<{ texto: string; progreso?: number } | null>(null);
+    /** (2026-09-23) La última publicación falló: la pastilla lo dice en vez de callar. */
+    const [falloPublicacion, setFalloPublicacion] = useState<string | null>(null);
     const releerPublicandoRef = useRef<() => void>(() => undefined);
 
     // Acciones que esperan a Alex (AX1): se leen de /api/mando/acciones una vez por minuto.
@@ -1113,14 +1115,15 @@ export function CentroMando() {
                         diario?: {
                             estado: string;
                             empezado?: string;
+                            terminado?: string | null;
+                            resumen?: string;
                             pasos?: { titulo: string; estado: string; detalle?: string }[];
                         } | null;
                     };
-                    const c = cargaDePublicacion(
-                        d.diario ? { estado: d.diario.estado, empezado: d.diario.empezado, pasos: d.diario.pasos ?? [] } : null,
-                        Date.now(),
-                    );
+                    const diario = d.diario ? { ...d.diario, pasos: d.diario.pasos ?? [] } : null;
+                    const c = cargaDePublicacion(diario, Date.now());
                     ahora = c && !/parece muerto/.test(c.texto) ? c : null;
+                    if (vivo) setFalloPublicacion(falloDePublicacion(diario, Date.now()) ?? null);
                 }
             } catch {
                 ahora = null;
@@ -1584,10 +1587,16 @@ export function CentroMando() {
                                     : pulso.sinPush === null
                                       ? "—"
                                       : String(pulso.sinPush),
-                                tono: ((sinPublicar ? sinPublicar.total : pulso.sinPush ?? 0) > 0 ? "aviso" : "normal") as TonoMedidor,
+                                tono: (falloPublicacion && (sinPublicar?.total ?? 0) > 0
+                                    ? "peligro"
+                                    : (sinPublicar ? sinPublicar.total : pulso.sinPush ?? 0) > 0
+                                      ? "aviso"
+                                      : "normal") as TonoMedidor,
                                 detalle: publicando
                                     ? publicando.texto.replace(/^Publicando · /, "publicando · ")
-                                    : sinPublicar
+                                    : falloPublicacion && (sinPublicar?.total ?? 0) > 0
+                                      ? "la última publicación falló · ábrelo para ver por qué"
+                                      : sinPublicar
                                       ? `OS ${sinPublicar.os} · Astraura ${sinPublicar.astraura}`
                                       : "solo OS",
                                 cargando: Boolean(publicando),

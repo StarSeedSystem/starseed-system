@@ -643,6 +643,16 @@ export function PanelMedidor({
                 </div>
             ) : null}
 
+            {datos?.aviso ? (
+                <p
+                    role="alert"
+                    data-testid="aviso-medidor"
+                    className="mc-centrado mt-2 rounded-md border border-rose-300/30 bg-rose-400/10 px-2 py-1.5 text-[11px] leading-snug text-rose-100"
+                >
+                    {datos.aviso}
+                </p>
+            ) : null}
+
             {datos?.cargando ? (
                 // (2026-09-23) Alex: «en el medidor de sin publicar agrega un indicador de
                 // carga al igual que cuando esté cargando las comprobaciones». Mismo giro que

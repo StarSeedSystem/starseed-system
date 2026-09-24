@@ -129,6 +129,8 @@ export interface DetalleMedidor {
     /** (2026-09-23) Algo se está haciendo AHORA detrás de este medidor (p. ej. una publicación):
      *  el panel pinta un indicador de carga con este texto y se relee solo hasta que acabe. */
     cargando?: { texto: string; progreso?: number };
+    /** (2026-09-23) Algo que salió mal y hay que ver al abrir el panel (en rojo). */
+    aviso?: string;
 }
 
 /** Estados que ya terminaron: nada de lo que hay aquí se descarta ni se reintenta. */
@@ -265,6 +267,32 @@ export function cargaDePublicacion(
         }`,
         progreso: pasos.length ? Math.round((hechos / pasos.length) * 100) : undefined,
     };
+}
+
+/**
+ * (2026-09-23) Alex: «no funciona el publicar desde el medidor». La publicación SÍ se lanzó,
+ * paró en vitest con una prueba en rojo… y el medidor no lo decía: el giro desaparecía, los
+ * commits seguían ahí y nada más. Esto dice POR QUÉ no salió la última, con la prueba o el
+ * paso que falló, mientras siga habiendo algo sin publicar (24 h como mucho). PURA.
+ */
+export function falloDePublicacion(
+    diario: DatosMedidores["publicacion"] | undefined,
+    ahoraMs: number,
+): string | undefined {
+    if (!diario || diario.estado !== "fallo") return undefined;
+    const fin = diario.terminado ? Date.parse(diario.terminado.replace(" ", "T")) : NaN;
+    if (Number.isFinite(fin) && ahoraMs - fin > 24 * 3_600_000) return undefined;
+    const paso = (diario.pasos ?? []).find((p) => p.estado === "falla");
+    const limpio = (paso?.detalle ?? "").replace(/\u001b\[[0-9;]*m/g, "");
+    const lineas = limpio.split("\n").map((l) => l.trim()).filter(Boolean);
+    const clave =
+        lineas.find((l) => /^FAIL\s/.test(l)) ??
+        lineas.find((l) => /error TS\d+|Type error:|AssertionError|Error:/.test(l)) ??
+        lineas.find((l) => /PARADA|no se publicó|quedan .* GB/.test(l));
+    const hora = diario.terminado ? diario.terminado.slice(11, 16) : "";
+    return `La última publicación${hora ? ` (${hora})` : ""} no salió: ${diario.resumen || "una puerta en rojo"}${
+        paso ? ` · paso «${paso.titulo}»` : ""
+    }${clave ? `: ${clave.slice(0, 220)}` : ""}.`;
 }
 
 /**
@@ -964,6 +992,8 @@ export interface DatosMedidores {
     publicacion?: {
         estado: string;
         empezado?: string;
+        terminado?: string | null;
+        resumen?: string;
         pasos: { titulo: string; estado: string; detalle?: string }[];
     } | null;
     /** `esperaA`: las dependencias que le faltan. Si viene, la tarea NO se puede coger. */
@@ -1409,6 +1439,7 @@ export function detalleDeMedidor(
             }));
             const carga = cargaDePublicacion(d.publicacion, Date.now());
             const publicando = Boolean(carga && !/parece muerto/.test(carga.texto));
+            const fallo = filas.length && !publicando ? falloDePublicacion(d.publicacion, Date.now()) : undefined;
             return {
                 clave,
                 titulo: "Sin publicar",
@@ -1419,10 +1450,17 @@ export function detalleDeMedidor(
                       : `${filas.length} commits esperando`,
                 filas,
                 cargando: carga,
+                aviso: fallo,
                 // Mientras publica no se ofrece otra vez: dos publicadores se pisarían el índice.
                 acciones:
                     filas.length && !publicando
-                        ? [{ clase: "publicar", texto: "Publicar en origin/main", destructiva: false }]
+                        ? [
+                              {
+                                  clase: "publicar",
+                                  texto: fallo ? "Reintentar la publicación" : "Publicar en origin/main",
+                                  destructiva: false,
+                              },
+                          ]
                         : [],
                 vacio: "No hay nada sin publicar: la rama está igual que el remoto.",
             };
