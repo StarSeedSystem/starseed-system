@@ -69,6 +69,18 @@ class PruebaCuandoHaceFaltaConstruir(unittest.TestCase):
         self.assertLess(claves.index("push"), claves.index("verificacion"))
 
 
+class ElPuertoDelMandoNoLlegaALasPuertas(unittest.TestCase):
+    """(2026-09-23) Publicar desde el botón del Mando corría vitest con PORT=9002 (el del
+    `next start`) y una prueba de Laya salía en rojo solo al publicar desde ahí."""
+
+    def test_se_quitan_las_variables_del_servidor_que_lanza(self):
+        env = P.entorno_de_puertas({"PATH": "/usr/bin", "PORT": "9002", "HOSTNAME": "localhost",
+                                    "NEXT_RUNTIME": "nodejs", "LAYA_CACHE": "/x"})
+        for clave in ("PORT", "HOSTNAME", "NEXT_RUNTIME"):
+            self.assertNotIn(clave, env)
+        self.assertEqual(env["LAYA_CACHE"], "/x")
+
+
 if __name__ == "__main__":
     unittest.main()
 

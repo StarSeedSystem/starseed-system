@@ -105,6 +105,16 @@ VARIABLES_QUE_ENSUCIAN = (
     # forzarlo a «development» tampoco vale, porque hay código que mira este
     # valor. Se quita y cada herramienta pone el suyo (vitest pone «test»).
     "NODE_ENV",
+    # (2026-09-23) Alex: «no funciona el publicar desde el medidor». Desde la terminal
+    # pasaba y desde el Mando no, y la diferencia era esta: el botón lanza el publicador
+    # desde el `next start -p 9002`, que deja PORT=9002 en el entorno. Con eso vitest
+    # corría con PORT=9002 y `native/laya/servidor-laya.mjs` (que leía `PORT`) daba 9002
+    # en vez de 4470: una prueba en rojo que solo existía al publicar desde el botón.
+    # Las variables propias del servidor que lanza no son del código que se prueba.
+    "PORT",
+    "HOSTNAME",
+    "__NEXT_PRIVATE_ORIGIN",
+    "NEXT_RUNTIME",
 )
 
 

@@ -4,7 +4,10 @@ import path from "node:path";
 import os from "node:os";
 import { execSync } from "node:child_process";
 
-export const PUERTO = Number(process.env.PORT || 4470);
+// (2026-09-23) Variable PROPIA, no `PORT`: `PORT` es la del servidor que lanza el proceso
+// (el Mando corre con PORT=9002), y con ella Laya intentaba escuchar en el puerto del
+// Mando y su prueba fallaba al publicar desde el botón.
+export const PUERTO = Number(process.env.STARSEED_LAYA_PUERTO || 4470);
 export const HOST = "127.0.0.1";
 export const MIN_RAM_MB = 2500;
 export const INACTIVIDAD_MS = 10 * 60 * 1000;
