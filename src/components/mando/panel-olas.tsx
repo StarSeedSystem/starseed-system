@@ -28,20 +28,19 @@ import {
 
 import type { EstadoMando, InformeOla, OlaResumen, RevisionRef } from "@/lib/mando/tipos";
 import { InformeOla as VistaInforme } from "@/components/mando/informe-ola";
+import {
+    detalleDeOla,
+    estadoDeOla,
+    hechasDeOla,
+    recuentoDeOlas,
+    type EstadoOla,
+} from "@/lib/mando/estado-ola";
 
-/** Estado derivado de una ola según sus contadores. */
-type EstadoOla = "completa" | "en-curso" | "bloqueada" | "sin-datos";
-
-function estadoDeOla(ola: OlaResumen): EstadoOla {
-    if (ola.total === 0) return "sin-datos";
-    if (ola.bloqueantes > 0) return "bloqueada";
-    if (ola.restantes > 0) return "en-curso";
-    return "completa";
-}
-
+// (2026-09-24) «En curso» solo con agentes latiendo: ver `@/lib/mando/estado-ola`.
 const TEXTO_ESTADO: Record<EstadoOla, string> = {
     completa: "Completa",
     "en-curso": "En curso",
+    "en-espera": "En espera",
     bloqueada: "Bloqueada",
     "sin-datos": "Sin datos",
 };
@@ -49,9 +48,13 @@ const TEXTO_ESTADO: Record<EstadoOla, string> = {
 const CLASE_ESTADO: Record<EstadoOla, string> = {
     completa: "border-emerald-400/30 bg-emerald-500/10 text-emerald-200",
     "en-curso": "border-sky-400/30 bg-sky-500/10 text-sky-200",
+    "en-espera": "border-amber-400/30 bg-amber-500/10 text-amber-200",
     bloqueada: "border-red-400/30 bg-red-500/10 text-red-200",
     "sin-datos": "border-white/10 bg-white/5 text-white/50",
 };
+
+/** Orden de la cabecera: primero lo que se mueve, luego lo que pide algo. */
+const ORDEN_ESTADOS: EstadoOla[] = ["en-curso", "bloqueada", "en-espera", "completa"];
 
 /** ¿Menciona este texto a la ola? (el id de ola aparece en nombres y títulos). */
 function mencionaOla(texto: string, olaId: string): boolean {
@@ -89,8 +92,9 @@ function TarjetaOla({
     alElegir: () => void;
 }) {
     const estado = estadoDeOla(ola);
-    const hechas = ola.total - ola.restantes;
+    const hechas = hechasDeOla(ola);
     const porcentaje = ola.total > 0 ? Math.round((hechas / ola.total) * 100) : 0;
+    const queda = detalleDeOla(ola);
 
     return (
         <button
@@ -118,6 +122,7 @@ function TarjetaOla({
                 </span>
                 {fecha && <span>{fecha}</span>}
             </div>
+            {queda && <p className="mt-0.5 truncate text-[10px] text-white/45">{queda}</p>}
             <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-white/10">
                 <div
                     className={`h-full rounded-full ${
@@ -385,10 +390,14 @@ export function PanelOlas() {
     const olas = useMemo(() => estado?.olas ?? [], [estado]);
     const informeReciente = estado?.informes[0] ?? null;
 
+    const recuento = useMemo(() => recuentoDeOlas(olas), [olas]);
+
     const olaActiva = useMemo(() => {
         if (olas.length === 0) return null;
         const elegida = olas.find((o) => o.id === olaElegida);
-        return elegida ?? olas[olas.length - 1];
+        // Sin elección, la que se está escribiendo ahora; si no hay, la más reciente.
+        const viva = [...olas].reverse().find((o) => estadoDeOla(o) === "en-curso");
+        return elegida ?? viva ?? olas[olas.length - 1];
     }, [olas, olaElegida]);
 
     if (error) {
@@ -421,6 +430,20 @@ export function PanelOlas() {
                     Actualizar
                 </button>
             </header>
+
+            {olas.length > 0 && (
+                <p className="flex flex-wrap items-center gap-1.5 text-[11px] text-white/60" aria-live="polite">
+                    {recuento["en-curso"] === 0 && (
+                        <span className="mr-1 text-white/70">Ahora mismo ninguna ola tiene agentes escribiendo.</span>
+                    )}
+                    {ORDEN_ESTADOS.filter((e) => recuento[e] > 0).map((e) => (
+                        <span key={e} className={`rounded-full border px-2 py-0.5 ${CLASE_ESTADO[e]}`}>
+                            {recuento[e]} {TEXTO_ESTADO[e].toLowerCase()}
+                            {recuento[e] !== 1 && (e === "bloqueada" || e === "completa") ? "s" : ""}
+                        </span>
+                    ))}
+                </p>
+            )}
 
             {informeReciente && (
                 <div className="rounded-xl border border-amber-400/30 bg-amber-500/5 p-1">

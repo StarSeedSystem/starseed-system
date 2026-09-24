@@ -159,8 +159,13 @@ export interface OlaResumen {
     procesadas: number;
     sinCambios: number;
     bloqueantes: number;
+    /** Sin cerrar y sin bloquear: `enCurso + pendientes`. */
     restantes: number;
     total: number;
+    /** (2026-09-24) Tareas con un agente latiendo AHORA. Solo esto es «en curso». */
+    enCurso?: number;
+    /** (2026-09-24) Sin cerrar, sin bloquear y sin nadie trabajándolas: «en espera». */
+    pendientes?: number;
 }
 
 /** Consumo de un proveedor (para el balance de créditos). */

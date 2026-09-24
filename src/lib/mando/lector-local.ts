@@ -668,7 +668,25 @@ export async function leerAsuntosDeMain(): Promise<string> {
     }
 }
 
-export function resumirOlas(tareas: TareaOla[], progreso: Record<string, unknown> = {}, commitsGit: Map<string, { sha: string; titulo: string }> = new Map(), asuntosDeMain = ""): OlaResumen[] {
+/** Estados de `progreso.json` que cierran una tarea sin commit propio. */
+const CERRADAS_SIN_CAMBIOS = ["sin_cambios", "sustituida", "descartada"];
+/** Estados que piden a una persona o un reintento con un cambio: no avanzan solos. */
+const ATASCADAS = ["conflicto", "bloqueante", "bloqueada", "rechazada"];
+
+export function resumirOlas(
+    tareas: TareaOla[],
+    progreso: Record<string, unknown> = {},
+    commitsGit: Map<string, { sha: string; titulo: string }> = new Map(),
+    asuntosDeMain = "",
+    latidos: Pick<LatidoTarea, "tarea" | "donde">[] = [],
+): OlaResumen[] {
+    // (2026-09-24) Alex: «en Olas e informes aún aparecen muchas como en curso cuando ya no
+    // hay en curso». Eran 89 olas con CERO agentes: `restantes` metía en el mismo saco lo
+    // rechazado, lo que pide una persona («bloqueante»), lo descartado y lo pendiente, y el
+    // panel pintaba «En curso» con que quedara una. Ahora «en curso» es solo lo que tiene un
+    // agente latiendo; lo atascado cuenta como bloqueo y lo demás como «en espera».
+    const vivas = new Set(latidos.map((l) => l.tarea));
+    const nubeViva = latidos.some((l) => Boolean(l.donde) && l.donde !== "mac");
     const porOla = new Map<string, TareaOla[]>();
     for (const tarea of tareas) {
         const clave = tarea.ola || tarea.id;
@@ -698,13 +716,20 @@ export function resumirOlas(tareas: TareaOla[], progreso: Record<string, unknown
         let procesadas = 0;
         let sinCambios = 0;
         let bloqueantes = 0;
-        let restantes = 0;
+        let enCurso = 0;
+        let pendientes = 0;
         for (const tarea of lista) {
             const estado = estadoDe(tarea.id, tarea.ola);
             if (estado === "commit") procesadas += 1;
-            else if (estado === "sin_cambios" || estado === "sustituida") sinCambios += 1;
-            else if (estado.startsWith("fallo") || estado === "conflicto") bloqueantes += 1;
-            else restantes += 1;
+            else if (CERRADAS_SIN_CAMBIOS.includes(estado)) sinCambios += 1;
+            // Un agente latiendo manda sobre el estado guardado (un reintento de algo rechazado
+            // está en curso aunque progreso aún diga «rechazada»). «reasignada» es de la nube:
+            // en curso solo si la nube tiene agentes latiendo.
+            else if (vivas.has(tarea.id) || (estado === "reasignada" && nubeViva)) enCurso += 1;
+            else if (estado.startsWith("fallo") || ATASCADAS.includes(estado)) bloqueantes += 1;
+            // pendiente, sin estado, reasignada sin nube viva, o un «en_curso» sin latido
+            // (orquestador muerto): nadie la está haciendo.
+            else pendientes += 1;
         }
         resúmenes.push({
             id: ola,
@@ -713,8 +738,10 @@ export function resumirOlas(tareas: TareaOla[], progreso: Record<string, unknown
             procesadas,
             sinCambios,
             bloqueantes,
-            restantes,
+            restantes: enCurso + pendientes,
             total: lista.length,
+            enCurso,
+            pendientes,
         });
     }
     return resúmenes.sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }))

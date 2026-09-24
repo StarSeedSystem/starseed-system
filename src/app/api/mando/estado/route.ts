@@ -155,7 +155,7 @@ export async function GET(request: Request): Promise<Response> {
         generadoEn: new Date().toISOString(),
         mandoActivo: true,
         relevo,
-        olas: resumirOlas(tareas, progreso, commitsGit, asuntosDeMain),
+        olas: resumirOlas(tareas, progreso, commitsGit, asuntosDeMain, latidos),
         tareas,
         latidos,
         enjambreEnMarcha: enMarcha,
