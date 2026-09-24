@@ -78,5 +78,27 @@ class CommitSueltoConCola(unittest.TestCase):
             commit_suelto_con_cola(self.raiz, "enjambre/colas/no-existe.json", "x")
 
 
+class QueTraer(unittest.TestCase):
+    """`nube-gh.py traer` copia solo trabajo nuevo: ni repartos, ni lo que main ya tiene."""
+
+    def test_solo_lo_nuevo_y_que_no_es_reparto(self):
+        from cola_en_rama import PREFIJO_REPARTO, que_traer
+
+        lineas = ["- aaa", "+ bbb", "+ ccc", "+ ddd", "+ eee"]
+        asuntos = {
+            "bbb": PREFIJO_REPARTO + "cola-nube-20260924-1407.json",
+            "ccc": "salvavidas · T1: trabajo del agente",
+            "ddd": "Merge branch x",
+            "eee": "Ola 318 · … · T1: integrada",
+        }
+        self.assertEqual(que_traer(lineas, asuntos, merges={"ddd"}), ["ccc", "eee"])
+
+    def test_rama_de_solo_repartos_no_trae_nada(self):
+        from cola_en_rama import PREFIJO_REPARTO, que_traer
+
+        asuntos = {"x1": PREFIJO_REPARTO + "a.json", "x2": PREFIJO_REPARTO + "b.json"}
+        self.assertEqual(que_traer(["+ x1", "+ x2", "- y"], asuntos), [])
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -265,15 +265,32 @@ def traer() -> None:
     ramas = [l.split()[-1].replace("refs/heads/", "") for l in _sh(["git", "ls-remote", "--heads", "origin", "nube/*"], check=False).splitlines() if l.strip()]
     if not ramas:
         print("nada que traer"); return
+    # (2026-09-24) Ya no se hace `git merge` de la rama entera: se copian SOLO los commits
+    # que main no tiene (por contenido, `git cherry`) y que no son papeleo del reparto.
+    # Una rama sin nada nuevo se borra del remoto sin tocar main.
+    if DIRECTORIO_PUENTE not in sys.path:
+        sys.path.insert(0, DIRECTORIO_PUENTE)
+    from cola_en_rama import que_traer
+
     for r in ramas:
-        ff = subprocess.run(["git", "merge", "--ff-only", "origin/" + r], cwd=RAIZ, capture_output=True, text=True)
-        if ff.returncode != 0:
-            m = subprocess.run(["git", "merge", "--no-edit", "origin/" + r], cwd=RAIZ, capture_output=True, text=True)
-            if m.returncode != 0:
-                print("conflicto en", r, "→ se conserva en el remoto:", m.stdout[-200:]); continue
-            print("integrada por merge:", r)
+        ref = "origin/" + r
+        lineas = _sh(["git", "cherry", "main", ref], check=False).splitlines()
+        shas = [l[2:].strip() for l in lineas if l.startswith("+ ")]
+        asuntos = {s: _sh(["git", "log", "-1", "--format=%s", s], check=False) for s in shas}
+        merges = {s for s in shas
+                  if len(_sh(["git", "rev-list", "--parents", "-n1", s], check=False).split()) > 2}
+        nuevos = que_traer(lineas, asuntos, merges)
+        if not nuevos:
+            print("nada nuevo en", r, "(solo repartos o cambios ya en main) → se borra del remoto")
         else:
-            print("integrada por ff:", r)
+            # --allow-empty: los commits de integración («Ola N · …») no traen cambios pero
+            # sí el id de la tarea en el asunto, que es como main sabe que está integrada.
+            cp = subprocess.run(["git", "-c", "core.hooksPath=/dev/null", "cherry-pick", "--allow-empty", *nuevos],
+                                cwd=RAIZ, capture_output=True, text=True)
+            if cp.returncode != 0:
+                subprocess.run(["git", "cherry-pick", "--abort"], cwd=RAIZ, capture_output=True, text=True)
+                print("conflicto en", r, "→ se conserva en el remoto:", (cp.stdout + cp.stderr)[-200:]); continue
+            print("integrada:", r, "·", len(nuevos), "commit(s)")
         subprocess.run(["git", "push", "-q", "origin", "--delete", r], cwd=RAIZ, capture_output=True, text=True)
     print("ahora: python3 scripts/puente/publicar.py (cuatro puertas y push desde la Mac)")
 

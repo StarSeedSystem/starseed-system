@@ -21,6 +21,30 @@ import subprocess
 import tempfile
 
 
+#: Asunto de los commits de reparto. No aportan código: nunca se traen a main.
+PREFIJO_REPARTO = "enjambre: reparto a la nube (GitHub Actions) · "
+
+
+def que_traer(lineas_cherry, asuntos, merges=()):
+    """De la salida de `git cherry main <rama>`, los shas que SÍ aportan algo, en orden.
+
+    Fuera: los «-» (ese cambio ya está en main, aunque sea con otro sha), los commits de
+    reparto (papeleo, no trabajo) y los merges. Antes `traer` hacía `git merge` de la rama
+    entera: una rama nube/<run> nacida de un main sin publicar arrastraba a main otra vez
+    los repartos y copias duplicadas de commits ya integrados. PURA.
+    """
+    salida = []
+    for linea in lineas_cherry:
+        linea = linea.strip()
+        if not linea.startswith("+ "):
+            continue
+        sha = linea[2:].strip()
+        if sha in merges or (asuntos.get(sha) or "").startswith(PREFIJO_REPARTO):
+            continue
+        salida.append(sha)
+    return salida
+
+
 def commit_suelto_con_cola(raiz: str, cola: str, mensaje: str) -> str:
     """sha de un commit = árbol de HEAD + `cola` (ruta relativa a `raiz`), padre HEAD.
 

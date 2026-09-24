@@ -160,7 +160,11 @@ jobs:
             tail -25 "$LOG" || true
             exit 1
           fi
-          n=$(git log --oneline origin/main..HEAD | wc -l)
+          # (2026-09-24) Se cuenta desde el commit que lanzó el run (la cola), NO desde
+          # origin/main: ese rango incluía todo lo que la Mac aún no había publicado, así
+          # que cada run «entregaba» aunque sus agentes no hubieran hecho nada. Resultado:
+          # ~170 ramas nube/<run> sin un solo commit propio.
+          n=$(git log --oneline "${{ github.sha }}..HEAD" | wc -l)
           echo "commits por entregar: $n"
           if [ "$n" = "0" ]; then
             echo "::warning::el enjambre no dejó ningún commit; mira enjambre-nube-gh.log en los artefactos"
@@ -169,7 +173,8 @@ jobs:
       - name: Entregar (rama nube/<run>, nunca main)
         if: always()
         run: |
-          n=$(git log --oneline origin/main..HEAD | wc -l)
+          # Solo lo que hicieron los agentes de este run (ver el paso anterior).
+          n=$(git log --oneline "${{ github.sha }}..HEAD" | wc -l)
           if [ "$n" -gt 0 ]; then
             git push origin "HEAD:refs/heads/nube/${{ github.run_id }}"
             echo "rama nube/${{ github.run_id }} con $n commit(s)"
@@ -182,7 +187,7 @@ jobs:
           # conserva y se repara, aqui moria con la maquina. Se empujan tambien, con su
           # nombre bajo el run, para que la Mac pueda recogerlas y arreglarlas.
           for rama in $(git for-each-ref --format='%(refname:short)' 'refs/heads/ola/*'); do
-            c=$(git log --oneline "origin/main..$rama" | wc -l)
+            c=$(git log --oneline "${{ github.sha }}..$rama" | wc -l)
             [ "$c" -gt 0 ] || continue
             git push -q origin "$rama:refs/heads/nube/${{ github.run_id }}/$rama" || continue
             echo "rama conservada: nube/${{ github.run_id }}/$rama ($c commit(s))"
