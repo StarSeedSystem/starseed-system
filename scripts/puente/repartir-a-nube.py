@@ -3,14 +3,16 @@
 """Reparto del atraso a la nube: la Mac elige, versiona la cola y la marca.
 
 La nube arranca sin estado (`starseed_memory_root/` no viaja), así que el
-atraso se materializa como `enjambre/colas/cola-nube-<AAAAMMDD>.json`, que SÍ
-se versiona, y la Mac marca cada id `reasignada · nube` para no duplicarlo.
+atraso se materializa como `enjambre/colas/cola-nube-<AAAAMMDD>.json`, que viaja
+a la nube en un commit suelto a su rama `colas/nube-*` (nunca en main, ver
+`cola_en_rama.py`), y la Mac marca cada id `reasignada · nube` para no duplicarlo.
 
 Uso:
   repartir-a-nube.py [--tope N] [--simular] [--publicar]
 
   --simular   solo imprime lo que haría (no escribe ni toca git)
-  --publicar  además `git add` + `commit` + `push origin main`
+  --publicar  (retirado 2026-09-24) ya no commitea ni empuja main: dice cómo
+              lanzarla con `nube-gh.py lanzar --cola`
 """
 
 import argparse, datetime, json, os, re, subprocess, sys
@@ -149,10 +151,11 @@ def main():
     puente.decir(mensaje, quien="reparto-nube", tipo="hecho")
 
     if args.publicar:
-        asunto = "Enjambre · reparto a la nube %s: %d tareas" % (fecha, len(elegidas))
-        subprocess.run(["git", "add", "enjambre/colas"], cwd=RAIZ, check=True)
-        subprocess.run(["git", "commit", "-m", asunto], cwd=RAIZ, check=True)
-        subprocess.run(["git", "push", "origin", "main"], cwd=RAIZ, check=True)
+        # (2026-09-24) Ya no: commitear la cola en main y empujar main es lo que llenó
+        # «Sin publicar» con 36 repartos repetidos (y empujaba código sin puertas). La
+        # cola viaja en un commit suelto: `nube-gh.py lanzar --cola <ruta>`.
+        print("[reparto] --publicar ya no commitea en main: usa "
+              "`python3 scripts/puente/nube-gh.py lanzar --cola enjambre/colas/%s`" % nombre)
     print("[reparto] " + mensaje)
 
 
