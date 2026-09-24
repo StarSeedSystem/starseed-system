@@ -4,7 +4,7 @@ import { execFile } from "node:child_process";
 import { readFile, readdir } from "node:fs/promises";
 import { promisify } from "node:util";
 import path from "node:path";
-import type { LatidoEntrada, TareaLatido, ProgresoEntrada, SaludProveedor, MensajeCanal } from "@/lib/mando/director-datos";
+import { aEpoch, type LatidoEntrada, type TareaLatido, type ProgresoEntrada, type SaludProveedor, type MensajeCanal } from "@/lib/mando/director-datos";
 export { leerAprobaciones } from "@/lib/mando/aprobaciones-fuentes";
 const execFileAsync = promisify(execFile);
 async function intentar<T>(f: () => Promise<T>, porDefecto: T): Promise<T> { try { return await f(); } catch { return porDefecto; } }
@@ -13,9 +13,10 @@ function texto(v: unknown): string | undefined { return typeof v === "string" &&
 function num(v: unknown): number | undefined { return typeof v === "number" && Number.isFinite(v) ? v : undefined; }
 function arr(v: unknown): string[] | undefined { return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : undefined; }
 function fechaSeg(v: unknown): number | undefined {
-    if (typeof v === "number" && Number.isFinite(v)) return v;
-    if (typeof v !== "string" || !v.trim()) return undefined;
-    const ms = Date.parse(/[TZ]/.test(v) ? v : `${v.replace(" ", "T")}Z`); return Number.isFinite(ms) ? Math.floor(ms / 1000) : undefined;
+    return typeof v === "number" || typeof v === "string" ? aEpoch(v) : undefined;
+}
+function fechaCruda(v: unknown): number | string | undefined {
+    return num(v) ?? texto(v);
 }
 export const leerJsonOpcional = (ruta: string): Promise<unknown> => // JSON opcional; null si falta o está corrupto
     intentar(async () => JSON.parse(await readFile(ruta, "utf-8")) as unknown, null);
@@ -81,7 +82,7 @@ export async function leerProgreso(raiz: string): Promise<Record<string, Progres
     const crudo = objeto(await leerJsonOpcional(path.join(raiz, "starseed_memory_root", "olas", "progreso.json"))), progreso: Record<string, ProgresoEntrada> = {};
     for (const [id, v] of Object.entries(crudo)) {
         const d = objeto(v);
-        progreso[id] = { estado: texto(d.estado), nota: texto(d.nota), depende_de: arr(d.depende_de) };
+        progreso[id] = { estado: texto(d.estado), nota: texto(d.nota), t: fechaCruda(d.t), depende_de: arr(d.depende_de) };
     }
     return progreso;
 }
@@ -106,8 +107,9 @@ export async function leerSalud(home: string): Promise<Record<string, SaludProve
     for (const [prov, v] of Object.entries(crudo)) {
         if (prov === "ultimo_revisor_ok") continue;
         const d = objeto(v);
-        if (!Object.keys(d).length) continue;
-        salud[prov] = { estado: texto(d.estado), sin_cupo_hasta: fechaSeg(d.sin_cupo_hasta), motivo: texto(d.motivo) };
+        const estado = texto(d.estado);
+        if (!estado) continue;
+        salud[prov] = { estado, sin_cupo_hasta: fechaCruda(d.sin_cupo_hasta), motivo: texto(d.motivo) };
     }
     return salud;
 }
@@ -167,4 +169,3 @@ export async function leerAsuntosDeHoy(raiz: string): Promise<string[]> {
     const stdout = await intentar(async () => (await execFileAsync("git", cmd, opts)).stdout, "");
     return stdout.split("\n").filter((l) => l.trim());
 }
-

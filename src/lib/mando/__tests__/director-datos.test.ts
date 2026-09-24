@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  aEpoch,
   clasificarAgente,
+  dependeDeNota,
+  esHoyLocal,
   idEnAsuntos,
   listaAgentes,
   proveedorDeModelo,
@@ -86,11 +89,23 @@ describe("idEnAsuntos", () => {
   });
 });
 
+describe("fechas y dependencias reales", () => {
+  it("interpreta YYYY-MM-DD HH:MM:SS como hora local", () => {
+    const esperado = new Date("2026-09-24T04:57:36").getTime() / 1000;
+    expect(aEpoch("2026-09-24 04:57:36")).toBe(esperado);
+    expect(esHoyLocal("2026-09-24 04:57:36", esperado + 3600)).toBe(true);
+  });
+
+  it("extrae la dependencia nombrada en la nota", () => {
+    expect(dependeDeNota("dependencia no integrada: p318C2 (pendiente)")).toEqual(["p318C2"]);
+  });
+});
+
 describe("resumenPendientes", () => {
   const colas = [
     {
       nombre: "cola-318.json",
-      tareas: [{ id: "p1" }, { id: "p2" }, { id: "p3" }, { id: "p4" }, { id: "p5" }, { id: "p6" }],
+      tareas: [{ id: "p1" }, { id: "p2", depende: ["p1"] }, { id: "p3" }, { id: "p4" }, { id: "p5" }, { id: "p6" }],
     },
     {
       nombre: "cola-auto-318.json",
@@ -99,14 +114,15 @@ describe("resumenPendientes", () => {
     { nombre: "otro.json", tareas: [{ id: "x" }] },
   ];
   const progreso = {
-    p2: { estado: "bloqueada", depende_de: ["p1"] },
+    p2: { estado: "bloqueada" },
     p3: { estado: "sin_cambios" },
     p4: { estado: "fallo_tsc" },
     p5: { estado: "esperando_aprobacion" },
+    p6: { estado: "commit", t: AHORA },
   };
 
   it("clasifica pendientes, bloqueadas, fallos y descarta cola-auto-* y duplicados", () => {
-    const r = resumenPendientes(colas, progreso, ["ola: p6 integrada"]);
+    const r = resumenPendientes(colas, progreso, ["ola: p6 integrada"], [], AHORA);
     expect(r.listas).toBe(1);
     expect(r.bloqueadas).toEqual([{ id: "p2", dependeDe: ["p1"] }]);
     expect(r.sinCambios).toBe(1);
@@ -115,13 +131,13 @@ describe("resumenPendientes", () => {
     expect(r.integradasHoy).toBe(1);
   });
 
-  it("bloqueada sin depende_de devuelve lista vacía", () => {
+  it("combina depende de la cola y la dependencia de la nota", () => {
     const r = resumenPendientes(
-      [{ nombre: "cola-1.json", tareas: [{ id: "b1" }] }],
-      { b1: { estado: "bloqueada" } },
+      [{ nombre: "cola-1.json", tareas: [{ id: "b1", depende: ["A"] }] }],
+      { b1: { estado: "bloqueada", nota: "dependencia no integrada: B (pendiente)" } },
       [],
     );
-    expect(r.bloqueadas).toEqual([{ id: "b1", dependeDe: [] }]);
+    expect(r.bloqueadas).toEqual([{ id: "b1", dependeDe: ["A", "B"] }]);
   });
 });
 
@@ -147,6 +163,18 @@ describe("resumenProveedores", () => {
     expect(r).toEqual([
       { proveedor: "gemini", vivo: false, modelos: 1, necesitaCheckin: false },
     ]);
+  });
+
+  it("respeta caído y cupo futuro en texto, e ignora la entrada claves", () => {
+    const ahora = new Date("2026-09-14T04:00:00").getTime() / 1000;
+    const r = resumenProveedores({
+      apinex: { estado: "caido", sin_cupo_hasta: "2026-09-14 04:57:36" },
+      vivo: { estado: "vivo", sin_cupo_hasta: "2026-09-14 04:57:36" },
+      claves: { motivo: "metadatos" },
+    }, [], ahora);
+    expect(r.map((p) => p.proveedor)).toEqual(["apinex", "vivo"]);
+    expect(r.every((p) => p.vivo === false)).toBe(true);
+    expect(r[0].sinCupoHasta).toBe(aEpoch("2026-09-14 04:57:36"));
   });
 });
 
@@ -202,7 +230,7 @@ describe("listaAgentes", () => {
 describe("resumenDirectores", () => {
   const launchctl = [
     "123\t0\tcom.starseed.mando",
-    "-\t1\tcom.starseed.vigilante",
+    "-\t-15\tcom.starseed.vigilante",
     "456\terr\tcom.starseed.telegram",
     "999\t0\tcom.otra.cosa",
     "línea rota",
@@ -220,7 +248,7 @@ describe("resumenDirectores", () => {
     expect(mando).toMatchObject({
       vivo: true, pid: 123, ultimaSalida: 0, ultimoMensaje: "último aviso", hace: 30,
     });
-    expect(vigilante).toMatchObject({ vivo: false, ultimaSalida: 1 });
+    expect(vigilante).toMatchObject({ vivo: false, ultimaSalida: -15 });
     expect(telegram).toMatchObject({ vivo: true, pid: 456 });
     expect(telegram?.ultimaSalida).toBeUndefined();
     expect(r).toHaveLength(7);
@@ -250,14 +278,16 @@ describe("resumenPendientes: lo integrado no es trabajo pendiente (2026-09-14)",
     const cola = (ids: string[]) => [{ nombre: "cola-320-x.json", tareas: ids.map((id) => ({ id })) }];
 
     it("una tarea en commit no cuenta como lista para trabajar", () => {
-        const r = resumenPendientes(cola(["A"]), { A: { estado: "commit" } }, [], []);
+        const r = resumenPendientes(cola(["A"]), { A: { estado: "commit" } }, [], [], AHORA);
         expect(r.listas).toBe(0);
     });
 
-    it("integrada ayer no suma en «hoy»; integrada hoy sí", () => {
-        const ayer = resumenPendientes(cola(["A"]), { A: { estado: "commit" } }, ["Ola · A: algo"], []);
+    it("solo cuenta commits cuyo t es de hoy; sin t no suma", () => {
+        const ayer = resumenPendientes(cola(["A"]), { A: { estado: "commit", t: AHORA - 86_400 } }, [], [], AHORA);
         expect(ayer.integradasHoy).toBe(0);
-        const hoy = resumenPendientes(cola(["A"]), { A: { estado: "commit" } }, ["Ola · A: algo"], ["Ola · A: algo"]);
+        const sinT = resumenPendientes(cola(["A"]), { A: { estado: "commit" } }, [], [], AHORA);
+        expect(sinT.integradasHoy).toBe(0);
+        const hoy = resumenPendientes(cola(["A"]), { A: { estado: "commit", t: AHORA } }, [], [], AHORA);
         expect(hoy.integradasHoy).toBe(1);
     });
 

@@ -17,7 +17,7 @@ export interface ResumenAgentes {
   porFase: Record<string, number>;
 }
 export interface ProgresoEntrada {
-  estado?: string; nota?: string; depende_de?: string[];
+  estado?: string; nota?: string; t?: number | string; depende_de?: string[];
 }
 export interface ResumenPendientes {
   listas: number; bloqueadas: Array<{ id: string; dependeDe: string[] }>;
@@ -25,7 +25,7 @@ export interface ResumenPendientes {
   integradasHoy: number; fallosDetalle: Array<{ id: string; estado: string; nota: string }>;
 }
 export interface SaludProveedor {
-  estado?: string; sin_cupo_hasta?: number; motivo?: string;
+  estado?: string; sin_cupo_hasta?: number | string; motivo?: string;
 }
 export interface ResumenProveedor {
   proveedor: string; vivo: boolean; modelos: number; necesitaCheckin: boolean;
@@ -110,11 +110,35 @@ export function idEnAsuntos(tid: string, asuntos: string[]): boolean {
 
 const ESTADOS_FALLO = new Set(["fallo", "fallo_tsc", "fallo_tests", "conflicto"]);
 
+export function aEpoch(valor: number | string | undefined): number | undefined {
+  if (typeof valor === "number" && Number.isFinite(valor)) {
+    return valor > 1e12 ? Math.floor(valor / 1000) : valor;
+  }
+  if (typeof valor !== "string" || !valor.trim()) return undefined;
+  const ms = new Date(valor.trim().replace(" ", "T")).getTime();
+  return Number.isFinite(ms) ? Math.floor(ms / 1000) : undefined;
+}
+
+export function esHoyLocal(valor: number | string | undefined, ahora: number): boolean {
+  const epoch = aEpoch(valor);
+  if (epoch === undefined) return false;
+  const fecha = new Date(epoch * 1000), referencia = new Date(ahora * 1000);
+  return fecha.getFullYear() === referencia.getFullYear()
+    && fecha.getMonth() === referencia.getMonth()
+    && fecha.getDate() === referencia.getDate();
+}
+
+export function dependeDeNota(nota: string | undefined): string[] {
+  if (!nota) return [];
+  return [...nota.matchAll(/dependencia no integrada:\s*([\w.-]+)/gi)].map((m) => m[1]);
+}
+
 export function resumenPendientes(
-  colasFuente: Array<{ nombre: string; tareas: Array<{ id?: string }> }>,
+  colasFuente: Array<{ nombre: string; tareas: Array<{ id?: string; depende?: string[] }> }>,
   progreso: Record<string, ProgresoEntrada>,
   asuntosMain: string[],
-  asuntosHoy: string[] = asuntosMain,
+  _asuntosHoy: string[] = asuntosMain,
+  ahora = Date.now() / 1000,
 ): ResumenPendientes {
   const r: ResumenPendientes = { listas: 0, bloqueadas: [], sinCambios: 0, fallos: 0, esperandoAprobacion: 0, integradasHoy: 0, fallosDetalle: [] };
   const vistas = new Set<string>();
@@ -131,11 +155,13 @@ export function resumenPendientes(
       // notaba porque la rama de arriba se tragaba todo lo que estuviera en
       // main; al acotar «hoy» a los commits de hoy, saltaron 198 falsas listas.
       if (est === "commit" || est === "hecho" || idEnAsuntos(id, asuntosMain)) {
-        // «hoy» significa hoy: solo suma si su commit es de hoy.
-        if (idEnAsuntos(id, asuntosHoy)) r.integradasHoy += 1;
+        if (est === "commit" && esHoyLocal(progreso[id]?.t, ahora)) r.integradasHoy += 1;
         continue;
       }
-      if (est === "bloqueada") r.bloqueadas.push({ id, dependeDe: progreso[id]?.depende_de ?? [] });
+      if (est === "bloqueada") {
+        const dependeDe = [...new Set([...(tarea.depende ?? []), ...dependeDeNota(progreso[id]?.nota)])];
+        r.bloqueadas.push({ id, dependeDe });
+      }
       else if (est === "sin_cambios") r.sinCambios += 1;
       else if (ESTADOS_FALLO.has(est)) {
         r.fallos += 1;
@@ -156,18 +182,21 @@ export function proveedorDeModelo(modelo: string): string {
 export function resumenProveedores(
   salud: Record<string, SaludProveedor>,
   modelos: string[],
+  ahora = Date.now() / 1000,
 ): ResumenProveedor[] {
   const conteo = new Map<string, number>();
   for (const m of modelos) {
     const p = proveedorDeModelo(m);
     conteo.set(p, (conteo.get(p) ?? 0) + 1);
   }
-  return [...new Set([...Object.keys(salud), ...conteo.keys()])].sort().map((p) => {
+  const proveedoresSalud = Object.keys(salud).filter((p) => salud[p]?.estado !== undefined);
+  return [...new Set([...proveedoresSalud, ...conteo.keys()])].sort().map((p) => {
     const s = salud[p] ?? {};
+    const sinCupoHasta = aEpoch(s.sin_cupo_hasta);
     return {
-      proveedor: p, vivo: s.estado === "vivo", modelos: conteo.get(p) ?? 0,
+      proveedor: p, vivo: s.estado === "vivo" && !(sinCupoHasta && sinCupoHasta > ahora), modelos: conteo.get(p) ?? 0,
       necesitaCheckin: Boolean(s.motivo?.includes("check-in")),
-      ...(s.sin_cupo_hasta !== undefined ? { sinCupoHasta: s.sin_cupo_hasta } : {}),
+      ...(sinCupoHasta !== undefined ? { sinCupoHasta } : {}),
       ...(s.motivo ? { motivo: s.motivo } : {}),
     };
   });

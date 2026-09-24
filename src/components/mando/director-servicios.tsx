@@ -22,10 +22,9 @@ function textoHace(segundos?: number): string {
     return segundos < 60 ? "hace instantes" : `hace ${Math.round(segundos / 60)} min`;
 }
 
-function textoSalida(epoch?: number): string {
-    if (!epoch || epoch <= 0) return "sin salida registrada";
-    const d = new Date(epoch * 1000);
-    return Number.isNaN(d.getTime()) ? "sin salida registrada" : d.toLocaleString("es-ES");
+function textoSalida(codigo?: number): string {
+    if (codigo === undefined) return "sin salida registrada";
+    return codigo < 0 ? `salida −${Math.abs(codigo)} (señal)` : `salida ${codigo}`;
 }
 
 async function reiniciarServicio(nombre: string): Promise<{ ok: boolean; detalle: string }> {
@@ -64,7 +63,7 @@ function TarjetaDirector({ resumen }: { resumen: ResumenDirector }) {
                     {resumen.vivo ? `pid ${resumen.pid}` : "caído"}
                 </span>
             </div>
-            <p className="text-[11px] text-muted-foreground/70">Última salida: {textoSalida(resumen.ultimaSalida)}</p>
+            <p className="text-[11px] text-muted-foreground/70">Última {textoSalida(resumen.ultimaSalida)}</p>
             <p className="truncate text-[11px] text-muted-foreground/70">
                 {resumen.ultimoMensaje ? `«${resumen.ultimoMensaje}» ${textoHace(resumen.hace)}` : "sin mensajes en el canal"}
             </p>
