@@ -42,6 +42,7 @@ const TEXTO_ESTADO: Record<EstadoOla, string> = {
     "en-curso": "En curso",
     "en-espera": "En espera",
     bloqueada: "Bloqueada",
+    terminada: "Terminada",
     "sin-datos": "Sin datos",
 };
 
@@ -50,11 +51,12 @@ const CLASE_ESTADO: Record<EstadoOla, string> = {
     "en-curso": "border-sky-400/30 bg-sky-500/10 text-sky-200",
     "en-espera": "border-amber-400/30 bg-amber-500/10 text-amber-200",
     bloqueada: "border-red-400/30 bg-red-500/10 text-red-200",
+    terminada: "border-white/15 bg-white/5 text-white/60",
     "sin-datos": "border-white/10 bg-white/5 text-white/50",
 };
 
 /** Orden de la cabecera: primero lo que se mueve, luego lo que pide algo. */
-const ORDEN_ESTADOS: EstadoOla[] = ["en-curso", "bloqueada", "en-espera", "completa"];
+const ORDEN_ESTADOS: EstadoOla[] = ["en-curso", "bloqueada", "en-espera", "completa", "terminada"];
 
 /** ¿Menciona este texto a la ola? (el id de ola aparece en nombres y títulos). */
 function mencionaOla(texto: string, olaId: string): boolean {
@@ -439,7 +441,7 @@ export function PanelOlas() {
                     {ORDEN_ESTADOS.filter((e) => recuento[e] > 0).map((e) => (
                         <span key={e} className={`rounded-full border px-2 py-0.5 ${CLASE_ESTADO[e]}`}>
                             {recuento[e]} {TEXTO_ESTADO[e].toLowerCase()}
-                            {recuento[e] !== 1 && (e === "bloqueada" || e === "completa") ? "s" : ""}
+                            {recuento[e] !== 1 && (e === "bloqueada" || e === "completa" || e === "terminada") ? "s" : ""}
                         </span>
                     ))}
                 </p>

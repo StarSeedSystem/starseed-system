@@ -82,6 +82,15 @@ describe("estadoDeOla y el texto de la tarjeta", () => {
         expect(estadoDeOla({ ...base, total: 0 })).toBe("sin-datos");
     });
 
+    it("una ejecución (auto-/nube-) sin agentes está «terminada», no bloqueada", () => {
+        const ejecucion = { ...base, id: "auto-0914-180046", bloqueantes: 2 };
+        expect(estadoDeOla(ejecucion)).toBe("terminada");
+        expect(estadoDeOla({ ...ejecucion, enCurso: 1 })).toBe("en-curso");
+        expect(estadoDeOla({ ...ejecucion, procesadas: 5, bloqueantes: 0 })).toBe("completa");
+        // Una ola de verdad con algo atascado sí es un bloqueo.
+        expect(estadoDeOla({ ...base, bloqueantes: 2 })).toBe("bloqueada");
+    });
+
     it("la cabecera cuenta las olas por estado", () => {
         const r = recuentoDeOlas([
             base,
