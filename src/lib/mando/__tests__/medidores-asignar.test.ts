@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { cargaDePublicacion, detalleDeMedidor, veredictoDeAgente } from "@/lib/mando/medidores";
+import {
+    cargaDePublicacion,
+    detalleDeMedidor,
+    falloDePublicacion as falloDePublicacionTest,
+    veredictoDeAgente,
+} from "@/lib/mando/medidores";
 
 // (2026-09-23) Alex: «botones para buscar y asignar tareas faltantes en Tareas en curso, Agentes y
 // Listas, en cada una y en general», y «en Sin publicar un indicador de carga como el de las
@@ -102,5 +107,41 @@ describe("indicador de carga de «Sin publicar»", () => {
         expect(d.cargando?.texto).toMatch(/Publicando/);
         expect(d.acciones).toEqual([]);
         expect(d.resumen).toMatch(/publicando/);
+    });
+});
+
+describe("aviso de publicación fallida en «Sin publicar»", () => {
+    const fallo = {
+        estado: "fallo",
+        empezado: "2026-09-23 20:04:41",
+        terminado: "2026-09-23 20:06:44",
+        resumen: "no se publicó: hay las pruebas del OS en rojo",
+        pasos: [
+            { titulo: "Tipos (tsc --noEmit)", estado: "ok" },
+            {
+                titulo: "Pruebas del OS (vitest)",
+                estado: "falla",
+                detalle:
+                    "⎯⎯ Failed Tests 1 ⎯⎯\n FAIL  src/lib/__tests__/laya-servidor.test.ts > Laya Servidor Local > exporta la configuración\nAssertionError: expected 9002 to be 4470",
+            },
+        ],
+    };
+
+    it("dice por qué no salió, con la prueba que falló", () => {
+        const t = falloDePublicacionTest(fallo, Date.parse("2026-09-23T20:10:00"));
+        expect(t).toMatch(/\(20:06\) no salió: no se publicó: hay las pruebas del OS en rojo · paso «Pruebas del OS \(vitest\)»: FAIL/);
+    });
+
+    it("una publicación de hace más de un día no se arrastra", () => {
+        expect(falloDePublicacionTest(fallo, Date.parse("2026-09-25T20:10:00"))).toBeUndefined();
+    });
+
+    it("el panel lo enseña y el botón pasa a «Reintentar la publicación»", () => {
+        const d = detalleDeMedidor("sin-publicar", {
+            commitsSinPublicar: [{ sha: "abcdef1234", asunto: "algo" }],
+            publicacion: { ...fallo, terminado: new Date(Date.now() - 60_000).toISOString().slice(0, 19).replace("T", " ") },
+        });
+        expect(d.aviso).toMatch(/no salió/);
+        expect(d.acciones[0]?.texto).toBe("Reintentar la publicación");
     });
 });
