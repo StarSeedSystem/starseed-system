@@ -118,3 +118,8 @@ MENSAJES-DEL-DIRECTOR.md
 # Builds de trabajo del reconstructor del Mando (nunca se publican)
 .next-build/
 .next-anterior/
+
+# (2026-09-24) Las colas del reparto a la nube viajan en un commit SUELTO a su rama
+# colas/nube-* (scripts/puente/cola_en_rama.py); en main no entran: eran 36 de 40
+# commits sin publicar. Se quedan en disco para contar los envíos.
+enjambre/colas/cola-nube-*.json

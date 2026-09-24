@@ -14,7 +14,8 @@ Uso (en la Mac, con `gh` autenticado como StarSeedSystem):
                                   pantalla, nunca valores) — lo corre Alex
   nube-gh.py lanzar [--tope N] [--trabajadores 3] [--minutos 300] [--cola ruta]
                                   reparte N tareas a una cola-nube nueva (o usa
-                                  --cola), la publica en main y dispara el workflow
+                                  --cola), la sube en un commit SUELTO a su rama
+                                  colas/nube-* (main no se toca) y dispara el workflow
   nube-gh.py estado               últimos runs y sus ramas nube/<run>
   nube-gh.py traer                trae todas las ramas nube/* a main (ff o merge)
                                   y las borra del remoto; luego publicar.py
@@ -28,6 +29,7 @@ import sys
 import time
 
 RAIZ = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+DIRECTORIO_PUENTE = os.path.dirname(os.path.abspath(__file__))
 WORKFLOW = "enjambre-nube.yml"
 #: (2026-09-21) NVIDIA_SHARED_KEY estuvo aqui desde el principio y NO EXISTE en ninguna
 #: parte: ni en ~/.starseed/env, ni en ~/.hermes/.env, ni en los secretos del repo. Pedir
@@ -112,9 +114,21 @@ def lanzar(args: list[str]) -> None:
         if not nuevas:
             sys.exit("el reparto no creó ninguna cola (¿no hay atraso?)")
         cola = "enjambre/colas/" + nuevas[-1]
-        _sh(["git", "add", cola, "starseed_memory_root/olas/progreso.json"], check=False)
-        _sh(["git", "add", cola])
-        _sh(["git", "commit", "-q", "-m", "enjambre: reparto a la nube (GitHub Actions) · %s" % os.path.basename(cola)], check=False)
+    # (2026-09-24) NI UN COMMIT EN MAIN POR REPARTO. Antes aquí se hacía `git add` +
+    # `git commit` de la cola en main: 36 de los 40 commits sin publicar eran el mismo
+    # reparto de 3 tareas repetido cada ~20 min. Ahora el commit es SUELTO (índice
+    # temporal, padre HEAD, ninguna rama se mueve) y solo viaja a `colas/nube-*`. La
+    # cola queda en disco, ignorada por .gitignore, para contar los envíos.
+    if DIRECTORIO_PUENTE not in sys.path:
+        sys.path.insert(0, DIRECTORIO_PUENTE)
+    from cola_en_rama import commit_suelto_con_cola
+
+    try:
+        ref = commit_suelto_con_cola(
+            RAIZ, cola, "enjambre: reparto a la nube (GitHub Actions) · %s" % os.path.basename(cola)
+        )
+    except RuntimeError as e:
+        sys.exit("no pude preparar el commit de la cola: %s" % e)
     # LA COLA VIAJA EN SU PROPIA RAMA, NO EN MAIN (2026-09-22).
     #
     # Historia de este trozo, porque explica los dos fallos que arregla:
@@ -135,7 +149,7 @@ def lanzar(args: list[str]) -> None:
     # aquí antes de publicarse.
     rama = "colas/nube-%s" % time.strftime("%Y%m%d-%H%M%S")
     print("empujando la cola y el código a su propia rama (main NO se toca): %s" % rama)
-    rc_push, salida_push = _sh_rc(["git", "push", "-q", "origin", "HEAD:refs/heads/%s" % rama])
+    rc_push, salida_push = _sh_rc(["git", "push", "-q", "origin", "%s:refs/heads/%s" % (ref, rama)])
     if rc_push != 0:
         sys.exit("no pude empujar la rama de la cola: %s" % (salida_push.strip()[-300:] or "?"))
     rc_run, salida_run = _sh_rc(["gh", "workflow", "run", WORKFLOW, "--ref", rama,
