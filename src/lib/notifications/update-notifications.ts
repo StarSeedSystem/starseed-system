@@ -31,7 +31,7 @@ import { computeSuggestions, type Suggestion } from "@/ai/astraura/autonomy";
  * si NO coincide con la última vista por el usuario, se genera el aviso
  * "hay una actualización importante del sistema".
  */
-export const CURRENT_RELEASE = "2026-07-04-astraura-2";
+export const CURRENT_RELEASE = "2026-09-24-os-0.2.0";
 
 /** Clave de "avisos ya vistos" (viaja con la cuenta vía SYNCED_KEYS). */
 export const SEEN_KEY = "starseed.updates.seen.v1";
@@ -184,9 +184,9 @@ export async function getPendingNotifications(context?: string): Promise<UpdateN
       out.push({
         id,
         kind: "update-app",
-        title: "Hay una actualización del sistema",
+        title: "StarSeed OS 0.2.0: apps nativas con actualización automática",
         detail:
-          "StarSeed OS se ha actualizado. Si tienes la app instalada, ciérrala y reábrela para cargar la versión nueva; en el navegador basta con recargar.",
+          "El OS trae apps nativas para macOS, Windows, Linux, Android e iOS: la app instalada se actualiza sola (reinstalación completa e inteligente, sin perder tus datos). En el navegador basta con recargar; el contenido web (red, publicaciones, Astraura) ya llegó al instante.",
         priority: 10,
       });
     }

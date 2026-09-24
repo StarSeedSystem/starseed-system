@@ -9,8 +9,17 @@
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { detectar, recomendar, MODELOS, CONCIENCIAS, assetDirecto, type HW } from "@/lib/onboarding/neuron-recommend";
+import { NATIVE_TAG, nativeInstallerAssetsFor } from "@/lib/version/os-release";
 
 const RELEASES_URL = "https://github.com/StarSeedSystem/starseed-system/releases";
+
+// Enlaces directos reales por SO (misma fuente única que assetDirecto):
+// macOS es ya un único .dmg universal (Apple Silicon + Intel); Linux solo
+// tiene el job x64/amd64 (native-build.yml no compila ARM64 Linux).
+const MAC_ASSET = nativeInstallerAssetsFor("macos")[0];
+const WINDOWS_ASSET = nativeInstallerAssetsFor("windows").find((a) => a.id === "windows-x64-exe");
+const LINUX_ASSET = nativeInstallerAssetsFor("linux").find((a) => a.id === "linux-x64-appimage");
+const ANDROID_ASSET = nativeInstallerAssetsFor("android")[0];
 
 // (Ola 226) VARIANTE: no hay carpeta «(app)», el página vive en src/app/instalar/page.tsx.
 // Los modelos con url null (config/astraura-models.json) se muestran como «Próximamente»:
@@ -171,23 +180,40 @@ export default function InstalarPage() {
             </a>
           )}
           <div className="grid gap-2 text-sm">
-            <a href={RELEASES_URL} target="_blank" rel="noreferrer" className="rounded-lg border border-white/15 bg-white/5 p-3 hover:border-cyan-300/50">
-              macOS — .dmg (Apple Silicon e Intel)
-            </a>
-            <a href={RELEASES_URL} target="_blank" rel="noreferrer" className="rounded-lg border border-white/15 bg-white/5 p-3 hover:border-cyan-300/50">
-              Windows — .msi / .exe (x64)
-            </a>
-            <a href={RELEASES_URL} target="_blank" rel="noreferrer" className="rounded-lg border border-white/15 bg-white/5 p-3 hover:border-cyan-300/50">
-              Linux — .AppImage / .deb (x64 y ARM64)
-            </a>
+            {MAC_ASSET && (
+              <a href={MAC_ASSET.href} className="rounded-lg border border-white/15 bg-white/5 p-3 hover:border-cyan-300/50">
+                macOS — .dmg universal (Apple Silicon e Intel) · {NATIVE_TAG}
+              </a>
+            )}
+            {WINDOWS_ASSET && (
+              <a href={WINDOWS_ASSET.href} className="rounded-lg border border-white/15 bg-white/5 p-3 hover:border-cyan-300/50">
+                Windows — instalador .exe (x64) · {NATIVE_TAG}
+              </a>
+            )}
+            {LINUX_ASSET && (
+              <a href={LINUX_ASSET.href} className="rounded-lg border border-white/15 bg-white/5 p-3 hover:border-cyan-300/50">
+                Linux — .AppImage (x64) · {NATIVE_TAG}
+              </a>
+            )}
+            {ANDROID_ASSET && (
+              <a href={ANDROID_ASSET.href} className="rounded-lg border border-white/15 bg-white/5 p-3 hover:border-cyan-300/50">
+                Android — .apk instalable directamente (sin Play Store) · {NATIVE_TAG}
+              </a>
+            )}
             <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3 text-slate-300">
-              Android y iOS — apps nativas en diseño; hoy la vía recomendada es esta web instalable.
+              iOS — build .ipa SIN FIRMAR, solo para pruebas: hay que re-firmarlo con AltStore/Sideloadly y
+              tu Apple ID (gratuita, caduca cada 7 días). Mientras tanto, esta web instalable (PWA) es la
+              vía recomendada en iPhone/iPad.
             </div>
           </div>
           <p className="text-xs text-amber-300/90">
-            Honesto: los primeros instaladores se compilan desde GitHub Actions (workflow «Instaladores
-            StarSeed OS»). Si el enlace de Releases aún no muestra binarios, la primera compilación está
-            en camino.
+            Honesto: los instaladores se compilan desde GitHub Actions (workflow «StarSeed Native · Build
+            &amp; Release») y el Release sale en BORRADOR hasta que el dueño lo revisa y publica. Si un
+            enlace de arriba aún no responde, esa release concreta todavía no se ha publicado —{" "}
+            <a href={RELEASES_URL} target="_blank" rel="noreferrer" className="underline hover:text-cyan-200">
+              consulta todas las releases aquí
+            </a>
+            .
           </p>
         </section>
 

@@ -12,7 +12,7 @@
 
 [package]
 name = "starseed-native"
-version = "0.1.0"
+version = "0.2.0"
 description = "Empaquetado nativo (Tauri 2) de los sistemas StarSeed: OS, Nexus y Café. Envuelve la web desplegada en una app nativa por SO con actualización in-app y control profundo del dispositivo."
 authors = ["Alex Bordón Garrigós <alexbordongarrigos@gmail.com>", "StarSeedSystem"]
 license = "AGPL-3.0-or-later"

@@ -6,8 +6,13 @@
 # `latest.json` que consume el updater incremental in-app.
 #
 # Dispara en:
-#   · push de una etiqueta v*   (p.ej. v0.1.0)   → release
+#   · push de una etiqueta v*   (p.ej. v0.2.0)   → release
 #   · ejecución manual (workflow_dispatch)        → elige qué sistema(s) construir
+#
+# El latest.json que consume el updater in-app SOLO lo sube el sistema OS
+# (`includeUpdaterJson` condicionado a `matrix.system == 'os'`): es el único
+# con canal de updater configurado hoy (pubkey + endpoints reales). Antes los
+# tres sistemas lo subían a la MISMA release y se pisaban entre sí.
 #
 # Produce por SO:
 #   · macOS   → .dmg + .app  (+ .app.tar.gz para el updater)
@@ -157,9 +162,16 @@ jobs:
           # Un Release por etiqueta; la acción sube los instaladores y el latest.json.
           tagName: ${{ github.ref_type == 'tag' && github.ref_name || format('native-{0}', github.run_number) }}
           releaseName: "StarSeed Native ${{ github.ref_type == 'tag' && github.ref_name || github.run_number }}"
-          releaseBody: "Instaladores nativos de StarSeed (OS · Nexus · Café) generados desde native/ por CI. El updater incremental in-app usa el latest.json de este release."
+          releaseBody: "Instaladores nativos de StarSeed — versión ${{ github.ref_type == 'tag' && github.ref_name || format('native-{0}', github.run_number) }} (OS · Nexus · Café), generados desde native/ por CI. El updater incremental in-app (solo sistema OS) usa el latest.json de este release."
           releaseDraft: true
           prerelease: false
+          # SOLO el sistema OS sube/actualiza latest.json: es el único con canal
+          # de updater configurado (pubkey + endpoints reales en tauri.conf.json;
+          # Nexus/Café aún no declaran plugins.updater). Antes, los TRES sistemas
+          # subían un latest.json a la MISMA release y se pisaban entre sí (el
+          # latest.json de v0.1.0 llegó a apuntar Linux a StarSeed.Nexus) — con
+          # esto, el latest.json del release SIEMPRE es el del OS.
+          includeUpdaterJson: ${{ matrix.system == 'os' }}
           # Config extra por sistema + args de target de la matriz.
           args: ${{ steps.cfg.outputs.flag }} ${{ matrix.args }}
 
@@ -219,6 +231,14 @@ jobs:
           else
             echo "flag=-c src-tauri/tauri.${{ matrix.system }}.conf.json" >> "$GITHUB_OUTPUT"
           fi
+      # Versión REAL desde tauri.conf.json (nunca hardcodeada): nexus/cafe no
+      # sobreescriben "version" en su tauri.<sistema>.conf.json, así que
+      # heredan la del base — la misma lectura vale para los tres sistemas.
+      - name: Leer versión (tauri.conf.json)
+        id: ver
+        working-directory: native/src-tauri
+        shell: bash
+        run: echo "version=$(node -p "require('./tauri.conf.json').version")" >> "$GITHUB_OUTPUT"
       - name: Inicializar Android
         working-directory: native
         run: cargo tauri android init ${{ steps.cfg.outputs.flag }}
@@ -227,13 +247,15 @@ jobs:
         run: cargo tauri android build --apk ${{ steps.cfg.outputs.flag }}
       - name: Firmar APK con keystore self-signed
         shell: bash
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
         run: |
           echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > /tmp/ks.jks
           APK=$(find native -path '*outputs/apk/*' -name '*release*unsigned*.apk' | head -1)
           [ -z "$APK" ] && APK=$(find native -path '*outputs/apk/*' -name '*release*.apk' | head -1)
           echo "APK sin firmar: $APK"
           BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
-          OUT="StarSeed-${{ matrix.system }}-0.1.0.apk"
+          OUT="StarSeed-${{ matrix.system }}-${VERSION}.apk"
           "$BT/zipalign" -f 4 "$APK" /tmp/aligned.apk
           "$BT/apksigner" sign --ks /tmp/ks.jks \
             --ks-pass "pass:${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" \
@@ -246,7 +268,7 @@ jobs:
         with:
           tag_name: ${{ github.ref_type == 'tag' && github.ref_name || format('native-{0}', github.run_number) }}
           draft: true
-          files: StarSeed-${{ matrix.system }}-0.1.0.apk
+          files: StarSeed-${{ matrix.system }}-${{ steps.ver.outputs.version }}.apk
 
   # ═══════════════════════════════════════════════════════════════════════════
   # iOS (.ipa sin firmar) — HONESTIDAD: iOS NO permite instalar un .ipa desde el
@@ -287,12 +309,21 @@ jobs:
           else
             echo "flag=-c src-tauri/tauri.${{ matrix.system }}.conf.json" >> "$GITHUB_OUTPUT"
           fi
+      # Versión REAL desde tauri.conf.json (nunca hardcodeada); ver el mismo
+      # paso en el job build-android para por qué vale para los tres sistemas.
+      - name: Leer versión (tauri.conf.json)
+        id: ver
+        working-directory: native/src-tauri
+        shell: bash
+        run: echo "version=$(node -p "require('./tauri.conf.json').version")" >> "$GITHUB_OUTPUT"
       - name: Inicializar iOS
         working-directory: native
         run: cargo tauri ios init ${{ steps.cfg.outputs.flag }}
       - name: Compilar .app sin firma y empaquetar .ipa
         working-directory: native
         shell: bash
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
         run: |
           set -x
           PROJ=$(find src-tauri/gen/apple -name '*.xcodeproj' -maxdepth 2 | head -1)
@@ -306,7 +337,7 @@ jobs:
           echo "App: $APP"
           if [ -n "$APP" ]; then
             rm -rf Payload && mkdir -p Payload && cp -R "$APP" Payload/
-            zip -qr "StarSeed-${{ matrix.system }}-0.1.0-unsigned.ipa" Payload
+            zip -qr "StarSeed-${{ matrix.system }}-${VERSION}-unsigned.ipa" Payload
             echo "IPA generado."
           else
             echo "No se generó .app (iOS sin firma es limitado); se omite el IPA."
@@ -317,4 +348,4 @@ jobs:
         with:
           tag_name: ${{ github.ref_type == 'tag' && github.ref_name || format('native-{0}', github.run_number) }}
           draft: true
-          files: native/StarSeed-${{ matrix.system }}-0.1.0-unsigned.ipa
+          files: native/StarSeed-${{ matrix.system }}-${{ steps.ver.outputs.version }}-unsigned.ipa

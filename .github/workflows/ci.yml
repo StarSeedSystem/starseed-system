@@ -59,6 +59,11 @@ jobs:
     continue-on-error: true
     steps:
       - uses: actions/checkout@v4
+      # Mismas dependencias de sistema que usa native-build.yml para su job de
+      # Linux (ver .github/workflows/native-build.yml → "Dependencias de Linux
+      # (Tauri)"), más libayatana-appindicator3-dev (equivalente moderno de
+      # libappindicator3-dev en runners recientes de Ubuntu) para que `cargo
+      # check` resuelva el feature `tray-icon` de Cargo.toml sin fallar.
       - name: Dependencias de sistema de Tauri v2
         run: |
           sudo apt-get update
@@ -67,10 +72,16 @@ jobs:
             libgtk-3-dev \
             libayatana-appindicator3-dev \
             librsvg2-dev \
-            patchelf
+            patchelf \
+            libssl-dev \
+            build-essential \
+            file
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: src-tauri
-      - name: Cargo check (src-tauri)
-        run: cargo check --manifest-path src-tauri/Cargo.toml
+          workspaces: native/src-tauri
+      # Proyecto Tauri OFICIAL desde 2026-09-24: native/src-tauri (identifier
+      # app.starseed.os). El root src-tauri/ quedó retirado (ver
+      # .github/workflows/desktop-release.yml) y ya no se comprueba aquí.
+      - name: Cargo check (native/src-tauri)
+        run: cargo check --manifest-path native/src-tauri/Cargo.toml

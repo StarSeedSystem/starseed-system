@@ -37,8 +37,12 @@ import {
   OS_CANAL,
   OS_FECHA,
   OS_VERSION,
+  NATIVE_TAG,
   etiquetaBuild,
   formatearFechaBuild,
+  nativeInstallerAssetsFor,
+  type NativeInstallerAsset,
+  type NativeAssetOS,
 } from "@/lib/version/os-release";
 import {
   CheckCircle2,
@@ -55,6 +59,32 @@ const CANAL_LABEL: Record<typeof OS_CANAL, string> = {
   beta: "Beta",
   estable: "Estable",
 };
+
+// Enlaces directos a los instaladores nativos reales (v0.2.0): un enlace
+// principal por SO, calculado UNA vez a partir de la fuente única de verdad
+// (nativeInstallerAssetsFor). macOS ya es un único .dmg universal y Linux solo
+// tiene job x64/amd64 — ver el comentario de nativeInstallerAssets en
+// os-release.ts para por qué no hay más variantes por arquitectura aquí.
+interface EnlaceNativo {
+  etiqueta: string;
+  asset: NativeInstallerAsset;
+}
+
+const NATIVE_QUICK_LINK_IDS: { etiqueta: string; os: NativeAssetOS; id: string }[] = [
+  { etiqueta: "macOS", os: "macos", id: "macos-universal" },
+  { etiqueta: "Windows", os: "windows", id: "windows-x64-exe" },
+  { etiqueta: "Linux", os: "linux", id: "linux-x64-appimage" },
+  { etiqueta: "Android", os: "android", id: "android-apk" },
+];
+
+const NATIVE_QUICK_LINKS: EnlaceNativo[] = NATIVE_QUICK_LINK_IDS.reduce<EnlaceNativo[]>(
+  (acc, { etiqueta, os, id }) => {
+    const asset = nativeInstallerAssetsFor(os).find((a) => a.id === id);
+    if (asset) acc.push({ etiqueta, asset });
+    return acc;
+  },
+  [],
+);
 
 /** ¿El usuario pidió menos movimiento? SSR-safe y defensivo. */
 function useMovimientoReducido(): boolean {
@@ -198,10 +228,20 @@ export function FranjaDescargaOs({ onAbrirFicha }: { onAbrirFicha: () => void })
                 Código fuente / releases <ExternalLink className="h-3 w-3" />
               </a>
               <span
-                className="inline-flex items-center gap-1 text-muted-foreground"
-                title="Los instaladores nativos aún no están publicados; en cuanto existan aparecerán aquí."
+                className="inline-flex flex-wrap items-center gap-x-2 gap-y-1 text-muted-foreground"
+                title={`Instaladores nativos ${NATIVE_TAG}: macOS (.dmg universal), Windows (.exe), Linux (.AppImage) y Android (.apk). Si el Release aún está en borrador, el enlace puede no responder todavía.`}
               >
-                <Package className="h-3 w-3" /> Versiones nativas (dmg · apk · exe): en preparación
+                <Package className="h-3 w-3" /> Nativas ({NATIVE_TAG}):
+                {NATIVE_QUICK_LINKS.map(({ etiqueta, asset }) => (
+                  <a
+                    key={asset.id}
+                    href={asset.href}
+                    title={asset.filename}
+                    className="cursor-pointer font-medium text-emerald-300 hover:text-emerald-200 hover:underline"
+                  >
+                    {etiqueta}
+                  </a>
+                ))}
               </span>
             </div>
           </div>

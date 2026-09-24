@@ -156,17 +156,32 @@ misma URL para que el CLI no busque un `dist/` local.)
    `https://github.com/StarSeedSystem/starseed-system/releases/latest/download/latest.json`.
    El CI (tauri-action) genera ese `latest.json` con la versión, las URLs por
    plataforma y las firmas.
-3. `plugins.updater.pubkey` lleva la **clave pública** del updater (placeholder
-   ahora — se genera con `cargo tauri signer generate`, ver §9). Tauri valida la
-   firma antes de instalar; sin firma válida, **no** actualiza.
-4. En la app, el comando Rust **`check_update`** (en `src/main.rs`) llama a
-   `app.updater()?.check().await?`; si hay versión nueva, hace
-   `update.download_and_install(...)` (descarga + instala incrementalmente) y
-   luego `app.restart()`. Todo **dentro de la app**, sin reinstalar.
-   Aurora lo invoca con `window.__TAURI__.core.invoke('check_update')`.
+3. `plugins.updater.pubkey` lleva la **clave pública** del updater — YA es la
+   real (id `EF709C4D9C391CE5`, generada con `cargo tauri signer generate`;
+   ver §11), la misma que usa el proyecto retirado `src-tauri/` de la raíz.
+   Tauri valida la firma antes de instalar; sin firma válida, **no** actualiza.
+4. Automática e inteligente (desde la 0.2.0): SOLO en el sistema OS
+   (`app.starseed.os`) y SOLO escritorio, `src/lib.rs` arranca en `run()` un
+   hilo en segundo plano que espera ~25s (para no competir con la primera
+   carga de la web) y comprueba actualizaciones cada 6h. Si hay una nueva,
+   descarga + instala (`update.download_and_install(...)`, reinstalación
+   completa del bundle) emitiendo progreso a la web por el evento
+   `starseed://actualizacion` (fases `buscando` → `descargando` →
+   `instalando` → `lista`/`al-dia`/`error`). Si la ventana principal NO está
+   visible/enfocada, reinicia sola (`app.restart()`); si el usuario la está
+   mirando, deja la instalación lista y espera a que pulse «Reiniciar ahora»
+   (comando `reiniciar_para_actualizar`). El comando **`check_update`**
+   reutiliza EXACTAMENTE el mismo camino de código (mismo botón manual = mismo
+   ciclo automático) y **`estado_actualizacion`** devuelve el último estado
+   conocido. La web escucha todo esto en
+   `src/components/pwa/actualizacion-nativa.tsx` (repo del OS). Nexus/Café NO
+   tienen este canal todavía (ver el comentario en `run()`).
 
 En Windows el modo de instalación es `passive` (barra de progreso, sin
-interacción). En móvil las actualizaciones llegan por la tienda, no por el updater.
+interacción). En móvil (Android) NO hay updater de Tauri: la web compara la
+versión instalada contra el último Release de GitHub y enlaza al .apk cuando
+hay uno más nuevo (mismo componente `actualizacion-nativa.tsx`). iOS no tiene
+ningún canal de actualización (el .ipa es sin firmar, solo para pruebas).
 
 ---
 
@@ -194,8 +209,10 @@ con permiso `agent`** en la red personal (ver `src/lib/neurons/neurons.ts` en el
 repo del OS).
 
 Otros comandos expuestos: **`device_info()`** (SO, arquitectura, versión,
-hostname). Los plugins `fs`, `dialog`, `notification`, `os`, `process` y
-`autostart` quedan disponibles para la web según la capability.
+hostname), y los de actualización del §6 (`check_update`,
+`reiniciar_para_actualizar`, `estado_actualizacion`). Los plugins `fs`,
+`dialog`, `notification`, `os`, `process` y `autostart` quedan disponibles
+para la web según la capability.
 
 ---
 
@@ -222,16 +239,18 @@ derecho → Abrir; Windows: aviso de SmartScreen). Para **distribuir** sin fricc
 hacen falta secretos de firma en GitHub (todos **opcionales**; el build funciona
 sin ellos). Los huecos ya están puestos en `.github/workflows/native-build.yml`:
 
-1. **Clave del updater** (imprescindible para que el updater acepte updates):
+1. **Clave del updater** — YA está puesta (id `EF709C4D9C391CE5`, ver §11);
+   solo hace falta si el dueño quiere ROTARLA:
    ```bash
    cargo tauri signer generate -w ~/.tauri/starseed.key
    ```
-   - La **pública** → sustituye el placeholder de `plugins.updater.pubkey` en
-     `tauri.conf.json`.
+   - La **pública** → sustituye `plugins.updater.pubkey` en `tauri.conf.json`.
    - La **privada** + su contraseña → secretos
-     `TAURI_SIGNING_PRIVATE_KEY` y `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`.
+     `TAURI_SIGNING_PRIVATE_KEY` y `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`
+     (ya configurados en GitHub — es el secreto que firma los Releases de CI).
      ⚠️ Si se pierde la privada, no se pueden publicar más updates a los ya
-     instalados.
+     instalados; y si se rota, TODAS las apps instaladas dejan de validar
+     Releases anteriores (hay que hacerlo solo si la privada se compromete).
 
 2. **macOS (Developer ID + notarización)** — para que no aparezca "app dañada":
    `APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY`,
@@ -271,7 +290,57 @@ native/
     ├── icons/
     │   └── README.md                  ← cómo se generan (carpeta autogenerada)
     └── src/
-        └── main.rs                    ← registra plugins + comandos run_terminal / check_update / device_info
+        ├── main.rs                    ← binario de escritorio (llama a lib.rs::run())
+        └── lib.rs                     ← TODA la lógica: plugins, comandos
+                                          (run_terminal / check_update /
+                                          reiniciar_para_actualizar /
+                                          estado_actualizacion / device_info) y
+                                          la vigilancia de actualización en 2º plano
 ```
 
 Y el workflow: `.github/workflows/native-build.yml`.
+
+---
+
+## 11 · Cómo publicar una release
+
+1. **Sube la versión en los CUATRO sitios** (deben coincidir siempre):
+   `native/src-tauri/tauri.conf.json` (`version`), `native/src-tauri/Cargo.toml`
+   (`[package].version`), `package.json` (raíz del repo del OS) y, si existe,
+   `native/src-tauri/Cargo.lock` (entrada del paquete `starseed-native`). La web
+   tiene su PROPIA versión independiente (`OS_VERSION`/`OS_FECHA` en
+   `src/lib/version/os-release.ts`, formato `AAAA.MM.DD`) — no hace falta
+   tocarla para una release nativa que no cambie contenido web, pero si las dos
+   cambian a la vez, `NATIVE_VERSION`/`NATIVE_TAG` de ese mismo archivo deben
+   coincidir con lo que subas aquí (ahí viven también las URLs de descarga
+   directa que usan la Biblioteca y `/instalar` del repo del OS).
+2. **Etiqueta y empuja**: `git tag vX.Y.Z && git push origin vX.Y.Z`. Esto
+   dispara `native-build.yml`, que compila OS · Nexus · Café para
+   macOS/Windows/Linux (+ Android) y sube todo a un Release en **borrador**
+   (`releaseDraft: true`) con nombre y cuerpo mencionando `vX.Y.Z`.
+3. **Revisa y publica a mano**: el dueño abre el Release en borrador en
+   GitHub, comprueba que los assets están todos (incluido `latest.json`, que
+   SOLO sube el job del sistema OS) y lo publica cuando esté conforme. Nada se
+   distribuye automáticamente sin este paso manual.
+4. Los nombres de archivo APK/IPA se leen de `tauri.conf.json` en tiempo de
+   CI (`node -p "require('./tauri.conf.json').version"`), nunca hardcodeados
+   — así nunca vuelven a quedarse en una versión vieja.
+
+### Canal de actualización por superficie
+
+| Superficie                         | Cómo se entera de que hay algo nuevo                                                   |
+| ----------------------------------- | ---------------------------------------------------------------------------------------- |
+| App nativa de **escritorio** (OS)  | Sola: comprueba cada 6h (+ al arrancar) vía `latest.json`, descarga, instala y reinicia (ver §6). |
+| App nativa **Android** (OS)        | La web compara versión instalada vs. último Release de GitHub (caché 6h) y enlaza al `.apk` cuando hay uno más nuevo. Sin instalación automática (Android no lo permite fuera de tiendas). |
+| App nativa **iOS**                 | Sin canal: el `.ipa` es sin firmar (solo pruebas, re-firmar con AltStore/Sideloadly).      |
+| **Web** (navegador / PWA)          | Cada `git push` a `main` → Vercel despliega → `register-sw.tsx` detecta el build nuevo (SW + `/version.json`) y recarga sola. Nada que ver con Releases de GitHub. |
+| Nexus / Café (shell nativo)        | Aún sin canal de updater propio (no declaran `plugins.updater`); su contenido web sí se actualiza como cualquier despliegue. |
+
+### Clave de firma del updater
+
+Id de la clave minisign en uso: **`EF709C4D9C391CE5`** (pubkey en
+`native/src-tauri/tauri.conf.json → plugins.updater.pubkey`, la misma que
+corresponde al secreto `TAURI_SIGNING_PRIVATE_KEY` en GitHub). Es la MISMA
+clave que usaba el proyecto retirado `src-tauri/` de la raíz — se reutilizó a
+propósito para no tener que regenerar secretos en CI; ver §9 punto 1 para
+cómo rotarla si alguna vez hiciera falta.

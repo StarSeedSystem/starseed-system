@@ -94,6 +94,13 @@ export const STARSEED_APP_LISTINGS: StarSeedAppListing[] = [
                 url: "https://starseed-os.vercel.app",
             },
             {
+                version: "2026.09.09",
+                date: "2026-09-09",
+                notes:
+                    "Versión que unifica la versión del sistema en una sola fuente de verdad, para que el instalador muestre la misma información en todos los medios.",
+                url: "https://starseed-os.vercel.app",
+            },
+            {
                 version: "2026.08.23",
                 date: "2026-08-23",
                 notes:

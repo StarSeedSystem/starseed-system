@@ -1,13 +1,25 @@
 name: Instaladores StarSeed OS (Tauri)
 
-# Se dispara al empujar un tag desktop-v* (o a mano desde la pestaña Actions).
+# ═══════════════════════════════════════════════════════════════════════════
+# RETIRADO 2026-09-24: el proyecto Tauri OFICIAL es `native/` (workflow
+# `native-build.yml`, identifier `app.starseed.os`, tags `v*`). Este workflow
+# compilaba el `src-tauri/` de la RAÍZ (identifier `org.starseed.os`), que
+# quedó como duplicado sin mantener — su pubkey del updater ni siquiera
+# coincidía ya con la clave de firma real (ver claude/relevo-actual.md).
+# Nunca se descargó ningún instalador generado por este workflow (0 descargas
+# registradas), así que no hay usuarios a los que migrar.
+#
+# Se quita el disparo automático por tag `desktop-v*` para que un tag antiguo
+# o por error NUNCA vuelva a publicar un Release desde el proyecto retirado.
+# Se deja `workflow_dispatch` únicamente por si alguna vez hace falta revivir
+# o consultar este scaffold; no lo dispara nada automático.
+# ═══════════════════════════════════════════════════════════════════════════
+
 # Compila el shell nativo para macOS (Apple Silicon + Intel), Linux (x64 + ARM64)
 # y Windows, publica los instaladores en GitHub Releases y genera latest.json
 # para que las apps ya instaladas se auto-actualicen conservando sus datos.
 on:
   workflow_dispatch: {}
-  push:
-    tags: ["desktop-v*"]
 
 permissions:
   contents: write

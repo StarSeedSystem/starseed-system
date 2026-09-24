@@ -35,8 +35,6 @@ import {
 import { InstallModelModalHost } from "@/components/aurora/install-model-modal";
 // Ventana de configuración de voz OmniVoice/OpenVoice/xAI por neurona.
 import { VoiceNeuronOnboardingLoader } from "@/components/aurora/voice-neuron-onboarding-loader";
-// Banner de actualización dentro de la app (sin reinstalar).
-import { UpdateBanner } from "@/components/pwa/update-banner";
 
 /**
  * Evento global emitido cuando cambia el estado reactivo de Aurora, para que
@@ -768,8 +766,20 @@ export function AuroraProvider({ children }: { children: ReactNode }) {
           primera vez. Montada AQUÍ (dentro del Client Component AuroraProvider)
           para que resuelva con React de cliente y NO dispare el #310. */}
       <VoiceNeuronOnboardingLoader />
-      {/* Aviso de versión nueva (se aplica dentro de la app, sin reinstalar). */}
-      <UpdateBanner />
+      {/* UpdateBanner (src/components/pwa/update-banner.tsx) se retiró de aquí
+          (Release 2026-09-24 · 0.2.0): escuchaba `starseed:update-ready`, un
+          evento que NUNCA se disparaba — register-sw.tsx ya recarga la app
+          sola en cuanto detecta versión nueva (con tope anti-bucle), así que
+          el banner nunca llegaba a mostrarse antes de que la recarga ocurriera
+          igualmente. Se eligió retirar el montaje (en vez de hacer que
+          register-sw disparara el evento) porque su recarga es INCONDICIONAL:
+          añadir el evento justo antes de una recarga inmediata no le daría al
+          usuario tiempo real de pulsar «Aplicar», y tocar esa lógica de
+          auto-aplicado (que sí funciona) para introducir una espera "usuario
+          libre" habría sido un cambio de comportamiento mucho más arriesgado
+          para un banner que hoy no aporta nada. La actualización del shell
+          NATIVO (apps de escritorio) tiene su propio aviso — ver
+          <actualizacion-nativa.tsx />, montado en layout.tsx. */}
     </AuroraContext.Provider>
   );
 }

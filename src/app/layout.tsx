@@ -78,6 +78,11 @@ import { RealtimeSyncProvider } from "@/components/system/realtime-sync-provider
 import { OmniAppHost } from "@/components/dashboard/apps/omnifrecuencias/omni-app-host";
 import { AudiomorphicConfigHost } from "@/components/ui/backgrounds/audiomorphic-config-window";
 import { RegisterSW } from "@/components/pwa/register-sw";
+// Aviso de actualización del SHELL NATIVO (apps Tauri de escritorio/Android):
+// no-op total sin window.__TAURI__ (navegador normal). Distinto del
+// UpdateBanner retirado (era para el contenido WEB, que register-sw ya
+// aplica solo) — ver el comentario en aurora-provider.tsx.
+import { ActualizacionNativa } from "@/components/pwa/actualizacion-nativa";
 // Núcleo intocable (Ola 307): registra `validarUiSpec` + `validarContraInvariantes`
 // en `@/lib/nucleo/paquete-sistema`. Sin este cableado, `revisar` falla CERRADO
 // («nucleo-configurado») y ningún paquete compartido sería instalable.
@@ -212,6 +217,7 @@ export default function RootLayout({
         {/* Registro del Service Worker (PWA): instalable + shell offline.
             Defensivo y sin UI; se omite en dev salvo NEXT_PUBLIC_ENABLE_SW=1. */}
         <RegisterSW />
+        <ActualizacionNativa />
         {/* Núcleo intocable cableado en el ARRANQUE: deja registrados los dos
             guardianes (UiSpec + invariantes) que revisan cualquier paquete
             compartido antes de instalarlo. Sin UI, idempotente, SSR-safe. */}

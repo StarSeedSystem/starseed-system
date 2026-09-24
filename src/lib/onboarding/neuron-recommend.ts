@@ -8,6 +8,9 @@
  * Nada simulado: lo que el navegador no expone se declara honestamente.
  */
 
+// Fuente ÚNICA de verdad de la versión/URLs nativas: src/lib/version/os-release.ts.
+import { NATIVE_VERSION, NATIVE_TAG, nativeInstallerAssetsFor } from "@/lib/version/os-release";
+
 export type HW = {
   so: string;
   arch: string;
@@ -104,23 +107,34 @@ export function recomendar(hw: HW): { modelo: string; conciencia: string; motor:
 }
 
 // ── Descarga directa del instalador según el equipo detectado ───────────────
-export const DESKTOP_VERSION = "0.1.0";
-const BASE = `https://github.com/StarSeedSystem/starseed-system/releases/download/desktop-v${DESKTOP_VERSION}`;
+// DESKTOP_VERSION queda como alias por compatibilidad (varios lugares del OS
+// la importan de aquí); nunca se declara suelta para que no pueda divergir
+// del paquete `native/` real (ver la Adenda que retiró desktop-v* → v*).
+export const DESKTOP_VERSION = NATIVE_VERSION;
 
+/**
+ * Instalador directo recomendado para el hardware detectado. Reutiliza
+ * `nativeInstallerAssetsFor` (mismos nombres de archivo EXACTOS que sube
+ * native-build.yml al Release `NATIVE_TAG`).
+ *
+ * Honesto: desde la Ola de unificación de proyectos Tauri, macOS se compila
+ * como UN SOLO binario universal (Apple Silicon + Intel) y Linux solo tiene
+ * job x64/amd64 (sin ARM64) — por eso ya no distinguimos arquitectura aquí.
+ */
 export function assetDirecto(hw: HW): { href: string; etiqueta: string } | null {
-  const arm = /arm|aarch/i.test(hw.arch) || (hw.so === "macOS" && /Apple/i.test(hw.gpu || ""));
   if (hw.so === "macOS") {
-    return arm
-      ? { href: `${BASE}/StarSeed.OS_${DESKTOP_VERSION}_aarch64.dmg`, etiqueta: `macOS Apple Silicon — .dmg (v${DESKTOP_VERSION})` }
-      : { href: `${BASE}/StarSeed.OS_${DESKTOP_VERSION}_x64.dmg`, etiqueta: `macOS Intel — .dmg (v${DESKTOP_VERSION})` };
+    const [a] = nativeInstallerAssetsFor("macos");
+    return a ? { href: a.href, etiqueta: `${a.label} (${NATIVE_TAG})` } : null;
   }
   if (hw.so === "Windows") {
-    return { href: `${BASE}/StarSeed.OS_${DESKTOP_VERSION}_x64-setup.exe`, etiqueta: `Windows x64 — instalador .exe (v${DESKTOP_VERSION})` };
+    const opciones = nativeInstallerAssetsFor("windows");
+    const exe = opciones.find((o) => o.id === "windows-x64-exe") ?? opciones[0];
+    return exe ? { href: exe.href, etiqueta: `${exe.label} (${NATIVE_TAG})` } : null;
   }
   if (hw.so === "Linux") {
-    return arm
-      ? { href: `${BASE}/StarSeed.OS_${DESKTOP_VERSION}_aarch64.AppImage`, etiqueta: `Linux ARM64 — .AppImage (v${DESKTOP_VERSION})` }
-      : { href: `${BASE}/StarSeed.OS_${DESKTOP_VERSION}_amd64.AppImage`, etiqueta: `Linux x64 — .AppImage (v${DESKTOP_VERSION})` };
+    const opciones = nativeInstallerAssetsFor("linux");
+    const appimage = opciones.find((o) => o.id === "linux-x64-appimage") ?? opciones[0];
+    return appimage ? { href: appimage.href, etiqueta: `${appimage.label} (${NATIVE_TAG})` } : null;
   }
   return null;
 }
