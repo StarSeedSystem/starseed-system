@@ -1,6 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, configure, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
+
+// Las páginas del panel se cargan diferidas (React.lazy). En una Mac con la memoria al
+// límite (swap alto, build en marcha) importar una página tarda más que el segundo por
+// defecto de `findBy*`: la prueba se ponía roja sin que nada estuviera roto.
+configure({ asyncUtilTimeout: 8000 });
+vi.setConfig({ testTimeout: 30000 });
 
 /* ── Todo lo que sale a la red o al navegador se sustituye ─────────────────── */
 
