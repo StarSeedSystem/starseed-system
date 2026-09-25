@@ -19,13 +19,13 @@ import {
 } from "@/lib/perf/calidad-fondo";
 
 describe("niveles", () => {
-    it("cada nivel más bajo pinta menos píxeles y a menos fps", () => {
+    it("cada nivel más bajo pinta menos píxeles, siempre a su ritmo (sin tope de fps)", () => {
         expect(escalaEfectiva(PERFILES.alta, 2)).toBe(2);
         expect(escalaEfectiva(PERFILES.media, 2)).toBe(0.75);
         expect(escalaEfectiva(PERFILES.baja, 2)).toBe(0.5);
         expect(escalaEfectiva(PERFILES.minima, 2)).toBe(0.35);
-        expect(PERFILES.media.fps).toBeGreaterThan(PERFILES.baja.fps);
-        expect(PERFILES.baja.fps).toBeGreaterThan(PERFILES.minima.fps);
+        // (2026-09-25) La calidad es de píxeles, no de ritmo ni de duración.
+        for (const p of Object.values(PERFILES)) expect(p.fps).toBe(0);
     });
 
     it("la escala nunca supera la del monitor ni 2", () => {

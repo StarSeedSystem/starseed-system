@@ -3,17 +3,25 @@
 /**
  * El gobernador vivo del fondo animado (2026-09-24). Ver `calidad-fondo.ts` para el porqué.
  *
+ * (2026-09-25) Alex: «el fondo no carga la animación completa, se repite en las mismas
+ * partes… lo que me refería de la adaptación de calidad no era de longitud, era de
+ * calidad de píxeles». La primera versión también tocaba el RITMO (renderMode «manual»
+ * con fotogramas pedidos a mano) y paraba/reanudaba la escena al ocultarse la pestaña;
+ * `play()` de Spline vuelve a lanzar los eventos de inicio, así que cada vez que la
+ * ventana quedaba tapada la animación arrancaba de nuevo y solo se veía su principio.
+ * Ahora SOLO se cambia la resolución: la escena corre entera, a su ritmo y sin reinicios.
+ * (Con la pestaña oculta el navegador ya congela su requestAnimationFrame: no gasta.)
+ *
  * Se engancha a la Application de Spline ya cargada y:
- *   · fija la resolución de render (setPixelRatio del renderer) y el ritmo (renderMode
- *     «manual» + requestRender a los fps del nivel);
+ *   · fija la resolución de render (setPixelRatio del renderer), nunca el ritmo;
  *   · mide la fluidez de TODA la página (rAF + tareas largas del hilo principal) y baja
  *     de nivel en cuanto el sistema se atasca, y sube solo si sobra durante 15 s;
  *   · atiende límites temporales del sistema (evento `starseed:fondo-limite`, p. ej. la
- *     voz de Astraura mientras habla) y para del todo con la pestaña oculta;
+ *     voz de Astraura mientras habla);
  *   · respeta la preferencia del usuario (Ajustes → Rendimiento → Calidad del fondo).
  *
- * Todo con defensas: si el runtime de Spline cambia sus internos, se deja de escalar la
- * resolución pero el ritmo y la pausa siguen funcionando.
+ * Todo con defensas: si el runtime de Spline cambia sus internos, simplemente se deja de
+ * escalar la resolución y la escena sigue como siempre.
  */
 
 import {
@@ -165,8 +173,6 @@ export function gobernarFondoSpline(app: AppSplineMinima): () => void {
     const limites = new Map<string, { calidad: CalidadFondo; hasta: number }>();
     let pausado = document.hidden;
     let escalaAplicada = 0;
-    let fpsAplicados = -1;
-    let ultimoRender = 0;
     let raf = 0;
     const intervalos: number[] = [];
     let ultimoFrame = 0;
@@ -215,12 +221,6 @@ export function gobernarFondoSpline(app: AppSplineMinima): () => void {
         if (Math.abs(escala - escalaAplicada) > 0.01) {
             if (aplicarEscala(app, escala)) escalaAplicada = escala;
         }
-        if (perfil.fps !== fpsAplicados) {
-            fpsAplicados = perfil.fps;
-            // Sin tope → que Spline pinte a su ritmo; con tope → lo marcamos nosotros.
-            app.renderMode = perfil.fps === 0 ? "auto" : "manual";
-            app.requestRender?.();
-        }
         publicar();
     };
 
@@ -244,11 +244,6 @@ export function gobernarFondoSpline(app: AppSplineMinima): () => void {
             }
         }
         ultimoFrame = t;
-        const fps = PERFILES[gob.actual].fps;
-        if (!pausado && fps > 0 && t - ultimoRender >= 1000 / fps - 2) {
-            ultimoRender = t;
-            app.requestRender?.();
-        }
         raf = requestAnimationFrame(bucle);
     };
     raf = requestAnimationFrame(bucle);
@@ -296,14 +291,10 @@ export function gobernarFondoSpline(app: AppSplineMinima): () => void {
     };
     const intervalo = window.setInterval(evaluar, 2_000);
 
+    // Solo para no medir con la pestaña oculta: la escena NUNCA se para ni se reanuda
+    // (reanudar la reiniciaba desde el principio).
     const alCambiarVisibilidad = () => {
         pausado = document.hidden;
-        try {
-            if (pausado) app.stop?.();
-            else app.play?.();
-        } catch {
-            /* noop */
-        }
         intervalos.length = 0;
         ultimoFrame = 0;
         publicar();
@@ -339,8 +330,13 @@ export function gobernarFondoSpline(app: AppSplineMinima): () => void {
     };
     window.addEventListener("storage", alCambiarPreferenciaEnOtraPestana);
 
+    // Si una versión anterior dejó la escena en modo «manual», vuelve a su ritmo propio.
+    try {
+        if (app.renderMode === "manual") app.renderMode = "auto";
+    } catch {
+        /* noop */
+    }
     aplicar();
-    if (pausado) alCambiarVisibilidad();
 
     return () => {
         cancelAnimationFrame(raf);

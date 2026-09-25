@@ -11,7 +11,7 @@ export interface SplineBackgroundProps {
     onLoad?: (splineApp: Application) => void;
     fallbackColor?: string;
     /**
-     * (2026-09-24) Calidad adaptativa: resolución y ritmo según el equipo y la carga
+     * (2026-09-24) Calidad adaptativa: solo la resolución (píxeles) según el equipo y la carga; la animación corre entera y a su ritmo
      * del sistema en vivo (ver `@/lib/perf/calidad-fondo`). Solo para fondos a pantalla
      * completa detrás de todo; una escena interactiva en primer plano no lo quiere.
      */

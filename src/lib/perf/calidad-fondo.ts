@@ -13,14 +13,15 @@
  * bilineal del navegador no deja escalones visibles mientras el paso entre muestras
  * quede por debajo del radio del difuminado que ya tiene la imagen.
  *
- * Por eso los niveles bajan la RESOLUCIÓN (píxeles de render por píxel CSS) y el RITMO
- * (fotogramas por segundo), nunca el encuadre: el lienzo sigue ocupando lo mismo.
+ * Por eso los niveles bajan SOLO la RESOLUCIÓN (píxeles de render por píxel CSS): ni el
+ * encuadre, ni el ritmo, ni la duración. (2026-09-25, Alex: «la adaptación de calidad no
+ * era de longitud, era de calidad de píxeles». La primera versión también topaba los fps y
+ * pausaba la escena, y al reanudarla Spline la reiniciaba: se veía siempre el mismo trozo.)
  *
- *   alta    → como antes: resolución nativa del monitor (máx. 2), sin tope de fps.
- *   media   → 0,75 px por px CSS · 30 fps   (≈14 % de los píxeles de «alta» en retina)
- *   baja    → 0,5  px por px CSS · 24 fps   (≈6 %)
- *   mínima  → 0,35 px por px CSS · 15 fps   (≈3 %)
- *   pausa   → sin pintar (pestaña oculta, o el sistema lo pide): queda el último fotograma.
+ *   alta    → resolución nativa del monitor (máx. 2).
+ *   media   → 0,75 px por px CSS   (≈14 % de los píxeles de «alta» en retina)
+ *   baja    → 0,5  px por px CSS   (≈6 %)
+ *   mínima  → 0,35 px por px CSS   (≈3 %)
  *
  * PURO (sin DOM): la parte viva está en `useCalidadFondo` / `SplineBackground`.
  */
@@ -34,7 +35,10 @@ export const NIVELES: readonly CalidadFondo[] = ["alta", "media", "baja", "minim
 export interface PerfilCalidad {
     /** Píxeles de render por píxel CSS. `null` = el del monitor (devicePixelRatio, máx. 2). */
     escala: number | null;
-    /** Tope de fotogramas por segundo. `0` = sin tope (lo que dé la pantalla). */
+    /**
+     * Tope de fotogramas por segundo. Siempre `0` (sin tope): la animación corre entera a su
+     * ritmo. Se conserva el campo para quien lo lea (Ajustes, depuración).
+     */
     fps: number;
     etiqueta: string;
     descripcion: string;
@@ -49,19 +53,19 @@ export const PERFILES: Record<CalidadFondo, PerfilCalidad> = {
     },
     media: {
         escala: 0.75,
-        fps: 30,
+        fps: 0,
         etiqueta: "Media",
         descripcion: "Idéntica a simple vista con el difuminado; una séptima parte del trabajo en pantallas retina.",
     },
     baja: {
         escala: 0.5,
-        fps: 24,
+        fps: 0,
         etiqueta: "Baja",
         descripcion: "Para equipos modestos o cuando el sistema está ocupado.",
     },
     minima: {
         escala: 0.35,
-        fps: 15,
+        fps: 0,
         etiqueta: "Mínima",
         descripcion: "Lo justo para que el fondo siga vivo sin quitarle nada al resto.",
     },
