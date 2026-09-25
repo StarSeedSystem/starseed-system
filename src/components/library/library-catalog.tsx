@@ -92,6 +92,10 @@ import type { LibraryDetailItem } from "@/components/library/app-file-page";
 import { LibraryServicesCatalog } from "@/components/library/library-services-catalog";
 import { useOssConnections } from "@/lib/services/oss-connections";
 import { listOssLibraryItems } from "@/lib/library/oss-catalog-bridge";
+import { DialogoInstalar } from "@/components/library/dialogo-instalar";
+import { useInstalaciones } from "@/lib/instalaciones/instalaciones-store";
+import { destinosDeApp } from "@/lib/instalaciones/destinos";
+import { appDesdeListing } from "@/lib/instalaciones/plan";
 
 // ── Taxonomía de categorías (chips) ──────────────────────────────
 
@@ -215,15 +219,14 @@ function commandToDetail(cmd: CommandListListing): LibraryDetailItem {
 
 // ── Instalación en la Biblioteca soberana ────────────────────────
 
-function installApp(app: StarSeedAppListing) {
-  saveResource({
-    id: `ss-app-${app.id}`,
-    kind: "app",
-    title: app.name,
-    url: app.route || app.web || `starseed://app/${app.id}`,
-    origin: "Explorar · Apps StarSeed",
-  });
-  toast.success("App añadida a tu Biblioteca", { description: app.name });
+// (2026-09-25) Las apps ya no se instalan de un clic: «Instalar» abre el diálogo
+// «¿Dónde quieres instalar…?» (web, este dispositivo, otras neuronas, perfil). La
+// opción «En la web» hace lo que antes hacía este botón (guardarla en la Biblioteca).
+
+/** «Instalar» o «Instalada en N sitios» (el diálogo permite añadir más). */
+function etiquetaInstalar(sitios: number): string {
+  if (!sitios) return "Instalar";
+  return `Instalada en ${sitios === 1 ? "1 sitio" : `${sitios} sitios`}`;
 }
 
 function installCommandList(cmd: CommandListListing) {
@@ -254,6 +257,8 @@ export function LibraryCatalog({ onOpenDetail, onGoFuentes, onGoPersonal }: Libr
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState<CatalogCategory>("todo");
   const [confirmCmd, setConfirmCmd] = useState<CommandListListing | null>(null);
+  const [appAInstalar, setAppAInstalar] = useState<StarSeedAppListing | null>(null);
+  const destinos = useInstalaciones();
 
   const q = query.trim().toLowerCase();
   const matches = useCallback(
@@ -498,15 +503,24 @@ export function LibraryCatalog({ onOpenDetail, onGoFuentes, onGoPersonal }: Libr
                       )}
                     </Button>
                   )}
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => installApp(app)}
-                    className="h-8 gap-1.5 text-xs text-muted-foreground hover:text-white cursor-pointer"
-                    title="Guardar en Mi Biblioteca"
-                  >
-                    <Download className="h-3.5 w-3.5" /> Instalar
-                  </Button>
+                  {(() => {
+                    const sitios = destinosDeApp(app.id, destinos).length;
+                    return (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setAppAInstalar(app)}
+                        className={cn(
+                          "h-8 gap-1.5 text-xs hover:text-white cursor-pointer",
+                          sitios ? "text-emerald-300" : "text-muted-foreground",
+                        )}
+                        title={sitios ? "Ver dónde está y añadir más sitios" : "Elegir dónde instalarla"}
+                      >
+                        {sitios ? <Check className="h-3.5 w-3.5" /> : <Download className="h-3.5 w-3.5" />}
+                        {etiquetaInstalar(sitios)}
+                      </Button>
+                    );
+                  })()}
                 </div>
               </GlassCard>
             ))}
@@ -710,6 +724,15 @@ export function LibraryCatalog({ onOpenDetail, onGoFuentes, onGoPersonal }: Libr
           </button>
         </div>
       )}
+
+      {/* Diálogo «¿Dónde quieres instalar…?» de las apps del ecosistema */}
+      <DialogoInstalar
+        app={appAInstalar ? appDesdeListing(appAInstalar) : null}
+        open={appAInstalar !== null}
+        onOpenChange={(o) => {
+          if (!o) setAppAInstalar(null);
+        }}
+      />
 
       {/* Confirmación de ejecución de secuencia */}
       <Dialog open={confirmCmd !== null} onOpenChange={(o) => !o && setConfirmCmd(null)}>

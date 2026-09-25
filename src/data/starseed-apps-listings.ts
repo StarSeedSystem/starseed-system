@@ -141,30 +141,49 @@ export const STARSEED_APP_LISTINGS: StarSeedAppListing[] = [
         tags: ["cafetería", "comunidad"],
         links: [{ label: "Web oficial", url: "https://starseed-cafe.vercel.app" }],
     },
+    // (2026-09-25) Audiomorphic y Omnifrecuencias: se abren DENTRO del OS en su versión
+    // oficial en línea (ruta propia → AppOficial) y se instalan desde su último release de
+    // GitHub. La versión NO se escribe aquí: la lee en vivo `useUltimaVersion` (la barra de la
+    // app dentro del OS y el diálogo de instalar la muestran), con respaldo en
+    // src/lib/apps-oficiales/apps-oficiales.ts.
+    // «Descargas» apunta a /releases/latest, que GitHub redirige siempre al último.
     {
         id: "audiomorphic",
-        name: "Audiomorphic VR",
-        tagline: "Audio → geometría sagrada, en VR.",
+        name: "Audiomorphic",
+        tagline: "Visualizador matemático de audio, con realidad aumentada.",
         description:
-            "Visualizador de consciencia: convierte el audio en geometría sagrada viva. Compatible con VR (WebXR). La versión completa se desbloquea gratis al usarse dentro del OS con sesión.",
+            "Convierte el sonido en geometría matemática viva, en tiempo real, y la lleva a tu espacio con realidad aumentada (AR). 100% gratis. Úsala en línea desde su web oficial —dentro del OS se abre esa misma versión, siempre la última— o instala la app para Android, macOS, Windows o Linux desde el botón Instalar.",
         iconUrl: "/app-icons/audiomorphic.png",
         accent: "#A855F7",
-        author: "StarSeed",
+        author: "StarSeedSystem",
         web: "https://audiomorphic.vercel.app",
-        tags: ["audio", "vr", "visualizador"],
-        links: [{ label: "Web oficial", url: "https://audiomorphic.vercel.app" }],
+        route: "/audiomorphic",
+        repo: "https://github.com/StarSeedSystem/Audiomorphic-AR-app",
+        tags: ["audio", "visualizador", "ar", "matemáticas", "gratis"],
+        links: [
+            { label: "Web oficial", url: "https://audiomorphic.vercel.app" },
+            { label: "Código fuente (GitHub)", url: "https://github.com/StarSeedSystem/Audiomorphic-AR-app" },
+            { label: "Descargas (última versión)", url: "https://github.com/StarSeedSystem/Audiomorphic-AR-app/releases/latest" },
+        ],
     },
     {
         id: "omnifrecuencias",
         name: "Omnifrecuencias",
-        tagline: "Estudio de frecuencias funcionales.",
+        tagline: "Generador y estudio de frecuencias funcionales.",
         description:
-            "Estudio de frecuencias funcionales dentro del OS: multi-tono, binaural, isocrónico y presets guardables en tu biblioteca. También se abre como ventana flotante desde el panel.",
+            "Estudio de frecuencias funcionales: multi-tono, binaural, isocrónico y presets guardables. Úsala en línea desde su web oficial —dentro del OS se abre esa misma versión, siempre la última— o instala la app para Android, macOS, Windows o Linux desde el botón Instalar. El widget compacto del panel sigue disponible.",
         iconUrl: "/app-icons/omnifrecuencias.png",
         accent: "#22D3EE",
-        author: "StarSeed",
+        author: "StarSeedSystem",
+        web: "https://omnifrecuencias.vercel.app",
         route: "/omnifrecuencias",
-        tags: ["audio", "frecuencias", "bienestar"],
+        repo: "https://github.com/StarSeedSystem/generador_frecuencias",
+        tags: ["audio", "frecuencias", "bienestar", "gratis"],
+        links: [
+            { label: "Web oficial", url: "https://omnifrecuencias.vercel.app" },
+            { label: "Código fuente (GitHub)", url: "https://github.com/StarSeedSystem/generador_frecuencias" },
+            { label: "Descargas (última versión)", url: "https://github.com/StarSeedSystem/generador_frecuencias/releases/latest" },
+        ],
     },
     {
         id: "immersive",

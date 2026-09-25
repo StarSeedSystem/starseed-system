@@ -42,6 +42,7 @@ import { Astraura158WindowHost } from "@/components/astraura/window/astraura-158
 // de iniciar sesión), ni la intro, ni el registro de neuronas. Ahorra memoria para los agentes.
 import { SoloFueraDeConsola } from "@/components/layout/solo-fuera-de-consola";
 import { AcompanantePersonalidad } from "@/components/avatares/acompanante-personalidad";
+import { InstalacionesPendientes } from "@/components/library/instalaciones-pendientes";
 
 /** (Ola 3 · Adenda 155) Sondeo del puente de eventos Astraura 1.58 → centro de
  * notificaciones del OS + siembra de personalidades/agentes 1.58. Singleton. */
@@ -76,6 +77,10 @@ export default function AppGlobals() {
       {/* Acompañante flotante en pantalla por personalidad (Ola 235 · M4):
           capa 2,5D que acompaña al usuario al charlar si está activado en ajustes. */}
       <AcompanantePersonalidad />
+      {/* (2026-09-25) Instalaciones pedidas desde otra neurona de la cuenta: tarjeta
+          discreta «X pidió instalar Y aquí» con «Instalar aquí» / «Ahora no». Sin UI
+          mientras no haya pedidos para este dispositivo. */}
+      <InstalacionesPendientes />
     </SoloFueraDeConsola>
   );
 }

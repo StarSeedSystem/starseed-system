@@ -62,16 +62,18 @@ export const APP_CATALOG: StarseedApp[] = [
         id: "audiomorphic",
         name: "Audiomorphic",
         short: "Audiomorphic",
-        description: "Visualizador de consciencia: audio → geometría sagrada. NATIVO del OS, completo y sin bloqueos.",
+        description: "Visualizador matemático de audio con realidad aumentada. Versión oficial en línea, siempre la última, e instalable en tus dispositivos.",
         icon: AudioWaveform,
         iconUrl: "/app-icons/audiomorphic.png",
         accent: "#A855F7",
         category: "starseed",
-        // Adenda 68 · E: PORTADO al OS (antes era un iframe a audiomorphic.vercel.app,
-        // con tour de bienvenida y "planes"). Ahora es un módulo nativo más.
+        // (2026-09-25) La ruta /audiomorphic y su ventana abren la versión OFICIAL en
+        // línea (AppOficial: la web que se despliega sola desde su repo), con el port de la
+        // Adenda 68 · E como «versión integrada» opcional (sigue moviendo el fondo del OS).
+        // El comentario antiguo decía que el modo AR/VR no cabía en el OS por ir con
+        // React 18 + R3F 8: ya no es cierto (el OS usa React 19 y R3F 9); el AR llega
+        // porque la versión oficial se abre dentro del OS con permiso de cámara y WebXR.
         status: "native",
-        // El modo VR/AR sigue viviendo SOLO en la app original (su motor 3D exige
-        // React 19 + R3F v9; el OS va con React 18 + R3F v8) → `href` lo conserva.
         vrCapable: false,
         open: {
             primary: "route",
@@ -203,16 +205,20 @@ export const APP_CATALOG: StarseedApp[] = [
         id: "omnifrecuencias",
         name: "Omnifrecuencias",
         short: "Omni",
-        description: "Estudio de frecuencias funcionales: multi-tono, binaural, isocrónico, presets en tu biblioteca.",
+        description: "Estudio de frecuencias funcionales: multi-tono, binaural, isocrónico y presets. Versión oficial en línea e instalable.",
         icon: Waves,
         iconUrl: "/app-icons/omnifrecuencias.png",
         accent: "#22D3EE",
         category: "starseed",
         status: "native",
+        // (2026-09-25) Ruta y ventana abren la versión OFICIAL en línea (AppOficial); `href`
+        // es esa misma web, para «abrir en pestaña» y para quien la abra fuera del OS.
         open: {
             primary: "route",
             allowed: ["route", "window", "tab"],
             route: "/omnifrecuencias",
+            href: "https://omnifrecuencias.vercel.app",
+            embeddable: true,
         },
     },
 

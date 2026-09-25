@@ -201,13 +201,15 @@ function lazyApp(load: () => Promise<{ default: React.ComponentType }>, label: s
 }
 
 const NATIVE_APP_VIEWS: Record<string, React.ComponentType> = {
+    // (2026-09-25) Audiomorphic y Omnifrecuencias abren su versión OFICIAL en línea
+    // (la última de su repo), igual que sus rutas; el port queda como «versión integrada».
     audiomorphic: lazyApp(
-        () => import("@/components/dashboard/apps/audiomorphic/audiomorphic-app").then((m) => ({ default: m.AudiomorphicApp })),
-        "visualizador",
+        () => import("@/components/apps-oficiales/vistas-oficiales").then((m) => ({ default: m.AudiomorphicOficial })),
+        "Audiomorphic",
     ),
     omnifrecuencias: lazyApp(
-        () => import("@/components/dashboard/apps/omnifrecuencias/omnifrecuencias-app").then((m) => ({ default: m.OmnifrecuenciasApp })),
-        "frecuencias",
+        () => import("@/components/apps-oficiales/vistas-oficiales").then((m) => ({ default: m.OmnifrecuenciasOficial })),
+        "Omnifrecuencias",
     ),
     camara: lazyApp(
         () => import("@/components/camera/camera-app").then((m) => ({ default: m.CameraApp })),

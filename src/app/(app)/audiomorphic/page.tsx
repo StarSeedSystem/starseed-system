@@ -1,36 +1,30 @@
 'use client';
 
 // ════════════════════════════════════════════════════════════════
-// Ruta /audiomorphic — Visualizador de consciencia (app NATIVA, completa)
+// Ruta /audiomorphic — Audiomorphic en su ÚLTIMA versión oficial
 // ----------------------------------------------------------------
-// Adenda 68 · E. Antes Audiomorphic solo existía como <iframe> a la app
-// externa (con su tour de bienvenida, su corona de "planes" y su fondo
-// negro opaco). Ahora está PORTADO al OS desde la repo del propio usuario
-// (github.com/StarSeedSystem/Audiomorphic-AR-app): es código del OS.
+// (2026-09-25) Cambio de rumbo pedido por Alex: «las apps dentro de StarSeed OS
+// deben ser las mismas que las últimas versiones de sus repos oficiales, usando
+// el enlace de su sitio web para las versiones en línea».
 //
-// Aquí se abre DESBLOQUEADO: sin tour, sin login, sin planes. El mismo motor
-// alimenta la CAPA DE FONDO del OS (con transparencia real).
+// Antes (Adenda 68 · E) esta ruta montaba un PORT del repo
+// StarSeedSystem/Audiomorphic-AR-app copiado dentro del OS. Ese port se quedó
+// atrás (sin AR, sin lo que trae la v1.2.0) y cada release obligaba a volver a
+// portarlo. Ahora se abre la web oficial (audiomorphic.vercel.app, que se
+// despliega sola desde su repo) dentro del OS, con su versión viva leída del
+// último release de GitHub y un botón para instalar las apps nativas en tus
+// dispositivos.
+//
+// El port NO se borra: sigue moviendo la CAPA DE FONDO del OS y queda como
+// «versión integrada», que solo se descarga si la persona la elige.
 // ════════════════════════════════════════════════════════════════
 
-import dynamic from 'next/dynamic';
-
-// Carga diferida: el motor (canvas + panel) no debe pesar en el arranque del OS.
-const AudiomorphicApp = dynamic(
-    () => import('@/components/dashboard/apps/audiomorphic/audiomorphic-app').then((m) => m.AudiomorphicApp),
-    {
-        ssr: false,
-        loading: () => (
-            <div className="grid h-full w-full place-items-center bg-black text-xs text-white/60">
-                Cargando visualizador…
-            </div>
-        ),
-    },
-);
+import { AudiomorphicOficial } from '@/components/apps-oficiales/vistas-oficiales';
 
 export default function AudiomorphicPage() {
     return (
-        <div className="h-[calc(100vh-7rem)] min-h-[28rem] overflow-hidden rounded-3xl border border-white/10 shadow-2xl">
-            <AudiomorphicApp />
+        <div className="h-[calc(100dvh-7rem)] min-h-[28rem] overflow-hidden rounded-3xl border border-white/10 shadow-2xl">
+            <AudiomorphicOficial />
         </div>
     );
 }

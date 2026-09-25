@@ -62,6 +62,12 @@ import { saveResource } from "@/lib/library-store";
 // Guardar una referencia de esta ficha en la Biblioteca de una entidad
 // (cuenta/página/grupo…) — distinto de "Instalar/Replicar" (Librería personal).
 import { SaveToLibrary } from "@/components/library/save-to-library";
+// (2026-09-25) Las fichas de apps del ecosistema instalan con el diálogo «¿Dónde quieres
+// instalar…?» (web, este dispositivo, otras neuronas, perfil) en vez de guardar sin preguntar.
+import { DialogoInstalar } from "@/components/library/dialogo-instalar";
+import { useInstalaciones } from "@/lib/instalaciones/instalaciones-store";
+import { destinosDeApp } from "@/lib/instalaciones/destinos";
+import { appPorId, type AppParaInstalar } from "@/lib/instalaciones/plan";
 import type {
   ListingMediaItem,
   ListingVersion,
@@ -197,11 +203,24 @@ function fmtDate(raw: string): string {
   }
 }
 
+/** Prefijo con el que el catálogo crea las fichas de apps del ecosistema (starseedAppToDetail). */
+const PREFIJO_APP = "ss-app-";
+
+/** Si la ficha es de una app del ecosistema, la app para el diálogo de instalar. */
+function appDeFicha(item: LibraryDetailItem | null): AppParaInstalar | null {
+  if (!item || item.category !== "apps" || !item.id.startsWith(PREFIJO_APP)) return null;
+  return appPorId(item.id.slice(PREFIJO_APP.length));
+}
+
 export function AppFilePage({ item, open, onOpenChange }: AppFilePageProps) {
   // Ficha activa: permite navegar a "relacionados" sin cerrar el modal.
   const [current, setCurrent] = useState<LibraryDetailItem | null>(item);
   const [installing, setInstalling] = useState(false);
   const [installed, setInstalled] = useState(false);
+  const [dialogoInstalar, setDialogoInstalar] = useState(false);
+  const destinos = useInstalaciones();
+  const appEcosistema = appDeFicha(current);
+  const sitios = appEcosistema ? destinosDeApp(appEcosistema.id, destinos).length : 0;
 
   useEffect(() => {
     setCurrent(item);
@@ -215,6 +234,10 @@ export function AppFilePage({ item, open, onOpenChange }: AppFilePageProps) {
 
   const handleInstall = useCallback(async () => {
     if (!current) return;
+    if (appDeFicha(current)) {
+      setDialogoInstalar(true);
+      return;
+    }
     setInstalling(true);
     try {
       if (current.origin === "store" && current.storeItem) {
@@ -311,6 +334,7 @@ export function AppFilePage({ item, open, onOpenChange }: AppFilePageProps) {
   const related = current.related ?? [];
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto overflow-x-hidden">
         <DialogHeader>
@@ -370,10 +394,14 @@ export function AppFilePage({ item, open, onOpenChange }: AppFilePageProps) {
           <div className="flex flex-wrap items-center gap-2">
             <Button
               onClick={handleInstall}
-              disabled={installing || installed}
+              disabled={installing || (installed && !appEcosistema)}
               className="gap-2 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 border-0 cursor-pointer"
             >
-              {installing ? (
+              {appEcosistema && sitios > 0 ? (
+                <>
+                  <Check className="h-4 w-4" /> Instalada en {sitios === 1 ? "1 sitio" : `${sitios} sitios`}
+                </>
+              ) : installing ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" /> Instalando…
                 </>
@@ -641,6 +669,8 @@ export function AppFilePage({ item, open, onOpenChange }: AppFilePageProps) {
         </div>
       </DialogContent>
     </Dialog>
+    <DialogoInstalar app={appEcosistema} open={dialogoInstalar} onOpenChange={setDialogoInstalar} />
+    </>
   );
 }
 
