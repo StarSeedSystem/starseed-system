@@ -43,7 +43,11 @@ import { ASTRAURA_158_LOCAL_SOURCE_ID, ASTRAURA_158_CLOUD_SOURCE_ID } from "./fr
 import { chromeAiChat, chromeAiReadyNow, webllmChat, transformersChat } from "./builtin-engines";
 import { noteUsage, isCoolingDown, markCooldown, dailyPercent } from "./usage";
 import { penalizacionPorPresupuesto } from "./presupuesto"; // (Ola 223 I1F)
-import { skillsSystemPrompt, skillsRoutingBias } from "./skills";
+import { skillsSystemPrompt, skillsRoutingBias, activeCapabilities } from "./skills";
+// Contexto COMPACTO para el candidato 1.58 (fusión de habilidades acotada en
+// caracteres: el backend BitNet tiene un contexto pequeño). Función pura,
+// ver `local-158-context.ts`.
+import { buildLocal158CompactContext } from "./local-158-context";
 import { findOssService } from "@/lib/services/oss-services";
 // Personalidad activa (Adenda 63 §11): bloque de system prompt compilado desde
 // la personalidad resuelta por contexto (chat > cerebro > sección > global).
@@ -121,6 +125,22 @@ export interface IntelligenceSettings {
   /** Umbral 0..1 a partir del cual una tarea se considera "difícil". */
   strongThreshold: number;
   /**
+   * PRIORIDAD LOCAL de Astraura 1.58-bit (BitNet · Cactus Needle · Jev):
+   * cuando está ON (por defecto), el ranking suma un boost aditivo a la
+   * fuente 1.58 LOCAL (y, más pequeño, a la NUBE StarSeed) para que gane de
+   * verdad las tareas cotidianas/conversacionales, en vez de competir casi
+   * empatada con la nube gratis genérica. El boost se retira en tareas
+   * DIFÍCILES (`difficulty >= strongThreshold`) o de VISIÓN —donde el 1.58
+   * no puede ayudar— para que esas sigan yendo a la nube fuerte. Nunca supera
+   * el override manual por tarea (+100) ni el boost de "usar mi cuenta"
+   * (modo conectores `prefer-own`, +8): ver `local158PriorityDelta` y su uso
+   * en `rankCandidates`. El sistema PRIMARIO (Adenda 153, que ya antepone
+   * 1.58 en la CADENA por defecto) sigue intacto; esto es un boost en el
+   * RANKING que también beneficia el modo "auto" cuando el primario no es
+   * 1.58 y las listas de alternativas/transparencia.
+   */
+  prioridadLocal158: boolean;
+  /**
    * THE HUGGING BAY (jul-2026): descubrimiento inteligente de modelos reales
    * (licencia, confianza, comando de instalación local). Aditivo: nunca
    * descarga ni activa nada por su cuenta, solo sugiere/registra candidatos.
@@ -183,6 +203,7 @@ export const DEFAULT_INTELLIGENCE: IntelligenceSettings = {
   allowConfiguredPaid: true,
   difficultyRouting: true,
   strongThreshold: 0.6,
+  prioridadLocal158: true,
   huggingBay: {
     enabled: true,
     autoSuggest: true,
@@ -352,6 +373,12 @@ export interface RouteCandidate {
   /** Por qué está en la lista (transparencia). */
   reason: string;
   fromUser: boolean;
+  /**
+   * true cuando el boost de «prioridad local 1.58» (`local158PriorityDelta`)
+   * participó en esta puntuación. Se propaga al `RouteRecord` si ESTE
+   * candidato gana el turno (transparencia — ver `RouteRecord.local158Priority`).
+   */
+  local158Priority?: boolean;
 }
 
 /** ¿Es un modelo "fuerte" (para tareas difíciles)? Heurística por calidad. */
@@ -395,6 +422,46 @@ export function difficultyAdjustment(
     return { delta: 0 };
   }
   return { delta: 0 };
+}
+
+/**
+ * PRIORIDAD LOCAL de Astraura 1.58-bit (BitNet · Cactus Needle · Jev) sobre el
+ * ranking: boost ADITIVO aplicado SOLO a las dos fuentes 1.58 del catálogo
+ * (`astraura-158-local` y `astraura-158-nube`) cuando `prioridadLocal158`
+ * está ON. Antes de este boost, en tareas de chat/conversación normales el
+ * 1.58 local competía casi EMPATADO con la nube gratis genérica (misma
+ * puntuación tras `scoreModelForTask` + `accessBias`): el usuario pedía que
+ * la local GANE de verdad esas tareas, automáticamente.
+ *
+ *   · LOCAL (esta neurona): boost fuerte (+6) en tareas normales — suficiente
+ *     para ganar con margen claro a un modelo `:free` de calidad equivalente,
+ *     pero muy por debajo del override manual (+100) o de "usar mi cuenta"
+ *     (+8 del modo conectores `prefer-own`, que sigue mandando en SU fuente).
+ *   · NUBE StarSeed: boost menor (+3) — mismo backend, pero sin la soberanía
+ *     total de la neurona local; solo debe ganarle a la nube GENÉRICA, no
+ *     aspira a competir con el propio local.
+ *   · TAREAS DIFÍCILES (`difficulty >= strongThreshold`) o de VISIÓN: boost
+ *     RETIRADO (0). El 1.58 no tiene visión (queda descalificado antes por
+ *     `scoreModelForTask`) y en lo difícil ya cede a los modelos fuertes vía
+ *     `difficultyAdjustment` — este boost NUNCA debe revertir esa cesión.
+ *
+ * Pura y exportada para test directo del ranking.
+ */
+export function local158PriorityDelta(
+  sourceId: string,
+  difficulty: number,
+  needsVision: boolean,
+  strongThreshold: number,
+): { delta: number; note?: string } {
+  if (sourceId !== ASTRAURA_158_LOCAL_SOURCE_ID && sourceId !== ASTRAURA_158_CLOUD_SOURCE_ID) {
+    return { delta: 0 };
+  }
+  if (needsVision) return { delta: 0 }; // el 1.58 no ve imágenes: nunca empujarlo aquí
+  const hi = Math.max(0.3, Math.min(0.95, strongThreshold));
+  if (difficulty >= hi) return { delta: 0 }; // tarea difícil: cede a la cloud fuerte, sin boost
+  return sourceId === ASTRAURA_158_LOCAL_SOURCE_ID
+    ? { delta: 6, note: "Astraura 1.58 local primero (prioridad local)" }
+    : { delta: 3, note: "Astraura 1.58 (nube StarSeed) primero (prioridad local)" };
 }
 
 /** Opciones aditivas del ranking (Adenda 149 · Ola 3). Omitirlas = como antes. */
@@ -498,6 +565,20 @@ export function rankCandidates(
         if (adj.delta) score += adj.delta;
         if (adj.note && !fromUser) reason = `${reason} · ${adj.note}`;
       }
+      // PRIORIDAD LOCAL de Astraura 1.58-bit (BitNet · Needle · Jev): boost
+      // aditivo pequeño/mediano solo sobre las dos fuentes 1.58 del catálogo,
+      // para que la local gane de verdad las tareas cotidianas (ver el JSDoc
+      // de `local158PriorityDelta`). Con el toggle apagado, delta siempre 0:
+      // comportamiento IDÉNTICO al de antes de esta ola.
+      let local158Priority = false;
+      if (prefs.prioridadLocal158 !== false) {
+        const boost = local158PriorityDelta(a.source.id, profile.difficulty, profile.needsVision, strongThreshold);
+        if (boost.delta) {
+          score += boost.delta;
+          local158Priority = true;
+          if (boost.note && !fromUser) reason = `${reason} · ${boost.note}`;
+        }
+      }
       // NUDGE por CLASE DE ACCESO (preferencias unificadas de modelo): sesgo
       // aditivo pequeño [0..4] según el orden que el usuario prefiere por clase
       // (local/starseed/api-free/api-external), sembrado por el dispositivo y,
@@ -512,7 +593,7 @@ export function rankCandidates(
         score += 100;
         reason = `Elegido por ti para «${TASK_LABELS[profile.kind]}»`;
       }
-      out.push({ source: a.source, model: m, score, reason, fromUser });
+      out.push({ source: a.source, model: m, score, reason, fromUser, ...(local158Priority ? { local158Priority: true } : {}) });
     }
   }
   return out.sort((x, y) => y.score - x.score);
@@ -559,6 +640,14 @@ export interface RouteRecord {
   usage?: { inputTokens?: number; outputTokens?: number };
   /** (Ola 223) true si esta ruta devolvió una respuesta desde la caché LRU. */
   cached?: boolean;
+  /**
+   * true cuando el boost de «prioridad local 1.58» (BitNet · Needle · Jev,
+   * `local158PriorityDelta`) participó en que ESTA fuente ganara el turno.
+   * DISTINTO de `local` (que marca la respuesta LOCAL HONESTA sin red cuando
+   * NINGUNA fuente respondió): aquí una IA real sí contestó, y `local` queda
+   * en `false`/ausente. Transparencia para el chip de ruta y "Ver proceso".
+   */
+  local158Priority?: boolean;
   /**
    * (Adenda 153) Sistema PRIMARIO que actuó en esta llamada: qué modo se
    * resolvió, de dónde salió la decisión y si el primario estaba listo (si no,
@@ -1130,6 +1219,41 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
   const messages = brainExtra ? mergeSystemPrompt(req.messages, brainExtra) : req.messages;
   let reqX: AstrauraChatRequest = brainExtra ? { ...req, messages } : req;
 
+  // ── CONTEXTO COMPACTO para Astraura 1.58 (local/nube) — fusión de skills ──
+  // El backend BitNet tiene un contexto pequeño (~4096 tokens): en vez del
+  // `brainExtra` completo de arriba (personalidad compilada + contexto de
+  // pantalla + descripción LARGA de cada capacidad + contexto de usuario —
+  // pensado para modelos de contexto grande), el 1.58 recibe SOLO este
+  // resumen denso y acotado en caracteres: personalidad activa, ETIQUETAS de
+  // habilidades (no su párrafo de descripción) y conectores de este chat.
+  // `local158Text`/`messages158` se usan MÁS ABAJO, únicamente cuando el
+  // candidato que se está probando es `astraura-158` (ver el bucle de la
+  // cadena de failover) — el resto de fuentes sigue recibiendo `messages`
+  // (sin cambios). Función pura y testeada: `local-158-context.ts`.
+  let messages158 = messages;
+  try {
+    const activeSkillLabels = activeCapabilities()
+      .filter((cap) => !cc?.skills?.length || cc.skills.includes(cap.id))
+      .map((cap) => cap.label);
+    const connectorNames158 = cc?.connections?.length
+      ? cc.connections
+          .map((id) => findOssService(id))
+          .filter((s): s is NonNullable<typeof s> => !!s)
+          .map((s) => s.name || s.id)
+      : [];
+    const personalityNames158 = persona?.name ? [persona.name] : [];
+    const compact158Text = buildLocal158CompactContext({
+      personalityNames: personalityNames158,
+      skillLabels: activeSkillLabels,
+      connectorNames: connectorNames158,
+    });
+    messages158 = compact158Text ? mergeSystemPrompt(req.messages, compact158Text) : req.messages;
+  } catch {
+    // Defensivo: sin contexto compacto, el 1.58 recibe el prompt base tal cual
+    // (mejor un contexto sobrio que un fallo silencioso del chat entero).
+    messages158 = req.messages;
+  }
+
   if (prefs.mode === "manual") {
     return chat({
       messages,
@@ -1396,6 +1520,7 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
           paidSuggestions: [],
           attempts: failovers.length,
           ...(primaryInfo ? { primary: primaryInfo } : {}),
+          ...(c.local158Priority ? { local158Priority: true } : {}),
         };
         pushRouteRecord(rec);
         req.onStatus?.("");
@@ -1412,11 +1537,16 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
       // usa la copia original y el comportamiento es el clásico.
       let primerToken = false;
       const graceMs = c.source.firstTokenGraceMs ?? 0;
-      let reqCand = reqX;
+      // CONTEXTO COMPACTO para el 1.58 (local o nube): swap de `messages` SOLO
+      // para este candidato — el resto de campos de `reqX` (forceSource,
+      // effortDifficultyDelta…) se conservan intactos. Ver `local-158-context.ts`
+      // y el cálculo de `messages158` más arriba.
+      let reqCand: AstrauraChatRequest =
+        c.source.providerId === "astraura-158" ? { ...reqX, messages: messages158 } : reqX;
       if (graceMs > 0) {
-        const originalOnChunk = reqX.onChunk;
+        const originalOnChunk = reqCand.onChunk;
         reqCand = {
-          ...reqX,
+          ...reqCand,
           onChunk: (delta: string) => {
             if (!primerToken && delta) primerToken = true;
             if (originalOnChunk) originalOnChunk(delta);
@@ -1466,6 +1596,7 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
         attempts: failovers.length + 1,
         ...(res?.usage ? { usage: res.usage } : {}), // (Ola 223)
         ...(primaryInfo ? { primary: primaryInfo } : {}),
+        ...(c.local158Priority ? { local158Priority: true } : {}),
       };
       pushRouteRecord(rec);
       req.onStatus?.("");

@@ -826,6 +826,26 @@ export function IntelligencePanel() {
             />
           </div>
 
+          {/* Prioridad local de Astraura 1.58-bit (BitNet · Needle · Jev) */}
+          <div className="flex items-center justify-between gap-4 rounded-lg border border-white/5 bg-black/20 p-3">
+            <div className="flex items-start gap-3 min-w-0">
+              <Cpu className="h-4 w-4 text-teal-300 shrink-0 mt-0.5" />
+              <div className="min-w-0">
+                <p className="text-sm font-semibold">Priorizar Astraura 1.58 local (BitNet · Needle · Jev)</p>
+                <p className="text-[11px] text-muted-foreground leading-relaxed">
+                  En tareas cotidianas de conversación, tu Astraura 1.58 local gana el enrutado frente a la
+                  nube gratis genérica (visión y tareas difíciles siguen yendo a la nube). No compite con un
+                  override manual ni con un servicio que conectaste tú mismo.
+                </p>
+              </div>
+            </div>
+            <Switch
+              checked={settings.prioridadLocal158 !== false}
+              onCheckedChange={(v) => { update({ prioridadLocal158: v }); toast.success(v ? "Prioridad local de Astraura 1.58 activada" : "Prioridad local de Astraura 1.58 desactivada"); }}
+              aria-label="Priorizar Astraura 1.58 local"
+            />
+          </div>
+
           {/* Selección automática de herramientas (Adenda "Aurora siempre responde", jul-2026) */}
           <div className="flex items-center justify-between gap-4 rounded-lg border border-white/5 bg-black/20 p-3">
             <div className="flex items-start gap-3 min-w-0">
