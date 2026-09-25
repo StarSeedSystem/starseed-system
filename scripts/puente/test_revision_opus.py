@@ -46,6 +46,13 @@ class RevisionOpus(unittest.TestCase):
         self.assertIsNotNone(self.revisar(AHORA + ro.CADA_S + 1, leer_=otro))
         self.assertEqual(len(self.preguntas), 2)
 
+    def test_lee_el_medidor_dentro_de_detalle(self):
+        # La API responde {"detalle": {...}}: leerlo de arriba dejaba a Opus sin estado.
+        r = ro.resumir({"detalle": {"titulo": "Agentes trabajando", "resumen": "2 escribiendo",
+                                    "filas": [{"titulo": "x", "estado": "escribiendo", "porque": "p"}]}}, "agentes")
+        self.assertEqual(r["resumen"], "2 escribiendo")
+        self.assertEqual(r["filas"][0]["estado"], "escribiendo")
+
     def test_sin_cambios_no_hace_ruido_en_el_canal(self):
         self.revisar(AHORA, texto="Sin cambios: todo va bien")
         self.assertEqual(self.dicho, [])

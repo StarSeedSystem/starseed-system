@@ -22,7 +22,8 @@ MODELO = os.environ.get("STARSEED_OPUS_MODELO", "opus")  # alias: el Opus más n
 TOPE_DIA = int(os.environ.get("STARSEED_OPUS_DIA", "8"))
 TOPE_SEMANA = int(os.environ.get("STARSEED_OPUS_SEMANA", "40"))
 PAUSA_LIMITE_S = 3 * 3600
-SIN_HERRAMIENTAS = "Bash,Edit,Write,MultiEdit,NotebookEdit,WebFetch,WebSearch,Task,Read,Glob,Grep"
+PAUSA_SIN_SALDO_S = 6 * 3600
+SIN_HERRAMIENTAS = "Bash,Edit,Write,NotebookEdit,WebFetch,WebSearch,Task,Read,Glob,Grep"
 _CLAVES = re.compile(
     r"(sk-[A-Za-z0-9_-]{12,}|gh[pousr]_[A-Za-z0-9]{16,}|AIza[0-9A-Za-z_-]{20,}|hf_[A-Za-z0-9]{16,}"
     r"|gsk_[A-Za-z0-9]{16,}|eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9._-]+|Bearer\s+[A-Za-z0-9._-]{16,}"
@@ -68,7 +69,8 @@ def _entorno():
 def _correr_real(args, segundos):
     vacia = os.path.join(tempfile.gettempdir(), "opus-director-vacia")  # sin repo ni archivos
     os.makedirs(vacia, exist_ok=True)
-    r = subprocess.run(args, capture_output=True, text=True, timeout=segundos, cwd=vacia, env=_entorno())
+    r = subprocess.run(args, capture_output=True, text=True, timeout=segundos, cwd=vacia, env=_entorno(),
+                       stdin=subprocess.DEVNULL)
     return r.returncode, r.stdout
 
 
@@ -90,7 +92,8 @@ def disponible(ahora=None, correr=None):
         return False, "no está la CLI de Claude Code en esta máquina"
     u = _leer()
     if u.get("pausado_hasta", 0) > ahora:
-        return False, "Claude avisó de límite: en pausa %d min" % ((u["pausado_hasta"] - ahora) // 60)
+        return False, "%s: en pausa %d min" % (u.get("pausa_motivo") or "Claude avisó de límite",
+                                                (u["pausado_hasta"] - ahora) // 60)
     hoy, semana = usadas(u, ahora)
     if hoy >= TOPE_DIA or semana >= TOPE_SEMANA:
         return False, "tope alcanzado (%d/%d hoy · %d/%d semana)" % (hoy, TOPE_DIA, semana, TOPE_SEMANA)
@@ -124,8 +127,12 @@ def consultar(pregunta, contexto="", segundos=240, ahora=None, correr=None):
     u = _leer()
     texto = str(d.get("result") or "")
     if rc != 0 or d.get("is_error") or not texto:
-        if re.search(r"limit|rate|429|quota", texto, re.I):
-            u["pausado_hasta"] = ahora + PAUSA_LIMITE_S
+        if re.search(r"credit|balance|billing", texto, re.I):
+            # (2026-09-25) «Credit balance is too low»: la cuenta de Claude Code no tiene saldo
+            # ahora mismo. No cuesta nada, pero tampoco sirve reintentar cada pasada.
+            u["pausado_hasta"], u["pausa_motivo"] = ahora + PAUSA_SIN_SALDO_S, "la cuenta de Claude Code no tiene saldo"
+        elif re.search(r"limit|rate|429|quota", texto, re.I):
+            u["pausado_hasta"], u["pausa_motivo"] = ahora + PAUSA_LIMITE_S, "Claude avisó de límite"
         u["ultimo"] = {"t": ahora, "ok": False}
         _escribir(u)
         return None

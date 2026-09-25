@@ -32,12 +32,17 @@ PREGUNTA = (
 )
 
 
-def medidor(clave):
-    with urllib.request.urlopen("%s/api/mando/medidores?clave=%s" % (MANDO, clave), timeout=60) as r:
-        d = json.loads(r.read().decode("utf-8"))
+def resumir(respuesta, clave):
+    """PURA: lo que Opus necesita de un medidor. La API lo envuelve en `detalle`."""
+    d = (respuesta or {}).get("detalle") or respuesta or {}
     filas = [{"titulo": f.get("titulo"), "estado": f.get("estado"), "porque": str(f.get("porque") or "")[:140]}
              for f in (d.get("filas") or [])[:4]]
     return {"medidor": d.get("titulo") or clave, "resumen": d.get("resumen"), "filas": filas}
+
+
+def medidor(clave):
+    with urllib.request.urlopen("%s/api/mando/medidores?clave=%s" % (MANDO, clave), timeout=60) as r:
+        return resumir(json.loads(r.read().decode("utf-8")), clave)
 
 
 def estado_compacto(leer=medidor):

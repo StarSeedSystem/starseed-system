@@ -53,6 +53,14 @@ class OpusDirector(unittest.TestCase):
         self.assertIn("pausa", motivo)
         self.assertTrue(od.disponible(AHORA + od.PAUSA_LIMITE_S + 1, correr=doble({}))[0])
 
+    def test_sin_saldo_pausa_seis_horas_y_lo_dice(self):
+        # Lo que devolvió de verdad la CLI de la Mac el 2026-09-25.
+        od.consultar("¿?", ahora=AHORA, correr=doble({"is_error": True, "result": "Credit balance is too low"}, rc=1))
+        ok, motivo = od.disponible(AHORA + 3 * 3600, correr=doble({}))
+        self.assertFalse(ok)
+        self.assertIn("no tiene saldo", motivo)
+        self.assertTrue(od.disponible(AHORA + od.PAUSA_SIN_SALDO_S + 1, correr=doble({}))[0])
+
     def test_sin_sesion_no_hay_opus(self):
         self.assertFalse(od.disponible(AHORA, correr=doble({}, sesion=False))[0])
 
