@@ -3836,3 +3836,20 @@ verificación en vivo: `https://starseed-os.vercel.app/api/ai/astraura-158/api/s
 - **Lecciones**: tareas de ≤ 3 archivos y ≤ 120 líneas (ESCRITURA_S 1500 s cortaba las de 4–5); la puerta pytest debe mirar el árbol de trabajo; verificar cada endpoint en la Mac destapó 9 defectos; `pgrep -f` mata la propia shell (usar `patr[o]n`).
 - **Estado git**: OS main `76e7f50` (Mac en `ba3d9fd`, modo ligero); astraura main `efcd88f2`; producción `2755cd2` con ~127 commits del OS y 13 de Astraura sin publicar; publicar solo con `PUBLICAR` de Alex.
 - Fuente: `docs/adendas/adenda-228-mando-ampliado-aprendizaje-158-olas-257-276-2026-09-07.md`.
+
+## 2026-09-25 — Gestos unificados, X común y transiciones 3D (Trinity · Bloque 5)
+**Sesión por:** Claude (Opus 5.5), rama local `trabajo-2026-09-25`
+**Resumen ejecutivo:** las cortinas Trinity ya se arrastran y se cierran de verdad con ratón, dedo, lápiz y trackpad; una sola X para todo el OS; páginas, pasos y diálogos entran con resortes en 3D; la guía enseña (y deja practicar) los gestos según el dispositivo.
+
+### Hecho
+- Causa real, reproducida en Chromium antes de tocar: captura de puntero en cada pointerdown (el clic iba a la capa, no a la X), sin `touch-action` (pointercancel y hasta «atrás»), tiradores bajo los sensores `z-9999`, y `body[data-ss-modal]` fijo por el diálogo cerrado de `usePrompt` (ocultaba asas, botón Trinity y guía).
+- `src/lib/gestos/` (motor puro), `useArrastrePanel`, `useArrastreDesdeBorde`, `PanelCortina`, `DockDeslizable`, `BotonCerrar`, `TransicionRutas`, `PasoAnimado`, `useDeslizarPasos`, paso «Gestos naturales en cualquier pantalla» con práctica real y `ResumenGestos` en el alta.
+- SOP: `architecture/integracion-portal-starseed-os.md` → «Trinity · Bloque 5».
+
+### Pendiente / Próximos pasos
+- Probar en dispositivos reales (Android con navegación por gestos, iPhone/iPad Safari y PWA, Tauri Android/macOS/Windows): el arnés usa Chromium sin GPU con toques CDP.
+- `next build` completo antes de publicar (no se ejecutó en esta sesión).
+
+### Notas / aprendizajes
+- En jsdom `setPointerCapture` no existe: las pruebas de gestos deben simular la secuencia completa y espiar la captura, o no ven el fallo real.
+- La velocidad de un gesto se mide con `event.timeStamp`, no con la hora de atenderlo.
