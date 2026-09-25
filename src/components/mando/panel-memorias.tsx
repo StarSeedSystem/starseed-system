@@ -139,11 +139,13 @@ export function PanelMemorias() {
     const [detalle, setDetalle] = useState<DetalleMemoriaApi | null>(null);
     const [cargandoDetalle, setCargandoDetalle] = useState(false);
 
-    const recargar = useCallback(async () => {
+    const recargar = useCallback(async (forzar = false) => {
         setCargando(true);
         setError(null);
         try {
-            const r = await fetch("/api/mando/memorias", { cache: "no-store" });
+            const r = await fetch(forzar ? "/api/mando/memorias?forzar=1" : "/api/mando/memorias", {
+                cache: "no-store",
+            });
             if (!r.ok) {
                 setError(
                     r.status === 404
@@ -217,7 +219,7 @@ export function PanelMemorias() {
                 {error ?? "Sin datos de memorias."}
                 <button
                     type="button"
-                    onClick={() => void recargar()}
+                    onClick={() => void recargar(true)}
                     className="ml-3 inline-flex cursor-pointer items-center gap-1 rounded-md border border-white/10 px-2 py-1 text-xs hover:bg-white/5"
                 >
                     <RefreshCw className="h-3 w-3" aria-hidden />
@@ -245,7 +247,7 @@ export function PanelMemorias() {
                 </div>
                 <button
                     type="button"
-                    onClick={() => void recargar()}
+                    onClick={() => void recargar(true)}
                     className="inline-flex cursor-pointer items-center gap-1 rounded-md border border-white/10 px-2 py-1 text-xs text-white/70 hover:bg-white/5"
                 >
                     <RefreshCw className={`h-3 w-3 ${cargando ? "animate-spin" : ""}`} aria-hidden />

@@ -8,6 +8,7 @@
  *
  * Query:
  *   ?q=<texto>        filtra los archivos de cada capa por título/ruta/resumen.
+ *   ?forzar=1         relee todas las fuentes (salta el memo de 20 s).
  *   ?archivo=<ruta>   el detalle (texto completo redactado, vínculos resueltos
  *                      y «mencionado por») de una memoria concreta, tal y como
  *                      aparece en el catálogo (`ruta` de una respuesta anterior).
@@ -16,7 +17,8 @@
  * como el resto de `/api/mando/*`). `leerDetalleArchivo` solo lee un archivo
  * que YA está en el catálogo construido en este mismo proceso (nunca una ruta
  * arbitraria del disco) y todo el texto que sale de aquí pasa antes por
- * `redactarTexto`. Nunca caché: las memorias cambian con cada ola.
+ * `redactarTexto`. Sin caché HTTP; solo un memo de 20 s en el proceso que
+ * «Actualizar» salta (`?forzar=1`).
  */
 
 import { guardianMando } from "@/lib/mando/guardian";
@@ -43,7 +45,7 @@ export async function GET(peticion: Request): Promise<Response> {
 
     const q = searchParams.get("q") ?? undefined;
     try {
-        const datos = await leerMemorias(q);
+        const datos = await leerMemorias(q, searchParams.get("forzar") === "1");
         return Response.json(datos, { headers: { "Cache-Control": "no-store" } });
     } catch {
         // Memorias a medias antes que consola caída: si una fuente falla, el

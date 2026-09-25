@@ -367,6 +367,25 @@ interface Catalogo {
     textos: Map<string, string>;
 }
 
+/**
+ * Memo corto del catálogo (20 s): abrir una memoria o volver a la pestaña no relee
+ * los ~700 archivos cada vez (en la Mac con swap alto eso eran 6-20 s por clic).
+ * «Actualizar» lo salta con `forzar`. Nunca guarda nada en disco.
+ */
+const MEMO_CATALOGO_MS = 20_000;
+let memoCatalogo: { en: number; promesa: Promise<Catalogo> } | null = null;
+
+function catalogoBase(forzar = false): Promise<Catalogo> {
+    const ahora = Date.now();
+    if (!forzar && memoCatalogo && ahora - memoCatalogo.en < MEMO_CATALOGO_MS) return memoCatalogo.promesa;
+    const promesa = construirCatalogoBase();
+    memoCatalogo = { en: ahora, promesa };
+    promesa.catch(() => {
+        if (memoCatalogo?.promesa === promesa) memoCatalogo = null;
+    });
+    return promesa;
+}
+
 /** Construye el catálogo base leyendo TODAS las fuentes en paralelo. Nunca lanza. */
 async function construirCatalogoBase(): Promise<Catalogo> {
     const grupos: { capa: IdCapa; lecturas: LecturaArchivo[] }[] = await Promise.all([
@@ -402,8 +421,8 @@ async function catalogoCompleto(base: ArchivoMemoria[]): Promise<ArchivoMemoria[
  * capa por título/ruta/resumen — el conteo por capa y las «últimas
  * actualizaciones» siempre reflejan el catálogo COMPLETO, no lo filtrado.
  */
-export async function leerMemorias(consulta?: string): Promise<RespuestaMemorias> {
-    const { base } = await construirCatalogoBase();
+export async function leerMemorias(consulta?: string, forzar = false): Promise<RespuestaMemorias> {
+    const { base } = await catalogoBase(forzar);
     const todos = await catalogoCompleto(base);
 
     const capas = construirCapas(todos, ORIGENES);
@@ -427,7 +446,7 @@ export async function leerMemorias(consulta?: string): Promise<RespuestaMemorias
 export async function leerDetalleArchivo(ruta: string): Promise<DetalleArchivoMemoria | { error: string }> {
     if (!rutaSegura(ruta)) return { error: "no encontrado" };
 
-    const { base, textos } = await construirCatalogoBase();
+    const { base, textos } = await catalogoBase();
     const todos = await catalogoCompleto(base);
     const archivo = todos.find((a) => a.ruta === ruta);
     if (!archivo) return { error: "no encontrado" };

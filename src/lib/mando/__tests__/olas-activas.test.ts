@@ -110,6 +110,14 @@ describe("olasDeLaMac", () => {
     it("sin latidos no hay olas en marcha", () => {
         expect(olasDeLaMac(colas, [])).toEqual([]);
     });
+
+    it("los agentes de fuera (externo-*) no cuentan como ola de la Mac", () => {
+        const olas = olasDeLaMac(colas, [
+            { tarea: "cw-fondo", cola: "externo-cowork", minutos: 40 },
+            { tarea: "cw-voz", cola: "externo-cowork", minutos: 40 },
+        ]);
+        expect(olas).toEqual([]);
+    });
 });
 
 describe("verificacionDe", () => {

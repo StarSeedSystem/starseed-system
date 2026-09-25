@@ -1004,6 +1004,8 @@ export interface DatosMedidores {
         bytesLog?: number;
         cola?: string;
         medio?: string;
+        /** Título legible (solo lo traen los latidos externos de `latido_externo.py`). */
+        titulo?: string;
     }[];
     /**
      * Inventario de contenedores en la nube, tal como lo escribe
@@ -1313,6 +1315,9 @@ export function olasDeLaMac(
     for (const l of latidos) {
         const c = l.cola ? norm(l.cola) : colas.find((t) => t.id === l.tarea)?.cola;
         if (!c) continue;
+        // Los agentes de fuera (Claude en Cowork, Hermes…) laten en `externo-*`: salen en
+        // Agentes y Tareas, pero no son una ola de la Mac con tareas que integrar.
+        if (c.startsWith("externo-")) continue;
         const previo = porCola.get(c) ?? { agentes: 0, minutos: 0 };
         porCola.set(c, { agentes: previo.agentes + 1, minutos: Math.max(previo.minutos, l.minutos ?? 0) });
     }
@@ -1561,19 +1566,31 @@ export function detalleDeMedidor(
                 // escribir un byte, y el Puente los contaba como «agentes escribiendo
                 // ahora». Alex lo llamó mentira y lo era. Ahora se dicen por su nombre.
                 const esperandoProveedor = /esperando proveedor/i.test(String(l.fase ?? ""));
+                // (2026-09-25) Los agentes de FUERA (Claude en Cowork, sus subagentes, Hermes)
+                // laten con `latido_externo.py` al cambiar de fase: no escriben un log aquí, así
+                // que «callado» mentiría. Se dicen por su nombre: trabajando fuera, y en qué fase.
+                const externo = String(l.cola ?? "").startsWith("externo-");
                 const obra = d.obras?.[l.tarea];
                 return {
                     id: `${proveedor} · ${modelo}`,
                     titulo: esperandoProveedor
                         ? `sin pasarela libre · ${l.tarea} en ${l.donde}`
                         : `${proveedor} · ${modelo} en ${l.donde}`,
-                    estado: esperandoProveedor ? "esperando pasarela" : callado ? "callado" : "escribiendo",
+                    estado: externo
+                        ? "trabajando fuera"
+                        : esperandoProveedor
+                          ? "esperando pasarela"
+                          : callado
+                            ? "callado"
+                            : "escribiendo",
                     // El avance del agente es el de su tarea: es lo unico que ha avanzado.
                     porcentaje: avanceDe(l.fase, estadoDe(l.tarea)).porcentaje,
-                    etapa: `trabaja en ${l.tarea}`,
+                    etapa: `trabaja en ${externo && l.titulo ? l.titulo : l.tarea}`,
                     quien: l.cola ? `cola ${l.cola}` : l.medio ?? l.donde,
                     desde: `${l.minutos} min`,
-                    porque: esperandoProveedor
+                    porque: externo
+                        ? `fase: ${l.fase ?? "sin fase"} · avisa al cambiar de fase (no escribe log en la Mac)`
+                        : esperandoProveedor
                         ? `NO está escribiendo: todas las pasarelas útiles están caídas o sin cupo (lleva ${l.minutos} min esperando)`
                         : callado
                           ? `sin escribir desde hace ${Math.round((quieto ?? 0) / 60)} min`
@@ -1588,6 +1605,7 @@ export function detalleDeMedidor(
             const callados = filas.filter((f) => f.estado === "callado").length;
             const esperando = filas.filter((f) => f.estado === "esperando pasarela").length;
             const escribiendo = filas.filter((f) => f.estado === "escribiendo").length;
+            const fuera = filas.filter((f) => f.estado === "trabajando fuera").length;
             const medioAg = mediaDeAvance(filas);
             return {
                 clave,
@@ -1597,7 +1615,9 @@ export function detalleDeMedidor(
                 resumen:
                     filas.length === 0
                         ? "ningún agente escribiendo"
-                        : `${escribiendo} escribiendo${esperando ? ` · ${esperando} sin pasarela libre` : ""}${
+                        : `${escribiendo} escribiendo${fuera ? ` · ${fuera} trabajando fuera` : ""}${
+                              esperando ? ` · ${esperando} sin pasarela libre` : ""
+                          }${
                               callados ? ` · ${callados} callado(s)` : ""
                           } · ${filas.length} en total · ${new Set(d.latidos.map((l) => l.donde)).size} medio(s)`,
                 filas,

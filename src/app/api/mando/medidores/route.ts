@@ -551,6 +551,7 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
             bytesLog: l.bytesLog,
             cola: l.cola,
             medio: l.medio,
+            titulo: l.titulo,
         })),
         ...bus.latidos
             .filter((l) => !deAqui.has(l.tarea))
