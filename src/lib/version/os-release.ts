@@ -3,16 +3,16 @@
 // Cualquier medio que muestre la versión debe leer de aquí y jamás escribir
 // su propia fecha (ver el test medios-version-coherentes y el checkpoint).
 
-export const OS_VERSION = "2026.09.24";
+export const OS_VERSION = "2026.09.25";
 
-export const OS_FECHA = "2026-09-24";
+export const OS_FECHA = "2026-09-25";
 
 export type CanalRelease = "alpha" | "beta" | "estable";
 
 export const OS_CANAL: CanalRelease = "alpha";
 
 export const OS_NOTAS =
-  "Apps nativas 0.2.0 para macOS, Windows, Linux y Android con actualización automática inteligente (reinstalación completa dentro de la propia app); en iPhone/iPad, como app web instalable. El fondo animado ahora ajusta su calidad solo según el dispositivo. Nueva ventana de ajustes del chat de Astraura. El panel de Olas es honesto: solo marca «en curso» cuando hay agentes trabajando de verdad. La nube deja de repetir trabajo ya hecho.";
+  "Apps nativas 0.2.1 con el logo oficial de StarSeed OS en todas las versiones, y un botón «Instalar» que detecta tu sistema y descarga al momento la versión que le corresponde. Al abrir la app por primera vez aparece la bienvenida: crear cuenta o iniciar sesión, o los ajustes de la neurona nueva si ya tienes cuenta. Nuevo «Mi Puente de Mando» para cualquier cuenta. La Biblioteca instala eligiendo dónde: en la web, en este dispositivo o en tus otras neuronas y perfiles. Audiomorphic y Omnifrecuencias al día con sus versiones oficiales. Menús Trinity que se arrastran desde cualquier lado y se cierran con un botón común, guías de la interfaz táctil y de ratón, transiciones 3D entre páginas. El fondo animado se reproduce entero: la calidad adaptativa solo cambia los píxeles.";
 
 /**
  * Versión del PAQUETE NATIVO (Tauri 2, proyecto `native/`): el shell de
@@ -21,7 +21,7 @@ export const OS_NOTAS =
  * `package.json` en cada release nativa — los cuatro sitios deben coincidir
  * (ver native/README.md §11 «Cómo publicar una release»).
  */
-export const NATIVE_VERSION = "0.2.0";
+export const NATIVE_VERSION = "0.2.1";
 
 /** Etiqueta de tag/Release de GitHub para el paquete nativo (`v<NATIVE_VERSION>`). */
 export const NATIVE_TAG = `v${NATIVE_VERSION}`;

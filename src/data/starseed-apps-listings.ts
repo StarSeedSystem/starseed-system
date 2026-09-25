@@ -94,6 +94,13 @@ export const STARSEED_APP_LISTINGS: StarSeedAppListing[] = [
                 url: "https://starseed-os.vercel.app",
             },
             {
+                version: "2026.09.24",
+                date: "2026-09-24",
+                notes:
+                    "Apps nativas 0.2.0 para macOS, Windows, Linux y Android con actualización automática inteligente (reinstalación completa dentro de la propia app); en iPhone/iPad, como app web instalable. El fondo animado ahora ajusta su calidad solo según el dispositivo. Nueva ventana de ajustes del chat de Astraura. El panel de Olas es honesto: solo marca «en curso» cuando hay agentes trabajando de verdad. La nube deja de repetir trabajo ya hecho.",
+                url: "https://starseed-os.vercel.app",
+            },
+            {
                 version: "2026.09.09",
                 date: "2026-09-09",
                 notes:

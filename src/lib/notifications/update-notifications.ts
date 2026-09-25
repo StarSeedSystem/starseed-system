@@ -31,7 +31,7 @@ import { computeSuggestions, type Suggestion } from "@/ai/astraura/autonomy";
  * si NO coincide con la última vista por el usuario, se genera el aviso
  * "hay una actualización importante del sistema".
  */
-export const CURRENT_RELEASE = "2026-09-24-os-0.2.0";
+export const CURRENT_RELEASE = "2026-09-25-os-0.2.1";
 
 /** Clave de "avisos ya vistos" (viaja con la cuenta vía SYNCED_KEYS). */
 export const SEEN_KEY = "starseed.updates.seen.v1";
@@ -184,9 +184,9 @@ export async function getPendingNotifications(context?: string): Promise<UpdateN
       out.push({
         id,
         kind: "update-app",
-        title: "StarSeed OS 0.2.0: apps nativas con actualización automática",
+        title: "StarSeed OS 0.2.1: tu propio Puente de Mando e instalar eligiendo dónde",
         detail:
-          "El OS trae apps nativas para macOS, Windows, Linux y Android (en iPhone/iPad, como app web instalable): la app instalada se actualiza sola (reinstalación completa e inteligente, sin perder tus datos). En el navegador basta con recargar; el contenido web (red, publicaciones, Astraura) ya llegó al instante.",
+          "Nuevo «Mi Puente de Mando» para controlar tu sistema, tus neuronas y tus perfiles. La Biblioteca instala en la web, en este dispositivo o en tus otras neuronas. Los menús Trinity se arrastran desde cualquier lado y se cierran con un toque. Las apps nativas llevan el logo oficial y se actualizan solas; en el navegador basta con recargar.",
         priority: 10,
       });
     }

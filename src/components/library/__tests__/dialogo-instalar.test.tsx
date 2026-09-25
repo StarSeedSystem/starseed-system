@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AppearanceProvider } from "@/context/appearance-context";
 import type { DestinoInstalacion } from "@/lib/instalaciones/destinos";
+import { NATIVE_TAG, NATIVE_VERSION } from "@/lib/version/os-release";
 import type { AccionInstalacion } from "@/lib/instalaciones/plan";
 import type { DatosInstalacion } from "../use-datos-instalacion";
 
@@ -169,17 +170,17 @@ describe("DialogoInstalar", () => {
         montar("starseed-os");
         expect(screen.getByRole("heading", { name: "¿Dónde quieres instalar StarSeed OS?" })).toBeTruthy();
         // La casilla describe el archivo del OS (no el de Nexus ni el de Café).
-        expect(screen.getByText(/StarSeed-os-0\.2\.0\.apk/)).toBeTruthy();
+        expect(screen.getByText(new RegExp(`StarSeed-os-${NATIVE_VERSION.replace(/\./g, "\\.")}\\.apk`))).toBeTruthy();
 
         await act(async () => {
             fireEvent.click(screen.getByRole("button", { name: "Descargar para Android" }));
         });
 
-        expect(clics).toEqual(["https://github.com/StarSeedSystem/starseed-system/releases/download/v0.2.0/StarSeed-os-0.2.0.apk"]);
+        expect(clics).toEqual([`https://github.com/StarSeedSystem/starseed-system/releases/download/${NATIVE_TAG}/StarSeed-os-${NATIVE_VERSION}.apk`]);
         // No se descarga dos veces: solo se añade al Lanzador y se guarda el destino.
         expect(est.acciones.map((a) => a.tipo)).toEqual(["anadir-lanzador"]);
         expect(est.guardados.map((d) => [d.tipo, d.neuronaId, d.estado, d.archivo, d.version])).toEqual([
-            ["neurona", "yo", "descargada", "StarSeed-os-0.2.0.apk", "v0.2.0"],
+            ["neurona", "yo", "descargada", `StarSeed-os-${NATIVE_VERSION}.apk`, NATIVE_TAG],
         ]);
         expect(screen.getByTestId("resultado-instalar-os").textContent).toContain("instale apps desconocidas");
         expect((screen.getByLabelText(/Este dispositivo \(Móvil de Alex\)/) as HTMLInputElement).checked).toBe(false);
