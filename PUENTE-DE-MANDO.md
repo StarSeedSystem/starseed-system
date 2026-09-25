@@ -1,6 +1,6 @@
 # Puente de Mando · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-24 15:40:14 desde el Mando vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-25 02:04:57 desde el Mando vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -12,20 +12,20 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | | |
 |---|---|
 | Mando | **encendido** en http://127.0.0.1:9002/mando |
-| Ola arriba | Ola Dream 2026-09-22 · lo que el análisis nocturno encontró |
+| Ola arriba | — |
 | Agentes escribiendo | **0** |
-| En esta ola | integradas 1 · en curso 0 · esperando aprobación 0 · pendientes 0 |
-| Últimas 4 olas | en curso 0 · pendientes 0 · integradas 22 |
-| HEAD | `dfbd61f6 chore(memoria): aprendizaje de la ola auto-0924-144225` |
-| Sin publicar | 45 commits |
+| En esta ola | integradas None · en curso None · esperando aprobación None · pendientes None |
+| Últimas None olas | en curso None · pendientes None · integradas None |
+| HEAD | `f6128be0 Primer arranque: bienvenida con acceso para quien llega sin cuenta y ajustes para` |
+| Sin publicar | 17 commits |
 | Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-auto-0924-144225.json`, hace 6s)
+## Quién escribe ahora (latido de `cola-auto-0924-144225.json`, hace 37488s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `p318Jc` | hecho | apinex/free/deepseek-v4-pro-0813 | 1 min | 41 s | 449641 |
-| `p318Jb` | hecho | codex/gpt-5.6-sol | 28 min | 1695 s | 1403506 |
+| `p318Jc` | hecho | apinex/free/deepseek-v4-pro-0813 | 625 min | 37524 s | 449641 |
+| `p318Jb` | hecho | codex/gpt-5.6-sol | 653 min | 39178 s | 1403506 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
