@@ -21,8 +21,9 @@ for ruta in (os.path.expanduser("~/.starseed/env"),):
                 k, v = l.split("=", 1); ENV[k.strip()] = v.strip().strip('"').strip("'")
     except Exception:
         pass
-URL = "https://pqzdpmedcsgcedkvndzl.supabase.co/rest/v1/relevo_eventos"
 K = ENV.get("NEXT_PUBLIC_SUPABASE_ANON_KEY", "")
+# (2026-09-25) URL y clave del mismo proyecto, siempre del entorno.
+URL = (ENV.get("NEXT_PUBLIC_SUPABASE_URL") or "https://pqzdpmedcsgcedkvndzl.supabase.co").rstrip("/") + "/rest/v1/relevo_eventos"
 SECRETO = ENV.get("STARSEED_LANZADOR_SECRETO", "")
 ROOT = os.environ.get("STARSEED_ROOT", "/home/claude/starseed-system")
 WT = os.environ.get("STARSEED_WT", "/home/claude/starseed-wt")

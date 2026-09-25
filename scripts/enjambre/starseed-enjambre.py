@@ -1856,6 +1856,9 @@ def _bin(nombre):
 OPENCODE = _bin("opencode")
 HERMES = _bin("hermes")
 ANON = ENV.get("NEXT_PUBLIC_SUPABASE_ANON_KEY", "")
+# (2026-09-25) La URL del bus sale del mismo sitio que su clave: con la URL escrita a mano,
+# cambiar de proyecto de Supabase dejaba URL de uno y clave de otro (401 en cada latido).
+SUPABASE_URL = (ENV.get("NEXT_PUBLIC_SUPABASE_URL") or SUPABASE_URL).rstrip("/")
 
 
 def entorno_hijo(extra=None):
