@@ -54,6 +54,9 @@ ESPERA_MIN = int(os.environ.get("STARSEED_ESPERA_APROBACION_MIN", "10"))
 PARTE_CADA_S = int(os.environ.get("STARSEED_PARTE_S", "3600"))
 #: (2026-09-25) Cada cuánto mira el director de consumo (vigia_consumo.py).
 CONSUMO_CADA_S = int(os.environ.get("STARSEED_CONSUMO_S", "900"))
+#: (2026-09-25) Cada cuánto se publica el túnel de Astraura para la web y la app
+#: (publicar_tunel_astraura.py: solo escribe si cambió o cada 30 min).
+TUNEL_CADA_S = int(os.environ.get("STARSEED_TUNEL_ASTRAURA_S", "300"))
 DISCO_MIN_GB = 5
 PATRON_ORQ = re.compile(r"^[^ ]*[Pp]ython[0-9.]* +-u +.*starseed-enjambre\.py")
 
@@ -647,6 +650,7 @@ def main():
     )
     ultimo_parte = 0
     ultimo_consumo = 0
+    ultimo_tunel = 0
     while True:
         try:
             revisar()
@@ -656,6 +660,16 @@ def main():
                 ultimo_consumo = time.time()
                 subprocess.Popen(
                     [sys.executable, os.path.join(DIRECTORIO, "vigia_consumo.py")],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    start_new_session=True,
+                )
+            # (2026-09-25) La nube de Google quedó sin facturación: la web y la app llegan a
+            # la Astraura de esta Mac por su túnel, cuya URL cambia en cada arranque.
+            if time.time() - ultimo_tunel >= TUNEL_CADA_S:
+                ultimo_tunel = time.time()
+                subprocess.Popen(
+                    [sys.executable, os.path.join(DIRECTORIO, "publicar_tunel_astraura.py")],
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
                     start_new_session=True,
