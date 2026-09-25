@@ -503,6 +503,9 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
 
     const titulos: Record<string, string> = {};
     for (const t of colas) titulos[t.id] = t.titulo;
+    // (2026-09-25) Agentes externos (Claude en Cowork, subagentes, Hermes): su título viene
+    // en el propio latido porque no salen de ninguna cola.
+    for (const l of latidosMac) if (l.titulo && !titulos[l.tarea]) titulos[l.tarea] = l.titulo;
 
     // Commits que esta rama tiene y el remoto no.
     const salida = await git(["log", "@{upstream}..HEAD", "--format=%H%x1f%s%x1f%cI"]);
@@ -541,8 +544,9 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
             fase: l.fase,
             modelo: l.modelo,
             minutos: l.minutos,
-            donde: "mac",
-            proveedor: undefined as string | undefined,
+            // (2026-09-25) Los externos dicen dónde corren (p. ej. «cowork»).
+            donde: l.donde || "mac",
+            proveedor: l.proveedor as string | undefined,
             quietoSegundos: l.quietoSegundos,
             bytesLog: l.bytesLog,
             cola: l.cola,

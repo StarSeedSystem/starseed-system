@@ -97,6 +97,9 @@ export interface LatidoTarea {
     intento?: number;
     /** Desde dónde se usan las APIs: hermes · claude · terminal · mando · cron · opencode… */
     medio?: string;
+    /** (2026-09-25) Título de la tarea cuando no sale de ninguna cola (agentes externos:
+     *  Claude en Cowork y sus subagentes, Hermes…). */
+    titulo?: string;
 }
 
 /** Foto de un orquestador tal como la publica en el bus con cada latido. */

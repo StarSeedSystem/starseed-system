@@ -612,7 +612,7 @@ export function fichaDeAgente(
     ficha.push({ etiqueta: "Proveedor", valor: proveedor });
     ficha.push({
         etiqueta: "Entorno",
-        valor: l.donde === "mac" ? "Mac de Alex (local)" : l.donde,
+        valor: dondeLegible(l.donde),
     });
     if (l.medio) ficha.push({ etiqueta: "Medio", valor: l.medio });
     if (l.cola) ficha.push({ etiqueta: "Cola", valor: l.cola });
@@ -675,6 +675,25 @@ export function fichaDeAgente(
 }
 
 /**
+ * (2026-09-25) Dónde corre un agente, dicho para personas. Los externos (Claude en Cowork y
+ * sus subagentes, Hermes) laten con `scripts/puente/latido_externo.py`.
+ */
+export function dondeLegible(donde: string | undefined): string {
+    switch (donde) {
+        case "mac":
+        case undefined:
+        case "":
+            return "Mac de Alex (local)";
+        case "cowork":
+            return "Claude en Cowork (nube de Anthropic)";
+        case "hermes":
+            return "Hermes (servidor)";
+        default:
+            return donde;
+    }
+}
+
+/**
  * (2026-09-24) Alex: «vuelven a entrar 4 más… no sé de qué olas son». La ola de una
  * tarea viva, en corto («Ola 318 · Director de verdad»): primero las olas que se
  * ejecutan ahora (su título ya viene resuelto), si no la ola que declara su cola.
@@ -715,7 +734,7 @@ export function fichaDeTarea(
         ficha.push({ etiqueta: "La escribe", valor: latido.modelo });
         ficha.push({
             etiqueta: "Dónde",
-            valor: latido.donde === "mac" ? "Mac de Alex (local)" : latido.donde,
+            valor: dondeLegible(latido.donde),
         });
     } else if (entrada?.modelo && entrada.modelo !== "-") {
         ficha.push({ etiqueta: "Último modelo", valor: entrada.modelo });

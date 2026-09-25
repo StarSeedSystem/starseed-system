@@ -537,13 +537,19 @@ export async function leerLatidos(): Promise<LatidoTarea[]> {
         // Un orquestador que muere de golpe deja su archivo de latidos con la última tarea
         // marcada como «escribiendo» para siempre. El vigilante lo reescribe cada 20 s, así que
         // si el archivo no se ha tocado en 3 minutos, esa ola ya no está viva: se ignora.
+        // (2026-09-25) Los agentes EXTERNOS (Claude en Cowork y sus subagentes, Hermes…)
+        // escriben `latidos-externo-*.json` con `scripts/puente/latido_externo.py`. No laten
+        // cada 20 s como el orquestador: cada tarea dice hasta cuándo sigue viva (`hasta`),
+        // así que su archivo se acepta hasta 45 min sin tocar.
+        const externo = nombre.startsWith("latidos-externo-");
         try {
             const info = await stat(path.join(RAÍZ, dirOlas, nombre));
-            if (ahora - info.mtimeMs > 3 * 60 * 1000) continue;
+            if (ahora - info.mtimeMs > (externo ? 45 : 3) * 60 * 1000) continue;
         } catch {
             continue;
         }
         const datos = objeto(await leerJson(`${dirOlas}/${nombre}`));
+        const dondeArchivo = texto(datos.donde) || "mac";
         const cola = (texto(datos.cola) || nombre.replace(/^latidos-/, "")).replace(/\.json$/, "");
         const medioArchivo = texto(datos.medio) || undefined;
         const porTarea = objeto(datos.tareas);
@@ -551,6 +557,8 @@ export async function leerLatidos(): Promise<LatidoTarea[]> {
             const d = objeto(bruto);
             const fase = texto(d.fase);
             if (!tieneTexto(fase) || fase === "hecho") continue;
+            const hasta = número(d.hasta, 0) * 1000;
+            if (externo && hasta > 0 && hasta < ahora) continue; // el externo dejó de latir
             const desde = número(d.desde, 0) * 1000;
             const avance = número(d.avance, 0) * 1000;
             latidos.push({
@@ -560,9 +568,11 @@ export async function leerLatidos(): Promise<LatidoTarea[]> {
                 modelo: texto(d.modelo),
                 minutos: desde > 0 ? Math.max(0, Math.round((ahora - desde) / 60000)) : 0,
                 quietoSegundos: avance > 0 ? Math.max(0, Math.round((ahora - avance) / 1000)) : 0,
-                donde: "mac",
-                medio: medioArchivo,
+                donde: texto(d.donde) || dondeArchivo,
+                medio: texto(d.medio) || medioArchivo,
                 bytesLog: número(d.bytes, 0),
+                ...(tieneTexto(texto(d.titulo)) ? { titulo: texto(d.titulo) } : {}),
+                ...(tieneTexto(texto(d.proveedor)) ? { proveedor: texto(d.proveedor) } : {}),
             });
         }
     }
