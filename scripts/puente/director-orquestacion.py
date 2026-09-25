@@ -52,6 +52,8 @@ OLAS = os.path.join(RAIZ, "starseed_memory_root", "olas")
 INTERVALO_S = int(os.environ.get("STARSEED_DIRECTOR_S", "180"))
 ESPERA_MIN = int(os.environ.get("STARSEED_ESPERA_APROBACION_MIN", "10"))
 PARTE_CADA_S = int(os.environ.get("STARSEED_PARTE_S", "3600"))
+#: (2026-09-25) Cada cuánto mira el director de consumo (vigia_consumo.py).
+CONSUMO_CADA_S = int(os.environ.get("STARSEED_CONSUMO_S", "900"))
 DISCO_MIN_GB = 5
 PATRON_ORQ = re.compile(r"^[^ ]*[Pp]ython[0-9.]* +-u +.*starseed-enjambre\.py")
 
@@ -622,6 +624,16 @@ def revisar():
     return hecho
 
 
+def linea_consumo():
+    """Una línea del director de consumo para el parte (lo último que midió)."""
+    try:
+        import vigia_consumo
+        with open(vigia_consumo.SALIDA, encoding="utf-8") as f:
+            return "consumo · " + vigia_consumo.resumen(json.load(f))
+    except Exception:
+        return ""
+
+
 def main():
     print(
         "Director de orquestación · revisa cada %ds · aprueba tras %d min · parte cada %d min"
@@ -634,9 +646,20 @@ def main():
         "hecho",
     )
     ultimo_parte = 0
+    ultimo_consumo = 0
     while True:
         try:
             revisar()
+            # (2026-09-25) Alex: «los directores deben supervisar que no haya medios donde se
+            # desperdicien créditos o datos de ningún tipo». Mide sin gastar tráfico.
+            if time.time() - ultimo_consumo >= CONSUMO_CADA_S:
+                ultimo_consumo = time.time()
+                subprocess.Popen(
+                    [sys.executable, os.path.join(DIRECTORIO, "vigia_consumo.py")],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    start_new_session=True,
+                )
             if time.time() - ultimo_parte >= PARTE_CADA_S:
                 ultimo_parte = time.time()
                 cola, lat, _ = cola_viva()
@@ -651,7 +674,7 @@ def main():
                         pendientes_totales(),
                         disco_gb(),
                         # Sin pendientes no hay línea ORDEN: el canal no se llena de ruido.
-                        "\n" + orden if orden else "",
+                        ("\n" + orden if orden else "") + ("\n" + linea_consumo() if linea_consumo() else ""),
                     ),
                     "director",
                     "mensaje",
