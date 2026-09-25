@@ -103,5 +103,34 @@ class LaVozSeAdaptaAlProcesador(unittest.TestCase):
         self.assertEqual(len(w), 44 + 6)
 
 
+class LaConcesionAguantaRenovacionesALaVez(unittest.TestCase):
+    """25-09: dos renovaciones simultáneas compartían «.tmp» y una fallaba (FileNotFoundError)."""
+
+    def test_ocho_hilos_escribiendo_sin_errores_ni_restos(self):
+        import threading
+        import voz_rt as R
+        d = tempfile.mkdtemp()
+        original = R.CONCESION
+        R.CONCESION = os.path.join(d, "conversacion.json")
+        errores = []
+
+        def escribir(i):
+            try:
+                for _ in range(30):
+                    R.escribir_concesion({"hasta": i})
+            except Exception as e:  # noqa: BLE001
+                errores.append(e)
+        try:
+            hilos = [threading.Thread(target=escribir, args=(i,)) for i in range(8)]
+            for h in hilos:
+                h.start()
+            for h in hilos:
+                h.join()
+        finally:
+            R.CONCESION = original
+        self.assertEqual(errores, [])
+        self.assertEqual([f for f in os.listdir(d) if f.endswith(".tmp")], [])
+
+
 if __name__ == "__main__":
     unittest.main()

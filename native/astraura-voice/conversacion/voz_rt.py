@@ -122,7 +122,10 @@ def sintetizar(texto, voz, velocidad, lang):
 
 def escribir_concesion(c):
     os.makedirs(os.path.dirname(CONCESION), exist_ok=True)
-    tmp = CONCESION + ".tmp"
+    # (2026-09-25) Temporal PROPIO de cada escritura: el servidor atiende en hilos y dos
+    # renovaciones a la vez compartían «.tmp»; la segunda encontraba el archivo ya movido
+    # (FileNotFoundError en el registro) y esa renovación se perdía.
+    tmp = "%s.%d.%d.tmp" % (CONCESION, os.getpid(), threading.get_ident())
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(c, f)
     os.replace(tmp, CONCESION)
