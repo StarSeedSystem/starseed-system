@@ -18,6 +18,7 @@
  */
 
 import { motion, type Transition } from "framer-motion";
+import { DemoGestosHibridos } from "./demo-gestos-hibridos";
 
 type DemoProps = {
   stepKey: string;
@@ -533,6 +534,9 @@ export function StepDemo({ stepKey, accent, reduce }: DemoProps) {
       return <TrinityDemo accent={accent} reduce={reduce} active="logic" />;
     case "trinity-anchor":
       return <TrinityDemo accent={accent} reduce={reduce} active="anchor" />;
+    case "gestos-hibridos":
+      // Práctica real con el mismo motor de gestos que las cortinas.
+      return <DemoGestosHibridos accent={accent} reduce={reduce} />;
     case "escritorio":
       return <EscritorioDemo accent={accent} reduce={reduce} />;
     case "dashboard":

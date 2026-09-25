@@ -49,6 +49,7 @@ import { marcarRitoActivo } from "@/lib/ui/rito-activo";
 import { hablarRito, callarRito, instalarVozPropia, anticiparRito, VOZ_RITO_EVENT, type EstadoVozRito } from "@/lib/aurora/voz-rito";
 import { terminarEtapa, navegarSuave } from "@/lib/onboarding/director-rito";
 import { PasoAnimado, useDireccionPaso } from "@/components/movimiento/paso-animado";
+import { ResumenGestos } from "@/components/onboarding/demo-gestos-hibridos";
 import { PasoEscena } from "@/components/onboarding/paso-escena";
 import { AreasExplicadas } from "@/components/onboarding/areas-explicadas";
 import { StarSeedLoader } from "@/components/ui/starseed-loader";
@@ -1239,6 +1240,8 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
                 </div>
               )}
               <AreasExplicadas areas={AREAS} onIr={irA} />
+              {/* Cómo se abren y cierran los menús en ESTE dispositivo (2026-09-25). */}
+              <ResumenGestos />
               <div className="rounded-xl border border-fuchsia-500/20 bg-fuchsia-950/10 p-3 text-[12px] text-fuchsia-200/80 flex items-center gap-2">
                 <Sparkles className="w-4 h-4 shrink-0" />
                 Puedes volver a esta guía cuando quieras desde <b>/bienvenida</b>. Aurora estará disponible en cualquier sección.

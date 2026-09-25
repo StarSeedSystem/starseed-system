@@ -60,10 +60,9 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { AnimatePresence, motion, useReducedMotion, type Variants } from "framer-motion";
 import {
   Sparkles,
-  X,
   ChevronRight,
   ChevronLeft,
   SkipForward,
@@ -108,6 +107,13 @@ import {
 } from "@/lib/onboarding/guide-visibility";
 import { esMiTurno, terminarEtapa, suscribirRito, navegarSuave } from "@/lib/onboarding/director-rito";
 import { esRutaConsola } from "@/components/layout/solo-fuera-de-consola";
+import { BotonCerrar } from "@/components/ui/boton-cerrar";
+import { usePerfilDispositivo } from "@/hooks/use-perfil-dispositivo";
+import { useNivelMovimiento } from "@/hooks/use-nivel-movimiento";
+import { useDeslizarPasos } from "@/hooks/use-deslizar-pasos";
+import { useDireccionPaso } from "@/components/movimiento/paso-animado";
+import { transicionPaso, variantesPaso, type Direccion } from "@/lib/movimiento/transiciones";
+import type { PerfilEntrada } from "@/lib/gestos";
 
 // ── contratos externos (solo strings/constantes; sin importar el motor) ──────
 const GUIDE_SEEN_KEY = "starseed.guide.seen.v1";
@@ -197,6 +203,12 @@ type GuideStep = {
   doIt?: { label: string; run: (ctx: GuideCtx) => void };
   /** Frase equivalente por voz (se sugiere a Aurora). */
   ask?: string;
+  /**
+   * Explicación adaptada al dispositivo (táctil / ratón / híbrido): lo que se
+   * enseña es lo que la persona puede hacer AHÍ. Cae a `body` si falta.
+   */
+  bodyPorPerfil?: Partial<Record<PerfilEntrada, string>>;
+  sayPorPerfil?: Partial<Record<PerfilEntrada, string>>;
 };
 
 // Rutas confirmadas del OS.
@@ -297,6 +309,36 @@ const STEPS: GuideStep[] = [
       run: ({ setActiveEdge }) => setActiveEdge("anchor"),
     },
     ask: "Aurora, abre el dock",
+  },
+  {
+    // (2026-09-25) Interfaz híbrida: el mismo gesto en cualquier pantalla, con
+    // práctica real dentro de la guía (demo-gestos-hibridos.tsx).
+    key: "gestos-hibridos",
+    title: "Gestos naturales en cualquier pantalla",
+    body:
+      "Los cuatro menús se abren y se cierran igual en móvil, tableta u ordenador. Ábrelos desde su borde; ciérralos devolviéndolos a su borde, tocando fuera, con la X de su esquina o con Escape. StarSeed detecta solo si usas el dedo, el ratón o los dos, y se adapta al tamaño y a la orientación de tu pantalla.",
+    bodyPorPerfil: {
+      tactil:
+        "Desliza el dedo desde cualquier borde hacia dentro: el menú de ese lado aparece bajo tu dedo y lo sigue. Para cerrarlo, arrástralo de vuelta a su borde (un gesto rápido basta), toca fuera o pulsa la X de su esquina. Todo se adapta solo al tamaño y a la orientación de tu pantalla.",
+      raton:
+        "Deja el cursor un instante en un borde, haz clic en él o tira de él con el ratón: el menú sigue a tu puntero. En un portátil también puedes deslizar dos dedos en el panel táctil. Para cerrar: la X de la esquina, un clic fuera, la tecla Escape o arrastrarlo a su borde.",
+      hibrido:
+        "Con el dedo, desliza desde un borde; con el ratón, deja el cursor en el borde, haz clic o tira de él. Para cerrar sirve lo mismo en los dos: devolverlo a su borde, tocar fuera, la X de su esquina o Escape. StarSeed detecta qué usas en cada momento y se adapta solo.",
+    },
+    say:
+      "Los menús se abren desde su borde y se cierran devolviéndolos a su borde, tocando fuera, con la X o con Escape. Pruébalo en el recuadro.",
+    sayPorPerfil: {
+      tactil: "Desliza el dedo desde un borde y el menú te sigue. Para cerrarlo, devuélvelo a su borde, toca fuera o pulsa la X. Pruébalo en el recuadro.",
+      raton: "Deja el cursor en un borde, haz clic o tira de él. Para cerrar, usa la X, un clic fuera o la tecla Escape. Pruébalo en el recuadro.",
+    },
+    icon: Move,
+    accent: "#6FE6D6",
+    targets: ['[data-trinity-edge-handle="horizon"]', '[data-trinity-sensor="horizon"]'],
+    go: {
+      label: "Probar con Horizon",
+      run: ({ setActiveEdge }) => setActiveEdge("horizon"),
+    },
+    ask: "Aurora, ¿cómo cierro los menús?",
   },
   {
     key: "escritorio",
@@ -413,6 +455,10 @@ export function AuroraGuide() {
   const pathname = usePathname();
   const { setActiveEdge } = useSafePerimeter();
   const reduceMotion = useReducedMotion() ?? false;
+  // Qué punteros hay (dedo, ratón o ambos): la guía explica el gesto que la
+  // persona puede hacer en ESTE dispositivo, y cambia en vivo si conecta un ratón.
+  const { entrada } = usePerfilDispositivo();
+  const nivelMovimiento = useNivelMovimiento();
 
   const [mounted, setMounted] = useState(false);
   const [open, setOpen] = useState(false);
@@ -435,6 +481,11 @@ export function AuroraGuide() {
 
   const step = STEPS[index];
   const ctx = useMemo<GuideCtx>(() => ({ router, setActiveEdge }), [router, setActiveEdge]);
+  // Texto y narración adaptados al dispositivo (caen al texto común si no hay variante).
+  const cuerpo = step ? (step.bodyPorPerfil?.[entrada] ?? step.body) : "";
+  const narracion = step ? (step.sayPorPerfil?.[entrada] ?? step.say ?? cuerpo) : "";
+  // Sentido del cambio de paso: la tarjeta entra girando desde el lado hacia el que se avanza.
+  const direccion = useDireccionPaso(index);
 
   // (Adenda 192) Señal de primer plano: mientras la guía está abierta, los
   // popups de primera ejecución (OmniVoice, sistemas de Astraura…) ESPERAN —
@@ -553,13 +604,18 @@ export function AuroraGuide() {
 
   const goPrev = useCallback(() => setIndex((i) => Math.max(0, i - 1)), []);
   const goNext = useCallback(() => setIndex((i) => Math.min(STEPS.length - 1, i + 1)), []);
+  // Deslizar la tarjeta en horizontal pasa de paso (como pasar páginas), con
+  // dedo, ratón o lápiz; tocar sus botones sigue siendo un clic.
+  const deslizar = useDeslizarPasos({ alSiguiente: goNext, alAnterior: goPrev, habilitado: open && mode !== null });
 
   // Elegir modo (arranca el tour). En modo voz: pide micrófono + narra la intro.
   const chooseMode = useCallback((m: GuideMode) => {
     // Persistimos la elección (memoria ligera; no bloquea si falla).
     try { window.localStorage.setItem(GUIDE_MODE_KEY, m); } catch { /* */ }
     setMuted(false);
-    setIndex(0);
+    // (2026-09-25) Ya no se vuelve al paso 0: `openGuide(paso)` fija el paso
+    // pedido (p. ej. «starseed:open-guide» con { step }) y elegir el modo lo
+    // respetaba solo hasta aquí. Abrir la guía sin paso sigue empezando en 0.
     setMode(m);
     if (m === "voice") {
       // Gesto de usuario: momento válido para pedir micrófono y arrancar escucha.
@@ -580,10 +636,10 @@ export function AuroraGuide() {
     lastSpokenRef.current = step.key;
     // Pequeño respiro para no pisar la intro / la transición.
     const t = setTimeout(() => {
-      auroraSpeak(step.say || step.body);
+      auroraSpeak(narracion);
     }, 260);
     return () => clearTimeout(t);
-  }, [inTour, mode, muted, step]);
+  }, [inTour, mode, muted, step, narracion]);
 
   // Al mutear en modo voz: corta lo que se esté diciendo. Al desmutear: no
   // re-narramos automáticamente (evita sorpresas); el usuario avanza o repite.
@@ -700,11 +756,11 @@ export function AuroraGuide() {
       } else {
         // Reactivar: permite volver a narrar este paso al instante.
         lastSpokenRef.current = "";
-        if (mode === "voice" && step) auroraSpeak(step.say || step.body);
+        if (mode === "voice" && step) auroraSpeak(narracion);
       }
       return next;
     });
-  }, [mode, step]);
+  }, [mode, step, narracion]);
 
   // ── acceso flotante discreto (siempre reabrible) ───────────────────────────
   // Se oculta mientras la guía está abierta, o si el usuario lo desactivó en
@@ -743,6 +799,15 @@ export function AuroraGuide() {
   const contentInit = reduceMotion ? { opacity: 0 } : { opacity: 0, x: 20 };
   const contentIn = reduceMotion ? { opacity: 1 } : { opacity: 1, x: 0 };
   const contentOut = reduceMotion ? { opacity: 0 } : { opacity: 0, x: -20 };
+  // Tarjeta del tour: gira de canto desde el lado hacia el que se avanza
+  // (3D con movimiento completo, desplazamiento en equipos modestos, fundido
+  // con menos movimiento).
+  const vPaso = variantesPaso(nivelMovimiento);
+  const variantesTarjeta: Variants = {
+    entrar: (d: Direccion) => ({ ...vPaso.entrar(d), y: nivelMovimiento === "minimo" ? 0 : 10 }),
+    centro: { ...vPaso.centro, y: 0, transition: transicionPaso(nivelMovimiento) },
+    salir: (d: Direccion) => ({ ...vPaso.salir(d), transition: { duration: nivelMovimiento === "minimo" ? 0.1 : 0.16, ease: "easeIn" } }),
+  };
 
   return (
     <>
@@ -862,15 +927,8 @@ export function AuroraGuide() {
                     <div className="mb-4 flex justify-center">
                       <IconoStarSeed />
                     </div>
-                    {/* Cerrar (arriba-derecha) */}
-                    <button
-                      type="button"
-                      onClick={close}
-                      aria-label="Cerrar la guía"
-                      className="absolute right-3 top-3 rounded-lg p-1 text-white/45 transition hover:bg-white/10 hover:text-white cursor-pointer"
-                    >
-                      <X className="h-4.5 w-4.5" />
-                    </button>
+                    {/* Cerrar (arriba-derecha): la X común del OS */}
+                    <BotonCerrar etiqueta="Cerrar la guía" atajo="Esc" tamano="sm" posicion="interior" onClick={close} />
 
                     {/* Orbe latiendo como bienvenida */}
                     <div className="flex flex-col items-center text-center">
@@ -982,16 +1040,21 @@ export function AuroraGuide() {
                       : "bottom-4 sm:bottom-8" // target arriba → tarjeta abajo
                     : "top-1/2 -translate-y-1/2",
                 )}
+                style={{ perspective: nivelMovimiento === "completo" ? 1200 : undefined }}
               >
-                <AnimatePresence mode="wait">
+                <AnimatePresence mode="wait" custom={direccion}>
                   <motion.div
                     key={step.key}
-                    initial={panelInit}
-                    animate={panelIn}
-                    exit={panelOut}
-                    transition={{ type: reduceMotion ? "tween" : "spring", stiffness: 320, damping: 30, duration: reduceMotion ? 0.15 : undefined }}
+                    custom={direccion}
+                    variants={variantesTarjeta}
+                    initial="entrar"
+                    animate="centro"
+                    exit="salir"
+                    data-testid="guia-tarjeta"
+                    // Deslizar a la izquierda = siguiente; a la derecha = anterior.
+                    {...deslizar}
                     className={cn(
-                      "pointer-events-auto relative w-full max-w-[30rem] overflow-hidden rounded-[24px]",
+                      "pointer-events-auto relative w-full max-w-[30rem] overflow-hidden rounded-[24px] touch-pan-y",
                       "border border-white/12 shadow-2xl shadow-black/60 backdrop-blur-2xl",
                     )}
                     style={{
@@ -1020,7 +1083,7 @@ export function AuroraGuide() {
                         </div>
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2">
-                            <h2 className="truncate text-[16px] font-bold text-white">{step.title}</h2>
+                            <h2 className="text-[16px] font-bold leading-tight text-white">{step.title}</h2>
                           </div>
                           <div className="mt-0.5 flex items-center gap-2 text-[10px] font-mono uppercase tracking-[0.18em] text-white/45">
                             <Compass className="h-3 w-3" />
@@ -1050,14 +1113,7 @@ export function AuroraGuide() {
                           {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
                         </button>
 
-                        <button
-                          type="button"
-                          onClick={close}
-                          aria-label="Cerrar la guía"
-                          className="shrink-0 rounded-lg p-1 text-white/45 transition hover:bg-white/10 hover:text-white cursor-pointer"
-                        >
-                          <X className="h-4.5 w-4.5" />
-                        </button>
+                        <BotonCerrar etiqueta="Cerrar la guía" atajo="Esc" tamano="sm" onClick={close} />
                       </div>
 
                       {/* ── EJEMPLO ANIMADO del paso (mini-demostración) ── */}
@@ -1085,7 +1141,7 @@ export function AuroraGuide() {
                           transition={{ duration: reduceMotion ? 0.12 : 0.28 }}
                           className="mt-3 text-[13.5px] leading-relaxed text-white/75"
                         >
-                          {step.body}
+                          {cuerpo}
                         </motion.p>
                       </AnimatePresence>
 
