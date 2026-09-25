@@ -45,11 +45,21 @@ def importadores_de(raiz, ruta):
     algo que sí se usa por una vía que este grep no ve.
     """
     base = os.path.splitext(os.path.basename(ruta))[0]
-    if not base or base in ("index", "route", "page", "layout"):
+    orden = ["grep", "-rl", "--binary-files=without-match", base, "src", "scripts"]
+    if base == "index":
+        # (2026-09-25) Un `index.ts` se importa por su CARPETA (`@/lib/gestos`,
+        # `../gestos`), nunca por «index»: sin esto todo barril salía «huérfano»
+        # aunque lo usara medio sistema (6007a26d, src/lib/gestos/index.ts).
+        carpeta = re.sub(r"[^\w-]", ".", os.path.basename(os.path.dirname(ruta)))
+        if not carpeta:
+            return []
+        orden = ["grep", "-rlE", "--binary-files=without-match",
+                 "[\"'/]%s[\"']" % carpeta, "src", "scripts"]
+    elif not base or base in ("route", "page", "layout"):
         return []
     try:
         r = subprocess.run(
-            ["grep", "-rl", "--binary-files=without-match", base, "src", "scripts"],
+            orden,
             cwd=raiz,
             capture_output=True,
             text=True,

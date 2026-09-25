@@ -61,3 +61,27 @@ class PruebaEsEjecutable(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PruebaImportadoresDeUnBarril(unittest.TestCase):
+    """Un index.ts se importa por su carpeta: no es huérfano si alguien importa la carpeta."""
+
+    def setUp(self):
+        self.base = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.base, True)
+        os.makedirs(os.path.join(self.base, "src", "lib", "gestos"))
+        os.makedirs(os.path.join(self.base, "src", "hooks"))
+        os.makedirs(os.path.join(self.base, "scripts"))
+        with open(os.path.join(self.base, "src", "lib", "gestos", "index.ts"), "w") as f:
+            f.write('export * from "./fisica";\n')
+
+    def test_importar_la_carpeta_cuenta(self):
+        with open(os.path.join(self.base, "src", "hooks", "usa.ts"), "w") as f:
+            f.write('import { ejeDe } from "@/lib/gestos";\n')
+        usos = VP.importadores_de(self.base, "src/lib/gestos/index.ts")
+        self.assertEqual(usos, ["src/hooks/usa.ts"])
+
+    def test_nombrar_la_palabra_suelta_no_cuenta(self):
+        with open(os.path.join(self.base, "src", "hooks", "otro.ts"), "w") as f:
+            f.write("// los gestos del dock\nconst gestosActivos = 1;\n")
+        self.assertEqual(VP.importadores_de(self.base, "src/lib/gestos/index.ts"), [])
