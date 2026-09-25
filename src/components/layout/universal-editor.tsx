@@ -3,17 +3,17 @@
 import { useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Pencil, Layout, MoveVertical, Sliders, Code, Sparkles, X,
+  Pencil, Layout, MoveVertical, Sliders, Code, Sparkles,
   LayoutDashboard, FileText, Settings, BookOpen, Type, Image as ImageIcon,
   Component, Box, MousePointerClick, Palette,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useModalA11y } from "@/hooks/use-modal-a11y";
+import { BotonCerrar } from "@/components/ui/boton-cerrar";
 
 /**
  * Editor Universal — accesible desde el menú Zenith (AI).
@@ -119,9 +119,8 @@ export function UniversalEditor({ open, onClose }: UniversalEditorProps) {
                   </p>
                 </div>
               </div>
-              <Button variant="ghost" size="icon" onClick={onClose} className="shrink-0">
-                <X className="w-5 h-5" />
-              </Button>
+              {/* X común del OS (antes un icono sin nombre accesible). */}
+              <BotonCerrar etiqueta="Cerrar el Editor Universal" atajo="Esc" onClick={onClose} />
             </div>
 
             {/* Mode toggle */}

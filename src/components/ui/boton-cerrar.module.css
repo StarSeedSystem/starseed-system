@@ -1,0 +1,156 @@
+/*
+ * BotonCerrar — la X común de StarSeed OS (Crystal Liquid Glass).
+ * ─────────────────────────────────────────────────────────────────────────────
+ * Un disco de cristal translúcido teñido con el acento de su panel: borde fino,
+ * brillo especular arriba, sombra suave. Al pasar el puntero la X gira un
+ * cuarto de vuelta y el disco se ilumina; al pulsar se hunde. El ÁREA táctil
+ * nunca baja de 44×44 px aunque el disco se vea más pequeño (pseudo-elemento
+ * ::before invisible), y en pantallas táctiles el disco crece un poco.
+ */
+
+.boton {
+    --acento: #9fe8ff;
+    --lado: 40px;
+    z-index: 70;
+    flex-shrink: 0;
+    display: inline-grid;
+    place-items: center;
+    width: var(--lado);
+    height: var(--lado);
+    padding: 0;
+    border-radius: 9999px;
+    border: 1px solid color-mix(in srgb, var(--acento) 38%, rgba(255, 255, 255, 0.16));
+    background:
+        radial-gradient(120% 90% at 50% -10%, rgba(255, 255, 255, 0.24), transparent 55%),
+        radial-gradient(90% 90% at 50% 110%, color-mix(in srgb, var(--acento) 26%, transparent), transparent 70%),
+        color-mix(in srgb, rgba(8, 11, 18, 1) 58%, transparent);
+    -webkit-backdrop-filter: blur(14px) saturate(1.35);
+    backdrop-filter: blur(14px) saturate(1.35);
+    color: color-mix(in srgb, var(--acento) 70%, #ffffff);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.24),
+        inset 0 -6px 14px rgba(0, 0, 0, 0.28),
+        0 6px 18px rgba(0, 0, 0, 0.42),
+        0 0 0 0 transparent;
+    cursor: pointer;
+    pointer-events: auto;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-user-select: none;
+    user-select: none;
+    outline: none;
+    transition:
+        transform 260ms cubic-bezier(0.34, 1.56, 0.64, 1),
+        box-shadow 220ms ease,
+        background 220ms ease,
+        border-color 220ms ease,
+        color 220ms ease;
+}
+
+/* Área táctil mínima de 44×44 aunque el disco sea menor (WCAG 2.5.5). */
+.boton::before {
+    content: "";
+    position: absolute;
+    inset: min(0px, calc((var(--lado) - 44px) / 2));
+    border-radius: inherit;
+}
+
+.icono {
+    width: calc(var(--lado) * 0.45);
+    height: calc(var(--lado) * 0.45);
+    pointer-events: none;
+    filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.45));
+    transition: transform 320ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.sm { --lado: 32px; }
+.md { --lado: 40px; }
+.lg { --lado: 48px; }
+
+/* En pantallas táctiles el disco crece: el dedo necesita más que el cursor. */
+@media (pointer: coarse) {
+    .sm { --lado: 36px; }
+    .md { --lado: 44px; }
+    .lg { --lado: 52px; }
+}
+
+@media (hover: hover) {
+    .boton:hover {
+        transform: scale(1.06);
+        border-color: color-mix(in srgb, var(--acento) 65%, rgba(255, 255, 255, 0.2));
+        color: #ffffff;
+        box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.3),
+            inset 0 -6px 14px rgba(0, 0, 0, 0.22),
+            0 8px 22px rgba(0, 0, 0, 0.45),
+            0 0 22px color-mix(in srgb, var(--acento) 45%, transparent);
+    }
+    .boton:hover .icono {
+        transform: rotate(90deg);
+    }
+}
+
+.boton:active {
+    transform: scale(0.9);
+    box-shadow:
+        inset 0 2px 8px rgba(0, 0, 0, 0.45),
+        0 2px 8px rgba(0, 0, 0, 0.35),
+        0 0 14px color-mix(in srgb, var(--acento) 40%, transparent);
+}
+
+.boton:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--acento) 80%, #ffffff);
+    outline-offset: 3px;
+}
+
+.boton:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+/* Variante sutil: para cabeceras densas (ventanas, diálogos) sin robar protagonismo. */
+.sutil {
+    background: color-mix(in srgb, rgba(255, 255, 255, 1) 6%, transparent);
+    border-color: rgba(255, 255, 255, 0.12);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    color: rgba(255, 255, 255, 0.72);
+}
+
+/* En el flujo (cabeceras flex): posicionado para anclar el área táctil ::before. */
+.enFlujo {
+    position: relative;
+}
+
+/* Esquina interior de un contenedor flotante (diálogo, ventana): sin zonas seguras. */
+.interior {
+    position: absolute;
+    top: 0.75rem;
+    right: 0.75rem;
+}
+
+/* Esquinas seguras: respetan la muesca y la barra de gestos (viewport-fit=cover). */
+.arribaDerecha {
+    position: absolute;
+    top: max(0.75rem, env(safe-area-inset-top, 0px));
+    right: max(0.75rem, env(safe-area-inset-right, 0px));
+}
+
+.arribaIzquierda {
+    position: absolute;
+    top: max(0.75rem, env(safe-area-inset-top, 0px));
+    left: max(0.75rem, env(safe-area-inset-left, 0px));
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .boton,
+    .icono {
+        transition: background 120ms linear, border-color 120ms linear, color 120ms linear;
+    }
+    .boton:hover,
+    .boton:active,
+    .boton:hover .icono {
+        transform: none;
+    }
+}

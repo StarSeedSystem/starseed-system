@@ -12,9 +12,9 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { X } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { BotonCerrar } from "@/components/ui/boton-cerrar";
 
 export interface OSWindowProps {
     title: string;
@@ -62,6 +62,8 @@ export function OSWindow({
     }, []);
 
     const startDrag = (e: React.PointerEvent) => {
+        // Los botones de la cabecera (la X, acciones) no arrastran la ventana.
+        if ((e.target as Element).closest("button, a, input, [data-sin-arrastre]")) return;
         dragRef.current = { x: e.clientX, y: e.clientY, ox: offset.dx, oy: offset.dy };
     };
 
@@ -102,10 +104,9 @@ export function OSWindow({
                         )}
                     </div>
                     {actions}
-                    <button type="button" onClick={onClose} title="Cerrar" aria-label="Cerrar ventana"
-                        className="grid place-items-center size-8 rounded-full text-muted-foreground/70 hover:text-foreground hover:bg-white/10 transition-colors cursor-pointer">
-                        <X className="size-4" />
-                    </button>
+                    {/* X común del OS: disco de cristal con el acento de la ventana y
+                        área táctil de 44 px; el arrastre de la cabecera no la toca. */}
+                    <BotonCerrar etiqueta="Cerrar ventana" acento={accent} atajo="Esc" tamano="sm" onClick={onClose} />
                 </header>
 
                 <div className={cn("relative flex-1 min-h-0 bg-black/20", !bare && "overflow-auto p-4")}>

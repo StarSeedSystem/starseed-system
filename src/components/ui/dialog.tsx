@@ -2,11 +2,11 @@
 
 import * as React from "react"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
-import { X } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { acquireFullscreenModal } from "@/lib/ui/fullscreen-modal"
 import { useAppearance } from "@/context/appearance-context"
+import { BotonCerrar } from "@/components/ui/boton-cerrar"
 
 const Dialog = DialogPrimitive.Root
 
@@ -64,9 +64,10 @@ const DialogContent = React.forwardRef<
         <div className={cn("relative z-10 w-full flex-1 min-h-0 overflow-y-auto", isPrimary && "drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]")}>
           {children}
         </div>
-        <DialogPrimitive.Close className="absolute right-4 top-4 z-20 grid h-8 w-8 place-items-center rounded-full cursor-pointer opacity-70 ring-offset-background transition-[opacity,background-color,box-shadow] duration-200 hover:opacity-100 hover:bg-foreground/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground">
-          <X className="h-4 w-4" />
-          <span className="sr-only">Cerrar</span>
+        {/* X común del OS (2026-09-25): antes 32 px y casi invisible; ahora el
+            disco de cristal con área táctil de 44 px, igual en todos los menús. */}
+        <DialogPrimitive.Close asChild>
+          <BotonCerrar etiqueta="Cerrar" atajo="Esc" tamano="sm" posicion="interior" className="z-20" />
         </DialogPrimitive.Close>
       </DialogPrimitive.Content>
     </DialogPortal>
