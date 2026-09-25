@@ -396,6 +396,10 @@ export function useArrastrePanel(o: OpcionesArrastrePanel): ArrastrePanel {
     };
 
     const onPointerDown = useCallback((e: React.PointerEvent<HTMLElement>) => {
+        // Cada pulsación nueva es otra interacción: nunca hereda la supresión del
+        // clic del arrastre anterior (si no, un toque rápido en la X tras soltar
+        // un arrastre que volvió a su sitio se perdía).
+        suprimirClicRef.current = false;
         if (!habilitadoRef.current || gestoRef.current || cerrandoRef.current) return;
         if (!e.isPrimary && e.pointerType !== "mouse") return;
         if (e.pointerType === "mouse" && e.button !== 0) return;
@@ -404,7 +408,6 @@ export function useArrastrePanel(o: OpcionesArrastrePanel): ArrastrePanel {
         if (!objetivo || !panel || objetivo.closest(SELECTOR_SIN_ARRASTRE)) return;
         if (soloAgarres && !objetivo.closest("[data-agarre-panel]")) return;
         if (eje === "x" && desplazableEnX(objetivo, panel)) return;
-        suprimirClicRef.current = false;
         const m: Muestra = { x: e.clientX, y: e.clientY, t: instante(e) };
         // La captura (cuando llegue) va al agarre si lo hay: el contenedor puede ser
         // `pointer-events: none` (el dock) y un elemento así no debe retener el puntero.

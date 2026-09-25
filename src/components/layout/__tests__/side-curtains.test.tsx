@@ -194,6 +194,21 @@ describe("SideCurtains · cierre y gestos (motor unificado)", () => {
         expect(push).not.toHaveBeenCalled();
     });
 
+    it("tras un arrastre que vuelve a su sitio, pulsar la X al instante sigue cerrando", () => {
+        abrir("horizon");
+        const panel = screen.getByTestId("horizon-curtain-container");
+        fireEvent.pointerDown(panel, puntero("mouse", 300, 400));
+        for (let i = 1; i <= 4; i++) { avanzar(80); fireEvent.pointerMove(panel, puntero("mouse", 300 - i * 12, 400)); }
+        avanzar(300);
+        fireEvent.pointerUp(panel, puntero("mouse", 252, 400));
+        expect(setActiveEdge).not.toHaveBeenCalled();
+        const x = screen.getByRole("button", { name: "Cerrar Centro de Creación" });
+        fireEvent.pointerDown(x, puntero("mouse", 340, 30));
+        fireEvent.pointerUp(x, puntero("mouse", 340, 30));
+        fireEvent.click(x);
+        expect(setActiveEdge).toHaveBeenCalledWith(null);
+    });
+
     it("Logic: arrastrar hacia la derecha cierra", () => {
         abrir("logic");
         const panel = screen.getByTestId("logic-curtain-container");
