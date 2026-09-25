@@ -105,9 +105,62 @@ def preguntar_a_jev(tid, estado, nota, ficha, objecion, log):
     return opcion, cambio, "Jev: " + ", ".join("%s %.2f" % (k, v) for k, v in sorted(probs.items(), key=lambda kv: -kv[1])[:3]), conf
 
 
-def veredictos(progreso, fichas_, revisiones_md, leer_log=cola_del_log, jev_disponible=True):
+# (2026-09-25) Alex: «la dirección y verificación con agentes de Opus 5.5 … si está disponible
+# en los límites de créditos». Cuando Jev duda (confianza < 0,7) o no contesta, el veredicto
+# se escala a Opus por la CLI de Claude Code (suscripción, con tope: `opus_director.py`).
+# Cada respuesta se recuerda por tarea y estado: la misma atascada no gasta dos consultas.
+MEMO_OPUS = os.path.expanduser("~/.starseed/opus-veredictos.json")
+CONFIANZA_ESCALAR = 0.7
+
+
+def preguntar_a_opus(tid, estado, nota, ficha, objecion, log, consultar=None, memo_ruta=MEMO_OPUS):
+    """(veredicto, cambio, motivo, confianza) o None (sin Opus, sin cupo o respuesta rara)."""
+    huella = "%s|%s|%s|%s" % (tid, estado, nota[:200], objecion[:200])
+    try:
+        memo = json.load(open(memo_ruta, encoding="utf-8"))
+    except Exception:
+        memo = {}
+    if huella in memo:
+        return tuple(memo[huella])
+    if consultar is None:
+        try:
+            import opus_director
+            consultar = opus_director.consultar
+        except Exception:
+            return None
+    contexto = {"tarea": tid, "titulo": ficha.get("titulo"), "archivos": ficha.get("archivos"), "estado": estado,
+                "nota": nota[:300], "objecion_del_revisor": objecion[:800], "final_del_log": log[:800]}
+    pregunta = ("Diriges el enjambre de agentes de StarSeed OS y una tarea está atascada. Elige UNA opción: "
+                + "; ".join("%s = %s" % kv for kv in OPCIONES.items())
+                + '. Responde SOLO con JSON: {"opcion": "...", "cambio": "instrucción concreta para el agente '
+                  'si eliges reintentar_con_cambio, si no vacío", "motivo": "una frase en español llano"}')
+    r = consultar(pregunta, json.dumps(contexto, ensure_ascii=False))
+    if not r:
+        return None
+    m = re.search(r"\{.*\}", r.get("texto") or "", re.S)
+    try:
+        d = json.loads(m.group(0)) if m else {}
+    except Exception:
+        d = {}
+    if d.get("opcion") not in OPCIONES:
+        return None
+    fuera = (d["opcion"], str(d.get("cambio") or "")[:600] if d["opcion"] == "reintentar_con_cambio" else "",
+             "Opus (%s): %s" % (r.get("modelo") or "opus", str(d.get("motivo") or "")[:160]), 0.85)
+    memo[huella] = list(fuera)
+    try:
+        with open(memo_ruta + ".tmp", "w", encoding="utf-8") as f:
+            json.dump(dict(list(memo.items())[-200:]), f, ensure_ascii=False)
+        os.replace(memo_ruta + ".tmp", memo_ruta)
+    except Exception:
+        pass
+    return fuera
+
+
+def veredictos(progreso, fichas_, revisiones_md, leer_log=cola_del_log, jev_disponible=True,
+               opus=None, opus_tope=2):
     """[{id, estado, veredicto, cambio, motivo, confianza, fuente}] para cada atascada."""
     fuera = []
+    opus_usadas = 0
     for tid, v in sorted((progreso or {}).items()):
         if not isinstance(v, dict) or v.get("estado") not in ATASCADAS:
             continue
@@ -122,6 +175,14 @@ def veredictos(progreso, fichas_, revisiones_md, leer_log=cola_del_log, jev_disp
                           "motivo": motivo, "confianza": 1.0, "fuente": "regla"})
             continue
         j = preguntar_a_jev(tid, v.get("estado"), nota, ficha, objecion, log) if jev_disponible else None
+        if opus and opus_usadas < opus_tope and (not j or j[3] < CONFIANZA_ESCALAR):
+            o = opus(tid, v.get("estado"), nota, ficha, objecion, log)
+            opus_usadas += 1
+            if o:
+                veredicto, cambio, motivo, conf = o
+                fuera.append({"id": tid, "estado": v.get("estado"), "veredicto": veredicto, "cambio": cambio,
+                              "motivo": motivo, "confianza": conf, "fuente": "opus"})
+                continue
         if j:
             veredicto, cambio, motivo, conf = j
             fuera.append({"id": tid, "estado": v.get("estado"), "veredicto": veredicto, "cambio": cambio,
@@ -136,6 +197,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--seco", action="store_true", help="no escribir veredictos.json")
     ap.add_argument("--sin-jev", action="store_true")
+    ap.add_argument("--sin-opus", action="store_true", help="no escalar dudas a Opus")
     args = ap.parse_args()
     try:
         progreso = json.load(open(os.path.join(OLAS, "progreso.json"), encoding="utf-8"))
@@ -145,7 +207,8 @@ def main():
         revisiones = open(os.path.join(OLAS, "revisiones.md"), encoding="utf-8", errors="ignore").read()
     except OSError:
         revisiones = ""
-    filas = veredictos(progreso, fichas(), revisiones, jev_disponible=not args.sin_jev)
+    filas = veredictos(progreso, fichas(), revisiones, jev_disponible=not args.sin_jev,
+                       opus=None if args.sin_opus else preguntar_a_opus)
     for f in filas:
         print("%-10s %-12s %-22s %.2f %-6s %s" % (f["id"], f["estado"], f["veredicto"], f["confianza"], f["fuente"], f["motivo"][:70]))
     if not args.seco:
@@ -157,6 +220,11 @@ def main():
     try:
         import jev
         print(jev.resumen_uso())
+    except Exception:
+        pass
+    try:
+        import opus_director
+        print(opus_director.resumen_uso())
     except Exception:
         pass
     return 0

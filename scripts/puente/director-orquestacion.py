@@ -656,6 +656,15 @@ def main():
                     "director",
                     "mensaje",
                 )
+                # (2026-09-25) Con el parte, la revisión de dirección con Opus: va en segundo
+                # plano (Opus tarda) y decide sola si toca, si hay cupo y si algo cambió.
+                if os.environ.get("STARSEED_OPUS_DIRECTOR", "1") != "0":
+                    subprocess.Popen(
+                        [sys.executable, os.path.join(DIRECTORIO, "revision_opus.py")],
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                        start_new_session=True,
+                    )
         except Exception as e:
             print("director: %s: %s" % (type(e).__name__, e), flush=True)
         time.sleep(INTERVALO_S)
