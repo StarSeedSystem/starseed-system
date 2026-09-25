@@ -724,6 +724,40 @@ def conversando(ruta=os.path.expanduser("~/.starseed/conversacion.json")) -> boo
         return False
 
 
+#: (2026-09-25, MEDIDO) Con una build en marcha, el BitNet de Astraura pasó de 11 a 0,07
+#: tokens/s: la build (4 GB de montón) echó el modelo de la RAM y cada token se leía del
+#: swap. Alex: «la IA de Astraura no responde en ningún medio». La concesión de voz
+#: (`conversando`) solo cubre la voz; el chat del OS, la app y la orbe no la escriben. Así
+#: que también se mira el reloj de uso DEL USUARIO del propio motor (el fondo no lo toca).
+ASTRAURA_URL = (os.environ.get("ASTRAURA_LOCAL_URL") or "http://127.0.0.1:8000").rstrip("/")
+ASTRAURA_EN_USO_S = int(os.environ.get("STARSEED_RECONSTRUIR_ASTRAURA_S", "900"))
+
+
+def astraura_en_uso_por(estado, umbral_s=ASTRAURA_EN_USO_S) -> bool:
+    """PURA: ¿alguien ha usado a Astraura (chat, orbe, app) hace menos de `umbral_s`?"""
+    if not isinstance(estado, dict) or estado.get("dormido"):
+        return False
+    try:
+        hace = estado.get("ultimo_uso_interactivo_hace_s")
+        return hace is not None and float(hace) < umbral_s
+    except (TypeError, ValueError):
+        return False
+
+
+def astraura_en_uso(url=ASTRAURA_URL, timeout=4.0) -> bool:
+    """Pregunta al backend de Astraura. Si no contesta a tiempo está ocupado → en uso;
+    si no está (conexión rechazada), no hay nada que proteger."""
+    try:
+        with urllib.request.urlopen(url + "/api/bitnet/estado", timeout=timeout) as r:
+            return astraura_en_uso_por(json.load(r))
+    except TimeoutError:
+        return True
+    except OSError as e:
+        return isinstance(getattr(e, "reason", None), TimeoutError)
+    except ValueError:
+        return False
+
+
 def una_pasada() -> bool:
     entradas = list(_entradas())
     actual = huella_de(entradas)
@@ -735,6 +769,10 @@ def una_pasada() -> bool:
         # con Astraura dejaría a la voz y a BitNet sin memoria. Se espera a que acabe.
         print("[%s] espero: %s, pero Alex está hablando con Astraura" % (time.strftime("%H:%M"), motivo),
               flush=True)
+        return False
+    if hazlo and astraura_en_uso():
+        print("[%s] espero: %s, pero Astraura está en uso (una build le quita la RAM al BitNet)"
+              % (time.strftime("%H:%M"), motivo), flush=True)
         return False
     if hazlo and publicacion_va_a_compilar(_leer_estado(PUBLICACION)):
         print("[%s] espero: %s, pero la publicación en marcha va a compilar: su build sirve"

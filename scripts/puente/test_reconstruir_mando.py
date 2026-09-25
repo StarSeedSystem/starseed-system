@@ -616,3 +616,31 @@ class UnFalloNoBorraLoQueSeSirve(unittest.TestCase):
         hazlo, _ = R.decidir_reinicio("SERVIDO123", final["build_servido"])
         self.assertFalse(hazlo)
 
+
+class NoSeCompilaConAstrauraEnUso(unittest.TestCase):
+    """25-09: una build dejó el BitNet a 0,07 tok/s y Astraura no respondía en ningún medio."""
+
+    def test_uso_reciente_del_usuario_bloquea(self):
+        self.assertTrue(R.astraura_en_uso_por({"ultimo_uso_interactivo_hace_s": 8, "dormido": False}))
+
+    def test_sin_uso_reciente_o_dormida_no_bloquea(self):
+        self.assertFalse(R.astraura_en_uso_por({"ultimo_uso_interactivo_hace_s": 5000}))
+        self.assertFalse(R.astraura_en_uso_por({"ultimo_uso_interactivo_hace_s": 8, "dormido": True}))
+        self.assertFalse(R.astraura_en_uso_por({"ultimo_uso_interactivo_hace_s": None}))
+        self.assertFalse(R.astraura_en_uso_por("roto"))
+
+    def test_backend_apagado_no_bloquea(self):
+        self.assertFalse(R.astraura_en_uso("http://127.0.0.1:9", timeout=1))
+
+    def test_la_pasada_espera_y_no_compila(self):
+        with mock.patch.object(R, "_entradas", return_value=[]), \
+                mock.patch.object(R, "huella_de", return_value="bbb"), \
+                mock.patch.object(R, "_leer_estado", return_value={"huella_construida": "aaa", "ok": True}), \
+                mock.patch.object(R, "cuantas_mas_nuevas", return_value=3), \
+                mock.patch.object(R, "mtime_del_build", return_value=0), \
+                mock.patch.object(R, "conversando", return_value=False), \
+                mock.patch.object(R, "astraura_en_uso", return_value=True), \
+                mock.patch.object(R, "reconstruir") as rec:
+            self.assertFalse(R.una_pasada())
+        rec.assert_not_called()
+
