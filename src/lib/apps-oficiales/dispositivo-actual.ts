@@ -31,11 +31,27 @@ function uaActual(): string {
     return typeof navigator !== "undefined" ? navigator.userAgent || "" : "";
 }
 
+/**
+ * iPadOS se hace pasar por un Mac («Macintosh» en el userAgent) desde 2019: sin esta
+ * corrección, un iPad recibiría el .dmg. Lo delata la pantalla táctil (un Mac no tiene).
+ */
+export function corregirIPad(d: DispositivoParaInstalar, puntosTactiles: number): DispositivoParaInstalar {
+    return d.sistema === "macos" && puntosTactiles > 1 ? { sistema: "ios", arquitectura: "arm64" } : d;
+}
+
+function puntosTactiles(): number {
+    try {
+        return typeof navigator !== "undefined" ? Number(navigator.maxTouchPoints) || 0 : 0;
+    } catch {
+        return 0;
+    }
+}
+
 /** Detección inmediata, solo con el userAgent (y la plataforma de UA-CH si ya la hay). */
 export function dispositivoInmediato(): DispositivoParaInstalar {
     if (typeof navigator === "undefined") return { sistema: "otro", arquitectura: "desconocida" };
     const plataforma = (navigator as unknown as NavigatorConUAData).userAgentData?.platform ?? "";
-    return dispositivoDesdeUA(uaActual(), plataforma);
+    return corregirIPad(dispositivoDesdeUA(uaActual(), plataforma), puntosTactiles());
 }
 
 /** Detección afinada con UA-CH (arquitectura real) cuando el navegador la ofrece. */
@@ -45,7 +61,7 @@ export async function dispositivoAfinado(): Promise<DispositivoParaInstalar> {
         const uad = (navigator as unknown as NavigatorConUAData).userAgentData;
         if (!uad?.getHighEntropyValues) return base;
         const v = await uad.getHighEntropyValues(["architecture", "platform"]);
-        return dispositivoDesdeUA(uaActual(), v.platform ?? uad.platform ?? "", v.architecture ?? "");
+        return corregirIPad(dispositivoDesdeUA(uaActual(), v.platform ?? uad.platform ?? "", v.architecture ?? ""), puntosTactiles());
     } catch {
         return base;
     }
@@ -66,7 +82,11 @@ export function useDispositivoActual(): DispositivoParaInstalar {
     return d;
 }
 
-/** ¿Estamos dentro de la app nativa de StarSeed OS (Tauri) y no en un navegador? */
+/**
+ * ¿Estamos dentro de la app nativa de StarSeed OS (Tauri) y no en un navegador?
+ * `__TAURI__` solo existe con `withGlobalTauri` (lo tiene native/); `__TAURI_INTERNALS__`
+ * lo pone Tauri 2 siempre, así que sirve aunque esa opción cambie.
+ */
 export function esAppNativa(): boolean {
-    return typeof window !== "undefined" && "__TAURI__" in window;
+    return typeof window !== "undefined" && ("__TAURI__" in window || "__TAURI_INTERNALS__" in window);
 }

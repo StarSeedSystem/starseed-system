@@ -11,6 +11,8 @@
  * GitHub no contesta (medido el 2026-09-25 con `gh api repos/…/releases/latest`).
  */
 
+import { NATIVE_TAG, nativeInstallerAssets } from "@/lib/version/os-release";
+
 export type SistemaAsset = "android" | "ios" | "macos" | "windows" | "linux";
 export type ArquitecturaAsset = "arm64" | "x64" | "universal" | "desconocida";
 
@@ -36,6 +38,12 @@ export interface AppOficial {
     web: string;
     /** Permisos que la web necesita dentro del OS (atributo `allow` del iframe). */
     permisos: string;
+    /**
+     * Qué archivos del release son de ESTA app. Hace falta cuando un mismo release trae
+     * varias apps: el de StarSeed OS sube también Nexus y Café (`StarSeed.Nexus_*`,
+     * `StarSeed-cafe-*.apk`…), y sin filtro se ofrecería el instalador de otra app.
+     */
+    soloAssets?: RegExp;
     respaldo: ReleaseOficial;
 }
 
@@ -48,8 +56,34 @@ function asset(repo: string, tag: string, nombre: string, mb: number): AssetRele
 
 const AUDIOMORPHIC_REPO = "StarSeedSystem/Audiomorphic-AR-app";
 const OMNI_REPO = "StarSeedSystem/generador_frecuencias";
+export const OS_REPO = "StarSeedSystem/starseed-system";
+
+/**
+ * Archivos del sistema OS dentro del release compartido: `StarSeed.OS_<v>_…` (Tauri de
+ * escritorio), `StarSeed.OS-<v>-1.x86_64.rpm` y `StarSeed-os-<v>.apk`. Los de Nexus y Café
+ * (`StarSeed.Nexus_…`, `StarSeed.Cafe_…`, `StarSeed-nexus-…apk`) no casan.
+ */
+export const PATRON_ASSETS_OS = /^StarSeed(?:\.OS[_-]|-os-)/i;
 
 export const APPS_OFICIALES: Record<string, AppOficial> = {
+    // (2026-09-25) Alex: «al seleccionar el botón de instalar para la app de StarSeed OS debe
+    // detectar su sistema operativo y abrir la descarga de la versión actualizada desde
+    // GitHub». La versión viva sale del último release (ultima-version.ts); el respaldo es la
+    // release nativa vigente declarada en os-release.ts (fuente única de NATIVE_VERSION).
+    "starseed-os": {
+        id: "starseed-os",
+        nombre: "StarSeed OS",
+        repo: OS_REPO,
+        web: "https://starseed-os.vercel.app",
+        permisos: "",
+        soloAssets: PATRON_ASSETS_OS,
+        respaldo: {
+            tag: NATIVE_TAG,
+            publicado: "",
+            url: `https://github.com/${OS_REPO}/releases/tag/${NATIVE_TAG}`,
+            assets: nativeInstallerAssets().map((a) => ({ nombre: a.filename, url: a.href, bytes: 0 })),
+        },
+    },
     audiomorphic: {
         id: "audiomorphic",
         nombre: "Audiomorphic",
@@ -147,9 +181,14 @@ export function instalables(assets: readonly AssetRelease[]): AssetClasificado[]
     );
 }
 
+/** Familia de Linux, cuando el navegador la dice (Firefox en Ubuntu escribe «Ubuntu»). */
+export type DistroLinux = "debian" | "fedora";
+
 export interface DispositivoParaInstalar {
     sistema: SistemaAsset | "otro";
     arquitectura: ArquitecturaAsset;
+    /** Solo en Linux y solo si el userAgent la delata: elige .deb o .rpm en vez de AppImage. */
+    distro?: DistroLinux;
 }
 
 /**
@@ -177,6 +216,12 @@ export function mejorInstalable(
     })[0];
 }
 
+/** Los instalables de una app concreta: aplica su filtro de nombres (`soloAssets`) si lo tiene. */
+export function instalablesDeApp(appId: string, assets: readonly AssetRelease[]): AssetClasificado[] {
+    const filtro = APPS_OFICIALES[appId]?.soloAssets;
+    return instalables(filtro ? assets.filter((a) => filtro.test(a.nombre)) : assets);
+}
+
 /** «5,4 MB», «773,7 MB», «1,2 GB». */
 export function tamanoLegible(bytes: number): string {
     if (!Number.isFinite(bytes) || bytes <= 0) return "";
@@ -199,7 +244,12 @@ export function dispositivoDesdeUA(ua: string, plataforma = "", arquitecturaUACH
     else if (/x86/i.test(arquitecturaUACH)) arquitectura = "x64";
     else if (/aarch64|arm64/i.test(t)) arquitectura = "arm64";
     else if (/x86_64|win64|x64|amd64/i.test(t)) arquitectura = "x64";
-    return { sistema, arquitectura };
+    const d: DispositivoParaInstalar = { sistema, arquitectura };
+    if (sistema === "linux") {
+        if (/ubuntu|debian|linux mint|pop!_os|elementary/i.test(t)) d.distro = "debian";
+        else if (/fedora|red hat|centos|rocky|opensuse|suse/i.test(t)) d.distro = "fedora";
+    }
+    return d;
 }
 
 /** Convierte la respuesta de la API de GitHub (releases/latest) en nuestra forma; null si no vale. */

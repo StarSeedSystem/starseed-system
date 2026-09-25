@@ -22,7 +22,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import {
     APPS_OFICIALES,
-    instalables,
+    instalablesDeApp,
     releaseDesdeGithub,
     type AssetClasificado,
     type ReleaseOficial,
@@ -174,6 +174,6 @@ export function useUltimaVersion(appId: string): EstadoUltimaVersion {
         };
     }, [appId]);
 
-    const lista = useMemo(() => (estado.release ? instalables(estado.release.assets) : []), [estado.release]);
+    const lista = useMemo(() => (estado.release ? instalablesDeApp(appId, estado.release.assets) : []), [appId, estado.release]);
     return { release: estado.release, instalables: lista, origen: estado.origen, cargando: estado.cargando };
 }

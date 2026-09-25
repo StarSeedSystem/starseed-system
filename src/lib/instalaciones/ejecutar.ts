@@ -10,6 +10,7 @@
  */
 
 import { installApp, saveResource } from "@/lib/library-store";
+import { lanzarDescarga } from "@/lib/install/instalar-os";
 
 import type { AccionInstalacion, AppParaInstalar } from "./plan";
 
@@ -20,24 +21,8 @@ import type { AccionInstalacion, AppParaInstalar } from "./plan";
  * se abre en una ventana, que es la vía que el sistema resuelve con su propio gestor.
  */
 export function iniciarDescarga(url: string, archivo: string, via: "enlace" | "ventana"): boolean {
-    if (typeof window === "undefined" || typeof document === "undefined") return false;
-    try {
-        if (via === "ventana") {
-            window.open(url, "_blank", "noopener,noreferrer");
-            return true;
-        }
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = archivo;
-        a.rel = "noopener noreferrer";
-        a.style.display = "none";
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        return true;
-    } catch {
-        return false;
-    }
+    // Un solo lanzador de descargas en todo el OS (el mismo que usa «Instalar StarSeed OS»).
+    return lanzarDescarga(url, archivo, via);
 }
 
 /** Abre la web oficial en otra pestaña: allí el navegador ofrece «Instalar app» o «Añadir a pantalla de inicio». */

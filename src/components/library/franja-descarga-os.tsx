@@ -5,44 +5,31 @@
 //   ÚNICA de verdad). Aquí NO hay constantes de fecha ni variables de entorno:
 //   así es imposible que este medio vuelva a divergir del resto (ver el test
 //   franja-descarga-os.test.tsx, que ata la franja y vigila page.tsx).
-// · Detector inteligente: detectOS() + estado de la PWA → mejorDescargaPara(),
-//   que dice con honestidad QUÉ conviene a este dispositivo (y cuándo aún no
-//   hay binario real).
+// · Detector inteligente (2026-09-25): el MISMO plan que el botón de instalar
+//   (useInstalarOS → planInstalarOS): sistema detectado, archivo de la ÚLTIMA
+//   versión publicada en GitHub y, si no hay app nativa, la web instalable.
 // · Botón grande «Información y versiones» → ficha completa del OS.
 // · Movimiento con los tokens de src/lib/design/movimiento.ts y respeto a
 //   prefers-reduced-motion. Una sola columna en móvil.
 // ════════════════════════════════════════════════════════════════════════════
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { GlassCard } from "@/components/ui/glass-card";
 import { InstallButton } from "@/components/welcome/install-button";
 import { cn } from "@/lib/utils";
 import { CURVA, DURACION } from "@/lib/design/movimiento";
-import {
-  OS_REPO_URL,
-  OS_WEB_URL,
-  PWA_STATE_EVENT,
-  canInstallPWA,
-  detectOS,
-  initPwaCapture,
-  isRunningStandalone,
-  nativePackages,
-  type OsId,
-} from "@/lib/install/device-install";
-import { mejorDescargaPara } from "@/lib/install/mejor-descarga";
+import { OS_REPO_URL, OS_WEB_URL } from "@/lib/install/device-install";
+import { useInstalarOS } from "@/lib/install/instalar-os";
+import { instaladoresPorSistema, OS_RELEASES_ULTIMA_URL } from "@/lib/install/instalar-os-logica";
 import {
   OS_CANAL,
   OS_FECHA,
   OS_VERSION,
-  NATIVE_TAG,
   etiquetaBuild,
   formatearFechaBuild,
-  nativeInstallerAssetsFor,
-  type NativeInstallerAsset,
-  type NativeAssetOS,
 } from "@/lib/version/os-release";
 import {
   CheckCircle2,
@@ -59,32 +46,6 @@ const CANAL_LABEL: Record<typeof OS_CANAL, string> = {
   beta: "Beta",
   estable: "Estable",
 };
-
-// Enlaces directos a los instaladores nativos reales (v0.2.0): un enlace
-// principal por SO, calculado UNA vez a partir de la fuente única de verdad
-// (nativeInstallerAssetsFor). macOS ya es un único .dmg universal y Linux solo
-// tiene job x64/amd64 — ver el comentario de nativeInstallerAssets en
-// os-release.ts para por qué no hay más variantes por arquitectura aquí.
-interface EnlaceNativo {
-  etiqueta: string;
-  asset: NativeInstallerAsset;
-}
-
-const NATIVE_QUICK_LINK_IDS: { etiqueta: string; os: NativeAssetOS; id: string }[] = [
-  { etiqueta: "macOS", os: "macos", id: "macos-universal" },
-  { etiqueta: "Windows", os: "windows", id: "windows-x64-exe" },
-  { etiqueta: "Linux", os: "linux", id: "linux-x64-appimage" },
-  { etiqueta: "Android", os: "android", id: "android-apk" },
-];
-
-const NATIVE_QUICK_LINKS: EnlaceNativo[] = NATIVE_QUICK_LINK_IDS.reduce<EnlaceNativo[]>(
-  (acc, { etiqueta, os, id }) => {
-    const asset = nativeInstallerAssetsFor(os).find((a) => a.id === id);
-    if (asset) acc.push({ etiqueta, asset });
-    return acc;
-  },
-  [],
-);
 
 /** ¿El usuario pidió menos movimiento? SSR-safe y defensivo. */
 function useMovimientoReducido(): boolean {
@@ -105,39 +66,15 @@ function useMovimientoReducido(): boolean {
   return reducido;
 }
 
-/** Sistema detectado + estado real de la PWA (todo tras montar: SSR-safe). */
-function useEntornoInstalacion(): { os: OsId; puedePwa: boolean; yaInstalada: boolean } {
-  const [os, setOs] = useState<OsId>("unknown");
-  const [puedePwa, setPuedePwa] = useState(false);
-  const [yaInstalada, setYaInstalada] = useState(false);
-
-  useEffect(() => {
-    try {
-      initPwaCapture();
-      setOs(detectOS().os);
-    } catch {
-      /* detección imposible: nos quedamos en "unknown", nunca rompemos la franja */
-    }
-    const sincronizar = () => {
-      setPuedePwa(canInstallPWA());
-      setYaInstalada(isRunningStandalone());
-    };
-    sincronizar();
-    window.addEventListener(PWA_STATE_EVENT, sincronizar);
-    return () => window.removeEventListener(PWA_STATE_EVENT, sincronizar);
-  }, []);
-
-  return { os, puedePwa, yaInstalada };
-}
-
 export function FranjaDescargaOs({ onAbrirFicha }: { onAbrirFicha: () => void }) {
   const reducido = useMovimientoReducido();
-  const { os, puedePwa, yaInstalada } = useEntornoInstalacion();
-
-  const recomendacion = useMemo(
-    () => mejorDescargaPara(os, nativePackages(os), puedePwa, yaInstalada),
-    [os, puedePwa, yaInstalada],
-  );
+  // El mismo plan que ejecuta el botón: lo que aquí se anuncia es lo que se descargará.
+  const { plan, release, cargando } = useInstalarOS();
+  const rapidos = instaladoresPorSistema(release).map((g) => ({ etiqueta: g.etiqueta, asset: g.archivos[0] }));
+  const tag = release ? (release.tag.startsWith("v") ? release.tag : `v${release.tag}`) : "";
+  const disponible = plan.tipo !== "ya-instalada";
+  const formato =
+    plan.tipo === "descargar" ? plan.asset.formato : plan.tipo === "web" ? "App web (PWA)" : "App instalada";
 
   // Movimiento con la voz única del OS; con movimiento reducido, duración 0.
   const transicion = `${reducido ? 0 : DURACION.normal}ms ${CURVA.entrada}`;
@@ -193,21 +130,25 @@ export function FranjaDescargaOs({ onAbrirFicha }: { onAbrirFicha: () => void })
                 <MonitorSmartphone className="h-3.5 w-3.5" /> Mejor opción para tu dispositivo
               </p>
               <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-semibold text-emerald-50">
-                {recomendacion.titulo}
+                {plan.titulo}
                 <span className="rounded-full border border-white/10 bg-white/[0.06] px-2 py-0.5 text-[11px] font-medium text-white/70">
-                  {recomendacion.formato}
+                  {formato}
                 </span>
-                {recomendacion.disponible ? (
+                {cargando ? (
+                  <span className="inline-flex items-center gap-1 text-[11px] font-medium text-white/60">
+                    <Clock className="h-3.5 w-3.5" /> Buscando la última versión…
+                  </span>
+                ) : disponible ? (
                   <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-300">
                     <CheckCircle2 className="h-3.5 w-3.5" /> Disponible ahora
                   </span>
                 ) : (
-                  <span className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-300/90">
-                    <Clock className="h-3.5 w-3.5" /> {recomendacion.motivo ?? "Aún no disponible"}
+                  <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-300">
+                    <CheckCircle2 className="h-3.5 w-3.5" /> Ya instalada
                   </span>
                 )}
               </p>
-              <p className="mt-1 text-xs text-muted-foreground">{recomendacion.detalle}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{plan.detalle}</p>
             </div>
 
             <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
@@ -227,22 +168,33 @@ export function FranjaDescargaOs({ onAbrirFicha }: { onAbrirFicha: () => void })
               >
                 Código fuente / releases <ExternalLink className="h-3 w-3" />
               </a>
-              <span
-                className="inline-flex flex-wrap items-center gap-x-2 gap-y-1 text-muted-foreground"
-                title={`Instaladores nativos ${NATIVE_TAG}: macOS (.dmg universal), Windows (.exe), Linux (.AppImage) y Android (.apk). Si el Release aún está en borrador, el enlace puede no responder todavía.`}
-              >
-                <Package className="h-3 w-3" /> Nativas ({NATIVE_TAG}):
-                {NATIVE_QUICK_LINKS.map(({ etiqueta, asset }) => (
+              {rapidos.length > 0 && (
+                <span
+                  className="inline-flex flex-wrap items-center gap-x-2 gap-y-1 text-muted-foreground"
+                  title="Enlaces directos a los archivos de la última versión publicada en GitHub."
+                >
+                  <Package className="h-3 w-3" /> Nativas{tag ? ` (${tag})` : ""}:
+                  {rapidos.map(({ etiqueta, asset }) => (
+                    <a
+                      key={asset.nombre}
+                      href={asset.url}
+                      download={asset.nombre}
+                      title={asset.nombre}
+                      className="cursor-pointer font-medium text-emerald-300 hover:text-emerald-200 hover:underline"
+                    >
+                      {etiqueta}
+                    </a>
+                  ))}
                   <a
-                    key={asset.id}
-                    href={asset.href}
-                    title={asset.filename}
+                    href={OS_RELEASES_ULTIMA_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
                     className="cursor-pointer font-medium text-emerald-300 hover:text-emerald-200 hover:underline"
                   >
-                    {etiqueta}
+                    Todas
                   </a>
-                ))}
-              </span>
+                </span>
+              )}
             </div>
           </div>
         </div>

@@ -18,7 +18,8 @@ import { toast } from "sonner";
 import { Download, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { mejorInstalable, tamanoLegible } from "@/lib/apps-oficiales/apps-oficiales";
+import { tamanoLegible } from "@/lib/apps-oficiales/apps-oficiales";
+import { instalableParaApp } from "@/lib/install/instalar-os-logica";
 import { useUltimaVersion } from "@/lib/apps-oficiales/ultima-version";
 import { esAppNativa, useDispositivoActual } from "@/lib/apps-oficiales/dispositivo-actual";
 import { thisDeviceId } from "@/lib/neurons/neurons";
@@ -90,7 +91,7 @@ function TarjetaPendiente({ destino }: { destino: DestinoInstalacion }) {
     // del clic (los navegadores bloquean descargas y ventanas que llegan tarde).
     const version = useUltimaVersion(app.oficialId ?? "");
     const dispositivo = useDispositivoActual();
-    const instalable = app.oficialId ? mejorInstalable(version.instalables, dispositivo) : null;
+    const instalable = instalableParaApp(app.oficialId, version.release, dispositivo);
     const buscando = Boolean(app.oficialId) && version.cargando;
     const idTitulo = `pendiente-${destino.id}`;
 

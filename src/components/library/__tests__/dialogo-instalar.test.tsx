@@ -161,6 +161,31 @@ describe("DialogoInstalar", () => {
         expect(screen.getByRole("link", { name: "iniciar sesión" }).getAttribute("href")).toBe("/login");
     });
 
+    it("StarSeed OS: el botón de un toque descarga el .apk del OS y anota este dispositivo", async () => {
+        const clics: string[] = [];
+        const espia = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (this: HTMLAnchorElement) {
+            clics.push(this.href);
+        });
+        montar("starseed-os");
+        expect(screen.getByRole("heading", { name: "¿Dónde quieres instalar StarSeed OS?" })).toBeTruthy();
+        // La casilla describe el archivo del OS (no el de Nexus ni el de Café).
+        expect(screen.getByText(/StarSeed-os-0\.2\.0\.apk/)).toBeTruthy();
+
+        await act(async () => {
+            fireEvent.click(screen.getByRole("button", { name: "Descargar para Android" }));
+        });
+
+        expect(clics).toEqual(["https://github.com/StarSeedSystem/starseed-system/releases/download/v0.2.0/StarSeed-os-0.2.0.apk"]);
+        // No se descarga dos veces: solo se añade al Lanzador y se guarda el destino.
+        expect(est.acciones.map((a) => a.tipo)).toEqual(["anadir-lanzador"]);
+        expect(est.guardados.map((d) => [d.tipo, d.neuronaId, d.estado, d.archivo, d.version])).toEqual([
+            ["neurona", "yo", "descargada", "StarSeed-os-0.2.0.apk", "v0.2.0"],
+        ]);
+        expect(screen.getByTestId("resultado-instalar-os").textContent).toContain("instale apps desconocidas");
+        expect((screen.getByLabelText(/Este dispositivo \(Móvil de Alex\)/) as HTMLInputElement).checked).toBe(false);
+        espia.mockRestore();
+    });
+
     it("una app sin instaladores ofrece Lanzador y su web", () => {
         montar("cafe");
         expect(screen.getByText(/se añadirá a tu Lanzador/)).toBeTruthy();

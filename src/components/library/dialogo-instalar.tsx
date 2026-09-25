@@ -11,7 +11,9 @@
  * Qué hace cada opción (la lógica vive en src/lib/instalaciones/plan.ts, probada aparte):
  *   · Web → Biblioteca de la cuenta; se abre desde cualquier navegador; no descarga nada.
  *   · Este dispositivo → descarga el instalador oficial del último release (si lo hay para
- *     este sistema) o añade la app a su Lanzador y usa la web.
+ *     este sistema) o añade la app a su Lanzador y usa la web. Para StarSeed OS la acción
+ *     principal es el botón de un toque (`BotonInstalarOS`, el mismo de toda la Biblioteca):
+ *     descarga ya y deja anotado este dispositivo como destino.
  *   · Otras neuronas → pedido sincronizado por la cuenta; se acepta en ESE dispositivo.
  *   · Perfil → en qué biblioteca aparece (la de la cuenta o la de un perfil).
  */
@@ -22,8 +24,10 @@ import { Download, Globe, Loader2, MonitorSmartphone, UserRound } from "lucide-r
 
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { mejorInstalable } from "@/lib/apps-oficiales/apps-oficiales";
 import { useUltimaVersion } from "@/lib/apps-oficiales/ultima-version";
+import { instalableParaApp, OS_APP_ID } from "@/lib/install/instalar-os-logica";
+import type { ResultadoInstalarOS } from "@/lib/install/instalar-os";
+import { BotonInstalarOS } from "@/components/install/instalar-os";
 import { esAppNativa, useDispositivoActual } from "@/lib/apps-oficiales/dispositivo-actual";
 import { agregarCarpetaDispositivo, soportaCarpetasDispositivo } from "@/lib/storage/carpetas-vinculadas";
 import { destinosDeApp, ETIQUETA_ESTADO, etiquetaDestino } from "@/lib/instalaciones/destinos";
@@ -64,7 +68,9 @@ function ContenidoInstalar({ app, onCerrar }: { app: AppParaInstalar; onCerrar: 
 
     useEffect(() => setEsNativa(esAppNativa()), []);
 
-    const instalable = app.oficialId ? mejorInstalable(version.instalables, dispositivo) : null;
+    // Para el OS: sin los archivos de Nexus/Café y con .deb/.rpm según la distribución.
+    const instalable = instalableParaApp(app.oficialId, version.release, dispositivo);
+    const esOS = app.oficialId === OS_APP_ID;
     const yaEsta = useMemo(() => destinosDeApp(app.id, lista), [app.id, lista]);
     // Hasta que la persona elija, el perfil propuesto es el activo en este dispositivo.
     const perfilId = perfilSel ?? datos.perfilActivo ?? "";
@@ -87,6 +93,27 @@ function ContenidoInstalar({ app, onCerrar }: { app: AppParaInstalar; onCerrar: 
     const cambiarNeurona = useCallback((id: string, marcada: boolean) => {
         setOtras((prev) => (marcada ? [...prev.filter((x) => x !== id), id] : prev.filter((x) => x !== id)));
     }, []);
+
+    // El botón de un toque ya lanzó la descarga: se anota este dispositivo como destino
+    // (y la app en su Lanzador) sin volver a descargar, y se desmarca la casilla.
+    const alInstalarOS = (r: ResultadoInstalarOS) => {
+        if (!r.descargaIniciada || r.plan.tipo !== "descargar") return;
+        const plan = planInstalacion(
+            app,
+            { web: false, esteDispositivo: true, otrasNeuronas: [], perfil: seleccion.perfil, carpetaBiblioteca: seleccion.carpetaBiblioteca },
+            {
+                estaNeurona: datos.estaNeurona,
+                neuronas: neuronasBreves,
+                instalable: r.plan.asset,
+                version: r.plan.version,
+                esNativa,
+                existentes: lista,
+            },
+        );
+        ejecutarAcciones(app, plan.acciones.filter((a) => a.tipo !== "descargar"));
+        if (plan.destinos.length) guardarDestinos(plan.destinos);
+        setEste(false);
+    };
 
     const vincularCarpeta = useCallback(async () => {
         const nueva = await agregarCarpetaDispositivo();
@@ -187,6 +214,7 @@ function ContenidoInstalar({ app, onCerrar }: { app: AppParaInstalar; onCerrar: 
                         puedeVincularCarpeta={soportaCarpetasDispositivo()}
                         onVincularCarpeta={() => void vincularCarpeta()}
                         onInstalarDesdeWeb={() => app.web && abrirWebParaInstalar(app.web)}
+                        accionPrincipal={esOS ? <BotonInstalarOS compacto onResultado={alInstalarOS} /> : undefined}
                     />
                 </fieldset>
 

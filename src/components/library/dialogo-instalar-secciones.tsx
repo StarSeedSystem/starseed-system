@@ -101,6 +101,8 @@ export interface SeccionEsteDispositivoProps {
     puedeVincularCarpeta: boolean;
     onVincularCarpeta: () => void;
     onInstalarDesdeWeb: () => void;
+    /** Acción de un toque que va primero (StarSeed OS: descargar ya para este sistema). */
+    accionPrincipal?: ReactNode;
 }
 
 export function SeccionEsteDispositivo(p: SeccionEsteDispositivoProps) {
@@ -126,6 +128,7 @@ export function SeccionEsteDispositivo(p: SeccionEsteDispositivoProps) {
             descripcion={descripcion}
         >
             <div className="flex flex-col gap-2 text-xs text-muted-foreground">
+                {p.accionPrincipal}
                 {nota && <p className="text-amber-200/90">{nota}</p>}
                 {p.instalable && (
                     <p>
@@ -163,13 +166,13 @@ export function SeccionEsteDispositivo(p: SeccionEsteDispositivoProps) {
                         <FolderPlus className="h-3.5 w-3.5" aria-hidden /> Vincular una carpeta de este dispositivo
                     </Button>
                 )}
-                {!p.instalable && p.app.web && !p.buscandoVersion && (
+                {!p.instalable && p.app.web && !p.buscandoVersion && !p.accionPrincipal && (
                     <Button type="button" variant="outline" size="sm" onClick={p.onInstalarDesdeWeb} className="h-8 w-fit gap-1.5 border-white/15 text-xs cursor-pointer">
                         <ExternalLink className="h-3.5 w-3.5" aria-hidden />
                         {conReleases ? "Instalar como app desde su web" : "Abrir su web"}
                     </Button>
                 )}
-                {!p.instalable && p.app.web && conReleases && !p.buscandoVersion && (
+                {!p.instalable && p.app.web && conReleases && !p.buscandoVersion && !p.accionPrincipal && (
                     <p>En su web, el navegador ofrece «Instalar app» o «Añadir a pantalla de inicio».</p>
                 )}
             </div>

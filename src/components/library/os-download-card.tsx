@@ -4,10 +4,10 @@
 // OsDownloadCard — Descarga/instalación de la ÚLTIMA versión de StarSeed OS
 // ----------------------------------------------------------------
 // Tarjeta destacada al TOPE de la Librería que ofrece la última versión del
-// sistema operativo StarSeed para instalar (PWA) o abrir en la web oficial.
-// Reutiliza el botón inteligente de instalación (`InstallButton`, que ya
-// gestiona Chrome/Edge/Android/iOS/escritorio) y enlaza al despliegue
-// oficial. Aditiva y defensiva: si algo no está disponible, degrada.
+// sistema operativo StarSeed para instalar o abrir en la web oficial.
+// Reutiliza el ÚNICO botón de instalar del OS (`InstallButton` →
+// `BotonInstalarOS`): con un toque descarga la app de la última versión de
+// GitHub para este sistema, o explica cómo instalar la web en iPhone/iPad.
 // ════════════════════════════════════════════════════════════════
 
 import { Download, ExternalLink, Sparkles } from "lucide-react";
@@ -52,9 +52,9 @@ export function OsDownloadCard({ version = OS_VERSION }: OsDownloadCardProps) {
               </Badge>
             </div>
             <p className="mt-1 max-w-xl text-sm text-muted-foreground">
-              Instala el sistema operativo social en tu dispositivo (Android, iOS,
-              escritorio) como app, o ábrelo en la web oficial. Siempre la versión
-              más reciente, lista para tu soberanía digital.
+              Descarga la app para tu sistema (macOS, Windows, Linux o Android) con un
+              toque, o instálala desde la web en iPhone y iPad. Siempre la versión más
+              reciente publicada, lista para tu soberanía digital.
             </p>
             <a
               href={OS_DOWNLOAD_URL}

@@ -7,9 +7,11 @@
  * Sección especial de la Biblioteca, claramente diferenciada del catálogo, que
  * reúne TODAS las instalaciones oficiales del OS (petición del dueño):
  *
- *   1. Instalar StarSeed OS en este dispositivo → detecta el SO, ofrece PWA
- *      (vía real hoy), estado "ya instalada" si standalone, y las opciones
- *      nativas con su estado HONESTO (soon/link).
+ *   1. Instalar StarSeed OS en este dispositivo → el ÚNICO botón del OS
+ *      (`BotonInstalarOS`): con un toque detecta el sistema y descarga la app de
+ *      la última versión de GitHub; en iPhone/iPad, la web instalable. Debajo,
+ *      los archivos de los demás sistemas y, si el navegador lo ofrece, la web
+ *      instalable como alternativa.
  *   2. Dar control total a Aurora (compañero local) → explica terminal/permisos
  *      con honestidad, pasos por SO, y botón para conceder los permisos WEB.
  *   3. Modelos de IA locales (opcional) → los DOWNLOADABLE_SOURCES del catálogo
@@ -25,19 +27,18 @@ import { GlassCard } from "@/components/ui/glass-card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { cn } from "@/lib/utils";
 import { etiquetaBuild } from "@/lib/version/os-release";
 import {
   Rocket, DownloadCloud, MonitorSmartphone, Terminal, ShieldCheck, Cpu, Package,
-  ExternalLink, CheckCircle2, Clock, Download, Loader2, Github, KeyRound, Share,
-  type LucideIcon,
+  CheckCircle2, Clock, Download, Loader2, Github, KeyRound, ExternalLink,
 } from "lucide-react";
+import { BotonInstalarOS, OtrosSistemasOS } from "@/components/install/instalar-os";
 import { toast } from "sonner";
 import {
-  detectOS, nativePackages, companionInfo, requestMaxPermissions,
+  detectOS, companionInfo, requestMaxPermissions,
   canInstallPWA, promptInstallPWA, isRunningStandalone, initPwaCapture,
   registerAsAgentNeuron, PWA_STATE_EVENT,
-  type DetectedOs, type NativeOption, type CompanionInfo,
+  type DetectedOs, type CompanionInfo,
 } from "@/lib/install/device-install";
 import { findSource } from "@/ai/astraura/free-catalog";
 import {
@@ -46,20 +47,12 @@ import {
   isDownloading, downloadProgress, markModelUninstalled,
 } from "@/ai/astraura/installed-models";
 
-/** Mapa nombre-lucide → componente (fallback defensivo: Package). */
-const ICON_MAP: Record<string, LucideIcon> = { Download, Github, Package, ExternalLink };
-function NativeIcon({ name, className }: { name?: string; className?: string }) {
-  const Icon = (name && ICON_MAP[name]) || Package;
-  return <Icon className={className} />;
-}
-
 /* ───────────────────────── Bloque 1 · Instalar el OS ───────────────────────── */
 
 function InstallOsBlock({ os }: { os: DetectedOs }) {
   const [standalone, setStandalone] = useState(false);
   const [canPwa, setCanPwa] = useState(false);
   const [busy, setBusy] = useState(false);
-  const options = useMemo(() => nativePackages(os.os), [os.os]);
 
   useEffect(() => {
     initPwaCapture();
@@ -74,14 +67,16 @@ function InstallOsBlock({ os }: { os: DetectedOs }) {
     };
   }, []);
 
+  // Alternativa: la web instalable, cuando el navegador ofrece su diálogo (el botón
+  // principal ya la lanza por sí solo donde no hay app nativa, como en iPhone/iPad).
   const handlePwa = useCallback(async () => {
     setBusy(true);
     const res = await promptInstallPWA();
     setBusy(false);
-    if (res === "accepted") toast.success("StarSeed OS", { description: "Instalada como app en este dispositivo." });
+    if (res === "accepted") toast.success("StarSeed OS", { description: "Instalada como app web en este dispositivo." });
     else if (res === "dismissed") toast.message("StarSeed OS", { description: "Instalación cancelada. Puedes hacerlo cuando quieras." });
-    else toast.message("StarSeed OS", { description: os.os === "ios" ? "En iPhone/iPad: Compartir → «Añadir a pantalla de inicio»." : "Tu navegador aún no ofrece el diálogo. Interactúa un poco y reintenta, o usa el menú «Instalar app»." });
-  }, [os.os]);
+    else toast.message("StarSeed OS", { description: "Tu navegador aún no ofrece el diálogo: usa su menú «Instalar app»." });
+  }, []);
 
   return (
     <GlassCard className="ss-crystal relative overflow-hidden border-emerald-400/20 bg-gradient-to-br from-emerald-900/25 via-teal-900/15 to-transparent p-5">
@@ -95,76 +90,38 @@ function InstallOsBlock({ os }: { os: DetectedOs }) {
             <h3 className="text-lg font-bold text-emerald-100">Instalar StarSeed OS en este dispositivo</h3>
             <p className="mt-0.5 text-xs text-muted-foreground">
               Detectado: <span className="font-semibold text-emerald-200">{os.label}</span>
-              {os.arch ? ` · ${os.arch}` : ""}. La instalación real hoy es la PWA (app con pantalla completa y offline).
+              {os.arch ? ` · ${os.arch}` : ""}. Un toque descarga la app de la última versión para tu sistema;
+              en iPhone y iPad se instala la versión web, que funciona como una app más.
             </p>
           </div>
         </div>
 
-        {/* Estado / acción principal PWA */}
-        {standalone ? (
-          <div className="flex items-center gap-2 rounded-xl border border-emerald-400/30 bg-emerald-500/10 p-3 text-sm text-emerald-200">
-            <CheckCircle2 className="h-4 w-4 shrink-0" /> Ya está instalada como app en este dispositivo. Ábrela desde tu pantalla de inicio.
-          </div>
-        ) : (
-          <Button
-            className="w-full gap-2 bg-emerald-600 text-white hover:bg-emerald-500 cursor-pointer sm:w-auto"
-            onClick={() => void handlePwa()}
-            disabled={busy}
-          >
-            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : os.os === "ios" ? <Share className="h-4 w-4" /> : <DownloadCloud className="h-4 w-4" />}
-            {os.os === "ios" ? "Añadir a pantalla de inicio" : "Instalar como app (PWA)"}
-            {!canPwa && os.os !== "ios" && <span className="text-[10px] opacity-70">(o menú del navegador)</span>}
-          </Button>
-        )}
-
-        {/* Opciones nativas por SO, con estado honesto */}
-        <div className="grid gap-2 sm:grid-cols-2">
-          {options.map((opt: NativeOption, i) => (
-            <div
-              key={`${opt.label}-${i}`}
-              className={cn(
-                "flex items-start gap-2.5 rounded-xl border p-3",
-                opt.status === "pwa" ? "border-emerald-400/25 bg-emerald-500/[0.06]"
-                  : opt.status === "release" ? "border-sky-400/25 bg-sky-500/[0.05]"
-                  : opt.status === "link" ? "border-white/10 bg-white/[0.03]"
-                  : "border-white/10 bg-white/[0.02] opacity-90",
-              )}
-            >
-              <div className="mt-0.5 shrink-0">
-                <NativeIcon name={opt.icon} className={cn("h-4 w-4", opt.status === "pwa" ? "text-emerald-300" : "text-muted-foreground")} />
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="text-xs font-semibold text-gray-100">{opt.label}</span>
-                  {opt.status === "soon" && (
-                    <Badge variant="outline" className="border-white/15 bg-white/5 text-[9px] text-muted-foreground gap-1">
-                      <Clock className="h-2.5 w-2.5" /> Próximamente
-                    </Badge>
-                  )}
-                  {opt.status === "release" && (
-                    <Badge variant="outline" className="border-sky-400/30 bg-sky-500/10 text-[9px] text-sky-200 gap-1">
-                      <DownloadCloud className="h-2.5 w-2.5" /> Releases
-                    </Badge>
-                  )}
-                </div>
-                <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">{opt.note}</p>
-                {opt.href && (opt.status === "link" || opt.status === "pwa" || opt.status === "release") && (
-                  <a
-                    href={opt.href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className={cn(
-                      "mt-1 inline-flex items-center gap-1 text-[11px] font-medium hover:underline cursor-pointer",
-                      opt.status === "release" ? "text-sky-300 hover:text-sky-200" : "text-emerald-300 hover:text-emerald-200",
-                    )}
-                  >
-                    {opt.status === "release" ? "Ver releases" : "Abrir"} <ExternalLink className="h-3 w-3" />
-                  </a>
-                )}
-              </div>
-            </div>
-          ))}
+        <div className="w-full sm:max-w-sm">
+          <BotonInstalarOS />
         </div>
+
+        <OtrosSistemasOS />
+
+        {canPwa && !standalone && os.os !== "ios" && (
+          <div className="flex flex-wrap items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] p-3 text-xs text-muted-foreground">
+            <span className="min-w-0 flex-1">¿Prefieres no instalar nada? Añade la versión web como app desde este navegador.</span>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 gap-1.5 border-emerald-400/30 text-xs text-emerald-100 cursor-pointer"
+              onClick={() => void handlePwa()}
+              disabled={busy}
+            >
+              {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <DownloadCloud className="h-3.5 w-3.5" />}
+              Instalar la versión web
+            </Button>
+          </div>
+        )}
+        {standalone && (
+          <div className="flex items-center gap-2 rounded-xl border border-emerald-400/30 bg-emerald-500/10 p-3 text-xs text-emerald-200">
+            <CheckCircle2 className="h-4 w-4 shrink-0" /> Ya la usas como app web instalada en este dispositivo.
+          </div>
+        )}
       </div>
     </GlassCard>
   );

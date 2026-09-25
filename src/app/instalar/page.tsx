@@ -8,18 +8,14 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/utils/supabase/client";
-import { detectar, recomendar, MODELOS, CONCIENCIAS, assetDirecto, type HW } from "@/lib/onboarding/neuron-recommend";
-import { NATIVE_TAG, nativeInstallerAssetsFor } from "@/lib/version/os-release";
+import { detectar, recomendar, MODELOS, CONCIENCIAS, type HW } from "@/lib/onboarding/neuron-recommend";
+import { BotonInstalarOS, OtrosSistemasOS } from "@/components/install/instalar-os";
+import { OS_RELEASES_ULTIMA_URL } from "@/lib/install/instalar-os-logica";
 
-const RELEASES_URL = "https://github.com/StarSeedSystem/starseed-system/releases";
-
-// Enlaces directos reales por SO (misma fuente única que assetDirecto):
-// macOS es ya un único .dmg universal (Apple Silicon + Intel); Linux solo
-// tiene el job x64/amd64 (native-build.yml no compila ARM64 Linux).
-const MAC_ASSET = nativeInstallerAssetsFor("macos")[0];
-const WINDOWS_ASSET = nativeInstallerAssetsFor("windows").find((a) => a.id === "windows-x64-exe");
-const LINUX_ASSET = nativeInstallerAssetsFor("linux").find((a) => a.id === "linux-x64-appimage");
-const ANDROID_ASSET = nativeInstallerAssetsFor("android")[0];
+// (2026-09-25) La descarga la hace el ÚNICO botón del OS (BotonInstalarOS): detecta el
+// sistema, lee la ÚLTIMA versión publicada en GitHub y descarga el archivo que toca. Los
+// enlaces de los demás sistemas salen de ese mismo release (OtrosSistemasOS), no de una
+// lista escrita a mano que se quedaba en la versión vieja.
 
 // (Ola 226) VARIANTE: no hay carpeta «(app)», el página vive en src/app/instalar/page.tsx.
 // Los modelos con url null (config/astraura-models.json) se muestran como «Próximamente»:
@@ -61,7 +57,6 @@ export default function InstalarPage() {
   }, []);
 
   const modeloRec = MODELOS.find((m) => m.id === (rec?.modelo ?? ""));
-  const directo = hw ? assetDirecto(hw) : null;
 
   return (
     <main className="min-h-screen bg-[#070a14] text-slate-100 px-5 py-10">
@@ -170,49 +165,16 @@ export default function InstalarPage() {
 
         <section className="space-y-3">
           <h2 className="text-lg font-medium">Descargar instalador</h2>
-          {directo && (
-            <a
-              href={directo.href}
-              className="flex items-center justify-between gap-3 rounded-xl border border-cyan-400/40 bg-cyan-400/10 p-3.5 text-sm font-medium text-cyan-100 transition-colors hover:bg-cyan-400/20"
-            >
-              <span>⬇ Descarga directa para tu equipo</span>
-              <span className="text-xs font-normal text-cyan-200/90">{directo.etiqueta}</span>
-            </a>
-          )}
-          <div className="grid gap-2 text-sm">
-            {MAC_ASSET && (
-              <a href={MAC_ASSET.href} className="rounded-lg border border-white/15 bg-white/5 p-3 hover:border-cyan-300/50">
-                macOS — .dmg universal (Apple Silicon e Intel) · {NATIVE_TAG}
-              </a>
-            )}
-            {WINDOWS_ASSET && (
-              <a href={WINDOWS_ASSET.href} className="rounded-lg border border-white/15 bg-white/5 p-3 hover:border-cyan-300/50">
-                Windows — instalador .exe (x64) · {NATIVE_TAG}
-              </a>
-            )}
-            {LINUX_ASSET && (
-              <a href={LINUX_ASSET.href} className="rounded-lg border border-white/15 bg-white/5 p-3 hover:border-cyan-300/50">
-                Linux — .AppImage (x64) · {NATIVE_TAG}
-              </a>
-            )}
-            {ANDROID_ASSET && (
-              <a href={ANDROID_ASSET.href} className="rounded-lg border border-white/15 bg-white/5 p-3 hover:border-cyan-300/50">
-                Android — .apk instalable directamente (sin Play Store) · {NATIVE_TAG}
-              </a>
-            )}
-            <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3 text-slate-300">
-              iOS — todavía no hay app nativa: la compilación sin firma aún no produce una app válida. En
-              iPhone/iPad, instala esta web como app: botón Compartir → «Añadir a pantalla de inicio».
-            </div>
+          <div className="max-w-sm">
+            <BotonInstalarOS />
           </div>
-          <p className="text-xs text-amber-300/90">
-            Honesto: los instaladores se compilan desde GitHub Actions (workflow «StarSeed Native · Build
-            &amp; Release») y el Release sale en BORRADOR hasta que el dueño lo revisa y publica. Si un
-            enlace de arriba aún no responde, esa release concreta todavía no se ha publicado —{" "}
-            <a href={RELEASES_URL} target="_blank" rel="noreferrer" className="underline hover:text-cyan-200">
-              consulta todas las releases aquí
+          <OtrosSistemasOS />
+          <p className="text-xs text-slate-400">
+            Los instaladores se compilan en GitHub Actions y se publican en{" "}
+            <a href={OS_RELEASES_ULTIMA_URL} target="_blank" rel="noreferrer" className="underline hover:text-cyan-200">
+              la página de versiones del repositorio
             </a>
-            .
+            . El botón siempre descarga la última versión publicada para tu sistema.
           </p>
         </section>
 
