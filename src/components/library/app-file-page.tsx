@@ -67,6 +67,7 @@ import { SaveToLibrary } from "@/components/library/save-to-library";
 import { DialogoInstalar } from "@/components/library/dialogo-instalar";
 import { useInstalaciones } from "@/lib/instalaciones/instalaciones-store";
 import { destinosDeApp } from "@/lib/instalaciones/destinos";
+import { DondeEstaInstalada } from "@/components/library/donde-esta-instalada";
 import { appPorId, type AppParaInstalar } from "@/lib/instalaciones/plan";
 import type {
   ListingMediaItem,
@@ -444,6 +445,9 @@ export function AppFilePage({ item, open, onOpenChange }: AppFilePageProps) {
               }}
             />
           </div>
+
+          {/* Dónde vive esta app (web, este dispositivo, otras neuronas, perfiles). */}
+          {appEcosistema && sitios > 0 ? <DondeEstaInstalada appId={appEcosistema.id} /> : null}
 
           {/* Métricas rápidas */}
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
