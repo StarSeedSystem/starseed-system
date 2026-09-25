@@ -30,15 +30,32 @@
  * lo respeta y NO inyecta nada.
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { ChevronDown, ChevronUp, Users } from "lucide-react";
+import { ChevronDown, ChevronUp, Users, CheckCheck, Plug, Search, Zap, Network } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getChatConfig } from "@/lib/aurora/turn";
 import { patchChatConfig } from "@/lib/aurora/config-change";
 import { AI_CONV_CHANGE_EVENT } from "@/lib/aurora/conversations";
 import type { ChatConfig } from "@/components/aurora/chat-config-menu";
 import { ASTRAURA_158_PERSONAS, type Astraura158MultiMode } from "@/ai/providers/astraura-158";
+import { alternarTodasPersonalidades, todasPersonalidadesActivas, type SeleccionPersonalidades } from "@/lib/astraura/personalidades-todas";
+import {
+  alternarHerramienta,
+  alternarTodasHerramientas,
+  contarHerramientasActivas,
+  estadoConector,
+  etiquetaEstadoConector,
+  herramientaActiva,
+  migrarSeleccionHabilidades,
+  resumenPickerHerramientas,
+  todasHerramientasActivas,
+  type SeleccionHerramientas,
+} from "@/lib/astraura/chat-herramientas";
+import { filaCoincideBusqueda } from "@/lib/astraura/resumen-ajustes-chat";
+import { SKILL_CAPABILITIES, activeCapabilityIds } from "@/ai/astraura/skills";
+import { getOssServices } from "@/lib/services/oss-services";
+import { readConnections } from "@/lib/services/oss-connections";
 
 /** Selección EFECTIVA (persistida o por defecto) de personalidades + modo. */
 export interface Astraura158Selection {
@@ -59,7 +76,24 @@ export interface Astraura158ChatConfigExtra {
   astr158Mode?: Astraura158MultiMode;
 }
 
+/**
+ * Campo que añade el picker «Conectores y habilidades» de esta misma
+ * bandeja: la versión de migración de `ChatConfig.skills` ya aplicada a este
+ * chat (ver `migrarSeleccionHabilidades` en `lib/astraura/chat-herramientas.ts`
+ * — mismo patrón que `DOCK_DEFAULTS_VERSION`). `ChatConfig.skills` y
+ * `ChatConfig.connections` en sí NO son nuevos: ya existen en `ChatConfig`
+ * (chat-config-menu.tsx) y ya los lee `router.ts`; este picker los reutiliza
+ * tal cual (mismo campo, mismo efecto real) pero contra el catálogo REAL
+ * completo (`SKILL_CAPABILITIES` / `getOssServices()`), no el subconjunto de
+ * 8 habilidades que expone ese menú.
+ */
+export interface ChatHerramientasConfigExtra {
+  herramientasSkillsV?: number;
+}
+
 const VALID_IDS = new Set(ASTRAURA_158_PERSONAS.map((p) => p.id));
+const TODOS_PERSONA_IDS = ASTRAURA_158_PERSONAS.map((p) => p.id);
+const TODAS_HABILIDADES_IDS = SKILL_CAPABILITIES.map((c) => c.id);
 
 const MODE_OPTIONS: { id: Astraura158MultiMode; label: string }[] = [
   { id: "single", label: "Individual" },
@@ -119,12 +153,59 @@ export function ChatPersonalityTray({
   const [open, setOpen] = useState(false);
   const [personas, setPersonas] = useState<string[]>([]);
   const [mode, setMode] = useState<Astraura158MultiMode>("single");
+  // «Solo una» reversible (ver personalidades-todas.ts): lo que había ANTES
+  // de pulsar «Todas», para poder volver — memoria de sesión de la bandeja,
+  // nunca se persiste (no es un ajuste del chat, es un "deshacer" de la UI).
+  const [personasRecordadas, setPersonasRecordadas] = useState<SeleccionPersonalidades | null>(null);
+
+  // Picker «Conectores y habilidades»: abierto/cerrado, filtro y selección
+  // EXPLÍCITA del chat (`undefined` = «Todas», ver chat-herramientas.ts).
+  const [toolsOpen, setToolsOpen] = useState(false);
+  const [toolsQuery, setToolsQuery] = useState("");
+  const [skillsSel, setSkillsSel] = useState<SeleccionHerramientas>(undefined);
+  const [connectionsSel, setConnectionsSel] = useState<SeleccionHerramientas>(undefined);
+  const [connectedIds, setConnectedIds] = useState<Set<string>>(new Set());
+  const [globalActiveSkillIds, setGlobalActiveSkillIds] = useState<Set<string>>(new Set());
+
+  const ossServices = useMemo(() => getOssServices(), []);
+  const todasConexionesIds = useMemo(() => ossServices.map((s) => s.id), [ossServices]);
+
+  // El filtro del picker es solo de la sesión de la bandeja: al cambiar de
+  // chat se limpia (no ligado a `read()`/AI_CONV_CHANGE_EVENT, que también
+  // se dispara al alternar una habilidad/conector — borraría lo que el
+  // usuario está escribiendo en pleno uso del picker).
+  useEffect(() => {
+    setToolsQuery("");
+  }, [convId]);
 
   // Refleja la selección guardada (menú, otro dispositivo, config-change).
   const read = useCallback(() => {
     const sel = readAstraura158Selection(convId);
     setPersonas(sel?.personas ?? []);
     setMode(sel?.mode ?? "single");
+
+    const cfg = getChatConfig(convId) as ChatConfig & ChatHerramientasConfigExtra;
+    // Migración ÚNICA del universo legado de habilidades (Adenda picker
+    // «Conectores y habilidades»): si esta config es de antes del picker,
+    // las habilidades del catálogo real que nunca fueron elegibles a mano
+    // entran activas solas, sin tocar lo que el usuario sí pudo decidir.
+    const migracion = migrarSeleccionHabilidades(cfg.skills, cfg.herramientasSkillsV, TODAS_HABILIDADES_IDS);
+    setSkillsSel(migracion.seleccion);
+    setConnectionsSel(cfg.connections);
+    if (migracion.cambio) {
+      const migPatch: Partial<ChatConfig> & ChatHerramientasConfigExtra = {
+        skills: migracion.seleccion,
+        herramientasSkillsV: migracion.version,
+      };
+      void patchChatConfig(convId, migPatch);
+    }
+
+    try {
+      setConnectedIds(new Set(readConnections().map((c) => c.serviceId)));
+    } catch { /* */ }
+    try {
+      setGlobalActiveSkillIds(new Set(activeCapabilityIds()));
+    } catch { /* */ }
   }, [convId]);
 
   useEffect(() => {
@@ -173,6 +254,85 @@ export function ChatPersonalityTray({
     [effective, persist],
   );
 
+  // «Todas» ⇄ «Solo una» (personalidades-todas.ts): reversible — activa el
+  // catálogo completo (subiendo el modo si hacía falta) o, si ya estaban
+  // todas activas, vuelve a lo que había antes.
+  const toggleAllPersonas = useCallback(() => {
+    const r = alternarTodasPersonalidades(
+      { personas: effective, mode },
+      TODOS_PERSONA_IDS,
+      personasRecordadas,
+      defaultPersonaId,
+    );
+    setPersonasRecordadas(r.recordar);
+    persist(r.siguiente.personas, r.siguiente.mode);
+  }, [effective, mode, personasRecordadas, defaultPersonaId, persist]);
+  const todasPersonasOn = todasPersonalidadesActivas(effective, TODOS_PERSONA_IDS);
+
+  // ── Picker «Conectores y habilidades»: mismo campo real de ChatConfig
+  // (`skills`/`connections`) que ya lee router.ts y ya edita chat-config-menu,
+  // pero contra el catálogo REAL completo (chat-herramientas.ts). ──────────
+  const persistSkills = useCallback(
+    (next: SeleccionHerramientas) => {
+      setSkillsSel(next);
+      void patchChatConfig(convId, { skills: next });
+    },
+    [convId],
+  );
+  const persistConnections = useCallback(
+    (next: SeleccionHerramientas) => {
+      setConnectionsSel(next);
+      void patchChatConfig(convId, { connections: next });
+    },
+    [convId],
+  );
+  const toggleSkillId = useCallback(
+    (id: string) => persistSkills(alternarHerramienta(skillsSel, TODAS_HABILIDADES_IDS, id)),
+    [skillsSel, persistSkills],
+  );
+  const toggleAllSkills = useCallback(
+    () => persistSkills(alternarTodasHerramientas(skillsSel, TODAS_HABILIDADES_IDS)),
+    [skillsSel, persistSkills],
+  );
+  const toggleConnectionId = useCallback(
+    (id: string) => persistConnections(alternarHerramienta(connectionsSel, todasConexionesIds, id)),
+    [connectionsSel, todasConexionesIds, persistConnections],
+  );
+  const toggleAllConnections = useCallback(
+    () => persistConnections(alternarTodasHerramientas(connectionsSel, todasConexionesIds)),
+    [connectionsSel, todasConexionesIds, persistConnections],
+  );
+
+  const habilidadesActivasCount = contarHerramientasActivas(skillsSel, TODAS_HABILIDADES_IDS);
+  const todasHabilidadesOn = todasHerramientasActivas(skillsSel, TODAS_HABILIDADES_IDS);
+  const todasConexionesOn = todasHerramientasActivas(connectionsSel, todasConexionesIds);
+  const conectoresActivosCount = useMemo(
+    () =>
+      ossServices.filter((s) => {
+        const estado = estadoConector({
+          seleccionado: herramientaActiva(connectionsSel, s.id),
+          conectado: connectedIds.has(s.id),
+          sinCredenciales: s.connectionKind === "browser-local" || !!s.runsInBrowser,
+        });
+        return estado === "activo";
+      }).length,
+    [ossServices, connectionsSel, connectedIds],
+  );
+  const resumenHerramientas = resumenPickerHerramientas({
+    habilidadesActivas: habilidadesActivasCount,
+    habilidadesTotal: TODAS_HABILIDADES_IDS.length,
+    conectoresActivos: conectoresActivosCount,
+    conectoresTotal: todasConexionesIds.length,
+  });
+  const habilidadesFiltradas = useMemo(
+    () => SKILL_CAPABILITIES.filter((c) => filaCoincideBusqueda({ etiqueta: c.label, resumen: "" }, toolsQuery)),
+    [toolsQuery],
+  );
+  const conectoresFiltrados = useMemo(
+    () => ossServices.filter((s) => filaCoincideBusqueda({ etiqueta: s.name, resumen: s.purpose }, toolsQuery)),
+    [ossServices, toolsQuery],
+  );
+
   return (
     <div className={cn("rounded-lg border border-white/10 bg-white/[0.02]", className)}>
       <button
@@ -205,6 +365,26 @@ export function ChatPersonalityTray({
           )}
 
           <div className="flex flex-wrap gap-1.5">
+            <button
+              type="button"
+              onClick={toggleAllPersonas}
+              aria-pressed={todasPersonasOn}
+              aria-label={todasPersonasOn ? "Volver a solo una personalidad" : "Activar todas las personalidades"}
+              title={
+                todasPersonasOn
+                  ? "Todas activas — pulsa para volver a la selección anterior"
+                  : "Activa las 10 personalidades a la vez (sube el modo a Diálogo grupal si hacía falta)"
+              }
+              className={cn(
+                "inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors",
+                todasPersonasOn
+                  ? "border-fuchsia-400/40 bg-fuchsia-500/15 text-fuchsia-100"
+                  : "border-white/10 bg-transparent text-white/40 hover:border-white/20 hover:text-white/70",
+              )}
+            >
+              <CheckCheck className="h-3 w-3 shrink-0" />
+              {todasPersonasOn ? "Solo una" : "Todas"}
+            </button>
             {ASTRAURA_158_PERSONAS.map((p) => {
               const active = effective.includes(p.id);
               return (
@@ -248,6 +428,167 @@ export function ChatPersonalityTray({
                 {m.label}
               </button>
             ))}
+          </div>
+
+          {/* «Conectores y habilidades»: qué del catálogo real puede usar este
+              chat (SKILL_CAPABILITIES + getOssServices()), «Todas» activadas
+              por defecto — ver chat-herramientas.ts. */}
+          <div className="border-t border-white/10 pt-2">
+            <button
+              type="button"
+              onClick={() => setToolsOpen((o) => !o)}
+              aria-expanded={toolsOpen}
+              aria-label={toolsOpen ? "Ocultar conectores y habilidades" : "Mostrar conectores y habilidades"}
+              className="flex w-full cursor-pointer items-center justify-between gap-2 rounded-md px-1 py-1 text-left hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
+            >
+              <span className="flex min-w-0 items-center gap-1.5 text-[11px] font-medium text-white/60">
+                <Plug className="h-3.5 w-3.5 shrink-0 text-emerald-300/80" />
+                Conectores y habilidades
+                <span className="truncate text-[10px] font-normal text-white/35">{resumenHerramientas}</span>
+              </span>
+              {toolsOpen ? (
+                <ChevronUp className="h-3.5 w-3.5 shrink-0 text-white/40" />
+              ) : (
+                <ChevronDown className="h-3.5 w-3.5 shrink-0 text-white/40" />
+              )}
+            </button>
+
+            {toolsOpen && (
+              <div className="mt-1.5 space-y-2.5 rounded-lg border border-white/10 bg-black/20 p-2">
+                <p className="px-0.5 text-[10px] leading-relaxed text-white/35">
+                  Todas vienen instaladas y activas por defecto. Apaga solo las que no quieras que use ESTE chat.
+                </p>
+                <div className="relative">
+                  <Search className="absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-white/30" />
+                  <input
+                    value={toolsQuery}
+                    onChange={(e) => setToolsQuery(e.target.value)}
+                    placeholder="Buscar habilidad o conector…"
+                    aria-label="Buscar habilidad o conector"
+                    className="w-full rounded-md border border-white/10 bg-black/30 py-1 pl-6 pr-2 text-[11px] text-white placeholder:text-white/30 outline-none focus:border-white/30 focus-visible:ring-2 focus-visible:ring-white/20"
+                  />
+                </div>
+
+                {/* Habilidades */}
+                <div>
+                  <div className="mb-1 flex items-center justify-between gap-2">
+                    <span className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-white/40">
+                      <Zap className="h-3 w-3" />
+                      Habilidades · {habilidadesActivasCount}/{TODAS_HABILIDADES_IDS.length}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={toggleAllSkills}
+                      aria-pressed={todasHabilidadesOn}
+                      aria-label={todasHabilidadesOn ? "Desactivar todas las habilidades" : "Activar todas las habilidades"}
+                      className={cn(
+                        "cursor-pointer rounded-md border px-1.5 py-0.5 text-[9.5px] font-medium transition-colors",
+                        todasHabilidadesOn
+                          ? "border-emerald-400/40 bg-emerald-500/15 text-emerald-100"
+                          : "border-white/10 bg-transparent text-white/40 hover:border-white/20 hover:text-white/70",
+                      )}
+                    >
+                      Todas
+                    </button>
+                  </div>
+                  <div className="flex max-h-32 flex-wrap gap-1 overflow-y-auto rounded-md border border-white/5 bg-black/10 p-1.5">
+                    {habilidadesFiltradas.map((c) => {
+                      const activa = herramientaActiva(skillsSel, c.id);
+                      const instalada = globalActiveSkillIds.has(c.id);
+                      const hint = activa && !instalada ? " · aún sin instalar en tu cuenta" : "";
+                      return (
+                        <button
+                          key={c.id}
+                          type="button"
+                          onClick={() => toggleSkillId(c.id)}
+                          aria-pressed={activa}
+                          aria-label={`${activa ? "Desactivar" : "Activar"} habilidad ${c.label}`}
+                          title={`${c.label}${hint}`}
+                          className={cn(
+                            "cursor-pointer rounded-full border px-2 py-0.5 text-[10px] font-medium transition-colors",
+                            activa
+                              ? "border-white/20 bg-white/10 text-white/90"
+                              : "border-white/10 bg-transparent text-white/35 hover:border-white/20 hover:text-white/60",
+                          )}
+                        >
+                          {c.label}
+                        </button>
+                      );
+                    })}
+                    {!habilidadesFiltradas.length && (
+                      <span className="px-1 py-1 text-[10px] text-white/30">Sin resultados.</span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Conectores */}
+                <div>
+                  <div className="mb-1 flex items-center justify-between gap-2">
+                    <span className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-white/40">
+                      <Network className="h-3 w-3" />
+                      Conectores · {conectoresActivosCount}/{todasConexionesIds.length}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={toggleAllConnections}
+                      aria-pressed={todasConexionesOn}
+                      aria-label={todasConexionesOn ? "Desactivar todos los conectores" : "Activar todos los conectores"}
+                      className={cn(
+                        "cursor-pointer rounded-md border px-1.5 py-0.5 text-[9.5px] font-medium transition-colors",
+                        todasConexionesOn
+                          ? "border-emerald-400/40 bg-emerald-500/15 text-emerald-100"
+                          : "border-white/10 bg-transparent text-white/40 hover:border-white/20 hover:text-white/70",
+                      )}
+                    >
+                      Todas
+                    </button>
+                  </div>
+                  <div className="flex max-h-32 flex-wrap gap-1 overflow-y-auto rounded-md border border-white/5 bg-black/10 p-1.5">
+                    {conectoresFiltrados.map((s) => {
+                      const seleccionado = herramientaActiva(connectionsSel, s.id);
+                      const sinCredenciales = s.connectionKind === "browser-local" || !!s.runsInBrowser;
+                      const estado = estadoConector({
+                        seleccionado,
+                        conectado: connectedIds.has(s.id),
+                        sinCredenciales,
+                      });
+                      const etiqueta = etiquetaEstadoConector(estado);
+                      return (
+                        <button
+                          key={s.id}
+                          type="button"
+                          onClick={() => toggleConnectionId(s.id)}
+                          aria-pressed={seleccionado}
+                          aria-label={`${seleccionado ? "Desactivar" : "Activar"} conector ${s.name} (${etiqueta})`}
+                          title={`${s.name} — ${etiqueta}`}
+                          className={cn(
+                            "inline-flex cursor-pointer items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium transition-colors",
+                            seleccionado
+                              ? "border-white/20 bg-white/10 text-white/90"
+                              : "border-white/10 bg-transparent text-white/35 hover:border-white/20 hover:text-white/60",
+                          )}
+                        >
+                          <span
+                            className={cn(
+                              "h-1.5 w-1.5 shrink-0 rounded-full",
+                              estado === "activo"
+                                ? "bg-emerald-400 shadow-[0_0_5px] shadow-emerald-400/70"
+                                : estado === "falta-conectar"
+                                  ? "bg-amber-400/80"
+                                  : "bg-white/20",
+                            )}
+                          />
+                          {s.name}
+                        </button>
+                      );
+                    })}
+                    {!conectoresFiltrados.length && (
+                      <span className="px-1 py-1 text-[10px] text-white/30">Sin resultados.</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
