@@ -235,9 +235,6 @@ jobs:
           echo "ANDROID_NDK_HOME=$NDK_DIR" >> "$GITHUB_ENV"
       - name: Tauri CLI
         run: cargo install tauri-cli --version "^2" --locked
-      - name: Iconos (${{ matrix.system }})
-        working-directory: native/src-tauri
-        run: npx --yes @tauri-apps/cli@latest icon "../icons-src/${{ matrix.system }}.png"
       - name: Resolver flag de config
         id: cfg
         shell: bash
@@ -258,6 +255,12 @@ jobs:
       - name: Inicializar Android
         working-directory: native
         run: cargo tauri android init ${{ steps.cfg.outputs.flag }}
+      # (2026-09-25) Los iconos van DESPUÉS de `android init`: `tauri icon` escribe los de
+      # Android dentro de gen/android, y antes de init esa carpeta no existe. Por eso los APK
+      # de v0.2.0 salieron con el icono por defecto de Tauri en vez del logo de StarSeed.
+      - name: Iconos (${{ matrix.system }})
+        working-directory: native/src-tauri
+        run: npx --yes @tauri-apps/cli@latest icon "../icons-src/${{ matrix.system }}.png"
       - name: Build APK (release)
         working-directory: native
         run: cargo tauri android build --apk ${{ steps.cfg.outputs.flag }}
@@ -314,9 +317,6 @@ jobs:
           node-version: 20
       - name: Tauri CLI
         run: cargo install tauri-cli --version "^2" --locked
-      - name: Iconos (${{ matrix.system }})
-        working-directory: native/src-tauri
-        run: npx --yes @tauri-apps/cli@latest icon "../icons-src/${{ matrix.system }}.png"
       - name: Resolver flag de config
         id: cfg
         shell: bash
@@ -336,6 +336,10 @@ jobs:
       - name: Inicializar iOS
         working-directory: native
         run: cargo tauri ios init ${{ steps.cfg.outputs.flag }}
+      # Igual que en Android: los iconos de iOS se escriben dentro de gen/apple tras `ios init`.
+      - name: Iconos (${{ matrix.system }})
+        working-directory: native/src-tauri
+        run: npx --yes @tauri-apps/cli@latest icon "../icons-src/${{ matrix.system }}.png"
       - name: Compilar .app sin firma y empaquetar .ipa
         working-directory: native
         shell: bash
