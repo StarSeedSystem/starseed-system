@@ -121,7 +121,7 @@ function AppTile({ app, settings, big, onOpen, onMenu }: {
             >
                 {app.iconUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={app.iconUrl} alt="" draggable={false} className="size-full object-cover" />
+                    <img src={app.iconUrl} alt="" draggable={false} className="size-full object-contain" />
                 ) : (
                     <Icon className={big ? "size-9" : "size-6"} strokeWidth={2} />
                 )}
@@ -186,7 +186,7 @@ function MiniTile({ app, settings, onOpen, onMenu }: {
             >
                 {app.iconUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={app.iconUrl} alt="" draggable={false} className="size-full object-cover" />
+                    <img src={app.iconUrl} alt="" draggable={false} className="size-full object-contain" />
                 ) : (
                     <Icon className="size-5" strokeWidth={2} />
                 )}

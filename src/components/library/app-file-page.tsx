@@ -347,7 +347,7 @@ export function AppFilePage({ item, open, onOpenChange }: AppFilePageProps) {
           <div className="flex items-start gap-4 min-w-0">
             <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-black/30">
               {current.cover ? (
-                <Image src={current.cover} alt={current.title} fill className="object-cover" />
+                <Image src={current.cover} alt={current.title} fill className="object-contain" />
               ) : (
                 <div className="flex h-full w-full items-center justify-center">
                   <Package className="h-8 w-8 text-muted-foreground" />
@@ -631,7 +631,7 @@ export function AppFilePage({ item, open, onOpenChange }: AppFilePageProps) {
                     <div className="flex items-center gap-2 min-w-0">
                       <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded-lg border border-white/10 bg-black/30">
                         {rel.cover ? (
-                          <Image src={rel.cover} alt={rel.title} fill className="object-cover" />
+                          <Image src={rel.cover} alt={rel.title} fill className="object-contain" />
                         ) : (
                           <div className="flex h-full w-full items-center justify-center">
                             <Package className="h-4 w-4 text-muted-foreground" />

@@ -91,6 +91,6 @@ jobs:
           node-version: 20
       - name: Generar iconos (OS)
         working-directory: native/src-tauri
-        run: npx --yes @tauri-apps/cli@latest icon "../icons-src/os.png"
+        run: npx --yes @tauri-apps/cli@latest icon "../icons-src/os.json"
       - name: Cargo check (native/src-tauri)
         run: cargo check --manifest-path native/src-tauri/Cargo.toml

@@ -256,7 +256,7 @@ function AppsTab({ added, onAdd }: {
                         >
                             {app.iconUrl ? (
                                 // eslint-disable-next-line @next/next/no-img-element
-                                <img src={app.iconUrl} alt="" className="h-full w-full object-cover" draggable={false} />
+                                <img src={app.iconUrl} alt="" className="h-full w-full object-contain" draggable={false} />
                             ) : (
                                 <app.icon className="size-5 text-white" strokeWidth={2} />
                             )}
@@ -563,7 +563,7 @@ function WebTab({ added, onAdd, onOpenWindow }: {
                         >
                             {a.iconUrl ? (
                                 // eslint-disable-next-line @next/next/no-img-element
-                                <img src={a.iconUrl} alt="" className="h-full w-full object-cover" draggable={false} />
+                                <img src={a.iconUrl} alt="" className="h-full w-full object-contain" draggable={false} />
                             ) : (
                                 <a.icon className="size-4 text-white" />
                             )}

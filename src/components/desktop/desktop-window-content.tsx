@@ -59,7 +59,7 @@ export function resolveWindowChrome(ref: DesktopWindowContentRef): WindowChrome 
                     href: app.open.href,
                     iconEl: app.iconUrl
                         // eslint-disable-next-line @next/next/no-img-element
-                        ? <img src={app.iconUrl} alt="" className="h-full w-full object-cover" draggable={false} />
+                        ? <img src={app.iconUrl} alt="" className="h-full w-full object-contain" draggable={false} />
                         : <app.icon className="size-3 text-white" strokeWidth={2.2} />,
                 };
             }

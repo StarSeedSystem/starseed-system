@@ -460,7 +460,7 @@ export function LibraryCatalog({ onOpenDetail, onGoFuentes, onGoPersonal }: Libr
                 <div className="flex items-start gap-3 min-w-0">
                   <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-xl border border-white/10 bg-black/30">
                     {app.iconUrl ? (
-                      <Image src={app.iconUrl} alt={app.name} fill className="object-cover" />
+                      <Image src={app.iconUrl} alt={app.name} fill className="object-contain" />
                     ) : (
                       <div className="flex h-full w-full items-center justify-center">
                         <Orbit className="h-6 w-6 text-purple-300" />

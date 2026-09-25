@@ -159,7 +159,7 @@ function PreviewBody({ icon }: { icon: DesktopIcon }): React.ReactElement {
                     >
                         {app.iconUrl
                             // eslint-disable-next-line @next/next/no-img-element
-                            ? <img src={app.iconUrl} alt="" className="h-full w-full object-cover" draggable={false} />
+                            ? <img src={app.iconUrl} alt="" className="h-full w-full object-contain" draggable={false} />
                             : <app.icon className="size-7 text-white" />}
                     </span>
                     <h4 className="text-sm font-black">{app.name}</h4>
@@ -364,7 +364,7 @@ export function DesktopQuickLook({
                     >
                         {icon.iconUrl
                             // eslint-disable-next-line @next/next/no-img-element
-                            ? <img src={icon.iconUrl} alt="" className="h-full w-full object-cover" draggable={false} />
+                            ? <img src={icon.iconUrl} alt="" className="h-full w-full object-contain" draggable={false} />
                             : <HeadIcon className="size-3.5 text-white" />}
                     </span>
                     <h3 className="min-w-0 flex-1 truncate text-[13px] font-black tracking-tight">{icon.name}</h3>

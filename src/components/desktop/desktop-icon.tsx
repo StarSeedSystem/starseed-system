@@ -259,7 +259,7 @@ export function DesktopIconTile({
                         alt=""
                         draggable={false}
                         onError={() => setImgFailed(true)}
-                        className="relative h-full w-full object-cover"
+                        className="relative h-full w-full object-contain"
                     />
                 ) : icon.kind === "folder" || icon.kind === "widget" || icon.kind === "link" || icon.kind === "file" ? (
                     <Lucide className="relative text-white drop-shadow" style={{ width: px * 0.46, height: px * 0.46 }} strokeWidth={1.8} />
