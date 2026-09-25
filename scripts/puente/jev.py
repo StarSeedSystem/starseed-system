@@ -628,7 +628,8 @@ def contrato(peticion):
         if not isinstance(q, dict) or not q.get("id"):
             continue
         t = q.get("type")
-        jq = {"type": t, "instructions": str(q.get("question") or "")}
+        # openjev escribe la pregunta en «instructions»; el contrato del OS, en «question».
+        jq = {"type": t, "instructions": str(q.get("question") or q.get("instructions") or "")}
         if t == "choice":
             jq["criteria"] = {str(o): str(o) for o in (q.get("options") or [])}
         elif t == "score":
@@ -653,9 +654,13 @@ def contrato(peticion):
                             "confidence": float(a.get("confidence") or 0)})
         elif t == "score" and "score" in a:
             niveles = [str(n) for n in (q.get("levels") or [])]
-            i = int(float(a["score"]))
+            # (2026-09-25) «score» es el valor ESPERADO (2.89 con el 91 % en el nivel 3):
+            # truncarlo daba «bastante» cuando Jev decía «total». Se redondea, y las
+            # probabilidades salen con el nombre de cada nivel, no con su índice.
+            i = int(round(float(a["score"])))
+            nombre = lambda k: niveles[int(k)] if str(k).isdigit() and int(k) < len(niveles) else str(k)
             answers.append({"id": q["id"], "answer": niveles[i] if 0 <= i < len(niveles) else str(i),
-                            "probs": dict(a.get("probabilities") or {}),
+                            "probs": {nombre(k): v for k, v in (a.get("probabilities") or {}).items()},
                             "confidence": float(a.get("confidence") or 0)})
     return {"answers": answers, "medio": (r or {}).get("medio"), "ms": (r or {}).get("ms")}
 

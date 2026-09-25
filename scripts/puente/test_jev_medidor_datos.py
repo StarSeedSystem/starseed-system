@@ -78,6 +78,20 @@ class MedidorDatos(unittest.TestCase):
         self.assertAlmostEqual(r["answers"][0]["probs"]["sí"], 0.8)
         self.assertEqual(r["medio"], "openrouter")
 
+    def test_contrato_puntuacion_redondea_y_nombra_los_niveles(self):
+        def falso(cuerpo):
+            return {"answers": {"claro": {"type": "score", "score": 2.89, "confidence": 0.89,
+                                          "probabilities": {"0": 0.01, "1": 0.01, "2": 0.07, "3": 0.91}}},
+                    "model": "typesafe/jev", "usage": {"input_tokens": 300, "output_tokens": 0, "cost": 0.00001}}
+        jev._transporte_real = falso
+        r = jev.contrato({"state": {"hecho": "cielo azul"}, "questions": [
+            {"id": "claro", "type": "score", "instructions": "¿Qué tan claro?",
+             "levels": ["nada", "poco", "bastante", "total"]}]})
+        a = r["answers"][0]
+        self.assertEqual(a["answer"], "total")  # 2.89 truncado daba «bastante»
+        self.assertEqual(set(a["probs"]), {"nada", "poco", "bastante", "total"})
+        self.assertEqual(self.uso()["dias"][time.strftime("%Y-%m-%d")]["por_tipo"], {"score": 1})
+
 
 if __name__ == "__main__":
     unittest.main()
