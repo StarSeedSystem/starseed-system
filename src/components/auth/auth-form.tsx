@@ -12,7 +12,12 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { iniciarRito, navegarSuave } from '@/lib/onboarding/director-rito'
 
-export function AuthForm() {
+export interface AuthFormProps {
+    /** Pestaña con la que abre: «Entrar» (por defecto) o «Registrarse». */
+    pestanaInicial?: 'signin' | 'signup'
+}
+
+export function AuthForm({ pestanaInicial = 'signin' }: AuthFormProps = {}) {
     const router = useRouter()
     const { toast } = useToast()
     const supabase = createClient()
@@ -204,7 +209,7 @@ export function AuthForm() {
                         {authMsg.txt}
                     </p>
                 )}
-                <Tabs defaultValue="signin" className="w-full">
+                <Tabs defaultValue={pestanaInicial} className="w-full">
                     <TabsList className="grid w-full grid-cols-2 gap-1">
                         <TabsTrigger value="signin">Entrar</TabsTrigger>
                         <TabsTrigger value="signup">Registrarse</TabsTrigger>

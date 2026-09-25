@@ -67,6 +67,7 @@ import { AuroraGuide } from "@/components/onboarding/aurora-guide";
 import { OnboardingGate } from "@/components/onboarding/onboarding-gate";
 import { StartupUpdatesModal } from "@/components/astraura/startup-updates-modal";
 import VentanaPerfilInicial from "@/components/onboarding/ventana-perfil-inicial";
+import { PrimerArranque } from "@/components/onboarding/primer-arranque";
 import { CursorFxHost } from "@/components/desktop/cursor-fx";
 import { PerfController, PerfHeavyOnly, PerfStaticBackdrop } from "@/components/perf/perf-gate";
 import { PinnedWidgetOverlay } from "@/components/dashboard/widgets/pinned-widget-overlay";
@@ -341,6 +342,12 @@ export default function RootLayout({
                             (Adenda 188): global, en CUALQUIER medio/ruta — antes
                             vivía solo en (app) y el escritorio raíz se lo perdía. */}
                         <OnboardingGate />
+                        {/* (2026-09-25) Primer arranque: sin sesión, la bienvenida con
+                            «Iniciar sesión o crear cuenta» (a pantalla completa en la app
+                            nativa/PWA, discreta en la web); con cuenta y neurona nueva,
+                            los ajustes de esa neurona. Raíz y no (app): la app nativa
+                            abre /escritorios, que vive en (main). */}
+                        <SoloFueraDeConsola><SoloFueraDeMinima><PrimerArranque /></SoloFueraDeMinima></SoloFueraDeConsola>
                         {/* (Adenda 193) Ventana «Sistemas de Astraura en esta
                             neurona»: GLOBAL, como el gate y la guía. Vivía solo
                             en (app) y el rito termina en /escritorios —grupo

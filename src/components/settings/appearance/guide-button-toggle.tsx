@@ -12,10 +12,11 @@
  */
 
 import { useEffect, useState } from "react";
-import { LifeBuoy, Play, Sparkles } from "lucide-react";
+import { LifeBuoy, LogIn, Play, Sparkles } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { OPEN_GUIDE_EVENT } from "@/components/onboarding/aurora-guide";
+import { abrirPrimerArranque } from "@/lib/onboarding/primer-arranque";
 import {
   getGuideButtonVisible,
   setGuideButtonVisible,
@@ -85,6 +86,18 @@ export function GuideButtonToggle() {
       >
         <Sparkles className="h-3.5 w-3.5" aria-hidden />
         Reproducir bienvenida
+      </Button>
+      {/* (2026-09-25) La ventana del primer arranque, a mano: sin sesión, la
+          introducción con «Iniciar sesión o crear cuenta» (aunque se hubiera
+          saltado con «Explorar sin cuenta»); con cuenta, los ajustes de esta neurona. */}
+      <Button
+        size="sm"
+        variant="outline"
+        className="h-8 gap-1.5 text-xs"
+        onClick={() => abrirPrimerArranque()}
+      >
+        <LogIn className="h-3.5 w-3.5" aria-hidden />
+        Primer arranque: acceso y ajustes de esta neurona
       </Button>
     </div>
     </>

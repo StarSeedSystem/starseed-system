@@ -17,6 +17,11 @@
  * reabrir la guía en cualquier momento (lo dispara, p.ej., "Explorar sin cuenta").
  *
  * Fail-open: ante cualquier error de red/SSR no bloquea la app (no muestra nada).
+ *
+ * (2026-09-25) La «neurona nueva con cuenta ya iniciada» ya NO la abre este portero: la
+ * decide y la abre el orquestador del primer arranque (`primer-arranque.tsx`), que mira si
+ * este dispositivo está de verdad en `neuron_devices` y coordina el turno con el resto de
+ * ventanas. Así no se abren dos ventanas de neurona a la vez.
  */
 
 import { useCallback, useEffect, useState } from "react";
@@ -25,13 +30,10 @@ import { createClient } from "@/utils/supabase/client";
 import { getOnboarding } from "@/lib/onboarding/onboarding";
 import { etapaActual } from "@/lib/onboarding/director-rito";
 import OnboardingWizard from "@/components/onboarding/onboarding-wizard";
-import NeuronSetup from "@/components/onboarding/neuron-setup";
 
 export function OnboardingGate() {
   const [ready, setReady] = useState(false);
   const [show, setShow] = useState(false);
-  // Adenda 188: neurona nueva con cuenta ya iniciada → alta corta especializada.
-  const [showNeuron, setShowNeuron] = useState(false);
   const pathname = usePathname();
   const enBienvenida = (pathname || "").startsWith("/bienvenida");
 
@@ -94,17 +96,9 @@ export function OnboardingGate() {
       const ob = await getOnboarding();
       // (Ola 221) `skipped` cuenta como «pospuesto»: no se reabre solo aunque
       // la marca de recién registrado siga viva en la pestaña.
-      if (!ob.completed && !ob.skipped && enBienvenidaRito) {
-        setShow(true);
-      } else {
-        setShow(false);
-        // Cuenta YA iniciada pero este dispositivo/medio nunca se configuró →
-        // alta corta de neurona: solo cerebros y modo de sincronización.
-        try {
-          const marca = window.localStorage.getItem("starseed.neuron.setup.v1");
-          if (!marca) setShowNeuron(true);
-        } catch { /* fail-open */ }
-      }
+      // Cuenta YA iniciada en un dispositivo nuevo: sus ajustes de neurona los abre
+      // el orquestador del primer arranque (ver cabecera).
+      setShow(!ob.completed && !ob.skipped && enBienvenidaRito);
     } catch {
       setShow(false);
     } finally {
@@ -141,7 +135,6 @@ export function OnboardingGate() {
   // su propio paso. El portero se calla en esa ruta.
   if (enBienvenida) return null;
   if (show) return <OnboardingWizard onClose={() => setShow(false)} />;
-  if (showNeuron) return <NeuronSetup onClose={() => setShowNeuron(false)} />;
   return null;
 }
 
