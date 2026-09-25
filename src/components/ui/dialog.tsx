@@ -31,6 +31,21 @@ const DialogOverlay = React.forwardRef<
 ))
 DialogOverlay.displayName = DialogPrimitive.Overlay.displayName
 
+/**
+ * Registra el modal a pantalla completa SOLO mientras existe de verdad.
+ * Va DENTRO de `DialogPrimitive.Content`, que Radix solo monta con el diálogo
+ * abierto (o saliendo). Antes el registro vivía en el propio `DialogContent`,
+ * cuyo efecto corre aunque el diálogo esté cerrado: el diálogo de `usePrompt`
+ * (ConfirmProvider, montado siempre en el layout raíz) dejaba
+ * `body[data-ss-modal="1"]` puesto PARA SIEMPRE, y globals.css escondía las
+ * asas de borde, el botón Trinity y el acceso a la guía en todo el OS; y los
+ * popups de primera ejecución esperaban un «primer plano libre» que no llegaba.
+ */
+function RegistroModalAbierto() {
+  React.useEffect(() => acquireFullscreenModal(), []);
+  return null;
+}
+
 const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
@@ -38,9 +53,8 @@ const DialogContent = React.forwardRef<
   const { config } = useAppearance();
   const isPrimary = config.themeStore.activeMode === 'primary';
 
-  // Adenda 188: mientras este diálogo esté montado (= abierto), el dock
-  // Trinity se repliega a sus esquinas y el modal manda en la pantalla.
-  React.useEffect(() => acquireFullscreenModal(), []);
+  // Adenda 188: mientras este diálogo esté ABIERTO, el dock Trinity se repliega
+  // a sus esquinas y el modal manda en la pantalla (ver RegistroModalAbierto).
 
   return (
     <DialogPortal>
@@ -56,6 +70,7 @@ const DialogContent = React.forwardRef<
         data-ss-modal-content=""
         {...props}
       >
+        <RegistroModalAbierto />
         {isPrimary && (
           <div className="absolute inset-0 z-0 opacity-40 bg-gradient-to-br from-white/10 to-transparent pointer-events-none sm:rounded-lg" />
         )}

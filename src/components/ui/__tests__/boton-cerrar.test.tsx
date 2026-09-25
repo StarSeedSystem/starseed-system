@@ -49,6 +49,36 @@ describe("BotonCerrar (la X común del OS)", () => {
         await waitFor(() => expect(cambiar).toHaveBeenCalledWith(false));
     });
 
+    it("un diálogo CERRADO no marca la pantalla como ocupada (antes ocultaba el cromo Trinity para siempre)", async () => {
+        const { rerender } = render(
+            <Dialog open={false}>
+                <DialogContent>
+                    <DialogTitle>Oculto</DialogTitle>
+                    <DialogDescription>Montado pero cerrado, como el de usePrompt</DialogDescription>
+                </DialogContent>
+            </Dialog>,
+        );
+        expect(document.body.dataset.ssModal).toBeUndefined();
+        rerender(
+            <Dialog open>
+                <DialogContent>
+                    <DialogTitle>Oculto</DialogTitle>
+                    <DialogDescription>Ahora abierto</DialogDescription>
+                </DialogContent>
+            </Dialog>,
+        );
+        expect(document.body.dataset.ssModal).toBe("1");
+        rerender(
+            <Dialog open={false}>
+                <DialogContent>
+                    <DialogTitle>Oculto</DialogTitle>
+                    <DialogDescription>Cerrado otra vez</DialogDescription>
+                </DialogContent>
+            </Dialog>,
+        );
+        await waitFor(() => expect(document.body.dataset.ssModal).toBeUndefined());
+    });
+
     it("la ventana del OS (OSWindow) usa la X común y no la arrastra al pulsarla", () => {
         const alCerrar = vi.fn();
         render(
