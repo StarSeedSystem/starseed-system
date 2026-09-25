@@ -76,6 +76,9 @@ export function formatearRespuesta(raw: unknown, medio = "local", ms = 0): Respu
       confidence: typeof aa.confidence === "number" ? aa.confidence : 0,
     };
   });
-  return { ok: true, answers, medio, ms };
+  // (2026-09-25) El medio es el que de verdad contestó (jev.py lo devuelve): la ruta
+  // pasaba el pedido («local» por defecto) y decía «local» con la respuesta de OpenRouter.
+  const medioReal = typeof r.medio === "string" && r.medio ? r.medio : answers.length ? medio : "ninguno";
+  return { ok: true, answers, medio: medioReal, ms };
 }
 
