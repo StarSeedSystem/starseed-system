@@ -114,7 +114,13 @@ import type { SaludNeurona } from "@/lib/mando/neurona";
 import type { EstadoAlmacenamiento } from "@/lib/mando/almacenamiento";
 import { discoLibreTexto, tonoDiscoLibre } from "@/components/mando/tarjetas-almacenamiento";
 import { contarTrabajoReal } from "@/lib/mando/conteo-operativo";
-import type { PeriodoJev, RespuestaJev } from "@/lib/mando/jev-medidor";
+import {
+    CONSUMIDORES_JEV,
+    HABILIDADES_JEV,
+    resumenPastillaJev,
+    type PeriodoJev,
+    type RespuestaJev,
+} from "@/lib/mando/jev-medidor";
 
 const CLAVE_PESTANA = "starseed.mando.pestana";
 const CLAVE_REPORTES_VISTOS = "starseed.mando.reportes.visto";
@@ -521,30 +527,63 @@ function latencia(valor: number): string {
 }
 
 function RepartoJev({ titulo, periodo }: { titulo: string; periodo: PeriodoJev }) {
+    const filas: { etiqueta: string; valor: number; tono: string; latencia?: number }[] = [
+        { etiqueta: "Local (BitNet)", valor: periodo.local, tono: "text-emerald-200", latencia: periodo.p50_local_ms },
+        { etiqueta: "Laya local", valor: periodo.laya, tono: "text-emerald-200", latencia: periodo.p50_laya_ms },
+        { etiqueta: "Caché (gratis)", valor: periodo.cache, tono: "text-emerald-200" },
+        { etiqueta: "OpenRouter", valor: periodo.openrouter, tono: "text-amber-200", latencia: periodo.p50_openrouter_ms },
+    ];
     return (
         <article className="rounded-lg border border-white/10 bg-black/25 p-3 text-left">
             <h4 className="text-[10px] font-semibold uppercase tracking-wider text-white/45">{titulo}</h4>
             <p className="mt-1 text-xl font-semibold tabular-nums text-cyan-100">
                 {periodo.llamadas} decisiones
+                {periodo.cache > 0 ? (
+                    <span className="ml-2 text-[11px] font-normal text-white/45">+ {periodo.cache} de caché</span>
+                ) : null}
             </p>
             <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-2 text-[11px]">
-                <div>
-                    <dt className="text-white/40">Local gratis</dt>
-                    <dd className="font-medium tabular-nums text-emerald-200">{periodo.local}</dd>
-                </div>
-                <div>
-                    <dt className="text-white/40">OpenRouter</dt>
-                    <dd className="font-medium tabular-nums text-amber-200">{periodo.openrouter}</dd>
-                </div>
-                <div>
-                    <dt className="text-white/40">p50 local</dt>
-                    <dd className="tabular-nums text-white/75">{latencia(periodo.p50_local_ms)}</dd>
-                </div>
-                <div>
-                    <dt className="text-white/40">p50 OpenRouter</dt>
-                    <dd className="tabular-nums text-white/75">{latencia(periodo.p50_openrouter_ms)}</dd>
-                </div>
+                {filas.map((f) => (
+                    <div key={f.etiqueta}>
+                        <dt className="text-white/40">{f.etiqueta}</dt>
+                        <dd className={`font-medium tabular-nums ${f.tono}`}>
+                            {f.valor}
+                            {f.latencia ? <span className="ml-1 text-white/45">· p50 {latencia(f.latencia)}</span> : null}
+                        </dd>
+                    </div>
+                ))}
             </dl>
+            {periodo.sin_desglose > 0 ? (
+                <p className="mt-2 text-[10px] text-white/40">
+                    {periodo.sin_desglose} anteriores al 21-09 sin medio anotado (se contaban sin desglose).
+                </p>
+            ) : null}
+            {periodo.local_sin_respuesta > 0 ? (
+                <p className="mt-1 text-[10px] text-amber-200/80">
+                    {periodo.local_sin_respuesta} intento(s) del motor local sin respuesta → siguieron por otro medio.
+                </p>
+            ) : null}
+        </article>
+    );
+}
+
+function ListaJev({ titulo, datos, nombres }: { titulo: string; datos: Record<string, number>; nombres: Record<string, string> }) {
+    const filas = Object.entries(datos).sort((a, b) => b[1] - a[1]);
+    return (
+        <article className="rounded-lg border border-white/10 bg-black/25 p-3 text-left">
+            <h4 className="text-[10px] font-semibold uppercase tracking-wider text-white/45">{titulo}</h4>
+            {filas.length === 0 ? (
+                <p className="mt-1 text-[11px] text-white/40">Aún sin datos: se anota desde el 25-09.</p>
+            ) : (
+                <ul className="mt-1 space-y-1 text-[11px]">
+                    {filas.map(([clave, n]) => (
+                        <li key={clave} className="flex items-center justify-between gap-2">
+                            <span className="text-white/70">{nombres[clave] ?? clave}</span>
+                            <span className="tabular-nums text-cyan-100">{n}</span>
+                        </li>
+                    ))}
+                </ul>
+            )}
         </article>
     );
 }
@@ -556,6 +595,24 @@ function PanelMedidorJev({ datos, alCerrar }: { datos: RespuestaJev; alCerrar: (
     const porcentajeMes = datos.techos.mes > 0
         ? Math.min(100, (datos.mes.coste_usd / datos.techos.mes) * 100)
         : 0;
+    const medios: { nombre: string; estado: string; ok: boolean }[] = [
+        {
+            nombre: "Motor local BitNet (gratis)",
+            ok: datos.local_vivo && !datos.local_pausado_hasta,
+            estado: !datos.local_vivo
+                ? "apagado"
+                : datos.local_pausado_hasta
+                  ? `apartado hasta ${new Date(datos.local_pausado_hasta).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })}: no contestaba a tiempo`
+                  : "vivo",
+        },
+        { nombre: "Laya local (gratis)", ok: datos.laya_viva, estado: datos.laya_viva ? "viva" : "apagada" },
+        {
+            nombre: "OpenRouter (de pago, céntimos)",
+            ok: true,
+            estado:
+                datos.saldo_restante_usd !== null ? `saldo ${dinero(datos.saldo_restante_usd)}` : "activo",
+        },
+    ];
     return (
         <section
             id="panel-medidor-jev"
@@ -575,15 +632,25 @@ function PanelMedidorJev({ datos, alCerrar }: { datos: RespuestaJev; alCerrar: (
                     Cerrar
                 </button>
             </header>
-            {!datos.local_vivo ? (
-                <p className="mc-centrado mt-2 flex items-center justify-center gap-1.5 rounded-lg border border-amber-400/25 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-100">
-                    <BrainCircuit className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                    motor local congelado mientras el enjambre escribe; las decisiones van por OpenRouter
-                </p>
-            ) : null}
+            <ul className="mt-2 flex flex-wrap justify-center gap-2 text-[11px]" aria-label="Medios de Jev">
+                {medios.map((m) => (
+                    <li
+                        key={m.nombre}
+                        className={`rounded-full border px-2.5 py-1 ${
+                            m.ok ? "border-emerald-400/30 bg-emerald-500/10 text-emerald-100" : "border-amber-400/30 bg-amber-500/10 text-amber-100"
+                        }`}
+                    >
+                        {m.nombre}: {m.estado}
+                    </li>
+                ))}
+            </ul>
             <div className="mt-3 grid gap-2 md:grid-cols-2">
                 <RepartoJev titulo="Hoy" periodo={datos.hoy} />
                 <RepartoJev titulo="Este mes" periodo={datos.mes} />
+            </div>
+            <div className="mt-2 grid gap-2 md:grid-cols-2">
+                <ListaJev titulo="Quién pregunta hoy" datos={datos.hoy.por_quien} nombres={CONSUMIDORES_JEV} />
+                <ListaJev titulo="Habilidades usadas hoy" datos={datos.hoy.por_tipo} nombres={HABILIDADES_JEV} />
             </div>
             <div className="mt-2 grid gap-2 md:grid-cols-2">
                 {[
@@ -621,9 +688,20 @@ function PanelMedidorJev({ datos, alCerrar }: { datos: RespuestaJev; alCerrar: (
                     </div>
                 ))}
             </div>
-            <p className="mc-centrado mt-2 flex items-center justify-center gap-1 text-[10px] text-white/35">
-                <Clock3 className="h-3 w-3" aria-hidden />
-                p50: la mitad de las respuestas tarda menos y la otra mitad más
+            <p className="mc-centrado mt-2 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[10px] text-white/40">
+                <span>
+                    Total: {datos.total.llamadas} decisiones · {datos.total.tokens.toLocaleString("es-ES")} tokens ·{" "}
+                    {dinero(datos.total.coste_usd)}
+                </span>
+                {datos.ultima ? (
+                    <span>
+                        Última: {datos.ultima.t} por {datos.ultima.medio} en {latencia(datos.ultima.ms)}
+                    </span>
+                ) : null}
+                <span className="flex items-center gap-1">
+                    <Clock3 className="h-3 w-3" aria-hidden />
+                    p50: la mitad de las respuestas tarda menos y la otra mitad más
+                </span>
             </p>
         </section>
     );
@@ -1630,11 +1708,12 @@ export function CentroMando() {
                                 // la pantalla no lo decía. Ahora, cuando hoy va a cero, la
                                 // pastilla enseña el mes, que es el número que sigue vivo.
                                 valor: jev ? String(jev.hoy.llamadas || jev.mes.llamadas) : "—",
-                                tono: (jev?.local_vivo ? "ok" : "aviso") as TonoMedidor,
+                                // Verde si hay un medio gratis de verdad contestando (local o Laya).
+                                tono: (jev && ((jev.local_vivo && !jev.local_pausado_hasta) || jev.laya_viva)
+                                    ? "ok"
+                                    : "aviso") as TonoMedidor,
                                 detalle: jev
-                                    ? jev.hoy.llamadas > 0
-                                        ? `hoy · ${jev.hoy.local} local · ${jev.hoy.openrouter} de pago`
-                                        : `este mes · ${jev.mes.llamadas} decisiones · hoy aún ninguna`
+                                    ? resumenPastillaJev(jev)
                                     : "cargando…",
                                 abierto: jevAbierto,
                                 alClic: () => {

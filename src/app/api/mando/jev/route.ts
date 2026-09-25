@@ -48,11 +48,11 @@ async function leerUso(): Promise<unknown> {
     }
 }
 
-async function motorLocalVivo(): Promise<boolean> {
+async function motorVivo(url: string): Promise<boolean> {
     const controlador = new AbortController();
     const plazo = setTimeout(() => controlador.abort(), 2_000);
     try {
-        const respuesta = await fetch("http://127.0.0.1:8790/health", {
+        const respuesta = await fetch(url, {
             cache: "no-store",
             signal: controlador.signal,
         });
@@ -67,7 +67,12 @@ async function motorLocalVivo(): Promise<boolean> {
 export async function GET(peticion: Request): Promise<Response> {
     const veto = await guardianMando(peticion);
     if (veto) return veto;
-    const [uso, localVivo] = await Promise.all([leerUso(), motorLocalVivo()]);
+    // Los dos motores locales de Jev: BitNet (8790, jev_local.py) y Laya/SystemOne (4470).
+    const [uso, localVivo, layaViva] = await Promise.all([
+        leerUso(),
+        motorVivo("http://127.0.0.1:8790/health"),
+        motorVivo("http://127.0.0.1:4470/health"),
+    ]);
     // (2026-09-21) Los techos estaban ESCRITOS A MANO aquí (0,05 y 1) y el medidor siguió
     // enseñándolos después de subirlos a 0,20 y 2 en scripts/puente/jev.py: dos sitios para
     // el mismo número, que es el fallo que hemos pagado todo el día en los demás medidores.
@@ -83,6 +88,7 @@ export async function GET(peticion: Request): Promise<Response> {
             mes: techo("STARSEED_JEV_MES_USD", topesDelArchivo.mes ?? 1),
         },
         localVivo,
+        layaViva,
     );
     return Response.json(respuesta, { headers: { "Cache-Control": "no-store" } });
 }
