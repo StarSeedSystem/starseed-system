@@ -514,7 +514,10 @@ def reconstruir(huella_actual) -> dict:
         "error": None if ok else primera_linea_de_error(salida),
         "por_disco": bool(por_disco) and not ok,
     }
-    _guardar(datos)
+    # (2026-09-25) Se FUNDE con lo guardado: reescribirlo entero perdía `build_servido`, y
+    # la pasada siguiente, al no encontrarlo, reiniciaba el Mando «porque hay un build más
+    # nuevo» —el mismo que ya servía— y el reinicio anotaba ok=True, borrando el fallo.
+    _guardar(dict(_leer_estado(), **datos))
     print("[%s] build %s en %d s%s" % (time.strftime("%H:%M"), "ok" if ok else "FALLÓ",
                                        segundos, "" if ok else ": " + (datos["error"] or "")),
           flush=True)

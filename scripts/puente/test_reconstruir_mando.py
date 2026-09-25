@@ -4,6 +4,7 @@ import os
 import shutil
 import tempfile
 import unittest
+from unittest import mock
 
 import reconstruir_mando as R
 
@@ -586,3 +587,32 @@ class NoSeCompilaEnPlenaConversacion(unittest.TestCase):
             json.dump({"hasta": time.time() - 1}, f)
         self.assertFalse(R.conversando(ruta))
         self.assertFalse(R.conversando(ruta + ".no-existe"))
+
+
+class UnFalloNoBorraLoQueSeSirve(unittest.TestCase):
+    """25-09: tras una build parada por el disco, el estado perdía `build_servido` y la pasada
+    siguiente reiniciaba el Mando sin motivo (y el reinicio anotaba ok=True)."""
+
+    def test_el_fallo_conserva_build_servido_y_anota_el_disco(self):
+        guardados = []
+        previo = {"build_servido": "SERVIDO123", "huella_construida": "aaa", "ok": True}
+        with mock.patch.object(R, "_leer_estado", return_value=dict(previo)), \
+                mock.patch.object(R, "_guardar", side_effect=lambda d, *a, **k: guardados.append(dict(d))), \
+                mock.patch.object(R, "preparar_dist_de_build"), \
+                mock.patch.object(R, "liberar_lo_propio", return_value=[]), \
+                mock.patch.object(R, "marcar_listo") as listo, \
+                mock.patch.object(R, "reiniciar_mando") as reinicio, \
+                mock.patch.object(R, "compilar_vigilando_disco",
+                                  return_value=(1, "PARADA: el disco bajó de 1.5 GB libres", True)):
+            datos = R.reconstruir("bbb")
+        final = guardados[-1]
+        self.assertEqual(final["build_servido"], "SERVIDO123")
+        self.assertIs(final["ok"], False)
+        self.assertIs(final["por_disco"], True)
+        self.assertEqual(final["huella_intentada"], "bbb")
+        self.assertIs(datos["ok"], False)
+        listo.assert_not_called()
+        reinicio.assert_not_called()
+        hazlo, _ = R.decidir_reinicio("SERVIDO123", final["build_servido"])
+        self.assertFalse(hazlo)
+
