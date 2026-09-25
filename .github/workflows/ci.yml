@@ -83,5 +83,14 @@ jobs:
       # Proyecto Tauri OFICIAL desde 2026-09-24: native/src-tauri (identifier
       # app.starseed.os). El root src-tauri/ quedó retirado (ver
       # .github/workflows/desktop-release.yml) y ya no se comprueba aquí.
+      # Los iconos no viven en el repo: native-build.yml los genera antes de cada build
+      # y `generate_context!` los necesita también para compilar. Sin este paso el check
+      # moría con «failed to open icon …/icons/32x32.png» (2026-09-25).
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Generar iconos (OS)
+        working-directory: native/src-tauri
+        run: npx --yes @tauri-apps/cli@latest icon "../icons-src/os.png"
       - name: Cargo check (native/src-tauri)
         run: cargo check --manifest-path native/src-tauri/Cargo.toml

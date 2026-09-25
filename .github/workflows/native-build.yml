@@ -51,6 +51,14 @@ on:
         description: "Sistemas a construir (coma-separados): os,nexus,cafe"
         required: false
         default: "os,nexus,cafe"
+      etiqueta:
+        description: "Release donde subir (p. ej. v0.2.0). Vacío = native-<n.º de ejecución>"
+        required: false
+        default: ""
+      plataformas:
+        description: "Qué compilar (coma-separados): escritorio,android,ios"
+        required: false
+        default: "escritorio,android,ios"
 
 # Permiso para crear/actualizar el Release con los instaladores.
 permissions:
@@ -59,6 +67,7 @@ permissions:
 jobs:
   build-desktop:
     name: ${{ matrix.system }} · ${{ matrix.platform }}
+    if: github.event_name != 'workflow_dispatch' || contains(inputs.plataformas, 'escritorio')
     strategy:
       # No cancelar el resto de la matriz si un target falla.
       fail-fast: false
@@ -160,9 +169,9 @@ jobs:
           # La raíz del proyecto Tauri (donde está src-tauri/).
           projectPath: native
           # Un Release por etiqueta; la acción sube los instaladores y el latest.json.
-          tagName: ${{ github.ref_type == 'tag' && github.ref_name || format('native-{0}', github.run_number) }}
-          releaseName: "StarSeed Native ${{ github.ref_type == 'tag' && github.ref_name || github.run_number }}"
-          releaseBody: "Instaladores nativos de StarSeed — versión ${{ github.ref_type == 'tag' && github.ref_name || format('native-{0}', github.run_number) }} (OS · Nexus · Café), generados desde native/ por CI. El updater incremental in-app (solo sistema OS) usa el latest.json de este release."
+          tagName: ${{ inputs.etiqueta || (github.ref_type == 'tag' && github.ref_name) || format('native-{0}', github.run_number) }}
+          releaseName: "StarSeed Native ${{ inputs.etiqueta || (github.ref_type == 'tag' && github.ref_name) || github.run_number }}"
+          releaseBody: "Instaladores nativos de StarSeed — versión ${{ inputs.etiqueta || (github.ref_type == 'tag' && github.ref_name) || format('native-{0}', github.run_number) }} (OS · Nexus · Café), generados desde native/ por CI. El updater incremental in-app (solo sistema OS) usa el latest.json de este release."
           releaseDraft: true
           prerelease: false
           # SOLO el sistema OS sube/actualiza latest.json: es el único con canal
@@ -183,6 +192,7 @@ jobs:
   # ═══════════════════════════════════════════════════════════════════════════
   build-android:
     name: ${{ matrix.system }} · android
+    if: github.event_name != 'workflow_dispatch' || contains(inputs.plataformas, 'android')
     strategy:
       fail-fast: false
       matrix:
@@ -203,6 +213,12 @@ jobs:
           java-version: 17
       - name: Android SDK/NDK
         uses: android-actions/setup-android@v3
+        # (2026-09-25) Por defecto instala «tools platform-tools», y el paquete «tools»
+        # ya no existe en el repositorio del SDK: sdkmanager salía con código 1 y los tres
+        # APK morían en este paso. Solo hace falta platform-tools.
+        with:
+          packages: platform-tools
+          log-accepted-android-sdk-licenses: false
       - name: Instalar NDK + plataformas
         run: sdkmanager "ndk;27.0.12077973" "platforms;android-34" "build-tools;34.0.0"
       - name: Localizar NDK y exportar NDK_HOME
@@ -266,7 +282,7 @@ jobs:
       - name: Subir APK al Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || format('native-{0}', github.run_number) }}
+          tag_name: ${{ inputs.etiqueta || (github.ref_type == 'tag' && github.ref_name) || format('native-{0}', github.run_number) }}
           draft: true
           files: StarSeed-${{ matrix.system }}-${{ steps.ver.outputs.version }}.apk
 
@@ -280,6 +296,7 @@ jobs:
   # ═══════════════════════════════════════════════════════════════════════════
   build-ios:
     name: ${{ matrix.system }} · ios
+    if: github.event_name != 'workflow_dispatch' || contains(inputs.plataformas, 'ios')
     strategy:
       fail-fast: false
       matrix:
@@ -346,6 +363,6 @@ jobs:
         uses: softprops/action-gh-release@v2
         continue-on-error: true
         with:
-          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || format('native-{0}', github.run_number) }}
+          tag_name: ${{ inputs.etiqueta || (github.ref_type == 'tag' && github.ref_name) || format('native-{0}', github.run_number) }}
           draft: true
           files: native/StarSeed-${{ matrix.system }}-${{ steps.ver.outputs.version }}-unsigned.ipa
