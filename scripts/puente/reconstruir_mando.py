@@ -730,11 +730,14 @@ def conversando(ruta=os.path.expanduser("~/.starseed/conversacion.json")) -> boo
 #: (`conversando`) solo cubre la voz; el chat del OS, la app y la orbe no la escriben. Así
 #: que también se mira el reloj de uso DEL USUARIO del propio motor (el fondo no lo toca).
 ASTRAURA_URL = (os.environ.get("ASTRAURA_LOCAL_URL") or "http://127.0.0.1:8000").rstrip("/")
-ASTRAURA_EN_USO_S = int(os.environ.get("STARSEED_RECONSTRUIR_ASTRAURA_S", "900"))
+#: (2026-09-25, 17:31) 15 min se quedó corto: el último uso era de hacía 18 min, la build
+#: arrancó y la generación bajó de 10 a 2 tok/s. Desde hoy la web y la app también hablan
+#: con esta Mac (túnel publicado), así que una build aquí frena a todos: 1 h sin uso.
+ASTRAURA_EN_USO_S = int(os.environ.get("STARSEED_RECONSTRUIR_ASTRAURA_S", "3600"))
 
 
 def astraura_en_uso_por(estado, umbral_s=ASTRAURA_EN_USO_S) -> bool:
-    """PURA: ¿alguien ha usado a Astraura (chat, orbe, app) hace menos de `umbral_s`?"""
+    """PURA: ¿alguien ha usado a Astraura (chat, orbe, app, web) hace menos de `umbral_s`?"""
     if not isinstance(estado, dict) or estado.get("dormido"):
         return False
     try:
