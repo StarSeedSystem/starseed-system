@@ -457,7 +457,9 @@ def reconstruir(huella_actual) -> dict:
         rc, salida, por_disco = compilar_vigilando_disco(
             [sys.executable, os.path.join(RAIZ, "scripts", "puente", "con-turno.py"),
              "--", "npx", "next", "build"],
-            env=entorno, timeout=60 * 40,
+            # (2026-09-25) 40 min se quedaba corto: con el swap alto la build tardó 37,6 min
+            # una vez y la siguiente murió a los 40:02 sin terminar. Mismo techo que publicar.py.
+            env=entorno, timeout=60 * 60,
         )
         ok = rc == 0
         if por_disco:
