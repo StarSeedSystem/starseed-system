@@ -117,7 +117,38 @@ def _transporte_real(cuerpo):
     return json.load(urllib.request.urlopen(req, timeout=TIEMPO_S))
 
 
-def _anotar_uso(respuesta, segundos, hoy=None, medio="openrouter", ms=0.0):
+#: Capas intermedias: se salta al que de verdad pregunta (veredictos, telegram…).
+_INTERMEDIOS = {"jev", "razonador", "jev_enrutado", "director_jev"}
+#: (2026-09-25) Circuito del motor local: tras 3 intentos sin respuesta, se aparta 10 min.
+#: Con la Mac saturada cada intento costaba 6 s de espera antes de ir a OpenRouter.
+LOCAL_FALLOS_MAX = 3
+LOCAL_PAUSA_S = 600
+
+
+def _quien():
+    """Nombre corto del módulo que pregunta a Jev (sin claves ni rutas)."""
+    import sys as _sys
+
+    f = _sys._getframe(1)
+    visto = None
+    while f is not None:
+        g = f.f_globals
+        nombre = g.get("__name__") or ""
+        if nombre == "__main__":
+            nombre = os.path.splitext(os.path.basename(g.get("__file__") or "script"))[0]
+        corto = nombre.rsplit(".", 1)[-1]
+        if corto and corto not in _INTERMEDIOS:
+            return corto[:40]
+        visto = visto or corto
+        f = f.f_back
+    return (visto or "desconocido")[:40]
+
+
+def _sumar(d, clave, n=1):
+    d[clave] = int(d.get(clave) or 0) + n
+
+
+def _anotar_uso(respuesta, segundos, hoy=None, medio="openrouter", ms=0.0, quien=None, tipos=()):
     uso = _leer(USO, {"llamadas": 0, "tokens": 0, "coste_usd": 0.0})
     u = (respuesta or {}).get("usage") or {}
     coste = float(u.get("cost") or 0.0) if medio == "openrouter" else 0.0
@@ -133,6 +164,16 @@ def _anotar_uso(respuesta, segundos, hoy=None, medio="openrouter", ms=0.0):
     )
     dia["llamadas"] += 1
     dia["coste_usd"] = round(dia["coste_usd"] + coste, 8)
+    # (2026-09-25) Quién pregunta y qué habilidad usa (sí/no, elección, puntuación): el
+    # medidor enseña si Jev de verdad trabaja en todos los medios o solo en uno.
+    if quien:
+        _sumar(dia.setdefault("por_quien", {}), quien)
+        _sumar(uso.setdefault("por_quien", {}), quien)
+    for t in tipos or ():
+        _sumar(dia.setdefault("por_tipo", {}), t)
+        _sumar(uso.setdefault("por_tipo", {}), t)
+    if medio in ("local", "laya-local"):
+        uso["local_fallos_seguidos"] = 0
     # (2026-09-21) El desglose por medio vivia SOLO al nivel global del archivo, y el
     # medidor del Puente lo busca dentro de cada dia: por eso enseñaba «local 0 ·
     # openrouter 0» llevando 892 decisiones. Se anota tambien por dia, que es la pregunta
@@ -169,10 +210,36 @@ def _anotar_uso(respuesta, segundos, hoy=None, medio="openrouter", ms=0.0):
     _escribir(USO, uso)
 
 
-def _anotar_local_sin_respuesta():
-    """El local estaba disponible pero no dio decisión: que se vea en el uso."""
+def _anotar_local_sin_respuesta(ahora=None):
+    """El local estaba disponible pero no dio decisión: que se vea en el uso.
+
+    Tras LOCAL_FALLOS_MAX seguidos, el local se aparta LOCAL_PAUSA_S: así una Mac
+    saturada no le suma 6 s de espera a cada decisión antes de ir a OpenRouter.
+    """
+    ahora = ahora or time.time()
     uso = _leer(USO, {})
     uso["local_sin_respuesta"] = int(uso.get("local_sin_respuesta") or 0) + 1
+    dia = uso.setdefault("dias", {}).setdefault(time.strftime("%Y-%m-%d"), {"llamadas": 0, "coste_usd": 0.0})
+    _sumar(dia, "local_sin_respuesta")
+    uso["local_fallos_seguidos"] = int(uso.get("local_fallos_seguidos") or 0) + 1
+    if uso["local_fallos_seguidos"] >= LOCAL_FALLOS_MAX:
+        uso["local_pausa_hasta"] = ahora + LOCAL_PAUSA_S
+        uso["local_fallos_seguidos"] = 0
+    _escribir(USO, uso)
+
+
+def local_en_pausa(ahora=None):
+    return float(_leer(USO, {}).get("local_pausa_hasta") or 0) > (ahora or time.time())
+
+
+def _anotar_cache(quien=None):
+    """Una respuesta servida de la caché: gratis e instantánea; también cuenta."""
+    uso = _leer(USO, {})
+    dia = uso.setdefault("dias", {}).setdefault(time.strftime("%Y-%m-%d"), {"llamadas": 0, "coste_usd": 0.0})
+    _sumar(dia, "cache")
+    _sumar(uso, "cache")
+    if quien:
+        _sumar(dia.setdefault("por_quien_cache", {}), quien)
     _escribir(USO, uso)
 
 
@@ -299,8 +366,14 @@ def _intenta_local(jl, estado, preguntas):
     return None
 
 
-def _intenta_openrouter(estado, preguntas, t0):
-    """Decisión de pago vía OpenRouter, con su techo de presupuesto intacto."""
+def _intenta_openrouter(estado, preguntas, t0, quien=None):
+    """Decisión de pago vía OpenRouter, con su techo de presupuesto intacto.
+
+    (2026-09-25) La latencia se mide desde que empieza ESTA llamada: antes contaba
+    desde el principio de `decidir`, con los 6 s del intento local dentro, y el
+    medidor enseñaba p50 de 6,5 s cuando OpenRouter tarda ~2,5 s.
+    """
+    t0 = time.time()
     transporte = TRANSPORTE or (_transporte_real if activo() else None)
     if transporte is None:
         return None, None
@@ -315,7 +388,8 @@ def _intenta_openrouter(estado, preguntas, t0):
         return None, None
     if transporte is _transporte_real:
         _anotar_uso(
-            r, time.time() - t0, medio="openrouter", ms=(time.time() - t0) * 1000
+            r, time.time() - t0, medio="openrouter", ms=(time.time() - t0) * 1000,
+            quien=quien, tipos=[(q or {}).get("type") for q in preguntas.values() if isinstance(q, dict)],
         )
     return respuestas, r
 
@@ -329,11 +403,14 @@ def decidir(estado, preguntas, usar_cache=True, medio=None):
     """
     if not preguntas:
         return None
+    quien = _quien()
+    tipos = [(q or {}).get("type") for q in preguntas.values() if isinstance(q, dict)]
     h = _huella(estado, preguntas)
     cache = _leer(CACHE, {}) if usar_cache else {}
     entrada = cache.get(h)
     if entrada and time.time() - entrada.get("t", 0) < TTL_S:
         if medio is None or entrada.get("medio") == medio:
+            _anotar_cache(quien)
             respuestas = entrada.get("respuestas") or {}
             res = dict(respuestas)
             res["medio"] = entrada.get("medio")
@@ -348,6 +425,8 @@ def decidir(estado, preguntas, usar_cache=True, medio=None):
     intenta_laya = medio in (None, "laya", "laya-local")
     intenta_open = medio in (None, "openrouter")
     local_disponible = False
+    if intenta_local and medio is None and local_en_pausa():
+        intenta_local = False  # circuito abierto: el local no contestó las últimas veces
     if intenta_local and jl is not None and hasattr(jl, "disponible"):
         try:
             local_disponible = bool(jl.disponible())
@@ -365,7 +444,7 @@ def decidir(estado, preguntas, usar_cache=True, medio=None):
             medio_usado = "laya-local"
     # Escalada obligatoria: si no hay respuesta y no se forzó solo local.
     if respuestas is None and intenta_open:
-        respuestas, _cruda = _intenta_openrouter(estado, preguntas, t0)
+        respuestas, _cruda = _intenta_openrouter(estado, preguntas, t0, quien=quien)
         if respuestas is not None:
             medio_usado = "openrouter"
     if respuestas is None:
@@ -375,7 +454,7 @@ def decidir(estado, preguntas, usar_cache=True, medio=None):
     res["medio"] = medio_usado
     res["ms"] = ms
     if medio_usado in ("local", "laya-local"):
-        _anotar_uso({}, time.time() - t0, medio=medio_usado, ms=ms)
+        _anotar_uso({}, time.time() - t0, medio=medio_usado, ms=ms, quien=quien, tipos=tipos)
     if usar_cache:
         # Cache separa respuestas de metadatos (evita mezclar 'medio'/'ms' con claves de pregunta).
         cache[h] = {
@@ -536,9 +615,61 @@ def resumen_uso():
     )
 
 
+def contrato(peticion):
+    """Contrato openjev de /api/jev/systemone: lista de preguntas → lista de respuestas.
+
+    (2026-09-25) La ruta lanzaba `python3 jev.py` y le pasaba la petición por stdin,
+    pero jev.py no la leía: imprimía su resumen y la ruta contestaba «respuesta
+    ilegible» siempre. Ahora `--contrato` lee {state, questions:[{id,type,question,
+    options,levels}], medio?} y devuelve {answers:[{id, answer, probs, confidence}]}.
+    """
+    preguntas, orden = {}, []
+    for q in (peticion or {}).get("questions") or []:
+        if not isinstance(q, dict) or not q.get("id"):
+            continue
+        t = q.get("type")
+        jq = {"type": t, "instructions": str(q.get("question") or "")}
+        if t == "choice":
+            jq["criteria"] = {str(o): str(o) for o in (q.get("options") or [])}
+        elif t == "score":
+            jq["criteria"] = [str(n) for n in (q.get("levels") or [])]
+        preguntas[str(q["id"])] = jq
+        orden.append(q)
+    estado = (peticion or {}).get("state")
+    medio = (peticion or {}).get("medio")
+    r = decidir(estado if isinstance(estado, dict) else {"estado": estado}, preguntas,
+                medio=medio if medio in ("local", "laya", "openrouter") else None) if preguntas else None
+    answers = []
+    for q in orden:
+        a = (r or {}).get(str(q["id"])) or {}
+        t = q.get("type")
+        if t == "noul" and "noul" in a:
+            p = float(a["noul"])
+            answers.append({"id": q["id"], "answer": "sí" if p >= 0.5 else "no",
+                            "probs": {"sí": p, "no": 1 - p}, "confidence": max(p, 1 - p)})
+        elif t == "choice" and "choice" in a:
+            answers.append({"id": q["id"], "answer": str(a["choice"]),
+                            "probs": dict(a.get("probabilities") or {}),
+                            "confidence": float(a.get("confidence") or 0)})
+        elif t == "score" and "score" in a:
+            niveles = [str(n) for n in (q.get("levels") or [])]
+            i = int(float(a["score"]))
+            answers.append({"id": q["id"], "answer": niveles[i] if 0 <= i < len(niveles) else str(i),
+                            "probs": dict(a.get("probabilities") or {}),
+                            "confidence": float(a.get("confidence") or 0)})
+    return {"answers": answers, "medio": (r or {}).get("medio"), "ms": (r or {}).get("ms")}
+
+
 if __name__ == "__main__":
     import sys
 
+    if "--contrato" in sys.argv:
+        try:
+            peticion = json.loads(sys.stdin.read() or "{}")
+        except ValueError:
+            peticion = {}
+        print(json.dumps(contrato(peticion), ensure_ascii=False))
+        sys.exit(0)
     print("activo" if activo() else "apagado (sin OPENROUTER_API_KEY o STARSEED_JEV=0)")
     print(resumen_uso())
     if "--sonda" in sys.argv:

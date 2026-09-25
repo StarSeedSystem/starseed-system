@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
     const val = validarPeticion(cuerpo);
     if (!val.ok) return NextResponse.json({ ok: false, error: val.error }, { status: 400 });
     const norm = normalizarPreguntas(val.pet);
-    const hijo = spawn("python3", ["scripts/puente/jev.py"], { stdio: ["pipe", "pipe", "pipe"] });
+    const hijo = spawn("python3", ["scripts/puente/jev.py", "--contrato"], { stdio: ["pipe", "pipe", "pipe"] });
     const inicio = Date.now();
     return new Promise<NextResponse>((resolve) => {
       let out = "";
