@@ -43,6 +43,10 @@ ESTADO = os.path.join(RAIZ, "starseed_memory_root", "mando", "reconstruccion.jso
 PUBLICACION = os.path.join(RAIZ, "starseed_memory_root", "mando", "publicacion-estado.json")
 INTERVALO_S = int(os.environ.get("STARSEED_RECONSTRUIR_S", "180"))
 ESPERA_TRAS_FALLO_S = int(os.environ.get("STARSEED_RECONSTRUIR_ESPERA_FALLO_S", "3600"))
+#: (2026-09-25) Una build que paró el vigilante de DISCO no falló por las fuentes: falló por
+#: la máquina. Esperar una hora a unas fuentes que están bien dejaba la pantalla vieja
+#: (el arreglo del Exocortex se quedó 1 h sin servir tras liberar 2 GB). Se reintenta antes.
+ESPERA_TRAS_DISCO_S = int(os.environ.get("STARSEED_RECONSTRUIR_ESPERA_DISCO_S", "600"))
 SERVICIO = "com.starseed.mando"
 #: Dónde compila quien no quiere tirar lo que se está sirviendo. Ver `next.config.ts`.
 DIST_BUILD = os.environ.get("STARSEED_DIST_BUILD", ".next-build")
@@ -50,12 +54,14 @@ DIST_SERVIDO = ".next"
 #: La escribe quien compiló, y solo si el compilador salió con 0. Ver `build_terminado`.
 MARCA_LISTO = ".listo"
 #: Por debajo de esto no se compila: `next build` muere con ENOSPC a mitad y deja basura.
-MINIMO_LIBRE_GB = 4.5
+MINIMO_LIBRE_GB = 5.0
 #: (2026-09-23) Y DURANTE la build: si el disco baja de aquí, se para. Lo servido no se toca
 #: —se compila aparte—, así que parar solo cuesta esa build; seguir podía costar la máquina.
 #: Hoy hubo que pararla a mano DOS veces, con 124 MB libres, y el servicio de tokens ya se
 #: había caído por ENOSPC. Con este vigilante, el umbral de entrada pudo bajar de 6,0 a 4,5:
 #: la caché ya no se duplica (se mueve) y un fallo de cálculo ya no llena el disco.
+#: (2026-09-25, MEDIDO) Con 4,9 GB libres al empezar, el swap se comió 3,4 GB y la build se
+#: paró a los 363 s: la entrada sube a 5,0 (1,5 de margen + ~3,5 de lo que crece el swap).
 MINIMO_DURANTE_GB = float(os.environ.get("STARSEED_MINIMO_DURANTE_GB", "1.5"))
 #: Lo que de verdad entra en el build. `scripts/` y `starseed_memory_root/` NO están:
 #: cambian cada minuto por el propio enjambre y reconstruirían la pantalla sin motivo.
@@ -388,16 +394,14 @@ def decidir(huella_actual, estado, ahora, espera_tras_fallo_s=ESPERA_TRAS_FALLO_
     """
     estado = estado if isinstance(estado, dict) else {}
     construida = estado.get("huella_construida")
+    if fallo_por_disco(estado):
+        espera_tras_fallo_s = min(espera_tras_fallo_s, ESPERA_TRAS_DISCO_S)
     if mas_nuevas is not None:
         if mas_nuevas == 0:
             return False, "la pantalla está al día"
-        if estado.get("ok") is False and estado.get("huella_intentada") == huella_actual:
-            try:
-                desde = float(ahora) - float(estado.get("t") or 0)
-            except (TypeError, ValueError):
-                desde = espera_tras_fallo_s + 1
-            if desde < espera_tras_fallo_s:
-                return False, "el build de estas mismas fuentes falló hace %d min: espero" % int(desde / 60)
+        espera = _espera_por_fallo(huella_actual, estado, ahora, espera_tras_fallo_s)
+        if espera:
+            return False, espera
         return True, "%d archivo(s) de la pantalla son más nuevos que el build servido" % mas_nuevas
     if not construida:
         return True, "no hay build registrado: la pantalla podría ser de cualquier versión"
@@ -405,14 +409,33 @@ def decidir(huella_actual, estado, ahora, espera_tras_fallo_s=ESPERA_TRAS_FALLO_
         if estado.get("ok") is False:
             return False, "el último build falló con estas mismas fuentes: espero un cambio"
         return False, "la pantalla está al día"
-    if estado.get("ok") is False and estado.get("huella_intentada") == huella_actual:
-        try:
-            desde = float(ahora) - float(estado.get("t") or 0)
-        except (TypeError, ValueError):
-            desde = espera_tras_fallo_s + 1
-        if desde < espera_tras_fallo_s:
-            return False, "el build de estas mismas fuentes falló hace %d min: espero" % int(desde / 60)
+    espera = _espera_por_fallo(huella_actual, estado, ahora, espera_tras_fallo_s)
+    if espera:
+        return False, espera
     return True, "las fuentes de la pantalla cambiaron desde el último build"
+
+
+def fallo_por_disco(estado) -> bool:
+    """PURA: ¿la última build la paró el vigilante de disco (y no un error del código)?"""
+    if not isinstance(estado, dict) or estado.get("ok") is not False:
+        return False
+    return bool(estado.get("por_disco")) or "el disco" in str(estado.get("error") or "")
+
+
+def _espera_por_fallo(huella_actual, estado, ahora, espera_s):
+    """PURA: el motivo para esperar si estas mismas fuentes fallaron hace poco; si no, None."""
+    if estado.get("ok") is not False or estado.get("huella_intentada") != huella_actual:
+        return None
+    try:
+        desde = float(ahora) - float(estado.get("t") or 0)
+    except (TypeError, ValueError):
+        return None
+    if desde >= espera_s:
+        return None
+    if fallo_por_disco(estado):
+        return "la build de hace %d min la paró el disco: reintento a los %d min" % (
+            int(desde / 60), int(espera_s / 60))
+    return "el build de estas mismas fuentes falló hace %d min: espero" % int(desde / 60)
 
 
 def _leer_estado(ruta=ESTADO) -> dict:
@@ -465,6 +488,7 @@ def reconstruir(huella_actual) -> dict:
     # servidor sigue con el `.next` de siempre hasta el cambio. (2026-09-22)
     entorno["STARSEED_DIST"] = DIST_BUILD
     preparar_dist_de_build()
+    por_disco = False
     try:
         rc, salida, por_disco = compilar_vigilando_disco(
             [sys.executable, os.path.join(RAIZ, "scripts", "puente", "con-turno.py"),
@@ -488,6 +512,7 @@ def reconstruir(huella_actual) -> dict:
         "huella_intentada": huella_actual,
         "huella_construida": huella_actual if ok else _leer_estado().get("huella_construida"),
         "error": None if ok else primera_linea_de_error(salida),
+        "por_disco": bool(por_disco) and not ok,
     }
     _guardar(datos)
     print("[%s] build %s en %d s%s" % (time.strftime("%H:%M"), "ok" if ok else "FALLÓ",

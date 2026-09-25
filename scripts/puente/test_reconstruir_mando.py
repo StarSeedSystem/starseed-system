@@ -60,6 +60,30 @@ class Decidir(unittest.TestCase):
         hazlo, _ = R.decidir("ccc", estado, ahora=1000, espera_tras_fallo_s=3600)
         self.assertTrue(hazlo)
 
+    def test_si_la_paro_el_disco_se_reintenta_a_los_10_min_y_no_a_la_hora(self):
+        # 25-09: la build del arreglo del Exocortex la paró el vigilante de disco; con las
+        # fuentes bien, esperar 1 h dejaba la pantalla vieja. Vale también el estado antiguo,
+        # que solo trae el texto del error.
+        viejo = {"huella_construida": "aaa", "ok": False, "huella_intentada": "bbb", "t": 0,
+                 "error": "PARADA: el disco bajó de 1.5 GB libres en plena build"}
+        hazlo, motivo = R.decidir("bbb", viejo, ahora=300, espera_tras_fallo_s=3600, mas_nuevas=2)
+        self.assertFalse(hazlo)
+        self.assertIn("disco", motivo)
+        hazlo, _ = R.decidir("bbb", viejo, ahora=R.ESPERA_TRAS_DISCO_S + 1,
+                             espera_tras_fallo_s=3600, mas_nuevas=2)
+        self.assertTrue(hazlo)
+        nuevo = {"huella_construida": "aaa", "ok": False, "huella_intentada": "bbb", "t": 0,
+                 "por_disco": True, "error": "otra cosa"}
+        hazlo, _ = R.decidir("bbb", nuevo, ahora=R.ESPERA_TRAS_DISCO_S + 1, espera_tras_fallo_s=3600)
+        self.assertTrue(hazlo)
+
+    def test_un_error_de_codigo_sigue_esperando_la_hora(self):
+        estado = {"huella_construida": "aaa", "ok": False, "huella_intentada": "bbb", "t": 0,
+                  "error": "Type error: algo"}
+        hazlo, _ = R.decidir("bbb", estado, ahora=R.ESPERA_TRAS_DISCO_S + 1, espera_tras_fallo_s=3600)
+        self.assertFalse(hazlo)
+        self.assertFalse(R.fallo_por_disco(estado))
+
     def test_estado_corrupto_no_rompe_la_decision(self):
         hazlo, _ = R.decidir("aaa", "esto no es un dict", ahora=1000)
         self.assertTrue(hazlo)
