@@ -60,8 +60,12 @@ MINIMO_DURANTE_GB = float(os.environ.get("STARSEED_MINIMO_DURANTE_GB", "1.5"))
 #: Lo que de verdad entra en el build. `scripts/` y `starseed_memory_root/` NO están:
 #: cambian cada minuto por el propio enjambre y reconstruirían la pantalla sin motivo.
 FUENTES = ("src", "public")
+#: (2026-09-25) También los .env: Next INCRUSTA las NEXT_PUBLIC_* en el paquete del
+#: navegador al compilar. Cambiar de proyecto de Supabase en `.env.local` sin rehacer la
+#: build dejaba la pantalla llamando al proyecto viejo (restringido) desde el navegador.
 ARCHIVOS = ("package.json", "package-lock.json", "next.config.ts", "next.config.js",
-            "tailwind.config.ts", "tsconfig.json", "postcss.config.mjs")
+            "tailwind.config.ts", "tsconfig.json", "postcss.config.mjs",
+            ".env", ".env.local", ".env.production", ".env.production.local")
 #: Ni el build ni la pantalla dependen de esto, y cambia constantemente.
 #: (2026-09-25) Tampoco las pruebas: arreglar un test rehacía una build entera de 10-40 min.
 IGNORADOS = (".next", "node_modules", "__pycache__", ".git", ".DS_Store", "__tests__", "__mocks__")
