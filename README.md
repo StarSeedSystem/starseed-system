@@ -64,7 +64,7 @@ En la misma release están los instaladores de **StarSeed Nexus** y **StarSeed C
 - Agentes, personalidades, cerebros y memorias configurables por cuenta, perfil y dispositivo.
 
 **Tu sistema, a tu manera**
-- **Mi Puente de Mando**: el panel de control de cada persona, con tus dispositivos, apps, archivos y sincronización, perfiles, privacidad y la opción de personalizar qué ves.
+- **Puente de Mando** (`/mando`): la consola de orquestación multiagente —olas, tareas, agentes, flota de proveedores y relevo— con la que se programa StarSeed OS.
 - **Biblioteca**: instala apps y recursos en la web o en cualquiera de tus **neuronas** (los dispositivos vinculados a tu cuenta), y asígnalos al perfil que quieras.
 - **Escritorios, pizarras, salas 3D y XR** sincronizables para trabajar en grupo.
 - **Interfaz editable por la IA**, con un núcleo intocable: lo que se comparte se revisa antes de instalarse y nunca se ejecuta código ajeno.
@@ -140,7 +140,7 @@ Las claves van solo en `.env.local` (ignorado por git). `.env.example` lista los
 .
 ├── src/
 │   ├── app/            rutas (App Router): (app)/, (main)/, api/, instalar/…
-│   ├── components/     interfaz: mando/, mi-mando/, library/, trinity/…
+│   ├── components/     interfaz: mando/, library/, trinity/…
 │   ├── ai/             Astraura: enrutado, proveedores y red mesh
 │   └── lib/            lógica pura: versión, biblioteca, sincronía, núcleo…
 ├── native/             apps nativas Tauri 2 (OS, Nexus, Café)

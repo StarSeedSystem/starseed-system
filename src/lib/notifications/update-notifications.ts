@@ -184,9 +184,9 @@ export async function getPendingNotifications(context?: string): Promise<UpdateN
       out.push({
         id,
         kind: "update-app",
-        title: "StarSeed OS 0.2.1: tu propio Puente de Mando e instalar eligiendo dónde",
+        title: "StarSeed OS 0.2.1: instalar eligiendo dónde y menús Trinity táctiles",
         detail:
-          "Nuevo «Mi Puente de Mando» para controlar tu sistema, tus neuronas y tus perfiles. La Biblioteca instala en la web, en este dispositivo o en tus otras neuronas. Los menús Trinity se arrastran desde cualquier lado y se cierran con un toque. Las apps nativas llevan el logo oficial y se actualizan solas; en el navegador basta con recargar.",
+          "La Biblioteca instala en la web, en este dispositivo o en tus otras neuronas. Los menús Trinity se arrastran desde cualquier lado y se cierran con un toque. Las apps nativas llevan el logo oficial y se actualizan solas; en el navegador basta con recargar.",
         priority: 10,
       });
     }

@@ -255,9 +255,7 @@ export const DOCK_PRESETS: DockItemConfig[] = [
   { id: 'canales',       label: 'Canales',             iconKey: 'Rss',             path: '/canales',               color: 'emerald', enabled: true,  origin: 'preset' },
   // Ola 228: página Voces — estudio de voces y emisión de voz del OS.
   { id: 'voces',         label: 'Voces',               iconKey: 'AudioLines',      path: '/voces',                 color: 'purple',  enabled: true,  origin: 'preset' },
-  // Ola 231: Puente de Mando. Desde 2026-09-25 abre «Mi Puente de Mando» (el panel de
-  // cada persona para su propio sistema) y, solo en la máquina del proyecto, también la
-  // consola de desarrollo: lo decide /api/mando/acceso.
+  // Ola 231: Puente de Mando — consola de producción y desarrollo (solo local).
   { id: 'mando',         label: 'Mando',               iconKey: 'Gauge',           path: '/mando',                 color: 'amber',   enabled: true,  origin: 'preset' },
   // Ola 234: Mundo de los avatares — escena 3D viva de los habitantes de la red.
   { id: 'mundo-avatares', label: 'Mundo de los avatares', iconKey: 'Smile',      path: '/mundo-avatares',         color: 'purple',  enabled: true,  origin: 'preset' },
