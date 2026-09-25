@@ -46,7 +46,7 @@ describe("destinoNube", () => {
             if (url.includes("/rest/v1/astraura_state")) {
                 return new Response(JSON.stringify(tunel ? [{ data: { url: tunel } }] : []), { status: 200 });
             }
-            const base = url.replace(/\/api\/status$/, "");
+            const base = url.replace(/\/api\/(status|ping)$/, "");
             return new Response("{}", { status: sanos.includes(base) ? 200 : 503 });
         });
         vi.stubGlobal("fetch", fetchFalso);
@@ -71,5 +71,20 @@ describe("destinoNube", () => {
     it("sin nada sano devuelve null y no lanza", async () => {
         simular(null, []);
         expect(await destinoNube()).toBeNull();
+    });
+
+    it("sondea /api/ping y solo cae a /api/status si el backend no lo tiene (404)", async () => {
+        const vistos: string[] = [];
+        vi.stubGlobal("fetch", vi.fn(async (entrada: string | URL) => {
+            const url = String(entrada);
+            vistos.push(url);
+            if (url.includes("/rest/v1/astraura_state")) return new Response("[]", { status: 200 });
+            if (url === `${MUERTA}/api/ping`) return new Response("", { status: 404 });
+            if (url === `${MUERTA}/api/status`) return new Response("{}", { status: 200 });
+            return new Response("", { status: 503 });
+        }));
+        expect(await destinoNube()).toMatchObject({ base: MUERTA });
+        expect(vistos).toContain(`${MUERTA}/api/ping`);
+        expect(vistos).toContain(`${MUERTA}/api/status`);
     });
 });

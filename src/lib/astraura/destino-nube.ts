@@ -21,7 +21,7 @@
  * salud van EN PARALELO: un destino caído ya no suma 2,5 s a los demás.
  *
  * Con CACHÉ de 60 s (las sondas de salud no se repiten en cada petición) y
- * COMPROBACIÓN DE SALUD (`GET <base>/api/status`, timeout 2,5 s). Nunca lanza.
+ * COMPROBACIÓN DE SALUD (`GET <base>/api/ping`, o `/api/status` si no existe; 2,5 s). Nunca lanza.
  *
  * Módulo de SERVIDOR (solo lo usa la ruta proxy del OS): toca `process.env`.
  */
@@ -55,24 +55,36 @@ function limpiarBase(v: string | undefined | null): string {
   return String(v ?? "").trim().replace(/\/+$/, "");
 }
 
-/** Sonda de salud: `GET <base>/api/status` con timeout duro. Nunca lanza. */
-async function sana(base: string): Promise<{ ok: boolean; latenciaMs: number }> {
-  const t0 = Date.now();
+async function pedir(url: string): Promise<Response | null> {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), SALUD_TIMEOUT_MS);
   try {
-    const res = await fetch(`${base}/api/status`, {
+    return await fetch(url, {
       method: "GET",
       headers: { Accept: "application/json" },
       signal: ctrl.signal,
       cache: "no-store",
     });
-    return { ok: res.ok, latenciaMs: Date.now() - t0 };
   } catch {
-    return { ok: false, latenciaMs: Date.now() - t0 };
+    return null;
   } finally {
     clearTimeout(t);
   }
+}
+
+/**
+ * Sonda de salud con timeout duro. Nunca lanza.
+ *
+ * (2026-09-25, MEDIDO) Primero `/api/ping` (0,9 s por el túnel de la Mac): `/api/status`
+ * calcula el estado de todo el motor y tardó 8,7 s, así que con el tope de 2,5 s un backend
+ * vivo pasaba por caído. Si el backend es antiguo y no tiene `/api/ping` (404), `/api/status`.
+ */
+async function sana(base: string): Promise<{ ok: boolean; latenciaMs: number }> {
+  const t0 = Date.now();
+  const ping = await pedir(`${base}/api/ping`);
+  if (ping && ping.status !== 404) return { ok: ping.ok, latenciaMs: Date.now() - t0 };
+  const estado = await pedir(`${base}/api/status`);
+  return { ok: Boolean(estado?.ok), latenciaMs: Date.now() - t0 };
 }
 
 /** PURA: ¿es una URL de túnel aceptable? https, host de Cloudflare (o permitido), sin ruta. */
