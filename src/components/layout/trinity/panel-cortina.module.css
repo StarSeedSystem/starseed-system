@@ -58,6 +58,29 @@ html[data-perf="eco"] .fondo {
     backdrop-filter: none;
 }
 
+/* (2026-09-25) Pantallas táctiles (la app de Android y los móviles): desenfocar en vivo
+   una escena WebGL que se mueve detrás, con varias capas de cristal apiladas y un aro que
+   respira, hacía PARPADEAR la difuminación del Exocortex en el WebView de Android. Con el
+   panel casi opaco (85 %) el desenfoque apenas se ve: aquí se sustituye por un velo
+   estable y las capas de cristal dentro de la cortina dejan de desenfocar lo de atrás. */
+@media (hover: none) and (pointer: coarse) {
+    .fondo {
+        -webkit-backdrop-filter: none;
+        backdrop-filter: none;
+        background: radial-gradient(120% 120% at 50% 40%, rgba(4, 7, 13, 0.55) 0%, rgba(2, 4, 9, 0.82) 100%);
+    }
+    .panel,
+    .panel :global(.ss-crystal),
+    .panel :global(.ss-crystal--deep),
+    .panel :global([class*="backdrop-blur"]) {
+        -webkit-backdrop-filter: none !important;
+        backdrop-filter: none !important;
+    }
+    .panel :global(.ss-crystal)::before {
+        animation: none;
+    }
+}
+
 /* ── Tirador: la píldora que invita a devolver el panel a su borde ────────── */
 .tirador {
     position: absolute;

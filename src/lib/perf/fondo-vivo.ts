@@ -60,6 +60,8 @@ export interface EstadoFondoVivo {
     fpsPagina: number;
     limite: { calidad: CalidadFondo; motivo: string } | null;
     pausado: boolean;
+    /** Hay una cortina Trinity o un diálogo modal delante: la calidad no se toca. */
+    congelado?: boolean;
 }
 
 declare global {
@@ -129,6 +131,20 @@ export function pedirLimiteFondo(motivo: string, calidad: CalidadFondo | null, m
     } catch {
         /* SSR o navegador sin CustomEvent */
     }
+}
+
+/**
+ * ¿Hay una cortina Trinity o un diálogo modal tapando el fondo?
+ * (2026-09-25) Alex, en la app de Android: «al abrir el Exocortex la difuminación del
+ * fondo aparece parpadeando». Medido: con el Exocortex abierto la página bajaba a ~20 fps
+ * por el desenfoque del propio panel, y el gobernador reaccionaba bajando la resolución
+ * del fondo dos veces (0,75 → 0,5 → 0,35). Cada cambio redimensiona el lienzo, y detrás
+ * del cristal eso se ve como un parpadeo. Con un panel delante los fps no hablan del
+ * equipo, así que la calidad se congela hasta que se cierre.
+ */
+export function hayPanelDelante(doc: Document | null = typeof document !== "undefined" ? document : null): boolean {
+    if (!doc) return false;
+    return Boolean(doc.querySelector('[data-trinity-curtain], [role="dialog"][aria-modal="true"]'));
 }
 
 /**
@@ -206,6 +222,7 @@ export function gobernarFondoSpline(app: AppSplineMinima): () => void {
             fpsPagina: Math.round(fpsPagina),
             limite: lim,
             pausado,
+            congelado: hayPanelDelante(),
         };
         window.__starseedFondo = { ...estado, fijar: (p) => fijar(p) };
         try {
@@ -261,6 +278,13 @@ export function gobernarFondoSpline(app: AppSplineMinima): () => void {
     const evaluar = () => {
         if (pausado || intervalos.length < 20) {
             tareasLargas = 0;
+            return;
+        }
+        if (hayPanelDelante()) {
+            // Lo medido con el panel delante no vale ni para bajar ni para subir.
+            tareasLargas = 0;
+            intervalos.length = 0;
+            publicar();
             return;
         }
         const ordenados = [...intervalos].sort((a, b) => a - b);
