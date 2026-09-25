@@ -16,8 +16,16 @@ const Slider = React.forwardRef<
   React.ComponentPropsWithoutRef<typeof SliderPrimitive.Root> & {
     showTooltip?: boolean;
     tooltipContent?: (value: number) => React.ReactNode;
+    /**
+     * Texto accesible del valor actual (`aria-valuetext` de cada thumb), para
+     * deslizadores DISCRETOS cuyo número interno (0, 1, 2…) no dice nada por sí
+     * solo — p.ej. un índice de nivel ("Rápido"/"Equilibrado"/…). Opcional y
+     * aditivo: sin él, el thumb se queda con el `aria-valuenow` numérico de
+     * siempre (comportamiento sin cambios para el resto de usos del componente).
+     */
+    getAriaValueText?: (value: number) => string;
   }
->(({ className, showTooltip = false, tooltipContent, ...props }, ref) => {
+>(({ className, showTooltip = false, tooltipContent, getAriaValueText, ...props }, ref) => {
   const [showTooltipState, setShowTooltipState] = React.useState(false);
   const [internalValue, setInternalValue] = React.useState<number[]>(
     (props.defaultValue as number[]) ?? (props.value as number[]) ?? [0],
@@ -60,6 +68,7 @@ const Slider = React.forwardRef<
       <SliderPrimitive.Thumb
         className="block h-5 w-5 rounded-full border-2 border-primary bg-background transition-colors focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-ring/40 data-[disabled]:cursor-not-allowed"
         onPointerDown={handlePointerDown}
+        aria-valuetext={getAriaValueText ? getAriaValueText(value) : undefined}
       />
     );
 

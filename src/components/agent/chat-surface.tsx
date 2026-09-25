@@ -33,7 +33,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   Bot, Send, Square, Lock, Plus, Sparkles, LayoutDashboard, Maximize2, Menu, X,
-  PanelLeftClose, PanelLeftOpen, ArrowLeft,
+  PanelLeftClose, PanelLeftOpen, ArrowLeft, SlidersHorizontal,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -57,6 +57,18 @@ import {
   astraura158MentionHint,
   type Astraura158Selection,
 } from "@/components/agent/chat-personality-tray";
+import {
+  AjustesRespuestaPopover,
+  AjustesRespuestaBadge,
+  readAjustesRespuestaChat,
+  persistAjustesRespuestaChat,
+} from "@/components/aurora/ajustes-respuesta-popover";
+import {
+  ajustesAutomaticosPorDefecto,
+  esTodoAutomatico,
+  resolverAjustes,
+  type AjustesManualRespuesta,
+} from "@/lib/astraura/ajustes-respuesta";
 
 import {
   useAiConversations,
@@ -213,9 +225,44 @@ function withAstraura158Hint(messages: ChatMessage[], sel: Astraura158Selection 
   return next;
 }
 
+/**
+ * Antepone la instrucción del «Tipo de respuesta» elegido (Breve/Paso a
+ * paso/Código/…) al mensaje `system` del turno — mismo canal que ya usan las
+ * reglas del agente y el resto de "extras" (`buildSystemPieces`). `""` (tipo
+ * automático) devuelve `messages` intacto: no hay instrucción que anteponer.
+ * Pura: nunca muta el array de entrada.
+ */
+/** Formatea un plazo en ms a una etiqueta corta en español ("30 s", "1 min"). */
+function formatMsAprox(ms: number): string {
+  if (ms < 1000) return `${Math.round(ms)} ms`;
+  if (ms < 60_000) return `${Math.round(ms / 1000)} s`;
+  return `${Math.round(ms / 60_000)} min`;
+}
+
+function withResponseInstruction(messages: ChatMessage[], instruccion: string): ChatMessage[] {
+  if (!instruccion) return messages;
+  if (!messages.length || messages[0].role !== "system") {
+    return [{ role: "system", content: instruccion }, ...messages];
+  }
+  const copy = messages.slice();
+  copy[0] = { ...copy[0], content: `${copy[0].content}\n\n${instruccion}` };
+  return copy;
+}
+
 /** Lee, sin `any`, el snapshot 1.58 guardado en `meta.astr158Turn` de un mensaje. */
 function turnSelectionFromMeta(meta: AuroraMessageMeta | null | undefined): Astraura158Selection | null {
   return (meta as (AuroraMessageMeta & { astr158Turn?: Astraura158Selection }) | null | undefined)?.astr158Turn ?? null;
+}
+
+/**
+ * Lee el snapshot de «Más ajustes» (esfuerzo/tipo/tiempo) guardado en
+ * `meta.ajustesTurno` de una respuesta ya enviada — mismo patrón que
+ * `turnSelectionFromMeta` arriba: así «Ajustar y regenerar» parte de LO QUE
+ * de verdad se usó en ese turno, no de lo que el compositor tenga ahora.
+ * `null` si ese turno fue 100% automático (no se guardó nada, ver `runAssistantTurn`).
+ */
+function turnAjustesFromMeta(meta: AuroraMessageMeta | null | undefined): AjustesManualRespuesta | null {
+  return (meta as (AuroraMessageMeta & { ajustesTurno?: AjustesManualRespuesta }) | null | undefined)?.ajustesTurno ?? null;
 }
 
 interface AgentRenderMsg {
@@ -265,12 +312,67 @@ export function ChatSurface({ variant = "embedded", className, initialConvId }: 
   const [activeProviderId, setActiveProviderIdState] = useState<string | null>(null);
   const [passphrase, setPassphrase] = useState("");
   const abortRef = useRef<AbortController | null>(null);
+  // «Más ajustes» (Adenda ajustes-respuesta): true justo entre que el temporizador
+  // del plazo aproximado dispara `abort()` y el `catch` de `runAssistantTurn` lo
+  // lee — distingue "se acabó el tiempo" de "el usuario pulsó Detener" para la
+  // nota honesta que acompaña a la respuesta parcial.
+  const deadlineHitRef = useRef(false);
   const [process, setProcess] = useState<{ open: boolean; meta?: unknown }>({ open: false });
   const [streaming, setStreaming] = useState(false);
   const [pendingAttachments, setPendingAttachments] = useState<UniversalAttachment[]>([]);
   const removeAttachment = useCallback((i: number) => {
     setPendingAttachments((prev) => prev.filter((_, idx) => idx !== i));
   }, []);
+
+  // ── «Más ajustes» (esfuerzo · tipo de respuesta · tiempo máximo) ───────────
+  // Por defecto rigen SÓLO el próximo mensaje (se resetean a automático justo
+  // después de enviarlo, ver `handleSend`). Si el usuario marca «Recordar para
+  // este chat», se persisten en `meta.config.ajustesRespuesta` (mismo almacén
+  // que el resto de ajustes por chat) y siguen aplicándose turno a turno — ver
+  // el porqué de este diseño en el JSDoc de cabecera de `ajustes-respuesta.ts`.
+  const [ajustesManual, setAjustesManual] = useState<AjustesManualRespuesta>(ajustesAutomaticosPorDefecto);
+  const [recordarAjustes, setRecordarAjustes] = useState(false);
+  // «Ajustar y regenerar» (Tarea 2 del popover): ajustes en edición para UN
+  // mensaje concreto del historial, antes de confirmar la regeneración.
+  const [ajustarMsg, setAjustarMsg] = useState<{ id: string; valor: AjustesManualRespuesta } | null>(null);
+
+  // Al cambiar de conversación: adopta lo recordado para ESTE chat, o vuelve a
+  // automático si el usuario nunca marcó «Recordar» aquí (nunca hereda lo que
+  // haya quedado puesto para el chat anterior).
+  useEffect(() => {
+    const recordado = readAjustesRespuestaChat(conv.activeId);
+    setAjustesManual(recordado ?? ajustesAutomaticosPorDefecto());
+    setRecordarAjustes(!!recordado);
+    setAjustarMsg(null);
+  }, [conv.activeId]);
+
+  const handleAjustesChange = useCallback(
+    (next: AjustesManualRespuesta) => {
+      setAjustesManual(next);
+      // Recordado: cada cambio se sincroniza al instante (mismo patrón que
+      // `ChatPersonalityTray`), así el ajuste "recordado" nunca queda desfasado
+      // de lo que el popover muestra.
+      if (recordarAjustes) void persistAjustesRespuestaChat(conv.activeId, next);
+    },
+    [recordarAjustes, conv.activeId],
+  );
+
+  const handleRecordarChange = useCallback(
+    (next: boolean) => {
+      setRecordarAjustes(next);
+      void persistAjustesRespuestaChat(conv.activeId, next ? ajustesManual : null);
+    },
+    [conv.activeId, ajustesManual],
+  );
+
+  const handleResetAjustes = useCallback(() => {
+    const auto = ajustesAutomaticosPorDefecto();
+    setAjustesManual(auto);
+    // Si estaba "recordado", se sigue recordando — ahora que es automático.
+    if (recordarAjustes) void persistAjustesRespuestaChat(conv.activeId, auto);
+  }, [recordarAjustes, conv.activeId]);
+
+  const badgeAjustes = resolverAjustes(false, ajustesManual).badge;
 
   // Navegación lateral: drawer móvil + colapso en pantalla completa.
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -406,6 +508,7 @@ export function ChatSurface({ variant = "embedded", className, initialConvId }: 
     convId: string,
     messagesForModel: ChatMessage[],
     turnSel: Astraura158Selection | null,
+    ajustesTurno: AjustesManualRespuesta,
   ) {
     const provider = activeProviderConfig;
     if (!provider) return; // defensivo: los llamantes ya lo comprueban antes de invocar esto
@@ -414,13 +517,33 @@ export function ChatSurface({ variant = "embedded", className, initialConvId }: 
     // proveedor Astraura 1.58-bit activo: con cualquier otro se ignora sin
     // más (ni se inyecta la mención ni se guarda el snapshot del turno).
     const effectiveSel = provider.id === "astraura-158" ? turnSel : null;
-    const messagesToSend = withAstraura158Hint(messagesForModel, effectiveSel);
+    // «Más ajustes»: traduce la selección (esfuerzo/tipo/tiempo) a señales
+    // REALES — maxTokens, sesgo de ruta, instrucción de system prompt y plazo
+    // aproximado (lib/astraura/ajustes-respuesta.ts, módulo puro y probado).
+    // Automático en los tres controles ⇒ exactamente el comportamiento de
+    // siempre (todo `undefined`/""/0).
+    const resuelto = resolverAjustes(false, ajustesTurno);
+    const messagesWithInstruction = withResponseInstruction(messagesForModel, resuelto.instruccion);
+    const messagesToSend = withAstraura158Hint(messagesWithInstruction, effectiveSel);
 
     abortRef.current = new AbortController();
+    deadlineHitRef.current = false;
     setStreaming(true);
     setStreamText("");
     let acc = "";
     const startedAt = Date.now();
+
+    // Tiempo máximo aproximado (elegido a mano, o automático = sin plazo):
+    // reutiliza el MISMO abort que el botón «Detener» — al streaming no le
+    // importa POR QUÉ se cortó, sólo que se cortó; la nota honesta de abajo
+    // (catch) es la que distingue "se acabó el tiempo" de "detenido a mano".
+    let deadlineTimer: ReturnType<typeof setTimeout> | null = null;
+    if (typeof resuelto.plazoMs === "number" && resuelto.plazoMs > 0) {
+      deadlineTimer = setTimeout(() => {
+        deadlineHitRef.current = true;
+        try { abortRef.current?.abort(); } catch { /* defensivo */ }
+      }, resuelto.plazoMs);
+    }
 
     // VOZ EN VIVO: antes `speakAuroraReply(acc, …)` se llamaba DESPUÉS de que
     // el streaming terminara — el mensaje aparecía entero y la voz arrancaba
@@ -446,6 +569,13 @@ export function ChatSurface({ variant = "embedded", className, initialConvId }: 
         chatConfig: (conv.conversations.find((c) => c.id === convId)?.meta as any)?.config,
         messages: messagesToSend,
         temperature: DEFAULT_AGENT.temperature,
+        // «Más ajustes»: tope de tokens del nivel de Esfuerzo (`AstrauraChatRequest.maxTokens`,
+        // ya reenviado a CUALQUIER proveedor por `runCandidate`) y sesgo de
+        // dificultad para el ranking de candidatos (sólo afecta al modo "auto"
+        // del router; ver el JSDoc de `effortDifficultyDelta` en router.ts).
+        // Ambos `undefined`/0 con Esfuerzo en automático: sin cambios.
+        maxTokens: resuelto.maxTokens,
+        effortDifficultyDelta: resuelto.pistaDeRuta.difficultyDelta,
         signal: abortRef.current.signal,
         onChunk: (delta) => {
           acc += delta;
@@ -494,9 +624,13 @@ export function ChatSurface({ variant = "embedded", className, initialConvId }: 
         // «Regenerar» puede reproducir EXACTAMENTE esta selección más
         // adelante aunque la bandeja, para entonces, ya haya cambiado — el
         // bug del original era justo el contrario (regenerar la perdía).
-        const metaToSave: AuroraMessageMeta & { astr158Turn?: Astraura158Selection } = {
+        const metaToSave: AuroraMessageMeta & { astr158Turn?: Astraura158Selection; ajustesTurno?: AjustesManualRespuesta } = {
           ...meta,
           ...(effectiveSel ? { astr158Turn: effectiveSel } : {}),
+          // Snapshot de «Más ajustes» de ESTE turno (mismo motivo que astr158Turn
+          // arriba): sólo si algo era manual — 100% automático no deja rastro,
+          // que es justo lo que `turnAjustesFromMeta` espera para ese caso.
+          ...(!esTodoAutomatico(ajustesTurno) ? { ajustesTurno } : {}),
         };
         await appendUnifiedMessage({
           role: "assistant",
@@ -512,18 +646,26 @@ export function ChatSurface({ variant = "embedded", className, initialConvId }: 
         // texto completo ahora la duplicaría (y volvería a "separarse").
       }
     } catch (err) {
-      // Se detuvo a mitad (botón «Detener») o falló: no se lee en voz alta un
-      // mensaje roto o incompleto — se descarta lo que quedó en el buffer.
+      // Se detuvo a mitad (botón «Detener», o el plazo máximo aproximado del
+      // popover «Más ajustes») o falló: no se lee en voz alta un mensaje roto
+      // o incompleto — se descarta lo que quedó en el buffer.
       voice.stop();
-      const msg = (err as Error).message;
+      // «Más ajustes» — tiempo máximo aproximado (Tarea 3): distingue "se
+      // acabó el plazo elegido" de un «Detener» manual o un fallo real, para
+      // una nota honesta en vez del mensaje crudo del AbortError.
+      const porPlazo = deadlineHitRef.current;
+      const msg = porPlazo
+        ? `Se alcanzó el tiempo máximo aproximado elegido (≤${formatMsAprox(resuelto.plazoMs ?? 0)}): esta es la respuesta parcial obtenida hasta ese punto.`
+        : (err as Error).message;
       // Mismo saneado que el camino feliz (ver arriba): si el corte llegó a
       // mitad de una directiva, el fragmento crudo (JSON sin cerrar incluido)
       // no debe quedar pegado al aviso de error.
       const cleanText = formatAssistantText(acc);
+      const notaIcono = porPlazo ? "⏱" : "⚠";
       if (cleanText) {
         await appendUnifiedMessage({
           role: "assistant",
-          text: `${cleanText}\n\n⚠ ${msg}`,
+          text: `${cleanText}\n\n${notaIcono} ${msg}`,
           convId,
           kind: "aurora",
           surface: "agent",
@@ -533,15 +675,18 @@ export function ChatSurface({ variant = "embedded", className, initialConvId }: 
       } else {
         await appendUnifiedMessage({
           role: "assistant",
-          text: `⚠ ${msg}`,
+          text: `${notaIcono} ${msg}`,
           convId,
           kind: "aurora",
           surface: "agent",
           meta: { local: true, provider: "Astraura (error)" },
         });
       }
-      toast.error(`Error: ${msg}`);
+      if (porPlazo) toast.info(msg);
+      else toast.error(`Error: ${msg}`);
     } finally {
+      if (deadlineTimer) clearTimeout(deadlineTimer);
+      deadlineHitRef.current = false;
       setStreaming(false);
       setStreamText("");
       abortRef.current = null;
@@ -606,7 +751,15 @@ export function ChatSurface({ variant = "embedded", className, initialConvId }: 
       { role: "user", content: text },
     ];
 
-    await runAssistantTurn(convId, history, readAstraura158Selection(convId));
+    // «Más ajustes»: se aplican a ESTE turno tal cual están en el popover del
+    // compositor. Salvo «Recordar para este chat», rigen sólo el PRÓXIMO
+    // mensaje — se resetean a automático justo después de enviarlo (ver el
+    // JSDoc de cabecera de `ajustes-respuesta.ts` para el porqué de este
+    // diseño). El badge desaparece del compositor en el mismo momento en que
+    // el usuario ve que "ya se aplicaron".
+    const ajustesDeEsteTurno = ajustesManual;
+    await runAssistantTurn(convId, history, readAstraura158Selection(convId), ajustesDeEsteTurno);
+    if (!recordarAjustes) setAjustesManual(ajustesAutomaticosPorDefecto());
   }
 
   /**
@@ -615,8 +768,14 @@ export function ChatSurface({ variant = "embedded", className, initialConvId }: 
    * conservando las preferencias 1.58 de AQUEL turno (`turnSelectionFromMeta`),
    * no las que estén activas ahora mismo en la bandeja. El bug del original
    * era justo el contrario: regenerar perdía la configuración del turno.
+   *
+   * `ajustesOverride` (Tarea 2 del popover «Ajustar»): cuando viene de
+   * «Ajustar y regenerar», usa la selección que el usuario acaba de elegir en
+   * ESE popover en vez de la de aquel turno. Sin override, conserva el mismo
+   * criterio que ya usaba `turnSel` para 1.58: lo que aquel turno guardó
+   * (`turnAjustesFromMeta`), o automático si fue 100% automático.
    */
-  async function handleRegenerate(msg: AgentRenderMsg) {
+  async function handleRegenerate(msg: AgentRenderMsg, ajustesOverride?: AjustesManualRespuesta) {
     if (streaming) return;
     const convId = conv.activeId;
     if (!convId) return;
@@ -643,7 +802,12 @@ export function ChatSurface({ variant = "embedded", className, initialConvId }: 
       return;
     }
 
-    toast.success("Regenerando con las preferencias de aquel turno…");
+    const ajustesTurno = ajustesOverride ?? turnAjustesFromMeta(msg.meta) ?? ajustesAutomaticosPorDefecto();
+    toast.success(
+      ajustesOverride
+        ? "Regenerando con los ajustes elegidos…"
+        : "Regenerando con las preferencias de aquel turno…",
+    );
 
     const systemPieces = await buildSystemPieces([]);
     const messagesForModel: ChatMessage[] = [
@@ -655,7 +819,7 @@ export function ChatSurface({ variant = "embedded", className, initialConvId }: 
       { role: "user", content: userText },
     ];
 
-    await runAssistantTurn(convId, messagesForModel, turnSelectionFromMeta(msg.meta));
+    await runAssistantTurn(convId, messagesForModel, turnSelectionFromMeta(msg.meta), ajustesTurno);
   }
 
   /**
@@ -900,12 +1064,48 @@ export function ChatSurface({ variant = "embedded", className, initialConvId }: 
                       Astraura (msg.meta descarta el placeholder de bienvenida y el
                       streaming en curso, igual que MessageActionBar arriba). */}
                   {!msg.pending && msg.role === "agent" && msg.meta && (
-                    <ChatMessageActions
-                      onRegenerate={() => void handleRegenerate(msg)}
-                      onBranch={() => void handleBranch(msg)}
-                      busy={streaming}
-                      className="mt-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                    />
+                    <div
+                      className={cn(
+                        "mt-1 flex items-center gap-1 transition-opacity",
+                        ajustarMsg?.id === msg.id ? "opacity-100" : "opacity-0 group-hover:opacity-100",
+                      )}
+                    >
+                      <ChatMessageActions
+                        onRegenerate={() => void handleRegenerate(msg)}
+                        onBranch={() => void handleBranch(msg)}
+                        busy={streaming}
+                      />
+                      {/* «Ajustar y regenerar» (Tarea 2): reutiliza el MISMO popover
+                          del compositor, precargado con lo que aquel turno usó de
+                          verdad (`turnAjustesFromMeta`) — o automático si lo fue. */}
+                      <AjustesRespuestaPopover
+                        open={ajustarMsg?.id === msg.id}
+                        onOpenChange={(o) =>
+                          setAjustarMsg(o ? { id: msg.id, valor: turnAjustesFromMeta(msg.meta) ?? ajustesAutomaticosPorDefecto() } : null)
+                        }
+                        value={ajustarMsg?.id === msg.id ? ajustarMsg.valor : (turnAjustesFromMeta(msg.meta) ?? ajustesAutomaticosPorDefecto())}
+                        onChange={(next) => setAjustarMsg({ id: msg.id, valor: next })}
+                        disabled={streaming}
+                        title="Ajustar y regenerar esta respuesta"
+                        triggerLabel="Ajustar y regenerar esta respuesta"
+                        triggerClassName="h-6 w-6 rounded-md border-none bg-transparent text-muted-foreground hover:bg-white/10 hover:text-white"
+                        triggerChildren={<SlidersHorizontal className="h-3.5 w-3.5" />}
+                        footer={
+                          <Button
+                            size="sm"
+                            className="w-full"
+                            disabled={streaming}
+                            onClick={() => {
+                              const elegido = ajustarMsg?.id === msg.id ? ajustarMsg.valor : ajustesAutomaticosPorDefecto();
+                              setAjustarMsg(null);
+                              void handleRegenerate(msg, elegido);
+                            }}
+                          >
+                            Regenerar con estos ajustes
+                          </Button>
+                        }
+                      />
+                    </div>
                   )}
                   {/* Nota de voz (Adenda 87): mini reproductor del audio que sonó +
                       «Regenerar voz». Solo en respuestas de Astraura con contenido.
@@ -955,6 +1155,14 @@ export function ChatSurface({ variant = "embedded", className, initialConvId }: 
             defaultPersonaId={astr158DefaultPersonaId}
           />
         </div>
+        {/* Insignia de «Más ajustes» (sólo si algo NO es automático): un clic la
+            resetea. Fila propia sobre el compositor — mismo patrón que la fila
+            de adjuntos pendientes de arriba (`space-y-2` del contenedor). */}
+        {badgeAjustes && (
+          <div className="mx-auto flex w-full max-w-4xl justify-end">
+            <AjustesRespuestaBadge texto={badgeAjustes} onReset={handleResetAjustes} />
+          </div>
+        )}
         {/* Cuadro de escritura (2026-09-05): a tamaño de conversación —área de texto que
             crece hasta seis líneas (Enter envía, Mayús+Enter salta de línea), botones de
             40 px y letra de 15 px— en vez del input de una línea de 36 px que se veía
@@ -989,6 +1197,18 @@ export function ChatSurface({ variant = "embedded", className, initialConvId }: 
             }}
             disabled={streaming}
             aria-label="Mensaje para Astraura"
+          />
+          {/* «Más ajustes» — esfuerzo, tipo de respuesta y tiempo máximo
+              aproximado de la PRÓXIMA respuesta (o de las siguientes, si se
+              marca «Recordar para este chat»). Ver `resolverAjustes` para cómo
+              se traduce a maxTokens/sesgo de ruta/instrucción/plazo. */}
+          <AjustesRespuestaPopover
+            value={ajustesManual}
+            onChange={handleAjustesChange}
+            remember={recordarAjustes}
+            onRememberChange={handleRecordarChange}
+            canRemember={!!conv.activeId}
+            disabled={streaming}
           />
           {streaming ? (
             <Button onClick={handleStop} variant="destructive" className="mb-0.5 h-10 shrink-0 gap-2 px-4">

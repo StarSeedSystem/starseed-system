@@ -605,6 +605,19 @@ export interface AstrauraChatRequest {
   messages: ChatMessage[];
   temperature?: number;
   maxTokens?: number;
+  /**
+   * (Botón «Más ajustes» del compositor · `lib/astraura/ajustes-respuesta.ts`)
+   * Sesgo ADITIVO -1..1 sobre la dificultad estimada del turno
+   * (`estimateDifficulty`), antes de rankear candidatos: positivo empuja el
+   * ranking hacia modelos FUERTES/nube (Profundo/Máximo), negativo hacia
+   * RÁPIDOS/locales (Rápido) — mismo mecanismo RouteLLM que ya usa
+   * `difficultyAdjustment`/`strongThreshold` para sesgar por contenido.
+   * 0/`undefined` = sin cambio (automático, comportamiento de siempre). Sólo
+   * afecta al modo "auto" del router: el modo "manual" clásico no rankea
+   * candidatos (un único proveedor configurado), así que aquí no tiene nada
+   * que sesgar.
+   */
+  effortDifficultyDelta?: number;
   signal?: AbortSignal;
   onChunk?: (delta: string) => void;
   /** Pista de tarea si el llamador ya la conoce (p.ej. "code" en el editor). */
@@ -1128,6 +1141,12 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
   }
 
   const profile = classifyTask(messages, req.taskHint);
+  // (Botón «Más ajustes» del compositor) Sesgo de Esfuerzo elegido A MANO: ver
+  // el JSDoc de `effortDifficultyDelta` arriba. Aditivo y acotado a 0..1, igual
+  // que el resto de ajustes de `profile.difficulty` en esta función.
+  if (typeof req.effortDifficultyDelta === "number" && req.effortDifficultyDelta !== 0) {
+    profile.difficulty = Math.max(0, Math.min(1, profile.difficulty + req.effortDifficultyDelta));
+  }
   // Sesgo de routing por capacidad: preferStrong/planning suben la dificultad
   // (RouteLLM → modelo más capaz); vision marca necesidad de visión.
   const capBias = skillsRoutingBias();
