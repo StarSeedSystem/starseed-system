@@ -186,7 +186,7 @@ export async function getPendingNotifications(context?: string): Promise<UpdateN
         kind: "update-app",
         title: "StarSeed OS 0.2.0: apps nativas con actualización automática",
         detail:
-          "El OS trae apps nativas para macOS, Windows, Linux, Android e iOS: la app instalada se actualiza sola (reinstalación completa e inteligente, sin perder tus datos). En el navegador basta con recargar; el contenido web (red, publicaciones, Astraura) ya llegó al instante.",
+          "El OS trae apps nativas para macOS, Windows, Linux y Android (en iPhone/iPad, como app web instalable): la app instalada se actualiza sola (reinstalación completa e inteligente, sin perder tus datos). En el navegador basta con recargar; el contenido web (red, publicaciones, Astraura) ya llegó al instante.",
         priority: 10,
       });
     }

@@ -12,7 +12,7 @@ export type CanalRelease = "alpha" | "beta" | "estable";
 export const OS_CANAL: CanalRelease = "alpha";
 
 export const OS_NOTAS =
-  "Apps nativas 0.2.0 para macOS, Windows, Linux, Android e iOS con actualización automática inteligente (reinstalación completa dentro de la propia app). El fondo animado ahora ajusta su calidad solo según el dispositivo. Nueva ventana de ajustes del chat de Astraura. El panel de Olas es honesto: solo marca «en curso» cuando hay agentes trabajando de verdad. La nube deja de repetir trabajo ya hecho.";
+  "Apps nativas 0.2.0 para macOS, Windows, Linux y Android con actualización automática inteligente (reinstalación completa dentro de la propia app); en iPhone/iPad, como app web instalable. El fondo animado ahora ajusta su calidad solo según el dispositivo. Nueva ventana de ajustes del chat de Astraura. El panel de Olas es honesto: solo marca «en curso» cuando hay agentes trabajando de verdad. La nube deja de repetir trabajo ya hecho.";
 
 /**
  * Versión del PAQUETE NATIVO (Tauri 2, proyecto `native/`): el shell de
@@ -113,8 +113,8 @@ export function etiquetaBuild(): string {
  *   · Android → job `build-android`, nombre de archivo
  *               `StarSeed-<sistema>-<version>.apk` (ver native-build.yml línea
  *               ~236); para el sistema OS: `StarSeed-os-<version>.apk`.
- *   · iOS     → job `build-ios`, `.ipa` SIN FIRMAR, best-effort (puede no
- *               generarse): `StarSeed-<sistema>-<version>-unsigned.ipa`.
+ *   · iOS     → job `build-ios`, `.ipa` SIN FIRMAR, best-effort: hoy NO produce una app
+ *               válida (sin ejecutable), así que no se ofrece; en iPhone/iPad, la PWA.
  *
  * Solo cubre el sistema OS (identifier `app.starseed.os`): es el único que
  * declara updater (ver capabilities/desktop.json) y el único enlazado desde
@@ -194,12 +194,8 @@ export function nativeInstallerAssets(
       `StarSeed.OS-${version}-1.x86_64.rpm`,
     ),
     asset("android-apk", "android", "Android — .apk", `StarSeed-os-${version}.apk`),
-    asset(
-      "ios-unsigned-ipa",
-      "ios",
-      "iOS — .ipa sin firmar (solo pruebas, re-firmar con AltStore/Sideloadly)",
-      `StarSeed-os-${version}-unsigned.ipa`,
-    ),
+    // (2026-09-25) Sin iOS: la compilación sin firma de CI sale vacía (un .ipa de 348 bytes
+    // sin ejecutable) y ese archivo ya no se sube. En iPhone/iPad, la web instalable (PWA).
   ];
 }
 

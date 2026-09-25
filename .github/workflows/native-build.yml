@@ -352,12 +352,16 @@ jobs:
             CODE_SIGNING_ALLOWED=NO CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO || true
           APP=$(find build -name '*.app' -path '*iphoneos*' | head -1)
           echo "App: $APP"
-          if [ -n "$APP" ]; then
+          # (2026-09-25) xcodebuild puede fallar (|| true) y dejar un .app sin ejecutable:
+          # v0.2.0 subió .ipa de 348 bytes. Solo vale si el binario de la app existe.
+          EXE=""
+          [ -n "$APP" ] && EXE=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$APP/Info.plist" 2>/dev/null || true)
+          if [ -n "$APP" ] && [ -n "$EXE" ] && [ -s "$APP/$EXE" ]; then
             rm -rf Payload && mkdir -p Payload && cp -R "$APP" Payload/
             zip -qr "StarSeed-${{ matrix.system }}-${VERSION}-unsigned.ipa" Payload
             echo "IPA generado."
           else
-            echo "No se generó .app (iOS sin firma es limitado); se omite el IPA."
+            echo "No se generó una .app con ejecutable (iOS sin firma es limitado); se omite el IPA."
           fi
       - name: Subir IPA al Release (si se generó)
         uses: softprops/action-gh-release@v2

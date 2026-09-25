@@ -201,9 +201,8 @@ export default function InstalarPage() {
               </a>
             )}
             <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3 text-slate-300">
-              iOS — build .ipa SIN FIRMAR, solo para pruebas: hay que re-firmarlo con AltStore/Sideloadly y
-              tu Apple ID (gratuita, caduca cada 7 días). Mientras tanto, esta web instalable (PWA) es la
-              vía recomendada en iPhone/iPad.
+              iOS — todavía no hay app nativa: la compilación sin firma aún no produce una app válida. En
+              iPhone/iPad, instala esta web como app: botón Compartir → «Añadir a pantalla de inicio».
             </div>
           </div>
           <p className="text-xs text-amber-300/90">
