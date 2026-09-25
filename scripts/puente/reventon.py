@@ -26,6 +26,8 @@ Todo lo de aquí es texto y números, sin disco ni red, para que las pruebas
 cubran exactamente lo que falla: leer una salida y decidir cuál de las dos es.
 """
 
+import re
+
 #: Rastros de que el proceso murió en vez de terminar con un veredicto.
 #: Están en minúsculas; la comparación también.
 SENALES = (
@@ -53,6 +55,22 @@ SENALES = (
 CODIGOS = (134, 137, 139)
 
 
+def es_carrera_de_build(salida=""):
+    """¿tsc falló solo porque la carpeta de la build cambiaba de sitio mientras leía?
+
+    (2026-09-25) `tsconfig.json` incluye `.next-build/types/**`. El reconstructor suelta
+    el turno de la máquina al acabar `next build` y DESPUÉS mueve `.next-build` a `.next`;
+    si publicar.py arranca tsc justo en ese hueco, tsc enumera los archivos y al abrirlos
+    ya no están: «error TS6053: File '…/.next-build/types/validator.ts' not found». Pasó
+    dos veces seguidas el 25-09. No es un error del código: se repite y pasa.
+    """
+    texto = salida or ""
+    errores = re.findall(r"error (TS\d+)", texto)
+    if not errores or any(e != "TS6053" for e in errores):
+        return False
+    return ".next-build/types/" in texto or ".next/types/" in texto
+
+
 def es_reventon(rc, salida=""):
     """¿Murió el proceso (máquina) o terminó con un veredicto (código)?
 
@@ -65,6 +83,8 @@ def es_reventon(rc, salida=""):
     if rc == 0:
         return False
     if rc in CODIGOS or rc < 0:
+        return True
+    if es_carrera_de_build(salida):
         return True
     texto = (salida or "").lower()
     return any(s in texto for s in SENALES)
@@ -85,6 +105,9 @@ def motivo(clave, rc, salida=""):
         rc_i = 1
     if rc_i == 124 or "sin terminar" in (salida or ""):
         return "%s se pasó de tiempo: la máquina va ahogada, no es el código" % que
+    if es_carrera_de_build(salida):
+        return ("%s se comprobaron mientras la build cambiaba de carpeta: "
+                "no es el código; basta con repetir" % que)
     if es_reventon(rc, salida):
         return ("%s no llegó a ejecutarse: el proceso murió sin memoria. "
                 "No es un fallo del código; hay que esperar a que la máquina respire" % que)

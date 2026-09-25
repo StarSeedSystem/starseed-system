@@ -83,5 +83,29 @@ class TestReintento(unittest.TestCase):
         self.assertFalse(R.hay_que_reintentar(2, TIPOS_REAL, intento=1))
 
 
+class TestCarreraDeBuild(unittest.TestCase):
+    """25-09: tsc leyó `.next-build/types` justo cuando el reconstructor lo movía."""
+
+    CARRERA = (
+        "error TS6053: File '/Users/alex/Documents/starseed-os-main/.next-build/types/validator.ts' not found.\n"
+        "  The file is in the program because:\n"
+        "    Matched by include pattern '.next-build/types/**/*.ts' in '/Users/alex/Documents/starseed-os-main/tsconfig.json'\n"
+    )
+
+    def test_la_carrera_se_repite(self):
+        self.assertTrue(R.es_carrera_de_build(self.CARRERA))
+        self.assertTrue(R.hay_que_reintentar(2, self.CARRERA, intento=1, tope=2))
+        self.assertIn("cambiaba de carpeta", R.motivo("tsc", 2, self.CARRERA))
+
+    def test_con_un_error_de_verdad_al_lado_no_se_tapa(self):
+        mezcla = self.CARRERA + TIPOS_REAL
+        self.assertFalse(R.es_carrera_de_build(mezcla))
+        self.assertFalse(R.hay_que_reintentar(2, mezcla, intento=1, tope=2))
+
+    def test_un_ts6053_de_otro_sitio_es_de_verdad(self):
+        fuera = "error TS6053: File 'src/lib/no-existe.ts' not found.\n"
+        self.assertFalse(R.es_carrera_de_build(fuera))
+
+
 if __name__ == "__main__":
     unittest.main()
