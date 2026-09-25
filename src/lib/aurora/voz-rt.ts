@@ -25,7 +25,21 @@
  *     a la voz y a BitNet sobre el enjambre de la Mac (`prioridad_conversacion.py`).
  */
 
+import {
+    MEDIDAS_INICIALES,
+    colchonObjetivo,
+    colchonTrasCorte,
+    ewma,
+    leerMedidas,
+    puedeSonar,
+    ritmoProduccion,
+    type MedidasVoz,
+} from "@/lib/aurora/colchon-voz";
+import { pedirLimiteFondo } from "@/lib/perf/fondo-vivo";
+
 const BASE = "/api/voz-rt";
+/** (2026-09-24) Lo medido en este equipo: RTF del motor, ritmo del texto, duración típica. */
+const CLAVE_MEDIDAS = "starseed.voz-rt.medidas.v1";
 const CLAVE_VOZ = "starseed.voz-rt.voz";
 const CLAVE_DESACTIVADA = "starseed.voz-rt.desactivada";
 const LATIDO_MS = 20_000;
@@ -79,17 +93,59 @@ class VozRT {
     private ctx: AudioContext | null = null;
     private gen = 0;
     private cola: Pendiente[] = [];
+    /** Audio ya sintetizado, en orden, esperando a que el colchón permita programarlo. */
+    private listos: AudioBuffer[] = [];
     private bombeando = false;
     private finProgramado = 0;
     private fuentes = new Set<AudioBufferSourceNode>();
     private cortes = new Set<AbortController>();
     private latido: ReturnType<typeof setInterval> | null = null;
     private disponibleCache: { at: number; v: boolean } | null = null;
+    private refresco: ReturnType<typeof setTimeout> | null = null;
     private oyentes = new Set<Oyente>();
     private muletillas = new Map<string, AudioBuffer>();
     private ultimaMuletilla = -1;
     private ultimaActividad = 0;
+    /** Síntesis en cadena (una tras otra): la primera frase sale antes y el orden se mantiene. */
+    private cadena: Promise<unknown> = Promise.resolve();
+    // ── Turno en curso (para el colchón y las medidas) ──
+    private turnoInicio = 0;
+    private turnoChars = 0;
+    private turnoAudio = 0;
+    private ultimoEncolado = 0;
+    private cortesEnTurno = 0;
+    private esperandoDesde = 0;
+    private medidas: MedidasVoz = { ...MEDIDAS_INICIALES };
     pausada = false;
+
+    constructor() {
+        if (typeof window === "undefined") return;
+        try {
+            this.medidas = leerMedidas(window.localStorage.getItem(CLAVE_MEDIDAS));
+        } catch {
+            /* sin almacenamiento: medidas iniciales */
+        }
+        // (2026-09-24) Saber SIEMPRE si la voz en tiempo real está lista. Antes solo se
+        // preguntaba al hablar, y con la caché caducada (>60 s) la primera frase de cada
+        // respuesta se iba al motor viejo (neuronal local, ~9× más lento que en vivo) y
+        // TODA la respuesta seguía por ahí: esas eran las pausas para cargar.
+        this.programarRefresco(0);
+        document.addEventListener("visibilitychange", () => {
+            if (!document.hidden) this.programarRefresco(0);
+        });
+    }
+
+    private programarRefresco(ms: number) {
+        if (this.refresco) clearTimeout(this.refresco);
+        this.refresco = setTimeout(async () => {
+            this.refresco = null;
+            if (typeof document !== "undefined" && document.hidden) return;
+            this.disponibleCache = null;
+            const v = await this.disponible();
+            // Listo: se confirma cada minuto. No listo: cada 5 min (sin martillear).
+            this.programarRefresco(v ? 60_000 : 300_000);
+        }, ms);
+    }
 
     on(f: Oyente): () => void {
         this.oyentes.add(f);
@@ -108,17 +164,27 @@ class VozRT {
     }
 
     hablando(): boolean {
-        return this.fuentes.size > 0 || this.cola.length > 0;
+        return this.fuentes.size > 0 || this.cola.length > 0 || this.listos.length > 0;
+    }
+
+    estaPausada(): boolean {
+        return this.pausada;
     }
 
     /** Disponibilidad ya conocida, sin esperar (para caminos síncronos como `speakQueued`). */
     listoYa(): boolean {
-        return !!this.disponibleCache?.v && Date.now() - this.disponibleCache.at < 60_000;
+        // El servicio es persistente: un «sí» de hace menos de 10 min vale (se refresca solo).
+        return !!this.disponibleCache?.v && Date.now() - this.disponibleCache.at < 600_000;
     }
 
     /** Cambia con cada `detener()`: sirve para saber si un turno fue cortado. */
     generacion(): number {
         return this.gen;
+    }
+
+    /** Lo medido en este equipo y el colchón que sale de ahí (para depurar y para Ajustes). */
+    diagnostico(): { medidas: MedidasVoz; ritmo: number; colchon: number } {
+        return { medidas: { ...this.medidas }, ritmo: ritmoProduccion(this.medidas), colchon: colchonObjetivo(this.medidas) };
     }
 
     /** ¿Está el servidor de voz en tiempo real listo? Cacheado 10 s. Nunca lanza. */
@@ -193,7 +259,7 @@ class VozRT {
         }
         const v = voz || vozDePersona();
         for (const m of MULETILLAS) {
-            void this.sintetizar(m, v, 1.05, this.gen).then((b) => {
+            void this.sintetizar(m, v, 1.05, this.gen, false).then((b) => {
                 if (b) this.muletillas.set(`${v}|${m}`, b);
             });
         }
@@ -206,13 +272,22 @@ class VozRT {
         void fetch(`${BASE}/fin`, { method: "POST" }).catch(() => undefined);
     }
 
-    private async sintetizar(texto: string, voz: string, velocidad: number, gen: number): Promise<AudioBuffer | null> {
+    private guardarMedidas() {
+        try {
+            window.localStorage.setItem(CLAVE_MEDIDAS, JSON.stringify(this.medidas));
+        } catch {
+            /* sin almacenamiento: se queda en memoria */
+        }
+    }
+
+    private async sintetizar(texto: string, voz: string, velocidad: number, gen: number, medir = true): Promise<AudioBuffer | null> {
         const ctx = this.contexto();
         if (!ctx) return null;
         for (let intento = 0; intento < 2; intento++) {
             if (gen !== this.gen) return null;
             const corte = new AbortController();
             this.cortes.add(corte);
+            const t0 = performance.now();
             try {
                 const r = await fetch(`${BASE}/tts`, {
                     method: "POST",
@@ -224,7 +299,16 @@ class VozRT {
                 if (!r.ok) throw new Error(`HTTP ${r.status}`);
                 const datos = await r.arrayBuffer();
                 if (gen !== this.gen) return null;
-                return await ctx.decodeAudioData(datos);
+                const buffer = await ctx.decodeAudioData(datos);
+                if (medir && buffer.duration > 0.3) {
+                    // Lo que tarda ESTE equipo en producir un segundo de voz, y cuánto dura
+                    // un carácter hablado: con eso se calcula el colchón (ver colchon-voz.ts).
+                    const segundos = (performance.now() - t0) / 1000;
+                    this.medidas.rtf = ewma(this.medidas.rtf, segundos / buffer.duration);
+                    this.medidas.segPorCaracter = ewma(this.medidas.segPorCaracter, buffer.duration / Math.max(texto.length, 1), 0.2);
+                    this.guardarMedidas();
+                }
+                return buffer;
             } catch {
                 if (corte.signal.aborted) return null;
                 // Un reintento con la MISMA voz; nunca otra voz a mitad de respuesta.
@@ -235,19 +319,38 @@ class VozRT {
         return null;
     }
 
-    /** Encola una cláusula: se pide ya y sonará justo detrás de la anterior. */
+    /** Encola una cláusula: se sintetiza en cadena y suena detrás de la anterior. */
     encolar(texto: string, opciones: { voz?: string; velocidad?: number } = {}): void {
         const t = (texto || "").trim();
         if (!t) return;
-        this.ultimaActividad = Date.now();
+        const ahora = Date.now();
+        this.ultimaActividad = ahora;
+        // ¿Turno nuevo? (el anterior se cerró o se detuvo; la muletilla no cuenta)
+        if (!this.turnoInicio) {
+            this.turnoInicio = ahora;
+            this.turnoChars = 0;
+            this.turnoAudio = 0;
+            this.cortesEnTurno = 0;
+            this.esperandoDesde = 0;
+            this.contenidoEmpezado = false;
+            // Mientras Astraura habla, el fondo animado baja su calidad para no competir.
+            pedirLimiteFondo("voz de Astraura", "baja", 15_000);
+        }
+        this.turnoChars += t.length;
+        this.ultimoEncolado = ahora;
         const gen = this.gen;
         const voz = opciones.voz || vozDePersona();
-        this.cola.push({ gen, promesa: this.sintetizar(t, voz, opciones.velocidad ?? 1.05, gen) });
+        const velocidad = opciones.velocidad ?? 1.05;
+        // En cadena: cada síntesis empieza cuando acaba la anterior (el motor usa todos
+        // los núcleos para una; varias a la vez solo se estorban y retrasan la primera).
+        const promesa = this.cadena.then(() => this.sintetizar(t, voz, velocidad, gen));
+        this.cadena = promesa.catch(() => undefined);
+        this.cola.push({ gen, promesa });
         this.avisar();
         void this.bombear();
     }
 
-    /** Dice una muletilla ya calculada (si la hay) sin repetir la última. */
+    /** Dice una muletilla ya calculada (si la hay) sin repetir la última. Suena YA. */
     muletilla(voz?: string): boolean {
         const v = voz || vozDePersona();
         const disponibles = MULETILLAS.map((m, i) => ({ i, b: this.muletillas.get(`${v}|${m}`) })).filter(
@@ -256,44 +359,117 @@ class VozRT {
         if (!disponibles.length) return false;
         const elegida = disponibles[Math.floor(Math.random() * disponibles.length)];
         this.ultimaMuletilla = elegida.i;
-        this.cola.push({ gen: this.gen, promesa: Promise.resolve(elegida.b as AudioBuffer) });
-        void this.bombear();
+        // La muletilla cubre la espera del colchón: se programa directa, sin esperar, y
+        // NO cuenta como contenido (no debe abrir la compuerta del colchón).
+        this.programar([elegida.b as AudioBuffer], false);
         return true;
+    }
+
+    /** ¿Ya suena contenido de ESTE turno (no solo la muletilla)? */
+    private contenidoEmpezado = false;
+
+    /** Programa buffers en el AudioContext, uno detrás de otro, sin huecos. */
+    private programar(buffers: AudioBuffer[], esContenido = true): void {
+        if (esContenido) this.contenidoEmpezado = true;
+        const ctx = this.contexto();
+        if (!ctx || !buffers.length) return;
+        if (ctx.state === "suspended" && !this.pausada) {
+            void ctx.resume().catch(() => undefined);
+        }
+        for (const buffer of buffers) {
+            const src = ctx.createBufferSource();
+            src.buffer = buffer;
+            src.connect(ctx.destination);
+            const cuando = Math.max(ctx.currentTime + 0.02, this.finProgramado);
+            src.start(cuando);
+            this.finProgramado = cuando + buffer.duration;
+            if (esContenido) this.turnoAudio += buffer.duration;
+            this.fuentes.add(src);
+            src.onended = () => {
+                this.fuentes.delete(src);
+                if (this.fuentes.size === 0) {
+                    if (this.cola.length > 0 || this.listos.length > 0) {
+                        // Se acabó el audio y la frase siguiente no estaba: un corte.
+                        this.cortesEnTurno += 1;
+                        this.esperandoDesde = 0;
+                        // El motor va más lento de lo medido: que el próximo turno lo sepa.
+                        this.medidas.rtf = ewma(this.medidas.rtf, this.medidas.rtf * 1.25, 0.5);
+                        this.guardarMedidas();
+                        void this.bombear();
+                    } else {
+                        this.cerrarTurno();
+                    }
+                }
+                this.avisar();
+            };
+        }
+        pedirLimiteFondo("voz de Astraura", "baja", 15_000);
+        this.avisar();
+    }
+
+    private cerrarTurno() {
+        if (!this.turnoInicio) return;
+        const escrito = (this.ultimoEncolado - this.turnoInicio) / 1000;
+        if (escrito > 0.8 && this.turnoChars > 80) {
+            this.medidas.charsPorSegTexto = ewma(this.medidas.charsPorSegTexto, this.turnoChars / escrito, 0.3);
+        }
+        if (this.turnoAudio > 1) this.medidas.duracionTurno = ewma(this.medidas.duracionTurno, this.turnoAudio, 0.3);
+        this.guardarMedidas();
+        this.turnoInicio = 0;
+        this.contenidoEmpezado = false;
+        pedirLimiteFondo("voz de Astraura", null);
     }
 
     private async bombear(): Promise<void> {
         if (this.bombeando) return;
         this.bombeando = true;
+        const esperar = (ms: number) => new Promise<null>((ok) => setTimeout(() => ok(null), ms));
         try {
-            while (this.cola.length) {
-                const cabeza = this.cola[0];
-                const buffer = await cabeza.promesa;
-                this.cola.shift();
-                if (cabeza.gen !== this.gen || !buffer) continue;
-                const ctx = this.contexto();
-                if (!ctx) break;
-                if (ctx.state === "suspended" && !this.pausada) {
-                    try {
-                        await ctx.resume();
-                    } catch {
-                        /* sin gesto del usuario aún */
+            for (;;) {
+                const gen = this.gen;
+                // 1) Recoge en orden todo lo que ya esté sintetizado.
+                while (this.cola.length) {
+                    const cabeza = this.cola[0];
+                    const listo = await Promise.race([cabeza.promesa.then((b) => ({ b })), esperar(200)]);
+                    if (gen !== this.gen) break;
+                    if (!listo) break; // la cabeza aún se está sintetizando
+                    this.cola.shift();
+                    if (cabeza.gen === this.gen && listo.b) this.listos.push(listo.b);
+                }
+                if (gen !== this.gen) continue;
+                // 2) Compuerta del colchón.
+                if (this.listos.length) {
+                    const ctx = this.contexto();
+                    if (!ctx) break;
+                    const adelantado = this.finProgramado - ctx.currentTime;
+                    const fluyendo = this.contenidoEmpezado && this.fuentes.size > 0 && adelantado > 0.25;
+                    if (fluyendo) {
+                        this.programar(this.listos.splice(0));
+                        this.esperandoDesde = 0;
+                    } else {
+                        if (!this.esperandoDesde) this.esperandoDesde = Date.now();
+                        const necesario =
+                            this.cortesEnTurno > 0
+                                ? colchonTrasCorte(this.medidas, this.cortesEnTurno)
+                                : colchonObjetivo(this.medidas);
+                        const abierta = puedeSonar({
+                            acumulado: this.listos.reduce((s, b) => s + b.duration, 0),
+                            necesario,
+                            finDeTexto: this.cola.length === 0 && Date.now() - this.ultimoEncolado > 700,
+                            esperandoMs: Date.now() - this.esperandoDesde,
+                        });
+                        if (abierta) {
+                            this.esperandoDesde = 0;
+                            this.programar(this.listos.splice(0));
+                        }
                     }
                 }
-                const src = ctx.createBufferSource();
-                src.buffer = buffer;
-                src.connect(ctx.destination);
-                const cuando = Math.max(ctx.currentTime + 0.02, this.finProgramado);
-                src.start(cuando);
-                this.finProgramado = cuando + buffer.duration;
-                this.fuentes.add(src);
-                this.avisar();
-                src.onended = () => {
-                    this.fuentes.delete(src);
-                    this.avisar();
-                };
+                if (!this.cola.length && !this.listos.length) break;
+                if (!this.cola.length) await esperar(150); // esperando fin de texto o más audio
             }
         } finally {
             this.bombeando = false;
+            this.avisar();
         }
     }
 
@@ -325,7 +501,12 @@ class VozRT {
         }
         this.fuentes.clear();
         this.cola = [];
+        this.listos = [];
+        this.cadena = Promise.resolve();
         this.finProgramado = 0;
+        this.turnoInicio = 0;
+        this.contenidoEmpezado = false;
+        pedirLimiteFondo("voz de Astraura", null);
         if (this.pausada) {
             this.pausada = false;
             void this.ctx?.resume().catch(() => undefined);
@@ -333,10 +514,22 @@ class VozRT {
         this.avisar();
     }
 
-    /** Resuelve cuando no queda nada por sonar (o se detuvo). */
+    /**
+     * Resuelve cuando la respuesta ha terminado de sonar (o se detuvo). Un hueco breve
+     * entre frases (el modelo aún escribe) o una pausa del usuario NO son el final: antes
+     * lo eran, el turno se daba por acabado, el botón ▶/⏸ creía que no sonaba nada y, al
+     * pulsarlo para pausar, volvía a leer la última respuesta desde el principio.
+     */
     async esperarFin(maxMs = 240_000): Promise<void> {
         const hasta = Date.now() + maxMs;
-        while (this.hablando() && Date.now() < hasta) {
+        let calladoDesde = 0;
+        while (Date.now() < hasta) {
+            if (this.hablando() || this.pausada) {
+                calladoDesde = 0;
+            } else {
+                if (!calladoDesde) calladoDesde = Date.now();
+                if (Date.now() - calladoDesde >= 1_500) return;
+            }
             await new Promise((ok) => setTimeout(ok, 120));
         }
     }

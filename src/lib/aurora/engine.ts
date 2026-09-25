@@ -79,7 +79,7 @@ import {
 // mapa chato chat→catálogo de la Forja (estilo vivo, personalidad).
 import { emocionDesdeTexto, type EmocionVoz } from "@/lib/voces/emociones";
 import { emocionChatAVoz } from "@/lib/aurora/voz-starseed/motor";
-import { decirRT, decirRTYa } from "@/lib/aurora/voz-rt";
+import { decirRT, decirRTYa, vozRT } from "@/lib/aurora/voz-rt";
 
 type Voice = { name: string; lang: string; voiceURI: string; default?: boolean };
 
@@ -589,6 +589,11 @@ export function useAuroraEngine(): AuroraEngine {
   const [activePersonality, setActivePersonalityState] = useState<Personality>({ ...DEFAULT_PERSONALITY });
   const [voices, setVoices] = useState<Voice[]>([]);
   const [paused, setPaused] = useState(false);
+  // (2026-09-24) La pausa como REF además de estado: los callbacks de inicio de cada
+  // cláusula hacían `setPaused(false)` y, si el usuario había pausado en un hueco entre
+  // frases, la siguiente frase «despausaba» la interfaz (y el ▶/⏸ dejaba de funcionar).
+  const pausedRef = useRef(false);
+  const pendienteTrasPausaRef = useRef<number | null>(null);
   const [replyHistory, setReplyHistory] = useState<string[]>([]);
   const [conversation, setConversation] = useState<ConversationEntry[]>([]);
   const conversationRef = useRef<ConversationEntry[]>([]);
@@ -801,7 +806,7 @@ export function useAuroraEngine(): AuroraEngine {
       window.speechSynthesis.cancel();
       const u = resolveBrowserUtterance(clean, p);
       u.onstart = () => {
-        setSpeaking(true); setPaused(false); emitAuroraSpeak("start");
+        setSpeaking(true); setPaused(pausedRef.current); emitAuroraSpeak("start");
         markTtsSpeaking(true); // anti-eco GLOBAL: ignora la voz propia
       };
       // Cada límite de palabra/frase impulsa el latido del glow del Orbe.
@@ -844,6 +849,9 @@ export function useAuroraEngine(): AuroraEngine {
     const { clean, cleanChain } = sanitizeSpeechText(text);
     if (!clean && !cleanChain) return;
     const p = forcePersonality || activeRef.current;
+    // Decir algo NUEVO (no reanudar) quita la pausa, igual que `vozRT().detener()`.
+    pausedRef.current = false;
+    pendienteTrasPausaRef.current = null;
 
     const runBrowser = () => speakWithBrowser(clean, p);
 
@@ -873,7 +881,7 @@ export function useAuroraEngine(): AuroraEngine {
             onInicio: () => {
               handedOff = true;
               try { if (typeof window.speechSynthesis !== "undefined") window.speechSynthesis.cancel(); } catch { /* */ }
-              setSpeaking(true); setPaused(false); emitAuroraSpeak("start");
+              setSpeaking(true); setPaused(pausedRef.current); emitAuroraSpeak("start");
               markTtsSpeaking(true);
               pausedForTtsRef.current = true;
               recGenRef.current++;
@@ -894,7 +902,7 @@ export function useAuroraEngine(): AuroraEngine {
             handedOff = true;
             // Corta cualquier voz nativa por si acaso (una sola voz a la vez).
             try { if (typeof window.speechSynthesis !== "undefined") window.speechSynthesis.cancel(); } catch { /* */ }
-            setSpeaking(true); setPaused(false); emitAuroraSpeak("start");
+            setSpeaking(true); setPaused(pausedRef.current); emitAuroraSpeak("start");
             // Anti-eco GLOBAL + medio-dúplex: deja de escuchar mientras habla.
             markTtsSpeaking(true);
             pausedForTtsRef.current = true;
@@ -977,7 +985,7 @@ export function useAuroraEngine(): AuroraEngine {
     try {
       const u = resolveBrowserUtterance(clean, p);
       u.onstart = () => {
-        setSpeaking(true); setPaused(false); emitAuroraSpeak("start");
+        setSpeaking(true); setPaused(pausedRef.current); emitAuroraSpeak("start");
       };
       // Cada límite de palabra/frase impulsa el latido del glow del Orbe.
       u.onboundary = () => emitAuroraSpeak("boundary");
@@ -1025,6 +1033,12 @@ export function useAuroraEngine(): AuroraEngine {
   // reconocimiento — anti bucle competitivo.
   const advanceTtsQueue = useCallback((gen: number) => {
     if (gen !== ttsQueueGenRef.current) return; // cola obsoleta: interrupt()/barge-in ya la vació
+    // (2026-09-24) En pausa no arranca la cláusula siguiente: antes «pausar» paraba la
+    // que sonaba y la cola seguía metiendo frases. Se retoma en `resumeSpeech`.
+    if (pausedRef.current) {
+      pendienteTrasPausaRef.current = gen;
+      return;
+    }
     const next = ttsQueueRef.current.shift();
     if (!next) {
       // Cola REALMENTE vacía: AHORA sí termina el turno completo.
@@ -1105,7 +1119,7 @@ export function useAuroraEngine(): AuroraEngine {
           ...(next.intensidad !== undefined ? { intensidad: next.intensidad } : {}),
           alEmpezar: () => {
             handedOff = true;
-            setSpeaking(true); setPaused(false); emitAuroraSpeak("start");
+            setSpeaking(true); setPaused(pausedRef.current); emitAuroraSpeak("start");
           },
         });
         if (sono) { onDone(); return; } // la cláusula sonó entera por el motor único
@@ -1158,7 +1172,7 @@ export function useAuroraEngine(): AuroraEngine {
       const aRT = decirRTYa(cleanChain || clean, p?.id, {
         onInicio: () => {
           try { if (typeof window.speechSynthesis !== "undefined") window.speechSynthesis.cancel(); } catch { /* */ }
-          setSpeaking(true); setPaused(false); emitAuroraSpeak("start");
+          setSpeaking(true); setPaused(pausedRef.current); emitAuroraSpeak("start");
           markTtsSpeaking(true);
           pausedForTtsRef.current = true;
           recGenRef.current++;
@@ -1236,17 +1250,37 @@ export function useAuroraEngine(): AuroraEngine {
     // navegador y el mixer dejaba sonando el <audio> del motor local y la voz de
     // la conversación, y la cola seguía metiendo frases. Ahora se congela TODO en
     // el acto (misma sílaba) y «Reanudar» sigue desde ahí.
-    void import("@/lib/aurora/voz-rt").then((m) => m.vozRT().pausar()).catch(() => { /* */ });
+    vozRT().pausar();
     void import("@/lib/aurora/motor-local").then((m) => m.pausarLocal?.()).catch(() => { /* */ });
+    pausedRef.current = true;
     setPaused(true);
   }, []);
 
   const resumeSpeech = useCallback(() => {
     if (typeof window === "undefined") return;
     try { if (typeof window.speechSynthesis !== "undefined") window.speechSynthesis.resume(); } catch { /* */ }
-    void import("@/lib/aurora/voz-rt").then((m) => m.vozRT().reanudar()).catch(() => { /* */ });
+    vozRT().reanudar();
     void import("@/lib/aurora/motor-local").then((m) => m.reanudarLocal?.()).catch(() => { /* */ });
+    pausedRef.current = false;
     setPaused(false);
+    // La cola del motor clásico quedó esperando en la pausa: sigue donde estaba.
+    const pendiente = pendienteTrasPausaRef.current;
+    pendienteTrasPausaRef.current = null;
+    if (pendiente !== null) advanceTtsQueue(pendiente);
+  }, [advanceTtsQueue]);
+
+  // (2026-09-24) La interfaz (▶/⏸ del orbe, el mini reproductor, el widget) sigue al
+  // AUDIO REAL de la voz en tiempo real: si suena o espera turno, «hablando»; si está
+  // congelada, «en pausa». Antes lo decidían callbacks por frase y se desincronizaba.
+  useEffect(() => {
+    const off = vozRT().on((e) => {
+      if (e.hablando) setSpeaking(true);
+      if (e.pausada !== pausedRef.current) {
+        pausedRef.current = e.pausada;
+        setPaused(e.pausada);
+      }
+    });
+    return () => { off(); };
   }, []);
 
   const interrupt = useCallback(() => {
@@ -1268,7 +1302,9 @@ export function useAuroraEngine(): AuroraEngine {
     void import("@/lib/aurora/motor-local")
       .then((m) => { m.abortarSintesisAnteriores(); m.pararLocal(); })
       .catch(() => { /* */ });
-    void import("@/lib/aurora/voz-rt").then((m) => m.vozRT().detener()).catch(() => { /* */ });
+    vozRT().detener();
+    pausedRef.current = false;
+    pendienteTrasPausaRef.current = null;
     setSpeaking(false);
     setPaused(false);
     // Cancelar el habla también cierra el turno TTS y reanuda la escucha
@@ -1279,9 +1315,16 @@ export function useAuroraEngine(): AuroraEngine {
   const toggleSpeech = useCallback(() => {
     // Si está hablando y no pausada → pausa; si está pausada → reanuda;
     // si no hay nada en curso → vuelve a leer la última respuesta.
-    if (typeof window === "undefined" || typeof window.speechSynthesis === "undefined") return;
-    if (paused) { resumeSpeech(); return; }
-    if (window.speechSynthesis.speaking) { pauseSpeech(); return; }
+    if (typeof window === "undefined") return;
+    if (paused || pausedRef.current) { resumeSpeech(); return; }
+    // (2026-09-24) La voz de Astraura suena por la voz en tiempo real o por la cola
+    // clásica, no por speechSynthesis: mirar solo el navegador hacía que ⏯ volviera a
+    // leer la última respuesta en vez de pausar.
+    const suenaAlgo =
+      vozRT().hablando() ||
+      ttsQueueBusyRef.current ||
+      (typeof window.speechSynthesis !== "undefined" && window.speechSynthesis.speaking);
+    if (suenaAlgo) { pauseSpeech(); return; }
     const hist = replyHistoryRef.current;
     if (hist.length) speak(hist[hist.length - 1]);
   }, [paused, pauseSpeech, resumeSpeech, speak]);
@@ -1608,7 +1651,7 @@ export function useAuroraEngine(): AuroraEngine {
             onInicioVoz: () => {
               setThinking(false);
               try { if (typeof window.speechSynthesis !== "undefined") window.speechSynthesis.cancel(); } catch { /* */ }
-              setSpeaking(true); setPaused(false); emitAuroraSpeak("start");
+              setSpeaking(true); setPaused(pausedRef.current); emitAuroraSpeak("start");
               // Medio-dúplex: el micrófono no escucha a Aurora mientras habla.
               markTtsSpeaking(true);
               pausedForTtsRef.current = true;
