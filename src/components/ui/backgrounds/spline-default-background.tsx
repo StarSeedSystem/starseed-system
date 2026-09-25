@@ -18,7 +18,20 @@ export function SplineDefaultBackground() {
     // Or just always render it behind everything, but controlled by opacity.
     const isSplineActive = (config.background.type as string) === 'spline' || config.background.type === 'webgl';
 
-    if (!mounted) return null;
+    // (2026-09-24) Con otro fondo elegido, la escena seguía montada con opacidad 0 y
+    // pintando a pantalla completa 60 veces por segundo sin que nadie la viera. Ahora se
+    // desmonta cuando termina el fundido de salida (1 s) y vuelve a montarse al elegirla.
+    const [montada, setMontada] = useState(isSplineActive);
+    useEffect(() => {
+        if (isSplineActive) {
+            setMontada(true);
+            return undefined;
+        }
+        const t = window.setTimeout(() => setMontada(false), 1100);
+        return () => window.clearTimeout(t);
+    }, [isSplineActive]);
+
+    if (!mounted || !montada) return null;
 
     return (
         <div
@@ -28,6 +41,7 @@ export function SplineDefaultBackground() {
             <SplineBackground
                 url="https://prod.spline.design/d8ukY8z5Z-mFP7ej/scene.splinecode"
                 className="w-full h-full"
+                adaptativo
             />
         </div>
     );

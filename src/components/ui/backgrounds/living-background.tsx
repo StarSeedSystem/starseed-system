@@ -306,7 +306,12 @@ export function LivingBackground() {
         if (reduce) {
             draw(1000); // un solo fotograma estático
         } else {
-            const loop = (t: number) => { if (!document.hidden) draw(t); raf = requestAnimationFrame(loop); };
+            // (2026-09-24) Solo se pinta si este fondo es el elegido: antes dibujaba a pantalla
+            // completa cada fotograma aunque estuviera con opacidad 0 detrás del Spline.
+            const loop = (t: number) => {
+                if (!document.hidden && typeRef.current === "living") draw(t);
+                raf = requestAnimationFrame(loop);
+            };
             raf = requestAnimationFrame(loop);
         }
         return () => { cancelAnimationFrame(raf); ro.disconnect(); };

@@ -1,30 +1,53 @@
 "use client";
 
-import React, { Suspense, forwardRef, useRef, useImperativeHandle } from "react";
+import React, { Suspense, forwardRef, useEffect, useRef, useImperativeHandle } from "react";
 import Spline from "@splinetool/react-spline";
 import { Application } from "@splinetool/runtime";
+import { gobernarFondoSpline } from "@/lib/perf/fondo-vivo";
 
 export interface SplineBackgroundProps {
     url: string;
     className?: string;
     onLoad?: (splineApp: Application) => void;
     fallbackColor?: string;
+    /**
+     * (2026-09-24) Calidad adaptativa: resolución y ritmo según el equipo y la carga
+     * del sistema en vivo (ver `@/lib/perf/calidad-fondo`). Solo para fondos a pantalla
+     * completa detrás de todo; una escena interactiva en primer plano no lo quiere.
+     */
+    adaptativo?: boolean;
 }
 
 export const SplineBackground = forwardRef<Application | null, SplineBackgroundProps>(({
     url,
     className = "",
     onLoad,
-    fallbackColor = "rgba(16,185,129,0.1)"
+    fallbackColor = "rgba(16,185,129,0.1)",
+    adaptativo = false,
 }, ref) => {
     const splineAppRef = useRef<Application | null>(null);
+    const soltarGobernador = useRef<(() => void) | null>(null);
+    const limpiarMarcas = useRef<(() => void) | null>(null);
 
     useImperativeHandle(ref, () => splineAppRef.current as Application);
+
+    // Al desmontar: soltar el gobernador y los vigilantes de la marca de agua.
+    useEffect(() => () => {
+        soltarGobernador.current?.();
+        soltarGobernador.current = null;
+        limpiarMarcas.current?.();
+        limpiarMarcas.current = null;
+    }, []);
 
     const handleLoad = (splineApp: Application) => {
         splineAppRef.current = splineApp;
         if (onLoad) {
             onLoad(splineApp);
+        }
+        if (adaptativo && !soltarGobernador.current) {
+            try {
+                soltarGobernador.current = gobernarFondoSpline(splineApp as unknown as Parameters<typeof gobernarFondoSpline>[0]);
+            } catch { /* sin gobernador: el fondo sigue como antes */ }
         }
 
         // ── ELIMINAR el logo "Built with Spline" EN LA FUENTE ──────────────
@@ -83,11 +106,23 @@ export const SplineBackground = forwardRef<Application | null, SplineBackgroundP
             } catch { /* noop */ }
         };
         [100, 600, 1500, 3000, 6000].forEach(ms => setTimeout(killSplineWatermarks, ms));
-        const obs = new MutationObserver(killSplineWatermarks);
+        // (2026-09-24) Antes: CADA mutación del DOM de toda la página (subtree de <body>)
+        // lanzaba 5 querySelectorAll + un recorrido de TODOS los <a>, y además un intervalo
+        // cada 2 s para siempre. En un OS que muta el DOM sin parar eso era trabajo
+        // continuo del hilo principal por culpa del fondo. Ahora se agrupan las mutaciones
+        // (una pasada como mucho cada 1,5 s) y el intervalo de respaldo baja a 10 s.
+        let pendiente = 0;
+        const programar = () => {
+            if (pendiente) return;
+            pendiente = window.setTimeout(() => { pendiente = 0; killSplineWatermarks(); }, 1500);
+        };
+        const obs = new MutationObserver(programar);
         obs.observe(document.body, { childList: true, subtree: true });
-        const iv = window.setInterval(killSplineWatermarks, 2000); // respaldo permanente
-        // limpieza al desmontar
-        (window as any).__splineKill = () => { obs.disconnect(); clearInterval(iv); };
+        const iv = window.setInterval(killSplineWatermarks, 10_000); // respaldo
+        const limpiar = () => { obs.disconnect(); clearInterval(iv); clearInterval(wmIv); if (pendiente) clearTimeout(pendiente); };
+        limpiarMarcas.current?.();
+        limpiarMarcas.current = limpiar;
+        (window as any).__splineKill = limpiar;
     };
 
     return (
