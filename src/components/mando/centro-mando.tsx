@@ -90,6 +90,16 @@ const PanelAstra = dynamic(
         loading: () => <p className="text-sm text-white/50">Cargando a Astra…</p>,
     },
 );
+// Ola de Memorias: la pestaña «Memorias» recorre disco (núcleo, memory/*.md,
+// relevo, aprendizaje, ~/.starseed, ~/.hermes…) para construir sus ocho capas,
+// así que entra diferida y SOLO se monta al abrirla, igual que Canales/Astra.
+const PanelMemorias = dynamic(
+    () => import("@/components/mando/panel-memorias").then((m) => m.PanelMemorias),
+    {
+        ssr: false,
+        loading: () => <p className="text-sm text-white/50">Cargando las memorias…</p>,
+    },
+);
 import {
     ControlVozDelMando,
     VozMandoProvider,
@@ -187,6 +197,7 @@ const PESTANAS = [
     { id: "taller", etiqueta: "Taller del agente", grupo: "Agentes" },
     { id: "areas", etiqueta: "Áreas", grupo: "Agentes" },
     { id: "contextos", etiqueta: "Contextos", grupo: "Agentes" },
+    { id: "memorias", etiqueta: "Memorias", grupo: "Agentes" },
     { id: "entornos", etiqueta: "Entornos", grupo: "Agentes" },
     { id: "reportes", etiqueta: "Reportes", grupo: "Agentes" },
     { id: "chat", etiqueta: "Chat", grupo: "Agentes" },
@@ -1891,6 +1902,11 @@ export function CentroMando() {
                 </TabsContent>
                 <TabsContent value="contextos">
                     <PanelContextos />
+                </TabsContent>
+                <TabsContent value="memorias">
+                    {/* Ola de Memorias: mismo patrón que Canales/Astra — chunk diferido
+                        y montaje condicional, porque recorre disco (repo + home) al abrirse. */}
+                    {pestana === "memorias" ? <PanelMemorias /> : null}
                 </TabsContent>
                 <TabsContent value="entornos">
                     <PanelEntornos />

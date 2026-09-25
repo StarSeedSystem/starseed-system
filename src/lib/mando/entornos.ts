@@ -121,6 +121,34 @@ const ENTORNOS_PLANTILLA: Omit<Entorno, "estado" | "latenciaMs">[] = [
     },
 ];
 
+/** Info básica de un servicio conocido del proyecto, SIN sondear su salud en vivo. */
+export interface ServicioConocido {
+    id: string;
+    nombre: string;
+    tipo: TipoEntorno;
+    url?: string;
+    enlacePanel?: string;
+    nota: string;
+}
+
+/**
+ * El catálogo de entornos del proyecto SIN la sonda de salud en vivo (Ola de
+ * Memorias del Mando): para paneles que solo necesitan el ENLACE y la nota
+ * —no si el servicio responde ahora mismo—, y que no quieren pagar los ~6 s
+ * de `fetch` por entorno que hace `leerEntornos()`. Misma fuente de verdad,
+ * así que nunca se desincroniza con la pestaña «Entornos».
+ */
+export function serviciosConocidos(): ServicioConocido[] {
+    return ENTORNOS_PLANTILLA.map(({ id, nombre, tipo, url, enlacePanel, nota }) => ({
+        id,
+        nombre,
+        tipo,
+        url,
+        enlacePanel,
+        nota,
+    }));
+}
+
 /** Comprueba una URL con HEAD (o GET si HEAD no se admite). */
 async function comprobarUrl(
     url: string,
