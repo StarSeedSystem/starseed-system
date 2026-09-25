@@ -535,6 +535,38 @@ async function findDuplicate(
 }
 
 /**
+ * (2026-09-25) Un duplicado solo vale si su archivo EXISTE HOY en el proyecto actual.
+ *
+ * Alex: «al subir la foto de portada dice que sí carga pero no aparece». Medido en la
+ * base: tras la migración de Supabase, 3 de las 4 filas de `os_files` apuntaban al
+ * proyecto antiguo (restringido, 402) y sus archivos no se pudieron copiar. Al volver a
+ * subir la misma foto, el dedupe devolvía esa fila muerta con `ok: true` SIN subir nada,
+ * y la portada quedaba con una URL rota (el `<img>` se oculta al fallar). Ahora la URL se
+ * recalcula con el proyecto actual y se comprueba con un HEAD; si no responde, se sube.
+ */
+export async function duplicadoVivo(
+    dup: OsFile,
+    urlActual: string | null,
+    existe: (url: string) => Promise<boolean> = urlResponde,
+): Promise<OsFile | null> {
+    if (!urlActual) return null;
+    return (await existe(urlActual)) ? { ...dup, url: urlActual } : null;
+}
+
+async function urlResponde(url: string): Promise<boolean> {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 6000);
+    try {
+        const r = await fetch(url, { method: "HEAD", cache: "no-store", signal: ctrl.signal });
+        return r.ok;
+    } catch {
+        return false;
+    } finally {
+        clearTimeout(t);
+    }
+}
+
+/**
  * Sube un archivo (CUALQUIER tipo) al almacenamiento real del OS y registra
  * su fila en `os_files`. Nunca lanza: siempre devuelve `{ok:false,error}` con
  * un mensaje claro ante cualquier fallo (sin sesión, límite superado, red).
@@ -568,7 +600,10 @@ export async function uploadFile(file: File, options: UploadFileOptions = {}): P
         // tamaño y checksum SHA-256). Si existe, se devuelve ese registro sin
         // volver a subir.
         const checksum = await fileChecksum(file);
-        const dup = await findDuplicate(supabase, uid, file.size, checksum, folder);
+        const guardado = await findDuplicate(supabase, uid, file.size, checksum, folder);
+        const dup = guardado
+            ? await duplicadoVivo(guardado, supabase.storage.from(BUCKET).getPublicUrl(guardado.path).data?.publicUrl ?? null)
+            : null;
         if (dup) return { ok: true, file: dup, deduplicado: true };
 
         options.onProgress?.(0);
@@ -630,7 +665,10 @@ export async function uploadFile(file: File, options: UploadFileOptions = {}): P
         // creamos doble fila — devolvemos el registro ya existente (el objeto
         // recién subido queda redundante pero inmutable e inofensivo).
         if (checksum) {
-            const dupAfter = await findDuplicate(supabase, uid, file.size, checksum, folder);
+            const otro = await findDuplicate(supabase, uid, file.size, checksum, folder);
+            const dupAfter = otro
+                ? await duplicadoVivo(otro, supabase.storage.from(BUCKET).getPublicUrl(otro.path).data?.publicUrl ?? null)
+                : null;
             if (dupAfter) return { ok: true, file: dupAfter, deduplicado: true };
         }
 

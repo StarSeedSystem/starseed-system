@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { filesTopic, humanFileSize, fileToAttachment, MAX_UPLOAD_BYTES, type OsFile } from "@/lib/files/os-files";
+import { filesTopic, humanFileSize, fileToAttachment, MAX_UPLOAD_BYTES, duplicadoVivo, type OsFile } from "@/lib/files/os-files";
 
 describe("os-files pure functions", () => {
     it("filesTopic returns topic string", () => {
@@ -47,5 +47,28 @@ describe("os-files pure functions", () => {
 
     it("MAX_UPLOAD_BYTES is 50MB", () => {
         expect(MAX_UPLOAD_BYTES).toBe(50 * 1024 * 1024);
+    });
+});
+
+describe("duplicadoVivo (portada que «cargaba» y no aparecía, 2026-09-25)", () => {
+    const viejo: OsFile = {
+        id: "f1", owner: "u1", profileId: null, name: "portada.jpg", mime: "image/jpeg", size: 10,
+        path: "u1/portadas/abc-portada.jpg", url: "https://pqzdpmedcsgcedkvndzl.supabase.co/storage/v1/object/public/os-files/u1/portadas/abc-portada.jpg",
+        deviceId: null, isPublic: false, aclRead: [], aclWrite: [], groupSlug: null, meta: {}, createdAt: "2026-09-01T00:00:00Z",
+    };
+    const actual = "https://nxstilnyidvkqeosofuh.supabase.co/storage/v1/object/public/os-files/u1/portadas/abc-portada.jpg";
+
+    it("un duplicado cuyo archivo ya no existe no se reutiliza: hay que subir", async () => {
+        expect(await duplicadoVivo(viejo, actual, async () => false)).toBeNull();
+    });
+
+    it("si existe, se devuelve con la URL del proyecto actual", async () => {
+        const vivo = await duplicadoVivo(viejo, actual, async (u) => u === actual);
+        expect(vivo?.url).toBe(actual);
+        expect(vivo?.id).toBe("f1");
+    });
+
+    it("sin URL calculable no se reutiliza", async () => {
+        expect(await duplicadoVivo(viejo, null, async () => true)).toBeNull();
     });
 });
