@@ -92,16 +92,21 @@ describe("VerificarProcesos · verificación de interfaz y estados", () => {
         fireEvent.click(screen.getByRole("button", { name: /verificar procesos y generar reporte/i }));
         await screen.findByRole("dialog");
 
-        // Clic fuera de la tarjeta cierra el diálogo.
-        fireEvent.mouseDown(screen.getByTestId("fuera"));
-        expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+        // Clic fuera de la tarjeta cierra el diálogo. El oyente se engancha en un efecto
+        // (después de pintar): con la máquina cargada el primer clic podía llegar antes.
+        await waitFor(() => {
+            fireEvent.mouseDown(screen.getByTestId("fuera"));
+            expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+        });
 
         // Reabrir y verificar que la tecla Escape también lo cierra.
         fireEvent.click(screen.getByRole("button", { name: /ver último reporte/i }));
         await screen.findByRole("dialog");
 
-        fireEvent.keyDown(document, { key: "Escape" });
-        expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+        await waitFor(() => {
+            fireEvent.keyDown(document, { key: "Escape" });
+            expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+        });
     });
 
     it("muestra mensaje de error si el servidor responde con error o falla la conexión", async () => {
