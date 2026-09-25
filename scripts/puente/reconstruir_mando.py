@@ -63,7 +63,15 @@ FUENTES = ("src", "public")
 ARCHIVOS = ("package.json", "package-lock.json", "next.config.ts", "next.config.js",
             "tailwind.config.ts", "tsconfig.json", "postcss.config.mjs")
 #: Ni el build ni la pantalla dependen de esto, y cambia constantemente.
-IGNORADOS = (".next", "node_modules", "__pycache__", ".git", ".DS_Store")
+#: (2026-09-25) Tampoco las pruebas: arreglar un test rehacía una build entera de 10-40 min.
+IGNORADOS = (".next", "node_modules", "__pycache__", ".git", ".DS_Store", "__tests__", "__mocks__")
+_PRUEBA = re.compile(r"\.(test|spec|stories)\.[cm]?[jt]sx?$")
+
+
+def es_prueba(ruta: str) -> bool:
+    """PURA: ¿es una prueba (o historia) que la build no sirve? Vale para rutas del repo."""
+    partes = ruta.replace("\\", "/").split("/")
+    return any(p in ("__tests__", "__mocks__") for p in partes[:-1]) or bool(_PRUEBA.search(partes[-1]))
 
 
 def huella_de(entradas) -> str:
@@ -91,7 +99,7 @@ def _entradas(raiz=RAIZ):
         for aqui, dirs, archivos in os.walk(base):
             dirs[:] = [d for d in dirs if d not in IGNORADOS]
             for a in archivos:
-                if a in IGNORADOS:
+                if a in IGNORADOS or _PRUEBA.search(a):
                     continue
                 p = os.path.join(aqui, a)
                 try:

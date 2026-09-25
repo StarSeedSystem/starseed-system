@@ -92,6 +92,22 @@ class NoReconstruyePorLoQueNoCompila(unittest.TestCase):
         self.assertIn(".next", R.IGNORADOS)
         self.assertIn("node_modules", R.IGNORADOS)
 
+    def test_las_pruebas_no_rehacen_la_build(self):
+        # (2026-09-25) Arreglar un test rehacía una build de 10-40 min.
+        self.assertTrue(R.es_prueba("src/lib/network/culture-discovery.test.ts"))
+        self.assertTrue(R.es_prueba("src/lib/mando/__tests__/memorias.ts"))
+        self.assertTrue(R.es_prueba("src/components/boton.stories.tsx"))
+        self.assertFalse(R.es_prueba("src/lib/test-utils.ts"))
+        self.assertFalse(R.es_prueba("src/components/mando/panel-memorias.tsx"))
+        raiz = tempfile.mkdtemp()
+        try:
+            os.makedirs(os.path.join(raiz, "src", "lib", "__tests__"))
+            for rel in ("src/lib/a.ts", "src/lib/a.test.ts", "src/lib/__tests__/b.ts"):
+                open(os.path.join(raiz, rel), "w").close()
+            self.assertEqual([e[0] for e in R._entradas(raiz)], [os.path.join("src", "lib", "a.ts")])
+        finally:
+            shutil.rmtree(raiz)
+
 
 class LoEditadoDuranteLaBuildNoSePierde(unittest.TestCase):
     """(2026-09-23) Un archivo editado mientras compilaba debe contar como más nuevo."""

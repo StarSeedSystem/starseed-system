@@ -343,10 +343,18 @@ def necesita_build(base="origin/main"):
     rutas = [l.strip() for l in (salida or "").splitlines() if l.strip()]
     if not rutas:
         return False, "no hay nada nuevo respecto a origin/main"
+    # (2026-09-25) Las pruebas no se sirven: arreglar un test no merece 10-40 min de build
+    # (tsc y vitest ya las cubren en sus puertas). Misma regla que el reconstructor.
+    try:
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        from reconstruir_mando import es_prueba
+    except Exception:
+        def es_prueba(_r):
+            return False
     servidas = [
         r
         for r in rutas
-        if r.startswith(("src/", "public/", "supabase/"))
+        if (r.startswith(("src/", "public/", "supabase/")) and not es_prueba(r))
         or r in ("next.config.ts", "next.config.js", "package.json", "tailwind.config.ts", "tsconfig.json")
     ]
     if servidas:
