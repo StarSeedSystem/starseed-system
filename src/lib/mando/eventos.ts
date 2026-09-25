@@ -64,11 +64,15 @@ export async function cargarEventos(desdeId = 0, limite = 200): Promise<EventoRe
         const supabase = createClient();
         // `gt`/`gte` frente a `desdeId` no es seguro con 0 (devuelve todo), por eso
         // solo aplicamos el filtro cuando hay un id real desde el que continuar.
+        // (2026-09-25) Sin `latido` ni `tunel`: cada latido lleva la foto entera del enjambre
+        // (~7 KB) y, repetidos en cada sondeo del navegador, eran parte del tráfico que agotó
+        // la cuota de Supabase. Aquí se muestran sucesos, no fotos; y nunca más de 300.
         let consulta = supabase
             .from("relevo_eventos")
             .select("id, t, quien, tipo, tarea, texto, datos")
+            .not("tipo", "in", "(latido,tunel)")
             .order("id", { ascending: false })
-            .limit(limite);
+            .limit(Math.max(1, Math.min(300, limite)));
 
         if (desdeId > 0) {
             consulta = consulta.gte("id", desdeId);

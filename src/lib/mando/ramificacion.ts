@@ -32,6 +32,7 @@ import { idEnAsuntos } from "@/lib/mando/medidores";
 import { clasificar } from "@/lib/mando/reintento-inteligente";
 import type { FotoEnjambre, LatidoTarea, TareaOla } from "@/lib/mando/tipos";
 import { raizDelProyecto } from "@/lib/mando/raiz";
+import { filasRecientes } from "@/lib/mando/bus-remoto";
 
 /**
  * Segundos sin avance a partir de los cuales un latido deja de contar como «en curso».
@@ -364,37 +365,14 @@ interface FilaBus {
     datos: unknown;
 }
 
-/** Eventos del bus de las últimas `horas` horas, más antiguos primero. */
+/**
+ * Eventos del bus de las últimas `horas` horas, más antiguos primero.
+ * (2026-09-25) Sale de la memoria compartida del bus (`bus-remoto.ts`): antes cada llamada
+ * pedía 30 días y 2000 filas a Supabase (~10 MB) y agotó la cuota de tráfico del proyecto.
+ */
 async function leerBus(horas: number): Promise<FilaBus[]> {
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const clave = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    if (!url || !clave) return [];
-    try {
-        const desde = new Date(Date.now() - horas * 3600 * 1000).toISOString();
-        const tipos = TIPOS_BUS.join(",");
-        const r = await fetch(
-            `${url}/rest/v1/relevo_eventos?select=id,t,quien,tipo,tarea,texto,datos&tipo=in.(${tipos})&t=gte.${encodeURIComponent(desde)}&order=id.desc&limit=2000`,
-            { headers: { apikey: clave, Authorization: `Bearer ${clave}` }, cache: "no-store", signal: AbortSignal.timeout(3000) },
-        );
-        if (!r.ok) return [];
-        const filas = (await r.json()) as unknown;
-        return Array.isArray(filas)
-            ? (filas as unknown[]).map((f) => {
-                  const d = objeto(f);
-                  return {
-                      id: número(d.id, 0),
-                      t: texto(d.t),
-                      quien: texto(d.quien),
-                      tipo: texto(d.tipo),
-                      tarea: texto(d.tarea),
-                      texto: texto(d.texto),
-                      datos: d.datos,
-                  };
-              }).reverse()
-            : [];
-    } catch {
-        return [];
-    }
+    const filas = await filasRecientes(TIPOS_BUS, horas * 3600 * 1000);
+    return filas.slice(0, 2000).reverse();
 }
 
 /** Nivel de cada tarea por dependencias (0 = raíz); los ciclos se cortan en 0. */

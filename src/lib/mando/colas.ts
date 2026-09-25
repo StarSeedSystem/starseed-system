@@ -24,6 +24,7 @@ import { mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
 import { raizDelProyecto } from "@/lib/mando/raiz";
+import { filasRecientes } from "@/lib/mando/bus-remoto";
 import {
     clasificar,
     reencolar,
@@ -182,17 +183,10 @@ export async function leerColasCompletas(): Promise<ColaCompleta[]> {
 
 /** Colas publicadas por los orquestadores en sus eventos «arranque» (últimos 30 días). */
 async function colasDelBus(): Promise<ColaCompleta[]> {
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const clave = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    if (!url || !clave) return [];
     try {
-        const desde = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString();
-        const r = await fetch(
-            `${url}/rest/v1/relevo_eventos?select=t,datos&tipo=eq.arranque&t=gte.${encodeURIComponent(desde)}&order=id.desc&limit=200`,
-            { headers: { apikey: clave, Authorization: `Bearer ${clave}` }, cache: "no-store", signal: AbortSignal.timeout(800) },
-        );
-        if (!r.ok) return [];
-        const filas = (await r.json()) as Array<{ t: string; datos: unknown }>;
+        // (2026-09-25) De la memoria compartida del bus: pedir 200 `arranque` enteros cada vez
+        // era parte del tráfico que agotó la cuota de Supabase.
+        const filas = (await filasRecientes(["arranque"], 30 * 24 * 3600 * 1000)).slice(0, 200);
         const vistas = new Map<string, ColaCompleta>();
         for (const f of filas) {
             const d = objeto(f.datos);
@@ -315,26 +309,17 @@ async function buscarLatidosFrescosTarea(
         }
     } catch { /* ignorar directorio */ }
 
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const clave = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    if (url && clave) {
-        try {
-            const r = await fetch(
-                `${url}/rest/v1/relevo_eventos?select=t,datos&tipo=eq.latido&t=gte.${encodeURIComponent(new Date(ahoraMs - umbralMs).toISOString())}&order=id.desc&limit=100`,
-                { headers: { apikey: clave, Authorization: `Bearer ${clave}` }, cache: "no-store", signal: AbortSignal.timeout(800) }
-            );
-            if (r.ok) {
-                for (const f of (await r.json()) as Array<{ t: string; datos: unknown }>) {
-                    const tMs = new Date(f.t).getTime();
-                    if (ahoraMs - tMs > umbralMs) continue;
-                    const d = typeof f.datos === "object" && f.datos !== null ? (f.datos as Record<string, unknown>) : {};
-                    const nombreCola = typeof d.cola === "string" ? d.cola.replace(/^cola-/, "").replace(/\.json$/, "") : "";
-                    const tareasObj = typeof d.tareas === "object" && d.tareas !== null ? (d.tareas as Record<string, unknown>) : {};
-                    if (nombreCola && tareasObj[tareaId]) agregar(nombreCola, tMs);
-                }
-            }
-        } catch { /* ignorar red */ }
-    }
+    // (2026-09-25) Latidos del bus desde la memoria compartida (sin pedir la foto cada vez).
+    try {
+        for (const f of (await filasRecientes(["latido"], umbralMs, ahoraMs)).slice(0, 100)) {
+            const tMs = new Date(f.t).getTime();
+            if (ahoraMs - tMs > umbralMs) continue;
+            const d = typeof f.datos === "object" && f.datos !== null ? (f.datos as Record<string, unknown>) : {};
+            const nombreCola = typeof d.cola === "string" ? d.cola.replace(/^cola-/, "").replace(/\.json$/, "") : "";
+            const tareasObj = typeof d.tareas === "object" && d.tareas !== null ? (d.tareas as Record<string, unknown>) : {};
+            if (nombreCola && tareasObj[tareaId]) agregar(nombreCola, tMs);
+        }
+    } catch { /* ignorar red */ }
     return latidos;
 }
 

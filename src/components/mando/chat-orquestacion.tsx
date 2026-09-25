@@ -21,7 +21,8 @@ import type { EventoRelevo } from "@/lib/mando/tipos";
 import { ChatAgentePuente } from "@/components/mando/chat-agente-puente";
 
 /** Intervalo de sondeo del bus (ms). */
-const SONDA_MS = 15_000;
+// (2026-09-25) 45 s y nunca con la pestaña oculta: cada sondeo son 100 filas del bus de Supabase.
+const SONDA_MS = 45_000;
 
 /** Formatea una fecha ISO a hora local corta. */
 function horaCorta(fecha: string): string {
@@ -84,6 +85,7 @@ export function ChatOrquestacion() {
     useEffect(() => {
         void recargar();
         sondeo.current = setInterval(() => {
+            if (typeof document !== "undefined" && document.hidden) return;
             void recargar();
         }, SONDA_MS);
         return () => {

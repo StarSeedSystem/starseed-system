@@ -32,6 +32,7 @@ import type {
 } from "@/lib/mando/tipos";
 import { idEnAsuntos } from "@/lib/mando/medidores";
 import { raizDelProyecto } from "@/lib/mando/raiz";
+import { filasRecientes } from "@/lib/mando/bus-remoto";
 import { parsearVeredictos, type ListaVeredictos } from "@/lib/mando/veredictos";
 
 /** Raíz del repositorio (en Next.js `process.cwd()` apunta al proyecto). */
@@ -409,24 +410,11 @@ export function colaInteligente(
  * corre, y los agentes de la nube «no aparecían».
  */
 export async function leerLatidosDelBus(): Promise<{ latidos: LatidoTarea[]; enjambres: FotoEnjambre[] }> {
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const clave = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    if (!url || !clave) return { latidos: [], enjambres: [] };
-    let filas: Array<{ t: string; tipo: string; texto: string; datos: unknown }> = [];
-    try {
-        const desde = new Date(Date.now() - 4 * 60 * 1000).toISOString();
-        // También `cola_terminada` y `detenida`: un latido de hace 3 min con «P2 escribiendo»
-        // ya no vale si después la cola terminó o la pararon (el orquestador muerto no
-        // publica más latidos, y la ventana de 4 min lo dejaba «en curso» hasta caducar).
-        const r = await fetch(
-            `${url}/rest/v1/relevo_eventos?select=t,tipo,texto,datos&tipo=in.(latido,cola_terminada,detenida)&t=gte.${encodeURIComponent(desde)}&order=id.desc&limit=60`,
-            { headers: { apikey: clave, Authorization: `Bearer ${clave}` }, cache: "no-store", signal: AbortSignal.timeout(3000) },
-        );
-        if (!r.ok) return { latidos: [], enjambres: [] };
-        filas = (await r.json()) as typeof filas;
-    } catch {
-        return { latidos: [], enjambres: [] };
-    }
+    // También `cola_terminada` y `detenida`: un latido de hace 3 min con «P2 escribiendo»
+    // ya no vale si después la cola terminó o la pararon (el orquestador muerto no
+    // publica más latidos, y la ventana de 4 min lo dejaba «en curso» hasta caducar).
+    // (2026-09-25) Desde la memoria compartida del bus: solo se piden a Supabase las filas nuevas.
+    const filas = (await filasRecientes(["latido", "cola_terminada", "detenida"], 4 * 60 * 1000)).slice(0, 60);
     // Un latido por (donde, cola): el más reciente manda; si lo más reciente de esa cola es
     // su cierre, no hay nada vivo que mostrar.
     const vistos = new Set<string>();
@@ -492,19 +480,12 @@ export async function leerLatidosDelBus(): Promise<{ latidos: LatidoTarea[]; enj
  * «Últimos eventos» se quedaba en las notas de hace dos días mientras la nube integraba.
  */
 export async function leerEventosDelBus(limite = 20): Promise<EventoRelevo[]> {
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const clave = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    if (!url || !clave) return [];
     try {
-        const desde = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
-        const r = await fetch(
-            `${url}/rest/v1/relevo_eventos?select=id,t,quien,tipo,tarea,texto,datos&tipo=not.in.(latido,tunel,paso)&t=gte.${encodeURIComponent(desde)}&order=id.desc&limit=${Math.max(1, Math.min(100, limite))}`,
-            { headers: { apikey: clave, Authorization: `Bearer ${clave}` }, cache: "no-store", signal: AbortSignal.timeout(3000) },
-        );
-        if (!r.ok) return [];
-        const filas = (await r.json()) as unknown;
-        if (!Array.isArray(filas)) return [];
-        return (filas as unknown[]).map((f) => {
+        // (2026-09-25) Desde la memoria compartida del bus (dieta de tráfico de Supabase).
+        const filas = (await filasRecientes(null, 24 * 3600 * 1000))
+            .filter((f) => f.tipo !== "latido" && f.tipo !== "tunel" && f.tipo !== "paso")
+            .slice(0, Math.max(1, Math.min(100, limite)));
+        return filas.map((f) => {
             const d = objeto(f);
             const datos = objeto(d.datos);
             const donde = texto(datos.donde);
