@@ -3,7 +3,10 @@ import { describe, it, expect } from "vitest";
 import { fechaRelativaEs, proximoEvento } from "@/lib/network/culture-discovery";
 import type { OsEvent } from "@/lib/os-social";
 
-const AHORA = 1_700_000_000_000; // fecha de referencia fija para los tests
+// Fecha de referencia fija EN HORA LOCAL (10:00): «hoy/mañana» se cuentan en el día local,
+// así que un instante UTC fijo (antes 1_700_000_000_000 = 22:13 UTC) daba «mañana» en la CI
+// (UTC) y «hoy» en la Mac: la CI de la web estaba en rojo solo por la zona horaria.
+const AHORA = new Date(2023, 10, 14, 10, 0).getTime();
 const DIA_MS = 24 * 60 * 60 * 1000;
 
 /** Construye un evento REAL mínimo con la fecha dada en ms. */
