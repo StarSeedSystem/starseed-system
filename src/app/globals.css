@@ -3649,7 +3649,8 @@ html[data-perf="eco"] *:not(input):not(textarea) {
    oculta: la ventana emergente recupera la pantalla completa. */
 body[data-ss-modal="1"] [class*="trinity-fab_"],
 body[data-ss-modal="1"] [class*="trinity-edge-access_"],
-body[data-ss-modal="1"] [class*="trinity-curtains_"],
+body[data-ss-modal="1"] [data-tirador-cortina],
+body[data-ss-modal="1"] [data-trinity-sensor],
 body[data-ss-modal="1"] [aria-label="Abrir la guía de StarSeed"] {
   opacity: 0 !important;
   pointer-events: none !important;
@@ -3667,4 +3668,18 @@ html[data-rito="1"] [data-command-palette],
 html[data-rito="1"] [data-trinity-curtain] {
   pointer-events: none !important;
   opacity: 0 !important;
+}
+
+/* ── Gestos del OS en pantallas táctiles (2026-09-25) ───────────────────────
+   Las cortinas Trinity se abren deslizando desde los bordes. Con puntero
+   táctil, Chrome convertía ese mismo deslizamiento horizontal en «atrás» /
+   «adelante» del historial (flecha lateral) y la página se iba. En el OS el
+   borde es de Trinity: se desactiva la navegación por arrastre horizontal del
+   navegador (los botones «atrás» del sistema y del navegador siguen igual).
+   Con ratón no se toca nada: el gesto de dos dedos del trackpad sigue siendo
+   del navegador fuera de las cortinas. */
+@media (any-pointer: coarse) {
+  html {
+    overscroll-behavior-x: none;
+  }
 }

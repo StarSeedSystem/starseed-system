@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
-    Settings, Sliders, Home, Bell, Maximize2, Minimize2, Monitor, X,
+    Settings, Sliders, Home, Bell, Maximize2, Minimize2, Monitor,
     SlidersHorizontal, ArrowUp, ArrowDown, Eye, EyeOff, RotateCcw,
     ChevronUp, ChevronDown, Wifi,
 } from "lucide-react";
@@ -18,6 +18,8 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { usePerimeter } from "@/context/perimeter-context";
 import { useFullscreen } from "@/hooks/useFullscreen";
+import { BotonCerrar } from "@/components/ui/boton-cerrar";
+import { usePanelCortina } from "./panel-cortina";
 import { useAppearance } from "@/context/appearance-context";
 import { CONTROL_CENTER_NAVIGATE_EVENT, type ControlCenterNavigateDetail } from "./control-center-events";
 
@@ -102,8 +104,12 @@ export function ControlCenter() {
         return () => window.removeEventListener(CONTROL_CENTER_NAVIGATE_EVENT, onNavigate);
     }, [visibleModules]);
 
+    // Dentro de la cortina Logic cierra con su animación (la misma que el gesto);
+    // montado suelto (pruebas, otras superficies) cae al cierre directo.
+    const panel = usePanelCortina();
     const handleClose = () => {
-        setActiveEdge(null);
+        if (panel) panel.cerrar();
+        else setActiveEdge(null);
     };
 
     const moveModule = useCallback((id: string, dir: -1 | 1) => {
@@ -175,17 +181,16 @@ export function ControlCenter() {
     }, [activeTab, editorOpen, updateScrollHints]);
 
     return (
-        <motion.div
-            initial={{ opacity: 0, x: 20, scale: 0.95, filter: "blur(10px)" }}
-            animate={{ opacity: 1, x: 0, scale: 1, filter: "blur(0px)" }}
-            exit={{ opacity: 0, x: 20, scale: 0.95, filter: "blur(10px)" }}
-            transition={{ type: "spring", stiffness: 300, damping: 30 }}
+        // (2026-09-25) Ya no anima por su cuenta: la cortina Logic (PanelCortina)
+        // lo desliza y lo inclina. Su vieja entrada con `filter: blur()` dejaba un
+        // filtro fijo en el panel que rompía el cristal de sus hijos.
+        <div
+            data-testid="control-center"
             className={cn(
                 "bg-black/80 backdrop-blur-3xl border border-white/10 overflow-hidden shadow-2xl flex flex-col pointer-events-auto relative ring-1 ring-white/5",
-                // Móvil: rellena el contenedor fullscreen del SideCurtains (antes era
-                // `fixed inset-0`, que caía en la trampa del containing block del
-                // transform padre y quedaba fuera de pantalla — ver SOP Bloque 3).
-                "w-full h-full rounded-none",
+                // Rellena el panel de la cortina en todos los tamaños: el panel decide
+                // el ancho y el alto según la pantalla (side-curtains.tsx).
+                "w-full h-full rounded-[inherit]",
                 // ── C2 · Adenda 66 §14 (regla Adenda 63 §15) ───────────────────────
                 // ANTES: `md:h-[600px]` / `lg:h-[640px]` eran alturas FIJAS sin tope de
                 // viewport. El wrapper del SideCurtains centra este panel con flexbox
@@ -200,8 +205,6 @@ export function ControlCenter() {
                 // ya descuenta las safe-areas). El panel nunca excede el viewport, así
                 // que nunca se corta; lo que no cabe se resuelve con el scroll interno.
                 "min-h-0 max-h-full",
-                "md:w-[420px] md:h-[600px] md:rounded-[2rem]",
-                "lg:w-[460px] lg:h-[640px]"
             )}
         >
             {/* Ambient Background Glow */}
@@ -228,7 +231,7 @@ export function ControlCenter() {
                         size="icon"
                         onClick={() => setEditorOpen((v) => !v)}
                         className={cn(
-                            "w-8 h-8 rounded-xl hover:bg-white/10 text-white/50 hover:text-white transition-all",
+                            "w-8 h-8 [@media(pointer:coarse)]:w-11 [@media(pointer:coarse)]:h-11 rounded-xl hover:bg-white/10 text-white/50 hover:text-white transition-all",
                             editorOpen && "bg-white/10 text-white"
                         )}
                         title="Reordenar u ocultar módulos"
@@ -241,21 +244,21 @@ export function ControlCenter() {
                             variant="ghost"
                             size="icon"
                             onClick={toggleFullscreen}
-                            className="w-8 h-8 rounded-xl hover:bg-white/10 text-white/50 hover:text-white transition-all"
+                            className="w-8 h-8 [@media(pointer:coarse)]:w-11 [@media(pointer:coarse)]:h-11 rounded-xl hover:bg-white/10 text-white/50 hover:text-white transition-all"
                             title={isFullscreen ? "Salir pantalla completa" : "Pantalla completa del programa"}
                         >
                             {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
                         </Button>
                     )}
-                    <Button
-                        variant="ghost"
-                        size="icon"
+                    {/* X común, visible en TODOS los tamaños y alineada con los demás
+                        controles (antes solo en móvil; en escritorio flotaba fuera del panel). */}
+                    <BotonCerrar
+                        etiqueta="Cerrar el Centro de Control"
+                        acento="#f59e0b"
+                        atajo="Esc"
+                        className="ml-1"
                         onClick={handleClose}
-                        className="w-8 h-8 rounded-xl hover:bg-red-500/10 text-white/50 hover:text-red-400 transition-all md:hidden"
-                        title="Cerrar"
-                    >
-                        <X className="w-3.5 h-3.5" />
-                    </Button>
+                    />
                 </div>
             </div>
 
@@ -426,7 +429,7 @@ export function ControlCenter() {
                 </div>
                 <span className="text-[9px] font-mono text-white/20 shrink-0">v0.1α</span>
             </div>
-        </motion.div>
+        </div>
     );
 }
 

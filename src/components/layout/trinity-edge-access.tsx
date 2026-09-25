@@ -12,9 +12,16 @@
  *      orilla (color cardinal). Un toque abre/cierra ese menú. Longitud,
  *      grosor y opacidad en reposo se ajustan en Ajustes → Trinity.
  *
- *   2) DESLIZAR DESDE LA ORILLA — empezar el dedo en los ~24px del borde y
- *      arrastrar hacia dentro: superado el umbral, el menú se abre con un
- *      destello de confirmación. Umbral configurable.
+ *   2) DESLIZAR DESDE LA ORILLA — empezar el dedo en los ~28px del borde y
+ *      arrastrar hacia dentro: en cuanto el gesto demuestra intención (unos
+ *      10 px, en la dirección del eje) la cortina aparece BAJO EL DEDO y lo
+ *      sigue 1:1; al soltar se queda abierta si se recorrió la «sensibilidad»
+ *      configurada o si hubo latigazo, y si no vuelve a su borde
+ *      (src/lib/gestos/sesion-borde.ts + useArrastrePanel).
+ *
+ * Se escucha con Touch Events PASIVOS en window: nunca bloquean ni retrasan
+ * el desplazamiento de la página. Las asas, además, aceptan arrastre con
+ * ratón o lápiz (Pointer Events) para quien usa una tableta con puntero.
  *
  * No duplica lógica: ambas vías hacen toggle con el MISMO
  * `usePerimeter().setActiveEdge` que usan los sensores de ratón, el
@@ -30,6 +37,19 @@ import { useAppearance } from "@/context/appearance-context";
 import { cn } from "@/lib/utils";
 import { useRitoActivo } from "@/lib/ui/rito-activo";
 import { detectEdgeGesture } from "@/lib/layout/edge-utils";
+import {
+    cancelarSesionBorde,
+    ejeDe,
+    evaluarIntencion,
+    iniciarSesionBorde,
+    instanteDeEvento,
+    ladoDeBorde,
+    moverSesionBorde,
+    signoCierre,
+    soltarSesionBorde,
+    type Muestra,
+} from "@/lib/gestos";
+import { useArrastreDesdeBorde } from "@/hooks/use-arrastre-desde-borde";
 import styles from "./trinity-edge-access.module.css";
 
 type Edge = Exclude<PerimeterEdge, null>;
@@ -41,8 +61,8 @@ const EDGE_META: Record<Edge, { side: "top" | "bottom" | "left" | "right"; color
     logic: { side: "right", color: "#FFBF00", label: "Logic · Centro de control" },
 };
 
-const EDGE_HOTZONE_PX = 24; // banda desde la orilla donde nace el deslizamiento
-const SWIPE_CANCEL_PERP = 0.6; // si el gesto es demasiado paralelo al borde, no abre
+const EDGE_HOTZONE_PX = 28; // banda desde la orilla donde nace el deslizamiento
+const INTENCION_TACTIL_PX = 10; // lo que el dedo recorre antes de «agarrar» la cortina
 
 interface EdgeAccessConfig {
     mode: "auto" | "on" | "off";
@@ -109,10 +129,15 @@ export function TrinityEdgeAccess() {
     // ── Deslizamiento desde cada orilla ─────────────────────────────
     const gestureRef = useRef<{
         edge: Edge;
-        startX: number;
-        startY: number;
-        fired: boolean;
+        inicio: Muestra;
+        activo: boolean;
     } | null>(null);
+
+    // Asas: arrastre con ratón o lápiz (el dedo lo gestionan los Touch Events de abajo).
+    const { manejadoresPara } = useArrastreDesdeBorde({
+        abrir: (b) => setActiveEdge(b),
+        umbralAperturaPx: cfg.swipeThreshold,
+    });
 
     useEffect(() => {
         if (!enabled) return;
@@ -135,6 +160,14 @@ export function TrinityEdgeAccess() {
             });
         };
 
+        // Instante real del toque (timeStamp), no el de cuando se atiende: con el hilo
+        // principal ocupado un latigazo se mediría como un arrastre lento.
+        const muestra = (t: Touch, e: TouchEvent): Muestra => ({
+            x: t.clientX,
+            y: t.clientY,
+            t: instanteDeEvento(e.timeStamp, performance.now()),
+        });
+
         const onStart = (e: TouchEvent) => {
             if (gestureRef.current) return;
             if (activeRef.current) return; // ya hay un menú abierto
@@ -142,45 +175,61 @@ export function TrinityEdgeAccess() {
             const t = e.touches[0];
             const edge = detectEdge(t.clientX, t.clientY);
             if (!edge) return;
-            gestureRef.current = { edge, startX: t.clientX, startY: t.clientY, fired: false };
+            gestureRef.current = { edge, inicio: muestra(t, e), activo: false };
         };
 
         const onMove = (e: TouchEvent) => {
             const g = gestureRef.current;
-            if (!g || g.fired) return;
+            if (!g) return;
             const t = e.touches[0];
             if (!t) return;
-            const dx = t.clientX - g.startX;
-            const dy = t.clientY - g.startY;
-            const meta = EDGE_META[g.edge];
-            let inward = 0, perp = 0;
-            if (meta.side === "top") { inward = dy; perp = Math.abs(dx); }
-            else if (meta.side === "bottom") { inward = -dy; perp = Math.abs(dx); }
-            else if (meta.side === "left") { inward = dx; perp = Math.abs(dy); }
-            else { inward = -dx; perp = Math.abs(dy); } // right
-            if (inward <= 0) return;
-            // gesto demasiado paralelo al borde → probablemente scroll, no abrir
-            if (perp > inward && perp > inward * (1 + SWIPE_CANCEL_PERP)) { gestureRef.current = null; return; }
-            if (inward >= cfgRef.current.swipeThreshold) {
-                g.fired = true;
-                setActiveEdge(g.edge);
-                try { (navigator as any).vibrate?.(8); } catch { /* opcional */ }
-                setGhost({ edge: g.edge, x: t.clientX, y: t.clientY });
-                window.setTimeout(() => setGhost(null), 520);
+            const m = muestra(t, e);
+            if (g.activo) {
+                moverSesionBorde(m);
+                return;
             }
+            // Intención: hacia DENTRO de la pantalla y alineado con el eje de la
+            // cortina; un gesto paralelo al borde es desplazamiento de la página.
+            const lado = ladoDeBorde(g.edge);
+            const r = evaluarIntencion(ejeDe(lado), m.x - g.inicio.x, m.y - g.inicio.y, {
+                umbralPx: INTENCION_TACTIL_PX,
+                anguloMaxGrados: 40,
+                soloHacia: (-signoCierre(lado)) as 1 | -1,
+            });
+            if (r === "pendiente") return;
+            if (r === "rechazada") { gestureRef.current = null; return; }
+            g.activo = true;
+            iniciarSesionBorde(g.edge, m, cfgRef.current.swipeThreshold);
+            setActiveEdge(g.edge);
+            try { (navigator as Navigator & { vibrate?: (p: number) => boolean }).vibrate?.(8); } catch { /* opcional */ }
+            setGhost({ edge: g.edge, x: t.clientX, y: t.clientY });
+            window.setTimeout(() => setGhost(null), 520);
         };
 
-        const onEnd = () => { gestureRef.current = null; };
+        const onEnd = (e: TouchEvent) => {
+            const g = gestureRef.current;
+            gestureRef.current = null;
+            if (!g?.activo) return;
+            const t = e.changedTouches[0];
+            soltarSesionBorde(t ? muestra(t, e) : undefined);
+        };
+
+        const onCancel = () => {
+            const g = gestureRef.current;
+            gestureRef.current = null;
+            // El sistema (gesto «atrás», centro de control…) se quedó el dedo: la cortina vuelve.
+            if (g?.activo) cancelarSesionBorde();
+        };
 
         window.addEventListener("touchstart", onStart, { passive: true });
         window.addEventListener("touchmove", onMove, { passive: true });
         window.addEventListener("touchend", onEnd, { passive: true });
-        window.addEventListener("touchcancel", onEnd, { passive: true });
+        window.addEventListener("touchcancel", onCancel, { passive: true });
         return () => {
             window.removeEventListener("touchstart", onStart);
             window.removeEventListener("touchmove", onMove);
             window.removeEventListener("touchend", onEnd);
-            window.removeEventListener("touchcancel", onEnd);
+            window.removeEventListener("touchcancel", onCancel);
         };
     }, [enabled, setActiveEdge]);
 
@@ -197,8 +246,8 @@ export function TrinityEdgeAccess() {
     const handleStyle = (edge: Edge): React.CSSProperties => {
         const { side, color } = EDGE_META[edge];
         const common: React.CSSProperties = {
-            ["--pc" as any]: color,
-            ["--rest-opacity" as any]: String(cfg.handleOpacity),
+            ["--pc" as string]: color,
+            ["--rest-opacity" as string]: String(cfg.handleOpacity),
         };
         if (side === "top") return { ...common, top: "max(6px, env(safe-area-inset-top,0px))", left: "50%", transform: "translateX(-50%)", width: len, height: thick };
         if (side === "bottom") return { ...common, bottom: "max(6px, env(safe-area-inset-bottom,0px))", left: "50%", transform: "translateX(-50%)", width: len, height: thick };
@@ -220,13 +269,7 @@ export function TrinityEdgeAccess() {
                         className={cn(styles.handle, activeEdge === edge && styles.handleActive, "cursor-pointer")}
                         style={handleStyle(edge)}
                         onClick={() => toggle(edge)}
-                        onPointerDown={(e) => {
-                            try {
-                                (e.currentTarget as Element).setPointerCapture(e.pointerId);
-                            } catch {
-                                /* noop */
-                            }
-                        }}
+                        {...manejadoresPara(edge)}
                     >
                         <span className={styles.pill} aria-hidden />
                     </button>
@@ -237,7 +280,7 @@ export function TrinityEdgeAccess() {
                 <span
                     className={styles.swipeGhost}
                     style={{
-                        ["--pc" as any]: EDGE_META[ghost.edge].color,
+                        ["--pc" as string]: EDGE_META[ghost.edge].color,
                         left: ghost.x - 40,
                         top: ghost.y - 40,
                         width: 80,

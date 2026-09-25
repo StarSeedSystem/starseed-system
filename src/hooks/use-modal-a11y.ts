@@ -69,6 +69,13 @@ export interface UseModalA11yOptions {
      * Por defecto `true`.
      */
     closeOnEscape?: boolean;
+    /**
+     * Dónde poner el foco al abrir. "first" (por defecto): primer elemento
+     * enfocable. "container": el propio contenedor, sin saltar a ningún botón
+     * — para paneles cuyo contenido enfoca su propio campo (el chat del
+     * Exocórtex) o donde enfocar la X invitaría a cerrar sin querer con Intro.
+     */
+    initialFocus?: "first" | "container";
 }
 
 /**
@@ -77,7 +84,7 @@ export interface UseModalA11yOptions {
  * el comportamiento de teclado y foco (foco inicial, trampa de Tab, cierre
  * con Escape y devolución de foco al cerrar).
  */
-export function useModalA11y({ open, onClose, containerRef, closeOnEscape = true }: UseModalA11yOptions): void {
+export function useModalA11y({ open, onClose, containerRef, closeOnEscape = true, initialFocus = "first" }: UseModalA11yOptions): void {
     const previouslyFocusedRef = useRef<HTMLElement | null>(null);
 
     // Foco inicial al abrir + devolución de foco al cerrar/desmontar.
@@ -88,7 +95,13 @@ export function useModalA11y({ open, onClose, containerRef, closeOnEscape = true
         previouslyFocusedRef.current = (document.activeElement as HTMLElement | null) ?? null;
 
         const container = containerRef.current;
-        if (container) {
+        if (container && initialFocus === "container") {
+            // Si el contenido ya enfocó algo suyo (p. ej. su campo de texto), se respeta.
+            if (!container.contains(document.activeElement)) {
+                if (!container.hasAttribute("tabindex")) container.tabIndex = -1;
+                container.focus({ preventScroll: true });
+            }
+        } else if (container) {
             const firstFocusable = container.querySelector<HTMLElement>(FOCUSABLE_SELECTOR);
             if (firstFocusable) {
                 firstFocusable.focus();
@@ -135,6 +148,10 @@ export function useModalA11y({ open, onClose, containerRef, closeOnEscape = true
             // su propio ciclo de foco.
             try {
                 if (document.querySelector('[role="alertdialog"], [data-sonner-toast], [data-radix-portal] [role="dialog"]')) return;
+                // Popover/menú de Radix abierto DESDE el panel: vive en un portal fuera
+                // del contenedor; si el foco está dentro de él, su Tab es suyo.
+                const activo = document.activeElement;
+                if (activo instanceof Element && activo.closest("[data-radix-popper-content-wrapper]")) return;
             } catch { /* */ }
 
             const container = containerRef.current;

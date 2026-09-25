@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { usePerimeter, PerimeterEdge } from "@/context/perimeter-context";
 import { cn } from "@/lib/utils";
+import { useArrastreDesdeBorde } from "@/hooks/use-arrastre-desde-borde";
 
 import { useAppearance } from "@/context/appearance-context";
 
@@ -41,6 +42,24 @@ const EdgeSensor = ({ edge, className, dwellTime = 500, size = 24, showIndicator
     const { activeEdge, setActiveEdge } = usePerimeter();
     const [isHovering, setIsHovering] = useState(false);
     const [hasTriggered, setHasTriggered] = useState(false);
+    const [arrastrando, setArrastrando] = useState(false);
+
+    // (2026-09-25) Tirar del borde con ratón o lápiz abre la cortina siguiendo al
+    // puntero; un clic quieto sigue alternándola como siempre.
+    const { manejadoresPara } = useArrastreDesdeBorde({
+        abrir: (b) => { setActiveEdge(b); setHasTriggered(true); },
+        alCambiar: setArrastrando,
+    });
+
+    // Con SU cortina abierta, el sensor se aparta: a z-9999 tapaba el canto de la
+    // cortina (su tirador y sus botones) y un toque ahí la cerraba en vez de
+    // arrastrarla. Se mantiene activo solo mientras dura su propio arrastre.
+    const apartado = activeEdge === edge && !arrastrando;
+    useEffect(() => {
+        if (!apartado) return;
+        setIsHovering(false);
+        setHasTriggered(false);
+    }, [apartado]);
 
     // Determine dynamic style based on edge type
     // Horizon/Logic (Left/Right) -> modify Width
@@ -69,7 +88,20 @@ const EdgeSensor = ({ edge, className, dwellTime = 500, size = 24, showIndicator
         setHasTriggered(false);
     };
 
+    // Tipo del último puntero que pulsó el sensor (ratón, dedo o lápiz).
+    const tipoPunteroRef = useRef<string>("mouse");
+    const manejadores = edge ? manejadoresPara(edge) : null;
+
     const handleClick = () => {
+        // Con el dedo, tocar el borde mientras OTRA cortina está abierta es «tocar
+        // fuera»: la cierra. Antes abría la del borde tocado, porque el sensor
+        // (z-9999) tapaba justo la franja de fondo que queda visible en el móvil.
+        // Con ratón se conserva el cambio directo de cortina de siempre.
+        if (activeEdge && activeEdge !== edge && tipoPunteroRef.current !== "mouse") {
+            setActiveEdge(null);
+            setHasTriggered(true);
+            return;
+        }
         if (activeEdge === edge) {
             // Closing logic: Toggle OFF
             setActiveEdge(null);
@@ -89,12 +121,20 @@ const EdgeSensor = ({ edge, className, dwellTime = 500, size = 24, showIndicator
         <motion.div
             className={cn(
                 "fixed z-[9999] hover:z-[10000]",
+                apartado && "pointer-events-none",
                 className
             )}
             style={{ ...dynamicStyle }}
+            data-trinity-edge={edge ?? undefined}
+            data-trinity-sensor={edge ?? undefined}
             onMouseEnter={() => setIsHovering(true)}
             onMouseLeave={handleMouseLeave}
             onClick={handleClick}
+            {...(manejadores ?? {})}
+            onPointerDown={(e: React.PointerEvent<HTMLDivElement>) => {
+                tipoPunteroRef.current = e.pointerType;
+                manejadores?.onPointerDown(e);
+            }}
             initial={{ opacity: 0 }}
             animate={{
                 opacity: 1,
@@ -109,7 +149,7 @@ const EdgeSensor = ({ edge, className, dwellTime = 500, size = 24, showIndicator
             <motion.div
                 className="w-full h-full bg-transparent"
                 animate={{
-                    backgroundColor: isHovering ? `rgba(${colorRgb}, 0.1)` : "transparent"
+                    backgroundColor: isHovering ? `rgba(${colorRgb}, 0.1)` : `rgba(${colorRgb}, 0)` // «transparent» no es animable: framer avisaba en cada render
                 }}
             />
             {/*

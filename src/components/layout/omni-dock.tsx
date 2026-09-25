@@ -23,6 +23,7 @@ import { useAppearance } from "@/context/appearance-context";
 import { useRitoActivo } from "@/lib/ui/rito-activo";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { TrinityFab } from "./trinity-fab";
+import { DockDeslizable } from "./dock-deslizable";
 import {
     loadDockConfig,
     saveDockConfig,
@@ -42,7 +43,7 @@ import {
 
 export function OmniDock() {
     const confirm = useConfirm();
-    const { activeEdge } = usePerimeter();
+    const { activeEdge, setActiveEdge } = usePerimeter();
     const { config } = useAppearance();
     const router = useRouter();
     const pathname = usePathname();
@@ -141,7 +142,7 @@ export function OmniDock() {
      * que espera quien usa un tablet con teclado/trackpad o un portátil.
      * Solo se intercepta `pointerType === "mouse"`: secuestrar el táctil
      * rompería el momentum nativo y el scroll-snap de iOS/Android. */
-    const drag = useRef({ active: false, startX: 0, startLeft: 0, moved: false });
+    const drag = useRef({ active: false, startX: 0, startY: 0, startLeft: 0, moved: false });
     const justDragged = useRef(false);
 
     const onPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
@@ -149,7 +150,7 @@ export function OmniDock() {
         if (e.pointerType !== "mouse" || e.button !== 0) return;
         const el = stripRef.current;
         if (!el || el.scrollWidth <= el.clientWidth) return; // si cabe todo, no hay nada que arrastrar
-        drag.current = { active: true, startX: e.clientX, startLeft: el.scrollLeft, moved: false };
+        drag.current = { active: true, startX: e.clientX, startY: e.clientY, startLeft: el.scrollLeft, moved: false };
     }, []);
 
     const onPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
@@ -159,6 +160,8 @@ export function OmniDock() {
         const dx = e.clientX - d.startX;
         if (!d.moved) {
             if (Math.abs(dx) <= 4) return; // umbral: por debajo sigue siendo un click
+            // Un arrastre VERTICAL es del dock (bajar para cerrarlo), no del carril.
+            if (Math.abs(e.clientY - d.startY) > Math.abs(dx)) { drag.current.active = false; return; }
             d.moved = true;
             el.classList.add("omni-dock-strip--dragging");
             // Capturamos el puntero: el arrastre continúa aunque el cursor salga del carril.
@@ -177,7 +180,7 @@ export function OmniDock() {
         // Si hubo arrastre REAL, el click que el navegador emite al soltar se
         // descarta (si no, soltar encima de un icono navegaría sin querer).
         justDragged.current = d.moved;
-        drag.current = { active: false, startX: 0, startLeft: 0, moved: false };
+        drag.current = { active: false, startX: 0, startY: 0, startLeft: 0, moved: false };
     }, []);
 
     const onClickCapture = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
@@ -362,13 +365,13 @@ export function OmniDock() {
         <TrinityFab />
         <AnimatePresence>
             {isVisible && (
-                <motion.div
-                    initial={{ y: "100%", opacity: 0 }}
-                    animate={{ y: "0%", opacity: 1 }}
-                    exit={{ y: "100%", opacity: 0 }}
-                    transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                // (2026-09-25) Sube siguiendo al dedo desde el borde inferior y baja
+                // arrastrándolo o con Escape: el mismo motor que las cortinas Trinity.
+                <DockDeslizable
+                    key="omnidock"
+                    gestos={dockBehavior !== "always-visible"}
+                    onCerrar={() => setActiveEdge(null)}
                     className="fixed bottom-0 left-0 right-0 z-[70] flex flex-col items-center pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:pb-8 pointer-events-none data-omnidock-root"
-                    data-omnidock="1"
                 >
                     {editMode && (
                         <div className="pointer-events-auto mb-3 w-full max-w-3xl px-4">
@@ -397,7 +400,21 @@ export function OmniDock() {
                         las flechas laterales. En <lg los items van compactos (48px, ≥44px
                         táctil); en ≥lg, diseño original.
                     */}
-                    <div className={cn(
+                    {/* Tirador: invita a bajar el dock arrastrando (o a tocarlo para cerrarlo). */}
+                    {dockBehavior !== "always-visible" && (
+                        <button
+                            type="button"
+                            tabIndex={-1}
+                            aria-hidden="true"
+                            data-agarre-panel=""
+                            data-tirador-cortina="anchor"
+                            onClick={() => setActiveEdge(null)}
+                            className="pointer-events-auto mb-1 grid h-6 w-28 cursor-grab touch-none place-items-center active:cursor-grabbing"
+                        >
+                            <span className="block h-[5px] w-12 rounded-full bg-gradient-to-r from-rose-500/70 via-red-400/90 to-rose-500/70 opacity-60 shadow-[0_0_10px_rgba(220,20,60,0.55)] transition-opacity duration-200 hover:opacity-100" />
+                        </button>
+                    )}
+                    <div data-agarre-panel="" className={cn(
                         "omni-dock-pill glass-depth glass-edge glass-sheen-slow pointer-events-auto",
                         "bg-card/40 dark:bg-black/40 backdrop-blur-3xl border border-foreground/10",
                         // En móvil un radio moderado (los extremos redondeados de
@@ -471,7 +488,9 @@ export function OmniDock() {
                             // ancho que el viewport (max-w + box-border) y con padding
                             // consciente de las safe-areas laterales (notch).
                             className={cn(
-                                "omni-dock-strip flex items-end overflow-x-auto max-w-full box-border",
+                                // touch-pan-x: el dedo desliza el carril en horizontal; el
+                                // movimiento vertical es del dock (bajarlo para cerrarlo).
+                                "omni-dock-strip flex items-end overflow-x-auto max-w-full box-border touch-pan-x",
                                 // Padding lateral mayor en móvil + scroll-padding para que el
                                 // primer/último botón queden DENTRO del marco redondeado y el
                                 // snap los alinee sin que se salgan por los lados.
@@ -570,7 +589,7 @@ export function OmniDock() {
                             />
                         </div>
                     </div>
-                </motion.div>
+                </DockDeslizable>
             )}
         </AnimatePresence>
         </>
