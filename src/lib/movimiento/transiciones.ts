@@ -79,12 +79,13 @@ export function entradaPagina(nivel: NivelMovimiento, seguro = false): EntradaAn
 /** Dirección del cambio de paso: 1 = avanzar, -1 = retroceder. */
 export type Direccion = 1 | -1;
 
-export interface EstadoPaso {
+// `type` y no `interface`: framer-motion exige firma de índice (variables CSS) en sus destinos.
+export type EstadoPaso = {
     opacity: number;
     x?: number;
     rotateY?: number;
     scale?: number;
-}
+};
 
 /**
  * Pasos de asistentes y guías (framer-motion): el paso nuevo entra girando de

@@ -414,7 +414,7 @@ export function OmniDock() {
                             <span className="block h-[5px] w-12 rounded-full bg-gradient-to-r from-rose-500/70 via-red-400/90 to-rose-500/70 opacity-60 shadow-[0_0_10px_rgba(220,20,60,0.55)] transition-opacity duration-200 hover:opacity-100" />
                         </button>
                     )}
-                    <div data-agarre-panel="" className={cn(
+                    <div data-agarre-panel="" data-ss-coreo="dock" className={cn(
                         "omni-dock-pill glass-depth glass-edge glass-sheen-slow pointer-events-auto",
                         "bg-card/40 dark:bg-black/40 backdrop-blur-3xl border border-foreground/10",
                         // En móvil un radio moderado (los extremos redondeados de
@@ -638,6 +638,7 @@ function DockItem({ icon, label, onClick, color = "neutral", active = false, bad
                 aria-current={active ? "page" : undefined}
                 title={label}
                 data-guide={guia}
+                data-ss-coreo={active ? "activo" : undefined}
                 className={cn(
                     // Contenedor de icono "cristal" unificado (misma familia que
                     // biblioteca/hub vía .ss-icon-3d--sheen: barrido especular al
@@ -671,9 +672,19 @@ function DockItem({ icon, label, onClick, color = "neutral", active = false, bad
                     )}
                 />
                 {icon}
-                {active && (
+                {active && (indicator ? (
                     <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-current shadow-[0_0_8px_currentColor]" aria-hidden />
-                )}
+                ) : (
+                    // Punto de «estás aquí» COMPARTIDO entre iconos (layoutId): al cambiar
+                    // de sección se desliza con un resorte hasta el icono nuevo en vez de
+                    // apagarse y encenderse. Con menos movimiento, MotionConfig lo coloca sin animar.
+                    <motion.span
+                        layoutId="ss-dock-aqui"
+                        transition={{ type: "spring", stiffness: 420, damping: 32 }}
+                        className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-current shadow-[0_0_8px_currentColor]"
+                        aria-hidden
+                    />
+                ))}
                 {typeof badge === "number" && badge > 0 && (
                     <span
                         aria-hidden

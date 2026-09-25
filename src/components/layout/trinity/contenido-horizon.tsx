@@ -37,7 +37,7 @@ export function ContenidoHorizon({ ir, abrirEditor }: { ir: (href: string) => vo
             <div className="relative z-10 w-full flex-1 min-h-0 flex flex-col px-6 pt-16 pb-[max(1.5rem,env(safe-area-inset-bottom))] pl-[max(1.5rem,env(safe-area-inset-left))] md:px-10 md:pt-14 text-emerald-50 overflow-y-auto overscroll-contain custom-scrollbar">
                 {/* Cabecera */}
                 <div className="flex flex-col items-center text-center gap-4 mb-10 flex-shrink-0">
-                    <div className="p-4 rounded-full bg-emerald-500/20 border border-emerald-400/30 shadow-[0_0_25px_rgba(16,185,129,0.5)]">
+                    <div data-ss-coreo="logo" className="p-4 rounded-full bg-emerald-500/20 border border-emerald-400/30 shadow-[0_0_25px_rgba(16,185,129,0.5)]">
                         <Copy className="w-8 h-8 text-emerald-300" />
                     </div>
                     <div>

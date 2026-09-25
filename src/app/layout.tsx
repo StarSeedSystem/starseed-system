@@ -90,6 +90,9 @@ import { ArranqueNucleo } from "@/components/system/arranque-nucleo";
 import { A11yBoot } from "@/components/a11y/a11y-boot";
 // Foco + anuncio aria-live al cambiar de ruta (SPA), para teclado/lector.
 import { RouteFocus } from "@/components/a11y/route-focus";
+// Entrada 3D de cada página + coreografía de logos y dock al navegar (sin
+// envolver {children}: anima con la Web Animations API y no deja transform).
+import { TransicionRutas } from "@/components/movimiento/transicion-rutas";
 // MotionConfig raíz: framer-motion respeta prefers-reduced-motion en todo el árbol.
 import { MotionConfig } from "framer-motion";
 // Receptor global de "Solicitar archivo a esta neurona" (subida universal de
@@ -227,6 +230,9 @@ export default function RootLayout({
         <A11yBoot />
         {/* Foco y anuncio de cambio de ruta (SPA) para teclado/lector. */}
         <RouteFocus />
+        {/* Transición entre páginas: solo tras navegar en el cliente (nunca en la
+            primera carga) y nunca en las rutas de consola. */}
+        <TransicionRutas />
         <ThemeProvider
           attribute="class"
           // Oscuro por defecto (Adenda 152): el OS está diseñado dark-first

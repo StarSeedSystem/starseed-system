@@ -48,7 +48,7 @@ import { marcarVozDelRito } from "@/lib/aurora/narracion-ventana";
 import { marcarRitoActivo } from "@/lib/ui/rito-activo";
 import { hablarRito, callarRito, instalarVozPropia, anticiparRito, VOZ_RITO_EVENT, type EstadoVozRito } from "@/lib/aurora/voz-rito";
 import { terminarEtapa, navegarSuave } from "@/lib/onboarding/director-rito";
-import { AnimatePresence, motion } from "framer-motion";
+import { PasoAnimado, useDireccionPaso } from "@/components/movimiento/paso-animado";
 import { PasoEscena } from "@/components/onboarding/paso-escena";
 import { AreasExplicadas } from "@/components/onboarding/areas-explicadas";
 import { StarSeedLoader } from "@/components/ui/starseed-loader";
@@ -170,6 +170,8 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
 
   const [open, setOpen] = useState(true);
   const [step, setStep] = useState(0);
+  // Sentido del último cambio de paso (avanzar/retroceder) para la transición.
+  const direccionPaso = useDireccionPaso(step);
   const [voiceStarted, setVoiceStarted] = useState(false);
 
   // invitado (sesión anónima) → puede convertir a cuenta plena añadiendo correo
@@ -759,16 +761,11 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
             vez de dejar un icono quieto. Se reinicia al cambiar de paso. */}
         <PasoEscena paso={STEPS[step].key} />
 
-        {/* contenido por paso, con transición direccional entre pasos */}
+        {/* contenido por paso, con transición direccional entre pasos: el paso
+            nuevo entra de canto (3D) desde el lado hacia el que se avanza, y al
+            volver atrás el giro se invierte (PasoAnimado · 2026-09-25). */}
         <div className="min-h-[260px]">
-          <AnimatePresence mode="wait" initial={false}>
-          <motion.div
-            key={STEPS[step].key}
-            initial={{ opacity: 0, x: 18 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -18 }}
-            transition={{ duration: 0.26, ease: "easeOut" }}
-          >
+          <PasoAnimado clave={STEPS[step].key} direccion={direccionPaso}>
           {/* 0 · Bienvenida */}
           {step === 0 && (
             <div className="space-y-5 py-1">
@@ -1248,8 +1245,7 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
               </div>
             </div>
           )}
-          </motion.div>
-          </AnimatePresence>
+          </PasoAnimado>
         </div>{/* fin del bloque de pasos */}
         </div>{/* fin del cuerpo con scroll */}
 

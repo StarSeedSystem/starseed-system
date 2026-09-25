@@ -3683,3 +3683,83 @@ html[data-rito="1"] [data-trinity-curtain] {
     overscroll-behavior-x: none;
   }
 }
+
+/* ── Movimiento del OS: resortes con profundidad 3D (2026-09-25) ────────────
+   Una sola curva «de resorte» para todo el sistema (sube rápido y se asienta
+   con un rebote mínimo). `linear()` donde exista; si no, una bezier parecida.
+   Todo respeta el bloque global de prefers-reduced-motion y data-perf="eco"
+   (duraciones a casi cero); en data-perf="mid" se usa la variante sin 3D. */
+:root {
+  --ss-curva-resorte: cubic-bezier(0.2, 0.9, 0.25, 1);
+}
+@supports (animation-timing-function: linear(0, 1)) {
+  :root {
+    --ss-curva-resorte: linear(0, 0.22 7%, 0.58 17%, 0.84 28%, 0.97 39%, 1.02 48%, 1.025 56%, 1.01 70%, 1);
+  }
+}
+
+/* Diálogos (ui/dialog y ui/alert-dialog): entran de canto desde un poco más
+   atrás y se asientan; salen hundiéndose. Los fotogramas incluyen el centrado
+   (translate -50 %) que ya traen: ningún DialogContent lo cambia. */
+@keyframes ss-dialogo-entra {
+  from { opacity: 0; transform: translate(-50%, -46%) perspective(1100px) rotateX(9deg) scale(0.94); }
+  to   { opacity: 1; transform: translate(-50%, -50%) perspective(1100px) rotateX(0deg) scale(1); }
+}
+@keyframes ss-dialogo-sale {
+  from { opacity: 1; transform: translate(-50%, -50%) perspective(1100px) rotateX(0deg) scale(1); }
+  to   { opacity: 0; transform: translate(-50%, -48.5%) perspective(1100px) rotateX(-6deg) scale(0.965); }
+}
+@keyframes ss-dialogo-entra-suave {
+  from { opacity: 0; transform: translate(-50%, -48%) scale(0.97); }
+  to   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+.ss-dialogo {
+  transform-origin: 50% 0%;
+}
+.ss-dialogo[data-state="open"] {
+  animation: ss-dialogo-entra 380ms var(--ss-curva-resorte) backwards;
+}
+.ss-dialogo[data-state="closed"] {
+  animation: ss-dialogo-sale 180ms cubic-bezier(0.4, 0, 1, 1) forwards;
+}
+html[data-perf="mid"] .ss-dialogo[data-state="open"] {
+  animation-name: ss-dialogo-entra-suave;
+  animation-duration: 240ms;
+}
+
+/* Coreografía al cambiar de página (TransicionRutas marca html[data-ss-navegando]).
+   Se animan las propiedades individuales `rotate`/`scale`/`translate`: se SUMAN
+   al transform que cada pieza ya tenga (framer-motion, Tailwind) en vez de
+   pisarlo, así nada salta de sitio. */
+@keyframes ss-coreo-logo {
+  0%   { rotate: y 0deg; scale: 1; }
+  45%  { rotate: y 200deg; scale: 1.12; }
+  100% { rotate: y 360deg; scale: 1; }
+}
+@keyframes ss-coreo-logo-suave {
+  0%, 100% { scale: 1; }
+  40%      { scale: 1.1; }
+}
+@keyframes ss-coreo-dock {
+  0%   { translate: 0 0; }
+  30%  { translate: 0 -4px; }
+  60%  { translate: 0 1px; }
+  100% { translate: 0 0; }
+}
+@keyframes ss-coreo-activo {
+  0%, 100% { scale: 1; }
+  40%      { scale: 1.16; }
+}
+html[data-ss-navegando] [data-ss-coreo="logo"] {
+  animation: ss-coreo-logo 620ms var(--ss-curva-resorte);
+}
+html[data-ss-navegando] [data-ss-coreo="dock"] {
+  animation: ss-coreo-dock 480ms var(--ss-curva-resorte);
+}
+html[data-ss-navegando] [data-ss-coreo="activo"] {
+  animation: ss-coreo-activo 520ms var(--ss-curva-resorte) 80ms;
+}
+html[data-perf="mid"][data-ss-navegando] [data-ss-coreo="logo"] {
+  animation-name: ss-coreo-logo-suave;
+  animation-duration: 360ms;
+}

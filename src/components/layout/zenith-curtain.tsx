@@ -101,7 +101,7 @@ function ContenidoZenith() {
                         estilos.agarre,
                     )}
                 >
-                    <span className="ss-icon-3d ss-tone--zenith ss-float shrink-0">
+                    <span data-ss-coreo="logo" className="ss-icon-3d ss-tone--zenith ss-float shrink-0">
                         <Globe className="w-5 h-5 md:w-6 md:h-6" />
                     </span>
                     <div className="min-w-0 flex-1">

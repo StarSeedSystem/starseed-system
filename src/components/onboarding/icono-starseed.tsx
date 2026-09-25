@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 export function IconoStarSeed({ size = 56, className }: { size?: number; className?: string }) {
   return (
     <span
+      data-ss-coreo="logo"
       className={cn("relative inline-flex items-center justify-center", className)}
       style={{ width: size + 16, height: size + 16 }}
     >

@@ -1240,6 +1240,8 @@ export function AuroraWidget() {
             }}
             aria-label="Aurora"
             data-guide="orbe"
+            // Coreografía entre páginas: al navegar, el orbe gira en 3D (globals.css).
+            data-ss-coreo="logo"
             data-aurora-state={state}
             title={!supported
               ? "Tu navegador no soporta voz · toca para opciones · clic derecho abre el chat en el Exocórtex"
