@@ -12,6 +12,7 @@
  */
 
 import { useEffect } from "react";
+import { esErrorDeVersionNueva, recargarPorVersionNueva } from "@/lib/pwa/recarga-por-version";
 
 export default function AppError({
   error,
@@ -27,6 +28,8 @@ export default function AppError({
     } catch {
       /* */
     }
+    // Una pestaña abierta antes de publicar/reconstruir pide trozos que ya no existen: se recarga sola.
+    if (esErrorDeVersionNueva(error)) recargarPorVersionNueva();
   }, [error]);
 
   return (

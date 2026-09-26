@@ -12,6 +12,7 @@
  */
 
 import { useEffect, useState } from "react";
+import { esErrorDeVersionNueva, recargarPorVersionNueva } from "@/lib/pwa/recarga-por-version";
 
 export default function GlobalError({
   error,
@@ -25,6 +26,8 @@ export default function GlobalError({
   useEffect(() => {
     // Loguea siempre al console para no perder el stack.
     console.error("[StarSeed GlobalError]", error);
+    // Una pestaña abierta antes de publicar/reconstruir pide trozos que ya no existen: se recarga sola.
+    if (esErrorDeVersionNueva(error)) recargarPorVersionNueva();
   }, [error]);
 
   const report = [

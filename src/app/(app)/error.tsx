@@ -17,6 +17,7 @@ import Link from "next/link";
 import { RotateCcw, LayoutDashboard, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { esErrorDeVersionNueva, recargarPorVersionNueva } from "@/lib/pwa/recarga-por-version";
 
 export default function AppError({
   error,
@@ -28,6 +29,8 @@ export default function AppError({
   useEffect(() => {
     // Log al console para no perder trazabilidad (no se expone al usuario).
     console.error("[StarSeed OS] Error de ruta:", error);
+    // Una pestaña abierta antes de publicar/reconstruir pide trozos que ya no existen: se recarga sola.
+    if (esErrorDeVersionNueva(error)) recargarPorVersionNueva();
   }, [error]);
 
   const isDev = process.env.NODE_ENV === "development";

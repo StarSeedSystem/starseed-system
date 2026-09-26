@@ -31,6 +31,7 @@ import { readRouteLog, getIntelligenceSettings, saveIntelligenceSettings, type R
 import { estadoEntonacion, reflexionarEntonacion, EVENTO_ENTONACION, type DecisionEntonacion } from "@/lib/aurora/agente-entonacion";
 import { TIMBRES, fijarTimbre } from "@/lib/aurora/timbres";
 import { MOTORES_VOZ } from "@/lib/aurora/catalogo-voces";
+import { PanelCapas } from "@/components/astraura/capas/panel-capas";
 
 /* ── Uso por fuente/modelo (tokens, contexto) ─────────────────────────────── */
 
@@ -134,6 +135,15 @@ export function InteligenciaSection({ compact = false }: { compact?: boolean }) 
 
     return (
         <div className="space-y-3">
+            {/* ── Astraura 1.58 · capas de conciencia (Ola 365): lo primero de la Inteligencia,
+                 en la misma ventana que abre «Configurar Astraura & OmniVoice» desde cada chat ── */}
+            <section aria-label="Astraura 1.58 · capas de conciencia" className="ss-crystal ss-crystal--sutil ss-tone--zenith rounded-xl border border-[#007FFF]/25 p-3">
+                <PanelCapas compacto={compact} />
+                <p className="mt-2 text-[10.5px] text-white/50">
+                    Se sincroniza con tu cuenta y se aplica a todos los chats de Astraura IA.
+                </p>
+            </section>
+
             {/* Resumen honesto en una línea */}
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                 <Dato etiqueta="Llamadas registradas" valor={String(log.length)} />
