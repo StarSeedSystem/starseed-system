@@ -63,6 +63,17 @@ html[data-perf="eco"] .fondo {
    respira, hacía PARPADEAR la difuminación del Exocortex en el WebView de Android. Con el
    panel casi opaco (85 %) el desenfoque apenas se ve: aquí se sustituye por un velo
    estable y las capas de cristal dentro de la cortina dejan de desenfocar lo de atrás. */
+/* (2026-09-26) Alex: «el fondo del menú superior del Exocortex aún parpadea desde el
+   navegador de un móvil». Medido con un Pixel 7 emulado (estilos calculados dentro de la
+   cortina): quedaban dos cristales que la regla anterior no alcanzaba porque no llevan la
+   clase `backdrop-blur-*` — `.axc-root`, el contenedor entero del Exocórtex con su cabecera
+   (blur 28 px + saturate) y el botón de cerrar (blur 14 px) — y, encima, el orbe de la
+   cabecera animando `filter` + `transform` sin parar, un aro que respira sobre todo el panel
+   y rayos con `mix-blend-mode: screen` sobre un desenfoque de 60 px. Cada fotograma de la
+   animación obligaba a recalcular el desenfoque del cristal que la contiene: en la GPU del
+   móvil eso es el parpadeo. Ahora, en táctil, NADA dentro de la cortina desenfoca lo de
+   detrás (sea cual sea su clase) y lo que anima filtros o mezcla con el fondo se queda
+   quieto. Con el panel al 85 % de opacidad el aspecto casi no cambia. */
 @media (hover: none) and (pointer: coarse) {
     .fondo {
         -webkit-backdrop-filter: none;
@@ -70,14 +81,20 @@ html[data-perf="eco"] .fondo {
         background: radial-gradient(120% 120% at 50% 40%, rgba(4, 7, 13, 0.55) 0%, rgba(2, 4, 9, 0.82) 100%);
     }
     .panel,
-    .panel :global(.ss-crystal),
-    .panel :global(.ss-crystal--deep),
-    .panel :global([class*="backdrop-blur"]) {
+    .panel *,
+    .panel *::before,
+    .panel *::after {
         -webkit-backdrop-filter: none !important;
         backdrop-filter: none !important;
     }
-    .panel :global(.ss-crystal)::before {
-        animation: none;
+    .panel:global(.ss-neon)::after,
+    .panel :global(.ss-crystal)::before,
+    .panel :global(.ss-float),
+    .panel :global(.axc-orb) {
+        animation: none !important;
+    }
+    .panel :global([class*="mix-blend"]) {
+        display: none;
     }
 }
 
