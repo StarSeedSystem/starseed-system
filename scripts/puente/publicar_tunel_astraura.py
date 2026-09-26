@@ -20,7 +20,17 @@ import sys
 import urllib.parse
 import urllib.request
 
-TUNEL = os.environ.get("ASTRAURA_TUNEL_JSON") or "/Users/alex/Documents/IA 1.58 bit/data/active_tunnel.json"
+# (2026-09-26) Hay DOS túneles hacia el mismo backend: el del servicio launchd
+# `com.starseed.astraura.tunnel` (escribe `data/active_tunnel.json`) y el que abre el
+# propio backend al arrancar (`backend/data/active_tunnel.json`). Medido hoy: el del
+# servicio llevaba 4 días con la URL muerta y este guion solo miraba ese, así que la web
+# y la app se quedaban sin nube aunque el otro túnel respondía. Ahora se miran los dos y
+# se publica el que responda (primero el ya publicado, para no bailar entre URLs).
+_REPO_ASTRAURA = "/Users/alex/Documents/IA 1.58 bit"
+TUNELES = ([os.environ["ASTRAURA_TUNEL_JSON"]] if os.environ.get("ASTRAURA_TUNEL_JSON") else [
+    _REPO_ASTRAURA + "/backend/data/active_tunnel.json",
+    _REPO_ASTRAURA + "/data/active_tunnel.json",
+])
 CONFIG = os.path.expanduser("~/.astraura/supabase_astraura.json")
 ESTADO = os.path.expanduser("~/.starseed/tunel-astraura.json")
 CLAVE = "tunel_publico"
@@ -51,6 +61,26 @@ def decidir(url, vivo, previo, ahora, latido_s=LATIDO_S):
     if ahora - float(previo.get("t") or 0) >= latido_s:
         return True, "latido"
     return False, "sin cambios"
+
+
+def elegir_url(candidatos, vivo, previo):
+    """PURA salvo `vivo(url)`: la primera URL válida y viva. Orden: la ya publicada
+    (si sigue entre los candidatos) y luego el resto en el orden dado. Devuelve
+    (url | "", viva: bool)."""
+    previo = previo if isinstance(previo, dict) else {}
+    urls = []
+    for u in candidatos:
+        u = (u or "").rstrip("/")
+        if u and u not in urls and url_valida(u):
+            urls.append(u)
+    publicada = (previo.get("url") or "").rstrip("/")
+    if publicada in urls:
+        urls.remove(publicada)
+        urls.insert(0, publicada)
+    for u in urls:
+        if vivo(u):
+            return u, True
+    return (urls[0] if urls else ""), False
 
 
 def responde(url, timeout=8.0) -> bool:
@@ -90,9 +120,9 @@ def publicar(url) -> bool:
 
 def main() -> int:
     import time
-    url = (_leer(TUNEL).get("url") or "").rstrip("/")
     previo = _leer(ESTADO)
-    hazlo, motivo = decidir(url, responde(url) if url_valida(url) else False, previo, time.time())
+    url, viva = elegir_url([_leer(r).get("url") for r in TUNELES], responde, previo)
+    hazlo, motivo = decidir(url, viva, previo, time.time())
     if hazlo and publicar(url):
         os.makedirs(os.path.dirname(ESTADO), exist_ok=True)
         with open(ESTADO, "w", encoding="utf-8") as f:

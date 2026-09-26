@@ -36,3 +36,25 @@ class Decidir(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+
+def test_elige_el_tunel_que_responde_entre_los_dos():
+    muerta = "https://vieja-muerta.trycloudflare.com"
+    viva = "https://nueva-viva.trycloudflare.com"
+    url, ok = T.elegir_url([muerta, viva], lambda u: u == viva, {})
+    assert (url, ok) == (viva, True)
+
+
+def test_prefiere_la_ya_publicada_si_sigue_viva():
+    a = "https://a-uno.trycloudflare.com"
+    b = "https://b-dos.trycloudflare.com"
+    url, ok = T.elegir_url([a, b], lambda u: True, {"url": b})
+    assert (url, ok) == (b, True)
+
+
+def test_sin_ninguna_viva_no_publica():
+    a = "https://a-uno.trycloudflare.com"
+    url, ok = T.elegir_url([a, "http://no-https.example"], lambda u: False, {})
+    assert (url, ok) == (a, False)
+    assert T.decidir(url, ok, {}, 0)[0] is False
