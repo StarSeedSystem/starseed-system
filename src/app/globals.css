@@ -3783,3 +3783,59 @@ html.ss-gesto * {
 html.ss-gesto [data-ventana-escritorio] {
     transition: none !important;
 }
+
+/* ════════════════════════════════════════════════════════════════════════
+   BASE GLOBAL DE MÓVIL (encargo Alex, 2026-09-26) — SOLO < 640px
+   ────────────────────────────────────────────────────────────────────────
+   Va AL FINAL del archivo y FUERA de cualquier `@layer`: las reglas sin capa
+   ganan siempre a las utilidades de Tailwind (que sí viven en `@layer
+   utilities`), sea cual sea el orden — así estas reglas no necesitan
+   `!important` para imponerse sobre `.text-6xl` y compañía. La condición
+   `(max-width: 639px)` es la garantía de seguridad: en tablet/escritorio esta
+   media query ni se evalúa, así que nada de aquí puede cambiar nada ahí.
+   ════════════════════════════════════════════════════════════════════════ */
+@media (max-width: 639px) {
+  /* 1) Títulos "héroe": .text-6xl/.text-5xl/.text-4xl/.text-3xl ocupaban
+     media pantalla en un smartphone (son los tamaños de Tailwind pensados
+     para escritorio). Se reducen de forma PROPORCIONAL —conservan el orden
+     relativo entre sí— con su line-height ajustado a juego, para que sigan
+     leyéndose como títulos y no rompan el interlineado. Seguro en desktop:
+     la media query no se evalúa ahí, así que los valores ≥640px de Tailwind
+     quedan intactos. */
+  .text-6xl { font-size: 2.25rem; line-height: 2.5rem; }
+  .text-5xl { font-size: 2rem; line-height: 2.25rem; }
+  .text-4xl { font-size: 1.75rem; line-height: 2.15rem; }
+  .text-3xl { font-size: 1.5rem; line-height: 1.9rem; }
+
+  /* 2) iOS hace zoom automático al enfocar un campo de texto con
+     font-size < 16px. Los `input`/`textarea`/`select` de este archivo ya
+     traían `font-size: var(--text-fluid-sm) !important` (línea ~1915), que
+     en un móvil resuelve a 12px por el `clamp()` — exactamente el tamaño que
+     dispara el zoom. `max(16px, 1em)` sube el suelo a 16px sin encoger nada
+     que ya fuera más grande (usa el propio tamaño si es mayor). Necesita
+     `!important` para poder ganarle a esa regla previa, que también lo es:
+     entre dos `!important` sin capa manda el ORDEN, y esta va después.
+     checkbox/radio/range quedan FUERA: no abren teclado (no hay zoom que
+     evitar) y agrandar su `font-size` los dibujaría gigantes sin necesidad.
+     Seguro en desktop: ahí no hay zoom táctil que evitar y, de nuevo, la
+     media query no se evalúa fuera de <640px. */
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  textarea,
+  select {
+    font-size: max(16px, 1em) !important;
+  }
+
+  /* 3) Una palabra sin espacios que no cabe (una URL larga, un id, un hashtag)
+     podía desbordar su contenedor en una pantalla estrecha y salirse del
+     marco. `overflow-wrap: anywhere` SOLO actúa cuando la palabra no cabe
+     entera — un texto normal con espacios se sigue partiendo por palabra
+     igual que siempre, así que esto no cambia el aspecto de nada que ya
+     cupiera. Se limita a los elementos de texto/control más comunes (no a
+     contenedores genéricos) para no arriesgar un layout flex/grid que mida
+     un ancho de texto con `white-space: nowrap`. Seguro en desktop: las
+     pantallas anchas casi nunca fuerzan este recorte y, en cualquier caso,
+     la regla no existe fuera de <640px. */
+  h1, h2, h3, p, li, label, button {
+    overflow-wrap: anywhere;
+  }
+}
