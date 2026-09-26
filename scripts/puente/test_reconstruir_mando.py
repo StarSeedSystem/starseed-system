@@ -694,3 +694,11 @@ class ElSilencioDeAstrauraNoBloqueaParaSiempre(unittest.TestCase):
     def test_backend_que_no_escucha_esta_libre(self):
         self.assertEqual(R.uso_de_astraura("http://127.0.0.1:9", timeout=1), "libre")
 
+
+
+
+def test_uso_tolerable_tiene_techo():
+    import reconstruir_mando as R
+    assert R.uso_tolerable(None, 1000.0) is True
+    assert R.uso_tolerable(1000.0, 1000.0 + 7199, espera_s=7200) is True
+    assert R.uso_tolerable(1000.0, 1000.0 + 7200, espera_s=7200) is False

@@ -754,6 +754,18 @@ def astraura_en_uso_por(estado, umbral_s=ASTRAURA_EN_USO_S) -> bool:
 #: chats». El uso MEDIDO sigue bloqueando sin límite; el SILENCIO bloquea como mucho esto, y
 #: después se compila igual: `con-turno.py` le pide la RAM al BitNet antes de empezar.
 ESPERA_MAX_SIN_RESPUESTA_S = int(os.environ.get("STARSEED_RECONSTRUIR_SILENCIO_S", "5400"))
+# (2026-09-26) Desde que la Mac sirve la capa nube a TODOS los dispositivos (túnel) y la
+# malla P2P, «Astraura en uso» puede no acabar nunca y el Mando se quedaba sin actualizar
+# para siempre. El uso sigue mandando, pero con techo: pasadas 2 h esperando, se compila
+# con el turno de la máquina (el turnero del backend rechaza a tiempo lo que no quepa).
+ESPERA_MAX_EN_USO_S = int(os.environ.get("STARSEED_RECONSTRUIR_USO_MAX_S", "7200"))
+
+
+def uso_tolerable(uso_desde, ahora, espera_s=ESPERA_MAX_EN_USO_S) -> bool:
+    """PURA: ¿se puede seguir esperando a que Astraura quede libre desde `uso_desde`?"""
+    if not isinstance(uso_desde, (int, float)) or isinstance(uso_desde, bool):
+        return True
+    return ahora - uso_desde < espera_s
 
 
 def uso_de_astraura(url=ASTRAURA_URL, timeout=4.0) -> str:
@@ -782,24 +794,35 @@ def silencio_tolerable(silencio_desde, ahora, espera_s=ESPERA_MAX_SIN_RESPUESTA_
     return ahora - silencio_desde < espera_s
 
 
-def una_pasada() -> bool:
+def una_pasada(forzar: bool = False) -> bool:
+    """`forzar` (orden `--una-vez --ya`): compila aunque Astraura esté en uso o haya
+    conversación. Solo a mano; el disco se sigue comprobando."""
     entradas = list(_entradas())
     actual = huella_de(entradas)
     estado = _leer_estado()
     hazlo, motivo = decidir(actual, estado, time.time(),
                             mas_nuevas=cuantas_mas_nuevas(mtime_del_build(), entradas))
-    if hazlo and conversando():
+    if forzar:
+        hazlo, motivo = True, "compilación pedida a mano"
+    if hazlo and not forzar and conversando():
         # (2026-09-22) Una build se come 3-4 GB de RAM en esta Mac: en plena conversación
         # con Astraura dejaría a la voz y a BitNet sin memoria. Se espera a que acabe.
         print("[%s] espero: %s, pero Alex está hablando con Astraura" % (time.strftime("%H:%M"), motivo),
               flush=True)
         return False
-    uso = uso_de_astraura() if hazlo else "libre"
+    uso = uso_de_astraura() if (hazlo and not forzar) else "libre"
     if hazlo and uso == "uso":
-        print("[%s] espero: %s, pero Astraura está en uso (una build le quita la RAM al BitNet)"
-              % (time.strftime("%H:%M"), motivo), flush=True)
-        _guardar(dict(_leer_estado(), silencio_desde=None))
-        return False
+        ahora = time.time()
+        desde = _leer_estado().get("uso_desde")
+        desde = desde if isinstance(desde, (int, float)) and not isinstance(desde, bool) else ahora
+        if uso_tolerable(desde, ahora):
+            print("[%s] espero: %s, pero Astraura está en uso (una build le quita la RAM al BitNet; "
+                  "lleva %d min así, compilo a los %d)"
+                  % (time.strftime("%H:%M"), motivo, (ahora - desde) // 60, ESPERA_MAX_EN_USO_S // 60), flush=True)
+            _guardar(dict(_leer_estado(), silencio_desde=None, uso_desde=desde))
+            return False
+        print("[%s] Astraura lleva %d min en uso sin pausa: compilo igual con el turno de la máquina"
+              % (time.strftime("%H:%M"), (ahora - desde) // 60), flush=True)
     if hazlo and uso == "sin-respuesta":
         ahora = time.time()
         desde = _leer_estado().get("silencio_desde")
@@ -833,7 +856,7 @@ def una_pasada() -> bool:
         return False
     if hazlo:
         print("[%s] RECONSTRUYO: %s" % (time.strftime("%H:%M"), motivo), flush=True)
-        _guardar(dict(_leer_estado(), silencio_desde=None))
+        _guardar(dict(_leer_estado(), silencio_desde=None, uso_desde=None))
         reconstruir(actual)
         return True
 
@@ -854,7 +877,7 @@ def una_pasada() -> bool:
 
 def main() -> int:
     if "--una-vez" in sys.argv:
-        una_pasada()
+        una_pasada(forzar="--ya" in sys.argv)
         return 0
     print("Reconstructor del Mando · cada %d s · el build va con el turno de la máquina"
           % INTERVALO_S, flush=True)
