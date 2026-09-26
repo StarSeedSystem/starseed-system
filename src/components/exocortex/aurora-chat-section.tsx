@@ -419,6 +419,22 @@ const AXC_CSS = `
   .axc-tree-act:hover{transform:none;}
   .axc-process-toggle,.axc-process-link{transition:none !important;}
 }
+/* ── Pantallas < 640px (smartphones) — SOLO afecta ahí, tablet/escritorio
+   intactos ───────────────────────────────────────────────────────────────
+   El cuadro de escritura del composer (.axc-inputrow: 📎 + voz + input +
+   enviar en una sola fila) quedaba angosto entre varios botones. Aquí el
+   campo pasa a su PROPIA fila a todo el ancho y los botones bajan a la fila
+   siguiente, con "enviar" empujado a la derecha (mismo patrón que las apps de
+   chat conocidas). También se suben los botones compactos del composer y del
+   pie a ≥40px de objetivo táctil (regla del área en móvil). */
+@media (max-width: 639px) {
+  .axc-inputrow{flex-wrap:wrap;}
+  .axc-inputrow .axc-input{order:-1;flex-basis:100%;width:100%;}
+  .axc-inputrow .axc-send{margin-left:auto;}
+  .axc-tbtn{width:40px;height:40px;}
+  .axc-tbtn.primary{width:40px;height:40px;}
+  .axc-send{width:40px;height:40px;}
+}
 `;
 
 // ── Utilidades de presentación ───────────────────────────────────────────────

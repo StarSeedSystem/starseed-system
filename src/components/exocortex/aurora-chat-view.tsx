@@ -458,7 +458,10 @@ function Conversation(props: {
       ref={scrollRef}
       className={cn(
         "axc-scroll relative z-[1] flex flex-col gap-2 overflow-y-auto rounded-[18px] border border-white/10 bg-black/40 px-3 py-2.5",
-        fill ? "flex-1 min-h-0" : "h-64",
+        // <640px: h-64 (256px) se sentía como "sin altura real" para leer una
+        // conversación en el móvil — sube a un ~50% del alto de pantalla ahí.
+        // Con `fill` (fullscreen) ya usa el alto disponible; no cambia.
+        fill ? "flex-1 min-h-0" : "h-64 max-sm:h-[50svh]",
       )}
     >
       {loadedSession ? (
