@@ -114,7 +114,7 @@ export function MenuListaMovil({ opciones, valor, onCambiar, titulo, className, 
                                               )}
                                               <span className="min-w-0 flex-1">
                                                   <span className="block text-[14px] font-medium leading-snug">{o.label}</span>
-                                                  {o.hint && <span className="mt-0.5 block text-[11.5px] leading-snug text-white/45">{o.hint}</span>}
+                                                  {o.hint && <span className="mt-0.5 line-clamp-2 text-[11.5px] leading-snug text-white/45">{o.hint}</span>}
                                               </span>
                                               {o.badge != null && o.badge !== "" && (
                                                   <span className="shrink-0 rounded-full bg-rose-500/90 px-1.5 text-[10px] font-semibold text-white">{o.badge}</span>

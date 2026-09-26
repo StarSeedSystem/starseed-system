@@ -49,7 +49,7 @@ export function ChatHeaderOptions({ context = "astraura", convId }: { context?: 
   const provLabel = providerLabel(prov);
 
   return (
-    <div className="relative flex items-center gap-2">
+    <div className="relative flex items-center gap-1.5 sm:gap-2">
       {/* Capas de conciencia de Astraura 1.58 (Ola 365): modo, capas y nivelador. */}
       <IndicadorCapas />
       {provLabel && (
@@ -65,10 +65,13 @@ export function ChatHeaderOptions({ context = "astraura", convId }: { context?: 
         variant="outline"
         size="sm"
         onClick={openOpts}
-        className="bg-card/60 backdrop-blur border-border/50 shadow-sm text-xs rounded-full hover:bg-cyan-500/10"
+        aria-label="Opciones del chat"
+        title="Opciones del chat"
+        className="bg-card/60 backdrop-blur border-border/50 shadow-sm text-xs rounded-full hover:bg-cyan-500/10 max-sm:size-9 max-sm:px-0"
       >
-        <Settings className="w-3.5 h-3.5 mr-2" />
-        Opciones
+        <Settings className="w-3.5 h-3.5 sm:mr-2" />
+        {/* En móvil solo el icono: la fila de la cabecera del chat cabe en una línea. */}
+        <span className="hidden sm:inline">Opciones</span>
       </Button>
       {/* Ventana CENTRADA (Adenda 103): amplia y contenida, no se sale de pantalla
           aunque se desplieguen sus secciones. Cierra al pulsar el fondo o Escape. */}

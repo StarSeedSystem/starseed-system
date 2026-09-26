@@ -28,7 +28,7 @@ export function IndicadorCapas({ className }: { className?: string }) {
                     aria-label="Capas de conciencia de Astraura 1.58"
                     title={activo ? detalle : "Modo 1.58 apagado: enrutador automático con modelos gratuitos"}
                     className={cn(
-                        "inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-light tracking-wide transition-colors duration-200",
+                        "inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-light tracking-wide transition-colors duration-200 max-sm:min-h-9",
                         activo ? "border-[#007FFF]/40 bg-[#007FFF]/10 text-white/80 hover:bg-[#007FFF]/20" : "border-white/15 bg-white/5 text-white/45 hover:bg-white/10",
                         className,
                     )}

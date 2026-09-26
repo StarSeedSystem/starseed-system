@@ -270,7 +270,7 @@ const TONE_BADGE: Record<PresenceTone, string> = {
 };
 
 const PILL_LINK =
-  "inline-flex shrink-0 items-center gap-1 rounded-md border border-white/10 bg-white/[0.04] px-2 py-1 text-[11px] text-white/80 transition-colors hover:border-cyan-400/40 hover:text-cyan-100 cursor-pointer";
+  "inline-flex shrink-0 items-center justify-center gap-1 rounded-md border border-white/10 bg-white/[0.04] px-2 py-1 text-[11px] text-white/80 transition-colors duration-200 hover:border-cyan-400/40 hover:text-cyan-100 cursor-pointer max-sm:min-h-9 max-sm:min-w-9";
 
 function PresenceStatusDot({ tone, active }: { tone: PresenceTone; active: boolean }) {
   return <span aria-hidden className={cn("inline-block h-1.5 w-1.5 shrink-0 rounded-full", active ? TONE_DOT[tone] : TONE_DOT.muted)} />;
@@ -303,33 +303,33 @@ export function Astraura158PresenceBar({ className }: { className?: string }) {
       <div role="status" className="flex flex-wrap items-center gap-x-3 gap-y-1.5" aria-label={`Presencia Astraura 1.58: ${summary}.`}>
         <span aria-hidden className="inline-flex items-center gap-1.5">
           <PresenceStatusDot tone="emerald" active={processesActive > 0} />
-          <span className="font-medium text-white/85">{processesActive}</span> procesos activos
+          <span className="font-medium text-white/85">{processesActive}</span> procesos<span className="hidden sm:inline"> activos</span>
         </span>
         <span aria-hidden className="text-white/25">·</span>
         <span aria-hidden className="inline-flex items-center gap-1.5">
           <PresenceStatusDot tone="cyan" active={agentsLive > 0} />
-          <span className="font-medium text-white/85">{agentsLive}</span> agentes vivos
+          <span className="font-medium text-white/85">{agentsLive}</span> agentes<span className="hidden sm:inline"> vivos</span>
         </span>
         <span aria-hidden className="text-white/25">·</span>
         <span aria-hidden className="inline-flex items-center gap-1.5">
           <PresenceStatusDot tone="amber" active={pendingApprovals > 0} />
-          <span className="font-medium text-white/85">{pendingApprovals}</span> aprobaciones pendientes
+          <span className="font-medium text-white/85">{pendingApprovals}</span> <span className="sm:hidden">por aprobar</span><span className="hidden sm:inline">aprobaciones pendientes</span>
         </span>
       </div>
 
       <div className="flex flex-wrap items-center gap-1.5 sm:ml-auto">
         <Link href={ORQUESTACION_HREF} aria-label="Abrir el centro de Orquestación de Astraura 1.58" className={PILL_LINK}>
-          <Workflow className="h-3 w-3" aria-hidden /> Orquestación
+          <Workflow className="h-3.5 w-3.5 sm:h-3 sm:w-3" aria-hidden /> <span className="hidden sm:inline">Orquestación</span>
         </Link>
         <Link href={IMAGINACION_HREF} aria-label="Abrir Imaginación de Astraura 1.58" className={PILL_LINK}>
-          <Wand2 className="h-3 w-3" aria-hidden /> Imaginación
+          <Wand2 className="h-3.5 w-3.5 sm:h-3 sm:w-3" aria-hidden /> <span className="hidden sm:inline">Imaginación</span>
         </Link>
         <Link
           href={NOTIFICACIONES_HREF}
           aria-label={feed.unread > 0 ? `Abrir Notificaciones de Astraura 1.58, ${feed.unread} sin leer` : "Abrir Notificaciones de Astraura 1.58"}
           className={PILL_LINK}
         >
-          <Bell className="h-3 w-3" aria-hidden /> Notificaciones
+          <Bell className="h-3.5 w-3.5 sm:h-3 sm:w-3" aria-hidden /> <span className="hidden sm:inline">Notificaciones</span>
           {feed.unread > 0 && (
             <span aria-hidden className="ml-0.5 rounded-full bg-rose-500/90 px-1.5 text-[10px] font-semibold text-white">
               {feed.unread > 99 ? "99+" : feed.unread}
@@ -343,7 +343,7 @@ export function Astraura158PresenceBar({ className }: { className?: string }) {
             aria-label={`Abrir la ventana del agente ${workingAgent.name}, en curso ahora mismo`}
             className={PILL_LINK}
           >
-            <Bot className="h-3 w-3" aria-hidden /> <span className="max-w-[9rem] truncate">{workingAgent.name}</span>
+            <Bot className="h-3.5 w-3.5 sm:h-3 sm:w-3" aria-hidden /> <span className="max-w-[7rem] sm:max-w-[9rem] truncate">{workingAgent.name}</span>
           </button>
         )}
       </div>

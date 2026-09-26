@@ -73,6 +73,7 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { MenuListaMovil } from "@/components/ui/menu-lista-movil";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -806,7 +807,8 @@ interface AgentRenderMsg {
 //   lo hace el componente hijo.
 // ─────────────────────────────────────────────────────────────────────────────
 const TAB_SCROLL = "mt-0 flex-1 min-h-0 w-full max-w-full box-border overflow-y-auto";
-const TAB_FILL = "mt-0 flex-1 min-h-0 w-full max-w-full box-border overflow-hidden data-[state=active]:flex data-[state=active]:flex-col";
+// (2026-09-26 · móvil) max-lg:min-h: el chat nunca se aplasta a 0 px; si no cabe, la página se desplaza.
+const TAB_FILL = "mt-0 flex-1 min-h-0 max-lg:min-h-[30rem] w-full max-w-full box-border overflow-hidden data-[state=active]:flex data-[state=active]:flex-col";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Mundo 3D de Génesis: `<MundoSeres>` es puro presentacional (nunca llama al
@@ -1296,18 +1298,20 @@ function AgentPageInner() {
 
   return (
     <div
-      className="flex flex-col h-[100dvh] gap-4 p-3 sm:p-4 md:p-5 pl-[max(0.75rem,env(safe-area-inset-left))] pr-[max(0.75rem,env(safe-area-inset-right))] max-w-[1600px] mx-auto w-full box-border overflow-hidden">
+      // (2026-09-26 · móvil) Bajo lg, si la cabecera y el chat no caben, la página se desplaza
+      // en vez de aplastar el chat a 0 px (Alex: «no se ve el chat ni el cuadro de texto»).
+      className="flex flex-col h-[100dvh] gap-2.5 sm:gap-4 p-3 sm:p-4 md:p-5 pl-[max(0.75rem,env(safe-area-inset-left))] pr-[max(0.75rem,env(safe-area-inset-right))] max-w-[1600px] mx-auto w-full box-border overflow-x-hidden overflow-y-auto lg:overflow-hidden">
 
       <div className="flex items-center justify-between flex-wrap gap-3 w-full max-w-full box-border">
-        <h1 className="text-xl sm:text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary to-purple-400 flex items-center gap-2 sm:gap-3 min-w-0">
-          <BrainCircuit className="w-7 h-7 sm:w-8 sm:h-8 text-primary shrink-0" />
+        <h1 className="text-lg sm:text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary to-purple-400 flex items-center gap-2 sm:gap-3 min-w-0">
+          <BrainCircuit className="w-6 h-6 sm:w-8 sm:h-8 text-primary shrink-0" />
           <span className="truncate">Astraura AI & Orchestration</span>
         </h1>
         <div className="flex items-center gap-2 flex-wrap min-w-0 max-w-full">
           {activeProviderConfig ? (
             <Badge
               variant="outline"
-              className={`gap-1 max-w-[60vw] truncate ${
+              className={`gap-1 max-w-[62vw] sm:max-w-[60vw] truncate ${
                 activeProviderInfo?.local
                   ? "border-emerald-500/50 text-emerald-400 bg-emerald-500/10"
                   : "border-blue-500/50 text-blue-400 bg-blue-500/10"
@@ -1331,9 +1335,11 @@ function AgentPageInner() {
             size="sm"
             variant="outline"
             onClick={() => openAuroraSetup()}
-            className="gap-1.5 border-primary/40 bg-primary/10 text-primary hover:bg-primary/20 cursor-pointer"
+            aria-label="Configurar Neurona"
+            title="Configurar Neurona"
+            className="gap-1.5 border-primary/40 bg-primary/10 text-primary hover:bg-primary/20 cursor-pointer max-sm:size-10 max-sm:px-0"
           >
-            <Sliders className="h-3.5 w-3.5" /> Configurar Neurona
+            <Sliders className="h-4 w-4 sm:h-3.5 sm:w-3.5" /> <span className="hidden sm:inline">Configurar Neurona</span>
           </Button>
           {/* Adenda 132: configuración unificada de Astraura & OmniVoice como
               drawer global. Visible en TODAS las pestañas, incluida «Chats»
@@ -1343,9 +1349,11 @@ function AgentPageInner() {
             size="sm"
             variant="outline"
             onClick={() => openAstrauraConfig()}
-            className="gap-1.5 border-fuchsia-400/40 bg-fuchsia-500/10 text-fuchsia-200 hover:bg-fuchsia-500/20 cursor-pointer"
+            aria-label="Configurar IA"
+            title="Configurar IA"
+            className="gap-1.5 border-fuchsia-400/40 bg-fuchsia-500/10 text-fuchsia-200 hover:bg-fuchsia-500/20 cursor-pointer max-sm:size-10 max-sm:px-0"
           >
-            <SlidersHorizontal className="h-3.5 w-3.5" /> Configurar IA
+            <SlidersHorizontal className="h-4 w-4 sm:h-3.5 sm:w-3.5" /> <span className="hidden sm:inline">Configurar IA</span>
           </Button>
         </div>
       </div>
@@ -1359,18 +1367,19 @@ function AgentPageInner() {
       <button
         type="button"
         onClick={openExocortex}
-        className="shrink-0 group w-full max-w-full box-border text-left rounded-xl border border-emerald-400/25 bg-gradient-to-r from-emerald-500/10 via-fuchsia-500/[0.06] to-blue-500/10 backdrop-blur-md px-3 sm:px-4 py-2.5 sm:py-3 cursor-pointer transition-colors duration-200 hover:border-emerald-400/45 hover:from-emerald-500/[0.16] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/40"
+        className="shrink-0 group w-full max-w-full box-border text-left rounded-xl border border-emerald-400/25 bg-gradient-to-r from-emerald-500/10 via-fuchsia-500/[0.06] to-blue-500/10 backdrop-blur-md px-3 sm:px-4 py-2 sm:py-3 cursor-pointer transition-colors duration-200 hover:border-emerald-400/45 hover:from-emerald-500/[0.16] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/40"
         aria-label="Abrir el Exocórtex de Astraura IA"
       >
         <div className="flex items-center gap-3 min-w-0">
-          <span className="shrink-0 grid place-items-center h-9 w-9 rounded-lg bg-gradient-to-tr from-emerald-500/30 to-fuchsia-500/30 border border-white/10">
+          <span className="shrink-0 grid place-items-center h-8 w-8 sm:h-9 sm:w-9 rounded-lg bg-gradient-to-tr from-emerald-500/30 to-fuchsia-500/30 border border-white/10">
             <Waypoints className="w-4 h-4 text-emerald-200" />
           </span>
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold text-emerald-50 truncate">
-              Astraura, Aurora y el Exocórtex comparten el mismo cerebro
+            <p className="text-[13px] sm:text-sm font-semibold text-emerald-50 sm:truncate">
+              <span className="sm:hidden">Mismo cerebro que el Exocórtex</span>
+              <span className="hidden sm:inline">Astraura, Aurora y el Exocórtex comparten el mismo cerebro</span>
             </p>
-            <p className="text-[11px] sm:text-xs text-white/55 truncate">
+            <p className="hidden sm:block text-xs text-white/55 truncate">
               El contexto se mantiene entre este estudio y el Exocórtex de la voz Aurora.
             </p>
           </div>
@@ -1387,8 +1396,29 @@ function AgentPageInner() {
             Desktop: navegación vertical fija a la izquierda.
             Móvil/tablet: tira horizontal deslizable (.ss-hscroll) que NUNCA
             desborda el viewport. */}
+        {/* Móvil y tableta: las 22 secciones ya no se arrastran en una tira; un botón con la
+            sección actual abre la lista completa (MenuListaMovil). Junto a él, «Configurar». */}
+        <div className="flex lg:hidden items-center gap-2 shrink-0 w-full max-w-full box-border">
+          <MenuListaMovil
+            titulo="Secciones de Astraura"
+            opciones={STUDIO_SECTIONS.map((sec) => ({ id: sec.id, label: sec.label, icon: sec.icon, hint: sec.hint, accent: sec.accent }))}
+            valor={activeSection}
+            onCambiar={(id) => selectSection(id as typeof activeSection)}
+            className="flex-1"
+          />
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => openAstrauraConfig()}
+            aria-label="Configurar Astraura y OmniVoice"
+            title="Configurar Astraura y OmniVoice"
+            className="size-11 shrink-0 rounded-xl px-0 border-fuchsia-400/40 bg-fuchsia-500/10 text-fuchsia-200 hover:bg-fuchsia-500/20 cursor-pointer"
+          >
+            <SlidersHorizontal className="h-4 w-4" />
+          </Button>
+        </div>
         <nav
-          className="ss-hscroll ss-hscroll-fade flex flex-row lg:flex-col gap-1.5 lg:gap-1 shrink-0 w-full max-w-full lg:w-56 lg:max-w-[14rem] box-border lg:overflow-x-visible lg:overflow-y-auto lg:[mask-image:none] lg:pr-1 pb-1 lg:pb-0 px-3 lg:px-0 scroll-px-3 lg:scroll-px-0"
+          className="hidden lg:flex ss-hscroll ss-hscroll-fade flex-row lg:flex-col gap-1.5 lg:gap-1 shrink-0 w-full max-w-full lg:w-56 lg:max-w-[14rem] box-border lg:overflow-x-visible lg:overflow-y-auto lg:[mask-image:none] lg:pr-1 pb-1 lg:pb-0 px-3 lg:px-0 scroll-px-3 lg:scroll-px-0"
           aria-label="Secciones de configuración de Astraura"
         >
           {STUDIO_SECTIONS.map((sec) => {
@@ -1419,8 +1449,8 @@ function AgentPageInner() {
         <div className="flex-1 flex flex-col gap-3 min-h-0 min-w-0 w-full max-w-full box-border">
 
           {/* Cabecera de la sección + sub-pestañas deslizables */}
-          <div className="shrink-0 w-full max-w-full box-border rounded-xl border border-white/5 bg-black/20 backdrop-blur-md p-2 sm:p-2.5">
-            <div className="flex items-center gap-2 px-1 pb-2 min-w-0">
+          <div className={cn("shrink-0 w-full max-w-full box-border rounded-xl border border-white/5 bg-black/20 backdrop-blur-md p-1.5 sm:p-2.5", currentSection.items.length > 1 ? "" : "hidden lg:block")}>
+            <div className="hidden lg:flex items-center gap-2 px-1 pb-2 min-w-0">
               <currentSection.icon className={cn("w-4 h-4 shrink-0", currentSection.accent)} />
               <span className="text-sm font-semibold text-white truncate">{currentSection.label}</span>
               {currentSection.hint && (
@@ -1443,14 +1473,14 @@ function AgentPageInner() {
               </Button>
             </div>
             {currentSection.items.length > 1 && (
-              <TabsList className="ss-hscroll ss-hscroll-fade w-full max-w-full box-border justify-start bg-transparent border-0 py-0 px-3 scroll-px-3 gap-1 h-auto flex-nowrap">
+              <TabsList className="ss-hscroll ss-hscroll-fade w-full max-w-full box-border justify-start bg-transparent border-0 py-0 px-1 lg:px-3 scroll-px-3 gap-1 h-auto flex-nowrap">
                 {currentSection.items.map((it) => {
                   const ItemIcon = it.icon;
                   return (
                     <TabsTrigger
                       key={it.value}
                       value={it.value}
-                      className="gap-2 shrink-0 whitespace-nowrap rounded-lg data-[state=active]:bg-white/10 data-[state=active]:text-white cursor-pointer"
+                      className="gap-2 shrink-0 whitespace-nowrap rounded-lg min-h-10 max-sm:px-2.5 max-sm:text-[13px] data-[state=active]:bg-white/10 data-[state=active]:text-white cursor-pointer"
                     >
                       <ItemIcon className="w-4 h-4 shrink-0" />
                       <span>{it.label}</span>

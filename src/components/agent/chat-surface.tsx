@@ -298,6 +298,16 @@ export function ChatSurface({ variant = "embedded", className, initialConvId }: 
 
   const [streamText, setStreamText] = useState("");
   const [inputValue, setInputValue] = useState("");
+  // (2026-09-26 · móvil) Texto guía corto en pantallas chicas: el largo no cabía en una línea.
+  const [pantallaChica, setPantallaChica] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const mq = window.matchMedia("(max-width: 639px)");
+    const aplicar = () => setPantallaChica(mq.matches);
+    aplicar();
+    mq.addEventListener?.("change", aplicar);
+    return () => mq.removeEventListener?.("change", aplicar);
+  }, []);
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
   /** El área de texto crece con el contenido (hasta ~6 líneas) y vuelve a una al vaciarse. */
   const ajustarAlturaComposer = (el: HTMLTextAreaElement | null) => {
@@ -939,7 +949,8 @@ export function ChatSurface({ variant = "embedded", className, initialConvId }: 
       {/* Indicador ANIMADO de procesamiento de voz (Adenda V2-VOZ): flota sobre el
           hilo mientras el sistema de voz da voz a la respuesta. */}
       <VoiceProcessingIndicator variant="float" />
-      <div className="absolute top-3 right-3 left-3 sm:left-auto z-10 flex flex-wrap justify-end gap-2 max-w-[calc(100%-1.5rem)]">
+      {/* (2026-09-26 · móvil) Una sola fila: botones de 36 px y sin saltos de línea. */}
+      <div className="absolute top-2 right-2 left-2 sm:top-3 sm:right-3 sm:left-auto z-10 flex flex-nowrap sm:flex-wrap items-center justify-end gap-1.5 sm:gap-2 max-w-[calc(100%-1rem)] sm:max-w-[calc(100%-1.5rem)] max-sm:[&>button]:size-9 max-sm:[&>a]:size-9">
         {fullscreen ? (
           <>
             {/* Volver al estudio */}
@@ -1006,10 +1017,10 @@ export function ChatSurface({ variant = "embedded", className, initialConvId }: 
         <ChatHeaderOptions context="astraura" convId={conv.activeId ?? null} />
       </div>
 
-      <ScrollArea className="flex-1 p-4" ref={scrollRef}>
-        <div className="flex flex-col gap-4 max-w-3xl mx-auto pt-16 sm:pt-12">
+      <ScrollArea className="flex-1 p-2.5 sm:p-4" ref={scrollRef}>
+        <div className="flex flex-col gap-3 sm:gap-4 max-w-3xl mx-auto pt-14 sm:pt-12">
           {!conv.activeId ? (
-            <div className="flex flex-col items-center justify-center text-center gap-4 py-14">
+            <div className="flex flex-col items-center justify-center text-center gap-4 py-8 sm:py-14 px-2">
               <span className="grid place-items-center h-14 w-14 rounded-2xl bg-gradient-to-tr from-primary/25 to-fuchsia-500/25 border border-white/10">
                 <Bot className="w-7 h-7 text-primary" />
               </span>
@@ -1035,7 +1046,7 @@ export function ChatSurface({ variant = "embedded", className, initialConvId }: 
                     <AvatarFallback className="bg-muted/40 text-xs">Tú</AvatarFallback>
                   )}
                 </Avatar>
-                <div className={`group relative p-3 rounded-2xl max-w-[80%] text-sm shadow-sm ${msg.role === "user" ? "bg-primary text-primary-foreground rounded-tr-none" : "bg-card border rounded-tl-none"}`}>
+                <div className={`group relative p-3 rounded-2xl max-w-[86%] sm:max-w-[80%] min-w-0 break-words text-sm shadow-sm ${msg.role === "user" ? "bg-primary text-primary-foreground rounded-tr-none" : "bg-card border rounded-tl-none"}`}>
                   <MessageRenderer text={msg.content} compact={msg.role === "user"} />
                   <MessageAttachmentChips attachments={msg.attachments} />
                   {msg.pending && <span className="inline-block w-2 h-4 ml-1 bg-primary/70 animate-pulse align-middle" />}
@@ -1126,7 +1137,7 @@ export function ChatSurface({ variant = "embedded", className, initialConvId }: 
         />
       </ScrollArea>
 
-      <div className="p-4 border-t bg-background/40 backdrop-blur-md space-y-2">
+      <div className="p-2.5 sm:p-4 border-t bg-background/40 backdrop-blur-md space-y-2">
         {activeProviderConfig?.encryptedKey && (
           <div className="flex gap-2 max-w-3xl mx-auto items-center">
             <Lock className="w-3 h-3 text-amber-400 shrink-0" />
@@ -1169,7 +1180,9 @@ export function ChatSurface({ variant = "embedded", className, initialConvId }: 
             «reducido» al pie de la página. */}
         {/* pb extra bajo el compositor (Ola 278 · CH1): garantiza 8 px + zona segura
             inferior aunque el dock aparezca por debajo en algunas configuraciones. */}
-        <div className="mx-auto flex w-full max-w-4xl items-end gap-2 rounded-2xl border border-white/10 bg-white/[0.03] p-2 pb-[calc(env(safe-area-inset-bottom)+8px)] backdrop-blur-sm" data-testid="chat-composer">
+        {/* (2026-09-26 · móvil) Bajo 640 px el cuadro de texto ocupa su propia fila a todo el
+            ancho y los botones van debajo, con «Enviar» a la derecha: antes quedaba en 60 px. */}
+        <div className="mx-auto flex w-full max-w-4xl flex-wrap sm:flex-nowrap items-end gap-2 rounded-2xl border border-white/10 bg-white/[0.03] p-2 pb-[calc(env(safe-area-inset-bottom)+8px)] backdrop-blur-sm" data-testid="chat-composer">
           <ChatAttachButton
             onPick={(picked) => setPendingAttachments((prev) => [...prev, ...picked])}
             folder="aurora"
@@ -1185,8 +1198,8 @@ export function ChatSurface({ variant = "embedded", className, initialConvId }: 
           <textarea
             ref={composerRef}
             rows={1}
-            placeholder={`Conversando con ${DEFAULT_AGENT.name}${activeProviderConfig ? ` vía ${activeProviderConfig.label}` : ""}...`}
-            className="max-h-44 min-h-[44px] flex-1 resize-none rounded-xl border border-white/10 bg-background/50 px-4 py-3 text-[15px] leading-6 text-white placeholder:text-white/40 focus:border-violet-400/50 focus:outline-none focus:ring-2 focus:ring-violet-500/30 disabled:opacity-60"
+            placeholder={pantallaChica ? `Escribe a ${DEFAULT_AGENT.name}…` : `Conversando con ${DEFAULT_AGENT.name}${activeProviderConfig ? ` vía ${activeProviderConfig.label}` : ""}...`}
+            className="max-sm:order-first max-sm:basis-full max-sm:w-full max-h-44 min-h-[44px] flex-1 resize-none rounded-xl border border-white/10 bg-background/50 px-4 py-3 text-[15px] leading-6 text-white placeholder:text-white/40 focus:border-violet-400/50 focus:outline-none focus:ring-2 focus:ring-violet-500/30 disabled:opacity-60"
             value={inputValue}
             onChange={(e) => { setInputValue(e.target.value); ajustarAlturaComposer(e.target); }}
             onKeyDown={(e) => {
@@ -1211,11 +1224,11 @@ export function ChatSurface({ variant = "embedded", className, initialConvId }: 
             disabled={streaming}
           />
           {streaming ? (
-            <Button onClick={handleStop} variant="destructive" className="mb-0.5 h-10 shrink-0 gap-2 px-4">
+            <Button onClick={handleStop} variant="destructive" className="mb-0.5 h-10 shrink-0 gap-2 px-4 max-sm:ml-auto">
               <Square className="w-4 h-4" /> Detener
             </Button>
           ) : (
-            <Button onClick={() => handleSend()} className="mb-0.5 h-10 w-12 shrink-0 gap-2" disabled={!inputValue.trim() && pendingAttachments.length === 0} aria-label="Enviar">
+            <Button onClick={() => handleSend()} className="mb-0.5 h-10 w-12 shrink-0 gap-2 max-sm:ml-auto" disabled={!inputValue.trim() && pendingAttachments.length === 0} aria-label="Enviar">
               <Send className="w-4 h-4" />
             </Button>
           )}
