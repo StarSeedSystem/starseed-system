@@ -631,7 +631,11 @@ function DockItem({ icon, label, onClick, color = "neutral", active = false, bad
     return (
         <div className={cn(
             "group relative flex shrink-0 snap-center flex-col items-center gap-1",
-            compact ? "w-[46px] lg:w-[60px]" : "w-[58px] lg:w-[78px]",
+            // <640px: celda algo más ancha en las DOS densidades para que la
+            // etiqueta en dos líneas (line-clamp-2 de abajo) tenga sitio sin
+            // solaparse con el vecino; en ≥640px no cambia nada (tablet/escritorio
+            // siguen con el ancho de siempre).
+            compact ? "w-[46px] lg:w-[60px] max-sm:w-16" : "w-[58px] lg:w-[78px] max-sm:w-16",
         )}>
             <button
                 onClick={onClick}
@@ -649,7 +653,10 @@ function DockItem({ icon, label, onClick, color = "neutral", active = false, bad
                     // la preferencia dijera redondo. El diseño clásico circular
                     // vuelve a mandar; "square" queda como variante de tema.
                     redondo ? "!rounded-full" : "!rounded-2xl",
-                    compact ? "w-9 h-9 lg:w-12 lg:h-12" : "w-12 h-12 lg:w-16 lg:h-16",
+                    // <640px: el compacto (36px) queda por debajo del objetivo
+                    // táctil mínimo (44px); se sube solo ahí. El cómodo (48px) ya
+                    // cumplía y no cambia. Tablet/escritorio (≥640px) intactos.
+                    compact ? "w-9 h-9 lg:w-12 lg:h-12 max-sm:w-11 max-sm:h-11" : "w-12 h-12 lg:w-16 lg:h-16",
                     // Transiciones 150–300ms (guía de diseño): micro-interacción viva.
                     "transition-[transform,box-shadow,background-color,border-color] duration-200 ease-out",
                     "active:scale-95 group-hover:scale-105 group-hover:-translate-y-0.5",
@@ -703,6 +710,11 @@ function DockItem({ icon, label, onClick, color = "neutral", active = false, bad
                 <span
                     className={cn(
                         "max-w-[58px] lg:max-w-[78px] truncate text-center text-[9px] lg:text-[11px] leading-tight transition-colors",
+                        // <640px: nada de puntos suspensivos a media palabra
+                        // («Librería · Bib…») — la etiqueta envuelve en hasta 2
+                        // líneas, a todo el ancho fijo de la celda (arriba) y con
+                        // una talla mínima legible (10px). Solo bajo 640px.
+                        "max-sm:line-clamp-2 max-sm:max-w-full max-sm:whitespace-normal max-sm:break-words max-sm:text-[10px]",
                         active ? cn(p.text, "font-semibold") : "text-foreground/55 group-hover:text-foreground/85",
                     )}
                 >
