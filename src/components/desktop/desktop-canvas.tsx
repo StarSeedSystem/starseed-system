@@ -17,6 +17,7 @@ import {
     Plus, Eye, EyeOff, ChevronDown, Pencil, Trash2, Check,
     MousePointer2, ExternalLink, X, Magnet, ImageIcon,
     SquareStack, Settings2, LayoutGrid, Share2, Columns2, Rows2, Grid2x2, Frame,
+    MoreHorizontal,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -45,6 +46,12 @@ import { DesktopAddPanel, type AddPanelTab } from "./desktop-add-panel";
 import { CursorSettingsPanel } from "./cursor-fx";
 import { EmptyDesktopState } from "./desktop-empty";
 import { CanvasContextMenu, IconContextMenu } from "./desktop-context-menu";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { DesktopTaskbar } from "./desktop-taskbar";
 import { DesktopSettingsPanel } from "./desktop-settings-panel";
 import { DesktopExpose } from "./desktop-expose";
@@ -1280,7 +1287,10 @@ export function DesktopCanvas({ spaceId = null }: { spaceId?: string | null } = 
                         )}
                     >
                         <SquareStack className="size-3.5 shrink-0 text-cyan-200/90" />
-                        <span className="max-w-[120px] truncate text-[11px] font-black tracking-tight sm:max-w-[180px]">
+                        {/* Móvil: más ancho que antes (los puntos de abajo se ocultan
+                            bajo 640px y liberan sitio), así "Escritorio 1" y nombres
+                            cortos similares ya no se cortan a la mitad. */}
+                        <span className="max-w-[160px] truncate text-[11px] font-black tracking-tight sm:max-w-[180px]">
                             {desktop.name}
                         </span>
                         <ChevronDown className={cn("size-3 shrink-0 text-muted-foreground transition-transform", managerOpen && "rotate-180")} />
@@ -1297,8 +1307,10 @@ export function DesktopCanvas({ spaceId = null }: { spaceId?: string | null } = 
                         </span>
                     )}
 
-                    {/* Puntos deslizables */}
-                    <div className="flex max-w-[30vw] items-center gap-1 overflow-x-auto px-0.5">
+                    {/* Puntos deslizables — en móvil se ocultan (el botón del nombre
+                        ya abre el gestor completo con la misma función) para dejar
+                        sitio al nombre y a los controles de la derecha. */}
+                    <div className="hidden sm:flex max-w-[30vw] items-center gap-1 overflow-x-auto px-0.5">
                         {state.desktops.map((d, i) => (
                             <button
                                 key={d.id}
@@ -1363,13 +1375,15 @@ export function DesktopCanvas({ spaceId = null }: { spaceId?: string | null } = 
                     </div>
                 )}
 
-                {/* + Añadir */}
+                {/* + Añadir — en móvil, sin texto (ya oculto abajo), se vuelve un
+                    círculo de 40px en vez de una píldora con relleno pequeño. */}
                 <button
                     type="button"
                     onClick={() => openAdd("apps")}
-                    className="flex items-center gap-1.5 rounded-full border border-cyan-300/40 bg-cyan-400/15 px-3 py-1.5 text-[11px] font-black text-cyan-100 shadow-[0_0_14px_rgba(34,211,238,0.25)] transition-all hover:bg-cyan-400/25 hover:shadow-[0_0_20px_rgba(34,211,238,0.4)] cursor-pointer"
+                    aria-label="Añadir al escritorio"
+                    className="flex items-center gap-1.5 rounded-full border border-cyan-300/40 bg-cyan-400/15 px-3 py-1.5 text-[11px] font-black text-cyan-100 shadow-[0_0_14px_rgba(34,211,238,0.25)] transition-all hover:bg-cyan-400/25 hover:shadow-[0_0_20px_rgba(34,211,238,0.4)] cursor-pointer max-sm:size-10 max-sm:justify-center max-sm:p-0"
                 >
-                    <Plus className="size-3.5" />
+                    <Plus className="size-3.5 max-sm:size-4" />
                     <span className="max-sm:hidden">Añadir</span>
                 </button>
 
@@ -1413,53 +1427,99 @@ export function DesktopCanvas({ spaceId = null }: { spaceId?: string | null } = 
                     </div>
                 )}
 
-                {/* Exposé: vista de conjunto de ventanas */}
-                {desktop.windows.length > 0 && (
-                    <button
-                        type="button"
-                        onClick={() => setExposeOpen(true)}
-                        title="Vista de conjunto (F3)"
-                        aria-label="Vista de conjunto de ventanas"
-                        className={cn(
-                            "grid size-7 place-items-center rounded-full border transition-colors cursor-pointer",
-                            "border-white/12 bg-white/[0.04] text-muted-foreground hover:bg-white/[0.09] hover:text-foreground",
+                {/* Exposé · Vista limpia · Ajustes: en escritorio, tres botones
+                    sueltos (sin cambios). En móvil no caben a 40px cada uno junto
+                    al resto de la barra, así que se agrupan en un solo menú "Más"
+                    (mismas acciones, con su icono y su nombre completo en lista). */}
+                {isMobile ? (
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <button
+                                type="button"
+                                title="Más opciones del escritorio"
+                                aria-label="Más opciones del escritorio"
+                                className="grid size-10 shrink-0 place-items-center rounded-full border border-white/12 bg-white/[0.04] text-muted-foreground transition-colors hover:bg-white/[0.09] hover:text-foreground cursor-pointer"
+                            >
+                                <MoreHorizontal className="size-4" />
+                            </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="bg-black/90 border-white/10 backdrop-blur-xl">
+                            {desktop.windows.length > 0 && (
+                                <DropdownMenuItem
+                                    className="gap-2 text-white hover:bg-white/10 focus:bg-white/10 cursor-pointer"
+                                    onClick={() => setExposeOpen(true)}
+                                >
+                                    <LayoutGrid className="size-4" />
+                                    Vista de conjunto
+                                </DropdownMenuItem>
+                            )}
+                            <DropdownMenuItem
+                                className="gap-2 text-white hover:bg-white/10 focus:bg-white/10 cursor-pointer"
+                                onClick={() => setCleanView((v) => !v)}
+                            >
+                                {cleanView ? <Eye className="size-4" /> : <EyeOff className="size-4" />}
+                                {cleanView ? "Mostrar ventanas" : "Vista limpia (ocultar ventanas)"}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                                className="gap-2 text-white hover:bg-white/10 focus:bg-white/10 cursor-pointer"
+                                onClick={() => setSettingsOpen(true)}
+                            >
+                                <Settings2 className="size-4" />
+                                Ajustes del escritorio
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                ) : (
+                    <>
+                        {/* Exposé: vista de conjunto de ventanas */}
+                        {desktop.windows.length > 0 && (
+                            <button
+                                type="button"
+                                onClick={() => setExposeOpen(true)}
+                                title="Vista de conjunto (F3)"
+                                aria-label="Vista de conjunto de ventanas"
+                                className={cn(
+                                    "grid size-7 place-items-center rounded-full border transition-colors cursor-pointer",
+                                    "border-white/12 bg-white/[0.04] text-muted-foreground hover:bg-white/[0.09] hover:text-foreground",
+                                )}
+                            >
+                                <LayoutGrid className="size-3.5" />
+                            </button>
                         )}
-                    >
-                        <LayoutGrid className="size-3.5" />
-                    </button>
+
+                        {/* Vista limpia */}
+                        <button
+                            type="button"
+                            onClick={() => setCleanView((v) => !v)}
+                            title={cleanView ? "Mostrar ventanas" : "Vista limpia (ocultar ventanas)"}
+                            aria-label={cleanView ? "Mostrar ventanas" : "Ocultar ventanas"}
+                            className={cn(
+                                "grid size-7 place-items-center rounded-full border transition-colors cursor-pointer",
+                                cleanView
+                                    ? "border-amber-300/50 bg-amber-300/15 text-amber-200"
+                                    : "border-white/12 bg-white/[0.04] text-muted-foreground hover:bg-white/[0.09] hover:text-foreground",
+                            )}
+                        >
+                            {cleanView ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+                        </button>
+
+                        {/* Ajustes del escritorio (acceso rápido) */}
+                        <button
+                            type="button"
+                            onClick={() => setSettingsOpen(true)}
+                            title="Ajustes del escritorio"
+                            aria-label="Ajustes del escritorio"
+                            className={cn(
+                                "grid size-7 place-items-center rounded-full border transition-colors cursor-pointer",
+                                settingsOpen
+                                    ? "border-violet-300/50 bg-violet-400/15 text-violet-200"
+                                    : "border-white/12 bg-white/[0.04] text-muted-foreground hover:bg-white/[0.09] hover:text-foreground",
+                            )}
+                        >
+                            <Settings2 className="size-3.5" />
+                        </button>
+                    </>
                 )}
-
-                {/* Vista limpia */}
-                <button
-                    type="button"
-                    onClick={() => setCleanView((v) => !v)}
-                    title={cleanView ? "Mostrar ventanas" : "Vista limpia (ocultar ventanas)"}
-                    aria-label={cleanView ? "Mostrar ventanas" : "Ocultar ventanas"}
-                    className={cn(
-                        "grid size-7 place-items-center rounded-full border transition-colors cursor-pointer",
-                        cleanView
-                            ? "border-amber-300/50 bg-amber-300/15 text-amber-200"
-                            : "border-white/12 bg-white/[0.04] text-muted-foreground hover:bg-white/[0.09] hover:text-foreground",
-                    )}
-                >
-                    {cleanView ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
-                </button>
-
-                {/* Ajustes del escritorio (acceso rápido) */}
-                <button
-                    type="button"
-                    onClick={() => setSettingsOpen(true)}
-                    title="Ajustes del escritorio"
-                    aria-label="Ajustes del escritorio"
-                    className={cn(
-                        "grid size-7 place-items-center rounded-full border transition-colors cursor-pointer",
-                        settingsOpen
-                            ? "border-violet-300/50 bg-violet-400/15 text-violet-200"
-                            : "border-white/12 bg-white/[0.04] text-muted-foreground hover:bg-white/[0.09] hover:text-foreground",
-                    )}
-                >
-                    <Settings2 className="size-3.5" />
-                </button>
 
                 {/* Conexiones de la neurona (Adenda 98): red externa + malla P2P */}
                 <ConnectionsMenu />

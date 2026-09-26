@@ -18,6 +18,7 @@ import {
     DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { DEVICE_TYPES, deviceTypeById } from "./dashboard-devices";
+import { MenuListaMovil } from "@/components/ui/menu-lista-movil";
 
 interface HeaderProps {
     panelId: string;
@@ -240,11 +241,46 @@ export function DashboardPanelHeader({
         // px reducido (px-1.5) para no desperdiciar espacio en los bordes; el track
         // de pestañas llega casi al borde y los controles quedan fijados a la derecha
         // sin recortarse. El scroll horizontal vive SOLO en el track de pestañas.
-        <div className="box-border w-full flex items-stretch gap-0.5 px-1.5 pt-1.5 pb-0 bg-black/60 border-b border-white/5 shrink-0 overflow-hidden">
-            {/* Tabs Area — ÚNICA zona con scroll horizontal. min-w-0 permite encoger
+        <div className="box-border w-full flex items-stretch gap-0.5 px-1.5 pt-1.5 pb-1.5 sm:pb-0 bg-black/60 border-b border-white/5 shrink-0 overflow-hidden">
+            {/* Móvil (< 640px): demasiados "folders" para arrastrar en una tira
+                angosta — un solo botón con el tablero actual abre la lista
+                completa (nombre entero + icono) en una hoja inferior. */}
+            <div className="min-w-0 flex-1 flex items-center gap-1.5 sm:hidden">
+                <MenuListaMovil
+                    opciones={dashboards.map((d) => {
+                        const count = widgetCounts?.[d.id];
+                        return {
+                            id: d.id,
+                            label: d.name,
+                            icon: d.is_default ? Star : undefined,
+                            accent: d.is_default ? "text-yellow-400" : undefined,
+                            badge: typeof count === "number" && count > 0 ? count : undefined,
+                        };
+                    })}
+                    valor={activeId}
+                    onCambiar={(id) => setActiveDashboard(panelId, id)}
+                    titulo="Tableros"
+                    className="h-10"
+                />
+                {isEditMode && onCreateDashboard && (
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        className="size-10 shrink-0 rounded-xl text-white/50 hover:text-cyan-400 hover:bg-cyan-500/10 border border-dashed border-white/20 cursor-pointer"
+                        onClick={onCreateDashboard}
+                        title="Crear tablero"
+                        aria-label="Crear tablero"
+                    >
+                        <Plus className="w-4 h-4" />
+                    </Button>
+                )}
+            </div>
+
+            {/* Escritorio (≥ 640px): pestañas arrastrables de siempre, sin cambios.
+                Tabs Area — ÚNICA zona con scroll horizontal. min-w-0 permite encoger
                 el track para que los controles de la derecha siempre quepan. Los tabs
                 se asientan sobre el lienzo (pb-0) sin hueco muerto en las esquinas. */}
-            <div className="flex-1 min-w-0 flex items-end gap-0.5 overflow-x-auto overflow-y-hidden custom-scrollbar overscroll-x-contain">
+            <div className="hidden sm:flex flex-1 min-w-0 items-end gap-0.5 overflow-x-auto overflow-y-hidden custom-scrollbar overscroll-x-contain">
                 <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
                     <SortableContext items={dashboards.map(d => d.id)} strategy={horizontalListSortingStrategy}>
                         {dashboards.map(d => {
@@ -288,11 +324,11 @@ export function DashboardPanelHeader({
                     <Button
                         variant="ghost"
                         size="icon"
-                        className="w-7 h-7 rounded-lg text-white/30 hover:text-emerald-400 hover:bg-emerald-500/10 cursor-pointer"
+                        className="w-7 h-7 max-sm:size-10 rounded-lg text-white/30 hover:text-emerald-400 hover:bg-emerald-500/10 cursor-pointer"
                         onClick={onOpenDeviceManager}
                         title="Dispositivos y sincronización"
                     >
-                        <MonitorSmartphone className="w-3.5 h-3.5" />
+                        <MonitorSmartphone className="w-3.5 h-3.5 max-sm:size-4" />
                     </Button>
                 )}
 
@@ -302,10 +338,10 @@ export function DashboardPanelHeader({
                             <Button
                                 variant="ghost"
                                 size="icon"
-                                className="w-7 h-7 rounded-lg text-white/30 hover:text-cyan-400 hover:bg-cyan-500/10 cursor-pointer"
+                                className="w-7 h-7 max-sm:size-10 rounded-lg text-white/30 hover:text-cyan-400 hover:bg-cyan-500/10 cursor-pointer"
                                 title="Configuración de Dashboard (folder)"
                             >
-                                <Settings2 className="w-3.5 h-3.5" />
+                                <Settings2 className="w-3.5 h-3.5 max-sm:size-4" />
                             </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="bg-black/90 border-white/10 backdrop-blur-xl">
@@ -341,29 +377,29 @@ export function DashboardPanelHeader({
                 <Button
                     variant="ghost"
                     size="icon"
-                    className="w-7 h-7 rounded-lg text-white/30 hover:text-cyan-400 hover:bg-cyan-500/10 cursor-pointer"
+                    className="w-7 h-7 max-sm:size-10 rounded-lg text-white/30 hover:text-cyan-400 hover:bg-cyan-500/10 cursor-pointer"
                     onClick={() => splitPanel(panelId, 'horizontal')}
                     title="Dividir Horizontalmente"
                 >
-                    <LayoutPanelLeft className="w-3.5 h-3.5" />
+                    <LayoutPanelLeft className="w-3.5 h-3.5 max-sm:size-4" />
                 </Button>
                 <Button
                     variant="ghost"
                     size="icon"
-                    className="w-7 h-7 rounded-lg text-white/30 hover:text-cyan-400 hover:bg-cyan-500/10 cursor-pointer"
+                    className="w-7 h-7 max-sm:size-10 rounded-lg text-white/30 hover:text-cyan-400 hover:bg-cyan-500/10 cursor-pointer"
                     onClick={() => splitPanel(panelId, 'vertical')}
                     title="Dividir Verticalmente"
                 >
-                    <LayoutPanelTop className="w-3.5 h-3.5" />
+                    <LayoutPanelTop className="w-3.5 h-3.5 max-sm:size-4" />
                 </Button>
                 <Button
                     variant="ghost"
                     size="icon"
-                    className="w-7 h-7 rounded-lg text-white/30 hover:text-red-400 hover:bg-red-500/10 ml-0.5 cursor-pointer"
+                    className="w-7 h-7 max-sm:size-10 rounded-lg text-white/30 hover:text-red-400 hover:bg-red-500/10 ml-0.5 cursor-pointer"
                     onClick={() => closePanel(panelId)}
                     title="Cerrar Panel"
                 >
-                    <X className="w-4 h-4" />
+                    <X className="w-4 h-4 max-sm:size-[18px]" />
                 </Button>
             </div>
         </div>

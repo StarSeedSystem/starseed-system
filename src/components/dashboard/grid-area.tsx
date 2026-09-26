@@ -67,6 +67,27 @@ function useCoarsePointer(): boolean {
     return coarse;
 }
 
+/**
+ * Pantalla chica (< 640px, mismo umbral que el `sm` de Tailwind). Se usa SOLO
+ * para escalar la altura en píxeles de las tarjetas de la rejilla táctil
+ * (cálculo en JS, fuera del alcance de las clases `max-sm:`): en un teléfono
+ * la rejilla pasa a una columna y cada fila de la cuadrícula (h) ocupa menos
+ * píxeles, así un widget bajo (un reloj) no reserva la misma altura fija que
+ * en una tablet ancha. Encima de 640px el resultado es IDÉNTICO a como era.
+ */
+function useNarrowViewport(): boolean {
+    const [narrow, setNarrow] = useState(false);
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        const mq = window.matchMedia("(max-width: 639px)");
+        const update = () => setNarrow(mq.matches);
+        update();
+        try { mq.addEventListener("change", update); } catch { /* Safari viejo */ }
+        return () => { try { mq.removeEventListener("change", update); } catch { } };
+    }, []);
+    return narrow;
+}
+
 export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWidget, onAddWidget, onForgeOpen }: GridAreaProps) {
     const { width, containerRef } = useWidth();
     const { toast } = useToast();
@@ -74,6 +95,7 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWi
     const [layouts, setLayouts] = useState<any>({});
     const [mounted, setMounted] = useState(false);
     const isCoarse = useCoarsePointer();
+    const isNarrow = useNarrowViewport();
     // Respeta prefers-reduced-motion: sin entrada escalonada si el usuario la desactivó.
     const shouldReduceMotion = useReducedMotion();
 
@@ -269,7 +291,11 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWi
         const ordered = [...widgets].sort((a, b) =>
             (a.layout.y - b.layout.y) || (a.layout.x - b.layout.x)
         );
-        const ROW = 65, GAP = 18;
+        // En pantalla chica (< 640px) cada fila de la cuadrícula pesa menos
+        // píxeles: con una sola columna (ancho completo) el mismo contenido
+        // cabe en una tarjeta más baja — un widget con h=5 (p. ej. Reloj y
+        // Fecha, plantilla "L") ya no reserva ~400px de alto por defecto.
+        const ROW = isNarrow ? 40 : 65, GAP = isNarrow ? 10 : 18;
         return (
             <div
                 id={`grid-container-${dashboardId}`}
@@ -286,18 +312,21 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWi
                 style={{ touchAction: "pan-y" }}
             >
                 {/* Rejilla fluida tipo pantalla de inicio (móvil/tablet/desktop):
-                    2 widgets por hilera en móvil (aprovecha el ancho sin desperdiciar),
-                    3 en tablet y 4 en pantallas anchas. Los widgets anchos (footprint
-                    ≥ 10/12 en el grid, p. ej. el folder-dock de apps o accesos rápidos)
+                    UNA sola columna en teléfono (< 640px: ancho completo, sin
+                    contenido apretado en ~170px), 2 en tablet, 3 en tablet grande
+                    y 4 en pantallas anchas. Los widgets anchos (footprint ≥ 10/12
+                    en el grid, p. ej. el folder-dock de apps o accesos rápidos)
                     ocupan la hilera completa. Sin recortes: box-border + separación
                     uniforme. */}
-                <div className="grid grid-cols-2 md:grid-cols-3 2xl:grid-cols-4 gap-2 sm:gap-3 box-border" style={{ touchAction: "pan-y" }}>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 2xl:grid-cols-4 gap-2 sm:gap-3 box-border" style={{ touchAction: "pan-y" }}>
                     {ordered.map((widget, idx) => {
                         const h = Math.max(widget.layout.h, 3);
                         const cardHeight = h * ROW + (h - 1) * GAP;
                         // Widgets anchos (ocupaban casi toda la fila del grid de 12) o
                         // folders/lanzaderas de apps → hilera completa también en la
                         // rejilla táctil, para que respiren y no queden aplastados.
+                        // En una sola columna (móvil) esto ya no cambia nada visible
+                        // (col-span-1 y col-span-2 caen en la misma columna única).
                         const spanFull = widget.layout.w >= 10
                             || widget.widget_type === "APP_LAUNCHER"
                             || widget.widget_type === "QUICK_ACCESS";
