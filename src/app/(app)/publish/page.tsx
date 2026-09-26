@@ -957,7 +957,7 @@ function PublishPage() {
                 return (
                     <div className="w-full max-w-4xl">
                         <div className="text-center mb-8">
-                            <h2 className="text-3xl font-bold font-headline">Paso 1: Selecciona el Área Principal</h2>
+                            <h2 className="text-xl sm:text-3xl font-bold font-headline">Paso 1: Selecciona el Área Principal</h2>
                             <p className="text-muted-foreground mt-2 max-w-2xl mx-auto">
                                 Comienza eligiendo el propósito de tu publicación. Esto determinará las herramientas y opciones disponibles.
                             </p>
@@ -987,7 +987,7 @@ function PublishPage() {
                 return (
                     <div className="w-full max-w-4xl">
                         <div className="text-center mb-8">
-                            <h2 className="text-3xl font-bold font-headline">Paso 2: Elige el Formato del Contenido</h2>
+                            <h2 className="text-xl sm:text-3xl font-bold font-headline">Paso 2: Elige el Formato del Contenido</h2>
                             <p className="text-muted-foreground mt-2 max-w-2xl mx-auto">
                                 Selecciona cómo quieres estructurar tu publicación. Puedes empezar simple y añadir complejidad después.
                             </p>
@@ -1022,7 +1022,7 @@ function PublishPage() {
                 return (
                     <div className="w-full max-w-4xl">
                         <div className="text-center mb-8">
-                            <h2 className="text-3xl font-bold font-headline">Paso 3: Define el Ámbito y Contexto</h2>
+                            <h2 className="text-xl sm:text-3xl font-bold font-headline">Paso 3: Define el Ámbito y Contexto</h2>
                             <p className="text-muted-foreground mt-2 max-w-2xl mx-auto">Selecciona dónde se publicará y cómo se conectará tu contenido con la red de conocimiento.</p>
                         </div>
                         <Card>
@@ -1114,7 +1114,7 @@ function PublishPage() {
                 return (
                     <div className="w-full max-w-5xl space-y-6">
                         <div className="text-center mb-8">
-                            <h2 className="text-3xl font-bold font-headline">Paso 4: El Lienzo de Creación</h2>
+                            <h2 className="text-xl sm:text-3xl font-bold font-headline">Paso 4: El Lienzo de Creación</h2>
                             <p className="text-muted-foreground mt-2 max-w-2xl mx-auto">Aquí es donde tu idea toma forma. Utiliza el editor para construir tu contenido.</p>
                         </div>
 
@@ -1225,7 +1225,7 @@ function PublishPage() {
                 {/* ── Page header ── */}
                 <div className="flex items-center justify-between">
                     <div>
-                        <h1 className="text-3xl font-bold font-headline flex items-center gap-3">
+                        <h1 className="text-2xl sm:text-3xl font-bold font-headline flex items-center gap-3">
                             Publicar Contenido
                         </h1>
                         <p className="text-muted-foreground">
