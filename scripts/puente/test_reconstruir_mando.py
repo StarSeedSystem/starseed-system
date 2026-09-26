@@ -639,8 +639,58 @@ class NoSeCompilaConAstrauraEnUso(unittest.TestCase):
                 mock.patch.object(R, "cuantas_mas_nuevas", return_value=3), \
                 mock.patch.object(R, "mtime_del_build", return_value=0), \
                 mock.patch.object(R, "conversando", return_value=False), \
-                mock.patch.object(R, "astraura_en_uso", return_value=True), \
+                mock.patch.object(R, "uso_de_astraura", return_value="uso"), \
+                mock.patch.object(R, "_guardar"), \
                 mock.patch.object(R, "reconstruir") as rec:
             self.assertFalse(R.una_pasada())
         rec.assert_not_called()
+
+
+class ElSilencioDeAstrauraNoBloqueaParaSiempre(unittest.TestCase):
+    """26-09: el estado de Astraura se colgaba siempre con el BitNet saturado y el Mando pasó
+    5 h sin reconstruirse. El uso medido bloquea; el silencio, como mucho 90 min."""
+
+    def _pasada(self, estado, uso):
+        guardados = []
+        with mock.patch.object(R, "_entradas", return_value=[]), \
+                mock.patch.object(R, "huella_de", return_value="bbb"), \
+                mock.patch.object(R, "_leer_estado", return_value=dict(estado)), \
+                mock.patch.object(R, "cuantas_mas_nuevas", return_value=3), \
+                mock.patch.object(R, "mtime_del_build", return_value=0), \
+                mock.patch.object(R, "conversando", return_value=False), \
+                mock.patch.object(R, "uso_de_astraura", return_value=uso), \
+                mock.patch.object(R, "publicacion_va_a_compilar", return_value=False), \
+                mock.patch.object(R, "espacio_libre_gb", return_value=50.0), \
+                mock.patch.object(R, "_guardar", side_effect=guardados.append), \
+                mock.patch.object(R, "reconstruir") as rec:
+            hecho = R.una_pasada()
+        return hecho, rec, guardados
+
+    def test_silencio_reciente_espera_y_anota_desde_cuando(self):
+        hecho, rec, guardados = self._pasada({"huella_construida": "aaa", "ok": True}, "sin-respuesta")
+        self.assertFalse(hecho)
+        rec.assert_not_called()
+        self.assertIsInstance(guardados[-1]["silencio_desde"], float)
+
+    def test_silencio_largo_compila_igual(self):
+        viejo = R.time.time() - R.ESPERA_MAX_SIN_RESPUESTA_S - 60
+        hecho, rec, _ = self._pasada({"huella_construida": "aaa", "ok": True, "silencio_desde": viejo},
+                                     "sin-respuesta")
+        self.assertTrue(hecho)
+        rec.assert_called_once()
+
+    def test_uso_medido_sigue_bloqueando_aunque_haga_horas(self):
+        viejo = R.time.time() - 10 * 3600
+        hecho, rec, _ = self._pasada({"huella_construida": "aaa", "ok": True, "silencio_desde": viejo}, "uso")
+        self.assertFalse(hecho)
+        rec.assert_not_called()
+
+    def test_silencio_tolerable_es_pura(self):
+        self.assertTrue(R.silencio_tolerable(None, 1000.0))
+        self.assertTrue(R.silencio_tolerable(900.0, 1000.0, espera_s=200))
+        self.assertFalse(R.silencio_tolerable(700.0, 1000.0, espera_s=200))
+        self.assertTrue(R.silencio_tolerable(True, 1000.0))
+
+    def test_backend_que_no_escucha_esta_libre(self):
+        self.assertEqual(R.uso_de_astraura("http://127.0.0.1:9", timeout=1), "libre")
 

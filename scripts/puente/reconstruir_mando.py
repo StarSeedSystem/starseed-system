@@ -747,18 +747,39 @@ def astraura_en_uso_por(estado, umbral_s=ASTRAURA_EN_USO_S) -> bool:
         return False
 
 
-def astraura_en_uso(url=ASTRAURA_URL, timeout=4.0) -> bool:
-    """Pregunta al backend de Astraura. Si no contesta a tiempo está ocupado → en uso;
-    si no está (conexión rechazada), no hay nada que proteger."""
+#: (2026-09-26, MEDIDO) Un `/api/bitnet/estado` que no contesta NO es lo mismo que Alex usando
+#: a Astraura. Con el BitNet saturado por peticiones de fondo (0,8 tok/s, una cola detrás del
+#: único hueco) el estado se colgaba SIEMPRE, cada pasada lo contaba como «en uso» y el Mando
+#: pasó 5 h sirviendo un build viejo. Alex: «no aparece lo de las capas de conciencia en los
+#: chats». El uso MEDIDO sigue bloqueando sin límite; el SILENCIO bloquea como mucho esto, y
+#: después se compila igual: `con-turno.py` le pide la RAM al BitNet antes de empezar.
+ESPERA_MAX_SIN_RESPUESTA_S = int(os.environ.get("STARSEED_RECONSTRUIR_SILENCIO_S", "5400"))
+
+
+def uso_de_astraura(url=ASTRAURA_URL, timeout=4.0) -> str:
+    """«uso» (alguien la usó hace poco), «sin-respuesta» (no contesta a tiempo) o «libre»
+    (contesta y nadie la usa, o no está arrancada: no hay nada que proteger)."""
     try:
         with urllib.request.urlopen(url + "/api/bitnet/estado", timeout=timeout) as r:
-            return astraura_en_uso_por(json.load(r))
+            return "uso" if astraura_en_uso_por(json.load(r)) else "libre"
     except TimeoutError:
-        return True
+        return "sin-respuesta"
     except OSError as e:
-        return isinstance(getattr(e, "reason", None), TimeoutError)
+        return "sin-respuesta" if isinstance(getattr(e, "reason", None), TimeoutError) else "libre"
     except ValueError:
-        return False
+        return "libre"
+
+
+def astraura_en_uso(url=ASTRAURA_URL, timeout=4.0) -> bool:
+    """Compatibilidad: en uso o sin contestar."""
+    return uso_de_astraura(url, timeout) != "libre"
+
+
+def silencio_tolerable(silencio_desde, ahora, espera_s=ESPERA_MAX_SIN_RESPUESTA_S) -> bool:
+    """PURA: ¿se puede seguir esperando a un Astraura que no contesta desde `silencio_desde`?"""
+    if not isinstance(silencio_desde, (int, float)) or isinstance(silencio_desde, bool):
+        return True
+    return ahora - silencio_desde < espera_s
 
 
 def una_pasada() -> bool:
@@ -773,10 +794,24 @@ def una_pasada() -> bool:
         print("[%s] espero: %s, pero Alex está hablando con Astraura" % (time.strftime("%H:%M"), motivo),
               flush=True)
         return False
-    if hazlo and astraura_en_uso():
+    uso = uso_de_astraura() if hazlo else "libre"
+    if hazlo and uso == "uso":
         print("[%s] espero: %s, pero Astraura está en uso (una build le quita la RAM al BitNet)"
               % (time.strftime("%H:%M"), motivo), flush=True)
+        _guardar(dict(_leer_estado(), silencio_desde=None))
         return False
+    if hazlo and uso == "sin-respuesta":
+        ahora = time.time()
+        desde = _leer_estado().get("silencio_desde")
+        desde = desde if isinstance(desde, (int, float)) and not isinstance(desde, bool) else ahora
+        if silencio_tolerable(desde, ahora):
+            print("[%s] espero: %s, pero Astraura no contesta (lleva %d min así; compilo a los %d)"
+                  % (time.strftime("%H:%M"), motivo, (ahora - desde) // 60,
+                     ESPERA_MAX_SIN_RESPUESTA_S // 60), flush=True)
+            _guardar(dict(_leer_estado(), silencio_desde=desde))
+            return False
+        print("[%s] Astraura lleva %d min sin contestar: compilo igual (el turno le pide la RAM)"
+              % (time.strftime("%H:%M"), (ahora - desde) // 60), flush=True)
     if hazlo and publicacion_va_a_compilar(_leer_estado(PUBLICACION)):
         print("[%s] espero: %s, pero la publicación en marcha va a compilar: su build sirve"
               % (time.strftime("%H:%M"), motivo), flush=True)
@@ -798,6 +833,7 @@ def una_pasada() -> bool:
         return False
     if hazlo:
         print("[%s] RECONSTRUYO: %s" % (time.strftime("%H:%M"), motivo), flush=True)
+        _guardar(dict(_leer_estado(), silencio_desde=None))
         reconstruir(actual)
         return True
 
@@ -812,7 +848,7 @@ def una_pasada() -> bool:
 
     print("[%s] espero: %s" % (time.strftime("%H:%M"), motivo), flush=True)
     # Se anota igual: así el Puente puede decir «al día» con fecha, no de memoria.
-    _guardar(dict(estado, visto=time.strftime("%Y-%m-%d %H:%M:%S"), huella_vista=actual))
+    _guardar(dict(estado, visto=time.strftime("%Y-%m-%d %H:%M:%S"), huella_vista=actual, silencio_desde=None))
     return False
 
 
