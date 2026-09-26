@@ -73,19 +73,47 @@ const RESIZE_CURSOR: Record<ResizeHandle, string> = {
     nw: "cursor-nwse-resize", se: "cursor-nwse-resize",
 };
 
-function ResizeEdges({ onBegin }: { onBegin: (e: React.PointerEvent, handle: ResizeHandle) => void }): React.ReactElement {
+/**
+ * (2026-09-26) Gestos que no se quedan pegados, en táctil y sobre iframes:
+ *  · `touch-none` en asas y cabecera: sin él, en una tableta el navegador se quedaba el gesto
+ *    (desplazar/zoom) y lanzaba `pointercancel` a mitad del arrastre.
+ *  · captura del puntero + `html.ss-gesto` (CSS global: los iframes no reciben eventos
+ *    mientras dura): al pasar por encima de una ventana con iframe se perdían el movimiento
+ *    y el soltar, y la ventana se quedaba «arrastrando».
+ *  · asas de 16 px con puntero grueso (dedo), 6 px con ratón.
+ */
+function empezarGesto(e: React.PointerEvent): void {
+    try {
+        (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
+    } catch { /* algunos navegadores no la permiten en todos los elementos */ }
+    try {
+        document.documentElement.classList.add("ss-gesto");
+    } catch { /* noop */ }
+}
+
+function terminarGesto(): void {
+    try {
+        document.documentElement.classList.remove("ss-gesto");
+    } catch { /* noop */ }
+}
+
+function ResizeEdges({ onBegin, edge = EDGE_PX, corner = CORNER_PX }: {
+    onBegin: (e: React.PointerEvent, handle: ResizeHandle) => void;
+    edge?: number;
+    corner?: number;
+}): React.ReactElement {
     return (
         <>
             {/* Bordes rectos */}
-            <div onPointerDown={(e) => onBegin(e, "n")} className={cn("absolute inset-x-2 top-0 z-30", RESIZE_CURSOR.n)} style={{ height: EDGE_PX }} />
-            <div onPointerDown={(e) => onBegin(e, "s")} className={cn("absolute inset-x-2 bottom-0 z-30", RESIZE_CURSOR.s)} style={{ height: EDGE_PX }} />
-            <div onPointerDown={(e) => onBegin(e, "w")} className={cn("absolute inset-y-2 left-0 z-30", RESIZE_CURSOR.w)} style={{ width: EDGE_PX }} />
-            <div onPointerDown={(e) => onBegin(e, "e")} className={cn("absolute inset-y-2 right-0 z-30", RESIZE_CURSOR.e)} style={{ width: EDGE_PX }} />
+            <div onPointerDown={(e) => onBegin(e, "n")} className={cn("absolute inset-x-2 top-0 z-30 touch-none", RESIZE_CURSOR.n)} style={{ height: edge }} />
+            <div onPointerDown={(e) => onBegin(e, "s")} className={cn("absolute inset-x-2 bottom-0 z-30 touch-none", RESIZE_CURSOR.s)} style={{ height: edge }} />
+            <div onPointerDown={(e) => onBegin(e, "w")} className={cn("absolute inset-y-2 left-0 z-30 touch-none", RESIZE_CURSOR.w)} style={{ width: edge }} />
+            <div onPointerDown={(e) => onBegin(e, "e")} className={cn("absolute inset-y-2 right-0 z-30 touch-none", RESIZE_CURSOR.e)} style={{ width: edge }} />
             {/* Esquinas (encima de los bordes rectos) */}
-            <div onPointerDown={(e) => onBegin(e, "nw")} className={cn("absolute left-0 top-0 z-30", RESIZE_CURSOR.nw)} style={{ width: CORNER_PX, height: CORNER_PX }} />
-            <div onPointerDown={(e) => onBegin(e, "ne")} className={cn("absolute right-0 top-0 z-30", RESIZE_CURSOR.ne)} style={{ width: CORNER_PX, height: CORNER_PX }} />
-            <div onPointerDown={(e) => onBegin(e, "sw")} className={cn("absolute left-0 bottom-0 z-30", RESIZE_CURSOR.sw)} style={{ width: CORNER_PX, height: CORNER_PX }} />
-            <div onPointerDown={(e) => onBegin(e, "se")} className={cn("absolute right-0 bottom-0 z-30", RESIZE_CURSOR.se)} style={{ width: CORNER_PX, height: CORNER_PX }}>
+            <div onPointerDown={(e) => onBegin(e, "nw")} className={cn("absolute left-0 top-0 z-30 touch-none", RESIZE_CURSOR.nw)} style={{ width: corner, height: corner }} />
+            <div onPointerDown={(e) => onBegin(e, "ne")} className={cn("absolute right-0 top-0 z-30 touch-none", RESIZE_CURSOR.ne)} style={{ width: corner, height: corner }} />
+            <div onPointerDown={(e) => onBegin(e, "sw")} className={cn("absolute left-0 bottom-0 z-30 touch-none", RESIZE_CURSOR.sw)} style={{ width: corner, height: corner }} />
+            <div onPointerDown={(e) => onBegin(e, "se")} className={cn("absolute right-0 bottom-0 z-30 touch-none", RESIZE_CURSOR.se)} style={{ width: corner, height: corner }}>
                 <span aria-hidden className="pointer-events-none absolute bottom-[5px] right-[5px] h-px w-2.5 rotate-[-45deg] bg-white/35" />
                 <span aria-hidden className="pointer-events-none absolute bottom-[8px] right-[3px] h-px w-1.5 rotate-[-45deg] bg-white/25" />
             </div>
@@ -100,13 +128,15 @@ function ResizeEdges({ onBegin }: { onBegin: (e: React.PointerEvent, handle: Res
  * vídeo) jamás es descendiente de un elemento con backdrop-filter, que
  * es lo que rompía el compositing y pintaba la ventana borrosa (B-1).
  */
-function WindowGlass({ isTop }: { isTop: boolean }): React.ReactElement {
+function WindowGlass({ isTop, enGesto = false }: { isTop: boolean; enGesto?: boolean }): React.ReactElement {
+    // Mientras se arrastra o redimensiona, sin desenfoque en vivo (repintar un cristal de
+    // ventana entera en cada fotograma es lo que más frena el gesto) y fondo algo más opaco.
     return (
         <span
             aria-hidden
             className={cn(
-                "pointer-events-none absolute inset-0 -z-10 rounded-2xl backdrop-blur-2xl",
-                isTop ? "bg-card/90" : "bg-card/80",
+                "pointer-events-none absolute inset-0 -z-10 rounded-2xl",
+                enGesto ? "bg-card/95" : cn("backdrop-blur-2xl", isTop ? "bg-card/90" : "bg-card/80"),
             )}
         />
     );
@@ -138,10 +168,24 @@ export function DesktopWindowFrame({
     const [live, setLive] = useState<DesktopWindowRect | null>(null);
     const [dragging, setDragging] = useState(false);
     const pendingSnapRef = useRef<SnapZone | null>(null);
+    const rafRef = useRef<number | null>(null);
+    // Dedo (tableta/móvil grande): asas más anchas. Se decide al montar (sin desajuste SSR).
+    const [asas, setAsas] = useState({ edge: EDGE_PX, corner: CORNER_PX });
+    useEffect(() => {
+        try {
+            if (window.matchMedia?.("(pointer: coarse)").matches) setAsas({ edge: 16, corner: 24 });
+        } catch { /* noop */ }
+    }, []);
 
     // ── Arrastre / redimensión con pointer events globales ──
+    // (2026-09-26) El rect vivo se pinta como mucho UNA vez por fotograma (rAF): antes cada
+    // evento del puntero (hasta 240/s en pantallas rápidas) disparaba un render.
     useEffect(() => {
         if (!dragging) return;
+        const pintar = () => {
+            rafRef.current = null;
+            setLive(liveRef.current);
+        };
         const onMove = (e: PointerEvent) => {
             const d = dragRef.current;
             if (!d) return;
@@ -185,9 +229,14 @@ export function DesktopWindowFrame({
                 next = { x: nx, y: ny, w: nw, h: nh };
             }
             liveRef.current = next;
-            setLive(next);
+            if (rafRef.current == null) rafRef.current = requestAnimationFrame(pintar);
         };
-        const onUp = () => {
+        const soltar = (confirmar: boolean) => {
+            if (rafRef.current != null) {
+                cancelAnimationFrame(rafRef.current);
+                rafRef.current = null;
+            }
+            terminarGesto();
             const commit = liveRef.current;
             const d = dragRef.current;
             const snapZone = pendingSnapRef.current;
@@ -197,19 +246,25 @@ export function DesktopWindowFrame({
             setDragging(false);
             setLive(null);
             onSnapPreview?.(null);
+            // `pointercancel` (el sistema se quedó el gesto) deshace; no guarda medio movimiento.
+            if (!confirmar) return;
             if (d?.mode === "move" && snapEnabled && snapZone) {
                 setWindowRect(desktopId, win.id, snapZoneRect(snapZone, window.innerWidth, window.innerHeight, topInset));
                 return;
             }
             if (commit) setWindowRect(desktopId, win.id, commit);
         };
+        const onUp = () => soltar(true);
+        const onCancel = () => soltar(false);
         window.addEventListener("pointermove", onMove);
         window.addEventListener("pointerup", onUp);
-        window.addEventListener("pointercancel", onUp);
+        window.addEventListener("pointercancel", onCancel);
         return () => {
             window.removeEventListener("pointermove", onMove);
             window.removeEventListener("pointerup", onUp);
-            window.removeEventListener("pointercancel", onUp);
+            window.removeEventListener("pointercancel", onCancel);
+            if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
+            terminarGesto();
         };
     }, [dragging, desktopId, win.id, topInset, snapEnabled, onSnapPreview]);
 
@@ -221,6 +276,7 @@ export function DesktopWindowFrame({
         if (locked) return;
         if ((e.target as HTMLElement).closest("button, a, input")) return;
         e.preventDefault();
+        empezarGesto(e);
         dragRef.current = { mode: "move", startX: e.clientX, startY: e.clientY, orig: { x: win.x, y: win.y, w: win.w, h: win.h } };
         setDragging(true);
     };
@@ -229,6 +285,7 @@ export function DesktopWindowFrame({
         if (locked) return;
         e.preventDefault();
         e.stopPropagation();
+        empezarGesto(e);
         dragRef.current = { mode: "resize", handle, startX: e.clientX, startY: e.clientY, orig: { x: win.x, y: win.y, w: win.w, h: win.h } };
         setDragging(true);
     };
@@ -260,6 +317,7 @@ export function DesktopWindowFrame({
             exit={reduced ? { opacity: 0 } : { opacity: 0, scale: 0.9, y: 32 }}
             transition={reduced ? { duration: 0.12 } : { type: "spring", stiffness: 320, damping: 32, mass: 0.85 }}
             onPointerDownCapture={focus}
+            data-ventana-escritorio=""
             style={frameStyle}
             className={cn(
                 "absolute flex flex-col overflow-hidden border shadow-2xl",
@@ -273,7 +331,7 @@ export function DesktopWindowFrame({
             )}
         >
             {/* Cristal en capa propia (backdrop-filter aislado del contenido). */}
-            <WindowGlass isTop={isTop} />
+            <WindowGlass isTop={isTop} enGesto={dragging} />
             {/* Hairline de acento (identidad de la entidad de la ventana) */}
             <span
                 aria-hidden
@@ -298,7 +356,7 @@ export function DesktopWindowFrame({
                 onDoubleClick={() => !isMobile && !tiled && toggleWindowMaximized(desktopId, win.id)}
                 className={cn(
                     "relative z-10 flex h-9 shrink-0 items-center gap-2 border-b border-white/10 bg-white/[0.04] px-2.5 select-none",
-                    !locked && "cursor-grab active:cursor-grabbing",
+                    !locked && "cursor-grab active:cursor-grabbing touch-none",
                 )}
             >
                 {/* Semáforo Trinity: cerrar · minimizar · maximizar */}
@@ -381,7 +439,7 @@ export function DesktopWindowFrame({
             </div>
 
             {/* ── Asas de redimensión (los 4 bordes + las 4 esquinas) ── */}
-            {!locked && <ResizeEdges onBegin={beginResize} />}
+            {!locked && <ResizeEdges onBegin={beginResize} edge={asas.edge} corner={asas.corner} />}
         </motion.div>
     );
 }

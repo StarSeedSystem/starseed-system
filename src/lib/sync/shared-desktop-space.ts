@@ -119,14 +119,30 @@ export function useSharedDesktopSpace(spaceId: string | null): SharedDesktopSpac
             }
         });
 
+        // (2026-09-26) Mismo arreglo que profile-desktops: un doc remoto solo entra si es MÁS
+        // NUEVO que el local (savedAt) y lo recién aplicado no se devuelve como eco; si no, dos
+        // miembros con el espacio abierto se rebotaban el doc y la copia en camino pisaba lo que
+        // cada uno estaba moviendo.
+        let ultimoRemoto = "";
         const unsubRemote = subscribeSpace(spaceId, (sp) => {
             if (!alive) return;
             setSpace(sp);
             const normalized = normalizeState(sp.doc);
-            if (normalized) writeLocal(normalized);
+            if (!normalized) return;
+            let local: ReturnType<typeof normalizeState> = null;
+            try {
+                const raw = readLocalRaw();
+                local = raw ? normalizeState(JSON.parse(raw)) : null;
+            } catch {
+                local = null;
+            }
+            if (local && local.desktops.length > 0 && (normalized.savedAt || 0) <= (local.savedAt || 0)) return;
+            writeLocal(normalized);
+            ultimoRemoto = readLocalRaw() ?? "";
         });
 
         const schedulePush = () => {
+            if (ultimoRemoto && readLocalRaw() === ultimoRemoto) return; // eco de lo recibido
             if (pushTimer.current) clearTimeout(pushTimer.current);
             pushTimer.current = setTimeout(() => {
                 const raw = readLocalRaw();

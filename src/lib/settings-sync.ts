@@ -69,7 +69,11 @@ export const SYNCED_KEYS = [
     //    Secciones descubiertas por grep real en el código (ver SOP
     //    architecture/libreria-biblioteca-sync.md §4). Aditivo: el motor
     //    realtime-sync.ts empuja/aplica estas claves además de las de arriba.
-    "starseed.desktops.v1",              // escritorios (iconos, ventanas, fondos, vista) — desktop-store.ts
+    // "starseed.desktops.v1" — FUERA de la sincronización de cuenta (2026-09-26). Los escritorios
+    //    son del PERFIL y ya los sincroniza `profile-desktops.ts` (entity_state, con LWW por
+    //    savedAt); con los dos canales escribiendo la misma clave, cada uno devolvía el eco del
+    //    otro y un escritorio viejo pisaba al que se estaba moviendo: Alex, «se traba y a veces
+    //    se reinicia constantemente aunque intente modificar algo».
     "starseed.cursorfx.v1",              // cursor personalizado + animaciones de clic — cursor-fx.tsx
     "starseed.aurora.chatlog.v1",        // registro de conversación con Aurora — aurora-chat-log.ts
     "starseed.dock.folders.v1",          // folders del OmniDock — dock-config.ts

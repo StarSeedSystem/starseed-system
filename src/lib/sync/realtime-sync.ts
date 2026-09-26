@@ -346,11 +346,18 @@ function touchLocalMeta(key: string, at = Date.now()): void {
     writeLocalMeta(meta);
 }
 
-/** Sella varias claves de golpe (una sola escritura). */
+/**
+ * Sella varias claves de golpe (una sola escritura).
+ *
+ * (2026-09-26, MEDIDO) Nunca RETROCEDE una marca: tras subir el cambio de T1, si mientras
+ * volaba la petición el usuario ya había escrito otra vez (T2 > T1), sellar T1 encima
+ * rebajaba la marca, y el eco de `postgres_changes` con T1 volvía a poner el valor viejo.
+ * Alex: «en el escritorio… se reinicia constantemente aunque intente modificar algo».
+ */
 function touchLocalMetaMany(entries: MetaMap): void {
     if (Object.keys(entries).length === 0) return;
     const meta = readLocalMeta();
-    for (const [k, v] of Object.entries(entries)) meta[k] = v;
+    for (const [k, v] of Object.entries(entries)) meta[k] = Math.max(meta[k] ?? 0, v);
     writeLocalMeta(meta);
 }
 
@@ -369,8 +376,12 @@ function cloudMetaOf(prefs: Record<string, unknown> | null | undefined): MetaMap
  * ¿Debe aplicarse el valor REMOTO de esta clave?
  *   · Remoto MÁS NUEVO que local  → sí (es el caso normal).
  *   · Remoto MÁS VIEJO que local  → NO (nunca pisamos un cambio más reciente).
- *   · Empate exacto               → sí (idempotente: si el valor ya coincide,
- *                                   applyRemoteChanges no escribe nada).
+ *   · Empate exacto               → NO (2026-09-26). Un empate es, en la práctica,
+ *                                   el eco de lo que ESTE dispositivo acaba de subir;
+ *                                   Postgres (jsonb) reordena las claves, la comparación
+ *                                   de valores nunca daba «igual» y se reescribía y
+ *                                   re-emitía cada vez: más trabajo y, con una edición
+ *                                   en curso, el valor viejo encima del nuevo.
  *   · Sin marca remota (fila antigua) → solo si aquí tampoco hay marca local o
  *                                   no existe la clave: si este dispositivo YA
  *                                   la ha tocado con marca, la nuestra manda y
@@ -378,7 +389,7 @@ function cloudMetaOf(prefs: Record<string, unknown> | null | undefined): MetaMap
  */
 function shouldApplyRemote(key: string, remoteTs: number, localMeta: MetaMap): boolean {
     const localTs = localMeta[key] ?? 0;
-    if (remoteTs > 0) return remoteTs >= localTs;
+    if (remoteTs > 0) return remoteTs > localTs;
     // Remoto sin marca (legado).
     if (localTs > 0) return false;               // aquí sí hay marca → lo nuestro es más fiable
     return localStorage.getItem(key) == null;    // no tenemos nada que perder
@@ -866,17 +877,31 @@ function subscribePostgresChanges(userId: string): void {
 // ── Parche seguro e idempotente de localStorage.setItem ─────────────────────
 const PATCH_FLAG = "__STARSEED_REALTIME_SYNC_PATCHED__";
 
+/**
+ * (2026-09-26) Se parchea `Storage.prototype.setItem`, no la propiedad de `localStorage`.
+ * Asignar `localStorage.setItem = fn` solo funciona en Chromium: según WebIDL, en un
+ * objeto Storage esa asignación GUARDA un elemento llamado «setItem» (lo reproduce jsdom),
+ * así que en Firefox/Safari los cambios locales nunca se marcaban ni se subían y la nube
+ * volvía a poner su versión al recargar. En el prototipo vale para todos los navegadores;
+ * solo actúa cuando `this` es `localStorage` (no `sessionStorage`).
+ */
 function patchLocalStorageOnce(): void {
     if (!isClient()) return;
     try {
         if ((window as unknown as Record<string, boolean>)[PATCH_FLAG]) return;
-        const original = localStorage.setItem.bind(localStorage);
-        localStorage.setItem = function patchedSetItem(key: string, value: string): void {
-            original(key, value);
+        const proto = Object.getPrototypeOf(localStorage) as Storage;
+        const original = proto.setItem;
+        proto.setItem = function patchedSetItem(this: Storage, key: string, value: string): void {
+            original.call(this, key, value);
+            if (this !== window.localStorage) return;
             try {
                 if (isSyncedKey(key) && !wasJustAppliedRemote(key)) scheduleLocalPush(key);
             } catch { /* nunca romper la escritura original por el hook de sync */ }
         };
+        // Lo que dejó la asignación antigua en navegadores que siguen WebIDL al pie de la letra.
+        try {
+            if (typeof localStorage.getItem("setItem") === "string") localStorage.removeItem("setItem");
+        } catch { /* noop */ }
         (window as unknown as Record<string, boolean>)[PATCH_FLAG] = true;
     } catch { /* si el entorno no permite parchear, degradamos a solo 'storage' + polling */ }
 }

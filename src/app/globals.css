@@ -3763,3 +3763,23 @@ html[data-perf="mid"][data-ss-navegando] [data-ss-coreo="logo"] {
   animation-name: ss-coreo-logo-suave;
   animation-duration: 360ms;
 }
+
+/* (2026-09-26) Mientras se arrastra o redimensiona una ventana/divisor del escritorio
+   (`html.ss-gesto`, lo ponen desktop-window.tsx y desktop-tiles.tsx), los iframes no se
+   quedan los eventos del puntero: al pasar por encima de una app embebida se perdían el
+   movimiento y el soltar, y la ventana se quedaba «arrastrando». */
+html.ss-gesto iframe,
+html.ss-gesto embed,
+html.ss-gesto object {
+    pointer-events: none !important;
+}
+html.ss-gesto,
+html.ss-gesto * {
+    -webkit-user-select: none;
+    user-select: none;
+}
+/* Durante un gesto (mover un divisor del mosaico), las ventanas siguen al dedo sin la
+   transición de 300 ms que las hacía ir por detrás. */
+html.ss-gesto [data-ventana-escritorio] {
+    transition: none !important;
+}

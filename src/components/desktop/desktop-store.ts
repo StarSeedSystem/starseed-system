@@ -16,6 +16,7 @@
 
 import { useSyncExternalStore, useEffect } from "react";
 import { createClient } from "@/utils/supabase/client";
+import { mergeUserPrefs } from "@/lib/sync/user-prefs";
 
 // ── Tipos del modelo ─────────────────────────────────────────────
 export type DesktopIconKind = "app" | "file" | "folder" | "widget" | "link";
@@ -531,10 +532,20 @@ function emitChange(): void {
     } catch { /* noop */ }
 }
 
-function write(state: DesktopsState): void {
+/**
+ * (2026-09-26) La instantánea escrita se deja en caché ANTES de avisar: antes, cada cambio
+ * (abrir, cerrar, enfocar, mover) se serializaba, se volvía a leer y a parsear entero, y
+ * `normalizeState` devolvía objetos NUEVOS para todo → el lienzo y el contenido de TODAS
+ * las ventanas se repintaban en cada cambio. Ahora los escritorios y ventanas que no cambian
+ * conservan su referencia y React (memo) no los toca.
+ */
+function write(state: DesktopsState, savedAt: number = Date.now()): void {
     if (!isClient()) return;
+    const next: DesktopsState = { ...state, savedAt };
     try {
-        localStorage.setItem(LS_KEY, JSON.stringify({ ...state, savedAt: Date.now() }));
+        const raw = JSON.stringify(next);
+        localStorage.setItem(LS_KEY, raw);
+        cache = { raw, value: next };
     } catch {
         /* cuota / modo privado: degradamos en silencio */
     }
@@ -1492,19 +1503,36 @@ function restoreBackupToLocal(backup: DesktopsBackup): void {
         savedAt: backup.savedAt,
     });
     if (!normalized || normalized.desktops.length === 0) return;
-    write(normalized);
+    // Conserva la fecha del respaldo: sellarlo como «ahora» lo hacía pasar por el más nuevo
+    // y pisaba en las demás neuronas escritorios editados después (2026-09-26).
+    write(normalized, backup.savedAt || 0);
     try {
         window.dispatchEvent(new Event(DESKTOPS_RESTORED_EVENT));
     } catch { /* noop */ }
 }
 
+/**
+ * (2026-09-26, MEDIDO) Con la SESIÓN local, no con `auth.getUser()`: ese hacía una petición
+ * a `/auth/v1/user` en cada cambio del escritorio y cada 30 s — ~790 por hora con una sola
+ * pestaña abierta, tráfico de Supabase para saber algo que el navegador ya tiene.
+ */
 async function getUserId(): Promise<string | null> {
     try {
         const supabase = createClient();
-        const { data } = await supabase.auth.getUser();
-        return data?.user?.id ?? null;
+        const { data } = await supabase.auth.getSession();
+        return data?.session?.user?.id ?? null;
     } catch {
         return null;
+    }
+}
+
+/** Huella del CONTENIDO del respaldo (sin `savedAt`): si no cambió, no se sube nada. */
+let ultimoRespaldoSubido = "";
+export function huellaRespaldo(b: { desktops: unknown; activeId?: unknown; snap?: unknown }): string {
+    try {
+        return JSON.stringify([b.desktops, b.activeId ?? null, b.snap ?? null]);
+    } catch {
+        return "";
     }
 }
 
@@ -1524,33 +1552,22 @@ async function fetchRemoteBackup(userId: string): Promise<DesktopsBackup | null>
     }
 }
 
+/**
+ * (2026-09-26) Respaldo SOLO si el contenido cambió, y como PARCHE atómico
+ * (`merge_user_prefs`). Antes: cada 30 s leía la fila entera de preferencias, la reescribía
+ * entera con `savedAt: ahora` (pisando lo que otros módulos hubieran escrito entre medias) y
+ * cada escritura llegaba por tiempo real a todas las neuronas, que volvían a procesar todas
+ * las preferencias: un tirón periódico y datos gastados sin motivo.
+ */
 async function pushBackup(userId: string): Promise<void> {
     try {
         const backup = collectLocalBackup();
         if (!backup) return;
-        const supabase = createClient();
-
-        // Lee prefs actual para NO pisar otras claves (dashboards, library…).
-        let prefs: Record<string, unknown> = {};
-        try {
-            const { data } = await supabase
-                .from("user_settings")
-                .select("prefs")
-                .eq("user_id", userId)
-                .maybeSingle();
-            if (data?.prefs && typeof data.prefs === "object") {
-                prefs = { ...(data.prefs as Record<string, unknown>) };
-            }
-        } catch { /* mezclamos sobre objeto vacío si no se pudo leer */ }
-
-        prefs.desktops = backup;
-
-        await supabase
-            .from("user_settings")
-            .upsert(
-                { user_id: userId, prefs, updated_at: new Date().toISOString() },
-                { onConflict: "user_id" },
-            );
+        const huella = huellaRespaldo(backup);
+        if (!huella || huella === ultimoRespaldoSubido) return;
+        const readState = readDesktopsSnapshot();
+        const res = await mergeUserPrefs({ desktops: { ...backup, savedAt: readState.savedAt || backup.savedAt } }, { userId });
+        if (res.ok) ultimoRespaldoSubido = huella;
     } catch {
         /* best-effort: nunca rompemos el escritorio por la nube */
     }

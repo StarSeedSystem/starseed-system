@@ -87,6 +87,51 @@ function writeLocalDoc(doc: DesktopsState, emit = true): void {
     }
 }
 
+/*
+ * (2026-09-26) LWW POR CONTENIDO y anti-eco. Alex: «en el escritorio… se traba y a veces se
+ * reinicia constantemente aunque intente modificar algo». Medido con una prueba: al montar se
+ * pisaba el doc local con el de la nube aunque el local fuera más nuevo; y cada cambio
+ * remoto aplicado disparaba `starseed:desktops` → se volvía a SUBIR 1,5 s después, con la
+ * Mac y el móvil abiertos el doc rebotaba A→B→A sin parar y la copia en camino pisaba lo
+ * que el usuario estaba moviendo. Ahora un doc remoto solo entra si su `savedAt` (que
+ * `desktop-store` sella en cada escritura) es MAYOR que el local, y lo recién aplicado no
+ * se vuelve a subir.
+ */
+let ultimoRemotoAplicado = "";
+
+function leerRaw(): string {
+    if (!isClient()) return "";
+    try {
+        return localStorage.getItem(LS_KEY) ?? "";
+    } catch {
+        return "";
+    }
+}
+
+function savedAtDe(doc: DesktopsState | null): number {
+    return doc && typeof doc.savedAt === "number" && Number.isFinite(doc.savedAt) ? doc.savedAt : 0;
+}
+
+/** PURA: ¿el doc remoto debe sustituir al local? Solo si es estrictamente más nuevo. */
+export function remotoGanaA(remoto: DesktopsState | null, local: DesktopsState | null): boolean {
+    if (!remoto) return false;
+    if (!local || local.desktops.length === 0) return true;
+    return savedAtDe(remoto) > savedAtDe(local);
+}
+
+/** Escribe un doc remoto en local y recuerda su forma exacta para no devolverlo como eco. */
+function aplicarRemoto(doc: DesktopsState): void {
+    // El marcador va ANTES del aviso: quien escucha `starseed:desktops` (la subida con
+    // debounce) lo hace de forma síncrona y tiene que ver ya que esto vino de fuera.
+    writeLocalDoc(doc, false);
+    ultimoRemotoAplicado = leerRaw();
+    try {
+        window.dispatchEvent(new Event(DESKTOPS_EVENT));
+    } catch {
+        /* noop */
+    }
+}
+
 function profileRef(profileId: string): EntityRef {
     return { kind: "profile", id: profileId };
 }
@@ -103,14 +148,20 @@ async function saveDocToProfile(profileId: string): Promise<void> {
     }
 }
 
-/** Carga el doc de un perfil a localStorage. Devuelve true si había doc remoto. */
-async function loadDocFromProfile(profileId: string): Promise<boolean> {
+/**
+ * Carga el doc de un perfil a localStorage. Devuelve true si había doc remoto.
+ * `soloSiMasNuevo`: al arrancar con el MISMO perfil, el remoto solo entra si es más nuevo
+ * (si el local gana, devuelve false para que quien llama suba el local). Al CAMBIAR de
+ * perfil se carga siempre: es otro conjunto de escritorios.
+ */
+async function loadDocFromProfile(profileId: string, soloSiMasNuevo = false): Promise<boolean> {
     try {
         const row = await getEntityState<DesktopsState>(profileRef(profileId), "desktops");
         if (!row || !row.value) return false;
         const normalized = normalizeState(row.value);
         if (!normalized) return false;
-        writeLocalDoc(normalized);
+        if (soloSiMasNuevo && !remotoGanaA(normalized, readLocalDoc())) return false;
+        aplicarRemoto(normalized);
         return true;
     } catch {
         return false;
@@ -171,7 +222,8 @@ export function useProfileDesktopsSync(): void {
                 if (!shouldSyncKey(LS_KEY, profileId)) return; // gating por config de sync
                 const normalized = normalizeState(change.value);
                 if (!normalized) return;
-                writeLocalDoc(normalized);
+                if (!remotoGanaA(normalized, readLocalDoc())) return; // lo local es igual o más nuevo
+                aplicarRemoto(normalized);
             });
         };
 
@@ -183,7 +235,7 @@ export function useProfileDesktopsSync(): void {
             if (!resolvedId) return; // sin sesión / sin perfiles: el doc local sigue siendo la única fuente
             currentProfileRef.current = resolvedId;
             if (!alive) return;
-            const hadRemote = await loadDocFromProfile(resolvedId);
+            const hadRemote = await loadDocFromProfile(resolvedId, true);
             if (!hadRemote) {
                 // Migración no destructiva: el doc local actual (de antes de
                 // que existieran los perfiles) se adopta como semilla del
@@ -213,8 +265,11 @@ export function useProfileDesktopsSync(): void {
         const schedulePush = () => {
             const profileId = currentProfileRef.current;
             if (!profileId || !bootstrapped.current) return;
+            // Anti-eco: lo que acaba de llegar de otra neurona no se devuelve a la nube.
+            if (ultimoRemotoAplicado && leerRaw() === ultimoRemotoAplicado) return;
             if (pushTimer.current) clearTimeout(pushTimer.current);
             pushTimer.current = setTimeout(() => {
+                if (ultimoRemotoAplicado && leerRaw() === ultimoRemotoAplicado) return;
                 void saveDocToProfile(profileId);
             }, PUSH_DEBOUNCE_MS);
         };

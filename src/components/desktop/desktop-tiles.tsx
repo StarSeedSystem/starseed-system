@@ -49,8 +49,21 @@ export function DesktopTileDividers({
     const [drag, setDrag] = useState<DragState | null>(null);
     const liveRef = useRef<number[] | null>(null);
 
+    // (2026-09-26) Escritura optimista en el store, pero como mucho UNA por fotograma (rAF):
+    // antes se escribía (serializar + localStorage + repintar todo) en CADA evento del
+    // puntero. Mientras dura el gesto, `html.ss-gesto` quita la transición de las ventanas
+    // (globals.css) para que sigan al divisor sin retraso. `pointercancel` deshace.
     useEffect(() => {
         if (!drag) return;
+        let raf: number | null = null;
+        const escribir = (fr: number[]) => {
+            if (drag.kind === "col") setTileFractions(desktopId, { colFr: fr });
+            else setTileFractions(desktopId, { rowFr: { col: drag.col, fr } });
+        };
+        const volcar = () => {
+            raf = null;
+            if (liveRef.current) escribir(liveRef.current);
+        };
         const onMove = (e: PointerEvent) => {
             const px = drag.kind === "col" ? e.clientX : e.clientY;
             const delta = (px - drag.startPx) / Math.max(1, drag.totalPx);
@@ -61,24 +74,37 @@ export function DesktopTileDividers({
             next[i] = a;
             next[i + 1] = pair - a;
             liveRef.current = next;
-            // Escritura optimista: el store es la única fuente de verdad y el
-            // render del mosaico es puro → el arrastre se ve en vivo.
-            if (drag.kind === "col") setTileFractions(desktopId, { colFr: next });
-            else setTileFractions(desktopId, { rowFr: { col: drag.col, fr: next } });
+            if (raf == null) raf = requestAnimationFrame(volcar);
         };
-        const onUp = () => {
+        const terminar = (confirmar: boolean) => {
+            if (raf != null) cancelAnimationFrame(raf);
+            raf = null;
+            if (confirmar && liveRef.current) escribir(liveRef.current);
+            if (!confirmar) escribir(drag.base);
             liveRef.current = null;
+            try { document.documentElement.classList.remove("ss-gesto"); } catch { /* noop */ }
             setDrag(null);
         };
+        const onUp = () => terminar(true);
+        const onCancel = () => terminar(false);
         window.addEventListener("pointermove", onMove);
         window.addEventListener("pointerup", onUp);
-        window.addEventListener("pointercancel", onUp);
+        window.addEventListener("pointercancel", onCancel);
         return () => {
+            if (raf != null) cancelAnimationFrame(raf);
+            try { document.documentElement.classList.remove("ss-gesto"); } catch { /* noop */ }
             window.removeEventListener("pointermove", onMove);
             window.removeEventListener("pointerup", onUp);
-            window.removeEventListener("pointercancel", onUp);
+            window.removeEventListener("pointercancel", onCancel);
         };
     }, [drag, desktopId]);
+
+    const empezar = (e: React.PointerEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        try { (e.currentTarget as Element).setPointerCapture?.(e.pointerId); } catch { /* noop */ }
+        try { document.documentElement.classList.add("ss-gesto"); } catch { /* noop */ }
+    };
 
     if (tiling.cols.length === 0) return null;
 
@@ -99,8 +125,7 @@ export function DesktopTileDividers({
                     aria-orientation="vertical"
                     aria-label={`Divisor entre columna ${i + 1} y ${i + 2}`}
                     onPointerDown={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
+                        empezar(e);
                         setDrag({
                             kind: "col", col: i, index: i,
                             startPx: e.clientX,
@@ -109,7 +134,7 @@ export function DesktopTileDividers({
                         });
                     }}
                     style={{ left: cx - HIT / 2, top: area.y, width: HIT, height: area.h }}
-                    className="pointer-events-auto absolute z-[3] cursor-ew-resize"
+                    className="pointer-events-auto absolute z-[3] cursor-ew-resize touch-none"
                 >
                     <span
                         aria-hidden
@@ -137,8 +162,7 @@ export function DesktopTileDividers({
                         aria-orientation="horizontal"
                         aria-label={`Divisor entre las ventanas ${j + 1} y ${j + 2} de la columna ${i + 1}`}
                         onPointerDown={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
+                            empezar(e);
                             setDrag({
                                 kind: "row", col: i, index: j,
                                 startPx: e.clientY,
@@ -147,7 +171,7 @@ export function DesktopTileDividers({
                             });
                         }}
                         style={{ left: colX, top: cy - HIT / 2, width: cw, height: HIT }}
-                        className="pointer-events-auto absolute z-[3] cursor-ns-resize"
+                        className="pointer-events-auto absolute z-[3] cursor-ns-resize touch-none"
                     >
                         <span
                             aria-hidden
