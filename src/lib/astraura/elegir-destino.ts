@@ -53,6 +53,18 @@ function baseLimpia(v: string | null | undefined): string | null {
 }
 
 /**
+ * (G1 · 2026-09-26) ¿Debe el proxy responder 421 «local-no-disponible» EN VEZ
+ * de sondear la nube? Solo cuando el cliente pide EXPRESAMENTE la neurona
+ * local (`pedido: "local"`) y este despliegue NO es la propia máquina —
+ * ahí no hay «local» honesto que servir: antes se sondeaba la nube igualmente
+ * y `elegirDestino` la devolvía como si fuera la respuesta a "local" (la
+ * etiqueta mentía). Pura, para poder probarla sin `NextRequest` ni red.
+ */
+export function debeRechazarLocalNoDisponible(pedido: PedidoDestino, local: boolean): boolean {
+  return pedido === "local" && !local;
+}
+
+/**
  * Resuelve el destino del proxy siguiendo el ORDEN (a)→(d). Pura: no lanza, no
  * toca red ni `process.env`; recibe la base de nube ya sondada desde fuera.
  */

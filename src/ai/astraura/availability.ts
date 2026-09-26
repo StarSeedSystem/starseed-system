@@ -28,6 +28,9 @@ import { urlPuenteLocal } from "@/ai/providers/astraura-158";
 // (Adenda 153) Endpoint Astraura 1.58 declarado por ESTA neurona. `neurons.ts`
 // solo importa supabase/entity-state (sin ciclo con el router ni con este módulo).
 import { settingsFor, thisDeviceId } from "@/lib/neurons/neurons";
+// (G1 · 2026-09-26) ¿Esta PÁGINA (no el backend) es un despliegue local? Decide
+// si el respaldo por el puente del OS tiene sentido (ver `probeAstraura158Local`).
+import { paginaEsLocal } from "@/lib/astraura/destino-local";
 import {
   NODOS_INFERENCIA_LOCAL_STORAGE,
   elegirNodo,
@@ -192,17 +195,60 @@ async function pingNeurona(base: string): Promise<{ ok: boolean; data?: unknown;
   return { ok: false, threw: p.threw, slow: p.slow };
 }
 
+/** Timeout del respaldo por el puente del OS (Do #3 · G5): 6 s. */
+const PROBE_LOCAL_PUENTE_MS = 6_000;
+
 /**
- * (Ola 278 · OS3) Sonda LOCAL de Astraura 1.58 con RELEVO por el proxy del OS:
+ * (Ola 278 · OS3 · corregido G1 2026-09-26) Sonda LOCAL de Astraura 1.58:
  *   · base directa primero; si responde → lista (via "directo");
  *   · si el fetch LANZA o tarda > 1,5 s (bloqueo de red privada del navegador)
- *     → reintenta por `/api/ai/astraura-158` (mismo origen, sin bloqueo);
- *   · solo si AMBOS fallan → no lista, distinguiendo el motivo.
+ *     Y la PÁGINA misma es un despliegue local (`paginaEsLocal()`) → reintenta
+ *     por `/api/ai/astraura-158` (mismo origen, sin bloqueo): el proxy corre EN
+ *     esa misma neurona, así que el respaldo es honesto;
+ *   · en un origen PÚBLICO (tablet/móvil cargando la web desplegada) NO se
+ *     reintenta por el puente: ese proxy no es esta máquina y, sin nube sana,
+ *     serviría la nube bajo la etiqueta «local» sin avisar (el bug de G1). Ahí
+ *     un fallo directo es DEFINITIVO — este dispositivo simplemente no tiene
+ *     Astraura local — y se dice con honestidad en el motivo.
  */
-async function probeAstraura158Local(endpoint: string): Promise<{ ready: boolean; reason?: string; via?: "directo" | "proxy" }> {
+/** Base de bucle local (`127.0.0.1`, `localhost`, `[::1]`), con o sin puerto. */
+function esBucleLocal(base: string): boolean {
+  return /^https?:\/\/(127\.0\.0\.1|localhost|\[::1\])(:\d+)?(\/|$)/i.test(base.trim());
+}
+
+/**
+ * (2026-09-26) ¿Este dispositivo declaró tener su propia Astraura local? En un origen
+ * PÚBLICO (la app o la web en una tablet, un móvil…) sondear `127.0.0.1` a ciegas hace
+ * que Chrome pida permiso de «red local» a cada usuario y casi nunca hay nada escuchando.
+ * Solo se sondea si la neurona lo dice: un endpoint propio en sus ajustes, o la marca
+ * `starseed.astraura.local-en-este-dispositivo` = "1" (la pone quien instala el backend).
+ */
+export function localDeclaradoEnDispositivo(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    const s = settingsFor(thisDeviceId()).astraura158;
+    if (s && s.enabled !== false && typeof s.endpoint === "string" && s.endpoint.trim()) return true;
+  } catch { /* defensivo */ }
+  try {
+    return window.localStorage.getItem("starseed.astraura.local-en-este-dispositivo") === "1";
+  } catch {
+    return false;
+  }
+}
+
+export async function probeAstraura158Local(endpoint: string): Promise<{ ready: boolean; reason?: string; via?: "directo" | "proxy" }> {
+  if (!paginaEsLocal() && esBucleLocal(endpoint) && !localDeclaradoEnDispositivo()) {
+    return { ready: false, reason: "Este dispositivo no tiene Astraura local; usa la nube o la malla." };
+  }
   const local = await pingNeurona(endpoint);
   if (local.ok) return { ...aLaDisponibilidad(interpretarPing(local.data)), via: "directo" };
   if (local.threw || local.slow) {
+    if (!paginaEsLocal()) {
+      return {
+        ready: false,
+        reason: "Este dispositivo no tiene Astraura local; usa la nube o la malla.",
+      };
+    }
     // (Ola 278 · OS6) Reintento por el puente del OS con `?destino=local`
     // explícito (`urlPuenteLocal`), para que el proxy sepa que el destino es la
     // neurona de ESTA máquina y no caiga al 503 de «no hay nube» en local.
@@ -222,17 +268,53 @@ async function probeAstraura158Local(endpoint: string): Promise<{ ready: boolean
  * (Ola 278 · OS6) Igual que `pingNeurona` pero a través del puente del OS
  * (`/api/ai/astraura-158`), con `?destino=local` en el endpoint para que el
  * proxy enrute a la neurona local. Mantiene el respaldo a `/api/bitnet/estado`
- * (404) y el mismo tratamiento de lanzado/lento que la sonda directa.
+ * (404) y el mismo tratamiento de lanzado/lento que la sonda directa. Solo se
+ * llama cuando `paginaEsLocal()` (ver `probeAstraura158Local`).
  */
 async function pingNeuronaPuente(): Promise<{ ok: boolean; data?: unknown; threw: boolean; slow: boolean }> {
-  const p = await probeCruda(urlPuenteLocal("/api/ping"));
+  const p = await probeCruda(urlPuenteLocal("/api/ping"), PROBE_LOCAL_PUENTE_MS);
   if (p.ok) return { ok: true, data: p.data, threw: false, slow: false };
   if (p.status === 404) {
-    const e = await probeCruda(urlPuenteLocal("/api/bitnet/estado"));
+    const e = await probeCruda(urlPuenteLocal("/api/bitnet/estado"), PROBE_LOCAL_PUENTE_MS);
     if (e.ok) return { ok: true, data: e.data, threw: false, slow: false };
     return { ok: false, threw: e.threw, slow: e.slow };
   }
   return { ok: false, threw: p.threw, slow: p.slow };
+}
+
+/** Timeouts de la sonda de NUBE (G5 · 2026-09-26): `/api/ping` por el túnel y, si responde, `/api/cola`. */
+const PROBE_NUBE_PING_MS = 4_000;
+const PROBE_NUBE_COLA_MS = 3_000;
+
+/**
+ * (G5/G10 · 2026-09-26) Sonda de la fuente NUBE: `/api/ping` (4 s — el túnel de
+ * la Mac añade latencia, pero `/api/status` tardaba 8,7 s por calcular el
+ * estado de todo el motor) y, si contesta, `GET /api/cola` para no marcar
+ * lista una nube que el propio backend dice que no admite más peticiones
+ * ahora mismo (`admite:false`, cola/memoria llenas) — se trata como
+ * "ocupada", no como "caída", con la espera estimada en el motivo.
+ */
+export async function probeAstraura158Nube(endpoint: string): Promise<{ ready: boolean; reason?: string }> {
+  const ping = await probeJson(`${endpoint}/api/ping`, PROBE_NUBE_PING_MS);
+  if (ping.kind !== "ok") return { ready: false };
+  const interpretado = interpretarPing(ping.data);
+  if (!interpretado.lista) return { ready: false };
+  const cola = await probeJson(`${endpoint}/api/cola`, PROBE_NUBE_COLA_MS);
+  if (cola.kind === "ok" && cola.data && typeof cola.data === "object" && !Array.isArray(cola.data)) {
+    const c = cola.data as Record<string, unknown>;
+    if (c.admite === false) {
+      const espera = typeof c.espera_estimada_s === "number" ? Math.max(0, Math.round(c.espera_estimada_s)) : undefined;
+      return {
+        ready: false,
+        reason:
+          typeof espera === "number"
+            ? `Astraura en la nube está ocupada ahora mismo (espera estimada ~${espera} s).`
+            : "Astraura en la nube está ocupada ahora mismo.",
+      };
+    }
+  }
+  // Sin `/api/cola` (backend anterior) o `admite` ausente: no bloquea la disponibilidad.
+  return { ready: true, reason: interpretado.motivo };
 }
 
 function norm(u: string): string {
@@ -344,13 +426,15 @@ export async function detectAvailability(fast = false): Promise<SourceAvailabili
       });
       continue;
     }
-    // ── ASTRAURA 1.58-BIT (Adenda 153 · Ola 278): sonda HONESTA y LIGERA. La
-    //    LOCAL usa `/api/ping` (< 5 ms) con fallback a `/api/bitnet/estado`
-    //    (3 ms) si el backend es anterior (404); la NUBE usa `/api/status`
-    //    (8 s — Cloud Run puede arrancar en frío). Nunca `/api/status` para la
-    //    local: tarda 2,3-3,9 s en reposo y > 20 s con la Mac cargada, lo que
-    //    hacía caer la fuente al fallback. Si no responde, NO está lista: ese
-    //    turno va a los secundarios y se re-sondea al expirar el TTL.
+    // ── ASTRAURA 1.58-BIT (Adenda 153 · Ola 278 · G5 2026-09-26): sonda HONESTA
+    //    y LIGERA. La LOCAL usa `/api/ping` (< 5 ms) con fallback a
+    //    `/api/bitnet/estado` (3 ms) si el backend es anterior (404); la NUBE
+    //    usa TAMBIÉN `/api/ping` (4 s, por el túnel de la Mac) — ya NO
+    //    `/api/status` (8,7 s medidos por el túnel: convertía un backend vivo
+    //    en «no responde» sin necesidad) — y, si responde, `GET /api/cola`
+    //    para no marcar lista una nube que el propio backend dice que está
+    //    ocupada (`admite:false`). Si no responde, NO está lista: ese turno va
+    //    a los secundarios y se re-sondea al expirar el TTL.
     if (source.providerId === "astraura-158") {
       const endpoint = astraura158EndpointFor(source, userConfig);
       const isLocal = source.id === "astraura-158-local";
@@ -378,8 +462,13 @@ export async function detectAvailability(fast = false): Promise<SourceAvailabili
         // `detectAvailabilitySafe` la conserve si el tope global salta.
         lastLocalAstrauraKnown = { at: Date.now(), ready, reason };
       } else {
-        // Nube: Cloud Run puede arrancar en frío → 8 s a `/api/status`.
-        ready = await probe(`${endpoint}/api/status`, 8000);
+        const r = await probeAstraura158Nube(endpoint);
+        ready = r.ready;
+        reason = r.reason;
+        // Igual que con la local (arriba): memoria de módulo para que el tope
+        // global de `detectAvailabilitySafe` no tenga que fingir sin haber
+        // sondeado nunca (G5).
+        lastNubeAstrauraKnown = { at: Date.now(), ready, reason };
       }
       out.push({
         source, ready, userConfig,
@@ -427,13 +516,26 @@ export async function detectAvailability(fast = false): Promise<SourceAvailabili
 // ocupada (el fallback global marca no listas todas las fuentes locales).
 let lastLocalAstrauraKnown: { at: number; ready: boolean; reason?: string } | undefined;
 
+/**
+ * (G5 · 2026-09-26) Misma idea para la NUBE: sin esto, el fallback del tope
+ * global la marcaba «lista» a ciegas (`!requiresKey && privacy==="cloud"`, que
+ * la fuente nube 1.58 cumple) SIN HABER SONDEADO NUNCA — el bug que hacía que
+ * el indicador dijera "nube lista" cuando la sonda real ni siquiera había
+ * corrido. Con memoria, sin sonda previa, el fallback la marca «no lista» (sin
+ * dato) en vez de blindarla con un sí gratuito.
+ */
+let lastNubeAstrauraKnown: { at: number; ready: boolean; reason?: string } | undefined;
+
 function applyLocalAstrauraMemory(list: SourceAvailability[]): void {
-  if (!lastLocalAstrauraKnown) return;
   for (const a of list) {
-    if (a.source.id === "astraura-158-local") {
+    if (a.source.id === "astraura-158-local" && lastLocalAstrauraKnown) {
       a.ready = lastLocalAstrauraKnown.ready;
       a.reason = lastLocalAstrauraKnown.reason;
-      return;
+    }
+    if (a.source.id === "astraura-158-nube") {
+      // Con sonda previa, se respeta; SIN ELLA, nunca «lista» a ciegas (G5).
+      a.ready = lastNubeAstrauraKnown?.ready ?? false;
+      a.reason = lastNubeAstrauraKnown?.reason ?? "Sin sonda todavía (tiempo de espera agotado).";
     }
   }
 }

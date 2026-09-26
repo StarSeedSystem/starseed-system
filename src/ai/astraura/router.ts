@@ -687,6 +687,17 @@ export interface RouteRecord {
     model?: string;
     exclusivo?: boolean;
   };
+  /**
+   * (G6 · 2026-09-26) Quién sirvió DE VERDAD este turno de Astraura 1.58,
+   * según la cabecera `X-Astraura-Via` del proxy del OS (`astraura158.raw.via`):
+   * `"nube"` · `"local"` · `"local-respaldo"` (se pidió nube, pero el proxy —
+   * solo en despliegue local, sin nube sana— respondió con la neurona de la
+   * propia máquina). Ausente si la fuente no fue Astraura 1.58 o si el turno
+   * no pasó por el proxy (llamada directa o WebSocket). El indicador de capas
+   * (`use-estado-capas.ts`) lo usa para no marcar una capa lista por la
+   * fuente que se PIDIÓ cuando quien de verdad respondió fue otra.
+   */
+  via158?: "nube" | "local" | "local-respaldo";
 }
 
 export function readRouteLog(): RouteRecord[] {
@@ -803,6 +814,48 @@ export function debeSaltarTrasTimeout(
 ): boolean {
   const veces = fallos instanceof Map ? (fallos.get(sourceId) ?? 0) : (fallos[sourceId] ?? 0);
   return veces >= 1;
+}
+
+/**
+ * (G6 · 2026-09-26) Extrae la vía REAL (`nube`/`local`/`local-respaldo`) que
+ * dejó el proxy en `Astraura158Raw.via` (cabecera `X-Astraura-Via`), solo para
+ * fuentes Astraura 1.58 (`astraura-158-*`). Pura y defensiva: cualquier otra
+ * fuente, o un `raw` sin esa forma, devuelve `undefined` sin lanzar.
+ */
+export function viaDeRespuesta158(sourceId: string, res: { raw?: unknown } | null | undefined): "nube" | "local" | "local-respaldo" | undefined {
+  if (!sourceId.startsWith("astraura-158")) return undefined;
+  const raw = res?.raw as { via?: unknown } | null | undefined;
+  const via = raw?.via;
+  return via === "nube" || via === "local" || via === "local-respaldo" ? via : undefined;
+}
+
+/**
+ * (G10 · 2026-09-26) PURA: minutos de enfriamiento a partir del mensaje de
+ * error de un 429/cuota/ocupado. Si el proveedor DICE cuánto ("retry after
+ * 4851 seconds" · "retry in 2h" · "retry after 30s"), se le hace caso EXACTO
+ * (Adenda 87); "free-models-per-day"/"daily" es cupo DIARIO → hasta ~medianoche
+ * UTC (parametrizado por `ahora` para poder probarlo sin reloj real); y
+ * «ocupado» (contrato de cola/RAM del backend 1.58) SIEMPRE topa a 5 min — es
+ * una cola que se vacía sola, nunca una clave rota ni un cupo diario, y
+ * dejarla enfriando media hora dejaría ese medio fuera más de lo necesario
+ * aunque el mensaje no trajera un `retry after` legible. Devuelve `undefined`
+ * cuando no hay pista (el llamador usa el `cooldownMinutes` del catálogo).
+ */
+export function minutosDeEnfriamiento(msg: string, ahora: number = Date.now()): number | undefined {
+  let mins: number | undefined;
+  const mSec = msg.match(/retry(?:\s+it)?\s+(?:after|in)\s+(\d+)\s*s/i);
+  const mMin = msg.match(/retry(?:\s+it)?\s+(?:after|in)\s+(\d+)\s*m/i);
+  const mHor = msg.match(/retry(?:\s+it)?\s+(?:after|in)\s+(\d+)\s*h/i);
+  if (mSec) mins = Math.max(1, Math.ceil(Number(mSec[1]) / 60));
+  else if (mMin) mins = Math.max(1, Number(mMin[1]));
+  else if (mHor) mins = Math.max(1, Number(mHor[1]) * 60);
+  if (!mins && /per.?day|daily/i.test(msg)) {
+    const now = new Date(ahora);
+    const midnightUtc = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1);
+    mins = Math.max(10, Math.ceil((midnightUtc - ahora) / 60_000));
+  }
+  if (/\bocupado\b/i.test(msg)) mins = Math.min(mins ?? 5, 5);
+  return mins;
 }
 
 /**
@@ -1487,12 +1540,18 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
   // de la fuente lo da, lo darán todos — así que no se reintenta ni una vez más.
   const deadSources = new Set<string>();
 
-  // (Ola 278 · OS2) Fuentes que ya agotaron su tiempo EN ESTA petición
-  // (sourceId → nº de timeouts). El nativo 1.58 local tarda ~200 s por modelo;
-  // si cede por timeout una vez, sus demás modelos (11 personalidades) se
-  // saltan de una vez y el chat pasa al siguiente candidato (LLM7, etc.) sin
-  // martillear el backend ni retrasar la respuesta.
+  // (Ola 278 · OS2 · extendido G3) Fuentes que ya agotaron su tiempo EN ESTA
+  // petición (sourceId → nº de timeouts). El nativo 1.58 (local O nube) tarda
+  // ~200 s por modelo; si cede por timeout una vez, sus demás modelos (11
+  // personalidades) se saltan de una vez y el chat pasa al siguiente candidato
+  // (LLM7, etc.) sin martillear el backend ni retrasar la respuesta.
   const timeoutsThisRequest = new Map<string, number>();
+
+  // (G10 · 2026-09-26) Fuentes que respondieron OCUPADAS (503/429 con cola o
+  // límite) EN ESTA petición: se saltan sus demás candidatos de inmediato — no
+  // tiene sentido reintentar con OTRA personalidad de la MISMA fuente que
+  // acaba de decir «estoy ocupada» — y el cooldown ya la aparta de la próxima.
+  const busyThisRequest = new Set<string>();
 
   // (Ola 223) Caché de respuestas repetidas: solo aplica si la petición es
   // determinista (temperature explícita ≤ 0.3) Y no hay streaming — ahí la
@@ -1520,6 +1579,9 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
     // saltamos sus demás modelos de una vez: reintentarlos 200 s × 11 modelos
     // retrasaría el chat a LLM7 más de media hora sin ningún beneficio.
     if (debeSaltarTrasTimeout(c.source.id, timeoutsThisRequest)) continue;
+    // (G10) Ya dijo «ocupada» una vez en esta petición: no insistir con otra
+    // personalidad de la MISMA fuente — se pasa directo a la siguiente fuente.
+    if (busyThisRequest.has(c.source.id)) continue;
     // (Ola 223) Antes de llamar al proveedor: si esta petición exacta ya se
     // respondió hace menos de 10 min, la devolvemos sin gastar cuota.
     // (Ola 223 · I4) La clave usa `messages` (local, siempre definida en este
@@ -1559,6 +1621,20 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
       }
     }
     const t0 = Date.now();
+    // (G4 · 2026-09-26) Controlador PROPIO de este candidato: si el router se
+    // rinde por timeout (o el que llamó a Aurora cancela del todo), abortamos
+    // el `fetch` de VERDAD en vez de dejarlo generando en segundo plano sin
+    // que nadie lo escuche — antes `withTimeoutGrace` solo dejaba de esperar,
+    // la promesa (y el backend detrás) seguían vivos: una generación zombi.
+    const candidateAbort = new AbortController();
+    const parentSignal = req.signal;
+    const reenviarAbort = (): void => {
+      try { candidateAbort.abort(); } catch { /* defensivo */ }
+    };
+    if (parentSignal) {
+      if (parentSignal.aborted) reenviarAbort();
+      else parentSignal.addEventListener("abort", reenviarAbort, { once: true });
+    }
     try {
       req.onStatus?.(`Usando ${c.source.label} · ${c.model.label}…`);
       // (Ola 278 · OS2) Gracia de primer token del nativo: envuelvo `onChunk`
@@ -1584,6 +1660,10 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
           },
         };
       }
+      // (G4) El `fetch` real de este candidato usa el controlador PROPIO, no
+      // la señal del que llamó a Aurora directamente: así el router puede
+      // cortarlo por timeout sin depender de que el usuario cancele el chat.
+      reqCand = { ...reqCand, signal: candidateAbort.signal };
       // REGLA DURA DEL PROYECTO: `Promise.resolve().then(step)`. Si `runCandidate`
       // lanzara de forma SÍNCRONA (antes del primer await — p.ej. `getProvider()`
       // con un id desconocido), el throw escaparía del `try` y ROMPERÍA todo el
@@ -1628,6 +1708,8 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
         ...(res?.usage ? { usage: res.usage } : {}), // (Ola 223)
         ...(primaryInfo ? { primary: primaryInfo } : {}),
         ...(c.local158Priority ? { local158Priority: true } : {}),
+        // (G6) Vía real del proxy, si esta fuente fue Astraura 1.58 y la trajo.
+        ...(viaDeRespuesta158(c.source.id, res) ? { via158: viaDeRespuesta158(c.source.id, res) } : {}),
       };
       pushRouteRecord(rec);
       req.onStatus?.("");
@@ -1680,25 +1762,19 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
         (/\b503\b|no disponible|nube-no-disponible|no respond|timeout|abort|arrancando en fr|contactar la nube/i.test(msg))
       ) {
         try { markCooldown(c.source.id); } catch { /* */ }
+        // (G10) Caída/timeout de la nube 1.58: no insistir con otra
+        // personalidad de la MISMA fuente en esta petición.
+        busyThisRequest.add(c.source.id);
       }
-      // Cuota agotada / límite (429) o "insufficient" → enfría la fuente. Si el
-      // proveedor DICE cuánto ("Retry after 4851 seconds" · "retry in 2h"), le
-      // hacemos caso EXACTO (Adenda 87) — ni martillear antes de tiempo ni
-      // castigar de más una fuente que vuelve en minutos.
-      if (/\b429\b|rate.?limit|quota|exhaust|insufficient|too many/i.test(msg)) {
-        let mins: number | undefined;
-        const mSec = msg.match(/retry(?:\s+it)?\s+(?:after|in)\s+(\d+)\s*s/i);
-        const mMin = msg.match(/retry(?:\s+it)?\s+(?:after|in)\s+(\d+)\s*m/i);
-        const mHor = msg.match(/retry(?:\s+it)?\s+(?:after|in)\s+(\d+)\s*h/i);
-        if (mSec) mins = Math.max(1, Math.ceil(Number(mSec[1]) / 60));
-        else if (mMin) mins = Math.max(1, Number(mMin[1]));
-        else if (mHor) mins = Math.max(1, Number(mHor[1]) * 60);
-        // "free-models-per-day" = cupo DIARIO agotado → hasta ~medianoche UTC.
-        if (!mins && /per.?day|daily/i.test(msg)) {
-          const now = new Date();
-          const midnightUtc = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1);
-          mins = Math.max(10, Math.ceil((midnightUtc - now.getTime()) / 60_000));
-        }
+      // Cuota agotada / límite (429), "insufficient" u OCUPADA (G10: el backend
+      // dijo `{ocupado:true}` por 503/429 — cola llena o RAM corta) → enfría la
+      // fuente. Si el proveedor DICE cuánto ("Retry after 4851 seconds" ·
+      // "retry in 2h" · "retry after 30s" del contrato de ocupado), le hacemos
+      // caso EXACTO (Adenda 87) — ni martillear antes de tiempo ni castigar de
+      // más una fuente que vuelve en segundos.
+      if (/\b429\b|rate.?limit|quota|exhaust|insufficient|too many|\bocupado\b/i.test(msg)) {
+        const mins = minutosDeEnfriamiento(msg);
+        if (/\bocupado\b/i.test(msg)) busyThisRequest.add(c.source.id);
         try { markCooldown(c.source.id, mins); } catch { /* */ }
       }
       // CLAVE INVÁLIDA (401/403/unauthorized): fallo DETERMINISTA de toda la
@@ -1711,14 +1787,17 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
         deadSources.add(c.source.id);
         try { markCooldown(c.source.id, 30); } catch { /* */ }
       }
-      // (Ola 278 · OS2) TIMEOUT del NATIVO 1.58 local: cuenta como «cedido por
-      // esta vez». Lo anoto en `timeoutsThisRequest` (para que sus demás
-      // modelos se salten en esta misma petición) y lo enfrío con el cooldown
-      // CORTO del catálogo (2 min): dentro de la petición no se vuelve a sondear,
-      // pero el próximo turno lo vuelve a probar sin martillear. No cuento los
-      // abortos del usuario (AbortError) como timeout: esos no son del nativo.
+      // (Ola 278 · OS2 · ampliado G3 2026-09-26) TIMEOUT del 1.58, LOCAL o NUBE:
+      // cuenta como «cedido por esta vez». Lo anoto en `timeoutsThisRequest`
+      // (para que sus demás modelos se salten en esta misma petición) y lo
+      // enfrío con el cooldown CORTO del catálogo: dentro de la petición no se
+      // vuelve a sondear, pero el próximo turno lo vuelve a probar sin
+      // martillear. Antes solo el LOCAL se anotaba aquí — la nube, con su
+      // timeout de 200 s + 120 s de gracia, podía agotar ese rato ENTERO antes
+      // de que el router supiera que ya había cedido. No cuento los abortos
+      // del usuario (AbortError) como timeout: esos no son del backend.
       if (
-        c.source.id === ASTRAURA_158_LOCAL_SOURCE_ID &&
+        (c.source.id === ASTRAURA_158_LOCAL_SOURCE_ID || c.source.id === ASTRAURA_158_CLOUD_SOURCE_ID) &&
         /\btimeout\b/i.test(msg)
       ) {
         timeoutsThisRequest.set(
@@ -1728,6 +1807,13 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
         try { markCooldown(c.source.id); } catch { /* */ }
       }
       failovers.push({ sourceId: c.source.id, error: msg.slice(0, 200) });
+    } finally {
+      // (G4) Este candidato ya no importa (ganó, falló o se saltó por
+      // timeout): si su `fetch` seguía vivo, lo cortamos, y quitamos el
+      // listener de la señal del que llamó para no acumularlos petición tras
+      // petición ni abortar un candidato FUTURO por error.
+      reenviarAbort();
+      if (parentSignal) parentSignal.removeEventListener("abort", reenviarAbort);
     }
   }
 

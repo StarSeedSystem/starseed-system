@@ -3907,3 +3907,53 @@ quitó la barra «Astraura, Aurora y el Exocórtex comparten el mismo cerebro» 
   compara la clave exacta, no una subcadena, para no confundirlas.
 - `\bcharging\b` con límite de palabra distingue «charging» de verdad de «discharging» sin
   necesitar mirar el resto de la frase.
+
+## 2026-09-26 — Local honesta, nube robusta, cola y rechazo (G1-G10)
+**Sesión por:** Claude (worktree `_claude-capas`; otro agente en paralelo tocó mesh/P2P,
+sin solaparse).
+**Resumen ejecutivo:** Alex pidió que Astraura funcione localmente en CUALQUIER dispositivo
+(no solo la Mac), fusionada con Jev y Needle, y que la nube (esta Mac, por el túnel de
+Cloudflare) no se sature de RAM: encolar peticiones y rechazar con inteligencia hacia otro
+medio cuando hay demasiadas. Diez fallos (G1-G10) verificados y corregidos; el backend (cola,
+`/api/jev/decidir`) lo implementa otro agente, esta ola solo lo consume.
+
+### Hecho
+- **G1** `paginaEsLocal()`/`hostnameEsLocal()` (`destino-local.ts`); `baseParaNavegador` ya NO
+  reescribe una base de bucle local al proxy cuando la PÁGINA no es un despliegue local (una
+  tablet en producción ya no ve la nube disfrazada de «local»). Proxy: `debeRechazarLocalNoDisponible`
+  (`elegir-destino.ts`, pura) → **421** `{error:"local-no-disponible"}`.
+- **G6** Cabecera `X-Astraura-Via: nube|local|local-respaldo` del proxy → `raw.via` del
+  proveedor → `RouteRecord.via158` (`viaDeRespuesta158`, pura) → `use-estado-capas.ts` publica
+  la capa que REALMENTE respondió (no la que se pidió).
+- **G2/G3** `destino-nube.ts`: caché 60 s/10 s según haya o no destino sano; sin candidato fijo
+  de Cloud Run. Catálogo nube: `timeoutMs:200_000` + `firstTokenGraceMs:120_000`. Router: un
+  timeout de la nube también se anota en `timeoutsThisRequest` (antes solo la local).
+- **G5** Sonda de nube: `/api/ping` (4 s) + `/api/cola` (3 s, `admite:false` = ocupada, no
+  caída). Memoria de respaldo del tope global ya no marca la nube lista sin haber sondeado.
+- **G4** `AbortController` por candidato en el bucle principal del router, encadenado a la
+  señal del llamador y abortado en `finally` — corta el `fetch` de verdad al ceder por timeout.
+- **G10** Contrato de ocupado (`ocupado:true`, `Retry-After`, `X-Astraura-Cola`, `GET
+  /api/cola`) pasado tal cual por el proxy; `minutosDeEnfriamiento` (pura) topa a 5 min
+  cualquier «ocupado»; `busyThisRequest` salta las demás personalidades de la misma fuente en
+  esa petición.
+- **G8/G9** Allowlist del proxy suma `/api/needle/decidir` y `/api/jev/decidir` (bucket propio
+  60/10min); `needle3-client.ts` usa una base ABSOLUTA en el servidor para la nube
+  (`endpointNubeAbsoluto`, arregla el `fetch` relativo de `/api/astraura/decidir`); `jev/
+  systemone/route.ts` decide por la nube (`decidirPorNube`, backend `/api/jev/decidir`) cuando
+  el despliegue no es la Mac, sin tocar el camino `spawn python3` local.
+- SOP: `architecture/astraura-158-sistema-primario.md` §16.
+- Pruebas nuevas/actualizadas: `astraura-158-puente.test.ts` (páginas local/pública/sin
+  `window.location`), `router-158-timeout.test.ts` (+cloud timeout, `viaDeRespuesta158`,
+  `minutosDeEnfriamiento`), `destino-nube.test.ts` (+sin default muerto, +caché por tiers),
+  `availability-astraura-158.test.ts` (+`probeAstraura158Nube`, +`probeAstraura158Local` G1),
+  `elegir-destino.test.ts` (nuevo), `needle3-client.test.ts` (+base absoluta servidor),
+  `src/app/api/jev/__tests__/systemone-nube.test.ts` (nuevo). `tsc --noEmit` limpio; `vitest
+  run src/ai src/lib/astraura src/app/api/jev src/app/api/ai + destino/puente/proxy-local` →
+  **45 archivos / 533 pruebas en verde**.
+
+### Pendiente / no hecho en esta ola
+- Paralelizar por completo el bucle de `detectAvailability()` (sigue secuencial entre fuentes).
+- Prueba de vitest dedicada para el abort-de-verdad del `fetch` al ceder por timeout (G4) y
+  para la honestidad del fallback de memoria sin sonda previa (G5): verificados por `tsc` +
+  lectura del cableado, no por una prueba en vivo (ver el porqué en el SOP §16).
+- `next build` no se ejecutó (regla del área) ni hubo commit/push (worktree de solo trabajo).

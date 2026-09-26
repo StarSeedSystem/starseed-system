@@ -73,6 +73,41 @@ describe("destinoNube", () => {
         expect(await destinoNube()).toBeNull();
     });
 
+    it("(G2 · 2026-09-26) sin ninguna variable de entorno declarada, NO hay upstream de Cloud Run por defecto: null sin sondear nada fijo", async () => {
+        delete process.env.ASTRAURA_CLOUD_URL;
+        delete process.env.ASTRAURA_158_URL;
+        const fetchFalso = simular(null, []); // sin túnel publicado tampoco
+        expect(await destinoNube()).toBeNull();
+        // La ÚNICA llamada debe ser la lectura de Supabase (`astraura_state`):
+        // cero candidatos → cero sondas de salud. Antes había un candidato fijo
+        // de Cloud Run que SIEMPRE se sondeaba, muerto o no.
+        const llamadas = fetchFalso.mock.calls.map((c) => String(c[0]));
+        expect(llamadas.some((u) => u.includes("astraura_state"))).toBe(true);
+        expect(llamadas.some((u) => u.endsWith("/api/ping") || u.endsWith("/api/status"))).toBe(false);
+        expect(llamadas.some((u) => u.includes("run.app"))).toBe(false);
+    });
+
+    it("(G2) caché NULO se reintenta a los ~10s, no al minuto entero", async () => {
+        vi.useFakeTimers();
+        try {
+            delete process.env.ASTRAURA_CLOUD_URL;
+            delete process.env.ASTRAURA_158_URL;
+            const fetchFalso = simular(null, []);
+            expect(await destinoNube()).toBeNull();
+            const llamadasTrasPrimera = fetchFalso.mock.calls.length;
+            // Aún dentro de los 10 s: caché nulo sigue vigente, no vuelve a sondear.
+            await vi.advanceTimersByTimeAsync(5_000);
+            expect(await destinoNube()).toBeNull();
+            expect(fetchFalso.mock.calls.length).toBe(llamadasTrasPrimera);
+            // Pasados los 10 s: vuelve a sondear (nueva llamada a Supabase).
+            await vi.advanceTimersByTimeAsync(6_000);
+            expect(await destinoNube()).toBeNull();
+            expect(fetchFalso.mock.calls.length).toBeGreaterThan(llamadasTrasPrimera);
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
     it("un destino que responde /api/status pero no /api/ping (no es un backend completo) no se elige", async () => {
         // 25-09: el destino de nube de producción daba 200 en /api/status y 404 en /api/ping y
         // en todas las rutas de chat; se elegía y cada mensaje terminaba en 404.

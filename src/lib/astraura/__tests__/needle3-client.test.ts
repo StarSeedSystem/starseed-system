@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { afterEach, beforeEach, describe, it, expect, vi } from "vitest";
 import {
   zonaDeConfianza,
   catalogoDeAccionesOS,
@@ -7,6 +7,7 @@ import {
   UMBRAL_CONFIRMAR,
   type DecisionNeedle,
 } from "../needle3-client";
+import { invalidarDestino } from "../destino-nube";
 
 describe("needle3-client", () => {
   describe("zonaDeConfianza", () => {
@@ -129,6 +130,70 @@ describe("needle3-client", () => {
       } finally {
         globalThis.fetch = originalFetch;
       }
+    });
+  });
+
+  // (G8 · 2026-09-26) `astraura158Endpoint("nube")` devuelve una ruta RELATIVA
+  // (`/api/ai/astraura-158`) cuando no hay `NEXT_PUBLIC_ASTRAURA_158_URL` — la
+  // llamaba directamente el `fetch` de Node de `/api/astraura/decidir`, que no
+  // tiene origen implícito («Failed to parse URL from /api/...»). En el
+  // entorno de vitest (`node`, sin `window`) estos tests ejercitan justo la
+  // rama SERVIDOR de `decidirConNeedle`.
+  describe("decidirConNeedle — base ABSOLUTA en el servidor para la nube (G8)", () => {
+    const entorno = { ...process.env };
+
+    beforeEach(() => {
+      invalidarDestino();
+    });
+
+    afterEach(() => {
+      process.env = { ...entorno };
+      vi.unstubAllGlobals();
+      invalidarDestino();
+    });
+
+    it("con un destino de nube sano, llama a needle/decidir con esa base ABSOLUTA (nunca una ruta relativa)", async () => {
+      process.env.ASTRAURA_CLOUD_URL = "https://mi-mac.trycloudflare.com";
+      delete process.env.NEXT_PUBLIC_SUPABASE_URL;
+      delete process.env.SUPABASE_SERVICE_ROLE_KEY;
+      delete process.env.ASTRAURA_158_URL;
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async (entrada: string | URL) => {
+          const url = String(entrada);
+          if (url.endsWith("/api/ping")) return new Response("{}", { status: 200 });
+          return new Response("{}", { status: 404 });
+        }),
+      );
+
+      const llamadas: string[] = [];
+      const transporte: typeof fetch = async (entrada) => {
+        llamadas.push(String(entrada));
+        return new Response(JSON.stringify({ ok: true, confianza: 0.9 }), { status: 200 });
+      };
+
+      await decidirConNeedle("nube", "consulta", [], { transporte });
+
+      expect(llamadas).toEqual(["https://mi-mac.trycloudflare.com/api/needle/decidir"]);
+    });
+
+    it("sin ningún destino de nube sano, cae a STARSEED_BASE_URL + la ruta del proxy — sigue siendo ABSOLUTA", async () => {
+      delete process.env.ASTRAURA_CLOUD_URL;
+      delete process.env.ASTRAURA_158_URL;
+      delete process.env.NEXT_PUBLIC_SUPABASE_URL;
+      delete process.env.SUPABASE_SERVICE_ROLE_KEY;
+      process.env.STARSEED_BASE_URL = "https://starseed-os.vercel.app";
+      vi.stubGlobal("fetch", vi.fn(async () => new Response("{}", { status: 503 })));
+
+      const llamadas: string[] = [];
+      const transporte: typeof fetch = async (entrada) => {
+        llamadas.push(String(entrada));
+        return new Response(JSON.stringify({ ok: true, confianza: 0.5 }), { status: 200 });
+      };
+
+      await decidirConNeedle("nube", "consulta", [], { transporte });
+
+      expect(llamadas).toEqual(["https://starseed-os.vercel.app/api/ai/astraura-158/api/needle/decidir"]);
     });
   });
 });

@@ -320,11 +320,16 @@ export const FREE_CATALOG: CatalogSource[] = [
     providerId: "astraura-158",
     baseUrl: astraura158CloudBase(),
     requiresKey: false,
-    limits: "Backend publicado de Astraura (Cloud Run/gateway). Puede arrancar en frío.",
+    limits: "Backend publicado de Astraura por el túnel de la Mac (sin Cloud Run). Puede tardar en el primer token.",
     why: "El mismo sistema primario, servido por la nube de StarSeed cuando esta neurona no corre el backend.",
     privacy: "cloud",
     weight: 1.2,
-    timeoutMs: 95_000,
+    // (G3 · 2026-09-25/26) MEDIDO por el túnel de Cloudflare de la Mac: el
+    // primer token tarda 60-110 s (prefill ~700 tokens a 8-16 tok/s en 8 GB).
+    // Con 95 s y sin gracia, el corte llegaba justo antes de que respondiera.
+    // Mismo tiempo real y misma gracia que la fuente local (200 s + 120 s).
+    timeoutMs: 200_000,
+    firstTokenGraceMs: 120_000,
     cooldownMinutes: 5,
     models: ASTRAURA_158_MODELS,
   },

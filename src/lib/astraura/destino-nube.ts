@@ -9,8 +9,13 @@
  *   a) `ASTRAURA_CLOUD_URL` — despliegue propio permanente (Cloud Run, etc.).
  *   b) El túnel que la neurona publica en Supabase (`astraura_state`, clave
  *      `tunel_publico`) — ver abajo.
- *   c) El túnel/publicado actual (`ASTRAURA_158_URL` o el upstream por defecto).
+ *   c) `ASTRAURA_158_URL` — override fijo por entorno, si está declarado.
  *   d) `null` — no hay nube disponible ahora mismo.
+ *
+ * (G2 · 2026-09-26) Ya NO hay upstream de Cloud Run por defecto: el proyecto
+ * quedó SIN facturación de Google Cloud (ver abajo) y ese candidato fijo
+ * estaba MUERTO — un candidato muerto en la lista solo añade una sonda que
+ * siempre falla. Sin ninguno de (a)/(b)/(c), la función devuelve `null` y punto.
  *
  * (2026-09-25) Alex desactivó la facturación de Google Cloud tras un cargo de 4.000 este
  * mes y pidió alternativas GRATUITAS: sin Cloud Run, la web y la app se quedaban sin
@@ -20,7 +25,10 @@
  * https en `*.trycloudflare.com` (o los hosts de `ASTRAURA_TUNEL_HOSTS`). Las sondas de
  * salud van EN PARALELO: un destino caído ya no suma 2,5 s a los demás.
  *
- * Con CACHÉ de 60 s (las sondas de salud no se repiten en cada petición) y
+ * Con CACHÉ (las sondas de salud no se repiten en cada petición): 60 s cuando
+ * se encontró un destino sano, y solo 10 s cuando NO se encontró ninguno (G2 ·
+ * 2026-09-26) — así un túnel que acaba de publicarse (o vuelve tras una caída)
+ * tarda como mucho 10 s en notarse, en vez de hasta un minuto entero sin nube.
  * COMPROBACIÓN DE SALUD (`GET <base>/api/ping`, timeout 2,5 s). Nunca lanza.
  *
  * Módulo de SERVIDOR (solo lo usa la ruta proxy del OS): toca `process.env`.
@@ -35,9 +43,11 @@ export interface DestinoNube {
   latenciaMs: number;
 }
 
-const DEFAULT_UPSTREAM = "https://astraura-backend-334237619848.us-central1.run.app";
 const SALUD_TIMEOUT_MS = 2_500;
-const CACHE_MS = 60_000;
+/** Caché cuando SÍ se encontró un destino sano (G2 · 2026-09-26). */
+const CACHE_MS_OK = 60_000;
+/** Caché cuando NO se encontró ninguno: se reintenta pronto, no al minuto. */
+const CACHE_MS_NULO = 10_000;
 
 interface CacheEntrada {
   resueltoEn: number;
@@ -140,16 +150,19 @@ export async function tunelPublicado(): Promise<string | null> {
 export async function destinoNube(): Promise<DestinoNube | null> {
   try {
     const ahora = Date.now();
-    if (cache && ahora - cache.resueltoEn < CACHE_MS) return cache.destino;
+    if (cache) {
+      const ttl = cache.destino ? CACHE_MS_OK : CACHE_MS_NULO;
+      if (ahora - cache.resueltoEn < ttl) return cache.destino;
+    }
 
     // Candidatos por prioridad; se sondean todos a la vez y gana el primero sano.
     const propia = limpiarBase(process.env.ASTRAURA_CLOUD_URL);
     const publicado = await tunelPublicado();
-    const fijo = limpiarBase(process.env.ASTRAURA_158_URL) || DEFAULT_UPSTREAM;
+    const fijo = limpiarBase(process.env.ASTRAURA_158_URL);
     const candidatos: { base: string; via: DestinoNube["via"] }[] = [];
     if (propia) candidatos.push({ base: propia, via: "env" });
     if (publicado) candidatos.push({ base: publicado, via: "tunel" });
-    if (!candidatos.some((c) => c.base === fijo)) candidatos.push({ base: fijo, via: "tunel" });
+    if (fijo && !candidatos.some((c) => c.base === fijo)) candidatos.push({ base: fijo, via: "tunel" });
     const sondas = await Promise.all(candidatos.map((c) => sana(c.base)));
     let destino: DestinoNube | null = null;
     for (let i = 0; i < candidatos.length; i++) {

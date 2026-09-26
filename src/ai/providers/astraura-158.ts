@@ -57,6 +57,7 @@ import type {
 } from "./types";
 import { ASTRAURA_158_WS_READY_TIMEOUT_MS, getAstraura158Ws, type Astraura158Ws } from "./astraura-158-ws";
 import { preferenciaCapasGuardada } from "@/lib/astraura/capas-conciencia";
+import { paginaEsLocal } from "@/lib/astraura/destino-local";
 
 /* ───────────────────── Personalidades 1.58 (modelos de la fuente) ───────────────────── */
 
@@ -299,13 +300,27 @@ export function esBaseLocal(base: string): boolean {
 
 /**
  * En el navegador, enruta una base de bucle local por el proxy del OS
- * (`/api/ai/astraura-158` + el resto de la ruta). En cualquier otro caso
- * devuelve la base tal cual. Pura (idempotente: una base ya relativa no se
- * toca). El servidor del OS habla con la neurona sin bloqueo de red privada.
+ * (`/api/ai/astraura-158` + el resto de la ruta) — PERO SOLO cuando la propia
+ * PÁGINA es un despliegue local (`paginaEsLocal()`): ahí el proxy corre EN esa
+ * misma neurona y `?destino=local` (añadido por `urlPuenteLocal`) llega a ella.
+ *
+ * (G1 · 2026-09-26) En un origen PÚBLICO (p.ej. la app en una tablet cargando
+ * `https://starseed-os.vercel.app`), una base de bucle local ya NO significa
+ * "la neurona de la Mac que sirve el OS": significa "el backend de ESTE
+ * dispositivo" (si lo tiene). Reescribirla al proxy ahí sería un error doble:
+ * el servidor del OS (Vercel) nunca es local, así que el proxy serviría la
+ * NUBE bajo la etiqueta "local" sin avisar a nadie — exactamente el bug que
+ * esto corrige. Ahí se deja la base TAL CUAL (un `fetch` directo a
+ * `127.0.0.1:8000` de ESTE dispositivo, con su propia comprobación de
+ * disponibilidad en `availability.ts`).
+ *
+ * Pura salvo por `window.location` (vía `paginaEsLocal()`); idempotente: una
+ * base ya relativa no se toca.
  */
 export function baseParaNavegador(base: string): string {
   if (typeof window === "undefined") return base;
   if (!esBaseLocal(base)) return base;
+  if (!paginaEsLocal()) return base;
   const resto = base.replace(/^[a-z][a-z0-9+.-]*:\/\/[^/]+/i, "").replace(/\/+$/, "");
   return `/api/ai/astraura-158${resto}`;
 }
@@ -500,6 +515,17 @@ export interface Astraura158Raw {
   personalities_involved?: unknown;
   /** Modo multi-personalidad enviado (si hubo menciones). */
   mode?: Astraura158MultiMode;
+  /**
+   * (G6 · 2026-09-26) Quién sirvió DE VERDAD este turno, según la cabecera
+   * `X-Astraura-Via` que añade el proxy del OS: `"nube"` · `"local"` ·
+   * `"local-respaldo"` (la nube pedida cayó y el proxy —solo en despliegue
+   * local— respondió con la neurona de la propia máquina). Ausente cuando la
+   * llamada no pasó por el proxy (turno directo a 127.0.0.1 o por WebSocket,
+   * que no lleva cabeceras HTTP) — ahí el propio destino YA es la verdad.
+   * El router usa esto para que el indicador de capas marque una fuente lista
+   * solo por SU vía real, nunca por la que se pidió.
+   */
+  via?: "nube" | "local" | "local-respaldo";
 }
 
 /* ───────────────────── Provider ───────────────────── */
@@ -912,9 +938,36 @@ async function chat(
     }, options.signal);
   }
   if (!res.ok) {
+    // (G10 · 2026-09-26) OCUPADO: el backend admite cola con `503`/`429` +
+    // cabecera `Retry-After` (y `{ocupado:true, reintentar_en_s}` en el cuerpo)
+    // en vez de rechazar en seco. El mensaje lleva SIEMPRE «retry after Ns» — el
+    // router (`router.ts`) ya sabe leer ese formato para el cooldown de
+    // cualquier fuente — y así una cola momentánea no se confunde con un
+    // backend muerto ni con una clave inválida.
+    if (res.status === 503 || res.status === 429) {
+      const cabecera = res.headers.get("retry-after");
+      let cuerpo: Record<string, unknown> | null = null;
+      try { cuerpo = (await res.clone().json()) as Record<string, unknown>; } catch { /* no era JSON */ }
+      const ocupado = cuerpo?.ocupado === true;
+      const segundosCuerpo = typeof cuerpo?.reintentar_en_s === "number" ? cuerpo.reintentar_en_s : undefined;
+      const segundos = Number(cabecera) || segundosCuerpo;
+      if (ocupado || cabecera) {
+        const n = Math.max(1, Math.round(segundos ?? 30));
+        const motivo = typeof cuerpo?.motivo === "string" ? ` (${cuerpo.motivo})` : "";
+        const err = new Error(`Astraura 1.58 ocupado${motivo}: retry after ${n}s`);
+        (err as Error & { ocupado?: boolean }).ocupado = true;
+        throw err;
+      }
+    }
     const text = await res.text().catch(() => "");
     throw new Error(`Astraura 1.58 error ${res.status}: ${(text || res.statusText).slice(0, 300)}`);
   }
+  // (G6 · 2026-09-26) La vía REAL que sirvió el turno, si la llamada pasó por
+  // el proxy del OS (`X-Astraura-Via`); ausente en una llamada directa a la
+  // neurona (ahí el destino ya era la verdad) o por WebSocket (sin cabeceras).
+  const viaCabecera = res.headers.get("x-astraura-via");
+  const via: Astraura158Raw["via"] =
+    viaCabecera === "nube" || viaCabecera === "local" || viaCabecera === "local-respaldo" ? viaCabecera : undefined;
   const ctype = (res.headers.get("content-type") || "").toLowerCase();
   if (ctype.includes("application/json")) {
     // Respuesta no-stream (p.ej. proxy que tamponó): {response|full_text|text}
@@ -928,6 +981,7 @@ async function chat(
       events: 0,
       personalities_involved: json?.personalities_involved,
       ...(mode ? { mode } : {}),
+      ...(via ? { via } : {}),
       ...(json ? { json } : {}),
     };
     return { text, raw };
@@ -936,6 +990,7 @@ async function chat(
   const raw: Astraura158Raw = {
     astraura158: out.collected,
     persona,
+    ...(via ? { via } : {}),
     backend: base,
     events: out.events,
     personalities_involved: out.involved,

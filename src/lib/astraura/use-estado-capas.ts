@@ -159,9 +159,18 @@ export function useEstadoCapas(): EstadoCapasVivo {
         const alRutear = (e: Event) => {
             const r = (e as CustomEvent<RouteRecord>).detail ?? lastRoute();
             setChatUsa158(rutaUsa158(r));
-            // Una respuesta que salió por 1.58 ya demuestra que esa capa responde: sin sonda.
+            // Una respuesta que salió por 1.58 ya demuestra que esa capa responde: sin
+            // sonda. Pero (G6 · 2026-09-26) la fuente `sourceId` es la que ELEGIMOS
+            // llamar, no necesariamente quien de verdad contestó: el proxy puede
+            // servir la fuente «nube» con su respaldo LOCAL (`via158:
+            // "local-respaldo"`) cuando el túnel falla a mitad de turno. Publicar
+            // «nube: true» en ese caso sería mentir — se publica LOCAL, que es quien
+            // realmente respondió.
             if (r?.ok && r.sourceId === "astraura-158-local") publicar({ local: true });
-            if (r?.ok && r.sourceId === "astraura-158-nube") publicar({ nube: true });
+            if (r?.ok && r.sourceId === "astraura-158-nube") {
+                if (r.via158 === "local-respaldo") publicar({ local: true });
+                else publicar({ nube: true });
+            }
         };
         window.addEventListener(ROUTE_EVENT, alRutear);
         return () => window.removeEventListener(ROUTE_EVENT, alRutear);

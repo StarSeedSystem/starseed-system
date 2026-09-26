@@ -364,3 +364,115 @@ uso preferencial** entre el enrutador libre, una API o modelo concreto y las cap
   Exocortex, ventana de chat) y en el mini reproductor de Aurora; `PanelCapas` completo arriba
   de Ajustes → Inteligencia. Colores: sincronizada `#39FF14`, activa `#007FFF`, sin señal
   `#FFBF00`, apagada gris.
+
+## 16. Local honesta, nube robusta, cola y rechazo (G1-G10 · 2026-09-26)
+
+Alex: «la capa de astraura de la nube y la local solo funciona en esta computadora, asegúrate
+que funcione tanto localmente en cualquier dispositivo también con su fusión con jev y el
+cactus needle […] y la nube […] con inteligencia de no saturar la RAM de la computadora y si
+vienen múltiples peticiones enlistarlas y si son muchas rechazarlas para que se use otro
+medio». Diez fallos identificados (G1-G10) sobre la base de las Olas 278/365; el backend (otro
+agente, worktree de malla/P2P) implementa el contrato de cola/Jev/Needle descrito abajo — esta
+ola solo lo CONSUME.
+
+### G1 — «local» en un origen público ya no mentía
+`baseParaNavegador` (`src/ai/providers/astraura-158.ts`) reescribía CUALQUIER base de bucle
+local (`127.0.0.1`/`localhost`) al proxy del OS con tal de que el código corriera «en el
+navegador» — sin mirar si la PÁGINA misma era un despliegue local. Una tablet cargando
+`https://starseed-os.vercel.app` con un backend propio en `127.0.0.1:8000` veía esa base
+reescrita al proxy, que en producción sirve la NUBE: «local» respondía con la nube sin avisar.
+- `src/lib/astraura/destino-local.ts`: `hostnameEsLocal`/`paginaEsLocal` (puras, leen
+  `window.location.hostname`, defensivas si no hay `window`).
+- `baseParaNavegador` añade `if (!paginaEsLocal()) return base;` — en origen público, la base de
+  bucle local se deja TAL CUAL (fetch directo al backend de ESE dispositivo).
+- Proxy (`[...path]/route.ts`): `debeRechazarLocalNoDisponible(pedido, local)`
+  (`elegir-destino.ts`, pura) — piden `?destino=local` y el despliegue no es la propia máquina →
+  **421** `{error:"local-no-disponible"}`, nunca la nube disfrazada. El Mac (`localhost:9002`)
+  sigue igual: ahí `local` es `true` y la ruta (a)/(c) de `elegirDestino` no cambia.
+
+### G6 — Vía honesta de vuelta
+El proxy no decía QUIÉN sirvió de verdad. `forward()` añade `X-Astraura-Via: nube|local|
+local-respaldo` + `Access-Control-Expose-Headers`. El proveedor (`astraura-158.ts`) lo lee
+(`Astraura158Raw.via`) y lo cuelga de `res.raw.via`; el router (`viaDeRespuesta158`, pura) lo
+sube a `RouteRecord.via158`. `use-estado-capas.ts` publica `local: true` (no `nube: true`)
+cuando la fuente llamada fue «nube» pero `via158 === "local-respaldo"` — el indicador deja de
+mentir sobre qué capa respondió.
+
+### G2/G3/G5 — La nube deja de fingir salud
+- `destino-nube.ts`: caché de 60 s solo cuando SÍ hay destino sano; 10 s cuando no (antes 60 s
+  fijos, con o sin nube). Quitado el candidato fijo de Cloud Run (proyecto sin facturación desde
+  el 2026-09-25): sin `ASTRAURA_CLOUD_URL`/túnel publicado/`ASTRAURA_158_URL`, cero candidatos,
+  cero sondas a una URL muerta.
+- `free-catalog.ts`: la fuente nube pasa de `timeoutMs:95_000` (sin gracia) a `timeoutMs:200_000`
+  + `firstTokenGraceMs:120_000` — igual de generosa que la local, porque el túnel de la Mac
+  también tarda en el primer token.
+- `router.ts`: `debeSaltarTrasTimeout` ahora también se anota para la NUBE (antes solo la local);
+  un timeout de la nube salta sus demás modelos en la MISMA petición en vez de reintentarlos.
+- `availability.ts`: sonda de nube pasa de `/api/status` (8,7 s medidos) a `/api/ping` (4 s) +,
+  si responde, `GET /api/cola` (3 s) — `admite:false` cuenta como «ocupada» (con la espera
+  estimada en el motivo), no como «caída». El respaldo del tope global (`applyLocalAstrauraMemory`)
+  ya NO marca la nube lista a ciegas sin haber sondeado nunca: sin sonda previa, `ready:false`.
+  Sonda del respaldo local por el puente subida a 6 s (antes el timeout por defecto, más corto).
+
+### G4 — Cancelar de verdad al ceder por timeout
+`withTimeoutGrace` solo dejaba de ESPERAR una promesa que perdía la carrera: el `fetch` (y el
+backend detrás) seguían generando sin que nadie escuchara — una generación zombi, justo cuando
+la nube tiene ahora 200 s + 120 s de gracia para perder. Cada candidato del bucle principal de
+`router.ts` recibe su propio `AbortController` (`candidateAbort`), encadenado a la señal del que
+llamó (se reenvía si esta aborta) y cortado en un `finally` cuando el candidato termina por
+cualquier vía (éxito, error o timeout) — el `fetch` real usa `candidateAbort.signal`, no la señal
+del llamador directamente.
+
+### G10 — Cola/ocupada: saltar a otro medio rápido, no esperar a ciegas
+Contrato del backend (lo implementa el otro agente): `503` con `Retry-After` + JSON
+`{error:"ocupado", ocupado:true, motivo:"cola"|"memoria", en_cola, espera_estimada_s,
+reintentar_en_s}`, cabecera `X-Astraura-Cola` en cada respuesta de chat, y `GET /api/cola` →
+`{activos, en_cola, max_cola, espera_estimada_s, ram_libre_mb, admite}`.
+- Proxy: pasa el 503/429 + `Retry-After` + el JSON TAL CUAL (ya lo hacía por el streaming byte a
+  byte); ahora además reenvía `Retry-After`/`X-Astraura-Cola` como cabeceras propias e invalida
+  la caché de `destinoNube()` en 502/503/504 de la nube **salvo** que el cuerpo traiga
+  `ocupado:true` (una cola sana no es un destino roto). `GET /api/cola` añadida al allowlist.
+- Proveedor (`astraura-158.ts`): un 503/429 con `Retry-After` u `ocupado:true` se lanza como error
+  tipado (`ocupado:true` en el objeto), mensaje `"… ocupado (motivo): retry after Ns"`.
+- Router: `minutosDeEnfriamiento(msg, ahora?)` (pura, `router.ts`) hace caso EXACTO al `retry
+  after` y TOPA a 5 min cualquier mensaje con «ocupado» (una cola nunca debe enfriar como un
+  cupo diario). `busyThisRequest` salta de inmediato las demás personalidades de la MISMA fuente
+  en esta petición — no tiene sentido reintentar quien acaba de decir que está ocupado.
+
+### G8/G9 — Needle y Jev desde cualquier dispositivo
+- Proxy: `POST_ALLOW` suma `/api/needle/decidir` y `/api/jev/decidir`, con bucket de cupo PROPIO
+  (`ai-astraura158-decidir`, 60/10 min) separado del chat — antes needle/jev habrían compartido
+  cupo con `/api/chat` si hubiera pasado por el proxy en vez de fallar con 403.
+- `needle3-client.ts`: `astraura158Endpoint("nube")` devuelve una ruta RELATIVA
+  (`/api/ai/astraura-158`) cuando no hay `NEXT_PUBLIC_ASTRAURA_158_URL` — perfecta para el
+  navegador, rota para el `fetch` de Node de `/api/astraura/decidir` («Failed to parse URL from
+  /api/…»). `endpointNubeAbsoluto()`: en el servidor resuelve `destinoNube()` (o
+  `STARSEED_BASE_URL` + la ruta del proxy si no hay ninguna sana); en el navegador,
+  `baseParaNavegador` de siempre.
+- `jev/systemone/route.ts`: `spawn("python3", "scripts/puente/jev.py")` solo existe en la Mac.
+  `decidirPorNube(norm)` (exportada, pura salvo `fetch`) llama `POST /api/jev/decidir` UNA vez
+  por pregunta `choice`/`score` (las `noul` no encajan en ese contrato de una sola opción y se
+  dejan sin responder — el llamador cae a su regla determinista) y recompone la MISMA forma que
+  `jev.py` con `formatearRespuesta`. Sin destino de nube sano → `medio:"ninguno"`. El camino Mac
+  (spawn) queda intacto cuando `esDespliegueLocal(req)`. Nunca se añade una llamada de pago desde
+  el navegador.
+
+### Verificación
+`tsc --noEmit` limpio. `vitest run` de las suites relacionadas (router, availability,
+destino-nube, elegir-destino, needle3-client, astraura-158 (proveedor/puente/ws), jev,
+use-estado-capas) — ver `memory/state.md` para el recuento exacto de esta ola.
+
+### Pendiente / no hecho en esta ola
+- Paralelizar POR COMPLETO el bucle de sondeo de `detectAvailability()` (hoy sigue secuencial
+  entre fuentes; solo la sonda de la nube 1.58 en sí se paralelizó internamente ping+cola). Bajo
+  riesgo si se toca a la ligera: se dejó fuera de alcance.
+- El fallback de memoria de `detectAvailabilitySafe` para la nube (G5, `ready:false` sin sonda
+  previa) se verificó por lectura de código y `tsc`, no con una prueba de vitest dedicada: exige
+  ganar una carrera contra `detectAvailability()` real (Ollama/WebGPU/red incluidos) de forma
+  determinista, y el riesgo de una prueba inestable no compensaba frente a revisar el código.
+- El abort de verdad del `fetch` al ceder por timeout (G4) se verificó por `tsc` + lectura del
+  cableado (`reqCand.signal`→`runCandidate`→`ChatOptions.signal`→el `AbortController` interno del
+  proveedor 1.58, que ya escuchaba `options.signal`); no hay una prueba de vitest que dispare un
+  timeout REAL de 200 s y observe el abort en directo.
+- No se ejecutó `next build` (regla del área: nunca con el enjambre vivo / prohibido en esta
+  tarea) ni se hizo commit/push (worktree de solo trabajo, otro agente integra).

@@ -36,7 +36,7 @@ import { createClient } from "@/utils/supabase/server";
 import { rateLimit } from "@/lib/security/rate-limit";
 // (Ola 228 · N1) El upstream ya no es fijo de una sola máquina: se resuelve
 // por orden (env → túnel/publicado) con sonda de salud y caché de 60 s.
-import { destinoNube } from "@/lib/astraura/destino-nube";
+import { destinoNube, invalidarDestino } from "@/lib/astraura/destino-nube";
 // (Ola 278 · OS4) Detección de despliegue local (igual que /api/voz/*) y de
 // destino de neurona local para la puerta de sesión sin cookie en localhost.
 import { esDespliegueLocal } from "@/lib/aurora/voz-starseed/puerta-local";
@@ -44,7 +44,7 @@ import { destinoEsLocal } from "@/lib/astraura/destino-local";
 // (Ola 278 · OS6) Decisión PURA y exportada del destino del proxy: en un
 // despliegue local sin nube sana, cae a la neurona local (`local-respaldo`) en
 // vez de responder 503. Ver `elegir-destino.ts`.
-import { elegirDestino, type DestinoElegido } from "@/lib/astraura/elegir-destino";
+import { debeRechazarLocalNoDisponible, elegirDestino, type DestinoElegido } from "@/lib/astraura/elegir-destino";
 import { destinoParaPeticion } from "@/lib/astraura/donde-razona-servidor";
 
 export const runtime = "nodejs";
@@ -76,6 +76,10 @@ const GET_ALLOW: RegExp[] = [
   // sin datos sensibles, necesarias para el puente local.
   /^\/api\/ping$/,
   /^\/api\/bitnet\/estado$/,
+  // (G10 · 2026-09-26) Cola/admisión del backend: cuántos activos, en cola,
+  // espera estimada y si admite más — el router y la UI la leen para saber si
+  // «ocupada» va a durar y elegir otro medio en vez de esperar a ciegas.
+  /^\/api\/cola$/,
   /^\/api\/starseed\/(manifest|health)$/,
   /^\/api\/personalities$/,
   /^\/api\/agents$/,
@@ -145,6 +149,12 @@ const POST_ALLOW: RegExp[] = [
   /^\/api\/cerebros\/activate$/,
   /^\/api\/ecosystem\/agents\/[\w.-]+\/toggle$/,
   /^\/api\/browser\/search$/,
+  // (G8 · 2026-09-26) Needle 3 y Jev desde CUALQUIER dispositivo: antes solo
+  // corrían si el navegador hablaba DIRECTO con la neurona (127.0.0.1); por el
+  // proxy caían en el 403 de «ruta no permitida». Bucket de cupo propio, ver
+  // el POST de abajo (`ai-astraura158-decidir`).
+  /^\/api\/needle\/decidir$/,
+  /^\/api\/jev\/decidir$/,
   // ── Studio 1.58 (acciones de subsistemas; JAMÁS exec/execute/archivos/OS/túnel/claves) ──
   /^\/api\/imagination\/(trigger|config|action|recycle|apply_all)$/,
   /^\/api\/imagination\/requests\/grant_all$/,
@@ -220,7 +230,9 @@ function buscarSinDestino(u: URL): string {
  * null. Solo sondea la nube cuando hace falta: si el cliente pide la neurona
  * local y estamos en la propia máquina, se va directo a la local sin sondear.
  */
-async function resolverDestino(req: NextRequest): Promise<{ proxy: DestinoProxy | null; motivo: string }> {
+async function resolverDestino(
+  req: NextRequest,
+): Promise<{ proxy: DestinoProxy | null; motivo: string; localNoDisponible?: boolean }> {
   const query = new URL(req.url).searchParams.get("destino") ?? "";
   const cabecera = req.headers.get("x-starseed-destino") ?? "";
   const reqDestino = query.trim() || cabecera.trim() || null;
@@ -228,10 +240,26 @@ async function resolverDestino(req: NextRequest): Promise<{ proxy: DestinoProxy 
   const decServidor = await destinoParaPeticion({ destinoPedido: reqDestino });
   const pedido = decServidor.destino;
   const local = esDespliegueLocal(req);
+  // (G1 · 2026-09-26) Piden EXPRESAMENTE la neurona local y este despliegue NO
+  // es la propia máquina (p.ej. Vercel): no hay «local» honesto que servir
+  // aquí. Antes se sondeaba la nube igualmente y `elegirDestino` la devolvía
+  // como si fuera la respuesta a "local" — la etiqueta mentía. Se corta ANTES
+  // de sondear (ahorra esa sonda) y el cliente decide con la verdad: su propia
+  // Astraura local si la tiene (llamada directa, sin pasar por este proxy) o
+  // cualquier otra fuente del router — nunca la nube disfrazada de local.
+  if (debeRechazarLocalNoDisponible(pedido, local)) {
+    return { proxy: null, motivo: "local-no-disponible", localNoDisponible: true };
+  }
   const baseNube = pedido === "local" && local ? null : ((await destinoNube())?.base ?? null);
   const baseLocal = String(process.env.ASTRAURA_LOCAL_URL ?? "").trim().replace(/\/+$/, "") || "http://127.0.0.1:8000";
   const proxy = elegirDestino({ pedido, local, baseNube, baseLocal });
   return { proxy, motivo: decServidor.motivo };
+}
+
+/** (G1) Piden la neurona local en un despliegue que no lo es: 421, nunca 503 —
+ *  el cliente no debe reintentar esta MISMA ruta pidiendo lo mismo. */
+function localNoDisponible(): Response {
+  return Response.json({ error: "local-no-disponible" }, { status: 421 });
 }
 
 /** Sin destino sano: respuesta clara y NUNCA cuelga (el router cliente releva solo). */
@@ -301,12 +329,44 @@ async function forward(method: "GET" | "POST" | "DELETE", path: string, search: 
       body,
       signal: ctrl.signal,
     });
+    // (G2/G10 · 2026-09-26) La nube respondió MAL (502/503/504) fuera del
+    // contrato de «ocupada»: puede ser el túnel muerto o el backend caído de
+    // verdad, no una cola que se vacía sola. Invalidamos la caché de
+    // `destinoNube()` para que el PRÓXIMO turno vuelva a sondear en vez de
+    // reusar 10-60 s más un destino que ya sabemos roto. Cuando SÍ es
+    // `{ocupado:true}` (cola/RAM) el destino sigue sano — no se invalida, solo
+    // se deja pasar el 503/429 con su `Retry-After` para que el router enfríe
+    // y pruebe otro medio.
+    if (destino.via === "nube" && (res.status === 502 || res.status === 503 || res.status === 504)) {
+      const ctypeSonda = res.headers.get("content-type") || "";
+      let ocupado = false;
+      if (ctypeSonda.includes("application/json")) {
+        try {
+          const cuerpo = (await res.clone().json()) as { ocupado?: unknown };
+          ocupado = cuerpo?.ocupado === true;
+        } catch { /* cuerpo no era JSON (o ya es un stream SSE de verdad) */ }
+      }
+      if (!ocupado) {
+        try { invalidarDestino(); } catch { /* defensivo */ }
+      }
+    }
     const ctype = res.headers.get("content-type") || "application/json";
     const headers: Record<string, string> = {
       "Content-Type": ctype,
       "Cache-Control": "no-store",
       "X-Accel-Buffering": "no",
+      // (G6) Vía REAL que sirvió este turno: la UI y el router dejan de fiarse
+      // de qué fuente CREÍAN haber llamado y leen la verdad del proxy.
+      "X-Astraura-Via": destino.via,
+      "Access-Control-Expose-Headers": "X-Astraura-Via, X-Astraura-Cola, Retry-After",
     };
+    // (G10) Cola/reintento del backend: se reenvían TAL CUAL si el backend las
+    // trajo (el contrato de «ocupado» las pone en la respuesta original, JSON
+    // o no) — el router y la UI las leen para saltar de medio sin adivinar.
+    const retryAfter = res.headers.get("retry-after");
+    if (retryAfter) headers["Retry-After"] = retryAfter;
+    const cola = res.headers.get("x-astraura-cola");
+    if (cola) headers["X-Astraura-Cola"] = cola;
     // Reenvío del cuerpo TAL CUAL (SSE incluido). El timer se limpia al cerrar.
     const stream = res.body
       ? new ReadableStream({
@@ -338,13 +398,19 @@ async function forward(method: "GET" | "POST" | "DELETE", path: string, search: 
     clearTimeout(t);
     const msg = e instanceof Error ? e.message : String(e);
     const cold = /abort/i.test(msg);
+    // (G2) Ni siquiera pudimos CONTACTAR el destino (túnel caído, DNS, red):
+    // esto nunca es una cola que se vacía sola. Invalida ya la caché de
+    // `destinoNube()` para que el próximo turno vuelva a sondear.
+    if (destino.via === "nube") {
+      try { invalidarDestino(); } catch { /* defensivo */ }
+    }
     return Response.json(
       {
         error: cold
           ? "La nube de Astraura 1.58-bit no respondió a tiempo (¿arrancando en frío?)."
           : `No se pudo contactar la nube de Astraura 1.58-bit: ${msg.slice(0, 160)}`,
       },
-      { status: 503 },
+      { status: 503, headers: { "X-Astraura-Via": destino.via, "Access-Control-Expose-Headers": "X-Astraura-Via" } },
     );
   }
 }
@@ -354,8 +420,8 @@ type Ctx = { params: Promise<{ path?: string[] }> };
 export async function GET(req: NextRequest, ctx: Ctx): Promise<Response> {
   // (Ola 278 · OS4/OS5) Destino resuelto aquí para saber si es la neurona local
   // antes de decidir si se exige sesión; se reutiliza en `forward`.
-  const { proxy: destino, motivo } = await resolverDestino(req);
-  if (!destino) return sinDestino(motivo);
+  const { proxy: destino, motivo, localNoDisponible: sinLocal } = await resolverDestino(req);
+  if (!destino) return sinLocal ? localNoDisponible() : sinDestino(motivo);
   const auth = await requireUser(esDespliegueLocal(req) && destinoEsLocal(destino.base));
   if (auth instanceof Response) return auth;
   const rl = rateLimit(`ai-astraura158-get:${auth.userId}`, 120, 10 * 60 * 1000);
@@ -369,16 +435,24 @@ export async function GET(req: NextRequest, ctx: Ctx): Promise<Response> {
 }
 
 export async function POST(req: NextRequest, ctx: Ctx): Promise<Response> {
-  const { proxy: destino, motivo } = await resolverDestino(req);
-  if (!destino) return sinDestino(motivo);
+  const { proxy: destino, motivo, localNoDisponible: sinLocal } = await resolverDestino(req);
+  if (!destino) return sinLocal ? localNoDisponible() : sinDestino(motivo);
   const auth = await requireUser(esDespliegueLocal(req) && destinoEsLocal(destino.base));
   if (auth instanceof Response) return auth;
-  const rl = rateLimit(`ai-astraura158-post:${auth.userId}`, 60, 10 * 60 * 1000);
+  const { path } = await ctx.params;
+  const p = joinPath(path);
+  // (G5/G8 · 2026-09-26) Needle y Jev tienen su PROPIO cupo, separado del chat:
+  // antes compartían el bucket general de POST y una ráfaga de decisiones de UI
+  // (needle sondeando intención, jev arbitrando) podía dejar sin cupo al chat
+  // de verdad. La ruta ya se resolvió arriba, así que el bucket se elige ANTES
+  // del límite (no después, como antes).
+  const esDecidir = /^\/api\/(needle|jev)\/decidir$/.test(p);
+  const rl = esDecidir
+    ? rateLimit(`ai-astraura158-decidir:${auth.userId}`, 60, 10 * 60 * 1000)
+    : rateLimit(`ai-astraura158-post:${auth.userId}`, 60, 10 * 60 * 1000);
   if (!rl.allowed) {
     return Response.json({ error: "Demasiadas solicitudes. Inténtalo más tarde." }, { status: 429, headers: { "Retry-After": String(rl.retryAfterSec) } });
   }
-  const { path } = await ctx.params;
-  const p = joinPath(path);
   if (!allowed(p, POST_ALLOW)) return Response.json({ error: "Ruta no permitida por el proxy de Astraura 1.58." }, { status: 403 });
   const raw = await req.text().catch(() => "");
   if (raw.length > MAX_BODY_BYTES) return Response.json({ error: "Cuerpo demasiado grande." }, { status: 413 });
@@ -389,8 +463,8 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<Response> {
 }
 
 export async function DELETE(_req: NextRequest, ctx: Ctx): Promise<Response> {
-  const { proxy: destino, motivo } = await resolverDestino(_req);
-  if (!destino) return sinDestino(motivo);
+  const { proxy: destino, motivo, localNoDisponible: sinLocal } = await resolverDestino(_req);
+  if (!destino) return sinLocal ? localNoDisponible() : sinDestino(motivo);
   const auth = await requireUser(esDespliegueLocal(_req) && destinoEsLocal(destino.base));
   if (auth instanceof Response) return auth;
   const rl = rateLimit(`ai-astraura158-post:${auth.userId}`, 60, 10 * 60 * 1000);

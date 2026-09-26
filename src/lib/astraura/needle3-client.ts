@@ -1,6 +1,40 @@
 import { astraura158Endpoint, type Astraura158Target } from "./astraura-158-client";
 import { CAMPOS_PERMITIDOS, type TipoAccionUi } from "./ui-acciones";
 import { decidirEnDispositivo } from "./needle-wasm";
+import { ASTRAURA_158_PROXY_BASE } from "@/ai/astraura/free-catalog";
+import { baseParaNavegador } from "@/ai/providers/astraura-158";
+
+/**
+ * (G8 · 2026-09-26) Base ABSOLUTA para llamar a Needle en la nube.
+ *
+ * `astraura158Endpoint("nube")` devuelve una ruta RELATIVA (`/api/ai/
+ * astraura-158`, el proxy del OS) cuando no hay `NEXT_PUBLIC_ASTRAURA_158_URL`
+ * declarada — perfecta para `fetch` del NAVEGADOR (resuelve contra el origen
+ * de la página) pero rota para el `fetch` de NODE del servidor, que no tiene
+ * origen implícito y lanza `Failed to parse URL from /api/...`. Por eso:
+ *
+ *  - En el SERVIDOR (`window` no existe: rutas API, `/api/astraura/decidir`)
+ *    resolvemos el destino de la nube directamente (`destinoNube()`, el mismo
+ *    túnel de Cloudflare que usa el proxy) y, si no hay ninguno sano, caemos a
+ *    `STARSEED_BASE_URL` + la ruta del proxy (para que al menos llegue a ESTE
+ *    despliegue, que sabrá decidir).
+ *  - En el NAVEGADOR, igual que el proveedor principal: `baseParaNavegador`
+ *    (G1) decide si esta página es un origen local o público.
+ */
+async function endpointNubeAbsoluto(): Promise<string> {
+  if (typeof window === "undefined") {
+    try {
+      const { destinoNube } = await import("@/lib/astraura/destino-nube");
+      const destino = await destinoNube();
+      if (destino?.base) return destino.base;
+    } catch {
+      /* defensivo: sin nube sana, cae al base fijo de abajo */
+    }
+    const base = process.env.STARSEED_BASE_URL?.trim().replace(/\/+$/, "");
+    return base ? `${base}${ASTRAURA_158_PROXY_BASE}` : ASTRAURA_158_PROXY_BASE;
+  }
+  return baseParaNavegador(astraura158Endpoint("nube"));
+}
 
 let ultimaFalloDispositivo: number | null = null;
 const TIEMPO_RECUPERACION_MS = 10 * 60 * 1000; // 10 minutes
@@ -103,7 +137,10 @@ export async function decidirConNeedle(
 
   // Server fallback (original logic)
   const fetchFn = opciones?.transporte ?? fetch;
-  const endpoint = astraura158Endpoint(target);
+  // (G8) La nube necesita una base ABSOLUTA para el `fetch` de Node; el local
+  // sigue igual (siempre fue una URL completa, `http://127.0.0.1:8000` o la
+  // que resuelva la neurona).
+  const endpoint = target === "nube" ? await endpointNubeAbsoluto() : astraura158Endpoint(target);
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 8000);
 
