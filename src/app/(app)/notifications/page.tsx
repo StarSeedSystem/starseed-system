@@ -222,18 +222,18 @@ export default function NotificationsPage() {
         <div className="flex flex-col gap-6 max-w-[1600px] mx-auto w-full p-4 md:p-6 min-h-screen">
             {/* Header */}
             <div className="flex flex-col md:flex-row items-center justify-between gap-4 border-b border-white/5 pb-6">
-                <div>
-                    <h1 className="text-3xl md:text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-amber-400 via-purple-400 to-cyan-400 flex items-center gap-3">
-                        <Bell className="w-10 h-10 text-amber-400 animate-pulse" />
-                        Centro de Notificaciones & Logs
+                <div className="w-full md:w-auto">
+                    <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-amber-400 via-purple-400 to-cyan-400 flex items-center gap-2 sm:gap-3">
+                        <Bell className="h-6 w-6 sm:w-10 sm:h-10 shrink-0 text-amber-400 animate-pulse" />
+                        Centro de Notificaciones &amp; Logs
                     </h1>
                     <p className="text-xs font-mono text-white/40 uppercase tracking-widest mt-1">Soberanía de Información // Registros de Red</p>
                 </div>
-                <div className="flex items-center gap-2 bg-black/30 backdrop-blur-xl border border-white/10 p-1 rounded-2xl">
+                <div className="flex max-sm:flex-wrap w-full md:w-auto items-center gap-2 bg-black/30 backdrop-blur-xl border border-white/10 p-1 rounded-2xl">
                     <button
                         onClick={() => setActiveSection("feed")}
                         className={cn(
-                            "px-4 py-2 rounded-xl text-sm font-medium transition-all",
+                            "max-sm:flex-1 max-sm:min-w-[8rem] px-4 py-2 max-sm:min-h-11 rounded-xl text-sm font-medium transition-all cursor-pointer",
                             activeSection === "feed" ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/30" : "text-muted-foreground hover:text-white"
                         )}
                     >
@@ -242,7 +242,7 @@ export default function NotificationsPage() {
                     <button
                         onClick={() => setActiveSection("notifications")}
                         className={cn(
-                            "px-4 py-2 rounded-xl text-sm font-medium transition-all",
+                            "max-sm:flex-1 max-sm:min-w-[8rem] px-4 py-2 max-sm:min-h-11 rounded-xl text-sm font-medium transition-all cursor-pointer",
                             activeSection === "notifications" ? "bg-amber-500/20 text-amber-300 border border-amber-500/30" : "text-muted-foreground hover:text-white"
                         )}
                     >
@@ -251,7 +251,7 @@ export default function NotificationsPage() {
                     <button
                         onClick={() => setActiveSection("logs")}
                         className={cn(
-                            "px-4 py-2 rounded-xl text-sm font-medium transition-all",
+                            "max-sm:flex-1 max-sm:min-w-[8rem] px-4 py-2 max-sm:min-h-11 rounded-xl text-sm font-medium transition-all cursor-pointer",
                             activeSection === "logs" ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/30" : "text-muted-foreground hover:text-white"
                         )}
                     >
@@ -632,7 +632,7 @@ function NotificationItemFull({ notif, categoryConfig, onRead, onArchive, onDele
                     </span>
                 </div>
                 {notif.body && (
-                    <p className="text-xs text-white/60 leading-relaxed max-w-4xl pr-8 whitespace-pre-wrap">
+                    <p className="text-xs text-white/60 leading-relaxed max-w-4xl max-sm:pr-0 pr-8 whitespace-pre-wrap">
                         {notif.body}
                     </p>
                 )}
@@ -656,32 +656,33 @@ function NotificationItemFull({ notif, categoryConfig, onRead, onArchive, onDele
                 )}
             </div>
 
-            {/* Float control buttons on hover */}
-            <div className="absolute top-4 right-4 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            {/* Controles: fila estática y siempre visible en móvil (no hay :hover táctil);
+                en escritorio siguen flotando y apareciendo solo al pasar el ratón. */}
+            <div className="mt-2 flex items-center gap-2 opacity-100 transition-opacity sm:absolute sm:top-4 sm:right-4 sm:mt-0 sm:gap-1 sm:opacity-0 sm:group-hover:opacity-100">
                 <button
                     onClick={() => onRead(notif.id)}
-                    className="p-1.5 rounded-lg border border-white/5 bg-black/40 hover:bg-white/10 text-white/50 hover:text-white transition-colors"
+                    className="grid h-10 w-10 place-items-center rounded-lg border border-white/5 bg-black/40 text-white/50 transition-colors hover:bg-white/10 hover:text-white cursor-pointer sm:h-auto sm:w-auto sm:p-1.5"
                     title={notif.read ? "Marcar como no leído" : "Marcar como leído"}
                 >
                     {notif.read ? <EyeOff className="w-3.5 h-3.5" /> : <CheckCircle className="w-3.5 h-3.5" />}
                 </button>
                 <button
                     onClick={() => onSnooze(notif.id)}
-                    className="p-1.5 rounded-lg border border-white/5 bg-black/40 hover:bg-white/10 text-white/50 hover:text-white transition-colors"
+                    className="grid h-10 w-10 place-items-center rounded-lg border border-white/5 bg-black/40 text-white/50 transition-colors hover:bg-white/10 hover:text-white cursor-pointer sm:h-auto sm:w-auto sm:p-1.5"
                     title="Pospone alerta"
                 >
                     <Clock className="w-3.5 h-3.5" />
                 </button>
                 <button
                     onClick={() => onArchive(notif.id)}
-                    className="p-1.5 rounded-lg border border-white/5 bg-black/40 hover:bg-white/10 text-white/50 hover:text-white transition-colors"
+                    className="grid h-10 w-10 place-items-center rounded-lg border border-white/5 bg-black/40 text-white/50 transition-colors hover:bg-white/10 hover:text-white cursor-pointer sm:h-auto sm:w-auto sm:p-1.5"
                     title="Archivar"
                 >
                     <ShieldCheck className="w-3.5 h-3.5" />
                 </button>
                 <button
                     onClick={() => onDelete(notif.id)}
-                    className="p-1.5 rounded-lg border border-red-500/20 bg-red-500/10 hover:bg-red-500 hover:text-white text-red-400 transition-colors"
+                    className="grid h-10 w-10 place-items-center rounded-lg border border-red-500/20 bg-red-500/10 text-red-400 transition-colors hover:bg-red-500 hover:text-white cursor-pointer sm:h-auto sm:w-auto sm:p-1.5"
                     title="Eliminar"
                 >
                     <X className="w-3.5 h-3.5" />
