@@ -56,6 +56,7 @@ import type {
   ProviderInfo,
 } from "./types";
 import { ASTRAURA_158_WS_READY_TIMEOUT_MS, getAstraura158Ws, type Astraura158Ws } from "./astraura-158-ws";
+import { preferenciaCapasGuardada } from "@/lib/astraura/capas-conciencia";
 
 /* ───────────────────── Personalidades 1.58 (modelos de la fuente) ───────────────────── */
 
@@ -524,9 +525,13 @@ export interface ChatPreferences {
   temperature?: number;
   /** Marca de origen para el backend (telemetría honesta). */
   client: "starseed-os";
+  /** (Ola 365) Capas de conciencia efectivas (maestro y capa encendidos) de quien pregunta. */
+  capas_conciencia?: { local: boolean; mesh: boolean; nube: boolean; colectiva: boolean };
+  /** (Ola 365) false ⇒ el backend no debe guardar este turno en el corpus colectivo. */
+  aprendizaje_colectivo?: boolean;
 }
 
-function preferencesFor(persona: string, options: ChatOptions): ChatPreferences {
+export function preferencesFor(persona: string, options: ChatOptions): ChatPreferences {
   const prefs: ChatPreferences = {
     personaId: persona,
     selected_personalities: [persona],
@@ -537,6 +542,16 @@ function preferencesFor(persona: string, options: ChatOptions): ChatPreferences 
   };
   if (typeof options.maxTokens === "number" && options.maxTokens > 0) prefs.max_length_chars = Math.max(500, Math.round(options.maxTokens * 4));
   if (typeof options.temperature === "number") prefs.temperature = options.temperature;
+  // (Ola 365) Capas de conciencia: se leen al momento de la preferencia guardada (sin
+  // importar el enrutador, que importa este módulo).
+  const capas = preferenciaCapasGuardada();
+  prefs.capas_conciencia = {
+    local: capas.activo && capas.capas.local,
+    mesh: capas.activo && capas.capas.mesh,
+    nube: capas.activo && capas.capas.nube,
+    colectiva: capas.activo && capas.capas.colectiva,
+  };
+  prefs.aprendizaje_colectivo = capas.activo && capas.capas.colectiva;
   return prefs;
 }
 

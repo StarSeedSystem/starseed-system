@@ -62,6 +62,7 @@ import {
   type TransporteConciencia,
 } from "@/lib/network/conciencia-colectiva";
 import type { Experiencia } from "@/lib/astraura/experiencias";
+import { preferenciaCapasGuardada } from "@/lib/astraura/capas-conciencia";
 
 /* ------------------------------------------------------------------ */
 /* Tipos del contrato (compatibles con la versión previa)            */
@@ -417,6 +418,16 @@ export {
  * Escucha los 3 temas ('astraura/capacidades', 'astraura/experiencias', 'astraura/adaptador')
  * y aplica las funciones puras `recibidasSinDuplicar` y `fusionarManifiestos`.
  */
+/**
+ * ¿La capa «mesh» de Astraura 1.58 comparte ahora mismo? (Ola 365). Se mira en CADA envío y
+ * en CADA recepción, no al montar: el interruptor tiene que actuar al momento. Con el modo
+ * 1.58 o la capa mesh apagados no sale ni se aplica nada de la conciencia colectiva por P2P.
+ */
+export function capaMeshCompartiendo(): boolean {
+  const p = preferenciaCapasGuardada();
+  return p.activo && p.capas.mesh;
+}
+
 export function setupConcienciaSync(
   mesh: MeshHandle,
   opts?: {
@@ -432,6 +443,7 @@ export function setupConcienciaSync(
   const unsubscribe = transporte.suscribir((msg: MensajeConciencia) => {
     try {
       if (!msg || typeof msg !== "object") return;
+      if (!capaMeshCompartiendo()) return;
 
       if (msg.tema === "astraura/capacidades") {
         if (esCapacidadesNodo(msg.payload)) {
@@ -461,6 +473,7 @@ export function setupConcienciaSync(
   });
 
   const publicarExperiencias = (exps: Experiencia[]) => {
+    if (!capaMeshCompartiendo()) return;
     const lote = loteDeExperiencias(exps);
     if (lote.length > 0) {
       transporte.publicar({
@@ -473,6 +486,7 @@ export function setupConcienciaSync(
   };
 
   const publicarManifiesto = (m: ManifiestoAdaptador) => {
+    if (!capaMeshCompartiendo()) return;
     transporte.publicar({
       tema: "astraura/adaptador",
       origen: mesh.myDeviceId,
@@ -482,6 +496,7 @@ export function setupConcienciaSync(
   };
 
   const publicarCapacidades = (cap: CapacidadesNodo) => {
+    if (!capaMeshCompartiendo()) return;
     transporte.publicar({
       tema: "astraura/capacidades",
       origen: mesh.myDeviceId,

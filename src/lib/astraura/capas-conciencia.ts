@@ -72,6 +72,27 @@ export function leerPreferenciaCapas(campos?: CamposCapas | null): PreferenciaCa
   };
 }
 
+/** Clave donde `IntelligenceSettings` guarda (y sincroniza) estos campos: la misma que
+ * `INTELLIGENCE_KEY` del enrutador (una prueba lo comprueba). */
+export const CLAVE_INTELIGENCIA = "starseed.astraura.intelligence.v1";
+
+/**
+ * Preferencia GUARDADA, leída al momento y sin importar el enrutador: la usan módulos que el
+ * propio enrutador importa (el proveedor 1.58) y la LAN, que tienen que ver el interruptor en
+ * cuanto cambia. Sin almacenamiento o con datos rotos, los valores por defecto (todo
+ * encendido), igual que el enrutador.
+ */
+export function preferenciaCapasGuardada(almacen?: Pick<Storage, "getItem"> | null): PreferenciaCapas {
+  try {
+    const a = almacen === undefined ? (typeof window !== "undefined" ? window.localStorage : null) : almacen;
+    const raw = a?.getItem(CLAVE_INTELIGENCIA);
+    const datos: unknown = raw ? JSON.parse(raw) : null;
+    return leerPreferenciaCapas(datos && typeof datos === "object" ? (datos as CamposCapas) : null);
+  } catch {
+    return leerPreferenciaCapas(null);
+  }
+}
+
 export function aCampos(p: PreferenciaCapas): CamposCapas {
   return {
     astraura158Activo: p.activo,

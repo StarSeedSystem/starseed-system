@@ -3853,3 +3853,17 @@ verificación en vivo: `https://starseed-os.vercel.app/api/ai/astraura-158/api/s
 ### Notas / aprendizajes
 - En jsdom `setPointerCapture` no existe: las pruebas de gestos deben simular la secuencia completa y espiar la captura, o no ven el fallo real.
 - La velocidad de un gesto se mide con `event.timeStamp`, no con la hora de atenderlo.
+
+## 2026-09-26 — Ola 365 · Capas de conciencia de Astraura 1.58
+**Sesión por:** Claude (Cowork). El enjambre gratuito falló (xkiro colgado, gemini sin cupo, groq con formato rechazado), así que CC2–CC6 los escribió Claude.
+**Resumen ejecutivo:** interruptor maestro del modo 1.58, un interruptor por capa (local, mesh, nube, colectiva; todas encendidas por defecto), nivelador de uso preferencial y modelo específico. Todo junto a los chats de Astraura y en Ajustes → Inteligencia.
+
+### Hecho
+- El enrutador respeta el maestro, las capas y el nivelador. Sin tocar el nivelador, el enrutado es el mismo de antes.
+- La LAN deja de compartir la conciencia colectiva con la capa mesh apagada. El backend recibe `aprendizaje_colectivo`.
+- Indicador con una sonda compartida cada 5 min como mucho, no una por minuto y por pestaña.
+- SOP: `architecture/astraura-158-sistema-primario.md` §15.
+
+### Pendiente
+- Que el backend de Astraura lea `aprendizaje_colectivo` y no guarde en el corpus colectivo cuando es false.
+- Unir la capa colectiva a Oracle Always Free cuando Alex cree la cuenta.

@@ -3,7 +3,7 @@
  * useEstadoCapas (Ola 365 · CC3): preferencia + salud viva de las capas 1.58, sin gastar
  * tráfico de más. Todo lo externo (router, disponibilidad, malla, sync) va mockeado.
  */
-import { act, renderHook, waitFor } from "@testing-library/react";
+import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const h = vi.hoisted(() => ({
@@ -39,7 +39,7 @@ vi.mock("@/lib/sync/realtime-sync", () => ({
     },
 }));
 
-import { colectivaDesde, rutaUsa158, useEstadoCapas } from "@/lib/astraura/use-estado-capas";
+import { colectivaDesde, reiniciarSondaCapas, rutaUsa158, SONDEO_MS, useEstadoCapas } from "@/lib/astraura/use-estado-capas";
 
 function visibilidad(v: "visible" | "hidden") {
     Object.defineProperty(document, "visibilityState", { configurable: true, get: () => v });
@@ -58,8 +58,12 @@ beforeEach(() => {
         { source: { id: "astraura-158-nube" }, ready: false },
     ]);
     visibilidad("visible");
+    reiniciarSondaCapas();
 });
-afterEach(() => vi.useRealTimers());
+afterEach(() => {
+    cleanup();
+    vi.useRealTimers();
+});
 
 describe("funciones puras", () => {
     it("colectivaDesde traduce el estado de la sincronización", () => {
@@ -129,7 +133,7 @@ describe("useEstadoCapas", () => {
         expect(result.current.resumen.etiqueta).toBe("Enrutador libre");
     });
 
-    it("vuelve a sondear cada 60 s y limpia el intervalo al desmontar", async () => {
+    it("vuelve a sondear cada 5 min y limpia el intervalo al desmontar", async () => {
         vi.useFakeTimers();
         const { unmount } = renderHook(() => useEstadoCapas());
         await act(async () => {
@@ -139,12 +143,34 @@ describe("useEstadoCapas", () => {
         await act(async () => {
             await vi.advanceTimersByTimeAsync(60_000);
         });
+        expect(h.detectar).toHaveBeenCalledTimes(1);
+        await act(async () => {
+            await vi.advanceTimersByTimeAsync(SONDEO_MS);
+        });
         expect(h.detectar).toHaveBeenCalledTimes(2);
         unmount();
         await act(async () => {
-            await vi.advanceTimersByTimeAsync(120_000);
+            await vi.advanceTimersByTimeAsync(SONDEO_MS * 3);
         });
         expect(h.detectar).toHaveBeenCalledTimes(2);
+    });
+
+    it("varios indicadores abiertos comparten UNA sonda", async () => {
+        renderHook(() => useEstadoCapas());
+        renderHook(() => useEstadoCapas());
+        const { result } = renderHook(() => useEstadoCapas());
+        await waitFor(() => expect(result.current.salud.local).toBe(true));
+        expect(h.detectar).toHaveBeenCalledTimes(1);
+    });
+
+    it("una respuesta del chat por la nube 1.58 la marca como respondiendo sin sondear", async () => {
+        const { result } = renderHook(() => useEstadoCapas());
+        await waitFor(() => expect(result.current.salud.nube).toBe(false));
+        act(() => {
+            window.dispatchEvent(new CustomEvent("starseed:astraura-route", { detail: { sourceId: "astraura-158-nube", ok: true } }));
+        });
+        expect(result.current.estados.nube).toBe("sincronizada");
+        expect(h.detectar).toHaveBeenCalledTimes(1);
     });
 
     it("cuenta los vecinos de la malla sin contarse a sí misma y suma los faros", () => {

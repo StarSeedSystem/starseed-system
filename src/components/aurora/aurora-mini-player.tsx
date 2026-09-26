@@ -64,6 +64,7 @@ import { summarizeAttachments, type UniversalAttachment } from "@/lib/aurora/att
 import { ChatAttachButton, MessageAttachmentChips } from "@/components/aurora/chat-attach-button";
 import { ChatVoiceButtons } from "@/components/aurora/chat-voice-buttons";
 import { UsageSummaryMini } from "@/components/agent/usage-panel";
+import { IndicadorCapas } from "@/components/astraura/capas/indicador-capas";
 
 /** Inactividad tras la cual el reproductor resumido se retira solo. */
 const AUTOHIDE_MS = 10_000;
@@ -711,6 +712,9 @@ export function AuroraMiniPlayer({
               document.body,
             )}
           </div>
+
+          {/* Capas de conciencia de Astraura 1.58 (Ola 365): estado y ajustes a un toque. */}
+          <IndicadorCapas className="px-1.5 py-0.5" />
 
           {/* Ecualizador cristalino: iluminación reactiva a la voz (usuario/Aurora). */}
           <div aria-hidden className={styles.eq}>

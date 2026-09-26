@@ -62,6 +62,7 @@ import {
   USER_CONTEXT_SETTINGS_EVENT, type UserContextSettings, type UserContextLevel,
 } from "@/ai/astraura/user-context";
 import { AuroraAvatarSettingsCard } from "@/components/aurora/aurora-avatar";
+import { PanelCapas } from "@/components/astraura/capas/panel-capas";
 
 /* ── Chips por nivel de fuente (gratuidad/privacidad legibles) ── */
 const TIER_CHIP: Record<SourceTier, { label: string; cls: string }> = {
@@ -496,6 +497,14 @@ export function IntelligencePanel() {
 
   return (
     <div className="space-y-6">
+      {/* ── Astraura 1.58 · capas de conciencia (Ola 365): interruptor maestro, capas y nivelador ── */}
+      <section aria-label="Astraura 1.58 · capas de conciencia" className="ss-crystal ss-crystal--sutil ss-tone--zenith rounded-xl border border-[#007FFF]/25 p-4">
+        <PanelCapas />
+        <p className="mt-3 text-[11px] text-muted-foreground">
+          Estas opciones se sincronizan con tu cuenta y se aplican a todos los chats de Astraura IA.
+        </p>
+      </section>
+
       {/* ── Hero: modo Auto vs Manual + anuncio ── */}
       <Card className="bg-gradient-to-br from-primary/10 via-background/40 to-emerald-500/10 border-primary/20">
         <CardHeader>

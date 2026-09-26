@@ -332,3 +332,35 @@ CI «Typecheck · Unit · Mesh · Build» **success**; despliegue de producción
 Verificación en vivo: `https://starseed-os.vercel.app/api/ai/astraura-158/api/status` → **401**
 (la ruta del proxy 1.58 existe y exige sesión; antes de la Ola 3 habría devuelto 404).
 Pendiente en la máquina: recompilar BitNet tras el parche ReLU² (`check_bitnet_patch.sh` + `cmake --build`).
+
+## 15. Capas de conciencia 1.58 (Ola 365 · 2026-09-26)
+
+Alex pidió un interruptor y un indicador del modo 1.58 «ya sea local o mesh o en la nube o
+todas activas», con un interruptor por capa, todas encendidas por defecto, y un **nivelador de
+uso preferencial** entre el enrutador libre, una API o modelo concreto y las capas 1.58.
+
+- **Dónde se guarda:** campos de nivel superior de `IntelligenceSettings`
+  (`astraura158Activo`, `capa158Local|Mesh|Nube|Colectiva`, `nivelador158`, `especifico158`),
+  dentro de `starseed.astraura.intelligence.v1`, que ya se sincroniza con la cuenta. Lo no
+  guardado cuenta como ENCENDIDO: nadie tiene que migrar nada.
+- **Modelo puro:** `src/lib/astraura/capas-conciencia.ts` (`leerPreferenciaCapas`, `aCampos`,
+  `fuentesApagadas`, `destinoNivelador`, `sesgoNivelador`, `estadoCapas`, `resumenCapas`,
+  `preferenciaCapasGuardada` para módulos que no pueden importar el enrutador).
+- **Enrutador** (`router.ts`): con el maestro apagado no se usa ninguna fuente 1.58 (ni el
+  bloque primario): va el enrutador automático con las APIs gratuitas de siempre. Las capas
+  local/nube apagadas sacan su fuente. El nivelador suma un sesgo RELATIVO a su posición por
+  defecto (80): sin tocarlo, el enrutado es idéntico al de antes; en tareas difíciles o de
+  visión nunca empuja al 2B.
+- **Capa mesh:** `setupConcienciaSync` (`lan-sync.ts`) mira la preferencia en CADA envío y
+  recepción (`capaMeshCompartiendo`): apagada, no sale ni entra conciencia colectiva por P2P.
+- **Capa colectiva:** el proveedor 1.58 manda `capas_conciencia` y `aprendizaje_colectivo` en
+  las preferencias de cada turno. El backend todavía no las lee: cuando lo haga, no guardará el
+  turno en el corpus colectivo. Oracle Always Free (pendiente) será su nube.
+- **Salud viva:** `useEstadoCapas` (`use-estado-capas.ts`). Una sola sonda compartida por
+  todos los indicadores, como mucho cada 5 min y solo con la pestaña visible, porque cada sonda
+  pasa por el proxy del OS y el túnel de la Mac. Una respuesta del chat que sale por 1.58 ya
+  cuenta como prueba de que la capa responde.
+- **Interfaz:** `IndicadorCapas` (píldora con 4 puntos) en `ChatHeaderOptions` (chat de /agent,
+  Exocortex, ventana de chat) y en el mini reproductor de Aurora; `PanelCapas` completo arriba
+  de Ajustes → Inteligencia. Colores: sincronizada `#39FF14`, activa `#007FFF`, sin señal
+  `#FFBF00`, apagada gris.

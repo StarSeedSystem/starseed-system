@@ -6,6 +6,7 @@ import { Settings, Cpu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ChatConfigMenu, providerLabel, type PersonalityOptionContext } from "@/components/aurora/chat-config-menu";
 import { useAiConversations } from "@/lib/aurora/conversations";
+import { IndicadorCapas } from "@/components/astraura/capas/indicador-capas";
 
 /**
  * ChatHeaderOptions — único botón "Opciones" que abre el MENÚ UNIFICADO de
@@ -49,6 +50,8 @@ export function ChatHeaderOptions({ context = "astraura", convId }: { context?: 
 
   return (
     <div className="relative flex items-center gap-2">
+      {/* Capas de conciencia de Astraura 1.58 (Ola 365): modo, capas y nivelador. */}
+      <IndicadorCapas />
       {provLabel && (
         <span
           className="hidden sm:inline-flex items-center gap-1 rounded-full border border-white/15 bg-white/5 px-2.5 py-1 text-[11px] font-light tracking-wide text-white/70"
