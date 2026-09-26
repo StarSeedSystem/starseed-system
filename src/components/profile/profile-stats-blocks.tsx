@@ -94,9 +94,10 @@ export function ProfileStatsBlocks({ handle, isOwner, userId, profileId }: Profi
                         key={b.id}
                         className="flex min-w-[6.5rem] flex-1 flex-col justify-between gap-0.5 rounded-2xl border border-white/10 bg-white/[0.05] px-3 py-2 shadow-sm backdrop-blur-md sm:flex-none sm:min-w-[7.5rem]"
                     >
-                        <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                        {/* En móvil, en minúsculas y sin espaciado ancho: «COMUNID…» / «PUBLICAC…» no se leían. */}
+                        <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground max-sm:text-[11px] max-sm:font-semibold max-sm:normal-case max-sm:tracking-normal">
                             <Icon className={`h-3 w-3 shrink-0 ${meta.accent}`} />
-                            <span className="truncate">{meta.label}</span>
+                            <span className="truncate max-sm:whitespace-normal max-sm:leading-tight">{meta.label}</span>
                         </span>
                         <span
                             className={`font-mono text-[clamp(1rem,4vw,1.25rem)] font-bold leading-tight ${

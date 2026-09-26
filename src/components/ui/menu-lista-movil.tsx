@@ -76,7 +76,7 @@ export function MenuListaMovil({ opciones, valor, onCambiar, titulo, className, 
                           className="absolute inset-0 cursor-default bg-black/60"
                           onClick={() => setAbierto(false)}
                       />
-                      <div className="relative z-10 flex max-h-[82dvh] w-full max-w-md flex-col overflow-hidden rounded-t-2xl border border-white/12 bg-[#0a0e1a]/97 shadow-2xl sm:rounded-2xl pb-[env(safe-area-inset-bottom)]">
+                      <div className="relative z-10 flex max-h-[82dvh] w-full max-w-md flex-col overflow-hidden rounded-t-2xl border border-white/12 bg-[#0a0e1a] shadow-2xl sm:rounded-2xl pb-[env(safe-area-inset-bottom)]">
                           <div className="flex shrink-0 items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
                               <span id={idTitulo} className="text-sm font-semibold text-white">
                                   {titulo}

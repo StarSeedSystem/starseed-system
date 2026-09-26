@@ -1311,7 +1311,7 @@ function AgentPageInner() {
           {activeProviderConfig ? (
             <Badge
               variant="outline"
-              className={`gap-1 max-w-[62vw] sm:max-w-[60vw] truncate ${
+              className={`gap-1 max-w-[56vw] sm:max-w-[60vw] truncate ${
                 activeProviderInfo?.local
                   ? "border-emerald-500/50 text-emerald-400 bg-emerald-500/10"
                   : "border-blue-500/50 text-blue-400 bg-blue-500/10"
@@ -1327,7 +1327,8 @@ function AgentPageInner() {
               </Badge>
             </Link>
           )}
-          <Badge variant="outline" className="border-blue-500/50 text-blue-400 bg-blue-500/10">{agents.length} agentes</Badge>
+          {/* En móvil el recuento de agentes ya lo dice la barra de presencia: aquí haría saltar de línea a «Configurar IA». */}
+          <Badge variant="outline" className="hidden sm:inline-flex border-blue-500/50 text-blue-400 bg-blue-500/10">{agents.length} agentes</Badge>
           {/* Centro de Configuración de Aurora y Astraura (Adenda 67 · P1). Si el
               perfil aún no está configurado, además se abre solo al entrar aquí. */}
           <Button

@@ -104,7 +104,7 @@ function IconLabel({
     return (
         <span
             className={cn(
-                "mt-1 line-clamp-2 max-w-full break-words rounded-lg px-1.5 py-0.5 text-center font-semibold leading-tight text-white",
+                "mt-1 line-clamp-2 max-w-full break-words hyphens-auto rounded-lg px-1.5 py-0.5 text-center font-semibold leading-tight text-white",
                 compact ? "text-[10px]" : "text-[11px]",
                 "[text-shadow:0_1px_3px_rgba(0,0,0,0.9)]",
                 selected && "bg-sky-400/25 backdrop-blur-sm",

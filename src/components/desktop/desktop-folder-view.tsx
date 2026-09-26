@@ -208,7 +208,7 @@ function FolderEntry({
             {renaming ? (
                 <div className="w-full px-0.5">{NameField}</div>
             ) : (
-                <span className="line-clamp-2 max-w-full break-words text-center text-[11px] font-semibold leading-tight text-foreground/90">
+                <span className="line-clamp-2 max-w-full break-words hyphens-auto text-center text-[11px] font-semibold leading-tight text-foreground/90">
                     {child.name}
                 </span>
             )}

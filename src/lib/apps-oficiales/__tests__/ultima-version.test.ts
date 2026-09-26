@@ -60,6 +60,19 @@ describe("obtenerUltimaVersion", () => {
         expect(f).not.toHaveBeenCalled();
     });
 
+    it("una caché fresca pero más vieja que la versión que el OS ya conoce se vuelve a pedir", async () => {
+        const respaldo = APPS_OFICIALES["starseed-os"].respaldo;
+        localStorage.setItem(
+            claveCacheVersion("starseed-os"),
+            JSON.stringify({ guardada: AHORA, release: { ...respaldo, tag: "v0.0.1" } }),
+        );
+        const f = fetchQueResponde({ message: "API rate limit exceeded" }, 403);
+        const r = await obtenerUltimaVersion("starseed-os", { fetch: f, ahora: AHORA + 1000 });
+        expect(f).toHaveBeenCalledTimes(1);
+        // Sin GitHub, gana el respaldo (la versión compilada), no la caché atrasada.
+        expect(r).toMatchObject({ origen: "respaldo", release: { tag: respaldo.tag } });
+    });
+
     it("con caché vieja vuelve a preguntar y, si GitHub falla, usa la caché vieja antes que el respaldo", async () => {
         await obtenerUltimaVersion("omnifrecuencias", { fetch: fetchQueResponde(RESPUESTA_V3), ahora: AHORA });
         const f = fetchQueResponde({ message: "API rate limit exceeded" }, 403);

@@ -173,13 +173,13 @@ export function ProfileQuickActions({
     const showOwnerActions = isOwner && !viewAsVisitor;
 
     return (
-        // Carril con scroll-x REAL en móvil (`min-w-0` + `overflow-x-auto`), que a
-        // partir de `sm` se convierte en fila que envuelve.
+        // (2026-09-26) Antes: carril con scroll-x en móvil. Ahora envuelve en todas las
+        // pantallas: en móvil «Compartir…» quedaba cortado en una tira que había que arrastrar.
         // NOTA: aquí había un `-mx-1 px-1` (para el anillo de foco) que hacía el
         // carril 4 px MÁS ANCHO que su contenedor → 4 px de desborde medidos en el
         // raíz del perfil. Dentro de un scroller el anillo se recorta igual, así
         // que el truco no aportaba nada y sí desbordaba. Fuera. (Adenda 68 §C)
-        <div className="flex min-w-0 items-center gap-2 overflow-x-auto scrollbar-hide pb-1 sm:flex-wrap sm:overflow-visible">
+        <div className="flex min-w-0 flex-wrap items-center gap-2 pb-1">
             {showOwnerActions ? (
                 <>
                     <Button

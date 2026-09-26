@@ -20,6 +20,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 
+import { compararVersiones } from "@/lib/version/os-release";
+
 import {
     APPS_OFICIALES,
     instalablesDeApp,
@@ -110,7 +112,11 @@ export function obtenerUltimaVersion(appId: string, opciones: OpcionesVersion = 
     if (!app) return Promise.resolve(null);
     const ahora = opciones.ahora ?? Date.now();
     const cache = leerCache(appId);
-    if (!opciones.forzar && cache && ahora - cache.guardada < CACHE_VERSION_MS) {
+    // (2026-09-26) Una caché «fresca» pero MÁS VIEJA que la versión que este mismo OS ya sabe
+    // que existe (su respaldo, p. ej. NATIVE_TAG) está caducada: tras publicar la 0.2.2 la
+    // Biblioteca seguía ofreciendo la 0.2.1 hasta 6 h en los dispositivos que ya la habían mirado.
+    const cacheAtrasada = cache ? compararVersiones(cache.release.tag, app.respaldo.tag) < 0 : false;
+    if (!opciones.forzar && cache && !cacheAtrasada && ahora - cache.guardada < CACHE_VERSION_MS) {
         return Promise.resolve({ release: cache.release, origen: "cache" });
     }
     const ya = enVuelo.get(appId);
@@ -122,8 +128,8 @@ export function obtenerUltimaVersion(appId: string, opciones: OpcionesVersion = 
             escribirCache(appId, viva, ahora);
             return { release: viva, origen: "github" };
         }
-        // Una caché vieja sigue siendo más reciente que el respaldo escrito a mano.
-        if (cache) return { release: cache.release, origen: "cache" };
+        // Una caché vieja suele ser más reciente que el respaldo escrito a mano (salvo que esté atrasada).
+        if (cache && !cacheAtrasada) return { release: cache.release, origen: "cache" };
         return { release: app.respaldo, origen: "respaldo" };
     })().finally(() => enVuelo.delete(appId));
     enVuelo.set(appId, promesa);

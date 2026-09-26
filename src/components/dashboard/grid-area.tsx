@@ -321,7 +321,9 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWi
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 2xl:grid-cols-4 gap-2 sm:gap-3 box-border" style={{ touchAction: "pan-y" }}>
                     {ordered.map((widget, idx) => {
                         const h = Math.max(widget.layout.h, 3);
-                        const cardHeight = h * ROW + (h - 1) * GAP;
+                        // En móvil nunca por debajo de 200 px: con filas de 40 px un widget bajo
+                        // (Accesos rápidos, h=3) quedaba en 140 px y su contenido se montaba.
+                        const cardHeight = isNarrow ? Math.max(h * ROW + (h - 1) * GAP, 200) : h * ROW + (h - 1) * GAP;
                         // Widgets anchos (ocupaban casi toda la fila del grid de 12) o
                         // folders/lanzaderas de apps → hilera completa también en la
                         // rejilla táctil, para que respiren y no queden aplastados.

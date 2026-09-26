@@ -1,5 +1,17 @@
 import type { Config } from 'tailwindcss';
 
+/**
+ * (2026-09-26) Escala de opacidad COMPLETA (0–100 y 00–09). Tailwind 3 solo genera los
+ * modificadores de su escala (múltiplos de 5): `border-white/12`, `bg-white/3`,
+ * `bg-[#0d1220]/97`… no existían y ~350 usos del OS se quedaban sin borde o sin fondo —
+ * p. ej. la hoja de secciones en el móvil y «Configurar Neurona» se veían transparentes,
+ * con la página asomando por detrás. Con JIT solo se generan las clases que se usan.
+ */
+const OPACIDAD_COMPLETA: Record<string, string> = Object.fromEntries([
+  ...Array.from({ length: 101 }, (_, i) => [String(i), String(i / 100)]),
+  ...Array.from({ length: 10 }, (_, i) => [`0${i}`, String(i / 100)]),
+]);
+
 export default {
   darkMode: ['class'],
   content: [
@@ -16,6 +28,7 @@ export default {
       },
     },
     extend: {
+      opacity: OPACIDAD_COMPLETA,
       fontFamily: {
         sans: ['var(--font-body)', 'sans-serif'],
         body: ['var(--font-body)', 'sans-serif'],
