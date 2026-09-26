@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { Map, Calendar as CalendarIcon, Palette, CalendarDays, Orbit, ArrowUpRight, Megaphone, CalendarCheck } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { MenuListaMovil, type OpcionMenuLista } from "@/components/ui/menu-lista-movil";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import dynamic from 'next/dynamic';
 // Leaflet accede a `window`: cargar solo en cliente (sin SSR) para no romper el prerender.
@@ -101,6 +102,15 @@ function CultureDiscoveryRow({ onGoToAgenda }: { onGoToAgenda: () => void }) {
   );
 }
 
+// Las 8 secciones de la pestaña superior (5 sociales + Mapa · Agenda · Sección),
+// para el menú lista de móvil (demasiadas para arrastrar en una fila — Alex).
+const CULTURE_TAB_OPTIONS: OpcionMenuLista[] = [
+  ...CULTURE_SOCIAL_TABS.map((t) => ({ id: t.value, label: t.label, icon: t.icon })),
+  { id: "map", label: "Mapa Global", icon: Map },
+  { id: "calendar", label: "Agenda", icon: CalendarIcon },
+  { id: "seccion", label: "Sección", icon: Megaphone },
+];
+
 export default function CulturePage() {
   // Estado REAL de la pestaña: lo comparte la fila de descubrimiento para que
   // su botón «Ver en la Agenda» salte a esa pestaña sin cambiar la ruta.
@@ -126,7 +136,17 @@ export default function CulturePage() {
       <CultureDiscoveryRow onGoToAgenda={() => setTab("calendar")} />
 
       <Tabs value={tab} onValueChange={setTab} className="w-full">
-        <TabsList className="mb-6 flex h-auto w-full items-center gap-1.5 overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible">
+        {/* Móvil: 8 secciones son demasiadas para arrastrar en una fila — un botón que
+            abre la lista completa en una hoja inferior (Alex, 2026-09-26). */}
+        <div className="mb-6 sm:hidden">
+          <MenuListaMovil
+            opciones={CULTURE_TAB_OPTIONS}
+            valor={tab}
+            onCambiar={setTab}
+            titulo="Secciones de Cultura"
+          />
+        </div>
+        <TabsList className="hidden sm:flex mb-6 h-auto w-full items-center gap-1.5 flex-wrap">
           {CULTURE_SOCIAL_TABS.map((t) => {
             const TabIcon = t.icon;
             return (
