@@ -126,6 +126,17 @@ export function readOrbPosition(): AuroraOrbPosition {
   return { ...DEFAULT_ORB_POSITION };
 }
 
+/**
+ * Pega la coordenada X al borde lateral más cercano (como una burbuja de
+ * chat de Android): mitad izquierda de la pantalla → el mismo mínimo que usa
+ * el clamp de arrastre del orbe (0.04); mitad derecha → su máximo (0.96).
+ * Uso: solo en pantallas < 640px (móvil) — en escritorio el orbe conserva la
+ * posición libre que el usuario suelte. Pura y sin efectos: fácil de probar.
+ */
+export function snapXToNearestEdge(xRatio: number): number {
+  return xRatio < 0.5 ? 0.04 : 0.96;
+}
+
 export function writeOrbPosition(pos: AuroraOrbPosition): void {
   if (typeof window === "undefined") return;
   try {

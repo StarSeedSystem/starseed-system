@@ -32,6 +32,7 @@ import {
   AURORA_EXOCORTEX_OPEN_EVENT,
   isAuroraFullChatOpen,
   subscribeAuroraFullChat,
+  snapXToNearestEdge,
   type AuroraOrbPosition,
 } from "@/lib/aurora/aurora-orb-bus";
 
@@ -93,7 +94,9 @@ const TRINITY_NODES: Array<{
   { edge: "logic",   dir: "right", label: "Logic",   sub: "Control",             color: "#FFBF00", Icon: Settings2,  dx: 1,  dy: 0 },
 ];
 
-const ORB_PX = 60;                 // diámetro del orbe flotante
+const ORB_PX = 60;                 // diámetro del orbe flotante (escritorio / ≥640px)
+const ORB_PX_MOBILE = 48;          // diámetro del orbe en móvil (<640px): más pequeño
+                                    // para tapar menos texto de la página (encargo Alex).
 const TRINITY_ORB_PX = 108;        // orbe grande del menú centrado
 const LONG_PRESS_MS = 480;         // umbral de pulsación prolongada
 const DRAG_SLOP = 8;               // px antes de considerar arrastre
@@ -197,6 +200,22 @@ export function AuroraWidget() {
 
   // Posición del orbe como fracción del viewport (movible + persistida).
   const [pos, setPos] = useState<AuroraOrbPosition>(DEFAULT_ORB_POSITION);
+
+  // ¿Pantalla chica (<640px, smartphones)? SSR-safe: arranca en `false` (igual
+  // que el resto de flags de este archivo) y se corrige tras montar. Decide el
+  // tamaño del orbe (48px en vez de 60px) y si su posición X se pega al borde
+  // lateral más cercano (como una burbuja de chat) en vez de quedar libre.
+  const [isMobileViewport, setIsMobileViewport] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
+    const mq = window.matchMedia("(max-width: 639px)");
+    const update = () => setIsMobileViewport(mq.matches);
+    update();
+    try { mq.addEventListener("change", update); } catch { /* Safari viejo */ }
+    return () => {
+      try { mq.removeEventListener("change", update); } catch { /* noop */ }
+    };
+  }, []);
 
   // Píldora de estado de acción: descartable; reaparece con cada acción nueva.
   const [pillDismissed, setPillDismissed] = useState(false);
@@ -710,30 +729,45 @@ export function AuroraWidget() {
             ? "bg-violet-400"
             : "bg-white/30";
 
+  // Tamaño del orbe: 48px en móvil (<640px), 60px en el resto — tapa menos
+  // texto de la página en pantallas chicas sin tocar nada en escritorio.
+  const orbSize = isMobileViewport ? ORB_PX_MOBILE : ORB_PX;
+
+  // Posición EFECTIVA para pintar (no altera lo persistido): en móvil, mientras
+  // NO se está arrastrando, la X se pega al borde lateral más cercano (0.04 /
+  // 0.96 — los mismos límites que ya usa el clamp de arrastre), como una
+  // burbuja de chat; así, si la posición guardada quedó cerca del centro
+  // (p. ej. traída de una sesión de escritorio), en móvil igual se pinta
+  // pegada al borde. Mientras se arrastra (`moving`), sigue al dedo sin
+  // saltar; el salto al borde ocurre justo al soltar. En escritorio no cambia.
+  const displayPos: AuroraOrbPosition = isMobileViewport
+    ? { xRatio: moving ? pos.xRatio : snapXToNearestEdge(pos.xRatio), yRatio: pos.yRatio }
+    : pos;
+
   // Posición absoluta del orbe (fracción → px), presente en TODAS las rutas.
   // dvh: viewport dinámico (respeta teclado/barras móviles), como el Café.
   const orbStyle: React.CSSProperties = {
-    left: `calc(${(pos.xRatio * 100).toFixed(3)}vw - ${ORB_PX / 2}px)`,
-    top: `calc(${(pos.yRatio * 100).toFixed(3)}dvh - ${ORB_PX / 2}px)`,
+    left: `calc(${(displayPos.xRatio * 100).toFixed(3)}vw - ${orbSize / 2}px)`,
+    top: `calc(${(displayPos.yRatio * 100).toFixed(3)}dvh - ${orbSize / 2}px)`,
   };
 
   // ── Anclaje del popover y de la píldora AL ORBE ───────────────────────────
-  const openUp = pos.yRatio >= 0.5;
-  const openLeft = pos.xRatio >= 0.5;
-  const ANCHOR_GAP = ORB_PX / 2 + 14;
+  const openUp = displayPos.yRatio >= 0.5;
+  const openLeft = displayPos.xRatio >= 0.5;
+  const ANCHOR_GAP = orbSize / 2 + 14;
   const vAnchor: React.CSSProperties = openUp
-    ? { bottom: `calc(${((1 - pos.yRatio) * 100).toFixed(3)}dvh + ${ANCHOR_GAP}px)` }
-    : { top: `calc(${(pos.yRatio * 100).toFixed(3)}dvh + ${ANCHOR_GAP}px)` };
+    ? { bottom: `calc(${((1 - displayPos.yRatio) * 100).toFixed(3)}dvh + ${ANCHOR_GAP}px)` }
+    : { top: `calc(${(displayPos.yRatio * 100).toFixed(3)}dvh + ${ANCHOR_GAP}px)` };
   const hAnchor = (maxW: string): React.CSSProperties => (openLeft
-    ? { right: `clamp(8px, calc(${((1 - pos.xRatio) * 100).toFixed(3)}vw - ${ORB_PX / 2}px), calc(100vw - ${maxW} - 8px))` }
-    : { left: `clamp(8px, calc(${(pos.xRatio * 100).toFixed(3)}vw - ${ORB_PX / 2}px), calc(100vw - ${maxW} - 8px))` });
+    ? { right: `clamp(8px, calc(${((1 - displayPos.xRatio) * 100).toFixed(3)}vw - ${orbSize / 2}px), calc(100vw - ${maxW} - 8px))` }
+    : { left: `clamp(8px, calc(${(displayPos.xRatio * 100).toFixed(3)}vw - ${orbSize / 2}px), calc(100vw - ${maxW} - 8px))` });
   const PANEL_W = "min(19rem, calc(100vw - 16px))";
   const panelStyle: React.CSSProperties = {
     ...vAnchor,
     ...hAnchor(PANEL_W),
     maxHeight: openUp
-      ? `calc(${(pos.yRatio * 100).toFixed(3)}dvh - ${ANCHOR_GAP + 10}px - env(safe-area-inset-top, 0px))`
-      : `calc(${((1 - pos.yRatio) * 100).toFixed(3)}dvh - ${ANCHOR_GAP + 10}px - env(safe-area-inset-bottom, 0px))`,
+      ? `calc(${(displayPos.yRatio * 100).toFixed(3)}dvh - ${ANCHOR_GAP + 10}px - env(safe-area-inset-top, 0px))`
+      : `calc(${((1 - displayPos.yRatio) * 100).toFixed(3)}dvh - ${ANCHOR_GAP + 10}px - env(safe-area-inset-bottom, 0px))`,
     transformOrigin: `${openLeft ? "right" : "left"} ${openUp ? "bottom" : "top"}`,
     // Glass fuerte del Café: tintes aurora (lime + lavanda) sobre cristal oscuro.
     background:
@@ -748,10 +782,10 @@ export function AuroraWidget() {
   // orbe. Además el propio componente lleva pointer-events:none en su envoltorio
   // (solo la tarjeta captura), así que aunque rozara, el gesto del orbe manda.
   const MINI_MAX_W = "min(20.5rem, calc(100vw - 16px))";
-  const MINI_GAP = ORB_PX / 2 + 30; // colchón amplio: el resumido no toca el orbe
+  const MINI_GAP = orbSize / 2 + 30; // colchón amplio: el resumido no toca el orbe
   const miniVAnchor: React.CSSProperties = openUp
-    ? { bottom: `calc(${((1 - pos.yRatio) * 100).toFixed(3)}dvh + ${MINI_GAP}px)` }
-    : { top: `calc(${(pos.yRatio * 100).toFixed(3)}dvh + ${MINI_GAP}px)` };
+    ? { bottom: `calc(${((1 - displayPos.yRatio) * 100).toFixed(3)}dvh + ${MINI_GAP}px)` }
+    : { top: `calc(${(displayPos.yRatio * 100).toFixed(3)}dvh + ${MINI_GAP}px)` };
   const miniAnchor: AuroraMiniPlayerAnchor = {
     style: {
       ...miniVAnchor,
@@ -1213,7 +1247,7 @@ export function AuroraWidget() {
           (contratos de open-aurora / AuroraMemoryPanel).
       ══════════════════════════════════════════════════════════════════ */}
       <div className="fixed z-50 select-none" style={orbStyle}>
-        <div className="relative flex items-center justify-center" style={{ width: ORB_PX, height: ORB_PX }}>
+        <div className="relative flex items-center justify-center" style={{ width: orbSize, height: orbSize }}>
           <button
             type="button"
             onPointerDown={onOrbPointerDown}
@@ -1262,10 +1296,10 @@ export function AuroraWidget() {
               moving && "scale-110",
               !supported && "opacity-60",
             )}
-            style={{ width: ORB_PX, height: ORB_PX }}
+            style={{ width: orbSize, height: orbSize }}
           >
             <AuroraOrb
-              size={ORB_PX}
+              size={orbSize}
               speaking={visSpeaking}
               listening={visListening}
               paused={paused}
