@@ -49,10 +49,17 @@ import { destinoParaPeticion } from "@/lib/astraura/donde-razona-servidor";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+/**
+ * (2026-09-25, MEDIDO) Sin nube de Google, la web y la app hablan con la Astraura de la Mac
+ * por su túnel: el plan y las trazas llegan al instante, pero el primer token tarda 60–110 s
+ * (prefill de ~700 tokens a 8–16 tok/s en 8 GB). Con el corte de 110 s, la respuesta de la
+ * web se cortaba justo antes de hablar. 300 s es el tope de Vercel con Fluid compute.
+ */
+export const maxDuration = 300;
 
 const MAX_BODY_BYTES = 256 * 1024;
 const GET_TIMEOUT_MS = 12_000;
-const CHAT_TIMEOUT_MS = 110_000;
+const CHAT_TIMEOUT_MS = 280_000;
 
 const GET_ALLOW: RegExp[] = [
   // (Ola 5 · Adenda 157) Ventanas por entidad y orquestación: SOLO lecturas.
