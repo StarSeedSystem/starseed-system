@@ -21,7 +21,7 @@
  * salud van EN PARALELO: un destino caído ya no suma 2,5 s a los demás.
  *
  * Con CACHÉ de 60 s (las sondas de salud no se repiten en cada petición) y
- * COMPROBACIÓN DE SALUD (`GET <base>/api/ping`, o `/api/status` si no existe; 2,5 s). Nunca lanza.
+ * COMPROBACIÓN DE SALUD (`GET <base>/api/ping`, timeout 2,5 s). Nunca lanza.
  *
  * Módulo de SERVIDOR (solo lo usa la ruta proxy del OS): toca `process.env`.
  */
@@ -75,16 +75,18 @@ async function pedir(url: string): Promise<Response | null> {
 /**
  * Sonda de salud con timeout duro. Nunca lanza.
  *
- * (2026-09-25, MEDIDO) Primero `/api/ping` (0,9 s por el túnel de la Mac): `/api/status`
- * calcula el estado de todo el motor y tardó 8,7 s, así que con el tope de 2,5 s un backend
- * vivo pasaba por caído. Si el backend es antiguo y no tiene `/api/ping` (404), `/api/status`.
+ * (2026-09-25, MEDIDO) `/api/ping` y no `/api/status`:
+ * - `/api/status` calcula el estado de todo el motor y tardó 8,7 s por el túnel de la Mac
+ *   (tope 2,5 s): un backend vivo pasaba por caído. `/api/ping` respondió en 0,9 s.
+ * - Y es la prueba de que detrás hay un backend 1.58 COMPLETO: el destino de nube
+ *   configurado en producción contestaba `/api/status` (200) pero `/api/ping`, `/api/chat`,
+ *   `/api/chat/stream` y `/api/starseed/chat` con 404. Se elegía por estar «sano» y todo
+ *   mensaje acababa en 404: Astraura «no respondía» en la web ni en la app.
  */
 async function sana(base: string): Promise<{ ok: boolean; latenciaMs: number }> {
   const t0 = Date.now();
   const ping = await pedir(`${base}/api/ping`);
-  if (ping && ping.status !== 404) return { ok: ping.ok, latenciaMs: Date.now() - t0 };
-  const estado = await pedir(`${base}/api/status`);
-  return { ok: Boolean(estado?.ok), latenciaMs: Date.now() - t0 };
+  return { ok: Boolean(ping?.ok), latenciaMs: Date.now() - t0 };
 }
 
 /** PURA: ¿es una URL de túnel aceptable? https, host de Cloudflare (o permitido), sin ruta. */

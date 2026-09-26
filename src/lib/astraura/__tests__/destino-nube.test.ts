@@ -73,18 +73,19 @@ describe("destinoNube", () => {
         expect(await destinoNube()).toBeNull();
     });
 
-    it("sondea /api/ping y solo cae a /api/status si el backend no lo tiene (404)", async () => {
-        const vistos: string[] = [];
+    it("un destino que responde /api/status pero no /api/ping (no es un backend completo) no se elige", async () => {
+        // 25-09: el destino de nube de producción daba 200 en /api/status y 404 en /api/ping y
+        // en todas las rutas de chat; se elegía y cada mensaje terminaba en 404.
         vi.stubGlobal("fetch", vi.fn(async (entrada: string | URL) => {
             const url = String(entrada);
-            vistos.push(url);
-            if (url.includes("/rest/v1/astraura_state")) return new Response("[]", { status: 200 });
-            if (url === `${MUERTA}/api/ping`) return new Response("", { status: 404 });
+            if (url.includes("/rest/v1/astraura_state")) {
+                return new Response(JSON.stringify([{ data: { url: TUNEL } }]), { status: 200 });
+            }
             if (url === `${MUERTA}/api/status`) return new Response("{}", { status: 200 });
+            if (url === `${MUERTA}/api/ping`) return new Response('{"detail":"Not Found"}', { status: 404 });
+            if (url === `${TUNEL}/api/ping`) return new Response("{}", { status: 200 });
             return new Response("", { status: 503 });
         }));
-        expect(await destinoNube()).toMatchObject({ base: MUERTA });
-        expect(vistos).toContain(`${MUERTA}/api/ping`);
-        expect(vistos).toContain(`${MUERTA}/api/status`);
+        expect(await destinoNube()).toMatchObject({ base: TUNEL, via: "tunel" });
     });
 });
