@@ -14,16 +14,17 @@
  * pestañas de siempre para pantallas grandes.
  */
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState, type ComponentType } from "react";
 import { createPortal } from "react-dom";
-import { Check, ChevronDown, X, type LucideIcon } from "lucide-react";
+import { Check, ChevronDown, X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
 export interface OpcionMenuLista {
     id: string;
     label: string;
-    icon?: LucideIcon;
+    /** Icono (lucide u otro componente que acepte className). */
+    icon?: ComponentType<{ className?: string }>;
     /** Línea corta de ayuda bajo el nombre. */
     hint?: string;
     /** Clase de color del icono (p. ej. "text-emerald-300"). */

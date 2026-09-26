@@ -3835,7 +3835,9 @@ html.ss-gesto [data-ventana-escritorio] {
      un ancho de texto con `white-space: nowrap`. Seguro en desktop: las
      pantallas anchas casi nunca fuerzan este recorte y, en cualquier caso,
      la regla no existe fuera de <640px. */
-  h1, h2, h3, p, li, label, button {
-    overflow-wrap: anywhere;
+  /* Sin `button`: en una fila flex, `anywhere` también reduce su ancho mínimo y un botón
+     apretado partiría «Configu-rar» a mitad de palabra en vez de pasar a otra fila. */
+  h1, h2, h3, p, li, label {
+    overflow-wrap: break-word;
   }
 }

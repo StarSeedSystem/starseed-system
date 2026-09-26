@@ -747,7 +747,8 @@ export function AuroraWidget() {
   // Posición absoluta del orbe (fracción → px), presente en TODAS las rutas.
   // dvh: viewport dinámico (respeta teclado/barras móviles), como el Café.
   const orbStyle: React.CSSProperties = {
-    left: `calc(${(displayPos.xRatio * 100).toFixed(3)}vw - ${orbSize / 2}px)`,
+    // clamp: pegada al borde en móvil (x = 0.04) no se sale de la pantalla (antes −8 px).
+    left: `clamp(4px, calc(${(displayPos.xRatio * 100).toFixed(3)}vw - ${orbSize / 2}px), calc(100vw - ${orbSize}px - 4px))`,
     top: `calc(${(displayPos.yRatio * 100).toFixed(3)}dvh - ${orbSize / 2}px)`,
   };
 
