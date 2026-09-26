@@ -19,6 +19,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { detectAvailabilitySafe } from "@/ai/astraura/availability";
 import { useMeshState, useNearbyBeacons } from "@/ai/astraura/mesh/use-mesh";
+import { usePeersMalla } from "@/lib/network/malla-neuronas";
 import { getIntelligenceSettings, lastRoute, ROUTE_EVENT, saveIntelligenceSettings, type RouteRecord } from "@/ai/astraura/router";
 import {
     aCampos,
@@ -176,7 +177,13 @@ export function useEstadoCapas(): EstadoCapasVivo {
         return () => window.removeEventListener(ROUTE_EVENT, alRutear);
     }, []);
 
-    const vecinosMesh = (malla?.nodes ?? []).filter((n) => !malla?.self || n.num !== malla.self.num).length + (faros?.length ?? 0);
+    // (Ola 366) La malla ya no es solo radio LoRa: cuentan también las neuronas propias
+    // vinculadas por P2P y las de otras cuentas detectadas por faro (usePeersMalla). Si el
+    // motor de la malla no está montado aquí (p. ej. /mando), se usan los faros crudos.
+    const peersMalla = usePeersMalla();
+    const radioLora = (malla?.nodes ?? []).filter((n) => !malla?.self || n.num !== malla.self.num).length;
+    const radar = peersMalla.propios + peersMalla.otrasCuentas;
+    const vecinosMesh = radioLora + (radar > 0 ? radar : (faros?.length ?? 0));
     const salud: SaludCapas = useMemo(
         () => ({
             local: quiereLocal ? disponVista.local : null,
