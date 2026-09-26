@@ -71,6 +71,10 @@ export function SideCurtains() {
                         "fixed z-[90] overflow-hidden box-border shadow-2xl border-r border-emerald-500/30",
                         // Estrecha: casi todo el ancho, pegada al borde, a toda altura.
                         "top-0 bottom-0 left-0 h-[100dvh] w-[calc(100vw-1rem)] max-w-[28rem] rounded-r-[1.75rem]",
+                        // <640px: 100vw-1rem se queda en ~96vw en un smartphone — se
+                        // topa a 92vw (regla del área) para que el fondo oscurecido se
+                        // note como panel, no como pantalla completa. ≥640px no cambia.
+                        "max-sm:w-[92vw] max-sm:max-w-[92vw]",
                         // md+: panel cómodo, centrado con my-auto (sin transform: el transform es del gesto).
                         "md:h-[min(46rem,92dvh)] md:my-auto md:rounded-[2rem] md:border",
                         "md:left-[max(1rem,env(safe-area-inset-left))] md:w-[clamp(22rem,42vw,32rem)] md:max-w-[calc(100vw-2rem)]",
@@ -96,6 +100,10 @@ export function SideCurtains() {
                     className={cn(
                         "fixed z-[90] overflow-hidden box-border shadow-2xl",
                         "top-0 bottom-0 right-0 h-[100dvh] w-[calc(100vw-1rem)] rounded-l-[1.75rem]",
+                        // <640px: mismo tope de 92vw que Horizon; la pizarra (más ancha
+                        // por naturaleza) queda excluida, se necesita todo el sitio
+                        // posible para dibujar. ≥640px no cambia.
+                        !pizarra && "max-sm:w-[92vw] max-sm:max-w-[92vw]",
                         "md:my-auto md:right-[max(1rem,env(safe-area-inset-right))] md:rounded-[2rem] md:max-w-[calc(100vw-2rem)]",
                         pizarra
                             ? "max-w-[100vw] bg-black/80 backdrop-blur-xl border border-amber-500/30 md:w-[min(85vw,72rem)] md:h-[calc(100dvh-2rem)]"
