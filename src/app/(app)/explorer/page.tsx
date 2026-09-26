@@ -380,12 +380,13 @@ export default function ExplorerPage() {
 
                 {/* Neural Input Interface */}
                 <div className="w-full max-w-3xl relative z-10 mt-6">
-                    {/* Context/Agent Ring */}
-                    <div className="absolute -top-12 left-1/2 -translate-x-1/2 bg-black/60 backdrop-blur-md border border-primary/30 px-4 py-1.5 rounded-full flex items-center gap-2 text-xs font-medium text-primary shadow-[0_0_15px_rgba(56,189,248,0.2)]">
-                        <Bot className="w-3 h-3" />
-                        <span className="text-muted-foreground">Agente Activo:</span>
+                    {/* Context/Agent Ring — ancho acotado al viewport en móvil: sin esto,
+                        un nombre de agente largo podía forzar scroll horizontal de página. */}
+                    <div className="absolute -top-12 left-1/2 flex max-w-[calc(100vw-2rem)] -translate-x-1/2 items-center gap-1.5 rounded-full border border-primary/30 bg-black/60 px-3 py-1.5 text-xs font-medium text-primary shadow-[0_0_15px_rgba(56,189,248,0.2)] backdrop-blur-md sm:max-w-none sm:gap-2 sm:px-4">
+                        <Bot className="h-3 w-3 shrink-0" />
+                        <span className="hidden shrink-0 text-muted-foreground sm:inline">Agente Activo:</span>
                         <Select value={activeAgent} onValueChange={(v) => setActiveAgent(v as AgentPersona)}>
-                            <SelectTrigger className="h-6 border-0 bg-transparent text-primary p-0 text-xs w-auto gap-1 focus:ring-0">
+                            <SelectTrigger className="h-6 w-auto min-w-0 gap-1 border-0 bg-transparent p-0 text-xs text-primary focus:ring-0 [&>span]:truncate">
                                 <SelectValue />
                             </SelectTrigger>
                             <SelectContent className="bg-black/90 border-white/10">
