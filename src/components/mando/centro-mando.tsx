@@ -41,6 +41,7 @@ import { PanelContextos } from "@/components/mando/panel-contextos";
 import { PanelEntornos } from "@/components/mando/panel-entornos";
 import { PanelAjustes } from "@/components/mando/panel-ajustes";
 import { PanelNeurona } from "@/components/mando/panel-neurona";
+import { PanelServidor } from "@/components/mando/panel-servidor";
 import { PanelAprendizaje } from "@/components/mando/panel-aprendizaje";
 import { PanelPublicaciones } from "@/components/mando/panel-publicaciones";
 import { PanelPublicacion } from "@/components/mando/panel-publicacion";
@@ -197,6 +198,7 @@ const PESTANAS = [
     // Con qué se trabaja: modelos, memoria, voz, aprendizaje.
     { id: "flota", etiqueta: "Flota", grupo: "Infraestructura" },
     { id: "neurona", etiqueta: "Neurona", grupo: "Infraestructura" },
+    { id: "servidor", etiqueta: "Servidor 1.58", grupo: "Infraestructura" },
     { id: "voces", etiqueta: "Voces", grupo: "Infraestructura" },
     { id: "aprendizaje", etiqueta: "Aprendizaje", grupo: "Infraestructura" },
     // Cómo piensan y qué saben los agentes.
@@ -1974,6 +1976,9 @@ export function CentroMando() {
                 </TabsContent>
                 <TabsContent value="neurona">
                     <PanelNeurona />
+                </TabsContent>
+                <TabsContent value="servidor">
+                    {pestana === "servidor" ? <PanelServidor /> : null}
                 </TabsContent>
                 <TabsContent value="voces">
                     {/* El Estudio pesa (forja, motores, oído): solo se monta al abrir

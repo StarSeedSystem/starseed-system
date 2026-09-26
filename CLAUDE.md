@@ -746,6 +746,12 @@ en la Mac y aprobó**. Fuente de verdad: `docs/adendas/adenda-228-mando-ampliado
   de `?pestana=`; `TIMBRES` vive en `timbres-catalogo.ts` (sin «use client», para no romper el build).
 - **Aprendizaje** — pestaña «Aprendizaje» y «Ramificación 1.58» en Procesos (BitNet → personalidades
   → agentes → procesos); `/api/aprendizaje/agentes|procesos`; corpus por HTTP con envoltorio `{procesos:[…]}`.
+- **Servidor 1.58** — administrador de servidor de Astraura 1.58 para la capa nube (esta Mac hoy,
+  Oracle u otro mañana): interruptor «Mantener encendida» (`caffeinate -i -m -s`, sin `-d`, vía
+  launchd), «Apagar pantalla» (`pmset displaysleepnow`), estado backend/BitNet/túnel (solo huellas,
+  nunca la URL), servicios `com.starseed.*` reiniciables y registro de servidores. Tipos puros
+  `mando/servidor-astraura-tipos.ts`, servidor `mando/servidor-astraura.ts`, UI `panel-servidor.tsx`.
+  SOP: `architecture/servidor-astraura-mando.md`.
 
 ### Reglas duras del área
 - **Publicación**: solo desde la **Mac**, con `STARSEED_LOCAL=1` y la confirmación **escrita `PUBLICAR`**

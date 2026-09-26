@@ -3867,3 +3867,43 @@ verificación en vivo: `https://starseed-os.vercel.app/api/ai/astraura-158/api/s
 ### Pendiente
 - Que el backend de Astraura lea `aprendizaje_colectivo` y no guarde en el corpus colectivo cuando es false.
 - Unir la capa colectiva a Oracle Always Free cuando Alex cree la cuenta.
+
+## 2026-09-26 — Administrador de servidor de Astraura 1.58 (pestaña «Servidor 1.58»)
+**Sesión por:** Claude (worktree `_claude-capas`).
+**Resumen ejecutivo:** nueva pestaña del Mando para usar esta Mac (y, más adelante, Oracle u
+otro servidor) como servidor de la capa nube de Astraura 1.58: interruptor «Mantener
+encendida» sin dormirse sola (`caffeinate -i -m -s` vía launchd, sin `-d`: la pantalla sí se
+puede apagar), botón «Apagar pantalla» (`pmset displaysleepnow`), estado de backend/BitNet/
+túnel (solo huellas sha256, nunca la URL), servicios `com.starseed.*` reiniciables (nunca
+`mando`) y un registro de servidores (esta Mac + Oracle Always Free, pendiente). También se
+quitó la barra «Astraura, Aurora y el Exocórtex comparten el mismo cerebro» de `/agent`.
+
+### Hecho
+- `src/lib/mando/servidor-astraura-tipos.ts` (puro, sin `node:*`): parsers de `pmset -g`/
+  `-g batt`/`-g assertions`, `plistDespierto()`, `validarServidor()`, `calcularAvisos()`.
+- `src/lib/mando/servidor-astraura.ts` (servidor): `estadoServidor()` y `accionServidor()`
+  (despierto, apagar_pantalla, reiniciar, servidor_agregar/quitar/sondear); `huellaCorta()`
+  (sha256, necesita `node:crypto`).
+- `src/app/api/mando/servidor/route.ts`: GET/POST tras `guardianMando`, 400 si «reiniciar»
+  pide un servicio fuera de la lista blanca.
+- `src/components/mando/panel-servidor.tsx`: pestaña «Servidor 1.58» (grupo Infraestructura,
+  tras «Neurona»), sondeo cada 15 s.
+- Quitado el banner de `/agent` (`src/app/(app)/agent/page.tsx`) y sus únicos usos
+  (`openExocortex`, `Waypoints`, `ArrowUpRight`).
+- SOP: `architecture/servidor-astraura-mando.md`.
+- Pruebas: `servidor-astraura-tipos.test.ts` (41), `servidor-astraura.test.ts` (15),
+  `panel-servidor.test.tsx` (5). `tsc --noEmit` limpio; `vitest run src/lib/mando
+  src/components/mando "src/app/(app)/agent" src/components/astraura` → 96 archivos / 1096
+  pruebas en verde.
+
+### Pendiente / Próximos pasos
+- Enlazar el registro de Oracle como destino real de la capa nube (`ASTRAURA_CLOUD_URL` o un
+  campo «destino activo») y como réplica del Mando, en cuanto Alex cree la cuenta.
+- No se ha corrido `next build` en este worktree (regla del área: nunca con el enjambre vivo);
+  falta esa tercera puerta antes de publicar.
+
+### Notas / aprendizajes
+- `pmset -g` mete «sleep», «disksleep» y «displaysleep» como claves separadas: el parser
+  compara la clave exacta, no una subcadena, para no confundirlas.
+- `\bcharging\b` con límite de palabra distingue «charging» de verdad de «discharging» sin
+  necesitar mirar el resto de la frase.

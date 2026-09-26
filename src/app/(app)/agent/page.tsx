@@ -47,8 +47,6 @@ import {
   Activity,
   Network,
   ChevronRight,
-  ArrowUpRight,
-  Waypoints,
   GraduationCap,
   SlidersHorizontal,
   Radio,
@@ -964,16 +962,6 @@ function AgentPageInner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tabParam]);
 
-  // Abre el Exocórtex (cortina Zenith) reusando el mismo evento global que el
-  // orbe y la paleta de comandos. Astraura, Aurora y el Exocórtex comparten el
-  // mismo cerebro/contexto — este enlace lo hace explícito en la UI.
-  const openExocortex = useCallback(() => {
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('starseed:open-aurora-exocortex'));
-      toast.success('Abriendo el Exocórtex de Astraura IA — mismo cerebro que Astraura.');
-    }
-  }, []);
-
   // Contexto del sincrómetro — fuente de eventos para inyectar en el system prompt.
   const calendar = useCalendar();
 
@@ -1363,33 +1351,6 @@ function AgentPageInner() {
           bajo la cabecera de la sección — no es una notificación, no se
           superpone a nada, y no pinta nada si el backend 1.58 no responde. */}
       <Astraura158PresenceBar />
-
-      {/* --- Vínculo Astraura ↔ Aurora ↔ Exocórtex (mismo cerebro/contexto) --- */}
-      <button
-        type="button"
-        onClick={openExocortex}
-        className="shrink-0 group w-full max-w-full box-border text-left rounded-xl border border-emerald-400/25 bg-gradient-to-r from-emerald-500/10 via-fuchsia-500/[0.06] to-blue-500/10 backdrop-blur-md px-3 sm:px-4 py-2 sm:py-3 cursor-pointer transition-colors duration-200 hover:border-emerald-400/45 hover:from-emerald-500/[0.16] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/40"
-        aria-label="Abrir el Exocórtex de Astraura IA"
-      >
-        <div className="flex items-center gap-3 min-w-0">
-          <span className="shrink-0 grid place-items-center h-8 w-8 sm:h-9 sm:w-9 rounded-lg bg-gradient-to-tr from-emerald-500/30 to-fuchsia-500/30 border border-white/10">
-            <Waypoints className="w-4 h-4 text-emerald-200" />
-          </span>
-          <div className="min-w-0 flex-1">
-            <p className="text-[13px] sm:text-sm font-semibold text-emerald-50 sm:truncate">
-              <span className="sm:hidden">Mismo cerebro que el Exocórtex</span>
-              <span className="hidden sm:inline">Astraura, Aurora y el Exocórtex comparten el mismo cerebro</span>
-            </p>
-            <p className="hidden sm:block text-xs text-white/55 truncate">
-              El contexto se mantiene entre este estudio y el Exocórtex de la voz Aurora.
-            </p>
-          </div>
-          <span className="hidden sm:inline-flex items-center gap-1 text-xs font-medium text-emerald-200 shrink-0 transition-transform duration-200 group-hover:translate-x-0.5">
-            Abrir Exocórtex <ArrowUpRight className="w-3.5 h-3.5" />
-          </span>
-          <ArrowUpRight className="w-4 h-4 text-emerald-200 shrink-0 sm:hidden" />
-        </div>
-      </button>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col lg:flex-row gap-3 lg:gap-4 min-h-0 w-full max-w-full box-border">
 
