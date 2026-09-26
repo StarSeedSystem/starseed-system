@@ -1,3 +1,17 @@
+/**
+ * Capas de conciencia de Astraura 1.58 (Ola 365 · 2026-09-26) — módulo PURO.
+ *
+ * Alex: «un switch y un indicador de si está activo el modo 1.58 bit ya sea local o mesh o en
+ * la nube o todas activas con las capas de conciencia… switches de encendido y apagado de
+ * cada capa o de ese modelo en general para entonces usar el enrutador automático con las
+ * APIs y modelos gratuitos… todas las capas activas por predeterminado y un nivelador de uso
+ * preferencial al enrutador, a alguna API o modelo específico o al sistema de múltiples capas
+ * de conciencia local y colectiva de Astraura 1.58 con el aprendizaje continuo».
+ *
+ * Las preferencias viven como campos de NIVEL SUPERIOR de `IntelligenceSettings`
+ * (`starseed.astraura.intelligence.v1`, que ya se sincroniza con la cuenta). Cada booleano se
+ * lee como `!== false`: lo no guardado cuenta como ENCENDIDO, sin migrar datos de nadie.
+ */
 export type CapaConciencia = "local" | "mesh" | "nube" | "colectiva";
 
 export const CAPAS: readonly CapaConciencia[] = ["local", "mesh", "nube", "colectiva"];
@@ -83,11 +97,27 @@ export function destinoNivelador(n: number): "enrutador" | "especifico" | "capas
   return "capas";
 }
 
-export function sesgoNivelador(p: PreferenciaCapas, fuente: string, modelo?: string): number {
+/**
+ * Sesgo (puntos de ranking) que el nivelador suma a un candidato.
+ *
+ * Es RELATIVO a la posición por defecto (80): con el nivelador sin tocar no cambia nada del
+ * enrutado de siempre (1.58 primero por su propia prioridad, la dificultad manda en lo
+ * difícil). Subirlo empuja hacia las capas 1.58 (hasta +5 a 100), bajarlo hacia el enrutador
+ * libre (1.58 hasta −19, el resto hasta +10 a 0); el modelo específico, si hay uno, gana
+ * cerca del centro (hasta +14 en 50). En tareas difíciles o de visión (`dificil`) el
+ * empujón POSITIVO a 1.58 no se aplica: el modelo 2B no debe ganar lo que no sabe hacer.
+ */
+export function sesgoNivelador(
+  p: PreferenciaCapas,
+  fuente: string,
+  modelo?: string,
+  opciones: { dificil?: boolean } = {},
+): number {
   const n = p.nivelador;
   if (!p.activo) return 0;
   if (fuente.startsWith("astraura-158")) {
-    return Math.round(((n - 50) / 50) * 12);
+    const d = Math.round(((n - NIVELADOR_DEFECTO) / 50) * 12);
+    return opciones.dificil && d > 0 ? 0 : d;
   }
   if (
     p.especifico != null &&
@@ -96,7 +126,7 @@ export function sesgoNivelador(p: PreferenciaCapas, fuente: string, modelo?: str
   ) {
     return Math.round((1 - Math.abs(n - 50) / 50) * 14);
   }
-  return Math.round(((50 - n) / 50) * 6);
+  return Math.round(((NIVELADOR_DEFECTO - n) / 50) * 6);
 }
 
 export type EstadoCapa = "apagada" | "sin-senal" | "activa" | "sincronizada";

@@ -87,6 +87,12 @@ import { accessBias, llmSourceAccessClass } from "@/lib/astraura/model-preferenc
 // `neurons.ts` NO importa `router.ts` (sin ciclo): solo Supabase/entity-state y
 // un `import type` de `ai/astraura/mesh` (erased, sin runtime).
 import { thisDeviceId } from "@/lib/neurons/neurons";
+import {
+  fuentesApagadas,
+  leerPreferenciaCapas,
+  sesgoNivelador,
+  type CamposCapas,
+} from "@/lib/astraura/capas-conciencia";
 // (Ola 223) Caché LRU de respuestas repetidas (cuota-cero para prompts idénticos).
 import { claveCache, esCacheElegible, leerCache, guardarCache } from "./cache-respuestas";
 // Capacidades de red (Trinidad de razonamiento: reflejo con Needle · deliberación con BitNet)
@@ -103,7 +109,12 @@ export const INTELLIGENCE_KEY = "starseed.astraura.intelligence.v1";
 export const ROUTES_LOG_KEY = "starseed.astraura.routes.v1";
 export const ROUTE_EVENT = "starseed:astraura-route";
 
-export interface IntelligenceSettings {
+/**
+ * (Ola 365 · 2026-09-26) Incluye los campos de las capas de conciencia de Astraura 1.58
+ * (`CamposCapas`: interruptor general, capas local/mesh/nube/colectiva, nivelador y modelo
+ * específico). Van en el nivel superior y opcionales: sin guardar, todo cuenta como encendido.
+ */
+export interface IntelligenceSettings extends CamposCapas {
   /** auto = Aurora elige (gratis primero) · manual = proveedor activo clásico. */
   mode: "auto" | "manual";
   /** Prioriza siempre lo gratuito (por defecto true). */
@@ -239,6 +250,11 @@ function mergeIntelligence(base: IntelligenceSettings, patch: unknown): Intellig
     ...(base.omniRoute && typeof base.omniRoute === "object" ? base.omniRoute : {}),
     ...(p.omniRoute && typeof p.omniRoute === "object" ? p.omniRoute : {}),
   };
+  // (Ola 365) El modelo específico del nivelador solo vale si nombra una fuente.
+  const esp = merged.especifico158 as unknown;
+  if (esp !== undefined && !(esp && typeof esp === "object" && typeof (esp as { fuente?: unknown }).fuente === "string" && (esp as { fuente: string }).fuente)) {
+    merged.especifico158 = null;
+  }
   return merged;
 }
 
@@ -532,9 +548,16 @@ export function rankCandidates(
     neuronId = undefined;
   }
 
+  // (Ola 365) Capas de conciencia de Astraura 1.58: el interruptor general y las capas
+  // local/nube apagan esas fuentes como si estuvieran deshabilitadas, y el nivelador suma
+  // un sesgo (−12..+14) hacia el enrutador libre, un modelo específico o las capas 1.58.
+  const capas = leerPreferenciaCapas(prefs);
+  const apagadas158 = new Set(fuentesApagadas(capas));
+
   for (const a of avail) {
     if (!a.ready) continue;
     if (prefs.disabledSources.includes(a.source.id)) continue;
+    if (apagadas158.has(a.source.id)) continue;
     if (a.source.tier === "paid" && connectorsMode === "only-free") continue;
     if (a.source.tier === "paid" && !(allowConfiguredPaid && a.userConfig)) continue;
     // (Ola 223 I1F) relevo preventivo por presupuesto: regla pura en
@@ -589,6 +612,9 @@ export function rankCandidates(
       try {
         score += accessBias(llmSourceAccessClass(a.source.id), { task: profile.kind, online, hasLocal, neuronId });
       } catch { /* sin sesgo si algo raro pasa */ }
+      score += sesgoNivelador(capas, a.source.id, m.id, {
+        dificil: profile.needsVision || profile.difficulty >= strongThreshold,
+      });
       if (override === `${a.source.id}::${m.id}`) {
         score += 100;
         reason = `Elegido por ti para «${TASK_LABELS[profile.kind]}»`;
@@ -1370,7 +1396,12 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
         brainId: req.brainId,
       });
       const choice = resolved.choice;
-      if (choice.modo === "astraura-158") {
+      // (Ola 365) Con el modo 1.58 apagado en el interruptor general, un primario «1.58»
+      // no se aplica (ni en exclusivo): manda el enrutador automático con fuentes libres.
+      const apagado158 = choice.modo === "astraura-158" && !leerPreferenciaCapas(prefs).activo;
+      if (apagado158) {
+        /* sin primario: la cadena del ranking (ya sin fuentes 1.58) queda tal cual */
+      } else if (choice.modo === "astraura-158") {
         // Modelo = personalidad 1.58. Si la elección no fija una, se usa la
         // afín a la personalidad ACTIVA del OS (Aurora→aurora, Hermione→hermione…).
         const explicit = modelToPersona158(choice.modelo);
@@ -1387,7 +1418,7 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
           candidates.find((c) => c.source.id === choice.fuente && (!choice.modelo || c.model.id === choice.modelo)) ??
           candidates.find((c) => c.source.id === choice.fuente);
       }
-      exclusiveChain = choice.exclusivo === true && choice.modo !== "auto";
+      exclusiveChain = choice.exclusivo === true && choice.modo !== "auto" && !apagado158;
       primaryInfo = {
         modo: choice.modo,
         provenance: resolved.provenance,
