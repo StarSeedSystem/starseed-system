@@ -94,6 +94,13 @@ export const STARSEED_APP_LISTINGS: StarSeedAppListing[] = [
                 url: "https://starseed-os.vercel.app",
             },
             {
+                version: "2026.09.25",
+                date: "2026-09-25",
+                notes:
+                    "Apps nativas 0.2.1 con el logo oficial de StarSeed OS en todas las versiones, y un botón «Instalar» que detecta tu sistema y descarga al momento la versión que le corresponde. Al abrir la app por primera vez aparece la bienvenida: crear cuenta o iniciar sesión, o los ajustes de la neurona nueva si ya tienes cuenta. La Biblioteca instala eligiendo dónde: en la web, en este dispositivo o en tus otras neuronas y perfiles. Audiomorphic y Omnifrecuencias al día con sus versiones oficiales. Menús Trinity que se arrastran desde cualquier lado y se cierran con un botón común, guías de la interfaz táctil y de ratón, transiciones 3D entre páginas. El fondo animado se reproduce entero: la calidad adaptativa solo cambia los píxeles.",
+                url: "https://starseed-os.vercel.app",
+            },
+            {
                 version: "2026.09.24",
                 date: "2026-09-24",
                 notes:

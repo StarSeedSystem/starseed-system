@@ -31,7 +31,7 @@ import { computeSuggestions, type Suggestion } from "@/ai/astraura/autonomy";
  * si NO coincide con la última vista por el usuario, se genera el aviso
  * "hay una actualización importante del sistema".
  */
-export const CURRENT_RELEASE = "2026-09-25-os-0.2.1";
+export const CURRENT_RELEASE = "2026-09-26-os-0.2.2";
 
 /** Clave de "avisos ya vistos" (viaja con la cuenta vía SYNCED_KEYS). */
 export const SEEN_KEY = "starseed.updates.seen.v1";
@@ -184,9 +184,9 @@ export async function getPendingNotifications(context?: string): Promise<UpdateN
       out.push({
         id,
         kind: "update-app",
-        title: "StarSeed OS 0.2.1: instalar eligiendo dónde y menús Trinity táctiles",
+        title: "StarSeed OS 0.2.2: capas de conciencia de Astraura e iconos completos",
         detail:
-          "La Biblioteca instala en la web, en este dispositivo o en tus otras neuronas. Los menús Trinity se arrastran desde cualquier lado y se cierran con un toque. Las apps nativas llevan el logo oficial y se actualizan solas; en el navegador basta con recargar.",
+          "Junto a cada chat de Astraura verás sus capas de conciencia, con un interruptor para cada una y un nivelador. Las apps llevan el icono completo, sin recortes. El escritorio va fluido al mover y cambiar de tamaño las ventanas. En el navegador basta con recargar; las apps instaladas se actualizan solas.",
         priority: 10,
       });
     }

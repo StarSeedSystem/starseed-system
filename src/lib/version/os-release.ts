@@ -3,16 +3,16 @@
 // Cualquier medio que muestre la versión debe leer de aquí y jamás escribir
 // su propia fecha (ver el test medios-version-coherentes y el checkpoint).
 
-export const OS_VERSION = "2026.09.25";
+export const OS_VERSION = "2026.09.26";
 
-export const OS_FECHA = "2026-09-25";
+export const OS_FECHA = "2026-09-26";
 
 export type CanalRelease = "alpha" | "beta" | "estable";
 
 export const OS_CANAL: CanalRelease = "alpha";
 
 export const OS_NOTAS =
-  "Apps nativas 0.2.1 con el logo oficial de StarSeed OS en todas las versiones, y un botón «Instalar» que detecta tu sistema y descarga al momento la versión que le corresponde. Al abrir la app por primera vez aparece la bienvenida: crear cuenta o iniciar sesión, o los ajustes de la neurona nueva si ya tienes cuenta. La Biblioteca instala eligiendo dónde: en la web, en este dispositivo o en tus otras neuronas y perfiles. Audiomorphic y Omnifrecuencias al día con sus versiones oficiales. Menús Trinity que se arrastran desde cualquier lado y se cierran con un botón común, guías de la interfaz táctil y de ratón, transiciones 3D entre páginas. El fondo animado se reproduce entero: la calidad adaptativa solo cambia los píxeles.";
+  "Apps nativas 0.2.2 con el icono completo en todas las versiones: en Android se adapta a la forma de cada lanzador sin recortarse ni estirarse, y en el escritorio, el iPhone y la app web se ve entero. Astraura 1.58 responde en la web y en la app sin servidores de pago: llega a tu neurona por un túnel seguro. Junto a cada chat de Astraura aparecen sus capas de conciencia (local, mesh, nube y colectiva), con un interruptor para cada una y un nivelador para preferir las capas 1.58, un modelo concreto o el enrutador libre de modelos gratuitos. El escritorio ya no se reinicia al mover o cambiar de tamaño las ventanas, el fondo del Exocortex no parpadea en el móvil, la portada del perfil se ve al subirla y una pestaña abierta se pone al día sola cuando sale una versión nueva.";
 
 /**
  * Versión del PAQUETE NATIVO (Tauri 2, proyecto `native/`): el shell de
@@ -21,7 +21,7 @@ export const OS_NOTAS =
  * `package.json` en cada release nativa — los cuatro sitios deben coincidir
  * (ver native/README.md §11 «Cómo publicar una release»).
  */
-export const NATIVE_VERSION = "0.2.1";
+export const NATIVE_VERSION = "0.2.2";
 
 /** Etiqueta de tag/Release de GitHub para el paquete nativo (`v<NATIVE_VERSION>`). */
 export const NATIVE_TAG = `v${NATIVE_VERSION}`;
