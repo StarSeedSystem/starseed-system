@@ -1543,21 +1543,25 @@ function LibraryContent() {
   return (
     <div className="flex flex-col gap-[clamp(1.5rem,3vw,2.5rem)] min-h-screen pb-24 px-[clamp(1rem,3vw,3rem)] py-[clamp(1rem,2vw,2rem)] w-full mx-auto">
       {/* ── HERO de la tienda viva: gradiente cristal + buscador grande ── */}
-      <GlassCard className="relative overflow-hidden border-white/10 p-[clamp(1.25rem,3vw,2.5rem)]">
+      <GlassCard className="relative overflow-hidden border-white/10 max-sm:p-4 p-[clamp(1.25rem,3vw,2.5rem)]">
         {/* Auroras de fondo (decorativas, sin interacción) */}
         <div className="pointer-events-none absolute -left-24 -top-28 h-72 w-72 rounded-full bg-indigo-500/20 blur-3xl" />
         <div className="pointer-events-none absolute right-0 -bottom-32 h-80 w-80 rounded-full bg-emerald-500/15 blur-3xl" />
         <div className="pointer-events-none absolute left-1/2 top-0 h-56 w-56 -translate-x-1/2 rounded-full bg-cyan-400/10 blur-3xl" />
 
-        <div className="relative z-10 flex flex-col gap-4 items-center md:items-start text-center md:text-left">
-          <h1 className="text-[clamp(2rem,4vw,3rem)] font-bold font-headline leading-tight bg-clip-text text-transparent bg-gradient-to-r from-cyan-300 via-blue-400 to-indigo-400">
+        <div className="relative z-10 flex flex-col max-sm:gap-3 gap-4 items-center md:items-start text-center md:text-left">
+          <h1 className="text-2xl sm:text-[clamp(2rem,4vw,3rem)] font-bold font-headline leading-tight bg-clip-text text-transparent bg-gradient-to-r from-cyan-300 via-blue-400 to-indigo-400">
             Biblioteca · instala cualquier cosa en tu OS
           </h1>
-          <p className="text-[clamp(0.9rem,1.2vw,1.1rem)] text-muted-foreground max-w-3xl text-balance">
+          <p className="hidden sm:block text-[clamp(0.9rem,1.2vw,1.1rem)] text-muted-foreground max-w-3xl text-balance">
             La tienda viva de StarSeed: fuentes de IA, temas, animaciones, apps, widgets, pizarras,
             investigaciones, funciones y repos de la comunidad — todo open source y gratis-primero.
             Lo que ves instalable actúa de verdad sobre tu sistema; lo que aún no existe se marca
             honesto como «próximamente».
+          </p>
+          <p className="sm:hidden text-[13px] leading-snug text-muted-foreground max-w-3xl line-clamp-3">
+            La tienda viva de StarSeed: IA, temas, apps, widgets y repos de la comunidad — todo open
+            source y gratis-primero. Lo instalable actúa de verdad sobre tu sistema.
           </p>
 
           {/* Buscador grande de paquetes (filtra en vivo por nombre/tags/tipo) */}
@@ -1591,7 +1595,7 @@ function LibraryContent() {
             type="button"
             onClick={() => setArea("libreria")}
             className={cn(
-              "flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition-colors cursor-pointer",
+              "flex items-center gap-2 rounded-xl px-4 py-2 max-sm:min-h-11 text-sm font-semibold transition-colors cursor-pointer",
               area === "libreria" ? "bg-white/10 text-white" : "text-muted-foreground hover:text-white",
             )}
           >
@@ -1601,7 +1605,7 @@ function LibraryContent() {
             type="button"
             onClick={() => setArea("biblioteca")}
             className={cn(
-              "flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition-colors cursor-pointer",
+              "flex items-center gap-2 rounded-xl px-4 py-2 max-sm:min-h-11 text-sm font-semibold transition-colors cursor-pointer",
               area === "biblioteca" ? "bg-white/10 text-white" : "text-muted-foreground hover:text-white",
             )}
           >
