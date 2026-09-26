@@ -167,6 +167,28 @@ interface RealtimeHub {
  */
 const realtimeHubs = new Map<string, RealtimeHub>();
 
+/**
+ * Promesas de creación EN VUELO por userId (fix Ola 366 · malla de neuronas).
+ * ---------------------------------------------------------------------------
+ * ANTES: `ensureRealtimeHub` comprobaba `realtimeHubs.get(userId)` de forma
+ * SÍNCRONA al principio, pero no volvía a escribir en `realtimeHubs` hasta
+ * DESPUÉS de un `await channel.subscribe(...)`. Dos llamadas concurrentes para
+ * el MISMO userId (p. ej. la malla global montándose a la vez que un panel de
+ * `/servidores`, o dos pestañas del mismo `initMesh`) pasaban ambas la
+ * comprobación con `existing === undefined`, así que las DOS creaban un canal
+ * Supabase con el MISMO nombre (`starseed-signal-<uid>`). El segundo
+ * `channel.subscribe()` sobre un topic ya en uso solía no llegar nunca a
+ * `SUBSCRIBED` → expiraba a los 4 s (`done(false)`) y esa segunda llamada
+ * ejecutaba `client.removeChannel(channel)` — pero el cliente Supabase indexa
+ * los canales por NOMBRE, así que ese `removeChannel` podía tirar abajo el
+ * canal (y su listener) que la PRIMERA llamada sí había dejado `SUBSCRIBED`,
+ * dejando la señalización sorda hasta el siguiente ciclo de reintento.
+ *
+ * Con este mapa, la segunda llamada (y cualquier otra mientras la primera
+ * sigue en vuelo) espera la MISMA promesa en vez de abrir un segundo canal.
+ */
+const hubPromises = new Map<string, Promise<RealtimeHub | null>>();
+
 /** Recorta el set de nonces vistos para que no crezca sin límite. */
 function trimSeen(seen: Set<string>): void {
   if (seen.size <= 256) return;
@@ -186,6 +208,23 @@ async function ensureRealtimeHub(userId: string): Promise<RealtimeHub | null> {
   const existing = realtimeHubs.get(userId);
   if (existing) return existing;
 
+  // Memoización de la creación EN VUELO (ver el comentario de `hubPromises`):
+  // una segunda llamada concurrente espera la MISMA promesa en vez de abrir
+  // un segundo canal Realtime con el mismo nombre.
+  const inFlight = hubPromises.get(userId);
+  if (inFlight) return inFlight;
+
+  const attempt = createRealtimeHub(userId).finally(() => {
+    // Solo limpiamos SI seguimos siendo el intento vigente (una limpieza tardía
+    // de un intento ya reemplazado no debe borrar el nuevo en vuelo).
+    if (hubPromises.get(userId) === attempt) hubPromises.delete(userId);
+  });
+  hubPromises.set(userId, attempt);
+  return attempt;
+}
+
+/** Creación real del hub (extraída para poder memoizarla mientras está en vuelo). */
+async function createRealtimeHub(userId: string): Promise<RealtimeHub | null> {
   try {
     const client = createClient();
     const channel = client.channel(channelName(userId), {

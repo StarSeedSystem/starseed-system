@@ -30,6 +30,11 @@ import { createClient } from "@/utils/supabase/client";
 // en las capacidades de la neurona para poder dirigirle broadcasts de cuenta
 // (p. ej. "Solicitar archivo a esta neurona" → evento 'file-request').
 import { deviceId as syncDeviceId } from "@/lib/sync/entity-state";
+// Id de dispositivo de la malla LoRa/faros (federation.ts) — Ola 366 (malla de
+// neuronas): se publica junto a `syncDeviceId` en las capacidades para que la
+// malla WebRTC y los faros de la red sináptica puedan casar "esta neurona" con
+// "este faro" sin inventar una cuarta identidad. Ver `identidad-dispositivo.ts`.
+import { deviceId as meshDeviceId } from "@/ai/astraura/mesh/federation";
 // Config de conectividad portátil (Adenda 100): señales/internet por neurona.
 // Solo tipo ⇒ se borra en compilación (sin dependencia circular en runtime).
 import type { ConnectivityConfig } from "@/ai/astraura/mesh";
@@ -40,6 +45,8 @@ export const NEURON_EVENT = "starseed:neurons";
 /** Visto hace menos de esto ⇒ online. */
 export const ONLINE_WINDOW_MS = 3 * 60_000;
 const HEARTBEAT_MS = 60_000;
+/** Cadencia del latido cuando la pestaña está oculta (Ola 366): más lento, nunca cero. */
+const HIDDEN_HEARTBEAT_MS = 3 * 60_000;
 
 export type NeuronKind = "desktop" | "laptop" | "mobile" | "tablet" | "server" | "other";
 
@@ -63,6 +70,10 @@ export interface NeuronCapabilities {
   /** deviceId del motor de sync (entity-state) — destino de broadcasts de
    *  cuenta como 'file-request'. Distinto del id de neurona (histórico). */
   syncDeviceId?: string;
+  /** deviceId de la malla LoRa/faros (federation.ts) — Ola 366 (malla de
+   *  neuronas): casa esta neurona con sus faros de `os_mesh_relay` y su fila
+   *  de `os_mesh_topology` sin depender solo de `owner_id`. */
+  meshDeviceId?: string;
   /** Auto-vinculación Hermes↔OS (Adenda 71-bis): bridge de sincronización con
    *  la sesión Hermes de esta neurona. */
   bridge?: {
@@ -276,6 +287,9 @@ export async function detectCapabilities(): Promise<NeuronCapabilities> {
   // Puente con el motor de sync: permite dirigir broadcasts (file-request…)
   // a esta neurona usando su deviceId de entity-state.
   try { caps.syncDeviceId = syncDeviceId(); } catch { /* */ }
+  // Puente con la malla LoRa/faros: permite casar esta neurona con sus faros
+  // de la red sináptica (Ola 366 · malla de neuronas). Ver identidad-dispositivo.ts.
+  try { caps.meshDeviceId = meshDeviceId(); } catch { /* */ }
   // Servidores locales (solo tiene sentido sondear en el propio dispositivo).
   caps.ollama = await probeLocal("http://localhost:11434/api/tags");
   caps.lmstudio = await probeLocal("http://localhost:1234/v1/models");
@@ -473,8 +487,20 @@ export async function ensureThisNeuron(): Promise<Neuron | null> {
   };
   void upsertRemote(neuron);
   if (!heartbeatTimer) {
+    // Ola 366 (malla de neuronas): antes, una pestaña en segundo plano (Mac
+    // minimizada, tablet con la pantalla apagada) dejaba de latir DEL TODO, así
+    // que a los 3 min (ONLINE_WINDOW_MS) esa neurona se veía "offline" aunque
+    // siguiera encendida — la malla nunca la detectaba para autovincularse. Con
+    // la pestaña oculta seguimos latiendo, solo que más despacio (cada
+    // HIDDEN_HEARTBEAT_MS) para no gastar cuota de Supabase sin necesidad.
+    let lastHiddenBeat = 0;
     heartbeatTimer = setInterval(() => {
-      if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
+      const hidden = typeof document !== "undefined" && document.visibilityState === "hidden";
+      if (hidden) {
+        const now = Date.now();
+        if (now - lastHiddenBeat < HIDDEN_HEARTBEAT_MS) return;
+        lastHiddenBeat = now;
+      }
       void upsertRemote({ id });
     }, HEARTBEAT_MS);
   }

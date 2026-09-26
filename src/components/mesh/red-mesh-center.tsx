@@ -25,6 +25,9 @@ import { MeshPrivacyPanel } from "@/components/mesh/mesh-privacy-panel";
 import { PeersPanel } from "@/components/mesh/peers-panel";
 import { MeshStatusChip } from "@/components/mesh/mesh-status-chip";
 import { startMeshSubsystem } from "@/ai/astraura/mesh";
+// Malla de neuronas (Ola 366): dispositivos StarSeed auto-vinculados por
+// WebRTC — DISTINTO de los peers de radio LoRa que pinta PeersPanel arriba.
+import { MallaNeuronasPanel } from "@/components/network/malla-neuronas-panel";
 
 const MeshMap3D = dynamic(() => import("@/components/mesh/mesh-map-3d"), {
   ssr: false,
@@ -136,8 +139,20 @@ export function RedMeshCenter({ embedded = false, showMap = true, showPrivacy = 
         <AntennasPanel />
       )}
 
-      {/* 6 · Peers y routers */}
+      {/* 6 · Peers y routers (radio LoRa — hardware físico) */}
       <PeersPanel />
+
+      {/* 7 · Dispositivos StarSeed (Ola 366): WebRTC entre neuronas de la cuenta +
+          radar de otras cuentas. Separado a propósito del bloque de arriba: NO
+          usa radio, solo tu cuenta como buzón de señalización. */}
+      <section>
+        <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold text-white/85">
+          <RadioTower className="h-4 w-4 text-sky-300" /> Dispositivos StarSeed (malla, sin radio)
+        </h2>
+        <div className="rounded-2xl border border-white/10 bg-black/20 p-3">
+          <MallaNeuronasPanel />
+        </div>
+      </section>
     </div>
   );
 }

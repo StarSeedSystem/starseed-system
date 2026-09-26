@@ -3957,3 +3957,68 @@ medio cuando hay demasiadas. Diez fallos (G1-G10) verificados y corregidos; el b
   para la honestidad del fallback de memoria sin sonda previa (G5): verificados por `tsc` +
   lectura del cableado, no por una prueba en vivo (ver el porqué en el SOP §16).
 - `next build` no se ejecutó (regla del área) ni hubo commit/push (worktree de solo trabajo).
+
+## 2026-09-26 — Ola 366 · Malla de neuronas: detección y auto-vínculo (worktree `_claude-malla`)
+**Sesión por:** Claude (Cowork), agente separado del enjambre de rutas de IA (no tocó
+`src/ai/providers/*`, `src/ai/astraura/router.ts`/`availability.ts`/`free-catalog.ts`,
+`src/app/api/ai/*` ni `src/lib/astraura/*`).
+**Problema (Alex, verbatim):** «los dispositivos mesh aún no se detectan y autovinculan y
+sincronizan, ni de múltiples cuentas ni de la misma cuenta de starseed os». Los datos ya
+existían en Supabase (`neuron_devices` con heartbeats frescos, faros recientes en
+`os_mesh_relay`) pero nada en el producto los usaba: solo un botón manual en `/servidores`.
+
+### Hecho
+- `src/lib/network/identidad-dispositivo.ts` (nuevo): une los 3 namespaces de id históricos
+  (`starseed.device.id` / `starseed.neuron.device-id` / `starseed.mesh.device-id.v1`) sin
+  invalidar los ya guardados.
+- `src/lib/network/malla-neuronas.ts` (nuevo, motor): detecta neuronas propias
+  (`neuron_devices`, online <3min) y auto-vincula por WebRTC sin botón cuando hay ≥2 online
+  (`decidirAutovinculo`, función pura); radar de neuronas cercanas de OTRAS cuentas solo por
+  faros (nunca radio LoRa, respeta `capaMeshCompartiendo()`); ficha de dispositivo (nombre,
+  plataforma, capas de Astraura, backend local vía sonda loopback-only, clase de RAM, versión)
+  + heartbeat cada 30s por el canal ya abierto. Publica `usePeersMalla()` (resumen, para que el
+  equipo de IA lo cablee en `use-estado-capas.ts` — no se tocó ese archivo) y
+  `useMallaNeuronasEstado()` (filas completas, solo lectura).
+- `src/components/network/malla-neuronas-mount.tsx` (nuevo): montaje global único en
+  `src/app/layout.tsx`, junto a `RealtimeSyncProvider`; excluido de `/mando`/`/voces`
+  (`esRutaConsola`, mismo motivo que `AppGlobals`).
+- `src/components/network/malla-neuronas-panel.tsx` (nuevo): listas «Tu malla» / «Cercanas de
+  otras cuentas»; botón «Solicitar vínculo» deshabilitado a propósito (vínculo entre cuentas
+  distintas fuera de alcance: requiere consentimiento de ambos lados).
+- Montado en el Hub de Conexiones (`connections-center.tsx`, pestaña «Malla») y en `/red-mesh`
+  (`red-mesh-center.tsx`, sección «Dispositivos StarSeed»).
+- Tres arreglos de señalización: `signaling.ts` memoiza el hub Realtime en vuelo (dos llamadas
+  concurrentes ya no abren dos canales); `webrtc-mesh.ts` bufferiza ICE llegado antes que la
+  oferta, resuelve glare (cortés/descortés por comparación de id) y reintenta oferta perdida
+  con backoff (`[3s,6s,12s]`, 4 intentos) antes de marcar `failed` con motivo legible.
+  `server-relay.ts`: los faros llevan `neuronId`/`syncId` del emisor.
+- `src/lib/neurons/neurons.ts`: `NeuronCapabilities.meshDeviceId` (casa neurona↔faro/topología);
+  heartbeat lento (3 min) en pestaña oculta en vez de dejar de latir del todo.
+- SOP: `architecture/malla-neuronas-autovinculo.md`. `CLAUDE.md` §11 actualizado.
+
+### Verificado
+- `tsc --noEmit -p .` limpio (0 errores).
+- `vitest run src/lib/network src/lib/neurons src/ai/astraura/mesh src/components/connectivity
+  src/components/network` → **77 pruebas / 10 archivos en verde** (los dos últimos directorios
+  no tenían tests previos que ejecutar).
+
+### Pendiente / Próximos pasos
+- Cablear `usePeersMalla()` en `src/lib/astraura/use-estado-capas.ts` (equipo de IA, archivo
+  fuera de alcance de esta ola).
+- TURN público: se mantiene STUN-only: no se investigó ni añadió uno fiable. Sin TURN, un NAT
+  simétrico en ambos lados puede acabar en `failed` en vez de conectar.
+- Estadísticas por tipo de candidato ICE (host/srflx/relay): no implementado.
+- Vínculo entre cuentas distintas: deliberadamente fuera de alcance (consentimiento pendiente);
+  el faro ya lleva `neuronId`/`syncId` listos para ese flujo futuro.
+- `next build` no se ejecutó en esta sesión (regla del área: nunca con el enjambre vivo /
+  agentes de este tipo) — sigue siendo la tercera puerta pendiente antes de publicar.
+
+### Notas / aprendizajes
+- Los 3 namespaces de id de dispositivo NO eran tres bugs distintos: `starseed.device.id`
+  (sync) y la clave de `device-registry.ts` ya eran la MISMA clave — la única unión que faltaba
+  de verdad era publicar `syncDeviceId` en `neuron_devices.capabilities` (ya existía desde la
+  Adenda 71-bis) y usarlo como clave de auto-vínculo.
+- Reutilizar `startMeshSubsystem()` (ya idempotente) en vez de escribir un arrancador de faros a
+  medida evita duplicar lógica, pero sube el egress de faros a TODAS las rutas fuera de
+  `/mando`/`/voces` en vez de solo a las páginas que ya lo montaban — se documenta como el
+  coste honesto de esta ola (§7 del SOP), no como una regresión oculta.

@@ -1,0 +1,235 @@
+"use client";
+
+/**
+ * MallaNeuronasPanel — «Dispositivos de tu malla» + «Neuronas cercanas de
+ * otras cuentas» (Ola 366). Lee el estado que ya publica el motor global
+ * (`useMallaNeuronasEstado`, montado UNA vez por `MallaNeuronasMount`) — este
+ * panel es solo lectura, no arranca ningún poll ni mesh por su cuenta.
+ *
+ * Mobile-first (390 px), iconos lucide, cursor-pointer, sin emojis.
+ */
+
+import { useState } from "react";
+import { Laptop, Monitor, RadioTower, Server, Smartphone, Tablet, Wifi, Loader2, XCircle, Radar } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
+import {
+  useMallaNeuronasEstado,
+  type DispositivoMallaRow,
+  type NeuronaCercanaRow,
+} from "@/lib/network/malla-neuronas";
+import type { NeuronKind } from "@/lib/neurons/neurons";
+
+function iconoTipo(tipo: NeuronKind) {
+  switch (tipo) {
+    case "mobile":
+      return Smartphone;
+    case "tablet":
+      return Tablet;
+    case "laptop":
+      return Laptop;
+    case "server":
+      return Server;
+    case "desktop":
+      return Monitor;
+    default:
+      return Monitor;
+  }
+}
+
+function timeAgo(ms: number): string {
+  if (!ms || ms < 0) return "—";
+  const s = Math.round(ms / 1000);
+  if (s < 60) return `hace ${s} s`;
+  const m = Math.round(s / 60);
+  if (m < 60) return `hace ${m} min`;
+  return `hace ${Math.round(m / 60)} h`;
+}
+
+function EnlaceBadge({ enlace }: { enlace: DispositivoMallaRow["enlace"] }) {
+  if (enlace.estado === "conectado") {
+    return (
+      <Badge variant="outline" className="gap-1 border-emerald-400/50 text-[9px] text-emerald-300">
+        <Wifi className="h-3 w-3" /> conectado{typeof enlace.latenciaMs === "number" ? ` · ${enlace.latenciaMs} ms` : ""}
+      </Badge>
+    );
+  }
+  if (enlace.estado === "conectando") {
+    return (
+      <Badge variant="outline" className="gap-1 border-sky-400/40 text-[9px] text-sky-300">
+        <Loader2 className="h-3 w-3 animate-spin" /> conectando
+      </Badge>
+    );
+  }
+  if (enlace.estado === "fallido") {
+    return (
+      <Badge
+        variant="outline"
+        className="gap-1 border-red-400/40 text-[9px] text-red-300"
+        title={enlace.motivo}
+      >
+        <XCircle className="h-3 w-3" /> fallido
+      </Badge>
+    );
+  }
+  return (
+    <Badge variant="outline" className="text-[9px] text-foreground/45">
+      sin vínculo
+    </Badge>
+  );
+}
+
+function DispositivoRow({ d }: { d: DispositivoMallaRow }) {
+  const Icon = iconoTipo(d.tipo);
+  return (
+    <div
+      className={cn(
+        "flex flex-wrap items-center gap-2 rounded-xl border p-2.5",
+        d.esEsteDispositivo
+          ? "border-sky-400/40 bg-sky-400/[0.06]"
+          : d.online
+            ? "border-foreground/10 bg-foreground/[0.03]"
+            : "border-foreground/10 bg-foreground/[0.015] opacity-60",
+      )}
+    >
+      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-foreground/10 text-foreground/70">
+        <Icon className="h-4 w-4" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="truncate text-sm font-medium text-foreground">{d.nombre}</span>
+          {d.esEsteDispositivo && (
+            <Badge variant="outline" className="border-sky-400/40 text-[9px] text-sky-300">
+              este dispositivo
+            </Badge>
+          )}
+          {!d.esEsteDispositivo && <EnlaceBadge enlace={d.enlace} />}
+          <Badge
+            variant="outline"
+            className={cn("text-[9px]", d.online ? "border-emerald-400/30 text-emerald-300" : "text-foreground/40")}
+          >
+            {d.online ? "en línea" : "desconectada"}
+          </Badge>
+        </div>
+        <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-foreground/45">
+          <span className="truncate">{d.plataforma}</span>
+          {d.ficha && (
+            <>
+              <span>· {d.ficha.ramClase}</span>
+              <span>· v{d.ficha.versionOS}</span>
+              {d.ficha.backendLocal && <span className="text-emerald-300/80">· backend 1.58 local</span>}
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CercanaRow({ b }: { b: NeuronaCercanaRow }) {
+  return (
+    <div className="flex flex-wrap items-center gap-2 rounded-xl border border-foreground/10 bg-foreground/[0.03] p-2.5">
+      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-foreground/10 text-foreground/60">
+        <Radar className="h-4 w-4" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="truncate text-sm font-medium text-foreground">{b.etiqueta}</span>
+          <Badge variant="outline" className="border-foreground/20 text-[9px] text-foreground/55">
+            detectada
+          </Badge>
+        </div>
+        <div className="mt-0.5 text-[10px] text-foreground/45">
+          {timeAgo(b.detectadaHaceMs)}
+          {b.ofreceInternetPublico && <span> · ofrece internet público</span>}
+        </div>
+      </div>
+      <button
+        type="button"
+        disabled
+        title="Próximamente: vínculo con consentimiento de ambas cuentas"
+        className="ml-auto shrink-0 cursor-not-allowed rounded-full border border-foreground/15 px-2.5 py-1 text-[10px] text-foreground/35"
+      >
+        Solicitar vínculo
+      </button>
+    </div>
+  );
+}
+
+export function MallaNeuronasPanel({ compact = false }: { compact?: boolean }) {
+  const { misDispositivos, cercanas, loading } = useMallaNeuronasEstado();
+  const [tab, setTab] = useState<"propios" | "cercanas">("propios");
+
+  const enLinea = misDispositivos.filter((d) => d.online).length;
+
+  return (
+    <div className={cn("space-y-3", compact ? "text-[12px]" : "text-sm")}>
+      <div className="flex flex-wrap items-center gap-2">
+        <RadioTower className="h-4 w-4 text-emerald-300" />
+        <span className="text-xs font-semibold text-foreground">Dispositivos StarSeed</span>
+        <Badge variant="outline" className="border-emerald-400/30 text-[9px] text-emerald-300">
+          {enLinea} en línea
+        </Badge>
+      </div>
+      <p className="text-[10px] leading-snug text-foreground/45">
+        Se detectan y se vinculan solos (WebRTC, sin botón) en cuanto dos dispositivos de tu cuenta están en línea a la
+        vez. Separado de la radio LoRa: esto no usa ningún hardware, solo tu cuenta como buzón de señalización.
+      </p>
+
+      <div className="flex gap-1.5">
+        <button
+          type="button"
+          onClick={() => setTab("propios")}
+          className={cn(
+            "cursor-pointer rounded-full border px-2.5 py-1 text-[11px] transition-colors duration-200",
+            tab === "propios"
+              ? "border-sky-400/40 bg-sky-500/15 text-sky-100"
+              : "border-foreground/10 bg-foreground/[0.03] text-foreground/55 hover:border-foreground/25",
+          )}
+        >
+          Tu malla ({misDispositivos.length})
+        </button>
+        <button
+          type="button"
+          onClick={() => setTab("cercanas")}
+          className={cn(
+            "cursor-pointer rounded-full border px-2.5 py-1 text-[11px] transition-colors duration-200",
+            tab === "cercanas"
+              ? "border-sky-400/40 bg-sky-500/15 text-sky-100"
+              : "border-foreground/10 bg-foreground/[0.03] text-foreground/55 hover:border-foreground/25",
+          )}
+        >
+          Cercanas de otras cuentas ({cercanas.length})
+        </button>
+      </div>
+
+      {tab === "propios" ? (
+        <div className="space-y-1.5">
+          {loading && misDispositivos.length === 0 ? (
+            <div className="rounded-xl border border-foreground/10 bg-foreground/[0.03] p-2.5 text-[11px] text-foreground/45">
+              Detectando tus dispositivos…
+            </div>
+          ) : misDispositivos.length === 0 ? (
+            <div className="rounded-xl border border-foreground/10 bg-foreground/[0.03] p-2.5 text-[11px] text-foreground/45">
+              Sin sesión, o aún no se ha registrado ninguna neurona en esta cuenta.
+            </div>
+          ) : (
+            misDispositivos.map((d) => <DispositivoRow key={d.neuronId} d={d} />)
+          )}
+        </div>
+      ) : (
+        <div className="space-y-1.5">
+          {cercanas.length === 0 ? (
+            <div className="rounded-xl border border-foreground/10 bg-foreground/[0.03] p-2.5 text-[11px] text-foreground/45">
+              Ninguna neurona de otra cuenta detectada por ahora (radar de faros, últimos minutos).
+            </div>
+          ) : (
+            cercanas.map((b) => <CercanaRow key={b.deviceId} b={b} />)
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default MallaNeuronasPanel;

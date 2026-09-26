@@ -41,6 +41,10 @@ import { RedMeshCenter } from "@/components/mesh/red-mesh-center";
 import { SignalsCenter } from "@/components/mesh/signals-center";
 import { ConnectivityConfigPanel } from "@/components/connectivity/connectivity-config-panel";
 import { CanalesTelegram } from "@/components/connectivity/canales-telegram";
+// Malla de neuronas (Ola 366): dispositivos de la cuenta auto-vinculados por
+// WebRTC + radar de neuronas cercanas de otras cuentas. Panel de solo lectura
+// (el motor ya corre globalmente vía MallaNeuronasMount).
+import { MallaNeuronasPanel } from "@/components/network/malla-neuronas-panel";
 import {
   bluetoothLink,
   connectMesh,
@@ -65,11 +69,15 @@ const ROUTE_OPTIONS: Array<{ id: PreferredRoute; label: string; hint: string }> 
 ];
 
 /** Pestañas del hub de conexiones (menú superior, centrado y responsive). */
-type HubTab = "conexiones" | "senales" | "internet" | "canales";
+type HubTab = "conexiones" | "senales" | "internet" | "malla" | "canales";
 const HUB_TABS: Array<{ id: HubTab; label: string; icon: typeof RadioTower }> = [
   { id: "conexiones", label: "Conexiones", icon: RadioTower },
   { id: "senales", label: "Señales", icon: Antenna },
   { id: "internet", label: "Internet", icon: Radar },
+  // Ola 366: dispositivos de la cuenta auto-vinculados por WebRTC ("malla de
+  // neuronas") + radar de neuronas cercanas de otras cuentas — DISTINTO de la
+  // radio LoRa (eso sigue en «Internet» → RedMeshCenter → PeersPanel).
+  { id: "malla", label: "Malla", icon: Wifi },
   // Adenda 281 · E7: canales y grupos de Telegram de la cuenta, con sus enlaces
   // t.me y últimos mensajes. El icono lucide MessageSquare (no emoji) sigue el
   // criterio de CLAUDE.md §8 (iconos Lucide, cursor-pointer, 150-300ms).
@@ -325,6 +333,8 @@ export function ConnectionsCenter({ compact = false }: { compact?: boolean }) {
 
       {tab === "canales" ? (
         <CanalesTelegram compact={compact} />
+      ) : tab === "malla" ? (
+        <MallaNeuronasPanel compact={compact} />
       ) : (
         <SignalsCenter embedded compact={compact} />
       )}

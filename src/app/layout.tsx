@@ -76,6 +76,9 @@ import { SovereignSyncMount } from "@/components/system/sovereign-sync-mount";
 // Motor de sincronización en TIEMPO REAL entre dispositivos de la cuenta
 // (escritorios, memorias, chats de Aurora, ajustes…): src/lib/sync/realtime-sync.ts.
 import { RealtimeSyncProvider } from "@/components/system/realtime-sync-provider";
+// Malla de neuronas (Ola 366): detección/auto-vínculo WebRTC entre las neuronas
+// de la cuenta + radar de neuronas cercanas de otras cuentas. Ver src/lib/network/malla-neuronas.ts.
+import { MallaNeuronasMount } from "@/components/network/malla-neuronas-mount";
 import { OmniAppHost } from "@/components/dashboard/apps/omnifrecuencias/omni-app-host";
 import { AudiomorphicConfigHost } from "@/components/ui/backgrounds/audiomorphic-config-window";
 import { RegisterSW } from "@/components/pwa/register-sw";
@@ -309,6 +312,10 @@ export default function RootLayout({
                         <SovereignSyncMount />
                         {/* Sincronización en TIEMPO REAL entre dispositivos de la cuenta (defensiva). */}
                         <RealtimeSyncProvider />
+                        {/* Malla de neuronas (Ola 366): detecta las neuronas de la cuenta y las
+                            auto-vincula por WebRTC sin botón + radar de neuronas cercanas de otras
+                            cuentas. Excluida de /mando y /voces (máquinas de 8 GB, ver el componente). */}
+                        <MallaNeuronasMount />
                         {/* App Omnifrecuencias en ventana del OS (escucha 'starseed:open-omnifrecuencias'). */}
                         <SoloFueraDeConsola><OmniAppHost /></SoloFueraDeConsola>
                         {/* Ventana de configuración del fondo Audiomorphic (escucha 'starseed:open-audiomorphic-config'). */}

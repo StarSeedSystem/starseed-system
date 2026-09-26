@@ -467,6 +467,30 @@ export interface RelayBeacon {
   offersPublic?: boolean;
   /** Puerto anunciado para vínculos privados personalizables. */
   port?: number;
+  /**
+   * Id de neurona (`starseed.neuron.device-id`) del EMISOR de este faro, si lo
+   * incluyó (Ola 366 · malla de neuronas). Permite casar un faro con una fila
+   * de `neuron_devices` ya conocida (misma cuenta) en vez de solo con `own`.
+   */
+  neuronId?: string;
+  /** Id de sync (`starseed.device.id`) del emisor, si lo incluyó (Ola 366). */
+  syncId?: string;
+}
+
+/**
+ * Etiqueta de identidad de ESTA neurona para el payload del faro (Ola 366 ·
+ * malla de neuronas): lectura DIRECTA de las claves (mismo patrón que
+ * `myPublicOffer` — sin acoplar el mesh a `identidad-dispositivo.ts`/neurons.ts
+ * en tiempo de import). No es PII: son ids aleatorios locales al navegador.
+ */
+function myIdentityTag(): { nid?: string; sid?: string } {
+  try {
+    const nid = safeGet("starseed.neuron.device-id") || undefined;
+    const sid = safeGet("starseed.device.id") || undefined;
+    return { ...(nid ? { nid } : {}), ...(sid ? { sid } : {}) };
+  } catch {
+    return {};
+  }
 }
 
 /** Oferta de servicio público de ESTA neurona (para anunciarla en el faro). */
@@ -522,7 +546,11 @@ export async function emitBeacon(): Promise<boolean> {
       cls: "P1",
       ptype: "presence",
       enc: false,
-      payload: myPublicOffer(), // anuncia si ofrece internet público + puerto (Adenda 115)
+      // Anuncia si ofrece internet público + puerto (Adenda 115) y la etiqueta
+      // de identidad {nid,sid} (Ola 366) para que la malla de neuronas case este
+      // faro con una neurona/deviceId de sync ya conocidos, sin PII adicional
+      // (son los MISMOS ids opacos que ya viajaban en `neuron_devices`/sync).
+      payload: { ...myPublicOffer(), ...myIdentityTag() },
       device_id: me,
       // Anónimo → sin etiqueta de usuario. Visible → según shareName.
       label: anonymous ? null : privacy.shareName ? s.self?.shortName || s.self?.longName || "Neurona" : null,
@@ -599,7 +627,7 @@ export async function pullBeacons(): Promise<RelayBeacon[]> {
       const dev = String(row.device_id ?? "");
       if (!dev || dev === me || seen.has(dev)) continue; // ni yo ni duplicados
       seen.add(dev);
-      const offer = (row.payload ?? null) as { offersPublic?: boolean; port?: number } | null;
+      const offer = (row.payload ?? null) as { offersPublic?: boolean; port?: number; nid?: string; sid?: string } | null;
       out.push({
         deviceId: dev,
         label: row.label ? String(row.label) : null,
@@ -610,6 +638,8 @@ export async function pullBeacons(): Promise<RelayBeacon[]> {
         own: myDevices.has(dev),
         offersPublic: offer?.offersPublic === true,
         port: typeof offer?.port === "number" ? offer.port : undefined,
+        neuronId: typeof offer?.nid === "string" ? offer.nid : undefined,
+        syncId: typeof offer?.sid === "string" ? offer.sid : undefined,
       });
     }
     return out;

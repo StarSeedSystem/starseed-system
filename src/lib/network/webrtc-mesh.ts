@@ -48,6 +48,10 @@ export interface PeerSnapshot {
   channelOpen: boolean;
   /** Última actividad conocida (epoch ms). */
   lastUpdate: number;
+  /** Motivo honesto de un estado 'failed' (Ola 366), para mostrar en la UI. */
+  reason?: string;
+  /** Nº de intentos de oferta ya hechos (retry con backoff). */
+  attempts?: number;
 }
 
 /** Callback de cambios de peer (alta, cambio de estado, mensajes). */
@@ -94,6 +98,22 @@ const ICE_SERVERS: RTCIceServer[] = [
 /** Nombre del data channel P2P. */
 const DATA_CHANNEL_LABEL = "starseed";
 
+/** Sin respuesta (ni canal abierto) pasado esto tras una oferta ⇒ reintento. */
+const OFFER_TIMEOUT_MS = 15_000;
+/** Backoff entre reintentos (ms), uno por intento adicional (índice = intento-1). */
+const RETRY_BACKOFF_MS = [3_000, 6_000, 12_000];
+/** Máximo de intentos de oferta (el primero + reintentos) antes de 'fallida'. */
+const MAX_OFFER_ATTEMPTS = RETRY_BACKOFF_MS.length + 1;
+
+/**
+ * ¿Soy el peer "cortés" frente a `remoteId`? Determinista por comparación
+ * lexicográfica de ids (el de id MENOR cede en un glare de ofertas cruzadas).
+ * Exportada (Ola 366) para poder probarla sin montar RTCPeerConnection.
+ */
+export function esCortes(miId: string, remoteId: string): boolean {
+  return miId < remoteId;
+}
+
 /* ------------------------------------------------------------------ */
 /* Soporte de entorno (real)                                         */
 /* ------------------------------------------------------------------ */
@@ -125,6 +145,14 @@ interface PeerRecord {
   pendingRemoteCandidates: RTCIceCandidateInit[];
   /** ¿Ya se aplicó una descripción remota? (para vaciar el buffer ICE). */
   hasRemoteDescription: boolean;
+  /** Motivo honesto del último 'failed' (timeout, ICE, señalización…). */
+  reason?: string;
+  /** Nº de ofertas ya enviadas a este peer (para el backoff). */
+  attempts: number;
+  /** Temporizador de "sin respuesta a los OFFER_TIMEOUT_MS" en vuelo. */
+  offerTimer: ReturnType<typeof setTimeout> | null;
+  /** Temporizador de reintento con backoff en vuelo. */
+  retryTimer: ReturnType<typeof setTimeout> | null;
 }
 
 /* ------------------------------------------------------------------ */
@@ -147,6 +175,25 @@ export function initMesh(myDeviceId: string, userId: string): MeshHandle | null 
   const listeners = new Set<PeerEvents>();
   let signalingSub: SignalSubscription | null = null;
   let closed = false;
+  /**
+   * Candidatos ICE de un `deviceId` que llegaron ANTES de que existiera
+   * cualquier PeerRecord para él (p. ej. reordenado del transporte de
+   * señalización: el ICE adelanta a la oferta). Antes `handleIce` los
+   * descartaba sin más (`if (!p) return`) — ahora se guardan aquí y se drenan
+   * en cuanto se crea el peer (que los mueve a `pendingRemoteCandidates`, el
+   * buffer que ya existía para "peer sí pero sin descripción remota aún").
+   */
+  const pendingIceBeforePeer = new Map<string, RTCIceCandidateInit[]>();
+  /**
+   * Intentos de oferta por `deviceId`, FUERA del PeerRecord (Ola 366): un
+   * reintento recrea el `RTCPeerConnection` (necesario: un `pc` fallido no se
+   * reutiliza), pero el CONTADOR debe sobrevivir a esa recreación para que el
+   * backoff y el tope de `MAX_OFFER_ATTEMPTS` cuenten intentos de verdad, no
+   * "intentos por objeto". Un `connectToDevice` MANUAL sobre un peer ya
+   * agotado (sin reintento en vuelo) lo resetea — es un intento nuevo, no una
+   * continuación del backoff.
+   */
+  const attemptsByDevice = new Map<string, number>();
 
   /* ---------------- utilidades internas ---------------- */
 
@@ -155,6 +202,8 @@ export function initMesh(myDeviceId: string, userId: string): MeshHandle | null 
     state: p.state,
     channelOpen: p.channelOpen,
     lastUpdate: p.lastUpdate,
+    ...(p.reason ? { reason: p.reason } : {}),
+    attempts: p.attempts,
   });
 
   const emitState = (p: PeerRecord) => {
@@ -178,15 +227,55 @@ export function initMesh(myDeviceId: string, userId: string): MeshHandle | null 
     }
   };
 
-  const setState = (p: PeerRecord, state: PeerState) => {
-    if (p.state === state) return;
+  const clearPeerTimers = (p: PeerRecord) => {
+    if (p.offerTimer) {
+      clearTimeout(p.offerTimer);
+      p.offerTimer = null;
+    }
+    if (p.retryTimer) {
+      clearTimeout(p.retryTimer);
+      p.retryTimer = null;
+    }
+  };
+
+  const setState = (p: PeerRecord, state: PeerState, reason?: string) => {
+    if (state === "connected" || state === "closed") clearPeerTimers(p);
+    if (p.state === state && reason === p.reason) return;
     p.state = state;
     p.lastUpdate = Date.now();
+    if (reason !== undefined) p.reason = reason;
+    else if (state === "connected") p.reason = undefined; // éxito: limpia el motivo del intento anterior
     emitState(p);
   };
 
   /** ¿Somos el "polite peer" frente a `remoteId`? Determinista por id. */
-  const amPolite = (remoteId: string): boolean => myDeviceId < remoteId;
+  const amPolite = (remoteId: string): boolean => esCortes(myDeviceId, remoteId);
+
+  /**
+   * scheduleRetryOrFail — un intento (oferta enviada pero sin respuesta a los
+   * OFFER_TIMEOUT_MS, o el `pc`/ICE reportó 'failed') se marca 'failed' con un
+   * motivo HONESTO. Si somos el caller y aún quedan intentos, se reintenta con
+   * backoff creciente (RETRY_BACKOFF_MS); agotados los intentos (o si no somos
+   * el caller: solo el caller reintenta, el callee simplemente espera la
+   * próxima oferta), se queda 'failed' con el motivo y el nº de intentos.
+   */
+  const scheduleRetryOrFail = (p: PeerRecord, reason: string) => {
+    if (closed || p.state === "connected") return;
+    clearPeerTimers(p);
+    const attempts = attemptsByDevice.get(p.deviceId) ?? p.attempts;
+    p.attempts = attempts;
+    if (!p.isCaller || attempts >= MAX_OFFER_ATTEMPTS) {
+      const suffix = attempts > 0 ? ` (tras ${attempts} intento${attempts === 1 ? "" : "s"})` : "";
+      setState(p, "failed", `${reason}${suffix}`);
+      return;
+    }
+    setState(p, "failed", reason);
+    const delay = RETRY_BACKOFF_MS[Math.min(attempts - 1, RETRY_BACKOFF_MS.length - 1)];
+    p.retryTimer = setTimeout(() => {
+      if (closed) return;
+      void startOffer(p.deviceId);
+    }, delay);
+  };
 
   /* ---------------- construcción de un peer ---------------- */
 
@@ -232,7 +321,20 @@ export function initMesh(myDeviceId: string, userId: string): MeshHandle | null 
         isCaller,
         pendingRemoteCandidates: [],
         hasRemoteDescription: false,
+        attempts: 0,
+        offerTimer: null,
+        retryTimer: null,
       };
+
+      // Drena los candidatos ICE que llegaron para este `deviceId` ANTES de que
+      // existiera este PeerRecord (ver `pendingIceBeforePeer`): antes se
+      // perdían para siempre; ahora entran al buffer normal y se aplican en
+      // cuanto haya descripción remota, igual que cualquier otro candidato.
+      const early = pendingIceBeforePeer.get(deviceId);
+      if (early?.length) {
+        p.pendingRemoteCandidates.push(...early);
+        pendingIceBeforePeer.delete(deviceId);
+      }
 
       // ICE trickle: enviamos cada candidato por la cuenta.
       pc.onicecandidate = (ev: RTCPeerConnectionIceEvent) => {
@@ -254,7 +356,7 @@ export function initMesh(myDeviceId: string, userId: string): MeshHandle | null 
           // si aún no lo hizo.
           if (!p.channelOpen) setState(p, "connecting");
         } else if (cs === "failed") {
-          setState(p, "failed");
+          scheduleRetryOrFail(p, "La conexión ICE falló (posible NAT simétrico sin TURN)");
         } else if (cs === "disconnected") {
           if (p.state !== "failed") setState(p, "connecting");
         } else if (cs === "closed") {
@@ -264,7 +366,7 @@ export function initMesh(myDeviceId: string, userId: string): MeshHandle | null 
 
       pc.oniceconnectionstatechange = () => {
         const is = pc.iceConnectionState;
-        if (is === "failed") setState(p, "failed");
+        if (is === "failed") scheduleRetryOrFail(p, "La conexión ICE falló (posible NAT simétrico sin TURN)");
       };
 
       // El callee recibe el data channel creado por el caller.
@@ -319,6 +421,11 @@ export function initMesh(myDeviceId: string, userId: string): MeshHandle | null 
       emitState(p);
     }
 
+    clearPeerTimers(p);
+    const attempts = (attemptsByDevice.get(deviceId) ?? 0) + 1;
+    attemptsByDevice.set(deviceId, attempts);
+    p.attempts = attempts;
+
     try {
       const offer = await p.pc.createOffer();
       await p.pc.setLocalDescription(offer);
@@ -330,10 +437,19 @@ export function initMesh(myDeviceId: string, userId: string): MeshHandle | null 
         at: Date.now(),
         nonce: "",
       });
-      if (!ok) setState(p, "failed");
+      if (!ok) {
+        scheduleRetryOrFail(p, "No se pudo enviar la oferta por la señalización de la cuenta");
+        return p;
+      }
+      // Sin respuesta (ni ICE ni canal abierto) a los OFFER_TIMEOUT_MS ⇒ se
+      // trata como una oferta perdida y se reintenta con backoff (antes se
+      // quedaba "connecting" para siempre, sin ningún reintento).
+      p.offerTimer = setTimeout(() => {
+        if (p!.state !== "connected") scheduleRetryOrFail(p!, "Sin respuesta a la oferta (offer timeout)");
+      }, OFFER_TIMEOUT_MS);
       return p;
     } catch {
-      setState(p, "failed");
+      scheduleRetryOrFail(p, "Error local al crear la oferta (createOffer/setLocalDescription)");
       return p;
     }
   };
@@ -412,14 +528,25 @@ export function initMesh(myDeviceId: string, userId: string): MeshHandle | null 
       p.hasRemoteDescription = true;
       await flushPendingCandidates(p);
     } catch {
-      setState(p, "failed");
+      scheduleRetryOrFail(p, "No se pudo aplicar la respuesta (setRemoteDescription)");
     }
   };
 
   const handleIce = async (sig: Signal) => {
     if (!sig.candidate) return;
     const p = peers.get(sig.from);
-    if (!p) return;
+    if (!p) {
+      // Fix Ola 366: el ICE puede adelantar a la oferta (reordenado del
+      // transporte de señalización — más probable en el fallback de polling).
+      // ANTES: `if (!p) return` lo descartaba para siempre; el peer se creaba
+      // luego (al procesar la oferta) SIN ese candidato, perdiendo una ruta
+      // válida y a veces la ÚNICA con NAT difícil. Ahora se guarda aquí y
+      // `createPeer` lo drena en cuanto exista el PeerRecord.
+      const buf = pendingIceBeforePeer.get(sig.from) ?? [];
+      buf.push(sig.candidate);
+      pendingIceBeforePeer.set(sig.from, buf);
+      return;
+    }
     // Si aún no tenemos descripción remota, bufferizamos el candidato.
     if (!p.hasRemoteDescription) {
       p.pendingRemoteCandidates.push(sig.candidate);
@@ -434,6 +561,7 @@ export function initMesh(myDeviceId: string, userId: string): MeshHandle | null 
 
   const handleBye = (sig: Signal) => {
     const p = peers.get(sig.from);
+    pendingIceBeforePeer.delete(sig.from);
     if (!p) return;
     try {
       p.pc.close();
@@ -499,6 +627,17 @@ export function initMesh(myDeviceId: string, userId: string): MeshHandle | null 
     if (existing && (existing.state === "connected" || existing.state === "connecting")) {
       return snapshot(existing);
     }
+    // Ya hay un reintento con backoff EN VUELO para este peer: no dupliques la
+    // oferta, solo devuelve el estado actual (la UI lo verá progresar solo).
+    if (existing?.retryTimer) {
+      return snapshot(existing);
+    }
+    // Petición MANUAL sobre un peer agotado (failed/closed, sin backoff en
+    // vuelo): es un intento NUEVO, no la continuación del automático → resetea
+    // el contador de intentos para que tenga sus MAX_OFFER_ATTEMPTS completos.
+    if (existing && (existing.state === "failed" || existing.state === "closed")) {
+      attemptsByDevice.delete(targetDeviceId);
+    }
     const p = await startOffer(targetDeviceId);
     if (!p) {
       return {
@@ -553,6 +692,7 @@ export function initMesh(myDeviceId: string, userId: string): MeshHandle | null 
     closed = true;
     // Avisar a los peers (best-effort) y cerrar conexiones.
     for (const p of peers.values()) {
+      clearPeerTimers(p);
       try {
         void sendSignal({ from: myDeviceId, to: p.deviceId, kind: "bye", at: Date.now(), nonce: "" });
       } catch {
@@ -570,6 +710,8 @@ export function initMesh(myDeviceId: string, userId: string): MeshHandle | null 
       }
     }
     peers.clear();
+    pendingIceBeforePeer.clear();
+    attemptsByDevice.clear();
     listeners.clear();
     try {
       signalingSub?.unsubscribe();
