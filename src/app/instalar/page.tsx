@@ -59,11 +59,11 @@ export default function InstalarPage() {
   const modeloRec = MODELOS.find((m) => m.id === (rec?.modelo ?? ""));
 
   return (
-    <main className="min-h-screen bg-[#070a14] text-slate-100 px-5 py-10">
+    <main className="min-h-screen bg-[#070a14] text-slate-100 px-4 py-8 sm:px-5 sm:py-10">
       <div className="mx-auto w-full max-w-3xl space-y-8">
         <header className="space-y-2">
           <p className="text-xs uppercase tracking-[0.3em] text-cyan-300/80">StarSeed OS · Instalación</p>
-          <h1 className="text-3xl font-semibold">Instala tu neurona</h1>
+          <h1 className="text-2xl sm:text-3xl font-semibold">Instala tu neurona</h1>
           <p className="text-sm text-slate-300">
             Analizo este dispositivo de verdad (sistema, procesador, memoria), busco tus sesiones activas
             para sincronizar y te recomiendo la mejor versión respetando los límites de tu hardware.
