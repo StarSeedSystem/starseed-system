@@ -39,7 +39,7 @@ import { detectAvailabilitySafe, userConfigForSource, astraura158EndpointFor, ty
 // configurable por agente/personalidad/cerebro/neurona/cuenta. Capa pura.
 import { resolvePrimarySystem, type PrimaryMode, type PrimaryProvenance } from "@/lib/astraura/primary-system";
 import { persona158For, modelToPersona158, ASTRAURA_158_MODEL_PREFIX } from "@/ai/providers/astraura-158";
-import { ASTRAURA_158_LOCAL_SOURCE_ID, ASTRAURA_158_CLOUD_SOURCE_ID } from "./free-catalog";
+import { ASTRAURA_158_LOCAL_SOURCE_ID, ASTRAURA_158_CLOUD_SOURCE_ID, ASTRAURA_158_MALLA_SOURCE_ID } from "./free-catalog";
 import { chromeAiChat, chromeAiReadyNow, webllmChat, transformersChat } from "./builtin-engines";
 import { noteUsage, isCoolingDown, markCooldown, dailyPercent } from "./usage";
 import { penalizacionPorPresupuesto } from "./presupuesto"; // (Ola 223 I1F)
@@ -453,9 +453,12 @@ export function difficultyAdjustment(
  *     para ganar con margen claro a un modelo `:free` de calidad equivalente,
  *     pero muy por debajo del override manual (+100) o de "usar mi cuenta"
  *     (+8 del modo conectores `prefer-own`, que sigue mandando en SU fuente).
+ *   · MALLA P2P (Ola 367): boost intermedio (+5) — otra neurona de la MISMA
+ *     cuenta sirviendo por el canal WebRTC, sin túnel ni tercero: más soberana
+ *     que la nube, pero un salto de red más que hablar con el propio backend.
  *   · NUBE StarSeed: boost menor (+3) — mismo backend, pero sin la soberanía
  *     total de la neurona local; solo debe ganarle a la nube GENÉRICA, no
- *     aspira a competir con el propio local.
+ *     aspira a competir con el propio local ni con la malla.
  *   · TAREAS DIFÍCILES (`difficulty >= strongThreshold`) o de VISIÓN: boost
  *     RETIRADO (0). El 1.58 no tiene visión (queda descalificado antes por
  *     `scoreModelForTask`) y en lo difícil ya cede a los modelos fuertes vía
@@ -469,15 +472,23 @@ export function local158PriorityDelta(
   needsVision: boolean,
   strongThreshold: number,
 ): { delta: number; note?: string } {
-  if (sourceId !== ASTRAURA_158_LOCAL_SOURCE_ID && sourceId !== ASTRAURA_158_CLOUD_SOURCE_ID) {
+  if (
+    sourceId !== ASTRAURA_158_LOCAL_SOURCE_ID &&
+    sourceId !== ASTRAURA_158_MALLA_SOURCE_ID &&
+    sourceId !== ASTRAURA_158_CLOUD_SOURCE_ID
+  ) {
     return { delta: 0 };
   }
   if (needsVision) return { delta: 0 }; // el 1.58 no ve imágenes: nunca empujarlo aquí
   const hi = Math.max(0.3, Math.min(0.95, strongThreshold));
   if (difficulty >= hi) return { delta: 0 }; // tarea difícil: cede a la cloud fuerte, sin boost
-  return sourceId === ASTRAURA_158_LOCAL_SOURCE_ID
-    ? { delta: 6, note: "Astraura 1.58 local primero (prioridad local)" }
-    : { delta: 3, note: "Astraura 1.58 (nube StarSeed) primero (prioridad local)" };
+  if (sourceId === ASTRAURA_158_LOCAL_SOURCE_ID) {
+    return { delta: 6, note: "Astraura 1.58 local primero (prioridad local)" };
+  }
+  if (sourceId === ASTRAURA_158_MALLA_SOURCE_ID) {
+    return { delta: 5, note: "Astraura 1.58 (malla P2P) primero (prioridad local)" };
+  }
+  return { delta: 3, note: "Astraura 1.58 (nube StarSeed) primero (prioridad local)" };
 }
 
 /** Opciones aditivas del ranking (Adenda 149 · Ola 3). Omitirlas = como antes. */
@@ -1462,10 +1473,12 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
         const pickFrom = (sourceId: string): RouteCandidate | undefined =>
           candidates.find((c) => c.source.id === sourceId && c.model.id === wantModel) ??
           candidates.find((c) => c.source.id === sourceId);
-        // Local antes que nube. Si el modelo afín no está en `candidates` (p.ej.
+        // Local → malla P2P (Ola 367: otra neurona de la cuenta por WebRTC) →
+        // nube, en ese orden. Si el modelo afín no está en `candidates` (p.ej.
         // descalificado por visión), `pickFrom` degrada a otro modelo de la
         // fuente; si NINGUNO es candidato, no hay primario y mandan los secundarios.
-        primaryFirst = pickFrom(ASTRAURA_158_LOCAL_SOURCE_ID) ?? pickFrom(ASTRAURA_158_CLOUD_SOURCE_ID);
+        primaryFirst =
+          pickFrom(ASTRAURA_158_LOCAL_SOURCE_ID) ?? pickFrom(ASTRAURA_158_MALLA_SOURCE_ID) ?? pickFrom(ASTRAURA_158_CLOUD_SOURCE_ID);
       } else if (choice.modo === "fuente" && choice.fuente) {
         primaryFirst =
           candidates.find((c) => c.source.id === choice.fuente && (!choice.modelo || c.model.id === choice.modelo)) ??
@@ -1648,8 +1661,13 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
       // para este candidato — el resto de campos de `reqX` (forceSource,
       // effortDifficultyDelta…) se conservan intactos. Ver `local-158-context.ts`
       // y el cálculo de `messages158` más arriba.
+      // (Ola 367) La malla P2P relaya al MISMO backend BitNet (contexto chico:
+      // ~4096 tokens) que local/nube: recibe el mismo contexto compacto, nunca
+      // el `brainExtra` completo pensado para modelos de contexto grande.
       let reqCand: AstrauraChatRequest =
-        c.source.providerId === "astraura-158" ? { ...reqX, messages: messages158 } : reqX;
+        c.source.providerId === "astraura-158" || c.source.providerId === "astraura-158-malla"
+          ? { ...reqX, messages: messages158 }
+          : reqX;
       if (graceMs > 0) {
         const originalOnChunk = reqCand.onChunk;
         reqCand = {
@@ -1757,12 +1775,14 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
       // error: el failover de abajo sigue la cadena en silencio y el relevo
       // queda registrado en `failovers` (registro de rutas), como con cualquier
       // otro proveedor (NVIDIA NIM, OpenRouter :free, Groq…).
+      // (Ola 367) La MALLA P2P comparte el mismo tratamiento: «sin servidor en
+      // la malla» y «se desconectó» son su equivalente honesto a «nube caída».
       if (
-        c.source.id === ASTRAURA_158_CLOUD_SOURCE_ID &&
-        (/\b503\b|no disponible|nube-no-disponible|no respond|timeout|abort|arrancando en fr|contactar la nube/i.test(msg))
+        (c.source.id === ASTRAURA_158_CLOUD_SOURCE_ID || c.source.id === ASTRAURA_158_MALLA_SOURCE_ID) &&
+        (/\b503\b|no disponible|nube-no-disponible|no respond|timeout|abort|arrancando en fr|contactar la nube|sin servidor en la malla|se desconect/i.test(msg))
       ) {
         try { markCooldown(c.source.id); } catch { /* */ }
-        // (G10) Caída/timeout de la nube 1.58: no insistir con otra
+        // (G10) Caída/timeout de la fuente 1.58: no insistir con otra
         // personalidad de la MISMA fuente en esta petición.
         busyThisRequest.add(c.source.id);
       }
@@ -1797,7 +1817,9 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
       // de que el router supiera que ya había cedido. No cuento los abortos
       // del usuario (AbortError) como timeout: esos no son del backend.
       if (
-        (c.source.id === ASTRAURA_158_LOCAL_SOURCE_ID || c.source.id === ASTRAURA_158_CLOUD_SOURCE_ID) &&
+        (c.source.id === ASTRAURA_158_LOCAL_SOURCE_ID ||
+          c.source.id === ASTRAURA_158_MALLA_SOURCE_ID ||
+          c.source.id === ASTRAURA_158_CLOUD_SOURCE_ID) &&
         /\btimeout\b/i.test(msg)
       ) {
         timeoutsThisRequest.set(

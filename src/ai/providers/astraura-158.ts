@@ -685,7 +685,7 @@ export async function readAstraura158Sse(res: Response, onChunk?: (delta: string
 }
 
 /** Último mensaje del usuario (para detectar menciones solo en el turno actual). */
-function lastUserText(messages: ChatMessage[]): string {
+export function lastUserText(messages: ChatMessage[]): string {
   for (let i = messages.length - 1; i >= 0; i--) if (messages[i].role === "user") return messages[i].content;
   return "";
 }

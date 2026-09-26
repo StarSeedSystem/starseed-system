@@ -476,3 +476,109 @@ use-estado-capas) — ver `memory/state.md` para el recuento exacto de esta ola.
   timeout REAL de 200 s y observe el abort en directo.
 - No se ejecutó `next build` (regla del área: nunca con el enjambre vivo / prohibido en esta
   tarea) ni se hizo commit/push (worktree de solo trabajo, otro agente integra).
+
+## 17. Astraura por la malla P2P (Ola 367 · 2026-09-26)
+
+Hasta esta ola, la capa "mesh" de las capas de conciencia (§15) era solo un CONTADOR de vecinos
+(`vecinosMesh`): el enrutador nunca la usaba como fuente de inteligencia de verdad. Esta ola la
+convierte en una fuente REAL — el objetivo concreto de Alex: su tablet Android (app instalada,
+origen público `https://starseed-os.vercel.app`, sin backend propio) puede chatear con la
+Astraura 1.58 de la Mac A TRAVÉS del canal WebRTC que la malla de neuronas ya tiene abierto entre
+las dos, **sin pasar por el túnel de Cloudflare ni por ningún servidor de terceros**.
+
+### Módulo y protocolo
+`src/lib/network/astraura-por-malla.ts` (cliente, `"use client"`) reutiliza SIEMPRE el mesh
+COMPARTIDO (`getSharedMesh()` de `lan-sync.ts`) — nunca abre una segunda malla. Protocolo JSON,
+namespace `astraura.*`, cada mensaje ≤ 16 KB (`ASTRAURA_MALLA_MAX_BYTES`, con margen de sobre
+`partirEnTrozos`):
+
+- `astraura.pedir {id, cuerpo:{messages, system_prompt?, preferences?, persona_id?}}` — el MISMO
+  cuerpo que `astraura-158.ts` manda a `POST /api/starseed/chat`.
+- `astraura.trozo {id, texto}` — lote de tokens cada ~100 ms (`flushMs`).
+- `astraura.fin {id}` / `astraura.error {id, estado, mensaje, reintentarEnS?, ocupado?}`.
+- `astraura.cancelar {id}` (cliente→servidor) y `astraura.ping{id}` → `astraura.pong{id, cola?}`.
+
+### Rol SERVIDOR
+Solo atiende si la neurona puede alcanzar SU PROPIA Astraura — `paginaEsLocal()` (habla por el
+proxy same-origin `?destino=local`) o `declaracionAstrauraLocal()` (endpoint propio declarado:
+habla DIRECTO) — Y `capaMeshCompartiendo()` (maestro + capa mesh encendidos, §15). Máximo 1
+petición en vuelo por peer (`estado:429, reintentarEnS:10`); parsea el SSE del backend
+(`parseAstrauraSseLine`, reutilizado de `astraura-158.ts`) y reenvía texto; propaga OCUPADO
+(503/429 + `Retry-After`/`{ocupado:true, reintentar_en_s}`) como `astraura.error` con la MISMA
+convención de mensaje que `astraura-158.ts` (`"ocupado" ... "retry after Ns"`, ver
+`minutosDeEnfriamiento` en `router.ts`); corte duro a los 200 s; aborta el `fetch` en
+`astraura.cancelar` o al desconectarse el peer. `iniciarServidorAstrauraPorMalla()` se arranca
+UNA vez desde `MallaNeuronasMount` (reintenta cada 2 s hasta que exista el mesh compartido).
+
+### Rol CLIENTE
+`servidoresAstrauraMalla()` lee `snapshotMallaNeuronas()` (getter sin hook, mismo estado que
+publica el motor único) y devuelve los peers conectados de la MISMA cuenta cuya ficha anuncia
+`sirveAstraura`, ordenados por latencia. `pedirAstrauraPorMalla({cuerpo, signal, onTexto})`
+resuelve el texto completo (streaming vía `onTexto`); errores tipados: ocupado (mensaje con
+"retry after Ns" + `ocupado:true`), "Sin servidor en la malla.", timeout (primer trozo 120 s /
+total 200 s), peer perdido. Honra `signal`: al abortar manda `astraura.cancelar` y rechaza.
+
+### Ficha de dispositivo (`malla-neuronas.ts`)
+`FichaDispositivo` gana `sirveAstraura?: boolean` y `astrauraLatenciaMs?: number`.
+`puedeServirAstrauraPorMalla()` (misma regla que el rol servidor) y `declaracionAstrauraLocal()`
+(duplicada A PROPÓSITO de `localDeclaradoEnDispositivo()` de `availability.ts`, para que ninguno
+de los dos módulos pesados se importe entre sí) se calculan en `construirFicha()`, con la
+latencia medida por `medirLatenciaAstrauraPropia()` (best-effort, 1.5 s de margen, solo si
+`sirveAstraura`). Nuevo getter `snapshotMallaNeuronas()` (lectura síncrona sin hook del mismo
+estado de `useMallaNeuronasEstado()`).
+
+### Fuente del catálogo y enrutador
+`ASTRAURA_158_MALLA_SOURCE_ID = "astraura-158-malla"` (`free-catalog.ts`), tier `"local"`,
+`providerId: "astraura-158-malla"` (nuevo proveedor `src/ai/providers/astraura-158-malla.ts`, que
+reutiliza `modelToPersona158`/`detectMentions158`/`applyMentions158`/`preferencesFor`/
+`buildAstraura158Prompt`/`mentionsSystemNote`/`lastUserText` de `astraura-158.ts` y llama a
+`pedirAstrauraPorMalla`). `router.ts`: la cadena del SISTEMA PRIMARIO pasa de
+`pickFrom(LOCAL) ?? pickFrom(CLOUD)` a `pickFrom(LOCAL) ?? pickFrom(MALLA) ?? pickFrom(CLOUD)`;
+`local158PriorityDelta` da a la malla un boost intermedio (+5, entre el local +6 y la nube +3);
+`fuentesApagadas()` (`capas-conciencia.ts`) apaga `astraura-158-malla` cuando el maestro o la
+capa mesh están OFF; el bloque G10/N1 de cooldown inmediato y el de `timeoutsThisRequest` tratan
+la malla igual que local/nube; el contexto compacto de 1.58 (`messages158`, ~4096 tokens) también
+se usa para la malla (relaya al MISMO BitNet de contexto chico). `availability.ts` marca lista la
+fuente solo si `servidoresAstrauraMalla().length > 0`, con el motivo honesto "Ninguna neurona de
+tu malla ofrece Astraura ahora." cuando no hay ninguna.
+
+### UI
+`malla-neuronas-panel.tsx`: insignia "Sirve Astraura 1.58 · N ms" por dispositivo cuya ficha lo
+anuncia. `panel-capas.tsx`: la fila "Mesh" muestra "N neurona(s) de tu malla sirve(n) Astraura
+1.58 ahora" cuando `N > 0` (si no, la descripción estática de siempre).
+
+### Flujo de punta a punta (tablet ⇄ Mac)
+1. La tablet (app instalada, `https://starseed-os.vercel.app`) y la Mac son neuronas de la MISMA
+   cuenta; `malla-neuronas.ts` las auto-vincula por WebRTC en cuanto ambas están online (§ ver
+   `malla-neuronas-autovinculo.md`).
+2. La Mac (con su BitNet local arrancado y la capa mesh compartiendo) publica en su ficha
+   `sirveAstraura:true` + `astrauraLatenciaMs`; la tablet lo recibe por el canal ya abierto.
+3. En la tablet, el enrutador (sin backend local propio: `astraura-158-local` no está lista)
+   encuentra `astraura-158-malla` lista (`servidoresAstrauraMalla().length > 0`, apuntando a la
+   Mac) y la usa: el proveedor `astraura-158-malla` llama a `pedirAstrauraPorMalla`.
+4. `astraura.pedir` viaja por el DATA CHANNEL WebRTC (P2P, sin servidor intermedio) a la Mac; la
+   Mac habla con SU backend local (proxy same-origin `?destino=local`, ya que la página de la Mac
+   es local), parsea el SSE y devuelve `astraura.trozo`/`astraura.fin` por el MISMO canal.
+5. La tablet transmite el texto en vivo (`onTexto`) y el chat responde con la personalidad
+   pedida — sin tocar el túnel de Cloudflare ni la nube de StarSeed en ningún momento.
+
+### Verificación
+`tsc --noEmit -p .` limpio. `vitest run` (65 archivos / 903 pruebas) en verde, incluyendo el
+nuevo `src/lib/network/__tests__/astraura-por-malla.test.ts` (19 pruebas: protocolo, rol servidor
+con mesh/fetch de mentira — tokens reenviados, ocupado→error con `reintentarEnS`, 1 en vuelo por
+peer, cancelar aborta el fetch —, rol cliente con peer de mentira — streaming, error ocupado con
+"retry after Ns", timeout, peer perdido, abort de `signal` —) y las ampliaciones de
+`router-local-158-priority.test.ts` (delta intermedio + orden local→malla→nube),
+`router-capas.test.ts` (apagar solo la capa mesh), `availability-astraura-158-malla.test.ts`
+(motivo honesto), `capas-conciencia.test.ts`, `capas.test.tsx` y `malla-neuronas-panel.test.tsx`.
+
+### Pendiente / no verificado sin dos dispositivos reales
+- El flujo de punta a punta (tablet ⇄ Mac) descrito arriba está verificado por `tsc` + los tests
+  con mesh/fetch de mentira, NUNCA con dos dispositivos físicos reales conectados por WebRTC de
+  verdad: la latencia real, el comportamiento del ICE/TURN en una red móvil real y el
+  comportamiento del BitNet real bajo esa carga no se han medido.
+- El descubrimiento de `sirveAstraura` en la ficha (intercambiada cada 30 s) tiene una ventana de
+  hasta 30 s en la que un peer recién capaz de servir aún no se anuncia — aceptable para esta
+  ola, no se intentó acortarlo.
+- No se ejecutó `next build` (regla del área) ni se hizo commit/push (worktree de trabajo, otro
+  agente integra).

@@ -14,10 +14,12 @@
  * mismo motivo por el que esas rutas ya excluyen `AppGlobals`.
  */
 
+import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { esRutaConsola } from "@/components/layout/solo-fuera-de-consola";
 import { useMallaNeuronas } from "@/lib/network/malla-neuronas";
 import { startMeshSubsystem, subscribeNearby, getNearbyBeacons } from "@/ai/astraura/mesh";
+import { iniciarServidorAstrauraPorMalla } from "@/lib/network/astraura-por-malla";
 
 function MallaNeuronasEngine(): null {
   useMallaNeuronas({
@@ -25,6 +27,10 @@ function MallaNeuronasEngine(): null {
     subscribeNearby,
     getNearbyNow: getNearbyBeacons,
   });
+  // (Ola 367) Rol SERVIDOR de Astraura por la malla: atiende `astraura.pedir`
+  // de otros peers cuando esta neurona puede relayar (mismo mesh compartido,
+  // nunca uno propio). Arranca UNA vez por sesión, junto con el motor.
+  useEffect(() => iniciarServidorAstrauraPorMalla(), []);
   return null;
 }
 

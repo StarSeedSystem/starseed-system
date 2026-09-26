@@ -38,6 +38,11 @@ vi.mock("@/ai/astraura/unified-intelligence", () => ({
         { id: "de-pago", label: "De pago", tier: "paid", models: [{ id: "caro", label: "Caro" }] },
     ],
 }));
+const hMalla = vi.hoisted(() => ({ misDispositivos: [] as { esEsteDispositivo: boolean; ficha?: { sirveAstraura?: boolean } }[] }));
+vi.mock("@/lib/network/malla-neuronas", async () => {
+    const actual = await vi.importActual<typeof import("@/lib/network/malla-neuronas")>("@/lib/network/malla-neuronas");
+    return { ...actual, useMallaNeuronasEstado: () => ({ misDispositivos: hMalla.misDispositivos, cercanas: [], loading: false }) };
+});
 
 import { IndicadorCapas } from "@/components/astraura/capas/indicador-capas";
 import { PanelCapas } from "@/components/astraura/capas/panel-capas";
@@ -58,6 +63,7 @@ beforeEach(() => {
     h.cambiarCapa.mockReset();
     h.activo = true;
     h.nivelador = 80;
+    hMalla.misDispositivos = [];
 });
 
 describe("IndicadorCapas", () => {
@@ -117,5 +123,20 @@ describe("PanelCapas", () => {
         expect(screen.queryByRole("combobox", { name: "Modelo específico" })).toBeNull();
         expect(screen.getByText("Capas 1.58").getAttribute("data-activo")).toBe("true");
         expect(screen.getByText(/se unirá a Oracle próximamente/)).toBeTruthy();
+    });
+
+    it("(Ola 367) sin neuronas sirviendo Astraura, la fila Mesh muestra la descripción estática", () => {
+        render(<PanelCapas />);
+        expect(screen.getByText("Otras neuronas de la red mesh y la LAN")).toBeTruthy();
+    });
+
+    it("(Ola 367) con neuronas sirviendo Astraura, la fila Mesh muestra cuántas", () => {
+        hMalla.misDispositivos = [
+            { esEsteDispositivo: false, ficha: { sirveAstraura: true } },
+            { esEsteDispositivo: false, ficha: { sirveAstraura: false } },
+            { esEsteDispositivo: true, ficha: { sirveAstraura: true } }, // este dispositivo no cuenta
+        ];
+        render(<PanelCapas />);
+        expect(screen.getByText("1 neurona de tu malla sirve Astraura 1.58 ahora")).toBeTruthy();
     });
 });

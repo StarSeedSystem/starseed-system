@@ -42,8 +42,14 @@ describe("fuentes apagadas y destino del nivelador", () => {
     it("las fuentes 1.58 salen según el maestro y cada capa", () => {
         expect(fuentesApagadas(leerPreferenciaCapas({}))).toEqual([]);
         expect(fuentesApagadas(leerPreferenciaCapas({ capa158Local: false }))).toEqual(["astraura-158-local"]);
+        // (Ola 367) La malla P2P es la capa "mesh".
+        expect(fuentesApagadas(leerPreferenciaCapas({ capa158Mesh: false }))).toEqual(["astraura-158-malla"]);
         expect(fuentesApagadas(leerPreferenciaCapas({ capa158Nube: false }))).toEqual(["astraura-158-nube"]);
-        expect(fuentesApagadas(leerPreferenciaCapas({ astraura158Activo: false }))).toEqual(["astraura-158-local", "astraura-158-nube"]);
+        expect(fuentesApagadas(leerPreferenciaCapas({ astraura158Activo: false }))).toEqual([
+            "astraura-158-local",
+            "astraura-158-malla",
+            "astraura-158-nube",
+        ]);
     });
 
     it("destinoNivelador en los bordes", () => {

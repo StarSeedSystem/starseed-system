@@ -25,6 +25,10 @@ import { isDownloadableSource, isModelInstalled } from "./installed-models";
 // `?destino=local` explícito. Antes la sonda construía `/api/ai/astraura-158`
 // a mano (sin el parámetro), y en despliegue local caía al 503 de «no hay nube».
 import { urlPuenteLocal } from "@/ai/providers/astraura-158";
+// (Ola 367) Fuente `astraura-158-malla`: lista solo si ALGUNA neurona de la
+// malla P2P (misma cuenta) anuncia que sirve Astraura — lectura síncrona del
+// estado ya publicado por el motor de la malla, sin sondear la red aquí.
+import { servidoresAstrauraMalla } from "@/lib/network/astraura-por-malla";
 // (Adenda 153) Endpoint Astraura 1.58 declarado por ESTA neurona. `neurons.ts`
 // solo importa supabase/entity-state (sin ciclo con el router ni con este módulo).
 import { settingsFor, thisDeviceId } from "@/lib/neurons/neurons";
@@ -477,6 +481,21 @@ export async function detectAvailability(fast = false): Promise<SourceAvailabili
           : isLocal
             ? `El backend Astraura 1.58 no responde en ${endpoint} (¿está arrancado? ./install_and_run.sh).`
             : "La nube de Astraura 1.58 no responde ahora (¿arrancando en frío?); se usan los sistemas secundarios.",
+      });
+      continue;
+    }
+    // ── ASTRAURA 1.58 POR LA MALLA P2P (Ola 367): lista solo si algún peer de
+    //    la MISMA cuenta, conectado ahora mismo, anuncia `sirveAstraura` en su
+    //    ficha. Lectura síncrona (sin sondear red): el motor de la malla ya
+    //    mantiene ese estado publicado; sin `MallaNeuronasMount` montado
+    //    degrada honestamente a "sin servidor".
+    if (source.providerId === "astraura-158-malla") {
+      const servidores = servidoresAstrauraMalla();
+      out.push({
+        source,
+        ready: servidores.length > 0,
+        userConfig,
+        reason: servidores.length > 0 ? undefined : "Ninguna neurona de tu malla ofrece Astraura ahora.",
       });
       continue;
     }

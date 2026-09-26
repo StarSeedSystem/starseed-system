@@ -195,6 +195,14 @@ export interface CatalogSource {
 export const ASTRAURA_158_LOCAL_SOURCE_ID = "astraura-158-local";
 export const ASTRAURA_158_CLOUD_SOURCE_ID = "astraura-158-nube";
 export const ASTRAURA_158_PROXY_BASE = "/api/ai/astraura-158";
+/**
+ * (Ola 367) `astraura-158-malla` — el mismo sistema primario, servido por OTRA
+ * neurona de la MISMA cuenta a través del canal WebRTC ya abierto por la malla
+ * de neuronas (`src/lib/network/astraura-por-malla.ts`), sin túnel ni servidor
+ * de terceros. Entre local (esta neurona) y nube (StarSeed) en el orden de
+ * preferencia — ver `router.ts` y `architecture/astraura-158-sistema-primario.md` §17.
+ */
+export const ASTRAURA_158_MALLA_SOURCE_ID = "astraura-158-malla";
 
 // ── BONSAI 1-BIT & TERNARY (Adenda 174) ────────────────────────────────────
 export const ASTRAURA_BONSAI_LOCAL_SOURCE_ID = "astraura-bonsai-local";
@@ -308,6 +316,27 @@ export const FREE_CATALOG: CatalogSource[] = [
     // nativo perdía siempre y el chat caía a LLM7: le damos el tiempo real que
     // necesita (200 s). Además `firstTokenGraceMs` extiende el corte si ya
     // empezó a emitir.
+    timeoutMs: 200_000,
+    firstTokenGraceMs: 120_000,
+    cooldownMinutes: 2,
+    models: ASTRAURA_158_MODELS,
+  },
+  {
+    id: ASTRAURA_158_MALLA_SOURCE_ID,
+    label: "Astraura 1.58 (malla P2P)",
+    tier: "local",
+    providerId: "astraura-158-malla",
+    // Sin base HTTP real: el transporte es el canal WebRTC ya abierto por la
+    // malla de neuronas, nunca una URL (`astraura-por-malla.ts` habla por
+    // `getSharedMesh()`). El esquema `malla://` es solo un marcador legible.
+    baseUrl: "malla://astraura-158",
+    requiresKey: false,
+    limits: "Sin límites propios: depende de la neurona de tu malla que la sirve y de su propio backend.",
+    why: "Otra neurona de tu cuenta (p. ej. tu Mac) sirve Astraura 1.58 por el canal P2P de la malla — sin túnel ni servidor externo.",
+    privacy: "local",
+    weight: 1.25,
+    // Mismo tiempo real que local/nube: la neurona que releva puede tardar en
+    // arrancar el motor igual que si se le hablara directamente.
     timeoutMs: 200_000,
     firstTokenGraceMs: 120_000,
     cooldownMinutes: 2,

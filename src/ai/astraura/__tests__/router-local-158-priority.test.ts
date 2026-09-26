@@ -16,6 +16,7 @@ import {
 import {
   ASTRAURA_158_CLOUD_SOURCE_ID,
   ASTRAURA_158_LOCAL_SOURCE_ID,
+  ASTRAURA_158_MALLA_SOURCE_ID,
   findSource,
 } from "@/ai/astraura/free-catalog";
 import type { SourceAvailability } from "@/ai/astraura/availability";
@@ -46,6 +47,15 @@ describe("local158PriorityDelta (función pura)", () => {
     const r = local158PriorityDelta(ASTRAURA_158_CLOUD_SOURCE_ID, 0.1, false, 0.6);
     expect(r.delta).toBe(3);
     expect(r.delta).toBeLessThan(local158PriorityDelta(ASTRAURA_158_LOCAL_SOURCE_ID, 0.1, false, 0.6).delta);
+  });
+
+  it("(Ola 367) boost INTERMEDIO para la MALLA P2P: entre el local y la nube", () => {
+    const local = local158PriorityDelta(ASTRAURA_158_LOCAL_SOURCE_ID, 0.1, false, 0.6).delta;
+    const malla = local158PriorityDelta(ASTRAURA_158_MALLA_SOURCE_ID, 0.1, false, 0.6).delta;
+    const nube = local158PriorityDelta(ASTRAURA_158_CLOUD_SOURCE_ID, 0.1, false, 0.6).delta;
+    expect(malla).toBe(5);
+    expect(malla).toBeLessThan(local);
+    expect(malla).toBeGreaterThan(nube);
   });
 
   it("SIN boost en tareas difíciles (difficulty >= strongThreshold): cede a la nube fuerte", () => {
@@ -117,6 +127,23 @@ describe("rankCandidates · prioridad local 1.58 (con catálogo real)", () => {
     const on = rankCandidates(p, avail, { ...DEFAULT_INTELLIGENCE, prioridadLocal158: true, strongThreshold: 0.6 });
     expect(on[0].source.id).toBe("nvidia-nim");
     expect(on[0].source.id).not.toBe(ASTRAURA_158_LOCAL_SOURCE_ID);
+  });
+
+  it("(Ola 367) con las tres fuentes 1.58 listas, el orden es LOCAL → MALLA → NUBE", () => {
+    const avail = [
+      ready(ASTRAURA_158_LOCAL_SOURCE_ID),
+      ready(ASTRAURA_158_MALLA_SOURCE_ID),
+      ready(ASTRAURA_158_CLOUD_SOURCE_ID),
+      ready("openrouter-free"),
+    ];
+    const p = profile();
+    const on = rankCandidates(p, avail, { ...DEFAULT_INTELLIGENCE, prioridadLocal158: true });
+    const mejorDe = (id: string) => Math.max(...on.filter((c) => c.source.id === id).map((c) => c.score));
+    // Las tres fuentes comparten el MISMO catálogo de modelos (personas 1.58):
+    // la única diferencia es el boost del nivelador — el orden queda garantizado.
+    expect(mejorDe(ASTRAURA_158_LOCAL_SOURCE_ID)).toBeGreaterThan(mejorDe(ASTRAURA_158_MALLA_SOURCE_ID));
+    expect(mejorDe(ASTRAURA_158_MALLA_SOURCE_ID)).toBeGreaterThan(mejorDe(ASTRAURA_158_CLOUD_SOURCE_ID));
+    expect(on[0].source.id).toBe(ASTRAURA_158_LOCAL_SOURCE_ID);
   });
 
   it("el override manual por tarea sigue ganando SIEMPRE, con la pref ON", () => {

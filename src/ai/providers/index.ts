@@ -13,10 +13,14 @@ import { groqProvider } from "./groq";
 import { openrouterProvider } from "./openrouter";
 import { nvidiaProvider } from "./nvidia";
 import { astraura158Provider } from "./astraura-158";
+import { astraura158MallaProvider } from "./astraura-158-malla";
 
 export const PROVIDERS: Record<ProviderId, Provider> = {
   // Astraura 1.58-bit (Adenda 153): backend soberano propio, PRIMARIO por defecto.
   "astraura-158": astraura158Provider,
+  // Astraura 1.58 por la malla P2P (Ola 367): otra neurona de la cuenta la
+  // sirve por el canal WebRTC — ver `src/lib/network/astraura-por-malla.ts`.
+  "astraura-158-malla": astraura158MallaProvider,
   starseed: starseedProvider,
   ollama: ollamaProvider,
   openai: openaiProvider,
@@ -40,6 +44,7 @@ export const PROVIDERS: Record<ProviderId, Provider> = {
 /** Ordered for the picker UI: privacy-first first. */
 export const PROVIDER_ORDER: ProviderId[] = [
   "astraura-158",
+  "astraura-158-malla",
   "starseed",
   "ollama",
   "deepseek",

@@ -5,7 +5,12 @@
  */
 import { describe, expect, it } from "vitest";
 import { DEFAULT_INTELLIGENCE, rankCandidates, type IntelligenceSettings, type TaskProfile } from "@/ai/astraura/router";
-import { ASTRAURA_158_CLOUD_SOURCE_ID, ASTRAURA_158_LOCAL_SOURCE_ID, findSource } from "@/ai/astraura/free-catalog";
+import {
+    ASTRAURA_158_CLOUD_SOURCE_ID,
+    ASTRAURA_158_LOCAL_SOURCE_ID,
+    ASTRAURA_158_MALLA_SOURCE_ID,
+    findSource,
+} from "@/ai/astraura/free-catalog";
 import type { SourceAvailability } from "@/ai/astraura/availability";
 
 const perfil: TaskProfile = { kind: "chat", needsVision: false, chars: 40, difficulty: 0.1 };
@@ -14,7 +19,12 @@ function lista(id: string): SourceAvailability {
     if (!source) throw new Error(`fuente desconocida: ${id}`);
     return { source, ready: true };
 }
-const avail = [lista(ASTRAURA_158_LOCAL_SOURCE_ID), lista(ASTRAURA_158_CLOUD_SOURCE_ID), lista("openrouter-free")];
+const avail = [
+    lista(ASTRAURA_158_LOCAL_SOURCE_ID),
+    lista(ASTRAURA_158_MALLA_SOURCE_ID),
+    lista(ASTRAURA_158_CLOUD_SOURCE_ID),
+    lista("openrouter-free"),
+];
 const rank = (extra: Partial<IntelligenceSettings>) => rankCandidates(perfil, avail, { ...DEFAULT_INTELLIGENCE, ...extra });
 const fuentes = (extra: Partial<IntelligenceSettings>) => new Set(rank(extra).map((c) => c.source.id));
 const mejorDe = (extra: Partial<IntelligenceSettings>, id: string) =>
@@ -28,6 +38,7 @@ describe("rankCandidates · capas de conciencia 1.58", () => {
     it("con el interruptor general apagado no aparece ninguna fuente 1.58", () => {
         const f = fuentes({ astraura158Activo: false });
         expect(f.has(ASTRAURA_158_LOCAL_SOURCE_ID)).toBe(false);
+        expect(f.has(ASTRAURA_158_MALLA_SOURCE_ID)).toBe(false);
         expect(f.has(ASTRAURA_158_CLOUD_SOURCE_ID)).toBe(false);
         expect(f.has("openrouter-free")).toBe(true);
     });
@@ -35,6 +46,14 @@ describe("rankCandidates · capas de conciencia 1.58", () => {
     it("apagar la capa local quita solo la local", () => {
         const f = fuentes({ capa158Local: false });
         expect(f.has(ASTRAURA_158_LOCAL_SOURCE_ID)).toBe(false);
+        expect(f.has(ASTRAURA_158_MALLA_SOURCE_ID)).toBe(true);
+        expect(f.has(ASTRAURA_158_CLOUD_SOURCE_ID)).toBe(true);
+    });
+
+    it("(Ola 367) apagar la capa mesh quita SOLO la fuente de la malla P2P", () => {
+        const f = fuentes({ capa158Mesh: false });
+        expect(f.has(ASTRAURA_158_MALLA_SOURCE_ID)).toBe(false);
+        expect(f.has(ASTRAURA_158_LOCAL_SOURCE_ID)).toBe(true);
         expect(f.has(ASTRAURA_158_CLOUD_SOURCE_ID)).toBe(true);
     });
 

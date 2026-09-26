@@ -35,6 +35,9 @@ import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "reac
 import {
   listNeurons,
   ONLINE_WINDOW_MS,
+  settingsFor,
+  thisDeviceId,
+  astraura158EndpointOf,
   type Neuron,
   type NeuronKind,
 } from "@/lib/neurons/neurons";
@@ -42,6 +45,8 @@ import { identidadDispositivo } from "@/lib/network/identidad-dispositivo";
 import { ensureMesh, getSharedMesh, capaMeshCompartiendo, setupConcienciaSync } from "@/lib/network/lan-sync";
 import type { MeshHandle, PeerSnapshot, PeerState } from "@/lib/network/webrtc-mesh";
 import { preferenciaCapasGuardada, type PreferenciaCapas } from "@/lib/astraura/capas-conciencia";
+import { paginaEsLocal } from "@/lib/astraura/destino-local";
+import { urlPuenteLocal } from "@/ai/providers/astraura-158";
 
 /* ------------------------------------------------------------------ */
 /* Constantes                                                        */
@@ -111,6 +116,48 @@ export interface FichaDispositivo {
   backendLocal: boolean;
   capas: PreferenciaCapas["capas"];
   at: number;
+  /**
+   * (Ola 367) ¿Esta neurona puede relayar Astraura 1.58 a otras por la malla
+   * P2P ahora mismo? Ver `puedeServirAstrauraPorMalla()` — same-origin local
+   * o endpoint propio declarado, Y capa mesh compartiendo encendida.
+   */
+  sirveAstraura?: boolean;
+  /** Latencia medida por ESTA neurona a SU PROPIO backend Astraura (ms), si se conoce. */
+  astrauraLatenciaMs?: number;
+}
+
+/**
+ * declaracionAstrauraLocal — ¿ESTE dispositivo declaró tener su propia
+ * Astraura 1.58 (un endpoint propio en sus ajustes de neurona)? Duplica a
+ * propósito la regla de `localDeclaradoEnDispositivo()`
+ * (`ai/astraura/availability.ts`) para que ni ese módulo (pesado) ni el
+ * relé de malla (`astraura-por-malla.ts`) tengan que importarse entre sí —
+ * ver `architecture/astraura-158-sistema-primario.md` §17.
+ */
+export function declaracionAstrauraLocal(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    const s = settingsFor(thisDeviceId()).astraura158;
+    if (s && s.enabled !== false && typeof s.endpoint === "string" && s.endpoint.trim()) return true;
+  } catch {
+    /* defensivo */
+  }
+  try {
+    return window.localStorage.getItem("starseed.astraura.local-en-este-dispositivo") === "1";
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * puedeServirAstrauraPorMalla — ¿puede ESTA neurona relayar Astraura 1.58 a
+ * otros peers de la malla ahora mismo? Same-origin local (`paginaEsLocal()`,
+ * se habla por el proxy del OS) o endpoint propio declarado
+ * (`declaracionAstrauraLocal()`, se habla directo), Y la capa mesh
+ * compartiendo (`capaMeshCompartiendo()`: maestro + capa mesh encendidos).
+ */
+export function puedeServirAstrauraPorMalla(): boolean {
+  return capaMeshCompartiendo() && (paginaEsLocal() || declaracionAstrauraLocal());
 }
 
 const MSG_FICHA = "malla:ficha";
@@ -139,6 +186,26 @@ export function esMensajeFicha(x: unknown): x is MensajeFicha {
   return typeof f.syncDeviceId === "string" && typeof f.neuronDeviceId === "string";
 }
 
+/**
+ * medirLatenciaAstrauraPropia — ida y vuelta (ms) de ESTE dispositivo a SU
+ * PROPIA Astraura 1.58 (proxy same-origin si `paginaEsLocal()`, si no el
+ * endpoint declarado). `undefined` si no responde o no aplica — nunca lanza.
+ * 1.5 s de margen: es solo para anunciar la ficha, no para servir un turno.
+ */
+async function medirLatenciaAstrauraPropia(): Promise<number | undefined> {
+  try {
+    const url = paginaEsLocal() ? urlPuenteLocal("/api/ping") : `${astraura158EndpointOf(thisDeviceId())}/api/ping`;
+    const t0 = Date.now();
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 1500);
+    const r = await fetch(url, { signal: ctrl.signal, cache: "no-store" });
+    clearTimeout(t);
+    return r.ok ? Math.max(0, Date.now() - t0) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 /** Construye la ficha de ESTE dispositivo (best-effort, nunca lanza). */
 export async function construirFicha(neuron: Neuron | null): Promise<FichaDispositivo> {
   const ids = identidadDispositivo();
@@ -149,6 +216,13 @@ export async function construirFicha(neuron: Neuron | null): Promise<FichaDispos
   } catch {
     /* honesto: sin sonda, false */
   }
+  // (Ola 367) ¿Puede esta neurona relayar Astraura 1.58 a la malla? Solo se
+  // mide la latencia si de verdad puede servir — nunca se sonda de más.
+  // Solo se anuncia si SU Astraura responde de verdad ahora: una neurona local con el
+  // backend caído no debe atraer los turnos de la malla para devolverlos en error.
+  const puedeServir = puedeServirAstrauraPorMalla();
+  const astrauraLatenciaMs = puedeServir ? await medirLatenciaAstrauraPropia() : undefined;
+  const sirveAstraura = puedeServir && astrauraLatenciaMs !== undefined;
   return {
     v: 1,
     syncDeviceId: ids.syncDeviceId,
@@ -161,6 +235,8 @@ export async function construirFicha(neuron: Neuron | null): Promise<FichaDispos
     backendLocal,
     capas: preferenciaCapasGuardada().capas,
     at: Date.now(),
+    sirveAstraura,
+    astrauraLatenciaMs,
   };
 }
 
@@ -338,6 +414,17 @@ export function useMallaNeuronasEstado(): MallaNeuronasState {
     () => estadoActual,
     () => ESTADO_VACIO,
   );
+}
+
+/**
+ * snapshotMallaNeuronas — lectura SÍNCRONA (sin hook) del mismo estado que
+ * publica el motor único. Para código NO-React que necesita el estado ya
+ * publicado ahora mismo (p. ej. `astraura-por-malla.ts` eligiendo con qué
+ * peer hablar) — nunca arranca el motor: sin `MallaNeuronasMount` montado
+ * degrada a listas vacías, igual que `useMallaNeuronasEstado()`.
+ */
+export function snapshotMallaNeuronas(): MallaNeuronasState {
+  return estadoActual;
 }
 
 /** Beacon mínimo que este módulo necesita de `RelayBeacon` (evita el import pesado del barrel del mesh en cada consumidor). */

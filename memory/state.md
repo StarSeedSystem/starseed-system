@@ -4022,3 +4022,57 @@ existían en Supabase (`neuron_devices` con heartbeats frescos, faros recientes 
   medida evita duplicar lógica, pero sube el egress de faros a TODAS las rutas fuera de
   `/mando`/`/voces` en vez de solo a las páginas que ya lo montaban — se documenta como el
   coste honesto de esta ola (§7 del SOP), no como una regresión oculta.
+
+## 2026-09-26 — Ola 367 · Astraura 1.58 por la malla P2P (worktree `_claude-malla`)
+**Sesión por:** Claude (Cowork), agente separado del enjambre. Objetivo concreto de Alex: su
+tablet Android (app instalada, origen público `https://starseed-os.vercel.app`, sin backend
+local) debe poder chatear con la Astraura 1.58 de la Mac A TRAVÉS del canal WebRTC que la malla
+de neuronas (Ola 366) ya abre entre ambas — SIN pasar por el túnel de Cloudflare ni por ningún
+servidor de terceros. Antes de esta ola, la capa "mesh" era solo un contador de vecinos: el
+enrutador nunca la usaba como fuente de inteligencia.
+
+### Hecho
+- `src/lib/network/astraura-por-malla.ts` (nuevo): protocolo `astraura.*` sobre el mesh
+  COMPARTIDO (`getSharedMesh()`, nunca uno segundo); rol servidor (`manejarPeticionAstrauraMalla`,
+  `adjuntarServidorAstrauraMalla`, `iniciarServidorAstrauraPorMalla` — solo sirve si
+  `paginaEsLocal()`/`declaracionAstrauraLocal()` Y `capaMeshCompartiendo()`, máx. 1 en vuelo por
+  peer, propaga OCUPADO con la misma convención que `astraura-158.ts`, corta a los 200s, aborta
+  en cancelar/desconexión) y rol cliente (`servidoresAstrauraMalla`, `pedirAstrauraPorMalla` —
+  streaming, errores tipados, timeouts 120s/200s, honra `signal`).
+- `src/lib/network/malla-neuronas.ts`: `FichaDispositivo` gana `sirveAstraura?`/
+  `astrauraLatenciaMs?`; nuevas `declaracionAstrauraLocal()`, `puedeServirAstrauraPorMalla()`,
+  `snapshotMallaNeuronas()` (getter síncrono sin hook); `construirFicha()` los calcula y mide.
+- `src/ai/providers/astraura-158-malla.ts` (nuevo proveedor, reutiliza los helpers puros de
+  `astraura-158.ts`) + registrado en `src/ai/providers/index.ts`.
+- `src/ai/astraura/free-catalog.ts`: fuente `astraura-158-malla` (tier `local`, entre la local y
+  la nube). `router.ts`: cadena `pickFrom(LOCAL) ?? pickFrom(MALLA) ?? pickFrom(CLOUD)`;
+  `local158PriorityDelta` con boost intermedio (+5); malla sumada al cooldown inmediato G10/N1,
+  al tracking de `timeoutsThisRequest` y al contexto compacto `messages158` (mismo BitNet, mismo
+  contexto chico). `src/lib/astraura/capas-conciencia.ts`: `fuentesApagadas()` apaga
+  `astraura-158-malla` con el maestro o la capa mesh OFF. `src/ai/astraura/availability.ts`:
+  lista solo si `servidoresAstrauraMalla().length > 0`, motivo "Ninguna neurona de tu malla
+  ofrece Astraura ahora." si no.
+- `src/components/network/malla-neuronas-mount.tsx`: arranca `iniciarServidorAstrauraPorMalla()`
+  junto al motor. `malla-neuronas-panel.tsx`: insignia "Sirve Astraura 1.58 · N ms" por
+  dispositivo. `panel-capas.tsx`: fila Mesh dinámica ("N neurona(s) de tu malla sirve(n)
+  Astraura 1.58 ahora").
+- SOP: §17 nuevo en `architecture/astraura-158-sistema-primario.md`; §10 nuevo en
+  `architecture/malla-neuronas-autovinculo.md`.
+
+### Verificado
+- `tsc --noEmit -p .` limpio (0 errores).
+- `vitest run src/lib/network src/ai src/lib/astraura src/components/network
+  src/components/astraura` → **903 pruebas / 65 archivos en verde**, incluyendo el nuevo
+  `astraura-por-malla.test.ts` (19 pruebas: protocolo, servidor con mesh/fetch de mentira,
+  cliente con peer de mentira) y las ampliaciones de `router-local-158-priority.test.ts`,
+  `router-capas.test.ts`, `availability-astraura-158-malla.test.ts` (nuevo),
+  `capas-conciencia.test.ts`, `capas.test.tsx` y `malla-neuronas-panel.test.tsx`.
+
+### Pendiente / no verificado sin dos dispositivos reales
+- El flujo tablet⇄Mac de punta a punta solo se verificó con dobles de prueba (mesh/fetch/peer de
+  mentira) y lectura de código — nunca con dos dispositivos físicos reales por WebRTC de verdad
+  (latencia real, ICE/TURN en red móvil real, BitNet real bajo esa carga).
+- La ventana de hasta 30s en la que un peer recién capaz de servir aún no se anunció en su ficha
+  (el heartbeat de ficha es cada 30s) no se acortó.
+- `next build` no se ejecutó (regla del área) ni se hizo commit/push (worktree de trabajo, otro
+  agente integra).

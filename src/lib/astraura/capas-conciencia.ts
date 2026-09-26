@@ -108,6 +108,9 @@ export function aCampos(p: PreferenciaCapas): CamposCapas {
 export function fuentesApagadas(p: PreferenciaCapas): string[] {
   const resultado: string[] = [];
   if (!p.activo || !p.capas.local) resultado.push("astraura-158-local");
+  // (Ola 367) La malla P2P es la capa "mesh": sin ella (o con el maestro
+  // apagado) esta neurona ni pide ni sirve Astraura por el canal WebRTC.
+  if (!p.activo || !p.capas.mesh) resultado.push("astraura-158-malla");
   if (!p.activo || !p.capas.nube) resultado.push("astraura-158-nube");
   return resultado;
 }

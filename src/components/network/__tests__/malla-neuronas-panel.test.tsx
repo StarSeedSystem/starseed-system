@@ -67,6 +67,55 @@ describe("MallaNeuronasPanel", () => {
     expect(screen.getByText("Cercanas de otras cuentas (1)")).toBeTruthy();
   });
 
+  test("(Ola 367) muestra «Sirve Astraura 1.58» solo en el dispositivo cuya ficha lo anuncia", async () => {
+    estado = {
+      loading: false,
+      misDispositivos: [
+        {
+          neuronId: "n-mac",
+          syncDeviceId: "s-mac",
+          nombre: "Mac de Alex",
+          plataforma: "macOS",
+          tipo: "desktop",
+          online: true,
+          esEsteDispositivo: false,
+          enlace: { estado: "conectado" },
+          ficha: {
+            v: 1,
+            syncDeviceId: "s-mac",
+            neuronDeviceId: "n-mac",
+            nombre: "Mac de Alex",
+            tipo: "desktop",
+            plataforma: "macOS",
+            versionOS: "0.2.2",
+            ramClase: "8 GB",
+            backendLocal: true,
+            capas: { local: true, mesh: true, nube: true, colectiva: true },
+            at: Date.now(),
+            sirveAstraura: true,
+            astrauraLatenciaMs: 37,
+          },
+        },
+        {
+          neuronId: "n-tablet",
+          syncDeviceId: "s-tablet",
+          nombre: "Tablet de Alex",
+          plataforma: "Android",
+          tipo: "tablet",
+          online: true,
+          esEsteDispositivo: false,
+          enlace: { estado: "conectado" },
+        },
+      ],
+      cercanas: [],
+    };
+
+    const { MallaNeuronasPanel } = await import("@/components/network/malla-neuronas-panel");
+    render(<MallaNeuronasPanel />);
+
+    expect(screen.getByText("Sirve Astraura 1.58 · 37 ms")).toBeTruthy();
+  });
+
   test("degrada a listas vacías sin motor montado (nunca inventa presencia)", async () => {
     estado = { misDispositivos: [], cercanas: [], loading: false };
     const { MallaNeuronasPanel } = await import("@/components/network/malla-neuronas-panel");

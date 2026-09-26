@@ -10,7 +10,7 @@
  */
 
 import { useState } from "react";
-import { Laptop, Monitor, RadioTower, Server, Smartphone, Tablet, Wifi, Loader2, XCircle, Radar } from "lucide-react";
+import { Laptop, Monitor, RadioTower, Server, Smartphone, Tablet, Wifi, Loader2, XCircle, Radar, Brain } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -110,6 +110,16 @@ function DispositivoRow({ d }: { d: DispositivoMallaRow }) {
           >
             {d.online ? "en línea" : "desconectada"}
           </Badge>
+          {d.ficha?.sirveAstraura && (
+            <Badge
+              variant="outline"
+              className="gap-1 border-violet-400/40 text-[9px] text-violet-300"
+              title="Puede relayar Astraura 1.58 a otras neuronas de tu malla por WebRTC (sin túnel)"
+            >
+              <Brain className="h-3 w-3" />
+              Sirve Astraura 1.58{typeof d.ficha.astrauraLatenciaMs === "number" ? ` · ${d.ficha.astrauraLatenciaMs} ms` : ""}
+            </Badge>
+          )}
         </div>
         <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-foreground/45">
           <span className="truncate">{d.plataforma}</span>

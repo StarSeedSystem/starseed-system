@@ -227,3 +227,25 @@ Resultado verificado en esta ola: **77 tests / 10 archivos en verde**
 (`src/lib/network src/lib/neurons src/ai/astraura/mesh src/components/connectivity src/components/network`)
 y `tsc --noEmit -p .` limpio. `next build` **no** se ejecutó (regla del área: nunca con el enjambre
 vivo / nunca en esta sesión de agente) — sigue siendo la tercera puerta pendiente antes de publicar.
+
+## 10. Astraura 1.58 REAL sobre el canal (Ola 367 · 2026-09-26)
+
+El punto pendiente del §8 ("`usePeersMalla()` queda listo para que el equipo de IA lo consuma")
+se resolvió: la malla ya no es solo un contador de vecinos, es una FUENTE de inteligencia. Sobre
+el MISMO data channel que este documento describe (nunca un segundo mesh), el nuevo módulo
+`src/lib/network/astraura-por-malla.ts` deja que una neurona sin backend local propio (p. ej. una
+tablet con la app instalada, cargando la web pública) le pida un turno de Astraura 1.58 a OTRA
+neurona de la MISMA cuenta que sí lo tenga (p. ej. la Mac) — protocolo JSON `astraura.*` sobre el
+`sendToPeer`/`onPeer` de siempre.
+
+Dos añadidos a este módulo para hacerlo posible:
+- `FichaDispositivo` (§4 de este documento) gana `sirveAstraura?: boolean` y
+  `astrauraLatenciaMs?: number` — calculados en `construirFicha()` con
+  `puedeServirAstrauraPorMalla()` (same-origin local o endpoint propio declarado, Y la capa mesh
+  compartiendo encendida) y viajan en la misma ficha que ya se intercambia cada 30 s.
+- Nuevo getter `snapshotMallaNeuronas()`: lectura SÍNCRONA (sin hook) del mismo estado que publica
+  el motor único, para que código no-React (el relé de malla, eligiendo con qué peer hablar)
+  pueda leerlo sin re-suscribirse.
+
+Detalle completo del protocolo, el rol servidor/cliente, el enrutador y el flujo de punta a punta:
+`architecture/astraura-158-sistema-primario.md` §17.

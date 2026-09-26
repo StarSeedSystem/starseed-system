@@ -15,6 +15,7 @@ import { Switch } from "@/components/ui/switch";
 import { getUnifiedCatalog } from "@/ai/astraura/unified-intelligence";
 import { CAPAS, destinoNivelador, ETIQUETA_CAPA, ETIQUETA_ESTADO, type CapaConciencia, type EstadoCapa } from "@/lib/astraura/capas-conciencia";
 import { useEstadoCapas } from "@/lib/astraura/use-estado-capas";
+import { useMallaNeuronasEstado } from "@/lib/network/malla-neuronas";
 import { cn } from "@/lib/utils";
 
 export const COLOR_ESTADO: Record<EstadoCapa, string> = {
@@ -49,6 +50,15 @@ export function PanelCapas({ compacto = false }: { compacto?: boolean }) {
     const { preferencia, estados, cambiar, cambiarCapa } = useEstadoCapas();
     const maestro = preferencia.activo;
 
+    // (Ola 367) Fila "mesh": cuántas neuronas de la malla P2P sirven Astraura
+    // 1.58 ahora mismo (ficha.sirveAstraura), para que el usuario vea de un
+    // vistazo si tiene con quién hablar sin pasar por el túnel/la nube.
+    const { misDispositivos } = useMallaNeuronasEstado();
+    const neuronasSirvenAstraura = useMemo(
+        () => misDispositivos.filter((d) => !d.esEsteDispositivo && d.ficha?.sirveAstraura).length,
+        [misDispositivos],
+    );
+
     // Mientras se arrastra el nivelador solo cambia la vista; se guarda al soltar (una
     // escritura y una subida a la cuenta, no una por píxel).
     const [nivel, setNivel] = useState(preferencia.nivelador);
@@ -78,7 +88,11 @@ export function PanelCapas({ compacto = false }: { compacto?: boolean }) {
             <ul className={cn("flex flex-col", compacto ? "gap-1.5" : "gap-2")}>
                 {CAPAS.map((capa) => {
                     const Icono = ICONO_CAPA[capa];
-                    const { nombre, descripcion } = ETIQUETA_CAPA[capa];
+                    const { nombre, descripcion: descripcionEstatica } = ETIQUETA_CAPA[capa];
+                    const descripcion =
+                        capa === "mesh" && neuronasSirvenAstraura > 0
+                            ? `${neuronasSirvenAstraura} neurona${neuronasSirvenAstraura === 1 ? "" : "s"} de tu malla sirve${neuronasSirvenAstraura === 1 ? "" : "n"} Astraura 1.58 ahora`
+                            : descripcionEstatica;
                     return (
                         <li
                             key={capa}
