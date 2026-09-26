@@ -549,8 +549,8 @@ export default function HubPage() {
         });
 
     return (
-        <div className="flex flex-col w-full gap-[clamp(1.5rem,2.5vw,2.5rem)] pb-24 px-[clamp(1rem,3vw,3rem)] py-[clamp(1rem,2vw,2rem)] mx-auto relative">
-            
+        <div className="flex flex-col w-full max-sm:gap-4 gap-[clamp(1.5rem,2.5vw,2.5rem)] pb-24 px-[clamp(1rem,3vw,3rem)] max-sm:py-3 py-[clamp(1rem,2vw,2rem)] mx-auto relative">
+
             {/* ── ALERTA DE TOAST PREMIUM (NOTIFICACIONES EN TIEMPO REAL) ── */}
             {toastMessage && (
                 <div className="fixed bottom-6 right-6 left-6 sm:left-auto z-[999] animate-in fade-in-50 slide-in-from-bottom-5 duration-300 max-w-sm sm:ml-auto">
@@ -567,7 +567,7 @@ export default function HubPage() {
             )}
 
             {/* ── HISTORIAS TEMPORALES (Strip estética arriba de las publicaciones) ── */}
-            <div className="rounded-2xl border border-white/5 bg-gradient-to-br from-purple-500/[0.04] via-transparent to-cyan-500/[0.04] backdrop-blur p-3 -mt-1">
+            <div className="rounded-2xl border border-white/5 bg-gradient-to-br from-purple-500/[0.04] via-transparent to-cyan-500/[0.04] backdrop-blur max-sm:p-2 p-3 -mt-1">
                 <StoriesStrip
                     ownerKind="hub"
                     ownerId="hub-conexiones"
@@ -577,13 +577,13 @@ export default function HubPage() {
             </div>
 
             {/* ── HEADER CON TÍTULO Y BÚSQUEDA ── */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-[clamp(1rem,2vw,2rem)] w-full text-center md:text-left">
+            <div className="flex flex-col md:flex-row md:items-center justify-between max-sm:gap-3 gap-[clamp(1rem,2vw,2rem)] w-full text-center md:text-left">
                 <div className="flex-1 flex flex-col md:items-start items-center">
                     {/* Degradado tokenizado: respira con el tema activo (Aurora, Café…) */}
                     <h1 className="page-title font-headline text-transparent bg-clip-text bg-gradient-to-r from-primary to-secondary drop-shadow-[0_0_15px_hsl(var(--primary-hsl)/0.3)] w-full">
                         Hub Social
                     </h1>
-                    <p className="text-[clamp(0.9rem,1.2vw,1.1rem)] text-muted-foreground mt-2 max-w-2xl text-balance">
+                    <p className="text-[clamp(0.9rem,1.2vw,1.1rem)] text-muted-foreground max-sm:mt-1 mt-2 max-w-2xl text-balance">
                         Centro de mando para toda tu actividad social, política y colaborativa en la red.
                     </p>
                 </div>
@@ -598,7 +598,7 @@ export default function HubPage() {
                             if (e.key === "Enter") setActiveTab("buscador");
                         }}
                         placeholder="Buscar en toda la red..."
-                        className="pl-12 h-12 bg-background/40 backdrop-blur-md border-primary/20 focus-visible:ring-1 focus-visible:ring-primary/50 rounded-xl w-full text-base transition-all shadow-inner"
+                        className="pl-12 max-sm:h-11 h-12 bg-background/40 backdrop-blur-md border-primary/20 focus-visible:ring-1 focus-visible:ring-primary/50 rounded-xl w-full text-base transition-all shadow-inner"
                     />
                 </div>
             </div>
