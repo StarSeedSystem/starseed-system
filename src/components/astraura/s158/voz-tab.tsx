@@ -55,7 +55,7 @@ export function VozTab({ target, manifest }: S158TabProps) {
                 </label>
               ))}
             </div>
-            <div className="mt-2 grid grid-cols-2 gap-2">
+            <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
               <Stat label="Escuchando" value={d.active_listening_personalities_count ?? 0} hint="personalidades en escucha" />
               <Stat label="Hora del daemon" value={d.system_time ?? "—"} hint={`${(d.recent_perceptions ?? []).length} percepciones recientes`} />
             </div>

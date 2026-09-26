@@ -142,7 +142,7 @@ export function TarjetaSesionesClaude() {
                             className="flex flex-wrap items-center gap-2 font-mono text-[11px] text-white/60"
                         >
                             <span className="text-white/50">{horaLocal(s.cuando)}</span>
-                            <span className="max-w-[10rem] truncate" title={s.proyecto}>
+                            <span className="min-w-0 max-w-[10rem] truncate" title={s.proyecto}>
                                 {s.proyecto}
                             </span>
                             <span className="ml-auto">{s.turnos} turnos</span>

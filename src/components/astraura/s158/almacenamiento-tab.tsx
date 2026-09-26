@@ -107,7 +107,7 @@ export function AlmacenamientoTab({ target, manifest }: S158TabProps) {
 
         <div className={cn(CARD, "p-3")}>
           <SectionTitle icon={Activity} title="Agente de enrutamiento y malla" tone="text-emerald-300" hint="El agente mueve lo detectado a los cerebros; la malla empuja el estado a Supabase/R2 para tus otras neuronas." />
-          <div className="mt-2 grid grid-cols-2 gap-2">
+          <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
             <Stat label="Agente" value={r ? (r.enabled === false ? "desactivado" : r.is_busy ? "ocupado" : "listo") : "—"} hint={r ? `${r.sync_runs ?? 0} sincronizaciones · ${r.brains_count ?? 0} cerebros` : routing.error || undefined} />
             <Stat label="Malla" value={mesh?.status ?? (sync.error ? "sin datos" : "—")} hint={mesh ? `${mesh.active_synced_clients ?? 0} neuronas sincronizadas` : undefined} />
           </div>

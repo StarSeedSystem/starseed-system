@@ -236,8 +236,8 @@ export function OficinaMando({ alCambiarPestana }: OficinaMandoProps) {
         return (
             <div data-testid="oficina-mando" className="space-y-4" aria-busy="true">
                 <div className="h-8 w-56 animate-pulse rounded-lg bg-white/10" />
-                <div className="grid grid-cols-3 gap-4">
-                    <div className="col-span-2 h-[520px] animate-pulse rounded-xl bg-white/5" />
+                <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+                    <div className="h-[520px] animate-pulse rounded-xl bg-white/5 lg:col-span-2" />
                     <div className="h-80 animate-pulse rounded-xl bg-white/5" />
                 </div>
             </div>
@@ -287,9 +287,9 @@ export function OficinaMando({ alCambiarPestana }: OficinaMandoProps) {
                     <p className="mt-4 text-center text-sm text-white/50">Sin actividad ahora mismo.</p>
                 </div>
             ) : (
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
                     {/* Izquierda (2/3): la escena 3D con leyenda e interruptor. */}
-                    <div className="col-span-2">
+                    <div className="lg:col-span-2">
                         <OficinaSeres
                             estado={estadoVisible ?? { salas: [], ocupantes: [], actualizadoEn: 0, datosReales: false }}
                             seres={seres}

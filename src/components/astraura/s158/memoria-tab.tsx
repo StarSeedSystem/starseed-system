@@ -163,7 +163,7 @@ export function MemoriaTab({ target }: S158TabProps) {
               <SectionTitle icon={Network} title="Grafo de conocimiento" tone="text-cyan-300" hint="Nodos y aristas que el backend asocia mientras habla, imagina y sueña." />
               {!g && <Empty loading={graph.loading} error={graph.error} text="Sin grafo." />}
               {g && (
-                <div className="mt-2 grid grid-cols-2 gap-2">
+                <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
                   <Stat label="Nodos" value={g.stats?.nodes ?? nodes} />
                   <Stat label="Aristas" value={g.stats?.edges ?? edges} />
                   {Object.entries(g.stats ?? {}).filter(([k]) => !["nodes", "edges"].includes(k)).slice(0, 4).map(([k, v]) => <Stat key={k} label={k} value={v} />)}

@@ -20,6 +20,7 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import { BrainCircuit, CircleDashed, CircleDollarSign, Clock3, Copy, ExternalLink, Loader2, RefreshCw, ShieldAlert } from "lucide-react";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { MenuListaMovil } from "@/components/ui/menu-lista-movil";
 import type { EstadoMando, ProveedorUso } from "@/lib/mando/tipos";
 import { flotaConocida } from "@/lib/mando/flota";
 import "@/components/mando/mando-cristal.css";
@@ -216,6 +217,11 @@ const PESTANAS = [
 ] as const;
 
 type IdPestana = (typeof PESTANAS)[number]["id"];
+
+// Móvil (< 640px): 20 pestañas en fila son demasiadas para arrastrar — un solo
+// botón con la pestaña actual abre la lista completa (nombre entero + el grupo
+// como pista) en una hoja inferior, igual que en el resto del OS.
+const PESTANAS_OPCIONES = PESTANAS.map((p) => ({ id: p.id, label: p.etiqueta, hint: p.grupo }));
 
 /** Lee la pestaña inicial: primero `?pestana=` de la URL (p. ej. desde /voces), luego la última guardada. */
 function pestanaInicial(): IdPestana {
@@ -1898,7 +1904,16 @@ export function CentroMando() {
             ) : null}
 
             <Tabs value={pestana} onValueChange={alCambiarPestana}>
-                <TabsList aria-label="Pestañas del Centro de Mando" className="mc-cristal flex-wrap gap-y-1">
+                <div className="flex sm:hidden">
+                    <MenuListaMovil
+                        opciones={PESTANAS_OPCIONES}
+                        valor={pestana}
+                        onCambiar={alCambiarPestana}
+                        titulo="Pestañas del Centro de Mando"
+                        className="w-full"
+                    />
+                </div>
+                <TabsList aria-label="Pestañas del Centro de Mando" className="mc-cristal hidden flex-wrap gap-y-1 sm:flex">
                     {PESTANAS.map((p, i) => (
                         <Fragment key={p.id}>
                             {i > 0 && PESTANAS[i - 1].grupo !== p.grupo ? (

@@ -222,7 +222,7 @@ export function BibliotecaTab({ target, manifest, refresh }: S158TabProps) {
           tone="text-fuchsia-300"
           hint="Personalidades y agentes que el backend soberano sembró en tu Biblioteca del OS (idempotente, un id estable por cada uno). Se editan como cualquier personalidad/agente propio."
         />
-        <div className="mt-2 grid grid-cols-2 gap-2">
+        <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
           <Stat label="Personalidades p158-*" value={personalities.length} hint={personalities.length ? personalities.map((p) => p.name).slice(0, 4).join(" · ") : "sin sembrar todavía"} />
           <Stat label="Agentes agent158-*" value={agents.length} hint={agents.length ? agents.map((a) => a.name).slice(0, 4).join(" · ") : "sin sembrar todavía"} />
         </div>

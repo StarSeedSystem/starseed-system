@@ -209,7 +209,7 @@ export function TelemetriaTab({ target }: S158TabProps) {
         <SectionTitle icon={Database} title="Resumen de memoria" tone="text-emerald-300" />
           {!s?.memory_summary && <Empty loading={status.loading} error={status.error} text="Sin resumen de memoria." />}
           {s?.memory_summary && (
-            <div className="mt-2 grid grid-cols-2 gap-2">
+            <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
               <Stat label="Nodos" value={s.memory_summary.knowledge_nodes ?? 0} />
               <Stat label="Aristas" value={s.memory_summary.knowledge_edges ?? 0} />
               <Stat label="Vectores" value={s.memory_summary.vector_documents ?? 0} />
@@ -219,7 +219,7 @@ export function TelemetriaTab({ target }: S158TabProps) {
         </div>
         <div className={cn(CARD, "p-3")}>
           <SectionTitle icon={MemoryStick} title="Hardware" tone="text-amber-300" hint={s?.profiler?.hardware_family ? undefined : "El backend no publica familia de hardware."} />
-          <div className="mt-2 grid grid-cols-2 gap-2">
+          <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
             <Stat label="Familia" value={s?.profiler?.hardware_family ?? "—"} />
             <Stat label="Núcleos" value={cores ?? "no expuesto"} />
             <Stat label="RAM total" value={ramGb ? `${ramGb.toFixed(1)} GB` : "no expuesta"} />
@@ -233,7 +233,7 @@ export function TelemetriaTab({ target }: S158TabProps) {
           <SectionTitle icon={Network} title="Malla de sincronización" tone="text-cyan-300" />
           {!mesh && <Empty loading={sync.loading} error={sync.error} text="Sin telemetría de malla." />}
           {mesh && (
-            <div className="mt-2 grid grid-cols-2 gap-2">
+            <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
               <Stat label="Estado" value={mesh.status ?? "—"} />
               <Stat label="Neuronas sincronizadas" value={mesh.active_synced_clients ?? 0} />
             </div>

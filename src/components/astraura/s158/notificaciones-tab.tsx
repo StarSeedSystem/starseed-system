@@ -251,7 +251,7 @@ export function NotificacionesTab({ target, refresh }: S158TabProps) {
           </div>
           {!a && <Empty loading={auth.loading} error={auth.error} text="Sin orquestador de autorizaciones." />}
           {a && (
-            <div className="mt-2 grid grid-cols-3 gap-2">
+            <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
               <Stat label="Orquestaciones ejecutadas" value={a.orchestrations_run ?? 0} />
               <Stat label="Procesadas" value={a.last_run?.processed_count ?? 0} />
               <Stat label="Fallidas" value={a.last_run?.failed_count ?? 0} hint={a.last_run?.elapsed_seconds ? `${Math.round(a.last_run.elapsed_seconds)} s de media` : undefined} />

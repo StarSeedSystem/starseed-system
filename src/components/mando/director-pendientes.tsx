@@ -65,7 +65,7 @@ export function DirectorPendientes({ pendientes }: { pendientes: ResumenPendient
   return (
     <MarcoWidget titulo="Pendientes" categoria="sistema">
       <div className="flex h-full flex-col gap-3 p-3" data-testid="director-pendientes">
-        <div className="grid grid-cols-3 gap-2 text-center text-xs">
+        <div className="grid grid-cols-2 gap-2 text-center text-xs lg:grid-cols-3">
           <div>
             <p className="text-xl font-black text-foreground/90">{pendientes.listas}</p>
             <p className="text-[10px] text-muted-foreground/70">listas</p>

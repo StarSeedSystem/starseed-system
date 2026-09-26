@@ -217,7 +217,7 @@ export function MemoriaDispositivoSection({ target }: { target: Astraura158Targe
                 <Badge tone={levelTone(d.running ? "running" : "paused")}>{d.running ? "demonio corriendo ahora" : "demonio en reposo"}</Badge>
               </div>
             )}
-            <div className="mt-2 grid grid-cols-3 gap-2">
+            <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
               <Stat label="Documentos" value={d.total_documents ?? "—"} />
               <Stat label="Nodos del grafo" value={d.total_nodes ?? "—"} />
               <Stat label="Carpetas" value={list.length} />

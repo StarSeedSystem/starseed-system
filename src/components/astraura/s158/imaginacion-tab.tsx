@@ -277,7 +277,7 @@ export function ImaginacionTab({ target, refresh }: S158TabProps) {
           <SectionTitle icon={Moon} title="Sueños (Dream Studio)" hint="Ciclo onírico de Oneiros: consolida memorias e imagina libre mientras no hablas." tone="text-indigo-300" />
           {!dream.data && <Empty loading={dream.loading} error={dream.error} text="Sin estado de sueños." />}
           {dream.data && (
-            <div className="mt-2 grid grid-cols-2 gap-2">
+            <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
               <Stat label="Estado" value={dream.data.is_dreaming ? "soñando" : dream.data.is_always_on ? "activo" : "en espera"} hint={dream.data.operation_mode} />
               <Stat label="Próximo" value={fmtCountdown(dream.data.next_cycle_seconds_left)} hint={`${dream.data.cycles_completed ?? 0} ciclos`} />
             </div>

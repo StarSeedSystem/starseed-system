@@ -42,10 +42,12 @@ export interface S158TabProps {
 
 export const CARD = "rounded-xl border border-white/10 bg-white/[0.03] backdrop-blur-xl";
 export const SUB = "rounded-lg border border-white/10 bg-black/20";
-export const BTN = "inline-flex cursor-pointer items-center gap-1 rounded-md border border-white/10 bg-white/[0.04] px-2 py-1 text-[11px] text-white/85 transition-colors hover:border-cyan-400/40 hover:text-cyan-100 disabled:cursor-not-allowed disabled:opacity-50";
+// max-sm:min-h-9 (36px): muchos de estos botones son solo-icono (recargar, etc.)
+// y con `py-1` a 390px se quedaban por debajo del objetivo táctil mínimo.
+export const BTN = "inline-flex cursor-pointer items-center gap-1 rounded-md border border-white/10 bg-white/[0.04] px-2 py-1 text-[11px] text-white/85 transition-colors hover:border-cyan-400/40 hover:text-cyan-100 disabled:cursor-not-allowed disabled:opacity-50 max-sm:min-h-9";
 export const BTN_PRIMARY = cn(BTN, "border-cyan-400/40 bg-cyan-500/10 text-cyan-100 hover:bg-cyan-500/20");
 export const BTN_DANGER = cn(BTN, "border-rose-400/30 text-rose-100 hover:border-rose-400/60 hover:text-rose-50");
-export const PILL = "inline-flex cursor-pointer items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[11px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50";
+export const PILL = "inline-flex cursor-pointer items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[11px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 max-sm:min-h-9";
 export const PILL_ON = "border-cyan-400/40 bg-cyan-500/15 text-cyan-100";
 export const PILL_OFF = "border-white/10 bg-white/[0.03] text-white/80 hover:border-white/25";
 export const INPUT = "min-w-0 rounded-lg border border-white/10 bg-black/30 px-2 py-1.5 text-[11px] text-white outline-none transition-colors placeholder:text-white/30 focus:border-cyan-400/50 disabled:cursor-not-allowed disabled:opacity-50";
