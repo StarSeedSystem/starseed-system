@@ -81,6 +81,51 @@ describe("resumirRuta", () => {
 
     expect(resumirRuta(stats, 5_000).clase).toBe("internet-directo");
   });
+
+  it("cae al par nominado si selectedCandidatePairId no existe en el informe", () => {
+    const stats = [
+      ...informe("srflx", "host"),
+      { id: "transporte", type: "transport", selectedCandidatePairId: "no-existe" },
+    ];
+
+    expect(resumirRuta(stats, 6_000).clase).toBe("internet-directo");
+  });
+
+  it("cae al par nominado si el par seleccionado aún no está en succeeded", () => {
+    const base = informe("host", "host");
+    const pendiente = {
+      id: "par-pendiente",
+      type: "candidate-pair",
+      state: "in-progress",
+      nominated: false,
+      localCandidateId: "local",
+      remoteCandidateId: "remoto",
+    };
+    const stats = [
+      ...base,
+      pendiente,
+      { id: "transporte", type: "transport", selectedCandidatePairId: "par-pendiente" },
+    ];
+
+    expect(resumirRuta(stats, 7_000).clase).toBe("misma-red-local");
+  });
+
+  it("devuelve desconocida si el par seleccionado no sirve y no hay nominado", () => {
+    const stats = [
+      {
+        id: "par-pendiente",
+        type: "candidate-pair",
+        state: "in-progress",
+        localCandidateId: "local",
+        remoteCandidateId: "remoto",
+      },
+      { id: "local", type: "local-candidate", candidateType: "host" },
+      { id: "remoto", type: "remote-candidate", candidateType: "host" },
+      { id: "transporte", type: "transport", selectedCandidatePairId: "par-pendiente" },
+    ];
+
+    expect(resumirRuta(stats, 8_000).clase).toBe("desconocida");
+  });
 });
 
 describe("etiquetaRuta", () => {

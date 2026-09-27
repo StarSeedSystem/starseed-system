@@ -52,13 +52,13 @@ export function resumirRuta(stats: FuenteEstadisticas, ahora: number): RutaEnlac
   const idSeleccionado = entradas.find(
     (entrada) => entrada.type === "transport" && typeof entrada.selectedCandidatePairId === "string",
   )?.selectedCandidatePairId;
+  const seleccionado = typeof idSeleccionado === "string" ? porId.get(idSeleccionado) : undefined;
   const par =
-    (typeof idSeleccionado === "string" ? porId.get(idSeleccionado) : undefined) ??
+    (seleccionado && esParUtil(seleccionado) ? seleccionado : undefined) ??
     entradas.find(
-      (entrada) =>
-        entrada.type === "candidate-pair" && entrada.state === "succeeded" && entrada.nominated === true,
+      (entrada) => esParUtil(entrada) && entrada.nominated === true,
     );
-  if (!par || par.type !== "candidate-pair" || par.state !== "succeeded") {
+  if (!par) {
     return rutaDesconocida(ahora);
   }
 
@@ -89,6 +89,10 @@ export function etiquetaRuta(clase: ClaseRuta): string {
     desconocida: "ruta desconocida",
   };
   return etiquetas[clase];
+}
+
+function esParUtil(entrada: Estadistica): boolean {
+  return entrada.type === "candidate-pair" && entrada.state === "succeeded";
 }
 
 function candidato(porId: Map<string, Estadistica>, id: unknown): Estadistica | undefined {
