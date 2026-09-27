@@ -28,6 +28,8 @@ import {
   Check,
   X,
   ShieldCheck,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -42,6 +44,7 @@ import {
 import type { NeuronKind } from "@/lib/neurons/neurons";
 import { useTransferenciasArchivo } from "@/lib/network/archivos-malla";
 import { etiquetaRuta } from "@/lib/network/estadisticas-enlace";
+import { agruparDispositivos, type Grupo } from "@/lib/network/agrupar-dispositivos";
 import { EnviarArchivoBoton, TransferenciasArchivoLista } from "@/components/network/transferencias-archivo-panel";
 import { findSource } from "@/ai/astraura/free-catalog";
 
@@ -384,6 +387,26 @@ function DispositivoRow({ d }: { d: DispositivoMallaRow }) {
   );
 }
 
+/** Tarjeta de un equipo: una por grupo; si hay varias instalaciones, se cuentan y se listan compactas. */
+function EquipoCard({ grupo }: { grupo: Grupo }) {
+  const multiple = grupo.filas.length > 1;
+  return (
+    <div className="space-y-1">
+      {multiple && (
+        <div className="flex items-center gap-2 px-0.5">
+          <span className="truncate text-[11px] font-medium text-foreground/70">{grupo.titulo}</span>
+          <Badge variant="outline" className="border-foreground/15 text-[9px] text-foreground/50">
+            {grupo.filas.length} instalaciones
+          </Badge>
+        </div>
+      )}
+      {grupo.filas.map((d) => (
+        <DispositivoRow key={d.neuronId} d={d} />
+      ))}
+    </div>
+  );
+}
+
 function CercanaRow({ b }: { b: NeuronaCercanaRow }) {
   const [dialogAbierto, setDialogAbierto] = useState(false);
   const puedeSolicitar = !!b.syncId;
@@ -602,9 +625,11 @@ export function MallaNeuronasPanel({ compact = false }: { compact?: boolean }) {
   const transferencias = useTransferenciasArchivo();
   const vinculos = useVinculos();
   const [tab, setTab] = useState<"propios" | "cercanas" | "archivos" | "vinculos">("propios");
+  const [verDesconectados, setVerDesconectados] = useState(false);
 
   const enLinea = misDispositivos.filter((d) => d.online).length;
   const solicitudesEntrantes = vinculos.filter((v) => v.rol === "a" && v.estado === "pendiente").length;
+  const { activos, desconectados } = agruparDispositivos(misDispositivos);
 
   return (
     <div className={cn("space-y-3", compact ? "text-[12px]" : "text-sm")}>
@@ -689,7 +714,31 @@ export function MallaNeuronasPanel({ compact = false }: { compact?: boolean }) {
               Sin sesión, o aún no se ha registrado ninguna neurona en esta cuenta.
             </div>
           ) : (
-            misDispositivos.map((d) => <DispositivoRow key={d.neuronId} d={d} />)
+            <>
+              {activos.map((g) => (
+                <EquipoCard key={g.clave} grupo={g} />
+              ))}
+              {desconectados.length > 0 && (
+                <div className="rounded-xl border border-foreground/10">
+                  <button
+                    type="button"
+                    onClick={() => setVerDesconectados((v) => !v)}
+                    aria-expanded={verDesconectados}
+                    className="flex w-full cursor-pointer items-center gap-2 p-2.5 text-left text-[11px] text-foreground/55 hover:bg-foreground/[0.03]"
+                  >
+                    {verDesconectados ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                    Desconectados ({desconectados.length})
+                  </button>
+                  {verDesconectados && (
+                    <div className="space-y-1.5 border-t border-foreground/10 p-1.5">
+                      {desconectados.map((g) => (
+                        <EquipoCard key={g.clave} grupo={g} />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
           )}
         </div>
       ) : tab === "cercanas" ? (
