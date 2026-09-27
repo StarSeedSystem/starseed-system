@@ -237,3 +237,8 @@ export function sugerirEmail(email: string): void {
 export function emailSugerido(): string | null {
   try { return localStorage.getItem(LS_EMAIL_SUGERIDO); } catch { return null; }
 }
+
+/** Tras entrar, la sugerencia ya se usó: no debe rellenar el próximo login. */
+export function olvidarEmailSugerido(): void {
+  try { localStorage.removeItem(LS_EMAIL_SUGERIDO); } catch { /* noop */ }
+}

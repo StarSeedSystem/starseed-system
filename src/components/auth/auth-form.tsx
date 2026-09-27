@@ -11,6 +11,7 @@ import { useToast } from '@/components/ui/use-toast'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { iniciarRito, navegarSuave } from '@/lib/onboarding/director-rito'
+import { emailSugerido, olvidarEmailSugerido } from '@/lib/entorno/deteccion-entorno'
 
 export interface AuthFormProps {
     /** Pestaña con la que abre: «Entrar» (por defecto) o «Registrarse». */
@@ -32,6 +33,19 @@ export function AuthForm({ pestanaInicial = 'signin' }: AuthFormProps = {}) {
     const [signupPass, setSignupPass] = React.useState('')
     const [signupPass2, setSignupPass2] = React.useState('')
     const [signupExterno, setSignupExterno] = React.useState('')
+    // (2026-09-27) «Continuar como …» del aviso «Cuenta detectada en este
+    // dispositivo» deja el correo sugerido; antes nadie lo leía y el login salía
+    // vacío. Se rellena aquí y el foco pasa a la contraseña, para que el gestor
+    // de contraseñas del navegador complete la guardada de esa cuenta.
+    const [signinEmail, setSigninEmail] = React.useState('')
+    const passwordSigninRef = React.useRef<HTMLInputElement>(null)
+    React.useEffect(() => {
+        const sugerido = emailSugerido()
+        if (!sugerido) return
+        setSigninEmail(sugerido)
+        const t = setTimeout(() => passwordSigninRef.current?.focus(), 60)
+        return () => clearTimeout(t)
+    }, [])
     const passNoCoincide = signupPass2.length > 0 && signupPass !== signupPass2
     const esStarSeed = signupEmail.trim().toLowerCase().endsWith('@star.seed')
 
@@ -189,6 +203,7 @@ export function AuthForm({ pestanaInicial = 'signin' }: AuthFormProps = {}) {
         } else {
             // Página principal del OS: el último perfil activo se restaura solo
             // (starseed.profile.active.v1 permanece salvo cierre de sesión manual).
+            olvidarEmailSugerido()
             router.push('/escritorios')
             router.refresh()
         }
@@ -219,11 +234,13 @@ export function AuthForm({ pestanaInicial = 'signin' }: AuthFormProps = {}) {
                         <form onSubmit={handleSignIn} className="space-y-4 pt-4">
                             <div className="space-y-2">
                                 <Label htmlFor="email-signin">Email</Label>
-                                <Input id="email-signin" name="email" type="email" placeholder="nombre@starseed.net" required />
+                                <Input id="email-signin" name="email" type="email" placeholder="nombre@starseed.net" required
+                                    autoComplete="username" value={signinEmail} onChange={(e) => setSigninEmail(e.target.value)} />
                             </div>
                             <div className="space-y-2">
                                 <Label htmlFor="password-signin">Contraseña</Label>
-                                <Input id="password-signin" name="password" type="password" required />
+                                <Input id="password-signin" name="password" type="password" required
+                                    autoComplete="current-password" ref={passwordSigninRef} />
                             </div>
                             <Button type="submit" className="w-full" disabled={isLoading}>
                                 {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

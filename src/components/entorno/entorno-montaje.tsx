@@ -47,6 +47,10 @@ export function EntornoMontaje() {
   // `window`: se gatea con `mounted` para que ambos rindan null y el aviso local
   // aparezca solo tras montar (mismo patrón que el portal de voz #310).
   const [mounted, setMounted] = useState(false);
+  // (2026-09-27) Sesión viva en ESTA ventana, leída del cliente de auth y no del
+  // snapshot guardado: con el snapshot viejo de localStorage el aviso «Cuenta
+  // detectada» seguía en pantalla DESPUÉS de iniciar sesión (Alex).
+  const [conSesion, setConSesion] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -54,13 +58,21 @@ export function EntornoMontaje() {
     try { setDescartadas(JSON.parse(sessionStorage.getItem(SS_DESCARTADAS) || "[]")); } catch { /* noop */ }
     try { setCerradoLocal(sessionStorage.getItem(SS_LOCALDEV_CERRADO) === "1"); } catch { /* noop */ }
     let vivo = true;
-    void detectarEntorno().then((s) => { if (vivo) setSnap(s); }).catch(() => { /* noop */ });
-    // Al iniciarse una sesión (login o cuenta recién creada), el aviso sobra.
+    const redetectar = () => {
+      void detectarEntorno().then((s) => { if (vivo) setSnap(s); }).catch(() => { /* noop */ });
+    };
+    redetectar();
+    // Al iniciarse una sesión (login o cuenta recién creada), los avisos sobran;
+    // al cerrarla, se vuelve a mirar qué cuentas usaron este dispositivo.
     let unsub: (() => void) | undefined;
     try {
       const sb = createClient();
-      const { data: sub } = sb.auth.onAuthStateChange((ev) => {
+      void sb.auth.getSession().then(({ data }) => { if (vivo) setConSesion(!!data?.session?.user); }).catch(() => { /* noop */ });
+      const { data: sub } = sb.auth.onAuthStateChange((ev, sesion) => {
+        if (!vivo) return;
+        setConSesion(!!sesion?.user);
         if (ev === "SIGNED_IN") setCerradoLocal(true);
+        if (ev === "SIGNED_IN" || ev === "SIGNED_OUT") redetectar();
       });
       unsub = () => sub.subscription.unsubscribe();
     } catch { /* defensivo */ }
@@ -81,8 +93,14 @@ export function EntornoMontaje() {
   }, []);
 
   // Solo con cuenta DETECTADA y SIN sesión activa: con sesión abierta el
-  // cambio de cuenta sería ruido, no ayuda.
-  const candidata = snap?.otrasCuentas.find((c) => !descartadas.includes(c.user_id));
+  // cambio de cuenta sería ruido, no ayuda. (2026-09-27: la condición estaba en
+  // el comentario pero no en el código.) En /login tampoco: allí el correo ya
+  // llega relleno al formulario.
+  const enLogin = !!pathname && pathname.startsWith("/login");
+  const sinSesion = !conSesion && !snap?.sesionActual;
+  const candidata = sinSesion && !enLogin
+    ? snap?.otrasCuentas.find((c) => !descartadas.includes(c.user_id))
+    : undefined;
   if (!candidata) {
     // (Adenda 179) En dev/local el navegador NO comparte la cookie de sesión del
     // dominio de producción (cookies por origen), así que el OS no reconoce tu
@@ -90,7 +108,7 @@ export function EntornoMontaje() {
     // SIN tocar la auth del servidor (es un límite del navegador, no un bug).
     const esLocal = mounted && /^(localhost|127\.0\.0\.1|\[::1\])$/.test(window.location.hostname);
     const enAcceso = !!pathname && pathname.startsWith("/login");
-    if (esLocal && !snap?.sesionActual && !cerradoLocal && !enAcceso) {
+    if (esLocal && sinSesion && !cerradoLocal && !enAcceso) {
       return (
         <div role="dialog" aria-label="Sesión en modo local" className="fixed bottom-[max(0.75rem,env(safe-area-inset-bottom))] left-[max(0.75rem,env(safe-area-inset-left))] z-[65] max-w-[92vw] sm:max-w-sm rounded-xl border border-white/10 bg-black/70 p-3 shadow-lg backdrop-blur-md">
           <button
@@ -140,6 +158,8 @@ export function EntornoMontaje() {
               type="button"
               onClick={() => {
                 if (candidata.email) sugerirEmail(candidata.email);
+                // Elegida la cuenta, el aviso ya cumplió: no debe quedarse encima del login.
+                descartar(candidata.user_id);
                 router.push("/login");
               }}
               className="cursor-pointer rounded-md border border-cyan-400/40 bg-cyan-500/10 px-2.5 py-1 text-[11px] font-medium text-cyan-100 transition-colors hover:bg-cyan-500/20"
