@@ -2824,3 +2824,25 @@
 **Lo que quedó fuera, una por una:**
 - `RDV2` — otra cosa: reasignada a la nube 20260927
 - `RDV8` — otra cosa: reasignada a la nube 20260927
+
+## 2026-09-27 17:32 · auto-0927-161954
+
+**Lo que se pidió.** sin dato
+
+**Resultado.** 0 de 9 integradas. 9 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 7 tareas se fueron por lo mismo — otra cosa (RDV6, RDV13, RDV14, RDV15, RDV19, DR0927-1). Es 78 % de la ola.
+- 2 tareas se fueron por lo mismo — no escribió nada (RDV8, JF2b). Es 22 % de la ola.
+- sin modelo anotado no integró ninguna de sus 9 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `RDV8` — no escribió nada: huérfana: ninguna cola fuente la define ya (estaba sin_cambios)
+- `RDV6` — otra cosa: huérfana: ninguna cola fuente la define ya (estaba bloqueada)
+- `RDV13` — otra cosa: huérfana: ninguna cola fuente la define ya (estaba bloqueada)
+- `RDV14` — otra cosa: huérfana: ninguna cola fuente la define ya (estaba bloqueada)
+- `RDV15` — otra cosa: huérfana: ninguna cola fuente la define ya (estaba bloqueada)
+- `RDV19` — otra cosa: huérfana: ninguna cola fuente la define ya (estaba bloqueada)
+- `JF2b` — no escribió nada
+- `DR0927-1` — otra cosa: movida a ninguna parte: ya publicada por el supervisor (8803200a) desde el Mando
+- `DR0927-2` — otra cosa: movida a ninguna parte: el remoto de astraura ya no lleva token desde el Mando
