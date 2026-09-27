@@ -490,7 +490,7 @@ export function OmniDock() {
                             className={cn(
                                 // touch-pan-x: el dedo desliza el carril en horizontal; el
                                 // movimiento vertical es del dock (bajarlo para cerrarlo).
-                                "omni-dock-strip flex items-end overflow-x-auto max-w-full box-border touch-pan-x",
+                                "omni-dock-strip flex items-start overflow-x-auto max-w-full box-border touch-pan-x",
                                 // Padding lateral mayor en móvil + scroll-padding para que el
                                 // primer/último botón queden DENTRO del marco redondeado y el
                                 // snap los alinee sin que se salgan por los lados.
@@ -550,7 +550,7 @@ export function OmniDock() {
                                                     exit={{ opacity: 0, width: 0 }}
                                                     transition={{ type: "spring", stiffness: 320, damping: 32 }}
                                                     className={cn(
-                                                        "flex items-end overflow-hidden rounded-2xl bg-foreground/[0.04] ring-1 ring-inset ring-foreground/10",
+                                                        "flex items-start overflow-hidden rounded-2xl bg-foreground/[0.04] ring-1 ring-inset ring-foreground/10",
                                                         compact ? "gap-1 lg:gap-2 px-1 lg:px-1.5" : "gap-1.5 lg:gap-4 px-1.5 lg:px-2",
                                                     )}
                                                 >
@@ -659,7 +659,7 @@ function DockItem({ icon, label, onClick, color = "neutral", active = false, bad
                     compact ? "w-9 h-9 lg:w-12 lg:h-12 max-sm:w-11 max-sm:h-11" : "w-12 h-12 lg:w-16 lg:h-16",
                     // Transiciones 150–300ms (guía de diseño): micro-interacción viva.
                     "transition-[transform,box-shadow,background-color,border-color] duration-200 ease-out",
-                    "active:scale-95 group-hover:scale-105 group-hover:-translate-y-0.5",
+                    "active:scale-95 [@media(hover:hover)]:group-hover:scale-105 [@media(hover:hover)]:group-hover:-translate-y-0.5",
                     // Foco accesible por teclado.
                     "outline-none focus-visible:ring-2 focus-visible:ring-offset-0 focus-visible:ring-white/60",
                     "bg-gradient-to-br ring-1 ring-inset",
@@ -667,14 +667,14 @@ function DockItem({ icon, label, onClick, color = "neutral", active = false, bad
                     active
                         ? cn(p.activeBg, "ring-2", p.ring, p.glow, "scale-105")
                         // Hover más claro: sube el brillo del acento y el anillo.
-                        : cn(p.bg, "ring-white/10 group-hover:ring-white/30 group-hover:shadow-[0_6px_20px_rgba(0,0,0,0.35)]"),
+                        : cn(p.bg, "ring-white/10 [@media(hover:hover)]:group-hover:ring-white/30 [@media(hover:hover)]:group-hover:shadow-[0_6px_20px_rgba(0,0,0,0.35)]"),
                 )}
             >
                 {/* Brillo de cristal sutil que aparece al pasar el cursor (Liquid Glass). */}
                 <span
                     aria-hidden
                     className={cn(
-                        "pointer-events-none absolute inset-0 bg-gradient-to-t from-transparent via-white/0 to-white/10 opacity-0 transition-opacity duration-200 group-hover:opacity-100",
+                        "pointer-events-none absolute inset-0 bg-gradient-to-t from-transparent via-white/0 to-white/10 opacity-0 transition-opacity duration-200 [@media(hover:hover)]:group-hover:opacity-100",
                         redondo ? "!rounded-full" : "!rounded-2xl",
                     )}
                 />
@@ -714,7 +714,7 @@ function DockItem({ icon, label, onClick, color = "neutral", active = false, bad
                         // («Librería · Bib…») — la etiqueta envuelve en hasta 2
                         // líneas, a todo el ancho fijo de la celda (arriba) y con
                         // una talla mínima legible (10px). Solo bajo 640px.
-                        "max-sm:line-clamp-2 max-sm:max-w-full max-sm:whitespace-normal max-sm:break-words max-sm:text-[10px]",
+                        "max-sm:line-clamp-2 max-sm:min-h-[2.5em] max-sm:max-w-full max-sm:whitespace-normal max-sm:break-words max-sm:text-[10px]",
                         active ? cn(p.text, "font-semibold") : "text-foreground/55 group-hover:text-foreground/85",
                     )}
                 >
