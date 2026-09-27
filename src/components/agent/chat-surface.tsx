@@ -1038,15 +1038,15 @@ export function ChatSurface({ variant = "embedded", className, initialConvId }: 
             msg.configChange ? (
               <ConfigChangeNotice key={msg.id ?? i} text={msg.content} />
             ) : (
-              <div key={msg.id ?? i} className={`flex gap-3 ${msg.role === "user" ? "flex-row-reverse" : ""}`}>
-                <Avatar className="w-8 h-8 border border-white/10">
+              <div key={msg.id ?? i} className={`flex gap-3 max-sm:gap-2 ${msg.role === "user" ? "flex-row-reverse" : ""}`}>
+                <Avatar className="w-8 h-8 border border-white/10 max-sm:hidden">
                   {msg.role === "agent" ? (
                     <AvatarFallback className="bg-primary/20 text-primary"><Bot className="w-4 h-4" /></AvatarFallback>
                   ) : (
                     <AvatarFallback className="bg-muted/40 text-xs">Tú</AvatarFallback>
                   )}
                 </Avatar>
-                <div className={`group relative p-3 rounded-2xl max-w-[86%] sm:max-w-[80%] min-w-0 break-words text-sm shadow-sm ${msg.role === "user" ? "bg-primary text-primary-foreground rounded-tr-none" : "bg-card border rounded-tl-none"}`}>
+                <div className={`group relative p-3 rounded-2xl max-w-[86%] max-sm:max-w-[94%] [overflow-wrap:anywhere] sm:max-w-[80%] min-w-0 break-words text-sm shadow-sm ${msg.role === "user" ? "bg-primary text-primary-foreground rounded-tr-none" : "bg-card border rounded-tl-none"}`}>
                   <MessageRenderer text={msg.content} compact={msg.role === "user"} />
                   <MessageAttachmentChips attachments={msg.attachments} />
                   {msg.pending && <span className="inline-block w-2 h-4 ml-1 bg-primary/70 animate-pulse align-middle" />}

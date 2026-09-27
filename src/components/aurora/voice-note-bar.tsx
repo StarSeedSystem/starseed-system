@@ -233,7 +233,7 @@ export function VoiceNoteBar({ text, className, convId }: VoiceNoteBarProps) {
   return (
     <div
       className={cn(
-        "mt-2 flex items-center gap-2 text-[11px] text-white/45 transition-opacity",
+        "mt-2 flex min-w-0 max-w-full flex-wrap items-center gap-2 text-[11px] text-white/45 transition-opacity",
         // Con audio: el reproductor es SIEMPRE visible (el regenerar se revela al
         // pasar el ratón por el mensaje). Sin audio ni regeneración en curso: toda
         // la barra se oculta hasta el hover del mensaje (el burbuja tiene `group`).
