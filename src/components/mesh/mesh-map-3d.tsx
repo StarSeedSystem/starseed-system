@@ -28,6 +28,11 @@ import {
   estimateDistanceMeters, useMeshState, detectSignals, subscribeConnectivity,
   type MeshNodeInfo, type RemoteTopology, type SignalSource, type SignalKind,
 } from "@/ai/astraura/mesh";
+import { useMallaNeuronasEstado } from "@/lib/network/malla-neuronas";
+import {
+  posicionesNeuronas,
+  type NeuronaEnMapa,
+} from "@/components/mesh/posiciones-neuronas";
 
 /* ── Señales locales por tipo (radar unificado · Adenda 100) ───────────────── */
 const KIND_ANGLE: Record<SignalKind, number> = {
@@ -175,6 +180,27 @@ function PeerNode({ placed }: { placed: PlacedNode }) {
   );
 }
 
+function AccountNeuron({ neurona }: { neurona: NeuronaEnMapa }) {
+  return (
+    <group position={neurona.pos}>
+      <mesh>
+        <sphereGeometry args={[0.34, 18, 18]} />
+        <meshStandardMaterial
+          color={neurona.color}
+          emissive={neurona.color}
+          emissiveIntensity={neurona.estado === "conectado" ? 0.65 : 0.35}
+        />
+      </mesh>
+      <Html center distanceFactor={16}>
+        <div className="pointer-events-none whitespace-nowrap rounded-lg border border-white/15 bg-black/75 px-2 py-1 text-center text-[10px] leading-tight text-white/85">
+          <span className="block font-medium">{neurona.nombre}</span>
+          <span className="block text-white/45">{neurona.etiqueta}</span>
+        </div>
+      </Html>
+    </group>
+  );
+}
+
 function RemoteCluster({ remote, index, total }: { remote: RemoteTopology; index: number; total: number }) {
   const ang = (index / Math.max(1, total)) * Math.PI * 2 + 0.7;
   const R = 13; // órbita exterior de neuronas federadas
@@ -262,7 +288,7 @@ function SignalNodes() {
   );
 }
 
-function Scene() {
+function Scene({ neuronas }: { neuronas: NeuronaEnMapa[] }) {
   const state = useMeshState();
   const placed = useMemo(() => placeNodes(state.nodes, state.self), [state.nodes, state.self]);
   const remotes = state.remoteTopologies ?? [];
@@ -285,6 +311,18 @@ function Scene() {
           />
         </group>
       ))}
+      {neuronas.map((neurona) => (
+        <group key={neurona.neuronId}>
+          <AccountNeuron neurona={neurona} />
+          <Line
+            points={[[0, 0, 0], neurona.pos]}
+            color={neurona.color}
+            transparent
+            opacity={0.4}
+            lineWidth={1}
+          />
+        </group>
+      ))}
       {remotes.map((r, i) => (
         <RemoteCluster key={r.deviceId} remote={r} index={i} total={remotes.length} />
       ))}
@@ -297,18 +335,23 @@ function Scene() {
 
 export function MeshMap3D({ className }: { className?: string }) {
   const state = useMeshState();
+  const { misDispositivos } = useMallaNeuronasEstado();
+  const neuronas = useMemo(() => posicionesNeuronas(misDispositivos), [misDispositivos]);
   const online = state.nodes.filter((n) => !n.isSelf && n.presence === "online").length;
   const connected = state.status === "ready" || state.status === "degraded";
+  const resumen = connected
+    ? `${online} nodos al alcance · ${neuronas.length} neuronas de tu cuenta`
+    : neuronas.length > 0
+      ? `${neuronas.length} neuronas de tu cuenta en línea · sin radio LoRa`
+      : "Sin radio ni otras neuronas de tu cuenta en línea";
   return (
     <div className={className}>
       <div className="relative h-[420px] w-full overflow-hidden rounded-2xl border border-white/10 bg-black/40">
         <Canvas camera={{ position: [0, 9, 14], fov: 50 }} dpr={[1, 1.75]}>
-          <Scene />
+          <Scene neuronas={neuronas} />
         </Canvas>
         <div className="pointer-events-none absolute left-3 top-3 rounded-lg border border-white/10 bg-black/60 px-2.5 py-1.5 text-[11px] text-white/70">
-          {connected
-            ? `${online} nodos al alcance · anillos: 100 m / 1 km / 5 km`
-            : "Sin radio: conecta la malla (o el simulador) para ver el mapa vivo"}
+          {resumen}
         </div>
         <div className="pointer-events-none absolute bottom-3 left-3 flex flex-wrap gap-2 text-[10px] text-white/55">
           <span className="rounded-full border border-sky-400/30 bg-black/60 px-2 py-0.5">azul = tú</span>
