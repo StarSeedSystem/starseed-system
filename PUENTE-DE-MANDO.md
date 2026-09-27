@@ -1,6 +1,6 @@
 # Puente de Mando · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-26 22:39:08 desde el Mando vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-26 23:00:38 desde el Mando vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -16,18 +16,15 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | Agentes escribiendo | **0** |
 | En esta ola | integradas 1 · en curso 0 · esperando aprobación 0 · pendientes 0 |
 | Últimas 4 olas | en curso 0 · pendientes 0 · integradas 22 |
-| HEAD | `e529e404 chore(memoria): aprendizaje de la ola 375-radar-veraz` |
-| Sin publicar | 5 commits |
+| HEAD | `f2172e4b chore(memoria): aprendizaje de la ola auto-0926-225055` |
+| Sin publicar | 9 commits |
 | Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-375-radar-veraz.json`, hace 4s)
+## Quién escribe ahora (latido de `cola-auto-0926-225055.json`, hace 7s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `RDV3` | hecho | codex/gpt-5.6-sol | 4 min | 212 s | 1300832 |
-| `RDV24` | hecho | codex/gpt-5.6-sol | 6 min | 367 s | 12468 |
-| `RDV1` | hecho | codex/gpt-5.6-sol | 13 min | 752 s | 755854 |
-| `RDV17` | hecho | codex/gpt-5.6-sol | 13 min | 764 s | 272077 |
+| `RDV24` | hecho | nvidia/z-ai/glm-5.3 | 4 min | 239 s | 14609 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
