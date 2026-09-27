@@ -1,6 +1,6 @@
 # Puente de Mando · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-27 15:22:02 desde el Mando vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-27 17:32:22 desde el Mando vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -9,25 +9,22 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 
 ## Estado ahora mismo
 
-| | |
-|---|---|
-| Mando | **encendido** en http://127.0.0.1:9002/mando |
-| Ola arriba | Ola Dream 2026-09-23 · lo que el análisis nocturno encontró |
-| Agentes escribiendo | **0** |
-| En esta ola | integradas 1 · en curso 0 · esperando aprobación 0 · pendientes 0 |
-| Últimas 4 olas | en curso 0 · pendientes 0 · integradas 22 |
-| HEAD | `c2166f5a chore(memoria): aprendizaje de la ola auto-0927-034146` |
-| Sin publicar | 7 commits |
+El Mando está **apagado**. Levántalo con `bash scripts/puente/arrancar-mando.sh`
+y vuelve a ejecutar este script; sin él los cuatro entornos van a ciegas.
+| HEAD | `43854bd2 chore(memoria): aprendizaje de la ola auto-0927-161954` |
+| Sin publicar | 3 commits |
 | Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-auto-0927-034146.json`, hace 8s)
+## Quién escribe ahora (latido de `cola-auto-0927-161954.json`, hace 36s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `RDV7` | hecho | nvidia/moonshotai/kimi-k3 | 4 min | 238 s | 106162 |
-| `RDV5` | hecho | nvidia/moonshotai/kimi-k3 | 44 min | 2622 s | 1072230 |
-| `RDV2` | hecho | - | 52 min | 3093 s | 305557 |
-| `RDV18` | hecho | codex/gpt-5.6-sol | 675 min | 40470 s | 525505 |
+| `RDV6` | hecho | nvidia/z-ai/glm-5.3 | 19 min | 1118 s | 27686 |
+| `JF2b` | hecho | nvidia/z-ai/glm-5.3 | 51 min | 3053 s | 29049 |
+| `RDV19` | hecho | nvidia/z-ai/glm-5.3 | 57 min | 3443 s | 867 |
+| `RDV8` | hecho | nvidia/z-ai/glm-5.3 | 63 min | 3774 s | 840 |
+| `DR0927-2` | hecho | nvidia/z-ai/glm-5.3 | 68 min | 4065 s | 2696 |
+| `DR0927-1` | hecho | nvidia/z-ai/glm-5.3 | 68 min | 4068 s | 214 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
