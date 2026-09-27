@@ -2809,3 +2809,18 @@
 - `JF2b` — no escribió nada
 - `RDV9b` — no escribió nada
 - `p314Acs` — no escribió nada
+
+## 2026-09-27 15:22 · auto-0927-034146
+
+**Lo que se pidió.** sin dato
+
+**Resultado.** 3 de 5 integradas. 2 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 2 tareas se fueron por lo mismo — otra cosa (RDV2, RDV8). Es 40 % de la ola.
+- sin modelo anotado no integró ninguna de sus 2 tareas.
+- nvidia/moonshotai/kimi-k3 integró 2 tareas sin fallar una.
+
+**Lo que quedó fuera, una por una:**
+- `RDV2` — otra cosa: reasignada a la nube 20260927
+- `RDV8` — otra cosa: reasignada a la nube 20260927
