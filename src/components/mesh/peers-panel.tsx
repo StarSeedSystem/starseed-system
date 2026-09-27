@@ -135,34 +135,39 @@ export function PeersPanel() {
         </CardContent>
       </Card>
 
-      <Card className="border-white/10 bg-black/20 lg:col-span-2">
-        <CardHeader className="pb-2">
-          <CardTitle className="flex items-center gap-2 text-sm">
-            <Router className="h-4 w-4 text-sky-300" /> Router / red externa
-          </CardTitle>
-          <CardDescription>La conexión convencional del dispositivo, medida de verdad.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-1.5 text-[11px]">
-          <div className="flex items-center justify-between gap-2 rounded-lg border border-white/5 bg-white/[0.02] px-2.5 py-1.5">
-            <span className="flex items-center gap-1.5 text-white/80">
-              <Globe className="h-3 w-3 text-sky-300" /> {ext?.label ?? "Red externa"}
-            </span>
-            <span className={cn("text-white/45", ext?.availability === "off" && "text-rose-300")}>
-              {ext?.detail ?? "midiendo…"}
-            </span>
-          </div>
-          <div className="flex items-center justify-between gap-2 rounded-lg border border-white/5 bg-white/[0.02] px-2.5 py-1.5">
-            <span className="text-white/60">Salud medida (sonda del router de Astraura)</span>
-            <span className="text-white/45">
-              {(state.wifiHealth.score * 100).toFixed(0)}/100 · {state.wifiHealth.detail}
-            </span>
-          </div>
-          <p className="text-[10px] leading-snug text-white/40">
-            El navegador no expone SSID ni la lista de redes (privacidad de la plataforma); lo que ves
-            es el estado, tipo y velocidad REALES de la conexión activa.
-          </p>
-        </CardContent>
-      </Card>
+      {/* El `lg:col-span-2` va en un envoltorio y no en la tarjeta: en el modo
+          cristal/primario `Card` se envuelve en otro div y la clase no llegaría
+          a la rejilla. */}
+      <div className="lg:col-span-2">
+        <Card className="border-white/10 bg-black/20">
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-sm">
+              <Router className="h-4 w-4 text-sky-300" /> Router / red externa
+            </CardTitle>
+            <CardDescription>La conexión convencional del dispositivo, medida de verdad.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-1.5 text-[11px]">
+            <div className="flex items-center justify-between gap-2 rounded-lg border border-white/5 bg-white/[0.02] px-2.5 py-1.5">
+              <span className="flex items-center gap-1.5 text-white/80">
+                <Globe className="h-3 w-3 text-sky-300" /> {ext?.label ?? "Red externa"}
+              </span>
+              <span className={cn("text-white/45", ext?.availability === "off" && "text-rose-300")}>
+                {ext?.detail ?? "midiendo…"}
+              </span>
+            </div>
+            <div className="flex items-center justify-between gap-2 rounded-lg border border-white/5 bg-white/[0.02] px-2.5 py-1.5">
+              <span className="text-white/60">Salud medida (sonda del router de Astraura)</span>
+              <span className="text-white/45">
+                {(state.wifiHealth.score * 100).toFixed(0)}/100 · {state.wifiHealth.detail}
+              </span>
+            </div>
+            <p className="text-[10px] leading-snug text-white/40">
+              El navegador no expone SSID ni la lista de redes (privacidad de la plataforma); lo que ves
+              es el estado, tipo y velocidad REALES de la conexión activa.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }
