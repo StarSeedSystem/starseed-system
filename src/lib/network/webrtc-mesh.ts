@@ -110,8 +110,14 @@ export interface MeshHandle {
    * `conciencia-colectiva.test.ts`) no lo implementan y no deben romperse.
    * Permite backpressure real a quien envíe mensajes grandes (p. ej.
    * `archivos-malla.ts`) sin tener que tocar el envío en sí.
-   */
+  */
   bufferedAmount?: (deviceId: string) => number;
+  /**
+   * Estadísticas WebRTC reales del enlace con `deviceId`. Devuelve null si no
+   * existe el peer o el navegador falla al medirlo; nunca lanza. Es OPCIONAL
+   * para conservar compatibles los `MeshHandle` falsos de otras pruebas.
+   */
+  getStats?: (deviceId: string) => Promise<RTCStatsReport | null>;
   /** Instantánea de todos los peers conocidos. */
   getPeers: () => PeerSnapshot[];
   /** Cierra el mesh, todas las conexiones y la señalización. */
@@ -735,6 +741,15 @@ export function createMesh(myDeviceId: string, contextId: string, transport: Sig
     }
   };
 
+  const getStats = async (deviceId: string): Promise<RTCStatsReport | null> => {
+    try {
+      const peer = peers.get(deviceId);
+      return peer ? await peer.pc.getStats() : null;
+    } catch {
+      return null;
+    }
+  };
+
   const getPeers = (): PeerSnapshot[] => Array.from(peers.values()).map(snapshot);
 
   const closeMesh = () => {
@@ -783,6 +798,7 @@ export function createMesh(myDeviceId: string, contextId: string, transport: Sig
     sendToPeer,
     broadcast,
     bufferedAmount,
+    getStats,
     getPeers,
     closeMesh,
   };
