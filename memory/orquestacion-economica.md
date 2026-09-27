@@ -578,3 +578,32 @@ existían (AG2→AG1, W2→W1, RN6→RN5, L9→L8), y RN5 se estaba integrando e
 ese mismo momento. La nube hace checkout de `origin/main` y ahí se queda: no ve el
 trabajo vivo. **A la nube solo van tareas sin `depende`**, además de la regla de un
 archivo de §12.3.
+
+## 14. Crédito de Claude en la nube: 250 $ que vencen (regla permanente · 2026-09-27)
+
+Alex tiene **«Créditos de sesiones en la nube»** en claude.ai → Ajustes → Uso: **250 $** que se
+aplican solos a las sesiones de Claude en la nube y **vencen el 5 de noviembre de 2026 a la 1:59
+a.m. (GMT-6)**. Al usarse o vencer vuelve el uso normal del plan (límites semanales que se
+restablecen el sábado a las 4:00 a.m.). **No es Google Cloud ni sirve de servidor**: una sesión
+en la nube es efímera, se apaga al quedar inactiva y no abre puertos, así que **no sustituye a
+Oracle** para la capa nube de Astraura ni para la sincronización 24/7.
+
+Cómo se aprovecha, en este orden:
+
+1. **Sesiones en la nube cortas para lo que Claude hace bien:** supervisar el enjambre, aprobar
+   diffs, compilar (`next build` en el contenedor, que la Mac no aguanta) y verificar en
+   localhost. El código lo sigue escribiendo el enjambre gratuito.
+2. **Director en la nube programado** (tarea programada «Director en la nube», cada 8 h): una
+   sesión corta que lee el relevo, relanza lo que se atascó, aprueba lo verde y deja nota. Pide
+   «Requerir esta computadora» en la app de escritorio para llegar a la Mac.
+3. **Ritmo ideal ≈ 6,4 $/día** (250 $ / 39 días). Si a dos semanas del vencimiento queda más de
+   la mitad, se usa más; si baja del 25 %, se cuida.
+4. **Nada de sesiones eternas:** el contexto largo es lo que más gasta (medido el 27-09: una sola
+   sesión releyó 750 M tokens de caché). Pasados ~200 M, relevo y sesión nueva.
+
+Medidor: **«Crédito Claude nube»** en el pulso de trabajo del Mando (`src/lib/mando/credito-claude.ts`,
+`case "credito-claude"` en `medidores.ts`). No hay API, así que el saldo es el DECLARADO:
+`python3 scripts/puente/credito_claude_nube.py declarar --restante <USD> [--semanal-todos <%>]`
+(archivo `~/.starseed/credito-claude-nube.json`, chmod 600, fuera del repo). Cada sesión en la
+nube puede dejar su consumo (solo tokens) con `credito_claude_nube.py uso > uso.json` y, en la Mac,
+`credito_claude_nube.py anotar uso.json`: el medidor avisa de las sesiones demasiado largas.

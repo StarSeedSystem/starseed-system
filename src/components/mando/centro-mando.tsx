@@ -809,12 +809,16 @@ export function CentroMando() {
         /** Pasarelas sin cupo o caídas, según el archivo que el enjambre OBEDECE. */
         agotados: number | null;
         proveedoresResumen: string | null;
+        /** (2026-09-27) Crédito de Claude en la nube: «$250 de $250 · vence en…». */
+        credito: string | null;
+        creditoResumen: string | null;
+        creditoTono: TonoMedidor;
     } | null>(null);
 
     const cargarMedidoresResumen = useCallback(async (forzar = false) => {
         if (!forzar && document.visibilityState === "hidden") return;
         try {
-            const [resListas, resBloqueadas, resAgentes, resEnCurso, resContenedores, resProveedores, resTokens, resOlas, resIntegradas] =
+            const [resListas, resBloqueadas, resAgentes, resEnCurso, resContenedores, resProveedores, resTokens, resOlas, resIntegradas, resCredito] =
                 await Promise.allSettled([
                     fetch("/api/mando/medidores?clave=listas", { cache: "no-store" }),
                     fetch("/api/mando/medidores?clave=bloqueadas", { cache: "no-store" }),
@@ -825,6 +829,7 @@ export function CentroMando() {
                     fetch("/api/mando/medidores?clave=tokens", { cache: "no-store" }),
                     fetch("/api/mando/medidores?clave=ola-activa", { cache: "no-store" }),
                     fetch("/api/mando/medidores?clave=integradas", { cache: "no-store" }),
+                    fetch("/api/mando/medidores?clave=credito-claude", { cache: "no-store" }),
                 ]);
 
             let listas: number | null = null;
@@ -845,6 +850,9 @@ export function CentroMando() {
             let contenedoresResumen: string | null = null;
             let agotados: number | null = null;
             let proveedoresResumen: string | null = null;
+            let credito: string | null = null;
+            let creditoResumen: string | null = null;
+            let creditoTono: TonoMedidor = "normal";
 
             if (resListas.status === "fulfilled" && resListas.value.ok) {
                 const dataListas = (await resListas.value.json()) as { detalle?: DetalleMedidor };
@@ -950,6 +958,19 @@ export function CentroMando() {
                 }
             }
 
+            if (resCredito.status === "fulfilled" && resCredito.value.ok) {
+                const dataCred = (await resCredito.value.json()) as { detalle?: DetalleMedidor };
+                if (dataCred.detalle) {
+                    // Pastilla y ventana salen del MISMO resumen: «$250 de $250 · vence en 39 días…».
+                    const resumen = dataCred.detalle.resumen ?? "";
+                    const m = /^\$([\d.]+) de \$([\d.]+)/.exec(resumen);
+                    credito = m ? `$${m[1]} de $${m[2]}` : null;
+                    creditoResumen = resumen.split(" · ").slice(1, 3).join(" · ") || resumen || null;
+                    const estados = dataCred.detalle.filas.map((f) => f.estado);
+                    creditoTono = estados.includes("peligro") ? "peligro" : estados.includes("aviso") || dataCred.detalle.aviso ? "aviso" : "ok";
+                }
+            }
+
             setMedidoresResumen({
                 listas,
                 bloqueadas,
@@ -969,6 +990,9 @@ export function CentroMando() {
                 integradasResumen,
                 agotados,
                 proveedoresResumen,
+                credito,
+                creditoResumen,
+                creditoTono,
             });
         } catch {
             setMedidoresResumen({
@@ -990,6 +1014,9 @@ export function CentroMando() {
                 integradasResumen: null,
                 agotados: null,
                 proveedoresResumen: null,
+                credito: null,
+                creditoResumen: null,
+                creditoTono: "normal",
             });
         }
     }, []);
@@ -1604,6 +1631,17 @@ export function CentroMando() {
                                         : "—",
                                 tono: (medidoresResumen?.contenedores ? "ok" : "normal") as TonoMedidor,
                                 detalle: medidoresResumen?.contenedoresResumen ?? "sitio libre para más agentes",
+                            },
+                            {
+                                // (2026-09-27) Alex: «agrega un medidor en el pulso de trabajo de
+                                // lo que queda disponible de esos créditos». Crédito de sesiones
+                                // en la nube de Claude: lo declara él (no hay API) y VENCE, así
+                                // que el detalle dice también el ritmo para aprovecharlo.
+                                clave: "credito-claude" as const,
+                                titulo: "Crédito Claude nube",
+                                valor: medidoresResumen?.credito ?? "—",
+                                tono: medidoresResumen?.creditoTono ?? "normal",
+                                detalle: medidoresResumen?.creditoResumen ?? "saldo declarado de claude.ai → Uso",
                             },
                             {
                                 // (2026-09-22) Alex: «tokens por segundo en total sumando los

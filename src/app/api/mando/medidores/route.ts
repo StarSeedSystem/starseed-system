@@ -231,6 +231,21 @@ async function leerTokens(): Promise<DatosMedidores["tokens"]> {
     }
 }
 
+/**
+ * (2026-09-27) Lo que Alex declara de su crédito de Claude en la nube. Vive fuera del repo
+ * (`~/.starseed/credito-claude-nube.json`, lo escribe `credito_claude_nube.py declarar`):
+ * es un dato de su cuenta, no del proyecto. Sin archivo, el medidor lo dice.
+ */
+async function leerCreditoClaude(): Promise<DatosMedidores["creditoClaude"]> {
+    try {
+        const crudo = await readFile(path.join(os.homedir(), ".starseed", "credito-claude-nube.json"), "utf8");
+        const d = JSON.parse(crudo) as NonNullable<DatosMedidores["creditoClaude"]>;
+        return d && typeof d === "object" && "restante_usd" in d ? d : null;
+    } catch {
+        return null;
+    }
+}
+
 async function leerContenedores(): Promise<DatosMedidores["contenedores"]> {
     try {
         const crudo = await readFile(
@@ -631,6 +646,7 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
         // toda la capacidad viva, no solo la de esta máquina.
         latidos: [...latidosDeAqui, ...agentesNube],
         contenedores,
+        creditoClaude: await leerCreditoClaude().catch(() => null),
         proveedores,
         tokens,
         commitsSinPublicar,

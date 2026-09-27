@@ -15,6 +15,8 @@ import { ETAPAS, etapaDeFase } from "@/lib/mando/etapas";
 import { resumenDeCambios, type ArchivoCambiado, type Ubicacion } from "@/lib/mando/integradas";
 import { obtenerIdsBloqueados, type FilaContable } from "@/lib/mando/conteo-operativo";
 
+import { ENLACE_USO_CLAUDE, estadoCreditoClaude, resumenCreditoClaude, type ConfigCreditoClaude } from "./credito-claude";
+
 export type ClaveMedidor =
     | "en-curso"
     | "agentes"
@@ -30,7 +32,10 @@ export type ClaveMedidor =
     | "integradas"
     | "memoria"
     | "disco"
-    | "ola-activa";
+    | "ola-activa"
+    // (2026-09-27) Alex: «agrega un medidor en el pulso de trabajo de lo que queda de los
+    // 250 $ de crédito de Claude en la nube». Ver `credito-claude.ts`.
+    | "credito-claude";
 
 export type ClaseAccion =
     | "descartar"
@@ -1032,6 +1037,9 @@ export interface DatosMedidores {
         sin_contador?: { id: string; nombre: string; porque: string; agentes?: number }[];
         resumen?: string;
     } | null;
+    /** (2026-09-27) Lo que Alex declara de su crédito de Claude en la nube (claude.ai →
+     *  Ajustes → Uso) en `~/.starseed/credito-claude-nube.json`. No hay API: se dice así. */
+    creditoClaude?: ConfigCreditoClaude | null;
     contenedores?: {
         generado?: string;
         contenedores: {
@@ -1983,6 +1991,70 @@ export function detalleDeMedidor(
             };
         }
 
+        case "credito-claude": {
+            // (2026-09-27) El saldo NO se puede leer por API: la fila dice de dónde sale
+            // cada cifra y cuándo se declaró, y el enlace lleva a la fuente exacta.
+            const cfg = d.creditoClaude;
+            if (!cfg) {
+                return {
+                    clave,
+                    titulo: "Crédito de Claude en la nube",
+                    resumen: "sin declarar: corre `python3 scripts/puente/credito_claude_nube.py declarar --restante <USD>`",
+                    filas: [],
+                    acciones: [],
+                    vacio: "Todavía no hay saldo declarado. Míralo en claude.ai → Ajustes → Uso.",
+                };
+            }
+            const e = estadoCreditoClaude(cfg, Date.now());
+            const filas: FilaMedidor[] = [
+                {
+                    id: "credito",
+                    titulo: `Créditos de sesiones en la nube · $${e.restante} de $${e.total}`,
+                    estado: e.tono === "peligro" ? "peligro" : e.tono === "aviso" ? "aviso" : "al día",
+                    porque: e.dias > 0
+                        ? `Se aplica solo a las sesiones en la nube; al usarse o vencer vuelve el uso normal del plan. Para aprovecharlo entero: ≤ $${e.ritmoIdeal.toFixed(2)} al día durante ${e.dias} días.`
+                        : "Vencido: ya se aplica el uso normal del plan.",
+                    enlace: ENLACE_USO_CLAUDE,
+                    acciones: [],
+                    ficha: [
+                        { etiqueta: "Queda", valor: `$${e.restante} de $${e.total} (${Math.round(e.fraccion * 100)} %)` },
+                        { etiqueta: "Vence", valor: e.vence },
+                        { etiqueta: "Días", valor: String(e.dias) },
+                        { etiqueta: "Ritmo ideal", valor: `≤ $${e.ritmoIdeal.toFixed(2)}/día` },
+                        { etiqueta: "Fuente", valor: "declarado por Alex (no hay API)", enlace: ENLACE_USO_CLAUDE },
+                        { etiqueta: "Declarado", valor: cfg.declarado_en, aviso: e.declaradoHaceDias > 3 },
+                    ],
+                },
+            ];
+            if (e.semanal) {
+                filas.push({
+                    id: "semanal",
+                    titulo: `Límites semanales del plan · todos los modelos ${e.semanal.todos ?? "?"} % · Fable ${e.semanal.fable ?? "?"} %`,
+                    estado: (e.semanal.todos ?? 0) >= 80 ? "aviso" : "al día",
+                    porque: `Se restablecen ${e.semanal.reinicio ?? "cada semana"}. Lo que no cubre el crédito sale de aquí.`,
+                    enlace: ENLACE_USO_CLAUDE,
+                    acciones: [],
+                });
+            }
+            for (const s of e.sesiones) {
+                filas.push({
+                    id: `sesion:${s.sesion}`,
+                    titulo: `Sesión ${s.sesion.slice(0, 8)} · ${s.modelo}`,
+                    estado: s.cacheLectura > 200_000_000 ? "aviso" : "al día",
+                    porque: `${Math.round(s.cacheLectura / 1e6)} M tokens releídos de caché · ${Math.round(s.salida / 1e3)} k de salida · ${s.t}`,
+                    acciones: [],
+                });
+            }
+            return {
+                clave,
+                titulo: "Crédito de Claude en la nube",
+                resumen: resumenCreditoClaude(e),
+                filas,
+                acciones: [],
+                aviso: e.avisos.length ? e.avisos.join(" ") : undefined,
+            };
+        }
+
         case "disco":
             return {
                 clave,
@@ -2115,6 +2187,7 @@ export const ORDEN_POR_DEFECTO: ClaveMedidor[] = [
     // Justo detrás de «agentes» porque responde a la pregunta que sigue: si hay pocos
     // agentes, ¿dónde caben más? (2026-09-22)
     "contenedores",
+    "credito-claude",
     "listas",
     "bloqueadas",
     "sin-publicar",
