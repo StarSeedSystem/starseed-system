@@ -373,7 +373,7 @@ function SeccionNube({ estado, alCambiar }: { estado: EstadoServidorAstraura; al
                     <span className="text-white/70">Fondo</span>
                     <span className="text-right text-white/50">
                         {a.fondo
-                            ? `ciclo ${a.fondo.ciclo ?? "—"} % · descansa ${a.fondo.descansaS ?? "—"} s · aplazadas ${
+                            ? `ciclo ${typeof a.fondo.ciclo === "number" ? Math.round(a.fondo.ciclo * 100) : "—"} % · descansa ${a.fondo.descansaS ?? "—"} s · aplazadas ${
                                   a.fondo.aplazadasPresupuesto ?? 0
                               } / cedidas ${a.fondo.cedidasAlChat ?? 0}`
                             : "no disponible"}
