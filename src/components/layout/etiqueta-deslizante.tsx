@@ -60,14 +60,19 @@ export function EtiquetaDeslizante({ texto, className, activo }: {
     }, []);
     const terminar = React.useCallback(() => setDeslizando(false), []);
 
-    // El foco de teclado vive en el botón hermano (grupo `.group`), no dentro
-    // de la etiqueta: escuchamos focusin/focusout del ancestro grupo.
+    // El cursor y el foco de teclado viven sobre todo en el botón hermano (grupo
+    // `.group`), no en la etiqueta: se escucha al ancestro grupo. (2026-09-27, el
+    // supervisor: antes solo deslizaba si el cursor pisaba el texto diminuto.)
     React.useEffect(() => {
         const grupo = caja.current?.closest(".group");
         if (!grupo) return;
+        grupo.addEventListener("mouseenter", empezar);
+        grupo.addEventListener("mouseleave", terminar);
         grupo.addEventListener("focusin", empezar);
         grupo.addEventListener("focusout", terminar);
         return () => {
+            grupo.removeEventListener("mouseenter", empezar);
+            grupo.removeEventListener("mouseleave", terminar);
             grupo.removeEventListener("focusin", empezar);
             grupo.removeEventListener("focusout", terminar);
         };
@@ -85,13 +90,18 @@ export function EtiquetaDeslizante({ texto, className, activo }: {
             onBlurCapture={terminar}
             className={cn("block overflow-hidden whitespace-nowrap", className)}
         >
+            {/* En reposo: bloque del ancho de la celda con «…». Deslizando: del ancho
+                de su TEXTO (inline-block, sin recorte propio), así al moverse enseña el
+                resto; lo recorta la caja de fuera. Con overflow:hidden en el interior el
+                texto oculto se movía junto con su recorte y nunca aparecía. */}
             <span
                 ref={interior}
-                className="block whitespace-nowrap"
+                className="whitespace-nowrap"
                 style={{
+                    display: deslizando ? "inline-block" : "block",
                     transform: deslizando ? `translateX(${-desborde}px)` : "translateX(0px)",
                     textOverflow: deslizando ? "clip" : "ellipsis",
-                    overflow: "hidden",
+                    overflow: deslizando ? "visible" : "hidden",
                     transition: deslizando
                         ? `transform ${duracion}s linear ${PAUSA_INICIAL_S}s`
                         : "transform 200ms ease-out",
