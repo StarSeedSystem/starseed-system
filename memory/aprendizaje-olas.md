@@ -2772,3 +2772,12 @@
 **Lo que quedó fuera, una por una:**
 - `RDV24` — no escribió nada
 - `RDV3` — la revisión lo rechazó: rechazada automáticamente por ide (sin revisión humana); rama ola/RDV3 conservada
+
+## 2026-09-26 23:00 · auto-0926-225055
+
+**Lo que se pidió.** algunos aparecen más arriba que otros porque su texto ocupa más espacio; arréglalo con un límite de caracteres usando tres puntos si no alcanza, y cuando se pasa el cursor se desliza y muestra el resto del texto
+
+**Resultado.** 0 de 1 integradas. 1 tarea se quedaron fuera.
+
+**Lo que quedó fuera, una por una:**
+- `RDV24` — otra cosa: reasignada a la nube 20260926
