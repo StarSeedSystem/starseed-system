@@ -432,6 +432,17 @@ Reglas del área:
   .transfer/<bundle> +main:nubeN && git merge --ff-only nubeN && git push origin main`.
 - Verificar el despliegue con `npx vercel ls starseed-os --scope starseeds-projects` hasta «Ready»
   y, si sale «Error», `npx vercel inspect <url> --logs --scope starseeds-projects`.
+- **El layout raíz no carga motores pesados de forma estática** (2026-09-27). Medido: con los relés
+  de IA, archivos y vínculos de la malla importados estáticamente en `malla-neuronas-mount.tsx`
+  (layout raíz, todas las rutas) y el relé genérico dentro de `providers/index.ts`, Vercel pasó de
+  ~3 min a **«Compiled successfully in 27.6min»** y la build de la Mac no terminaba (swap 11 GB).
+  Cargándolos a demanda (`import()` en un efecto, `next/dynamic` sin SSR) volvió a 3 min.
+  Regla: lo que cuelga del layout raíz o de `providers/index.ts` y no hace falta para pintar se
+  carga perezoso. Después de publicar, mira el tiempo de compilación en `vercel inspect --logs`:
+  si se multiplica, algo nuevo entró en el grafo común.
+- **Una ruta de Next solo exporta** `GET/POST/…/config/runtime/dynamic/maxDuration…`: cualquier
+  otra función exportada rompe la comprobación de tipos de Next (`.next/types`, TS2344). Las
+  funciones auxiliares van en `src/lib/…`.
 
 ## 📚 Fuentes externas de APIs, herramientas y patrones (regla permanente · 2026-09-04)
 
