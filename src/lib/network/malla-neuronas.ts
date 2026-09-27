@@ -381,6 +381,14 @@ export interface NeuronaCercanaRow {
   etiqueta: string;
   detectadaHaceMs: number;
   ofreceInternetPublico: boolean;
+  /**
+   * `syncDeviceId` publicado en el faro (Ola 366 `etiquetaFaroPropio()`),
+   * si lo incluyó (`RelayBeacon.syncId`). Es el id que hace falta para
+   * `solicitarVinculo()` (Ola 370) — sin él, «Solicitar vínculo» se
+   * deshabilita para esta fila (la neurona aún no publica su identidad de
+   * sincronización, p. ej. una versión anterior a la Ola 366).
+   */
+  syncId?: string;
 }
 
 function estadoEnlaceDe(peer: PeerSnapshot | undefined): DispositivoMallaRow["enlace"] {
@@ -453,6 +461,8 @@ export interface FaroCercano {
   at: number;
   own: boolean;
   offersPublic?: boolean;
+  /** `syncDeviceId` del emisor, si lo incluyó (Ola 366 → Ola 370: lo usa `solicitarVinculo()`). */
+  syncId?: string;
 }
 
 /**
@@ -682,6 +692,7 @@ export function useMallaNeuronas(deps?: {
         etiqueta: b.label || "Neurona anónima",
         detectadaHaceMs: Math.max(0, Date.now() - b.at),
         ofreceInternetPublico: !!b.offersPublic,
+        syncId: b.syncId,
       }));
   }, [cercanas]);
 

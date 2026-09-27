@@ -4,7 +4,9 @@
  * MallaNeuronasMount — punto de montaje ÚNICO de la malla de neuronas (Ola 366).
  * ---------------------------------------------------------------------------
  * Arranca, UNA vez por sesión, el motor `useMallaNeuronas()` (detección +
- * auto-vínculo entre las neuronas de la cuenta + radar de otras cuentas).
+ * auto-vínculo entre las neuronas de la cuenta + radar de otras cuentas) y,
+ * desde la Ola 370, `useVinculosEntreCuentas()` (vínculo ENTRE cuentas con
+ * consentimiento — mesh de par dedicado, separado del intra-cuenta).
  * Hermano de `SovereignSyncMount`/`RealtimeSyncProvider` en el layout raíz —
  * mismo patrón: degrada en silencio sin sesión/WebRTC. Desde la Ola 369
  * también pinta las tarjetas flotantes de ofertas de archivo ENTRANTES (ver
@@ -26,6 +28,7 @@ import { iniciarServidorAstrauraPorMalla } from "@/lib/network/astraura-por-mall
 import { iniciarServidorIaPorMalla } from "@/lib/network/ia-por-malla";
 import { iniciarMotorArchivosPorMalla } from "@/lib/network/archivos-malla";
 import { TransferenciasArchivoToast } from "@/components/network/transferencias-archivo-panel";
+import { useVinculosEntreCuentas } from "@/lib/network/vinculos-entre-cuentas";
 
 function MallaNeuronasEngine() {
   useMallaNeuronas({
@@ -47,6 +50,11 @@ function MallaNeuronasEngine() {
   // cerrado; el resto de la UI (botón «Enviar archivo», lista de
   // transferencias) vive en `MallaNeuronasPanel`.
   useEffect(() => iniciarMotorArchivosPorMalla(), []);
+  // (Ola 370) Motor de vínculos ENTRE cuentas: sondea mis solicitudes/vínculos
+  // y abre (o cierra) el mesh de par dedicado de cada uno ya `aceptado`. Mesh
+  // COMPLETAMENTE separado del intra-cuenta de arriba — ver
+  // `architecture/vinculos-entre-cuentas.md`.
+  useVinculosEntreCuentas();
   return <TransferenciasArchivoToast />;
 }
 

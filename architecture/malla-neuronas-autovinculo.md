@@ -203,10 +203,11 @@ cuentas.
   conexión ICE falló (posible NAT simétrico sin TURN)" en vez de fingir éxito.
   Se contempla como paso siguiente.
 - **Estadísticas por tipo de candidato** (host/srflx/relay): no implementado.
-- **Vínculo entre cuentas distintas**: deliberadamente fuera de alcance (requiere consentimiento
-  explícito de ambos lados) — punto de extensión marcado en la UI (botón deshabilitado) y en el
-  faro (`neuronId`/`syncId` ya viajan, listos para usarse el día que se construya el flujo de
-  consentimiento).
+- **Vínculo entre cuentas distintas**: **ya entregado en la Ola 370** (2026-09-26/27) — el botón
+  «Solicitar vínculo» dejó de estar deshabilitado; usa exactamente el `syncId` de faro que este
+  documento dejó preparado. Fuente de verdad completa (modelo de datos, secreto de par por
+  ECDH+HKDF, señalización HMAC-firmada, API para otras capas, modelo de amenazas):
+  `architecture/vinculos-entre-cuentas.md`. Ver también §10 de este documento.
 - **`use-estado-capas.ts`**: no se tocó (fuera de los archivos permitidos en esta ola). El hook
   `usePeersMalla()` queda listo para que el equipo de IA lo consuma.
 
@@ -266,7 +267,7 @@ tocó de este mesh fue una adición aditiva y opcional a `MeshHandle`:
 `bufferedAmount(deviceId): number` (getter sobre `RTCDataChannel.bufferedAmount`, cero riesgo
 para los `MeshHandle` de mentira que ya construían otras pruebas).
 
-## 11. IA por la malla, para CUALQUIER modelo (Ola 368 · 2026-09-26)
+## 12. IA por la malla, para CUALQUIER modelo (Ola 368 · 2026-09-26)
 
 El §10 dejó el relé de Astraura 1.58 por malla. Alex pidió generalizarlo a cualquier modelo que
 cualquier neurona tenga configurado (no solo Astraura): un SEGUNDO módulo,
@@ -285,3 +286,23 @@ Dos añadidos más a este archivo para hacerlo posible:
 Detalle completo del protocolo, el codec del modelo pineado, el rol servidor (qué enrutador usa y
 cómo se evita el bucle), el rol cliente, la integración con el enrutador y la UI:
 `architecture/astraura-158-sistema-primario.md` §18.
+
+## 13. Vínculo entre cuentas con consentimiento (Ola 370 · 2026-09-26/27)
+
+El punto pendiente del §8 ("vínculo entre cuentas distintas: deliberadamente fuera de alcance")
+se resolvió. El faro con identidad (§5 de este documento, `neuronId`/`syncId`) era justo la pieza
+que faltaba: el `syncId` de un faro fresco es el identificador que `solicitar_vinculo` usa para
+resolver, del lado del servidor, a qué cuenta pertenece la neurona destino — el cliente que pide
+un vínculo nunca lee `owner_id` directamente.
+
+Resumen de una línea: tabla `os_mesh_vinculos` (máquina de estados con RLS de solo lectura +
+4 funciones SECURITY DEFINER) + un secreto de par por dispositivo (ECDH P-256 no extraíble en
+IndexedDB → HKDF con la sal del vínculo) + un canal de señalización con topic no adivinable y
+cada mensaje autenticado con HMAC + un `MeshHandle` dedicado por vínculo, reutilizando el mismo
+núcleo de negociación de `webrtc-mesh.ts` (extraído a `createMesh`) sin tocar el mesh compartido
+intra-cuenta que describe el resto de este documento. Expone `vinculosActivos()`/`useVinculos()`/
+`enviarAPar()`/`onMensajeDePar()` para que el relé de IA y la transferencia de archivos entre
+cuentas reutilicen el mismo canal ya abierto, cada uno comprobando sus propios permisos
+(`permisos.ia`/`permisos.archivos`) antes de usarlo.
+
+Fuente de verdad completa: `architecture/vinculos-entre-cuentas.md`.

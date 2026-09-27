@@ -28,9 +28,31 @@
  *   initMesh(myDeviceId, userId)  → MeshHandle | null
  *   connectToDevice(id)           (en el handle)
  *   onPeer(cb), sendToPeer(id,d), broadcast(d), getPeers(), closeMesh()
+ *
+ * (Ola 370) `initMesh` es ahora un envoltorio fino sobre `createMesh`, el
+ * NÚCLEO de negociación (glare/ICE-buffer/backoff) hecho independiente del
+ * TRANSPORTE de señalización (`SignalTransport`): `vinculos-entre-cuentas.ts`
+ * lo reutiliza con `par-signaling.ts` para el vínculo ENTRE cuentas, sin
+ * duplicar esta lógica ni tocar el comportamiento de `initMesh`. Ver
+ * `architecture/vinculos-entre-cuentas.md` §3.
  */
 
 import { subscribeSignals, sendSignal, type Signal, type SignalSubscription } from "@/lib/network/signaling";
+
+/**
+ * SignalTransport — el contrato mínimo que el núcleo de conexión (`createMesh`,
+ * Ola 370) necesita de un transporte de señalización: enviar una señal y
+ * suscribirse a las dirigidas a `self`. `initMesh` (intra-cuenta, sin cambios
+ * de comportamiento) lo satisface con `sendSignal`/`subscribeSignals` de
+ * `signaling.ts`; el vínculo ENTRE CUENTAS (`vinculos-entre-cuentas.ts`) lo
+ * satisface con `par-signaling.ts` (canal por topic derivado + HMAC) — misma
+ * lógica de negociación (glare, buffer de ICE, reintento con backoff) para
+ * los dos casos, sin duplicarla.
+ */
+export interface SignalTransport {
+  send: (sig: Signal) => Promise<boolean>;
+  subscribe: (self: string, cb: (sig: Signal) => void) => Promise<SignalSubscription>;
+}
 
 /* ------------------------------------------------------------------ */
 /* Tipos del contrato                                                */
@@ -170,16 +192,26 @@ interface PeerRecord {
 /* ------------------------------------------------------------------ */
 
 /**
- * initMesh — inicializa el mesh para (myDeviceId, userId). Se suscribe a la
- * señalización de la cuenta y queda listo para `connectToDevice` y para RESPONDER
- * ofertas entrantes (acceptIncoming implícito). Devuelve null si no hay WebRTC.
+ * createMesh — NÚCLEO de conexión P2P (Ola 370), independiente de CÓMO viajan
+ * las señales: recibe un `SignalTransport` ya resuelto en vez de asumir la
+ * cuenta soberana. Contiene TODA la lógica ganada a pulso de esta capa (glare
+ * determinista, buffer de ICE que adelanta a la oferta, reintento con
+ * backoff — ver `architecture/malla-neuronas-autovinculo.md` §4) — un único
+ * sitio que arreglar, nunca dos copias divergiendo. `initMesh` (abajo) es un
+ * envoltorio fino sobre esto con el transporte de SIEMPRE (sin cambio de
+ * comportamiento); `vinculos-entre-cuentas.ts` lo reutiliza con
+ * `par-signaling.ts` para el vínculo ENTRE cuentas.
+ *
+ * `contextId` es un identificador de diagnóstico (aparece en `MeshHandle.
+ * userId`) — para `initMesh` es el uid de la cuenta; para un mesh de par es
+ * el id del vínculo. No participa en la negociación.
  *
  * NUNCA lanza. Si la señalización no arranca, el mesh existe pero no podrá
  * negociar (los intentos devolverán estado 'failed' con honestidad).
  */
-export function initMesh(myDeviceId: string, userId: string): MeshHandle | null {
+export function createMesh(myDeviceId: string, contextId: string, transport: SignalTransport): MeshHandle | null {
   if (!isWebRtcSupported()) return null;
-  if (!myDeviceId || !userId) return null;
+  if (!myDeviceId || !contextId) return null;
 
   const peers = new Map<string, PeerRecord>();
   const listeners = new Set<PeerEvents>();
@@ -346,10 +378,10 @@ export function initMesh(myDeviceId: string, userId: string): MeshHandle | null 
         pendingIceBeforePeer.delete(deviceId);
       }
 
-      // ICE trickle: enviamos cada candidato por la cuenta.
+      // ICE trickle: enviamos cada candidato por el transporte de señalización.
       pc.onicecandidate = (ev: RTCPeerConnectionIceEvent) => {
         if (!ev.candidate) return; // fin de candidatos
-        void sendSignal({
+        void transport.send({
           from: myDeviceId,
           to: deviceId,
           kind: "ice",
@@ -439,7 +471,7 @@ export function initMesh(myDeviceId: string, userId: string): MeshHandle | null 
     try {
       const offer = await p.pc.createOffer();
       await p.pc.setLocalDescription(offer);
-      const ok = await sendSignal({
+      const ok = await transport.send({
         from: myDeviceId,
         to: deviceId,
         kind: "offer",
@@ -508,7 +540,7 @@ export function initMesh(myDeviceId: string, userId: string): MeshHandle | null 
 
       const answer = await p.pc.createAnswer();
       await p.pc.setLocalDescription(answer);
-      const ok = await sendSignal({
+      const ok = await transport.send({
         from: myDeviceId,
         to: sig.from,
         kind: "answer",
@@ -609,7 +641,7 @@ export function initMesh(myDeviceId: string, userId: string): MeshHandle | null 
   let signalingTransport: "realtime" | "polling" | "none" = "none";
   void (async () => {
     try {
-      const sub = await subscribeSignals(userId, myDeviceId, onSignal);
+      const sub = await transport.subscribe(myDeviceId, onSignal);
       if (closed) {
         sub.unsubscribe();
         return;
@@ -712,7 +744,7 @@ export function initMesh(myDeviceId: string, userId: string): MeshHandle | null 
     for (const p of peers.values()) {
       clearPeerTimers(p);
       try {
-        void sendSignal({ from: myDeviceId, to: p.deviceId, kind: "bye", at: Date.now(), nonce: "" });
+        void transport.send({ from: myDeviceId, to: p.deviceId, kind: "bye", at: Date.now(), nonce: "" });
       } catch {
         /* noop */
       }
@@ -741,7 +773,7 @@ export function initMesh(myDeviceId: string, userId: string): MeshHandle | null 
 
   const handle: MeshHandle = {
     myDeviceId,
-    userId,
+    userId: contextId,
     supported: true,
     get signalingTransport() {
       return signalingTransport;
@@ -756,4 +788,20 @@ export function initMesh(myDeviceId: string, userId: string): MeshHandle | null 
   };
 
   return handle;
+}
+
+/**
+ * initMesh — inicializa el mesh para (myDeviceId, userId): envoltorio fino
+ * sobre `createMesh` con el transporte de SIEMPRE (`sendSignal`/
+ * `subscribeSignals` de `signaling.ts`, la cuenta como buzón). Sin cambio de
+ * comportamiento respecto a antes de la Ola 370 — es la MISMA función que ya
+ * usaban `lan-sync.ts`/`malla-neuronas.ts`, ahora construida sobre el núcleo
+ * compartido en vez de duplicar su lógica de negociación.
+ */
+export function initMesh(myDeviceId: string, userId: string): MeshHandle | null {
+  if (!myDeviceId || !userId) return null;
+  return createMesh(myDeviceId, userId, {
+    send: sendSignal,
+    subscribe: (self, cb) => subscribeSignals(userId, self, cb),
+  });
 }

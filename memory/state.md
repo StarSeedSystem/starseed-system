@@ -4200,5 +4200,75 @@ modelo fijo (Astraura 1.58) a cualquier fuente/modelo que el usuario tenga confi
 - El caso borde de un peer cuyo `forceSource` deja de estar listo justo en esa misma ventana de
   30s (entre que anunció su ficha y que le llegó la petición) no se ejercitó con timing real —
   por código, cae a la cadena normal de fallback del servidor, nunca a error duro.
+
+## 2026-09-27 — Ola 370 · Vínculo entre cuentas con consentimiento (worktree `_claude-malla`)
+**Sesión por:** Claude (Cowork), agente separado del enjambre, en paralelo con dos agentes
+hermanos (relé de IA genérico sobre la malla; transferencia P2P de archivos — Ola 369) sobre el
+mismo worktree/rama, sin tocar sus archivos. Objetivo: el radar de neuronas cercanas (Ola 366)
+solo mostraba faros anónimos de OTRAS cuentas, con el botón «Solicitar vínculo» deshabilitado a
+propósito; esta ola construye el flujo completo de vínculo entre dos cuentas distintas, con
+consentimiento explícito de ambos lados y un canal P2P directo y cifrado.
+
+### Hecho
+- `supabase/migrations/20260926190000_os_mesh_vinculos.sql` (nueva, **NO aplicada por este
+  agente** — a aplicar en `nxstilnyidvkqeosofuh` vía Management API): tabla `os_mesh_vinculos`
+  (máquina de estados `pendiente→aceptado|rechazado→revocado`, RLS de solo lectura para los dos
+  participantes) + 4 funciones SECURITY DEFINER (`solicitar_vinculo` con anti-flood de 10/hora
+  por dispositivo y resolución de `a_owner` por faro fresco; `resolver_vinculo`;
+  `revocar_vinculo`; `enviar_senal_vinculo` para el buzón de respaldo) + alta idempotente en
+  `supabase_realtime`.
+- `src/lib/network/vinculos-transiciones.ts` (nuevo): espejo puro (sin IO) de la máquina de
+  estados y del anti-flood, para que la UI decida qué botones mostrar sin adivinar.
+- `src/lib/network/par-crypto.ts` (nuevo): secreto de par por ECDH P-256 (privada NO EXTRAÍBLE
+  en IndexedDB, degradación honesta a memoria) + HKDF-SHA256(sal del vínculo) → `claveParHex`;
+  topic de canal derivado (`starseed-par-<hash>`); HMAC-SHA256 firmar/verificar.
+- `src/lib/network/par-signaling.ts` (nuevo): transporte de señalización WebRTC entre cuentas —
+  Realtime broadcast en el topic derivado + fallback al buzón de la fila, con cada mensaje
+  autenticado por HMAC (una señal sin firma válida se descarta antes de tocar `webrtc-mesh.ts`).
+- `src/lib/network/webrtc-mesh.ts`: `initMesh` extraído a un núcleo genérico
+  `createMesh(myDeviceId, contextId, transport)` reutilizable por un mesh dedicado por vínculo,
+  sin tocar el mesh compartido intra-cuenta (verificado con su suite existente sin cambios).
+- `src/lib/network/vinculos-entre-cuentas.ts` (nuevo, motor + API): capa de datos
+  (`solicitarVinculo`/`aceptarVinculo`/`rechazarVinculo`/`revocarVinculo`, todo por RPC, nunca
+  escritura directa); motor `useVinculosEntreCuentas` (montado una vez en
+  `MallaNeuronasMount`, sondeo cada 8s, abre/cierra un `MeshHandle` dedicado por vínculo
+  `aceptado`, heartbeat de latencia); API para otras capas —
+  `vinculosActivos()`/`useVinculos()`/`useVinculosPeers()`/`enviarAPar()`/`onMensajeDePar()` —
+  para que el relé de IA y la transferencia de archivos reutilicen el canal ya abierto según sus
+  propios permisos.
+- `src/lib/network/malla-neuronas.ts`: `syncId?` añadido a `FaroCercano`/`NeuronaCercanaRow`
+  (el dato que el botón «Solicitar vínculo» necesitaba para dejar de estar deshabilitado).
+- `src/components/network/malla-neuronas-panel.tsx`: diálogo de solicitud (mensaje + permisos),
+  tarjeta de solicitud entrante (aceptar con permisos propios / rechazar), sección «Vínculos con
+  otras cuentas» (estado, permisos, conexión P2P, revocar), pestaña nueva con insignia de
+  pendientes.
+- SOP nuevo: `architecture/vinculos-entre-cuentas.md` (modelo de datos, secreto de par, modelo de
+  amenazas, API para otras capas). §11 nuevo en `architecture/malla-neuronas-autovinculo.md`
+  (marca el punto pendiente de su §8 como entregado).
+
+### Verificado
+- `tsc --noEmit -p .` limpio (0 errores).
+- `vitest run src/lib/network src/components/network` → **135 pruebas / 15 archivos en verde**,
+  incluyendo `vinculos-transiciones.test.ts` (15), `par-crypto.test.ts` (9, ECDH mutuo real vía
+  `crypto.subtle` de Node 20), `par-signaling.test.ts` (7) y
+  `malla-neuronas-panel-vinculos.test.tsx` (7, ver nota de prueba abajo); el resto de la suite de
+  red/componentes queda sin romper.
+- **Nota de prueba descubierta y corregida en esta ola**: `DialogContent`
+  (`@/components/ui/dialog.tsx`) llama a `useAppearance()` en su propio render aunque el diálogo
+  esté cerrado — cualquier prueba que monte un componente con un `Dialog` en su árbol necesita
+  envolverlo en `AppearanceProvider` (mismo patrón que `dialogo-instalar.test.tsx`); y, sin
+  `globals: true` en `vitest.config.ts`, cada archivo de prueba de componentes debe llamar
+  `cleanup()` en su propio `afterEach` o el árbol de una prueba contamina las consultas de la
+  siguiente. Ninguna de las dos cosas es nueva de esta ola, pero esta fue la primera prueba de
+  panel de esta área en tropezar con ambas a la vez.
+
+### Pendiente / no verificado sin dos cuentas y dispositivos reales
+- La migración no está aplicada contra el proyecto real — RLS, las 4 RPC y la resolución de
+  `a_owner` por faro solo se revisaron por lectura, no se ejecutaron contra Postgres de verdad.
+- El flujo solicitar → aceptar → conectar P2P → hablar solo se probó con dobles de
+  Supabase/Realtime/WebRTC, nunca entre dos cuentas y dispositivos físicos reales (latencia real,
+  ICE/NAT real, entrega real de broadcast entre dos navegadores distintos).
+- El motor sondea la tabla cada 8s en vez de suscribirse a `postgres_changes` (la publicación ya
+  la incluye) — recorte de alcance documentado como mejora siguiente, no una limitación técnica.
 - `next build` no se ejecutó (regla del área) ni se hizo commit/push (worktree de trabajo, otro
   agente integra).
