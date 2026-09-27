@@ -487,7 +487,7 @@ function placeByPosition(
  * SNR), RUMBO DESCONOCIDO: se coloca dentro del sector de su antena y el halo
  * crece con la incertidumbre del modelo (peor señal ⇒ halo mayor).
  */
-function placeByRf(antenna: AntennaKind, seed: string, meters: number, quality: number | null): SignalPlacement {
+export function placeByRf(antenna: AntennaKind, seed: string, meters: number, quality: number | null): SignalPlacement {
   const q = quality == null ? 0.35 : quality;
   // El modelo log-distancia tiene un error de ~×1,6 con buena señal y ~×2,6 con
   // mala. Lo declaramos en metros, no lo escondemos.
@@ -510,7 +510,7 @@ function placeByRf(antenna: AntennaKind, seed: string, meters: number, quality: 
  * antena a una distancia derivada de la CALIDAD (mejor señal ⇒ más cerca) y con
  * un halo GRANDE, porque la posición real es desconocida.
  */
-function placeBySector(antenna: AntennaKind, seed: string, quality: number | null): SignalPlacement {
+export function placeBySector(antenna: AntennaKind, seed: string, quality: number | null): SignalPlacement {
   const q = quality == null ? 0 : quality;
   const rf = 0.3 + (1 - q) * 0.55;
   return {

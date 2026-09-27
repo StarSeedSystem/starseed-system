@@ -35,6 +35,9 @@ import {
   type SerialPortView,
 } from "@/ai/astraura/mesh/signals";
 import { fusionarRadar } from "@/ai/astraura/mesh/radar-fusion";
+import { senalesRadioLocal } from "@/ai/astraura/mesh/senales-radio-local";
+import { obtenerRadioLocal, radioLocalEnCache } from "@/lib/network/radio-local-cliente";
+import type { RadioLocal } from "@/lib/mando/radio-local-tipos";
 import { listNeurons, NEURON_EVENT, type Neuron } from "@/lib/neurons/neurons";
 
 /** Cadencia de refresco del registro de neuronas (consulta a la cuenta). */
@@ -221,6 +224,17 @@ export function useDetectedSignals(options?: DetectedSignalsOptions): DetectedSi
     return subscribeBleScan(setBle);
   }, []);
 
+  /* (Ola 375 · RDV12) Radio NATIVA de la Mac: Wi-Fi actual, redes cercanas y Bluetooth
+     que solo el sistema ve. Solo servido en localhost (en producción no pide nada). */
+  const [radioLocal, setRadioLocal] = useState<RadioLocal | null>(() => radioLocalEnCache());
+  useEffect(() => {
+    let vivo = true;
+    const leer = () => void obtenerRadioLocal().then((r) => { if (vivo && r) setRadioLocal(r); });
+    leer();
+    const t = setInterval(leer, 60_000);
+    return () => { vivo = false; clearInterval(t); };
+  }, []);
+
   /* Latido lento: refresca "hace X" y la calidad por frescura sin re-render loco. */
   useEffect(() => {
     const t = setInterval(() => setTick((n) => n + 1), 15_000);
@@ -237,11 +251,14 @@ export function useDetectedSignals(options?: DetectedSignalsOptions): DetectedSi
 
   const signals = useMemo(
     () => fusionarRadar(
-      collectDetectedSignals({ mesh, beacons, neurons, ble: freshBle, serialPorts, now }),
+      [
+        ...collectDetectedSignals({ mesh, beacons, neurons, ble: freshBle, serialPorts, now }),
+        ...senalesRadioLocal(radioLocal, now),
+      ],
       now,
     ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [mesh, beacons, neurons, freshBle, serialPorts, tick],
+    [mesh, beacons, neurons, freshBle, serialPorts, tick, radioLocal],
   );
 
   const unavailable = useMemo<UnavailableSource[]>(() => {
