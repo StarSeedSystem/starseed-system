@@ -15,6 +15,18 @@ import { createClient } from "@/utils/supabase/client";
 // Driver REAL de Google Cloud Storage (Adenda 66 §13.1): el primer backend
 // externo que deja de ser andamiaje y hace I/O de verdad vía URLs firmadas V4.
 import { deleteFromGcs, getGcsUrl, testGcs, uploadToGcs, type GcsStatus } from "./gcs-driver";
+// Driver REAL de Google Drive (Ola 374): segundo backend con I/O de verdad —
+// el token vigente lo da `carpetas-remotas.ts` (custodia en servidor, Ola 374).
+import { tokenVigente as gdriveTokenVigente } from "./carpetas-remotas";
+import {
+  actualizarArchivo as gdriveActualizarArchivo,
+  asegurarCarpeta as gdriveAsegurarCarpeta,
+  borrar as gdriveBorrar,
+  buscarPorPropiedades as gdriveBuscarPorPropiedades,
+  obtenerEnlaceVista as gdriveObtenerEnlaceVista,
+  probarDrive,
+  subirArchivo as gdriveSubirArchivo,
+} from "./gdrive-driver";
 
 export type StorageKindId =
   | "starseed"
@@ -143,10 +155,11 @@ export const STORAGE_KINDS: StorageKind[] = [
     label: "Google Drive (tu cuenta)",
     icon: "🟢",
     blurb:
-      "Tu propia cuenta de Google Drive (OAuth). Perfecto para ficheros grandes y sincronizables online.",
-    fields: [{ key: "folderId", label: "Folder (ID, opcional)" }],
+      "REAL (Ola 374): sube, lee y borra de verdad en tu propia cuenta de Google Drive (OAuth con permiso «drive.file»: solo ve lo que StarSeed crea o tú eliges). " +
+      "Perfecto para ficheros grandes y sincronizables online; sin carpeta elegida, se crea «StarSeed/archivos» automáticamente.",
+    fields: [{ key: "folderId", label: "Folder (ID, opcional — se elige con el selector de Drive)" }],
     unlimited: true,
-    defaultRules: { prefersLarge: true, minSizeMb: 5 },
+    defaultRules: { prefersLarge: true, minSizeMb: 5, realDriver: true },
     defaultQuotaMb: null,
   },
   {
@@ -850,18 +863,39 @@ export async function resolveBackendFor(
   return { primary, replicas, reason };
 }
 
-/* ══════════════ DRIVERS REALES vs ANDAMIAJE (Adenda 66 §13.1) ══════════════
+/* ══════════════ DRIVERS REALES vs ANDAMIAJE (Adenda 66 §13.1 · Ola 374) ═════
  * A partir de aquí la capa deja de ser solo un registro: los backends con
- * DRIVER REAL hacen I/O de verdad. Hoy son dos:
+ * DRIVER REAL hacen I/O de verdad. Hoy son tres:
  *   · `starseed` → Supabase del OS (bucket `os-files`): lo usa todo el sistema.
  *   · `gcs`      → Google Cloud Storage vía `/api/storage/gcs/sign` (URLs
  *                  firmadas V4; credencial solo en el servidor; prefijo `<uid>/`).
+ *   · `gdrive`   → Google Drive de la PROPIA cuenta del usuario (OAuth con
+ *                  custodia en servidor, Ola 374): el token vigente sale de
+ *                  `carpetas-remotas.tokenVigente`, el I/O de `gdrive-driver.ts`.
  * El resto SIGUEN siendo andamiaje (registro + selección) y así se declara en la
  * UI: nunca fingimos una escritura que no ocurre.
  * ─────────────────────────────────────────────────────────────────────────── */
 
 /** Kinds cuyo driver de lectura/escritura es REAL (no andamiaje). */
-export const REAL_DRIVER_KINDS: string[] = ["starseed", "gcs"];
+export const REAL_DRIVER_KINDS: string[] = ["starseed", "gcs", "gdrive"];
+
+/** Token vigente de Google Drive, o el motivo honesto por el que no lo hay. */
+async function gdriveToken(): Promise<{ ok: true; token: string } | { ok: false; error: string }> {
+  const token = await gdriveTokenVigente("google-drive");
+  if (!token) {
+    return { ok: false, error: "Google Drive no está conectado (o la sesión caducó): reconéctalo en Cerebro → Memoria → Fuentes." };
+  }
+  return { ok: true, token };
+}
+
+/** Carpeta configurada del backend, o la carpeta genérica por defecto (auto-creada si falta). */
+async function gdriveCarpetaDelBackend(token: string, b: StorageBackend): Promise<{ ok: true; folderId: string } | { ok: false; error: string }> {
+  const cfg = (b.config as Record<string, unknown>) || {};
+  if (typeof cfg.folderId === "string" && cfg.folderId) return { ok: true, folderId: cfg.folderId };
+  const asegurada = await gdriveAsegurarCarpeta(token, ["StarSeed", "archivos"]);
+  if (!asegurada.ok || !asegurada.folderId) return { ok: false, error: asegurada.error || "No se pudo preparar la carpeta de Google Drive." };
+  return { ok: true, folderId: asegurada.folderId };
+}
 
 export function isRealBackend(kind: string): boolean {
   return REAL_DRIVER_KINDS.includes(kind);
@@ -938,6 +972,20 @@ export async function testBackend(b: StorageBackend): Promise<BackendTestResult>
       return { ok: false, real: true, detail: (e as Error)?.message ?? "Error al comprobar la sesión." };
     }
   }
+  if (b.kind === "gdrive") {
+    const t = await gdriveToken();
+    if (!t.ok) return { ok: false, real: true, detail: t.error };
+    const info = await probarDrive(t.token);
+    if (!info.ok) return { ok: false, real: true, detail: info.error || "Google Drive no respondió." };
+    const cfg = (b.config as Record<string, unknown>) || {};
+    return {
+      ok: true,
+      real: true,
+      detail:
+        `Conectado a Google Drive${info.email ? ` (${info.email})` : ""}. ` +
+        (typeof cfg.folderId === "string" && cfg.folderId ? "Carpeta configurada." : "Sin carpeta elegida todavía: se creará una por defecto al usarse."),
+    };
+  }
   return {
     ok: false,
     real: false,
@@ -956,14 +1004,50 @@ export async function putObjectToBackend(
     const res = await uploadToGcs(file, path, options);
     return { ok: res.ok, path: res.path, error: res.error };
   }
+  if (b.kind === "gdrive") {
+    const t = await gdriveToken();
+    if (!t.ok) return { ok: false, error: t.error };
+    const carpeta = await gdriveCarpetaDelBackend(t.token, b);
+    if (!carpeta.ok) return { ok: false, error: carpeta.error };
+    const nombre = path.split("/").pop() || path;
+    const contentType = options.contentType || (file instanceof File ? file.type : (file as Blob).type) || "application/octet-stream";
+    // Dedup por `osPath` (Ola 374): si ya existe un archivo con esta ruta
+    // lógica en la carpeta, se ACTUALIZA en vez de duplicar.
+    const existente = await gdriveBuscarPorPropiedades(t.token, { osPath: path }, { carpetaId: carpeta.folderId });
+    if (existente.ok && existente.archivos[0]) {
+      const r = await gdriveActualizarArchivo(t.token, existente.archivos[0].id, file, contentType);
+      options.onProgress?.(100);
+      return { ok: r.ok, path, error: r.error };
+    }
+    const r = await gdriveSubirArchivo(t.token, { carpetaId: carpeta.folderId, nombre, contenido: file, mime: contentType, appProperties: { osPath: path } });
+    options.onProgress?.(100);
+    return { ok: r.ok, path, error: r.error };
+  }
   return scaffoldResult(b);
 }
 
-/** URL de lectura de un objeto en el backend (firmada y temporal en GCS). */
+/**
+ * URL de lectura de un objeto en el backend. En GCS es una URL firmada
+ * temporal (blob descargable sin sesión); en Google Drive es el
+ * `webViewLink` (abre en la interfaz de Drive — requiere estar conectado con
+ * ESA cuenta de Google: no es un blob público, y se dice así en el error si
+ * el archivo no se encuentra).
+ */
 export async function getObjectUrlFromBackend(b: StorageBackend, path: string): Promise<BackendIoResult> {
   if (b.kind === "gcs") {
     const res = await getGcsUrl(path);
     return { ok: res.ok, url: res.url, path: res.path, error: res.error };
+  }
+  if (b.kind === "gdrive") {
+    const t = await gdriveToken();
+    if (!t.ok) return { ok: false, error: t.error };
+    const carpeta = await gdriveCarpetaDelBackend(t.token, b);
+    if (!carpeta.ok) return { ok: false, error: carpeta.error };
+    const encontrado = await gdriveBuscarPorPropiedades(t.token, { osPath: path }, { carpetaId: carpeta.folderId });
+    const fileId = encontrado.archivos[0]?.id;
+    if (!fileId) return { ok: false, path, error: `No se encontró «${path}» en la carpeta de Google Drive.` };
+    const enlace = await gdriveObtenerEnlaceVista(t.token, fileId);
+    return { ok: enlace.ok, url: enlace.url, path, error: enlace.error };
   }
   return scaffoldResult(b);
 }
@@ -973,6 +1057,17 @@ export async function deleteObjectFromBackend(b: StorageBackend, path: string): 
   if (b.kind === "gcs") {
     const res = await deleteFromGcs(path);
     return { ok: res.ok, path: res.path, error: res.error };
+  }
+  if (b.kind === "gdrive") {
+    const t = await gdriveToken();
+    if (!t.ok) return { ok: false, error: t.error };
+    const carpeta = await gdriveCarpetaDelBackend(t.token, b);
+    if (!carpeta.ok) return { ok: false, error: carpeta.error };
+    const encontrado = await gdriveBuscarPorPropiedades(t.token, { osPath: path }, { carpetaId: carpeta.folderId });
+    const fileId = encontrado.archivos[0]?.id;
+    if (!fileId) return { ok: true, path }; // ya no está: el resultado deseado se cumple igual
+    const r = await gdriveBorrar(t.token, fileId);
+    return { ok: r.ok, path, error: r.error };
   }
   return scaffoldResult(b);
 }

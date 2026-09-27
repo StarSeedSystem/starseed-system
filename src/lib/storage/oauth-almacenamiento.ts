@@ -121,8 +121,17 @@ export function olvidarCuenta(servicio: ServicioAlmacenamiento): void {
 export function clientIdDe(servicio: ServicioAlmacenamiento): string | null {
   const spec = OAUTH_ALMACENAMIENTO[servicio];
   if (!spec) return null;
-  const propio = leerMapa<string>(LS_CLIENTIDS)[servicio];
-  if (propio) return propio;
+  // (Ola 374) Google Drive: el canje/refresco los hace el SERVIDOR y usa
+  // SIEMPRE su propio client_id de entorno (nunca el que pegue el usuario en
+  // esta neurona) — así el servidor puede rechazar cualquier `clientId` que
+  // mande el navegador, sin depender de que coincida con lo que el usuario
+  // pegó aquí. Por eso, para este servicio, "pegar un ID propio" ya NO tiene
+  // efecto: es el administrador del despliegue quien configura
+  // `NEXT_PUBLIC_GOOGLE_CLIENT_ID`/`GOOGLE_OAUTH_CLIENT_SECRET`.
+  if (servicio !== "google-drive") {
+    const propio = leerMapa<string>(LS_CLIENTIDS)[servicio];
+    if (propio) return propio;
+  }
   const env = (process.env as Record<string, string | undefined>)[spec.envClientId];
   return env && env.length > 5 ? env : null;
 }
@@ -164,8 +173,17 @@ export async function conectarAlmacenamiento(servicio: ServicioAlmacenamiento): 
   const clientId = clientIdDe(servicio);
   if (!clientId) {
     return {
-      ok: false, motivo: "sin-client-id", consola: spec.consola,
-      detalle: `Para conectar ${spec.label} hace falta el ID de cliente de una app registrada (gratis). Créala en ${spec.consola}, añade como URI de redirección ${redirectUri()} y pégalo aquí.`,
+      ok: false,
+      motivo: "sin-client-id",
+      consola: spec.consola,
+      // (Ola 374) Google Drive: el servidor exige SU PROPIO client_id de
+      // entorno en el canje/refresco (nunca el que se pegue aquí) — así que el
+      // mensaje no ofrece "pégalo aquí" para este servicio, sino que dice
+      // quién debe configurarlo.
+      detalle:
+        servicio === "google-drive"
+          ? `Para conectar ${spec.label} faltan las variables de entorno del despliegue: NEXT_PUBLIC_GOOGLE_CLIENT_ID y GOOGLE_OAUTH_CLIENT_SECRET (créalas en ${spec.consola}, con ${redirectUri()} como URI de redirección autorizada). Pídeselo a quien administra el despliegue: por seguridad, esta neurona ya no acepta un ID de cliente pegado a mano para Drive.`
+          : `Para conectar ${spec.label} hace falta el ID de cliente de una app registrada (gratis). Créala en ${spec.consola}, añade como URI de redirección ${redirectUri()} y pégalo aquí.`,
     };
   }
   const { verifier, challenge } = await generarPkce();
@@ -230,15 +248,18 @@ async function canjear(
 ): Promise<ResultadoConexion> {
   const spec = OAUTH_ALMACENAMIENTO[servicio]!;
   try {
-    // (Adenda 198) Google exige `client_secret` para clientes de tipo web,
-    // incluso con PKCE: ese canje lo hace NUESTRO servidor, donde el secreto
-    // vive como variable de entorno. Los demás siguen siendo cliente público.
+    // (Adenda 198 · Ola 374) Google exige `client_secret` para clientes de tipo
+    // web, incluso con PKCE: ese canje lo hace NUESTRO servidor, que además
+    // guarda el refresh token CIFRADO en `storage_credentials` (por cuenta, no
+    // por dispositivo) y NUNCA lo devuelve al navegador — por eso `clientId` ya
+    // no se manda (el servidor usa solo el suyo de entorno) y la respuesta no
+    // trae `refresh_token`. Los demás servicios siguen siendo cliente público.
     const porServidor = servicio === "google-drive";
     const r = porServidor
       ? await fetch("/api/storage/oauth/token", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ servicio, code, verifier, clientId, redirectUri: redirectUri() }),
+          body: JSON.stringify({ accion: "canjear", servicio, code, verifier, redirectUri: redirectUri() }),
         })
       : await fetch(spec.tokenUrl, {
           method: "POST",
@@ -252,7 +273,8 @@ async function canjear(
           }),
         });
     const j = (await r.json()) as {
-      access_token?: string; refresh_token?: string; expires_in?: number; scope?: string; error_description?: string; error?: string;
+      access_token?: string; refresh_token?: string; expires_in?: number; scope?: string;
+      cuenta_email?: string; error_description?: string; error?: string;
     };
     if (!r.ok || !j.access_token) {
       return { ok: false, motivo: "error", detalle: j.error_description || j.error || `El proveedor rechazó el canje (${r.status}).` };
@@ -260,12 +282,18 @@ async function canjear(
     const cuenta: CuentaConectada = {
       servicio,
       accessToken: j.access_token,
+      // (Ola 374) Para google-drive el servidor NUNCA devuelve refresh_token
+      // (queda cifrado en `storage_credentials`, por cuenta): `j.refresh_token`
+      // será `undefined` aquí a propósito y no se persiste nada sensible en
+      // localStorage. Dropbox/OneDrive (cliente público) siguen igual.
       refreshToken: j.refresh_token,
       expiraEn: j.expires_in ? Date.now() + j.expires_in * 1000 : undefined,
       scopes: (j.scope || spec.scopes.join(" ")).split(" ").filter(Boolean),
       conectadaEn: Date.now(),
     };
-    cuenta.cuenta = await correoDeLaCuenta(servicio, cuenta.accessToken);
+    // El servidor ya resolvió el correo para google-drive (evita una llamada
+    // duplicada a userinfo desde el navegador); para el resto, se pide aquí.
+    cuenta.cuenta = j.cuenta_email || (await correoDeLaCuenta(servicio, cuenta.accessToken));
     const m = cuentasConectadas();
     m[servicio] = cuenta;
     guardarMapa(LS_TOKENS, m);
@@ -297,4 +325,53 @@ async function correoDeLaCuenta(servicio: ServicioAlmacenamiento, token: string)
     }
   } catch { /* la conexión vale igual sin el correo */ }
   return undefined;
+}
+
+/* ── Custodia en servidor (Ola 374) — solo google-drive por ahora ──────────── */
+
+/**
+ * Estado REAL de la conexión guardada en SERVIDOR (tabla `storage_credentials`,
+ * por cuenta): si hay sesión y una fila para este proveedor, `conectado: true`
+ * con el correo guardado — sin depender de lo que haya (o no) en localStorage
+ * de ESTE navegador. Útil para que otra neurona de la misma cuenta vea la
+ * conexión ya hecha desde otro dispositivo.
+ */
+export async function estadoConexionServidor(
+  servicio: ServicioAlmacenamiento,
+): Promise<{ conectado: boolean; cuentaEmail?: string; error?: string }> {
+  if (servicio !== "google-drive") return { conectado: false };
+  try {
+    const r = await fetch("/api/storage/oauth/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ accion: "estado", servicio }),
+    });
+    const j = (await r.json()) as { conectado?: boolean; cuenta_email?: string; error?: string };
+    if (!r.ok) return { conectado: false, error: j.error || `El servidor respondió ${r.status}.` };
+    return { conectado: !!j.conectado, cuentaEmail: j.cuenta_email };
+  } catch (e) {
+    return { conectado: false, error: (e as Error)?.message || "No se pudo consultar el estado." };
+  }
+}
+
+/**
+ * Desconecta de verdad: revoca el refresh token en Google y borra la fila de
+ * `storage_credentials` en servidor (afecta a TODAS las neuronas de la
+ * cuenta), además de olvidar la cuenta en esta neurona.
+ */
+export async function desconectarGoogleDrive(): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const r = await fetch("/api/storage/oauth/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ accion: "desconectar", servicio: "google-drive" }),
+    });
+    const j = (await r.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+    olvidarCuenta("google-drive");
+    if (!r.ok) return { ok: false, error: j.error || `El servidor respondió ${r.status}.` };
+    return { ok: true };
+  } catch (e) {
+    olvidarCuenta("google-drive");
+    return { ok: false, error: (e as Error)?.message || "No se pudo desconectar (se olvidó igualmente en esta neurona)." };
+  }
 }

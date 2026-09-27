@@ -425,6 +425,26 @@ export async function syncConnectorsNow(): Promise<void> {
 }
 
 /**
+ * (Ola 374) El conector `google-drive` dejó de ser una bandera puesta a mano
+ * (`oauthConnected`): ahora refleja el estado REAL guardado en servidor
+ * (`storage_credentials`, por cuenta — no por dispositivo). Import dinámico
+ * a propósito: `oauth-almacenamiento.ts` es de la capa de almacenamiento, y
+ * este módulo de conectores es genérico — evita un acoplamiento estático
+ * innecesario (mismo criterio que `memory-destinations.ts`).
+ * Nunca lanza; sin sesión o sin red, deja el estado como estaba.
+ */
+export async function syncGoogleDriveConnectorStatus(): Promise<ConnectorStatus> {
+  try {
+    const { estadoConexionServidor } = await import("@/lib/storage/oauth-almacenamiento");
+    const estado = await estadoConexionServidor("google-drive");
+    setConnectorConfig("google-drive", { oauthConnected: estado.conectado, enabled: estado.conectado });
+    return computeStatus(getConnector("google-drive")!, getConfigMap()["google-drive"] ?? null);
+  } catch {
+    return connectorStatus("google-drive");
+  }
+}
+
+/**
  * useConnectorsSync — móntalo UNA vez (junto a useLibrarySync) en el RootLayout.
  *
  * Comportamiento (idéntico patrón a useLibrarySync):

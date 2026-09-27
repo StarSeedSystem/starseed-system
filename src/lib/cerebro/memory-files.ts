@@ -94,11 +94,12 @@ export const MEMORY_SOURCES: MemorySourceDef[] = [
     id: "gdrive",
     label: "Google Drive",
     blurb:
-      "Sincroniza el fichero con tu Google Drive vía la integración del bot (/api/drive). Ideal para respaldo en la nube.",
+      "REAL (Ola 374): sincroniza el fichero con TU cuenta de Google Drive (OAuth propio del OS, no el bot externo) — se guarda en " +
+      "«StarSeed/cerebros/<nombre del cerebro>» (o la carpeta que elijas) y se sincroniza al «Sincronizar ahora» del cerebro (gana el más reciente).",
     icon: "🟢",
     oss: false,
     fields: [
-      { key: "folderId", label: "ID de folder de Drive (opcional)", placeholder: "raíz si se deja vacío" },
+      { key: "folderId", label: "ID de folder de Drive (opcional)", placeholder: "se crea uno por defecto si se deja vacío" },
       { key: "fileId", label: "ID del archivo en Drive (se rellena al sincronizar)" },
     ],
   },

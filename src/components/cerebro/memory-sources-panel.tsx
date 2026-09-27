@@ -45,6 +45,9 @@ import {
   FileCode,
   KeyRound,
   BookMarked,
+  Cloud,
+  FolderOpen,
+  Unplug,
 } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
 import { getBrain, saveBrain, type Brain, type BrainPermission } from "@/lib/brains/brains";
@@ -62,6 +65,19 @@ import { listBackends, saveBackend, deleteBackend, type StorageBackend } from "@
 import { listMemoryFiles } from "@/lib/cerebro/memory-files";
 import { MemoryFolderConnect } from "@/components/exocortex/memory-folder-connect";
 import { OssLibraryBrowser } from "@/components/settings/ai/oss-library-browser";
+// (Ola 374) Google Drive como medio de este cerebro: OAuth con custodia en
+// servidor + driver real + sync por appProperties (ver docstrings de cada módulo).
+import {
+  conectarAlmacenamiento,
+  cuentaDe,
+  desconectarGoogleDrive,
+  estadoConexionServidor,
+  type CuentaConectada,
+} from "@/lib/storage/oauth-almacenamiento";
+import { tokenVigente } from "@/lib/storage/carpetas-remotas";
+import { elegirCarpetasDrive } from "@/lib/storage/google-picker";
+import { asegurarCarpeta } from "@/lib/storage/gdrive-driver";
+import { sincronizarCerebroConDrive, type ResultadoSyncDrive } from "@/lib/storage/gdrive-brain-sync";
 
 const PERM_LEVELS: BrainPermission["level"][] = ["lectura", "escritura", "admin"];
 
@@ -126,6 +142,7 @@ export default function MemorySourcesPanel({
   return (
     <div className="space-y-4">
       <OsSourceCard files={counts.files} memories={counts.memories} loading={loading} />
+      <GoogleDriveMemoryCard brainId={brainId} brainName={brainName} />
       <ObsidianCard brainId={brainId} obsidian={obsidian} onChanged={reload} />
       <ExternalServerCard brainId={brainId} linked={linked} onChanged={reload} />
       <div className="rounded-xl border border-white/10 bg-black/20 p-4 space-y-2">
@@ -175,6 +192,223 @@ function OsSourceCard({ files, memories, loading }: { files: number; memories: n
         <Badge variant="outline" className="border-white/15 text-white/70 text-[10px]">{files} archivos .md</Badge>
         <Badge variant="outline" className="border-white/15 text-white/70 text-[10px]">{memories} memorias</Badge>
       </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Google Drive (opcional) — Ola 374                                   */
+/* ------------------------------------------------------------------ */
+
+function GoogleDriveMemoryCard({ brainId, brainName }: { brainId: string; brainName?: string }) {
+  const [cargando, setCargando] = useState(true);
+  const [ocupado, setOcupado] = useState(false);
+  const [cuenta, setCuenta] = useState<CuentaConectada | null>(null);
+  const [conectadoServidor, setConectadoServidor] = useState<{ conectado: boolean; cuentaEmail?: string }>({ conectado: false });
+  const [backend, setBackend] = useState<StorageBackend | null>(null);
+  const [ultimoResultado, setUltimoResultado] = useState<ResultadoSyncDrive | null>(null);
+  const [nota, setNota] = useState<string | null>(null);
+
+  const recargar = useCallback(async () => {
+    setCargando(true);
+    try {
+      const [backs, estado] = await Promise.all([
+        listBackends("brain", brainId),
+        estadoConexionServidor("google-drive"),
+      ]);
+      setBackend(backs.find((b) => b.kind === "gdrive") ?? null);
+      setConectadoServidor(estado);
+      setCuenta(cuentaDe("google-drive"));
+      // Refleja el estado real en el Hub de Conectores (best-effort, no bloquea la UI).
+      void import("@/lib/connectors/store").then((m) => m.syncGoogleDriveConnectorStatus());
+    } finally {
+      setCargando(false);
+    }
+  }, [brainId]);
+
+  useEffect(() => { void recargar(); }, [recargar]);
+
+  const conectar = async () => {
+    setOcupado(true); setNota(null);
+    try {
+      const r = await conectarAlmacenamiento("google-drive");
+      if (r.ok) {
+        setCuenta(r.cuenta);
+        await recargar();
+        toast.success(`Google Drive conectado${r.cuenta.cuenta ? ` (${r.cuenta.cuenta})` : ""}.`);
+      } else if (r.motivo === "cancelado") {
+        setNota("Conexión cancelada: no se autorizó nada.");
+      } else {
+        setNota(r.detalle || "No se pudo conectar con Google Drive.");
+      }
+    } finally {
+      setOcupado(false);
+    }
+  };
+
+  const carpetaAutomatica = async () => {
+    setOcupado(true); setNota(null);
+    try {
+      const token = await tokenVigente("google-drive");
+      if (!token) { setNota("Conecta primero tu cuenta de Google Drive."); return; }
+      const r = await asegurarCarpeta(token, ["StarSeed", "cerebros", brainName || "Cerebro"]);
+      if (!r.ok || !r.folderId) { setNota(r.error || "No se pudo crear la carpeta."); return; }
+      const guardado = await guardarBackend(r.folderId, `StarSeed/cerebros/${brainName || "Cerebro"}`);
+      if (guardado) { setNota("Carpeta lista: «StarSeed/cerebros/…» ✓"); await recargar(); }
+    } finally {
+      setOcupado(false);
+    }
+  };
+
+  const elegirOtra = async () => {
+    setOcupado(true); setNota(null);
+    try {
+      const token = await tokenVigente("google-drive");
+      if (!token) { setNota("Conecta primero tu cuenta de Google Drive."); return; }
+      const r = await elegirCarpetasDrive(token);
+      if (!r.ok) { if (r.motivo !== "cancelado") setNota(r.detalle || "No se pudo abrir el selector."); return; }
+      const elegida = r.carpetas[0];
+      if (!elegida) { setNota("No elegiste ninguna carpeta."); return; }
+      const guardado = await guardarBackend(elegida.id, elegida.nombre);
+      if (guardado) { setNota(`Carpeta «${elegida.nombre}» vinculada ✓`); await recargar(); }
+    } finally {
+      setOcupado(false);
+    }
+  };
+
+  async function guardarBackend(folderId: string, folderName: string): Promise<boolean> {
+    const cfg = { ...(backend?.config as Record<string, unknown> | undefined), folderId, folderName, cuenta: conectadoServidor.cuentaEmail || cuenta?.cuenta };
+    const saved = await saveBackend({
+      ...(backend ?? {}),
+      kind: "gdrive",
+      name: backend?.name || `Google Drive · ${brainName || "cerebro"}`,
+      scope: "brain",
+      scope_ref: brainId,
+      config: cfg,
+      enabled: true,
+    } as Partial<StorageBackend> & { kind: string; name: string });
+    if (!saved) { toast.error("No se pudo guardar la carpeta del cerebro."); return false; }
+    setBackend(saved);
+    return true;
+  }
+
+  const cambiarModo = async (principal: boolean) => {
+    if (!backend) return;
+    const cfg = { ...(backend.config as Record<string, unknown>), modo: principal ? "principal" : "espejo" };
+    const saved = await saveBackend({ ...backend, config: cfg });
+    if (saved) { setBackend(saved); toast.success(principal ? "Modo «Principal» activado." : "Modo «Espejo (copia)» activado."); }
+  };
+
+  const sincronizarAhora = async () => {
+    if (!backend) { setNota("Elige antes una carpeta del cerebro."); return; }
+    setOcupado(true); setNota(null);
+    try {
+      const cfg = (backend.config as Record<string, unknown>) || {};
+      const res = await sincronizarCerebroConDrive(brainId, brainName || "Cerebro", {
+        folderId: typeof cfg.folderId === "string" ? cfg.folderId : undefined,
+        modo: cfg.modo === "principal" ? "principal" : "espejo",
+      });
+      setUltimoResultado(res);
+      if (res.folderId && res.folderId !== cfg.folderId) await guardarBackend(res.folderId, String(cfg.folderName || "StarSeed/cerebros/…"));
+      toast[res.ok ? "success" : "error"](
+        res.ok
+          ? `Sincronizado: ${res.subidos} subido(s), ${res.actualizadosEnDrive} actualizado(s), ${res.bajados} bajado(s).`
+          : res.errores.join(" · ") || "No se pudo sincronizar.",
+      );
+    } finally {
+      setOcupado(false);
+    }
+  };
+
+  const desconectar = async () => {
+    setOcupado(true); setNota(null);
+    try {
+      const r = await desconectarGoogleDrive();
+      if (backend) await deleteBackend(backend.id);
+      await recargar();
+      setBackend(null);
+      setUltimoResultado(null);
+      toast[r.ok ? "success" : "error"](r.ok ? "Google Drive desconectado." : r.error || "No se pudo desconectar del todo.");
+    } finally {
+      setOcupado(false);
+    }
+  };
+
+  const conectado = conectadoServidor.conectado || !!cuenta;
+  const cuentaEmail = conectadoServidor.cuentaEmail || cuenta?.cuenta;
+  const cfg = (backend?.config as Record<string, unknown>) || {};
+  const tieneCarpeta = typeof cfg.folderId === "string" && !!cfg.folderId;
+  const esPrincipal = cfg.modo === "principal";
+
+  return (
+    <div className="rounded-xl border border-emerald-500/25 bg-emerald-950/10 p-4 space-y-2">
+      <div className="flex items-center gap-2 flex-wrap">
+        <Cloud className="w-4 h-4 text-emerald-300" />
+        <span className="text-sm font-semibold text-emerald-50">Google Drive (opcional)</span>
+        <Badge variant="outline" className="border-emerald-500/40 text-emerald-300 text-[10px] gap-1">
+          <CheckCircle2 className="w-3 h-3" /> real
+        </Badge>
+        {(cargando || ocupado) && <Loader2 className="w-3.5 h-3.5 animate-spin text-white/40 ml-auto" />}
+      </div>
+      <p className="text-[11px] text-white/55">
+        Tus memorias de este cerebro también se guardan en tu Google Drive, en una carpeta que ves y controlas;
+        StarSeed solo puede ver lo que crea él mismo (permiso <span className="font-mono text-white/70">drive.file</span>).
+      </p>
+
+      {!conectado ? (
+        <Button size="sm" className="gap-1.5" disabled={ocupado} onClick={conectar}>
+          {ocupado ? <Loader2 className="w-4 h-4 animate-spin" /> : <Cloud className="w-4 h-4" />} Conectar Google Drive
+        </Button>
+      ) : (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <Badge variant="outline" className="border-emerald-500/40 text-emerald-300 text-[10px]">
+              {cuentaEmail || "cuenta conectada"}
+            </Badge>
+            {tieneCarpeta && (
+              <Badge variant="outline" className="border-white/15 text-white/60 text-[10px]">
+                {String(cfg.folderName || cfg.folderId)}
+              </Badge>
+            )}
+          </div>
+
+          {!tieneCarpeta ? (
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs" disabled={ocupado} onClick={carpetaAutomatica}>
+                <FolderOpen className="w-3.5 h-3.5" /> Carpeta del cerebro (automática)
+              </Button>
+              <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs" disabled={ocupado} onClick={elegirOtra}>
+                <FolderOpen className="w-3.5 h-3.5" /> Elegir otra
+              </Button>
+            </div>
+          ) : (
+            <>
+              <div className="flex items-center gap-3 flex-wrap">
+                <label className="flex items-center gap-1.5 text-[11px] text-white/70">
+                  <Switch checked={esPrincipal} onCheckedChange={cambiarModo} />
+                  {esPrincipal ? "Principal" : "Espejo (copia)"}
+                </label>
+                <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs" disabled={ocupado} onClick={elegirOtra}>
+                  <FolderOpen className="w-3.5 h-3.5" /> Elegir otra carpeta
+                </Button>
+                <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs ml-auto" disabled={ocupado} onClick={sincronizarAhora}>
+                  <RefreshCw className="w-3.5 h-3.5" /> Sincronizar ahora
+                </Button>
+              </div>
+              {ultimoResultado && (
+                <p className="text-[11px] text-white/50">
+                  Último resultado: {ultimoResultado.subidos} subido(s) · {ultimoResultado.actualizadosEnDrive} actualizado(s) en Drive ·{" "}
+                  {ultimoResultado.bajados} bajado(s){ultimoResultado.errores.length ? ` · ${ultimoResultado.errores.length} error(es)` : ""}.
+                </p>
+              )}
+            </>
+          )}
+          <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs text-red-300 border-red-500/30" disabled={ocupado} onClick={desconectar}>
+            <Unplug className="w-3.5 h-3.5" /> Desconectar
+          </Button>
+        </div>
+      )}
+      {nota && <p className="text-[11px] leading-snug text-cyan-200/80">{nota}</p>}
     </div>
   );
 }

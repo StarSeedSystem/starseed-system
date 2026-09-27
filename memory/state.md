@@ -4272,3 +4272,57 @@ consentimiento explícito de ambos lados y un canal P2P directo y cifrado.
   la incluye) — recorte de alcance documentado como mejora siguiente, no una limitación técnica.
 - `next build` no se ejecutó (regla del área) ni se hizo commit/push (worktree de trabajo, otro
   agente integra).
+
+## 2026-09-27 — Ola 374 · Google Drive REAL como medio de cualquier cerebro/memoria (worktree `_claude-archivos`)
+**Sesión por:** Claude (agente de archivos)
+**Resumen ejecutivo:** Google Drive deja de ser solo una cuenta OAuth conectada (Adendas 194-198): ahora es un MEDIO real de almacenamiento/sincronización para cualquier cerebro, con custodia del refresh token movida del navegador al servidor (cifrada, por cuenta).
+
+### Hecho
+- Migración `supabase/migrations/20260927100000_storage_credentials.sql` (+ rollback): tabla
+  `storage_credentials`, RLS enabled y SIN políticas (solo `service_role`). **Pendiente de
+  aplicar** por el responsable del despliegue (Management API, como `astraura_state`).
+- `src/lib/storage/credenciales-servidor.ts` (server-only): AES-256-GCM, clave por HKDF-SHA256
+  de `SUPABASE_SERVICE_ROLE_KEY` — sin variable de entorno nueva.
+- `src/app/api/storage/oauth/token/route.ts` reescrita: exige sesión Supabase, `clientId` solo
+  de entorno, 4 acciones (`canjear·renovar·estado·desconectar`), el refresh token NUNCA vuelve
+  al navegador, migración de tokens legacy de `localStorage`.
+- `src/lib/storage/gdrive-driver.ts` (driver real, fetch-only) y
+  `src/lib/storage/gdrive-brain-sync.ts` (lógica pura de merge + orquestador con red).
+- `gdrive` entra en `REAL_DRIVER_KINDS` (`src/lib/storage/backends.ts`) con ramas reales en
+  test/put/get/delete.
+- `syncBrainMemoryNow` (`src/lib/brains/memory-destinations.ts`) sincroniza los backends
+  `gdrive` del cerebro en el mismo ciclo que StarSeed/externos.
+- UI: tarjeta «Google Drive (opcional)» en `memory-sources-panel.tsx`, badge en
+  `memory-graph.tsx`. Bug corregido en `carpetas-vinculadas-card.tsx` (se perdía el `folderId`
+  real del Picker, solo se guardaba el nombre).
+- Conector `google-drive` (`src/lib/connectors/store.ts`) refleja el estado REAL del servidor
+  (`syncGoogleDriveConnectorStatus`) en vez de una bandera puesta a mano.
+- TODO añadido en `src/lib/storage/route-memory.ts` (rama `gdrive` del bot externo, sin
+  autenticar `account_id`): queda como fallback legado, no se extiende.
+- SOP: sección nueva «Ola 374» en `architecture/memoria-cerebros-sync.md`. Línea nueva en
+  `CLAUDE.md` §11.
+
+### Decisiones tomadas
+- Cero variables de entorno nuevas: la clave de cifrado se deriva de
+  `SUPABASE_SERVICE_ROLE_KEY` (contrapartida aceptada: rotar esa clave fuerza reconectar Drive).
+- "El más nuevo gana" en el sync (misma regla que `memory-sync/connect.ts`); un borrado en un
+  lado NUNCA se propaga automáticamente al otro.
+- `getObjectUrlFromBackend` en Drive devuelve `webViewLink` (abre en Drive, no un blob público
+  como la URL firmada de GCS) — documentado como una diferencia real, no un defecto oculto.
+
+### Pendiente / Próximos pasos
+- **Aplicar la migración** contra el proyecto Supabase real (`nxstilnyidvkqeosofuh`).
+- **Verificar con una cuenta de Google real** (Alex/el responsable del despliegue): el
+  consentimiento OAuth completo, la creación de `StarSeed/cerebros/<nombre>`, un ciclo de sync
+  con conflicto real, y la desconexión (revocación real en Google).
+- Los backends `gdrive` de otros `scope` (no-brain) para archivos sueltos genéricos se
+  verificaron por tsc/vitest, no contra Drive real.
+
+### Verificado
+- `tsc --noEmit -p .` limpio (0 errores).
+- `vitest run src/lib/storage src/lib/brains src/lib/cerebro src/app/api/storage
+  src/components/cerebro src/components/brains src/components/senses src/lib/connectors` →
+  **40 pruebas nuevas / 4 archivos, todas en verde** (cifrado + tamper, ruta del token completa,
+  driver de Drive con backoff, y la lógica pura de merge). No había pruebas previas en esas
+  carpetas que pudieran romperse.
+- No se hizo commit/push ni `next build` (regla del área; worktree de trabajo, otro agente integra).

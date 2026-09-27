@@ -32,6 +32,7 @@ import {
   Star,
   Link2,
   RotateCcw,
+  Cloud,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -61,6 +62,10 @@ import {
 } from "@/lib/brains/memory-offline";
 import { getBrain, type Brain } from "@/lib/brains/brains";
 import { getMemoryDestinations, syncBrainMemoryNow } from "@/lib/brains/memory-destinations";
+// (Ola 374) Badge de Google Drive del cerebro — el estado real vive en
+// `storage_backends` (kind:'gdrive', scope:'brain'); solo se lee aquí para
+// mostrarlo, la conexión/carpeta se gestiona en Cerebro → Memoria → Fuentes.
+import { listBackends, type StorageBackend } from "@/lib/storage/backends";
 import { getBrainMemoryMode, setBrainMemoryMode } from "@/ai/astraura/memory-intelligence";
 import MemoryConflictsPanel from "@/components/brains/memory-conflicts-panel";
 import type { MemGraphNode, MemGraphEdge } from "@/components/brains/memory-graph-3d";
@@ -530,10 +535,12 @@ function MemoryInspector({
 function DestinationsBar({ brainId }: { brainId: string }) {
   const [brain, setBrain] = useState<Brain | null>(null);
   const [syncing, setSyncing] = useState(false);
+  const [gdrive, setGdrive] = useState<StorageBackend | null>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
 
   const reloadBrain = useCallback(() => {
     void getBrain(brainId).then(setBrain);
+    void listBackends("brain", brainId).then((bs) => setGdrive(bs.find((b) => b.kind === "gdrive") ?? null));
   }, [brainId]);
 
   useEffect(() => {
@@ -556,6 +563,7 @@ function DestinationsBar({ brainId }: { brainId: string }) {
     const res = await syncBrainMemoryNow(brain);
     setSyncing(false);
     toast[res.ok ? "success" : "error"](res.steps.map((s) => s.detail).join(" · ") || "Sin destinos que sincronizar.");
+    reloadBrain(); // recoge la carpeta de Drive si se auto-creó en este ciclo
   };
 
   const doDownload = async () => {
@@ -587,6 +595,15 @@ function DestinationsBar({ brainId }: { brainId: string }) {
       {dest.external.length > 0 && (
         <Badge variant="outline" className="gap-1 border-violet-500/30 text-violet-300">
           <Link2 className="h-3 w-3" /> {dest.external.length} externo(s)
+        </Badge>
+      )}
+      {gdrive && (
+        <Badge
+          variant="outline"
+          className={cn("gap-1", gdrive.enabled !== false ? "border-emerald-500/30 text-emerald-300" : "border-white/15 text-white/40")}
+          title={typeof (gdrive.config as Record<string, unknown>)?.folderName === "string" ? String((gdrive.config as Record<string, unknown>).folderName) : undefined}
+        >
+          <Cloud className="h-3 w-3" /> Google Drive
         </Badge>
       )}
       <Button size="sm" variant="outline" className="ml-auto h-6 gap-1 px-2 text-[11px]" disabled={syncing} onClick={doSync}>

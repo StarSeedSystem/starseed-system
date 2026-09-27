@@ -195,6 +195,16 @@ export async function routeAndStore(
       }
 
       /* ───────────────────────── Google Drive (bot) ───────────────────────── */
+      // ⚠️ TODO (Ola 374): esta rama llama al bot externo `starseed-neurocortex`
+      // pasando `account_id=<uid>` SIN autenticar (`BOT_BASE`/api/drive` no
+      // comprueba sesión, confía en el uid que le mande el llamador — cualquiera
+      // que lo conociera podría suplantar la cuenta). El driver REAL y con
+      // custodia en servidor es `src/lib/storage/gdrive-driver.ts` +
+      // `src/lib/storage/gdrive-brain-sync.ts` (token vía
+      // `carpetas-remotas.tokenVigente`, refresh token cifrado en
+      // `storage_credentials`) — úsalo para cualquier ruta NUEVA. Esta rama del
+      // bot queda solo como FALLBACK de lo ya existente; no la extiendas ni la
+      // uses como base de código nuevo.
       case "gdrive": {
         // 1) Is Drive connected for this user?
         let connected = false;

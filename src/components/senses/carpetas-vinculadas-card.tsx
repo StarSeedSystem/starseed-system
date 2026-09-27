@@ -110,7 +110,9 @@ export function FilaCarpetas({ p }: { p: PermisoUI }) {
       const r = await elegirCarpetasDrive(token);
       if (r.ok) {
         if (r.carpetas.length === 0) { setNota("No elegiste ninguna carpeta."); return; }
-        for (const c of r.carpetas) agregarCarpetaServicio("google-drive", c.nombre);
+        // (Ola 374) Se guarda TAMBIÉN el id real de Drive (c.id) — antes solo
+        // quedaba el nombre y nada podía volver a abrir esa carpeta concreta.
+        for (const c of r.carpetas) agregarCarpetaServicio("google-drive", c.nombre, c.id);
         setNota(`${r.carpetas.length} carpeta(s) de Drive vinculadas ✓ Se enlazan solas a tu cerebro principal.`);
       } else if (r.motivo === "cancelado") {
         setNota("Selector cerrado sin elegir carpetas.");
@@ -246,7 +248,11 @@ export function FilaCarpetas({ p }: { p: PermisoUI }) {
           <p className="text-[11px] leading-snug text-amber-100/90">{pidiendoId.detalle}</p>
           {/* (Adenda 195) Alta guiada: tres pasos y todo copiable. Se hace una
               vez por servicio; si el despliegue trae el ID en sus variables de
-              entorno, esto no aparece nunca. */}
+              entorno, esto no aparece nunca.
+              (Ola 374) Para google-drive el paso 3 y el campo de pegar NO se
+              muestran: el servidor exige SU PROPIO client_id de entorno en el
+              canje/refresco, así que pegarlo aquí no serviría de nada — el
+              detalle de arriba ya dice quién debe configurarlo. */}
           <ol className="space-y-1 text-[10px] leading-snug text-white/65">
             <li className="flex items-start gap-1.5">
               <span className="mt-px shrink-0 font-semibold text-white/40">1.</span>
@@ -277,31 +283,35 @@ export function FilaCarpetas({ p }: { p: PermisoUI }) {
                 {copiado === "uri" && <span className="ml-1 text-emerald-300">copiada ✓</span>}
               </span>
             </li>
-            <li className="flex items-start gap-1.5">
-              <span className="mt-px shrink-0 font-semibold text-white/40">3.</span>
-              <span className="min-w-0">Copia el ID de cliente que te da y pégalo aquí abajo.</span>
-            </li>
+            {pidiendoId.servicio !== "google-drive" && (
+              <li className="flex items-start gap-1.5">
+                <span className="mt-px shrink-0 font-semibold text-white/40">3.</span>
+                <span className="min-w-0">Copia el ID de cliente que te da y pégalo aquí abajo.</span>
+              </li>
+            )}
           </ol>
-          <div className="flex gap-2">
-            <Input
-              value={clientId}
-              onChange={(e) => setClientId(e.target.value)}
-              placeholder="ID de cliente del proveedor"
-              className="h-8 text-xs"
-            />
-            <Button
-              size="sm" variant="outline" className="h-8 shrink-0 text-xs"
-              onClick={() => {
-                if (!clientId.trim()) return;
-                guardarClientId(pidiendoId.servicio, clientId.trim());
-                const srv = pidiendoId.servicio;
-                setPidiendoId(null); setClientId("");
-                void agregarServicio(srv);
-              }}
-            >
-              Guardar y conectar
-            </Button>
-          </div>
+          {pidiendoId.servicio !== "google-drive" && (
+            <div className="flex gap-2">
+              <Input
+                value={clientId}
+                onChange={(e) => setClientId(e.target.value)}
+                placeholder="ID de cliente del proveedor"
+                className="h-8 text-xs"
+              />
+              <Button
+                size="sm" variant="outline" className="h-8 shrink-0 text-xs"
+                onClick={() => {
+                  if (!clientId.trim()) return;
+                  guardarClientId(pidiendoId.servicio, clientId.trim());
+                  const srv = pidiendoId.servicio;
+                  setPidiendoId(null); setClientId("");
+                  void agregarServicio(srv);
+                }}
+              >
+                Guardar y conectar
+              </Button>
+            </div>
+          )}
           {pidiendoId.consola && (
             <p className="text-[10px] text-white/45">Consola del proveedor: {pidiendoId.consola}</p>
           )}

@@ -44,38 +44,64 @@ function guardarCuenta(servicio: ServicioAlmacenamiento, cuenta: CuentaConectada
 }
 
 /**
- * Devuelve un token VÁLIDO: si el que hay caducó y tenemos `refresh_token`, lo
- * renueva en silencio (PKCE público: el canje de refresco tampoco necesita
- * secreto). Nunca lanza; null = hay que volver a conectar.
+ * Devuelve un token VÁLIDO: si el que hay caducó, lo renueva en silencio.
+ * Nunca lanza; null = hay que volver a conectar.
+ *
+ * (Ola 374) Para **google-drive** el refresh token YA NO vive en este
+ * navegador: está cifrado en servidor (`storage_credentials`, por CUENTA, no
+ * por dispositivo), así que la renovación se pide siempre al servidor con
+ * solo la sesión Supabase — sin mandar ningún secreto. Si esta neurona
+ * todavía guarda un refresh token viejo (de antes de la Ola 374), se manda
+ * UNA VEZ como `legacyRefreshToken` para que el servidor lo adopte, y luego
+ * se borra de aquí (ya no hace falta: la próxima renovación no lo necesita).
  */
 export async function tokenVigente(servicio: ServicioAlmacenamiento): Promise<string | null> {
   const cuenta = cuentaDe(servicio);
   if (!cuenta) return null;
   const margen = 60_000; // renovamos un minuto antes de que expire
   if (!cuenta.expiraEn || cuenta.expiraEn - margen > Date.now()) return cuenta.accessToken;
+
+  if (servicio === "google-drive") {
+    try {
+      const legacyRefreshToken = cuenta.refreshToken; // presente solo si viene de antes de la Ola 374
+      const r = await fetch("/api/storage/oauth/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ accion: "renovar", servicio, legacyRefreshToken }),
+      });
+      const j = (await r.json()) as { access_token?: string; expires_in?: number; cuenta_email?: string; code?: string };
+      if (!r.ok || !j.access_token) {
+        // "reconectar"/"no-conectado": el servidor ya no tiene una credencial válida.
+        return null;
+      }
+      const nueva: CuentaConectada = {
+        ...cuenta,
+        accessToken: j.access_token,
+        refreshToken: undefined, // ya migrado/renovado por servidor: nunca se vuelve a guardar aquí
+        expiraEn: j.expires_in ? Date.now() + j.expires_in * 1000 : undefined,
+        cuenta: j.cuenta_email || cuenta.cuenta,
+      };
+      guardarCuenta(servicio, nueva);
+      return nueva.accessToken;
+    } catch {
+      return cuenta.accessToken; // sin red: se intenta con el que había, hasta que la API lo rechace
+    }
+  }
+
   if (!cuenta.refreshToken) return cuenta.accessToken; // sin refresco: se usará hasta que falle
   const spec = OAUTH_ALMACENAMIENTO[servicio];
   const clientId = clientIdDe(servicio);
   if (!spec || !clientId) return cuenta.accessToken;
   try {
-    // (Adenda 198) Mismo motivo que el canje: el refresco de Google necesita el
-    // secreto y por eso pasa por nuestro servidor.
-    const porServidor = servicio === "google-drive";
-    const r = porServidor
-      ? await fetch("/api/storage/oauth/token", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ servicio, refreshToken: cuenta.refreshToken, clientId }),
-        })
-      : await fetch(spec.tokenUrl, {
-          method: "POST",
-          headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          body: new URLSearchParams({
-            client_id: clientId,
-            refresh_token: cuenta.refreshToken,
-            grant_type: "refresh_token",
-          }),
-        });
+    const r = await fetch(spec.tokenUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        client_id: clientId,
+        refresh_token: cuenta.refreshToken,
+        grant_type: "refresh_token",
+      }),
+    });
     const j = (await r.json()) as { access_token?: string; expires_in?: number; refresh_token?: string };
     if (!r.ok || !j.access_token) return null; // el proveedor lo invalidó: reconectar
     const nueva: CuentaConectada = {

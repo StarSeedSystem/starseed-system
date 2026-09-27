@@ -35,6 +35,13 @@ export interface CarpetaVinculada {
   servicio?: ServicioAlmacenamiento;
   /** Pista de ruta/carpeta remota (informativa; el acceso real lo da el handle o la integración). */
   ruta?: string;
+  /**
+   * (Ola 374) Id REAL de la carpeta en el servicio (p. ej. el `id` de Google
+   * Drive) — antes se perdía y solo quedaba el nombre, así que nada podía
+   * enlazar de verdad con ESA carpeta (el driver de Drive necesita el id, no
+   * el nombre). Solo para `tipo === "servicio"`.
+   */
+  folderId?: string;
   /** ¿Hay handle vivo en ESTA sesión? (solo carpetas de dispositivo). */
   vivo?: boolean;
   agregadaEn: number;
@@ -142,13 +149,24 @@ export async function reconectarCarpeta(id: string): Promise<boolean> {
   return !!nueva;
 }
 
-/** Declara un almacenamiento de servicio externo (se autentica en Integraciones). */
-export function agregarCarpetaServicio(servicio: ServicioAlmacenamiento, ruta?: string): CarpetaVinculada {
+/**
+ * Declara un almacenamiento de servicio externo (se autentica en Integraciones).
+ * `folderId` (Ola 374) guarda el id REAL de la carpeta en el servicio (p. ej.
+ * el `id` de Google Drive elegido con el Picker) — sin él, nada puede volver
+ * a abrir/escribir esa carpeta concreta, solo mostrar su nombre.
+ */
+export function agregarCarpetaServicio(
+  servicio: ServicioAlmacenamiento,
+  ruta?: string,
+  folderId?: string,
+): CarpetaVinculada {
   const meta = SERVICIOS.find((s) => s.id === servicio);
   const carpeta: CarpetaVinculada = {
     id: nuevoId(),
     nombre: ruta?.trim() || meta?.label || "Almacenamiento externo",
-    tipo: "servicio", servicio, ruta: ruta?.trim() || undefined, agregadaEn: Date.now(),
+    tipo: "servicio", servicio, ruta: ruta?.trim() || undefined,
+    folderId: folderId?.trim() || undefined,
+    agregadaEn: Date.now(),
   };
   escribir([...leer(), carpeta]);
   return carpeta;

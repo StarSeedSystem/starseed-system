@@ -29,6 +29,12 @@ import {
 } from "@/lib/brains/brains";
 import { getEntityState, setEntityState, currentUserRef } from "@/lib/sync/entity-state";
 import { listMemoryFiles } from "@/lib/cerebro/memory-files";
+// (Ola 374) Google Drive como medio de cualquier cerebro: backends kind
+// 'gdrive' con scope:'brain' scope_ref:<brainId> se sincronizan aquí igual
+// que los destinos "starseed"/"external" de siempre — mismo ciclo, mismo
+// respeto a "auto"/"local"/"servidor".
+import { listBackends, saveBackend, type StorageBackend } from "@/lib/storage/backends";
+import { sincronizarCerebroConDrive } from "@/lib/storage/gdrive-brain-sync";
 // Adenda 149 · Ola 3 (cableado de runtime): el ALMACÉN elegido por neurona ×
 // personalidad (`cerebro.almacen`) decide el destino de este ciclo de sync. Se
 // importa SOLO el STORE (que a su vez solo depende de `safe-storage`), NUNCA
@@ -283,7 +289,7 @@ export async function removeExternalDestination(brain: Brain, destinationId: str
 /* ------------------------------------------------------------------ */
 
 export interface MemoryDestinationSyncStep {
-  kind: "starseed" | "external" | "local" | "p2p";
+  kind: "starseed" | "external" | "local" | "p2p" | "gdrive";
   ok: boolean;
   detail: string;
 }
@@ -455,6 +461,38 @@ export async function syncBrainMemoryNow(brain: Brain): Promise<MemoryDestinatio
       }
     } else if (dest.external.length && !soloLocal) {
       steps.push({ kind: "external", ok: false, detail: "Sin red disponible para sincronizar destinos externos." });
+    }
+
+    // Google Drive del cerebro (Ola 374) — backend(s) kind:'gdrive' con
+    // scope:'brain' scope_ref:<brainId>. Independiente de `dest.external`
+    // (que son endpoints propios genéricos): Drive tiene su propio driver y
+    // su propia carpeta por cerebro. Igual que arriba, "local" aplaza el
+    // envío y NUNCA se reactiva un backend que el usuario desactivó.
+    if (!soloLocal && canFetch()) {
+      try {
+        const gdriveBackends = (await listBackends("brain", brain.id)).filter((b) => b.kind === "gdrive" && b.enabled !== false);
+        for (const b of gdriveBackends) {
+          const cfg = (b.config as Record<string, unknown>) || {};
+          const res = await sincronizarCerebroConDrive(brain.id, brain.name, {
+            folderId: typeof cfg.folderId === "string" ? cfg.folderId : undefined,
+            folderName: typeof cfg.folderName === "string" ? cfg.folderName : undefined,
+            modo: cfg.modo === "principal" ? "principal" : "espejo",
+          });
+          // La carpeta se auto-creó (primera vez): se guarda para no recrearla.
+          if (res.folderId && res.folderId !== cfg.folderId) {
+            await saveBackend({ ...b, config: { ...cfg, folderId: res.folderId } } as StorageBackend);
+          }
+          steps.push({
+            kind: "gdrive",
+            ok: res.ok,
+            detail: res.ok
+              ? `Google Drive «${b.name}»: ${res.subidos} subido(s), ${res.actualizadosEnDrive} actualizado(s) en Drive, ${res.bajados} bajado(s)${res.nuevosDesdeDrive ? ` (${res.nuevosDesdeDrive} nuevo(s) desde Drive)` : ""}.`
+              : `Google Drive «${b.name}»: ${res.errores.join(" · ") || "no se pudo sincronizar."}`,
+          });
+        }
+      } catch (e) {
+        steps.push({ kind: "gdrive", ok: false, detail: `Error inesperado sincronizando Google Drive: ${e instanceof Error ? e.message : String(e)}` });
+      }
     }
 
     // Espejo P2P (Syncthing propio) — best-effort, honesto: solo NUDGEA a
