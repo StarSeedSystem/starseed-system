@@ -424,12 +424,19 @@ export async function GET(req: NextRequest, ctx: Ctx): Promise<Response> {
   if (!destino) return sinLocal ? localNoDisponible() : sinDestino(motivo);
   const auth = await requireUser(esDespliegueLocal(req) && destinoEsLocal(destino.base));
   if (auth instanceof Response) return auth;
-  const rl = rateLimit(`ai-astraura158-get:${auth.userId}`, 120, 10 * 60 * 1000);
+  const { path } = await ctx.params;
+  const p = joinPath(path);
+  // (2026-09-27) Medido en producción: con la tablet, la Mac y dos pestañas de la misma
+  // cuenta, las sondas de salud (ping/cola/estado, cada una casi gratis) agotaban el cupo
+  // de 120 GET y la nube salía «sin señal» con 429 aunque el túnel respondía. Las sondas
+  // van en su propio cubo, amplio; el resto de lecturas (Studio) sube a 360 por 10 min.
+  const esSonda = /^\/api\/(ping|cola|status|bitnet\/estado)$/.test(p);
+  const rl = esSonda
+    ? rateLimit(`ai-astraura158-sonda:${auth.userId}`, 900, 10 * 60 * 1000)
+    : rateLimit(`ai-astraura158-get:${auth.userId}`, 360, 10 * 60 * 1000);
   if (!rl.allowed) {
     return Response.json({ error: "Demasiadas solicitudes." }, { status: 429, headers: { "Retry-After": String(rl.retryAfterSec) } });
   }
-  const { path } = await ctx.params;
-  const p = joinPath(path);
   if (!allowed(p, GET_ALLOW)) return Response.json({ error: "Ruta no permitida por el proxy de Astraura 1.58." }, { status: 403 });
   return forward("GET", p, buscarSinDestino(req.nextUrl), undefined, destino);
 }

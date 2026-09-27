@@ -592,9 +592,31 @@ export async function detectAvailabilitySafe(timeoutMs = 6000): Promise<SourceAv
       setTimeout(() => resolve(fallback()), timeoutMs);
     });
     const list = await Promise.race([detectAvailability().catch(() => fallback()), timed]);
-    return Array.isArray(list) && list.length ? list : fallback();
+    return aplicarMallaEnVivo(Array.isArray(list) && list.length ? list : fallback());
   } catch {
-    return fallback();
+    return aplicarMallaEnVivo(fallback());
+  }
+}
+
+/**
+ * (2026-09-27) La disponibilidad de la MALLA se mira EN VIVO en cada turno, no en la
+ * foto cacheada: medido en producción, una pestaña que cargó antes de que su par con
+ * Astraura se vinculara (unos segundos después) seguía creyendo la malla «no lista»
+ * durante los 5 min de la caché y el chat se iba a OpenRouter. Es una comprobación
+ * síncrona y gratis (fichas ya recibidas por el canal P2P).
+ */
+function aplicarMallaEnVivo(list: SourceAvailability[]): SourceAvailability[] {
+  try {
+    const servidores = servidoresAstrauraMalla();
+    return list.map((a) =>
+      a.source.providerId === "astraura-158-malla"
+        ? servidores.length > 0
+          ? { ...a, ready: true, reason: undefined }
+          : { ...a, ready: false, reason: a.reason ?? "Ninguna neurona de tu malla ofrece Astraura ahora." }
+        : a,
+    );
+  } catch {
+    return list;
   }
 }
 
