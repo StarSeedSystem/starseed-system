@@ -80,6 +80,16 @@ export interface MeshHandle {
   sendToPeer: (deviceId: string, data: string) => boolean;
   /** Envía a todos los peers con canal abierto. Nº de envíos exitosos. */
   broadcast: (data: string) => number;
+  /**
+   * Bytes en cola sin enviar todavía en el data channel de `deviceId`
+   * (`RTCDataChannel.bufferedAmount`). 0 si no hay canal/peer (nunca lanza).
+   * Aditivo (Ola 369) y OPCIONAL a propósito: los `MeshHandle` de mentira que
+   * ya construían otras pruebas (`capas-efectos.test.ts`,
+   * `conciencia-colectiva.test.ts`) no lo implementan y no deben romperse.
+   * Permite backpressure real a quien envíe mensajes grandes (p. ej.
+   * `archivos-malla.ts`) sin tener que tocar el envío en sí.
+   */
+  bufferedAmount?: (deviceId: string) => number;
   /** Instantánea de todos los peers conocidos. */
   getPeers: () => PeerSnapshot[];
   /** Cierra el mesh, todas las conexiones y la señalización. */
@@ -685,6 +695,14 @@ export function initMesh(myDeviceId: string, userId: string): MeshHandle | null 
     return n;
   };
 
+  const bufferedAmount = (deviceId: string): number => {
+    try {
+      return peers.get(deviceId)?.channel?.bufferedAmount ?? 0;
+    } catch {
+      return 0;
+    }
+  };
+
   const getPeers = (): PeerSnapshot[] => Array.from(peers.values()).map(snapshot);
 
   const closeMesh = () => {
@@ -732,6 +750,7 @@ export function initMesh(myDeviceId: string, userId: string): MeshHandle | null 
     onPeer,
     sendToPeer,
     broadcast,
+    bufferedAmount,
     getPeers,
     closeMesh,
   };

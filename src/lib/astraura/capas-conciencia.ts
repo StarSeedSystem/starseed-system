@@ -161,6 +161,14 @@ export interface SaludCapas {
   vecinosMesh?: number | null;
   colectivaConectada?: boolean | null;
   chatUsa158?: boolean | null;
+  /**
+   * (Ola 368) El ÚLTIMO chat salió de verdad por el relé de la malla P2P
+   * (`RouteRecord.via === "malla"`, `astraura-158-malla` o el genérico
+   * `ia-malla`) — igual que `chatUsa158` para local/nube, pero para mesh.
+   * Ausente/false: la fila mesh sigue basándose solo en el nº de vecinos
+   * (comportamiento IDÉNTICO al de antes de esta ola).
+   */
+  meshUsada?: boolean | null;
 }
 
 export function estadoCapas(
@@ -181,7 +189,12 @@ export function estadoCapas(
       r.nube = v == null ? "sin-senal" : v ? (s.chatUsa158 ? "sincronizada" : "activa") : "sin-senal";
     } else if (capa === "mesh") {
       const v = s.vecinosMesh;
-      r.mesh = v == null ? "sin-senal" : v > 0 ? "sincronizada" : v === 0 ? "activa" : "sin-senal";
+      const usada = !!s.meshUsada;
+      // (Ola 368) `|| usada`: si el ÚLTIMO chat salió de verdad por la malla,
+      // la fila se marca sincronizada aunque el contador de vecinos aún no se
+      // haya actualizado. Con `meshUsada` ausente (todo llamador anterior a
+      // esta ola) esta expresión es IDÉNTICA a la de antes.
+      r.mesh = v == null ? (usada ? "sincronizada" : "sin-senal") : v > 0 || usada ? "sincronizada" : v === 0 ? "activa" : "sin-senal";
     } else {
       const v = s.colectivaConectada;
       r.colectiva = v == null ? "sin-senal" : v ? "sincronizada" : "sin-senal";

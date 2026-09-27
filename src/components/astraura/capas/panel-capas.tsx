@@ -58,6 +58,13 @@ export function PanelCapas({ compacto = false }: { compacto?: boolean }) {
         () => misDispositivos.filter((d) => !d.esEsteDispositivo && d.ficha?.sirveAstraura).length,
         [misDispositivos],
     );
+    // (Ola 368) "Comparten IA" = anuncian CUALQUIER fuente servible (el relé
+    // genérico `ia-malla`, no solo Astraura). Se muestra cuando no hay ya la
+    // línea más específica de arriba (Astraura sirviéndose = ya comparte IA).
+    const neuronasComparteIA = useMemo(
+        () => misDispositivos.filter((d) => !d.esEsteDispositivo && (d.ficha?.fuentesServibles?.length ?? 0) > 0).length,
+        [misDispositivos],
+    );
 
     // Mientras se arrastra el nivelador solo cambia la vista; se guarda al soltar (una
     // escritura y una subida a la cuenta, no una por píxel).
@@ -92,7 +99,9 @@ export function PanelCapas({ compacto = false }: { compacto?: boolean }) {
                     const descripcion =
                         capa === "mesh" && neuronasSirvenAstraura > 0
                             ? `${neuronasSirvenAstraura} neurona${neuronasSirvenAstraura === 1 ? "" : "s"} de tu malla sirve${neuronasSirvenAstraura === 1 ? "" : "n"} Astraura 1.58 ahora`
-                            : descripcionEstatica;
+                            : capa === "mesh" && neuronasComparteIA > 0
+                                ? `${neuronasComparteIA} neurona${neuronasComparteIA === 1 ? "" : "s"} comparte${neuronasComparteIA === 1 ? "" : "n"} IA`
+                                : descripcionEstatica;
                     return (
                         <li
                             key={capa}

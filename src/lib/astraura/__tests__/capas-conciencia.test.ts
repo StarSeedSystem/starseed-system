@@ -84,6 +84,15 @@ describe("estado y resumen", () => {
         expect(estadoCapas(p, { colectivaConectada: false }).colectiva).toBe("sin-senal");
     });
 
+    it("(Ola 368) meshUsada marca mesh sincronizada aunque el contador de vecinos aún no lo refleje", () => {
+        // Sin `meshUsada` (o en false): comportamiento IDÉNTICO al de antes.
+        expect(estadoCapas(p, { vecinosMesh: 0, meshUsada: false }).mesh).toBe("activa");
+        expect(estadoCapas(p, { vecinosMesh: null, meshUsada: false }).mesh).toBe("sin-senal");
+        // Con `meshUsada:true`: sincronizada incluso con 0 vecinos o sin dato.
+        expect(estadoCapas(p, { vecinosMesh: 0, meshUsada: true }).mesh).toBe("sincronizada");
+        expect(estadoCapas(p, { vecinosMesh: null, meshUsada: true }).mesh).toBe("sincronizada");
+    });
+
     it("resumen con y sin maestro", () => {
         expect(resumenCapas(p, {}).etiqueta).toBe("1.58 · 4/4 capas");
         expect(resumenCapas(leerPreferenciaCapas({ capa158Mesh: false }), { local: true, chatUsa158: true }))

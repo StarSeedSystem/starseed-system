@@ -39,7 +39,7 @@ vi.mock("@/lib/sync/realtime-sync", () => ({
     },
 }));
 
-import { colectivaDesde, reiniciarSondaCapas, rutaUsa158, SONDEO_MS, useEstadoCapas } from "@/lib/astraura/use-estado-capas";
+import { colectivaDesde, reiniciarSondaCapas, rutaUsa158, rutaUsaMalla, SONDEO_MS, useEstadoCapas } from "@/lib/astraura/use-estado-capas";
 
 function visibilidad(v: "visible" | "hidden") {
     Object.defineProperty(document, "visibilityState", { configurable: true, get: () => v });
@@ -77,6 +77,12 @@ describe("funciones puras", () => {
         expect(rutaUsa158({ sourceId: "astraura-158-local", ok: false })).toBe(false);
         expect(rutaUsa158({ sourceId: "openrouter-free", ok: true })).toBe(false);
         expect(rutaUsa158(null)).toBe(false);
+    });
+    it("(Ola 368) rutaUsaMalla solo cuenta rutas que salieron por el relé de la malla P2P", () => {
+        expect(rutaUsaMalla({ ok: true, via: "malla" })).toBe(true);
+        expect(rutaUsaMalla({ ok: false, via: "malla" })).toBe(false);
+        expect(rutaUsaMalla({ ok: true, via: undefined })).toBe(false);
+        expect(rutaUsaMalla(null)).toBe(false);
     });
 });
 

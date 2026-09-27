@@ -4076,3 +4076,129 @@ enrutador nunca la usaba como fuente de inteligencia.
   (el heartbeat de ficha es cada 30s) no se acortó.
 - `next build` no se ejecutó (regla del área) ni se hizo commit/push (worktree de trabajo, otro
   agente integra).
+
+## 2026-09-26 — Ola 369 · Archivos por la malla P2P (worktree `_claude-archivos`)
+**Sesión por:** Claude (Cowork), agente separado del enjambre. Objetivo concreto de Alex:
+«archivos de todo tipo de formato compartibles entre neuronas cercanas, ya sea de envíos
+privados a la misma cuenta con sus cerebros o a otra cuenta de otro usuario, para transferencias
+de datos e información directa mesh P2P». Antes de esta ola, la malla de neuronas solo llevaba
+mensajes de control pequeños (ficha, latidos, un turno de Astraura, un relé de IA genérico) —
+ningún archivo de tamaño real podía viajar entre dispositivos sin pasar por Supabase Storage.
+
+### Hecho
+- `src/lib/network/archivos-malla.ts` (nuevo): motor de transferencia transporte-agnóstico
+  (`CanalArchivos`), protocolo `archivo.*` (oferta/aceptar/rechazar/chunk/fin/ok/error/cancelar),
+  integridad por lista de hashes SHA-256 (WebCrypto no tiene hash incremental: hash por trozo +
+  hash final sobre la concatenación), tres backends de almacenamiento de trozos
+  (`AlmacenTrozos` — OPFS › IndexedDB › memoria, nunca el archivo entero en RAM),
+  backpressure real vía `bufferedAmount`, reanudación tras desconexión (`archivo.aceptar.desde`,
+  mismo `idTransferencia`), políticas de recepción (misma cuenta auto-acepta por defecto; otra
+  cuenta SIEMPRE pregunta y solo si `verificarPermiso()` lo permite — deniega por defecto hasta
+  que el módulo de vínculos entre cuentas exista), adaptador real al mesh compartido
+  (`canalDesdeMesh`, `iniciarMotorArchivosPorMalla`) y helpers de Biblioteca
+  (`registrarArchivoLocalEnBiblioteca` — ítem LOCAL, nunca sube solo; `subirArchivoLocalACuenta`
+  — el botón «Subir a mi cuenta»).
+- `src/lib/network/webrtc-mesh.ts`: único cambio, aditivo y opcional —
+  `bufferedAmount(deviceId): number` en `MeshHandle` (getter sobre
+  `RTCDataChannel.bufferedAmount`). Cero riesgo: los `MeshHandle` de mentira que ya construían
+  otras pruebas (`capas-efectos.test.ts`, `conciencia-colectiva.test.ts`) no lo implementan y
+  siguen compilando.
+- Decisión justificada: **base64 (16 KiB/trozo), no binario crudo**, para TODO transporte —
+  `webrtc-mesh.ts` hoy solo lleva strings y el futuro canal de PAR entre cuentas probablemente
+  sea un relé JSON también; el camino binario queda documentado como extensión futura, no como
+  necesidad de esta ola. Detalle completo en `architecture/archivos-malla-p2p.md` §3.
+- `src/components/network/transferencias-archivo-panel.tsx` (nuevo): botón «Enviar archivo»,
+  lista de transferencias (progreso/velocidad/cancelar/reintentar/Abrir/Guardar/Añadir a la
+  Biblioteca) y tarjetas de oferta entrante (Aceptar/Rechazar).
+- `malla-neuronas-panel.tsx`: botón por dispositivo + pestaña nueva «Archivos (N)».
+  `malla-neuronas-mount.tsx`: arranca `iniciarMotorArchivosPorMalla()` y pinta
+  `TransferenciasArchivoToast` (global, llega con el panel cerrado).
+- SOP nuevo: `architecture/archivos-malla-p2p.md`; §11 nuevo en
+  `architecture/malla-neuronas-autovinculo.md`.
+
+### Verificado
+- `tsc --noEmit -p .` limpio (0 errores).
+- `vitest run src/lib/network src/components/network` → **138 pruebas / 13 archivos en verde**,
+  incluyendo el nuevo `archivos-malla.test.ts` (19 pruebas: protocolo puro, políticas, extremo a
+  extremo pequeño y multi-trozo, trozo alterado → error de integridad, cancelar determinista,
+  reanudación tras desconexión simulada determinista, backpressure, rechazo, tope de tamaño) —
+  ninguna de las 12 suites restantes de esos directorios se rompió.
+
+### Pendiente / no verificado sin dos dispositivos reales
+- Todo lo de arriba se probó con un PAR de motores conectados por un canal EN MEMORIA (sin mesh
+  ni red real) — nunca con dos dispositivos físicos por WebRTC de verdad: velocidad real de OPFS
+  en un móvil de gama baja con un archivo de varios cientos de MB, ICE/TURN en red móvil real,
+  ni el límite de tamaño de mensaje real del data channel con trozos de ~21.9 KiB en base64.
+- El canal de PAR entre cuentas distintas (`os_mesh_vinculos`) es de otra área/worktree: el punto
+  de adaptación quedó documentado y listo (§1 del SOP) pero no se integró aquí.
+- `next build` no se ejecutó (regla del área) ni se hizo commit/push (worktree de trabajo).
+
+## 2026-09-26 — Ola 368 · IA por la malla, para CUALQUIER modelo (worktree `_claude-archivos`)
+**Sesión por:** Claude (Cowork), agente separado del enjambre (dos agentes más trabajando en
+paralelo en otros worktrees: vínculos entre cuentas y transferencia de archivos P2P — sin tocar
+sus archivos). Objetivo concreto de Alex, verbatim: que "ese funcionamiento p2p de la ia" (el de
+Astraura por malla, Ola 367) sirva "para todos los usuarios con todas sus neuronas y todos los
+dispositivos mesh de starseed os que se detecten para todas las capas de conciencia y cualquier
+modelo de ia que sea configurado con su perfil y cuenta y chat" — generalizar el relé de un
+modelo fijo (Astraura 1.58) a cualquier fuente/modelo que el usuario tenga configurado.
+
+### Hecho
+- `src/lib/network/ia-por-malla.ts` (nuevo): protocolo `ia.*` sobre el MISMO mesh compartido,
+  paralelo a `astraura.*` (no se fusionan). `ia.pedir{id,cuerpo:{messages,system?,fuente?,
+  modelo?,perfil?,preferencias?}}` → `ia.trozo{id,texto}` (lotes ~100ms) → `ia.fin{id,fuente,
+  modelo}` | `ia.error{id,estado,mensaje,reintentarEnS?,ocupado?}`; `ia.cancelar{id}`. ≤16KB por
+  mensaje, 1 en vuelo por peer, 200s total/120s primer trozo. Codec de pin puro
+  `codificarModeloIaMalla`/`decodificarModeloIaMalla` (`"pin::<fuente>::<modelo>"`, para viajar
+  por el `model.id` de un `RouteCandidate` sintético). Rol servidor
+  (`manejarPeticionIaMalla`) ejecuta con `astrauraChat()` (`router.ts`, el MISMO enrutador de
+  cualquier chat), `forceSource` si viene pin y está listo aquí, si no la cadena normal de esta
+  neurona (nunca fuentes de pago no configuradas); flag `desdeMalla:true` + filtro
+  `esFuenteDeMalla()` evita que una petición recibida por malla genere a su vez candidatos
+  `*-malla` (sin bucles). Rol cliente (`servidoresIaPorMalla`, `pedirIaPorMalla`) elige peer por
+  fuente anunciada → menor latencia → sin cooldown (Map por peer, no global); todos ocupados →
+  error final con `ocupado:true`.
+- `src/ai/astraura/ready-sources-snapshot.ts` (nuevo, módulo puro sin imports): cachea barato
+  "qué fuentes están listas ahora" como efecto colateral de `detectAvailability()` (que ya corría
+  por otras razones), para que `malla-neuronas.ts` lo lea sin sondear nada nuevo ni crear un
+  ciclo de imports.
+- `src/lib/network/malla-neuronas.ts`: `FichaDispositivo` gana `fuentesServibles?: string[]`,
+  calculado en `construirFicha()` desde ese snapshot.
+- `src/ai/providers/ia-malla.ts` (nuevo proveedor genérico «IA de tu malla P2P») + registrado en
+  `providers/index.ts` y `providers/types.ts`.
+- `src/ai/astraura/free-catalog.ts`: fuente `ia-malla` (tier `local`) + `esFuenteDeMalla()`.
+  `availability.ts`: `ia-malla` siempre `ready:false` (razón fija) — nunca entra al ranking
+  normal por sí sola. `router.ts`: `construirCandidatoIaMalla()` (candidato sintético apuntando a
+  un peer) inyectado en exactamente DOS puntos, ambos con guarda `!req.desdeMalla`: (a) dentro de
+  la resolución de `force` cuando el pin no está listo localmente pero un peer lo sirve, (b) como
+  último recurso justo antes de `keylessCloudSources()`. `RouteRecord` gana `via:"malla"`+
+  `viaPeer`/`viaFuente`/`viaModelo` (`viaMallaDeRespuesta()`).
+- `src/lib/astraura/capas-conciencia.ts`: `SaludCapas.meshUsada?` — la fila Mesh se marca
+  "sincronizada" si el último chat salió por la malla, aunque el contador de vecinos aún no lo
+  refleje (verificado idéntico al comportamiento previo cuando el campo está ausente).
+  `use-estado-capas.ts`: `rutaUsaMalla()` (pura) + estado `chatUsaMalla` alimentando `meshUsada`.
+- `src/components/network/malla-neuronas-mount.tsx`: arranca también
+  `iniciarServidorIaPorMalla()`. `malla-neuronas-panel.tsx`: chips de `fuentesServibles` por
+  dispositivo (máx. 4 + "+N"). `panel-capas.tsx`: fila Mesh añade "N neurona(s) comparte(n) IA"
+  como segunda prioridad.
+- SOP: §18 nuevo en `architecture/astraura-158-sistema-primario.md`; §11 nuevo en
+  `architecture/malla-neuronas-autovinculo.md`.
+
+### Verificado
+- `tsc --noEmit -p .` limpio (0 errores).
+- `vitest run src/lib/network src/ai src/lib/astraura src/components/network
+  src/components/astraura` → **959 pruebas / 70 archivos en verde**, incluyendo los nuevos
+  `ia-por-malla.test.ts`, `ready-sources-snapshot.test.ts`, `availability-ia-malla.test.ts` y
+  `router-ia-malla.test.ts`, más las ampliaciones de `capas-conciencia.test.ts` y
+  `use-estado-capas.test.tsx`.
+
+### Pendiente / no verificado sin dos dispositivos reales
+- El flujo de punta a punta con un modelo NO-Astraura (peer sirviendo, p. ej., un modelo de
+  OpenRouter/Groq configurado en su cuenta) solo se verificó con dobles de prueba
+  (mesh/router de mentira), nunca con dos neuronas físicas reales por WebRTC de verdad.
+- La ventana de hasta 30s en la que `fuentesServibles` de un peer recién listo aún no llegó
+  (mismo heartbeat de ficha de siempre) no se acortó.
+- El caso borde de un peer cuyo `forceSource` deja de estar listo justo en esa misma ventana de
+  30s (entre que anunció su ficha y que le llegó la petición) no se ejercitó con timing real —
+  por código, cae a la cadena normal de fallback del servidor, nunca a error duro.
+- `next build` no se ejecutó (regla del área) ni se hizo commit/push (worktree de trabajo, otro
+  agente integra).

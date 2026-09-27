@@ -204,6 +204,31 @@ export const ASTRAURA_158_PROXY_BASE = "/api/ai/astraura-158";
  */
 export const ASTRAURA_158_MALLA_SOURCE_ID = "astraura-158-malla";
 
+/**
+ * (Ola 368) `ia-malla` — relé GENÉRICO de inteligencia por la malla P2P, para
+ * CUALQUIER modelo configurado en la cuenta (no solo Astraura 1.58): otra
+ * neurona de la MISMA cuenta ejecuta el turno con SU PROPIO enrutador —
+ * `src/ai/astraura/router.ts` (`astrauraChat`, flag `desdeMalla`) — con la
+ * fuente/modelo pedidos fijados si esta neurona los tiene listos, o con su
+ * cadena libre-primero normal si no se pidió nada concreto — y lo relaya por
+ * el canal WebRTC ya abierto (`src/lib/network/ia-por-malla.ts`), sin túnel
+ * ni servidor de terceros. NUNCA entra en el ranking automático de
+ * `rankCandidates` (`availability.ts` la marca `ready:false` a propósito):
+ * solo se usa en los dos casos explícitos que documenta `router.ts` §caso
+ * a/b — pin no listo aquí servido por un peer, o último recurso antes de las
+ * redes de seguridad sin clave. Ver `architecture/astraura-158-sistema-primario.md` §18.
+ */
+export const IA_MALLA_SOURCE_ID = "ia-malla";
+
+/**
+ * ¿Es `sourceId` uno de los relés de malla P2P (Astraura 1.58 o el genérico)?
+ * Una petición que YA llegó por la malla nunca debe volver a salir por ella
+ * — evita un bucle A→B→A. Pura, sin IO.
+ */
+export function esFuenteDeMalla(sourceId: string): boolean {
+  return sourceId === ASTRAURA_158_MALLA_SOURCE_ID || sourceId === IA_MALLA_SOURCE_ID;
+}
+
 // ── BONSAI 1-BIT & TERNARY (Adenda 174) ────────────────────────────────────
 export const ASTRAURA_BONSAI_LOCAL_SOURCE_ID = "astraura-bonsai-local";
 export const ASTRAURA_BONSAI_CLOUD_SOURCE_ID = "astraura-bonsai";
@@ -361,6 +386,34 @@ export const FREE_CATALOG: CatalogSource[] = [
     firstTokenGraceMs: 120_000,
     cooldownMinutes: 5,
     models: ASTRAURA_158_MODELS,
+  },
+  {
+    id: IA_MALLA_SOURCE_ID,
+    label: "IA de tu malla P2P",
+    tier: "local",
+    providerId: "ia-malla",
+    // Sin base HTTP real: viaja por el canal WebRTC ya abierto por la malla
+    // de neuronas (`ia-por-malla.ts` habla por `getSharedMesh()`), nunca una
+    // URL. El esquema `malla://` es solo un marcador legible.
+    baseUrl: "malla://ia",
+    requiresKey: false,
+    limits: "Sin límites propios: depende de la neurona de tu malla que ejecuta el turno y de su propia cuenta/configuración.",
+    why: "Otra neurona de tu cuenta ejecuta el turno con SU PROPIO enrutador (la fuente/modelo que pediste, o su cadena libre-primero) y te lo devuelve por el canal P2P de la malla — sin túnel ni servidor externo.",
+    privacy: "local",
+    weight: 0.9,
+    timeoutMs: 200_000,
+    firstTokenGraceMs: 120_000,
+    cooldownMinutes: 2,
+    models: [
+      {
+        id: "auto",
+        label: "Automático (enrutador de la malla)",
+        strengths: ["chat", "fast", "code", "reasoning", "creative", "translate", "summary", "tools", "long"],
+        quality: 5,
+        context: 4096,
+        note: "La neurona que releva elige su propia mejor fuente libre/configurada",
+      },
+    ],
   },
   /* ── LOCAL (soberanía máxima) ─────────────────────────────── */
   {

@@ -249,3 +249,39 @@ Dos añadidos a este módulo para hacerlo posible:
 
 Detalle completo del protocolo, el rol servidor/cliente, el enrutador y el flujo de punta a punta:
 `architecture/astraura-158-sistema-primario.md` §17.
+
+## 11. Archivos por la malla P2P (Ola 369 · 2026-09-26)
+
+Tercer protocolo sobre el MISMO data channel de siempre (junto a la ficha/latidos, `astraura.*`
+del §10 e `ia.*` de la ola del relé genérico): `archivo.*`, un motor de transferencia de archivos
+de cualquier formato y tamaño (hasta 4 GB por defecto), con integridad SHA-256, reanudación tras
+desconexión y backpressure real. Fuente de verdad completa, con el protocolo, la justificación de
+base64-vs-binario, el almacenamiento (OPFS/IndexedDB) y las políticas de recepción:
+`architecture/archivos-malla-p2p.md`.
+
+Resumen de una línea: `src/lib/network/archivos-malla.ts` es transporte-agnóstico
+(`CanalArchivos`, hoy adaptado a este mesh vía `canalDesdeMesh`/`iniciarMotorArchivosPorMalla`,
+mañana adaptable al canal de PAR entre cuentas distintas sin tocar el archivo); lo único que se
+tocó de este mesh fue una adición aditiva y opcional a `MeshHandle`:
+`bufferedAmount(deviceId): number` (getter sobre `RTCDataChannel.bufferedAmount`, cero riesgo
+para los `MeshHandle` de mentira que ya construían otras pruebas).
+
+## 11. IA por la malla, para CUALQUIER modelo (Ola 368 · 2026-09-26)
+
+El §10 dejó el relé de Astraura 1.58 por malla. Alex pidió generalizarlo a cualquier modelo que
+cualquier neurona tenga configurado (no solo Astraura): un SEGUNDO módulo,
+`src/lib/network/ia-por-malla.ts`, sobre el MISMO data channel de siempre (`sendToPeer`/`onPeer`),
+protocolo propio `ia.*` que convive con `astraura.*` sin fusionarse.
+
+Dos añadidos más a este archivo para hacerlo posible:
+- `FichaDispositivo` gana `fuentesServibles?: string[]` — los ids de catálogo que están LISTOS en
+  este dispositivo ahora mismo (barato: se lee de un snapshot que ya se actualiza como
+  efecto colateral de las sondas de disponibilidad que YA se hacían por otras razones, nunca una
+  sonda nueva), viajando en la misma ficha de siempre cada 30 s.
+- `servidoresIaPorMalla({fuente?})`: igual que `servidoresAstrauraMalla()` pero filtrando por
+  CUALQUIER fuente del catálogo, no solo Astraura (con compatibilidad hacia atrás: un peer viejo
+  en Ola 367 que solo anuncia `sirveAstraura` sigue contando para pedir una fuente `astraura-158-*`).
+
+Detalle completo del protocolo, el codec del modelo pineado, el rol servidor (qué enrutador usa y
+cómo se evita el bucle), el rol cliente, la integración con el enrutador y la UI:
+`architecture/astraura-158-sistema-primario.md` §18.

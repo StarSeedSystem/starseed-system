@@ -12,7 +12,7 @@
  * `astraura-158` (Adenda 153): backend soberano Astraura 1.58-bit — el SISTEMA
  * PRIMARIO por defecto del OS. Ver architecture/astraura-158-sistema-primario.md.
  */
-export type ProviderId = "astraura-158" | "astraura-158-malla" | "starseed" | "ollama" | "openai" | "anthropic" | "google" | "openai-compatible" | "deepseek" | "groq" | "openrouter" | "nvidia";
+export type ProviderId = "astraura-158" | "astraura-158-malla" | "ia-malla" | "starseed" | "ollama" | "openai" | "anthropic" | "google" | "openai-compatible" | "deepseek" | "groq" | "openrouter" | "nvidia";
 
 export interface ProviderInfo {
   id: ProviderId;

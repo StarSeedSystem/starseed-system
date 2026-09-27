@@ -582,3 +582,147 @@ peer, cancelar aborta el fetch —, rol cliente con peer de mentira — streamin
   ola, no se intentó acortarlo.
 - No se ejecutó `next build` (regla del área) ni se hizo commit/push (worktree de trabajo, otro
   agente integra).
+
+## 18. IA por la malla, para CUALQUIER modelo (Ola 368 · 2026-09-26)
+
+El §17 dejó un relé por la malla P2P, pero atado a Astraura 1.58 específicamente. Alex pidió
+generalizarlo: "ese funcionamiento p2p de la ia" debe valer "para todos los usuarios con todas
+sus neuronas y todos los dispositivos mesh de starseed os que se detecten, para todas las capas
+de conciencia y cualquier modelo de ia que sea configurado con su perfil y cuenta y chat". Esta
+ola añade un SEGUNDO relé, genérico, que convive con el de `astraura-por-malla.ts` sobre el
+MISMO mesh compartido — no se fusionan (`astraura.*` sigue existiendo tal cual, sin tocar) para
+no arriesgar una regresión en un protocolo ya verificado con dos dispositivos físicos.
+
+### Módulo y protocolo
+`src/lib/network/ia-por-malla.ts` (cliente, `"use client"`), namespace `ia.*`, mismo límite de
+16 KB por mensaje (`IA_MALLA_MAX_BYTES`) y mismo troceo (`partirEnTrozos`, reutilizado de
+`astraura-por-malla.ts`):
+
+- `ia.pedir {id, cuerpo:{messages, system?, fuente?, modelo?, perfil?:{personaId?, agenteId?},
+  preferencias?}}` — `fuente`/`modelo` PIN opcionales: si vienen, el servidor debe ejecutar
+  exactamente esa fuente/modelo (no lo que él elegiría por defecto); si no vienen, el servidor
+  decide con su propio enrutador (modo "automático").
+- `ia.trozo {id, texto}` — lote cada ~100 ms (`flushMs`, igual que `astraura.trozo`).
+- `ia.fin {id, fuente, modelo}` — a diferencia de `astraura.fin`, aquí SÍ viaja qué fuente/modelo
+  respondió de verdad (el cliente pineado no lo sabía de antemano en modo automático).
+- `ia.error {id, estado, mensaje, reintentarEnS?, ocupado?}` (misma convención que `astraura.error`
+  — `ocupado` solo en errores del BACKEND, nunca en el 429 de "ya hay una petición de este peer
+  en vuelo", que es un límite propio del relé) y `ia.cancelar {id}`.
+- 1 petición en vuelo por peer solicitante (429 si se viola), 200 s de tope total, 120 s para el
+  primer trozo — igual que Astraura por malla.
+
+### Codificación del modelo pineado
+El sistema de candidatos del enrutador (`RouteCandidate`) es `{source, model}` sobre un catálogo
+ESTÁTICO (`free-catalog.ts`): no hay forma directa de decirle "este modelo arbitrario de esta
+fuente arbitraria, servido por un peer". Se resuelve codificando el pin en el propio `model.id`
+del candidato sintético: `codificarModeloIaMalla(fuente, modelo)` → `"pin::<fuente>::<modelo>"`,
+con `decodificarModeloIaMalla()` como inversa pura. Sin pin, el modelo es `IA_MALLA_MODEL_AUTO`
+(`"auto"`). Ambas son funciones puras, testeadas ida y vuelta.
+
+### Rol SERVIDOR — ejecuta con SU PROPIO enrutador, nunca reenvía el pin ciegamente
+`manejarPeticionIaMalla()` solo atiende si `capaMeshCompartiendo()` (maestro + capa mesh
+encendidos, §15) — inyectable como `deps.puedeServir` para tests. Ejecuta la petición con
+`ejecutarConRouterDefecto()`, que llama a **`astrauraChat()`** (`src/ai/astraura/router.ts`, el
+MISMO enrutador que usa cualquier chat de esta neurona) con:
+
+```ts
+const forceSource = cuerpo.fuente && cuerpo.modelo
+  ? { sourceId: cuerpo.fuente, modelId: cuerpo.modelo }
+  : undefined;
+await astrauraChat({ messages, forceSource, agentId: cuerpo.perfil?.agenteId, desdeMalla: true, ... });
+```
+
+- Con pin: `forceSource` fija esa fuente/modelo SI está lista en este dispositivo ahora mismo
+  (el caso normal: un peer solo pide por malla lo que ya sabe que el otro tiene, vía
+  `fuentesServibles` de su ficha). Si ni así estuviera lista, `astrauraChat` no inventa una
+  fuente pagada: sigue las mismas puertas que cualquier chat normal (nunca fuentes de pago que
+  el dueño de ESTA neurona no configuró).
+- Sin pin (modo automático): `astrauraChat` corre su cadena normal gratis-primero de esta
+  neurona y devuelve lo que de verdad respondió (`res.route.sourceId`/`.model`), que es lo que
+  viaja en `ia.fin{fuente, modelo}`.
+
+**Cómo se evita el bucle** (un peer que a su vez pide por malla a un tercero, o que se pide a sí
+mismo): el flag `desdeMalla: true` viaja como parte de `AstrauraChatRequest`; dentro de
+`astrauraChat`, la lista de candidatos rankeados se filtra con `esFuenteDeMalla(sourceId)`
+(`free-catalog.ts`, cierto para `astraura-158-malla` E `ia-malla`) ANTES de construir la cadena
+final, y los dos puntos de inyección explícita de `ia-malla` (ver más abajo, en el ROUTER) están
+condicionados a `!req.desdeMalla`. Una petición que llega POR la malla, por tanto, nunca puede
+generar una fuente `*-malla` en su propia cadena de candidatos: el servidor siempre resuelve con
+fuentes locales/nube propias o falla, nunca reenvía la petición a un tercer peer.
+
+### Rol CLIENTE
+`servidoresIaPorMalla({fuente?})` lee `snapshotMallaNeuronas()` (mismo getter síncrono de
+`malla-neuronas.ts`) y devuelve los peers conectados de la MISMA cuenta cuya ficha anuncia esa
+fuente en `fuentesServibles` (o, por compatibilidad con peers en versión Ola 367, `sirveAstraura`
+si la fuente pedida es de la familia `astraura-158-*`), sin estar en cooldown, ordenados por
+latencia. `pedirIaPorMalla()` intenta hasta `maxPeers` (2 por defecto) candidatos dentro de un
+presupuesto total compartido (200 s): un peer ocupado se enfría (Map por `syncDeviceId`, NUNCA
+global) y se prueba el siguiente; un abort (`signal`) corta de inmediato sin probar más peers; si
+TODOS los peers intentados estaban ocupados, el error final lleva `ocupado:true` (para que el
+enrutador aplique SU propio cooldown de fuente, igual que con cualquier otra).
+
+### Ficha de dispositivo (`malla-neuronas.ts`)
+`FichaDispositivo` gana `fuentesServibles?: string[]` — ids del catálogo LISTOS en este
+dispositivo ahora mismo. Se llena barato, sin sondear nada nuevo:
+`src/ai/astraura/ready-sources-snapshot.ts` (módulo puro, CERO imports, para no crear un ciclo
+entre `availability.ts` y `malla-neuronas.ts`) guarda el último resultado de
+`detectAvailability()` — que YA se ejecuta por otras razones (capas de conciencia, chat) — y
+`construirFicha()` simplemente lo lee (`capaMeshCompartiendo() ? fuentesListasSnapshot().ids :
+[]`). Viaja en la misma ficha de siempre, cada heartbeat (30 s), como una lista de ids nada más.
+
+### ROUTER — la fuente `ia-malla` solo aparece en DOS sitios, nunca en el ranking normal
+`availability.ts` marca `ia-malla` siempre `ready:false` (razón fija: "Solo se usa como pin de la
+malla o último recurso"), así que **jamás** entra al ranking normal de candidatos por su cuenta.
+`construirCandidatoIaMalla(peer, {fuente, modelo}?)` (función pura en `router.ts`) monta un
+`RouteCandidate` sintético apuntando a ese peer, y se invoca en exactamente dos puntos dentro de
+`astrauraChat` (ambos con guarda `!req.desdeMalla`, ver arriba):
+
+1. **Pin no listo aquí, pero un peer lo sirve** — dentro de la resolución de `force` (chat
+   pineado a una fuente/modelo concreto): si esa fuente/modelo no está en los candidatos locales,
+   se busca un peer con `servidoresIaPorMalla({fuente: force.sourceId})[0]` y, si existe, la
+   cadena entera pasa a ser ESE único candidato malla.
+2. **Último recurso antes de las fuentes de pago/últimos recursos** — justo antes del bucle de
+   `keylessCloudSources()` ("ÚLTIMOS RECURSOS GARANTIZADOS"): si nada local/nube respondió aún y
+   hay algún peer sirviendo lo que sea (`servidoresIaPorMalla()[0]`), se añade como candidato
+   ADICIONAL a la cadena, antes de agotar los últimos recursos.
+
+Ambos respetan `prefs.disabledSources` (el usuario puede apagar `ia-malla` como cualquier otra
+fuente). El `RouteRecord` de una respuesta que salió por la malla lleva `via:"malla"`,
+`viaPeer`, `viaFuente`, `viaModelo` (`viaMallaDeRespuesta()`, función pura); esto es lo que deja
+que `use-estado-capas.ts` marque la capa mesh "sincronizada" con el chat (`meshUsada`,
+`rutaUsaMalla()`) y que la cabecera del chat pueda mostrar "vía malla · <nombre>".
+
+### UI
+`malla-neuronas-panel.tsx`: cada dispositivo (que no sea "este mismo") pinta hasta 4 chips con
+las fuentes de `fuentesServibles` (más un badge "+N" con tooltip si hay más), vía el componente
+`FuentesChips`. `panel-capas.tsx`: la fila Mesh añade, como segunda prioridad (después de la
+frase específica de "sirve Astraura" si aplica), "N neurona(s) comparte(n) IA" cuando algún
+dispositivo anuncia al menos una fuente servible.
+
+### Verificación
+`tsc --noEmit -p .` limpio (0 errores). `vitest run src/lib/network src/ai src/lib/astraura
+src/components/network src/components/astraura` → **70 archivos / 959 pruebas en verde**,
+incluyendo los nuevos `src/lib/network/__tests__/ia-por-malla.test.ts` (protocolo y codec de pin;
+rol servidor con mesh/router de mentira — pin respetado, modo automático, 429 por peer,
+502 si el router lanza, cancelar aborta la petición correcta —, rol cliente con mesh de mentira
+— resolución en streaming, peer ocupado → siguiente peer, todos ocupados → error `ocupado`, peer
+desconectado, abort inmediato —), `src/ai/astraura/__tests__/ready-sources-snapshot.test.ts`
+(publicar/leer/deduplicar), `src/ai/astraura/__tests__/availability-ia-malla.test.ts` (siempre
+`ready:false` con motivo fijo) y `src/ai/astraura/__tests__/router-ia-malla.test.ts`
+(`esFuenteDeMalla`, `construirCandidatoIaMalla` pineado y automático, `viaMallaDeRespuesta`, y que
+`rankCandidates` nunca produce `ia-malla` por sí solo). Ampliaciones sin romper nada:
+`capas-conciencia.test.ts` (`meshUsada`, verificado idéntico al comportamiento previo cuando el
+campo nuevo está ausente) y `use-estado-capas.test.tsx` (`rutaUsaMalla`).
+
+### Pendiente / no verificado sin dos dispositivos reales
+- El flujo de punta a punta con un modelo NO-Astraura (p. ej. un peer sirviendo un modelo de
+  OpenRouter/Groq que el otro dispositivo no tiene configurado) solo se verificó con dobles de
+  prueba (mesh/router de mentira), nunca con dos neuronas físicas reales.
+- La ventana de hasta 30 s en la que `fuentesServibles` de un peer recién listo aún no llegó
+  (mismo heartbeat de ficha que el resto de la malla) no se acortó.
+- No se probó el caso de un peer que sirve la fuente pedida pero cuyo propio `forceSource` deja
+  de estar listo justo entre que anunció su ficha y que le llegó la petición (ventana de
+  heartbeat de 30 s): el servidor cae entonces a su cadena normal de fallback, nunca a error duro,
+  pero ese caso concreto no se ejercitó con timing real.
+- No se ejecutó `next build` (regla del área) ni se hizo commit/push (worktree de trabajo, otro
+  agente integra).

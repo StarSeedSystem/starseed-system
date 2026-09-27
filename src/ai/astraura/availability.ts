@@ -29,6 +29,10 @@ import { urlPuenteLocal } from "@/ai/providers/astraura-158";
 // malla P2P (misma cuenta) anuncia que sirve Astraura — lectura síncrona del
 // estado ya publicado por el motor de la malla, sin sondear la red aquí.
 import { servidoresAstrauraMalla } from "@/lib/network/astraura-por-malla";
+// (Ola 368) Snapshot barato de "qué fuentes están listas ahora" para que la
+// ficha de la malla de neuronas lo lea sin sondear de nuevo (módulo sin
+// dependencias pesadas: ver su cabecera para el porqué de evitar el ciclo).
+import { publicarFuentesListas } from "./ready-sources-snapshot";
 // (Adenda 153) Endpoint Astraura 1.58 declarado por ESTA neurona. `neurons.ts`
 // solo importa supabase/entity-state (sin ciclo con el router ni con este módulo).
 import { settingsFor, thisDeviceId } from "@/lib/neurons/neurons";
@@ -499,6 +503,21 @@ export async function detectAvailability(fast = false): Promise<SourceAvailabili
       });
       continue;
     }
+    // ── IA POR LA MALLA P2P, GENÉRICA (Ola 368): nunca entra en el ranking
+    //    automático de `rankCandidates` — se marca `ready:false` a propósito.
+    //    Solo se usa como candidato MANUAL en los dos casos que documenta
+    //    `router.ts` (pin no listo aquí servido por un peer / último recurso),
+    //    construidos a mano con `findSource(IA_MALLA_SOURCE_ID)`. Sigue en el
+    //    catálogo (y en este listado) para que la UI y `findSource` la vean.
+    if (source.providerId === "ia-malla") {
+      out.push({
+        source,
+        ready: false,
+        userConfig,
+        reason: "Solo se usa como pin de la malla o último recurso (ver capas → mesh).",
+      });
+      continue;
+    }
     if (source.tier === "local") {
       const probeUrl = source.id === "ollama-local"
         ? "http://localhost:11434/api/tags"
@@ -525,6 +544,14 @@ export async function detectAvailability(fast = false): Promise<SourceAvailabili
       source, ready: ok, userConfig,
       reason: ok ? undefined : `Necesita clave gratuita (${source.getKeyUrl ?? "ver ajustes"}).`,
     });
+  }
+  // (Ola 368) Efecto secundario BARATO: publica los ids `ready` de ESTA pasada
+  // para que la ficha de la malla de neuronas (`fuentesServibles`) los lea
+  // síncronamente sin sondear de nuevo — ver `ready-sources-snapshot.ts`.
+  try {
+    publicarFuentesListas(out.filter((a) => a.ready).map((a) => a.source.id));
+  } catch {
+    /* noop: nunca debe tumbar la disponibilidad por esto */
   }
   return out;
 }

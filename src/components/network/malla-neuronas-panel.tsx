@@ -19,6 +19,38 @@ import {
   type NeuronaCercanaRow,
 } from "@/lib/network/malla-neuronas";
 import type { NeuronKind } from "@/lib/neurons/neurons";
+import { useTransferenciasArchivo } from "@/lib/network/archivos-malla";
+import { EnviarArchivoBoton, TransferenciasArchivoLista } from "@/components/network/transferencias-archivo-panel";
+import { findSource } from "@/ai/astraura/free-catalog";
+
+/** Máximo de chips de fuente antes de agrupar el resto en un "+N" (Ola 368). */
+const MAX_CHIPS_FUENTES = 4;
+
+/** Etiqueta corta de una fuente del catálogo (o el id crudo si no se encuentra). */
+function etiquetaFuente(id: string): string {
+  return findSource(id)?.label ?? id;
+}
+
+/** Chips "fuentesServibles" de un dispositivo: como mucho 4 + "+N" (Ola 368). */
+function FuentesChips({ fuentes }: { fuentes: string[] }) {
+  if (!fuentes.length) return null;
+  const visibles = fuentes.slice(0, MAX_CHIPS_FUENTES);
+  const resto = fuentes.length - visibles.length;
+  return (
+    <div className="mt-1 flex flex-wrap items-center gap-1">
+      {visibles.map((id) => (
+        <Badge key={id} variant="outline" className="border-sky-400/30 text-[9px] text-sky-200/90">
+          {etiquetaFuente(id)}
+        </Badge>
+      ))}
+      {resto > 0 && (
+        <Badge variant="outline" className="border-foreground/15 text-[9px] text-foreground/50" title={fuentes.slice(MAX_CHIPS_FUENTES).map(etiquetaFuente).join(", ")}>
+          +{resto}
+        </Badge>
+      )}
+    </div>
+  );
+}
 
 function iconoTipo(tipo: NeuronKind) {
   switch (tipo) {
@@ -104,6 +136,9 @@ function DispositivoRow({ d }: { d: DispositivoMallaRow }) {
             </Badge>
           )}
           {!d.esEsteDispositivo && <EnlaceBadge enlace={d.enlace} />}
+          {!d.esEsteDispositivo && d.online && d.syncDeviceId && d.enlace.estado === "conectado" && (
+            <EnviarArchivoBoton deviceId={d.syncDeviceId} etiqueta={d.nombre} />
+          )}
           <Badge
             variant="outline"
             className={cn("text-[9px]", d.online ? "border-emerald-400/30 text-emerald-300" : "text-foreground/40")}
@@ -131,6 +166,7 @@ function DispositivoRow({ d }: { d: DispositivoMallaRow }) {
             </>
           )}
         </div>
+        {!d.esEsteDispositivo && <FuentesChips fuentes={d.ficha?.fuentesServibles ?? []} />}
       </div>
     </div>
   );
@@ -168,7 +204,8 @@ function CercanaRow({ b }: { b: NeuronaCercanaRow }) {
 
 export function MallaNeuronasPanel({ compact = false }: { compact?: boolean }) {
   const { misDispositivos, cercanas, loading } = useMallaNeuronasEstado();
-  const [tab, setTab] = useState<"propios" | "cercanas">("propios");
+  const transferencias = useTransferenciasArchivo();
+  const [tab, setTab] = useState<"propios" | "cercanas" | "archivos">("propios");
 
   const enLinea = misDispositivos.filter((d) => d.online).length;
 
@@ -211,9 +248,23 @@ export function MallaNeuronasPanel({ compact = false }: { compact?: boolean }) {
         >
           Cercanas de otras cuentas ({cercanas.length})
         </button>
+        <button
+          type="button"
+          onClick={() => setTab("archivos")}
+          className={cn(
+            "cursor-pointer rounded-full border px-2.5 py-1 text-[11px] transition-colors duration-200",
+            tab === "archivos"
+              ? "border-sky-400/40 bg-sky-500/15 text-sky-100"
+              : "border-foreground/10 bg-foreground/[0.03] text-foreground/55 hover:border-foreground/25",
+          )}
+        >
+          Archivos ({transferencias.length})
+        </button>
       </div>
 
-      {tab === "propios" ? (
+      {tab === "archivos" ? (
+        <TransferenciasArchivoLista />
+      ) : tab === "propios" ? (
         <div className="space-y-1.5">
           {loading && misDispositivos.length === 0 ? (
             <div className="rounded-xl border border-foreground/10 bg-foreground/[0.03] p-2.5 text-[11px] text-foreground/45">

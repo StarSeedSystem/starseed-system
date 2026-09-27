@@ -39,7 +39,13 @@ import { detectAvailabilitySafe, userConfigForSource, astraura158EndpointFor, ty
 // configurable por agente/personalidad/cerebro/neurona/cuenta. Capa pura.
 import { resolvePrimarySystem, type PrimaryMode, type PrimaryProvenance } from "@/lib/astraura/primary-system";
 import { persona158For, modelToPersona158, ASTRAURA_158_MODEL_PREFIX } from "@/ai/providers/astraura-158";
-import { ASTRAURA_158_LOCAL_SOURCE_ID, ASTRAURA_158_CLOUD_SOURCE_ID, ASTRAURA_158_MALLA_SOURCE_ID } from "./free-catalog";
+import { ASTRAURA_158_LOCAL_SOURCE_ID, ASTRAURA_158_CLOUD_SOURCE_ID, ASTRAURA_158_MALLA_SOURCE_ID, IA_MALLA_SOURCE_ID, esFuenteDeMalla } from "./free-catalog";
+// (Ola 368) IA por la malla P2P, genérica: peers que sirven una fuente/modelo
+// concreto (caso "a": pin no listo AQUÍ) o cualquiera (caso "b": último
+// recurso). Import ESTÁTICO seguro: `ia-por-malla.ts` solo llega de VUELTA a
+// este módulo por un import DINÁMICO dentro de su rol servidor (ver su
+// cabecera) — nunca de forma estática, así que no hay ciclo.
+import { servidoresIaPorMalla, codificarModeloIaMalla, IA_MALLA_MODEL_AUTO } from "@/lib/network/ia-por-malla";
 import { chromeAiChat, chromeAiReadyNow, webllmChat, transformersChat } from "./builtin-engines";
 import { noteUsage, isCoolingDown, markCooldown, dailyPercent } from "./usage";
 import { penalizacionPorPresupuesto } from "./presupuesto"; // (Ola 223 I1F)
@@ -709,6 +715,71 @@ export interface RouteRecord {
    * fuente que se PIDIÓ cuando quien de verdad respondió fue otra.
    */
   via158?: "nube" | "local" | "local-respaldo";
+  /**
+   * (Ola 368) Este turno lo sirvió OTRA neurona de tu malla a través del relé
+   * genérico `ia-malla` (`src/lib/network/ia-por-malla.ts`) — nunca presente
+   * si la fuente fue local/nube/otro proveedor real. El indicador de capas
+   * (`use-estado-capas.ts`) lo usa para marcar la capa "mesh" como
+   * sincronizada de verdad, y la UI de chat para mostrar "vía malla · <nombre>".
+   */
+  via?: "malla";
+  /** Nombre legible del peer de la malla que sirvió este turno (si `via === "malla"`). */
+  viaPeer?: string;
+  /** Fuente/modelo que el peer usó DE VERDAD (puede diferir del pin, si su enrutador degradó). */
+  viaFuente?: string;
+  viaModelo?: string;
+}
+
+/**
+ * viaMallaDeRespuesta — (Ola 368) PURA: si `sourceId` es `ia-malla` y la
+ * respuesta trae `raw.via === "malla"` (`providers/ia-malla.ts`), extrae el
+ * nombre del peer y la fuente/modelo reales que sirvieron el turno.
+ * `undefined` para cualquier otra fuente o si la forma no encaja.
+ */
+export function viaMallaDeRespuesta(
+  sourceId: string,
+  res: { raw?: unknown } | null | undefined,
+): { viaPeer?: string; viaFuente?: string; viaModelo?: string } | undefined {
+  if (sourceId !== IA_MALLA_SOURCE_ID) return undefined;
+  const raw = res?.raw as { via?: unknown; peer?: unknown; fuente?: unknown; modelo?: unknown } | null | undefined;
+  if (raw?.via !== "malla") return undefined;
+  return {
+    viaPeer: typeof raw.peer === "string" ? raw.peer : undefined,
+    viaFuente: typeof raw.fuente === "string" ? raw.fuente : undefined,
+    viaModelo: typeof raw.modelo === "string" ? raw.modelo : undefined,
+  };
+}
+
+/**
+ * construirCandidatoIaMalla — (Ola 368) construye a mano un `RouteCandidate`
+ * para el relé genérico `ia-malla`, NUNCA producido por `rankCandidates`
+ * (`availability.ts` marca esa fuente `ready:false` a propósito — ver su
+ * cabecera). Los dos únicos sitios que lo llaman son los casos "a" (pin no
+ * listo aquí, servido por un peer) y "b" (último recurso) de `astrauraChat`.
+ * `undefined` si el catálogo no tiene la fuente (defensivo, nunca debería
+ * pasar). Pura salvo por `findSource` (lectura del catálogo estático).
+ */
+export function construirCandidatoIaMalla(
+  peer: { syncDeviceId: string; nombre?: string },
+  opciones: { fuente?: string; modelo?: string } = {},
+): RouteCandidate | undefined {
+  const source = findSource(IA_MALLA_SOURCE_ID);
+  if (!source) return undefined;
+  const pinned = !!(opciones.fuente && opciones.modelo);
+  const nombre = peer.nombre || "otra neurona de tu malla";
+  const modelId = pinned ? codificarModeloIaMalla(opciones.fuente as string, opciones.modelo as string) : IA_MALLA_MODEL_AUTO;
+  const base = source.models[0];
+  const model: CatalogModel = {
+    id: modelId,
+    label: pinned ? `${opciones.fuente}/${opciones.modelo} (malla · ${nombre})` : `Automático (malla · ${nombre})`,
+    strengths: base?.strengths ?? [],
+    quality: base?.quality ?? 5,
+    context: base?.context,
+  };
+  const reason = pinned
+    ? `Vía malla · ${nombre} sirve "${opciones.fuente}" (no lista en esta neurona)`
+    : `Vía malla · ${nombre} responde con su propio enrutador (último recurso)`;
+  return { source, model, score: 0, reason, fromUser: false };
 }
 
 export function readRouteLog(): RouteRecord[] {
@@ -791,6 +862,14 @@ export interface AstrauraChatRequest {
    * normal (nunca falla en seco por un forceSource obsoleto).
    */
   forceSource?: { sourceId: string; modelId: string };
+  /**
+   * (Ola 368) true SOLO cuando esta petición llegó por el relé genérico de la
+   * malla P2P (`ia-por-malla.ts`, rol servidor). Excluye las fuentes `*-malla`
+   * del ranking y de los casos "a"/"b" de este mismo enrutador — sin esto, una
+   * neurona A le pide a B, B no tiene el modelo y se lo reenvía a la malla
+   * (quizás de vuelta a A): un bucle. Nunca lo pone un llamador normal.
+   */
+  desdeMalla?: boolean;
 }
 
 /**
@@ -1379,9 +1458,14 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
   // fuentes de pago» está apagado en esta neurona. `personaAllowsPaid` nunca
   // lanza y devuelve `null` (sin opinión) sin personalidad activa → el ranking
   // queda EXACTAMENTE como antes.
-  const candidates = rankCandidates(profile, avail, prefs, {
+  const candidatesRankeados = rankCandidates(profile, avail, prefs, {
     personaAllowsPaid: personaAllowsPaid(persona),
   });
+  // (Ola 368) Una petición que llegó POR LA MALLA nunca debe volver a salir
+  // por ella: sin esto, A pide a B, B no tiene el modelo y se lo reenvía a la
+  // malla (quizás de vuelta a A) — un bucle. `esFuenteDeMalla` cubre tanto el
+  // relé de Astraura 1.58 (Ola 367) como el genérico `ia-malla` (Ola 368).
+  const candidates = req.desdeMalla ? candidatesRankeados.filter((c) => !esFuenteDeMalla(c.source.id)) : candidatesRankeados;
 
   // PIN de MODELO por chat (Adenda 71-bis): si el menú fijó un proveedor para
   // este chat y hay un candidato con esa fuente, lo antepone vía forceSource
@@ -1515,7 +1599,21 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
     const forced = candidates.find(
       (c) => c.source.id === force.sourceId && c.model.id === force.modelId,
     );
-    if (forced) chain = [forced];
+    if (forced) {
+      chain = [forced];
+    } else if (!req.desdeMalla && !prefs.disabledSources.includes(IA_MALLA_SOURCE_ID)) {
+      // (Ola 368 · caso "a") El pin no está listo EN ESTA neurona: ¿lo sirve
+      // una neurona de tu malla? Nunca si esta petición YA llegó por la malla
+      // (evitaría un rebote infinito A→B→A) — `desdeMalla` ya lo garantiza al
+      // no llegar aquí como `force` desconocido en primer lugar, pero se
+      // comprueba también aquí por claridad y por si algún día `force` viene
+      // de otro sitio.
+      try {
+        const peer = servidoresIaPorMalla({ fuente: force.sourceId })[0];
+        const candMalla = peer ? construirCandidatoIaMalla(peer, { fuente: force.sourceId, modelo: force.modelId }) : undefined;
+        if (candMalla) chain = [candMalla];
+      } catch { /* defensivo: sin malla, degrada al ranking normal (ya calculado en `chain`) */ }
+    }
   }
 
   // ÚLTIMOS RECURSOS GARANTIZADOS (la raíz del bug P0-2).
@@ -1527,6 +1625,22 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
   // LLM7.io, Pollinations) estén al final de la cadena, en orden de calidad, y
   // Pollinations SIEMPRE la última (nunca se enfría, es la red de seguridad final).
   // (Adenda 153) Con un primario EXCLUSIVO no se añaden redes de seguridad.
+  //
+  // (Ola 368 · caso "b") ÚLTIMO RECURSO antes de esas redes de seguridad sin
+  // clave: si nada de lo ya rankeado respondió (se llega aquí solo tras
+  // agotar toda la cadena de arriba) y una neurona de tu malla sirve
+  // CUALQUIER fuente, se prueba con SU PROPIO enrutador antes de caer a
+  // Pollinations/LLM7/OVH — casi siempre mejor que la red de seguridad
+  // genérica, porque puede traer la cuenta/config real del dueño. Nunca si
+  // esta petición YA llegó por la malla (evita el rebote A→B→A) ni con un
+  // primario exclusivo (mismo criterio que las redes de seguridad de abajo).
+  if (!exclusiveChain && !req.desdeMalla && !prefs.disabledSources.includes(IA_MALLA_SOURCE_ID)) {
+    try {
+      const peer = servidoresIaPorMalla()[0];
+      const candMalla = peer ? construirCandidatoIaMalla(peer) : undefined;
+      if (candMalla && !chain.some((c) => c.source.id === IA_MALLA_SOURCE_ID)) chain.push(candMalla);
+    } catch { /* defensivo: sin malla, la cadena sigue igual */ }
+  }
   if (!exclusiveChain) {
     for (const src of keylessCloudSources()) {
       if (prefs.disabledSources.includes(src.id)) continue;
@@ -1728,6 +1842,8 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
         ...(c.local158Priority ? { local158Priority: true } : {}),
         // (G6) Vía real del proxy, si esta fuente fue Astraura 1.58 y la trajo.
         ...(viaDeRespuesta158(c.source.id, res) ? { via158: viaDeRespuesta158(c.source.id, res) } : {}),
+        // (Ola 368) Este turno lo sirvió otra neurona de la malla vía `ia-malla`.
+        ...(viaMallaDeRespuesta(c.source.id, res) ? { via: "malla" as const, ...viaMallaDeRespuesta(c.source.id, res) } : {}),
       };
       pushRouteRecord(rec);
       req.onStatus?.("");

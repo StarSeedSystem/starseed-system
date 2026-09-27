@@ -104,6 +104,11 @@ export function rutaUsa158(r: Pick<RouteRecord, "sourceId" | "ok"> | null | unde
     return Boolean(r && r.ok && typeof r.sourceId === "string" && r.sourceId.startsWith("astraura-158"));
 }
 
+/** PURA (Ola 368): ¿la ruta del chat salió de verdad por el relé de la malla P2P? */
+export function rutaUsaMalla(r: Pick<RouteRecord, "ok" | "via"> | null | undefined): boolean {
+    return Boolean(r && r.ok && r.via === "malla");
+}
+
 export interface EstadoCapasVivo {
     preferencia: PreferenciaCapas;
     salud: SaludCapas;
@@ -118,6 +123,7 @@ export function useEstadoCapas(): EstadoCapasVivo {
     const [disponVista, setDisponVista] = useState<Dispon>(dispon);
     const [colectiva, setColectiva] = useState<boolean | null>(() => colectivaDesde(getRealtimeSyncStatus()));
     const [chatUsa158, setChatUsa158] = useState<boolean>(() => rutaUsa158(lastRoute()));
+    const [chatUsaMalla, setChatUsaMalla] = useState<boolean>(() => rutaUsaMalla(lastRoute()));
     const malla = useMeshState();
     const faros = useNearbyBeacons();
 
@@ -160,6 +166,7 @@ export function useEstadoCapas(): EstadoCapasVivo {
         const alRutear = (e: Event) => {
             const r = (e as CustomEvent<RouteRecord>).detail ?? lastRoute();
             setChatUsa158(rutaUsa158(r));
+            setChatUsaMalla(rutaUsaMalla(r));
             // Una respuesta que salió por 1.58 ya demuestra que esa capa responde: sin
             // sonda. Pero (G6 · 2026-09-26) la fuente `sourceId` es la que ELEGIMOS
             // llamar, no necesariamente quien de verdad contestó: el proxy puede
@@ -191,8 +198,9 @@ export function useEstadoCapas(): EstadoCapasVivo {
             vecinosMesh,
             colectivaConectada: colectiva,
             chatUsa158,
+            meshUsada: chatUsaMalla,
         }),
-        [disponVista, quiereLocal, quiereNube, vecinosMesh, colectiva, chatUsa158],
+        [disponVista, quiereLocal, quiereNube, vecinosMesh, colectiva, chatUsa158, chatUsaMalla],
     );
 
     // Se guarda FUERA del actualizador de estado (en modo estricto React lo llama dos veces).

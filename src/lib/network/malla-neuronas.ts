@@ -47,6 +47,10 @@ import type { MeshHandle, PeerSnapshot, PeerState } from "@/lib/network/webrtc-m
 import { preferenciaCapasGuardada, type PreferenciaCapas } from "@/lib/astraura/capas-conciencia";
 import { paginaEsLocal } from "@/lib/astraura/destino-local";
 import { urlPuenteLocal } from "@/ai/providers/astraura-158";
+// (Ola 368) Snapshot BARATO de "qué fuentes están listas ahora" — módulo sin
+// dependencias pesadas (ver su cabecera), así que importarlo aquí no crea
+// ningún ciclo con `availability.ts` (que es quien lo alimenta).
+import { fuentesListasSnapshot } from "@/ai/astraura/ready-sources-snapshot";
 
 /* ------------------------------------------------------------------ */
 /* Constantes                                                        */
@@ -124,6 +128,16 @@ export interface FichaDispositivo {
   sirveAstraura?: boolean;
   /** Latencia medida por ESTA neurona a SU PROPIO backend Astraura (ms), si se conoce. */
   astrauraLatenciaMs?: number;
+  /**
+   * (Ola 368) Ids del catálogo (`free-catalog.ts`) que ESTA neurona tiene
+   * LISTOS ahora mismo (cualquier modelo configurado con su cuenta/perfil,
+   * no solo Astraura) — del snapshot ya calculado por `detectAvailability()`
+   * en cualquier parte de la app (`ready-sources-snapshot.ts`): "cheap, no
+   * extra probing", nunca dispara una sonda propia. Payload pequeño (solo
+   * ids). El relé genérico `ia-por-malla.ts` la usa para elegir peer por
+   * fuente pedida.
+   */
+  fuentesServibles?: string[];
 }
 
 /**
@@ -223,6 +237,10 @@ export async function construirFicha(neuron: Neuron | null): Promise<FichaDispos
   const puedeServir = puedeServirAstrauraPorMalla();
   const astrauraLatenciaMs = puedeServir ? await medirLatenciaAstrauraPropia() : undefined;
   const sirveAstraura = puedeServir && astrauraLatenciaMs !== undefined;
+  // (Ola 368) Solo se anuncia si la capa mesh está compartiendo (misma regla
+  // que Astraura arriba): una neurona que no comparte no debe atraer turnos
+  // del relé genérico para devolverlos en error.
+  const fuentesServibles = capaMeshCompartiendo() ? fuentesListasSnapshot().ids : [];
   return {
     v: 1,
     syncDeviceId: ids.syncDeviceId,
@@ -237,6 +255,7 @@ export async function construirFicha(neuron: Neuron | null): Promise<FichaDispos
     at: Date.now(),
     sirveAstraura,
     astrauraLatenciaMs,
+    fuentesServibles,
   };
 }
 
