@@ -58,3 +58,118 @@ export function normalizar(texto: string): string[] {
     .split(/\s+/)
     .filter(Boolean);
 }
+
+const dichos: { palabras: string[]; ahora: number }[] = [];
+
+/** Registra un texto dicho por Astraura para futura detección de eco. */
+export function registrarDicho(texto: string, ahora: number): void {
+  const palabras = normalizar(texto);
+  if (palabras.length === 0) return;
+  podarDichos(ahora);
+  dichos.push({ palabras, ahora });
+  while (dichos.length > MAX_DICHOS) dichos.shift();
+}
+
+function podarDichos(ahora: number): void {
+  while (dichos.length > 0 && ahora - dichos[0].ahora > MEMORIA_DICHOS_MS) {
+    dichos.shift();
+  }
+}
+
+/** Contiene `tramo` dentro de `texto` como sucesión de posiciones seguidas. */
+function contieneTramo(texto: string[], tramo: string[]): boolean {
+  if (tramo.length === 0 || texto.length < tramo.length) return false;
+  for (let i = 0; i <= texto.length - tramo.length; i++) {
+    let igual = true;
+    for (let j = 0; j < tramo.length; j++) {
+      if (texto[i + j] !== tramo[j]) { igual = false; break; }
+    }
+    if (igual) return true;
+  }
+  return false;
+}
+
+/**
+ * Decide si la transcripción del micro es en realidad la propia voz de
+ * Astraura entrando con retraso. Las órdenes cortas del usuario nunca son
+ * eco aunque coincidan con algo dicho.
+ */
+export function esEcoPropio(transcripcion: string, ahora: number): boolean {
+  podarDichos(ahora);
+  const palabras = normalizar(transcripcion);
+  if (palabras.length < MIN_PALABRAS_ECO) return false;
+  const tramo = palabras.slice(0, TRAMO_ECO);
+  for (const dicho of dichos) {
+    const enDicho = new Set(dicho.palabras);
+    const coinciden = palabras.filter((p) => enDicho.has(p)).length;
+    if (coinciden / palabras.length >= RATIO_ECO) return true;
+    if (contieneTramo(dicho.palabras, tramo)) return true;
+  }
+  return false;
+}
+
+/** Ventana de descarte tras hablar según dispositivo y latencia de salida. */
+export function ventanaEcoMs(opciones: {
+  movil: boolean;
+  latenciaSalidaMs?: number;
+}): number {
+  const latencia = opciones.latenciaSalidaMs ?? 0;
+  return Math.max(1200, opciones.movil ? 2200 : 0, latencia + 700);
+}
+
+function parecidoJaccard(a: string[], b: string[]): number {
+  const sa = new Set(a);
+  const sb = new Set(b);
+  if (sa.size === 0 || sb.size === 0) return 0;
+  let inter = 0;
+  for (const p of sa) if (sb.has(p)) inter++;
+  return inter / (sa.size + sb.size - inter);
+}
+
+/**
+ * Detector con estado de bucle de voz: rebotes de ella escuchándose a sí
+ * misma y respuestas repetidas. Un turno de texto reinicia la cuenta.
+ */
+export function detectorBucle(): DetectorBucle {
+  let rebotes = 0;
+  let respuestas: string[][] = [];
+  return {
+    anotarTurno(turno: TurnoVoz): VeredictoTurno {
+      const palabras = normalizar(turno.respuesta);
+      for (const anterior of respuestas.slice(-RESPUESTAS_COMPARADAS)) {
+        if (parecidoJaccard(palabras, anterior) >= JACCARD_REPETICION) {
+          return { cortar: true, motivo: "respuesta repetida" };
+        }
+      }
+      respuestas.push(palabras);
+      if (respuestas.length > RESPUESTAS_COMPARADAS) respuestas.shift();
+      if (turno.origen === "texto") {
+        rebotes = 0;
+        return { cortar: false };
+      }
+      const rebota =
+        turno.msDesdeQueCalló !== null && turno.msDesdeQueCalló < REBOTE_MS;
+      rebotes = rebota ? rebotes + 1 : 0;
+      if (rebotes >= MAX_TURNOS_VOZ) {
+        return { cortar: true, motivo: "bucle de voz: 3 turnos seguidos tras callar" };
+      }
+      return { cortar: false };
+    },
+    reiniciar(): void {
+      rebotes = 0;
+      respuestas = [];
+    },
+  };
+}
+
+/** Detecta generación degenerada: un tramo de 6+ palabras repetido 3+ veces. */
+export function repeticionEnTexto(texto: string): boolean {
+  const palabras = normalizar(texto);
+  const tramos = new Map<string, number>();
+  for (let i = 0; i + TRAMO_DEGENERADO <= palabras.length; i++) {
+    const clave = palabras.slice(i, i + TRAMO_DEGENERADO).join(" ");
+    tramos.set(clave, (tramos.get(clave) ?? 0) + 1);
+    if ((tramos.get(clave) ?? 0) >= VECES_DEGENERADO) return true;
+  }
+  return false;
+}
