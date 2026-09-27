@@ -347,6 +347,7 @@ export interface StarseedIdentity {
   via: "neuron-registry" | "federation" | "relay-beacon";
   /** Id del registro de origen (opaco). */
   sourceId: string;
+  neuronId?: string;
   name: string | null;
   /** ¿Pertenece a TU cuenta (verificado por el servidor) o es de otra? */
   ownAccount: boolean;
@@ -769,6 +770,7 @@ export async function listAuthorizedSerialPorts(): Promise<SerialPortView[]> {
 /** Faro de la red sináptica (forma mínima de `RelayBeacon`). */
 export interface BeaconView {
   deviceId: string;
+  neuronId?: string;
   label: string | null;
   region: string | null;
   preset: string | null;
@@ -946,6 +948,7 @@ function beaconSignals(input: DetectedSignalsInput, now: number): DetectedSignal
       compatDetail: "Compatible: corre el sistema mesh de StarSeed y alcanza el mismo relé — interconexión y sincronización disponibles por IP.",
       starseed: {
         via: "relay-beacon", sourceId: b.deviceId, name: b.label, ownAccount: b.own,
+        neuronId: b.neuronId,
         online: age < 5 * 60_000, lastSeenMs: b.at || null,
         capabilities: [
           "relé StarSeed",
