@@ -164,6 +164,10 @@ export function useDetectedSignals(options?: DetectedSignalsOptions): DetectedSi
   const accountRegistry = options?.accountRegistry !== false;
   const mesh = useMeshState();
   const beacons = useNearbyBeacons();
+  // (Ola 375 · RDV6) Estado de la malla de neuronas: SOLO LECTURA del motor
+  // único (`MallaNeuronasMount`) — aquí no se arranca nada. Con sus filas se
+  // enriquecen las señales `account` con el enlace P2P y la ficha reales.
+  const malla = useMallaNeuronasEstado();
   const [neuronsState, setNeuronsState] = useState<NeuronsCache>(() => neuronsCache);
   const [serialPorts, setSerialPorts] = useState<SerialPortView[]>([]);
   const [serialProbed, setSerialProbed] = useState(false);
@@ -252,15 +256,19 @@ export function useDetectedSignals(options?: DetectedSignalsOptions): DetectedSi
   );
 
   const signals = useMemo(
-    () => fusionarRadar(
-      [
-        ...collectDetectedSignals({ mesh, beacons, neurons, ble: freshBle, serialPorts, now }),
-        ...senalesRadioLocal(radioLocal, now),
-      ],
-      now,
-    ),
+    () =>
+      enriquecerConMalla(
+        fusionarRadar(
+          [
+            ...collectDetectedSignals({ mesh, beacons, neurons, ble: freshBle, serialPorts, now }),
+            ...senalesRadioLocal(radioLocal, now),
+          ],
+          now,
+        ),
+        malla.misDispositivos,
+      ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [mesh, beacons, neurons, freshBle, serialPorts, tick, radioLocal],
+    [mesh, beacons, neurons, freshBle, serialPorts, tick, radioLocal, malla.misDispositivos],
   );
 
   const unavailable = useMemo<UnavailableSource[]>(() => {
