@@ -24,6 +24,7 @@ import {
     type PersonaConversacion,
     type TurnoConversacion,
 } from "@/lib/astraura/conversacion-rapida";
+import { repeticionEnTexto } from "@/lib/aurora/anti-bucle-voz";
 import { esDespliegueLocal } from "@/lib/aurora/voz-starseed/puerta-local";
 
 export const runtime = "nodejs";
@@ -47,7 +48,16 @@ function carrilLocal(): Carril {
         local: true,
         url: `${BITNET}/v1/chat/completions`,
         cabeceras: {},
-        cuerpo: { cache_prompt: true, temperature: 0.7, top_p: 0.9 },
+        // (2026-09-27) Penalizaciones de repetición: sin ellas BitNet 2B entraba
+        // en bucle («…y la red, y la red, y la red…») y la voz lo leía entero.
+        cuerpo: {
+            cache_prompt: true,
+            temperature: 0.7,
+            top_p: 0.9,
+            repeat_penalty: 1.15,
+            frequency_penalty: 0.3,
+            presence_penalty: 0.2,
+        },
     };
 }
 
@@ -199,6 +209,11 @@ export async function POST(req: Request): Promise<Response> {
                     if (ganador !== carril) return;
                     dicho += t;
                     enviar({ t: "token", v: t });
+                    // Generación degenerada: se corta el motor, no se sigue pagando ni leyendo.
+                    if (repeticionEnTexto(dicho)) {
+                        corte.abort();
+                        return;
+                    }
                 }
             };
             const lanzar = (carril: Carril) => {

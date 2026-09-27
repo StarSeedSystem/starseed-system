@@ -80,6 +80,7 @@ import {
 import { emocionDesdeTexto, type EmocionVoz } from "@/lib/voces/emociones";
 import { emocionChatAVoz } from "@/lib/aurora/voz-starseed/motor";
 import { decirRT, decirRTYa, vozRT } from "@/lib/aurora/voz-rt";
+import { detectorBucle, esEcoPropio, registrarDicho, ventanaEcoMs } from "@/lib/aurora/anti-bucle-voz";
 
 type Voice = { name: string; lang: string; voiceURI: string; default?: boolean };
 
@@ -400,13 +401,49 @@ function releaseRecognition(rec: any): void {
  */
 let ttsSpeakingGlobal = false;
 let ttsGuardUntilGlobal = 0;
+/**
+ * (2026-09-27, anti-bucle de voz) Cuándo calló Astraura por última vez, el turno
+ * de voz pendiente de respuesta y el detector de bucles (uno por página, como el
+ * guard). En la tablet la cola de su propia voz entraba por el micro DESPUÉS de
+ * los 800 ms fijos y ella se respondía a sí misma en bucle hasta pararla a mano.
+ */
+let ultimoFinHablaGlobal = 0;
+let turnoVozPendiente: { origen: "voz"; msDesdeQueCalló: number | null } | null = null;
+const bucleVoz = detectorBucle();
+/** Respuestas más cortas que esto («Abriendo el café») no cuentan como bucle. */
+const MIN_PALABRAS_BUCLE = 6;
 function ttsGuardActive(): boolean {
   return ttsSpeakingGlobal || Date.now() < ttsGuardUntilGlobal;
 }
 /** Llamado por speak() en TODAS sus rutas: abre/cierra la ventana anti-eco. */
 function markTtsSpeaking(on: boolean): void {
   ttsSpeakingGlobal = on;
-  if (!on) ttsGuardUntilGlobal = Date.now() + 800; // cola de eco tras hablar
+  if (!on) {
+    ultimoFinHablaGlobal = Date.now();
+    // Cola de eco tras hablar: 1,2 s en escritorio, 2,2 s en móvil/tablet (antes 800 ms fijos).
+    let movil = false;
+    try { movil = isMobileDevice(); } catch { /* */ }
+    ttsGuardUntilGlobal = Date.now() + ventanaEcoMs({ movil });
+  }
+}
+
+/**
+ * ¿Hay que callar esta respuesta porque Astraura está en bucle? Solo mira turnos
+ * que vienen de la VOZ: una respuesta repetida a dos órdenes escritas iguales es
+ * normal. Anota lo dicho para que el micro reconozca después su propio eco.
+ */
+function vigilarBucleVoz(texto: string): { cortar: boolean; motivo?: string } {
+  const ahora = Date.now();
+  try { registrarDicho(texto, ahora); } catch { /* */ }
+  const turno = turnoVozPendiente;
+  turnoVozPendiente = null;
+  if (!turno) { bucleVoz.reiniciar(); return { cortar: false }; }
+  if (texto.trim().split(/\s+/).length < MIN_PALABRAS_BUCLE) return { cortar: false };
+  try {
+    return bucleVoz.anotarTurno({ ...turno, respuesta: texto, ahora });
+  } catch {
+    return { cortar: false };
+  }
 }
 
 /**
@@ -771,6 +808,9 @@ export function useAuroraEngine(): AuroraEngine {
   // Referencia a `start()` (definido más abajo) para reanudar la escucha tras el
   // habla sin problemas de orden de declaración.
   const startRef = useRef<() => void>(() => {});
+  // (2026-09-27) Corta un bucle de voz: calla, avisa y deja de escuchar. Se
+  // asigna más abajo, cuando existe `disengage`.
+  const cortarBucleRef = useRef<(motivo?: string) => void>(() => {});
 
   // finishTts — cierra el turno de habla de Aurora (medio-dúplex): apaga el
   // guard anti-eco y REANUDA la escucha si el usuario la tenía activa. Idempotente
@@ -848,6 +888,8 @@ export function useAuroraEngine(): AuroraEngine {
     // `speakQueued()` para que ambas rutas limpien EXACTAMENTE igual.
     const { clean, cleanChain } = sanitizeSpeechText(text);
     if (!clean && !cleanChain) return;
+    const bucle = vigilarBucleVoz(cleanChain || clean);
+    if (bucle.cortar) { cortarBucleRef.current(bucle.motivo); return; }
     const p = forcePersonality || activeRef.current;
     // Decir algo NUEVO (no reanudar) quita la pausa, igual que `vozRT().detener()`.
     pausedRef.current = false;
@@ -1155,6 +1197,8 @@ export function useAuroraEngine(): AuroraEngine {
     // sola fuente para ambas rutas).
     const { clean, cleanChain, emocion, intensidad } = sanitizeSpeechText(text);
     if (!clean && !cleanChain) return;
+    // Cada cláusula queda anotada para reconocer luego su eco en el micro.
+    try { registrarDicho(cleanChain || clean, Date.now()); } catch { /* */ }
     const p = forcePersonality || activeRef.current;
     // (2026-09-06, Ola 264 · G2) Emoción del turno, UNA VEZ, al encolar.
     // Precedencia: etiqueta `[emocion]` que Astraura escriba al inicio de la
@@ -1663,6 +1707,12 @@ export function useAuroraEngine(): AuroraEngine {
           });
           if (r) {
             setThinking(false);
+            const bucle = vigilarBucleVoz(r.texto);
+            if (bucle.cortar) {
+              if (boundary) clearInterval(boundary);
+              cortarBucleRef.current(bucle.motivo);
+              return;
+            }
             pushReply(r.texto, {
               provider: r.local ? "Astraura nativa (BitNet b1.58 local)" : r.motor,
               model: r.motor,
@@ -2008,6 +2058,14 @@ export function useAuroraEngine(): AuroraEngine {
       if (interimText) setInterim(interimText);
       if (finalText) {
         setInterim("");
+        // ANTI-ECO TARDÍO (2026-09-27): la cola de su propia voz puede llegar
+        // después de la ventana del guard (altavoz de tablet, Bluetooth). Si lo
+        // captado repite lo que ella acaba de decir, se descarta sin responder.
+        if (esEcoPropio(finalText, Date.now())) return;
+        turnoVozPendiente = {
+          origen: "voz",
+          msDesdeQueCalló: ultimoFinHablaGlobal ? Date.now() - ultimoFinHablaGlobal : null,
+        };
         // Corrección fonética de términos StarSeed (voz): "astral aura" →
         // "Astraura", "exo corte" → "Exocórtex"… antes de rutear/enviar.
         let corrected = finalText;
@@ -2058,6 +2116,22 @@ export function useAuroraEngine(): AuroraEngine {
   }, []);
 
   useEffect(() => { engageNowRef.current = engage; touchEngagedRef.current = touchEngaged; }, [engage, touchEngaged]);
+
+  // (2026-09-27) Bucle de voz detectado: callar TODO lo que suene, avisar y
+  // dejar de escuchar. Antes Alex tenía que pararla a mano.
+  useEffect(() => {
+    cortarBucleRef.current = (motivo?: string) => {
+      try { vozRT().detener(); } catch { /* */ }
+      try { if (typeof window !== "undefined" && window.speechSynthesis) window.speechSynthesis.cancel(); } catch { /* */ }
+      finishTts();
+      pausedForTtsRef.current = false;
+      bucleVoz.reiniciar();
+      disengage();
+      toast.warning("Astraura se detuvo para no repetirse", {
+        description: `${motivo || "bucle de voz"}. Vuelve a llamarla cuando quieras.`,
+      });
+    };
+  }, [disengage, finishTts]);
 
   const start = useCallback(() => {
     if (typeof window === "undefined") return;

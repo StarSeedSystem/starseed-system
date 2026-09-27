@@ -19,6 +19,7 @@
 import { eventoDeLinea, type TurnoConversacion } from "@/lib/astraura/conversacion-rapida";
 import { createStreamingVoice } from "@/lib/aurora/streaming-voice";
 import { vozDePersona, vozRT } from "@/lib/aurora/voz-rt";
+import { normalizar, registrarDicho, repeticionEnTexto } from "@/lib/aurora/anti-bucle-voz";
 
 const MULETILLA_TRAS_MS = 1200;
 const HISTORIAL_TURNOS = 12;
@@ -69,8 +70,19 @@ export async function turnoEnVivo(opts: {
             opts.onInicioVoz?.();
         }
     };
+    // (2026-09-27) Una cláusula ya dicha en este turno no se repite: BitNet 2B
+    // sin penalización a veces encadena la misma frase y la voz la leía en bucle.
+    const clausulasDichas = new Set<string>();
     const troceador = createStreamingVoice({
         speak: (clausula) => {
+            const clave = normalizar(clausula).join(" ");
+            if (clave && clausulasDichas.has(clave)) return;
+            if (clave) clausulasDichas.add(clave);
+            try {
+                registrarDicho(clausula, Date.now());
+            } catch {
+                /* */
+            }
             alHablar();
             voz.encolar(clausula, { voz: vozId });
         },
@@ -83,6 +95,7 @@ export async function turnoEnVivo(opts: {
     }, MULETILLA_TRAS_MS);
 
     let texto = "";
+    let degenerado = false;
     let fin: ResultadoTurnoVivo | null = null;
     const inicio = Date.now();
     try {
@@ -102,6 +115,7 @@ export async function turnoEnVivo(opts: {
             resto += dec.decode(value, { stream: true });
             const lineas = resto.split("\n");
             resto = lineas.pop() ?? "";
+            if (degenerado) break;
             for (const l of lineas) {
                 const e = eventoDeLinea(l);
                 if (!e) continue;
@@ -111,6 +125,12 @@ export async function turnoEnVivo(opts: {
                     opts.onPrimerToken?.(e.motor, e.local);
                 } else if (e.t === "token") {
                     texto += e.v;
+                    // Generación degenerada (un tramo repetido 3+ veces): se corta
+                    // aquí, se lee lo que ya estaba bien y no se pide más al motor.
+                    if (repeticionEnTexto(texto)) {
+                        degenerado = true;
+                        break;
+                    }
                     troceador.feed(e.v);
                 } else if (e.t === "fin") {
                     fin = {
@@ -123,6 +143,13 @@ export async function turnoEnVivo(opts: {
                 } else if (e.t === "error") {
                     return null;
                 }
+            }
+        }
+        if (degenerado) {
+            try {
+                await lector.cancel();
+            } catch {
+                /* */
             }
         }
         troceador.flush();
