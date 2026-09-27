@@ -1,0 +1,38 @@
+{
+ "ola": "nube-20260927",
+ "tareas": [
+  {
+   "id": "DR0927-1",
+   "ola": "Ola Dream 2026-09-27 · lo que el análisis nocturno encontró",
+   "titulo": "Publicar los 8 commits sin push y cerrar la Ola 376 (RDV24)",
+   "archivos": [],
+   "depende": [],
+   "prompt": "ORIGEN: esto lo escribió el Dream —el análisis nocturno de Hermes— en `starseed_memory_root/dream/sugerencias-2026-09-27.md`, sección «top 3 accionables». Texto literal del informe:\n\n  Publicar los 8 commits sin push y cerrar la Ola 376 (RDV24) — HEAD `ae0da2c0`, 2 commits sin push según relevo y 8 según el último informe de ola (`starseed_memory_root/olas/progreso.md`). La RDV24 (etiqueta deslizante del Dock Trinity, reasignada a nube 20260926) quedó 0/1 integrada; el commit `26cce896` ya la implementa. Impacto alto / esfuerzo bajo: `tsc` + `vitest`, push, verificar Vercel Ready.\n\nANTES DE ESCRIBIR NADA: comprueba que sigue siendo cierto. El Dream lo escriben modelos gratuitos leyendo registros, y a veces proponen algo que YA está hecho o que se entendió mal. Si al mirar el repo resulta que no aplica, no inventes trabajo: escribe en tu respuesta una línea `NO APLICA: <motivo>` y para.\n\nSi aplica: acota el cambio a lo mínimo que resuelva lo que dice el informe, y dilo en el commit. Máximo 3 archivos y 120 líneas por archivo. Las reglas de la casa están en `memory/workflow-actual.md` — léelas: el silencio no es aprobación, integrado no es aplicado, y si una prueba falla se arregla el código, no la prueba.",
+   "modelo": "llm7/minimax-m2.7"
+  },
+  {
+   "id": "DR0927-2",
+   "ola": "Ola Dream 2026-09-27 · lo que el análisis nocturno encontró",
+   "titulo": "Rotar el token `gho_` incrustado en el remoto de `astraura`",
+   "archivos": [],
+   "depende": [],
+   "prompt": "ORIGEN: esto lo escribió el Dream —el análisis nocturno de Hermes— en `starseed_memory_root/dream/sugerencias-2026-09-27.md`, sección «top 3 accionables». Texto literal del informe:\n\n  Rotar el token `gho_` incrustado en el remoto de `astraura` — (tarea abierta en tasks) y revisar la cuota 402 de Supabase `nxstilnyidvkqeosofuh` (respaldo) — ambas puestas en tasks abiertas, de bajo esfuerzo y alto riesgo latente (credencial viva en el árbol de git remoto). Impacto alto (higiene) / esfuerzo bajo. (Sin tocar secretos: solo orquestar la rotación vía `gh auth`/credential helper.)\n\nANTES DE ESCRIBIR NADA: comprueba que sigue siendo cierto. El Dream lo escriben modelos gratuitos leyendo registros, y a veces proponen algo que YA está hecho o que se entendió mal. Si al mirar el repo resulta que no aplica, no inventes trabajo: escribe en tu respuesta una línea `NO APLICA: <motivo>` y para.\n\nSi aplica: acota el cambio a lo mínimo que resuelva lo que dice el informe, y dilo en el commit. Máximo 3 archivos y 120 líneas por archivo. Las reglas de la casa están en `memory/workflow-actual.md` — léelas: el silencio no es aprobación, integrado no es aplicado, y si una prueba falla se arregla el código, no la prueba.",
+   "modelo": "llm7/minimax-m2.7"
+  },
+  {
+   "id": "RDV8",
+   "ola": "Ola 375 · Radar veraz y completo: todas las señales de todos los medios, fusionadas y compartidas por la malla",
+   "titulo": "Radar compartido: almacén de resúmenes remotos y el propio",
+   "archivos": [
+    "src/lib/network/radar-remoto-store.ts",
+    "src/lib/network/__tests__/radar-remoto-store.test.ts"
+   ],
+   "depende": [],
+   "prompt": "CONTEXTO: RDV7 definió `ResumenRadar` en `src/lib/network/radar-por-malla.ts`.\n\nHAZ `radar-remoto-store.ts` (sin red; usable desde el motor y desde React):\n- `recibirResumen(r: ResumenRadar, via: \"p2p\" | \"federacion\"): void` — guarda por `neuronId` (el más nuevo gana; un resumen por neurona; máx. 16 neuronas, se expulsa la más vieja).\n- `resumenesRemotos(ahora = Date.now()): ResumenRadar[]` — solo los de < 5 min, ordenados por nombre.\n- `viaDe(neuronId): \"p2p\" | \"federacion\" | null`.\n- `setResumenLocal(r: ResumenRadar)` / `getResumenLocal(): ResumenRadar | null` — el último resumen de ESTA neurona (lo usará la federación).\n- `suscribirRadarRemoto(cb): () => void` y `useRadarRemoto(): ResumenRadar[]` con `useSyncExternalStore` (instantánea estable: no devuelvas un array nuevo en cada lectura si no cambió).\n- `limpiarRadarRemoto()` para pruebas.\nPruebas: el más nuevo gana, caducidad, tope de 16, suscripción avisa.\n\nREGLAS DE ESTA OLA (valen para todas sus tareas):\n- Toca SOLO los archivos listados. Cada archivo nuevo ≤ 120 líneas; en archivos existentes, cambios quirúrgicos (no reescribas lo que no pide la tarea).\n- TypeScript estricto, sin dependencias nuevas, comentarios en español, sin emojis como iconos.\n- Datos HONESTOS: nada se inventa. Si un dato falta se dice «sin dato» o no se muestra; toda estimación se declara como estimación con su margen.\n- Privacidad: jamás incluyas direcciones MAC, claves, tokens, rutas del disco ni memorias. Las redes Wi-Fi ajenas y los Bluetooth ajenos se muestran en la propia neurona y en las neuronas de LA MISMA cuenta; nunca se suben a Supabase con nombre.\n- El layout raíz y `src/ai/providers/index.ts` NO importan nada nuevo de forma estática (regla de CLAUDE.md: lo que cuelga del layout raíz se carga perezoso).\n- Pruebas con vitest junto al código (`__tests__/`); ejecútalas con `npx vitest run <archivo>` antes de terminar.\n",
+   "modelo": "llm7/minimax-m2.7",
+   "dependencias_ya_en_main": [
+    "RDV7"
+   ]
+  }
+ ]
+}
