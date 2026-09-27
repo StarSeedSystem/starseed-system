@@ -34,6 +34,7 @@ import {
   type DetectedSignal,
   type SerialPortView,
 } from "@/ai/astraura/mesh/signals";
+import { fusionarRadar } from "@/ai/astraura/mesh/radar-fusion";
 import { listNeurons, NEURON_EVENT, type Neuron } from "@/lib/neurons/neurons";
 
 /** Cadencia de refresco del registro de neuronas (consulta a la cuenta). */
@@ -235,7 +236,10 @@ export function useDetectedSignals(options?: DetectedSignalsOptions): DetectedSi
   );
 
   const signals = useMemo(
-    () => collectDetectedSignals({ mesh, beacons, neurons, ble: freshBle, serialPorts }),
+    () => fusionarRadar(
+      collectDetectedSignals({ mesh, beacons, neurons, ble: freshBle, serialPorts, now }),
+      now,
+    ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [mesh, beacons, neurons, freshBle, serialPorts, tick],
   );
