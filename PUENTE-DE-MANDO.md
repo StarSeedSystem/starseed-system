@@ -1,6 +1,6 @@
 # Puente de Mando · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-27 00:47:51 desde el Mando vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-27 15:22:02 desde el Mando vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -16,28 +16,18 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | Agentes escribiendo | **0** |
 | En esta ola | integradas 1 · en curso 0 · esperando aprobación 0 · pendientes 0 |
 | Últimas 4 olas | en curso 0 · pendientes 0 · integradas 22 |
-| HEAD | `9caf40b9 chore(memoria): aprendizaje de la ola 375-379-resto` |
-| Sin publicar | 29 commits |
-| Árbol | 1 archivos sin commitear |
+| HEAD | `c2166f5a chore(memoria): aprendizaje de la ola auto-0927-034146` |
+| Sin publicar | 7 commits |
+| Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-375-379-resto.json`, hace 3s)
+## Quién escribe ahora (latido de `cola-auto-0927-034146.json`, hace 8s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `p314Acs` | hecho | groq/qwen/qwen3.6-27b | 2 min | 131 s | 5552 |
-| `p314Ac` | hecho | nvidia/moonshotai/kimi-k3 | 8 min | 471 s | 57133 |
-| `RDV3b` | hecho | nvidia/moonshotai/kimi-k3 | 21 min | 1286 s | 25630 |
-| `RDV16` | hecho | nvidia/moonshotai/kimi-k3 | 22 min | 1293 s | 61603 |
-| `RDV9b` | hecho | groq/qwen/qwen3.6-27b | 25 min | 1518 s | 10939 |
-| `RDV2` | hecho | - | 34 min | 2067 s | 8460 |
-| `JF2b` | hecho | groq/qwen/qwen3.6-27b | 38 min | 2279 s | 13895 |
-| `RDV18` | hecho | groq/qwen/qwen3.6-27b | 47 min | 2802 s | 3481 |
-| `RDV9` | hecho | nvidia/moonshotai/kimi-k3 | 54 min | 3250 s | 26902 |
-| `RDV24` | hecho | nvidia/moonshotai/kimi-k3 | 54 min | 3268 s | 100574 |
-| `RDV7` | hecho | groq/qwen/qwen3.6-27b | 72 min | 4309 s | 12953 |
-| `RDV5` | hecho | groq/qwen/qwen3.6-27b | 79 min | 4754 s | 3019 |
-| `RDV21` | hecho | nvidia/moonshotai/kimi-k3 | 86 min | 5180 s | 33383 |
-| `CRN1` | hecho | groq/qwen/qwen3.6-27b | 95 min | 5726 s | 4102 |
+| `RDV7` | hecho | nvidia/moonshotai/kimi-k3 | 4 min | 238 s | 106162 |
+| `RDV5` | hecho | nvidia/moonshotai/kimi-k3 | 44 min | 2622 s | 1072230 |
+| `RDV2` | hecho | - | 52 min | 3093 s | 305557 |
+| `RDV18` | hecho | codex/gpt-5.6-sol | 675 min | 40470 s | 525505 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
