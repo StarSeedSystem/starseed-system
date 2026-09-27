@@ -24,6 +24,7 @@ import { useRitoActivo } from "@/lib/ui/rito-activo";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { TrinityFab } from "./trinity-fab";
 import { DockDeslizable } from "./dock-deslizable";
+import { EtiquetaDeslizante } from "./etiqueta-deslizante";
 import {
     loadDockConfig,
     saveDockConfig,
@@ -632,9 +633,8 @@ function DockItem({ icon, label, onClick, color = "neutral", active = false, bad
         <div className={cn(
             "group relative flex shrink-0 snap-center flex-col items-center gap-1",
             // <640px: celda algo más ancha en las DOS densidades para que la
-            // etiqueta en dos líneas (line-clamp-2 de abajo) tenga sitio sin
-            // solaparse con el vecino; en ≥640px no cambia nada (tablet/escritorio
-            // siguen con el ancho de siempre).
+            // etiqueta de una línea respire sin solaparse con el vecino; en
+            // ≥640px no cambia nada (tablet/escritorio, ancho de siempre).
             compact ? "w-[46px] lg:w-[60px] max-sm:w-16" : "w-[58px] lg:w-[78px] max-sm:w-16",
         )}>
             <button
@@ -707,19 +707,18 @@ function DockItem({ icon, label, onClick, color = "neutral", active = false, bad
                 )}
             </button>
             {!compact && (
-                <span
+                // UNA línea con «…» en reposo; si desborda, al pasar el cursor
+                // (o enfocar el botón con teclado) se desliza para mostrar el
+                // resto. Con una sola línea todas las celdas miden lo mismo y
+                // los iconos quedan alineados también bajo 640 px.
+                <EtiquetaDeslizante
+                    texto={label}
+                    activo={active}
                     className={cn(
-                        "max-w-[58px] lg:max-w-[78px] truncate text-center text-[9px] lg:text-[11px] leading-tight transition-colors",
-                        // <640px: nada de puntos suspensivos a media palabra
-                        // («Librería · Bib…») — la etiqueta envuelve en hasta 2
-                        // líneas, a todo el ancho fijo de la celda (arriba) y con
-                        // una talla mínima legible (10px). Solo bajo 640px.
-                        "max-sm:line-clamp-2 max-sm:min-h-[2.5em] max-sm:max-w-full max-sm:whitespace-normal max-sm:break-words max-sm:text-[10px]",
+                        "max-w-[58px] lg:max-w-[78px] max-sm:max-w-full text-center text-[9px] lg:text-[11px] max-sm:text-[10px] leading-tight transition-colors",
                         active ? cn(p.text, "font-semibold") : "text-foreground/55 group-hover:text-foreground/85",
                     )}
-                >
-                    {label}
-                </span>
+                />
             )}
         </div>
     );
