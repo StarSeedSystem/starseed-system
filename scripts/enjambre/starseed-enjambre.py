@@ -1218,6 +1218,9 @@ def error_de_formato(texto):
             "must be satisfied",
             "invalid_request_error",
             "unsupported_value",
+            # (2026-09-27) Un prompt que no cabe en el TPM del tramo gratuito no cabrá en el
+            # siguiente intento tampoco: es de tamaño, no de cupo que se recupere.
+            "request too large",
         )
     )
 
@@ -1813,6 +1816,11 @@ def _cargar_pasarelas():
             "rpm": rpm,
         }
         CUPOS_RPM[nombre] = rpm
+        # (2026-09-27) STARSEED_PASARELA_<N>_SOLO_REVISOR=1: la pasarela revisa pero NO escribe.
+        # Groq: su tramo gratuito limita 8000 TPM y un prompt de escritura pesa ~22k tokens, así
+        # que cada tarea quemaba un intento en «Request too large» antes de pasar al siguiente.
+        if (g("_SOLO_REVISOR", "") or "").strip().lower() in ("1", "si", "sí", "true"):
+            PASARELAS_SOLO_REVISOR.add(nombre)
         if modelos:
             SONDAS[nombre] = (modelos[0], (pref + "_URL",))
             # (2026-09-08, Ola 286 · G1) Groq entra como ESCRITOR además de revisor: su
