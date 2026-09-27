@@ -36,9 +36,11 @@ import {
 } from "@/ai/astraura/mesh/signals";
 import { fusionarRadar } from "@/ai/astraura/mesh/radar-fusion";
 import { senalesRadioLocal } from "@/ai/astraura/mesh/senales-radio-local";
+import { enriquecerConMalla } from "@/ai/astraura/mesh/senales-enlace-malla";
 import { obtenerRadioLocal, radioLocalEnCache } from "@/lib/network/radio-local-cliente";
 import type { RadioLocal } from "@/lib/mando/radio-local-tipos";
 import { listNeurons, NEURON_EVENT, type Neuron } from "@/lib/neurons/neurons";
+import { useMallaNeuronasEstado } from "@/lib/network/malla-neuronas";
 
 /** Cadencia de refresco del registro de neuronas (consulta a la cuenta). */
 const NEURONS_REFRESH_MS = 90_000;
