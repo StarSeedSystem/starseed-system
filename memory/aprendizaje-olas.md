@@ -2762,3 +2762,13 @@
 
 **Lo que quedó fuera, una por una:**
 - `p318Jc` — no escribió nada
+
+## 2026-09-26 22:39 · 375-radar-veraz
+
+**Lo que se pidió.** sin dato
+
+**Resultado.** 2 de 4 integradas. 2 tareas se quedaron fuera.
+
+**Lo que quedó fuera, una por una:**
+- `RDV24` — no escribió nada
+- `RDV3` — la revisión lo rechazó: rechazada automáticamente por ide (sin revisión humana); rama ola/RDV3 conservada
