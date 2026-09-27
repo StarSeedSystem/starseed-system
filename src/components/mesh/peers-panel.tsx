@@ -94,72 +94,75 @@ export function PeersPanel() {
         </CardContent>
       </Card>
 
-      {/* Federadas + router externo */}
-      <div className="space-y-3">
-        <Card className="border-white/10 bg-black/20">
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-sm">
-              <Satellite className="h-4 w-4 text-violet-300" /> Tus otras neuronas (federación)
-            </CardTitle>
-            <CardDescription>Qué malla ve cada dispositivo de tu cuenta, con su antena.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-1.5">
-            {remotes.length === 0 ? (
-              <p className="rounded-xl border border-dashed border-white/10 px-4 py-4 text-center text-[12px] text-white/40">
-                Sin instantáneas federadas (necesita sesión + otra neurona con malla activa).
-              </p>
-            ) : (
-              remotes.map((r) => (
-                <div
-                  key={r.deviceId}
-                  className="flex items-center justify-between gap-2 rounded-lg border border-violet-400/15 bg-violet-500/[0.04] px-2.5 py-1.5 text-[11px]"
-                >
-                  <span className="flex min-w-0 items-center gap-1.5">
-                    <Radio className="h-3 w-3 shrink-0 text-violet-300" />
-                    <span className="truncate text-white/80">{r.label}</span>
-                  </span>
-                  <span className="shrink-0 text-white/45">
-                    {r.onlineCount} nodos · {r.snapshot.region ?? "?"}
-                    {r.snapshot.preset && r.snapshot.preset !== "UNSET"
-                      ? ` · ${PRESET_SPECS[r.snapshot.preset]?.label ?? r.snapshot.preset}`
-                      : ""}
-                    {` · ${timeAgo(r.at)}`}
-                  </span>
-                </div>
-              ))
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="border-white/10 bg-black/20">
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-sm">
-              <Router className="h-4 w-4 text-sky-300" /> Router / red externa
-            </CardTitle>
-            <CardDescription>La conexión convencional del dispositivo, medida de verdad.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-1.5 text-[11px]">
-            <div className="flex items-center justify-between gap-2 rounded-lg border border-white/5 bg-white/[0.02] px-2.5 py-1.5">
-              <span className="flex items-center gap-1.5 text-white/80">
-                <Globe className="h-3 w-3 text-sky-300" /> {ext?.label ?? "Red externa"}
-              </span>
-              <span className={cn("text-white/45", ext?.availability === "off" && "text-rose-300")}>
-                {ext?.detail ?? "midiendo…"}
-              </span>
-            </div>
-            <div className="flex items-center justify-between gap-2 rounded-lg border border-white/5 bg-white/[0.02] px-2.5 py-1.5">
-              <span className="text-white/60">Salud medida (sonda del router de Astraura)</span>
-              <span className="text-white/45">
-                {(state.wifiHealth.score * 100).toFixed(0)}/100 · {state.wifiHealth.detail}
-              </span>
-            </div>
-            <p className="text-[10px] leading-snug text-white/40">
-              El navegador no expone SSID ni la lista de redes (privacidad de la plataforma); lo que ves
-              es el estado, tipo y velocidad REALES de la conexión activa.
+      {/* Federadas + router externo. (2026-09-27) Cada tarjeta es hija DIRECTA de la
+          rejilla: `Card` trae `h-full`, y dos tarjetas apiladas dentro de una columna
+          estirada medían cada una el 100 % de esa columna — la de la federación se
+          quedaba con un hueco enorme y la del router se salía por debajo, encima de
+          «Dispositivos StarSeed». El router ocupa la fila entera: sus datos son
+          «etiqueta … valor» y necesitan ancho. */}
+      <Card className="border-white/10 bg-black/20">
+        <CardHeader className="pb-2">
+          <CardTitle className="flex items-center gap-2 text-sm">
+            <Satellite className="h-4 w-4 text-violet-300" /> Tus otras neuronas (federación)
+          </CardTitle>
+          <CardDescription>Qué malla ve cada dispositivo de tu cuenta, con su antena.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-1.5">
+          {remotes.length === 0 ? (
+            <p className="rounded-xl border border-dashed border-white/10 px-4 py-4 text-center text-[12px] text-white/40">
+              Sin instantáneas federadas (necesita sesión + otra neurona con malla activa).
             </p>
-          </CardContent>
-        </Card>
-      </div>
+          ) : (
+            remotes.map((r) => (
+              <div
+                key={r.deviceId}
+                className="flex items-center justify-between gap-2 rounded-lg border border-violet-400/15 bg-violet-500/[0.04] px-2.5 py-1.5 text-[11px]"
+              >
+                <span className="flex min-w-0 items-center gap-1.5">
+                  <Radio className="h-3 w-3 shrink-0 text-violet-300" />
+                  <span className="truncate text-white/80">{r.label}</span>
+                </span>
+                <span className="shrink-0 text-white/45">
+                  {r.onlineCount} nodos · {r.snapshot.region ?? "?"}
+                  {r.snapshot.preset && r.snapshot.preset !== "UNSET"
+                    ? ` · ${PRESET_SPECS[r.snapshot.preset]?.label ?? r.snapshot.preset}`
+                    : ""}
+                  {` · ${timeAgo(r.at)}`}
+                </span>
+              </div>
+            ))
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="border-white/10 bg-black/20 lg:col-span-2">
+        <CardHeader className="pb-2">
+          <CardTitle className="flex items-center gap-2 text-sm">
+            <Router className="h-4 w-4 text-sky-300" /> Router / red externa
+          </CardTitle>
+          <CardDescription>La conexión convencional del dispositivo, medida de verdad.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-1.5 text-[11px]">
+          <div className="flex items-center justify-between gap-2 rounded-lg border border-white/5 bg-white/[0.02] px-2.5 py-1.5">
+            <span className="flex items-center gap-1.5 text-white/80">
+              <Globe className="h-3 w-3 text-sky-300" /> {ext?.label ?? "Red externa"}
+            </span>
+            <span className={cn("text-white/45", ext?.availability === "off" && "text-rose-300")}>
+              {ext?.detail ?? "midiendo…"}
+            </span>
+          </div>
+          <div className="flex items-center justify-between gap-2 rounded-lg border border-white/5 bg-white/[0.02] px-2.5 py-1.5">
+            <span className="text-white/60">Salud medida (sonda del router de Astraura)</span>
+            <span className="text-white/45">
+              {(state.wifiHealth.score * 100).toFixed(0)}/100 · {state.wifiHealth.detail}
+            </span>
+          </div>
+          <p className="text-[10px] leading-snug text-white/40">
+            El navegador no expone SSID ni la lista de redes (privacidad de la plataforma); lo que ves
+            es el estado, tipo y velocidad REALES de la conexión activa.
+          </p>
+        </CardContent>
+      </Card>
     </div>
   );
 }
