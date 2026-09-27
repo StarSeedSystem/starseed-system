@@ -672,12 +672,38 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
     };
 }
 
+/**
+ * (2026-09-27, medido) El pulso de trabajo pide DIEZ medidores a la vez cada vuelta y cada
+ * petición llamaba a `reunir()` entero (git, colas, progreso, latidos, bus…): diez lecturas
+ * iguales en paralelo. Con la Mac cargada, un medidor tardaba 47 s. Las peticiones que llegan
+ * juntas comparten ahora UNA reunión, válida 4 s: la cifra no envejece y la Mac hace una
+ * décima parte del trabajo.
+ */
+let reunionCompartida: { t: number; promesa: Promise<Partial<DatosMedidores>> } | null = null;
+const REUNION_VALIDA_MS = 4_000;
+
+function reunirCompartido(): Promise<Partial<DatosMedidores>> {
+    const ahora = Date.now();
+    if (reunionCompartida && ahora - reunionCompartida.t < REUNION_VALIDA_MS) return reunionCompartida.promesa;
+    const promesa = reunir().catch(() => ({}) as Partial<DatosMedidores>);
+    reunionCompartida = { t: ahora, promesa };
+    return promesa;
+}
+
 export async function GET(peticion: Request): Promise<Response> {
     const veto = await guardianMando(peticion);
     if (veto) return veto;
     const clave = (new URL(peticion.url).searchParams.get("clave") ?? "ola-activa") as ClaveMedidor;
+    // (2026-09-27) El crédito de Claude solo necesita su propio archivo: no se reúne todo.
+    if (clave === "credito-claude") {
+        const creditoClaude = await leerCreditoClaude().catch(() => null);
+        return Response.json(
+            { detalle: detalleDeMedidor(clave, { creditoClaude }), generadoEn: new Date().toISOString() },
+            { headers: { "Cache-Control": "no-store" } },
+        );
+    }
     // Un fallo leyendo git o el bus no puede tumbar el panel: se devuelve lo que sí haya.
-    const datos: Partial<DatosMedidores> = await reunir().catch(() => ({}));
+    const datos: Partial<DatosMedidores> = { ...(await reunirCompartido().catch(() => ({}))) };
     if (clave === "integradas") {
         // Los ids que existen de verdad: sin este filtro, «mando: …» contaría como tarea.
         const conocidas = new Set([...Object.keys(datos.progreso ?? {}), ...Object.keys(datos.titulos ?? {})]);
