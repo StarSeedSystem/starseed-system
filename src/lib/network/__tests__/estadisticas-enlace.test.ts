@@ -91,3 +91,33 @@ describe("etiquetaRuta", () => {
     expect(etiquetaRuta("desconocida")).toBe("ruta desconocida");
   });
 });
+
+describe("resumirRuta con un RTCStatsReport de verdad (maplike, no instanceof Map)", () => {
+  it("lee el par seleccionado aunque el informe no sea un Map", () => {
+    const filas: Record<string, unknown>[] = [
+      { id: "T1", type: "transport", selectedCandidatePairId: "CP1" },
+      { id: "CP1", type: "candidate-pair", state: "succeeded", nominated: true, localCandidateId: "L1", remoteCandidateId: "R1", currentRoundTripTime: 0.004, bytesSent: 10, bytesReceived: 20 },
+      { id: "L1", type: "local-candidate", candidateType: "host", protocol: "udp" },
+      { id: "R1", type: "remote-candidate", candidateType: "host", protocol: "udp" },
+    ];
+    const mapa = new Map(filas.map((f) => [f.id as string, f]));
+    // Imita RTCStatsReport: values/forEach/entries e iterador de pares, sin ser un Map.
+    const informe = {
+      values: () => mapa.values(),
+      forEach: (cb: (v: unknown) => void) => mapa.forEach((v) => cb(v)),
+      [Symbol.iterator]: () => mapa.entries(),
+    };
+    const r = resumirRuta(informe, 1);
+    expect(r.clase).toBe("misma-red-local");
+    expect(r.rttMs).toBe(4);
+  });
+
+  it("también acepta el iterador de pares [id, estadística]", () => {
+    const pares: [string, Record<string, unknown>][] = [
+      ["CP1", { id: "CP1", type: "candidate-pair", state: "succeeded", nominated: true, localCandidateId: "L1", remoteCandidateId: "R1" }],
+      ["L1", { id: "L1", type: "local-candidate", candidateType: "srflx" }],
+      ["R1", { id: "R1", type: "remote-candidate", candidateType: "host" }],
+    ];
+    expect(resumirRuta({ [Symbol.iterator]: () => pares[Symbol.iterator]() } as unknown as Iterable<Record<string, unknown>>, 1).clase).toBe("internet-directo");
+  });
+});

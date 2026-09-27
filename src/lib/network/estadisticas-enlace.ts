@@ -17,11 +17,33 @@ export interface RutaEnlace {
 
 type Estadistica = Record<string, unknown>;
 
-export function resumirRuta(
-  stats: Iterable<Estadistica> | Map<string, Estadistica>,
-  ahora: number,
-): RutaEnlace {
-  const entradas = stats instanceof Map ? Array.from(stats.values()) : Array.from(stats);
+/**
+ * Lo que devuelve `RTCPeerConnection.getStats()` es un `RTCStatsReport`: se comporta como un
+ * Map (tiene `values()` y `forEach`) pero NO es `instanceof Map`, y su iterador da pares
+ * `[id, estadística]`. (2026-09-27) La primera versión preguntaba `instanceof Map`, recorría
+ * los pares como si fueran estadísticas y en un navegador real toda ruta salía «desconocida».
+ */
+export type FuenteEstadisticas =
+  | Iterable<Estadistica>
+  | Map<string, Estadistica>
+  | { values(): Iterable<unknown> }
+  | { forEach(cb: (valor: unknown) => void): void };
+
+function aLista(stats: FuenteEstadisticas): Estadistica[] {
+  const s = stats as { values?: () => Iterable<unknown>; forEach?: (cb: (v: unknown) => void) => void };
+  let crudos: unknown[];
+  if (typeof s.values === "function") crudos = Array.from(s.values());
+  else if (typeof s.forEach === "function") {
+    crudos = [];
+    s.forEach((v) => crudos.push(v));
+  } else crudos = Array.from(stats as Iterable<unknown>);
+  return crudos
+    .map((e) => (Array.isArray(e) && e.length === 2 && e[1] && typeof e[1] === "object" ? e[1] : e))
+    .filter((e): e is Estadistica => !!e && typeof e === "object" && !Array.isArray(e));
+}
+
+export function resumirRuta(stats: FuenteEstadisticas, ahora: number): RutaEnlace {
+  const entradas = aLista(stats);
   const porId = new Map<string, Estadistica>();
   for (const entrada of entradas) {
     if (typeof entrada.id === "string") porId.set(entrada.id, entrada);
