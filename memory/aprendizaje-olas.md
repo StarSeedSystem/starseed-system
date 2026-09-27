@@ -2781,3 +2781,31 @@
 
 **Lo que quedó fuera, una por una:**
 - `RDV24` — otra cosa: reasignada a la nube 20260926
+
+## 2026-09-27 00:47 · 375-379-resto
+
+**Lo que se pidió.** algunos aparecen más arriba que otros porque su texto ocupa más espacio; arréglalo con un límite de caracteres usando tres puntos si no alcanza, y cuando se pasa el cursor se desliza y muestra el resto del texto
+
+**Resultado.** 4 de 18 integradas. 14 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 9 tareas se fueron por lo mismo — no escribió nada (RDV5, RDV6, RDV7, RDV8, RDV18, RDV19). Es 50 % de la ola.
+- 5 tareas se fueron por lo mismo — otra cosa (RDV21, RDV2, RDV13, RDV14, RDV15). Es 28 % de la ola.
+- sin modelo anotado no integró ninguna de sus 14 tareas.
+- nvidia/moonshotai/kimi-k3 integró 4 tareas sin fallar una.
+
+**Lo que quedó fuera, una por una:**
+- `RDV21` — otra cosa: huérfana: ninguna cola fuente la define ya (estaba reasignada)
+- `RDV2` — otra cosa: ningún proveedor respondió (does not exist)
+- `RDV5` — no escribió nada
+- `RDV6` — no escribió nada: dependencia no integrada: RDV2 (fallo), RDV5 (sin_cambios)
+- `RDV7` — no escribió nada
+- `RDV8` — no escribió nada: dependencia no integrada: RDV7 (sin_cambios)
+- `RDV13` — otra cosa: dependencia no integrada: RDV8 (bloqueada), RDV11 (sustituida), RDV12 (sustituida)
+- `RDV14` — otra cosa: dependencia no integrada: RDV6 (bloqueada), RDV8 (bloqueada), RDV11 (sustituida), RDV12 (sustituida)
+- `RDV15` — otra cosa: dependencia no integrada: RDV8 (bloqueada)
+- `RDV18` — no escribió nada
+- `RDV19` — no escribió nada: dependencia no integrada: RDV18 (sin_cambios)
+- `JF2b` — no escribió nada
+- `RDV9b` — no escribió nada
+- `p314Acs` — no escribió nada
