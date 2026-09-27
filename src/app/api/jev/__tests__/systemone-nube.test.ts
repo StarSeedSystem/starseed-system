@@ -6,7 +6,7 @@
  * la llamada a `/api/jev/decidir`).
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { decidirPorNube } from "../systemone/route";
+import { decidirPorNube } from "@/lib/jev/decidir-por-nube";
 import { invalidarDestino } from "@/lib/astraura/destino-nube";
 import { normalizarPreguntas, type Peticion } from "@/lib/mando/jev-contrato";
 

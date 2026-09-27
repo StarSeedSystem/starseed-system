@@ -26,7 +26,10 @@ import {
   modelToPersona158,
   preferencesFor,
 } from "./astraura-158";
-import { pedirAstrauraPorMalla, type AstrauraMallaError } from "@/lib/network/astraura-por-malla";
+import type { AstrauraMallaError } from "@/lib/network/astraura-por-malla";
+
+/** (2026-09-27) Relé perezoso: ver la nota en `ia-malla.ts` (ciclo providers ↔ red). */
+const cargarRele = () => import("@/lib/network/astraura-por-malla");
 
 const info: ProviderInfo = {
   id: "astraura-158-malla",
@@ -51,6 +54,7 @@ async function chat(_config: DecryptedProviderConfig, messages: ChatMessage[], o
   const note = mentionsSystemNote(mentions, persona);
   const systemPrompt = note ? [built.system_prompt, note].filter(Boolean).join("\n\n") : built.system_prompt;
 
+  const { pedirAstrauraPorMalla } = await cargarRele();
   const text = await pedirAstrauraPorMalla({
     cuerpo: {
       messages: messages.map((m) => ({ role: m.role, content: m.content })),

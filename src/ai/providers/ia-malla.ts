@@ -15,7 +15,16 @@
  */
 
 import type { ChatMessage, ChatOptions, ChatResponse, DecryptedProviderConfig, Provider, ProviderInfo } from "./types";
-import { pedirIaPorMalla, decodificarModeloIaMalla, IA_MALLA_MODEL_AUTO, type IaMallaError } from "@/lib/network/ia-por-malla";
+import type { IaMallaError } from "@/lib/network/ia-por-malla";
+
+/**
+ * (2026-09-27) El relé se carga PEREZOSO: `providers/index.ts` lo importa todo el OS y
+ * una importación estática metía la pila de red (malla, WebRTC, fichas) en el ciclo
+ * providers ↔ enrutador. Medido: la compilación de Vercel pasó de ~3 a 27,6 min.
+ * Mismo valor que `IA_MALLA_MODEL_AUTO` de `ia-por-malla.ts`.
+ */
+const MODELO_AUTO = "auto";
+const cargarRele = () => import("@/lib/network/ia-por-malla");
 
 const info: ProviderInfo = {
   id: "ia-malla",
@@ -25,10 +34,11 @@ const info: ProviderInfo = {
   requiresKey: false,
   local: true,
   defaultBaseUrl: "malla://ia",
-  defaultModels: [IA_MALLA_MODEL_AUTO],
+  defaultModels: [MODELO_AUTO],
 };
 
 async function chat(_config: DecryptedProviderConfig, messages: ChatMessage[], options: ChatOptions): Promise<ChatResponse> {
+  const { pedirIaPorMalla, decodificarModeloIaMalla } = await cargarRele();
   const pin = decodificarModeloIaMalla(options.model);
   const text = await pedirIaPorMalla({
     cuerpo: {
