@@ -49,6 +49,13 @@ export function resumirRuta(stats: FuenteEstadisticas, ahora: number): RutaEnlac
     if (typeof entrada.id === "string") porId.set(entrada.id, entrada);
   }
 
+  // Cadena de selección del par activo, en orden de confianza:
+  // 1. El par que anuncia la entrada «transport» vía `selectedCandidatePairId` (solo si ese id
+  //    existe en el informe y el par ya está «succeeded» — puede no estar todavía, o el
+  //    navegador puede omitir la entrada del par).
+  // 2. Si no, cualquier par «succeeded» y «nominated» (el que ICE marcó como ganador).
+  // Los ids ausentes del índice `porId` no son un error: se descartan y se prueba el siguiente
+  // criterio, de modo que un informe parcial nunca devuelve una ruta inventada.
   const idSeleccionado = entradas.find(
     (entrada) => entrada.type === "transport" && typeof entrada.selectedCandidatePairId === "string",
   )?.selectedCandidatePairId;
