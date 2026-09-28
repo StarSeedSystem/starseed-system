@@ -19,16 +19,17 @@ function Flor({ tareas, tam, onToggle, onMas, interactiva }: { tareas: QuickTask
     const petalos = tareas.slice(0, 8);
     const hechas = tareas.filter((t) => t.done).length;
     const vacia = petalos.length === 0;
-    const n = vacia ? 3 : petalos.length;
-    const largo = tam * 0.42, ancho = tam * 0.18;
+    // Sin tareas, un capullo: cinco pétalos cerrados hacia arriba (no un molinillo de tres).
+    const n = vacia ? 5 : petalos.length;
+    const largo = tam * (vacia ? 0.34 : 0.42), ancho = tam * (vacia ? 0.15 : 0.18);
     return (
         <div className="relative" style={{ width: tam, height: tam }}>
             <svg width={tam} height={tam} viewBox={`${-tam / 2} ${-tam / 2} ${tam} ${tam}`} className="absolute inset-0 overflow-visible" role="group"
                 aria-label={vacia ? "Sin tareas: añade la primera" : `Flor de tareas: ${hechas} de ${tareas.length} hechas`}>
-                <g className="ss-girar" style={{ ["--ss-dur" as string]: "240s", transformOrigin: "0 0" }}>
+                <g className={vacia ? "ss-respirar" : "ss-girar"} style={{ ["--ss-dur" as string]: vacia ? "6s" : "240s", transformOrigin: "0 0" }}>
                     {Array.from({ length: n }, (_, i) => {
                         const t = petalos[i];
-                        const ang = (i / n) * 360 + (vacia ? -60 : 0);
+                        const ang = vacia ? -52 + i * 26 : (i / n) * 360;
                         const accion = () => interactiva && t && onToggle(t.id);
                         return (
                             <g key={t?.id ?? i} transform={`rotate(${ang})`} role={interactiva && t ? "button" : undefined} tabIndex={interactiva && t ? 0 : undefined}
@@ -36,7 +37,7 @@ function Flor({ tareas, tam, onToggle, onMas, interactiva }: { tareas: QuickTask
                                 aria-pressed={t ? t.done : undefined} onClick={accion}
                                 onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); accion(); } }}
                                 className={interactiva && t ? "cursor-pointer outline-none [&:focus-visible>ellipse]:stroke-white" : undefined}>
-                                <ellipse rx={ancho / 2} ry={largo / 2} cy={-largo / 2 - tam * 0.06}
+                                <ellipse rx={ancho / 2} ry={largo / 2} cy={vacia ? -largo / 2 : -largo / 2 - tam * 0.06}
                                     fill={t?.done ? LIMA : ESMERALDA} fillOpacity={t?.done ? 0.7 : 0.22}
                                     stroke={t?.done ? LIMA : "rgba(16,185,129,.55)"} strokeWidth={1.5}
                                     style={{ filter: t?.done ? `drop-shadow(0 0 6px ${LIMA}88)` : undefined, transition: "fill-opacity .4s, fill .4s" }} />
