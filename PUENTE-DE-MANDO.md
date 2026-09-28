@@ -1,6 +1,6 @@
 # Puente de Mando · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-27 20:24:00 desde el Mando vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-27 21:00:49 desde el Mando vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -9,22 +9,17 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 
 ## Estado ahora mismo
 
-| | |
-|---|---|
-| Mando | **encendido** en http://127.0.0.1:9002/mando |
-| Ola arriba | Ola Dream 2026-09-27 · lo que el análisis nocturno encontró |
-| Agentes escribiendo | **0** |
-| En esta ola | integradas 0 · en curso 0 · esperando aprobación 0 · pendientes 0 |
-| Últimas 4 olas | en curso 0 · pendientes 0 · integradas 21 |
-| HEAD | `f609d2c5 chore(memoria): aprendizaje de la ola auto-0927-200505` |
-| Sin publicar | 34 commits |
+El Mando está **apagado**. Levántalo con `bash scripts/puente/arrancar-mando.sh`
+y vuelve a ejecutar este script; sin él los cuatro entornos van a ciegas.
+| HEAD | `26e7244e chore(memoria): aprendizaje de la ola auto-0927-202644` |
+| Sin publicar | 1 commits |
 | Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-auto-0927-200505.json`, hace 7s)
+## Quién escribe ahora (latido de `cola-auto-0927-202644.json`, hace 27s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `JF2b` | hecho | nvidia/z-ai/glm-5.3 | 5 min | 329 s | 60062 |
+| `JF2b` | hecho | nvidia/z-ai/glm-5.3 | 18 min | 1087 s | 66997 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
