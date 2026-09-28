@@ -5,8 +5,9 @@
 //   · Dueño/a  → Editar perfil (/cuenta) · Crear publicación (/crear) ·
 //                Compartir perfil (navigator.share + copiar enlace) ·
 //                Ver como visitante (toggle local, sin persistencia).
-//   · Visita   → Seguir/Siguiendo (os_follows real, clave "profile-<handle>") ·
-//                Mensaje (/messages?to=<handle>) · Compartir.
+//   · Visita   → Añadir a contactos (Contactos sustituye a "seguir" para
+//                PERSONAS — ver src/lib/contactos) · Mensaje
+//                (/messages?to=<handle>) · Compartir.
 // Sin dependencias nuevas; degradación honesta a /login cuando falta sesión.
 // ─────────────────────────────────────────────────────────────────────────────
 "use client";
@@ -14,7 +15,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { useFollow } from "@/hooks/use-os-entities";
+import { BotonAnadirContacto } from "@/components/contactos/boton-anadir-contacto";
 import { ShareToDialog } from "@/components/sharing/share-to-dialog";
 import type { ShareResourceRef } from "@/lib/sharing/share-targets";
 import {
@@ -26,13 +27,7 @@ import {
     Eye,
     EyeOff,
     MessageCircle,
-    UserPlus,
-    UserCheck,
-    Lock,
-    Loader2,
 } from "lucide-react";
-
-const GOLD = "#E9C46A";
 
 /**
  * "Compartir en…" — el MISMO diálogo universal del resto del OS (mensaje ·
@@ -106,52 +101,6 @@ function ShareProfileButton({ handle, name }: { handle: string; name: string }) 
     );
 }
 
-/** Botón Seguir/Siguiendo con persistencia real en os_follows. */
-function FollowProfileButton({ handle }: { handle: string }) {
-    // Misma tabla os_follows que las páginas: clave estable por perfil.
-    const { active, loading, needsAuth, toggle } = useFollow(`profile-${handle}`);
-    const [hint, setHint] = useState(false);
-
-    const handleToggle = async () => {
-        const res = await toggle();
-        if (res.needsAuth) {
-            setHint(true);
-            setTimeout(() => setHint(false), 4000);
-        }
-    };
-
-    return (
-        <span className="flex shrink-0 items-center gap-2">
-            <Button
-                type="button"
-                size="sm"
-                variant={active ? "outline" : "default"}
-                onClick={() => void handleToggle()}
-                disabled={loading}
-                aria-pressed={active}
-                className="min-h-[2.75rem] shrink-0 cursor-pointer gap-1.5 rounded-full sm:min-h-0"
-            >
-                {loading ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : active ? (
-                    <UserCheck className="h-3.5 w-3.5" />
-                ) : (
-                    <UserPlus className="h-3.5 w-3.5" />
-                )}
-                {active ? "Siguiendo" : "Seguir"}
-            </Button>
-            {hint && needsAuth && (
-                <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
-                    <Lock className="h-3 w-3" />
-                    <Link href="/login" className="cursor-pointer underline" style={{ color: GOLD }}>
-                        Inicia sesión para seguir
-                    </Link>
-                </span>
-            )}
-        </span>
-    );
-}
-
 export interface ProfileQuickActionsProps {
     /** ¿La sesión actual es dueña REAL de este perfil? */
     isOwner: boolean;
@@ -161,6 +110,10 @@ export interface ProfileQuickActionsProps {
     /** Handle sin @ (clave de URL /profile/<handle>). */
     handle: string;
     name: string;
+    /** uid REAL del perfil visitado — sin él no se puede añadir a contactos (se omite el botón). */
+    userId?: string | null;
+    avatarUrl?: string | null;
+    bio?: string | null;
 }
 
 export function ProfileQuickActions({
@@ -169,6 +122,9 @@ export function ProfileQuickActions({
     onToggleViewAs,
     handle,
     name,
+    userId,
+    avatarUrl,
+    bio,
 }: ProfileQuickActionsProps) {
     const showOwnerActions = isOwner && !viewAsVisitor;
 
@@ -206,7 +162,16 @@ export function ProfileQuickActions({
                 </>
             ) : (
                 <>
-                    {!isOwner && <FollowProfileButton handle={handle} />}
+                    {!isOwner && userId && (
+                        <BotonAnadirContacto
+                            userId={userId}
+                            username={handle}
+                            nombre={name}
+                            avatarUrl={avatarUrl}
+                            bio={bio}
+                            variante="completo"
+                        />
+                    )}
                     {!isOwner && (
                         <Button
                             asChild

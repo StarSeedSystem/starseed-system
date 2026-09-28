@@ -3,6 +3,7 @@
 
 import {
     Package, PenSquare, FileText, Globe, Link2, ExternalLink, CornerUpRight, GitBranch, Bookmark, Drama, Palette,
+    BookUser, MessageSquare,
     type LucideIcon,
 } from "lucide-react";
 import type { SavedItem, SavedItemType } from "@/lib/library/entity-library";
@@ -25,6 +26,10 @@ export const ITEM_TYPE_META: Record<SavedItemType, { label: string; icon: Lucide
     personality: { label: "Personalidad", icon: Drama },
     /** v2.3 (Adenda 72 C1): archivo de diseño (.ssdesign.json). */
     design: { label: "Diseño", icon: Palette },
+    /** v2.4 (Contactos): ficha de la libreta (solo nombre y ruta). */
+    contact: { label: "Contacto", icon: BookUser },
+    /** v2.4 (Mensajería): mensaje de un chat. */
+    message: { label: "Mensaje", icon: MessageSquare },
 };
 
 export function itemTypeMeta(type: SavedItemType) {

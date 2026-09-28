@@ -1,70 +1,50 @@
 "use client";
 
 /*
- * ThreadView — chat activo (panel derecho de /messages).
- * Cabecera con título/miembros + toggle Aurora del hilo. Burbujas con
- * MessageBubble. Composer con adjuntos de cualquier formato (dataURL si son
- * pequeños) + botón "Preguntar a Aurora" cuando el hilo tiene el agente activo.
+ * ThreadView — chat activo (panel derecho de /messages). Rediseño 2026-09-28:
+ *  · Cabecera con el nombre REAL (apodo del chat › contacto › perfil › @usuario): los perfiles
+ *    de TODOS los miembros se cargan al abrir el hilo y se FUSIONAN (nunca se reemplazan), así
+ *    que el nombre aparece aunque la otra persona no haya escrito aún.
+ *  · Ajustes efectivos del hilo aplicados: fondo, tamaño de letra, color de mis burbujas,
+ *    densidad, hora, vaciado «solo para mí», confirmaciones de lectura, vista previa de enlaces.
+ *  · Burbujas agrupadas con separadores de día, búsqueda dentro del chat, visor a pantalla
+ *    completa, panel de información (archivos, carpetas, contacto, miembros, ajustes).
+ *  · El manejador de realtime lee refs (sin cierres obsoletos).
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import Link from "next/link";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
-import { cn } from "@/lib/utils";
+import { ChevronDown, Eye, EyeOff, Loader2, MessageCircleHeart, Paperclip } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
 import {
-    ArrowLeft, Bot, ExternalLink, Loader2, Mail, Paperclip, Reply, Send, Sparkles, Users2, X,
-} from "lucide-react";
-import {
-    listMessages, sendMessage, editMessage, softDeleteMessage, subscribeThread,
-    markRead, setThreadAgent, mentionsAurora, messageFromRealtimeRow, threadEntityLink,
-    type DmAttachment, type DmMessage, type DmThreadSummary, type ThreadAgentConfig,
+    listMessages, listMembers, sendMessage, editMessage, softDeleteMessage, subscribeThread,
+    markRead, markThreadReadLocal, setThreadAgent, mentionsAurora, messageFromRealtimeRow, threadEntityLink,
+    type DmAttachment, type DmMember, type DmMessage, type DmThreadSummary, type SendMessageInput, type ThreadAgentConfig,
 } from "@/lib/messages/dm";
 import { askAuroraInThread } from "@/lib/messages/aurora-thread";
 import { fetchProfilesByIds, type OsProfile } from "@/lib/social/os-profiles";
-import { threadTitle, threadAvatar } from "@/components/messages/dm/thread-list";
+import { useConfirm } from "@/components/ui/confirm-dialog";
+import { useContactos, usePorUserId } from "@/lib/contactos/store";
+import type { FormatoMensaje } from "@/lib/mensajeria/formato-tipos";
+import type { TipoHilo } from "@/lib/mensajeria/ajustes-tipos";
+// Contratos C7 (librería de mensajería) y C8 (contactos).
+import { useAjustesMensajeria } from "@/lib/mensajeria/ajustes-store";
+import { fondoCss, tamanoLetraPx } from "@/lib/mensajeria/ajustes";
+import { formatearPresencia, usePresencia, useSalaHilo } from "@/lib/mensajeria/presencia";
+import { useCarpetasHilo } from "@/lib/mensajeria/carpetas-hilo";
+import { EditorContacto } from "@/components/contactos/editor-contacto";
 import { MessageBubble } from "@/components/messages/dm/message-bubble";
-// Subida universal de archivos (Adenda 64 §9): adjuntos grandes van a storage
-// (URL real, sincronizada entre dispositivos); el dataURL inline queda solo
-// como fallback offline para archivos pequeños (ver MAX_INLINE_BYTES abajo).
-import { AttachFilePickerButton } from "@/components/files/universal-file-picker";
-import type { UniversalAttachment } from "@/lib/files/os-files";
-// Invitaciones a grupo/página/evento (Adenda jul-2026 §3), enviables desde el
-// composer de este hilo igual que un adjunto cualquiera.
-import { InviteComposerButton, type InviteAttachmentPayload } from "@/components/invitations/invite-composer-button";
-
-const MAX_INLINE_BYTES = 300_000; // ~0.3MB: fallback offline (dataURL) para adjuntos muy pequeños.
-
-function fileToAttachmentKind(file: File): DmAttachment["kind"] {
-    if (file.type.startsWith("image/")) return "image";
-    if (file.type.startsWith("audio/")) return "audio";
-    if (file.type.startsWith("video/")) return "video";
-    return "file";
-}
-
-function readFileAsDataUrl(file: File): Promise<string> {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(String(reader.result));
-        reader.onerror = () => reject(reader.error);
-        reader.readAsDataURL(file);
-    });
-}
-
-/** ¿Hay sesión activa AHORA MISMO (best-effort, sin red)? Heurística simple para decidir el fallback offline. */
-function looksOffline(): boolean {
-    try {
-        return typeof navigator !== "undefined" && navigator.onLine === false;
-    } catch {
-        return false;
-    }
-}
+import { CabeceraHilo, BarraBusquedaHilo } from "@/components/messages/dm/cabecera-hilo";
+import { ComposerHilo, type ComposerHandle, type EnvioComposer } from "@/components/messages/dm/composer";
+import { SeparadorDia } from "@/components/messages/dm/separador-dia";
+import { ContextoHilo, type ApiCarpetasHilo, type ContextoHiloValor, type VistaInfo } from "@/components/messages/dm/contexto-hilo";
+import { useEsMovil, useMovimientoReducido } from "@/components/messages/dm/hooks-hilo";
+import {
+    agruparMensajes, buscarCoincidencias, debeCargarMultimedia, estadoLectura, exportarChatTexto, mensajesVisibles,
+    nombreArchivoSeguro, nombrePersona, otroMiembro, resolverNombreHilo, resumenMiembros, textoEscribiendo,
+} from "@/components/messages/dm/utilidades-hilo";
+import { PanelInfoHilo } from "@/components/messages/info/panel-info-hilo";
+import { VisorMensaje } from "@/components/messages/info/visor-mensaje";
 
 export interface ThreadViewProps {
     thread: DmThreadSummary;
@@ -80,80 +60,148 @@ export interface ThreadViewProps {
      * persona y deja el cursor listo para escribir.
      */
     autoFocusComposer?: boolean;
+    /** Perfiles de los miembros que la página ya cargó (se fusionan con los propios). */
+    perfilesMiembros?: Record<string, OsProfile>;
+    /** Modo enfoque (la página oculta la lista y amplía el chat). */
+    enfocado?: boolean;
+    onAlternarEnfoque?: () => void;
 }
 
-export function ThreadView({ thread, myUserId, onBack, onThreadUpdated, pendingServerAttachment, onConsumePendingAttachment, autoFocusComposer }: ThreadViewProps) {
+const unicos = (xs: (string | null | undefined)[]) => Array.from(new Set(xs.filter((x): x is string => !!x)));
+
+function descargarTexto(nombre: string, contenido: string) {
+    try {
+        const blob = new Blob([contenido], { type: "text/plain;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = nombre;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1500);
+    } catch {
+        toast.error("No se pudo preparar la descarga en este navegador.");
+    }
+}
+
+export function ThreadView({
+    thread, myUserId, onBack, onThreadUpdated, pendingServerAttachment, onConsumePendingAttachment, autoFocusComposer,
+    perfilesMiembros, enfocado, onAlternarEnfoque,
+}: ThreadViewProps) {
+    const esGrupo = thread.kind === "group";
+    const tipo: TipoHilo = esGrupo ? "grupo" : "dm";
+
     const [messages, setMessages] = useState<DmMessage[]>([]);
     const [loading, setLoading] = useState(true);
-    const [profiles, setProfiles] = useState<Record<string, OsProfile>>({});
-    const [input, setInput] = useState("");
+    const [perfilesLocales, setPerfilesLocales] = useState<Record<string, OsProfile>>({});
+    const [miembros, setMiembros] = useState<DmMember[]>([]);
     const [replyTo, setReplyTo] = useState<DmMessage | null>(null);
-    const [pendingAttachments, setPendingAttachments] = useState<DmAttachment[]>([]);
-    const [sending, setSending] = useState(false);
     const [asking, setAsking] = useState(false);
     const [auroraStatus, setAuroraStatus] = useState("");
-    const [agentPanelOpen, setAgentPanelOpen] = useState(false);
+    const [info, setInfo] = useState<{ abierto: boolean; vista: VistaInfo; foco?: string }>({ abierto: false, vista: "inicio" });
+    const [visorId, setVisorId] = useState<string | null>(null);
+    const [busqueda, setBusqueda] = useState<{ abierta: boolean; texto: string; indice: number }>({ abierta: false, texto: "", indice: 0 });
+    const [mostrarTodo, setMostrarTodo] = useState(false);
+    const [destacadoId, setDestacadoId] = useState<string | null>(null);
+    const [editorContacto, setEditorContacto] = useState(false);
+    const [lejosDelFinal, setLejosDelFinal] = useState(false);
+    const [arrastrando, setArrastrando] = useState(false);
+
     const scrollRef = useRef<HTMLDivElement>(null);
-    const composerRef = useRef<HTMLInputElement>(null);
+    const composerRef = useRef<ComposerHandle>(null);
     const autoRepliedIds = useRef<Set<string>>(new Set());
+    const alFinal = useRef(true);
 
-    // Deep-link `?to=<handle>`: al abrir el hilo, el cursor ya está en el
-    // compositor. Pequeño retardo para no pelear con el montaje/scroll inicial
-    // (y para que en móvil el teclado aparezca con el hilo ya pintado).
+    const esMovil = useEsMovil();
+    const reducido = useMovimientoReducido();
+    const confirmar = useConfirm();
+
+    // ── Ajustes efectivos del hilo (sección + hilo) ──────────────────────────
+    const ajustesApi = useAjustesMensajeria();
+    const ef = useMemo(() => ajustesApi.efectivos(thread.id, tipo), [ajustesApi, thread.id, tipo]);
+    const privacidad = ajustesApi.ajustes.privacidad;
+
+    // ── Perfiles: prop de la página + los que cargamos aquí, siempre fusionados ─
+    const perfiles = useMemo(() => ({ ...(perfilesMiembros ?? {}), ...perfilesLocales }), [perfilesMiembros, perfilesLocales]);
+
+    // Refs para el realtime y los efectos que no deben re-suscribirse.
+    const perfilesRef = useRef(perfiles);
+    perfilesRef.current = perfiles;
+    const miUidRef = useRef(myUserId);
+    miUidRef.current = myUserId;
+    const lecturaRef = useRef(ef.confirmacionesLectura);
+    lecturaRef.current = ef.confirmacionesLectura;
+    const pedidos = useRef<Set<string>>(new Set());
+
+    const pedirPerfiles = useCallback((ids: (string | null | undefined)[]) => {
+        const faltan = unicos(ids).filter((id) => !perfilesRef.current[id] && !pedidos.current.has(id));
+        if (!faltan.length) return;
+        faltan.forEach((id) => pedidos.current.add(id));
+        void fetchProfilesByIds(faltan)
+            .then((p) => {
+                if (p && Object.keys(p).length) setPerfilesLocales((prev) => ({ ...prev, ...p }));
+            })
+            .finally(() => faltan.forEach((id) => pedidos.current.delete(id)));
+    }, []);
+
+    const marcarLeido = useCallback((hiloId: string) => {
+        // Sin confirmaciones de lectura: solo la marca local (no-leídos), nunca la remota.
+        if (lecturaRef.current) void markRead(hiloId);
+        else markThreadReadLocal(hiloId);
+    }, []);
+
+    // ── Carga al cambiar de hilo: mensajes + miembros + perfiles de TODOS ─────
     useEffect(() => {
-        if (!autoFocusComposer) return;
-        const t = setTimeout(() => composerRef.current?.focus(), 200);
-        return () => clearTimeout(t);
-    }, [autoFocusComposer, thread.id]);
-
-    const title = threadTitle(thread, profiles, myUserId);
-    const avatar = threadAvatar(thread, profiles, myUserId);
-    const isGroup = thread.kind === "group";
-
-    const reload = useCallback(async () => {
-        const msgs = await listMessages(thread.id);
-        setMessages(msgs);
-        const senderIds = Array.from(new Set(msgs.map((m) => m.sender).filter((s): s is string => !!s)));
-        if (senderIds.length) setProfiles(await fetchProfilesByIds(senderIds));
-        setLoading(false);
-        void markRead(thread.id);
+        let vivo = true;
+        setLoading(true);
+        setMessages([]);
+        setMiembros([]);
+        setReplyTo(null);
+        setMostrarTodo(false);
+        setVisorId(null);
+        setBusqueda({ abierta: false, texto: "", indice: 0 });
+        setInfo((i) => ({ ...i, abierto: false }));
+        alFinal.current = true;
+        pedirPerfiles(thread.memberIds);
+        void (async () => {
+            const [msgs, mbrs] = await Promise.all([listMessages(thread.id), listMembers(thread.id)]);
+            if (!vivo) return;
+            setMessages(msgs);
+            setMiembros(mbrs);
+            setLoading(false);
+            pedirPerfiles([...mbrs.map((m) => m.userId), ...msgs.map((m) => m.sender)]);
+            marcarLeido(thread.id);
+        })();
+        return () => {
+            vivo = false;
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [thread.id]);
 
+    // Miembros que llegan después por la prop del hilo (alguien se unió).
+    const clavesMiembros = thread.memberIds.join(",");
     useEffect(() => {
-        setLoading(true);
-        void reload();
-    }, [reload]);
+        pedirPerfiles(thread.memberIds);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [clavesMiembros, pedirPerfiles]);
 
+    // ── Realtime (refs, sin cierres obsoletos) ──────────────────────────────
     useEffect(() => {
-        return subscribeThread(thread.id, (payload) => {
+        const hiloId = thread.id;
+        return subscribeThread(hiloId, (payload) => {
             if (payload.eventType === "INSERT") {
                 const msg = messageFromRealtimeRow(payload.new);
-                if (msg) {
-                    setMessages((prev) => (prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]));
-                    if (msg.sender && !profiles[msg.sender]) {
-                        void fetchProfilesByIds([msg.sender]).then((p) => setProfiles((prev) => ({ ...prev, ...p })));
-                    }
-                }
+                if (!msg) return;
+                setMessages((prev) => (prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]));
+                if (msg.sender) pedirPerfiles([msg.sender]);
+                if (msg.sender !== miUidRef.current) marcarLeido(hiloId);
             } else if (payload.eventType === "UPDATE") {
                 const msg = messageFromRealtimeRow(payload.new);
                 if (msg) setMessages((prev) => prev.map((m) => (m.id === msg.id ? msg : m)));
             }
         });
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [thread.id]);
-
-    useEffect(() => {
-        scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
-    }, [messages.length]);
-
-    // Adjunto de servidor prellenado desde ?attachServer=<slug>.
-    useEffect(() => {
-        if (pendingServerAttachment) {
-            setPendingAttachments((prev) => [...prev, pendingServerAttachment]);
-            onConsumePendingAttachment?.();
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [pendingServerAttachment]);
+    }, [thread.id, pedirPerfiles, marcarLeido]);
 
     // Auto-respuesta cuando el hilo tiene Aurora activa y alguien menciona @aurora.
     useEffect(() => {
@@ -164,101 +212,166 @@ export function ThreadView({ thread, myUserId, onBack, onThreadUpdated, pendingS
         if (autoRepliedIds.current.has(last.id)) return;
         autoRepliedIds.current.add(last.id);
         void askAuroraInThread(thread.id, { invokerId: myUserId, agent: thread.agent }).then((res) => {
-            if (!res.ok) {
-                // Silencioso: no interrumpe el chat si Aurora falla puntualmente.
-                autoRepliedIds.current.delete(last.id);
-            }
+            // Silencioso: no interrumpe el chat si Aurora falla puntualmente.
+            if (!res.ok) autoRepliedIds.current.delete(last.id);
         });
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [messages, thread.agent, thread.id, myUserId]);
 
-    const handleSend = async () => {
-        const body = input.trim();
-        if (!body && pendingAttachments.length === 0) return;
-        setSending(true);
-        try {
-            const saved = await sendMessage(thread.id, {
-                body,
-                attachments: pendingAttachments,
-                replyTo: replyTo?.id ?? null,
-            });
-            if (!saved) {
-                toast.error("No se pudo enviar el mensaje.");
+    // ── Nombres ──────────────────────────────────────────────────────────────
+    const contactosApi = useContactos();
+    const otroId = otroMiembro(thread, myUserId);
+    const contacto = usePorUserId(otroId);
+    const nombreDe = useCallback(
+        (uid: string | null | undefined): string => {
+            if (!uid) return "Miembro";
+            if (uid === myUserId) return "Tú";
+            return nombrePersona(uid, perfiles, contactosApi.porUserId(uid)) ?? "Miembro";
+        },
+        [perfiles, contactosApi, myUserId],
+    );
+    const titulo = resolverNombreHilo({ thread, miUid: myUserId, perfiles, apodo: ef.apodo, contacto });
+    const avatar = thread.avatarUrl ?? (otroId ? perfiles[otroId]?.avatarUrl ?? contacto?.perfil?.avatarUrl : undefined);
+
+    const idsMiembros = useMemo(
+        () => unicos([...thread.memberIds, ...miembros.map((m) => m.userId)]),
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [clavesMiembros, miembros],
+    );
+    const clavesOtros = idsMiembros.filter((id) => id !== myUserId).join(",");
+    const idsPresencia = useMemo(
+        () => (privacidad.mostrarEnLinea === "nadie" || !clavesOtros ? [] : clavesOtros.split(",")),
+        [clavesOtros, privacidad.mostrarEnLinea],
+    );
+    const presencia = usePresencia(idsPresencia);
+    const sala = useSalaHilo(thread.id, myUserId);
+    const escribiendoIds = (sala?.escribiendo ?? []).filter((id) => id && id !== myUserId);
+    const escribiendo = textoEscribiendo(escribiendoIds, esGrupo, nombreDe);
+    const enLinea = !!(otroId && presencia?.[otroId]?.enLinea);
+    const subtitulo = useMemo(() => {
+        if (esGrupo) {
+            const resumen = resumenMiembros(idsMiembros, myUserId, nombreDe);
+            const conectados = idsPresencia.filter((id) => presencia?.[id]?.enLinea).length;
+            return conectados ? `${conectados} en línea · ${resumen}` : resumen;
+        }
+        const texto = otroId ? formatearPresencia(presencia?.[otroId]) : null;
+        if (texto) return texto;
+        const u = otroId ? perfiles[otroId]?.username : null;
+        return u ? `@${u}` : null;
+    }, [esGrupo, idsMiembros, myUserId, nombreDe, idsPresencia, presencia, otroId, perfiles]);
+
+    // ── Carpetas (una sola instancia por chat) ───────────────────────────────
+    const carpetas = useCarpetasHilo(thread.id) as ApiCarpetasHilo;
+
+    // ── Mensajes visibles, grupos y búsqueda ─────────────────────────────────
+    const { visibles, ocultos } = useMemo(
+        () => mensajesVisibles(messages, ef.vaciadoEn, mostrarTodo),
+        [messages, ef.vaciadoEn, mostrarTodo],
+    );
+    const enLista = useMemo(() => agruparMensajes(visibles), [visibles]);
+    const coincidencias = useMemo(
+        () => (busqueda.abierta ? buscarCoincidencias(visibles, busqueda.texto) : []),
+        [busqueda.abierta, busqueda.texto, visibles],
+    );
+    // indice cuenta desde la coincidencia más reciente (0 = la última).
+    const idActivo = coincidencias.length
+        ? coincidencias[coincidencias.length - 1 - (busqueda.indice % coincidencias.length)]
+        : null;
+
+    useEffect(() => {
+        if (!idActivo) return;
+        document.getElementById(`msg-${idActivo}`)?.scrollIntoView?.({ block: "center", behavior: reducido ? "auto" : "smooth" });
+    }, [idActivo, reducido]);
+
+    // ── Desplazamiento ───────────────────────────────────────────────────────
+    const alDesplazar = () => {
+        const el = scrollRef.current;
+        if (!el) return;
+        const cerca = el.scrollHeight - el.scrollTop - el.clientHeight < 140;
+        alFinal.current = cerca;
+        setLejosDelFinal((v) => (v === !cerca ? v : !cerca));
+    };
+
+    const irAlFinal = useCallback(
+        (suave = true) => {
+            const el = scrollRef.current;
+            if (!el) return;
+            el.scrollTo?.({ top: el.scrollHeight, behavior: suave && !reducido ? "smooth" : "auto" });
+            alFinal.current = true;
+            setLejosDelFinal(false);
+        },
+        [reducido],
+    );
+
+    useLayoutEffect(() => {
+        if (!loading) irAlFinal(false);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [loading, thread.id]);
+
+    const ultimo = visibles[visibles.length - 1];
+    useEffect(() => {
+        if (!ultimo || busqueda.abierta) return;
+        if (alFinal.current || ultimo.sender === myUserId) irAlFinal(true);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [ultimo?.id]);
+
+    const irAlMensaje = useCallback(
+        (id: string) => {
+            const existe = messages.some((m) => m.id === id);
+            if (!existe) {
+                toast.message("Ese mensaje es anterior a los que están cargados en este chat.");
                 return;
             }
-            setMessages((prev) => (prev.some((m) => m.id === saved.id) ? prev : [...prev, saved]));
-            setInput("");
-            setPendingAttachments([]);
-            setReplyTo(null);
-        } finally {
-            setSending(false);
+            if (!visibles.some((m) => m.id === id)) setMostrarTodo(true);
+            if (esMovil) setInfo((i) => ({ ...i, abierto: false }));
+            setVisorId(null);
+            setTimeout(() => {
+                document.getElementById(`msg-${id}`)?.scrollIntoView?.({ block: "center", behavior: reducido ? "auto" : "smooth" });
+                setDestacadoId(id);
+                setTimeout(() => setDestacadoId((d) => (d === id ? null : d)), 1700);
+            }, 60);
+        },
+        [messages, visibles, esMovil, reducido],
+    );
+
+    const abrirVisor = useCallback((id: string) => setVisorId(id), []);
+
+    // ── Envío ────────────────────────────────────────────────────────────────
+    const handleEnviar = async ({ body, attachments, formato }: EnvioComposer): Promise<boolean> => {
+        if (!body && attachments.length === 0) return false;
+        const entrada: SendMessageInput & { formato?: FormatoMensaje | null } = {
+            body,
+            attachments,
+            replyTo: replyTo?.id ?? null,
+            ...(formato ? { formato } : {}),
+        };
+        // Si la columna `formato` aún no existe en la base, `sendMessage` reintenta sin ella.
+        const saved = await sendMessage(thread.id, entrada);
+        if (!saved) {
+            toast.error(myUserId ? "No se pudo enviar el mensaje. Revisa tu conexión e inténtalo de nuevo." : "Inicia sesión para enviar mensajes.");
+            return false;
         }
+        alFinal.current = true;
+        setMessages((prev) => (prev.some((m) => m.id === saved!.id) ? prev : [...prev, saved!]));
+        setReplyTo(null);
+        return true;
     };
 
-    const handleFilesPicked = async (files: FileList | null) => {
-        if (!files || !files.length) return;
-        for (const file of Array.from(files)) {
-            if (file.size > MAX_INLINE_BYTES) {
-                toast.error(`«${file.name}» supera el límite de adjunto inline offline (~300KB). Usa el selector de archivos (subida real a la nube).`);
-                continue;
-            }
-            try {
-                const url = await readFileAsDataUrl(file);
-                setPendingAttachments((prev) => [
-                    ...prev,
-                    { kind: fileToAttachmentKind(file), name: file.name, mime: file.type, url, size: file.size },
-                ]);
-            } catch {
-                toast.error(`No se pudo leer «${file.name}».`);
-            }
-        }
-    };
-
-    /** Adjuntos entregados por el selector universal (ya subidos a storage, con URL real). */
-    const handleUniversalAttachments = (attachments: UniversalAttachment[]) => {
-        setPendingAttachments((prev) => [
-            ...prev,
-            ...attachments.map(
-                (a): DmAttachment => ({
-                    kind: a.kind,
-                    name: a.name,
-                    mime: a.mime,
-                    url: a.url,
-                    size: a.size,
-                    // Referencia de "Contenido de la red" (página/grupo/evento/
-                    // publicación): conserva refKind/refId/route tal cual para
-                    // que se embeba en vivo; si no es una referencia, mantiene
-                    // el comportamiento de siempre (refKind "file" para archivos
-                    // ya indexados en os_files).
-                    refKind: a.refKind ?? (a.fileId ? "file" : undefined),
-                    refId: a.refId ?? a.fileId,
-                    route: a.route,
-                }),
-            ),
-        ]);
-    };
-
-    /** Tarjeta-invitación entregada por el composer de invitaciones. */
-    const handleInviteAttachment = (invite: InviteAttachmentPayload) => {
-        setPendingAttachments((prev) => [...prev, invite]);
-    };
-
-    const handleAskAurora = async () => {
-        if (!thread.agent?.enabled) return;
+    const handlePreguntarAurora = async (prompt: string): Promise<boolean> => {
+        if (!thread.agent?.enabled) return false;
         setAsking(true);
         try {
             const res = await askAuroraInThread(thread.id, {
                 invokerId: myUserId,
                 agent: thread.agent,
-                prompt: input.trim() || undefined,
+                prompt: prompt || undefined,
                 onStatus: setAuroraStatus,
             });
             if (!res.ok) {
                 toast.error(res.error || "Aurora no pudo responder ahora mismo.");
-                return;
+                return false;
             }
             if (res.message) setMessages((prev) => (prev.some((m) => m.id === res.message!.id) ? prev : [...prev, res.message!]));
-            setInput("");
+            return true;
         } finally {
             setAsking(false);
             setAuroraStatus("");
@@ -274,218 +387,352 @@ export function ThreadView({ thread, myUserId, onBack, onThreadUpdated, pendingS
         };
         const ok = await setThreadAgent(thread.id, next);
         if (ok) onThreadUpdated({ ...thread, agent: next });
-        else toast.error("No se pudo actualizar Aurora en este hilo.");
+        else toast.error("No se pudo actualizar Aurora en este chat.");
     };
+
+    // ── Acciones del menú ⋮ ──────────────────────────────────────────────────
+    const abrirInfo = useCallback((vista: VistaInfo = "inicio", foco?: string) => setInfo({ abierto: true, vista, foco }), []);
+
+    const silenciar = (hasta: string | null) => {
+        ajustesApi.cambiarHilo(thread.id, { notificaciones: { silencioHasta: hasta } });
+        toast.success(hasta ? "Chat silenciado" : "Vuelve a sonar");
+    };
+
+    const archivar = () => {
+        ajustesApi.cambiarHilo(thread.id, { archivado: !ef.archivado });
+        toast.success(ef.archivado ? "Chat desarchivado" : "Chat archivado — lo encontrarás en «Archivados»");
+    };
+
+    const vaciar = async () => {
+        const ok = await confirmar({
+            title: "¿Vaciar este chat solo para ti?",
+            description: "Dejarás de ver los mensajes anteriores en tus dispositivos. No se borra nada para nadie y puedes volver a mostrarlos cuando quieras.",
+            confirmText: "Vaciar para mí",
+            destructive: true,
+        });
+        if (!ok) return;
+        ajustesApi.cambiarHilo(thread.id, { vaciadoEn: new Date().toISOString() });
+        setMostrarTodo(false);
+        toast.success("Chat vaciado para ti");
+    };
+
+    const exportar = () => {
+        if (!visibles.length) {
+            toast.message("No hay mensajes visibles que exportar.");
+            return;
+        }
+        const texto = exportarChatTexto(
+            titulo,
+            visibles,
+            (m) => (m.kind === "agent" ? "Aurora" : nombreDe(m.sender)),
+            ef.apariencia.formato24h,
+        );
+        descargarTexto(nombreArchivoSeguro(`chat-${titulo}-${new Date().toISOString().slice(0, 10)}`, "txt"), texto);
+    };
+
+    // Vínculo hilo↔entidad (Adenda jul-2026 §1).
+    const entityLink = threadEntityLink(thread);
+    const entityHref = entityLink ? (entityLink.kind === "group" ? `/grupo/${entityLink.slug}` : `/pagina/${entityLink.slug}`) : null;
 
     const replyToMessageFor = (m: DmMessage): DmMessage | null =>
         m.replyTo ? messages.find((mm) => mm.id === m.replyTo) ?? null : null;
 
-    // Vínculo hilo↔entidad (Adenda jul-2026 §1): si este grupo de chat también
-    // creó una comunidad/grupo real de la red, muestra acceso directo a su página.
-    const entityLink = threadEntityLink(thread);
-    const entityHref = entityLink ? (entityLink.kind === "group" ? `/grupo/${entityLink.slug}` : `/pagina/${entityLink.slug}`) : null;
+    const cargarMedios = debeCargarMultimedia(ef.cargarMultimedia);
+
+    const contexto = useMemo<ContextoHiloValor>(
+        () => ({
+            hiloId: thread.id,
+            miUid: myUserId,
+            esGrupo,
+            perfiles,
+            mensajes: messages,
+            efectivos: ef,
+            carpetas,
+            nombreDe,
+            abrirVisor,
+            irAlMensaje,
+        }),
+        [thread.id, myUserId, esGrupo, perfiles, messages, ef, carpetas, nombreDe, abrirVisor, irAlMensaje],
+    );
+
+    const perfilOtro = otroId ? perfiles[otroId] : undefined;
 
     return (
-        <div className="flex flex-col h-full">
-            <header className="flex items-center gap-3 px-4 py-3 border-b border-white/10 bg-background/80 backdrop-blur-xl shrink-0">
-                {onBack && (
-                    <Button variant="ghost" size="icon" className="cursor-pointer shrink-0 h-8 w-8" onClick={onBack}>
-                        <ArrowLeft className="h-4 w-4" />
-                    </Button>
-                )}
-                <Avatar className="h-9 w-9 shrink-0">
-                    <AvatarImage src={avatar} />
-                    <AvatarFallback className="text-xs font-semibold">
-                        {isGroup ? <Users2 className="w-4 h-4" /> : title.slice(0, 2).toUpperCase()}
-                    </AvatarFallback>
-                </Avatar>
-                <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-sm truncate">{title}</p>
-                    <p className="text-[11px] text-muted-foreground">
-                        {isGroup ? `${thread.memberIds.length} miembros` : "Directo"}
-                        {thread.agent?.enabled && " · Aurora activa"}
-                    </p>
-                </div>
+        <ContextoHilo.Provider value={contexto}>
+            <div
+                className="relative flex h-full min-h-0 flex-col overflow-hidden"
+                onDragOver={(e) => {
+                    if (!Array.from(e.dataTransfer?.types ?? []).includes("Files")) return;
+                    e.preventDefault();
+                    if (!arrastrando) setArrastrando(true);
+                }}
+                onDragLeave={(e) => {
+                    if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
+                    setArrastrando(false);
+                }}
+                onDrop={(e) => {
+                    if (!e.dataTransfer?.files?.length) return;
+                    e.preventDefault();
+                    setArrastrando(false);
+                    composerRef.current?.recibirArchivos(e.dataTransfer.files);
+                }}
+            >
+                <CabeceraHilo
+                    hiloId={thread.id}
+                    nombre={titulo}
+                    avatarUrl={avatar}
+                    esGrupo={esGrupo}
+                    miembros={idsMiembros}
+                    enLinea={enLinea}
+                    subtitulo={subtitulo}
+                    escribiendo={escribiendo}
+                    auroraActiva={!!thread.agent?.enabled}
+                    esMovil={esMovil}
+                    onAtras={onBack}
+                    onAbrirInfo={abrirInfo}
+                    enfocado={enfocado}
+                    onAlternarEnfoque={onAlternarEnfoque}
+                    busquedaAbierta={busqueda.abierta}
+                    onAlternarBusqueda={() => setBusqueda((b) => ({ abierta: !b.abierta, texto: b.abierta ? "" : b.texto, indice: 0 }))}
+                    silenciado={ef.silenciado}
+                    onSilenciar={silenciar}
+                    archivado={ef.archivado}
+                    onArchivar={archivar}
+                    onAnadirContacto={!esGrupo && otroId && !contacto ? () => setEditorContacto(true) : undefined}
+                    onExportar={exportar}
+                    onVaciar={() => void vaciar()}
+                    onAlternarAurora={(v) => void handleToggleAgent(v)}
+                    enlaceEntidad={entityHref}
+                />
 
-                {entityHref && (
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        asChild
-                        title="Ver la comunidad/grupo de la red vinculado a este chat"
-                        className="cursor-pointer h-8 w-8 shrink-0"
-                    >
-                        <Link href={entityHref}>
-                            <ExternalLink className="h-4 w-4" />
-                        </Link>
-                    </Button>
-                )}
-
-                <Popover open={agentPanelOpen} onOpenChange={setAgentPanelOpen}>
-                    <PopoverTrigger asChild>
-                        <Button
-                            variant={thread.agent?.enabled ? "default" : "ghost"}
-                            size="icon"
-                            title="Aurora en este hilo"
-                            className={cn("cursor-pointer h-8 w-8 shrink-0", thread.agent?.enabled && "bg-[#007FFF] hover:bg-[#007FFF]/90")}
-                        >
-                            <Bot className="h-4 w-4" />
-                        </Button>
-                    </PopoverTrigger>
-                    <PopoverContent align="end" className="w-72">
-                        <div className="space-y-3">
-                            <div className="flex items-center justify-between">
-                                <Label htmlFor="agent-toggle" className="text-sm font-semibold flex items-center gap-1.5">
-                                    <Bot className="w-3.5 h-3.5 text-[#007FFF]" /> Aurora en este hilo
-                                </Label>
-                                <Switch id="agent-toggle" checked={!!thread.agent?.enabled} onCheckedChange={(v) => void handleToggleAgent(v)} />
-                            </div>
-                            <p className="text-xs text-muted-foreground">
-                                Cuando está activa, cualquiera puede pedirle una respuesta o mencionarla con
-                                <span className="font-mono text-[11px] mx-1 text-[#7fb8ff]">@aurora</span>
-                                para que responda automáticamente.
-                            </p>
-                        </div>
-                    </PopoverContent>
-                </Popover>
-            </header>
-
-            <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
-                {loading && (
-                    <div className="flex items-center justify-center py-10">
-                        <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
-                    </div>
-                )}
-                {!loading && messages.length === 0 && (
-                    <div className="flex-1 flex flex-col items-center justify-center py-16 text-center text-muted-foreground gap-2">
-                        <Send className="w-8 h-8 opacity-30" />
-                        <p className="text-sm">Aún no hay mensajes. Escribe el primero.</p>
-                    </div>
-                )}
-                {!loading && messages.map((m) => (
-                    <MessageBubble
-                        key={m.id}
-                        message={m}
-                        isMine={m.sender === myUserId && m.kind !== "agent"}
-                        sender={m.sender ? profiles[m.sender] ?? null : null}
-                        replyToMessage={replyToMessageFor(m)}
-                        isAgentThread={m.kind === "agent"}
-                        onReply={setReplyTo}
-                        onEdit={async (id, body) => {
-                            const ok = await editMessage(id, body);
-                            if (ok) setMessages((prev) => prev.map((mm) => (mm.id === id ? { ...mm, body, editedAt: new Date().toISOString() } : mm)));
-                            else toast.error("No se pudo editar el mensaje.");
-                        }}
-                        onDelete={async (id) => {
-                            const ok = await softDeleteMessage(id);
-                            if (ok) setMessages((prev) => prev.map((mm) => (mm.id === id ? { ...mm, deleted: true, body: "" } : mm)));
-                            else toast.error("No se pudo eliminar el mensaje.");
-                        }}
+                {busqueda.abierta && (
+                    <BarraBusquedaHilo
+                        texto={busqueda.texto}
+                        onTexto={(v) => setBusqueda((b) => ({ ...b, texto: v, indice: 0 }))}
+                        total={coincidencias.length}
+                        indice={coincidencias.length ? busqueda.indice % coincidencias.length : 0}
+                        onArriba={() => setBusqueda((b) => ({ ...b, indice: coincidencias.length ? (b.indice + 1) % coincidencias.length : 0 }))}
+                        onAbajo={() => setBusqueda((b) => ({ ...b, indice: coincidencias.length ? (b.indice - 1 + coincidencias.length) % coincidencias.length : 0 }))}
+                        onCerrar={() => setBusqueda({ abierta: false, texto: "", indice: 0 })}
                     />
-                ))}
-            </div>
-
-            <footer className="px-4 py-3 border-t border-white/10 bg-background/90 backdrop-blur-sm shrink-0 space-y-2">
-                {replyTo && (
-                    <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-1.5 text-xs">
-                        <Reply className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-                        <span className="truncate flex-1 text-muted-foreground">
-                            Respondiendo: {replyTo.body.slice(0, 60) || "Adjunto"}
-                        </span>
-                        <button type="button" className="cursor-pointer" onClick={() => setReplyTo(null)}>
-                            <X className="w-3.5 h-3.5" />
-                        </button>
-                    </div>
-                )}
-
-                {pendingAttachments.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5">
-                        {pendingAttachments.map((a, i) => (
-                            <span key={i} className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[11px]">
-                                {a.name || a.kind}
-                                <button type="button" className="cursor-pointer" onClick={() => setPendingAttachments((prev) => prev.filter((_, j) => j !== i))}>
-                                    <X className="w-3 h-3" />
-                                </button>
-                            </span>
-                        ))}
-                    </div>
-                )}
-
-                {(asking || auroraStatus) && (
-                    <p className="text-[11px] text-[#7fb8ff] flex items-center gap-1.5">
-                        <Loader2 className="w-3 h-3 animate-spin" /> {auroraStatus || "Aurora está pensando…"}
-                    </p>
                 )}
 
                 <div
-                    className="flex items-center gap-2 bg-muted/50 rounded-2xl border border-border/60 px-3 py-2 focus-within:border-primary/40 transition-all"
-                    onDragOver={(e) => e.preventDefault()}
-                    onDrop={(e) => {
-                        e.preventDefault();
-                        // Fallback offline: arrastrar y soltar guarda archivos pequeños (<300KB)
-                        // como dataURL inline sin depender de red/sesión (ver MAX_INLINE_BYTES).
-                        // El botón de clip (selector universal) sigue siendo el camino principal.
-                        if (looksOffline()) void handleFilesPicked(e.dataTransfer.files);
+                    ref={scrollRef}
+                    onScroll={alDesplazar}
+                    className="relative min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-4 pt-2 sm:px-5"
+                    style={{
+                        background: fondoCss(ef.apariencia.fondo) || undefined,
+                        backgroundAttachment: "local",
+                        ["--tam-letra" as string]: `${tamanoLetraPx(ef.apariencia.tamanoLetra)}px`,
                     }}
+                    role="log"
+                    aria-label={`Mensajes con ${titulo}`}
+                    aria-relevant="additions"
+                    aria-busy={loading}
                 >
-                    <AttachFilePickerButton
-                        onPick={handleUniversalAttachments}
-                        folder="mensajes"
-                        title="Adjuntar archivo al mensaje"
-                        className="grid h-7 w-7 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-primary/10 hover:text-primary"
-                    >
-                        <Paperclip className="w-4 h-4" />
-                    </AttachFilePickerButton>
-
-                    <InviteComposerButton
-                        onPick={handleInviteAttachment}
-                        title="Invitar a grupo/página/evento"
-                        className="grid h-7 w-7 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-primary/10 hover:text-primary"
-                    >
-                        <Mail className="w-4 h-4" />
-                    </InviteComposerButton>
-
-                    <Input
-                        ref={composerRef}
-                        value={input}
-                        onChange={(e) => setInput(e.target.value)}
-                        onKeyDown={(e) => {
-                            if (e.key === "Enter" && !e.shiftKey) {
-                                e.preventDefault();
-                                void handleSend();
-                            }
-                        }}
-                        placeholder={thread.agent?.enabled ? "Escribe un mensaje… o menciona @aurora" : "Escribe un mensaje…"}
-                        className="flex-1 bg-transparent border-none shadow-none focus-visible:ring-0 px-0 h-8 text-sm"
-                    />
-
-                    {thread.agent?.enabled && (
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            title="Preguntar a Aurora"
-                            className="cursor-pointer h-7 w-7 shrink-0 rounded-full hover:bg-[#007FFF]/10 text-[#7fb8ff]"
-                            onClick={() => void handleAskAurora()}
-                            disabled={asking}
-                        >
-                            {asking ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
-                        </Button>
+                    {loading && (
+                        <div className="flex items-center justify-center py-10" role="status">
+                            <Loader2 className="h-5 w-5 animate-spin text-white/50" />
+                            <span className="sr-only">Cargando mensajes…</span>
+                        </div>
                     )}
 
-                    <Button
-                        size="icon"
-                        className={cn(
-                            "cursor-pointer h-7 w-7 shrink-0 rounded-full transition-all",
-                            (input.trim() || pendingAttachments.length) ? "bg-primary hover:bg-primary/90" : "bg-muted text-muted-foreground",
-                        )}
-                        onClick={() => void handleSend()}
-                        disabled={sending || (!input.trim() && pendingAttachments.length === 0)}
-                    >
-                        {sending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-                    </Button>
+                    {!loading && ocultos > 0 && (
+                        <div className="flex justify-center py-2">
+                            <button
+                                type="button"
+                                onClick={() => setMostrarTodo(true)}
+                                className="ss-redondo inline-flex cursor-pointer items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] text-white/65 transition-colors hover:text-white"
+                                style={{ background: "rgba(12,14,34,.6)", boxShadow: "inset 0 0 0 1px rgba(255,255,255,.08)" }}
+                            >
+                                <EyeOff className="h-3.5 w-3.5" /> Chat vaciado para ti · <span className="font-semibold text-[#b7a6ff]">Mostrar todo</span>
+                            </button>
+                        </div>
+                    )}
+                    {!loading && mostrarTodo && ef.vaciadoEn && (
+                        <div className="flex justify-center py-2">
+                            <button
+                                type="button"
+                                onClick={() => setMostrarTodo(false)}
+                                className="ss-redondo inline-flex cursor-pointer items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] text-white/65 transition-colors hover:text-white"
+                                style={{ background: "rgba(12,14,34,.6)", boxShadow: "inset 0 0 0 1px rgba(255,255,255,.08)" }}
+                            >
+                                <Eye className="h-3.5 w-3.5" /> Viendo también lo que vaciaste · <span className="font-semibold text-[#b7a6ff]">Ocultar</span>
+                            </button>
+                        </div>
+                    )}
+
+                    {!loading && visibles.length === 0 && (
+                        <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
+                            <span className="grid h-14 w-14 place-items-center rounded-2xl" style={{ background: "rgba(124,92,255,.12)", boxShadow: "inset 0 0 0 1px rgba(124,92,255,.3)" }}>
+                                <MessageCircleHeart className="h-7 w-7 text-[#b7a6ff]" />
+                            </span>
+                            <p className="text-sm text-white/70">
+                                {ocultos > 0 ? "Has vaciado este chat. Lo nuevo aparecerá aquí." : `Aún no hay mensajes. Escribe el primero a ${titulo}.`}
+                            </p>
+                        </div>
+                    )}
+
+                    {!loading && enLista.map(({ mensaje: m, nuevoDia, primeroDelGrupo, ultimoDelGrupo }) => {
+                        const mio = m.sender === myUserId && m.kind !== "agent";
+                        const citado = replyToMessageFor(m);
+                        return (
+                            <div key={m.id}>
+                                {nuevoDia && <SeparadorDia fecha={m.createdAt} />}
+                                <MessageBubble
+                                    message={m}
+                                    isMine={mio}
+                                    sender={m.sender ? perfiles[m.sender] ?? null : null}
+                                    senderName={m.kind === "agent" ? "Aurora" : nombreDe(m.sender)}
+                                    replyToMessage={citado}
+                                    replyToName={citado ? (citado.kind === "agent" ? "Aurora" : nombreDe(citado.sender)) : undefined}
+                                    isAgentThread={m.kind === "agent"}
+                                    esGrupo={esGrupo}
+                                    primeroDelGrupo={primeroDelGrupo || nuevoDia}
+                                    ultimoDelGrupo={ultimoDelGrupo}
+                                    apariencia={ef.apariencia}
+                                    estadoLectura={mio && ef.confirmacionesLectura ? estadoLectura(m, thread, myUserId) : null}
+                                    vistaPreviaEnlaces={ef.vistaPreviaEnlaces}
+                                    cargarMultimedia={cargarMedios}
+                                    busqueda={busqueda.abierta ? busqueda.texto : ""}
+                                    coincidenciaActiva={idActivo === m.id}
+                                    destacado={destacadoId === m.id}
+                                    onAbrirVisor={(mm) => abrirVisor(mm.id)}
+                                    onReply={(mm) => {
+                                        setReplyTo(mm);
+                                        composerRef.current?.enfocar();
+                                    }}
+                                    onEdit={async (id, body) => {
+                                        const ok = await editMessage(id, body);
+                                        if (ok) setMessages((prev) => prev.map((mm) => (mm.id === id ? { ...mm, body, editedAt: new Date().toISOString() } : mm)));
+                                        else toast.error("No se pudo editar el mensaje.");
+                                    }}
+                                    onDelete={async (id) => {
+                                        const ok = await confirmar({ title: "¿Eliminar este mensaje?", description: "Se eliminará para todas las personas del chat.", confirmText: "Eliminar", destructive: true });
+                                        if (!ok) return;
+                                        const hecho = await softDeleteMessage(id);
+                                        if (hecho) setMessages((prev) => prev.map((mm) => (mm.id === id ? { ...mm, deleted: true, body: "" } : mm)));
+                                        else toast.error("No se pudo eliminar el mensaje.");
+                                    }}
+                                />
+                            </div>
+                        );
+                    })}
                 </div>
-            </footer>
-        </div>
+
+                <AnimatePresence>
+                    {lejosDelFinal && !loading && (
+                        <motion.button
+                            type="button"
+                            initial={{ opacity: 0, y: 8, scale: 0.9 }}
+                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                            exit={{ opacity: 0, y: 8, scale: 0.9 }}
+                            transition={{ duration: reducido ? 0 : 0.18 }}
+                            onClick={() => irAlFinal(true)}
+                            aria-label="Ir a los mensajes más recientes"
+                            className="ss-redondo absolute bottom-[92px] right-4 z-20 grid h-10 w-10 cursor-pointer place-items-center rounded-full text-white"
+                            style={{ background: "rgba(12,14,34,.8)", backdropFilter: "blur(16px)", boxShadow: "inset 0 0 0 1px rgba(255,255,255,.12), 0 8px 20px rgba(0,0,0,.35)" }}
+                        >
+                            <ChevronDown className="h-5 w-5" />
+                        </motion.button>
+                    )}
+                </AnimatePresence>
+
+                <ComposerHilo
+                    ref={composerRef}
+                    hiloId={thread.id}
+                    agenteActivo={!!thread.agent?.enabled}
+                    enviarConEnter={ef.enviarConEnter}
+                    esMovil={esMovil}
+                    respondiendoA={
+                        replyTo
+                            ? {
+                                nombre: replyTo.kind === "agent" ? "Aurora" : nombreDe(replyTo.sender),
+                                texto: replyTo.body.slice(0, 90) || replyTo.attachments[0]?.name || "",
+                            }
+                            : null
+                    }
+                    onCancelarRespuesta={() => setReplyTo(null)}
+                    onEnviar={handleEnviar}
+                    onPreguntarAurora={handlePreguntarAurora}
+                    preguntandoAurora={asking}
+                    estadoAurora={auroraStatus}
+                    onEscribiendo={privacidad.mostrarEscribiendo ? sala?.anunciarEscribiendo : undefined}
+                    adjuntoPendiente={pendingServerAttachment}
+                    onConsumirAdjunto={onConsumePendingAttachment}
+                    autoFocus={autoFocusComposer}
+                />
+
+                {arrastrando && (
+                    <div className="pointer-events-none absolute inset-2 z-30 grid place-items-center rounded-3xl" style={{ background: "rgba(124,92,255,.14)", boxShadow: "inset 0 0 0 2px rgba(124,92,255,.6)" }}>
+                        <span className="flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-semibold text-white" style={{ background: "rgba(12,14,34,.85)" }}>
+                            <Paperclip className="h-4 w-4" /> Suelta para adjuntar
+                        </span>
+                    </div>
+                )}
+
+                <PanelInfoHilo
+                    abierto={info.abierto}
+                    vista={info.vista}
+                    foco={info.foco}
+                    onCambiarVista={(vista, foco) => setInfo((i) => ({ ...i, vista, foco }))}
+                    onCerrar={() => setInfo((i) => ({ ...i, abierto: false }))}
+                    thread={thread}
+                    tipo={tipo}
+                    titulo={titulo}
+                    avatarUrl={avatar}
+                    enLinea={enLinea}
+                    subtitulo={subtitulo}
+                    otroId={otroId}
+                    perfilOtro={perfilOtro}
+                    contacto={contacto}
+                    miembros={miembros}
+                    idsMiembros={idsMiembros}
+                    presencia={presencia ?? {}}
+                    esMovil={esMovil}
+                    onThreadUpdated={onThreadUpdated}
+                    onMiembrosCambiados={() => void listMembers(thread.id).then(setMiembros)}
+                    onMensaje={() => {
+                        setInfo((i) => ({ ...i, abierto: false }));
+                        composerRef.current?.enfocar();
+                    }}
+                    onBuscar={() => {
+                        setInfo((i) => ({ ...i, abierto: false }));
+                        setBusqueda({ abierta: true, texto: "", indice: 0 });
+                    }}
+                    onSalir={onBack}
+                />
+
+                <VisorMensaje
+                    mensajes={visibles.filter((m) => !m.deleted)}
+                    mensajeId={visorId}
+                    onNavegar={setVisorId}
+                    onCerrar={() => setVisorId(null)}
+                    nombreDe={(m) => (m.kind === "agent" ? "Aurora" : nombreDe(m.sender))}
+                    miUid={myUserId}
+                    formato24h={ef.apariencia.formato24h}
+                    onIrAlMensaje={irAlMensaje}
+                />
+
+                {!esGrupo && otroId && (
+                    <EditorContacto
+                        open={editorContacto}
+                        onOpenChange={setEditorContacto}
+                        inicial={{
+                            nombre: perfilOtro?.displayName || perfilOtro?.username || titulo,
+                            userId: otroId,
+                            username: perfilOtro?.username ?? null,
+                            perfil: perfilOtro
+                                ? { nombre: perfilOtro.displayName, avatarUrl: perfilOtro.avatarUrl, bio: perfilOtro.bio, tomada: new Date().toISOString() }
+                                : null,
+                            origen: "starseed",
+                        }}
+                        onGuardado={(c) => toast.success(`«${c.nombre}» ya está en tus contactos`)}
+                    />
+                )}
+            </div>
+        </ContextoHilo.Provider>
     );
 }
 

@@ -4,10 +4,9 @@
  * UserDirectoryResults — resultados de PERSONAS del Buscador Universal del Hub.
  * ---------------------------------------------------------------------------
  * Búsqueda en el directorio de usuarios (os_profiles) con avatar y acciones
- * rápidas Mensaje (crea/abre un DM real) y Seguir (mismo mecanismo `os_follows`
- * que el resto del sistema usa para páginas/perfiles públicos, con
- * page_slug=username — no existe todavía una tabla de "seguir cuenta" separada
- * y esta es la primitiva real y consistente con la arquitectura Cuenta/Perfil).
+ * rápidas Mensaje (crea/abre un DM real) y Añadir a contactos (Contactos
+ * sustituye a "seguir" para PERSONAS — ver src/lib/contactos; las páginas y
+ * comunidades se siguen siguiendo con `os_follows`, eso no cambia).
  *
  * Se monta DEBAJO de <UniversalSearchBox> en la pestaña "Buscador" del Hub
  * (inserción acotada, no sustituye nada existente). También expone
@@ -22,7 +21,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-    ArrowUpRight, Loader2, MessageSquare, Sparkles, UserCheck, UserPlus,
+    ArrowUpRight, Loader2, MessageSquare, Sparkles,
     Users, Users2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -35,7 +34,7 @@ import {
 // Supabase de siempre. Misma firma que `os-profiles`, cero cambios de uso.
 import { searchUsers, searchGroups } from "@/lib/search/unified-search";
 import { createDm } from "@/lib/messages/dm";
-import { isFollowing, setFollow } from "@/lib/os-social";
+import { BotonAnadirContacto } from "@/components/contactos/boton-anadir-contacto";
 
 function MessageButton({ userId }: { userId: string }) {
     const router = useRouter();
@@ -65,42 +64,6 @@ function MessageButton({ userId }: { userId: string }) {
     );
 }
 
-function FollowButton({ username }: { username: string }) {
-    const [following, setFollowing] = useState(false);
-    const [loading, setLoading] = useState(false);
-
-    useEffect(() => {
-        void isFollowing(username).then(setFollowing);
-    }, [username]);
-
-    const handleClick = async () => {
-        setLoading(true);
-        try {
-            const res = await setFollow(username, !following);
-            if (res.needsAuth) {
-                toast.error("Inicia sesión para seguir a alguien.");
-                return;
-            }
-            if (res.ok) setFollowing(!!res.active);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    return (
-        <Button
-            size="sm"
-            variant={following ? "outline" : "default"}
-            className={cn("h-8 cursor-pointer gap-1.5 text-xs", following && "border-emerald-500/40 text-emerald-300 bg-emerald-500/10")}
-            onClick={() => void handleClick()}
-            disabled={loading}
-        >
-            {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : following ? <UserCheck className="w-3.5 h-3.5" /> : <UserPlus className="w-3.5 h-3.5" />}
-            {following ? "Siguiendo" : "Seguir"}
-        </Button>
-    );
-}
-
 function UserRow({ profile }: { profile: OsProfile | UserRecommendation }) {
     const reason = (profile as UserRecommendation).reason;
     return (
@@ -121,7 +84,14 @@ function UserRow({ profile }: { profile: OsProfile | UserRecommendation }) {
             </div>
             <div className="flex items-center gap-1.5 shrink-0">
                 <MessageButton userId={profile.userId} />
-                <FollowButton username={profile.username} />
+                <BotonAnadirContacto
+                    userId={profile.userId}
+                    username={profile.username}
+                    nombre={profile.displayName}
+                    avatarUrl={profile.avatarUrl}
+                    bio={profile.bio}
+                    variante="compacto"
+                />
             </div>
         </div>
     );

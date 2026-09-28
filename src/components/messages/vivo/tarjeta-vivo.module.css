@@ -1,0 +1,53 @@
+/* Punto «en vivo» de la tarjeta: halo que late despacio. Sin bucles con movimiento reducido
+   ni en modo eco. */
+.punto {
+    position: relative;
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 9999px;
+    background: #10b981;
+    box-shadow: 0 0 8px rgba(16, 185, 129, 0.7);
+    flex-shrink: 0;
+}
+
+.punto::after {
+    content: "";
+    position: absolute;
+    inset: -4px;
+    border-radius: 9999px;
+    border: 1.5px solid rgba(16, 185, 129, 0.55);
+    animation: latido-vivo 2.2s ease-out infinite;
+}
+
+.quieto {
+    background: rgba(255, 255, 255, 0.35);
+    box-shadow: none;
+}
+
+.quieto::after {
+    display: none;
+}
+
+@keyframes latido-vivo {
+    0% {
+        transform: scale(0.6);
+        opacity: 0.9;
+    }
+    100% {
+        transform: scale(1.6);
+        opacity: 0;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .punto::after {
+        animation: none;
+        display: none;
+    }
+}
+
+:global(html[data-perf="eco"]) .punto::after {
+    animation: none;
+    display: none;
+}

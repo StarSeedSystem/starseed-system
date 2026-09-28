@@ -1,0 +1,107 @@
+/* Llamadas — animaciones propias (las demás son de framer-motion).
+   Sin bucles con movimiento reducido ni en modo eco. */
+
+@keyframes respirar {
+    0%,
+    100% {
+        transform: scale(1);
+        opacity: 0.55;
+    }
+    50% {
+        transform: scale(1.08);
+        opacity: 0.9;
+    }
+}
+
+@keyframes onda {
+    0% {
+        transform: scale(1);
+        opacity: 0.55;
+    }
+    100% {
+        transform: scale(1.9);
+        opacity: 0;
+    }
+}
+
+@keyframes brillo {
+    0%,
+    100% {
+        opacity: 0.35;
+    }
+    50% {
+        opacity: 0.75;
+    }
+}
+
+@keyframes puntos {
+    0%,
+    20% {
+        opacity: 0.2;
+    }
+    50% {
+        opacity: 1;
+    }
+    100% {
+        opacity: 0.2;
+    }
+}
+
+/* Anillo que respira alrededor del avatar en llamadas de voz. */
+.anillo {
+    animation: respirar 3.2s ease-in-out infinite;
+}
+
+/* Ondas que salen del avatar mientras suena un timbre o esperas respuesta. */
+.onda {
+    animation: onda 2.4s cubic-bezier(0.2, 0.6, 0.35, 1) infinite;
+}
+
+.ondaRetardada {
+    animation: onda 2.4s cubic-bezier(0.2, 0.6, 0.35, 1) 1.2s infinite;
+}
+
+/* Fondo vivo de la ventana de llamada. */
+.aurora {
+    animation: brillo 9s ease-in-out infinite;
+}
+
+.punto {
+    animation: puntos 1.4s ease-in-out infinite;
+}
+
+.punto:nth-child(2) {
+    animation-delay: 0.2s;
+}
+
+.punto:nth-child(3) {
+    animation-delay: 0.4s;
+}
+
+/* El halo de quien habla sigue su voz con una transición corta (no un bucle). */
+.halo {
+    transition:
+        box-shadow 180ms ease-out,
+        transform 180ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .anillo,
+    .onda,
+    .ondaRetardada,
+    .aurora,
+    .punto {
+        animation: none;
+    }
+    .halo {
+        transition: none;
+    }
+}
+
+:global(html[data-perf="eco"]) .anillo,
+:global(html[data-perf="eco"]) .onda,
+:global(html[data-perf="eco"]) .ondaRetardada,
+:global(html[data-perf="eco"]) .aurora,
+:global(html[data-perf="eco"]) .punto {
+    animation: none;
+}

@@ -749,8 +749,9 @@ export default function ExplorerPage() {
                     </div>
                 )}
 
-                {/* Directorio de usuarios (os_profiles): avatar + Mensaje/Seguir — solo
-                    cuando el dominio activo incluye "perfiles" (ALL/POLITICS). */}
+                {/* Directorio de usuarios (os_profiles): avatar + Mensaje/Añadir a
+                    contactos — solo cuando el dominio activo incluye "perfiles"
+                    (ALL/POLITICS). Contactos sustituye a "seguir" para PERSONAS. */}
                 {DOMAIN_CATS[activeDomain].includes("perfiles") && (typeFilters.size === 0 || typeFilters.has("perfiles")) && (
                     <div className="w-full max-w-screen-3xl">
                         <UserDirectoryResults query={query} />

@@ -15,6 +15,8 @@ import {
     Sparkles, Users,
     // Ola 285 · K6: Canales StarSeed.
     Rss,
+    // 2026-09-28: Contactos.
+    BookUser,
 } from "lucide-react";
 import type { StarseedApp, LauncherCollection } from "./launcher-types";
 
@@ -236,6 +238,18 @@ export const APP_CATALOG: StarseedApp[] = [
         open: { primary: "route", allowed: ["route", "tab"], route: "/messages" },
     },
     {
+        // 2026-09-28: la libreta privada de personas (sustituye a «seguir» personas).
+        id: "contactos",
+        name: "Contactos",
+        short: "Contactos",
+        description: "Tu libreta privada: personas, relación, categorías, listas y una línea de tiempo que solo ves tú.",
+        icon: BookUser,
+        accent: "#14B8A6",
+        category: "sistema",
+        status: "native",
+        open: { primary: "route", allowed: ["route", "tab"], route: "/contactos" },
+    },
+    {
         id: "network",
         name: "Red",
         short: "Red",
@@ -393,8 +407,8 @@ export function getApp(id: string): StarseedApp | undefined {
 /** Colecciones predeterminadas (presets de origen de un folder). */
 export const APP_COLLECTIONS: Record<LauncherCollection, string[]> = {
     // 'starseed' = folder de inicio por defecto (marca + módulos clave)
-    starseed: ["nexus", "cafe", "audiomorphic", "omnifrecuencias", "red-mesh", "senales", "red-feed", "canales", "messages", "network", "musica", "clima", "imaginacion"],
-    sistema: ["messages", "network", "library", "agent", "astraura-158", "imaginacion", "enjambre", "red-mesh", "senales", "red-feed", "voces", "mando", "mundo-avatares", "laboratorio"],
+    starseed: ["nexus", "cafe", "audiomorphic", "omnifrecuencias", "red-mesh", "senales", "red-feed", "canales", "messages", "contactos", "network", "musica", "clima", "imaginacion"],
+    sistema: ["messages", "contactos", "network", "library", "agent", "astraura-158", "imaginacion", "enjambre", "red-mesh", "senales", "red-feed", "voces", "mando", "mundo-avatares", "laboratorio"],
     media: ["musica", "radio", "omnifrecuencias", "audiomorphic", "immersive", "camara", "galeria"],
     custom: [],
 };

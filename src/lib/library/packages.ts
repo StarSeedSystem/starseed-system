@@ -355,6 +355,15 @@ const CORE_ROUTE_PACKAGES: LibraryPackage[] = [
     payload: { route: "/senales" },
   },
   {
+    // 2026-09-28: Contactos, como paquete instalable para tener paridad con el
+    // dock y el catálogo de apps.
+    id: "app-contactos", kind: "app", name: "Contactos",
+    description: "Tu libreta privada de personas: datos, relación, categorías y listas, cumpleaños, importar/exportar vCard y una línea de tiempo de notas que solo ves tú. Puedes hacer pública tu lista de contactos con cuenta StarSeed.",
+    icon: "BookUser", tags: ["app", "contactos", "personas", "libreta", "crm", "vcard", "sistema"], version: "1.0.0",
+    author: "StarSeed Core", sourceRepoId: "starseed-core", free: true, featured: true,
+    payload: { route: "/contactos" },
+  },
+  {
     id: "app-red-feed", kind: "app", name: "Feed de red",
     description: "Contenido recibido de otras neuronas por la red sináptica: publicaciones, mensajes y señales de la red StarSeed, de forma navegable.",
     icon: "Radio", tags: ["app", "feed", "red", "mesh", "social"], version: "1.0.0",

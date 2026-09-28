@@ -1,0 +1,830 @@
+/*
+ * Mensajes enriquecidos (C4) — estilos compartidos por la burbuja, el editor y el estilo rápido.
+ *
+ * Las clases de animación son GLOBALES y estables (`ss-rt-*`, las devuelve `claseAnimacionTexto`
+ * en src/lib/mensajeria/formato.ts) pero siempre cuelgan de `.raiz`, que es local: así el selector
+ * es «puro» para Next y nada se filtra fuera de los mensajes.
+ *
+ * Movimiento: solo transform/opacity en los bucles; `prefers-reduced-motion`, la clase de
+ * Accesibilidad y `html[data-perf="eco"]` dejan todo quieto (el estado base ES el estado final).
+ */
+
+.raiz {
+    position: relative;
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+/* ───────────── Superficie (fondo + marco del mensaje) ───────────── */
+
+.superficie {
+    position: relative;
+    isolation: isolate;
+    border-radius: 18px;
+    padding: 12px 14px;
+    overflow: hidden;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.contenido {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+}
+
+.textoPlano {
+    white-space: pre-wrap;
+    line-height: 1.45;
+}
+
+/* ───────────── Documento rico ───────────── */
+
+.doc {
+    line-height: 1.45;
+    min-width: 0;
+}
+
+.doc > * + * {
+    margin-top: 0.4em;
+}
+
+.doc p,
+.doc h1,
+.doc h2,
+.doc h3,
+.doc blockquote {
+    white-space: pre-wrap;
+    margin: 0;
+}
+
+.doc h1 {
+    font-size: 1.6em;
+    font-weight: 700;
+    line-height: 1.18;
+    letter-spacing: -0.01em;
+}
+
+.doc h2 {
+    font-size: 1.32em;
+    font-weight: 700;
+    line-height: 1.22;
+}
+
+.doc h3 {
+    font-size: 1.14em;
+    font-weight: 650;
+    line-height: 1.28;
+}
+
+.doc ul,
+.doc ol {
+    margin: 0;
+    padding-left: 1.35em;
+}
+
+.doc ul {
+    list-style: disc;
+}
+
+.doc ol {
+    list-style: decimal;
+}
+
+.doc li {
+    white-space: pre-wrap;
+}
+
+.doc li + li {
+    margin-top: 0.15em;
+}
+
+.doc blockquote {
+    border-left: 3px solid currentColor;
+    border-left-color: color-mix(in srgb, currentColor 45%, transparent);
+    padding: 0.1em 0 0.1em 0.8em;
+    opacity: 0.92;
+    font-style: italic;
+}
+
+.doc pre {
+    margin: 0;
+    padding: 0.7em 0.85em;
+    border-radius: 12px;
+    background: rgba(0, 0, 0, 0.38);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+    font-family: var(--font-code), ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.86em;
+    line-height: 1.5;
+    white-space: pre;
+    overflow-x: auto;
+    tab-size: 4;
+}
+
+.doc code {
+    font-family: var(--font-code), ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.88em;
+    padding: 0.05em 0.3em;
+    border-radius: 6px;
+    background: rgba(0, 0, 0, 0.3);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+.doc pre code {
+    padding: 0;
+    background: none;
+    box-shadow: none;
+    font-size: 1em;
+}
+
+.doc hr {
+    border: 0;
+    height: 1px;
+    margin: 0.75em 0;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.35), transparent);
+}
+
+.doc a {
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    text-decoration-thickness: 1px;
+    cursor: pointer;
+}
+
+.resaltado {
+    border-radius: 4px;
+    padding: 0 0.15em;
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
+}
+
+.tareas {
+    list-style: none !important;
+    padding-left: 0 !important;
+}
+
+.tarea {
+    display: flex;
+    gap: 0.5em;
+    align-items: flex-start;
+}
+
+.casilla {
+    flex: none;
+    width: 1.05em;
+    height: 1.05em;
+    margin-top: 0.2em;
+    border-radius: 0.3em;
+    box-shadow: inset 0 0 0 1.5px currentColor;
+    opacity: 0.8;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.casillaHecha {
+    background: #10b981;
+    box-shadow: none;
+    color: #04130d;
+    opacity: 1;
+}
+
+.tareaHecha {
+    text-decoration: line-through;
+    opacity: 0.65;
+}
+
+/* ───────────── Animaciones de texto ───────────── */
+
+.raiz :global(.ss-rt-p) {
+    white-space: nowrap;
+}
+
+.raiz :global(.ss-rt-l) {
+    display: inline-block;
+    white-space: pre;
+}
+
+/* aparecer: letra a letra, una vez */
+.raiz :global(.ss-rt-aparecer .ss-rt-l) {
+    animation: rtAparecer 520ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+    animation-delay: calc(var(--i, 0) * var(--rt-paso, 28ms));
+}
+
+.raiz :global(.ss-rt-aparecer.ss-rt-bloque) {
+    animation: rtAparecer 640ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@keyframes rtAparecer {
+    from {
+        opacity: 0;
+        transform: translateY(0.45em) scale(0.92);
+    }
+    to {
+        opacity: 1;
+        transform: none;
+    }
+}
+
+/* máquina de escribir: aparece cada letra de golpe, en orden */
+.raiz :global(.ss-rt-maquina .ss-rt-l) {
+    animation: rtMaquina 1ms steps(1, end) both;
+    animation-delay: calc(var(--i, 0) * var(--rt-paso, 45ms));
+}
+
+.raiz :global(.ss-rt-maquina.ss-rt-bloque) {
+    animation: rtRevelar 1600ms steps(28, end) both;
+}
+
+@keyframes rtMaquina {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes rtRevelar {
+    from {
+        clip-path: inset(0 100% 0 0);
+    }
+    to {
+        clip-path: inset(0 0 0 0);
+    }
+}
+
+/* ola: las letras ondulan en bucle suave */
+.raiz :global(.ss-rt-ola .ss-rt-l) {
+    animation: rtOla 1.8s ease-in-out infinite;
+    animation-delay: calc(var(--i, 0) * -95ms);
+}
+
+.raiz :global(.ss-rt-ola.ss-rt-bloque) {
+    animation: rtFlotar 3.2s ease-in-out infinite;
+}
+
+@keyframes rtOla {
+    0%,
+    100% {
+        transform: translateY(0);
+    }
+    50% {
+        transform: translateY(-0.22em);
+    }
+}
+
+/* brillo: un destello recorre las letras */
+.raiz :global(.ss-rt-brillo .ss-rt-l) {
+    animation: rtBrillo 2.8s ease-in-out infinite;
+    animation-delay: calc(var(--i, 0) * 45ms);
+}
+
+.raiz :global(.ss-rt-brillo.ss-rt-bloque) {
+    animation: rtBrilloBloque 2.8s ease-in-out infinite;
+}
+
+@keyframes rtBrillo {
+    0%,
+    70%,
+    100% {
+        text-shadow: none;
+    }
+    80% {
+        text-shadow:
+            0 0 0.35em rgba(255, 255, 255, 0.95),
+            0 0 0.1em #fff;
+    }
+}
+
+@keyframes rtBrilloBloque {
+    0%,
+    100% {
+        text-shadow: 0 0 0 transparent;
+    }
+    50% {
+        text-shadow: 0 0 0.45em rgba(255, 255, 255, 0.55);
+    }
+}
+
+/* latido */
+.raiz :global(.ss-rt-latido) {
+    animation: rtLatido 1.6s ease-in-out infinite;
+    transform-origin: center;
+}
+
+@keyframes rtLatido {
+    0%,
+    40%,
+    100% {
+        transform: scale(1);
+    }
+    12% {
+        transform: scale(1.05);
+    }
+    26% {
+        transform: scale(1.025);
+    }
+}
+
+/* arcoíris: degradado fijo recortado al texto (no depende del color actual) */
+.raiz :global(.ss-rt-arcoiris) {
+    background-image: linear-gradient(90deg, #ff5f6d, #ffc371, #39ff14, #00c6ff, #7c5cff, #ff5f6d);
+    background-size: 220% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+    animation: rtArcoiris 5s linear infinite;
+}
+
+@keyframes rtArcoiris {
+    from {
+        background-position: 0% 50%;
+    }
+    to {
+        background-position: 220% 50%;
+    }
+}
+
+/* neón */
+.raiz :global(.ss-rt-neon) {
+    text-shadow:
+        0 0 0.04em #fff,
+        0 0 0.3em var(--rt-neon, #7c5cff),
+        0 0 0.75em var(--rt-neon, #7c5cff);
+    animation: rtNeon 3.4s ease-in-out infinite;
+}
+
+@keyframes rtNeon {
+    0%,
+    18%,
+    22%,
+    100% {
+        opacity: 1;
+    }
+    20% {
+        opacity: 0.72;
+    }
+    60% {
+        opacity: 0.9;
+    }
+}
+
+/* flotar */
+.raiz :global(.ss-rt-flotar) {
+    animation: rtFlotar 3.2s ease-in-out infinite;
+}
+
+@keyframes rtFlotar {
+    0%,
+    100% {
+        transform: translateY(0);
+    }
+    50% {
+        transform: translateY(-4px);
+    }
+}
+
+/* temblor: letras nerviosas, pero suaves */
+.raiz :global(.ss-rt-temblor .ss-rt-l) {
+    animation: rtTemblor 0.9s ease-in-out infinite;
+    animation-delay: calc(var(--i, 0) * -137ms);
+}
+
+.raiz :global(.ss-rt-temblor.ss-rt-bloque) {
+    animation: rtTemblorBloque 1.2s ease-in-out infinite;
+}
+
+@keyframes rtTemblor {
+    0%,
+    100% {
+        transform: translate(0, 0) rotate(0);
+    }
+    25% {
+        transform: translate(0.5px, -0.6px) rotate(-2deg);
+    }
+    50% {
+        transform: translate(-0.6px, 0.4px) rotate(1.5deg);
+    }
+    75% {
+        transform: translate(0.4px, 0.6px) rotate(-1deg);
+    }
+}
+
+@keyframes rtTemblorBloque {
+    0%,
+    100% {
+        transform: translate(0, 0);
+    }
+    25% {
+        transform: translate(0.6px, -0.4px);
+    }
+    75% {
+        transform: translate(-0.6px, 0.4px);
+    }
+}
+
+/* ───────────── Fondos animados (una capa ligera detrás del contenido) ───────────── */
+
+.capaFondo {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    overflow: hidden;
+    border-radius: inherit;
+    pointer-events: none;
+}
+
+.capaFondo::before,
+.capaFondo::after {
+    content: "";
+    position: absolute;
+    pointer-events: none;
+}
+
+.fAurora::before {
+    inset: -50%;
+    background:
+        radial-gradient(40% 35% at 30% 40%, rgba(124, 92, 255, 0.55), transparent 70%),
+        radial-gradient(35% 30% at 70% 60%, rgba(0, 127, 255, 0.45), transparent 70%),
+        radial-gradient(30% 28% at 50% 30%, rgba(16, 185, 129, 0.35), transparent 70%);
+    animation: fAurora 16s ease-in-out infinite alternate;
+    will-change: transform;
+}
+
+@keyframes fAurora {
+    from {
+        transform: translate(-6%, -4%) rotate(0deg);
+    }
+    to {
+        transform: translate(6%, 5%) rotate(24deg);
+    }
+}
+
+.fEstrellas::before,
+.fEstrellas::after {
+    inset: 0;
+    background-image:
+        radial-gradient(1.2px 1.2px at 12% 18%, #fff 50%, transparent 51%),
+        radial-gradient(1px 1px at 68% 32%, #fff 50%, transparent 51%),
+        radial-gradient(1.4px 1.4px at 38% 72%, #fff 50%, transparent 51%),
+        radial-gradient(1px 1px at 86% 80%, #fff 50%, transparent 51%),
+        radial-gradient(1.2px 1.2px at 52% 48%, #fff 50%, transparent 51%);
+    background-size: 120px 120px;
+    animation: fParpadeo 3.2s ease-in-out infinite alternate;
+}
+
+.fEstrellas::after {
+    background-size: 170px 170px;
+    background-position: 40px 60px;
+    animation-duration: 4.6s;
+    animation-delay: -1.7s;
+}
+
+@keyframes fParpadeo {
+    from {
+        opacity: 0.25;
+    }
+    to {
+        opacity: 0.95;
+    }
+}
+
+.fGradiente::before {
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 300%;
+    background: linear-gradient(
+        90deg,
+        rgba(124, 92, 255, 0.35),
+        rgba(0, 127, 255, 0.3),
+        rgba(20, 184, 166, 0.3),
+        rgba(244, 63, 94, 0.3),
+        rgba(124, 92, 255, 0.35)
+    );
+    animation: fDeslizar 14s ease-in-out infinite alternate;
+    will-change: transform;
+}
+
+@keyframes fDeslizar {
+    from {
+        transform: translateX(0);
+    }
+    to {
+        transform: translateX(-66.66%);
+    }
+}
+
+.fPulso::before {
+    inset: -20%;
+    background: radial-gradient(closest-side, rgba(255, 255, 255, 0.28), transparent 70%);
+    animation: fPulso 2.6s ease-in-out infinite;
+    will-change: transform, opacity;
+}
+
+@keyframes fPulso {
+    0%,
+    100% {
+        transform: scale(0.85);
+        opacity: 0.35;
+    }
+    50% {
+        transform: scale(1.1);
+        opacity: 0.8;
+    }
+}
+
+.fParticulas::before,
+.fParticulas::after {
+    left: 0;
+    right: 0;
+    top: 0;
+    height: 200%;
+    background-image:
+        radial-gradient(2px 2px at 20% 30%, rgba(255, 255, 255, 0.7) 50%, transparent 51%),
+        radial-gradient(1.5px 1.5px at 60% 70%, rgba(255, 255, 255, 0.55) 50%, transparent 51%),
+        radial-gradient(2.5px 2.5px at 85% 15%, rgba(167, 139, 250, 0.7) 50%, transparent 51%);
+    background-size: 140px 140px;
+    animation: fSubir 16s linear infinite;
+    will-change: transform;
+}
+
+.fParticulas::after {
+    background-size: 90px 90px;
+    opacity: 0.6;
+    animation-duration: 24s;
+}
+
+@keyframes fSubir {
+    from {
+        transform: translateY(0);
+    }
+    to {
+        transform: translateY(-50%);
+    }
+}
+
+/* ───────────── Lienzo (vista) ───────────── */
+
+.lienzo {
+    position: relative;
+    overflow: hidden;
+    border-radius: 16px;
+    isolation: isolate;
+    max-width: 100%;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+.escena {
+    position: absolute;
+    left: 0;
+    top: 0;
+    z-index: 1;
+    transform-origin: 0 0;
+}
+
+.elemento {
+    position: absolute;
+    box-sizing: border-box;
+}
+
+.medio {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: block;
+    -webkit-user-drag: none;
+    user-select: none;
+}
+
+.ventana {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: rgba(12, 14, 34, 0.78);
+    box-shadow:
+        inset 0 0 0 1px rgba(255, 255, 255, 0.1),
+        0 10px 30px rgba(0, 0, 0, 0.35);
+    color: #fff;
+}
+
+.barraVentana {
+    display: flex;
+    align-items: center;
+    gap: 0.5em;
+    padding: 0 0.6em;
+    flex: none;
+    background: rgba(255, 255, 255, 0.06);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    min-width: 0;
+}
+
+.cuerpoVentana {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+    background: #0b0d1a;
+}
+
+.iframe {
+    width: 100%;
+    height: 100%;
+    border: 0;
+    display: block;
+    background: #fff;
+}
+
+/* ───────────── Editor: pantalla completa ───────────── */
+
+/* globals.css redondea y recorta todo [role="dialog"]; el editor ocupa la pantalla entera. */
+.pantallaCompleta[role="dialog"] {
+    border-radius: 0 !important;
+}
+
+/* ───────────── Editor: lienzo ───────────── */
+
+.escenario {
+    position: relative;
+    /* En el vacío se puede desplazar la página; sobre un elemento o un asa, no (se arrastra). */
+    touch-action: pan-x pan-y pinch-zoom;
+    outline: none;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.escenario:focus-visible {
+    box-shadow: 0 0 0 2px rgba(124, 92, 255, 0.7);
+}
+
+.tablero {
+    position: absolute;
+    overflow: hidden;
+    box-shadow:
+        0 0 0 1px rgba(255, 255, 255, 0.12),
+        0 20px 60px rgba(0, 0, 0, 0.45);
+}
+
+.transparente {
+    background-color: #1a1c2e;
+    background-image:
+        linear-gradient(45deg, rgba(255, 255, 255, 0.05) 25%, transparent 25%),
+        linear-gradient(-45deg, rgba(255, 255, 255, 0.05) 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, rgba(255, 255, 255, 0.05) 75%),
+        linear-gradient(-45deg, transparent 75%, rgba(255, 255, 255, 0.05) 75%);
+    background-size: 24px 24px;
+    background-position:
+        0 0,
+        0 12px,
+        12px -12px,
+        -12px 0;
+}
+
+.rejilla {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 200ms ease;
+    background-image:
+        linear-gradient(rgba(255, 255, 255, 0.07) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.07) 1px, transparent 1px);
+}
+
+.rejillaVisible {
+    opacity: 1;
+}
+
+.editable {
+    position: absolute;
+    cursor: move;
+    touch-action: none;
+}
+
+.editableBloqueado {
+    cursor: default;
+}
+
+.editable > * {
+    pointer-events: none;
+}
+
+.seleccion {
+    position: absolute;
+    z-index: 5000;
+    pointer-events: none;
+    box-shadow:
+        0 0 0 1.5px #7c5cff,
+        0 0 0 4px rgba(124, 92, 255, 0.22);
+}
+
+.asa {
+    position: absolute;
+    pointer-events: auto;
+    background: #fff;
+    border-radius: 9999px;
+    box-shadow:
+        0 0 0 2px #7c5cff,
+        0 2px 8px rgba(0, 0, 0, 0.4);
+    touch-action: none;
+}
+
+.asaGiro {
+    position: absolute;
+    pointer-events: auto;
+    border-radius: 9999px;
+    background: #7c5cff;
+    box-shadow:
+        0 0 0 2px #fff,
+        0 2px 10px rgba(124, 92, 255, 0.6);
+    cursor: grab;
+    touch-action: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+}
+
+.lineaGiro {
+    position: absolute;
+    left: 50%;
+    width: 1.5px;
+    background: #7c5cff;
+    transform: translateX(-50%);
+}
+
+/* ───────────── Editor: documento (contentEditable estricto) ───────────── */
+
+.editorDoc {
+    outline: none;
+    white-space: pre-wrap;
+    min-height: 12rem;
+    caret-color: #a78bfa;
+    cursor: text;
+}
+
+.editorDoc ul[data-tareas] {
+    list-style: none;
+    padding-left: 0;
+}
+
+.editorDoc ul[data-tareas] > li {
+    position: relative;
+    padding-left: 1.75em;
+}
+
+.editorDoc ul[data-tareas] > li::before {
+    content: "";
+    position: absolute;
+    left: 0.1em;
+    top: 0.22em;
+    width: 1.05em;
+    height: 1.05em;
+    border-radius: 0.3em;
+    box-shadow: inset 0 0 0 1.5px currentColor;
+    opacity: 0.75;
+    cursor: pointer;
+}
+
+.editorDoc ul[data-tareas] > li[data-hecha="1"]::before {
+    background:
+        center / 70% no-repeat
+            url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2304130d' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'><path d='M20 6 9 17l-5-5'/></svg>"),
+        #10b981;
+    box-shadow: none;
+    opacity: 1;
+}
+
+.editorDoc ul[data-tareas] > li[data-hecha="1"] {
+    text-decoration: line-through;
+    text-decoration-color: rgba(255, 255, 255, 0.5);
+    opacity: 0.75;
+}
+
+/* ───────────── Movimiento reducido / modo eco: todo quieto ───────────── */
+
+@media (prefers-reduced-motion: reduce) {
+    .raiz :global(.ss-rt-anim),
+    .raiz :global(.ss-rt-anim .ss-rt-l),
+    .capaFondo::before,
+    .capaFondo::after {
+        animation: none !important;
+    }
+}
+
+:global(html.a11y-reduce-motion) .raiz :global(.ss-rt-anim),
+:global(html.a11y-reduce-motion) .raiz :global(.ss-rt-anim .ss-rt-l),
+:global(html.a11y-reduce-motion) .capaFondo::before,
+:global(html.a11y-reduce-motion) .capaFondo::after,
+:global(html[data-perf="eco"]) .raiz :global(.ss-rt-anim),
+:global(html[data-perf="eco"]) .raiz :global(.ss-rt-anim .ss-rt-l),
+:global(html[data-perf="eco"]) .capaFondo::before,
+:global(html[data-perf="eco"]) .capaFondo::after {
+    animation: none !important;
+}

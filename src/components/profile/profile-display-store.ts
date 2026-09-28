@@ -44,6 +44,7 @@ export const PROFILE_SECTION_IDS = [
     "agenda",
     "posts",
     "connections",
+    "contactos",
     "library",
     "collections",
     "enlaces",

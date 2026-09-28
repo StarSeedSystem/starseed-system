@@ -6,67 +6,69 @@
  * ---------------------------------------------------------------------------
  * DMs y grupos estilo WhatsApp/Telegram sobre `os_dm_threads/os_dm_members/
  * os_dm_messages` (ver src/lib/messages/dm.ts). Aurora opcional por hilo.
- * Dos paneles en escritorio (lista + chat activo); apilado en móvil.
  * Conmutador Mensajes ↔ Correos (buzón interno @star.seed) conservado.
+ *
+ * (2026-09-28) Marco premium de cristal: barra superior (Mensajes | Correos,
+ * modo enfoque, ajustes de la sección), dos paneles en escritorio y pantallas
+ * apiladas con deslizamiento en móvil (un solo árbol montado). En modo enfoque
+ * la lista se recoge y el chat o el correo usan todo el ancho; Esc sale y la
+ * elección se recuerda. Se montan aquí, una vez, el latido de presencia y la
+ * capa global de llamadas. Deep-links `?to=<@>`, `?attachServer=<slug>` y
+ * `?ajustes=<sección>`.
  *
  * SOP: architecture/libreria-biblioteca-sync.md §8.
  * ═══════════════════════════════════════════════════════════════════════════
  */
 
-import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { NotificationCenter } from "@/components/layout/notification-center";
-import { UserNav } from "@/components/layout/user-nav";
+import { AlertTriangle, Loader2, MessageSquare, SquarePen, X } from "lucide-react";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { AlertTriangle, Loader2, Mail, MessageSquare, MessageSquareOff, X } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
 import { CorreosPanel } from "@/components/messages/correos-panel";
-import { ThreadList } from "@/components/messages/dm/thread-list";
+import { ThreadList, threadTitle } from "@/components/messages/dm/thread-list";
 import { ThreadView } from "@/components/messages/dm/thread-view";
 import { NewChatDialog } from "@/components/messages/dm/new-chat-dialog";
+import { AjustesMensajeriaDialog, type SeccionAjustesMensajeria } from "@/components/messages/ajustes/ajustes-mensajeria";
+import { BarraSuperior, type SuperficieMensajes } from "@/components/messages/marco/barra-superior";
+import { MarcoDosPaneles } from "@/components/messages/marco/marco-dos-paneles";
+import { ProveedorNombresHilos, useNombresHilos } from "@/components/messages/marco/nombres-hilos";
+import { useEnfoque } from "@/components/messages/marco/use-enfoque";
+import { useEsMovil } from "@/components/messages/marco/use-es-movil";
+import { aplicarAuroraPorDefecto } from "@/components/messages/marco/aurora-por-defecto";
+import { companeroDm, esSolicitud } from "@/components/messages/marco/filtros-lista";
+import { describirSilencio } from "@/components/messages/marco/formato-tiempo";
+import { ACENTO, pildoraFantasma } from "@/components/messages/marco/estilos";
+import { LatidoPresencia } from "@/components/mensajeria/latido-presencia";
+import { MontajeLlamadas } from "@/components/llamadas/montaje-llamadas";
+import { useAjustesMensajeria } from "@/lib/mensajeria/ajustes-store";
+import { useContactos } from "@/lib/contactos/store";
 import {
-    createDm, listThreads, subscribeThreadsList, type DmAttachment, type DmThreadSummary,
+    createDm, listThreads, markRead, subscribeThreadsList, type DmAttachment, type DmThreadSummary,
 } from "@/lib/messages/dm";
 import {
     seedMyProfile, fetchProfilesByIds, fetchProfileByUsername, type OsProfile,
 } from "@/lib/social/os-profiles";
 
-type MessagesSurface = "chats" | "mail";
+const SECCIONES_VALIDAS: SeccionAjustesMensajeria[] = ["chats", "privacidad", "notificaciones", "correos", "aurora", "personalizados"];
 
-function SurfaceSwitch({ surface, onChange, className }: { surface: MessagesSurface; onChange: (s: MessagesSurface) => void; className?: string }) {
+function EmptyThreadState({ onNuevo }: { onNuevo: () => void }) {
     return (
-        <div className={cn("inline-flex items-center gap-0.5 rounded-full border border-border/60 bg-muted/40 p-0.5", className)}>
+        <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
+            <span className="grid h-16 w-16 place-items-center rounded-3xl" style={pildoraFantasma(ACENTO.mensajes)}>
+                <MessageSquare className="h-7 w-7 text-white/85" />
+            </span>
+            <p className="text-[15px] font-medium text-white/85">Elige una conversación</p>
+            <p className="max-w-xs text-[13px] text-white/55">O empieza una nueva con alguien de tu libreta o de la red.</p>
             <button
-                onClick={() => onChange("chats")}
-                className={cn(
-                    "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition-all cursor-pointer",
-                    surface === "chats" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
-                )}
-                title="Conversaciones"
+                type="button"
+                onClick={onNuevo}
+                className="ss-redondo mt-1 inline-flex cursor-pointer items-center gap-1.5 rounded-full px-4 py-2 text-[13px] font-semibold text-white transition-transform duration-150 hover:scale-[1.03]"
+                style={pildoraFantasma(ACENTO.mensajes)}
             >
-                <MessageSquare className="w-3.5 h-3.5" /> Mensajes
+                <SquarePen className="h-4 w-4" /> Nuevo chat
             </button>
-            <button
-                onClick={() => onChange("mail")}
-                className={cn(
-                    "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition-all cursor-pointer",
-                    surface === "mail" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
-                )}
-                title="Correos (@star.seed)"
-            >
-                <Mail className="w-3.5 h-3.5" /> Correos
-            </button>
-        </div>
-    );
-}
-
-function EmptyThreadState() {
-    return (
-        <div className="flex-1 flex items-center justify-center text-muted-foreground">
-            <div className="text-center">
-                <MessageSquareOff className="w-12 h-12 mx-auto mb-3 opacity-30" />
-                <p className="text-sm">Selecciona una conversación</p>
-            </div>
         </div>
     );
 }
@@ -83,41 +85,45 @@ function DeepLinkBanner({ deepLink, onDismiss }: { deepLink: DeepLink; onDismiss
     if (deepLink.state === "idle") return null;
     const resolving = deepLink.state === "resolving";
     return (
-        <div
-            role="status"
-            className={cn(
-                "shrink-0 flex items-center gap-2 px-4 py-2 text-xs border-b",
-                resolving
-                    ? "border-white/10 bg-primary/10 text-foreground"
-                    : "border-amber-400/20 bg-amber-500/10 text-amber-200",
-            )}
-        >
-            {resolving ? (
-                <>
-                    <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
-                    <span className="truncate">Abriendo tu conversación con @{deepLink.handle}…</span>
-                </>
-            ) : (
-                <>
-                    <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-                    <span className="min-w-0 flex-1">{deepLink.message}</span>
-                    <button
-                        type="button"
-                        onClick={onDismiss}
-                        aria-label="Descartar aviso"
-                        className="shrink-0 grid place-items-center w-5 h-5 rounded-full hover:bg-foreground/10 transition-colors cursor-pointer"
-                    >
-                        <X className="w-3 h-3" />
-                    </button>
-                </>
-            )}
+        <div className="shrink-0 px-3 pb-2 sm:px-4">
+            <div
+                role="status"
+                className="flex items-center gap-2 rounded-2xl px-3.5 py-2 text-[13px] text-white/85"
+                style={pildoraFantasma(resolving ? ACENTO.mensajes : ACENTO.ambar)}
+            >
+                {resolving ? (
+                    <>
+                        <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
+                        <span className="min-w-0 flex-1">Abriendo tu conversación con @{deepLink.handle}…</span>
+                    </>
+                ) : (
+                    <>
+                        <AlertTriangle className="h-4 w-4 shrink-0 text-[#FFBF00]" />
+                        <span className="min-w-0 flex-1">{deepLink.message}</span>
+                        <button
+                            type="button"
+                            onClick={onDismiss}
+                            aria-label="Descartar aviso"
+                            className="ss-redondo grid h-7 w-7 shrink-0 cursor-pointer place-items-center rounded-full transition-colors hover:bg-white/10"
+                        >
+                            <X className="h-3.5 w-3.5" />
+                        </button>
+                    </>
+                )}
+            </div>
         </div>
     );
 }
 
 function MessagesContent() {
     const searchParams = useSearchParams();
-    const [surface, setSurface] = useState<MessagesSurface>("chats");
+    const esMovil = useEsMovil();
+    const { enfocado, alternar: alternarEnfoque } = useEnfoque();
+    const aj = useAjustesMensajeria();
+    const libreta = useContactos();
+    const { registrar } = useNombresHilos();
+
+    const [surface, setSurface] = useState<SuperficieMensajes>("chats");
     const [userId, setUserId] = useState<string | null>(null);
     const [authReady, setAuthReady] = useState(false);
     const [threads, setThreads] = useState<DmThreadSummary[]>([]);
@@ -129,8 +135,14 @@ function MessagesContent() {
     const [pendingServerAttachment, setPendingServerAttachment] = useState<DmAttachment | null>(null);
     const [deepLink, setDeepLink] = useState<DeepLink>({ state: "idle" });
     const [focusComposer, setFocusComposer] = useState(false);
+    const [ajustesAbiertos, setAjustesAbiertos] = useState(false);
+    const [seccionAjustes, setSeccionAjustes] = useState<SeccionAjustesMensajeria | undefined>(undefined);
+    const [lectorCorreoAbierto, setLectorCorreoAbierto] = useState(false);
     /** @handle ya procesado (evita recrear/reabrir en cada render o realtime). */
     const handledToRef = useRef<string | null>(null);
+    /** Ajustes más recientes para decisiones dentro de callbacks estables. */
+    const ajRef = useRef(aj);
+    ajRef.current = aj;
 
     // Usuario actual + siembra del perfil propio en el directorio.
     useEffect(() => {
@@ -160,8 +172,16 @@ function MessagesContent() {
         // Selección por defecto SOLO si no hay ninguna: actualización funcional
         // para no leer un `selectedId` obsoleto (este callback tiene deps []; con
         // la lectura directa, cada recarga realtime saltaba al primer hilo y
-        // pisaba la selección del deep-link `?to=`).
-        setSelectedId((cur) => cur ?? (rows.length ? rows[0].id : null));
+        // pisaba la selección del deep-link `?to=`). Nunca un archivado ni un
+        // restringido: esos solo se abren a propósito.
+        setSelectedId((cur) => {
+            if (cur) return cur;
+            const primero = rows.find((t) => {
+                const ef = ajRef.current.efectivos(t.id, t.kind === "group" ? "grupo" : "dm");
+                return !ef.archivado && !ef.restringido;
+            });
+            return primero?.id ?? null;
+        });
     }, []);
 
     useEffect(() => {
@@ -177,6 +197,14 @@ function MessagesContent() {
         const slug = searchParams?.get("attachServer");
         if (!slug) return;
         setPendingServerAttachment({ kind: "server", name: slug, refKind: "server", refId: slug, route: `/servidores-apps?panel=${encodeURIComponent(slug)}` });
+    }, [searchParams]);
+
+    // Deep-link ?ajustes=<sección> → abre los Ajustes de Mensajería en esa sección.
+    useEffect(() => {
+        const s = searchParams?.get("ajustes");
+        if (!s) return;
+        setSeccionAjustes(SECCIONES_VALIDAS.includes(s as SeccionAjustesMensajeria) ? (s as SeccionAjustesMensajeria) : undefined);
+        setAjustesAbiertos(true);
     }, [searchParams]);
 
     // ── Deep-link ?to=<handle> (Adenda 63 · P-4) ────────────────────────────
@@ -224,6 +252,7 @@ function MessagesContent() {
                 });
                 return;
             }
+            await aplicarAuroraPorDefecto(res.thread, ajRef.current.ajustes.aurora);
 
             await reloadThreads();
             if (!alive) return;
@@ -238,9 +267,47 @@ function MessagesContent() {
 
     const selectedThread = threads.find((t) => t.id === selectedId) ?? null;
 
+    // Perfiles de los miembros del chat abierto (ThreadView los fusiona con los suyos).
+    const perfilesMiembros = useMemo(() => {
+        if (!selectedThread) return {};
+        const out: Record<string, OsProfile> = {};
+        for (const id of selectedThread.memberIds) if (profiles[id]) out[id] = profiles[id];
+        return out;
+    }, [selectedThread, profiles]);
+
+    // Nombres de los chats para «Chats personalizados» de los Ajustes.
+    useEffect(() => {
+        if (!threads.length) return;
+        const entradas: Record<string, { nombre: string; tipo: "dm" | "grupo" }> = {};
+        for (const t of threads) {
+            const tipo = t.kind === "group" ? "grupo" : "dm";
+            const apodo = aj.ajustes.hilos[t.id]?.apodo;
+            const otro = companeroDm(t, userId);
+            const c = otro ? libreta.porUserId(otro) : undefined;
+            entradas[t.id] = { nombre: apodo || (c ? c.apodo || c.nombre : threadTitle(t, profiles, userId)), tipo };
+        }
+        registrar(entradas);
+    }, [threads, profiles, userId, aj.ajustes.hilos, libreta, registrar]);
+
+    // No leídos para la pastilla de «Mensajes»: sin archivados, restringidos, silenciados ni solicitudes.
+    const noLeidosChats = useMemo(() => {
+        const escribirme = aj.ajustes.privacidad.escribirme;
+        return threads.reduce((n, t) => {
+            if (t.unreadCount <= 0) return n;
+            const ef = aj.efectivos(t.id, t.kind === "group" ? "grupo" : "dm");
+            const propio = aj.ajustes.hilos[t.id]?.notificaciones;
+            const silenciado = !!describirSilencio(propio?.silencioHasta ?? null) || propio?.activas === false;
+            if (ef.archivado || ef.restringido || silenciado) return n;
+            if (esSolicitud(t, userId, escribirme, (uid) => !!libreta.porUserId(uid))) return n;
+            return n + t.unreadCount;
+        }, 0);
+    }, [threads, aj, userId, libreta]);
+
     const selectThread = useCallback((threadId: string) => {
         setSelectedId(threadId);
         setFocusComposer(false);
+        setMobileView("thread");
+        setThreads((prev) => prev.map((t) => (t.id === threadId && t.unreadCount ? { ...t, unreadCount: 0 } : t)));
     }, []);
 
     const handleThreadCreated = (threadId: string) => {
@@ -255,20 +322,76 @@ function MessagesContent() {
         setThreads((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
     };
 
+    const marcarLeido = useCallback((threadId: string) => {
+        setThreads((prev) => prev.map((t) => (t.id === threadId ? { ...t, unreadCount: 0 } : t)));
+        void markRead(threadId);
+    }, []);
+
+    const iniciarChat = useCallback(async (otroId: string) => {
+        const res = await createDm(otroId);
+        if (res.needsAuth) {
+            toast.error("Inicia sesión para escribir a alguien.");
+            return;
+        }
+        if (!res.ok || !res.thread) {
+            toast.error(res.error || "No se pudo iniciar la conversación.");
+            return;
+        }
+        await aplicarAuroraPorDefecto(res.thread, ajRef.current.ajustes.aurora);
+        handleThreadCreated(res.thread.id);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    const abrirAjustes = useCallback((seccion?: SeccionAjustesMensajeria) => {
+        setSeccionAjustes(seccion);
+        setAjustesAbiertos(true);
+    }, []);
+
+    const puedeEnfocar = surface === "chats" ? !!selectedThread : lectorCorreoAbierto;
+    // En móvil, con un chat o un correo abierto, la pantalla es suya entera (su cabecera ya
+    // trae «volver»): la barra de la sección se aparta para que el compositor se vea completo.
+    const detalleMovilAbierto = esMovil && (surface === "chats" ? mobileView === "thread" && !!selectedThread : lectorCorreoAbierto);
+
     return (
-        <div className="h-screen flex flex-col overflow-hidden">
+        <div
+            className={cn(
+                "relative flex h-[100dvh] flex-col overflow-hidden",
+                "bg-[radial-gradient(120%_80%_at_0%_0%,rgba(124,92,255,0.13),transparent_55%),radial-gradient(90%_70%_at_100%_100%,rgba(0,127,255,0.09),transparent_60%)]",
+            )}
+            data-enfocado={enfocado ? "si" : "no"}
+        >
+            {/* Capas globales de la sección: una sola vez. */}
+            <LatidoPresencia />
+            <MontajeLlamadas />
+
             <NewChatDialog open={newChatOpen} onOpenChange={setNewChatOpen} onCreated={handleThreadCreated} />
+            <AjustesMensajeriaDialog open={ajustesAbiertos} onOpenChange={setAjustesAbiertos} seccionInicial={seccionAjustes} />
+
+            {!detalleMovilAbierto && (
+                <BarraSuperior
+                    superficie={surface}
+                    onCambiarSuperficie={setSurface}
+                    onAbrirAjustes={() => abrirAjustes(surface === "mail" ? "correos" : undefined)}
+                    enfocado={enfocado}
+                    onAlternarEnfoque={alternarEnfoque}
+                    puedeEnfocar={puedeEnfocar}
+                    esMovil={esMovil}
+                    noLeidosChats={noLeidosChats}
+                />
+            )}
 
             <DeepLinkBanner deepLink={deepLink} onDismiss={() => setDeepLink({ state: "idle" })} />
 
-            {/* ── DESKTOP: two-pane layout ── */}
-            <div className="hidden md:flex flex-1 overflow-hidden bg-muted/10">
+            <div className="min-h-0 flex-1">
                 {surface === "chats" ? (
-                    <>
-                        <div className="w-80 lg:w-96 shrink-0 flex flex-col border-r border-white/10 bg-background/60 backdrop-blur-sm overflow-hidden">
-                            <div className="px-3 py-2 border-b border-white/10 shrink-0">
-                                <SurfaceSwitch surface={surface} onChange={setSurface} />
-                            </div>
+                    <MarcoDosPaneles
+                        esMovil={esMovil}
+                        enfocado={enfocado && !!selectedThread}
+                        verDetalle={mobileView === "thread" && !!selectedThread}
+                        claveDetalle={selectedThread?.id ?? "vacio"}
+                        etiquetaLista="Lista de chats"
+                        etiquetaDetalle="Chat abierto"
+                        lista={
                             <ThreadList
                                 threads={threads}
                                 profiles={profiles}
@@ -276,91 +399,39 @@ function MessagesContent() {
                                 selectedId={selectedId}
                                 onSelect={(t) => selectThread(t.id)}
                                 onNewChat={() => setNewChatOpen(true)}
+                                onMarcarLeido={marcarLeido}
+                                onIniciarChat={(uid) => void iniciarChat(uid)}
                                 loading={loading}
                                 className="flex-1 min-h-0"
                             />
-                        </div>
-                        <div className="flex-1 flex flex-col overflow-hidden">
-                            {selectedThread ? (
+                        }
+                        detalle={
+                            selectedThread ? (
                                 <ThreadView
                                     thread={selectedThread}
                                     myUserId={userId}
+                                    onBack={esMovil ? () => setMobileView("list") : undefined}
                                     onThreadUpdated={handleThreadUpdated}
                                     pendingServerAttachment={pendingServerAttachment}
                                     onConsumePendingAttachment={() => setPendingServerAttachment(null)}
                                     autoFocusComposer={focusComposer}
+                                    perfilesMiembros={perfilesMiembros}
+                                    enfocado={enfocado}
+                                    onAlternarEnfoque={esMovil ? undefined : alternarEnfoque}
                                 />
                             ) : (
-                                <EmptyThreadState />
-                            )}
-                        </div>
-                    </>
+                                <EmptyThreadState onNuevo={() => setNewChatOpen(true)} />
+                            )
+                        }
+                    />
                 ) : (
-                    <div className="flex-1 flex flex-col overflow-hidden">
-                        <div className="px-4 py-2.5 border-b border-white/10 bg-background/60 backdrop-blur-sm shrink-0 flex items-center justify-between gap-3">
-                            <SurfaceSwitch surface={surface} onChange={setSurface} />
-                            <div className="flex items-center gap-1 shrink-0">
-                                <NotificationCenter />
-                                <UserNav />
-                            </div>
-                        </div>
-                        <div className="flex-1 overflow-hidden mx-auto w-full max-w-3xl">
-                            <CorreosPanel userId={userId} />
-                        </div>
-                    </div>
-                )}
-            </div>
-
-            {/* ── MOBILE: single-pane, apilado ── */}
-            <div className="flex md:hidden flex-1 flex-col overflow-hidden">
-                {surface === "mail" ? (
-                    <div className="flex flex-col h-full">
-                        <header className="flex items-center justify-between px-4 py-2.5 border-b border-white/10 bg-background/80 backdrop-blur-xl shrink-0">
-                            <SurfaceSwitch surface={surface} onChange={setSurface} />
-                            <div className="flex items-center gap-1">
-                                <NotificationCenter />
-                                <UserNav />
-                            </div>
-                        </header>
-                        <div className="flex-1 overflow-hidden">
-                            <CorreosPanel userId={userId} />
-                        </div>
-                    </div>
-                ) : mobileView === "list" ? (
-                    <div className="flex flex-col h-full">
-                        <header className="flex items-center justify-between px-4 py-2 border-b border-white/10 bg-background/80 backdrop-blur-xl shrink-0">
-                            <SurfaceSwitch surface={surface} onChange={setSurface} />
-                            <div className="flex items-center gap-1">
-                                <NotificationCenter />
-                                <UserNav />
-                            </div>
-                        </header>
-                        <ThreadList
-                            threads={threads}
-                            profiles={profiles}
-                            myUserId={userId}
-                            selectedId={selectedId}
-                            onSelect={(t) => {
-                                selectThread(t.id);
-                                setMobileView("thread");
-                            }}
-                            onNewChat={() => setNewChatOpen(true)}
-                            loading={loading}
-                            className="flex-1 min-h-0"
-                        />
-                    </div>
-                ) : (
-                    selectedThread && (
-                        <ThreadView
-                            thread={selectedThread}
-                            myUserId={userId}
-                            onBack={() => setMobileView("list")}
-                            onThreadUpdated={handleThreadUpdated}
-                            pendingServerAttachment={pendingServerAttachment}
-                            onConsumePendingAttachment={() => setPendingServerAttachment(null)}
-                            autoFocusComposer={focusComposer}
-                        />
-                    )
+                    <CorreosPanel
+                        userId={userId}
+                        enfocado={enfocado}
+                        onAlternarEnfoque={alternarEnfoque}
+                        onAbrirAjustes={() => abrirAjustes("correos")}
+                        onLectorAbierto={setLectorCorreoAbierto}
+                    />
                 )}
             </div>
         </div>
@@ -376,12 +447,14 @@ export default function MessagesPage() {
     return (
         <Suspense
             fallback={
-                <div className="h-screen flex items-center justify-center text-sm text-muted-foreground">
+                <div className="flex h-[100dvh] items-center justify-center text-sm text-white/60">
                     Cargando tus mensajes…
                 </div>
             }
         >
-            <MessagesContent />
+            <ProveedorNombresHilos>
+                <MessagesContent />
+            </ProveedorNombresHilos>
         </Suspense>
     );
 }

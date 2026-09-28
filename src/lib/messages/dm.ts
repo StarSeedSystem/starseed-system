@@ -33,6 +33,7 @@
 
 import { createClient } from "@/utils/supabase/client";
 import { onTableChange, type RealtimePayload } from "@/lib/realtime/realtime";
+import type { FormatoMensaje } from "@/lib/mensajeria/formato-tipos";
 
 /* ─────────────────────────────── Tipos ─────────────────────────────────── */
 
@@ -98,6 +99,8 @@ export interface DmMessage {
     editedAt: string | null;
     deleted: boolean;
     createdAt: string;
+    /** Mensaje enriquecido (lienzo/documento/estilo). `null` = mensaje básico (ver formato-tipos.ts). */
+    formato: FormatoMensaje | null;
 }
 
 /** Hilo enriquecido con último mensaje + contador de no-leídos (para la lista). */
@@ -133,6 +136,31 @@ interface MessageRow {
     edited_at: string | null;
     deleted: boolean | null;
     created_at: string;
+    /** Ausente cuando la columna aún no existe en la base viva (ver `columnasMensaje`). */
+    formato?: unknown;
+}
+
+/*
+ * `os_dm_messages.formato` (migración `20260928120000_contactos_presencia_mensajeria.sql`)
+ * puede no estar aplicada aún en la base viva. `formatoDisponible` recuerda, para el resto
+ * de la sesión, si hay que dejar de pedir/columna esa columna tras un 42703 (undefined_column)
+ * — así un solo fallo no repite el error en cada mensaje. `columnasMensaje()` es la única
+ * fuente de la lista de columnas que pide `select(...)`.
+ */
+let formatoDisponible = true;
+const COLUMNAS_MENSAJE_BASE = "id, thread_id, sender, body, attachments, reply_to, kind, edited_at, deleted, created_at";
+function columnasMensaje(): string {
+    return formatoDisponible ? `${COLUMNAS_MENSAJE_BASE}, formato` : COLUMNAS_MENSAJE_BASE;
+}
+function esErrorFormato(error: unknown): boolean {
+    const e = error as { code?: string; message?: string } | null | undefined;
+    if (!e) return false;
+    if (e.code === "42703") return true;
+    return typeof e.message === "string" && /formato/i.test(e.message);
+}
+function normalizeFormato(raw: unknown): FormatoMensaje | null {
+    if (!raw || typeof raw !== "object") return null;
+    return raw as FormatoMensaje;
 }
 
 function normalizeAgent(raw: unknown): ThreadAgentConfig | null {
@@ -180,6 +208,7 @@ function normalizeMessage(row: MessageRow): DmMessage {
         editedAt: row.edited_at,
         deleted: !!row.deleted,
         createdAt: row.created_at,
+        formato: normalizeFormato(row.formato),
     };
 }
 
@@ -553,14 +582,23 @@ export async function listMessages(threadId: string, limit = 200): Promise<DmMes
     if (!threadId) return [];
     try {
         const supabase = createClient();
-        const { data, error } = await supabase
+        let { data, error } = await supabase
             .from("os_dm_messages")
-            .select("*")
+            .select(columnasMensaje())
             .eq("thread_id", threadId)
             .order("created_at", { ascending: true })
             .limit(limit);
+        if (error && formatoDisponible && esErrorFormato(error)) {
+            formatoDisponible = false;
+            ({ data, error } = await supabase
+                .from("os_dm_messages")
+                .select(columnasMensaje())
+                .eq("thread_id", threadId)
+                .order("created_at", { ascending: true })
+                .limit(limit));
+        }
         if (error || !Array.isArray(data)) return [];
-        return (data as MessageRow[]).map(normalizeMessage);
+        return (data as unknown as MessageRow[]).map(normalizeMessage);
     } catch {
         return [];
     }
@@ -573,11 +611,17 @@ export interface SendMessageInput {
     kind?: MessageKind;
     /** Remitente explícito (por defecto el usuario actual; usado por Aurora al responder). */
     senderOverride?: string | null;
+    /** Mensaje enriquecido opcional; `body` sigue llevando el texto plano equivalente. */
+    formato?: FormatoMensaje | null;
 }
 
 /**
  * Envía un mensaje a un hilo y "toca" `last_msg_at` para reordenar la lista.
  * Exige sesión (RLS valida membresía). Devuelve el mensaje insertado o null.
+ *
+ * Si `input.formato` viene y la columna `formato` todavía no existe en la base
+ * viva (42703 / mensaje con "formato"), reintenta UNA vez sin ese campo — el
+ * mensaje se envía igualmente con su `body` de texto plano.
  */
 export async function sendMessage(threadId: string, input: SendMessageInput): Promise<DmMessage | null> {
     if (!threadId) return null;
@@ -585,18 +629,22 @@ export async function sendMessage(threadId: string, input: SendMessageInput): Pr
     if (!uid) return null;
     try {
         const supabase = createClient();
-        const { data, error } = await supabase
-            .from("os_dm_messages")
-            .insert({
-                thread_id: threadId,
-                sender: input.senderOverride ?? uid,
-                body: input.body ?? "",
-                attachments: input.attachments ?? [],
-                reply_to: input.replyTo ?? null,
-                kind: input.kind ?? "user",
-            })
-            .select("*")
-            .single();
+        const base = {
+            thread_id: threadId,
+            sender: input.senderOverride ?? uid,
+            body: input.body ?? "",
+            attachments: input.attachments ?? [],
+            reply_to: input.replyTo ?? null,
+            kind: input.kind ?? "user",
+        };
+        const incluyeFormato = formatoDisponible && input.formato !== undefined;
+        const payload = incluyeFormato ? { ...base, formato: input.formato ?? null } : base;
+
+        let { data, error } = await supabase.from("os_dm_messages").insert(payload).select(columnasMensaje()).single();
+        if (error && incluyeFormato && esErrorFormato(error)) {
+            formatoDisponible = false;
+            ({ data, error } = await supabase.from("os_dm_messages").insert(base).select(columnasMensaje()).single());
+        }
         if (error || !data) return null;
 
         try {
@@ -605,7 +653,7 @@ export async function sendMessage(threadId: string, input: SendMessageInput): Pr
             /* best-effort */
         }
 
-        return normalizeMessage(data as MessageRow);
+        return normalizeMessage(data as unknown as MessageRow);
     } catch {
         return null;
     }
@@ -678,4 +726,121 @@ export async function setThreadAgent(threadId: string, agent: ThreadAgentConfig 
 /** ¿El texto menciona a Aurora? (para auto-respuesta cuando el hilo tiene el agente activo). */
 export function mentionsAurora(text: string): boolean {
     return /@aurora\b/i.test(text || "");
+}
+
+/* ───────────────────────────── Archivos y enlaces (medios del hilo) ─────────── */
+
+const CONTIENE_URL = /https?:\/\/\S+/i;
+
+/**
+ * Mensajes del hilo que aportan algo al panel "Archivos y enlaces": traen
+ * adjuntos, un enlace en el cuerpo o un `formato`. Más recientes primero.
+ * Nunca lanza: [] ante cualquier fallo (incluida una `formato` que aún no existe).
+ */
+export async function listThreadMedia(threadId: string, limit = 1000): Promise<DmMessage[]> {
+    if (!threadId) return [];
+    try {
+        const supabase = createClient();
+        let { data, error } = await supabase
+            .from("os_dm_messages")
+            .select(columnasMensaje())
+            .eq("thread_id", threadId)
+            .eq("deleted", false)
+            .order("created_at", { ascending: false })
+            .limit(limit);
+        if (error && formatoDisponible && esErrorFormato(error)) {
+            formatoDisponible = false;
+            ({ data, error } = await supabase
+                .from("os_dm_messages")
+                .select(columnasMensaje())
+                .eq("thread_id", threadId)
+                .eq("deleted", false)
+                .order("created_at", { ascending: false })
+                .limit(limit));
+        }
+        if (error || !Array.isArray(data)) return [];
+        return (data as unknown as MessageRow[])
+            .map(normalizeMessage)
+            .filter((m) => m.attachments.length > 0 || CONTIENE_URL.test(m.body) || !!m.formato);
+    } catch {
+        return [];
+    }
+}
+
+/* ───────────────────────────── Administración del hilo ──────────────────── */
+
+/** Renombra un hilo (título visible para todos los miembros). */
+export async function renameThread(id: string, title: string): Promise<boolean> {
+    if (!id) return false;
+    try {
+        const supabase = createClient();
+        const { error } = await supabase.from("os_dm_threads").update({ title: title.trim() || null }).eq("id", id);
+        return !error;
+    } catch {
+        return false;
+    }
+}
+
+/** Cambia el avatar de un hilo (grupo). */
+export async function setThreadAvatar(id: string, url: string): Promise<boolean> {
+    if (!id) return false;
+    try {
+        const supabase = createClient();
+        const { error } = await supabase.from("os_dm_threads").update({ avatar_url: url || null }).eq("id", id);
+        return !error;
+    } catch {
+        return false;
+    }
+}
+
+/** Cambia la descripción de un hilo (`meta.description`), preservando el resto de `meta`. */
+export async function setThreadDescription(id: string, text: string): Promise<boolean> {
+    if (!id) return false;
+    try {
+        const supabase = createClient();
+        const { data } = await supabase.from("os_dm_threads").select("meta").eq("id", id).maybeSingle();
+        const meta = (data?.meta && typeof data.meta === "object" ? (data.meta as Record<string, unknown>) : {}) ?? {};
+        const { error } = await supabase.from("os_dm_threads").update({ meta: { ...meta, description: text } }).eq("id", id);
+        return !error;
+    } catch {
+        return false;
+    }
+}
+
+/** Salgo del hilo: borra MI propia membresía (RLS exige que sea la del usuario en sesión). */
+export async function leaveThread(id: string): Promise<boolean> {
+    if (!id) return false;
+    const uid = await getCurrentUserId();
+    if (!uid) return false;
+    try {
+        const supabase = createClient();
+        const { error } = await supabase.from("os_dm_members").delete().eq("thread_id", id).eq("user_id", uid);
+        return !error;
+    } catch {
+        return false;
+    }
+}
+
+/** Quita a otro miembro del hilo (RLS decide quién puede). */
+export async function removeMember(id: string, userId: string): Promise<boolean> {
+    if (!id || !userId) return false;
+    try {
+        const supabase = createClient();
+        const { error } = await supabase.from("os_dm_members").delete().eq("thread_id", id).eq("user_id", userId);
+        return !error;
+    } catch {
+        return false;
+    }
+}
+
+/** Cambia el rol de un miembro del hilo (RLS decide quién puede). */
+export async function setMemberRole(id: string, userId: string, role: "admin" | "member"): Promise<boolean> {
+    if (!id || !userId) return false;
+    try {
+        const supabase = createClient();
+        const { error } = await supabase.from("os_dm_members").update({ role }).eq("thread_id", id).eq("user_id", userId);
+        return !error;
+    } catch {
+        return false;
+    }
 }

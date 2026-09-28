@@ -65,7 +65,7 @@ export const DOCK_STORAGE_KEY = 'starseed.dock.items.v2';
  * banderas one-shot por navegador (`starseed.dock.items.migrated.vN`), que era
  * justo lo que no llegaba a las cuentas viejas.
  */
-export const DOCK_DEFAULTS_VERSION = 21;
+export const DOCK_DEFAULTS_VERSION = 22;
 
 /**
  * Ids que el OS garantiza presentes y encendidos hasta DOCK_DEFAULTS_VERSION.
@@ -85,8 +85,11 @@ export const DOCK_DEFAULTS_VERSION = 21;
  * público de canales de la red) es nueva; subir la versión la enciende para
  * todas las neuronas y perfiles existentes — solo la versión, que viaja dentro
  * del payload sincronizado, llega a las cuentas viejas.
+ * v22 (2026-09-28) añade `contactos`: la app de Contactos (libreta privada de
+ * personas, que sustituye a «seguir» personas) es nueva y sin esta garantía no
+ * aparecería en el dock de las cuentas ya existentes.
  */
-export const DOCK_DEFAULT_ON_IDS = ['senales', 'red-feed', 'imaginacion', 'voces', 'mando', 'mundo-avatares', 'laboratorio', 'canales'] as const;
+export const DOCK_DEFAULT_ON_IDS = ['senales', 'red-feed', 'imaginacion', 'voces', 'mando', 'mundo-avatares', 'laboratorio', 'canales', 'contactos'] as const;
 
 /**
  * Forma mínima de un item del dock para ESTE módulo. Deliberadamente laxa
@@ -150,6 +153,11 @@ const FALLBACK_SEEDS: Record<string, DockItemLike> = {
   // Ola 285 · K6: Canales StarSeed (espejo de su entrada en DOCK_PRESETS).
   canales: {
     id: 'canales', label: 'Canales', iconKey: 'Rss', path: '/canales',
+    color: 'emerald', enabled: true, origin: 'preset',
+  },
+  // 2026-09-28: Contactos (espejo de su entrada en DOCK_PRESETS).
+  contactos: {
+    id: 'contactos', label: 'Contactos', iconKey: 'BookUser', path: '/contactos',
     color: 'emerald', enabled: true, origin: 'preset',
   },
 };

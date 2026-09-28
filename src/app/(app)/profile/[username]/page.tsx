@@ -20,6 +20,7 @@ import { FeaturedBadgesWidget } from "@/components/profile/widgets/featured-badg
 import { RecentPostsWidget } from "@/components/profile/widgets/recent-posts-widget";
 import { ConnectionsWidget } from "@/components/profile/widgets/connections-widget";
 import { ProfileHeader } from "@/components/profile/profile-header";
+import { ContactosPerfil } from "@/components/contactos/contactos-perfil";
 import { CollectionsGrid } from "@/components/profile/collections/collections-grid";
 import { GovernanceToolkit, hasToolkit, toolkitMeta } from "@/components/social/toolkits";
 import { EntityLibraryPanel } from "@/components/library/entity-library-panel";
@@ -61,6 +62,7 @@ import {
     FolderOpen,
     Images,
     LayoutList,
+    Contact,
 } from "lucide-react";
 
 // Sin perfiles de ejemplo. Los datos del perfil/página se derivan del slug de
@@ -462,6 +464,12 @@ export default function ProfilePage() {
             node: postsNode,
         },
         { id: 'connections', title: 'Conexiones', node: <ConnectionsWidget isOwner={isOwner} name={profileData.name} counts={{ comunidades: counts.comunidades, grupos: counts.grupos }} /> },
+        // Contactos (sustituye a "seguir" para personas): solo cuando se pudo
+        // resolver el uid REAL del perfil visitado — sin él no hay libreta que
+        // mostrar (ni la pública de una visita ni "Todos" del propio dueño).
+        ...(visitedOwnerUid
+            ? [{ id: 'contactos' as const, title: 'Contactos', node: <ContactosPerfil ownerUserId={visitedOwnerUid} esPropio={isOwner} /> }]
+            : []),
         { id: 'library', title: 'Biblioteca', node: <ProfileLibraryCard name={profileData.name} uid={user?.id ?? null} ownerUid={visitedOwnerUid} isOwner={isOwner} /> },
         { id: 'collections', title: 'Colecciones', node: <CollectionsGrid /> },
         { id: 'enlaces', title: 'Enlaces', node: <ProfileLinksSection handle={pageHandle} isOwner={isOwner} name={profileData.name} /> },
@@ -517,6 +525,7 @@ export default function ProfilePage() {
         { value: 'agenda', label: 'Agenda', icon: CalendarDays },
         { value: 'posts', label: 'Publicaciones', icon: FileText, badge: badge(totalPublicaciones) },
         { value: 'connections', label: 'Conexiones', icon: Users },
+        ...(visitedOwnerUid ? [{ value: 'contactos' as const, label: 'Contactos', icon: Contact }] : []),
         { value: 'library', label: 'Biblioteca', icon: Library },
         { value: 'collections', label: 'Colecciones', icon: Layers },
         { value: 'enlaces', label: 'Enlaces', icon: Link2, badge: badge(counts.enlaces) },
@@ -527,6 +536,7 @@ export default function ProfilePage() {
         pageType,
         totalPublicaciones, counts.enlaces, counts.archivos,
         profileLayout.gallery.length, profileLayout.sections.length,
+        visitedOwnerUid,
     ]);
 
     if (loadingProfile) {
@@ -550,6 +560,9 @@ export default function ProfilePage() {
                 onToggleViewAs={() => setViewAsVisitor((v) => !v)}
                 handle={pageHandle}
                 name={profileData.name}
+                userId={visitedOwnerUid}
+                avatarUrl={profileData.avatar}
+                bio={profileData.bio}
             />
 
             {/* ── Barra de modos: el perfil es una página abierta y libre ── */}
@@ -628,6 +641,11 @@ export default function ProfilePage() {
                         <TabsContent value="connections" className="mt-6 animate-in fade-in-50 duration-500">
                             <ConnectionsWidget isOwner={isOwner} name={profileData.name} counts={{ comunidades: counts.comunidades, grupos: counts.grupos }} />
                         </TabsContent>
+                        {visitedOwnerUid && (
+                            <TabsContent value="contactos" className="mt-6 animate-in fade-in-50 duration-500">
+                                <ContactosPerfil ownerUserId={visitedOwnerUid} esPropio={isOwner} />
+                            </TabsContent>
+                        )}
                         <TabsContent value="library" className="mt-6">
                             <ProfileLibraryCard name={profileData.name} uid={user?.id ?? null} ownerUid={visitedOwnerUid} isOwner={isOwner} />
                         </TabsContent>

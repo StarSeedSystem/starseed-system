@@ -14,7 +14,7 @@ import {
   Server, Vote, Lightbulb, Cpu, Brain, ShoppingBag, Award, AppWindow,
   CalendarClock, GitBranch, Sparkles, Zap, Wrench, Plug, Eye, HardDrive, Boxes,
   Camera, Images, RadioTower, Antenna, Radio, Rss, AudioLines, Gauge,
-  Smile, FlaskConical,
+  Smile, FlaskConical, BookUser,
 } from 'lucide-react';
 // Garantía de botones predeterminados con la VERSIÓN DENTRO DEL PAYLOAD
 // (Adenda 149 · tanda 3). El módulo es puro y sin dependencias: lo comparten
@@ -73,7 +73,9 @@ export type DockIconKey =
   // ── Mundo de los avatares (Ola 234) ──
   | 'Smile'
   // ── Laboratorio de Astraura (Ola 237) ──
-  | 'FlaskConical';
+  | 'FlaskConical'
+  // ── Contactos (2026-09-28) ──
+  | 'BookUser';
 
 /**
  * Mapa iconKey → componente de lucide-react. Fuente ÚNICA de verdad: la usan
@@ -87,7 +89,7 @@ export const DOCK_ICON_MAP: Record<DockIconKey, React.ComponentType<{ className?
   Server, Vote, Lightbulb, Cpu, Brain, ShoppingBag, Award, AppWindow,
   CalendarClock, GitBranch, Sparkles, Zap, Wrench, Plug, Eye, HardDrive, Boxes,
   Camera, Images, RadioTower, Antenna, Radio, Rss, AudioLines, Gauge, Smile,
-  FlaskConical,
+  FlaskConical, BookUser,
 };
 
 /** Icono de respaldo defensivo (DOCK_ICON_MAP es total: no debería usarse). */
@@ -188,6 +190,9 @@ export const DOCK_PRESETS: DockItemConfig[] = [
   { id: 'dashboard',     label: 'Dashboard',           iconKey: 'LayoutDashboard', path: '/dashboard',             color: 'cyan',    enabled: true,  origin: 'preset' },
   { id: 'profile',       label: 'Perfil',              iconKey: 'CircleUser',      path: '/profile',               color: 'neutral', enabled: true,  origin: 'preset' },
   { id: 'messages',      label: 'Mensajes',            iconKey: 'MessagesSquare',  path: '/messages',              color: 'crimson', enabled: true,  origin: 'preset' },
+  // 2026-09-28: Contactos — la libreta privada de personas (sustituye a «seguir» personas),
+  // junto a Mensajes. DOCK_DEFAULTS_VERSION 22 la enciende para las cuentas ya existentes.
+  { id: 'contactos',     label: 'Contactos',           iconKey: 'BookUser',        path: '/contactos',             color: 'emerald', enabled: true,  origin: 'preset' },
   { id: 'notifications', label: 'Notificaciones',      iconKey: 'Bell',            path: '/notifications',         color: 'amber',   enabled: true,  origin: 'preset' },
   { id: 'hub',           label: 'Hub',                 iconKey: 'Users',           path: '/hub',                   color: 'emerald', enabled: true,  origin: 'preset' },
   { id: 'mylib',         label: 'Librería · Biblioteca', iconKey: 'Library',        path: '/library',               color: 'cyan',    enabled: true,  origin: 'preset' },

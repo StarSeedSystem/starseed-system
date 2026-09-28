@@ -1,0 +1,68 @@
+/* Contactos — efectos con keyframes (el resto va en Tailwind). Sin bucles con movimiento
+   reducido ni en el modo eco del OS. */
+
+.espina {
+    position: absolute;
+    overflow: hidden;
+}
+
+.espina::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: -30%;
+    height: 30%;
+    background: linear-gradient(to bottom, transparent, rgba(255, 255, 255, 0.6), transparent);
+    animation: recorrido 6s ease-in-out infinite;
+}
+
+@keyframes recorrido {
+    0% {
+        transform: translateY(0);
+        opacity: 0;
+    }
+    15% {
+        opacity: 1;
+    }
+    85% {
+        opacity: 1;
+    }
+    100% {
+        transform: translateY(430%);
+        opacity: 0;
+    }
+}
+
+.latido {
+    animation: latido 2.8s ease-in-out infinite;
+}
+
+@keyframes latido {
+    0%,
+    100% {
+        box-shadow: 0 0 0 0 rgba(20, 184, 166, 0.35);
+    }
+    50% {
+        box-shadow: 0 0 0 8px rgba(20, 184, 166, 0);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .espina::after {
+        display: none;
+        animation: none;
+    }
+    .latido {
+        animation: none;
+    }
+}
+
+:global(html[data-perf="eco"]) .espina::after {
+    display: none;
+    animation: none;
+}
+
+:global(html[data-perf="eco"]) .latido {
+    animation: none;
+}

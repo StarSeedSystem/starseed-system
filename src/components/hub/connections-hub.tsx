@@ -37,7 +37,7 @@ import {
     Search, Users, Scale, School, Palette, Landmark, Flag, CalendarDays,
     Globe, Users2, Check, Plus, UserPlus, Share2, ArrowUpRight, Lock,
     Sparkles, Compass, LayoutGrid, Star, MapPin, X, MessageSquare, Loader2,
-    ChevronDown, Globe2,
+    ChevronDown, Globe2, UserCheck,
 } from "lucide-react";
 import { useOsPages, useOsGroups, useOsEvents } from "@/hooks/use-os-entities";
 import { setFollow, setMembership, getCurrentUserId } from "@/lib/os-social";
@@ -51,6 +51,13 @@ import {
     NETWORK_PAGE_SIZE,
     type NetworkProfile, type NetworkCursor, type SuggestedProfile,
 } from "@/lib/social/network-directory";
+// Contactos (Adenda «Contacts») sustituye a "seguir" para PERSONAS: el badge y
+// el botón de acción de <ProfileCard> y la columna "Contactos" de "Mis
+// conexiones" leen la libreta, no `os_follows`. Las entidades (páginas, EF,
+// partidos) SIGUEN usando `os_follows` sin cambios — ver `useMyConnections`.
+import { BotonAnadirContacto } from "@/components/contactos/boton-anadir-contacto";
+import { useContactos, usePorUserId } from "@/lib/contactos/store";
+import type { Contacto } from "@/lib/contactos/tipos";
 
 const GOLD = "#E9C46A";
 
@@ -406,6 +413,8 @@ function MiniConnRow({ item }: { item: ConnItem }) {
 // ═════════════════════════════════════════════════════════════════════════════
 
 const PEOPLE_ACCENT = SYSTEM_META.social.color;
+/** Acento teal de Contactos (mismo que `@/components/contactos/app/estilos`.ACENTO). */
+const CONTACTS_ACCENT = "#14B8A6";
 
 /** Abre (o crea) el DM con esa persona — mismo flujo que el directorio del Hub. */
 function ProfileMessageButton({ userId, name }: { userId: string; name: string }) {
@@ -443,13 +452,13 @@ function ProfileMessageButton({ userId, name }: { userId: string; name: string }
 
 /** Tarjeta de PERSONA — mismo lenguaje visual que <ConnCard>. */
 function ProfileCard({
-    profile, reason, myConn,
+    profile, reason,
 }: {
-    profile: NetworkProfile; reason?: string; myConn: MyConnections;
+    profile: NetworkProfile; reason?: string;
 }) {
-    // Seguir a una persona usa `os_follows` con page_slug = username, así que el
-    // set ya cargado en "Mis conexiones" nos da el estado inicial sin más consultas.
-    const isFollowing = myConn.followPageSlugs.has(profile.username);
+    // Contactos sustituye a "seguir" para personas: el badge y el botón leen
+    // la libreta (userId), no `os_follows`.
+    const contacto = usePorUserId(profile.userId);
     const href = profileHref({ handle: profile.username });
     const initial = (profile.displayName || profile.username || "S").trim().charAt(0).toUpperCase() || "S";
 
@@ -475,9 +484,9 @@ function ProfileCard({
                             <p className="mt-0.5 truncate text-[10px] text-muted-foreground/80">@{profile.username}</p>
                         </div>
                     </div>
-                    {isFollowing && (
-                        <Badge variant="outline" className="shrink-0 gap-1 border-emerald-500/30 bg-emerald-500/10 text-[9px] text-emerald-300">
-                            <Check className="h-2.5 w-2.5" /> Sigues
+                    {contacto && (
+                        <Badge variant="outline" className="shrink-0 gap-1 border-teal-500/30 bg-teal-500/10 text-[9px] text-teal-300">
+                            <Check className="h-2.5 w-2.5" /> En contactos
                         </Badge>
                     )}
                 </div>
@@ -503,12 +512,13 @@ function ProfileCard({
                 )}
 
                 <div className="mt-auto flex items-center gap-2 pt-1">
-                    <QuickJoinButton
-                        slug={profile.username}
-                        isJoin={false}
-                        accent={PEOPLE_ACCENT}
-                        initialActive={isFollowing}
-                        onChanged={myConn.refresh}
+                    <BotonAnadirContacto
+                        userId={profile.userId}
+                        username={profile.username}
+                        nombre={profile.displayName}
+                        avatarUrl={profile.avatarUrl}
+                        bio={profile.bio}
+                        variante="compacto"
                     />
                     <Link
                         href={href}
@@ -763,7 +773,6 @@ function NetworkPeople({ myConn }: { myConn: MyConnections }) {
                                 key={p.userId}
                                 profile={p}
                                 reason={(p as SuggestedProfile).reason}
-                                myConn={myConn}
                             />
                         ))}
                     </div>
@@ -795,6 +804,13 @@ export function ConnectionsHub() {
     const { data: groups } = useOsGroups();
     const { data: events } = useOsEvents();
     const myConn = useMyConnections();
+    // Contactos con cuenta StarSeed (userId): sustituyen a la columna "Siguiendo"
+    // de personas — las entidades (páginas/EF/partidos) siguen en `myConn`.
+    const contactos = useContactos();
+    const contactosConCuenta = useMemo(
+        () => contactos.contactos.filter((c) => c.userId),
+        [contactos.contactos],
+    );
 
     const [query, setQuery] = useState("");
     const [systemFilter, setSystemFilter] = useState<SystemKey | "all">("all");
@@ -858,19 +874,18 @@ export function ConnectionsHub() {
         });
     }, [allItems, systemFilter, typeFilter, query]);
 
-    // "Mis conexiones": cruza los sets reales con la lista unificada.
+    // "Mis conexiones" de ENTIDADES (páginas/EF/partidos siguen con os_follows;
+    // grupos con os_memberships) — las personas viven aparte, en `contactosConCuenta`.
     const mine = useMemo(() => {
         const bySlug = new Map(allItems.map((it) => [it.slug, it]));
-        const following: ConnItem[] = [];
         const memberOf: ConnItem[] = [];
         const administering: ConnItem[] = [];
-        for (const slug of myConn.followPageSlugs) { const it = bySlug.get(slug); if (it) following.push(it); }
         for (const slug of myConn.memberGroupSlugs) { const it = bySlug.get(slug); if (it) memberOf.push(it); }
         for (const slug of myConn.adminSlugs) { const it = bySlug.get(slug); if (it) administering.push(it); }
-        return { following, memberOf, administering };
-    }, [allItems, myConn.followPageSlugs, myConn.memberGroupSlugs, myConn.adminSlugs]);
+        return { memberOf, administering };
+    }, [allItems, myConn.memberGroupSlugs, myConn.adminSlugs]);
 
-    const hasAnyMine = mine.following.length + mine.memberOf.length + mine.administering.length > 0;
+    const hasAnyMine = contactosConCuenta.length + mine.memberOf.length + mine.administering.length > 0;
     const activeFilters = systemFilter !== "all" || typeFilter !== "all" || query.trim().length > 0;
 
     const resetFilters = () => { setSystemFilter("all"); setTypeFilter("all"); setQuery(""); };
@@ -933,7 +948,7 @@ export function ConnectionsHub() {
                     </Card>
                 ) : (
                     <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-                        <MyConnColumn title="Siguiendo" icon={<UserPlus className="h-3.5 w-3.5" />} color="#22d3ee" items={mine.following} empty="No sigues nada todavía." />
+                        <ContactosColumn contactos={contactosConCuenta} listo={contactos.listo} />
                         <MyConnColumn title="Miembro de" icon={<Users2 className="h-3.5 w-3.5" />} color="#10B981" items={mine.memberOf} empty="No participas en grupos aún." />
                         <MyConnColumn title="Administrando" icon={<LayoutGrid className="h-3.5 w-3.5" />} color="#FFBF00" items={mine.administering} empty="No administras entidades." />
                     </div>
@@ -1028,6 +1043,75 @@ export function ConnectionsHub() {
                 )}
             </section>
         </div>
+    );
+}
+
+// ── Columna "Contactos" de "Mis conexiones" (personas, no entidades) ────────
+function ContactoMiniRow({ contacto }: { contacto: Contacto }) {
+    const href = contacto.username ? profileHref({ handle: contacto.username }) : null;
+    const inicial = (contacto.nombre || contacto.username || "S").trim().charAt(0).toUpperCase() || "S";
+    const contenido = (
+        <>
+            <span
+                className="grid h-8 w-8 shrink-0 place-items-center overflow-hidden rounded-lg border"
+                style={{ background: `${CONTACTS_ACCENT}18`, borderColor: `${CONTACTS_ACCENT}33`, color: CONTACTS_ACCENT }}
+            >
+                {contacto.perfil?.avatarUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element -- avatar externo (Supabase Storage), no un asset del proyecto
+                    <img src={contacto.perfil.avatarUrl} alt="" className="h-full w-full object-cover" />
+                ) : (
+                    <span className="text-[11px] font-bold">{inicial}</span>
+                )}
+            </span>
+            <div className="min-w-0 flex-1">
+                <p className="truncate text-xs font-bold text-foreground transition-colors group-hover:text-primary">{contacto.nombre}</p>
+                <p className="truncate text-[10px] text-muted-foreground">{contacto.username ? `@${contacto.username}` : "Contacto StarSeed"}</p>
+            </div>
+        </>
+    );
+    if (!href) {
+        return <div className="flex min-h-[2.75rem] items-center gap-2.5 rounded-xl border border-white/10 bg-white/[0.02] px-3 py-2">{contenido}</div>;
+    }
+    return (
+        <Link
+            href={href}
+            className="group flex min-h-[2.75rem] items-center gap-2.5 rounded-xl border border-white/10 bg-white/[0.02] px-3 py-2 transition-colors hover:border-white/25 hover:bg-white/[0.05] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+        >
+            {contenido}
+            <ArrowUpRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground/50 transition-all group-hover:text-primary" />
+        </Link>
+    );
+}
+
+/** Sustituye a la antigua columna "Siguiendo" para personas: tus contactos con cuenta StarSeed. */
+function ContactosColumn({ contactos, listo }: { contactos: Contacto[]; listo: boolean }) {
+    return (
+        <Card className="liquid-glass-panel border-white/10">
+            <CardContent className="space-y-2.5 p-4">
+                <div className="flex items-center justify-between">
+                    <span className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider" style={{ color: CONTACTS_ACCENT }}>
+                        <UserCheck className="h-3.5 w-3.5" /> Contactos
+                    </span>
+                    <Badge variant="outline" className="text-[10px] border-white/15 bg-white/[0.04] text-foreground/80">
+                        {contactos.length}
+                    </Badge>
+                </div>
+                {!listo ? (
+                    <div className="h-16 animate-pulse rounded-lg border border-dashed border-white/10" />
+                ) : contactos.length === 0 ? (
+                    <p className="rounded-lg border border-dashed border-white/10 px-3 py-4 text-center text-[11px] text-muted-foreground">
+                        Aún no tienes contactos con cuenta StarSeed.
+                    </p>
+                ) : (
+                    <div className="space-y-2">
+                        {contactos.slice(0, 6).map((c) => <ContactoMiniRow key={c.id} contacto={c} />)}
+                        {contactos.length > 6 && (
+                            <p className="px-1 pt-0.5 text-[10px] text-muted-foreground">+{contactos.length - 6} más</p>
+                        )}
+                    </div>
+                )}
+            </CardContent>
+        </Card>
     );
 }
 

@@ -96,7 +96,12 @@ export type SavedItemType =
     /** v2.3 (Adenda 72, C1): archivo de DISEÑO (.ssdesign.json) — tema/paleta/
      *  tipografía/fondo/layout/skin/estilo, JSON en `content` (ver
      *  src/lib/design/design-files.ts). Aplicable a perfil/página desde el Estudio. */
-    | "design";
+    | "design"
+    /** v2.4 (Contactos, 2026-09-28): acceso a una ficha de la libreta (`route` = `/contactos?c=<id>`).
+     *  Solo guarda nombre y ruta: NUNCA teléfono, correo ni notas privadas. */
+    | "contact"
+    /** v2.4 (Mensajería, 2026-09-28): referencia a un mensaje de un chat (abre el hilo). */
+    | "message";
 
 /** Entrada de control de acceso: un usuario o un grupo (por id/slug). */
 export interface ACLEntry {

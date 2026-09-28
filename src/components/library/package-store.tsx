@@ -55,6 +55,8 @@ import {
   Star, Shield, Mic, ScanEye, Globe2, Link as LinkCap,
   Sparkle, ArrowUpRight, Image as ImageIcon, Music2, FileCode2, FileType2,
   Wifi, RefreshCcwDot, CircleCheck, RadioTower, Antenna, Binary,
+  // Contactos (2026-09-28)
+  BookUser,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -164,6 +166,8 @@ const ICON_MAP: Record<string, LucideIcon> = {
   RadioTower, Antenna,
   // Astraura 1.58-bit (Adenda 153)
   Binary,
+  // Contactos (2026-09-28)
+  BookUser,
 };
 
 /** Id del repo builtin de Herramientas IA & Agentes (para la sección destacada). */
