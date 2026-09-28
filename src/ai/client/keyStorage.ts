@@ -10,8 +10,18 @@
  * Built on the Web Crypto API. No external dependencies.
  */
 
+import {
+  crearSecreto,
+  esperaRestante,
+  registrarFallo,
+  verificarSecreto,
+  type EstadoIntentos,
+  type SecretoGuardado,
+} from "@/lib/bloqueo/secreto-local";
+
 const ENC_SALT_KEY = "starseed.ai.salt"; // base64
 const PASSPHRASE_VERIFIER_KEY = "starseed.ai.verifier"; // base64 nonce + ciphertext over "ok"
+const PASSPHRASE_ATTEMPTS_KEY = "starseed.ai.verifier.intentos";
 
 function toB64(buf: ArrayBuffer | Uint8Array): string {
   const bytes = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
@@ -98,8 +108,39 @@ export async function decryptKey(ciphertextB64: string, passphrase: string): Pro
 /** Set the verifier so we can quickly check a passphrase later. */
 export async function setPassphraseVerifier(passphrase: string): Promise<void> {
   if (typeof window === "undefined") return;
+  if (passphrase.length >= 6) {
+    const guardado = await crearSecreto("contrasena", passphrase);
+    window.localStorage.setItem(PASSPHRASE_VERIFIER_KEY, JSON.stringify(guardado));
+    window.localStorage.removeItem(PASSPHRASE_ATTEMPTS_KEY);
+    return;
+  }
   const enc = await encryptKey("ok", passphrase);
   window.localStorage.setItem(PASSPHRASE_VERIFIER_KEY, enc);
+}
+
+function leerSecretoGuardado(raw: string): SecretoGuardado | null {
+  try {
+    const valor = JSON.parse(raw) as Partial<SecretoGuardado>;
+    return valor.v === 1 && (valor.metodo === "pin" || valor.metodo === "contrasena")
+      && typeof valor.sal === "string" && typeof valor.hash === "string"
+      && typeof valor.iteraciones === "number" ? valor as SecretoGuardado : null;
+  } catch {
+    return null;
+  }
+}
+
+function leerIntentos(): EstadoIntentos {
+  try {
+    const raw = window.localStorage.getItem(PASSPHRASE_ATTEMPTS_KEY);
+    if (!raw) return { fallos: 0, bloqueadoHasta: 0 };
+    const valor = JSON.parse(raw) as Partial<EstadoIntentos>;
+    return {
+      fallos: typeof valor.fallos === "number" ? valor.fallos : 0,
+      bloqueadoHasta: typeof valor.bloqueadoHasta === "number" ? valor.bloqueadoHasta : 0,
+    };
+  } catch {
+    return { fallos: 0, bloqueadoHasta: 0 };
+  }
 }
 
 /** Returns true if the verifier is unset OR the passphrase decrypts it. */
@@ -107,6 +148,22 @@ export async function verifyPassphrase(passphrase: string): Promise<boolean> {
   if (typeof window === "undefined") return false;
   const enc = window.localStorage.getItem(PASSPHRASE_VERIFIER_KEY);
   if (!enc) return true; // nothing set yet — first time
+  const guardado = leerSecretoGuardado(enc);
+  if (guardado) {
+    const ahora = Date.now();
+    const intentos = leerIntentos();
+    if (esperaRestante(intentos, ahora) > 0) return false;
+    const correcto = await verificarSecreto(guardado, passphrase);
+    if (correcto) {
+      window.localStorage.removeItem(PASSPHRASE_ATTEMPTS_KEY);
+      return true;
+    }
+    window.localStorage.setItem(
+      PASSPHRASE_ATTEMPTS_KEY,
+      JSON.stringify(registrarFallo(intentos, ahora)),
+    );
+    return false;
+  }
   try {
     const got = await decryptKey(enc, passphrase);
     return got === "ok";
@@ -126,4 +183,5 @@ export function wipeAllKeyMaterial(): void {
   if (typeof window === "undefined") return;
   window.localStorage.removeItem(ENC_SALT_KEY);
   window.localStorage.removeItem(PASSPHRASE_VERIFIER_KEY);
+  window.localStorage.removeItem(PASSPHRASE_ATTEMPTS_KEY);
 }
