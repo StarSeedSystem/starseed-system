@@ -28,5 +28,13 @@ export default function Home() {
     }));
   }, [router]);
 
-  return null;
+  // (Ola 381 · INI4) Mientras se decide la pantalla inicial: un orbe tenue, nunca una página en blanco.
+  return (
+    <div className="grid min-h-dvh place-items-center" role="status" aria-label="Abriendo StarSeed">
+      <div className="flex flex-col items-center gap-4">
+        <span aria-hidden className="ss-respirar block size-20 rounded-full" style={{ background: "radial-gradient(circle at 35% 30%, #ffffffaa, #7c5cff66 40%, #23d5ab22 70%, transparent)" }} />
+        <span className="text-xs tracking-[0.3em] text-white/60 uppercase">Abriendo StarSeed…</span>
+      </div>
+    </div>
+  );
 }
