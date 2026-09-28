@@ -88,3 +88,78 @@ DROP POLICY IF EXISTS os_profiles_select_companeros_chat ON public.os_profiles;
 CREATE POLICY os_profiles_select_companeros_chat ON public.os_profiles
 FOR SELECT TO authenticated
 USING (public.comparte_hilo_dm(auth.uid(), user_id));
+
+-- ─────────────────── 4. Mensajes enriquecidos (formato) ───────────────────
+-- null = mensaje básico (texto + adjuntos). El body sigue llevando el texto plano equivalente.
+ALTER TABLE public.os_dm_messages ADD COLUMN IF NOT EXISTS formato jsonb;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'os_dm_messages_formato_tamano') THEN
+    ALTER TABLE public.os_dm_messages
+      ADD CONSTRAINT os_dm_messages_formato_tamano CHECK (formato IS NULL OR pg_column_size(formato) < 200000);
+  END IF;
+END $$;
+
+-- ─────────────────── 5. Sesiones vivas (apps en vivo y llamadas) ───────────────────
+CREATE TABLE IF NOT EXISTS public.os_sesiones_vivas (
+  id             uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+  tipo           text        NOT NULL CHECK (char_length(tipo) <= 40),
+  hilo_id        uuid        REFERENCES public.os_dm_threads(id) ON DELETE SET NULL,
+  creador        uuid        NOT NULL DEFAULT auth.uid() REFERENCES auth.users(id) ON DELETE CASCADE,
+  titulo         text        CHECK (titulo IS NULL OR char_length(titulo) <= 200),
+  ref_id         text,
+  ruta           text        CHECK (ruta IS NULL OR ruta LIKE '/%'),
+  modo           text        NOT NULL DEFAULT 'chat' CHECK (modo IN ('chat','invitados','publico')),
+  permiso        text        NOT NULL DEFAULT 'editar' CHECK (permiso IN ('ver','comentar','editar')),
+  invitados      uuid[]      NOT NULL DEFAULT '{}',
+  token_publico  text,
+  estado         text        NOT NULL DEFAULT 'activa' CHECK (estado IN ('activa','terminada')),
+  creada         timestamptz NOT NULL DEFAULT now(),
+  caduca         timestamptz
+);
+CREATE INDEX IF NOT EXISTS os_sesiones_vivas_hilo_idx ON public.os_sesiones_vivas (hilo_id);
+
+ALTER TABLE public.os_sesiones_vivas ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS os_sesiones_vivas_select ON public.os_sesiones_vivas;
+CREATE POLICY os_sesiones_vivas_select ON public.os_sesiones_vivas
+FOR SELECT TO authenticated
+USING (
+  creador = auth.uid()
+  OR auth.uid() = ANY (invitados)
+  OR (hilo_id IS NOT NULL AND public.is_dm_member(hilo_id, auth.uid()))
+);
+
+DROP POLICY IF EXISTS os_sesiones_vivas_insert ON public.os_sesiones_vivas;
+CREATE POLICY os_sesiones_vivas_insert ON public.os_sesiones_vivas
+FOR INSERT TO authenticated
+WITH CHECK (creador = auth.uid() AND (hilo_id IS NULL OR public.is_dm_member(hilo_id, auth.uid())));
+
+DROP POLICY IF EXISTS os_sesiones_vivas_update ON public.os_sesiones_vivas;
+CREATE POLICY os_sesiones_vivas_update ON public.os_sesiones_vivas
+FOR UPDATE TO authenticated USING (creador = auth.uid()) WITH CHECK (creador = auth.uid());
+
+DROP POLICY IF EXISTS os_sesiones_vivas_delete ON public.os_sesiones_vivas;
+CREATE POLICY os_sesiones_vivas_delete ON public.os_sesiones_vivas
+FOR DELETE TO authenticated USING (creador = auth.uid());
+
+-- Enlace público: quien tenga el enlace (id + token) puede leer la sesión, aunque no tenga cuenta.
+-- El token nunca se devuelve por aquí.
+CREATE OR REPLACE FUNCTION public.unirse_sesion_publica(_id uuid, _token text)
+RETURNS TABLE (id uuid, tipo text, hilo_id uuid, creador uuid, titulo text, ref_id text, ruta text,
+               modo text, permiso text, estado text, creada timestamptz, caduca timestamptz)
+LANGUAGE sql
+SECURITY DEFINER
+STABLE
+SET search_path = public
+AS $$
+  SELECT s.id, s.tipo, s.hilo_id, s.creador, s.titulo, s.ref_id, s.ruta, s.modo, s.permiso, s.estado, s.creada, s.caduca
+  FROM public.os_sesiones_vivas s
+  WHERE s.id = _id
+    AND s.modo = 'publico'
+    AND s.token_publico IS NOT NULL
+    AND s.token_publico = _token
+    AND s.estado = 'activa'
+    AND (s.caduca IS NULL OR s.caduca > now());
+$$;
+REVOKE ALL ON FUNCTION public.unirse_sesion_publica(uuid, text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.unirse_sesion_publica(uuid, text) TO anon, authenticated;
