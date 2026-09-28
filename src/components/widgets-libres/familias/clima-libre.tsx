@@ -11,7 +11,7 @@ import { WidgetLibre } from "@/components/widgets-libres/widget-libre";
 import { WeatherLocationProvider, useWeatherLocationOpcional } from "@/modules/weather/context/weather-location-context";
 import { fetchWeatherData, MOCK_WEATHER_DATA } from "@/lib/weather-mock";
 import { useWidgetProvider } from "@/components/dashboard/widgets/widget-data-source-control";
-import type { TipoForma } from "@/lib/widgets/forma/formas";
+import { trazoForma, type TipoForma } from "@/lib/widgets/forma/formas";
 import { Rotulo, SinDato, disenoDe, useAhora } from "./comun";
 import { LunaSVG, useCieloAqui, type CieloAqui } from "./celeste";
 
@@ -38,7 +38,7 @@ export const ESCENA: Record<Cielo, { forma: TipoForma; a: string; b: string; nom
     niebla: { forma: "onda", a: "#9aa5b1", b: "#cbd5e1", nombre: "Niebla" },
 };
 
-function Particulas({ cielo }: { cielo: Cielo }) {
+function Particulas({ cielo, silueta }: { cielo: Cielo; silueta?: string }) {
     const n = cielo === "lluvia" ? 7 : cielo === "nieve" ? 6 : 0;
     return (
         <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
@@ -49,12 +49,14 @@ function Particulas({ cielo }: { cielo: Cielo }) {
             {n > 0 && (
                 // Las gotas caen DENTRO de la forma: una columna por gota que cruza la altura entera
                 // (el % de translate es de la propia columna, no de la gota).
+                <div className="absolute inset-0" style={{ clipPath: silueta ? `path("${silueta}")` : undefined }}>
                 <div className="absolute inset-x-[26%] bottom-[16%] top-[14%] overflow-hidden">
                     {Array.from({ length: n }, (_, i) => (
                         <span key={i} className="ss-caer absolute top-0 h-full" style={{ ["--ss-dur" as string]: cielo === "nieve" ? "4.5s" : "1.3s", animationDelay: `${(i * 0.41) % 1.3}s`, left: `${6 + i * (88 / n)}%` }}>
                             <span className="block" style={{ width: cielo === "nieve" ? 5 : 1.5, height: cielo === "nieve" ? 5 : 12, borderRadius: 9, background: cielo === "nieve" ? "#fff" : "linear-gradient(#7dd3fc00,#7dd3fc)" }} />
                         </span>
                     ))}
+                </div>
                 </div>
             )}
         </div>
@@ -70,7 +72,7 @@ function Astro({ cielo, estado, lado, id }: { cielo: CieloAqui | null; estado: C
     if (deNoche) {
         const r = lado * (tapado ? 0.09 : 0.14);
         return (
-            <svg aria-hidden className="pointer-events-none absolute" style={{ right: "14%", top: "12%", opacity: tapado ? 0.55 : 1 }} width={r * 2.4} height={r * 2.4} viewBox={`${-r * 1.2} ${-r * 1.2} ${r * 2.4} ${r * 2.4}`}>
+            <svg aria-hidden overflow="visible" className="pointer-events-none absolute overflow-visible" style={{ left: "56%", top: "10%", opacity: tapado ? 0.6 : 1 }} width={r * 2.4} height={r * 2.4} viewBox={`${-r * 1.2} ${-r * 1.2} ${r * 2.4} ${r * 2.4}`}>
                 <LunaSVG r={r} fase={cielo.luna} id={id} />
             </svg>
         );
@@ -133,7 +135,7 @@ function ClimaInterno({ widgetId }: { widgetId: string }) {
                 const tamTemp = b === "micro" ? "text-3xl" : b === "s" ? "text-4xl" : "text-5xl";
                 return (
                     <div className="relative flex h-full w-full flex-col items-center justify-center gap-1 px-3 text-center text-white">
-                        {b !== "micro" && <Particulas cielo={cielo} />}
+                        {b !== "micro" && <Particulas cielo={cielo} silueta={trazoForma(esc.forma, ancho, alto, lugar || "clima")} />}
                         {b !== "micro" && <Astro cielo={astros} estado={cielo} lado={lado} id={idAstro} />}
                         <span className={`${tamTemp} ss-flotar relative font-extralight tabular-nums`}>{temp}°</span>
                         {b !== "micro" && <Rotulo color={esc.b}>{esc.nombre}</Rotulo>}

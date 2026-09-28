@@ -46,7 +46,10 @@ export function DashboardWorkspaceRenderer(props: WorkspaceRendererProps) {
     const { state } = useWorkspace();
 
     return (
-        <div className="w-full h-full flex flex-col flex-1 min-h-0 bg-transparent rounded-3xl border border-white/5 overflow-hidden">
+        // (2026-09-28) El espacio de trabajo ocupa la pantalla entera: sus esquinas son las de la
+        // pantalla (--screen-corner: 0 en el navegador, ~12px instalada), sin marco. Antes era
+        // rounded-3xl con borde y dejaba las esquinas de la página mal redondeadas.
+        <div className="w-full h-full flex flex-col flex-1 min-h-0 bg-transparent rounded-[var(--screen-corner)] overflow-hidden">
             <NodeRenderer node={state.root} {...props} />
         </div>
     );

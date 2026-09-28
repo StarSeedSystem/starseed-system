@@ -1,5 +1,7 @@
 "use client";
 
+import dynamic from "next/dynamic";
+
 // ─────────────────────────────────────────────────────────────────────────────
 // /cuenta · Centro de Cuenta e Identidad StarSeed (REAL, sobre Supabase)
 //   · CENTRO DE CUENTA estilo Google: cabecera + buscador propio + tarjetas de
@@ -93,6 +95,10 @@ import {
 } from "@/lib/astraura/neuron-persona-systems";
 import { VOICE_ENGINE_REGISTRY } from "@/lib/aurora/tts-oss/engine-registry";
 import { cn } from "@/lib/utils";
+import { activeProfileId } from "@/lib/profiles/profiles";
+import { deviceId } from "@/lib/sync/entity-state";
+// Solo se carga al abrir Cuenta: pantalla inicial (INI5) + bloqueo del dispositivo (BLQ6).
+const PreferenciasArranque = dynamic(() => import("@/components/inicio/preferencias-arranque").then((m) => m.PreferenciasArranque), { ssr: false });
 
 import {
   Search,
@@ -517,7 +523,7 @@ function CuentaContent() {
         icon: ShieldCheck,
         title: "Seguridad",
         summary: `Sesión activa · ${neurons.length} neurona${neurons.length === 1 ? "" : "s"}${neurons.filter((n) => n.online).length ? ` (${neurons.filter((n) => n.online).length} en línea)` : ""}`,
-        keywords: "seguridad sesion dispositivos neuronas cerrar sesion logout",
+        keywords: "seguridad sesion dispositivos neuronas cerrar sesion logout bloqueo pin contraseña huella rostro biometria pantalla inicial al abrir",
         accent: "text-amber-400",
         accentBg: "bg-amber-400/10 border-amber-400/20",
       },
@@ -878,6 +884,11 @@ function CuentaContent() {
         <div>
           <h2 className="text-base font-semibold mb-1">Seguridad</h2>
           <p className="text-xs text-muted-foreground">Tu sesión, tus dispositivos (neuronas) y el cierre de sesión.</p>
+        </div>
+
+        {/* (Ola 381-382) Qué se abre primero y el bloqueo de ESTE dispositivo (PIN, contraseña o huella/rostro). */}
+        <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
+          <PreferenciasArranque ambito="perfil" id={activeProfileId() ?? "local"} neuronaId={deviceId()} nombreNeurona="Este dispositivo" />
         </div>
 
         <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4 space-y-3">

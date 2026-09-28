@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import dynamic from "next/dynamic";
 
 import { DashboardWidget, WidgetType } from "./dashboard-types";
@@ -15,6 +15,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { useWidth } from "@/hooks/use-width";
 import { cn } from "@/lib/utils";
 import { useAppearance } from "@/context/appearance-context";
+import { acomodosPorPantalla } from "@/lib/dashboard/acomodo-pantalla";
 import { motion, useReducedMotion } from "framer-motion";
 import { nextSize, sizeFromWH, dimsForSize, type WidgetSize } from "./dashboard-size";
 import "react-grid-layout/css/styles.css";
@@ -95,6 +96,7 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWi
     // (Ola 383) Marco libre: la celda no recorta ni sombrea — el halo de la forma respira fuera.
     const libre = config.widgets?.marco !== "clasico";
     const [layouts, setLayouts] = useState<any>({});
+    const puntoActual = useRef<string>("lg");
     const [mounted, setMounted] = useState(false);
     const isCoarse = useCoarsePointer();
     const isNarrow = useNarrowViewport();
@@ -136,7 +138,9 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWi
         });
         setLayouts((prev: any) => {
             if (JSON.stringify(prev.lg) === JSON.stringify(layout)) return prev;
-            return { lg: layout, md: layout, sm: layout };
+            // (2026-09-28) Cada pantalla recibe SU acomodo derivado del de escritorio (antes se
+            // pasaba el mismo a md y sm y la rejilla lo recortaba). Ver acomodo-pantalla.ts.
+            return acomodosPorPantalla(layout);
         });
     }, [widgets]);
 
@@ -146,6 +150,8 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWi
 
     const handleDragStop = useCallback((layout: any[], oldItem: any, newItem: any) => {
         if (!isEditMode) return;
+        // Solo el acomodo de escritorio (12 columnas) se guarda; los demás se derivan de él.
+        if (puntoActual.current !== "lg") return;
 
         const updatedWidgets = widgets.map(w => {
             const layoutItem = layout.find(l => l.i === (w.layout.i || w.id));
@@ -498,6 +504,7 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWi
                     // para no cambiar el comportamiento en ejecución.
                     {...({ compactType: "vertical" } as any)}
                     onLayoutChange={onLayoutChange as any}
+                    onBreakpointChange={((p: string) => { puntoActual.current = p; }) as any}
                     onDragStop={handleDragStop as any}
                     onResizeStop={handleDragStop as any}
                     // Arrastre/redimensión SOLO con ratón en modo edición. En táctil
