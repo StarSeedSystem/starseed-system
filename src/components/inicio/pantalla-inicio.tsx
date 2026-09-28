@@ -14,6 +14,7 @@ import { TIPOS_CON_DISENO_LIBRE } from "@/components/widgets-libres/registro-lib
 import { personalidadDe } from "@/lib/widgets/forma/asignacion";
 import { dispositivoActual, type ClaseDispositivo } from "@/lib/widgets/forma/tamanos";
 import { WIDGET_MANIFEST } from "@/components/dashboard/widget-manifest";
+import { activeProfileId } from "@/lib/profiles/profiles";
 import {
     agregar, cambiarTamano, guardarWidgetsInicio, leerWidgetsInicio, mover, porDefecto, quitar,
     type ItemInicio, type TamanoInicio,
@@ -24,8 +25,9 @@ const PX: Record<TamanoInicio, [number, number]> = { micro: [100, 100], s: [170,
 const TAMANOS: TamanoInicio[] = ["micro", "s", "m", "l", "xl"];
 const LIBRES = new Set<string>(TIPOS_CON_DISENO_LIBRE);
 
+/** El perfil activo: la misma fuente que usa el arranque para elegir la pantalla inicial. */
 export function perfilActivo(): string {
-    try { return window.localStorage.getItem("starseed_active_profile_v1") || "local"; } catch { return "local"; }
+    return activeProfileId() ?? "local";
 }
 
 function saludo(h: number): string {
