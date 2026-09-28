@@ -7,7 +7,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import type { BloqueProg, ProgramaSpec } from "@/lib/vivo/programas/tipos";
 import { K } from "@/lib/vivo/programas/tipos";
-import { estadoDe, estadoPlantilla, hacer } from "@/lib/vivo/__tests__/programa-utiles";
+import { estadoDe, estadoPlantilla, hacer } from "@/lib/vivo/__pruebas__/programa-utiles";
 import { RenderPrograma } from "../render-programa";
 
 afterEach(cleanup);

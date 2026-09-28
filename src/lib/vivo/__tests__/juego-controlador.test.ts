@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { INSTANTANEA_VACIA, type Controlador } from "../juegos/controlador";
 import { baseDePartida, type EstadoMesa } from "../juegos/mesa";
 import type { Registro } from "../juegos/tipos";
-import { AlmacenFalso, RedFalsa, crearCliente, docInicial } from "./juego-red-falsa";
+import { AlmacenFalso, RedFalsa, crearCliente, docInicial } from "@/lib/vivo/__pruebas__/juego-red-falsa";
 
 let red: RedFalsa;
 let almacen: AlmacenFalso;

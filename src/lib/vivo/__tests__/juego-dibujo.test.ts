@@ -16,7 +16,7 @@ import {
 import { baseDePartida, motorMesa, type EstadoMesa } from "../juegos/mesa";
 import { PALABRAS_DIBUJO, esAcierto, esCercano, normalizarPalabra, opcionesDePalabras } from "../juegos/palabras";
 import { sha256Hex } from "../juegos/sha256";
-import { entrada } from "./juego-utiles";
+import { entrada } from "@/lib/vivo/__pruebas__/juego-utiles";
 
 const T0 = 1_000_000;
 

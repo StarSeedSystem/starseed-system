@@ -18,8 +18,8 @@ vi.mock("@/lib/vivo/juegos/transporte-supabase", () => ({
 }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
 
-import { AlmacenFalso, RedFalsa, crearCliente } from "@/lib/vivo/__tests__/juego-red-falsa";
-import { docProgramaDe } from "@/lib/vivo/__tests__/programa-utiles";
+import { AlmacenFalso, RedFalsa, crearCliente } from "@/lib/vivo/__pruebas__/juego-red-falsa";
+import { docProgramaDe } from "@/lib/vivo/__pruebas__/programa-utiles";
 import { SalaPrograma } from "../sala-programa";
 
 let red: RedFalsa;

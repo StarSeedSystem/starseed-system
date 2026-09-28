@@ -8,7 +8,7 @@ import { programaAUiSpec } from "../programas/a-uispec";
 import { limpiarLinea, limpiarParrafo, sanearBloque, sanearPrograma, sinSemillas } from "../programas/esquema";
 import { PLANTILLAS_PROGRAMA, especificacionDePlantilla, esIdPlantilla, plantillaPorId } from "../programas/plantillas";
 import { LIM, TIPOS_BLOQUE_PROG, type ProgramaSpec } from "../programas/tipos";
-import { correr, estadoDe, estadoPlantilla } from "./programa-utiles";
+import { correr, estadoDe, estadoPlantilla } from "@/lib/vivo/__pruebas__/programa-utiles";
 
 const spec = (bloques: unknown[], extra: Record<string, unknown> = {}) => ({ v: 1, titulo: "Prueba", descripcion: "", abierto: false, bloques, ...extra });
 

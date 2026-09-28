@@ -10,7 +10,7 @@ import { columnasKanban, comprobarPasoContador, plazasLibres, resultadosEncuesta
 import { basePrograma, baseCompactada, buscarMotorProgramas, convieneCompactar, motorPrograma } from "../programas/motor";
 import { especificacionDePlantilla } from "../programas/plantillas";
 import { LIM, type BloqueFormulario, type EstadoPrograma, type ProgramaSpec } from "../programas/tipos";
-import { congelar, correr, entradaP, estadoDe, estadoPlantilla, hacer, intento, rechazo } from "./programa-utiles";
+import { congelar, correr, entradaP, estadoDe, estadoPlantilla, hacer, intento, rechazo } from "@/lib/vivo/__pruebas__/programa-utiles";
 
 const dat = <T extends EstadoPrograma["datos"][string]["tipo"]>(e: EstadoPrograma, id: string, tipo: T) => {
     const d = e.datos[id];

@@ -12,7 +12,7 @@ import { basePrograma, baseCompactada, buscarMotorProgramas } from "../programas
 import { especificacionDePlantilla, type IdPlantilla } from "../programas/plantillas";
 import { totalContador } from "../programas/derivados";
 import { LIM, type BloqueFormulario, type EstadoPrograma } from "../programas/tipos";
-import { AlmacenFalso, RedFalsa, crearCliente } from "./juego-red-falsa";
+import { AlmacenFalso, RedFalsa, crearCliente } from "@/lib/vivo/__pruebas__/juego-red-falsa";
 
 let red: RedFalsa;
 let almacen: AlmacenFalso;

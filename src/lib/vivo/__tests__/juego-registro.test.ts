@@ -20,8 +20,8 @@ import {
 } from "../juegos/registro";
 import { motorMesa, type EstadoMesa } from "../juegos/mesa";
 import type { Entrada, Registro } from "../juegos/tipos";
-import { buscarMotorJuegos } from "./juego-red-falsa";
-import { entrada, registroDe } from "./juego-utiles";
+import { buscarMotorJuegos } from "@/lib/vivo/__pruebas__/juego-red-falsa";
+import { entrada, registroDe } from "@/lib/vivo/__pruebas__/juego-utiles";
 
 const sentadosAB = (): Entrada[] => [
     entrada("sentar", "ana", { nombre: "Ana" }, 0, 10),

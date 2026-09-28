@@ -7,7 +7,7 @@ import { COLUMNAS_C4, FILAS_C4, filaLibre, lineaDesde, tableroC4Inicial } from "
 import { baseDePartida, motorMesa, type EstadoMesa } from "../juegos/mesa";
 import { lineaGanadora, tableroTresInicial } from "../juegos/tres-en-raya";
 import type { Fin } from "../juegos/tipos";
-import { SENTAR_DOS, entrada, jugarMesa } from "./juego-utiles";
+import { SENTAR_DOS, entrada, jugarMesa } from "@/lib/vivo/__pruebas__/juego-utiles";
 
 const jugarTres = (cel: number[]) =>
     jugarMesa("tres-en-raya", [...SENTAR_DOS, ...cel.map((c, i): [string, string, { c: number }] => ["jugar", i % 2 === 0 ? "ana" : "beto", { c }])]);

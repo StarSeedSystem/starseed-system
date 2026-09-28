@@ -68,10 +68,12 @@ describe("todas las entradas", () => {
         }
     });
 
-    test("solo están disponibles los tipos con sincronía real (os_spaces)", () => {
-        expect(tiposDisponibles().map((e) => e.tipo).sort()).toEqual(["escritorio", "navegador", "pizarra", "sala"]);
-        expect(tiposProximamente().map((e) => e.tipo)).toContain("documento");
-        expect(tiposProximamente().every((e) => !e.disponible)).toBe(true);
+    test("todos los tipos tienen ya un motor que sincroniza de verdad (y cómo crearlo)", () => {
+        expect(tiposDisponibles().map((e) => e.tipo).sort()).toEqual(
+            ["dashboard", "documento", "escena3d", "escritorio", "juego", "navegador", "pizarra", "presentacion", "programa", "sala", "tabla", "xr"],
+        );
+        expect(tiposProximamente()).toEqual([]);
+        for (const e of tiposDisponibles()) expect(typeof e.crear).toBe("function");
     });
 
     test("los espacios no fingen «comentar» ni edición por enlace público", () => {

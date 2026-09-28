@@ -187,9 +187,11 @@ describe("compartirVivo", () => {
     });
 
     test("un tipo no disponible no se comparte y explica por qué", async () => {
-        const r = await compartirVivo({ hiloId: HILO, entrada: CATALOGO_VIVO.documento, titulo: "x", modo: "chat", permiso: "editar" });
+        // Hoy todos los tipos del catálogo están disponibles: se prueba con una entrada apagada a mano.
+        const apagada = { ...CATALOGO_VIVO.documento, disponible: false, motivo: "Aún no está listo." };
+        const r = await compartirVivo({ hiloId: HILO, entrada: apagada, titulo: "x", modo: "chat", permiso: "editar" });
         expect(r.ok).toBe(false);
-        expect(!r.ok && r.error).toBe(CATALOGO_VIVO.documento.motivo);
+        expect(!r.ok && r.error).toBe("Aún no está listo.");
         expect(sesiones.crearSesion).not.toHaveBeenCalled();
     });
 

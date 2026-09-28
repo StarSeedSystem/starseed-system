@@ -17,7 +17,7 @@ vi.mock("@/lib/vivo/juegos/transporte-supabase", () => ({
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
 
 import { INSTANTANEA_VACIA } from "@/lib/vivo/juegos/controlador";
-import { AlmacenFalso, RedFalsa, crearCliente, docInicial } from "@/lib/vivo/__tests__/juego-red-falsa";
+import { AlmacenFalso, RedFalsa, crearCliente, docInicial } from "@/lib/vivo/__pruebas__/juego-red-falsa";
 import { SalaJuegos } from "../sala-juegos";
 
 let red: RedFalsa;
