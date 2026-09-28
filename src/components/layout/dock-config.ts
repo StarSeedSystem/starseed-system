@@ -14,7 +14,7 @@ import {
   Server, Vote, Lightbulb, Cpu, Brain, ShoppingBag, Award, AppWindow,
   CalendarClock, GitBranch, Sparkles, Zap, Wrench, Plug, Eye, HardDrive, Boxes,
   Camera, Images, RadioTower, Antenna, Radio, Rss, AudioLines, Gauge,
-  Smile, FlaskConical, Sunrise,
+  Smile, FlaskConical,
 } from 'lucide-react';
 // Garantía de botones predeterminados con la VERSIÓN DENTRO DEL PAYLOAD
 // (Adenda 149 · tanda 3). El módulo es puro y sin dependencias: lo comparten
@@ -73,9 +73,7 @@ export type DockIconKey =
   // ── Mundo de los avatares (Ola 234) ──
   | 'Smile'
   // ── Laboratorio de Astraura (Ola 237) ──
-  | 'FlaskConical'
-  // ── Inicio sencillo (Ola 381 · INI7) ──
-  | 'Sunrise';
+  | 'FlaskConical';
 
 /**
  * Mapa iconKey → componente de lucide-react. Fuente ÚNICA de verdad: la usan
@@ -89,7 +87,7 @@ export const DOCK_ICON_MAP: Record<DockIconKey, React.ComponentType<{ className?
   Server, Vote, Lightbulb, Cpu, Brain, ShoppingBag, Award, AppWindow,
   CalendarClock, GitBranch, Sparkles, Zap, Wrench, Plug, Eye, HardDrive, Boxes,
   Camera, Images, RadioTower, Antenna, Radio, Rss, AudioLines, Gauge, Smile,
-  FlaskConical, Sunrise,
+  FlaskConical,
 };
 
 /** Icono de respaldo defensivo (DOCK_ICON_MAP es total: no debería usarse). */
@@ -264,8 +262,6 @@ export const DOCK_PRESETS: DockItemConfig[] = [
   // Ola 237: Laboratorio de Astraura — el genoma de nueve capas fásicas, del
   // núcleo ternario 1,58 bits al contexto. Nada escribe en el OS sin confirmación.
   { id: 'laboratorio',   label: 'Laboratorio de Astraura', iconKey: 'FlaskConical', path: '/laboratorio',          color: 'purple',  enabled: true,  origin: 'preset' },
-  // Ola 381 · INI7: la pantalla de inicio sencilla (reloj, clima, avisos…) del perfil.
-  { id: 'inicio',        label: 'Inicio',              iconKey: 'Sunrise',         path: '/inicio',                color: 'emerald', enabled: true,  origin: 'preset' },
 ];
 
 /**
@@ -760,8 +756,16 @@ function persistDockPayload(items: DockItemConfig[], defaultsVersion = DOCK_DEFA
  * último paso de todos los flujos de `loadDockConfig`, para que el resultado
  * que ve la UI y el que queda guardado/sincronizado sean el mismo.
  */
+/** Presets que existieron solo en compilaciones de prueba y ya no son botón del dock
+ *  (2026-09-28: «inicio» pasó a ser la pestaña Inicio de los dashboards). */
+const PRESETS_DE_PRUEBA_RETIRADOS = new Set<string>(['inicio']);
+
 function finalizeDockItems(items: DockItemConfig[], hadSaved: boolean, defaultsVersion: number): DockItemConfig[] {
-  const { payload, changed } = normalizeDockState({ defaultsVersion, items: asItemsLike(items) });
+  const sinRetirados = items.filter((it) => !(PRESETS_DE_PRUEBA_RETIRADOS.has(it.id) && it.origin === 'preset'));
+  const quitados = sinRetirados.length !== items.length;
+  items = sinRetirados;
+  const { payload, changed: cambioNormal } = normalizeDockState({ defaultsVersion, items: asItemsLike(items) });
+  const changed = cambioNormal || quitados;
   const next = asItemsConfig(payload.items);
   // Sin config guardada no se persiste nada: se mantiene el modo «presets vivos»
   // (el catálogo ya trae los botones encendidos) y así un dispositivo recién

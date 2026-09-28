@@ -7,7 +7,7 @@ import { leerPreferencias, resolverPantallaInicial } from "@/lib/inicio/pantalla
 import { activeProfileId } from "@/lib/profiles/profiles";
 import { deviceId } from "@/lib/sync/entity-state";
 
-const RUTAS_INICIO = ["/dashboard", "/inicio", "/escritorios"];
+const RUTAS_INICIO = ["/dashboard", "/escritorios"];
 
 function rutaValida(ruta: string): boolean {
   return RUTAS_INICIO.some((base) => ruta.startsWith(base))

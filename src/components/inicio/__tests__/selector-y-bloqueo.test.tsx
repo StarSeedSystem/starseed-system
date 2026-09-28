@@ -15,12 +15,12 @@ import { leerConfigBloqueo } from "@/lib/bloqueo/politica-bloqueo";
 afterEach(() => { cleanup(); localStorage.clear(); });
 
 describe("SelectorPantallaInicial", () => {
-    it("elegir «Inicio sencillo» lo guarda para el perfil; el buscador filtra páginas", () => {
+    it("elegir «Escritorios» lo guarda para el perfil; el buscador filtra páginas", () => {
         const onGuardado = vi.fn();
         render(<SelectorPantallaInicial ambito="perfil" id="p1" onGuardado={onGuardado} />);
-        fireEvent.click(screen.getByRole("radio", { name: /Inicio sencillo/ }));
-        expect(leerPreferencias().perfiles.p1).toEqual({ tipo: "inicio" });
-        expect(onGuardado).toHaveBeenCalledWith({ tipo: "inicio" });
+        fireEvent.click(screen.getByRole("radio", { name: /Escritorios/ }));
+        expect(leerPreferencias().perfiles.p1).toEqual({ tipo: "escritorios" });
+        expect(onGuardado).toHaveBeenCalledWith({ tipo: "escritorios" });
         fireEvent.click(screen.getByRole("radio", { name: /Otra página/ }));
         fireEvent.change(screen.getByLabelText("Buscar una página"), { target: { value: "mando" } });
         expect(screen.getByRole("button", { name: "Mando" })).toBeTruthy();

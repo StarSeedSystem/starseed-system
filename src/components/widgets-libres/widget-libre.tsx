@@ -91,21 +91,23 @@ export function WidgetLibre({
                 ) : d ? (
                     <svg aria-hidden className="pointer-events-none absolute inset-0 overflow-visible" width={w} height={h} viewBox={`0 0 ${w} ${h}`}>
                         <defs>
-                            <radialGradient id={`cuerpo-${id}`} cx="35%" cy="30%" r="80%">
-                                <stop offset="0%" stopColor={acento} stopOpacity={0.34 * cuerpo} />
-                                <stop offset="70%" stopColor={acento2} stopOpacity={0.12 * cuerpo} />
-                                <stop offset="100%" stopColor={acento2} stopOpacity={0.02} />
-                            </radialGradient>
-                            <linearGradient id={`filo-${id}`} x1="0" y1="0" x2="1" y2="1">
-                                <stop offset="0%" stopColor="#ffffff" stopOpacity={0.55} />
-                                <stop offset="45%" stopColor={acento} stopOpacity={0.25} />
+                            <radialGradient id={`cuerpo-${id}`} cx="32%" cy="24%" r="85%">
+                                <stop offset="0%" stopColor={acento} stopOpacity={0.42 * cuerpo + 0.06} />
+                                <stop offset="55%" stopColor={acento2} stopOpacity={0.16 * cuerpo + 0.04} />
                                 <stop offset="100%" stopColor={acento2} stopOpacity={0.05} />
+                            </radialGradient>
+                            {/* brillo de cristal: la luz entra por arriba y se apaga a media altura */}
+                            <linearGradient id={`brillo-${id}`} x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0%" stopColor="#ffffff" stopOpacity={0.22} />
+                                <stop offset="42%" stopColor="#ffffff" stopOpacity={0.04} />
+                                <stop offset="100%" stopColor="#ffffff" stopOpacity={0} />
                             </linearGradient>
                         </defs>
                         <g transform={ox || oy ? `translate(${ox} ${oy})` : undefined}>
-                            {p.halo === "vivo" && <path d={d} fill={acento} opacity={0.18} style={{ filter: "blur(18px)" }} />}
+                            {p.halo === "vivo" && <path d={d} fill={acento} opacity={0.2} style={{ filter: "blur(22px)" }} />}
                             <path d={d} fill={`url(#cuerpo-${id})`} fillRule="evenodd" />
-                            <path d={d} fill="none" stroke={`url(#filo-${id})`} strokeWidth={1.2} fillRule="evenodd" />
+                            <path d={d} fill={`url(#brillo-${id})`} fillRule="evenodd" />
+                            <path d={d} fill="none" stroke="#ffffff" strokeOpacity={0.16} strokeWidth={1} fillRule="evenodd" />
                         </g>
                     </svg>
                 ) : null}

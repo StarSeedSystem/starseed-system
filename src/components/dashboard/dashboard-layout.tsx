@@ -267,6 +267,38 @@ function generateDefaultDashboards(): { dashboards: Dashboard[], widgetMap: Reco
     return { dashboards, widgetMap };
 }
 
+// (2026-09-28) Completa los tableros PREDETERMINADOS que falten (Política, Educación, Clima…),
+// sin tocar los que existen ni los que la persona borró a propósito. Antes solo se sembraban en
+// el primer arranque o al cambiar DEFAULTS_VERSION: una cuenta cuyo blob remoto (dashboard_state)
+// nació con menos tableros no veía nunca las pestañas temáticas. Devuelve true si añadió alguno.
+const LS_RETIRADOS = 'starseed_dashboards_retirados';
+function leerRetirados(): Set<string> {
+    try { const v = JSON.parse(localStorage.getItem(LS_RETIRADOS) || '[]'); return new Set(Array.isArray(v) ? v : []); } catch { return new Set(); }
+}
+function retirarPredeterminado(categoria: string | null | undefined) {
+    if (!categoria || !DEFAULT_DASHBOARD_TEMPLATES.some((t) => t.categoryId === categoria)) return;
+    const r = leerRetirados(); r.add(categoria);
+    try { localStorage.setItem(LS_RETIRADOS, JSON.stringify([...r])); } catch { /* sin almacén */ }
+}
+function completarPredeterminados(): boolean {
+    const stored = loadDashboards();
+    if (stored.length === 0) return false;
+    const presentes = new Set(stored.map((d) => d.category).filter(Boolean));
+    const retirados = leerRetirados();
+    const faltan = DEFAULT_DASHBOARD_TEMPLATES.filter((t) => !presentes.has(t.categoryId) && !retirados.has(t.categoryId));
+    if (faltan.length === 0) return false;
+    const now = new Date().toISOString();
+    const widgets = loadAllWidgets();
+    const nuevos: Dashboard[] = faltan.map((t) => {
+        const id = crypto.randomUUID();
+        widgets[id] = seedWidgetsFromTemplate(t, id, now);
+        return { id, profile_id: 'local', name: t.name, is_default: false, category: t.categoryId, created_at: now, updated_at: now };
+    });
+    saveDashboards([...stored, ...nuevos]);
+    saveAllWidgets(widgets);
+    return true;
+}
+
 // Re-siembra los dashboards predeterminados con el acomodo más reciente,
 // preservando los tableros que el usuario creó (categorías no predeterminadas).
 // Devuelve la lista combinada y persiste dashboards + widgets + versión.
@@ -484,6 +516,7 @@ export function DashboardLayout() {
     // (BroadcastChannel / storage) como para la sincronización ENTRE DISPOSITIVOS
     // (Supabase realtime, tras volcar el blob remoto a localStorage).
     const rehydrateFromLocal = useCallback(() => {
+        completarPredeterminados();
         const stored = loadDashboards();
         if (stored.length > 0) {
             const sorted = sortDashboards(stored);
@@ -606,6 +639,7 @@ export function DashboardLayout() {
                 return;
             }
 
+            completarPredeterminados();
             const stored = loadDashboards();
             if (stored.length > 0) {
                 const sorted = sortDashboards(stored);
@@ -1154,6 +1188,8 @@ export function DashboardLayout() {
         const ok = await confirm({ title: "Eliminar dashboard", description: "¿Estás seguro de eliminar este dashboard?", destructive: true });
         if (!ok) return;
 
+        // Si era un predeterminado, se recuerda que la persona lo quitó (no se vuelve a sembrar).
+        retirarPredeterminado(dashboards.find((d) => d.id === id)?.category);
         removeWidgetsForDashboard(id);
         // Recalcula desde el estado MÁS reciente (`prev`), no desde el closure previo al
         // `await confirm(...)`: el diálogo async ya NO congela el hilo (a diferencia del
@@ -1288,20 +1324,7 @@ export function DashboardLayout() {
     );
     const totalWidgets = widgets.length;
 
-    // ── Cabecera: saludo contextual (hora + perfil activo) ──────────────────
-    // Se calcula tras el montaje (evita desajuste de hidratación SSR/cliente
-    // por `new Date()`); antes de montar se usa un saludo neutro sin hora.
-    const [greeting, setGreeting] = useState("Hola");
-    useEffect(() => {
-        const update = () => {
-            const h = new Date().getHours();
-            setGreeting(h < 6 ? "Buenas noches" : h < 13 ? "Buenos días" : h < 20 ? "Buenas tardes" : "Buenas noches");
-        };
-        update();
-        const id = setInterval(update, 15 * 60 * 1000); // refresca cada 15 min
-        return () => clearInterval(id);
-    }, []);
-    const greetingName = activeProfile?.displayName?.split(" ")[0] || null;
+    // (2026-09-28) Sin saludo en la cabecera: Alex pidió quitar «Buenas tardes».
 
     // --- Customizable Sidebar Computed Properties ---
     const isVertical = useMemo(() => sidebarConfig.position === 'left' || sidebarConfig.position === 'right', [sidebarConfig.position]);

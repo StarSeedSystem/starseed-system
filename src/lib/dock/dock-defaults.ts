@@ -86,7 +86,7 @@ export const DOCK_DEFAULTS_VERSION = 21;
  * todas las neuronas y perfiles existentes — solo la versión, que viaja dentro
  * del payload sincronizado, llega a las cuentas viejas.
  */
-export const DOCK_DEFAULT_ON_IDS = ['senales', 'red-feed', 'imaginacion', 'voces', 'mando', 'mundo-avatares', 'laboratorio', 'canales', 'inicio'] as const;
+export const DOCK_DEFAULT_ON_IDS = ['senales', 'red-feed', 'imaginacion', 'voces', 'mando', 'mundo-avatares', 'laboratorio', 'canales'] as const;
 
 /**
  * Forma mínima de un item del dock para ESTE módulo. Deliberadamente laxa

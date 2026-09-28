@@ -59,7 +59,8 @@ export function resolverPantallaInicial({
   rutaValida: (ruta: string) => boolean;
 }): string {
   const pref = neurona ?? perfil ?? preferenciaDefecto;
-  if (pref.tipo === "inicio") return "/inicio";
+  // (2026-09-28) «inicio» ya no es una página: es la pestaña Inicio de los dashboards.
+  if (pref.tipo === "inicio") return "/dashboard";
   if (pref.tipo === "escritorios") return "/escritorios";
   if (pref.tipo === "dashboard") {
     return pref.dashboardId

@@ -42,7 +42,7 @@ describe("pantalla inicial", () => {
       perfil: { tipo: "escritorios" },
       neurona: { tipo: "inicio" },
       rutaValida,
-    })).toBe("/inicio");
+    })).toBe("/dashboard"); // «inicio» es la pestaña Inicio de los dashboards
     expect(resolverPantallaInicial({
       perfil: { tipo: "escritorios" },
       rutaValida,

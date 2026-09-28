@@ -12,7 +12,8 @@ import { WeatherLocationProvider, useWeatherLocationOpcional } from "@/modules/w
 import { fetchWeatherData, MOCK_WEATHER_DATA } from "@/lib/weather-mock";
 import { useWidgetProvider } from "@/components/dashboard/widgets/widget-data-source-control";
 import type { TipoForma } from "@/lib/widgets/forma/formas";
-import { Rotulo, SinDato, disenoDe } from "./comun";
+import { Rotulo, SinDato, disenoDe, useAhora } from "./comun";
+import { LunaSVG, useCieloAqui, type CieloAqui } from "./celeste";
 
 export type Cielo = "sol" | "luna" | "nubes" | "lluvia" | "tormenta" | "nieve" | "niebla";
 
@@ -60,6 +61,30 @@ function Particulas({ cielo }: { cielo: Cielo }) {
     );
 }
 
+/** El astro real que corresponde: de noche, la Luna con su fase (asomando tras las nubes si las
+ *  hay); de día despejado, el Sol más alto o más bajo según su altura real. */
+function Astro({ cielo, estado, lado, id }: { cielo: CieloAqui | null; estado: Cielo; lado: number; id: string }) {
+    if (!cielo) return null;
+    const deNoche = cielo.altura !== null ? cielo.altura < -2 : estado === "luna";
+    const tapado = estado !== "sol" && estado !== "luna";
+    if (deNoche) {
+        const r = lado * (tapado ? 0.09 : 0.14);
+        return (
+            <svg aria-hidden className="pointer-events-none absolute" style={{ right: "14%", top: "12%", opacity: tapado ? 0.55 : 1 }} width={r * 2.4} height={r * 2.4} viewBox={`${-r * 1.2} ${-r * 1.2} ${r * 2.4} ${r * 2.4}`}>
+                <LunaSVG r={r} fase={cielo.luna} id={id} />
+            </svg>
+        );
+    }
+    if (estado !== "sol" || cielo.altura === null) return null;
+    const alto = Math.max(0, Math.min(1, cielo.altura / 60));
+    return (
+        <span aria-hidden className="ss-respirar pointer-events-none absolute rounded-full" style={{
+            ["--ss-dur" as string]: "6s", right: "14%", top: `${26 - alto * 16}%`, width: lado * 0.2, height: lado * 0.2,
+            background: "radial-gradient(circle, #fffbe8 0 22%, #ffd27a 38%, #FFBF0088 55%, transparent 72%)",
+        }} />
+    );
+}
+
 function OlaHoras({ temps, color }: { temps: number[]; color: string }) {
     if (temps.length < 2) return null;
     const min = Math.min(...temps), max = Math.max(...temps), W = 100, H = 30;
@@ -76,6 +101,9 @@ function OlaHoras({ temps, color }: { temps: number[]; color: string }) {
 function ClimaInterno({ widgetId }: { widgetId: string }) {
     const ctx = useWeatherLocationOpcional();
     const { providerId } = useWidgetProvider(widgetId, "weather");
+    const ahora = useAhora(60_000);
+    const astros = useCieloAqui(ahora);
+    const idAstro = React.useId().replace(/:/g, "");
     const [estado, setEstado] = React.useState<{ datos: any; real: boolean; ejemplo: boolean } | null>(null);
     const lat = ctx?.location.lat, lon = ctx?.location.lon;
     React.useEffect(() => {
@@ -96,8 +124,9 @@ function ClimaInterno({ widgetId }: { widgetId: string }) {
 
     return (
         <WidgetLibre forma={esc.forma} acento={esc.a} acento2={esc.b} etiqueta={temp !== null ? `Clima en ${lugar}: ${temp}°, ${esc.nombre}` : "Clima"} semilla={lugar || "clima"}>
-            {({ clase }) => {
+            {({ clase, ancho, alto }) => {
                 const { base: b } = disenoDe(clase);
+                const lado = Math.min(ancho, alto);
                 if (!estado) return <SinDato texto="leyendo el cielo…" />;
                 if (temp === null || !cielo) return <SinDato texto="sin dato del clima" />;
                 const d = estado.datos?.daily, horas: number[] = (estado.datos?.hourly?.temperature_2m ?? []).slice(0, 12);
@@ -105,6 +134,7 @@ function ClimaInterno({ widgetId }: { widgetId: string }) {
                 return (
                     <div className="relative flex h-full w-full flex-col items-center justify-center gap-1 px-3 text-center text-white">
                         {b !== "micro" && <Particulas cielo={cielo} />}
+                        {b !== "micro" && <Astro cielo={astros} estado={cielo} lado={lado} id={idAstro} />}
                         <span className={`${tamTemp} ss-flotar relative font-extralight tabular-nums`}>{temp}°</span>
                         {b !== "micro" && <Rotulo color={esc.b}>{esc.nombre}</Rotulo>}
                         {(b === "m" || b === "l" || b === "xl") && (
@@ -115,6 +145,13 @@ function ClimaInterno({ widgetId }: { widgetId: string }) {
                             </div>
                         )}
                         {(b === "l" || b === "xl") && <div className="relative w-4/5"><OlaHoras temps={horas} color={esc.a} /></div>}
+                        {(b === "l" || b === "xl") && astros && (
+                            <span className="relative text-[11px] text-white/75">
+                                {astros.orto && <>↑ {astros.orto.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })} · </>}
+                                {astros.ocaso && <>↓ {astros.ocaso.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })} · </>}
+                                {astros.luna.nombre} {Math.round(astros.luna.iluminada * 100)} %
+                            </span>
+                        )}
                         {b === "xl" && Array.isArray(d?.time) && (
                             <div className="relative flex gap-3 pt-1">
                                 {d.time.slice(1, 5).map((dia: string, i: number) => (

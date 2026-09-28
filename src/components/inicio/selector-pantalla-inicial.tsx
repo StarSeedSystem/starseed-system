@@ -2,20 +2,19 @@
 /**
  * Selector de pantalla inicial (Ola 381 · INI5): lo primero que se ve al abrir StarSeed, por
  * PERFIL o por NEURONA (la neurona manda sobre el perfil). Cuatro formas en vez de una lista:
- * el dashboard principal (recomendado), el inicio sencillo, los escritorios u otra página
+ * los dashboards (pestaña Inicio, recomendado), los escritorios u otra página
  * cualquiera del OS (catálogo de apps con ruta propia).
  */
 import * as React from "react";
-import { Check, LayoutDashboard, Monitor, Search, Sparkles, Sun } from "lucide-react";
+import { Check, LayoutDashboard, Monitor, Search, Sparkles } from "lucide-react";
 import { WidgetLibre } from "@/components/widgets-libres/widget-libre";
 import type { TipoForma } from "@/lib/widgets/forma/formas";
 import { APP_CATALOG } from "@/components/dashboard/apps/app-catalog";
 import { guardarPreferencia, leerPreferencias, type PreferenciaInicio } from "@/lib/inicio/pantalla-inicial";
 
-type Opcion = "dashboard" | "inicio" | "escritorios" | "ruta";
-const OPCIONES: { id: Opcion; titulo: string; nota: string; forma: TipoForma; acento: string; Icono: typeof Sun }[] = [
-    { id: "dashboard", titulo: "Mi dashboard principal", nota: "Recomendado", forma: "hexagono", acento: "#7c5cff", Icono: LayoutDashboard },
-    { id: "inicio", titulo: "Inicio sencillo", nota: "Hora, clima y avisos", forma: "orbe", acento: "#23d5ab", Icono: Sun },
+type Opcion = "dashboard" | "escritorios" | "ruta";
+const OPCIONES: { id: Opcion; titulo: string; nota: string; forma: TipoForma; acento: string; Icono: typeof Monitor }[] = [
+    { id: "dashboard", titulo: "Mis dashboards", nota: "Pestaña Inicio · recomendado", forma: "hexagono", acento: "#7c5cff", Icono: LayoutDashboard },
     { id: "escritorios", titulo: "Escritorios", nota: "Ventanas e iconos", forma: "capsula", acento: "#007FFF", Icono: Monitor },
     { id: "ruta", titulo: "Otra página…", nota: "Cualquier app del OS", forma: "estrella", acento: "#FFBF00", Icono: Sparkles },
 ];
@@ -43,7 +42,7 @@ export function SelectorPantallaInicial({ ambito, id, onGuardado }: { ambito: "p
 
     return (
         <div className="flex flex-col gap-3">
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4" role="radiogroup" aria-label="Pantalla al abrir StarSeed">
+            <div className="grid grid-cols-3 gap-3" role="radiogroup" aria-label="Pantalla al abrir StarSeed">
                 {OPCIONES.map((o) => {
                     const activa = actual.tipo === o.id;
                     return (

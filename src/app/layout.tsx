@@ -199,17 +199,18 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="es" className="dark" suppressHydrationWarning>
+    // Las variables de next/font (--font-inter, …) viven en <html>, no en <body>: AppearanceProvider
+    // y theme-engine escriben `--font-body: var(--font-inter)` en el ELEMENTO RAÍZ, y un var() se
+    // resuelve donde se declara. Con las variables en <body>, en <html> no existían, --font-body
+    // quedaba inválida y TODO el OS se pintaba en Times (medido el 2026-09-28 en localhost:9002).
+    <html
+      lang="es"
+      className={cn("dark", fontInter.variable, fontRoboto.variable, fontOutfit.variable, fontHeadline.variable, fontCode.variable)}
+      suppressHydrationWarning
+    >
       <body
         suppressHydrationWarning
-        className={cn(
-          "min-h-screen bg-background font-body antialiased",
-          fontInter.variable,
-          fontRoboto.variable,
-          fontOutfit.variable,
-          fontHeadline.variable,
-          fontCode.variable
-        )}
+        className="min-h-screen bg-background font-body antialiased"
       >
         {/* Salto de accesibilidad: PRIMER elemento focusable del documento.
             Invisible salvo con foco de teclado; lleva al landmark #main-content. */}

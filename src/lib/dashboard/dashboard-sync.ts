@@ -46,9 +46,12 @@ const LS_ORDER = "dashboard_order";
 // migrada por la cuenta y no dispara una re-siembra local espuria antes de
 // que llegue la hidratación (ver reseedDefaultDashboards en dashboard-layout).
 const LS_DEFAULTS_VERSION = "starseed_defaults_version";
+// (2026-09-28) Categorías predeterminadas que la persona BORRÓ a propósito: viajan con la cuenta
+// para que «completar los predeterminados que faltan» no las resucite en otro dispositivo.
+const LS_RETIRADOS = "starseed_dashboards_retirados";
 
 /** Claves que componen el blob de estado completo del dashboard. */
-const LS_KEYS = [LS_DASHBOARDS, LS_WIDGETS, LS_ORDER, LS_DEFAULTS_VERSION] as const;
+const LS_KEYS = [LS_DASHBOARDS, LS_WIDGETS, LS_ORDER, LS_DEFAULTS_VERSION, LS_RETIRADOS] as const;
 type LsKey = (typeof LS_KEYS)[number];
 
 /** Nombre de la tabla dedicada (realtime-enabled). */

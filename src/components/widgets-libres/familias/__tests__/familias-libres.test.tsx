@@ -58,8 +58,8 @@ import { AstrauraLibre } from "../astraura-libre";
 beforeEach(() => { tam("m"); });
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
 
-describe("Reloj libre", () => {
-    it("micro es solo la hora; m añade la fecha y el cielo", () => {
+describe("Reloj celeste", () => {
+    it("micro es la hora (y la Luna); m añade la fecha y los signos del Sol y la Luna", () => {
         tam("micro");
         const { unmount } = render(<RelojLibre />);
         expect(screen.getByText(/^\d{2}:\d{2}$/)).toBeTruthy();
@@ -68,14 +68,17 @@ describe("Reloj libre", () => {
         tam("m");
         render(<RelojLibre />);
         expect(screen.getByText(/ de /)).toBeTruthy();
-        expect(screen.getByText(/amanecer|día|atardecer|noche/)).toBeTruthy();
+        expect(screen.getByTitle(/^Sol en /)).toBeTruthy();
+        expect(screen.getByTitle(/^Luna en /)).toBeTruthy();
+        expect(screen.getByRole("group").getAttribute("aria-label")).toMatch(/Luna|luna/);
     });
-    it("l enseña la otra zona y cambia a analógico con los mismos ajustes", () => {
-        tam("l");
+    it("xl enseña la fase, las otras zonas y cambia a agujas con los mismos ajustes", () => {
+        tam("xl");
         const ajustes = vi.fn();
         render(<RelojLibre widget={{ settings: { clockZones: ["Asia/Tokyo"] } } as any} onUpdateSettings={ajustes} />);
-        expect(screen.getByText("Tokio")).toBeTruthy();
-        fireEvent.click(screen.getByRole("button", { name: "Analógico" }));
+        expect(screen.getByText(/Tokio \d{2}:\d{2}/)).toBeTruthy();
+        expect(screen.getByText(/%.*(llena|nueva) en/)).toBeTruthy();
+        fireEvent.click(screen.getByRole("button", { name: "Agujas" }));
         expect(ajustes).toHaveBeenCalledWith({ clockMode: "analog" });
     });
 });

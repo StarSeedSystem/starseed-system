@@ -1,9 +1,7 @@
-// /inicio — la pantalla de inicio sencilla del perfil (Ola 381 · INI3).
-import type { Metadata } from "next";
-import { PantallaInicio } from "@/components/inicio/pantalla-inicio";
-
-export const metadata: Metadata = { title: "Inicio" };
+// (2026-09-28) El inicio NO es una página aparte: es la pestaña «Inicio» de los dashboards, con
+// los mismos widgets. Quien llegue aquí (un enlace viejo) va al dashboard.
+import { redirect } from "next/navigation";
 
 export default function InicioPage() {
-    return <PantallaInicio />;
+    redirect("/dashboard");
 }
