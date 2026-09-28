@@ -4,29 +4,19 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Dashboard, DashboardWidget, WidgetType } from "./dashboard-types";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { 
-    Plus, Settings, LayoutGrid, Star, ArrowLeft, ArrowRight, Trash2, Search, 
-    Sparkles, Maximize2, Minimize2, User, Cpu, Shield, Globe, Database, 
-    Sliders, RefreshCw, Hammer, Compass, HardDrive, Lock, Zap, Wifi, Play, HelpCircle,
-    Palette, X, MapPin, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Eye, EyeOff, ArrowUp, ArrowDown, Settings2, MonitorSmartphone, Info
-} from "lucide-react";
-import { GridArea } from "./grid-area";
+import { Search, Cpu, Wifi } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { useConfirm } from "@/components/ui/confirm-dialog";
-import { AddWidgetDialog } from "./add-widget-dialog";
 import { WidgetForgeDialog } from "./widget-forge/widget-forge-dialog";
 import { WeatherLocationProvider } from "@/modules/weather/context/weather-location-context";
 import { DEFAULT_DASHBOARD_TEMPLATES, ALL_DASHBOARD_TEMPLATES, type DefaultDashboardTemplate } from "./dashboard-defaults";
-import { WIDGET_CATEGORIES, getCategoryById } from "./widget-categories";
+import { getCategoryById } from "./widget-categories";
 import { cn } from "@/lib/utils";
-import styles from "./dashboard-tabs.module.css";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Slider } from "@/components/ui/slider";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { useUserContext } from "@/context/user-context";
 import { useAccount } from "@/context/account-context";
 import { useAppearance } from "@/context/appearance-context";
@@ -34,7 +24,6 @@ import { curatedPresets } from "@/lib/themes/curated-presets";
 
 import { WorkspaceProvider } from "./dashboard-workspace-context";
 import { DashboardWorkspaceRenderer } from "./dashboard-workspace-renderer";
-import { DashboardAiSuggestions } from "./dashboard-ai-suggestions";
 // Permisos universales (Adenda 63 §5): opción "Compartir" del menú del tablero.
 import { ShareAccessDialog } from "@/components/sharing/share-access-dialog";
 
@@ -60,6 +49,24 @@ import {
     mergeIntoLocal,
     collectLocal,
 } from "@/lib/dashboard/dashboard-sync";
+
+// ── Editor superior (2026-09-28): el editor que se desplegaba desde la IZQUIERDA vive ahora
+// ARRIBA, acoplado bajo la barra de pestañas de los dashboards. Ver editor-superior/. ──
+import { EditorSuperior } from "./editor-superior/editor-superior";
+import type { AccionesEditor, AspectoPestana, DashboardConAspecto, EstiloBarra, GrupoEditor, OpcionesAnadir, TallaEditor } from "./editor-superior/tipos";
+import { GRUPOS_EDITOR } from "./editor-superior/tipos";
+import { dimsTalla, TALLAS_EDITOR } from "./editor-superior/tallas";
+import { colocarEmpujando, mejorHueco } from "./editor-superior/acomodo";
+import {
+    deshacer as deshacerHistorial,
+    historialVacio,
+    registrar as registrarHistorial,
+    rehacer as rehacerHistorial,
+    type Historial,
+} from "./editor-superior/historial";
+import type { PropsSistema } from "./editor-superior/panel-sistema";
+import { ADD_WIDGET_SIZE_HINT_EVENT, type AddWidgetSizeHintDetail } from "./dashboard-size";
+import { getManifest } from "./widget-manifest";
 
 // ── LocalStorage Keys ────────────────────────────────────────────
 const LS_DASHBOARDS = 'starseed_dashboards';
@@ -126,60 +133,11 @@ interface UserProfile {
 // sesión soberana (useAccount → profiles/cafe_profiles vía Supabase).
 const PROFILES: UserProfile[] = [];
 
-const BUTTON_LABELS: Record<string, string> = {
-    add: "Añadir Pestaña (nuevo panel)",
-    panel: "Configurar Panel Actual",
-    devices: "Dispositivos y Grupos",
-    profiles: "Selector de Perfiles",
-    memory: "Memoria Local",
-    ai: "Servicio de IA Exocórtex",
-    connections: "Conexiones",
-    themes: "Temas Rápidos",
-    servers: "Internet / VPN",
-    location: "Selector de Ubicación",
-    forge: "Forjar Widget",
-    edit: "Modo Edición",
-    fullscreen: "Pantalla Completa",
-    settings: "Ajustes de Menú"
-};
-
-// ── Acciones compactas con título + información ─────────────────
-// Patrón genérico: cada botón compacto del panel declara aquí su título
-// (se muestra como texto junto al icono cuando cabe) y una descripción
-// que SIEMPRE queda accesible desde el affordance "i" (popover). Para dar
-// título+info a un botón nuevo basta con añadir su definición a este array.
-const TAB_ACTION_DEFS: ReadonlyArray<{ id: string; title: string; info: string }> = [
-    { id: "add", title: "Añadir pestaña", info: "Crea un nuevo tablero de widgets." },
-    { id: "panel", title: "Configurar panel", info: "Renombra este tablero y sus opciones." },
-    { id: "devices", title: "Dispositivos y grupos", info: "Etiqueta o agrupa pestañas por dispositivo y sincronízalas." },
-    { id: "edit", title: "Editar widgets", info: "Mueve, redimensiona, quita o añade widgets." },
-];
-const getTabActionDef = (id: string) => TAB_ACTION_DEFS.find((d) => d.id === id);
-
-// Orden canónico del menú de pestañas del dashboard. Los tres primeros son
-// acciones de pestañas (añadir panel, configurar el panel actual y el gestor
-// de dispositivos/grupos): acceso visible y compacto junto a las herramientas.
-const BUTTON_ORDER_DEFAULT = [
-    "add", "panel", "devices", "divider",
-    "profiles", "memory", "ai", "connections", "themes", "servers",
-    "divider2", "location", "forge", "edit", "fullscreen", "settings"
-];
-
-// Fusiona el orden guardado en localStorage con el canónico: conserva el
-// acomodo del usuario y añade los botones nuevos que falten (las acciones de
-// pestañas al frente; el resto al final). Las instalaciones existentes
-// reciben así los controles nuevos sin perder su personalización.
-function mergeButtonOrder(saved: unknown): string[] {
-    if (!Array.isArray(saved) || saved.length === 0) return BUTTON_ORDER_DEFAULT;
-    const savedIds = saved.filter((b): b is string => typeof b === "string");
-    const missing = BUTTON_ORDER_DEFAULT.filter(
-        (id) => !id.startsWith("divider") && !savedIds.includes(id)
-    );
-    if (missing.length === 0) return savedIds;
-    const front = missing.filter((id) => ["add", "panel", "devices"].includes(id));
-    const tail = missing.filter((id) => !front.includes(id));
-    return [...front, ...(front.length > 0 ? ["divider0"] : []), ...savedIds, ...tail];
-}
+// Preferencias del editor superior en ESTE navegador (cuadrícula visible). El estilo de la barra
+// sigue en la clave de la antigua barra lateral (`theme`) para no perder la elección guardada.
+const LS_EDITOR = 'starseed.dashboard.editor.v1';
+const LS_BARRA = 'starseed_sidebar_config_v1';
+const ESTILOS_BARRA: readonly EstiloBarra[] = ['liquid-crystal', 'cyber-neon', 'aurora-minimal'];
 
 // ── LocalStorage Helpers ─────────────────────────────────────────
 function loadDashboards(): Dashboard[] {
@@ -353,31 +311,19 @@ export function DashboardLayout() {
         try { setShowBuildBadge(localStorage.getItem("starseed.debug") === "1"); } catch { /* noop */ }
     }, []);
 
-    // --- Side Toolbar / Panel State ---
-    const [activeToolbarTab, setActiveToolbarTab] = useState<string | null>(null);
-    const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-
-    // --- Customizable Sidebar State ---
-    const [sidebarConfig, setSidebarConfig] = useState<{
-        position: 'left' | 'right' | 'top' | 'bottom';
-        theme: 'liquid-crystal' | 'cyber-neon' | 'aurora-minimal';
-        buttonOrder: string[];
-        hiddenButtons: string[];
-    }>({
-        position: 'left',
-        theme: 'liquid-crystal',
-        buttonOrder: BUTTON_ORDER_DEFAULT,
-        hiddenButtons: []
-    });
-
-    // ── Carril de pestañas: detección de desborde (activa scroll + fades) ──
-    const railRef = useRef<HTMLDivElement | null>(null);
-    const [railOverflow, setRailOverflow] = useState(false);
-
-    const saveSidebarConfig = useCallback((newConfig: typeof sidebarConfig) => {
-        setSidebarConfig(newConfig);
-        localStorage.setItem('starseed_sidebar_config_v1', JSON.stringify(newConfig));
-    }, []);
+    // --- Editor superior (2026-09-28) ---
+    // Grupo abierto del editor (Widgets · Acomodo · Pestaña · Apariencia · Plantillas · Sistema).
+    const [grupoEditor, setGrupoEditor] = useState<GrupoEditor | null>(null);
+    const [cuadricula, setCuadricula] = useState(false);
+    const [estiloBarra, setEstiloBarra] = useState<EstiloBarra>('liquid-crystal');
+    // Pedido de enfocar un tablero en el panel del editor (tras crearlo o duplicarlo).
+    const [solicitudFoco, setSolicitudFoco] = useState<{ id: string; n: number } | null>(null);
+    // Contadores de re-render: widgets guardados de otros tableros e historial de deshacer.
+    const [versionWidgets, setVersionWidgets] = useState(0);
+    const [, setVersionHistorial] = useState(0);
+    const historialesRef = useRef(new Map<string, Historial<DashboardWidget[]>>());
+    // Pista de tamaño del selector clásico (evento ADD_WIDGET_SIZE_HINT_EVENT, antes sin oyente).
+    const pistaTallaRef = useRef<{ type: WidgetType; size: TallaEditor; at: number } | null>(null);
 
     const [activeProfile, setActiveProfile] = useState<UserProfile | null>(PROFILES[0] ?? null);
     
@@ -441,8 +387,7 @@ export function DashboardLayout() {
         vercel: true
     });
 
-    // Curated themes sort
-    const [themeSort, setThemeSort] = useState<"recent" | "custom">("recent");
+    // Temas curados aplicados recientemente (filtro «Recientes» del panel Apariencia).
     const [recentThemes, setRecentThemes] = useState<string[]>(["Tokyo Midnight", "Solarpunk Aurora"]);
 
     // Server Selection and VPN
@@ -481,34 +426,6 @@ export function DashboardLayout() {
 
     const { toast } = useToast();
     const confirm = useConfirm();
-
-    // Respeta prefers-reduced-motion en las animaciones del menú de pestañas.
-    const shouldReduceMotion = useReducedMotion();
-
-    // ── Carril de pestañas: mide si los botones desbordan el espacio disponible.
-    // Solo entonces se activan el scroll oculto y los fades de los extremos
-    // (así, cuando todo cabe, ningún botón queda desvanecido ni recortado).
-    useEffect(() => {
-        if (typeof window === "undefined") return;
-        const el = railRef.current;
-        if (!el) { setRailOverflow(false); return; }
-        const vertical = sidebarConfig.position === 'left' || sidebarConfig.position === 'right';
-        const measure = () => {
-            setRailOverflow(
-                vertical
-                    ? el.scrollHeight > el.clientHeight + 1
-                    : el.scrollWidth > el.clientWidth + 1
-            );
-        };
-        measure();
-        let ro: ResizeObserver | null = null;
-        try { ro = new ResizeObserver(measure); ro.observe(el); } catch { /* opcional */ }
-        window.addEventListener("resize", measure, { passive: true });
-        return () => {
-            try { ro?.disconnect(); } catch { /* noop */ }
-            window.removeEventListener("resize", measure);
-        };
-    }, [isSidebarOpen, sidebarConfig.position, sidebarConfig.buttonOrder, sidebarConfig.hiddenButtons]);
 
     // ── Re-hidratación desde localStorage (fuente de verdad local) ──────────────
     // Relee la lista de tableros y los widgets del tablero activo desde
@@ -555,23 +472,17 @@ export function DashboardLayout() {
             try { setSelectedServers(JSON.parse(storedServers)); } catch {}
         }
 
-        // Load sidebar config
+        // Estilo de la barra del editor (heredado del «Diseño estético» de la antigua barra
+        // lateral) y cuadrícula visible: preferencias de este navegador.
         try {
-            const raw = localStorage.getItem('starseed_sidebar_config_v1');
-            if (raw) {
-                const parsed = JSON.parse(raw);
-                setSidebarConfig({
-                    position: parsed.position || 'left',
-                    theme: parsed.theme || 'liquid-crystal',
-                    // Fusión con el orden canónico: las configs antiguas reciben
-                    // los controles nuevos (añadir pestaña / panel / dispositivos).
-                    buttonOrder: mergeButtonOrder(parsed.buttonOrder),
-                    hiddenButtons: parsed.hiddenButtons || []
-                });
-            }
-        } catch (e) {
-            console.error("Error loading sidebar config:", e);
-        }
+            const raw = localStorage.getItem(LS_BARRA);
+            const tema = raw ? JSON.parse(raw)?.theme : null;
+            if (ESTILOS_BARRA.includes(tema)) setEstiloBarra(tema);
+        } catch { /* sin almacén */ }
+        try {
+            const ed = JSON.parse(localStorage.getItem(LS_EDITOR) || '{}');
+            if (typeof ed?.cuadricula === 'boolean') setCuadricula(ed.cuadricula);
+        } catch { /* sin almacén */ }
     }, []);
 
     // ── Edición de ajustes de widgets ──────────────────────────────
@@ -762,12 +673,6 @@ export function DashboardLayout() {
         return () => clearTimeout(timer);
     }, []);
 
-    // Al entrar en pantalla completa, oculta la barra lateral de ajustes
-    // (se conserva el botón de expansión para volver a mostrarla).
-    useEffect(() => {
-        if (isFullscreen) setIsSidebarOpen(false);
-    }, [isFullscreen]);
-
     // ── Listen for forge open or fullscreen events ─────────────
     useEffect(() => {
         const forgeHandler = () => setIsForgeOpen(true);
@@ -953,9 +858,6 @@ export function DashboardLayout() {
                 if (next !== visible) {
                     titleVisibleRef.current = next;
                     setIsTitleVisible(next);
-                    // La barra lateral de ajustes se oculta/auto-revela junto con el
-                    // título (es overlay fijo; solo su carril de padding es en flujo).
-                    setIsSidebarOpen(next);
                 }
             });
         };
@@ -1010,23 +912,94 @@ export function DashboardLayout() {
         toast({ title: "Tableros restablecidos", description: "Se aplicó el acomodo predeterminado más reciente." });
     };
 
-    // Add Widget
-    const handleAddWidget = (dashboardId: string, type: WidgetType) => {
-        const y = widgets.length > 0 ? Math.max(...widgets.map(w => w.layout.y + w.layout.h)) : 0;
+    // ── Widgets de un tablero: lectura, guardado e historial (editor superior) ──
+    // Todo cambio de widgets pasa por aquí: se guarda en SU tablero (localStorage → difusión entre
+    // pestañas → cuenta) y, salvo que se pida lo contrario, apunta la foto anterior para Deshacer.
+    // Antes los cambios de la rejilla (mover, redimensionar, quitar) no se guardaban, y cambiar
+    // de pestaña no cambiaba el tablero activo: «añadir widget» podía escribir en otro tablero.
+    // El almacén es la fuente de verdad (se escribe SIEMPRE antes que el estado): leer de ahí
+    // evita el instante en que el tablero activo ya cambió y `widgets` aún es el anterior.
+    const widgetsDe = useCallback(
+        (id: string): DashboardWidget[] => loadWidgetsForDashboard(id),
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [widgets, versionWidgets],
+    );
 
-        const newWidget: DashboardWidget = {
+    const guardarWidgetsDe = useCallback((id: string, next: DashboardWidget[]) => {
+        saveWidgetsForDashboard(id, next);
+        if (id === activeDashboardId) setWidgets(next);
+        setVersionWidgets((v) => v + 1);
+    }, [activeDashboardId]);
+
+    const aplicarWidgets = useCallback((id: string, next: DashboardWidget[], opciones?: { registrar?: boolean }) => {
+        const previos = widgetsDe(id);
+        if (opciones?.registrar !== false && JSON.stringify(previos) !== JSON.stringify(next)) {
+            const h = historialesRef.current.get(id) ?? historialVacio<DashboardWidget[]>();
+            historialesRef.current.set(id, registrarHistorial(h, previos));
+            setVersionHistorial((v) => v + 1);
+        }
+        guardarWidgetsDe(id, next);
+    }, [widgetsDe, guardarWidgetsDe]);
+
+    const deshacerEn = useCallback((id: string) => {
+        const r = deshacerHistorial(historialesRef.current.get(id) ?? historialVacio<DashboardWidget[]>(), widgetsDe(id));
+        if (!r) return;
+        historialesRef.current.set(id, r.historial);
+        setVersionHistorial((v) => v + 1);
+        guardarWidgetsDe(id, r.valor);
+    }, [widgetsDe, guardarWidgetsDe]);
+
+    const rehacerEn = useCallback((id: string) => {
+        const r = rehacerHistorial(historialesRef.current.get(id) ?? historialVacio<DashboardWidget[]>(), widgetsDe(id));
+        if (!r) return;
+        historialesRef.current.set(id, r.historial);
+        setVersionHistorial((v) => v + 1);
+        guardarWidgetsDe(id, r.valor);
+    }, [widgetsDe, guardarWidgetsDe]);
+
+    // El selector clásico avisa del tamaño elegido justo antes de añadir (antes nadie lo oía).
+    useEffect(() => {
+        const alPista = (e: Event) => {
+            const d = (e as CustomEvent<AddWidgetSizeHintDetail>).detail;
+            if (d?.type && d.size) pistaTallaRef.current = { type: d.type, size: d.size, at: Date.now() };
+        };
+        window.addEventListener(ADD_WIDGET_SIZE_HINT_EVENT, alPista);
+        return () => window.removeEventListener(ADD_WIDGET_SIZE_HINT_EVENT, alPista);
+    }, []);
+
+    // Add Widget — con talla (micro · S · M · L · XL · panorámico · torre) y, si se soltó desde el
+    // catálogo, en esa celda empujando lo que choque; si no, en el mejor hueco libre.
+    const handleAddWidget = (dashboardId: string, type: WidgetType, opciones?: OpcionesAnadir) => {
+        const actuales = widgetsDe(dashboardId);
+        let talla: TallaEditor = opciones?.talla ?? "M";
+        if (!opciones) {
+            const pista = pistaTallaRef.current;
+            if (pista && pista.type === type && Date.now() - pista.at < 3000) talla = pista.size;
+            pistaTallaRef.current = null;
+        }
+        const d = dimsTalla(type, talla);
+        const nuevo: DashboardWidget = {
             id: crypto.randomUUID(),
             dashboard_id: dashboardId,
             widget_type: type as any,
-            layout: { x: 0, y, w: 4, h: 4, i: crypto.randomUUID() },
+            layout: { x: 0, y: 0, w: d.w, h: d.h, i: crypto.randomUUID() },
             settings: {},
+            size: d.size,
             created_at: new Date().toISOString(),
         };
-
-        const updated = [...widgets, newWidget];
-        setWidgets(updated);
-        saveWidgetsForDashboard(dashboardId, updated);
-        toast({ title: "Widget añadido", description: "Personaliza su posición en el modo edición." });
+        let updated: DashboardWidget[];
+        if (opciones?.posicion) {
+            const x = Math.max(0, Math.min(12 - d.w, Math.round(opciones.posicion.x)));
+            const y = Math.max(0, Math.round(opciones.posicion.y));
+            updated = colocarEmpujando(actuales, { ...nuevo, layout: { ...nuevo.layout, x, y } });
+        } else {
+            const hueco = mejorHueco(actuales, d.w, d.h);
+            updated = [...actuales, { ...nuevo, layout: { ...nuevo.layout, ...hueco } }];
+        }
+        aplicarWidgets(dashboardId, updated);
+        const nombre = getManifest(type)?.label ?? type.replace(/_/g, " ").toLowerCase();
+        const etiquetaTalla = TALLAS_EDITOR.find((t) => t.id === talla)?.etiqueta ?? talla;
+        toast({ title: "Widget añadido", description: `${nombre} · ${etiquetaTalla}. Puedes deshacerlo desde el editor.` });
     };
 
     // Add AI-Generated Widget
@@ -1039,13 +1012,14 @@ export function DashboardLayout() {
         selectedImage?: string;
     }) => {
         if (!activeDashboardId) return;
-        const y = widgets.length > 0 ? Math.max(...widgets.map(w => w.layout.y + w.layout.h)) : 0;
+        const actuales = widgetsDe(activeDashboardId);
+        const hueco = mejorHueco(actuales, 6, 5);
 
         const newWidget: DashboardWidget = {
             id: crypto.randomUUID(),
             dashboard_id: activeDashboardId,
             widget_type: 'AI_GENERATED',
-            layout: { x: 0, y, w: 6, h: 5, i: crypto.randomUUID() },
+            layout: { x: hueco.x, y: hueco.y, w: 6, h: 5, i: crypto.randomUUID() },
             settings: {
                 customHtml: widgetData.customHtml,
                 ontology: widgetData.ontology,
@@ -1057,18 +1031,14 @@ export function DashboardLayout() {
             created_at: new Date().toISOString(),
         };
 
-        const updated = [...widgets, newWidget];
-        setWidgets(updated);
-        saveWidgetsForDashboard(activeDashboardId, updated);
-        toast({ title: "🔮 Widget Forjado", description: `"${widgetData.ontology.title}" añadido al dashboard.` });
-    }, [activeDashboardId, widgets, toast]);
+        aplicarWidgets(activeDashboardId, [...actuales, newWidget]);
+        toast({ title: "Widget forjado", description: `"${widgetData.ontology.title}" añadido al dashboard.` });
+    }, [activeDashboardId, widgetsDe, aplicarWidgets, toast]);
 
-    const handleSetWidgets = useCallback((newWidgets: DashboardWidget[]) => {
-        setWidgets(newWidgets);
-        if (activeDashboardId) {
-            saveWidgetsForDashboard(activeDashboardId, newWidgets);
-        }
-    }, [activeDashboardId]);
+    // Pide al espacio de trabajo que enfoque un tablero (recién creado, duplicado…).
+    const pedirFoco = useCallback((id: string) => {
+        setSolicitudFoco((s) => ({ id, n: (s?.n ?? 0) + 1 }));
+    }, []);
 
     // Create Dashboard
     const handleCreateDashboard = () => {
@@ -1099,6 +1069,7 @@ export function DashboardLayout() {
             setDashboards(allDashboards);
             setActiveDashboardId(dashId);
             setWidgets(seededWidgets);
+            pedirFoco(dashId);
 
             toast({ title: "Dashboard creado", description: `Se ha creado "${newDashboardName}"` });
             setNewDashboardName("");
@@ -1135,29 +1106,31 @@ export function DashboardLayout() {
         saveWidgetsForDashboard(dashId, seededWidgets);
         setActiveDashboardId(dashId);
         setWidgets(seededWidgets);
+        pedirFoco(dashId);
         toast({ title: "Dashboard creado", description: `Astraura preparó "${newDashboard.name}".` });
-    }, [toast]);
+    }, [toast, pedirFoco]);
 
     // ── Plantillas: aplicar una composición al dashboard ACTUAL ────────────────
     // Distinto de handleCreateDashboardFromTemplate (que crea una pestaña NUEVA):
     // esto REEMPLAZA los widgets del tablero activo por los de la plantilla
     // elegida. Destructivo → el llamador (diálogo "Plantillas") debe confirmar
     // primero. Conserva el id/nombre/categoría del dashboard activo.
-    const handleApplyTemplateToCurrentDashboard = useCallback((categoryId: string) => {
-        if (!activeDashboardId) return;
+    const handleApplyTemplateToCurrentDashboard = useCallback((categoryId: string, dashId?: string) => {
+        const destino = dashId ?? activeDashboardId;
+        if (!destino) return;
         const template = ALL_DASHBOARD_TEMPLATES.find((t) => t.categoryId === categoryId);
         if (!template) return;
         const now = new Date().toISOString();
-        const seededWidgets = seedWidgetsFromTemplate(template, activeDashboardId, now);
-        setWidgets(seededWidgets);
-        saveWidgetsForDashboard(activeDashboardId, seededWidgets);
+        const seededWidgets = seedWidgetsFromTemplate(template, destino, now);
+        // Por aplicarWidgets: queda en el historial (Deshacer devuelve los widgets de antes).
+        aplicarWidgets(destino, seededWidgets);
         setDashboards((prev) => {
-            const updated = prev.map((d) => d.id === activeDashboardId ? { ...d, updated_at: now } : d);
+            const updated = prev.map((d) => d.id === destino ? { ...d, updated_at: now } : d);
             saveDashboards(updated);
             return updated;
         });
-        toast({ title: "Plantilla aplicada", description: `"${template.name}" reemplazó los widgets de este tablero.` });
-    }, [activeDashboardId, toast]);
+        toast({ title: "Plantilla aplicada", description: `"${template.name}" reemplazó los widgets de este tablero. Puedes deshacerlo.` });
+    }, [activeDashboardId, aplicarWidgets, toast]);
 
     const handleSetDefault = (dashboardId: string) => {
         const updated = dashboards.map(d => ({ ...d, is_default: d.id === dashboardId }));
@@ -1326,364 +1299,256 @@ export function DashboardLayout() {
 
     // (2026-09-28) Sin saludo en la cabecera: Alex pidió quitar «Buenas tardes».
 
-    // --- Customizable Sidebar Computed Properties ---
-    const isVertical = useMemo(() => sidebarConfig.position === 'left' || sidebarConfig.position === 'right', [sidebarConfig.position]);
+    // ── Editor superior: gestión de pestañas ──────────────────────────────────
+    const renombrarDashboard = useCallback((id: string, nombre: string) => {
+        const name = nombre.trim();
+        if (!name) return;
+        const now = new Date().toISOString();
+        setDashboards((prev) => {
+            const updated = prev.map((d) => (d.id === id ? { ...d, name, updated_at: now } : d));
+            saveDashboards(updated);
+            return updated;
+        });
+        toast({ title: "Pestaña renombrada", description: `Ahora se llama «${name}».` });
+    }, [toast]);
 
-    const mainPaddingClass = useMemo(() => {
-        if (isFullscreen) return "gap-0 p-0";
-        // Márgenes mínimos (rediseño gen10): la barra vive pegada al borde, así
-        // que el contenido solo reserva el carril necesario y deja ~8px máx en
-        // el resto de bordes/esquinas (sin bandas muertas, look full-bleed).
-        if (!isSidebarOpen) {
-            switch (sidebarConfig.position) {
-                case 'left': return "gap-3 pl-11 pr-2 py-2";
-                case 'right': return "gap-3 pr-11 pl-2 py-2";
-                case 'top': return "gap-3 pt-11 pb-2 px-2";
-                case 'bottom': return "gap-3 pb-11 pt-2 px-2";
-                default: return "gap-3 pl-11 pr-2 py-2";
-            }
-        }
+    // Icono y color propios de la pestaña (campos aditivos del tablero guardado).
+    const aspectoDashboard = useCallback((id: string, aspecto: AspectoPestana) => {
+        const now = new Date().toISOString();
+        setDashboards((prev) => {
+            const updated = prev.map((d) => {
+                if (d.id !== id) return d;
+                const siguiente: Record<string, unknown> = { ...d, ...aspecto, updated_at: now };
+                for (const k of Object.keys(aspecto) as (keyof AspectoPestana)[]) {
+                    if (aspecto[k] === undefined) delete siguiente[k];
+                }
+                return siguiente as unknown as Dashboard;
+            });
+            saveDashboards(updated);
+            return updated;
+        });
+    }, []);
 
-        switch (sidebarConfig.position) {
-            case 'left': return "gap-3 pl-[5.75rem] pr-2 py-2";
-            case 'right': return "gap-3 pr-[5.75rem] pl-2 py-2";
-            case 'top': return "gap-3 pt-[5.75rem] pb-2 px-2";
-            case 'bottom': return "gap-3 pb-[5.75rem] pt-2 px-2";
-            default: return "gap-3 pl-[5.75rem] pr-2 py-2";
-        }
-    }, [isFullscreen, isSidebarOpen, sidebarConfig.position]);
+    const duplicarDashboard = useCallback((id: string) => {
+        const original = dashboards.find((d) => d.id === id);
+        if (!original) return;
+        const now = new Date().toISOString();
+        const nuevoId = crypto.randomUUID();
+        const copia: Dashboard = { ...original, id: nuevoId, name: `${original.name} (copia)`, is_default: false, created_at: now, updated_at: now };
+        const copiaWidgets = widgetsDe(id).map((w) => ({
+            ...w,
+            id: crypto.randomUUID(),
+            dashboard_id: nuevoId,
+            layout: { ...w.layout, i: crypto.randomUUID() },
+            created_at: now,
+        }));
+        const idx = dashboards.findIndex((d) => d.id === id);
+        const todos = [...dashboards.slice(0, idx + 1), copia, ...dashboards.slice(idx + 1)];
+        saveWidgetsForDashboard(nuevoId, copiaWidgets);
+        saveDashboards(todos);
+        saveOrder(todos);
+        setDashboards(todos);
+        setActiveDashboardId(nuevoId);
+        setWidgets(copiaWidgets);
+        pedirFoco(nuevoId);
+        toast({ title: "Pestaña duplicada", description: `«${copia.name}» con ${copiaWidgets.length} widget${copiaWidgets.length === 1 ? "" : "s"}.` });
+    }, [dashboards, widgetsDe, pedirFoco, toast]);
 
-    // Contenedor fijo del menú de pestañas: PEGADO al borde de la pantalla
-    // (sin offset muerto) y consciente de las safe-areas (notch/home bar).
-    const fixedContainerClass = useMemo(() => {
-        switch (sidebarConfig.position) {
-            case 'right':
-                return "fixed right-0 top-1/2 -translate-y-1/2 z-[80] flex flex-row-reverse items-center pointer-events-none gap-1.5 pr-[env(safe-area-inset-right)]";
-            case 'top':
-                return "fixed top-0 left-1/2 -translate-x-1/2 z-[80] flex flex-col items-center pointer-events-none gap-1.5 pt-[env(safe-area-inset-top)] max-w-[100vw]";
-            case 'bottom':
-                return "fixed bottom-0 left-1/2 -translate-x-1/2 z-[80] flex flex-col-reverse items-center pointer-events-none gap-1.5 pb-[env(safe-area-inset-bottom)] max-w-[100vw]";
-            case 'left':
-            default:
-                return "fixed left-0 top-1/2 -translate-y-1/2 z-[80] flex flex-row items-center pointer-events-none gap-1.5 pl-[env(safe-area-inset-left)]";
-        }
-    }, [sidebarConfig.position]);
+    const moverDashboard = useCallback((id: string, direccion: "izquierda" | "derecha") => {
+        const idx = dashboards.findIndex((d) => d.id === id);
+        if (idx < 0) return;
+        handleMoveDashboard(idx, direccion === "izquierda" ? "left" : "right");
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [dashboards]);
 
-    const barThemeClass = useMemo(() => {
-        // Barra compacta pegada al borde: radios moderados (16px) SOLO en las
-        // esquinas interiores; las que TOCAN el borde físico usan la variable
-        // --screen-corner (0 en navegador; ~12px instalada como app táctil)
-        // para casar con el redondeo real del dispositivo sin encoger nada.
-        const edgeRadius =
-            sidebarConfig.position === 'right' ? "rounded-l-2xl rounded-r-[var(--screen-corner)]"
-                : sidebarConfig.position === 'top' ? "rounded-b-2xl rounded-t-[var(--screen-corner)]"
-                    : sidebarConfig.position === 'bottom' ? "rounded-t-2xl rounded-b-[var(--screen-corner)]"
-                        : "rounded-r-2xl rounded-l-[var(--screen-corner)]";
-        const layoutCls = cn(
-            isVertical ? "flex-col w-12 h-auto p-1.5" : "flex-row h-12 w-auto p-1.5",
-            edgeRadius
+    // Reordenar arrastrando las pestañas de la barra (persiste el orden).
+    const reordenarDashboards = useCallback((activoId: string, sobreId: string) => {
+        setDashboards((prev) => {
+            const desde = prev.findIndex((d) => d.id === activoId);
+            const hasta = prev.findIndex((d) => d.id === sobreId);
+            if (desde < 0 || hasta < 0 || desde === hasta) return prev;
+            const next = [...prev];
+            const [movido] = next.splice(desde, 1);
+            next.splice(hasta, 0, movido);
+            saveOrder(next);
+            saveDashboards(next);
+            return next;
+        });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    // Pestañas temáticas que faltan (Política, Clima…): se pueden restaurar aunque se borraran.
+    const faltanTematicas = useMemo(
+        () => DEFAULT_DASHBOARD_TEMPLATES.filter((t) => !dashboards.some((d) => d.category === t.categoryId)).length,
+        [dashboards],
+    );
+    const restaurarTematicas = useCallback(() => {
+        try { localStorage.removeItem(LS_RETIRADOS); } catch { /* sin almacén */ }
+        const anadio = completarPredeterminados();
+        rehydrateFromLocal();
+        toast({
+            title: anadio ? "Pestañas temáticas restauradas" : "Ya tienes todas las pestañas temáticas",
+            description: anadio ? "Vuelven con su acomodo predeterminado." : undefined,
+        });
+    }, [rehydrateFromLocal, toast]);
+
+    const aplicarPlantillaConfirmada = useCallback(async (dashId: string, categoryId: string) => {
+        const plantilla = ALL_DASHBOARD_TEMPLATES.find((t) => t.categoryId === categoryId);
+        const destino = dashboards.find((d) => d.id === dashId);
+        if (!plantilla || !destino) return;
+        const ok = await confirm({
+            title: "Aplicar plantilla",
+            description: `Los widgets de «${destino.name}» se sustituirán por los de «${plantilla.name}». Puedes volver atrás con Deshacer.`,
+            confirmText: "Aplicar",
+            destructive: true,
+        });
+        if (ok) handleApplyTemplateToCurrentDashboard(categoryId, dashId);
+    }, [dashboards, confirm, handleApplyTemplateToCurrentDashboard]);
+
+    // ── Entrar y salir del editor ──────────────────────────────────────────────
+    const alternarEdicion = useCallback(() => {
+        setIsEditMode((v) => !v);
+        setGrupoEditor(null);
+    }, []);
+    const terminarEdicion = useCallback(() => {
+        setIsEditMode(false);
+        setGrupoEditor(null);
+        toast({ title: "Cambios guardados", description: "El tablero queda como lo dejaste." });
+    }, [toast]);
+
+    // Cualquier módulo (Aurora, atajos…) puede abrir el editor en un grupo concreto:
+    // window.dispatchEvent(new CustomEvent("starseed:dashboard:editar", { detail: { grupo: "widgets" } })).
+    useEffect(() => {
+        const alPedir = (e: Event) => {
+            const d = (e as CustomEvent<{ activo?: boolean; grupo?: GrupoEditor }>).detail ?? {};
+            if (d.activo === false) { setIsEditMode(false); setGrupoEditor(null); return; }
+            setIsEditMode(true);
+            setGrupoEditor(d.grupo && GRUPOS_EDITOR.includes(d.grupo) ? d.grupo : null);
+        };
+        window.addEventListener("starseed:dashboard:editar", alPedir);
+        return () => window.removeEventListener("starseed:dashboard:editar", alPedir);
+    }, []);
+
+    const cambiarCuadricula = useCallback((v: boolean) => {
+        setCuadricula(v);
+        try {
+            const previo = JSON.parse(localStorage.getItem(LS_EDITOR) || '{}');
+            localStorage.setItem(LS_EDITOR, JSON.stringify({ ...previo, cuadricula: v }));
+        } catch { /* sin almacén */ }
+    }, []);
+    const cambiarEstiloBarra = useCallback((e: EstiloBarra) => {
+        setEstiloBarra(e);
+        try {
+            const previo = JSON.parse(localStorage.getItem(LS_BARRA) || '{}');
+            localStorage.setItem(LS_BARRA, JSON.stringify({ ...previo, theme: e }));
+        } catch { /* sin almacén */ }
+    }, []);
+
+    // Widgets de cada tablero para el espacio de trabajo: el activo, en vivo; los demás, del
+    // almacén (se recalcula al guardar cualquiera de ellos).
+    const widgetsMap = useMemo(() => {
+        const all = loadAllWidgets();
+        const map: Record<string, DashboardWidget[]> = {};
+        for (const d of dashboards) map[d.id] = all[d.id] || [];
+        return map;
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [dashboards, widgets, activeDashboardId, versionWidgets]);
+
+    // El panel que aloja el editor avisa de su tablero activo: el tablero activo del layout lo
+    // sigue (así «añadir», plantillas y deshacer actúan sobre la pestaña que se ve).
+    const activoRef = useRef(activeDashboardId);
+    activoRef.current = activeDashboardId;
+    const alCambiarDashboardActivo = useCallback((id: string) => {
+        if (activoRef.current === id) return;
+        // A la vez (mismo render): el tablero activo y SUS widgets.
+        setWidgets(loadWidgetsForDashboard(id));
+        setActiveDashboardId(id);
+    }, []);
+
+    // Estado de «Sistema» (lo que abría la barra lateral): mismo estado y mismas acciones.
+    const sistema: PropsSistema = {
+        perfiles: profiles,
+        perfilActivoId: activeProfile?.id ?? null,
+        onPerfil: (id) => { const p = profiles.find((x) => x.id === id); if (p) handleProfileChange(p); },
+        memoria: memory,
+        onRasgo: () => {
+            addMemory("trait", "Foco visual avanzado", 0.8, "ui:manual-trigger");
+            toast({ title: "Rasgo añadido", description: "Se guardó un rasgo cognitivo en tu memoria local." });
+        },
+        proveedorIa: aiProvider,
+        onProveedorIa: (p) => { setAiProvider(p); try { localStorage.setItem(LS_AI_PROVIDER, p); } catch { /* sin almacén */ } },
+        temperatura: aiTemperature[0] ?? 0.7,
+        onTemperatura: (t) => setAiTemperature([t]),
+        agente: aiAgent,
+        onAgente: setAiAgent,
+        servicios: services,
+        onServicio: (k, v) => setServices((prev) => ({ ...prev, [k]: v })),
+        servidores: selectedServers,
+        onServidor: handleServerToggle,
+        vpn: vpnEnabled,
+        onVpn: setVpnEnabled,
+        tor: torPrivacy,
+        onTor: setTorPrivacy,
+        zkp: zkpSecurity,
+        onZkp: setZkpSecurity,
+        sincronizando: isSyncing,
+        progreso: syncProgress,
+        onSincronizar: handleSync,
+        onUbicacion: () => window.dispatchEvent(new CustomEvent('starseed:open-location')),
+    };
+
+    // Acciones del editor sobre UNA pestaña (la activa del panel que lo aloja).
+    const accionesEditor = (dashId: string): AccionesEditor => ({
+        onAnadirWidget: (type, opciones) => handleAddWidget(dashId, type, opciones),
+        onForjar: () => setIsForgeOpen(true),
+        onCrearDesdePlantilla: (categoryId, nombre) => handleCreateDashboardFromTemplate(categoryId, nombre),
+        onCambiarWidgets: (ws) => aplicarWidgets(dashId, ws),
+        onRestablecerPredeterminados: () => { void handleResetLayout(); },
+        onRenombrar: renombrarDashboard,
+        onAspecto: aspectoDashboard,
+        onDuplicar: duplicarDashboard,
+        onMover: moverDashboard,
+        onEliminar: (id) => { void handleDeleteDashboard(id); },
+        onPrincipal: handleSetDefault,
+        onNuevaPestana: () => setIsCreateDialogOpen(true),
+        onCompartir: (id) => setShareDashboardId(id),
+        onDispositivos: handleSetDeviceTags,
+        onGestorDispositivos: () => setIsDeviceManagerOpen(true),
+        onRestaurarTematicas: restaurarTematicas,
+        onAplicarPlantilla: (categoryId) => { void aplicarPlantillaConfirmada(dashId, categoryId); },
+        onDeshacer: () => deshacerEn(dashId),
+        onRehacer: () => rehacerEn(dashId),
+        onListo: terminarEdicion,
+    });
+
+    const renderEditor = ({ dashboardId }: { panelId: string; dashboardId: string }) => {
+        const dash = dashboards.find((d) => d.id === dashboardId) as DashboardConAspecto | undefined;
+        if (!dash) return null;
+        const h = historialesRef.current.get(dashboardId);
+        return (
+            <EditorSuperior
+                dashboard={dash}
+                dashboards={dashboards as DashboardConAspecto[]}
+                widgets={widgetsDe(dashboardId)}
+                grupo={grupoEditor}
+                onGrupo={setGrupoEditor}
+                acciones={accionesEditor(dashboardId)}
+                puedeDeshacer={(h?.pasado.length ?? 0) > 0}
+                puedeRehacer={(h?.futuro.length ?? 0) > 0}
+                cuadricula={cuadricula}
+                onCuadricula={cambiarCuadricula}
+                estiloBarra={estiloBarra}
+                onEstiloBarra={cambiarEstiloBarra}
+                pantallaCompleta={isFullscreen}
+                onPantallaCompleta={setIsFullscreen}
+                faltanTematicas={faltanTematicas}
+                currentDevice={currentDevice}
+                temasRecientes={recentThemes}
+                onAplicarTema={applyTheme}
+                sistema={sistema}
+            />
         );
-
-        switch (sidebarConfig.theme) {
-            case 'cyber-neon':
-                return cn(
-                    "pointer-events-auto flex items-center bg-slate-950/95 border border-cyan-500/40 shadow-[0_0_20px_rgba(6,182,212,0.25)] backdrop-blur-xl shrink-0 transition-all duration-300 motion-reduce:transition-none",
-                    layoutCls
-                );
-            case 'aurora-minimal':
-                return cn(
-                    "pointer-events-auto flex items-center bg-gradient-to-br from-purple-950/20 to-emerald-950/20 border border-white/5 shadow-lg backdrop-blur-2xl shrink-0 transition-all duration-300 motion-reduce:transition-none",
-                    layoutCls
-                );
-            case 'liquid-crystal':
-            default:
-                return cn(
-                    "pointer-events-auto flex items-center bg-black/40 border border-white/10 shadow-xl backdrop-blur-2xl shrink-0 transition-all duration-300 motion-reduce:transition-none",
-                    layoutCls
-                );
-        }
-    }, [isVertical, sidebarConfig.theme, sidebarConfig.position]);
-
-    // Carril interno de pestañas: gap mínimo; si desbordan, scroll con fades.
-    const railClass = useMemo(() => cn(
-        "flex items-center gap-1",
-        isVertical
-            ? "flex-col max-h-[calc(100dvh-6.5rem)]"
-            : "flex-row max-w-[calc(100vw-6.5rem)]",
-        railOverflow && (isVertical ? cn(styles.railY, styles.fadeY) : cn(styles.railX, styles.fadeX)),
-    ), [isVertical, railOverflow]);
-
-    // El tooltip de cada pestaña se abre hacia el interior de la pantalla.
-    const tooltipSide = useMemo<"right" | "left" | "top" | "bottom">(() => {
-        switch (sidebarConfig.position) {
-            case 'right': return 'left';
-            case 'top': return 'bottom';
-            case 'bottom': return 'top';
-            default: return 'right';
-        }
-    }, [sidebarConfig.position]);
-
-    const toggleButtonThemeClass = useMemo(() => {
-        const base = "w-9 h-9 rounded-full border backdrop-blur-md transition-all duration-200 motion-reduce:transition-none shadow-lg hover:shadow-[0_0_15px_rgba(6,182,212,0.4)] pointer-events-auto shrink-0 z-50 flex items-center justify-center cursor-pointer";
-        
-        switch (sidebarConfig.theme) {
-            case 'cyber-neon':
-                return cn(
-                    base,
-                    "bg-slate-950/95 border-cyan-500/40 text-cyan-400 hover:bg-cyan-500/20 hover:text-white hover:border-cyan-400"
-                );
-            case 'aurora-minimal':
-                return cn(
-                    base,
-                    "bg-black/30 border-white/5 text-emerald-400 hover:bg-emerald-500/20 hover:text-white hover:border-emerald-400/50"
-                );
-            case 'liquid-crystal':
-            default:
-                return cn(
-                    base,
-                    "bg-black/60 border-white/10 text-cyan-400 hover:bg-cyan-500/20 hover:text-white hover:border-white/20"
-                );
-        }
-    }, [sidebarConfig.theme]);
-
-    const toggleIcon = useMemo(() => {
-        if (isSidebarOpen) {
-            if (sidebarConfig.position === 'left') return <ChevronLeft className="w-5 h-5" />;
-            if (sidebarConfig.position === 'right') return <ChevronRight className="w-5 h-5" />;
-            if (sidebarConfig.position === 'top') return <ChevronUp className="w-5 h-5" />;
-            return <ChevronDown className="w-5 h-5" />;
-        } else {
-            if (sidebarConfig.position === 'left') return <ChevronRight className="w-5 h-5" />;
-            if (sidebarConfig.position === 'right') return <ChevronLeft className="w-5 h-5" />;
-            if (sidebarConfig.position === 'top') return <ChevronDown className="w-5 h-5" />;
-            return <ChevronUp className="w-5 h-5" />;
-        }
-    }, [isSidebarOpen, sidebarConfig.position]);
-
-    const motionInitial = useMemo(() => {
-        if (sidebarConfig.position === 'left') return { opacity: 0, x: -50, y: 0, scale: 0.9 };
-        if (sidebarConfig.position === 'right') return { opacity: 0, x: 50, y: 0, scale: 0.9 };
-        if (sidebarConfig.position === 'top') return { opacity: 0, x: 0, y: -50, scale: 0.9 };
-        return { opacity: 0, x: 0, y: 50, scale: 0.9 };
-    }, [sidebarConfig.position]);
-
-    const flyoutInitial = useMemo(() => {
-        if (sidebarConfig.position === 'left') return { opacity: 0, x: -30, y: 0, scale: 0.95 };
-        if (sidebarConfig.position === 'right') return { opacity: 0, x: 30, y: 0, scale: 0.95 };
-        if (sidebarConfig.position === 'top') return { opacity: 0, x: 0, y: -30, scale: 0.95 };
-        return { opacity: 0, x: 0, y: 30, scale: 0.95 };
-    }, [sidebarConfig.position]);
-
-    const renderSidebarButton = useCallback((buttonId: string) => {
-        if (sidebarConfig.hiddenButtons.includes(buttonId)) return null;
-
-        // Props comunes de pestaña: tooltip abierto hacia el interior de la
-        // pantalla e icono+nombre adaptativos (texto solo en barra horizontal
-        // sobre pantallas anchas; en el resto, solo icono con tooltip).
-        const tabCommon = { tipSide: tooltipSide, showText: !isVertical } as const;
-
-        // Separadores (admite varios: divider, divider0, divider2…).
-        if (buttonId.startsWith("divider")) {
-            return (
-                <div
-                    key={buttonId}
-                    className={cn(
-                        isVertical ? "w-7 h-px my-0.5" : "h-7 w-px mx-0.5",
-                        "bg-white/10 rounded-full shrink-0"
-                    )}
-                />
-            );
-        }
-
-        switch (buttonId) {
-            case "add":
-                return (
-                    <SidebarIconButton
-                        key="add"
-                        {...tabCommon}
-                        icon={<Plus className="w-5 h-5" />}
-                        label="Añadir pestaña (nuevo panel)"
-                        text={getTabActionDef("add")?.title ?? "Añadir"}
-                        info={getTabActionDef("add")?.info}
-                        color="emerald"
-                        onClick={() => setIsCreateDialogOpen(true)}
-                    />
-                );
-            case "panel":
-                return (
-                    <SidebarIconButton
-                        key="panel"
-                        {...tabCommon}
-                        icon={<Settings2 className="w-5 h-5" />}
-                        label="Configurar panel actual (renombrar)"
-                        text={getTabActionDef("panel")?.title ?? "Panel"}
-                        info={getTabActionDef("panel")?.info}
-                        color="cyan"
-                        onClick={() => handleOpenRename(activeDashboardId ?? "")}
-                    />
-                );
-            case "devices":
-                return (
-                    <SidebarIconButton
-                        key="devices"
-                        {...tabCommon}
-                        icon={<MonitorSmartphone className="w-5 h-5" />}
-                        label="Dispositivos y grupos"
-                        text={getTabActionDef("devices")?.title ?? "Equipos"}
-                        info={getTabActionDef("devices")?.info}
-                        color="purple"
-                        active={isDeviceManagerOpen}
-                        onClick={() => setIsDeviceManagerOpen(true)}
-                    />
-                );
-            case "profiles":
-                return (
-                    <SidebarIconButton
-                        key="profiles"
-                        {...tabCommon}
-                        icon={<User className="w-5 h-5" />}
-                        label="Perfiles"
-                        text="Perfiles"
-                        color="cyan"
-                        active={activeToolbarTab === "profiles"}
-                        onClick={() => setActiveToolbarTab(activeToolbarTab === "profiles" ? null : "profiles")}
-                    />
-                );
-            case "memory":
-                return (
-                    <SidebarIconButton
-                        key="memory"
-                        {...tabCommon}
-                        icon={<HardDrive className="w-5 h-5" />}
-                        label="Memoria local"
-                        text="Memoria"
-                        color="emerald"
-                        active={activeToolbarTab === "memory"}
-                        onClick={() => setActiveToolbarTab(activeToolbarTab === "memory" ? null : "memory")}
-                    />
-                );
-            case "ai":
-                return (
-                    <SidebarIconButton
-                        key="ai"
-                        {...tabCommon}
-                        icon={<Cpu className="w-5 h-5" />}
-                        label="Servicio de IA"
-                        text="IA"
-                        color="cyan"
-                        active={activeToolbarTab === "ai"}
-                        onClick={() => setActiveToolbarTab(activeToolbarTab === "ai" ? null : "ai")}
-                    />
-                );
-            case "connections":
-                return (
-                    <SidebarIconButton
-                        key="connections"
-                        {...tabCommon}
-                        icon={<Wifi className="w-5 h-5" />}
-                        label="Conexiones"
-                        text="Redes"
-                        color="purple"
-                        active={activeToolbarTab === "connections"}
-                        onClick={() => setActiveToolbarTab(activeToolbarTab === "connections" ? null : "connections")}
-                    />
-                );
-            case "themes":
-                return (
-                    <SidebarIconButton
-                        key="themes"
-                        {...tabCommon}
-                        icon={<Palette className="w-5 h-5" />}
-                        label="Temas rápidos"
-                        text="Temas"
-                        color="amber"
-                        active={activeToolbarTab === "themes"}
-                        onClick={() => setActiveToolbarTab(activeToolbarTab === "themes" ? null : "themes")}
-                    />
-                );
-            case "servers":
-                return (
-                    <SidebarIconButton
-                        key="servers"
-                        {...tabCommon}
-                        icon={<Globe className="w-5 h-5" />}
-                        label="Internet / VPN"
-                        text="VPN"
-                        color="crimson"
-                        active={activeToolbarTab === "servers"}
-                        onClick={() => setActiveToolbarTab(activeToolbarTab === "servers" ? null : "servers")}
-                    />
-                );
-            case "location":
-                return (
-                    <SidebarIconButton
-                        key="location"
-                        {...tabCommon}
-                        icon={<MapPin className="w-5 h-5" />}
-                        label="Ubicación"
-                        text="Lugar"
-                        color="cyan"
-                        onClick={() => {
-                            const event = new CustomEvent('starseed:open-location');
-                            window.dispatchEvent(event);
-                        }}
-                    />
-                );
-            case "forge":
-                return (
-                    <SidebarIconButton
-                        key="forge"
-                        {...tabCommon}
-                        icon={<Hammer className="w-5 h-5 text-indigo-300" />}
-                        label="Forjar Widget"
-                        text="Forjar"
-                        color="neutral"
-                        onClick={() => setIsForgeOpen(true)} 
-                    />
-                );
-            case "edit":
-                return (
-                    <SidebarIconButton
-                        key="edit"
-                        {...tabCommon}
-                        icon={<LayoutGrid className="w-5 h-5" />}
-                        label={isEditMode ? "Terminar edición" : "Editar widgets"}
-                        text={isEditMode ? "Terminar edición" : (getTabActionDef("edit")?.title ?? "Editar")}
-                        info={getTabActionDef("edit")?.info}
-                        color={isEditMode ? "emerald" : "neutral"}
-                        active={isEditMode}
-                        onClick={() => setIsEditMode(!isEditMode)}
-                    />
-                );
-            case "fullscreen":
-                return (
-                    <SidebarIconButton
-                        key="fullscreen"
-                        {...tabCommon}
-                        icon={isFullscreen ? <Minimize2 className="w-5 h-5 text-amber-400" /> : <Maximize2 className="w-5 h-5" />}
-                        label={isFullscreen ? "Salir Pantalla Completa" : "Pantalla Completa"}
-                        text="Pantalla"
-                        color="neutral"
-                        onClick={() => setIsFullscreen(!isFullscreen)} 
-                    />
-                );
-            case "settings":
-                return (
-                    <SidebarIconButton
-                        key="settings"
-                        {...tabCommon}
-                        icon={<Settings className="w-5 h-5 text-slate-300" />}
-                        label="Ajustes Menú"
-                        text="Ajustes"
-                        color="cyan"
-                        active={activeToolbarTab === "settings"}
-                        onClick={() => setActiveToolbarTab(activeToolbarTab === "settings" ? null : "settings")} 
-                    />
-                );
-            default:
-                return null;
-        }
-    }, [activeToolbarTab, isEditMode, isFullscreen, isVertical, sidebarConfig.hiddenButtons, tooltipSide, activeDashboardId, isDeviceManagerOpen, handleOpenRename]);
+    };
 
     // Loading State
     if (loading) {
@@ -1705,500 +1570,11 @@ export function DashboardLayout() {
             )}
             <div ref={layoutRootRef} className={cn(
                 "relative flex flex-row w-full select-none min-h-screen transition-all duration-500",
-                mainPaddingClass
+                // (2026-09-28) Sin barra lateral: el editor vive bajo las pestañas, así que el
+                // contenido ya no reserva carril a la izquierda.
+                isFullscreen ? "gap-0 p-0" : "gap-3 p-2"
             )}>
                 
-                {/* ── CIBERDELIC SIDE BAR TOOLBAR (Left side, absolute / sticky float) ── */}
-                <div className={fixedContainerClass}>
-                    
-                    {/* Collapsed / Icons Bar */}
-                    <AnimatePresence>
-                        {isSidebarOpen && (
-                            <motion.div
-                                initial={motionInitial}
-                                animate={{ opacity: 1, x: 0, y: 0, scale: 1 }}
-                                exit={motionInitial}
-                                transition={shouldReduceMotion ? { duration: 0 } : { type: "spring", stiffness: 350, damping: 25 }}
-                                className={barThemeClass}
-                            >
-                                {/* Carril de pestañas: compacto; scroll + fades solo si desborda */}
-                                <div ref={railRef} className={railClass}>
-                                    {sidebarConfig.buttonOrder.map(buttonId => renderSidebarButton(buttonId))}
-                                </div>
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
-
-                    {/* Floating Toggle Button */}
-                    <motion.div 
-                        layout 
-                        className="pointer-events-auto shrink-0 z-50"
-                    >
-                        <Button
-                            size="icon"
-                            variant="ghost"
-                            onClick={() => {
-                                setIsSidebarOpen(!isSidebarOpen);
-                                if (isSidebarOpen) {
-                                    setActiveToolbarTab(null);
-                                }
-                            }}
-                            className={toggleButtonThemeClass}
-                            title={isSidebarOpen ? "Ocultar menú lateral" : "Mostrar menú lateral"}
-                        >
-                            {toggleIcon}
-                        </Button>
-                    </motion.div>
-
-                    {/* Expandible flyout card */}
-                    <AnimatePresence>
-                        {isSidebarOpen && activeToolbarTab && (
-                            <motion.div
-                                initial={flyoutInitial}
-                                animate={{ opacity: 1, x: 0, y: 0, scale: 1 }}
-                                exit={flyoutInitial}
-                                transition={shouldReduceMotion ? { duration: 0 } : { type: "spring", stiffness: 350, damping: 25 }}
-                                className="pointer-events-auto w-[280px] sm:w-[320px] bg-black/80 backdrop-blur-3xl border border-white/10 p-4 rounded-2xl shadow-2xl flex flex-col gap-4 text-white overflow-hidden relative"
-                            >
-                                <div className="absolute top-0 right-0 w-36 h-36 bg-primary/5 rounded-full blur-2xl pointer-events-none" />
-                                
-                                <div className="flex items-center justify-between border-b border-white/5 pb-2 shrink-0">
-                                    <h4 className="text-xs uppercase tracking-widest font-mono text-white/50 flex items-center gap-2">
-                                        ✦ {activeToolbarTab === "profiles" ? "Selector de Perfiles" : 
-                                            activeToolbarTab === "memory" ? "Memoria Cognitiva" :
-                                            activeToolbarTab === "ai" ? "Motor Exocórtex AI" :
-                                            activeToolbarTab === "connections" ? "Conexiones Activas" :
-                                            activeToolbarTab === "themes" ? "Temas Curados" :
-                                            activeToolbarTab === "servers" ? "Seguridad y Sincronización" :
-                                            "Ajustes de Barra Lateral"}
-                                    </h4>
-                                    <button onClick={() => setActiveToolbarTab(null)} className="p-1 hover:bg-white/5 rounded-full text-white/40 hover:text-white transition-all">
-                                        <X className="w-4 h-4" />
-                                    </button>
-                                </div>
-
-                                <div className="flex-1 overflow-y-auto max-h-[360px] pr-1 scrollbar-thin">
-                                    {/* Profiles Tab Content */}
-                                    {activeToolbarTab === "profiles" && (
-                                        <div className="space-y-3">
-                                            {profiles.length === 0 && (
-                                                <div className="text-center py-6 text-xs text-white/40">
-                                                    Inicia sesión para ver y gestionar tus perfiles.
-                                                </div>
-                                            )}
-                                            {profiles.map((p) => {
-                                                const colors = {
-                                                    OFFICIAL: "border-blue-500 bg-blue-500/10 text-blue-300",
-                                                    ARTISTIC: "border-emerald-500 bg-emerald-500/10 text-emerald-300",
-                                                    ANONYMOUS: "border-red-500 bg-red-500/10 text-red-300"
-                                                };
-                                                const isActive = activeProfile?.id === p.id;
-                                                return (
-                                                    <div 
-                                                        key={p.id}
-                                                        onClick={() => handleProfileChange(p)}
-                                                        className={cn(
-                                                            "flex items-center gap-3 p-3 rounded-2xl border transition-all cursor-pointer",
-                                                            isActive ? "border-amber-500/30 bg-amber-500/5 ring-1 ring-amber-500/20" : "border-white/5 bg-white/[0.01] hover:bg-white/5"
-                                                        )}
-                                                    >
-                                                        <img src={p.avatarUrl} className="w-10 h-10 rounded-full border border-white/10 shrink-0" alt="" />
-                                                        <div className="min-w-0 flex-1">
-                                                            <div className="flex items-center gap-1.5 justify-between">
-                                                                <span className="text-xs font-semibold leading-none truncate">{p.displayName}</span>
-                                                                <span className={cn("text-[8px] uppercase tracking-wide font-bold px-1.5 py-0.5 rounded border leading-none shrink-0", colors[p.type])}>
-                                                                    {p.type}
-                                                                </span>
-                                                            </div>
-                                                            <p className="text-[10px] text-white/40 truncate mt-1">@{p.handle}</p>
-                                                        </div>
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                    )}
-
-                                    {/* Memory Tab Content */}
-                                    {activeToolbarTab === "memory" && (
-                                        <div className="space-y-3">
-                                            <div className="p-3 bg-white/[0.02] border border-white/5 rounded-2xl">
-                                                <div className="flex justify-between items-center mb-2">
-                                                    <span className="text-[10px] uppercase font-mono text-emerald-400">Estado Cognitivo</span>
-                                                    <span className="text-xs font-bold font-mono">{memory.length} nodos</span>
-                                                </div>
-                                                <p className="text-[10px] text-white/50 leading-relaxed">
-                                                    Tu Exocórtex registra rasgos cognitivos del usuario local de forma cifrada.
-                                                </p>
-                                            </div>
-
-                                            <div className="space-y-2 max-h-[200px] overflow-y-auto pr-1">
-                                                {memory.slice(-4).map((m) => (
-                                                    <div key={m.id} className="p-2 border border-white/5 rounded-xl bg-black/40 text-[9px] font-mono leading-normal flex items-start gap-2">
-                                                        <span className="text-emerald-400">✦</span>
-                                                        <div className="min-w-0 flex-1">
-                                                            <span className="text-emerald-300 font-bold mr-1">[{m.type}]</span>
-                                                            {m.value}
-                                                            {m.source && <span className="block text-[8px] text-white/30 truncate mt-0.5">{m.source}</span>}
-                                                        </div>
-                                                    </div>
-                                                ))}
-                                                {memory.length === 0 && (
-                                                    <div className="text-center py-6 text-xs text-white/30">Memoria local vacía. Tabula Rasa.</div>
-                                                )}
-                                            </div>
-
-                                            <Button 
-                                                variant="outline" 
-                                                size="sm"
-                                                onClick={() => {
-                                                    addMemory("trait", "Foco visual avanzado", 0.8, "ui:manual-trigger");
-                                                    toast({ title: "Rasgo Agregado", description: "Agregado rasgo cognitivo a memoria local." });
-                                                }}
-                                                className="w-full text-[10px] h-8 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 border-emerald-500/20 text-emerald-300"
-                                            >
-                                                + Forzar rasgo cognitivo
-                                            </Button>
-                                        </div>
-                                    )}
-
-                                    {/* AI Tab Content */}
-                                    {activeToolbarTab === "ai" && (
-                                        <div className="space-y-4">
-                                            <div className="space-y-1">
-                                                <Label className="text-[10px] text-white/50 uppercase tracking-wider font-mono">Proveedor de IA</Label>
-                                                <Select value={aiProvider} onValueChange={(v: any) => setAiProvider(v)}>
-                                                    <SelectTrigger className="w-full bg-black/40 border-white/5 h-9 rounded-xl text-xs">
-                                                        <SelectValue />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                        <SelectItem value="ollama">Ollama (Local Offline)</SelectItem>
-                                                        <SelectItem value="gemini">Google Gemini API</SelectItem>
-                                                        <SelectItem value="openai">OpenAI / Compatibles</SelectItem>
-                                                    </SelectContent>
-                                                </Select>
-                                            </div>
-
-                                            <div className="space-y-1">
-                                                <div className="flex justify-between items-center text-[10px] text-white/50 uppercase tracking-wider font-mono">
-                                                    <span>Temperatura</span>
-                                                    <span className="font-bold text-cyan-400">{aiTemperature[0]}</span>
-                                                </div>
-                                                <Slider 
-                                                    value={aiTemperature} 
-                                                    onValueChange={setAiTemperature} 
-                                                    max={1.5} 
-                                                    min={0.1} 
-                                                    step={0.1}
-                                                    className="py-2"
-                                                />
-                                            </div>
-
-                                            <div className="space-y-1">
-                                                <Label className="text-[10px] text-white/50 uppercase tracking-wider font-mono">Agente Activo</Label>
-                                                <Select value={aiAgent} onValueChange={setAiAgent}>
-                                                    <SelectTrigger className="w-full bg-black/40 border-white/5 h-9 rounded-xl text-xs">
-                                                        <SelectValue />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                        <SelectItem value="central">Central (Núcleo StarSeed)</SelectItem>
-                                                        <SelectItem value="creative">Musa Creativa (Horizon)</SelectItem>
-                                                        <SelectItem value="logic">Control Panel (Logic)</SelectItem>
-                                                        <SelectItem value="pilot">System Pilot (Exocórtex)</SelectItem>
-                                                    </SelectContent>
-                                                </Select>
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {/* Connections Tab Content */}
-                                    {activeToolbarTab === "connections" && (
-                                        <div className="space-y-3">
-                                            <div className="flex items-center justify-between p-2 rounded-xl bg-white/[0.02]">
-                                                <div className="flex items-center gap-2">
-                                                    <Database className="w-4 h-4 text-blue-400" />
-                                                    <span className="text-xs">Base de datos Supabase</span>
-                                                </div>
-                                                <Switch checked={services.supabase} onCheckedChange={(v) => setServices(prev => ({ ...prev, supabase: v }))} />
-                                            </div>
-                                            <div className="flex items-center justify-between p-2 rounded-xl bg-white/[0.02]">
-                                                <div className="flex items-center gap-2">
-                                                    <Globe className="w-4 h-4 text-emerald-400" />
-                                                    <span className="text-xs">IPFS P2P Network</span>
-                                                </div>
-                                                <Switch checked={services.ipfs} onCheckedChange={(v) => setServices(prev => ({ ...prev, ipfs: v }))} />
-                                            </div>
-                                            <div className="flex items-center justify-between p-2 rounded-xl bg-white/[0.02]">
-                                                <div className="flex items-center gap-2">
-                                                    <GithubIcon className="w-4 h-4 text-white" />
-                                                    <span className="text-xs">GitHub Repository</span>
-                                                </div>
-                                                <Switch checked={services.github} onCheckedChange={(v) => setServices(prev => ({ ...prev, github: v }))} />
-                                            </div>
-                                            <div className="flex items-center justify-between p-2 rounded-xl bg-white/[0.02]">
-                                                <div className="flex items-center gap-2">
-                                                    <Zap className="w-4 h-4 text-purple-400" />
-                                                    <span className="text-xs">Vercel Auto-deploy</span>
-                                                </div>
-                                                <Switch checked={services.vercel} onCheckedChange={(v) => setServices(prev => ({ ...prev, vercel: v }))} />
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {/* Themes Tab Content */}
-                                    {activeToolbarTab === "themes" && (
-                                        <div className="space-y-3">
-                                            <div className="flex justify-between items-center text-[10px] text-white/50 font-mono mb-2">
-                                                <span>Acomodo Rápido</span>
-                                                <div className="flex gap-2">
-                                                    <button onClick={() => setThemeSort("recent")} className={cn(themeSort === "recent" ? "text-amber-400" : "opacity-40")}>Recientes</button>
-                                                    <button onClick={() => setThemeSort("custom")} className={cn(themeSort === "custom" ? "text-amber-400" : "opacity-40")}>Personalizado</button>
-                                                </div>
-                                            </div>
-
-                                            <div className="grid grid-cols-2 gap-2 max-h-[220px] overflow-y-auto pr-1">
-                                                {curatedPresets.map((theme) => {
-                                                    const isRecent = recentThemes.includes(theme.name);
-                                                    if (themeSort === "recent" && !isRecent) return null;
-                                                    return (
-                                                        <button
-                                                            key={theme.name}
-                                                            onClick={() => applyTheme(theme.name)}
-                                                            className="p-2 border border-white/5 rounded-xl bg-black/40 hover:bg-white/5 hover:border-white/10 text-center transition-all group flex flex-col items-center gap-1"
-                                                        >
-                                                            <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-primary to-purple-500 scale-95 group-hover:scale-100 transition-transform" />
-                                                            <span className="text-[10px] truncate max-w-full text-white/80">{theme.name}</span>
-                                                        </button>
-                                                    );
-                                                })}
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {/* Servers & VPN Tab Content */}
-                                    {activeToolbarTab === "servers" && (
-                                        <div className="space-y-4">
-                                            <div className="space-y-2">
-                                                <Label className="text-[10px] text-white/50 uppercase tracking-wider font-mono">Selector Múltiple de Servidores</Label>
-                                                <div className="space-y-2">
-                                                    {[
-                                                        { id: "vercel", label: "Servidor Principal Vercel" },
-                                                        { id: "supabase", label: "Supabase DB redundante" },
-                                                        { id: "ipfs", label: "Nodo IPFS Akáshico" }
-                                                    ].map((s) => (
-                                                        <div 
-                                                            key={s.id}
-                                                            onClick={() => handleServerToggle(s.id)}
-                                                            className={cn(
-                                                                "flex items-center gap-2 p-2 border rounded-xl text-xs cursor-pointer transition-all",
-                                                                selectedServers.includes(s.id) ? "border-red-500/40 bg-red-500/5 text-red-300" : "border-white/5 text-white/60 hover:bg-white/5"
-                                                            )}
-                                                        >
-                                                            <div className={cn("w-2 h-2 rounded-full", selectedServers.includes(s.id) ? "bg-red-400" : "bg-white/20")} />
-                                                            {s.label}
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </div>
-
-                                            <div className="space-y-2 pt-2 border-t border-white/5">
-                                                <div className="flex items-center justify-between text-xs">
-                                                    <span className="flex items-center gap-1"><Lock className="w-3.5 h-3.5 text-red-400" /> VPN / Tunneling</span>
-                                                    <Switch checked={vpnEnabled} onCheckedChange={setVpnEnabled} />
-                                                </div>
-                                                <div className="flex items-center justify-between text-xs">
-                                                    <span className="flex items-center gap-1"><Globe className="w-3.5 h-3.5 text-red-400" /> Red Tor / Onion</span>
-                                                    <Switch checked={torPrivacy} onCheckedChange={setTorPrivacy} />
-                                                </div>
-                                                <div className="flex items-center justify-between text-xs">
-                                                    <span className="flex items-center gap-1"><Shield className="w-3.5 h-3.5 text-red-400" /> Cifrado ZKP</span>
-                                                    <Switch checked={zkpSecurity} onCheckedChange={setZkpSecurity} />
-                                                </div>
-                                            </div>
-
-                                            {/* Sync sync button */}
-                                            <div className="space-y-2 pt-2">
-                                                <Button 
-                                                    disabled={isSyncing}
-                                                    onClick={handleSync}
-                                                    className="w-full h-10 rounded-xl bg-gradient-to-r from-red-600 to-amber-600 hover:from-red-500 hover:to-amber-500 text-xs font-bold gap-2 text-white relative overflow-hidden"
-                                                >
-                                                    {isSyncing ? (
-                                                        <>
-                                                            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                                                            Fusionando... {syncProgress}%
-                                                        </>
-                                                    ) : (
-                                                        <>
-                                                            <RefreshCw className="w-3.5 h-3.5" />
-                                                            Sincronizar y Fusionar
-                                                        </>
-                                                    )}
-                                                </Button>
-
-                                                {/* Liquid Progress Bar */}
-                                                {isSyncing && (
-                                                    <div className="h-1.5 w-full bg-white/10 rounded-full overflow-hidden relative">
-                                                        <motion.div 
-                                                            className="absolute left-0 top-0 bottom-0 bg-gradient-to-r from-red-500 to-amber-500"
-                                                            initial={{ width: 0 }}
-                                                            animate={{ width: `${syncProgress}%` }}
-                                                            transition={{ duration: 0.15 }}
-                                                        />
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {/* Settings Tab Content */}
-                                    {activeToolbarTab === "settings" && (
-                                        <div className="space-y-4">
-                                            {/* POSITION SELECTOR */}
-                                            <div className="space-y-2">
-                                                <Label className="text-[10px] text-white/50 uppercase tracking-wider font-mono">Posición del Menú</Label>
-                                                <div className="grid grid-cols-2 gap-1.5">
-                                                    {(['left', 'right', 'top', 'bottom'] as const).map((pos) => (
-                                                        <button
-                                                            key={pos}
-                                                            onClick={() => saveSidebarConfig({ ...sidebarConfig, position: pos })}
-                                                            className={cn(
-                                                                "py-1.5 px-3 rounded-xl border text-[10px] uppercase font-mono transition-all text-center",
-                                                                sidebarConfig.position === pos
-                                                                    ? "border-cyan-500/50 bg-cyan-500/10 text-cyan-300 shadow-[0_0_10px_rgba(6,182,212,0.2)]"
-                                                                    : "border-white/5 bg-white/[0.02] text-white/50 hover:bg-white/5 hover:text-white"
-                                                            )}
-                                                        >
-                                                            {pos === 'left' ? 'Izquierda' : pos === 'right' ? 'Derecha' : pos === 'top' ? 'Arriba' : 'Abajo'}
-                                                        </button>
-                                                    ))}
-                                                </div>
-                                            </div>
-
-                                            {/* THEME SELECTOR */}
-                                            <div className="space-y-2">
-                                                <Label className="text-[10px] text-white/50 uppercase tracking-wider font-mono">Diseño Estético</Label>
-                                                <div className="space-y-1.5">
-                                                    {[
-                                                        { id: 'liquid-crystal', name: 'Cristal Líquido', desc: 'Vidrio translúcido ciberdélico' },
-                                                        { id: 'cyber-neon', name: 'Ciber Neón', desc: 'Líneas neón cian brillantes' },
-                                                        { id: 'aurora-minimal', name: 'Aurora Sutil', desc: 'Suaves degradados cósmicos' }
-                                                    ].map((t) => (
-                                                        <button
-                                                            key={t.id}
-                                                            onClick={() => saveSidebarConfig({ ...sidebarConfig, theme: t.id as any })}
-                                                            className={cn(
-                                                                "w-full p-2 rounded-xl border transition-all text-left flex flex-col gap-0.5",
-                                                                sidebarConfig.theme === t.id
-                                                                    ? "border-cyan-500/50 bg-cyan-500/10 shadow-[0_0_10px_rgba(6,182,212,0.15)]"
-                                                                    : "border-white/5 bg-white/[0.02] hover:bg-white/5"
-                                                            )}
-                                                        >
-                                                            <span className={cn("text-[10px] font-semibold", sidebarConfig.theme === t.id ? "text-cyan-300" : "text-white/80")}>
-                                                                {t.name}
-                                                            </span>
-                                                            <span className="text-[8px] text-white/40">{t.desc}</span>
-                                                        </button>
-                                                    ))}
-                                                </div>
-                                            </div>
-
-                                            {/* BUTTONS ORDER AND VISIBILITY */}
-                                            <div className="space-y-2">
-                                                <Label className="text-[10px] text-white/50 uppercase tracking-wider font-mono">Acomodo de Opciones</Label>
-                                                <div className="space-y-1 bg-black/40 border border-white/5 p-2 rounded-2xl max-h-[180px] overflow-y-auto pr-1 scrollbar-thin">
-                                                    {sidebarConfig.buttonOrder.map((buttonId, idx) => {
-                                                        if (buttonId.startsWith('divider')) return null;
-                                                        const label = BUTTON_LABELS[buttonId] || buttonId;
-                                                        const isHidden = sidebarConfig.hiddenButtons.includes(buttonId);
-
-                                                        const handleMoveUp = (e: React.MouseEvent) => {
-                                                            e.stopPropagation();
-                                                            if (idx === 0) return;
-                                                            const newOrder = [...sidebarConfig.buttonOrder];
-                                                            const temp = newOrder[idx];
-                                                            newOrder[idx] = newOrder[idx - 1];
-                                                            newOrder[idx - 1] = temp;
-                                                            saveSidebarConfig({ ...sidebarConfig, buttonOrder: newOrder });
-                                                        };
-
-                                                        const handleMoveDown = (e: React.MouseEvent) => {
-                                                            e.stopPropagation();
-                                                            if (idx === sidebarConfig.buttonOrder.length - 1) return;
-                                                            const newOrder = [...sidebarConfig.buttonOrder];
-                                                            const temp = newOrder[idx];
-                                                            newOrder[idx] = newOrder[idx + 1];
-                                                            newOrder[idx + 1] = temp;
-                                                            saveSidebarConfig({ ...sidebarConfig, buttonOrder: newOrder });
-                                                        };
-
-                                                        const handleToggleVisibility = (e: React.MouseEvent) => {
-                                                            e.stopPropagation();
-                                                            const newHidden = isHidden
-                                                                ? sidebarConfig.hiddenButtons.filter(b => b !== buttonId)
-                                                                : [...sidebarConfig.hiddenButtons, buttonId];
-                                                            saveSidebarConfig({ ...sidebarConfig, hiddenButtons: newHidden });
-                                                        };
-
-                                                        return (
-                                                            <div 
-                                                                key={buttonId}
-                                                                className="flex items-center justify-between p-1.5 rounded-xl border border-white/5 bg-white/[0.01] text-[9px] hover:bg-white/5"
-                                                            >
-                                                                <span className="truncate max-w-[130px] font-medium text-white/80">{label}</span>
-                                                                <div className="flex items-center gap-1 shrink-0">
-                                                                    <button
-                                                                        onClick={handleMoveUp}
-                                                                        disabled={idx === 0}
-                                                                        className="p-1 hover:bg-white/10 rounded disabled:opacity-20 text-white/60 hover:text-white"
-                                                                    >
-                                                                        <ArrowUp className="w-2.5 h-2.5" />
-                                                                    </button>
-                                                                    <button
-                                                                        onClick={handleMoveDown}
-                                                                        disabled={idx === sidebarConfig.buttonOrder.length - 1}
-                                                                        className="p-1 hover:bg-white/10 rounded disabled:opacity-20 text-white/60 hover:text-white"
-                                                                    >
-                                                                        <ArrowDown className="w-2.5 h-2.5" />
-                                                                    </button>
-                                                                    <button
-                                                                        onClick={handleToggleVisibility}
-                                                                        className="p-1 hover:bg-white/10 rounded text-cyan-400 hover:text-cyan-300"
-                                                                    >
-                                                                        {isHidden ? <EyeOff className="w-2.5 h-2.5 text-white/30" /> : <Eye className="w-2.5 h-2.5 text-cyan-400" />}
-                                                                    </button>
-                                                                </div>
-                                                            </div>
-                                                        );
-                                                    })}
-                                                </div>
-                                            </div>
-
-                                            {/* RESET BUTTON */}
-                                            <Button
-                                                onClick={() => {
-                                                    const resetConfig = {
-                                                        position: 'left' as const,
-                                                        theme: 'liquid-crystal' as const,
-                                                        buttonOrder: BUTTON_ORDER_DEFAULT,
-                                                        hiddenButtons: []
-                                                    };
-                                                    saveSidebarConfig(resetConfig);
-                                                    toast({ title: "Configuración Restablecida", description: "El menú ha vuelto a su diseño y acomodo predeterminados." });
-                                                }}
-                                                variant="outline"
-                                                size="sm"
-                                                className="w-full text-[10px] h-8 rounded-xl border-white/10 hover:bg-white/5 text-white/70"
-                                            >
-                                                Restablecer Predeterminados
-                                            </Button>
-                                        </div>
-                                    )}
-                                </div>
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
-                </div>
-
                 {/* ── MAIN CONTENT CONTAINER (Widget view & header) ── */}
                 <div className={cn(
                     "flex-1 flex flex-col w-full min-w-0 transition-all duration-500",
@@ -2256,7 +1632,7 @@ export function DashboardLayout() {
                                     {/* Texto y botones bajo el título eliminados por petición:
                                         la cabecera queda limpia (solo el título). Las acciones
                                         (editar, pantalla completa, forjar, restablecer) viven en
-                                        la barra lateral de ajustes. */}
+                                        el editor superior, bajo la barra de pestañas. */}
                                 </div>
                             </motion.div>
                         )}
@@ -2279,19 +1655,9 @@ export function DashboardLayout() {
                                 dashboards={dashboards}
                                 isEditMode={isEditMode}
                                 setWidgets={setWidgets}
-                                widgetsMap={(() => {
-                                    // Cada dashboard muestra SUS widgets: los del activo vienen del
-                                    // estado en vivo; los demás se leen de almacenamiento para que
-                                    // todas las pestañas aparezcan ya acomodadas por defecto.
-                                    const all = loadAllWidgets();
-                                    const map: Record<string, DashboardWidget[]> = {};
-                                    for (const d of dashboards) {
-                                        map[d.id] = (activeDashboardId && d.id === activeDashboardId)
-                                            ? widgets
-                                            : (all[d.id] || []);
-                                    }
-                                    return map;
-                                })()}
+                                // Cada dashboard muestra SUS widgets: los del activo vienen del
+                                // estado en vivo; los demás, del almacén (ya acomodados).
+                                widgetsMap={widgetsMap}
                                 onPinWidget={(widget) => {
                                     const htmlCode = widget.widget_type === 'AI_GENERATED'
                                         ? widget.settings?.customHtml || '<div style="padding:20px;color:white;">Widget</div>'
@@ -2322,6 +1688,16 @@ export function DashboardLayout() {
                                 currentDevice={currentDevice}
                                 onSetDeviceTags={handleSetDeviceTags}
                                 onOpenDeviceManager={() => setIsDeviceManagerOpen(true)}
+                                // ── Editor superior ──
+                                renderEditor={renderEditor}
+                                onCambiarWidgetsDashboard={aplicarWidgets}
+                                onDashboardActivo={alCambiarDashboardActivo}
+                                solicitudFoco={solicitudFoco}
+                                onAlternarEdicion={alternarEdicion}
+                                onReordenar={reordenarDashboards}
+                                cuadricula={cuadricula}
+                                onSoltarCatalogo={(dashId, type, talla, posicion) => handleAddWidget(dashId, type, { talla, posicion })}
+                                onAbrirCatalogo={() => setGrupoEditor("widgets")}
                             />
                         </WorkspaceProvider>
                     </div>
@@ -2544,200 +1920,5 @@ export function DashboardLayout() {
                 </div>
             </div>
         </WeatherLocationProvider>
-    );
-}
-
-// --- Header quick-action pill button ---
-interface HeaderActionProps {
-    icon: React.ReactNode;
-    label: string;
-    tone: "neutral" | "cyan" | "emerald" | "indigo";
-    active?: boolean;
-    onClick: () => void;
-}
-
-function HeaderAction({ icon, label, tone, active, onClick }: HeaderActionProps) {
-    const tones = {
-        neutral: "border-white/10 bg-white/[0.03] text-white/70 hover:bg-white/10 hover:text-white",
-        cyan: "border-cyan-500/30 bg-cyan-500/10 text-cyan-200 hover:bg-cyan-500/20 hover:shadow-[0_0_18px_rgba(34,211,238,0.3)]",
-        emerald: "border-emerald-500/30 bg-emerald-500/10 text-emerald-200 hover:bg-emerald-500/20 hover:shadow-[0_0_18px_rgba(16,185,129,0.3)]",
-        indigo: "border-indigo-500/30 bg-indigo-500/10 text-indigo-200 hover:bg-indigo-500/20 hover:shadow-[0_0_18px_rgba(99,102,241,0.35)]",
-    } as const;
-
-    return (
-        <button
-            onClick={onClick}
-            className={cn(
-                "flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border backdrop-blur-md text-xs font-medium transition-all duration-200 cursor-pointer active:scale-95",
-                tones[tone],
-                active && "ring-1 ring-emerald-400/40 scale-[1.03]"
-            )}
-        >
-            {icon}
-            {label}
-        </button>
-    );
-}
-
-// --- Internal Helper Icon button for side control dock ---
-interface SidebarIconButtonProps {
-    icon: React.ReactNode;
-    label: string;
-    color: "neutral" | "cyan" | "emerald" | "purple" | "amber" | "crimson";
-    active?: boolean;
-    onClick: () => void;
-    /** Lado hacia el que se abre el tooltip (interior de la pantalla). */
-    tipSide?: "right" | "left" | "top" | "bottom";
-    /** Nombre corto de la pestaña (se muestra junto al icono cuando cabe). */
-    text?: string;
-    /** Icono+texto en barra horizontal sobre pantallas anchas (md+). */
-    showText?: boolean;
-    /** Descripción del botón: activa el affordance "i" (popover informativo,
-     *  visible SIEMPRE, quepa o no el texto del título). */
-    info?: string;
-}
-
-function SidebarIconButton({ icon, label, color, active, onClick, tipSide = "right", text, showText, info }: SidebarIconButtonProps) {
-    // Popover informativo del affordance "i" (se cierra fuera / con Escape).
-    const [infoOpen, setInfoOpen] = useState(false);
-    const rootRef = useRef<HTMLDivElement | null>(null);
-    useEffect(() => {
-        if (!infoOpen) return;
-        const onDown = (e: PointerEvent) => {
-            if (rootRef.current && e.target instanceof Node && !rootRef.current.contains(e.target)) {
-                setInfoOpen(false);
-            }
-        };
-        const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setInfoOpen(false); };
-        window.addEventListener("pointerdown", onDown);
-        window.addEventListener("keydown", onKey);
-        return () => {
-            window.removeEventListener("pointerdown", onDown);
-            window.removeEventListener("keydown", onKey);
-        };
-    }, [infoOpen]);
-
-    const colors = {
-        neutral: "text-white/60 hover:text-white hover:bg-white/10",
-        cyan: "text-cyan-400 hover:bg-cyan-500/20 hover:shadow-[0_0_15px_rgba(34,211,238,0.4)]",
-        emerald: "text-emerald-400 hover:bg-emerald-500/20 hover:shadow-[0_0_15px_rgba(16,185,129,0.4)]",
-        purple: "text-purple-400 hover:bg-purple-500/20 hover:shadow-[0_0_15px_rgba(168,85,247,0.4)]",
-        amber: "text-amber-400 hover:bg-amber-500/20 hover:shadow-[0_0_15px_rgba(245,158,11,0.4)]",
-        crimson: "text-red-400 hover:bg-red-500/20 hover:shadow-[0_0_15px_rgba(239,68,68,0.4)]"
-    };
-
-    // Tooltip hacia el interior de la pantalla según el borde donde vive la barra.
-    const tipPos = {
-        right: "left-full ml-2 top-1/2 -translate-y-1/2",
-        left: "right-full mr-2 top-1/2 -translate-y-1/2",
-        top: "bottom-full mb-2 left-1/2 -translate-x-1/2",
-        bottom: "top-full mt-2 left-1/2 -translate-x-1/2",
-    }[tipSide];
-
-    // El popover informativo también se abre hacia el interior de la pantalla.
-    const popPos = {
-        right: "left-full ml-2 top-0",
-        left: "right-full mr-2 top-0",
-        top: "bottom-full mb-2 left-1/2 -translate-x-1/2",
-        bottom: "top-full mt-2 left-1/2 -translate-x-1/2",
-    }[tipSide];
-
-    return (
-        <div ref={rootRef} className="relative group shrink-0">
-            <Button
-                size={showText ? "sm" : "icon"}
-                variant="ghost"
-                onClick={onClick}
-                aria-label={label}
-                className={cn(
-                    "rounded-[10px] backdrop-blur-md border border-white/5 transition-all duration-200 motion-reduce:transition-none cursor-pointer",
-                    showText ? "h-9 px-2.5 gap-1.5" : "w-9 h-9",
-                    colors[color],
-                    // Pestaña activa: glow sutil con el acento del tema (variables
-                    // CSS del OS), en cualquier tema/appearance.
-                    active && "bg-[hsl(var(--primary)/0.14)] ring-1 ring-[hsl(var(--primary)/0.45)] shadow-[0_0_14px_hsl(var(--primary)/0.35)]"
-                )}
-            >
-                {icon}
-                {showText && text && (
-                    <span className="hidden md:inline text-[11px] font-medium leading-none whitespace-nowrap">
-                        {text}
-                    </span>
-                )}
-            </Button>
-
-            {/* Affordance "i": SIEMPRE visible cuando el botón declara `info`.
-                Abre un popover con el título y la descripción de la acción. */}
-            {info && (
-                <button
-                    type="button"
-                    aria-label={`Información: ${text ?? label}`}
-                    aria-expanded={infoOpen}
-                    onClick={(e) => { e.stopPropagation(); setInfoOpen((v) => !v); }}
-                    onPointerDown={(e) => e.stopPropagation()}
-                    className={cn(
-                        "absolute -top-1 -right-1 z-20 grid place-items-center w-4 h-4 rounded-full cursor-pointer",
-                        "bg-black/75 border border-white/20 text-white/60 backdrop-blur-sm",
-                        "transition-colors duration-200 motion-reduce:transition-none",
-                        "hover:text-cyan-300 hover:border-cyan-400/50",
-                        infoOpen && "text-cyan-300 border-cyan-400/60 shadow-[0_0_8px_rgba(34,211,238,0.45)]"
-                    )}
-                >
-                    <Info className="w-2.5 h-2.5" />
-                </button>
-            )}
-
-            {/* Popover informativo (título + descripción), hacia el interior. */}
-            {info && infoOpen && (
-                <div
-                    role="note"
-                    className={cn(
-                        "absolute z-[120] w-52 rounded-xl border border-white/10 bg-black/90 backdrop-blur-xl p-2.5 shadow-2xl",
-                        popPos
-                    )}
-                >
-                    <div className="text-[11px] font-semibold text-white/90 leading-tight">{text ?? label}</div>
-                    <p className="mt-1 text-[10px] leading-relaxed text-white/55">{info}</p>
-                </div>
-            )}
-
-            {/* Tooltip (nombre completo). Con icono+texto visible (md+) se oculta. */}
-            {!infoOpen && (
-                <span
-                    className={cn(
-                        "absolute bg-black/90 text-white border border-white/10 text-[10px] px-2 py-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity duration-200 motion-reduce:transition-none pointer-events-none whitespace-nowrap shadow-md z-[100]",
-                        tipPos,
-                        showText && text && "md:hidden"
-                    )}
-                >
-                    {label}
-                </span>
-            )}
-        </div>
-    );
-}
-
-// Internal Location selector button wrapper
-// LocationSelectorIcon removed — replaced by a SidebarIconButton with MapPin icon
-
-// Inline temporary GitHub icon
-function GithubIcon(props: any) {
-    return (
-        <svg
-            {...props}
-            xmlns="http://www.w3.org/2000/svg"
-            width="24"
-            height="24"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className={props.className}
-        >
-            <path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4" />
-            <path d="M9 18c-4.51 2-5-2-7-2" />
-        </svg>
     );
 }

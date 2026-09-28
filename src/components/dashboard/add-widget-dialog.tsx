@@ -26,7 +26,9 @@ import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 // ── Widget Definitions ───────────────────────────────────────────
-interface WidgetDefinition {
+// (2026-09-28) Exportadas: el catálogo del editor superior reutiliza estas fichas
+// (título, descripción e icono) en vez de duplicarlas.
+export interface WidgetDefinition {
     type: WidgetType;
     title: string;
     description: string;
@@ -37,7 +39,7 @@ interface WidgetDefinition {
     isPopular?: boolean;
 }
 
-const AVAILABLE_WIDGETS: WidgetDefinition[] = [
+export const AVAILABLE_WIDGETS: WidgetDefinition[] = [
     // ── Aplicaciones (launcher) ──
     {
         type: 'APP_LAUNCHER', title: "Apps StarSeed",

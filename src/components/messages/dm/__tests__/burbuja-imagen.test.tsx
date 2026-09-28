@@ -9,7 +9,7 @@ import type { ReactNode } from "react";
 
 const adjuntos = vi.hoisted(() => ({ urlVigenteAdjunto: vi.fn((u?: string | null) => u ?? undefined) }));
 vi.mock("@/lib/mensajeria/adjuntos", () => adjuntos);
-vi.mock("@/components/messages/rico/mensaje-formateado", () => ({ MensajeFormateado: ({ textoPlano }: { textoPlano: string }) => <p>{textoPlano}</p> }));
+vi.mock("@/components/messages/rico/mensaje-formateado", () => ({ MensajeFormateado: ({ textoPlano }: { textoPlano: string }) => <p>{textoPlano}</p>, superficiePropia: () => false }));
 vi.mock("@/components/llamadas/tarjeta-llamada", () => ({ TarjetaLlamada: () => <div>llamada</div> }));
 vi.mock("@/components/messages/vivo/tarjeta-vivo", () => ({ TarjetaVivo: () => <div>vivo</div> }));
 vi.mock("@/components/aurora/message-renderer", () => ({ MessageRenderer: ({ text }: { text: string }) => <p>{text}</p> }));

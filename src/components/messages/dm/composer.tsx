@@ -13,6 +13,7 @@ import {
     Component, forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState,
     type CSSProperties, type ErrorInfo, type ReactNode,
 } from "react";
+import dynamic from "next/dynamic";
 import { toast } from "sonner";
 import {
     FileIcon, Loader2, Mail, Music, Paperclip, Plus, Reply, Send, Sparkles, Type, Video as VideoIcon, Wand2, X,
@@ -26,8 +27,8 @@ import { InviteComposerButton, type InviteAttachmentPayload } from "@/components
 // Contratos C4 y C6.
 import { estiloACss, validarFormato } from "@/lib/mensajeria/formato";
 import { BotonEstiloRapido } from "@/components/messages/rico/estilo-rapido";
-import { EditorMensajeRico } from "@/components/messages/rico/editor-mensaje-rico";
 import { BotonCompartirVivo } from "@/components/messages/vivo/boton-compartir-vivo";
+const EditorMensajeRico = dynamic(() => import("@/components/messages/rico/editor-mensaje-rico").then((m) => m.EditorMensajeRico), { ssr: false });
 
 const MAX_INLINE_BYTES = 300_000; // ~0.3MB: respaldo sin red (dataURL) para adjuntos muy pequeños.
 

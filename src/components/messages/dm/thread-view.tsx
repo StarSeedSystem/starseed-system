@@ -12,6 +12,7 @@
  *  · El manejador de realtime lee refs (sin cierres obsoletos).
  */
 
+import dynamic from "next/dynamic";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { ChevronDown, Eye, EyeOff, Loader2, MessageCircleHeart, Paperclip } from "lucide-react";
@@ -43,8 +44,8 @@ import {
     agruparMensajes, buscarCoincidencias, debeCargarMultimedia, estadoLectura, exportarChatTexto, mensajesVisibles,
     nombreArchivoSeguro, nombrePersona, otroMiembro, resolverNombreHilo, resumenMiembros, textoEscribiendo,
 } from "@/components/messages/dm/utilidades-hilo";
-import { PanelInfoHilo } from "@/components/messages/info/panel-info-hilo";
-import { VisorMensaje } from "@/components/messages/info/visor-mensaje";
+const PanelInfoHilo = dynamic(() => import("@/components/messages/info/panel-info-hilo").then((m) => m.PanelInfoHilo), { ssr: false });
+const VisorMensaje = dynamic(() => import("@/components/messages/info/visor-mensaje").then((m) => m.VisorMensaje), { ssr: false });
 
 export interface ThreadViewProps {
     thread: DmThreadSummary;

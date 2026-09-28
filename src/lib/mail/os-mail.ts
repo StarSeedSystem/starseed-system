@@ -167,6 +167,7 @@ function normalizeMessageLite(row: RawMessageRow): DmMessage {
         editedAt: row.edited_at,
         deleted: !!row.deleted,
         createdAt: row.created_at,
+        formato: null,
     };
 }
 

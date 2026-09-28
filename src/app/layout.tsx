@@ -118,6 +118,7 @@ import { GlobalEditorHost } from "@/components/creation/global-editor-host";
 // del Sincrómetro (que vive solo dentro de (app), atado a CalendarProvider) —
 // las alarmas deben sonar también desde /messages y /correos (fuera de (app)).
 import { AlarmsEngine } from "@/components/alarms/alarms-engine";
+import { MontajeGlobalMensajeria } from "@/components/mensajeria/montaje-global";
 // Fondos animados del CATÁLOGO DE TEMAS (theme-engine.ts + theme-catalog.ts):
 // matrix-rain/estrellas/gradiente-aurora/weather-live. Sin efecto salvo que
 // un ThemePack del catálogo los active (data-ss-background en <html>).
@@ -372,6 +373,7 @@ export default function RootLayout({
                             Apariencia → Cursor; 'starseed.cursorfx.v1'). Global. */}
                         <CursorFxHost />
                         <AlarmsEngine />
+                        <SoloFueraDeMinima><MontajeGlobalMensajeria /></SoloFueraDeMinima>
                         <CommandPalette />
                         <Toaster />
                         <Sonner />

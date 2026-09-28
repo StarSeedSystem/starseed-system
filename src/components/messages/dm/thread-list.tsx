@@ -17,6 +17,7 @@
  * Todo lo que se decide aquí es personal (Justicia restaurativa, §6): nada cambia para el otro.
  */
 
+import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState, type MouseEvent } from "react";
 import { BellOff, Pin, Search, ShieldOff, Sparkles, SquarePen, UserPlus, X } from "lucide-react";
 import { toast } from "sonner";
@@ -35,7 +36,7 @@ import {
 import { describirSilencio, etiquetaFechaLista } from "@/components/messages/marco/formato-tiempo";
 import { ACENTO, CLASE_ROTULO, pildoraFantasma } from "@/components/messages/marco/estilos";
 import { MenuHilo, type AccionExtraMenu } from "@/components/messages/marco/menu-hilo";
-import { DialogoAjustesHilo } from "@/components/messages/marco/dialogo-ajustes-hilo";
+const DialogoAjustesHilo = dynamic(() => import("@/components/messages/marco/dialogo-ajustes-hilo").then((m) => m.DialogoAjustesHilo), { ssr: false });
 
 /* ───────────────────── Helpers públicos (los usa también ThreadView) ───────────────────── */
 

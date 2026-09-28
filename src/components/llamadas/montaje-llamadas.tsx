@@ -12,6 +12,7 @@
  *
  * Sin sesión no escucha nada. Nunca lanza.
  */
+import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence } from "framer-motion";
 import { onTableChange } from "@/lib/realtime/realtime";
@@ -23,7 +24,7 @@ import { esTimbreEntrante } from "@/lib/llamadas/adjunto";
 import { prepararTimbre } from "@/lib/llamadas/acciones";
 import { agregarTimbre, registrarHost, useLlamadas, type TimbreEntrante } from "@/lib/llamadas/store";
 import { TimbreLlamada } from "./timbre";
-import { VentanaLlamada } from "./ventana-llamada";
+const VentanaLlamada = dynamic(() => import("./ventana-llamada").then((m) => m.VentanaLlamada), { ssr: false });
 
 type FilaMensaje = Parameters<typeof messageFromRealtimeRow>[0];
 

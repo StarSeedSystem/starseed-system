@@ -30,7 +30,8 @@ import { CorreosPanel } from "@/components/messages/correos-panel";
 import { ThreadList, threadTitle } from "@/components/messages/dm/thread-list";
 import { ThreadView } from "@/components/messages/dm/thread-view";
 import { NewChatDialog } from "@/components/messages/dm/new-chat-dialog";
-import { AjustesMensajeriaDialog, type SeccionAjustesMensajeria } from "@/components/messages/ajustes/ajustes-mensajeria";
+import dynamic from "next/dynamic";
+import type { SeccionAjustesMensajeria } from "@/components/messages/ajustes/ajustes-mensajeria";
 import { BarraSuperior, type SuperficieMensajes } from "@/components/messages/marco/barra-superior";
 import { MarcoDosPaneles } from "@/components/messages/marco/marco-dos-paneles";
 import { ProveedorNombresHilos, useNombresHilos } from "@/components/messages/marco/nombres-hilos";
@@ -40,8 +41,6 @@ import { aplicarAuroraPorDefecto } from "@/components/messages/marco/aurora-por-
 import { companeroDm, esSolicitud } from "@/components/messages/marco/filtros-lista";
 import { describirSilencio } from "@/components/messages/marco/formato-tiempo";
 import { ACENTO, pildoraFantasma } from "@/components/messages/marco/estilos";
-import { LatidoPresencia } from "@/components/mensajeria/latido-presencia";
-import { MontajeLlamadas } from "@/components/llamadas/montaje-llamadas";
 import { useAjustesMensajeria } from "@/lib/mensajeria/ajustes-store";
 import { useContactos } from "@/lib/contactos/store";
 import {
@@ -50,6 +49,7 @@ import {
 import {
     seedMyProfile, fetchProfilesByIds, fetchProfileByUsername, type OsProfile,
 } from "@/lib/social/os-profiles";
+const AjustesMensajeriaDialog = dynamic(() => import("@/components/messages/ajustes/ajustes-mensajeria").then((m) => m.AjustesMensajeriaDialog), { ssr: false });
 
 const SECCIONES_VALIDAS: SeccionAjustesMensajeria[] = ["chats", "privacidad", "notificaciones", "correos", "aurora", "personalizados"];
 
@@ -361,8 +361,6 @@ function MessagesContent() {
             data-enfocado={enfocado ? "si" : "no"}
         >
             {/* Capas globales de la sección: una sola vez. */}
-            <LatidoPresencia />
-            <MontajeLlamadas />
 
             <NewChatDialog open={newChatOpen} onOpenChange={setNewChatOpen} onCreated={handleThreadCreated} />
             <AjustesMensajeriaDialog open={ajustesAbiertos} onOpenChange={setAjustesAbiertos} seccionInicial={seccionAjustes} />

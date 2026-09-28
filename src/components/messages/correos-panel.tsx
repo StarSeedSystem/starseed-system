@@ -26,6 +26,7 @@
 // vista conversación/lista e imágenes remotas bajo tu permiso.
 // -----------------------------------------------------------------------------
 
+import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from "react";
 import { toast } from "sonner";
 import { avisarCorreoEnviado, avisarCorreoRecibido, sembrarAvisados } from "@/lib/mail/avisos-correo";
@@ -79,11 +80,11 @@ import { useContactos } from "@/lib/contactos/store";
 import { AvatarContacto } from "@/components/contactos/avatar-contacto";
 import { MarcoDosPaneles } from "@/components/messages/marco/marco-dos-paneles";
 import { MenuHilo } from "@/components/messages/marco/menu-hilo";
-import { DialogoAjustesHilo } from "@/components/messages/marco/dialogo-ajustes-hilo";
 import { useNombresHilos } from "@/components/messages/marco/nombres-hilos";
 import { useEsMovil } from "@/components/messages/marco/use-es-movil";
 import { describirSilencio } from "@/components/messages/marco/formato-tiempo";
 import { ACENTO, CLASE_ROTULO, pildoraFantasma } from "@/components/messages/marco/estilos";
+const DialogoAjustesHilo = dynamic(() => import("@/components/messages/marco/dialogo-ajustes-hilo").then((m) => m.DialogoAjustesHilo), { ssr: false });
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 

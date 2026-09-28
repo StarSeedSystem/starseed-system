@@ -7,7 +7,7 @@ import { DashboardWidget, WidgetType } from "./dashboard-types";
 import { WidgetRegistry } from "./widget-registry";
 import { getSizeConstraints } from "./widget-manifest";
 import { AddWidgetDialog } from "./add-widget-dialog";
-import { Sparkles, ChevronUp, ChevronDown, Scaling, Pin, Share2, X } from "lucide-react";
+import { Sparkles, ChevronUp, ChevronDown, Scaling, Pin, Share2, X, Lock, LockOpen } from "lucide-react";
 import { WidgetConfigPopover } from "./kit/widget-config-popover";
 import { shareWidget } from "@/lib/widget-sync";
 import { getManifest } from "./widget-manifest";
@@ -18,6 +18,10 @@ import { useAppearance } from "@/context/appearance-context";
 import { acomodosPorPantalla } from "@/lib/dashboard/acomodo-pantalla";
 import { motion, useReducedMotion } from "framer-motion";
 import { nextSize, sizeFromWH, dimsForSize, type WidgetSize } from "./dashboard-size";
+// (2026-09-28) Editor superior: bloqueo de widgets, cuadrícula visible y soltar desde el catálogo.
+import { conBloqueo, estaBloqueado, columnasPara } from "./editor-superior/acomodo";
+import { arrastreCatalogoActual, esArrastreCatalogo, leerCargaCatalogo, terminarArrastreCatalogo } from "./editor-superior/arrastre-catalogo";
+import type { TallaEditor } from "./editor-superior/tipos";
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
 
@@ -45,6 +49,28 @@ interface GridAreaProps {
     onPinWidget?: (widget: DashboardWidget) => void;
     onAddWidget?: (dashboardId: string, type: WidgetType) => void;
     onForgeOpen?: () => void;
+    /** Enseña las celdas de la rejilla (solo tiene efecto en edición). */
+    cuadricula?: boolean;
+    /** Soltar una ficha del catálogo del editor: tipo, talla y celda (si se soltó en escritorio). */
+    onSoltarCatalogo?: (type: WidgetType, talla: TallaEditor, posicion?: { x: number; y: number }) => void;
+}
+
+const ALTO_FILA = 65;
+const MARGEN = 12;
+
+/** Fondo con las celdas de la rejilla (columnas teñidas y filas separadas). */
+function fondoCuadricula(ancho: number): React.CSSProperties {
+    const cols = columnasPara(ancho);
+    const col = Math.max(8, (ancho - MARGEN * (cols - 1)) / cols);
+    return {
+        backgroundImage: [
+            `linear-gradient(180deg, transparent 0 ${ALTO_FILA}px, rgba(8,10,24,.55) ${ALTO_FILA}px ${ALTO_FILA + MARGEN}px)`,
+            `linear-gradient(90deg, rgba(124,92,255,.10) 0 ${col}px, transparent ${col}px ${col + MARGEN}px)`,
+        ].join(", "),
+        backgroundSize: `100% ${ALTO_FILA + MARGEN}px, ${col + MARGEN}px 100%`,
+        backgroundRepeat: "repeat",
+        borderRadius: 12,
+    };
 }
 
 /**
@@ -89,7 +115,7 @@ function useNarrowViewport(): boolean {
     return narrow;
 }
 
-export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWidget, onAddWidget, onForgeOpen }: GridAreaProps) {
+export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWidget, onAddWidget, onForgeOpen, cuadricula, onSoltarCatalogo }: GridAreaProps) {
     const { width, containerRef } = useWidth();
     const { toast } = useToast();
     const { config } = useAppearance();
@@ -107,6 +133,37 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWi
     // cualquier pantalla táctil, los widgets jamás se mueven al tocarlos, deslizar
     // hace scroll y todos los botones funcionan. En ratón se permite en edición.
     const canDragMouse = isEditMode && !isCoarse;
+    const puedeSoltarCatalogo = canDragMouse && !!onSoltarCatalogo;
+
+    // Bloquear/desbloquear un widget: fija sitio y tamaño (la rejilla lo trata como estático).
+    const alternarBloqueo = useCallback((widgetId: string) => {
+        const w = widgets.find((x) => x.id === widgetId);
+        if (!w) return;
+        setWidgets(conBloqueo(widgets, [widgetId], !estaBloqueado(w)));
+    }, [widgets, setWidgets]);
+
+    // Soltar en la rejilla: una ficha del catálogo se añade; un widget de otro panel se traslada
+    // (la rejilla detiene la propagación del evento, así que el traslado se reenvía desde aquí).
+    const alSoltarEnRejilla = useCallback((_layout: unknown, item: { x: number; y: number } | undefined, e: Event) => {
+        const dt = (e as DragEvent).dataTransfer ?? null;
+        const carga = leerCargaCatalogo(dt);
+        terminarArrastreCatalogo();
+        if (carga && onSoltarCatalogo) {
+            const posicion = item && puntoActual.current === "lg" ? { x: item.x, y: item.y } : undefined;
+            onSoltarCatalogo(carga.type, carga.talla, posicion);
+            return;
+        }
+        try {
+            const raw = dt?.getData("text/plain");
+            if (!raw) return;
+            const { widgetId, sourceDashboardId } = JSON.parse(raw);
+            if (!widgetId || sourceDashboardId === dashboardId) return;
+            const ev = e as DragEvent;
+            window.dispatchEvent(new CustomEvent('starseed:transfer-widget', {
+                detail: { widgetId, sourceDashboardId, targetDashboardId: dashboardId, clientX: ev.clientX, clientY: ev.clientY },
+            }));
+        } catch { /* datos ajenos */ }
+    }, [onSoltarCatalogo, dashboardId]);
 
     // Persiste un patch parcial en `widget.settings` (lo usa el panel de estilo
     // por widget · WidgetConfigPopover). Fusiona sobre las settings actuales.
@@ -134,6 +191,8 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWi
                 minH: c.minH,
                 ...(c.maxW ? { maxW: c.maxW } : {}),
                 ...(c.maxH ? { maxH: c.maxH } : {}),
+                // Bloqueado: ni se arrastra ni se redimensiona; los demás fluyen a su alrededor.
+                ...(estaBloqueado(w) ? { static: true } : {}),
             };
         });
         setLayouts((prev: any) => {
@@ -188,6 +247,8 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWi
 
         const a = sorted[idx];
         const b = sorted[swapIdx];
+        // Un widget bloqueado no se mueve, ni siquiera al intercambiarse con un vecino.
+        if (estaBloqueado(a) || estaBloqueado(b)) return;
         const updated = widgets.map(w => {
             if (w.id === a.id) return { ...w, layout: { ...w.layout, x: b.layout.x, y: b.layout.y } };
             if (w.id === b.id) return { ...w, layout: { ...w.layout, x: a.layout.x, y: a.layout.y } };
@@ -228,7 +289,7 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWi
     const handlePinWidget = (widget: DashboardWidget) => {
         if (onPinWidget) {
             onPinWidget(widget);
-            toast({ title: "📌 Widget fijado", description: "El widget aparecerá flotante sobre todas las secciones." });
+            toast({ title: "Widget fijado", description: "El widget aparecerá flotante sobre todas las secciones." });
         }
     };
 
@@ -245,7 +306,7 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWi
                 settings: widget.settings || {},
             });
             try { await navigator.clipboard?.writeText(`starseed://widget/${meta.entityId}`); } catch { /* noop */ }
-            toast({ title: "🔗 Widget compartido", description: `"${title}" está en tu biblioteca. Enlace copiado para compartir o replicar.` });
+            toast({ title: "Widget compartido", description: `"${title}" está en tu biblioteca. Enlace copiado para compartir o replicar.` });
         } catch {
             toast({ title: "No se pudo compartir", description: "Inténtalo de nuevo.", variant: "destructive" as any });
         }
@@ -254,7 +315,18 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWi
     // Empty state when no widgets — invitación clara a poblar desde la biblioteca
     if (mounted && widgets.length === 0) {
         return (
-            <div ref={containerRef} className="relative min-h-[500px] flex flex-col items-center justify-center gap-6 rounded-2xl border border-dashed border-primary/20 bg-primary/[0.02] backdrop-blur-sm overflow-hidden">
+            <div
+                ref={containerRef}
+                // Un tablero vacío también acepta fichas arrastradas desde el catálogo del editor.
+                onDragOver={(e) => { if (puedeSoltarCatalogo && esArrastreCatalogo(e.dataTransfer)) { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; } }}
+                onDrop={(e) => {
+                    if (!puedeSoltarCatalogo) return;
+                    const carga = leerCargaCatalogo(e.dataTransfer);
+                    terminarArrastreCatalogo();
+                    if (carga) { e.preventDefault(); onSoltarCatalogo?.(carga.type, carga.talla, { x: 0, y: 0 }); }
+                }}
+                className="relative min-h-[500px] flex flex-col items-center justify-center gap-6 rounded-2xl border border-dashed border-primary/20 bg-primary/[0.02] backdrop-blur-sm overflow-hidden"
+            >
                 {/* halo decorativo animado */}
                 <div className="pointer-events-none absolute inset-0 opacity-60 [background:radial-gradient(circle_at_50%_40%,hsl(var(--primary)/0.10),transparent_60%)]" />
                 <div className="relative flex flex-col items-center text-center space-y-4 max-w-sm px-6">
@@ -371,7 +443,7 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWi
                                         <button
                                             type="button"
                                             onClick={(e) => { e.stopPropagation(); moveWidget(widget.id, "up"); }}
-                                            disabled={idx === 0}
+                                            disabled={idx === 0 || estaBloqueado(widget)}
                                             aria-label="Subir el widget en el orden"
                                             className="absolute top-2 left-2 grid place-items-center min-h-[36px] min-w-[36px] bg-background/80 hover:bg-background border rounded-lg z-50 cursor-pointer transition-colors disabled:opacity-30"
                                             title="Subir / mover antes"
@@ -381,7 +453,7 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWi
                                         <button
                                             type="button"
                                             onClick={(e) => { e.stopPropagation(); moveWidget(widget.id, "down"); }}
-                                            disabled={idx === ordered.length - 1}
+                                            disabled={idx === ordered.length - 1 || estaBloqueado(widget)}
                                             aria-label="Bajar el widget en el orden"
                                             className="absolute top-2 left-[3.25rem] grid place-items-center min-h-[36px] min-w-[36px] bg-background/80 hover:bg-background border rounded-lg z-50 cursor-pointer transition-colors disabled:opacity-30"
                                             title="Bajar / mover después"
@@ -390,9 +462,20 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWi
                                         </button>
                                         <button
                                             type="button"
+                                            onClick={(e) => { e.stopPropagation(); alternarBloqueo(widget.id); }}
+                                            aria-pressed={estaBloqueado(widget)}
+                                            aria-label={estaBloqueado(widget) ? "Desbloquear el widget" : "Bloquear el widget (fija su sitio y su tamaño)"}
+                                            className={cn("absolute bottom-2 left-2 grid place-items-center min-h-[36px] min-w-[36px] border rounded-lg z-50 cursor-pointer transition-colors", estaBloqueado(widget) ? "bg-amber-500/80 hover:bg-amber-500 text-black border-amber-300" : "bg-background/80 hover:bg-background")}
+                                            title={estaBloqueado(widget) ? "Desbloquear" : "Bloquear sitio y tamaño"}
+                                        >
+                                            {estaBloqueado(widget) ? <Lock className="w-4 h-4" /> : <LockOpen className="w-4 h-4" />}
+                                        </button>
+                                        <button
+                                            type="button"
+                                            disabled={estaBloqueado(widget)}
                                             onClick={(e) => { e.stopPropagation(); cycleWidgetSize(widget.id); }}
                                             aria-label={`Cambiar tamaño del widget (actual: ${widgetSize(widget)})`}
-                                            className="absolute bottom-2 left-2 flex items-center gap-1 min-h-[36px] bg-background/80 hover:bg-background border rounded-lg px-2 py-1 z-50 cursor-pointer transition-colors text-[10px] font-bold"
+                                            className="disabled:opacity-40 disabled:cursor-not-allowed absolute bottom-2 left-[3.25rem] flex items-center gap-1 min-h-[36px] bg-background/80 hover:bg-background border rounded-lg px-2 py-1 z-50 cursor-pointer transition-colors text-[10px] font-bold"
                                             title="Cambiar tamaño (S/M/L/XL)"
                                         >
                                             <Scaling className="w-3.5 h-3.5" />
@@ -416,15 +499,17 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWi
                                         >
                                             <Share2 className="w-4 h-4" />
                                         </button>
-                                        <button
-                                            type="button"
-                                            onClick={(e) => { e.stopPropagation(); handleDeleteWidget(widget.id); }}
-                                            aria-label="Eliminar el widget"
-                                            className="absolute top-2 right-2 grid place-items-center min-h-[36px] min-w-[36px] bg-destructive/80 hover:bg-destructive text-white border border-destructive rounded-lg cursor-pointer z-50 transition-colors"
-                                            title="Eliminar Widget"
-                                        >
-                                            <X className="w-4 h-4" />
-                                        </button>
+                                        {!estaBloqueado(widget) && (
+                                            <button
+                                                type="button"
+                                                onClick={(e) => { e.stopPropagation(); handleDeleteWidget(widget.id); }}
+                                                aria-label="Eliminar el widget"
+                                                className="absolute top-2 right-2 grid place-items-center min-h-[36px] min-w-[36px] bg-destructive/80 hover:bg-destructive text-white border border-destructive rounded-lg cursor-pointer z-50 transition-colors"
+                                                title="Eliminar Widget"
+                                            >
+                                                <X className="w-4 h-4" />
+                                            </button>
+                                        )}
                                         {/* Config del widget (estilo: cristal/sólido/transparente/Trinity). */}
                                         <WidgetConfigPopover
                                             widget={widget}
@@ -496,17 +581,17 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWi
             style={{ touchAction: "pan-y" }}
         >
             {mounted && width > 0 && (
+                // (2026-09-28) Envoltura con la cuadrícula visible del editor (solo en edición).
+                <div className="relative" style={cuadricula && isEditMode ? fondoCuadricula(width) : undefined} data-cuadricula={cuadricula && isEditMode ? "" : undefined}>
                 <ResponsiveGridLayout
                     className="layout transition-all duration-500"
                     layouts={layouts}
                     breakpoints={{ lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 }}
                     cols={{ lg: 12, md: 10, sm: 6, xs: 4, xxs: 2 }}
-                    rowHeight={65} // slightly taller for better visual separation
+                    rowHeight={ALTO_FILA} // slightly taller for better visual separation
                     width={width}
-                    // compactType es la API clásica (v1) que el runtime sigue
-                    // aceptando; los types de react-grid-layout v2 ya no la
-                    // declaran (usan `compactor`), así que se pasa con spread
-                    // para no cambiar el comportamiento en ejecución.
+                    // compactType es la API clásica (v1); la v2 compacta en vertical por
+                    // defecto (`compactor`). Se conserva por compatibilidad.
                     {...({ compactType: "vertical" } as any)}
                     onLayoutChange={onLayoutChange as any}
                     onBreakpointChange={((p: string) => { puntoActual.current = p; }) as any}
@@ -516,9 +601,25 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWi
                     // (isCoarse) ambos quedan en false → los widgets nunca se mueven al
                     // tocarlos, deslizar hace scroll y todo botón recibe su tap. El
                     // reordenamiento táctil se hace con los botones ↑/↓ del widget.
+                    // ⚠️ react-grid-layout v2 IGNORA isDraggable/isResizable (antes se podía
+                    // arrastrar fuera de edición y el cambio no se guardaba): la v2 lee
+                    // dragConfig/resizeConfig. Se pasan ambas formas.
                     isDraggable={canDragMouse}
                     isResizable={canDragMouse}
-                    margin={[12, 12]} // separación compacta entre widgets
+                    dragConfig={{ enabled: canDragMouse, threshold: 4, cancel: "input, textarea, select, [contenteditable='true'], .ss-no-arrastre" }}
+                    resizeConfig={{ enabled: canDragMouse }}
+                    // Soltar fichas del catálogo del editor superior (con su tamaño).
+                    dropConfig={{
+                        enabled: puedeSoltarCatalogo,
+                        defaultItem: { w: 4, h: 4 },
+                        onDragOver: (e: DragEvent) => {
+                            if (!esArrastreCatalogo(e.dataTransfer)) return false;
+                            const c = arrastreCatalogoActual();
+                            return c ? { w: c.w, h: c.h } : undefined;
+                        },
+                    }}
+                    onDrop={alSoltarEnRejilla as any}
+                    margin={[MARGEN, MARGEN]} // separación compacta entre widgets
                     // Sin padding extra del grid: por defecto react-grid-layout usa
                     // containerPadding = margin (18px muertos por lado). A 0, los
                     // widgets llegan hasta el borde del lienzo (que ya aporta su
@@ -574,6 +675,7 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWi
                                                 <button
                                                     type="button"
                                                     onClick={(e) => { e.stopPropagation(); moveWidget(widget.id, "up"); }}
+                                                    disabled={estaBloqueado(widget)}
                                                     aria-label="Subir el widget en el orden"
                                                     className="absolute top-2 left-2 grid place-items-center min-h-[36px] min-w-[36px] bg-background/80 hover:bg-background border rounded-lg z-50 cursor-pointer transition-colors"
                                                     title="Subir / mover antes"
@@ -583,6 +685,7 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWi
                                                 <button
                                                     type="button"
                                                     onClick={(e) => { e.stopPropagation(); moveWidget(widget.id, "down"); }}
+                                                    disabled={estaBloqueado(widget)}
                                                     aria-label="Bajar el widget en el orden"
                                                     className="absolute top-2 left-[3.25rem] grid place-items-center min-h-[36px] min-w-[36px] bg-background/80 hover:bg-background border rounded-lg z-50 cursor-pointer transition-colors"
                                                     title="Bajar / mover después"
@@ -593,9 +696,20 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWi
                                         )}
                                         <button
                                             type="button"
+                                            onClick={(e) => { e.stopPropagation(); alternarBloqueo(widget.id); }}
+                                            aria-pressed={estaBloqueado(widget)}
+                                            aria-label={estaBloqueado(widget) ? "Desbloquear el widget" : "Bloquear el widget (fija su sitio y su tamaño)"}
+                                            className={cn("absolute bottom-2 left-2 grid place-items-center min-h-[36px] min-w-[36px] border rounded-lg z-50 cursor-pointer transition-colors", estaBloqueado(widget) ? "bg-amber-500/80 hover:bg-amber-500 text-black border-amber-300" : "bg-background/80 hover:bg-background")}
+                                            title={estaBloqueado(widget) ? "Desbloquear" : "Bloquear sitio y tamaño"}
+                                        >
+                                            {estaBloqueado(widget) ? <Lock className="w-4 h-4" /> : <LockOpen className="w-4 h-4" />}
+                                        </button>
+                                        <button
+                                            type="button"
+                                            disabled={estaBloqueado(widget)}
                                             onClick={(e) => { e.stopPropagation(); cycleWidgetSize(widget.id); }}
                                             aria-label={`Cambiar tamaño del widget (actual: ${widgetSize(widget)})`}
-                                            className="absolute bottom-2 left-2 flex items-center gap-1 min-h-[36px] bg-background/80 hover:bg-background border rounded-lg px-2 py-1 z-50 cursor-pointer transition-colors text-[10px] font-bold"
+                                            className="disabled:opacity-40 disabled:cursor-not-allowed absolute bottom-2 left-[3.25rem] flex items-center gap-1 min-h-[36px] bg-background/80 hover:bg-background border rounded-lg px-2 py-1 z-50 cursor-pointer transition-colors text-[10px] font-bold"
                                             title="Cambiar tamaño (S/M/L/XL)"
                                         >
                                             <Scaling className="w-3.5 h-3.5" />
@@ -625,18 +739,20 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWi
                                         >
                                             <Share2 className="w-4 h-4" />
                                         </button>
-                                        <button
-                                            type="button"
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                handleDeleteWidget(widget.id);
-                                            }}
-                                            aria-label="Eliminar el widget"
-                                            className="absolute top-2 right-2 grid place-items-center min-h-[36px] min-w-[36px] bg-destructive/80 hover:bg-destructive text-white border border-destructive rounded-lg cursor-pointer z-50 transition-colors"
-                                            title="Eliminar Widget"
-                                        >
-                                            <X className="w-4 h-4" />
-                                        </button>
+                                        {!estaBloqueado(widget) && (
+                                            <button
+                                                type="button"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleDeleteWidget(widget.id);
+                                                }}
+                                                aria-label="Eliminar el widget"
+                                                className="absolute top-2 right-2 grid place-items-center min-h-[36px] min-w-[36px] bg-destructive/80 hover:bg-destructive text-white border border-destructive rounded-lg cursor-pointer z-50 transition-colors"
+                                                title="Eliminar Widget"
+                                            >
+                                                <X className="w-4 h-4" />
+                                            </button>
+                                        )}
                                         {/* Config del widget (estilo: cristal/sólido/transparente/Trinity). */}
                                         <WidgetConfigPopover
                                             widget={widget}
@@ -651,6 +767,7 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWi
                         </div>
                     ))}
                 </ResponsiveGridLayout>
+                </div>
             )}
         </div>
     );

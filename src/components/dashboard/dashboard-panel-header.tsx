@@ -4,7 +4,7 @@ import React from "react";
 import { Dashboard, DeviceType } from "./dashboard-types";
 import { useWorkspace } from "./dashboard-workspace-context";
 import { cn } from "@/lib/utils";
-import { LayoutPanelLeft, LayoutPanelTop, X, Star, Plus, Settings2, Trash2, MonitorSmartphone, Check, Share2 } from "lucide-react";
+import { LayoutPanelLeft, LayoutPanelTop, X, Star, Plus, Settings2, Trash2, MonitorSmartphone, Check, Share2, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DndContext, closestCenter, MouseSensor, TouchSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
 import { arrayMove, SortableContext, horizontalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
@@ -19,6 +19,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { DEVICE_TYPES, deviceTypeById } from "./dashboard-devices";
 import { MenuListaMovil } from "@/components/ui/menu-lista-movil";
+// (2026-09-28) Aspecto propio de cada pestaña (icono y color) que se elige en el editor superior.
+import { acentoDePestana, iconoDePestana } from "./editor-superior/aspecto-pestana";
+import type { DashboardConAspecto } from "./editor-superior/tipos";
 
 interface HeaderProps {
     panelId: string;
@@ -39,6 +42,10 @@ interface HeaderProps {
     onSetDeviceTags?: (id: string, tags: DeviceType[]) => void;
     /** Abre el gestor de dispositivos/sincronización. Opcional. */
     onOpenDeviceManager?: () => void;
+    /** (2026-09-28) Entra o sale del editor superior (botón «Editar» / «Listo» de la barra). */
+    onAlternarEdicion?: () => void;
+    /** (2026-09-28) Reordenar pestañas con arrastre: persiste el orden en la lista de tableros. */
+    onReordenar?: (activoId: string, sobreId: string) => void;
 }
 
 // Insignia compacta del tipo de dispositivo de una pestaña (si está etiquetada).
@@ -74,6 +81,9 @@ function SortableTab({
     deviceMenu?: React.ReactNode;
 }) {
     const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: dashboard.id });
+    const aspecto = dashboard as DashboardConAspecto;
+    const IconoPropio = iconoDePestana(aspecto.icono);
+    const acento = acentoDePestana(aspecto.acento);
 
     const style = {
         transform: CSS.Transform.toString(transform),
@@ -110,13 +120,22 @@ function SortableTab({
                 className="box-border cursor-pointer flex items-center gap-1.5 pl-3 pr-2 py-2 max-w-[180px] min-w-0"
             >
                 {/* Punto de estado de "folder activo" (claridad visual del tab activo). */}
-                <span
-                    aria-hidden
-                    className={cn(
-                        "size-1.5 rounded-full shrink-0 transition-colors",
-                        isActive ? "bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.8)]" : "bg-white/20 group-hover:bg-white/40"
-                    )}
-                />
+                {IconoPropio ? (
+                    <IconoPropio
+                        aria-hidden
+                        className={cn("size-3.5 shrink-0 transition-colors", !acento && (isActive ? "text-cyan-300" : "text-white/40 group-hover:text-white/60"))}
+                        style={acento ? { color: acento, opacity: isActive ? 1 : 0.7 } : undefined}
+                    />
+                ) : (
+                    <span
+                        aria-hidden
+                        className={cn(
+                            "size-1.5 rounded-full shrink-0 transition-colors",
+                            !acento && (isActive ? "bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.8)]" : "bg-white/20 group-hover:bg-white/40")
+                        )}
+                        style={acento ? { background: acento, boxShadow: isActive ? `0 0 8px ${acento}` : undefined, opacity: isActive ? 1 : 0.6 } : undefined}
+                    />
+                )}
                 <DeviceBadge tags={dashboard.deviceTags} active={isActive} />
                 <span className="truncate select-none">{dashboard.name}</span>
                 {typeof count === "number" && count > 0 && (
@@ -196,6 +215,7 @@ function TabDeviceMenu({ dashboard, onSetDeviceTags }: {
 export function DashboardPanelHeader({
     panelId, dashboards, activeId, allDashboards, isEditMode, widgetCounts, currentDevice,
     onCreateDashboard, onDeleteDashboard, onRenameDashboard, onShareDashboard, onSetDeviceTags, onOpenDeviceManager,
+    onAlternarEdicion, onReordenar,
 }: HeaderProps) {
     const { setActiveDashboard, closePanel, splitPanel, setState } = useWorkspace();
 
@@ -211,6 +231,9 @@ export function DashboardPanelHeader({
     const handleDragEnd = (event: DragEndEvent) => {
         const { active, over } = event;
         if (over && active.id !== over.id) {
+            // Las pestañas se pintan en el orden de la lista de tableros: sin esto el arrastre no
+            // se veía (solo cambiaba el orden interno del panel) ni se guardaba.
+            onReordenar?.(String(active.id), String(over.id));
             setState((prev) => {
                 const newState = JSON.parse(JSON.stringify(prev));
 
@@ -252,8 +275,8 @@ export function DashboardPanelHeader({
                         return {
                             id: d.id,
                             label: d.name,
-                            icon: d.is_default ? Star : undefined,
-                            accent: d.is_default ? "text-yellow-400" : undefined,
+                            icon: iconoDePestana((d as DashboardConAspecto).icono) ?? (d.is_default ? Star : undefined),
+                            accent: d.is_default && !(d as DashboardConAspecto).icono ? "text-yellow-400" : undefined,
                             badge: typeof count === "number" && count > 0 ? count : undefined,
                         };
                     })}
@@ -319,12 +342,36 @@ export function DashboardPanelHeader({
             {/* Panel Controls — fijados a la derecha; nunca se recortan. Un separador
                 marca el borde con el track de folders cuando hay scroll. */}
             <div className="shrink-0 flex items-center gap-0.5 pb-1.5 pl-1.5 self-center border-l border-white/5">
+                {/* (2026-09-28) Entrada al editor superior: «Editar» abre la barra de edición bajo
+                    estas pestañas; en edición se vuelve «Listo». Pastilla con texto completo. */}
+                {onAlternarEdicion && (
+                    <button
+                        type="button"
+                        onClick={onAlternarEdicion}
+                        aria-pressed={!!isEditMode}
+                        aria-label={isEditMode ? "Listo: terminar la edición del tablero" : "Editar el tablero"}
+                        className={cn(
+                            "ss-redondo mr-1 inline-flex h-7 max-sm:h-10 items-center gap-1.5 rounded-full px-3 text-[12px] max-sm:text-[13px] font-semibold cursor-pointer transition-[background,box-shadow,color] duration-200",
+                            "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2",
+                            isEditMode ? "text-white" : "text-white/75 hover:text-white"
+                        )}
+                        style={isEditMode
+                            ? { background: "#10B9812e", boxShadow: "inset 0 0 0 1px #10B98188, 0 0 14px -4px #10B981", outlineColor: "#10B981" }
+                            : { background: "#7C5CFF1f", boxShadow: "inset 0 0 0 1px #7C5CFF66", outlineColor: "#7C5CFF" }}
+                    >
+                        {isEditMode ? <Check className="size-3.5" aria-hidden /> : <Pencil className="size-3.5" aria-hidden />}
+                        {isEditMode ? "Listo" : "Editar"}
+                    </button>
+                )}
                 {/* Gestor de dispositivos / sincronización (visible siempre; discreto). */}
                 {onOpenDeviceManager && (
                     <Button
                         variant="ghost"
                         size="icon"
-                        className="w-7 h-7 max-sm:size-10 rounded-lg text-white/30 hover:text-emerald-400 hover:bg-emerald-500/10 cursor-pointer"
+                        // En el teléfono vive en el editor (Pestaña → Dispositivos y sincronización):
+                        // así la barra deja sitio al botón «Editar» con su texto completo.
+                        className="w-7 h-7 max-sm:hidden rounded-lg text-white/30 hover:text-emerald-400 hover:bg-emerald-500/10 cursor-pointer"
+                        aria-label="Dispositivos y sincronización"
                         onClick={onOpenDeviceManager}
                         title="Dispositivos y sincronización"
                     >
@@ -338,8 +385,9 @@ export function DashboardPanelHeader({
                             <Button
                                 variant="ghost"
                                 size="icon"
-                                className="w-7 h-7 max-sm:size-10 rounded-lg text-white/30 hover:text-cyan-400 hover:bg-cyan-500/10 cursor-pointer"
+                                className="w-7 h-7 max-sm:hidden rounded-lg text-white/30 hover:text-cyan-400 hover:bg-cyan-500/10 cursor-pointer"
                                 title="Configuración de Dashboard (folder)"
+                                aria-label="Configuración del tablero"
                             >
                                 <Settings2 className="w-3.5 h-3.5 max-sm:size-4" />
                             </Button>
@@ -372,12 +420,14 @@ export function DashboardPanelHeader({
                     </DropdownMenu>
                 )}
 
-                {isEditMode && activeId && <div className="w-px h-4 bg-white/10 mx-0.5 shrink-0" />}
+                {isEditMode && activeId && <div className="w-px h-4 bg-white/10 mx-0.5 shrink-0 max-sm:hidden" />}
 
                 <Button
                     variant="ghost"
                     size="icon"
-                    className="w-7 h-7 max-sm:size-10 rounded-lg text-white/30 hover:text-cyan-400 hover:bg-cyan-500/10 cursor-pointer"
+                    // Dividir no cabe en un teléfono (dos paneles de 180 px): solo desde 640 px.
+                    className="w-7 h-7 max-sm:hidden rounded-lg text-white/30 hover:text-cyan-400 hover:bg-cyan-500/10 cursor-pointer"
+                    aria-label={"Dividir horizontalmente"}
                     onClick={() => splitPanel(panelId, 'horizontal')}
                     title="Dividir Horizontalmente"
                 >
@@ -386,7 +436,9 @@ export function DashboardPanelHeader({
                 <Button
                     variant="ghost"
                     size="icon"
-                    className="w-7 h-7 max-sm:size-10 rounded-lg text-white/30 hover:text-cyan-400 hover:bg-cyan-500/10 cursor-pointer"
+                    // Dividir no cabe en un teléfono (dos paneles de 180 px): solo desde 640 px.
+                    className="w-7 h-7 max-sm:hidden rounded-lg text-white/30 hover:text-cyan-400 hover:bg-cyan-500/10 cursor-pointer"
+                    aria-label={"Dividir verticalmente"}
                     onClick={() => splitPanel(panelId, 'vertical')}
                     title="Dividir Verticalmente"
                 >
@@ -398,6 +450,7 @@ export function DashboardPanelHeader({
                     className="w-7 h-7 max-sm:size-10 rounded-lg text-white/30 hover:text-red-400 hover:bg-red-500/10 ml-0.5 cursor-pointer"
                     onClick={() => closePanel(panelId)}
                     title="Cerrar Panel"
+                    aria-label="Cerrar el panel"
                 >
                     <X className="w-4 h-4 max-sm:size-[18px]" />
                 </Button>

@@ -84,10 +84,10 @@ vi.mock("@/lib/mensajeria/carpetas-hilo", () => ({
     }),
 }));
 vi.mock("@/lib/mensajeria/adjuntos", () => ({ urlVigenteAdjunto: (u?: string | null) => u ?? undefined }));
-vi.mock("@/lib/mensajeria/formato", () => ({ estiloACss: () => ({}), validarFormato: (f: unknown) => ({ ok: true, formato: f }) }));
+vi.mock("@/lib/mensajeria/formato", () => ({ estiloACss: () => ({}), validarFormato: (f: unknown) => ({ ok: true, formato: f }), urlsDeFormato: () => new Set<string>() }));
 
 // ── Componentes de otros agentes (C4, C5, C6, C8, C9) y pesados ──────────────
-vi.mock("@/components/messages/rico/mensaje-formateado", () => ({ MensajeFormateado: ({ textoPlano }: { textoPlano: string }) => <p>{textoPlano}</p> }));
+vi.mock("@/components/messages/rico/mensaje-formateado", () => ({ MensajeFormateado: ({ textoPlano }: { textoPlano: string }) => <p>{textoPlano}</p>, superficiePropia: () => false }));
 vi.mock("@/components/messages/rico/estilo-rapido", () => ({ BotonEstiloRapido: () => <button type="button">Estilo</button> }));
 vi.mock("@/components/messages/rico/editor-mensaje-rico", () => ({ EditorMensajeRico: () => null }));
 vi.mock("@/components/llamadas/botones-llamada", () => ({ BotonesLlamada: ({ titulo }: { titulo: string }) => <span data-testid="llamadas">{titulo}</span> }));

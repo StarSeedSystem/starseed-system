@@ -93,6 +93,8 @@ const TYPE_FILTERS: Array<{ key: "todos" | SavedItemType; label: string }> = [
     { key: "package", label: "Paquetes" },
     { key: "post", label: "Publicaciones" },
     { key: "file", label: "Archivos" },
+    { key: "contact", label: "Contactos" },
+    { key: "message", label: "Mensajes" },
     { key: "page", label: "Páginas" },
     { key: "route", label: "Rutas" },
     { key: "external", label: "Enlaces" },

@@ -38,7 +38,8 @@ import { FilePreview } from "@/components/files/file-preview";
 import { FotoConMarco } from "@/components/profile/foto-con-marco";
 import type { Marco } from "@/lib/profile/marco-foto";
 // Contratos de otros agentes (C4, C5, C6, C7).
-import { MensajeFormateado } from "@/components/messages/rico/mensaje-formateado";
+import { MensajeFormateado, superficiePropia } from "@/components/messages/rico/mensaje-formateado";
+import { urlsDeFormato } from "@/lib/mensajeria/formato";
 import { TarjetaLlamada } from "@/components/llamadas/tarjeta-llamada";
 import { TarjetaVivo } from "@/components/messages/vivo/tarjeta-vivo";
 import { urlVigenteAdjunto } from "@/lib/mensajeria/adjuntos";
@@ -403,7 +404,10 @@ export function MessageBubble({
 
     const finalDegradado = sombrear(color, 0.28);
     // Con fondo, marco o lienzo, MensajeFormateado dibuja su propia superficie.
-    const sinCromo = !!formato && (!!formato.lienzo || !!formato.estilo?.fondo || !!formato.estilo?.colorMarco || !!formato.estilo?.grosorMarco);
+    const sinCromo = !!formato && (!!formato.lienzo || superficiePropia(formato));
+    // Lo que ya va dentro del lienzo no se repite debajo como adjunto (sigue en «Archivos» del chat).
+    const enLienzo = urlsDeFormato(formato);
+    const adjuntosVisibles = message.attachments.filter((a) => !(a.url && enLienzo.has(a.url)) && !((a as { sesionId?: string }).sesionId && enLienzo.has(`vivo:${(a as { sesionId?: string }).sesionId}`)));
     const fondoBurbuja: CSSProperties = sinCromo
         ? {}
         : isMine
@@ -460,9 +464,9 @@ export function MessageBubble({
                     />
                 )
             ) : null}
-            {message.attachments.length > 0 && (
+            {adjuntosVisibles.length > 0 && (
                 <div className={cn("space-y-1.5", (message.body.trim() || formato) && "mt-1.5")}>
-                    {message.attachments.map((a, i) => (
+                    {adjuntosVisibles.map((a, i) => (
                         <AttachmentView key={i} attachment={a} mio={isMine} cargarMultimedia={cargarMultimedia} onAbrir={abrirVisor} />
                     ))}
                 </div>
