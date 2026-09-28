@@ -14,7 +14,7 @@ import type { DashboardWidget } from '../dashboard-types';
 
 const ACCENT = '#FFBF00'; // Logic (Este) — orden, sistema, tiempo
 
-const ZONE_PRESETS: { id: string; label: string }[] = [
+export const ZONE_PRESETS: { id: string; label: string }[] = [
     { id: 'local', label: 'Este dispositivo' },
     { id: 'UTC', label: 'UTC' },
     { id: 'Europe/Madrid', label: 'Madrid' },
@@ -27,7 +27,7 @@ const ZONE_PRESETS: { id: string; label: string }[] = [
     { id: 'Australia/Sydney', label: 'Sídney' },
 ];
 
-function zoneLabel(id: string): string {
+export function zoneLabel(id: string): string {
     return ZONE_PRESETS.find((z) => z.id === id)?.label ?? id;
 }
 

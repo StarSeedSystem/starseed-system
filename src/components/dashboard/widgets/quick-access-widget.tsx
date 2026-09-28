@@ -40,7 +40,7 @@ const DOCK_ICON: Partial<Record<DockIconKey, LucideIcon>> = {
     Camera, Images,
 };
 
-interface Access {
+export interface Access {
     label: string;
     href: string;
     icon: LucideIcon;
@@ -50,7 +50,7 @@ interface Access {
 }
 
 // Accesos públicos (siempre útiles).
-const PUBLIC_ACCESS: Access[] = [
+export const PUBLIC_ACCESS: Access[] = [
     { label: "La Red", href: "/network", icon: Network, color: "#38bdf8" },
     { label: "Explorar", href: "/hub", icon: Compass, color: "#22d3ee" },
     { label: "Comunidades", href: "/hub", icon: Users, color: "#9FE870" },
@@ -60,7 +60,7 @@ const PUBLIC_ACCESS: Access[] = [
 ];
 
 // Accesos personales (mejores con sesión).
-const PRIVATE_ACCESS: Access[] = [
+export const PRIVATE_ACCESS: Access[] = [
     { label: "Perfil", href: "/profile/starseeduser", icon: User, color: "#a78bfa", privateArea: true },
     { label: "Mensajes", href: "/messages", icon: MessageSquare, color: "#0ea5e9", privateArea: true },
     { label: "Baúles", href: "/library", icon: Archive, color: "#fbbf24", privateArea: true },
@@ -68,7 +68,7 @@ const PRIVATE_ACCESS: Access[] = [
 ];
 
 // Acciones de creación rápida (CTA).
-const QUICK_ACTIONS: Access[] = [
+export const QUICK_ACTIONS: Access[] = [
     { label: "Publicar", href: "/publish", icon: PenSquare, color: "#f472b6" },
     { label: "Pizarra", href: "/pizarra", icon: LayoutGrid, color: "#a78bfa" },
 ];
@@ -97,6 +97,24 @@ function Tile({ a, micro }: { a: Access; micro: boolean }) {
 const DOCK_COLOR_HEX: Record<string, string> = {
     neutral: "#94a3b8", cyan: "#22d3ee", crimson: "#f43f5e", amber: "#f59e0b", emerald: "#34d399", purple: "#a78bfa",
 };
+
+/** Los MISMOS accesos que pinta este widget (curados + dock real sin duplicar), para otras
+ *  presentaciones como el widget libre (Ola 383 · WL4). */
+export function useAccesosRapidos(): { signedIn: boolean; ready: boolean; accesos: Access[]; acciones: Access[] } {
+    const { uid, ready } = useCurrentUid();
+    const signedIn = ready && !!uid;
+    const [dockExtra, setDockExtra] = useState<Access[]>([]);
+    useEffect(() => {
+        try {
+            setDockExtra(loadDockConfig().filter((it) => it.enabled).map((it): Access => ({
+                label: it.label, href: it.path, icon: DOCK_ICON[it.iconKey] ?? LayoutGrid, color: DOCK_COLOR_HEX[it.color] ?? ACCENT,
+            })));
+        } catch { /* localStorage bloqueado */ }
+    }, []);
+    const base = signedIn ? [...PUBLIC_ACCESS, ...PRIVATE_ACCESS] : PUBLIC_ACCESS;
+    const vistos = new Set(base.map((a) => a.href));
+    return { signedIn, ready, accesos: [...base, ...dockExtra.filter((d) => !vistos.has(d.href))], acciones: QUICK_ACTIONS };
+}
 
 export function QuickAccessWidget() {
     const { uid, ready } = useCurrentUid();

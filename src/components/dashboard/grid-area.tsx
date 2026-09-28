@@ -92,6 +92,8 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWi
     const { width, containerRef } = useWidth();
     const { toast } = useToast();
     const { config } = useAppearance();
+    // (Ola 383) Marco libre: la celda no recorta ni sombrea — el halo de la forma respira fuera.
+    const libre = config.widgets?.marco !== "clasico";
     const [layouts, setLayouts] = useState<any>({});
     const [mounted, setMounted] = useState(false);
     const isCoarse = useCoarsePointer();
@@ -342,7 +344,8 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWi
                                 className={cn(
                                     // Radio moderado (16px): menos esquina "sobrante" y
                                     // mejor aprovechamiento del ancho en cada tarjeta.
-                                    "relative rounded-2xl overflow-hidden bg-transparent transition-all motion-reduce:transition-none box-border",
+                                    "relative rounded-2xl bg-transparent transition-all motion-reduce:transition-none box-border",
+                                    libre ? "overflow-visible" : "overflow-hidden",
                                     spanFull && "col-span-2 md:col-span-3 2xl:col-span-4",
                                     isEditMode && "ring-2 ring-primary/20"
                                 )}
@@ -544,7 +547,7 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWi
                                 className={cn(
                                     // Radio moderado (16px) en la tarjeta contenedora: menos
                                     // esquina "sobrante" y mejor aprovechamiento del área.
-                                    `h-full w-full overflow-hidden transition-all motion-reduce:transition-none bg-transparent rounded-2xl ${isEditMode ? 'ring-2 ring-primary/20' : 'hover:shadow-lg'}`
+                                    `h-full w-full transition-all motion-reduce:transition-none bg-transparent rounded-2xl ${libre ? 'overflow-visible' : 'overflow-hidden'} ${isEditMode ? 'ring-2 ring-primary/20' : libre ? '' : 'hover:shadow-lg'}`
                                 )}
                             >
                                 <WidgetRegistry widget={widget} />

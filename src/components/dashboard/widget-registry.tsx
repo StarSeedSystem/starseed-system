@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import { useAppearance } from "@/context/appearance-context";
 import { getWidgetFunctionStyle } from "./widget-function-style";
 import { WidgetStyleOverrideProvider } from "./kit/widget-style-override";
+import { widgetLibre } from "@/components/widgets-libres/registro-libre";
 import { ClockDateWidget } from "@/components/dashboard/widgets/clock-date-widget";
 import { TasksQuickWidget } from "@/components/dashboard/widgets/tasks-quick-widget";
 import { QuickNotesWidget } from "@/components/dashboard/widgets/quick-notes-widget";
@@ -209,6 +210,12 @@ export function WidgetRegistry({ widget, onUpdateSettings }: WidgetProps) {
 
 function WidgetRegistryInner({ widget, onUpdateSettings }: WidgetProps) {
     const { config } = useAppearance();
+
+    // (Ola 383) Marco libre: los tipos con diseño sin caja propio se pintan con él.
+    if (config.widgets?.marco !== "clasico") {
+        const libre = widgetLibre(widget, onUpdateSettings);
+        if (libre) return libre;
+    }
 
     switch (widget.widget_type) {
         case 'EXPLORE_NETWORK':

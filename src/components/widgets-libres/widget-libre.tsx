@@ -39,7 +39,8 @@ export function WidgetLibre({
     const { ref, size } = useElementSize<HTMLDivElement>();
     const id = React.useId().replace(/:/g, "");
     const reducido = useReducedMotion();
-    const p = presupuesto(useNivelRender());
+    const nivel = useNivelRender();
+    const p = presupuesto(nivel);
     const inclinacion = reducido ? 0 : p.inclinacionMax;
     const rx = useSpring(0, { stiffness: 140, damping: 18 });
     const ry = useSpring(0, { stiffness: 140, damping: 18 });
@@ -65,6 +66,7 @@ export function WidgetLibre({
             aria-label={etiqueta}
             data-forma={forma}
             data-tamano={clase}
+            data-nivel-render={nivel}
             className={`relative h-full w-full ${className ?? ""}`}
             style={{ perspective: 900, background: "transparent", border: 0 }}
             onPointerMove={mover}

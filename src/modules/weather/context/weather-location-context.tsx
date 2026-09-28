@@ -158,3 +158,8 @@ export function useWeatherLocation() {
     }
     return context;
 }
+
+/** Igual que `useWeatherLocation` pero sin lanzar fuera del proveedor (widgets libres en /inicio). */
+export function useWeatherLocationOpcional(): WeatherLocationContextType | null {
+    return useContext(WeatherLocationContext) ?? null;
+}

@@ -3856,3 +3856,38 @@ html.ss-gesto [data-ventana-escritorio] {
 .os-widget-shell[data-marco="libre"]::before,
 .os-widget-shell[data-marco="libre"]::after { display: none !important; }
 .os-widget-shell[data-marco="libre"]:focus-within { outline: 2px solid color-mix(in srgb, var(--w-fn-accent, #7c5cff) 60%, transparent); outline-offset: 4px; border-radius: 28px; }
+
+/* (Ola 383 · widgets libres) Bucles de movimiento en CSS: corren en el compositor (solo transform
+   y opacity), se pausan con el cursor o el foco donde toca y desaparecen con movimiento reducido. */
+@keyframes ss-girar { to { transform: rotate(360deg); } }
+@keyframes ss-contragirar { to { transform: rotate(-360deg); } }
+@keyframes ss-flotar { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+@keyframes ss-respirar { 0%, 100% { transform: scale(1); opacity: .92; } 50% { transform: scale(1.05); opacity: 1; } }
+@keyframes ss-latir { 0%, 100% { transform: scale(1); } 12% { transform: scale(1.12); } 24% { transform: scale(1); } 36% { transform: scale(1.07); } }
+@keyframes ss-derivar { 0%, 100% { transform: translateX(-4%); } 50% { transform: translateX(4%); } }
+@keyframes ss-caer { 0% { transform: translateY(-20%); opacity: 0; } 15% { opacity: .9; } 100% { transform: translateY(120%); opacity: 0; } }
+@keyframes ss-destello { 0%, 88%, 100% { opacity: 0; } 90% { opacity: .9; } 93% { opacity: .15; } 95% { opacity: .7; } }
+@keyframes ss-ola { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
+.ss-girar { animation: ss-girar var(--ss-dur, 60s) linear infinite; }
+.ss-contragirar { animation: ss-contragirar var(--ss-dur, 60s) linear infinite; }
+.ss-flotar { animation: ss-flotar var(--ss-dur, 6s) ease-in-out infinite; }
+.ss-respirar { animation: ss-respirar var(--ss-dur, 5s) ease-in-out infinite; }
+.ss-latir { animation: ss-latir var(--ss-dur, 2.4s) ease-in-out infinite; }
+.ss-derivar { animation: ss-derivar var(--ss-dur, 9s) ease-in-out infinite; }
+.ss-caer { animation: ss-caer var(--ss-dur, 1.6s) linear infinite; }
+.ss-destello { animation: ss-destello var(--ss-dur, 7s) linear infinite; }
+.ss-ola { animation: ss-ola var(--ss-dur, 8s) linear infinite; }
+.ss-pausable:hover .ss-girar, .ss-pausable:hover .ss-contragirar,
+.ss-pausable:focus-within .ss-girar, .ss-pausable:focus-within .ss-contragirar { animation-play-state: paused; }
+[data-nivel-render="ligero"] .ss-girar,
+[data-nivel-render="ligero"] .ss-contragirar,
+[data-nivel-render="ligero"] .ss-flotar,
+[data-nivel-render="ligero"] .ss-respirar,
+[data-nivel-render="ligero"] .ss-latir,
+[data-nivel-render="ligero"] .ss-derivar,
+[data-nivel-render="ligero"] .ss-caer,
+[data-nivel-render="ligero"] .ss-destello,
+[data-nivel-render="ligero"] .ss-ola { animation: none !important; }
+@media (prefers-reduced-motion: reduce) {
+  .ss-girar, .ss-contragirar, .ss-flotar, .ss-respirar, .ss-latir, .ss-derivar, .ss-caer, .ss-destello, .ss-ola { animation: none !important; }
+}
