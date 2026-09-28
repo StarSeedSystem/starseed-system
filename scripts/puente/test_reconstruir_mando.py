@@ -702,3 +702,26 @@ def test_uso_tolerable_tiene_techo():
     assert R.uso_tolerable(None, 1000.0) is True
     assert R.uso_tolerable(1000.0, 1000.0 + 7199, espera_s=7200) is True
     assert R.uso_tolerable(1000.0, 1000.0 + 7200, espera_s=7200) is False
+
+
+class LiberarPuerto(unittest.TestCase):
+    """(2026-09-28) Un `next start` huérfano en el 9002 dejaba las rutas nuevas en 404."""
+
+    def test_sin_nadie_escuchando_no_mata_nada(self):
+        with mock.patch.object(R, "pids_escuchando", return_value=[]), mock.patch("os.kill") as matar:
+            self.assertEqual(R.liberar_puerto(9002, espera_s=0), [])
+            matar.assert_not_called()
+
+    def test_un_huerfano_y_su_npm_reciben_sigterm(self):
+        respuestas = iter([[4242], [], []])
+        ps = mock.Mock(stdout="4241\n")
+        with mock.patch.object(R, "pids_escuchando", side_effect=lambda *_a, **_k: next(respuestas, [])), \
+             mock.patch.object(R.subprocess, "run", return_value=ps), \
+             mock.patch("os.kill") as matar:
+            self.assertEqual(R.liberar_puerto(9002, espera_s=0), [4242])
+            matados = sorted(c.args[0] for c in matar.call_args_list)
+            self.assertEqual(matados, [4241, 4242])
+
+
+if __name__ == "__main__":
+    unittest.main()

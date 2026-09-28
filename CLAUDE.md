@@ -973,3 +973,16 @@ en `<html>` no existían, `--font-body` quedaba inválida y `font-family: var(--
 fuente por defecto del navegador. **Regla: las variables de `next/font` van en `<html>`** (así está
 `src/app/layout.tsx`). Síntoma para reconocerlo: `getComputedStyle(document.body).fontFamily`
 devuelve `"Times"` con las fuentes de `/_next/static/media` servidas sin error.
+
+### 6. Un `next start` huérfano en el 9002 sirve páginas nuevas con rutas viejas (2026-09-28)
+
+Tras instalar un build, las rutas NUEVAS (`/documentos`, `/tabla`, `/juego`…) daban **404** y el
+registro decía «Mando reiniciado: la pantalla ya sirve el código nuevo». El que escuchaba en el
+9002 era un `next start` lanzado a las 15:31 por fuera de launchd (un `python -` del `.command`
+del Escritorio); el servicio relanzado no podía escuchar. Y la comprobación se dejaba engañar:
+Next lee las páginas del disco en cada petición (el HTML llevaba el BUILD_ID nuevo), pero la
+tabla de rutas es la que cargó al arrancar. **Regla:** `reiniciar_mando()` llama a
+`liberar_puerto()` justo después del `bootout` — si alguien sigue escuchando, no es el servicio,
+y se para. Síntoma para reconocerlo: una ruta que existe en `.next/server/app` da 404 con
+`x-nextjs-cache: HIT`; `lsof -iTCP:9002 -sTCP:LISTEN` + `ps -o lstart=` enseña un proceso más
+viejo que la instalación.

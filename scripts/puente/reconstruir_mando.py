@@ -653,6 +653,62 @@ def _soltar_cerrojo(ruta=CERROJO_REINICIO):
     subprocess.run(["rm", "-rf", ruta], check=False)
 
 
+#: Puerto del Mando.
+PUERTO_MANDO = int(os.environ.get("STARSEED_PUERTO_MANDO", "9002"))
+
+
+def pids_escuchando(puerto: int = PUERTO_MANDO) -> list[int]:
+    """PIDs que escuchan en ese puerto (lsof). Lista vacía si no hay o si lsof falla."""
+    try:
+        r = subprocess.run(["lsof", "-tiTCP:%d" % puerto, "-sTCP:LISTEN"], capture_output=True, text=True, timeout=10)
+    except (OSError, subprocess.SubprocessError):
+        return []
+    return [int(x) for x in r.stdout.split() if x.strip().isdigit()]
+
+
+def liberar_puerto(puerto: int = PUERTO_MANDO, espera_s: float = 6.0) -> list[int]:
+    """(2026-09-28, MEDIDO) Mata el servidor HUÉRFANO que siga escuchando en el puerto del
+    Mando con el servicio de launchd ya descargado.
+
+    Un `next start` lanzado fuera de launchd (el `.command` del Escritorio, una prueba a mano)
+    se queda con el 9002: el servicio relanzado no puede escuchar y el viejo sigue sirviendo.
+    Y engaña a la comprobación de después: las páginas se leen del disco en cada petición, así
+    que el HTML lleva el BUILD_ID nuevo, pero la tabla de rutas es la que cargó al arrancar —
+    las rutas nuevas daban 404 con «Mando reiniciado» escrito en el registro. Se llama justo
+    después del `bootout`: si alguien sigue escuchando, no es el servicio.
+    """
+    import signal
+
+    pids = pids_escuchando(puerto)
+    if not pids:
+        return []
+    # También su padre `npm exec next start`, para que no quede un envoltorio colgado.
+    padres = []
+    for pid in pids:
+        try:
+            r = subprocess.run(["ps", "-o", "ppid=", "-p", str(pid)], capture_output=True, text=True, timeout=5)
+            ppid = int(r.stdout.strip() or 0)
+            if ppid > 1:
+                padres.append(ppid)
+        except (OSError, ValueError, subprocess.SubprocessError):
+            pass
+    for pid in pids + padres:
+        try:
+            os.kill(pid, signal.SIGTERM)
+        except OSError:
+            pass
+    limite = time.time() + espera_s
+    while time.time() < limite and pids_escuchando(puerto):
+        time.sleep(0.5)
+    for pid in pids_escuchando(puerto):
+        try:
+            os.kill(pid, signal.SIGKILL)
+        except OSError:
+            pass
+    print("había un servidor huérfano en el %d (%s): lo paro" % (puerto, ", ".join(map(str, pids))), flush=True)
+    return pids
+
+
 def reiniciar_mando() -> None:
     """Para el Mando DE VERDAD, cambia el build de sitio y lo vuelve a arrancar."""
     if not _tomar_cerrojo():
@@ -672,6 +728,7 @@ def _reiniciar_mando_sin_cerrojo() -> None:
     # Mando levanta el build viejo. `bootout` lo descarga; nadie lo relanza a mitad.
     subprocess.run(["launchctl", "bootout", etiqueta], capture_output=True, text=True)
     time.sleep(1)
+    liberar_puerto()
     if intercambiar_build():
         print("build nuevo puesto en su sitio (el anterior queda en .next-anterior)", flush=True)
     # (2026-09-22, MEDIDO) `bootstrap` justo después de `bootout` FALLA a veces —launchd
