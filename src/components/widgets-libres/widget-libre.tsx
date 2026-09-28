@@ -26,15 +26,17 @@ export interface WidgetLibreProps {
     etiqueta?: string;
     /** Recorta el contenido a la silueta (para escenas que deben quedar dentro). */
     recortar?: boolean;
-    /** Intensidad del cuerpo de la forma, 0-1 (0 = solo halo y filo). */
+    /** Intensidad del acento de la forma, 0-1. */
     intensidad?: number;
+    /** Fracción [ancho, alto] de la celda que ocupa la forma (centrada). Por defecto la celda entera. */
+    caja?: [number, number];
     className?: string;
     children: React.ReactNode | ((ctx: ContextoLibre) => React.ReactNode);
 }
 
 export function WidgetLibre({
     forma = "ninguna", acento = "#7c5cff", acento2 = "#23d5ab", semilla, etiqueta,
-    recortar = false, intensidad = 0.5, className, children,
+    recortar = false, intensidad = 0.5, caja, className, children,
 }: WidgetLibreProps) {
     const { ref, size } = useElementSize<HTMLDivElement>();
     const id = React.useId().replace(/:/g, "");
@@ -51,8 +53,10 @@ export function WidgetLibre({
     // Las formas «cuadradas» (orbe, hexágono, órbita, estrella) se dibujan en un cuadrado
     // centrado: un reloj es un círculo, no una elipse estirada por la celda.
     const cuadrada = relacionForma(forma) === "cuadrada";
-    const lado = Math.min(w, h);
-    const [fw, fh, ox, oy] = cuadrada ? [lado, lado, (w - lado) / 2, (h - lado) / 2] : [w, h, 0, 0];
+    const cw = Math.round(w * (caja?.[0] ?? 1)), ch = Math.round(h * (caja?.[1] ?? 1));
+    const lado = Math.min(cw, ch);
+    const [fw, fh] = cuadrada ? [lado, lado] : [cw, ch];
+    const ox = (w - fw) / 2, oy = (h - fh) / 2;
     const d = React.useMemo(() => (forma === "ninguna" ? "" : trazoForma(forma, fw, fh, semilla ?? etiqueta ?? forma)), [forma, fw, fh, semilla, etiqueta]);
     const recorte = React.useMemo(() => (recortar && forma !== "ninguna" ? trazoForma(forma, w, h, semilla ?? etiqueta ?? forma) : ""), [recortar, forma, w, h, semilla, etiqueta]);
     const cuerpo = Math.max(0, Math.min(1, intensidad));
@@ -89,27 +93,41 @@ export function WidgetLibre({
                     <div aria-hidden className="pointer-events-none absolute inset-[8%] rounded-full"
                         style={{ background: `radial-gradient(closest-side, ${acento}${p.halo === "vivo" ? "33" : "1f"}, transparent)` }} />
                 ) : d ? (
-                    <svg aria-hidden className="pointer-events-none absolute inset-0 overflow-visible" width={w} height={h} viewBox={`0 0 ${w} ${h}`}>
-                        <defs>
-                            <radialGradient id={`cuerpo-${id}`} cx="32%" cy="24%" r="85%">
-                                <stop offset="0%" stopColor={acento} stopOpacity={0.42 * cuerpo + 0.06} />
-                                <stop offset="55%" stopColor={acento2} stopOpacity={0.16 * cuerpo + 0.04} />
-                                <stop offset="100%" stopColor={acento2} stopOpacity={0.05} />
-                            </radialGradient>
-                            {/* brillo de cristal: la luz entra por arriba y se apaga a media altura */}
-                            <linearGradient id={`brillo-${id}`} x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="0%" stopColor="#ffffff" stopOpacity={0.22} />
-                                <stop offset="42%" stopColor="#ffffff" stopOpacity={0.04} />
-                                <stop offset="100%" stopColor="#ffffff" stopOpacity={0} />
-                            </linearGradient>
-                        </defs>
-                        <g transform={ox || oy ? `translate(${ox} ${oy})` : undefined}>
-                            {p.halo === "vivo" && <path d={d} fill={acento} opacity={0.2} style={{ filter: "blur(22px)" }} />}
-                            <path d={d} fill={`url(#cuerpo-${id})`} fillRule="evenodd" />
-                            <path d={d} fill={`url(#brillo-${id})`} fillRule="evenodd" />
-                            <path d={d} fill="none" stroke="#ffffff" strokeOpacity={0.16} strokeWidth={1} fillRule="evenodd" />
-                        </g>
-                    </svg>
+                    <>
+                        {/* UN solo material para todas las formas: vidrio oscuro (con desenfoque solo
+                            donde el presupuesto lo permite), el acento del widget como luz arriba a la
+                            izquierda, brillo superior y un filo blanco que se apaga en diagonal. */}
+                        <div aria-hidden className="pointer-events-none absolute" style={{
+                            left: ox, top: oy, width: fw, height: fh, clipPath: `path("${d}")`,
+                            background: p.halo === "vivo" ? "rgba(12,14,34,.42)" : "rgba(12,14,34,.58)",
+                            backdropFilter: p.halo === "vivo" ? "blur(22px) saturate(140%)" : undefined,
+                            WebkitBackdropFilter: p.halo === "vivo" ? "blur(22px) saturate(140%)" : undefined,
+                        }} />
+                        <svg aria-hidden className="pointer-events-none absolute inset-0 overflow-visible" width={w} height={h} viewBox={`0 0 ${w} ${h}`}>
+                            <defs>
+                                <radialGradient id={`luz-${id}`} cx="20%" cy="15%" r="75%">
+                                    <stop offset="0%" stopColor={acento} stopOpacity={0.1 + 0.22 * cuerpo} />
+                                    <stop offset="60%" stopColor={acento2} stopOpacity={0.05 * cuerpo} />
+                                    <stop offset="100%" stopColor={acento2} stopOpacity={0} />
+                                </radialGradient>
+                                <linearGradient id={`brillo-${id}`} x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="0%" stopColor="#ffffff" stopOpacity={0.14} />
+                                    <stop offset="35%" stopColor="#ffffff" stopOpacity={0.02} />
+                                    <stop offset="100%" stopColor="#ffffff" stopOpacity={0} />
+                                </linearGradient>
+                                <linearGradient id={`filo-${id}`} x1="0" y1="0" x2="1" y2="1">
+                                    <stop offset="0%" stopColor="#ffffff" stopOpacity={0.32} />
+                                    <stop offset="100%" stopColor="#ffffff" stopOpacity={0.05} />
+                                </linearGradient>
+                            </defs>
+                            <g transform={ox || oy ? `translate(${ox} ${oy})` : undefined}>
+                                {p.halo === "vivo" && <path d={d} fill={acento} opacity={0.14} style={{ filter: "blur(26px)" }} />}
+                                <path d={d} fill={`url(#luz-${id})`} fillRule="evenodd" />
+                                <path d={d} fill={`url(#brillo-${id})`} fillRule="evenodd" />
+                                <path d={d} fill="none" stroke={`url(#filo-${id})`} strokeWidth={1} fillRule="evenodd" />
+                            </g>
+                        </svg>
+                    </>
                 ) : null}
                 <div
                     className="relative z-10 h-full w-full"

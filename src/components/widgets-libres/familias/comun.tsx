@@ -27,7 +27,7 @@ export function disenoDe(clase: ClaseTamano): { base: "micro" | "s" | "m" | "l" 
 /** Rótulo pequeño en versalitas, legible sobre cualquier fondo. */
 export function Rotulo({ children, color, className = "" }: { children: React.ReactNode; color?: string; className?: string }) {
     return (
-        <span className={`whitespace-nowrap text-[10px] font-bold uppercase tracking-[0.16em] ${className}`} style={{ color: color ?? "rgba(255,255,255,.72)" }}>
+        <span className={`whitespace-nowrap text-[11px] font-semibold uppercase tracking-[0.14em] ${className}`} style={{ color: color ?? "rgba(255,255,255,.6)" }}>
             {children}
         </span>
     );
@@ -50,7 +50,7 @@ export function Pildora({ children, color = "#7c5cff", ...resto }: React.ButtonH
             type="button"
             {...resto}
             className={`cursor-pointer rounded-full ss-redondo px-3 py-1 text-[11px] font-semibold text-white transition-transform duration-200 hover:scale-105 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${resto.className ?? ""}`}
-            style={{ background: `radial-gradient(closest-side, ${color}55, ${color}18)`, outlineColor: color, ...resto.style }}
+            style={{ background: `${color}1f`, boxShadow: `inset 0 0 0 1px ${color}66`, outlineColor: color, ...resto.style }}
         >
             {children}
         </button>

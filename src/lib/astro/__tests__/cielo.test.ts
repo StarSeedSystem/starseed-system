@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { alturaSol, faseLunar, horasDelSol, proximaFase, signosDelCielo } from "../cielo";
+import { alturaSol, faseLunar, horasDelSol, proximaFase, proximoCambioDeSigno, signosDelCielo } from "../cielo";
 
 const minutos = (a: Date, b: Date) => Math.abs(a.getTime() - b.getTime()) / 60_000;
 
@@ -34,5 +34,10 @@ describe("el cielo real", () => {
         expect(signosDelCielo(new Date("2024-07-01T12:00:00Z")).sol.nombre).toBe("Cáncer");
         expect(signosDelCielo(new Date("2026-09-28T12:00:00Z")).sol.nombre).toBe("Libra");
         expect(signosDelCielo(new Date("2024-04-23T23:49:00Z")).luna.nombre).toBe("Escorpio");
+    });
+    it("el Sol entra en Escorpio hacia el 23-10-2026 (±1 día)", () => {
+        const c = proximoCambioDeSigno(new Date("2026-09-28T12:00:00Z"));
+        expect(c.signo.nombre).toBe("Escorpio");
+        expect(Math.abs(c.fecha.getTime() - new Date("2026-10-23T08:00:00Z").getTime())).toBeLessThan(36 * 3_600_000);
     });
 });

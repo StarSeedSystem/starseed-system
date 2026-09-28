@@ -77,7 +77,7 @@ describe("Reloj celeste", () => {
         const ajustes = vi.fn();
         render(<RelojLibre widget={{ settings: { clockZones: ["Asia/Tokyo"] } } as any} onUpdateSettings={ajustes} />);
         expect(screen.getByText(/Tokio \d{2}:\d{2}/)).toBeTruthy();
-        expect(screen.getByText(/%.*(llena|nueva) en/)).toBeTruthy();
+        expect(screen.getByText(/☀↑|sin ubicación/)).toBeTruthy();
         fireEvent.click(screen.getByRole("button", { name: "Agujas" }));
         expect(ajustes).toHaveBeenCalledWith({ clockMode: "analog" });
     });
@@ -167,8 +167,8 @@ describe("Eventos libres", () => {
     it("sin eventos lo dice y ofrece crear; con uno, s es su cápsula", () => {
         eventos.rows = [];
         const { unmount } = render(<EventosLibre />);
-        expect(screen.getByText(/sin eventos próximos/i)).toBeTruthy();
-        expect(screen.getByRole("link", { name: /Crear evento/ })).toBeTruthy();
+        expect(screen.getByText("Semana libre")).toBeTruthy();
+        expect(screen.getByRole("link", { name: /Evento/ }).getAttribute("href")).toBe("?createEntity=event");
         unmount();
         eventos.rows = [{ id: "1", slug: "luna", title: "Círculo de luna", starts_at: new Date(Date.now() + 7_200_000).toISOString() }];
         tam("s");
@@ -188,8 +188,9 @@ describe("Tareas libres", () => {
         unmount();
         tam("l");
         render(<TareasLibre />);
-        fireEvent.change(screen.getByLabelText("Nueva tarea"), { target: { value: "Meditar" } });
         fireEvent.click(screen.getByRole("button", { name: "Añadir tarea" }));
+        fireEvent.change(screen.getByLabelText("Nueva tarea"), { target: { value: "Meditar" } });
+        fireEvent.click(screen.getByRole("button", { name: "Guardar tarea" }));
         expect(tareas.add).toHaveBeenCalledWith("Meditar");
     });
 });

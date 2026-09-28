@@ -6,7 +6,7 @@
  * ella se dice «sin dato».
  */
 import * as React from "react";
-import { alturaSol, faseLunar, horasDelSol, proximaFase, signosDelCielo, type FaseLunar } from "@/lib/astro/cielo";
+import { alturaSol, faseLunar, horasDelSol, proximaFase, proximoCambioDeSigno, signosDelCielo, type FaseLunar, type Signo } from "@/lib/astro/cielo";
 import { useWeatherLocationOpcional } from "@/modules/weather/context/weather-location-context";
 import { mezclar } from "./comun";
 
@@ -27,13 +27,17 @@ export function LunaSVG({ x = 0, y = 0, r, fase, id }: { x?: number; y?: number;
     return (
         <g transform={`translate(${x} ${y})`}>
             <defs>
+                <radialGradient id={`halo-${id}`}>
+                    <stop offset="0%" stopColor="#fff4d6" stopOpacity={0.28 * fase.iluminada + 0.04} />
+                    <stop offset="68%" stopColor="#fff4d6" stopOpacity={0} />
+                </radialGradient>
                 <radialGradient id={`luz-${id}`} cx="40%" cy="35%" r="75%">
                     <stop offset="0%" stopColor="#fffdf5" />
                     <stop offset="70%" stopColor="#e9e4d4" />
                     <stop offset="100%" stopColor="#c9c2ad" />
                 </radialGradient>
             </defs>
-            <circle r={r * 1.9} fill="#e9e4d4" opacity={0.08 * fase.iluminada + 0.02} />
+            <circle r={r * 2.4} fill={`url(#halo-${id})`} />
             <circle r={r} fill="#1d1a33" stroke="#ffffff22" strokeWidth={0.6} />
             <path d={trazoLuna(r, fase.fase)} fill={`url(#luz-${id})`} />
             <circle cx={-r * 0.3} cy={-r * 0.2} r={r * 0.16} fill="#00000014" />
@@ -80,6 +84,7 @@ export interface CieloAqui {
     signos: ReturnType<typeof signosDelCielo>;
     proximaLlena: Date;
     proximaNueva: Date;
+    proximoSigno: { fecha: Date; signo: Signo };
     lugar: string;
 }
 
@@ -90,7 +95,7 @@ export function useCieloAqui(ahora: Date | null): CieloAqui | null {
     const hora = Math.floor(minuto / 60);
     const proximas = React.useMemo(() => {
         const t = new Date(hora * 3_600_000);
-        return { llena: proximaFase(t, "llena"), nueva: proximaFase(t, "nueva") };
+        return { llena: proximaFase(t, "llena"), nueva: proximaFase(t, "nueva"), signo: proximoCambioDeSigno(t) };
     }, [hora]);
     return React.useMemo(() => {
         if (!ahora) return null;
@@ -104,6 +109,7 @@ export function useCieloAqui(ahora: Date | null): CieloAqui | null {
             signos: signosDelCielo(f),
             proximaLlena: proximas.llena,
             proximaNueva: proximas.nueva,
+            proximoSigno: proximas.signo,
             lugar: ub?.nombre ?? "",
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps

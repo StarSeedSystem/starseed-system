@@ -14,7 +14,7 @@ import { zoneLabel } from "@/components/dashboard/widgets/clock-date-widget";
 import type { DashboardWidget } from "@/components/dashboard/dashboard-types";
 import { COLOR_ELEMENTO } from "@/lib/astro/cielo";
 import { Pildora, disenoDe, useAhora } from "./comun";
-import { LunaSVG, coloresCielo, falta, useCieloAqui } from "./celeste";
+import { LunaSVG, coloresCielo, useCieloAqui } from "./celeste";
 
 type Ajustes = (patch: Record<string, unknown>) => void;
 
@@ -37,9 +37,12 @@ const enEsfera = (hora: number, r: number): [number, number] => {
 const hhmm = (d: Date | null) => (d ? d.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" }) : "—");
 
 /** Estrellas deterministas (no bailan entre renders). */
-const ESTRELLAS = Array.from({ length: 22 }, (_, i) => {
-    const a = (i * 137.508 * Math.PI) / 180, r = Math.sqrt((i + 0.5) / 22);
-    return { x: Math.cos(a) * r, y: Math.sin(a) * r, t: 0.5 + ((i * 7) % 10) / 10, d: (i % 5) * 0.7 };
+const ESTRELLAS = Array.from({ length: 14 }, (_, i) => {
+    const a = (i * 137.508 * Math.PI) / 180, r = 0.25 + 0.75 * Math.sqrt((i + 0.5) / 14);
+    const x = Math.cos(a) * r, y = Math.sin(a) * r;
+    // Donde va el texto, las estrellas se apagan (≤ .15) para no ensuciar la hora.
+    const tapa = Math.abs(x) < 0.62 && Math.abs(y) < 0.38;
+    return { x, y, r: [0.5, 0.9, 1.4][i % 3], o: tapa ? 0.12 : 0.25 + ((i * 7) % 10) / 18, d: (i % 5) * 0.7 };
 });
 
 export function RelojLibre({ widget, onUpdateSettings }: { widget?: DashboardWidget; onUpdateSettings?: Ajustes }) {
@@ -80,6 +83,11 @@ export function RelojLibre({ widget, onUpdateSettings }: { widget?: DashboardWid
                     return `M${ax.toFixed(1)} ${ay.toFixed(1)}A${R.toFixed(1)} ${R.toFixed(1)} 0 ${grande} 1 ${bx.toFixed(1)} ${by.toFixed(1)}`;
                 })() : null;
                 const noche = cielo.altura === null ? 0.6 : Math.max(0, Math.min(1, (-cielo.altura - 2) / 10));
+                const cuna = hOrto !== null && hOcaso !== null ? (() => {
+                    const [ax, ay] = enEsfera(hOrto, R * 0.97), [bx, by] = enEsfera(hOcaso, R * 0.97);
+                    return `M0 0L${ax.toFixed(1)} ${ay.toFixed(1)}A${(R * 0.97).toFixed(1)} ${(R * 0.97).toFixed(1)} 0 ${hOcaso - hOrto > 12 ? 1 : 0} 1 ${bx.toFixed(1)} ${by.toFixed(1)}Z`;
+                })() : null;
+                const bajoHorizonte = cielo.altura !== null && cielo.altura < 0;
                 const grande = b === "l" || b === "xl";
 
                 return (
@@ -100,6 +108,10 @@ export function RelojLibre({ widget, onUpdateSettings }: { widget?: DashboardWid
                                     <stop offset="60%" stopColor="#FFBF00" stopOpacity={0.9} />
                                     <stop offset="100%" stopColor="#FFBF00" stopOpacity={0} />
                                 </radialGradient>
+                                <radialGradient id={`cuna-${id}`} gradientUnits="userSpaceOnUse" cx="0" cy="0" r={R}>
+                                    <stop offset="0%" stopColor="#FFBF00" stopOpacity={0} />
+                                    <stop offset="100%" stopColor="#FFBF00" stopOpacity={0.12} />
+                                </radialGradient>
                                 <linearGradient id={`dia-${id}`} x1="0" y1="1" x2="1" y2="0">
                                     <stop offset="0%" stopColor="#ff7a59" />
                                     <stop offset="50%" stopColor="#FFBF00" />
@@ -110,17 +122,19 @@ export function RelojLibre({ widget, onUpdateSettings }: { widget?: DashboardWid
                             <circle r={R * 0.97} fill={`url(#cielo-${id})`} />
                             <circle r={R * 0.97} fill={`url(#horiz-${id})`} />
                             {noche > 0 && ESTRELLAS.map((e, i) => (
-                                <circle key={i} cx={e.x * R * 0.85} cy={e.y * R * 0.85} r={lado * 0.0035 * (0.6 + e.t)} fill="#fff"
-                                    opacity={noche * e.t} className={i % 3 === 0 ? "ss-respirar" : undefined}
+                                <circle key={i} cx={e.x * R * 0.85} cy={e.y * R * 0.85} r={e.r * Math.max(1, lado / 320)} fill="#fff"
+                                    opacity={noche * e.o} className={i % 3 === 0 ? "ss-respirar" : undefined}
                                     style={{ ["--ss-dur" as string]: `${3 + e.d}s`, animationDelay: `${e.d}s`, transformBox: "fill-box", transformOrigin: "center" }} />
                             ))}
                             <circle r={R * 0.97} fill="none" stroke="#ffffff" strokeOpacity={0.1} strokeWidth={1} />
                             {/* la esfera de 24 h: la noche en violeta, el día entre el orto y el ocaso */}
-                            <circle r={R} fill="none" stroke="#7c5cff" strokeOpacity={0.28} strokeWidth={lado * 0.012} />
-                            {arcoDia && <path d={arcoDia} fill="none" stroke={`url(#dia-${id})`} strokeWidth={lado * 0.02} strokeLinecap="round" />}
+                            {/* la cuña del día dentro del cielo, que se apaga hacia el centro */}
+                            {cuna && <path d={cuna} fill={`url(#cuna-${id})`} />}
+                            <circle r={R} fill="none" stroke="#7c5cff" strokeOpacity={0.35} strokeWidth={1} />
+                            {arcoDia && <path d={arcoDia} fill="none" stroke={`url(#dia-${id})`} strokeWidth={Math.max(2, lado * 0.008)} strokeLinecap="round" />}
                             {Array.from({ length: 24 }, (_, i) => {
-                                const [x, y] = enEsfera(i, R * 1.075), mayor = i % 6 === 0;
-                                return <circle key={i} cx={x} cy={y} r={lado * (mayor ? 0.006 : 0.003)} fill="#fff" opacity={mayor ? 0.7 : 0.3} />;
+                                const mayor = i % 6 === 0, [x1, y1] = enEsfera(i, R * 0.93), [x2, y2] = enEsfera(i, R * (mayor ? 0.93 - 8 / R : 0.93 - 4 / R));
+                                return <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke="#fff" strokeWidth={mayor ? 1.5 : 1} strokeOpacity={mayor ? 0.55 : 0.25} strokeLinecap="round" />;
                             })}
                             {/* la luz de los segundos */}
                             <g style={{ transform: `rotate(${(t.h * 3600 + t.m * 60 + t.s) * 6}deg)`, transition: "transform 1s linear" }}>
@@ -128,15 +142,15 @@ export function RelojLibre({ widget, onUpdateSettings }: { widget?: DashboardWid
                             </g>
                             {/* la Luna en su fase real, separada del Sol por su elongación */}
                             <g style={{ transform: `translate(${lx}px, ${ly}px)`, transition: "transform 1s ease" }}>
-                                <LunaSVG r={lado * (grande ? 0.05 : 0.058)} fase={cielo.luna} id={id} />
+                                <LunaSVG r={lado * 0.048} fase={cielo.luna} id={id} />
                             </g>
                             {/* el Sol en su hora (más tenue bajo el horizonte) */}
-                            <g style={{ transform: `translate(${sx}px, ${sy}px)`, transition: "transform 1s ease" }} opacity={cielo.altura !== null && cielo.altura < 0 ? 0.55 : 1}>
-                                <circle r={lado * 0.09} fill={`url(#sol-${id})`} className="ss-respirar" style={{ ["--ss-dur" as string]: "6s", transformBox: "fill-box", transformOrigin: "center" }} />
-                                <circle r={lado * 0.026} fill="#fff8e1" />
+                            <g style={{ transform: `translate(${sx}px, ${sy}px)`, transition: "transform 1s ease", filter: bajoHorizonte ? "saturate(.6)" : undefined }} opacity={bajoHorizonte ? 0.35 : 1}>
+                                <circle r={lado * (bajoHorizonte ? 0.05 : 0.085)} fill={`url(#sol-${id})`} className="ss-respirar" style={{ ["--ss-dur" as string]: "6s", transformBox: "fill-box", transformOrigin: "center" }} />
+                                <circle r={lado * 0.024} fill="#fff8e1" />
                             </g>
-                            {grande && hOrto !== null && (() => { const [x, y] = enEsfera(hOrto, R * 0.83); return <text x={x} y={y} textAnchor="middle" dominantBaseline="middle" fontSize={lado * 0.03} fill="#ffd27a" opacity={0.9}>↑ {hhmm(cielo.orto)}</text>; })()}
-                            {grande && hOcaso !== null && (() => { const [x, y] = enEsfera(hOcaso, R * 0.83); return <text x={x} y={y} textAnchor="middle" dominantBaseline="middle" fontSize={lado * 0.03} fill="#ffb199" opacity={0.9}>↓ {hhmm(cielo.ocaso)}</text>; })()}
+                            {grande && hOrto !== null && (() => { const [x, y] = enEsfera(hOrto, R * 1.13); return <text x={x} y={y} textAnchor="middle" dominantBaseline="middle" fontSize={Math.max(10, lado * 0.027)} fontWeight={600} fill="#FFBF00" opacity={0.7}>☀↑ {hhmm(cielo.orto)}</text>; })()}
+                            {grande && hOcaso !== null && (() => { const [x, y] = enEsfera(hOcaso, R * 1.13); return <text x={x} y={y} textAnchor="middle" dominantBaseline="middle" fontSize={Math.max(10, lado * 0.027)} fontWeight={600} fill="#FFBF00" opacity={0.7}>☀↓ {hhmm(cielo.ocaso)}</text>; })()}
                             {modo === "analog" && (
                                 <g stroke="#fff" strokeLinecap="round">
                                     <line y2={-R * 0.4} strokeWidth={lado * 0.012} transform={`rotate(${(t.h % 12 + t.m / 60) * 30})`} />
@@ -148,18 +162,15 @@ export function RelojLibre({ widget, onUpdateSettings }: { widget?: DashboardWid
 
                         <div className="relative z-10 flex flex-col items-center text-center" style={{ gap: lado * 0.012, marginTop: modo === "analog" ? R * 0.62 : 0 }}>
                             {modo === "digital" && (
-                                <span className="font-extralight tabular-nums tracking-tight text-white" style={{ fontSize: lado * (grande ? 0.16 : 0.19), lineHeight: 1 }}>{t.hhmm}</span>
+                                <span className="tabular-nums text-white" style={{ fontSize: lado * 0.19, lineHeight: 1, fontWeight: 250, letterSpacing: "-0.02em" }}>{t.hhmm}</span>
                             )}
-                            {b !== "s" && <span className="font-medium text-white/85 first-letter:uppercase" style={{ fontSize: Math.max(11, lado * 0.038) }}>{t.fecha}</span>}
+                            {b !== "s" && <span className="font-medium text-white/80 first-letter:uppercase" style={{ fontSize: Math.max(12, lado * 0.036) }}>{t.fecha}</span>}
                             {b !== "s" && (
-                                <span className="flex items-center font-medium" style={{ fontSize: Math.max(11, lado * 0.036), gap: lado * 0.025 }}>
-                                    <span style={{ color: COLOR_ELEMENTO[sol.elemento] }} title={`Sol en ${sol.nombre}`}>☉ {sol.glifo} {sol.nombre}</span>
-                                    <span style={{ color: COLOR_ELEMENTO[luna.elemento] }} title={`Luna en ${luna.nombre}`}>☾ {luna.glifo} {luna.nombre}</span>
-                                </span>
-                            )}
-                            {grande && (
-                                <span className="text-white/70" style={{ fontSize: Math.max(10, lado * 0.03) }}>
-                                    {cielo.luna.nombre} · {Math.round(cielo.luna.iluminada * 100)} % · {cielo.luna.creciente ? `llena ${falta(cielo.proximaLlena, ahora)}` : `nueva ${falta(cielo.proximaNueva, ahora)}`}
+                                <span className="font-medium text-white/65" style={{ fontSize: Math.max(11, lado * 0.032) }}>
+                                    <span title={`Sol en ${sol.nombre}`}><b className="font-medium" style={{ color: COLOR_ELEMENTO[sol.elemento] }}>{sol.glifo}</b> Sol en {sol.nombre}</span>
+                                    {" · "}
+                                    <span title={`Luna en ${luna.nombre}`}><b className="font-medium" style={{ color: COLOR_ELEMENTO[luna.elemento] }}>{luna.glifo}</b> Luna en {luna.nombre}</span>
+                                    {grande && <> · {Math.round(cielo.luna.iluminada * 100)} %</>}
                                 </span>
                             )}
                             {grande && cielo.altura === null && <span className="text-[10px] text-white/50">sin ubicación: orto y ocaso sin dato</span>}

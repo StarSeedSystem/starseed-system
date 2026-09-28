@@ -10,21 +10,23 @@ import * as React from "react";
 import Link from "next/link";
 import { LogIn } from "lucide-react";
 import { WidgetLibre } from "@/components/widgets-libres/widget-libre";
-import { personalidadDe } from "@/lib/widgets/forma/asignacion";
-import { trazoForma } from "@/lib/widgets/forma/formas";
 import { useAccesosRapidos, type Access } from "@/components/dashboard/widgets/quick-access-widget";
 import { disenoDe } from "./comun";
 
+/** Cuenta de vidrio: el icono en blanco, el color del área solo como brillo interior. Nombre al
+ *  pasar el cursor o con el foco. */
 function Icono({ a, tam, conNombre }: { a: Access; tam: number; conNombre?: boolean }) {
     const Icon = a.icon;
     return (
-        <Link href={a.href} aria-label={a.label} title={a.label}
-            className="group flex cursor-pointer flex-col items-center gap-0.5 focus-visible:outline-none">
-            <span className="grid place-items-center rounded-full ss-redondo transition-transform duration-200 group-hover:scale-110 group-focus-visible:scale-110 group-focus-visible:ring-2"
-                style={{ width: tam, height: tam, background: `radial-gradient(closest-side, ${a.color}66, ${a.color}14 80%, transparent)`, boxShadow: `0 0 ${tam / 2}px ${a.color}33`, ["--tw-ring-color" as string]: a.color }}>
-                <Icon style={{ width: tam * 0.48, height: tam * 0.48, color: "#fff" }} />
+        <Link href={a.href} aria-label={a.label}
+            className="group relative flex cursor-pointer flex-col items-center gap-1 focus-visible:outline-none">
+            <span className="ss-redondo grid place-items-center rounded-full transition-transform duration-200 group-hover:scale-110 group-focus-visible:scale-110"
+                style={{ width: tam, height: tam, background: "rgba(255,255,255,.07)", boxShadow: `inset 0 0 0 1px rgba(255,255,255,.22), inset 0 0 ${tam * 0.45}px ${a.color}40` }}>
+                <Icon style={{ width: tam * 0.5, height: tam * 0.5, color: "rgba(255,255,255,.85)", strokeWidth: 1.75 }} />
             </span>
-            {conNombre && <span className="max-w-[5.5rem] truncate text-[9px] font-medium text-white/75">{a.label}</span>}
+            {conNombre
+                ? <span className="max-w-[5.5rem] truncate text-[10px] font-medium text-white/70">{a.label}</span>
+                : <span className="ss-redondo pointer-events-none absolute top-full mt-1 whitespace-nowrap rounded-full bg-black/70 px-2 py-0.5 text-[11px] text-white opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">{a.label}</span>}
         </Link>
     );
 }
@@ -32,6 +34,7 @@ function Icono({ a, tam, conNombre }: { a: Access; tam: number; conNombre?: bool
 function Anillo({ items, radio, tam, dur, inverso, conNombre }: { items: Access[]; radio: number; tam: number; dur: string; inverso?: boolean; conNombre?: boolean }) {
     return (
         <div className={`${inverso ? "ss-contragirar" : "ss-girar"} absolute inset-0`} style={{ ["--ss-dur" as string]: dur }}>
+            <span aria-hidden className="ss-redondo pointer-events-none absolute left-1/2 top-1/2 rounded-full" style={{ width: radio * 2, height: radio * 2, transform: "translate(-50%,-50%)", boxShadow: "inset 0 0 0 1px rgba(255,255,255,.16)" }} />
             {items.map((a, i) => {
                 const ang = (i / items.length) * 2 * Math.PI - Math.PI / 2;
                 return (
@@ -49,20 +52,16 @@ function Anillo({ items, radio, tam, dur, inverso, conNombre }: { items: Access[
 
 export function AccesosLibre() {
     const { accesos, acciones, signedIn, ready } = useAccesosRapidos();
-    const per = personalidadDe("QUICK_ACCESS");
-    const idSigilo = `sigilo-${React.useId().replace(/:/g, "")}`;
     return (
-        <WidgetLibre forma={per.forma} acento={per.acento} etiqueta="Accesos rápidos" intensidad={0.35}>
+        <WidgetLibre forma="ninguna" acento="#23d5ab" acento2="#7c5cff" etiqueta="Accesos rápidos" intensidad={0.35}>
             {({ clase, ancho, alto }) => {
                 const { base: b } = disenoDe(clase);
                 const lado = Math.min(ancho, alto);
-                const tam = Math.max(26, Math.min(46, lado * (b === "micro" ? 0.22 : 0.13)));
-                const nucleo = lado * (b === "micro" ? 0.22 : 0.18);
+                const tam = Math.max(32, Math.min(46, lado * (b === "micro" ? 0.24 : 0.18)));
+                const nucleo = lado * (b === "micro" ? 0.2 : 0.26);
                 const sigilo = (
-                    <svg aria-hidden width={nucleo} height={nucleo} className="ss-respirar" style={{ position: "absolute", left: -nucleo / 2, top: -nucleo / 2 }}>
-                        <defs><radialGradient id={idSigilo}><stop offset="0%" stopColor="#fff" /><stop offset="60%" stopColor={per.acento} /><stop offset="100%" stopColor="#23d5ab" stopOpacity={0.4} /></radialGradient></defs>
-                        <path d={trazoForma("estrella", nucleo, nucleo)} fill={`url(#${idSigilo})`} />
-                    </svg>
+                    <span aria-hidden className="ss-respirar ss-redondo block rounded-full" style={{ position: "absolute", left: -nucleo / 2, top: -nucleo / 2, width: nucleo, height: nucleo,
+                        background: "radial-gradient(circle at 35% 30%, #ffffffcc, #7c5cff 45%, #23d5ab 85%)", boxShadow: "0 0 24px #7c5cff66" }} />
                 );
                 if (b === "micro") {
                     const cruz = accesos.slice(0, 4), r = lado * 0.3;

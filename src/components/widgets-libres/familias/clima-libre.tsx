@@ -33,7 +33,7 @@ export const ESCENA: Record<Cielo, { forma: TipoForma; a: string; b: string; nom
     luna: { forma: "orbe", a: "#a5b4fc", b: "#7c5cff", nombre: "Noche despejada" },
     nubes: { forma: "mancha", a: "#8fa6c8", b: "#cbd5e1", nombre: "Nublado" },
     lluvia: { forma: "gota", a: "#007FFF", b: "#23d5ab", nombre: "Lluvia" },
-    tormenta: { forma: "cristal", a: "#7c5cff", b: "#DC143C", nombre: "Tormenta" },
+    tormenta: { forma: "gema", a: "#7c5cff", b: "#FF4D6A", nombre: "Tormenta" },
     nieve: { forma: "hexagono", a: "#e0f2ff", b: "#23d5ab", nombre: "Nieve" },
     niebla: { forma: "onda", a: "#9aa5b1", b: "#cbd5e1", nombre: "Niebla" },
 };
@@ -147,13 +147,6 @@ function ClimaInterno({ widgetId }: { widgetId: string }) {
                             </div>
                         )}
                         {(b === "l" || b === "xl") && <div className="relative w-4/5"><OlaHoras temps={horas} color={esc.a} /></div>}
-                        {(b === "l" || b === "xl") && astros && (
-                            <span className="relative text-[11px] text-white/75">
-                                {astros.orto && <>↑ {astros.orto.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })} · </>}
-                                {astros.ocaso && <>↓ {astros.ocaso.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })} · </>}
-                                {astros.luna.nombre} {Math.round(astros.luna.iluminada * 100)} %
-                            </span>
-                        )}
                         {b === "xl" && Array.isArray(d?.time) && (
                             <div className="relative flex gap-3 pt-1">
                                 {d.time.slice(1, 5).map((dia: string, i: number) => (

@@ -124,3 +124,19 @@ export function signosDelCielo(fecha: Date): { sol: Signo; luna: Signo } {
     const d = dias(fecha);
     return { sol: signoDe(coordenadasSol(d).lon), luna: signoDe(coordenadasLuna(d).lon) };
 }
+
+/** Cuándo entra el Sol en el siguiente signo (búsqueda por días y luego por horas; ±1 h). */
+export function proximoCambioDeSigno(fecha: Date): { fecha: Date; signo: Signo } {
+    const actual = signosDelCielo(fecha).sol.nombre;
+    let t = fecha.getTime();
+    for (let d = 1; d <= 32; d++) {
+        const f = new Date(fecha.getTime() + d * DIA_MS);
+        if (signosDelCielo(f).sol.nombre !== actual) { t = f.getTime() - DIA_MS; break; }
+    }
+    for (let h = 0; h <= 25; h++) {
+        const f = new Date(t + h * 3_600_000);
+        const s = signosDelCielo(f).sol;
+        if (s.nombre !== actual) return { fecha: f, signo: s };
+    }
+    return { fecha: new Date(t + DIA_MS), signo: signosDelCielo(new Date(t + DIA_MS)).sol };
+}

@@ -326,12 +326,17 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWi
                     en el grid, p. ej. el folder-dock de apps o accesos rápidos)
                     ocupan la hilera completa. Sin recortes: box-border + separación
                     uniforme. */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 2xl:grid-cols-4 gap-2 sm:gap-3 box-border" style={{ touchAction: "pan-y" }}>
+                {/* (2026-09-28) Dos columnas en el teléfono: antes era grid-cols-1, pero los widgets
+                    «anchos» llevaban col-span-2 y creaban una segunda columna implícita desigual
+                    (138 px + 224 px medidos): todo quedaba apretado. Ahora lo grande (L/XL) ocupa la
+                    fila y lo mediano y lo pequeño van de dos en dos, igual que el acomodo automático. */}
+                <div className="grid grid-cols-2 md:grid-cols-3 2xl:grid-cols-4 gap-2 sm:gap-3 box-border" style={{ touchAction: "pan-y" }}>
                     {ordered.map((widget, idx) => {
                         const h = Math.max(widget.layout.h, 3);
                         // En móvil nunca por debajo de 200 px: con filas de 40 px un widget bajo
                         // (Accesos rápidos, h=3) quedaba en 140 px y su contenido se montaba.
-                        const cardHeight = isNarrow ? Math.max(h * ROW + (h - 1) * GAP, 200) : h * ROW + (h - 1) * GAP;
+                        const grande = widget.layout.w >= 6;
+                        const cardHeight = isNarrow ? Math.max(h * ROW + (h - 1) * GAP, grande ? 300 : 190) : h * ROW + (h - 1) * GAP;
                         // Widgets anchos (ocupaban casi toda la fila del grid de 12) o
                         // folders/lanzaderas de apps → hilera completa también en la
                         // rejilla táctil, para que respiren y no queden aplastados.
@@ -352,7 +357,7 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWi
                                     // mejor aprovechamiento del ancho en cada tarjeta.
                                     "relative rounded-2xl bg-transparent transition-all motion-reduce:transition-none box-border",
                                     libre ? "overflow-visible" : "overflow-hidden",
-                                    spanFull && "col-span-2 md:col-span-3 2xl:col-span-4",
+                                    spanFull ? "col-span-2 md:col-span-3 2xl:col-span-4" : grande && "col-span-2",
                                     isEditMode && "ring-2 ring-primary/20"
                                 )}
                                 style={{ height: cardHeight, touchAction: "pan-y" }}

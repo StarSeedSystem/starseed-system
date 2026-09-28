@@ -9,11 +9,11 @@
 
 export type TipoForma =
     | "ninguna" | "orbe" | "gota" | "hexagono" | "petalo" | "cristal"
-    | "onda" | "orbita" | "capsula" | "estrella" | "mancha";
+    | "onda" | "orbita" | "capsula" | "estrella" | "mancha" | "gema";
 
 export const FORMAS: readonly TipoForma[] = [
     "ninguna", "orbe", "gota", "hexagono", "petalo", "cristal",
-    "onda", "orbita", "capsula", "estrella", "mancha",
+    "onda", "orbita", "capsula", "estrella", "mancha", "gema",
 ];
 
 type P = [number, number];
@@ -108,6 +108,11 @@ export function trazoForma(tipo: TipoForma, w: number, h: number, semilla = "sta
             let d = `M${pt(en(-120, r * 0.62))}`;
             for (let k = 0; k < 6; k++) d += `Q${pt(en(-90 + 60 * k, r))} ${pt(en(-60 + 60 * k, r * 0.62))}`;
             return d + "Z";
+        }
+        case "gema": {
+            // Gema simétrica de seis caras (tormenta): vértices en los mismos % de la caja.
+            const X = (f: number) => x0 + (x1 - x0) * f, Y = (f: number) => y0 + (y1 - y0) * f;
+            return poligono([[X(0.5), Y(0)], [X(0.92), Y(0.22)], [X(0.92), Y(0.7)], [X(0.5), Y(1)], [X(0.08), Y(0.7)], [X(0.08), Y(0.22)]]);
         }
         case "mancha": {
             const rnd = aleatorio(semilla);
