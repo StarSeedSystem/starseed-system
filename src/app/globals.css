@@ -3841,3 +3841,18 @@ html.ss-gesto [data-ventana-escritorio] {
     overflow-wrap: break-word;
   }
 }
+
+/* (Ola 380 · FL6) Marco libre: el widget no es una tarjeta. Anula fondos, bordes, sombras y
+   brillos de cualquier tema sobre el contenedor (el halo lo pinta el propio WidgetShell). */
+.os-widget-shell[data-marco="libre"],
+.os-widget-shell[data-marco="libre"]:hover,
+.os-widget-shell[data-marco="libre"]:focus-within {
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+.os-widget-shell[data-marco="libre"]::before,
+.os-widget-shell[data-marco="libre"]::after { display: none !important; }
+.os-widget-shell[data-marco="libre"]:focus-within { outline: 2px solid color-mix(in srgb, var(--w-fn-accent, #7c5cff) 60%, transparent); outline-offset: 4px; border-radius: 28px; }

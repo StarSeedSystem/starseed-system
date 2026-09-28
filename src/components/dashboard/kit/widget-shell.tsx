@@ -150,6 +150,9 @@ export function WidgetShell({
     // Modo compacto global (Ajustes → Apariencia → Diseño de los widgets):
     // densidad mayor (padding/typografía reducidos). Por defecto desactivado.
     const compact = w.compact === true;
+    // (Ola 380 · FL6) Marco libre por defecto: sin caja, fondo, borde ni sombra; el widget
+    // flota con un halo de su acento. «clasico» conserva la tarjeta de cristal de siempre.
+    const libre = w.marco !== "clasico";
     const showSubtitle = !!subtitle && size.tier !== "micro" && size.vTier !== "micro" && !compact;
     const compactHeader = size.tier === "micro" || size.vTier === "micro" || compact;
 
@@ -181,7 +184,8 @@ export function WidgetShell({
     return (
         <div
             ref={ref}
-            style={{
+            data-marco={libre ? "libre" : "clasico"}
+            style={libre ? { textShadow: "0 1px 2px rgba(0,0,0,.45), 0 0 16px rgba(0,0,0,.22)" } : {
                 ["--w-glass" as string]: String(w.glassOpacity ?? 0.5),
                 // Modo "original": cristal líquido teñido con el acento del widget,
                 // independiente del tema global (identidad propia por widget).
@@ -204,14 +208,15 @@ export function WidgetShell({
             className={cn(
                 // os-widget-shell: capa de calidad transversal (globals.css) —
                 // hover/focus visibles, tabular-nums heredado, sombras por tema.
-                "os-widget-shell @container relative w-full h-full flex flex-col overflow-hidden rounded-3xl text-foreground isolate",
+                "os-widget-shell @container relative w-full h-full flex flex-col text-foreground isolate",
+                libre ? "overflow-visible bg-transparent border-0 shadow-none" : "overflow-hidden rounded-3xl",
                 // En "original" usamos estilos inline (arriba) + backdrop-blur; en
                 // "theme" heredamos las clases del tema global (o el override
                 // de ESTE widget, si el panel de config eligió una variante).
-                isOriginal ? "backdrop-blur-2xl border" : bgClass(effectiveBgStyle, w.glassOpacity),
-                isOriginal ? "" : borderClass(effectiveBorderStyle),
-                isOriginal ? "" : shadowClass(effectiveShadowStyle),
-                innerGlowClass(w.innerGlow),
+                libre ? "" : isOriginal ? "backdrop-blur-2xl border" : bgClass(effectiveBgStyle, w.glassOpacity),
+                libre || isOriginal ? "" : borderClass(effectiveBorderStyle),
+                libre || isOriginal ? "" : shadowClass(effectiveShadowStyle),
+                libre ? "" : innerGlowClass(w.innerGlow),
                 className
             )}
         >
@@ -219,22 +224,29 @@ export function WidgetShell({
                 competir con el box-shadow temático/hover del shell ni con su ::before
                 (innerGlow) / ::after (sheen). Additivo, z-0, no captura punteros; el
                 contenido (header/body/footer) va en z-10, siempre por encima. */}
-            <span aria-hidden className="glass-depth pointer-events-none absolute inset-0 z-0 rounded-[inherit]" />
-            <span aria-hidden className="glass-refraction pointer-events-none absolute inset-0 z-0 rounded-[inherit]" />
+            {libre ? (
+                <span aria-hidden className="pointer-events-none absolute inset-[6%] z-0 rounded-full"
+                    style={{ background: `radial-gradient(closest-side, color-mix(in srgb, ${accentColor} 18%, transparent), transparent)` }} />
+            ) : (
+                <>
+                    <span aria-hidden className="glass-depth pointer-events-none absolute inset-0 z-0 rounded-[inherit]" />
+                    <span aria-hidden className="glass-refraction pointer-events-none absolute inset-0 z-0 rounded-[inherit]" />
+                </>
+            )}
 
-            {w.noiseTexture && (
+            {w.noiseTexture && !libre && (
                 <div className="pointer-events-none absolute inset-0 opacity-[0.035] mix-blend-overlay [background-image:url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22120%22 height=%22120%22><filter id=%22n%22><feTurbulence type=%22fractalNoise%22 baseFrequency=%220.85%22 numOctaves=%222%22/></filter><rect width=%22100%25%22 height=%22100%25%22 filter=%22url(%23n)%22/></svg>')]" />
             )}
 
             {/* Hairline de acento StarSeed en el borde superior (identidad por widget). */}
-            <span
+            {!libre && <span
                 aria-hidden
                 className="pointer-events-none absolute inset-x-0 top-0 h-[2px] z-20 opacity-80"
                 style={{ background: `linear-gradient(90deg, transparent, ${accentColor}, transparent)` }}
-            />
+            />}
 
             {/* Sigilo StarSeed tenue (4 gemas cardinales en cruz) como marca de fondo. */}
-            {sigil && size.tier !== "micro" && (
+            {sigil && !libre && size.tier !== "micro" && (
                 <svg aria-hidden viewBox="0 0 24 24" className="pointer-events-none absolute -right-3 -bottom-3 z-0 size-24 opacity-[0.06]">
                     <circle cx="12" cy="4.6" r="2.6" fill="currentColor" />
                     <circle cx="19.4" cy="12" r="2.6" fill="currentColor" />
@@ -255,13 +267,13 @@ export function WidgetShell({
                         // "acentuada", que ya tiñe el fondo): separa el título del
                         // cuerpo con más claridad y da un aire de tarjeta más limpio,
                         // sin depender de que el tema active "underlined".
-                        w.headerStyle === "underlined"
+                        !libre && (w.headerStyle === "underlined"
                             ? "border-b border-border/40"
-                            : w.headerStyle !== "accented" && "border-b border-border/20",
-                        w.headerStyle === "accented" && "rounded-t-3xl"
+                            : w.headerStyle !== "accented" && "border-b border-border/20"),
+                        !libre && w.headerStyle === "accented" && "rounded-t-3xl"
                     )}
                     style={
-                        w.headerStyle === "accented"
+                        !libre && w.headerStyle === "accented"
                             ? { background: `linear-gradient(90deg, color-mix(in srgb, ${accentColor} 14%, transparent), transparent)` }
                             : undefined
                     }

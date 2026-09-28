@@ -232,6 +232,12 @@ export interface AppearanceConfig {
          * igual que el resto de preferencias de widgets.
          */
         compact?: boolean;
+        /**
+         * (Ola 380 · FL6) Marco de los widgets: «libre» = sin caja ni fondo, cada widget
+         * es una forma flotante (por defecto); «clasico» = la tarjeta de cristal de siempre.
+         * Opcional → configs viejas siguen válidas y reciben «libre».
+         */
+        marco?: "libre" | "clasico";
         dashboardTemplate: "standard" | "analyst" | "creative" | "strategic";
         bgStyle: "glass" | "solid" | "cyber" | "mesh";
         borderStyle: "none" | "thin" | "glow" | "neon";
@@ -571,6 +577,7 @@ const defaultConfig: AppearanceConfig = {
     widgets: {
         designMode: "theme",
         compact: false,
+        marco: "libre",
         dashboardTemplate: "standard",
         bgStyle: "glass",
         borderStyle: "thin",
