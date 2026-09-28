@@ -11,7 +11,7 @@
 import * as React from "react";
 import { motion, useReducedMotion, useSpring } from "framer-motion";
 import { useElementSize } from "@/components/dashboard/kit/use-element-size";
-import { trazoForma, type TipoForma } from "@/lib/widgets/forma/formas";
+import { relacionForma, trazoForma, type TipoForma } from "@/lib/widgets/forma/formas";
 import { claseDesdePx, type ClaseTamano } from "@/lib/widgets/forma/tamanos";
 import { presupuesto, useNivelRender } from "@/lib/widgets/forma/nivel-dispositivo";
 
@@ -48,7 +48,13 @@ export function WidgetLibre({
     const w = Math.max(0, Math.round(size.width));
     const h = Math.max(0, Math.round(size.height));
     const clase = claseDesdePx(w, h);
-    const d = React.useMemo(() => (forma === "ninguna" ? "" : trazoForma(forma, w, h, semilla ?? etiqueta ?? forma)), [forma, w, h, semilla, etiqueta]);
+    // Las formas «cuadradas» (orbe, hexágono, órbita, estrella) se dibujan en un cuadrado
+    // centrado: un reloj es un círculo, no una elipse estirada por la celda.
+    const cuadrada = relacionForma(forma) === "cuadrada";
+    const lado = Math.min(w, h);
+    const [fw, fh, ox, oy] = cuadrada ? [lado, lado, (w - lado) / 2, (h - lado) / 2] : [w, h, 0, 0];
+    const d = React.useMemo(() => (forma === "ninguna" ? "" : trazoForma(forma, fw, fh, semilla ?? etiqueta ?? forma)), [forma, fw, fh, semilla, etiqueta]);
+    const recorte = React.useMemo(() => (recortar && forma !== "ninguna" ? trazoForma(forma, w, h, semilla ?? etiqueta ?? forma) : ""), [recortar, forma, w, h, semilla, etiqueta]);
     const cuerpo = Math.max(0, Math.min(1, intensidad));
 
     const mover = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -96,16 +102,18 @@ export function WidgetLibre({
                                 <stop offset="100%" stopColor={acento2} stopOpacity={0.05} />
                             </linearGradient>
                         </defs>
-                        {p.halo === "vivo" && <path d={d} fill={acento} opacity={0.18} style={{ filter: "blur(18px)" }} />}
-                        <path d={d} fill={`url(#cuerpo-${id})`} fillRule="evenodd" />
-                        <path d={d} fill="none" stroke={`url(#filo-${id})`} strokeWidth={1.2} fillRule="evenodd" />
+                        <g transform={ox || oy ? `translate(${ox} ${oy})` : undefined}>
+                            {p.halo === "vivo" && <path d={d} fill={acento} opacity={0.18} style={{ filter: "blur(18px)" }} />}
+                            <path d={d} fill={`url(#cuerpo-${id})`} fillRule="evenodd" />
+                            <path d={d} fill="none" stroke={`url(#filo-${id})`} strokeWidth={1.2} fillRule="evenodd" />
+                        </g>
                     </svg>
                 ) : null}
                 <div
                     className="relative z-10 h-full w-full"
                     style={{
                         transform: p.parallax && inclinacion ? "translateZ(28px)" : undefined,
-                        clipPath: recortar && d ? `path("${d}")` : undefined,
+                        clipPath: recorte ? `path("${recorte}")` : undefined,
                         textShadow: "0 1px 2px rgba(0,0,0,.45), 0 0 18px rgba(0,0,0,.25)",
                     }}
                 >

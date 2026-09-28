@@ -21,7 +21,11 @@ function Flor({ tareas, tam, onToggle, interactiva }: { tareas: QuickTask[]; tam
     return (
         <svg width={tam} height={tam} viewBox={`${-tam / 2} ${-tam / 2} ${tam} ${tam}`} className="overflow-visible" role="group" aria-label={`Flor de tareas: ${hechas} de ${tareas.length} completadas`}>
             <g className="ss-girar" style={{ ["--ss-dur" as string]: "240s", transformOrigin: "0 0" }}>
-                {petalos.length === 0 && <ellipse rx={ancho / 2} ry={largo / 2} cy={-largo / 2 - tam * 0.08} fill={`${VERDE}22`} stroke={`${VERDE}55`} />}
+                {/* Sin tareas: la flor en espera, seis pétalos fantasma que respiran. */}
+                {petalos.length === 0 && Array.from({ length: 6 }, (_, i) => (
+                    <ellipse key={i} transform={`rotate(${i * 60})`} rx={tam * 0.07} ry={largo / 2} cy={-largo / 2 - tam * 0.08}
+                        fill={VERDE} fillOpacity={0.05} stroke={`${VERDE}55`} strokeDasharray="3 4" />
+                ))}
                 {petalos.map((t, i) => {
                     const ang = (i / n) * 360;
                     const accion = () => interactiva && onToggle(t.id);

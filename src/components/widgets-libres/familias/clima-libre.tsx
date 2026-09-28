@@ -45,9 +45,17 @@ function Particulas({ cielo }: { cielo: Cielo }) {
             {cielo === "nubes" && [0, 1].map((i) => <div key={i} className="ss-derivar absolute rounded-full" style={{ ["--ss-dur" as string]: `${9 + i * 4}s`, left: `${15 + i * 30}%`, top: `${22 + i * 18}%`, width: "45%", height: "30%", background: "radial-gradient(closest-side, #e2e8f055, transparent)" }} />)}
             {cielo === "tormenta" && <div className="ss-destello absolute inset-0 rounded-full" style={{ background: "radial-gradient(closest-side, #ffffffaa, transparent)" }} />}
             {cielo === "niebla" && [0, 1, 2].map((i) => <div key={i} className="ss-derivar absolute left-[10%] h-[8%] w-[80%] rounded-full bg-white/15" style={{ ["--ss-dur" as string]: `${7 + i * 3}s`, top: `${30 + i * 18}%` }} />)}
-            {Array.from({ length: n }, (_, i) => (
-                <span key={i} className="ss-caer absolute top-0" style={{ ["--ss-dur" as string]: cielo === "nieve" ? "4.5s" : "1.4s", animationDelay: `${(i * 0.37) % 1.4}s`, left: `${12 + i * 12}%`, width: cielo === "nieve" ? 5 : 1.5, height: cielo === "nieve" ? 5 : 12, borderRadius: 9, background: cielo === "nieve" ? "#fff" : "#7dd3fc" }} />
-            ))}
+            {n > 0 && (
+                // Las gotas caen DENTRO de la forma: una columna por gota que cruza la altura entera
+                // (el % de translate es de la propia columna, no de la gota).
+                <div className="absolute inset-x-[26%] bottom-[16%] top-[14%] overflow-hidden">
+                    {Array.from({ length: n }, (_, i) => (
+                        <span key={i} className="ss-caer absolute top-0 h-full" style={{ ["--ss-dur" as string]: cielo === "nieve" ? "4.5s" : "1.3s", animationDelay: `${(i * 0.41) % 1.3}s`, left: `${6 + i * (88 / n)}%` }}>
+                            <span className="block" style={{ width: cielo === "nieve" ? 5 : 1.5, height: cielo === "nieve" ? 5 : 12, borderRadius: 9, background: cielo === "nieve" ? "#fff" : "linear-gradient(#7dd3fc00,#7dd3fc)" }} />
+                        </span>
+                    ))}
+                </div>
+            )}
         </div>
     );
 }

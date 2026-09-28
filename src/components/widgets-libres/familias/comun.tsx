@@ -27,7 +27,7 @@ export function disenoDe(clase: ClaseTamano): { base: "micro" | "s" | "m" | "l" 
 /** Rótulo pequeño en versalitas, legible sobre cualquier fondo. */
 export function Rotulo({ children, color, className = "" }: { children: React.ReactNode; color?: string; className?: string }) {
     return (
-        <span className={`text-[10px] font-bold uppercase tracking-[0.18em] ${className}`} style={{ color: color ?? "rgba(255,255,255,.72)" }}>
+        <span className={`whitespace-nowrap text-[10px] font-bold uppercase tracking-[0.16em] ${className}`} style={{ color: color ?? "rgba(255,255,255,.72)" }}>
             {children}
         </span>
     );

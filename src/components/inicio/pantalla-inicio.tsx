@@ -19,7 +19,8 @@ import {
     type ItemInicio, type TamanoInicio,
 } from "@/lib/inicio/widgets-inicio";
 
-const PX: Record<TamanoInicio, [number, number]> = { micro: [120, 120], s: [180, 180], m: [280, 220], l: [380, 300], xl: [520, 380] };
+// Cada tamaño cae en SU clase de WidgetLibre (claseDesdePx: lado menor <110 micro, <180 s, <280 m, <420 l).
+const PX: Record<TamanoInicio, [number, number]> = { micro: [100, 100], s: [170, 170], m: [280, 220], l: [400, 300], xl: [560, 440] };
 const TAMANOS: TamanoInicio[] = ["micro", "s", "m", "l", "xl"];
 const LIBRES = new Set<string>(TIPOS_CON_DISENO_LIBRE);
 

@@ -11,7 +11,7 @@ import { WidgetLibre } from "@/components/widgets-libres/widget-libre";
 import { personalidadDe } from "@/lib/widgets/forma/asignacion";
 import { zoneLabel } from "@/components/dashboard/widgets/clock-date-widget";
 import type { DashboardWidget } from "@/components/dashboard/dashboard-types";
-import { Pildora, Rotulo, disenoDe, useAhora } from "./comun";
+import { Pildora, disenoDe, useAhora } from "./comun";
 
 type Ajustes = (patch: Record<string, unknown>) => void;
 
@@ -101,7 +101,7 @@ export function RelojLibre({ widget, onUpdateSettings }: { widget?: DashboardWid
                         </svg>
                         <div className="relative z-10 flex flex-col items-center gap-1 text-center">
                             {modo === "digital" && digitos(lado * (grande ? 0.16 : 0.2))}
-                            {b !== "s" && <Rotulo className="max-w-[70%] truncate" color="rgba(255,255,255,.8)">{t.fecha}</Rotulo>}
+                            {b !== "s" && <span className="text-center text-[12px] font-medium first-letter:uppercase text-white/80" style={{ maxWidth: R * 1.5 }}>{t.fecha}</span>}
                             {b !== "s" && <span className="text-[10px] text-white/60">{cielo.nombre}</span>}
                         </div>
                         {grande && zonas.length > 0 && (
