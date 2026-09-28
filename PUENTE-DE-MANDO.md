@@ -1,6 +1,6 @@
 # Puente de Mando · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-27 23:29:42 desde el Mando vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-28 00:05:21 desde el Mando vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -16,15 +16,15 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | Agentes escribiendo | **0** |
 | En esta ola | integradas 0 · en curso 0 · esperando aprobación 0 · pendientes 0 |
 | Últimas 4 olas | en curso 0 · pendientes 0 · integradas 21 |
-| HEAD | `85252d41 chore(memoria): aprendizaje de la ola auto-0927-225622` |
-| Sin publicar | 7 commits |
+| HEAD | `e4cb4ed3 chore(memoria): aprendizaje de la ola auto-0927-233126` |
+| Sin publicar | 13 commits |
 | Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-auto-0927-225622.json`, hace 17s)
+## Quién escribe ahora (latido de `cola-auto-0927-233126.json`, hace 10s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `JF2b` | hecho | apinex/free/gemini-3.1-pro | 18 min | 1067 s | 113327 |
+| `JF2b` | hecho | apinex/free/glm-5.3-flash | 16 min | 971 s | 135919 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
