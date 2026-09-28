@@ -14,7 +14,7 @@ import {
   Server, Vote, Lightbulb, Cpu, Brain, ShoppingBag, Award, AppWindow,
   CalendarClock, GitBranch, Sparkles, Zap, Wrench, Plug, Eye, HardDrive, Boxes,
   Camera, Images, RadioTower, Antenna, Radio, Rss, AudioLines, Gauge,
-  Smile, FlaskConical,
+  Smile, FlaskConical, Sunrise,
 } from 'lucide-react';
 // Garantía de botones predeterminados con la VERSIÓN DENTRO DEL PAYLOAD
 // (Adenda 149 · tanda 3). El módulo es puro y sin dependencias: lo comparten
@@ -73,7 +73,9 @@ export type DockIconKey =
   // ── Mundo de los avatares (Ola 234) ──
   | 'Smile'
   // ── Laboratorio de Astraura (Ola 237) ──
-  | 'FlaskConical';
+  | 'FlaskConical'
+  // ── Inicio sencillo (Ola 381 · INI7) ──
+  | 'Sunrise';
 
 /**
  * Mapa iconKey → componente de lucide-react. Fuente ÚNICA de verdad: la usan
@@ -87,7 +89,7 @@ export const DOCK_ICON_MAP: Record<DockIconKey, React.ComponentType<{ className?
   Server, Vote, Lightbulb, Cpu, Brain, ShoppingBag, Award, AppWindow,
   CalendarClock, GitBranch, Sparkles, Zap, Wrench, Plug, Eye, HardDrive, Boxes,
   Camera, Images, RadioTower, Antenna, Radio, Rss, AudioLines, Gauge, Smile,
-  FlaskConical,
+  FlaskConical, Sunrise,
 };
 
 /** Icono de respaldo defensivo (DOCK_ICON_MAP es total: no debería usarse). */
@@ -262,6 +264,8 @@ export const DOCK_PRESETS: DockItemConfig[] = [
   // Ola 237: Laboratorio de Astraura — el genoma de nueve capas fásicas, del
   // núcleo ternario 1,58 bits al contexto. Nada escribe en el OS sin confirmación.
   { id: 'laboratorio',   label: 'Laboratorio de Astraura', iconKey: 'FlaskConical', path: '/laboratorio',          color: 'purple',  enabled: true,  origin: 'preset' },
+  // Ola 381 · INI7: la pantalla de inicio sencilla (reloj, clima, avisos…) del perfil.
+  { id: 'inicio',        label: 'Inicio',              iconKey: 'Sunrise',         path: '/inicio',                color: 'emerald', enabled: true,  origin: 'preset' },
 ];
 
 /**

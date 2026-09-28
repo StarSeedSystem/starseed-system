@@ -65,7 +65,7 @@ export const DOCK_STORAGE_KEY = 'starseed.dock.items.v2';
  * banderas one-shot por navegador (`starseed.dock.items.migrated.vN`), que era
  * justo lo que no llegaba a las cuentas viejas.
  */
-export const DOCK_DEFAULTS_VERSION = 20;
+export const DOCK_DEFAULTS_VERSION = 21;
 
 /**
  * Ids que el OS garantiza presentes y encendidos hasta DOCK_DEFAULTS_VERSION.
@@ -86,7 +86,7 @@ export const DOCK_DEFAULTS_VERSION = 20;
  * todas las neuronas y perfiles existentes — solo la versión, que viaja dentro
  * del payload sincronizado, llega a las cuentas viejas.
  */
-export const DOCK_DEFAULT_ON_IDS = ['senales', 'red-feed', 'imaginacion', 'voces', 'mando', 'mundo-avatares', 'laboratorio', 'canales'] as const;
+export const DOCK_DEFAULT_ON_IDS = ['senales', 'red-feed', 'imaginacion', 'voces', 'mando', 'mundo-avatares', 'laboratorio', 'canales', 'inicio'] as const;
 
 /**
  * Forma mínima de un item del dock para ESTE módulo. Deliberadamente laxa

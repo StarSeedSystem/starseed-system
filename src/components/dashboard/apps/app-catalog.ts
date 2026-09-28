@@ -15,6 +15,8 @@ import {
     Sparkles, Users,
     // Ola 285 · K6: Canales StarSeed.
     Rss,
+    // Ola 381 · INI7: pantalla de inicio sencilla.
+    Sunrise,
 } from "lucide-react";
 import type { StarseedApp, LauncherCollection } from "./launcher-types";
 
@@ -164,6 +166,18 @@ export const APP_CATALOG: StarseedApp[] = [
         category: "sistema",
         status: "native",
         open: { primary: "route", allowed: ["route"], route: "/voces" },
+    },
+    {
+        // Ola 381 · INI7: la pantalla de inicio sencilla y personalizable del perfil.
+        id: "inicio",
+        name: "Inicio",
+        short: "Inicio",
+        description: "Pantalla de inicio sencilla: hora, clima, avisos, eventos y tus accesos, sin cajas. Personalizable por perfil.",
+        icon: Sunrise,
+        accent: "#23d5ab",
+        category: "sistema",
+        status: "native",
+        open: { primary: "route", allowed: ["route"], route: "/inicio" },
     },
     {
         // Ola 231: Puente de Mando — consola de producción y desarrollo (solo local).
@@ -394,7 +408,7 @@ export function getApp(id: string): StarseedApp | undefined {
 export const APP_COLLECTIONS: Record<LauncherCollection, string[]> = {
     // 'starseed' = folder de inicio por defecto (marca + módulos clave)
     starseed: ["nexus", "cafe", "audiomorphic", "omnifrecuencias", "red-mesh", "senales", "red-feed", "canales", "messages", "network", "musica", "clima", "imaginacion"],
-    sistema: ["messages", "network", "library", "agent", "astraura-158", "imaginacion", "enjambre", "red-mesh", "senales", "red-feed", "voces", "mando", "mundo-avatares", "laboratorio"],
+    sistema: ["inicio", "messages", "network", "library", "agent", "astraura-158", "imaginacion", "enjambre", "red-mesh", "senales", "red-feed", "voces", "mando", "mundo-avatares", "laboratorio"],
     media: ["musica", "radio", "omnifrecuencias", "audiomorphic", "immersive", "camara", "galeria"],
     custom: [],
 };
