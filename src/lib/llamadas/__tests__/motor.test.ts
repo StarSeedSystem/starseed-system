@@ -10,13 +10,16 @@ import type { MetaPresencia, SenalLlamada } from "@/lib/llamadas/tipos";
 /* ─────────────────────── Canal de señalización en memoria ─────────────────────── */
 
 type Conn = {
+    /** Tema del canal (las señales y la presencia solo viajan dentro del mismo tema). */
     sesion: string;
     clave: string;
     meta: MetaPresencia | null;
     oyP: Set<(p: MetaPresencia[]) => void>;
     oyS: Set<(s: SenalLlamada) => void>;
+    oyE: Set<(e: string) => void>;
     enviadas: SenalLlamada[];
     suelta: boolean;
+    denegado: boolean;
 };
 
 const h = vi.hoisted(() => ({ conns: [] as unknown[], iceFallo: false }));
@@ -35,14 +38,35 @@ function repartirPresencia(sesion: string) {
     }
 }
 
+/** El servidor deniega un tema: los canales abiertos en él pasan a «denegado». */
+function denegarTema(tema: string) {
+    for (const c of conns().filter((x) => x.sesion === tema && !x.suelta)) {
+        c.denegado = true;
+        c.oyE.forEach((cb) => cb("denegado"));
+    }
+}
+
 vi.mock("@/lib/llamadas/senalizacion", () => ({
-    abrirCanalLlamada: (sesion: string, opciones: { clave?: string | null } = {}) => {
-        const c: Conn = { sesion, clave: opciones.clave ?? "obs", meta: null, oyP: new Set(), oyS: new Set(), enviadas: [], suelta: false };
+    abrirCanalLlamada: (sesionId: string, opciones: { clave?: string | null; tema?: string | null } = {}) => {
+        const sesion = opciones.tema ?? sesionId;
+        const c: Conn = {
+            sesion,
+            clave: opciones.clave ?? "obs",
+            meta: null,
+            oyP: new Set(),
+            oyS: new Set(),
+            oyE: new Set(),
+            enviadas: [],
+            suelta: false,
+            denegado: false,
+        };
         (h.conns as Conn[]).push(c);
         return {
-            sesionId: sesion,
+            sesionId,
+            tema: sesion,
             clave: () => c.clave,
-            suscrito: () => true,
+            suscrito: () => !c.denegado,
+            estado: () => (c.denegado ? "denegado" : "dentro"),
             presencia: () => [],
             onPresencia: (cb: (p: MetaPresencia[]) => void) => {
                 c.oyP.add(cb);
@@ -53,7 +77,12 @@ vi.mock("@/lib/llamadas/senalizacion", () => ({
                 return () => c.oyS.delete(cb);
             },
             onSuscrito: () => () => undefined,
+            onEstado: (cb: (e: string) => void) => {
+                c.oyE.add(cb);
+                return () => c.oyE.delete(cb);
+            },
             enviar: (s: SenalLlamada) => {
+                if (c.denegado || c.suelta) return;
                 c.enviadas.push(s);
                 for (const otro of conns()) {
                     if (otro !== c && otro.sesion === sesion && !otro.suelta) queueMicrotask(() => otro.oyS.forEach((cb) => cb(s)));
@@ -129,9 +158,9 @@ vi.mock("@/lib/llamadas/identidad", () => ({
     clavePestana: (base: string) => `${base}:t`,
 }));
 
-vi.mock("@/lib/llamadas/ice", () => ({
+vi.mock("@/lib/llamadas/ice", async (original) => ({
+    ...(await original<typeof import("@/lib/llamadas/ice")>()),
     servidoresIce: () => [{ urls: "stun:x" }],
-    hayTurn: () => false,
 }));
 
 /* ─────────────────────── RTCPeerConnection de mentira ─────────────────────── */
@@ -354,7 +383,7 @@ describe("MotorLlamada", () => {
         await esperar(3);
         const estados = [a.estado(), b.estado()];
         const conAviso = estados.find((e) => e.aviso);
-        expect(conAviso?.aviso).toMatch(/TURN/);
+        expect(conAviso?.aviso).toMatch(/Sin servidor de retransmisión: en redes muy cerradas puede no conectar/);
         a.colgar();
         b.colgar();
     });
@@ -397,5 +426,85 @@ describe("MotorLlamada", () => {
         expect(a.estado().rechazos).toEqual([{ uid: "b", nombre: "Bea" }]);
         expect(a.estado().contestada).toBe(false);
         a.colgar();
+    });
+
+    it("con TURN disponible, un fallo de conexión NO culpa a la falta de retransmisión", async () => {
+        const turn = [{ urls: "turn:t.example.org:3478", username: "u", credential: "c" }];
+        const a = new MotorLlamada({ sesionId: "s7", yo: yo("a"), iceServers: turn, intervaloNivelMs: 60_000, intervaloStatsMs: 60_000 });
+        const b = new MotorLlamada({ sesionId: "s7", yo: yo("b"), iceServers: turn, intervaloNivelMs: 60_000, intervaloStatsMs: 60_000 });
+        await a.prepararMedios({ audio: true, video: false });
+        await b.prepararMedios({ audio: true, video: false });
+        a.entrar();
+        b.entrar();
+        await esperar();
+        expect(pcs[0].config.iceServers).toEqual(turn);
+        for (let i = 0; i < 4; i++) pcs[0].fijarIce("failed");
+        await esperar(3);
+        const aviso = [a.estado(), b.estado()].find((e) => e.aviso)?.aviso ?? "";
+        expect(aviso).toMatch(/No se pudo conectar/);
+        expect(aviso).not.toMatch(/retransmisión/);
+        a.colgar();
+        b.colgar();
+    });
+
+    it("si el servidor deniega el canal privado, la llamada termina diciéndolo (sin canal público)", async () => {
+        const a = new MotorLlamada({ sesionId: "s8", yo: yo("a"), tema: "llamada:s8", intervaloNivelMs: 60_000, intervaloStatsMs: 60_000 });
+        await a.prepararMedios({ audio: true, video: false });
+        expect(a.entrar()).toBe(true);
+        await esperar(3);
+        denegarTema("llamada:s8");
+        await esperar(3);
+        const e = a.estado();
+        expect(e.fase).toBe("error");
+        expect(e.motivoFin).toMatch(/canal privado/);
+        expect(e.motivoFin).toMatch(/no se usa un canal público/);
+        expect(a.cerrada).toBe(true);
+        // Solo se intentó el canal privado pedido: ningún otro tema.
+        expect(new Set(conns().map((c) => c.sesion))).toEqual(new Set(["llamada:s8"]));
+    });
+
+    it("enlace público a mitad de llamada: se suma el canal nuevo, se avisa y el invitado ve a todos", async () => {
+        const BASE = "llamada:s9";
+        const PUB = "llamada:s9:tokentokentokentoken";
+        let temaServidor = BASE;
+        const resolver = async () => temaServidor;
+        const a = new MotorLlamada({ sesionId: "s9", yo: yo("a"), tema: BASE, resolverTema: resolver, intervaloNivelMs: 60_000, intervaloStatsMs: 60_000 });
+        const b = new MotorLlamada({ sesionId: "s9", yo: yo("b"), tema: BASE, resolverTema: resolver, intervaloNivelMs: 60_000, intervaloStatsMs: 60_000 });
+        await a.prepararMedios({ audio: true, video: false });
+        await b.prepararMedios({ audio: true, video: false });
+        a.entrar();
+        b.entrar();
+        await esperar();
+        expect(pcs).toHaveLength(2);
+
+        // La creadora hace público el enlace y revisa el canal.
+        temaServidor = PUB;
+        expect(await a.revisarCanal()).toBe(true);
+        await esperar();
+        // Avisó de la mudanza por el canal viejo (sin token en el mensaje)…
+        const avisos = conns().find((c) => c.clave === "a:t" && c.sesion === BASE)!.enviadas.filter((s) => s.tipo === "mudanza");
+        expect(avisos).toEqual([{ tipo: "mudanza", de: "a:t" }]);
+        // …y las dos siguen también en el viejo (nadie se queda fuera).
+        expect(conns().filter((c) => c.sesion === BASE && !c.suelta).map((c) => c.clave).sort()).toEqual(["a:t", "b:t"]);
+        expect(conns().filter((c) => c.sesion === PUB && !c.suelta).map((c) => c.clave).sort()).toEqual(["a:t", "b:t"]);
+
+        // Llega un invitado por el enlace público: solo conoce el tema con token.
+        const g = new MotorLlamada({ sesionId: "s9", yo: { base: "inv-1", uid: null, nombre: "Invitada", avatar: null, invitado: true }, tema: PUB, intervaloNivelMs: 60_000, intervaloStatsMs: 60_000 });
+        await g.prepararMedios({ audio: true, video: false });
+        g.entrar();
+        await esperar(40);
+        expect(g.estado().participantes.map((p) => p.id).sort()).toEqual(["a:t", "b:t", "inv-1:t"]);
+        expect(a.estado().participantes.map((p) => p.id).sort()).toEqual(["a:t", "b:t", "inv-1:t"]);
+        // Malla completa entre tres: 3 pares × 2 extremos, todos negociados.
+        expect(pcs).toHaveLength(6);
+        for (const pc of pcs) expect(pc.remoteDescription).not.toBeNull();
+        // A y B siguen con UNA sola conexión entre ellas (la presencia doble no duplica pares).
+        expect(a.estado().participantes.filter((p) => p.id === "b:t")).toHaveLength(1);
+
+        a.colgar();
+        b.colgar();
+        g.colgar();
+        await esperar(3);
+        expect(conns().every((c) => c.suelta)).toBe(true);
     });
 });

@@ -34,12 +34,22 @@ dispositivos por `live-signal`, fusión por elemento con `actualizado` y lápida
 - **Formato = dato, no código.** `validarFormato` (lista blanca, límites, sin `javascript:` ni
   `blob:`, sin rutas `/api` o `/auth` como medio). Las ventanas web son iframes con `sandbox` sin
   `allow-same-origin` y se activan con un clic; las «apps» son rutas del OS; nada ejecuta código ajeno.
-- **Apps en vivo honestas.** Solo lo que ya sincroniza de verdad (`os_spaces`: pizarra, sala con
-  plantilla, escritorio, ventana web compartida) está disponible; el resto sale «Próximamente» con
-  su motivo en `src/components/messages/vivo/catalogo-vivo.ts`.
+- **Apps en vivo honestas.** Todas sincronizan de verdad sobre `os_spaces`: pizarra, sala con
+  plantilla, escritorio, ventana web, y desde la segunda tanda (2026-09-28) documento y presentación
+  (`src/lib/vivo/doc-colaborativo`, fusión por bloque/diapositiva), tabla de datos (fusión por
+  celda, fórmulas con un evaluador propio sin `eval`), panel compartido, juegos (diario de jugadas
+  con reglas puras), programas (bloques declarativos con estado compartido, nunca código), escena
+  3D y sala XR (objetos por elemento, avatares por canal ≤ 10 Hz). Los tipos nuevos usan
+  `kind 'dashboard'` + `doc.vivo`/`doc.app` o los kinds que añaden sus migraciones (siempre
+  sumando a la lista, nunca reescribiéndola). Lo que aún no hacen está en `nota` de cada entrada
+  de `catalogo-vivo.ts`.
 - **Llamadas** WebRTC en malla completa (hasta 8), señalización por Realtime `llamada:<sesionId>`,
-  STUN públicos y TURN opcional por `NEXT_PUBLIC_TURN_URL/_USER/_CRED`. VR/AR abren `/xr?sesion=…`.
-  El canal no es privado: su protección es el id imposible de adivinar.
+  STUN públicos y TURN servido por `/api/llamadas/ice` (Cloudflare, Metered o fijo por entorno;
+  guía en `architecture/llamadas-turn-y-canales-privados.md`). VR/AR abren `/sala-xr`.
+  Desde la segunda tanda la señalización va por canales PRIVADOS de Realtime con RLS sobre
+  `realtime.messages` (`llamada:<id>` para miembros e invitados, `llamada:<id>:<token>` para el
+  enlace público); si el servidor no autoriza, la llamada se detiene con un aviso: nunca se cae a
+  un canal público en silencio.
 - **Capas globales perezosas.** `MontajeGlobalMensajeria` (layout raíz, `next/dynamic`) monta el
   latido de presencia, la capa de llamadas, la presencia de apps en vivo y el aviso de novedad del
   bloqueo. Nada de eso entra en el grafo común.
@@ -48,5 +58,7 @@ dispositivos por `live-signal`, fusión por elemento con `actualizado` y lápida
 
 ## Rutas nuevas
 
-`/contactos` (app, en el OmniDock y el catálogo) · `/llamada/[id]` · `/vivo/[id]` · pestaña
+`/contactos` (app, en el OmniDock y el catálogo) · `/llamada/[id]` · `/vivo/[id]` · `/documentos`,
+`/documento/[id]`, `/presentacion/[id]`, `/tabla`, `/dashboard-compartido`, `/juego`, `/programa`,
+`/escena`, `/sala-xr` (en el catálogo de apps y la Biblioteca; en el dock, apagadas hasta que las añadas) · pestaña
 «Contactos» en `/profile/[username]`.

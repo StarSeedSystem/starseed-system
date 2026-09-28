@@ -1,0 +1,553 @@
+/* Escena 3D compartida · capa de interfaz (L5 · 2026-09-28). Vidrio oscuro StarSeed. */
+
+.escena {
+    position: relative;
+    width: 100%;
+    height: calc(100dvh - 7.5rem);
+    min-height: 480px;
+    border-radius: 24px;
+    overflow: hidden;
+    background: #05060f;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 30px 80px -40px rgba(124, 92, 255, 0.45);
+    color: #fff;
+    font-size: 14px;
+}
+
+.escena *,
+.escena *::before,
+.escena *::after {
+    box-sizing: border-box;
+}
+
+.lienzo {
+    position: absolute;
+    inset: 0;
+    touch-action: none;
+}
+
+/* La capa de interfaz deja pasar los toques al lienzo salvo en sus paneles. */
+.capa {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    display: flex;
+    flex-direction: column;
+    padding: 12px;
+    gap: 10px;
+}
+
+.vidrio {
+    pointer-events: auto;
+    background: rgba(12, 14, 34, 0.55);
+    backdrop-filter: blur(20px) saturate(140%);
+    -webkit-backdrop-filter: blur(20px) saturate(140%);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 18px 40px -24px rgba(0, 0, 0, 0.7);
+}
+
+:global(html[data-perf="eco"]) .vidrio {
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    background: rgba(12, 14, 34, 0.82);
+}
+
+.barra {
+    composes: vidrio;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px 8px 8px;
+    border-radius: 20px;
+    min-width: 0;
+}
+
+.volver {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    flex-shrink: 0;
+    border-radius: 14px;
+    color: rgba(255, 255, 255, 0.8);
+    transition: background-color 180ms ease, color 180ms ease;
+    cursor: pointer;
+}
+
+.volver:hover,
+.volver:focus-visible {
+    background: rgba(255, 255, 255, 0.08);
+    color: #fff;
+    outline: none;
+}
+
+.titulos {
+    min-width: 0;
+    flex: 1;
+}
+
+.titulo {
+    font-weight: 600;
+    font-size: 15px;
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.subtitulo {
+    margin-top: 2px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.62);
+}
+
+.chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 2px 9px;
+    border-radius: 999px;
+    font-size: 11.5px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.pila {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.punto {
+    width: 26px;
+    height: 26px;
+    border-radius: 999px;
+    display: grid;
+    place-items: center;
+    font-size: 11px;
+    font-weight: 700;
+    color: #0b0d1f;
+    border: 2px solid rgba(12, 14, 34, 0.9);
+    margin-left: -7px;
+}
+
+.punto:first-child {
+    margin-left: 0;
+}
+
+.aviso {
+    composes: vidrio;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 16px;
+    font-size: 13px;
+    line-height: 1.4;
+    color: rgba(255, 255, 255, 0.86);
+    max-width: 560px;
+}
+
+.cuerpo {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    justify-content: flex-end;
+    align-items: flex-end;
+    position: relative;
+}
+
+/* Hoja: panel lateral en escritorio, hoja inferior en el móvil. */
+.hoja {
+    composes: vidrio;
+    border-radius: 22px;
+    width: 340px;
+    max-width: 100%;
+    max-height: 100%;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 14px;
+    align-self: flex-start;
+    animation: entrar 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@media (max-width: 767px) {
+    .cuerpo {
+        align-items: flex-end;
+    }
+
+    .hoja {
+        width: 100%;
+        align-self: flex-end;
+        max-height: min(58dvh, 100%);
+    }
+}
+
+@keyframes entrar {
+    from {
+        opacity: 0;
+        transform: translateY(8px) scale(0.985);
+    }
+    to {
+        opacity: 1;
+        transform: none;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .hoja {
+        animation: none;
+    }
+}
+
+:global(html[data-perf="eco"]) .hoja {
+    animation: none;
+}
+
+.cabeceraHoja {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.tituloHoja {
+    font-weight: 600;
+    font-size: 15px;
+}
+
+.cerrar {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 999px;
+    color: rgba(255, 255, 255, 0.7);
+    cursor: pointer;
+    transition: background-color 160ms ease;
+}
+
+.cerrar:hover,
+.cerrar:focus-visible {
+    background: rgba(255, 255, 255, 0.08);
+    color: #fff;
+    outline: none;
+}
+
+.rotulo {
+    display: block;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.55);
+    margin: 14px 2px 8px;
+}
+
+.rotulo:first-of-type {
+    margin-top: 2px;
+}
+
+.lista {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    min-height: 48px;
+    padding: 8px 10px;
+    border-radius: 14px;
+    text-align: left;
+    color: #fff;
+    cursor: pointer;
+    transition: background-color 160ms ease, transform 160ms ease;
+}
+
+.item:hover,
+.item:focus-visible {
+    background: rgba(255, 255, 255, 0.07);
+    outline: none;
+}
+
+.item:active {
+    transform: scale(0.99);
+}
+
+.item[aria-pressed="true"],
+.item[aria-current="true"] {
+    background: rgba(124, 92, 255, 0.16);
+    box-shadow: inset 0 0 0 1px rgba(124, 92, 255, 0.5);
+}
+
+.item:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+}
+
+.icono {
+    width: 34px;
+    height: 34px;
+    border-radius: 12px;
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+}
+
+.itemTexto {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.itemTitulo {
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.itemDetalle {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.62);
+}
+
+.campo {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 10px;
+}
+
+.etiqueta {
+    font-size: 12.5px;
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.entrada {
+    width: 100%;
+    min-height: 42px;
+    padding: 8px 12px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: #fff;
+    font-size: 14px;
+    transition: border-color 160ms ease, background-color 160ms ease;
+}
+
+.entrada:focus {
+    outline: none;
+    border-color: rgba(124, 92, 255, 0.7);
+    background: rgba(124, 92, 255, 0.08);
+}
+
+.entrada:disabled {
+    opacity: 0.6;
+}
+
+textarea.entrada {
+    min-height: 80px;
+    resize: vertical;
+}
+
+.fila3 {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+}
+
+.deslizador {
+    width: 100%;
+    accent-color: #7c5cff;
+    cursor: pointer;
+}
+
+.muestras {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.muestra {
+    width: 30px;
+    height: 30px;
+    border-radius: 999px;
+    cursor: pointer;
+    border: 2px solid rgba(255, 255, 255, 0.15);
+    transition: transform 160ms ease, border-color 160ms ease;
+}
+
+.muestra:hover,
+.muestra:focus-visible {
+    transform: scale(1.1);
+    outline: none;
+    border-color: rgba(255, 255, 255, 0.6);
+}
+
+.muestra[aria-pressed="true"] {
+    border-color: #fff;
+}
+
+.segmentos {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.acciones {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 14px;
+}
+
+.boton {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 42px;
+    padding: 8px 14px;
+    border-radius: 14px;
+    font-weight: 600;
+    font-size: 14px;
+    color: #fff;
+    cursor: pointer;
+    transition: transform 160ms ease, filter 160ms ease, background-color 160ms ease;
+}
+
+.boton:hover,
+.boton:focus-visible {
+    filter: brightness(1.12);
+    outline: none;
+}
+
+.boton:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+}
+
+.nota {
+    font-size: 12.5px;
+    line-height: 1.45;
+    color: rgba(255, 255, 255, 0.62);
+    margin-top: 8px;
+}
+
+/* Dock inferior de herramientas: iconos con su etiqueta completa debajo. */
+.dock {
+    composes: vidrio;
+    align-self: center;
+    display: flex;
+    gap: 4px;
+    padding: 6px;
+    border-radius: 22px;
+    max-width: 100%;
+}
+
+.botonDock {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    min-width: 72px;
+    min-height: 54px;
+    padding: 6px 8px;
+    border-radius: 16px;
+    color: rgba(255, 255, 255, 0.82);
+    font-size: 11.5px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 160ms ease, color 160ms ease, transform 160ms ease;
+}
+
+.botonDock:hover,
+.botonDock:focus-visible {
+    background: rgba(255, 255, 255, 0.08);
+    color: #fff;
+    outline: none;
+}
+
+.botonDock[aria-pressed="true"] {
+    background: rgba(124, 92, 255, 0.2);
+    color: #fff;
+    box-shadow: inset 0 0 0 1px rgba(124, 92, 255, 0.55);
+}
+
+@media (max-width: 400px) {
+    .botonDock {
+        min-width: 64px;
+        padding: 6px 4px;
+    }
+}
+
+.pista {
+    align-self: center;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.45);
+    text-align: center;
+    padding: 0 8px;
+}
+
+@media (max-width: 767px) {
+    .pista {
+        display: none;
+    }
+}
+
+.centro {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    padding: 16px;
+    pointer-events: none;
+}
+
+.tarjeta {
+    composes: vidrio;
+    border-radius: 24px;
+    padding: 20px;
+    max-width: 440px;
+    width: 100%;
+    text-align: center;
+}
+
+.tarjetaXR {
+    composes: vidrio;
+    border-radius: 22px;
+    padding: 14px;
+    width: 340px;
+    max-width: 100%;
+    align-self: flex-start;
+}
+
+.girar {
+    animation: girar 1s linear infinite;
+}
+
+@keyframes girar {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .girar {
+        animation: none;
+    }
+}

@@ -359,7 +359,9 @@ describe("servidores ICE", () => {
         const con = servidoresIce({ url: "turn:turn.example.org:3478, turns:turn.example.org:5349, http://malo", user: "u", cred: "c" });
         expect(con).toHaveLength(STUN_POR_DEFECTO.length + 1);
         expect(con.at(-1)).toEqual({ urls: ["turn:turn.example.org:3478", "turns:turn.example.org:5349"], username: "u", credential: "c" });
-        expect(servidoresIce({ url: "turn:t.org:3478" }).at(-1)).toEqual({ urls: "turn:t.org:3478" });
+        // Un TURN sin usuario y credencial haría lanzar a RTCPeerConnection: se descarta.
+        expect(servidoresIce({ url: "turn:t.org:3478" })).toEqual(STUN_POR_DEFECTO);
+        expect(hayTurn({ url: "turn:t.org:3478" })).toBe(false);
         expect(servidoresIce({ url: "stun:no-cuenta" })).toHaveLength(STUN_POR_DEFECTO.length);
     });
 });

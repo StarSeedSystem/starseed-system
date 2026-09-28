@@ -27,6 +27,7 @@ import {
     PhoneOff,
     ScanEye,
     Settings2,
+    ShieldAlert,
     Signal,
     SignalHigh,
     SignalLow,
@@ -38,7 +39,7 @@ import {
     X,
 } from "lucide-react";
 import { InvitarSesionDialog } from "@/components/messages/vivo/invitar-sesion";
-import { cerrarVentanaLlamada, colgarLlamada, minimizarLlamada } from "@/lib/llamadas/acciones";
+import { cerrarVentanaLlamada, colgarLlamada, minimizarLlamada, revisarCanalLlamada } from "@/lib/llamadas/acciones";
 import { useEstadoMotor, useLlamadas, type LlamadaActiva } from "@/lib/llamadas/store";
 import { disposicionLlamada, esquinaMasCercana, posicionEsquina, type Esquina } from "@/lib/llamadas/disposicion";
 import { formatearDuracion, TEXTO_TIPO, textoPersonas } from "@/lib/llamadas/formato";
@@ -452,9 +453,15 @@ function PantallaCompleta({ activa, estado, onInvitar }: { activa: LlamadaActiva
                             style={{ background: "rgba(12,14,34,.55)", backdropFilter: "blur(20px) saturate(140%)", border: "1px solid rgba(255,255,255,.08)", boxShadow: "inset 0 1px 0 rgba(255,255,255,.06)" }}
                             role="status"
                         >
-                            <span className="grid h-14 w-14 place-items-center rounded-full" style={{ background: "#DC143C1f", boxShadow: "inset 0 0 0 1px #DC143C66" }}>
-                                <PhoneOff className="h-6 w-6 text-[#ff5a78]" aria-hidden />
-                            </span>
+                            {estado.fase === "error" ? (
+                                <span className="grid h-14 w-14 place-items-center rounded-full" style={{ background: "#FFBF001f", boxShadow: "inset 0 0 0 1px #FFBF0066" }}>
+                                    <ShieldAlert className="h-6 w-6 text-[#FFBF00]" aria-hidden />
+                                </span>
+                            ) : (
+                                <span className="grid h-14 w-14 place-items-center rounded-full" style={{ background: "#DC143C1f", boxShadow: "inset 0 0 0 1px #DC143C66" }}>
+                                    <PhoneOff className="h-6 w-6 text-[#ff5a78]" aria-hidden />
+                                </span>
+                            )}
                             <p className="text-[18px] font-semibold">{estado.fase === "llena" ? "La llamada está completa" : estado.fase === "error" ? "No se pudo entrar" : "Llamada terminada"}</p>
                             {estado.motivoFin && <p className="text-[14px] text-white/70">{estado.motivoFin}</p>}
                             {estado.fase === "terminada" && estado.contestada && activa.motor.resumen().duracionMs > 0 && (
@@ -784,6 +791,9 @@ function LlamadaVisible({ activa }: { activa: LlamadaActiva }) {
                 open={invitar}
                 onOpenChange={(v) => {
                     setInvitar(v);
+                    // Si desde «Invitar» se creó o revocó el enlace público, la llamada suma el
+                    // canal que toca y avisa a los demás (nadie se queda en otra sala).
+                    if (!v) void revisarCanalLlamada().catch(() => false);
                     if (!v && volverAGrande.current) {
                         volverAGrande.current = false;
                         minimizarLlamada(false);

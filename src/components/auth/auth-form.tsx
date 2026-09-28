@@ -12,6 +12,24 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { iniciarRito, navegarSuave } from '@/lib/onboarding/director-rito'
 import { emailSugerido, olvidarEmailSugerido } from '@/lib/entorno/deteccion-entorno'
+import { haySiguiente, siguienteDeBusqueda } from '@/lib/auth/siguiente-seguro'
+
+/**
+ * (2026-09-28) `?next=` de la URL actual, validado (solo rutas internas; ver
+ * `@/lib/auth/siguiente-seguro`). Se lee de `location` al enviar —no con useSearchParams— para
+ * no exigir un <Suspense> a cada página que monta este formulario.
+ */
+function siguienteDeLaUrl(porDefecto: string): string {
+    if (typeof window === 'undefined') return porDefecto
+    return siguienteDeBusqueda(window.location.search, porDefecto)
+}
+
+/** Destino del enlace de confirmación por correo, conservando un `?next=` válido. */
+function redireccionCorreo(): string {
+    const base = `${location.origin}/auth/callback`
+    if (!haySiguiente(location.search)) return base
+    return `${base}?next=${encodeURIComponent(siguienteDeLaUrl('/escritorios'))}`
+}
 
 export interface AuthFormProps {
     /** Pestaña con la que abre: «Entrar» (por defecto) o «Registrarse». */
@@ -105,7 +123,7 @@ export function AuthForm({ pestanaInicial = 'signin' }: AuthFormProps = {}) {
                 email,
                 password,
                 options: {
-                    emailRedirectTo: `${location.origin}/auth/callback`,
+                    emailRedirectTo: redireccionCorreo(),
                 },
             }), 12000)
             if (res === 'timeout') {
@@ -203,8 +221,10 @@ export function AuthForm({ pestanaInicial = 'signin' }: AuthFormProps = {}) {
         } else {
             // Página principal del OS: el último perfil activo se restaura solo
             // (starseed.profile.active.v1 permanece salvo cierre de sesión manual).
+            // (2026-09-28) Si se llegó con `?next=` (p. ej. un enlace de llamada o de una app
+            // en vivo), se vuelve allí; solo rutas internas seguras.
             olvidarEmailSugerido()
-            router.push('/')
+            router.push(siguienteDeLaUrl('/'))
             router.refresh()
         }
     }

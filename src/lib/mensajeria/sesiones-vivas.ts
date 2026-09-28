@@ -19,13 +19,22 @@
  * tabla o función que no existe devuelve `MENSAJE_SIN_DESPLEGAR` (sin lanzar, sin reintentar en
  * bucle — se recuerda en memoria el resto de la visita).
  *
- * Presencia: el recuento «N en la sesión» usa un canal de presencia de Supabase `vivo:<id>`
- * (uno por sesión y pestaña, compartido por quien lo necesite). Quien está DENTRO de la app se
- * anuncia (`usePresenciaEnSesion`); las tarjetas solo escuchan, y solo mientras se ven.
+ * Presencia: el recuento «N en la sesión» usa un canal de presencia PRIVADO de Supabase
+ * (`vivo:<id>`, o `vivo:<id>:<token>` con enlace público; uno por tema y pestaña, compartido por
+ * quien lo necesite). Quien está DENTRO de la app se anuncia (`usePresenciaEnSesion`); las
+ * tarjetas solo escuchan, y solo mientras se ven.
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "@/utils/supabase/client";
+import { clasificarErrorCanal, MAX_RECHAZOS_CANAL } from "@/lib/llamadas/temas";
+import {
+    marcarTemaDenegado,
+    prepararAuthRealtime,
+    resolverTemaSesion,
+    temaDenegadoReciente,
+    tokenDeLaUrl,
+} from "@/lib/llamadas/resolver-tema";
 import type {
     AccesoVivo,
     ModoAcceso,
@@ -551,7 +560,14 @@ export function useSesionesDelHilo(hiloId: string | null): { sesiones: SesionViv
     return { sesiones, listo };
 }
 
-// ───────────────────────────── Presencia `vivo:<id>` ─────────────────────────────
+// ───────────────────────────── Presencia `vivo:<id>` (canal PRIVADO) ─────────────────────────────
+//
+// Desde 2026-09-28 (L1) el canal de presencia es PRIVADO (Realtime Authorization, migración
+// 20260928130000_l1-llamadas.sql): `vivo:<id>` para el creador, los invitados y los miembros del
+// chat, o `vivo:<id>:<token>` mientras la sesión tenga enlace público (ver
+// `@/lib/llamadas/temas`). Si el servidor no deja entrar (política sin aplicar, sin permiso),
+// el contador queda en «no se sabe» (null) y no se reintenta en bucle; nunca se cae a un canal
+// público.
 
 type ClienteSupabase = ReturnType<typeof createClient>;
 type CanalRealtime = ReturnType<ClienteSupabase["channel"]>;
@@ -559,16 +575,20 @@ type CanalRealtime = ReturnType<ClienteSupabase["channel"]>;
 interface EntradaCanal {
     cliente: ClienteSupabase;
     canal: CanalRealtime;
+    tema: string;
     refs: number;
     anuncios: number;
     suscrito: boolean;
     anunciado: boolean;
+    denegado: boolean;
+    retirado: boolean;
+    rechazos: number;
     uid: string | null;
-    oyentes: Set<(n: number) => void>;
+    oyentes: Set<(n: number | null) => void>;
     presentes: number;
 }
 
-/** Un canal por sesión y pestaña (realtime-js reutiliza el mismo objeto para el mismo tema). */
+/** Un canal por TEMA y pestaña (realtime-js reutiliza el mismo objeto para el mismo tema). */
 const canales = new Map<string, EntradaCanal>();
 const claveTab = (() => {
     try {
@@ -591,7 +611,7 @@ export function contarPresentes(estado: Record<string, unknown[]>): number {
 }
 
 function sincronizarAnuncio(e: EntradaCanal): void {
-    if (!e.suscrito) return;
+    if (!e.suscrito || e.denegado) return;
     if (e.anuncios > 0 && !e.anunciado) {
         e.anunciado = true;
         void e.canal.track({ uid: e.uid, desde: new Date().toISOString() }).catch(() => {
@@ -603,22 +623,47 @@ function sincronizarAnuncio(e: EntradaCanal): void {
     }
 }
 
-function tomarCanal(sesionId: string): EntradaCanal | null {
-    const hit = canales.get(sesionId);
+function retirarCanal(e: EntradaCanal): void {
+    if (e.retirado) return;
+    e.retirado = true;
+    try {
+        void Promise.resolve(e.cliente.removeChannel(e.canal)).catch(() => undefined);
+    } catch {
+        /* noop */
+    }
+}
+
+/** El servidor no deja entrar: se para, se recuerda un rato y los contadores pasan a «no se sabe». */
+function denegarEntrada(e: EntradaCanal): void {
+    e.denegado = true;
+    e.suscrito = false;
+    e.anunciado = false;
+    marcarTemaDenegado(e.tema);
+    retirarCanal(e);
+    for (const f of e.oyentes) f(null);
+}
+
+function tomarCanal(tema: string): EntradaCanal | null {
+    const hit = canales.get(tema);
     if (hit) {
         hit.refs += 1;
         return hit;
     }
+    if (temaDenegadoReciente(tema)) return null;
     try {
         const cli = cliente();
-        const canal = cli.channel(`vivo:${sesionId}`, { config: { presence: { key: claveTab } } });
+        const canal = cli.channel(tema, { config: { private: true, presence: { key: claveTab } } });
         const entrada: EntradaCanal = {
             cliente: cli,
             canal,
+            tema,
             refs: 1,
             anuncios: 0,
             suscrito: false,
             anunciado: false,
+            denegado: false,
+            retirado: false,
+            rechazos: 0,
             uid: null,
             oyentes: new Set(),
             presentes: 0,
@@ -631,16 +676,38 @@ function tomarCanal(sesionId: string): EntradaCanal | null {
             }
             for (const f of entrada.oyentes) f(entrada.presentes);
         });
-        canal.subscribe((estado: string) => {
-            if (estado === "SUBSCRIBED") {
-                entrada.suscrito = true;
-                sincronizarAnuncio(entrada);
-            } else if (estado === "CLOSED" || estado === "CHANNEL_ERROR" || estado === "TIMED_OUT") {
-                entrada.suscrito = false;
-                entrada.anunciado = false;
+        const suscribir = () => {
+            // Si se soltó mientras se preparaba el JWT del socket, ya no se suscribe.
+            if (canales.get(tema) !== entrada || entrada.retirado) return;
+            try {
+                canal.subscribe((estado: string, err?: unknown) => {
+                    if (canales.get(tema) !== entrada || entrada.retirado) return;
+                    if (estado === "SUBSCRIBED") {
+                        entrada.suscrito = true;
+                        entrada.rechazos = 0;
+                        sincronizarAnuncio(entrada);
+                        return;
+                    }
+                    if (estado === "CHANNEL_ERROR") {
+                        const clase = clasificarErrorCanal(err);
+                        if (clase === "denegado" || (clase === "rechazado" && ++entrada.rechazos >= MAX_RECHAZOS_CANAL)) {
+                            denegarEntrada(entrada);
+                            return;
+                        }
+                    }
+                    if (estado === "CLOSED" || estado === "CHANNEL_ERROR" || estado === "TIMED_OUT") {
+                        entrada.suscrito = false;
+                        entrada.anunciado = false;
+                    }
+                });
+            } catch {
+                /* canal a medio cerrar: la próxima toma lo recrea */
             }
-        });
-        canales.set(sesionId, entrada);
+        };
+        canales.set(tema, entrada);
+        const auth = prepararAuthRealtime(cli);
+        if (auth) void auth.then(suscribir);
+        else suscribir();
         void miUid().then((u) => {
             entrada.uid = u;
         });
@@ -650,54 +717,89 @@ function tomarCanal(sesionId: string): EntradaCanal | null {
     }
 }
 
-function soltarCanal(sesionId: string, entrada: EntradaCanal): void {
+function soltarCanal(entrada: EntradaCanal): void {
     entrada.refs -= 1;
     if (entrada.refs > 0) return;
-    canales.delete(sesionId);
-    try {
-        entrada.cliente.removeChannel(entrada.canal);
-    } catch {
-        /* noop */
-    }
+    if (canales.get(entrada.tema) === entrada) canales.delete(entrada.tema);
+    retirarCanal(entrada);
+}
+
+/**
+ * El tema privado que toca a esta sesión (null mientras se resuelve o si no aplica). Se vuelve
+ * a preguntar cuando esta pestaña cambia la sesión (p. ej. crea o revoca su enlace público).
+ */
+function useTemaVivo(sesionId: string | null, activo: boolean, token?: string | null): string | null {
+    const [tema, setTema] = useState<string | null>(null);
+    const [vuelta, setVuelta] = useState(0);
+    useEffect(() => {
+        if (!sesionId || !activo || !esUuid(sesionId)) {
+            setTema(null);
+            return;
+        }
+        let vivo = true;
+        const t = token ?? tokenDeLaUrl(sesionId);
+        void resolverTemaSesion("vivo", sesionId, { token: t, fresco: vuelta > 0 }).then((r) => {
+            if (vivo) setTema(r);
+        });
+        return () => {
+            vivo = false;
+        };
+    }, [sesionId, activo, token, vuelta]);
+    useEffect(() => {
+        if (!sesionId || !activo || typeof window === "undefined") return;
+        const alCambiar = (e: Event) => {
+            const detalle = (e as CustomEvent<{ id?: string }>).detail;
+            if (!detalle?.id || detalle.id === sesionId) setVuelta((v) => v + 1);
+        };
+        window.addEventListener(EVENTO_SESIONES_VIVAS, alCambiar);
+        return () => window.removeEventListener(EVENTO_SESIONES_VIVAS, alCambiar);
+    }, [sesionId, activo]);
+    return tema;
 }
 
 /**
  * Cuántas personas hay DENTRO de la sesión ahora. Solo escucha (no se anuncia) y solo mientras
  * `activo` (p. ej. la tarjeta está a la vista): fuera de pantalla no gasta tráfico. `null` =
- * aún no se sabe (o inactivo).
+ * aún no se sabe (o inactivo, o el servidor no deja mirar). `token`: el del enlace público si
+ * se llegó por él (si no se pasa, se lee de la URL de `/vivo/<id>?t=…`).
  */
-export function usePresentesSesion(sesionId: string | null, activo: boolean): number | null {
+export function usePresentesSesion(sesionId: string | null, activo: boolean, token?: string | null): number | null {
     const [n, setN] = useState<number | null>(null);
+    const tema = useTemaVivo(sesionId, activo, token);
     useEffect(() => {
-        if (!sesionId || !activo || !esUuid(sesionId)) {
+        if (!tema) {
             setN(null);
             return;
         }
-        const entrada = tomarCanal(sesionId);
-        if (!entrada) return;
-        const oyente = (v: number) => setN(v);
+        const entrada = tomarCanal(tema);
+        if (!entrada) {
+            setN(null);
+            return;
+        }
+        const oyente = (v: number | null) => setN(v);
         entrada.oyentes.add(oyente);
-        if (entrada.suscrito) setN(entrada.presentes);
+        setN(entrada.suscrito && !entrada.denegado ? entrada.presentes : null);
         return () => {
             entrada.oyentes.delete(oyente);
-            soltarCanal(sesionId, entrada);
+            soltarCanal(entrada);
         };
-    }, [sesionId, activo]);
+    }, [tema]);
     return n;
 }
 
 /** Anuncia a esta pestaña como presente en la sesión mientras el componente esté montado. */
-export function usePresenciaEnSesion(sesionId: string | null): void {
+export function usePresenciaEnSesion(sesionId: string | null, token?: string | null): void {
+    const tema = useTemaVivo(sesionId, true, token);
     useEffect(() => {
-        if (!sesionId || !esUuid(sesionId)) return;
-        const entrada = tomarCanal(sesionId);
+        if (!tema) return;
+        const entrada = tomarCanal(tema);
         if (!entrada) return;
         entrada.anuncios += 1;
         sincronizarAnuncio(entrada);
         return () => {
             entrada.anuncios -= 1;
             sincronizarAnuncio(entrada);
-            soltarCanal(sesionId, entrada);
+            soltarCanal(entrada);
         };
-    }, [sesionId]);
+    }, [tema]);
 }

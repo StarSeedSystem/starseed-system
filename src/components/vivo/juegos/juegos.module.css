@@ -1,0 +1,1314 @@
+/* Juegos en vivo · vidrio oscuro StarSeed (L4 · 2026-09-28). Sin emojis: iconos de lucide. */
+
+.sala {
+    --violeta: #7c5cff;
+    --azul: #007fff;
+    --esmeralda: #10b981;
+    --lima: #39ff14;
+    --ambar: #ffbf00;
+    --carmesi: #dc143c;
+    --turquesa: #14b8a6;
+    --tinta: rgba(255, 255, 255, 0.92);
+    --tinta-2: rgba(255, 255, 255, 0.66);
+    --tinta-3: rgba(255, 255, 255, 0.5);
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    width: 100%;
+    max-width: 1220px;
+    margin: 0 auto;
+    padding: 16px;
+    color: var(--tinta);
+    font-size: 14px;
+    line-height: 1.45;
+    box-sizing: border-box;
+}
+
+.sala *,
+.sala *::before,
+.sala *::after {
+    box-sizing: border-box;
+}
+
+.vidrio {
+    background: rgba(12, 14, 34, 0.55);
+    backdrop-filter: blur(20px) saturate(140%);
+    -webkit-backdrop-filter: blur(20px) saturate(140%);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 18px 40px -26px rgba(0, 0, 0, 0.7);
+    border-radius: 22px;
+}
+
+:global(html[data-perf="eco"]) .vidrio {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    background: rgba(12, 14, 34, 0.86);
+}
+
+.rotulo {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--tinta-3);
+}
+
+.nota {
+    font-size: 12.5px;
+    color: var(--tinta-2);
+}
+
+/* ───────── Cabecera ───────── */
+
+.cabecera {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px 10px 10px;
+    flex-wrap: wrap;
+}
+
+.volver {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 42px;
+    height: 42px;
+    flex-shrink: 0;
+    border-radius: 14px;
+    color: rgba(255, 255, 255, 0.8);
+    text-decoration: none;
+    cursor: pointer;
+    transition: background-color 180ms ease, color 180ms ease;
+}
+
+.volver:hover,
+.volver:focus-visible {
+    background: rgba(255, 255, 255, 0.08);
+    color: #fff;
+    outline: none;
+}
+
+.titulos {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    flex: 1 1 200px;
+}
+
+.titulo {
+    margin: 0;
+    font-size: 17px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    overflow-wrap: anywhere;
+}
+
+.subtitulo {
+    font-size: 12.5px;
+    color: var(--tinta-2);
+}
+
+.acciones {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-left: auto;
+}
+
+.presentes {
+    display: flex;
+    align-items: center;
+}
+
+.avatar {
+    width: 30px;
+    height: 30px;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 600;
+    color: #fff;
+    margin-left: -8px;
+    border: 2px solid rgba(12, 14, 34, 0.9);
+    flex-shrink: 0;
+}
+
+.avatar:first-child {
+    margin-left: 0;
+}
+
+.avatarMas {
+    background: rgba(255, 255, 255, 0.12);
+    color: var(--tinta);
+}
+
+/* ───────── Botones ───────── */
+
+.boton {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 40px;
+    padding: 8px 16px;
+    border-radius: 14px !important;
+    font-size: 14px;
+    font-weight: 600;
+    color: #fff;
+    background: rgba(255, 255, 255, 0.07);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+    cursor: pointer;
+    transition: background-color 180ms ease, box-shadow 180ms ease, transform 180ms ease, opacity 180ms ease;
+    text-align: center;
+    white-space: normal;
+}
+
+.boton:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.12);
+    transform: translateY(-1px);
+}
+
+.boton:focus-visible {
+    outline: 2px solid var(--violeta);
+    outline-offset: 2px;
+}
+
+.boton:active:not(:disabled) {
+    transform: translateY(0);
+}
+
+.boton:disabled {
+    cursor: not-allowed;
+    opacity: 0.45;
+}
+
+.botonPrimario {
+    background: linear-gradient(135deg, rgba(124, 92, 255, 0.95), rgba(0, 127, 255, 0.85));
+    box-shadow: 0 10px 24px -12px rgba(124, 92, 255, 0.9), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+.botonPrimario:hover:not(:disabled) {
+    background: linear-gradient(135deg, rgba(140, 112, 255, 1), rgba(30, 145, 255, 0.95));
+}
+
+.botonPeligro {
+    background: rgba(220, 20, 60, 0.16);
+    box-shadow: inset 0 0 0 1px rgba(220, 20, 60, 0.5);
+}
+
+.botonPeligro:hover:not(:disabled) {
+    background: rgba(220, 20, 60, 0.26);
+}
+
+.botonRedondo {
+    width: 40px;
+    min-height: 40px;
+    padding: 0;
+    border-radius: 999px !important;
+}
+
+.pildora {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #fff;
+    white-space: nowrap;
+}
+
+.encendido {
+    box-shadow: inset 0 0 0 1px rgba(16, 185, 129, 0.55);
+    background: rgba(16, 185, 129, 0.14);
+}
+
+.reconectando {
+    box-shadow: inset 0 0 0 1px rgba(255, 191, 0, 0.55);
+    background: rgba(255, 191, 0, 0.14);
+}
+
+.punto {
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+    background: currentColor;
+}
+
+/* ───────── Avisos ───────── */
+
+.aviso {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 14px;
+    border-radius: 16px;
+    font-size: 13px;
+    background: rgba(255, 191, 0, 0.1);
+    box-shadow: inset 0 0 0 1px rgba(255, 191, 0, 0.35);
+}
+
+.avisoError {
+    background: rgba(220, 20, 60, 0.12);
+    box-shadow: inset 0 0 0 1px rgba(220, 20, 60, 0.45);
+}
+
+.avisoInfo {
+    background: rgba(0, 127, 255, 0.1);
+    box-shadow: inset 0 0 0 1px rgba(0, 127, 255, 0.35);
+}
+
+.avisoTexto {
+    flex: 1;
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+/* ───────── Distribución ───────── */
+
+.cuerpo {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
+    align-items: start;
+}
+
+@media (min-width: 980px) {
+    .cuerpo {
+        grid-template-columns: minmax(0, 1fr) 344px;
+    }
+}
+
+@media (min-width: 1700px) {
+    .sala {
+        max-width: 1560px;
+        font-size: 16px;
+    }
+    .cuerpo {
+        grid-template-columns: minmax(0, 1fr) 420px;
+    }
+}
+
+.escenario {
+    padding: clamp(12px, 2.4vw, 26px);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    min-width: 0;
+}
+
+.lateral {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    min-width: 0;
+}
+
+.panel {
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.panelTitulo {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+/* ───────── Turno ───────── */
+
+.turno {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 18px;
+    border-radius: 999px;
+    font-weight: 600;
+    font-size: 15px;
+    text-align: center;
+    max-width: 100%;
+}
+
+.turnoMio {
+    animation: latido 1.8s ease-in-out infinite;
+}
+
+@keyframes latido {
+    0%,
+    100% {
+        box-shadow: 0 0 0 0 var(--halo, rgba(124, 92, 255, 0.55));
+    }
+    50% {
+        box-shadow: 0 0 0 8px rgba(124, 92, 255, 0);
+    }
+}
+
+.ficha {
+    width: 16px;
+    height: 16px;
+    border-radius: 999px;
+    flex-shrink: 0;
+    display: inline-block;
+}
+
+/* ───────── Asientos ───────── */
+
+.asientos {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.asiento {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.045);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+    flex-wrap: wrap;
+    transition: background-color 200ms ease, box-shadow 200ms ease;
+}
+
+.asientoActivo {
+    background: rgba(124, 92, 255, 0.14);
+    box-shadow: inset 0 0 0 1px rgba(124, 92, 255, 0.6);
+}
+
+.asientoGanador {
+    background: rgba(57, 255, 20, 0.1);
+    box-shadow: inset 0 0 0 1px rgba(57, 255, 20, 0.55);
+}
+
+.asientoNombre {
+    flex: 1 1 120px;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.asientoQuien {
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+
+.asientoRol {
+    font-size: 12px;
+    color: var(--tinta-2);
+}
+
+.asientoBotones {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.menuVertical {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.menuVertical .boton {
+    justify-content: flex-start;
+    text-align: left;
+}
+
+.confirmar {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px;
+    border-radius: 16px;
+    background: rgba(220, 20, 60, 0.1);
+    box-shadow: inset 0 0 0 1px rgba(220, 20, 60, 0.4);
+}
+
+.filaBotones {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+/* ───────── Resultado ───────── */
+
+.resultado {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 14px 16px;
+    border-radius: 18px;
+    text-align: center;
+    width: 100%;
+    max-width: 560px;
+    background: rgba(255, 255, 255, 0.05);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+}
+
+.resultadoGana {
+    background: rgba(57, 255, 20, 0.09);
+    box-shadow: inset 0 0 0 1px rgba(57, 255, 20, 0.5);
+}
+
+.resultadoPierde {
+    background: rgba(220, 20, 60, 0.1);
+    box-shadow: inset 0 0 0 1px rgba(220, 20, 60, 0.45);
+}
+
+.resultadoTitulo {
+    font-size: 18px;
+    font-weight: 700;
+    margin: 0;
+}
+
+/* ───────── Historial ───────── */
+
+.historial {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    max-height: 240px;
+    overflow-y: auto;
+}
+
+.historialItem {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 8px 10px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.04);
+    font-size: 13px;
+}
+
+/* ───────── Vestíbulo y hub ───────── */
+
+.tarjetas {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 250px), 1fr));
+    gap: 12px;
+}
+
+.tarjeta {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 16px;
+    border-radius: 20px !important;
+    text-align: left;
+    color: inherit;
+    background: rgba(255, 255, 255, 0.045);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+    cursor: pointer;
+    transition: transform 200ms ease, box-shadow 200ms ease, background-color 200ms ease;
+    min-height: 0;
+}
+
+.tarjeta:hover:not(:disabled),
+.tarjeta:focus-visible {
+    transform: translateY(-2px);
+    background: rgba(255, 255, 255, 0.075);
+    box-shadow: inset 0 0 0 1px var(--color-tarjeta, rgba(124, 92, 255, 0.6)), 0 18px 34px -22px var(--color-tarjeta, #7c5cff);
+    outline: none;
+}
+
+.tarjeta:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.tarjetaSel {
+    background: rgba(255, 255, 255, 0.08);
+    box-shadow: inset 0 0 0 1.5px var(--color-tarjeta, #7c5cff), 0 18px 34px -22px var(--color-tarjeta, #7c5cff);
+}
+
+.icono {
+    width: 46px;
+    height: 46px;
+    border-radius: 15px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.tarjetaNombre {
+    font-size: 16px;
+    font-weight: 600;
+    margin: 0;
+}
+
+.campo {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.entrada {
+    width: 100%;
+    min-height: 44px;
+    padding: 10px 14px;
+    border-radius: 14px;
+    color: #fff;
+    font-size: 15px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    transition: border-color 180ms ease, background-color 180ms ease;
+}
+
+.entrada:focus {
+    outline: none;
+    border-color: var(--violeta);
+    background: rgba(255, 255, 255, 0.09);
+}
+
+.entrada::placeholder {
+    color: rgba(255, 255, 255, 0.4);
+}
+
+.opciones {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.opcion {
+    padding: 8px 14px;
+    min-height: 40px;
+    border-radius: 999px !important;
+    font-size: 13px;
+    font-weight: 600;
+    color: #fff;
+    background: rgba(255, 255, 255, 0.06);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+    cursor: pointer;
+    transition: background-color 180ms ease, box-shadow 180ms ease;
+}
+
+.opcion:hover {
+    background: rgba(255, 255, 255, 0.11);
+}
+
+.opcionSel {
+    background: rgba(124, 92, 255, 0.24);
+    box-shadow: inset 0 0 0 1px rgba(124, 92, 255, 0.85);
+}
+
+.lista {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.listaItem {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.045);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+    color: inherit;
+    text-decoration: none;
+    cursor: pointer;
+    transition: background-color 180ms ease, transform 180ms ease;
+}
+
+.listaItem:hover,
+.listaItem:focus-visible {
+    background: rgba(255, 255, 255, 0.08);
+    transform: translateX(2px);
+    outline: none;
+}
+
+/* ───────── Tres en raya ───────── */
+
+.tres {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: clamp(6px, 1.6vw, 12px);
+    width: min(100%, 460px);
+    aspect-ratio: 1;
+}
+
+@media (min-width: 1700px) {
+    .tres {
+        width: min(100%, 620px);
+    }
+}
+
+.celdaTres {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border-radius: clamp(14px, 3vw, 22px) !important;
+    background: rgba(255, 255, 255, 0.05);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.09), inset 0 1px 0 rgba(255, 255, 255, 0.07);
+    cursor: pointer;
+    transition: background-color 180ms ease, box-shadow 220ms ease, opacity 220ms ease, transform 180ms ease;
+}
+
+.celdaTres:disabled {
+    cursor: default;
+}
+
+.celdaTres:hover:not(:disabled) {
+    background: rgba(124, 92, 255, 0.14);
+    transform: scale(1.02);
+}
+
+.celdaTres:focus-visible {
+    outline: 2px solid var(--violeta);
+    outline-offset: 2px;
+}
+
+.celdaGana {
+    background: rgba(57, 255, 20, 0.12);
+    box-shadow: inset 0 0 0 2px rgba(57, 255, 20, 0.75), 0 0 28px -6px rgba(57, 255, 20, 0.6);
+}
+
+.celdaApagada {
+    opacity: 0.4;
+}
+
+.marcaSvg {
+    width: 62%;
+    height: 62%;
+    overflow: visible;
+}
+
+/* ───────── Conecta 4 ───────── */
+
+.c4 {
+    position: relative;
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 0;
+    width: min(100%, 560px);
+    padding: clamp(8px, 1.6vw, 14px);
+    border-radius: 24px;
+    overflow: hidden;
+    background: linear-gradient(160deg, rgba(0, 127, 255, 0.55), rgba(40, 60, 200, 0.5));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25), inset 0 0 0 1px rgba(255, 255, 255, 0.15), 0 24px 50px -28px rgba(0, 127, 255, 0.9);
+}
+
+@media (min-width: 1700px) {
+    .c4 {
+        width: min(100%, 720px);
+    }
+}
+
+.columna {
+    display: flex;
+    flex-direction: column-reverse;
+    padding: 0;
+    border-radius: 14px !important;
+    cursor: pointer;
+    transition: background-color 180ms ease;
+}
+
+.columna:disabled {
+    cursor: default;
+}
+
+.columna:hover:not(:disabled),
+.columna:focus-visible {
+    background: rgba(255, 255, 255, 0.1);
+    outline: none;
+}
+
+.hueco {
+    position: relative;
+    aspect-ratio: 1;
+    padding: 9%;
+}
+
+.agujero {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    border-radius: 999px;
+    background: rgba(8, 10, 32, 0.78);
+    box-shadow: inset 0 3px 8px rgba(0, 0, 0, 0.55), inset 0 -1px 0 rgba(255, 255, 255, 0.12);
+}
+
+.discoFicha {
+    position: absolute;
+    z-index: 2;
+    inset: 0;
+    border-radius: 999px;
+    box-shadow: inset 0 -4px 8px rgba(0, 0, 0, 0.28), inset 0 3px 6px rgba(255, 255, 255, 0.35);
+}
+
+.discoGana {
+    animation: brillo 1.2s ease-in-out infinite;
+}
+
+@keyframes brillo {
+    0%,
+    100% {
+        filter: brightness(1);
+    }
+    50% {
+        filter: brightness(1.5) drop-shadow(0 0 6px rgba(255, 255, 255, 0.8));
+    }
+}
+
+/* ───────── Ajedrez ───────── */
+
+.ajedrez {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    grid-template-rows: repeat(8, 1fr);
+    width: min(100%, 600px);
+    aspect-ratio: 1;
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.14), 0 26px 50px -26px rgba(124, 92, 255, 0.7);
+    touch-action: manipulation;
+}
+
+@media (min-width: 1700px) {
+    .ajedrez {
+        width: min(100%, 780px);
+    }
+}
+
+.casilla {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    cursor: pointer;
+    border-radius: 0 !important;
+    transition: background-color 150ms ease, box-shadow 150ms ease;
+}
+
+.casillaClara {
+    background: #8f98e0;
+}
+
+.casillaOscura {
+    background: #3a3f94;
+}
+
+.casilla:focus-visible {
+    outline: 3px solid #fff;
+    outline-offset: -3px;
+    z-index: 2;
+}
+
+.casillaUltima::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: rgba(255, 191, 0, 0.36);
+    pointer-events: none;
+}
+
+.casillaSel {
+    box-shadow: inset 0 0 0 4px rgba(57, 255, 20, 0.85);
+}
+
+.casillaJaque {
+    background-image: radial-gradient(circle at 50% 50%, rgba(220, 20, 60, 0.95), rgba(220, 20, 60, 0) 72%);
+}
+
+.destino::before {
+    content: "";
+    position: absolute;
+    width: 30%;
+    height: 30%;
+    border-radius: 999px;
+    background: rgba(16, 185, 129, 0.85);
+    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.5);
+    pointer-events: none;
+}
+
+.destinoCaptura::before {
+    width: 88%;
+    height: 88%;
+    background: transparent;
+    box-shadow: inset 0 0 0 5px rgba(220, 20, 60, 0.85);
+}
+
+.coordenada {
+    position: absolute;
+    font-size: clamp(8px, 1.5vw, 12px);
+    font-weight: 700;
+    opacity: 0.7;
+    pointer-events: none;
+    user-select: none;
+}
+
+.coordenadaFila {
+    top: 3%;
+    left: 5%;
+}
+
+.coordenadaColumna {
+    bottom: 2%;
+    right: 5%;
+}
+
+.casillaClara .coordenada {
+    color: #3a3f94;
+}
+
+.casillaOscura .coordenada {
+    color: #c9cffc;
+}
+
+.pieza {
+    width: 92%;
+    height: 92%;
+    pointer-events: none;
+    filter: drop-shadow(0 3px 3px rgba(0, 0, 0, 0.35));
+}
+
+.coronacion {
+    position: absolute;
+    inset: 0;
+    z-index: 5;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 12px;
+    background: rgba(8, 10, 30, 0.72);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+}
+
+.coronacionCaja {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    padding: 16px;
+    border-radius: 22px;
+    max-width: 100%;
+}
+
+.coronacionOpciones {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.coronacionOpcion {
+    width: clamp(58px, 15vw, 84px);
+    aspect-ratio: 1;
+    padding: 4px;
+    border-radius: 16px !important;
+    background: #8f98e0;
+    cursor: pointer;
+    transition: transform 180ms ease, box-shadow 180ms ease;
+}
+
+.coronacionOpcion:hover,
+.coronacionOpcion:focus-visible {
+    transform: scale(1.06);
+    box-shadow: 0 0 0 3px #39ff14;
+    outline: none;
+}
+
+.marcoAjedrez {
+    position: relative;
+    width: min(100%, 600px);
+}
+
+@media (min-width: 1700px) {
+    .marcoAjedrez {
+        width: min(100%, 780px);
+    }
+}
+
+.marcoAjedrez .ajedrez {
+    width: 100%;
+}
+
+.jugadas {
+    display: grid;
+    grid-template-columns: 34px 1fr 1fr;
+    gap: 2px 6px;
+    margin: 0;
+    padding: 0;
+    max-height: 250px;
+    overflow-y: auto;
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+}
+
+.jugadaNum {
+    color: var(--tinta-3);
+    padding: 3px 0;
+}
+
+.jugada {
+    padding: 3px 8px;
+    border-radius: 8px;
+}
+
+.jugadaUltima {
+    background: rgba(124, 92, 255, 0.28);
+    font-weight: 600;
+}
+
+.capturas {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    flex-wrap: wrap;
+    min-height: 22px;
+}
+
+.capturaMini {
+    width: 20px;
+    height: 20px;
+}
+
+.ventaja {
+    font-size: 12px;
+    font-weight: 600;
+    margin-left: 6px;
+    color: var(--tinta-2);
+}
+
+/* ───────── Dibujo-adivina ───────── */
+
+.marcoLienzo {
+    position: relative;
+    width: 100%;
+    max-width: 860px;
+    aspect-ratio: 4 / 3;
+    border-radius: 20px;
+    overflow: hidden;
+    background: #0e1026;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12), 0 24px 50px -28px rgba(124, 92, 255, 0.8);
+}
+
+.lienzo {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    touch-action: none;
+    cursor: crosshair;
+}
+
+.lienzoSoloVer {
+    cursor: default;
+}
+
+.velo {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 16px;
+    text-align: center;
+    background: rgba(8, 10, 30, 0.62);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+}
+
+.herramientas {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: center;
+    width: 100%;
+    max-width: 860px;
+    padding: 10px 12px;
+    border-radius: 18px;
+}
+
+.paleta {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.color {
+    width: 34px;
+    height: 34px;
+    border-radius: 999px !important;
+    cursor: pointer;
+    box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.25);
+    transition: transform 160ms ease, box-shadow 160ms ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+}
+
+.color:hover {
+    transform: scale(1.1);
+}
+
+.color:focus-visible {
+    outline: 2px solid #fff;
+    outline-offset: 2px;
+}
+
+.colorSel {
+    box-shadow: inset 0 0 0 2px #fff, 0 0 0 3px rgba(124, 92, 255, 0.85);
+    transform: scale(1.1);
+}
+
+.grosores {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+
+.grosor {
+    width: 40px;
+    height: 40px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px !important;
+    cursor: pointer;
+    background: rgba(255, 255, 255, 0.06);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+    transition: background-color 160ms ease, box-shadow 160ms ease;
+}
+
+.grosorSel {
+    background: rgba(124, 92, 255, 0.25);
+    box-shadow: inset 0 0 0 1px rgba(124, 92, 255, 0.9);
+}
+
+.grosorPunto {
+    border-radius: 999px;
+    background: #fff;
+}
+
+.palabraSecreta {
+    font-size: clamp(22px, 5vw, 34px);
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-align: center;
+    overflow-wrap: anywhere;
+}
+
+.pista {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    justify-content: center;
+    font-size: clamp(20px, 4.4vw, 30px);
+    font-weight: 700;
+    letter-spacing: 0.1em;
+}
+
+.pistaLetra {
+    display: inline-block;
+    min-width: 0.7em;
+    border-bottom: 3px solid rgba(255, 255, 255, 0.7);
+    text-align: center;
+    height: 1.2em;
+}
+
+.temporizador {
+    position: relative;
+    width: 100%;
+    height: 8px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.1);
+    overflow: hidden;
+}
+
+.temporizadorRelleno {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #10b981, #ffbf00 70%, #dc143c);
+    background-size: 100% 100%;
+    transition: width 500ms linear;
+}
+
+.opcionesPalabra {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.palabraOpcion {
+    padding: 14px 22px;
+    min-height: 52px;
+    border-radius: 18px !important;
+    font-size: 18px;
+    font-weight: 700;
+    color: #fff;
+    cursor: pointer;
+    background: rgba(124, 92, 255, 0.2);
+    box-shadow: inset 0 0 0 1px rgba(124, 92, 255, 0.7);
+    transition: transform 180ms ease, background-color 180ms ease;
+}
+
+.palabraOpcion:hover,
+.palabraOpcion:focus-visible {
+    transform: translateY(-2px) scale(1.03);
+    background: rgba(124, 92, 255, 0.38);
+    outline: none;
+}
+
+.chat {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.mensajes {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    height: 230px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}
+
+@media (min-width: 980px) {
+    .mensajes {
+        height: 280px;
+    }
+}
+
+.mensaje {
+    padding: 6px 10px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.05);
+    font-size: 13px;
+    overflow-wrap: anywhere;
+}
+
+.mensajeAcierto {
+    background: rgba(57, 255, 20, 0.12);
+    box-shadow: inset 0 0 0 1px rgba(57, 255, 20, 0.4);
+    font-weight: 600;
+}
+
+.mensajeCerca {
+    background: rgba(255, 191, 0, 0.12);
+    box-shadow: inset 0 0 0 1px rgba(255, 191, 0, 0.4);
+}
+
+.mensajeSistema {
+    background: transparent;
+    color: var(--tinta-3);
+    font-style: italic;
+}
+
+.mensajeAutor {
+    font-weight: 700;
+    margin-right: 6px;
+}
+
+.formularioChat {
+    display: flex;
+    gap: 8px;
+}
+
+.marcador {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.marcadorFila {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.045);
+}
+
+.marcadorPuntos {
+    margin-left: auto;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.marcadorGrupo {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.grande {
+    font-size: 32px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+}
+
+/* ───────── Movimiento reducido y modo eco ───────── */
+
+@media (prefers-reduced-motion: reduce) {
+    .sala *,
+    .sala *::before,
+    .sala *::after {
+        animation: none !important;
+        transition-duration: 0.01ms !important;
+    }
+}
+
+:global(html[data-perf="eco"]) .sala *,
+:global(html[data-perf="eco"]) .sala *::before,
+:global(html[data-perf="eco"]) .sala *::after {
+    animation: none !important;
+}
+
+.soloLectura {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+}

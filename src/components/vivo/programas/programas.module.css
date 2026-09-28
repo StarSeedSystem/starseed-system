@@ -1,0 +1,717 @@
+/*
+ * Programas en vivo · vidrio oscuro StarSeed (L4 · 2026-09-28). Sin emojis: iconos de lucide.
+ * Complementa a `../juegos/juegos.module.css`, que aporta .sala (variables y tipografía), .vidrio,
+ * .boton, .entrada, .aviso, .tarjeta… Estas clases se usan siempre DENTRO de un .sala.
+ * Los botones llevan `!important` en su radio: el CSS global fuerza `button { border-radius: … !important }`.
+ */
+
+.pila {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    min-width: 0;
+}
+
+.bloque {
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-width: 0;
+}
+
+.bloqueEditando {
+    box-shadow: inset 0 0 0 1px rgba(124, 92, 255, 0.5), 0 18px 40px -26px rgba(0, 0, 0, 0.7);
+}
+
+.bloqueCabecera {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.bloqueIcono {
+    width: 34px;
+    height: 34px;
+    border-radius: 12px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.bloqueTitulos {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 140px;
+    min-width: 0;
+}
+
+.bloqueTitulo {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+
+.controlesBloque {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-left: auto;
+}
+
+.encabezado1,
+.encabezado2,
+.encabezado3 {
+    margin: 0;
+    font-weight: 650;
+    letter-spacing: -0.02em;
+    overflow-wrap: anywhere;
+}
+
+.encabezado1 {
+    font-size: clamp(24px, 4vw, 32px);
+}
+
+.encabezado2 {
+    font-size: clamp(19px, 3vw, 24px);
+}
+
+.encabezado3 {
+    font-size: 16px;
+    color: var(--tinta-2);
+}
+
+.parrafo {
+    margin: 0;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    color: var(--tinta);
+}
+
+.fila {
+    display: flex;
+    gap: 8px;
+    align-items: stretch;
+}
+
+.fila > input,
+.fila > select {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.area {
+    min-height: 88px;
+    resize: vertical;
+    font-family: inherit;
+    line-height: 1.45;
+}
+
+.selector {
+    appearance: none;
+    cursor: pointer;
+}
+
+.vacio {
+    margin: 0;
+    padding: 14px;
+    border-radius: 16px;
+    text-align: center;
+    color: var(--tinta-3);
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px dashed rgba(255, 255, 255, 0.14);
+}
+
+.etiquetaPequena {
+    font-size: 12px;
+    color: var(--tinta-3);
+}
+
+.pildoraColor {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    background: rgba(255, 255, 255, 0.07);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+    white-space: nowrap;
+}
+
+/* ───────── Tareas ───────── */
+
+.tareas {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.tarea {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 6px 4px 4px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.045);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+    transition: background-color 200ms ease, box-shadow 200ms ease;
+}
+
+.tareaHecha {
+    background: rgba(16, 185, 129, 0.07);
+    box-shadow: inset 0 0 0 1px rgba(16, 185, 129, 0.25);
+}
+
+.tareaHecha .tareaTexto {
+    text-decoration: line-through;
+    color: var(--tinta-3);
+}
+
+.check {
+    width: 44px;
+    min-height: 44px;
+    height: 44px;
+    padding: 0;
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border-radius: 999px !important;
+    cursor: pointer;
+}
+
+.check:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.check:focus-visible {
+    outline: 2px solid var(--violeta);
+    outline-offset: 1px;
+}
+
+.checkCirculo {
+    width: 24px;
+    height: 24px;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #0b0d1f;
+    box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.4);
+    transition: background-color 200ms ease, box-shadow 200ms ease, transform 200ms ease;
+}
+
+.check:hover:not(:disabled) .checkCirculo {
+    transform: scale(1.08);
+}
+
+.checkOn .checkCirculo {
+    background: var(--esmeralda);
+    box-shadow: inset 0 0 0 2px var(--esmeralda);
+}
+
+.tareaCuerpo {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-width: 0;
+}
+
+.tareaTexto {
+    overflow-wrap: anywhere;
+    transition: color 200ms ease;
+}
+
+.tareaAutor {
+    font-size: 12px;
+    color: var(--tinta-3);
+}
+
+.progreso {
+    height: 6px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+    overflow: hidden;
+}
+
+.progresoRelleno {
+    height: 100%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, var(--esmeralda), var(--lima));
+    transition: width 300ms ease;
+}
+
+/* ───────── Contador ───────── */
+
+.contador {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: clamp(12px, 4vw, 28px);
+    padding: 8px 0;
+    flex-wrap: wrap;
+}
+
+.numero {
+    min-width: 2ch;
+    text-align: center;
+    font-size: clamp(44px, 9vw, 76px);
+    font-weight: 700;
+    letter-spacing: -0.04em;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    animation: numeroCambia 240ms ease;
+}
+
+@keyframes numeroCambia {
+    from {
+        transform: scale(0.9);
+        opacity: 0.4;
+    }
+    to {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+.unidad {
+    display: block;
+    text-align: center;
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 0;
+    color: var(--tinta-3);
+}
+
+.botonContador {
+    width: 60px;
+    height: 60px;
+    min-height: 60px;
+    padding: 0;
+    border-radius: 999px !important;
+}
+
+/* ───────── Encuesta ───────── */
+
+.opcionesVoto {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.opcionVoto {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    min-height: 52px;
+    padding: 10px 14px;
+    overflow: hidden;
+    text-align: left;
+    color: inherit;
+    background: rgba(255, 255, 255, 0.045);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+    border-radius: 16px !important;
+    cursor: pointer;
+    transition: box-shadow 200ms ease, background-color 200ms ease;
+}
+
+.opcionVoto:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.075);
+}
+
+.opcionVoto:focus-visible {
+    outline: 2px solid var(--violeta);
+    outline-offset: 2px;
+}
+
+.opcionVoto:disabled {
+    cursor: default;
+}
+
+.opcionVotoMia {
+    box-shadow: inset 0 0 0 1.5px var(--violeta);
+}
+
+.opcionVotoGana .opcionPorcentaje {
+    color: var(--lima);
+}
+
+.barraVoto {
+    position: absolute;
+    inset: 0 auto 0 0;
+    background: linear-gradient(90deg, rgba(124, 92, 255, 0.32), rgba(0, 127, 255, 0.22));
+    transition: width 320ms ease;
+    pointer-events: none;
+}
+
+.opcionVotoGana .barraVoto {
+    background: linear-gradient(90deg, rgba(57, 255, 20, 0.26), rgba(16, 185, 129, 0.2));
+}
+
+.opcionTexto {
+    position: relative;
+    flex: 1;
+    min-width: 0;
+    overflow-wrap: anywhere;
+    font-weight: 500;
+}
+
+.opcionCifras {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    line-height: 1.2;
+    flex-shrink: 0;
+}
+
+.opcionPorcentaje {
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.opcionMarca {
+    position: relative;
+    width: 22px;
+    height: 22px;
+    flex-shrink: 0;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.35);
+    color: #0b0d1f;
+    transition: background-color 200ms ease, box-shadow 200ms ease;
+}
+
+.opcionMarcaCuadrada {
+    border-radius: 7px;
+}
+
+.opcionVotoMia .opcionMarca {
+    background: var(--violeta);
+    box-shadow: inset 0 0 0 2px var(--violeta);
+    color: #fff;
+}
+
+/* ───────── Kanban ───────── */
+
+.tablero {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(250px, 1fr);
+    gap: 12px;
+    overflow-x: auto;
+    padding-bottom: 6px;
+    scroll-snap-type: x proximity;
+    -webkit-overflow-scrolling: touch;
+}
+
+@media (max-width: 560px) {
+    .tablero {
+        grid-auto-columns: 86%;
+    }
+}
+
+.columna {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px;
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.035);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+    scroll-snap-align: start;
+    min-width: 0;
+    transition: box-shadow 180ms ease, background-color 180ms ease;
+}
+
+.columnaSobre {
+    background: rgba(124, 92, 255, 0.1);
+    box-shadow: inset 0 0 0 1.5px var(--violeta);
+}
+
+.columnaCabecera {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 2px 4px;
+}
+
+.columnaTitulo {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--tinta-2);
+    overflow-wrap: anywhere;
+}
+
+.cuenta {
+    min-width: 24px;
+    padding: 1px 8px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+    text-align: center;
+    background: rgba(255, 255, 255, 0.09);
+}
+
+.tarjetasKanban {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    min-height: 12px;
+}
+
+.tarjetaKanban {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px 12px;
+    border-radius: 14px;
+    background: rgba(12, 14, 34, 0.7);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.09), 0 8px 18px -14px rgba(0, 0, 0, 0.8);
+    cursor: grab;
+    transition: transform 180ms ease, box-shadow 180ms ease;
+}
+
+.tarjetaKanban:hover {
+    box-shadow: inset 0 0 0 1px rgba(124, 92, 255, 0.5), 0 10px 22px -14px rgba(0, 0, 0, 0.9);
+}
+
+.tarjetaArrastrando {
+    opacity: 0.45;
+    transform: scale(0.98);
+}
+
+.tarjetaTexto {
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+}
+
+.tarjetaAcciones {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.menuMover {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding-top: 2px;
+}
+
+.pequeno {
+    min-height: 36px;
+    padding: 6px 12px;
+    font-size: 13px;
+}
+
+.pequenoRedondo {
+    width: 36px;
+    min-height: 36px;
+    height: 36px;
+}
+
+/* ───────── Formulario ───────── */
+
+.formulario {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.campoCasilla {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.045);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+    cursor: pointer;
+}
+
+.campoCasilla input {
+    width: 20px;
+    height: 20px;
+    margin-top: 1px;
+    flex-shrink: 0;
+    accent-color: #7c5cff;
+    cursor: pointer;
+}
+
+.errorCampo {
+    margin: 0;
+    font-size: 12.5px;
+    color: #ff8fa3;
+}
+
+.plazas {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.respuestas {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.respuesta {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 10px 12px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.04);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+}
+
+.respuestaMia {
+    box-shadow: inset 0 0 0 1.5px var(--esmeralda);
+}
+
+.respuestaCabecera {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.respuestaDatos {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    gap: 2px 12px;
+    margin: 0;
+    font-size: 13px;
+}
+
+.respuestaDatos dt {
+    color: var(--tinta-3);
+}
+
+.respuestaDatos dd {
+    margin: 0;
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+}
+
+/* ───────── Editor de bloques ───────── */
+
+.editor {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 16px;
+}
+
+.editorGrupo {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.035);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+}
+
+.editorFila {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.editorFila > input:not([type="checkbox"]) {
+    flex: 1 1 140px;
+    min-width: 0;
+}
+
+.dosColumnas {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 10px;
+}
+
+.chips {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 9px;
+    border-radius: 999px;
+    font-size: 11.5px;
+    font-weight: 600;
+    background: rgba(255, 255, 255, 0.07);
+    color: var(--tinta-2);
+}
+
+.galeriaEtiqueta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+/* ───────── Animaciones: se apagan con movimiento reducido y en modo eco ───────── */
+
+@media (prefers-reduced-motion: reduce) {
+    .numero,
+    .progresoRelleno,
+    .barraVoto,
+    .checkCirculo,
+    .tarea,
+    .opcionVoto,
+    .tarjetaKanban,
+    .columna {
+        animation: none !important;
+        transition: none !important;
+    }
+}
+
+:global(html[data-perf="eco"]) .numero,
+:global(html[data-perf="eco"]) .progresoRelleno,
+:global(html[data-perf="eco"]) .barraVoto,
+:global(html[data-perf="eco"]) .checkCirculo,
+:global(html[data-perf="eco"]) .tarea,
+:global(html[data-perf="eco"]) .opcionVoto,
+:global(html[data-perf="eco"]) .tarjetaKanban,
+:global(html[data-perf="eco"]) .columna {
+    animation: none !important;
+    transition: none !important;
+}

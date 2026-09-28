@@ -126,7 +126,7 @@ export function WidgetDataSourceControl({
                     aria-label="Elegir fuente de datos"
                     title={selected ? `Fuente: ${selected.label}` : 'Elegir fuente de datos'}
                     className={cn(
-                        'group/src flex items-center gap-1.5 rounded-full bg-black/40 border border-white/10 backdrop-blur-xl px-2.5 py-1.5 cursor-pointer transition-all duration-200 hover:border-[#06f9c8]/40 hover:bg-black/60',
+                        'group/src flex items-center gap-1.5 rounded-full ss-redondo bg-black/40 border border-white/10 backdrop-blur-xl px-2.5 py-1.5 cursor-pointer transition-all duration-200 hover:border-[#06f9c8]/40 hover:bg-black/60 [[data-marco=unificado]_&]:bg-white/[0.06] [[data-marco=unificado]_&]:backdrop-blur-none [[data-marco=unificado]_&]:hover:bg-white/[0.1]',
                         className,
                     )}
                 >

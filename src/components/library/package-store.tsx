@@ -57,6 +57,8 @@ import {
   Wifi, RefreshCcwDot, CircleCheck, RadioTower, Antenna, Binary,
   // Contactos (2026-09-28)
   BookUser,
+  // Apps en vivo (2026-09-28)
+  FileText, Table2, LayoutDashboard, Gamepad2, Box, Glasses,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -168,6 +170,8 @@ const ICON_MAP: Record<string, LucideIcon> = {
   Binary,
   // Contactos (2026-09-28)
   BookUser,
+  // Apps en vivo (2026-09-28)
+  FileText, Table2, LayoutDashboard, Gamepad2, Box, Glasses,
 };
 
 /** Id del repo builtin de Herramientas IA & Agentes (para la sección destacada). */

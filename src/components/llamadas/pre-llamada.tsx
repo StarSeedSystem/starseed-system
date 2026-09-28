@@ -67,6 +67,7 @@ export function PreLlamada({
     miId,
     invitado,
     nombreInicial,
+    token = null,
     onUnirse,
 }: {
     sesionId: string;
@@ -77,6 +78,8 @@ export function PreLlamada({
     miId: string;
     invitado: boolean;
     nombreInicial?: string;
+    /** Token del enlace público con el que se llegó: la presencia se mira en su canal privado. */
+    token?: string | null;
     onUnirse: (e: EleccionEntrada) => Promise<string | null>;
 }) {
     const [stream, setStream] = useState<MediaStream | null>(null);
@@ -89,7 +92,7 @@ export function PreLlamada({
     const entregado = useRef(false);
     const streamRef = useRef<MediaStream | null>(null);
     streamRef.current = stream;
-    const presentes = usePresentesLlamada(sesionId, true);
+    const presentes = usePresentesLlamada(sesionId, true, token);
     const nivel = useNivelMicro(stream, micro);
     const llena = !!presentes && presentes.length >= MAX_PARTICIPANTES;
     const nombreValido = !invitado || nombre.trim().length > 0;

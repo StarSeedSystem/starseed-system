@@ -1,11 +1,16 @@
 'use client';
 
+import type * as React from "react";
 import { DashboardWidget } from "./dashboard-types";
 import dynamic from "next/dynamic";
 import { useAppearance } from "@/context/appearance-context";
 import { getWidgetFunctionStyle } from "./widget-function-style";
-import { WidgetStyleOverrideProvider } from "./kit/widget-style-override";
+import { WidgetStyleOverrideProvider, TRINITY_TINTS, type TrinityNode, type WidgetStyleVariant } from "./kit/widget-style-override";
 import { widgetLibre } from "@/components/widgets-libres/registro-libre";
+import { MarcoUnificado, type VarianteMarco } from "@/components/widgets-libres/marco-unificado";
+import { acentoDeTipo } from "@/components/widgets-libres/acentos-categoria";
+import { getManifest } from "./widget-manifest";
+import { WeatherLocationProvider, useWeatherLocationOpcional } from "@/modules/weather/context/weather-location-context";
 import { ClockDateWidget } from "@/components/dashboard/widgets/clock-date-widget";
 import { TasksQuickWidget } from "@/components/dashboard/widgets/tasks-quick-widget";
 import { QuickNotesWidget } from "@/components/dashboard/widgets/quick-notes-widget";
@@ -208,15 +213,67 @@ export function WidgetRegistry({ widget, onUpdateSettings }: WidgetProps) {
     );
 }
 
+/**
+ * Tipos cuyo cuerpo exige `WeatherLocationProvider`. El tablero lo pone alrededor de la rejilla,
+ * pero el escritorio (`desktop-widget-host`) y el panel de control no: allí estos widgets se
+ * rompían al montar. Si no hay proveedor arriba, el registro pone uno propio.
+ */
+const NECESITAN_UBICACION = new Set<string>([
+    "WEATHER_BASIC", "WEATHER_TEMPERATURE", "WEATHER_WIND", "WEATHER_HUMIDITY", "WEATHER_UV",
+    "WEATHER_AIR_QUALITY", "WEATHER_HOLISTIC", "WEATHER_SPACE_SOLAR", "WEATHER_SPACE",
+    "WEATHER_SPACE_SCHUMANN", "WEATHER_ASTRONOMY", "NATAL_CHART", "ENERGY_MAP",
+]);
+
+/** Variante del engranaje del widget → material del marco unificado. */
+function varianteDeMarco(v: WidgetStyleVariant | undefined): VarianteMarco {
+    return v === "solido" ? "solido" : v === "transparente" ? "transparente" : "cristal";
+}
+
 function WidgetRegistryInner({ widget, onUpdateSettings }: WidgetProps) {
     const { config } = useAppearance();
+    const ubicacion = useWeatherLocationOpcional();
+    const clasico = config.widgets?.marco === "clasico";
 
     // (Ola 383) Marco libre: los tipos con diseño sin caja propio se pintan con él.
-    if (config.widgets?.marco !== "clasico") {
+    if (!clasico) {
         const libre = widgetLibre(widget, onUpdateSettings);
         if (libre) return libre;
     }
 
+    let cuerpo = cuerpoClasico(widget, config.widgets?.weatherVariant, onUpdateSettings);
+    if (!ubicacion && NECESITAN_UBICACION.has(widget.widget_type)) {
+        cuerpo = <WeatherLocationProvider>{cuerpo}</WeatherLocationProvider>;
+    }
+    // «Marco clásico» (Ajustes → Apariencia) es la salida de emergencia: la tarjeta de siempre.
+    if (clasico) return cuerpo;
+
+    // (Ola L6) El resto de widgets estrena el material de los libres: vidrio + luz del acento
+    // de su categoría (o el tinte Trinity que se eligió en su engranaje) + brillo + filo.
+    const variante = widget.settings?.styleVariant as WidgetStyleVariant | undefined;
+    const nodo = widget.settings?.trinityNode as TrinityNode | undefined;
+    const forzado = variante === "trinity" && nodo ? TRINITY_TINTS[nodo] : undefined;
+    const acento = acentoDeTipo(widget.widget_type, forzado);
+    return (
+        <MarcoUnificado
+            acento={acento.acento}
+            acento2={acento.acento2}
+            etiqueta={getManifest(widget.widget_type)?.label ?? widget.widget_type}
+            variante={varianteDeMarco(variante)}
+            compacto={config.widgets?.compact === true}
+            tipo={widget.widget_type}
+            familia={acento.familia}
+        >
+            {cuerpo}
+        </MarcoUnificado>
+    );
+}
+
+/** El cuerpo clásico de cada tipo (sin marco): lo mismo que se pintaba antes de la Ola L6. */
+function cuerpoClasico(
+    widget: DashboardWidget,
+    weatherVariant: string | undefined,
+    onUpdateSettings?: (patch: Record<string, any>) => void,
+): React.ReactElement {
     switch (widget.widget_type) {
         case 'EXPLORE_NETWORK':
             return <ExploreNetworkWidget />;
@@ -254,7 +311,7 @@ function WidgetRegistryInner({ widget, onUpdateSettings }: WidgetProps) {
         case 'THEME_MANAGER':
             return <ThemeManagerWidget />;
         case 'WEATHER_BASIC':
-            const variant = config.widgets?.weatherVariant || "minimal";
+            const variant = weatherVariant || "minimal";
             if (variant === "hologram" || variant === "crystalline") {
                 return <WeatherBasicCrystallineWidget />;
             } else if (variant === "detailed" || variant === "fluid") {

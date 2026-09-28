@@ -24,6 +24,10 @@ import { cn } from "@/lib/utils";
 import { useAppearance } from "@/context/appearance-context";
 import { useElementSize, type ElementSize } from "./use-element-size";
 import { useWidgetStyleOverride, TRINITY_TINTS } from "./widget-style-override";
+import { useMarcoUnificado, type ContextoMarcoUnificado } from "./contexto-marco";
+import { CabeceraMarco, espaciadoDe } from "@/components/widgets-libres/marco-unificado";
+import { Rotulo } from "@/components/widgets-libres/familias/comun";
+import { conAlfa } from "@/components/widgets-libres/acentos-categoria";
 
 export interface WidgetShellProps {
     title: string;
@@ -158,6 +162,33 @@ export function WidgetShell({
 
     const resolvedChildren = typeof children === "function" ? children(size) : children;
     const resolvedFooter = typeof footer === "function" ? footer(size) : footer;
+
+    // (Ola L6) Dentro de un MarcoUnificado el material lo pinta el marco: aquí solo queda la
+    // cabecera común (icono + Rotulo + acciones fantasma) y el espaciado de su tamaño.
+    const marcoU = useMarcoUnificado();
+    if (marcoU) {
+        return (
+            <CascaronUnificado
+                marco={marcoU}
+                refCaja={ref}
+                title={title}
+                subtitle={subtitle}
+                icon={Icon}
+                live={live}
+                actions={actions}
+                expandHref={expandHref}
+                onExpand={onExpand}
+                connections={connections}
+                bare={bare}
+                compact={compact}
+                className={className}
+                bodyClassName={bodyClassName}
+                footer={resolvedFooter}
+            >
+                {resolvedChildren}
+            </CascaronUnificado>
+        );
+    }
 
     // Chips de conexión (interconexión del ecosistema). Solo en tamaños no-micro.
     const connChips = connections && connections.length && size.tier !== "micro" ? (
@@ -352,6 +383,99 @@ export function WidgetShell({
                 )}>
                     {resolvedFooter}
                     {connChips}
+                </footer>
+            )}
+        </div>
+    );
+}
+
+// ════════════════════════════════════════════════════════════════
+// CascaronUnificado (Ola L6) — WidgetShell dentro de un MarcoUnificado
+// ----------------------------------------------------------------
+// Sin fondo, borde, sombra ni brillos propios (sin `os-widget-shell`:
+// sus reglas globales de hover/sheen pelearían con el vidrio). La
+// cabecera es la común del marco y el espaciado sale de su tamaño.
+// ════════════════════════════════════════════════════════════════
+interface CascaronUnificadoProps {
+    marco: ContextoMarcoUnificado;
+    refCaja: React.Ref<HTMLDivElement>;
+    title: string;
+    subtitle?: string;
+    icon?: LucideIcon;
+    live?: boolean;
+    actions?: React.ReactNode;
+    expandHref?: string;
+    onExpand?: () => void;
+    connections?: WidgetShellProps["connections"];
+    bare: boolean;
+    compact: boolean;
+    className?: string;
+    bodyClassName?: string;
+    footer?: React.ReactNode;
+    children: React.ReactNode;
+}
+
+function CascaronUnificado({
+    marco, refCaja, title, subtitle, icon, live, actions, expandHref, onExpand, connections,
+    bare, compact, className, bodyClassName, footer, children,
+}: CascaronUnificadoProps) {
+    const esp = compact ? espaciadoDe(marco.clase, true) : marco.espaciado;
+    const micro = marco.base === "micro";
+    const ampliar = expandHref
+        ? <a href={expandHref} target="_blank" rel="noopener" title="Abrir vista ampliada en una pestaña nueva" aria-label="Ampliar widget"><Maximize2 className="size-3.5" /></a>
+        : onExpand
+            ? <button type="button" onClick={onExpand} title="Abrir vista ampliada" aria-label="Ampliar widget" className="ss-redondo"><Maximize2 className="size-3.5" /></button>
+            : null;
+    const acciones = actions || ampliar ? <>{actions}{ampliar}</> : undefined;
+
+    const chips = connections && connections.length && !micro ? (
+        <div className="flex flex-wrap items-center gap-1.5">
+            <Rotulo className="mr-0.5">Conecta</Rotulo>
+            {connections.map((c, i) => {
+                const Ic = c.icon;
+                const cc = c.color ?? marco.acento;
+                const cls = "inline-flex cursor-pointer items-center gap-1 rounded-full ss-redondo px-2.5 py-1 text-[11px] font-semibold text-white/85 transition-transform duration-200 hover:-translate-y-px motion-reduce:transition-none";
+                const style = { background: conAlfa(cc, 0.12), boxShadow: `inset 0 0 0 1px ${conAlfa(cc, 0.4)}` } as React.CSSProperties;
+                const inner = (
+                    <>
+                        {Ic && <Ic className="size-3 shrink-0" style={{ color: cc }} />}
+                        <span className="whitespace-nowrap">{c.label}</span>
+                    </>
+                );
+                return c.href
+                    ? <a key={i} href={c.href} className={cls} style={style} title={`Ir a ${c.label}`}>{inner}</a>
+                    : <button key={i} type="button" onClick={c.onClick} className={cls} style={style} title={c.label}>{inner}</button>;
+            })}
+        </div>
+    ) : null;
+
+    return (
+        <div
+            ref={refCaja}
+            data-marco="unificado"
+            data-widget-shell=""
+            className={cn("@container relative isolate flex h-full w-full min-h-0 flex-col rounded-[inherit] bg-transparent text-foreground tabular-nums", className)}
+        >
+            {!bare && (
+                <CabeceraMarco
+                    titulo={title}
+                    subtitulo={subtitle}
+                    icono={icon}
+                    acciones={acciones}
+                    vivo={live}
+                    acento={marco.acento}
+                    base={marco.base}
+                    horizontal={marco.horizontal}
+                    espaciado={esp}
+                />
+            )}
+            <div className={cn("relative z-10 min-h-0 flex-1 overflow-auto custom-scrollbar", esp.cuerpo, bare && "p-0", bodyClassName)}>
+                {children}
+            </div>
+            {(footer || chips) && (
+                <footer className={cn("relative z-10 shrink-0 space-y-1.5 border-t border-white/[0.06]", esp.pie)}>
+                    {footer}
+                    {chips}
                 </footer>
             )}
         </div>

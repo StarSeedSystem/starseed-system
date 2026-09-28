@@ -78,7 +78,7 @@ export function AiGeneratedWidget({ widget, onEditRequest }: AiGeneratedWidgetPr
     // ── Empty state ───────────────────────────────────────────────
     if (!customHtml) {
         return (
-            <div className="relative flex h-full flex-col items-center justify-center gap-5 p-5 overflow-hidden rounded-3xl bg-card/60 backdrop-blur-sm">
+            <div className="relative flex h-full flex-col items-center justify-center gap-5 p-5 overflow-hidden rounded-3xl bg-card/60 backdrop-blur-sm [[data-marco=unificado]_&]:bg-transparent [[data-marco=unificado]_&]:backdrop-blur-none">
                 {/* Ambient glow */}
                 <div
                     className="absolute inset-0 pointer-events-none"

@@ -16,12 +16,21 @@
 // muestra y el prompt de reanudar/formulario se comportan igual que antes.
 // ════════════════════════════════════════════════════════════════════════════
 
+import { useEffect, useState } from "react";
 import { AuthForm } from "@/components/auth/auth-form";
+import { siguienteDeBusqueda } from "@/lib/auth/siguiente-seguro";
 import { Logo } from "@/components/logo";
 import { SessionResumePrompt } from "@/components/sso/session-resume-prompt";
 import { WelcomeGate } from "@/components/welcome/welcome-gate";
 
 export function LoginExperience() {
+  // (2026-09-28) «Continuar como…» también respeta un `?next=` seguro (p. ej. volver a
+  // `/llamada/<id>`). Se lee tras montar para no exigir <Suspense> a la página.
+  const [siguiente, setSiguiente] = useState<string | null>(null);
+  useEffect(() => {
+    const s = siguienteDeBusqueda(window.location.search, "");
+    setSiguiente(s || null);
+  }, []);
   return (
     <div
       style={{
@@ -67,7 +76,7 @@ export function LoginExperience() {
 
         {/* SSO (#93): "Continuar como…" si ya hay sesión en el dispositivo. */}
         <div style={{ width: "100%" }}>
-          <SessionResumePrompt />
+          <SessionResumePrompt {...(siguiente ? { redirectTo: siguiente } : {})} />
         </div>
 
         <AuthForm />

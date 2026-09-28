@@ -5,7 +5,10 @@
  *
  *  · Con cuenta (miembro del chat o invitado): lectura normal de la sesión (RLS).
  *  · Con `?t=<token>` (enlace público): la sesión se resuelve por la RPC `unirse_sesion_publica`
- *    y, sin cuenta, se entra como invitado con un nombre (id aleatorio en sessionStorage).
+ *    y, sin cuenta, se entra como invitado con un nombre (id aleatorio en sessionStorage). La
+ *    señalización va por el canal privado `llamada:<id>:<token>`, que el servidor solo abre
+ *    mientras el enlace sea válido.
+ *  · Sin sesión ni enlace: «Iniciar sesión» lleva a `/login?next=/llamada/<id>` y se vuelve aquí.
  *  · Antesala con «Probar cámara y micro» (nada se enciende solo) y después la llamada.
  *  · Mensajes claros para: terminada, sin permiso, enlace roto, sin iniciar sesión y servidor
  *    sin la migración aplicada.
@@ -144,7 +147,7 @@ function Contenido() {
     if (fase === "sin-sesion") {
         return (
             <Panel icono={LogIn} titulo="Inicia sesión para unirte" detalle="Esta llamada es privada de un chat. Entra con tu cuenta, o pide a quien la creó un enlace público (lleva «?t=» al final).">
-                <Pildora href="/login" solida>
+                <Pildora href={`/login?next=${encodeURIComponent(`/llamada/${encodeURIComponent(id)}`)}`} solida>
                     <LogIn className="h-4 w-4" aria-hidden />
                     Iniciar sesión
                 </Pildora>
@@ -251,6 +254,7 @@ function Contenido() {
             miId={identidad?.base ?? invitado?.id ?? "invitado"}
             invitado={!identidad}
             nombreInicial={invitado?.nombre ?? ""}
+            token={token}
             onUnirse={alUnirse}
         />
     );

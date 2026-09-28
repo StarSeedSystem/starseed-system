@@ -4,6 +4,10 @@
  * Acciones de llamada: empezar desde un chat, aceptar/rechazar un timbre, unirse por enlace o
  * desde la tarjeta, y colgar. Todas empiezan por un gesto de la persona (un botón), que es
  * cuando se piden micro y cámara.
+ *
+ * Antes de entrar se resuelven, a la vez que los medios: los servidores ICE del OS
+ * (`/api/llamadas/ice`, con TURN si está configurado) y el canal PRIVADO que toca
+ * (`resolverTemaSesion`).
  */
 import { toast } from "sonner";
 import { sendMessage, type DmMessage } from "@/lib/messages/dm";
@@ -19,6 +23,9 @@ import { TEXTO_TIPO } from "@/lib/llamadas/formato";
 import { clasificarErrorSesion, MENSAJE_SESION } from "@/lib/llamadas/errores";
 import { registrarFinLlamada } from "@/lib/llamadas/registro";
 import { abrirCanalLlamada } from "@/lib/llamadas/senalizacion";
+import { obtenerIceServidores } from "@/lib/llamadas/ice";
+import { temaLlamada } from "@/lib/llamadas/temas";
+import { olvidarTemaSesion, resolverTemaSesion } from "@/lib/llamadas/resolver-tema";
 import { sanearNombre, urlAvatarSegura } from "@/lib/llamadas/presencia";
 import {
     agregarTimbre,
@@ -59,7 +66,9 @@ function activar(a: LlamadaActiva) {
         if (sinRespuesta) clearTimeout(sinRespuesta);
         baja();
         const res = a.motor.resumen();
-        if (a.esCreador && s.fase === "terminada") {
+        // Quien creó la llamada la da por cerrada al colgar solo, o si no pudo ni entrar (canal
+        // privado denegado…): así la tarjeta del chat deja de escuchar y nadie entra a una vacía.
+        if (a.esCreador && (s.fase === "terminada" || (s.fase === "error" && !res.contestada))) {
             if (a.mensajeId && a.adjunto) {
                 void registrarFinLlamada(a.mensajeId, a.adjunto, { fin: new Date(), duracionMs: res.duracionMs, contestada: res.contestada });
             }
@@ -98,7 +107,7 @@ export async function empezarLlamada(o: { hiloId: string; tipo: TipoLlamada; tit
         return false;
     }
     const conVideo = o.tipo === "video";
-    const medios = await obtenerMedios({ audio: true, video: conVideo });
+    const [medios, ice] = await Promise.all([obtenerMedios({ audio: true, video: conVideo }), obtenerIceServidores()]);
     if (!medios.stream) {
         toast.error(medios.error ?? "No se pudo usar el micrófono.");
         return false;
@@ -127,7 +136,17 @@ export async function empezarLlamada(o: { hiloId: string; tipo: TipoLlamada; tit
         toast.message(`En este chat sois ${miembros.length}; en la llamada caben ${MAX_PARTICIPANTES} a la vez.`);
     }
     const unoAUno = miembros.length <= 2;
-    const motor = new MotorLlamada({ sesionId: sesion.id, yo, colgarAlQuedarSolo: unoAUno });
+    const sesionId = sesion.id;
+    const motor = new MotorLlamada({
+        sesionId,
+        yo,
+        colgarAlQuedarSolo: unoAUno,
+        iceServers: ice.iceServers,
+        hayTurn: ice.turn,
+        // Recién creada en modo chat: el canal de miembros.
+        tema: temaLlamada(sesionId),
+        resolverTema: () => resolverTemaSesion("llamada", sesionId, { fresco: true }),
+    });
     await motor.prepararMedios({ audio: true, video: conVideo, stream: medios.stream });
     if (medios.aviso) motor.avisar(medios.aviso);
     activar({
@@ -176,7 +195,17 @@ export async function unirseALlamada(o: {
     const yo = o.identidad ?? (await miIdentidad());
     if (!yo) return "Inicia sesión (o entra con un enlace público) para unirte.";
     const conVideo = o.camara ?? o.tipo === "video";
-    const motor = new MotorLlamada({ sesionId: o.sesionId, yo, colgarAlQuedarSolo: !!o.unoAUno });
+    const [ice, tema] = await Promise.all([obtenerIceServidores(), resolverTemaSesion("llamada", o.sesionId, { token: o.token, fresco: true })]);
+    if (!tema) return "Este enlace de llamada no es válido.";
+    const motor = new MotorLlamada({
+        sesionId: o.sesionId,
+        yo,
+        colgarAlQuedarSolo: !!o.unoAUno,
+        iceServers: ice.iceServers,
+        hayTurn: ice.turn,
+        tema,
+        resolverTema: () => resolverTemaSesion("llamada", o.sesionId, { token: o.token, fresco: true }),
+    });
     if (o.stream) {
         await motor.prepararMedios({ audio: true, video: conVideo, microActivo: o.microActivo, stream: o.stream });
     } else {
@@ -216,9 +245,9 @@ export async function aceptarTimbre(t: TimbreEntrante, opciones: { camara?: bool
 /** Rechaza un timbre y se lo dice a quien llama (en un 1:1, su llamada se cierra sola). */
 export async function rechazarTimbre(t: TimbreEntrante): Promise<void> {
     quitarTimbre(t.sesionId);
-    const canal = abrirCanalLlamada(t.sesionId);
+    const [tema, yo] = await Promise.all([resolverTemaSesion("llamada", t.sesionId), miIdentidad()]);
+    const canal = tema ? abrirCanalLlamada(t.sesionId, { tema }) : null;
     if (!canal) return;
-    const yo = await miIdentidad();
     canal.enviar({ tipo: "rechazo", de: clavePestana(yo?.base ?? "anon"), uid: yo?.uid ?? null, nombre: yo?.nombre ?? "Alguien" });
     let soltado = false;
     const soltar = () => {
@@ -235,6 +264,17 @@ export async function rechazarTimbre(t: TimbreEntrante): Promise<void> {
         });
         setTimeout(soltar, 5000);
     }
+}
+
+/**
+ * Tras cambiar el acceso de la llamada en curso (p. ej. crear o revocar su enlace público desde
+ * «Invitar»), la llamada pregunta qué canal toca y avisa a los demás para que lo sumen.
+ */
+export function revisarCanalLlamada(): Promise<boolean> {
+    const a = leerLlamadas().activa;
+    if (!a || a.motor.cerrada) return Promise.resolve(false);
+    olvidarTemaSesion("llamada", a.sesionId);
+    return a.motor.revisarCanal(true);
 }
 
 export function colgarLlamada(motivo?: string) {

@@ -1,0 +1,181 @@
+/*
+ * Documento en vivo (L2 · 2026-09-28) — hoja tipo A4 en escritorio, fluida en el móvil.
+ * El editor es el `EditorDoc` de los mensajes: aquí solo se viste (hoja, barra acoplada,
+ * marcas de presencia). Nada global: todo cuelga de `.hoja` / `.hojaLectura`.
+ */
+
+.marco {
+    color: #fff;
+}
+
+.cristal {
+    background: rgba(12, 14, 34, 0.55);
+    backdrop-filter: blur(20px) saturate(140%);
+    -webkit-backdrop-filter: blur(20px) saturate(140%);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.cabecera {
+    composes: cristal;
+    border-radius: 22px;
+}
+
+.tituloEntrada {
+    min-width: 0;
+    width: 100%;
+    background: transparent;
+    border: 0;
+    outline: none;
+    color: #fff;
+    font-size: 17px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    padding: 6px 10px;
+    border-radius: 12px;
+    transition: background-color 180ms ease, box-shadow 180ms ease;
+}
+
+.tituloEntrada:hover {
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.tituloEntrada:focus-visible {
+    background: rgba(255, 255, 255, 0.06);
+    box-shadow: 0 0 0 2px rgba(124, 92, 255, 0.7);
+}
+
+.tituloEntrada::placeholder {
+    color: rgba(255, 255, 255, 0.4);
+}
+
+/* ───────────── Hoja editable (envuelve a EditorDoc) ───────────── */
+
+.hoja {
+    position: relative;
+}
+
+/* La barra de formato del editor, acoplada arriba como una píldora de cristal (se parte en
+   varias líneas en pantallas chicas; nunca se desliza de lado). */
+.hoja :global([role="toolbar"]) {
+    justify-content: center;
+    padding: 8px;
+    border-radius: 18px;
+    background: rgba(12, 14, 34, 0.55);
+    backdrop-filter: blur(20px) saturate(140%);
+    -webkit-backdrop-filter: blur(20px) saturate(140%);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+/* El marcador de posición del editor de mensajes queda fuera de la hoja: se usa el nuestro. */
+.hoja :global(div:has(> [data-editor-doc]) > div[aria-hidden="true"]) {
+    display: none;
+}
+
+.hoja :global([data-editor-doc]),
+.hojaLectura {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 816px;
+    margin: 20px auto 56px;
+    min-height: 1056px;
+    padding: 72px 84px;
+    border-radius: 6px;
+    background: linear-gradient(180deg, rgba(22, 24, 52, 0.94), rgba(14, 16, 38, 0.96));
+    box-shadow:
+        0 0 0 1px rgba(255, 255, 255, 0.08),
+        0 30px 80px rgba(0, 0, 0, 0.45),
+        inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    font-size: var(--tamano-doc, 16px);
+    line-height: 1.65;
+    color: rgba(255, 255, 255, 0.92);
+    outline: none;
+}
+
+.hoja :global([data-editor-doc] > p:only-child:has(> br:only-child))::before {
+    content: "Empieza a escribir… Los demás verán lo que escribes al instante.";
+    float: left;
+    height: 0;
+    pointer-events: none;
+    color: rgba(255, 255, 255, 0.38);
+}
+
+.hoja :global([data-editor-doc]):focus-visible {
+    box-shadow:
+        0 0 0 1px rgba(124, 92, 255, 0.55),
+        0 30px 80px rgba(0, 0, 0, 0.45),
+        inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.hoja :global([data-editor-doc] > * + *),
+.hojaLectura > div > * + * {
+    margin-top: 0.65em;
+}
+
+.hoja :global([data-editor-doc] > h1 + *),
+.hojaLectura > div > h1 + * {
+    margin-top: 0.5em;
+}
+
+@media (max-width: 720px) {
+    .hoja :global([data-editor-doc]),
+    .hojaLectura {
+        margin: 10px 0 28px;
+        min-height: 68vh;
+        padding: 22px 18px;
+        border-radius: 18px;
+    }
+}
+
+/* ───────────── Marcas de presencia sobre la hoja ───────────── */
+
+.capaPresencia {
+    position: absolute;
+    overflow: hidden;
+    pointer-events: none;
+    z-index: 4;
+}
+
+.marca {
+    position: absolute;
+    width: 3px;
+    border-radius: 3px;
+    transition: top 180ms ease, height 180ms ease, opacity 180ms ease;
+}
+
+.rotuloMarca {
+    position: absolute;
+    left: 6px;
+    top: -2px;
+    display: inline-flex;
+    gap: 4px;
+    white-space: nowrap;
+    transform: translateY(-100%);
+}
+
+.rotuloMarca > span {
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1;
+    padding: 4px 7px;
+    border-radius: 999px;
+    color: #0b0d1a;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+}
+
+/* ───────────── Impresión (window.print) ───────────── */
+
+.imprimible {
+    display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .marca {
+        transition: none;
+    }
+}
+
+:global(html[data-perf="eco"]) .marca {
+    transition: none;
+}

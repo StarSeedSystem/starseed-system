@@ -21,7 +21,7 @@ export function CameraQuickWidget() {
             {() => (
                 <Link
                     href="/camara"
-                    className="flex h-full w-full cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border border-rose-400/25 bg-rose-500/10 transition-colors hover:bg-rose-500/15"
+                    className="flex h-full w-full cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border border-rose-400/25 bg-rose-500/10 transition-colors hover:bg-rose-500/15 [[data-marco=unificado]_&]:border-transparent [[data-marco=unificado]_&]:bg-rose-500/[0.07]"
                 >
                     <span className="grid size-12 place-items-center rounded-2xl border border-rose-400/30 bg-rose-500/15">
                         <CameraIcon className="size-6 text-rose-300" strokeWidth={1.75} />

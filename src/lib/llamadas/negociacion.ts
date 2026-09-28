@@ -32,6 +32,7 @@ export function sanearSenal(v: unknown): SenalLlamada | null {
     const o = v as Record<string, unknown>;
     if (!idPar(o.de)) return null;
     if (o.tipo === "colgar") return { tipo: "colgar", de: o.de };
+    if (o.tipo === "mudanza") return { tipo: "mudanza", de: o.de };
     if (o.tipo === "rechazo") {
         return { tipo: "rechazo", de: o.de, uid: typeof o.uid === "string" ? o.uid : null, nombre: sanearNombre(o.nombre) };
     }

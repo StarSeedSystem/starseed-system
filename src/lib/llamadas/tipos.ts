@@ -10,7 +10,7 @@ import type { AdjuntoLlamada, TipoLlamada } from "@/lib/mensajeria/formato-tipos
 /** Máximo de personas en una llamada de malla completa (cada una envía a las demás). */
 export const MAX_PARTICIPANTES = 8;
 
-/** Lo que cada participante publica en la presencia del canal `llamada:<sesionId>`. */
+/** Lo que cada participante publica en la presencia del canal privado de la llamada (`temas.ts`). */
 export interface MetaPresencia {
     /** Clave de presencia: `<uid|inv-xxxx>:<pestaña>`. Es también el id del par WebRTC. */
     id: string;
@@ -45,7 +45,12 @@ export type SenalLlamada =
     /** SDP y/o candidatos ICE (en lote: menos mensajes por el canal). */
     | { tipo: "senal"; de: string; para: string; desc?: RTCSessionDescriptionInit; ice?: RTCIceCandidateInit[] }
     | { tipo: "colgar"; de: string }
-    | { tipo: "rechazo"; de: string; uid: string | null; nombre: string };
+    | { tipo: "rechazo"; de: string; uid: string | null; nombre: string }
+    /**
+     * «La sesión cambió de canal» (se creó o revocó el enlace público a mitad de llamada). No
+     * lleva el tema ni el token: quien lo recibe vuelve a preguntar al servidor qué le toca.
+     */
+    | { tipo: "mudanza"; de: string };
 
 export type FaseLlamada =
     | "inactiva"

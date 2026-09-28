@@ -14,7 +14,7 @@ import {
   Server, Vote, Lightbulb, Cpu, Brain, ShoppingBag, Award, AppWindow,
   CalendarClock, GitBranch, Sparkles, Zap, Wrench, Plug, Eye, HardDrive, Boxes,
   Camera, Images, RadioTower, Antenna, Radio, Rss, AudioLines, Gauge,
-  Smile, FlaskConical, BookUser,
+  Smile, FlaskConical, BookUser, FileText, Table2, Gamepad2, Box, Glasses,
 } from 'lucide-react';
 // Garantía de botones predeterminados con la VERSIÓN DENTRO DEL PAYLOAD
 // (Adenda 149 · tanda 3). El módulo es puro y sin dependencias: lo comparten
@@ -75,7 +75,9 @@ export type DockIconKey =
   // ── Laboratorio de Astraura (Ola 237) ──
   | 'FlaskConical'
   // ── Contactos (2026-09-28) ──
-  | 'BookUser';
+  | 'BookUser'
+  // ── Apps en vivo (2026-09-28) ──
+  | 'FileText' | 'Table2' | 'Gamepad2' | 'Box' | 'Glasses';
 
 /**
  * Mapa iconKey → componente de lucide-react. Fuente ÚNICA de verdad: la usan
@@ -89,7 +91,7 @@ export const DOCK_ICON_MAP: Record<DockIconKey, React.ComponentType<{ className?
   Server, Vote, Lightbulb, Cpu, Brain, ShoppingBag, Award, AppWindow,
   CalendarClock, GitBranch, Sparkles, Zap, Wrench, Plug, Eye, HardDrive, Boxes,
   Camera, Images, RadioTower, Antenna, Radio, Rss, AudioLines, Gauge, Smile,
-  FlaskConical, BookUser,
+  FlaskConical, BookUser, FileText, Table2, Gamepad2, Box, Glasses,
 };
 
 /** Icono de respaldo defensivo (DOCK_ICON_MAP es total: no debería usarse). */
@@ -193,6 +195,14 @@ export const DOCK_PRESETS: DockItemConfig[] = [
   // 2026-09-28: Contactos — la libreta privada de personas (sustituye a «seguir» personas),
   // junto a Mensajes. DOCK_DEFAULTS_VERSION 22 la enciende para las cuentas ya existentes.
   { id: 'contactos',     label: 'Contactos',           iconKey: 'BookUser',        path: '/contactos',             color: 'emerald', enabled: true,  origin: 'preset' },
+  // Apps en vivo (2026-09-28): disponibles para añadir al dock; no se encienden solas.
+  { id: 'documentos',   label: 'Documentos',          iconKey: 'FileText',        path: '/documentos',            color: 'cyan',    enabled: false, origin: 'preset' },
+  { id: 'tablas',       label: 'Tablas',              iconKey: 'Table2',          path: '/tabla',                 color: 'emerald', enabled: false, origin: 'preset' },
+  { id: 'paneles-compartidos', label: 'Paneles compartidos', iconKey: 'LayoutDashboard', path: '/dashboard-compartido', color: 'cyan', enabled: false, origin: 'preset' },
+  { id: 'juegos',       label: 'Juegos',              iconKey: 'Gamepad2',        path: '/juego',                 color: 'emerald', enabled: false, origin: 'preset' },
+  { id: 'programas',    label: 'Programas',           iconKey: 'AppWindow',       path: '/programa',              color: 'purple',  enabled: false, origin: 'preset' },
+  { id: 'escenas-3d',   label: 'Escenas 3D',          iconKey: 'Box',             path: '/escena',                color: 'amber',   enabled: false, origin: 'preset' },
+  { id: 'salas-xr',     label: 'Salas XR',            iconKey: 'Glasses',         path: '/sala-xr',               color: 'crimson',     enabled: false, origin: 'preset' },
   { id: 'notifications', label: 'Notificaciones',      iconKey: 'Bell',            path: '/notifications',         color: 'amber',   enabled: true,  origin: 'preset' },
   { id: 'hub',           label: 'Hub',                 iconKey: 'Users',           path: '/hub',                   color: 'emerald', enabled: true,  origin: 'preset' },
   { id: 'mylib',         label: 'Librería · Biblioteca', iconKey: 'Library',        path: '/library',               color: 'cyan',    enabled: true,  origin: 'preset' },

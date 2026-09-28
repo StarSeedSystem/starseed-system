@@ -3,12 +3,18 @@
 /**
  * MotorLlamada — la llamada de verdad: malla completa de RTCPeerConnection (una por cada otra
  * persona, hasta 8 en total) con el patrón «perfect negotiation», señalización por el canal
- * Realtime `llamada:<sesionId>` y todo lo que hace que se sienta bien:
+ * Realtime PRIVADO de la sesión (`llamada:<id>` o `llamada:<id>:<token>`, ver `temas.ts`) y
+ * todo lo que hace que se sienta bien:
  *
  *  · micro/cámara que se encienden y apagan sin renegociar (replaceTrack) y cambio de
  *    dispositivo en caliente; compartir pantalla sustituye la pista de vídeo;
  *  · reconexión: si ICE cae, espera un poco y reinicia ICE (restartIce) hasta 3 veces; si no
  *    hay manera, lo dice (sin TURN, dos NAT simétricos no se ven);
+ *  · canales: si la sesión cambia de canal a mitad de llamada (se crea o revoca el enlace
+ *    público), se SUMA el canal nuevo sin soltar el viejo: nadie se queda en otra sala. La
+ *    presencia es la unión de todos y cada señal va por el canal donde está su destinatario.
+ *    Si el servidor no deja entrar en ningún canal privado, la llamada termina diciéndolo
+ *    (nunca se cae a un canal público);
  *  · hablante activo (AnalyserNode + histéresis) y calidad por par (getStats cada 4 s).
  *
  * Imperativo y sin React: la interfaz se suscribe con `suscribir()` y lee `estado()` (una foto
@@ -16,11 +22,12 @@
  * Nunca lanza hacia fuera: cualquier fallo del navegador se convierte en un aviso.
  */
 import { abrirCanalLlamada, type ConexionCanal } from "@/lib/llamadas/senalizacion";
+import { MENSAJE_CANAL_PRIVADO } from "@/lib/llamadas/temas";
 import { admision, evaluarDescripcion, reaccionIce, soyCortes } from "@/lib/llamadas/negociacion";
 import { elegirHablante, nivelRms, suavizarNivel, type HablanteVigente } from "@/lib/llamadas/hablante";
 import { calidadDesde, extraerMetricas, peorCalidad, perdidaEntre, type MetricasPar } from "@/lib/llamadas/calidad";
 import { listarDispositivos, obtenerMedios, obtenerPantalla, obtenerPista, pararStream } from "@/lib/llamadas/medios";
-import { hayTurn, servidoresIce } from "@/lib/llamadas/ice";
+import { AVISO_SIN_TURN, contieneTurn, servidoresIce } from "@/lib/llamadas/ice";
 import { clavePestana, type Identidad } from "@/lib/llamadas/identidad";
 import {
     MAX_PARTICIPANTES,
@@ -35,7 +42,17 @@ import {
 export interface OpcionesMotor {
     sesionId: string;
     yo: Identidad;
+    /** Servidores ICE (de `obtenerIceServidores`); por defecto STUN + TURN fijo del entorno. */
     iceServers?: RTCIceServer[];
+    /** ¿Hay TURN entre `iceServers`? Por defecto se deduce de la lista. */
+    hayTurn?: boolean;
+    /** Tema del canal privado (`resolverTemaSesion("llamada", …)`); por defecto el de miembros. */
+    tema?: string | null;
+    /**
+     * Vuelve a preguntar qué canal toca (tras crear o revocar el enlace público a mitad de
+     * llamada, o cuando otro participante avisa de mudanza). Sin él no hay mudanzas.
+     */
+    resolverTema?: () => Promise<string | null>;
     /** Llamadas 1:1: al irse la otra persona, cuelga solo. */
     colgarAlQuedarSolo?: boolean;
     intervaloStatsMs?: number;
@@ -55,6 +72,16 @@ interface Analizador {
     datos: Uint8Array<ArrayBuffer>;
     streamId: string;
 }
+
+interface CanalMotor {
+    conn: ConexionCanal;
+    tema: string;
+    presencia: MetaPresencia[];
+    bajas: (() => void)[];
+}
+
+/** Como mucho estos canales a la vez (miembros + enlace público + uno en mudanza). */
+const MAX_CANALES = 3;
 
 interface Par {
     id: string;
@@ -109,6 +136,7 @@ export class MotorLlamada {
     readonly sesionId: string;
     private readonly opc: OpcionesMotor;
     private readonly iceServers: RTCIceServer[];
+    private readonly conTurn: boolean;
 
     private e: EstadoLlamada = ESTADO_INICIAL;
     private parche: Partial<EstadoLlamada> = {};
@@ -123,8 +151,13 @@ export class MotorLlamada {
     private camaraOn = false;
     private pantallaOn = false;
 
-    private canal: ConexionCanal | null = null;
-    private subs: (() => void)[] = [];
+    private canales: CanalMotor[] = [];
+    /** Canal por el que llegó la última señal de cada par (ruta que ya se sabe que funciona). */
+    private readonly rutaPar = new Map<string, CanalMotor>();
+    /** Último tema que el servidor dijo que toca (para detectar mudanzas). */
+    private temaActual: string | null = null;
+    private revisando: Promise<boolean> | null = null;
+    private readonly rechazosVistos = new Set<string>();
     private readonly pares = new Map<string, Par>();
     private presentes: MetaPresencia[] = [];
     private conPlaza = new Set<string>();
@@ -148,6 +181,8 @@ export class MotorLlamada {
         this.sesionId = opciones.sesionId;
         this.miId = clavePestana(opciones.yo.base);
         this.iceServers = opciones.iceServers ?? servidoresIce();
+        this.conTurn = opciones.hayTurn ?? contieneTurn(this.iceServers);
+        this.temaActual = opciones.tema ?? null;
     }
 
     /* ───────────────────────────── Suscripción ───────────────────────────── */
@@ -502,36 +537,147 @@ export class MotorLlamada {
     }
 
     private publicarMeta() {
-        this.canal?.publicar(this.meta());
+        const meta = this.meta();
+        for (const c of this.canales) c.conn.publicar(meta);
+    }
+
+    /** Envía una señal: las dirigidas, por el canal donde está su destinatario; el resto, por todos. */
+    private enviar(s: SenalLlamada) {
+        if (!this.canales.length) return;
+        if (s.tipo === "senal") {
+            this.canalPara(s.para).conn.enviar(s);
+            return;
+        }
+        for (const c of this.canales) c.conn.enviar(s);
+    }
+
+    private canalPara(id: string): CanalMotor {
+        const ruta = this.rutaPar.get(id);
+        if (ruta && this.canales.includes(ruta)) return ruta;
+        for (let i = this.canales.length - 1; i >= 0; i--) {
+            if (this.canales[i].presencia.some((p) => p.id === id)) return this.canales[i];
+        }
+        return this.canales[this.canales.length - 1];
+    }
+
+    /** Presencia de todos los canales, sin repetir a nadie, por orden de llegada. */
+    private presenciaUnida(): MetaPresencia[] {
+        if (this.canales.length === 1) return this.canales[0].presencia;
+        const porId = new Map<string, MetaPresencia>();
+        for (const c of this.canales) for (const p of c.presencia) if (!porId.has(p.id)) porId.set(p.id, p);
+        return Array.from(porId.values()).sort((a, b) => a.unido - b.unido || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+    }
+
+    private abrirCanal(tema: string | null): CanalMotor | null {
+        const conn = abrirCanalLlamada(this.sesionId, { clave: this.miId, tema });
+        if (!conn) return null;
+        const c: CanalMotor = { conn, tema: conn.tema ?? tema ?? `llamada:${this.sesionId}`, presencia: [], bajas: [] };
+        this.canales.push(c);
+        c.bajas.push(
+            conn.onPresencia((p) => {
+                c.presencia = p;
+                this.alCambiarPresencia(this.presenciaUnida());
+            }),
+        );
+        c.bajas.push(conn.onSenal((s) => this.alRecibirSenal(s, c)));
+        c.bajas.push(conn.onSuscrito((ok) => this.alCambiarSuscripcion(c, ok)));
+        if (typeof conn.onEstado === "function") {
+            c.bajas.push(
+                conn.onEstado((e) => {
+                    if (e === "denegado") this.alDenegarCanal(c);
+                }),
+            );
+        }
+        conn.publicar(this.meta());
+        if (typeof conn.estado === "function" && conn.estado() === "denegado") queueMicrotask(() => this.alDenegarCanal(c));
+        return c;
+    }
+
+    private soltarCanal(c: CanalMotor) {
+        const i = this.canales.indexOf(c);
+        if (i === -1) return;
+        this.canales.splice(i, 1);
+        for (const [id, ruta] of this.rutaPar) if (ruta === c) this.rutaPar.delete(id);
+        for (const b of c.bajas.splice(0)) {
+            try {
+                b();
+            } catch {
+                /* noop */
+            }
+        }
+        try {
+            c.conn.retirar();
+            c.conn.soltar();
+        } catch {
+            /* noop */
+        }
+    }
+
+    private alCambiarSuscripcion(c: CanalMotor, ok: boolean) {
+        if (this.cerrado || !this.canales.includes(c)) return;
+        if (ok) {
+            c.conn.publicar(this.meta());
+            const fase = this.e.fase === "conectando" || this.e.fase === "preparando" ? (this.presentes.length ? "en-curso" : "esperando") : this.e.fase;
+            this.set({ fase, aviso: this.e.aviso === AVISO_RECONEXION ? null : this.e.aviso });
+        } else if (!this.canales.some((x) => x.conn.suscrito())) {
+            this.set({ aviso: AVISO_RECONEXION });
+        }
+    }
+
+    /** El servidor no deja entrar en un canal privado. Sin ninguno que valga, se termina y se dice. */
+    private alDenegarCanal(c: CanalMotor) {
+        if (this.cerrado || !this.canales.includes(c)) return;
+        this.soltarCanal(c);
+        if (!this.canales.length) {
+            this.terminar("error", MENSAJE_CANAL_PRIVADO);
+            return;
+        }
+        this.set({ aviso: "Uno de los canales de esta llamada ya no admite entrar (quizá se revocó el enlace público). Seguís conectados por el otro." });
+        this.alCambiarPresencia(this.presenciaUnida());
+    }
+
+    /**
+     * Pregunta al servidor qué canal toca ahora y, si es otro, lo SUMA (sin soltar los que ya
+     * funcionan). `avisar`: además manda «mudanza» por los canales actuales para que los demás
+     * pregunten también (sin token en el mensaje). Devuelve true si cambió algo.
+     */
+    revisarCanal(avisar = true): Promise<boolean> {
+        if (this.cerrado || !this.opc.resolverTema || !this.canales.length) return Promise.resolve(false);
+        if (this.revisando) return this.revisando;
+        const resolver = this.opc.resolverTema;
+        const p = (async (): Promise<boolean> => {
+            let tema: string | null = null;
+            try {
+                tema = await resolver();
+            } catch {
+                tema = null;
+            }
+            if (this.cerrado || !tema || tema === this.temaActual) return false;
+            this.temaActual = tema;
+            if (avisar) this.enviar({ tipo: "mudanza", de: this.miId });
+            if (this.canales.some((c) => c.tema === tema)) return true;
+            if (this.canales.length >= MAX_CANALES) this.soltarCanal(this.canales[0]);
+            return !!this.abrirCanal(tema);
+        })();
+        this.revisando = p;
+        void p.finally(() => {
+            if (this.revisando === p) this.revisando = null;
+        });
+        return p;
     }
 
     /** Entra en el canal de la llamada (tras `prepararMedios`). */
     entrar(): boolean {
         if (this.cerrado) return false;
-        if (this.canal) return true;
+        if (this.canales.length) return true;
         this.unido = Date.now();
-        const canal = abrirCanalLlamada(this.sesionId, { clave: this.miId });
-        if (!canal) {
+        const c = this.abrirCanal(this.opc.tema ?? null);
+        if (!c) {
             this.set({ fase: "error", motivoFin: "No se pudo conectar con el servidor de la llamada. Revisa tu conexión y vuelve a intentarlo." });
             return false;
         }
-        this.canal = canal;
-        this.subs.push(canal.onPresencia((p) => this.alCambiarPresencia(p)));
-        this.subs.push(canal.onSenal((s) => this.alRecibirSenal(s)));
-        this.subs.push(
-            canal.onSuscrito((ok) => {
-                if (this.cerrado) return;
-                if (ok) {
-                    this.publicarMeta();
-                    const fase = this.e.fase === "conectando" || this.e.fase === "preparando" ? (this.presentes.length ? "en-curso" : "esperando") : this.e.fase;
-                    this.set({ fase, aviso: this.e.aviso === AVISO_RECONEXION ? null : this.e.aviso });
-                } else {
-                    this.set({ aviso: AVISO_RECONEXION });
-                }
-            }),
-        );
-        this.set({ fase: canal.suscrito() ? "esperando" : "conectando" });
-        this.publicarMeta();
+        if (!this.temaActual) this.temaActual = c.tema;
+        this.set({ fase: c.conn.suscrito() ? "esperando" : "conectando" });
         this.arrancarTemporizadores();
         return true;
     }
@@ -576,8 +722,13 @@ export class MotorLlamada {
         else this.emitir();
     }
 
-    private alRecibirSenal(s: SenalLlamada) {
+    private alRecibirSenal(s: SenalLlamada, c?: CanalMotor) {
         if (this.cerrado || s.de === this.miId) return;
+        if (c && this.canales.includes(c)) this.rutaPar.set(s.de, c);
+        if (s.tipo === "mudanza") {
+            void this.revisarCanal(false);
+            return;
+        }
         if (s.tipo === "colgar") {
             this.vistos.add(s.de);
             this.cerrarPar(s.de);
@@ -587,6 +738,9 @@ export class MotorLlamada {
             return;
         }
         if (s.tipo === "rechazo") {
+            // Con dos canales el mismo rechazo puede llegar dos veces.
+            if (this.rechazosVistos.has(s.de)) return;
+            this.rechazosVistos.add(s.de);
             this.set({ rechazos: [...this.e.rechazos, { uid: s.uid, nombre: s.nombre }] });
             return;
         }
@@ -742,14 +896,14 @@ export class MotorLlamada {
             par.temporizadorIce = null;
             const lote = par.iceSaliente.splice(0);
             if (lote.length && this.pares.get(par.id) === par) {
-                this.canal?.enviar({ tipo: "senal", de: this.miId, para: par.id, ice: lote });
+                this.enviar({ tipo: "senal", de: this.miId, para: par.id, ice: lote });
             }
         }, 120);
     }
 
     private enviarDescripcion(par: Par, d: RTCSessionDescription | RTCSessionDescriptionInit) {
         if (!d.type || (d.type !== "offer" && d.type !== "answer")) return;
-        this.canal?.enviar({ tipo: "senal", de: this.miId, para: par.id, desc: { type: d.type, sdp: d.sdp ?? "" } });
+        this.enviar({ tipo: "senal", de: this.miId, para: par.id, desc: { type: d.type, sdp: d.sdp ?? "" } });
     }
 
     private alCambiarIce(par: Par, estado: string) {
@@ -779,9 +933,9 @@ export class MotorLlamada {
                 par.conexion = "fallida";
                 const nombre = this.presentes.find((p) => p.id === par.id)?.nombre ?? "una persona";
                 this.set({
-                    aviso: hayTurn()
+                    aviso: this.conTurn
                         ? `No se pudo conectar con ${nombre}. Probad a salir y volver a entrar.`
-                        : `No se pudo conectar con ${nombre}: vuestras redes no permiten una conexión directa y este servidor aún no tiene TURN configurado.`,
+                        : `No se pudo conectar con ${nombre}. ${AVISO_SIN_TURN}`,
                 });
                 break;
             }
@@ -957,7 +1111,7 @@ export class MotorLlamada {
             otrosDentro: this.presentes.length,
         };
         const resumen = this.resumenFinal;
-        this.canal?.enviar({ tipo: "colgar", de: this.miId });
+        this.enviar({ tipo: "colgar", de: this.miId });
         this.limpiar();
         this.set({ fase: "terminada", motivoFin: motivo });
         return resumen;
@@ -1016,18 +1170,8 @@ export class MotorLlamada {
             }
             this.alCambiarDispositivos = null;
         }
-        for (const s of this.subs.splice(0)) {
-            try {
-                s();
-            } catch {
-                /* noop */
-            }
-        }
-        if (this.canal) {
-            this.canal.retirar();
-            this.canal.soltar();
-            this.canal = null;
-        }
+        for (const c of this.canales.slice()) this.soltarCanal(c);
+        this.rutaPar.clear();
         this.presentes = [];
         this.hablante = null;
         this.niveles = {};

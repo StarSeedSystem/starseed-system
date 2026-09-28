@@ -28,3 +28,5 @@ export {
     type TrinityNode,
 } from "./widget-style-override";
 export { WidgetConfigPopover } from "./widget-config-popover";
+// (Ola L6) El marco unificado publica su acento/tamaño/espaciado; el kit lo lee.
+export { ContextoMarco, useMarcoUnificado, type ContextoMarcoUnificado, type EspaciadoMarco, type BaseTamano } from "./contexto-marco";

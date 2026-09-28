@@ -14,13 +14,15 @@
 //   · Tokens de `@/lib/design/movimiento` para transiciones 150-300 ms.
 // ════════════════════════════════════════════════════════════════
 
-import type { ReactNode } from "react";
+import { isValidElement, type ReactNode } from "react";
 import { RotateCw, Sparkles } from "lucide-react";
 import { useReducedMotion } from "framer-motion";
 import { mensajeVacio, mensajeError, type EstadoWidget } from "../calidad-widget";
 import { WidgetSkeleton, WidgetEmptyState } from "./primitives";
 import { tokensDe, cssDe } from "@/lib/design/movimiento";
 import { cn } from "@/lib/utils";
+import { useMarcoUnificado } from "./contexto-marco";
+import { CabeceraMarco } from "@/components/widgets-libres/marco-unificado";
 
 export interface MarcoWidgetProps {
     /** Título visible del widget (también aria-label de la región). */
@@ -78,6 +80,25 @@ export function MarcoWidget(p: MarcoWidgetProps) {
     const reducido = useReducedMotion() ?? false;
     const tHover = tokensDe("hover", reducido);
     const estado = estadoDeMarco(p);
+    // (Ola L6) Dentro de un MarcoUnificado el vidrio lo pone el marco: sin caja propia y con la
+    // cabecera común (icono fantasma + Rotulo). Fuera de él (Puente de Mando), como siempre.
+    const marcoU = useMarcoUnificado();
+    const caja = marcoU
+        ? "flex h-full w-full flex-col overflow-hidden rounded-[inherit] bg-transparent"
+        : cn("flex h-full w-full flex-col overflow-hidden rounded-2xl border border-border/40", CLASE_BASE);
+    const cabecera = marcoU ? (
+        <CabeceraMarco
+            titulo={p.titulo}
+            icono={isValidElement(p.icono) ? p.icono : undefined}
+            acciones={p.acciones}
+            acento={marcoU.acento}
+            base={marcoU.base}
+            horizontal={marcoU.horizontal}
+            espaciado={marcoU.espaciado}
+        />
+    ) : (
+        <Cabecera titulo={p.titulo} icono={p.icono} acciones={p.acciones} />
+    );
 
     // ── Cuerpo por estado ──────────────────────────────────────────
     // cargando: esqueleto con la forma del contenido (no un spinner suelto)
@@ -90,9 +111,9 @@ export function MarcoWidget(p: MarcoWidgetProps) {
                 role="region"
                 aria-label={p.titulo}
                 aria-busy="true"
-                className={cn("flex h-full w-full flex-col overflow-hidden rounded-2xl border border-border/40", CLASE_BASE)}
+                className={caja}
             >
-                <Cabecera titulo={p.titulo} icono={p.icono} acciones={p.acciones} />
+                {cabecera}
                 <div className="min-h-0 flex-1 p-3">
                     <WidgetSkeleton rows={3} variant="list" />
                 </div>
@@ -110,9 +131,9 @@ export function MarcoWidget(p: MarcoWidgetProps) {
                 data-estado={estado}
                 role="region"
                 aria-label={p.titulo}
-                className={cn("flex h-full w-full flex-col overflow-hidden rounded-2xl border border-border/40", CLASE_BASE)}
+                className={caja}
             >
-                <Cabecera titulo={p.titulo} icono={p.icono} acciones={p.acciones} />
+                {cabecera}
                 <div className="min-h-0 flex-1">
                     <WidgetEmptyState icon={Sparkles} title={vacioMsg.titulo} message={vacioMsg.ayuda} />
                 </div>
@@ -133,18 +154,20 @@ export function MarcoWidget(p: MarcoWidgetProps) {
                 data-estado={estado}
                 role="region"
                 aria-label={p.titulo}
-                className={cn("flex h-full w-full flex-col overflow-hidden rounded-2xl border border-border/40", CLASE_BASE)}
+                className={caja}
             >
-                <Cabecera titulo={p.titulo} icono={p.icono} acciones={p.acciones} />
+                {cabecera}
                 <div role="status" className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2.5 px-3 text-center">
-                    <p className="text-sm font-bold text-foreground/90">{err.titulo}</p>
-                    <p className="text-[11px] text-muted-foreground/70">{err.detalle}</p>
+                    <p className={marcoU ? "text-[14px] font-semibold text-white/90" : "text-sm font-bold text-foreground/90"}>{err.titulo}</p>
+                    <p className={marcoU ? "text-[12px] text-white/65" : "text-[11px] text-muted-foreground/70"}>{err.detalle}</p>
                     {reintentarVisible && (
                         <button
                             type="button"
                             onClick={p.onReintentar}
                             style={{ transition: cssDe(tHover) }}
-                            className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-rose-400/30 bg-rose-500/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-rose-300 hover:bg-rose-500/20"
+                            className={marcoU
+                                ? "inline-flex cursor-pointer items-center gap-1.5 rounded-full ss-redondo bg-[#dc143c1f] px-3 py-1 text-[11px] font-semibold text-white shadow-[inset_0_0_0_1px_#dc143c66] hover:bg-[#dc143c33]"
+                                : "inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-rose-400/30 bg-rose-500/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-rose-300 hover:bg-rose-500/20"}
                         >
                             <RotateCw className="size-3" aria-hidden /> Reintentar
                         </button>
@@ -162,9 +185,9 @@ export function MarcoWidget(p: MarcoWidgetProps) {
             data-estado={estado}
             role="region"
             aria-label={p.titulo}
-            className={cn("flex h-full w-full flex-col overflow-hidden rounded-2xl border border-border/40", CLASE_BASE)}
+            className={caja}
         >
-            <Cabecera titulo={p.titulo} icono={p.icono} acciones={p.acciones} />
+            {cabecera}
             <div className="min-h-0 flex-1">{p.children}</div>
         </div>
     );

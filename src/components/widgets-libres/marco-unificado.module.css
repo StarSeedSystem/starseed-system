@@ -1,0 +1,239 @@
+/* ═══════════════════════════════════════════════════════════════════
+   MarcoUnificado (Ola L6) — el material de WidgetLibre en rectángulo
+   redondeado, para los widgets clásicos. Todo queda DENTRO de .marco:
+   ninguna regla sale de aquí y nada toca globals.css.
+   ═══════════════════════════════════════════════════════════════════ */
+
+.marco {
+  position: relative;
+  height: 100%;
+  width: 100%;
+  isolation: isolate;
+}
+
+.capa {
+  position: relative;
+  height: 100%;
+  width: 100%;
+  border-radius: inherit;
+}
+
+/* `backwards`, no `both`: al terminar no queda ningún `transform` puesto, que convertiría la capa
+   en bloque contenedor y atraparía los `position: fixed` de los widgets (menús, diálogos). */
+.capa[data-entrada="si"] {
+  animation: marcoEntrada 280ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+@keyframes marcoEntrada {
+  from { opacity: 0; transform: scale(0.97); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+/* Vidrio + luz del acento + brillo superior (el fondo va en línea: depende del acento). */
+.material {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  transition: box-shadow 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* El filo: 1 px a 135° que se apaga en diagonal, la misma receta que el trazo de WidgetLibre. */
+.material::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.32), rgba(255, 255, 255, 0.05));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  opacity: 0.85;
+  transition: opacity 200ms ease;
+  pointer-events: none;
+}
+
+.marco:hover .material::after,
+.marco:focus-within .material::after {
+  opacity: 1;
+}
+
+/* Contenido: tokens del tema oscuro afinados para el vidrio. La doble clase gana a `.dark`
+   (que también lleva este nodo para que las variantes `dark:` de los widgets se activen). */
+.contenido {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  min-height: 0;
+  overflow: hidden;
+  border-radius: inherit;
+  color: hsl(var(--foreground-hsl));
+  color-scheme: dark;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+  font-variant-numeric: tabular-nums;
+}
+
+.marco .contenido {
+  --foreground-hsl: 220 30% 96%;
+  --card-foreground-hsl: 220 30% 94%;
+  --muted-foreground-hsl: 228 22% 74%;
+  --muted-hsl: 232 30% 18%;
+  --card-hsl: 234 40% 11%;
+  --border-hsl: 232 24% 44%;
+  --input-hsl: 232 28% 22%;
+}
+
+.cuerpo {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+}
+
+.cuerpoPleno {
+  border-radius: inherit;
+}
+
+.cuerpo > * {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* Raíces con cáscara propia (la Card opaca de los módulos de clima, los marcadores de carga):
+   dejan ver el vidrio. Solo fondo, borde y sombra; su escena interior se queda. */
+.absorbe > :first-child {
+  background-color: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  border-radius: inherit !important;
+}
+
+/* ── Escala tipográfica común (la de Rotulo/Pildora) sin reescribir los 96 widgets ── */
+.cuerpo :global([class~="font-black"]),
+.cuerpo :global([class~="font-extrabold"]) {
+  font-weight: 700;
+}
+
+.cuerpo :global([class~="text-[6px]"]) { font-size: 8.5px; }
+.cuerpo :global([class~="text-[7px]"]) { font-size: 9px; }
+.cuerpo :global([class~="text-[8px]"]) { font-size: 9.5px; }
+.cuerpo :global([class~="text-[9px]"]) { font-size: 10px; }
+
+.cuerpo :global([class~="tracking-[0.16em]"]),
+.cuerpo :global([class~="tracking-[0.18em]"]),
+.cuerpo :global([class~="tracking-[0.2em]"]),
+.cuerpo :global([class~="tracking-[0.3em]"]),
+.cuerpo :global([class~="tracking-[0.4em]"]),
+.cuerpo :global([class~="tracking-[0.5em]"]),
+.cuerpo :global([class~="tracking-[0.6em]"]) {
+  letter-spacing: 0.14em;
+}
+
+/* Las pastillas redondas del cuerpo siguen siéndolo (la regla global cuadra todo <button>). */
+.cuerpo :global(button[class~="rounded-full"]),
+.cuerpo :global([role="button"][class~="rounded-full"]) {
+  border-radius: 9999px !important;
+}
+
+/* ── Cabecera: acciones como pastillas fantasma ──
+   Tres pesos distintos, a propósito:
+   · el aspecto base (fondo, filo, relleno, color) va con especificidad CERO (`:where`): si el
+     widget pinta su propio estado (un conmutador activo con su color), el suyo manda;
+   · la tipografía va con doble clase: todas las acciones hablan con la voz de Pildora;
+   · el radio va con !important: la regla global cuadra todo <button>. */
+:where(.acciones) :where(a, button, [role="button"]) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 26px;
+  min-width: 26px;
+  padding: 0 10px;
+  border-radius: 9999px;
+  background: color-mix(in srgb, var(--marco-acento, #7c5cff) 12%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--marco-acento, #7c5cff) 40%, transparent);
+  color: rgba(255, 255, 255, 0.88);
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: transform 200ms ease, background-color 200ms ease;
+}
+
+/* Si el widget ya dibuja su borde, sin segundo filo. */
+:where(.acciones) :where(a, button, [role="button"]):where([class~="border"]) {
+  box-shadow: none;
+}
+
+/* Solo un icono: pastilla redonda sin relleno lateral. */
+:where(.acciones) :where(a, button):where(:has(> svg:only-child)) {
+  padding: 0;
+}
+
+:where(.acciones) :where(a:hover, button:hover:not(:disabled)) {
+  background: color-mix(in srgb, var(--marco-acento, #7c5cff) 22%, transparent);
+  transform: translateY(-1px);
+}
+
+/* El brillo de hover global de `.dark button` es violeta; en la cabecera, el del acento. */
+.acciones.acciones :global(button:not([disabled]):not([class~="border"]):hover),
+.acciones.acciones :global([role="button"]:not([class~="border"]):hover) {
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--marco-acento, #7c5cff) 55%, transparent),
+    0 0 16px -4px color-mix(in srgb, var(--marco-acento, #7c5cff) 45%, transparent);
+}
+
+.acciones.acciones :global(a),
+.acciones.acciones :global(button),
+.acciones.acciones :global([role="button"]) {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: none;
+}
+
+.acciones :global(button),
+.acciones :global([role="button"]) {
+  border-radius: 9999px !important;
+}
+
+.acciones :global(a:focus-visible),
+.acciones :global(button:focus-visible) {
+  outline: 2px solid var(--marco-acento, #7c5cff);
+  outline-offset: 2px;
+}
+
+/* Latido del «en vivo». */
+.pulso {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  box-shadow: 0 0 8px currentColor;
+  animation: marcoPulso 2.4s ease-in-out infinite;
+}
+
+@keyframes marcoPulso {
+  0%, 100% { opacity: 0.45; }
+  50% { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .capa[data-entrada="si"],
+  .pulso { animation: none; }
+  .material,
+  .material::after { transition: none; }
+  :where(.acciones) :where(a, button, [role="button"]) { transition: none; }
+  :where(.acciones) :where(a:hover, button:hover:not(:disabled)) { transform: none; }
+}
+
+:global(html[data-perf="eco"]) .capa[data-entrada="si"],
+:global(html[data-perf="eco"]) .pulso {
+  animation: none;
+}

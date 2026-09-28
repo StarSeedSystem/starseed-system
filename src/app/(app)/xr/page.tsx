@@ -14,9 +14,9 @@
 // Suspense (evita el bailout de prerender estático).
 // ════════════════════════════════════════════════════════════════════════════
 
-import { Suspense } from "react";
+import { Suspense, useEffect } from "react";
 import nextDynamic from "next/dynamic";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
 
 // Evita el bailout de prerender estático (este árbol lee Supabase en cliente).
@@ -43,6 +43,13 @@ const XRNetworkHub = nextDynamic(
 function XRHubInner() {
   const params = useSearchParams();
   const ctx = params.get("ctx");
+  // Una llamada «sala VR/AR» abre /xr?sesion=…&modo=…: esa sala compartida vive en /sala-xr (L5).
+  const sesion = params.get("sesion");
+  const router = useRouter();
+  useEffect(() => {
+    if (sesion) router.replace(`/sala-xr?${params.toString()}`);
+  }, [sesion, params, router]);
+  if (sesion) return null;
   return <XRNetworkHub ctx={ctx} />;
 }
 
