@@ -204,7 +204,7 @@ export function AuthForm({ pestanaInicial = 'signin' }: AuthFormProps = {}) {
             // Página principal del OS: el último perfil activo se restaura solo
             // (starseed.profile.active.v1 permanece salvo cierre de sesión manual).
             olvidarEmailSugerido()
-            router.push('/escritorios')
+            router.push('/')
             router.refresh()
         }
     }
