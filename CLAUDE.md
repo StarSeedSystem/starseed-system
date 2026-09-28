@@ -964,3 +964,12 @@ algo de `~/Documents`.** Se envuelve en `scripts/puente/lanzador-tcc.py`, que lo
 python3. Mover los guiones fuera de `~/Documents` **no** arregla nada: lo que hacen es trabajar ahí
 dentro. Y recuerda la trampa hermana: **launchd no usa el PATH para el ejecutable** — ruta absoluta
 siempre, o sale exit 2. Ambas viven documentadas en `scripts/puente/instalar-servicios.py`.
+
+### 5. Una variable CSS se resuelve DONDE se declara, no donde se usa (2026-09-28)
+
+Todo el OS se pintaba en **Times**. `AppearanceProvider` escribe `--font-body: var(--font-inter)`
+en `<html>`, pero las variables de `next/font` (`--font-inter`, …) estaban en la clase de `<body>`:
+en `<html>` no existían, `--font-body` quedaba inválida y `font-family: var(--font-body)` caía a la
+fuente por defecto del navegador. **Regla: las variables de `next/font` van en `<html>`** (así está
+`src/app/layout.tsx`). Síntoma para reconocerlo: `getComputedStyle(document.body).fontFamily`
+devuelve `"Times"` con las fuentes de `/_next/static/media` servidas sin error.
